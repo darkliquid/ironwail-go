@@ -55,3 +55,10 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Used interfaces for subsystems (Server, Client, Console, etc.) to allow for easier testing and decoupling.
 - Implemented command registration using a centralized command system (cmdsys).
 - Handled frame time accumulation for renderer/server isolation, similar to the original C implementation.
+
+## Network Porting (net_main.c, net_udp.c, net_dgrm.c)
+- Ported the Quake datagram protocol to Go using the `net` package.
+- Simplified the driver architecture: instead of function pointer tables, we use a `driver` field in the `Socket` struct and dispatch in `net.go`.
+- Used `encoding/binary` for network byte order (Big Endian for headers, Little Endian for some control message fields).
+- Implemented a basic reliability layer in `datagram.go` with ACKs and retransmissions.
+- Verified with tests that both reliable and unreliable messages work over UDP.

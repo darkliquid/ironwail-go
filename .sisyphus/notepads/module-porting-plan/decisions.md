@@ -36,3 +36,8 @@
 - Decided to use interfaces for subsystems in the Host struct to facilitate mocking and testing.
 - Decided to register host commands in a separate method called during initialization.
 - Decided to implement most host commands as stubs for now, as they require deeper integration with server/client internals that are still being ported.
+
+## Network Porting Decisions
+- Renamed loopback functions in `loopback.go` to have a `Loopback` suffix to avoid name collisions with the high-level API.
+- Used `stdnet "net"` as an alias for the standard library `net` package to avoid conflict with our `net` package.
+- Implemented a simplified `Connect` and `CheckNewConnections` that handles the basic Quake connection handshake (CCREQ_CONNECT / CCREP_ACCEPT).
