@@ -75,3 +75,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - The mixer uses a fixed-point 24.8 representation for intermediate samples in the paint buffer.
 - Low-pass filtering (Blackman window) was implemented for resampling 11025Hz sounds to 44100Hz output.
 - Underwater muffling effect was implemented using a simple one-pole low-pass filter.
+
+## Renderer core init port (gl_rmain.c -> internal/renderer/core.go)
+- Headless WebGPU initialization can be done without a surface by creating a HAL instance and enumerating adapters with `EnumerateAdapters(nil)`.
+- Reusing `native.NewHalBackend` from `gogpu` keeps backend selection aligned with existing renderer behavior while avoiding cgo.
+- The `R_SetFrustum` z-log depth setup maps cleanly to a small frame-data helper (`zlogscale`, `zlogbias`) using `log2(zNear/zFar)`.

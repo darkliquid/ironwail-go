@@ -8,3 +8,5 @@
 - Encountered syntax errors during porting due to manual line number tracking; resolved by re-reading files and using updated line IDs.
 - Some commands (like god, noclip) require direct access to player entities, which is currently limited by the subsystem interfaces.
 - `lsp_diagnostics` for `internal/client/{client.go,parse.go,input.go,demo.go,client_test.go}` returned the same workspace-level `No active builds contain ...` warning; `go test ./internal/client` was used as the authoritative verification step.
+- `lsp_diagnostics` with `severity=all` returned the same workspace-level `No active builds contain ...` warning for `internal/renderer/{core.go,renderer_test.go}`; `severity=error` returned clean diagnostics.
+- `go test ./internal/renderer` failed with `github.com/go-webgpu/goffi/ffi ... GOFFI_REQUIRES_CGO_ENABLED_0`; running with `CGO_ENABLED=0` fixed verification in this environment.

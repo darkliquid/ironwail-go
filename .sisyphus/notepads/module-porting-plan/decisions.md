@@ -51,3 +51,8 @@
 - Moved spatialization logic to a separate file `spatial.go` as requested, but kept it as a method on `System` for easier access to state.
 - Added `viewEntity` to `System` to handle full-volume sounds from the player.
 - Implemented the software mixer with support for 8-bit and 16-bit sounds, and 16-bit stereo output.
+
+## Renderer core init scope decisions
+- Added a dedicated `Core` type in `internal/renderer/core.go` for headless WebGPU initialization instead of changing the existing windowed `Renderer` API in `renderer.go`.
+- Implemented backend support as pure-Go only (`BackendGo/BackendAuto`) for this stage, returning a deterministic error for Rust backend selection.
+- Added `renderer_test.go` coverage that validates unsupported-backend behavior and runs headless init with environment-based skip fallback when no GPU stack is available.
