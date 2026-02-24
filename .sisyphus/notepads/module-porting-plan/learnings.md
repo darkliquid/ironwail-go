@@ -7,3 +7,12 @@
 Ported foundational math and string utilities from common.c and mathlib.c to internal/common and pkg/types.
 Implemented COM_Parse, COM_CheckParm, path/extension utilities, and FNV-1a hash in internal/common.
 Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, AngleVectors, and other math utilities in pkg/types.
+
+## Porting wad.c and gl_texmgr.c texture parsing
+- WAD2 files use a simple header and lump table.
+- QPic format is basically width, height, and indexed pixels.
+- MipTex format includes 4 mip levels and is used for world textures.
+- Quake palette is 768 bytes (256 RGB entries).
+- Index 255 is often used for transparency in Quake UI/HUD graphics.
+- AlphaEdgeFix is used to prevent color bleeding from transparent pixels when using linear filtering.
+- Go's image/png is a direct replacement for lodepng.
