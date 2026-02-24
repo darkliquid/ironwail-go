@@ -24,3 +24,8 @@
 ## Server physics port scope
 - Kept frame iteration in `physics_loop.go` and moved/expanded `sv_phys.c` behavior into `physics.go` helpers and per-movetype handlers (`PhysicsToss`, `PhysicsStep`, `PhysicsPusher`, `PushMove`, `PushEntity`, `FlyMove`).
 - Added `physics_test.go` with deterministic unit coverage for core physics handlers plus a pak-aware integration smoke test (`SkipIfNoPak0`) that runs one server physics frame on `start`.
+
+## Server movement port scope
+- Added `internal/server/movement.go` with direct ports of `SV_CheckBottom`, `SV_movestep`, `SV_StepDirection`, `SV_NewChaseDir`, `SV_CloseEnough`, and `SV_MoveToGoal`, while keeping existing world collision primitives in `world.go` as the authoritative tracing backend.
+- Introduced explicit `SV_Move`, `SV_HullForEntity`, and `SV_TestEntityPosition` wrapper methods to satisfy sv_move.c naming parity without duplicating collision implementation.
+- Added `internal/server/movement_test.go` with unit checks plus a pak-aware spawned-map movement smoke test that dynamically samples a walkable point to avoid brittle map-coordinate fixtures.
