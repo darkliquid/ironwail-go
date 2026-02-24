@@ -41,7 +41,10 @@ package common
 import (
 	"encoding/binary"
 	"io"
+	"strconv"
 	"math"
+	"path/filepath"
+	"strings"
 )
 
 // SizeBuf is a sized buffer used for network message serialization.
@@ -416,4 +419,249 @@ func ReadLittleFloat(r io.Reader) (float32, error) {
 		return 0, err
 	}
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:])), nil
+}
+// Global variables for command line arguments and parsing.
+var (
+	ComToken string
+	ComArgc  int
+	ComArgv  []string
+)
+
+// COM_InitArgv initializes the command line arguments.
+func COM_InitArgv(args []string) {
+	ComArgv = args
+	ComArgc = len(args)
+}
+
+// COM_CheckParmNext returns the position (1 to argc-1) in the program's argument list
+// where the given parameter appears after the 'last' index, or 0 if not present.
+func COM_CheckParmNext(last int, parm string) int {
+	for i := last + 1; i < ComArgc; i++ {
+		if ComArgv[i] == "" {
+			continue
+		}
+		if strings.EqualFold(parm, ComArgv[i]) {
+			return i
+		}
+	}
+	return 0
+}
+
+// COM_CheckParm returns the position (1 to argc-1) in the program's argument list
+// where the given parameter appears, or 0 if not present.
+func COM_CheckParm(parm string) int {
+	return COM_CheckParmNext(0, parm)
+}
+
+// CPE_Mode controls how overflow is handled in COM_ParseEx.
+type CPE_Mode int
+
+const (
+	CPE_NOTRUNC    CPE_Mode = iota // return "" (abort parsing) in case of overflow
+	CPE_ALLOWTRUNC                 // truncate ComToken in case of overflow
+)
+
+// COM_Parse parses a token out of a string. Returns the advanced buffer position.
+// The token is stored in the global ComToken variable.
+func COM_Parse(data string) string {
+	return COM_ParseEx(data, CPE_NOTRUNC)
+}
+
+// COM_ParseEx parses a token out of a string with overflow control.
+func COM_ParseEx(data string, mode CPE_Mode) string {
+	ComToken = ""
+	if data == "" {
+		return ""
+	}
+
+	i := 0
+skipwhite:
+	for i < len(data) && data[i] <= ' ' {
+		i++
+	}
+	if i >= len(data) {
+		return "" // end of file
+	}
+
+	// skip // comments
+	if i+1 < len(data) && data[i] == '/' && data[i+1] == '/' {
+		for i < len(data) && data[i] != '\n' {
+			i++
+		}
+		goto skipwhite
+	}
+
+	// skip /*..*/ comments
+	if i+1 < len(data) && data[i] == '/' && data[i+1] == '*' {
+		i += 2
+		for i < len(data) && !(data[i] == '*' && i+1 < len(data) && data[i+1] == '/') {
+			i++
+		}
+		if i < len(data) {
+			i += 2
+		}
+		goto skipwhite
+	}
+
+	// handle quoted strings specially
+	if data[i] == '"' {
+		i++
+		start := i
+		for i < len(data) && data[i] != '"' {
+			i++
+		}
+		ComToken = data[start:i]
+		if i < len(data) {
+			i++ // skip closing quote
+		}
+		return data[i:]
+	}
+
+	// parse single characters
+	c := data[i]
+	if c == '{' || c == '}' || c == '(' || c == ')' || c == '\'' || c == ':' {
+		ComToken = string(c)
+		return data[i+1:]
+	}
+
+	// parse a regular word
+	start := i
+	for i < len(data) && data[i] > ' ' {
+		c = data[i]
+		if c == '{' || c == '}' || c == '(' || c == ')' || c == '\'' {
+			break
+		}
+		i++
+	}
+	ComToken = data[start:i]
+	return data[i:]
+}
+
+// COM_SkipPath returns the filename portion of a path.
+func COM_SkipPath(pathname string) string {
+	return filepath.Base(pathname)
+}
+
+// COM_SkipSpace skips leading whitespace in a string.
+func COM_SkipSpace(str string) string {
+	return strings.TrimLeft(str, " \t\n\r\v\f")
+}
+
+// COM_StripExtension removes the extension from a filename.
+func COM_StripExtension(in string) string {
+	ext := filepath.Ext(in)
+	if ext == "" {
+		return in
+	}
+	// Check if the dot is part of a directory name
+	lastSlash := strings.LastIndexAny(in, "/\\")
+	lastDot := strings.LastIndex(in, ".")
+	if lastDot < lastSlash {
+		return in
+	}
+	return in[:lastDot]
+}
+
+// COM_FileGetExtension returns the extension of a filename (without the dot).
+func COM_FileGetExtension(in string) string {
+	ext := filepath.Ext(in)
+	if ext == "" {
+		return ""
+	}
+	// Check if the dot is part of a directory name
+	lastSlash := strings.LastIndexAny(in, "/\\")
+	lastDot := strings.LastIndex(in, ".")
+	if lastDot < lastSlash {
+		return ""
+	}
+	return ext[1:] // skip the dot
+}
+
+// COM_ExtractExtension extracts the extension into a buffer.
+func COM_ExtractExtension(in string) string {
+	return COM_FileGetExtension(in)
+}
+
+// COM_FileBase returns the base filename without path or extension.
+func COM_FileBase(in string) string {
+	base := filepath.Base(in)
+	ext := filepath.Ext(base)
+	if ext != "" {
+		base = base[:len(base)-len(ext)]
+	}
+	if base == "" || base == "." {
+		return "?model?"
+	}
+	return base
+}
+
+// COM_AddExtension appends an extension if it's not already there.
+func COM_AddExtension(path, extension string) string {
+	if !strings.HasSuffix(strings.ToLower(path), strings.ToLower(extension)) {
+		return path + extension
+	}
+	return path
+}
+
+// COM_HashString computes the FNV-1a hash of a string.
+func COM_HashString(str string) uint32 {
+	var hash uint32 = 0x811c9dc5
+	for i := 0; i < len(str); i++ {
+		hash ^= uint32(str[i])
+		hash *= 0x01000193
+	}
+	return hash
+}
+
+// COM_HashBlock computes the FNV-1a hash of a memory block.
+func COM_HashBlock(data []byte) uint32 {
+	var hash uint32 = 0x811c9dc5
+	for _, b := range data {
+		hash ^= uint32(b)
+		hash *= 0x01000193
+	}
+	return hash
+}
+
+// COM_ParseIntNewline attempts to parse an int, followed by a newline.
+func COM_ParseIntNewline(buffer string) (string, int) {
+	buffer = strings.TrimLeft(buffer, " \t\v\f") // skip leading spaces but not newline
+	i := 0
+	for i < len(buffer) && (buffer[i] == '-' || (buffer[i] >= '0' && buffer[i] <= '9')) {
+		i++
+	}
+	valStr := buffer[:i]
+	val, _ := strconv.Atoi(valStr)
+	for i < len(buffer) && (buffer[i] == ' ' || buffer[i] == '\t' || buffer[i] == '\r' || buffer[i] == '\n') {
+		i++
+	}
+	return buffer[i:], val
+}
+
+// COM_ParseFloatNewline attempts to parse a float followed by a newline.
+func COM_ParseFloatNewline(buffer string) (string, float32) {
+	buffer = strings.TrimLeft(buffer, " \t\v\f") // skip leading spaces but not newline
+	i := 0
+	for i < len(buffer) && (buffer[i] == '-' || buffer[i] == '.' || (buffer[i] >= '0' && buffer[i] <= '9')) {
+		i++
+	}
+	valStr := buffer[:i]
+	val64, _ := strconv.ParseFloat(valStr, 32)
+	for i < len(buffer) && (buffer[i] == ' ' || buffer[i] == '\t' || buffer[i] == '\r' || buffer[i] == '\n') {
+		i++
+	}
+	return buffer[i:], float32(val64)
+}
+
+// COM_ParseStringNewline parses a string of non-whitespace into ComToken, then tries to consume a newline.
+func COM_ParseStringNewline(buffer string) string {
+	i := 0
+	for i < len(buffer) && buffer[i] > ' ' {
+		i++
+	}
+	ComToken = buffer[:i]
+	for i < len(buffer) && (buffer[i] == ' ' || buffer[i] == '\t' || buffer[i] == '\r' || buffer[i] == '\n') {
+		i++
+	}
+	return buffer[i:]
 }
