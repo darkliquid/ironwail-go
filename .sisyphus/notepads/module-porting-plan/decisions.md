@@ -8,3 +8,7 @@
 - Decided to use io.ReaderAt for LoadWad to allow flexible reading from memory or files.
 - Decided to implement AlphaEdgeFix to maintain visual parity with the original engine.
 - Decided to use standard image.RGBA for converted textures to integrate well with Go's image ecosystem.
+
+## BSP tree loading
+- Added a dedicated `LoadTree` path in `internal/bsp/tree.go` instead of extending the existing generic loader, to keep a focused port of `Mod_Load*` BSP tree routines and enable strict lump-level validation.
+- Normalized version-specific disk formats (`ds*`, `dl1*`, `dl2*`) into shared in-memory `Tree*` structs so tests can assert geometry invariants uniformly across BSP variants.

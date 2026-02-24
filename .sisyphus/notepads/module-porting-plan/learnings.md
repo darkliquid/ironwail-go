@@ -16,3 +16,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Index 255 is often used for transparency in Quake UI/HUD graphics.
 - AlphaEdgeFix is used to prevent color bleeding from transparent pixels when using linear filtering.
 - Go's image/png is a direct replacement for lodepng.
+
+## BSP tree loading (gl_model.c -> internal/bsp/tree.go)
+- The on-disk struct sizes in `bspfile.h` are critical: `dplane_t=20`, `dsnode_t=24`, `dl2node_t=44`, `dl2leaf_t=44`, and `dmodel_t=64`.
+- Parsing BSP children must preserve Quake semantics: standard BSP uses `uint16` reinterpretation (`leaf = 65535 - child`), BSP2 uses bitwise complement of negative child indices.
+- Loading order matters for validation parity with C path: faces -> marksurfaces -> leafs -> nodes lets node/leaf references be validated during load.
