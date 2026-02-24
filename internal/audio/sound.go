@@ -18,8 +18,8 @@ type System struct {
 	rawSamples RawSamplesBuffer
 	backend    Backend
 
-	listener ListenerState
-
+	listener    ListenerState
+	viewEntity  int
 	soundTime   int
 	paintedTime int
 	mixAhead    float64
@@ -183,39 +183,6 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 
 	if s.backend != nil {
 		s.backend.Unlock()
-	}
-}
-
-func (s *System) spatialize(ch *Channel) {
-	if ch.EntNum == 0 {
-		ch.LeftVol = ch.MasterVol
-		ch.RightVol = ch.MasterVol
-		return
-	}
-
-	sourceVec := VectorSubtract(ch.Origin, s.listener.Origin)
-	dist := VectorNormalize(&sourceVec) * ch.DistMult
-	dot := DotProduct(s.listener.Right, sourceVec)
-
-	var lscale, rscale float32
-	if s.dma.Channels == 1 {
-		lscale = 1.0
-		rscale = 1.0
-	} else {
-		rscale = 1.0 + dot
-		lscale = 1.0 - dot
-	}
-
-	scale := (1.0 - dist) * rscale
-	ch.RightVol = int(float32(ch.MasterVol) * scale)
-	if ch.RightVol < 0 {
-		ch.RightVol = 0
-	}
-
-	scale = (1.0 - dist) * lscale
-	ch.LeftVol = int(float32(ch.MasterVol) * scale)
-	if ch.LeftVol < 0 {
-		ch.LeftVol = 0
 	}
 }
 

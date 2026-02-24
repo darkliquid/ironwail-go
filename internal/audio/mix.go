@@ -3,9 +3,20 @@
 
 package audio
 
-import "math"
+import (
+	"math"
+)
 
 const paintBufferSize = 2048
+
+type filter struct {
+	memory     []float32
+	kernel     []float32
+	kernelSize int
+	m          int
+	parity     int
+	fc         float32
+}
 
 type Mixer struct {
 	scaleTable  ScaleTable
@@ -14,17 +25,32 @@ type Mixer struct {
 	underwater  UnderwaterState
 	loFreqLevel float32
 	hiFreqLevel float32
+
+	filterL       filter
+	filterR       filter
+	filterQuality int
+	sndSpeed      int
 }
 
 func NewMixer() *Mixer {
 	return &Mixer{
-		volume: 0.7,
+		volume:        0.7,
+		filterQuality: 5,
+		sndSpeed:      11025,
 	}
 }
 
 func (m *Mixer) SetVolume(vol float64) {
 	m.volume = vol
 	InitScaleTable(&m.scaleTable, vol)
+}
+
+func (m *Mixer) SetFilterQuality(quality int) {
+	m.filterQuality = quality
+}
+
+func (m *Mixer) SetSndSpeed(speed int) {
+	m.sndSpeed = speed
 }
 
 func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, dma *DMAInfo, paintedTime, endTime int) int {
@@ -51,23 +77,52 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 			}
 
 			cache := ch.SFX.Cache
-			if cache.Width == 1 {
-				m.paintChannel8(ch, cache, count)
-			} else {
-				m.paintChannel16(ch, cache, count, sndVol)
+			ltime := paintedTime
+
+			for ltime < end {
+				var paintCount int
+				if ch.End < end {
+					paintCount = ch.End - ltime
+				} else {
+					paintCount = end - ltime
+				}
+
+				if paintCount > 0 {
+					if cache.Width == 1 {
+						m.paintChannel8(ch, cache, paintCount, ltime-paintedTime)
+					} else {
+						m.paintChannel16(ch, cache, paintCount, sndVol, ltime-paintedTime)
+					}
+					ltime += paintCount
+				}
+
+				if ltime >= ch.End {
+					if cache.LoopStart >= 0 {
+						ch.Pos = cache.LoopStart
+						ch.End = ltime + cache.Length - ch.Pos
+					} else {
+						ch.SFX = nil
+						break
+					}
+				}
 			}
 		}
 
 		for i := 0; i < count; i++ {
-			left := clampInt(int(m.paintBuffer[i].Left), -32768*256, 32767*256) / 2
-			right := clampInt(int(m.paintBuffer[i].Right), -32768*256, 32767*256) / 2
-			m.paintBuffer[i].Left = int32(left)
-			m.paintBuffer[i].Right = int32(right)
+			m.paintBuffer[i].Left = int32(ClampInt(int(m.paintBuffer[i].Left), -32768*256, 32767*256) / 2)
+			m.paintBuffer[i].Right = int32(ClampInt(int(m.paintBuffer[i].Right), -32768*256, 32767*256) / 2)
+		}
+
+		if m.sndSpeed == 11025 && dma.Speed == 44100 {
+			m.lowpassFilter(true, count, &m.filterL, m.filterQuality)
+			m.lowpassFilter(false, count, &m.filterR, m.filterQuality)
 		}
 
 		if m.underwater.Intensity > 0 {
 			m.applyUnderwaterFilter(count)
 		}
+
+		m.updateLevels(count)
 
 		if rawSamples.End >= paintedTime {
 			stop := end
@@ -81,14 +136,14 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 			}
 		}
 
-		m.transferPaintBuffer(dma, count)
+		m.transferPaintBuffer(dma, paintedTime, count)
 		paintedTime = end
 	}
 
 	return paintedTime
 }
 
-func (m *Mixer) paintChannel8(ch *Channel, cache *SoundCache, count int) {
+func (m *Mixer) paintChannel8(ch *Channel, cache *SoundCache, count int, paintBufferStart int) {
 	if ch.LeftVol > 255 {
 		ch.LeftVol = 255
 	}
@@ -100,27 +155,27 @@ func (m *Mixer) paintChannel8(ch *Channel, cache *SoundCache, count int) {
 	rscale := m.scaleTable[ch.RightVol>>3]
 
 	for i := 0; i < count; i++ {
-		if ch.Pos >= len(cache.Data) {
+		if ch.Pos >= cache.Length {
 			break
 		}
 		data := cache.Data[ch.Pos]
-		m.paintBuffer[i].Left += lscale[data]
-		m.paintBuffer[i].Right += rscale[data]
+		m.paintBuffer[paintBufferStart+i].Left += lscale[data]
+		m.paintBuffer[paintBufferStart+i].Right += rscale[data]
 		ch.Pos++
 	}
 }
 
-func (m *Mixer) paintChannel16(ch *Channel, cache *SoundCache, count int, sndVol int) {
+func (m *Mixer) paintChannel16(ch *Channel, cache *SoundCache, count int, sndVol int, paintBufferStart int) {
 	leftVol := ch.LeftVol * sndVol / 256
 	rightVol := ch.RightVol * sndVol / 256
 
 	for i := 0; i < count; i++ {
-		if ch.Pos*2+1 >= len(cache.Data) {
+		if ch.Pos >= cache.Length {
 			break
 		}
 		sample := int(int16(uint16(cache.Data[ch.Pos*2]) | uint16(cache.Data[ch.Pos*2+1])<<8))
-		m.paintBuffer[i].Left += int32(sample * leftVol)
-		m.paintBuffer[i].Right += int32(sample * rightVol)
+		m.paintBuffer[paintBufferStart+i].Left += int32(sample * leftVol)
+		m.paintBuffer[paintBufferStart+i].Right += int32(sample * rightVol)
 		ch.Pos++
 	}
 }
@@ -134,18 +189,130 @@ func (m *Mixer) applyUnderwaterFilter(count int) {
 	}
 }
 
-func (m *Mixer) transferPaintBuffer(dma *DMAInfo, count int) {
+func (m *Mixer) updateLevels(count int) {
+	if m.volume <= 0 {
+		m.loFreqLevel = 0
+		m.hiFreqLevel = 0
+		return
+	}
+
+	scale := 0.5 / (m.volume * 32768.0)
+	for i := 0; i < count; i++ {
+		sample := float32(math.Abs(float64(m.paintBuffer[i].Left))+math.Abs(float64(m.paintBuffer[i].Right))) * float32(scale)
+		m.loFreqLevel = Lerp(m.loFreqLevel, sample, 1e-3)
+		m.hiFreqLevel = Lerp(m.hiFreqLevel, sample, 1e-2)
+	}
+}
+
+func (m *Mixer) lowpassFilter(left bool, count int, f *filter, filterQuality int) {
+	mVal := 0
+	var bw float32
+	switch filterQuality {
+	case 1:
+		mVal = 126
+		bw = 0.900
+	case 2:
+		mVal = 150
+		bw = 0.915
+	case 3:
+		mVal = 174
+		bw = 0.930
+	case 4:
+		mVal = 198
+		bw = 0.945
+	case 5:
+	default:
+		mVal = 222
+		bw = 0.960
+	}
+
+	fc := (bw * 11025 / 2.0) / 44100.0
+	m.updateFilter(f, mVal, float32(fc))
+
+	input := make([]float32, f.kernelSize+count)
+	copy(input, f.memory)
+
+	for i := 0; i < count; i++ {
+		var val int32
+		if left {
+			val = m.paintBuffer[i].Left
+		} else {
+			val = m.paintBuffer[i].Right
+		}
+		input[f.kernelSize+i] = float32(val) / (32768.0 * 256.0)
+	}
+
+	copy(f.memory, input[count:])
+
+	parity := f.parity
+	for i := 0; i < count; i++ {
+		inputPlusI := input[i:]
+		var res float32
+
+		for j := (4 - parity) % 4; j < f.kernelSize; j += 16 {
+			res += f.kernel[j] * inputPlusI[j]
+			res += f.kernel[j+4] * inputPlusI[j+4]
+			res += f.kernel[j+8] * inputPlusI[j+8]
+			res += f.kernel[j+12] * inputPlusI[j+12]
+		}
+
+		finalVal := int32(res * (32768.0 * 256.0 * 4.0))
+		if left {
+			m.paintBuffer[i].Left = finalVal
+		} else {
+			m.paintBuffer[i].Right = finalVal
+		}
+		parity = (parity + 1) % 4
+	}
+	f.parity = parity
+}
+
+func (m *Mixer) updateFilter(f *filter, mVal int, fc float32) {
+	if f.fc != fc || f.m != mVal {
+		f.m = mVal
+		f.fc = fc
+		f.parity = 0
+		f.kernelSize = (mVal + 1) + 16 - ((mVal + 1) % 16)
+		f.memory = make([]float32, f.kernelSize)
+		f.kernel = make([]float32, f.kernelSize)
+		m.makeBlackmanWindowKernel(f.kernel, mVal, fc)
+	}
+}
+
+func (m *Mixer) makeBlackmanWindowKernel(kernel []float32, mVal int, fc float32) {
+	for i := 0; i <= mVal; i++ {
+		if i == mVal/2 {
+			kernel[i] = 2 * math.Pi * fc
+		} else {
+			kernel[i] = float32((math.Sin(2*math.Pi*float64(fc)*float64(i-mVal/2)) / float64(i-mVal/2)) *
+				(0.42 - 0.5*math.Cos(2*math.Pi*float64(i)/float64(mVal)) + 0.08*math.Cos(4*math.Pi*float64(i)/float64(mVal))))
+		}
+	}
+
+	var sum float32
+	for i := 0; i <= mVal; i++ {
+		sum += kernel[i]
+	}
+	for i := 0; i <= mVal; i++ {
+		kernel[i] /= sum
+	}
+}
+
+func (m *Mixer) transferPaintBuffer(dma *DMAInfo, paintedTime int, count int) {
 	if dma.SampleBits == 16 && dma.Channels == 2 {
 		for i := 0; i < count; i++ {
-			pos := (dma.SamplePos + i*2) % len(dma.Buffer)
-			left := clampInt(int(m.paintBuffer[i].Left/256), -32768, 32767)
-			right := clampInt(int(m.paintBuffer[i].Right/256), -32768, 32767)
+			lpos := (paintedTime + i) % dma.Samples
+			pos := lpos * 4
+			if pos+3 >= len(dma.Buffer) {
+				continue
+			}
+			left := ClampInt(int(m.paintBuffer[i].Left/256), -32768, 32767)
+			right := ClampInt(int(m.paintBuffer[i].Right/256), -32768, 32767)
 			dma.Buffer[pos] = byte(left)
 			dma.Buffer[pos+1] = byte(left >> 8)
 			dma.Buffer[pos+2] = byte(right)
 			dma.Buffer[pos+3] = byte(right >> 8)
 		}
-		dma.SamplePos = (dma.SamplePos + count*2) % len(dma.Buffer)
 	}
 }
 
@@ -176,13 +343,4 @@ func (m *Mixer) GetLoFreqLevel() float32 {
 
 func (m *Mixer) GetHiFreqLevel() float32 {
 	return m.hiFreqLevel
-}
-func clampInt(val, min, max int) int {
-	if val < min {
-		return min
-	}
-	if val > max {
-		return max
-	}
-	return val
 }
