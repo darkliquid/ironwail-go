@@ -68,7 +68,7 @@ func intAlign(value int) int {
 	return (value + 3) & ^3
 }
 
-func GetMessage(sock *Socket, dest []byte) (int, []byte) {
+func GetMessageLoopback(sock *Socket, dest []byte) (int, []byte) {
 	if sock.receiveMessageLength == 0 {
 		return 0, nil
 	}
@@ -95,7 +95,7 @@ func GetMessage(sock *Socket, dest []byte) (int, []byte) {
 	return int(msgType), dest[:length]
 }
 
-func SendMessage(sock *Socket, data []byte) int {
+func SendMessageLoopback(sock *Socket, data []byte) int {
 	if sock.peer == nil {
 		return -1
 	}
@@ -120,7 +120,7 @@ func SendMessage(sock *Socket, data []byte) int {
 	return 1
 }
 
-func SendUnreliableMessage(sock *Socket, data []byte) int {
+func SendUnreliableMessageLoopback(sock *Socket, data []byte) int {
 	if sock.peer == nil {
 		return -1
 	}
@@ -144,7 +144,7 @@ func SendUnreliableMessage(sock *Socket, data []byte) int {
 	return 1
 }
 
-func Close(sock *Socket) {
+func CloseLoopback(sock *Socket) {
 	if sock.peer != nil {
 		sock.peer.peer = nil
 	}
