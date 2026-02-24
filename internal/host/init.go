@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
+
 
 type InitParams struct {
 	BaseDir    string
@@ -110,9 +112,10 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		}
 	}
 
-	if subs.Commands != nil {
+if subs.Commands != nil {
 		subs.Commands.Init()
-	}
+		h.RegisterCommands(subs)
+}
 
 	if subs.Console != nil {
 		if err := subs.Console.Init(); err != nil {
@@ -183,5 +186,26 @@ func (h *Host) Shutdown(subs *Subsystems) {
 }
 
 func (h *Host) WriteConfig(subs *Subsystems) error {
+	if !h.initialized {
+	return nil
+	}
+
+	configPath := filepath.Join(h.userDir, "config.cfg")
+	f, err := os.Create(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
+	}
+	defer f.Close()
+
+	// Write archived cvars
+	for _, line := range cvar.ArchiveVars() {
+		fmt.Fprintf(f, "%s\n", line)
+	}
+
+	if subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("Wrote %s\n", configPath))
+	}
+
 	return nil
 }
+
