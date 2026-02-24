@@ -137,7 +137,7 @@ func (m *MessageBuffer) ReadShort() int16 {
 		m.BadRead = true
 		return 0
 	}
-	val := int16(binary.LittleEndian.Uint16(m.Data[m.ReadPos:m.ReadPos+2])
+	val := int16(binary.LittleEndian.Uint16(m.Data[m.ReadPos : m.ReadPos+2]))
 	m.ReadPos += 2
 	return val
 }
@@ -148,7 +148,7 @@ func (m *MessageBuffer) ReadFloat() float32 {
 		m.BadRead = true
 		return 0
 	}
-	val := math.Float32frombits(binary.LittleEndian.Uint32(m.Data[m.ReadPos:m.ReadPos+4])
+	val := math.Float32frombits(binary.LittleEndian.Uint32(m.Data[m.ReadPos : m.ReadPos+4]))
 	m.ReadPos += 4
 	return val
 }
@@ -178,7 +178,7 @@ func (m *MessageBuffer) ReadLong() int32 {
 		m.BadRead = true
 		return 0
 	}
-	val := int32(binary.LittleEndian.Uint32(m.Data[m.ReadPos:m.ReadPos+4])
+	val := int32(binary.LittleEndian.Uint32(m.Data[m.ReadPos : m.ReadPos+4]))
 	m.ReadPos += 4
 	return val
 }

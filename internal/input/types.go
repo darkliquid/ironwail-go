@@ -154,6 +154,7 @@ const (
 
 	// Total number of keys
 	NumKeycodes
+	NumKeycode = NumKeycodes
 )
 
 // MaxKeys is the maximum number of key bindings.

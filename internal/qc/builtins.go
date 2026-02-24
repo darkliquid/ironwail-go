@@ -177,7 +177,7 @@ func spawn(vm *VM) {
 //
 // QuakeC signature: void(entity e) remove
 func remove(vm *VM) {
-	modelName := vm.GString(OFSParm0)
+	entNum := int(vm.GFloat(OFSParm0))
 
 	// TODO: Call server's ED_Free(entNum)
 	// This requires access to the server's EntityManager
@@ -209,7 +209,7 @@ func findfloat(vm *VM) {
 //
 // QuakeC signature: entity(entity e) nextent
 func nextent(vm *VM) {
-	modelName := vm.GString(OFSParm0)
+	entNum := int(vm.GFloat(OFSParm0))
 
 	// TODO: Return next entity in the array
 	// Requires iterating from entNum+1 to max_edicts
@@ -265,10 +265,11 @@ func droptofloor(vm *VM) {
 //
 // QuakeC signature: void(entity e, vector org) setorigin
 func setorigin(vm *VM) {
+	entNum := int(vm.GFloat(OFSParm0))
 	org := vm.GVector(OFSParm1)
 
 	// Set entity origin
-	vm.SetEVector(int(entNum), EntFieldOrigin, org)
+	vm.SetEVector(entNum, EntFieldOrigin, org)
 
 	// TODO: Relink entity in world BSP tree
 	fmt.Printf("TODO: setorigin - relink entity %d\n", entNum)
@@ -278,12 +279,13 @@ func setorigin(vm *VM) {
 //
 // QuakeC signature: void(entity e, vector min, vector max) setsize
 func setsize(vm *VM) {
+	entNum := int(vm.GFloat(OFSParm0))
 	mins := vm.GVector(OFSParm1)
 	maxs := vm.GVector(OFSParm2)
 
 	// Set entity mins/maxs
-	vm.SetEVector(int(entNum), EntFieldMins, mins)
-	vm.SetEVector(int(entNum), EntFieldMaxs, maxs)
+	vm.SetEVector(entNum, EntFieldMins, mins)
+	vm.SetEVector(entNum, EntFieldMaxs, maxs)
 
 	// Calculate size
 	size := [3]float32{
@@ -291,7 +293,7 @@ func setsize(vm *VM) {
 		maxs[1] - mins[1],
 		maxs[2] - mins[2],
 	}
-	vm.SetEVector(int(entNum), EntFieldSize, size)
+	vm.SetEVector(entNum, EntFieldSize, size)
 
 	// TODO: Relink entity in world BSP tree
 	fmt.Printf("TODO: setsize - relink entity %d\n", entNum)
@@ -302,6 +304,7 @@ func setsize(vm *VM) {
 //
 // QuakeC signature: void(entity e, string model) setmodel
 func setmodel(vm *VM) {
+	entNum := int(vm.GFloat(OFSParm0))
 	modelName := vm.GString(OFSParm1)
 
 	// TODO: Precache model and set model index
@@ -315,7 +318,7 @@ func setmodel(vm *VM) {
 //
 // QuakeC signature: void(entity ent) movetogoal
 func movetogoal(vm *VM) {
-	modelName := vm.GString(OFSParm0)
+	entNum := int(vm.GFloat(OFSParm0))
 
 	// TODO: Implement goal-directed movement
 	// Requires pathfinding or simple "move toward" logic
@@ -327,7 +330,7 @@ func movetogoal(vm *VM) {
 //
 // QuakeC signature: void(entity ent) changeyaw
 func changeyaw(vm *VM) {
-	modelName := vm.GString(OFSParm0)
+	entNum := int(vm.GFloat(OFSParm0))
 
 	// TODO: Implement yaw smoothing
 	fmt.Printf("TODO: changeyaw - entity %d\n", entNum)
