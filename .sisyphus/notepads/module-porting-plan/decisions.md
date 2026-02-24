@@ -41,3 +41,8 @@
 - Renamed loopback functions in `loopback.go` to have a `Loopback` suffix to avoid name collisions with the high-level API.
 - Used `stdnet "net"` as an alias for the standard library `net` package to avoid conflict with our `net` package.
 - Implemented a simplified `Connect` and `CheckNewConnections` that handles the basic Quake connection handshake (CCREQ_CONNECT / CCREP_ACCEPT).
+
+## Client port scope decisions
+- Replaced the previous minimal `internal/client/client.go` implementation with a structured split across `client.go`, `parse.go`, `input.go`, and `demo.go` to mirror the source module boundaries (`cl_main`, `cl_parse`, `cl_input`, `cl_demo`).
+- Implemented a focused `Parser` that covers sign-on path commands first (`svc_serverinfo`, `svc_signonnum`, `svc_setview`, `svc_cdtrack`) and returns explicit errors on unsupported message opcodes to keep the port fail-fast while incomplete.
+- Added `LerpPoint` and `kbutton` impulse-driven movement assembly (`AdjustAngles`, `BaseMove`, `AccumulateCmd`) as the initial prediction/input baseline rather than deferring all client movement behavior.

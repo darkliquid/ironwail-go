@@ -62,3 +62,9 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Used `encoding/binary` for network byte order (Big Endian for headers, Little Endian for some control message fields).
 - Implemented a basic reliability layer in `datagram.go` with ACKs and retransmissions.
 - Verified with tests that both reliable and unreliable messages work over UDP.
+
+## Client logic port (cl_parse.c, cl_main.c, cl_input.c, cl_demo.c)
+- Parsing server messages is easiest to validate by reproducing Quake's message terminator semantics (`0xFF` == end-of-message) and sign-on progression (`svc_signonnum` 1..4).
+- `svc_serverinfo` parity requires explicit model/sound null-terminated precache list parsing and map name derivation from model slot 1 (`maps/<name>.bsp` -> `<name>`).
+- A static byte-array sign-on test sequence (serverinfo + signonnum stages) gives strong confidence in protocol parsing without requiring a live server.
+- Input parity benefits from preserving `kbutton_t` impulse semantics (`state` bits for down/impulse-down/impulse-up) before movement assembly.

@@ -7,3 +7,4 @@
 - `lsp_diagnostics` with `severity=all` reported the same workspace-level `No active builds contain ...` warning for `internal/server/user*.go`; `severity=error` returned clean diagnostics and `go test ./internal/server` passed.
 - Encountered syntax errors during porting due to manual line number tracking; resolved by re-reading files and using updated line IDs.
 - Some commands (like god, noclip) require direct access to player entities, which is currently limited by the subsystem interfaces.
+- `lsp_diagnostics` for `internal/client/{client.go,parse.go,input.go,demo.go,client_test.go}` returned the same workspace-level `No active builds contain ...` warning; `go test ./internal/client` was used as the authoritative verification step.
