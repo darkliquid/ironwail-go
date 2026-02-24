@@ -33,3 +33,6 @@
 ## Server user port scope
 - Replaced `internal/server/sv_user.go` with `internal/server/user.go` and centered the implementation around C-parity entry points (`SV_ClientThink`, `SV_ReadClientMessage`, `SV_ExecuteUserCommand`) plus compatibility wrappers used by existing server flow.
 - Added `internal/server/user_test.go` with command whitelist checks, move-message decoding checks, noclip think behavior, and a pak-aware spawned-map `RunClients` smoke test using `testutil.SkipIfNoPak0`.
+- Decided to use interfaces for subsystems in the Host struct to facilitate mocking and testing.
+- Decided to register host commands in a separate method called during initialization.
+- Decided to implement most host commands as stubs for now, as they require deeper integration with server/client internals that are still being ported.

@@ -41,6 +41,7 @@ type Host struct {
 	frameTime    float64
 	rawFrameTime float64
 	netInterval  float64
+	accumTime    float64
 
 	serverActive bool
 	serverPaused bool

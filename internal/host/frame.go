@@ -62,34 +62,37 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		cb.GetEvents()
 		cb.ProcessConsoleCommands()
 
-		accumTime := 0.0
 		if h.netInterval > 0 {
-			accumTime = clamp(dt, 0, 0.2)
+			h.accumTime += clamp(dt, 0, 0.2)
 		}
 
-		if accumTime >= h.netInterval {
+		if h.accumTime >= h.netInterval {
+			realFrameTime := h.frameTime
 			if h.netInterval > 0 {
-				h.frameTime = accumTime
+				h.frameTime = h.accumTime
 				if h.frameTime < h.netInterval {
 					h.frameTime = h.netInterval
 				}
-				accumTime -= h.frameTime
+				h.accumTime -= h.frameTime
 				if h.timeScale > 0 {
 					h.frameTime *= h.timeScale
 				} else if h.framerate > 0 {
 					h.frameTime = 1.0 / h.framerate
 				}
+			} else {
+				h.accumTime -= h.netInterval
 			}
 
-			cb.ProcessClient()
+			cb.ProcessClient() // This should be CL_SendCmd
 
 			if h.serverActive {
 				cb.ProcessServer()
 			}
+			h.frameTime = realFrameTime
 		}
 
 		if h.clientState == caConnected || h.clientState == caActive {
-			cb.ProcessClient()
+			cb.ProcessClient() // This should be CL_ReadFromServer
 		}
 
 		cb.UpdateScreen()

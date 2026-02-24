@@ -51,3 +51,7 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Keeping explicit `SV_*` entry points (`SV_ClientThink`, `SV_ReadClientMessage`, `SV_ExecuteUserCommand`) while preserving idiomatic wrappers (`ClientThink`, `ReadClientMessage`) maintains C parity without breaking current call sites.
 - `SV_ReadClientMessage` should decode command bytes as signed (`ReadChar`) so `-1` end-of-message handling matches Quake packet semantics.
 - Command whitelist parity is best preserved with prefix matching (`q_strncasecmp`-style), not exact token matching, to mirror original permissive behavior.
+- Ported host frame loop and command system from C to Go.
+- Used interfaces for subsystems (Server, Client, Console, etc.) to allow for easier testing and decoupling.
+- Implemented command registration using a centralized command system (cmdsys).
+- Handled frame time accumulation for renderer/server isolation, similar to the original C implementation.
