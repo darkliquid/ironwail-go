@@ -1,0 +1,137 @@
+package renderer
+
+import (
+	"math/rand"
+	"testing"
+)
+
+func TestParticleSystemCapacityAndAlloc(t *testing.T) {
+	ps := NewParticleSystem(4)
+	if ps.Capacity() != AbsoluteMinParticles {
+		t.Fatalf("Capacity = %d, want %d", ps.Capacity(), AbsoluteMinParticles)
+	}
+
+	ps = NewParticleSystem(2)
+	for i := 0; i < ps.Capacity(); i++ {
+		if ps.AllocParticle(1.0) == nil {
+			t.Fatalf("AllocParticle returned nil at %d", i)
+		}
+	}
+	if ps.AllocParticle(1.0) != nil {
+		t.Fatalf("AllocParticle should fail at capacity")
+	}
+
+	ps.Clear()
+	if ps.ActiveCount() != 0 {
+		t.Fatalf("ActiveCount after Clear = %d, want 0", ps.ActiveCount())
+	}
+}
+
+func TestParticleTextureAndDrawMode(t *testing.T) {
+	uv, scale := ParticleTexture(1)
+	if uv != 1 || scale != 1.27 {
+		t.Fatalf("ParticleTexture(1) = (%v,%v), want (1,1.27)", uv, scale)
+	}
+
+	uv, scale = ParticleTexture(2)
+	if uv != 0.25 || scale != 1.0 {
+		t.Fatalf("ParticleTexture(2) = (%v,%v), want (0.25,1.0)", uv, scale)
+	}
+
+	if !ShouldDrawParticles(1, true, false, 10) {
+		t.Fatalf("mode 1 alpha pass expected true")
+	}
+	if ShouldDrawParticles(1, false, false, 10) {
+		t.Fatalf("mode 1 opaque pass expected false")
+	}
+	if !ShouldDrawParticles(2, false, false, 10) {
+		t.Fatalf("mode 2 opaque pass expected true")
+	}
+	if ShouldDrawParticles(2, true, false, 10) {
+		t.Fatalf("mode 2 alpha pass expected false")
+	}
+}
+
+func TestRunParticlesCompactsAndUpdates(t *testing.T) {
+	ps := NewParticleSystem(512)
+	p0 := ps.AllocParticle(0.0)
+	p0.Die = 10
+	p0.Spawn = -1
+	p0.Type = ParticleFire
+	p0.Ramp = 0
+	p0.Vel = [3]float32{0, 0, 10}
+
+	p1 := ps.AllocParticle(0.0)
+	p1.Die = -1
+	p1.Spawn = -1
+	p1.Type = ParticleStatic
+
+	p2 := ps.AllocParticle(0.0)
+	p2.Die = 10
+	p2.Spawn = 2
+	p2.Type = ParticleStatic
+
+	ps.RunParticles(1.0, 0.0, 800)
+	if ps.ActiveCount() != 1 {
+		t.Fatalf("ActiveCount = %d, want 1", ps.ActiveCount())
+	}
+	got := ps.ActiveParticles()[0]
+	if got.Color != ramp3[5] {
+		t.Fatalf("fire color = %d, want %d", got.Color, ramp3[5])
+	}
+	if got.Vel[2] <= 10 {
+		t.Fatalf("fire vel.z = %f, want > 10", got.Vel[2])
+	}
+}
+
+func TestRunParticleEffectRocketExplosion(t *testing.T) {
+	ps := NewParticleSystem(2048)
+	rng := rand.New(rand.NewSource(1))
+	ps.RunParticleEffect([3]float32{1, 2, 3}, [3]float32{1, 0, 0}, 100, 1024, rng, 5)
+
+	if ps.ActiveCount() != 1024 {
+		t.Fatalf("ActiveCount = %d, want 1024", ps.ActiveCount())
+	}
+	a := ps.ActiveParticles()
+	if a[0].Type != ParticleExplode2 || a[1].Type != ParticleExplode {
+		t.Fatalf("types = (%d,%d), want (explode2,explode)", a[0].Type, a[1].Type)
+	}
+	if a[0].Die != 10 {
+		t.Fatalf("die = %f, want 10", a[0].Die)
+	}
+}
+
+func TestRocketTrailTracerAlternatesVelocity(t *testing.T) {
+	ps := NewParticleSystem(1024)
+	rng := rand.New(rand.NewSource(2))
+	ps.RocketTrail([3]float32{0, 0, 0}, [3]float32{9, 0, 0}, 3, rng, 1)
+
+	a := ps.ActiveParticles()
+	if len(a) < 2 {
+		t.Fatalf("need at least 2 tracer particles, got %d", len(a))
+	}
+	if a[0].Type != ParticleStatic || a[1].Type != ParticleStatic {
+		t.Fatalf("tracer type mismatch: %d %d", a[0].Type, a[1].Type)
+	}
+	if a[0].Vel[1] == a[1].Vel[1] {
+		t.Fatalf("expected alternating tracer side velocity, got %f and %f", a[0].Vel[1], a[1].Vel[1])
+	}
+}
+
+func TestBuildParticleVertices(t *testing.T) {
+	palette := [256][4]byte{}
+	palette[3] = [4]byte{10, 20, 30, 40}
+
+	verts := BuildParticleVertices([]Particle{{Org: [3]float32{1, 2, 3}, Color: 3}}, palette, false)
+	if len(verts) != 1 {
+		t.Fatalf("len = %d, want 1", len(verts))
+	}
+	if verts[0].Color != [4]byte{10, 20, 30, 40} {
+		t.Fatalf("color = %v, want [10 20 30 40]", verts[0].Color)
+	}
+
+	verts = BuildParticleVertices([]Particle{{Org: [3]float32{1, 2, 3}, Color: 3}}, palette, true)
+	if verts[0].Color != [4]byte{255, 255, 255, 255} {
+		t.Fatalf("showtris color = %v, want white", verts[0].Color)
+	}
+}
