@@ -1,0 +1,824 @@
+// Package server implements the Quake server physics and game logic.
+//
+// world.go provides world collision detection and spatial queries.
+// It implements:
+//   - Hull-based collision against BSP geometry
+//   - Entity-to-entity collision clipping
+//   - Area grid for efficient spatial queries
+//   - Point contents testing
+package server
+
+import (
+	"math"
+
+	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/model"
+)
+
+// Move types for SV_Move
+const (
+	MoveNormal     = 0 // Normal move
+	MoveNoMonsters = 1 // Ignore monsters (only BSP collision)
+	MoveMissile    = 2 // Missile move (uses larger bbox for clipping)
+	MoveWaterJump  = 3 // Water jump move
+)
+
+// Collision constants
+const (
+	DistEpsilon = 0.03125 // Distance epsilon for hull checks
+
+	// Area grid depth (affects spatial partitioning granularity)
+	AreaDepth = 4
+	AreaNodes = 1 << AreaDepth
+)
+
+// moveClip holds state during a move/clipping operation.
+type moveClip struct {
+	boxMins   [3]float32 // Enclose the test object along entire move
+	boxMaxs   [3]float32
+	mins      [3]float32 // Size of the moving object
+	maxs      [3]float32
+	mins2     [3]float32 // Size when clipping against monsters
+	maxs2     [3]float32
+	start     [3]float32
+	end       [3]float32
+	trace     TraceResult
+	moveType  int
+	passedict *Edict
+}
+
+// Box hull state - used for entity bounding box collision
+var (
+	boxHull       model.Hull
+	boxClipNodes  [6]model.MClipNode
+	boxPlanes     [6]model.MPlane
+	boxHullInited bool
+)
+
+// initBoxHull sets up the planes and clipnodes so that the six floats
+// of a bounding box can just be stored out and get a proper hull structure.
+func initBoxHull() {
+	if boxHullInited {
+		return
+	}
+
+	boxHull.ClipNodes = boxClipNodes[:]
+	boxHull.Planes = boxPlanes[:]
+	boxHull.FirstClipNode = 0
+	boxHull.LastClipNode = 5
+
+	for i := 0; i < 6; i++ {
+		boxClipNodes[i].PlaneNum = i
+		side := i & 1
+		boxClipNodes[i].Children[side] = bsp.ContentsEmpty
+		if i != 5 {
+			boxClipNodes[i].Children[side^1] = i + 1
+		} else {
+			boxClipNodes[i].Children[side^1] = bsp.ContentsSolid
+		}
+		boxPlanes[i].Type = uint8(i >> 1)
+		boxPlanes[i].Normal[i>>1] = 1
+	}
+
+	boxHullInited = true
+}
+
+// hullForBox creates a temporary hull from bounding box sizes.
+// To keep everything uniform, bounding boxes are turned into small
+// BSP trees instead of being compared directly.
+func hullForBox(mins, maxs [3]float32) *model.Hull {
+	initBoxHull()
+
+	boxPlanes[0].Dist = maxs[0]
+	boxPlanes[1].Dist = mins[0]
+	boxPlanes[2].Dist = maxs[1]
+	boxPlanes[3].Dist = mins[1]
+	boxPlanes[4].Dist = maxs[2]
+	boxPlanes[5].Dist = mins[2]
+
+	return &boxHull
+}
+
+// hullForEntity returns a hull that can be used for testing or clipping
+// an object of mins/maxs size.
+// The offset is filled in to contain the adjustment that must be added
+// to the testing object's origin to get a point to use with the returned hull.
+func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]float32) *model.Hull {
+	// Decide which clipping hull to use, based on the size
+	if int(ent.Vars.Solid) == int(SolidBSP) {
+		// Explicit hulls in the BSP model
+		// Note: In full implementation, we would verify movetype is MOVETYPE_PUSH
+		// and that the model exists and is a brush model
+
+		// Get model from model index
+		// For now, use hull 0 (point hull) as default
+		var hull *model.Hull
+
+		// Calculate size to determine which hull to use
+		size := [3]float32{
+			maxs[0] - mins[0],
+			maxs[1] - mins[1],
+			maxs[2] - mins[2],
+		}
+
+		// Try to get the model from WorldModel or models array
+		// For now, use a simple size-based selection
+		if s.WorldModel != nil {
+			if m, ok := s.WorldModel.(*model.Model); ok && m != nil {
+				if size[0] < 3 {
+					hull = &m.Hulls[0]
+				} else if size[0] <= 32 {
+					hull = &m.Hulls[1]
+				} else {
+					hull = &m.Hulls[2]
+				}
+
+				// Calculate offset value to center the origin
+				offset[0] = hull.ClipMins[0] - mins[0] + ent.Vars.Origin[0]
+				offset[1] = hull.ClipMins[1] - mins[1] + ent.Vars.Origin[1]
+				offset[2] = hull.ClipMins[2] - mins[2] + ent.Vars.Origin[2]
+				return hull
+			}
+		}
+
+		// Fallback to box hull
+		hullMins := [3]float32{
+			ent.Vars.Mins[0] - maxs[0],
+			ent.Vars.Mins[1] - maxs[1],
+			ent.Vars.Mins[2] - maxs[2],
+		}
+		hullMaxs := [3]float32{
+			ent.Vars.Maxs[0] - mins[0],
+			ent.Vars.Maxs[1] - mins[1],
+			ent.Vars.Maxs[2] - mins[2],
+		}
+		hull = hullForBox(hullMins, hullMaxs)
+		offset[0] = ent.Vars.Origin[0]
+		offset[1] = ent.Vars.Origin[1]
+		offset[2] = ent.Vars.Origin[2]
+		return hull
+	}
+
+	// Create a temp hull from bounding box sizes
+	hullMins := [3]float32{
+		ent.Vars.Mins[0] - maxs[0],
+		ent.Vars.Mins[1] - maxs[1],
+		ent.Vars.Mins[2] - maxs[2],
+	}
+	hullMaxs := [3]float32{
+		ent.Vars.Maxs[0] - mins[0],
+		ent.Vars.Maxs[1] - mins[1],
+		ent.Vars.Maxs[2] - mins[2],
+	}
+	hull := hullForBox(hullMins, hullMaxs)
+
+	offset[0] = ent.Vars.Origin[0]
+	offset[1] = ent.Vars.Origin[1]
+	offset[2] = ent.Vars.Origin[2]
+	return hull
+}
+
+// ============================================================================
+// POINT TESTING IN HULLS
+// ============================================================================
+
+// hullPointContents returns the contents at a point within a hull.
+// This recursively traverses the BSP tree to find which leaf the point is in.
+func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
+	// Handle leaf nodes (negative numbers)
+	if num < 0 {
+		return num
+	}
+
+	// Safety check
+	if num < hull.FirstClipNode || num > hull.LastClipNode {
+		return bsp.ContentsSolid
+	}
+
+	for num >= 0 {
+		if num < hull.FirstClipNode || num > hull.LastClipNode {
+			return bsp.ContentsSolid
+		}
+
+		node := &hull.ClipNodes[num]
+		plane := &hull.Planes[node.PlaneNum]
+
+		var d float32
+		if plane.Type < 3 {
+			d = p[plane.Type] - plane.Dist
+		} else {
+			d = plane.Normal[0]*p[0] + plane.Normal[1]*p[1] + plane.Normal[2]*p[2] - plane.Dist
+		}
+
+		if d < 0 {
+			num = node.Children[1]
+		} else {
+			num = node.Children[0]
+		}
+	}
+
+	return num
+}
+
+// PointContents returns the contents at a point in the world.
+// This is the main entry point for checking what's at a location.
+func (s *Server) PointContents(p [3]float32) int {
+	// Get world model's hull 0 (point hull)
+	if s.WorldModel == nil {
+		return bsp.ContentsSolid
+	}
+
+	m, ok := s.WorldModel.(*model.Model)
+	if !ok || len(m.Hulls) == 0 {
+		return bsp.ContentsSolid
+	}
+
+	cont := hullPointContents(&m.Hulls[0], 0, p)
+
+	// Current contents are simplified to water
+	if cont <= bsp.ContentsCurrent0 && cont >= bsp.ContentsCurrentDown {
+		cont = bsp.ContentsWater
+	}
+
+	return cont
+}
+
+// ============================================================================
+// LINE TESTING IN HULLS (Recursive Hull Check)
+// ============================================================================
+
+// recursiveHullCheck traces a line through a BSP hull.
+// This is the core collision detection function.
+func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]float32, trace *TraceResult) bool {
+	// Check for empty (leaf node)
+	if num < 0 {
+		if num != bsp.ContentsSolid {
+			trace.AllSolid = false
+			if num == bsp.ContentsEmpty {
+				// trace.inOpen = true  // Could track this for line-of-sight
+			} else {
+				// trace.inWater = true
+			}
+		} else {
+			trace.StartSolid = true
+		}
+		return true // empty
+	}
+
+	// Safety check
+	if num < hull.FirstClipNode || num > hull.LastClipNode {
+		return false
+	}
+
+	// Find the point distances
+	node := &hull.ClipNodes[num]
+	plane := &hull.Planes[node.PlaneNum]
+
+	var t1, t2 float32
+	if plane.Type < 3 {
+		t1 = p1[plane.Type] - plane.Dist
+		t2 = p2[plane.Type] - plane.Dist
+	} else {
+		t1 = plane.Normal[0]*p1[0] + plane.Normal[1]*p1[1] + plane.Normal[2]*p1[2] - plane.Dist
+		t2 = plane.Normal[0]*p2[0] + plane.Normal[1]*p2[1] + plane.Normal[2]*p2[2] - plane.Dist
+	}
+
+	// Both points on same side - recurse down that side
+	if t1 >= 0 && t2 >= 0 {
+		return recursiveHullCheck(hull, node.Children[0], p1f, p2f, p1, p2, trace)
+	}
+	if t1 < 0 && t2 < 0 {
+		return recursiveHullCheck(hull, node.Children[1], p1f, p2f, p1, p2, trace)
+	}
+
+	// Put the crosspoint DIST_EPSILON pixels on the near side
+	var frac float32
+	if t1 < 0 {
+		frac = (t1 + DistEpsilon) / (t1 - t2)
+	} else {
+		frac = (t1 - DistEpsilon) / (t1 - t2)
+	}
+	if frac < 0 {
+		frac = 0
+	}
+	if frac > 1 {
+		frac = 1
+	}
+
+	midf := p1f + (p2f-p1f)*frac
+	var mid [3]float32
+	for i := 0; i < 3; i++ {
+		mid[i] = p1[i] + frac*(p2[i]-p1[i])
+	}
+
+	side := 0
+	if t1 < 0 {
+		side = 1
+	}
+
+	// Move up to the node
+	if !recursiveHullCheck(hull, node.Children[side], p1f, midf, p1, mid, trace) {
+		return false
+	}
+
+	// Go past the node if the other side isn't solid
+	if hullPointContents(hull, node.Children[side^1], mid) != bsp.ContentsSolid {
+		return recursiveHullCheck(hull, node.Children[side^1], midf, p2f, mid, p2, trace)
+	}
+
+	if trace.AllSolid {
+		return false // never got out of the solid area
+	}
+
+	// The other side of the node is solid, this is the impact point
+	if side == 0 {
+		trace.PlaneNormal = plane.Normal
+		// trace.plane.dist = plane.dist
+	} else {
+		trace.PlaneNormal = [3]float32{-plane.Normal[0], -plane.Normal[1], -plane.Normal[2]}
+		// trace.plane.dist = -plane.dist
+	}
+
+	// Back up until we're outside the solid
+	for hullPointContents(hull, hull.FirstClipNode, mid) == bsp.ContentsSolid {
+		frac -= 0.1
+		if frac < 0 {
+			trace.Fraction = midf
+			trace.EndPos = mid
+			return false
+		}
+		midf = p1f + (p2f-p1f)*frac
+		for i := 0; i < 3; i++ {
+			mid[i] = p1[i] + frac*(p2[i]-p1[i])
+		}
+	}
+
+	trace.Fraction = midf
+	trace.EndPos = mid
+
+	return false
+}
+
+// clipMoveToEntity handles selection of a clipping hull, and offsetting
+// of the end points for tracing against a single entity.
+func (s *Server) clipMoveToEntity(ent *Edict, start, mins, maxs, end [3]float32) TraceResult {
+	// Fill in a default trace
+	trace := TraceResult{
+		Fraction: 1,
+		AllSolid: true,
+		EndPos:   end,
+	}
+
+	// Get the clipping hull
+	var offset [3]float32
+	hull := s.hullForEntity(ent, mins, maxs, &offset)
+
+	// Offset start and end points
+	startL := [3]float32{
+		start[0] - offset[0],
+		start[1] - offset[1],
+		start[2] - offset[2],
+	}
+	endL := [3]float32{
+		end[0] - offset[0],
+		end[1] - offset[1],
+		end[2] - offset[2],
+	}
+
+	// Trace a line through the appropriate clipping hull
+	recursiveHullCheck(hull, hull.FirstClipNode, 0, 1, startL, endL, &trace)
+
+	// Fix trace up by the offset
+	if trace.Fraction != 1 {
+		trace.EndPos[0] += offset[0]
+		trace.EndPos[1] += offset[1]
+		trace.EndPos[2] += offset[2]
+	}
+
+	// Did we clip the move?
+	if trace.Fraction < 1 || trace.StartSolid {
+		trace.Entity = ent
+	}
+
+	return trace
+}
+
+// ============================================================================
+// ENTITY AREA CHECKING
+// ============================================================================
+
+// createAreaNode creates an area node for spatial partitioning.
+func (s *Server) createAreaNode(depth int, mins, maxs [3]float32) *AreaNode {
+	if len(s.Areanodes) <= s.numAreaNodes {
+		// Allocate more nodes if needed
+		return nil
+	}
+
+	node := &s.Areanodes[s.numAreaNodes]
+	s.numAreaNodes++
+
+	if depth == AreaDepth {
+		node.Axis = -1
+		node.Children[0] = nil
+		node.Children[1] = nil
+		return node
+	}
+
+	size := [3]float32{
+		maxs[0] - mins[0],
+		maxs[1] - mins[1],
+		maxs[2] - mins[2],
+	}
+
+	if size[0] > size[1] {
+		node.Axis = 0
+	} else {
+		node.Axis = 1
+	}
+
+	node.Dist = 0.5 * (maxs[node.Axis] + mins[node.Axis])
+
+	mins1 := mins
+	maxs1 := maxs
+	mins2 := mins
+	maxs2 := maxs
+
+	maxs1[node.Axis] = node.Dist
+	mins2[node.Axis] = node.Dist
+
+	node.Children[0] = s.createAreaNode(depth+1, mins2, maxs2)
+	node.Children[1] = s.createAreaNode(depth+1, mins1, maxs1)
+
+	return node
+}
+
+// ClearWorld initializes the area nodes for a new map.
+func (s *Server) ClearWorld() {
+	initBoxHull()
+
+	// Reset area nodes
+	s.numAreaNodes = 0
+
+	// Get world bounds
+	var mins, maxs [3]float32
+	if s.WorldModel != nil {
+		if m, ok := s.WorldModel.(*model.Model); ok && m != nil {
+			mins = m.Mins
+			maxs = m.Maxs
+		}
+	}
+
+	// Create area node tree
+	s.createAreaNode(0, mins, maxs)
+}
+
+// UnlinkEdict removes an entity from the area grid.
+func UnlinkEdict(ent *Edict) {
+	if ent.AreaPrev == nil {
+		return // not linked in anywhere
+	}
+
+	// Remove from linked list
+	if ent.AreaPrev != nil {
+		ent.AreaPrev.AreaNext = ent.AreaNext
+	}
+	if ent.AreaNext != nil {
+		ent.AreaNext.AreaPrev = ent.AreaPrev
+	}
+	ent.AreaPrev = nil
+	ent.AreaNext = nil
+}
+
+// LinkEdict adds an entity to the area grid.
+func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
+	// Unlink from old position
+	UnlinkEdict(ent)
+
+	// Don't add the world
+	if ent == s.Edicts[0] {
+		return
+	}
+	if ent.Free {
+		return
+	}
+
+	// Set the abs box
+	ent.Vars.AbsMin[0] = ent.Vars.Origin[0] + ent.Vars.Mins[0]
+	ent.Vars.AbsMin[1] = ent.Vars.Origin[1] + ent.Vars.Mins[1]
+	ent.Vars.AbsMin[2] = ent.Vars.Origin[2] + ent.Vars.Mins[2]
+	ent.Vars.AbsMax[0] = ent.Vars.Origin[0] + ent.Vars.Maxs[0]
+	ent.Vars.AbsMax[1] = ent.Vars.Origin[1] + ent.Vars.Maxs[1]
+	ent.Vars.AbsMax[2] = ent.Vars.Origin[2] + ent.Vars.Maxs[2]
+
+	// Items get expanded bounding boxes for easier pickup
+	if int(ent.Vars.Flags)&FlagItem != 0 {
+		ent.Vars.AbsMin[0] -= 15
+		ent.Vars.AbsMin[1] -= 15
+		ent.Vars.AbsMax[0] += 15
+		ent.Vars.AbsMax[1] += 15
+	} else {
+		// Because movement is clipped an epsilon away from an actual edge,
+		// we must fully check even when bounding boxes don't quite touch
+		ent.Vars.AbsMin[0] -= 1
+		ent.Vars.AbsMin[1] -= 1
+		ent.Vars.AbsMin[2] -= 1
+		ent.Vars.AbsMax[0] += 1
+		ent.Vars.AbsMax[1] += 1
+		ent.Vars.AbsMax[2] += 1
+	}
+
+	// Link to PVS leafs
+	ent.NumLeafs = 0
+	if ent.Vars.ModelIndex != 0 && s.WorldModel != nil {
+		if m, ok := s.WorldModel.(*model.Model); ok && len(m.Nodes) > 0 {
+			s.findTouchedLeafs(ent, &m.Nodes[0])
+		}
+	}
+
+	if int(ent.Vars.Solid) == int(SolidNot) {
+		return
+	}
+
+	// Find the first node that the ent's box crosses
+	if len(s.Areanodes) == 0 {
+		return
+	}
+
+	node := &s.Areanodes[0]
+	for node.Axis != -1 {
+		if ent.Vars.AbsMin[node.Axis] > node.Dist {
+			if node.Children[0] == nil {
+				break
+			}
+			node = node.Children[0]
+		} else if ent.Vars.AbsMax[node.Axis] < node.Dist {
+			if node.Children[1] == nil {
+				break
+			}
+			node = node.Children[1]
+		} else {
+			break // crosses the node
+		}
+	}
+
+	// Link it in
+	if int(ent.Vars.Solid) == int(SolidTrigger) {
+		// Insert at head of trigger list
+		ent.AreaNext = node.TriggerEdicts.AreaNext
+		if node.TriggerEdicts.AreaNext != nil {
+			node.TriggerEdicts.AreaNext.AreaPrev = ent
+		}
+		ent.AreaPrev = &node.TriggerEdicts
+		node.TriggerEdicts.AreaNext = ent
+	} else {
+		// Insert at head of solid list
+		ent.AreaNext = node.SolidEdicts.AreaNext
+		if node.SolidEdicts.AreaNext != nil {
+			node.SolidEdicts.AreaNext.AreaPrev = ent
+		}
+		ent.AreaPrev = &node.SolidEdicts
+		node.SolidEdicts.AreaNext = ent
+	}
+}
+
+// findTouchedLeafs finds all PVS leafs that an entity touches.
+func (s *Server) findTouchedLeafs(ent *Edict, node *model.MNode) {
+	// Check for solid node
+	if node.Contents == bsp.ContentsSolid {
+		return
+	}
+
+	if ent.NumLeafs >= MaxEntityLeafs {
+		return
+	}
+
+	// Check if this is a leaf (MNode with negative contents means leaf-like)
+	// In our model, MLeaf is separate, but we check for leaf-like behavior
+	if node.Children[0] == nil && node.Children[1] == nil {
+		// This is effectively a leaf
+		ent.NumLeafs++
+		return
+	}
+
+	// NODE_MIXED - check which sides we touch
+	// This is a simplified version - full version would check plane bounds
+	if node.Children[0] != nil {
+		s.findTouchedLeafs(ent, node.Children[0])
+	}
+	if node.Children[1] != nil {
+		s.findTouchedLeafs(ent, node.Children[1])
+	}
+}
+
+// ============================================================================
+// MAIN MOVE FUNCTION
+// ============================================================================
+
+// moveBounds calculates the bounding box for a move.
+func moveBounds(start, mins, maxs, end [3]float32) (boxmins, boxmaxs [3]float32) {
+	for i := 0; i < 3; i++ {
+		if end[i] > start[i] {
+			boxmins[i] = start[i] + mins[i] - 1
+			boxmaxs[i] = end[i] + maxs[i] + 1
+		} else {
+			boxmins[i] = end[i] + mins[i] - 1
+			boxmaxs[i] = start[i] + maxs[i] + 1
+		}
+	}
+	return
+}
+
+// clipToLinks clips a move to all entities in an area node.
+func (s *Server) clipToLinks(node *AreaNode, clip *moveClip) {
+	// Touch linked edicts
+	for ent := node.SolidEdicts.AreaNext; ent != nil && ent != &node.SolidEdicts; ent = ent.AreaNext {
+		if ent.Vars.Solid == float32(SolidNot) {
+			continue
+		}
+		if ent == clip.passedict {
+			continue
+		}
+		if ent.Vars.Solid == float32(SolidTrigger) {
+			continue // Triggers shouldn't be in solid list
+		}
+
+		if clip.moveType == MoveNoMonsters && ent.Vars.Solid != float32(SolidBSP) {
+			continue
+		}
+
+		// Check bounding box overlap
+		if clip.boxMins[0] > ent.Vars.AbsMax[0] ||
+			clip.boxMins[1] > ent.Vars.AbsMax[1] ||
+			clip.boxMins[2] > ent.Vars.AbsMax[2] ||
+			clip.boxMaxs[0] < ent.Vars.AbsMin[0] ||
+			clip.boxMaxs[1] < ent.Vars.AbsMin[1] ||
+			clip.boxMaxs[2] < ent.Vars.AbsMin[2] {
+			continue
+		}
+
+		// Point entities never interact
+		if clip.passedict != nil && clip.passedict.Vars.Size[0] != 0 && ent.Vars.Size[0] == 0 {
+			continue
+		}
+
+		// Don't clip against own missiles or owner
+		if clip.passedict != nil {
+			if ent.Vars.Owner != 0 && s.EdictNum(int(ent.Vars.Owner)) == clip.passedict {
+				continue
+			}
+			if clip.passedict.Vars.Owner != 0 && s.EdictNum(int(clip.passedict.Vars.Owner)) == ent {
+				continue
+			}
+		}
+
+		// Do an exact clip
+		if clip.trace.AllSolid {
+			return
+		}
+
+		var trace TraceResult
+		if int(ent.Vars.Flags)&FlagMonster != 0 {
+			trace = s.clipMoveToEntity(ent, clip.start, clip.mins2, clip.maxs2, clip.end)
+		} else {
+			trace = s.clipMoveToEntity(ent, clip.start, clip.mins, clip.maxs, clip.end)
+		}
+
+		if trace.AllSolid || trace.StartSolid || trace.Fraction < clip.trace.Fraction {
+			trace.Entity = ent
+			if clip.trace.StartSolid {
+				clip.trace = trace
+				clip.trace.StartSolid = true
+			} else {
+				clip.trace = trace
+			}
+		} else if trace.StartSolid {
+			clip.trace.StartSolid = true
+		}
+	}
+
+	// Recurse down both sides
+	if node.Axis == -1 {
+		return
+	}
+
+	if clip.boxMaxs[node.Axis] > node.Dist && node.Children[0] != nil {
+		s.clipToLinks(node.Children[0], clip)
+	}
+	if clip.boxMins[node.Axis] < node.Dist && node.Children[1] != nil {
+		s.clipToLinks(node.Children[1], clip)
+	}
+}
+
+// Move traces a move from start to end with the given bounding box.
+// This is the main entry point for all collision detection.
+func (s *Server) Move(start, mins, maxs, end [3]float32, moveType MoveType, passedict *Edict) TraceResult {
+	var clip moveClip
+
+	// Clip to world first
+	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
+		clip.trace = s.clipMoveToEntity(s.Edicts[0], start, mins, maxs, end)
+	}
+
+	clip.start = start
+	clip.end = end
+	clip.mins = mins
+	clip.maxs = maxs
+	clip.moveType = int(moveType)
+	clip.passedict = passedict
+
+	// Set up mins2/maxs2 for monster clipping
+	if moveType == MoveMissile {
+		for i := 0; i < 3; i++ {
+			clip.mins2[i] = -15
+			clip.maxs2[i] = 15
+		}
+	} else {
+		clip.mins2 = mins
+		clip.maxs2 = maxs
+	}
+
+	// Create the bounding box of the entire move
+	clip.boxMins, clip.boxMaxs = moveBounds(start, clip.mins2, clip.maxs2, end)
+
+	// Clip to entities
+	if len(s.Areanodes) > 0 {
+		s.clipToLinks(&s.Areanodes[0], &clip)
+	}
+
+	return clip.trace
+}
+
+// TestEntityPosition tests if an entity is stuck in solid.
+func (s *Server) TestEntityPosition(ent *Edict) *Edict {
+	trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, ent.Vars.Origin, MoveNormal, ent)
+
+	if trace.StartSolid {
+		if trace.Entity != nil {
+			return trace.Entity
+		}
+		return s.Edicts[0] // world
+	}
+
+	return nil
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// boxOnPlaneSide returns which side of a plane a box is on.
+// Returns 1, 2, or 3 (both sides).
+func boxOnPlaneSide(mins, maxs [3]float32, plane *model.MPlane) int {
+	// Fast axial cases
+	if plane.Type < 3 {
+		if plane.Dist <= mins[plane.Type] {
+			return 1 // Front
+		}
+		if plane.Dist >= maxs[plane.Type] {
+			return 2 // Back
+		}
+		return 3 // Crossing
+	}
+
+	// General case - compute corners based on plane normal signs
+	var corners [2][3]float32
+	for i := 0; i < 3; i++ {
+		if plane.Normal[i] < 0 {
+			corners[0][i] = maxs[i]
+			corners[1][i] = mins[i]
+		} else {
+			corners[0][i] = mins[i]
+			corners[1][i] = maxs[i]
+		}
+	}
+
+	// Check front corner
+	d1 := plane.Normal[0]*corners[0][0] + plane.Normal[1]*corners[0][1] + plane.Normal[2]*corners[0][2] - plane.Dist
+	// Check back corner
+	d2 := plane.Normal[0]*corners[1][0] + plane.Normal[1]*corners[1][1] + plane.Normal[2]*corners[1][2] - plane.Dist
+
+	var sides int
+	if d1 >= 0 {
+		sides = 1
+	}
+	if d2 < 0 {
+		sides |= 2
+	}
+
+	return sides
+}
+
+// Vec3Len returns the length of a 3D vector.
+func Vec3Len(v [3]float32) float32 {
+	return float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
+}
+
+// Vec3Normalize normalizes a 3D vector in place.
+func Vec3Normalize(v *[3]float32) {
+	length := Vec3Len(*v)
+	if length > 0 {
+		v[0] /= length
+		v[1] /= length
+		v[2] /= length
+	}
+}
