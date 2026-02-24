@@ -61,3 +61,7 @@
 - Implemented `internal/renderer/surface.go` as CPU-side algorithm parity helpers (texture animation, chart/lightmap allocation, and lightmap sample packing) without binding to GPU upload state yet.
 - Implemented `internal/renderer/model.go` as alias interpolation + batching primitives with explicit Quake-style lerp flags, keeping rendering backend concerns decoupled from state setup logic.
 - Added focused renderer tests in `internal/renderer/surface_test.go` (surface + model behavior) to keep verification within the renderer package while this module is still headless-first.
+
+## Renderer particle scope decisions
+- Implemented `internal/renderer/particle.go` as CPU-side parity helpers for particle allocation, simulation (`CL_RunParticles`), effect generation (`R_RunParticleEffect`, `R_RocketTrail`), and draw-prep utilities (draw-pass filtering, projection scaling, vertex color packing).
+- Kept rendering backend wiring out of scope for this task and exposed deterministic helpers/tests in `internal/renderer/particle_test.go` to validate particle behavior independently from GPU availability.

@@ -11,3 +11,5 @@
 - `lsp_diagnostics` with `severity=all` returned the same workspace-level `No active builds contain ...` warning for `internal/renderer/{core.go,renderer_test.go}`; `severity=error` returned clean diagnostics.
 - `go test ./internal/renderer` failed with `github.com/go-webgpu/goffi/ffi ... GOFFI_REQUIRES_CGO_ENABLED_0`; running with `CGO_ENABLED=0` fixed verification in this environment.
 - During surface lightmap porting, advancing the source slice while still indexing with per-pixel offsets caused an out-of-range panic; fixed by using direct slice heads (`src[0..2]`) before advancing.
+- `lsp_diagnostics` for `internal/renderer/particle*.go` returned the same workspace-level `No active builds contain ...` warning with `severity=all`; `severity=error` was clean.
+- `go test ./internal/renderer` still fails by default in this environment due to `goffi` cgo guard; `CGO_ENABLED=0 go test ./internal/renderer` is the reliable verification path.

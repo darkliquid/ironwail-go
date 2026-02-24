@@ -85,3 +85,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - The lightmap `Chart_Add` allocator's serpentine horizontal stepping (`x` sweep + reverse-at-edge) is important for parity; simple left-to-right packing changes placement behavior.
 - `GL_FillSurfaceLightmap` has three distinct write modes (1 style RGBA, 2 styles RGBA pairs, 3/4 styles packed RGB channels) and must preserve each layout exactly.
 - Alias interpolation is easiest to keep correct by mirroring state transitions (`LERP_RESETANIM`, `LERP_RESETANIM2`, `LERP_RESETMOVE`) before computing blend values.
+
+## Renderer particle port (r_part.c -> internal/renderer/particle.go)
+- Particle simulation parity is driven by `CL_RunParticles` compaction semantics: expired/not-yet-spawned particles are skipped and survivors are packed in-place.
+- Draw-pass gating from `R_DrawParticles_Real` is mode-dependent (`r_particles=1` alpha pass, `r_particles=2` opaque pass), so exposing this as a helper keeps tests deterministic.
+- Rocket-trail and run-effect behavior are easiest to verify with deterministic RNG injection (`*rand.Rand`) rather than global random state.
