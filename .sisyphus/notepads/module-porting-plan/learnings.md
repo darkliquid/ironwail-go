@@ -36,3 +36,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - A practical headless `SpawnServer` path can be validated without full QuakeC execution by loading `maps/<name>.bsp` through `internal/fs` and parsing it with `bsp.LoadTree`.
 - `SV_LinkEdict` trigger behavior needs a two-pass approach (collect then execute) to avoid list mutation issues while touch callbacks run.
 - Initializing brush hulls to invalid clipnode ranges (`FirstClipNode=-1`, `LastClipNode=-1`) is a safe fallback for map-load verification before full clipnode/hull conversion is implemented.
+
+## Server physics port (sv_phys.c -> internal/server/physics.go)
+- `SV_Physics_Toss` parity requires early return on `FL_ONGROUND`, angular velocity integration, bounce overbounce (`1.5`), and ground stop behavior (`normal.z > 0.7` with low z-velocity stop).
+- `SV_Physics_Pusher` should use `ltime` + partial-frame movement (`movetime`) and run think only when `nextthink` crosses the new `ltime`.
+- `SV_FlyMove` style sliding needs iterative clipping across multiple planes (`MAX_CLIP_PLANES`) to avoid getting stuck or tunneling through corners.

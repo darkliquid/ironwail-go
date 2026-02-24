@@ -20,3 +20,7 @@
 ## Server/world port scope
 - Added `Server.Init`, `Server.SpawnServer`, and `Server.Shutdown` in `internal/server/sv_main.go` as the minimum headless lifecycle needed for `map <name>` startup tests.
 - Used `bsp.LoadTree` to build a minimal `*model.Model` world representation sufficient for `SV_ClearWorld`/`SV_LinkEdict` map-start flow, deferring full BSP clip hull conversion to later server physics tasks.
+
+## Server physics port scope
+- Kept frame iteration in `physics_loop.go` and moved/expanded `sv_phys.c` behavior into `physics.go` helpers and per-movetype handlers (`PhysicsToss`, `PhysicsStep`, `PhysicsPusher`, `PushMove`, `PushEntity`, `FlyMove`).
+- Added `physics_test.go` with deterministic unit coverage for core physics handlers plus a pak-aware integration smoke test (`SkipIfNoPak0`) that runs one server physics frame on `start`.
