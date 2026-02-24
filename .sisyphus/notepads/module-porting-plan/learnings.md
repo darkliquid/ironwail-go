@@ -90,3 +90,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Particle simulation parity is driven by `CL_RunParticles` compaction semantics: expired/not-yet-spawned particles are skipped and survivors are packed in-place.
 - Draw-pass gating from `R_DrawParticles_Real` is mode-dependent (`r_particles=1` alpha pass, `r_particles=2` opaque pass), so exposing this as a helper keeps tests deterministic.
 - Rocket-trail and run-effect behavior are easiest to verify with deterministic RNG injection (`*rand.Rand`) rather than global random state.
+
+## Renderer screen port (gl_screen.c -> internal/renderer/screen.go)
+- Kept the port focused on deterministic CPU-side helpers from `gl_screen.c`: zoom progression, Hor+ FOV adaptation, refdef/view-rect calculation, and tile-clear region derivation.
+- `SCR_CalcRefdef` parity depends on preserving status bar suppression rules (`viewsize>=120`, intermission, translucent sbar, non-classic HUD, CSQC HUD), then applying smoothstep zoom blending before FOV conversion.
+- `SCR_TileClear` behavior includes an early skip gate based on `scr_tileclear_updates`, `vid.numpages`, `gl_clear`, and gamma; exposing this as data-only logic makes tests stable without GPU context.

@@ -65,3 +65,8 @@
 ## Renderer particle scope decisions
 - Implemented `internal/renderer/particle.go` as CPU-side parity helpers for particle allocation, simulation (`CL_RunParticles`), effect generation (`R_RunParticleEffect`, `R_RocketTrail`), and draw-prep utilities (draw-pass filtering, projection scaling, vertex color packing).
 - Kept rendering backend wiring out of scope for this task and exposed deterministic helpers/tests in `internal/renderer/particle_test.go` to validate particle behavior independently from GPU availability.
+
+
+## Renderer screen scope decisions
+- Implemented `internal/renderer/screen.go` as headless, testable screen-state helpers instead of wiring directly into live draw calls, matching the existing renderer port style for incremental parity.
+- Added `screen_test.go` coverage for `SCR_UpdateZoom`, `AdaptFovx`/`CalcFovy`, `SCR_CalcRefdef`-style layout math, and `SCR_TileClear` rectangle generation/skip logic.

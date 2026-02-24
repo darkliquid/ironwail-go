@@ -13,3 +13,5 @@
 - During surface lightmap porting, advancing the source slice while still indexing with per-pixel offsets caused an out-of-range panic; fixed by using direct slice heads (`src[0..2]`) before advancing.
 - `lsp_diagnostics` for `internal/renderer/particle*.go` returned the same workspace-level `No active builds contain ...` warning with `severity=all`; `severity=error` was clean.
 - `go test ./internal/renderer` still fails by default in this environment due to `goffi` cgo guard; `CGO_ENABLED=0 go test ./internal/renderer` is the reliable verification path.
+
+- `go test ./internal/renderer` still fails by default in this environment because of the `goffi` cgo guard; `CGO_ENABLED=0 go test ./internal/renderer` is required for reliable verification.
