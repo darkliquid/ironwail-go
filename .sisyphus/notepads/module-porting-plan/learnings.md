@@ -31,3 +31,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - `Mod_LoadAliasModel` parsing order matters: skins first, then `stvert_t`, then `dtriangle_t`, then per-frame payloads.
 - Alias frame groups contain repeated `daliasframe_t` blocks before each pose vertex block; preserving that layout is required for correct frame-group traversal.
 - Quake computes alias bounds from decoded pose vertices (`scale` + `scale_origin`) and derives yaw-rotated and fully-rotated bounds from max squared radii.
+
+## Server/world port (sv_main.c + world.c)
+- A practical headless `SpawnServer` path can be validated without full QuakeC execution by loading `maps/<name>.bsp` through `internal/fs` and parsing it with `bsp.LoadTree`.
+- `SV_LinkEdict` trigger behavior needs a two-pass approach (collect then execute) to avoid list mutation issues while touch callbacks run.
+- Initializing brush hulls to invalid clipnode ranges (`FirstClipNode=-1`, `LastClipNode=-1`) is a safe fallback for map-load verification before full clipnode/hull conversion is implemented.

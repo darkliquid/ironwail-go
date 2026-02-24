@@ -16,3 +16,7 @@
 ## Alias model loading
 - Added `LoadAliasModel(io.ReadSeeker)` returning `*Model` so alias loading now produces both `AliasHeader` metadata and Quake-style model bounds (`mins/maxs`, `ymins/ymaxs`, `rmins/rmaxs`) in one pass.
 - Kept existing `mdl.go` API intact and introduced the `alias.go` loader as the `Mod_LoadAliasModel`-style path to avoid breaking existing callers while enabling model-level tests.
+
+## Server/world port scope
+- Added `Server.Init`, `Server.SpawnServer`, and `Server.Shutdown` in `internal/server/sv_main.go` as the minimum headless lifecycle needed for `map <name>` startup tests.
+- Used `bsp.LoadTree` to build a minimal `*model.Model` world representation sufficient for `SV_ClearWorld`/`SV_LinkEdict` map-start flow, deferring full BSP clip hull conversion to later server physics tasks.
