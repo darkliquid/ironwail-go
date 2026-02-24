@@ -12,3 +12,7 @@
 ## BSP tree loading
 - Added a dedicated `LoadTree` path in `internal/bsp/tree.go` instead of extending the existing generic loader, to keep a focused port of `Mod_Load*` BSP tree routines and enable strict lump-level validation.
 - Normalized version-specific disk formats (`ds*`, `dl1*`, `dl2*`) into shared in-memory `Tree*` structs so tests can assert geometry invariants uniformly across BSP variants.
+
+## Alias model loading
+- Added `LoadAliasModel(io.ReadSeeker)` returning `*Model` so alias loading now produces both `AliasHeader` metadata and Quake-style model bounds (`mins/maxs`, `ymins/ymaxs`, `rmins/rmaxs`) in one pass.
+- Kept existing `mdl.go` API intact and introduced the `alias.go` loader as the `Mod_LoadAliasModel`-style path to avoid breaking existing callers while enabling model-level tests.

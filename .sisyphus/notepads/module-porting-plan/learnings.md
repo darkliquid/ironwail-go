@@ -21,3 +21,13 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - The on-disk struct sizes in `bspfile.h` are critical: `dplane_t=20`, `dsnode_t=24`, `dl2node_t=44`, `dl2leaf_t=44`, and `dmodel_t=64`.
 - Parsing BSP children must preserve Quake semantics: standard BSP uses `uint16` reinterpretation (`leaf = 65535 - child`), BSP2 uses bitwise complement of negative child indices.
 - Loading order matters for validation parity with C path: faces -> marksurfaces -> leafs -> nodes lets node/leaf references be validated during load.
+
+## Sprite loading (gl_model.c -> internal/model/sprite.go)
+- `dspriteframetype_t` dispatch needs strict validation parity with C (`SPR_SINGLE`, `SPR_GROUP`, `SPR_ANGLED`; angled groups require exactly 8 frames).
+- Group intervals must be strictly positive during decode (`interval > 0`) to match `Mod_LoadSpriteGroup` behavior.
+- A robust integration test path is `progs/*.spr` from `pak0.pak` using `internal/fs` plus `testutil.SkipIfNoPak0`.
+
+## Alias model loading (gl_model.c -> internal/model/alias.go)
+- `Mod_LoadAliasModel` parsing order matters: skins first, then `stvert_t`, then `dtriangle_t`, then per-frame payloads.
+- Alias frame groups contain repeated `daliasframe_t` blocks before each pose vertex block; preserving that layout is required for correct frame-group traversal.
+- Quake computes alias bounds from decoded pose vertices (`scale` + `scale_origin`) and derives yaw-rotated and fully-rotated bounds from max squared radii.
