@@ -46,3 +46,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Preserving the original `SV_*` API names as thin wrappers over existing world collision helpers (`Move`, `hullForEntity`, `TestEntityPosition`) enables incremental porting without disrupting already-ported physics code.
 - `SV_movestep` parity depends on reproducing both branches: flying/swimming monsters attempt a two-pass enemy-height adjustment, while walking entities do step-up/step-down tracing plus `SV_CheckBottom` validation.
 - Pak-aware movement tests are most robust as smoke+invariant checks (wrapper parity, `SV_TestEntityPosition` clear at sampled walkable points, zero-delta `MoveStep`) rather than fixed-coordinate assertions.
+
+## Server user port (sv_user.c -> internal/server/user.go)
+- Keeping explicit `SV_*` entry points (`SV_ClientThink`, `SV_ReadClientMessage`, `SV_ExecuteUserCommand`) while preserving idiomatic wrappers (`ClientThink`, `ReadClientMessage`) maintains C parity without breaking current call sites.
+- `SV_ReadClientMessage` should decode command bytes as signed (`ReadChar`) so `-1` end-of-message handling matches Quake packet semantics.
+- Command whitelist parity is best preserved with prefix matching (`q_strncasecmp`-style), not exact token matching, to mirror original permissive behavior.

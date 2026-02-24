@@ -29,3 +29,7 @@
 - Added `internal/server/movement.go` with direct ports of `SV_CheckBottom`, `SV_movestep`, `SV_StepDirection`, `SV_NewChaseDir`, `SV_CloseEnough`, and `SV_MoveToGoal`, while keeping existing world collision primitives in `world.go` as the authoritative tracing backend.
 - Introduced explicit `SV_Move`, `SV_HullForEntity`, and `SV_TestEntityPosition` wrapper methods to satisfy sv_move.c naming parity without duplicating collision implementation.
 - Added `internal/server/movement_test.go` with unit checks plus a pak-aware spawned-map movement smoke test that dynamically samples a walkable point to avoid brittle map-coordinate fixtures.
+
+## Server user port scope
+- Replaced `internal/server/sv_user.go` with `internal/server/user.go` and centered the implementation around C-parity entry points (`SV_ClientThink`, `SV_ReadClientMessage`, `SV_ExecuteUserCommand`) plus compatibility wrappers used by existing server flow.
+- Added `internal/server/user_test.go` with command whitelist checks, move-message decoding checks, noclip think behavior, and a pak-aware spawned-map `RunClients` smoke test using `testutil.SkipIfNoPak0`.
