@@ -56,3 +56,8 @@
 - Added a dedicated `Core` type in `internal/renderer/core.go` for headless WebGPU initialization instead of changing the existing windowed `Renderer` API in `renderer.go`.
 - Implemented backend support as pure-Go only (`BackendGo/BackendAuto`) for this stage, returning a deterministic error for Rust backend selection.
 - Added `renderer_test.go` coverage that validates unsupported-backend behavior and runs headless init with environment-based skip fallback when no GPU stack is available.
+
+## Renderer surface/model scope decisions
+- Implemented `internal/renderer/surface.go` as CPU-side algorithm parity helpers (texture animation, chart/lightmap allocation, and lightmap sample packing) without binding to GPU upload state yet.
+- Implemented `internal/renderer/model.go` as alias interpolation + batching primitives with explicit Quake-style lerp flags, keeping rendering backend concerns decoupled from state setup logic.
+- Added focused renderer tests in `internal/renderer/surface_test.go` (surface + model behavior) to keep verification within the renderer package while this module is still headless-first.

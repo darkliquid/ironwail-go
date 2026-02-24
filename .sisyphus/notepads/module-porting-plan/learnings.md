@@ -80,3 +80,8 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - Headless WebGPU initialization can be done without a surface by creating a HAL instance and enumerating adapters with `EnumerateAdapters(nil)`.
 - Reusing `native.NewHalBackend` from `gogpu` keeps backend selection aligned with existing renderer behavior while avoiding cgo.
 - The `R_SetFrustum` z-log depth setup maps cleanly to a small frame-data helper (`zlogscale`, `zlogbias`) using `log2(zNear/zFar)`.
+
+## Renderer surface/model port (r_brush.c + r_alias.c)
+- The lightmap `Chart_Add` allocator's serpentine horizontal stepping (`x` sweep + reverse-at-edge) is important for parity; simple left-to-right packing changes placement behavior.
+- `GL_FillSurfaceLightmap` has three distinct write modes (1 style RGBA, 2 styles RGBA pairs, 3/4 styles packed RGB channels) and must preserve each layout exactly.
+- Alias interpolation is easiest to keep correct by mirroring state transitions (`LERP_RESETANIM`, `LERP_RESETANIM2`, `LERP_RESETMOVE`) before computing blend values.
