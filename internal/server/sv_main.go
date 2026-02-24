@@ -1,12 +1,15 @@
 package server
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"path/filepath"
+
+	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/model"
 )
-
-
-
-
 
 const (
 	ProtocolNetQuake  = 15
@@ -25,6 +28,179 @@ func init() {
 	for i := 0; i < MaxModels; i++ {
 		copy(LocalModels[i][:], fmt.Sprintf("*%d", i))
 	}
+}
+
+func (s *Server) Init(maxClients int) error {
+	if maxClients <= 0 {
+		return fmt.Errorf("maxClients must be > 0")
+	}
+	if maxClients > MaxClients {
+		return fmt.Errorf("maxClients %d exceeds limit %d", maxClients, MaxClients)
+	}
+
+	s.Active = false
+	s.Paused = false
+	s.LoadGame = false
+	s.State = ServerStateLoading
+	s.Name = ""
+	s.ModelName = ""
+	s.WorldModel = nil
+	s.Time = 1
+	s.FrameTime = 0.1
+
+	if s.MaxEdicts <= 0 {
+		s.MaxEdicts = MaxEdicts
+	}
+
+	s.Datagram = NewMessageBuffer(MaxDatagram)
+	s.SoundPrecache = make([]string, MaxSounds)
+	s.ModelPrecache = make([]string, MaxModels)
+
+	s.Static = &ServerStatic{
+		MaxClients:      maxClients,
+		MaxClientsLimit: maxClients,
+		Clients:         make([]*Client, maxClients),
+	}
+
+	s.Edicts = make([]*Edict, maxClients+1)
+	for i := range s.Edicts {
+		s.Edicts[i] = &Edict{Vars: &EntVars{}, Scale: 16}
+	}
+	s.NumEdicts = len(s.Edicts)
+
+	for i := 0; i < maxClients; i++ {
+		clientEdict := s.Edicts[i+1]
+		s.Static.Clients[i] = &Client{
+			Edict:   clientEdict,
+			Message: NewMessageBuffer(MaxDatagram),
+			Name:    "unconnected",
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) Shutdown() {
+	s.Active = false
+	s.Paused = false
+	s.State = ServerStateLoading
+	s.WorldModel = nil
+	s.Edicts = nil
+	s.NumEdicts = 0
+	s.Static = nil
+	s.SoundPrecache = nil
+	s.ModelPrecache = nil
+	if s.Datagram != nil {
+		s.Datagram.Clear()
+	}
+}
+
+func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
+	if s.Static == nil {
+		return errors.New("server not initialized")
+	}
+	if vfs == nil {
+		return errors.New("filesystem is nil")
+	}
+	if mapName == "" {
+		return errors.New("map name is empty")
+	}
+
+	s.Active = false
+	s.Paused = false
+	s.State = ServerStateLoading
+	s.Time = 1
+
+	s.Name = filepath.Base(mapName)
+	s.ModelName = fmt.Sprintf("maps/%s.bsp", s.Name)
+
+	bspData, err := vfs.LoadFile(s.ModelName)
+	if err != nil {
+		return fmt.Errorf("load map %q: %w", s.ModelName, err)
+	}
+
+	tree, err := bsp.LoadTree(bytes.NewReader(bspData))
+	if err != nil {
+		return fmt.Errorf("parse map %q: %w", s.ModelName, err)
+	}
+
+	s.WorldModel = worldModelFromBSPTree(s.ModelName, tree)
+
+	if s.Edicts[0] == nil {
+		s.Edicts[0] = &Edict{Vars: &EntVars{}, Scale: 16}
+	}
+	world := s.Edicts[0]
+	world.Vars.ModelIndex = 1
+	world.Vars.Solid = float32(SolidBSP)
+	world.Vars.MoveType = float32(MoveTypePush)
+
+	s.ModelPrecache[0] = ""
+	s.ModelPrecache[1] = s.ModelName
+
+	s.ClearWorld()
+	s.LinkEdict(world, false)
+
+	s.Active = true
+	s.State = ServerStateActive
+
+	return nil
+}
+
+func worldModelFromBSPTree(modelName string, tree *bsp.Tree) *model.Model {
+	m := &model.Model{
+		Name:      modelName,
+		Type:      model.ModBrush,
+		NumLeafs:  len(tree.Leafs),
+		NumNodes:  len(tree.Nodes),
+		Entities:  string(tree.Entities),
+		NumPlanes: len(tree.Planes),
+	}
+
+	if len(tree.Models) > 0 {
+		m.Mins = tree.Models[0].BoundsMin
+		m.Maxs = tree.Models[0].BoundsMax
+	}
+
+	m.Planes = make([]model.MPlane, len(tree.Planes))
+	for i, p := range tree.Planes {
+		m.Planes[i] = model.MPlane{
+			Normal: p.Normal,
+			Dist:   p.Dist,
+			Type:   uint8(p.Type),
+		}
+	}
+
+	m.Nodes = make([]model.MNode, len(tree.Nodes))
+	for i, n := range tree.Nodes {
+		m.Nodes[i] = model.MNode{
+			Contents: int(bsp.ContentsEmpty),
+			MinMaxs: [6]float32{
+				n.BoundsMin[0], n.BoundsMin[1], n.BoundsMin[2],
+				n.BoundsMax[0], n.BoundsMax[1], n.BoundsMax[2],
+			},
+			FirstSurface: n.FirstFace,
+			NumSurfaces:  n.NumFaces,
+		}
+		if int(n.PlaneNum) >= 0 && int(n.PlaneNum) < len(m.Planes) {
+			m.Nodes[i].Plane = &m.Planes[n.PlaneNum]
+		}
+	}
+
+	for i, n := range tree.Nodes {
+		for side := 0; side < 2; side++ {
+			child := n.Children[side]
+			if !child.IsLeaf && child.Index >= 0 && child.Index < len(m.Nodes) {
+				m.Nodes[i].Children[side] = &m.Nodes[child.Index]
+			}
+		}
+	}
+
+	for i := range m.Hulls {
+		m.Hulls[i].FirstClipNode = -1
+		m.Hulls[i].LastClipNode = -1
+	}
+
+	return m
 }
 
 type ProtocolFlags int
@@ -542,79 +718,3 @@ func (s *Server) SaveSpawnParms() {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

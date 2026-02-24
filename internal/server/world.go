@@ -579,6 +579,80 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 		ent.AreaPrev = &node.SolidEdicts
 		node.SolidEdicts.AreaNext = ent
 	}
+
+	if touchTriggers {
+		s.touchLinks(ent)
+	}
+}
+
+func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, listCap int) {
+	for touch := node.TriggerEdicts.AreaNext; touch != nil; touch = touch.AreaNext {
+		if touch == ent {
+			continue
+		}
+		if touch.Vars.Touch == 0 || int(touch.Vars.Solid) != int(SolidTrigger) {
+			continue
+		}
+		if ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] ||
+			ent.Vars.AbsMin[1] > touch.Vars.AbsMax[1] ||
+			ent.Vars.AbsMin[2] > touch.Vars.AbsMax[2] ||
+			ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0] ||
+			ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1] ||
+			ent.Vars.AbsMax[2] < touch.Vars.AbsMin[2] {
+			continue
+		}
+
+		if len(*list) >= listCap {
+			return
+		}
+		*list = append(*list, touch)
+	}
+
+	if node.Axis == -1 {
+		return
+	}
+
+	if ent.Vars.AbsMax[node.Axis] > node.Dist && node.Children[0] != nil {
+		s.areaTriggerEdicts(ent, node.Children[0], list, listCap)
+	}
+	if ent.Vars.AbsMin[node.Axis] < node.Dist && node.Children[1] != nil {
+		s.areaTriggerEdicts(ent, node.Children[1], list, listCap)
+	}
+}
+
+func (s *Server) touchLinks(ent *Edict) {
+	if len(s.Areanodes) == 0 || s.QCVM == nil {
+		return
+	}
+
+	touches := make([]*Edict, 0, s.NumEdicts)
+	s.areaTriggerEdicts(ent, &s.Areanodes[0], &touches, s.NumEdicts)
+
+	oldSelf := s.QCVM.GetGlobalInt("self")
+	oldOther := s.QCVM.GetGlobalInt("other")
+	defer func() {
+		s.QCVM.SetGlobalInt("self", oldSelf)
+		s.QCVM.SetGlobalInt("other", oldOther)
+	}()
+
+	for _, touch := range touches {
+		if touch == ent || touch.Vars.Touch == 0 || int(touch.Vars.Solid) != int(SolidTrigger) {
+			continue
+		}
+		if ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] ||
+			ent.Vars.AbsMin[1] > touch.Vars.AbsMax[1] ||
+			ent.Vars.AbsMin[2] > touch.Vars.AbsMax[2] ||
+			ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0] ||
+			ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1] ||
+			ent.Vars.AbsMax[2] < touch.Vars.AbsMin[2] {
+			continue
+		}
+
+		s.QCVM.SetGlobal("self", s.NumForEdict(touch))
+		s.QCVM.SetGlobal("other", s.NumForEdict(ent))
+		s.QCVM.Time = float64(s.Time)
+		_ = s.QCVM.ExecuteFunction(int(touch.Vars.Touch))
+	}
 }
 
 // findTouchedLeafs finds all PVS leafs that an entity touches.
