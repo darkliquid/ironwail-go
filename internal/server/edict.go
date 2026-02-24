@@ -251,33 +251,17 @@ func (em *EntityManager) ED_ParseGlobals(data string, vm interface{}) (string, e
 			return "", fmt.Errorf("ED_ParseGlobals: EOF in value for key %s", keyName)
 		}
 		value := data[valStart:pos]
-		pos++ // Skip closing quote
-
-		// Parse value (quoted string)
-		if pos >= len(data) || data[pos] != '\"' {
-			return 0, fmt.Errorf("expected quoted value at position %d", pos)
-		}
-		pos++
-
-		valueStart := pos
-		for pos < len(data) && data[pos] != '\"' {
-			pos++
-		}
-
-		if pos >= len(data) {
-			return 0, fmt.Errorf("EOF in value at position %d", valueStart)
-		}
-		valueStr := data[valueStart:pos]
-		pos++
+		_ = value // Silence unused variable warning until TODO is implemented
 
 		// TODO: Look up field by name and set appropriate value
-		// This requires access to VM's field definitions
-		// Common fields to implement:
-		// - model, origin, angles, classname, spawnflags
-		// TODO: Set value based on field type (float32, vec3, string index)
-		fmt.Printf("Parsed: %s = %s\n", keyName, valueStr)
-
-		return pos, nil
+		// This requires access to VM's field definitions and:
+		//   key := ED_FindGlobal(keyName)
+		//   if key == nil {
+		//       continue // Con_Printf: not a global
+		//   }
+		//   ED_ParseEpair(globals, key, value, false)
+		// For now, just log the parsed key-value pair
+		fmt.Printf("ED_ParseGlobals: %s = %s\n", keyName, value)
 	}
 
 	return data[pos:], nil

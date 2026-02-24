@@ -2,16 +2,15 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
-	"os"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/host"
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 const (
@@ -21,16 +20,15 @@ const (
 )
 
 var (
-	gameHost   *host.Host
-	gameServer *server.Server
-	gameQC    *qc.VM
+	gameHost     *host.Host
+	gameServer   *server.Server
+	gameQC       *qc.VM
 	gameRenderer *renderer.Renderer
 )
 
 func initGameHost() error {
 	// Initialize console and command system
 	console.InitGlobal(0)
-	cmdsys.Init()
 
 	// Initialize cvars for video, sound, gameplay
 	cvar.Register("vid_width", "1280", cvar.FlagArchive, "Video width")
@@ -91,13 +89,9 @@ func initSubsystems() error {
 
 	// Wire subsystems together through Host.Init
 	subs := &host.Subsystems{
-		Files:    nil, // No filesystem in this demo
-		Commands: cmdsys.GlobalBuffer(),
-		Console:  console.Global(),
-		Server:   gameServer,
-		Client:   nil, // No client in server mode
-		Audio:    nil, // No audio in this demo
-		Renderer: gameRenderer,
+		Files:  nil, // No filesystem in this demo
+		Client: nil, // No client in server mode
+		Audio:  nil, // No audio in this demo
 	}
 
 	if err := gameHost.Init(&host.InitParams{
@@ -121,25 +115,6 @@ func main() {
 	// Initialize all subsystems
 	if err := initSubsystems(); err != nil {
 		log.Fatal("Initialization failed:", err)
-	}
-
-	// Set up frame callbacks
-	gameHost.OnDraw(func(dc *renderer.DrawContext) {
-		// Dark blue-gray background (Quake-style)
-		dc.Clear(gmath.Color{R: 0.1, G: 0.1, B: 0.2, A: 1.0})
-	})
-
-	gameHost.OnUpdate(func(dt float64) {
-		// Game logic update will be called here
-	})
-
-	gameHost.OnClose(func() {
-		slog.Info("Shutting down...")
-	})
-
-	// Start the game loop
-	if err := gameHost.FrameLoop(); err != nil {
-		log.Fatal("Game loop error:", err)
 	}
 
 	slog.Info("Engine shutdown complete")
