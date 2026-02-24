@@ -46,3 +46,8 @@
 - Replaced the previous minimal `internal/client/client.go` implementation with a structured split across `client.go`, `parse.go`, `input.go`, and `demo.go` to mirror the source module boundaries (`cl_main`, `cl_parse`, `cl_input`, `cl_demo`).
 - Implemented a focused `Parser` that covers sign-on path commands first (`svc_serverinfo`, `svc_signonnum`, `svc_setview`, `svc_cdtrack`) and returns explicit errors on unsupported message opcodes to keep the port fail-fast while incomplete.
 - Added `LerpPoint` and `kbutton` impulse-driven movement assembly (`AdjustAngles`, `BaseMove`, `AccumulateCmd`) as the initial prediction/input baseline rather than deferring all client movement behavior.
+
+## Audio Porting Decisions
+- Moved spatialization logic to a separate file `spatial.go` as requested, but kept it as a method on `System` for easier access to state.
+- Added `viewEntity` to `System` to handle full-volume sounds from the player.
+- Implemented the software mixer with support for 8-bit and 16-bit sounds, and 16-bit stereo output.

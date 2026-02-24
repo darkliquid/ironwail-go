@@ -68,3 +68,10 @@ Implemented Lerp, NormalizeAngle, AngleDifference, LerpAngle, VectorAngles, Angl
 - `svc_serverinfo` parity requires explicit model/sound null-terminated precache list parsing and map name derivation from model slot 1 (`maps/<name>.bsp` -> `<name>`).
 - A static byte-array sign-on test sequence (serverinfo + signonnum stages) gives strong confidence in protocol parsing without requiring a live server.
 - Input parity benefits from preserving `kbutton_t` impulse semantics (`state` bits for down/impulse-down/impulse-up) before movement assembly.
+
+## Audio Porting (Spatial & Mixing)
+- Spatialization logic from `snd_dma.c` was ported to `internal/audio/spatial.go`.
+- Software mixing logic from `snd_mix.c` was ported to `internal/audio/mix.go`.
+- The mixer uses a fixed-point 24.8 representation for intermediate samples in the paint buffer.
+- Low-pass filtering (Blackman window) was implemented for resampling 11025Hz sounds to 44100Hz output.
+- Underwater muffling effect was implemented using a simple one-pole low-pass filter.
