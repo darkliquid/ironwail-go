@@ -5,6 +5,7 @@ package host
 
 import (
 	"testing"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 type mockSubsystems struct {
@@ -24,6 +25,17 @@ func (m *mockServer) Frame(frameTime float64) error { return nil }
 func (m *mockServer) Shutdown()                     { m.active = false }
 func (m *mockServer) IsActive() bool                { return m.active }
 func (m *mockServer) IsPaused() bool                { return m.paused }
+func (m *mockServer) SpawnServer(mapName string, vfs Filesystem) error { return nil }
+func (m *mockServer) SaveSpawnParms()                                     {}
+func (m *mockServer) GetMaxClients() int                                  { return 1 }
+func (m *mockServer) GetClientName(clientNum int) string                  { return "Player" }
+func (m *mockServer) SetClientName(clientNum int, name string)            {}
+func (m *mockServer) GetClientColor(clientNum int) int                     { return 0 }
+func (m *mockServer) SetClientColor(clientNum int, color int)             {}
+func (m *mockServer) GetClientPing(clientNum int) float32                 { return 0 }
+func (m *mockServer) EdictNum(n int) *server.Edict                        { return &server.Edict{Vars: &server.EntVars{}} }
+func (m *mockServer) GetMapName() string                                  { return "start" }
+
 
 type mockClient struct {
 	state ClientState
