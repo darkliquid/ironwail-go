@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogpu/gogpu"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/host"
@@ -112,6 +113,7 @@ func initSubsystems(headless bool) error {
 }
 
 func main() {
+	gogpu.SetLogger(slog.Default())
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
 	fmt.Println("A Go port of Ironwail Quake engine")
 	fmt.Println()
