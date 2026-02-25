@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -73,7 +75,7 @@ func initGameRenderer() error {
 	return nil
 }
 
-func initSubsystems() error {
+func initSubsystems(headless bool) error {
 	if err := initGameHost(); err != nil {
 		return err
 	}
@@ -83,8 +85,10 @@ func initSubsystems() error {
 	if err := initGameQC(); err != nil {
 		return err
 	}
-	if err := initGameRenderer(); err != nil {
-		return err
+	if !headless {
+		if err := initGameRenderer(); err != nil {
+			return err
+		}
 	}
 
 	// Wire subsystems together through Host.Init
@@ -109,28 +113,91 @@ func initSubsystems() error {
 
 func main() {
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
-	fmt.Println("A Go port of the Ironwail Quake engine")
+	fmt.Println("A Go port of Ironwail Quake engine")
 	fmt.Println()
 
-	// Initialize all subsystems
-	if err := initSubsystems(); err != nil {
-		log.Fatal("Initialization failed:", err)
+	// Try to initialize with renderer, fall back to headless if it fails
+	headless := false
+	initErr := initSubsystems(false)
+	if initErr != nil {
+		// Check if the error is related to renderer initialization
+		if isRendererError(initErr) {
+			fmt.Println("WARNING: Renderer initialization failed. Running in headless mode.")
+			fmt.Printf("Error: %v\n", initErr)
+			fmt.Println("Continuing with game loop (no rendering)...")
+			headless = true
+			// Re-initialize without renderer
+			if err := initSubsystems(true); err != nil {
+				log.Fatal("Initialization failed:", err)
+			}
+		} else {
+			log.Fatal("Initialization failed:", initErr)
+		}
 	}
 
-	// Set up renderer callbacks
-	gameRenderer.OnUpdate(func(dt float64) {
-		gameHost.Frame(dt, nil)
-	})
-	gameRenderer.OnDraw(func(dc *renderer.DrawContext) {
-		// empty for now
-	})
+	if !headless {
+		// Set up renderer callbacks
+		gameRenderer.OnUpdate(func(dt float64) {
+			gameHost.Frame(dt, nil)
+		})
+		gameRenderer.OnDraw(func(dc *renderer.DrawContext) {
+			// empty for now
+		})
 
-	// Start the main loop (blocking)
-	if err := gameRenderer.Run(); err != nil {
-		log.Fatal("Render loop failed:", err)
+		// Start the main loop (blocking)
+		runErr := gameRenderer.Run()
+		if runErr != nil {
+			gameRenderer.Shutdown()
+			if isRendererError(runErr) {
+				fmt.Println("WARNING: Render loop failed. Falling back to headless mode.")
+				fmt.Printf("Error: %v\n", runErr)
+				fmt.Println("Continuing with game loop (no rendering)...")
+				headlessGameLoop()
+			} else {
+				log.Fatal("Render loop failed:", runErr)
+			}
+		} else {
+			// Cleanup
+			gameRenderer.Shutdown()
+		}
 	}
-	// Cleanup
-	gameRenderer.Shutdown()
+
+	if headless {
+		// Run in headless mode (no rendering, just game loop)
+		headlessGameLoop()
+	}
 
 	slog.Info("Engine shutdown complete")
+}
+
+func headlessGameLoop() {
+	slog.Info("Starting headless game loop")
+
+	// Simple game loop without rendering
+	lastTime := time.Now()
+	ticker := time.NewTicker(time.Second / 250) // 250 FPS target
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			dt := now.Sub(lastTime).Seconds()
+			lastTime = now
+
+			// Update game state
+			gameHost.Frame(dt, nil)
+		}
+	}
+}
+
+func isRendererError(err error) bool {
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "renderer") ||
+		strings.Contains(errStr, "wayland") ||
+		strings.Contains(errStr, "configure") ||
+		strings.Contains(errStr, "display") ||
+		strings.Contains(errStr, "window") ||
+		strings.Contains(errStr, "surface") ||
+		strings.Contains(errStr, "segv")
 }
