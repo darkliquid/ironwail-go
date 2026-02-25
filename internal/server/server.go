@@ -157,3 +157,71 @@ func (s *Server) NumForEdict(e *Edict) int {
 	}
 	return -1
 }
+func (s *Server) GetMaxClients() int {
+	if s.Static == nil {
+		return 0
+	}
+	return s.Static.MaxClients
+}
+
+func (s *Server) GetClientName(clientNum int) string {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return ""
+	}
+	if s.Static.Clients[clientNum] == nil {
+		return ""
+	}
+	return s.Static.Clients[clientNum].Name
+}
+
+func (s *Server) SetClientName(clientNum int, name string) {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return
+	}
+	if s.Static.Clients[clientNum] == nil {
+		return
+	}
+	s.Static.Clients[clientNum].Name = name
+}
+
+func (s *Server) GetClientColor(clientNum int) int {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return 0
+	}
+	if s.Static.Clients[clientNum] == nil {
+		return 0
+	}
+	return s.Static.Clients[clientNum].Color
+}
+
+func (s *Server) SetClientColor(clientNum int, color int) {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return
+	}
+	if s.Static.Clients[clientNum] == nil {
+		return
+	}
+	s.Static.Clients[clientNum].Color = color
+}
+
+func (s *Server) GetClientPing(clientNum int) float32 {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return 0
+	}
+	c := s.Static.Clients[clientNum]
+	if c == nil || c.NumPings == 0 {
+		return 0
+	}
+	
+	var total float32
+	count := min(c.NumPings, 16)
+	for i := 0; i < count; i++ {
+		total += c.PingTimes[i]
+	}
+	return total / float32(count) * 1000
+}
+func (s *Server) GetMapName() string {
+	return s.Name
+}
+
+

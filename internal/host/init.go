@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 
@@ -49,8 +50,18 @@ type Console interface {
 
 type Server interface {
 	Init(maxClients int) error
+	SpawnServer(mapName string, vfs Filesystem) error
 	Frame(frameTime float64) error
 	Shutdown()
+	SaveSpawnParms()
+	GetMaxClients() int
+	GetClientName(clientNum int) string
+	SetClientName(clientNum int, name string)
+	GetClientColor(clientNum int) int
+	SetClientColor(clientNum int, color int)
+	GetClientPing(clientNum int) float32
+	EdictNum(n int) *server.Edict
+	GetMapName() string
 	IsActive() bool
 	IsPaused() bool
 }

@@ -9,3 +9,17 @@
 - `internal/qc` has no direct dependency path to `internal/server`, so builtin-to-server integration works best via injectable hook functions owned by `qc` and configured externally.
 - Default builtin behavior can still update core edict fields (`origin`, `mins`, `maxs`, `size`, `absmin`, `absmax`, `model`, `modelindex`) in VM memory for deterministic unit tests.
 - `ED_ParseEdict` can be made resilient by matching keys to `EntVars` via normalized field names and parsing by reflected field kind (float, int32, vec3).
+## Console Commands Implementation
+- Implemented , , , , , , , , , .
+- Expanded  interface in  to support these commands.
+- Added helper methods to .
+- Added comprehensive tests in .
+- Fixed  to actually call .
+- Resolved circular dependency issues by carefully managing imports and interface definitions.
+## Console Commands Implementation
+- Implemented changelevel, restart, kill, god, noclip, notarget, give, name, color, ping.
+- Expanded Server interface in internal/host/init.go to support these commands.
+- Added helper methods to internal/server/server.go.
+- Added comprehensive tests in internal/host/commands_test.go.
+- Fixed CmdMap to actually call SpawnServer.
+- Resolved circular dependency issues by carefully managing imports and interface definitions.
