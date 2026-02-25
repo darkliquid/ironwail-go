@@ -13,7 +13,15 @@ package server
 
 import (
 	"fmt"
+	"hash/fnv"
+	"reflect"
+	"strconv"
+	"strings"
+
+	"github.com/ironwail/ironwail-go/internal/qc"
 )
+
+var entVarsFieldIndex = buildEntVarsFieldIndex()
 
 // EntityManager manages the entity pool for a Quake server.
 // It provides allocation, deallocation, and tracking of game entities.
@@ -107,15 +115,12 @@ func (em *EntityManager) ED_Free(entNum int) error {
 		return fmt.Errorf("ED_Free: nil entity at index %d", entNum)
 	}
 
-	// TODO: SV_UnlinkEdict(ed) - unlink from world BSP
-	// This requires access to the server's world/bsp data
+	em.SV_UnlinkEdict(entNum)
 
 	// Don't add client slots (0 to maxClients-1) to free list
 	if entNum >= em.maxClients {
 		// Clear key fields
-		if edict.Vars != nil {
-			edict.Vars = &EntVars{}
-		}
+		edict.Vars = &EntVars{}
 		edict.Vars.Model = 0
 		edict.Vars.TakeDamage = 0
 		edict.Vars.Frame = 0
@@ -154,7 +159,9 @@ func (em *EntityManager) ED_ClearEdict(entNum int) {
 		return
 	}
 
-	// TODO: If not free, SV_UnlinkEdict - unlink from world BSP
+	if !edict.Free {
+		em.SV_UnlinkEdict(entNum)
+	}
 
 	// If in free list, remove from it
 	if edict.Free {
@@ -171,14 +178,34 @@ func (em *EntityManager) ED_ClearEdict(entNum int) {
 	edict.Free = false
 
 	// Zero all QuakeC fields
-	if edict.Vars != nil {
-		edict.Vars = &EntVars{}
-	}
+	edict.Vars = &EntVars{}
 	// In Go, the EntVars struct is already zero-initialized on creation
 
 	// Reset rendering state
 	edict.Alpha = 0  // ENTALPHA_DEFAULT
 	edict.Scale = 16 // ENTSCALE_DEFAULT
+}
+
+func (em *EntityManager) SV_UnlinkEdict(entNum int) {
+	if entNum < 0 || entNum >= em.numEdicts {
+		return
+	}
+
+	edict := em.edicts[entNum]
+	if edict == nil {
+		return
+	}
+
+	if edict.AreaPrev != nil {
+		edict.AreaPrev.AreaNext = edict.AreaNext
+	}
+	if edict.AreaNext != nil {
+		edict.AreaNext.AreaPrev = edict.AreaPrev
+	}
+
+	edict.AreaPrev = nil
+	edict.AreaNext = nil
+	edict.NumLeafs = 0
 }
 
 // ED_ParseGlobals parses global variable key-value pairs from map/savegame data.
@@ -251,17 +278,11 @@ func (em *EntityManager) ED_ParseGlobals(data string, vm interface{}) (string, e
 			return "", fmt.Errorf("ED_ParseGlobals: EOF in value for key %s", keyName)
 		}
 		value := data[valStart:pos]
-		_ = value // Silence unused variable warning until TODO is implemented
+		pos++ // Skip closing quote
 
-		// TODO: Look up field by name and set appropriate value
-		// This requires access to VM's field definitions and:
-		//   key := ED_FindGlobal(keyName)
-		//   if key == nil {
-		//       continue // Con_Printf: not a global
-		//   }
-		//   ED_ParseEpair(globals, key, value, false)
-		// For now, just log the parsed key-value pair
-		fmt.Printf("ED_ParseGlobals: %s = %s\n", keyName, value)
+		if qvm, ok := vm.(*qc.VM); ok {
+			em.parseGlobalValue(qvm, keyName, value)
+		}
 	}
 
 	return data[pos:], nil
@@ -382,9 +403,9 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 			continue
 		}
 
-		// TODO: Parse the value into entity fields
-		// This requires ED_ParseEpair and field lookup
-		fmt.Printf("TODO: Parse entity field %s = %s\n", finalKeyName, value)
+		if err := em.parseEdictFieldValue(edict, finalKeyName, value); err != nil {
+			return "", fmt.Errorf("ED_ParseEdict: parse field %s: %w", finalKeyName, err)
+		}
 	}
 
 	return "", fmt.Errorf("ED_ParseEdict: unexpected end of data")
@@ -406,4 +427,144 @@ func (em *EntityManager) GetEdict(entNum int) *Edict {
 // ActiveCount returns the number of active (non-free) entities.
 func (em *EntityManager) ActiveCount() int {
 	return em.numEdicts - len(em.freeList)
+}
+
+func buildEntVarsFieldIndex() map[string]int {
+	index := make(map[string]int)
+	entType := reflect.TypeOf(EntVars{})
+	for i := 0; i < entType.NumField(); i++ {
+		f := entType.Field(i)
+		index[normalizeFieldName(f.Name)] = i
+	}
+	return index
+}
+
+func normalizeFieldName(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "_", ""))
+}
+
+func parseVec3(raw string) ([3]float32, error) {
+	parts := strings.Fields(raw)
+	if len(parts) != 3 {
+		return [3]float32{}, fmt.Errorf("expected 3 components, got %d", len(parts))
+	}
+
+	var out [3]float32
+	for i := 0; i < 3; i++ {
+		v, err := strconv.ParseFloat(parts[i], 32)
+		if err != nil {
+			return [3]float32{}, err
+		}
+		out[i] = float32(v)
+	}
+	return out, nil
+}
+
+func parseFloat32(raw string) (float32, error) {
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 32)
+	if err != nil {
+		return 0, err
+	}
+	return float32(v), nil
+}
+
+func parseInt32(raw string) (int32, error) {
+	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return int32(v), nil
+}
+
+func parseStringFallbackInt32(raw string) int32 {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(raw))
+	return int32(h.Sum32())
+}
+
+func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value string) error {
+	if edict == nil {
+		return fmt.Errorf("nil edict")
+	}
+	if edict.Vars == nil {
+		edict.Vars = &EntVars{}
+	}
+
+	fieldIndex, ok := entVarsFieldIndex[normalizeFieldName(keyName)]
+	if !ok {
+		return nil
+	}
+
+	rv := reflect.ValueOf(edict.Vars).Elem().Field(fieldIndex)
+	switch rv.Kind() {
+	case reflect.Float32:
+		f, err := parseFloat32(value)
+		if err != nil {
+			return err
+		}
+		rv.SetFloat(float64(f))
+	case reflect.Int32:
+		if i, err := parseInt32(value); err == nil {
+			rv.SetInt(int64(i))
+		} else {
+			rv.SetInt(int64(parseStringFallbackInt32(value)))
+		}
+	case reflect.Array:
+		if rv.Len() != 3 || rv.Type().Elem().Kind() != reflect.Float32 {
+			return fmt.Errorf("unsupported array field type %s", rv.Type())
+		}
+		vec, err := parseVec3(value)
+		if err != nil {
+			return err
+		}
+		for i := 0; i < 3; i++ {
+			rv.Index(i).SetFloat(float64(vec[i]))
+		}
+	default:
+		return fmt.Errorf("unsupported field kind %s", rv.Kind())
+	}
+
+	if normalizeFieldName(keyName) == "mins" || normalizeFieldName(keyName) == "maxs" {
+		edict.Vars.Size[0] = edict.Vars.Maxs[0] - edict.Vars.Mins[0]
+		edict.Vars.Size[1] = edict.Vars.Maxs[1] - edict.Vars.Mins[1]
+		edict.Vars.Size[2] = edict.Vars.Maxs[2] - edict.Vars.Mins[2]
+	}
+
+	return nil
+}
+
+func (em *EntityManager) parseGlobalValue(vm *qc.VM, keyName, value string) {
+	for _, def := range vm.GlobalDefs {
+		if vm.GetString(def.Name) != keyName {
+			continue
+		}
+
+		ofs := int(def.Ofs)
+		etype := qc.EType(def.Type &^ qc.DefSaveGlobal)
+
+		switch etype {
+		case qc.EvVector:
+			vec, err := parseVec3(value)
+			if err != nil {
+				return
+			}
+			vm.SetGVector(ofs, vec)
+		case qc.EvString:
+			vm.SetGInt(ofs, vm.AllocString(value))
+		case qc.EvEntity, qc.EvField, qc.EvFunction, qc.EvPointer, qc.EvExtInteger:
+			i, err := parseInt32(value)
+			if err != nil {
+				return
+			}
+			vm.SetGInt(ofs, i)
+		default:
+			f, err := parseFloat32(value)
+			if err != nil {
+				return
+			}
+			vm.SetGFloat(ofs, f)
+		}
+
+		return
+	}
 }
