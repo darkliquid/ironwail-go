@@ -7,6 +7,8 @@ go 1.25
 require (
 	github.com/ebitengine/oto/v3 v3.4.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
+	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 // indirect
+	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728 // indirect
 	github.com/go-webgpu/goffi v0.3.9 // indirect
 	github.com/go-webgpu/webgpu v0.3.1 // indirect
 	github.com/gogpu/gogpu v0.20.5 // indirect
