@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 )
 
 var (
@@ -109,14 +108,14 @@ func (r *Renderer) IsRunning() bool {
 type stubCore struct {
 	mu sync.RWMutex
 
-	cfg CoreConfig
+	cfg Config
 
 	adapterInfo interface{}
 	frameData   interface{}
 	initialized bool
 }
 
-func NewCore(cfg CoreConfig) *stubCore {
+func NewCore(cfg Config) *stubCore {
 	return &stubCore{cfg: cfg}
 }
 func (c *stubCore) InitHeadless() error {
