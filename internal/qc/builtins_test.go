@@ -119,11 +119,19 @@ func TestSetModelStoresModelAndModelIndex(t *testing.T) {
 
 func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	hookCalls := struct {
-		spawn     int
-		remove    int
-		setorigin int
-		setsize   int
-		setmodel  int
+		spawn       int
+		remove      int
+		find        int
+		findfloat   int
+		nextent     int
+		findradius  int
+		walkmove    int
+		droptofloor int
+		setorigin   int
+		setsize     int
+		setmodel    int
+		movetogoal  int
+		changeyaw   int
 	}{}
 
 	SetServerBuiltinHooks(ServerBuiltinHooks{
@@ -135,6 +143,30 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 			hookCalls.remove++
 			return nil
 		},
+		Find: func(vm *VM, startEnt, fieldOfs int, match string) int {
+			hookCalls.find++
+			return 6
+		},
+		FindFloat: func(vm *VM, startEnt, fieldOfs int, match float32) int {
+			hookCalls.findfloat++
+			return 7
+		},
+		NextEnt: func(vm *VM, entNum int) int {
+			hookCalls.nextent++
+			return 8
+		},
+		FindRadius: func(vm *VM, org [3]float32, radius float32) int {
+			hookCalls.findradius++
+			return 9
+		},
+		WalkMove: func(vm *VM, yaw, dist float32) bool {
+			hookCalls.walkmove++
+			return true
+		},
+		DropToFloor: func(vm *VM) bool {
+			hookCalls.droptofloor++
+			return true
+		},
 		SetOrigin: func(vm *VM, entNum int, org [3]float32) {
 			hookCalls.setorigin++
 		},
@@ -143,6 +175,12 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		},
 		SetModel: func(vm *VM, entNum int, modelName string) {
 			hookCalls.setmodel++
+		},
+		MoveToGoal: func(vm *VM, entNum int) {
+			hookCalls.movetogoal++
+		},
+		ChangeYaw: func(vm *VM, entNum int) {
+			hookCalls.changeyaw++
 		},
 	})
 	defer SetServerBuiltinHooks(ServerBuiltinHooks{})
@@ -155,6 +193,12 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 
 	vm.SetGFloat(OFSParm0, 1)
 	remove(vm)
+	find(vm)
+	findfloat(vm)
+	nextent(vm)
+	findradius(vm)
+	walkmove(vm)
+	droptofloor(vm)
 
 	vm.SetGVector(OFSParm1, [3]float32{1, 2, 3})
 	setorigin(vm)
@@ -166,7 +210,69 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	vm.SetGString(OFSParm1, "progs/hook.mdl")
 	setmodel(vm)
 
-	if hookCalls.spawn != 1 || hookCalls.remove != 1 || hookCalls.setorigin != 1 || hookCalls.setsize != 1 || hookCalls.setmodel != 1 {
+	vm.SetGFloat(OFSParm0, 1)
+	movetogoal(vm)
+	changeyaw(vm)
+
+	if got := int(vm.GFloat(OFSReturn)); got != 1 {
+		t.Fatalf("droptofloor return = %d, want 1", got)
+	}
+
+	if hookCalls.spawn != 1 ||
+		hookCalls.remove != 1 ||
+		hookCalls.find != 1 ||
+		hookCalls.findfloat != 1 ||
+		hookCalls.nextent != 1 ||
+		hookCalls.findradius != 1 ||
+		hookCalls.walkmove != 1 ||
+		hookCalls.droptofloor != 1 ||
+		hookCalls.setorigin != 1 ||
+		hookCalls.setsize != 1 ||
+		hookCalls.setmodel != 1 ||
+		hookCalls.movetogoal != 1 ||
+		hookCalls.changeyaw != 1 {
 		t.Fatalf("unexpected hook calls: %+v", hookCalls)
+	}
+}
+
+func TestSearchBuiltinsFallback(t *testing.T) {
+	SetServerBuiltinHooks(ServerBuiltinHooks{})
+	vm := newBuiltinsTestVM(8)
+	vm.NumEdicts = 4
+
+	vm.SetEInt(1, EntFieldTargetName, vm.AllocString("door"))
+	vm.SetEVector(1, EntFieldOrigin, [3]float32{100, 0, 0})
+	vm.SetEInt(2, EntFieldTargetName, vm.AllocString("trigger"))
+	vm.SetEFloat(2, EntFieldHealth, 100)
+	vm.SetEVector(2, EntFieldOrigin, [3]float32{10, 0, 0})
+	vm.SetEVector(3, EntFieldOrigin, [3]float32{40, 0, 0})
+
+	vm.SetGFloat(OFSParm0, 0)
+	vm.SetGInt(OFSParm1, EntFieldTargetName)
+	vm.SetGString(OFSParm2, "trigger")
+	find(vm)
+	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+		t.Fatalf("find return = %d, want 2", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 0)
+	vm.SetGInt(OFSParm1, EntFieldHealth)
+	vm.SetGFloat(OFSParm2, 100)
+	findfloat(vm)
+	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+		t.Fatalf("findfloat return = %d, want 2", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 1)
+	nextent(vm)
+	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+		t.Fatalf("nextent return = %d, want 2", got)
+	}
+
+	vm.SetGVector(OFSParm0, [3]float32{0, 0, 0})
+	vm.SetGFloat(OFSParm1, 15)
+	findradius(vm)
+	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+		t.Fatalf("findradius return = %d, want 2", got)
 	}
 }

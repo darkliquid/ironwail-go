@@ -4,17 +4,24 @@
 package qc
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 )
 
 type ServerBuiltinHooks struct {
-	Spawn     func(vm *VM) (int, error)
-	Remove    func(vm *VM, entNum int) error
-	SetOrigin func(vm *VM, entNum int, org [3]float32)
-	SetSize   func(vm *VM, entNum int, mins, maxs [3]float32)
-	SetModel  func(vm *VM, entNum int, modelName string)
+	Spawn       func(vm *VM) (int, error)
+	Remove      func(vm *VM, entNum int) error
+	Find        func(vm *VM, startEnt, fieldOfs int, match string) int
+	FindFloat   func(vm *VM, startEnt, fieldOfs int, match float32) int
+	FindRadius  func(vm *VM, org [3]float32, radius float32) int
+	NextEnt     func(vm *VM, entNum int) int
+	WalkMove    func(vm *VM, yaw, dist float32) bool
+	DropToFloor func(vm *VM) bool
+	SetOrigin   func(vm *VM, entNum int, org [3]float32)
+	SetSize     func(vm *VM, entNum int, mins, maxs [3]float32)
+	SetModel    func(vm *VM, entNum int, modelName string)
+	MoveToGoal  func(vm *VM, entNum int)
+	ChangeYaw   func(vm *VM, entNum int)
 }
 
 var serverBuiltinHooks ServerBuiltinHooks
@@ -234,9 +241,22 @@ func remove(vm *VM) {
 //
 // QuakeC signature: entity(entity start, .string fld, string match) find
 func find(vm *VM) {
-	// TODO: Implement entity search
-	// Requires iterating through entities and checking field values
-	fmt.Printf("TODO: find - search entities\n")
+	startEnt := int(vm.GFloat(OFSParm0))
+	fieldOfs := int(vm.GInt(OFSParm1))
+	match := vm.GString(OFSParm2)
+
+	if serverBuiltinHooks.Find != nil {
+		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.Find(vm, startEnt, fieldOfs, match)))
+		return
+	}
+
+	for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
+		if vm.GetString(vm.EString(entNum, fieldOfs)) == match {
+			vm.SetGFloat(OFSReturn, float32(entNum))
+			return
+		}
+	}
+
 	vm.SetGFloat(OFSReturn, 0)
 }
 
@@ -245,8 +265,22 @@ func find(vm *VM) {
 //
 // QuakeC signature: entity(entity start, .float fld, float match) findfloat
 func findfloat(vm *VM) {
-	// TODO: Implement entity search for float fields
-	fmt.Printf("TODO: findfloat - search entities by float\n")
+	startEnt := int(vm.GFloat(OFSParm0))
+	fieldOfs := int(vm.GInt(OFSParm1))
+	match := vm.GFloat(OFSParm2)
+
+	if serverBuiltinHooks.FindFloat != nil {
+		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.FindFloat(vm, startEnt, fieldOfs, match)))
+		return
+	}
+
+	for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
+		if vm.EFloat(entNum, fieldOfs) == match {
+			vm.SetGFloat(OFSReturn, float32(entNum))
+			return
+		}
+	}
+
 	vm.SetGFloat(OFSReturn, 0)
 }
 
@@ -255,10 +289,16 @@ func findfloat(vm *VM) {
 // QuakeC signature: entity(entity e) nextent
 func nextent(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
+	if serverBuiltinHooks.NextEnt != nil {
+		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.NextEnt(vm, entNum)))
+		return
+	}
 
-	// TODO: Return next entity in the array
-	// Requires iterating from entNum+1 to max_edicts
-	fmt.Printf("TODO: nextent - get next entity after %d\n", entNum)
+	if entNum+1 > 0 && entNum+1 < vm.NumEdicts {
+		vm.SetGFloat(OFSReturn, float32(entNum+1))
+		return
+	}
+
 	vm.SetGFloat(OFSReturn, 0)
 }
 
@@ -267,9 +307,31 @@ func nextent(vm *VM) {
 //
 // QuakeC signature: entity(vector org, float rad) findradius
 func findradius(vm *VM) {
-	// TODO: Find entities within radius of origin
-	// Requires spatial partitioning or linear search
-	fmt.Printf("TODO: findradius - search entities by radius\n")
+	org := vm.GVector(OFSParm0)
+	rad := vm.GFloat(OFSParm1)
+
+	if serverBuiltinHooks.FindRadius != nil {
+		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.FindRadius(vm, org, rad)))
+		return
+	}
+
+	if rad < 0 {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+
+	radSq := rad * rad
+	for entNum := 1; entNum < vm.NumEdicts; entNum++ {
+		entOrg := vm.EVector(entNum, EntFieldOrigin)
+		dx := entOrg[0] - org[0]
+		dy := entOrg[1] - org[1]
+		dz := entOrg[2] - org[2]
+		if dx*dx+dy*dy+dz*dz <= radSq {
+			vm.SetGFloat(OFSReturn, float32(entNum))
+			return
+		}
+	}
+
 	vm.SetGFloat(OFSReturn, 0)
 }
 
@@ -284,13 +346,16 @@ func findradius(vm *VM) {
 func walkmove(vm *VM) {
 	yaw := vm.GFloat(OFSParm0)
 	dist := vm.GFloat(OFSParm1)
+	if serverBuiltinHooks.WalkMove != nil {
+		if serverBuiltinHooks.WalkMove(vm, yaw, dist) {
+			vm.SetGFloat(OFSReturn, 1)
+		} else {
+			vm.SetGFloat(OFSReturn, 0)
+		}
+		return
+	}
 
-	// TODO: Implement walk movement with collision
-	// This requires physics system integration
-	fmt.Printf("TODO: walkmove yaw=%f dist=%f\n", yaw, dist)
-
-	// Return result: 1 = success, 0 = blocked
-	vm.SetGFloat(OFSReturn, 1)
+	vm.SetGFloat(OFSReturn, 0)
 }
 
 // droptofloor drops an entity down until it hits the floor.
@@ -298,9 +363,14 @@ func walkmove(vm *VM) {
 //
 // QuakeC signature: float() droptofloor
 func droptofloor(vm *VM) {
-	// TODO: Implement floor detection
-	// Requires BSP collision detection
-	fmt.Printf("TODO: droptofloor\n")
+	if serverBuiltinHooks.DropToFloor != nil {
+		if serverBuiltinHooks.DropToFloor(vm) {
+			vm.SetGFloat(OFSReturn, 1)
+		} else {
+			vm.SetGFloat(OFSReturn, 0)
+		}
+		return
+	}
 
 	vm.SetGFloat(OFSReturn, 0)
 }
@@ -378,10 +448,9 @@ func setmodel(vm *VM) {
 // QuakeC signature: void(entity ent) movetogoal
 func movetogoal(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
-
-	// TODO: Implement goal-directed movement
-	// Requires pathfinding or simple "move toward" logic
-	fmt.Printf("TODO: movetogoal - entity %d\n", entNum)
+	if serverBuiltinHooks.MoveToGoal != nil {
+		serverBuiltinHooks.MoveToGoal(vm, entNum)
+	}
 }
 
 // changeyaw smoothly rotates an entity toward its ideal yaw.
@@ -390,7 +459,7 @@ func movetogoal(vm *VM) {
 // QuakeC signature: void(entity ent) changeyaw
 func changeyaw(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
-
-	// TODO: Implement yaw smoothing
-	fmt.Printf("TODO: changeyaw - entity %d\n", entNum)
+	if serverBuiltinHooks.ChangeYaw != nil {
+		serverBuiltinHooks.ChangeYaw(vm, entNum)
+	}
 }
