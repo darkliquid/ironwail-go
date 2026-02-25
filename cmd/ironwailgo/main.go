@@ -117,5 +117,20 @@ func main() {
 		log.Fatal("Initialization failed:", err)
 	}
 
+	// Set up renderer callbacks
+	gameRenderer.OnUpdate(func(dt float64) {
+		gameHost.Frame(dt, nil)
+	})
+	gameRenderer.OnDraw(func(dc *renderer.DrawContext) {
+		// empty for now
+	})
+
+	// Start the main loop (blocking)
+	if err := gameRenderer.Run(); err != nil {
+		log.Fatal("Render loop failed:", err)
+	}
+	// Cleanup
+	gameRenderer.Shutdown()
+
 	slog.Info("Engine shutdown complete")
 }
