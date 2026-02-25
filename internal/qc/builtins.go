@@ -9,6 +9,20 @@ import (
 	"math/rand"
 )
 
+type ServerBuiltinHooks struct {
+	Spawn     func(vm *VM) (int, error)
+	Remove    func(vm *VM, entNum int) error
+	SetOrigin func(vm *VM, entNum int, org [3]float32)
+	SetSize   func(vm *VM, entNum int, mins, maxs [3]float32)
+	SetModel  func(vm *VM, entNum int, modelName string)
+}
+
+var serverBuiltinHooks ServerBuiltinHooks
+
+func SetServerBuiltinHooks(hooks ServerBuiltinHooks) {
+	serverBuiltinHooks = hooks
+}
+
 // RegisterBuiltins registers all QuakeC built-in functions with the VM.
 func RegisterBuiltins(vm *VM) {
 	// Builtin numbers match standard Quake numbering
@@ -164,12 +178,34 @@ func random(vm *VM) {
 //
 // QuakeC signature: entity() spawn
 func spawn(vm *VM) {
-	// TODO: Call server's entity allocator ED_Alloc()
-	// This requires access to the server's EntityManager
-	fmt.Printf("TODO: spawn - allocate new entity\n")
+	if serverBuiltinHooks.Spawn != nil {
+		entNum, err := serverBuiltinHooks.Spawn(vm)
+		if err != nil {
+			vm.SetGFloat(OFSReturn, 0)
+			return
+		}
+		vm.SetGFloat(OFSReturn, float32(entNum))
+		return
+	}
 
-	// For now, return 0 (should never be entity 0)
-	vm.SetGFloat(OFSReturn, 0)
+	if vm.NumEdicts == 0 {
+		vm.NumEdicts = 1
+	}
+	if vm.MaxEdicts > 0 && vm.NumEdicts >= vm.MaxEdicts {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+
+	entNum := vm.NumEdicts
+	vm.NumEdicts++
+
+	if data := vm.EdictData(entNum); data != nil {
+		for i := range data {
+			data[i] = 0
+		}
+	}
+
+	vm.SetGFloat(OFSReturn, float32(entNum))
 }
 
 // remove removes an entity from the game.
@@ -178,10 +214,19 @@ func spawn(vm *VM) {
 // QuakeC signature: void(entity e) remove
 func remove(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
+	if serverBuiltinHooks.Remove != nil {
+		_ = serverBuiltinHooks.Remove(vm, entNum)
+		return
+	}
 
-	// TODO: Call server's ED_Free(entNum)
-	// This requires access to the server's EntityManager
-	fmt.Printf("TODO: remove - free entity %d\n", entNum)
+	if entNum <= 0 || entNum >= vm.NumEdicts {
+		return
+	}
+	if data := vm.EdictData(entNum); data != nil {
+		for i := range data {
+			data[i] = 0
+		}
+	}
 }
 
 // find searches for an entity with a matching field value.
@@ -267,12 +312,17 @@ func droptofloor(vm *VM) {
 func setorigin(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
 	org := vm.GVector(OFSParm1)
+	if serverBuiltinHooks.SetOrigin != nil {
+		serverBuiltinHooks.SetOrigin(vm, entNum, org)
+		return
+	}
 
-	// Set entity origin
 	vm.SetEVector(entNum, EntFieldOrigin, org)
 
-	// TODO: Relink entity in world BSP tree
-	fmt.Printf("TODO: setorigin - relink entity %d\n", entNum)
+	mins := vm.EVector(entNum, EntFieldMins)
+	maxs := vm.EVector(entNum, EntFieldMaxs)
+	vm.SetEVector(entNum, EntFieldAbsMin, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
+	vm.SetEVector(entNum, EntFieldAbsMax, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
 }
 
 // setsize sets an entity's bounding box.
@@ -282,12 +332,14 @@ func setsize(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
 	mins := vm.GVector(OFSParm1)
 	maxs := vm.GVector(OFSParm2)
+	if serverBuiltinHooks.SetSize != nil {
+		serverBuiltinHooks.SetSize(vm, entNum, mins, maxs)
+		return
+	}
 
-	// Set entity mins/maxs
 	vm.SetEVector(entNum, EntFieldMins, mins)
 	vm.SetEVector(entNum, EntFieldMaxs, maxs)
 
-	// Calculate size
 	size := [3]float32{
 		maxs[0] - mins[0],
 		maxs[1] - mins[1],
@@ -295,8 +347,9 @@ func setsize(vm *VM) {
 	}
 	vm.SetEVector(entNum, EntFieldSize, size)
 
-	// TODO: Relink entity in world BSP tree
-	fmt.Printf("TODO: setsize - relink entity %d\n", entNum)
+	origin := vm.EVector(entNum, EntFieldOrigin)
+	vm.SetEVector(entNum, EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
+	vm.SetEVector(entNum, EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
 }
 
 // setmodel sets the model for an entity.
@@ -306,11 +359,17 @@ func setsize(vm *VM) {
 func setmodel(vm *VM) {
 	entNum := int(vm.GFloat(OFSParm0))
 	modelName := vm.GString(OFSParm1)
-
-	// TODO: Precache model and set model index
-	fmt.Printf("TODO: setmodel - set model to %s\n", modelName)
+	if serverBuiltinHooks.SetModel != nil {
+		serverBuiltinHooks.SetModel(vm, entNum, modelName)
+		return
+	}
 
 	vm.SetEInt(entNum, EntFieldModel, vm.AllocString(modelName))
+	if modelName != "" {
+		vm.SetEFloat(entNum, EntFieldModelIndex, 1)
+	} else {
+		vm.SetEFloat(entNum, EntFieldModelIndex, 0)
+	}
 }
 
 // movetogoal moves an entity towards its goal.
