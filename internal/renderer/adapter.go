@@ -3,10 +3,6 @@
 
 package renderer
 
-import (
-	"github.com/ironwail/ironwail-go/internal/host"
-)
-
 // RendererAdapter wraps renderer.Renderer to implement host.Renderer interface
 type RendererAdapter struct {
 	renderer *Renderer
