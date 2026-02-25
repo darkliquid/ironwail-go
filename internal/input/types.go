@@ -21,9 +21,11 @@ const (
 	KEnter  = 13
 	KEscape = 27
 	KSpace  = 32
+)
 
+const (
 	// Backspace and special keys
-	KBackspace = 127
+	KBackspace = 127 + iota
 
 	// Arrow keys
 	KUpArrow
@@ -84,10 +86,15 @@ const (
 	KCapsLock
 	KScrollLock
 	KPrintScreen
+)
 
+	const (
 	// Mouse buttons (virtual keys)
 	KMouseBegin = 200
-	KMouse1     = KMouseBegin
+)
+
+const (
+	KMouse1 = KMouseBegin + iota
 	KMouse2
 	KMouse3
 	KMouse4 // Back button
@@ -95,12 +102,16 @@ const (
 	KMWheelUp
 	KMWheelDown
 	KMouseEnd
+)
 
+const (
 	// Gamepad keys
 	KGamepadBegin = KMouseEnd
+)
 
+const (
 	// Standard gamepad buttons
-	KStart = KGamepadBegin
+	KStart = KGamepadBegin + iota
 	KBack
 	KLThumb
 	KRThumb
@@ -148,14 +159,18 @@ const (
 	KTouchpadAlt
 
 	KGamepadEnd
+)
 
+const (
 	// Pause key
 	KPause = KGamepadEnd
 
 	// Total number of keys
-	NumKeycodes
-	NumKeycode = NumKeycodes
+	NumKeycodes = KPause + 1
+	NumKeycode  = NumKeycodes
 )
+
+
 
 // MaxKeys is the maximum number of key bindings.
 const MaxKeys = 256

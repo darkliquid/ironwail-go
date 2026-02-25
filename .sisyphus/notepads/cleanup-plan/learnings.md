@@ -23,3 +23,10 @@
 - Added comprehensive tests in internal/host/commands_test.go.
 - Fixed CmdMap to actually call SpawnServer.
 - Resolved circular dependency issues by carefully managing imports and interface definitions.
+
+## Cleanup Task Learnings
+- The original C source code was located in the `C/` directory and has been removed.
+- The `internal/input/types.go` file had a bug where many key constants were assigned the same value (127) because they were in a `const` block without `iota` or explicit values. This was fixed by using `iota` properly.
+- The project requires `CGO_ENABLED=0` to build successfully because of a dependency (`github.com/go-webgpu/goffi`) that has issues with CGO on this platform.
+- Empty directories (`internal/mathlib`, `internal/zone`, `internal/qcvm`, `internal/render`) were removed.
+- Build artifacts like the `ironwailgo` executable in the root were removed.
