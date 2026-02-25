@@ -1,3 +1,6 @@
+//go:build gogpu
+// +build gogpu
+
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
 // It wraps the gogpu library to provide a Quake-specific rendering interface
 // with support for window management, video modes, and basic drawing operations.
@@ -41,6 +44,7 @@
 //	}
 package renderer
 
+// DrawContext provides frame-specific rendering operations.
 import (
 	"fmt"
 	"log/slog"
@@ -49,95 +53,7 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/gogpu/gogpu/input"
-	"github.com/ironwail/ironwail-go/internal/cvar"
 )
-
-// Video-related console variable names used by the renderer.
-// These cvars must be registered by the host application before
-// creating a Renderer instance.
-const (
-	CvarVidWidth      = "vid_width"      // Video width in pixels (default: 1920)
-	CvarVidHeight     = "vid_height"     // Video height in pixels (default: 1080)
-	CvarVidFullscreen = "vid_fullscreen" // Fullscreen mode: 0=windowed, 1=fullscreen (default: 1)
-	CvarVidVsync      = "vid_vsync"      // Vertical sync: 0=off, 1=on (default: 1)
-	CvarHostMaxFPS    = "host_maxfps"    // Maximum frames per second (default: 250)
-	CvarRGamma        = "r_gamma"        // Gamma correction value (default: 1.0)
-)
-
-// Config holds the video configuration for the renderer.
-// It is initialized from console variables and can be modified
-// at runtime to change video modes.
-type Config struct {
-	// Width is the window/surface width in pixels.
-	Width int
-
-	// Height is the window/surface height in pixels.
-	Height int
-
-	// Fullscreen determines whether the window is borderless fullscreen.
-	Fullscreen bool
-
-	// VSync enables vertical synchronization to prevent tearing.
-	VSync bool
-
-	// MaxFPS limits the frame rate when VSync is disabled.
-	MaxFPS int
-
-	// Gamma controls the overall brightness/gamma correction.
-	// Values >1.0 brighten the image, <1.0 darken it.
-	Gamma float32
-
-	// Title is the window title displayed in the title bar.
-	Title string
-}
-
-// DefaultConfig returns a Config with sensible defaults for a modern game.
-// These defaults can be overridden by cvars after registration.
-func DefaultConfig() Config {
-	return Config{
-		Width:      1920,
-		Height:     1080,
-		Fullscreen: true,
-		VSync:      true,
-		MaxFPS:     250,
-		Gamma:      1.0,
-		Title:      "Ironwail-Go",
-	}
-}
-
-// ConfigFromCvars creates a Config by reading values from registered cvars.
-// This allows video settings to be controlled via the console and config files.
-//
-// Prerequisites:
-//   - vid_width, vid_height, vid_fullscreen, vid_vsync, host_maxfps, r_gamma
-//     cvars must be registered before calling this function.
-//
-// If a cvar is not found, the default value from DefaultConfig() is used.
-func ConfigFromCvars() Config {
-	cfg := DefaultConfig()
-
-	if cv := cvar.Get(CvarVidWidth); cv != nil {
-		cfg.Width = cv.Int
-	}
-	if cv := cvar.Get(CvarVidHeight); cv != nil {
-		cfg.Height = cv.Int
-	}
-	if cv := cvar.Get(CvarVidFullscreen); cv != nil {
-		cfg.Fullscreen = cv.Bool()
-	}
-	if cv := cvar.Get(CvarVidVsync); cv != nil {
-		cfg.VSync = cv.Bool()
-	}
-	if cv := cvar.Get(CvarHostMaxFPS); cv != nil {
-		cfg.MaxFPS = cv.Int
-	}
-	if cv := cvar.Get(CvarRGamma); cv != nil {
-		cfg.Gamma = cv.Float32()
-	}
-
-	return cfg
-}
-
 // DrawContext provides frame-specific rendering operations.
 // It is passed to the OnDraw callback and provides access to
 // the current frame's rendering state.
@@ -152,15 +68,16 @@ type DrawContext struct {
 	gamma float32
 }
 
-// Clear fills the screen with the specified color.
+// Clear fills the screen with the specified RGBA color.
 // This is typically called at the start of each frame to clear
 // the previous frame's content.
 //
 // In Quake, the clear color is typically a dark gray or black,
 // but can be adjusted for different visual effects.
-func (dc *DrawContext) Clear(color gmath.Color) {
+func (dc *DrawContext) Clear(r, g, b, a float32) {
 	// gogpu provides DrawTriangleColor which we can use for a full-screen clear
 	// In a full implementation, we'd use a proper clear operation
+	color := gmath.Color{R: r, G: g, B: b, A: a}
 	dc.ctx.DrawTriangleColor(color)
 }
 
@@ -168,7 +85,8 @@ func (dc *DrawContext) Clear(color gmath.Color) {
 // This is primarily useful for testing the rendering pipeline.
 // In a full implementation, this would be replaced with proper
 // 3D geometry rendering using shaders.
-func (dc *DrawContext) DrawTriangle(color gmath.Color) {
+func (dc *DrawContext) DrawTriangle(r, g, b, a float32) {
+	color := gmath.Color{R: r, G: g, B: b, A: a}
 	dc.ctx.DrawTriangleColor(color)
 }
 
@@ -215,8 +133,7 @@ type Renderer struct {
 	config Config
 
 	// drawCallback is called each frame to render the scene.
-	drawCallback func(dc *DrawContext)
-
+	drawCallback func(dc RenderContext)
 	// updateCallback is called each frame for game logic updates.
 	updateCallback func(dt float64)
 
@@ -298,7 +215,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 //	    dc.Clear(gmath.Color{R: 0.1, G: 0.1, B: 0.1, A: 1.0})
 //	    // Draw world geometry...
 //	})
-func (r *Renderer) OnDraw(callback func(dc *DrawContext)) {
+func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 	r.mu.Lock()
 	r.drawCallback = callback
 	r.mu.Unlock()

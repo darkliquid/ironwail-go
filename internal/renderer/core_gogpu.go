@@ -1,3 +1,6 @@
+//go:build gogpu
+// +build gogpu
+
 package renderer
 
 import (

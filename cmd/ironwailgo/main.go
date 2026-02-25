@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogpu/gogpu"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/host"
@@ -113,11 +112,10 @@ func initSubsystems(headless bool) error {
 }
 
 func main() {
-	gogpu.SetLogger(slog.Default())
+	// Logger initialization is handled in logger_*.go files based on build tags
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
 	fmt.Println("A Go port of Ironwail Quake engine")
 	fmt.Println()
-
 	// Try to initialize with renderer, fall back to headless if it fails
 	headless := false
 	initErr := initSubsystems(false)
@@ -142,10 +140,9 @@ func main() {
 		gameRenderer.OnUpdate(func(dt float64) {
 			gameHost.Frame(dt, nil)
 		})
-		gameRenderer.OnDraw(func(dc *renderer.DrawContext) {
+		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
 			// empty for now
 		})
-
 		// Start the main loop (blocking)
 		runErr := gameRenderer.Run()
 		if runErr != nil {
