@@ -303,7 +303,25 @@ func (r *Renderer) OnDraw(callback func(dc *DrawContext)) {
 	r.drawCallback = callback
 	r.mu.Unlock()
 
+	var printed bool
 	r.app.OnDraw(func(ctx *gogpu.Context) {
+		// Get DeviceProvider (available after first frame initialization)
+		provider := r.app.DeviceProvider()
+		if provider == nil {
+			return // Not ready yet
+		}
+
+		// Log device info once
+		if !printed {
+			slog.Info(
+				"DeviceProvider",
+				slog.Any("device", provider.Device()),
+				slog.Any("queue", provider.Queue()),
+				slog.String("surface_format", provider.SurfaceFormat().String()),
+			)
+			printed = true
+		}
+
 		r.mu.RLock()
 		callback := r.drawCallback
 		gamma := r.config.Gamma
