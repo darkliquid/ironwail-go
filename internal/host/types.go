@@ -195,6 +195,14 @@ func (h *Host) AbortReason() string {
 	return h.abortReason
 }
 
+func (h *Host) SetMenu(menu *menu.Manager) {
+	h.menu = menu
+}
+
+func (h *Host) GetMenu() *menu.Manager {
+	return h.menu
+}
+
 func (h *Host) Lock() {
 	h.mu.Lock()
 }

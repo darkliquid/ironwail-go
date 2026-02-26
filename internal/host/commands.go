@@ -12,7 +12,7 @@ import (
 )
 
 func (h *Host) RegisterCommands(subs *Subsystems) {
-	cmdsys.AddCommand("quit", func(args []string) { h.CmdQuit() }, "Exit the game")
+	cmdsys.AddCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
 	cmdsys.AddCommand("map", func(args []string) {
 		if len(args) > 0 {
 			h.CmdMap(args[0], subs)
@@ -25,7 +25,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdSkill(skill)
 		}
 	}, "Set game skill level (0-3)")
-	cmdsys.AddCommand("pause", func(args []string) { h.CmdPause() }, "Pause the game")
+	cmdsys.AddCommand("pause", func(args []string) { h.CmdPause() }, "Pause game")
 	cmdsys.AddCommand("status", func(args []string) { h.CmdStatus(subs) }, "Show server status")
 	cmdsys.AddCommand("mapname", func(args []string) { h.CmdMapname(subs) }, "Show current map name")
 	cmdsys.AddCommand("god", func(args []string) { h.CmdGod(subs) }, "Toggle god mode")
@@ -38,7 +38,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 	}, "Send a message to all players")
 	cmdsys.AddCommand("serverinfo", func(args []string) { h.CmdServerInfo(subs) }, "Show server information")
-	cmdsys.AddCommand("restart", func(args []string) { h.CmdRestart(subs) }, "Restart the current map")
+	cmdsys.AddCommand("restart", func(args []string) { h.CmdRestart(subs) }, "Restart current map")
 	cmdsys.AddCommand("changelevel", func(args []string) {
 		if len(args) > 0 {
 			h.CmdChangelevel(args[0], subs)
@@ -49,7 +49,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdConnect(args[0], subs)
 		}
 	}, "Connect to a server")
-	cmdsys.AddCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to the current server")
+	cmdsys.AddCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
 	cmdsys.AddCommand("name", func(args []string) {
 		if len(args) > 0 {
 			h.CmdName(args[0], subs)
@@ -61,8 +61,8 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 	}, "Set player color")
 	cmdsys.AddCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
-	cmdsys.AddCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into the game")
-	cmdsys.AddCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin the game")
+	cmdsys.AddCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into game")
+	cmdsys.AddCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin game")
 	cmdsys.AddCommand("prespawn", func(args []string) { h.CmdPreSpawn(subs) }, "Pre-spawn handshake")
 	cmdsys.AddCommand("kick", func(args []string) {
 		if len(args) > 0 {
@@ -81,14 +81,24 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		if len(args) > 0 {
 			h.CmdSave(args[0], subs)
 		}
-	}, "Save the current game")
+	}, "Save current game")
 	cmdsys.AddCommand("give", func(args []string) {
 		if len(args) > 1 {
 			h.CmdGive(args[0], args[1], subs)
 		}
 	}, "Give items/ammo")
-}
 
+	// Menu commands
+	cmdsys.AddCommand("togglemenu", func(args []string) {
+		h.CmdToggleMenu()
+	}, "Toggle the main menu")
+	cmdsys.AddCommand("menu_main", func(args []string) {
+		h.CmdMenuMain()
+	}, "Show the main menu")
+	cmdsys.AddCommand("menu_quit", func(args []string) {
+		h.CmdMenuQuit()
+	}, "Show the quit confirmation")
+}
 func (h *Host) CmdQuit() {
 	h.Abort("quit")
 }
@@ -370,3 +380,29 @@ func (h *Host) Error(message string, subs *Subsystems) {
 
 	h.EndGame(message, subs)
 }
+
+// Menu commands
+
+func (h *Host) CmdToggleMenu() {
+	if h.menu == nil {
+		return
+	}
+	h.menu.ToggleMenu()
+}
+
+func (h *Host) CmdMenuMain() {
+	if h.menu == nil {
+		return
+	}
+	h.menu.ShowMenu()
+}
+
+func (h *Host) CmdMenuQuit() {
+	if h.menu == nil {
+		return
+	}
+	// Switch to quit state
+	h.menu.ShowMenu()
+	// Note: The menu system handles quit confirmation internally
+}
+

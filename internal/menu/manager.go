@@ -98,6 +98,14 @@ func (m *Manager) HideMenu() {
 	}
 }
 
+// RequestQuit requests the host to quit.
+// This is called from the menu when the user confirms quit.
+func (m *Manager) RequestQuit() {
+	// The host will need to check for quit requests
+	// For now, we just hide the menu
+	m.HideMenu()
+}
+
 // IsActive returns true if the menu is currently displayed.
 func (m *Manager) IsActive() bool {
 	return m.active
@@ -170,8 +178,7 @@ func (m *Manager) mainSelect() {
 func (m *Manager) quitKey(key int) {
 	switch key {
 	case input.KEnter:
-		// Confirm quit - set a flag that the host can check
-		// For now, just hide the menu
+		// Confirm quit - hide menu and let host handle the quit
 		m.HideMenu()
 	case input.KEscape, input.KBackspace:
 		// Cancel - return to main menu
