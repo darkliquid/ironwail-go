@@ -14,6 +14,7 @@ import (
 
 type InitParams struct {
 	BaseDir    string
+	GameDir    string
 	UserDir    string
 	Args       []string
 	MaxClients int
@@ -30,8 +31,9 @@ type Subsystems struct {
 }
 
 type Filesystem interface {
-	Init(baseDir string) error
-	Shutdown()
+	Init(baseDir, gameDir string) error
+	Close()
+
 }
 
 type CommandBuffer interface {
@@ -89,6 +91,7 @@ type Renderer interface {
 
 func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	h.baseDir = params.BaseDir
+	h.gameDir = params.GameDir
 	h.userDir = params.UserDir
 	h.args = params.Args
 	h.maxClients = params.MaxClients
@@ -118,7 +121,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 
 	if subs.Files != nil {
-		if err := subs.Files.Init(h.baseDir); err != nil {
+		if err := subs.Files.Init(h.baseDir, h.gameDir); err != nil {
 			return fmt.Errorf("failed to init filesystem: %w", err)
 		}
 	}
@@ -192,7 +195,7 @@ func (h *Host) Shutdown(subs *Subsystems) {
 		subs.Commands.Shutdown()
 	}
 	if subs.Files != nil {
-		subs.Files.Shutdown()
+		subs.Files.Close()
 	}
 }
 
