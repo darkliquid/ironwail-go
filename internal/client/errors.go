@@ -3,25 +3,8 @@
 
 package client
 
-import (
-	"errors"
-)
-
-// State represents client connection state
-type State int
-
-const (
-	StateDisconnected State = iota
-	StateConnected
-)
-
-// GetState returns the current client state
-func GetState(s State) State {
-	return s
-}
-
 // String returns a string representation of the state
-func (s State) String() string {
+func (s ClientState) String() string {
 	switch s {
 	case StateDisconnected:
 		return "disconnected"
@@ -35,7 +18,7 @@ func (s State) String() string {
 // Error wraps an error with state information
 type Error struct {
 	Err   error
-	State State
+	State ClientState
 }
 
 func (e *Error) Error() string {
@@ -50,7 +33,7 @@ func (e *Error) Unwrap() error {
 }
 
 // NewError creates a new error with state
-func NewError(err error, state State) *Error {
+func NewError(err error, state ClientState) *Error {
 	return &Error{Err: err, State: state}
 }
 

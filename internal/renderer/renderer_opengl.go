@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-gl/gl/v4.1-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/ironwail/ironwail-go/internal/image"
 )
 func init() {
 	// OpenGL must run on main OS thread
@@ -46,6 +47,33 @@ func (dc *glDrawContext) SurfaceView() interface{} {
 
 func (dc *glDrawContext) Gamma() float32 {
 	return dc.gamma
+}
+
+// 2D Drawing API implementation
+
+// DrawPic renders a QPic image at the specified position.
+// TODO: This is a simplified implementation that needs proper texture support.
+func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
+	// For now, just log the call
+	slog.Debug("DrawPic called", "x", x, "y", y, "pic", pic.Width, "x", pic.Height)
+	// TODO: Implement proper texture rendering with palette lookup
+}
+
+// DrawFill fills a rectangle with a Quake palette color.
+// TODO: This is a simplified implementation that needs proper palette support.
+func (dc *glDrawContext) DrawFill(x, y, w, h int, color byte) {
+	// For now, just log the call
+	// Modern OpenGL core profile doesn't support immediate mode (glBegin/glEnd)
+	// TODO: Implement proper 2D quad rendering with shaders and VBOs
+	slog.Debug("DrawFill called", "x", x, "y", y, "w", w, "h", h, "color", color)
+}
+
+// DrawCharacter renders a single character from the font.
+// TODO: This is a simplified implementation that needs proper font texture support.
+func (dc *glDrawContext) DrawCharacter(x, y int, num int) {
+	// For now, just log the call
+	slog.Debug("DrawCharacter called", "x", x, "y", y, "char", num)
+	// TODO: Implement proper character rendering from CONCHARS texture
 }
 
 type Renderer struct {

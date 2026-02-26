@@ -317,6 +317,10 @@ type System struct {
 	OnKey  KeyEventCallback
 	OnChar CharEventCallback
 
+	// Menu-specific callbacks (called when keyDest == KeyMenu)
+	OnMenuKey  KeyEventCallback
+	OnMenuChar CharEventCallback
+
 	// Current state
 	state     InputState
 	keyDest   KeyDest
@@ -449,10 +453,23 @@ func (s *System) HandleKeyEvent(event KeyEvent) {
 		s.modifiers.Alt = event.Down
 	}
 
-	// Forward to callback
-	if s.OnKey != nil {
-		s.OnKey(event)
-	}
+	// Forward to appropriate callback based on key destination
+	if s.keyDest == KeyMenu {
+		// In menu mode, route to menu callback
+		if s.OnMenuKey != nil {
+			s.OnMenuKey(event)
+		}
+		// Still forward to general callback for game state tracking
+		if s.OnKey != nil {
+			s.OnKey(event)
+		}
+	} else {
+		// Forward to general callback for game/console
+		if s.OnKey != nil {
+			s.OnKey(event)
+		}
+}
+
 }
 
 // HandleCharEvent processes a character input event.

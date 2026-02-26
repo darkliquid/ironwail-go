@@ -53,7 +53,9 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/gogpu/gogpu/input"
+	"github.com/ironwail/ironwail-go/internal/image"
 )
+
 // DrawContext provides frame-specific rendering operations.
 // It is passed to the OnDraw callback and provides access to
 // the current frame's rendering state.
@@ -105,6 +107,32 @@ func (dc *DrawContext) SurfaceView() interface{} {
 // Gamma returns the current gamma correction value.
 func (dc *DrawContext) Gamma() float32 {
 	return dc.gamma
+}
+
+// 2D Drawing API implementation
+
+// DrawPic renders a QPic image at the specified position.
+// TODO: This is a simplified implementation that needs proper texture support.
+func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
+	// For now, just log the call
+	slog.Debug("DrawPic called", "x", x, "y", y, "pic", pic.Width, "x", pic.Height)
+	// TODO: Implement proper texture rendering with palette lookup using gogpu
+}
+
+// DrawFill fills a rectangle with a Quake palette color.
+// TODO: This is a simplified implementation that needs proper palette support.
+func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
+	// For now, just log the call
+	// TODO: Implement proper 2D quad rendering using gogpu's drawing primitives
+	slog.Debug("DrawFill called", "x", x, "y", y, "w", w, "h", h, "color", color)
+}
+
+// DrawCharacter renders a single character from the font.
+// TODO: This is a simplified implementation that needs proper font texture support.
+func (dc *DrawContext) DrawCharacter(x, y int, num int) {
+	// For now, just log the call
+	// TODO: Implement proper character rendering from CONCHARS texture using gogpu
+	slog.Debug("DrawCharacter called", "x", x, "y", y, "char", num)
 }
 
 // Renderer is the main rendering context for the Ironwail-Go engine.
@@ -171,6 +199,7 @@ func New() (*Renderer, error) {
 //	cfg.Fullscreen = false
 //	r, err := renderer.NewWithConfig(cfg)
 func NewWithConfig(cfg Config) (*Renderer, error) {
+	gogpu.SetLogger(slog.Default())
 	slog.Debug("Creating renderer", "width", cfg.Width, "height", cfg.Height, "fullscreen", cfg.Fullscreen)
 
 	// Build gogpu configuration
