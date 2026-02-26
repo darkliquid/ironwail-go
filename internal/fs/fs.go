@@ -52,8 +52,11 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 	fs.baseDir = basedir
 	fs.gameDir = gamedir
 
-	if err := fs.AddGameDirectory(basedir); err != nil {
-		return fmt.Errorf("failed to add base directory: %w", err)
+	// Base directory is the installation directory, we must always add 'id1'
+	// as the fundamental Quake directory, then add any custom game directory.
+
+	if err := fs.AddGameDirectory(filepath.Join(basedir, "id1")); err != nil {
+		return fmt.Errorf("failed to add id1 directory: %w", err)
 	}
 
 	if gamedir != "" && gamedir != "id1" {
@@ -125,12 +128,16 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 			file.Close()
 			return nil, err
 		}
+		idx := 0
+		for idx < len(entry.Name) && entry.Name[idx] != 0 {
+			idx++
+		}
 		files[i] = PackFile{
-			Name:    strings.TrimRight(string(entry.Name[:]), "\x00"),
+			Name:    string(entry.Name[:idx]),
 			FilePos: entry.FilePos,
 			FileLen: entry.FileLen,
 		}
-	}
+		}
 
 	return &Pack{
 		Filename: filename,
@@ -142,6 +149,18 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 	filename = filepath.ToSlash(filename)
 
+	// First check loose files in reverse order of added paths (game dir overrides base dir)
+	for i := len(fs.searchPaths) - 1; i >= 0; i-- {
+		fullPath := filepath.Join(fs.searchPaths[i], filename)
+		if stat, err := os.Stat(fullPath); err == nil && !stat.IsDir() {
+			return &SearchResult{
+				Path:   fullPath,
+				IsPack: false,
+			}, nil
+		}
+	}
+
+	// Then check packs in reverse order (pak1 overrides pak0)
 	for i := len(fs.packs) - 1; i >= 0; i-- {
 		pack := fs.packs[i]
 		for _, pf := range pack.Files {
@@ -156,17 +175,6 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 			}
 		}
 	}
-
-	for i := len(fs.searchPaths) - 1; i >= 0; i-- {
-		fullPath := filepath.Join(fs.searchPaths[i], filename)
-		if _, err := os.Stat(fullPath); err == nil {
-			return &SearchResult{
-				Path:   fullPath,
-				IsPack: false,
-			}, nil
-		}
-	}
-
 	return nil, fmt.Errorf("file not found: %s", filename)
 }
 

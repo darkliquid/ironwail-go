@@ -1,0 +1,5 @@
+[env]
+CGO_ENABLED = "0"
+
+[tools]
+go = "1.26"

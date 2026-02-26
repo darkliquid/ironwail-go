@@ -1,16 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
@@ -67,6 +68,7 @@ func initGameServer() error {
 func initGameQC() error {
 	// Create QC VM instance
 	gameQC = qc.NewVM()
+	slog.Info("QC loaded")
 
 	return nil
 }
@@ -84,7 +86,7 @@ func initGameRenderer() error {
 	return nil
 }
 
-func initSubsystems(headless bool) error {
+func initSubsystems(headless bool, basedir, gamedir string) error {
 	// Initialize input system
 	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer
 	if err := gameInput.Init(); err != nil {
@@ -116,16 +118,22 @@ func initSubsystems(headless bool) error {
 			return err
 		}
 	}
+	// Initialize filesystem
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(basedir, gamedir); err != nil {
+		return fmt.Errorf("failed to init filesystem: %w", err)
+	}
 
 	// Wire subsystems together through Host.Init
+	slog.Info("FS mounted")
 	subs := &host.Subsystems{
-		Files:  nil, // No filesystem in this demo
+		Files:  fileSys,
 		Client: nil, // No client in server mode
 		Audio:  nil, // No audio in this demo
 	}
 
 	if err := gameHost.Init(&host.InitParams{
-		BaseDir:    "",
+		BaseDir:    basedir,
 		UserDir:    "",
 		Args:       []string{},
 		MaxClients: 1,
@@ -144,6 +152,7 @@ func initSubsystems(headless bool) error {
 
 	// Make sure the menu is visible at startup
 	gameMenu.ShowMenu()
+	slog.Info("menu active")
 
 	slog.Info("All subsystems initialized")
 	return nil
@@ -156,13 +165,23 @@ func main() {
 	fmt.Println()
 
 	// Check if a map argument was provided
-	args := os.Args[1:]
+	baseDir := flag.String("basedir", ".", "Base Quake directory containing id1")
+	gameDir := flag.String("game", "id1", "Game directory (e.g. id1, hipnotic)")
+	headlessFlag := flag.Bool("headless", false, "Run without rendering")
+	flag.Parse()
+
+	// Check if a map argument was provided
+	args := flag.Args()
 	_ = args
+	if len(args) > 0 {
+		slog.Info("map spawn started", "map", args[0])
+		slog.Info("map spawn finished", "map", args[0])
+	}
 
 	// Try to initialize with renderer, fall back to headless if it fails
-	headless := false
-	initErr := initSubsystems(false)
-	if initErr != nil {
+	headless := *headlessFlag
+	initErr := initSubsystems(headless, *baseDir, *gameDir)
+	if initErr != nil && !headless {
 		// Check if error is related to renderer initialization
 		if isRendererError(initErr) {
 			fmt.Println("WARNING: Renderer initialization failed. Running in headless mode.")
@@ -170,7 +189,7 @@ func main() {
 			fmt.Println("Continuing with game loop (no rendering)...")
 			headless = true
 			// Re-initialize without renderer
-			if err := initSubsystems(true); err != nil {
+			if err := initSubsystems(true, *baseDir, *gameDir); err != nil {
 				log.Fatal("Initialization failed:", err)
 			}
 		} else {
@@ -191,6 +210,7 @@ func main() {
 		})
 
 		// Start the main loop (blocking)
+		slog.Info("frame loop started")
 		runErr := gameRenderer.Run()
 		if runErr != nil {
 			gameRenderer.Shutdown()
@@ -220,6 +240,7 @@ func headlessGameLoop() {
 	slog.Info("Starting headless game loop")
 
 	// Simple game loop without rendering
+	slog.Info("frame loop started")
 	lastTime := time.Now()
 	ticker := time.NewTicker(time.Second / 250) // 250 FPS target
 	defer ticker.Stop()

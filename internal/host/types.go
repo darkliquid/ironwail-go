@@ -59,6 +59,7 @@ type Host struct {
 
 	args    []string
 	baseDir string
+	gameDir string
 	userDir string
 
 	aborted     bool
