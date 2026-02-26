@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/host"
+	"github.com/ironwail/ironwail-go/internal/input"
+	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -26,6 +30,11 @@ var (
 	gameServer   *server.Server
 	gameQC       *qc.VM
 	gameRenderer *renderer.Renderer
+
+	// Menu subsystem
+	gameMenu  *menu.Manager
+	gameInput *input.System
+	gameDraw  *draw.Manager
 )
 
 func initGameHost() error {
@@ -76,6 +85,23 @@ func initGameRenderer() error {
 }
 
 func initSubsystems(headless bool) error {
+	// Initialize input system
+	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer
+	if err := gameInput.Init(); err != nil {
+		return fmt.Errorf("failed to init input system: %w", err)
+	}
+
+	// Initialize draw manager
+	gameDraw = draw.NewManager()
+
+	// Initialize menu system
+	gameMenu = menu.NewManager(gameDraw, gameInput)
+
+	// Set up menu input callbacks
+	gameInput.OnMenuKey = func(event input.KeyEvent) {
+		gameMenu.M_Key(event.Key)
+	}
+
 	if err := initGameHost(); err != nil {
 		return err
 	}
@@ -107,6 +133,18 @@ func initSubsystems(headless bool) error {
 		return fmt.Errorf("failed to initialize host: %w", err)
 	}
 
+	// Set menu in host
+	gameHost.SetMenu(gameMenu)
+
+	// Initialize draw manager from data directory (for testing/development)
+	dataDir := "data"
+	if err := gameDraw.InitFromDir(dataDir); err != nil {
+		slog.Warn("Failed to initialize draw manager", "error", err)
+	}
+
+	// Make sure the menu is visible at startup
+	gameMenu.ShowMenu()
+
 	slog.Info("All subsystems initialized")
 	return nil
 }
@@ -116,11 +154,16 @@ func main() {
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
 	fmt.Println("A Go port of Ironwail Quake engine")
 	fmt.Println()
+
+	// Check if a map argument was provided
+	args := os.Args[1:]
+	_ = args
+
 	// Try to initialize with renderer, fall back to headless if it fails
 	headless := false
 	initErr := initSubsystems(false)
 	if initErr != nil {
-		// Check if the error is related to renderer initialization
+		// Check if error is related to renderer initialization
 		if isRendererError(initErr) {
 			fmt.Println("WARNING: Renderer initialization failed. Running in headless mode.")
 			fmt.Printf("Error: %v\n", initErr)
@@ -141,8 +184,12 @@ func main() {
 			gameHost.Frame(dt, nil)
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
-			// empty for now
+			// Draw menu if active
+			if gameMenu != nil && gameMenu.IsActive() {
+				gameMenu.M_Draw(dc)
+			}
 		})
+
 		// Start the main loop (blocking)
 		runErr := gameRenderer.Run()
 		if runErr != nil {

@@ -346,12 +346,18 @@ func NewSystem(backend Backend) *System {
 
 // Init initializes the input system.
 func (s *System) Init() error {
+	if s.backend == nil {
+		// No backend - input will be handled by renderer
+		return nil
+	}
 	return s.backend.Init()
 }
 
 // Shutdown cleans up the input system.
 func (s *System) Shutdown() {
-	s.backend.Shutdown()
+	if s.backend != nil {
+		s.backend.Shutdown()
+	}
 }
 
 // PollEvents polls for and processes input events.
@@ -389,6 +395,9 @@ func (s *System) GetKeyDest() KeyDest {
 
 // UpdateTextMode updates text input mode based on key destination.
 func (s *System) UpdateTextMode() {
+	if s.backend == nil {
+		return
+	}
 	switch s.keyDest {
 	case KeyConsole, KeyMessage:
 		s.backend.SetTextMode(TextModeOn)

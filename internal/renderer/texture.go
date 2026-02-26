@@ -1,0 +1,106 @@
+// Package renderer provides texture management for QPic graphics.
+//
+// This package handles uploading Quake picture (QPic) data to GPU textures,
+// managing palette conversion, and handling transparency (palette index 255).
+//
+// Note: The actual texture upload is performed per-backend in the
+// respective renderer implementation (OpenGL or GoGPU). This package
+// provides shared utilities for texture management.
+package renderer
+
+import (
+	"log/slog"
+
+	"github.com/ironwail/ironwail-go/internal/image"
+)
+
+// Texture represents a GPU texture created from a QPic.
+// It provides platform-independent texture management.
+type Texture struct {
+	// Backend-specific texture handle (varies by renderer)
+	backendHandle interface{}
+	// Original QPic dimensions
+	width  uint32
+	height uint32
+}
+
+// UploadQPic uploads a QPic to a GPU texture.
+// The exact upload method depends on the active renderer backend.
+//
+// For transparency: palette index 255 should be rendered as fully transparent.
+// This is handled by the renderer-specific implementations.
+func UploadQPic(pic *image.QPic) *Texture {
+	if pic == nil {
+		slog.Warn("Attempted to upload nil QPic")
+		return nil
+	}
+
+	// Create texture wrapper
+	tex := &Texture{
+		width:  pic.Width,
+		height: pic.Height,
+	}
+
+	// Note: The actual GPU upload happens in the renderer backends
+	// when DrawPic is called. This wrapper provides a platform-agnostic
+	// interface that can be extended for caching in the future.
+
+	return tex
+}
+
+// IsTransparentIndex returns true if a palette index represents transparency.
+// In Quake, palette index 255 is the transparent color.
+func IsTransparentIndex(color byte) bool {
+	return color == 255
+}
+
+// GetPaletteColor converts a palette index to RGB values.
+// This requires access to the loaded palette (768 bytes: 256 colors * 3 RGB).
+// Returns R, G, B values (0-255).
+func GetPaletteColor(index byte, palette []byte) (r, g, b byte) {
+	if len(palette) < 768 {
+		// Invalid palette - return gray
+		return index, index, index
+	}
+
+	offset := int(index) * 3
+	if offset >= len(palette)-2 {
+		// Out of range - return gray
+		return index, index, index
+	}
+
+	return palette[offset], palette[offset+1], palette[offset+2]
+}
+
+// ConvertPaletteToRGBA converts a palette-indexed image to RGBA format.
+// This is useful for texture uploaders that require RGBA input.
+func ConvertPaletteToRGBA(pixels []byte, palette []byte) []byte {
+	if len(palette) < 768 {
+		// Invalid palette - return grayscale RGBA
+		rgba := make([]byte, len(pixels)*4)
+		for i, p := range pixels {
+			rgba[i*4] = p
+			rgba[i*4+1] = p
+			rgba[i*4+2] = p
+			rgba[i*4+3] = 255
+		}
+		return rgba
+	}
+
+	rgba := make([]byte, len(pixels)*4)
+	for i, p := range pixels {
+		if IsTransparentIndex(p) {
+			rgba[i*4] = 0
+			rgba[i*4+1] = 0
+			rgba[i*4+2] = 0
+			rgba[i*4+3] = 0 // Fully transparent
+		} else {
+			r, g, b := GetPaletteColor(p, palette)
+			rgba[i*4] = r
+			rgba[i*4+1] = g
+			rgba[i*4+2] = b
+			rgba[i*4+3] = 255 // Opaque
+		}
+	}
+	return rgba
+}
