@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
@@ -142,6 +143,8 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 
 	s.Active = true
 	s.State = ServerStateActive
+
+	slog.Info("server spawned map start", "map", mapName)
 
 	return nil
 }

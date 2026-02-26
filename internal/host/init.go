@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -33,7 +34,7 @@ type Subsystems struct {
 type Filesystem interface {
 	Init(baseDir, gameDir string) error
 	Close()
-
+	LoadFile(filename string) ([]byte, error)
 }
 
 type CommandBuffer interface {
@@ -52,7 +53,7 @@ type Console interface {
 
 type Server interface {
 	Init(maxClients int) error
-	SpawnServer(mapName string, vfs Filesystem) error
+	SpawnServer(mapName string, vfs *fs.FileSystem) error
 	Frame(frameTime float64) error
 	Shutdown()
 	SaveSpawnParms()
