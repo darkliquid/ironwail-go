@@ -9,6 +9,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/server"
+	"github.com/ironwail/ironwail-go/internal/fs"
 )
 
 func (h *Host) RegisterCommands(subs *Subsystems) {
@@ -115,8 +116,12 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 		return fmt.Errorf("failed to init server for map %s: %w", mapName, err)
 	}
 
-	if err := subs.Server.SpawnServer(mapName, subs.Files); err != nil {
-		return fmt.Errorf("failed to spawn server for map %s: %w", mapName, err)
+	if fsInstance, ok := subs.Files.(*fs.FileSystem); ok {
+		if err := subs.Server.SpawnServer(mapName, fsInstance); err != nil {
+			return fmt.Errorf("failed to spawn server for map %s: %w", mapName, err)
+		}
+	} else {
+		return fmt.Errorf("filesystem implementation is missing")
 	}
 
 	h.serverActive = true
@@ -284,8 +289,10 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 		return
 	}
 	subs.Server.SaveSpawnParms()
-	if err := subs.Server.SpawnServer(level, subs.Files); err != nil {
-		h.Error(fmt.Sprintf("failed to change level to %s: %v", level, err), subs)
+	if fsInstance, ok := subs.Files.(*fs.FileSystem); ok {
+		if err := subs.Server.SpawnServer(level, fsInstance); err != nil {
+			h.Error(fmt.Sprintf("failed to change level to %s: %v", level, err), subs)
+		}
 	}
 }
 

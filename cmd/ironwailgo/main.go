@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -31,6 +32,7 @@ var (
 	gameServer   *server.Server
 	gameQC       *qc.VM
 	gameRenderer *renderer.Renderer
+	gameSubs     *host.Subsystems // Store subsystems for command execution
 
 	// Menu subsystem
 	gameMenu  *menu.Manager
@@ -107,37 +109,54 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	if err := initGameHost(); err != nil {
 		return err
 	}
-	if err := initGameServer(); err != nil {
-		return err
-	}
-	if err := initGameQC(); err != nil {
-		return err
-	}
-	if !headless {
-		if err := initGameRenderer(); err != nil {
-			return err
-		}
-	}
 	// Initialize filesystem
 	fileSys := fs.NewFileSystem()
 	if err := fileSys.Init(basedir, gamedir); err != nil {
 		return fmt.Errorf("failed to init filesystem: %w", err)
 	}
+	slog.Info("FS mounted")
+
+	// Initialize QuakeC VM
+	if err := initGameQC(); err != nil {
+		return err
+	}
+
+	// Load progs.dat into QC VM
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		return fmt.Errorf("failed to load progs.dat: %w", err)
+	}
+	if err := gameQC.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		return fmt.Errorf("failed to parse progs.dat: %w", err)
+	}
+	// Link the builtins and set up entity sizes
+	qc.RegisterBuiltins(gameQC)
+
+	if err := initGameServer(); err != nil {
+		return err
+	}
+	// Link QC VM into the server
+	gameServer.QCVM = gameQC
+
+	if !headless {
+		if err := initGameRenderer(); err != nil {
+			return err
+		}
+	}
 
 	// Wire subsystems together through Host.Init
-	slog.Info("FS mounted")
-	subs := &host.Subsystems{
+	gameSubs = &host.Subsystems{
 		Files:  fileSys,
+		Server: gameServer,
 		Client: nil, // No client in server mode
 		Audio:  nil, // No audio in this demo
 	}
-
 	if err := gameHost.Init(&host.InitParams{
 		BaseDir:    basedir,
 		UserDir:    "",
 		Args:       []string{},
 		MaxClients: 1,
-	}, subs); err != nil {
+	}, gameSubs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
 	}
 
@@ -172,10 +191,9 @@ func main() {
 
 	// Check if a map argument was provided
 	args := flag.Args()
-	_ = args
+	mapArg := ""
 	if len(args) > 0 {
-		slog.Info("map spawn started", "map", args[0])
-		slog.Info("map spawn finished", "map", args[0])
+		mapArg = args[0]
 	}
 
 	// Try to initialize with renderer, fall back to headless if it fails
@@ -194,6 +212,16 @@ func main() {
 			}
 		} else {
 			log.Fatal("Initialization failed:", initErr)
+		}
+	}
+
+	// Execute map command if map argument was provided
+	if mapArg != "" {
+		slog.Info("map spawn started", "map", mapArg)
+		if err := gameHost.CmdMap(mapArg, gameSubs); err != nil {
+			log.Printf("Failed to spawn map %s: %v", mapArg, err)
+		} else {
+			slog.Info("map spawn finished", "map", mapArg)
 		}
 	}
 
