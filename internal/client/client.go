@@ -20,6 +20,7 @@ type ClientState int
 const (
 	StateDisconnected ClientState = iota
 	StateConnected
+	StateActive
 )
 
 type KButton struct {
@@ -85,6 +86,14 @@ type Client struct {
 
 	Stats  [32]int
 	StatsF [32]float32
+	Items  uint32
+
+	OnGround bool
+	InWater  bool
+
+	EntityBaselines map[int]inet.EntityState
+	Entities        map[int]inet.EntityState
+	TempEntities    []TempEntityEvent
 
 	StuffCmdBuf string
 
@@ -129,20 +138,22 @@ type Client struct {
 
 func NewClient() *Client {
 	return &Client{
-		State:         StateDisconnected,
-		ForwardSpeed:  200,
-		BackSpeed:     200,
-		SideSpeed:     350,
-		UpSpeed:       200,
-		YawSpeed:      140,
-		PitchSpeed:    150,
-		AngleSpeedKey: 1.5,
-		MoveSpeedKey:  2.0,
-		AlwaysRun:     true,
-		FreeLook:      true,
-		MaxPitch:      defaultMaxPitch,
-		MinPitch:      defaultMinPitch,
-		WheelPitch:    defaultWheelPitch,
+		State:           StateDisconnected,
+		ForwardSpeed:    200,
+		BackSpeed:       200,
+		SideSpeed:       350,
+		UpSpeed:         200,
+		YawSpeed:        140,
+		PitchSpeed:      150,
+		AngleSpeedKey:   1.5,
+		MoveSpeedKey:    2.0,
+		AlwaysRun:       true,
+		FreeLook:        true,
+		MaxPitch:        defaultMaxPitch,
+		MinPitch:        defaultMinPitch,
+		WheelPitch:      defaultWheelPitch,
+		EntityBaselines: make(map[int]inet.EntityState),
+		Entities:        make(map[int]inet.EntityState),
 	}
 }
 
@@ -170,6 +181,20 @@ func (c *Client) ClearState() {
 	c.Cmd = UserCmd{}
 	c.Stats = [32]int{}
 	c.StatsF = [32]float32{}
+	c.Items = 0
+	c.OnGround = false
+	c.InWater = false
+	c.TempEntities = nil
+	if c.EntityBaselines == nil {
+		c.EntityBaselines = make(map[int]inet.EntityState)
+	} else {
+		clear(c.EntityBaselines)
+	}
+	if c.Entities == nil {
+		c.Entities = make(map[int]inet.EntityState)
+	} else {
+		clear(c.Entities)
+	}
 }
 
 func (c *Client) SetLightStyle(i int, style string) error {
@@ -229,7 +254,7 @@ func (c *Client) SignonReply() {
 		return
 	}
 	if c.Signon == 4 {
-		c.State = StateConnected
+		c.State = StateActive
 	}
 }
 

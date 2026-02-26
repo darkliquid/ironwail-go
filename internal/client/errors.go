@@ -10,6 +10,8 @@ func (s ClientState) String() string {
 		return "disconnected"
 	case StateConnected:
 		return "connected"
+	case StateActive:
+		return "active"
 	default:
 		return "unknown"
 	}
