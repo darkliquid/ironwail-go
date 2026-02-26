@@ -125,6 +125,10 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 	}
 
 	h.serverActive = true
+
+	// For singleplayer, connect the local client
+	subs.Server.ConnectClient(0)
+	h.clientState = caActive
 	return nil
 }
 

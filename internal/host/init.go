@@ -54,6 +54,7 @@ type Console interface {
 type Server interface {
 	Init(maxClients int) error
 	SpawnServer(mapName string, vfs *fs.FileSystem) error
+	ConnectClient(clientNum int)
 	Frame(frameTime float64) error
 	Shutdown()
 	SaveSpawnParms()
