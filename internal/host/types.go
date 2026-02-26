@@ -6,6 +6,8 @@ package host
 import (
 	"sync"
 	"time"
+
+	"github.com/ironwail/ironwail-go/internal/menu"
 )
 
 const (
@@ -61,6 +63,8 @@ type Host struct {
 
 	aborted     bool
 	abortReason string
+
+	menu *menu.Manager
 }
 
 func NewHost() *Host {

@@ -1,7 +1,9 @@
 package renderer
 
-import "github.com/ironwail/ironwail-go/internal/cvar"
-
+import (
+	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/image"
+)
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
 // It supports multiple rendering backends selected at build time via build tags.
 //
@@ -48,6 +50,17 @@ type RenderContext interface {
 
 	// Gamma returns the current gamma correction value.
 	Gamma() float32
+
+	// 2D Drawing API for menus and HUD
+
+	// DrawPic renders a QPic image at the specified position.
+	DrawPic(x, y int, pic *image.QPic)
+
+	// DrawFill fills a rectangle with a Quake palette color.
+	DrawFill(x, y, w, h int, color byte)
+
+	// DrawCharacter renders a single character from the font.
+	DrawCharacter(x, y int, num int)
 }
 
 // Backend manages the graphics backend and window.
