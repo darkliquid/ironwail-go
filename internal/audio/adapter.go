@@ -3,9 +3,7 @@
 
 package audio
 
-import (
-	"github.com/ironwail/ironwail-go/internal/host"
-)
+
 
 // AudioAdapter wraps audio.System to implement host.Audio interface
 type AudioAdapter struct {
@@ -17,11 +15,7 @@ func NewAudioAdapter(sys *System) *AudioAdapter {
 }
 
 func (a *AudioAdapter) Init() error {
-	// Audio system needs a backend, but for host interface
-	// we'll just initialize without backend for now
-	if a.sys != nil {
-		return a.sys.Init(nil)
-	}
+	// Audio system initialization deferred until a real backend is available (M7)
 	return nil
 }
 

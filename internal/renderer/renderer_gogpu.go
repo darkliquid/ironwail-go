@@ -44,7 +44,6 @@
 //	}
 package renderer
 
-// DrawContext provides frame-specific rendering operations.
 import (
 	"fmt"
 	"log/slog"
@@ -68,6 +67,9 @@ type DrawContext struct {
 
 	// gamma is the current gamma correction value.
 	gamma float32
+
+	// renderer is the parent Renderer instance.
+	renderer *Renderer
 }
 
 // Clear fills the screen with the specified RGBA color.
@@ -112,27 +114,49 @@ func (dc *DrawContext) Gamma() float32 {
 // 2D Drawing API implementation
 
 // DrawPic renders a QPic image at the specified position.
-// TODO: This is a simplified implementation that needs proper texture support.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
-	// For now, just log the call
-	slog.Debug("DrawPic called", "x", x, "y", y, "pic", pic.Width, "x", pic.Height)
-	// TODO: Implement proper texture rendering with palette lookup using gogpu
+	if pic == nil {
+		return
+	}
+
+	tex := dc.renderer.getOrCreateTexture(dc.ctx, pic)
+	if tex == nil {
+		return
+	}
+
+	err := dc.ctx.DrawTexture(tex, float32(x), float32(y))
+	if err != nil {
+		slog.Error("Failed to draw texture", "error", err)
+	}
 }
 
 // DrawFill fills a rectangle with a Quake palette color.
-// TODO: This is a simplified implementation that needs proper palette support.
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
-	// For now, just log the call
-	// TODO: Implement proper 2D quad rendering using gogpu's drawing primitives
-	slog.Debug("DrawFill called", "x", x, "y", y, "w", w, "h", h, "color", color)
+	tex := dc.renderer.getOrCreateColorTexture(dc.ctx, color)
+	if tex == nil {
+		return
+	}
+
+	err := dc.ctx.DrawTextureScaled(tex, float32(x), float32(y), float32(w), float32(h))
+	if err != nil {
+		slog.Error("Failed to draw color texture", "error", err)
+	}
 }
 
 // DrawCharacter renders a single character from the font.
-// TODO: This is a simplified implementation that needs proper font texture support.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) {
-	// For now, just log the call
-	// TODO: Implement proper character rendering from CONCHARS texture using gogpu
-	slog.Debug("DrawCharacter called", "x", x, "y", y, "char", num)
+	// For now, implement as simplified DrawFill if CONCHARS not available
+	dc.DrawFill(x, y, 8, 8, byte(num%255))
+}
+
+type cacheKey struct {
+	pic *image.QPic
+}
+
+type cachedTexture struct {
+	texture *gogpu.Texture
+	width   int
+	height  int
 }
 
 // Renderer is the main rendering context for the Ironwail-Go engine.
@@ -170,6 +194,15 @@ type Renderer struct {
 
 	// running indicates if the main loop is active.
 	running bool
+
+	// textureCache stores uploaded textures to avoid re-uploading
+	textureCache map[cacheKey]*cachedTexture
+
+	// colorTextures stores 1x1 textures for solid colors
+	colorTextures [256]*gogpu.Texture
+
+	// palette is the current Quake palette (768 bytes)
+	palette []byte
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -220,8 +253,9 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	app := gogpu.NewApp(gpuCfg)
 
 	r := &Renderer{
-		app:    app,
-		config: cfg,
+		app:          app,
+		config:       cfg,
+		textureCache: make(map[cacheKey]*cachedTexture),
 	}
 
 	slog.Info("Renderer created",
@@ -233,6 +267,84 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	)
 
 	return r, nil
+}
+
+// SetPalette sets the Quake palette used for rendering.
+func (r *Renderer) SetPalette(palette []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.palette = make([]byte, len(palette))
+	copy(r.palette, palette)
+
+	// Invalidate texture cache since palette changed
+	r.textureCache = make(map[cacheKey]*cachedTexture)
+	for i := range r.colorTextures {
+		r.colorTextures[i] = nil
+	}
+}
+
+func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogpu.Texture {
+	r.mu.RLock()
+	cached, ok := r.textureCache[cacheKey{pic: pic}]
+	palette := r.palette
+	r.mu.RUnlock()
+
+	if ok && cached != nil {
+		return cached.texture
+	}
+
+	// Convert palette to RGBA
+	rgba := ConvertPaletteToRGBA(pic.Pixels, palette)
+
+	// Create texture
+	tex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
+	if err != nil {
+		slog.Error("Failed to create texture", "error", err)
+		return nil
+	}
+
+	r.mu.Lock()
+	r.textureCache[cacheKey{pic: pic}] = &cachedTexture{
+		texture: tex,
+		width:   int(pic.Width),
+		height:  int(pic.Height),
+	}
+	r.mu.Unlock()
+
+	return tex
+}
+
+func (r *Renderer) getOrCreateColorTexture(ctx *gogpu.Context, color byte) *gogpu.Texture {
+	r.mu.RLock()
+	tex := r.colorTextures[color]
+	palette := r.palette
+	r.mu.RUnlock()
+
+	if tex != nil {
+		return tex
+	}
+
+	// Create 1x1 RGBA texture
+	rgba := make([]byte, 4)
+	if IsTransparentIndex(color) {
+		rgba[0], rgba[1], rgba[2], rgba[3] = 0, 0, 0, 0
+	} else {
+		pr, pg, pb := GetPaletteColor(color, palette)
+		rgba[0], rgba[1], rgba[2], rgba[3] = pr, pg, pb, 255
+	}
+
+	newTex, err := ctx.Renderer().NewTextureFromRGBA(1, 1, rgba)
+	if err != nil {
+		slog.Error("Failed to create color texture", "error", err)
+		return nil
+	}
+
+	r.mu.Lock()
+	r.colorTextures[color] = newTex
+	r.mu.Unlock()
+
+	return newTex
 }
 
 // OnDraw sets the callback for frame rendering.
@@ -261,8 +373,8 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 		if !printed {
 			slog.Info(
 				"DeviceProvider",
-				slog.Any("device", provider.Device()),
-				slog.Any("queue", provider.Queue()),
+				slog.String("device", fmt.Sprintf("%T", provider.Device())),
+				slog.String("queue", fmt.Sprintf("%T", provider.Queue())),
 				slog.String("surface_format", provider.SurfaceFormat().String()),
 			)
 			printed = true
@@ -275,8 +387,9 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 
 		if callback != nil {
 			dc := &DrawContext{
-				ctx:   ctx,
-				gamma: gamma,
+				ctx:      ctx,
+				gamma:    gamma,
+				renderer: r,
 			}
 			callback(dc)
 		}
@@ -429,4 +542,150 @@ func (r *Renderer) IsRunning() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.running
+}
+
+// Frame Pipeline Methods
+// These methods orchestrate the rendering phases in the correct order.
+
+// RenderFrameState contains all data needed to render a frame.
+type RenderFrameState struct {
+	// ClearColor is the RGBA clear color (typically dark gray/black)
+	ClearColor [4]float32
+
+	// DrawWorld enables 3D world rendering
+	DrawWorld bool
+
+	// DrawEntities enables entity rendering
+	DrawEntities bool
+
+	// DrawParticles enables particle rendering
+	DrawParticles bool
+
+	// Draw2DOverlay enables 2D overlay (HUD, menu, console)
+	Draw2DOverlay bool
+
+	// MenuActive indicates if menu is currently displayed
+	MenuActive bool
+
+	// Particles is the active particle system to render
+	Particles *ParticleSystem
+
+	// Palette for color conversion
+	Palette []byte
+}
+
+// RenderFrame executes the complete frame pipeline in order:
+// 1. Clear screen
+// 2. Draw 3D world (stub)
+// 3. Draw entities (stub)
+// 4. Draw particles
+// 5. Draw 2D overlay (HUD, menu, console)
+func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(dc RenderContext)) {
+	if state == nil {
+		return
+	}
+
+	// Phase 1: Clear screen
+	dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+
+	// Phase 2: Draw 3D world (stub - M4.3 will implement)
+	if state.DrawWorld {
+		dc.renderWorld(state)
+	}
+
+	// Phase 3: Draw entities (stub - M4.4 will implement)
+	if state.DrawEntities {
+		dc.renderEntities(state)
+	}
+
+	// Phase 4: Draw particles
+	if state.DrawParticles && state.Particles != nil {
+		dc.renderParticles(state)
+	}
+
+	// Phase 5: Draw 2D overlay (HUD, menu, console)
+	if state.Draw2DOverlay && draw2DOverlay != nil {
+		draw2DOverlay(dc)
+	}
+}
+
+// renderWorld draws the 3D world geometry (BSP surfaces).
+// Stub implementation - M4.3 will implement proper BSP rendering.
+func (dc *DrawContext) renderWorld(state *RenderFrameState) {
+	// TODO: Implement BSP world rendering (M4.3)
+	// For now, this is a stub that does nothing.
+	// The world will be rendered using vertex buffers and textures
+	// loaded from the BSP file.
+}
+
+// renderEntities draws entity models (alias models, brush models).
+// Stub implementation - M4.4 will implement proper entity rendering.
+func (dc *DrawContext) renderEntities(state *RenderFrameState) {
+	// TODO: Implement entity rendering (M4.4)
+	// For now, this is a stub that does nothing.
+	// Entities will be rendered using MDL/alias model pipeline.
+}
+
+// renderParticles draws the particle system.
+func (dc *DrawContext) renderParticles(state *RenderFrameState) {
+	if state.Particles == nil || state.Particles.ActiveCount() == 0 {
+		return
+	}
+
+	// Get active particles
+	particles := state.Particles.ActiveParticles()
+
+	// Build particle vertices
+	palette := buildParticlePalette(state.Palette)
+	verts := BuildParticleVertices(particles, palette, false) // false = not showtris mode
+
+	// Draw each particle as a small colored quad
+	// This is a simplified implementation - a proper implementation would use
+	// instanced rendering or a point sprite shader
+	for i, v := range verts {
+		if i >= len(particles) {
+			break
+		}
+		// Draw particle as a small quad
+		size := float32(4.0) // Particle size in pixels
+		x := int(v.Pos[0])
+		y := int(v.Pos[1])
+		color := particles[i].Color
+		dc.DrawFill(x-int(size/2), y-int(size/2), int(size), int(size), color)
+	}
+}
+
+// buildParticlePalette converts a 768-byte palette to the [256][4]byte format
+// expected by BuildParticleVertices.
+func buildParticlePalette(palette []byte) [256][4]byte {
+	var p [256][4]byte
+	if len(palette) < 768 {
+		// Grayscale fallback
+		for i := range p {
+			p[i] = [4]byte{byte(i), byte(i), byte(i), 255}
+		}
+		return p
+	}
+	for i := range p {
+		offset := i * 3
+		p[i] = [4]byte{
+			palette[offset],
+			palette[offset+1],
+			palette[offset+2],
+			255,
+		}
+	}
+	return p
+}
+
+// DefaultRenderFrameState returns a sensible default RenderFrameState.
+func DefaultRenderFrameState() *RenderFrameState {
+	return &RenderFrameState{
+		ClearColor:    [4]float32{0.0, 0.0, 0.0, 1.0}, // Black
+		DrawWorld:     false,                          // Disabled until M4.3
+		DrawEntities:  false,                          // Disabled until M4.4
+		DrawParticles: false,                          // Disabled until particle system is wired
+		Draw2DOverlay: true,                           // Always draw 2D overlay
+		MenuActive:    true,                           // Menu is active at startup
+	}
 }

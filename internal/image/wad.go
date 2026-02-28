@@ -11,15 +11,21 @@ const (
 	Wad2Id = "WAD2"
 )
 
+// LumpType specifies the type of a lump file.
+//
+//go:generate go tool stringer --type LumpType
+type LumpType int8
+
 const (
-	TypNone    = 0
-	TypLabel   = 1
-	TypLumpy   = 64
-	TypPalette = 64
-	TypQTex    = 65
-	TypQPic    = 66
-	TypSound   = 67
-	TypMipTex  = 68
+	TypNone       = LumpType(0)
+	TypLabel      = LumpType(1)
+	TypLumpy      = LumpType(64)
+	TypPalette    = LumpType(64)
+	TypQTex       = LumpType(65)
+	TypQPic       = LumpType(66)
+	TypSound      = LumpType(67)
+	TypMipTex     = LumpType(68)
+	TypConsolePic = LumpType(69)
 )
 
 type WadHeader struct {
@@ -32,7 +38,7 @@ type LumpInfo struct {
 	FilePos     int32
 	DiskSize    int32
 	Size        int32
-	Type        int8
+	Type        LumpType
 	Compression int8
 	Pad1, Pad2  int8
 	Name        [16]byte
@@ -40,7 +46,7 @@ type LumpInfo struct {
 
 type Lump struct {
 	Name string
-	Type int8
+	Type LumpType
 	Data []byte
 }
 
