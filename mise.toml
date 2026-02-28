@@ -1,5 +1,80 @@
 [env]
 CGO_ENABLED = "0"
+QUAKE_DIR = "/home/darkliquid/Games/Heroic/Quake"
+TIMEOUT = "5"
 
 [tools]
 go = "1.26"
+
+# Helper task - not meant to be run directly
+[tasks.go-run]
+description = "Run the ironwailgo binary (internal task)"
+hide = true
+run = """
+go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR}
+"""
+
+[tasks.clean-logs]
+description = "Remove smoke test log files"
+run = "rm -f smoke-*.log"
+
+[tasks.smoke-menu]
+description = "Smoke test: verify menu loads correctly"
+depends = ["clean-logs"]
+run = """
+export WAYLAND_DISPLAY=
+timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} 2>&1 | tee smoke-menu.log || true
+grep "FS mounted" smoke-menu.log
+grep "QC loaded" smoke-menu.log
+grep "menu active" smoke-menu.log
+grep "frame loop started" smoke-menu.log
+"""
+
+[tasks.smoke-headless]
+description = "Smoke test: verify headless mode works"
+depends = ["clean-logs"]
+run = """
+export WAYLAND_DISPLAY=
+timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} -headless 2>&1 | tee smoke-headless.log || true
+grep "FS mounted" smoke-headless.log
+grep "QC loaded" smoke-headless.log
+grep "menu active" smoke-headless.log
+grep "frame loop started" smoke-headless.log
+"""
+
+[tasks.smoke-map-start]
+description = "Smoke test: verify map spawning works"
+depends = ["clean-logs"]
+run = """
+export WAYLAND_DISPLAY=
+timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} start 2>&1 | tee smoke-map-start.log || true
+grep "FS mounted" smoke-map-start.log
+grep "QC loaded" smoke-map-start.log
+grep "menu active" smoke-map-start.log
+grep "map spawn started" smoke-map-start.log
+grep "map spawn finished" smoke-map-start.log
+grep "frame loop started" smoke-map-start.log
+"""
+
+[tasks.smoke-all]
+description = "Run all smoke tests"
+depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]
+
+[tasks.test]
+description = "Run Go tests"
+run = "QUAKE_DIR=${QUAKE_DIR} go test ./internal/testutil"
+
+[tasks.build-gogpu]
+depends = ["go-generate"]
+description = "Build binary in WGPU mode"
+run = "go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
+
+[tasks.build-gl]
+depends = ["go-generate"]
+description = "Build binary in OpenGL mode"
+run = "go build -tags opengl  -o ironwailgo-gl ./cmd/ironwailgo"
+
+[tasks.go-generate]
+hide = true
+description = "Run go generate (internal task)"
+run = "go generate ./..."

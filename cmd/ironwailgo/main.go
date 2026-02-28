@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -187,7 +188,20 @@ func main() {
 	baseDir := flag.String("basedir", ".", "Base Quake directory containing id1")
 	gameDir := flag.String("game", "id1", "Game directory (e.g. id1, hipnotic)")
 	headlessFlag := flag.Bool("headless", false, "Run without rendering")
+	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
+	logLevel := flag.String("loglvl", "INFO", "logging level (INFO, WARN, ERROR, DEBUG)")
 	flag.Parse()
+
+	switch strings.ToUpper(*logLevel) {
+	case "WARN":
+		slog.SetLogLoggerLevel(slog.LevelWarn)
+	case "ERROR":
+		slog.SetLogLoggerLevel(slog.LevelError)
+	case "DEBUG":
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	default:
+		slog.SetLogLoggerLevel(slog.LevelInfo)
+	}
 
 	// Check if a map argument was provided
 	args := flag.Args()
@@ -230,13 +244,29 @@ func main() {
 		}
 	}
 
+	// Screenshot mode: render single frame and save to PNG
+	if *screenshotFlag != "" {
+		if err := captureScreenshot(*screenshotFlag, *baseDir, *gameDir); err != nil {
+			log.Fatal("Screenshot failed:", err)
+		}
+		return
+	}
+
 	if !headless {
 		// Set up renderer callbacks
 		gameRenderer.OnUpdate(func(dt float64) {
 			gameHost.Frame(dt, nil)
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
-			// Draw menu if active
+			// Frame pipeline: Clear → World → Entities → Particles → 2D Overlay
+
+			// Phase 1: Clear screen to black
+			dc.Clear(0, 0, 0, 1)
+
+			// Phase 2-4: World/Entities/Particles (stubs until M4.3/M4.4)
+			// These will be implemented in later milestones
+
+			// Phase 5: 2D Overlay (menu, console, HUD)
 			if gameMenu != nil && gameMenu.IsActive() {
 				gameMenu.M_Draw(dc)
 			}
@@ -278,15 +308,14 @@ func headlessGameLoop() {
 	ticker := time.NewTicker(time.Second / 250) // 250 FPS target
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			now := time.Now()
-			dt := now.Sub(lastTime).Seconds()
-			lastTime = now
+	for range ticker.C {
+		now := time.Now()
+		dt := now.Sub(lastTime).Seconds()
+		lastTime = now
 
-			// Update game state
-			gameHost.Frame(dt, nil)
+		// Update game state
+		if err := gameHost.Frame(dt, nil); err != nil {
+			log.Fatal("host frame error", err)
 		}
 	}
 }
@@ -300,4 +329,8 @@ func isRendererError(err error) bool {
 		strings.Contains(errStr, "window") ||
 		strings.Contains(errStr, "surface") ||
 		strings.Contains(errStr, "segv")
+}
+
+func captureScreenshot(sspath, baseDir, gameDir string) error {
+	return errors.New("not implemented")
 }
