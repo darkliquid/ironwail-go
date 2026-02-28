@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,15 +28,22 @@ type Pack struct {
 }
 
 type SearchResult struct {
-	Path    string
-	IsPack  bool
-	Pack    *Pack
-	FilePos int32
-	FileLen int32
+	Path     string
+	Name     string
+	SourceFS iofs.FS
+	IsPack   bool
+	Pack     *Pack
+	FilePos  int32
+	FileLen  int32
+}
+
+type searchPath struct {
+	root string
+	fs   iofs.FS
 }
 
 type FileSystem struct {
-	searchPaths []string
+	searchPaths []searchPath
 	packs       []*Pack
 	gameDir     string
 	baseDir     string
@@ -43,7 +51,7 @@ type FileSystem struct {
 
 func NewFileSystem() *FileSystem {
 	return &FileSystem{
-		searchPaths: make([]string, 0),
+		searchPaths: make([]searchPath, 0),
 		packs:       make([]*Pack, 0),
 	}
 }
@@ -69,9 +77,13 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 }
 
 func (fs *FileSystem) AddGameDirectory(dir string) error {
-	fs.searchPaths = append(fs.searchPaths, dir)
+	cleanDir := filepath.Clean(dir)
+	fs.searchPaths = append(fs.searchPaths, searchPath{
+		root: cleanDir,
+		fs:   os.DirFS(cleanDir),
+	})
 
-	pakFiles, err := filepath.Glob(filepath.Join(dir, "*.pak"))
+	pakFiles, err := filepath.Glob(filepath.Join(cleanDir, "*.pak"))
 	if err != nil {
 		return err
 	}
@@ -137,7 +149,7 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 			FilePos: entry.FilePos,
 			FileLen: entry.FileLen,
 		}
-		}
+	}
 
 	return &Pack{
 		Filename: filename,
@@ -147,15 +159,26 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 }
 
 func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
-	filename = filepath.ToSlash(filename)
+	sanitizedName, err := sanitizePath(filename)
+	if err != nil {
+		return nil, err
+	}
 
 	// First check loose files in reverse order of added paths (game dir overrides base dir)
 	for i := len(fs.searchPaths) - 1; i >= 0; i-- {
-		fullPath := filepath.Join(fs.searchPaths[i], filename)
-		if stat, err := os.Stat(fullPath); err == nil && !stat.IsDir() {
+		searchPath := fs.searchPaths[i]
+		fullPath := filepath.Join(searchPath.root, filepath.FromSlash(sanitizedName))
+
+		if !isWithinRoot(searchPath.root, fullPath) {
+			return nil, fmt.Errorf("invalid path traversal attempt: %s", filename)
+		}
+
+		if stat, err := iofs.Stat(searchPath.fs, sanitizedName); err == nil && !stat.IsDir() {
 			return &SearchResult{
-				Path:   fullPath,
-				IsPack: false,
+				Path:     fullPath,
+				Name:     sanitizedName,
+				SourceFS: searchPath.fs,
+				IsPack:   false,
 			}, nil
 		}
 	}
@@ -164,9 +187,10 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 	for i := len(fs.packs) - 1; i >= 0; i-- {
 		pack := fs.packs[i]
 		for _, pf := range pack.Files {
-			if pf.Name == filename {
+			if pf.Name == sanitizedName {
 				return &SearchResult{
 					Path:    pack.Filename,
+					Name:    sanitizedName,
 					IsPack:  true,
 					Pack:    pack,
 					FilePos: pf.FilePos,
@@ -175,7 +199,7 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("file not found: %s", filename)
+	return nil, fmt.Errorf("file not found: %s", sanitizedName)
 }
 
 func (fs *FileSystem) LoadFile(filename string) ([]byte, error) {
@@ -188,7 +212,7 @@ func (fs *FileSystem) LoadFile(filename string) ([]byte, error) {
 		return fs.loadFromPack(result)
 	}
 
-	return os.ReadFile(result.Path)
+	return iofs.ReadFile(result.SourceFS, result.Name)
 }
 
 func (fs *FileSystem) loadFromPack(result *SearchResult) ([]byte, error) {
@@ -220,16 +244,13 @@ func (fs *FileSystem) GetBaseDir() string {
 func (fs *FileSystem) ListFiles(pattern string) []string {
 	var results []string
 
-	for _, path := range fs.searchPaths {
-		matches, err := filepath.Glob(filepath.Join(path, pattern))
+	for _, searchPath := range fs.searchPaths {
+		matches, err := iofs.Glob(searchPath.fs, pattern)
 		if err != nil {
 			continue
 		}
 		for _, match := range matches {
-			rel, err := filepath.Rel(path, match)
-			if err == nil {
-				results = append(results, filepath.ToSlash(rel))
-			}
+			results = append(results, filepath.ToSlash(match))
 		}
 	}
 
@@ -299,4 +320,35 @@ func FileBase(path string) string {
 func CreatePath(path string) error {
 	dir := filepath.Dir(path)
 	return os.MkdirAll(dir, 0755)
+}
+
+func sanitizePath(filename string) (string, error) {
+	normalized := strings.ReplaceAll(filename, "\\", "/")
+	cleaned := filepath.ToSlash(filepath.Clean(filepath.FromSlash(normalized)))
+
+	if cleaned == "." || cleaned == "" {
+		return "", fmt.Errorf("invalid empty path")
+	}
+
+	if filepath.IsAbs(cleaned) || strings.HasPrefix(cleaned, "/") {
+		return "", fmt.Errorf("absolute paths are not allowed: %s", filename)
+	}
+
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("invalid path traversal attempt: %s", filename)
+	}
+
+	return cleaned, nil
+}
+
+func isWithinRoot(root, target string) bool {
+	cleanRoot := filepath.Clean(root)
+	cleanTarget := filepath.Clean(target)
+
+	rel, err := filepath.Rel(cleanRoot, cleanTarget)
+	if err != nil {
+		return false
+	}
+
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
