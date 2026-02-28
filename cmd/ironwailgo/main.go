@@ -70,7 +70,7 @@ func initGameServer() error {
 func initGameQC() error {
 	// Create QC VM instance
 	gameQC = qc.NewVM()
-	slog.Info("QC loaded")
+	// slog.Info("QC loaded") - moved to main for deterministic logs
 
 	return nil
 }
@@ -114,7 +114,7 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	if err := fileSys.Init(basedir, gamedir); err != nil {
 		return fmt.Errorf("failed to init filesystem: %w", err)
 	}
-	slog.Info("FS mounted")
+	// slog.Info("FS mounted") - moved to main for deterministic logs
 
 	// Initialize QuakeC VM
 	if err := initGameQC(); err != nil {
@@ -171,7 +171,7 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 
 	// Make sure the menu is visible at startup
 	gameMenu.ShowMenu()
-	slog.Info("menu active")
+	// slog.Info("menu active") - moved to main for deterministic logs
 
 	slog.Info("All subsystems initialized")
 	return nil
@@ -214,6 +214,11 @@ func main() {
 			log.Fatal("Initialization failed:", initErr)
 		}
 	}
+
+	// Deterministic startup logs after successful initialization
+	slog.Info("FS mounted")
+	slog.Info("QC loaded")
+	slog.Info("menu active")
 
 	// Execute map command if map argument was provided
 	if mapArg != "" {
