@@ -19,7 +19,7 @@ func LocateQuakeDir() (string, error) {
 		}
 	}
 
-	// Common relative paths
+	// Common relative paths to check for id1 directory
 	paths := []string{
 		".",
 		"..",
@@ -28,6 +28,17 @@ func LocateQuakeDir() (string, error) {
 	}
 
 	for _, p := range paths {
+		// Check if p itself is id1
+		if filepath.Base(p) == "id1" {
+			if stat, err := os.Stat(p); err == nil && stat.IsDir() {
+				abs, err := filepath.Abs(filepath.Dir(p))
+				if err == nil {
+					return abs, nil
+				}
+				return filepath.Dir(p), nil
+			}
+		}
+		// Check if p contains id1
 		id1Path := filepath.Join(p, "id1")
 		if stat, err := os.Stat(id1Path); err == nil && stat.IsDir() {
 			abs, err := filepath.Abs(p)
