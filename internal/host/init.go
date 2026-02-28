@@ -7,11 +7,68 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
-	"github.com/ironwail/ironwail-go/internal/fs"
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
+
+var hostSubsystemRegistry sync.Map
+
+type localLoopbackClient struct {
+	inner *cl.Client
+}
+
+func newLocalLoopbackClient() *localLoopbackClient {
+	return &localLoopbackClient{inner: cl.NewClient()}
+}
+
+func (c *localLoopbackClient) Init() error {
+	if c.inner == nil {
+		c.inner = cl.NewClient()
+	}
+	c.inner.ClearState()
+	return nil
+}
+
+func (c *localLoopbackClient) Frame(frameTime float64) error { return nil }
+func (c *localLoopbackClient) Shutdown()                     {}
+
+func (c *localLoopbackClient) State() ClientState {
+	if c == nil || c.inner == nil {
+		return caDisconnected
+	}
+	switch c.inner.State {
+	case cl.StateConnected:
+		return caConnected
+	case cl.StateActive:
+		return caActive
+	default:
+		return caDisconnected
+	}
+}
+
+func (c *localLoopbackClient) ReadFromServer() error { return nil }
+func (c *localLoopbackClient) SendCommand() error    { return nil }
+
+func (c *localLoopbackClient) LocalServerInfo() error {
+	c.inner.ClearState()
+	c.inner.State = cl.StateDisconnected
+	return c.inner.HandleServerInfo()
+}
+
+func (c *localLoopbackClient) LocalSignonReply(command string) error {
+	return c.inner.HandleSignonReply(command)
+}
+
+func (c *localLoopbackClient) LocalSignon() int {
+	if c == nil || c.inner == nil {
+		return 0
+	}
+	return c.inner.Signon
+}
 
 type InitParams struct {
 	BaseDir    string
@@ -140,6 +197,9 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 
 	if subs.Server != nil {
+		if subs.Client == nil {
+			subs.Client = newLocalLoopbackClient()
+		}
 		if err := subs.Server.Init(h.maxClients); err != nil {
 			return fmt.Errorf("failed to init server: %w", err)
 		}
@@ -164,6 +224,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 
 	h.initialized = true
+	hostSubsystemRegistry.Store(h, subs)
 	h.realtime = currentTime()
 	h.oldrealtime = h.realtime
 	h.frameCount = 0

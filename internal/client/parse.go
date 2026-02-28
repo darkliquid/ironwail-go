@@ -60,7 +60,7 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 		switch cmd {
 		case inet.SVCNop:
 		case inet.SVCDisconnect:
-			p.Client.State = StateDisconnected
+			p.Client.setState(StateDisconnected)
 			return fmt.Errorf("server disconnected")
 		case inet.SVCTime:
 			v, ok := msg.ReadFloat()
@@ -158,6 +158,7 @@ func (p *Parser) parseVersion(msg *common.SizeBuf) error {
 
 func (p *Parser) parseServerInfo(msg *common.SizeBuf) error {
 	p.Client.ClearState()
+	p.Client.setState(StateDisconnected)
 
 	v, ok := msg.ReadLong()
 	if !ok {
@@ -208,8 +209,7 @@ func (p *Parser) parseServerInfo(msg *common.SizeBuf) error {
 	}
 	p.Client.SoundPrecache = sounds
 
-	p.Client.State = StateConnected
-	return nil
+	return p.Client.HandleServerInfo()
 }
 
 func (p *Parser) parseSignOnNum(msg *common.SizeBuf) error {
@@ -218,11 +218,16 @@ func (p *Parser) parseSignOnNum(msg *common.SizeBuf) error {
 		return fmt.Errorf("svc_signonnum: missing signon")
 	}
 	signon := int(v)
+	if p.Client.State == StateDisconnected {
+		return fmt.Errorf("svc_signonnum: received while disconnected")
+	}
 	if signon <= p.Client.Signon {
 		return fmt.Errorf("svc_signonnum out-of-order: got %d at %d", signon, p.Client.Signon)
 	}
 	p.Client.Signon = signon
-	p.Client.SignonReply()
+	if signon == Signons {
+		p.Client.setState(StateActive)
+	}
 	return nil
 }
 

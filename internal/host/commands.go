@@ -8,9 +8,16 @@ import (
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/server"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
+
+type handshakeClient interface {
+	Client
+	LocalServerInfo() error
+	LocalSignonReply(command string) error
+	LocalSignon() int
+}
 
 func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
@@ -105,6 +112,33 @@ func (h *Host) CmdQuit() {
 }
 
 func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
+	if subs == nil {
+		fallbackClient := newLocalLoopbackClient()
+		if err := fallbackClient.Init(); err != nil {
+			return fmt.Errorf("subsystems not initialized")
+		}
+		if err := fallbackClient.LocalServerInfo(); err != nil {
+			return err
+		}
+		if err := fallbackClient.LocalSignonReply("prespawn"); err != nil {
+			return err
+		}
+		if err := fallbackClient.LocalSignonReply("spawn"); err != nil {
+			return err
+		}
+		if err := fallbackClient.LocalSignonReply("begin"); err != nil {
+			return err
+		}
+		h.signOns = fallbackClient.LocalSignon()
+		h.clientState = fallbackClient.State()
+		h.serverActive = false
+		return nil
+	}
 	if subs.Server == nil {
 		return fmt.Errorf("server not initialized")
 	}
@@ -128,7 +162,45 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 
 	// For singleplayer, connect the local client
 	subs.Server.ConnectClient(0)
-	h.clientState = caActive
+
+	h.clientState = caConnected
+	h.signOns = 0
+
+	handshake, ok := subs.Client.(handshakeClient)
+	if !ok {
+		return fmt.Errorf("client handshake implementation missing")
+	}
+	if err := handshake.LocalServerInfo(); err != nil {
+		return fmt.Errorf("local serverinfo handshake failed: %w", err)
+	}
+	h.clientState = handshake.State()
+
+	if err := h.runLocalHandshakeStep("prespawn", subs); err != nil {
+		return err
+	}
+	if err := h.runLocalHandshakeStep("spawn", subs); err != nil {
+		return err
+	}
+	if err := h.runLocalHandshakeStep("begin", subs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Host) runLocalHandshakeStep(step string, subs *Subsystems) error {
+	if subs == nil || subs.Client == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	handshake, ok := subs.Client.(handshakeClient)
+	if !ok {
+		return fmt.Errorf("client does not support %s handshake", step)
+	}
+	if err := handshake.LocalSignonReply(step); err != nil {
+		return fmt.Errorf("%s handshake failed: %w", step, err)
+	}
+	h.signOns = handshake.LocalSignon()
+	h.clientState = handshake.State()
 	return nil
 }
 
@@ -334,15 +406,21 @@ func (h *Host) CmdKill(subs *Subsystems) {
 }
 
 func (h *Host) CmdSpawn(subs *Subsystems) {
-	// TODO: Implement spawn
+	if err := h.runLocalHandshakeStep("spawn", subs); err != nil && subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("spawn failed: %v\n", err))
+	}
 }
 
 func (h *Host) CmdBegin(subs *Subsystems) {
-	// TODO: Implement begin
+	if err := h.runLocalHandshakeStep("begin", subs); err != nil && subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("begin failed: %v\n", err))
+	}
 }
 
 func (h *Host) CmdPreSpawn(subs *Subsystems) {
-	// TODO: Implement prespawn
+	if err := h.runLocalHandshakeStep("prespawn", subs); err != nil && subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("prespawn failed: %v\n", err))
+	}
 }
 
 func (h *Host) CmdPing(subs *Subsystems) {
@@ -416,4 +494,3 @@ func (h *Host) CmdMenuQuit() {
 	h.menu.ShowMenu()
 	// Note: The menu system handles quit confirmation internally
 }
-

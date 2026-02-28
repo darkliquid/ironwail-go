@@ -2,6 +2,8 @@ package client
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/common"
@@ -254,8 +256,66 @@ func (c *Client) SignonReply() {
 		return
 	}
 	if c.Signon == 4 {
-		c.State = StateActive
+		c.setState(StateActive)
 	}
+}
+
+func (c *Client) setState(next ClientState) {
+	if c.State == next {
+		return
+	}
+	c.State = next
+	log.Printf("Client state changed to %s", stateLogLabel(next))
+}
+
+func stateLogLabel(state ClientState) string {
+	switch state {
+	case StateDisconnected:
+		return "Disconnected"
+	case StateConnected:
+		return "Connected"
+	case StateActive:
+		return "Active"
+	default:
+		return "Unknown"
+	}
+}
+
+func (c *Client) HandleServerInfo() error {
+	if c.State != StateDisconnected {
+		return fmt.Errorf("serverinfo requires disconnected state, got %s", c.State)
+	}
+	c.setState(StateConnected)
+	return nil
+}
+
+func (c *Client) HandleSignonReply(command string) error {
+	if c.State != StateConnected {
+		return fmt.Errorf("%s requires connected state, got %s", command, c.State)
+	}
+
+	switch command {
+	case "prespawn":
+		if c.Signon != 0 {
+			return fmt.Errorf("prespawn requires signon 0, got %d", c.Signon)
+		}
+		c.Signon = 1
+	case "spawn":
+		if c.Signon != 1 {
+			return fmt.Errorf("spawn requires signon 1, got %d", c.Signon)
+		}
+		c.Signon = 2
+	case "begin":
+		if c.Signon != 2 {
+			return fmt.Errorf("begin requires signon 2, got %d", c.Signon)
+		}
+		c.Signon = 4
+		c.setState(StateActive)
+	default:
+		return fmt.Errorf("unsupported signon reply %q", command)
+	}
+
+	return nil
 }
 
 func parseMapNameFromWorldModel(worldModel string) string {
