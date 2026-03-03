@@ -95,7 +95,6 @@ func (m *Manager) InitFromDir(baseDir string) error {
 		return fmt.Errorf("failed to load gfx.wad from %s: %w", wadPath, err)
 	}
 
-
 	wad, err := image.LoadWad(bytes.NewReader(wadData))
 	if err != nil {
 		return fmt.Errorf("failed to parse gfx.wad: %w", err)
@@ -149,14 +148,14 @@ func (m *Manager) GetPic(name string) *image.QPic {
 	}
 
 	// Parse the QPic
-	if lump.Type != image.TypQPic {
-		slog.Debug("Lump is not a QPic", "name", name, "type", lump.Type)
+	if lump.Type != image.TypQPic && lump.Type != image.TypConsolePic {
+		slog.Debug("Lump is not a QPic/ConsolePic", "name", name, "type", lump.Type)
 		return nil
 	}
 
 	pic, err := image.ParseQPic(lump.Data)
 	if err != nil {
-		slog.Warn("Failed to parse QPic", "name", name, "error", err)
+		slog.Error("Failed to parse QPic", "name", name, "error", err)
 		return nil
 	}
 

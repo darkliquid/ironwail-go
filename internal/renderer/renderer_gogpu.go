@@ -119,6 +119,8 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
+	slog.Debug("drawing pic", "x", x, "y", y, "w", pic.Width, "h", pic.Height)
+
 	tex := dc.renderer.getOrCreateTexture(dc.ctx, pic)
 	if tex == nil {
 		return
