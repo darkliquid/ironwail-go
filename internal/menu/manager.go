@@ -1,6 +1,8 @@
 package menu
 
 import (
+	"log/slog"
+
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -194,18 +196,21 @@ func (m *Manager) drawMain(dc renderer.RenderContext) {
 	// Draw title plaque
 	if pic := m.drawManager.GetPic("gfx/qplaque.lmp"); pic != nil {
 		dc.DrawPic(0, 0, pic)
+		slog.Debug("drawing pic", "pic", "gfx/qplaque.lmp", "x", 0, "y", 0, "w", pic.Width, "h", pic.Height)
 	}
 
 	// Draw main menu graphic
 	if pic := m.drawManager.GetPic("gfx/mainmenu.lmp"); pic != nil {
 		dc.DrawPic(0, 40, pic)
+		slog.Debug("drawing pic", "pic", "gfx/mainmenu.lmp", "x", 0, "y", 40, "w", pic.Width, "h", pic.Height)
 	}
 
 	// Draw cursor (selection bar)
-	if cursorPic := m.drawManager.GetPic("gfx/m_surfs.lmp"); cursorPic != nil {
+	if pic := m.drawManager.GetPic("gfx/m_surfs.lmp"); pic != nil {
 		// Position cursor based on selection
 		yPos := 100 + m.mainCursor*20
-		dc.DrawPic(40, yPos, cursorPic)
+		dc.DrawPic(40, yPos, pic)
+		slog.Debug("drawing pic", "pic", "gfx/m_surfs.lmp", "x", 0, "y", 40, "w", pic.Width, "h", pic.Height)
 	}
 }
 
