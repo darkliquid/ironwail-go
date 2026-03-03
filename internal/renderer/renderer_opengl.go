@@ -3,8 +3,6 @@
 
 package renderer
 
-package renderer
-
 import (
 	"fmt"
 	"log/slog"
@@ -14,7 +12,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/go-gl/gl/v4.1-core/gl"
+	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
@@ -65,8 +63,8 @@ void main() {
 )
 
 type quadVertex struct {
-	x, y     float32
-	u, v     float32
+	x, y float32
+	u, v float32
 }
 
 type glDrawContext struct {
@@ -77,12 +75,13 @@ type glDrawContext struct {
 		height int
 	}
 	// 2D rendering state
-	shader2D       uint32
-	shaderSolid    uint32
+	shader2D      uint32
+	shaderSolid   uint32
 	vao2D         uint32
 	vbo2D         uint32
 	initialized2D bool
 }
+
 func init() {
 	// OpenGL must run on main OS thread
 	runtime.LockOSThread()
@@ -242,13 +241,12 @@ func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
 	tex := dc.uploadQPicTexture(pic)
 	defer gl.DeleteTextures(1, &tex)
 
-
 	// Create quad vertices (x, y, u, v)
 	w, h := int(pic.Width), int(pic.Height)
 	vertices := []quadVertex{
-		{float32(x), float32(y), 0.0, 0.0}, // Top-left
-		{float32(x + w), float32(y), 1.0, 0.0}, // Top-right
-		{float32(x), float32(y + h), 0.0, 1.0}, // Bottom-left
+		{float32(x), float32(y), 0.0, 0.0},         // Top-left
+		{float32(x + w), float32(y), 1.0, 0.0},     // Top-right
+		{float32(x), float32(y + h), 0.0, 1.0},     // Bottom-left
 		{float32(x + w), float32(y + h), 1.0, 1.0}, // Bottom-right
 	}
 
@@ -332,6 +330,7 @@ func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)
 }
+
 type Renderer struct {
 	mu sync.RWMutex
 

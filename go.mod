@@ -9,13 +9,13 @@ require (
 	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 // indirect
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728 // indirect
-	github.com/go-webgpu/goffi v0.3.9 // indirect
-	github.com/go-webgpu/webgpu v0.3.1 // indirect
-	github.com/gogpu/gogpu v0.20.9 // indirect
+	github.com/go-webgpu/goffi v0.4.1 // indirect
+	github.com/go-webgpu/webgpu v0.4.1 // indirect
+	github.com/gogpu/gogpu v0.22.4 // indirect
 	github.com/gogpu/gpucontext v0.9.0 // indirect
 	github.com/gogpu/gputypes v0.2.0 // indirect
-	github.com/gogpu/naga v0.14.3 // indirect
-	github.com/gogpu/wgpu v0.16.17 // indirect
+	github.com/gogpu/naga v0.14.4 // indirect
+	github.com/gogpu/wgpu v0.19.4 // indirect
 	github.com/hajimehoshi/oto/v2 v2.4.3 // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect

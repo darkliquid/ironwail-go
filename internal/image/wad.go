@@ -115,11 +115,17 @@ func ParseQPic(data []byte) (*QPic, error) {
 	if len(data) < 8 {
 		return nil, fmt.Errorf("qpic data too short")
 	}
+
 	width := binary.LittleEndian.Uint32(data[0:4])
 	height := binary.LittleEndian.Uint32(data[4:8])
+	if width == 0 || height == 0 {
+		return nil, fmt.Errorf("qpic has invalid size of %dx%d", width, height)
+	}
+
 	if len(data) < 8+int(width*height) {
 		return nil, fmt.Errorf("qpic data too short for %dx%d", width, height)
 	}
+
 	return &QPic{
 		Width:  width,
 		Height: height,
