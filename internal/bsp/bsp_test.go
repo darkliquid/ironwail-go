@@ -75,7 +75,9 @@ func TestLoadTreeFromPak0(t *testing.T) {
 				if child.Index < 0 || child.Index >= len(tree.Leafs) {
 					t.Fatalf("node %d child %d leaf index out of bounds: %d", i, childSide, child.Index)
 				}
-				if tree.Leafs[child.Index].Parent != i {
+				// Leaf 0 is the special solid outside leaf shared by many nodes;
+				// skip the unique-parent check for it.
+				if child.Index != 0 && tree.Leafs[child.Index].Parent != i {
 					t.Fatalf("leaf %d parent = %d, want %d", child.Index, tree.Leafs[child.Index].Parent, i)
 				}
 				continue

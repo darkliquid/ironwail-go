@@ -16,6 +16,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
+	"github.com/ironwail/ironwail-go/internal/hud"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -40,6 +41,7 @@ var (
 	gameMenu  *menu.Manager
 	gameInput *input.System
 	gameDraw  *draw.Manager
+	gameHUD   *hud.HUD
 )
 
 func initGameHost() error {
@@ -180,6 +182,9 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 		}
 	}
 
+	// Initialize HUD
+	gameHUD = hud.NewHUD(gameDraw)
+
 	// Make sure the menu is visible at startup
 	gameMenu.ShowMenu()
 	// slog.Info("menu active") - moved to main for deterministic logs
@@ -187,6 +192,39 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	slog.Info("All subsystems initialized")
 	return nil
 }
+
+// gameCallbacks implements host.FrameCallbacks to drive server+client each frame.
+type gameCallbacks struct{}
+
+func (gameCallbacks) GetEvents() {
+	if gameInput != nil {
+		gameInput.PollEvents()
+	}
+}
+
+func (gameCallbacks) ProcessConsoleCommands() {}
+
+func (gameCallbacks) ProcessServer() {
+	if gameSubs == nil || gameSubs.Server == nil {
+		return
+	}
+	dt := gameHost.FrameTime()
+	if err := gameSubs.Server.Frame(dt); err != nil {
+		slog.Warn("server frame error", "error", err)
+	}
+}
+
+func (gameCallbacks) ProcessClient() {
+	if gameSubs == nil || gameSubs.Client == nil {
+		return
+	}
+	_ = gameSubs.Client.ReadFromServer()
+	_ = gameSubs.Client.SendCommand()
+}
+
+func (gameCallbacks) UpdateScreen() {}
+
+func (gameCallbacks) UpdateAudio(_, _, _, _ [3]float32) {}
 
 func main() {
 	// Logger initialization is handled in logger_*.go files based on build tags
@@ -266,9 +304,10 @@ func main() {
 	}
 
 	if !headless {
+		cb := gameCallbacks{}
 		// Set up renderer callbacks
 		gameRenderer.OnUpdate(func(dt float64) {
-			gameHost.Frame(dt, nil)
+			gameHost.Frame(dt, cb)
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
 			// Frame pipeline: Clear → World → Entities → Particles → 2D Overlay
@@ -282,6 +321,11 @@ func main() {
 			// Phase 5: 2D Overlay (menu, console, HUD)
 			if gameMenu != nil && gameMenu.IsActive() {
 				gameMenu.M_Draw(dc)
+			} else if gameHUD != nil {
+				w, h := gameRenderer.Size()
+				gameHUD.SetScreenSize(w, h)
+				updateHUDFromServer()
+				gameHUD.Draw(dc)
 			}
 		})
 
@@ -327,7 +371,7 @@ func headlessGameLoop() {
 		lastTime = now
 
 		// Update game state
-		if err := gameHost.Frame(dt, nil); err != nil {
+		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
 		}
 	}
@@ -381,4 +425,22 @@ func captureScreenshot(sspath, _, _ string) error {
 
 	slog.Info("Screenshot saved", "path", sspath)
 	return nil
+}
+
+// updateHUDFromServer reads player state from the server's player edict and
+// pushes it into the HUD so it displays current health/armor/ammo.
+func updateHUDFromServer() {
+	if gameHUD == nil || gameServer == nil {
+		return
+	}
+	ent := gameServer.EdictNum(1)
+	if ent == nil {
+		return
+	}
+	gameHUD.SetState(
+		int(ent.Vars.Health),
+		int(ent.Vars.ArmorValue),
+		int(ent.Vars.CurrentAmmo),
+		int(ent.Vars.Weapon),
+	)
 }
