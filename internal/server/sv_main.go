@@ -126,6 +126,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	}
 
 	s.WorldModel = worldModelFromBSPTree(s.ModelName, tree)
+	s.WorldTree = tree
 
 	if s.Edicts[0] == nil {
 		s.Edicts[0] = &Edict{Vars: &EntVars{}, Scale: 16}

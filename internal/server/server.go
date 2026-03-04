@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
@@ -16,6 +17,7 @@ type Server struct {
 	ModelName string
 
 	WorldModel interface{}
+	WorldTree  *bsp.Tree // BSP tree retained for rendering
 
 	// Physics settings
 	Gravity     float32

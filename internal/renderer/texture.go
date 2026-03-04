@@ -48,6 +48,22 @@ func UploadQPic(pic *image.QPic) *Texture {
 	return tex
 }
 
+// menuScale computes the uniform scale factor and centering offsets for
+// rendering the Quake 320×200 virtual menu space onto a physical screen.
+// Matches the original engine's M_DrawPic centering behaviour on widescreen.
+func menuScale(screenW, screenH int) (scale, xOff, yOff float32) {
+	sx := float32(screenW) / 320.0
+	sy := float32(screenH) / 200.0
+	if sy < sx {
+		scale = sy
+	} else {
+		scale = sx
+	}
+	xOff = (float32(screenW) - 320.0*scale) / 2.0
+	yOff = (float32(screenH) - 200.0*scale) / 2.0
+	return
+}
+
 // IsTransparentIndex returns true if a palette index represents transparency.
 // In Quake, palette index 255 is the transparent color.
 func IsTransparentIndex(color byte) bool {

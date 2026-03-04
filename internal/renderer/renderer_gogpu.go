@@ -114,6 +114,7 @@ func (dc *DrawContext) Gamma() float32 {
 // 2D Drawing API implementation
 
 // DrawPic renders a QPic image at the specified position.
+// Coordinates are in Quake's virtual 320-wide space and are scaled to physical pixels.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 	if pic == nil {
 		return
@@ -124,7 +125,11 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	err := dc.ctx.DrawTexture(tex, float32(x), float32(y))
+	screenW, screenH := dc.renderer.Size()
+	scale, xOff, yOff := menuScale(screenW, screenH)
+	err := dc.ctx.DrawTextureScaled(tex,
+		float32(x)*scale+xOff, float32(y)*scale+yOff,
+		float32(pic.Width)*scale, float32(pic.Height)*scale)
 	if err != nil {
 		slog.Error("Failed to draw texture", "error", err)
 	}

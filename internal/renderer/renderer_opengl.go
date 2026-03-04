@@ -584,6 +584,9 @@ func (r *Renderer) Shutdown() {
 	glfw.Terminate()
 }
 
+// SetPalette sets the Quake palette used for rendering.
+func (r *Renderer) SetPalette(_ []byte) {}
+
 // IsRunning returns true if the render loop is active.
 func (r *Renderer) IsRunning() bool {
 	r.mu.RLock()

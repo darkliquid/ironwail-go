@@ -99,6 +99,8 @@ func (r *Renderer) Stop() {}
 
 func (r *Renderer) Shutdown() {}
 
+func (r *Renderer) SetPalette(_ []byte) {}
+
 func (r *Renderer) IsRunning() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

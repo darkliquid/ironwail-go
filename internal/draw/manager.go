@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/ironwail/ironwail-go/internal/fs"
@@ -19,6 +20,13 @@ type Manager struct {
 
 	// wad is the loaded WAD file containing all graphics assets.
 	wad *image.Wad
+
+	// filesys is the game filesystem, used to load standalone pic files
+	// (e.g. gfx/qplaque.lmp stored directly in pak, not inside gfx.wad).
+	filesys *fs.FileSystem
+
+	// baseDir is set when initialized from a directory (fallback path).
+	baseDir string
 
 	// pics is a cache of parsed QPic objects indexed by lump name.
 	pics map[string]*image.QPic
@@ -60,15 +68,19 @@ func (m *Manager) Init(filesys *fs.FileSystem) error {
 		return fmt.Errorf("failed to parse gfx.wad: %w", err)
 	}
 	m.wad = wad
+	m.filesys = filesys
 
-	// Load the palette from gfx.wad
-	paletteLump, ok := wad.Lumps["palette.lmp"]
-	if !ok || len(paletteLump.Data) < 768 {
-		return fmt.Errorf("failed to find or parse palette.lmp in gfx.wad")
+	// Load the palette: first try gfx/palette.lmp from the filesystem (real Quake data),
+	// then fall back to palette.lmp lump inside gfx.wad (test data).
+	palData, err := filesys.LoadFile("gfx/palette.lmp")
+	if err != nil || len(palData) < 768 {
+		paletteLump, ok := wad.Lumps["palette.lmp"]
+		if !ok || len(paletteLump.Data) < 768 {
+			return fmt.Errorf("failed to find palette (tried gfx/palette.lmp and gfx.wad)")
+		}
+		palData = paletteLump.Data
 	}
-
-	// Quake palette is 768 bytes (256 colors * 3 RGB components)
-	m.palette = paletteLump.Data[:768]
+	m.palette = palData[:768]
 
 	slog.Info("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
 
@@ -100,6 +112,7 @@ func (m *Manager) InitFromDir(baseDir string) error {
 		return fmt.Errorf("failed to parse gfx.wad: %w", err)
 	}
 	m.wad = wad
+	m.baseDir = baseDir
 
 	// Load the palette from gfx.wad
 	paletteLump, ok := wad.Lumps["palette.lmp"]
@@ -116,7 +129,14 @@ func (m *Manager) InitFromDir(baseDir string) error {
 }
 
 // GetPic retrieves a QPic by name, loading and caching it if necessary.
-// Returns nil if the lump doesn't exist or isn't a QPic.
+// Returns nil if the pic cannot be found.
+//
+// Resolution order:
+//  1. Cache
+//  2. gfx.wad lump by full name (e.g. "gfx/qplaque.lmp")
+//  3. gfx.wad lump by bare name (e.g. "qplaque") — real Quake gfx.wad omits paths/extensions
+//  4. Standalone file from the pak filesystem (e.g. gfx/qplaque.lmp lives directly in pak0.pak)
+//  5. Standalone file from the base directory (InitFromDir fallback)
 func (m *Manager) GetPic(name string) *image.QPic {
 	m.mu.RLock()
 	if !m.initialized {
@@ -131,37 +151,94 @@ func (m *Manager) GetPic(name string) *image.QPic {
 	}
 	m.mu.RUnlock()
 
-	// Need to load the lump - upgrade to write lock
+	// Need to load — upgrade to write lock
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Double-check cache in case another goroutine loaded it
+	// Double-check cache
 	if pic, ok := m.pics[name]; ok {
 		return pic
 	}
 
-	// Load the lump from WAD
+	pic := m.loadPic(name)
+	if pic != nil {
+		m.pics[name] = pic
+	}
+	return pic
+}
+
+// loadPic tries all resolution strategies and returns the first match.
+// Must be called with m.mu held for writing.
+func (m *Manager) loadPic(name string) *image.QPic {
+	// 1 & 2. Try gfx.wad: full name then bare name
+	if pic := m.loadFromWad(name); pic != nil {
+		return pic
+	}
+
+	// 3. Try standalone file from pak filesystem
+	if m.filesys != nil {
+		if pic := m.loadFromFS(name); pic != nil {
+			return pic
+		}
+	}
+
+	// 4. Try standalone file from base directory
+	if m.baseDir != "" {
+		if pic := m.loadFromDir(name); pic != nil {
+			return pic
+		}
+	}
+
+	slog.Debug("Pic not found", "name", name)
+	return nil
+}
+
+func (m *Manager) loadFromWad(name string) *image.QPic {
 	lump, ok := m.wad.Lumps[name]
 	if !ok {
-		slog.Debug("Lump not found", "name", name)
+		// Try bare name without path prefix or extension
+		base := filepath.Base(name)
+		bare := image.CleanupName(strings.TrimSuffix(base, filepath.Ext(base)))
+		lump, ok = m.wad.Lumps[bare]
+	}
+	if !ok {
 		return nil
 	}
-
-	// Parse the QPic
 	if lump.Type != image.TypQPic && lump.Type != image.TypConsolePic {
-		slog.Debug("Lump is not a QPic/ConsolePic", "name", name, "type", lump.Type)
 		return nil
 	}
-
 	pic, err := image.ParseQPic(lump.Data)
 	if err != nil {
-		slog.Error("Failed to parse QPic", "name", name, "error", err)
+		slog.Error("Failed to parse QPic from WAD", "name", name, "error", err)
 		return nil
 	}
+	return pic
+}
 
-	// Cache the parsed QPic
-	m.pics[name] = pic
+func (m *Manager) loadFromFS(name string) *image.QPic {
+	data, err := m.filesys.LoadFile(name)
+	if err != nil {
+		return nil
+	}
+	pic, err := image.ParseQPic(data)
+	if err != nil {
+		slog.Error("Failed to parse QPic from filesystem", "name", name, "error", err)
+		return nil
+	}
+	return pic
+}
 
+func (m *Manager) loadFromDir(name string) *image.QPic {
+	path := filepath.Join(m.baseDir, filepath.FromSlash(name))
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	pic, err := image.ParseQPic(data)
+	if err != nil {
+		slog.Error("Failed to parse QPic from dir", "name", name, "error", err)
+		return nil
+	}
 	return pic
 }
 
@@ -180,6 +257,8 @@ func (m *Manager) Shutdown() {
 
 	m.pics = make(map[string]*image.QPic)
 	m.wad = nil
+	m.filesys = nil
+	m.baseDir = ""
 	m.palette = nil
 	m.initialized = false
 

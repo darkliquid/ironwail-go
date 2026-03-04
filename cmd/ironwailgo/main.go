@@ -2,11 +2,12 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
+	"image/png"
 	"log"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -164,10 +165,19 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	// Set menu in host
 	gameHost.SetMenu(gameMenu)
 
-	// Initialize draw manager from data directory (for testing/development)
-	dataDir := "data"
-	if err := gameDraw.InitFromDir(dataDir); err != nil {
-		slog.Warn("Failed to initialize draw manager", "error", err)
+	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
+	drawErr := gameDraw.Init(fileSys)
+	if drawErr != nil {
+		// Fall back to local "data" directory for development/testing
+		slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
+		drawErr = gameDraw.InitFromDir("data")
+	}
+	if drawErr != nil {
+		slog.Warn("Failed to initialize draw manager", "error", drawErr)
+	} else if gameRenderer != nil {
+		if pal := gameDraw.Palette(); len(pal) >= 768 {
+			gameRenderer.SetPalette(pal)
+		}
 	}
 
 	// Make sure the menu is visible at startup
@@ -203,11 +213,14 @@ func main() {
 		slog.SetLogLoggerLevel(slog.LevelInfo)
 	}
 
-	// Check if a map argument was provided
+	// Parse Quake-style +command arguments (e.g. +map start)
 	args := flag.Args()
 	mapArg := ""
-	if len(args) > 0 {
-		mapArg = args[0]
+	for i := 0; i < len(args); i++ {
+		if args[i] == "+map" && i+1 < len(args) {
+			mapArg = args[i+1]
+			i++
+		}
 	}
 
 	// Try to initialize with renderer, fall back to headless if it fails
@@ -331,6 +344,41 @@ func isRendererError(err error) bool {
 		strings.Contains(errStr, "segv")
 }
 
-func captureScreenshot(sspath, baseDir, gameDir string) error {
-	return errors.New("not implemented")
+func captureScreenshot(sspath, _, _ string) error {
+	const (
+		ssWidth  = 1280
+		ssHeight = 720
+	)
+
+	var palette []byte
+	if gameDraw != nil {
+		palette = gameDraw.Palette()
+	}
+	soft := renderer.NewSoftwareRenderer(ssWidth, ssHeight, 1.0, palette)
+
+	// Sky-blue background
+	soft.Clear(0.08, 0.08, 0.18, 1.0)
+
+	// Render BSP world geometry if a map is loaded
+	if gameServer != nil && gameServer.WorldTree != nil {
+		soft.DrawBSPWorld(gameServer.WorldTree)
+	}
+
+	// Render 2D overlay (menu if active)
+	if gameMenu != nil && gameMenu.IsActive() {
+		gameMenu.M_Draw(soft)
+	}
+
+	f, err := os.Create(sspath)
+	if err != nil {
+		return fmt.Errorf("create screenshot file: %w", err)
+	}
+	defer f.Close()
+
+	if err := png.Encode(f, soft.Image()); err != nil {
+		return fmt.Errorf("encode PNG: %w", err)
+	}
+
+	slog.Info("Screenshot saved", "path", sspath)
+	return nil
 }
