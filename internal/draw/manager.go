@@ -242,6 +242,22 @@ func (m *Manager) loadFromDir(name string) *image.QPic {
 	return pic
 }
 
+// GetConcharsData returns the raw 128×128 byte pixel data for the conchars font,
+// or nil if not loaded. Conchars is stored in gfx.wad as a TypMipTex lump
+// (raw indexed pixels, no header — 16384 bytes for a 128×128 bitmap).
+func (m *Manager) GetConcharsData() []byte {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.wad == nil {
+		return nil
+	}
+	lump, ok := m.wad.Lumps["conchars"]
+	if !ok || len(lump.Data) < 128*128 {
+		return nil
+	}
+	return lump.Data[:128*128]
+}
+
 // Palette returns the Quake color palette.
 // The palette is 768 bytes (256 colors * 3 RGB components).
 func (m *Manager) Palette() []byte {

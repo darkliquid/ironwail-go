@@ -152,9 +152,11 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	gameSubs = &host.Subsystems{
 		Files:  fileSys,
 		Server: gameServer,
-		Client: nil, // No client in server mode
 		Audio:  nil, // No audio in this demo
 	}
+	// Wire the loopback client to the server so server→client messages are parsed (M3).
+	host.SetupLoopbackClientServer(gameSubs, gameServer)
+
 	if err := gameHost.Init(&host.InitParams{
 		BaseDir:    basedir,
 		UserDir:    "",
@@ -179,6 +181,9 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	} else if gameRenderer != nil {
 		if pal := gameDraw.Palette(); len(pal) >= 768 {
 			gameRenderer.SetPalette(pal)
+		}
+		if conchars := gameDraw.GetConcharsData(); len(conchars) >= 128*128 {
+			gameRenderer.SetConchars(conchars)
 		}
 	}
 

@@ -17,17 +17,26 @@ import (
 
 var hostSubsystemRegistry sync.Map
 
+// serverDatagramSource is satisfied by server.Server to expose per-frame datagrams.
+type serverDatagramSource interface {
+	GetClientDatagram(clientNum int) []byte
+}
+
 type localLoopbackClient struct {
-	inner *cl.Client
+	inner  *cl.Client
+	parser *cl.Parser
+	srv    serverDatagramSource
 }
 
 func newLocalLoopbackClient() *localLoopbackClient {
-	return &localLoopbackClient{inner: cl.NewClient()}
+	c := cl.NewClient()
+	return &localLoopbackClient{inner: c, parser: cl.NewParser(c)}
 }
 
 func (c *localLoopbackClient) Init() error {
 	if c.inner == nil {
 		c.inner = cl.NewClient()
+		c.parser = cl.NewParser(c.inner)
 	}
 	c.inner.ClearState()
 	return nil
@@ -50,8 +59,40 @@ func (c *localLoopbackClient) State() ClientState {
 	}
 }
 
-func (c *localLoopbackClient) ReadFromServer() error { return nil }
-func (c *localLoopbackClient) SendCommand() error    { return nil }
+// ReadFromServer polls the loopback server for a client datagram and feeds it
+// to the client parser. This is the M3 integration point: server→client messages.
+func (c *localLoopbackClient) ReadFromServer() error {
+	if c.srv == nil || c.inner.State != cl.StateActive {
+		return nil
+	}
+	data := c.srv.GetClientDatagram(0)
+	if len(data) == 0 {
+		return nil
+	}
+	if err := c.parser.ParseServerMessage(data); err != nil {
+		// Log but don't abort — a parse error on one frame shouldn't crash the loop.
+		_ = err
+	}
+	return nil
+}
+
+func (c *localLoopbackClient) SendCommand() error { return nil }
+
+// SetupLoopbackClientServer wires the loopback client inside subs to the given
+// server so that ReadFromServer actually parses per-frame datagrams.
+// Call this after constructing subs but before Host.Init.
+func SetupLoopbackClientServer(subs *Subsystems, srv serverDatagramSource) {
+	if subs == nil || srv == nil {
+		return
+	}
+	// Create the client if not already set.
+	if subs.Client == nil {
+		subs.Client = newLocalLoopbackClient()
+	}
+	if lc, ok := subs.Client.(*localLoopbackClient); ok {
+		lc.srv = srv
+	}
+}
 
 func (c *localLoopbackClient) LocalServerInfo() error {
 	c.inner.ClearState()

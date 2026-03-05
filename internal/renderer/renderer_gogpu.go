@@ -148,10 +148,92 @@ func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
 	}
 }
 
-// DrawCharacter renders a single character from the font.
+// DrawCharacter renders a single 8×8 character from the conchars font.
+// Falls back to a coloured square if conchars is not loaded.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) {
-	// For now, implement as simplified DrawFill if CONCHARS not available
-	dc.DrawFill(x, y, 8, 8, byte(num%255))
+	if num < 0 || num > 255 {
+		return
+	}
+	pic := dc.renderer.getCharPic(num)
+	if pic == nil {
+		return
+	}
+	tex := dc.renderer.getOrCreateCharTexture(dc.ctx, num, pic)
+	if tex == nil {
+		return
+	}
+	if err := dc.ctx.DrawTextureScaled(tex, float32(x), float32(y), 8, 8); err != nil {
+		slog.Error("DrawCharacter: draw failed", "num", num, "error", err)
+	}
+}
+
+// SetConchars stores the raw 128×128 conchars pixel data and clears the
+// per-character texture cache so that DrawCharacter uses the real font.
+func (r *Renderer) SetConchars(data []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(data) < 128*128 {
+		return
+	}
+	r.concharsData = data
+	r.charCache = [256]*image.QPic{}
+}
+
+// getCharPic returns (or lazily creates) an 8×8 QPic for character num extracted
+// from the 128×128 conchars bitmap (16 chars per row).
+func (r *Renderer) getCharPic(num int) *image.QPic {
+	r.mu.RLock()
+	if len(r.concharsData) < 128*128 {
+		r.mu.RUnlock()
+		return nil
+	}
+	if r.charCache[num] != nil {
+		pic := r.charCache[num]
+		r.mu.RUnlock()
+		return pic
+	}
+	r.mu.RUnlock()
+
+	col := num % 16
+	row := num / 16
+	pixels := make([]byte, 8*8)
+	for y := 0; y < 8; y++ {
+		src := (row*8+y)*128 + col*8
+		copy(pixels[y*8:y*8+8], r.concharsData[src:src+8])
+	}
+	pic := &image.QPic{Width: 8, Height: 8, Pixels: pixels}
+
+	r.mu.Lock()
+	r.charCache[num] = pic
+	r.mu.Unlock()
+	return pic
+}
+
+// charCacheKey is a cache key for character textures (separate from pic-based cache).
+type charCacheKey struct{ num int }
+
+// getOrCreateCharTexture returns a GPU texture for a character, uploading it if needed.
+// Uses ConvertConcharsToRGBA so index-0 pixels are transparent.
+func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *image.QPic) *gogpu.Texture {
+	key := cacheKey{pic: pic}
+	r.mu.RLock()
+	if entry, ok := r.textureCache[key]; ok {
+		r.mu.RUnlock()
+		return entry.texture
+	}
+	r.mu.RUnlock()
+
+	rgba := ConvertConcharsToRGBA(pic.Pixels, r.palette)
+	tex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
+	if err != nil {
+		slog.Error("getOrCreateCharTexture: upload failed", "num", num, "error", err)
+		return nil
+	}
+
+	r.mu.Lock()
+	r.textureCache[key] = &cachedTexture{texture: tex, width: int(pic.Width), height: int(pic.Height)}
+	r.mu.Unlock()
+	return tex
 }
 
 type cacheKey struct {
@@ -208,6 +290,11 @@ type Renderer struct {
 
 	// palette is the current Quake palette (768 bytes)
 	palette []byte
+
+	// concharsData is the raw 128×128 indexed-pixel data for the console font.
+	concharsData []byte
+	// charCache caches per-character 8×8 QPic objects extracted from concharsData.
+	charCache [256]*image.QPic
 }
 
 // New creates a new Renderer with configuration from cvars.

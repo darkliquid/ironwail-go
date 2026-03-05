@@ -604,6 +604,34 @@ func (s *Server) SendClientDatagram(client *Client) bool {
 	return true
 }
 
+// GetClientDatagram builds and returns the per-frame datagram bytes for the
+// given client slot. Returns nil if the client is not active/spawned.
+// Used by the loopback client to feed server messages into the client parser.
+func (s *Server) GetClientDatagram(clientNum int) []byte {
+	if clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return nil
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil || !client.Active || !client.Spawned {
+		return nil
+	}
+	var msg MessageBuffer
+	msg.Data = make([]byte, MaxDatagram)
+
+	msg.WriteByte(byte(SVCTime))
+	msg.WriteFloat(s.Time)
+
+	s.WriteClientDataToMessage(client.Edict, &msg)
+
+	if s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len() < MaxDatagram {
+		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
+	}
+
+	result := make([]byte, msg.Len())
+	copy(result, msg.Data[:msg.Len()])
+	return result
+}
+
 func (s *Server) SendNop(client *Client) {
 	var msg MessageBuffer
 	msg.Data = make([]byte, 4)

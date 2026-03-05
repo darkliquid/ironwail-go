@@ -88,6 +88,30 @@ func GetPaletteColor(index byte, palette []byte) (r, g, b byte) {
 	return palette[offset], palette[offset+1], palette[offset+2]
 }
 
+// ConvertConcharsToRGBA converts conchars pixel data to RGBA.
+// Unlike ConvertPaletteToRGBA, palette index 0 is treated as fully transparent
+// (Quake convention for console character backgrounds).
+func ConvertConcharsToRGBA(pixels []byte, palette []byte) []byte {
+	rgba := make([]byte, len(pixels)*4)
+	for i, p := range pixels {
+		if p == 0 {
+			// Transparent background
+			rgba[i*4+3] = 0
+			continue
+		}
+		if IsTransparentIndex(p) {
+			rgba[i*4+3] = 0
+			continue
+		}
+		r, g, b := GetPaletteColor(p, palette)
+		rgba[i*4] = r
+		rgba[i*4+1] = g
+		rgba[i*4+2] = b
+		rgba[i*4+3] = 255
+	}
+	return rgba
+}
+
 // ConvertPaletteToRGBA converts a palette-indexed image to RGBA format.
 // This is useful for texture uploaders that require RGBA input.
 func ConvertPaletteToRGBA(pixels []byte, palette []byte) []byte {

@@ -587,6 +587,9 @@ func (r *Renderer) Shutdown() {
 // SetPalette sets the Quake palette used for rendering.
 func (r *Renderer) SetPalette(_ []byte) {}
 
+// SetConchars stores the raw conchars bitmap for character rendering.
+func (r *Renderer) SetConchars(_ []byte) {}
+
 // IsRunning returns true if the render loop is active.
 func (r *Renderer) IsRunning() bool {
 	r.mu.RLock()
