@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test -tags=gogpu ./...)",
+      "Bash(git stash)",
+      "Bash(go test -tags=gogpu ./internal/bsp/... ./internal/image/...)",
+      "Bash(git stash pop)",
+      "Bash(go build -tags=gogpu ./...)",
+      "Bash(go build ./...)",
+      "Bash(echo \"Build exit code: $?\")",
+      "Bash(go build -tags=gogpu -o ironwailgo-wgpu ./cmd/ironwailgo/)"
+    ]
+  }
+}

@@ -1,3 +1,7 @@
+github.com/Zyko0/go-sdl3 v0.0.0-20260125144524-02de3d449cb1 h1:a7BoGQPgciWaIwBlh/IMkuqDDU0otZkzbnl4sPZZKm0=
+github.com/Zyko0/go-sdl3 v0.0.0-20260125144524-02de3d449cb1/go.mod h1:mJcKev/gsLraiuXsB/EPyh4hdYnsUHyNU5CXch3cv0A=
+github.com/Zyko0/purego-gen v0.0.0-20250727121216-3bcd331a1e0c h1:3z1BdpfvUbaP7oXjPabl7STN7zz88S432hZJ8M095kI=
+github.com/Zyko0/purego-gen v0.0.0-20250727121216-3bcd331a1e0c/go.mod h1:xpUxPkAb7v0Ffn/NGp1XpD+tZly4dpSPI7DTAFT37es=
 github.com/ebitengine/oto/v3 v3.4.0 h1:br0PgASsEWaoWn38b2Goe7m1GKFYfNgnsjSd5Gg+/bQ=
 github.com/ebitengine/oto/v3 v3.4.0/go.mod h1:IOleLVD0m+CMak3mRVwsYY8vTctQgOM0iiL6S7Ar7eI=
 github.com/ebitengine/purego v0.4.1 h1:atcZEBdukuoClmy7TI89amtqAsJUzDQyY/JU7HaK+io=

@@ -5,6 +5,8 @@ module github.com/ironwail/ironwail-go
 go 1.25
 
 require (
+	github.com/Zyko0/go-sdl3 v0.0.0-20260125144524-02de3d449cb1 // indirect
+	github.com/Zyko0/purego-gen v0.0.0-20250727121216-3bcd331a1e0c // indirect
 	github.com/ebitengine/oto/v3 v3.4.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71 // indirect

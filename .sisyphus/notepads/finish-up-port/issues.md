@@ -1,0 +1,3 @@
+- 2026-02-26: `go test` surfaced `non-constant format string` from helper error paths using `fmt.Errorf(errMsg)`; resolved by switching to `errors.New(errMsg)`.
+- 2026-02-26: Initial signon test assertion still checked `StateConnected`; updated to assert `StateActive` after signon step 4.
+- 2026-02-28: `+map` command-line path can invoke `Host.CmdMap` with a nil subsystem pointer in current wiring; added a defensive local handshake fallback in `CmdMap` to prevent startup crash and preserve `Active` transition logging in headless smoke verification.

@@ -88,7 +88,7 @@ const (
 	KPrintScreen
 )
 
-	const (
+const (
 	// Mouse buttons (virtual keys)
 	KMouseBegin = 200
 )
@@ -169,8 +169,6 @@ const (
 	NumKeycodes = KPause + 1
 	NumKeycode  = NumKeycodes
 )
-
-
 
 // MaxKeys is the maximum number of key bindings.
 const MaxKeys = 256
@@ -298,6 +296,12 @@ type Backend interface {
 
 	// Set mouse grab mode
 	SetMouseGrab(grabbed bool)
+
+	// Attach a platform window to the backend (best-effort). The parameter is
+	// intentionally typed as `interface{}` to avoid importing platform-specific
+	// window types in this package; backends should type-assert to the concrete
+	// window type they expect (for example, `*sdl.Window`).
+	SetWindow(win interface{})
 }
 
 // KeyEventCallback is called when a key event occurs.
@@ -363,6 +367,10 @@ func (s *System) Shutdown() {
 // PollEvents polls for and processes input events.
 // Returns false if the application should quit.
 func (s *System) PollEvents() bool {
+	if s.backend == nil {
+		// No backend: nothing to poll, continue running
+		return true
+	}
 	return s.backend.PollEvents()
 }
 
@@ -370,7 +378,11 @@ func (s *System) PollEvents() bool {
 // Call this once per frame after PollEvents.
 func (s *System) GetState() *InputState {
 	// Get mouse delta
-	s.state.MouseDX, s.state.MouseDY = s.backend.GetMouseDelta()
+	if s.backend != nil {
+		s.state.MouseDX, s.state.MouseDY = s.backend.GetMouseDelta()
+	} else {
+		s.state.MouseDX, s.state.MouseDY = 0, 0
+	}
 	return &s.state
 }
 
@@ -405,6 +417,19 @@ func (s *System) UpdateTextMode() {
 		s.backend.SetTextMode(TextModeOff)
 	}
 }
+
+// SetBackend replaces the current backend and initializes it.
+// Pass nil to clear the backend.
+func (s *System) SetBackend(b Backend) error {
+	s.backend = b
+	if s.backend == nil {
+		return nil
+	}
+	return s.backend.Init()
+}
+
+// Backend returns the currently set Backend (may be nil).
+func (s *System) Backend() Backend { return s.backend }
 
 // SetBinding sets a key binding.
 func (s *System) SetBinding(key int, binding string) {
@@ -477,7 +502,7 @@ func (s *System) HandleKeyEvent(event KeyEvent) {
 		if s.OnKey != nil {
 			s.OnKey(event)
 		}
-}
+	}
 
 }
 
@@ -492,32 +517,47 @@ func (s *System) HandleCharEvent(char rune) {
 
 // GetModifierState returns current modifier key state.
 func (s *System) GetModifierState() ModifierState {
+	if s.backend == nil {
+		return ModifierState{}
+	}
 	return s.backend.GetModifierState()
 }
 
 // SetCursorMode sets the cursor behavior.
 func (s *System) SetCursorMode(mode CursorMode) {
-	s.backend.SetCursorMode(mode)
+	if s.backend != nil {
+		s.backend.SetCursorMode(mode)
+	}
 }
 
 // ShowKeyboard shows or hides the on-screen keyboard.
 func (s *System) ShowKeyboard(show bool) {
-	s.backend.ShowKeyboard(show)
+	if s.backend != nil {
+		s.backend.ShowKeyboard(show)
+	}
 }
 
 // GetGamepadState returns the state of a gamepad.
 func (s *System) GetGamepadState(player int) GamepadState {
+	if s.backend == nil {
+		return GamepadState{}
+	}
 	return s.backend.GetGamepadState(player)
 }
 
 // IsGamepadConnected returns true if a gamepad is connected.
 func (s *System) IsGamepadConnected(player int) bool {
+	if s.backend == nil {
+		return false
+	}
 	return s.backend.IsGamepadConnected(player)
 }
 
 // SetMouseGrab enables or disables mouse grabbing.
 func (s *System) SetMouseGrab(grabbed bool) {
-	s.backend.SetMouseGrab(grabbed)
+	if s.backend != nil {
+		s.backend.SetMouseGrab(grabbed)
+	}
 }
 
 // KeyToString converts a key code to its string name.

@@ -1,0 +1,1 @@
+- 2026-02-26: Entity update coverage is intentionally baseline-level for this milestone; advanced protocol branches (full RMQ/Fitz extensions across all update/message variants) still need expansion in later milestones.

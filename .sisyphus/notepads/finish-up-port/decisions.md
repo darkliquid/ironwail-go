@@ -1,0 +1,5 @@
+- 2026-02-26: Stored baseline and live entity state directly on `Client` as maps keyed by entity number (`EntityBaselines`, `Entities`) to keep parser-state ownership in `internal/client` and avoid cross-package coupling.
+- 2026-02-26: Parsed `svc_clientdata` into existing client fields (`Stats`, `Velocity`, `Items`, `OnGround`, `InWater`) instead of introducing a separate parallel clientdata struct to keep current API footprint small.
+- 2026-02-26: Temp entities are retained as parsed `TempEntityEvent` records in `Client.TempEntities` as a baseline feed for later renderer/effects wiring.
+- 2026-02-28: Chose `io/fs` (`fs.FS`) abstraction for loose game directories instead of binding `FileSystem` to concrete `os` access, while keeping pak I/O as direct file-handle reads for offset-based extraction.
+- 2026-02-28: Added a host-local loopback client adapter in `internal/host/init.go` (wrapping `internal/client.Client`) so host startup can always initialize a client alongside the server and execute local signon handshakes via host commands.

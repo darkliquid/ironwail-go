@@ -148,6 +148,33 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 		}
 	}
 
+	// If renderer was created, wire its input backend into the input system
+	if gameRenderer != nil && gameInput != nil {
+		// Some renderers provide a backend factory to adapt window events
+		// to the engine input system.
+		if bb := gameRenderer.InputBackendForSystem; bb != nil {
+			gameInput.SetBackend(gameRenderer.InputBackendForSystem(gameInput))
+		}
+	}
+
+	// If no backend was provided by the renderer, allow other build-tagged
+	// backends (e.g. SDL3) to provide system input. input.NewSDL3Backend
+	// is a no-op stub when the sdl3 build tag is not present.
+	if gameInput != nil {
+		if err := func() error {
+			// Only set SDL3 backend if renderer didn't provide one
+			if gameInput.Backend() != nil {
+				return nil
+			}
+			if b := input.NewSDL3Backend(gameInput); b != nil {
+				return gameInput.SetBackend(b)
+			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to set input backend: %w", err)
+		}
+	}
+
 	// Wire subsystems together through Host.Init
 	gameSubs = &host.Subsystems{
 		Files:  fileSys,
