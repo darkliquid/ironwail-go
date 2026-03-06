@@ -70,6 +70,7 @@ type quadVertex struct {
 type glDrawContext struct {
 	window   *glfw.Window
 	gamma    float32
+	renderer *Renderer
 	viewport struct {
 		width  int
 		height int
@@ -80,6 +81,16 @@ type glDrawContext struct {
 	vao2D         uint32
 	vbo2D         uint32
 	initialized2D bool
+}
+
+type glCacheKey struct {
+	pic *image.QPic
+}
+
+type glCachedTexture struct {
+	id     uint32
+	width  int
+	height int
 }
 
 func init() {
@@ -204,13 +215,18 @@ func createProgram(vertexShader, fragmentShader uint32) uint32 {
 	return program
 }
 
-func (dc *glDrawContext) uploadQPicTexture(pic *image.QPic) uint32 {
+func (dc *glDrawContext) uploadQPicTexture(pic *image.QPic, rgba []byte) uint32 {
 	var tex uint32
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 
-	// Upload pixel data as grayscale (will use palette in shader)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RED, int32(pic.Width), int32(pic.Height), 0, gl.RED, gl.UNSIGNED_BYTE, unsafe.Pointer(&pic.Pixels[0]))
+	var data unsafe.Pointer
+	if len(rgba) > 0 {
+		data = unsafe.Pointer(&rgba[0])
+	}
+
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(pic.Width), int32(pic.Height), 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
 
 	// Set texture parameters
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
@@ -227,18 +243,26 @@ func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
 		slog.Error("Failed to init 2D renderer", "error", err)
 		return
 	}
+	if pic == nil || dc.renderer == nil {
+		return
+	}
 
-	// Upload texture (in real implementation, cache this)
-	tex := dc.uploadQPicTexture(pic)
-	defer gl.DeleteTextures(1, &tex)
+	tex := dc.renderer.getOrCreateTexture(dc, pic)
+	if tex == 0 {
+		return
+	}
 
 	// Create quad vertices (x, y, u, v)
-	w, h := int(pic.Width), int(pic.Height)
+	scale, xOff, yOff := menuScale(dc.viewport.width, dc.viewport.height)
+	w := float32(pic.Width) * scale
+	h := float32(pic.Height) * scale
+	xPos := float32(x)*scale + xOff
+	yPos := float32(y)*scale + yOff
 	vertices := []quadVertex{
-		{float32(x), float32(y), 0.0, 0.0},         // Top-left
-		{float32(x + w), float32(y), 1.0, 0.0},     // Top-right
-		{float32(x), float32(y + h), 0.0, 1.0},     // Bottom-left
-		{float32(x + w), float32(y + h), 1.0, 1.0}, // Bottom-right
+		{xPos, yPos, 0.0, 0.0},         // Top-left
+		{xPos + w, yPos, 1.0, 0.0},     // Top-right
+		{xPos, yPos + h, 0.0, 1.0},     // Bottom-left
+		{xPos + w, yPos + h, 1.0, 1.0}, // Bottom-right
 	}
 
 	// Render quad as triangle strip
@@ -251,52 +275,48 @@ func (dc *glDrawContext) DrawFill(x, y, w, h int, color byte) {
 		slog.Error("Failed to init 2D renderer", "error", err)
 		return
 	}
-
-	// Convert palette index to RGB (simplified - in real impl use palette.lmp)
-	// For now, use gray scale based on color byte
-	c := float32(color) / 255.0
-
-	// Use solid color shader
-	gl.UseProgram(dc.shaderSolid)
-
-	// Set color uniform
-	colorLoc := gl.GetUniformLocation(dc.shaderSolid, gl.Str("uColor\x00"))
-	gl.Uniform4f(colorLoc, c, c, c, 1.0)
-
-	// Set screen size uniform
-	screenLoc := gl.GetUniformLocation(dc.shaderSolid, gl.Str("uScreenSize\x00"))
-	gl.Uniform2f(screenLoc, float32(dc.viewport.width), float32(dc.viewport.height))
-
-	// Create quad vertices (just x, y for solid shader)
-	// We reuse the quad vertex struct, only using x, y
-	vertices := []quadVertex{
-		{float32(x), float32(y), 0.0, 0.0},
-		{float32(x + w), float32(y), 0.0, 0.0},
-		{float32(x), float32(y + h), 0.0, 0.0},
-		{float32(x + w), float32(y + h), 0.0, 0.0},
+	if dc.renderer == nil {
+		return
 	}
 
-	// Upload vertices
-	gl.BindBuffer(gl.ARRAY_BUFFER, dc.vbo2D)
-	gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*int(unsafe.Sizeof(quadVertex{})), unsafe.Pointer(&vertices[0]), gl.STATIC_DRAW)
+	tex := dc.renderer.getOrCreateColorTexture(dc, color)
+	if tex == 0 {
+		return
+	}
 
-	// For solid shader, only set position attribute
-	posAttr := gl.GetAttribLocation(dc.shaderSolid, gl.Str("aPosition\x00"))
-	gl.EnableVertexAttribArray(uint32(posAttr))
-	gl.VertexAttribPointerWithOffset(uint32(posAttr), 2, gl.FLOAT, false, 16, uintptr(0))
-	gl.DisableVertexAttribArray(uint32(gl.GetAttribLocation(dc.shaderSolid, gl.Str("aTexCoord\x00"))))
-
-	// Draw quad
-	gl.BindVertexArray(dc.vao2D)
-	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
-	gl.BindVertexArray(0)
+	vertices := []quadVertex{
+		{float32(x), float32(y), 0.0, 0.0},
+		{float32(x + w), float32(y), 1.0, 0.0},
+		{float32(x), float32(y + h), 0.0, 1.0},
+		{float32(x + w), float32(y + h), 1.0, 1.0},
+	}
+	dc.render2DQuad(vertices, tex, dc.shader2D)
 }
 
 // DrawCharacter renders a single character from font.
 func (dc *glDrawContext) DrawCharacter(x, y int, num int) {
-	// TODO: Implement proper character rendering from CONCHARS texture
-	// For now, just draw a simple box
-	dc.DrawFill(x, y, 8, 8, byte(num%255))
+	if err := dc.init2DRenderer(); err != nil {
+		slog.Error("Failed to init 2D renderer", "error", err)
+		return
+	}
+	if dc.renderer == nil || num < 0 || num > 255 {
+		return
+	}
+	pic := dc.renderer.getCharPic(num)
+	if pic == nil {
+		return
+	}
+	tex := dc.renderer.getOrCreateCharTexture(dc, pic)
+	if tex == 0 {
+		return
+	}
+	vertices := []quadVertex{
+		{float32(x), float32(y), 0.0, 0.0},
+		{float32(x + 8), float32(y), 1.0, 0.0},
+		{float32(x), float32(y + 8), 0.0, 1.0},
+		{float32(x + 8), float32(y + 8), 1.0, 1.0},
+	}
+	dc.render2DQuad(vertices, tex, dc.shader2D)
 }
 
 func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program uint32) {
@@ -327,6 +347,13 @@ type Renderer struct {
 
 	window *glfw.Window
 	config Config
+
+	textureCache  map[glCacheKey]*glCachedTexture
+	colorTextures [256]uint32
+	palette       []byte
+	concharsData  []byte
+	charCache     [256]*image.QPic
+	drawContext    *glDrawContext
 
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -388,13 +415,16 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	gl.DepthFunc(gl.LESS)
 	gl.Enable(gl.CULL_FACE)
 	gl.CullFace(gl.BACK)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	// Show the window
 	window.Show()
 
 	r := &Renderer{
-		window: window,
-		config: cfg,
+		window:       window,
+		config:       cfg,
+		textureCache: make(map[glCacheKey]*glCachedTexture),
 	}
 
 	slog.Info("OpenGL renderer created",
@@ -530,14 +560,22 @@ func (r *Renderer) Run() error {
 		r.mu.RUnlock()
 
 		if drawCallback != nil {
-			dc := &DrawContext{gldc: &glDrawContext{
-				window: r.window,
-				gamma:  gamma,
-				viewport: struct {
-					width  int
-					height int
-				}{width, height},
-			}}
+			r.mu.Lock()
+			if r.drawContext == nil {
+				r.drawContext = &glDrawContext{
+					window:   r.window,
+					renderer: r,
+				}
+			}
+			r.drawContext.gamma = gamma
+			r.drawContext.viewport = struct {
+				width  int
+				height int
+			}{width, height}
+			gldc := r.drawContext
+			r.mu.Unlock()
+
+			dc := &DrawContext{gldc: gldc}
 			drawCallback(dc)
 		}
 
@@ -569,6 +607,7 @@ func (r *Renderer) Stop() {
 // Shutdown releases all GPU resources and destroys the window.
 func (r *Renderer) Shutdown() {
 	slog.Debug("OpenGL renderer shutting down")
+	r.deleteAllTextures()
 	if r.window != nil {
 		r.window.Destroy()
 	}
@@ -576,10 +615,159 @@ func (r *Renderer) Shutdown() {
 }
 
 // SetPalette sets the Quake palette used for rendering.
-func (r *Renderer) SetPalette(_ []byte) {}
+func (r *Renderer) SetPalette(palette []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.palette = make([]byte, len(palette))
+	copy(r.palette, palette)
+	r.clearTextureCacheLocked()
+}
 
 // SetConchars stores the raw conchars bitmap for character rendering.
-func (r *Renderer) SetConchars(_ []byte) {}
+func (r *Renderer) SetConchars(data []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if len(data) < 128*128 {
+		return
+	}
+	r.concharsData = make([]byte, len(data))
+	copy(r.concharsData, data)
+	r.charCache = [256]*image.QPic{}
+	r.clearTextureCacheLocked()
+}
+
+func (r *Renderer) clearTextureCacheLocked() {
+	for key, entry := range r.textureCache {
+		if entry != nil && entry.id != 0 {
+			tex := entry.id
+			gl.DeleteTextures(1, &tex)
+		}
+		delete(r.textureCache, key)
+	}
+	for i, tex := range r.colorTextures {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+			r.colorTextures[i] = 0
+		}
+	}
+}
+
+func (r *Renderer) deleteAllTextures() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clearTextureCacheLocked()
+}
+
+func (r *Renderer) getOrCreateTexture(dc *glDrawContext, pic *image.QPic) uint32 {
+	if pic == nil {
+		return 0
+	}
+
+	r.mu.RLock()
+	if entry, ok := r.textureCache[glCacheKey{pic: pic}]; ok && entry != nil {
+		tex := entry.id
+		r.mu.RUnlock()
+		return tex
+	}
+	palette := append([]byte(nil), r.palette...)
+	r.mu.RUnlock()
+
+	rgba := ConvertPaletteToRGBA(pic.Pixels, palette)
+	tex := dc.uploadQPicTexture(pic, rgba)
+	if tex == 0 {
+		return 0
+	}
+
+	r.mu.Lock()
+	r.textureCache[glCacheKey{pic: pic}] = &glCachedTexture{id: tex, width: int(pic.Width), height: int(pic.Height)}
+	r.mu.Unlock()
+	return tex
+}
+
+func (r *Renderer) getOrCreateColorTexture(dc *glDrawContext, color byte) uint32 {
+	r.mu.RLock()
+	if tex := r.colorTextures[color]; tex != 0 {
+		r.mu.RUnlock()
+		return tex
+	}
+	palette := append([]byte(nil), r.palette...)
+	r.mu.RUnlock()
+
+	rgba := make([]byte, 4)
+	if IsTransparentIndex(color) {
+		rgba[3] = 0
+	} else {
+		pr, pg, pb := GetPaletteColor(color, palette)
+		rgba[0], rgba[1], rgba[2], rgba[3] = pr, pg, pb, 255
+	}
+	pic := &image.QPic{Width: 1, Height: 1, Pixels: []byte{color}}
+	tex := dc.uploadQPicTexture(pic, rgba)
+	if tex == 0 {
+		return 0
+	}
+
+	r.mu.Lock()
+	r.colorTextures[color] = tex
+	r.mu.Unlock()
+	return tex
+}
+
+func (r *Renderer) getCharPic(num int) *image.QPic {
+	r.mu.RLock()
+	if num < 0 || num > 255 || len(r.concharsData) < 128*128 {
+		r.mu.RUnlock()
+		return nil
+	}
+	if r.charCache[num] != nil {
+		pic := r.charCache[num]
+		r.mu.RUnlock()
+		return pic
+	}
+	concharsData := r.concharsData
+	r.mu.RUnlock()
+
+	col := num % 16
+	row := num / 16
+	pixels := make([]byte, 8*8)
+	for y := 0; y < 8; y++ {
+		src := (row*8+y)*128 + col*8
+		copy(pixels[y*8:y*8+8], concharsData[src:src+8])
+	}
+	pic := &image.QPic{Width: 8, Height: 8, Pixels: pixels}
+
+	r.mu.Lock()
+	r.charCache[num] = pic
+	r.mu.Unlock()
+	return pic
+}
+
+func (r *Renderer) getOrCreateCharTexture(dc *glDrawContext, pic *image.QPic) uint32 {
+	if pic == nil {
+		return 0
+	}
+
+	r.mu.RLock()
+	if entry, ok := r.textureCache[glCacheKey{pic: pic}]; ok && entry != nil {
+		tex := entry.id
+		r.mu.RUnlock()
+		return tex
+	}
+	palette := append([]byte(nil), r.palette...)
+	r.mu.RUnlock()
+
+	rgba := ConvertConcharsToRGBA(pic.Pixels, palette)
+	tex := dc.uploadQPicTexture(pic, rgba)
+	if tex == 0 {
+		return 0
+	}
+
+	r.mu.Lock()
+	r.textureCache[glCacheKey{pic: pic}] = &glCachedTexture{id: tex, width: int(pic.Width), height: int(pic.Height)}
+	r.mu.Unlock()
+	return tex
+}
 
 // IsRunning returns true if the render loop is active.
 func (r *Renderer) IsRunning() bool {
