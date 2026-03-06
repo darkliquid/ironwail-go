@@ -46,6 +46,30 @@ type LightStyle struct {
 	Peak    byte
 }
 
+type StaticSound struct {
+	Origin      [3]float32
+	SoundIndex  int
+	Volume      int
+	Attenuation float32
+}
+
+type SoundEvent struct {
+	Entity      int
+	Channel     int
+	Origin      [3]float32
+	SoundIndex  int
+	Volume      int
+	Attenuation float32
+	Local       bool
+}
+
+type ParticleEvent struct {
+	Origin [3]float32
+	Dir    [3]float32
+	Count  int
+	Color  int
+}
+
 type Client struct {
 	State  ClientState
 	Signon int
@@ -85,17 +109,27 @@ type Client struct {
 
 	Intermission  int
 	CompletedTime float64
+	Paused        bool
+	CenterPrint   string
 
 	Stats  [32]int
 	StatsF [32]float32
 	Items  uint32
+	Frags  map[int]int
 
 	OnGround bool
 	InWater  bool
 
 	EntityBaselines map[int]inet.EntityState
 	Entities        map[int]inet.EntityState
+	StaticEntities  []inet.EntityState
+	StaticSounds    []StaticSound
+	SoundEvents     []SoundEvent
+	ParticleEvents  []ParticleEvent
 	TempEntities    []TempEntityEvent
+	DamageTaken     int
+	DamageSaved     int
+	DamageOrigin    [3]float32
 
 	StuffCmdBuf string
 
@@ -156,6 +190,7 @@ func NewClient() *Client {
 		WheelPitch:      defaultWheelPitch,
 		EntityBaselines: make(map[int]inet.EntityState),
 		Entities:        make(map[int]inet.EntityState),
+		Frags:           make(map[int]int),
 	}
 }
 
@@ -176,6 +211,8 @@ func (c *Client) ClearState() {
 	c.StuffCmdBuf = ""
 	c.Intermission = 0
 	c.CompletedTime = 0
+	c.Paused = false
+	c.CenterPrint = ""
 	c.FixAngle = false
 	c.MoveMessages = 0
 	c.InImpulse = 0
@@ -184,9 +221,21 @@ func (c *Client) ClearState() {
 	c.Stats = [32]int{}
 	c.StatsF = [32]float32{}
 	c.Items = 0
+	c.DamageTaken = 0
+	c.DamageSaved = 0
+	c.DamageOrigin = [3]float32{}
 	c.OnGround = false
 	c.InWater = false
+	c.SoundEvents = nil
+	c.ParticleEvents = nil
 	c.TempEntities = nil
+	c.StaticEntities = nil
+	c.StaticSounds = nil
+	if c.Frags == nil {
+		c.Frags = make(map[int]int)
+	} else {
+		clear(c.Frags)
+	}
 	if c.EntityBaselines == nil {
 		c.EntityBaselines = make(map[int]inet.EntityState)
 	} else {

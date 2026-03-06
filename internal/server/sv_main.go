@@ -56,6 +56,8 @@ func (s *Server) Init(maxClients int) error {
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.SoundPrecache = make([]string, MaxSounds)
 	s.ModelPrecache = make([]string, MaxModels)
+	s.StaticEntities = nil
+	s.StaticSounds = nil
 
 	s.Static = &ServerStatic{
 		MaxClients:      maxClients,
@@ -91,6 +93,8 @@ func (s *Server) Shutdown() {
 	s.Static = nil
 	s.SoundPrecache = nil
 	s.ModelPrecache = nil
+	s.StaticEntities = nil
+	s.StaticSounds = nil
 	if s.Datagram != nil {
 		s.Datagram.Clear()
 	}
@@ -138,6 +142,8 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 
 	s.ModelPrecache[0] = ""
 	s.ModelPrecache[1] = s.ModelName
+	s.StaticEntities = nil
+	s.StaticSounds = nil
 
 	s.ClearWorld()
 	s.LinkEdict(world, false)
@@ -367,6 +373,84 @@ func (s *Server) LocalSound(client *Client, sample string) {
 	}
 }
 
+func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended bool, includeEntNum bool, entNum int) {
+	var bits byte
+	if ent.ModelIndex > 255 {
+		bits |= 1
+	}
+	if ent.Frame > 255 {
+		bits |= 1 << 1
+	}
+	if ent.Alpha != 0 {
+		bits |= 1 << 2
+	}
+	if ent.Scale != 0 && ent.Scale != 16 {
+		bits |= 1 << 3
+	}
+
+	if extended {
+		msg.WriteByte(bits)
+	}
+	if includeEntNum {
+		msg.WriteShort(int16(entNum))
+	}
+	if extended && bits&(1<<0) != 0 {
+		msg.WriteShort(int16(ent.ModelIndex))
+	} else {
+		msg.WriteByte(byte(ent.ModelIndex))
+	}
+	if extended && bits&(1<<1) != 0 {
+		msg.WriteShort(int16(ent.Frame))
+	} else {
+		msg.WriteByte(byte(ent.Frame))
+	}
+	msg.WriteByte(byte(ent.Colormap))
+	msg.WriteByte(byte(ent.Skin))
+	for i := 0; i < 3; i++ {
+		msg.WriteCoord(ent.Origin[i])
+	}
+	for i := 0; i < 3; i++ {
+		msg.WriteAngle(ent.Angles[i])
+	}
+	if extended && bits&(1<<2) != 0 {
+		msg.WriteByte(ent.Alpha)
+	}
+	if extended && bits&(1<<3) != 0 {
+		msg.WriteByte(ent.Scale)
+	}
+}
+
+func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
+	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
+	if extended {
+		msg.WriteByte(byte(SVCSpawnStatic2))
+		s.writeEntityState(msg, ent, true, false, 0)
+		return
+	}
+	msg.WriteByte(byte(SVCSpawnStatic))
+	s.writeEntityState(msg, ent, false, false, 0)
+}
+
+func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSound) {
+	if snd.SoundIndex > 255 {
+		msg.WriteByte(byte(SVCSpawnStaticSound2))
+		for i := 0; i < 3; i++ {
+			msg.WriteCoord(snd.Origin[i])
+		}
+		msg.WriteShort(int16(snd.SoundIndex))
+		msg.WriteByte(byte(snd.Volume))
+		msg.WriteByte(byte(snd.Attenuation * 64))
+		return
+	}
+	msg.WriteByte(byte(SVCSpawnStaticSound))
+	for i := 0; i < 3; i++ {
+		msg.WriteCoord(snd.Origin[i])
+	}
+	msg.WriteByte(byte(snd.SoundIndex))
+	msg.WriteByte(byte(snd.Volume))
+	msg.WriteByte(byte(snd.Attenuation * 64))
+}
+
 func (s *Server) SendServerInfo(client *Client) {
 	client.Message.WriteByte(byte(SVCPrint))
 	client.Message.WriteString(fmt.Sprintf("\nFITZQUAKE GO SERVER\n"))
@@ -407,6 +491,13 @@ func (s *Server) SendServerInfo(client *Client) {
 		client.Message.WriteByte(byte(SVCCDTrack))
 		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
 		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
+	}
+
+	for _, ent := range s.StaticEntities {
+		s.writeSpawnStaticMessage(client.Message, ent)
+	}
+	for _, snd := range s.StaticSounds {
+		s.writeSpawnStaticSoundMessage(client.Message, snd)
 	}
 
 	client.Message.WriteByte(byte(SVCSetView))

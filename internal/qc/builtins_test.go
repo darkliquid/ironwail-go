@@ -1,6 +1,11 @@
 package qc
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 func newBuiltinsTestVM(maxEdicts int) *VM {
 	vm := NewVM()
@@ -119,22 +124,51 @@ func TestSetModelStoresModelAndModelIndex(t *testing.T) {
 
 func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	hookCalls := struct {
-		spawn       int
-		remove      int
-		find        int
-		findfloat   int
-		nextent     int
-		findradius  int
-		walkmove    int
-		droptofloor int
-		setorigin   int
-		setsize     int
-		setmodel    int
-		movetogoal  int
-		changeyaw   int
+		traceline      int
+		spawn          int
+		remove         int
+		find           int
+		findfloat      int
+		nextent        int
+		findradius     int
+		checkbottom    int
+		pointcontents  int
+		walkmove       int
+		droptofloor    int
+		setorigin      int
+		setsize        int
+		setmodel       int
+		precacheSound  int
+		precacheModel  int
+		broadcastPrint int
+		clientPrint    int
+		debugPrint     int
+		centerPrint    int
+		sound          int
+		stuffcmd       int
+		lightstyle     int
+		particle       int
+		localsound     int
+		checkclient    int
+		aim            int
+		writeByte      int
+		writeChar      int
+		writeShort     int
+		writeLong      int
+		writeCoord     int
+		writeAngle     int
+		writeString    int
+		writeEntity    int
+		setspawnparms  int
+		movetogoal     int
+		changeyaw      int
 	}{}
 
 	SetServerBuiltinHooks(ServerBuiltinHooks{
+		Traceline: func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult {
+			hookCalls.traceline++
+			return BuiltinTraceResult{Fraction: 0.5, EndPos: [3]float32{4, 5, 6}, PlaneNormal: [3]float32{0, 0, 1}, EntNum: 3}
+		},
 		Spawn: func(vm *VM) (int, error) {
 			hookCalls.spawn++
 			return 5, nil
@@ -155,13 +189,29 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 			hookCalls.nextent++
 			return 8
 		},
+		CheckBottom: func(vm *VM, entNum int) bool {
+			hookCalls.checkbottom++
+			return true
+		},
+		PointContents: func(vm *VM, point [3]float32) int {
+			hookCalls.pointcontents++
+			return -2
+		},
 		FindRadius: func(vm *VM, org [3]float32, radius float32) int {
 			hookCalls.findradius++
 			return 9
 		},
+		CheckClient: func(vm *VM) int {
+			hookCalls.checkclient++
+			return 10
+		},
 		WalkMove: func(vm *VM, yaw, dist float32) bool {
 			hookCalls.walkmove++
 			return true
+		},
+		Aim: func(vm *VM, entNum int, missileSpeed float32) [3]float32 {
+			hookCalls.aim++
+			return [3]float32{0, 1, 0}
 		},
 		DropToFloor: func(vm *VM) bool {
 			hookCalls.droptofloor++
@@ -176,16 +226,79 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		SetModel: func(vm *VM, entNum int, modelName string) {
 			hookCalls.setmodel++
 		},
-		MoveToGoal: func(vm *VM, entNum int) {
+		PrecacheSound: func(vm *VM, sample string) {
+			hookCalls.precacheSound++
+		},
+		PrecacheModel: func(vm *VM, modelName string) {
+			hookCalls.precacheModel++
+		},
+		BroadcastPrint: func(vm *VM, msg string) {
+			hookCalls.broadcastPrint++
+		},
+		ClientPrint: func(vm *VM, entNum int, msg string) {
+			hookCalls.clientPrint++
+		},
+		DebugPrint: func(vm *VM, msg string) {
+			hookCalls.debugPrint++
+		},
+		CenterPrint: func(vm *VM, entNum int, msg string) {
+			hookCalls.centerPrint++
+		},
+		Sound: func(vm *VM, entNum, channel int, sample string, volume int, attenuation float32) {
+			hookCalls.sound++
+		},
+		StuffCmd: func(vm *VM, entNum int, cmd string) {
+			hookCalls.stuffcmd++
+		},
+		LightStyle: func(vm *VM, style int, value string) {
+			hookCalls.lightstyle++
+		},
+		Particle: func(vm *VM, org, dir [3]float32, color, count int) {
+			hookCalls.particle++
+		},
+		LocalSound: func(vm *VM, entNum int, sample string) {
+			hookCalls.localsound++
+		},
+		WriteByte:     func(vm *VM, dest, value int) { hookCalls.writeByte++ },
+		WriteChar:     func(vm *VM, dest, value int) { hookCalls.writeChar++ },
+		WriteShort:    func(vm *VM, dest, value int) { hookCalls.writeShort++ },
+		WriteLong:     func(vm *VM, dest int, value int32) { hookCalls.writeLong++ },
+		WriteCoord:    func(vm *VM, dest int, value float32) { hookCalls.writeCoord++ },
+		WriteAngle:    func(vm *VM, dest int, value float32) { hookCalls.writeAngle++ },
+		WriteString:   func(vm *VM, dest int, value string) { hookCalls.writeString++ },
+		WriteEntity:   func(vm *VM, dest, entNum int) { hookCalls.writeEntity++ },
+		SetSpawnParms: func(vm *VM, entNum int) { hookCalls.setspawnparms++ },
+		MoveToGoal: func(vm *VM, dist float32) {
 			hookCalls.movetogoal++
 		},
-		ChangeYaw: func(vm *VM, entNum int) {
+		ChangeYaw: func(vm *VM) {
 			hookCalls.changeyaw++
 		},
 	})
 	defer SetServerBuiltinHooks(ServerBuiltinHooks{})
 
 	vm := newBuiltinsTestVM(8)
+	vm.SetGVector(OFSParm0, [3]float32{1, 2, 3})
+	vm.SetGVector(OFSParm1, [3]float32{7, 8, 9})
+	vm.SetGFloat(OFSParm2, 0)
+	traceline(vm)
+	if got := vm.GFloat(OFSReturn); got != 0.5 {
+		t.Fatalf("traceline return = %v, want 0.5", got)
+	}
+	if got := vm.GVector(OFSTraceEndPos); got != [3]float32{4, 5, 6} {
+		t.Fatalf("trace_endpos = %v", got)
+	}
+	checkclient(vm)
+	if got := int(vm.GFloat(OFSReturn)); got != 10 {
+		t.Fatalf("checkclient return = %d, want 10", got)
+	}
+	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGFloat(OFSParm1, 0)
+	aimBuiltin(vm)
+	if got := vm.GVector(OFSReturn); got != [3]float32{0, 1, 0} {
+		t.Fatalf("aim return = %v", got)
+	}
+
 	spawn(vm)
 	if got := int(vm.GFloat(OFSReturn)); got != 5 {
 		t.Fatalf("spawn return = %d, want 5", got)
@@ -193,12 +306,23 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 
 	vm.SetGFloat(OFSParm0, 1)
 	remove(vm)
+	sound(vm)
 	find(vm)
 	findfloat(vm)
 	nextent(vm)
+	stuffcmd(vm)
 	findradius(vm)
+	checkbottom(vm)
+	pointcontents(vm)
 	walkmove(vm)
 	droptofloor(vm)
+	lightstyle(vm)
+	particle(vm)
+	precacheSound(vm)
+	precacheModel(vm)
+	bprint(vm)
+	sprint(vm)
+	dprint(vm)
 
 	vm.SetGVector(OFSParm1, [3]float32{1, 2, 3})
 	setorigin(vm)
@@ -209,6 +333,17 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 
 	vm.SetGString(OFSParm1, "progs/hook.mdl")
 	setmodel(vm)
+	centerprint(vm)
+	localsound(vm)
+	writeByteBuiltin(vm)
+	writeCharBuiltin(vm)
+	writeShortBuiltin(vm)
+	writeLongBuiltin(vm)
+	writeCoordBuiltin(vm)
+	writeAngleBuiltin(vm)
+	writeStringBuiltin(vm)
+	writeEntityBuiltin(vm)
+	setspawnparms(vm)
 
 	vm.SetGFloat(OFSParm0, 1)
 	movetogoal(vm)
@@ -218,20 +353,107 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		t.Fatalf("droptofloor return = %d, want 1", got)
 	}
 
-	if hookCalls.spawn != 1 ||
+	if hookCalls.traceline != 1 ||
+		hookCalls.checkclient != 1 ||
+		hookCalls.aim != 1 ||
+		hookCalls.spawn != 1 ||
 		hookCalls.remove != 1 ||
 		hookCalls.find != 1 ||
 		hookCalls.findfloat != 1 ||
 		hookCalls.nextent != 1 ||
 		hookCalls.findradius != 1 ||
+		hookCalls.checkbottom != 1 ||
+		hookCalls.pointcontents != 1 ||
 		hookCalls.walkmove != 1 ||
 		hookCalls.droptofloor != 1 ||
 		hookCalls.setorigin != 1 ||
 		hookCalls.setsize != 1 ||
 		hookCalls.setmodel != 1 ||
+		hookCalls.precacheSound != 1 ||
+		hookCalls.precacheModel != 1 ||
+		hookCalls.broadcastPrint != 1 ||
+		hookCalls.clientPrint != 1 ||
+		hookCalls.debugPrint != 1 ||
+		hookCalls.centerPrint != 1 ||
+		hookCalls.sound != 1 ||
+		hookCalls.stuffcmd != 1 ||
+		hookCalls.lightstyle != 1 ||
+		hookCalls.particle != 1 ||
+		hookCalls.localsound != 1 ||
+		hookCalls.writeByte != 1 ||
+		hookCalls.writeChar != 1 ||
+		hookCalls.writeShort != 1 ||
+		hookCalls.writeLong != 1 ||
+		hookCalls.writeCoord != 1 ||
+		hookCalls.writeAngle != 1 ||
+		hookCalls.writeString != 1 ||
+		hookCalls.writeEntity != 1 ||
+		hookCalls.setspawnparms != 1 ||
 		hookCalls.movetogoal != 1 ||
 		hookCalls.changeyaw != 1 {
 		t.Fatalf("unexpected hook calls: %+v", hookCalls)
+	}
+}
+
+func TestRegisterBuiltinsCanonicalMappings(t *testing.T) {
+	vm := newBuiltinsTestVM(8)
+	RegisterBuiltins(vm)
+
+	for _, slot := range []int{6, 8, 10, 11, 16, 17, 19, 20, 21, 23, 24, 25, 31, 35, 36, 37, 38, 40, 41, 43, 44, 45, 46, 48, 52, 53, 54, 55, 56, 57, 58, 59, 68, 69, 70, 72, 73, 74, 78, 79, 80} {
+		if vm.Builtins[slot] == nil {
+			t.Fatalf("builtin %d is nil", slot)
+		}
+	}
+	if vm.Builtins[1000] == nil {
+		t.Fatalf("temporary findfloat helper slot is nil")
+	}
+}
+
+func TestMathCVarAndLocalCmdBuiltins(t *testing.T) {
+	SetServerBuiltinHooks(ServerBuiltinHooks{})
+	vm := newBuiltinsTestVM(8)
+
+	vm.SetGFloat(OFSParm0, 2.6)
+	rintBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 3 {
+		t.Fatalf("rint = %v, want 3", got)
+	}
+	floorBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 2 {
+		t.Fatalf("floor = %v, want 2", got)
+	}
+	ceilBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 3 {
+		t.Fatalf("ceil = %v, want 3", got)
+	}
+	vm.SetGFloat(OFSParm0, -2.6)
+	fabsBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 2.6 {
+		t.Fatalf("fabs = %v, want 2.6", got)
+	}
+
+	cvar.Set("qc_test_var", "12.5")
+	vm.SetGString(OFSParm0, "qc_test_var")
+	cvarBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 12.5 {
+		t.Fatalf("cvar = %v, want 12.5", got)
+	}
+
+	vm.SetGString(OFSParm0, "qc_test_set")
+	vm.SetGString(OFSParm1, "99")
+	cvarSetBuiltin(vm)
+	if got := cvar.StringValue("qc_test_set"); got != "99" {
+		t.Fatalf("cvar_set stored %q, want 99", got)
+	}
+
+	executed := false
+	cmdsys.AddCommand("qc_test_cmd", func(args []string) { executed = true }, "")
+	defer cmdsys.RemoveCommand("qc_test_cmd")
+	vm.SetGString(OFSParm0, "qc_test_cmd\n")
+	localcmd(vm)
+	cmdsys.Execute()
+	if !executed {
+		t.Fatal("localcmd did not enqueue command")
 	}
 }
 

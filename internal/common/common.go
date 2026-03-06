@@ -41,9 +41,9 @@ package common
 import (
 	"encoding/binary"
 	"io"
-	"strconv"
 	"math"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -420,6 +420,7 @@ func ReadLittleFloat(r io.Reader) (float32, error) {
 	}
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:])), nil
 }
+
 // Global variables for command line arguments and parsing.
 var (
 	ComToken string

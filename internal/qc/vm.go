@@ -130,9 +130,9 @@ type GlobalVars struct {
 
 	// VForward, VUp, VRight are the view direction vectors.
 	// Set by the engine based on player view angles.
-	VForward  [3]float32
-	VUp       [3]float32
-	VRight    [3]float32
+	VForward [3]float32
+	VUp      [3]float32
+	VRight   [3]float32
 
 	// TraceAllSolid indicates the trace was entirely in solid.
 	TraceAllSolid float32
@@ -669,7 +669,6 @@ func (vm *VM) EdictNum(n int) int {
 func (vm *VM) NumForEdict(e int) int {
 	return e
 }
-
 
 // SetGlobal sets a global variable by name using reflection.
 // Supports float32, int, int32, and *Edict types.

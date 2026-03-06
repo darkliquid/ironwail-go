@@ -70,6 +70,7 @@ func LocatePak0() (string, error) {
 
 	return "", fmt.Errorf("pak0.pak not found")
 }
+
 // SkipIfNoQuakeDir skips the test if the Quake directory cannot be located.
 func SkipIfNoQuakeDir(t *testing.T) string {
 	t.Helper()
@@ -89,6 +90,7 @@ func SkipIfNoPak0(t *testing.T) string {
 	}
 	return path
 }
+
 // CompareStructs compares two structs and fails the test if they are not equal.
 // It provides a basic hex dump if they differ and are byte slices.
 func CompareStructs(t *testing.T, expected, actual interface{}) {

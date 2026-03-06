@@ -279,6 +279,7 @@ func DatagramConnect(host string) *Socket {
 	UDPCloseSocket(conn)
 	return nil
 }
+
 var (
 	acceptSocket *stdnet.UDPConn
 )

@@ -178,6 +178,192 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	}
 }
 
+func TestParseStaticEntityAndSoundMessages(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+
+	msg.WriteByte(byte(inet.SVCSpawnStatic))
+	msg.WriteByte(5)
+	msg.WriteByte(1)
+	msg.WriteByte(2)
+	msg.WriteByte(3)
+	writeCoord(msg, 10)
+	writeCoord(msg, 20)
+	writeCoord(msg, 30)
+	writeAngle(msg, 45)
+	writeAngle(msg, 90)
+	writeAngle(msg, 180)
+
+	msg.WriteByte(byte(inet.SVCSpawnStatic2))
+	msg.WriteByte(byte(inet.BLARGEMODEL | inet.BLARGEFRAME | inet.BALPHA | inet.BSCALE))
+	writeShort(msg, 300)
+	writeShort(msg, 400)
+	msg.WriteByte(0)
+	msg.WriteByte(7)
+	writeCoord(msg, 1)
+	writeCoord(msg, 2)
+	writeCoord(msg, 3)
+	writeAngle(msg, 0)
+	writeAngle(msg, 10)
+	writeAngle(msg, 20)
+	msg.WriteByte(200)
+	msg.WriteByte(24)
+
+	msg.WriteByte(byte(inet.SVCSpawnStaticSound))
+	writeCoord(msg, 4)
+	writeCoord(msg, 5)
+	writeCoord(msg, 6)
+	msg.WriteByte(9)
+	msg.WriteByte(255)
+	msg.WriteByte(64)
+
+	msg.WriteByte(byte(inet.SVCSpawnStaticSound2))
+	writeCoord(msg, 7)
+	writeCoord(msg, 8)
+	writeCoord(msg, 9)
+	writeShort(msg, 300)
+	msg.WriteByte(128)
+	msg.WriteByte(32)
+
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if got := len(c.StaticEntities); got != 2 {
+		t.Fatalf("static entities len = %d, want 2", got)
+	}
+	if got := c.StaticEntities[0].Origin; got != [3]float32{10, 20, 30} {
+		t.Fatalf("static entity origin = %v, want [10 20 30]", got)
+	}
+	if got := c.StaticEntities[1].ModelIndex; got != 300 {
+		t.Fatalf("static entity model = %d, want 300", got)
+	}
+	if got := c.StaticEntities[1].Frame; got != 400 {
+		t.Fatalf("static entity frame = %d, want 400", got)
+	}
+	if got := c.StaticEntities[1].Alpha; got != 200 {
+		t.Fatalf("static entity alpha = %d, want 200", got)
+	}
+	if got := c.StaticEntities[1].Scale; got != 24 {
+		t.Fatalf("static entity scale = %d, want 24", got)
+	}
+
+	if got := len(c.StaticSounds); got != 2 {
+		t.Fatalf("static sounds len = %d, want 2", got)
+	}
+	if got := c.StaticSounds[0].SoundIndex; got != 9 {
+		t.Fatalf("static sound index = %d, want 9", got)
+	}
+	if got := c.StaticSounds[0].Attenuation; got != 1 {
+		t.Fatalf("static sound attenuation = %v, want 1", got)
+	}
+	if got := c.StaticSounds[1].SoundIndex; got != 300 {
+		t.Fatalf("static sound2 index = %d, want 300", got)
+	}
+	if got := c.StaticSounds[1].Attenuation; got != 0.5 {
+		t.Fatalf("static sound2 attenuation = %v, want 0.5", got)
+	}
+}
+
+func TestParseRuntimeServerMessages(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+
+	msg.WriteByte(byte(inet.SVCUpdateStat))
+	msg.WriteByte(3)
+	writeLong(msg, 77)
+
+	msg.WriteByte(byte(inet.SVCUpdateFrags))
+	msg.WriteByte(2)
+	writeShort(msg, 15)
+
+	msg.WriteByte(byte(inet.SVCCenterPrint))
+	msg.WriteString("centered")
+	msg.WriteByte(0)
+
+	msg.WriteByte(byte(inet.SVCSetPause))
+	msg.WriteByte(1)
+
+	msg.WriteByte(byte(inet.SVCDamage))
+	msg.WriteByte(5)
+	msg.WriteByte(7)
+	writeCoord(msg, 1)
+	writeCoord(msg, 2)
+	writeCoord(msg, 3)
+
+	msg.WriteByte(byte(inet.SVCSound))
+	msg.WriteByte(byte(inet.SND_VOLUME | inet.SND_ATTENUATION))
+	msg.WriteByte(200)
+	msg.WriteByte(32)
+	writeShort(msg, (1<<3)|2)
+	msg.WriteByte(9)
+	writeCoord(msg, 10)
+	writeCoord(msg, 20)
+	writeCoord(msg, 30)
+
+	msg.WriteByte(byte(inet.SVCLocalSound))
+	msg.WriteByte(0)
+	msg.WriteByte(4)
+
+	msg.WriteByte(byte(inet.SVCParticle))
+	writeCoord(msg, 4)
+	writeCoord(msg, 5)
+	writeCoord(msg, 6)
+	msg.WriteByte(byte(int8(16)))
+	msg.WriteByte(240)
+	msg.WriteByte(byte(int8(8)))
+	msg.WriteByte(12)
+	msg.WriteByte(99)
+
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if got := c.Stats[3]; got != 77 {
+		t.Fatalf("stat[3] = %d, want 77", got)
+	}
+	if got := c.Frags[2]; got != 15 {
+		t.Fatalf("frags[2] = %d, want 15", got)
+	}
+	if c.CenterPrint != "centered" {
+		t.Fatalf("centerprint = %q, want centered", c.CenterPrint)
+	}
+	if !c.Paused {
+		t.Fatal("paused = false, want true")
+	}
+	if c.DamageSaved != 5 || c.DamageTaken != 7 {
+		t.Fatalf("damage save/take = %d/%d, want 5/7", c.DamageSaved, c.DamageTaken)
+	}
+	if c.DamageOrigin != [3]float32{1, 2, 3} {
+		t.Fatalf("damage origin = %v, want [1 2 3]", c.DamageOrigin)
+	}
+
+	if got := len(c.SoundEvents); got != 2 {
+		t.Fatalf("sound events len = %d, want 2", got)
+	}
+	if got := c.SoundEvents[0]; got.Entity != 1 || got.Channel != 2 || got.SoundIndex != 9 || got.Volume != 200 || got.Attenuation != 0.5 || got.Origin != [3]float32{10, 20, 30} || got.Local {
+		t.Fatalf("sound event[0] = %+v", got)
+	}
+	if got := c.SoundEvents[1]; got.SoundIndex != 4 || !got.Local {
+		t.Fatalf("sound event[1] = %+v", got)
+	}
+
+	if got := len(c.ParticleEvents); got != 1 {
+		t.Fatalf("particle events len = %d, want 1", got)
+	}
+	if got := c.ParticleEvents[0]; got.Origin != [3]float32{4, 5, 6} || got.Dir != [3]float32{1, -1, 0.5} || got.Count != 12 || got.Color != 99 {
+		t.Fatalf("particle event = %+v", got)
+	}
+}
+
 func TestLerpPointClampsAndInterpolates(t *testing.T) {
 	c := NewClient()
 	c.MTime[1] = 1.0

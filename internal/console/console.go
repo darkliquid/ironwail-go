@@ -556,5 +556,3 @@ func LineWidth() int {
 func TotalLines() int {
 	return globalConsole.TotalLines()
 }
-
-

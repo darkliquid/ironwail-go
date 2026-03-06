@@ -115,6 +115,14 @@ type EntityState struct {
 	Scale      uint8
 }
 
+// StaticSound represents a persistent ambient sound in the world signon state.
+type StaticSound struct {
+	Origin      [3]float32
+	SoundIndex  int
+	Volume      int
+	Attenuation float32
+}
+
 // Edict represents a game entity.
 type Edict struct {
 	Free bool
@@ -227,26 +235,25 @@ type EntVars struct {
 	Noise3       int32
 }
 
-
 // UserCmd represents client input commands sent to the server.
 // Contains movement, angles, and impulse values for a single frame.
 type UserCmd struct {
-	ViewAngles [3]float32 // Client view angles (pitch, yaw, roll)
-	ForwardMove float32   // Forward/backward movement (-back, +forward)
-	SideMove   float32    // Strafe movement (-left, +right)
-	UpMove     float32    // Vertical movement (jump/swim)
-	Buttons    uint8      // Button state (attack, jump, etc.)
-	Impulse    uint8      // Weapon/impulse command
+	ViewAngles  [3]float32 // Client view angles (pitch, yaw, roll)
+	ForwardMove float32    // Forward/backward movement (-back, +forward)
+	SideMove    float32    // Strafe movement (-left, +right)
+	UpMove      float32    // Vertical movement (jump/swim)
+	Buttons     uint8      // Button state (attack, jump, etc.)
+	Impulse     uint8      // Weapon/impulse command
 }
 
 // TraceResult contains the result of a collision trace.
 type TraceResult struct {
-	AllSolid   bool      // Entire trace is in solid
-	StartSolid bool      // Trace started in solid
-	Fraction   float32   // Fraction of path completed (0-1)
-	EndPos     [3]float32 // Final position of trace
+	AllSolid    bool       // Entire trace is in solid
+	StartSolid  bool       // Trace started in solid
+	Fraction    float32    // Fraction of path completed (0-1)
+	EndPos      [3]float32 // Final position of trace
 	PlaneNormal [3]float32 // Normal of impact plane
-	Entity     *Edict    // Entity that was hit (if any)
+	Entity      *Edict     // Entity that was hit (if any)
 }
 
 // ClientState tracks the current state of a connected client.
@@ -329,21 +336,21 @@ const (
 
 // Max constants for server limits.
 const (
-	MaxClients     = 16
-	MaxModels      = 2048
-	MaxSounds      = 2048
-	MaxEdicts      = 8192
-	MaxDatagram    = 32000
+	MaxClients       = 16
+	MaxModels        = 2048
+	MaxSounds        = 2048
+	MaxEdicts        = 8192
+	MaxDatagram      = 32000
 	MaxSignonBuffers = 16
-	MaxEntityLeafs = 32
+	MaxEntityLeafs   = 32
 )
 
 // Default physics/sound constants.
 const (
-	DefaultSoundVolume     = 255
+	DefaultSoundVolume      = 255
 	DefaultSoundAttenuation = 1.0
-	ViewHeight             = 22
-	OneEpsilon             = 0.01
+	ViewHeight              = 22
+	OneEpsilon              = 0.01
 )
 
 // Vector math helper functions.

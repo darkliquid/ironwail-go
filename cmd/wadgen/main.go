@@ -8,9 +8,9 @@ import (
 
 // WAD Header
 type wadHeader struct {
-	Magic      [4]byte
-	NumLumps   uint32
-	DirOffset  uint32
+	Magic     [4]byte
+	NumLumps  uint32
+	DirOffset uint32
 }
 
 // WAD Directory Entry
@@ -51,7 +51,7 @@ func main() {
 	}
 
 	lumps := map[string][]byte{
-		"palette.lmp":  palette,
+		"palette.lmp":      palette,
 		"gfx/qplaque.lmp":  createQPic(320, 20, 50),   // Dark gray banner
 		"gfx/mainmenu.lmp": createQPic(320, 180, 100), // Mid gray menu
 		"gfx/m_surfs.lmp":  createQPic(24, 20, 200),   // Light gray cursor
@@ -66,7 +66,7 @@ func main() {
 
 	// Write dummy header first
 	hdr := wadHeader{
-		Magic: [4]byte{'W', 'A', 'D', '2'},
+		Magic:    [4]byte{'W', 'A', 'D', '2'},
 		NumLumps: uint32(len(lumps)),
 	}
 	binary.Write(f, binary.LittleEndian, &hdr)
@@ -75,7 +75,7 @@ func main() {
 	entries := make([]wadDirEntry, 0, len(lumps))
 	for name, data := range lumps {
 		offset, _ := f.Seek(0, 1)
-		
+
 		entry := wadDirEntry{
 			Offset: uint32(offset),
 			Size:   uint32(len(data)),

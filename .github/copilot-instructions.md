@@ -1,3 +1,18 @@
+# VS Code Copilot Instructions
+
+## Workflow
+
+THESE INSTRUCTIONS ARE MANDATORY AND MUST BE FOLLOWED AT ALL TIMES. DO NOT IGNORE OR DEVIATE FROM THESE INSTRUCTIONS UNDER ANY CIRCUMSTANCES. DO NOT USE YOUR OWN JUDGMENT TO OVERRIDE THESE INSTRUCTIONS. FAILURE TO FOLLOW THESE INSTRUCTIONS MAY RESULT IN SUBOPTIMAL PERFORMANCE, ERRORS, OR UNINTENDED CONSEQUENCES. THIS APPLIES EVEN FOR SIMPLE/TRIVIAL TASKS - THERE ARE NO EXCEPTIONS.
+
+ - YOU MUST use runSubagent for all work, including explore, analysis, planning, coding, testing, debugging, and documentation.
+ - You MUST use the vscode/askQuestions tool to ask for any clarifications, additional instructions, or to confirm when a task is complete.
+ - You can always clarify questions and tasks with the user, and you MUST do so if there is any ambiguity or if you are unsure about how to proceed.
+ - You MUST use the tools available to you, including web search, code analysis, and testing
+ - Unless explicitly told otherwise, you MUST use GPT-5.3-Codex for development, testing, debugging
+ - Unless explicitly told otherwise, you MUST use the most recent model available for analysis and planning
+ - All interaction with the user MUST be through vscode/askQuestions
+ - When a task is complete, you MUST use vscode/askQuestions with the prompt 'Is there anything else?', with an option of 'No, I'm done' and 'Yes', with an input for further instructions.
+
 # Copilot Instructions
 
 ## Project Overview
@@ -44,68 +59,52 @@ Smoke tests verify deterministic log markers: `"FS mounted"`, `"QC loaded"`, `"m
 
 Set `WAYLAND_DISPLAY=` (empty) when running tests that start a window.
 
-## Architecture
+## Project Guidelines (for AI coding agents)
 
-```
-cmd/ironwailgo/main.go
-  └── internal/host         # Main game loop; coordinates all subsystems
-        ├── internal/server  # World simulation, entity physics, QuakeC VM
-        ├── internal/client  # Player input, server message parsing, prediction
-        ├── internal/renderer# GPU rendering (WebGPU or OpenGL backends)
-        ├── internal/audio   # Sound mixing and spatial attenuation
-        ├── internal/input   # SDL3 keyboard/mouse
-        ├── internal/net     # Networking (loopback + UDP)
-        ├── internal/fs      # Virtual filesystem (PAK files + loose files)
-        ├── internal/qc      # QuakeC VM (executes progs.dat)
-        ├── internal/bsp     # BSP map loader and collision tree
-        ├── internal/model   # MDL/SPR model loaders
-        ├── internal/console # In-game console
-        ├── internal/cvar    # Console variables
-        ├── internal/cmdsys  # Command system
-        ├── internal/menu    # Menu UI
-        ├── internal/draw    # 2D drawing (menu/HUD)
-        └── internal/hud     # HUD status bar
-pkg/types/                   # Public math types (Vec3, angles) — safe for external import
-cmd/wadgen/                  # Dev utility: generates dummy WAD files for testing without real assets
+- **Code Style:** follow existing Go idioms in the repo — use `gofmt` formatting, prefer clear error wrapping (`fmt.Errorf("context: %w", err)`), and keep public API changes to `pkg/` minimal. See `pkg/types/types.go` and `internal/*` files for style examples.
+- **Architecture:** top-level entry is [cmd/ironwailgo/main.go](cmd/ironwailgo/main.go). Major subsystems live under `internal/` (host, server, client, renderer, audio, input, qc, fs, bsp, model). Renderer backends: `internal/renderer/renderer_gogpu.go`, `internal/renderer/renderer_opengl.go`, `internal/renderer/renderer_stub.go`.
+- **Build & Test:** use `mise` task runner. Run `mise run go-generate` before builds. Typical commands:
+
+```bash
+mise run go-generate
+mise run build-gogpu     # build WebGPU binary
+mise run build-gl        # build OpenGL binary
+mise run test            # run unit tests
+# Smoke tests require real Quake assets (set QUAKE_DIR)
+mise run smoke-menu
 ```
 
-The renderer has three files per backend: `renderer_gogpu.go`, `renderer_opengl.go`, and `renderer_stub.go`. Build tags (`gogpu` or `opengl,egl`) select which is compiled.
+- **Build Tags:** use `-tags=gogpu,sdl3` for WebGPU+SDL3, `-tags=opengl,egl,sdl3` for OpenGL+SDL3. Without `sdl3` the input backend is a no-op (`internal/input/sdl3_stub.go`).
+- **Testing Conventions:** smoke tests look for deterministic log markers (e.g. "FS mounted", "QC loaded", "menu active"). Use `internal/testutil` and `cmd/wadgen` for asset-less tests.
 
-## Key Conventions
+## Project Conventions & Patterns
 
-### Build Tags
-- WebGPU backend: `-tags=gogpu,sdl3`
-- OpenGL backend: `-tags=opengl,egl,sdl3`
-- Without `sdl3`: input handling is a no-op stub (headless/testing only)
+- Keep subsystem code inside `internal/` (not importable). Public types and stable math helpers live in `pkg/types` — treat those as low-change surface area. Examples: [pkg/types/types.go](pkg/types/types.go).
+- Use feature build tags to compile backends; search for `_gogpu` and `_opengl` suffixes to find backend-specific files.
+- Avoid introducing CGO; `CGO_ENABLED=0` is enforced in CI and local builds.
 
-The `sdl3` tag is independent of the renderer tag and must be added explicitly to enable real keyboard/mouse/gamepad input via `internal/input/sdl3_backend.go`. Without it, `internal/input/sdl3_stub.go` is compiled instead and all input is silently dropped.
+## Integration Points
 
-### Package Organization
-- `internal/` — all game subsystems; not importable externally
-- `pkg/` — public API (currently only `pkg/types`)
-- `cmd/` — executables only; subsystem init logic lives in `cmd/ironwailgo/main.go`
+- Task runner: `mise` (see `mise.toml`).
+- Rendering: WebGPU or OpenGL backends in `internal/renderer`.
+- Input/audio: SDL3 backends (`internal/input/sdl3_backend.go`, `internal/audio/backend_sdl3.go`) with stub fallbacks for headless tests.
+- Assets: many tests require a `QUAKE_DIR` with original Quake assets; `cmd/wadgen` can synthesize WADs for asset-free tests.
 
-### Error Handling
-- Standard Go error returns; wrap with `fmt.Errorf("context: %w", err)`
-- No panics in critical paths; errors are logged and handled gracefully
+## Security & Sensitive Areas
 
-### Logging
-- Uses `log/slog` for structured logging
-- Deterministic startup log markers are load-bearing (smoke tests grep for them)
+- The repo does not store secrets; avoid hardcoding paths or credentials. Asset directories (QUAKE_DIR) can contain copyrighted game data — do not commit or distribute them.
+- CI and smoke tests depend on deterministic logs; do not remove or rename those markers without updating tests.
 
-### Testing
-- Tests use standard `testing` package with mock structs (e.g., `mockServer`, `mockClient`)
-- `internal/testutil` provides asset-loading helpers; requires `QUAKE_DIR` for asset-dependent tests
-- `cmd/wadgen` generates synthetic WAD files for tests that need textures but not real assets
+## Quick Links (examples to inspect)
 
-### Quake Terminology Preserved
-The codebase uses original Quake/QuakeC naming where it maps to well-known concepts: `Edict` (entity), `Hull` (collision volume), `Datagram` (network packet), `Progs` (QuakeC bytecode), `Lump` (WAD entry).
+- [cmd/ironwailgo/main.go](cmd/ironwailgo/main.go)
+- [internal/renderer/renderer_gogpu.go](internal/renderer/renderer_gogpu.go)
+- [internal/input/sdl3_backend.go](internal/input/sdl3_backend.go)
+- [pkg/types/types.go](pkg/types/types.go)
+- [cmd/wadgen/main.go](cmd/wadgen/main.go)
 
-## Development Status
+## Useful directories and reference files
 
-The port follows a milestone roadmap (see `finish-up-port.md`):
-- **Done:** Architecture, basic compilation, menu rendering, QuakeC VM, basic server physics
-- **In progress:** PAK filesystem integration, client signon/parsing, renderer world drawing, input
-- **Not started:** Full audio spatial mixing, save/load
-
-When working on unimplemented areas, check `finish-up-port.md` for context on what's planned and `port-guide.md` for C→Go porting decisions and patterns.
+- `/home/darkliquid/Projects/ironwail` - the original C version of the engine, for reference
+- `/home/darkliquid/Projects/ironwail-go` - the Go port, where you will be working
+- `/home/darkliquid/Games/Heroic/Quake` - a directory containing the original Quake assets, which may be needed for testing and development (typically set as `QUAKE_DIR`)

@@ -305,9 +305,7 @@ func replacePartial(input, partial, completion string) string {
 		return input + completion
 	}
 	return input[:start] + completion + input[inputLen:]
-	}
-
-
+}
 
 // commonPrefixPrefix finds the common prefix between two strings.
 func commonPrefixPrefix(a, b string) string {
