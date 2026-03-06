@@ -86,6 +86,17 @@ type glAliasModel struct {
 	refs    []glAliasVertexRef
 }
 
+type glAliasDraw struct {
+	alias  *glAliasModel
+	model  *model.Model
+	pose   int
+	skin   uint32
+	origin [3]float32
+	angles [3]float32
+	alpha  float32
+	full   bool
+}
+
 func flattenWorldVertices(vertices []WorldVertex) []float32 {
 	data := make([]float32, 0, len(vertices)*10)
 	for _, v := range vertices {
@@ -510,7 +521,7 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 	return alias
 }
 
-func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, origin, angles [3]float32) []WorldVertex {
+func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, origin, angles [3]float32, fullAngles bool) []WorldVertex {
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil || poseIndex < 0 || poseIndex >= len(alias.poses) {
 		return nil
 	}
@@ -523,8 +534,13 @@ func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, or
 		compressed := pose[ref.vertexIndex]
 		position := model.DecodeVertex(compressed, mdl.AliasHeader.Scale, mdl.AliasHeader.ScaleOrigin)
 		normal := model.GetNormal(compressed.LightNormalIndex)
-		position = rotateAliasYaw(position, angles[1])
-		normal = rotateAliasYaw(normal, angles[1])
+		if fullAngles {
+			position = rotateAliasAngles(position, angles)
+			normal = rotateAliasAngles(normal, angles)
+		} else {
+			position = rotateAliasYaw(position, angles[1])
+			normal = rotateAliasYaw(normal, angles[1])
+		}
 		position[0] += origin[0]
 		position[1] += origin[1]
 		position[2] += origin[2]
@@ -536,6 +552,13 @@ func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, or
 		})
 	}
 	return vertices
+}
+
+func rotateAliasAngles(v [3]float32, angles [3]float32) [3]float32 {
+	v = rotateAliasYaw(v, angles[1])
+	v = rotateAliasPitch(v, angles[0])
+	v = rotateAliasRoll(v, angles[2])
+	return v
 }
 
 func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
@@ -552,20 +575,77 @@ func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
 	}
 }
 
-func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
-	if len(entities) == 0 {
-		return
+func rotateAliasPitch(v [3]float32, pitchDegrees float32) [3]float32 {
+	if pitchDegrees == 0 {
+		return v
 	}
+	pitch := float32(math.Pi) * pitchDegrees / 180.0
+	sinPitch := float32(math.Sin(float64(pitch)))
+	cosPitch := float32(math.Cos(float64(pitch)))
+	return [3]float32{
+		v[0],
+		v[1]*cosPitch - v[2]*sinPitch,
+		v[1]*sinPitch + v[2]*cosPitch,
+	}
+}
 
-	type drawAlias struct {
-		alias    *glAliasModel
-		model    *model.Model
-		pose     int
-		skin     uint32
-		origin   [3]float32
-		angles   [3]float32
-		alpha    float32
-		fallback uint32
+func rotateAliasRoll(v [3]float32, rollDegrees float32) [3]float32 {
+	if rollDegrees == 0 {
+		return v
+	}
+	roll := float32(math.Pi) * rollDegrees / 180.0
+	sinRoll := float32(math.Sin(float64(roll)))
+	cosRoll := float32(math.Cos(float64(roll)))
+	return [3]float32{
+		v[0]*cosRoll + v[2]*sinRoll,
+		v[1],
+		-v[0]*sinRoll + v[2]*cosRoll,
+	}
+}
+
+func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool) *glAliasDraw {
+	alias := r.ensureAliasModelLocked(entity.ModelID, entity.Model)
+	if alias == nil || entity.Model == nil || entity.Model.AliasHeader == nil || len(alias.refs) == 0 {
+		return nil
+	}
+	frame := entity.Frame
+	if frame < 0 || frame >= len(entity.Model.AliasHeader.Frames) {
+		frame = 0
+	}
+	pose := entity.Model.AliasHeader.Frames[frame].FirstPose
+	if pose < 0 || pose >= len(alias.poses) {
+		pose = 0
+	}
+	skin := r.worldFallbackTexture
+	if len(alias.skins) > 0 {
+		skinIndex := entity.SkinNum
+		if skinIndex < 0 {
+			skinIndex = 0
+		}
+		skin = alias.skins[skinIndex%len(alias.skins)]
+		if skin == 0 {
+			skin = r.worldFallbackTexture
+		}
+	}
+	alpha := entity.Alpha
+	if alpha <= 0 {
+		alpha = 1
+	}
+	return &glAliasDraw{
+		alias:  alias,
+		model:  entity.Model,
+		pose:   pose,
+		skin:   skin,
+		origin: entity.Origin,
+		angles: entity.Angles,
+		alpha:  alpha,
+		full:   fullAngles,
+	}
+}
+
+func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange bool) {
+	if len(draws) == 0 {
+		return
 	}
 
 	r.mu.Lock()
@@ -578,50 +658,9 @@ func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	r.ensureAliasScratchLocked()
 	scratchVAO := r.aliasScratchVAO
 	scratchVBO := r.aliasScratchVBO
-	fallbackTexture := r.worldFallbackTexture
-	draws := make([]drawAlias, 0, len(entities))
-	for _, entity := range entities {
-		alias := r.ensureAliasModelLocked(entity.ModelID, entity.Model)
-		if alias == nil || entity.Model == nil || entity.Model.AliasHeader == nil || len(alias.refs) == 0 {
-			continue
-		}
-		frame := entity.Frame
-		if frame < 0 || frame >= len(entity.Model.AliasHeader.Frames) {
-			frame = 0
-		}
-		pose := entity.Model.AliasHeader.Frames[frame].FirstPose
-		if pose < 0 || pose >= len(alias.poses) {
-			pose = 0
-		}
-		skin := fallbackTexture
-		if len(alias.skins) > 0 {
-			skinIndex := entity.SkinNum
-			if skinIndex < 0 {
-				skinIndex = 0
-			}
-			skin = alias.skins[skinIndex%len(alias.skins)]
-			if skin == 0 {
-				skin = fallbackTexture
-			}
-		}
-		alpha := entity.Alpha
-		if alpha <= 0 {
-			alpha = 1
-		}
-		draws = append(draws, drawAlias{
-			alias:    alias,
-			model:    entity.Model,
-			pose:     pose,
-			skin:     skin,
-			origin:   entity.Origin,
-			angles:   entity.Angles,
-			alpha:    alpha,
-			fallback: fallbackTexture,
-		})
-	}
 	r.mu.Unlock()
 
-	if program == 0 || scratchVAO == 0 || scratchVBO == 0 || len(draws) == 0 {
+	if program == 0 || scratchVAO == 0 || scratchVBO == 0 {
 		return
 	}
 
@@ -629,6 +668,9 @@ func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	gl.DepthMask(true)
 	gl.Disable(gl.CULL_FACE)
 	gl.Enable(gl.BLEND)
+	if useViewModelDepthRange {
+		gl.DepthRange(0.0, 0.3)
+	}
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
@@ -638,7 +680,7 @@ func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	gl.BindBuffer(gl.ARRAY_BUFFER, scratchVBO)
 
 	for _, draw := range draws {
-		vertices := buildAliasVertices(draw.alias, draw.model, draw.pose, draw.origin, draw.angles)
+		vertices := buildAliasVertices(draw.alias, draw.model, draw.pose, draw.origin, draw.angles, draw.full)
 		if len(vertices) == 0 {
 			continue
 		}
@@ -653,6 +695,35 @@ func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
+	if useViewModelDepthRange {
+		gl.DepthRange(0.0, 1.0)
+	}
+}
+
+func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
+	if len(entities) == 0 {
+		return
+	}
+
+	r.mu.Lock()
+	draws := make([]glAliasDraw, 0, len(entities))
+	for _, entity := range entities {
+		if draw := r.buildAliasDrawLocked(entity, false); draw != nil {
+			draws = append(draws, *draw)
+		}
+	}
+	r.mu.Unlock()
+	r.renderAliasDraws(draws, false)
+}
+
+func (r *Renderer) renderViewModel(entity AliasModelEntity) {
+	r.mu.Lock()
+	draw := r.buildAliasDrawLocked(entity, true)
+	r.mu.Unlock()
+	if draw == nil {
+		return
+	}
+	r.renderAliasDraws([]glAliasDraw{*draw}, true)
 }
 
 // HasWorldData reports whether the OpenGL world path has uploaded geometry.

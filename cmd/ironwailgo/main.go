@@ -534,14 +534,16 @@ func main() {
 
 			brushEntities := collectBrushEntities()
 			aliasEntities := collectAliasEntities()
+			viewModel := collectViewModelEntity()
 
 			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 				state := renderer.DefaultRenderFrameState()
 				state.ClearColor = [4]float32{0, 0, 0, 1}
 				state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
-				state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0
+				state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || viewModel != nil
 				state.BrushEntities = brushEntities
 				state.AliasEntities = aliasEntities
+				state.ViewModel = viewModel
 				state.DrawParticles = false
 				state.Draw2DOverlay = true
 				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
@@ -641,12 +643,37 @@ func collectBrushEntities() []renderer.BrushEntity {
 	return brushEntities
 }
 
-func collectAliasEntities() []renderer.AliasModelEntity {
-	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
-		return nil
+func loadAliasModel(modelName string) (*model.Model, bool) {
+	if modelName == "" || gameSubs == nil || gameSubs.Files == nil {
+		return nil, false
 	}
 	if aliasModelCache == nil {
 		aliasModelCache = make(map[string]*model.Model)
+	}
+	if mdl, ok := aliasModelCache[modelName]; ok {
+		return mdl, mdl != nil
+	}
+
+	data, err := gameSubs.Files.LoadFile(modelName)
+	if err != nil {
+		slog.Debug("alias model load skipped", "model", modelName, "error", err)
+		aliasModelCache[modelName] = nil
+		return nil, false
+	}
+	loaded, err := model.LoadAliasModel(bytes.NewReader(data))
+	if err != nil {
+		slog.Debug("alias model parse skipped", "model", modelName, "error", err)
+		aliasModelCache[modelName] = nil
+		return nil, false
+	}
+	loaded.Name = modelName
+	aliasModelCache[modelName] = loaded
+	return loaded, true
+}
+
+func collectAliasEntities() []renderer.AliasModelEntity {
+	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
+		return nil
 	}
 
 	resolve := func(state inet.EntityState) (renderer.AliasModelEntity, bool) {
@@ -662,24 +689,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			return renderer.AliasModelEntity{}, false
 		}
 
-		mdl, ok := aliasModelCache[modelName]
-		if !ok {
-			data, err := gameSubs.Files.LoadFile(modelName)
-			if err != nil {
-				slog.Debug("alias model load skipped", "model", modelName, "error", err)
-				aliasModelCache[modelName] = nil
-				return renderer.AliasModelEntity{}, false
-			}
-			loaded, err := model.LoadAliasModel(bytes.NewReader(data))
-			if err != nil {
-				slog.Debug("alias model parse skipped", "model", modelName, "error", err)
-				aliasModelCache[modelName] = nil
-				return renderer.AliasModelEntity{}, false
-			}
-			loaded.Name = modelName
-			aliasModelCache[modelName] = loaded
-			mdl = loaded
-		}
+		mdl, _ := loadAliasModel(modelName)
 		if mdl == nil || mdl.Type != model.ModAlias || mdl.AliasHeader == nil || len(mdl.AliasHeader.Poses) == 0 {
 			return renderer.AliasModelEntity{}, false
 		}
@@ -720,6 +730,47 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 	}
 
 	return aliasEntities
+}
+
+func collectViewModelEntity() *renderer.AliasModelEntity {
+	if gameClient == nil || gameMenu == nil || gameMenu.IsActive() {
+		return nil
+	}
+
+	modelIndex := gameClient.WeaponModelIndex()
+	if modelIndex <= 0 {
+		return nil
+	}
+	precacheIndex := modelIndex - 1
+	if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+		return nil
+	}
+
+	modelName := gameClient.ModelPrecache[precacheIndex]
+	if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
+		return nil
+	}
+	mdl, ok := loadAliasModel(modelName)
+	if !ok || mdl == nil || mdl.AliasHeader == nil || mdl.AliasHeader.NumFrames == 0 {
+		return nil
+	}
+
+	frame := gameClient.WeaponFrame()
+	if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
+		frame = 0
+	}
+	angles := gameClient.ViewAngles
+	angles[0] = -angles[0]
+
+	return &renderer.AliasModelEntity{
+		ModelID: modelName,
+		Model:   mdl,
+		Frame:   frame,
+		SkinNum: 0,
+		Origin:  gameClient.PredictedOrigin,
+		Angles:  angles,
+		Alpha:   1,
+	}
 }
 
 func handleGameKeyEvent(event input.KeyEvent) {

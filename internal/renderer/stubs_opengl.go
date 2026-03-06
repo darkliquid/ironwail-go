@@ -7,26 +7,7 @@ package renderer
 import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/model"
 )
-
-// BrushEntity describes an inline BSP submodel instance to render.
-type BrushEntity struct {
-	SubmodelIndex int
-	Origin        [3]float32
-	Angles        [3]float32
-}
-
-// AliasModelEntity describes a world-space MDL instance to render.
-type AliasModelEntity struct {
-	ModelID string
-	Model   *model.Model
-	Frame   int
-	SkinNum int
-	Origin  [3]float32
-	Angles  [3]float32
-	Alpha   float32
-}
 
 // RenderFrameState carries per-frame render configuration passed to RenderFrame.
 type RenderFrameState struct {
@@ -35,6 +16,7 @@ type RenderFrameState struct {
 	DrawEntities  bool
 	BrushEntities []BrushEntity
 	AliasEntities []AliasModelEntity
+	ViewModel     *AliasModelEntity
 	DrawParticles bool
 	Draw2DOverlay bool
 	MenuActive    bool
@@ -62,6 +44,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.AliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(state.AliasEntities)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && state.ViewModel != nil {
+		dc.gldc.renderer.renderViewModel(*state.ViewModel)
 	}
 	if state.Draw2DOverlay && draw2DOverlay != nil {
 		gl.Disable(gl.DEPTH_TEST)

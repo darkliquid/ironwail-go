@@ -334,6 +334,22 @@ func (c *Client) ConsumeStuffCommands() string {
 	return cmds
 }
 
+// WeaponModelIndex returns the current first-person weapon model index.
+func (c *Client) WeaponModelIndex() int {
+	if c == nil {
+		return 0
+	}
+	return c.Stats[statWeapon]
+}
+
+// WeaponFrame returns the current first-person weapon animation frame.
+func (c *Client) WeaponFrame() int {
+	if c == nil {
+		return 0
+	}
+	return c.Stats[statWeaponFrame]
+}
+
 func (c *Client) SetLightStyle(i int, style string) error {
 	if i < 0 || i >= len(c.LightStyles) {
 		return errors.New("lightstyle index out of range")

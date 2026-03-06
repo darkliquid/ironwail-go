@@ -330,8 +330,8 @@ type Renderer struct {
 	whiteTextureView hal.TextureView
 
 	// Offscreen render target for world rendering
-	worldRenderTexture     hal.Texture
-	worldRenderTextureView hal.TextureView
+	worldRenderTexture      hal.Texture
+	worldRenderTextureView  hal.TextureView
 	worldRenderTextureGogpu *gogpu.Texture // gogpu-wrapped version for compositing
 }
 
@@ -693,6 +693,15 @@ type RenderFrameState struct {
 
 	// DrawEntities enables entity rendering
 	DrawEntities bool
+
+	// BrushEntities contains inline BSP submodels for parity with the OpenGL path.
+	BrushEntities []BrushEntity
+
+	// AliasEntities contains world-space MDL entities for parity with the OpenGL path.
+	AliasEntities []AliasModelEntity
+
+	// ViewModel contains the first-person weapon model when active.
+	ViewModel *AliasModelEntity
 
 	// DrawParticles enables particle rendering
 	DrawParticles bool
@@ -1100,7 +1109,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 	// Log individual matrices before multiplication
 	slog.Info("Camera matrices computed",
 		"view_m00", r.viewMatrices.View[0],
-		"view_m11", r.viewMatrices.View[ 5],
+		"view_m11", r.viewMatrices.View[5],
 		"view_m22", r.viewMatrices.View[10],
 		"view_m33", r.viewMatrices.View[15],
 		"proj_m00", r.viewMatrices.Projection[0],
@@ -1110,7 +1119,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 
 	// Compute combined VP matrix
 	r.viewMatrices.VP = r.viewMatrices.Projection.Mul(r.viewMatrices.View)
-	
+
 	// Log VP matrix for debugging
 	slog.Debug("Camera updated",
 		"position", camera.Origin,
