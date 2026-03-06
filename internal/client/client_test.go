@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 var serverSignOnMsg1 = []byte{
@@ -178,6 +179,94 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	}
 }
 
+func TestParseLiveServerEntityDatagrams(t *testing.T) {
+	s := server.NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.Time = 1.5
+	s.ModelPrecache = make([]string, server.MaxModels)
+	s.ModelPrecache[1] = "progs/player.mdl"
+	s.ModelPrecache[2] = "progs/ogre.mdl"
+
+	clientSlot := s.Static.Clients[0]
+	clientSlot.Active = true
+	clientSlot.Spawned = true
+	clientSlot.Edict = s.EdictNum(1)
+	if clientSlot.Edict == nil {
+		t.Fatal("missing client edict")
+	}
+	clientSlot.Edict.Vars.Health = 100
+	clientSlot.Edict.Vars.Origin = [3]float32{1, 2, 3}
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to alloc entity")
+	}
+	ent.Vars.ModelIndex = 2
+	ent.Vars.Origin = [3]float32{10, 20, 30}
+	ent.Vars.Angles = [3]float32{0, 45, 0}
+	ent.Vars.Frame = 4
+	ent.Vars.Skin = 2
+	ent.Vars.Effects = 8
+
+	c := NewClient()
+	p := NewParser(c)
+
+	data := s.GetClientDatagram(0)
+	if len(data) == 0 {
+		t.Fatal("GetClientDatagram returned no data")
+	}
+	if data[len(data)-1] != 0xff {
+		t.Fatalf("datagram terminator = 0x%02x, want 0xff", data[len(data)-1])
+	}
+	if err := p.ParseServerMessage(data); err != nil {
+		t.Fatalf("ParseServerMessage first datagram: %v", err)
+	}
+
+	got := c.Entities[s.NumForEdict(ent)]
+	if got.ModelIndex != 2 {
+		t.Fatalf("entity modelindex = %d, want 2", got.ModelIndex)
+	}
+	if got.Frame != 4 {
+		t.Fatalf("entity frame = %d, want 4", got.Frame)
+	}
+	if got.Origin != [3]float32{10, 20, 30} {
+		t.Fatalf("entity origin = %v, want [10 20 30]", got.Origin)
+	}
+	if got.Angles[1] < 44.5 || got.Angles[1] > 45.5 {
+		t.Fatalf("entity yaw = %f, want ~45", got.Angles[1])
+	}
+
+	s.Time = 1.6
+	ent.Vars.Origin[0] = 42
+	data = s.GetClientDatagram(0)
+	if err := p.ParseServerMessage(data); err != nil {
+		t.Fatalf("ParseServerMessage second datagram: %v", err)
+	}
+
+	got = c.Entities[s.NumForEdict(ent)]
+	if got.ModelIndex != 2 {
+		t.Fatalf("entity modelindex after delta = %d, want 2", got.ModelIndex)
+	}
+	if got.Frame != 4 {
+		t.Fatalf("entity frame after delta = %d, want 4", got.Frame)
+	}
+	if got.Origin != [3]float32{42, 20, 30} {
+		t.Fatalf("entity origin after delta = %v, want [42 20 30]", got.Origin)
+	}
+
+	s.FreeEdict(ent)
+	s.Time = 1.7
+	data = s.GetClientDatagram(0)
+	if err := p.ParseServerMessage(data); err != nil {
+		t.Fatalf("ParseServerMessage third datagram: %v", err)
+	}
+	if _, ok := c.Entities[s.NumForEdict(ent)]; ok {
+		t.Fatalf("entity %d still present after retire update", s.NumForEdict(ent))
+	}
+}
+
 func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -318,7 +407,7 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 	msg.WriteByte(byte(int8(16)))
 	msg.WriteByte(240)
 	msg.WriteByte(byte(int8(8)))
-	msg.WriteByte(12)
+	msg.WriteByte(255)
 	msg.WriteByte(99)
 
 	msg.WriteByte(0xFF)
@@ -359,8 +448,46 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 	if got := len(c.ParticleEvents); got != 1 {
 		t.Fatalf("particle events len = %d, want 1", got)
 	}
-	if got := c.ParticleEvents[0]; got.Origin != [3]float32{4, 5, 6} || got.Dir != [3]float32{1, -1, 0.5} || got.Count != 12 || got.Color != 99 {
+	if got := c.ParticleEvents[0]; got.Origin != [3]float32{4, 5, 6} || got.Dir != [3]float32{1, -1, 0.5} || got.Count != 1024 || got.Color != 99 {
 		t.Fatalf("particle event = %+v", got)
+	}
+}
+
+func TestConsumeTransientEffectsClearsBuffers(t *testing.T) {
+	c := NewClient()
+	c.ParticleEvents = []ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
+	c.TempEntities = []TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}}}
+
+	particles := c.ConsumeParticleEvents()
+	temps := c.ConsumeTempEntities()
+	if len(particles) != 1 || len(temps) != 1 {
+		t.Fatalf("consumed = %d particles, %d temps; want 1,1", len(particles), len(temps))
+	}
+	if len(c.ParticleEvents) != 0 || len(c.TempEntities) != 0 {
+		t.Fatalf("client buffers not cleared: %d particles %d temps", len(c.ParticleEvents), len(c.TempEntities))
+	}
+	if got := len(c.ConsumeParticleEvents()) + len(c.ConsumeTempEntities()); got != 0 {
+		t.Fatalf("second consume returned %d events, want 0", got)
+	}
+}
+
+func TestConsumeStuffCommandsKeepsPartialLine(t *testing.T) {
+	c := NewClient()
+	c.StuffCmdBuf = "bf\nrecon"
+
+	if got := c.ConsumeStuffCommands(); got != "bf\n" {
+		t.Fatalf("ConsumeStuffCommands = %q, want %q", got, "bf\n")
+	}
+	if got := c.StuffCmdBuf; got != "recon" {
+		t.Fatalf("StuffCmdBuf remainder = %q, want %q", got, "recon")
+	}
+
+	c.StuffCmdBuf += "nect\n"
+	if got := c.ConsumeStuffCommands(); got != "reconnect\n" {
+		t.Fatalf("ConsumeStuffCommands second = %q, want %q", got, "reconnect\n")
+	}
+	if got := c.ConsumeStuffCommands(); got != "" {
+		t.Fatalf("ConsumeStuffCommands third = %q, want empty", got)
 	}
 }
 

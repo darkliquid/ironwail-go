@@ -3,6 +3,8 @@ package server
 import (
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/bsp"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
@@ -109,6 +111,8 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	}
 
 	// setmodel
+	s.ModelPrecache = make([]string, MaxModels)
+	s.ModelPrecache[1] = "progs/test.mdl"
 	vm.SetGFloat(qc.OFSParm0, 1)
 	vm.SetGString(qc.OFSParm1, "progs/test.mdl")
 	if fn := vm.Builtins[3]; fn != nil {
@@ -118,6 +122,85 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	if got := vm.GetString(modelIdx); got != "progs/test.mdl" {
 		t.Fatalf("model string = %q", got)
 	}
+	if got := vm.EFloat(1, qc.EntFieldModelIndex); got != 1 {
+		t.Fatalf("modelindex = %v, want 1", got)
+	}
+}
+
+func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
+	s := NewServer()
+	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to alloc edict")
+	}
+	vm.NumEdicts = s.NumEdicts
+	ent.Vars.Origin = [3]float32{64, 32, 16}
+	s.ClearWorld()
+
+	s.ModelName = "maps/test.bsp"
+	s.ModelPrecache = make([]string, MaxModels)
+	s.ModelPrecache[1] = s.ModelName
+	s.ModelPrecache[2] = "*1"
+	s.WorldTree = &bsp.Tree{Models: []bsp.DModel{
+		{BoundsMin: [3]float32{-256, -256, -128}, BoundsMax: [3]float32{256, 256, 128}},
+		{BoundsMin: [3]float32{-16, -24, -32}, BoundsMax: [3]float32{48, 56, 72}},
+	}}
+	s.WorldModel = worldModelFromBSPTree(s.ModelName, s.WorldTree)
+
+	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(ent)))
+	vm.SetGString(qc.OFSParm1, "*1")
+	if fn := vm.Builtins[3]; fn == nil {
+		t.Fatal("setmodel builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.EFloat(1, qc.EntFieldModelIndex); got != 2 {
+		t.Fatalf("modelindex = %v, want 2", got)
+	}
+	if got := vm.GetString(vm.EInt(1, qc.EntFieldModel)); got != "*1" {
+		t.Fatalf("model string = %q, want *1", got)
+	}
+	if got := vm.EVector(1, qc.EntFieldMins); got != [3]float32{-16, -24, -32} {
+		t.Fatalf("mins = %v", got)
+	}
+	if got := vm.EVector(1, qc.EntFieldMaxs); got != [3]float32{48, 56, 72} {
+		t.Fatalf("maxs = %v", got)
+	}
+	if got := vm.EVector(1, qc.EntFieldSize); got != [3]float32{64, 80, 104} {
+		t.Fatalf("size = %v", got)
+	}
+	if got := vm.EVector(1, qc.EntFieldAbsMin); got != [3]float32{47, 7, -17} {
+		t.Fatalf("absmin = %v", got)
+	}
+	if got := vm.EVector(1, qc.EntFieldAbsMax); got != [3]float32{113, 89, 89} {
+		t.Fatalf("absmax = %v", got)
+	}
+}
+
+func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
+	s := NewServer()
+	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+	_ = s.AllocEdict()
+	vm.NumEdicts = s.NumEdicts
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("setmodel did not panic for non-precached model")
+		}
+	}()
+
+	vm.SetGFloat(qc.OFSParm0, 1)
+	vm.SetGString(qc.OFSParm1, "progs/missing.mdl")
+	vm.Builtins[3](vm)
 }
 
 func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
@@ -435,10 +518,10 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	foundStatic := false
 	foundAmbient := false
 	for _, b := range data {
-		if b == byte(SVCSpawnStatic) || b == byte(SVCSpawnStatic2) {
+		if b == byte(inet.SVCSpawnStatic) || b == byte(inet.SVCSpawnStatic2) {
 			foundStatic = true
 		}
-		if b == byte(SVCSpawnStaticSound) || b == byte(SVCSpawnStaticSound2) {
+		if b == byte(inet.SVCSpawnStaticSound) || b == byte(inet.SVCSpawnStaticSound2) {
 			foundAmbient = true
 		}
 	}

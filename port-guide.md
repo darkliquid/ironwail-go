@@ -95,11 +95,13 @@ File entry (64 bytes each):
 ```
 
 - `numFiles = DirLen / 64`
-- Files loaded in order: `pak0.pak`, `pak1.pak`, etc. (later paks override earlier)
-- Filesystem search order: direct file → pak files (in pak-load order)
+- Files loaded in deterministic numeric order: `pak0.pak`, `pak1.pak`, `pak2.pak`, ... (later paks override earlier)
+- Filesystem search order follows Quake's unified search stack:
+  - later-added game dirs override earlier ones
+  - within a game dir: `pakN ... pak0` override loose files
 - **Case-insensitive** path matching required on case-sensitive filesystems
 
-**Status**: ✓ Correct binary layout, search semantics.
+**Status**: ✓ Correct binary layout and Quake search semantics, including numeric `pakN` ordering, exact pack-over-loose precedence, and case-insensitive pack entry lookup.
 
 ---
 

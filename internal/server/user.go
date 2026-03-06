@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"math"
 	"strings"
+
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 const (
@@ -424,6 +427,74 @@ func (s *Server) SV_ExecuteUserCommand(_ *Client, cmd string) bool {
 
 func (s *Server) ExecuteClientString(client *Client, cmd string) bool {
 	return s.SV_ExecuteUserCommand(client, cmd)
+}
+
+func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return fmt.Errorf("invalid client number %d", clientNum)
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil {
+		return fmt.Errorf("client %d is nil", clientNum)
+	}
+	if !s.SV_ExecuteUserCommand(client, cmd) {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+	if client.Message == nil {
+		client.Message = NewMessageBuffer(MaxDatagram)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(cmd)) {
+	case "prespawn":
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(2)
+		client.SendSignon = SignonSignonBufs
+	case "spawn":
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(3)
+		client.SendSignon = SignonSignonMsg
+	case "begin":
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(4)
+		client.Spawned = true
+		client.SendSignon = SignonDone
+	default:
+		// Other allowed commands have no special loopback response yet.
+	}
+
+	return nil
+}
+
+func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward, side, up float32, buttons, impulse int, sentTime float64) error {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return fmt.Errorf("invalid client number %d", clientNum)
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil {
+		return fmt.Errorf("client %d is nil", clientNum)
+	}
+
+	client.LastCmd = UserCmd{
+		ViewAngles:  viewAngles,
+		ForwardMove: forward,
+		SideMove:    side,
+		UpMove:      up,
+		Buttons:     uint8(buttons),
+		Impulse:     uint8(impulse),
+	}
+	client.PingTimes[client.NumPings%NumPingTimes] = s.Time - float32(sentTime)
+	client.NumPings++
+
+	if client.Edict != nil {
+		client.Edict.Vars.VAngle = viewAngles
+		client.Edict.Vars.Button0 = float32(uint8(buttons) & 1)
+		client.Edict.Vars.Button2 = float32((uint8(buttons) & 2) >> 1)
+		if impulse != 0 {
+			client.Edict.Vars.Impulse = float32(uint8(impulse))
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) SV_ReadClientMessage(client *Client, buf *MessageBuffer) bool {

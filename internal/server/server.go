@@ -89,9 +89,10 @@ type Client struct {
 
 	SpawnParms [16]float32
 	// Client input state
-	LastCmd  UserCmd
-	Message  *MessageBuffer
-	OldFrags int // Previous frags count for reliable message updates
+	LastCmd      UserCmd
+	Message      *MessageBuffer
+	OldFrags     int // Previous frags count for reliable message updates
+	EntityStates map[int]EntityState
 }
 
 // AreaNode is a node in the spatial partitioning tree for entity collision.
@@ -190,8 +191,13 @@ func NewServer() *Server {
 		if vm == nil || ent == nil || ent.Vars == nil || entNum <= 0 || entNum >= vm.NumEdicts {
 			return
 		}
+		vm.SetEFloat(entNum, qc.EntFieldModelIndex, ent.Vars.ModelIndex)
+		vm.SetEInt(entNum, qc.EntFieldModel, ent.Vars.Model)
 		vm.SetEVector(entNum, qc.EntFieldOrigin, ent.Vars.Origin)
 		vm.SetEVector(entNum, qc.EntFieldAngles, ent.Vars.Angles)
+		vm.SetEVector(entNum, qc.EntFieldMins, ent.Vars.Mins)
+		vm.SetEVector(entNum, qc.EntFieldMaxs, ent.Vars.Maxs)
+		vm.SetEVector(entNum, qc.EntFieldSize, ent.Vars.Size)
 		vm.SetEVector(entNum, qc.EntFieldAbsMin, ent.Vars.AbsMin)
 		vm.SetEVector(entNum, qc.EntFieldAbsMax, ent.Vars.AbsMax)
 		vm.SetEFloat(entNum, qc.EntFieldFlags, ent.Vars.Flags)
@@ -411,15 +417,39 @@ func NewServer() *Server {
 			}
 		},
 		SetModel: func(vm *qc.VM, entNum int, modelName string) {
-			vm.SetEInt(entNum, qc.EntFieldModel, vm.AllocString(modelName))
+			modelIndex := 0
 			if modelName != "" {
-				vm.SetEFloat(entNum, qc.EntFieldModelIndex, 1)
-			} else {
-				vm.SetEFloat(entNum, qc.EntFieldModelIndex, 0)
+				modelIndex = s.FindModel(modelName)
+				if modelIndex == 0 {
+					panic("no precache: " + modelName)
+				}
 			}
+
+			modelString := int32(0)
+			if modelName != "" {
+				modelString = vm.AllocString(modelName)
+			}
+
+			vm.SetEInt(entNum, qc.EntFieldModel, modelString)
+			vm.SetEFloat(entNum, qc.EntFieldModelIndex, float32(modelIndex))
+
 			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
-				e.Vars.Model = vm.EInt(entNum, qc.EntFieldModel)
-				e.Vars.ModelIndex = vm.EFloat(entNum, qc.EntFieldModelIndex)
+				e.Vars.Model = modelString
+				e.Vars.ModelIndex = float32(modelIndex)
+				if mins, maxs, ok := s.modelBounds(modelName); ok {
+					e.Vars.Mins = mins
+					e.Vars.Maxs = maxs
+				} else {
+					e.Vars.Mins = [3]float32{}
+					e.Vars.Maxs = [3]float32{}
+				}
+				e.Vars.Size = [3]float32{
+					e.Vars.Maxs[0] - e.Vars.Mins[0],
+					e.Vars.Maxs[1] - e.Vars.Mins[1],
+					e.Vars.Maxs[2] - e.Vars.Mins[2],
+				}
+				s.LinkEdict(e, false)
+				syncEntityToVM(vm, entNum, e)
 			}
 		},
 		PrecacheSound: func(vm *qc.VM, sample string) {

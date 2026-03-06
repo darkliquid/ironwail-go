@@ -248,6 +248,37 @@ func (c *Client) ClearState() {
 	}
 }
 
+func (c *Client) ConsumeParticleEvents() []ParticleEvent {
+	if c == nil || len(c.ParticleEvents) == 0 {
+		return nil
+	}
+	events := c.ParticleEvents
+	c.ParticleEvents = nil
+	return events
+}
+
+func (c *Client) ConsumeTempEntities() []TempEntityEvent {
+	if c == nil || len(c.TempEntities) == 0 {
+		return nil
+	}
+	events := c.TempEntities
+	c.TempEntities = nil
+	return events
+}
+
+func (c *Client) ConsumeStuffCommands() string {
+	if c == nil || c.StuffCmdBuf == "" {
+		return ""
+	}
+	idx := strings.LastIndexByte(c.StuffCmdBuf, '\n')
+	if idx < 0 {
+		return ""
+	}
+	cmds := c.StuffCmdBuf[:idx+1]
+	c.StuffCmdBuf = c.StuffCmdBuf[idx+1:]
+	return cmds
+}
+
 func (c *Client) SetLightStyle(i int, style string) error {
 	if i < 0 || i >= len(c.LightStyles) {
 		return errors.New("lightstyle index out of range")

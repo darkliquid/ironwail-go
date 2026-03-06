@@ -7,11 +7,14 @@ import (
 	"image/png"
 	"log"
 	"log/slog"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
+	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
@@ -32,11 +35,15 @@ const (
 )
 
 var (
-	gameHost     *host.Host
-	gameServer   *server.Server
-	gameQC       *qc.VM
-	gameRenderer *renderer.Renderer
-	gameSubs     *host.Subsystems // Store subsystems for command execution
+	gameHost      *host.Host
+	gameServer    *server.Server
+	gameQC        *qc.VM
+	gameRenderer  *renderer.Renderer
+	gameSubs      *host.Subsystems // Store subsystems for command execution
+	gameClient    *cl.Client
+	gameParticles *renderer.ParticleSystem
+	particleRNG   *rand.Rand
+	particleTime  float32
 
 	// Menu subsystem
 	gameMenu  *menu.Manager
@@ -44,6 +51,16 @@ var (
 	gameDraw  *draw.Manager
 	gameHUD   *hud.HUD
 )
+
+type globalCommandBuffer struct{}
+
+func (globalCommandBuffer) Init()               {}
+func (globalCommandBuffer) Execute()            { cmdsys.Execute() }
+func (globalCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
+func (globalCommandBuffer) InsertText(text string) {
+	cmdsys.InsertText(text)
+}
+func (globalCommandBuffer) Shutdown() {}
 
 func initGameHost() error {
 	// Initialize console and command system
@@ -153,8 +170,8 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	if gameRenderer != nil && gameInput != nil {
 		// Some renderers provide a backend factory to adapt window events
 		// to the engine input system.
-		if bb := gameRenderer.InputBackendForSystem; bb != nil {
-			gameInput.SetBackend(gameRenderer.InputBackendForSystem(gameInput))
+		if bb := gameRenderer.InputBackendForSystem(gameInput); bb != nil {
+			gameInput.SetBackend(bb)
 		}
 	}
 
@@ -179,9 +196,10 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	// Wire subsystems together through Host.Init
 	audioAdapter := audio.NewAudioAdapter(audio.NewSystem())
 	gameSubs = &host.Subsystems{
-		Files:  fileSys,
-		Server: gameServer,
-		Audio:  audioAdapter,
+		Files:    fileSys,
+		Commands: globalCommandBuffer{},
+		Server:   gameServer,
+		Audio:    audioAdapter,
 	}
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
 	host.SetupLoopbackClientServer(gameSubs, gameServer)
@@ -218,6 +236,12 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
+	gameClient = host.LoopbackClientState(gameSubs)
+	if gameRenderer != nil {
+		gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
+		particleRNG = rand.New(rand.NewSource(1))
+		particleTime = 0
+	}
 
 	// Make sure the menu is visible at startup
 	gameMenu.ShowMenu()
@@ -234,9 +258,14 @@ func (gameCallbacks) GetEvents() {
 	if gameInput != nil {
 		gameInput.PollEvents()
 	}
+	if gameSubs != nil && gameSubs.Client != nil && gameHost != nil {
+		_ = gameSubs.Client.Frame(gameHost.FrameTime())
+	}
 }
 
-func (gameCallbacks) ProcessConsoleCommands() {}
+func (gameCallbacks) ProcessConsoleCommands() {
+	host.DispatchLoopbackStuffText(gameSubs)
+}
 
 func (gameCallbacks) ProcessServer() {
 	if gameSubs == nil || gameSubs.Server == nil {
@@ -342,6 +371,12 @@ func main() {
 		// Set up renderer callbacks
 		gameRenderer.OnUpdate(func(dt float64) {
 			gameHost.Frame(dt, cb)
+			if gameParticles != nil && gameClient != nil {
+				oldTime := particleTime
+				particleTime += float32(dt)
+				renderer.EmitClientEffects(gameParticles, gameClient.ConsumeParticleEvents(), gameClient.ConsumeTempEntities(), particleRNG, particleTime)
+				gameParticles.RunParticles(particleTime, oldTime, 800)
+			}
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
 			// Frame pipeline: Clear → World → Entities → Particles → 2D Overlay
@@ -351,6 +386,7 @@ func main() {
 
 			// Phase 2-4: World/Entities/Particles (stubs until M4.3/M4.4)
 			// These will be implemented in later milestones
+			renderer.DrawParticles2D(dc, gameParticles)
 
 			// Phase 5: 2D Overlay (menu, console, HUD)
 			if gameMenu != nil && gameMenu.IsActive() {

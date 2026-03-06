@@ -73,12 +73,19 @@ If you want, I can turn this into a concrete “milestone-by-milestone implement
 
 **Goal:** load original Quake assets from `id1/pak0.pak` + overrides.
 
+### 2026-03-06 ordered-slice status
+
+- [x] Slice 1 complete: deterministic numeric `pakN.pak` discovery/loading.
+- [x] Slice 1 complete: case-insensitive pack-entry lookup on case-sensitive hosts.
+- [x] Slice 1 complete: focused regression coverage for pack ordering and mixed-case pack entries.
+- [ ] Next slice: broaden filesystem parity checks against real asset layouts and mod layering edge cases.
+
 ### File-level tasks
 
 - `internal/fs/filesystem.go` (or equivalent)
   - Implement search path stack:
-    1. loose files in `id1/`
-    2. pak files in order (`pak0.pak`, `pak1.pak`, etc.)
+    1. later game dirs override earlier ones
+    2. within a game dir: `pakN` → `pak0` → loose files
   - Add canonical Quake path normalization.
 - `internal/fs/pak.go` (new if needed)
   - Parse PAK directory, expose `Open(name)` / `ReadFile(name)`.
@@ -92,7 +99,9 @@ If you want, I can turn this into a concrete “milestone-by-milestone implement
 - `go test ./internal/fs`:
   - can open `progs.dat`
   - can open `maps/start.bsp`
-  - loose file overrides packed file
+  - exact Quake precedence across mod/id1, pack, and loose assets
+  - `pakN` ordering is numeric, not glob/lexicographic
+  - mixed-case pack entries resolve case-insensitively
 - Runtime:
   - `WAYLAND_DISPLAY= ./ironwailgo -basedir <quake>` logs mounted pak entries and successful reads
 
@@ -327,7 +336,9 @@ Load original Quake assets via canonical search path behavior.
 - [ ] `go test ./internal/fs` covers:
   - [ ] open `progs.dat`
   - [ ] open `maps/start.bsp`
-  - [ ] loose-file override over pak asset
+  - [x] exact Quake pack-over-loose search precedence
+  - [x] numeric `pakN` override ordering
+  - [x] case-insensitive pack-entry lookup
 - [ ] Runtime logs show mounted pak entries and successful asset reads
 
 ---

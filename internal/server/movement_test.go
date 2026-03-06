@@ -74,6 +74,52 @@ func TestSVHullForEntityAndSVMoveWrappers(t *testing.T) {
 	}
 }
 
+func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
+	s := newMovementTestServer()
+	s.WorldModel = &model.Model{
+		Type:   model.ModBrush,
+		Planes: []model.MPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}, {Normal: [3]float32{1, 0, 0}, Dist: 10, Type: 0}},
+		SubModels: []bsp.DModel{
+			{HeadNode: [bsp.MaxMapHulls]int32{0, 0, 0, 0}},
+			{HeadNode: [bsp.MaxMapHulls]int32{0, 1, 1, 0}},
+		},
+	}
+	wm := s.WorldModel.(*model.Model)
+	wm.Hulls[1] = model.Hull{
+		ClipNodes: []model.MClipNode{
+			{PlaneNum: 0, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}},
+			{PlaneNum: 1, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}},
+		},
+		Planes:        wm.Planes,
+		FirstClipNode: 0,
+		LastClipNode:  1,
+		ClipMins:      [3]float32{-16, -16, -24},
+		ClipMaxs:      [3]float32{16, 16, 32},
+	}
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.Origin = [3]float32{}
+	ent.Vars.Solid = float32(SolidBSP)
+	ent.Vars.MoveType = float32(MoveTypePush)
+	ent.Vars.ModelIndex = 2
+
+	h, _ := s.SV_HullForEntity(ent, [3]float32{-16, -16, -24}, [3]float32{16, 16, 32})
+	if h == nil {
+		t.Fatal("SV_HullForEntity returned nil hull")
+	}
+	if h.FirstClipNode != 1 {
+		t.Fatalf("first clip node = %d, want 1", h.FirstClipNode)
+	}
+
+	trace := s.clipMoveToEntity(ent, [3]float32{20, 0, 0}, [3]float32{-16, -16, -24}, [3]float32{16, 16, 32}, [3]float32{-20, 0, 0})
+	if trace.Fraction >= 1 {
+		t.Fatalf("trace fraction = %v, want collision", trace.Fraction)
+	}
+	if trace.EndPos[0] < 9.9 || trace.EndPos[0] > 10.1 {
+		t.Fatalf("trace end x = %v, want about 10", trace.EndPos[0])
+	}
+}
+
 func findWalkablePoint(s *Server) ([3]float32, bool) {
 	wm, ok := s.WorldModel.(*model.Model)
 	if !ok || wm == nil {

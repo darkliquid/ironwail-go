@@ -9,9 +9,12 @@
 // # High-level design
 //
 // FileSystem models search paths and loaded pack directories explicitly. File
-// resolution checks loose files first and then pack contents in reverse-priority
-// order so later game directories and higher-numbered paks override earlier
-// content as they do in Quake.
+// resolution walks a single Quake-style search stack: later game directories
+// override earlier ones, and within each game directory higher-numbered paks
+// override lower-numbered paks, which in turn override loose files. Pack
+// discovery follows deterministic numeric `pakN.pak` ordering, and pack-entry
+// lookup is case-insensitive to match Quake data behavior on case-sensitive
+// hosts.
 //
 // # Role in the engine
 //

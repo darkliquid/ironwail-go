@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strconv"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 const (
@@ -74,9 +76,10 @@ func (s *Server) Init(maxClients int) error {
 	for i := 0; i < maxClients; i++ {
 		clientEdict := s.Edicts[i+1]
 		s.Static.Clients[i] = &Client{
-			Edict:   clientEdict,
-			Message: NewMessageBuffer(MaxDatagram),
-			Name:    "unconnected",
+			Edict:        clientEdict,
+			Message:      NewMessageBuffer(MaxDatagram),
+			Name:         "unconnected",
+			EntityStates: make(map[int]EntityState),
 		}
 	}
 
@@ -128,8 +131,15 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	if err != nil {
 		return fmt.Errorf("parse map %q: %w", s.ModelName, err)
 	}
+	bspFile, err := bsp.Load(bytes.NewReader(bspData))
+	if err != nil {
+		return fmt.Errorf("parse collision bsp %q: %w", s.ModelName, err)
+	}
 
 	s.WorldModel = worldModelFromBSPTree(s.ModelName, tree)
+	if wm, ok := s.WorldModel.(*model.Model); ok {
+		populateWorldModelCollision(wm, tree, bspFile)
+	}
 	s.WorldTree = tree
 
 	if s.Edicts[0] == nil {
@@ -142,6 +152,9 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 
 	s.ModelPrecache[0] = ""
 	s.ModelPrecache[1] = s.ModelName
+	for i := 1; i < len(tree.Models) && i+1 < len(s.ModelPrecache); i++ {
+		s.ModelPrecache[i+1] = string(bytes.TrimRight(LocalModels[i][:], "\x00"))
+	}
 	s.StaticEntities = nil
 	s.StaticSounds = nil
 
@@ -169,7 +182,12 @@ func worldModelFromBSPTree(modelName string, tree *bsp.Tree) *model.Model {
 	if len(tree.Models) > 0 {
 		m.Mins = tree.Models[0].BoundsMin
 		m.Maxs = tree.Models[0].BoundsMax
+		m.ClipMins = m.Mins
+		m.ClipMaxs = m.Maxs
+		m.ClipBox = true
 	}
+	m.NumSubModels = len(tree.Models)
+	m.SubModels = append([]bsp.DModel(nil), tree.Models...)
 
 	m.Planes = make([]model.MPlane, len(tree.Planes))
 	for i, p := range tree.Planes {
@@ -211,6 +229,133 @@ func worldModelFromBSPTree(modelName string, tree *bsp.Tree) *model.Model {
 	}
 
 	return m
+}
+
+var brushHullClipBounds = [model.MaxMapHulls]struct {
+	mins [3]float32
+	maxs [3]float32
+}{
+	0: {},
+	1: {mins: [3]float32{-16, -16, -24}, maxs: [3]float32{16, 16, 32}},
+	2: {mins: [3]float32{-32, -32, -24}, maxs: [3]float32{32, 32, 64}},
+}
+
+func populateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File) {
+	if m == nil || tree == nil || len(m.Planes) == 0 || len(tree.Models) == 0 {
+		return
+	}
+
+	m.Hulls[0] = buildNodeHull(tree, m.Planes, int(tree.Models[0].HeadNode[0]))
+
+	clipNodes := bspClipNodesToModel(file)
+	if len(clipNodes) == 0 {
+		return
+	}
+
+	m.ClipNodes = clipNodes
+	for hullNum := 1; hullNum <= 2; hullNum++ {
+		headNode := int(tree.Models[0].HeadNode[hullNum])
+		if headNode < 0 {
+			continue
+		}
+		m.Hulls[hullNum] = model.Hull{
+			ClipNodes:     clipNodes,
+			Planes:        m.Planes,
+			FirstClipNode: headNode,
+			LastClipNode:  len(clipNodes) - 1,
+			ClipMins:      brushHullClipBounds[hullNum].mins,
+			ClipMaxs:      brushHullClipBounds[hullNum].maxs,
+		}
+	}
+}
+
+func buildNodeHull(tree *bsp.Tree, planes []model.MPlane, headNode int) model.Hull {
+	if tree == nil || len(tree.Nodes) == 0 || headNode < 0 || headNode >= len(tree.Nodes) {
+		return model.Hull{FirstClipNode: -1, LastClipNode: -1}
+	}
+
+	clipNodes := make([]model.MClipNode, len(tree.Nodes))
+	for i, node := range tree.Nodes {
+		clipNodes[i].PlaneNum = int(node.PlaneNum)
+		for side, child := range node.Children {
+			if child.IsLeaf {
+				if child.Index >= 0 && child.Index < len(tree.Leafs) {
+					clipNodes[i].Children[side] = int(tree.Leafs[child.Index].Contents)
+				} else {
+					clipNodes[i].Children[side] = bsp.ContentsSolid
+				}
+				continue
+			}
+			clipNodes[i].Children[side] = child.Index
+		}
+	}
+
+	return model.Hull{
+		ClipNodes:     clipNodes,
+		Planes:        planes,
+		FirstClipNode: headNode,
+		LastClipNode:  len(clipNodes) - 1,
+	}
+}
+
+func bspClipNodesToModel(file *bsp.File) []model.MClipNode {
+	if file == nil {
+		return nil
+	}
+
+	switch clipNodes := file.Clipnodes.(type) {
+	case []bsp.DSClipNode:
+		out := make([]model.MClipNode, len(clipNodes))
+		for i, node := range clipNodes {
+			out[i] = model.MClipNode{
+				PlaneNum: int(node.PlaneNum),
+				Children: [2]int{int(node.Children[0]), int(node.Children[1])},
+			}
+		}
+		return out
+	case []bsp.DLClipNode:
+		out := make([]model.MClipNode, len(clipNodes))
+		for i, node := range clipNodes {
+			out[i] = model.MClipNode{
+				PlaneNum: int(node.PlaneNum),
+				Children: [2]int{int(node.Children[0]), int(node.Children[1])},
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) {
+	if modelName == "" {
+		return mins, maxs, true
+	}
+
+	if wm, ok := s.WorldModel.(*model.Model); ok && wm != nil {
+		if modelName == s.ModelName {
+			if wm.Type == model.ModBrush && (wm.ClipBox || wm.ClipMins != [3]float32{} || wm.ClipMaxs != [3]float32{}) {
+				return wm.ClipMins, wm.ClipMaxs, true
+			}
+			return wm.Mins, wm.Maxs, true
+		}
+
+		if len(modelName) > 1 && modelName[0] == '*' {
+			idx, err := strconv.Atoi(modelName[1:])
+			if err == nil && idx >= 0 {
+				if s.WorldTree != nil && idx < len(s.WorldTree.Models) {
+					sub := s.WorldTree.Models[idx]
+					return sub.BoundsMin, sub.BoundsMax, true
+				}
+				if idx < len(wm.SubModels) {
+					sub := wm.SubModels[idx]
+					return sub.BoundsMin, sub.BoundsMax, true
+				}
+			}
+		}
+	}
+
+	return mins, maxs, false
 }
 
 type ProtocolFlags int
@@ -270,7 +415,7 @@ func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
 		return
 	}
 
-	s.Datagram.WriteByte(byte(SVCParticle))
+	s.Datagram.WriteByte(byte(inet.SVCParticle))
 	s.Datagram.WriteCoord(org[0])
 	s.Datagram.WriteCoord(org[1])
 	s.Datagram.WriteCoord(org[2])
@@ -322,7 +467,7 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 		return
 	}
 
-	s.Datagram.WriteByte(byte(SVCSound))
+	s.Datagram.WriteByte(byte(inet.SVCSound))
 	s.Datagram.WriteByte(byte(fieldMask))
 
 	if fieldMask&1 != 0 {
@@ -364,7 +509,7 @@ func (s *Server) LocalSound(client *Client, sample string) {
 		return
 	}
 
-	client.Message.WriteByte(byte(SVCLocalSound))
+	client.Message.WriteByte(byte(inet.SVCLocalSound))
 	client.Message.WriteByte(byte(fieldMask))
 	if fieldMask != 0 {
 		client.Message.WriteShort(int16(soundNum))
@@ -423,17 +568,17 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
 	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
 	if extended {
-		msg.WriteByte(byte(SVCSpawnStatic2))
+		msg.WriteByte(byte(inet.SVCSpawnStatic2))
 		s.writeEntityState(msg, ent, true, false, 0)
 		return
 	}
-	msg.WriteByte(byte(SVCSpawnStatic))
+	msg.WriteByte(byte(inet.SVCSpawnStatic))
 	s.writeEntityState(msg, ent, false, false, 0)
 }
 
 func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSound) {
 	if snd.SoundIndex > 255 {
-		msg.WriteByte(byte(SVCSpawnStaticSound2))
+		msg.WriteByte(byte(inet.SVCSpawnStaticSound2))
 		for i := 0; i < 3; i++ {
 			msg.WriteCoord(snd.Origin[i])
 		}
@@ -442,7 +587,7 @@ func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSoun
 		msg.WriteByte(byte(snd.Attenuation * 64))
 		return
 	}
-	msg.WriteByte(byte(SVCSpawnStaticSound))
+	msg.WriteByte(byte(inet.SVCSpawnStaticSound))
 	for i := 0; i < 3; i++ {
 		msg.WriteCoord(snd.Origin[i])
 	}
@@ -452,10 +597,10 @@ func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSoun
 }
 
 func (s *Server) SendServerInfo(client *Client) {
-	client.Message.WriteByte(byte(SVCPrint))
+	client.Message.WriteByte(byte(inet.SVCPrint))
 	client.Message.WriteString(fmt.Sprintf("\nFITZQUAKE GO SERVER\n"))
 
-	client.Message.WriteByte(byte(SVCServerInfo))
+	client.Message.WriteByte(byte(inet.SVCServerInfo))
 	client.Message.WriteLong(ProtocolFitzQuake)
 	client.Message.WriteByte(byte(s.Static.MaxClients))
 
@@ -488,7 +633,7 @@ func (s *Server) SendServerInfo(client *Client) {
 	client.Message.WriteByte(0)
 
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
-		client.Message.WriteByte(byte(SVCCDTrack))
+		client.Message.WriteByte(byte(inet.SVCCDTrack))
 		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
 		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
 	}
@@ -500,10 +645,10 @@ func (s *Server) SendServerInfo(client *Client) {
 		s.writeSpawnStaticSoundMessage(client.Message, snd)
 	}
 
-	client.Message.WriteByte(byte(SVCSetView))
+	client.Message.WriteByte(byte(inet.SVCSetView))
 	client.Message.WriteShort(int16(s.NumForEdict(client.Edict)))
 
-	client.Message.WriteByte(byte(SVCSignOnNum))
+	client.Message.WriteByte(byte(inet.SVCSignOnNum))
 	client.Message.WriteByte(1)
 
 	client.SendSignon = SignonFlush
@@ -539,6 +684,11 @@ func (s *Server) ConnectClient(clientNum int) {
 	client.Spawned = false
 	client.Edict = ent
 	client.Name = "unconnected"
+	if client.EntityStates == nil {
+		client.EntityStates = make(map[int]EntityState)
+	} else {
+		clear(client.EntityStates)
+	}
 
 	if s.LoadGame {
 	} else {
@@ -563,7 +713,7 @@ func (s *Server) ClearDatagram() {
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	if ent.Vars.DmgTake != 0 || ent.Vars.DmgSave != 0 {
 		other := s.EdictNum(int(ent.Vars.DmgInflictor))
-		msg.WriteByte(byte(SVCDamage))
+		msg.WriteByte(byte(inet.SVCDamage))
 		msg.WriteByte(byte(ent.Vars.DmgSave))
 		msg.WriteByte(byte(ent.Vars.DmgTake))
 		if other != nil {
@@ -582,59 +732,59 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	s.SetIdealPitch(ent)
 
 	if ent.Vars.FixAngle != 0 {
-		msg.WriteByte(byte(SVCSetAngle))
+		msg.WriteByte(byte(inet.SVCSetAngle))
 		for i := 0; i < 3; i++ {
 			msg.WriteAngle(ent.Vars.Angles[i])
 		}
 		ent.Vars.FixAngle = 0
 	}
 
-	bits := 0
+	bits := uint32(0)
 
 	if ent.Vars.ViewOfs[2] != ViewHeight {
-		bits |= 1
+		bits |= inet.SU_VIEWHEIGHT
 	}
 	if ent.Vars.IdealPitch != 0 {
-		bits |= 2
+		bits |= inet.SU_IDEALPITCH
 	}
-	bits |= 4
+	bits |= inet.SU_ITEMS
 
 	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
-		bits |= 8
+		bits |= inet.SU_ONGROUND
 	}
 	if ent.Vars.WaterLevel >= 2 {
-		bits |= 16
+		bits |= inet.SU_INWATER
 	}
 	for i := 0; i < 3; i++ {
 		if ent.Vars.PunchAngle[i] != 0 {
-			bits |= 32 << i
+			bits |= inet.SU_PUNCH1 << i
 		}
 		if ent.Vars.Velocity[i] != 0 {
-			bits |= 256 << i
+			bits |= inet.SU_VELOCITY1 << i
 		}
 	}
 	if ent.Vars.WeaponFrame != 0 {
-		bits |= 2048
+		bits |= inet.SU_WEAPONFRAME
 	}
 	if ent.Vars.ArmorValue != 0 {
-		bits |= 4096
+		bits |= inet.SU_ARMOR
 	}
-	bits |= 8192
+	bits |= inet.SU_WEAPON
 
-	msg.WriteByte(byte(SVCClientData))
+	msg.WriteByte(byte(inet.SVCClientData))
 	msg.WriteShort(int16(bits))
 
-	if bits&1 != 0 {
+	if bits&inet.SU_VIEWHEIGHT != 0 {
 		msg.WriteChar(int8(ent.Vars.ViewOfs[2]))
 	}
-	if bits&2 != 0 {
+	if bits&inet.SU_IDEALPITCH != 0 {
 		msg.WriteChar(int8(ent.Vars.IdealPitch))
 	}
 	for i := 0; i < 3; i++ {
-		if bits&(32<<i) != 0 {
+		if bits&(inet.SU_PUNCH1<<i) != 0 {
 			msg.WriteChar(int8(ent.Vars.PunchAngle[i]))
 		}
-		if bits&(256<<i) != 0 {
+		if bits&(inet.SU_VELOCITY1<<i) != 0 {
 			msg.WriteChar(int8(ent.Vars.Velocity[i] / 16))
 		}
 	}
@@ -642,13 +792,13 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	items := uint32(ent.Vars.Items)
 	msg.WriteLong(int32(items))
 
-	if bits&2048 != 0 {
+	if bits&inet.SU_WEAPONFRAME != 0 {
 		msg.WriteByte(byte(ent.Vars.WeaponFrame))
 	}
-	if bits&4096 != 0 {
+	if bits&inet.SU_ARMOR != 0 {
 		msg.WriteByte(byte(ent.Vars.ArmorValue))
 	}
-	if bits&8192 != 0 {
+	if bits&inet.SU_WEAPON != 0 {
 		msg.WriteByte(byte(s.FindModel(s.GetString(ent.Vars.WeaponModel))))
 	}
 
@@ -659,12 +809,14 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	msg.WriteByte(byte(ent.Vars.AmmoRockets))
 	msg.WriteByte(byte(ent.Vars.AmmoCells))
 
+	activeWeapon := byte(0)
 	for i := 0; i < 32; i++ {
 		if uint32(ent.Vars.Weapon)&(1<<i) != 0 {
-			msg.WriteByte(byte(i))
+			activeWeapon = byte(i)
 			break
 		}
 	}
+	msg.WriteByte(activeWeapon)
 }
 
 func (s *Server) FindModel(name string) int {
@@ -679,18 +831,228 @@ func (s *Server) FindModel(name string) int {
 	return 0
 }
 
+func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool) {
+	if ent == nil || ent.Free || ent.Vars == nil {
+		return EntityState{}, false
+	}
+
+	state := EntityState{
+		Origin:     ent.Vars.Origin,
+		Angles:     ent.Vars.Angles,
+		ModelIndex: int(ent.Vars.ModelIndex),
+		Frame:      int(ent.Vars.Frame),
+		Colormap:   int(ent.Vars.Colormap),
+		Skin:       int(ent.Vars.Skin),
+		Effects:    int(ent.Vars.Effects),
+		Alpha:      ent.Alpha,
+		Scale:      ent.Scale,
+	}
+	if state.Scale == 0 {
+		state.Scale = 16
+	}
+
+	if s.Static != nil && entNum > 0 && entNum <= s.Static.MaxClients {
+		state.Colormap = entNum
+		if playerModel := s.FindModel("progs/player.mdl"); playerModel != 0 {
+			state.ModelIndex = playerModel
+		}
+	}
+
+	if entNum > 0 && s.Static != nil && entNum > s.Static.MaxClients && state.ModelIndex == 0 {
+		return EntityState{}, false
+	}
+
+	return state, true
+}
+
+func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev EntityState, force bool) bool {
+	bits := uint32(0)
+
+	if entNum > 255 {
+		bits |= inet.U_LONGENTITY
+	}
+	if force || state.Origin[0] != prev.Origin[0] {
+		bits |= inet.U_ORIGIN1
+	}
+	if force || state.Origin[1] != prev.Origin[1] {
+		bits |= inet.U_ORIGIN2
+	}
+	if force || state.Origin[2] != prev.Origin[2] {
+		bits |= inet.U_ORIGIN3
+	}
+	if force || state.Angles[0] != prev.Angles[0] {
+		bits |= inet.U_ANGLE1
+	}
+	if force || state.Angles[1] != prev.Angles[1] {
+		bits |= inet.U_ANGLE2
+	}
+	if force || state.Angles[2] != prev.Angles[2] {
+		bits |= inet.U_ANGLE3
+	}
+	if force || state.ModelIndex != prev.ModelIndex {
+		bits |= inet.U_MODEL
+		if state.ModelIndex > 255 {
+			bits |= inet.U_MODEL2
+		}
+	}
+	if force || state.Frame != prev.Frame {
+		bits |= inet.U_FRAME
+		if state.Frame > 255 {
+			bits |= inet.U_FRAME2
+		}
+	}
+	if force || state.Colormap != prev.Colormap {
+		bits |= inet.U_COLORMAP
+	}
+	if force || state.Skin != prev.Skin {
+		bits |= inet.U_SKIN
+	}
+	if force || state.Effects != prev.Effects {
+		bits |= inet.U_EFFECTS
+	}
+	if force || state.Alpha != prev.Alpha {
+		if state.Alpha != 0 || prev.Alpha != 0 || force {
+			bits |= inet.U_ALPHA
+		}
+	}
+	if force || state.Scale != prev.Scale {
+		if state.Scale != 16 || prev.Scale != 16 || force {
+			bits |= inet.U_SCALE
+		}
+	}
+
+	if bits == 0 {
+		return false
+	}
+	if bits&0x0000ff00 != 0 {
+		bits |= inet.U_MOREBITS
+	}
+	if bits&0x00ff0000 != 0 {
+		bits |= inet.U_EXTEND1
+	}
+	if bits&0xff000000 != 0 {
+		bits |= inet.U_EXTEND2
+	}
+
+	first := byte(bits&0x7f) | 0x80
+	msg.WriteByte(first)
+	if bits&inet.U_MOREBITS != 0 {
+		msg.WriteByte(byte(bits >> 8))
+	}
+	if bits&inet.U_EXTEND1 != 0 {
+		msg.WriteByte(byte(bits >> 16))
+	}
+	if bits&inet.U_EXTEND2 != 0 {
+		msg.WriteByte(byte(bits >> 24))
+	}
+
+	if bits&inet.U_LONGENTITY != 0 {
+		msg.WriteShort(int16(entNum))
+	} else {
+		msg.WriteByte(byte(entNum))
+	}
+	if bits&inet.U_MODEL != 0 {
+		msg.WriteByte(byte(state.ModelIndex))
+	}
+	if bits&inet.U_MODEL2 != 0 {
+		msg.WriteByte(byte(state.ModelIndex >> 8))
+	}
+	if bits&inet.U_FRAME != 0 {
+		msg.WriteByte(byte(state.Frame))
+	}
+	if bits&inet.U_FRAME2 != 0 {
+		msg.WriteByte(byte(state.Frame >> 8))
+	}
+	if bits&inet.U_COLORMAP != 0 {
+		msg.WriteByte(byte(state.Colormap))
+	}
+	if bits&inet.U_SKIN != 0 {
+		msg.WriteByte(byte(state.Skin))
+	}
+	if bits&inet.U_EFFECTS != 0 {
+		msg.WriteByte(byte(state.Effects))
+	}
+	if bits&inet.U_ORIGIN1 != 0 {
+		msg.WriteCoord(state.Origin[0])
+	}
+	if bits&inet.U_ORIGIN2 != 0 {
+		msg.WriteCoord(state.Origin[1])
+	}
+	if bits&inet.U_ORIGIN3 != 0 {
+		msg.WriteCoord(state.Origin[2])
+	}
+	if bits&inet.U_ANGLE1 != 0 {
+		msg.WriteAngle(state.Angles[0])
+	}
+	if bits&inet.U_ANGLE2 != 0 {
+		msg.WriteAngle(state.Angles[1])
+	}
+	if bits&inet.U_ANGLE3 != 0 {
+		msg.WriteAngle(state.Angles[2])
+	}
+	if bits&inet.U_ALPHA != 0 {
+		msg.WriteByte(state.Alpha)
+	}
+	if bits&inet.U_SCALE != 0 {
+		msg.WriteByte(state.Scale)
+	}
+
+	return true
+}
+
+func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
+	if client == nil {
+		return
+	}
+	if client.EntityStates == nil {
+		client.EntityStates = make(map[int]EntityState)
+	}
+
+	current := make(map[int]EntityState)
+	for entNum := 1; entNum < s.NumEdicts; entNum++ {
+		ent := s.Edicts[entNum]
+		state, ok := s.entityStateForClient(entNum, ent)
+		if !ok {
+			continue
+		}
+		current[entNum] = state
+		prev, seen := client.EntityStates[entNum]
+		force := !seen
+		if !s.writeEntityUpdate(msg, entNum, state, prev, force) {
+			continue
+		}
+		client.EntityStates[entNum] = state
+	}
+
+	for entNum, prev := range client.EntityStates {
+		if _, ok := current[entNum]; ok {
+			continue
+		}
+		zero := prev
+		zero.ModelIndex = 0
+		if s.writeEntityUpdate(msg, entNum, zero, prev, false) {
+			delete(client.EntityStates, entNum)
+		}
+	}
+}
+
+func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
+	msg.WriteByte(byte(inet.SVCTime))
+	msg.WriteFloat(s.Time)
+
+	s.WriteClientDataToMessage(client.Edict, msg)
+	s.writeEntitiesToClient(client, msg)
+
+	if s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < MaxDatagram {
+		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
+	}
+	msg.WriteByte(0xff)
+}
+
 func (s *Server) SendClientDatagram(client *Client) bool {
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
-
-	msg.WriteByte(byte(SVCTime))
-	msg.WriteFloat(s.Time)
-
-	s.WriteClientDataToMessage(client.Edict, &msg)
-
-	if msg.Len()+s.Datagram.Len() < MaxDatagram {
-		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
-	}
+	s.buildClientDatagram(client, &msg)
 
 	return true
 }
@@ -699,7 +1061,7 @@ func (s *Server) SendClientDatagram(client *Client) bool {
 // given client slot. Returns nil if the client is not active/spawned.
 // Used by the loopback client to feed server messages into the client parser.
 func (s *Server) GetClientDatagram(clientNum int) []byte {
-	if clientNum < 0 || clientNum >= len(s.Static.Clients) {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return nil
 	}
 	client := s.Static.Clients[clientNum]
@@ -708,14 +1070,41 @@ func (s *Server) GetClientDatagram(clientNum int) []byte {
 	}
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
+	s.buildClientDatagram(client, &msg)
 
-	msg.WriteByte(byte(SVCTime))
-	msg.WriteFloat(s.Time)
+	result := make([]byte, msg.Len())
+	copy(result, msg.Data[:msg.Len()])
+	return result
+}
 
-	s.WriteClientDataToMessage(client.Edict, &msg)
+func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
+	if clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return nil
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil || !client.Active {
+		return nil
+	}
 
-	if s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len() < MaxDatagram {
-		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
+	var msg MessageBuffer
+	msg.Data = make([]byte, MaxDatagram)
+
+	if client.Message != nil && client.Message.Len() > 0 {
+		msg.Write(client.Message.Data[:client.Message.Len()])
+		client.Message.Clear()
+	}
+
+	if client.Spawned {
+		var frame MessageBuffer
+		frame.Data = make([]byte, MaxDatagram)
+		s.buildClientDatagram(client, &frame)
+		msg.Write(frame.Data[:frame.Len()])
+	} else if msg.Len() > 0 {
+		msg.WriteByte(0xff)
+	}
+
+	if msg.Len() == 0 {
+		return nil
 	}
 
 	result := make([]byte, msg.Len())
@@ -726,7 +1115,7 @@ func (s *Server) GetClientDatagram(clientNum int) []byte {
 func (s *Server) SendNop(client *Client) {
 	var msg MessageBuffer
 	msg.Data = make([]byte, 4)
-	msg.WriteByte(byte(SVCNop))
+	msg.WriteByte(byte(inet.SVCNop))
 }
 
 func (s *Server) SendClientMessages() {
@@ -767,7 +1156,7 @@ func (s *Server) UpdateToReliableMessages() {
 				continue
 			}
 			if client.OldFrags != int(other.Edict.Vars.Frags) {
-				client.Message.WriteByte(byte(SVCUpdateFrags))
+				client.Message.WriteByte(byte(inet.SVCUpdateFrags))
 				client.Message.WriteByte(byte(j))
 				client.Message.WriteShort(int16(other.Edict.Vars.Frags))
 				client.OldFrags = int(other.Edict.Vars.Frags)
@@ -819,7 +1208,7 @@ func (s *Server) CreateBaseline() {
 func (s *Server) SendReconnect() {
 	var msg MessageBuffer
 	msg.Data = make([]byte, 128)
-	msg.WriteByte(byte(SVCStuffText))
+	msg.WriteByte(byte(inet.SVCStuffText))
 	msg.WriteString("reconnect\n")
 }
 

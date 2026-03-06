@@ -481,6 +481,9 @@ func (p *Parser) parseParticle(msg *common.SizeBuf) error {
 		return fmt.Errorf("svc_particle: missing color")
 	}
 	event.Count = int(count)
+	if count == 255 {
+		event.Count = 1024
+	}
 	event.Color = int(color)
 	p.Client.ParticleEvents = append(p.Client.ParticleEvents, event)
 	return nil
@@ -925,6 +928,10 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		if _, ok := msg.ReadByte(); !ok {
 			return fmt.Errorf("entity update: missing lerpfinish")
 		}
+	}
+	if state.ModelIndex == 0 {
+		delete(p.Client.Entities, entNum)
+		return nil
 	}
 
 	p.Client.Entities[entNum] = state
