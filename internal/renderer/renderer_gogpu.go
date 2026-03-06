@@ -47,7 +47,6 @@ package renderer
 import (
 	"fmt"
 	"log/slog"
-	"reflect"
 	"sync"
 
 	"github.com/gogpu/gogpu"
@@ -81,10 +80,9 @@ type DrawContext struct {
 // In Quake, the clear color is typically a dark gray or black,
 // but can be adjusted for different visual effects.
 func (dc *DrawContext) Clear(r, g, b, a float32) {
-	// gogpu provides DrawTriangleColor which we can use for a full-screen clear
-	// In a full implementation, we'd use a proper clear operation
+	// Use gogpu's proper clear operation
 	color := gmath.Color{R: r, G: g, B: b, A: a}
-	dc.ctx.DrawTriangleColor(color)
+	dc.ctx.ClearColor(color)
 }
 
 // DrawTriangle renders a simple colored triangle.
@@ -309,21 +307,21 @@ type Renderer struct {
 	worldData *WorldRenderData
 
 	// GPU resources for world rendering
-	worldVertexBuffer  hal.Buffer
-	worldIndexBuffer   hal.Buffer
-	worldIndexCount    uint32
-	worldPipeline      hal.RenderPipeline
-	worldPipelineLayout hal.PipelineLayout
-	worldBindGroup     hal.BindGroup
-	worldShader        hal.ShaderModule
-	uniformBuffer      hal.Buffer
-	uniformBindGroup   hal.BindGroup
+	worldVertexBuffer      hal.Buffer
+	worldIndexBuffer       hal.Buffer
+	worldIndexCount        uint32
+	worldPipeline          hal.RenderPipeline
+	worldPipelineLayout    hal.PipelineLayout
+	worldBindGroup         hal.BindGroup
+	worldShader            hal.ShaderModule
+	uniformBuffer          hal.Buffer
+	uniformBindGroup       hal.BindGroup
 	uniformBindGroupLayout hal.BindGroupLayout
 	textureBindGroupLayout hal.BindGroupLayout
 
 	// 1x1 white texture for fallback
-	whiteTexture       hal.Texture
-	whiteTextureView   hal.TextureView
+	whiteTexture     hal.Texture
+	whiteTextureView hal.TextureView
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -706,11 +704,14 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
+	slog.Debug("RenderFrame called", "draw_world", state.DrawWorld, "draw_particles", state.DrawParticles, "draw_2d_overlay", state.Draw2DOverlay)
+
 	// Phase 1: Clear screen
 	dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 
 	// Phase 2: Draw 3D world (stub - M4.3 will implement)
 	if state.DrawWorld {
+		slog.Info("RenderFrame: rendering world")
 		dc.renderWorld(state)
 	}
 
@@ -869,6 +870,21 @@ func (r *Renderer) GetCameraState() CameraState {
 	return r.cameraState
 }
 
+// HasWorldData reports whether GPU world geometry has been uploaded.
+func (r *Renderer) HasWorldData() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.worldData != nil && r.worldVertexBuffer != nil && r.worldIndexBuffer != nil && r.worldIndexCount > 0 && r.worldPipeline != nil
+}
+
+// NeedsWorldGPUUpload reports whether CPU world geometry exists but GPU buffers
+// are not uploaded yet.
+func (r *Renderer) NeedsWorldGPUUpload() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.worldData != nil && (r.worldVertexBuffer == nil || r.worldIndexBuffer == nil || r.worldIndexCount == 0)
+}
+
 // getHALDevice returns the underlying HAL device from the gogpu renderer.
 // This uses reflection to access the private device field from gogpu.Renderer.
 // Returns nil if device is not available.
@@ -876,39 +892,11 @@ func (r *Renderer) getHALDevice() hal.Device {
 	if r.app == nil {
 		return nil
 	}
-
-	// Safely use reflection to access gogpu internals
-	defer func() {
-		if recover() != nil {
-			return // Silently ignore reflection errors
-		}
-	}()
-
-	// Get the gogpu Renderer from the app using reflection
-	// gogpu.App has a private renderer field
-	appVal := reflect.ValueOf(r.app)
-	if appVal.IsNil() || appVal.Kind() != reflect.Ptr || appVal.Elem().Kind() != reflect.Struct {
+	provider := r.app.DeviceProvider()
+	if provider == nil {
 		return nil
 	}
-
-	rendererVal := appVal.Elem().FieldByName("renderer")
-	if !rendererVal.IsValid() {
-		return nil
-	}
-
-	// Get the device field from gogpu.Renderer
-	deviceVal := rendererVal.Elem().FieldByName("device")
-	if !deviceVal.IsValid() {
-		return nil
-	}
-
-	// Convert to hal.Device interface
-	device, ok := deviceVal.Interface().(hal.Device)
-	if !ok || device == nil {
-		return nil
-	}
-
-	return device
+	return provider.Device()
 }
 
 // getHALQueue returns the underlying HAL queue from the gogpu renderer.
@@ -918,36 +906,9 @@ func (r *Renderer) getHALQueue() hal.Queue {
 	if r.app == nil {
 		return nil
 	}
-
-	// Safely use reflection to access gogpu internals
-	defer func() {
-		if recover() != nil {
-			return // Silently ignore reflection errors
-		}
-	}()
-
-	// Get the gogpu Renderer from the app using reflection
-	appVal := reflect.ValueOf(r.app)
-	if appVal.IsNil() || appVal.Kind() != reflect.Ptr || appVal.Elem().Kind() != reflect.Struct {
+	provider := r.app.DeviceProvider()
+	if provider == nil {
 		return nil
 	}
-
-	rendererVal := appVal.Elem().FieldByName("renderer")
-	if !rendererVal.IsValid() {
-		return nil
-	}
-
-	// Get the queue field from gogpu.Renderer
-	queueVal := rendererVal.Elem().FieldByName("queue")
-	if !queueVal.IsValid() {
-		return nil
-	}
-
-	// Convert to hal.Queue interface
-	queue, ok := queueVal.Interface().(hal.Queue)
-	if !ok || queue == nil {
-		return nil
-	}
-
-	return queue
+	return provider.Queue()
 }

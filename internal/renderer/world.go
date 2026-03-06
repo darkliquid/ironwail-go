@@ -80,7 +80,7 @@ type WorldRenderData struct {
 	// TODO: GPU buffer handles (when gogpu exposes buffer API)
 	// VertexBuffer  *gogpu.Buffer
 	// IndexBuffer   *gogpu.Buffer
-	
+
 	// TODO: Texture arrays/atlases
 	// DiffuseTextures  []*gogpu.Texture
 	// LightmapTextures []*gogpu.Texture
@@ -142,10 +142,10 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 		// Extract face metadata
 		faceData := WorldFace{
 			FirstIndex:    uint32(len(geom.Indices)),
-			NumIndices:    0, // Will be computed during triangulation
+			NumIndices:    0,            // Will be computed during triangulation
 			TextureIndex:  face.Texinfo, // TODO: Map to actual texture
 			LightmapIndex: -1,           // TODO: Process lightmaps
-			Flags:         0,             // TODO: Extract flags from texinfo
+			Flags:         0,            // TODO: Extract flags from texinfo
 		}
 
 		// Extract vertices for this face
@@ -172,7 +172,7 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 		// Generate triangle indices (fan triangulation around vertex 0)
 		for i := 1; i < len(faceVerts)-1; i++ {
 			geom.Indices = append(geom.Indices,
-				baseVertIdx,       // Vertex 0 (fan center)
+				baseVertIdx,             // Vertex 0 (fan center)
 				baseVertIdx+uint32(i),   // Vertex i
 				baseVertIdx+uint32(i+1)) // Vertex i+1
 		}
@@ -306,7 +306,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 `
 
-// worldFragmentShaderWGSL is the WGSL source for world fragment shader
+// worldFragmentShaderWGSL is the WGSL source for world fragment shader.
+// MVP path uses a constant lit color until texture/lightmap bindings are
+// fully wired.
 const worldFragmentShaderWGSL = `
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
@@ -316,26 +318,10 @@ struct VertexOutput {
     @location(3) normal: vec3<f32>,
 }
 
-@group(0) @binding(1)
-var diffuseSampler: sampler;
-
-@group(0) @binding(2)
-var diffuseTexture: texture_2d<f32>;
-
-@group(0) @binding(3)
-var lightmapSampler: sampler;
-
-@group(0) @binding(4)
-var lightmapTexture: texture_2d<f32>;
-
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    var diffuse = textureSample(diffuseTexture, diffuseSampler, input.texCoord);
-    var lightmap = textureSample(lightmapTexture, lightmapSampler, input.lightmapCoord);
-    
-    var lit = diffuse.rgb * lightmap.rgb * 2.0;
-    
-    return vec4<f32>(lit, diffuse.a);
+	// Debug: output bright red to verify render pass is working
+	return vec4<f32>(1.0, 0.0, 0.0, 1.0);
 }
 `
 
@@ -357,7 +343,7 @@ func createWorldShaderModule(device hal.Device, wgslSource string, label string)
 	if err != nil {
 		return nil, fmt.Errorf("create shader module: %w", err)
 	}
-	
+
 	return shaderModule, nil
 }
 
@@ -366,51 +352,51 @@ func (r *Renderer) createWorldVertexBuffer(device hal.Device, queue hal.Queue, v
 	if len(vertices) == 0 {
 		return nil, fmt.Errorf("no vertices to upload")
 	}
-	
+
 	// Calculate size
 	vertexSize := uint64(len(vertices)) * 44 // sizeof(WorldVertex) = 44 bytes
-	
+
 	slog.Debug("Creating world vertex buffer",
 		"vertexCount", len(vertices),
 		"sizeBytes", vertexSize)
-	
+
 	// Create GPU buffer
 	buffer, err := device.CreateBuffer(&hal.BufferDescriptor{
-		Label: "World Vertices",
-		Size:  vertexSize,
-		Usage: gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+		Label:            "World Vertices",
+		Size:             vertexSize,
+		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create vertex buffer: %w", err)
 	}
-	
+
 	// Write vertex data to buffer
 	vertexData := make([]byte, vertexSize)
 	for i, v := range vertices {
 		offset := uint64(i) * 44
-		
+
 		// Write position (3 float32 = 12 bytes)
 		posBytes := float32ToBytes(v.Position[:])
 		copy(vertexData[offset:offset+12], posBytes)
-		
+
 		// Write texCoord (2 float32 = 8 bytes)
 		texBytes := float32ToBytes(v.TexCoord[:])
 		copy(vertexData[offset+12:offset+20], texBytes)
-		
+
 		// Write lightmapCoord (2 float32 = 8 bytes)
 		lightBytes := float32ToBytes(v.LightmapCoord[:])
 		copy(vertexData[offset+20:offset+28], lightBytes)
-		
+
 		// Write normal (3 float32 = 12 bytes)
 		normBytes := float32ToBytes(v.Normal[:])
 		copy(vertexData[offset+28:offset+40], normBytes)
 	}
-	
+
 	queue.WriteBuffer(buffer, 0, vertexData)
-	
+
 	slog.Info("World vertex buffer uploaded", "vertices", len(vertices))
-	
+
 	return buffer, nil
 }
 
@@ -419,35 +405,35 @@ func (r *Renderer) createWorldIndexBuffer(device hal.Device, queue hal.Queue, in
 	if len(indices) == 0 {
 		return nil, 0, fmt.Errorf("no indices to upload")
 	}
-	
+
 	indexSize := uint64(len(indices)) * 4 // uint32 = 4 bytes
-	
+
 	slog.Debug("Creating world index buffer",
 		"indexCount", len(indices),
 		"sizeBytes", indexSize)
-	
+
 	// Create GPU buffer
 	buffer, err := device.CreateBuffer(&hal.BufferDescriptor{
-		Label: "World Indices",
-		Size:  indexSize,
-		Usage: gputypes.BufferUsageIndex | gputypes.BufferUsageCopyDst,
+		Label:            "World Indices",
+		Size:             indexSize,
+		Usage:            gputypes.BufferUsageIndex | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("create index buffer: %w", err)
 	}
-	
+
 	// Write index data to buffer
 	indexData := make([]byte, indexSize)
 	for i, idx := range indices {
 		offset := uint64(i) * 4
 		binary.LittleEndian.PutUint32(indexData[offset:offset+4], idx)
 	}
-	
+
 	queue.WriteBuffer(buffer, 0, indexData)
-	
+
 	slog.Info("World index buffer uploaded", "indices", len(indices))
-	
+
 	return buffer, uint32(len(indices)), nil
 }
 
@@ -487,16 +473,40 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		},
 	}
 
-	// Create pipeline layout with empty bind group layouts for now
+	// Create bind group layout for @group(0) @binding(0) uniform buffer.
+	uniformLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+		Label: "World Uniform BGL",
+		Entries: []gputypes.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: gputypes.ShaderStageVertex,
+				Buffer: &gputypes.BufferBindingLayout{
+					Type:             gputypes.BufferBindingTypeUniform,
+					HasDynamicOffset: false,
+					MinBindingSize:   64,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("create uniform bind group layout: %w", err)
+	}
+
+	// Create pipeline layout with the uniform bind group layout.
 	pipelineLayoutDesc := &hal.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{}, // Will be extended for textures/uniforms later
+		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout},
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
 	if err != nil {
+		uniformLayout.Destroy()
 		return nil, nil, fmt.Errorf("create pipeline layout: %w", err)
 	}
+
+	r.mu.Lock()
+	r.uniformBindGroupLayout = uniformLayout
+	r.mu.Unlock()
 
 	// Define primitive state (counter-clockwise winding, back-face culling)
 	primitiveState := gputypes.PrimitiveState{
@@ -505,17 +515,10 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		CullMode:  gputypes.CullModeBack,
 	}
 
-	// Define depth-stencil state (depth testing enabled)
-	depthStencilState := &hal.DepthStencilState{
-		Format:            gputypes.TextureFormatDepth24Plus, // Use depth24
-		DepthWriteEnabled: true,
-		DepthCompare:      gputypes.CompareFunctionLess, // Closer fragments pass
-	}
-
 	// Define fragment stage with color targets
 	fragmentTargets := []gputypes.ColorTargetState{
 		{
-			Format: gputypes.TextureFormatBGRA8Unorm, // Standard backbuffer format
+			Format: gputypes.TextureFormatBGRA8Unorm,
 			Blend: &gputypes.BlendState{
 				Color: gputypes.BlendComponent{
 					SrcFactor: gputypes.BlendFactorOne,
@@ -547,8 +550,8 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 			EntryPoint: "vs_main",
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
 		},
-		Primitive:   primitiveState,
-		DepthStencil: depthStencilState,
+		Primitive:    primitiveState,
+		DepthStencil: nil,
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -560,6 +563,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	// Create the render pipeline
 	pipeline, err := device.CreateRenderPipeline(pipelineDesc)
 	if err != nil {
+		uniformLayout.Destroy()
 		pipelineLayout.Destroy()
 		return nil, nil, fmt.Errorf("create render pipeline: %w", err)
 	}
@@ -577,13 +581,13 @@ func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (
 
 	// Create 1x1 RGBA texture descriptor
 	textureDesc := &hal.TextureDescriptor{
-		Label:     "World White Texture",
-		Size:      hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Label:         "World White Texture",
+		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
-		SampleCount:  1,
-		Dimension:    gputypes.TextureDimension2D,
-		Format:       gputypes.TextureFormatRGBA8Unorm,
-		Usage:        gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        gputypes.TextureFormatRGBA8Unorm,
+		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
 	}
 
 	// Create the texture
@@ -624,7 +628,7 @@ func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (
 		Aspect:          gputypes.TextureAspectAll,
 		BaseMipLevel:    0,
 		MipLevelCount:   1,
-		BaseArrayLayer: 0,
+		BaseArrayLayer:  0,
 		ArrayLayerCount: 1,
 	}
 
@@ -729,13 +733,38 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 	// Create uniform buffer for VP matrix
 	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
-		Label: "World Uniforms",
-		Size:  64, // sizeof(mat4x4) = 16 floats * 4 bytes
-		Usage: gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		Label:            "World Uniforms",
+		Size:             64, // sizeof(mat4x4) = 16 floats * 4 bytes
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
 		return fmt.Errorf("create uniform buffer: %w", err)
+	}
+
+	// Create bind group for world uniform buffer.
+	uniformLayout := r.uniformBindGroupLayout
+	if uniformLayout != nil {
+		uniformBindGroup, bindErr := device.CreateBindGroup(&hal.BindGroupDescriptor{
+			Label:  "World Uniform BG",
+			Layout: uniformLayout,
+			Entries: []gputypes.BindGroupEntry{
+				{
+					Binding: 0,
+					Resource: gputypes.BufferBinding{
+						Buffer: uniformBuffer.NativeHandle(),
+						Offset: 0,
+						Size:   64,
+					},
+				},
+			},
+		})
+		if bindErr != nil {
+			slog.Warn("Failed to create world uniform bind group", "error", bindErr)
+		} else {
+			r.uniformBindGroup = uniformBindGroup
+			r.worldBindGroup = uniformBindGroup
+		}
 	}
 
 	// Create white texture for fallback
@@ -776,8 +805,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	worldData := dc.renderer.GetWorldData()
 	if worldData == nil || worldData.Geometry == nil {
+		slog.Info("renderWorldInternal: no world data")
 		return
 	}
+
+	slog.Info("renderWorldInternal: starting world render")
 
 	dc.renderer.mu.RLock()
 	defer dc.renderer.mu.RUnlock()
@@ -785,7 +817,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Check if GPU resources are ready
 	if dc.renderer.worldVertexBuffer == nil || dc.renderer.worldIndexBuffer == nil {
 		if worldData.TotalFaces > 0 {
-			slog.Debug("World GPU buffers not ready",
+			slog.Info("renderWorldInternal: World GPU buffers not ready",
 				"faces", worldData.TotalFaces,
 				"triangles", worldData.TotalIndices/3)
 		}
@@ -793,7 +825,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	if dc.renderer.worldPipeline == nil {
-		slog.Debug("World pipeline not ready")
+		slog.Info("renderWorldInternal: World pipeline not ready")
 		return
 	}
 
@@ -801,43 +833,52 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	device := dc.renderer.getHALDevice()
 	queue := dc.renderer.getHALQueue()
 	if device == nil || queue == nil {
-		slog.Warn("HAL device or queue not available for world rendering")
+		slog.Info("renderWorldInternal: HAL device or queue not available for world rendering")
 		return
 	}
 
 	// Create command encoder
+	slog.Info("renderWorldInternal: creating command encoder")
 	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
 		Label: "World Render Command Encoder",
 	})
 	if err != nil {
-		slog.Error("Failed to create command encoder", "error", err)
+		slog.Error("renderWorldInternal: Failed to create command encoder", "error", err)
 		return
 	}
+	if err := encoder.BeginEncoding("world"); err != nil {
+		slog.Error("renderWorldInternal: Failed to begin command encoding", "error", err)
+		return
+	}
+	slog.Info("renderWorldInternal: command encoder started")
 
 	// Get swapchain texture view from gogpu context (if available via ctx field)
 	// For now, we'll use the context's surface view if available
+	slog.Info("renderWorldInternal: getting surface view")
 	surfaceView := dc.ctx.SurfaceView()
 	if surfaceView == nil {
-		slog.Debug("Surface view not available for world rendering")
+		slog.Info("renderWorldInternal: Surface view not available for world rendering")
 		return
 	}
 
 	// Cast surface view to HAL TextureView
 	textureView, ok := surfaceView.(hal.TextureView)
 	if !ok {
-		slog.Debug("Surface view could not be cast to HAL TextureView")
+		slog.Info("renderWorldInternal: Surface view could not be cast to HAL TextureView, type=%T", surfaceView)
 		return
 	}
+	slog.Info("renderWorldInternal: got texture view successfully")
 
 	// Create render pass descriptor with color and depth attachments
+	slog.Info("renderWorldInternal: creating render pass descriptor")
 	renderPassDesc := &hal.RenderPassDescriptor{
 		Label: "World Render Pass",
 		ColorAttachments: []hal.RenderPassColorAttachment{
 			{
-				View:      textureView,
-				LoadOp:    gputypes.LoadOpClear,
-				StoreOp:   gputypes.StoreOpStore,
-				ClearValue: gputypes.Color{R: 0, G: 0, B: 0, A: 1}, // Black
+				View:       textureView,
+				LoadOp:     gputypes.LoadOpClear,
+				StoreOp:    gputypes.StoreOpStore,
+				ClearValue: gputypes.Color{R: 1, G: 0, B: 0, A: 1}, // Red for debug
 			},
 		},
 		// Depth attachment if depth texture available
@@ -851,64 +892,77 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Begin render pass
+	slog.Info("renderWorldInternal: beginning render pass")
 	renderPass := encoder.BeginRenderPass(renderPassDesc)
+	slog.Info("renderWorldInternal: render pass created", "pass", fmt.Sprintf("%T", renderPass))
 
 	// Set pipeline
+	slog.Info("renderWorldInternal: setting pipeline", "pipeline", fmt.Sprintf("%T", dc.renderer.worldPipeline))
 	renderPass.SetPipeline(dc.renderer.worldPipeline)
 
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	vpBytes := matrixToBytes(vpMatrix)
+	slog.Info("renderWorldInternal: writing uniform buffer", "matrix_len", len(vpBytes))
 	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, vpBytes)
 	if err != nil {
-		slog.Error("Failed to update uniform buffer", "error", err)
+		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
 		renderPass.End()
 		return
 	}
 
 	// Set vertex buffer
+	slog.Info("renderWorldInternal: setting vertex buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldVertexBuffer))
 	renderPass.SetVertexBuffer(0, dc.renderer.worldVertexBuffer, 0)
 
-	// Set index buffer (uint16 format for indices)
+	// Set index buffer (uint32 format for indices)
+	slog.Info("renderWorldInternal: setting index buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldIndexBuffer), "count", dc.renderer.worldIndexCount)
 	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
-	// Set bind group if available (for uniforms, textures, samplers)
-	if dc.renderer.worldBindGroup != nil {
-		renderPass.SetBindGroup(0, dc.renderer.worldBindGroup, nil)
+	// Set uniform bind group.
+	if dc.renderer.uniformBindGroup != nil {
+		slog.Info("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.uniformBindGroup))
+		renderPass.SetBindGroup(0, dc.renderer.uniformBindGroup, nil)
+	} else {
+		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
 
 	// Draw all indices
 	indexCount := dc.renderer.worldIndexCount
 	if indexCount > 0 {
 		// DrawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
+		slog.Info("renderWorldInternal: calling DrawIndexed", "indexCount", indexCount, "instances", 1)
 		renderPass.DrawIndexed(indexCount, 1, 0, 0, 0)
+		slog.Info("renderWorldInternal: DrawIndexed completed")
 
-		slog.Debug("World rendered",
+		slog.Info("World rendered",
 			"indices", indexCount,
 			"triangles", indexCount/3,
 			"vertices", worldData.TotalVertices)
 	} else {
-		slog.Warn("No world indices to render")
+		slog.Info("renderWorldInternal: No world indices to render, indexCount=0")
 	}
 
 	// End render pass
+	slog.Info("renderWorldInternal: ending render pass")
 	renderPass.End()
 
 	// Finish encoding and get command buffer
 	cmdBuffer, err := encoder.EndEncoding()
 	if err != nil {
-		slog.Error("Failed to finish command encoding", "error", err)
+		slog.Error("renderWorldInternal: Failed to finish command encoding", "error", err)
 		return
 	}
 
 	// Submit to queue
+	slog.Info("renderWorldInternal: submitting to queue")
 	err = queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0)
 	if err != nil {
-		slog.Error("Failed to submit render commands", "error", err)
+		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
 	}
 
-	slog.Debug("World render commands submitted")
+	slog.Info("World render commands submitted successfully")
 }
 
 // matrixToBytes converts a gmath.Mat4 to bytes (column-major, little-endian).
@@ -955,19 +1009,28 @@ func (r *Renderer) ClearWorld() {
 		if r.uniformBuffer != nil {
 			r.uniformBuffer.Destroy()
 		}
+		if r.uniformBindGroup != nil {
+			r.uniformBindGroup.Destroy()
+		}
+		if r.uniformBindGroupLayout != nil {
+			r.uniformBindGroupLayout.Destroy()
+		}
 		if r.whiteTexture != nil {
 			r.whiteTexture.Destroy()
 		}
-		
+
 		r.worldData = nil
 		r.worldVertexBuffer = nil
 		r.worldIndexBuffer = nil
 		r.worldPipeline = nil
 		r.worldShader = nil
 		r.uniformBuffer = nil
+		r.uniformBindGroup = nil
+		r.uniformBindGroupLayout = nil
+		r.worldBindGroup = nil
 		r.whiteTexture = nil
 		r.whiteTextureView = nil
-		
+
 		slog.Debug("World geometry cleared")
 	}
 }

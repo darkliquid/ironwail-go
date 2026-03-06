@@ -190,35 +190,36 @@ func (m *Manager) quitKey(key int) {
 
 // drawMain renders the main menu.
 func (m *Manager) drawMain(dc renderer.RenderContext) {
-	// Clear to black
-	dc.Clear(0, 0, 0, 1)
-
 	// Draw title plaque
 	if pic := m.drawManager.GetPic("gfx/qplaque.lmp"); pic != nil {
-		dc.DrawPic(0, 0, pic)
-		slog.Debug("drawing pic", "pic", "gfx/qplaque.lmp", "x", 0, "y", 0, "w", pic.Width, "h", pic.Height)
+		dc.DrawPic(16, 4, pic)
+		slog.Debug("drawing pic", "pic", "gfx/qplaque.lmp", "x", 16, "y", 4, "w", pic.Width, "h", pic.Height)
+	}
+
+	// Draw title banner if available
+	if pic := m.drawManager.GetPic("gfx/ttl_main.lmp"); pic != nil {
+		x := (320 - int(pic.Width)) / 2
+		dc.DrawPic(x, 4, pic)
+		slog.Debug("drawing pic", "pic", "gfx/ttl_main.lmp", "x", x, "y", 4, "w", pic.Width, "h", pic.Height)
 	}
 
 	// Draw main menu graphic
 	if pic := m.drawManager.GetPic("gfx/mainmenu.lmp"); pic != nil {
-		dc.DrawPic(0, 40, pic)
-		slog.Debug("drawing pic", "pic", "gfx/mainmenu.lmp", "x", 0, "y", 40, "w", pic.Width, "h", pic.Height)
+		dc.DrawPic(72, 32, pic)
+		slog.Debug("drawing pic", "pic", "gfx/mainmenu.lmp", "x", 72, "y", 32, "w", pic.Width, "h", pic.Height)
 	}
 
 	// Draw cursor (selection bar)
 	if pic := m.drawManager.GetPic("gfx/m_surfs.lmp"); pic != nil {
 		// Position cursor based on selection
-		yPos := 100 + m.mainCursor*20
-		dc.DrawPic(40, yPos, pic)
-		slog.Debug("drawing pic", "pic", "gfx/m_surfs.lmp", "x", 0, "y", 40, "w", pic.Width, "h", pic.Height)
+		yPos := 32 + m.mainCursor*20
+		dc.DrawPic(54, yPos, pic)
+		slog.Debug("drawing pic", "pic", "gfx/m_surfs.lmp", "x", 54, "y", yPos, "w", pic.Width, "h", pic.Height)
 	}
 }
 
 // drawQuit renders the quit confirmation screen.
 func (m *Manager) drawQuit(dc renderer.RenderContext) {
-	// Clear to black
-	dc.Clear(0, 0, 0, 1)
-
 	// Draw quit message (simplified for now)
 	// In a full implementation, this would use proper graphics
 	dc.DrawFill(0, 0, 320, 20, 15) // Gray background for title
