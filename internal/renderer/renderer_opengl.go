@@ -353,7 +353,17 @@ type Renderer struct {
 	palette       []byte
 	concharsData  []byte
 	charCache     [256]*image.QPic
-	drawContext    *glDrawContext
+	drawContext   *glDrawContext
+
+	cameraState     CameraState
+	viewMatrices    ViewMatrixData
+	worldData       *WorldRenderData
+	worldVAO        uint32
+	worldVBO        uint32
+	worldEBO        uint32
+	worldProgram    uint32
+	worldVPUniform  int32
+	worldIndexCount int32
 
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -607,6 +617,7 @@ func (r *Renderer) Stop() {
 // Shutdown releases all GPU resources and destroys the window.
 func (r *Renderer) Shutdown() {
 	slog.Debug("OpenGL renderer shutting down")
+	r.ClearWorld()
 	r.deleteAllTextures()
 	if r.window != nil {
 		r.window.Destroy()
