@@ -244,6 +244,47 @@ func TestSubmitLoopbackStringCommandBeginRequiresSpawn(t *testing.T) {
 	}
 }
 
+func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.LoadGame = true
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Name = "Player"
+	client.Color = 3
+	client.Edict.Vars.Origin = [3]float32{128, 64, 32}
+	client.Edict.Vars.Health = 37
+	client.Edict.Vars.MoveType = float32(MoveTypeNoClip)
+
+	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
+		t.Fatalf("SubmitLoopbackStringCommand(prespawn): %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "spawn"); err != nil {
+		t.Fatalf("SubmitLoopbackStringCommand(spawn): %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "begin"); err != nil {
+		t.Fatalf("SubmitLoopbackStringCommand(begin): %v", err)
+	}
+
+	if got := client.Edict.Vars.Origin; got != ([3]float32{128, 64, 32}) {
+		t.Fatalf("player origin = %v, want preserved", got)
+	}
+	if got := client.Edict.Vars.Health; got != 37 {
+		t.Fatalf("player health = %v, want 37", got)
+	}
+	if got := client.Edict.Vars.MoveType; got != float32(MoveTypeNoClip) {
+		t.Fatalf("player movetype = %v, want %v", got, float32(MoveTypeNoClip))
+	}
+	if !client.Spawned {
+		t.Fatal("client not marked spawned after load begin")
+	}
+	if client.SendSignon != SignonDone {
+		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonDone)
+	}
+}
+
 func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)

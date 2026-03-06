@@ -565,8 +565,10 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 		if client.SendSignon != SignonSignonBufs {
 			return fmt.Errorf("spawn out of order")
 		}
-		if err := s.runClientSpawnQC(client); err != nil {
-			return err
+		if !s.LoadGame {
+			if err := s.runClientSpawnQC(client); err != nil {
+				return err
+			}
 		}
 		client.Message.WriteByte(byte(inet.SVCSignOnNum))
 		client.Message.WriteByte(3)
@@ -580,8 +582,10 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 		client.Spawned = true
 		client.SendSignon = SignonDone
 		// Execute PutClientInServer to finalize player initialization via QC
-		if err := s.runClientPutInServerQC(client); err != nil {
-			return err
+		if !s.LoadGame {
+			if err := s.runClientPutInServerQC(client); err != nil {
+				return err
+			}
 		}
 	default:
 		// Other allowed commands have no special loopback response yet.

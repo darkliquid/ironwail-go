@@ -4,7 +4,11 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/client"
@@ -12,6 +16,14 @@ import (
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
+
+var saveNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
+
+type hostSaveFile struct {
+	Version int                   `json:"version"`
+	Skill   int                   `json:"skill"`
+	Server  *server.SaveGameState `json:"server"`
+}
 
 type handshakeClient interface {
 	Client
@@ -179,32 +191,7 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 
 	h.serverActive = true
 
-	// For singleplayer, connect the local client
-	subs.Server.ConnectClient(0)
-
-	h.clientState = caConnected
-	h.signOns = 0
-
-	handshake, ok := subs.Client.(handshakeClient)
-	if !ok {
-		return fmt.Errorf("client handshake implementation missing")
-	}
-	if err := handshake.LocalServerInfo(); err != nil {
-		return fmt.Errorf("local serverinfo handshake failed: %w", err)
-	}
-	h.clientState = handshake.State()
-
-	if err := h.runLocalHandshakeStep("prespawn", subs); err != nil {
-		return err
-	}
-	if err := h.runLocalHandshakeStep("spawn", subs); err != nil {
-		return err
-	}
-	if err := h.runLocalHandshakeStep("begin", subs); err != nil {
-		return err
-	}
-
-	return nil
+	return h.startLocalServerSession(subs, nil)
 }
 
 func (h *Host) runLocalHandshakeStep(step string, subs *Subsystems) error {
@@ -459,11 +446,174 @@ func (h *Host) CmdPing(subs *Subsystems) {
 }
 
 func (h *Host) CmdLoad(name string, subs *Subsystems) {
-	// TODO: Implement load
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	path, err := h.saveFilePath(name)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		return
+	}
+	var save hostSaveFile
+	if err := json.Unmarshal(data, &save); err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		return
+	}
+	if save.Server == nil {
+		subs.Console.Print("load failed: savegame is missing server state\n")
+		return
+	}
+	if subs.Server == nil {
+		subs.Console.Print("load failed: server is not initialized\n")
+		return
+	}
+	if subs.Server.GetMaxClients() != 1 {
+		subs.Console.Print("load failed: savegames require single-player mode\n")
+		return
+	}
+	srv, ok := subs.Server.(*server.Server)
+	if !ok {
+		subs.Console.Print("load failed: savegames require the built-in server\n")
+		return
+	}
+	fsInstance, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		subs.Console.Print("load failed: filesystem implementation is missing\n")
+		return
+	}
+
+	h.serverActive = false
+	h.clientState = caDisconnected
+	h.signOns = 0
+
+	if err := subs.Server.Init(h.maxClients); err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		return
+	}
+	srv.LoadGame = true
+	defer func() { srv.LoadGame = false }()
+	if err := subs.Server.SpawnServer(save.Server.MapName, fsInstance); err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		return
+	}
+	if err := h.startLocalServerSession(subs, func() error {
+		if err := srv.RestoreSaveGameState(save.Server); err != nil {
+			return err
+		}
+		h.currentSkill = save.Skill
+		return nil
+	}); err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		return
+	}
+
+	subs.Console.Print(fmt.Sprintf("Loaded %s\n", filepath.Base(path)))
 }
 
 func (h *Host) CmdSave(name string, subs *Subsystems) {
-	// TODO: Implement save
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	path, err := h.saveFilePath(name)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+	if subs.Server == nil || !h.serverActive || !subs.Server.IsActive() {
+		subs.Console.Print("save failed: no active game\n")
+		return
+	}
+	if subs.Server.GetMaxClients() != 1 {
+		subs.Console.Print("save failed: savegames require single-player mode\n")
+		return
+	}
+	srv, ok := subs.Server.(*server.Server)
+	if !ok {
+		subs.Console.Print("save failed: savegames require the built-in server\n")
+		return
+	}
+	state, err := srv.CaptureSaveGameState()
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+	save := hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   h.currentSkill,
+		Server:  state,
+	}
+	data, err := json.MarshalIndent(save, "", "  ")
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+
+	subs.Console.Print(fmt.Sprintf("Saved %s\n", filepath.Base(path)))
+}
+
+func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() error) error {
+	if subs == nil || subs.Server == nil {
+		return fmt.Errorf("server not initialized")
+	}
+
+	h.serverActive = true
+	subs.Server.ConnectClient(0)
+	if afterConnect != nil {
+		if err := afterConnect(); err != nil {
+			return err
+		}
+	}
+
+	h.clientState = caConnected
+	h.signOns = 0
+
+	handshake, ok := subs.Client.(handshakeClient)
+	if !ok {
+		return fmt.Errorf("client handshake implementation missing")
+	}
+	if err := handshake.LocalServerInfo(); err != nil {
+		return fmt.Errorf("local serverinfo handshake failed: %w", err)
+	}
+	h.clientState = handshake.State()
+
+	if err := h.runLocalHandshakeStep("prespawn", subs); err != nil {
+		return err
+	}
+	if err := h.runLocalHandshakeStep("spawn", subs); err != nil {
+		return err
+	}
+	if err := h.runLocalHandshakeStep("begin", subs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Host) saveFilePath(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("save name is required")
+	}
+	if !saveNamePattern.MatchString(name) || filepath.Base(name) != name {
+		return "", fmt.Errorf("invalid save name %q", name)
+	}
+	if h.userDir == "" {
+		return "", fmt.Errorf("user directory is not initialized")
+	}
+	return filepath.Join(h.userDir, "saves", name+".sav"), nil
 }
 
 func (h *Host) CmdGive(item, value string, subs *Subsystems) {

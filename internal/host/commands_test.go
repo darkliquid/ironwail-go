@@ -4,6 +4,7 @@
 package host
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -174,4 +175,55 @@ func TestCmdPing(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 
 	h.CmdPing(&subs.Subsystems)
+}
+
+func TestCmdSaveRejectsInvalidName(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{active: true},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	h.SetServerActive(true)
+
+	h.CmdSave("../bad", &subs.Subsystems)
+
+	if len(subs.console.messages) == 0 {
+		t.Fatal("expected console output")
+	}
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "invalid save name") {
+		t.Fatalf("console output = %q, want invalid save name", got)
+	}
+}
+
+func TestCmdLoadRejectsInvalidName(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("../bad", &subs.Subsystems)
+
+	if len(subs.console.messages) == 0 {
+		t.Fatal("expected console output")
+	}
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "invalid save name") {
+		t.Fatalf("console output = %q, want invalid save name", got)
+	}
 }
