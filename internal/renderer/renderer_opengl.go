@@ -355,15 +355,18 @@ type Renderer struct {
 	charCache     [256]*image.QPic
 	drawContext   *glDrawContext
 
-	cameraState     CameraState
-	viewMatrices    ViewMatrixData
-	worldData       *WorldRenderData
-	worldVAO        uint32
-	worldVBO        uint32
-	worldEBO        uint32
-	worldProgram    uint32
-	worldVPUniform  int32
-	worldIndexCount int32
+	cameraState          CameraState
+	viewMatrices         ViewMatrixData
+	worldData            *WorldRenderData
+	worldVAO             uint32
+	worldVBO             uint32
+	worldEBO             uint32
+	worldProgram         uint32
+	worldVPUniform       int32
+	worldTextureUniform  int32
+	worldIndexCount      int32
+	worldFallbackTexture uint32
+	worldTextures        map[int32]uint32
 
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -432,9 +435,10 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	window.Show()
 
 	r := &Renderer{
-		window:       window,
-		config:       cfg,
-		textureCache: make(map[glCacheKey]*glCachedTexture),
+		window:        window,
+		config:        cfg,
+		textureCache:  make(map[glCacheKey]*glCachedTexture),
+		worldTextures: make(map[int32]uint32),
 	}
 
 	slog.Info("OpenGL renderer created",

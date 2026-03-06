@@ -50,12 +50,14 @@ type Tree struct {
 	Header  DHeader
 	Version int32
 
-	Entities   []byte
-	Visibility []byte
-	Lighting   []byte
+	Entities    []byte
+	Visibility  []byte
+	TextureData []byte
+	Lighting    []byte
 
 	Planes    []DPlane
 	Vertexes  []DVertex
+	Texinfo   []Texinfo
 	Edges     []TreeEdge
 	Surfedges []int32
 	Faces     []TreeFace
@@ -64,6 +66,8 @@ type Tree struct {
 	Leafs        []TreeLeaf
 	Nodes        []TreeNode
 	Models       []DModel
+
+	NumTextures int32
 }
 
 const (
@@ -104,6 +108,9 @@ func LoadTree(r io.ReadSeeker) (*Tree, error) {
 	if t.Visibility, err = reader.ReadLump(&header.Lumps[LumpVisibility]); err != nil {
 		return nil, fmt.Errorf("load visibility: %w", err)
 	}
+	if err := t.loadTextures(reader); err != nil {
+		return nil, err
+	}
 	if t.Lighting, err = reader.ReadLump(&header.Lumps[LumpLighting]); err != nil {
 		return nil, fmt.Errorf("load lighting: %w", err)
 	}
@@ -112,6 +119,9 @@ func LoadTree(r io.ReadSeeker) (*Tree, error) {
 		return nil, err
 	}
 	if err := t.loadVertexes(reader); err != nil {
+		return nil, err
+	}
+	if err := t.loadTexinfo(reader); err != nil {
 		return nil, err
 	}
 	if err := t.loadEdges(reader); err != nil {
@@ -167,6 +177,21 @@ func (t *Tree) loadPlanes(r *Reader) error {
 	return nil
 }
 
+func (t *Tree) loadTextures(r *Reader) error {
+	data, err := r.ReadLump(&t.Header.Lumps[LumpTextures])
+	if err != nil {
+		return fmt.Errorf("load textures lump: %w", err)
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if len(data) >= 4 {
+		t.NumTextures = int32(binary.LittleEndian.Uint32(data[0:4]))
+	}
+	t.TextureData = data
+	return nil
+}
+
 func (t *Tree) loadVertexes(r *Reader) error {
 	data, err := r.ReadLump(&t.Header.Lumps[LumpVertexes])
 	if err != nil {
@@ -189,6 +214,34 @@ func (t *Tree) loadVertexes(r *Reader) error {
 				Float32frombits(binary.LittleEndian.Uint32(data[o+8:])),
 			},
 		}
+	}
+	return nil
+}
+
+func (t *Tree) loadTexinfo(r *Reader) error {
+	data, err := r.ReadLump(&t.Header.Lumps[LumpTexinfo])
+	if err != nil {
+		return fmt.Errorf("load texinfo lump: %w", err)
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if len(data)%40 != 0 {
+		return fmt.Errorf("load texinfo: funny lump size %d", len(data))
+	}
+
+	t.Texinfo = make([]Texinfo, len(data)/40)
+	for i := range t.Texinfo {
+		o := i * 40
+		var ti Texinfo
+		for j := 0; j < 2; j++ {
+			for k := 0; k < 4; k++ {
+				ti.Vecs[j][k] = Float32frombits(binary.LittleEndian.Uint32(data[o+j*16+k*4:]))
+			}
+		}
+		ti.Miptex = int32(binary.LittleEndian.Uint32(data[o+32:]))
+		ti.Flags = int32(binary.LittleEndian.Uint32(data[o+36:]))
+		t.Texinfo[i] = ti
 	}
 	return nil
 }

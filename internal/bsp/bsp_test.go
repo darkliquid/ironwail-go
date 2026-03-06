@@ -37,8 +37,17 @@ func TestLoadTreeFromPak0(t *testing.T) {
 	if len(tree.Planes) == 0 {
 		t.Fatal("planes not loaded")
 	}
+	if len(tree.Texinfo) == 0 {
+		t.Fatal("texinfo not loaded")
+	}
 	if len(tree.Vertexes) == 0 {
 		t.Fatal("vertexes not loaded")
+	}
+	if len(tree.TextureData) == 0 {
+		t.Fatal("texture data not loaded")
+	}
+	if tree.NumTextures <= 0 {
+		t.Fatalf("num textures = %d, want > 0", tree.NumTextures)
 	}
 	if len(tree.Edges) == 0 {
 		t.Fatal("edges not loaded")

@@ -5,12 +5,14 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"unsafe"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/image"
 )
 
 const (
@@ -22,19 +24,24 @@ layout(location = 3) in vec3 aNormal;
 
 uniform mat4 uViewProjection;
 
+out vec2 vTexCoord;
 out vec3 vNormal;
 out vec3 vWorldPos;
 
 void main() {
+	vTexCoord = aTexCoord;
     vNormal = aNormal;
     vWorldPos = aPosition;
     gl_Position = uViewProjection * vec4(aPosition, 1.0);
 }`
 
 	worldFragmentShaderGL = `#version 410 core
+in vec2 vTexCoord;
 in vec3 vNormal;
 in vec3 vWorldPos;
 out vec4 fragColor;
+
+uniform sampler2D uTexture;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -45,8 +52,8 @@ void main() {
     float diffuse = max(dot(n, lightDir), 0.0);
     float ambient = 0.35;
     float shade = ambient + diffuse * 0.65;
-    vec3 base = vec3(0.72, 0.74, 0.78);
-    fragColor = vec4(base * shade, 1.0);
+	vec4 base = texture(uTexture, vTexCoord);
+	fragColor = vec4(base.rgb * shade, base.a);
 }`
 )
 
@@ -81,7 +88,64 @@ func (r *Renderer) ensureWorldProgram() error {
 	program := createProgram(vs, fs)
 	r.worldProgram = program
 	r.worldVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
+	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
 	return nil
+}
+
+func uploadWorldTextureRGBA(width, height int, rgba []byte) uint32 {
+	var tex uint32
+	gl.GenTextures(1, &tex)
+	gl.BindTexture(gl.TEXTURE_2D, tex)
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+	return tex
+}
+
+func (r *Renderer) ensureWorldFallbackTextureLocked() {
+	if r.worldFallbackTexture != 0 {
+		return
+	}
+	r.worldFallbackTexture = uploadWorldTextureRGBA(1, 1, []byte{200, 200, 200, 255})
+}
+
+func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) {
+	r.worldTextures = make(map[int32]uint32)
+	r.ensureWorldFallbackTextureLocked()
+
+	if tree == nil || len(tree.TextureData) < 4 {
+		return
+	}
+
+	palette := append([]byte(nil), r.palette...)
+	count := int(binary.LittleEndian.Uint32(tree.TextureData[:4]))
+	if count <= 0 || len(tree.TextureData) < 4+count*4 {
+		return
+	}
+
+	for i := 0; i < count; i++ {
+		offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[4+i*4:])))
+		if offset <= 0 || offset >= len(tree.TextureData) {
+			continue
+		}
+		miptex, err := image.ParseMipTex(tree.TextureData[offset:])
+		if err != nil {
+			slog.Debug("OpenGL world texture parse failed", "index", i, "error", err)
+			continue
+		}
+		pixels, width, height, err := miptex.MipLevel(0)
+		if err != nil || width <= 0 || height <= 0 {
+			continue
+		}
+		rgba := ConvertPaletteToRGBA(pixels, palette)
+		tex := uploadWorldTextureRGBA(width, height, rgba)
+		if tex != 0 {
+			r.worldTextures[int32(i)] = tex
+		}
+	}
 }
 
 // UploadWorld builds CPU geometry and uploads it to OpenGL buffers.
@@ -107,6 +171,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err := r.ensureWorldProgram(); err != nil {
 		return err
 	}
+	r.uploadWorldTexturesLocked(tree)
 
 	vertexData := flattenWorldVertices(renderData.Geometry.Vertices)
 
@@ -156,6 +221,16 @@ func (r *Renderer) renderWorld() {
 	indexCount := r.worldIndexCount
 	vp := r.viewMatrices.VP
 	vpUniform := r.worldVPUniform
+	textureUniform := r.worldTextureUniform
+	fallbackTexture := r.worldFallbackTexture
+	faces := []WorldFace(nil)
+	if r.worldData != nil && r.worldData.Geometry != nil {
+		faces = append(faces, r.worldData.Geometry.Faces...)
+	}
+	worldTextures := make(map[int32]uint32, len(r.worldTextures))
+	for k, v := range r.worldTextures {
+		worldTextures[k] = v
+	}
 	r.mu.RUnlock()
 
 	if program == 0 || vao == 0 || indexCount <= 0 {
@@ -169,9 +244,24 @@ func (r *Renderer) renderWorld() {
 
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+	gl.Uniform1i(textureUniform, 0)
 	gl.BindVertexArray(vao)
-	gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
+	gl.ActiveTexture(gl.TEXTURE0)
+	if len(faces) == 0 {
+		gl.BindTexture(gl.TEXTURE_2D, fallbackTexture)
+		gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
+	} else {
+		for _, face := range faces {
+			tex := worldTextures[face.TextureIndex]
+			if tex == 0 {
+				tex = fallbackTexture
+			}
+			gl.BindTexture(gl.TEXTURE_2D, tex)
+			gl.DrawElements(gl.TRIANGLES, int32(face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(face.FirstIndex*4)))
+		}
+	}
 	gl.BindVertexArray(0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 
 	gl.Enable(gl.BLEND)
@@ -211,7 +301,18 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteProgram(r.worldProgram)
 		r.worldProgram = 0
 	}
+	for textureIndex, tex := range r.worldTextures {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+		}
+		delete(r.worldTextures, textureIndex)
+	}
+	if r.worldFallbackTexture != 0 {
+		gl.DeleteTextures(1, &r.worldFallbackTexture)
+		r.worldFallbackTexture = 0
+	}
 	r.worldVPUniform = -1
+	r.worldTextureUniform = -1
 	r.worldIndexCount = 0
 	r.worldData = nil
 }
