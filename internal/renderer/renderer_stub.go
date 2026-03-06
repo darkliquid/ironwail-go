@@ -1,5 +1,5 @@
-//go:build !gogpu && !opengl
-// +build !gogpu,!opengl
+//go:build !gogpu && !opengl && !cgo
+// +build !gogpu,!opengl,!cgo
 
 package renderer
 

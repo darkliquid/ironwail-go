@@ -1,5 +1,5 @@
-//go:build opengl
-// +build opengl
+//go:build opengl || cgo
+// +build opengl cgo
 
 package renderer
 
@@ -85,15 +85,6 @@ type glDrawContext struct {
 func init() {
 	// OpenGL must run on main OS thread
 	runtime.LockOSThread()
-}
-
-type glDrawContext struct {
-	window   *glfw.Window
-	gamma    float32
-	viewport struct {
-		width  int
-		height int
-	}
 }
 
 func (dc *glDrawContext) Clear(r, g, b, a float32) {
@@ -539,14 +530,14 @@ func (r *Renderer) Run() error {
 		r.mu.RUnlock()
 
 		if drawCallback != nil {
-			dc := &glDrawContext{
+			dc := &DrawContext{gldc: &glDrawContext{
 				window: r.window,
 				gamma:  gamma,
 				viewport: struct {
 					width  int
 					height int
 				}{width, height},
-			}
+			}}
 			drawCallback(dc)
 		}
 

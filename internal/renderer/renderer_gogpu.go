@@ -1,5 +1,5 @@
-//go:build gogpu
-// +build gogpu
+//go:build gogpu && !cgo
+// +build gogpu,!cgo
 
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
 // It wraps the gogpu library to provide a Quake-specific rendering interface

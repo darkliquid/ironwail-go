@@ -1,5 +1,5 @@
-//go:build opengl
-// +build opengl
+//go:build opengl || cgo
+// +build opengl cgo
 
 package renderer
 

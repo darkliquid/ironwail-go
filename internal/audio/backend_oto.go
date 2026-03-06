@@ -1,5 +1,5 @@
-//go:build audio_oto && cgo
-// +build audio_oto,cgo
+//go:build audio_oto || cgo
+// +build audio_oto cgo
 
 package audio
 
