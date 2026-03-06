@@ -19,7 +19,7 @@ Well, apart from the obvious that this is Go, rather than C, I'm building this
 with the following changes:
 
 - WebGPU as the rendering backend (with OpenGL as a fallback)
-- SDL3 for input and audio
+- gogpu for input (keyboard/mouse), audio currently uses NullBackend (silent mode)
 - Dividing the codebase up into packages
 - Use Go stdlib for as much as possible, rather than custom implementations of
   things from the original C codebase

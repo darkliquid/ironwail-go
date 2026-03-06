@@ -1,2 +1,0 @@
-# github.com/ironwail/ironwail-go/cmd/ironwailgo
-cmd/ironwailgo/main.go:288:6: syntax error: unexpected name headlessGameLoop, expected (

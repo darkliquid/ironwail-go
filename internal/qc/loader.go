@@ -68,7 +68,7 @@ func (vm *VM) LoadProgs(r io.ReadSeeker) error {
 	}
 
 	vm.EntityFields = int(header.EntityFields)
-	vm.EdictSize = int(header.EntityFields)*4 + 92
+	vm.EdictSize = int(header.EntityFields)*4 + 28
 
 	return nil
 }

@@ -166,6 +166,22 @@ func (sb *SizeBuf) WriteString(s string) bool {
 	return sb.Write(data)
 }
 
+// WriteAngle writes an 8-bit angle value (0-255 representing 0-360 degrees).
+// Used in standard Quake protocol for entity angles and view angles.
+func (sb *SizeBuf) WriteAngle(angle float32) bool {
+	// Convert angle to 8-bit representation (0-255 for 0-360 degrees)
+	b := byte(int(angle*256.0/360.0) & 255)
+	return sb.WriteByte(b)
+}
+
+// WriteAngle16 writes a 16-bit angle value for greater precision.
+// Used in FitzQuake protocol extensions and RMQ when PRFL_SHORTANGLE is set.
+func (sb *SizeBuf) WriteAngle16(angle float32) bool {
+	// Convert angle to 16-bit representation
+	s := int16(int(angle*65536.0/360.0) & 65535)
+	return sb.WriteShort(s)
+}
+
 // BeginReading resets the read position to the start of the buffer.
 // Call this before parsing an incoming message.
 func (sb *SizeBuf) BeginReading() {
@@ -211,6 +227,24 @@ func (sb *SizeBuf) ReadFloat() (float32, bool) {
 	bits := binary.LittleEndian.Uint32(sb.Data[sb.ReadCount:])
 	sb.ReadCount += 4
 	return math.Float32frombits(bits), true
+}
+
+// ReadAngle reads an 8-bit angle value and converts to degrees (0-360).
+func (sb *SizeBuf) ReadAngle() (float32, bool) {
+	b, ok := sb.ReadByte()
+	if !ok {
+		return 0, false
+	}
+	return float32(b) * 360.0 / 256.0, true
+}
+
+// ReadAngle16 reads a 16-bit angle value and converts to degrees (0-360).
+func (sb *SizeBuf) ReadAngle16() (float32, bool) {
+	s, ok := sb.ReadShort()
+	if !ok {
+		return 0, false
+	}
+	return float32(uint16(s)) * 360.0 / 65536.0, true
 }
 
 // ReadString reads a null-terminated string from the buffer.

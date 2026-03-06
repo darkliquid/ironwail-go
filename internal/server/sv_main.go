@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/fs"
@@ -142,30 +143,116 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	}
 	s.WorldTree = tree
 
+	if s.Static != nil {
+		keep := s.Static.MaxClients + 1
+		if keep < 1 {
+			keep = 1
+		}
+		if keep < len(s.Edicts) {
+			for i := keep; i < len(s.Edicts); i++ {
+				s.Edicts[i] = nil
+			}
+			s.Edicts = s.Edicts[:keep]
+		}
+		s.NumEdicts = len(s.Edicts)
+	}
+
 	if s.Edicts[0] == nil {
 		s.Edicts[0] = &Edict{Vars: &EntVars{}, Scale: 16}
 	}
 	world := s.Edicts[0]
+	world.Free = false
+	world.Vars = &EntVars{}
 	world.Vars.ModelIndex = 1
 	world.Vars.Solid = float32(SolidBSP)
 	world.Vars.MoveType = float32(MoveTypePush)
+	world.Vars.ClassName = 0
+	world.Vars.Model = 0
 
 	s.ModelPrecache[0] = ""
 	s.ModelPrecache[1] = s.ModelName
 	for i := 1; i < len(tree.Models) && i+1 < len(s.ModelPrecache); i++ {
 		s.ModelPrecache[i+1] = string(bytes.TrimRight(LocalModels[i][:], "\x00"))
 	}
+	if s.FindModel("progs/player.mdl") == 0 {
+		for i := 1; i < len(s.ModelPrecache); i++ {
+			if s.ModelPrecache[i] != "" {
+				continue
+			}
+			s.ModelPrecache[i] = "progs/player.mdl"
+			break
+		}
+	}
 	s.StaticEntities = nil
 	s.StaticSounds = nil
 
+	if err := s.loadMapEntities(string(tree.Entities)); err != nil {
+		return fmt.Errorf("parse map entities %q: %w", s.ModelName, err)
+	}
+	if s.QCVM != nil {
+		if world.Vars.Model == 0 {
+			world.Vars.Model = s.QCVM.AllocString(s.ModelName)
+		}
+		if world.Vars.ClassName == 0 {
+			world.Vars.ClassName = s.QCVM.AllocString("worldspawn")
+		}
+	}
+
 	s.ClearWorld()
 	s.LinkEdict(world, false)
+	s.syncQCVMState()
 
 	s.Active = true
 	s.State = ServerStateActive
 
 	slog.Info("server spawned map start", "map", mapName)
 
+	return nil
+}
+
+func (s *Server) loadMapEntities(raw string) error {
+	if strings.Trim(raw, " \t\r\n\x00") == "" {
+		return nil
+	}
+	maxClients := 0
+	if s.Static != nil {
+		maxClients = s.Static.MaxClients
+	}
+	em := &EntityManager{
+		edicts:     s.Edicts,
+		vm:         s.QCVM,
+		maxEdicts:  s.MaxEdicts,
+		numEdicts:  s.NumEdicts,
+		maxClients: maxClients,
+		freeTime:   make([]float32, max(s.MaxEdicts, len(s.Edicts))),
+	}
+
+	remaining := raw
+	for entIndex := 0; ; entIndex++ {
+		remaining = strings.TrimLeft(remaining, " \t\r\n\x00")
+		if remaining == "" {
+			break
+		}
+
+		entNum := entIndex
+		if entIndex > 0 {
+			ent := s.AllocEdict()
+			if ent == nil {
+				return fmt.Errorf("no free edict for map entity %d", entIndex)
+			}
+			entNum = s.NumForEdict(ent)
+			em.edicts = s.Edicts
+			em.numEdicts = s.NumEdicts
+		}
+
+		next, err := em.ED_ParseEdict(remaining, entNum)
+		if err != nil {
+			return err
+		}
+		remaining = next
+	}
+
+	s.NumEdicts = len(s.Edicts)
 	return nil
 }
 
@@ -656,7 +743,7 @@ func (s *Server) SendServerInfo(client *Client) {
 }
 
 func (s *Server) GetString(idx int32) string {
-	if idx <= 0 {
+	if idx == 0 {
 		return ""
 	}
 	if s.QCVM == nil {

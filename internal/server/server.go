@@ -3,6 +3,8 @@ package server
 import (
 	"errors"
 	"math"
+	"reflect"
+	"strconv"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -104,6 +106,218 @@ type AreaNode struct {
 	SolidEdicts   Edict
 }
 
+func syncEdictToQCVM(vm *qc.VM, entNum int, ent *Edict) {
+	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
+		return
+	}
+	fieldOffsets := qcFieldOffsets(vm)
+	syncEntVarsToQC(vm, entNum, ent.Vars, fieldOffsets)
+	if ent.Free {
+		if modelIndexOfs, ok := fieldOffsets[normalizeFieldName("ModelIndex")]; ok {
+			vm.SetEFloat(entNum, modelIndexOfs, 0)
+		}
+	}
+}
+
+func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
+	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
+		return
+	}
+	fieldOffsets := qcFieldOffsets(vm)
+	syncEntVarsFromQC(vm, entNum, ent.Vars, fieldOffsets)
+}
+
+func qcFieldOffsets(vm *qc.VM) map[string]int {
+	offsets := make(map[string]int, len(defaultEntFieldOffsets)+len(vm.FieldDefs))
+	for key, ofs := range defaultEntFieldOffsets {
+		offsets[key] = ofs
+	}
+	for _, def := range vm.FieldDefs {
+		name := vm.GetString(def.Name)
+		if name == "" {
+			continue
+		}
+		offsets[normalizeFieldName(name)] = int(def.Ofs)
+	}
+	return offsets
+}
+
+var defaultEntFieldOffsets = map[string]int{
+	normalizeFieldName("ModelIndex"):   qc.EntFieldModelIndex,
+	normalizeFieldName("AbsMin"):       qc.EntFieldAbsMin,
+	normalizeFieldName("AbsMax"):       qc.EntFieldAbsMax,
+	normalizeFieldName("LTime"):        qc.EntFieldLTime,
+	normalizeFieldName("MoveType"):     qc.EntFieldMoveType,
+	normalizeFieldName("Solid"):        qc.EntFieldSolid,
+	normalizeFieldName("Origin"):       qc.EntFieldOrigin,
+	normalizeFieldName("OldOrigin"):    qc.EntFieldOldOrigin,
+	normalizeFieldName("Velocity"):     qc.EntFieldVelocity,
+	normalizeFieldName("Angles"):       qc.EntFieldAngles,
+	normalizeFieldName("AVelocity"):    qc.EntFieldAVelocity,
+	normalizeFieldName("PunchAngle"):   qc.EntFieldPunchAngle,
+	normalizeFieldName("ClassName"):    qc.EntFieldClassName,
+	normalizeFieldName("Model"):        qc.EntFieldModel,
+	normalizeFieldName("Frame"):        qc.EntFieldFrame,
+	normalizeFieldName("Skin"):         qc.EntFieldSkin,
+	normalizeFieldName("Effects"):      qc.EntFieldEffects,
+	normalizeFieldName("Mins"):         qc.EntFieldMins,
+	normalizeFieldName("Maxs"):         qc.EntFieldMaxs,
+	normalizeFieldName("Size"):         qc.EntFieldSize,
+	normalizeFieldName("Touch"):        qc.EntFieldTouch,
+	normalizeFieldName("Use"):          qc.EntFieldUse,
+	normalizeFieldName("Think"):        qc.EntFieldThink,
+	normalizeFieldName("Blocked"):      qc.EntFieldBlocked,
+	normalizeFieldName("NextThink"):    qc.EntFieldNextThink,
+	normalizeFieldName("GroundEntity"): qc.EntFieldGroundEnt,
+	normalizeFieldName("Health"):       qc.EntFieldHealth,
+	normalizeFieldName("Frags"):        qc.EntFieldFrags,
+	normalizeFieldName("Weapon"):       qc.EntFieldWeapon,
+	normalizeFieldName("WeaponModel"):  qc.EntFieldWeaponModel,
+	normalizeFieldName("WeaponFrame"):  qc.EntFieldWeaponFrame,
+	normalizeFieldName("CurrentAmmo"):  qc.EntFieldCurrentAmmo,
+	normalizeFieldName("AmmoShells"):   qc.EntFieldAmmoShells,
+	normalizeFieldName("AmmoNails"):    qc.EntFieldAmmoNails,
+	normalizeFieldName("AmmoRockets"):  qc.EntFieldAmmoRockets,
+	normalizeFieldName("AmmoCells"):    qc.EntFieldAmmoCells,
+	normalizeFieldName("Items"):        qc.EntFieldItems,
+	normalizeFieldName("TakeDamage"):   qc.EntFieldTakeDamage,
+	normalizeFieldName("Chain"):        qc.EntFieldChain,
+	normalizeFieldName("DeadFlag"):     qc.EntFieldDeadFlag,
+	normalizeFieldName("ViewOfs"):      qc.EntFieldViewOfs,
+	normalizeFieldName("Button0"):      qc.EntFieldButton0,
+	normalizeFieldName("Button1"):      qc.EntFieldButton1,
+	normalizeFieldName("Button2"):      qc.EntFieldButton2,
+	normalizeFieldName("Impulse"):      qc.EntFieldImpulse,
+	normalizeFieldName("FixAngle"):     qc.EntFieldFixAngle,
+	normalizeFieldName("VAngle"):       qc.EntFieldVAngle,
+	normalizeFieldName("IdealPitch"):   qc.EntFieldIdealPitch,
+	normalizeFieldName("NetName"):      qc.EntFieldNetName,
+	normalizeFieldName("Enemy"):        qc.EntFieldEnemy,
+	normalizeFieldName("Flags"):        qc.EntFieldFlags,
+	normalizeFieldName("Colormap"):     qc.EntFieldColormap,
+	normalizeFieldName("Team"):         qc.EntFieldTeam,
+	normalizeFieldName("MaxHealth"):    qc.EntFieldMaxHealth,
+	normalizeFieldName("TeleportTime"): qc.EntFieldTeleportTime,
+	normalizeFieldName("ArmorType"):    qc.EntFieldArmorType,
+	normalizeFieldName("ArmorValue"):   qc.EntFieldArmorValue,
+	normalizeFieldName("WaterLevel"):   qc.EntFieldWaterLevel,
+	normalizeFieldName("WaterType"):    qc.EntFieldWaterType,
+	normalizeFieldName("IdealYaw"):     qc.EntFieldIdealYaw,
+	normalizeFieldName("YawSpeed"):     qc.EntFieldYawSpeed,
+	normalizeFieldName("AimEnt"):       qc.EntFieldAimEnt,
+	normalizeFieldName("GoalEntity"):   qc.EntFieldGoalEntity,
+	normalizeFieldName("SpawnFlags"):   qc.EntFieldSpawnFlags,
+	normalizeFieldName("Target"):       qc.EntFieldTarget,
+	normalizeFieldName("TargetName"):   qc.EntFieldTargetName,
+	normalizeFieldName("DmgTake"):      qc.EntFieldDmgTake,
+	normalizeFieldName("DmgSave"):      qc.EntFieldDmgSave,
+	normalizeFieldName("DmgInflictor"): qc.EntFieldDmgInflictor,
+	normalizeFieldName("Owner"):        qc.EntFieldOwner,
+	normalizeFieldName("MoveDir"):      qc.EntFieldMoveDir,
+	normalizeFieldName("Message"):      qc.EntFieldMessage,
+	normalizeFieldName("Sounds"):       qc.EntFieldSounds,
+	normalizeFieldName("Noise"):        qc.EntFieldNoise,
+	normalizeFieldName("Noise1"):       qc.EntFieldNoise1,
+	normalizeFieldName("Noise2"):       qc.EntFieldNoise2,
+	normalizeFieldName("Noise3"):       qc.EntFieldNoise3,
+}
+
+func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[string]int) {
+	if vm == nil || vars == nil {
+		return
+	}
+	rv := reflect.ValueOf(vars).Elem()
+	rt := rv.Type()
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		ofs, ok := fieldOffsets[normalizeFieldName(field.Name)]
+		if !ok {
+			continue
+		}
+		value := rv.Field(i)
+		switch value.Kind() {
+		case reflect.Float32:
+			vm.SetEFloat(entNum, ofs, float32(value.Float()))
+		case reflect.Int32:
+			vm.SetEInt(entNum, ofs, int32(value.Int()))
+		case reflect.Array:
+			if value.Len() != 3 || value.Type().Elem().Kind() != reflect.Float32 {
+				continue
+			}
+			vm.SetEVector(entNum, ofs, [3]float32{
+				float32(value.Index(0).Float()),
+				float32(value.Index(1).Float()),
+				float32(value.Index(2).Float()),
+			})
+		}
+	}
+}
+
+func syncEntVarsFromQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[string]int) {
+	if vm == nil || vars == nil {
+		return
+	}
+	rv := reflect.ValueOf(vars).Elem()
+	rt := rv.Type()
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		ofs, ok := fieldOffsets[normalizeFieldName(field.Name)]
+		if !ok {
+			continue
+		}
+		value := rv.Field(i)
+		switch value.Kind() {
+		case reflect.Float32:
+			value.SetFloat(float64(vm.EFloat(entNum, ofs)))
+		case reflect.Int32:
+			value.SetInt(int64(vm.EInt(entNum, ofs)))
+		case reflect.Array:
+			if value.Len() != 3 || value.Type().Elem().Kind() != reflect.Float32 {
+				continue
+			}
+			vec := vm.EVector(entNum, ofs)
+			value.Index(0).SetFloat(float64(vec[0]))
+			value.Index(1).SetFloat(float64(vec[1]))
+			value.Index(2).SetFloat(float64(vec[2]))
+		}
+	}
+}
+
+func (s *Server) ensureQCVMEdictStorage() {
+	if s.QCVM == nil || s.QCVM.EdictSize <= 0 {
+		return
+	}
+	maxEdicts := s.MaxEdicts
+	if maxEdicts < s.NumEdicts {
+		maxEdicts = s.NumEdicts
+	}
+	if maxEdicts <= 0 {
+		maxEdicts = s.NumEdicts
+	}
+	if s.QCVM.MaxEdicts < maxEdicts {
+		s.QCVM.MaxEdicts = maxEdicts
+	}
+	needed := s.QCVM.EdictSize * s.QCVM.MaxEdicts
+	if len(s.QCVM.Edicts) < needed {
+		s.QCVM.Edicts = make([]byte, needed)
+	}
+	if s.QCVM.NumEdicts < s.NumEdicts {
+		s.QCVM.NumEdicts = s.NumEdicts
+	}
+}
+
+func (s *Server) syncQCVMState() {
+	if s.QCVM == nil {
+		return
+	}
+	s.ensureQCVMEdictStorage()
+	s.QCVM.SetGlobal("world", 0)
+	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
+	for entNum := 0; entNum < s.NumEdicts; entNum++ {
+		syncEdictToQCVM(s.QCVM, entNum, s.EdictNum(entNum))
+	}
+}
+
 // NewServer creates a new server instance.
 func NewServer() *Server {
 	s := &Server{
@@ -170,7 +384,11 @@ func NewServer() *Server {
 				return []*MessageBuffer{s.Datagram}
 			}
 		case 1:
-			if client := clientForEntNum(int(vm.GInt(qc.OFSMsgEntity))); client != nil && client.Message != nil {
+			msgEntityOfs := vm.FindGlobal("msg_entity")
+			if msgEntityOfs < 0 {
+				msgEntityOfs = qc.OFSMsgEntity
+			}
+			if client := clientForEntNum(int(vm.GInt(msgEntityOfs))); client != nil && client.Message != nil {
 				return []*MessageBuffer{client.Message}
 			}
 		case 2, 3:
@@ -187,25 +405,7 @@ func NewServer() *Server {
 		}
 		return nil
 	}
-	syncEntityToVM := func(vm *qc.VM, entNum int, ent *Edict) {
-		if vm == nil || ent == nil || ent.Vars == nil || entNum <= 0 || entNum >= vm.NumEdicts {
-			return
-		}
-		vm.SetEFloat(entNum, qc.EntFieldModelIndex, ent.Vars.ModelIndex)
-		vm.SetEInt(entNum, qc.EntFieldModel, ent.Vars.Model)
-		vm.SetEVector(entNum, qc.EntFieldOrigin, ent.Vars.Origin)
-		vm.SetEVector(entNum, qc.EntFieldAngles, ent.Vars.Angles)
-		vm.SetEVector(entNum, qc.EntFieldMins, ent.Vars.Mins)
-		vm.SetEVector(entNum, qc.EntFieldMaxs, ent.Vars.Maxs)
-		vm.SetEVector(entNum, qc.EntFieldSize, ent.Vars.Size)
-		vm.SetEVector(entNum, qc.EntFieldAbsMin, ent.Vars.AbsMin)
-		vm.SetEVector(entNum, qc.EntFieldAbsMax, ent.Vars.AbsMax)
-		vm.SetEFloat(entNum, qc.EntFieldFlags, ent.Vars.Flags)
-		vm.SetEFloat(entNum, qc.EntFieldGroundEnt, float32(ent.Vars.GroundEntity))
-		vm.SetEFloat(entNum, qc.EntFieldIdealYaw, ent.Vars.IdealYaw)
-	}
-
-	qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{
+	qc.RegisterServerHooks(qc.AdaptServerBuiltinHooks(qc.ServerBuiltinHooks{
 		Traceline: func(vm *qc.VM, start, end [3]float32, noMonsters bool, passEnt int) qc.BuiltinTraceResult {
 			moveType := MoveType(MoveNormal)
 			if noMonsters {
@@ -449,7 +649,7 @@ func NewServer() *Server {
 					e.Vars.Maxs[2] - e.Vars.Mins[2],
 				}
 				s.LinkEdict(e, false)
-				syncEntityToVM(vm, entNum, e)
+				syncEdictToQCVM(vm, entNum, e)
 			}
 		},
 		PrecacheSound: func(vm *qc.VM, sample string) {
@@ -573,7 +773,14 @@ func NewServer() *Server {
 					continue
 				}
 				for i := 0; i < len(client.SpawnParms); i++ {
-					vm.SetGFloat(qc.OFSParmStart+i, client.SpawnParms[i])
+					parmOfs := vm.FindGlobal("parm" + strconv.Itoa(i+1))
+					if parmOfs >= 0 {
+						vm.SetGFloat(parmOfs, client.SpawnParms[i])
+						continue
+					}
+					if qc.OFSParmStart+i < len(vm.Globals) {
+						vm.SetGFloat(qc.OFSParmStart+i, client.SpawnParms[i])
+					}
 				}
 				return
 			}
@@ -637,7 +844,7 @@ func NewServer() *Server {
 				return
 			}
 			s.MoveToGoal(ent, dist)
-			syncEntityToVM(vm, entNum, ent)
+			syncEdictToQCVM(vm, entNum, ent)
 		},
 		ChangeYaw: func(vm *qc.VM) {
 			entNum := int(vm.GInt(qc.OFSSelf))
@@ -646,9 +853,9 @@ func NewServer() *Server {
 				return
 			}
 			s.changeYaw(ent)
-			syncEntityToVM(vm, entNum, ent)
+			syncEdictToQCVM(vm, entNum, ent)
 		},
-	})
+	}))
 	return s
 }
 
@@ -657,6 +864,8 @@ func (s *Server) AllocEdict() *Edict {
 	for i, e := range s.Edicts {
 		if e.Free {
 			s.NumEdicts = max(s.NumEdicts, i+1)
+			s.ensureQCVMEdictStorage()
+			syncEdictToQCVM(s.QCVM, i, e)
 			return e
 		}
 	}
@@ -668,6 +877,8 @@ func (s *Server) AllocEdict() *Edict {
 	e := &Edict{Vars: &EntVars{}}
 	s.Edicts = append(s.Edicts, e)
 	s.NumEdicts = len(s.Edicts)
+	s.ensureQCVMEdictStorage()
+	syncEdictToQCVM(s.QCVM, s.NumEdicts-1, e)
 	return e
 }
 

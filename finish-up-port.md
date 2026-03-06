@@ -111,6 +111,22 @@ If you want, I can turn this into a concrete “milestone-by-milestone implement
 
 **Goal:** complete startup from binary → server spawn → map loaded.
 
+### 2026-03-06 ordered-slice status
+
+- [x] Slice 1 complete: executable startup now accepts canonical `+map start` launch flow.
+- [x] Slice 1 complete: positional startup map args still work as a compatibility fallback.
+- [x] Slice 1 complete: real-asset host regression proves `CmdMap("start")` reaches `caActive` with signon `4`.
+- [x] Slice 2 groundwork complete: `SpawnServer("start")` now parses BSP entity lumps into server/QC state and preserves dynamic QC string fields.
+- [x] Slice 2 groundwork complete: real-assets startup regression now verifies initialized `worldspawn` metadata, not only client activation.
+- [x] Slice 2 follow-up complete: local `spawn` now uses parsed start spots and real player-edict initialization instead of a signon-only placeholder.
+- [x] Slice 2 follow-up complete: loopback signon ordering now enforces `prespawn -> spawn -> begin` server-side.
+- [x] Slice 2 follow-up complete: stable local `begin` finalization now completes signon to done and immediately transitions into regular per-frame loopback datagrams.
+- [x] Milestone 2 complete for stable boot-to-map startup with real assets.
+
+### Milestone 2 carryover into Milestone 3
+
+- Direct forced execution of real-progs `PutClientInServer` currently panics due VM offset mismatches in QC hook paths; this is now tracked as a Milestone 3 runtime/protocol dependency.
+
 ### File-level tasks
 
 - `internal/host/init.go`

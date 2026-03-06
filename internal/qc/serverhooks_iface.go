@@ -75,14 +75,14 @@ type ServerHooks interface {
 	LightStyle(vm *VM, style int, value string)
 	Particle(vm *VM, org, dir [3]float32, color, count int)
 	LocalSound(vm *VM, entNum int, sample string)
-	WriteByte(vm *VM, dest, value int)
-	WriteChar(vm *VM, dest, value int)
-	WriteShort(vm *VM, dest, value int)
-	WriteLong(vm *VM, dest int, value int32)
-	WriteCoord(vm *VM, dest int, value float32)
-	WriteAngle(vm *VM, dest int, value float32)
-	WriteString(vm *VM, dest int, value string)
-	WriteEntity(vm *VM, dest, entNum int)
+	WriteByteTo(vm *VM, dest, value int)
+	WriteCharTo(vm *VM, dest, value int)
+	WriteShortTo(vm *VM, dest, value int)
+	WriteLongTo(vm *VM, dest int, value int32)
+	WriteCoordTo(vm *VM, dest int, value float32)
+	WriteAngleTo(vm *VM, dest int, value float32)
+	WriteStringTo(vm *VM, dest int, value string)
+	WriteEntityTo(vm *VM, dest, entNum int)
 
 	// Spawn parameter helpers for level transitions.
 	SetSpawnParms(vm *VM, entNum int)
@@ -94,6 +94,270 @@ type ServerHooks interface {
 	// MoveToGoal/ChangeYaw are AI helpers invoked by QuakeC.
 	MoveToGoal(vm *VM, dist float32)
 	ChangeYaw(vm *VM)
+}
+
+type serverBuiltinHooksAdapter struct {
+	hooks ServerBuiltinHooks
+}
+
+// AdaptServerBuiltinHooks wraps a legacy `ServerBuiltinHooks` table in the
+// typed `ServerHooks` interface so registration sites can migrate without
+// rewriting every callback at once.
+func AdaptServerBuiltinHooks(h ServerBuiltinHooks) ServerHooks {
+	return serverBuiltinHooksAdapter{hooks: h}
+}
+
+func (a serverBuiltinHooksAdapter) Traceline(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult {
+	if a.hooks.Traceline == nil {
+		return BuiltinTraceResult{}
+	}
+	return a.hooks.Traceline(vm, start, end, noMonsters, passEnt)
+}
+
+func (a serverBuiltinHooksAdapter) Spawn(vm *VM) (int, error) {
+	if a.hooks.Spawn == nil {
+		return 0, nil
+	}
+	return a.hooks.Spawn(vm)
+}
+
+func (a serverBuiltinHooksAdapter) Remove(vm *VM, entNum int) error {
+	if a.hooks.Remove == nil {
+		return nil
+	}
+	return a.hooks.Remove(vm, entNum)
+}
+
+func (a serverBuiltinHooksAdapter) Find(vm *VM, startEnt, fieldOfs int, match string) int {
+	if a.hooks.Find == nil {
+		return 0
+	}
+	return a.hooks.Find(vm, startEnt, fieldOfs, match)
+}
+
+func (a serverBuiltinHooksAdapter) FindFloat(vm *VM, startEnt, fieldOfs int, match float32) int {
+	if a.hooks.FindFloat == nil {
+		return 0
+	}
+	return a.hooks.FindFloat(vm, startEnt, fieldOfs, match)
+}
+
+func (a serverBuiltinHooksAdapter) FindRadius(vm *VM, org [3]float32, radius float32) int {
+	if a.hooks.FindRadius == nil {
+		return 0
+	}
+	return a.hooks.FindRadius(vm, org, radius)
+}
+
+func (a serverBuiltinHooksAdapter) CheckClient(vm *VM) int {
+	if a.hooks.CheckClient == nil {
+		return 0
+	}
+	return a.hooks.CheckClient(vm)
+}
+
+func (a serverBuiltinHooksAdapter) NextEnt(vm *VM, entNum int) int {
+	if a.hooks.NextEnt == nil {
+		return 0
+	}
+	return a.hooks.NextEnt(vm, entNum)
+}
+
+func (a serverBuiltinHooksAdapter) CheckBottom(vm *VM, entNum int) bool {
+	if a.hooks.CheckBottom == nil {
+		return false
+	}
+	return a.hooks.CheckBottom(vm, entNum)
+}
+
+func (a serverBuiltinHooksAdapter) PointContents(vm *VM, point [3]float32) int {
+	if a.hooks.PointContents == nil {
+		return 0
+	}
+	return a.hooks.PointContents(vm, point)
+}
+
+func (a serverBuiltinHooksAdapter) Aim(vm *VM, entNum int, missileSpeed float32) [3]float32 {
+	if a.hooks.Aim == nil {
+		return [3]float32{}
+	}
+	return a.hooks.Aim(vm, entNum, missileSpeed)
+}
+
+func (a serverBuiltinHooksAdapter) WalkMove(vm *VM, yaw, dist float32) bool {
+	if a.hooks.WalkMove == nil {
+		return false
+	}
+	return a.hooks.WalkMove(vm, yaw, dist)
+}
+
+func (a serverBuiltinHooksAdapter) DropToFloor(vm *VM) bool {
+	if a.hooks.DropToFloor == nil {
+		return false
+	}
+	return a.hooks.DropToFloor(vm)
+}
+
+func (a serverBuiltinHooksAdapter) SetOrigin(vm *VM, entNum int, org [3]float32) {
+	if a.hooks.SetOrigin != nil {
+		a.hooks.SetOrigin(vm, entNum, org)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) SetSize(vm *VM, entNum int, mins, maxs [3]float32) {
+	if a.hooks.SetSize != nil {
+		a.hooks.SetSize(vm, entNum, mins, maxs)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) SetModel(vm *VM, entNum int, modelName string) {
+	if a.hooks.SetModel != nil {
+		a.hooks.SetModel(vm, entNum, modelName)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) PrecacheSound(vm *VM, sample string) {
+	if a.hooks.PrecacheSound != nil {
+		a.hooks.PrecacheSound(vm, sample)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) PrecacheModel(vm *VM, modelName string) {
+	if a.hooks.PrecacheModel != nil {
+		a.hooks.PrecacheModel(vm, modelName)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) BroadcastPrint(vm *VM, msg string) {
+	if a.hooks.BroadcastPrint != nil {
+		a.hooks.BroadcastPrint(vm, msg)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) ClientPrint(vm *VM, entNum int, msg string) {
+	if a.hooks.ClientPrint != nil {
+		a.hooks.ClientPrint(vm, entNum, msg)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) DebugPrint(vm *VM, msg string) {
+	if a.hooks.DebugPrint != nil {
+		a.hooks.DebugPrint(vm, msg)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) CenterPrint(vm *VM, entNum int, msg string) {
+	if a.hooks.CenterPrint != nil {
+		a.hooks.CenterPrint(vm, entNum, msg)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) Sound(vm *VM, entNum, channel int, sample string, volume int, attenuation float32) {
+	if a.hooks.Sound != nil {
+		a.hooks.Sound(vm, entNum, channel, sample, volume, attenuation)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) StuffCmd(vm *VM, entNum int, cmd string) {
+	if a.hooks.StuffCmd != nil {
+		a.hooks.StuffCmd(vm, entNum, cmd)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) LightStyle(vm *VM, style int, value string) {
+	if a.hooks.LightStyle != nil {
+		a.hooks.LightStyle(vm, style, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) Particle(vm *VM, org, dir [3]float32, color, count int) {
+	if a.hooks.Particle != nil {
+		a.hooks.Particle(vm, org, dir, color, count)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) LocalSound(vm *VM, entNum int, sample string) {
+	if a.hooks.LocalSound != nil {
+		a.hooks.LocalSound(vm, entNum, sample)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteByteTo(vm *VM, dest, value int) {
+	if a.hooks.WriteByte != nil {
+		a.hooks.WriteByte(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteCharTo(vm *VM, dest, value int) {
+	if a.hooks.WriteChar != nil {
+		a.hooks.WriteChar(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteShortTo(vm *VM, dest, value int) {
+	if a.hooks.WriteShort != nil {
+		a.hooks.WriteShort(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteLongTo(vm *VM, dest int, value int32) {
+	if a.hooks.WriteLong != nil {
+		a.hooks.WriteLong(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteCoordTo(vm *VM, dest int, value float32) {
+	if a.hooks.WriteCoord != nil {
+		a.hooks.WriteCoord(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteAngleTo(vm *VM, dest int, value float32) {
+	if a.hooks.WriteAngle != nil {
+		a.hooks.WriteAngle(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteStringTo(vm *VM, dest int, value string) {
+	if a.hooks.WriteString != nil {
+		a.hooks.WriteString(vm, dest, value)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) WriteEntityTo(vm *VM, dest, entNum int) {
+	if a.hooks.WriteEntity != nil {
+		a.hooks.WriteEntity(vm, dest, entNum)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) SetSpawnParms(vm *VM, entNum int) {
+	if a.hooks.SetSpawnParms != nil {
+		a.hooks.SetSpawnParms(vm, entNum)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) MakeStatic(vm *VM, entNum int) {
+	if a.hooks.MakeStatic != nil {
+		a.hooks.MakeStatic(vm, entNum)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) AmbientSound(vm *VM, org [3]float32, sample string, volume int, attenuation float32) {
+	if a.hooks.AmbientSound != nil {
+		a.hooks.AmbientSound(vm, org, sample, volume, attenuation)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) MoveToGoal(vm *VM, dist float32) {
+	if a.hooks.MoveToGoal != nil {
+		a.hooks.MoveToGoal(vm, dist)
+	}
+}
+
+func (a serverBuiltinHooksAdapter) ChangeYaw(vm *VM) {
+	if a.hooks.ChangeYaw != nil {
+		a.hooks.ChangeYaw(vm)
+	}
 }
 
 // RegisterServerHooks adapts a ServerHooks implementation to the
@@ -146,14 +410,14 @@ func RegisterServerHooks(h ServerHooks) {
 			h.Particle(vm, org, dir, color, count)
 		},
 		LocalSound:    func(vm *VM, entNum int, sample string) { h.LocalSound(vm, entNum, sample) },
-		WriteByte:     func(vm *VM, dest, value int) { h.WriteByte(vm, dest, value) },
-		WriteChar:     func(vm *VM, dest, value int) { h.WriteChar(vm, dest, value) },
-		WriteShort:    func(vm *VM, dest, value int) { h.WriteShort(vm, dest, value) },
-		WriteLong:     func(vm *VM, dest int, value int32) { h.WriteLong(vm, dest, value) },
-		WriteCoord:    func(vm *VM, dest int, value float32) { h.WriteCoord(vm, dest, value) },
-		WriteAngle:    func(vm *VM, dest int, value float32) { h.WriteAngle(vm, dest, value) },
-		WriteString:   func(vm *VM, dest int, value string) { h.WriteString(vm, dest, value) },
-		WriteEntity:   func(vm *VM, dest, entNum int) { h.WriteEntity(vm, dest, entNum) },
+		WriteByte:     func(vm *VM, dest, value int) { h.WriteByteTo(vm, dest, value) },
+		WriteChar:     func(vm *VM, dest, value int) { h.WriteCharTo(vm, dest, value) },
+		WriteShort:    func(vm *VM, dest, value int) { h.WriteShortTo(vm, dest, value) },
+		WriteLong:     func(vm *VM, dest int, value int32) { h.WriteLongTo(vm, dest, value) },
+		WriteCoord:    func(vm *VM, dest int, value float32) { h.WriteCoordTo(vm, dest, value) },
+		WriteAngle:    func(vm *VM, dest int, value float32) { h.WriteAngleTo(vm, dest, value) },
+		WriteString:   func(vm *VM, dest int, value string) { h.WriteStringTo(vm, dest, value) },
+		WriteEntity:   func(vm *VM, dest, entNum int) { h.WriteEntityTo(vm, dest, entNum) },
 		SetSpawnParms: func(vm *VM, entNum int) { h.SetSpawnParms(vm, entNum) },
 		MakeStatic:    func(vm *VM, entNum int) { h.MakeStatic(vm, entNum) },
 		AmbientSound: func(vm *VM, org [3]float32, sample string, volume int, attenuation float32) {

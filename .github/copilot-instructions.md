@@ -17,7 +17,7 @@ THESE INSTRUCTIONS ARE MANDATORY AND MUST BE FOLLOWED AT ALL TIMES. DO NOT IGNOR
 
 ## Project Overview
 
-Ironwail Go is a pure-Go (no CGO) port of the [Ironwail Quake engine](https://github.com/andrei-drexler/ironwail). It targets full Quake gameplay parity using WebGPU or OpenGL for rendering and SDL3 for input/audio. The project is an in-progress port; many subsystems have stubs or partial implementations.
+Ironwail Go is a pure-Go (no CGO) port of the [Ironwail Quake engine](https://github.com/andrei-drexler/ironwail). It targets full Quake gameplay parity using WebGPU or OpenGL for rendering and gogpu for input. The project is an in-progress port; many subsystems have stubs or partial implementations.
 
 ## Build Commands
 
@@ -28,8 +28,8 @@ The project uses [mise](https://mise.jdx.dev) as its task runner. `CGO_ENABLED=0
 mise run build-gogpu       # WebGPU backend → ironwailgo-wgpu
 mise run build-gl          # OpenGL backend → ironwailgo-gl
 
-# Run directly (sdl3 required for real input)
-go run -tags=gogpu,sdl3 ./cmd/ironwailgo -basedir <quake_dir>
+# Run directly
+go run -tags=gogpu ./cmd/ironwailgo -basedir <quake_dir>
 
 # Code generation (required before first build)
 mise run go-generate       # or: go generate ./...
@@ -74,7 +74,7 @@ mise run test            # run unit tests
 mise run smoke-menu
 ```
 
-- **Build Tags:** use `-tags=gogpu,sdl3` for WebGPU+SDL3, `-tags=opengl,egl,sdl3` for OpenGL+SDL3. Without `sdl3` the input backend is a no-op (`internal/input/sdl3_stub.go`).
+- **Build Tags:** use `-tags=gogpu` for WebGPU backend, `-tags=opengl,egl` for OpenGL backend. Input is handled by gogpu's event system via `internal/renderer/input_backend_gogpu.go`. Audio uses NullBackend (silent mode) by default.
 - **Testing Conventions:** smoke tests look for deterministic log markers (e.g. "FS mounted", "QC loaded", "menu active"). Use `internal/testutil` and `cmd/wadgen` for asset-less tests.
 
 ## Project Conventions & Patterns
@@ -87,7 +87,7 @@ mise run smoke-menu
 
 - Task runner: `mise` (see `mise.toml`).
 - Rendering: WebGPU or OpenGL backends in `internal/renderer`.
-- Input/audio: SDL3 backends (`internal/input/sdl3_backend.go`, `internal/audio/backend_sdl3.go`) with stub fallbacks for headless tests.
+- Input/audio: gogpu input backend (`internal/renderer/input_backend_gogpu.go`) for keyboard/mouse, NullBackend for audio (silent mode). SDL3 backends remain available via build tag but are not used by default.
 - Assets: many tests require a `QUAKE_DIR` with original Quake assets; `cmd/wadgen` can synthesize WADs for asset-free tests.
 
 ## Security & Sensitive Areas
@@ -99,7 +99,7 @@ mise run smoke-menu
 
 - [cmd/ironwailgo/main.go](cmd/ironwailgo/main.go)
 - [internal/renderer/renderer_gogpu.go](internal/renderer/renderer_gogpu.go)
-- [internal/input/sdl3_backend.go](internal/input/sdl3_backend.go)
+- [internal/renderer/input_backend_gogpu.go](internal/renderer/input_backend_gogpu.go)
 - [pkg/types/types.go](pkg/types/types.go)
 - [cmd/wadgen/main.go](cmd/wadgen/main.go)
 

@@ -173,6 +173,28 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			}
 		case inet.SVCCenterPrint:
 			p.Client.CenterPrint = msg.ReadString()
+		case inet.SVCUpdateName:
+			if err := p.parseUpdateName(msg); err != nil {
+				return err
+			}
+		case inet.SVCStopSound:
+			if err := p.parseStopSound(msg); err != nil {
+				return err
+			}
+		case inet.SVCUpdateColors:
+			if err := p.parseUpdateColors(msg); err != nil {
+				return err
+			}
+		case inet.SVCKillMonster:
+			p.Client.KillCount++
+		case inet.SVCFoundSecret:
+			p.Client.SecretCount++
+		case inet.SVCSkyBox:
+			p.Client.SkyboxName = msg.ReadString()
+		case inet.SVCFog:
+			if err := p.parseFog(msg); err != nil {
+				return err
+			}
 		case inet.SVCIntermission:
 			p.Client.Intermission = 1
 			p.Client.CompletedTime = p.Client.Time
@@ -338,6 +360,77 @@ func (p *Parser) parseSetPause(msg *common.SizeBuf) error {
 		return fmt.Errorf("svc_setpause: missing flag")
 	}
 	p.Client.Paused = v != 0
+	return nil
+}
+
+func (p *Parser) parseUpdateName(msg *common.SizeBuf) error {
+	idx, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatename: missing player index")
+	}
+	name := msg.ReadString()
+	if p.Client.PlayerNames == nil {
+		p.Client.PlayerNames = make(map[int]string)
+	}
+	p.Client.PlayerNames[int(idx)] = name
+	return nil
+}
+
+func (p *Parser) parseStopSound(msg *common.SizeBuf) error {
+	entity, ok := msg.ReadShort()
+	if !ok {
+		return fmt.Errorf("svc_stopsound: missing entity")
+	}
+	channel, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_stopsound: missing channel")
+	}
+	_ = entity
+	_ = channel
+	// TODO: dispatch to audio system to stop sound
+	return nil
+}
+
+func (p *Parser) parseUpdateColors(msg *common.SizeBuf) error {
+	idx, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatecolors: missing player index")
+	}
+	colors, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatecolors: missing colors")
+	}
+	if p.Client.PlayerColors == nil {
+		p.Client.PlayerColors = make(map[int]byte)
+	}
+	p.Client.PlayerColors[int(idx)] = colors
+	return nil
+}
+
+func (p *Parser) parseFog(msg *common.SizeBuf) error {
+	density, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing density")
+	}
+	r, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing red")
+	}
+	g, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing green")
+	}
+	b, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing blue")
+	}
+	t, ok := msg.ReadFloat()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing time")
+	}
+	p.Client.FogDensity = density
+	p.Client.FogColor = [3]byte{r, g, b}
+	p.Client.FogTime = float32(t)
 	return nil
 }
 

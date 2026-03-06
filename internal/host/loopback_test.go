@@ -117,6 +117,9 @@ func TestLocalLoopbackClientRealSignonFlow(t *testing.T) {
 	if got := lc.State(); got != caConnected {
 		t.Fatalf("state after serverinfo = %v, want connected", got)
 	}
+	if err := lc.LocalSignonReply("begin"); err == nil {
+		t.Fatal("begin succeeded before spawn")
+	}
 
 	for _, step := range []struct {
 		cmd        string

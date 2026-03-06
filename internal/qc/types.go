@@ -279,9 +279,9 @@ const (
 // A, B, C are operands whose meaning depends on the opcode.
 type DStatement struct {
 	Op uint16 // Opcode
-	A  int16  // First operand
-	B  int16  // Second operand
-	C  int16  // Third operand (usually destination)
+	A  uint16 // First operand
+	B  uint16 // Second operand
+	C  uint16 // Third operand (usually destination)
 }
 
 // DDef represents a global or field definition in the progs file.

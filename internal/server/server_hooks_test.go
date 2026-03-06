@@ -22,7 +22,7 @@ func newServerTestVM(s *Server, maxEdicts int) *qc.VM {
 
 func TestServerHooksSpawnAndRemove(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -55,7 +55,7 @@ func TestServerHooksSpawnAndRemove(t *testing.T) {
 
 func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -129,7 +129,7 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 
 func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -185,7 +185,7 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 
 func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -205,7 +205,7 @@ func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 
 func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -238,7 +238,7 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 
 func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.Static = &ServerStatic{Clients: []*Client{{Active: true, Message: NewMessageBuffer(MaxDatagram)}}}
 
@@ -391,7 +391,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 
 func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 
 	self := s.AllocEdict()
@@ -452,7 +452,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 
 func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	clientMsg := NewMessageBuffer(MaxDatagram)
 	world := s.EdictNum(0)
@@ -535,7 +535,7 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 
 func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
 	s := NewServer()
-	defer qc.SetServerBuiltinHooks(qc.ServerBuiltinHooks{})
+	defer qc.RegisterServerHooks(nil)
 
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil && world.Vars != nil {

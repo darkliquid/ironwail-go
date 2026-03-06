@@ -23,11 +23,28 @@ import (
 
 var entVarsFieldIndex = buildEntVarsFieldIndex()
 
+var stringEntFieldNames = map[string]struct{}{
+	"classname":   {},
+	"message":     {},
+	"model":       {},
+	"netname":     {},
+	"noise":       {},
+	"noise1":      {},
+	"noise2":      {},
+	"noise3":      {},
+	"target":      {},
+	"targetname":  {},
+	"weaponmodel": {},
+}
+
 // EntityManager manages the entity pool for a Quake server.
 // It provides allocation, deallocation, and tracking of game entities.
 type EntityManager struct {
 	// edicts is the array of all entities
 	edicts []*Edict
+
+	// vm is used to resolve QuakeC field types when parsing entities.
+	vm *qc.VM
 
 	// maxEdicts is the maximum number of entities
 	maxEdicts int
@@ -429,6 +446,20 @@ func (em *EntityManager) ActiveCount() int {
 	return em.numEdicts - len(em.freeList)
 }
 
+func (em *EntityManager) fieldType(keyName string) (qc.EType, bool) {
+	if em == nil || em.vm == nil {
+		return 0, false
+	}
+	normalized := normalizeFieldName(keyName)
+	for _, def := range em.vm.FieldDefs {
+		if normalizeFieldName(em.vm.GetString(def.Name)) != normalized {
+			continue
+		}
+		return qc.EType(def.Type &^ qc.DefSaveGlobal), true
+	}
+	return 0, false
+}
+
 func buildEntVarsFieldIndex() map[string]int {
 	index := make(map[string]int)
 	entType := reflect.TypeOf(EntVars{})
@@ -504,6 +535,43 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value strin
 		}
 		rv.SetFloat(float64(f))
 	case reflect.Int32:
+		if em.vm != nil {
+			if _, ok := stringEntFieldNames[normalizeFieldName(keyName)]; ok {
+				rv.SetInt(int64(em.vm.AllocString(value)))
+				return nil
+			}
+		}
+		if fieldType, ok := em.fieldType(keyName); ok {
+			switch fieldType {
+			case qc.EvString:
+				if em.vm != nil {
+					rv.SetInt(int64(em.vm.AllocString(value)))
+					return nil
+				}
+			case qc.EvField:
+				if em.vm != nil {
+					if fieldOfs := em.vm.FindField(value); fieldOfs >= 0 {
+						rv.SetInt(int64(fieldOfs))
+						return nil
+					}
+				}
+				return nil
+			case qc.EvFunction:
+				if em.vm != nil {
+					if funcNum := em.vm.FindFunction(value); funcNum >= 0 {
+						rv.SetInt(int64(funcNum))
+						return nil
+					}
+				}
+				return nil
+			case qc.EvEntity, qc.EvPointer, qc.EvExtInteger:
+				if i, err := parseInt32(value); err == nil {
+					rv.SetInt(int64(i))
+					return nil
+				}
+				return nil
+			}
+		}
 		if i, err := parseInt32(value); err == nil {
 			rv.SetInt(int64(i))
 		} else {

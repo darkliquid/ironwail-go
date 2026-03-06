@@ -110,7 +110,7 @@ func initGameRenderer() error {
 	return nil
 }
 
-func initSubsystems(headless bool, basedir, gamedir string) error {
+func initSubsystems(headless bool, basedir, gamedir string, args []string) error {
 	// Initialize input system
 	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer
 	if err := gameInput.Init(); err != nil {
@@ -206,8 +206,9 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 
 	if err := gameHost.Init(&host.InitParams{
 		BaseDir:    basedir,
+		GameDir:    gamedir,
 		UserDir:    "",
-		Args:       []string{},
+		Args:       append([]string(nil), args...),
 		MaxClients: 1,
 	}, gameSubs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
@@ -289,6 +290,18 @@ func (gameCallbacks) UpdateScreen() {}
 
 func (gameCallbacks) UpdateAudio(_, _, _, _ [3]float32) {}
 
+func startupMapArg(args []string) string {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "+map" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	if len(args) > 0 && args[0] != "" && !strings.HasPrefix(args[0], "+") {
+		return args[0]
+	}
+	return ""
+}
+
 func main() {
 	// Logger initialization is handled in logger_*.go files based on build tags
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
@@ -316,17 +329,11 @@ func main() {
 
 	// Parse Quake-style +command arguments (e.g. +map start)
 	args := flag.Args()
-	mapArg := ""
-	for i := 0; i < len(args); i++ {
-		if args[i] == "+map" && i+1 < len(args) {
-			mapArg = args[i+1]
-			i++
-		}
-	}
+	mapArg := startupMapArg(args)
 
 	// Try to initialize with renderer, fall back to headless if it fails
 	headless := *headlessFlag
-	initErr := initSubsystems(headless, *baseDir, *gameDir)
+	initErr := initSubsystems(headless, *baseDir, *gameDir, args)
 	if initErr != nil && !headless {
 		// Check if error is related to renderer initialization
 		if isRendererError(initErr) {
@@ -335,7 +342,7 @@ func main() {
 			fmt.Println("Continuing with game loop (no rendering)...")
 			headless = true
 			// Re-initialize without renderer
-			if err := initSubsystems(true, *baseDir, *gameDir); err != nil {
+			if err := initSubsystems(true, *baseDir, *gameDir, args); err != nil {
 				log.Fatal("Initialization failed:", err)
 			}
 		} else {
@@ -355,6 +362,9 @@ func main() {
 			log.Printf("Failed to spawn map %s: %v", mapArg, err)
 		} else {
 			slog.Info("map spawn finished", "map", mapArg)
+			if gameClient != nil && gameClient.State == cl.StateActive && gameHost.SignOns() == 4 {
+				slog.Info("client active", "map", mapArg)
+			}
 		}
 	}
 
@@ -371,6 +381,20 @@ func main() {
 		// Set up renderer callbacks
 		gameRenderer.OnUpdate(func(dt float64) {
 			gameHost.Frame(dt, cb)
+
+			// Update camera from client state each frame
+			// This is the critical rendering path for M4: view setup
+			if gameClient != nil && gameRenderer != nil {
+				// Create camera state from client prediction
+				camera := renderer.ConvertClientStateToCamera(
+					gameClient.PredictedOrigin,
+					gameClient.ViewAngles,
+					96.0, // FitzQuake widescreen FOV
+				)
+				// Update renderer matrices (near=0.1, far=4096 for Quake world)
+				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
+			}
+
 			if gameParticles != nil && gameClient != nil {
 				oldTime := particleTime
 				particleTime += float32(dt)

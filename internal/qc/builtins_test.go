@@ -13,7 +13,7 @@ func newBuiltinsTestVM(maxEdicts int) *VM {
 	vm.MaxEdicts = maxEdicts
 	vm.NumEdicts = 1
 	vm.EntityFields = 128
-	vm.EdictSize = 92 + vm.EntityFields*4
+	vm.EdictSize = 28 + vm.EntityFields*4
 	vm.Edicts = make([]byte, vm.EdictSize*maxEdicts)
 	return vm
 }

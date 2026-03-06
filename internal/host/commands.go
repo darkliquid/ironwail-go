@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -95,6 +96,24 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdGive(args[0], args[1], subs)
 		}
 	}, "Give items/ammo")
+
+	// Demo commands
+	cmdsys.AddCommand("record", func(args []string) {
+		if len(args) > 0 {
+			h.CmdRecord(args[0], subs)
+		}
+	}, "Start recording a demo")
+	cmdsys.AddCommand("stop", func(args []string) {
+		h.CmdStop(subs)
+	}, "Stop recording a demo")
+	cmdsys.AddCommand("playdemo", func(args []string) {
+		if len(args) > 0 {
+			h.CmdPlaydemo(args[0], subs)
+		}
+	}, "Play a demo")
+	cmdsys.AddCommand("stopdemo", func(args []string) {
+		h.CmdStopdemo(subs)
+	}, "Stop demo playback")
 
 	// Menu commands
 	cmdsys.AddCommand("togglemenu", func(args []string) {
@@ -493,4 +512,127 @@ func (h *Host) CmdMenuQuit() {
 	// Switch to quit state
 	h.menu.ShowMenu()
 	// Note: The menu system handles quit confirmation internally
+}
+
+// Demo commands
+
+func (h *Host) CmdRecord(filename string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	// Check if already recording
+	if h.demoState != nil && h.demoState.Recording {
+		subs.Console.Print("Already recording a demo. Use 'stop' to end recording.\n")
+		return
+	}
+
+	// Check if playing back
+	if h.demoState != nil && h.demoState.Playback {
+		subs.Console.Print("Cannot record during demo playback.\n")
+		return
+	}
+
+	// Create demo state if needed
+	if h.demoState == nil {
+		h.demoState = &client.DemoState{
+			Speed:     1.0,
+			BaseSpeed: 1.0,
+		}
+	}
+
+	// Get CD track (default to 0)
+	// TODO: Get actual CD track from client if available
+	cdtrack := 0
+
+	// Start recording
+	if err := h.demoState.StartDemoRecording(filename, cdtrack); err != nil {
+		subs.Console.Print(fmt.Sprintf("Failed to start recording: %v\n", err))
+		return
+	}
+
+	subs.Console.Print(fmt.Sprintf("Recording demo to %s\n", h.demoState.Filename))
+}
+
+func (h *Host) CmdStop(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	if h.demoState == nil || !h.demoState.Recording {
+		subs.Console.Print("Not recording a demo.\n")
+		return
+	}
+
+	// TODO: Write disconnect message before stopping
+	// For now, just stop recording
+
+	if err := h.demoState.StopRecording(); err != nil {
+		subs.Console.Print(fmt.Sprintf("Error stopping demo: %v\n", err))
+		return
+	}
+
+	subs.Console.Print("Demo recording stopped.\n")
+}
+
+func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	// Check if already playing back
+	if h.demoState != nil && h.demoState.Playback {
+		subs.Console.Print("Already playing back a demo.\n")
+		return
+	}
+
+	// Check if recording
+	if h.demoState != nil && h.demoState.Recording {
+		subs.Console.Print("Cannot playback while recording.\n")
+		return
+	}
+
+	// Disconnect from any current server
+	if h.serverActive {
+		h.ShutdownServer(subs)
+	}
+	h.clientState = caDisconnected
+
+	// Create demo state if needed
+	if h.demoState == nil {
+		h.demoState = &client.DemoState{
+			Speed:     1.0,
+			BaseSpeed: 1.0,
+		}
+	}
+
+	// Start playback
+	if err := h.demoState.StartDemoPlayback(filename); err != nil {
+		subs.Console.Print(fmt.Sprintf("Failed to start playback: %v\n", err))
+		return
+	}
+
+	subs.Console.Print(fmt.Sprintf("Playing demo from %s\n", h.demoState.Filename))
+
+	// Set client state to connected for demo playback
+	h.clientState = caConnected
+}
+
+func (h *Host) CmdStopdemo(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	if h.demoState == nil || !h.demoState.Playback {
+		subs.Console.Print("Not playing back a demo.\n")
+		return
+	}
+
+	if err := h.demoState.StopPlayback(); err != nil {
+		subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
+		return
+	}
+
+	subs.Console.Print("Demo playback stopped.\n")
+	h.clientState = caDisconnected
 }

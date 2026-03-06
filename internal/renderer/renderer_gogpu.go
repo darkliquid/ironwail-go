@@ -47,11 +47,13 @@ package renderer
 import (
 	"fmt"
 	"log/slog"
+	"reflect"
 	"sync"
 
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/gogpu/gogpu/input"
+	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
 
@@ -295,6 +297,33 @@ type Renderer struct {
 	concharsData []byte
 	// charCache caches per-character 8×8 QPic objects extracted from concharsData.
 	charCache [256]*image.QPic
+
+	// Camera state and matrices for view/projection
+	// cameraState holds the current camera position and orientation.
+	cameraState CameraState
+	// viewMatrices caches computed view and projection matrices.
+	viewMatrices ViewMatrixData
+
+	// worldData holds GPU-side resources for BSP world rendering.
+	// Set via UploadWorld() when a map is loaded.
+	worldData *WorldRenderData
+
+	// GPU resources for world rendering
+	worldVertexBuffer  hal.Buffer
+	worldIndexBuffer   hal.Buffer
+	worldIndexCount    uint32
+	worldPipeline      hal.RenderPipeline
+	worldPipelineLayout hal.PipelineLayout
+	worldBindGroup     hal.BindGroup
+	worldShader        hal.ShaderModule
+	uniformBuffer      hal.Buffer
+	uniformBindGroup   hal.BindGroup
+	uniformBindGroupLayout hal.BindGroupLayout
+	textureBindGroupLayout hal.BindGroupLayout
+
+	// 1x1 white texture for fallback
+	whiteTexture       hal.Texture
+	whiteTextureView   hal.TextureView
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -702,12 +731,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 }
 
 // renderWorld draws the 3D world geometry (BSP surfaces).
-// Stub implementation - M4.3 will implement proper BSP rendering.
+// Implementation delegates to renderWorldInternal in world.go.
 func (dc *DrawContext) renderWorld(state *RenderFrameState) {
-	// TODO: Implement BSP world rendering (M4.3)
-	// For now, this is a stub that does nothing.
-	// The world will be rendered using vertex buffers and textures
-	// loaded from the BSP file.
+	dc.renderWorldInternal(state)
 }
 
 // renderEntities draws entity models (alias models, brush models).
@@ -780,4 +806,148 @@ func DefaultRenderFrameState() *RenderFrameState {
 		Draw2DOverlay: true,                           // Always draw 2D overlay
 		MenuActive:    true,                           // Menu is active at startup
 	}
+}
+
+// UpdateCamera updates the camera state and recomputes view/projection matrices.
+// This should be called once per frame with the current player position and orientation
+// from client prediction.
+func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.cameraState = camera
+
+	// Compute view matrix from camera state
+	r.viewMatrices.View = ComputeViewMatrix(camera)
+
+	// Compute projection matrix (aspect ratio from window size)
+	// Use a default aspect ratio if the app is not initialized
+	aspect := float32(16.0 / 9.0)
+	if r.app != nil {
+		w, h := r.app.Size()
+		if w > 0 && h > 0 {
+			aspect = float32(w) / float32(h)
+		}
+	}
+
+	r.viewMatrices.Projection = ComputeProjectionMatrix(camera.FOV, aspect, nearPlane, farPlane)
+
+	// Compute combined VP matrix
+	r.viewMatrices.VP = r.viewMatrices.Projection.Mul(r.viewMatrices.View)
+}
+
+// GetViewMatrix returns the currently cached view matrix.
+// Thread-safe read.
+func (r *Renderer) GetViewMatrix() gmath.Mat4 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.viewMatrices.View
+}
+
+// GetProjectionMatrix returns the currently cached projection matrix.
+// Thread-safe read.
+func (r *Renderer) GetProjectionMatrix() gmath.Mat4 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.viewMatrices.Projection
+}
+
+// GetViewProjectionMatrix returns the combined View × Projection matrix.
+// This is the matrix typically used in vertex shaders for world-to-NDC transformation.
+// Thread-safe read.
+func (r *Renderer) GetViewProjectionMatrix() gmath.Mat4 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.viewMatrices.VP
+}
+
+// GetCameraState returns the current camera state (position and orientation).
+// Thread-safe read. A copy is returned to prevent external modification.
+func (r *Renderer) GetCameraState() CameraState {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.cameraState
+}
+
+// getHALDevice returns the underlying HAL device from the gogpu renderer.
+// This uses reflection to access the private device field from gogpu.Renderer.
+// Returns nil if device is not available.
+func (r *Renderer) getHALDevice() hal.Device {
+	if r.app == nil {
+		return nil
+	}
+
+	// Safely use reflection to access gogpu internals
+	defer func() {
+		if recover() != nil {
+			return // Silently ignore reflection errors
+		}
+	}()
+
+	// Get the gogpu Renderer from the app using reflection
+	// gogpu.App has a private renderer field
+	appVal := reflect.ValueOf(r.app)
+	if appVal.IsNil() || appVal.Kind() != reflect.Ptr || appVal.Elem().Kind() != reflect.Struct {
+		return nil
+	}
+
+	rendererVal := appVal.Elem().FieldByName("renderer")
+	if !rendererVal.IsValid() {
+		return nil
+	}
+
+	// Get the device field from gogpu.Renderer
+	deviceVal := rendererVal.Elem().FieldByName("device")
+	if !deviceVal.IsValid() {
+		return nil
+	}
+
+	// Convert to hal.Device interface
+	device, ok := deviceVal.Interface().(hal.Device)
+	if !ok || device == nil {
+		return nil
+	}
+
+	return device
+}
+
+// getHALQueue returns the underlying HAL queue from the gogpu renderer.
+// This uses reflection to access the private queue field from gogpu.Renderer.
+// Returns nil if queue is not available.
+func (r *Renderer) getHALQueue() hal.Queue {
+	if r.app == nil {
+		return nil
+	}
+
+	// Safely use reflection to access gogpu internals
+	defer func() {
+		if recover() != nil {
+			return // Silently ignore reflection errors
+		}
+	}()
+
+	// Get the gogpu Renderer from the app using reflection
+	appVal := reflect.ValueOf(r.app)
+	if appVal.IsNil() || appVal.Kind() != reflect.Ptr || appVal.Elem().Kind() != reflect.Struct {
+		return nil
+	}
+
+	rendererVal := appVal.Elem().FieldByName("renderer")
+	if !rendererVal.IsValid() {
+		return nil
+	}
+
+	// Get the queue field from gogpu.Renderer
+	queueVal := rendererVal.Elem().FieldByName("queue")
+	if !queueVal.IsValid() {
+		return nil
+	}
+
+	// Convert to hal.Queue interface
+	queue, ok := queueVal.Interface().(hal.Queue)
+	if !ok || queue == nil {
+		return nil
+	}
+
+	return queue
 }
