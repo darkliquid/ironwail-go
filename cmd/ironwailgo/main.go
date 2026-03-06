@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/audio"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
@@ -176,10 +177,11 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	}
 
 	// Wire subsystems together through Host.Init
+	audioAdapter := audio.NewAudioAdapter(audio.NewSystem())
 	gameSubs = &host.Subsystems{
 		Files:  fileSys,
 		Server: gameServer,
-		Audio:  nil, // No audio in this demo
+		Audio:  audioAdapter,
 	}
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
 	host.SetupLoopbackClientServer(gameSubs, gameServer)

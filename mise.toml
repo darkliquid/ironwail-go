@@ -67,12 +67,12 @@ run = "QUAKE_DIR=${QUAKE_DIR} go test ./internal/testutil"
 [tasks.build-gogpu]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode"
-run = "go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
+run = "go build -tags gogpu,sdl3 -o ironwailgo-wgpu ./cmd/ironwailgo"
 
 [tasks.build-gl]
 depends = ["go-generate"]
 description = "Build binary in OpenGL mode"
-run = "go build -tags opengl,egl  -o ironwailgo-gl ./cmd/ironwailgo"
+run = "go build -tags opengl,egl,sdl3 -o ironwailgo-gl ./cmd/ironwailgo"
 
 [tasks.go-generate]
 hide = true

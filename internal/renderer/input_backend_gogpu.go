@@ -209,3 +209,5 @@ func (b *gogpuInputBackend) GetGamepadState(player int) iinput.GamepadState {
 func (b *gogpuInputBackend) IsGamepadConnected(player int) bool { return false }
 
 func (b *gogpuInputBackend) SetMouseGrab(grabbed bool) {}
+
+func (b *gogpuInputBackend) SetWindow(win interface{}) {}
