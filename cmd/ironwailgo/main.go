@@ -53,6 +53,13 @@ var (
 	gameInput *input.System
 	gameDraw  *draw.Manager
 	gameHUD   *hud.HUD
+
+	gameMouseGrabbed bool
+)
+
+const (
+	mouseYawScale   = 0.15
+	mousePitchScale = 0.12
 )
 
 type globalCommandBuffer struct{}
@@ -150,6 +157,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	gameInput.OnMenuKey = func(event input.KeyEvent) {
 		gameMenu.M_Key(event.Key)
 	}
+	gameInput.OnKey = handleGameKeyEvent
 
 	if err := initGameHost(); err != nil {
 		return err
@@ -427,10 +435,8 @@ func main() {
 		gameRenderer.OnUpdate(func(dt float64) {
 			if gameInput != nil {
 				_ = gameInput.PollEvents()
-				if gameMenu != nil && gameMenu.IsActive() && gameInput.GetKeyDest() != input.KeyMenu {
-					gameInput.SetKeyDest(input.KeyMenu)
-					slog.Info("input routing corrected", "dest", "menu")
-				}
+				syncGameplayInputMode()
+				applyGameplayMouseLook()
 			}
 
 			gameHost.Frame(dt, cb)
@@ -629,6 +635,151 @@ func collectBrushEntities() []renderer.BrushEntity {
 	}
 
 	return brushEntities
+}
+
+func handleGameKeyEvent(event input.KeyEvent) {
+	if gameInput == nil {
+		return
+	}
+
+	if gameInput.GetKeyDest() != input.KeyGame {
+		return
+	}
+
+	if event.Key == input.KEscape && event.Down {
+		if gameMenu != nil {
+			gameMenu.ToggleMenu()
+		}
+		syncGameplayInputMode()
+		return
+	}
+
+	if gameClient == nil {
+		return
+	}
+
+	applyButton := func(button *cl.KButton) {
+		if event.Down {
+			gameClient.KeyDown(button, event.Key)
+		} else {
+			gameClient.KeyUp(button, event.Key)
+		}
+	}
+
+	switch event.Key {
+	case int('w'), input.KUpArrow:
+		applyButton(&gameClient.InputForward)
+	case int('s'), input.KDownArrow:
+		applyButton(&gameClient.InputBack)
+	case int('a'):
+		applyButton(&gameClient.InputMoveLeft)
+	case int('d'):
+		applyButton(&gameClient.InputMoveRight)
+	case input.KLeftArrow:
+		applyButton(&gameClient.InputLeft)
+	case input.KRightArrow:
+		applyButton(&gameClient.InputRight)
+	case input.KShift:
+		applyButton(&gameClient.InputSpeed)
+	case input.KAlt:
+		applyButton(&gameClient.InputStrafe)
+	case input.KCtrl, input.KMouse1:
+		applyButton(&gameClient.InputAttack)
+	case input.KSpace, input.KMouse2:
+		applyButton(&gameClient.InputJump)
+	case int('e'):
+		applyButton(&gameClient.InputUse)
+	case input.KMouse3:
+		applyButton(&gameClient.InputMLook)
+	case input.KMWheelUp:
+		if event.Down {
+			gameClient.InImpulse = 10
+		}
+	case input.KMWheelDown:
+		if event.Down {
+			gameClient.InImpulse = 12
+		}
+	}
+}
+
+func syncGameplayInputMode() {
+	if gameInput == nil {
+		return
+	}
+
+	menuActive := gameMenu != nil && gameMenu.IsActive()
+	wantDest := input.KeyGame
+	if menuActive {
+		wantDest = input.KeyMenu
+	}
+	if gameInput.GetKeyDest() != wantDest {
+		gameInput.SetKeyDest(wantDest)
+	}
+
+	shouldGrab := !menuActive
+	if shouldGrab == gameMouseGrabbed {
+		return
+	}
+
+	gameInput.SetMouseGrab(shouldGrab)
+	gameInput.ClearState()
+	if !shouldGrab {
+		releaseGameplayButtons()
+	}
+	gameMouseGrabbed = shouldGrab
+}
+
+func applyGameplayMouseLook() {
+	if gameInput == nil || gameClient == nil {
+		return
+	}
+	if gameInput.GetKeyDest() != input.KeyGame {
+		gameInput.ClearState()
+		return
+	}
+
+	state := gameInput.GetState()
+	if state.MouseDX != 0 {
+		gameClient.ViewAngles[1] -= float32(state.MouseDX) * mouseYawScale
+	}
+	if state.MouseDY != 0 {
+		gameClient.ViewAngles[0] += float32(state.MouseDY) * mousePitchScale
+		if gameClient.ViewAngles[0] > gameClient.MaxPitch {
+			gameClient.ViewAngles[0] = gameClient.MaxPitch
+		}
+		if gameClient.ViewAngles[0] < gameClient.MinPitch {
+			gameClient.ViewAngles[0] = gameClient.MinPitch
+		}
+	}
+	gameInput.ClearState()
+}
+
+func releaseGameplayButtons() {
+	if gameClient == nil {
+		return
+	}
+	buttons := []*cl.KButton{
+		&gameClient.InputForward,
+		&gameClient.InputBack,
+		&gameClient.InputLeft,
+		&gameClient.InputRight,
+		&gameClient.InputUp,
+		&gameClient.InputDown,
+		&gameClient.InputLookUp,
+		&gameClient.InputLookDown,
+		&gameClient.InputMoveLeft,
+		&gameClient.InputMoveRight,
+		&gameClient.InputStrafe,
+		&gameClient.InputSpeed,
+		&gameClient.InputUse,
+		&gameClient.InputJump,
+		&gameClient.InputAttack,
+		&gameClient.InputKLook,
+		&gameClient.InputMLook,
+	}
+	for _, button := range buttons {
+		gameClient.KeyUp(button, -1)
+	}
 }
 
 func headlessGameLoop() {

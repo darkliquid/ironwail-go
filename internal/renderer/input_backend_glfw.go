@@ -93,6 +93,12 @@ func (b *glfwInputBackend) SetTextMode(mode iinput.TextMode) {
 }
 
 func (b *glfwInputBackend) SetCursorMode(mode iinput.CursorMode) {
+	b.mu.Lock()
+	b.accumDX = 0
+	b.accumDY = 0
+	b.hasLastPos = false
+	b.mu.Unlock()
+
 	switch mode {
 	case iinput.CursorModeNormal:
 		b.window.SetInputMode(glfw.CursorMode, glfw.CursorNormal)
@@ -114,6 +120,12 @@ func (b *glfwInputBackend) IsGamepadConnected(_ int) bool {
 }
 
 func (b *glfwInputBackend) SetMouseGrab(grabbed bool) {
+	b.mu.Lock()
+	b.accumDX = 0
+	b.accumDY = 0
+	b.hasLastPos = false
+	b.mu.Unlock()
+
 	if grabbed {
 		b.window.SetInputMode(glfw.CursorMode, glfw.CursorDisabled)
 	} else {
