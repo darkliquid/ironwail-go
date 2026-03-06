@@ -403,23 +403,41 @@ func main() {
 			}
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
-			// Frame pipeline: Clear → World → Entities → Particles → 2D Overlay
+			if gameRenderer != nil && gameServer != nil && gameServer.WorldTree != nil && !gameRenderer.HasWorldData() {
+				if err := gameRenderer.UploadWorld(gameServer.WorldTree); err != nil {
+					slog.Warn("deferred world upload failed", "error", err)
+				}
+			}
 
-			// Phase 1: Clear screen to black
+			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
+				state := renderer.DefaultRenderFrameState()
+				state.ClearColor = [4]float32{0, 0, 0, 1}
+				state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
+				state.DrawEntities = false
+				state.DrawParticles = false
+				state.Draw2DOverlay = true
+				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
+				state.Particles = gameParticles
+				if gameDraw != nil {
+					state.Palette = gameDraw.Palette()
+				}
+
+				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
+					if gameMenu != nil && gameMenu.IsActive() {
+						gameMenu.M_Draw(overlay)
+					} else if gameHUD != nil {
+						w, h := gameRenderer.Size()
+						gameHUD.SetScreenSize(w, h)
+						updateHUDFromServer()
+						gameHUD.Draw(overlay)
+					}
+				})
+				return
+			}
+
 			dc.Clear(0, 0, 0, 1)
-
-			// Phase 2-4: World/Entities/Particles (stubs until M4.3/M4.4)
-			// These will be implemented in later milestones
-			renderer.DrawParticles2D(dc, gameParticles)
-
-			// Phase 5: 2D Overlay (menu, console, HUD)
 			if gameMenu != nil && gameMenu.IsActive() {
 				gameMenu.M_Draw(dc)
-			} else if gameHUD != nil {
-				w, h := gameRenderer.Size()
-				gameHUD.SetScreenSize(w, h)
-				updateHUDFromServer()
-				gameHUD.Draw(dc)
 			}
 		})
 

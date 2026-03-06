@@ -320,8 +320,10 @@ struct VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-	// Debug: output bright red to verify render pass is working
-	return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+	let n = normalize(input.normal);
+	let l = normalize(vec3<f32>(0.3, 0.4, 0.85));
+	let ndotl = max(dot(n, l), 0.15);
+	return vec4<f32>(vec3<f32>(ndotl), 1.0);
 }
 `
 
@@ -864,7 +866,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Cast surface view to HAL TextureView
 	textureView, ok := surfaceView.(hal.TextureView)
 	if !ok {
-		slog.Info("renderWorldInternal: Surface view could not be cast to HAL TextureView, type=%T", surfaceView)
+		slog.Info("renderWorldInternal: Surface view could not be cast to HAL TextureView", "type", fmt.Sprintf("%T", surfaceView))
 		return
 	}
 	slog.Info("renderWorldInternal: got texture view successfully")
@@ -876,9 +878,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		ColorAttachments: []hal.RenderPassColorAttachment{
 			{
 				View:       textureView,
-				LoadOp:     gputypes.LoadOpClear,
+				LoadOp:     gputypes.LoadOpLoad,
 				StoreOp:    gputypes.StoreOpStore,
-				ClearValue: gputypes.Color{R: 1, G: 0, B: 0, A: 1}, // Red for debug
+				ClearValue: gputypes.Color{R: 0, G: 0, B: 0, A: 1},
 			},
 		},
 		// Depth attachment if depth texture available

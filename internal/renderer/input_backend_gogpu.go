@@ -9,49 +9,65 @@ import (
 	"sync"
 
 	"github.com/gogpu/gogpu"
+	ginput "github.com/gogpu/gogpu/input"
 	"github.com/gogpu/gpucontext"
 	iinput "github.com/ironwail/ironwail-go/internal/input"
 )
 
-// gogpuInputBackend adapts gogpu's input state to the engine's input.Backend
+// gogpuInputBackend adapts gogpu input to the engine input.Backend.
 type gogpuInputBackend struct {
 	app             *gogpu.App
 	sys             *iinput.System
 	cursorMode      iinput.CursorMode
 	callbacksInited bool
 
-	mu            sync.Mutex
-	hasMousePos   bool
-	lastMouseX    float64
-	lastMouseY    float64
-	accumMouseDX  int32
-	accumMouseDY  int32
-	lastKeyStates [256]bool // Track previous frame's key states for edge detection
+	mu              sync.Mutex
+	hasMousePos     bool
+	lastMouseX      float64
+	lastMouseY      float64
+	accumMouseDX    int32
+	accumMouseDY    int32
+	callbackInputOK bool
 }
 
-// InputBackendForSystem returns a Backend implementation wired to this renderer's app
+// InputBackendForSystem returns a Backend implementation wired to this renderer's app.
 func (r *Renderer) InputBackendForSystem(sys *iinput.System) iinput.Backend {
-	return &gogpuInputBackend{
-		app: r.app,
-		sys: sys,
-	}
+	return &gogpuInputBackend{app: r.app, sys: sys}
 }
 
 func (b *gogpuInputBackend) Init() error {
-	// Callbacks will be registered on first PollEvents() call
-	// This defers initialization until after gogpu's event loop is running
+	// Defer callback setup until first poll after run loop starts.
 	return nil
 }
 
 func (b *gogpuInputBackend) Shutdown() {
-	// nothing to cleanup
+	// Nothing to cleanup.
 }
 
 func (b *gogpuInputBackend) PollEvents() bool {
-	// Initialize callbacks on first call (after Run() has started)
 	if !b.callbacksInited {
 		b.initCallbacks()
 	}
+
+	if b.app == nil || b.sys == nil || b.hasCallbackInput() {
+		return true
+	}
+
+	state := b.app.Input()
+	if state == nil || state.Keyboard() == nil {
+		return true
+	}
+
+	keyboard := state.Keyboard()
+	for _, pair := range pollingKeyMap {
+		if keyboard.JustPressed(pair.src) {
+			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.dst, Down: true, Device: iinput.DeviceKeyboard})
+		}
+		if keyboard.JustReleased(pair.src) {
+			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.dst, Down: false, Device: iinput.DeviceKeyboard})
+		}
+	}
+
 	return true
 }
 
@@ -59,7 +75,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if b.callbacksInited || b.app == nil {
+	if b.callbacksInited || b.app == nil || b.sys == nil {
 		return
 	}
 
@@ -71,8 +87,8 @@ func (b *gogpuInputBackend) initCallbacks() {
 
 	es.OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := mapGPUContextKey(key)
-		slog.Info("gogpu input: key press", "gpucontext_key", key, "mapped_key", mapped)
 		if mapped >= 0 {
+			b.markCallbackInput()
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: true, Device: iinput.DeviceKeyboard})
 		}
 		_ = mods
@@ -80,11 +96,17 @@ func (b *gogpuInputBackend) initCallbacks() {
 
 	es.OnKeyRelease(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := mapGPUContextKey(key)
-		slog.Info("gogpu input: key release", "gpucontext_key", key, "mapped_key", mapped)
 		if mapped >= 0 {
+			b.markCallbackInput()
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: false, Device: iinput.DeviceKeyboard})
 		}
 		_ = mods
+	})
+
+	es.OnTextInput(func(text string) {
+		for _, r := range text {
+			b.sys.HandleCharEvent(r)
+		}
 	})
 
 	es.OnMouseMove(func(x, y float64) {
@@ -127,7 +149,6 @@ func (b *gogpuInputBackend) initCallbacks() {
 	})
 
 	es.OnFocus(func(focused bool) {
-		slog.Info("gogpu input: window focus changed", "focused", focused)
 		if !focused {
 			b.sys.ClearKeyStates()
 		}
@@ -135,6 +156,18 @@ func (b *gogpuInputBackend) initCallbacks() {
 
 	b.callbacksInited = true
 	slog.Info("gogpu input backend: event source callbacks registered", "event_source", fmt.Sprintf("%T", es))
+}
+
+func (b *gogpuInputBackend) markCallbackInput() {
+	b.mu.Lock()
+	b.callbackInputOK = true
+	b.mu.Unlock()
+}
+
+func (b *gogpuInputBackend) hasCallbackInput() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.callbackInputOK
 }
 
 func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {
@@ -147,27 +180,20 @@ func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {
 }
 
 func (b *gogpuInputBackend) GetModifierState() iinput.ModifierState {
-	// Minimal: return empty modifier state
 	return iinput.ModifierState{}
 }
 
-func (b *gogpuInputBackend) SetTextMode(mode iinput.TextMode) {
-	// gogpu provides text input handling via the app; no-op for now
-}
+func (b *gogpuInputBackend) SetTextMode(mode iinput.TextMode) {}
 
 func (b *gogpuInputBackend) SetCursorMode(mode iinput.CursorMode) {
 	b.cursorMode = mode
-	// Best-effort: hide cursor for hidden/grabbed modes
 	if b.app == nil {
 		return
 	}
 	switch mode {
 	case iinput.CursorModeNormal:
 		b.app.SetCursor(gpucontext.CursorDefault)
-	case iinput.CursorModeHidden:
-		b.app.SetCursor(gpucontext.CursorNone)
-	case iinput.CursorModeGrabbed:
-		// No pointer-lock API exposed; hide cursor as best-effort and rely on relative deltas
+	case iinput.CursorModeHidden, iinput.CursorModeGrabbed:
 		b.app.SetCursor(gpucontext.CursorNone)
 	default:
 		b.app.SetCursor(gpucontext.CursorDefault)
@@ -185,6 +211,53 @@ func (b *gogpuInputBackend) IsGamepadConnected(player int) bool { return false }
 func (b *gogpuInputBackend) SetMouseGrab(grabbed bool) {}
 
 func (b *gogpuInputBackend) SetWindow(win interface{}) {}
+
+type pollingKeyPair struct {
+	src ginput.Key
+	dst int
+}
+
+var pollingKeyMap = func() []pollingKeyPair {
+	pairs := []pollingKeyPair{
+		{src: ginput.KeyEscape, dst: iinput.KEscape},
+		{src: ginput.KeyEnter, dst: iinput.KEnter},
+		{src: ginput.KeyNumpadEnter, dst: iinput.KEnter},
+		{src: ginput.KeyTab, dst: iinput.KTab},
+		{src: ginput.KeySpace, dst: iinput.KSpace},
+		{src: ginput.KeyBackspace, dst: iinput.KBackspace},
+		{src: ginput.KeyUp, dst: iinput.KUpArrow},
+		{src: ginput.KeyDown, dst: iinput.KDownArrow},
+		{src: ginput.KeyLeft, dst: iinput.KLeftArrow},
+		{src: ginput.KeyRight, dst: iinput.KRightArrow},
+		{src: ginput.KeyShiftLeft, dst: iinput.KShift},
+		{src: ginput.KeyShiftRight, dst: iinput.KShift},
+		{src: ginput.KeyControlLeft, dst: iinput.KCtrl},
+		{src: ginput.KeyControlRight, dst: iinput.KCtrl},
+		{src: ginput.KeyAltLeft, dst: iinput.KAlt},
+		{src: ginput.KeyAltRight, dst: iinput.KAlt},
+	}
+
+	letterKeys := []ginput.Key{
+		ginput.KeyA, ginput.KeyB, ginput.KeyC, ginput.KeyD, ginput.KeyE, ginput.KeyF,
+		ginput.KeyG, ginput.KeyH, ginput.KeyI, ginput.KeyJ, ginput.KeyK, ginput.KeyL,
+		ginput.KeyM, ginput.KeyN, ginput.KeyO, ginput.KeyP, ginput.KeyQ, ginput.KeyR,
+		ginput.KeyS, ginput.KeyT, ginput.KeyU, ginput.KeyV, ginput.KeyW, ginput.KeyX,
+		ginput.KeyY, ginput.KeyZ,
+	}
+	for index, key := range letterKeys {
+		pairs = append(pairs, pollingKeyPair{src: key, dst: int('a' + index)})
+	}
+
+	numberKeys := []ginput.Key{
+		ginput.Key0, ginput.Key1, ginput.Key2, ginput.Key3, ginput.Key4,
+		ginput.Key5, ginput.Key6, ginput.Key7, ginput.Key8, ginput.Key9,
+	}
+	for index, key := range numberKeys {
+		pairs = append(pairs, pollingKeyPair{src: key, dst: int('0' + index)})
+	}
+
+	return pairs
+}()
 
 func mapGPUContextMouseButton(button gpucontext.MouseButton) int {
 	switch button {
