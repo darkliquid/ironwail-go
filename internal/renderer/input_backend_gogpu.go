@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gogpu/gogpu"
 	ginput "github.com/gogpu/gogpu/input"
@@ -28,7 +29,10 @@ type gogpuInputBackend struct {
 	accumMouseDX    int32
 	accumMouseDY    int32
 	callbackInputOK bool
+	callbackSeen    bool
 	pollPrevPressed []bool
+	pollCounter     uint64
+	lastPollLog     time.Time
 }
 
 // InputBackendForSystem returns a Backend implementation wired to this renderer's app.
@@ -37,7 +41,9 @@ func (r *Renderer) InputBackendForSystem(sys *iinput.System) iinput.Backend {
 }
 
 func (b *gogpuInputBackend) Init() error {
-	// Defer callback setup until first poll after run loop starts.
+	// Try eager callback registration first; PollEvents keeps lazy fallback.
+	b.initCallbacks()
+	slog.Info("gogpu input backend: init completed")
 	return nil
 }
 
@@ -49,17 +55,54 @@ func (b *gogpuInputBackend) PollEvents() bool {
 	if !b.callbacksInited {
 		b.initCallbacks()
 	}
+	b.pollCounter++
 
-	if b.app == nil || b.sys == nil || b.hasCallbackInput() {
+	if b.app == nil {
+		if time.Since(b.lastPollLog) > time.Second {
+			slog.Info("INPUT poll early", "reason", "app nil", "poll_count", b.pollCounter)
+			b.lastPollLog = time.Now()
+		}
+		return true
+	}
+	if b.sys == nil {
+		if time.Since(b.lastPollLog) > time.Second {
+			slog.Info("INPUT poll early", "reason", "sys nil", "poll_count", b.pollCounter)
+			b.lastPollLog = time.Now()
+		}
+		return true
+	}
+	if b.hasCallbackInput() {
+		if time.Since(b.lastPollLog) > time.Second {
+			slog.Info("INPUT poll early", "reason", "callbacks active", "poll_count", b.pollCounter)
+			b.lastPollLog = time.Now()
+		}
 		return true
 	}
 
 	state := b.app.Input()
 	if state == nil || state.Keyboard() == nil {
+		if time.Since(b.lastPollLog) > time.Second {
+			slog.Info("INPUT poll early", "reason", "state/keyboard nil", "poll_count", b.pollCounter)
+			b.lastPollLog = time.Now()
+		}
 		return true
 	}
 
+	state.Update()
+
 	keyboard := state.Keyboard()
+	mouse := state.Mouse()
+	if time.Since(b.lastPollLog) > time.Second {
+		slog.Info(
+			"INPUT poll heartbeat",
+			"poll_count", b.pollCounter,
+			"any_pressed", keyboard.AnyPressed(),
+			"mouse_x", mouse.X(),
+			"mouse_y", mouse.Y(),
+			"callbacks_seen", b.hasCallbackSeen(),
+		)
+		b.lastPollLog = time.Now()
+	}
 	if len(b.pollPrevPressed) != len(pollingKeyMap) {
 		b.pollPrevPressed = make([]bool, len(pollingKeyMap))
 	}
@@ -93,6 +136,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 
 	es.OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := mapGPUContextKey(key)
+		b.markCallbackSeen()
 		if mapped >= 0 {
 			b.markCallbackInput()
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: true, Device: iinput.DeviceKeyboard})
@@ -102,6 +146,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 
 	es.OnKeyRelease(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := mapGPUContextKey(key)
+		b.markCallbackSeen()
 		if mapped >= 0 {
 			b.markCallbackInput()
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: false, Device: iinput.DeviceKeyboard})
@@ -110,12 +155,14 @@ func (b *gogpuInputBackend) initCallbacks() {
 	})
 
 	es.OnTextInput(func(text string) {
+		b.markCallbackSeen()
 		for _, r := range text {
 			b.sys.HandleCharEvent(r)
 		}
 	})
 
 	es.OnMouseMove(func(x, y float64) {
+		b.markCallbackSeen()
 		b.mu.Lock()
 		if b.hasMousePos {
 			b.accumMouseDX += int32(x - b.lastMouseX)
@@ -128,6 +175,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 	})
 
 	es.OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
+		b.markCallbackSeen()
 		if key := mapGPUContextMouseButton(button); key >= 0 {
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: key, Down: true, Device: iinput.DeviceMouse})
 		}
@@ -136,6 +184,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 	})
 
 	es.OnMouseRelease(func(button gpucontext.MouseButton, x, y float64) {
+		b.markCallbackSeen()
 		if key := mapGPUContextMouseButton(button); key >= 0 {
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: key, Down: false, Device: iinput.DeviceMouse})
 		}
@@ -144,6 +193,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 	})
 
 	es.OnScroll(func(dx, dy float64) {
+		b.markCallbackSeen()
 		if dy > 0 {
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelUp, Down: true, Device: iinput.DeviceMouse})
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelUp, Down: false, Device: iinput.DeviceMouse})
@@ -155,6 +205,7 @@ func (b *gogpuInputBackend) initCallbacks() {
 	})
 
 	es.OnFocus(func(focused bool) {
+		b.markCallbackSeen()
 		if !focused {
 			b.sys.ClearKeyStates()
 		}
@@ -170,10 +221,22 @@ func (b *gogpuInputBackend) markCallbackInput() {
 	b.mu.Unlock()
 }
 
+func (b *gogpuInputBackend) markCallbackSeen() {
+	b.mu.Lock()
+	b.callbackSeen = true
+	b.mu.Unlock()
+}
+
 func (b *gogpuInputBackend) hasCallbackInput() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.callbackInputOK
+}
+
+func (b *gogpuInputBackend) hasCallbackSeen() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.callbackSeen
 }
 
 func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {

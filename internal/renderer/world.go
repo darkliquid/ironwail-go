@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/gogpu/gputypes"
@@ -76,6 +77,11 @@ type WorldFace struct {
 type WorldRenderData struct {
 	// Geometry holds preprocessed vertex/index data
 	Geometry *WorldGeometry
+
+	// BoundsMin is the minimum XYZ world-space coordinate of uploaded geometry.
+	BoundsMin [3]float32
+	// BoundsMax is the maximum XYZ world-space coordinate of uploaded geometry.
+	BoundsMax [3]float32
 
 	// TODO: GPU buffer handles (when gogpu exposes buffer API)
 	// VertexBuffer  *gogpu.Buffer
@@ -212,6 +218,19 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 			normal[1] = -normal[1]
 			normal[2] = -normal[2]
 		}
+	} else {
+		// Invalid plane number - log warning
+		slog.Warn("Invalid plane number for face",
+			"planeNum", face.PlaneNum,
+			"numPlanes", len(tree.Planes))
+	}
+	
+	// Check if normal is valid (not all zeros)
+	normalLen := float32(math.Sqrt(float64(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
+	if normalLen < 0.01 {
+		slog.Warn("Invalid normal for face",
+			"faceIdx", face,
+			"normalLen", normalLen)
 	}
 
 	// Iterate through edges to extract vertex positions
@@ -285,6 +304,7 @@ struct VertexOutput {
     @location(1) lightmapCoord: vec2<f32>,
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
+    @location(4) clipPos: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -295,12 +315,14 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     
     let worldPos = vec4<f32>(input.position, 1.0);
-    output.clipPosition = uniforms.viewProjection * worldPos;
+    let clipPos = uniforms.viewProjection * worldPos;
+    output.clipPosition = clipPos;
     
     output.texCoord = input.texCoord;
     output.lightmapCoord = input.lightmapCoord;
     output.worldPos = input.position;
     output.normal = input.normal;
+    output.clipPos = clipPos;
     
     return output;
 }
@@ -316,14 +338,37 @@ struct VertexOutput {
     @location(1) lightmapCoord: vec2<f32>,
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
+    @location(4) clipPos: vec4<f32>,
 }
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-	let n = normalize(input.normal);
-	let l = normalize(vec3<f32>(0.3, 0.4, 0.85));
-	let ndotl = max(dot(n, l), 0.15);
-	return vec4<f32>(vec3<f32>(ndotl), 1.0);
+	// DIAGNOSTIC: Output bright green to verify geometry is being rasterized
+	// If geometry is invisible, this means:
+	// 1. Vertices are off-screen (outside clip space)
+	// 2. Geometry is culled by backface culling
+	// 3. Something else is wrong with the render pass
+	var debugColor = vec3<f32>(0.0, 1.0, 0.0); // Bright green
+	
+	// Check for obviously invalid data that would indicate problems
+	let normalLen = length(input.normal);
+	if (normalLen < 0.01) {
+		debugColor = vec3<f32>(1.0, 0.0, 0.0); // Red for zero normals
+	}
+	
+	let posLen = length(input.worldPos);
+	if (posLen > 10000.0) {
+		debugColor = vec3<f32>(0.0, 0.0, 1.0); // Blue for huge positions
+	}
+	
+	// If clip position Z is outside [near, far], it would be clipped
+	let clipZ = input.clipPos.z / input.clipPos.w;
+	if (clipZ < 0.0 || clipZ > 1.0) {
+		debugColor = vec3<f32>(1.0, 1.0, 0.0); // Yellow for out-of-depth
+	}
+	
+	// Output the diagnostic color
+	return vec4<f32>(debugColor, 1.0);
 }
 `
 
@@ -437,6 +482,26 @@ func (r *Renderer) createWorldIndexBuffer(device hal.Device, queue hal.Queue, in
 	slog.Info("World index buffer uploaded", "indices", len(indices))
 
 	return buffer, uint32(len(indices)), nil
+}
+
+// createWorldRenderTarget creates an offscreen texture for world rendering.
+// This texture is used by HAL to render the 3D world, then composited to the screen by gogpu.
+func (r *Renderer) createWorldRenderTarget() error {
+	// Get window size
+	width, height := r.Size()
+	if width <= 0 || height <= 0 {
+		return fmt.Errorf("invalid window size: %dx%d", width, height)
+	}
+
+	// We'll create the texture through gogpu, which will allow us to use it with DrawTextureScaled
+	// First, we need the gogpu.Context from a draw callback, but we don't have it here
+	// So we'll defer texture creation until the first render frame
+	// For now, just log that we need to create it
+	slog.Info("World render target will be created on first render",
+		"width", width,
+		"height", height)
+
+	return nil
 }
 
 // createWorldPipeline creates the render pipeline for world rendering.
@@ -695,6 +760,36 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		TotalFaces:    len(geom.Faces),
 	}
 
+	if len(geom.Vertices) > 0 {
+		boundsMin := geom.Vertices[0].Position
+		boundsMax := geom.Vertices[0].Position
+		for index := 1; index < len(geom.Vertices); index++ {
+			position := geom.Vertices[index].Position
+			if position[0] < boundsMin[0] {
+				boundsMin[0] = position[0]
+			}
+			if position[1] < boundsMin[1] {
+				boundsMin[1] = position[1]
+			}
+			if position[2] < boundsMin[2] {
+				boundsMin[2] = position[2]
+			}
+
+			if position[0] > boundsMax[0] {
+				boundsMax[0] = position[0]
+			}
+			if position[1] > boundsMax[1] {
+				boundsMax[1] = position[1]
+			}
+			if position[2] > boundsMax[2] {
+				boundsMax[2] = position[2]
+			}
+		}
+
+		renderData.BoundsMin = boundsMin
+		renderData.BoundsMax = boundsMax
+	}
+
 	// Get HAL device and queue from gogpu renderer
 	device := r.getHALDevice()
 	queue := r.getHALQueue()
@@ -786,6 +881,12 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		// Don't fail completely, will use fallback rendering
 	}
 
+	// Create offscreen render target for world rendering
+	if err := r.createWorldRenderTarget(); err != nil {
+		slog.Warn("Failed to create world render target", "error", err)
+		// Don't fail completely, will use direct rendering fallback
+	}
+
 	// Store GPU resources in renderer
 	r.mu.Lock()
 	r.worldData = renderData
@@ -805,6 +906,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"indices", renderData.TotalIndices,
 		"faces", renderData.TotalFaces,
 		"triangles", renderData.TotalIndices/3,
+		"boundsMin", renderData.BoundsMin,
+		"boundsMax", renderData.BoundsMax,
 		"vertexBufferSize", uint64(len(geom.Vertices))*44,
 		"indexBufferSize", uint64(len(geom.Indices))*4)
 
@@ -864,33 +967,40 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	slog.Info("renderWorldInternal: command encoder started")
 
-	// Get swapchain texture view from gogpu context (if available via ctx field)
-	// For now, we'll use the context's surface view if available
-	slog.Info("renderWorldInternal: getting surface view")
-	surfaceView := dc.ctx.SurfaceView()
-	if surfaceView == nil {
-		slog.Info("renderWorldInternal: Surface view not available for world rendering")
+	// Use the current surface view for zero-copy rendering (per gogpu design)
+	// This allows HAL to render directly to the same surface that gogpu will composite onto
+	slog.Info("renderWorldInternal: getting surface view from gogpu context")
+	surfaceViewAny := dc.ctx.SurfaceView()
+	if surfaceViewAny == nil {
+		slog.Info("renderWorldInternal: Surface view not available, skipping world rendering")
 		return
 	}
-
-	// Cast surface view to HAL TextureView
-	textureView, ok := surfaceView.(hal.TextureView)
-	if !ok {
-		slog.Info("renderWorldInternal: Surface view could not be cast to HAL TextureView", "type", fmt.Sprintf("%T", surfaceView))
+	slog.Info("renderWorldInternal: surface view acquired", "id", debugSurfaceViewID(surfaceViewAny), "queue_type", fmt.Sprintf("%T", queue))
+	
+	// Get HAL texture view from the gogpu surface view
+	// The surface view is already a hal.TextureView - just need to type assert it
+	textureView, ok := surfaceViewAny.(hal.TextureView)
+	if !ok || textureView == nil {
+		slog.Info("renderWorldInternal: Texture view type assertion failed", "type", fmt.Sprintf("%T", surfaceViewAny))
 		return
 	}
-	slog.Info("renderWorldInternal: got texture view successfully")
+	slog.Info("renderWorldInternal: got surface texture view successfully", "view_type", fmt.Sprintf("%T", textureView))
 
-	// Create render pass descriptor with color and depth attachments
+	// Create render pass descriptor with color and depth attachments.
+	// Use LoadOpClear to handle the clear ourselves since we skip gogpu's Clear().
+	clearColor := gputypes.Color{R: 0.0, G: 0.0, B: 0.0, A: 1.0}
+	if os.Getenv("IRONWAIL_DEBUG_WORLD_CLEAR_GREEN") == "1" {
+		clearColor = gputypes.Color{R: 0.0, G: 1.0, B: 0.0, A: 1.0}
+	}
 	slog.Info("renderWorldInternal: creating render pass descriptor")
 	renderPassDesc := &hal.RenderPassDescriptor{
 		Label: "World Render Pass",
 		ColorAttachments: []hal.RenderPassColorAttachment{
 			{
 				View:       textureView,
-				LoadOp:     gputypes.LoadOpLoad,
+				LoadOp:     gputypes.LoadOpClear,
 				StoreOp:    gputypes.StoreOpStore,
-				ClearValue: gputypes.Color{R: 0, G: 0, B: 0, A: 1},
+				ClearValue: clearColor,
 			},
 		},
 		// Depth attachment if depth texture available
@@ -915,13 +1025,18 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Explicit viewport/scissor to avoid backend defaults that can yield zero-area rasterization.
 	w, h := dc.renderer.Size()
 	if w > 0 && h > 0 {
+		slog.Info("renderWorldInternal: setting viewport", "x", 0, "y", 0, "w", w, "h", h)
 		renderPass.SetViewport(0, 0, float32(w), float32(h), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
+	} else {
+		slog.Warn("renderWorldInternal: invalid viewport size", "w", w, "h", h)
 	}
 
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	vpBytes := matrixToBytes(vpMatrix)
+	slog.Info("renderWorldInternal: VP matrix", 
+		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Info("renderWorldInternal: writing uniform buffer", "matrix_len", len(vpBytes))
 	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, vpBytes)
 	if err != nil {
@@ -979,6 +1094,15 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
+	}
+
+	if os.Getenv("IRONWAIL_DEBUG_HAL_WAIT_IDLE") == "1" {
+		slog.Warn("renderWorldInternal: IRONWAIL_DEBUG_HAL_WAIT_IDLE=1, waiting for device idle after submit")
+		if waitErr := device.WaitIdle(); waitErr != nil {
+			slog.Error("renderWorldInternal: device WaitIdle failed", "error", waitErr)
+		} else {
+			slog.Info("renderWorldInternal: device WaitIdle completed")
+		}
 	}
 
 	slog.Info("World render commands submitted successfully")
@@ -1059,4 +1183,16 @@ func (r *Renderer) GetWorldData() *WorldRenderData {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.worldData
+}
+
+// GetWorldBounds returns uploaded world geometry bounds when available.
+func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if r.worldData == nil || r.worldData.TotalVertices == 0 {
+		return min, max, false
+	}
+
+	return r.worldData.BoundsMin, r.worldData.BoundsMax, true
 }

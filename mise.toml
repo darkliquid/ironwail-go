@@ -70,6 +70,16 @@ depends = ["go-generate"]
 description = "Build binary in WGPU mode"
 run = "go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
 
+[tasks.build-gogpu-sdl3]
+depends = ["go-generate"]
+description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
+run = "go build -tags 'gogpu sdl3 nofakecgo' -o ironwailgo-wgpu-sdl3 ./cmd/ironwailgo"
+
+[tasks.run-gogpu-sdl3]
+depends = ["build-gogpu-sdl3"]
+description = "Run WGPU + SDL3 input/audio build"
+run = "IW_INPUT_BACKEND=sdl3 ./ironwailgo-wgpu-sdl3 -basedir ${QUAKE_DIR}"
+
 [tasks.build-gl]
 depends = ["go-generate"]
 description = "Build binary in OpenGL mode"

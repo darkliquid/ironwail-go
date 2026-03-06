@@ -26,7 +26,13 @@ func NewSDL3AudioBackend() Backend {
 	return &SDL3Backend{}
 }
 
-func (b *SDL3Backend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
+func (b *SDL3Backend) Init(sampleRate, sampleBits, channels, bufferSize int) (_ *DMAInfo, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("sdl init audio panic: %v", recovered)
+		}
+	}()
+
 	if err := sdl.InitSubSystem(sdl.INIT_AUDIO); err != nil {
 		return nil, fmt.Errorf("sdl init audio: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -98,6 +99,8 @@ func initGameQC() error {
 }
 
 func initGameRenderer() error {
+	preferWaylandForGoGPU()
+
 	// Create renderer instance from cvars
 	cfg := renderer.ConfigFromCvars()
 
@@ -108,6 +111,24 @@ func initGameRenderer() error {
 	gameRenderer = tr
 
 	return nil
+}
+
+func preferWaylandForGoGPU() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	if strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
+		return
+	}
+
+	if os.Getenv("WAYLAND_DISPLAY") != "" {
+		return
+	}
+
+	if os.Getenv("DISPLAY") != "" {
+		slog.Warn("Using X11 backend; gogpu X11 keyboard events are currently not implemented")
+	}
 }
 
 func initSubsystems(headless bool, basedir, gamedir string, args []string) error {
@@ -171,7 +192,29 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 		// Some renderers provide a backend factory to adapt window events
 		// to the engine input system.
 		if bb := gameRenderer.InputBackendForSystem(gameInput); bb != nil {
-			gameInput.SetBackend(bb)
+			if err := gameInput.SetBackend(bb); err != nil {
+				return fmt.Errorf("failed to set renderer input backend: %w", err)
+			}
+		}
+	}
+
+	// Optional override to force SDL3 input even when renderer backend exists.
+	// Useful when platform-specific window backends do not emit keyboard events.
+	if gameInput != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
+		previousBackend := gameInput.Backend()
+		if b := input.NewSDL3Backend(gameInput); b != nil {
+			if err := gameInput.SetBackend(b); err != nil {
+				slog.Warn("failed to force SDL3 input backend; keeping previous backend", "error", err)
+				if previousBackend != nil {
+					if restoreErr := gameInput.SetBackend(previousBackend); restoreErr != nil {
+						return fmt.Errorf("failed to restore previous input backend after SDL3 override failure: %w", restoreErr)
+					}
+				}
+			} else {
+				slog.Warn("input backend override active", "backend", "sdl3")
+			}
+		} else {
+			slog.Warn("IW_INPUT_BACKEND=sdl3 requested but SDL3 backend is not available in this build")
 		}
 	}
 
@@ -380,16 +423,82 @@ func main() {
 		cb := gameCallbacks{}
 		// Set up renderer callbacks
 		gameRenderer.OnUpdate(func(dt float64) {
+			if gameInput != nil {
+				_ = gameInput.PollEvents()
+				if gameMenu != nil && gameMenu.IsActive() && gameInput.GetKeyDest() != input.KeyMenu {
+					gameInput.SetKeyDest(input.KeyMenu)
+					slog.Info("input routing corrected", "dest", "menu")
+				}
+			}
+
 			gameHost.Frame(dt, cb)
 
 			// Update camera from client state each frame
 			// This is the critical rendering path for M4: view setup
 			if gameRenderer != nil {
-				origin := [3]float32{0, 0, 64}
-				angles := [3]float32{0, 0, 0}
+				// Fallback: position camera above world center, looking down
+				// In Quake coords: origin at (X, Y, Z) with angles (pitch, yaw, roll)
+				// Positive pitch = look down
+				origin := [3]float32{0, 0, 128} // High above origin
+				angles := [3]float32{45, 0, 0}  // Look down 45 degrees
+				fallbackFromPlayerStart := false
+				fallbackFromWorldBounds := false
+				if gameServer != nil {
+					for _, ent := range gameServer.Edicts {
+						if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
+							continue
+						}
+
+						className := gameServer.GetString(ent.Vars.ClassName)
+						if className != "info_player_start" && className != "info_player_deathmatch" {
+							continue
+						}
+
+						origin = ent.Vars.Origin
+						origin[2] += 22
+						angles = ent.Vars.Angles
+						fallbackFromPlayerStart = true
+						break
+					}
+				}
+				if !fallbackFromPlayerStart {
+					if minBounds, maxBounds, ok := gameRenderer.GetWorldBounds(); ok {
+					centerX := (minBounds[0] + maxBounds[0]) * 0.5
+					centerY := (minBounds[1] + maxBounds[1]) * 0.5
+					centerZ := (minBounds[2] + maxBounds[2]) * 0.5
+
+					extentX := maxBounds[0] - minBounds[0]
+					extentY := maxBounds[1] - minBounds[1]
+					extentZ := maxBounds[2] - minBounds[2]
+
+					radius := extentX
+					if extentY > radius {
+						radius = extentY
+					}
+					if extentZ > radius {
+						radius = extentZ
+					}
+					if radius < 256 {
+						radius = 256
+					}
+
+						origin = [3]float32{centerX, centerY + radius, centerZ + radius*0.5}
+						angles = [3]float32{26.565052, 0, 0}
+						fallbackFromWorldBounds = true
+					}
+				}
 				if gameClient != nil {
-					origin = gameClient.PredictedOrigin
-					angles = gameClient.ViewAngles
+					clientOrigin := gameClient.PredictedOrigin
+					clientAngles := gameClient.ViewAngles
+					// Only use client values if they're non-zero (player has spawned)
+					if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+						origin = clientOrigin
+						angles = clientAngles
+					} else {
+						slog.Debug("Client at origin, using fallback camera", "origin", origin, "angles", angles, "from_world_bounds", fallbackFromWorldBounds, "from_player_start", fallbackFromPlayerStart)
+					}
+				} else {
+					slog.Debug("No client, using fallback camera", "origin", origin, "angles", angles, "from_world_bounds", fallbackFromWorldBounds, "from_player_start", fallbackFromPlayerStart)
 				}
 
 				// Create camera state from client prediction (or fallback values)

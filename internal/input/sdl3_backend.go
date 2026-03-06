@@ -22,7 +22,13 @@ func NewSDL3Backend(sys *System) Backend {
 	return &sdl3Backend{sys: sys}
 }
 
-func (b *sdl3Backend) Init() error {
+func (b *sdl3Backend) Init() (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("sdl init panic: %v", recovered)
+		}
+	}()
+
 	if err := sdl.Init(sdl.INIT_JOYSTICK); err != nil {
 		return fmt.Errorf("sdl init: %w", err)
 	}
