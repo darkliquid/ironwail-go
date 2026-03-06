@@ -8,11 +8,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"math"
 	"unsafe"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/internal/model"
 )
 
 const (
@@ -44,6 +46,7 @@ in vec3 vWorldPos;
 out vec4 fragColor;
 
 uniform sampler2D uTexture;
+uniform float uAlpha;
 
 void main() {
     vec3 n = normalize(vNormal);
@@ -55,7 +58,10 @@ void main() {
     float ambient = 0.35;
     float shade = ambient + diffuse * 0.65;
 	vec4 base = texture(uTexture, vTexCoord);
-	fragColor = vec4(base.rgb * shade, base.a);
+	if (base.a < 0.1) {
+		discard;
+	}
+	fragColor = vec4(base.rgb * shade, base.a * uAlpha);
 }`
 )
 
@@ -65,6 +71,19 @@ type glWorldMesh struct {
 	ebo        uint32
 	indexCount int32
 	faces      []WorldFace
+}
+
+type glAliasVertexRef struct {
+	vertexIndex int
+	texCoord    [2]float32
+}
+
+type glAliasModel struct {
+	modelID string
+	flags   int
+	skins   []uint32
+	poses   [][]model.TriVertX
+	refs    []glAliasVertexRef
 }
 
 func flattenWorldVertices(vertices []WorldVertex) []float32 {
@@ -100,7 +119,34 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
 	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
 	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
+	r.worldAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlpha\x00"))
 	return nil
+}
+
+func (r *Renderer) ensureAliasScratchLocked() {
+	if r.aliasScratchVAO != 0 && r.aliasScratchVBO != 0 {
+		return
+	}
+
+	gl.GenVertexArrays(1, &r.aliasScratchVAO)
+	gl.GenBuffers(1, &r.aliasScratchVBO)
+
+	gl.BindVertexArray(r.aliasScratchVAO)
+	gl.BindBuffer(gl.ARRAY_BUFFER, r.aliasScratchVBO)
+	gl.BufferData(gl.ARRAY_BUFFER, 4, nil, gl.DYNAMIC_DRAW)
+
+	const stride = 10 * 4
+	gl.EnableVertexAttribArray(0)
+	gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, stride, 0)
+	gl.EnableVertexAttribArray(1)
+	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, stride, 3*4)
+	gl.EnableVertexAttribArray(2)
+	gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, stride, 5*4)
+	gl.EnableVertexAttribArray(3)
+	gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, false, stride, 7*4)
+
+	gl.BindVertexArray(0)
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 }
 
 func uploadWorldMesh(vertices []WorldVertex, indices []uint32) *glWorldMesh {
@@ -316,6 +362,7 @@ func (r *Renderer) renderWorld() {
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.Uniform1f(r.worldAlphaUniform, 1)
 	gl.BindVertexArray(vao)
 	gl.ActiveTexture(gl.TEXTURE0)
 	if len(faces) == 0 {
@@ -379,6 +426,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform1f(r.worldAlphaUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
 
 	for _, brush := range brushes {
@@ -398,6 +446,213 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 	gl.Enable(gl.BLEND)
+}
+
+func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glAliasModel {
+	if modelID == "" || mdl == nil || mdl.AliasHeader == nil {
+		return nil
+	}
+	if cached, ok := r.aliasModels[modelID]; ok {
+		return cached
+	}
+
+	hdr := mdl.AliasHeader
+	if len(hdr.STVerts) != hdr.NumVerts || len(hdr.Triangles) != hdr.NumTris || len(hdr.Poses) == 0 {
+		return nil
+	}
+
+	r.ensureWorldFallbackTextureLocked()
+	palette := append([]byte(nil), r.palette...)
+	skins := make([]uint32, 0, len(hdr.Skins))
+	for _, skin := range hdr.Skins {
+		if len(skin) != hdr.SkinWidth*hdr.SkinHeight {
+			skins = append(skins, r.worldFallbackTexture)
+			continue
+		}
+		rgba := ConvertPaletteToRGBA(skin, palette)
+		tex := uploadWorldTextureRGBA(hdr.SkinWidth, hdr.SkinHeight, rgba)
+		if tex == 0 {
+			tex = r.worldFallbackTexture
+		}
+		skins = append(skins, tex)
+	}
+
+	refs := make([]glAliasVertexRef, 0, len(hdr.Triangles)*3)
+	for _, tri := range hdr.Triangles {
+		for vertexIndex := 0; vertexIndex < 3; vertexIndex++ {
+			idx := int(tri.VertIndex[vertexIndex])
+			if idx < 0 || idx >= len(hdr.STVerts) {
+				continue
+			}
+			st := hdr.STVerts[idx]
+			s := float32(st.S) + 0.5
+			if tri.FacesFront == 0 && st.OnSeam != 0 {
+				s += float32(hdr.SkinWidth) * 0.5
+			}
+			refs = append(refs, glAliasVertexRef{
+				vertexIndex: idx,
+				texCoord: [2]float32{
+					s / float32(hdr.SkinWidth),
+					(float32(st.T) + 0.5) / float32(hdr.SkinHeight),
+				},
+			})
+		}
+	}
+
+	alias := &glAliasModel{
+		modelID: modelID,
+		flags:   hdr.Flags,
+		skins:   skins,
+		poses:   hdr.Poses,
+		refs:    refs,
+	}
+	r.aliasModels[modelID] = alias
+	return alias
+}
+
+func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, origin, angles [3]float32) []WorldVertex {
+	if alias == nil || mdl == nil || mdl.AliasHeader == nil || poseIndex < 0 || poseIndex >= len(alias.poses) {
+		return nil
+	}
+	pose := alias.poses[poseIndex]
+	vertices := make([]WorldVertex, 0, len(alias.refs))
+	for _, ref := range alias.refs {
+		if ref.vertexIndex < 0 || ref.vertexIndex >= len(pose) {
+			continue
+		}
+		compressed := pose[ref.vertexIndex]
+		position := model.DecodeVertex(compressed, mdl.AliasHeader.Scale, mdl.AliasHeader.ScaleOrigin)
+		normal := model.GetNormal(compressed.LightNormalIndex)
+		position = rotateAliasYaw(position, angles[1])
+		normal = rotateAliasYaw(normal, angles[1])
+		position[0] += origin[0]
+		position[1] += origin[1]
+		position[2] += origin[2]
+		vertices = append(vertices, WorldVertex{
+			Position:      position,
+			TexCoord:      ref.texCoord,
+			LightmapCoord: [2]float32{},
+			Normal:        normal,
+		})
+	}
+	return vertices
+}
+
+func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
+	if yawDegrees == 0 {
+		return v
+	}
+	yaw := float32(math.Pi) * yawDegrees / 180.0
+	sinYaw := float32(math.Sin(float64(yaw)))
+	cosYaw := float32(math.Cos(float64(yaw)))
+	return [3]float32{
+		v[0]*cosYaw - v[1]*sinYaw,
+		v[0]*sinYaw + v[1]*cosYaw,
+		v[2],
+	}
+}
+
+func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
+	if len(entities) == 0 {
+		return
+	}
+
+	type drawAlias struct {
+		alias    *glAliasModel
+		model    *model.Model
+		pose     int
+		skin     uint32
+		origin   [3]float32
+		angles   [3]float32
+		alpha    float32
+		fallback uint32
+	}
+
+	r.mu.Lock()
+	program := r.worldProgram
+	vp := r.viewMatrices.VP
+	vpUniform := r.worldVPUniform
+	textureUniform := r.worldTextureUniform
+	modelOffsetUniform := r.worldModelOffsetUniform
+	alphaUniform := r.worldAlphaUniform
+	r.ensureAliasScratchLocked()
+	scratchVAO := r.aliasScratchVAO
+	scratchVBO := r.aliasScratchVBO
+	fallbackTexture := r.worldFallbackTexture
+	draws := make([]drawAlias, 0, len(entities))
+	for _, entity := range entities {
+		alias := r.ensureAliasModelLocked(entity.ModelID, entity.Model)
+		if alias == nil || entity.Model == nil || entity.Model.AliasHeader == nil || len(alias.refs) == 0 {
+			continue
+		}
+		frame := entity.Frame
+		if frame < 0 || frame >= len(entity.Model.AliasHeader.Frames) {
+			frame = 0
+		}
+		pose := entity.Model.AliasHeader.Frames[frame].FirstPose
+		if pose < 0 || pose >= len(alias.poses) {
+			pose = 0
+		}
+		skin := fallbackTexture
+		if len(alias.skins) > 0 {
+			skinIndex := entity.SkinNum
+			if skinIndex < 0 {
+				skinIndex = 0
+			}
+			skin = alias.skins[skinIndex%len(alias.skins)]
+			if skin == 0 {
+				skin = fallbackTexture
+			}
+		}
+		alpha := entity.Alpha
+		if alpha <= 0 {
+			alpha = 1
+		}
+		draws = append(draws, drawAlias{
+			alias:    alias,
+			model:    entity.Model,
+			pose:     pose,
+			skin:     skin,
+			origin:   entity.Origin,
+			angles:   entity.Angles,
+			alpha:    alpha,
+			fallback: fallbackTexture,
+		})
+	}
+	r.mu.Unlock()
+
+	if program == 0 || scratchVAO == 0 || scratchVBO == 0 || len(draws) == 0 {
+		return
+	}
+
+	gl.Enable(gl.DEPTH_TEST)
+	gl.DepthMask(true)
+	gl.Disable(gl.CULL_FACE)
+	gl.Enable(gl.BLEND)
+	gl.UseProgram(program)
+	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindVertexArray(scratchVAO)
+	gl.BindBuffer(gl.ARRAY_BUFFER, scratchVBO)
+
+	for _, draw := range draws {
+		vertices := buildAliasVertices(draw.alias, draw.model, draw.pose, draw.origin, draw.angles)
+		if len(vertices) == 0 {
+			continue
+		}
+		vertexData := flattenWorldVertices(vertices)
+		gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
+		gl.BindTexture(gl.TEXTURE_2D, draw.skin)
+		gl.Uniform1f(alphaUniform, draw.alpha)
+		gl.DrawArrays(gl.TRIANGLES, 0, int32(len(vertices)))
+	}
+
+	gl.BindVertexArray(0)
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.UseProgram(0)
 }
 
 // HasWorldData reports whether the OpenGL world path has uploaded geometry.
@@ -453,9 +708,28 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldVPUniform = -1
 	r.worldTextureUniform = -1
 	r.worldModelOffsetUniform = -1
+	r.worldAlphaUniform = -1
 	r.worldIndexCount = 0
 	r.worldData = nil
 	r.worldTree = nil
+	for modelID, alias := range r.aliasModels {
+		if alias != nil {
+			for _, tex := range alias.skins {
+				if tex != 0 && tex != r.worldFallbackTexture {
+					gl.DeleteTextures(1, &tex)
+				}
+			}
+		}
+		delete(r.aliasModels, modelID)
+	}
+	if r.aliasScratchVAO != 0 {
+		gl.DeleteVertexArrays(1, &r.aliasScratchVAO)
+		r.aliasScratchVAO = 0
+	}
+	if r.aliasScratchVBO != 0 {
+		gl.DeleteBuffers(1, &r.aliasScratchVBO)
+		r.aliasScratchVBO = 0
+	}
 }
 
 // ClearWorld releases OpenGL world resources.

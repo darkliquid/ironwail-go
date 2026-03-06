@@ -25,6 +25,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/hud"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
+	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -55,6 +56,7 @@ var (
 	gameHUD   *hud.HUD
 
 	gameMouseGrabbed bool
+	aliasModelCache  map[string]*model.Model
 )
 
 const (
@@ -531,13 +533,15 @@ func main() {
 			}
 
 			brushEntities := collectBrushEntities()
+			aliasEntities := collectAliasEntities()
 
 			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 				state := renderer.DefaultRenderFrameState()
 				state.ClearColor = [4]float32{0, 0, 0, 1}
 				state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
-				state.DrawEntities = len(brushEntities) > 0
+				state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0
 				state.BrushEntities = brushEntities
+				state.AliasEntities = aliasEntities
 				state.DrawParticles = false
 				state.Draw2DOverlay = true
 				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
@@ -635,6 +639,87 @@ func collectBrushEntities() []renderer.BrushEntity {
 	}
 
 	return brushEntities
+}
+
+func collectAliasEntities() []renderer.AliasModelEntity {
+	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
+		return nil
+	}
+	if aliasModelCache == nil {
+		aliasModelCache = make(map[string]*model.Model)
+	}
+
+	resolve := func(state inet.EntityState) (renderer.AliasModelEntity, bool) {
+		if state.ModelIndex == 0 {
+			return renderer.AliasModelEntity{}, false
+		}
+		precacheIndex := int(state.ModelIndex) - 1
+		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+			return renderer.AliasModelEntity{}, false
+		}
+		modelName := gameClient.ModelPrecache[precacheIndex]
+		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
+			return renderer.AliasModelEntity{}, false
+		}
+
+		mdl, ok := aliasModelCache[modelName]
+		if !ok {
+			data, err := gameSubs.Files.LoadFile(modelName)
+			if err != nil {
+				slog.Debug("alias model load skipped", "model", modelName, "error", err)
+				aliasModelCache[modelName] = nil
+				return renderer.AliasModelEntity{}, false
+			}
+			loaded, err := model.LoadAliasModel(bytes.NewReader(data))
+			if err != nil {
+				slog.Debug("alias model parse skipped", "model", modelName, "error", err)
+				aliasModelCache[modelName] = nil
+				return renderer.AliasModelEntity{}, false
+			}
+			loaded.Name = modelName
+			aliasModelCache[modelName] = loaded
+			mdl = loaded
+		}
+		if mdl == nil || mdl.Type != model.ModAlias || mdl.AliasHeader == nil || len(mdl.AliasHeader.Poses) == 0 {
+			return renderer.AliasModelEntity{}, false
+		}
+
+		frame := int(state.Frame)
+		if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
+			frame = 0
+		}
+		alpha := float32(1)
+		if state.Alpha > 0 && state.Alpha < 255 {
+			alpha = float32(state.Alpha) / 255.0
+		}
+
+		return renderer.AliasModelEntity{
+			ModelID: modelName,
+			Model:   mdl,
+			Frame:   frame,
+			SkinNum: int(state.Skin),
+			Origin:  state.Origin,
+			Angles:  state.Angles,
+			Alpha:   alpha,
+		}, true
+	}
+
+	aliasEntities := make([]renderer.AliasModelEntity, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
+	for entityNum, state := range gameClient.Entities {
+		if entityNum == gameClient.ViewEntity {
+			continue
+		}
+		if aliasEntity, ok := resolve(state); ok {
+			aliasEntities = append(aliasEntities, aliasEntity)
+		}
+	}
+	for _, state := range gameClient.StaticEntities {
+		if aliasEntity, ok := resolve(state); ok {
+			aliasEntities = append(aliasEntities, aliasEntity)
+		}
+	}
+
+	return aliasEntities
 }
 
 func handleGameKeyEvent(event input.KeyEvent) {

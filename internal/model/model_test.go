@@ -69,6 +69,18 @@ func TestLoadAliasModelFromPak0(t *testing.T) {
 			if a.NumPoses < a.NumFrames {
 				t.Fatalf("pose count = %d, expected at least %d", a.NumPoses, a.NumFrames)
 			}
+			if len(a.Skins) != a.NumSkins {
+				t.Fatalf("skin payload count = %d, want %d", len(a.Skins), a.NumSkins)
+			}
+			if len(a.STVerts) != a.NumVerts {
+				t.Fatalf("st vert count = %d, want %d", len(a.STVerts), a.NumVerts)
+			}
+			if len(a.Triangles) != a.NumTris {
+				t.Fatalf("triangle payload count = %d, want %d", len(a.Triangles), a.NumTris)
+			}
+			if len(a.Poses) != a.NumPoses {
+				t.Fatalf("pose payload count = %d, want %d", len(a.Poses), a.NumPoses)
+			}
 
 			if m.NumFrames != a.NumFrames {
 				t.Fatalf("model numframes = %d, want %d", m.NumFrames, a.NumFrames)

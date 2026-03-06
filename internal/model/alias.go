@@ -45,18 +45,21 @@ func LoadAliasModel(r io.ReadSeeker) (*Model, error) {
 		return nil, fmt.Errorf("invalid number of frames: %d", numFrames)
 	}
 
-	if err := skipAliasSkins(r, numSkins, int(header.SkinWidth), int(header.SkinHeight)); err != nil {
+	skins, err := readAliasSkins(r, numSkins, int(header.SkinWidth), int(header.SkinHeight))
+	if err != nil {
 		return nil, err
 	}
 
-	if err := skipAliasSTVerts(r, numVerts); err != nil {
+	stVerts, err := readAliasSTVerts(r, numVerts)
+	if err != nil {
 		return nil, err
 	}
-	if err := skipAliasTriangles(r, numTris); err != nil {
+	triangles, err := readAliasTriangles(r, numTris)
+	if err != nil {
 		return nil, err
 	}
 
-	frames, numPoses, bounds, err := readAliasFrames(r, numFrames, numVerts, header.Scale, header.ScaleOrigin)
+	frames, poses, numPoses, bounds, err := readAliasFrames(r, numFrames, numVerts, header.Scale, header.ScaleOrigin)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +82,10 @@ func LoadAliasModel(r io.ReadSeeker) (*Model, error) {
 		Size:           header.Size,
 		NumPoses:       numPoses,
 		PoseVertType:   0,
+		Skins:          skins,
+		STVerts:        stVerts,
+		Triangles:      triangles,
+		Poses:          poses,
 		Frames:         frames,
 	}
 
@@ -174,6 +181,85 @@ func skipAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) error 
 	return nil
 }
 
+func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]byte, error) {
+	skinSize := skinWidth * skinHeight
+	if skinSize < 0 {
+		return nil, fmt.Errorf("invalid skin dimensions: %dx%d", skinWidth, skinHeight)
+	}
+
+	skins := make([][]byte, 0, numSkins)
+	for i := 0; i < numSkins; i++ {
+		var skinType DAliasSkinType
+		if err := binary.Read(r, binary.LittleEndian, &skinType); err != nil {
+			return nil, fmt.Errorf("failed to read skin type %d: %w", i, err)
+		}
+
+		switch AliasSkinType(skinType.Type) {
+		case AliasSkinSingle:
+			skin, err := readAliasSkinPixels(r, skinSize)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read single skin %d: %w", i, err)
+			}
+			skins = append(skins, skin)
+		case AliasSkinGroup:
+			var group DAliasSkinGroup
+			if err := binary.Read(r, binary.LittleEndian, &group); err != nil {
+				return nil, fmt.Errorf("failed to read skin group %d: %w", i, err)
+			}
+
+			n := int(group.NumSkins)
+			if n < 1 {
+				return nil, fmt.Errorf("invalid number of grouped skins for skin %d: %d", i, n)
+			}
+
+			intervals := make([]DAliasSkinInterval, n)
+			if err := binary.Read(r, binary.LittleEndian, &intervals); err != nil {
+				return nil, fmt.Errorf("failed to read skin group intervals %d: %w", i, err)
+			}
+
+			var firstSkin []byte
+			for skinIndex := 0; skinIndex < n; skinIndex++ {
+				skin, err := readAliasSkinPixels(r, skinSize)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read grouped skin %d:%d: %w", i, skinIndex, err)
+				}
+				if skinIndex == 0 {
+					firstSkin = skin
+				}
+			}
+			skins = append(skins, firstSkin)
+		default:
+			return nil, fmt.Errorf("invalid skin type %d for skin %d", skinType.Type, i)
+		}
+	}
+
+	return skins, nil
+}
+
+func readAliasSkinPixels(r io.Reader, skinSize int) ([]byte, error) {
+	data := make([]byte, skinSize)
+	if _, err := io.ReadFull(r, data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func readAliasSTVerts(r io.Reader, count int) ([]STVert, error) {
+	verts := make([]STVert, count)
+	if err := binary.Read(r, binary.LittleEndian, &verts); err != nil {
+		return nil, fmt.Errorf("failed to read ST verts: %w", err)
+	}
+	return verts, nil
+}
+
+func readAliasTriangles(r io.Reader, count int) ([]DTriangle, error) {
+	tris := make([]DTriangle, count)
+	if err := binary.Read(r, binary.LittleEndian, &tris); err != nil {
+		return nil, fmt.Errorf("failed to read triangles: %w", err)
+	}
+	return tris, nil
+}
+
 func skipAliasSTVerts(r io.Reader, count int) error {
 	verts := make([]STVert, count)
 	if err := binary.Read(r, binary.LittleEndian, &verts); err != nil {
@@ -190,8 +276,9 @@ func skipAliasTriangles(r io.Reader, count int) error {
 	return nil
 }
 
-func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]float32) ([]AliasFrameDesc, int, aliasBounds, error) {
+func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]float32) ([]AliasFrameDesc, [][]TriVertX, int, aliasBounds, error) {
 	frames := make([]AliasFrameDesc, 0, numFrames)
+	poses := make([][]TriVertX, 0, numFrames)
 	bounds := initAliasBounds()
 	poseCount := 0
 	var yawRadiusSquared float32
@@ -200,20 +287,21 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 	for i := 0; i < numFrames; i++ {
 		var frameType DAliasFrameType
 		if err := binary.Read(r, binary.LittleEndian, &frameType); err != nil {
-			return nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame type %d: %w", i, err)
+			return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame type %d: %w", i, err)
 		}
 
 		switch AliasFrameType(frameType.Type) {
 		case AliasSingle:
 			var frame DAliasFrame
 			if err := binary.Read(r, binary.LittleEndian, &frame); err != nil {
-				return nil, 0, aliasBounds{}, fmt.Errorf("failed to read single frame %d: %w", i, err)
+				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read single frame %d: %w", i, err)
 			}
 
 			poseVerts, err := readAliasPoseVerts(r, numVerts)
 			if err != nil {
-				return nil, 0, aliasBounds{}, fmt.Errorf("failed to read single frame pose verts %d: %w", i, err)
+				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read single frame pose verts %d: %w", i, err)
 			}
+			poses = append(poses, poseVerts)
 			updateAliasBounds(poseVerts, scale, origin, &bounds, &yawRadiusSquared, &radiusSquared)
 
 			frames = append(frames, AliasFrameDesc{
@@ -238,41 +326,42 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 
 			poseCount++
 			if poseCount > MaxAliasFrames {
-				return nil, 0, aliasBounds{}, fmt.Errorf("too many alias poses: %d (max %d)", poseCount, MaxAliasFrames)
+				return nil, nil, 0, aliasBounds{}, fmt.Errorf("too many alias poses: %d (max %d)", poseCount, MaxAliasFrames)
 			}
 
 		case AliasGroup:
 			var group DAliasGroup
 			if err := binary.Read(r, binary.LittleEndian, &group); err != nil {
-				return nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame group %d: %w", i, err)
+				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame group %d: %w", i, err)
 			}
 
 			n := int(group.NumFrames)
 			if n < 1 {
-				return nil, 0, aliasBounds{}, fmt.Errorf("invalid number of grouped frames for frame %d: %d", i, n)
+				return nil, nil, 0, aliasBounds{}, fmt.Errorf("invalid number of grouped frames for frame %d: %d", i, n)
 			}
 
 			intervals := make([]DAliasInterval, n)
 			if err := binary.Read(r, binary.LittleEndian, &intervals); err != nil {
-				return nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame intervals for frame %d: %w", i, err)
+				return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read frame intervals for frame %d: %w", i, err)
 			}
 
 			firstPose := poseCount
 			for poseIndex := 0; poseIndex < n; poseIndex++ {
 				var pose DAliasFrame
 				if err := binary.Read(r, binary.LittleEndian, &pose); err != nil {
-					return nil, 0, aliasBounds{}, fmt.Errorf("failed to read group pose %d for frame %d: %w", poseIndex, i, err)
+					return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read group pose %d for frame %d: %w", poseIndex, i, err)
 				}
 
 				poseVerts, err := readAliasPoseVerts(r, numVerts)
 				if err != nil {
-					return nil, 0, aliasBounds{}, fmt.Errorf("failed to read group pose verts %d for frame %d: %w", poseIndex, i, err)
+					return nil, nil, 0, aliasBounds{}, fmt.Errorf("failed to read group pose verts %d for frame %d: %w", poseIndex, i, err)
 				}
+				poses = append(poses, poseVerts)
 				updateAliasBounds(poseVerts, scale, origin, &bounds, &yawRadiusSquared, &radiusSquared)
 
 				poseCount++
 				if poseCount > MaxAliasFrames {
-					return nil, 0, aliasBounds{}, fmt.Errorf("too many alias poses: %d (max %d)", poseCount, MaxAliasFrames)
+					return nil, nil, 0, aliasBounds{}, fmt.Errorf("too many alias poses: %d (max %d)", poseCount, MaxAliasFrames)
 				}
 			}
 
@@ -295,16 +384,16 @@ func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]floa
 				Frame: i,
 			})
 		default:
-			return nil, 0, aliasBounds{}, fmt.Errorf("invalid frame type %d for frame %d", frameType.Type, i)
+			return nil, nil, 0, aliasBounds{}, fmt.Errorf("invalid frame type %d for frame %d", frameType.Type, i)
 		}
 	}
 
 	if poseCount == 0 {
-		return nil, 0, aliasBounds{}, fmt.Errorf("alias model has no poses")
+		return nil, nil, 0, aliasBounds{}, fmt.Errorf("alias model has no poses")
 	}
 
 	bounds.finalize(yawRadiusSquared, radiusSquared)
-	return frames, poseCount, bounds, nil
+	return frames, poses, poseCount, bounds, nil
 }
 
 func readAliasPoseVerts(r io.Reader, count int) ([]TriVertX, error) {

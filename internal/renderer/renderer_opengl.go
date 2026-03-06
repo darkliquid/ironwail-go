@@ -367,10 +367,14 @@ type Renderer struct {
 	worldVPUniform          int32
 	worldTextureUniform     int32
 	worldModelOffsetUniform int32
+	worldAlphaUniform       int32
 	worldIndexCount         int32
 	worldFallbackTexture    uint32
 	worldTextures           map[int32]uint32
 	brushModels             map[int]*glWorldMesh
+	aliasModels             map[string]*glAliasModel
+	aliasScratchVAO         uint32
+	aliasScratchVBO         uint32
 
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -444,6 +448,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		textureCache:  make(map[glCacheKey]*glCachedTexture),
 		worldTextures: make(map[int32]uint32),
 		brushModels:   make(map[int]*glWorldMesh),
+		aliasModels:   make(map[string]*glAliasModel),
 	}
 
 	slog.Info("OpenGL renderer created",

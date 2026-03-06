@@ -254,6 +254,10 @@ type AliasHeader struct {
 	NumVertsVBO    int
 	NumPoses       int
 	PoseVertType   int // PV_QUAKE1, PV_IQM, PV_MD3
+	Skins          [][]byte
+	STVerts        []STVert
+	Triangles      []DTriangle
+	Poses          [][]TriVertX
 	Frames         []AliasFrameDesc
 }
 
