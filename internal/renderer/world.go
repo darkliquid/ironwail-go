@@ -510,17 +510,27 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	r.uniformBindGroupLayout = uniformLayout
 	r.mu.Unlock()
 
-	// Define primitive state (counter-clockwise winding, back-face culling)
+	// Define primitive state.
+	// Disable face culling for now: BSP triangulation winding can vary and
+	// aggressive culling can drop all visible geometry in this MVP renderer.
 	primitiveState := gputypes.PrimitiveState{
 		Topology:  gputypes.PrimitiveTopologyTriangleList,
 		FrontFace: gputypes.FrontFaceCCW,
-		CullMode:  gputypes.CullModeBack,
+		CullMode:  gputypes.CullModeNone,
 	}
 
-	// Define fragment stage with color targets
+	// Define fragment stage with color targets.
+	// Match the active swapchain surface format to avoid format mismatch on some backends.
+	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
+	if r.app != nil {
+		if provider := r.app.DeviceProvider(); provider != nil {
+			surfaceFormat = provider.SurfaceFormat()
+		}
+	}
+
 	fragmentTargets := []gputypes.ColorTargetState{
 		{
-			Format: gputypes.TextureFormatBGRA8Unorm,
+			Format: surfaceFormat,
 			Blend: &gputypes.BlendState{
 				Color: gputypes.BlendComponent{
 					SrcFactor: gputypes.BlendFactorOne,
@@ -901,6 +911,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Set pipeline
 	slog.Info("renderWorldInternal: setting pipeline", "pipeline", fmt.Sprintf("%T", dc.renderer.worldPipeline))
 	renderPass.SetPipeline(dc.renderer.worldPipeline)
+
+	// Explicit viewport/scissor to avoid backend defaults that can yield zero-area rasterization.
+	w, h := dc.renderer.Size()
+	if w > 0 && h > 0 {
+		renderPass.SetViewport(0, 0, float32(w), float32(h), 0.0, 1.0)
+		renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
+	}
 
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()

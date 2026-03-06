@@ -28,6 +28,7 @@ type gogpuInputBackend struct {
 	accumMouseDX    int32
 	accumMouseDY    int32
 	callbackInputOK bool
+	pollPrevPressed []bool
 }
 
 // InputBackendForSystem returns a Backend implementation wired to this renderer's app.
@@ -59,12 +60,17 @@ func (b *gogpuInputBackend) PollEvents() bool {
 	}
 
 	keyboard := state.Keyboard()
-	for _, pair := range pollingKeyMap {
-		if keyboard.JustPressed(pair.src) {
-			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.dst, Down: true, Device: iinput.DeviceKeyboard})
-		}
-		if keyboard.JustReleased(pair.src) {
-			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.dst, Down: false, Device: iinput.DeviceKeyboard})
+	if len(b.pollPrevPressed) != len(pollingKeyMap) {
+		b.pollPrevPressed = make([]bool, len(pollingKeyMap))
+	}
+
+	for index, pair := range pollingKeyMap {
+		pressed := keyboard.Pressed(pair.src)
+		prev := b.pollPrevPressed[index]
+		if pressed != prev {
+			slog.Info("gogpu input polling key", "src", pair.src, "dst", pair.dst, "down", pressed)
+			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.dst, Down: pressed, Device: iinput.DeviceKeyboard})
+			b.pollPrevPressed[index] = pressed
 		}
 	}
 

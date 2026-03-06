@@ -713,6 +713,13 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawWorld {
 		slog.Info("RenderFrame: rendering world")
 		dc.renderWorld(state)
+
+		// Fallback: draw a lightweight top-down vertex projection behind the menu.
+		// This ensures the menu background is not a pure black screen on platforms
+		// where the HAL world pass may not be visibly composited.
+		if state.MenuActive {
+			dc.renderWorldFallbackTopDown()
+		}
 	}
 
 	// Phase 3: Draw entities (stub - M4.4 will implement)
@@ -728,6 +735,76 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
 	if state.Draw2DOverlay && draw2DOverlay != nil {
 		draw2DOverlay(dc)
+	}
+}
+
+// renderWorldFallbackTopDown draws a sparse top-down projection of world
+// vertices using the 2D API. It is used as a visibility fallback while the
+// GPU world pass is being stabilized across platforms.
+func (dc *DrawContext) renderWorldFallbackTopDown() {
+	worldData := dc.renderer.GetWorldData()
+	if worldData == nil || worldData.Geometry == nil || len(worldData.Geometry.Vertices) == 0 {
+		return
+	}
+
+	verts := worldData.Geometry.Vertices
+	minX, maxX := verts[0].Position[0], verts[0].Position[0]
+	minY, maxY := verts[0].Position[1], verts[0].Position[1]
+	for index := 1; index < len(verts); index++ {
+		x := verts[index].Position[0]
+		y := verts[index].Position[1]
+		if x < minX {
+			minX = x
+		}
+		if x > maxX {
+			maxX = x
+		}
+		if y < minY {
+			minY = y
+		}
+		if y > maxY {
+			maxY = y
+		}
+	}
+
+	rangeX := maxX - minX
+	rangeY := maxY - minY
+	if rangeX < 1 || rangeY < 1 {
+		return
+	}
+
+	screenW, screenH := dc.renderer.Size()
+	if screenW <= 0 || screenH <= 0 {
+		return
+	}
+
+	const margin = 24.0
+	drawW := float32(screenW) - margin*2
+	drawH := float32(screenH) - margin*2
+	if drawW <= 0 || drawH <= 0 {
+		return
+	}
+
+	scaleX := drawW / rangeX
+	scaleY := drawH / rangeY
+	scale := scaleX
+	if scaleY < scale {
+		scale = scaleY
+	}
+
+	step := len(verts) / 5000
+	if step < 1 {
+		step = 1
+	}
+
+	for index := 0; index < len(verts); index += step {
+		v := verts[index]
+		sx := int(margin + (v.Position[0]-minX)*scale)
+		sy := int(float32(screenH) - (margin + (v.Position[1]-minY)*scale))
+		if sx < 0 || sx >= screenW || sy < 0 || sy >= screenH {
+			continue
+		}
+		dc.DrawFill(sx, sy, 1, 1, 112)
 	}
 }
 

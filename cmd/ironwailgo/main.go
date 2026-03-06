@@ -384,13 +384,17 @@ func main() {
 
 			// Update camera from client state each frame
 			// This is the critical rendering path for M4: view setup
-			if gameClient != nil && gameRenderer != nil {
-				// Create camera state from client prediction
-				camera := renderer.ConvertClientStateToCamera(
-					gameClient.PredictedOrigin,
-					gameClient.ViewAngles,
-					96.0, // FitzQuake widescreen FOV
-				)
+			if gameRenderer != nil {
+				origin := [3]float32{0, 0, 64}
+				angles := [3]float32{0, 0, 0}
+				if gameClient != nil {
+					origin = gameClient.PredictedOrigin
+					angles = gameClient.ViewAngles
+				}
+
+				// Create camera state from client prediction (or fallback values)
+				camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
+
 				// Update renderer matrices (near=0.1, far=4096 for Quake world)
 				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
 			}
