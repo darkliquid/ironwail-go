@@ -350,6 +350,40 @@ func (c *Client) WeaponFrame() int {
 	return c.Stats[statWeaponFrame]
 }
 
+// LightStyleValues evaluates the current lightstyle scalars for the client clock.
+func (c *Client) LightStyleValues() [64]float32 {
+	var out [64]float32
+	for i := range out {
+		out[i] = 1
+	}
+	if c == nil {
+		return out
+	}
+	for i, style := range c.LightStyles {
+		out[i] = evalLightStyleValue(style, c.Time)
+	}
+	return out
+}
+
+func evalLightStyleValue(style LightStyle, timeSeconds float64) float32 {
+	if style.Length <= 0 || style.Map == "" {
+		return 1
+	}
+	index := int(timeSeconds * 10)
+	if index < 0 {
+		index = 0
+	}
+	index %= style.Length
+	if index < 0 || index >= len(style.Map) {
+		return 1
+	}
+	ch := style.Map[index]
+	if ch < 'a' {
+		return 0
+	}
+	return float32(ch-'a') / float32('m'-'a')
+}
+
 func (c *Client) SetLightStyle(i int, style string) error {
 	if i < 0 || i >= len(c.LightStyles) {
 		return errors.New("lightstyle index out of range")

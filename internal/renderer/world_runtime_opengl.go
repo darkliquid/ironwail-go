@@ -28,11 +28,13 @@ uniform mat4 uViewProjection;
 uniform vec3 uModelOffset;
 
 out vec2 vTexCoord;
+out vec2 vLightmapCoord;
 out vec3 vNormal;
 out vec3 vWorldPos;
 
 void main() {
 	vTexCoord = aTexCoord;
+	vLightmapCoord = aLightmapCoord;
 	vec3 worldPosition = aPosition + uModelOffset;
 	vNormal = aNormal;
 	vWorldPos = worldPosition;
@@ -41,36 +43,33 @@ void main() {
 
 	worldFragmentShaderGL = `#version 410 core
 in vec2 vTexCoord;
+in vec2 vLightmapCoord;
 in vec3 vNormal;
 in vec3 vWorldPos;
 out vec4 fragColor;
 
 uniform sampler2D uTexture;
+uniform sampler2D uLightmap;
 uniform float uAlpha;
 
 void main() {
-    vec3 n = normalize(vNormal);
-    if (length(n) < 0.01) {
-        n = vec3(0.0, 0.0, 1.0);
-    }
-    vec3 lightDir = normalize(vec3(0.35, 0.55, 0.75));
-    float diffuse = max(dot(n, lightDir), 0.0);
-    float ambient = 0.35;
-    float shade = ambient + diffuse * 0.65;
 	vec4 base = texture(uTexture, vTexCoord);
+	vec3 light = texture(uLightmap, vLightmapCoord).rgb;
 	if (base.a < 0.1) {
 		discard;
 	}
-	fragColor = vec4(base.rgb * shade, base.a * uAlpha);
+	fragColor = vec4(base.rgb * light, base.a * uAlpha);
 }`
 )
 
 type glWorldMesh struct {
-	vao        uint32
-	vbo        uint32
-	ebo        uint32
-	indexCount int32
-	faces      []WorldFace
+	vao           uint32
+	vbo           uint32
+	ebo           uint32
+	indexCount    int32
+	faces         []WorldFace
+	lightmaps     []uint32
+	lightmapPages []WorldLightmapPage
 }
 
 type glAliasVertexRef struct {
@@ -129,6 +128,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldProgram = program
 	r.worldVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
 	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
+	r.worldLightmapUniform = gl.GetUniformLocation(program, gl.Str("uLightmap\x00"))
 	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
 	r.worldAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlpha\x00"))
 	return nil
@@ -211,6 +211,12 @@ func (mesh *glWorldMesh) destroy() {
 		gl.DeleteBuffers(1, &mesh.ebo)
 		mesh.ebo = 0
 	}
+	for i, tex := range mesh.lightmaps {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+			mesh.lightmaps[i] = 0
+		}
+	}
 }
 
 func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
@@ -234,6 +240,8 @@ func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
 		return nil
 	}
 	mesh.faces = append(mesh.faces, renderData.Geometry.Faces...)
+	mesh.lightmapPages = append(mesh.lightmapPages, renderData.Lightmaps...)
+	mesh.lightmaps = uploadLightmapPages(renderData.Lightmaps, r.lightStyleValues)
 	r.brushModels[submodelIndex] = mesh
 	return mesh
 }
@@ -256,6 +264,28 @@ func (r *Renderer) ensureWorldFallbackTextureLocked() {
 		return
 	}
 	r.worldFallbackTexture = uploadWorldTextureRGBA(1, 1, []byte{200, 200, 200, 255})
+}
+
+func (r *Renderer) ensureLightmapFallbackTextureLocked() {
+	if r.worldLightmapFallback != 0 {
+		return
+	}
+	r.worldLightmapFallback = uploadWorldTextureRGBA(1, 1, []byte{255, 255, 255, 255})
+}
+
+func (r *Renderer) setLightStyleValues(values [64]float32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lightStyleValues = values
+	r.updateUploadedLightmapsLocked()
+}
+
+func defaultLightStyleValues() [64]float32 {
+	var values [64]float32
+	for i := range values {
+		values[i] = 1
+	}
+	return values
 }
 
 func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) {
@@ -294,6 +324,111 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) {
 	}
 }
 
+func lightstyleScale(values [64]float32, style uint8) float32 {
+	if int(style) < len(values) && values[style] > 0 {
+		return values[style]
+	}
+	return 1
+}
+
+func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
+	if page.Width <= 0 || page.Height <= 0 {
+		return nil
+	}
+	rgba := make([]byte, page.Width*page.Height*4)
+	for i := 0; i < len(rgba); i += 4 {
+		rgba[i] = 255
+		rgba[i+1] = 255
+		rgba[i+2] = 255
+		rgba[i+3] = 255
+	}
+
+	for _, surface := range page.Surfaces {
+		if surface.Width <= 0 || surface.Height <= 0 {
+			continue
+		}
+		styleCount := 0
+		for _, style := range surface.Styles {
+			if style == 255 {
+				break
+			}
+			styleCount++
+		}
+		if styleCount == 0 {
+			styleCount = 1
+		}
+		faceSize := surface.Width * surface.Height * 3
+		if len(surface.Samples) < faceSize*styleCount {
+			continue
+		}
+		for y := 0; y < surface.Height; y++ {
+			for x := 0; x < surface.Width; x++ {
+				sampleIndex := (y*surface.Width + x) * 3
+				var rSum, gSum, bSum float32
+				for styleIndex := 0; styleIndex < styleCount; styleIndex++ {
+					offset := styleIndex*faceSize + sampleIndex
+					scale := lightstyleScale(values, surface.Styles[styleIndex])
+					rSum += float32(surface.Samples[offset]) * scale
+					gSum += float32(surface.Samples[offset+1]) * scale
+					bSum += float32(surface.Samples[offset+2]) * scale
+				}
+				dst := ((surface.Y+y)*page.Width + (surface.X + x)) * 4
+				rgba[dst] = byte(clamp01(rSum/255.0) * 255)
+				rgba[dst+1] = byte(clamp01(gSum/255.0) * 255)
+				rgba[dst+2] = byte(clamp01(bSum/255.0) * 255)
+			}
+		}
+	}
+
+	return rgba
+}
+
+func uploadLightmapPages(pages []WorldLightmapPage, values [64]float32) []uint32 {
+	textures := make([]uint32, 0, len(pages))
+	for _, page := range pages {
+		rgba := buildLightmapPageRGBA(page, values)
+		if len(rgba) == 0 {
+			continue
+		}
+		textures = append(textures, uploadWorldTextureRGBA(page.Width, page.Height, rgba))
+	}
+	return textures
+}
+
+func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values [64]float32) {
+	count := len(textures)
+	if len(pages) < count {
+		count = len(pages)
+	}
+	for i := 0; i < count; i++ {
+		if textures[i] == 0 {
+			continue
+		}
+		rgba := buildLightmapPageRGBA(pages[i], values)
+		if len(rgba) == 0 {
+			continue
+		}
+		gl.BindTexture(gl.TEXTURE_2D, textures[i])
+		gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
+	}
+	if count > 0 {
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+}
+
+func (r *Renderer) updateUploadedLightmapsLocked() {
+	values := r.lightStyleValues
+	if r.worldData != nil {
+		updateLightmapTextures(r.worldLightmaps, r.worldData.Lightmaps, values)
+	}
+	for _, mesh := range r.brushModels {
+		if mesh == nil {
+			continue
+		}
+		updateLightmapTextures(mesh.lightmaps, mesh.lightmapPages, values)
+	}
+}
+
 // UploadWorld builds CPU geometry and uploads it to OpenGL buffers.
 func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if tree == nil {
@@ -319,6 +454,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 	r.worldTree = tree
 	r.uploadWorldTexturesLocked(tree)
+	r.ensureLightmapFallbackTextureLocked()
 	worldMesh := uploadWorldMesh(renderData.Geometry.Vertices, renderData.Geometry.Indices)
 	if worldMesh == nil {
 		return fmt.Errorf("upload world mesh: no geometry uploaded")
@@ -329,6 +465,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 	r.worldData = renderData
 	r.worldIndexCount = worldMesh.indexCount
+	r.worldLightmaps = uploadLightmapPages(renderData.Lightmaps, r.lightStyleValues)
 
 	slog.Info("OpenGL world uploaded",
 		"vertices", renderData.TotalVertices,
@@ -348,8 +485,10 @@ func (r *Renderer) renderWorld() {
 	vp := r.viewMatrices.VP
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
+	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	fallbackTexture := r.worldFallbackTexture
+	fallbackLightmap := r.worldLightmapFallback
 	faces := []WorldFace(nil)
 	if r.worldData != nil && r.worldData.Geometry != nil {
 		faces = append(faces, r.worldData.Geometry.Faces...)
@@ -358,6 +497,7 @@ func (r *Renderer) renderWorld() {
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
 	}
+	worldLightmaps := append([]uint32(nil), r.worldLightmaps...)
 	r.mu.RUnlock()
 
 	if program == 0 || vao == 0 || indexCount <= 0 {
@@ -372,12 +512,19 @@ func (r *Renderer) renderWorld() {
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 	gl.Uniform1f(r.worldAlphaUniform, 1)
 	gl.BindVertexArray(vao)
 	gl.ActiveTexture(gl.TEXTURE0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
+	gl.ActiveTexture(gl.TEXTURE0)
 	if len(faces) == 0 {
 		gl.BindTexture(gl.TEXTURE_2D, fallbackTexture)
+		gl.ActiveTexture(gl.TEXTURE1)
+		gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
+		gl.ActiveTexture(gl.TEXTURE0)
 		gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
 	} else {
 		for _, face := range faces {
@@ -385,11 +532,21 @@ func (r *Renderer) renderWorld() {
 			if tex == 0 {
 				tex = fallbackTexture
 			}
+			lightmap := fallbackLightmap
+			if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(worldLightmaps) && worldLightmaps[face.LightmapIndex] != 0 {
+				lightmap = worldLightmaps[face.LightmapIndex]
+			}
 			gl.BindTexture(gl.TEXTURE_2D, tex)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, lightmap)
+			gl.ActiveTexture(gl.TEXTURE0)
 			gl.DrawElements(gl.TRIANGLES, int32(face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(face.FirstIndex*4)))
 		}
 	}
 	gl.BindVertexArray(0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 
@@ -406,8 +563,10 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	vp := r.viewMatrices.VP
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
+	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	fallbackTexture := r.worldFallbackTexture
+	fallbackLightmap := r.worldLightmapFallback
 	worldTextures := make(map[int32]uint32, len(r.worldTextures))
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
@@ -437,6 +596,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform1f(r.worldAlphaUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
 
@@ -448,12 +608,22 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 			if tex == 0 {
 				tex = fallbackTexture
 			}
+			lightmap := fallbackLightmap
+			if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(brush.mesh.lightmaps) && brush.mesh.lightmaps[face.LightmapIndex] != 0 {
+				lightmap = brush.mesh.lightmaps[face.LightmapIndex]
+			}
 			gl.BindTexture(gl.TEXTURE_2D, tex)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, lightmap)
+			gl.ActiveTexture(gl.TEXTURE0)
 			gl.DrawElements(gl.TRIANGLES, int32(face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(face.FirstIndex*4)))
 		}
 	}
 
 	gl.BindVertexArray(0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 	gl.Enable(gl.BLEND)
@@ -473,6 +643,7 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 	}
 
 	r.ensureWorldFallbackTextureLocked()
+	r.ensureLightmapFallbackTextureLocked()
 	palette := append([]byte(nil), r.palette...)
 	skins := make([]uint32, 0, len(hdr.Skins))
 	for _, skin := range hdr.Skins {
@@ -653,11 +824,13 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	vp := r.viewMatrices.VP
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
+	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	alphaUniform := r.worldAlphaUniform
 	r.ensureAliasScratchLocked()
 	scratchVAO := r.aliasScratchVAO
 	scratchVBO := r.aliasScratchVBO
+	fallbackLightmap := r.worldLightmapFallback
 	r.mu.Unlock()
 
 	if program == 0 || scratchVAO == 0 || scratchVBO == 0 {
@@ -674,7 +847,11 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindVertexArray(scratchVAO)
 	gl.BindBuffer(gl.ARRAY_BUFFER, scratchVBO)
@@ -693,6 +870,9 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 
 	gl.BindVertexArray(0)
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 	if useViewModelDepthRange {
@@ -772,12 +952,24 @@ func (r *Renderer) clearWorldLocked() {
 		}
 		delete(r.worldTextures, textureIndex)
 	}
+	for i, tex := range r.worldLightmaps {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+		}
+		r.worldLightmaps[i] = 0
+	}
+	r.worldLightmaps = nil
 	if r.worldFallbackTexture != 0 {
 		gl.DeleteTextures(1, &r.worldFallbackTexture)
 		r.worldFallbackTexture = 0
 	}
+	if r.worldLightmapFallback != 0 {
+		gl.DeleteTextures(1, &r.worldLightmapFallback)
+		r.worldLightmapFallback = 0
+	}
 	r.worldVPUniform = -1
 	r.worldTextureUniform = -1
+	r.worldLightmapUniform = -1
 	r.worldModelOffsetUniform = -1
 	r.worldAlphaUniform = -1
 	r.worldIndexCount = 0

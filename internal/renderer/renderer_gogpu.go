@@ -703,6 +703,9 @@ type RenderFrameState struct {
 	// ViewModel contains the first-person weapon model when active.
 	ViewModel *AliasModelEntity
 
+	// LightStyles contains evaluated lightstyle scalars for the current frame.
+	LightStyles [64]float32
+
 	// DrawParticles enables particle rendering
 	DrawParticles bool
 

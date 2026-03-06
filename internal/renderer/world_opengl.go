@@ -22,10 +22,11 @@ type worldTextureMeta struct {
 
 // WorldGeometry holds BSP world data prepared for rendering.
 type WorldGeometry struct {
-	Vertices []WorldVertex
-	Indices  []uint32
-	Faces    []WorldFace
-	Tree     *bsp.Tree
+	Vertices  []WorldVertex
+	Indices   []uint32
+	Faces     []WorldFace
+	Lightmaps []WorldLightmapPage
+	Tree      *bsp.Tree
 }
 
 // WorldVertex matches the packed vertex layout used by the OpenGL world path.
@@ -45,15 +46,33 @@ type WorldFace struct {
 	Flags         int32
 }
 
+type WorldLightmapSurface struct {
+	X       int
+	Y       int
+	Width   int
+	Height  int
+	Styles  [bsp.MaxLightmaps]uint8
+	Samples []byte
+}
+
+type WorldLightmapPage struct {
+	Width    int
+	Height   int
+	Surfaces []WorldLightmapSurface
+}
+
 // WorldRenderData holds CPU-side world data and bounds.
 type WorldRenderData struct {
 	Geometry      *WorldGeometry
+	Lightmaps     []WorldLightmapPage
 	BoundsMin     [3]float32
 	BoundsMax     [3]float32
 	TotalVertices int
 	TotalIndices  int
 	TotalFaces    int
 }
+
+const worldLightmapPageSize = 1024
 
 // BuildWorldGeometry extracts renderable geometry from BSP data.
 func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
@@ -79,6 +98,11 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		Faces:    make([]WorldFace, 0, 256),
 		Tree:     tree,
 	}
+	lightmapAllocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
+	if err != nil {
+		return nil, fmt.Errorf("create lightmap allocator: %w", err)
+	}
+	lightmapPages := make([]WorldLightmapPage, 0, 4)
 
 	textureMeta := parseWorldTextureMeta(tree)
 
@@ -104,7 +128,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			Flags:         textureFlags,
 		}
 
-		faceVerts, err := extractFaceVertices(tree, face, textureMeta)
+		faceVerts, lightmapSurface, err := extractFaceVertices(tree, face, textureMeta, lightmapAllocator, &lightmapPages)
 		if err != nil {
 			slog.Warn("OpenGL world: failed to extract face", "face", globalFaceIdx, "error", err)
 			continue
@@ -124,8 +148,12 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		}
 
 		faceData.NumIndices = uint32((len(faceVerts) - 2) * 3)
+		if lightmapSurface != nil {
+			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
+		}
 		geom.Faces = append(geom.Faces, faceData)
 	}
+	geom.Lightmaps = lightmapPages
 
 	return geom, nil
 }
@@ -159,12 +187,17 @@ func parseWorldTextureMeta(tree *bsp.Tree) []worldTextureMeta {
 	return textures
 }
 
-func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []worldTextureMeta) ([]WorldVertex, error) {
+type faceLightmapSurface struct {
+	pageIndex int
+}
+
+func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []worldTextureMeta, allocator *LightmapAllocator, pages *[]WorldLightmapPage) ([]WorldVertex, *faceLightmapSurface, error) {
 	if int(face.NumEdges) < 3 {
-		return nil, fmt.Errorf("face has < 3 edges")
+		return nil, nil, fmt.Errorf("face has < 3 edges")
 	}
 
 	vertices := make([]WorldVertex, 0, int(face.NumEdges))
+	rawLightmapCoords := make([][2]float32, 0, int(face.NumEdges))
 	var normal [3]float32
 	if int(face.PlaneNum) < len(tree.Planes) {
 		normal = tree.Planes[face.PlaneNum].Normal
@@ -201,46 +234,135 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []world
 	for i := int32(0); i < face.NumEdges; i++ {
 		surfEdgeIdx := int(face.FirstEdge) + int(i)
 		if surfEdgeIdx >= len(tree.Surfedges) {
-			return nil, fmt.Errorf("surfedge index %d out of range", surfEdgeIdx)
+			return nil, nil, fmt.Errorf("surfedge index %d out of range", surfEdgeIdx)
 		}
 		surfEdge := tree.Surfedges[surfEdgeIdx]
 
 		var vertIdx uint32
 		if surfEdge >= 0 {
 			if int(surfEdge) >= len(tree.Edges) {
-				return nil, fmt.Errorf("edge index %d out of range", surfEdge)
+				return nil, nil, fmt.Errorf("edge index %d out of range", surfEdge)
 			}
 			vertIdx = tree.Edges[surfEdge].V[0]
 		} else {
 			edgeIdx := -surfEdge
 			if int(edgeIdx) >= len(tree.Edges) {
-				return nil, fmt.Errorf("edge index %d out of range", edgeIdx)
+				return nil, nil, fmt.Errorf("edge index %d out of range", edgeIdx)
 			}
 			vertIdx = tree.Edges[edgeIdx].V[1]
 		}
 
 		if int(vertIdx) >= len(tree.Vertexes) {
-			return nil, fmt.Errorf("vertex index %d out of range", vertIdx)
+			return nil, nil, fmt.Errorf("vertex index %d out of range", vertIdx)
 		}
 		position := tree.Vertexes[vertIdx].Point
 
 		texCoord := [2]float32{0, 0}
+		lightmapCoord := [2]float32{0, 0}
 		if texInfo != nil {
 			u := position[0]*texInfo.Vecs[0][0] + position[1]*texInfo.Vecs[0][1] + position[2]*texInfo.Vecs[0][2] + texInfo.Vecs[0][3]
 			v := position[0]*texInfo.Vecs[1][0] + position[1]*texInfo.Vecs[1][1] + position[2]*texInfo.Vecs[1][2] + texInfo.Vecs[1][3]
 			texCoord[0] = u / textureWidth
 			texCoord[1] = v / textureHeight
+			rawLightmapCoords = append(rawLightmapCoords, [2]float32{u, v})
 		}
 
 		vertices = append(vertices, WorldVertex{
 			Position:      position,
 			TexCoord:      texCoord,
-			LightmapCoord: [2]float32{0, 0},
+			LightmapCoord: lightmapCoord,
 			Normal:        normal,
 		})
 	}
 
-	return vertices, nil
+	lightmapSurface, err := assignFaceLightmap(vertices, rawLightmapCoords, face, tree, allocator, pages)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return vertices, lightmapSurface, nil
+}
+
+func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
+	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
+		return nil, nil
+	}
+
+	minU, maxU := rawCoords[0][0], rawCoords[0][0]
+	minV, maxV := rawCoords[0][1], rawCoords[0][1]
+	for i := 1; i < len(rawCoords); i++ {
+		if rawCoords[i][0] < minU {
+			minU = rawCoords[i][0]
+		}
+		if rawCoords[i][0] > maxU {
+			maxU = rawCoords[i][0]
+		}
+		if rawCoords[i][1] < minV {
+			minV = rawCoords[i][1]
+		}
+		if rawCoords[i][1] > maxV {
+			maxV = rawCoords[i][1]
+		}
+	}
+
+	textureMinU := float32(math.Floor(float64(minU/16.0))) * 16.0
+	textureMinV := float32(math.Floor(float64(minV/16.0))) * 16.0
+	extentU := int(math.Ceil(float64(maxU/16.0))*16.0 - float64(textureMinU))
+	extentV := int(math.Ceil(float64(maxV/16.0))*16.0 - float64(textureMinV))
+	if extentU < 0 {
+		extentU = 0
+	}
+	if extentV < 0 {
+		extentV = 0
+	}
+	smax := extentU/16 + 1
+	tmax := extentV/16 + 1
+	if smax <= 0 || tmax <= 0 {
+		return nil, nil
+	}
+
+	texNum, x, y, err := allocator.AllocBlock(smax, tmax)
+	if err != nil {
+		return nil, fmt.Errorf("alloc face lightmap: %w", err)
+	}
+	for len(*pages) <= texNum {
+		*pages = append(*pages, WorldLightmapPage{Width: worldLightmapPageSize, Height: worldLightmapPageSize})
+	}
+
+	styleCount := 0
+	for _, style := range face.Styles {
+		if style == 255 {
+			break
+		}
+		styleCount++
+	}
+	if styleCount == 0 {
+		styleCount = 1
+	}
+	sampleSize := smax * tmax * 3 * styleCount
+	if int(face.LightOfs) < 0 || int(face.LightOfs)+sampleSize > len(tree.Lighting) {
+		return nil, nil
+	}
+	samples := append([]byte(nil), tree.Lighting[face.LightOfs:int(face.LightOfs)+sampleSize]...)
+	(*pages)[texNum].Surfaces = append((*pages)[texNum].Surfaces, WorldLightmapSurface{
+		X:       x,
+		Y:       y,
+		Width:   smax,
+		Height:  tmax,
+		Styles:  face.Styles,
+		Samples: samples,
+	})
+
+	for i := range vertices {
+		lightS := (rawCoords[i][0]-textureMinU)/16.0 + float32(x) + 0.5
+		lightT := (rawCoords[i][1]-textureMinV)/16.0 + float32(y) + 0.5
+		vertices[i].LightmapCoord = [2]float32{
+			lightS / float32(worldLightmapPageSize),
+			lightT / float32(worldLightmapPageSize),
+		}
+	}
+
+	return &faceLightmapSurface{pageIndex: texNum}, nil
 }
 
 func buildWorldRenderData(tree *bsp.Tree) (*WorldRenderData, error) {
@@ -255,6 +377,7 @@ func buildModelRenderData(tree *bsp.Tree, modelIndex int) (*WorldRenderData, err
 
 	renderData := &WorldRenderData{
 		Geometry:      geom,
+		Lightmaps:     append([]WorldLightmapPage(nil), geom.Lightmaps...),
 		TotalVertices: len(geom.Vertices),
 		TotalIndices:  len(geom.Indices),
 		TotalFaces:    len(geom.Faces),

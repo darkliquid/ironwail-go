@@ -268,6 +268,31 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	}
 }
 
+func TestLightStyleValues(t *testing.T) {
+	c := NewClient()
+	if err := c.SetLightStyle(0, "az"); err != nil {
+		t.Fatalf("SetLightStyle error: %v", err)
+	}
+	if err := c.SetLightStyle(1, "m"); err != nil {
+		t.Fatalf("SetLightStyle error: %v", err)
+	}
+
+	c.Time = 0.0
+	values := c.LightStyleValues()
+	if values[0] != 0 {
+		t.Fatalf("style[0] at t=0 = %f, want 0", values[0])
+	}
+	if math.Abs(float64(values[1]-1.0)) > 1e-6 {
+		t.Fatalf("style[1] at t=0 = %f, want 1", values[1])
+	}
+
+	c.Time = 0.1
+	values = c.LightStyleValues()
+	if values[0] <= 2.0 {
+		t.Fatalf("style[0] at t=0.1 = %f, want > 2", values[0])
+	}
+}
+
 func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)

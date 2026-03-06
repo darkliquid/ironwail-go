@@ -17,6 +17,7 @@ type RenderFrameState struct {
 	BrushEntities []BrushEntity
 	AliasEntities []AliasModelEntity
 	ViewModel     *AliasModelEntity
+	LightStyles   [64]float32
 	DrawParticles bool
 	Draw2DOverlay bool
 	MenuActive    bool
@@ -34,6 +35,9 @@ type DrawContext struct {
 func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(dc RenderContext)) {
 	if state == nil {
 		return
+	}
+	if dc.gldc.renderer != nil {
+		dc.gldc.renderer.setLightStyleValues(state.LightStyles)
 	}
 	dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 	if state.DrawWorld && dc.gldc.renderer != nil {

@@ -548,6 +548,9 @@ func main() {
 				state.Draw2DOverlay = true
 				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
 				state.Particles = gameParticles
+				if gameClient != nil {
+					state.LightStyles = gameClient.LightStyleValues()
+				}
 				if gameDraw != nil {
 					state.Palette = gameDraw.Palette()
 				}
