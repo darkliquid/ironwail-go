@@ -49,6 +49,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.AliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(state.AliasEntities)
 	}
+	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
+		dc.gldc.renderer.renderParticles(state.Particles, state.Palette)
+	}
 	if state.DrawEntities && dc.gldc.renderer != nil && state.ViewModel != nil {
 		dc.gldc.renderer.renderViewModel(*state.ViewModel)
 	}

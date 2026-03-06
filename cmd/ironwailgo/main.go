@@ -544,7 +544,7 @@ func main() {
 				state.BrushEntities = brushEntities
 				state.AliasEntities = aliasEntities
 				state.ViewModel = viewModel
-				state.DrawParticles = false
+				state.DrawParticles = gameParticles != nil && gameParticles.ActiveCount() > 0
 				state.Draw2DOverlay = true
 				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
 				state.Particles = gameParticles

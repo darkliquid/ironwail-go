@@ -356,29 +356,34 @@ type Renderer struct {
 	charCache     [256]*image.QPic
 	drawContext   *glDrawContext
 
-	cameraState             CameraState
-	viewMatrices            ViewMatrixData
-	worldData               *WorldRenderData
-	worldTree               *bsp.Tree
-	worldVAO                uint32
-	worldVBO                uint32
-	worldEBO                uint32
-	worldProgram            uint32
-	worldVPUniform          int32
-	worldTextureUniform     int32
-	worldLightmapUniform    int32
-	worldModelOffsetUniform int32
-	worldAlphaUniform       int32
-	worldIndexCount         int32
-	worldFallbackTexture    uint32
-	worldLightmapFallback   uint32
-	worldTextures           map[int32]uint32
-	worldLightmaps          []uint32
-	lightStyleValues        [64]float32
-	brushModels             map[int]*glWorldMesh
-	aliasModels             map[string]*glAliasModel
-	aliasScratchVAO         uint32
-	aliasScratchVBO         uint32
+	cameraState               CameraState
+	viewMatrices              ViewMatrixData
+	worldData                 *WorldRenderData
+	worldTree                 *bsp.Tree
+	worldVAO                  uint32
+	worldVBO                  uint32
+	worldEBO                  uint32
+	worldProgram              uint32
+	worldVPUniform            int32
+	worldTextureUniform       int32
+	worldLightmapUniform      int32
+	worldModelOffsetUniform   int32
+	worldAlphaUniform         int32
+	worldIndexCount           int32
+	worldFallbackTexture      uint32
+	worldLightmapFallback     uint32
+	worldTextures             map[int32]uint32
+	worldLightmaps            []uint32
+	lightStyleValues          [64]float32
+	brushModels               map[int]*glWorldMesh
+	aliasModels               map[string]*glAliasModel
+	aliasScratchVAO           uint32
+	aliasScratchVBO           uint32
+	particleProgram           uint32
+	particleVPUniform         int32
+	particlePointScaleUniform int32
+	particleVAO               uint32
+	particleVBO               uint32
 
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -637,6 +642,9 @@ func (r *Renderer) Stop() {
 func (r *Renderer) Shutdown() {
 	slog.Debug("OpenGL renderer shutting down")
 	r.ClearWorld()
+	r.mu.Lock()
+	r.clearParticleResourcesLocked()
+	r.mu.Unlock()
 	r.deleteAllTextures()
 	if r.window != nil {
 		r.window.Destroy()
