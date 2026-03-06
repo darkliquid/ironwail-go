@@ -130,9 +130,9 @@ type GlobalVars struct {
 
 	// VForward, VUp, VRight are the view direction vectors.
 	// Set by the engine based on player view angles.
-	VForward  [3]float32
-	VUp       [3]float32
-	VRight    [3]float32
+	VForward [3]float32
+	VUp      [3]float32
+	VRight   [3]float32
 
 	// TraceAllSolid indicates the trace was entirely in solid.
 	TraceAllSolid float32
@@ -670,7 +670,6 @@ func (vm *VM) NumForEdict(e int) int {
 	return e
 }
 
-
 // SetGlobal sets a global variable by name using reflection.
 // Supports float32, int, int32, and *Edict types.
 // Does nothing if the global name is not found.
@@ -752,8 +751,8 @@ type Edict struct {
 //
 // Entity layout in Edicts array:
 //
-//   [0..91]: edict_t header (isfree, freetime)
-//   [92..]: EntVars fields (EntityFields * 4 bytes)
+//   [0..27]: edict prefix/header data
+//   [28..]: EntVars fields (EntityFields * 4 bytes)
 //
 // Field offsets are determined by the progs.dat file and can be
 // looked up using FindField.
@@ -768,8 +767,8 @@ func (vm *VM) EdictData(edictNum int) []byte {
 	if offset+vm.EdictSize > len(vm.Edicts) {
 		return nil
 	}
-	// Skip the edict_t header (92 bytes in original Quake)
-	return vm.Edicts[offset+92 : offset+vm.EdictSize]
+	// Skip the edict_t header prefix used before entvars data.
+	return vm.Edicts[offset+28 : offset+vm.EdictSize]
 }
 
 // EFloat returns a float entity field value.
@@ -871,5 +870,5 @@ func (vm *VM) GetEdict(num int) *Edict {
 // EdictFieldOffset returns the byte offset for an entity field.
 // The offset is relative to the start of the entity's private data.
 func (vm *VM) EdictFieldOffset(fieldOfs int) int {
-	return 92 + fieldOfs*4
+	return 28 + fieldOfs*4
 }

@@ -47,12 +47,13 @@ description = "Smoke test: verify map spawning works"
 depends = ["clean-logs"]
 run = """
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} start 2>&1 | tee smoke-map-start.log || true
+timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} +map start 2>&1 | tee smoke-map-start.log || true
 grep "FS mounted" smoke-map-start.log
 grep "QC loaded" smoke-map-start.log
 grep "menu active" smoke-map-start.log
 grep "map spawn started" smoke-map-start.log
 grep "map spawn finished" smoke-map-start.log
+grep "client active" smoke-map-start.log
 grep "frame loop started" smoke-map-start.log
 """
 
@@ -69,10 +70,20 @@ depends = ["go-generate"]
 description = "Build binary in WGPU mode"
 run = "go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
 
+[tasks.build-gogpu-sdl3]
+depends = ["go-generate"]
+description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
+run = "go build -tags 'gogpu sdl3 nofakecgo' -o ironwailgo-wgpu-sdl3 ./cmd/ironwailgo"
+
+[tasks.run-gogpu-sdl3]
+depends = ["build-gogpu-sdl3"]
+description = "Run WGPU + SDL3 input/audio build"
+run = "IW_INPUT_BACKEND=sdl3 ./ironwailgo-wgpu-sdl3 -basedir ${QUAKE_DIR}"
+
 [tasks.build-gl]
 depends = ["go-generate"]
 description = "Build binary in OpenGL mode"
-run = "go build -tags opengl,egl  -o ironwailgo-gl ./cmd/ironwailgo"
+run = "go build -tags opengl,egl -o ironwailgo-gl ./cmd/ironwailgo"
 
 [tasks.go-generate]
 hide = true

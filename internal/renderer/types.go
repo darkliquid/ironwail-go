@@ -4,6 +4,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
+
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
 // It supports multiple rendering backends selected at build time via build tags.
 //
@@ -13,10 +14,12 @@ import (
 //   - (no tags): Returns error, requires explicit backend selection
 //
 // To build with gogpu backend:
-//   go build -tags=gogpu ./...
+//
+//	go build -tags=gogpu ./...
 //
 // To build with OpenGL backend (requires CGO):
-//   go build -tags=opengl ./...
+//
+//	go build -tags=opengl ./...
 //
 // Architecture:
 //
@@ -32,6 +35,7 @@ import (
 //   - Linux: apt-get install libglfw3-dev libgl1-mesa-dev
 //   - macOS: No additional dependencies (OpenGL framework available)
 //   - Windows: No additional dependencies (OpenGL available)
+//
 // RenderContext provides frame-specific rendering operations.
 // It is passed to the OnDraw callback and provides access to
 // the current frame's rendering state.
@@ -87,7 +91,6 @@ type Backend interface {
 	SetConfig(Config)
 	IsRunning() bool
 }
-
 
 // Video-related console variable names used by the renderer.
 // These cvars must be registered by the host application before

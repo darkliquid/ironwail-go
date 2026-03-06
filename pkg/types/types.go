@@ -105,6 +105,7 @@ func AngleByte(angle float32) byte {
 func ByteToAngle(b byte) float32 {
 	return float32(b) * float32(360.0/256.0)
 }
+
 // Constants for angle indices.
 const (
 	Pitch = 0

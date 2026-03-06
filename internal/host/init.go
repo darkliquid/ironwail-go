@@ -17,24 +17,53 @@ import (
 
 var hostSubsystemRegistry sync.Map
 
+// serverDatagramSource is satisfied by server.Server to expose loopback-ready
+// client messages.
+type serverDatagramSource interface {
+	GetClientLoopbackMessage(clientNum int) []byte
+}
+
+type serverCommandSink interface {
+	SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward, side, up float32, buttons, impulse int, sentTime float64) error
+	SubmitLoopbackStringCommand(clientNum int, cmd string) error
+}
+
 type localLoopbackClient struct {
-	inner *cl.Client
+	inner    *cl.Client
+	parser   *cl.Parser
+	srv      serverDatagramSource
+	cmd      serverCommandSink
+	cmdReady bool
 }
 
 func newLocalLoopbackClient() *localLoopbackClient {
-	return &localLoopbackClient{inner: cl.NewClient()}
+	c := cl.NewClient()
+	return &localLoopbackClient{inner: c, parser: cl.NewParser(c)}
 }
 
 func (c *localLoopbackClient) Init() error {
 	if c.inner == nil {
 		c.inner = cl.NewClient()
+		c.parser = cl.NewParser(c.inner)
 	}
 	c.inner.ClearState()
+	c.cmdReady = false
 	return nil
 }
 
-func (c *localLoopbackClient) Frame(frameTime float64) error { return nil }
-func (c *localLoopbackClient) Shutdown()                     {}
+func (c *localLoopbackClient) Frame(frameTime float64) error {
+	if c == nil || c.inner == nil {
+		return nil
+	}
+	if c.inner.State != cl.StateActive {
+		c.cmdReady = false
+		return nil
+	}
+	c.inner.AccumulateCmd(float32(frameTime))
+	c.cmdReady = true
+	return nil
+}
+func (c *localLoopbackClient) Shutdown() {}
 
 func (c *localLoopbackClient) State() ClientState {
 	if c == nil || c.inner == nil {
@@ -50,17 +79,103 @@ func (c *localLoopbackClient) State() ClientState {
 	}
 }
 
-func (c *localLoopbackClient) ReadFromServer() error { return nil }
-func (c *localLoopbackClient) SendCommand() error    { return nil }
+// ReadFromServer polls the loopback server for a client datagram and feeds it
+// to the client parser. This is the M3 integration point: server→client messages.
+func (c *localLoopbackClient) ReadFromServer() error {
+	if c.srv == nil || c.inner.State != cl.StateActive {
+		return nil
+	}
+	data := c.srv.GetClientLoopbackMessage(0)
+	if len(data) == 0 {
+		return nil
+	}
+	if err := c.parser.ParseServerMessage(data); err != nil {
+		// Log but don't abort — a parse error on one frame shouldn't crash the loop.
+		_ = err
+	}
+	return nil
+}
+
+func (c *localLoopbackClient) SendCommand() error {
+	if c == nil || c.inner == nil || c.cmd == nil || !c.cmdReady || c.inner.State != cl.StateActive {
+		return nil
+	}
+	cmd := c.inner.PendingCmd
+	if err := c.cmd.SubmitLoopbackCmd(0, cmd.ViewAngles, cmd.Forward, cmd.Side, cmd.Up, cmd.Buttons, cmd.Impulse, c.inner.Time); err != nil {
+		return err
+	}
+	c.inner.Cmd = cmd
+	c.cmdReady = false
+	return nil
+}
+
+// SetupLoopbackClientServer wires the loopback client inside subs to the given
+// server so that ReadFromServer actually parses per-frame datagrams.
+// Call this after constructing subs but before Host.Init.
+func SetupLoopbackClientServer(subs *Subsystems, srv serverDatagramSource) {
+	if subs == nil || srv == nil {
+		return
+	}
+	// Create the client if not already set.
+	if subs.Client == nil {
+		subs.Client = newLocalLoopbackClient()
+	}
+	if lc, ok := subs.Client.(*localLoopbackClient); ok {
+		lc.srv = srv
+		if cmd, ok := srv.(serverCommandSink); ok {
+			lc.cmd = cmd
+		}
+	}
+}
+
+func LoopbackClientState(subs *Subsystems) *cl.Client {
+	if subs == nil {
+		return nil
+	}
+	lc, ok := subs.Client.(*localLoopbackClient)
+	if !ok {
+		return nil
+	}
+	return lc.inner
+}
+
+func DispatchLoopbackStuffText(subs *Subsystems) {
+	if subs == nil || subs.Commands == nil {
+		return
+	}
+	if c := LoopbackClientState(subs); c != nil {
+		if text := c.ConsumeStuffCommands(); text != "" {
+			subs.Commands.AddText(text)
+		}
+	}
+	subs.Commands.Execute()
+}
 
 func (c *localLoopbackClient) LocalServerInfo() error {
+	if c == nil || c.inner == nil || c.srv == nil || c.parser == nil {
+		return fmt.Errorf("loopback client not initialized")
+	}
 	c.inner.ClearState()
 	c.inner.State = cl.StateDisconnected
-	return c.inner.HandleServerInfo()
+	data := c.srv.GetClientLoopbackMessage(0)
+	if len(data) == 0 {
+		return fmt.Errorf("no loopback serverinfo available")
+	}
+	return c.parser.ParseServerMessage(data)
 }
 
 func (c *localLoopbackClient) LocalSignonReply(command string) error {
-	return c.inner.HandleSignonReply(command)
+	if c == nil || c.inner == nil || c.cmd == nil || c.srv == nil || c.parser == nil {
+		return fmt.Errorf("loopback client not initialized")
+	}
+	if err := c.cmd.SubmitLoopbackStringCommand(0, command); err != nil {
+		return err
+	}
+	data := c.srv.GetClientLoopbackMessage(0)
+	if len(data) == 0 {
+		return fmt.Errorf("no loopback reply for %q", command)
+	}
+	return c.parser.ParseServerMessage(data)
 }
 
 func (c *localLoopbackClient) LocalSignon() int {

@@ -57,20 +57,33 @@ const (
 // The first 28 slots are reserved for system use, then the
 // GlobalVars structure begins with self, other, world, time, etc.
 const (
-	OFSNull     = 0  // Null offset
-	OFSReturn   = 1  // Return value offset (3 slots for vector)
-	OFSParm0    = 4  // Parameter 0 offset (3 slots for vector)
-	OFSParm1    = 7  // Parameter 1 offset (3 slots for vector)
-	OFSParm2    = 10 // Parameter 2 offset (3 slots for vector)
-	OFSParm3    = 13 // Parameter 3 offset (3 slots for vector)
-	OFSParm4    = 16 // Parameter 4 offset (3 slots for vector)
-	OFSParm5    = 19 // Parameter 5 offset (3 slots for vector)
-	OFSParm6    = 22 // Parameter 6 offset (3 slots for vector)
-	OFSParm7    = 25 // Parameter 7 offset (3 slots for vector)
-	// View direction vectors (set by makevectors builtin)
-	OFSGlobalVForward = 131 // v_forward global offset
-	OFSGlobalVRight   = 132 // v_right global offset
-	OFSGlobalVUp       = 133 // v_up global offset
+	OFSNull   = 0  // Null offset
+	OFSReturn = 1  // Return value offset (3 slots for vector)
+	OFSParm0  = 4  // Parameter 0 offset (3 slots for vector)
+	OFSParm1  = 7  // Parameter 1 offset (3 slots for vector)
+	OFSParm2  = 10 // Parameter 2 offset (3 slots for vector)
+	OFSParm3  = 13 // Parameter 3 offset (3 slots for vector)
+	OFSParm4  = 16 // Parameter 4 offset (3 slots for vector)
+	OFSParm5  = 19 // Parameter 5 offset (3 slots for vector)
+	OFSParm6  = 22 // Parameter 6 offset (3 slots for vector)
+	OFSParm7  = 25 // Parameter 7 offset (3 slots for vector)
+	// View direction vectors (set by makevectors builtin).
+	// These offsets match the standard Quake globalvars layout.
+	OFSGlobalVForward = 59 // v_forward global offset (vec3)
+	OFSGlobalVUp      = 62 // v_up global offset (vec3)
+	OFSGlobalVRight   = 65 // v_right global offset (vec3)
+
+	// Trace result globals populated by `traceline`.
+	OFSTraceAllSolid    = 68 // trace_allsolid
+	OFSTraceStartSolid  = 69 // trace_startsolid
+	OFSTraceFraction    = 70 // trace_fraction
+	OFSTraceEndPos      = 71 // trace_endpos (vec3)
+	OFSTracePlaneNormal = 74 // trace_plane_normal (vec3)
+	OFSTracePlaneDist   = 77 // trace_plane_dist
+	OFSTraceEnt         = 78 // trace_ent
+	OFSTraceInOpen      = 79 // trace_inopen
+	OFSTraceInWater     = 80 // trace_inwater
+	OFSMsgEntity        = 81 // msg_entity
 
 	ReservedOFS = 28 // First available global offset (also where GlobalVars begins)
 
@@ -91,6 +104,7 @@ const (
 	OFSTotalMonsters  = 40 // total monsters in level
 	OFSFoundSecrets   = 41 // secrets found
 	OFSKilledMonsters = 42 // monsters killed
+	OFSParmStart      = 43 // parm1..parm16 begin here
 )
 
 // Entity field offsets for entvars_t.
@@ -265,9 +279,9 @@ const (
 // A, B, C are operands whose meaning depends on the opcode.
 type DStatement struct {
 	Op uint16 // Opcode
-	A  int16  // First operand
-	B  int16  // Second operand
-	C  int16  // Third operand (usually destination)
+	A  uint16 // First operand
+	B  uint16 // Second operand
+	C  uint16 // Third operand (usually destination)
 }
 
 // DDef represents a global or field definition in the progs file.

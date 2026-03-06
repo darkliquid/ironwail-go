@@ -131,3 +131,146 @@ func TestParseNewline(t *testing.T) {
 		t.Errorf("Expected token, got %s", ComToken)
 	}
 }
+
+func TestSizeBufWriteReadAngle(t *testing.T) {
+	tests := []struct {
+		name  string
+		angle float32
+	}{
+		{"zero", 0.0},
+		{"quarter", 90.0},
+		{"half", 180.0},
+		{"three-quarter", 270.0},
+		{"negative", -45.0},
+		{"wraparound", 400.0}, // Should wrap to 40.0
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := NewSizeBuf(10)
+			if !buf.WriteAngle(tt.angle) {
+				t.Fatal("WriteAngle failed")
+			}
+
+			buf.BeginReading()
+			got, ok := buf.ReadAngle()
+			if !ok {
+				t.Fatal("ReadAngle failed")
+			}
+
+			// Normalize expected angle to 0-360 range for comparison
+			expected := tt.angle
+			for expected < 0 {
+				expected += 360
+			}
+			for expected >= 360 {
+				expected -= 360
+			}
+
+			// 8-bit angles have ~1.4 degree precision (360/256)
+			// Allow 2 degrees tolerance for rounding
+			diff := got - expected
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > 360-diff {
+				diff = 360 - diff // Handle wraparound
+			}
+			if diff > 2.0 {
+				t.Errorf("angle mismatch: got %f, want ~%f (diff %f)", got, expected, diff)
+			}
+		})
+	}
+}
+
+func TestSizeBufWriteReadAngle16(t *testing.T) {
+	tests := []struct {
+		name  string
+		angle float32
+	}{
+		{"zero", 0.0},
+		{"precise", 45.5},
+		{"quarter", 90.25},
+		{"half", 180.125},
+		{"negative", -30.75},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := NewSizeBuf(10)
+			if !buf.WriteAngle16(tt.angle) {
+				t.Fatal("WriteAngle16 failed")
+			}
+
+			buf.BeginReading()
+			got, ok := buf.ReadAngle16()
+			if !ok {
+				t.Fatal("ReadAngle16 failed")
+			}
+
+			// Normalize expected angle to 0-360 range
+			expected := tt.angle
+			for expected < 0 {
+				expected += 360
+			}
+			for expected >= 360 {
+				expected -= 360
+			}
+
+			// 16-bit angles have ~0.0055 degree precision (360/65536)
+			// Allow 0.01 degrees tolerance
+			diff := got - expected
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > 360-diff {
+				diff = 360 - diff // Handle wraparound
+			}
+			if diff > 0.01 {
+				t.Errorf("angle mismatch: got %f, want ~%f (diff %f)", got, expected, diff)
+			}
+		})
+	}
+}
+
+func TestSizeBufAnglePrecision(t *testing.T) {
+	// Verify that 16-bit angles have better precision than 8-bit
+	angle := float32(45.5)
+
+	// Test 8-bit
+	buf8 := NewSizeBuf(10)
+	buf8.WriteAngle(angle)
+	buf8.BeginReading()
+	got8, _ := buf8.ReadAngle()
+
+	// Test 16-bit
+	buf16 := NewSizeBuf(10)
+	buf16.WriteAngle16(angle)
+	buf16.BeginReading()
+	got16, _ := buf16.ReadAngle16()
+
+	// Calculate errors
+	err8 := angle - got8
+	if err8 < 0 {
+		err8 = -err8
+	}
+	err16 := angle - got16
+	if err16 < 0 {
+		err16 = -err16
+	}
+
+	// 16-bit should be more precise
+	if err16 >= err8 {
+		t.Errorf("16-bit angle not more precise than 8-bit: err8=%f, err16=%f", err8, err16)
+	}
+
+	// 8-bit precision should be roughly 1.4 degrees (360/256)
+	if err8 > 2.0 {
+		t.Errorf("8-bit angle error too large: %f", err8)
+	}
+
+	// 16-bit precision should be very small
+	if err16 > 0.01 {
+		t.Errorf("16-bit angle error too large: %f", err16)
+	}
+}

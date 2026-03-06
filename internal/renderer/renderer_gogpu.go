@@ -47,11 +47,16 @@ package renderer
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"reflect"
 	"sync"
+	"sync/atomic"
+	"unsafe"
 
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/gogpu/gogpu/input"
+	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
 
@@ -72,6 +77,8 @@ type DrawContext struct {
 	renderer *Renderer
 }
 
+var halOnlyFrameConsumed atomic.Bool
+
 // Clear fills the screen with the specified RGBA color.
 // This is typically called at the start of each frame to clear
 // the previous frame's content.
@@ -79,10 +86,9 @@ type DrawContext struct {
 // In Quake, the clear color is typically a dark gray or black,
 // but can be adjusted for different visual effects.
 func (dc *DrawContext) Clear(r, g, b, a float32) {
-	// gogpu provides DrawTriangleColor which we can use for a full-screen clear
-	// In a full implementation, we'd use a proper clear operation
+	// Use gogpu's proper clear operation
 	color := gmath.Color{R: r, G: g, B: b, A: a}
-	dc.ctx.DrawTriangleColor(color)
+	dc.ctx.ClearColor(color)
 }
 
 // DrawTriangle renders a simple colored triangle.
@@ -114,6 +120,7 @@ func (dc *DrawContext) Gamma() float32 {
 // 2D Drawing API implementation
 
 // DrawPic renders a QPic image at the specified position.
+// Coordinates are in Quake's virtual 320-wide space and are scaled to physical pixels.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 	if pic == nil {
 		return
@@ -124,7 +131,11 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	err := dc.ctx.DrawTexture(tex, float32(x), float32(y))
+	screenW, screenH := dc.renderer.Size()
+	scale, xOff, yOff := menuScale(screenW, screenH)
+	err := dc.ctx.DrawTextureScaled(tex,
+		float32(x)*scale+xOff, float32(y)*scale+yOff,
+		float32(pic.Width)*scale, float32(pic.Height)*scale)
 	if err != nil {
 		slog.Error("Failed to draw texture", "error", err)
 	}
@@ -143,10 +154,92 @@ func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
 	}
 }
 
-// DrawCharacter renders a single character from the font.
+// DrawCharacter renders a single 8×8 character from the conchars font.
+// Falls back to a coloured square if conchars is not loaded.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) {
-	// For now, implement as simplified DrawFill if CONCHARS not available
-	dc.DrawFill(x, y, 8, 8, byte(num%255))
+	if num < 0 || num > 255 {
+		return
+	}
+	pic := dc.renderer.getCharPic(num)
+	if pic == nil {
+		return
+	}
+	tex := dc.renderer.getOrCreateCharTexture(dc.ctx, num, pic)
+	if tex == nil {
+		return
+	}
+	if err := dc.ctx.DrawTextureScaled(tex, float32(x), float32(y), 8, 8); err != nil {
+		slog.Error("DrawCharacter: draw failed", "num", num, "error", err)
+	}
+}
+
+// SetConchars stores the raw 128×128 conchars pixel data and clears the
+// per-character texture cache so that DrawCharacter uses the real font.
+func (r *Renderer) SetConchars(data []byte) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(data) < 128*128 {
+		return
+	}
+	r.concharsData = data
+	r.charCache = [256]*image.QPic{}
+}
+
+// getCharPic returns (or lazily creates) an 8×8 QPic for character num extracted
+// from the 128×128 conchars bitmap (16 chars per row).
+func (r *Renderer) getCharPic(num int) *image.QPic {
+	r.mu.RLock()
+	if len(r.concharsData) < 128*128 {
+		r.mu.RUnlock()
+		return nil
+	}
+	if r.charCache[num] != nil {
+		pic := r.charCache[num]
+		r.mu.RUnlock()
+		return pic
+	}
+	r.mu.RUnlock()
+
+	col := num % 16
+	row := num / 16
+	pixels := make([]byte, 8*8)
+	for y := 0; y < 8; y++ {
+		src := (row*8+y)*128 + col*8
+		copy(pixels[y*8:y*8+8], r.concharsData[src:src+8])
+	}
+	pic := &image.QPic{Width: 8, Height: 8, Pixels: pixels}
+
+	r.mu.Lock()
+	r.charCache[num] = pic
+	r.mu.Unlock()
+	return pic
+}
+
+// charCacheKey is a cache key for character textures (separate from pic-based cache).
+type charCacheKey struct{ num int }
+
+// getOrCreateCharTexture returns a GPU texture for a character, uploading it if needed.
+// Uses ConvertConcharsToRGBA so index-0 pixels are transparent.
+func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *image.QPic) *gogpu.Texture {
+	key := cacheKey{pic: pic}
+	r.mu.RLock()
+	if entry, ok := r.textureCache[key]; ok {
+		r.mu.RUnlock()
+		return entry.texture
+	}
+	r.mu.RUnlock()
+
+	rgba := ConvertConcharsToRGBA(pic.Pixels, r.palette)
+	tex, err := ctx.Renderer().NewTextureFromRGBA(int(pic.Width), int(pic.Height), rgba)
+	if err != nil {
+		slog.Error("getOrCreateCharTexture: upload failed", "num", num, "error", err)
+		return nil
+	}
+
+	r.mu.Lock()
+	r.textureCache[key] = &cachedTexture{texture: tex, width: int(pic.Width), height: int(pic.Height)}
+	r.mu.Unlock()
+	return tex
 }
 
 type cacheKey struct {
@@ -203,6 +296,43 @@ type Renderer struct {
 
 	// palette is the current Quake palette (768 bytes)
 	palette []byte
+
+	// concharsData is the raw 128×128 indexed-pixel data for the console font.
+	concharsData []byte
+	// charCache caches per-character 8×8 QPic objects extracted from concharsData.
+	charCache [256]*image.QPic
+
+	// Camera state and matrices for view/projection
+	// cameraState holds the current camera position and orientation.
+	cameraState CameraState
+	// viewMatrices caches computed view and projection matrices.
+	viewMatrices ViewMatrixData
+
+	// worldData holds GPU-side resources for BSP world rendering.
+	// Set via UploadWorld() when a map is loaded.
+	worldData *WorldRenderData
+
+	// GPU resources for world rendering
+	worldVertexBuffer      hal.Buffer
+	worldIndexBuffer       hal.Buffer
+	worldIndexCount        uint32
+	worldPipeline          hal.RenderPipeline
+	worldPipelineLayout    hal.PipelineLayout
+	worldBindGroup         hal.BindGroup
+	worldShader            hal.ShaderModule
+	uniformBuffer          hal.Buffer
+	uniformBindGroup       hal.BindGroup
+	uniformBindGroupLayout hal.BindGroupLayout
+	textureBindGroupLayout hal.BindGroupLayout
+
+	// 1x1 white texture for fallback
+	whiteTexture     hal.Texture
+	whiteTextureView hal.TextureView
+
+	// Offscreen render target for world rendering
+	worldRenderTexture     hal.Texture
+	worldRenderTextureView hal.TextureView
+	worldRenderTextureGogpu *gogpu.Texture // gogpu-wrapped version for compositing
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -465,7 +595,13 @@ func (r *Renderer) Input() *input.State {
 // Size returns the current window size in pixels.
 // This accounts for DPI scaling on high-DPI displays.
 func (r *Renderer) Size() (width, height int) {
-	return r.app.Size()
+	width, height = r.app.Size()
+	scale := r.app.ScaleFactor()
+	if scale > 0 && scale != 1.0 {
+		width = int(float64(width)*scale + 0.5)
+		height = int(float64(height)*scale + 0.5)
+	}
+	return width, height
 }
 
 // ScaleFactor returns the DPI scale factor.
@@ -585,12 +721,42 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
-	// Phase 1: Clear screen
-	dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+	slog.Debug("RenderFrame called", "draw_world", state.DrawWorld, "draw_particles", state.DrawParticles, "draw_2d_overlay", state.Draw2DOverlay)
+	slog.Info("RenderFrame: surface view (start)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+	if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
+		slog.Info("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+	}
 
-	// Phase 2: Draw 3D world (stub - M4.3 will implement)
+	// Phase 1: Clear screen
+	// Skip clear when world rendering is active - the world render pass will handle clearing,
+	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
+	if !state.DrawWorld {
+		dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+	}
+
+	// Phase 2: Draw 3D world directly to surface view (zero-copy)
+	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.
+	// Then gogpu draws 2D overlay on top with LoadOpLoad to preserve the world.
 	if state.DrawWorld {
+		slog.Info("RenderFrame: rendering world to surface")
 		dc.renderWorld(state)
+		slog.Info("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+		if dc.markGoGPUFrameContentForOverlay() {
+			slog.Info("RenderFrame: marked gogpu frame as pre-populated (HAL world rendered)")
+			if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
+				slog.Info("RenderFrame: gogpu frame state (after mark)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+			}
+		} else {
+			slog.Warn("RenderFrame: unable to mark gogpu frame state; first 2D draw may clear world")
+		}
+	}
+
+	// Nuclear debug option: skip all gogpu-side drawing for exactly one frame.
+	// This isolates "HAL world render + present" from all 2D/overlay paths.
+	if state.DrawWorld && shouldRunHALOnlyFrame() {
+		slog.Warn("RenderFrame: HAL-only debug frame enabled; skipping entities/particles/2D overlay")
+		dc.logPrePresentState("hal-only")
+		return
 	}
 
 	// Phase 3: Draw entities (stub - M4.4 will implement)
@@ -604,19 +770,236 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
+	// Re-enable to show menu + fallback dots
+	// IMPORTANT: When we skip dc.Clear() above (because state.DrawWorld=true),
+	// gogpu should use LoadOpLoad for its internal 2D render pass, preserving
+	// the world rendering we just submitted via HAL. This relies on gogpu's
+	// internal behavior to detect that Clear() was not called.
 	if state.Draw2DOverlay && draw2DOverlay != nil {
+		if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
+			slog.Info("RenderFrame: gogpu frame state (pre-overlay)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+		}
+		if shouldDrawWorldFallbackDots() {
+			slog.Info("RenderFrame: debug world fallback dots enabled")
+			dc.renderWorldFallbackTopDown()
+		}
+		slog.Debug("Drawing 2D overlay on top of world", "menu_active", state.MenuActive)
 		draw2DOverlay(dc)
+	}
+
+	dc.logPrePresentState("normal")
+}
+
+func shouldRunHALOnlyFrame() bool {
+	if os.Getenv("IRONWAIL_DEBUG_HAL_ONLY_FRAME") != "1" {
+		return false
+	}
+
+	return !halOnlyFrameConsumed.Swap(true)
+}
+
+func (dc *DrawContext) logPrePresentState(mode string) {
+	if dc == nil || dc.ctx == nil {
+		return
+	}
+
+	if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
+		slog.Info("RenderFrame: gogpu frame state (pre-present)",
+			"mode", mode,
+			"frameCleared", frameCleared,
+			"hasPendingClear", hasPendingClear,
+		)
+	} else {
+		slog.Warn("RenderFrame: unable to read gogpu frame state (pre-present)", "mode", mode)
+	}
+
+	slog.Info("RenderFrame: surface view (pre-present)", "mode", mode, "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+}
+
+func debugSurfaceViewID(view any) string {
+	if view == nil {
+		return "nil"
+	}
+
+	value := reflect.ValueOf(view)
+	if value.Kind() == reflect.Pointer || value.Kind() == reflect.UnsafePointer {
+		if value.IsNil() {
+			return fmt.Sprintf("%T@nil", view)
+		}
+		return fmt.Sprintf("%T@0x%x", view, value.Pointer())
+	}
+
+	return fmt.Sprintf("%T@%p", view, &view)
+}
+
+func shouldDrawWorldFallbackDots() bool {
+	return os.Getenv("IRONWAIL_DEBUG_WORLD_DOTS") == "1"
+}
+
+// markGoGPUFrameContentForOverlay sets gogpu renderer's internal frame state
+// so the first 2D draw pass uses LoadOpLoad (preserve existing surface content)
+// rather than defaulting to LoadOpClear.
+func (dc *DrawContext) markGoGPUFrameContentForOverlay() bool {
+	if dc == nil || dc.ctx == nil {
+		return false
+	}
+
+	ctxValue := reflect.ValueOf(dc.ctx)
+	if ctxValue.Kind() != reflect.Pointer || ctxValue.IsNil() {
+		return false
+	}
+
+	ctxElem := ctxValue.Elem()
+	rendererField := ctxElem.FieldByName("renderer")
+	if !rendererField.IsValid() || rendererField.Kind() != reflect.Pointer || rendererField.IsNil() {
+		return false
+	}
+
+	rendererPtr := reflect.NewAt(rendererField.Type(), unsafe.Pointer(rendererField.UnsafeAddr())).Elem()
+	rendererElem := rendererPtr.Elem()
+
+	frameClearedField := rendererElem.FieldByName("frameCleared")
+	hasPendingClearField := rendererElem.FieldByName("hasPendingClear")
+	if !frameClearedField.IsValid() || !hasPendingClearField.IsValid() {
+		return false
+	}
+
+	frameClearedWritable := reflect.NewAt(frameClearedField.Type(), unsafe.Pointer(frameClearedField.UnsafeAddr())).Elem()
+	hasPendingClearWritable := reflect.NewAt(hasPendingClearField.Type(), unsafe.Pointer(hasPendingClearField.UnsafeAddr())).Elem()
+
+	if frameClearedWritable.Kind() != reflect.Bool || hasPendingClearWritable.Kind() != reflect.Bool {
+		return false
+	}
+
+	frameClearedWritable.SetBool(true)
+	hasPendingClearWritable.SetBool(false)
+
+	return true
+}
+
+func (dc *DrawContext) getGoGPUFrameStateForDebug() (frameCleared bool, hasPendingClear bool, ok bool) {
+	if dc == nil || dc.ctx == nil {
+		return false, false, false
+	}
+
+	ctxValue := reflect.ValueOf(dc.ctx)
+	if ctxValue.Kind() != reflect.Pointer || ctxValue.IsNil() {
+		return false, false, false
+	}
+
+	ctxElem := ctxValue.Elem()
+	rendererField := ctxElem.FieldByName("renderer")
+	if !rendererField.IsValid() || rendererField.Kind() != reflect.Pointer || rendererField.IsNil() {
+		return false, false, false
+	}
+
+	rendererPtr := reflect.NewAt(rendererField.Type(), unsafe.Pointer(rendererField.UnsafeAddr())).Elem()
+	rendererElem := rendererPtr.Elem()
+
+	frameClearedField := rendererElem.FieldByName("frameCleared")
+	hasPendingClearField := rendererElem.FieldByName("hasPendingClear")
+	if !frameClearedField.IsValid() || !hasPendingClearField.IsValid() {
+		return false, false, false
+	}
+
+	frameClearedReadable := reflect.NewAt(frameClearedField.Type(), unsafe.Pointer(frameClearedField.UnsafeAddr())).Elem()
+	hasPendingClearReadable := reflect.NewAt(hasPendingClearField.Type(), unsafe.Pointer(hasPendingClearField.UnsafeAddr())).Elem()
+	if frameClearedReadable.Kind() != reflect.Bool || hasPendingClearReadable.Kind() != reflect.Bool {
+		return false, false, false
+	}
+
+	return frameClearedReadable.Bool(), hasPendingClearReadable.Bool(), true
+}
+
+// renderWorldFallbackTopDown draws a sparse top-down projection of world
+// vertices using the 2D API. It is used as a visibility fallback while the
+// GPU world pass is being stabilized across platforms.
+func (dc *DrawContext) renderWorldFallbackTopDown() {
+	worldData := dc.renderer.GetWorldData()
+	if worldData == nil || worldData.Geometry == nil || len(worldData.Geometry.Vertices) == 0 {
+		return
+	}
+
+	verts := worldData.Geometry.Vertices
+	minX, maxX := verts[0].Position[0], verts[0].Position[0]
+	minY, maxY := verts[0].Position[1], verts[0].Position[1]
+	for index := 1; index < len(verts); index++ {
+		x := verts[index].Position[0]
+		y := verts[index].Position[1]
+		if x < minX {
+			minX = x
+		}
+		if x > maxX {
+			maxX = x
+		}
+		if y < minY {
+			minY = y
+		}
+		if y > maxY {
+			maxY = y
+		}
+	}
+
+	rangeX := maxX - minX
+	rangeY := maxY - minY
+	if rangeX < 1 || rangeY < 1 {
+		return
+	}
+
+	screenW, screenH := dc.renderer.Size()
+	if screenW <= 0 || screenH <= 0 {
+		return
+	}
+
+	const margin = 24.0
+	drawW := float32(screenW) - margin*2
+	drawH := float32(screenH) - margin*2
+	if drawW <= 0 || drawH <= 0 {
+		return
+	}
+
+	scaleX := drawW / rangeX
+	scaleY := drawH / rangeY
+	scale := scaleX
+	if scaleY < scale {
+		scale = scaleY
+	}
+
+	step := len(verts) / 5000
+	if step < 1 {
+		step = 1
+	}
+
+	// Draw a visible frame so non-black background is obvious.
+	frameColor := byte(250)
+	panelColor := byte(48)
+	dc.DrawFill(int(margin), int(margin), int(drawW), int(drawH), panelColor)
+	dc.DrawFill(int(margin), int(margin), int(drawW), 2, frameColor)
+	dc.DrawFill(int(margin), int(margin+drawH)-2, int(drawW), 2, frameColor)
+	dc.DrawFill(int(margin), int(margin), 2, int(drawH), frameColor)
+	dc.DrawFill(int(margin+drawW)-2, int(margin), 2, int(drawH), frameColor)
+
+	for index := 0; index < len(verts); index += step {
+		v := verts[index]
+		sx := int(margin + (v.Position[0]-minX)*scale)
+		sy := int(float32(screenH) - (margin + (v.Position[1]-minY)*scale))
+		if sx < 0 || sx >= screenW || sy < 0 || sy >= screenH {
+			continue
+		}
+		dc.DrawFill(sx, sy, 2, 2, 251)
 	}
 }
 
 // renderWorld draws the 3D world geometry (BSP surfaces).
-// Stub implementation - M4.3 will implement proper BSP rendering.
+// Implementation delegates to renderWorldInternal in world.go.
 func (dc *DrawContext) renderWorld(state *RenderFrameState) {
-	// TODO: Implement BSP world rendering (M4.3)
-	// For now, this is a stub that does nothing.
-	// The world will be rendered using vertex buffers and textures
-	// loaded from the BSP file.
+	// Render world directly to the current surface view (zero-copy approach)
+	// The surface view is available from dc.ctx.SurfaceView() per gogpu's design
+	dc.renderWorldInternal(state)
 }
+
+// Note: ensureWorldRenderTarget removed - we now render directly to the surface view
+// provided by gogpu via dc.ctx.SurfaceView() for zero-copy rendering.
 
 // renderEntities draws entity models (alias models, brush models).
 // Stub implementation - M4.4 will implement proper entity rendering.
@@ -688,4 +1071,130 @@ func DefaultRenderFrameState() *RenderFrameState {
 		Draw2DOverlay: true,                           // Always draw 2D overlay
 		MenuActive:    true,                           // Menu is active at startup
 	}
+}
+
+// UpdateCamera updates the camera state and recomputes view/projection matrices.
+// This should be called once per frame with the current player position and orientation
+// from client prediction.
+func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.cameraState = camera
+
+	// Compute view matrix from camera state
+	r.viewMatrices.View = ComputeViewMatrix(camera)
+
+	// Compute projection matrix (aspect ratio from window size)
+	// Use a default aspect ratio if the app is not initialized
+	aspect := float32(16.0 / 9.0)
+	if r.app != nil {
+		w, h := r.Size()
+		if w > 0 && h > 0 {
+			aspect = float32(w) / float32(h)
+		}
+	}
+
+	r.viewMatrices.Projection = ComputeProjectionMatrix(camera.FOV, aspect, nearPlane, farPlane)
+
+	// Log individual matrices before multiplication
+	slog.Info("Camera matrices computed",
+		"view_m00", r.viewMatrices.View[0],
+		"view_m11", r.viewMatrices.View[ 5],
+		"view_m22", r.viewMatrices.View[10],
+		"view_m33", r.viewMatrices.View[15],
+		"proj_m00", r.viewMatrices.Projection[0],
+		"proj_m11", r.viewMatrices.Projection[5],
+		"proj_m22", r.viewMatrices.Projection[10],
+		"proj_m33", r.viewMatrices.Projection[15])
+
+	// Compute combined VP matrix
+	r.viewMatrices.VP = r.viewMatrices.Projection.Mul(r.viewMatrices.View)
+	
+	// Log VP matrix for debugging
+	slog.Debug("Camera updated",
+		"position", camera.Origin,
+		"angles", camera.Angles,
+		"near", nearPlane,
+		"far", farPlane,
+		"aspect", aspect,
+		"fov", camera.FOV,
+		"vp_matrix_0_0", r.viewMatrices.VP[0],
+		"vp_matrix_3_2", r.viewMatrices.VP[14])
+}
+
+// GetViewMatrix returns the currently cached view matrix.
+// Thread-safe read.
+func (r *Renderer) GetViewMatrix() gmath.Mat4 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.viewMatrices.View
+}
+
+// GetProjectionMatrix returns the currently cached projection matrix.
+// Thread-safe read.
+func (r *Renderer) GetProjectionMatrix() gmath.Mat4 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.viewMatrices.Projection
+}
+
+// GetViewProjectionMatrix returns the combined View × Projection matrix.
+// This is the matrix typically used in vertex shaders for world-to-NDC transformation.
+// Thread-safe read.
+func (r *Renderer) GetViewProjectionMatrix() gmath.Mat4 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.viewMatrices.VP
+}
+
+// GetCameraState returns the current camera state (position and orientation).
+// Thread-safe read. A copy is returned to prevent external modification.
+func (r *Renderer) GetCameraState() CameraState {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.cameraState
+}
+
+// HasWorldData reports whether GPU world geometry has been uploaded.
+func (r *Renderer) HasWorldData() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.worldData != nil && r.worldVertexBuffer != nil && r.worldIndexBuffer != nil && r.worldIndexCount > 0 && r.worldPipeline != nil
+}
+
+// NeedsWorldGPUUpload reports whether CPU world geometry exists but GPU buffers
+// are not uploaded yet.
+func (r *Renderer) NeedsWorldGPUUpload() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.worldData != nil && (r.worldVertexBuffer == nil || r.worldIndexBuffer == nil || r.worldIndexCount == 0)
+}
+
+// getHALDevice returns the underlying HAL device from the gogpu renderer.
+// This uses reflection to access the private device field from gogpu.Renderer.
+// Returns nil if device is not available.
+func (r *Renderer) getHALDevice() hal.Device {
+	if r.app == nil {
+		return nil
+	}
+	provider := r.app.DeviceProvider()
+	if provider == nil {
+		return nil
+	}
+	return provider.Device()
+}
+
+// getHALQueue returns the underlying HAL queue from the gogpu renderer.
+// This uses reflection to access the private queue field from gogpu.Renderer.
+// Returns nil if queue is not available.
+func (r *Renderer) getHALQueue() hal.Queue {
+	if r.app == nil {
+		return nil
+	}
+	provider := r.app.DeviceProvider()
+	if provider == nil {
+		return nil
+	}
+	return provider.Queue()
 }

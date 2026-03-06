@@ -82,6 +82,12 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, screenWidth, screenHeight
 	rc.DrawFill(boxX, boxY, borderWidth, boxHeight, 15)
 	rc.DrawFill(boxX+boxWidth-borderWidth, boxY, borderWidth, boxHeight, 15)
 
-	// Text rendering would go here (M4.5 baseline - for now, just the box)
-	// Real implementation would use DrawCharacter for each character
+	// Render each character of the message centered in the box
+	charW := int(8 * scale)
+	textWidth := msgLen * charW
+	textX := (screenWidth - textWidth) / 2
+	textY := boxY + int(8*scale)
+	for i, ch := range cp.message {
+		rc.DrawCharacter(textX+i*charW, textY, int(ch))
+	}
 }

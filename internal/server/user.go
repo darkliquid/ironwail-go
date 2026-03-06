@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"math"
 	"strings"
+
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 const (
@@ -424,6 +427,199 @@ func (s *Server) SV_ExecuteUserCommand(_ *Client, cmd string) bool {
 
 func (s *Server) ExecuteClientString(client *Client, cmd string) bool {
 	return s.SV_ExecuteUserCommand(client, cmd)
+}
+
+func (s *Server) findLocalSpawnPoint() *Edict {
+	for _, className := range []string{"info_player_start", "testplayerstart"} {
+		for entNum := 1; entNum < s.NumEdicts; entNum++ {
+			ent := s.Edicts[entNum]
+			if ent == nil || ent.Free || ent.Vars == nil {
+				continue
+			}
+			if s.GetString(ent.Vars.ClassName) == className {
+				return ent
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Server) runClientSpawnQC(client *Client) error {
+	if client == nil || client.Edict == nil {
+		return fmt.Errorf("client edict missing")
+	}
+
+	entNum := s.NumForEdict(client.Edict)
+	if entNum <= 0 {
+		return fmt.Errorf("invalid client edict %d", entNum)
+	}
+
+	ent := client.Edict
+	ent.Free = false
+	ent.Vars.Colormap = float32(entNum)
+	ent.Vars.Team = float32(client.Color + 1)
+	ent.Vars.Health = 100
+	ent.Vars.TakeDamage = 1
+	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.ViewOfs = [3]float32{0, 0, ViewHeight}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Size = [3]float32{32, 32, 56}
+	ent.Vars.Velocity = [3]float32{}
+	ent.Vars.AVelocity = [3]float32{}
+	ent.Vars.FixAngle = 1
+
+	if spawn := s.findLocalSpawnPoint(); spawn != nil && spawn.Vars != nil {
+		ent.Vars.Origin = spawn.Vars.Origin
+		ent.Vars.Angles = spawn.Vars.Angles
+		ent.Vars.VAngle = spawn.Vars.Angles
+	}
+	ent.Vars.AbsMin = [3]float32{ent.Vars.Origin[0] + ent.Vars.Mins[0], ent.Vars.Origin[1] + ent.Vars.Mins[1], ent.Vars.Origin[2] + ent.Vars.Mins[2]}
+	ent.Vars.AbsMax = [3]float32{ent.Vars.Origin[0] + ent.Vars.Maxs[0], ent.Vars.Origin[1] + ent.Vars.Maxs[1], ent.Vars.Origin[2] + ent.Vars.Maxs[2]}
+
+	if client.Name == "" {
+		client.Name = "player"
+	}
+	if s.QCVM != nil {
+		ent.Vars.ClassName = s.QCVM.AllocString("player")
+		ent.Vars.NetName = s.QCVM.AllocString(client.Name)
+		if playerModel := s.FindModel("progs/player.mdl"); playerModel != 0 {
+			ent.Vars.ModelIndex = float32(playerModel)
+			ent.Vars.Model = s.QCVM.AllocString("progs/player.mdl")
+		}
+	}
+
+	s.LinkEdict(ent, true)
+	return nil
+}
+
+func (s *Server) runClientPutInServerQC(client *Client) error {
+	if client == nil || client.Edict == nil {
+		return fmt.Errorf("client edict missing")
+	}
+	if s.QCVM == nil {
+		return nil // No VM, skip execution
+	}
+
+	funcNum := s.QCVM.FindFunction("PutClientInServer")
+	if funcNum < 0 {
+		return nil // Function not in progs, skip
+	}
+
+	entNum := s.NumForEdict(client.Edict)
+	if entNum <= 0 {
+		return fmt.Errorf("invalid client edict %d", entNum)
+	}
+
+	// Sync QCVM state and prepare for function call
+	s.syncQCVMState()
+	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
+
+	// Set up global variables for PutClientInServer
+	s.QCVM.Time = float64(s.Time)
+	s.QCVM.SetGlobal("time", s.Time)
+	s.QCVM.SetGlobal("frametime", s.FrameTime)
+	s.QCVM.SetGlobal("self", entNum)
+	s.QCVM.SetGlobal("other", 0)
+	s.QCVM.SetGlobal("msg_entity", entNum)
+	for i := 0; i < len(client.SpawnParms); i++ {
+		s.QCVM.SetGlobal(fmt.Sprintf("parm%d", i+1), client.SpawnParms[i])
+	}
+
+	// Execute PutClientInServer
+	if err := s.QCVM.ExecuteFunction(funcNum); err != nil {
+		return fmt.Errorf("PutClientInServer execution failed: %w", err)
+	}
+
+	// Sync changes back from QCVM to edict
+	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
+
+	return nil
+}
+
+func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return fmt.Errorf("invalid client number %d", clientNum)
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil {
+		return fmt.Errorf("client %d is nil", clientNum)
+	}
+	if !s.SV_ExecuteUserCommand(client, cmd) {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+	if client.Message == nil {
+		client.Message = NewMessageBuffer(MaxDatagram)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(cmd)) {
+	case "prespawn":
+		if client.SendSignon != SignonFlush {
+			return fmt.Errorf("prespawn out of order")
+		}
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(2)
+		client.SendSignon = SignonSignonBufs
+	case "spawn":
+		if client.SendSignon != SignonSignonBufs {
+			return fmt.Errorf("spawn out of order")
+		}
+		if err := s.runClientSpawnQC(client); err != nil {
+			return err
+		}
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(3)
+		client.SendSignon = SignonSignonMsg
+	case "begin":
+		if client.SendSignon != SignonSignonMsg {
+			return fmt.Errorf("begin out of order")
+		}
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(4)
+		client.Spawned = true
+		client.SendSignon = SignonDone
+		// Execute PutClientInServer to finalize player initialization via QC
+		if err := s.runClientPutInServerQC(client); err != nil {
+			return err
+		}
+	default:
+		// Other allowed commands have no special loopback response yet.
+	}
+
+	return nil
+}
+
+func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward, side, up float32, buttons, impulse int, sentTime float64) error {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return fmt.Errorf("invalid client number %d", clientNum)
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil {
+		return fmt.Errorf("client %d is nil", clientNum)
+	}
+
+	client.LastCmd = UserCmd{
+		ViewAngles:  viewAngles,
+		ForwardMove: forward,
+		SideMove:    side,
+		UpMove:      up,
+		Buttons:     uint8(buttons),
+		Impulse:     uint8(impulse),
+	}
+	client.PingTimes[client.NumPings%NumPingTimes] = s.Time - float32(sentTime)
+	client.NumPings++
+
+	if client.Edict != nil {
+		client.Edict.Vars.VAngle = viewAngles
+		client.Edict.Vars.Button0 = float32(uint8(buttons) & 1)
+		client.Edict.Vars.Button2 = float32((uint8(buttons) & 2) >> 1)
+		if impulse != 0 {
+			client.Edict.Vars.Impulse = float32(uint8(impulse))
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) SV_ReadClientMessage(client *Client, buf *MessageBuffer) bool {

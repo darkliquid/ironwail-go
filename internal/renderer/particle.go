@@ -254,6 +254,133 @@ func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, cou
 	}
 }
 
+func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLength byte, rng *rand.Rand, timeNow float32) {
+	if ps == nil || colorLength == 0 {
+		return
+	}
+	if rng == nil {
+		rng = rand.New(rand.NewSource(1))
+	}
+
+	colorMod := 0
+	for i := 0; i < 512; i++ {
+		p := ps.AllocParticle(timeNow)
+		if p == nil {
+			return
+		}
+
+		p.Die = timeNow + 0.3
+		p.Color = colorStart + byte(colorMod%int(colorLength))
+		colorMod++
+		p.Type = ParticleBlob
+		for j := 0; j < 3; j++ {
+			p.Org[j] = org[j] + float32(rng.Intn(32)-16)
+			p.Vel[j] = float32(rng.Intn(512) - 256)
+		}
+	}
+}
+
+func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow float32) {
+	if ps == nil {
+		return
+	}
+	if rng == nil {
+		rng = rand.New(rand.NewSource(1))
+	}
+
+	for i := 0; i < 1024; i++ {
+		p := ps.AllocParticle(timeNow)
+		if p == nil {
+			return
+		}
+
+		p.Die = timeNow + 1 + float32(rng.Int()&8)*0.05
+		if i&1 == 1 {
+			p.Type = ParticleBlob
+			p.Color = byte(66 + rng.Intn(6))
+		} else {
+			p.Type = ParticleBlob2
+			p.Color = byte(150 + rng.Intn(6))
+		}
+		for j := 0; j < 3; j++ {
+			p.Org[j] = org[j] + float32(rng.Intn(32)-16)
+			p.Vel[j] = float32(rng.Intn(512) - 256)
+		}
+	}
+}
+
+func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow float32) {
+	if ps == nil {
+		return
+	}
+	if rng == nil {
+		rng = rand.New(rand.NewSource(1))
+	}
+
+	for i := -16; i < 16; i++ {
+		for j := -16; j < 16; j++ {
+			p := ps.AllocParticle(timeNow)
+			if p == nil {
+				return
+			}
+
+			p.Die = timeNow + 2 + float32(rng.Int()&31)*0.02
+			p.Color = byte(224 + (rng.Int() & 7))
+			p.Type = ParticleSlowGrav
+
+			dir := [3]float32{
+				float32(j*8 + (rng.Int() & 7)),
+				float32(i*8 + (rng.Int() & 7)),
+				256,
+			}
+			p.Org[0] = org[0] + dir[0]
+			p.Org[1] = org[1] + dir[1]
+			p.Org[2] = org[2] + float32(rng.Int()&63)
+
+			normalize3(&dir)
+			vel := float32(50 + (rng.Int() & 63))
+			for k := 0; k < 3; k++ {
+				p.Vel[k] = dir[k] * vel
+			}
+		}
+	}
+}
+
+func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow float32) {
+	if ps == nil {
+		return
+	}
+	if rng == nil {
+		rng = rand.New(rand.NewSource(1))
+	}
+
+	for i := -16; i < 16; i += 4 {
+		for j := -16; j < 16; j += 4 {
+			for k := -24; k < 32; k += 4 {
+				p := ps.AllocParticle(timeNow)
+				if p == nil {
+					return
+				}
+
+				p.Die = timeNow + 0.2 + float32(rng.Int()&7)*0.02
+				p.Color = byte(7 + (rng.Int() & 7))
+				p.Type = ParticleSlowGrav
+
+				dir := [3]float32{float32(j * 8), float32(i * 8), float32(k * 8)}
+				p.Org[0] = org[0] + float32(i+(rng.Int()&3))
+				p.Org[1] = org[1] + float32(j+(rng.Int()&3))
+				p.Org[2] = org[2] + float32(k+(rng.Int()&3))
+
+				normalize3(&dir)
+				vel := float32(50 + (rng.Int() & 63))
+				for n := 0; n < 3; n++ {
+					p.Vel[n] = dir[n] * vel
+				}
+			}
+		}
+	}
+}
+
 func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.Rand, timeNow float32) {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(1))

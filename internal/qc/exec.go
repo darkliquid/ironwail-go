@@ -87,24 +87,24 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		case OPCall0, OPCall1, OPCall2, OPCall3, OPCall4, OPCall5, OPCall6, OPCall7, OPCall8:
 			argc := int(op - OPCall0)
-			if err := vm.callFunction(int(st.A), argc); err != nil {
+			if err := vm.callFunction(int(vm.GFunction(int(st.A))), argc); err != nil {
 				return err
 			}
 
 		case OPIF:
 			if vm.GFloat(int(st.A)) != 0 {
-				vm.XStatement += int(st.B)
+				vm.XStatement += int(int16(st.B))
 				continue
 			}
 
 		case OPIFNot:
 			if vm.GFloat(int(st.A)) == 0 {
-				vm.XStatement += int(st.B)
+				vm.XStatement += int(int16(st.B))
 				continue
 			}
 
 		case OPGoto:
-			vm.XStatement += int(st.A)
+			vm.XStatement += int(int16(st.A))
 			continue
 
 		case OPMulF:
@@ -300,28 +300,64 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			vm.SetGInt(int(st.B), vm.GInt(int(st.A)))
 
 		case OPAddress:
-			vm.SetGInt(int(st.C), vm.GInt(int(st.A))+int32(st.B))
+			edictNum := int(vm.GInt(int(st.A)))
+			maxEdicts := 0
+			if vm.EdictSize > 0 {
+				maxEdicts = len(vm.Edicts) / vm.EdictSize
+			}
+			if edictNum < 0 || edictNum >= maxEdicts {
+				return fmt.Errorf("OPAddress invalid edict: %d", edictNum)
+			}
+			if edictNum == 0 {
+				return fmt.Errorf("OPAddress assignment to world entity")
+			}
+			ptr := edictNum*vm.EdictSize + 28 + int(st.B)*4
+			if ptr < 0 || ptr+4 > len(vm.Edicts) {
+				return fmt.Errorf("OPAddress pointer out of bounds: %d", ptr)
+			}
+			vm.SetGInt(int(st.C), int32(ptr))
 
-		case OPLoadF, OPLoadV, OPLoadS, OPLoadEnt, OPLoadFld, OPLoadFNC:
-			ptr := vm.GInt(int(st.A))
-			vm.SetGInt(int(st.C), vm.GInt(int(ptr)+int(st.B)))
+		case OPLoadF:
+			edictNum := int(vm.GInt(int(st.A)))
+			vm.SetGFloat(int(st.C), vm.EFloat(edictNum, int(st.B)))
+
+		case OPLoadV:
+			edictNum := int(vm.GInt(int(st.A)))
+			vm.SetGVector(int(st.C), vm.EVector(edictNum, int(st.B)))
+
+		case OPLoadS, OPLoadEnt, OPLoadFld, OPLoadFNC:
+			edictNum := int(vm.GInt(int(st.A)))
+			vm.SetGInt(int(st.C), vm.EInt(edictNum, int(st.B)))
 
 		case OPStorePF:
 			ptr := int(vm.GInt(int(st.B)))
-			vm.SetGFloat(ptr, vm.GFloat(int(st.A)))
+			edictNum, fieldOfs, ok := vm.pointerToField(ptr)
+			if !ok {
+				rel := -1
+				calcEdict := -1
+				if vm.EdictSize > 0 {
+					calcEdict = ptr / vm.EdictSize
+					rel = ptr - calcEdict*vm.EdictSize - 28
+				}
+				return fmt.Errorf("OPStorePF pointer out of bounds: ptr=%d edict=%d rel=%d edictSize=%d entityFields=%d edictsLen=%d", ptr, calcEdict, rel, vm.EdictSize, vm.EntityFields, len(vm.Edicts))
+			}
+			vm.SetEFloat(edictNum, fieldOfs, vm.GFloat(int(st.A)))
 
 		case OPStorePV:
 			ptr := int(vm.GInt(int(st.B)))
-			v := vm.GVector(int(st.A))
-			vm.SetGVector(ptr, v)
+			edictNum, fieldOfs, ok := vm.pointerToField(ptr)
+			if !ok {
+				return fmt.Errorf("OPStorePV pointer out of bounds: %d", ptr)
+			}
+			vm.SetEVector(edictNum, fieldOfs, vm.GVector(int(st.A)))
 
-		case OPStorePS:
+		case OPStorePS, OPStorePEnt, OPStorePFld, OPStorePFNC:
 			ptr := int(vm.GInt(int(st.B)))
-			vm.SetGInt(ptr, vm.GInt(int(st.A)))
-
-		case OPStorePEnt, OPStorePFld, OPStorePFNC:
-			ptr := int(vm.GInt(int(st.B)))
-			vm.SetGInt(ptr, vm.GInt(int(st.A)))
+			edictNum, fieldOfs, ok := vm.pointerToField(ptr)
+			if !ok {
+				return fmt.Errorf("OPStoreP pointer out of bounds: %d", ptr)
+			}
+			vm.SetEInt(edictNum, fieldOfs, vm.GInt(int(st.A)))
 
 		case OPState:
 			// OPState sets entity animation frame and think function.
@@ -348,7 +384,7 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 }
 
 func (vm *VM) callFunction(fnum int, argc int) error {
-	if fnum < 0 || fnum >= len(vm.Functions) {
+	if fnum < 0 {
 		builtin := -fnum
 		if builtin >= len(vm.Builtins) || vm.Builtins[builtin] == nil {
 			return fmt.Errorf("unknown builtin: %d", builtin)
@@ -356,6 +392,9 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 		vm.ArgC = argc
 		vm.Builtins[builtin](vm)
 		return nil
+	}
+	if fnum >= len(vm.Functions) {
+		return fmt.Errorf("invalid function number: %d", fnum)
 	}
 
 	f := &vm.Functions[fnum]
@@ -391,4 +430,24 @@ func (vm *VM) VectorNormalize(v [3]float32) [3]float32 {
 
 func (vm *VM) VectorScale(v [3]float32, scale float32) [3]float32 {
 	return [3]float32{v[0] * scale, v[1] * scale, v[2] * scale}
+}
+
+func (vm *VM) pointerToField(ptr int) (edictNum int, fieldOfs int, ok bool) {
+	if ptr < 28 || ptr >= len(vm.Edicts) || vm.EdictSize <= 0 {
+		return 0, 0, false
+	}
+	edictNum = ptr / vm.EdictSize
+	maxEdicts := len(vm.Edicts) / vm.EdictSize
+	if edictNum < 0 || edictNum >= maxEdicts {
+		return 0, 0, false
+	}
+	rel := ptr - edictNum*vm.EdictSize - 28
+	if rel < 0 || rel%4 != 0 {
+		return 0, 0, false
+	}
+	fieldOfs = rel / 4
+	if fieldOfs < 0 || fieldOfs >= vm.EntityFields {
+		return 0, 0, false
+	}
+	return edictNum, fieldOfs, true
 }

@@ -7,6 +7,9 @@ import (
 	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -17,6 +20,7 @@ const (
 
 type PackFile struct {
 	Name    string
+	Lookup  string
 	FilePos int32
 	FileLen int32
 }
@@ -40,10 +44,12 @@ type SearchResult struct {
 type searchPath struct {
 	root string
 	fs   iofs.FS
+	pack *Pack
 }
 
 type FileSystem struct {
 	searchPaths []searchPath
+	lookupPaths []searchPath
 	packs       []*Pack
 	gameDir     string
 	baseDir     string
@@ -52,6 +58,7 @@ type FileSystem struct {
 func NewFileSystem() *FileSystem {
 	return &FileSystem{
 		searchPaths: make([]searchPath, 0),
+		lookupPaths: make([]searchPath, 0),
 		packs:       make([]*Pack, 0),
 	}
 }
@@ -78,16 +85,18 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 
 func (fs *FileSystem) AddGameDirectory(dir string) error {
 	cleanDir := filepath.Clean(dir)
-	fs.searchPaths = append(fs.searchPaths, searchPath{
+	loosePath := searchPath{
 		root: cleanDir,
 		fs:   os.DirFS(cleanDir),
-	})
+	}
+	fs.searchPaths = append(fs.searchPaths, loosePath)
 
-	pakFiles, err := filepath.Glob(filepath.Join(cleanDir, "*.pak"))
+	pakFiles, err := discoverPakFiles(cleanDir)
 	if err != nil {
 		return err
 	}
 
+	lookupGroup := make([]searchPath, 0, len(pakFiles)+1)
 	for _, pakFile := range pakFiles {
 		pack, err := fs.loadPack(pakFile)
 		if err != nil {
@@ -95,7 +104,10 @@ func (fs *FileSystem) AddGameDirectory(dir string) error {
 			continue
 		}
 		fs.packs = append(fs.packs, pack)
+		lookupGroup = append([]searchPath{{pack: pack}}, lookupGroup...)
 	}
+	lookupGroup = append(lookupGroup, loosePath)
+	fs.lookupPaths = append(lookupGroup, fs.lookupPaths...)
 
 	return nil
 }
@@ -146,6 +158,7 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 		}
 		files[i] = PackFile{
 			Name:    string(entry.Name[:idx]),
+			Lookup:  canonicalPackLookup(string(entry.Name[:idx])),
 			FilePos: entry.FilePos,
 			FileLen: entry.FileLen,
 		}
@@ -164,35 +177,33 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 		return nil, err
 	}
 
-	// First check loose files in reverse order of added paths (game dir overrides base dir)
-	for i := len(fs.searchPaths) - 1; i >= 0; i-- {
-		searchPath := fs.searchPaths[i]
-		fullPath := filepath.Join(searchPath.root, filepath.FromSlash(sanitizedName))
+	lookupName := canonicalPackLookup(sanitizedName)
+	for _, searchPath := range fs.lookupPaths {
+		if searchPath.pack == nil {
+			fullPath := filepath.Join(searchPath.root, filepath.FromSlash(sanitizedName))
 
-		if !isWithinRoot(searchPath.root, fullPath) {
-			return nil, fmt.Errorf("invalid path traversal attempt: %s", filename)
-		}
+			if !isWithinRoot(searchPath.root, fullPath) {
+				return nil, fmt.Errorf("invalid path traversal attempt: %s", filename)
+			}
 
-		if stat, err := iofs.Stat(searchPath.fs, sanitizedName); err == nil && !stat.IsDir() {
-			return &SearchResult{
-				Path:     fullPath,
-				Name:     sanitizedName,
-				SourceFS: searchPath.fs,
-				IsPack:   false,
-			}, nil
-		}
-	}
-
-	// Then check packs in reverse order (pak1 overrides pak0)
-	for i := len(fs.packs) - 1; i >= 0; i-- {
-		pack := fs.packs[i]
-		for _, pf := range pack.Files {
-			if pf.Name == sanitizedName {
+			if stat, err := iofs.Stat(searchPath.fs, sanitizedName); err == nil && !stat.IsDir() {
 				return &SearchResult{
-					Path:    pack.Filename,
+					Path:     fullPath,
+					Name:     sanitizedName,
+					SourceFS: searchPath.fs,
+					IsPack:   false,
+				}, nil
+			}
+			continue
+		}
+
+		for _, pf := range searchPath.pack.Files {
+			if pf.Lookup == lookupName {
+				return &SearchResult{
+					Path:    searchPath.pack.Filename,
 					Name:    sanitizedName,
 					IsPack:  true,
-					Pack:    pack,
+					Pack:    searchPath.pack,
 					FilePos: pf.FilePos,
 					FileLen: pf.FileLen,
 				}, nil
@@ -351,4 +362,56 @@ func isWithinRoot(root, target string) bool {
 	}
 
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+var pakFilePattern = regexp.MustCompile(`(?i)^pak([0-9]+)\.pak$`)
+
+func discoverPakFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	type pakInfo struct {
+		path  string
+		index int
+	}
+	var pakFiles []pakInfo
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		matches := pakFilePattern.FindStringSubmatch(entry.Name())
+		if matches == nil {
+			continue
+		}
+		idx, err := strconv.Atoi(matches[1])
+		if err != nil {
+			continue
+		}
+		pakFiles = append(pakFiles, pakInfo{
+			path:  filepath.Join(dir, entry.Name()),
+			index: idx,
+		})
+	}
+
+	sort.Slice(pakFiles, func(i, j int) bool {
+		if pakFiles[i].index != pakFiles[j].index {
+			return pakFiles[i].index < pakFiles[j].index
+		}
+		return strings.ToLower(filepath.Base(pakFiles[i].path)) < strings.ToLower(filepath.Base(pakFiles[j].path))
+	})
+
+	paths := make([]string, len(pakFiles))
+	for i := range pakFiles {
+		paths[i] = pakFiles[i].path
+	}
+	return paths, nil
+}
+
+func canonicalPackLookup(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "\\", "/"))
 }

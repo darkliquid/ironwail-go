@@ -79,7 +79,7 @@ func TestVec3Utils(t *testing.T) {
 	if ma.X != 9 || ma.Y != 12 || ma.Z != 15 {
 		t.Errorf("Expected (9,12,15), got %+v", ma)
 	}
-	
+
 	lerp := Vec3Lerp(a, b, 0.5)
 	if lerp.X != 2.5 || lerp.Y != 3.5 || lerp.Z != 4.5 {
 		t.Errorf("Expected (2.5,3.5,4.5), got %+v", lerp)

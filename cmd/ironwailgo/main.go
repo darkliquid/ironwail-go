@@ -2,19 +2,26 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
+	"image/png"
 	"log"
 	"log/slog"
+	"math/rand"
+	"os"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/audio"
+	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
+	"github.com/ironwail/ironwail-go/internal/hud"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -29,17 +36,32 @@ const (
 )
 
 var (
-	gameHost     *host.Host
-	gameServer   *server.Server
-	gameQC       *qc.VM
-	gameRenderer *renderer.Renderer
-	gameSubs     *host.Subsystems // Store subsystems for command execution
+	gameHost      *host.Host
+	gameServer    *server.Server
+	gameQC        *qc.VM
+	gameRenderer  *renderer.Renderer
+	gameSubs      *host.Subsystems // Store subsystems for command execution
+	gameClient    *cl.Client
+	gameParticles *renderer.ParticleSystem
+	particleRNG   *rand.Rand
+	particleTime  float32
 
 	// Menu subsystem
 	gameMenu  *menu.Manager
 	gameInput *input.System
 	gameDraw  *draw.Manager
+	gameHUD   *hud.HUD
 )
+
+type globalCommandBuffer struct{}
+
+func (globalCommandBuffer) Init()               {}
+func (globalCommandBuffer) Execute()            { cmdsys.Execute() }
+func (globalCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
+func (globalCommandBuffer) InsertText(text string) {
+	cmdsys.InsertText(text)
+}
+func (globalCommandBuffer) Shutdown() {}
 
 func initGameHost() error {
 	// Initialize console and command system
@@ -77,6 +99,8 @@ func initGameQC() error {
 }
 
 func initGameRenderer() error {
+	preferWaylandForGoGPU()
+
 	// Create renderer instance from cvars
 	cfg := renderer.ConfigFromCvars()
 
@@ -89,7 +113,25 @@ func initGameRenderer() error {
 	return nil
 }
 
-func initSubsystems(headless bool, basedir, gamedir string) error {
+func preferWaylandForGoGPU() {
+	if runtime.GOOS != "linux" {
+		return
+	}
+
+	if strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
+		return
+	}
+
+	if os.Getenv("WAYLAND_DISPLAY") != "" {
+		return
+	}
+
+	if os.Getenv("DISPLAY") != "" {
+		slog.Warn("Using X11 backend; gogpu X11 keyboard events are currently not implemented")
+	}
+}
+
+func initSubsystems(headless bool, basedir, gamedir string, args []string) error {
 	// Initialize input system
 	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer
 	if err := gameInput.Init(); err != nil {
@@ -145,17 +187,71 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 		}
 	}
 
-	// Wire subsystems together through Host.Init
-	gameSubs = &host.Subsystems{
-		Files:  fileSys,
-		Server: gameServer,
-		Client: nil, // No client in server mode
-		Audio:  nil, // No audio in this demo
+	// If renderer was created, wire its input backend into the input system
+	if gameRenderer != nil && gameInput != nil {
+		// Some renderers provide a backend factory to adapt window events
+		// to the engine input system.
+		if bb := gameRenderer.InputBackendForSystem(gameInput); bb != nil {
+			if err := gameInput.SetBackend(bb); err != nil {
+				return fmt.Errorf("failed to set renderer input backend: %w", err)
+			}
+		}
 	}
+
+	// Optional override to force SDL3 input even when renderer backend exists.
+	// Useful when platform-specific window backends do not emit keyboard events.
+	if gameInput != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
+		previousBackend := gameInput.Backend()
+		if b := input.NewSDL3Backend(gameInput); b != nil {
+			if err := gameInput.SetBackend(b); err != nil {
+				slog.Warn("failed to force SDL3 input backend; keeping previous backend", "error", err)
+				if previousBackend != nil {
+					if restoreErr := gameInput.SetBackend(previousBackend); restoreErr != nil {
+						return fmt.Errorf("failed to restore previous input backend after SDL3 override failure: %w", restoreErr)
+					}
+				}
+			} else {
+				slog.Warn("input backend override active", "backend", "sdl3")
+			}
+		} else {
+			slog.Warn("IW_INPUT_BACKEND=sdl3 requested but SDL3 backend is not available in this build")
+		}
+	}
+
+	// If no backend was provided by the renderer, allow other build-tagged
+	// backends (e.g. SDL3) to provide system input. input.NewSDL3Backend
+	// is a no-op stub when the sdl3 build tag is not present.
+	if gameInput != nil {
+		if err := func() error {
+			// Only set SDL3 backend if renderer didn't provide one
+			if gameInput.Backend() != nil {
+				return nil
+			}
+			if b := input.NewSDL3Backend(gameInput); b != nil {
+				return gameInput.SetBackend(b)
+			}
+			return nil
+		}(); err != nil {
+			return fmt.Errorf("failed to set input backend: %w", err)
+		}
+	}
+
+	// Wire subsystems together through Host.Init
+	audioAdapter := audio.NewAudioAdapter(audio.NewSystem())
+	gameSubs = &host.Subsystems{
+		Files:    fileSys,
+		Commands: globalCommandBuffer{},
+		Server:   gameServer,
+		Audio:    audioAdapter,
+	}
+	// Wire the loopback client to the server so server→client messages are parsed (M3).
+	host.SetupLoopbackClientServer(gameSubs, gameServer)
+
 	if err := gameHost.Init(&host.InitParams{
 		BaseDir:    basedir,
+		GameDir:    gamedir,
 		UserDir:    "",
-		Args:       []string{},
+		Args:       append([]string(nil), args...),
 		MaxClients: 1,
 	}, gameSubs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
@@ -164,10 +260,31 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 	// Set menu in host
 	gameHost.SetMenu(gameMenu)
 
-	// Initialize draw manager from data directory (for testing/development)
-	dataDir := "data"
-	if err := gameDraw.InitFromDir(dataDir); err != nil {
-		slog.Warn("Failed to initialize draw manager", "error", err)
+	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
+	drawErr := gameDraw.Init(fileSys)
+	if drawErr != nil {
+		// Fall back to local "data" directory for development/testing
+		slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
+		drawErr = gameDraw.InitFromDir("data")
+	}
+	if drawErr != nil {
+		slog.Warn("Failed to initialize draw manager", "error", drawErr)
+	} else if gameRenderer != nil {
+		if pal := gameDraw.Palette(); len(pal) >= 768 {
+			gameRenderer.SetPalette(pal)
+		}
+		if conchars := gameDraw.GetConcharsData(); len(conchars) >= 128*128 {
+			gameRenderer.SetConchars(conchars)
+		}
+	}
+
+	// Initialize HUD
+	gameHUD = hud.NewHUD(gameDraw)
+	gameClient = host.LoopbackClientState(gameSubs)
+	if gameRenderer != nil {
+		gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
+		particleRNG = rand.New(rand.NewSource(1))
+		particleTime = 0
 	}
 
 	// Make sure the menu is visible at startup
@@ -176,6 +293,56 @@ func initSubsystems(headless bool, basedir, gamedir string) error {
 
 	slog.Info("All subsystems initialized")
 	return nil
+}
+
+// gameCallbacks implements host.FrameCallbacks to drive server+client each frame.
+type gameCallbacks struct{}
+
+func (gameCallbacks) GetEvents() {
+	if gameInput != nil {
+		gameInput.PollEvents()
+	}
+	if gameSubs != nil && gameSubs.Client != nil && gameHost != nil {
+		_ = gameSubs.Client.Frame(gameHost.FrameTime())
+	}
+}
+
+func (gameCallbacks) ProcessConsoleCommands() {
+	host.DispatchLoopbackStuffText(gameSubs)
+}
+
+func (gameCallbacks) ProcessServer() {
+	if gameSubs == nil || gameSubs.Server == nil {
+		return
+	}
+	dt := gameHost.FrameTime()
+	if err := gameSubs.Server.Frame(dt); err != nil {
+		slog.Warn("server frame error", "error", err)
+	}
+}
+
+func (gameCallbacks) ProcessClient() {
+	if gameSubs == nil || gameSubs.Client == nil {
+		return
+	}
+	_ = gameSubs.Client.ReadFromServer()
+	_ = gameSubs.Client.SendCommand()
+}
+
+func (gameCallbacks) UpdateScreen() {}
+
+func (gameCallbacks) UpdateAudio(_, _, _, _ [3]float32) {}
+
+func startupMapArg(args []string) string {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "+map" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	if len(args) > 0 && args[0] != "" && !strings.HasPrefix(args[0], "+") {
+		return args[0]
+	}
+	return ""
 }
 
 func main() {
@@ -203,16 +370,13 @@ func main() {
 		slog.SetLogLoggerLevel(slog.LevelInfo)
 	}
 
-	// Check if a map argument was provided
+	// Parse Quake-style +command arguments (e.g. +map start)
 	args := flag.Args()
-	mapArg := ""
-	if len(args) > 0 {
-		mapArg = args[0]
-	}
+	mapArg := startupMapArg(args)
 
 	// Try to initialize with renderer, fall back to headless if it fails
 	headless := *headlessFlag
-	initErr := initSubsystems(headless, *baseDir, *gameDir)
+	initErr := initSubsystems(headless, *baseDir, *gameDir, args)
 	if initErr != nil && !headless {
 		// Check if error is related to renderer initialization
 		if isRendererError(initErr) {
@@ -221,7 +385,7 @@ func main() {
 			fmt.Println("Continuing with game loop (no rendering)...")
 			headless = true
 			// Re-initialize without renderer
-			if err := initSubsystems(true, *baseDir, *gameDir); err != nil {
+			if err := initSubsystems(true, *baseDir, *gameDir, args); err != nil {
 				log.Fatal("Initialization failed:", err)
 			}
 		} else {
@@ -241,6 +405,9 @@ func main() {
 			log.Printf("Failed to spawn map %s: %v", mapArg, err)
 		} else {
 			slog.Info("map spawn finished", "map", mapArg)
+			if gameClient != nil && gameClient.State == cl.StateActive && gameHost.SignOns() == 4 {
+				slog.Info("client active", "map", mapArg)
+			}
 		}
 	}
 
@@ -253,20 +420,135 @@ func main() {
 	}
 
 	if !headless {
+		cb := gameCallbacks{}
 		// Set up renderer callbacks
 		gameRenderer.OnUpdate(func(dt float64) {
-			gameHost.Frame(dt, nil)
+			if gameInput != nil {
+				_ = gameInput.PollEvents()
+				if gameMenu != nil && gameMenu.IsActive() && gameInput.GetKeyDest() != input.KeyMenu {
+					gameInput.SetKeyDest(input.KeyMenu)
+					slog.Info("input routing corrected", "dest", "menu")
+				}
+			}
+
+			gameHost.Frame(dt, cb)
+
+			// Update camera from client state each frame
+			// This is the critical rendering path for M4: view setup
+			if gameRenderer != nil {
+				// Fallback: position camera above world center, looking down
+				// In Quake coords: origin at (X, Y, Z) with angles (pitch, yaw, roll)
+				// Positive pitch = look down
+				origin := [3]float32{0, 0, 128} // High above origin
+				angles := [3]float32{45, 0, 0}  // Look down 45 degrees
+				fallbackFromPlayerStart := false
+				fallbackFromWorldBounds := false
+				if gameServer != nil {
+					for _, ent := range gameServer.Edicts {
+						if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
+							continue
+						}
+
+						className := gameServer.GetString(ent.Vars.ClassName)
+						if className != "info_player_start" && className != "info_player_deathmatch" {
+							continue
+						}
+
+						origin = ent.Vars.Origin
+						origin[2] += 22
+						angles = ent.Vars.Angles
+						fallbackFromPlayerStart = true
+						break
+					}
+				}
+				if !fallbackFromPlayerStart {
+					if minBounds, maxBounds, ok := gameRenderer.GetWorldBounds(); ok {
+					centerX := (minBounds[0] + maxBounds[0]) * 0.5
+					centerY := (minBounds[1] + maxBounds[1]) * 0.5
+					centerZ := (minBounds[2] + maxBounds[2]) * 0.5
+
+					extentX := maxBounds[0] - minBounds[0]
+					extentY := maxBounds[1] - minBounds[1]
+					extentZ := maxBounds[2] - minBounds[2]
+
+					radius := extentX
+					if extentY > radius {
+						radius = extentY
+					}
+					if extentZ > radius {
+						radius = extentZ
+					}
+					if radius < 256 {
+						radius = 256
+					}
+
+						origin = [3]float32{centerX, centerY + radius, centerZ + radius*0.5}
+						angles = [3]float32{26.565052, 0, 0}
+						fallbackFromWorldBounds = true
+					}
+				}
+				if gameClient != nil {
+					clientOrigin := gameClient.PredictedOrigin
+					clientAngles := gameClient.ViewAngles
+					// Only use client values if they're non-zero (player has spawned)
+					if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+						origin = clientOrigin
+						angles = clientAngles
+					} else {
+						slog.Debug("Client at origin, using fallback camera", "origin", origin, "angles", angles, "from_world_bounds", fallbackFromWorldBounds, "from_player_start", fallbackFromPlayerStart)
+					}
+				} else {
+					slog.Debug("No client, using fallback camera", "origin", origin, "angles", angles, "from_world_bounds", fallbackFromWorldBounds, "from_player_start", fallbackFromPlayerStart)
+				}
+
+				// Create camera state from client prediction (or fallback values)
+				camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
+
+				// Update renderer matrices (near=0.1, far=4096 for Quake world)
+				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
+			}
+
+			if gameParticles != nil && gameClient != nil {
+				oldTime := particleTime
+				particleTime += float32(dt)
+				renderer.EmitClientEffects(gameParticles, gameClient.ConsumeParticleEvents(), gameClient.ConsumeTempEntities(), particleRNG, particleTime)
+				gameParticles.RunParticles(particleTime, oldTime, 800)
+			}
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
-			// Frame pipeline: Clear → World → Entities → Particles → 2D Overlay
+			if gameRenderer != nil && gameServer != nil && gameServer.WorldTree != nil && !gameRenderer.HasWorldData() {
+				if err := gameRenderer.UploadWorld(gameServer.WorldTree); err != nil {
+					slog.Warn("deferred world upload failed", "error", err)
+				}
+			}
 
-			// Phase 1: Clear screen to black
+			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
+				state := renderer.DefaultRenderFrameState()
+				state.ClearColor = [4]float32{0, 0, 0, 1}
+				state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
+				state.DrawEntities = false
+				state.DrawParticles = false
+				state.Draw2DOverlay = true
+				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
+				state.Particles = gameParticles
+				if gameDraw != nil {
+					state.Palette = gameDraw.Palette()
+				}
+
+				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
+					if gameMenu != nil && gameMenu.IsActive() {
+						gameMenu.M_Draw(overlay)
+					} else if gameHUD != nil {
+						w, h := gameRenderer.Size()
+						gameHUD.SetScreenSize(w, h)
+						updateHUDFromServer()
+						gameHUD.Draw(overlay)
+					}
+				})
+				return
+			}
+
 			dc.Clear(0, 0, 0, 1)
-
-			// Phase 2-4: World/Entities/Particles (stubs until M4.3/M4.4)
-			// These will be implemented in later milestones
-
-			// Phase 5: 2D Overlay (menu, console, HUD)
 			if gameMenu != nil && gameMenu.IsActive() {
 				gameMenu.M_Draw(dc)
 			}
@@ -314,7 +596,7 @@ func headlessGameLoop() {
 		lastTime = now
 
 		// Update game state
-		if err := gameHost.Frame(dt, nil); err != nil {
+		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
 		}
 	}
@@ -331,6 +613,59 @@ func isRendererError(err error) bool {
 		strings.Contains(errStr, "segv")
 }
 
-func captureScreenshot(sspath, baseDir, gameDir string) error {
-	return errors.New("not implemented")
+func captureScreenshot(sspath, _, _ string) error {
+	const (
+		ssWidth  = 1280
+		ssHeight = 720
+	)
+
+	var palette []byte
+	if gameDraw != nil {
+		palette = gameDraw.Palette()
+	}
+	soft := renderer.NewSoftwareRenderer(ssWidth, ssHeight, 1.0, palette)
+
+	// Sky-blue background
+	soft.Clear(0.08, 0.08, 0.18, 1.0)
+
+	// Render BSP world geometry if a map is loaded
+	if gameServer != nil && gameServer.WorldTree != nil {
+		soft.DrawBSPWorld(gameServer.WorldTree)
+	}
+
+	// Render 2D overlay (menu if active)
+	if gameMenu != nil && gameMenu.IsActive() {
+		gameMenu.M_Draw(soft)
+	}
+
+	f, err := os.Create(sspath)
+	if err != nil {
+		return fmt.Errorf("create screenshot file: %w", err)
+	}
+	defer f.Close()
+
+	if err := png.Encode(f, soft.Image()); err != nil {
+		return fmt.Errorf("encode PNG: %w", err)
+	}
+
+	slog.Info("Screenshot saved", "path", sspath)
+	return nil
+}
+
+// updateHUDFromServer reads player state from the server's player edict and
+// pushes it into the HUD so it displays current health/armor/ammo.
+func updateHUDFromServer() {
+	if gameHUD == nil || gameServer == nil {
+		return
+	}
+	ent := gameServer.EdictNum(1)
+	if ent == nil {
+		return
+	}
+	gameHUD.SetState(
+		int(ent.Vars.Health),
+		int(ent.Vars.ArmorValue),
+		int(ent.Vars.CurrentAmmo),
+		int(ent.Vars.Weapon),
+	)
 }

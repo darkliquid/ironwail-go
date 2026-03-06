@@ -84,7 +84,6 @@ func TestMixing(t *testing.T) {
 
 	mixer.PaintChannels(channels, rawSamples, dma, 0, 100)
 
-
 	// Check if something was mixed into the DMA buffer
 	found := false
 	for _, b := range dma.Buffer {

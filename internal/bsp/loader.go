@@ -97,11 +97,11 @@ func (f *File) loadPlanes(r *Reader) error {
 		return err
 	}
 
-	count := int(lump.FileLength) / 16 // DPlane is 16 bytes
+	count := int(lump.FileLength) / 20 // DPlane is 20 bytes
 	f.Planes = make([]DPlane, count)
 
 	for i := 0; i < count; i++ {
-		offset := i * 16
+		offset := i * 20
 		f.Planes[i] = DPlane{
 			Normal: [3]float32{
 				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),

@@ -72,6 +72,10 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.FixAngle = false
 		case inet.SVCPrint:
 			_ = msg.ReadString()
+		case inet.SVCUpdateStat:
+			if err := p.parseUpdateStat(msg); err != nil {
+				return err
+			}
 		case inet.SVCStuffText:
 			p.parseStuffText(msg.ReadString())
 		case inet.SVCVersion:
@@ -107,12 +111,48 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			if err := p.parseClientData(msg); err != nil {
 				return err
 			}
+		case inet.SVCSound:
+			if err := p.parseSound(msg, false); err != nil {
+				return err
+			}
+		case inet.SVCLocalSound:
+			if err := p.parseSound(msg, true); err != nil {
+				return err
+			}
+		case inet.SVCUpdateFrags:
+			if err := p.parseUpdateFrags(msg); err != nil {
+				return err
+			}
+		case inet.SVCDamage:
+			if err := p.parseDamage(msg); err != nil {
+				return err
+			}
 		case inet.SVCSpawnBaseline:
 			if err := p.parseSpawnBaseline(msg, false); err != nil {
 				return err
 			}
 		case inet.SVCSpawnBaseline2:
 			if err := p.parseSpawnBaseline(msg, true); err != nil {
+				return err
+			}
+		case inet.SVCSpawnStatic:
+			if err := p.parseSpawnStatic(msg, false); err != nil {
+				return err
+			}
+		case inet.SVCSpawnStatic2:
+			if err := p.parseSpawnStatic(msg, true); err != nil {
+				return err
+			}
+		case inet.SVCSpawnStaticSound:
+			if err := p.parseSpawnStaticSound(msg, false); err != nil {
+				return err
+			}
+		case inet.SVCSpawnStaticSound2:
+			if err := p.parseSpawnStaticSound(msg, true); err != nil {
+				return err
+			}
+		case inet.SVCParticle:
+			if err := p.parseParticle(msg); err != nil {
 				return err
 			}
 		case inet.SVCTempEntity:
@@ -125,6 +165,34 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			}
 		case inet.SVCSetAngle:
 			if err := p.parseSetAngle(msg); err != nil {
+				return err
+			}
+		case inet.SVCSetPause:
+			if err := p.parseSetPause(msg); err != nil {
+				return err
+			}
+		case inet.SVCCenterPrint:
+			p.Client.CenterPrint = msg.ReadString()
+		case inet.SVCUpdateName:
+			if err := p.parseUpdateName(msg); err != nil {
+				return err
+			}
+		case inet.SVCStopSound:
+			if err := p.parseStopSound(msg); err != nil {
+				return err
+			}
+		case inet.SVCUpdateColors:
+			if err := p.parseUpdateColors(msg); err != nil {
+				return err
+			}
+		case inet.SVCKillMonster:
+			p.Client.KillCount++
+		case inet.SVCFoundSecret:
+			p.Client.SecretCount++
+		case inet.SVCSkyBox:
+			p.Client.SkyboxName = msg.ReadString()
+		case inet.SVCFog:
+			if err := p.parseFog(msg); err != nil {
 				return err
 			}
 		case inet.SVCIntermission:
@@ -255,6 +323,265 @@ func (p *Parser) parseStuffText(s string) {
 	p.Client.StuffCmdBuf += s
 }
 
+func (p *Parser) parseUpdateStat(msg *common.SizeBuf) error {
+	idx, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatestat: missing index")
+	}
+	v, ok := msg.ReadLong()
+	if !ok {
+		return fmt.Errorf("svc_updatestat: missing value")
+	}
+	if int(idx) < len(p.Client.Stats) {
+		p.Client.Stats[idx] = int(v)
+	}
+	return nil
+}
+
+func (p *Parser) parseUpdateFrags(msg *common.SizeBuf) error {
+	idx, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatefrags: missing client index")
+	}
+	v, ok := msg.ReadShort()
+	if !ok {
+		return fmt.Errorf("svc_updatefrags: missing frags")
+	}
+	if p.Client.Frags == nil {
+		p.Client.Frags = make(map[int]int)
+	}
+	p.Client.Frags[int(idx)] = int(v)
+	return nil
+}
+
+func (p *Parser) parseSetPause(msg *common.SizeBuf) error {
+	v, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_setpause: missing flag")
+	}
+	p.Client.Paused = v != 0
+	return nil
+}
+
+func (p *Parser) parseUpdateName(msg *common.SizeBuf) error {
+	idx, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatename: missing player index")
+	}
+	name := msg.ReadString()
+	if p.Client.PlayerNames == nil {
+		p.Client.PlayerNames = make(map[int]string)
+	}
+	p.Client.PlayerNames[int(idx)] = name
+	return nil
+}
+
+func (p *Parser) parseStopSound(msg *common.SizeBuf) error {
+	entity, ok := msg.ReadShort()
+	if !ok {
+		return fmt.Errorf("svc_stopsound: missing entity")
+	}
+	channel, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_stopsound: missing channel")
+	}
+	_ = entity
+	_ = channel
+	// TODO: dispatch to audio system to stop sound
+	return nil
+}
+
+func (p *Parser) parseUpdateColors(msg *common.SizeBuf) error {
+	idx, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatecolors: missing player index")
+	}
+	colors, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_updatecolors: missing colors")
+	}
+	if p.Client.PlayerColors == nil {
+		p.Client.PlayerColors = make(map[int]byte)
+	}
+	p.Client.PlayerColors[int(idx)] = colors
+	return nil
+}
+
+func (p *Parser) parseFog(msg *common.SizeBuf) error {
+	density, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing density")
+	}
+	r, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing red")
+	}
+	g, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing green")
+	}
+	b, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing blue")
+	}
+	t, ok := msg.ReadFloat()
+	if !ok {
+		return fmt.Errorf("svc_fog: missing time")
+	}
+	p.Client.FogDensity = density
+	p.Client.FogColor = [3]byte{r, g, b}
+	p.Client.FogTime = float32(t)
+	return nil
+}
+
+func (p *Parser) parseDamage(msg *common.SizeBuf) error {
+	save, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_damage: missing armor")
+	}
+	take, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_damage: missing blood")
+	}
+	p.Client.DamageSaved = int(save)
+	p.Client.DamageTaken = int(take)
+	for i := 0; i < 3; i++ {
+		coord, err := readCoord(msg, fmt.Sprintf("svc_damage: missing origin %d", i))
+		if err != nil {
+			return err
+		}
+		p.Client.DamageOrigin[i] = coord
+	}
+	return nil
+}
+
+func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
+	fieldMask, ok := msg.ReadByte()
+	if !ok {
+		if local {
+			return fmt.Errorf("svc_localsound: missing field mask")
+		}
+		return fmt.Errorf("svc_sound: missing field mask")
+	}
+
+	event := SoundEvent{
+		Volume:      inet.DEFAULT_SOUND_PACKET_VOLUME,
+		Attenuation: inet.DEFAULT_SOUND_PACKET_ATTENUATION,
+		Local:       local,
+	}
+
+	if fieldMask&inet.SND_VOLUME != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing volume")
+		}
+		event.Volume = int(v)
+	}
+	if fieldMask&inet.SND_ATTENUATION != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing attenuation")
+		}
+		event.Attenuation = float32(v) / 64
+	}
+
+	if local {
+		if fieldMask != 0 {
+			v, ok := msg.ReadShort()
+			if !ok {
+				return fmt.Errorf("svc_localsound: missing sound index")
+			}
+			event.SoundIndex = int(v)
+		} else {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("svc_localsound: missing sound index")
+			}
+			event.SoundIndex = int(v)
+		}
+		p.Client.SoundEvents = append(p.Client.SoundEvents, event)
+		return nil
+	}
+
+	if fieldMask&inet.SND_LARGEENTITY != 0 {
+		entNum, ok := msg.ReadShort()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing large entity")
+		}
+		channel, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing large channel")
+		}
+		event.Entity = int(entNum)
+		event.Channel = int(channel)
+	} else {
+		packed, ok := msg.ReadShort()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing entity/channel")
+		}
+		event.Entity = int(uint16(packed) >> 3)
+		event.Channel = int(uint16(packed) & 7)
+	}
+
+	if fieldMask&inet.SND_LARGESOUND != 0 {
+		v, ok := msg.ReadShort()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing large sound index")
+		}
+		event.SoundIndex = int(v)
+	} else {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_sound: missing sound index")
+		}
+		event.SoundIndex = int(v)
+	}
+
+	for i := 0; i < 3; i++ {
+		coord, err := readCoord(msg, fmt.Sprintf("svc_sound: missing origin %d", i))
+		if err != nil {
+			return err
+		}
+		event.Origin[i] = coord
+	}
+
+	p.Client.SoundEvents = append(p.Client.SoundEvents, event)
+	return nil
+}
+
+func (p *Parser) parseParticle(msg *common.SizeBuf) error {
+	var event ParticleEvent
+	for i := 0; i < 3; i++ {
+		coord, err := readCoord(msg, fmt.Sprintf("svc_particle: missing origin %d", i))
+		if err != nil {
+			return err
+		}
+		event.Origin[i] = coord
+	}
+	for i := 0; i < 3; i++ {
+		v, err := readChar(msg, fmt.Sprintf("svc_particle: missing dir %d", i))
+		if err != nil {
+			return err
+		}
+		event.Dir[i] = float32(v) / 16
+	}
+	count, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_particle: missing count")
+	}
+	color, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_particle: missing color")
+	}
+	event.Count = int(count)
+	if count == 255 {
+		event.Count = 1024
+	}
+	event.Color = int(color)
+	p.Client.ParticleEvents = append(p.Client.ParticleEvents, event)
+	return nil
+}
+
 func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 	bits16, ok := msg.ReadShort()
 	if !ok {
@@ -382,7 +709,7 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
-	baseline, entNum, err := p.readBaseline(msg, extended)
+	baseline, entNum, err := p.readBaseline(msg, extended, true)
 	if err != nil {
 		return err
 	}
@@ -391,37 +718,53 @@ func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
 	return nil
 }
 
-func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool) (inet.EntityState, int, error) {
+func (p *Parser) parseSpawnStatic(msg *common.SizeBuf, extended bool) error {
+	baseline, _, err := p.readBaseline(msg, extended, false)
+	if err != nil {
+		return err
+	}
+	p.Client.StaticEntities = append(p.Client.StaticEntities, baseline)
+	return nil
+}
+
+func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum bool) (inet.EntityState, int, error) {
 	b := inet.EntityState{Alpha: inet.ENTALPHA_DEFAULT, Scale: inet.ENTSCALE_DEFAULT}
+	prefix := "svc_spawnbaseline"
+	if !withEntNum {
+		prefix = "svc_spawnstatic"
+	}
 
 	var bits byte
 	if extended {
 		v, ok := msg.ReadByte()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline2: missing bits")
+			return b, 0, fmt.Errorf("%s2: missing bits", prefix)
 		}
 		bits = v
 	}
 
-	entNumRaw, ok := msg.ReadShort()
-	if !ok {
-		if extended {
-			return b, 0, fmt.Errorf("svc_spawnbaseline2: missing entity")
+	entNum := 0
+	if withEntNum {
+		entNumRaw, ok := msg.ReadShort()
+		if !ok {
+			if extended {
+				return b, 0, fmt.Errorf("%s2: missing entity", prefix)
+			}
+			return b, 0, fmt.Errorf("%s: missing entity", prefix)
 		}
-		return b, 0, fmt.Errorf("svc_spawnbaseline: missing entity")
+		entNum = int(entNumRaw)
 	}
-	entNum := int(entNumRaw)
 
 	if extended && bits&inet.BLARGEMODEL != 0 {
 		v, ok := msg.ReadShort()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline2: missing modelindex")
+			return b, 0, fmt.Errorf("%s2: missing modelindex", prefix)
 		}
 		b.ModelIndex = uint16(v)
 	} else {
 		v, ok := msg.ReadByte()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline: missing modelindex")
+			return b, 0, fmt.Errorf("%s: missing modelindex", prefix)
 		}
 		b.ModelIndex = uint16(v)
 	}
@@ -429,38 +772,38 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool) (inet.EntitySt
 	if extended && bits&inet.BLARGEFRAME != 0 {
 		v, ok := msg.ReadShort()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline2: missing frame")
+			return b, 0, fmt.Errorf("%s2: missing frame", prefix)
 		}
 		b.Frame = uint16(v)
 	} else {
 		v, ok := msg.ReadByte()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline: missing frame")
+			return b, 0, fmt.Errorf("%s: missing frame", prefix)
 		}
 		b.Frame = uint16(v)
 	}
 
 	colormap, ok := msg.ReadByte()
 	if !ok {
-		return b, 0, fmt.Errorf("svc_spawnbaseline: missing colormap")
+		return b, 0, fmt.Errorf("%s: missing colormap", prefix)
 	}
 	b.Colormap = colormap
 
 	skin, ok := msg.ReadByte()
 	if !ok {
-		return b, 0, fmt.Errorf("svc_spawnbaseline: missing skin")
+		return b, 0, fmt.Errorf("%s: missing skin", prefix)
 	}
 	b.Skin = skin
 
 	for i := 0; i < 3; i++ {
-		coord, err := readCoord(msg, fmt.Sprintf("svc_spawnbaseline: missing origin %d", i))
+		coord, err := readCoord(msg, fmt.Sprintf("%s: missing origin %d", prefix, i))
 		if err != nil {
 			return b, 0, err
 		}
 		b.Origin[i] = coord
 	}
 	for i := 0; i < 3; i++ {
-		angle, err := readAngle(msg, fmt.Sprintf("svc_spawnbaseline: missing angle %d", i))
+		angle, err := readAngle(msg, fmt.Sprintf("%s: missing angle %d", prefix, i))
 		if err != nil {
 			return b, 0, err
 		}
@@ -470,19 +813,55 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool) (inet.EntitySt
 	if extended && bits&inet.BALPHA != 0 {
 		alpha, ok := msg.ReadByte()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline2: missing alpha")
+			return b, 0, fmt.Errorf("%s2: missing alpha", prefix)
 		}
 		b.Alpha = alpha
 	}
 	if extended && bits&inet.BSCALE != 0 {
 		scale, ok := msg.ReadByte()
 		if !ok {
-			return b, 0, fmt.Errorf("svc_spawnbaseline2: missing scale")
+			return b, 0, fmt.Errorf("%s2: missing scale", prefix)
 		}
 		b.Scale = scale
 	}
 
 	return b, entNum, nil
+}
+
+func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error {
+	var snd StaticSound
+	for i := 0; i < 3; i++ {
+		coord, err := readCoord(msg, fmt.Sprintf("svc_spawnstaticsound: missing origin %d", i))
+		if err != nil {
+			return err
+		}
+		snd.Origin[i] = coord
+	}
+	if extended {
+		v, ok := msg.ReadShort()
+		if !ok {
+			return fmt.Errorf("svc_spawnstaticsound2: missing sound index")
+		}
+		snd.SoundIndex = int(v)
+	} else {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_spawnstaticsound: missing sound index")
+		}
+		snd.SoundIndex = int(v)
+	}
+	volume, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_spawnstaticsound: missing volume")
+	}
+	attenuation, ok := msg.ReadByte()
+	if !ok {
+		return fmt.Errorf("svc_spawnstaticsound: missing attenuation")
+	}
+	snd.Volume = int(volume)
+	snd.Attenuation = float32(attenuation) / 64
+	p.Client.StaticSounds = append(p.Client.StaticSounds, snd)
+	return nil
 }
 
 func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
@@ -642,6 +1021,10 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		if _, ok := msg.ReadByte(); !ok {
 			return fmt.Errorf("entity update: missing lerpfinish")
 		}
+	}
+	if state.ModelIndex == 0 {
+		delete(p.Client.Entities, entNum)
+		return nil
 	}
 
 	p.Client.Entities[entNum] = state

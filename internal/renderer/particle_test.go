@@ -118,6 +118,52 @@ func TestRocketTrailTracerAlternatesVelocity(t *testing.T) {
 	}
 }
 
+func TestBlobExplosionAddsBlobParticles(t *testing.T) {
+	ps := NewParticleSystem(2048)
+	rng := rand.New(rand.NewSource(3))
+	ps.BlobExplosion([3]float32{1, 2, 3}, rng, 4)
+
+	if ps.ActiveCount() != 1024 {
+		t.Fatalf("ActiveCount = %d, want 1024", ps.ActiveCount())
+	}
+	a := ps.ActiveParticles()
+	if a[0].Type != ParticleBlob2 || a[1].Type != ParticleBlob {
+		t.Fatalf("types = (%d,%d), want (blob2,blob)", a[0].Type, a[1].Type)
+	}
+}
+
+func TestParticleExplosion2UsesColorRange(t *testing.T) {
+	ps := NewParticleSystem(1024)
+	rng := rand.New(rand.NewSource(4))
+	ps.ParticleExplosion2([3]float32{0, 0, 0}, 32, 5, rng, 2)
+
+	if ps.ActiveCount() != 512 {
+		t.Fatalf("ActiveCount = %d, want 512", ps.ActiveCount())
+	}
+	for _, p := range ps.ActiveParticles() {
+		if p.Type != ParticleBlob {
+			t.Fatalf("particle type = %d, want blob", p.Type)
+		}
+		if p.Color < 32 || p.Color >= 37 {
+			t.Fatalf("particle color = %d, want in [32,37)", p.Color)
+		}
+	}
+}
+
+func TestSplashEffectsAddExpectedCounts(t *testing.T) {
+	ps := NewParticleSystem(4096)
+	rng := rand.New(rand.NewSource(5))
+	ps.LavaSplash([3]float32{0, 0, 0}, rng, 1)
+	if ps.ActiveCount() != 1024 {
+		t.Fatalf("LavaSplash count = %d, want 1024", ps.ActiveCount())
+	}
+	ps.Clear()
+	ps.TeleportSplash([3]float32{0, 0, 0}, rng, 1)
+	if ps.ActiveCount() != 896 {
+		t.Fatalf("TeleportSplash count = %d, want 896", ps.ActiveCount())
+	}
+}
+
 func TestBuildParticleVertices(t *testing.T) {
 	palette := [256][4]byte{}
 	palette[3] = [4]byte{10, 20, 30, 40}

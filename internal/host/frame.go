@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 package host
+
 import "time"
 
 type FrameStats struct {

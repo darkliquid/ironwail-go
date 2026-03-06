@@ -106,38 +106,44 @@ func hullForBox(mins, maxs [3]float32) *model.Hull {
 func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]float32) *model.Hull {
 	// Decide which clipping hull to use, based on the size
 	if int(ent.Vars.Solid) == int(SolidBSP) {
-		// Explicit hulls in the BSP model
-		// Note: In full implementation, we would verify movetype is MOVETYPE_PUSH
-		// and that the model exists and is a brush model
-
-		// Get model from model index
-		// For now, use hull 0 (point hull) as default
-		var hull *model.Hull
-
-		// Calculate size to determine which hull to use
+		// Explicit hulls in the BSP model.
 		size := [3]float32{
 			maxs[0] - mins[0],
 			maxs[1] - mins[1],
 			maxs[2] - mins[2],
 		}
 
-		// Try to get the model from WorldModel or models array
-		// For now, use a simple size-based selection
+		hullNum := 0
+		if size[0] >= 3 {
+			if size[0] <= 32 {
+				hullNum = 1
+			} else {
+				hullNum = 2
+			}
+		}
+
 		if s.WorldModel != nil {
 			if m, ok := s.WorldModel.(*model.Model); ok && m != nil {
-				if size[0] < 3 {
-					hull = &m.Hulls[0]
-				} else if size[0] <= 32 {
-					hull = &m.Hulls[1]
-				} else {
-					hull = &m.Hulls[2]
+				var hull model.Hull
+				if hullNum >= 0 && hullNum < len(m.Hulls) {
+					hull = m.Hulls[hullNum]
 				}
-
-				// Calculate offset value to center the origin
-				offset[0] = hull.ClipMins[0] - mins[0] + ent.Vars.Origin[0]
-				offset[1] = hull.ClipMins[1] - mins[1] + ent.Vars.Origin[1]
-				offset[2] = hull.ClipMins[2] - mins[2] + ent.Vars.Origin[2]
-				return hull
+				modelIndex := int(ent.Vars.ModelIndex)
+				if ent == s.Edicts[0] || modelIndex <= 1 {
+					modelIndex = 1
+				}
+				if modelIndex > 1 && modelIndex-1 < len(m.SubModels) {
+					headNode := int(m.SubModels[modelIndex-1].HeadNode[hullNum])
+					if headNode >= 0 {
+						hull.FirstClipNode = headNode
+					}
+				}
+				if len(hull.ClipNodes) > 0 && hull.FirstClipNode >= 0 {
+					offset[0] = hull.ClipMins[0] - mins[0] + ent.Vars.Origin[0]
+					offset[1] = hull.ClipMins[1] - mins[1] + ent.Vars.Origin[1]
+					offset[2] = hull.ClipMins[2] - mins[2] + ent.Vars.Origin[2]
+					return &hull
+				}
 			}
 		}
 
@@ -152,11 +158,10 @@ func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]flo
 			ent.Vars.Maxs[1] - mins[1],
 			ent.Vars.Maxs[2] - mins[2],
 		}
-		hull = hullForBox(hullMins, hullMaxs)
 		offset[0] = ent.Vars.Origin[0]
 		offset[1] = ent.Vars.Origin[1]
 		offset[2] = ent.Vars.Origin[2]
-		return hull
+		return hullForBox(hullMins, hullMaxs)
 	}
 
 	// Create a temp hull from bounding box sizes

@@ -48,6 +48,22 @@ func UploadQPic(pic *image.QPic) *Texture {
 	return tex
 }
 
+// menuScale computes the uniform scale factor and centering offsets for
+// rendering the Quake 320×200 virtual menu space onto a physical screen.
+// Matches the original engine's M_DrawPic centering behaviour on widescreen.
+func menuScale(screenW, screenH int) (scale, xOff, yOff float32) {
+	sx := float32(screenW) / 320.0
+	sy := float32(screenH) / 200.0
+	if sy < sx {
+		scale = sy
+	} else {
+		scale = sx
+	}
+	xOff = (float32(screenW) - 320.0*scale) / 2.0
+	yOff = (float32(screenH) - 200.0*scale) / 2.0
+	return
+}
+
 // IsTransparentIndex returns true if a palette index represents transparency.
 // In Quake, palette index 255 is the transparent color.
 func IsTransparentIndex(color byte) bool {
@@ -70,6 +86,30 @@ func GetPaletteColor(index byte, palette []byte) (r, g, b byte) {
 	}
 
 	return palette[offset], palette[offset+1], palette[offset+2]
+}
+
+// ConvertConcharsToRGBA converts conchars pixel data to RGBA.
+// Unlike ConvertPaletteToRGBA, palette index 0 is treated as fully transparent
+// (Quake convention for console character backgrounds).
+func ConvertConcharsToRGBA(pixels []byte, palette []byte) []byte {
+	rgba := make([]byte, len(pixels)*4)
+	for i, p := range pixels {
+		if p == 0 {
+			// Transparent background
+			rgba[i*4+3] = 0
+			continue
+		}
+		if IsTransparentIndex(p) {
+			rgba[i*4+3] = 0
+			continue
+		}
+		r, g, b := GetPaletteColor(p, palette)
+		rgba[i*4] = r
+		rgba[i*4+1] = g
+		rgba[i*4+2] = b
+		rgba[i*4+3] = 255
+	}
+	return rgba
 }
 
 // ConvertPaletteToRGBA converts a palette-indexed image to RGBA format.

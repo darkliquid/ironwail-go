@@ -46,6 +46,30 @@ type LightStyle struct {
 	Peak    byte
 }
 
+type StaticSound struct {
+	Origin      [3]float32
+	SoundIndex  int
+	Volume      int
+	Attenuation float32
+}
+
+type SoundEvent struct {
+	Entity      int
+	Channel     int
+	Origin      [3]float32
+	SoundIndex  int
+	Volume      int
+	Attenuation float32
+	Local       bool
+}
+
+type ParticleEvent struct {
+	Origin [3]float32
+	Dir    [3]float32
+	Count  int
+	Color  int
+}
+
 type Client struct {
 	State  ClientState
 	Signon int
@@ -85,17 +109,38 @@ type Client struct {
 
 	Intermission  int
 	CompletedTime float64
+	Paused        bool
+	CenterPrint   string
 
 	Stats  [32]int
 	StatsF [32]float32
 	Items  uint32
+	Frags  map[int]int
+
+	KillCount   int
+	SecretCount int
+
+	PlayerNames  map[int]string
+	PlayerColors map[int]byte
+
+	SkyboxName string
+	FogDensity byte
+	FogColor   [3]byte
+	FogTime    float32
 
 	OnGround bool
 	InWater  bool
 
 	EntityBaselines map[int]inet.EntityState
 	Entities        map[int]inet.EntityState
+	StaticEntities  []inet.EntityState
+	StaticSounds    []StaticSound
+	SoundEvents     []SoundEvent
+	ParticleEvents  []ParticleEvent
 	TempEntities    []TempEntityEvent
+	DamageTaken     int
+	DamageSaved     int
+	DamageOrigin    [3]float32
 
 	StuffCmdBuf string
 
@@ -136,6 +181,20 @@ type Client struct {
 	InputMLook     KButton
 
 	LightStyles [64]LightStyle
+
+	// Movement prediction state
+	PredictedOrigin   [3]float32   // Predicted player position
+	PredictedVelocity [3]float32   // Predicted player velocity
+	LastServerOrigin  [3]float32   // Last known server position
+	PredictionError   [3]float32   // Error to correct over time
+	CommandBuffer     [256]UserCmd // Queue of user commands for prediction
+	CommandCount      int          // Number of commands in buffer
+
+	// Prediction tuning parameters
+	PredictionFriction  float32 // Velocity decay per second (0.8-0.95)
+	PredictionAccel     float32 // Acceleration multiplier
+	PredictionMaxSpeed  float32 // Maximum predicted speed
+	PredictionErrorLerp float32 // Error correction speed (0.1-0.5)
 }
 
 func NewClient() *Client {
@@ -156,6 +215,14 @@ func NewClient() *Client {
 		WheelPitch:      defaultWheelPitch,
 		EntityBaselines: make(map[int]inet.EntityState),
 		Entities:        make(map[int]inet.EntityState),
+		Frags:           make(map[int]int),
+		PlayerNames:     make(map[int]string),
+		PlayerColors:    make(map[int]byte),
+		// Prediction defaults
+		PredictionFriction:  0.85,  // 15% velocity decay per second
+		PredictionAccel:     10.0,  // Acceleration multiplier
+		PredictionMaxSpeed:  320.0, // Max predicted speed (Quake default)
+		PredictionErrorLerp: 0.3,   // 30% error correction per frame
 	}
 }
 
@@ -176,6 +243,8 @@ func (c *Client) ClearState() {
 	c.StuffCmdBuf = ""
 	c.Intermission = 0
 	c.CompletedTime = 0
+	c.Paused = false
+	c.CenterPrint = ""
 	c.FixAngle = false
 	c.MoveMessages = 0
 	c.InImpulse = 0
@@ -184,9 +253,37 @@ func (c *Client) ClearState() {
 	c.Stats = [32]int{}
 	c.StatsF = [32]float32{}
 	c.Items = 0
+	c.DamageTaken = 0
+	c.DamageSaved = 0
+	c.DamageOrigin = [3]float32{}
 	c.OnGround = false
 	c.InWater = false
+	c.KillCount = 0
+	c.SecretCount = 0
+	c.SkyboxName = ""
+	c.FogDensity = 0
+	c.FogColor = [3]byte{}
+	c.FogTime = 0
+	c.SoundEvents = nil
+	c.ParticleEvents = nil
 	c.TempEntities = nil
+	c.StaticEntities = nil
+	c.StaticSounds = nil
+	if c.Frags == nil {
+		c.Frags = make(map[int]int)
+	} else {
+		clear(c.Frags)
+	}
+	if c.PlayerNames == nil {
+		c.PlayerNames = make(map[int]string)
+	} else {
+		clear(c.PlayerNames)
+	}
+	if c.PlayerColors == nil {
+		c.PlayerColors = make(map[int]byte)
+	} else {
+		clear(c.PlayerColors)
+	}
 	if c.EntityBaselines == nil {
 		c.EntityBaselines = make(map[int]inet.EntityState)
 	} else {
@@ -197,6 +294,44 @@ func (c *Client) ClearState() {
 	} else {
 		clear(c.Entities)
 	}
+
+	// Reset prediction state
+	c.PredictedOrigin = [3]float32{}
+	c.PredictedVelocity = [3]float32{}
+	c.LastServerOrigin = [3]float32{}
+	c.PredictionError = [3]float32{}
+	c.CommandCount = 0
+}
+
+func (c *Client) ConsumeParticleEvents() []ParticleEvent {
+	if c == nil || len(c.ParticleEvents) == 0 {
+		return nil
+	}
+	events := c.ParticleEvents
+	c.ParticleEvents = nil
+	return events
+}
+
+func (c *Client) ConsumeTempEntities() []TempEntityEvent {
+	if c == nil || len(c.TempEntities) == 0 {
+		return nil
+	}
+	events := c.TempEntities
+	c.TempEntities = nil
+	return events
+}
+
+func (c *Client) ConsumeStuffCommands() string {
+	if c == nil || c.StuffCmdBuf == "" {
+		return ""
+	}
+	idx := strings.LastIndexByte(c.StuffCmdBuf, '\n')
+	if idx < 0 {
+		return ""
+	}
+	cmds := c.StuffCmdBuf[:idx+1]
+	c.StuffCmdBuf = c.StuffCmdBuf[idx+1:]
+	return cmds
 }
 
 func (c *Client) SetLightStyle(i int, style string) error {
@@ -331,4 +466,140 @@ func supportedProtocol(version int32) bool {
 
 func trimNUL(s string) string {
 	return strings.TrimRight(s, "\x00")
+}
+
+// SendMove serializes a user command into a CLCMove message and sends it
+// via unreliable channel. This is the low-level network transmission function.
+//
+// Message format (CLCMove):
+//   - Byte: CLCMove opcode (3)
+//   - Float: client time for ping calculation
+//   - 3×Angle: view angles (angle8 or angle16 depending on protocol)
+//   - Short: forward movement
+//   - Short: side movement
+//   - Short: up movement
+//   - Byte: button bits (1=attack, 2=jump)
+//   - Byte: impulse command
+//
+// Returns the serialized message bytes and any error.
+// The caller is responsible for sending via socket.
+func (c *Client) SendMove(cmd *UserCmd) ([]byte, error) {
+	if c == nil || cmd == nil {
+		return nil, nil
+	}
+
+	// Create message buffer (max size for move command is ~30 bytes)
+	buf := common.NewSizeBuf(64)
+
+	// Write CLCMove opcode
+	if !buf.WriteByte(byte(inet.CLCMove)) {
+		return nil, fmt.Errorf("failed to write CLCMove opcode")
+	}
+
+	// Write client time for ping calculation
+	if !buf.WriteFloat(float32(c.Time)) {
+		return nil, fmt.Errorf("failed to write client time")
+	}
+
+	// Write view angles (protocol-dependent encoding)
+	// Use 16-bit angles for FitzQuake/RMQ with PRFL_SHORTANGLE flag
+	useShortAngles := (c.Protocol == inet.PROTOCOL_FITZQUAKE || c.Protocol == inet.PROTOCOL_RMQ) &&
+		(c.ProtocolFlags&inet.PRFL_SHORTANGLE != 0)
+
+	for i := 0; i < 3; i++ {
+		if useShortAngles {
+			if !buf.WriteAngle16(cmd.ViewAngles[i]) {
+				return nil, fmt.Errorf("failed to write view angle %d", i)
+			}
+		} else {
+			if !buf.WriteAngle(cmd.ViewAngles[i]) {
+				return nil, fmt.Errorf("failed to write view angle %d", i)
+			}
+		}
+	}
+
+	// Write movement values (convert float32 to int16)
+	if !buf.WriteShort(int16(cmd.Forward)) {
+		return nil, fmt.Errorf("failed to write forward movement")
+	}
+	if !buf.WriteShort(int16(cmd.Side)) {
+		return nil, fmt.Errorf("failed to write side movement")
+	}
+	if !buf.WriteShort(int16(cmd.Up)) {
+		return nil, fmt.Errorf("failed to write up movement")
+	}
+
+	// Write button bits
+	if !buf.WriteByte(byte(cmd.Buttons)) {
+		return nil, fmt.Errorf("failed to write buttons")
+	}
+
+	// Write impulse
+	if !buf.WriteByte(byte(cmd.Impulse)) {
+		return nil, fmt.Errorf("failed to write impulse")
+	}
+
+	// Return serialized message
+	return buf.Data[:buf.CurSize], nil
+}
+
+// SendCmd is the top-level function called each frame to send client commands
+// to the server. It handles state checking, input gathering, and message sending.
+//
+// This should be called from the host frame loop after input processing but
+// before rendering. For network games, pass the UDP socket. For loopback,
+// use the loopback SendCommand implementation instead.
+//
+// Returns error if network transmission fails, but client should continue.
+func (c *Client) SendCmd(sendFunc func([]byte) error) error {
+	if c == nil {
+		return nil
+	}
+
+	// Only send commands when connected (loopback handles this differently)
+	if c.State != StateConnected && c.State != StateActive {
+		return nil
+	}
+
+	// Skip first 2 move messages to avoid stale input on connection
+	// (Quake convention to allow time for initial setup)
+	if c.MoveMessages < 2 {
+		c.MoveMessages++
+		return nil
+	}
+
+	// Prepare command to send
+	var cmd *UserCmd
+	if c.Signon >= Signons {
+		// Signon complete: send real player command
+		cmd = &c.PendingCmd
+	} else {
+		// Still in signon: send empty command to keep server in sync
+		emptyCmd := UserCmd{
+			ViewAngles: c.ViewAngles,
+		}
+		cmd = &emptyCmd
+	}
+
+	// Serialize command to network message
+	msgData, err := c.SendMove(cmd)
+	if err != nil {
+		return fmt.Errorf("send move: %w", err)
+	}
+
+	// Send via provided send function (unreliable channel)
+	if sendFunc != nil && len(msgData) > 0 {
+		if err := sendFunc(msgData); err != nil {
+			// Network error - log but continue (unreliable channel)
+			log.Printf("SendCmd: network send failed: %v", err)
+			return err
+		}
+	}
+
+	// Update command state
+	if c.Signon >= Signons {
+		c.Cmd = c.PendingCmd
+	}
+
+	return nil
 }
