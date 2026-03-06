@@ -57,14 +57,22 @@ type WorldRenderData struct {
 
 // BuildWorldGeometry extracts renderable geometry from BSP data.
 func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
+	return BuildModelGeometry(tree, 0)
+}
+
+// BuildModelGeometry extracts renderable geometry for a specific BSP model index.
+func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) {
 	if tree == nil {
 		return nil, fmt.Errorf("nil BSP tree")
 	}
 	if len(tree.Models) == 0 {
 		return nil, fmt.Errorf("BSP has no models")
 	}
+	if modelIndex < 0 || modelIndex >= len(tree.Models) {
+		return nil, fmt.Errorf("model index %d out of range", modelIndex)
+	}
 
-	worldModel := tree.Models[0]
+	worldModel := tree.Models[modelIndex]
 	geom := &WorldGeometry{
 		Vertices: make([]WorldVertex, 0, 4096),
 		Indices:  make([]uint32, 0, 16384),
@@ -236,7 +244,11 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []world
 }
 
 func buildWorldRenderData(tree *bsp.Tree) (*WorldRenderData, error) {
-	geom, err := BuildWorldGeometry(tree)
+	return buildModelRenderData(tree, 0)
+}
+
+func buildModelRenderData(tree *bsp.Tree, modelIndex int) (*WorldRenderData, error) {
+	geom, err := BuildModelGeometry(tree, modelIndex)
 	if err != nil {
 		return nil, err
 	}

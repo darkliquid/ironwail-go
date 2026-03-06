@@ -23,6 +23,7 @@ layout(location = 2) in vec2 aLightmapCoord;
 layout(location = 3) in vec3 aNormal;
 
 uniform mat4 uViewProjection;
+uniform vec3 uModelOffset;
 
 out vec2 vTexCoord;
 out vec3 vNormal;
@@ -30,9 +31,10 @@ out vec3 vWorldPos;
 
 void main() {
 	vTexCoord = aTexCoord;
-    vNormal = aNormal;
-    vWorldPos = aPosition;
-    gl_Position = uViewProjection * vec4(aPosition, 1.0);
+	vec3 worldPosition = aPosition + uModelOffset;
+	vNormal = aNormal;
+	vWorldPos = worldPosition;
+	gl_Position = uViewProjection * vec4(worldPosition, 1.0);
 }`
 
 	worldFragmentShaderGL = `#version 410 core
@@ -56,6 +58,14 @@ void main() {
 	fragColor = vec4(base.rgb * shade, base.a);
 }`
 )
+
+type glWorldMesh struct {
+	vao        uint32
+	vbo        uint32
+	ebo        uint32
+	indexCount int32
+	faces      []WorldFace
+}
 
 func flattenWorldVertices(vertices []WorldVertex) []float32 {
 	data := make([]float32, 0, len(vertices)*10)
@@ -89,7 +99,86 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldProgram = program
 	r.worldVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
 	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
+	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
 	return nil
+}
+
+func uploadWorldMesh(vertices []WorldVertex, indices []uint32) *glWorldMesh {
+	if len(vertices) == 0 || len(indices) == 0 {
+		return nil
+	}
+
+	vertexData := flattenWorldVertices(vertices)
+	mesh := &glWorldMesh{indexCount: int32(len(indices))}
+
+	gl.GenVertexArrays(1, &mesh.vao)
+	gl.GenBuffers(1, &mesh.vbo)
+	gl.GenBuffers(1, &mesh.ebo)
+
+	gl.BindVertexArray(mesh.vao)
+	gl.BindBuffer(gl.ARRAY_BUFFER, mesh.vbo)
+	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.STATIC_DRAW)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.ebo)
+	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(indices)*4, gl.Ptr(indices), gl.STATIC_DRAW)
+
+	const stride = 10 * 4
+	gl.EnableVertexAttribArray(0)
+	gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, stride, 0)
+	gl.EnableVertexAttribArray(1)
+	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, stride, 3*4)
+	gl.EnableVertexAttribArray(2)
+	gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, stride, 5*4)
+	gl.EnableVertexAttribArray(3)
+	gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, false, stride, 7*4)
+
+	gl.BindVertexArray(0)
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+
+	return mesh
+}
+
+func (mesh *glWorldMesh) destroy() {
+	if mesh == nil {
+		return
+	}
+	if mesh.vao != 0 {
+		gl.DeleteVertexArrays(1, &mesh.vao)
+		mesh.vao = 0
+	}
+	if mesh.vbo != 0 {
+		gl.DeleteBuffers(1, &mesh.vbo)
+		mesh.vbo = 0
+	}
+	if mesh.ebo != 0 {
+		gl.DeleteBuffers(1, &mesh.ebo)
+		mesh.ebo = 0
+	}
+}
+
+func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
+	if mesh, ok := r.brushModels[submodelIndex]; ok && mesh != nil {
+		return mesh
+	}
+	tree := r.worldTree
+	if tree == nil {
+		return nil
+	}
+	renderData, err := buildModelRenderData(tree, submodelIndex)
+	if err != nil {
+		slog.Warn("OpenGL brush model build failed", "submodel", submodelIndex, "error", err)
+		return nil
+	}
+	if renderData == nil || renderData.Geometry == nil || len(renderData.Geometry.Vertices) == 0 || len(renderData.Geometry.Indices) == 0 {
+		return nil
+	}
+	mesh := uploadWorldMesh(renderData.Geometry.Vertices, renderData.Geometry.Indices)
+	if mesh == nil {
+		return nil
+	}
+	mesh.faces = append(mesh.faces, renderData.Geometry.Faces...)
+	r.brushModels[submodelIndex] = mesh
+	return mesh
 }
 
 func uploadWorldTextureRGBA(width, height int, rgba []byte) uint32 {
@@ -171,38 +260,18 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err := r.ensureWorldProgram(); err != nil {
 		return err
 	}
+	r.worldTree = tree
 	r.uploadWorldTexturesLocked(tree)
-
-	vertexData := flattenWorldVertices(renderData.Geometry.Vertices)
-
-	gl.GenVertexArrays(1, &r.worldVAO)
-	gl.GenBuffers(1, &r.worldVBO)
-	gl.GenBuffers(1, &r.worldEBO)
-
-	gl.BindVertexArray(r.worldVAO)
-
-	gl.BindBuffer(gl.ARRAY_BUFFER, r.worldVBO)
-	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.STATIC_DRAW)
-
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, r.worldEBO)
-	gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, len(renderData.Geometry.Indices)*4, gl.Ptr(renderData.Geometry.Indices), gl.STATIC_DRAW)
-
-	const stride = 10 * 4
-	gl.EnableVertexAttribArray(0)
-	gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, stride, 0)
-	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, stride, 3*4)
-	gl.EnableVertexAttribArray(2)
-	gl.VertexAttribPointerWithOffset(2, 2, gl.FLOAT, false, stride, 5*4)
-	gl.EnableVertexAttribArray(3)
-	gl.VertexAttribPointerWithOffset(3, 3, gl.FLOAT, false, stride, 7*4)
-
-	gl.BindVertexArray(0)
-	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
-	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+	worldMesh := uploadWorldMesh(renderData.Geometry.Vertices, renderData.Geometry.Indices)
+	if worldMesh == nil {
+		return fmt.Errorf("upload world mesh: no geometry uploaded")
+	}
+	r.worldVAO = worldMesh.vao
+	r.worldVBO = worldMesh.vbo
+	r.worldEBO = worldMesh.ebo
 
 	r.worldData = renderData
-	r.worldIndexCount = int32(len(renderData.Geometry.Indices))
+	r.worldIndexCount = worldMesh.indexCount
 
 	slog.Info("OpenGL world uploaded",
 		"vertices", renderData.TotalVertices,
@@ -222,6 +291,7 @@ func (r *Renderer) renderWorld() {
 	vp := r.viewMatrices.VP
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
+	modelOffsetUniform := r.worldModelOffsetUniform
 	fallbackTexture := r.worldFallbackTexture
 	faces := []WorldFace(nil)
 	if r.worldData != nil && r.worldData.Geometry != nil {
@@ -245,6 +315,7 @@ func (r *Renderer) renderWorld() {
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 	gl.BindVertexArray(vao)
 	gl.ActiveTexture(gl.TEXTURE0)
 	if len(faces) == 0 {
@@ -264,6 +335,68 @@ func (r *Renderer) renderWorld() {
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 
+	gl.Enable(gl.BLEND)
+}
+
+func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
+	if len(entities) == 0 {
+		return
+	}
+
+	r.mu.Lock()
+	program := r.worldProgram
+	vp := r.viewMatrices.VP
+	vpUniform := r.worldVPUniform
+	textureUniform := r.worldTextureUniform
+	modelOffsetUniform := r.worldModelOffsetUniform
+	fallbackTexture := r.worldFallbackTexture
+	worldTextures := make(map[int32]uint32, len(r.worldTextures))
+	for k, v := range r.worldTextures {
+		worldTextures[k] = v
+	}
+	type drawBrush struct {
+		origin [3]float32
+		mesh   *glWorldMesh
+	}
+	brushes := make([]drawBrush, 0, len(entities))
+	for _, entity := range entities {
+		mesh := r.ensureBrushModelLocked(entity.SubmodelIndex)
+		if mesh == nil {
+			continue
+		}
+		brushes = append(brushes, drawBrush{origin: entity.Origin, mesh: mesh})
+	}
+	r.mu.Unlock()
+
+	if program == 0 || len(brushes) == 0 {
+		return
+	}
+
+	gl.Enable(gl.DEPTH_TEST)
+	gl.DepthMask(true)
+	gl.Disable(gl.BLEND)
+	gl.Disable(gl.CULL_FACE)
+	gl.UseProgram(program)
+	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+	gl.Uniform1i(textureUniform, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+
+	for _, brush := range brushes {
+		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
+		gl.BindVertexArray(brush.mesh.vao)
+		for _, face := range brush.mesh.faces {
+			tex := worldTextures[face.TextureIndex]
+			if tex == 0 {
+				tex = fallbackTexture
+			}
+			gl.BindTexture(gl.TEXTURE_2D, tex)
+			gl.DrawElements(gl.TRIANGLES, int32(face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(face.FirstIndex*4)))
+		}
+	}
+
+	gl.BindVertexArray(0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.UseProgram(0)
 	gl.Enable(gl.BLEND)
 }
 
@@ -301,6 +434,12 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteProgram(r.worldProgram)
 		r.worldProgram = 0
 	}
+	for idx, mesh := range r.brushModels {
+		if mesh != nil {
+			mesh.destroy()
+		}
+		delete(r.brushModels, idx)
+	}
 	for textureIndex, tex := range r.worldTextures {
 		if tex != 0 {
 			gl.DeleteTextures(1, &tex)
@@ -313,8 +452,10 @@ func (r *Renderer) clearWorldLocked() {
 	}
 	r.worldVPUniform = -1
 	r.worldTextureUniform = -1
+	r.worldModelOffsetUniform = -1
 	r.worldIndexCount = 0
 	r.worldData = nil
+	r.worldTree = nil
 }
 
 // ClearWorld releases OpenGL world resources.

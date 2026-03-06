@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/hud"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -463,24 +465,24 @@ func main() {
 				}
 				if !fallbackFromPlayerStart {
 					if minBounds, maxBounds, ok := gameRenderer.GetWorldBounds(); ok {
-					centerX := (minBounds[0] + maxBounds[0]) * 0.5
-					centerY := (minBounds[1] + maxBounds[1]) * 0.5
-					centerZ := (minBounds[2] + maxBounds[2]) * 0.5
+						centerX := (minBounds[0] + maxBounds[0]) * 0.5
+						centerY := (minBounds[1] + maxBounds[1]) * 0.5
+						centerZ := (minBounds[2] + maxBounds[2]) * 0.5
 
-					extentX := maxBounds[0] - minBounds[0]
-					extentY := maxBounds[1] - minBounds[1]
-					extentZ := maxBounds[2] - minBounds[2]
+						extentX := maxBounds[0] - minBounds[0]
+						extentY := maxBounds[1] - minBounds[1]
+						extentZ := maxBounds[2] - minBounds[2]
 
-					radius := extentX
-					if extentY > radius {
-						radius = extentY
-					}
-					if extentZ > radius {
-						radius = extentZ
-					}
-					if radius < 256 {
-						radius = 256
-					}
+						radius := extentX
+						if extentY > radius {
+							radius = extentY
+						}
+						if extentZ > radius {
+							radius = extentZ
+						}
+						if radius < 256 {
+							radius = 256
+						}
 
 						origin = [3]float32{centerX, centerY + radius, centerZ + radius*0.5}
 						angles = [3]float32{26.565052, 0, 0}
@@ -522,11 +524,14 @@ func main() {
 				}
 			}
 
+			brushEntities := collectBrushEntities()
+
 			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 				state := renderer.DefaultRenderFrameState()
 				state.ClearColor = [4]float32{0, 0, 0, 1}
 				state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
-				state.DrawEntities = false
+				state.DrawEntities = len(brushEntities) > 0
+				state.BrushEntities = brushEntities
 				state.DrawParticles = false
 				state.Draw2DOverlay = true
 				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
@@ -534,7 +539,6 @@ func main() {
 				if gameDraw != nil {
 					state.Palette = gameDraw.Palette()
 				}
-
 				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
 					if gameMenu != nil && gameMenu.IsActive() {
 						gameMenu.M_Draw(overlay)
@@ -579,6 +583,52 @@ func main() {
 	}
 
 	slog.Info("Engine shutdown complete")
+}
+
+func collectBrushEntities() []renderer.BrushEntity {
+	if gameClient == nil || gameServer == nil || gameServer.WorldTree == nil || len(gameServer.WorldTree.Models) <= 1 {
+		return nil
+	}
+
+	resolve := func(state inet.EntityState) (renderer.BrushEntity, bool) {
+		if state.ModelIndex <= 1 {
+			return renderer.BrushEntity{}, false
+		}
+		precacheIndex := int(state.ModelIndex) - 1
+		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+			return renderer.BrushEntity{}, false
+		}
+		modelName := gameClient.ModelPrecache[precacheIndex]
+		if len(modelName) < 2 || modelName[0] != '*' {
+			return renderer.BrushEntity{}, false
+		}
+		submodelIndex, err := strconv.Atoi(modelName[1:])
+		if err != nil || submodelIndex <= 0 || submodelIndex >= len(gameServer.WorldTree.Models) {
+			return renderer.BrushEntity{}, false
+		}
+		return renderer.BrushEntity{
+			SubmodelIndex: submodelIndex,
+			Origin:        state.Origin,
+			Angles:        state.Angles,
+		}, true
+	}
+
+	brushEntities := make([]renderer.BrushEntity, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
+	for entityNum, state := range gameClient.Entities {
+		if entityNum == gameClient.ViewEntity {
+			continue
+		}
+		if brushEntity, ok := resolve(state); ok {
+			brushEntities = append(brushEntities, brushEntity)
+		}
+	}
+	for _, state := range gameClient.StaticEntities {
+		if brushEntity, ok := resolve(state); ok {
+			brushEntities = append(brushEntities, brushEntity)
+		}
+	}
+
+	return brushEntities
 }
 
 func headlessGameLoop() {

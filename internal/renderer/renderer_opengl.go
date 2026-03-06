@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
 
@@ -355,18 +356,21 @@ type Renderer struct {
 	charCache     [256]*image.QPic
 	drawContext   *glDrawContext
 
-	cameraState          CameraState
-	viewMatrices         ViewMatrixData
-	worldData            *WorldRenderData
-	worldVAO             uint32
-	worldVBO             uint32
-	worldEBO             uint32
-	worldProgram         uint32
-	worldVPUniform       int32
-	worldTextureUniform  int32
-	worldIndexCount      int32
-	worldFallbackTexture uint32
-	worldTextures        map[int32]uint32
+	cameraState             CameraState
+	viewMatrices            ViewMatrixData
+	worldData               *WorldRenderData
+	worldTree               *bsp.Tree
+	worldVAO                uint32
+	worldVBO                uint32
+	worldEBO                uint32
+	worldProgram            uint32
+	worldVPUniform          int32
+	worldTextureUniform     int32
+	worldModelOffsetUniform int32
+	worldIndexCount         int32
+	worldFallbackTexture    uint32
+	worldTextures           map[int32]uint32
+	brushModels             map[int]*glWorldMesh
 
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -439,6 +443,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		config:        cfg,
 		textureCache:  make(map[glCacheKey]*glCachedTexture),
 		worldTextures: make(map[int32]uint32),
+		brushModels:   make(map[int]*glWorldMesh),
 	}
 
 	slog.Info("OpenGL renderer created",

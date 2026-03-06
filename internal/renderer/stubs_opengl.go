@@ -9,11 +9,19 @@ import (
 	"github.com/ironwail/ironwail-go/internal/image"
 )
 
+// BrushEntity describes an inline BSP submodel instance to render.
+type BrushEntity struct {
+	SubmodelIndex int
+	Origin        [3]float32
+	Angles        [3]float32
+}
+
 // RenderFrameState carries per-frame render configuration passed to RenderFrame.
 type RenderFrameState struct {
 	ClearColor    [4]float32
 	DrawWorld     bool
 	DrawEntities  bool
+	BrushEntities []BrushEntity
 	DrawParticles bool
 	Draw2DOverlay bool
 	MenuActive    bool
@@ -35,6 +43,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld()
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(state.BrushEntities)
 	}
 	if state.Draw2DOverlay && draw2DOverlay != nil {
 		gl.Disable(gl.DEPTH_TEST)
