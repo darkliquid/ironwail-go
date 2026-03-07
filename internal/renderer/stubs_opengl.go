@@ -46,10 +46,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 	if state.DrawWorld && dc.gldc.renderer != nil {
-		dc.gldc.renderer.renderWorld()
+		dc.gldc.renderer.renderWorld(worldBrushPassNonLiquid)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(state.BrushEntities)
+		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassNonLiquid)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.AliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(state.AliasEntities)
@@ -59,6 +59,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
 		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassOpaque)
+	}
+	if state.DrawWorld && dc.gldc.renderer != nil {
+		dc.gldc.renderer.renderWorld(worldBrushPassLiquidOnly)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassLiquidOnly)
 	}
 	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
 		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)

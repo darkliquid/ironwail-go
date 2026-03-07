@@ -919,7 +919,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	return nil
 }
 
-func (r *Renderer) renderWorld() {
+func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
+	selector = normalizeWorldBrushPassSelector(selector)
+	drawNonLiquid := selector.includesNonLiquid()
+	drawLiquid := selector.includesLiquid()
+
 	r.mu.RLock()
 	program := r.worldProgram
 	skyProgram := r.worldSkyProgram
@@ -1013,69 +1017,75 @@ func (r *Renderer) renderWorld() {
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 	gl.BindVertexArray(vao)
 	if len(faces) == 0 {
-		gl.DepthMask(true)
-		gl.Disable(gl.BLEND)
-		gl.Uniform1f(alphaUniform, 1)
-		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, fallbackTexture)
-		gl.ActiveTexture(gl.TEXTURE1)
-		gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
-		gl.ActiveTexture(gl.TEXTURE0)
-		gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
+		if drawNonLiquid {
+			gl.DepthMask(true)
+			gl.Disable(gl.BLEND)
+			gl.Uniform1f(alphaUniform, 1)
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.BindTexture(gl.TEXTURE_2D, fallbackTexture)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
+		}
 	} else {
-		renderSkyPass(skyFaces, skyPassState{
-			program:                     skyProgram,
-			cubemapProgram:              skyCubemapProgram,
-			vpUniform:                   skyVPUniform,
-			solidUniform:                skySolidUniform,
-			alphaUniform:                skyAlphaUniform,
-			cubemapVPUniform:            skyCubemapVPUniform,
-			cubemapUniform:              skyCubemapUniform,
-			modelOffsetUniform:          skyModelOffsetUniform,
-			modelRotationUniform:        skyModelRotationUniform,
-			modelScaleUniform:           skyModelScaleUniform,
-			cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
-			cubemapModelRotationUniform: skyCubemapModelRotationUniform,
-			cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
-			timeUniform:                 skyTimeUniform,
-			cameraOriginUniform:         skyCameraOriginUniform,
-			cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
-			fogColorUniform:             skyFogColorUniform,
-			cubemapFogColorUniform:      skyCubemapFogColorUniform,
-			fogDensityUniform:           skyFogDensityUniform,
-			cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
-			vp:                          vp,
-			time:                        camera.Time,
-			cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
-			modelOffset:                 [3]float32{0, 0, 0},
-			modelRotation:               identityModelRotationMatrix,
-			modelScale:                  1,
-			fogColor:                    fogColor,
-			fogDensity:                  skyFogFactor,
-			solidTextures:               worldSkySolidTextures,
-			alphaTextures:               worldSkyAlphaTextures,
-			textureAnimations:           worldTextureAnimations,
-			fallbackSolid:               fallbackTexture,
-			fallbackAlpha:               skyFallbackAlpha,
-			externalCubemap:             skyExternalCubemap,
-		})
-		gl.UseProgram(program)
-		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
-		gl.Uniform1i(textureUniform, 0)
-		gl.Uniform1i(lightmapUniform, 1)
-		gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
-		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
-		gl.Uniform1f(modelScaleUniform, 1)
-		gl.Uniform1f(timeUniform, camera.Time)
-		gl.Uniform1f(turbulentUniform, 0)
-		gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
-		gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
-		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
-		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
-		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
-		renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
-		renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
-		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
+		if drawNonLiquid {
+			renderSkyPass(skyFaces, skyPassState{
+				program:                     skyProgram,
+				cubemapProgram:              skyCubemapProgram,
+				vpUniform:                   skyVPUniform,
+				solidUniform:                skySolidUniform,
+				alphaUniform:                skyAlphaUniform,
+				cubemapVPUniform:            skyCubemapVPUniform,
+				cubemapUniform:              skyCubemapUniform,
+				modelOffsetUniform:          skyModelOffsetUniform,
+				modelRotationUniform:        skyModelRotationUniform,
+				modelScaleUniform:           skyModelScaleUniform,
+				cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
+				cubemapModelRotationUniform: skyCubemapModelRotationUniform,
+				cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
+				timeUniform:                 skyTimeUniform,
+				cameraOriginUniform:         skyCameraOriginUniform,
+				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
+				fogColorUniform:             skyFogColorUniform,
+				cubemapFogColorUniform:      skyCubemapFogColorUniform,
+				fogDensityUniform:           skyFogDensityUniform,
+				cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
+				vp:                          vp,
+				time:                        camera.Time,
+				cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+				modelOffset:                 [3]float32{0, 0, 0},
+				modelRotation:               identityModelRotationMatrix,
+				modelScale:                  1,
+				fogColor:                    fogColor,
+				fogDensity:                  skyFogFactor,
+				solidTextures:               worldSkySolidTextures,
+				alphaTextures:               worldSkyAlphaTextures,
+				textureAnimations:           worldTextureAnimations,
+				fallbackSolid:               fallbackTexture,
+				fallbackAlpha:               skyFallbackAlpha,
+				externalCubemap:             skyExternalCubemap,
+			})
+			gl.UseProgram(program)
+			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+			gl.Uniform1i(textureUniform, 0)
+			gl.Uniform1i(lightmapUniform, 1)
+			gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+			gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
+			gl.Uniform1f(modelScaleUniform, 1)
+			gl.Uniform1f(timeUniform, camera.Time)
+			gl.Uniform1f(turbulentUniform, 0)
+			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+			gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+			gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
+		}
+		if drawLiquid {
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
+		}
 	}
 	gl.BindVertexArray(0)
 	gl.ActiveTexture(gl.TEXTURE1)
@@ -1087,10 +1097,13 @@ func (r *Renderer) renderWorld() {
 	gl.Enable(gl.BLEND)
 }
 
-func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
+func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBrushPassSelector) {
 	if len(entities) == 0 {
 		return
 	}
+	selector = normalizeWorldBrushPassSelector(selector)
+	drawNonLiquid := selector.includesNonLiquid()
+	drawLiquid := selector.includesLiquid()
 
 	r.mu.Lock()
 	program := r.worldProgram
@@ -1201,60 +1214,64 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
 		gl.Uniform1f(modelScaleUniform, brush.scale)
 		gl.BindVertexArray(brush.mesh.vao)
-		renderSkyPass(skyFaces, skyPassState{
-			program:                     skyProgram,
-			cubemapProgram:              skyCubemapProgram,
-			vpUniform:                   skyVPUniform,
-			solidUniform:                skySolidUniform,
-			alphaUniform:                skyAlphaUniform,
-			cubemapVPUniform:            skyCubemapVPUniform,
-			cubemapUniform:              skyCubemapUniform,
-			modelOffsetUniform:          skyModelOffsetUniform,
-			modelRotationUniform:        skyModelRotationUniform,
-			modelScaleUniform:           skyModelScaleUniform,
-			cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
-			cubemapModelRotationUniform: skyCubemapModelRotationUniform,
-			cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
-			timeUniform:                 skyTimeUniform,
-			cameraOriginUniform:         skyCameraOriginUniform,
-			cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
-			fogColorUniform:             skyFogColorUniform,
-			cubemapFogColorUniform:      skyCubemapFogColorUniform,
-			fogDensityUniform:           skyFogDensityUniform,
-			cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
-			vp:                          vp,
-			time:                        camera.Time,
-			cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
-			modelOffset:                 brush.origin,
-			modelRotation:               brush.rotation,
-			modelScale:                  brush.scale,
-			fogColor:                    fogColor,
-			fogDensity:                  skyFogFactor,
-			solidTextures:               worldSkySolidTextures,
-			alphaTextures:               worldSkyAlphaTextures,
-			textureAnimations:           worldTextureAnimations,
-			fallbackSolid:               fallbackTexture,
-			fallbackAlpha:               skyFallbackAlpha,
-			externalCubemap:             skyExternalCubemap,
-			frame:                       brush.frame,
-		})
-		gl.UseProgram(program)
-		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
-		gl.Uniform1i(textureUniform, 0)
-		gl.Uniform1i(lightmapUniform, 1)
-		gl.Uniform1f(timeUniform, camera.Time)
-		gl.Uniform1f(turbulentUniform, 0)
-		gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
-		gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
-		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
-		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
-		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
-		gl.Uniform1f(modelScaleUniform, brush.scale)
-		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
-		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
-		renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
-		renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
-		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
+		if drawNonLiquid {
+			renderSkyPass(skyFaces, skyPassState{
+				program:                     skyProgram,
+				cubemapProgram:              skyCubemapProgram,
+				vpUniform:                   skyVPUniform,
+				solidUniform:                skySolidUniform,
+				alphaUniform:                skyAlphaUniform,
+				cubemapVPUniform:            skyCubemapVPUniform,
+				cubemapUniform:              skyCubemapUniform,
+				modelOffsetUniform:          skyModelOffsetUniform,
+				modelRotationUniform:        skyModelRotationUniform,
+				modelScaleUniform:           skyModelScaleUniform,
+				cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
+				cubemapModelRotationUniform: skyCubemapModelRotationUniform,
+				cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
+				timeUniform:                 skyTimeUniform,
+				cameraOriginUniform:         skyCameraOriginUniform,
+				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
+				fogColorUniform:             skyFogColorUniform,
+				cubemapFogColorUniform:      skyCubemapFogColorUniform,
+				fogDensityUniform:           skyFogDensityUniform,
+				cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
+				vp:                          vp,
+				time:                        camera.Time,
+				cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+				modelOffset:                 brush.origin,
+				modelRotation:               brush.rotation,
+				modelScale:                  brush.scale,
+				fogColor:                    fogColor,
+				fogDensity:                  skyFogFactor,
+				solidTextures:               worldSkySolidTextures,
+				alphaTextures:               worldSkyAlphaTextures,
+				textureAnimations:           worldTextureAnimations,
+				fallbackSolid:               fallbackTexture,
+				fallbackAlpha:               skyFallbackAlpha,
+				externalCubemap:             skyExternalCubemap,
+				frame:                       brush.frame,
+			})
+			gl.UseProgram(program)
+			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+			gl.Uniform1i(textureUniform, 0)
+			gl.Uniform1i(lightmapUniform, 1)
+			gl.Uniform1f(timeUniform, camera.Time)
+			gl.Uniform1f(turbulentUniform, 0)
+			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+			gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+			gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+			gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
+			gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
+			gl.Uniform1f(modelScaleUniform, brush.scale)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
+		}
+		if drawLiquid {
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
+		}
 	}
 
 	gl.BindVertexArray(0)

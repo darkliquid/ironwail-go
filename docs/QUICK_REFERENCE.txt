@@ -19,11 +19,12 @@ B. ENTITY RENDERING        [██████████████░░░�
    - Particles: live runtime integration DONE
    - Brush submodels: live runtime integration DONE
    - Dynamic lights / protocol-driven effects: DONE
-   - Bounded pass-order slices landed after 38de7f3 / 5800311:
+   - Bounded pass-order slices landed after 38de7f3 / 5800311 / aabf5ca:
       - particles now run as explicit opaque/translucent subpasses instead of one late lump
       - world + brush liquid surfaces now bucket into dedicated opaque-liquid/translucent-liquid bins (separate from general opaque/translucent world bins)
+      - frame-level OpenGL ordering now stages world + brush non-liquid draws before alias/sprite + opaque particles, then runs world + brush liquid-only draws as their own step before decals/translucent particles/viewmodel
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing across sky/water/translucency/viewmodel at the frame level
+   - Remaining fidelity work: full C pass sequencing across sky relocation, alias/sprite alpha split, translucency begin/end semantics, and final viewmodel placement
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
@@ -71,8 +72,8 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 1. Render-pass ordering fidelity
     Location: internal/renderer/world_runtime_opengl.go
-    Impact: Scene composition still differs from C in edge cases even though embedded + common external cubemap sky paths are now wired
-    Fix: Align draw pass sequencing with C and close remaining non-cubemap skybox edge cases
+    Impact: Scene composition is closer (liquids now have a distinct frame-level stage) but still differs from C in sky/translucency/viewmodel edge cases
+    Fix: Finish full C pass sequencing and close remaining non-cubemap skybox edge cases
     Reference: gl_sky.c + gl_rmain.c
 
 2. CONNECT command parity

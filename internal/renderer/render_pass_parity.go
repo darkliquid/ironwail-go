@@ -1,5 +1,32 @@
 package renderer
 
+type worldBrushPassSelector int
+
+const (
+	worldBrushPassAll worldBrushPassSelector = iota
+	worldBrushPassNonLiquid
+	worldBrushPassLiquidOnly
+)
+
+func normalizeWorldBrushPassSelector(selector worldBrushPassSelector) worldBrushPassSelector {
+	switch selector {
+	case worldBrushPassAll, worldBrushPassNonLiquid, worldBrushPassLiquidOnly:
+		return selector
+	default:
+		return worldBrushPassAll
+	}
+}
+
+func (selector worldBrushPassSelector) includesNonLiquid() bool {
+	selector = normalizeWorldBrushPassSelector(selector)
+	return selector == worldBrushPassAll || selector == worldBrushPassNonLiquid
+}
+
+func (selector worldBrushPassSelector) includesLiquid() bool {
+	selector = normalizeWorldBrushPassSelector(selector)
+	return selector == worldBrushPassAll || selector == worldBrushPassLiquidOnly
+}
+
 func isFullyOpaqueAlpha(alpha float32) bool {
 	return alpha >= 1
 }
