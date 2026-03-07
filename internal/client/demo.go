@@ -34,13 +34,16 @@ type DemoState struct {
 	Filename   string
 
 	Frames []DemoFrame
+
+	playbackHostFrame int
 }
 
 // NewDemoState creates a new demo state with default values
 func NewDemoState() *DemoState {
 	return &DemoState{
-		Speed:     1.0,
-		BaseSpeed: 1.0,
+		Speed:             1.0,
+		BaseSpeed:         1.0,
+		playbackHostFrame: -1,
 	}
 }
 
@@ -421,6 +424,7 @@ func (d *DemoState) StartDemoPlayback(filename string) error {
 	}
 	d.FrameIndex = 0
 	d.Frames = nil
+	d.playbackHostFrame = -1
 
 	return nil
 }
@@ -443,8 +447,20 @@ func (d *DemoState) StopPlayback() error {
 	d.Speed = 1.0
 	d.Frames = nil
 	d.FrameIndex = 0
+	d.playbackHostFrame = -1
 
 	return err
+}
+
+func (d *DemoState) ShouldReadFrame(hostFrame int) bool {
+	if d == nil || !d.Playback {
+		return false
+	}
+	if d.playbackHostFrame == hostFrame {
+		return false
+	}
+	d.playbackHostFrame = hostFrame
+	return true
 }
 
 // ReadDemoFrame reads one frame from the demo file

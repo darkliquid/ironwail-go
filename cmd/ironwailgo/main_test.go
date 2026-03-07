@@ -14,6 +14,7 @@ import (
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
@@ -34,6 +35,31 @@ func (c *demoMessageClient) State() host.ClientState   { return 0 }
 func (c *demoMessageClient) ReadFromServer() error     { return nil }
 func (c *demoMessageClient) SendCommand() error        { return nil }
 func (c *demoMessageClient) LastServerMessage() []byte { return append([]byte(nil), c.message...) }
+
+type demoPlaybackNoopServer struct{}
+
+func (s *demoPlaybackNoopServer) Init(int) error                           { return nil }
+func (s *demoPlaybackNoopServer) SpawnServer(string, *fs.FileSystem) error { return nil }
+func (s *demoPlaybackNoopServer) ConnectClient(int)                        {}
+func (s *demoPlaybackNoopServer) Frame(float64) error                      { return nil }
+func (s *demoPlaybackNoopServer) Shutdown()                                {}
+func (s *demoPlaybackNoopServer) SaveSpawnParms()                          {}
+func (s *demoPlaybackNoopServer) GetMaxClients() int                       { return 1 }
+func (s *demoPlaybackNoopServer) GetClientName(int) string                 { return "" }
+func (s *demoPlaybackNoopServer) SetClientName(int, string)                {}
+func (s *demoPlaybackNoopServer) GetClientColor(int) int                   { return 0 }
+func (s *demoPlaybackNoopServer) SetClientColor(int, int)                  {}
+func (s *demoPlaybackNoopServer) GetClientPing(int) float32                { return 0 }
+func (s *demoPlaybackNoopServer) EdictNum(int) *server.Edict               { return nil }
+func (s *demoPlaybackNoopServer) GetMapName() string                       { return "" }
+func (s *demoPlaybackNoopServer) IsActive() bool                           { return false }
+func (s *demoPlaybackNoopServer) IsPaused() bool                           { return false }
+
+type demoPlaybackConsole struct{}
+
+func (c *demoPlaybackConsole) Init() error  { return nil }
+func (c *demoPlaybackConsole) Print(string) {}
+func (c *demoPlaybackConsole) Shutdown()    {}
 
 func TestStartupMapArg(t *testing.T) {
 	for _, tc := range []struct {
@@ -133,6 +159,65 @@ func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T
 	}
 	if clientState.ViewAngles != [3]float32{10, 20, 30} {
 		t.Fatalf("view angles = %v, want [10 20 30]", clientState.ViewAngles)
+	}
+}
+
+func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
+	originalHost := gameHost
+	originalSubs := gameSubs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameSubs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("single_step", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame first: %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame second: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	gameHost = host.NewHost()
+	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	gameHost.CmdPlaydemo("single_step", gameSubs)
+
+	demo := gameHost.DemoState()
+	if demo == nil || !demo.Playback {
+		t.Fatal("expected active demo playback")
+	}
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame first: %v", err)
+	}
+	if demo.FrameIndex != 1 {
+		t.Fatalf("frame index after first host frame = %d, want 1", demo.FrameIndex)
+	}
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame second: %v", err)
+	}
+	if demo.FrameIndex != 2 {
+		t.Fatalf("frame index after second host frame = %d, want 2", demo.FrameIndex)
 	}
 }
 

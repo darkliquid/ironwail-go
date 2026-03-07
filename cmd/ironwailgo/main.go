@@ -385,6 +385,9 @@ func (gameCallbacks) ProcessClient() {
 	// Handle demo playback
 	if gameHost != nil && gameHost.DemoState() != nil && gameHost.DemoState().Playback {
 		demo := gameHost.DemoState()
+		if !demo.ShouldReadFrame(gameHost.FrameCount()) {
+			return
+		}
 
 		// Try to read next demo frame
 		msgData, viewAngles, err := demo.ReadDemoFrame()
