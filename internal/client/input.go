@@ -143,8 +143,8 @@ func (c *Client) BaseMove(cmd *UserCmd) {
 
 func (c *Client) AccumulateCmd(frametime float32) {
 	c.AdjustAngles(frametime)
-	c.PendingCmd.ViewAngles = c.ViewAngles
 	c.BaseMove(&c.PendingCmd)
+	c.PendingCmd.ViewAngles = c.ViewAngles
 
 	c.PendingCmd.Buttons = 0
 	if c.InputAttack.State&3 != 0 {

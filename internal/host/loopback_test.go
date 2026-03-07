@@ -21,6 +21,7 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	lc.cmd = s
 	lc.inner.State = cl.StateActive
 	lc.inner.Time = 1.25
+	lc.inner.ViewAngles = [3]float32{0, 90, 0}
 	lc.inner.InputForward.State = 1
 	lc.inner.InputAttack.State = 3
 	lc.inner.InputJump.State = 3
@@ -43,6 +44,9 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	got := s.Static.Clients[0].LastCmd
 	if got.ForwardMove <= 0 {
 		t.Fatalf("forwardmove = %v, want > 0", got.ForwardMove)
+	}
+	if got.ViewAngles != lc.inner.ViewAngles {
+		t.Fatalf("view angles = %v, want %v", got.ViewAngles, lc.inner.ViewAngles)
 	}
 	if got.Buttons != 3 {
 		t.Fatalf("buttons = %d, want 3", got.Buttons)

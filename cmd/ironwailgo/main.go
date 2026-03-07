@@ -999,13 +999,17 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 	angles := gameClient.ViewAngles
 	angles[0] = -angles[0]
+	origin := gameClient.PredictedOrigin
+	if playerOrigin, ok := runtimePlayerOrigin(); ok {
+		origin = playerOrigin
+	}
 
 	return &renderer.AliasModelEntity{
 		ModelID: modelName,
 		Model:   mdl,
 		Frame:   frame,
 		SkinNum: 0,
-		Origin:  gameClient.PredictedOrigin,
+		Origin:  origin,
 		Angles:  angles,
 		Alpha:   1,
 		Scale:   1,
@@ -1450,13 +1454,37 @@ func runtimeViewState() (origin, angles [3]float32) {
 	}
 
 	if gameClient != nil {
-		clientOrigin := gameClient.PredictedOrigin
-		if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+		if clientOrigin, ok := runtimePlayerOrigin(); ok {
 			return clientOrigin, gameClient.ViewAngles
 		}
 	}
 
 	return origin, angles
+}
+
+func runtimePlayerOrigin() ([3]float32, bool) {
+	if gameClient == nil {
+		return [3]float32{}, false
+	}
+
+	clientOrigin := gameClient.PredictedOrigin
+	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+		return clientOrigin, true
+	}
+
+	if gameClient.ViewEntity != 0 {
+		if state, ok := gameClient.Entities[gameClient.ViewEntity]; ok {
+			return state.Origin, true
+		}
+	}
+
+	if gameClient.ViewEntity == 0 {
+		if state, ok := gameClient.Entities[0]; ok {
+			return state.Origin, true
+		}
+	}
+
+	return [3]float32{}, false
 }
 
 func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
