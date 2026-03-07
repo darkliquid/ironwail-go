@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -336,4 +339,165 @@ func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
 	if got := gameInput.GetBinding(int('t')); got != want {
 		t.Fatalf("binding after reload = %q, want %q", got, want)
 	}
+}
+
+func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
+	originalHost := gameHost
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameClient = originalClient
+	})
+
+	gameHost = host.NewHost()
+	demo := cl.NewDemoState()
+	demo.Playback = true
+	demo.CDTrack = 5
+	gameHost.SetDemoState(demo)
+	gameClient = cl.NewClient()
+
+	track, loopTrack := runtimeMusicSelection()
+	if track != 5 || loopTrack != 5 {
+		t.Fatalf("runtimeMusicSelection() = %d/%d, want 5/5", track, loopTrack)
+	}
+
+	gameClient.CDTrack = 2
+	gameClient.LoopTrack = 3
+	track, loopTrack = runtimeMusicSelection()
+	if track != 2 || loopTrack != 3 {
+		t.Fatalf("runtimeMusicSelection() with live client track = %d/%d, want 2/3", track, loopTrack)
+	}
+}
+
+func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
+	originalAudio := gameAudio
+	originalClient := gameClient
+	originalHost := gameHost
+	originalSubs := gameSubs
+	originalKey := musicTrackKey
+	t.Cleanup(func() {
+		gameAudio = originalAudio
+		gameClient = originalClient
+		gameHost = originalHost
+		gameSubs = originalSubs
+		musicTrackKey = originalKey
+	})
+
+	sys := &audio.System{}
+	sys = audio.NewSystem()
+	if err := sys.Init(audio.NewNullBackend(), 44100, false); err != nil {
+		t.Fatalf("audio.Init failed: %v", err)
+	}
+	if err := sys.Startup(); err != nil {
+		t.Fatalf("audio.Startup failed: %v", err)
+	}
+
+	gameAudio = audio.NewAudioAdapter(sys)
+	gameClient = cl.NewClient()
+	gameClient.CDTrack = 2
+	gameClient.LoopTrack = 2
+	testFS := &runtimeMusicTestFS{
+		files: map[string][]byte{
+			"music/track02.wav": testRuntimeMusicWAV(t, 44100, 2, 2, 64),
+		},
+	}
+	gameSubs = &host.Subsystems{Files: testFS}
+
+	syncRuntimeMusic()
+	if got := sys.CurrentMusicTrack(); got != 2 {
+		t.Fatalf("CurrentMusicTrack = %d, want 2", got)
+	}
+	if got := testFS.loads; got != 1 {
+		t.Fatalf("filesystem loads = %d, want 1 after first sync", got)
+	}
+
+	syncRuntimeMusic()
+	if got := testFS.loads; got != 1 {
+		t.Fatalf("filesystem loads = %d, want no reload for unchanged request", got)
+	}
+
+	gameClient.CDTrack = 0
+	gameClient.LoopTrack = 0
+	syncRuntimeMusic()
+	if got := sys.CurrentMusicTrack(); got != 0 {
+		t.Fatalf("CurrentMusicTrack = %d, want 0 after stopping music", got)
+	}
+}
+
+type runtimeMusicTestFS struct {
+	files map[string][]byte
+	loads int
+}
+
+func (fsys *runtimeMusicTestFS) Init(baseDir, gameDir string) error { return nil }
+func (fsys *runtimeMusicTestFS) Close()                             {}
+
+func (fsys *runtimeMusicTestFS) LoadFile(filename string) ([]byte, error) {
+	fsys.loads++
+	if data, ok := fsys.files[filename]; ok {
+		return data, nil
+	}
+	return nil, fmt.Errorf("missing %s", filename)
+}
+
+func testRuntimeMusicWAV(t *testing.T, sampleRate, channels, width, frames int) []byte {
+	t.Helper()
+
+	blockAlign := channels * width
+	dataSize := frames * blockAlign
+	var data bytes.Buffer
+	for frame := 0; frame < frames; frame++ {
+		for channel := 0; channel < channels; channel++ {
+			sample := int16((frame + 1) * 128)
+			if channel%2 == 1 {
+				sample = -sample
+			}
+			if err := binary.Write(&data, binary.LittleEndian, sample); err != nil {
+				t.Fatalf("binary.Write sample: %v", err)
+			}
+		}
+	}
+
+	var wav bytes.Buffer
+	writeString := func(value string) {
+		if _, err := wav.WriteString(value); err != nil {
+			t.Fatalf("WriteString(%q): %v", value, err)
+		}
+	}
+
+	writeString("RIFF")
+	if err := binary.Write(&wav, binary.LittleEndian, uint32(36+dataSize)); err != nil {
+		t.Fatalf("binary.Write RIFF size: %v", err)
+	}
+	writeString("WAVE")
+	writeString("fmt ")
+	if err := binary.Write(&wav, binary.LittleEndian, uint32(16)); err != nil {
+		t.Fatalf("binary.Write fmt size: %v", err)
+	}
+	if err := binary.Write(&wav, binary.LittleEndian, uint16(1)); err != nil {
+		t.Fatalf("binary.Write format: %v", err)
+	}
+	if err := binary.Write(&wav, binary.LittleEndian, uint16(channels)); err != nil {
+		t.Fatalf("binary.Write channels: %v", err)
+	}
+	if err := binary.Write(&wav, binary.LittleEndian, uint32(sampleRate)); err != nil {
+		t.Fatalf("binary.Write sample rate: %v", err)
+	}
+	if err := binary.Write(&wav, binary.LittleEndian, uint32(sampleRate*blockAlign)); err != nil {
+		t.Fatalf("binary.Write byte rate: %v", err)
+	}
+	if err := binary.Write(&wav, binary.LittleEndian, uint16(blockAlign)); err != nil {
+		t.Fatalf("binary.Write block align: %v", err)
+	}
+	if err := binary.Write(&wav, binary.LittleEndian, uint16(width*8)); err != nil {
+		t.Fatalf("binary.Write bits: %v", err)
+	}
+	writeString("data")
+	if err := binary.Write(&wav, binary.LittleEndian, uint32(dataSize)); err != nil {
+		t.Fatalf("binary.Write data size: %v", err)
+	}
+	if _, err := wav.Write(data.Bytes()); err != nil {
+		t.Fatalf("Write data: %v", err)
+	}
+	return wav.Bytes()
 }

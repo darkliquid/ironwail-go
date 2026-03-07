@@ -83,13 +83,13 @@ Connect parsed sound data to the real audio engine.
 - ✅ instantiate `Client.StaticSounds` as persistent world channels (static channel range wired; rebuilt on client/precache snapshot changes)
 - ✅ implement `parseStopSound()` dispatch to `audio.System.StopSound()`
 - ✅ drive listener updates from the real camera/orientation each frame
-- add music / CD-track playback semantics (still outstanding)
+- ✅ add WAV-backed CD-track playback semantics (track change/stop/loop wiring landed; broader codec parity is still outstanding)
 
 **Done when**
 
 - weapon, monster, ambient, and local sounds all play from live gameplay
 - sound attenuation and positioning behave like the C engine
-- CD track / loop track values result in actual music playback
+- CD track / loop track values result in actual music playback when supported music files are present
 
 ### 4. Replace hardcoded gameplay controls with real Quake bindings
 

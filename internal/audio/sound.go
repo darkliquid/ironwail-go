@@ -17,6 +17,7 @@ type System struct {
 	mixer      *Mixer
 	rawSamples RawSamplesBuffer
 	backend    Backend
+	music      *musicState
 
 	listener    ListenerState
 	viewEntity  int
@@ -55,6 +56,8 @@ func (s *System) Shutdown() {
 	if !s.initialized {
 		return
 	}
+
+	s.StopMusic()
 
 	if s.backend != nil {
 		s.backend.Shutdown()
@@ -236,6 +239,7 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 		endTime = maxTime
 	}
 
+	s.updateMusic(endTime)
 	s.paintedTime = s.mixer.PaintChannels(s.channels[:s.totalChans], &s.rawSamples, s.dma, s.paintedTime, endTime)
 
 	if s.backend != nil {
@@ -293,8 +297,15 @@ func (s *System) AddRawSamples(samples int, rate, width, channels int, data []by
 		if channels == 2 && width == 2 {
 			s.rawSamples.Samples[dst].Left = int32(int16(uint16(data[src*4])|uint16(data[src*4+1])<<8)) * int32(intVolume)
 			s.rawSamples.Samples[dst].Right = int32(int16(uint16(data[src*4+2])|uint16(data[src*4+3])<<8)) * int32(intVolume)
+		} else if channels == 2 && width == 1 {
+			s.rawSamples.Samples[dst].Left = (int32(data[src*2]) - 128) * int32(intVolume) << 8
+			s.rawSamples.Samples[dst].Right = (int32(data[src*2+1]) - 128) * int32(intVolume) << 8
 		} else if channels == 1 && width == 2 {
 			sample := int32(int16(uint16(data[src*2])|uint16(data[src*2+1])<<8)) * int32(intVolume)
+			s.rawSamples.Samples[dst].Left = sample
+			s.rawSamples.Samples[dst].Right = sample
+		} else if channels == 1 && width == 1 {
+			sample := (int32(data[src]) - 128) * int32(intVolume) << 8
 			s.rawSamples.Samples[dst].Left = sample
 			s.rawSamples.Samples[dst].Right = sample
 		}

@@ -63,6 +63,7 @@ var (
 	soundSFXByIndex  map[int]*audio.SFX
 	soundPrecacheKey string
 	staticSoundKey   string
+	musicTrackKey    string
 )
 
 const (
@@ -1204,6 +1205,7 @@ func resetRuntimeSoundState() {
 	soundSFXByIndex = nil
 	soundPrecacheKey = ""
 	staticSoundKey = ""
+	musicTrackKey = ""
 }
 
 func refreshRuntimeSoundCache() {
@@ -1305,6 +1307,61 @@ func syncRuntimeStaticSounds() {
 	staticSoundKey = key
 }
 
+func runtimeMusicSelection() (track, loopTrack int) {
+	if gameHost != nil {
+		if demo := gameHost.DemoState(); demo != nil && demo.Playback {
+			if gameClient != nil && gameClient.CDTrack != 0 {
+				track = gameClient.CDTrack
+				loopTrack = gameClient.LoopTrack
+			} else if demo.CDTrack != 0 {
+				track = demo.CDTrack
+				loopTrack = demo.CDTrack
+			}
+			if track != 0 && loopTrack == 0 {
+				loopTrack = track
+			}
+			return track, loopTrack
+		}
+	}
+	if gameClient == nil {
+		return 0, 0
+	}
+	track = gameClient.CDTrack
+	loopTrack = gameClient.LoopTrack
+	if track != 0 && loopTrack == 0 {
+		loopTrack = track
+	}
+	return track, loopTrack
+}
+
+func syncRuntimeMusic() {
+	track, loopTrack := runtimeMusicSelection()
+	key := fmt.Sprintf("%d/%d", track, loopTrack)
+
+	if gameAudio == nil {
+		musicTrackKey = ""
+		return
+	}
+	if key == musicTrackKey {
+		return
+	}
+	musicTrackKey = key
+	if track == 0 {
+		gameAudio.StopMusic()
+		return
+	}
+	if gameSubs == nil || gameSubs.Files == nil {
+		gameAudio.StopMusic()
+		slog.Warn("cannot play cd track without filesystem", "track", track)
+		return
+	}
+	if err := gameAudio.PlayCDTrack(track, loopTrack, func(name string) ([]byte, error) {
+		return gameSubs.Files.LoadFile(name)
+	}); err != nil {
+		slog.Warn("failed to play cd track", "track", track, "loop", loopTrack, "error", err)
+	}
+}
+
 func processRuntimeAudioEvents(viewOrigin [3]float32) {
 	if gameClient == nil {
 		return
@@ -1356,6 +1413,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) {
 		forward, right, up := runtimeAngleVectors(viewAngles)
 		gameAudio.SetListener(viewOrigin, forward, right, up)
 		syncRuntimeStaticSounds()
+		syncRuntimeMusic()
 		processRuntimeAudioEvents(viewOrigin)
 		gameAudio.Update(viewOrigin, forward, right, up)
 	}

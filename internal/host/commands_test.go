@@ -4,6 +4,8 @@
 package host
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -225,5 +227,47 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "invalid save name") {
 		t.Fatalf("console output = %q, want invalid save name", got)
+	}
+}
+
+func TestCmdRecordUsesLoopbackClientCDTrack(t *testing.T) {
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+
+	h := NewHost()
+	console := &mockConsole{}
+	lc := newLocalLoopbackClient()
+	lc.inner.CDTrack = 7
+	subs := &Subsystems{
+		Client:  lc,
+		Console: console,
+	}
+
+	h.CmdRecord("music_header", subs)
+	if h.demoState == nil {
+		t.Fatal("expected demo state to be created")
+	}
+	if got := h.demoState.CDTrack; got != 7 {
+		t.Fatalf("demo CDTrack = %d, want 7", got)
+	}
+	if err := h.demoState.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "demos", "music_header.dem"))
+	if err != nil {
+		t.Fatalf("ReadFile(demo): %v", err)
+	}
+	if !strings.HasPrefix(string(data), "7\n") {
+		t.Fatalf("demo header = %q, want prefix %q", string(data), "7\\n")
 	}
 }

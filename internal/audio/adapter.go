@@ -87,3 +87,17 @@ func (a *AudioAdapter) StopSound(entNum, entChannel int) {
 	}
 	a.sys.StopSound(entNum, entChannel)
 }
+
+func (a *AudioAdapter) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, error)) error {
+	if a == nil || a.sys == nil {
+		return nil
+	}
+	return a.sys.PlayCDTrack(track, loopTrack, loader)
+}
+
+func (a *AudioAdapter) StopMusic() {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.StopMusic()
+}

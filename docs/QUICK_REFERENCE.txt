@@ -26,12 +26,12 @@ C. MENUS/HUD/INPUT         [██░░░░░░░░░░░░░░░]
    - Console: Basic (no editing/completion)
    - HUD: Numbers only (no icons/face)
 
-D. AUDIO/MUSIC             [██████░░░░░░░░░░░] 50%
+D. AUDIO/MUSIC             [████████░░░░░░░░░] 80%
    - System init: DONE
    - Backend (SDL3/Oto): DONE
-   - Event dispatch: TODO (parse.go:180 comment)
-   - Music/BGM: MISSING (bgmusic.c not ported)
-   - Sound effects: MISSING (no gameplay integration)
+   - Event dispatch: DONE
+   - Music/BGM: PARTIAL (WAV-backed CD tracks; broader codec parity still missing)
+   - Sound effects: DONE
 
 E. NETWORKING/MULTIPLAYER  [███████░░░░░░░░░░] 60%
    - Loopback: DONE
@@ -228,4 +228,3 @@ Tier 3 (Polish):
   SUBTOTAL:                100h
 
 TOTAL ESTIMATED:           470h (~12 weeks, 1 FTE)
-

@@ -756,8 +756,10 @@ func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 	}
 
 	// Get CD track (default to 0)
-	// TODO: Get actual CD track from client if available
 	cdtrack := 0
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+		cdtrack = loopbackClient.CDTrack
+	}
 
 	// Start recording
 	if err := h.demoState.StartDemoRecording(filename, cdtrack); err != nil {

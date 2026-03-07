@@ -94,8 +94,8 @@ func GetWavInfo(name string, wav []byte, wavLength int) WAVInfo {
 		return info
 	}
 
-	p.pos = p.pos + 12
-	if !p.findChunk("fmt ") {
+	p.pos += 12
+	if !p.findNextChunk("fmt ") {
 		return info
 	}
 
@@ -115,7 +115,8 @@ func GetWavInfo(name string, wav []byte, wavLength int) WAVInfo {
 	}
 	info.Width = int(bitsPerSample / 8)
 
-	if p.findChunk("cue ") {
+	p.pos = 12
+	if p.findNextChunk("cue ") {
 		p.pos += 32
 		info.LoopStart = int(p.getLittleLong())
 
@@ -129,7 +130,8 @@ func GetWavInfo(name string, wav []byte, wavLength int) WAVInfo {
 		}
 	}
 
-	if !p.findChunk("data") {
+	p.pos = 12
+	if !p.findNextChunk("data") {
 		return info
 	}
 
@@ -178,6 +180,44 @@ func LoadWAV(name string, data []byte) ([]byte, WAVInfo, error) {
 
 	sampleData := make([]byte, info.Samples*info.Width)
 	copy(sampleData, data[info.DataOfs:info.DataOfs+info.Samples*info.Width])
+
+	return sampleData, info, nil
+}
+
+// LoadMusicWAV loads a WAV file for streamed music playback.
+// Unlike LoadWAV, stereo files are accepted because Quake music tracks are
+// commonly authored as stereo streams.
+func LoadMusicWAV(name string, data []byte) ([]byte, WAVInfo, error) {
+	if len(data) == 0 {
+		return nil, WAVInfo{}, fmt.Errorf("empty WAV data for %s", name)
+	}
+
+	info := GetWavInfo(name, data, len(data))
+	if info.Samples == 0 {
+		return nil, info, fmt.Errorf("failed to parse WAV header for %s", name)
+	}
+
+	if info.Channels != 1 && info.Channels != 2 {
+		return nil, info, fmt.Errorf("%s has unsupported channel count %d", name, info.Channels)
+	}
+
+	if info.Width != 1 && info.Width != 2 {
+		return nil, info, fmt.Errorf("%s is not 8 or 16 bit", name)
+	}
+
+	frameCount := info.Samples / info.Channels
+	if frameCount <= 0 {
+		return nil, info, fmt.Errorf("%s contains no audio frames", name)
+	}
+
+	dataLen := frameCount * info.Width * info.Channels
+	if info.DataOfs < 0 || info.DataOfs+dataLen > len(data) {
+		return nil, info, fmt.Errorf("%s has invalid data offset", name)
+	}
+
+	sampleData := make([]byte, dataLen)
+	copy(sampleData, data[info.DataOfs:info.DataOfs+dataLen])
+	info.Samples = frameCount
 
 	return sampleData, info, nil
 }
