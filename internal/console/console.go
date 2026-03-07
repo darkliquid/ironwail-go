@@ -33,6 +33,7 @@ const (
 	NumNotifyTimes   = 4
 	MaxPrintMsg      = 4096
 	Margin           = 1
+	MaxInputHistory  = 32
 )
 
 type Console struct {
@@ -52,6 +53,10 @@ type Console struct {
 	initialized bool
 	debugLog    *os.File
 	logFile     string
+
+	inputLine  []rune
+	history    []string
+	historyPos int
 
 	printCallback func(msg string)
 }
@@ -97,6 +102,7 @@ func (c *Console) Init(customBufSize int) error {
 	c.x = 0
 	c.backScroll = 0
 	c.initialized = true
+	c.historyPos = 0
 
 	return nil
 }
@@ -262,10 +268,90 @@ func (c *Console) Clear() {
 	c.current = c.totalLines - 1
 	c.x = 0
 	c.backScroll = 0
+	c.inputLine = nil
+	c.historyPos = len(c.history)
 
 	for i := range c.notifyTimes {
 		c.notifyTimes[i] = time.Time{}
 	}
+}
+
+func (c *Console) InputLine() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return string(c.inputLine)
+}
+
+func (c *Console) AppendInputRune(ch rune) {
+	if ch == '\n' || ch == '\r' || ch == '\t' || ch < 32 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.inputLine = append(c.inputLine, ch)
+	c.historyPos = len(c.history)
+}
+
+func (c *Console) BackspaceInput() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.inputLine) == 0 {
+		return
+	}
+	c.inputLine = c.inputLine[:len(c.inputLine)-1]
+	c.historyPos = len(c.history)
+}
+
+func (c *Console) CommitInput() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	line := string(c.inputLine)
+	trimmed := strings.TrimSpace(line)
+	if trimmed != "" {
+		if len(c.history) == 0 || c.history[len(c.history)-1] != line {
+			c.history = append(c.history, line)
+			if len(c.history) > MaxInputHistory {
+				c.history = append([]string(nil), c.history[len(c.history)-MaxInputHistory:]...)
+			}
+		}
+	}
+	c.inputLine = nil
+	c.historyPos = len(c.history)
+	return line
+}
+
+func (c *Console) PreviousHistory() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(c.history) == 0 {
+		return string(c.inputLine)
+	}
+	if c.historyPos > 0 {
+		c.historyPos--
+	}
+	c.inputLine = []rune(c.history[c.historyPos])
+	return string(c.inputLine)
+}
+
+func (c *Console) NextHistory() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(c.history) == 0 {
+		c.inputLine = nil
+		c.historyPos = 0
+		return ""
+	}
+	if c.historyPos < len(c.history)-1 {
+		c.historyPos++
+		c.inputLine = []rune(c.history[c.historyPos])
+		return string(c.inputLine)
+	}
+	c.historyPos = len(c.history)
+	c.inputLine = nil
+	return ""
 }
 
 func (c *Console) lineFeed() {
@@ -555,4 +641,28 @@ func LineWidth() int {
 
 func TotalLines() int {
 	return globalConsole.TotalLines()
+}
+
+func InputLine() string {
+	return globalConsole.InputLine()
+}
+
+func AppendInputRune(ch rune) {
+	globalConsole.AppendInputRune(ch)
+}
+
+func BackspaceInput() {
+	globalConsole.BackspaceInput()
+}
+
+func CommitInput() string {
+	return globalConsole.CommitInput()
+}
+
+func PreviousHistory() string {
+	return globalConsole.PreviousHistory()
+}
+
+func NextHistory() string {
+	return globalConsole.NextHistory()
 }

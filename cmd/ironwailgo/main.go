@@ -77,6 +77,7 @@ type defaultBinding struct {
 }
 
 var gameplayDefaultBindings = []defaultBinding{
+	{key: int('`'), command: "toggleconsole"},
 	{key: int('w'), command: "+forward"},
 	{key: input.KUpArrow, command: "+forward"},
 	{key: int('s'), command: "+back"},
@@ -193,6 +194,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 		gameMenu.M_Key(event.Key)
 	}
 	gameInput.OnKey = handleGameKeyEvent
+	gameInput.OnChar = handleGameCharEvent
 
 	if err := initGameHost(); err != nil {
 		return err
@@ -837,6 +839,7 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("unbindall", cmdUnbindAll, "Remove all key bindings")
 	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
+	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 
 	registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
 	registerGameplayButtonCommand("back", func(c *cl.Client) *cl.KButton { return &c.InputBack })
@@ -987,12 +990,35 @@ func cmdImpulse(args []string) {
 	gameClient.InImpulse = impulse
 }
 
+func cmdToggleConsole(_ []string) {
+	if gameInput == nil {
+		return
+	}
+
+	if gameInput.GetKeyDest() == input.KeyConsole {
+		gameInput.SetKeyDest(input.KeyGame)
+		syncGameplayInputMode()
+		return
+	}
+
+	if gameMenu != nil && gameMenu.IsActive() {
+		gameMenu.HideMenu()
+	}
+	gameInput.SetKeyDest(input.KeyConsole)
+	syncGameplayInputMode()
+}
+
 func handleGameKeyEvent(event input.KeyEvent) {
 	if gameInput == nil {
 		return
 	}
 
-	if gameInput.GetKeyDest() != input.KeyGame {
+	switch gameInput.GetKeyDest() {
+	case input.KeyConsole:
+		handleConsoleKeyEvent(event)
+		return
+	case input.KeyGame:
+	default:
 		return
 	}
 
@@ -1004,15 +1030,14 @@ func handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	if gameClient == nil {
-		return
-	}
-
 	binding := strings.TrimSpace(gameInput.GetBinding(event.Key))
 	if binding == "" {
 		return
 	}
 	if strings.HasPrefix(binding, "+") {
+		if gameClient == nil {
+			return
+		}
 		command := binding
 		if !event.Down {
 			command = "-" + binding[1:]
@@ -1025,21 +1050,69 @@ func handleGameKeyEvent(event input.KeyEvent) {
 	}
 }
 
+func handleGameCharEvent(ch rune) {
+	if gameInput == nil || gameInput.GetKeyDest() != input.KeyConsole {
+		return
+	}
+	if ch == '`' {
+		return
+	}
+	console.AppendInputRune(ch)
+}
+
+func handleConsoleKeyEvent(event input.KeyEvent) {
+	if !event.Down {
+		return
+	}
+
+	switch event.Key {
+	case input.KEscape, int('`'):
+		gameInput.SetKeyDest(input.KeyGame)
+		syncGameplayInputMode()
+	case input.KEnter:
+		line := strings.TrimSpace(console.CommitInput())
+		if line == "" {
+			return
+		}
+		console.Printf("]%s\n", line)
+		cmdsys.ExecuteText(line)
+	case input.KBackspace:
+		console.BackspaceInput()
+	case input.KUpArrow:
+		console.PreviousHistory()
+	case input.KDownArrow:
+		console.NextHistory()
+	case input.KPgUp:
+		console.Scroll(2)
+	case input.KPgDn:
+		console.Scroll(-2)
+	case input.KHome:
+		console.Scroll(console.TotalLines())
+	case input.KEnd:
+		console.Scroll(-console.TotalLines())
+	}
+}
+
 func syncGameplayInputMode() {
 	if gameInput == nil {
 		return
 	}
 
 	menuActive := gameMenu != nil && gameMenu.IsActive()
-	wantDest := input.KeyGame
-	if menuActive {
+	wantDest := gameInput.GetKeyDest()
+	switch {
+	case menuActive:
 		wantDest = input.KeyMenu
+	case wantDest == input.KeyMenu:
+		wantDest = input.KeyGame
+	case wantDest != input.KeyConsole:
+		wantDest = input.KeyGame
 	}
 	if gameInput.GetKeyDest() != wantDest {
 		gameInput.SetKeyDest(wantDest)
 	}
 
-	shouldGrab := !menuActive
+	shouldGrab := !menuActive && wantDest == input.KeyGame
 	if shouldGrab == gameMouseGrabbed {
 		return
 	}

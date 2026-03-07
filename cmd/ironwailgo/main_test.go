@@ -12,8 +12,10 @@ import (
 	"github.com/ironwail/ironwail-go/internal/audio"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/input"
+	"github.com/ironwail/ironwail-go/internal/menu"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -200,6 +202,7 @@ func TestApplyDefaultGameplayBindings(t *testing.T) {
 		key  int
 		want string
 	}{
+		{key: int('`'), want: "toggleconsole"},
 		{key: int('w'), want: "+forward"},
 		{key: input.KUpArrow, want: "+forward"},
 		{key: input.KMouse1, want: "+attack"},
@@ -338,6 +341,91 @@ func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
 
 	if got := gameInput.GetBinding(int('t')); got != want {
 		t.Fatalf("binding after reload = %q, want %q", got, want)
+	}
+}
+
+func TestToggleConsoleClosesMenuAndSwitchesKeyDest(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	originalGrabbed := gameMouseGrabbed
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+		gameMouseGrabbed = originalGrabbed
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameMenu.ShowMenu()
+	gameMouseGrabbed = true
+
+	cmdToggleConsole(nil)
+
+	if gameMenu.IsActive() {
+		t.Fatalf("toggleconsole should hide the menu")
+	}
+	if got := gameInput.GetKeyDest(); got != input.KeyConsole {
+		t.Fatalf("key destination after toggleconsole = %v, want console", got)
+	}
+	if gameMouseGrabbed {
+		t.Fatalf("console mode should release mouse grab")
+	}
+
+	cmdToggleConsole(nil)
+	if got := gameInput.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after closing console = %v, want game", got)
+	}
+}
+
+func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	originalGrabbed := gameMouseGrabbed
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+		gameMouseGrabbed = originalGrabbed
+	})
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameInput.SetKeyDest(input.KeyGame)
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	var gotArgs []string
+	cmdsys.AddCommand("testconsolecmd", func(args []string) {
+		gotArgs = append([]string(nil), args...)
+	}, "test console command")
+
+	handleGameKeyEvent(input.KeyEvent{Key: int('`'), Down: true})
+	if got := gameInput.GetKeyDest(); got != input.KeyConsole {
+		t.Fatalf("key destination after console bind = %v, want console", got)
+	}
+
+	for _, ch := range "testconsolecmd 42" {
+		handleGameCharEvent(ch)
+	}
+	if got := console.InputLine(); got != "testconsolecmd 42" {
+		t.Fatalf("console input line = %q, want %q", got, "testconsolecmd 42")
+	}
+
+	handleGameKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	if len(gotArgs) != 1 || gotArgs[0] != "42" {
+		t.Fatalf("console command args = %v, want [42]", gotArgs)
+	}
+	if got := console.InputLine(); got != "" {
+		t.Fatalf("console input line after enter = %q, want empty", got)
+	}
+
+	handleGameKeyEvent(input.KeyEvent{Key: int('`'), Down: true})
+	if got := gameInput.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after closing console = %v, want game", got)
 	}
 }
 
