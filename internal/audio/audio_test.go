@@ -4,6 +4,7 @@
 package audio
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -246,5 +247,63 @@ func TestClearStaticSoundsLeavesDynamicChannelsIntact(t *testing.T) {
 	}
 	if sys.channels[base].SFX != nil || sys.channels[base+1].SFX != nil {
 		t.Fatalf("static channels not cleared")
+	}
+}
+
+type lockOrderBackend struct {
+	t      *testing.T
+	locked bool
+	events []string
+}
+
+func (b *lockOrderBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
+	return nil, nil
+}
+
+func (b *lockOrderBackend) Shutdown() {}
+
+func (b *lockOrderBackend) Lock() {
+	b.events = append(b.events, "lock")
+	b.locked = true
+}
+
+func (b *lockOrderBackend) Unlock() {
+	b.events = append(b.events, "unlock")
+	b.locked = false
+}
+
+func (b *lockOrderBackend) GetPosition() int {
+	b.events = append(b.events, "getpos")
+	if b.locked {
+		b.t.Fatalf("GetPosition called while backend lock is held")
+	}
+	return 128
+}
+
+func (b *lockOrderBackend) Block()   {}
+func (b *lockOrderBackend) Unblock() {}
+
+func TestUpdateDoesNotCallGetPositionWhileLocked(t *testing.T) {
+	backend := &lockOrderBackend{t: t}
+	sys := NewSystem()
+	sys.started = true
+	sys.backend = backend
+	sys.dma = &DMAInfo{
+		Channels:   2,
+		Samples:    4096,
+		SampleBits: 16,
+		Speed:      44100,
+		Buffer:     make([]byte, 4096*2*2),
+	}
+	sys.mixer = NewMixer()
+
+	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+
+	expectedEvents := []string{"getpos", "lock", "unlock"}
+	if !slices.Equal(backend.events, expectedEvents) {
+		t.Fatalf("backend call order = %v, want %v", backend.events, expectedEvents)
+	}
+	if got := sys.soundTime; got != 128 {
+		t.Fatalf("soundTime = %d, want 128", got)
 	}
 }

@@ -235,11 +235,12 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 		s.SetListener(origin, forward, right, up)
 	}
 
+	s.updateSoundTime()
+
 	if s.backend != nil {
 		s.backend.Lock()
+		defer s.backend.Unlock()
 	}
-
-	s.updateSoundTime()
 
 	endTime := s.soundTime + int(s.mixAhead*float64(s.dma.Speed))
 	maxTime := s.soundTime + s.dma.Samples/s.dma.Channels
@@ -249,10 +250,6 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 
 	s.updateMusic(endTime)
 	s.paintedTime = s.mixer.PaintChannels(s.channels[:s.totalChans], &s.rawSamples, s.dma, s.paintedTime, endTime)
-
-	if s.backend != nil {
-		s.backend.Unlock()
-	}
 }
 
 func (s *System) pickChannel(entNum, entChannel int) *Channel {
