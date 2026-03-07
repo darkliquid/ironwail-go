@@ -197,6 +197,19 @@ func EmitDynamicLights(spawn func(DynamicLight) bool, tempEntities []cl.TempEnti
 	}
 }
 
+// EmitEntityEffectParticles maps runtime entity effect flags to transient particles.
+func EmitEntityEffectParticles(ps *ParticleSystem, entities []EntityEffectSource, timeNow float32) {
+	if ps == nil || len(entities) == 0 {
+		return
+	}
+
+	for _, entity := range entities {
+		if entity.Effects&inet.EF_BRIGHTFIELD != 0 {
+			ps.EntityParticles(entity.Origin, timeNow)
+		}
+	}
+}
+
 // EmitEntityEffectLights maps runtime entity effect flags to transient dynamic lights.
 func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffectSource) {
 	if spawn == nil || len(entities) == 0 {

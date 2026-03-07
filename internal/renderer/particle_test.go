@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 )
@@ -146,6 +147,33 @@ func TestParticleExplosion2UsesColorRange(t *testing.T) {
 		}
 		if p.Color < 32 || p.Color >= 37 {
 			t.Fatalf("particle color = %d, want in [32,37)", p.Color)
+		}
+	}
+}
+
+func TestEntityParticlesMatchQuakeCountAndStyle(t *testing.T) {
+	ps := NewParticleSystem(2048)
+	ps.EntityParticles([3]float32{10, 20, 30}, 1)
+
+	if got := ps.ActiveCount(); got != len(entityParticleNormals) {
+		t.Fatalf("ActiveCount = %d, want %d", got, len(entityParticleNormals))
+	}
+	for _, particle := range ps.ActiveParticles() {
+		if particle.Type != ParticleExplode {
+			t.Fatalf("particle type = %d, want explode", particle.Type)
+		}
+		if particle.Color != 0x6f {
+			t.Fatalf("particle color = %d, want 0x6f", particle.Color)
+		}
+		if particle.Die != 1.01 {
+			t.Fatalf("particle die = %v, want 1.01", particle.Die)
+		}
+	}
+	first := ps.ActiveParticles()[0]
+	want := [3]float32{-7.647106, 20.041887, 84.34951}
+	for i := range want {
+		if math.Abs(float64(first.Org[i]-want[i])) > 0.0001 {
+			t.Fatalf("first particle org[%d] = %v, want %v", i, first.Org[i], want[i])
 		}
 	}
 }

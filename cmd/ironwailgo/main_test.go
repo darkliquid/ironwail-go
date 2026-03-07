@@ -240,6 +240,41 @@ func TestSyncRuntimeVisualEffectsEmitsParticlesAndDecals(t *testing.T) {
 	}
 }
 
+func TestSyncRuntimeVisualEffectsEmitsBrightFieldParticles(t *testing.T) {
+	originalClient := gameClient
+	originalRenderer := gameRenderer
+	originalParticles := gameParticles
+	originalMarks := gameDecalMarks
+	originalRNG := particleRNG
+	originalTime := particleTime
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameRenderer = originalRenderer
+		gameParticles = originalParticles
+		gameDecalMarks = originalMarks
+		particleRNG = originalRNG
+		particleTime = originalTime
+	})
+
+	gameRenderer = &renderer.Renderer{}
+	resetRuntimeVisualState()
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ModelPrecache = []string{"progs/player.mdl"}
+	gameClient.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTFIELD},
+	}
+
+	syncRuntimeVisualEffects(0.1)
+
+	if gameParticles == nil {
+		t.Fatalf("expected runtime visual sync to keep particle system initialized")
+	}
+	if got := gameParticles.ActiveCount(); got != 162 {
+		t.Fatalf("brightfield particle count = %d, want 162", got)
+	}
+}
+
 func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
 	originalClient := gameClient
 	originalRenderer := gameRenderer

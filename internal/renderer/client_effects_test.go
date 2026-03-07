@@ -89,6 +89,22 @@ func TestEmitEntityEffectLightsBrightAndDimShareLiftedOrigin(t *testing.T) {
 	}
 }
 
+func TestEmitEntityEffectParticlesBrightField(t *testing.T) {
+	ps := NewParticleSystem(2048)
+	EmitEntityEffectParticles(ps, []EntityEffectSource{
+		{Origin: [3]float32{10, 20, 30}, Effects: inet.EF_BRIGHTFIELD},
+		{Origin: [3]float32{1, 2, 3}, Effects: inet.EF_DIMLIGHT},
+	}, 2)
+
+	if got := ps.ActiveCount(); got != len(entityParticleNormals) {
+		t.Fatalf("ActiveCount = %d, want %d", got, len(entityParticleNormals))
+	}
+	first := ps.ActiveParticles()[0]
+	if first.Type != ParticleExplode || first.Color != 0x6f || first.Die != 2.01 {
+		t.Fatalf("first brightfield particle = %#v, want explode type, 0x6f color, and 2.01 die", first)
+	}
+}
+
 func TestEmitEntityEffectLightsQuadAndPentaColors(t *testing.T) {
 	var lights []DynamicLight
 	EmitEntityEffectLights(func(light DynamicLight) bool {

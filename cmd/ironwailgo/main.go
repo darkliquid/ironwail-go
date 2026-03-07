@@ -1505,14 +1505,16 @@ func syncRuntimeVisualEffects(dt float64) {
 
 	particleEvents := gameClient.ConsumeParticleEvents()
 	tempEntities := gameClient.ConsumeTempEntities()
+	effectSources := collectEntityEffectSources()
 
 	if gameRenderer != nil {
 		gameRenderer.UpdateLights(float32(dt))
 		renderer.EmitDynamicLights(gameRenderer.SpawnDynamicLight, tempEntities)
-		renderer.EmitEntityEffectLights(gameRenderer.SpawnDynamicLight, collectEntityEffectSources())
+		renderer.EmitEntityEffectLights(gameRenderer.SpawnDynamicLight, effectSources)
 	}
 	if gameParticles != nil {
 		renderer.EmitClientEffects(gameParticles, particleEvents, tempEntities, particleRNG, particleTime)
+		renderer.EmitEntityEffectParticles(gameParticles, effectSources, particleTime)
 		gameParticles.RunParticles(particleTime, oldTime, 800)
 	}
 	if gameDecalMarks != nil {
