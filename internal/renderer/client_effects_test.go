@@ -89,6 +89,27 @@ func TestEmitEntityEffectLightsBrightAndDimShareLiftedOrigin(t *testing.T) {
 	}
 }
 
+func TestEmitEntityEffectLightsQuadAndPentaColors(t *testing.T) {
+	var lights []DynamicLight
+	EmitEntityEffectLights(func(light DynamicLight) bool {
+		lights = append(lights, light)
+		return true
+	}, []EntityEffectSource{{
+		Origin:  [3]float32{8, 9, 10},
+		Effects: inet.EF_QUADLIGHT | inet.EF_PENTALIGHT,
+	}})
+
+	if got := len(lights); got != 2 {
+		t.Fatalf("light count = %d, want 2", got)
+	}
+	if lights[0].Position != [3]float32{8, 9, 26} || lights[0].Color != [3]float32{0.25, 0.25, 1.0} {
+		t.Fatalf("quad light = %#v, want lifted blue light", lights[0])
+	}
+	if lights[1].Position != [3]float32{8, 9, 26} || lights[1].Color != [3]float32{1.0, 0.25, 0.25} {
+		t.Fatalf("penta light = %#v, want lifted red light", lights[1])
+	}
+}
+
 func TestEmitDecalMarksMapsImpactAndExplosion(t *testing.T) {
 	ms := NewDecalMarkSystem()
 	rng := rand.New(rand.NewSource(9))

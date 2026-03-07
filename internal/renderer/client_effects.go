@@ -224,10 +224,29 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 			})
 		}
 		if entity.Effects&inet.EF_DIMLIGHT != 0 {
+			// Ironwail/Quake keeps dim lights at the entity origin instead of lifting them by 16 units.
 			spawn(DynamicLight{
 				Position:   entity.Origin,
 				Radius:     216,
 				Color:      [3]float32{0.7, 0.8, 1.0},
+				Brightness: 0.9,
+				Lifetime:   0.001,
+			})
+		}
+		if entity.Effects&inet.EF_QUADLIGHT != 0 {
+			spawn(DynamicLight{
+				Position:   base,
+				Radius:     216,
+				Color:      [3]float32{0.25, 0.25, 1.0},
+				Brightness: 0.9,
+				Lifetime:   0.001,
+			})
+		}
+		if entity.Effects&inet.EF_PENTALIGHT != 0 {
+			spawn(DynamicLight{
+				Position:   base,
+				Radius:     216,
+				Color:      [3]float32{1.0, 0.25, 0.25},
 				Brightness: 0.9,
 				Lifetime:   0.001,
 			})

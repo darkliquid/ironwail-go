@@ -205,6 +205,7 @@ Use the render backends that already exist but are not yet driven by the live ru
 - [x] create and maintain a `DecalMarkSystem`; call `EmitDecalMarks()` and pass active marks into `RenderFrameState.DecalMarks`
 - [x] map temp entities into dynamic lights
 - [x] map alias-entity muzzle/bright/dim effect flags into dynamic lights
+- [x] map alias-entity quad/penta effect flags into dynamic lights
 - map remaining entity effects into dynamic lights
 - [x] honor protocol alpha / scale on alias and sprite entities
 - [x] honor protocol alpha / scale on brush entities
