@@ -19,6 +19,7 @@ type SaveGameState struct {
 	SoundPrecache  []string
 	StaticEntities []EntityState
 	StaticSounds   []StaticSound
+	LightStyles    [64]string
 	Clients        []SaveClientState
 	Edicts         []SaveEdictState
 	Globals        []SaveGlobalState
@@ -72,6 +73,7 @@ func (s *Server) CaptureSaveGameState() (*SaveGameState, error) {
 		StaticSounds:   append([]StaticSound(nil), s.StaticSounds...),
 		Edicts:         make([]SaveEdictState, s.NumEdicts),
 	}
+	copy(state.LightStyles[:], s.LightStyles[:])
 	if s.Static != nil {
 		state.ServerFlags = s.Static.ServerFlags
 		state.Clients = make([]SaveClientState, len(s.Static.Clients))
@@ -120,6 +122,12 @@ func (s *Server) RestoreSaveGameState(state *SaveGameState) error {
 	s.SoundPrecache = append([]string(nil), state.SoundPrecache...)
 	s.StaticEntities = append([]EntityState(nil), state.StaticEntities...)
 	s.StaticSounds = append([]StaticSound(nil), state.StaticSounds...)
+	copy(s.LightStyles[:], state.LightStyles[:])
+	for i := range s.LightStyles {
+		if s.LightStyles[i] == "" {
+			s.LightStyles[i] = "m"
+		}
+	}
 	if s.Static != nil {
 		s.Static.ServerFlags = state.ServerFlags
 		for i := range s.Static.Clients {

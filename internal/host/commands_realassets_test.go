@@ -110,6 +110,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player := srv.Static.Clients[0].Edict
 	player.Vars.Health = 61
 	player.Vars.Origin = [3]float32{320, 144, 40}
+	srv.LightStyles[3] = "az"
 
 	h.CmdSave("roundtrip", subs)
 
@@ -133,5 +134,12 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	}
 	if !srv.Static.Clients[0].Spawned {
 		t.Fatal("loaded client not marked spawned")
+	}
+	clientState := LoopbackClientState(subs)
+	if clientState == nil {
+		t.Fatal("loopback client state missing after load")
+	}
+	if got := clientState.LightStyles[3].Map; got != "az" {
+		t.Fatalf("loaded lightstyle = %q, want %q", got, "az")
 	}
 }

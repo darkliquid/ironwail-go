@@ -570,6 +570,11 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 				return err
 			}
 		}
+		for style, value := range s.LightStyles {
+			client.Message.WriteByte(byte(inet.SVCLightStyle))
+			client.Message.WriteByte(byte(style))
+			client.Message.WriteString(value)
+		}
 		client.Message.WriteByte(byte(inet.SVCSignOnNum))
 		client.Message.WriteByte(3)
 		client.SendSignon = SignonSignonMsg

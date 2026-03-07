@@ -57,6 +57,7 @@ type Server struct {
 	ModelPrecache  []string
 	StaticEntities []EntityState
 	StaticSounds   []StaticSound
+	LightStyles    [64]string
 
 	// Game rules
 	Coop       bool
@@ -700,9 +701,10 @@ func NewServer() *Server {
 			}
 		},
 		LightStyle: func(vm *qc.VM, style int, value string) {
-			if s.Static == nil {
+			if s.Static == nil || style < 0 || style >= len(s.LightStyles) {
 				return
 			}
+			s.LightStyles[style] = value
 			for _, client := range s.Static.Clients {
 				if client == nil || client.Message == nil {
 					continue

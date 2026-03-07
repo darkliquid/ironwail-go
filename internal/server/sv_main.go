@@ -34,6 +34,12 @@ func init() {
 	}
 }
 
+func resetLightStyles(values *[64]string) {
+	for i := range values {
+		values[i] = "m"
+	}
+}
+
 func (s *Server) Init(maxClients int) error {
 	if maxClients <= 0 {
 		return fmt.Errorf("maxClients must be > 0")
@@ -61,6 +67,7 @@ func (s *Server) Init(maxClients int) error {
 	s.ModelPrecache = make([]string, MaxModels)
 	s.StaticEntities = nil
 	s.StaticSounds = nil
+	resetLightStyles(&s.LightStyles)
 
 	s.Static = &ServerStatic{
 		MaxClients:      maxClients,
@@ -99,6 +106,7 @@ func (s *Server) Shutdown() {
 	s.ModelPrecache = nil
 	s.StaticEntities = nil
 	s.StaticSounds = nil
+	resetLightStyles(&s.LightStyles)
 	if s.Datagram != nil {
 		s.Datagram.Clear()
 	}
@@ -119,6 +127,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.Paused = false
 	s.State = ServerStateLoading
 	s.Time = 1
+	resetLightStyles(&s.LightStyles)
 
 	s.Name = filepath.Base(mapName)
 	s.ModelName = fmt.Sprintf("maps/%s.bsp", s.Name)

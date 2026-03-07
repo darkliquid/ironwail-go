@@ -350,6 +350,9 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if s.Static.Clients[0].Message.Len() <= clientBefore {
 		t.Fatalf("lightstyle builtin did not write to client message")
 	}
+	if got := s.LightStyles[0]; got != "m" {
+		t.Fatalf("stored lightstyle = %q, want %q", got, "m")
+	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
 	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(e)))
