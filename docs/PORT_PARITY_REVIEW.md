@@ -34,7 +34,7 @@ A useful way to think about the current tree is:
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
 | Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence, and Quake-style alias commands | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
 | Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, and C-style `nomonsters`/intermission/dead-player restrictions | broader C loading UX/search behavior is still missing |
-| Networking/multiplayer | loopback server/client and protocol work are present, and `reconnect` now re-runs the local signon flow | `connect` and `kick` parity are still missing, and remote networking flow remains incomplete |
+| Networking/multiplayer | loopback server/client and protocol work are present, `reconnect` now re-runs the local signon flow, and local-host `kick` now supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
 
 ## 1. Runtime baseline and core engine state
 
@@ -63,7 +63,7 @@ What already works:
 The runtime is still biased toward **local loopback play**.
 
 - `Host.CmdConnect()` is still a TODO stub in `internal/host/commands.go`
-- `Host.CmdKick()` is still a TODO stub
+- `Host.CmdKick()` now supports local name/slot targeting, optional reasons, and self-kick protection
 - parity should currently be judged on the local/OpenGL path, not on remote multiplayer or the gogpu path
 
 ### Exact C behavior still missing
@@ -389,7 +389,7 @@ Go already restores most of the world/QC state, including lightstyles and the po
 
 ### What is missing or divergent
 
-- `connect` and `kick` are not feature-complete, and `reconnect` is still only wired through the local loopback path
+- `connect` is not feature-complete, and `reconnect` is still only wired through the local loopback path
 - multiplayer menu flows are still placeholder UX
 - the current runtime should be treated as single-player-first even though pieces of the multiplayer protocol are already present
 
@@ -397,7 +397,7 @@ Go already restores most of the world/QC state, including lightstyles and the po
 
 - `Host_Connect_f()` establishes the remote connection and then forces a reconnect-style signon restart
 - `Host_Reconnect_f()` begins a loading plaque and clears signons; Go now matches the signon reset/restart on the local path but not the loading plaque
-- `Host_Kick_f()` supports name or slot-number targeting plus an optional kick message
+- `Host_Kick_f()` supports name or slot-number targeting plus an optional kick message (now mirrored on the local host path)
 
 ## 8. Overall parity judgement
 

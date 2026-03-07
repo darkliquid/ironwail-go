@@ -153,6 +153,59 @@ func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 	}
 }
 
+func TestKickClientLeavesFinalLoopbackMessageAvailable(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Name = "Grunt"
+	client.Message.Clear()
+
+	if ok := s.KickClient(0, "Console", "bye"); !ok {
+		t.Fatal("KickClient returned false, want true")
+	}
+
+	data := s.GetClientLoopbackMessage(0)
+	if len(data) == 0 {
+		t.Fatal("GetClientLoopbackMessage returned no data after kick")
+	}
+	if data[len(data)-1] != 0xff {
+		t.Fatalf("terminator = 0x%02x, want 0xff", data[len(data)-1])
+	}
+	if !bytes.Contains(data, []byte("Kicked by Console: bye\n")) {
+		t.Fatalf("kick datagram = %q, want kick message", string(data))
+	}
+
+	data = s.GetClientLoopbackMessage(0)
+	if len(data) != 0 {
+		t.Fatalf("second GetClientLoopbackMessage len = %d, want 0", len(data))
+	}
+}
+
+func TestConnectClientClearsStaleReliableBuffer(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	client := s.Static.Clients[0]
+	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.WriteString("stale before reconnect\n")
+
+	s.ConnectClient(0)
+
+	data := s.GetClientLoopbackMessage(0)
+	if len(data) == 0 {
+		t.Fatal("GetClientLoopbackMessage returned no serverinfo")
+	}
+	if bytes.Contains(data, []byte("stale before reconnect\n")) {
+		t.Fatalf("serverinfo datagram still contains stale message: %q", string(data))
+	}
+}
+
 func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -282,6 +335,50 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 	}
 	if client.SendSignon != SignonDone {
 		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonDone)
+	}
+}
+
+func TestKickClientDropsTargetAndWritesReason(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	s.ConnectClient(1)
+	s.Static.Clients[0].Name = "Ranger"
+	target := s.Static.Clients[1]
+	target.Name = "Grunt"
+	target.Message.Clear()
+
+	if ok := s.KickClient(1, "Ranger", "too much ping"); !ok {
+		t.Fatal("KickClient returned false, want true")
+	}
+	if target.Active {
+		t.Fatal("target client still active after kick")
+	}
+	if target.Spawned {
+		t.Fatal("target client still spawned after kick")
+	}
+	if target.Message.Len() == 0 || target.Message.Data[0] != byte(SVCPrint) {
+		t.Fatalf("target message opcode = %v, want %v", target.Message.Data, byte(SVCPrint))
+	}
+	if !bytes.Contains(target.Message.Data, []byte("Kicked by Ranger: too much ping\n")) {
+		t.Fatalf("target message = %q, want kick reason", string(target.Message.Data))
+	}
+}
+
+func TestKickClientRejectsInvalidTargets(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	if ok := s.KickClient(0, "Console", ""); ok {
+		t.Fatal("KickClient succeeded for inactive client")
+	}
+	if ok := s.KickClient(9, "Console", ""); ok {
+		t.Fatal("KickClient succeeded for out-of-range client")
 	}
 }
 

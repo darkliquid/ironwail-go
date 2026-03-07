@@ -39,7 +39,7 @@ E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░]
    - UDP: DONE
    - Reconnect: DONE for local loopback signon restart
    - Connect: TODO (host/commands.go:69)
-   - Kick: TODO (host/commands.go:89)
+   - Kick: DONE for local host command parity (name / # slot / optional message / self-protect)
    - Server commands: 85% (most working)
    - Deathmatch mode: MISSING
 
@@ -67,10 +67,10 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
    Fix: Consume live skybox state and align draw pass sequencing with C
    Reference: gl_sky.c + gl_rmain.c
 
-2. CONNECT/KICK command parity
+2. CONNECT command parity
    Location: internal/host/commands.go
    Impact: Remote multiplayer workflow remains incomplete
-   Fix: Port remaining host_cmd.c networking command behavior and broader remote flow
+   Fix: Port remaining host_cmd.c remote connect/reconnect behavior and broader remote flow
    Reference: host_cmd.c:Host_Connect_f / Host_Reconnect_f / Host_Kick_f
 
 3. SAVE/LOAD UX parity

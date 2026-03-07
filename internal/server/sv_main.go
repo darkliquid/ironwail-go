@@ -780,6 +780,9 @@ func (s *Server) ConnectClient(clientNum int) {
 	client.Spawned = false
 	client.Edict = ent
 	client.Name = "unconnected"
+	if client.Message != nil {
+		client.Message.Clear()
+	}
 	if client.EntityStates == nil {
 		client.EntityStates = make(map[int]EntityState)
 	} else {
@@ -1178,7 +1181,7 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 		return nil
 	}
 	client := s.Static.Clients[clientNum]
-	if client == nil || !client.Active {
+	if client == nil {
 		return nil
 	}
 
@@ -1190,7 +1193,7 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 		client.Message.Clear()
 	}
 
-	if client.Spawned {
+	if client.Active && client.Spawned {
 		var frame MessageBuffer
 		frame.Data = make([]byte, MaxDatagram)
 		s.buildClientDatagram(client, &frame)

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/client"
@@ -90,11 +91,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin game")
 	cmdsys.AddCommand("prespawn", func(args []string) { h.CmdPreSpawn(subs) }, "Pre-spawn handshake")
 	cmdsys.AddCommand("kick", func(args []string) {
-		if len(args) > 0 {
-			var playerNum int
-			fmt.Sscanf(args[0], "%d", &playerNum)
-			h.CmdKick(playerNum, subs)
-		}
+		h.CmdKick(args, subs)
 	}, "Kick a player from the server")
 	cmdsys.AddCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
 	cmdsys.AddCommand("load", func(args []string) {
@@ -438,11 +435,50 @@ func (h *Host) CmdMapname(subs *Subsystems) {
 	}
 }
 
-func (h *Host) CmdKick(playerNum int, subs *Subsystems) {
-	if !h.serverActive || subs.Server == nil {
+func (h *Host) CmdKick(args []string, subs *Subsystems) {
+	if !h.serverActive || subs == nil || subs.Server == nil || len(args) == 0 {
 		return
 	}
-	// TODO: Implement kick
+
+	target := -1
+	reasonStart := 1
+
+	if len(args) > 1 && args[0] == "#" {
+		slot, err := strconv.Atoi(args[1])
+		if err != nil || slot <= 0 {
+			return
+		}
+		target = slot - 1
+		reasonStart = 2
+		if !subs.Server.IsClientActive(target) {
+			return
+		}
+	} else {
+		for i := 0; i < subs.Server.GetMaxClients(); i++ {
+			if !subs.Server.IsClientActive(i) {
+				continue
+			}
+			if strings.EqualFold(subs.Server.GetClientName(i), args[0]) {
+				target = i
+				break
+			}
+		}
+	}
+
+	if target < 0 || target == 0 {
+		return
+	}
+
+	who := subs.Server.GetClientName(0)
+	if who == "" {
+		who = "Console"
+	}
+
+	var reason string
+	if len(args) > reasonStart {
+		reason = strings.Join(args[reasonStart:], " ")
+	}
+	subs.Server.KickClient(target, who, reason)
 }
 
 func (h *Host) CmdSay(message string, subs *Subsystems) {

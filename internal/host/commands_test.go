@@ -81,6 +81,59 @@ func (c *reconnectHandshakeClient) LocalSignon() int {
 	return c.signon
 }
 
+type kickRecord struct {
+	clientNum int
+	who       string
+	reason    string
+}
+
+type kickTrackingServer struct {
+	mockServer
+	names  []string
+	active []bool
+	kicks  []kickRecord
+}
+
+func newKickTrackingServer(names ...string) *kickTrackingServer {
+	active := make([]bool, len(names))
+	for i := range active {
+		active[i] = true
+	}
+	return &kickTrackingServer{
+		mockServer: mockServer{active: true},
+		names:      append([]string(nil), names...),
+		active:     active,
+	}
+}
+
+func (s *kickTrackingServer) GetMaxClients() int {
+	return len(s.names)
+}
+
+func (s *kickTrackingServer) IsClientActive(clientNum int) bool {
+	return clientNum >= 0 && clientNum < len(s.active) && s.active[clientNum]
+}
+
+func (s *kickTrackingServer) GetClientName(clientNum int) string {
+	if clientNum < 0 || clientNum >= len(s.names) {
+		return ""
+	}
+	return s.names[clientNum]
+}
+
+func (s *kickTrackingServer) KickClient(clientNum int, who, reason string) bool {
+	if !s.IsClientActive(clientNum) {
+		return false
+	}
+	s.kicks = append(s.kicks, kickRecord{
+		clientNum: clientNum,
+		who:       who,
+		reason:    reason,
+	})
+	s.active[clientNum] = false
+	return true
+}
+
 func TestCmdChangelevel(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
@@ -248,6 +301,103 @@ func TestCmdPing(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 
 	h.CmdPing(&subs.Subsystems)
+}
+
+func TestCmdKickBySlot(t *testing.T) {
+	h := NewHost()
+	srv := newKickTrackingServer("Ranger", "Grunt")
+	subs := &Subsystems{Server: srv}
+
+	h.SetServerActive(true)
+	h.CmdKick([]string{"#", "2"}, subs)
+
+	if len(srv.kicks) != 1 {
+		t.Fatalf("kick count = %d, want 1", len(srv.kicks))
+	}
+	if got := srv.kicks[0].clientNum; got != 1 {
+		t.Fatalf("kicked slot = %d, want 1", got)
+	}
+}
+
+func TestCmdKickByNameCaseInsensitive(t *testing.T) {
+	h := NewHost()
+	srv := newKickTrackingServer("Ranger", "Grunt")
+	subs := &Subsystems{Server: srv}
+
+	h.SetServerActive(true)
+	h.CmdKick([]string{"gRuNt"}, subs)
+
+	if len(srv.kicks) != 1 {
+		t.Fatalf("kick count = %d, want 1", len(srv.kicks))
+	}
+	if got := srv.kicks[0].clientNum; got != 1 {
+		t.Fatalf("kicked slot = %d, want 1", got)
+	}
+}
+
+func TestCmdKickIncludesMessage(t *testing.T) {
+	h := NewHost()
+	srv := newKickTrackingServer("Ranger", "Grunt")
+	subs := &Subsystems{Server: srv}
+
+	h.SetServerActive(true)
+	h.CmdKick([]string{"#", "2", "watch", "your", "step"}, subs)
+
+	if len(srv.kicks) != 1 {
+		t.Fatalf("kick count = %d, want 1", len(srv.kicks))
+	}
+	if got := srv.kicks[0].reason; got != "watch your step" {
+		t.Fatalf("kick reason = %q, want %q", got, "watch your step")
+	}
+}
+
+func TestCmdKickPreventsSelfKick(t *testing.T) {
+	h := NewHost()
+	srv := newKickTrackingServer("Ranger", "Grunt")
+	subs := &Subsystems{Server: srv}
+
+	h.SetServerActive(true)
+	h.CmdKick([]string{"#", "1"}, subs)
+	h.CmdKick([]string{"ranger"}, subs)
+
+	if len(srv.kicks) != 0 {
+		t.Fatalf("kick count = %d, want 0", len(srv.kicks))
+	}
+}
+
+func TestCmdKickUnknownTargetNoOp(t *testing.T) {
+	h := NewHost()
+	srv := newKickTrackingServer("Ranger", "Grunt")
+	subs := &Subsystems{Server: srv}
+
+	h.SetServerActive(true)
+	h.CmdKick([]string{"#", "99"}, subs)
+	h.CmdKick([]string{"ogre"}, subs)
+
+	if len(srv.kicks) != 0 {
+		t.Fatalf("kick count = %d, want 0", len(srv.kicks))
+	}
+}
+
+func TestKickCommandRegistrationPreservesFullArgs(t *testing.T) {
+	cmdsys.RemoveCommand("kick")
+	t.Cleanup(func() {
+		cmdsys.RemoveCommand("kick")
+	})
+
+	h := NewHost()
+	srv := newKickTrackingServer("Ranger", "Grunt")
+	subs := &Subsystems{Server: srv}
+	h.RegisterCommands(subs)
+	h.SetServerActive(true)
+
+	cmdsys.ExecuteText("kick # 2 too much ping")
+	if len(srv.kicks) != 1 {
+		t.Fatalf("kick count = %d, want 1", len(srv.kicks))
+	}
+	if got := srv.kicks[0].reason; got != "too much ping" {
+		t.Fatalf("kick reason = %q, want %q", got, "too much ping")
+	}
 }
 
 func TestCmdSaveRejectsInvalidName(t *testing.T) {

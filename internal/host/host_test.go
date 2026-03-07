@@ -29,8 +29,10 @@ func (m *mockServer) IsActive() bool                                       { ret
 func (m *mockServer) IsPaused() bool                                       { return m.paused }
 func (m *mockServer) SpawnServer(mapName string, vfs *fs.FileSystem) error { return nil }
 func (m *mockServer) ConnectClient(clientNum int)                          {}
+func (m *mockServer) KickClient(clientNum int, who, reason string) bool    { return false }
 func (m *mockServer) SaveSpawnParms()                                      {}
 func (m *mockServer) GetMaxClients() int                                   { return 1 }
+func (m *mockServer) IsClientActive(clientNum int) bool                    { return clientNum == 0 }
 func (m *mockServer) GetClientName(clientNum int) string                   { return "Player" }
 func (m *mockServer) SetClientName(clientNum int, name string)             {}
 func (m *mockServer) GetClientColor(clientNum int) int                     { return 0 }

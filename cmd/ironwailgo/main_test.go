@@ -41,10 +41,12 @@ type demoPlaybackNoopServer struct{}
 func (s *demoPlaybackNoopServer) Init(int) error                           { return nil }
 func (s *demoPlaybackNoopServer) SpawnServer(string, *fs.FileSystem) error { return nil }
 func (s *demoPlaybackNoopServer) ConnectClient(int)                        {}
+func (s *demoPlaybackNoopServer) KickClient(int, string, string) bool      { return false }
 func (s *demoPlaybackNoopServer) Frame(float64) error                      { return nil }
 func (s *demoPlaybackNoopServer) Shutdown()                                {}
 func (s *demoPlaybackNoopServer) SaveSpawnParms()                          {}
 func (s *demoPlaybackNoopServer) GetMaxClients() int                       { return 1 }
+func (s *demoPlaybackNoopServer) IsClientActive(int) bool                  { return false }
 func (s *demoPlaybackNoopServer) GetClientName(int) string                 { return "" }
 func (s *demoPlaybackNoopServer) SetClientName(int, string)                {}
 func (s *demoPlaybackNoopServer) GetClientColor(int) int                   { return 0 }

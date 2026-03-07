@@ -332,7 +332,7 @@ Close the host-command and UI gaps that keep the port local-only.
 
 - implement `connect`
 - [x] implement local-loopback `reconnect` signon restart behavior
-- implement `kick` parity by name or slot with optional message
+- [x] implement local host `kick` parity by name or slot with optional message
 - connect the multiplayer menus to real behavior
 
 **Done when**
@@ -370,4 +370,4 @@ The port should not be considered at parity until all of the following are true 
 - sound effects, static sounds, stop-sound handling, and music all work
 - save/load restores gameplay state accurately, including lightstyles
 - demo recording and playback both behave like the C engine
-- remote `connect`, `reconnect`, and `kick` behave like the C engine
+- remote `connect`/`reconnect` flow and multiplayer menu control behave like the C engine

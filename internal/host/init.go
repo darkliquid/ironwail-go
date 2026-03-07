@@ -252,10 +252,12 @@ type Server interface {
 	Init(maxClients int) error
 	SpawnServer(mapName string, vfs *fs.FileSystem) error
 	ConnectClient(clientNum int)
+	KickClient(clientNum int, who, reason string) bool
 	Frame(frameTime float64) error
 	Shutdown()
 	SaveSpawnParms()
 	GetMaxClients() int
+	IsClientActive(clientNum int) bool
 	GetClientName(clientNum int) string
 	SetClientName(clientNum int, name string)
 	GetClientColor(clientNum int) int

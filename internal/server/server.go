@@ -914,6 +914,14 @@ func (s *Server) GetMaxClients() int {
 	return s.Static.MaxClients
 }
 
+func (s *Server) IsClientActive(clientNum int) bool {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return false
+	}
+	client := s.Static.Clients[clientNum]
+	return client != nil && client.Active
+}
+
 func (s *Server) GetClientName(clientNum int) string {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return ""
@@ -969,6 +977,31 @@ func (s *Server) GetClientPing(clientNum int) float32 {
 		total += c.PingTimes[i]
 	}
 	return total / float32(count) * 1000
+}
+
+func (s *Server) KickClient(clientNum int, who, reason string) bool {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return false
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil || !client.Active {
+		return false
+	}
+	if who == "" {
+		who = "Console"
+	}
+
+	if client.Message != nil {
+		message := "Kicked by " + who
+		if reason != "" {
+			message += ": " + reason
+		}
+		client.Message.WriteByte(byte(SVCPrint))
+		client.Message.WriteString(message + "\n")
+	}
+
+	s.DropClient(client, false)
+	return true
 }
 func (s *Server) GetMapName() string {
 	return s.Name
