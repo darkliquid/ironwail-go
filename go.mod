@@ -1,18 +1,16 @@
-// Package ironwail-go is a Go port of the Ironwail Quake engine
-// with a focus on idiomatic Go code, modularity, and extensive documentation.
 module github.com/ironwail/ironwail-go
 
-go 1.25
+go 1.26
 
 require (
 	github.com/Zyko0/go-sdl3 v0.0.0-20260125144524-02de3d449cb1
 	github.com/ebitengine/oto/v3 v3.4.0
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728
-	github.com/gogpu/gogpu v0.22.7
+	github.com/gogpu/gogpu v0.22.9
 	github.com/gogpu/gpucontext v0.9.0
 	github.com/gogpu/gputypes v0.2.0
-	github.com/gogpu/wgpu v0.19.6
+	github.com/gogpu/wgpu v0.19.7
 )
 
 require (

@@ -176,7 +176,7 @@ func (dc *glDrawContext) init2DRenderer() error {
 
 func compileShader(source string, shaderType uint32) (uint32, error) {
 	shader := gl.CreateShader(shaderType)
-	cstr, free := gl.Strs(source)
+	cstr, free := gl.Strs(source + "\x00")
 	gl.ShaderSource(shader, 1, cstr, nil)
 	gl.CompileShader(shader)
 	free()
