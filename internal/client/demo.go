@@ -456,6 +456,9 @@ func (d *DemoState) ShouldReadFrame(hostFrame int) bool {
 	if d == nil || !d.Playback {
 		return false
 	}
+	if d.Paused || d.Speed == 0 {
+		return false
+	}
 	if d.playbackHostFrame == hostFrame {
 		return false
 	}

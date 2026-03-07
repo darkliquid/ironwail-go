@@ -232,6 +232,56 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	}
 }
 
+func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
+	originalHost := gameHost
+	originalSubs := gameSubs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameSubs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("paused", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	gameHost = host.NewHost()
+	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	gameHost.CmdPlaydemo("paused", gameSubs)
+
+	demo := gameHost.DemoState()
+	if demo == nil || !demo.Playback {
+		t.Fatal("expected active demo playback")
+	}
+	demo.Paused = true
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame: %v", err)
+	}
+	if demo.FrameIndex != 0 {
+		t.Fatalf("frame index while paused = %d, want 0", demo.FrameIndex)
+	}
+}
+
 func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 	originalHost := gameHost
 	originalSubs := gameSubs
