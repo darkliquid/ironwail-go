@@ -18,3 +18,5 @@
 
 # Keep this file
 !.gitignore
+!/docs/*.md
+!/docs/*.txt

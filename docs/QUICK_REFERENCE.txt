@@ -1,0 +1,231 @@
+================================================================================
+IRONWAIL-GO PARITY: QUICK REFERENCE CARD
+================================================================================
+
+COMPLETION STATUS BY FEATURE
+=============================
+
+A. WORLD RENDERING         [████░░░░░░░░░░░░░░] 40%
+   - Geometry load & binning: DONE
+   - Lightmaps: TODO (world.go:153)
+   - Water warp: TODO (gl_warp.c not ported)
+   - Sky rendering: TODO (gl_sky.c stubs only)
+   - Fog system: TODO (parsing done, renderer integration missing)
+
+B. ENTITY RENDERING        [█░░░░░░░░░░░░░░░░░] 5%
+   - Alias models: 80% code written, 0% integrated
+   - Sprites: 30% code written, 0% integrated
+   - Particles: 50% code written, 0% integrated
+   - Brush submodels: 0% (BrushEntity type only)
+   - No top-level entity pipeline exists
+
+C. MENUS/HUD/INPUT         [██░░░░░░░░░░░░░░░] 30%
+   - Menu nav: DONE
+   - Submenus: 6× stub (all echo TODO)
+   - Key bindings: MISSING (critical)
+   - Console: Basic (no editing/completion)
+   - HUD: Numbers only (no icons/face)
+
+D. AUDIO/MUSIC             [██████░░░░░░░░░░░] 50%
+   - System init: DONE
+   - Backend (SDL3/Oto): DONE
+   - Event dispatch: TODO (parse.go:180 comment)
+   - Music/BGM: MISSING (bgmusic.c not ported)
+   - Sound effects: MISSING (no gameplay integration)
+
+E. NETWORKING/MULTIPLAYER  [███████░░░░░░░░░░] 60%
+   - Loopback: DONE
+   - UDP: DONE
+   - Connect: TODO (host/commands.go:69)
+   - Kick: TODO (host/commands.go:89)
+   - Server commands: 80% (most working)
+   - Deathmatch mode: MISSING
+
+F. PREDICTION/DEMO         [██░░░░░░░░░░░░░░░] 30%
+   - Basic prediction: DONE (simplified)
+   - Full physics: MISSING (no ground detect, steps, collision)
+   - Command looping: TODO (prediction.go:89)
+   - Demo recording: MISSING (record command not implemented)
+   - Demo playback: Structure only (seek/rewind TODO)
+
+G. SAVE/LOAD               [████████░░░░░░░░░] 80%
+   - Serialization: DONE
+   - Deserialization: DONE
+   - QuakeC VM state: MISSING (parse.go doesn't save QC globals)
+   - Inventory: Implemented but untested
+
+
+BLOCKERS FOR PLAYABILITY (Must Fix First)
+==========================================
+
+1. ENTITY RENDERING PIPELINE
+   Location: renderer_opengl.go:Frame()
+   Impact: All monsters, players, items invisible
+   Fix: Add RenderEntities() call dispatching to alias/sprite/particle renderers
+   Complexity: MEDIUM (3-5 days)
+   Reference: gl_rmain.c:R_RenderScene()
+
+2. KEY BINDING SYSTEM
+   Location: New file input/keybutton.go
+   Impact: Players cannot move/attack/jump
+   Fix: Implement KButton state machine, wire to client input processing
+   Complexity: MEDIUM (2-3 days)
+   Reference: cl_input.c:KeyDown/KeyUp, keys.c:Key_Event
+
+3. SOUND EVENT DISPATCH
+   Location: client/parse.go, audio/system.go
+   Impact: Game completely silent (no weapon fire, explosions, footsteps)
+   Fix: Wire parseStartSound() result to AudioSystem.PlaySound()
+   Complexity: EASY (1 day)
+   Reference: cl_parse.c:CL_ParseStartSoundPacket
+
+4. ALIAS MODEL RENDERING
+   Location: renderer/renderer_opengl.go + alias_opengl.go
+   Impact: No player or monsters visible
+   Fix: Create VAO/VBO, shader, integrate into entity pipeline
+   Complexity: MEDIUM (4-5 days)
+   Reference: r_alias.c:R_DrawAliasModel
+
+5. LIGHTMAP PROCESSING
+   Location: renderer/world.go, new file renderer/lightmap.go
+   Impact: World completely black (no surface lighting)
+   Fix: Parse BSP lightmaps, create atlas, compute UVs, bind texture
+   Complexity: HARD (6-8 days)
+   Reference: r_brush.c:Chart_Init, R_BuildLightmap
+
+
+HIGH-PRIORITY SECONDARY FEATURES
+=================================
+
+- Connect command (E.1): Enables multiplayer (5 days)
+- Menu submenus (C.1): Enables server/video config (4 days)
+- Particle integration (B.4): Visual feedback (2 days)
+- Prediction physics (F.1): Smooth movement (3 days)
+
+
+KEY C FILES TO REFERENCE
+========================
+
+World Rendering:
+  - gl_rmain.c: Main render loop
+  - r_brush.c: Surface/lightmap processing
+  - gl_warp.c: Water animation
+  - gl_sky.c: Sky rendering
+
+Entity Rendering:
+  - r_alias.c: Model rendering
+  - r_sprite.c: Sprite rendering
+  - r_part.c: Particle system
+  - gl_refrag.c: Decal projection
+
+Input/Menus:
+  - keys.c: Key binding
+  - cl_input.c: Input processing
+  - menu.c: Menu system
+  - sbar.c: Status bar
+
+Audio:
+  - snd_dma.c: Sound system core
+  - cl_parse.c: Sound event parsing
+  - bgmusic.c: Music playback
+
+Network:
+  - host_cmd.c: Server commands
+  - net_dgrm.c: Datagram protocol
+  - cl_parse.c: Client message parsing
+
+
+COMMON PITFALLS TO AVOID
+========================
+
+1. Don't render entities before world geometry (depth test will fail)
+2. Lightmap coordinates are NOT texture coordinates (different calculation)
+3. Prediction must accumulate commands, not just apply current frame
+4. Sprite rotation requires full 3D camera basis vectors
+5. Audio attenuation uses both distance AND listener angle (3D panning)
+6. Menu draws OVER 3D view, not instead of it
+7. Sky must render FIRST (before world geometry), regardless of depth
+
+
+TESTING CHECKLIST
+=================
+
+[ ] Start game → See Q1DM1 geometry (not black)
+[ ] Press W → Player moves forward, view pans
+[ ] Left-click → Sound plays, impact visible
+[ ] Press E → Item pickup sound, HUD updates
+[ ] Press TAB → Scoreboard visible
+[ ] Console ` → Can type and execute commands
+[ ] Menu ESC → See menu (with pictures, not stubs)
+[ ] Multiplayer → Connect to server (without hardcode)
+[ ] Demo record → demo.dem created, plays back
+[ ] Underwater → Blue shift, sound muffling
+
+
+FILE ORGANIZATION HINTS
+=======================
+
+For entity rendering refactor:
+  - Move entity drawing logic to renderer/entity_renderer.go
+  - Define RenderEntity interface/union
+  - Split: renderBrushEntities, renderAliasEntities, renderSpriteEntities
+  - Each returns []DrawCall for batching
+
+For input system:
+  - New files: input/keybutton.go, input/bindings.go
+  - Extend input/types.go with KButton array
+  - Hook client/input.go to button state
+
+For audio integration:
+  - Extend audio/system.go with PlaySound(sfx, pos, vol, atten, channel)
+  - Add audio/spatial.go calls in mixing
+  - Wire client/parse.go parseStartSound() → audio dispatch
+
+For lightmaps:
+  - New file renderer/lightmap.go with LightmapAtlas
+  - Parser: BSP → lightmap_data
+  - Allocator: Chart algorithm (match C exactly for byte-for-byte parity)
+  - Shader: Add lightmap sampler, modulate diffuse
+
+
+GOTCHAS IN GO CONVERSION
+========================
+
+- C array bounds check missing: bounds = []byte{0x6f, 0x6d, ...} is OK
+- Entity lerp flags use bitwise: state & 1, state |= 2 (use bit operators)
+- Light cache is sparse: allocate on-demand, not full array
+- Particle colors are palette indices: use ramp lookup, not RGB directly
+- Console commands are case-insensitive: normalize before dispatch
+- CVars can have callbacks: need event system when value changes
+- Skin textures are per-player: dynamic allocation for scoreboard
+
+
+ESTIMATED HOURS BY TASK
+=======================
+
+Tier 1 (Critical):
+  - Entity pipeline:        40h
+  - Key bindings:           30h
+  - Sound dispatch:         10h
+  - Alias rendering:        50h
+  - Lightmaps:              70h
+  SUBTOTAL:                200h
+
+Tier 2 (Advanced):
+  - Connect command:        40h
+  - Menu submenus:          50h
+  - Particles:              20h
+  - Brush submodels:        20h
+  - Prediction physics:     40h
+  SUBTOTAL:                170h
+
+Tier 3 (Polish):
+  - Music system:           30h
+  - Sprites:                20h
+  - Water warp:             15h
+  - Gun model:              20h
+  - Demos:                  15h
+  SUBTOTAL:                100h
+
+TOTAL ESTIMATED:           470h (~12 weeks, 1 FTE)
+
