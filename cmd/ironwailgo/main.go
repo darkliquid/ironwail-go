@@ -612,14 +612,26 @@ func main() {
 					state.Palette = gameDraw.Palette()
 				}
 				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
+					w, h := gameRenderer.Size()
+					consoleVisible := gameInput != nil && gameInput.GetKeyDest() == input.KeyConsole
+
 					if gameMenu != nil && gameMenu.IsActive() {
 						gameMenu.M_Draw(overlay)
-					} else if gameHUD != nil {
-						w, h := gameRenderer.Size()
+						return
+					}
+
+					if gameHUD != nil {
 						gameHUD.SetScreenSize(w, h)
 						updateHUDFromServer()
 						gameHUD.Draw(overlay)
 					}
+
+					if consoleVisible {
+						console.Draw(overlay, w, h, true)
+						return
+					}
+
+					console.Draw(overlay, w, h, false)
 				})
 				return
 			}

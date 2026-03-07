@@ -185,6 +185,8 @@ func (c *Console) Resize(newWidth int) {
 
 	oldWidth := c.lineWidth
 	oldTotalLines := c.totalLines
+	oldCurrent := c.current
+	oldNotifyTimes := c.notifyTimes
 	c.lineWidth = newWidth
 	c.totalLines = c.bufSize / c.lineWidth
 
@@ -221,6 +223,14 @@ func (c *Console) Resize(newWidth int) {
 
 	for i := range c.notifyTimes {
 		c.notifyTimes[i] = time.Time{}
+	}
+	for i := 0; i < NumNotifyTimes; i++ {
+		srcLine := oldCurrent - i
+		dstLine := c.current - i
+		if srcLine < 0 || dstLine < 0 {
+			break
+		}
+		c.notifyTimes[dstLine%NumNotifyTimes] = oldNotifyTimes[srcLine%NumNotifyTimes]
 	}
 }
 
@@ -407,7 +417,7 @@ func (c *Console) printRaw(txt string) {
 
 		if c.x == 0 {
 			c.lineFeed()
-			if c.current >= 0 && c.current < len(c.notifyTimes) {
+			if len(c.notifyTimes) > 0 {
 				c.notifyTimes[c.current%NumNotifyTimes] = time.Now()
 			}
 		}
