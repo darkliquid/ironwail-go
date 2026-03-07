@@ -92,12 +92,12 @@ run = "QUAKE_DIR=${QUAKE_DIR} go test ./internal/testutil"
 [tasks.build-gogpu]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode"
-run = "go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
+run = "CGO_ENABLED=0 go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
 
 [tasks.build-gogpu-sdl3]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
-run = "go build -tags 'gogpu sdl3 nofakecgo' -o ironwailgo-wgpu-sdl3 ./cmd/ironwailgo"
+run = "CGO_ENABLED=0 go build -tags 'gogpu sdl3 nofakecgo' -o ironwailgo-wgpu-sdl3 ./cmd/ironwailgo"
 
 [tasks.run-gogpu-sdl3]
 depends = ["build-gogpu-sdl3"]
