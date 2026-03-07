@@ -1,5 +1,4 @@
 [env]
-CGO_ENABLED = "0"
 QUAKE_DIR = "/home/darkliquid/Games/Heroic/Quake"
 TIMEOUT = "5"
 
@@ -11,7 +10,7 @@ go = "1.26"
 description = "Run the ironwailgo binary (internal task)"
 hide = true
 run = """
-go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR}
+CGO_ENABLED=1 go run ./cmd/ironwailgo -basedir ${QUAKE_DIR}
 """
 
 [tasks.clean-logs]

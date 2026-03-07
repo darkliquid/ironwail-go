@@ -595,18 +595,11 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
 
 ### README.md Issues
 
-**Line 19-25** states:
-> "WebGPU as the rendering backend (with OpenGL as a fallback)"
-> "gogpu for input (keyboard/mouse), audio currently uses NullBackend (silent mode)"
+The README has since been corrected to reflect the current renderer/build reality:
 
-**Reality:** WebGPU 3D rendering completely stub (`renderer_gogpu.go` has only 2D). Audio system initialized but never receives events. Should read: "WebGPU infrastructure started; OpenGL is primary working backend. Audio backend (SDL3/Oto) functional but not wired to client."
-
-**Line 26-30** states assumption about "NO CGO":
-> "Dividing the codebase up into packages"
-> "Use Go stdlib for as much as possible"
-> "ideally **NO** CGo at all"
-
-**Reality:** OpenGL binding requires CGo (`go-gl/gl` + `go-gl/glfw`). Current build matrix: `!gogpu && opengl && cgo` OR `gogpu && !cgo` OR `!gogpu && !cgo` (stub). The no-CGo goal is partially achieved but docs overstate it.
+- OpenGL/CGO is the default gameplay renderer and parity target.
+- gogpu/WebGPU remains a secondary backend while its runtime bugs are addressed.
+- CGo is required by the canonical OpenGL path even though most gameplay logic remains pure Go.
 
 ### Repository Structure Assumptions
 

@@ -189,27 +189,14 @@ These enhance experience but aren't required for playability.
 
 ---
 
-## STALE ASSUMPTIONS TO FIX IN DOCS
+## README / BUILD BASELINE
 
-### README.md Corrections Needed
+The repo README should now describe the current renderer/build reality directly:
 
-**Current (Line 19-21):**
-> "WebGPU as the rendering backend (with OpenGL as a fallback)"
-
-**Should Be:**
-> "WebGPU backend (gogpu) under development; OpenGL is currently the functional rendering backend. Stub implementation available for headless testing."
-
-**Current (Line 22):**
-> "gogpu for input (keyboard/mouse), audio currently uses NullBackend (silent mode)"
-
-**Should Be:**
-> "Input: GLFW (OpenGL) or gogpu (WebGPU). Audio: SDL3 or Oto backend (functional but not yet integrated with client message parsing)."
-
-**Current (Line 28-30):**
-> "You should only need to know Go to understand the codebase, without having to dip into C code or bindings."
-
-**Should Be:**
-> "Codebase is pure Go, but OpenGL backend requires CGo bindings (go-gl/glfw3, go-gl/gl). Headless (stub) builds are CGo-free."
+- OpenGL/CGO is the default gameplay renderer and parity target.
+- gogpu/WebGPU remains a secondary backend while its runtime bugs are addressed.
+- CGo is no longer a forbidden dependency in practice because the canonical OpenGL path requires it.
+- `mise run build-cgo` and `mise run smoke-cgo-map-start` are the primary build/smoke checks for renderer-facing parity work.
 
 ---
 

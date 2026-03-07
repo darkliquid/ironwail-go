@@ -18,16 +18,17 @@ manual changes of my own.
 Well, apart from the obvious that this is Go, rather than C, I'm building this
 with the following changes:
 
-- WebGPU as the rendering backend (with OpenGL as a fallback)
-- gogpu for input (keyboard/mouse), audio currently uses NullBackend (silent mode)
+- OpenGL/CGO as the default gameplay renderer/runtime
+- gogpu/WebGPU as a secondary backend while its runtime bugs are being worked through
 - Dividing the codebase up into packages
 - Use Go stdlib for as much as possible, rather than custom implementations of
   things from the original C codebase
 
 Additionally, I'm trying to build it as readable as possible, with extensive
-commenting and ideally **NO** CGo at all, to keep it both portable and simple.
-You should only need to know Go to understand the codebase, without having to
-dip into C code or bindings.
+commenting and to keep as much of the codebase in Go as practical. The
+canonical OpenGL renderer currently requires CGo bindings, but the gameplay and
+engine logic remain in Go and can still be understood without diving deeply
+into C engine code.
 
 ## Building
 
@@ -35,6 +36,14 @@ The toolchain is built around [mise][2] which provides both the tooling and
 the tasks for running tests, builds, etc.
 
 You can see what tasks are available to run using `mise tasks`
+
+The canonical renderer/build path is the CGO/OpenGL runtime:
+
+- `mise run build-cgo`
+- `mise run smoke-cgo-map-start`
+
+The gogpu tasks remain available for secondary-backend work, but they are no
+longer the primary parity gate.
 
 [1]:https://github.com/andrei-drexler/ironwail
 [2]:https://mise.jdx.dev
