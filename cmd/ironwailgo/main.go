@@ -297,6 +297,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
 	host.SetupLoopbackClientServer(gameSubs, gameServer)
 	registerGameplayBindCommands()
+	registerConsoleCompletionProviders()
 	applyDefaultGameplayBindings()
 
 	if err := gameHost.Init(&host.InitParams{
@@ -872,6 +873,11 @@ func registerGameplayBindCommands() {
 	registerGameplayButtonCommand("down", func(c *cl.Client) *cl.KButton { return &c.InputDown })
 }
 
+func registerConsoleCompletionProviders() {
+	console.SetGlobalCommandProvider(cmdsys.Complete)
+	console.SetGlobalCVarProvider(cvar.Complete)
+}
+
 func registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
 	cmdsys.AddCommand("+"+name, func(args []string) {
 		runGameplayButtonCommand(selectButton, true, args)
@@ -1008,6 +1014,7 @@ func cmdToggleConsole(_ []string) {
 	}
 
 	if gameInput.GetKeyDest() == input.KeyConsole {
+		console.ResetCompletion()
 		gameInput.SetKeyDest(input.KeyGame)
 		syncGameplayInputMode()
 		return
@@ -1016,6 +1023,7 @@ func cmdToggleConsole(_ []string) {
 	if gameMenu != nil && gameMenu.IsActive() {
 		gameMenu.HideMenu()
 	}
+	console.ResetCompletion()
 	gameInput.SetKeyDest(input.KeyConsole)
 	syncGameplayInputMode()
 }
@@ -1079,15 +1087,24 @@ func handleConsoleKeyEvent(event input.KeyEvent) {
 
 	switch event.Key {
 	case input.KEscape, int('`'):
+		console.ResetCompletion()
 		gameInput.SetKeyDest(input.KeyGame)
 		syncGameplayInputMode()
 	case input.KEnter:
 		line := strings.TrimSpace(console.CommitInput())
+		console.ResetCompletion()
 		if line == "" {
 			return
 		}
 		console.Printf("]%s\n", line)
 		cmdsys.ExecuteText(line)
+	case input.KTab:
+		line := console.InputLine()
+		completed, matches := console.CompleteInput(line, true)
+		if len(matches) == 0 {
+			return
+		}
+		console.SetInputLine(completed)
 	case input.KBackspace:
 		console.BackspaceInput()
 	case input.KUpArrow:

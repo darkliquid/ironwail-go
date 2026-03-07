@@ -292,6 +292,13 @@ func (c *Console) InputLine() string {
 	return string(c.inputLine)
 }
 
+func (c *Console) SetInputLine(text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.inputLine = []rune(text)
+	c.historyPos = len(c.history)
+}
+
 func (c *Console) AppendInputRune(ch rune) {
 	if ch == '\n' || ch == '\r' || ch == '\t' || ch < 32 {
 		return
@@ -655,6 +662,10 @@ func TotalLines() int {
 
 func InputLine() string {
 	return globalConsole.InputLine()
+}
+
+func SetInputLine(text string) {
+	globalConsole.SetInputLine(text)
 }
 
 func AppendInputRune(ch rune) {

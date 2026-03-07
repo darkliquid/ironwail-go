@@ -255,7 +255,7 @@ func extractPartial(input string) string {
 
 	// Handle quoted strings
 	inQuote := false
-	start := len(input)
+	start := 0
 
 	for i := len(input) - 1; i >= 0; i-- {
 		ch := input[i]

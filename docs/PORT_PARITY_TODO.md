@@ -151,7 +151,7 @@ Turn the existing console core into the player-facing Quake console.
 - [x] add console toggle behavior and key-destination switching
 - [x] render console contents and notify lines in the live renderer
 - [x] support text entry, history, and scrollback from the running game
-- add tab completion from the running game
+- [x] add tab completion from the running game
 
 **Done when**
 

@@ -429,6 +429,36 @@ func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	}
 }
 
+func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+	})
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+	console.ResetCompletion()
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	registerGameplayBindCommands()
+	registerConsoleCompletionProviders()
+	gameInput.SetKeyDest(input.KeyConsole)
+
+	for _, ch := range "tog" {
+		handleGameCharEvent(ch)
+	}
+	handleGameKeyEvent(input.KeyEvent{Key: input.KTab, Down: true})
+
+	if got := console.InputLine(); got != "toggleconsole" {
+		t.Fatalf("console input line after tab completion = %q, want %q", got, "toggleconsole")
+	}
+}
+
 func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
 	originalHost := gameHost
 	originalClient := gameClient
