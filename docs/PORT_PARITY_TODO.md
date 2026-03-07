@@ -248,7 +248,8 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] align embedded-sky fog mix semantics with C (`r_skyfog` + worldspawn `skyfog`, gated by general fog density)
 - [x] consume client skybox state on canonical OpenGL path and load common external cubemap skyboxes from Quake FS search paths (`gfx/env/<name><suffix>.{png,tga,jpg}`), including partial square face sets (zero-filling missing faces) with fallback to embedded BSP sky for inconsistent/non-square cases
 - [x] bounded post-38de7f3 parity slice: split particle rendering into explicit opaque/translucent subpasses so the top-level OpenGL frame path can separate those passes before the larger sky/water/translucency ordering refactor (with current runtime particles still landing in the opaque side)
-- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor)
+- [x] bounded post-5800311 parity slice: split world/brush liquid surfaces into explicit opaque-liquid/translucent-liquid buckets in canonical OpenGL runtime and draw those buckets separately from general opaque/translucent world buckets (no full-frame reorder yet)
+- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor, including full frame-level sequencing across entities/particles/viewmodel)
 
 **Done when**
 

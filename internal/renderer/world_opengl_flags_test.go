@@ -421,7 +421,7 @@ func TestBucketWorldFaces_Sky(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, opaque, alphaTest, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 1 {
 		t.Fatalf("expected 1 sky face, got %d", len(sky))
@@ -434,6 +434,12 @@ func TestBucketWorldFaces_Sky(t *testing.T) {
 	}
 	if len(translucent) != 0 {
 		t.Fatalf("expected 0 translucent faces, got %d", len(translucent))
+	}
+	if len(liquidOpaque) != 0 {
+		t.Fatalf("expected 0 opaque-liquid faces, got %d", len(liquidOpaque))
+	}
+	if len(liquidTranslucent) != 0 {
+		t.Fatalf("expected 0 translucent-liquid faces, got %d", len(liquidTranslucent))
 	}
 }
 
@@ -464,7 +470,7 @@ func TestBucketWorldFaces_SkyWithOpaque(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, opaque, alphaTest, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 1 {
 		t.Fatalf("expected 1 sky face, got %d", len(sky))
@@ -477,6 +483,12 @@ func TestBucketWorldFaces_SkyWithOpaque(t *testing.T) {
 	}
 	if len(translucent) != 0 {
 		t.Fatalf("expected 0 translucent faces, got %d", len(translucent))
+	}
+	if len(liquidOpaque) != 0 {
+		t.Fatalf("expected 0 opaque-liquid faces, got %d", len(liquidOpaque))
+	}
+	if len(liquidTranslucent) != 0 {
+		t.Fatalf("expected 0 translucent-liquid faces, got %d", len(liquidTranslucent))
 	}
 }
 
@@ -499,7 +511,7 @@ func TestBucketWorldFaces_EmptySkyBucket(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, _, _, _ := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, _, _, _, _, _ := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 0 {
 		t.Fatalf("expected 0 sky faces, got %d", len(sky))
@@ -532,12 +544,63 @@ func TestBucketWorldFaces_TurbulentCallFlag(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
 
-	_, opaque, _, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
-	if len(translucent) != 1 || !translucent[0].turbulent {
-		t.Fatalf("expected one turbulent translucent call, got %#v", translucent)
+	_, opaque, _, _, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	if len(liquidTranslucent) != 1 || !liquidTranslucent[0].turbulent {
+		t.Fatalf("expected one turbulent translucent liquid call, got %#v", liquidTranslucent)
+	}
+	if len(translucent) != 0 {
+		t.Fatalf("expected 0 non-liquid translucent calls, got %#v", translucent)
 	}
 	if len(opaque) != 1 || opaque[0].turbulent {
 		t.Fatalf("expected one non-turbulent opaque call, got %#v", opaque)
+	}
+}
+
+func TestWorldFaceIsLiquid(t *testing.T) {
+	if worldFaceIsLiquid(0) {
+		t.Fatalf("expected non-liquid flags to return false")
+	}
+	if !worldFaceIsLiquid(model.SurfDrawWater) {
+		t.Fatalf("expected water flags to return true")
+	}
+	if !worldFaceIsLiquid(model.SurfDrawLava) {
+		t.Fatalf("expected lava flags to return true")
+	}
+	if !worldFaceIsLiquid(model.SurfDrawSlime) {
+		t.Fatalf("expected slime flags to return true")
+	}
+	if !worldFaceIsLiquid(model.SurfDrawTele) {
+		t.Fatalf("expected tele flags to return true")
+	}
+}
+
+func TestBucketWorldFaces_LiquidBuckets(t *testing.T) {
+	faces := []WorldFace{
+		{FirstIndex: 0, NumIndices: 6, TextureIndex: 0, LightmapIndex: 0, Flags: model.SurfDrawTurb | model.SurfDrawWater, Center: [3]float32{0, 0, 32}},
+		{FirstIndex: 6, NumIndices: 6, TextureIndex: 0, LightmapIndex: 0, Flags: model.SurfDrawTurb | model.SurfDrawLava, Center: [3]float32{0, 0, 96}},
+		{FirstIndex: 12, NumIndices: 6, TextureIndex: 0, LightmapIndex: 0, Flags: model.SurfDrawTurb | model.SurfDrawSlime, Center: [3]float32{0, 0, 64}},
+		{FirstIndex: 18, NumIndices: 6, TextureIndex: 0, LightmapIndex: 0, Flags: 0, Center: [3]float32{0, 0, 0}},
+	}
+	textures := map[int32]uint32{0: 1}
+	lightmaps := []uint32{0}
+	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 0.5, slime: 0.25, tele: 1}
+
+	_, opaque, _, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, 999, 998, [3]float32{}, camera, alphaSettings)
+	if len(opaque) != 1 {
+		t.Fatalf("opaque count = %d, want 1", len(opaque))
+	}
+	if len(liquidOpaque) != 1 {
+		t.Fatalf("opaque-liquid count = %d, want 1", len(liquidOpaque))
+	}
+	if len(liquidTranslucent) != 2 {
+		t.Fatalf("translucent-liquid count = %d, want 2", len(liquidTranslucent))
+	}
+	if len(translucent) != 0 {
+		t.Fatalf("non-liquid translucent count = %d, want 0", len(translucent))
+	}
+	if liquidTranslucent[0].distanceSq < liquidTranslucent[1].distanceSq {
+		t.Fatalf("translucent-liquid draw order not sorted back-to-front: %#v", liquidTranslucent)
 	}
 }
 

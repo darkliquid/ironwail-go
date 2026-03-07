@@ -119,7 +119,7 @@ The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 #### Remaining divergences from C
 
 - embedded BSP sky surfaces now render through a dedicated animated sky-layer shader/path (instead of the ordinary world shader), and the common external cubemap skybox path is consumed (including partial square face sets with zero-filled missing faces) with fallback to embedded sky for unsupported face sets
-- particle rendering now has explicit opaque/translucent subpass plumbing in the top-level OpenGL frame path, but the broader scene ordering is still simpler than `R_RenderScene()` and world/brush water/viewmodel sequencing still diverges
+- particle rendering now has explicit opaque/translucent subpass plumbing in the top-level OpenGL frame path, and world/brush liquid surfaces now bucket into dedicated opaque/translucent liquid bins; the broader scene ordering is still simpler than `R_RenderScene()` and sky/viewmodel/translucency sequencing still diverges
 
 ### 2.3 gogpu path: current status
 

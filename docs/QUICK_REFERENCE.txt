@@ -19,10 +19,11 @@ B. ENTITY RENDERING        [██████████████░░░�
    - Particles: live runtime integration DONE
    - Brush submodels: live runtime integration DONE
    - Dynamic lights / protocol-driven effects: DONE
-   - Bounded pass-order slice landed after 38de7f3:
+   - Bounded pass-order slices landed after 38de7f3 / 5800311:
       - particles now run as explicit opaque/translucent subpasses instead of one late lump
+      - world + brush liquid surfaces now bucket into dedicated opaque-liquid/translucent-liquid bins (separate from general opaque/translucent world bins)
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing across sky/water/translucency/viewmodel
+   - Remaining fidelity work: full C pass sequencing across sky/water/translucency/viewmodel at the frame level
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE

@@ -994,7 +994,7 @@ func (r *Renderer) renderWorld() {
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
-	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
+	skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
 
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Disable(gl.CULL_FACE)
@@ -1073,6 +1073,8 @@ func (r *Renderer) renderWorld() {
 		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
 		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
 		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
 	}
 	gl.BindVertexArray(0)
@@ -1194,7 +1196,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
 
 	for _, brush := range brushes {
-		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
+		skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
 		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
 		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
 		gl.Uniform1f(modelScaleUniform, brush.scale)
@@ -1250,6 +1252,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 		gl.Uniform1f(modelScaleUniform, brush.scale)
 		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
 		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
 		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
 	}
 
@@ -1264,7 +1268,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 
 // bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
 // This variant accepts a light pool and computes light contributions for each face.
-func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, entityFrame int, timeSeconds float64, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, entityFrame int, timeSeconds float64, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
 	for _, face := range faces {
 		center := transformModelSpacePoint(face.Center, modelOffset, modelRotation, modelScale)
 		call := worldDrawCall{
@@ -1288,20 +1292,31 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, te
 		case worldPassAlphaTest:
 			alphaTest = append(alphaTest, call)
 		case worldPassTranslucent:
+			if worldFaceIsLiquid(face.Flags) {
+				liquidTranslucent = append(liquidTranslucent, call)
+				continue
+			}
 			translucent = append(translucent, call)
 		default:
+			if worldFaceIsLiquid(face.Flags) {
+				liquidOpaque = append(liquidOpaque, call)
+				continue
+			}
 			opaque = append(opaque, call)
 		}
 	}
 
+	sort.SliceStable(liquidTranslucent, func(i, j int) bool {
+		return liquidTranslucent[i].distanceSq > liquidTranslucent[j].distanceSq
+	})
 	sort.SliceStable(translucent, func(i, j int) bool {
 		return translucent[i].distanceSq > translucent[j].distanceSq
 	})
 
-	return sky, opaque, alphaTest, translucent
+	return sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent
 }
 
-func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
 	return bucketWorldFacesWithLights(faces, textures, textureAnimations, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, nil)
 }
 
@@ -1351,6 +1366,10 @@ func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
 
 func worldFaceUsesTurb(flags int32) bool {
 	return flags&model.SurfDrawTurb != 0 && flags&model.SurfDrawSky == 0
+}
+
+func worldFaceIsLiquid(flags int32) bool {
+	return flags&(model.SurfDrawLava|model.SurfDrawSlime|model.SurfDrawTele|model.SurfDrawWater) != 0
 }
 
 func worldLiquidAlphaSettingsFromCvars(overrides worldLiquidAlphaOverrides, tree *bsp.Tree) worldLiquidAlphaSettings {
