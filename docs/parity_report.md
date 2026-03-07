@@ -554,10 +554,10 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
    - Go gap: QC VM execution state not connected to save system
    - Behavior: QC state (monster positions, triggers, counters) lost on reload; triggers can fire twice
 
-2. **One Save Restriction Still Missing**
+2. **Save Restriction Parity Updated**
    - C code: `Host_Savegame_f()` rejects saves when `nomonsters` is enabled, during intermission, or when players are dead
-   - Go state: intermission and dead-player checks are enforced, and savegames now persist lightstyles; the remaining gap is the `nomonsters` validation
-   - Behavior: the save command still accepts one game mode that the C engine rejects
+   - Go state: save now rejects those same `nomonsters`/intermission/dead-player cases and persists lightstyles
+   - Remaining divergence: load/save UX still differs (loading plaque and broader save-file search behavior)
 
 3. **Player Inventory Not Preserved**
    - C code: Saves `items` bitmask, ammo counts, weapon selection
@@ -570,8 +570,8 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
 
 ### TIER 1 (Playability Critical - Blocks core gameplay)
 1. **Entity Rendering Pipeline** (B.1) - Players/monsters/items invisible
-2. **Key Binding System** (C.2) - Movement controls unmapped
-3. **Sound Event Dispatch** (D.1) - Game completely silent
+2. **Connect/Reconnect/Kick Parity** (E.1) - Remote multiplayer flow still incomplete
+3. **Save/Load UX Parity** (G.2) - Loading plaque and broader save-file search behavior still differ
 4. **Alias Model Rendering** (B.2) - Player and monsters invisible
 5. **Lightmaps Processing** (A.1) - World entirely unlit/dark
 
@@ -584,10 +584,10 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
 
 ### TIER 3 (Polish - Enhances experience but not required)
 11. **Music System** (D.3) - No background music
-12. **Sprite Rendering** (B.3) - Minimal visual impact
+12. **Skybox Runtime Integration** (B.3) - Skybox state still not fully consumed by the renderer
 13. **Water Warp Effects** (A.2) - Visual enhancement
 14. **Weapon Model Rendering** (B.8) - First-person weapon invisible
-15. **Demo Recording** (F.10) - Replay functionality
+15. **Advanced Demo Tooling** (F.10) - Timedemo/rewind style tooling is still missing
 
 ---
 

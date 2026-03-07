@@ -19,7 +19,14 @@ import (
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
-var hostSubsystemRegistry sync.Map
+var (
+	hostSubsystemRegistry sync.Map
+	hostCVarsOnce         sync.Once
+)
+
+func registerHostCVars() {
+	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
+}
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready
 // client messages.
@@ -282,6 +289,8 @@ type Renderer interface {
 }
 
 func (h *Host) Init(params *InitParams, subs *Subsystems) error {
+	hostCVarsOnce.Do(registerHostCVars)
+
 	h.baseDir = params.BaseDir
 	h.gameDir = params.GameDir
 	h.userDir = params.UserDir

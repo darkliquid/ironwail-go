@@ -14,6 +14,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/client"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -599,6 +600,10 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 	srv, ok := subs.Server.(*server.Server)
 	if !ok {
 		subs.Console.Print("save failed: savegames require the built-in server\n")
+		return
+	}
+	if cvar.BoolValue("nomonsters") {
+		subs.Console.Print("Can't save when using \"nomonsters\".\n")
 		return
 	}
 	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {

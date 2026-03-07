@@ -16,7 +16,7 @@ The biggest remaining parity problems are mostly **integration and fidelity gaps
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
 - the input system now uses Quake-style bindings, config persistence, and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
 - the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
-- save/load is much more complete than older notes suggested, but it still misses some exact C UX/details such as the remaining `nomonsters` restriction and loading-plaque/search behavior
+- save/load is much more complete than older notes suggested, and now includes C's `nomonsters` / intermission / dead-player save restrictions; loading-plaque/search behavior still differs
 - demo recording and forward playback are now real runtime features, including connected-state snapshots, disconnect trailers, same-frame stuffed-command execution, pause semantics, and server-time pacing
 
 A useful way to think about the current tree is:
@@ -33,7 +33,7 @@ A useful way to think about the current tree is:
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
 | Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
-| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, intermission/dead-player restrictions | the remaining `nomonsters` rule and broader C loading UX/search behavior are still missing |
+| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, and C-style `nomonsters`/intermission/dead-player restrictions | broader C loading UX/search behavior is still missing |
 | Networking/multiplayer | loopback server/client and protocol work are present | `connect`, `reconnect`, and `kick` parity is missing |
 
 ## 1. Runtime baseline and core engine state
@@ -307,9 +307,9 @@ What is already present:
 - multiplayer submenu selections still only emit TODO `echo` commands (`join game`, `host game`, `player setup`)
 - options submenu still only has one real action (`toggle vid_vsync`); controls/video/audio are placeholders
 - the HUD is much simpler than `sbar.c`; inventory, face states, sigils, keys, weapon strip, ammo icons, and other status-bar details are not yet matched
-- the console core exists as a data structure, but there is no full in-game console UI/render/input path wired into `main.go`
-- gameplay still uses hardcoded controls instead of bind-driven command execution
-- `Host.WriteConfig()` only writes archived cvars; it does not write binds or the extra state the C engine persists
+- the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
+- the HUD and option/menu surfaces still expose much less functionality than the C engine
+- `Host.WriteConfig()` now writes binds plus archived cvars, but it still does not append the extra state-preserving commands the C engine can emit
 
 ### Exact C behavior still missing or not fully matched
 
@@ -343,14 +343,13 @@ What already works:
 - save files include map name, time, paused state, server flags, model/sound precaches, static entities, static sounds, client spawn parms, edicts, and QC globals
 - restore recreates edicts, relinks the world, syncs the QC VM, and restores saved globals
 - lightstyles are saved/restored and resent through the restored loopback signon flow
-- the save command already rejects intermission and dead-player states to match the C engine more closely
+- the save command now rejects `nomonsters`, intermission, and dead-player states to match the C engine's restrictions
 - `TestCmdSaveLoadRealAssetsRoundTrip` proves a real-assets session can save, reload, and recover player state
 
 This is one of the biggest places where older status docs understated current progress.
 
 ### What is missing or divergent
 
-- the remaining save restriction gap is the C engine's `nomonsters` ban
 - load/save path behavior is simplified to `userDir/saves/<name>.sav`
 - there is no equivalent of the C engine's loading plaque / broader save-file search behavior
 
@@ -366,7 +365,7 @@ The C save command refuses to save when:
 - the game is multiplayer
 - any active player is dead
 
-Go now enforces the active built-in server, single-player, intermission, and dead-player cases; `nomonsters` is the remaining restriction still missing.
+Go now enforces the active built-in server, single-player, `nomonsters`, intermission, and dead-player cases.
 
 #### `host_cmd.c:Host_Loadgame_f()`
 
@@ -406,7 +405,7 @@ The current Go port is best described as:
 - **strong in filesystem, QC loading, local boot, and several data-model ports**
 - **surprisingly strong in OpenGL world/entity foundations and save/load serialization**
 - **partially complete in menus/HUD/client parsing/demo playback**
-- **not yet parity-complete in runtime integration, user-facing input/config UX, audio dispatch, remote networking, and secondary backend support**
+- **not yet parity-complete in render fidelity, HUD/menu depth, remote networking, and secondary backend support**
 
 The most important practical conclusion is this:
 

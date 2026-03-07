@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -288,6 +289,38 @@ func TestCmdSaveRejectsDeadPlayer(t *testing.T) {
 		t.Fatalf("console output = %q, want dead-player rejection", got)
 	}
 	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "dead.sav")); !os.IsNotExist(err) {
+		t.Fatalf("save file should not exist, stat err = %v", err)
+	}
+}
+
+func TestCmdSaveRejectsNoMonsters(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	cvar.Set("nomonsters", "1")
+	t.Cleanup(func() {
+		cvar.Set("nomonsters", "0")
+	})
+
+	h.SetServerActive(true)
+	srv.Active = true
+
+	h.CmdSave("nomonsters_blocked", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Can't save when using \"nomonsters\".") {
+		t.Fatalf("console output = %q, want nomonsters rejection", got)
+	}
+	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "nomonsters_blocked.sav")); !os.IsNotExist(err) {
 		t.Fatalf("save file should not exist, stat err = %v", err)
 	}
 }

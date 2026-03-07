@@ -5,12 +5,11 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 ## Documents Included
 
 ### 1. **QUICK_REFERENCE.txt** (START HERE)
-- 📊 **Progress bars** showing % completion for each feature area
-- 🚨 **5 critical blockers** preventing playability with complexity estimates
-- 📋 **Testing checklist** to verify functionality
-- ⏱️ **Effort estimates** by task (470h total for full parity)
-- 🐛 **Common pitfalls** to avoid during implementation
-- 📚 **File organization hints** for refactoring
+- 📊 Progress snapshot for major parity areas
+- 🚨 Current high-priority parity gaps (kept in sync with latest parity review)
+- 📋 Testing checklist for ongoing regression checks
+- 🐛 Common pitfalls to avoid during implementation
+- 📚 File-organization hints for targeted follow-up work
 
 **Best for:** Quick overview, prioritization, team briefings
 
@@ -65,25 +64,24 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 
 | Metric | Value |
 |--------|-------|
-| Overall Completion | **~40%** |
-| Playability Critical Blockers | **5** |
-| High-Priority Features | **10** |
-| Polish Tasks | **5** |
-| Total Hours Estimated | **470h** |
-| Minimum Team Size | **1-2 people** |
-| Realistic Timeline | **12-16 weeks** |
+| Overall Completion | **materially beyond early 40% estimates** |
+| Save restriction parity (`nomonsters`/intermission/dead-player) | **done** |
+| Demo record/playback forward path | **done** |
+| Key bindings + baseline console UI/completion | **done** |
+| High-priority remaining gaps | **integration/fidelity (skybox/order, remote networking, load UX)** |
+| Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 
 ---
 
 ## Tier 1 Critical Blockers (Fix These First)
 
-1. **Entity Rendering Pipeline** → No monsters, players, items visible
-2. **Key Binding System** → No movement controls
-3. **Sound Event Dispatch** → Completely silent game
-4. **Alias Model Rendering** → Characters invisible  
-5. **Lightmap Processing** → Entire world black
+1. **Skybox + pass-order fidelity** → visual sequencing still diverges from C
+2. **Connect/Reconnect/Kick parity** → remote multiplayer workflow remains incomplete
+3. **Save/load UX parity** → loading plaque and broader save-file search behavior still differ
+4. **gogpu backend catch-up** → parity baseline remains OpenGL runtime path
+5. **Prediction/physics fidelity** → advanced movement behavior still differs
 
-Estimated combined: **200 engineering hours**
+Estimated combined: **ongoing parity integration work; use PORT_PARITY_TODO.md for current slices**
 
 ---
 
@@ -137,24 +135,20 @@ Each section includes:
 ```markdown
 ## Current Status
 
-### Implemented (~40% complete)
-- [x] BSP world loading and basic rendering
-- [x] Audio system infrastructure (SDL3/Oto backends)
-- [x] Network layer (loopback + UDP)
-- [x] Basic console and command system
-- [x] Save/load game functionality
-- [x] Client state machine and demo framework
+### Implemented baseline
+- [x] OpenGL runtime path renders world + entities + particles + decals + viewmodel with lightmaps
+- [x] Key bindings and config persistence are wired
+- [x] Console UI/history/completion baseline is present
+- [x] Sound event dispatch and WAV-backed CD-track playback are wired
+- [x] Save/load round-trip exists with C-style `nomonsters`/intermission/dead-player save restrictions
+- [x] Demo recording/playback forward path is functional
 
-### Not Yet Implemented (~60% remaining)
-- [ ] **Entity rendering pipeline** - All models/sprites/particles invisible (CRITICAL)
-- [ ] **Key binding system** - Movement controls incomplete (CRITICAL)
-- [ ] **Sound event dispatch** - Game is silent (CRITICAL)
-- [ ] **Lightmap processing** - World is completely black (CRITICAL)
-- [ ] **Multiplayer connection** - Cannot join remote servers
-- [ ] Menu submenus (6 stubs awaiting implementation)
-- [ ] Music system (infrastructure missing)
-- [ ] Weapon model rendering (first-person view weapon invisible)
-- [ ] Demo recording and playback
+### Remaining high-priority parity gaps
+- [ ] Skybox runtime consumption and render-pass ordering fidelity
+- [ ] Remote multiplayer command parity (`connect`, `reconnect`, `kick`)
+- [ ] Save/load UX parity (loading plaque + broader save-file search behavior)
+- [ ] Menu/options/network submenu completion
+- [ ] Prediction/physics fidelity improvements
 
 See [PARITY_ANALYSIS.md](./parity_report.md) for detailed breakdown.
 ```
@@ -191,7 +185,7 @@ Before considering the port "complete," verify:
 
 ## Document Metadata
 
-- **Generated:** March 7, 2024
+- **Generated:** March 7, 2026
 - **Analysis scope:** Full codebase comparison
 - **Citation precision:** File:line references throughout
 - **Effort estimates:** Based on algorithmic complexity + integration dependencies

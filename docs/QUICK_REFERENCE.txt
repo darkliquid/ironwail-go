@@ -5,28 +5,28 @@ IRONWAIL-GO PARITY: QUICK REFERENCE CARD
 COMPLETION STATUS BY FEATURE
 =============================
 
-A. WORLD RENDERING         [████░░░░░░░░░░░░░░] 40%
-   - Geometry load & binning: DONE
-   - Lightmaps: TODO (world.go:153)
-   - Water warp: TODO (gl_warp.c not ported)
-   - Sky rendering: TODO (gl_sky.c stubs only)
-   - Fog system: TODO (parsing done, renderer integration missing)
+A. WORLD RENDERING         [█████████████░░░░░░] ~65%
+   - Geometry load/binning/lightmaps: DONE on OpenGL parity path
+   - Animated textures and fog runtime feed: DONE
+   - Skybox runtime consumption: TODO
+   - Pass-order fidelity (sky/water/translucency/viewmodel): TODO
 
-B. ENTITY RENDERING        [███████░░░░░░░░░░░] 35%
+B. ENTITY RENDERING        [██████████████░░░░░] ~70%
    - Alias models: live runtime integration DONE
    - Sprites: live runtime integration DONE
    - Particles: live runtime integration DONE
    - Brush submodels: live runtime integration DONE
-   - Dynamic lights / protocol-driven effects still pending
+   - Dynamic lights / protocol-driven effects: DONE
+   - Remaining fidelity work: ordering and sky interaction details
 
-C. MENUS/HUD/INPUT         [██░░░░░░░░░░░░░░░] 30%
+C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
    - Submenus: 6× stub (all echo TODO)
-   - Key bindings: MISSING (critical)
-   - Console: Basic (no editing/completion)
+   - Key bindings and config persistence: DONE
+   - Console UI/history/completion: DONE (baseline implementation)
    - HUD: Numbers only (no icons/face)
 
-D. AUDIO/MUSIC             [████████░░░░░░░░░] 80%
+D. AUDIO/MUSIC             [████████████████░░░] ~80%
    - System init: DONE
    - Backend (SDL3/Oto): DONE
    - Event dispatch: DONE
@@ -41,66 +41,60 @@ E. NETWORKING/MULTIPLAYER  [███████░░░░░░░░░░]
    - Server commands: 80% (most working)
    - Deathmatch mode: MISSING
 
-F. PREDICTION/DEMO         [██░░░░░░░░░░░░░░░] 30%
+F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
    - Basic prediction: DONE (simplified)
    - Full physics: MISSING (no ground detect, steps, collision)
-   - Command looping: TODO (prediction.go:89)
-   - Demo recording: MISSING (record command not implemented)
-   - Demo playback: Structure only (seek/rewind TODO)
+   - Command looping: PARTIAL
+   - Demo recording/playback forward path: DONE
+   - Advanced tooling (timedemo/rewind): TODO
 
-G. SAVE/LOAD               [████████░░░░░░░░░] 80%
+G. SAVE/LOAD               [████████████████░░░] ~80%
    - Serialization: DONE
    - Deserialization: DONE
-   - QuakeC VM state: MISSING (parse.go doesn't save QC globals)
+   - Save restrictions (`nomonsters`, intermission, dead-player): DONE
+   - QC globals/edicts/lightstyles: DONE
    - Inventory: Implemented but untested
 
 
 BLOCKERS FOR PLAYABILITY (Must Fix First)
 ==========================================
 
-1. ENTITY RENDERING PIPELINE
-   Location: renderer_opengl.go:Frame()
-   Impact: All monsters, players, items invisible
-   Fix: Add RenderEntities() call dispatching to alias/sprite/particle renderers
-   Complexity: MEDIUM (3-5 days)
-   Reference: gl_rmain.c:R_RenderScene()
+1. Skybox + render-pass ordering fidelity
+   Location: internal/renderer/world_runtime_opengl.go
+   Impact: Scene composition differs from C in edge cases
+   Fix: Consume live skybox state and align draw pass sequencing with C
+   Reference: gl_sky.c + gl_rmain.c
 
-2. KEY BINDING SYSTEM
-   Location: New file input/keybutton.go
-   Impact: Players cannot move/attack/jump
-   Fix: Implement KButton state machine, wire to client input processing
-   Complexity: MEDIUM (2-3 days)
-   Reference: cl_input.c:KeyDown/KeyUp, keys.c:Key_Event
+2. CONNECT/RECONNECT/KICK command parity
+   Location: internal/host/commands.go
+   Impact: Remote multiplayer workflow remains incomplete
+   Fix: Port remaining host_cmd.c networking command behavior
+   Reference: host_cmd.c:Host_Connect_f / Host_Reconnect_f / Host_Kick_f
 
-3. SOUND EVENT DISPATCH
-   Location: client/parse.go, audio/system.go
-   Impact: Game completely silent (no weapon fire, explosions, footsteps)
-   Fix: Wire parseStartSound() result to AudioSystem.PlaySound()
-   Complexity: EASY (1 day)
-   Reference: cl_parse.c:CL_ParseStartSoundPacket
+3. SAVE/LOAD UX parity
+   Location: internal/host/commands.go + menu flow
+   Impact: Loading plaque and broader save-file search behavior diverge
+   Fix: Align load UX/search behavior where practical
+   Reference: host_cmd.c:Host_Loadgame_f
 
-4. ALIAS MODEL RENDERING
-   Location: renderer/renderer_opengl.go + alias_opengl.go
-   Impact: No player or monsters visible
-   Fix: Create VAO/VBO, shader, integrate into entity pipeline
-   Complexity: MEDIUM (4-5 days)
-   Reference: r_alias.c:R_DrawAliasModel
+4. gogpu runtime parity gap
+   Location: internal/renderer/renderer_gogpu.go + runtime feed
+   Impact: gogpu output still behind OpenGL parity path
+   Fix: Continue parity catch-up without regressing OpenGL baseline
 
-5. LIGHTMAP PROCESSING
-   Location: renderer/world.go, new file renderer/lightmap.go
-   Impact: World completely black (no surface lighting)
-   Fix: Parse BSP lightmaps, create atlas, compute UVs, bind texture
-   Complexity: HARD (6-8 days)
-   Reference: r_brush.c:Chart_Init, R_BuildLightmap
+5. Prediction/physics fidelity
+   Location: internal/client
+   Impact: movement feel diverges from C in advanced movement scenarios
+   Fix: Port more of C movement physics details
 
 
 HIGH-PRIORITY SECONDARY FEATURES
 =================================
 
-- Connect command (E.1): Enables multiplayer (5 days)
-- Menu submenus (C.1): Enables server/video config (4 days)
-- Particle integration (B.4): Visual feedback (2 days)
-- Prediction physics (F.1): Smooth movement (3 days)
+- Menu submenus (C.1): complete options/network parity surfaces
+- Skybox runtime integration (A/B): match C visual output
+- Save/load UX parity (G): loading plaque and search behavior
+- Prediction physics fidelity (F.1): smoother C-like movement
 
 
 KEY C FILES TO REFERENCE
@@ -144,7 +138,7 @@ COMMON PITFALLS TO AVOID
 4. Sprite rotation requires full 3D camera basis vectors
 5. Audio attenuation uses both distance AND listener angle (3D panning)
 6. Menu draws OVER 3D view, not instead of it
-7. Sky must render FIRST (before world geometry), regardless of depth
+7. Sky is its own pass; don't just fold it into the normal world draw or move it to the very start blindly
 
 
 TESTING CHECKLIST
@@ -158,7 +152,7 @@ TESTING CHECKLIST
 [ ] Console ` → Can type and execute commands
 [ ] Menu ESC → See menu (with pictures, not stubs)
 [ ] Multiplayer → Connect to server (without hardcode)
-[ ] Demo record → demo.dem created, plays back
+[ ] Demo record → demo.dem created and plays back forward path
 [ ] Underwater → Blue shift, sound muffling
 
 
@@ -176,10 +170,10 @@ For input system:
   - Extend input/types.go with KButton array
   - Hook client/input.go to button state
 
-For audio integration:
-  - Extend audio/system.go with PlaySound(sfx, pos, vol, atten, channel)
-  - Add audio/spatial.go calls in mixing
-  - Wire client/parse.go parseStartSound() → audio dispatch
+For audio fidelity follow-up:
+  - Extend beyond WAV-backed CD tracks toward broader music parity
+  - Compare attenuation/spatial edge cases against snd_dma.c + bgmusic.c
+  - Keep listener/camera updates aligned with the active runtime view
 
 For lightmaps:
   - New file renderer/lightmap.go with LightmapAtlas
