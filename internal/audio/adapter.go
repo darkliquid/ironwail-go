@@ -40,6 +40,13 @@ func (a *AudioAdapter) Update(origin, forward, right, up [3]float32) {
 	}
 }
 
+func (a *AudioAdapter) StopAllSounds(clear bool) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.StopAllSounds(clear)
+}
+
 func (a *AudioAdapter) Shutdown() {
 	if a.sys != nil {
 		a.sys.Shutdown()

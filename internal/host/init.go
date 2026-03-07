@@ -281,6 +281,7 @@ type Client interface {
 type Audio interface {
 	Init() error
 	Update(origin, forward, right, up [3]float32)
+	StopAllSounds(clear bool)
 	Shutdown()
 }
 

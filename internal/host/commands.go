@@ -305,6 +305,7 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 		return fmt.Errorf("server not initialized")
 	}
 
+	h.stopSessionSounds(subs)
 	h.clientState = caDisconnected
 	h.serverActive = false
 
@@ -605,6 +606,8 @@ func (h *Host) disconnectCurrentSession(subs *Subsystems, stopServer bool) {
 		}
 	}
 
+	h.stopSessionSounds(subs)
+
 	if h.demoState != nil && h.demoState.Playback {
 		if err := h.demoState.StopPlayback(); err != nil && subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
@@ -637,6 +640,8 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 	if subs == nil || subs.Client == nil {
 		return
 	}
+
+	h.stopSessionSounds(subs)
 
 	if h.serverActive && subs.Server != nil {
 		if err := h.startLocalServerSession(subs, nil); err != nil {
@@ -761,6 +766,7 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		return
 	}
 
+	h.stopSessionSounds(subs)
 	h.serverActive = false
 	h.clientState = caDisconnected
 	h.signOns = 0
@@ -893,6 +899,13 @@ func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() err
 	}
 
 	return nil
+}
+
+func (h *Host) stopSessionSounds(subs *Subsystems) {
+	if subs == nil || subs.Audio == nil {
+		return
+	}
+	subs.Audio.StopAllSounds(true)
 }
 
 func (h *Host) saveFilePath(name string) (string, error) {

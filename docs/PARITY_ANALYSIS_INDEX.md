@@ -69,6 +69,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 | Demo record/playback forward path | **done** |
 | Key bindings + baseline console UI/completion + aliases | **done** |
 | Local reconnect + loopback connect/disconnect session handling | **done (local slice)** |
+| Local session-transition sound teardown (`disconnect`/`reconnect`/`load`/`map`) | **done (stop-all parity slice)** |
 | High-priority remaining gaps | **integration/fidelity (skybox/order, remote connect transport flow, load UX)** |
 | Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 

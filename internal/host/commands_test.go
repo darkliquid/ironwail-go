@@ -4,6 +4,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -89,6 +91,17 @@ func (c *reconnectHandshakeClient) LocalSignonReply(command string) error {
 
 func (c *reconnectHandshakeClient) LocalSignon() int {
 	return c.signon
+}
+
+type stopAllTrackingAudio struct {
+	calls []bool
+}
+
+func (a *stopAllTrackingAudio) Init() error                                  { return nil }
+func (a *stopAllTrackingAudio) Update(origin, forward, right, up [3]float32) {}
+func (a *stopAllTrackingAudio) Shutdown()                                    {}
+func (a *stopAllTrackingAudio) StopAllSounds(clear bool) {
+	a.calls = append(a.calls, clear)
 }
 
 type kickRecord struct {
@@ -745,10 +758,12 @@ func TestCmdReconnectRestartsLocalHandshake(t *testing.T) {
 	console := &mockConsole{}
 	srv := &reconnectTrackingServer{mockServer: mockServer{active: true}}
 	client := &reconnectHandshakeClient{state: caActive, signon: cl.Signons}
+	audio := &stopAllTrackingAudio{}
 	subs := &Subsystems{
 		Server:  srv,
 		Client:  client,
 		Console: console,
+		Audio:   audio,
 	}
 
 	h.CmdReconnect(subs)
@@ -773,6 +788,12 @@ func TestCmdReconnectRestartsLocalHandshake(t *testing.T) {
 	}
 	if h.ClientState() != caActive {
 		t.Fatalf("host client state = %v, want %v", h.ClientState(), caActive)
+	}
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
 	}
 }
 
@@ -918,12 +939,14 @@ func TestCmdDisconnectStopsPlaybackAndClearsConnectionState(t *testing.T) {
 	console := &mockConsole{}
 	srv := &disconnectTrackingServer{mockServer: mockServer{active: true}}
 	lc := newLocalLoopbackClient()
+	audio := &stopAllTrackingAudio{}
 	lc.inner.State = cl.StateActive
 	lc.inner.Signon = cl.Signons
 	subs := &Subsystems{
 		Server:  srv,
 		Client:  lc,
 		Console: console,
+		Audio:   audio,
 	}
 
 	h.CmdDisconnect(subs)
@@ -951,6 +974,94 @@ func TestCmdDisconnectStopsPlaybackAndClearsConnectionState(t *testing.T) {
 	}
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Disconnected.") {
 		t.Fatalf("console output = %q, want disconnect confirmation", got)
+	}
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+}
+
+func TestCmdMapStopsAllSoundsBeforeStartingSession(t *testing.T) {
+	h := NewHost()
+	audio := &stopAllTrackingAudio{}
+	srv := &reconnectTrackingServer{}
+	client := &reconnectHandshakeClient{}
+	subs := &Subsystems{
+		Files:   &fs.FileSystem{},
+		Server:  srv,
+		Client:  client,
+		Audio:   audio,
+		Console: &mockConsole{},
+	}
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start) failed: %v", err)
+	}
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+}
+
+func TestCmdLoadStopsAllSoundsDuringSessionTransition(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "missingmap",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "saves"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "saves", "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	audio := &stopAllTrackingAudio{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+		Audio:   audio,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("slot1", subs)
+
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
+		t.Fatalf("console output = %q, want load failure text", got)
 	}
 }
 

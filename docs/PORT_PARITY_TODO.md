@@ -273,6 +273,7 @@ Take the already-strong save/load system the rest of the way to C parity.
 
 - [x] save and restore lightstyles
 - [x] enforce save restrictions (`nomonsters`, intermission, dead-player)
+- [x] stop active gameplay sounds on local session transitions (`disconnect`/`reconnect`/`load`/`map`) to mirror the C engine's stop-all behavior
 - align user-visible save/load flow with the C engine where practical
 - make sure menu/UI entry points reach the same save/load system
 
@@ -280,6 +281,7 @@ Take the already-strong save/load system the rest of the way to C parity.
 
 - a saved game restores the same gameplay-relevant state as the C engine
 - unsupported save situations fail the same way the C engine does
+- loading-plaque rendering and broader save-file search UX are still tracked separately as remaining parity work
 
 ### 10. Finish demo recording parity
 
@@ -333,6 +335,7 @@ Close the host-command and UI gaps that keep the port local-only.
 - [~] implement bounded `connect`/`disconnect` parity for local loopback (`demonum=-1`, demo playback stop/reset, `connect local` re-entry into local signon flow)
 - [x] implement local-loopback `reconnect` signon restart behavior
 - [x] implement local host `kick` parity by name or slot with optional message
+- [x] stop active gameplay sounds during local disconnect/reconnect-style session transitions (without implementing full loading-plaque rendering)
 - implement remote transport-backed `connect` flow (currently explicit unsupported path with console messaging)
 - connect the multiplayer menus to real behavior
 

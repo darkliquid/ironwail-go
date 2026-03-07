@@ -31,14 +31,15 @@ D. AUDIO/MUSIC             [████████████████░�
    - System init: DONE
    - Backend (SDL3/Oto): DONE
    - Event dispatch: DONE
+   - Session-transition teardown (`StopAllSounds(true)` on local disconnect/reconnect/load/map paths): DONE
    - Music/BGM: PARTIAL (WAV-backed CD tracks; broader codec parity still missing)
    - Sound effects: DONE
 
 E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░] ~65%
    - Loopback: DONE
    - UDP: DONE
-   - Disconnect command/session teardown: DONE for local loopback architecture
-   - Reconnect: DONE for local loopback signon restart
+   - Disconnect command/session teardown: DONE for local loopback architecture (includes active sound stop-all)
+   - Reconnect: DONE for local loopback signon restart + transition sound teardown
    - Connect: PARTIAL (local `connect local` parity slice done; remote targets explicit unsupported)
    - Kick: DONE for local host command parity (name / # slot / optional message / self-protect)
    - Server commands: 85% (most working)
@@ -76,8 +77,8 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 3. SAVE/LOAD UX parity
    Location: internal/host/commands.go + menu flow
-   Impact: Loading plaque and broader save-file search behavior diverge
-   Fix: Align load UX/search behavior where practical
+   Impact: Loading plaque rendering and broader save-file search behavior diverge (even though transition sound teardown now matches C more closely)
+   Fix: Align load UX/search behavior where practical without regressing local transition/audio parity
    Reference: host_cmd.c:Host_Loadgame_f
 
 4. gogpu runtime parity gap

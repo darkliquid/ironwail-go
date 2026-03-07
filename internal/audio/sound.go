@@ -186,6 +186,14 @@ func (s *System) ClearStaticSounds() {
 }
 
 func (s *System) StopAllSounds(clear bool) {
+	if s.backend != nil {
+		s.backend.Lock()
+		defer s.backend.Unlock()
+	} else if clear && s.dma != nil {
+		s.dma.mu.Lock()
+		defer s.dma.mu.Unlock()
+	}
+
 	s.totalChans = NumAmbients + MaxDynamicChannels
 
 	for i := 0; i < MaxChannels; i++ {

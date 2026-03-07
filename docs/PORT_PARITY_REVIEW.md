@@ -16,7 +16,7 @@ The biggest remaining parity problems are mostly **integration and fidelity gaps
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
 - the input/command layer now uses Quake-style bindings, config persistence, command aliases (`alias`/`unalias`/`unaliasall`), and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
 - the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
-- save/load is much more complete than older notes suggested, and now includes C's `nomonsters` / intermission / dead-player save restrictions; loading-plaque/search behavior still differs
+- save/load is much more complete than older notes suggested, and now includes C's `nomonsters` / intermission / dead-player save restrictions plus session-transition sound teardown; loading-plaque rendering/search behavior still differs
 - demo recording and forward playback are now real runtime features, including connected-state snapshots, disconnect trailers, same-frame stuffed-command execution, pause semantics, and server-time pacing
 
 A useful way to think about the current tree is:
@@ -33,8 +33,8 @@ A useful way to think about the current tree is:
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
 | Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence, and Quake-style alias commands | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
-| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, and C-style `nomonsters`/intermission/dead-player restrictions | broader C loading UX/search behavior is still missing |
-| Networking/multiplayer | loopback server/client and protocol work are present, `connect local` now drives the existing local reconnect/signon flow, `disconnect` now cleanly tears down local session state, `reconnect` re-runs local signon flow, and local-host `kick` supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
+| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, C-style `nomonsters`/intermission/dead-player restrictions, and stop-all sound teardown on local load/map/reconnect-style transitions | broader C loading UX/search behavior is still missing |
+| Networking/multiplayer | loopback server/client and protocol work are present, `connect local` now drives the existing local reconnect/signon flow, `disconnect` now cleanly tears down local session state (including stop-all sounds), `reconnect` re-runs local signon flow, and local-host `kick` supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
 
 ## 1. Runtime baseline and core engine state
 
@@ -71,7 +71,7 @@ The runtime is still biased toward **local loopback play**.
 The original C engine does more here than the Go port currently exposes:
 
 - `host_cmd.c:Host_Connect_f()` stops demo loop/playback if needed, calls `CL_EstablishConnection(name)`, then immediately calls `Host_Reconnect_f()`; Go now mirrors this sequence for local loopback targets and explicit disconnect/reset behavior
-- `host_cmd.c:Host_Reconnect_f()` begins the loading plaque and calls `CL_ClearSignons()` so the client re-runs the full signon process; Go now mirrors the signon reset/restart on the local loopback path but still lacks the loading plaque and wider remote path
+- `host_cmd.c:Host_Reconnect_f()` begins the loading plaque and calls `CL_ClearSignons()` so the client re-runs the full signon process; Go now mirrors the signon reset/restart and stop-all sound teardown on the local loopback path but still lacks the loading plaque and wider remote path
 - `host_cmd.c:Host_Kick_f()` supports kicking either by player name or by `# <slot>`, accepts an optional message, and refuses to kick the caller
 
 ## 2. Rendering parity
@@ -203,7 +203,7 @@ What already works:
 #### Remaining client/runtime divergences
 
 - special intermission / finale / cutscene handling is parsed into client state but not yet turned into full C-style runtime/UI flow
-- remote `connect` flow is still incomplete (Go now prints an explicit unsupported message rather than pretending success), and `reconnect` still lacks the C loading-plaque UX outside the local loopback path
+- remote `connect` flow is still incomplete (Go now prints an explicit unsupported message rather than pretending success), and `reconnect` still lacks the C loading-plaque UX outside the local loopback path even though local transition audio teardown is now in place
 
 ### Exact C behavior still missing or not fully matched
 
@@ -352,7 +352,7 @@ This is one of the biggest places where older status docs understated current pr
 ### What is missing or divergent
 
 - load/save path behavior is simplified to `userDir/saves/<name>.sav`
-- there is no equivalent of the C engine's loading plaque / broader save-file search behavior
+- there is still no equivalent of the C engine's loading-plaque rendering / broader save-file search behavior (despite matching stop-all transition-audio behavior more closely)
 
 ### Exact C behavior still missing or not fully matched
 
@@ -377,7 +377,7 @@ The C load path does more than simple deserialization:
 - restores spawn parms, skill, map, time, lightstyles, globals, and edicts
 - re-enters the connection/signon flow after restoration
 
-Go already restores most of the world/QC state, including lightstyles and the post-load signon re-entry, but it still lacks the loading plaque and broader search/UX behavior.
+Go already restores most of the world/QC state, including lightstyles, transition sound teardown, and the post-load signon re-entry, but it still lacks the loading plaque and broader search/UX behavior.
 
 ## 7. Networking and multiplayer parity
 
@@ -396,7 +396,7 @@ Go already restores most of the world/QC state, including lightstyles and the po
 ### Exact C behavior still missing or not fully matched
 
 - `Host_Connect_f()` establishes the remote connection and then forces a reconnect-style signon restart
-- `Host_Reconnect_f()` begins a loading plaque and clears signons; Go now matches the signon reset/restart on the local path but not the loading plaque
+- `Host_Reconnect_f()` begins a loading plaque and clears signons; Go now matches the signon reset/restart and local transition sound teardown but not the loading plaque
 - `Host_Kick_f()` supports name or slot-number targeting plus an optional kick message (now mirrored on the local host path)
 
 ## 8. Overall parity judgement
