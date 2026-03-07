@@ -149,8 +149,8 @@ func (s *System) StopAllSounds(clear bool) {
 	}
 }
 
-func (s *System) Update(origin, forward, right, up [3]float32) {
-	if !s.started || s.blocked > 0 {
+func (s *System) SetListener(origin, forward, right, up [3]float32) {
+	if !s.started {
 		return
 	}
 
@@ -165,6 +165,16 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 			continue
 		}
 		s.spatialize(ch)
+	}
+}
+
+func (s *System) Update(origin, forward, right, up [3]float32) {
+	if !s.started || s.blocked > 0 {
+		return
+	}
+
+	if s.listener.Origin != origin || s.listener.Forward != forward || s.listener.Right != right || s.listener.Up != up {
+		s.SetListener(origin, forward, right, up)
 	}
 
 	if s.backend != nil {

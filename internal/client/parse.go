@@ -385,9 +385,10 @@ func (p *Parser) parseStopSound(msg *common.SizeBuf) error {
 	if !ok {
 		return fmt.Errorf("svc_stopsound: missing channel")
 	}
-	_ = entity
-	_ = channel
-	// TODO: dispatch to audio system to stop sound
+	p.Client.StopSoundEvents = append(p.Client.StopSoundEvents, StopSoundEvent{
+		Entity:  int(entity),
+		Channel: int(channel),
+	})
 	return nil
 }
 

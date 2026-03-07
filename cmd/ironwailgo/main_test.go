@@ -1,8 +1,10 @@
 package main
 
 import (
+	"math"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/audio"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
@@ -47,5 +49,70 @@ func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 
 	if got := gameClient.PredictedOrigin; got[0] <= 100 {
 		t.Fatalf("expected PredictPlayers to advance predicted origin, got %#v", got)
+	}
+}
+
+func TestRuntimeViewStateUsesPredictedClientView(t *testing.T) {
+	originalClient := gameClient
+	originalServer := gameServer
+	originalRenderer := gameRenderer
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameServer = originalServer
+		gameRenderer = originalRenderer
+	})
+
+	gameServer = nil
+	gameRenderer = nil
+	gameClient = cl.NewClient()
+	gameClient.PredictedOrigin = [3]float32{64, 32, 16}
+	gameClient.ViewAngles = [3]float32{10, 20, 0}
+
+	origin, angles := runtimeViewState()
+	if origin != gameClient.PredictedOrigin {
+		t.Fatalf("runtimeViewState origin = %v, want %v", origin, gameClient.PredictedOrigin)
+	}
+	if angles != gameClient.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want %v", angles, gameClient.ViewAngles)
+	}
+}
+
+func TestRuntimeAngleVectorsYawNinety(t *testing.T) {
+	forward, right, up := runtimeAngleVectors([3]float32{0, 90, 0})
+	if math.Abs(float64(forward[0])) > 0.0001 || math.Abs(float64(forward[1]-1)) > 0.0001 || math.Abs(float64(forward[2])) > 0.0001 {
+		t.Fatalf("forward = %v, want [0 1 0]", forward)
+	}
+	if math.Abs(float64(right[0]-1)) > 0.0001 || math.Abs(float64(right[1])) > 0.0001 || math.Abs(float64(right[2])) > 0.0001 {
+		t.Fatalf("right = %v, want [1 0 0]", right)
+	}
+	if math.Abs(float64(up[0])) > 0.0001 || math.Abs(float64(up[1])) > 0.0001 || math.Abs(float64(up[2]-1)) > 0.0001 {
+		t.Fatalf("up = %v, want [0 0 1]", up)
+	}
+}
+
+func TestRefreshRuntimeSoundCacheResetsOnPrecacheChange(t *testing.T) {
+	originalClient := gameClient
+	originalMap := soundSFXByIndex
+	originalKey := soundPrecacheKey
+	t.Cleanup(func() {
+		gameClient = originalClient
+		soundSFXByIndex = originalMap
+		soundPrecacheKey = originalKey
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.SoundPrecache = []string{"weapons/rocket1.wav"}
+	soundPrecacheKey = "weapons/rocket1.wav"
+	soundSFXByIndex = map[int]*audio.SFX{1: nil}
+
+	refreshRuntimeSoundCache()
+	if got := len(soundSFXByIndex); got != 1 {
+		t.Fatalf("same precache unexpectedly reset cache; len = %d, want 1", got)
+	}
+
+	gameClient.SoundPrecache = []string{"weapons/shotgn2.wav"}
+	refreshRuntimeSoundCache()
+	if got := len(soundSFXByIndex); got != 0 {
+		t.Fatalf("changed precache should reset cache; len = %d, want 0", got)
 	}
 }

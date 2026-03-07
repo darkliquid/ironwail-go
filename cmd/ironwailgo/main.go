@@ -30,6 +30,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
+	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
 const (
@@ -54,9 +55,12 @@ var (
 	gameInput *input.System
 	gameDraw  *draw.Manager
 	gameHUD   *hud.HUD
+	gameAudio *audio.AudioAdapter
 
 	gameMouseGrabbed bool
 	aliasModelCache  map[string]*model.Model
+	soundSFXByIndex  map[int]*audio.SFX
+	soundPrecacheKey string
 )
 
 const (
@@ -250,6 +254,8 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Wire subsystems together through Host.Init
 	audioAdapter := audio.NewAudioAdapter(audio.NewSystem())
+	gameAudio = audioAdapter
+	resetRuntimeSoundState()
 	gameSubs = &host.Subsystems{
 		Files:    fileSys,
 		Commands: globalCommandBuffer{},
@@ -513,71 +519,7 @@ func main() {
 			// Update camera from client state each frame
 			// This is the critical rendering path for M4: view setup
 			if gameRenderer != nil {
-				// Fallback: position camera above world center, looking down
-				// In Quake coords: origin at (X, Y, Z) with angles (pitch, yaw, roll)
-				// Positive pitch = look down
-				origin := [3]float32{0, 0, 128} // High above origin
-				angles := [3]float32{45, 0, 0}  // Look down 45 degrees
-				fallbackFromPlayerStart := false
-				fallbackFromWorldBounds := false
-				if gameServer != nil {
-					for _, ent := range gameServer.Edicts {
-						if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
-							continue
-						}
-
-						className := gameServer.GetString(ent.Vars.ClassName)
-						if className != "info_player_start" && className != "info_player_deathmatch" {
-							continue
-						}
-
-						origin = ent.Vars.Origin
-						origin[2] += 22
-						angles = ent.Vars.Angles
-						fallbackFromPlayerStart = true
-						break
-					}
-				}
-				if !fallbackFromPlayerStart {
-					if minBounds, maxBounds, ok := gameRenderer.GetWorldBounds(); ok {
-						centerX := (minBounds[0] + maxBounds[0]) * 0.5
-						centerY := (minBounds[1] + maxBounds[1]) * 0.5
-						centerZ := (minBounds[2] + maxBounds[2]) * 0.5
-
-						extentX := maxBounds[0] - minBounds[0]
-						extentY := maxBounds[1] - minBounds[1]
-						extentZ := maxBounds[2] - minBounds[2]
-
-						radius := extentX
-						if extentY > radius {
-							radius = extentY
-						}
-						if extentZ > radius {
-							radius = extentZ
-						}
-						if radius < 256 {
-							radius = 256
-						}
-
-						origin = [3]float32{centerX, centerY + radius, centerZ + radius*0.5}
-						angles = [3]float32{26.565052, 0, 0}
-						fallbackFromWorldBounds = true
-					}
-				}
-				if gameClient != nil {
-					clientOrigin := gameClient.PredictedOrigin
-					clientAngles := gameClient.ViewAngles
-					// Only use client values if they're non-zero (player has spawned)
-					if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
-						origin = clientOrigin
-						angles = clientAngles
-					} else {
-						slog.Debug("Client at origin, using fallback camera", "origin", origin, "angles", angles, "from_world_bounds", fallbackFromWorldBounds, "from_player_start", fallbackFromPlayerStart)
-					}
-				} else {
-					slog.Debug("No client, using fallback camera", "origin", origin, "angles", angles, "from_world_bounds", fallbackFromWorldBounds, "from_player_start", fallbackFromPlayerStart)
-				}
-
+				origin, angles := runtimeViewState()
 				// Create camera state from client prediction (or fallback values)
 				camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
 
@@ -1009,12 +951,170 @@ func headlessGameLoop() {
 	}
 }
 
+func runtimeViewState() (origin, angles [3]float32) {
+	origin = [3]float32{0, 0, 128}
+	angles = [3]float32{45, 0, 0}
+	foundPlayerStart := false
+
+	if gameServer != nil {
+		for _, ent := range gameServer.Edicts {
+			if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
+				continue
+			}
+			className := gameServer.GetString(ent.Vars.ClassName)
+			if className != "info_player_start" && className != "info_player_deathmatch" {
+				continue
+			}
+			origin = ent.Vars.Origin
+			origin[2] += 22
+			angles = ent.Vars.Angles
+			foundPlayerStart = true
+			break
+		}
+	}
+
+	if !foundPlayerStart && gameRenderer != nil {
+		if minBounds, maxBounds, ok := gameRenderer.GetWorldBounds(); ok {
+			centerX := (minBounds[0] + maxBounds[0]) * 0.5
+			centerY := (minBounds[1] + maxBounds[1]) * 0.5
+			centerZ := (minBounds[2] + maxBounds[2]) * 0.5
+
+			extentX := maxBounds[0] - minBounds[0]
+			extentY := maxBounds[1] - minBounds[1]
+			extentZ := maxBounds[2] - minBounds[2]
+
+			radius := extentX
+			if extentY > radius {
+				radius = extentY
+			}
+			if extentZ > radius {
+				radius = extentZ
+			}
+			if radius < 256 {
+				radius = 256
+			}
+
+			origin = [3]float32{centerX, centerY + radius, centerZ + radius*0.5}
+			angles = [3]float32{26.565052, 0, 0}
+		}
+	}
+
+	if gameClient != nil {
+		clientOrigin := gameClient.PredictedOrigin
+		if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+			return clientOrigin, gameClient.ViewAngles
+		}
+	}
+
+	return origin, angles
+}
+
+func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
+	forwardVec, rightVec, upVec := qtypes.AngleVectors(qtypes.Vec3{
+		X: angles[0],
+		Y: angles[1],
+		Z: angles[2],
+	})
+	return [3]float32{forwardVec.X, forwardVec.Y, forwardVec.Z},
+		[3]float32{rightVec.X, rightVec.Y, rightVec.Z},
+		[3]float32{upVec.X, upVec.Y, upVec.Z}
+}
+
+func resetRuntimeSoundState() {
+	soundSFXByIndex = nil
+	soundPrecacheKey = ""
+}
+
+func refreshRuntimeSoundCache() {
+	if gameClient == nil {
+		resetRuntimeSoundState()
+		return
+	}
+	key := strings.Join(gameClient.SoundPrecache, "\x00")
+	if key == soundPrecacheKey {
+		return
+	}
+	soundPrecacheKey = key
+	soundSFXByIndex = make(map[int]*audio.SFX)
+}
+
+func resolveRuntimeSFX(soundIndex int) *audio.SFX {
+	if gameAudio == nil || gameClient == nil || gameSubs == nil || gameSubs.Files == nil || soundIndex <= 0 {
+		return nil
+	}
+	refreshRuntimeSoundCache()
+	if sfx, ok := soundSFXByIndex[soundIndex]; ok {
+		return sfx
+	}
+	precacheIndex := soundIndex - 1
+	if precacheIndex < 0 || precacheIndex >= len(gameClient.SoundPrecache) {
+		soundSFXByIndex[soundIndex] = nil
+		return nil
+	}
+	soundName := gameClient.SoundPrecache[precacheIndex]
+	if soundName == "" {
+		soundSFXByIndex[soundIndex] = nil
+		return nil
+	}
+	sfx := gameAudio.PrecacheSound(soundName, func() ([]byte, error) {
+		return gameSubs.Files.LoadFile("sound/" + soundName)
+	})
+	soundSFXByIndex[soundIndex] = sfx
+	return sfx
+}
+
+func processRuntimeAudioEvents(viewOrigin [3]float32) {
+	if gameClient == nil {
+		return
+	}
+	soundEvents := gameClient.ConsumeSoundEvents()
+	stopEvents := gameClient.ConsumeStopSoundEvents()
+	if gameAudio == nil {
+		return
+	}
+	for _, stopEvent := range stopEvents {
+		gameAudio.StopSound(stopEvent.Entity, stopEvent.Channel)
+	}
+	for _, soundEvent := range soundEvents {
+		sfx := resolveRuntimeSFX(soundEvent.SoundIndex)
+		if sfx == nil {
+			continue
+		}
+		origin := soundEvent.Origin
+		entNum := soundEvent.Entity
+		entChannel := soundEvent.Channel
+		attenuation := soundEvent.Attenuation
+		if soundEvent.Local {
+			origin = viewOrigin
+			attenuation = 0
+			if gameClient.ViewEntity != 0 {
+				entNum = gameClient.ViewEntity
+			}
+		}
+		gameAudio.StartSound(
+			entNum,
+			entChannel,
+			sfx,
+			origin,
+			float32(soundEvent.Volume)/255.0,
+			attenuation,
+		)
+	}
+}
+
 func runRuntimeFrame(dt float64, cb gameCallbacks) {
 	if gameHost != nil {
 		gameHost.Frame(dt, cb)
 	}
 	if gameClient != nil {
 		gameClient.PredictPlayers(float32(dt))
+	}
+	viewOrigin, viewAngles := runtimeViewState()
+	if gameAudio != nil {
+		forward, right, up := runtimeAngleVectors(viewAngles)
+		gameAudio.SetListener(viewOrigin, forward, right, up)
+		processRuntimeAudioEvents(viewOrigin)
+		gameAudio.Update(viewOrigin, forward, right, up)
 	}
 }
 

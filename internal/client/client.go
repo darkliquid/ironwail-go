@@ -63,6 +63,11 @@ type SoundEvent struct {
 	Local       bool
 }
 
+type StopSoundEvent struct {
+	Entity  int
+	Channel int
+}
+
 type ParticleEvent struct {
 	Origin [3]float32
 	Dir    [3]float32
@@ -136,6 +141,7 @@ type Client struct {
 	StaticEntities  []inet.EntityState
 	StaticSounds    []StaticSound
 	SoundEvents     []SoundEvent
+	StopSoundEvents []StopSoundEvent
 	ParticleEvents  []ParticleEvent
 	TempEntities    []TempEntityEvent
 	DamageTaken     int
@@ -265,6 +271,7 @@ func (c *Client) ClearState() {
 	c.FogColor = [3]byte{}
 	c.FogTime = 0
 	c.SoundEvents = nil
+	c.StopSoundEvents = nil
 	c.ParticleEvents = nil
 	c.TempEntities = nil
 	c.StaticEntities = nil
@@ -309,6 +316,24 @@ func (c *Client) ConsumeParticleEvents() []ParticleEvent {
 	}
 	events := c.ParticleEvents
 	c.ParticleEvents = nil
+	return events
+}
+
+func (c *Client) ConsumeSoundEvents() []SoundEvent {
+	if c == nil || len(c.SoundEvents) == 0 {
+		return nil
+	}
+	events := c.SoundEvents
+	c.SoundEvents = nil
+	return events
+}
+
+func (c *Client) ConsumeStopSoundEvents() []StopSoundEvent {
+	if c == nil || len(c.StopSoundEvents) == 0 {
+		return nil
+	}
+	events := c.StopSoundEvents
+	c.StopSoundEvents = nil
 	return events
 }
 

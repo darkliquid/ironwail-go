@@ -45,3 +45,31 @@ func (a *AudioAdapter) Shutdown() {
 		a.sys.Shutdown()
 	}
 }
+
+func (a *AudioAdapter) PrecacheSound(name string, loader func() ([]byte, error)) *SFX {
+	if a == nil || a.sys == nil {
+		return nil
+	}
+	return a.sys.PrecacheSound(name, loader)
+}
+
+func (a *AudioAdapter) StartSound(entNum, entChannel int, sfx *SFX, origin [3]float32, vol, attenuation float32) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.StartSound(entNum, entChannel, sfx, origin, vol, attenuation)
+}
+
+func (a *AudioAdapter) SetListener(origin, forward, right, up [3]float32) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.SetListener(origin, forward, right, up)
+}
+
+func (a *AudioAdapter) StopSound(entNum, entChannel int) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.StopSound(entNum, entChannel)
+}

@@ -481,18 +481,22 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 
 func TestConsumeTransientEffectsClearsBuffers(t *testing.T) {
 	c := NewClient()
+	c.SoundEvents = []SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
+	c.StopSoundEvents = []StopSoundEvent{{Entity: 4, Channel: 5}}
 	c.ParticleEvents = []ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
 	c.TempEntities = []TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}}}
 
+	sounds := c.ConsumeSoundEvents()
+	stops := c.ConsumeStopSoundEvents()
 	particles := c.ConsumeParticleEvents()
 	temps := c.ConsumeTempEntities()
-	if len(particles) != 1 || len(temps) != 1 {
-		t.Fatalf("consumed = %d particles, %d temps; want 1,1", len(particles), len(temps))
+	if len(sounds) != 1 || len(stops) != 1 || len(particles) != 1 || len(temps) != 1 {
+		t.Fatalf("consumed = %d sounds, %d stops, %d particles, %d temps; want 1,1,1,1", len(sounds), len(stops), len(particles), len(temps))
 	}
-	if len(c.ParticleEvents) != 0 || len(c.TempEntities) != 0 {
-		t.Fatalf("client buffers not cleared: %d particles %d temps", len(c.ParticleEvents), len(c.TempEntities))
+	if len(c.SoundEvents) != 0 || len(c.StopSoundEvents) != 0 || len(c.ParticleEvents) != 0 || len(c.TempEntities) != 0 {
+		t.Fatalf("client buffers not cleared: %d sounds %d stops %d particles %d temps", len(c.SoundEvents), len(c.StopSoundEvents), len(c.ParticleEvents), len(c.TempEntities))
 	}
-	if got := len(c.ConsumeParticleEvents()) + len(c.ConsumeTempEntities()); got != 0 {
+	if got := len(c.ConsumeSoundEvents()) + len(c.ConsumeStopSoundEvents()) + len(c.ConsumeParticleEvents()) + len(c.ConsumeTempEntities()); got != 0 {
 		t.Fatalf("second consume returned %d events, want 0", got)
 	}
 }
@@ -587,7 +591,12 @@ func TestSVCStopSound(t *testing.T) {
 	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
 		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
-	// StopSound doesn't modify client state, just ensures it doesn't panic
+	if got := len(c.StopSoundEvents); got != 1 {
+		t.Fatalf("stop sound events len = %d, want 1", got)
+	}
+	if got := c.StopSoundEvents[0]; got.Entity != 10 || got.Channel != 3 {
+		t.Fatalf("stop sound event = %+v", got)
+	}
 }
 
 func TestSVCKillMonster(t *testing.T) {
