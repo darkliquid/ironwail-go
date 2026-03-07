@@ -282,6 +282,92 @@ func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
 	}
 }
 
+func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
+	originalHost := gameHost
+	originalSubs := gameSubs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameSubs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	writeDemoTimeFrame := func(seconds float32) []byte {
+		var frame bytes.Buffer
+		frame.WriteByte(byte(inet.SVCTime))
+		if err := binary.Write(&frame, binary.LittleEndian, seconds); err != nil {
+			t.Fatalf("binary.Write(time): %v", err)
+		}
+		frame.WriteByte(0xff)
+		return frame.Bytes()
+	}
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("timed", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.1), [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame first: %v", err)
+	}
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.2), [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame second: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	gameHost = host.NewHost()
+	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	gameHost.CmdPlaydemo("timed", gameSubs)
+
+	clientState := host.LoopbackClientState(gameSubs)
+	if clientState == nil {
+		t.Fatal("expected loopback client state")
+	}
+
+	demo := gameHost.DemoState()
+	if demo == nil || !demo.Playback {
+		t.Fatal("expected active demo playback")
+	}
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame first: %v", err)
+	}
+	if demo.FrameIndex != 1 {
+		t.Fatalf("frame index after first host frame = %d, want 1", demo.FrameIndex)
+	}
+
+	clientState.State = cl.StateActive
+	clientState.Signon = cl.Signons
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame second: %v", err)
+	}
+	if demo.FrameIndex != 1 {
+		t.Fatalf("frame index before recorded time elapses = %d, want 1", demo.FrameIndex)
+	}
+
+	for i := 0; i < 6; i++ {
+		if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+			t.Fatalf("Host.Frame catch-up %d: %v", i, err)
+		}
+	}
+	if demo.FrameIndex != 2 {
+		t.Fatalf("frame index after recorded time elapses = %d, want 2", demo.FrameIndex)
+	}
+}
+
 func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 	originalHost := gameHost
 	originalSubs := gameSubs

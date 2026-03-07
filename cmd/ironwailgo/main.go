@@ -388,6 +388,13 @@ func (gameCallbacks) ProcessClient() {
 		if !demo.ShouldReadFrame(gameHost.FrameCount()) {
 			return
 		}
+		clientState := host.LoopbackClientState(gameSubs)
+		if clientState != nil {
+			clientState.AdvanceTime(demo, gameHost.FrameTime())
+			if !shouldReadNextDemoMessage(clientState, demo) {
+				return
+			}
+		}
 
 		// Try to read next demo frame
 		msgData, viewAngles, err := demo.ReadDemoFrame()
@@ -429,7 +436,6 @@ func (gameCallbacks) ProcessClient() {
 
 		// Successfully read demo frame - parse the message and apply view angles
 		// Get the actual client state to access parser
-		clientState := host.LoopbackClientState(gameSubs)
 		if clientState != nil {
 			applyDemoPlaybackViewAngles(clientState, viewAngles)
 
@@ -440,8 +446,6 @@ func (gameCallbacks) ProcessClient() {
 			}
 			host.DispatchLoopbackStuffText(gameSubs)
 
-			// Advance client time based on demo speed
-			clientState.AdvanceTime(demo, gameHost.FrameTime())
 		}
 
 		// Don't run normal networked gameplay during demo playback
@@ -1467,6 +1471,22 @@ func applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) 
 	clientState.MViewAngles[1] = clientState.MViewAngles[0]
 	clientState.MViewAngles[0] = viewAngles
 	clientState.ViewAngles = viewAngles
+}
+
+func shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool {
+	if clientState == nil || demo == nil {
+		return true
+	}
+	if clientState.Signon < cl.Signons {
+		return true
+	}
+	if demo.Speed > 0 {
+		return clientState.Time > clientState.MTime[0]
+	}
+	if demo.Speed < 0 {
+		return clientState.Time < clientState.MTime[0]
+	}
+	return false
 }
 
 func recordRuntimeDemoFrame() {
