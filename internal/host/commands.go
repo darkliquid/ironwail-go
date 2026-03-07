@@ -75,6 +75,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdConnect(args[0], subs)
 		}
 	}, "Connect to a server")
+	cmdsys.AddCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
 	cmdsys.AddCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
 	cmdsys.AddCommand("name", func(args []string) {
 		if len(args) > 0 {
@@ -520,11 +521,17 @@ func (h *Host) ShutdownServer(subs *Subsystems) {
 	h.serverActive = false
 	h.serverPaused = false
 
-	if subs.Server != nil {
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
+
+	if subs != nil && subs.Server != nil {
 		subs.Server.Shutdown()
 	}
 
-	if subs.Client != nil {
+	if subs != nil && subs.Client != nil {
 	}
 }
 
@@ -548,7 +555,73 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 }
 
 func (h *Host) CmdConnect(address string, subs *Subsystems) {
-	// TODO: Implement connect
+	h.SetDemoNum(-1)
+	address = strings.TrimSpace(address)
+	if address == "" {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: connect <server>\n")
+		}
+		return
+	}
+
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
+
+	isLocal := strings.EqualFold(address, "local")
+	if isLocal && h.serverActive && subs != nil && subs.Server != nil {
+		h.disconnectCurrentSession(subs, false)
+		h.CmdReconnect(subs)
+		return
+	}
+
+	h.disconnectCurrentSession(subs, true)
+
+	if isLocal {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("No local server is active.\n")
+		}
+		return
+	}
+
+	if subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("connect %q: remote multiplayer connect is not implemented yet.\n", address))
+	}
+}
+
+func (h *Host) CmdDisconnect(subs *Subsystems) {
+	h.disconnectCurrentSession(subs, true)
+	if subs != nil && subs.Console != nil {
+		subs.Console.Print("Disconnected.\n")
+	}
+}
+
+func (h *Host) disconnectCurrentSession(subs *Subsystems, stopServer bool) {
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
+
+	if h.demoState != nil && h.demoState.Playback {
+		if err := h.demoState.StopPlayback(); err != nil && subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
+		}
+	}
+
+	if stopServer && h.serverActive {
+		h.ShutdownServer(subs)
+	}
+
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+		loopbackClient.ClearState()
+		loopbackClient.State = cl.StateDisconnected
+	}
+
+	h.signOns = 0
+	h.clientState = caDisconnected
 }
 
 func (h *Host) CmdReconnect(subs *Subsystems) {

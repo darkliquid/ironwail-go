@@ -27,6 +27,16 @@ func (s *reconnectTrackingServer) ConnectClient(clientNum int) {
 	s.connectCalls++
 }
 
+type disconnectTrackingServer struct {
+	mockServer
+	shutdownCalls int
+}
+
+func (s *disconnectTrackingServer) Shutdown() {
+	s.shutdownCalls++
+	s.mockServer.Shutdown()
+}
+
 type reconnectHandshakeClient struct {
 	state ClientState
 
@@ -763,6 +773,184 @@ func TestCmdReconnectRestartsLocalHandshake(t *testing.T) {
 	}
 	if h.ClientState() != caActive {
 		t.Fatalf("host client state = %v, want %v", h.ClientState(), caActive)
+	}
+}
+
+func TestCmdConnectLocalRestartsLocalHandshakeAndStopsDemoPlayback(t *testing.T) {
+	h := NewHost()
+	h.SetDemoNum(2)
+	h.demoState = &cl.DemoState{Playback: true}
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	srv := &reconnectTrackingServer{mockServer: mockServer{active: true}}
+	client := &reconnectHandshakeClient{state: caActive, signon: cl.Signons}
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  client,
+		Console: console,
+	}
+
+	h.CmdConnect("local", subs)
+
+	if got := h.DemoNum(); got != -1 {
+		t.Fatalf("demoNum = %d, want -1", got)
+	}
+	if h.demoState.Playback {
+		t.Fatal("demo playback still active after connect local")
+	}
+	if srv.connectCalls != 1 {
+		t.Fatalf("ConnectClient calls = %d, want 1", srv.connectCalls)
+	}
+	if client.serverInfoCalls != 1 {
+		t.Fatalf("LocalServerInfo calls = %d, want 1", client.serverInfoCalls)
+	}
+	if want := []string{"prespawn", "spawn", "begin"}; !reflect.DeepEqual(client.signonReplies, want) {
+		t.Fatalf("signon replies = %v, want %v", client.signonReplies, want)
+	}
+	if client.state != caActive {
+		t.Fatalf("client state = %v, want %v", client.state, caActive)
+	}
+	if h.ClientState() != caActive {
+		t.Fatalf("host client state = %v, want %v", h.ClientState(), caActive)
+	}
+	if h.SignOns() != cl.Signons {
+		t.Fatalf("host signons = %d, want %d", h.SignOns(), cl.Signons)
+	}
+}
+
+func TestCmdConnectRemoteUnsupportedDisconnectsCurrentSession(t *testing.T) {
+	h := NewHost()
+	h.SetDemoNum(3)
+	h.demoState = &cl.DemoState{Playback: true}
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	srv := &disconnectTrackingServer{mockServer: mockServer{active: true}}
+	lc := newLocalLoopbackClient()
+	lc.inner.State = cl.StateActive
+	lc.inner.Signon = cl.Signons
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  lc,
+		Console: console,
+	}
+
+	h.CmdConnect("example.com:26000", subs)
+
+	if got := h.DemoNum(); got != -1 {
+		t.Fatalf("demoNum = %d, want -1", got)
+	}
+	if h.demoState.Playback {
+		t.Fatal("demo playback still active after remote connect attempt")
+	}
+	if srv.shutdownCalls != 1 {
+		t.Fatalf("Shutdown calls = %d, want 1", srv.shutdownCalls)
+	}
+	if h.ServerActive() {
+		t.Fatal("serverActive = true, want false")
+	}
+	if h.ClientState() != caDisconnected {
+		t.Fatalf("client state = %v, want %v", h.ClientState(), caDisconnected)
+	}
+	if h.SignOns() != 0 {
+		t.Fatalf("host signons = %d, want 0", h.SignOns())
+	}
+	if lc.inner.State != cl.StateDisconnected {
+		t.Fatalf("loopback state = %v, want disconnected", lc.inner.State)
+	}
+	if lc.inner.Signon != 0 {
+		t.Fatalf("loopback signon = %d, want 0", lc.inner.Signon)
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "remote multiplayer connect is not implemented yet") {
+		t.Fatalf("console output = %q, want unsupported remote connect message", got)
+	}
+}
+
+func TestCmdConnectLocalWithoutServerPrintsErrorAndDisconnects(t *testing.T) {
+	h := NewHost()
+	h.SetDemoNum(4)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	lc := newLocalLoopbackClient()
+	lc.inner.State = cl.StateActive
+	lc.inner.Signon = cl.Signons
+	subs := &Subsystems{
+		Client:  lc,
+		Console: console,
+	}
+
+	h.CmdConnect("local", subs)
+
+	if got := h.DemoNum(); got != -1 {
+		t.Fatalf("demoNum = %d, want -1", got)
+	}
+	if h.ClientState() != caDisconnected {
+		t.Fatalf("client state = %v, want %v", h.ClientState(), caDisconnected)
+	}
+	if h.SignOns() != 0 {
+		t.Fatalf("host signons = %d, want 0", h.SignOns())
+	}
+	if lc.inner.State != cl.StateDisconnected {
+		t.Fatalf("loopback state = %v, want disconnected", lc.inner.State)
+	}
+	if lc.inner.Signon != 0 {
+		t.Fatalf("loopback signon = %d, want 0", lc.inner.Signon)
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "No local server is active.") {
+		t.Fatalf("console output = %q, want missing-local-server message", got)
+	}
+}
+
+func TestCmdDisconnectStopsPlaybackAndClearsConnectionState(t *testing.T) {
+	h := NewHost()
+	h.demoState = &cl.DemoState{Playback: true}
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	srv := &disconnectTrackingServer{mockServer: mockServer{active: true}}
+	lc := newLocalLoopbackClient()
+	lc.inner.State = cl.StateActive
+	lc.inner.Signon = cl.Signons
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  lc,
+		Console: console,
+	}
+
+	h.CmdDisconnect(subs)
+
+	if h.demoState.Playback {
+		t.Fatal("demo playback still active after disconnect")
+	}
+	if srv.shutdownCalls != 1 {
+		t.Fatalf("Shutdown calls = %d, want 1", srv.shutdownCalls)
+	}
+	if h.ServerActive() {
+		t.Fatal("serverActive = true, want false")
+	}
+	if h.ClientState() != caDisconnected {
+		t.Fatalf("client state = %v, want %v", h.ClientState(), caDisconnected)
+	}
+	if h.SignOns() != 0 {
+		t.Fatalf("host signons = %d, want 0", h.SignOns())
+	}
+	if lc.inner.State != cl.StateDisconnected {
+		t.Fatalf("loopback state = %v, want disconnected", lc.inner.State)
+	}
+	if lc.inner.Signon != 0 {
+		t.Fatalf("loopback signon = %d, want 0", lc.inner.Signon)
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Disconnected.") {
+		t.Fatalf("console output = %q, want disconnect confirmation", got)
 	}
 }
 

@@ -330,9 +330,10 @@ Close the host-command and UI gaps that keep the port local-only.
 
 **Work**
 
-- implement `connect`
+- [~] implement bounded `connect`/`disconnect` parity for local loopback (`demonum=-1`, demo playback stop/reset, `connect local` re-entry into local signon flow)
 - [x] implement local-loopback `reconnect` signon restart behavior
 - [x] implement local host `kick` parity by name or slot with optional message
+- implement remote transport-backed `connect` flow (currently explicit unsupported path with console messaging)
 - connect the multiplayer menus to real behavior
 
 **Done when**
@@ -370,4 +371,4 @@ The port should not be considered at parity until all of the following are true 
 - sound effects, static sounds, stop-sound handling, and music all work
 - save/load restores gameplay state accurately, including lightstyles
 - demo recording and playback both behave like the C engine
-- remote `connect`/`reconnect` flow and multiplayer menu control behave like the C engine
+- remote `connect`/`reconnect` flow and multiplayer menu control behave like the C engine (local loopback `connect`/`disconnect` parity slices alone are not sufficient)

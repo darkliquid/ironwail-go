@@ -68,8 +68,8 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 | Save restriction parity (`nomonsters`/intermission/dead-player) | **done** |
 | Demo record/playback forward path | **done** |
 | Key bindings + baseline console UI/completion + aliases | **done** |
-| Local reconnect signon restart | **done** |
-| High-priority remaining gaps | **integration/fidelity (skybox/order, remote connect flow, load UX)** |
+| Local reconnect + loopback connect/disconnect session handling | **done (local slice)** |
+| High-priority remaining gaps | **integration/fidelity (skybox/order, remote connect transport flow, load UX)** |
 | Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 
 ---
@@ -77,7 +77,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 ## Tier 1 Critical Blockers (Fix These First)
 
 1. **Skybox + pass-order fidelity** → visual sequencing still diverges from C
-2. **Connect parity** → remote multiplayer workflow remains incomplete after landing local reconnect and local kick parity
+2. **Connect parity** → remote multiplayer workflow remains incomplete after landing local reconnect + local connect/disconnect + local kick parity slices
 3. **Save/load UX parity** → loading plaque and broader save-file search behavior still differ
 4. **gogpu backend catch-up** → parity baseline remains OpenGL runtime path
 5. **Prediction/physics fidelity** → advanced movement behavior still differs

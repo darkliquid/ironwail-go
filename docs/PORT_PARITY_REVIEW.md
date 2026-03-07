@@ -27,14 +27,14 @@ A useful way to think about the current tree is:
 
 | Area | What is already implemented | Main missing / divergent behavior |
 | --- | --- | --- |
-| Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup | remote connection flow is still stubbed |
+| Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local `connect`/`disconnect` session transitions | remote connection flow is still stubbed |
 | OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, live fog | skybox consumption and exact render-pass ordering still differ from C |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
 | Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence, and Quake-style alias commands | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
 | Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, and C-style `nomonsters`/intermission/dead-player restrictions | broader C loading UX/search behavior is still missing |
-| Networking/multiplayer | loopback server/client and protocol work are present, `reconnect` now re-runs the local signon flow, and local-host `kick` now supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
+| Networking/multiplayer | loopback server/client and protocol work are present, `connect local` now drives the existing local reconnect/signon flow, `disconnect` now cleanly tears down local session state, `reconnect` re-runs local signon flow, and local-host `kick` supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
 
 ## 1. Runtime baseline and core engine state
 
@@ -62,7 +62,7 @@ What already works:
 
 The runtime is still biased toward **local loopback play**.
 
-- `Host.CmdConnect()` is still a TODO stub in `internal/host/commands.go`
+- `Host.CmdConnect()` now handles local-loopback parity slices (`demonum=-1`, demo-playback stop/reset, `connect local` handoff) and emits explicit unsupported messaging for remote targets
 - `Host.CmdKick()` now supports local name/slot targeting, optional reasons, and self-kick protection
 - parity should currently be judged on the local/OpenGL path, not on remote multiplayer or the gogpu path
 
@@ -70,7 +70,7 @@ The runtime is still biased toward **local loopback play**.
 
 The original C engine does more here than the Go port currently exposes:
 
-- `host_cmd.c:Host_Connect_f()` stops demo loop/playback if needed, calls `CL_EstablishConnection(name)`, then immediately calls `Host_Reconnect_f()`
+- `host_cmd.c:Host_Connect_f()` stops demo loop/playback if needed, calls `CL_EstablishConnection(name)`, then immediately calls `Host_Reconnect_f()`; Go now mirrors this sequence for local loopback targets and explicit disconnect/reset behavior
 - `host_cmd.c:Host_Reconnect_f()` begins the loading plaque and calls `CL_ClearSignons()` so the client re-runs the full signon process; Go now mirrors the signon reset/restart on the local loopback path but still lacks the loading plaque and wider remote path
 - `host_cmd.c:Host_Kick_f()` supports kicking either by player name or by `# <slot>`, accepts an optional message, and refuses to kick the caller
 
@@ -203,7 +203,7 @@ What already works:
 #### Remaining client/runtime divergences
 
 - special intermission / finale / cutscene handling is parsed into client state but not yet turned into full C-style runtime/UI flow
-- remote `connect` flow is still incomplete, and `reconnect` still lacks the C loading-plaque UX outside the local loopback path
+- remote `connect` flow is still incomplete (Go now prints an explicit unsupported message rather than pretending success), and `reconnect` still lacks the C loading-plaque UX outside the local loopback path
 
 ### Exact C behavior still missing or not fully matched
 
