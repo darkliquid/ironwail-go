@@ -11,6 +11,7 @@ import (
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 func TestCmdChangelevel(t *testing.T) {
@@ -230,6 +231,64 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "invalid save name") {
 		t.Fatalf("console output = %q, want invalid save name", got)
+	}
+}
+
+func TestCmdSaveRejectsIntermission(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	lc := newLocalLoopbackClient()
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  lc,
+		Console: console,
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.SetServerActive(true)
+	srv.Active = true
+	lc.inner.Intermission = 1
+
+	h.CmdSave("blocked", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Can't save in intermission.") {
+		t.Fatalf("console output = %q, want intermission rejection", got)
+	}
+	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "blocked.sav")); !os.IsNotExist(err) {
+		t.Fatalf("save file should not exist, stat err = %v", err)
+	}
+}
+
+func TestCmdSaveRejectsDeadPlayer(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.SetServerActive(true)
+	srv.Active = true
+	srv.Static.Clients[0].Active = true
+	srv.Static.Clients[0].Edict.Vars.Health = 0
+
+	h.CmdSave("dead", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Can't savegame with a dead player") {
+		t.Fatalf("console output = %q, want dead-player rejection", got)
+	}
+	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "dead.sav")); !os.IsNotExist(err) {
+		t.Fatalf("save file should not exist, stat err = %v", err)
 	}
 }
 

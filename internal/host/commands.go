@@ -601,6 +601,21 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 		subs.Console.Print("save failed: savegames require the built-in server\n")
 		return
 	}
+	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
+		subs.Console.Print("Can't save in intermission.\n")
+		return
+	}
+	if srv.Static != nil {
+		for _, client := range srv.Static.Clients {
+			if client == nil || !client.Active || client.Edict == nil || client.Edict.Vars == nil {
+				continue
+			}
+			if client.Edict.Vars.Health <= 0 {
+				subs.Console.Print("Can't savegame with a dead player\n")
+				return
+			}
+		}
+	}
 	state, err := srv.CaptureSaveGameState()
 	if err != nil {
 		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))

@@ -271,7 +271,7 @@ Take the already-strong save/load system the rest of the way to C parity.
 **Work**
 
 - [x] save and restore lightstyles
-- enforce the missing save restrictions (`nomonsters`, intermission, dead-player cases)
+- enforce the remaining save restrictions (`nomonsters`; intermission/dead-player checks are now wired)
 - align user-visible save/load flow with the C engine where practical
 - make sure menu/UI entry points reach the same save/load system
 
