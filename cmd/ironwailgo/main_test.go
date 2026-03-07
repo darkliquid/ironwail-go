@@ -6,6 +6,8 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/audio"
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/input"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -176,5 +178,82 @@ func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T
 	syncRuntimeStaticSounds()
 	if staticSoundKey != "" {
 		t.Fatalf("non-active client state should clear static snapshot key, got %q", staticSoundKey)
+	}
+}
+
+func TestApplyDefaultGameplayBindings(t *testing.T) {
+	originalInput := gameInput
+	t.Cleanup(func() {
+		gameInput = originalInput
+	})
+
+	gameInput = input.NewSystem(nil)
+	applyDefaultGameplayBindings()
+
+	cases := []struct {
+		key  int
+		want string
+	}{
+		{key: int('w'), want: "+forward"},
+		{key: input.KUpArrow, want: "+forward"},
+		{key: input.KMouse1, want: "+attack"},
+		{key: input.KMouse2, want: "+jump"},
+		{key: input.KMWheelUp, want: "impulse 10"},
+		{key: input.KMWheelDown, want: "impulse 12"},
+	}
+
+	for _, tc := range cases {
+		if got := gameInput.GetBinding(tc.key); got != tc.want {
+			t.Fatalf("binding for key %d = %q, want %q", tc.key, got, tc.want)
+		}
+	}
+}
+
+func TestGameplayBindCommandsAndDispatch(t *testing.T) {
+	originalInput := gameInput
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameClient = originalClient
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameInput.SetKeyDest(input.KeyGame)
+	gameClient = cl.NewClient()
+	registerGameplayBindCommands()
+
+	cmdsys.ExecuteText("unbindall")
+	cmdsys.ExecuteText("bind w +forward")
+	cmdsys.ExecuteText("bind MWHEELUP \"impulse 12\"")
+
+	if got := gameInput.GetBinding(int('w')); got != "+forward" {
+		t.Fatalf("bind command did not set w binding, got %q", got)
+	}
+	if got := gameInput.GetBinding(input.KMWheelUp); got != "impulse 12" {
+		t.Fatalf("bind command did not set MWHEELUP binding, got %q", got)
+	}
+
+	handleGameKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	if gameClient.InputForward.State&1 == 0 {
+		t.Fatalf("expected +forward to press InputForward")
+	}
+	handleGameKeyEvent(input.KeyEvent{Key: int('w'), Down: false})
+	if gameClient.InputForward.State&1 != 0 {
+		t.Fatalf("expected -forward to release InputForward")
+	}
+
+	handleGameKeyEvent(input.KeyEvent{Key: input.KMWheelUp, Down: true})
+	if gameClient.InImpulse != 12 {
+		t.Fatalf("expected wheel bind to set impulse 12, got %d", gameClient.InImpulse)
+	}
+
+	cmdsys.ExecuteText("unbind w")
+	if got := gameInput.GetBinding(int('w')); got != "" {
+		t.Fatalf("unbind did not clear w binding, got %q", got)
+	}
+
+	cmdsys.ExecuteText("unbindall")
+	if got := gameInput.GetBinding(input.KMWheelUp); got != "" {
+		t.Fatalf("unbindall did not clear MWHEELUP binding, got %q", got)
 	}
 }

@@ -70,6 +70,32 @@ const (
 	mousePitchScale = 0.12
 )
 
+type defaultBinding struct {
+	key     int
+	command string
+}
+
+var gameplayDefaultBindings = []defaultBinding{
+	{key: int('w'), command: "+forward"},
+	{key: input.KUpArrow, command: "+forward"},
+	{key: int('s'), command: "+back"},
+	{key: input.KDownArrow, command: "+back"},
+	{key: int('a'), command: "+moveleft"},
+	{key: int('d'), command: "+moveright"},
+	{key: input.KLeftArrow, command: "+left"},
+	{key: input.KRightArrow, command: "+right"},
+	{key: input.KShift, command: "+speed"},
+	{key: input.KAlt, command: "+strafe"},
+	{key: input.KCtrl, command: "+attack"},
+	{key: input.KMouse1, command: "+attack"},
+	{key: input.KSpace, command: "+jump"},
+	{key: input.KMouse2, command: "+jump"},
+	{key: int('e'), command: "+use"},
+	{key: input.KMouse3, command: "+mlook"},
+	{key: input.KMWheelUp, command: "impulse 10"},
+	{key: input.KMWheelDown, command: "impulse 12"},
+}
+
 type globalCommandBuffer struct{}
 
 func (globalCommandBuffer) Init()               {}
@@ -301,6 +327,8 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
 	gameClient = host.LoopbackClientState(gameSubs)
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
 	if gameRenderer != nil {
 		gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
 		particleRNG = rand.New(rand.NewSource(1))
@@ -787,6 +815,162 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 }
 
+func registerGameplayBindCommands() {
+	cmdsys.AddCommand("bind", cmdBind, "Bind a key to a command")
+	cmdsys.AddCommand("unbind", cmdUnbind, "Remove a key binding")
+	cmdsys.AddCommand("unbindall", cmdUnbindAll, "Remove all key bindings")
+	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
+	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
+
+	registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
+	registerGameplayButtonCommand("back", func(c *cl.Client) *cl.KButton { return &c.InputBack })
+	registerGameplayButtonCommand("moveleft", func(c *cl.Client) *cl.KButton { return &c.InputMoveLeft })
+	registerGameplayButtonCommand("moveright", func(c *cl.Client) *cl.KButton { return &c.InputMoveRight })
+	registerGameplayButtonCommand("left", func(c *cl.Client) *cl.KButton { return &c.InputLeft })
+	registerGameplayButtonCommand("right", func(c *cl.Client) *cl.KButton { return &c.InputRight })
+	registerGameplayButtonCommand("speed", func(c *cl.Client) *cl.KButton { return &c.InputSpeed })
+	registerGameplayButtonCommand("strafe", func(c *cl.Client) *cl.KButton { return &c.InputStrafe })
+	registerGameplayButtonCommand("attack", func(c *cl.Client) *cl.KButton { return &c.InputAttack })
+	registerGameplayButtonCommand("jump", func(c *cl.Client) *cl.KButton { return &c.InputJump })
+	registerGameplayButtonCommand("use", func(c *cl.Client) *cl.KButton { return &c.InputUse })
+	registerGameplayButtonCommand("mlook", func(c *cl.Client) *cl.KButton { return &c.InputMLook })
+	registerGameplayButtonCommand("klook", func(c *cl.Client) *cl.KButton { return &c.InputKLook })
+	registerGameplayButtonCommand("lookup", func(c *cl.Client) *cl.KButton { return &c.InputLookUp })
+	registerGameplayButtonCommand("lookdown", func(c *cl.Client) *cl.KButton { return &c.InputLookDown })
+	registerGameplayButtonCommand("up", func(c *cl.Client) *cl.KButton { return &c.InputUp })
+	registerGameplayButtonCommand("down", func(c *cl.Client) *cl.KButton { return &c.InputDown })
+}
+
+func registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
+	cmdsys.AddCommand("+"+name, func(args []string) {
+		runGameplayButtonCommand(selectButton, true, args)
+	}, "Gameplay button press")
+	cmdsys.AddCommand("-"+name, func(args []string) {
+		runGameplayButtonCommand(selectButton, false, args)
+	}, "Gameplay button release")
+}
+
+func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bool, args []string) {
+	if gameClient == nil {
+		return
+	}
+	key := -1
+	if len(args) > 0 {
+		if parsed, err := strconv.Atoi(args[0]); err == nil {
+			key = parsed
+		}
+	}
+	button := selectButton(gameClient)
+	if down {
+		gameClient.KeyDown(button, key)
+		return
+	}
+	gameClient.KeyUp(button, key)
+}
+
+func applyDefaultGameplayBindings() {
+	if gameInput == nil {
+		return
+	}
+	for _, binding := range gameplayDefaultBindings {
+		gameInput.SetBinding(binding.key, binding.command)
+	}
+}
+
+func parseBindingKey(name string) (int, bool) {
+	key := input.StringToKey(strings.ToUpper(name))
+	if key <= 0 || key >= input.NumKeycode {
+		return 0, false
+	}
+	return key, true
+}
+
+func cmdBind(args []string) {
+	if gameInput == nil {
+		return
+	}
+	if len(args) < 1 {
+		console.Printf("usage: bind <key> [command]\n")
+		return
+	}
+	key, ok := parseBindingKey(args[0])
+	if !ok {
+		console.Printf("bind: \"%s\" is not a valid key\n", args[0])
+		return
+	}
+	if len(args) == 1 {
+		binding := gameInput.GetBinding(key)
+		if binding == "" {
+			console.Printf("\"%s\" is not bound\n", args[0])
+		} else {
+			console.Printf("\"%s\" = \"%s\"\n", args[0], binding)
+		}
+		return
+	}
+	gameInput.SetBinding(key, strings.Join(args[1:], " "))
+}
+
+func cmdUnbind(args []string) {
+	if gameInput == nil {
+		return
+	}
+	if len(args) != 1 {
+		console.Printf("usage: unbind <key>\n")
+		return
+	}
+	key, ok := parseBindingKey(args[0])
+	if !ok {
+		console.Printf("unbind: \"%s\" is not a valid key\n", args[0])
+		return
+	}
+	gameInput.SetBinding(key, "")
+}
+
+func cmdUnbindAll(_ []string) {
+	if gameInput == nil {
+		return
+	}
+	for key := 0; key < input.NumKeycode; key++ {
+		gameInput.SetBinding(key, "")
+	}
+}
+
+func cmdBindList(_ []string) {
+	if gameInput == nil {
+		return
+	}
+	count := 0
+	for key := 0; key < input.NumKeycode; key++ {
+		binding := gameInput.GetBinding(key)
+		if binding == "" {
+			continue
+		}
+		keyName := input.KeyToString(key)
+		if keyName == "" {
+			keyName = strconv.Itoa(key)
+		}
+		console.Printf("\"%s\" = \"%s\"\n", keyName, binding)
+		count++
+	}
+	console.Printf("%d bindings\n", count)
+}
+
+func cmdImpulse(args []string) {
+	if gameClient == nil {
+		return
+	}
+	if len(args) < 1 {
+		console.Printf("usage: impulse <value>\n")
+		return
+	}
+	impulse, err := strconv.Atoi(args[0])
+	if err != nil {
+		console.Printf("impulse: \"%s\" is not a number\n", args[0])
+		return
+	}
+	gameClient.InImpulse = impulse
+}
+
 func handleGameKeyEvent(event input.KeyEvent) {
 	if gameInput == nil {
 		return
@@ -808,47 +992,20 @@ func handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	applyButton := func(button *cl.KButton) {
-		if event.Down {
-			gameClient.KeyDown(button, event.Key)
-		} else {
-			gameClient.KeyUp(button, event.Key)
-		}
+	binding := strings.TrimSpace(gameInput.GetBinding(event.Key))
+	if binding == "" {
+		return
 	}
-
-	switch event.Key {
-	case int('w'), input.KUpArrow:
-		applyButton(&gameClient.InputForward)
-	case int('s'), input.KDownArrow:
-		applyButton(&gameClient.InputBack)
-	case int('a'):
-		applyButton(&gameClient.InputMoveLeft)
-	case int('d'):
-		applyButton(&gameClient.InputMoveRight)
-	case input.KLeftArrow:
-		applyButton(&gameClient.InputLeft)
-	case input.KRightArrow:
-		applyButton(&gameClient.InputRight)
-	case input.KShift:
-		applyButton(&gameClient.InputSpeed)
-	case input.KAlt:
-		applyButton(&gameClient.InputStrafe)
-	case input.KCtrl, input.KMouse1:
-		applyButton(&gameClient.InputAttack)
-	case input.KSpace, input.KMouse2:
-		applyButton(&gameClient.InputJump)
-	case int('e'):
-		applyButton(&gameClient.InputUse)
-	case input.KMouse3:
-		applyButton(&gameClient.InputMLook)
-	case input.KMWheelUp:
-		if event.Down {
-			gameClient.InImpulse = 10
+	if strings.HasPrefix(binding, "+") {
+		command := binding
+		if !event.Down {
+			command = "-" + binding[1:]
 		}
-	case input.KMWheelDown:
-		if event.Down {
-			gameClient.InImpulse = 12
-		}
+		cmdsys.ExecuteText(fmt.Sprintf("%s %d", command, event.Key))
+		return
+	}
+	if event.Down {
+		cmdsys.ExecuteText(binding)
 	}
 }
 
