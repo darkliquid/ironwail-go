@@ -209,7 +209,8 @@ Use the render backends that already exist but are not yet driven by the live ru
 - map remaining entity effects into dynamic lights
 - [x] honor protocol alpha / scale on alias and sprite entities
 - [x] honor protocol alpha / scale on brush entities
-- honor remaining entity effect flags and brush-entity rotation parity
+- [x] honor brush-entity rotation parity
+- honor remaining entity effect flags
 
 **Done when**
 

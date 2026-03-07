@@ -368,6 +368,7 @@ type Renderer struct {
 	worldTextureUniform       int32
 	worldLightmapUniform      int32
 	worldModelOffsetUniform   int32
+	worldModelRotationUniform int32
 	worldModelScaleUniform    int32
 	worldAlphaUniform         int32
 	worldIndexCount           int32

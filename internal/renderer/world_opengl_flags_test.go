@@ -79,9 +79,23 @@ func TestWorldFacePass(t *testing.T) {
 }
 
 func TestTransformModelSpacePointAppliesScaleAndOffset(t *testing.T) {
-	got := transformModelSpacePoint([3]float32{1, 2, 3}, [3]float32{10, 20, 30}, 2)
+	got := transformModelSpacePoint([3]float32{1, 2, 3}, [3]float32{10, 20, 30}, identityModelRotationMatrix, 2)
 	if got != [3]float32{12, 24, 36} {
 		t.Fatalf("transformModelSpacePoint() = %v, want [12 24 36]", got)
+	}
+}
+
+func TestTransformModelSpacePointAppliesBrushYawRotation(t *testing.T) {
+	got := transformModelSpacePoint([3]float32{1, 0, 0}, [3]float32{10, 20, 30}, buildBrushRotationMatrix([3]float32{0, 90, 0}), 2)
+	if got != [3]float32{10, 22, 30} {
+		t.Fatalf("transformModelSpacePoint(yaw) = %v, want [10 22 30]", got)
+	}
+}
+
+func TestBuildBrushRotationMatrixNegatesPitch(t *testing.T) {
+	got := transformModelSpacePoint([3]float32{1, 0, 0}, [3]float32{}, buildBrushRotationMatrix([3]float32{90, 0, 0}), 1)
+	if got != [3]float32{0, 0, 1} {
+		t.Fatalf("transformModelSpacePoint(pitch) = %v, want [0 0 1]", got)
 	}
 }
 

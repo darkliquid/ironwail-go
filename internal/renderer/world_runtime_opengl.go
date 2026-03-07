@@ -19,6 +19,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
+	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
 const (
@@ -30,6 +31,7 @@ layout(location = 3) in vec3 aNormal;
 
 uniform mat4 uViewProjection;
 uniform vec3 uModelOffset;
+uniform mat4 uModelRotation;
 uniform float uModelScale;
 
 out vec2 vTexCoord;
@@ -40,8 +42,8 @@ out vec3 vWorldPos;
 void main() {
 	vTexCoord = aTexCoord;
 	vLightmapCoord = aLightmapCoord;
-	vec3 worldPosition = (aPosition * uModelScale) + uModelOffset;
-	vNormal = aNormal;
+	vec3 worldPosition = (uModelRotation * vec4(aPosition * uModelScale, 1.0)).xyz + uModelOffset;
+	vNormal = (uModelRotation * vec4(aNormal, 0.0)).xyz;
 	vWorldPos = worldPosition;
 	gl_Position = uViewProjection * vec4(worldPosition, 1.0);
 }`
@@ -75,6 +77,13 @@ const (
 	worldPassAlphaTest
 	worldPassTranslucent
 )
+
+var identityModelRotationMatrix = [16]float32{
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1,
+}
 
 type worldDrawCall struct {
 	face       WorldFace
@@ -174,6 +183,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
 	r.worldLightmapUniform = gl.GetUniformLocation(program, gl.Str("uLightmap\x00"))
 	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
+	r.worldModelRotationUniform = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
 	r.worldModelScaleUniform = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
 	r.worldAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlpha\x00"))
 	return nil
@@ -534,6 +544,7 @@ func (r *Renderer) renderWorld() {
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	fallbackTexture := r.worldFallbackTexture
@@ -557,7 +568,7 @@ func (r *Renderer) renderWorld() {
 	}
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
-	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, 1, 1, camera, liquidAlpha, lightPool)
+	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, camera, liquidAlpha, lightPool)
 
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Disable(gl.CULL_FACE)
@@ -567,6 +578,7 @@ func (r *Renderer) renderWorld() {
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
 	gl.BindVertexArray(vao)
 	if len(faces) == 0 {
@@ -608,6 +620,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	fallbackTexture := r.worldFallbackTexture
@@ -620,10 +633,11 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	}
 	lightPool := r.lightPool // Get light pool for light evaluation
 	type drawBrush struct {
-		origin [3]float32
-		alpha  float32
-		scale  float32
-		mesh   *glWorldMesh
+		origin   [3]float32
+		rotation [16]float32
+		alpha    float32
+		scale    float32
+		mesh     *glWorldMesh
 	}
 	brushes := make([]drawBrush, 0, len(entities))
 	for _, entity := range entities {
@@ -632,10 +646,11 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 			continue
 		}
 		brushes = append(brushes, drawBrush{
-			origin: entity.Origin,
-			alpha:  entity.Alpha,
-			scale:  entity.Scale,
-			mesh:   mesh,
+			origin:   entity.Origin,
+			rotation: buildBrushRotationMatrix(entity.Angles),
+			alpha:    entity.Alpha,
+			scale:    entity.Scale,
+			mesh:     mesh,
 		})
 	}
 	r.mu.Unlock()
@@ -654,8 +669,9 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 
 	for _, brush := range brushes {
-		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.scale, brush.alpha, camera, liquidAlpha, lightPool)
+		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, camera, liquidAlpha, lightPool)
 		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
+		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
 		gl.Uniform1f(modelScaleUniform, brush.scale)
 		gl.BindVertexArray(brush.mesh.vao)
 		renderSkyPass(skyFaces, alphaUniform)
@@ -675,9 +691,9 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 
 // bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
 // This variant accepts a light pool and computes light contributions for each face.
-func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelScale, entityAlpha float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
 	for _, face := range faces {
-		center := transformModelSpacePoint(face.Center, modelOffset, modelScale)
+		center := transformModelSpacePoint(face.Center, modelOffset, modelRotation, modelScale)
 		call := worldDrawCall{
 			face:       face,
 			texture:    worldTextureForFace(face, textures, fallbackTexture),
@@ -712,7 +728,7 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, li
 }
 
 func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, translucent []worldDrawCall) {
-	return bucketWorldFacesWithLights(faces, textures, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, 1, 1, camera, liquidAlpha, nil)
+	return bucketWorldFacesWithLights(faces, textures, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, identityModelRotationMatrix, 1, 1, camera, liquidAlpha, nil)
 }
 
 func worldTextureForFace(face WorldFace, textures map[int32]uint32, fallbackTexture uint32) uint32 {
@@ -945,14 +961,36 @@ func worldFacePass(flags int32, alpha float32) worldRenderPass {
 	}
 }
 
-func transformModelSpacePoint(point, modelOffset [3]float32, modelScale float32) [3]float32 {
+func buildBrushRotationMatrix(angles [3]float32) [16]float32 {
+	if angles == [3]float32{} {
+		return identityModelRotationMatrix
+	}
+
+	forward, right, up := qtypes.AngleVectors(qtypes.Vec3{
+		X: -angles[0],
+		Y: angles[1],
+		Z: angles[2],
+	})
+
+	return [16]float32{
+		forward.X, forward.Y, forward.Z, 0,
+		-right.X, -right.Y, -right.Z, 0,
+		up.X, up.Y, up.Z, 0,
+		0, 0, 0, 1,
+	}
+}
+
+func transformModelSpacePoint(point, modelOffset [3]float32, modelRotation [16]float32, modelScale float32) [3]float32 {
 	if modelScale <= 0 {
 		modelScale = 1
 	}
+	x := point[0] * modelScale
+	y := point[1] * modelScale
+	z := point[2] * modelScale
 	return [3]float32{
-		(point[0] * modelScale) + modelOffset[0],
-		(point[1] * modelScale) + modelOffset[1],
-		(point[2] * modelScale) + modelOffset[2],
+		modelRotation[0]*x + modelRotation[4]*y + modelRotation[8]*z + modelOffset[0],
+		modelRotation[1]*x + modelRotation[5]*y + modelRotation[9]*z + modelOffset[1],
+		modelRotation[2]*x + modelRotation[6]*y + modelRotation[10]*z + modelOffset[2],
 	}
 }
 
@@ -1241,6 +1279,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	r.ensureAliasScratchLocked()
@@ -1265,6 +1304,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.ActiveTexture(gl.TEXTURE1)
@@ -1337,6 +1377,7 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	fallbackLightmap := r.worldLightmapFallback
@@ -1360,6 +1401,7 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
+	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
 
@@ -1573,6 +1615,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldTextureUniform = -1
 	r.worldLightmapUniform = -1
 	r.worldModelOffsetUniform = -1
+	r.worldModelRotationUniform = -1
 	r.worldModelScaleUniform = -1
 	r.worldAlphaUniform = -1
 	r.worldIndexCount = 0
