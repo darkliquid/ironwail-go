@@ -5,13 +5,13 @@ IRONWAIL-GO PARITY: QUICK REFERENCE CARD
 COMPLETION STATUS BY FEATURE
 =============================
 
-A. WORLD RENDERING         [██████████████░░░░░] ~70%
+A. WORLD RENDERING         [███████████████░░░░] ~75%
     - Geometry load/binning/lightmaps: DONE on OpenGL parity path
     - Animated textures, turbulent UV warp, and fog runtime feed: DONE
     - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
     - External skybox runtime consumption (client skybox name + Quake FS cubemap load path with C-like direction swizzle): DONE
     - External skybox fallback behavior: DONE (partial square same-size face sets upload as cubemap with zero-filled missing faces; inconsistent/non-square sets fall back to embedded BSP sky)
-    - Remaining sky fidelity gap: pass-order fidelity (sky/water/translucency/viewmodel) + non-cubemap/per-side edge cases
+    - Sky now runs in its own post-opaque frame stage on the OpenGL path; remaining sky/world fidelity gap is water/translucency/viewmodel ordering + non-cubemap/per-side edge cases
 
 B. ENTITY RENDERING        [███████████████░░░░] ~75%
    - Alias models: live runtime integration DONE
@@ -22,10 +22,10 @@ B. ENTITY RENDERING        [███████████████░░�
    - Bounded pass-order slices landed after 38de7f3 / 5800311 / aabf5ca / e74f73b:
       - particles now run as explicit opaque/translucent subpasses instead of one late lump
       - world + brush liquid surfaces now bucket into dedicated opaque-liquid/translucent-liquid bins (separate from general opaque/translucent world bins)
-      - frame-level OpenGL ordering now stages world + brush non-liquid draws before alias/sprite + opaque particles, then runs world + brush liquid-only draws as their own step before decals/translucent particles/viewmodel
+      - frame-level OpenGL ordering now stages world + brush non-liquid draws before alias/sprite + opaque particles, then runs a dedicated sky step before the existing world + brush liquid-only stage
       - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing across sky relocation, brush/sprite translucency timing, translucency begin/end semantics, and final viewmodel placement
+   - Remaining fidelity work: full C pass sequencing across liquid/brush/sprite translucency timing, translucency begin/end semantics, and final viewmodel placement
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE

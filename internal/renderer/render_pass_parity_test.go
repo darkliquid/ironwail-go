@@ -54,30 +54,42 @@ func TestWorldBrushPassSelector(t *testing.T) {
 		selector           worldBrushPassSelector
 		wantIncludesLiquid bool
 		wantIncludesOther  bool
+		wantIncludesSky    bool
 	}{
 		{
 			name:               "all",
 			selector:           worldBrushPassAll,
 			wantIncludesLiquid: true,
 			wantIncludesOther:  true,
+			wantIncludesSky:    true,
 		},
 		{
 			name:               "non-liquid",
 			selector:           worldBrushPassNonLiquid,
 			wantIncludesLiquid: false,
 			wantIncludesOther:  true,
+			wantIncludesSky:    false,
 		},
 		{
 			name:               "liquid-only",
 			selector:           worldBrushPassLiquidOnly,
 			wantIncludesLiquid: true,
 			wantIncludesOther:  false,
+			wantIncludesSky:    false,
+		},
+		{
+			name:               "sky-only",
+			selector:           worldBrushPassSkyOnly,
+			wantIncludesLiquid: false,
+			wantIncludesOther:  false,
+			wantIncludesSky:    true,
 		},
 		{
 			name:               "invalid selector normalizes to all",
 			selector:           worldBrushPassSelector(99),
 			wantIncludesLiquid: true,
 			wantIncludesOther:  true,
+			wantIncludesSky:    true,
 		},
 	}
 
@@ -88,6 +100,9 @@ func TestWorldBrushPassSelector(t *testing.T) {
 			}
 			if got := tc.selector.includesNonLiquid(); got != tc.wantIncludesOther {
 				t.Fatalf("includesNonLiquid() = %v, want %v", got, tc.wantIncludesOther)
+			}
+			if got := tc.selector.includesSky(); got != tc.wantIncludesSky {
+				t.Fatalf("includesSky() = %v, want %v", got, tc.wantIncludesSky)
 			}
 		})
 	}

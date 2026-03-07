@@ -921,6 +921,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	selector = normalizeWorldBrushPassSelector(selector)
+	drawSky := selector.includesSky()
 	drawNonLiquid := selector.includesNonLiquid()
 	drawLiquid := selector.includesLiquid()
 
@@ -999,23 +1000,25 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
 	skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
+	bindWorldProgram := func() {
+		gl.UseProgram(program)
+		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+		gl.Uniform1i(textureUniform, 0)
+		gl.Uniform1i(lightmapUniform, 1)
+		gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
+		gl.Uniform1f(modelScaleUniform, 1)
+		gl.Uniform1f(timeUniform, camera.Time)
+		gl.Uniform1f(turbulentUniform, 0)
+		gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+		gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+		gl.BindVertexArray(vao)
+	}
 
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Disable(gl.CULL_FACE)
-
-	gl.UseProgram(program)
-	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
-	gl.Uniform1i(textureUniform, 0)
-	gl.Uniform1i(lightmapUniform, 1)
-	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
-	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
-	gl.Uniform1f(modelScaleUniform, 1)
-	gl.Uniform1f(timeUniform, camera.Time)
-	gl.Uniform1f(turbulentUniform, 0)
-	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
-	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
-	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
-	gl.BindVertexArray(vao)
+	bindWorldProgram()
 	if len(faces) == 0 {
 		if drawNonLiquid {
 			gl.DepthMask(true)
@@ -1029,7 +1032,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 			gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
 		}
 	} else {
-		if drawNonLiquid {
+		if drawSky {
 			renderSkyPass(skyFaces, skyPassState{
 				program:                     skyProgram,
 				cubemapProgram:              skyCubemapProgram,
@@ -1066,18 +1069,11 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				fallbackAlpha:               skyFallbackAlpha,
 				externalCubemap:             skyExternalCubemap,
 			})
-			gl.UseProgram(program)
-			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
-			gl.Uniform1i(textureUniform, 0)
-			gl.Uniform1i(lightmapUniform, 1)
-			gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
-			gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
-			gl.Uniform1f(modelScaleUniform, 1)
-			gl.Uniform1f(timeUniform, camera.Time)
-			gl.Uniform1f(turbulentUniform, 0)
-			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
-			gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
-			gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+			if drawNonLiquid || drawLiquid {
+				bindWorldProgram()
+			}
+		}
+		if drawNonLiquid {
 			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
 			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
 			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
@@ -1102,6 +1098,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 		return
 	}
 	selector = normalizeWorldBrushPassSelector(selector)
+	drawSky := selector.includesSky()
 	drawNonLiquid := selector.includesNonLiquid()
 	drawLiquid := selector.includesLiquid()
 
@@ -1210,11 +1207,23 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 
 	for _, brush := range brushes {
 		skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
-		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
-		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
-		gl.Uniform1f(modelScaleUniform, brush.scale)
-		gl.BindVertexArray(brush.mesh.vao)
-		if drawNonLiquid {
+		bindBrushWorldProgram := func() {
+			gl.UseProgram(program)
+			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+			gl.Uniform1i(textureUniform, 0)
+			gl.Uniform1i(lightmapUniform, 1)
+			gl.Uniform1f(timeUniform, camera.Time)
+			gl.Uniform1f(turbulentUniform, 0)
+			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+			gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+			gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+			gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
+			gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
+			gl.Uniform1f(modelScaleUniform, brush.scale)
+			gl.BindVertexArray(brush.mesh.vao)
+		}
+		bindBrushWorldProgram()
+		if drawSky {
 			renderSkyPass(skyFaces, skyPassState{
 				program:                     skyProgram,
 				cubemapProgram:              skyCubemapProgram,
@@ -1252,18 +1261,11 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				externalCubemap:             skyExternalCubemap,
 				frame:                       brush.frame,
 			})
-			gl.UseProgram(program)
-			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
-			gl.Uniform1i(textureUniform, 0)
-			gl.Uniform1i(lightmapUniform, 1)
-			gl.Uniform1f(timeUniform, camera.Time)
-			gl.Uniform1f(turbulentUniform, 0)
-			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
-			gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
-			gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
-			gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
-			gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
-			gl.Uniform1f(modelScaleUniform, brush.scale)
+			if drawNonLiquid || drawLiquid {
+				bindBrushWorldProgram()
+			}
+		}
+		if drawNonLiquid {
 			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
 			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
 			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)

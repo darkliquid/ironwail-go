@@ -6,11 +6,12 @@ const (
 	worldBrushPassAll worldBrushPassSelector = iota
 	worldBrushPassNonLiquid
 	worldBrushPassLiquidOnly
+	worldBrushPassSkyOnly
 )
 
 func normalizeWorldBrushPassSelector(selector worldBrushPassSelector) worldBrushPassSelector {
 	switch selector {
-	case worldBrushPassAll, worldBrushPassNonLiquid, worldBrushPassLiquidOnly:
+	case worldBrushPassAll, worldBrushPassNonLiquid, worldBrushPassLiquidOnly, worldBrushPassSkyOnly:
 		return selector
 	default:
 		return worldBrushPassAll
@@ -25,6 +26,11 @@ func (selector worldBrushPassSelector) includesNonLiquid() bool {
 func (selector worldBrushPassSelector) includesLiquid() bool {
 	selector = normalizeWorldBrushPassSelector(selector)
 	return selector == worldBrushPassAll || selector == worldBrushPassLiquidOnly
+}
+
+func (selector worldBrushPassSelector) includesSky() bool {
+	selector = normalizeWorldBrushPassSelector(selector)
+	return selector == worldBrushPassAll || selector == worldBrushPassSkyOnly
 }
 
 func isFullyOpaqueAlpha(alpha float32) bool {

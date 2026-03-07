@@ -65,6 +65,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassOpaque)
 	}
 	if state.DrawWorld && dc.gldc.renderer != nil {
+		dc.gldc.renderer.renderWorld(worldBrushPassSkyOnly)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassSkyOnly)
+	}
+	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassLiquidOnly)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
