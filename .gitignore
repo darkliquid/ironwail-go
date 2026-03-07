@@ -1,0 +1,20 @@
+# Ignore everything by default
+*
+
+# Keep directory traversal so nested allow rules work
+!*/
+
+# Keep Go source files
+!*.go
+
+# Keep license/readme files
+!/LICENSE.*
+!/README.*
+
+# Keep core module/task files at repo root
+!/mise.toml
+!/go.mod
+!/go.sum
+
+# Keep this file
+!.gitignore
