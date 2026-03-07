@@ -780,15 +780,27 @@ func (h *Host) CmdStop(subs *Subsystems) {
 		return
 	}
 
-	// TODO: Write disconnect message before stopping
-	// For now, just stop recording
+	var viewAngles [3]float32
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+		viewAngles = loopbackClient.ViewAngles
+	}
 
-	if err := h.demoState.StopRecording(); err != nil {
-		subs.Console.Print(fmt.Sprintf("Error stopping demo: %v\n", err))
+	trailerErr := h.demoState.WriteDisconnectTrailer(viewAngles)
+	stopErr := h.demoState.StopRecording()
+	if trailerErr != nil {
+		if stopErr != nil {
+			subs.Console.Print(fmt.Sprintf("Error writing disconnect trailer: %v (also failed to close demo: %v)\n", trailerErr, stopErr))
+			return
+		}
+		subs.Console.Print(fmt.Sprintf("Error writing disconnect trailer: %v\n", trailerErr))
+		return
+	}
+	if stopErr != nil {
+		subs.Console.Print(fmt.Sprintf("Error stopping demo: %v\n", stopErr))
 		return
 	}
 
-	subs.Console.Print("Demo recording stopped.\n")
+	subs.Console.Print("Completed demo\n")
 }
 
 func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {

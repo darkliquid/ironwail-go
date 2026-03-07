@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 func TestDemoRecordingOpenClose(t *testing.T) {
@@ -251,6 +253,39 @@ func TestDemoPlaybackSequence(t *testing.T) {
 
 	if err := demo.StopPlayback(); err != nil {
 		t.Fatalf("StopPlayback failed: %v", err)
+	}
+}
+
+func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("disconnect_trailer", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+
+	wantAngles := [3]float32{4, 5, 6}
+	if err := demo.WriteDisconnectTrailer(wantAngles); err != nil {
+		t.Fatalf("WriteDisconnectTrailer failed: %v", err)
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("disconnect_trailer"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	message, angles, err := demo.ReadDemoFrame()
+	if err != nil {
+		t.Fatalf("ReadDemoFrame failed: %v", err)
+	}
+	if len(message) != 1 || message[0] != inet.SVCDisconnect {
+		t.Fatalf("disconnect message = %v, want [%d]", message, inet.SVCDisconnect)
+	}
+	if angles != wantAngles {
+		t.Fatalf("disconnect angles = %v, want %v", angles, wantAngles)
 	}
 }
 

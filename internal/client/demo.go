@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 type DemoFrame struct {
@@ -133,6 +135,10 @@ func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) er
 	}
 
 	return nil
+}
+
+func (d *DemoState) WriteDisconnectTrailer(viewAngles [3]float32) error {
+	return d.WriteDemoFrame([]byte{inet.SVCDisconnect}, viewAngles)
 }
 
 // StartDemoPlayback opens a demo file for playback

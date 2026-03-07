@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	cl "github.com/ironwail/ironwail-go/internal/client"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 func TestCmdChangelevel(t *testing.T) {
@@ -269,5 +272,58 @@ func TestCmdRecordUsesLoopbackClientCDTrack(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(data), "7\n") {
 		t.Fatalf("demo header = %q, want prefix %q", string(data), "7\\n")
+	}
+}
+
+func TestCmdStopWritesDisconnectTrailer(t *testing.T) {
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+
+	h := NewHost()
+	console := &mockConsole{}
+	lc := newLocalLoopbackClient()
+	lc.inner.ViewAngles = [3]float32{11, 22, 33}
+	subs := &Subsystems{
+		Client:  lc,
+		Console: console,
+	}
+
+	h.demoState = cl.NewDemoState()
+	if err := h.demoState.StartDemoRecording("stop_trailer", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+
+	h.CmdStop(subs)
+	if h.demoState.Recording {
+		t.Fatal("demo recording still active after stop")
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Completed demo") {
+		t.Fatalf("console output = %q, want completion message", got)
+	}
+
+	replay := cl.NewDemoState()
+	if err := replay.StartDemoPlayback(filepath.Join(tmpDir, "demos", "stop_trailer.dem")); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer replay.StopPlayback()
+
+	message, angles, err := replay.ReadDemoFrame()
+	if err != nil {
+		t.Fatalf("ReadDemoFrame failed: %v", err)
+	}
+	if len(message) != 1 || message[0] != inet.SVCDisconnect {
+		t.Fatalf("disconnect message = %v, want [%d]", message, inet.SVCDisconnect)
+	}
+	if angles != lc.inner.ViewAngles {
+		t.Fatalf("disconnect angles = %v, want %v", angles, lc.inner.ViewAngles)
 	}
 }
