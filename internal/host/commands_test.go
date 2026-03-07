@@ -6,10 +6,12 @@ package host
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -507,5 +509,87 @@ func TestCmdPlaydemoLeavesLoopbackClientDisconnectedForServerInfo(t *testing.T) 
 	h.CmdPlaydemo("bootstrap", subs)
 	if lc.inner.State != cl.StateDisconnected {
 		t.Fatalf("loopback client state = %v, want disconnected", lc.inner.State)
+	}
+}
+
+func TestAliasCommandsDefineAndRemoveAliases(t *testing.T) {
+	cmdsys.UnaliasAll()
+	t.Cleanup(cmdsys.UnaliasAll)
+
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	var gotArgs []string
+	cmdsys.AddCommand("test_alias_target", func(args []string) {
+		gotArgs = append([]string(nil), args...)
+	}, "")
+	defer cmdsys.RemoveCommand("test_alias_target")
+
+	h.CmdAlias([]string{"foo", "test_alias_target", "bar", "baz"}, &subs.Subsystems)
+	cmdsys.ExecuteText("foo")
+	if want := []string{"bar", "baz"}; !reflect.DeepEqual(gotArgs, want) {
+		t.Fatalf("alias execution args = %v, want %v", gotArgs, want)
+	}
+
+	h.CmdUnalias([]string{"foo"}, &subs.Subsystems)
+	gotArgs = nil
+	cmdsys.ExecuteText("foo")
+	if gotArgs != nil {
+		t.Fatalf("expected foo alias to be removed, got args %v", gotArgs)
+	}
+
+	h.CmdAlias([]string{"one", "test_alias_target", "one"}, &subs.Subsystems)
+	h.CmdAlias([]string{"two", "test_alias_target", "two"}, &subs.Subsystems)
+	h.CmdUnaliasAll()
+	if _, ok := cmdsys.Alias("one"); ok {
+		t.Fatal("expected alias one to be removed by unaliasall")
+	}
+	if _, ok := cmdsys.Alias("two"); ok {
+		t.Fatal("expected alias two to be removed by unaliasall")
+	}
+}
+
+func TestAliasCommandSupportsQuotedSemicolonBodies(t *testing.T) {
+	cmdsys.UnaliasAll()
+	t.Cleanup(cmdsys.UnaliasAll)
+
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	h.RegisterCommands(&subs.Subsystems)
+
+	var got []string
+	cmdsys.AddCommand("test_alias_chain", func(args []string) {
+		got = append(got, strings.Join(args, " "))
+	}, "")
+	defer cmdsys.RemoveCommand("test_alias_chain")
+
+	cmdsys.ExecuteText(`alias combo "test_alias_chain one; test_alias_chain two"`)
+	cmdsys.ExecuteText("combo")
+
+	want := []string{"one", "two"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("alias chain = %v, want %v", got, want)
 	}
 }

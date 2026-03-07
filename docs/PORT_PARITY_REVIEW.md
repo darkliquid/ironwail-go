@@ -14,7 +14,7 @@ The biggest remaining parity problems are mostly **integration and fidelity gaps
 
 - the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, and fog integration in the live runtime; the main remaining render gaps are skybox handling and exact pass ordering
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
-- the input system now uses Quake-style bindings, config persistence, and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
+- the input/command layer now uses Quake-style bindings, config persistence, command aliases (`alias`/`unalias`/`unaliasall`), and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
 - the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
 - save/load is much more complete than older notes suggested, and now includes C's `nomonsters` / intermission / dead-player save restrictions; loading-plaque/search behavior still differs
 - demo recording and forward playback are now real runtime features, including connected-state snapshots, disconnect trailers, same-frame stuffed-command execution, pause semantics, and server-time pacing
@@ -32,7 +32,7 @@ A useful way to think about the current tree is:
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
-| Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
+| Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence, and Quake-style alias commands | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
 | Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, and C-style `nomonsters`/intermission/dead-player restrictions | broader C loading UX/search behavior is still missing |
 | Networking/multiplayer | loopback server/client and protocol work are present | `connect`, `reconnect`, and `kick` parity is missing |
 
@@ -301,6 +301,8 @@ What is already present:
 - a real console text buffer with scrollback, resize behavior, notify lines, and debug logging
 - input destination routing (`KeyGame`, `KeyMenu`, `KeyConsole`, `KeyMessage`)
 - key name conversion and binding storage in `input.System`
+- user-facing `alias`, `unalias`, and `unaliasall` commands backed by cmdsys aliases, with command-over-alias execution precedence
+- console tab completion now includes alias names alongside commands and cvars
 
 ### What is missing or divergent
 

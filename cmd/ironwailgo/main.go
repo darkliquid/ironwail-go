@@ -1040,6 +1040,7 @@ func registerGameplayBindCommands() {
 func registerConsoleCompletionProviders() {
 	console.SetGlobalCommandProvider(cmdsys.Complete)
 	console.SetGlobalCVarProvider(cvar.Complete)
+	console.SetGlobalAliasProvider(cmdsys.CompleteAliases)
 }
 
 func registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {

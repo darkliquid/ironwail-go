@@ -21,6 +21,8 @@ import (
 
 var saveNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
 
+const maxAliasName = 32
+
 type hostSaveFile struct {
 	Version int                   `json:"version"`
 	Skill   int                   `json:"skill"`
@@ -148,6 +150,15 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			subs.Console.Print("usage: exec <filename>\n")
 		}
 	}, "Execute a script file")
+	cmdsys.AddCommand("alias", func(args []string) {
+		h.CmdAlias(args, subs)
+	}, "Create, list, and inspect command aliases")
+	cmdsys.AddCommand("unalias", func(args []string) {
+		h.CmdUnalias(args, subs)
+	}, "Delete a command alias")
+	cmdsys.AddCommand("unaliasall", func(args []string) {
+		h.CmdUnaliasAll()
+	}, "Delete all command aliases")
 	cmdsys.AddCommand("saveconfig", func(args []string) {
 		if err := h.WriteConfig(subs); err != nil && subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("saveconfig failed: %v\n", err))
@@ -205,6 +216,63 @@ func (h *Host) CmdExec(filename string, subs *Subsystems) {
 	if subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("couldn't exec %s\n", filename))
 	}
+}
+
+func (h *Host) CmdAlias(args []string, subs *Subsystems) {
+	switch len(args) {
+	case 0:
+		aliases := cmdsys.Aliases()
+		if len(aliases) == 0 {
+			if subs != nil && subs.Console != nil {
+				subs.Console.Print("no alias commands found\n")
+			}
+			return
+		}
+		count := 0
+		for name, value := range aliases {
+			if subs != nil && subs.Console != nil {
+				subs.Console.Print(fmt.Sprintf("   %s: %s", name, value))
+			}
+			count++
+		}
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("%d alias command(s)\n", count))
+		}
+	case 1:
+		if value, ok := cmdsys.Alias(args[0]); ok {
+			if subs != nil && subs.Console != nil {
+				subs.Console.Print(fmt.Sprintf("   %s: %s", strings.ToLower(args[0]), value))
+			}
+		}
+	default:
+		name := args[0]
+		if len(name) >= maxAliasName {
+			if subs != nil && subs.Console != nil {
+				subs.Console.Print("Alias name is too long\n")
+			}
+			return
+		}
+		command := strings.Join(args[1:], " ") + "\n"
+		cmdsys.AddAlias(name, command)
+	}
+}
+
+func (h *Host) CmdUnalias(args []string, subs *Subsystems) {
+	if len(args) != 1 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("unalias <name> : delete alias\n")
+		}
+		return
+	}
+	if !cmdsys.RemoveAlias(args[0]) {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("No alias named %s\n", args[0]))
+		}
+	}
+}
+
+func (h *Host) CmdUnaliasAll() {
+	cmdsys.UnaliasAll()
 }
 
 func (h *Host) CmdMap(mapName string, subs *Subsystems) error {

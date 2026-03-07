@@ -91,6 +91,31 @@ func TestStartupMapArg(t *testing.T) {
 	}
 }
 
+func TestRegisterConsoleCompletionProvidersIncludesAliases(t *testing.T) {
+	cmdsys.UnaliasAll()
+	t.Cleanup(cmdsys.UnaliasAll)
+	console.ResetCompletion()
+	t.Cleanup(console.ResetCompletion)
+
+	cmdsys.AddAlias("zz_alias_test", "echo hi\n")
+	registerConsoleCompletionProviders()
+
+	got, matches := console.CompleteInput("zz_al", true)
+	if got != "zz_alias_test" {
+		t.Fatalf("CompleteInput = %q, want %q", got, "zz_alias_test")
+	}
+	found := false
+	for _, match := range matches {
+		if match == "zz_alias_test (alias)" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("matches = %v, want zz_alias_test (alias)", matches)
+	}
+}
+
 func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	originalHost := gameHost
 	originalClient := gameClient

@@ -23,7 +23,8 @@ C. MENUS/HUD/INPUT         [████████████░░░░░�
    - Menu nav: DONE
    - Submenus: 6× stub (all echo TODO)
    - Key bindings and config persistence: DONE
-   - Console UI/history/completion: DONE (baseline implementation)
+   - Console UI/history/completion: DONE (includes command/cvar/alias completion)
+   - Command aliases (`alias`/`unalias`/`unaliasall`): DONE
    - HUD: Numbers only (no icons/face)
 
 D. AUDIO/MUSIC             [████████████████░░░] ~80%

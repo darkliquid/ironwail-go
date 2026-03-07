@@ -67,7 +67,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 | Overall Completion | **materially beyond early 40% estimates** |
 | Save restriction parity (`nomonsters`/intermission/dead-player) | **done** |
 | Demo record/playback forward path | **done** |
-| Key bindings + baseline console UI/completion | **done** |
+| Key bindings + baseline console UI/completion + aliases | **done** |
 | High-priority remaining gaps | **integration/fidelity (skybox/order, remote networking, load UX)** |
 | Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 
@@ -138,7 +138,8 @@ Each section includes:
 ### Implemented baseline
 - [x] OpenGL runtime path renders world + entities + particles + decals + viewmodel with lightmaps
 - [x] Key bindings and config persistence are wired
-- [x] Console UI/history/completion baseline is present
+- [x] Console UI/history/completion baseline is present (including alias completion)
+- [x] Quake-style command aliases (`alias` / `unalias` / `unaliasall`) are present
 - [x] Sound event dispatch and WAV-backed CD-track playback are wired
 - [x] Save/load round-trip exists with C-style `nomonsters`/intermission/dead-player save restrictions
 - [x] Demo recording/playback forward path is functional
