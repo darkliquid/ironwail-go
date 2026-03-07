@@ -16,6 +16,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
+	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
@@ -311,12 +312,67 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 		Alpha:  1,
 	}, 5, 0)
 
-	state := buildRuntimeRenderFrameState(nil, nil, nil)
+	state := buildRuntimeRenderFrameState(nil, nil, []renderer.SpriteEntity{{
+		ModelID: "progs/flame.spr",
+		Model:   &model.Model{Type: model.ModSprite},
+	}}, nil)
 	if got := len(state.DecalMarks); got != 1 {
 		t.Fatalf("DecalMarks len = %d, want 1", got)
 	}
+	if got := len(state.SpriteEntities); got != 1 {
+		t.Fatalf("SpriteEntities len = %d, want 1", got)
+	}
+	if !state.DrawEntities {
+		t.Fatalf("DrawEntities = false, want true when sprite entities are present")
+	}
 	if !state.Draw2DOverlay {
 		t.Fatalf("Draw2DOverlay = false, want true")
+	}
+}
+
+func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
+	originalClient := gameClient
+	originalSubs := gameSubs
+	originalCache := spriteModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameSubs = originalSubs
+		spriteModelCache = originalCache
+	})
+
+	testFS := &runtimeMusicTestFS{
+		files: map[string][]byte{
+			"progs/flame.spr": testRuntimeSprite(t, 1, 1),
+		},
+	}
+	gameSubs = &host.Subsystems{Files: testFS}
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"progs/flame.spr"}
+	gameClient.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Alpha: 128},
+	}
+	spriteModelCache = nil
+
+	entities := collectSpriteEntities()
+	if got := len(entities); got != 1 {
+		t.Fatalf("collectSpriteEntities len = %d, want 1", got)
+	}
+	if entities[0].Model == nil || entities[0].Model.Type != model.ModSprite {
+		t.Fatalf("collectSpriteEntities model = %#v, want sprite model", entities[0].Model)
+	}
+	if entities[0].SpriteData == nil || entities[0].SpriteData.NumFrames != 1 {
+		t.Fatalf("collectSpriteEntities sprite data = %#v, want loaded sprite data", entities[0].SpriteData)
+	}
+	if got := entities[0].Alpha; math.Abs(float64(got-inet.ENTALPHA_DECODE(128))) > 0.0001 {
+		t.Fatalf("collectSpriteEntities alpha = %v, want %v", got, inet.ENTALPHA_DECODE(128))
+	}
+	if got := testFS.loads; got != 1 {
+		t.Fatalf("filesystem loads after first collect = %d, want 1", got)
+	}
+
+	_ = collectSpriteEntities()
+	if got := testFS.loads; got != 1 {
+		t.Fatalf("filesystem loads after cached collect = %d, want 1", got)
 	}
 }
 
@@ -749,4 +805,34 @@ func testRuntimeMusicWAV(t *testing.T, sampleRate, channels, width, frames int) 
 		t.Fatalf("Write data: %v", err)
 	}
 	return wav.Bytes()
+}
+
+func testRuntimeSprite(t *testing.T, width, height int32) []byte {
+	t.Helper()
+
+	var spr bytes.Buffer
+	write := func(value interface{}) {
+		if err := binary.Write(&spr, binary.LittleEndian, value); err != nil {
+			t.Fatalf("binary.Write(%T): %v", value, err)
+		}
+	}
+
+	write(int32(model.IDSpriteHeader))
+	write(int32(model.SpriteVersion))
+	write(int32(0))
+	write(float32(width))
+	write(width)
+	write(height)
+	write(int32(1))
+	write(float32(0))
+	write(int32(0))
+	write(int32(model.SpriteFrameSingle))
+	write([2]int32{0, 0})
+	write(width)
+	write(height)
+	if _, err := spr.Write([]byte{1}); err != nil {
+		t.Fatalf("Write pixel data: %v", err)
+	}
+
+	return spr.Bytes()
 }

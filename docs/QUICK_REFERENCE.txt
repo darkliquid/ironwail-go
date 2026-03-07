@@ -12,12 +12,12 @@ A. WORLD RENDERING         [████░░░░░░░░░░░░░�
    - Sky rendering: TODO (gl_sky.c stubs only)
    - Fog system: TODO (parsing done, renderer integration missing)
 
-B. ENTITY RENDERING        [█░░░░░░░░░░░░░░░░░] 5%
-   - Alias models: 80% code written, 0% integrated
-   - Sprites: 30% code written, 0% integrated
-   - Particles: 50% code written, 0% integrated
-   - Brush submodels: 0% (BrushEntity type only)
-   - No top-level entity pipeline exists
+B. ENTITY RENDERING        [███████░░░░░░░░░░░] 35%
+   - Alias models: live runtime integration DONE
+   - Sprites: live runtime integration DONE
+   - Particles: live runtime integration DONE
+   - Brush submodels: live runtime integration DONE
+   - Dynamic lights / protocol-driven effects still pending
 
 C. MENUS/HUD/INPUT         [██░░░░░░░░░░░░░░░] 30%
    - Menu nav: DONE

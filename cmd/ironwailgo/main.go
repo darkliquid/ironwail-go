@@ -61,6 +61,7 @@ var (
 
 	gameMouseGrabbed bool
 	aliasModelCache  map[string]*model.Model
+	spriteModelCache map[string]*runtimeSpriteModel
 	soundSFXByIndex  map[int]*audio.SFX
 	soundPrecacheKey string
 	staticSoundKey   string
@@ -75,6 +76,11 @@ const (
 type defaultBinding struct {
 	key     int
 	command string
+}
+
+type runtimeSpriteModel struct {
+	model  *model.Model
+	sprite *model.MSprite
 }
 
 var gameplayDefaultBindings = []defaultBinding{
@@ -584,10 +590,11 @@ func main() {
 
 			brushEntities := collectBrushEntities()
 			aliasEntities := collectAliasEntities()
+			spriteEntities := collectSpriteEntities()
 			viewModel := collectViewModelEntity()
 
 			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
-				state := buildRuntimeRenderFrameState(brushEntities, aliasEntities, viewModel)
+				state := buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
 				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
 					w, h := gameRenderer.Size()
 					consoleVisible := gameInput != nil && gameInput.GetKeyDest() == input.KeyConsole
@@ -720,6 +727,46 @@ func loadAliasModel(modelName string) (*model.Model, bool) {
 	return loaded, true
 }
 
+func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
+	if gameSubs == nil || gameSubs.Files == nil || modelName == "" {
+		return nil, false
+	}
+	if spriteModelCache == nil {
+		spriteModelCache = make(map[string]*runtimeSpriteModel)
+	}
+	if entry, ok := spriteModelCache[modelName]; ok {
+		return entry, entry != nil
+	}
+
+	data, err := gameSubs.Files.LoadFile(modelName)
+	if err != nil {
+		slog.Debug("sprite model load skipped", "model", modelName, "error", err)
+		spriteModelCache[modelName] = nil
+		return nil, false
+	}
+	loaded, err := model.LoadSprite(bytes.NewReader(data))
+	if err != nil {
+		slog.Debug("sprite model parse skipped", "model", modelName, "error", err)
+		spriteModelCache[modelName] = nil
+		return nil, false
+	}
+
+	halfWidth := float32(loaded.MaxWidth) * 0.5
+	halfHeight := float32(loaded.MaxHeight) * 0.5
+	entry := &runtimeSpriteModel{
+		model: &model.Model{
+			Name:      modelName,
+			Type:      model.ModSprite,
+			NumFrames: loaded.NumFrames,
+			Mins:      [3]float32{-halfWidth, -halfWidth, -halfHeight},
+			Maxs:      [3]float32{halfWidth, halfWidth, halfHeight},
+		},
+		sprite: loaded,
+	}
+	spriteModelCache[modelName] = entry
+	return entry, true
+}
+
 func collectAliasEntities() []renderer.AliasModelEntity {
 	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
 		return nil
@@ -747,10 +794,6 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
 			frame = 0
 		}
-		alpha := float32(1)
-		if state.Alpha > 0 && state.Alpha < 255 {
-			alpha = float32(state.Alpha) / 255.0
-		}
 
 		return renderer.AliasModelEntity{
 			ModelID: modelName,
@@ -759,7 +802,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			SkinNum: int(state.Skin),
 			Origin:  state.Origin,
 			Angles:  state.Angles,
-			Alpha:   alpha,
+			Alpha:   entityStateAlpha(state),
 		}, true
 	}
 
@@ -781,13 +824,70 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 	return aliasEntities
 }
 
-func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
+func collectSpriteEntities() []renderer.SpriteEntity {
+	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
+		return nil
+	}
+
+	resolve := func(state inet.EntityState) (renderer.SpriteEntity, bool) {
+		if state.ModelIndex == 0 {
+			return renderer.SpriteEntity{}, false
+		}
+		precacheIndex := int(state.ModelIndex) - 1
+		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+			return renderer.SpriteEntity{}, false
+		}
+		modelName := gameClient.ModelPrecache[precacheIndex]
+		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".spr") {
+			return renderer.SpriteEntity{}, false
+		}
+
+		entry, _ := loadSpriteModel(modelName)
+		if entry == nil || entry.model == nil || entry.model.Type != model.ModSprite || entry.sprite == nil || entry.sprite.NumFrames == 0 {
+			return renderer.SpriteEntity{}, false
+		}
+
+		frame := int(state.Frame)
+		if frame < 0 || frame >= entry.sprite.NumFrames {
+			frame = 0
+		}
+
+		return renderer.SpriteEntity{
+			ModelID:    modelName,
+			Model:      entry.model,
+			Frame:      frame,
+			Origin:     state.Origin,
+			Alpha:      entityStateAlpha(state),
+			SpriteData: entry.sprite,
+		}, true
+	}
+
+	spriteEntities := make([]renderer.SpriteEntity, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
+	for entityNum, state := range gameClient.Entities {
+		if entityNum == gameClient.ViewEntity {
+			continue
+		}
+		if spriteEntity, ok := resolve(state); ok {
+			spriteEntities = append(spriteEntities, spriteEntity)
+		}
+	}
+	for _, state := range gameClient.StaticEntities {
+		if spriteEntity, ok := resolve(state); ok {
+			spriteEntities = append(spriteEntities, spriteEntity)
+		}
+	}
+
+	return spriteEntities
+}
+
+func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, spriteEntities []renderer.SpriteEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
 	state := renderer.DefaultRenderFrameState()
 	state.ClearColor = [4]float32{0, 0, 0, 1}
 	state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
-	state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || viewModel != nil
+	state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || len(spriteEntities) > 0 || viewModel != nil
 	state.BrushEntities = brushEntities
 	state.AliasEntities = aliasEntities
+	state.SpriteEntities = spriteEntities
 	state.ViewModel = viewModel
 	state.DrawParticles = gameParticles != nil && gameParticles.ActiveCount() > 0
 	state.Draw2DOverlay = true
@@ -803,6 +903,10 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 		state.Palette = gameDraw.Palette()
 	}
 	return state
+}
+
+func entityStateAlpha(state inet.EntityState) float32 {
+	return inet.ENTALPHA_DECODE(state.Alpha)
 }
 
 func collectViewModelEntity() *renderer.AliasModelEntity {
