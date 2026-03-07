@@ -12,12 +12,12 @@ The Go port is materially farther along than several older planning notes imply.
 
 The biggest remaining parity problems are mostly **integration and fidelity gaps**, not total subsystem absence:
 
-- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, and viewmodel draw paths, but runtime code does not feed all of them correct data yet
+- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, and fog integration in the live runtime; the main remaining render gaps are skybox handling and exact pass ordering
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
-- the input system has Quake-style button state and binding storage, but live gameplay still uses hardcoded keys instead of bind-driven command routing
-- the audio engine exists, but the main loop never dispatches parsed sound events into it
-- save/load is much more complete than older notes suggested, but it still misses some exact C behavior
-- demo playback exists, while demo recording is still mostly command/file scaffolding rather than full runtime integration
+- the input system now uses Quake-style bindings, config persistence, and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
+- the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
+- save/load is much more complete than older notes suggested, but it still misses some exact C UX/details such as the remaining `nomonsters` restriction and loading-plaque/search behavior
+- demo recording and forward playback are now real runtime features, including connected-state snapshots, disconnect trailers, same-frame stuffed-command execution, pause semantics, and server-time pacing
 
 A useful way to think about the current tree is:
 
@@ -28,12 +28,12 @@ A useful way to think about the current tree is:
 | Area | What is already implemented | Main missing / divergent behavior |
 | --- | --- | --- |
 | Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup | remote connection flow is still stubbed |
-| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, particles, decals, viewmodel | sprite collection, decals not wired from runtime, brush angles ignored, fog/skybox/texture animation missing, render order differs from C |
+| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, live fog | skybox consumption and exact render-pass ordering still differ from C |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
-| Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, loopback send path, demo playback primitives | prediction not called from the live frame loop, bind/unbind UX missing, hardcoded gameplay keys in `main.go` |
-| Audio/music | real mixer/backend/spatialization code, sound event parsing, static sound parsing | parsed events are not dispatched to audio, listener updates are missing, music is absent |
-| Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, console buffer/logging | multiplayer/options submenus still TODO, no full console UI, config persistence omits binds |
-| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test | lightstyles and some C validation rules are missing |
+| Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
+| Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
+| Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
+| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, intermission/dead-player restrictions | the remaining `nomonsters` rule and broader C loading UX/search behavior are still missing |
 | Networking/multiplayer | loopback server/client and protocol work are present | `connect`, `reconnect`, and `kick` parity is missing |
 
 ## 1. Runtime baseline and core engine state
@@ -109,20 +109,18 @@ In other words, the OpenGL `RenderFrame()` path already dispatches far more than
 
 The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 
-#### Not yet fed from the live runtime
+#### Runtime-fed render state is much more complete now
 
-- `main.go` collects `BrushEntities`, `AliasEntities`, and a viewmodel, but it never populates `SpriteEntities`
-- `internal/renderer/client_effects.go` contains `EmitDecalMarks()`, but `main.go` never creates a `DecalMarkSystem` or passes `DecalMarks` into `RenderFrameState`
-- the renderer has a dynamic light pool (`SpawnDynamicLight`, `EvaluateLightsAtPoint`), but the live runtime never spawns gameplay lights into it
+- `main.go` now populates `SpriteEntities`, maintains a `DecalMarkSystem`, and passes active decal marks into `RenderFrameState`
+- the live runtime spawns temp-entity and effect-driven dynamic lights into the renderer's light pool
+- brush entities now honor rotation, and the runtime feeds protocol alpha/scale/effect lighting through the active entity paths
+- animated world textures are evaluated against live client time, and client fog state is consumed by the shared runtime renderer
 
-#### Implemented, but behavior still diverges from C
+#### Remaining divergences from C
 
-- brush entities currently use translation only; `BrushEntity.Angles` is collected in `main.go` but ignored by `renderBrushEntities()`
-- entity alpha is only partially honored; alias draws use `entity.Alpha`, but the runtime does not comprehensively map protocol alpha/scale/effects for all entity types
-- client-side fog and skybox data are parsed (`Client.FogDensity`, `FogColor`, `SkyboxName`) but are not consumed by the renderer
-- sky surfaces are currently rendered through the ordinary world draw path rather than a dedicated C-style `Sky_DrawSky()` pipeline
-- the texture-animation helper exists in `internal/renderer/surface.go`, but the world renderer does not currently use it when selecting animated textures
-- entity effects from the network protocol are parsed, but visual behaviors such as muzzle flashes and other effect-driven lighting are not yet wired through the renderer
+- `Client.SkyboxName` is parsed but still not consumed by the renderer
+- sky surfaces are still rendered through the ordinary world draw path rather than a dedicated C-style `Sky_DrawSky()` pipeline
+- the top-level OpenGL pass ordering is still simpler than `R_RenderScene()`
 
 ### 2.3 gogpu path: current status
 
@@ -197,24 +195,16 @@ What already works:
 
 ### 3.2 What is missing or divergent
 
-#### Prediction exists on paper, but is not wired into the live runtime
+#### Core prediction, bindings, and demos are now wired into the live runtime
 
-- `internal/client/prediction.go` contains `PredictPlayers()` and smoothing/error-correction code
-- there is no live call site for `PredictPlayers()` in `main.go`
-- the renderer still tries to use `gameClient.PredictedOrigin`, so prediction data exists as a concept but is not actually driven each frame
+- `main.go` now calls `PredictPlayers()` and uses the updated predicted state for camera/viewmodel work
+- gameplay input routes through live `bind` / `unbind` / `unbindall` / `bindlist` handling, and `config.cfg` persists those bindings
+- demo recording writes live gameplay frames, connected-state snapshots, and a disconnect trailer; playback applies recorded view angles, flushes `stufftext` in the same frame, honors pause state, and paces reads against recorded server time
 
-#### Input mechanics exist, but Quake-style binding UX does not
+#### Remaining client/runtime divergences
 
-- gameplay input in `main.go` is hardcoded to keys such as `W`, `A`, `S`, `D`, `Ctrl`, `Space`, and mouse buttons
-- `internal/input/types.go` already stores bindings and key names, but there are no `bind` / `unbind` console commands and no bind-driven command dispatch path
-- the current runtime is therefore closer to a hardcoded control scheme than to the C engine's user-configurable input model
-
-#### Demo playback is ahead of demo recording
-
-- `playdemo` / `stopdemo` are implemented at the host command level
-- `record` opens a file and writes the CD-track header, but live gameplay does not call `WriteDemoFrame()` per frame
-- `FinishDemoFrame()` is a no-op in Go
-- `stop` still has a TODO to write the final disconnect message before ending recording
+- special intermission / finale / cutscene handling is parsed into client state but not yet turned into full C-style runtime/UI flow
+- remote `connect` / `reconnect` flow is still incomplete outside the local loopback path
 
 ### Exact C behavior still missing or not fully matched
 
@@ -227,17 +217,18 @@ The C engine defines an exact mapping from button state to `usercmd_t` and then 
 - `CL_SendMove()` writes `clc_move`, the last server time, three view angles, forward/side/up shorts, button bits, and the impulse byte
 - attack and jump use bit 0 and bit 1 respectively, and both clear their edge-down bit after the move packet is sent
 
-Go mirrors much of this logic in `internal/client/input.go`, but the surrounding input UX still differs because bindings are not user-driven.
+Go mirrors this logic in `internal/client/input.go` and now drives it from configurable runtime bindings in the live loopback path.
 
-#### `cl_demo.c:CL_Record_f()`
+#### `cl_demo.c:CL_Record_f()` / `CL_FinishDemoFrame()`
 
-The C recording path is more capable than the current Go runtime:
+The forward recording path now matches the C runtime much more closely:
 
-- it may start recording while already connected (once signon is far enough along)
-- it writes the stored signon head into the demo first
-- it emits current names, frags, colors, lightstyles, stats, `svc_setview`, and a signon marker so the demo starts from a complete state snapshot
+- recording may begin after connection and emits the initial signon/state snapshot the demo needs
+- live gameplay appends raw server-message demo frames as play continues
+- `stop` writes the final disconnect trailer
+- playback consumes one frame per host frame, flushes stuffed commands in-frame, and waits on recorded server time instead of host FPS alone
 
-Go has the file format primitives, but not the equivalent runtime integration yet.
+Advanced tooling such as rewind/timedemo remains outside the currently matched forward-playback path.
 
 ## 4. Audio and music parity
 
@@ -351,14 +342,15 @@ What already works:
 - `CmdSave()` and `CmdLoad()` are real host commands, not placeholders
 - save files include map name, time, paused state, server flags, model/sound precaches, static entities, static sounds, client spawn parms, edicts, and QC globals
 - restore recreates edicts, relinks the world, syncs the QC VM, and restores saved globals
+- lightstyles are saved/restored and resent through the restored loopback signon flow
+- the save command already rejects intermission and dead-player states to match the C engine more closely
 - `TestCmdSaveLoadRealAssetsRoundTrip` proves a real-assets session can save, reload, and recover player state
 
 This is one of the biggest places where older status docs understated current progress.
 
 ### What is missing or divergent
 
-- lightstyles are not included in `SaveGameState`
-- the Go save path does not enforce all of the C engine's restrictions (`nomonsters`, intermission, dead-player save ban)
+- the remaining save restriction gap is the C engine's `nomonsters` ban
 - load/save path behavior is simplified to `userDir/saves/<name>.sav`
 - there is no equivalent of the C engine's loading plaque / broader save-file search behavior
 
@@ -374,7 +366,7 @@ The C save command refuses to save when:
 - the game is multiplayer
 - any active player is dead
 
-Go currently only enforces "active built-in server" and single-player mode.
+Go now enforces the active built-in server, single-player, intermission, and dead-player cases; `nomonsters` is the remaining restriction still missing.
 
 #### `host_cmd.c:Host_Loadgame_f()`
 
@@ -385,7 +377,7 @@ The C load path does more than simple deserialization:
 - restores spawn parms, skill, map, time, lightstyles, globals, and edicts
 - re-enters the connection/signon flow after restoration
 
-Go already restores most of the world/QC state, but it still lacks lightstyles and several surrounding behaviors.
+Go already restores most of the world/QC state, including lightstyles and the post-load signon re-entry, but it still lacks the loading plaque and broader search/UX behavior.
 
 ## 7. Networking and multiplayer parity
 

@@ -519,11 +519,10 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
    - Go state: Flag parsed but state machine never transitions to intermission mode
    - Behavior: Level ends without visible result; no map/frag display
 
-10. **Demo Recording Never Started**
-    - C code: `record` command sets `cls.demorecording`, writes header + frames to file
-    - C file format: Version, map name, server info, then frame data
-    - Go state: No command implementation
-    - Behavior: Cannot create demos for playback
+10. **Demo Recording / Forward Playback Wired**
+    - C code: `record`, `stop`, and `CL_FinishDemoFrame()` manage the header, signon snapshot, frame stream, stuffed-command timing, and disconnect trailer
+    - Go state: `record` / `playdemo` / `stop` are implemented; live gameplay writes demo frames, connected-state record emits the initial snapshot, and playback applies recorded view angles plus server-time pacing
+    - Remaining gap: advanced rewind / timedemo tooling is still absent, but the forward record/playback path now works end to end
 
 11. **View Angles Not Updated from Mouse/Gamepad** - Gap B.2 key binding issue
     - C code: `CL_AdjustAngles()` applies mouse delta + key input to view angles
@@ -555,10 +554,10 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
    - Go gap: QC VM execution state not connected to save system
    - Behavior: QC state (monster positions, triggers, counters) lost on reload; triggers can fire twice
 
-2. **Lightstyles Not Restored** - Save doesn't preserve animated light state
-   - C code: Save includes `d_lightstylevalue[256]` array
-   - Go gap: Parsed in client but not saved/restored
-   - Behavior: Light animations reset on load (minor visual issue)
+2. **One Save Restriction Still Missing**
+   - C code: `Host_Savegame_f()` rejects saves when `nomonsters` is enabled, during intermission, or when players are dead
+   - Go state: intermission and dead-player checks are enforced, and savegames now persist lightstyles; the remaining gap is the `nomonsters` validation
+   - Behavior: the save command still accepts one game mode that the C engine rejects
 
 3. **Player Inventory Not Preserved**
    - C code: Saves `items` bitmask, ammo counts, weapon selection
@@ -654,4 +653,3 @@ This report analyzes major parity gaps between the C Ironwail codebase and the G
 - **Audio:** `parse.go:parseStartSound()` → dispatch to audio system
 - **Menu:** `manager.go:Draw()` → render actual menu graphics
 - **Host:** `commands.go:CmdConnect()` → implement network connection
-

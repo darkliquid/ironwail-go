@@ -182,10 +182,10 @@ These enhance experience but aren't required for playability.
 **C Reference:** `cl_main.c` view entity rendering
 **Scope:** Render player weapon in eye space with special FOV scaling
 
-### 15. Demo Recording (F.10)
-**Files:** `client/demo.go:Record()`
-**C Reference:** `cl_demo.c` with frame/sound event capture
-**Scope:** Implement demo file writing with full state snapshots
+### 15. Demo Recording / Playback (F.10)
+**Files:** `internal/client/demo.go`, `internal/host/commands.go`, `cmd/ironwailgo/main.go`
+**C Reference:** `cl_demo.c`
+**Status:** Forward-path parity is wired: connected-state recording emits the initial snapshot, live play writes frames, `stop` writes the disconnect trailer, and playback now respects pause and recorded server-time pacing.
 
 ---
 
@@ -272,4 +272,3 @@ If working with agentic system:
 - **Sprint 5 (Week 9+):** Music, polish, demo recording
 
 Estimated effort: **200-300 engineer-hours** to full feature parity (assuming experienced Quake engine developer).
-
