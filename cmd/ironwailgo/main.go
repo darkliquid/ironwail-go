@@ -449,6 +449,7 @@ func (gameCallbacks) ProcessClient() {
 
 	// Normal networked gameplay
 	_ = gameSubs.Client.ReadFromServer()
+	recordRuntimeDemoFrame()
 	_ = gameSubs.Client.SendCommand()
 }
 
@@ -1455,6 +1456,30 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 		camera.Time = float32(gameClient.Time)
 	}
 	return camera
+}
+
+func recordRuntimeDemoFrame() {
+	if gameHost == nil || gameSubs == nil || gameSubs.Client == nil || gameClient == nil {
+		return
+	}
+
+	demo := gameHost.DemoState()
+	if demo == nil || !demo.Recording {
+		return
+	}
+
+	source, ok := gameSubs.Client.(interface{ LastServerMessage() []byte })
+	if !ok {
+		return
+	}
+	message := source.LastServerMessage()
+	if len(message) == 0 {
+		return
+	}
+
+	if err := demo.WriteDemoFrame(message, gameClient.ViewAngles); err != nil {
+		slog.Warn("failed to record demo frame", "error", err)
+	}
 }
 
 func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {

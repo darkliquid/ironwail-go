@@ -85,6 +85,9 @@ func TestLocalLoopbackClientReadFromServerConsumesReliableMessage(t *testing.T) 
 	if got := lc.inner.StuffCmdBuf; got != "bf\n" {
 		t.Fatalf("StuffCmdBuf = %q, want %q", got, "bf\n")
 	}
+	if got := lc.LastServerMessage(); len(got) == 0 || got[0] != byte(inet.SVCStuffText) {
+		t.Fatalf("LastServerMessage = %v, want recorded reliable message", got)
+	}
 	if s.Static.Clients[0].Message.Len() != 0 {
 		t.Fatalf("reliable message buffer len = %d, want 0", s.Static.Clients[0].Message.Len())
 	}
@@ -94,6 +97,9 @@ func TestLocalLoopbackClientReadFromServerConsumesReliableMessage(t *testing.T) 
 	}
 	if got := lc.inner.StuffCmdBuf; got != "bf\n" {
 		t.Fatalf("StuffCmdBuf after second read = %q, want unchanged", got)
+	}
+	if got := lc.LastServerMessage(); got != nil {
+		t.Fatalf("LastServerMessage after second read = %v, want nil", got)
 	}
 }
 

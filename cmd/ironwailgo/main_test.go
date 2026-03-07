@@ -23,6 +23,18 @@ import (
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
+type demoMessageClient struct {
+	message []byte
+}
+
+func (c *demoMessageClient) Init() error               { return nil }
+func (c *demoMessageClient) Frame(float64) error       { return nil }
+func (c *demoMessageClient) Shutdown()                 {}
+func (c *demoMessageClient) State() host.ClientState   { return 0 }
+func (c *demoMessageClient) ReadFromServer() error     { return nil }
+func (c *demoMessageClient) SendCommand() error        { return nil }
+func (c *demoMessageClient) LastServerMessage() []byte { return append([]byte(nil), c.message...) }
+
 func TestStartupMapArg(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -103,6 +115,80 @@ func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{4, 5, 6})
 	if camera.Time != 12.5 {
 		t.Fatalf("runtimeCameraState time = %v, want 12.5", camera.Time)
+	}
+}
+
+func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
+	originalHost := gameHost
+	originalClient := gameClient
+	originalSubs := gameSubs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameClient = originalClient
+		gameSubs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	gameHost = host.NewHost()
+	demo := cl.NewDemoState()
+	if err := demo.StartDemoRecording("runtime_demo", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = demo.StopRecording()
+	})
+	gameHost.SetDemoState(demo)
+
+	gameClient = cl.NewClient()
+	gameClient.ViewAngles = [3]float32{10, 20, 30}
+	gameSubs = &host.Subsystems{Client: &demoMessageClient{message: []byte{1, 2, 3}}}
+
+	recordRuntimeDemoFrame()
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "demos", "runtime_demo.dem"))
+	if err != nil {
+		t.Fatalf("ReadFile(demo): %v", err)
+	}
+	newline := bytes.IndexByte(data, '\n')
+	if newline < 0 || string(data[:newline+1]) != "0\n" {
+		t.Fatalf("demo header = %q, want %q", string(data), "0\\n")
+	}
+
+	reader := bytes.NewReader(data[newline+1:])
+	var msgSize int32
+	if err := binary.Read(reader, binary.LittleEndian, &msgSize); err != nil {
+		t.Fatalf("Read(msgSize): %v", err)
+	}
+	if msgSize != 3 {
+		t.Fatalf("msgSize = %d, want 3", msgSize)
+	}
+	for i, want := range [3]float32{10, 20, 30} {
+		var got float32
+		if err := binary.Read(reader, binary.LittleEndian, &got); err != nil {
+			t.Fatalf("Read(viewAngle %d): %v", i, err)
+		}
+		if got != want {
+			t.Fatalf("view angle %d = %v, want %v", i, got, want)
+		}
+	}
+	frame := make([]byte, msgSize)
+	if _, err := reader.Read(frame); err != nil {
+		t.Fatalf("Read(frame): %v", err)
+	}
+	if !bytes.Equal(frame, []byte{1, 2, 3}) {
+		t.Fatalf("frame = %v, want [1 2 3]", frame)
 	}
 }
 

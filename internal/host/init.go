@@ -38,6 +38,8 @@ type localLoopbackClient struct {
 	srv      serverDatagramSource
 	cmd      serverCommandSink
 	cmdReady bool
+
+	lastServerMessage []byte
 }
 
 func newLocalLoopbackClient() *localLoopbackClient {
@@ -52,6 +54,7 @@ func (c *localLoopbackClient) Init() error {
 	}
 	c.inner.ClearState()
 	c.cmdReady = false
+	c.lastServerMessage = nil
 	return nil
 }
 
@@ -87,17 +90,27 @@ func (c *localLoopbackClient) State() ClientState {
 // to the client parser. This is the M3 integration point: server→client messages.
 func (c *localLoopbackClient) ReadFromServer() error {
 	if c.srv == nil || c.inner.State != cl.StateActive {
+		c.lastServerMessage = nil
 		return nil
 	}
 	data := c.srv.GetClientLoopbackMessage(0)
 	if len(data) == 0 {
+		c.lastServerMessage = nil
 		return nil
 	}
+	c.lastServerMessage = append(c.lastServerMessage[:0], data...)
 	if err := c.parser.ParseServerMessage(data); err != nil {
 		// Log but don't abort — a parse error on one frame shouldn't crash the loop.
 		_ = err
 	}
 	return nil
+}
+
+func (c *localLoopbackClient) LastServerMessage() []byte {
+	if len(c.lastServerMessage) == 0 {
+		return nil
+	}
+	return append([]byte(nil), c.lastServerMessage...)
 }
 
 func (c *localLoopbackClient) SendCommand() error {
