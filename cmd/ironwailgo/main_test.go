@@ -353,6 +353,8 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 
 	gameRenderer = &renderer.Renderer{}
 	gameClient = cl.NewClient()
+	gameClient.FogDensity = 128
+	gameClient.FogColor = [3]byte{64, 128, 255}
 	gameMenu = nil
 	gameDraw = nil
 	gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
@@ -380,6 +382,12 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	}
 	if !state.Draw2DOverlay {
 		t.Fatalf("Draw2DOverlay = false, want true")
+	}
+	if math.Abs(float64(state.FogDensity-float32(128)/255.0)) > 0.0001 {
+		t.Fatalf("FogDensity = %v, want %v", state.FogDensity, float32(128)/255.0)
+	}
+	if state.FogColor != [3]float32{64.0 / 255.0, 128.0 / 255.0, 1} {
+		t.Fatalf("FogColor = %v, want [64/255 128/255 1]", state.FogColor)
 	}
 }
 

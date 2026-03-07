@@ -20,6 +20,8 @@ type RenderFrameState struct {
 	DecalMarks     []DecalMarkEntity
 	ViewModel      *AliasModelEntity
 	LightStyles    [64]float32
+	FogColor       [3]float32
+	FogDensity     float32
 	DrawParticles  bool
 	Draw2DOverlay  bool
 	MenuActive     bool
@@ -40,6 +42,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	if dc.gldc.renderer != nil {
 		dc.gldc.renderer.setLightStyleValues(state.LightStyles)
+		dc.gldc.renderer.setFogState(state.FogColor, state.FogDensity)
 	}
 	dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 	if state.DrawWorld && dc.gldc.renderer != nil {

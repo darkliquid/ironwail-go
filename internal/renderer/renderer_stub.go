@@ -56,6 +56,8 @@ type RenderFrameState struct {
 	DecalMarks     []DecalMarkEntity
 	ViewModel      *AliasModelEntity
 	LightStyles    [64]float32
+	FogColor       [3]float32
+	FogDensity     float32
 	DrawParticles  bool
 	Draw2DOverlay  bool
 	MenuActive     bool

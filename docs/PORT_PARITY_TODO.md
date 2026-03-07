@@ -239,9 +239,10 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 
 **Work**
 
-- apply brush entity angles, not just origin offsets
+- [x] apply brush entity angles, not just origin offsets
 - [x] integrate animated texture selection into world rendering
-- consume client fog and skybox state
+- [x] consume client fog state
+- consume client skybox state
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing
 
 **Done when**

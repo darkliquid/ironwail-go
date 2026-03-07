@@ -941,6 +941,7 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	}
 	if gameClient != nil {
 		state.LightStyles = gameClient.LightStyleValues()
+		state.FogDensity, state.FogColor = gameClient.CurrentFog()
 	}
 	if gameDraw != nil {
 		state.Palette = gameDraw.Palette()

@@ -371,6 +371,9 @@ type Renderer struct {
 	worldModelRotationUniform int32
 	worldModelScaleUniform    int32
 	worldAlphaUniform         int32
+	worldCameraOriginUniform  int32
+	worldFogColorUniform      int32
+	worldFogDensityUniform    int32
 	worldIndexCount           int32
 	worldFallbackTexture      uint32
 	worldLightmapFallback     uint32
@@ -379,6 +382,8 @@ type Renderer struct {
 	worldLightmaps            []uint32
 	worldLiquidAlphaOverrides worldLiquidAlphaOverrides
 	lightStyleValues          [64]float32
+	worldFogColor             [3]float32
+	worldFogDensity           float32
 	brushModels               map[int]*glWorldMesh
 	aliasModels               map[string]*glAliasModel
 	spriteModels              map[string]*glSpriteModel

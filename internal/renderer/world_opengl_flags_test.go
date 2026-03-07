@@ -136,6 +136,17 @@ func TestWorldFaceAlpha(t *testing.T) {
 	}
 }
 
+func TestWorldFogUniformDensityMatchesIronwailScale(t *testing.T) {
+	got := worldFogUniformDensity(1)
+	want := float32((1.20112241 * 0.85 / 64.0) * (1.20112241 * 0.85 / 64.0))
+	if got != want {
+		t.Fatalf("worldFogUniformDensity(1) = %v, want %v", got, want)
+	}
+	if got := worldFogUniformDensity(0); got != 0 {
+		t.Fatalf("worldFogUniformDensity(0) = %v, want 0", got)
+	}
+}
+
 func TestResolveWorldLiquidAlphaSettings(t *testing.T) {
 	overrides := worldLiquidAlphaOverrides{hasWater: true, water: 0.25, hasTele: true, tele: 0.8}
 	got := resolveWorldLiquidAlphaSettings(1, 0, 0, 0, overrides, nil)

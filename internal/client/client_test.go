@@ -714,6 +714,65 @@ func TestSVCFog(t *testing.T) {
 	}
 }
 
+func TestClientCurrentFogInterpolatesFade(t *testing.T) {
+	c := NewClient()
+	c.Time = 4
+	c.FogDensity = 255
+	c.FogColor = [3]byte{255, 128, 0}
+	c.fogOldDensity = 0
+	c.fogOldColor = [3]float32{}
+	c.fogFadeTime = 4
+	c.fogFadeDone = 6
+
+	density, color := c.CurrentFog()
+	if math.Abs(float64(density-0.5)) > 0.0001 {
+		t.Fatalf("density = %v, want 0.5", density)
+	}
+	want := [3]float32{128.0 / 255.0, 64.0 / 255.0, 0}
+	for i := range want {
+		if math.Abs(float64(color[i]-want[i])) > 0.0001 {
+			t.Fatalf("color[%d] = %v, want %v", i, color[i], want[i])
+		}
+	}
+}
+
+func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
+	c := NewClient()
+	c.Time = 4
+	c.FogDensity = 255
+	c.FogColor = [3]byte{255, 128, 0}
+	c.fogOldDensity = 0
+	c.fogOldColor = [3]float32{}
+	c.fogFadeTime = 4
+	c.fogFadeDone = 6
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCFog))
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	_ = binary.Write(msg, binary.LittleEndian, float32(2.0))
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+	if math.Abs(float64(c.fogOldDensity-0.5)) > 0.0001 {
+		t.Fatalf("fogOldDensity = %v, want 0.5", c.fogOldDensity)
+	}
+	want := [3]float32{128.0 / 255.0, 64.0 / 255.0, 0}
+	for i := range want {
+		if math.Abs(float64(c.fogOldColor[i]-want[i])) > 0.0001 {
+			t.Fatalf("fogOldColor[%d] = %v, want %v", i, c.fogOldColor[i], want[i])
+		}
+	}
+	if c.fogFadeDone != 6 {
+		t.Fatalf("fogFadeDone = %v, want 6", c.fogFadeDone)
+	}
+}
+
 func writeShort(buf *bytes.Buffer, v int) {
 	_ = binary.Write(buf, binary.LittleEndian, int16(v))
 }

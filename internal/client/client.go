@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/common"
@@ -128,10 +129,14 @@ type Client struct {
 	PlayerNames  map[int]string
 	PlayerColors map[int]byte
 
-	SkyboxName string
-	FogDensity byte
-	FogColor   [3]byte
-	FogTime    float32
+	SkyboxName    string
+	FogDensity    byte
+	FogColor      [3]byte
+	FogTime       float32
+	fogOldDensity float32
+	fogOldColor   [3]float32
+	fogFadeDone   float64
+	fogFadeTime   float32
 
 	OnGround bool
 	InWater  bool
@@ -270,6 +275,10 @@ func (c *Client) ClearState() {
 	c.FogDensity = 0
 	c.FogColor = [3]byte{}
 	c.FogTime = 0
+	c.fogOldDensity = 0
+	c.fogOldColor = [3]float32{}
+	c.fogFadeDone = 0
+	c.fogFadeTime = 0
 	c.SoundEvents = nil
 	c.StopSoundEvents = nil
 	c.ParticleEvents = nil
@@ -388,6 +397,53 @@ func (c *Client) LightStyleValues() [64]float32 {
 		out[i] = evalLightStyleValue(style, c.Time)
 	}
 	return out
+}
+
+// CurrentFog evaluates the client's active fog state at the current client clock.
+func (c *Client) CurrentFog() (density float32, color [3]float32) {
+	if c == nil {
+		return 0, [3]float32{}
+	}
+
+	targetDensity := float32(c.FogDensity) / 255
+	targetColor := [3]float32{
+		float32(c.FogColor[0]) / 255,
+		float32(c.FogColor[1]) / 255,
+		float32(c.FogColor[2]) / 255,
+	}
+	if c.fogFadeDone > c.Time && c.fogFadeTime > 0 {
+		f := float32((c.fogFadeDone - c.Time) / float64(c.fogFadeTime))
+		if f < 0 {
+			f = 0
+		}
+		if f > 1 {
+			f = 1
+		}
+		density = f*c.fogOldDensity + (1-f)*targetDensity
+		for i := range color {
+			color[i] = f*c.fogOldColor[i] + (1-f)*targetColor[i]
+		}
+	} else {
+		density = targetDensity
+		color = targetColor
+	}
+
+	for i := range color {
+		if color[i] < 0 {
+			color[i] = 0
+		}
+		if color[i] > 1 {
+			color[i] = 1
+		}
+		color[i] = float32(math.Round(float64(color[i]*255))) / 255
+	}
+	if density < 0 {
+		density = 0
+	}
+	if density > 1 {
+		density = 1
+	}
+	return density, color
 }
 
 func evalLightStyleValue(style LightStyle, timeSeconds float64) float32 {

@@ -712,6 +712,10 @@ type RenderFrameState struct {
 	// LightStyles contains evaluated lightstyle scalars for the current frame.
 	LightStyles [64]float32
 
+	// FogColor and FogDensity mirror the authoritative renderer state for parity tracking.
+	FogColor   [3]float32
+	FogDensity float32
+
 	// DrawParticles enables particle rendering
 	DrawParticles bool
 
