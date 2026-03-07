@@ -21,6 +21,33 @@ func TestSplitParticleVerticesByAlpha(t *testing.T) {
 	}
 }
 
+func TestSplitAliasEntitiesByAlpha(t *testing.T) {
+	entities := []AliasModelEntity{
+		{ModelID: "invisible", Alpha: 0},
+		{ModelID: "translucent", Alpha: 0.5},
+		{ModelID: "opaque-full", Alpha: 1},
+	}
+
+	opaque, translucent := splitAliasEntitiesByAlpha(entities)
+	if len(opaque) != 1 {
+		t.Fatalf("opaque count = %d, want 1", len(opaque))
+	}
+	if opaque[0].ModelID != "opaque-full" {
+		t.Fatalf("opaque entities = %#v, want full alpha alias", opaque)
+	}
+	if len(translucent) != 1 {
+		t.Fatalf("translucent count = %d, want 1", len(translucent))
+	}
+	if translucent[0].ModelID != "translucent" {
+		t.Fatalf("translucent entity = %#v, want translucent alias", translucent[0])
+	}
+	for _, entity := range append(opaque, translucent...) {
+		if entity.ModelID == "invisible" {
+			t.Fatalf("invisible alias should have been skipped: %#v", entity)
+		}
+	}
+}
+
 func TestWorldBrushPassSelector(t *testing.T) {
 	tests := []struct {
 		name               string

@@ -13,18 +13,19 @@ A. WORLD RENDERING         [██████████████░░░�
     - External skybox fallback behavior: DONE (partial square same-size face sets upload as cubemap with zero-filled missing faces; inconsistent/non-square sets fall back to embedded BSP sky)
     - Remaining sky fidelity gap: pass-order fidelity (sky/water/translucency/viewmodel) + non-cubemap/per-side edge cases
 
-B. ENTITY RENDERING        [██████████████░░░░░] ~70%
+B. ENTITY RENDERING        [███████████████░░░░] ~75%
    - Alias models: live runtime integration DONE
    - Sprites: live runtime integration DONE
    - Particles: live runtime integration DONE
    - Brush submodels: live runtime integration DONE
    - Dynamic lights / protocol-driven effects: DONE
-   - Bounded pass-order slices landed after 38de7f3 / 5800311 / aabf5ca:
+   - Bounded pass-order slices landed after 38de7f3 / 5800311 / aabf5ca / e74f73b:
       - particles now run as explicit opaque/translucent subpasses instead of one late lump
       - world + brush liquid surfaces now bucket into dedicated opaque-liquid/translucent-liquid bins (separate from general opaque/translucent world bins)
       - frame-level OpenGL ordering now stages world + brush non-liquid draws before alias/sprite + opaque particles, then runs world + brush liquid-only draws as their own step before decals/translucent particles/viewmodel
+      - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing across sky relocation, alias/sprite alpha split, translucency begin/end semantics, and final viewmodel placement
+   - Remaining fidelity work: full C pass sequencing across sky relocation, brush/sprite translucency timing, translucency begin/end semantics, and final viewmodel placement
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE

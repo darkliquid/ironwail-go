@@ -40,6 +40,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state == nil {
 		return
 	}
+	var opaqueAliasEntities, translucentAliasEntities []AliasModelEntity
+	if state.DrawEntities && len(state.AliasEntities) > 0 {
+		opaqueAliasEntities, translucentAliasEntities = splitAliasEntitiesByAlpha(state.AliasEntities)
+	}
 	if dc.gldc.renderer != nil {
 		dc.gldc.renderer.setLightStyleValues(state.LightStyles)
 		dc.gldc.renderer.setFogState(state.FogColor, state.FogDensity)
@@ -51,8 +55,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
 		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassNonLiquid)
 	}
-	if state.DrawEntities && dc.gldc.renderer != nil && len(state.AliasEntities) > 0 {
-		dc.gldc.renderer.renderAliasEntities(state.AliasEntities)
+	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueAliasEntities) > 0 {
+		dc.gldc.renderer.renderAliasEntities(opaqueAliasEntities)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.SpriteEntities) > 0 {
 		dc.gldc.renderer.renderSpriteEntities(state.SpriteEntities)
@@ -68,6 +72,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
 		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentAliasEntities) > 0 {
+		dc.gldc.renderer.renderAliasEntities(translucentAliasEntities)
 	}
 	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
 		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassTranslucent)

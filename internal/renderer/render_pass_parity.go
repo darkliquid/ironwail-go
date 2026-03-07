@@ -31,6 +31,31 @@ func isFullyOpaqueAlpha(alpha float32) bool {
 	return alpha >= 1
 }
 
+func visibleAliasEntityAlpha(alpha float32) (float32, bool) {
+	alpha = clamp01(alpha)
+	return alpha, alpha > 0
+}
+
+func splitAliasEntitiesByAlpha(entities []AliasModelEntity) (opaque, translucent []AliasModelEntity) {
+	if len(entities) == 0 {
+		return nil, nil
+	}
+	opaque = make([]AliasModelEntity, 0, len(entities))
+	translucent = make([]AliasModelEntity, 0, len(entities))
+	for _, entity := range entities {
+		alpha, visible := visibleAliasEntityAlpha(entity.Alpha)
+		if !visible {
+			continue
+		}
+		if isFullyOpaqueAlpha(alpha) {
+			opaque = append(opaque, entity)
+			continue
+		}
+		translucent = append(translucent, entity)
+	}
+	return opaque, translucent
+}
+
 func splitParticleVerticesByAlpha(vertices []ParticleVertex) (opaque, translucent []ParticleVertex) {
 	if len(vertices) == 0 {
 		return nil, nil

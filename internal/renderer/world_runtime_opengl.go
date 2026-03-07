@@ -2026,9 +2026,9 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 		}
 	}
 
-	alpha := entity.Alpha
-	if alpha <= 0 {
-		alpha = 1
+	alpha, visible := visibleAliasEntityAlpha(entity.Alpha)
+	if !visible {
+		return nil
 	}
 
 	return &glAliasDraw{
