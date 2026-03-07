@@ -19,7 +19,10 @@ B. ENTITY RENDERING        [██████████████░░░�
    - Particles: live runtime integration DONE
    - Brush submodels: live runtime integration DONE
    - Dynamic lights / protocol-driven effects: DONE
-   - Remaining fidelity work: ordering and sky interaction details
+   - Bounded pass-order slice landed after 38de7f3:
+      - particles now run as explicit opaque/translucent subpasses instead of one late lump
+      - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
+   - Remaining fidelity work: full C pass sequencing across sky/water/translucency/viewmodel
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE

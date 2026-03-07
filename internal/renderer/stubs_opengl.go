@@ -57,11 +57,14 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.SpriteEntities) > 0 {
 		dc.gldc.renderer.renderSpriteEntities(state.SpriteEntities)
 	}
+	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
+		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassOpaque)
+	}
 	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
 		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)
 	}
 	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
-		dc.gldc.renderer.renderParticles(state.Particles, state.Palette)
+		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassTranslucent)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && state.ViewModel != nil {
 		dc.gldc.renderer.renderViewModel(*state.ViewModel)

@@ -43,6 +43,13 @@ void main() {
 }`
 )
 
+type particleRenderPass int
+
+const (
+	particlePassOpaque particleRenderPass = iota
+	particlePassTranslucent
+)
+
 func buildParticlePaletteRGBA(palette []byte) [256][4]byte {
 	var p [256][4]byte
 	if len(palette) < 768 {
@@ -102,7 +109,7 @@ func (r *Renderer) ensureParticleBuffersLocked() {
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 }
 
-func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte) {
+func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass particleRenderPass) {
 	if ps == nil || ps.ActiveCount() == 0 {
 		return
 	}
@@ -114,6 +121,14 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte) {
 	p := buildParticlePaletteRGBA(palette)
 	vertices := BuildParticleVertices(active, p, false)
 	if len(vertices) == 0 {
+		return
+	}
+	opaqueVertices, translucentVertices := splitParticleVerticesByAlpha(vertices)
+	drawVertices := opaqueVertices
+	if pass == particlePassTranslucent {
+		drawVertices = translucentVertices
+	}
+	if len(drawVertices) == 0 {
 		return
 	}
 
@@ -142,20 +157,27 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte) {
 	}
 
 	gl.Enable(gl.DEPTH_TEST)
-	gl.DepthMask(false)
 	gl.Disable(gl.CULL_FACE)
-	gl.Enable(gl.BLEND)
+	if pass == particlePassOpaque {
+		gl.DepthMask(true)
+		gl.Disable(gl.BLEND)
+	} else {
+		gl.DepthMask(false)
+		gl.Enable(gl.BLEND)
+		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	}
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1f(pointScaleUniform, pointScale)
 	gl.BindVertexArray(vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*int(unsafe.Sizeof(ParticleVertex{})), gl.Ptr(vertices), gl.DYNAMIC_DRAW)
-	gl.DrawArrays(gl.POINTS, 0, int32(len(vertices)))
+	gl.BufferData(gl.ARRAY_BUFFER, len(drawVertices)*int(unsafe.Sizeof(ParticleVertex{})), gl.Ptr(drawVertices), gl.DYNAMIC_DRAW)
+	gl.DrawArrays(gl.POINTS, 0, int32(len(drawVertices)))
 	gl.BindVertexArray(0)
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.UseProgram(0)
 	gl.DepthMask(true)
+	gl.Enable(gl.BLEND)
 }
 
 func (r *Renderer) clearParticleResourcesLocked() {
