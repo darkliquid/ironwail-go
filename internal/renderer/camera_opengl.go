@@ -73,8 +73,8 @@ func angleVectors(pitch, yaw float32) gmath.Vec3 {
 	cosYaw := float32(math.Cos(float64(yaw)))
 	sinYaw := float32(math.Sin(float64(yaw)))
 	return gmath.Vec3{
-		X: sinYaw * cosPitch,
-		Y: -cosYaw * cosPitch,
+		X: cosYaw * cosPitch,
+		Y: sinYaw * cosPitch,
 		Z: -sinPitch,
 	}
 }
@@ -83,8 +83,8 @@ func angleVectorsRight(yaw float32) gmath.Vec3 {
 	cosYaw := float32(math.Cos(float64(yaw)))
 	sinYaw := float32(math.Sin(float64(yaw)))
 	return gmath.Vec3{
-		X: cosYaw,
-		Y: sinYaw,
+		X: sinYaw,
+		Y: -cosYaw,
 		Z: 0,
 	}
 }
@@ -94,10 +94,10 @@ func angleVectorsUp(pitch, yaw float32) gmath.Vec3 {
 	sinPitch := float32(math.Sin(float64(pitch)))
 	cosYaw := float32(math.Cos(float64(yaw)))
 	sinYaw := float32(math.Sin(float64(yaw)))
-	right := gmath.Vec3{X: cosYaw, Y: sinYaw, Z: 0}
+	right := gmath.Vec3{X: sinYaw, Y: -cosYaw, Z: 0}
 	forward := gmath.Vec3{
-		X: sinYaw * cosPitch,
-		Y: -cosYaw * cosPitch,
+		X: cosYaw * cosPitch,
+		Y: sinYaw * cosPitch,
 		Z: -sinPitch,
 	}
 	return right.Cross(forward)

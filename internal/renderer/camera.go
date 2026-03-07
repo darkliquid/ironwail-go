@@ -67,7 +67,7 @@ func ComputeViewMatrix(camera CameraState) gmath.Mat4 {
 		"origin", camera.Origin,
 		"angles", camera.Angles,
 		"fov", camera.FOV)
-	
+
 	// Convert angles from degrees to radians
 	pitchRad := float32(math.Pi) / 180.0 * camera.Angles.X
 	yawRad := float32(math.Pi) / 180.0 * camera.Angles.Y
@@ -140,7 +140,7 @@ func ComputeProjectionMatrix(fovDegrees, aspect, near, far float32) gmath.Mat4 {
 // This follows Quake's angle convention where:
 //   - Yaw rotates around the Z axis (up)
 //   - Pitch rotates around the right axis (affects Z component)
-//   - When yaw=0 and pitch=0, forward points along -Y (into the world)
+//   - When yaw=0 and pitch=0, forward points along +X
 func angleVectors(pitch, yaw float32) gmath.Vec3 {
 	cosPitch := float32(math.Cos(float64(pitch)))
 	sinPitch := float32(math.Sin(float64(pitch)))
@@ -148,33 +148,33 @@ func angleVectors(pitch, yaw float32) gmath.Vec3 {
 	sinYaw := float32(math.Sin(float64(yaw)))
 
 	// Forward vector in Quake convention:
-	// When pitch=0, yaw=0: forward = (0, -1, 0)  [pointing in -Y]
-	// When pitch=0, yaw=π/2: forward = (1, 0, 0) [pointing in +X, to the right]
-	// X = sin(yaw) * cos(pitch)
-	// Y = -cos(yaw) * cos(pitch)
+	// When pitch=0, yaw=0: forward = (1, 0, 0)  [pointing in +X]
+	// When pitch=0, yaw=π/2: forward = (0, 1, 0) [pointing in +Y]
+	// X = cos(yaw) * cos(pitch)
+	// Y = sin(yaw) * cos(pitch)
 	// Z = -sin(pitch)  [negative because positive pitch = looking up]
 	return gmath.Vec3{
-		X: sinYaw * cosPitch,
-		Y: -cosYaw * cosPitch,
+		X: cosYaw * cosPitch,
+		Y: sinYaw * cosPitch,
 		Z: -sinPitch,
 	}
 }
 
 // angleVectorsRight computes the right vector from yaw angle.
 // The right vector is perpendicular to the forward direction.
-// When yaw=0: right = (1, 0, 0) [pointing in +X]
-// When yaw=π/2: right = (0, -1, 0) [pointing in -Y]
+// When yaw=0: right = (0, -1, 0)
+// When yaw=π/2: right = (1, 0, 0)
 func angleVectorsRight(yaw float32) gmath.Vec3 {
 	cosYaw := float32(math.Cos(float64(yaw)))
 	sinYaw := float32(math.Sin(float64(yaw)))
 
 	// Right vector (perpendicular to forward in XY plane):
-	// X = cos(yaw)
-	// Y = sin(yaw)
+	// X = sin(yaw)
+	// Y = -cos(yaw)
 	// Z = 0 (right is always horizontal in Quake)
 	return gmath.Vec3{
-		X: cosYaw,
-		Y: sinYaw,
+		X: sinYaw,
+		Y: -cosYaw,
 		Z: 0,
 	}
 }
@@ -188,12 +188,12 @@ func angleVectorsUp(pitch, yaw float32) gmath.Vec3 {
 	sinYaw := float32(math.Sin(float64(yaw)))
 
 	// Up vector: cross(right, forward)
-	// right = (cos(yaw), sin(yaw), 0)
-	// forward = (sin(yaw)*cos(pitch), -cos(yaw)*cos(pitch), -sin(pitch))
-	right := gmath.Vec3{X: cosYaw, Y: sinYaw, Z: 0}
+	// right = (sin(yaw), -cos(yaw), 0)
+	// forward = (cos(yaw)*cos(pitch), sin(yaw)*cos(pitch), -sin(pitch))
+	right := gmath.Vec3{X: sinYaw, Y: -cosYaw, Z: 0}
 	forward := gmath.Vec3{
-		X: sinYaw * cosPitch,
-		Y: -cosYaw * cosPitch,
+		X: cosYaw * cosPitch,
+		Y: sinYaw * cosPitch,
 		Z: -sinPitch,
 	}
 	return right.Cross(forward)
