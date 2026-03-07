@@ -48,6 +48,33 @@ func TestSplitAliasEntitiesByAlpha(t *testing.T) {
 	}
 }
 
+func TestSplitBrushEntitiesByAlpha(t *testing.T) {
+	entities := []BrushEntity{
+		{SubmodelIndex: 1, Alpha: 0},
+		{SubmodelIndex: 2, Alpha: 0.5},
+		{SubmodelIndex: 3, Alpha: 1},
+	}
+
+	opaque, translucent := splitBrushEntitiesByAlpha(entities)
+	if len(opaque) != 1 {
+		t.Fatalf("opaque count = %d, want 1", len(opaque))
+	}
+	if opaque[0].SubmodelIndex != 3 {
+		t.Fatalf("opaque entities = %#v, want full alpha brush", opaque)
+	}
+	if len(translucent) != 1 {
+		t.Fatalf("translucent count = %d, want 1", len(translucent))
+	}
+	if translucent[0].SubmodelIndex != 2 {
+		t.Fatalf("translucent entity = %#v, want translucent brush", translucent[0])
+	}
+	for _, entity := range append(opaque, translucent...) {
+		if entity.SubmodelIndex == 1 {
+			t.Fatalf("invisible brush should have been skipped: %#v", entity)
+		}
+	}
+}
+
 func TestWorldBrushPassSelector(t *testing.T) {
 	tests := []struct {
 		name                     string

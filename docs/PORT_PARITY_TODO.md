@@ -253,7 +253,8 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded post-e74f73b parity slice: split alias-model entity rendering into explicit opaque/translucent frame stages so fully opaque aliases stay before water and non-opaque aliases move later in the frame without changing the still-pending brush/sprite/translucency state behavior
 - [x] bounded post-e061c6a parity slice: move the dedicated sky pass out of the early non-liquid world/brush stage and run it after opaque entities/particles but before liquid surfaces so the canonical OpenGL scene order is closer to C
 - [x] bounded post-c2233bc parity slice: split opaque and translucent liquid world/brush draws into separate top-level frame stages so all opaque liquid work now precedes all translucent liquid work on the canonical OpenGL path
-- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor, including brush/sprite translucency timing, translucency begin/end semantics, and viewmodel placement)
+- [x] bounded post-46f3ca3 parity slice: split brush entities into opaque/translucent frame groups so translucent brush non-liquid work moves later in the frame while opaque brush work stays in the earlier entity/liquid stages
+- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor, including sprite timing, translucency begin/end semantics, and viewmodel placement)
 
 **Done when**
 

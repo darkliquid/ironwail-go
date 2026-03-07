@@ -40,7 +40,11 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state == nil {
 		return
 	}
+	var opaqueBrushEntities, translucentBrushEntities []BrushEntity
 	var opaqueAliasEntities, translucentAliasEntities []AliasModelEntity
+	if state.DrawEntities && len(state.BrushEntities) > 0 {
+		opaqueBrushEntities, translucentBrushEntities = splitBrushEntitiesByAlpha(state.BrushEntities)
+	}
 	if state.DrawEntities && len(state.AliasEntities) > 0 {
 		opaqueAliasEntities, translucentAliasEntities = splitAliasEntitiesByAlpha(state.AliasEntities)
 	}
@@ -52,8 +56,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassNonLiquid)
 	}
-	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassNonLiquid)
+	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueBrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(opaqueBrushEntities, worldBrushPassNonLiquid)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueAliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(opaqueAliasEntities)
@@ -73,17 +77,23 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassLiquidOpaqueOnly)
 	}
-	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassLiquidOpaqueOnly)
+	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueBrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(opaqueBrushEntities, worldBrushPassLiquidOpaqueOnly)
 	}
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassLiquidTranslucentOnly)
 	}
-	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassLiquidTranslucentOnly)
+	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueBrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(opaqueBrushEntities, worldBrushPassLiquidTranslucentOnly)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentBrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(translucentBrushEntities, worldBrushPassLiquidTranslucentOnly)
 	}
 	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
 		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentBrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(translucentBrushEntities, worldBrushPassNonLiquid)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentAliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(translucentAliasEntities)

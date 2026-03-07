@@ -44,7 +44,7 @@ func isFullyOpaqueAlpha(alpha float32) bool {
 	return alpha >= 1
 }
 
-func visibleAliasEntityAlpha(alpha float32) (float32, bool) {
+func visibleEntityAlpha(alpha float32) (float32, bool) {
 	alpha = clamp01(alpha)
 	return alpha, alpha > 0
 }
@@ -56,7 +56,27 @@ func splitAliasEntitiesByAlpha(entities []AliasModelEntity) (opaque, translucent
 	opaque = make([]AliasModelEntity, 0, len(entities))
 	translucent = make([]AliasModelEntity, 0, len(entities))
 	for _, entity := range entities {
-		alpha, visible := visibleAliasEntityAlpha(entity.Alpha)
+		alpha, visible := visibleEntityAlpha(entity.Alpha)
+		if !visible {
+			continue
+		}
+		if isFullyOpaqueAlpha(alpha) {
+			opaque = append(opaque, entity)
+			continue
+		}
+		translucent = append(translucent, entity)
+	}
+	return opaque, translucent
+}
+
+func splitBrushEntitiesByAlpha(entities []BrushEntity) (opaque, translucent []BrushEntity) {
+	if len(entities) == 0 {
+		return nil, nil
+	}
+	opaque = make([]BrushEntity, 0, len(entities))
+	translucent = make([]BrushEntity, 0, len(entities))
+	for _, entity := range entities {
+		alpha, visible := visibleEntityAlpha(entity.Alpha)
 		if !visible {
 			continue
 		}
