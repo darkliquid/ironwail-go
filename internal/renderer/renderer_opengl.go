@@ -590,6 +590,15 @@ func (r *Renderer) UpdateLights(deltaTime float32) {
 	}
 }
 
+// ClearDynamicLights removes all active gameplay lights from the renderer.
+func (r *Renderer) ClearDynamicLights() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool != nil {
+		r.lightPool.Clear()
+	}
+}
+
 // Run starts the main rendering loop.
 func (r *Renderer) Run() error {
 	r.mu.Lock()

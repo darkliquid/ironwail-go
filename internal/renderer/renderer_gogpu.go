@@ -1181,6 +1181,14 @@ func (r *Renderer) HasWorldData() bool {
 	return r.worldData != nil && r.worldVertexBuffer != nil && r.worldIndexBuffer != nil && r.worldIndexCount > 0 && r.worldPipeline != nil
 }
 
+func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
+	return false
+}
+
+func (r *Renderer) UpdateLights(deltaTime float32) {}
+
+func (r *Renderer) ClearDynamicLights() {}
+
 // NeedsWorldGPUUpload reports whether CPU world geometry exists but GPU buffers
 // are not uploaded yet.
 func (r *Renderer) NeedsWorldGPUUpload() bool {

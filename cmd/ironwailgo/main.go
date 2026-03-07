@@ -1450,6 +1450,9 @@ func syncRuntimeVisualEffects(dt float64) {
 			gameClient.ConsumeParticleEvents()
 			gameClient.ConsumeTempEntities()
 		}
+		if gameRenderer != nil {
+			gameRenderer.ClearDynamicLights()
+		}
 		if (gameParticles != nil && gameParticles.ActiveCount() > 0) || (gameDecalMarks != nil && gameDecalMarks.ActiveCount() > 0) {
 			resetRuntimeVisualState()
 		}
@@ -1462,6 +1465,10 @@ func syncRuntimeVisualEffects(dt float64) {
 	particleEvents := gameClient.ConsumeParticleEvents()
 	tempEntities := gameClient.ConsumeTempEntities()
 
+	if gameRenderer != nil {
+		gameRenderer.UpdateLights(float32(dt))
+		renderer.EmitDynamicLights(gameRenderer.SpawnDynamicLight, tempEntities)
+	}
 	if gameParticles != nil {
 		renderer.EmitClientEffects(gameParticles, particleEvents, tempEntities, particleRNG, particleTime)
 		gameParticles.RunParticles(particleTime, oldTime, 800)

@@ -84,3 +84,25 @@ func TestDecalMarkSystemRunExpiresMarks(t *testing.T) {
 		t.Fatalf("ActiveCount after run = %d, want 1", got)
 	}
 }
+
+func TestEmitDynamicLightsMapsExplosionAndBeam(t *testing.T) {
+	var lights []DynamicLight
+	EmitDynamicLights(func(light DynamicLight) bool {
+		lights = append(lights, light)
+		return true
+	}, []cl.TempEntityEvent{
+		{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}},
+		{Type: inet.TE_BEAM, Start: [3]float32{0, 0, 0}, End: [3]float32{10, 20, 30}},
+		{Type: inet.TE_LAVASPLASH, Origin: [3]float32{9, 9, 9}},
+	})
+
+	if got := len(lights); got != 2 {
+		t.Fatalf("light count = %d, want 2", got)
+	}
+	if lights[0].Position != [3]float32{4, 5, 6} || lights[0].Radius != 320 {
+		t.Fatalf("explosion light = %#v, want origin light with radius 320", lights[0])
+	}
+	if lights[1].Position != [3]float32{5, 10, 15} || lights[1].Radius != 160 {
+		t.Fatalf("beam light = %#v, want midpoint light with radius 160", lights[1])
+	}
+}

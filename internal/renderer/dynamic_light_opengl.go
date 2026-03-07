@@ -3,52 +3,7 @@
 
 package renderer
 
-import (
-	"math"
-)
-
-// DynamicLight represents a temporary point light source in the world.
-// Dynamic lights fade over time and are used for torches, explosions, muzzle flashes, etc.
-type DynamicLight struct {
-	// Position is the light source center in world space [X, Y, Z]
-	Position [3]float32
-
-	// Radius is the distance at which light falloff reaches zero
-	Radius float32
-
-	// Color is the RGB light color in linear space [0-1]
-	Color [3]float32
-
-	// Brightness is the light intensity multiplier, typically 1.0-2.0
-	Brightness float32
-
-	// Lifetime is the total lifespan of the light in seconds
-	Lifetime float32
-
-	// Age is the current age of the light in seconds (incremented per frame)
-	Age float32
-
-	// Type identifies the light source (torch, muzzle, explosion, etc) for optional filtering
-	Type int
-}
-
-// IsAlive returns true if the light has not yet expired
-func (l *DynamicLight) IsAlive() bool {
-	return l.Age < l.Lifetime
-}
-
-// FadeMultiplier returns a brightness fade factor as the light ages (optional).
-// For now, we use linear fade: 1.0 at start, 0.0 at lifetime.
-func (l *DynamicLight) FadeMultiplier() float32 {
-	if l.Lifetime <= 0 {
-		return 1.0
-	}
-	remaining := 1.0 - (l.Age / l.Lifetime)
-	if remaining < 0 {
-		remaining = 0
-	}
-	return remaining
-}
+import "math"
 
 // glLightPool manages the active set of dynamic lights for the current frame.
 // It handles light spawning, aging, expiration, and evaluation.

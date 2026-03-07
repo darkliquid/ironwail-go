@@ -212,6 +212,14 @@ func (r *Renderer) HasWorldData() bool {
 	return false
 }
 
+func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
+	return false
+}
+
+func (r *Renderer) UpdateLights(deltaTime float32) {}
+
+func (r *Renderer) ClearDynamicLights() {}
+
 // GetWorldBounds returns no bounds in the no-backend build.
 func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	return min, max, false
