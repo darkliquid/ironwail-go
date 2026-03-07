@@ -66,6 +66,7 @@ var (
 	soundPrecacheKey string
 	staticSoundKey   string
 	musicTrackKey    string
+	skyboxNameKey    string
 )
 
 const (
@@ -1539,6 +1540,7 @@ func resetRuntimeVisualState() {
 		gameDecalMarks = nil
 		particleRNG = nil
 		particleTime = 0
+		skyboxNameKey = ""
 		return
 	}
 
@@ -1546,6 +1548,7 @@ func resetRuntimeVisualState() {
 	gameDecalMarks = renderer.NewDecalMarkSystem()
 	particleRNG = rand.New(rand.NewSource(1))
 	particleTime = 0
+	skyboxNameKey = ""
 }
 
 func syncRuntimeVisualEffects(dt float64) {
@@ -1588,6 +1591,26 @@ func syncRuntimeVisualEffects(dt float64) {
 		gameDecalMarks.Run(particleTime)
 		renderer.EmitDecalMarks(gameDecalMarks, tempEntities, particleRNG, particleTime)
 	}
+}
+
+func syncRuntimeSkybox() {
+	if gameRenderer == nil {
+		skyboxNameKey = ""
+		return
+	}
+	skyboxName := ""
+	if gameClient != nil && gameClient.State == cl.StateActive {
+		skyboxName = gameClient.SkyboxName
+	}
+	if skyboxName == skyboxNameKey {
+		return
+	}
+	skyboxNameKey = skyboxName
+	if skyboxName == "" || gameSubs == nil || gameSubs.Files == nil {
+		gameRenderer.SetExternalSkybox("", nil)
+		return
+	}
+	gameRenderer.SetExternalSkybox(skyboxName, gameSubs.Files.LoadFile)
 }
 
 func refreshRuntimeSoundCache() {
@@ -1791,6 +1814,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) {
 		gameClient.PredictPlayers(float32(dt))
 	}
 	viewOrigin, viewAngles := runtimeViewState()
+	syncRuntimeSkybox()
 	if gameAudio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
 		gameAudio.SetListener(viewOrigin, forward, right, up)

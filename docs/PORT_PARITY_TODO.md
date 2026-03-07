@@ -246,7 +246,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] consume client fog state
 - [x] render embedded BSP sky via dedicated animated two-layer sky shader/path on canonical OpenGL runtime
 - [x] align embedded-sky fog mix semantics with C (`r_skyfog` + worldspawn `skyfog`, gated by general fog density)
-- consume client skybox state
+- [x] consume client skybox state on canonical OpenGL path and load common external cubemap skyboxes from Quake FS search paths (`gfx/env/<name><suffix>.{png,tga,jpg}`), including partial square face sets (zero-filling missing faces) with fallback to embedded BSP sky for inconsistent/non-square cases
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing
 
 **Done when**

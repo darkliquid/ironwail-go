@@ -1193,6 +1193,8 @@ func (r *Renderer) UpdateLights(deltaTime float32) {}
 
 func (r *Renderer) ClearDynamicLights() {}
 
+func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {}
+
 // NeedsWorldGPUUpload reports whether CPU world geometry exists but GPU buffers
 // are not uploaded yet.
 func (r *Renderer) NeedsWorldGPUUpload() bool {

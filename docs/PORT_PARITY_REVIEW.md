@@ -12,7 +12,7 @@ The Go port is materially farther along than several older planning notes imply.
 
 The biggest remaining parity problems are mostly **integration and fidelity gaps**, not total subsystem absence:
 
-- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, fog, turbulent UV warp, and embedded two-layer Quake sky integration in the live runtime; the main remaining render gaps are external skybox handling and exact pass ordering
+- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, fog, turbulent UV warp, embedded two-layer Quake sky integration, and common external cubemap skybox consumption in the live runtime; the main remaining render gaps are exact pass ordering and non-cubemap skybox edge cases
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
 - the input/command layer now uses Quake-style bindings, config persistence, command aliases (`alias`/`unalias`/`unaliasall`), and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
 - the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
@@ -28,7 +28,7 @@ A useful way to think about the current tree is:
 | Area | What is already implemented | Main missing / divergent behavior |
 | --- | --- | --- |
 | Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local `connect`/`disconnect` session transitions | remote connection flow is still stubbed |
-| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, and dedicated embedded sky layer animation path | skybox consumption and exact render-pass ordering still differ from C |
+| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, and common external cubemap skybox consumption | exact render-pass ordering and non-cubemap skybox edge cases still differ from C |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
@@ -118,8 +118,7 @@ The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 
 #### Remaining divergences from C
 
-- `Client.SkyboxName` is parsed but still not consumed by the renderer
-- embedded BSP sky surfaces now render through a dedicated animated sky-layer shader/path (instead of the ordinary world shader), while external skybox consumption remains TODO
+- embedded BSP sky surfaces now render through a dedicated animated sky-layer shader/path (instead of the ordinary world shader), and the common external cubemap skybox path is consumed (including partial square face sets with zero-filled missing faces) with fallback to embedded sky for unsupported face sets
 - the top-level OpenGL pass ordering is still simpler than `R_RenderScene()`
 
 ### 2.3 gogpu path: current status

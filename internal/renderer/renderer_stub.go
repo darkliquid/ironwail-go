@@ -222,6 +222,8 @@ func (r *Renderer) UpdateLights(deltaTime float32) {}
 
 func (r *Renderer) ClearDynamicLights() {}
 
+func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {}
+
 // GetWorldBounds returns no bounds in the no-backend build.
 func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	return min, max, false
