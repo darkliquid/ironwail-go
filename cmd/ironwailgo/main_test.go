@@ -17,6 +17,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
 func TestStartupMapArg(t *testing.T) {
@@ -186,6 +187,136 @@ func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T
 	syncRuntimeStaticSounds()
 	if staticSoundKey != "" {
 		t.Fatalf("non-active client state should clear static snapshot key, got %q", staticSoundKey)
+	}
+}
+
+func TestSyncRuntimeVisualEffectsEmitsParticlesAndDecals(t *testing.T) {
+	originalClient := gameClient
+	originalRenderer := gameRenderer
+	originalParticles := gameParticles
+	originalMarks := gameDecalMarks
+	originalRNG := particleRNG
+	originalTime := particleTime
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameRenderer = originalRenderer
+		gameParticles = originalParticles
+		gameDecalMarks = originalMarks
+		particleRNG = originalRNG
+		particleTime = originalTime
+	})
+
+	gameRenderer = &renderer.Renderer{}
+	resetRuntimeVisualState()
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ParticleEvents = []cl.ParticleEvent{
+		{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 99},
+	}
+	gameClient.TempEntities = []cl.TempEntityEvent{
+		{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}},
+	}
+
+	syncRuntimeVisualEffects(0.1)
+
+	if gameParticles == nil || gameParticles.ActiveCount() == 0 {
+		t.Fatalf("expected runtime visual sync to emit particles")
+	}
+	gotMarks := 0
+	if gameDecalMarks != nil {
+		gotMarks = gameDecalMarks.ActiveCount()
+	}
+	if gotMarks != 1 {
+		t.Fatalf("expected runtime visual sync to emit one decal mark, got %d", gotMarks)
+	}
+	if got := particleTime; got <= 0 {
+		t.Fatalf("particleTime = %v, want > 0", got)
+	}
+	if len(gameClient.ParticleEvents) != 0 || len(gameClient.TempEntities) != 0 {
+		t.Fatalf("runtime visual sync should consume client effect buffers")
+	}
+}
+
+func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
+	originalClient := gameClient
+	originalRenderer := gameRenderer
+	originalParticles := gameParticles
+	originalMarks := gameDecalMarks
+	originalRNG := particleRNG
+	originalTime := particleTime
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameRenderer = originalRenderer
+		gameParticles = originalParticles
+		gameDecalMarks = originalMarks
+		particleRNG = originalRNG
+		particleTime = originalTime
+	})
+
+	gameRenderer = &renderer.Renderer{}
+	resetRuntimeVisualState()
+	gameDecalMarks.AddMark(renderer.DecalMarkEntity{
+		Origin: [3]float32{0, 0, 0},
+		Normal: [3]float32{0, 0, 1},
+		Size:   8,
+		Alpha:  1,
+	}, 5, 0)
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateConnected
+	gameClient.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 1, 1}}}
+
+	syncRuntimeVisualEffects(0.1)
+
+	gotMarks := 0
+	if gameDecalMarks != nil {
+		gotMarks = gameDecalMarks.ActiveCount()
+	}
+	if gotMarks != 0 {
+		t.Fatalf("inactive client should clear runtime decal marks")
+	}
+	if gameParticles == nil {
+		t.Fatalf("inactive client reset should leave runtime particle system initialized")
+	}
+	if len(gameClient.TempEntities) != 0 {
+		t.Fatalf("inactive client should consume queued temp entities")
+	}
+}
+
+func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
+	originalClient := gameClient
+	originalMenu := gameMenu
+	originalDraw := gameDraw
+	originalRenderer := gameRenderer
+	originalParticles := gameParticles
+	originalMarks := gameDecalMarks
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameMenu = originalMenu
+		gameDraw = originalDraw
+		gameRenderer = originalRenderer
+		gameParticles = originalParticles
+		gameDecalMarks = originalMarks
+	})
+
+	gameRenderer = &renderer.Renderer{}
+	gameClient = cl.NewClient()
+	gameMenu = nil
+	gameDraw = nil
+	gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
+	gameDecalMarks = renderer.NewDecalMarkSystem()
+	gameDecalMarks.AddMark(renderer.DecalMarkEntity{
+		Origin: [3]float32{1, 2, 3},
+		Normal: [3]float32{0, 0, 1},
+		Size:   12,
+		Alpha:  1,
+	}, 5, 0)
+
+	state := buildRuntimeRenderFrameState(nil, nil, nil)
+	if got := len(state.DecalMarks); got != 1 {
+		t.Fatalf("DecalMarks len = %d, want 1", got)
+	}
+	if !state.Draw2DOverlay {
+		t.Fatalf("Draw2DOverlay = false, want true")
 	}
 }
 

@@ -41,15 +41,16 @@ const (
 )
 
 var (
-	gameHost      *host.Host
-	gameServer    *server.Server
-	gameQC        *qc.VM
-	gameRenderer  *renderer.Renderer
-	gameSubs      *host.Subsystems // Store subsystems for command execution
-	gameClient    *cl.Client
-	gameParticles *renderer.ParticleSystem
-	particleRNG   *rand.Rand
-	particleTime  float32
+	gameHost       *host.Host
+	gameServer     *server.Server
+	gameQC         *qc.VM
+	gameRenderer   *renderer.Renderer
+	gameSubs       *host.Subsystems // Store subsystems for command execution
+	gameClient     *cl.Client
+	gameParticles  *renderer.ParticleSystem
+	gameDecalMarks *renderer.DecalMarkSystem
+	particleRNG    *rand.Rand
+	particleTime   float32
 
 	// Menu subsystem
 	gameMenu  *menu.Manager
@@ -334,11 +335,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
 	gameClient = host.LoopbackClientState(gameSubs)
-	if gameRenderer != nil {
-		gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
-		particleRNG = rand.New(rand.NewSource(1))
-		particleTime = 0
-	}
+	resetRuntimeVisualState()
 
 	// Make sure the menu is visible at startup
 	gameMenu.ShowMenu()
@@ -576,12 +573,7 @@ func main() {
 				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
 			}
 
-			if gameParticles != nil && gameClient != nil {
-				oldTime := particleTime
-				particleTime += float32(dt)
-				renderer.EmitClientEffects(gameParticles, gameClient.ConsumeParticleEvents(), gameClient.ConsumeTempEntities(), particleRNG, particleTime)
-				gameParticles.RunParticles(particleTime, oldTime, 800)
-			}
+			syncRuntimeVisualEffects(dt)
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
 			if gameRenderer != nil && gameServer != nil && gameServer.WorldTree != nil && !gameRenderer.HasWorldData() {
@@ -595,23 +587,7 @@ func main() {
 			viewModel := collectViewModelEntity()
 
 			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
-				state := renderer.DefaultRenderFrameState()
-				state.ClearColor = [4]float32{0, 0, 0, 1}
-				state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
-				state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || viewModel != nil
-				state.BrushEntities = brushEntities
-				state.AliasEntities = aliasEntities
-				state.ViewModel = viewModel
-				state.DrawParticles = gameParticles != nil && gameParticles.ActiveCount() > 0
-				state.Draw2DOverlay = true
-				state.MenuActive = gameMenu != nil && gameMenu.IsActive()
-				state.Particles = gameParticles
-				if gameClient != nil {
-					state.LightStyles = gameClient.LightStyleValues()
-				}
-				if gameDraw != nil {
-					state.Palette = gameDraw.Palette()
-				}
+				state := buildRuntimeRenderFrameState(brushEntities, aliasEntities, viewModel)
 				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
 					w, h := gameRenderer.Size()
 					consoleVisible := gameInput != nil && gameInput.GetKeyDest() == input.KeyConsole
@@ -803,6 +779,30 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 	}
 
 	return aliasEntities
+}
+
+func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
+	state := renderer.DefaultRenderFrameState()
+	state.ClearColor = [4]float32{0, 0, 0, 1}
+	state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
+	state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || viewModel != nil
+	state.BrushEntities = brushEntities
+	state.AliasEntities = aliasEntities
+	state.ViewModel = viewModel
+	state.DrawParticles = gameParticles != nil && gameParticles.ActiveCount() > 0
+	state.Draw2DOverlay = true
+	state.MenuActive = gameMenu != nil && gameMenu.IsActive()
+	state.Particles = gameParticles
+	if gameDecalMarks != nil {
+		state.DecalMarks = gameDecalMarks.ActiveMarks()
+	}
+	if gameClient != nil {
+		state.LightStyles = gameClient.LightStyleValues()
+	}
+	if gameDraw != nil {
+		state.Palette = gameDraw.Palette()
+	}
+	return state
 }
 
 func collectViewModelEntity() *renderer.AliasModelEntity {
@@ -1308,6 +1308,53 @@ func resetRuntimeSoundState() {
 	soundPrecacheKey = ""
 	staticSoundKey = ""
 	musicTrackKey = ""
+}
+
+func resetRuntimeVisualState() {
+	if gameRenderer == nil {
+		gameParticles = nil
+		gameDecalMarks = nil
+		particleRNG = nil
+		particleTime = 0
+		return
+	}
+
+	gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
+	gameDecalMarks = renderer.NewDecalMarkSystem()
+	particleRNG = rand.New(rand.NewSource(1))
+	particleTime = 0
+}
+
+func syncRuntimeVisualEffects(dt float64) {
+	if gameParticles == nil && gameDecalMarks == nil {
+		return
+	}
+
+	if gameClient == nil || gameClient.State != cl.StateActive {
+		if gameClient != nil {
+			gameClient.ConsumeParticleEvents()
+			gameClient.ConsumeTempEntities()
+		}
+		if (gameParticles != nil && gameParticles.ActiveCount() > 0) || (gameDecalMarks != nil && gameDecalMarks.ActiveCount() > 0) {
+			resetRuntimeVisualState()
+		}
+		return
+	}
+
+	oldTime := particleTime
+	particleTime += float32(dt)
+
+	particleEvents := gameClient.ConsumeParticleEvents()
+	tempEntities := gameClient.ConsumeTempEntities()
+
+	if gameParticles != nil {
+		renderer.EmitClientEffects(gameParticles, particleEvents, tempEntities, particleRNG, particleTime)
+		gameParticles.RunParticles(particleTime, oldTime, 800)
+	}
+	if gameDecalMarks != nil {
+		gameDecalMarks.Run(particleTime)
+		renderer.EmitDecalMarks(gameDecalMarks, tempEntities, particleRNG, particleTime)
+	}
 }
 
 func refreshRuntimeSoundCache() {
