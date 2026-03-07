@@ -767,6 +767,18 @@ func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 		return
 	}
 
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil && loopbackClient.State != cl.StateDisconnected && loopbackClient.Signon > 0 {
+		if err := h.demoState.WriteInitialStateSnapshot(loopbackClient); err != nil {
+			stopErr := h.demoState.StopRecording()
+			if stopErr != nil {
+				subs.Console.Print(fmt.Sprintf("Failed to capture initial demo state: %v (also failed to close demo: %v)\n", err, stopErr))
+				return
+			}
+			subs.Console.Print(fmt.Sprintf("Failed to capture initial demo state: %v\n", err))
+			return
+		}
+	}
+
 	subs.Console.Print(fmt.Sprintf("Recording demo to %s\n", h.demoState.Filename))
 }
 
@@ -845,15 +857,10 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 	// Set client state to connected for demo playback
 	h.clientState = caConnected
 
-	// Also set the actual client state to connected so it can process signon messages
-	// The client starts disconnected, but demo playback requires it to be connected
-	// so it can properly transition to active state when it receives signon messages
+	// Reset the actual client so recorded serverinfo/signon frames can bootstrap playback.
 	if clientState := LoopbackClientState(subs); clientState != nil {
 		clientState.ClearState()
-		// Manually set to Connected state (bypassing HandleServerInfo checks)
-		if clientState.State == cl.StateDisconnected {
-			clientState.State = cl.StateConnected
-		}
+		clientState.State = cl.StateDisconnected
 	}
 }
 

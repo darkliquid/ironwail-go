@@ -289,6 +289,136 @@ func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	source := NewClient()
+	source.State = StateActive
+	source.Signon = 4
+	source.Protocol = inet.PROTOCOL_FITZQUAKE
+	source.MaxClients = 2
+	source.LevelName = "Snapshot Test"
+	source.GameType = 1
+	source.ModelPrecache = []string{"maps/start.bsp", "progs/player.mdl"}
+	source.SoundPrecache = []string{"misc/null.wav"}
+	source.ViewEntity = 1
+	source.CDTrack = 7
+	source.LoopTrack = 7
+	source.ViewAngles = [3]float32{11, 22, 33}
+	source.PlayerNames[0] = "PlayerZero"
+	source.PlayerNames[1] = "PlayerOne"
+	source.PlayerColors[1] = 0x4f
+	source.Frags[1] = 12
+	source.Stats[3] = 77
+	source.Stats[5] = 9
+	source.LightStyles[0] = LightStyle{Length: 2, Map: "az"}
+	source.StaticEntities = []inet.EntityState{{
+		ModelIndex: 3,
+		Frame:      2,
+		Colormap:   4,
+		Skin:       5,
+		Origin:     [3]float32{10, 20, 30},
+		Angles:     [3]float32{0, 90, 180},
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}}
+	source.StaticSounds = []StaticSound{{
+		Origin:      [3]float32{1, 2, 3},
+		SoundIndex:  9,
+		Volume:      255,
+		Attenuation: 1,
+	}}
+	source.SkyboxName = "env/test"
+	source.FogDensity = 128
+	source.FogColor = [3]byte{200, 100, 50}
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("initial_snapshot", source.CDTrack); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	if err := demo.WriteInitialStateSnapshot(source); err != nil {
+		t.Fatalf("WriteInitialStateSnapshot failed: %v", err)
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("initial_snapshot"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	playback := NewClient()
+	parser := NewParser(playback)
+	for frame := 0; frame < 3; frame++ {
+		message, angles, err := demo.ReadDemoFrame()
+		if err != nil {
+			t.Fatalf("ReadDemoFrame(%d) failed: %v", frame, err)
+		}
+		if angles != source.ViewAngles {
+			t.Fatalf("frame %d angles = %v, want %v", frame, angles, source.ViewAngles)
+		}
+		if err := parser.ParseServerMessage(message); err != nil {
+			t.Fatalf("ParseServerMessage(%d) failed: %v", frame, err)
+		}
+	}
+
+	if playback.Protocol != source.Protocol {
+		t.Fatalf("protocol = %d, want %d", playback.Protocol, source.Protocol)
+	}
+	if playback.MaxClients != source.MaxClients {
+		t.Fatalf("maxclients = %d, want %d", playback.MaxClients, source.MaxClients)
+	}
+	if playback.GameType != source.GameType {
+		t.Fatalf("gametype = %d, want %d", playback.GameType, source.GameType)
+	}
+	if playback.LevelName != source.LevelName {
+		t.Fatalf("levelname = %q, want %q", playback.LevelName, source.LevelName)
+	}
+	if playback.MapName != "start" {
+		t.Fatalf("mapname = %q, want start", playback.MapName)
+	}
+	if playback.CDTrack != source.CDTrack || playback.LoopTrack != source.LoopTrack {
+		t.Fatalf("cd/loop track = %d/%d, want %d/%d", playback.CDTrack, playback.LoopTrack, source.CDTrack, source.LoopTrack)
+	}
+	if playback.ViewEntity != source.ViewEntity {
+		t.Fatalf("viewentity = %d, want %d", playback.ViewEntity, source.ViewEntity)
+	}
+	if playback.PlayerNames[1] != source.PlayerNames[1] {
+		t.Fatalf("player name = %q, want %q", playback.PlayerNames[1], source.PlayerNames[1])
+	}
+	if playback.PlayerColors[1] != source.PlayerColors[1] {
+		t.Fatalf("player color = %d, want %d", playback.PlayerColors[1], source.PlayerColors[1])
+	}
+	if playback.Frags[1] != source.Frags[1] {
+		t.Fatalf("player frags = %d, want %d", playback.Frags[1], source.Frags[1])
+	}
+	if playback.LightStyles[0].Map != source.LightStyles[0].Map {
+		t.Fatalf("lightstyle 0 = %q, want %q", playback.LightStyles[0].Map, source.LightStyles[0].Map)
+	}
+	if playback.Stats[3] != source.Stats[3] || playback.Stats[5] != source.Stats[5] {
+		t.Fatalf("stats = %v, want stat[3]=%d stat[5]=%d", playback.Stats, source.Stats[3], source.Stats[5])
+	}
+	if len(playback.StaticEntities) != 1 || playback.StaticEntities[0].Origin != source.StaticEntities[0].Origin {
+		t.Fatalf("static entities = %v, want %v", playback.StaticEntities, source.StaticEntities)
+	}
+	if len(playback.StaticSounds) != 1 || playback.StaticSounds[0].SoundIndex != source.StaticSounds[0].SoundIndex {
+		t.Fatalf("static sounds = %v, want %v", playback.StaticSounds, source.StaticSounds)
+	}
+	if playback.SkyboxName != source.SkyboxName {
+		t.Fatalf("skybox = %q, want %q", playback.SkyboxName, source.SkyboxName)
+	}
+	if playback.FogDensity != source.FogDensity || playback.FogColor != source.FogColor {
+		t.Fatalf("fog = %v/%v, want %v/%v", playback.FogDensity, playback.FogColor, source.FogDensity, source.FogColor)
+	}
+	if playback.Signon != 3 {
+		t.Fatalf("signon = %d, want 3", playback.Signon)
+	}
+	if playback.State != StateConnected {
+		t.Fatalf("state = %v, want connected", playback.State)
+	}
+}
+
 func TestDemoPlaybackNonExistentFile(t *testing.T) {
 	demo := NewDemoState()
 

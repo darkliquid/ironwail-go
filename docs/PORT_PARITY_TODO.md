@@ -301,7 +301,7 @@ Make demo recording a real runtime feature, not just file I/O scaffolding.
 **Work**
 
 - [x] write demo frames during live gameplay
-- support recording while already connected by emitting the initial state snapshot the C engine writes
+- [x] support recording while already connected by emitting the initial state snapshot the C engine writes
 - [x] implement the missing stop/disconnect trailer behavior
 - align timing/frame-finalization behavior with the C path
 

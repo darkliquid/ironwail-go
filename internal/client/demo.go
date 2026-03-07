@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -139,6 +140,239 @@ func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) er
 
 func (d *DemoState) WriteDisconnectTrailer(viewAngles [3]float32) error {
 	return d.WriteDemoFrame([]byte{inet.SVCDisconnect}, viewAngles)
+}
+
+func (d *DemoState) WriteInitialStateSnapshot(c *Client) error {
+	if c == nil {
+		return fmt.Errorf("initial demo snapshot requires client state")
+	}
+	if c.State == StateDisconnected || c.Signon == 0 {
+		return fmt.Errorf("initial demo snapshot requires a connected client")
+	}
+
+	frames := [][]byte{
+		buildInitialServerInfoFrame(c),
+		buildDemoSignonFrame(2),
+		buildInitialStateFrame(c),
+	}
+	for _, frame := range frames {
+		if err := d.WriteDemoFrame(frame, c.ViewAngles); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildInitialServerInfoFrame(c *Client) []byte {
+	maxClients := c.MaxClients
+	if maxClients <= 0 {
+		maxClients = 1
+	}
+
+	protocol := c.Protocol
+	if protocol == 0 {
+		protocol = inet.PROTOCOL_FITZQUAKE
+	}
+
+	msg := make([]byte, 0, 4096)
+	msg = append(msg, byte(inet.SVCServerInfo))
+	msg = appendLong(msg, protocol)
+	if protocol == inet.PROTOCOL_RMQ {
+		msg = appendLong(msg, int32(c.ProtocolFlags))
+	}
+	msg = append(msg, byte(maxClients))
+	msg = append(msg, byte(c.GameType))
+	msg = appendString(msg, c.LevelName)
+	for _, model := range c.ModelPrecache {
+		msg = appendString(msg, model)
+	}
+	msg = append(msg, 0)
+	for _, sound := range c.SoundPrecache {
+		msg = appendString(msg, sound)
+	}
+	msg = append(msg, 0)
+	msg = append(msg, byte(inet.SVCCDTrack), byte(c.CDTrack), byte(c.LoopTrack))
+	for _, ent := range c.StaticEntities {
+		msg = appendSpawnStaticMessage(msg, ent)
+	}
+	for _, snd := range c.StaticSounds {
+		msg = appendSpawnStaticSoundMessage(msg, snd)
+	}
+	msg = append(msg, byte(inet.SVCSetView))
+	msg = appendShort(msg, int16(c.ViewEntity))
+	msg = append(msg, byte(inet.SVCSignOnNum), 1, 0xff)
+	return msg
+}
+
+func buildDemoSignonFrame(num byte) []byte {
+	return []byte{byte(inet.SVCSignOnNum), num, 0xff}
+}
+
+func buildInitialStateFrame(c *Client) []byte {
+	maxClients := c.MaxClients
+	if maxClients <= 0 {
+		maxClients = 1
+	}
+
+	msg := make([]byte, 0, 4096)
+	for i := 0; i < maxClients; i++ {
+		name := ""
+		if c.PlayerNames != nil {
+			name = c.PlayerNames[i]
+		}
+		msg = append(msg, byte(inet.SVCUpdateName), byte(i))
+		msg = appendString(msg, name)
+
+		frags := 0
+		if c.Frags != nil {
+			frags = c.Frags[i]
+		}
+		msg = append(msg, byte(inet.SVCUpdateFrags), byte(i))
+		msg = appendShort(msg, int16(frags))
+
+		colors := byte(0)
+		if c.PlayerColors != nil {
+			colors = c.PlayerColors[i]
+		}
+		msg = append(msg, byte(inet.SVCUpdateColors), byte(i), colors)
+	}
+
+	for i, style := range c.LightStyles {
+		msg = append(msg, byte(inet.SVCLightStyle), byte(i))
+		msg = appendString(msg, style.Map)
+	}
+
+	for i, stat := range c.Stats {
+		msg = append(msg, byte(inet.SVCUpdateStat), byte(i))
+		msg = appendLong(msg, int32(stat))
+	}
+
+	if c.SkyboxName != "" {
+		msg = append(msg, byte(inet.SVCSkyBox))
+		msg = appendString(msg, c.SkyboxName)
+	}
+
+	if c.FogDensity != 0 || c.FogColor != [3]byte{} || c.FogTime != 0 {
+		density, color := c.CurrentFog()
+		msg = append(msg, byte(inet.SVCFog))
+		msg = append(msg,
+			byte(math.Round(float64(density*255))),
+			byte(math.Round(float64(color[0]*255))),
+			byte(math.Round(float64(color[1]*255))),
+			byte(math.Round(float64(color[2]*255))),
+		)
+		msg = appendFloat(msg, 0)
+	}
+
+	if c.Paused {
+		msg = append(msg, byte(inet.SVCSetPause), 1)
+	}
+
+	msg = append(msg, byte(inet.SVCSetView))
+	msg = appendShort(msg, int16(c.ViewEntity))
+	msg = append(msg, byte(inet.SVCSignOnNum), 3, 0xff)
+	return msg
+}
+
+func appendSpawnStaticMessage(dst []byte, ent inet.EntityState) []byte {
+	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != inet.ENTALPHA_DEFAULT || (ent.Scale != 0 && ent.Scale != inet.ENTSCALE_DEFAULT)
+	if extended {
+		dst = append(dst, byte(inet.SVCSpawnStatic2))
+		return appendEntityState(dst, ent, true, false, 0)
+	}
+	dst = append(dst, byte(inet.SVCSpawnStatic))
+	return appendEntityState(dst, ent, false, false, 0)
+}
+
+func appendSpawnStaticSoundMessage(dst []byte, snd StaticSound) []byte {
+	if snd.SoundIndex > 255 {
+		dst = append(dst, byte(inet.SVCSpawnStaticSound2))
+		for i := range snd.Origin {
+			dst = appendFloat(dst, snd.Origin[i])
+		}
+		dst = appendShort(dst, int16(snd.SoundIndex))
+		dst = append(dst, byte(snd.Volume), byte(snd.Attenuation*64))
+		return dst
+	}
+	dst = append(dst, byte(inet.SVCSpawnStaticSound))
+	for i := range snd.Origin {
+		dst = appendFloat(dst, snd.Origin[i])
+	}
+	dst = append(dst, byte(snd.SoundIndex), byte(snd.Volume), byte(snd.Attenuation*64))
+	return dst
+}
+
+func appendEntityState(dst []byte, ent inet.EntityState, extended bool, includeEntNum bool, entNum int) []byte {
+	var bits byte
+	if ent.ModelIndex > 255 {
+		bits |= inet.BLARGEMODEL
+	}
+	if ent.Frame > 255 {
+		bits |= inet.BLARGEFRAME
+	}
+	if ent.Alpha != inet.ENTALPHA_DEFAULT {
+		bits |= inet.BALPHA
+	}
+	if ent.Scale != 0 && ent.Scale != inet.ENTSCALE_DEFAULT {
+		bits |= inet.BSCALE
+	}
+
+	if extended {
+		dst = append(dst, bits)
+	}
+	if includeEntNum {
+		dst = appendShort(dst, int16(entNum))
+	}
+	if extended && bits&inet.BLARGEMODEL != 0 {
+		dst = appendShort(dst, int16(ent.ModelIndex))
+	} else {
+		dst = append(dst, byte(ent.ModelIndex))
+	}
+	if extended && bits&inet.BLARGEFRAME != 0 {
+		dst = appendShort(dst, int16(ent.Frame))
+	} else {
+		dst = append(dst, byte(ent.Frame))
+	}
+	dst = append(dst, ent.Colormap, ent.Skin)
+	for i := range ent.Origin {
+		dst = appendFloat(dst, ent.Origin[i])
+	}
+	for i := range ent.Angles {
+		dst = append(dst, byte(ent.Angles[i]*256.0/360.0))
+	}
+	if extended && bits&inet.BALPHA != 0 {
+		dst = append(dst, ent.Alpha)
+	}
+	if extended && bits&inet.BSCALE != 0 {
+		dst = append(dst, ent.Scale)
+	}
+	return dst
+}
+
+func appendString(dst []byte, s string) []byte {
+	dst = append(dst, s...)
+	return append(dst, 0)
+}
+
+func appendShort(dst []byte, v int16) []byte {
+	n := len(dst)
+	dst = append(dst, 0, 0)
+	binary.LittleEndian.PutUint16(dst[n:], uint16(v))
+	return dst
+}
+
+func appendLong(dst []byte, v int32) []byte {
+	n := len(dst)
+	dst = append(dst, 0, 0, 0, 0)
+	binary.LittleEndian.PutUint32(dst[n:], uint32(v))
+	return dst
+}
+
+func appendFloat(dst []byte, v float32) []byte {
+	n := len(dst)
+	dst = append(dst, 0, 0, 0, 0)
+	binary.LittleEndian.PutUint32(dst[n:], math.Float32bits(v))
+	return dst
 }
 
 // StartDemoPlayback opens a demo file for playback
