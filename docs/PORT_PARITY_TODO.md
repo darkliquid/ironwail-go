@@ -45,7 +45,7 @@ Make the live runtime actually use the client-side systems that already exist in
 
 **Work**
 
-- call `PredictPlayers()` every frame instead of only reading `PredictedOrigin`
+- ✅ call `PredictPlayers()` every frame instead of only reading `PredictedOrigin` (wired in live runtime frame loop)
 - ensure camera/viewmodel logic uses the updated predicted state consistently
 - centralize one per-frame place where transient client events are consumed and applied
 
@@ -55,8 +55,8 @@ Rendering, audio, and viewmodel correctness all depend on the runtime using the 
 
 **Done when**
 
-- the camera and viewmodel no longer rely on stale or zeroed prediction fields
 - prediction code is exercised in the real runtime, not just tests
+- the camera and viewmodel no longer rely on stale or zeroed prediction fields (still in progress)
 
 ### 3. Wire audio end to end
 

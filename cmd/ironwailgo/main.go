@@ -337,11 +337,11 @@ func (gameCallbacks) ProcessClient() {
 	if gameSubs == nil || gameSubs.Client == nil {
 		return
 	}
-	
+
 	// Handle demo playback
 	if gameHost != nil && gameHost.DemoState() != nil && gameHost.DemoState().Playback {
 		demo := gameHost.DemoState()
-		
+
 		// Try to read next demo frame
 		msgData, viewAngles, err := demo.ReadDemoFrame()
 		if err != nil {
@@ -349,18 +349,18 @@ func (gameCallbacks) ProcessClient() {
 				// Demo ended, check if we should loop to next demo
 				_ = demo.StopPlayback()
 				gameHost.SetClientState(0) // caDisconnected
-				
+
 				// Demo loop: play next demo if demo loop is active
 				if gameHost.DemoNum() >= 0 && len(gameHost.DemoList()) > 0 {
 					demoNum := gameHost.DemoNum()
 					demos := gameHost.DemoList()
-					
+
 					// Wrap around to start
 					if demoNum >= len(demos) {
 						demoNum = 0
 						gameHost.SetDemoNum(demoNum)
 					}
-					
+
 					if demoNum < len(demos) && demos[demoNum] != "" {
 						// Play the next demo
 						gameHost.CmdPlaydemo(demos[demoNum], gameSubs)
@@ -379,7 +379,7 @@ func (gameCallbacks) ProcessClient() {
 			gameHost.SetClientState(0) // caDisconnected
 			return
 		}
-		
+
 		// Successfully read demo frame - parse the message and apply view angles
 		// Get the actual client state to access parser
 		clientState := host.LoopbackClientState(gameSubs)
@@ -388,21 +388,21 @@ func (gameCallbacks) ProcessClient() {
 			clientState.MViewAngles[1] = clientState.MViewAngles[0]
 			// Apply new view angles from demo
 			clientState.MViewAngles[0] = viewAngles
-			
+
 			// Parse the server message from demo
 			parser := cl.NewParser(clientState)
 			if err := parser.ParseServerMessage(msgData); err != nil {
 				slog.Warn("failed to parse demo message", "error", err)
 			}
-			
+
 			// Advance client time based on demo speed
 			clientState.AdvanceTime(demo, gameHost.FrameTime())
 		}
-		
+
 		// Don't run normal networked gameplay during demo playback
 		return
 	}
-	
+
 	// Normal networked gameplay
 	_ = gameSubs.Client.ReadFromServer()
 	_ = gameSubs.Client.SendCommand()
@@ -508,7 +508,7 @@ func main() {
 				applyGameplayMouseLook()
 			}
 
-			gameHost.Frame(dt, cb)
+			runRuntimeFrame(dt, cb)
 
 			// Update camera from client state each frame
 			// This is the critical rendering path for M4: view setup
@@ -1006,6 +1006,15 @@ func headlessGameLoop() {
 		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
 		}
+	}
+}
+
+func runRuntimeFrame(dt float64, cb gameCallbacks) {
+	if gameHost != nil {
+		gameHost.Frame(dt, cb)
+	}
+	if gameClient != nil {
+		gameClient.PredictPlayers(float32(dt))
 	}
 }
 
