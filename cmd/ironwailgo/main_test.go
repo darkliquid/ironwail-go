@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -19,6 +20,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 func TestStartupMapArg(t *testing.T) {
@@ -423,6 +425,42 @@ func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
 	}
 	if sources[1].Origin != [3]float32{10, 11, 12} || sources[1].Effects != inet.EF_DIMLIGHT {
 		t.Fatalf("second effect source = %#v, want static alias dim-light source", sources[1])
+	}
+}
+
+func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
+	originalClient := gameClient
+	originalServer := gameServer
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameServer = originalServer
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"maps/start.bsp", "*1"}
+	gameClient.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 2,
+			Origin:     [3]float32{1, 2, 3},
+			Angles:     [3]float32{10, 20, 30},
+			Alpha:      128,
+			Scale:      32,
+		},
+	}
+	gameServer = &server.Server{WorldTree: &bsp.Tree{Models: []bsp.DModel{{}, {}}}}
+
+	brushEntities := collectBrushEntities()
+	if got := len(brushEntities); got != 1 {
+		t.Fatalf("collectBrushEntities len = %d, want 1", got)
+	}
+	if brushEntities[0].SubmodelIndex != 1 || brushEntities[0].Origin != [3]float32{1, 2, 3} {
+		t.Fatalf("brush entity = %#v, want submodel 1 at origin [1 2 3]", brushEntities[0])
+	}
+	if got := brushEntities[0].Alpha; math.Abs(float64(got-inet.ENTALPHA_DECODE(128))) > 0.0001 {
+		t.Fatalf("brush alpha = %v, want %v", got, inet.ENTALPHA_DECODE(128))
+	}
+	if got := brushEntities[0].Scale; math.Abs(float64(got-inet.ENTSCALE_DECODE(32))) > 0.0001 {
+		t.Fatalf("brush scale = %v, want %v", got, inet.ENTSCALE_DECODE(32))
 	}
 }
 

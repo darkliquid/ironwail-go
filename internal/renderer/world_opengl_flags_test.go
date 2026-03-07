@@ -34,13 +34,13 @@ func TestClassifyWorldTextureName(t *testing.T) {
 }
 
 func TestDeriveWorldFaceFlags(t *testing.T) {
-	if got := deriveWorldFaceFlags(model.TexTypeSky, bsp.TexSpecial); got&(model.SurfDrawSky|model.SurfDrawTiled) != (model.SurfDrawSky|model.SurfDrawTiled) {
+	if got := deriveWorldFaceFlags(model.TexTypeSky, bsp.TexSpecial); got&(model.SurfDrawSky|model.SurfDrawTiled) != (model.SurfDrawSky | model.SurfDrawTiled) {
 		t.Fatalf("sky flags = %#x, want sky+tiled bits", got)
 	}
 	if got := deriveWorldFaceFlags(model.TexTypeCutout, 0); got&model.SurfDrawFence == 0 {
 		t.Fatalf("cutout flags = %#x, want fence bit", got)
 	}
-	if got := deriveWorldFaceFlags(model.TexTypeWater, 0); got&(model.SurfDrawTurb|model.SurfDrawWater) != (model.SurfDrawTurb|model.SurfDrawWater) {
+	if got := deriveWorldFaceFlags(model.TexTypeWater, 0); got&(model.SurfDrawTurb|model.SurfDrawWater) != (model.SurfDrawTurb | model.SurfDrawWater) {
 		t.Fatalf("water flags = %#x, want turb+water bits", got)
 	}
 	if got := deriveWorldFaceFlags(model.TexTypeDefault, bsp.TexMissing); got&model.SurfNoTexture == 0 {
@@ -70,8 +70,18 @@ func TestWorldFacePass(t *testing.T) {
 	if got := worldFacePass(model.SurfDrawTurb, 0.5); got != worldPassTranslucent {
 		t.Fatalf("turb alpha pass = %v, want %v", got, worldPassTranslucent)
 	}
+	if got := worldFacePass(0, 0.5); got != worldPassTranslucent {
+		t.Fatalf("brush alpha pass = %v, want %v", got, worldPassTranslucent)
+	}
 	if got := worldFacePass(0, 1); got != worldPassOpaque {
 		t.Fatalf("opaque pass = %v, want %v", got, worldPassOpaque)
+	}
+}
+
+func TestTransformModelSpacePointAppliesScaleAndOffset(t *testing.T) {
+	got := transformModelSpacePoint([3]float32{1, 2, 3}, [3]float32{10, 20, 30}, 2)
+	if got != [3]float32{12, 24, 36} {
+		t.Fatalf("transformModelSpacePoint() = %v, want [12 24 36]", got)
 	}
 }
 

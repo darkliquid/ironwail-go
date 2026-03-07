@@ -207,7 +207,8 @@ Use the render backends that already exist but are not yet driven by the live ru
 - [x] map alias-entity muzzle/bright/dim effect flags into dynamic lights
 - map remaining entity effects into dynamic lights
 - [x] honor protocol alpha / scale on alias and sprite entities
-- honor remaining entity effect flags and brush-entity protocol parity
+- [x] honor protocol alpha / scale on brush entities
+- honor remaining entity effect flags and brush-entity rotation parity
 
 **Done when**
 

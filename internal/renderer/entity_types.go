@@ -17,6 +17,8 @@ type BrushEntity struct {
 	SubmodelIndex int
 	Origin        [3]float32
 	Angles        [3]float32
+	Alpha         float32
+	Scale         float32
 }
 
 // EntityEffectSource describes a runtime entity whose effect flags drive transient visuals.

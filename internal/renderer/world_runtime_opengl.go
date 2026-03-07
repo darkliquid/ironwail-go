@@ -30,6 +30,7 @@ layout(location = 3) in vec3 aNormal;
 
 uniform mat4 uViewProjection;
 uniform vec3 uModelOffset;
+uniform float uModelScale;
 
 out vec2 vTexCoord;
 out vec2 vLightmapCoord;
@@ -39,7 +40,7 @@ out vec3 vWorldPos;
 void main() {
 	vTexCoord = aTexCoord;
 	vLightmapCoord = aLightmapCoord;
-	vec3 worldPosition = aPosition + uModelOffset;
+	vec3 worldPosition = (aPosition * uModelScale) + uModelOffset;
 	vNormal = aNormal;
 	vWorldPos = worldPosition;
 	gl_Position = uViewProjection * vec4(worldPosition, 1.0);
@@ -173,6 +174,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
 	r.worldLightmapUniform = gl.GetUniformLocation(program, gl.Str("uLightmap\x00"))
 	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
+	r.worldModelScaleUniform = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
 	r.worldAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlpha\x00"))
 	return nil
 }
@@ -532,6 +534,7 @@ func (r *Renderer) renderWorld() {
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	fallbackTexture := r.worldFallbackTexture
 	fallbackLightmap := r.worldLightmapFallback
@@ -554,7 +557,7 @@ func (r *Renderer) renderWorld() {
 	}
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
-	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, camera, liquidAlpha, lightPool)
+	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, 1, 1, camera, liquidAlpha, lightPool)
 
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Disable(gl.CULL_FACE)
@@ -564,6 +567,7 @@ func (r *Renderer) renderWorld() {
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.Uniform1f(modelScaleUniform, 1)
 	gl.BindVertexArray(vao)
 	if len(faces) == 0 {
 		gl.DepthMask(true)
@@ -604,6 +608,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	fallbackTexture := r.worldFallbackTexture
 	fallbackLightmap := r.worldLightmapFallback
@@ -616,6 +621,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	lightPool := r.lightPool // Get light pool for light evaluation
 	type drawBrush struct {
 		origin [3]float32
+		alpha  float32
+		scale  float32
 		mesh   *glWorldMesh
 	}
 	brushes := make([]drawBrush, 0, len(entities))
@@ -624,7 +631,12 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 		if mesh == nil {
 			continue
 		}
-		brushes = append(brushes, drawBrush{origin: entity.Origin, mesh: mesh})
+		brushes = append(brushes, drawBrush{
+			origin: entity.Origin,
+			alpha:  entity.Alpha,
+			scale:  entity.Scale,
+			mesh:   mesh,
+		})
 	}
 	r.mu.Unlock()
 
@@ -642,8 +654,9 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 
 	for _, brush := range brushes {
-		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, camera, liquidAlpha, lightPool)
+		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.scale, brush.alpha, camera, liquidAlpha, lightPool)
 		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
+		gl.Uniform1f(modelScaleUniform, brush.scale)
 		gl.BindVertexArray(brush.mesh.vao)
 		renderSkyPass(skyFaces, alphaUniform)
 		renderWorldDrawCalls(opaqueFaces, alphaUniform, true)
@@ -662,20 +675,21 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 
 // bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
 // This variant accepts a light pool and computes light contributions for each face.
-func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelScale, entityAlpha float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
 	for _, face := range faces {
+		center := transformModelSpacePoint(face.Center, modelOffset, modelScale)
 		call := worldDrawCall{
 			face:       face,
 			texture:    worldTextureForFace(face, textures, fallbackTexture),
 			lightmap:   worldLightmapForFace(face, lightmaps, fallbackLightmap),
-			alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
-			distanceSq: worldFaceDistanceSq(face.Center, modelOffset, camera),
+			alpha:      worldFaceAlpha(face.Flags, liquidAlpha) * entityAlpha,
+			distanceSq: worldFaceDistanceSq(center, camera),
 			light:      [3]float32{}, // Will be populated below
 		}
 
 		// Evaluate dynamic lights at this face's center
 		if lightPool != nil {
-			call.light = lightPool.EvaluateLightsAtPoint(face.Center)
+			call.light = lightPool.EvaluateLightsAtPoint(center)
 		}
 
 		switch worldFacePass(face.Flags, call.alpha) {
@@ -698,7 +712,7 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, li
 }
 
 func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, translucent []worldDrawCall) {
-	return bucketWorldFacesWithLights(faces, textures, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, camera, liquidAlpha, nil)
+	return bucketWorldFacesWithLights(faces, textures, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, 1, 1, camera, liquidAlpha, nil)
 }
 
 func worldTextureForFace(face WorldFace, textures map[int32]uint32, fallbackTexture uint32) uint32 {
@@ -924,17 +938,28 @@ func worldFacePass(flags int32, alpha float32) worldRenderPass {
 		return worldPassSky
 	case flags&model.SurfDrawFence != 0:
 		return worldPassAlphaTest
-	case flags&model.SurfDrawTurb != 0 && alpha < 1:
+	case alpha < 1:
 		return worldPassTranslucent
 	default:
 		return worldPassOpaque
 	}
 }
 
-func worldFaceDistanceSq(center, modelOffset [3]float32, camera CameraState) float32 {
-	dx := center[0] + modelOffset[0] - camera.Origin.X
-	dy := center[1] + modelOffset[1] - camera.Origin.Y
-	dz := center[2] + modelOffset[2] - camera.Origin.Z
+func transformModelSpacePoint(point, modelOffset [3]float32, modelScale float32) [3]float32 {
+	if modelScale <= 0 {
+		modelScale = 1
+	}
+	return [3]float32{
+		(point[0] * modelScale) + modelOffset[0],
+		(point[1] * modelScale) + modelOffset[1],
+		(point[2] * modelScale) + modelOffset[2],
+	}
+}
+
+func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
+	dx := center[0] - camera.Origin.X
+	dy := center[1] - camera.Origin.Y
+	dz := center[2] - camera.Origin.Z
 	return dx*dx + dy*dy + dz*dz
 }
 
@@ -1216,6 +1241,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	r.ensureAliasScratchLocked()
 	scratchVAO := r.aliasScratchVAO
@@ -1239,6 +1265,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.Uniform1f(modelScaleUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.ActiveTexture(gl.TEXTURE1)
 	gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
@@ -1310,6 +1337,7 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	fallbackLightmap := r.worldLightmapFallback
 
@@ -1332,6 +1360,7 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
+	gl.Uniform1f(modelScaleUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
 
 	for _, draw := range draws {
@@ -1544,6 +1573,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldTextureUniform = -1
 	r.worldLightmapUniform = -1
 	r.worldModelOffsetUniform = -1
+	r.worldModelScaleUniform = -1
 	r.worldAlphaUniform = -1
 	r.worldIndexCount = 0
 	r.worldData = nil

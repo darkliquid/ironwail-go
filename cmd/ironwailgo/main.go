@@ -678,6 +678,8 @@ func collectBrushEntities() []renderer.BrushEntity {
 			SubmodelIndex: submodelIndex,
 			Origin:        state.Origin,
 			Angles:        state.Angles,
+			Alpha:         entityStateAlpha(state),
+			Scale:         entityStateScale(state),
 		}, true
 	}
 
