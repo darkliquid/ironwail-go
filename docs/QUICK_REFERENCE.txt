@@ -6,10 +6,10 @@ COMPLETION STATUS BY FEATURE
 =============================
 
 A. WORLD RENDERING         [█████████████░░░░░░] ~65%
-   - Geometry load/binning/lightmaps: DONE on OpenGL parity path
-   - Animated textures and fog runtime feed: DONE
-   - Skybox runtime consumption: TODO
-   - Pass-order fidelity (sky/water/translucency/viewmodel): TODO
+    - Geometry load/binning/lightmaps: DONE on OpenGL parity path
+    - Animated textures, turbulent UV warp, and fog runtime feed: DONE
+    - Skybox runtime consumption: TODO
+    - Pass-order fidelity (sky/water/translucency/viewmodel): TODO
 
 B. ENTITY RENDERING        [██████████████░░░░░] ~70%
    - Alias models: live runtime integration DONE
@@ -220,7 +220,7 @@ Tier 2 (Advanced):
 Tier 3 (Polish):
   - Music system:           30h
   - Sprites:                20h
-  - Water warp:             15h
+  - Water warp:             landed on canonical OpenGL path (remaining visual parity work is skybox + pass order)
   - Gun model:              20h
   - Demos:                  15h
   SUBTOTAL:                100h

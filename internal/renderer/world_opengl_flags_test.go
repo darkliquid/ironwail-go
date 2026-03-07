@@ -5,6 +5,7 @@
 package renderer
 
 import (
+	"math"
 	"testing"
 
 	"github.com/gogpu/gogpu/gmath"
@@ -94,7 +95,8 @@ func TestTransformModelSpacePointAppliesBrushYawRotation(t *testing.T) {
 
 func TestBuildBrushRotationMatrixNegatesPitch(t *testing.T) {
 	got := transformModelSpacePoint([3]float32{1, 0, 0}, [3]float32{}, buildBrushRotationMatrix([3]float32{90, 0, 0}), 1)
-	if got != [3]float32{0, 0, 1} {
+	want := [3]float32{0, 0, 1}
+	if !almostEqualVec3(got, want, 1e-6) {
 		t.Fatalf("transformModelSpacePoint(pitch) = %v, want [0 0 1]", got)
 	}
 }
@@ -136,10 +138,22 @@ func TestWorldFaceAlpha(t *testing.T) {
 	}
 }
 
+func TestWorldFaceUsesTurb(t *testing.T) {
+	if got := worldFaceUsesTurb(0); got {
+		t.Fatalf("worldFaceUsesTurb(opaque) = %v, want false", got)
+	}
+	if got := worldFaceUsesTurb(model.SurfDrawTurb | model.SurfDrawWater); !got {
+		t.Fatalf("worldFaceUsesTurb(turb) = %v, want true", got)
+	}
+	if got := worldFaceUsesTurb(model.SurfDrawTurb | model.SurfDrawSky); got {
+		t.Fatalf("worldFaceUsesTurb(sky+turb) = %v, want false", got)
+	}
+}
+
 func TestWorldFogUniformDensityMatchesIronwailScale(t *testing.T) {
 	got := worldFogUniformDensity(1)
 	want := float32((1.20112241 * 0.85 / 64.0) * (1.20112241 * 0.85 / 64.0))
-	if got != want {
+	if !almostEqualFloat32(got, want, 1e-9) {
 		t.Fatalf("worldFogUniformDensity(1) = %v, want %v", got, want)
 	}
 	if got := worldFogUniformDensity(0); got != 0 {
@@ -356,4 +370,49 @@ func TestBucketWorldFaces_EmptySkyBucket(t *testing.T) {
 	if len(sky) != 0 {
 		t.Fatalf("expected 0 sky faces, got %d", len(sky))
 	}
+}
+
+func TestBucketWorldFaces_TurbulentCallFlag(t *testing.T) {
+	faces := []WorldFace{
+		{
+			FirstIndex:    0,
+			NumIndices:    6,
+			TextureIndex:  0,
+			LightmapIndex: 0,
+			Flags:         model.SurfDrawTurb | model.SurfDrawWater,
+			Center:        [3]float32{0, 0, 0},
+		},
+		{
+			FirstIndex:    6,
+			NumIndices:    6,
+			TextureIndex:  0,
+			LightmapIndex: 0,
+			Flags:         0,
+			Center:        [3]float32{0, 0, 16},
+		},
+	}
+	textures := map[int32]uint32{0: 1}
+	lightmaps := []uint32{0}
+	fallbackTex := uint32(999)
+	fallbackLM := uint32(998)
+	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	alphaSettings := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+
+	_, opaque, _, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	if len(translucent) != 1 || !translucent[0].turbulent {
+		t.Fatalf("expected one turbulent translucent call, got %#v", translucent)
+	}
+	if len(opaque) != 1 || opaque[0].turbulent {
+		t.Fatalf("expected one non-turbulent opaque call, got %#v", opaque)
+	}
+}
+
+func almostEqualFloat32(a, b, epsilon float32) bool {
+	return float32(math.Abs(float64(a-b))) <= epsilon
+}
+
+func almostEqualVec3(a, b [3]float32, epsilon float32) bool {
+	return almostEqualFloat32(a[0], b[0], epsilon) &&
+		almostEqualFloat32(a[1], b[1], epsilon) &&
+		almostEqualFloat32(a[2], b[2], epsilon)
 }

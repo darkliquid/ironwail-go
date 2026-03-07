@@ -70,14 +70,14 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 | Key bindings + baseline console UI/completion + aliases | **done** |
 | Local reconnect + loopback connect/disconnect session handling | **done (local slice)** |
 | Local session-transition sound teardown (`disconnect`/`reconnect`/`load`/`map`) | **done (stop-all parity slice)** |
-| High-priority remaining gaps | **integration/fidelity (skybox/order, remote connect transport flow, load UX)** |
+| High-priority remaining gaps | **integration/fidelity (skybox/pass-order, remote connect transport flow, load UX)** |
 | Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 
 ---
 
 ## Tier 1 Critical Blockers (Fix These First)
 
-1. **Skybox + pass-order fidelity** → visual sequencing still diverges from C
+1. **Skybox + pass-order fidelity** → visual sequencing still diverges from C (turbulent UV warp is now wired on OpenGL)
 2. **Connect parity** → remote multiplayer workflow remains incomplete after landing local reconnect + local connect/disconnect + local kick parity slices
 3. **Save/load UX parity** → loading plaque and broader save-file search behavior still differ
 4. **gogpu backend catch-up** → parity baseline remains OpenGL runtime path

@@ -58,12 +58,18 @@ out vec4 fragColor;
 uniform sampler2D uTexture;
 uniform sampler2D uLightmap;
 uniform float uAlpha;
+uniform float uTime;
+uniform float uTurbulent;
 uniform vec3 uCameraOrigin;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 
 void main() {
-	vec4 base = texture(uTexture, vTexCoord);
+	vec2 uv = vTexCoord;
+	if (uTurbulent > 0.5) {
+		uv = uv * 2.0 + 0.125 * sin(uv.yx * (3.14159265 * 2.0) + uTime);
+	}
+	vec4 base = texture(uTexture, uv);
 	vec3 light = texture(uLightmap, vLightmapCoord).rgb * 2.0;
 	if (base.a < 0.1) {
 		discard;
@@ -97,6 +103,7 @@ type worldDrawCall struct {
 	texture    uint32
 	lightmap   uint32
 	alpha      float32
+	turbulent  bool
 	distanceSq float32
 	light      [3]float32
 }
@@ -193,6 +200,8 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldModelRotationUniform = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
 	r.worldModelScaleUniform = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
 	r.worldAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlpha\x00"))
+	r.worldTimeUniform = gl.GetUniformLocation(program, gl.Str("uTime\x00"))
+	r.worldTurbulentUniform = gl.GetUniformLocation(program, gl.Str("uTurbulent\x00"))
 	r.worldCameraOriginUniform = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
 	r.worldFogColorUniform = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
 	r.worldFogDensityUniform = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
@@ -586,6 +595,8 @@ func (r *Renderer) renderWorld() {
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
+	timeUniform := r.worldTimeUniform
+	turbulentUniform := r.worldTurbulentUniform
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
@@ -625,6 +636,8 @@ func (r *Renderer) renderWorld() {
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
+	gl.Uniform1f(timeUniform, camera.Time)
+	gl.Uniform1f(turbulentUniform, 0)
 	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -640,10 +653,10 @@ func (r *Renderer) renderWorld() {
 		gl.ActiveTexture(gl.TEXTURE0)
 		gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
 	} else {
-		renderSkyPass(skyFaces, alphaUniform)
-		renderWorldDrawCalls(opaqueFaces, alphaUniform, true)
-		renderWorldDrawCalls(alphaTestFaces, alphaUniform, true)
-		renderWorldDrawCalls(translucentFaces, alphaUniform, false)
+		renderSkyPass(skyFaces, alphaUniform, turbulentUniform)
+		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
 	}
 	gl.BindVertexArray(0)
 	gl.ActiveTexture(gl.TEXTURE1)
@@ -671,6 +684,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
+	timeUniform := r.worldTimeUniform
+	turbulentUniform := r.worldTurbulentUniform
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
@@ -722,6 +737,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
+	gl.Uniform1f(timeUniform, camera.Time)
+	gl.Uniform1f(turbulentUniform, 0)
 	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -733,10 +750,10 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
 		gl.Uniform1f(modelScaleUniform, brush.scale)
 		gl.BindVertexArray(brush.mesh.vao)
-		renderSkyPass(skyFaces, alphaUniform)
-		renderWorldDrawCalls(opaqueFaces, alphaUniform, true)
-		renderWorldDrawCalls(alphaTestFaces, alphaUniform, true)
-		renderWorldDrawCalls(translucentFaces, alphaUniform, false)
+		renderSkyPass(skyFaces, alphaUniform, turbulentUniform)
+		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
+		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
 	}
 
 	gl.BindVertexArray(0)
@@ -758,6 +775,7 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, te
 			texture:    worldTextureForFace(face, textures, textureAnimations, fallbackTexture, entityFrame, timeSeconds),
 			lightmap:   worldLightmapForFace(face, lightmaps, fallbackLightmap),
 			alpha:      worldFaceAlpha(face.Flags, liquidAlpha) * entityAlpha,
+			turbulent:  worldFaceUsesTurb(face.Flags),
 			distanceSq: worldFaceDistanceSq(center, camera),
 			light:      [3]float32{}, // Will be populated below
 		}
@@ -832,6 +850,10 @@ func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
 		return liquidAlpha.water
 	}
 	return 1
+}
+
+func worldFaceUsesTurb(flags int32) bool {
+	return flags&model.SurfDrawTurb != 0 && flags&model.SurfDrawSky == 0
 }
 
 func worldLiquidAlphaSettingsFromCvars(overrides worldLiquidAlphaOverrides, tree *bsp.Tree) worldLiquidAlphaSettings {
@@ -1070,7 +1092,7 @@ func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
 	return dx*dx + dy*dy + dz*dz
 }
 
-func renderSkyPass(calls []worldDrawCall, alphaUniform int32) {
+func renderSkyPass(calls []worldDrawCall, alphaUniform, turbulentUniform int32) {
 	if len(calls) == 0 {
 		return
 	}
@@ -1078,6 +1100,7 @@ func renderSkyPass(calls []worldDrawCall, alphaUniform int32) {
 	gl.DepthFunc(gl.LEQUAL)
 	gl.DepthMask(false)
 	gl.Disable(gl.BLEND)
+	gl.Uniform1f(turbulentUniform, 0)
 
 	for _, call := range calls {
 		gl.ActiveTexture(gl.TEXTURE0)
@@ -1094,7 +1117,7 @@ func renderSkyPass(calls []worldDrawCall, alphaUniform int32) {
 	gl.DepthMask(true)
 }
 
-func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform int32, depthWrite bool) {
+func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform int32, depthWrite bool) {
 	if len(calls) == 0 {
 		return
 	}
@@ -1110,6 +1133,11 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform int32, depthWrite 
 		gl.ActiveTexture(gl.TEXTURE1)
 		gl.BindTexture(gl.TEXTURE_2D, call.lightmap)
 		gl.ActiveTexture(gl.TEXTURE0)
+		if call.turbulent {
+			gl.Uniform1f(turbulentUniform, 1)
+		} else {
+			gl.Uniform1f(turbulentUniform, 0)
+		}
 		gl.Uniform1f(alphaUniform, call.alpha)
 		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
 	}
@@ -1352,6 +1380,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
+	timeUniform := r.worldTimeUniform
+	turbulentUniform := r.worldTurbulentUniform
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
@@ -1381,6 +1411,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
+	gl.Uniform1f(timeUniform, camera.Time)
+	gl.Uniform1f(turbulentUniform, 0)
 	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -1458,6 +1490,8 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
+	timeUniform := r.worldTimeUniform
+	turbulentUniform := r.worldTurbulentUniform
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
@@ -1486,6 +1520,8 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
+	gl.Uniform1f(timeUniform, camera.Time)
+	gl.Uniform1f(turbulentUniform, 0)
 	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -1705,6 +1741,8 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldModelRotationUniform = -1
 	r.worldModelScaleUniform = -1
 	r.worldAlphaUniform = -1
+	r.worldTimeUniform = -1
+	r.worldTurbulentUniform = -1
 	r.worldCameraOriginUniform = -1
 	r.worldFogColorUniform = -1
 	r.worldFogDensityUniform = -1

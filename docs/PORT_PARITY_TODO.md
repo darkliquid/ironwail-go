@@ -242,6 +242,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 
 - [x] apply brush entity angles, not just origin offsets
 - [x] integrate animated texture selection into world rendering
+- [x] apply C-style turbulent UV warp on `SurfDrawTurb` world + brush surfaces (OpenGL path)
 - [x] consume client fog state
 - consume client skybox state
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing
