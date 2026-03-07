@@ -4,6 +4,7 @@
 package host
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,6 +17,69 @@ import (
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
+
+type reconnectTrackingServer struct {
+	mockServer
+	connectCalls int
+}
+
+func (s *reconnectTrackingServer) ConnectClient(clientNum int) {
+	s.connectCalls++
+}
+
+type reconnectHandshakeClient struct {
+	state ClientState
+
+	signon int
+
+	serverInfoCalls int
+	signonReplies   []string
+}
+
+func (c *reconnectHandshakeClient) Init() error                   { return nil }
+func (c *reconnectHandshakeClient) Frame(frameTime float64) error { return nil }
+func (c *reconnectHandshakeClient) Shutdown()                     {}
+func (c *reconnectHandshakeClient) State() ClientState            { return c.state }
+func (c *reconnectHandshakeClient) ReadFromServer() error         { return nil }
+func (c *reconnectHandshakeClient) SendCommand() error            { return nil }
+
+func (c *reconnectHandshakeClient) LocalServerInfo() error {
+	c.serverInfoCalls++
+	c.state = caConnected
+	c.signon = 0
+	return nil
+}
+
+func (c *reconnectHandshakeClient) LocalSignonReply(command string) error {
+	c.signonReplies = append(c.signonReplies, command)
+
+	switch command {
+	case "prespawn":
+		if c.signon != 0 {
+			return fmt.Errorf("prespawn requires signon 0, got %d", c.signon)
+		}
+		c.signon = 1
+	case "spawn":
+		if c.signon != 1 {
+			return fmt.Errorf("spawn requires signon 1, got %d", c.signon)
+		}
+		c.signon = 2
+	case "begin":
+		if c.signon != 2 {
+			return fmt.Errorf("begin requires signon 2, got %d", c.signon)
+		}
+		c.signon = cl.Signons
+		c.state = caActive
+	default:
+		return fmt.Errorf("unsupported signon reply %q", command)
+	}
+
+	return nil
+}
+
+func (c *reconnectHandshakeClient) LocalSignon() int {
+	return c.signon
+}
 
 func TestCmdChangelevel(t *testing.T) {
 	h := NewHost()
@@ -509,6 +573,108 @@ func TestCmdPlaydemoLeavesLoopbackClientDisconnectedForServerInfo(t *testing.T) 
 	h.CmdPlaydemo("bootstrap", subs)
 	if lc.inner.State != cl.StateDisconnected {
 		t.Fatalf("loopback client state = %v, want disconnected", lc.inner.State)
+	}
+}
+
+func TestCmdReconnectRestartsLocalHandshake(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	srv := &reconnectTrackingServer{mockServer: mockServer{active: true}}
+	client := &reconnectHandshakeClient{state: caActive, signon: cl.Signons}
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  client,
+		Console: console,
+	}
+
+	h.CmdReconnect(subs)
+
+	if srv.connectCalls != 1 {
+		t.Fatalf("ConnectClient calls = %d, want 1", srv.connectCalls)
+	}
+	if client.serverInfoCalls != 1 {
+		t.Fatalf("LocalServerInfo calls = %d, want 1", client.serverInfoCalls)
+	}
+	if want := []string{"prespawn", "spawn", "begin"}; !reflect.DeepEqual(client.signonReplies, want) {
+		t.Fatalf("signon replies = %v, want %v", client.signonReplies, want)
+	}
+	if client.signon != cl.Signons {
+		t.Fatalf("client signon = %d, want %d", client.signon, cl.Signons)
+	}
+	if client.state != caActive {
+		t.Fatalf("client state = %v, want %v", client.state, caActive)
+	}
+	if h.SignOns() != cl.Signons {
+		t.Fatalf("host signons = %d, want %d", h.SignOns(), cl.Signons)
+	}
+	if h.ClientState() != caActive {
+		t.Fatalf("host client state = %v, want %v", h.ClientState(), caActive)
+	}
+}
+
+func TestCmdReconnectClearsSignonsWithoutLocalServer(t *testing.T) {
+	h := NewHost()
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	lc := newLocalLoopbackClient()
+	lc.inner.State = cl.StateActive
+	lc.inner.Signon = cl.Signons
+	subs := &Subsystems{
+		Client:  lc,
+		Console: console,
+	}
+
+	h.CmdReconnect(subs)
+
+	if lc.inner.Signon != 0 {
+		t.Fatalf("loopback signon = %d, want 0", lc.inner.Signon)
+	}
+	if lc.inner.State != cl.StateConnected {
+		t.Fatalf("loopback state = %v, want connected", lc.inner.State)
+	}
+	if h.SignOns() != 0 {
+		t.Fatalf("host signons = %d, want 0", h.SignOns())
+	}
+	if h.ClientState() != caConnected {
+		t.Fatalf("host client state = %v, want %v", h.ClientState(), caConnected)
+	}
+}
+
+func TestCmdReconnectIgnoresDemoPlayback(t *testing.T) {
+	h := NewHost()
+	h.demoState = &cl.DemoState{Playback: true}
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	console := &mockConsole{}
+	srv := &reconnectTrackingServer{mockServer: mockServer{active: true}}
+	client := &reconnectHandshakeClient{state: caActive, signon: cl.Signons}
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  client,
+		Console: console,
+	}
+
+	h.CmdReconnect(subs)
+
+	if srv.connectCalls != 0 {
+		t.Fatalf("ConnectClient calls = %d, want 0", srv.connectCalls)
+	}
+	if client.serverInfoCalls != 0 {
+		t.Fatalf("LocalServerInfo calls = %d, want 0", client.serverInfoCalls)
+	}
+	if h.SignOns() != cl.Signons {
+		t.Fatalf("host signons = %d, want %d", h.SignOns(), cl.Signons)
+	}
+	if h.ClientState() != caActive {
+		t.Fatalf("host client state = %v, want %v", h.ClientState(), caActive)
 	}
 }
 

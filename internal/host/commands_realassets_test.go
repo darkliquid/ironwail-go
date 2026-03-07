@@ -143,3 +143,62 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 		t.Fatalf("loaded lightstyle = %q, want %q", got, "az")
 	}
 }
+
+func TestCmdReconnectRealAssetsRestartsLocalSignon(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+
+	client := LoopbackClientState(subs)
+	if client == nil {
+		t.Fatal("loopback client missing")
+	}
+
+	h.CmdReconnect(subs)
+
+	if got := h.ClientState(); got != caActive {
+		t.Fatalf("ClientState = %v, want %v", got, caActive)
+	}
+	if got := h.SignOns(); got != cl.Signons {
+		t.Fatalf("SignOns = %d, want %d", got, cl.Signons)
+	}
+	if client.State != cl.StateActive {
+		t.Fatalf("client.State = %v, want %v", client.State, cl.StateActive)
+	}
+	if client.Signon != cl.Signons {
+		t.Fatalf("client.Signon = %d, want %d", client.Signon, cl.Signons)
+	}
+	if !srv.Static.Clients[0].Spawned {
+		t.Fatal("server client not marked spawned after reconnect")
+	}
+}

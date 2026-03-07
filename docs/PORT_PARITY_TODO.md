@@ -331,7 +331,7 @@ Close the host-command and UI gaps that keep the port local-only.
 **Work**
 
 - implement `connect`
-- implement `reconnect`
+- [x] implement local-loopback `reconnect` signon restart behavior
 - implement `kick` parity by name or slot with optional message
 - connect the multiplayer menus to real behavior
 

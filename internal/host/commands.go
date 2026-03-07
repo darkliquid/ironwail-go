@@ -516,7 +516,39 @@ func (h *Host) CmdConnect(address string, subs *Subsystems) {
 }
 
 func (h *Host) CmdReconnect(subs *Subsystems) {
-	// TODO: Implement reconnect
+	if h.demoState != nil && h.demoState.Playback {
+		return
+	}
+
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
+	if subs == nil || subs.Client == nil {
+		return
+	}
+
+	if h.serverActive && subs.Server != nil {
+		if err := h.startLocalServerSession(subs, nil); err != nil {
+			if subs.Console != nil {
+				subs.Console.Print(fmt.Sprintf("reconnect failed: %v\n", err))
+			}
+		}
+		return
+	}
+
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+		loopbackClient.ClearSignons()
+		if loopbackClient.State != cl.StateDisconnected {
+			loopbackClient.State = cl.StateConnected
+		}
+	}
+
+	h.signOns = 0
+	if h.clientState != caDisconnected {
+		h.clientState = caConnected
+	}
 }
 
 func (h *Host) CmdName(name string, subs *Subsystems) {

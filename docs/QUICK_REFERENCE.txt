@@ -34,12 +34,13 @@ D. AUDIO/MUSIC             [████████████████░�
    - Music/BGM: PARTIAL (WAV-backed CD tracks; broader codec parity still missing)
    - Sound effects: DONE
 
-E. NETWORKING/MULTIPLAYER  [███████░░░░░░░░░░] 60%
+E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░] ~65%
    - Loopback: DONE
    - UDP: DONE
+   - Reconnect: DONE for local loopback signon restart
    - Connect: TODO (host/commands.go:69)
    - Kick: TODO (host/commands.go:89)
-   - Server commands: 80% (most working)
+   - Server commands: 85% (most working)
    - Deathmatch mode: MISSING
 
 F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
@@ -66,10 +67,10 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
    Fix: Consume live skybox state and align draw pass sequencing with C
    Reference: gl_sky.c + gl_rmain.c
 
-2. CONNECT/RECONNECT/KICK command parity
+2. CONNECT/KICK command parity
    Location: internal/host/commands.go
    Impact: Remote multiplayer workflow remains incomplete
-   Fix: Port remaining host_cmd.c networking command behavior
+   Fix: Port remaining host_cmd.c networking command behavior and broader remote flow
    Reference: host_cmd.c:Host_Connect_f / Host_Reconnect_f / Host_Kick_f
 
 3. SAVE/LOAD UX parity

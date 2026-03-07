@@ -68,7 +68,8 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 | Save restriction parity (`nomonsters`/intermission/dead-player) | **done** |
 | Demo record/playback forward path | **done** |
 | Key bindings + baseline console UI/completion + aliases | **done** |
-| High-priority remaining gaps | **integration/fidelity (skybox/order, remote networking, load UX)** |
+| Local reconnect signon restart | **done** |
+| High-priority remaining gaps | **integration/fidelity (skybox/order, remote connect/kick, load UX)** |
 | Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 
 ---
@@ -76,7 +77,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 ## Tier 1 Critical Blockers (Fix These First)
 
 1. **Skybox + pass-order fidelity** → visual sequencing still diverges from C
-2. **Connect/Reconnect/Kick parity** → remote multiplayer workflow remains incomplete
+2. **Connect/Kick parity** → remote multiplayer workflow remains incomplete after landing local reconnect parity
 3. **Save/load UX parity** → loading plaque and broader save-file search behavior still differ
 4. **gogpu backend catch-up** → parity baseline remains OpenGL runtime path
 5. **Prediction/physics fidelity** → advanced movement behavior still differs
@@ -146,7 +147,7 @@ Each section includes:
 
 ### Remaining high-priority parity gaps
 - [ ] Skybox runtime consumption and render-pass ordering fidelity
-- [ ] Remote multiplayer command parity (`connect`, `reconnect`, `kick`)
+- [ ] Remote multiplayer command parity (`connect`, `kick`, and broader remote reconnect flow)
 - [ ] Save/load UX parity (loading plaque + broader save-file search behavior)
 - [ ] Menu/options/network submenu completion
 - [ ] Prediction/physics fidelity improvements
