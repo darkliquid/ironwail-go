@@ -700,6 +700,12 @@ type RenderFrameState struct {
 	// AliasEntities contains world-space MDL entities for parity with the OpenGL path.
 	AliasEntities []AliasModelEntity
 
+	// SpriteEntities contains sprite (billboard) entities for parity with the OpenGL path.
+	SpriteEntities []SpriteEntity
+
+	// DecalMarks contains projected world-space mark entities for parity with the OpenGL path.
+	DecalMarks []DecalMarkEntity
+
 	// ViewModel contains the first-person weapon model when active.
 	ViewModel *AliasModelEntity
 

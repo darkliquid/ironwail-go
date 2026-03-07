@@ -9,10 +9,14 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"sort"
+	"strconv"
+	"strings"
 	"unsafe"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
 )
@@ -54,13 +58,49 @@ uniform float uAlpha;
 
 void main() {
 	vec4 base = texture(uTexture, vTexCoord);
-	vec3 light = texture(uLightmap, vLightmapCoord).rgb;
+	vec3 light = texture(uLightmap, vLightmapCoord).rgb * 2.0;
 	if (base.a < 0.1) {
 		discard;
 	}
 	fragColor = vec4(base.rgb * light, base.a * uAlpha);
 }`
 )
+
+type worldRenderPass int
+
+const (
+	worldPassSky worldRenderPass = iota
+	worldPassOpaque
+	worldPassAlphaTest
+	worldPassTranslucent
+)
+
+type worldDrawCall struct {
+	face       WorldFace
+	texture    uint32
+	lightmap   uint32
+	alpha      float32
+	distanceSq float32
+	light      [3]float32
+}
+
+type worldLiquidAlphaSettings struct {
+	water float32
+	lava  float32
+	slime float32
+	tele  float32
+}
+
+type worldLiquidAlphaOverrides struct {
+	hasWater bool
+	water    float32
+	hasLava  bool
+	lava     float32
+	hasSlime bool
+	slime    float32
+	hasTele  bool
+	tele     float32
+}
 
 type glWorldMesh struct {
 	vao           uint32
@@ -88,7 +128,9 @@ type glAliasModel struct {
 type glAliasDraw struct {
 	alias  *glAliasModel
 	model  *model.Model
-	pose   int
+	pose1  int     // First pose for interpolation
+	pose2  int     // Second pose for interpolation
+	blend  float32 // Blend factor between pose1 and pose2 (0 = pose1, 1 = pose2)
 	skin   uint32
 	origin [3]float32
 	angles [3]float32
@@ -439,6 +481,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	defer r.mu.Unlock()
 
 	r.clearWorldLocked()
+	r.worldLiquidAlphaOverrides = parseWorldspawnLiquidAlphaOverrides(tree.Entities)
 
 	renderData, err := buildWorldRenderData(tree)
 	if err != nil {
@@ -483,12 +526,16 @@ func (r *Renderer) renderWorld() {
 	vao := r.worldVAO
 	indexCount := r.worldIndexCount
 	vp := r.viewMatrices.VP
+	camera := r.cameraState
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	alphaUniform := r.worldAlphaUniform
 	fallbackTexture := r.worldFallbackTexture
 	fallbackLightmap := r.worldLightmapFallback
+	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
+	worldTree := r.worldTree
 	faces := []WorldFace(nil)
 	if r.worldData != nil && r.worldData.Geometry != nil {
 		faces = append(faces, r.worldData.Geometry.Faces...)
@@ -498,15 +545,17 @@ func (r *Renderer) renderWorld() {
 		worldTextures[k] = v
 	}
 	worldLightmaps := append([]uint32(nil), r.worldLightmaps...)
+	lightPool := r.lightPool // Get light pool for light evaluation
 	r.mu.RUnlock()
 
 	if program == 0 || vao == 0 || indexCount <= 0 {
 		return
 	}
 
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
+	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, camera, liquidAlpha, lightPool)
+
 	gl.Enable(gl.DEPTH_TEST)
-	gl.DepthMask(true)
-	gl.Disable(gl.BLEND)
 	gl.Disable(gl.CULL_FACE)
 
 	gl.UseProgram(program)
@@ -514,34 +563,22 @@ func (r *Renderer) renderWorld() {
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
-	gl.Uniform1f(r.worldAlphaUniform, 1)
 	gl.BindVertexArray(vao)
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.ActiveTexture(gl.TEXTURE1)
-	gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
-	gl.ActiveTexture(gl.TEXTURE0)
 	if len(faces) == 0 {
+		gl.DepthMask(true)
+		gl.Disable(gl.BLEND)
+		gl.Uniform1f(alphaUniform, 1)
+		gl.ActiveTexture(gl.TEXTURE0)
 		gl.BindTexture(gl.TEXTURE_2D, fallbackTexture)
 		gl.ActiveTexture(gl.TEXTURE1)
 		gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
 		gl.ActiveTexture(gl.TEXTURE0)
 		gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
 	} else {
-		for _, face := range faces {
-			tex := worldTextures[face.TextureIndex]
-			if tex == 0 {
-				tex = fallbackTexture
-			}
-			lightmap := fallbackLightmap
-			if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(worldLightmaps) && worldLightmaps[face.LightmapIndex] != 0 {
-				lightmap = worldLightmaps[face.LightmapIndex]
-			}
-			gl.BindTexture(gl.TEXTURE_2D, tex)
-			gl.ActiveTexture(gl.TEXTURE1)
-			gl.BindTexture(gl.TEXTURE_2D, lightmap)
-			gl.ActiveTexture(gl.TEXTURE0)
-			gl.DrawElements(gl.TRIANGLES, int32(face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(face.FirstIndex*4)))
-		}
+		renderSkyPass(skyFaces, alphaUniform)
+		renderWorldDrawCalls(opaqueFaces, alphaUniform, true)
+		renderWorldDrawCalls(alphaTestFaces, alphaUniform, true)
+		renderWorldDrawCalls(translucentFaces, alphaUniform, false)
 	}
 	gl.BindVertexArray(0)
 	gl.ActiveTexture(gl.TEXTURE1)
@@ -561,16 +598,21 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	r.mu.Lock()
 	program := r.worldProgram
 	vp := r.viewMatrices.VP
+	camera := r.cameraState
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
+	alphaUniform := r.worldAlphaUniform
 	fallbackTexture := r.worldFallbackTexture
 	fallbackLightmap := r.worldLightmapFallback
+	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
+	worldTree := r.worldTree
 	worldTextures := make(map[int32]uint32, len(r.worldTextures))
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
 	}
+	lightPool := r.lightPool // Get light pool for light evaluation
 	type drawBrush struct {
 		origin [3]float32
 		mesh   *glWorldMesh
@@ -590,34 +632,22 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	}
 
 	gl.Enable(gl.DEPTH_TEST)
-	gl.DepthMask(true)
-	gl.Disable(gl.BLEND)
 	gl.Disable(gl.CULL_FACE)
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
-	gl.Uniform1f(r.worldAlphaUniform, 1)
 	gl.ActiveTexture(gl.TEXTURE0)
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 
 	for _, brush := range brushes {
+		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, camera, liquidAlpha, lightPool)
 		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
 		gl.BindVertexArray(brush.mesh.vao)
-		for _, face := range brush.mesh.faces {
-			tex := worldTextures[face.TextureIndex]
-			if tex == 0 {
-				tex = fallbackTexture
-			}
-			lightmap := fallbackLightmap
-			if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(brush.mesh.lightmaps) && brush.mesh.lightmaps[face.LightmapIndex] != 0 {
-				lightmap = brush.mesh.lightmaps[face.LightmapIndex]
-			}
-			gl.BindTexture(gl.TEXTURE_2D, tex)
-			gl.ActiveTexture(gl.TEXTURE1)
-			gl.BindTexture(gl.TEXTURE_2D, lightmap)
-			gl.ActiveTexture(gl.TEXTURE0)
-			gl.DrawElements(gl.TRIANGLES, int32(face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(face.FirstIndex*4)))
-		}
+		renderSkyPass(skyFaces, alphaUniform)
+		renderWorldDrawCalls(opaqueFaces, alphaUniform, true)
+		renderWorldDrawCalls(alphaTestFaces, alphaUniform, true)
+		renderWorldDrawCalls(translucentFaces, alphaUniform, false)
 	}
 
 	gl.BindVertexArray(0)
@@ -627,6 +657,329 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 	gl.Enable(gl.BLEND)
+}
+
+// bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
+// This variant accepts a light pool and computes light contributions for each face.
+func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+	for _, face := range faces {
+		call := worldDrawCall{
+			face:       face,
+			texture:    worldTextureForFace(face, textures, fallbackTexture),
+			lightmap:   worldLightmapForFace(face, lightmaps, fallbackLightmap),
+			alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
+			distanceSq: worldFaceDistanceSq(face.Center, modelOffset, camera),
+			light:      [3]float32{}, // Will be populated below
+		}
+
+		// Evaluate dynamic lights at this face's center
+		if lightPool != nil {
+			call.light = lightPool.EvaluateLightsAtPoint(face.Center)
+		}
+
+		switch worldFacePass(face.Flags, call.alpha) {
+		case worldPassSky:
+			sky = append(sky, call)
+		case worldPassAlphaTest:
+			alphaTest = append(alphaTest, call)
+		case worldPassTranslucent:
+			translucent = append(translucent, call)
+		default:
+			opaque = append(opaque, call)
+		}
+	}
+
+	sort.SliceStable(translucent, func(i, j int) bool {
+		return translucent[i].distanceSq > translucent[j].distanceSq
+	})
+
+	return sky, opaque, alphaTest, translucent
+}
+
+func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+	return bucketWorldFacesWithLights(faces, textures, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, camera, liquidAlpha, nil)
+}
+
+func worldTextureForFace(face WorldFace, textures map[int32]uint32, fallbackTexture uint32) uint32 {
+	tex := textures[face.TextureIndex]
+	if tex == 0 {
+		tex = fallbackTexture
+	}
+	return tex
+}
+
+func worldLightmapForFace(face WorldFace, lightmaps []uint32, fallbackLightmap uint32) uint32 {
+	if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(lightmaps) && lightmaps[face.LightmapIndex] != 0 {
+		return lightmaps[face.LightmapIndex]
+	}
+	return fallbackLightmap
+}
+
+func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
+	if flags&model.SurfDrawTurb == 0 {
+		return 1
+	}
+	if flags&model.SurfDrawLava != 0 {
+		return liquidAlpha.lava
+	}
+	if flags&model.SurfDrawSlime != 0 {
+		return liquidAlpha.slime
+	}
+	if flags&model.SurfDrawTele != 0 {
+		return liquidAlpha.tele
+	}
+	if flags&model.SurfDrawWater != 0 {
+		return liquidAlpha.water
+	}
+	return 1
+}
+
+func worldLiquidAlphaSettingsFromCvars(overrides worldLiquidAlphaOverrides, tree *bsp.Tree) worldLiquidAlphaSettings {
+	return resolveWorldLiquidAlphaSettings(
+		readWorldAlphaCvar(CvarRWaterAlpha, 1),
+		readWorldAlphaCvar(CvarRLavaAlpha, 0),
+		readWorldAlphaCvar(CvarRSlimeAlpha, 0),
+		readWorldAlphaCvar(CvarRTeleAlpha, 0),
+		overrides,
+		tree,
+	)
+}
+
+func resolveWorldLiquidAlphaSettings(cvarWater, cvarLava, cvarSlime, cvarTele float32, overrides worldLiquidAlphaOverrides, tree *bsp.Tree) worldLiquidAlphaSettings {
+	water := clamp01(cvarWater)
+	if overrides.hasWater {
+		water = clamp01(overrides.water)
+	}
+	fallback := water
+
+	lava := fallback
+	if cvarLava > 0 {
+		lava = clamp01(cvarLava)
+	}
+	if overrides.hasLava {
+		if overrides.lava > 0 {
+			lava = clamp01(overrides.lava)
+		} else {
+			lava = fallback
+		}
+	}
+
+	slime := fallback
+	if cvarSlime > 0 {
+		slime = clamp01(cvarSlime)
+	}
+	if overrides.hasSlime {
+		if overrides.slime > 0 {
+			slime = clamp01(overrides.slime)
+		} else {
+			slime = fallback
+		}
+	}
+
+	tele := fallback
+	if cvarTele > 0 {
+		tele = clamp01(cvarTele)
+	}
+	if overrides.hasTele {
+		if overrides.tele > 0 {
+			tele = clamp01(overrides.tele)
+		} else {
+			tele = fallback
+		}
+	}
+
+	settings := worldLiquidAlphaSettings{water: water, lava: lava, slime: slime, tele: tele}
+
+	// Force opaque if map is not vis-safe for transparent water
+	if !mapVisTransparentWaterSafe(tree) {
+		settings.water = 1.0
+		settings.lava = 1.0
+		settings.slime = 1.0
+		settings.tele = 1.0
+	}
+
+	return settings
+}
+
+func parseWorldspawnLiquidAlphaOverrides(entities []byte) worldLiquidAlphaOverrides {
+	if len(entities) == 0 {
+		return worldLiquidAlphaOverrides{}
+	}
+
+	entity, ok := firstEntityLumpObject(string(entities))
+	if !ok {
+		return worldLiquidAlphaOverrides{}
+	}
+
+	fields := parseEntityFields(entity)
+	if !strings.EqualFold(fields["classname"], "worldspawn") {
+		return worldLiquidAlphaOverrides{}
+	}
+
+	var overrides worldLiquidAlphaOverrides
+	if value, ok := parseEntityAlphaField(fields, "wateralpha"); ok {
+		overrides.hasWater = true
+		overrides.water = value
+	}
+	if value, ok := parseEntityAlphaField(fields, "lavaalpha"); ok {
+		overrides.hasLava = true
+		overrides.lava = value
+	}
+	if value, ok := parseEntityAlphaField(fields, "slimealpha"); ok {
+		overrides.hasSlime = true
+		overrides.slime = value
+	}
+	if value, ok := parseEntityAlphaField(fields, "telealpha"); ok {
+		overrides.hasTele = true
+		overrides.tele = value
+	}
+
+	return overrides
+}
+
+// mapVisTransparentWaterSafe determines if the map's visibility data is compiled for transparent water.
+// In Quake 1, transparent water requires special VIS-time flags; maps without them render water opaque to prevent rendering errors.
+// Returns true if map is safe for transparent liquids, false if opaque should be forced.
+func mapVisTransparentWaterSafe(tree *bsp.Tree) bool {
+	// TODO: Check worldspawn flags or BSP header for transparency bit
+	// For now, assume safe by default (matches original Ironwail conservative approach)
+	// Real implementation would check VIS compilation flags or worldspawn "transpwater" key
+	if tree == nil {
+		return true
+	}
+	return true
+}
+
+func parseEntityAlphaField(fields map[string]string, key string) (float32, bool) {
+	value, ok := fields[key]
+	if !ok {
+		value, ok = fields["_"+key]
+		if !ok {
+			return 0, false
+		}
+	}
+	f, err := strconv.ParseFloat(value, 32)
+	if err != nil {
+		return 0, false
+	}
+	return float32(f), true
+}
+
+func firstEntityLumpObject(data string) (string, bool) {
+	start := strings.IndexByte(data, '{')
+	if start < 0 {
+		return "", false
+	}
+	end := strings.IndexByte(data[start+1:], '}')
+	if end < 0 {
+		return "", false
+	}
+	return data[start+1 : start+1+end], true
+}
+
+func parseEntityFields(data string) map[string]string {
+	fields := make(map[string]string)
+	pos := 0
+	for {
+		key, next, ok := nextQuotedEntityToken(data, pos)
+		if !ok {
+			break
+		}
+		value, nextValue, ok := nextQuotedEntityToken(data, next)
+		if !ok {
+			break
+		}
+		fields[strings.ToLower(key)] = value
+		pos = nextValue
+	}
+	return fields
+}
+
+func nextQuotedEntityToken(data string, pos int) (string, int, bool) {
+	start := strings.IndexByte(data[pos:], '"')
+	if start < 0 {
+		return "", pos, false
+	}
+	start += pos
+	end := strings.IndexByte(data[start+1:], '"')
+	if end < 0 {
+		return "", pos, false
+	}
+	end += start + 1
+	return data[start+1 : end], end + 1, true
+}
+
+func readWorldAlphaCvar(name string, fallback float32) float32 {
+	cv := cvar.Get(name)
+	if cv == nil {
+		return clamp01(fallback)
+	}
+	return clamp01(cv.Float32())
+}
+
+func worldFacePass(flags int32, alpha float32) worldRenderPass {
+	switch {
+	case flags&model.SurfDrawSky != 0:
+		return worldPassSky
+	case flags&model.SurfDrawFence != 0:
+		return worldPassAlphaTest
+	case flags&model.SurfDrawTurb != 0 && alpha < 1:
+		return worldPassTranslucent
+	default:
+		return worldPassOpaque
+	}
+}
+
+func worldFaceDistanceSq(center, modelOffset [3]float32, camera CameraState) float32 {
+	dx := center[0] + modelOffset[0] - camera.Origin.X
+	dy := center[1] + modelOffset[1] - camera.Origin.Y
+	dz := center[2] + modelOffset[2] - camera.Origin.Z
+	return dx*dx + dy*dy + dz*dz
+}
+
+func renderSkyPass(calls []worldDrawCall, alphaUniform int32) {
+	if len(calls) == 0 {
+		return
+	}
+	// Sky is rendered at maximum depth but doesn't write to depth buffer
+	gl.DepthFunc(gl.LEQUAL)
+	gl.DepthMask(false)
+	gl.Disable(gl.BLEND)
+
+	for _, call := range calls {
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.BindTexture(gl.TEXTURE_2D, call.texture)
+		gl.ActiveTexture(gl.TEXTURE1)
+		gl.BindTexture(gl.TEXTURE_2D, call.lightmap)
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.Uniform1f(alphaUniform, call.alpha)
+		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
+	}
+
+	// Restore depth state
+	gl.DepthFunc(gl.LESS)
+	gl.DepthMask(true)
+}
+
+func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform int32, depthWrite bool) {
+	if len(calls) == 0 {
+		return
+	}
+	gl.DepthMask(depthWrite)
+	if depthWrite {
+		gl.Disable(gl.BLEND)
+	} else {
+		gl.Enable(gl.BLEND)
+	}
+	for _, call := range calls {
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.BindTexture(gl.TEXTURE_2D, call.texture)
+		gl.ActiveTexture(gl.TEXTURE1)
+		gl.BindTexture(gl.TEXTURE_2D, call.lightmap)
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.Uniform1f(alphaUniform, call.alpha)
+		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
+	}
 }
 
 func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glAliasModel {
@@ -779,14 +1132,45 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 	if alias == nil || entity.Model == nil || entity.Model.AliasHeader == nil || len(alias.refs) == 0 {
 		return nil
 	}
+
+	hdr := entity.Model.AliasHeader
 	frame := entity.Frame
-	if frame < 0 || frame >= len(entity.Model.AliasHeader.Frames) {
+	if frame < 0 || frame >= len(hdr.Frames) {
 		frame = 0
 	}
-	pose := entity.Model.AliasHeader.Frames[frame].FirstPose
-	if pose < 0 || pose >= len(alias.poses) {
-		pose = 0
+
+	// Convert model.AliasFrameDesc to our internal AliasFrameDesc
+	frameDescs := make([]AliasFrameDesc, len(hdr.Frames))
+	for i, f := range hdr.Frames {
+		frameDescs[i] = AliasFrameDesc{
+			FirstPose: f.FirstPose,
+			NumPoses:  f.NumPoses,
+			Interval:  f.Interval,
+			BBoxMin:   f.BBoxMin,
+			BBoxMax:   f.BBoxMax,
+			Frame:     f.Frame,
+			Name:      f.Name,
+		}
 	}
+
+	// Get animation time from entity state
+	// FrameTime is accumulated by the game logic and indicates how far into
+	// the current animation frame we are
+	currentTime := entity.FrameTime
+
+	// Setup frame interpolation
+	interpData := setupAliasFrameInterpolation(frame, frameDescs, currentTime, true, hdr.Flags)
+
+	// Validate poses
+	pose1 := interpData.Pose1
+	pose2 := interpData.Pose2
+	if pose1 < 0 || pose1 >= len(alias.poses) {
+		pose1 = 0
+	}
+	if pose2 < 0 || pose2 >= len(alias.poses) {
+		pose2 = 0
+	}
+
 	skin := r.worldFallbackTexture
 	if len(alias.skins) > 0 {
 		skinIndex := entity.SkinNum
@@ -798,14 +1182,18 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 			skin = r.worldFallbackTexture
 		}
 	}
+
 	alpha := entity.Alpha
 	if alpha <= 0 {
 		alpha = 1
 	}
+
 	return &glAliasDraw{
 		alias:  alias,
 		model:  entity.Model,
-		pose:   pose,
+		pose1:  pose1,
+		pose2:  pose2,
+		blend:  interpData.Blend,
 		skin:   skin,
 		origin: entity.Origin,
 		angles: entity.Angles,
@@ -857,7 +1245,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.BindBuffer(gl.ARRAY_BUFFER, scratchVBO)
 
 	for _, draw := range draws {
-		vertices := buildAliasVertices(draw.alias, draw.model, draw.pose, draw.origin, draw.angles, draw.full)
+		// Use interpolated vertex building with two poses
+		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.full)
 		if len(vertices) == 0 {
 			continue
 		}
@@ -904,6 +1293,186 @@ func (r *Renderer) renderViewModel(entity AliasModelEntity) {
 		return
 	}
 	r.renderAliasDraws([]glAliasDraw{*draw}, true)
+}
+
+func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
+	if len(entities) == 0 {
+		return
+	}
+
+	r.mu.Lock()
+	program := r.worldProgram
+	vp := r.viewMatrices.VP
+	camera := r.cameraState
+	vpUniform := r.worldVPUniform
+	textureUniform := r.worldTextureUniform
+	lightmapUniform := r.worldLightmapUniform
+	modelOffsetUniform := r.worldModelOffsetUniform
+	alphaUniform := r.worldAlphaUniform
+	fallbackLightmap := r.worldLightmapFallback
+
+	draws := make([]glSpriteDraw, 0, len(entities))
+	for _, entity := range entities {
+		if draw := r.buildSpriteDrawLocked(entity); draw != nil {
+			draws = append(draws, *draw)
+		}
+	}
+	r.mu.Unlock()
+
+	if program == 0 || len(draws) == 0 {
+		return
+	}
+
+	gl.Enable(gl.DEPTH_TEST)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	gl.UseProgram(program)
+	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform1i(lightmapUniform, 1)
+	gl.ActiveTexture(gl.TEXTURE0)
+
+	for _, draw := range draws {
+		r.renderSpriteDraw(draw, camera, program, modelOffsetUniform, alphaUniform, fallbackLightmap)
+	}
+
+	gl.BindVertexArray(0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.UseProgram(0)
+}
+
+// glSpriteDraw holds data for rendering a single sprite.
+type glSpriteDraw struct {
+	sprite *glSpriteModel
+	model  *model.Model
+	frame  int
+	origin [3]float32
+	alpha  float32
+}
+
+// buildSpriteDrawLocked prepares a sprite for rendering (must be called with mutex held).
+func (r *Renderer) buildSpriteDrawLocked(entity SpriteEntity) *glSpriteDraw {
+	if entity.ModelID == "" || entity.Model == nil || entity.Model.Type != model.ModSprite {
+		return nil
+	}
+
+	var spr *glSpriteModel
+	if entity.SpriteData != nil {
+		// Use sprite data directly from entity
+		spr = uploadSpriteModel(entity.ModelID, entity.SpriteData)
+	} else {
+		// Fall back to cache
+		spr = r.ensureSpriteLocked(entity.ModelID, entity.Model)
+	}
+
+	if spr == nil {
+		return nil
+	}
+
+	frame := entity.Frame
+	if frame < 0 || frame >= len(spr.frames) {
+		frame = 0
+	}
+
+	return &glSpriteDraw{
+		sprite: spr,
+		model:  entity.Model,
+		frame:  frame,
+		origin: entity.Origin,
+		alpha:  entity.Alpha,
+	}
+}
+
+// ensureSpriteLocked retrieves or creates a cached sprite model (must be called with mutex held).
+func (r *Renderer) ensureSpriteLocked(modelID string, mdl *model.Model) *glSpriteModel {
+	if modelID == "" || mdl == nil || mdl.Type != model.ModSprite {
+		return nil
+	}
+
+	if cached, ok := r.spriteModels[modelID]; ok {
+		return cached
+	}
+
+	// Extract sprite data - MSprite should have been populated during model loading
+	if !isModelSprite(mdl) {
+		return nil
+	}
+
+	// For now, we'll construct sprite data from the model structure
+	// In a real implementation, the model loader would populate a Sprite field
+	spr := &model.MSprite{
+		Type:      int(mdl.Type),
+		MaxWidth:  int(mdl.Maxs[0] - mdl.Mins[0]),
+		MaxHeight: int(mdl.Maxs[2] - mdl.Mins[2]),
+	}
+
+	if mdl.Maxs[0] == 0 && mdl.Maxs[2] == 0 {
+		// Fallback dimensions
+		spr.MaxWidth = 64
+		spr.MaxHeight = 64
+	}
+
+	// For basic implementation, create a simple frame
+	// A complete implementation would load actual sprite frames from model data
+	spr.NumFrames = 1
+	spr.Frames = make([]model.MSpriteFrameDesc, 1)
+
+	glsprite := uploadSpriteModel(modelID, spr)
+	if glsprite == nil {
+		return nil
+	}
+
+	r.spriteModels[modelID] = glsprite
+	return glsprite
+}
+
+// isModelSprite checks if a model is a sprite type.
+func isModelSprite(mdl *model.Model) bool {
+	return mdl != nil && mdl.Type == model.ModSprite
+}
+
+// renderSpriteDraw renders a single sprite billboard.
+func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, program uint32, modelOffsetUniform, alphaUniform int32, fallbackLightmap uint32) {
+	if draw.sprite == nil || draw.frame < 0 || draw.frame >= len(draw.sprite.frames) {
+		return
+	}
+
+	// Build sprite quad vertices
+	vertices := buildSpriteQuadVertices(draw.sprite, draw.frame, [3]float32{
+		camera.Angles.X,
+		camera.Angles.Y,
+		camera.Angles.Z,
+	})
+
+	if len(vertices) == 0 {
+		return
+	}
+
+	// Generate quad indices
+	indices := generateSpriteQuadIndices()
+
+	// Ensure scratch VAO/VBO for transient geometry
+	r.ensureAliasScratchLocked()
+
+	// Upload vertices to scratch VBO
+	vertexData := flattenWorldVertices(vertices)
+	gl.BindBuffer(gl.ARRAY_BUFFER, r.aliasScratchVBO)
+	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
+
+	// Set model offset (sprite origin)
+	gl.Uniform3f(modelOffsetUniform, draw.origin[0], draw.origin[1], draw.origin[2])
+
+	// Set alpha
+	gl.Uniform1f(alphaUniform, draw.alpha)
+
+	// Bind vertex array
+	gl.BindVertexArray(r.aliasScratchVAO)
+
+	// Draw sprite quad (2 triangles = 6 indices)
+	gl.DrawElements(gl.TRIANGLES, int32(len(indices)), gl.UNSIGNED_INT, gl.PtrOffset(0))
 }
 
 // HasWorldData reports whether the OpenGL world path has uploaded geometry.
@@ -975,6 +1544,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldIndexCount = 0
 	r.worldData = nil
 	r.worldTree = nil
+	r.worldLiquidAlphaOverrides = worldLiquidAlphaOverrides{}
 	for modelID, alias := range r.aliasModels {
 		if alias != nil {
 			for _, tex := range alias.skins {
@@ -993,6 +1563,19 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteBuffers(1, &r.aliasScratchVBO)
 		r.aliasScratchVBO = 0
 	}
+	if r.decalVAO != 0 {
+		gl.DeleteVertexArrays(1, &r.decalVAO)
+		r.decalVAO = 0
+	}
+	if r.decalVBO != 0 {
+		gl.DeleteBuffers(1, &r.decalVBO)
+		r.decalVBO = 0
+	}
+	if r.decalProgram != 0 {
+		gl.DeleteProgram(r.decalProgram)
+		r.decalProgram = 0
+	}
+	r.decalVPUniform = -1
 }
 
 // ClearWorld releases OpenGL world resources.

@@ -102,6 +102,10 @@ const (
 	CvarVidVsync      = "vid_vsync"      // Vertical sync: 0=off, 1=on (default: 1)
 	CvarHostMaxFPS    = "host_maxfps"    // Maximum frames per second (default: 250)
 	CvarRGamma        = "r_gamma"        // Gamma correction value (default: 1.0)
+	CvarRWaterAlpha   = "r_wateralpha"   // Water alpha (0..1, default 1.0)
+	CvarRLavaAlpha    = "r_lavaalpha"    // Lava alpha (0 uses water alpha)
+	CvarRSlimeAlpha   = "r_slimealpha"   // Slime alpha (0 uses water alpha)
+	CvarRTeleAlpha    = "r_telealpha"    // Teleport alpha (0 uses water alpha)
 )
 
 // Config holds the video configuration for the renderer.

@@ -374,9 +374,11 @@ type Renderer struct {
 	worldLightmapFallback     uint32
 	worldTextures             map[int32]uint32
 	worldLightmaps            []uint32
+	worldLiquidAlphaOverrides worldLiquidAlphaOverrides
 	lightStyleValues          [64]float32
 	brushModels               map[int]*glWorldMesh
 	aliasModels               map[string]*glAliasModel
+	spriteModels              map[string]*glSpriteModel
 	aliasScratchVAO           uint32
 	aliasScratchVBO           uint32
 	particleProgram           uint32
@@ -384,7 +386,14 @@ type Renderer struct {
 	particlePointScaleUniform int32
 	particleVAO               uint32
 	particleVBO               uint32
+	decalProgram              uint32
+	decalVPUniform            int32
+	decalAtlasUniform         int32
+	decalAtlasTexture         uint32
+	decalVAO                  uint32
+	decalVBO                  uint32
 
+	lightPool      *glLightPool
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
 	closeCallback  func()
@@ -458,7 +467,9 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		worldTextures:    make(map[int32]uint32),
 		brushModels:      make(map[int]*glWorldMesh),
 		aliasModels:      make(map[string]*glAliasModel),
+		spriteModels:     make(map[string]*glSpriteModel),
 		lightStyleValues: defaultLightStyleValues(),
+		lightPool:        NewGLLightPool(512),
 	}
 
 	slog.Info("OpenGL renderer created",
@@ -545,6 +556,37 @@ func (r *Renderer) SetConfig(cfg Config) {
 		glfw.SwapInterval(1)
 	} else {
 		glfw.SwapInterval(0)
+	}
+}
+
+// SpawnDynamicLight adds a temporary point light to the world.
+// The light will fade over its lifetime and be automatically removed when expired.
+// Returns true if the light was added, false if the pool is at capacity.
+func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool == nil {
+		return false
+	}
+	return r.lightPool.SpawnLight(light)
+}
+
+// GetDynamicLightPool returns the light pool for direct access (read-only recommended).
+// Use this to query active lights or manually manage the pool.
+func (r *Renderer) GetDynamicLightPool() *glLightPool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.lightPool
+}
+
+// UpdateLights advances all active lights by the given deltaTime.
+// This should be called once per frame, typically in the game loop's update phase.
+// It handles aging lights and removing expired ones automatically.
+func (r *Renderer) UpdateLights(deltaTime float32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool != nil {
+		r.lightPool.UpdateAndFilter(deltaTime)
 	}
 }
 

@@ -37,3 +37,50 @@ func TestEmitClientEffectsMapsEvents(t *testing.T) {
 		t.Fatalf("last particle type = %d, want static beam particle", a[len(a)-1].Type)
 	}
 }
+
+func TestEmitDecalMarksMapsImpactAndExplosion(t *testing.T) {
+	ms := NewDecalMarkSystem()
+	rng := rand.New(rand.NewSource(9))
+
+	EmitDecalMarks(ms,
+		[]cl.TempEntityEvent{
+			{Type: inet.TE_GUNSHOT, Origin: [3]float32{1, 2, 3}},
+			{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}},
+			{Type: inet.TE_BEAM, Start: [3]float32{0, 0, 0}, End: [3]float32{10, 0, 0}},
+		},
+		rng,
+		2,
+	)
+
+	if got := ms.ActiveCount(); got != 2 {
+		t.Fatalf("ActiveCount = %d, want 2", got)
+	}
+	marks := ms.ActiveMarks()
+	if marks[0].Size != 8 {
+		t.Fatalf("impact mark size = %v, want 8", marks[0].Size)
+	}
+	if marks[0].Variant != DecalVariantBullet {
+		t.Fatalf("impact mark variant = %v, want %v", marks[0].Variant, DecalVariantBullet)
+	}
+	if marks[1].Size != 24 {
+		t.Fatalf("explosion mark size = %v, want 24", marks[1].Size)
+	}
+	if marks[1].Variant != DecalVariantScorch {
+		t.Fatalf("explosion mark variant = %v, want %v", marks[1].Variant, DecalVariantScorch)
+	}
+}
+
+func TestDecalMarkSystemRunExpiresMarks(t *testing.T) {
+	ms := NewDecalMarkSystem()
+	ms.AddMark(DecalMarkEntity{Origin: [3]float32{0, 0, 0}, Normal: [3]float32{0, 0, 1}, Size: 8, Alpha: 1}, 1.0, 5.0)
+	ms.AddMark(DecalMarkEntity{Origin: [3]float32{1, 0, 0}, Normal: [3]float32{0, 0, 1}, Size: 8, Alpha: 1}, 5.0, 5.0)
+
+	if got := ms.ActiveCount(); got != 2 {
+		t.Fatalf("ActiveCount before run = %d, want 2", got)
+	}
+
+	ms.Run(6.1)
+	if got := ms.ActiveCount(); got != 1 {
+		t.Fatalf("ActiveCount after run = %d, want 1", got)
+	}
+}

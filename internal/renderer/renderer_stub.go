@@ -47,18 +47,20 @@ type CameraState struct {
 
 // RenderFrameState carries per-frame render configuration passed to RenderFrame.
 type RenderFrameState struct {
-	ClearColor    [4]float32
-	DrawWorld     bool
-	DrawEntities  bool
-	BrushEntities []BrushEntity
-	AliasEntities []AliasModelEntity
-	ViewModel     *AliasModelEntity
-	LightStyles   [64]float32
-	DrawParticles bool
-	Draw2DOverlay bool
-	MenuActive    bool
-	Particles     *ParticleSystem
-	Palette       []byte
+	ClearColor     [4]float32
+	DrawWorld      bool
+	DrawEntities   bool
+	BrushEntities  []BrushEntity
+	AliasEntities  []AliasModelEntity
+	SpriteEntities []SpriteEntity
+	DecalMarks     []DecalMarkEntity
+	ViewModel      *AliasModelEntity
+	LightStyles    [64]float32
+	DrawParticles  bool
+	Draw2DOverlay  bool
+	MenuActive     bool
+	Particles      *ParticleSystem
+	Palette        []byte
 }
 
 // DrawContext is the no-backend draw context used by untagged builds.
@@ -77,13 +79,15 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	draw2DOverlay(dc)
 }
 
-func (dc *DrawContext) Clear(r, g, b, a float32)            { dc.stubContext().Clear(r, g, b, a) }
-func (dc *DrawContext) DrawTriangle(r, g, b, a float32)     { dc.stubContext().DrawTriangle(r, g, b, a) }
-func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic)   { dc.stubContext().DrawPic(x, y, pic) }
-func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) { dc.stubContext().DrawFill(x, y, w, h, color) }
-func (dc *DrawContext) DrawCharacter(x, y int, num int)     { dc.stubContext().DrawCharacter(x, y, num) }
-func (dc *DrawContext) SurfaceView() interface{}            { return dc.stubContext().SurfaceView() }
-func (dc *DrawContext) Gamma() float32                      { return dc.stubContext().Gamma() }
+func (dc *DrawContext) Clear(r, g, b, a float32)          { dc.stubContext().Clear(r, g, b, a) }
+func (dc *DrawContext) DrawTriangle(r, g, b, a float32)   { dc.stubContext().DrawTriangle(r, g, b, a) }
+func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.stubContext().DrawPic(x, y, pic) }
+func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
+	dc.stubContext().DrawFill(x, y, w, h, color)
+}
+func (dc *DrawContext) DrawCharacter(x, y int, num int) { dc.stubContext().DrawCharacter(x, y, num) }
+func (dc *DrawContext) SurfaceView() interface{}        { return dc.stubContext().SurfaceView() }
+func (dc *DrawContext) Gamma() float32                  { return dc.stubContext().Gamma() }
 
 func (dc *DrawContext) stubContext() *stubDrawContext {
 	if dc.stub == nil {

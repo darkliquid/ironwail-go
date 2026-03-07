@@ -9,15 +9,18 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/internal/model"
 )
 
 type worldTextureMeta struct {
 	Width  int
 	Height int
 	Name   string
+	Type   model.TextureType
 }
 
 // WorldGeometry holds BSP world data prepared for rendering.
@@ -44,6 +47,7 @@ type WorldFace struct {
 	TextureIndex  int32
 	LightmapIndex int32
 	Flags         int32
+	Center        [3]float32
 }
 
 type WorldLightmapSurface struct {
@@ -117,9 +121,13 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		face := &tree.Faces[globalFaceIdx]
 		textureIndex := int32(-1)
 		textureFlags := int32(0)
+		textureType := model.TexTypeDefault
 		if int(face.Texinfo) >= 0 && int(face.Texinfo) < len(tree.Texinfo) {
 			textureIndex = tree.Texinfo[face.Texinfo].Miptex
-			textureFlags = tree.Texinfo[face.Texinfo].Flags
+			if int(textureIndex) >= 0 && int(textureIndex) < len(textureMeta) {
+				textureType = textureMeta[textureIndex].Type
+			}
+			textureFlags = deriveWorldFaceFlags(textureType, tree.Texinfo[face.Texinfo].Flags)
 		}
 		faceData := WorldFace{
 			FirstIndex:    uint32(len(geom.Indices)),
@@ -148,6 +156,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		}
 
 		faceData.NumIndices = uint32((len(faceVerts) - 2) * 3)
+		faceData.Center = worldFaceCenter(faceVerts)
 		if lightmapSurface != nil {
 			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
 		}
@@ -182,9 +191,74 @@ func parseWorldTextureMeta(tree *bsp.Tree) []worldTextureMeta {
 			Width:  int(miptex.Width),
 			Height: int(miptex.Height),
 			Name:   miptex.Name,
+			Type:   classifyWorldTextureName(miptex.Name),
 		}
 	}
 	return textures
+}
+
+func classifyWorldTextureName(name string) model.TextureType {
+	name = strings.TrimRight(strings.ToLower(name), "\x00")
+	switch {
+	case strings.HasPrefix(name, "{"):
+		return model.TexTypeCutout
+	case strings.HasPrefix(name, "sky"):
+		return model.TexTypeSky
+	case strings.HasPrefix(name, "*lava"):
+		return model.TexTypeLava
+	case strings.HasPrefix(name, "*slime"):
+		return model.TexTypeSlime
+	case strings.HasPrefix(name, "*tele"):
+		return model.TexTypeTele
+	case strings.HasPrefix(name, "*"):
+		return model.TexTypeWater
+	default:
+		return model.TexTypeDefault
+	}
+}
+
+func deriveWorldFaceFlags(textureType model.TextureType, texinfoFlags int32) int32 {
+	flags := int32(0)
+	if texinfoFlags&bsp.TexMissing != 0 {
+		flags |= model.SurfNoTexture
+	}
+	if texinfoFlags&bsp.TexSpecial != 0 {
+		flags |= model.SurfDrawTiled
+	}
+
+	switch textureType {
+	case model.TexTypeCutout:
+		flags |= model.SurfDrawFence
+	case model.TexTypeSky:
+		flags |= model.SurfDrawSky | model.SurfDrawTiled
+	case model.TexTypeLava:
+		flags |= model.SurfDrawTurb | model.SurfDrawLava | model.SurfDrawTiled
+	case model.TexTypeSlime:
+		flags |= model.SurfDrawTurb | model.SurfDrawSlime | model.SurfDrawTiled
+	case model.TexTypeTele:
+		flags |= model.SurfDrawTurb | model.SurfDrawTele | model.SurfDrawTiled
+	case model.TexTypeWater:
+		flags |= model.SurfDrawTurb | model.SurfDrawWater | model.SurfDrawTiled
+	}
+
+	return flags
+}
+
+func worldFaceCenter(vertices []WorldVertex) [3]float32 {
+	if len(vertices) == 0 {
+		return [3]float32{}
+	}
+	var center [3]float32
+	for _, vertex := range vertices {
+		center[0] += vertex.Position[0]
+		center[1] += vertex.Position[1]
+		center[2] += vertex.Position[2]
+	}
+	scale := 1 / float32(len(vertices))
+	center[0] *= scale
+	center[1] *= scale
+	center[2] *= scale
+	return center
 }
 
 type faceLightmapSurface struct {

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/client"
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -766,6 +767,17 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 
 	// Set client state to connected for demo playback
 	h.clientState = caConnected
+
+	// Also set the actual client state to connected so it can process signon messages
+	// The client starts disconnected, but demo playback requires it to be connected
+	// so it can properly transition to active state when it receives signon messages
+	if clientState := LoopbackClientState(subs); clientState != nil {
+		clientState.ClearState()
+		// Manually set to Connected state (bypassing HandleServerInfo checks)
+		if clientState.State == cl.StateDisconnected {
+			clientState.State = cl.StateConnected
+		}
+	}
 }
 
 func (h *Host) CmdStopdemo(subs *Subsystems) {

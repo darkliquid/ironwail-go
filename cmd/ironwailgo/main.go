@@ -337,6 +337,73 @@ func (gameCallbacks) ProcessClient() {
 	if gameSubs == nil || gameSubs.Client == nil {
 		return
 	}
+	
+	// Handle demo playback
+	if gameHost != nil && gameHost.DemoState() != nil && gameHost.DemoState().Playback {
+		demo := gameHost.DemoState()
+		
+		// Try to read next demo frame
+		msgData, viewAngles, err := demo.ReadDemoFrame()
+		if err != nil {
+			if err.Error() == "EOF" || err.Error() == "unexpected EOF" {
+				// Demo ended, check if we should loop to next demo
+				_ = demo.StopPlayback()
+				gameHost.SetClientState(0) // caDisconnected
+				
+				// Demo loop: play next demo if demo loop is active
+				if gameHost.DemoNum() >= 0 && len(gameHost.DemoList()) > 0 {
+					demoNum := gameHost.DemoNum()
+					demos := gameHost.DemoList()
+					
+					// Wrap around to start
+					if demoNum >= len(demos) {
+						demoNum = 0
+						gameHost.SetDemoNum(demoNum)
+					}
+					
+					if demoNum < len(demos) && demos[demoNum] != "" {
+						// Play the next demo
+						gameHost.CmdPlaydemo(demos[demoNum], gameSubs)
+						// Advance for next time
+						gameHost.SetDemoNum(demoNum + 1)
+					} else {
+						// No more demos
+						gameHost.SetDemoNum(-1)
+					}
+				}
+				return
+			}
+			// Other errors - stop playback
+			slog.Warn("demo playback error", "error", err)
+			_ = demo.StopPlayback()
+			gameHost.SetClientState(0) // caDisconnected
+			return
+		}
+		
+		// Successfully read demo frame - parse the message and apply view angles
+		// Get the actual client state to access parser
+		clientState := host.LoopbackClientState(gameSubs)
+		if clientState != nil {
+			// Store current view angles as previous frame for interpolation
+			clientState.MViewAngles[1] = clientState.MViewAngles[0]
+			// Apply new view angles from demo
+			clientState.MViewAngles[0] = viewAngles
+			
+			// Parse the server message from demo
+			parser := cl.NewParser(clientState)
+			if err := parser.ParseServerMessage(msgData); err != nil {
+				slog.Warn("failed to parse demo message", "error", err)
+			}
+			
+			// Advance client time based on demo speed
+			clientState.AdvanceTime(demo, gameHost.FrameTime())
+		}
+		
+		// Don't run normal networked gameplay during demo playback
+		return
+	}
+	
+	// Normal networked gameplay
 	_ = gameSubs.Client.ReadFromServer()
 	_ = gameSubs.Client.SendCommand()
 }

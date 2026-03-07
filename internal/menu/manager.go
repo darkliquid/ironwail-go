@@ -1,8 +1,11 @@
 package menu
 
 import (
+	"fmt"
 	"log/slog"
+	"time"
 
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -15,10 +18,23 @@ const (
 	MenuNone         MenuState = iota // No menu active
 	MenuMain                          // Main menu
 	MenuSinglePlayer                  // Single player submenu
+	MenuLoad                          // Load game submenu
+	MenuSave                          // Save game submenu
 	MenuMultiPlayer                   // Multiplayer submenu
 	MenuOptions                       // Options submenu
-	MenuVideo                         // Video options submenu
+	MenuHelp                          // Help screens
 	MenuQuit                          // Quit confirmation screen
+)
+
+const (
+	mainItems = 5
+
+	singlePlayerItems = 3
+	multiPlayerItems  = 3
+	optionsItems      = 5
+
+	maxSaveGames = 12
+	helpPages    = 6
 )
 
 // Manager handles the Quake menu system including navigation and rendering.
@@ -29,6 +45,15 @@ type Manager struct {
 	// mainCursor is the current selection in the main menu.
 	mainCursor int
 
+	singlePlayerCursor int
+	loadCursor         int
+	saveCursor         int
+	multiPlayerCursor  int
+	optionsCursor      int
+	helpPage           int
+
+	quitPrevState MenuState
+
 	// drawManager provides access to graphics assets.
 	drawManager DrawManager
 
@@ -37,6 +62,9 @@ type Manager struct {
 
 	// active indicates whether the menu is currently displayed.
 	active bool
+
+	// commandText queues engine commands (map/load/save/quit).
+	commandText func(text string)
 }
 
 // DrawManager defines the interface for loading menu graphics.
@@ -47,11 +75,18 @@ type DrawManager interface {
 // NewManager creates a new menu manager.
 func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 	return &Manager{
-		state:       MenuNone,
-		mainCursor:  0,
-		drawManager: drawMgr,
-		inputSystem: inputSys,
-		active:      false,
+		state:              MenuNone,
+		mainCursor:         0,
+		singlePlayerCursor: 0,
+		loadCursor:         0,
+		saveCursor:         0,
+		multiPlayerCursor:  0,
+		optionsCursor:      0,
+		helpPage:           0,
+		drawManager:        drawMgr,
+		inputSystem:        inputSys,
+		active:             false,
+		commandText:        cmdsys.AddText,
 	}
 }
 
@@ -123,6 +158,18 @@ func (m *Manager) M_Key(key int) {
 	switch m.state {
 	case MenuMain:
 		m.mainKey(key)
+	case MenuSinglePlayer:
+		m.singlePlayerKey(key)
+	case MenuLoad:
+		m.loadKey(key)
+	case MenuSave:
+		m.saveKey(key)
+	case MenuMultiPlayer:
+		m.multiPlayerKey(key)
+	case MenuOptions:
+		m.optionsKey(key)
+	case MenuHelp:
+		m.helpKey(key)
 	case MenuQuit:
 		m.quitKey(key)
 	}
@@ -133,6 +180,18 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 	switch m.state {
 	case MenuMain:
 		m.drawMain(dc)
+	case MenuSinglePlayer:
+		m.drawSinglePlayer(dc)
+	case MenuLoad:
+		m.drawLoad(dc)
+	case MenuSave:
+		m.drawSave(dc)
+	case MenuMultiPlayer:
+		m.drawMultiPlayer(dc)
+	case MenuOptions:
+		m.drawOptions(dc)
+	case MenuHelp:
+		m.drawHelp(dc)
 	case MenuQuit:
 		m.drawQuit(dc)
 	}
@@ -140,22 +199,20 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 
 // mainKey handles input when in the main menu.
 func (m *Manager) mainKey(key int) {
-	numItems := 6 // SinglePlayer, Multiplayer, Options, Quit, etc.
-
 	switch key {
-	case input.KUpArrow:
+	case input.KUpArrow, input.KMWheelUp:
 		m.mainCursor--
 		if m.mainCursor < 0 {
-			m.mainCursor = numItems - 1
+			m.mainCursor = mainItems - 1
 		}
-	case input.KDownArrow:
+	case input.KDownArrow, input.KMWheelDown:
 		m.mainCursor++
-		if m.mainCursor >= numItems {
+		if m.mainCursor >= mainItems {
 			m.mainCursor = 0
 		}
-	case input.KEnter:
+	case input.KEnter, input.KSpace, input.KMouse1:
 		m.mainSelect()
-	case input.KEscape:
+	case input.KEscape, input.KMouse2:
 		m.HideMenu()
 	}
 }
@@ -169,61 +226,325 @@ func (m *Manager) mainSelect() {
 		m.state = MenuMultiPlayer
 	case 2: // Options
 		m.state = MenuOptions
-	case 3: // Video
-		m.state = MenuVideo
-	case 5: // Quit
+	case 3: // Help
+		m.state = MenuHelp
+		m.helpPage = 0
+	case 4: // Quit
+		m.quitPrevState = MenuMain
 		m.state = MenuQuit
+	}
+}
+
+func (m *Manager) singlePlayerKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.singlePlayerCursor--
+		if m.singlePlayerCursor < 0 {
+			m.singlePlayerCursor = singlePlayerItems - 1
+		}
+	case input.KDownArrow, input.KMWheelDown:
+		m.singlePlayerCursor++
+		if m.singlePlayerCursor >= singlePlayerItems {
+			m.singlePlayerCursor = 0
+		}
+	case input.KEnter, input.KSpace, input.KMouse1:
+		switch m.singlePlayerCursor {
+		case 0:
+			m.HideMenu()
+			m.queueCommand("disconnect\n")
+			m.queueCommand("maxplayers 1\n")
+			m.queueCommand("deathmatch 0\n")
+			m.queueCommand("coop 0\n")
+			m.queueCommand("map start\n")
+		case 1:
+			m.state = MenuLoad
+		case 2:
+			m.state = MenuSave
+		}
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.state = MenuMain
+	}
+}
+
+func (m *Manager) loadKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KLeftArrow, input.KMWheelUp:
+		m.loadCursor--
+		if m.loadCursor < 0 {
+			m.loadCursor = maxSaveGames - 1
+		}
+	case input.KDownArrow, input.KRightArrow, input.KMWheelDown:
+		m.loadCursor++
+		if m.loadCursor >= maxSaveGames {
+			m.loadCursor = 0
+		}
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.HideMenu()
+		m.queueCommand(fmt.Sprintf("load s%d\n", m.loadCursor))
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.state = MenuSinglePlayer
+	}
+}
+
+func (m *Manager) saveKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KLeftArrow, input.KMWheelUp:
+		m.saveCursor--
+		if m.saveCursor < 0 {
+			m.saveCursor = maxSaveGames - 1
+		}
+	case input.KDownArrow, input.KRightArrow, input.KMWheelDown:
+		m.saveCursor++
+		if m.saveCursor >= maxSaveGames {
+			m.saveCursor = 0
+		}
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.HideMenu()
+		m.queueCommand(fmt.Sprintf("save s%d\n", m.saveCursor))
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.state = MenuSinglePlayer
+	}
+}
+
+func (m *Manager) multiPlayerKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.multiPlayerCursor--
+		if m.multiPlayerCursor < 0 {
+			m.multiPlayerCursor = multiPlayerItems - 1
+		}
+	case input.KDownArrow, input.KMWheelDown:
+		m.multiPlayerCursor++
+		if m.multiPlayerCursor >= multiPlayerItems {
+			m.multiPlayerCursor = 0
+		}
+	case input.KEnter, input.KSpace, input.KMouse1:
+		switch m.multiPlayerCursor {
+		case 0:
+			m.queueCommand("echo Join game menu is TODO\n")
+		case 1:
+			m.queueCommand("echo Host game menu is TODO\n")
+		case 2:
+			m.queueCommand("echo Player setup menu is TODO\n")
+		}
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.state = MenuMain
+	}
+}
+
+func (m *Manager) optionsKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.optionsCursor--
+		if m.optionsCursor < 0 {
+			m.optionsCursor = optionsItems - 1
+		}
+	case input.KDownArrow, input.KMWheelDown:
+		m.optionsCursor++
+		if m.optionsCursor >= optionsItems {
+			m.optionsCursor = 0
+		}
+	case input.KEnter, input.KSpace, input.KMouse1:
+		switch m.optionsCursor {
+		case 0:
+			m.queueCommand("echo Controls menu is TODO\n")
+		case 1:
+			m.queueCommand("echo Video menu is TODO\n")
+		case 2:
+			m.queueCommand("echo Audio menu is TODO\n")
+		case 3:
+			m.queueCommand("toggle vid_vsync\n")
+		case 4:
+			m.state = MenuMain
+		}
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.state = MenuMain
+	}
+}
+
+func (m *Manager) helpKey(key int) {
+	switch key {
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.state = MenuMain
+	case input.KUpArrow, input.KRightArrow, input.KMWheelDown, input.KMouse1:
+		m.helpPage++
+		if m.helpPage >= helpPages {
+			m.helpPage = 0
+		}
+	case input.KDownArrow, input.KLeftArrow, input.KMWheelUp:
+		m.helpPage--
+		if m.helpPage < 0 {
+			m.helpPage = helpPages - 1
+		}
 	}
 }
 
 // quitKey handles input when in the quit confirmation screen.
 func (m *Manager) quitKey(key int) {
 	switch key {
-	case input.KEnter:
-		// Confirm quit - hide menu and let host handle the quit
+	case input.KEnter, input.KSpace, input.KMouse1, 'y', 'Y':
+		m.queueCommand("quit\n")
 		m.HideMenu()
-	case input.KEscape, input.KBackspace:
+	case input.KEscape, input.KBackspace, input.KMouse2, 'n', 'N':
 		// Cancel - return to main menu
-		m.state = MenuMain
+		m.state = m.quitPrevState
 	}
 }
 
 // drawMain renders the main menu.
 func (m *Manager) drawMain(dc renderer.RenderContext) {
-	// Draw title plaque
-	if pic := m.drawManager.GetPic("gfx/qplaque.lmp"); pic != nil {
-		dc.DrawPic(16, 4, pic)
-		slog.Debug("drawing pic", "pic", "gfx/qplaque.lmp", "x", 16, "y", 4, "w", pic.Width, "h", pic.Height)
-	}
+	m.drawPlaqueAndTitle(dc, "gfx/ttl_main.lmp")
 
-	// Draw title banner if available
-	if pic := m.drawManager.GetPic("gfx/ttl_main.lmp"); pic != nil {
-		x := (320 - int(pic.Width)) / 2
-		dc.DrawPic(x, 4, pic)
-		slog.Debug("drawing pic", "pic", "gfx/ttl_main.lmp", "x", x, "y", 4, "w", pic.Width, "h", pic.Height)
-	}
-
-	// Draw main menu graphic
-	if pic := m.drawManager.GetPic("gfx/mainmenu.lmp"); pic != nil {
+	if pic := m.getPic("gfx/mainmenu.lmp"); pic != nil {
 		dc.DrawPic(72, 32, pic)
-		slog.Debug("drawing pic", "pic", "gfx/mainmenu.lmp", "x", 72, "y", 32, "w", pic.Width, "h", pic.Height)
+	} else {
+		m.drawText(dc, 84, 32, "SINGLE PLAYER", true)
+		m.drawText(dc, 84, 52, "MULTIPLAYER", true)
+		m.drawText(dc, 84, 72, "OPTIONS", true)
+		m.drawText(dc, 84, 92, "HELP", true)
+		m.drawText(dc, 84, 112, "QUIT", true)
 	}
 
-	// Draw cursor (selection bar)
-	if pic := m.drawManager.GetPic("gfx/m_surfs.lmp"); pic != nil {
-		// Position cursor based on selection
-		yPos := 32 + m.mainCursor*20
-		dc.DrawPic(54, yPos, pic)
-		slog.Debug("drawing pic", "pic", "gfx/m_surfs.lmp", "x", 54, "y", yPos, "w", pic.Width, "h", pic.Height)
+	m.drawCursor(dc, 54, 32+m.mainCursor*20)
+}
+
+func (m *Manager) drawSinglePlayer(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/ttl_sgl.lmp")
+
+	if pic := m.getPic("gfx/sp_menu.lmp"); pic != nil {
+		dc.DrawPic(72, 32, pic)
+	} else {
+		m.drawText(dc, 84, 32, "NEW GAME", true)
+		m.drawText(dc, 84, 52, "LOAD", true)
+		m.drawText(dc, 84, 72, "SAVE", true)
 	}
+
+	m.drawCursor(dc, 54, 32+m.singlePlayerCursor*20)
+}
+
+func (m *Manager) drawLoad(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_load.lmp")
+
+	for i := 0; i < maxSaveGames; i++ {
+		m.drawText(dc, 24, 32+i*8, fmt.Sprintf("s%d", i), true)
+	}
+	m.drawArrowCursor(dc, 8, 32+m.loadCursor*8)
+}
+
+func (m *Manager) drawSave(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_save.lmp")
+
+	for i := 0; i < maxSaveGames; i++ {
+		m.drawText(dc, 24, 32+i*8, fmt.Sprintf("s%d", i), true)
+	}
+	m.drawArrowCursor(dc, 8, 32+m.saveCursor*8)
+}
+
+func (m *Manager) drawMultiPlayer(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
+
+	if pic := m.getPic("gfx/mp_menu.lmp"); pic != nil {
+		dc.DrawPic(72, 32, pic)
+	} else {
+		m.drawText(dc, 84, 32, "JOIN GAME", true)
+		m.drawText(dc, 84, 52, "HOST GAME", true)
+		m.drawText(dc, 84, 72, "SETUP", true)
+	}
+
+	m.drawCursor(dc, 54, 32+m.multiPlayerCursor*20)
+}
+
+func (m *Manager) drawOptions(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
+
+	m.drawText(dc, 84, 32, "CONTROLS", true)
+	m.drawText(dc, 84, 52, "VIDEO", true)
+	m.drawText(dc, 84, 72, "AUDIO", true)
+	m.drawText(dc, 84, 92, "VSYNC", true)
+	m.drawText(dc, 84, 112, "BACK", true)
+
+	m.drawCursor(dc, 54, 32+m.optionsCursor*20)
+}
+
+func (m *Manager) drawHelp(dc renderer.RenderContext) {
+	if pic := m.getPic(fmt.Sprintf("gfx/help%d.lmp", m.helpPage)); pic != nil {
+		dc.DrawPic(0, 0, pic)
+		return
+	}
+
+	m.drawPlaqueAndTitle(dc, "gfx/ttl_main.lmp")
+	m.drawText(dc, 48, 64, "HELP PAGE", true)
+	m.drawText(dc, 136, 64, fmt.Sprintf("%d/%d", m.helpPage+1, helpPages), true)
+	m.drawText(dc, 48, 88, "LEFT/RIGHT OR MOUSE1 TO CHANGE", true)
+	m.drawText(dc, 48, 104, "ESC TO RETURN", true)
 }
 
 // drawQuit renders the quit confirmation screen.
 func (m *Manager) drawQuit(dc renderer.RenderContext) {
-	// Draw quit message (simplified for now)
-	// In a full implementation, this would use proper graphics
-	dc.DrawFill(0, 0, 320, 20, 15) // Gray background for title
+	m.drawPlaqueAndTitle(dc, "")
+	m.drawText(dc, 56, 64, "ARE YOU SURE YOU WANT TO QUIT?", true)
+	m.drawText(dc, 56, 88, "PRESS Y OR ENTER TO QUIT", true)
+	m.drawText(dc, 56, 104, "PRESS N OR ESC TO CANCEL", true)
+}
 
-	// Draw "Quit Game?" text
-	// This is simplified - in the full implementation we'd use proper font rendering
+func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string) {
+	if pic := m.getPic("gfx/qplaque.lmp"); pic != nil {
+		dc.DrawPic(16, 4, pic)
+	}
+
+	if titlePic == "" {
+		return
+	}
+
+	if pic := m.getPic(titlePic); pic != nil {
+		x := (320 - int(pic.Width)) / 2
+		dc.DrawPic(x, 4, pic)
+	}
+}
+
+func (m *Manager) drawCursor(dc renderer.RenderContext, x, y int) {
+	frame := (time.Now().UnixNano() / int64(200*time.Millisecond))%6 + 1
+	picName := fmt.Sprintf("gfx/menudot%d.lmp", frame)
+	if pic := m.getPic(picName); pic != nil {
+		dc.DrawPic(x, y, pic)
+		return
+	}
+
+	if pic := m.getPic("gfx/m_surfs.lmp"); pic != nil {
+		dc.DrawPic(x, y, pic)
+		return
+	}
+
+	dc.DrawCharacter(x, y, 12)
+}
+
+func (m *Manager) drawArrowCursor(dc renderer.RenderContext, x, y int) {
+	char := 12 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
+	dc.DrawCharacter(x, y, char)
+}
+
+func (m *Manager) drawText(dc renderer.RenderContext, x, y int, text string, white bool) {
+	for i, r := range text {
+		ch := int(r)
+		if white {
+			ch += 128
+		}
+		dc.DrawCharacter(x+i*8, y, ch)
+	}
+}
+
+func (m *Manager) getPic(name string) *image.QPic {
+	if m.drawManager == nil {
+		return nil
+	}
+	return m.drawManager.GetPic(name)
+}
+
+func (m *Manager) queueCommand(text string) {
+	if m.commandText != nil {
+		m.commandText(text)
+		return
+	}
+
+	slog.Debug("menu command dropped", "command", text)
 }

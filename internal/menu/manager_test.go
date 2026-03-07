@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/image"
@@ -82,22 +83,19 @@ func TestMainMenuKey(t *testing.T) {
 	mgr := NewManager(drawMgr, inputSys)
 	mgr.ShowMenu()
 
-	// Test up arrow
-
-	// Test up arrow
-	// Test up arrow
+	// Test up arrow wraps to last item.
 	mgr.M_Key(input.KUpArrow)
-	if mgr.mainCursor != 5 { // Should wrap to last item
+	if mgr.mainCursor != 4 {
 		t.Error("Up arrow should wrap cursor to end")
 	}
 
-	// Test down arrow
+	// Test down arrow wraps back to start.
 	mgr.M_Key(input.KDownArrow)
-	if mgr.mainCursor != 0 { // Should wrap to first item
+	if mgr.mainCursor != 0 {
 		t.Error("Down arrow should wrap cursor to start")
 	}
 
-	// Test escape to close
+	// Test escape closes menu.
 	mgr.M_Key(input.KEscape)
 	if mgr.IsActive() {
 		t.Error("Escape should hide menu")
@@ -109,26 +107,328 @@ func TestQuitMenu(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
 	mgr.ShowMenu()
 
-	// Navigate to quit (item 5)
-
-	// Navigate to quit (item 5)
+	// Navigate to quit (item 4).
 	mgr.M_Key(input.KDownArrow) // Item 1
 	mgr.M_Key(input.KDownArrow) // Item 2
 	mgr.M_Key(input.KDownArrow) // Item 3
-	mgr.M_Key(input.KDownArrow) // Item 4
-	mgr.M_Key(input.KDownArrow) // Item 5 (Quit)
+	mgr.M_Key(input.KDownArrow) // Item 4 (Quit)
 	mgr.M_Key(input.KEnter)     // Enter to select quit
 
 	if mgr.GetState() != MenuQuit {
 		t.Error("State should be MenuQuit after selecting quit")
 	}
 
-	// Test N to cancel
-	// Test Backspace to cancel
+	// Backspace should cancel quit and return to previous state.
 	mgr.M_Key(input.KBackspace)
 	if mgr.GetState() != MenuMain {
 		t.Error("Backspace should return to main menu")
+	}
+
+	// Confirm quit with Y.
+	mgr.mainCursor = 4
+	mgr.M_Key(input.KEnter)
+	mgr.M_Key('y')
+
+	if mgr.IsActive() {
+		t.Fatal("Menu should hide after quit confirmation")
+	}
+
+	if len(commands) == 0 || commands[len(commands)-1] != "quit\n" {
+		t.Fatalf("expected quit command, got %v", commands)
+	}
+}
+
+func TestMainMenuSelections(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	mgr.ShowMenu()
+
+	selections := []struct {
+		cursor int
+		want   MenuState
+	}{
+		{0, MenuSinglePlayer},
+		{1, MenuMultiPlayer},
+		{2, MenuOptions},
+		{3, MenuHelp},
+		{4, MenuQuit},
+	}
+
+	for _, tc := range selections {
+		mgr.state = MenuMain
+		mgr.mainCursor = tc.cursor
+		mgr.M_Key(input.KEnter)
+		if got := mgr.GetState(); got != tc.want {
+			t.Fatalf("cursor %d: expected state %v, got %v", tc.cursor, tc.want, got)
+		}
+	}
+}
+
+func TestSinglePlayerActions(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+
+	if mgr.GetState() != MenuSinglePlayer {
+		t.Fatalf("expected single player state, got %v", mgr.GetState())
+	}
+
+	// New game selection queues core startup commands and exits menu.
+	mgr.M_Key(input.KEnter)
+	if mgr.IsActive() {
+		t.Fatal("menu should hide when starting new game")
+	}
+
+	want := []string{"disconnect\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
+	if len(commands) < len(want) {
+		t.Fatalf("expected at least %d commands, got %d", len(want), len(commands))
+	}
+	for i, expected := range want {
+		if commands[i] != expected {
+			t.Fatalf("command %d: expected %q, got %q", i, expected, commands[i])
+		}
+	}
+}
+
+func TestLoadSaveCommands(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	// Load command.
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+	if mgr.GetState() != MenuLoad {
+		t.Fatalf("expected load state, got %v", mgr.GetState())
+	}
+	mgr.loadCursor = 3
+	mgr.M_Key(input.KEnter)
+	if got := commands[len(commands)-1]; got != "load s3\n" {
+		t.Fatalf("expected load command for slot 3, got %q", got)
+	}
+
+	// Save command.
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 2
+	mgr.M_Key(input.KEnter)
+	if mgr.GetState() != MenuSave {
+		t.Fatalf("expected save state, got %v", mgr.GetState())
+	}
+	mgr.saveCursor = 5
+	mgr.M_Key(input.KEnter)
+	if got := commands[len(commands)-1]; got != "save s5\n" {
+		t.Fatalf("expected save command for slot 5, got %q", got)
+	}
+}
+
+func TestHelpNavigation(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.ShowMenu()
+	mgr.state = MenuHelp
+	mgr.helpPage = 0
+
+	mgr.M_Key(input.KRightArrow)
+	if mgr.helpPage != 1 {
+		t.Fatalf("expected help page 1, got %d", mgr.helpPage)
+	}
+
+	mgr.helpPage = helpPages - 1
+	mgr.M_Key(input.KRightArrow)
+	if mgr.helpPage != 0 {
+		t.Fatalf("expected help page wrap to 0, got %d", mgr.helpPage)
+	}
+
+	mgr.M_Key(input.KEscape)
+	if mgr.GetState() != MenuMain {
+		t.Fatalf("expected return to main menu, got %v", mgr.GetState())
+	}
+}
+
+func TestOptionsNavigationAndAction(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuOptions
+	mgr.optionsCursor = 3 // VSYNC
+	mgr.M_Key(input.KEnter)
+
+	if len(commands) == 0 {
+		t.Fatal("expected command from options action")
+	}
+
+	if commands[len(commands)-1] != "toggle vid_vsync\n" {
+		t.Fatalf("unexpected options command: %q", commands[len(commands)-1])
+	}
+
+	mgr.optionsCursor = 4 // Back
+	mgr.M_Key(input.KEnter)
+	if mgr.GetState() != MenuMain {
+		t.Fatalf("expected back to main menu, got %v", mgr.GetState())
+	}
+}
+
+func TestMultiPlayerNavigation(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+
+	for i := 0; i < multiPlayerItems; i++ {
+		mgr.multiPlayerCursor = i
+		mgr.M_Key(input.KEnter)
+	}
+
+	if len(commands) != multiPlayerItems {
+		t.Fatalf("expected %d multiplayer commands, got %d", multiPlayerItems, len(commands))
+	}
+
+	for i, cmd := range commands {
+		if cmd == "" {
+			t.Fatalf("command %d should not be empty", i)
+		}
+	}
+}
+
+func TestLoadAndSaveCursorWrap(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.state = MenuLoad
+	mgr.loadCursor = 0
+	mgr.M_Key(input.KUpArrow)
+	if mgr.loadCursor != maxSaveGames-1 {
+		t.Fatalf("load cursor should wrap to end, got %d", mgr.loadCursor)
+	}
+
+	mgr.state = MenuSave
+	mgr.saveCursor = maxSaveGames - 1
+	mgr.M_Key(input.KDownArrow)
+	if mgr.saveCursor != 0 {
+		t.Fatalf("save cursor should wrap to start, got %d", mgr.saveCursor)
+	}
+}
+
+func TestMultiPlayerAndOptionsEscBack(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.ShowMenu()
+
+	mgr.state = MenuMultiPlayer
+	mgr.M_Key(input.KEscape)
+	if mgr.GetState() != MenuMain {
+		t.Fatalf("expected main from multiplayer esc, got %v", mgr.GetState())
+	}
+
+	mgr.state = MenuOptions
+	mgr.M_Key(input.KBackspace)
+	if mgr.GetState() != MenuMain {
+		t.Fatalf("expected main from options backspace, got %v", mgr.GetState())
+	}
+}
+
+func TestMouseBindingsForActivationAndBack(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 1 // Load
+	mgr.M_Key(input.KMouse1)
+	if mgr.GetState() != MenuLoad {
+		t.Fatalf("expected load state after mouse1 activate, got %v", mgr.GetState())
+	}
+
+	mgr.M_Key(input.KMouse2)
+	if mgr.GetState() != MenuSinglePlayer {
+		t.Fatalf("expected return to single player after mouse2, got %v", mgr.GetState())
+	}
+
+	mgr.state = MenuQuit
+	mgr.quitPrevState = MenuMain
+	mgr.M_Key(input.KMouse1)
+
+	if len(commands) == 0 || commands[len(commands)-1] != "quit\n" {
+		t.Fatalf("expected quit command from mouse confirm, got %v", commands)
+	}
+}
+
+func TestMenuStateStringability(t *testing.T) {
+	// Simple regression sentinel: ensure states are stable numeric values.
+	states := []MenuState{
+		MenuNone,
+		MenuMain,
+		MenuSinglePlayer,
+		MenuLoad,
+		MenuSave,
+		MenuMultiPlayer,
+		MenuOptions,
+		MenuHelp,
+		MenuQuit,
+	}
+
+	for i, state := range states {
+		if int(state) != i {
+			t.Fatalf("state index mismatch: %s expected %d got %d", fmt.Sprint(state), i, state)
+		}
 	}
 }

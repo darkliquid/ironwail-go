@@ -11,18 +11,20 @@ import (
 
 // RenderFrameState carries per-frame render configuration passed to RenderFrame.
 type RenderFrameState struct {
-	ClearColor    [4]float32
-	DrawWorld     bool
-	DrawEntities  bool
-	BrushEntities []BrushEntity
-	AliasEntities []AliasModelEntity
-	ViewModel     *AliasModelEntity
-	LightStyles   [64]float32
-	DrawParticles bool
-	Draw2DOverlay bool
-	MenuActive    bool
-	Particles     *ParticleSystem
-	Palette       []byte
+	ClearColor     [4]float32
+	DrawWorld      bool
+	DrawEntities   bool
+	BrushEntities  []BrushEntity
+	AliasEntities  []AliasModelEntity
+	SpriteEntities []SpriteEntity
+	DecalMarks     []DecalMarkEntity
+	ViewModel      *AliasModelEntity
+	LightStyles    [64]float32
+	DrawParticles  bool
+	Draw2DOverlay  bool
+	MenuActive     bool
+	Particles      *ParticleSystem
+	Palette        []byte
 }
 
 // DrawContext wraps the underlying OpenGL draw context and is the concrete type
@@ -48,6 +50,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.AliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(state.AliasEntities)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(state.SpriteEntities) > 0 {
+		dc.gldc.renderer.renderSpriteEntities(state.SpriteEntities)
+	}
+	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
+		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)
 	}
 	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
 		dc.gldc.renderer.renderParticles(state.Particles, state.Palette)

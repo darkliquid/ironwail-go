@@ -57,6 +57,31 @@ grep "client active" smoke-map-start.log
 grep "frame loop started" smoke-map-start.log
 """
 
+[tasks.smoke-cgo-map-start]
+description = "Smoke test: verify CGO/OpenGL boots to map start without headless fallback"
+depends = ["clean-logs", "build-cgo"]
+run = """
+timeout 8 ./ironwailgo-cgo -basedir ${QUAKE_DIR} +map start 2>&1 | tee smoke-cgo-map-start.log || true
+grep "OpenGL renderer created" smoke-cgo-map-start.log
+grep "Starting OpenGL render loop" smoke-cgo-map-start.log
+grep "OpenGL world uploaded" smoke-cgo-map-start.log
+grep "FS mounted" smoke-cgo-map-start.log
+grep "QC loaded" smoke-cgo-map-start.log
+grep "menu active" smoke-cgo-map-start.log
+grep "map spawn started" smoke-cgo-map-start.log
+grep "map spawn finished" smoke-cgo-map-start.log
+grep "client active" smoke-cgo-map-start.log
+grep "frame loop started" smoke-cgo-map-start.log
+if grep -q "Renderer initialization failed. Running in headless mode." smoke-cgo-map-start.log; then
+	echo "unexpected renderer init fallback to headless" >&2
+	exit 1
+fi
+if grep -q "Render loop failed. Falling back to headless mode." smoke-cgo-map-start.log; then
+	echo "unexpected render-loop fallback to headless" >&2
+	exit 1
+fi
+"""
+
 [tasks.smoke-all]
 description = "Run all smoke tests"
 depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]

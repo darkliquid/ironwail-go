@@ -68,6 +68,10 @@ type Host struct {
 
 	menu      *menu.Manager
 	demoState *client.DemoState
+	
+	// Demo loop state (for startup demos like demo1, demo2, demo3)
+	demoList []string
+	demoNum  int // current demo index, -1 means don't play demos
 }
 
 func NewHost() *Host {
@@ -76,6 +80,7 @@ func NewHost() *Host {
 		netInterval:  1.0 / 72,
 		maxClients:   1,
 		currentSkill: 1,
+		demoNum:      -1, // disabled until startdemos is called
 	}
 }
 
@@ -204,6 +209,30 @@ func (h *Host) SetMenu(menu *menu.Manager) {
 
 func (h *Host) GetMenu() *menu.Manager {
 	return h.menu
+}
+
+func (h *Host) DemoState() *client.DemoState {
+	return h.demoState
+}
+
+func (h *Host) SetDemoState(ds *client.DemoState) {
+	h.demoState = ds
+}
+
+func (h *Host) DemoList() []string {
+	return h.demoList
+}
+
+func (h *Host) SetDemoList(demos []string) {
+	h.demoList = demos
+}
+
+func (h *Host) DemoNum() int {
+	return h.demoNum
+}
+
+func (h *Host) SetDemoNum(num int) {
+	h.demoNum = num
 }
 
 func (h *Host) Lock() {

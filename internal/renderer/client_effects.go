@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"math"
 	"math/rand"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -62,4 +63,66 @@ func DrawParticles2D(dc RenderContext, ps *ParticleSystem) {
 		y := int(p.Org[1])
 		dc.DrawFill(x-2, y-2, 4, 4, p.Color)
 	}
+}
+
+// EmitDecalMarks maps temp-entity impact/explosion events to projected world-space marks.
+func EmitDecalMarks(ms *DecalMarkSystem, tempEntities []cl.TempEntityEvent, rng *rand.Rand, timeNow float32) {
+	if ms == nil || len(tempEntities) == 0 {
+		return
+	}
+
+	for _, event := range tempEntities {
+		switch event.Type {
+		case inet.TE_GUNSHOT:
+			ms.AddMark(DecalMarkEntity{
+				Origin:   event.Origin,
+				Normal:   [3]float32{0, 0, 1},
+				Size:     8,
+				Rotation: randomMarkRotation(rng),
+				Color:    [3]float32{0.08, 0.08, 0.08},
+				Alpha:    0.8,
+				Variant:  DecalVariantBullet,
+			}, 18.0, timeNow)
+
+		case inet.TE_SPIKE, inet.TE_SUPERSPIKE:
+			ms.AddMark(DecalMarkEntity{
+				Origin:   event.Origin,
+				Normal:   [3]float32{0, 0, 1},
+				Size:     8,
+				Rotation: randomMarkRotation(rng),
+				Color:    [3]float32{0.08, 0.08, 0.08},
+				Alpha:    0.8,
+				Variant:  DecalVariantChip,
+			}, 18.0, timeNow)
+
+		case inet.TE_WIZSPIKE, inet.TE_KNIGHTSPIKE:
+			ms.AddMark(DecalMarkEntity{
+				Origin:   event.Origin,
+				Normal:   [3]float32{0, 0, 1},
+				Size:     9,
+				Rotation: randomMarkRotation(rng),
+				Color:    [3]float32{0.16, 0.14, 0.22},
+				Alpha:    0.78,
+				Variant:  DecalVariantMagic,
+			}, 16.0, timeNow)
+
+		case inet.TE_EXPLOSION, inet.TE_TAREXPLOSION, inet.TE_EXPLOSION2:
+			ms.AddMark(DecalMarkEntity{
+				Origin:   event.Origin,
+				Normal:   [3]float32{0, 0, 1},
+				Size:     24,
+				Rotation: randomMarkRotation(rng),
+				Color:    [3]float32{0.15, 0.10, 0.08},
+				Alpha:    0.7,
+				Variant:  DecalVariantScorch,
+			}, 25.0, timeNow)
+		}
+	}
+}
+
+func randomMarkRotation(rng *rand.Rand) float32 {
+	if rng == nil {
+		return 0
+	}
+	return float32(rng.Float64() * 2.0 * math.Pi)
 }
