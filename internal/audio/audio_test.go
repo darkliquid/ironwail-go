@@ -163,3 +163,88 @@ func TestTransferPaintBuffer(t *testing.T) {
 		t.Errorf("Expected 0x8000 for right channel, got %02X%02X", dma.Buffer[3], dma.Buffer[2])
 	}
 }
+
+func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T) {
+	sys := NewSystem()
+	sys.started = true
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+	sys.dma = &DMAInfo{Channels: 2}
+	sys.listener.Right = [3]float32{1, 0, 0}
+
+	base := NumAmbients + MaxDynamicChannels
+	looped := &SFX{
+		Cache: &SoundCache{
+			Length:    16,
+			LoopStart: 0,
+			Width:     1,
+			Data:      make([]byte, 16),
+		},
+	}
+	nonLooped := &SFX{
+		Cache: &SoundCache{
+			Length:    16,
+			LoopStart: -1,
+			Width:     1,
+			Data:      make([]byte, 16),
+		},
+	}
+
+	sys.StartStaticSound(nonLooped, [3]float32{0, 0, 0}, 1, 1)
+	if got := sys.totalChans; got != base {
+		t.Fatalf("non-looped static sound allocated channel: totalChans = %d, want %d", got, base)
+	}
+
+	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, 1, 1)
+	if got := sys.totalChans; got != base+1 {
+		t.Fatalf("looped static sound did not allocate static channel: totalChans = %d, want %d", got, base+1)
+	}
+	if got := sys.channels[base].SFX; got != looped {
+		t.Fatalf("static channel SFX = %v, want %v", got, looped)
+	}
+
+	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, 1, 9999)
+	if got := sys.totalChans; got != base+2 {
+		t.Fatalf("inaudible static sound should still persist in static range: totalChans = %d, want %d", got, base+2)
+	}
+	if got := sys.channels[base+1].SFX; got != looped {
+		t.Fatalf("inaudible static channel SFX = %v, want %v", got, looped)
+	}
+}
+
+func TestClearStaticSoundsLeavesDynamicChannelsIntact(t *testing.T) {
+	sys := NewSystem()
+	base := NumAmbients + MaxDynamicChannels
+	sys.totalChans = base + 2
+
+	dynSFX := &SFX{
+		Cache: &SoundCache{
+			Length: 4,
+			Width:  1,
+			Data:   make([]byte, 4),
+		},
+	}
+	staticSFX := &SFX{
+		Cache: &SoundCache{
+			Length:    4,
+			LoopStart: 0,
+			Width:     1,
+			Data:      make([]byte, 4),
+		},
+	}
+
+	sys.channels[NumAmbients].SFX = dynSFX
+	sys.channels[base].SFX = staticSFX
+	sys.channels[base+1].SFX = staticSFX
+
+	sys.ClearStaticSounds()
+
+	if got := sys.totalChans; got != base {
+		t.Fatalf("totalChans = %d, want %d after clearing static channels", got, base)
+	}
+	if got := sys.channels[NumAmbients].SFX; got != dynSFX {
+		t.Fatalf("dynamic channel was modified: got %v, want %v", got, dynSFX)
+	}
+	if sys.channels[base].SFX != nil || sys.channels[base+1].SFX != nil {
+		t.Fatalf("static channels not cleared")
+	}
+}

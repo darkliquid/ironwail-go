@@ -116,3 +116,65 @@ func TestRefreshRuntimeSoundCacheResetsOnPrecacheChange(t *testing.T) {
 		t.Fatalf("changed precache should reset cache; len = %d, want 0", got)
 	}
 }
+
+func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T) {
+	originalClient := gameClient
+	originalAudio := gameAudio
+	originalSubs := gameSubs
+	originalMap := soundSFXByIndex
+	originalPrecacheKey := soundPrecacheKey
+	originalStaticKey := staticSoundKey
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameAudio = originalAudio
+		gameSubs = originalSubs
+		soundSFXByIndex = originalMap
+		soundPrecacheKey = originalPrecacheKey
+		staticSoundKey = originalStaticKey
+	})
+
+	gameSubs = nil
+	gameAudio = audio.NewAudioAdapter(nil)
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.SoundPrecache = []string{"ambience/drip.wav"}
+	gameClient.StaticSounds = []cl.StaticSound{
+		{Origin: [3]float32{10, 20, 30}, SoundIndex: 1, Volume: 255, Attenuation: 1},
+	}
+
+	syncRuntimeStaticSounds()
+	firstKey := staticSoundKey
+	if firstKey == "" {
+		t.Fatalf("expected static sound snapshot key to be populated")
+	}
+
+	syncRuntimeStaticSounds()
+	if staticSoundKey != firstKey {
+		t.Fatalf("unchanged snapshot should not churn static key; got %q, want %q", staticSoundKey, firstKey)
+	}
+
+	gameClient.StaticSounds = append(gameClient.StaticSounds, cl.StaticSound{
+		Origin: [3]float32{40, 50, 60}, SoundIndex: 2, Volume: 200, Attenuation: 0.5,
+	})
+	syncRuntimeStaticSounds()
+	secondKey := staticSoundKey
+	if secondKey == firstKey {
+		t.Fatalf("static sound list change should rebuild snapshot key")
+	}
+
+	soundSFXByIndex = map[int]*audio.SFX{1: nil}
+	gameClient.SoundPrecache = []string{"ambience/wind2.wav"}
+	syncRuntimeStaticSounds()
+	if got := len(soundSFXByIndex); got != 0 {
+		t.Fatalf("precache change should reset runtime SFX cache before static sync; len = %d, want 0", got)
+	}
+	if staticSoundKey == secondKey {
+		t.Fatalf("precache change should rebuild static snapshot key")
+	}
+
+	gameClient.State = cl.StateConnected
+	syncRuntimeStaticSounds()
+	if staticSoundKey != "" {
+		t.Fatalf("non-active client state should clear static snapshot key, got %q", staticSoundKey)
+	}
+}

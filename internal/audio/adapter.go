@@ -60,6 +60,20 @@ func (a *AudioAdapter) StartSound(entNum, entChannel int, sfx *SFX, origin [3]fl
 	a.sys.StartSound(entNum, entChannel, sfx, origin, vol, attenuation)
 }
 
+func (a *AudioAdapter) StartStaticSound(sfx *SFX, origin [3]float32, vol, attenuation float32) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.StartStaticSound(sfx, origin, vol, attenuation)
+}
+
+func (a *AudioAdapter) ClearStaticSounds() {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.ClearStaticSounds()
+}
+
 func (a *AudioAdapter) SetListener(origin, forward, right, up [3]float32) {
 	if a == nil || a.sys == nil {
 		return

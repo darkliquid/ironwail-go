@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"log"
 	"log/slog"
+	"math"
 	"math/rand"
 	"os"
 	"runtime"
@@ -61,6 +62,7 @@ var (
 	aliasModelCache  map[string]*model.Model
 	soundSFXByIndex  map[int]*audio.SFX
 	soundPrecacheKey string
+	staticSoundKey   string
 )
 
 const (
@@ -1023,6 +1025,7 @@ func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
 func resetRuntimeSoundState() {
 	soundSFXByIndex = nil
 	soundPrecacheKey = ""
+	staticSoundKey = ""
 }
 
 func refreshRuntimeSoundCache() {
@@ -1061,6 +1064,67 @@ func resolveRuntimeSFX(soundIndex int) *audio.SFX {
 	})
 	soundSFXByIndex[soundIndex] = sfx
 	return sfx
+}
+
+func buildRuntimeStaticSoundKey(c *cl.Client) string {
+	if c == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(64 + len(c.SoundPrecache)*16 + len(c.StaticSounds)*48)
+	fmt.Fprintf(&b, "%p", c)
+	b.WriteByte('\x1f')
+	b.WriteString(strconv.Itoa(int(c.State)))
+	b.WriteByte('\x1f')
+	b.WriteString(soundPrecacheKey)
+	for _, snd := range c.StaticSounds {
+		b.WriteByte('\x1f')
+		b.WriteString(strconv.Itoa(snd.SoundIndex))
+		b.WriteByte('\x1e')
+		b.WriteString(strconv.Itoa(snd.Volume))
+		b.WriteByte('\x1e')
+		b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Attenuation)), 16))
+		for i := 0; i < 3; i++ {
+			b.WriteByte('\x1e')
+			b.WriteString(strconv.FormatUint(uint64(math.Float32bits(snd.Origin[i])), 16))
+		}
+	}
+	return b.String()
+}
+
+func syncRuntimeStaticSounds() {
+	if gameAudio == nil {
+		staticSoundKey = ""
+		return
+	}
+	if gameClient == nil || gameClient.State != cl.StateActive {
+		if staticSoundKey != "" {
+			gameAudio.ClearStaticSounds()
+			staticSoundKey = ""
+		}
+		return
+	}
+
+	refreshRuntimeSoundCache()
+	key := buildRuntimeStaticSoundKey(gameClient)
+	if key == staticSoundKey {
+		return
+	}
+
+	gameAudio.ClearStaticSounds()
+	for _, staticSound := range gameClient.StaticSounds {
+		sfx := resolveRuntimeSFX(staticSound.SoundIndex)
+		if sfx == nil {
+			continue
+		}
+		gameAudio.StartStaticSound(
+			sfx,
+			staticSound.Origin,
+			float32(staticSound.Volume)/255.0,
+			staticSound.Attenuation,
+		)
+	}
+	staticSoundKey = key
 }
 
 func processRuntimeAudioEvents(viewOrigin [3]float32) {
@@ -1113,6 +1177,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) {
 	if gameAudio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
 		gameAudio.SetListener(viewOrigin, forward, right, up)
+		syncRuntimeStaticSounds()
 		processRuntimeAudioEvents(viewOrigin)
 		gameAudio.Update(viewOrigin, forward, right, up)
 	}

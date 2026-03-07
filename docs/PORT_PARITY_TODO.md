@@ -80,10 +80,10 @@ Connect parsed sound data to the real audio engine.
 **Work**
 
 - ✅ consume `Client.SoundEvents` and call `audio.System.StartSound()`
-- instantiate `Client.StaticSounds` as persistent world channels
+- ✅ instantiate `Client.StaticSounds` as persistent world channels (static channel range wired; rebuilt on client/precache snapshot changes)
 - ✅ implement `parseStopSound()` dispatch to `audio.System.StopSound()`
 - ✅ drive listener updates from the real camera/orientation each frame
-- add music / CD-track playback semantics
+- add music / CD-track playback semantics (still outstanding)
 
 **Done when**
 

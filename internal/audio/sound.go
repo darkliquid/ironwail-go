@@ -135,6 +135,53 @@ func (s *System) StopSound(entNum, entChannel int) {
 	}
 }
 
+func (s *System) StartStaticSound(sfx *SFX, origin [3]float32, vol, attenuation float32) {
+	if !s.started || sfx == nil || sfx.Cache == nil || sfx.Cache.LoopStart < 0 {
+		return
+	}
+
+	staticBase := NumAmbients + MaxDynamicChannels
+	if s.totalChans < staticBase {
+		s.totalChans = staticBase
+	}
+
+	chanIndex := -1
+	for i := staticBase; i < s.totalChans; i++ {
+		if s.channels[i].SFX == nil {
+			chanIndex = i
+			break
+		}
+	}
+	if chanIndex == -1 {
+		if s.totalChans >= MaxChannels {
+			return
+		}
+		chanIndex = s.totalChans
+		s.totalChans++
+	}
+
+	ch := &s.channels[chanIndex]
+	*ch = Channel{
+		SFX:       sfx,
+		Origin:    origin,
+		DistMult:  attenuation / SoundNominalClipDist,
+		MasterVol: int(vol * 255),
+		End:       s.paintedTime + sfx.Cache.Length,
+	}
+	s.spatialize(ch)
+}
+
+func (s *System) ClearStaticSounds() {
+	staticBase := NumAmbients + MaxDynamicChannels
+	if s.totalChans <= staticBase {
+		return
+	}
+	for i := staticBase; i < s.totalChans; i++ {
+		s.channels[i] = Channel{}
+	}
+	s.totalChans = staticBase
+}
+
 func (s *System) StopAllSounds(clear bool) {
 	s.totalChans = NumAmbients + MaxDynamicChannels
 
