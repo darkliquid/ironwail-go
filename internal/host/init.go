@@ -7,11 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
@@ -199,6 +203,7 @@ type Subsystems struct {
 	Console  Console
 	Server   Server
 	Client   Client
+	Input    *input.System
 	Audio    Audio
 	Renderer Renderer
 }
@@ -338,12 +343,42 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		}
 	}
 
+	if err := h.execUserConfig(subs); err != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("Warning: couldn't exec config.cfg: %v\n", err))
+	}
+
 	h.initialized = true
 	hostSubsystemRegistry.Store(h, subs)
 	h.realtime = currentTime()
 	h.oldrealtime = h.realtime
 	h.frameCount = 0
 
+	return nil
+}
+
+func executeConfigText(subs *Subsystems, text string) {
+	if text == "" {
+		return
+	}
+	if subs != nil && subs.Commands != nil {
+		subs.Commands.InsertText(text)
+		subs.Commands.Execute()
+		return
+	}
+	cmdsys.InsertText(text)
+	cmdsys.Execute()
+}
+
+func (h *Host) execUserConfig(subs *Subsystems) error {
+	configPath := filepath.Join(h.userDir, "config.cfg")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	executeConfigText(subs, string(data))
 	return nil
 }
 
@@ -381,6 +416,11 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 	if !h.initialized {
 		return nil
 	}
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
 
 	configPath := filepath.Join(h.userDir, "config.cfg")
 	f, err := os.Create(configPath)
@@ -390,11 +430,36 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 	defer f.Close()
 
 	// Write archived cvars
-	for _, line := range cvar.ArchiveVars() {
+	archivedVars := cvar.ArchiveVars()
+	for _, line := range archivedVars {
 		fmt.Fprintf(f, "%s\n", line)
 	}
 
-	if subs.Console != nil {
+	if subs != nil && subs.Input != nil {
+		wroteBindings := false
+		for key := 0; key < input.NumKeycode; key++ {
+			binding := subs.Input.GetBinding(key)
+			if binding == "" {
+				continue
+			}
+			if !wroteBindings && len(archivedVars) > 0 {
+				fmt.Fprintln(f)
+			}
+			wroteBindings = true
+			keyName := input.KeyToString(key)
+			if keyName == "" {
+				keyName = strconv.Itoa(key)
+			}
+			escapedBinding := strings.ReplaceAll(binding, "\\", "\\\\")
+			escapedBinding = strings.ReplaceAll(escapedBinding, "\n", "\\n")
+			escapedBinding = strings.ReplaceAll(escapedBinding, "\r", "\\r")
+			escapedBinding = strings.ReplaceAll(escapedBinding, "\t", "\\t")
+			escapedBinding = strings.ReplaceAll(escapedBinding, "\"", "\\\"")
+			fmt.Fprintf(f, "bind %s \"%s\"\n", keyName, escapedBinding)
+		}
+	}
+
+	if subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("Wrote %s\n", configPath))
 	}
 

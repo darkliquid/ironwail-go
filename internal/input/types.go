@@ -605,7 +605,16 @@ func KeyToString(key int) string {
 
 	// Function keys
 	if key >= KF1 && key <= KF12 {
-		return string([]byte{'F', byte('1' + key - KF1)})
+		switch key {
+		case KF10:
+			return "F10"
+		case KF11:
+			return "F11"
+		case KF12:
+			return "F12"
+		default:
+			return string([]byte{'F', byte('1' + key - KF1)})
+		}
 	}
 
 	// ASCII printable
@@ -677,10 +686,18 @@ func StringToKey(name string) int {
 	}
 
 	// Function keys F1-F12
-	if len(name) == 2 && (name[0] == 'F' || name[0] == 'f') {
-		digit := name[1]
-		if digit >= '1' && digit <= '9' {
-			return KF1 + int(digit-'1')
+	if len(name) >= 2 && (name[0] == 'F' || name[0] == 'f') {
+		number := 0
+		for i := 1; i < len(name); i++ {
+			digit := name[i]
+			if digit < '0' || digit > '9' {
+				number = 0
+				break
+			}
+			number = number*10 + int(digit-'0')
+		}
+		if number >= 1 && number <= 12 {
+			return KF1 + number - 1
 		}
 	}
 

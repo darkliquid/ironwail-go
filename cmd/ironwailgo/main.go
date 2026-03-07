@@ -288,10 +288,13 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 		Files:    fileSys,
 		Commands: globalCommandBuffer{},
 		Server:   gameServer,
+		Input:    gameInput,
 		Audio:    audioAdapter,
 	}
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
 	host.SetupLoopbackClientServer(gameSubs, gameServer)
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
 
 	if err := gameHost.Init(&host.InitParams{
 		BaseDir:    basedir,
@@ -327,8 +330,6 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
 	gameClient = host.LoopbackClientState(gameSubs)
-	registerGameplayBindCommands()
-	applyDefaultGameplayBindings()
 	if gameRenderer != nil {
 		gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
 		particleRNG = rand.New(rand.NewSource(1))
@@ -507,6 +508,14 @@ func main() {
 			log.Fatal("Initialization failed:", initErr)
 		}
 	}
+	defer func() {
+		if gameHost == nil {
+			return
+		}
+		if err := gameHost.WriteConfig(gameSubs); err != nil {
+			log.Printf("Failed to write config: %v", err)
+		}
+	}()
 
 	// Deterministic startup logs after successful initialization
 	slog.Info("FS mounted")
@@ -545,6 +554,12 @@ func main() {
 			}
 
 			runRuntimeFrame(dt, cb)
+			if gameHost != nil && gameHost.IsAborted() {
+				if gameRenderer != nil {
+					gameRenderer.Stop()
+				}
+				return
+			}
 
 			// Update camera from client state each frame
 			// This is the critical rendering path for M4: view setup
@@ -1099,6 +1114,9 @@ func headlessGameLoop() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		if gameHost != nil && gameHost.IsAborted() {
+			return
+		}
 		now := time.Now()
 		dt := now.Sub(lastTime).Seconds()
 		lastTime = now
@@ -1106,6 +1124,9 @@ func headlessGameLoop() {
 		// Update game state
 		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
+		}
+		if gameHost != nil && gameHost.IsAborted() {
+			return
 		}
 	}
 }

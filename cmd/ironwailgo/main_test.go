@@ -2,11 +2,14 @@ package main
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/input"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
@@ -255,5 +258,82 @@ func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 	cmdsys.ExecuteText("unbindall")
 	if got := gameInput.GetBinding(input.KMWheelUp); got != "" {
 		t.Fatalf("unbindall did not clear MWHEELUP binding, got %q", got)
+	}
+}
+
+func TestHostInitLoadsBindingOverridesFromConfig(t *testing.T) {
+	originalInput := gameInput
+	t.Cleanup(func() {
+		gameInput = originalInput
+	})
+
+	gameInput = input.NewSystem(nil)
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	userDir := t.TempDir()
+	configPath := filepath.Join(userDir, "config.cfg")
+	if err := os.WriteFile(configPath, []byte("bind w +back\nbind F10 +attack\n"), 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", configPath, err)
+	}
+
+	h := host.NewHost()
+	subs := &host.Subsystems{
+		Commands: globalCommandBuffer{},
+		Input:    gameInput,
+	}
+	if err := h.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	if got := gameInput.GetBinding(int('w')); got != "+back" {
+		t.Fatalf("binding for w after config load = %q, want %q", got, "+back")
+	}
+	if got := gameInput.GetBinding(input.KF10); got != "+attack" {
+		t.Fatalf("binding for F10 after config load = %q, want %q", got, "+attack")
+	}
+}
+
+func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
+	originalInput := gameInput
+	t.Cleanup(func() {
+		gameInput = originalInput
+	})
+
+	userDir := t.TempDir()
+	gameInput = input.NewSystem(nil)
+	registerGameplayBindCommands()
+
+	writerHost := host.NewHost()
+	writerSubs := &host.Subsystems{
+		Commands: globalCommandBuffer{},
+		Input:    gameInput,
+	}
+	if err := writerHost.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, writerSubs); err != nil {
+		t.Fatalf("writer Init failed: %v", err)
+	}
+
+	want := "say He said \"hello\" \\world\nnext\tline"
+	cmdsys.ExecuteText(`bind t "say He said \"hello\" \\world\nnext\tline"`)
+	if got := gameInput.GetBinding(int('t')); got != want {
+		t.Fatalf("binding before save = %q, want %q", got, want)
+	}
+	if err := writerHost.WriteConfig(writerSubs); err != nil {
+		t.Fatalf("WriteConfig failed: %v", err)
+	}
+
+	gameInput = input.NewSystem(nil)
+	registerGameplayBindCommands()
+	readerHost := host.NewHost()
+	readerSubs := &host.Subsystems{
+		Commands: globalCommandBuffer{},
+		Input:    gameInput,
+	}
+	if err := readerHost.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, readerSubs); err != nil {
+		t.Fatalf("reader Init failed: %v", err)
+	}
+
+	if got := gameInput.GetBinding(int('t')); got != want {
+		t.Fatalf("binding after reload = %q, want %q", got, want)
 	}
 }

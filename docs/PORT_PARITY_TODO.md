@@ -115,7 +115,7 @@ Move from a hardcoded control map in `main.go` to bind-driven input behavior.
 - [x] add `bind`, `unbind`, and related console commands (`unbindall`/`bindlist` included)
 - [x] route key events through bindings into `+attack`, `-attack`, `+jump`, and the rest of the Quake command set
 - [x] keep default binds equivalent to the current hardcoded controls until the config layer takes over
-- [ ] persist bindings in `config.cfg`
+- [x] persist bindings in `config.cfg` (startup config load + config writes now restore binds across restart)
 
 **Why before menu/console polish**
 
@@ -124,7 +124,7 @@ Controls, console commands, options menus, and config persistence all depend on 
 **Done when**
 
 - [x] gameplay can be controlled entirely through the bind system
-- [ ] binds survive restart via `config.cfg`
+- [x] binds survive restart via `config.cfg`
 - [x] hardcoded gameplay-only key mapping in `main.go` is no longer the primary control path
 
 ### 5. Add the real in-game console UX

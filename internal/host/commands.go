@@ -138,9 +138,72 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("menu_quit", func(args []string) {
 		h.CmdMenuQuit()
 	}, "Show the quit confirmation")
+	cmdsys.AddCommand("exec", func(args []string) {
+		if len(args) > 0 {
+			h.CmdExec(args[0], subs)
+			return
+		}
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: exec <filename>\n")
+		}
+	}, "Execute a script file")
+	cmdsys.AddCommand("saveconfig", func(args []string) {
+		if err := h.WriteConfig(subs); err != nil && subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("saveconfig failed: %v\n", err))
+		}
+	}, "Write config.cfg")
 }
+
 func (h *Host) CmdQuit() {
 	h.Abort("quit")
+}
+
+func (h *Host) CmdExec(filename string, subs *Subsystems) {
+	if subs == nil {
+		if cached, ok := hostSubsystemRegistry.Load(h); ok {
+			subs, _ = cached.(*Subsystems)
+		}
+	}
+
+	if filename == "" {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: exec <filename>\n")
+		}
+		return
+	}
+
+	var (
+		data []byte
+		err  error
+	)
+	switch {
+	case filepath.IsAbs(filename):
+		data, err = os.ReadFile(filename)
+	case h.userDir != "":
+		data, err = os.ReadFile(filepath.Join(h.userDir, filename))
+	default:
+		err = os.ErrNotExist
+	}
+	if err == nil {
+		executeConfigText(subs, string(data))
+		return
+	}
+	if err != nil && !os.IsNotExist(err) {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("couldn't exec %s: %v\n", filename, err))
+		}
+		return
+	}
+	if subs != nil && subs.Files != nil {
+		data, err = subs.Files.LoadFile(filename)
+		if err == nil {
+			executeConfigText(subs, string(data))
+			return
+		}
+	}
+	if subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("couldn't exec %s\n", filename))
+	}
 }
 
 func (h *Host) CmdMap(mapName string, subs *Subsystems) error {

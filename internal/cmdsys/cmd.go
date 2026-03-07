@@ -156,6 +156,23 @@ func parseCommand(line string) []string {
 		ch := line[i]
 
 		switch {
+		case ch == '\\' && inQuote && i+1 < len(line):
+			switch line[i+1] {
+			case '"', '\\':
+				current.WriteByte(line[i+1])
+				i++
+			case 'n':
+				current.WriteByte('\n')
+				i++
+			case 'r':
+				current.WriteByte('\r')
+				i++
+			case 't':
+				current.WriteByte('\t')
+				i++
+			default:
+				current.WriteByte(ch)
+			}
 		case ch == '"':
 			inQuote = !inQuote
 		case ch == ' ' && !inQuote:
