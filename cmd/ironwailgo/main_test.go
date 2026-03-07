@@ -392,6 +392,40 @@ func TestEntityStateScaleDecodesProtocolScale(t *testing.T) {
 	}
 }
 
+func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{
+		"progs/player.mdl",
+		"*1",
+		"progs/flame.spr",
+	}
+	gameClient.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, Origin: [3]float32{1, 2, 3}, Angles: [3]float32{0, 90, 0}, Effects: inet.EF_MUZZLEFLASH},
+		2: {ModelIndex: 2, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTLIGHT},
+		3: {ModelIndex: 3, Origin: [3]float32{7, 8, 9}, Effects: inet.EF_DIMLIGHT},
+		4: {ModelIndex: 1, Origin: [3]float32{9, 9, 9}},
+	}
+	gameClient.StaticEntities = []inet.EntityState{
+		{ModelIndex: 1, Origin: [3]float32{10, 11, 12}, Effects: inet.EF_DIMLIGHT},
+	}
+
+	sources := collectEntityEffectSources()
+	if got := len(sources); got != 2 {
+		t.Fatalf("collectEntityEffectSources len = %d, want 2", got)
+	}
+	if sources[0].Origin != [3]float32{1, 2, 3} || sources[0].Effects != inet.EF_MUZZLEFLASH {
+		t.Fatalf("first effect source = %#v, want alias muzzle-flash source", sources[0])
+	}
+	if sources[1].Origin != [3]float32{10, 11, 12} || sources[1].Effects != inet.EF_DIMLIGHT {
+		t.Fatalf("second effect source = %#v, want static alias dim-light source", sources[1])
+	}
+}
+
 func TestApplyDefaultGameplayBindings(t *testing.T) {
 	originalInput := gameInput
 	t.Cleanup(func() {

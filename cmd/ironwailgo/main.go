@@ -825,6 +825,45 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 	return aliasEntities
 }
 
+func collectEntityEffectSources() []renderer.EntityEffectSource {
+	if gameClient == nil {
+		return nil
+	}
+
+	resolve := func(state inet.EntityState) (renderer.EntityEffectSource, bool) {
+		if state.Effects == 0 || state.ModelIndex == 0 {
+			return renderer.EntityEffectSource{}, false
+		}
+		precacheIndex := int(state.ModelIndex) - 1
+		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+			return renderer.EntityEffectSource{}, false
+		}
+		modelName := gameClient.ModelPrecache[precacheIndex]
+		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
+			return renderer.EntityEffectSource{}, false
+		}
+		return renderer.EntityEffectSource{
+			Origin:  state.Origin,
+			Angles:  state.Angles,
+			Effects: state.Effects,
+		}, true
+	}
+
+	sources := make([]renderer.EntityEffectSource, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
+	for _, state := range gameClient.Entities {
+		if source, ok := resolve(state); ok {
+			sources = append(sources, source)
+		}
+	}
+	for _, state := range gameClient.StaticEntities {
+		if source, ok := resolve(state); ok {
+			sources = append(sources, source)
+		}
+	}
+
+	return sources
+}
+
 func collectSpriteEntities() []renderer.SpriteEntity {
 	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
 		return nil
@@ -1441,7 +1480,7 @@ func resetRuntimeVisualState() {
 }
 
 func syncRuntimeVisualEffects(dt float64) {
-	if gameParticles == nil && gameDecalMarks == nil {
+	if gameParticles == nil && gameDecalMarks == nil && gameRenderer == nil {
 		return
 	}
 
@@ -1468,6 +1507,7 @@ func syncRuntimeVisualEffects(dt float64) {
 	if gameRenderer != nil {
 		gameRenderer.UpdateLights(float32(dt))
 		renderer.EmitDynamicLights(gameRenderer.SpawnDynamicLight, tempEntities)
+		renderer.EmitEntityEffectLights(gameRenderer.SpawnDynamicLight, collectEntityEffectSources())
 	}
 	if gameParticles != nil {
 		renderer.EmitClientEffects(gameParticles, particleEvents, tempEntities, particleRNG, particleTime)

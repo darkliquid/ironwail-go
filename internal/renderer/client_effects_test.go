@@ -38,6 +38,57 @@ func TestEmitClientEffectsMapsEvents(t *testing.T) {
 	}
 }
 
+func TestEmitEntityEffectLightsMuzzleFlashUsesForwardOffset(t *testing.T) {
+	var lights []DynamicLight
+	EmitEntityEffectLights(func(light DynamicLight) bool {
+		lights = append(lights, light)
+		return true
+	}, []EntityEffectSource{{
+		Origin:  [3]float32{1, 2, 3},
+		Angles:  [3]float32{0, 90, 0},
+		Effects: inet.EF_MUZZLEFLASH,
+	}})
+
+	if got := len(lights); got != 1 {
+		t.Fatalf("light count = %d, want 1", got)
+	}
+	if lights[0].Position != [3]float32{1, 20, 19} {
+		t.Fatalf("muzzle flash position = %#v, want [1 20 19]", lights[0].Position)
+	}
+	if lights[0].Lifetime != 0.1 || lights[0].Radius != 216 {
+		t.Fatalf("muzzle flash light = %#v, want lifetime 0.1 and radius 216", lights[0])
+	}
+}
+
+func TestEmitEntityEffectLightsBrightAndDimShareLiftedOrigin(t *testing.T) {
+	var lights []DynamicLight
+	EmitEntityEffectLights(func(light DynamicLight) bool {
+		lights = append(lights, light)
+		return true
+	}, []EntityEffectSource{{
+		Origin:  [3]float32{4, 5, 6},
+		Effects: inet.EF_BRIGHTLIGHT | inet.EF_DIMLIGHT | inet.EF_BRIGHTFIELD,
+	}})
+
+	if got := len(lights); got != 2 {
+		t.Fatalf("light count = %d, want 2", got)
+	}
+	for i, wantRadius := range []float32{416, 216} {
+		if lights[i].Radius != wantRadius {
+			t.Fatalf("light %d radius = %v, want %v", i, lights[i].Radius, wantRadius)
+		}
+		if lights[i].Lifetime != 0.001 {
+			t.Fatalf("light %d lifetime = %v, want 0.001", i, lights[i].Lifetime)
+		}
+	}
+	if lights[0].Position != [3]float32{4, 5, 22} {
+		t.Fatalf("bright light position = %#v, want [4 5 22]", lights[0].Position)
+	}
+	if lights[1].Position != [3]float32{4, 5, 6} {
+		t.Fatalf("dim light position = %#v, want [4 5 6]", lights[1].Position)
+	}
+}
+
 func TestEmitDecalMarksMapsImpactAndExplosion(t *testing.T) {
 	ms := NewDecalMarkSystem()
 	rng := rand.New(rand.NewSource(9))

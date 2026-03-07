@@ -6,6 +6,7 @@ import (
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, tempEntities []cl.TempEntityEvent, rng *rand.Rand, timeNow float32) {
@@ -196,12 +197,68 @@ func EmitDynamicLights(spawn func(DynamicLight) bool, tempEntities []cl.TempEnti
 	}
 }
 
+// EmitEntityEffectLights maps runtime entity effect flags to transient dynamic lights.
+func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffectSource) {
+	if spawn == nil || len(entities) == 0 {
+		return
+	}
+
+	for _, entity := range entities {
+		base := entityEffectLightOrigin(entity.Origin)
+		if entity.Effects&inet.EF_MUZZLEFLASH != 0 {
+			spawn(DynamicLight{
+				Position:   muzzleFlashLightOrigin(entity),
+				Radius:     216,
+				Color:      [3]float32{1.0, 0.82, 0.45},
+				Brightness: 1.1,
+				Lifetime:   0.1,
+			})
+		}
+		if entity.Effects&inet.EF_BRIGHTLIGHT != 0 {
+			spawn(DynamicLight{
+				Position:   base,
+				Radius:     416,
+				Color:      [3]float32{1.0, 1.0, 0.95},
+				Brightness: 1.25,
+				Lifetime:   0.001,
+			})
+		}
+		if entity.Effects&inet.EF_DIMLIGHT != 0 {
+			spawn(DynamicLight{
+				Position:   entity.Origin,
+				Radius:     216,
+				Color:      [3]float32{0.7, 0.8, 1.0},
+				Brightness: 0.9,
+				Lifetime:   0.001,
+			})
+		}
+	}
+}
+
 func midpoint3(a, b [3]float32) [3]float32 {
 	return [3]float32{
 		(a[0] + b[0]) * 0.5,
 		(a[1] + b[1]) * 0.5,
 		(a[2] + b[2]) * 0.5,
 	}
+}
+
+func entityEffectLightOrigin(origin [3]float32) [3]float32 {
+	origin[2] += 16
+	return origin
+}
+
+func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
+	origin := entityEffectLightOrigin(entity.Origin)
+	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{
+		X: entity.Angles[0],
+		Y: entity.Angles[1],
+		Z: entity.Angles[2],
+	})
+	origin[0] += forward.X * 18
+	origin[1] += forward.Y * 18
+	origin[2] += forward.Z * 18
+	return origin
 }
 
 func randomMarkRotation(rng *rand.Rand) float32 {

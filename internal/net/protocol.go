@@ -116,6 +116,17 @@ const (
 	TE_BEAM         = 13
 )
 
+// Entity effect flags (EF_*).
+const (
+	EF_BRIGHTFIELD = 1 << iota
+	EF_MUZZLEFLASH
+	EF_BRIGHTLIGHT
+	EF_DIMLIGHT
+	EF_QUADLIGHT
+	EF_PENTALIGHT
+	EF_CANDLELIGHT
+)
+
 // Sound flags
 const (
 	SND_VOLUME      = 1 << 0 // a byte

@@ -19,6 +19,13 @@ type BrushEntity struct {
 	Angles        [3]float32
 }
 
+// EntityEffectSource describes a runtime entity whose effect flags drive transient visuals.
+type EntityEffectSource struct {
+	Origin  [3]float32
+	Angles  [3]float32
+	Effects int
+}
+
 // AliasModelEntity describes an MDL instance to render.
 type AliasModelEntity struct {
 	ModelID   string
