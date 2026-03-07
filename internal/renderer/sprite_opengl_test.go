@@ -17,7 +17,7 @@ func TestUploadSpriteModel(t *testing.T) {
 		MaxWidth:  64,
 		MaxHeight: 64,
 		NumFrames: 1,
-		Frames: make([]model.MSpriteFrameDesc, 1),
+		Frames:    make([]model.MSpriteFrameDesc, 1),
 	}
 
 	// Create a test sprite frame
@@ -136,7 +136,7 @@ func TestBuildSpriteQuadVertices(t *testing.T) {
 		},
 	}
 
-	vertices := buildSpriteQuadVertices(spr, 0, [3]float32{0, 0, 1})
+	vertices := buildSpriteQuadVertices(spr, 0, [3]float32{0, 0, 1}, 1)
 	if vertices == nil {
 		t.Fatalf("buildSpriteQuadVertices returned nil")
 	}
@@ -194,7 +194,7 @@ func TestGenerateSpriteQuadIndices(t *testing.T) {
 // TestBillboardMatrix tests billboard transformation matrix generation.
 func TestBillboardMatrix(t *testing.T) {
 	origin := [3]float32{10, 20, 30}
-	cameraPos := [3]float32{10, 20, 35}  // Camera 5 units in front
+	cameraPos := [3]float32{10, 20, 35} // Camera 5 units in front
 	cameraForward := [3]float32{0, 0, -1}
 
 	matrix := billboardMatrix(origin, cameraPos, cameraForward)

@@ -29,6 +29,7 @@ type AliasModelEntity struct {
 	Origin    [3]float32
 	Angles    [3]float32
 	Alpha     float32
+	Scale     float32
 }
 
 // SpriteEntity describes a sprite (billboard) instance to render.
@@ -38,6 +39,7 @@ type SpriteEntity struct {
 	Frame   int
 	Origin  [3]float32
 	Alpha   float32
+	Scale   float32
 	// SpriteData holds the actual sprite loading data (optional, used internally)
 	SpriteData *model.MSprite
 }

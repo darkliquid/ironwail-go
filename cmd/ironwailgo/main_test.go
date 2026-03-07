@@ -315,6 +315,7 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	state := buildRuntimeRenderFrameState(nil, nil, []renderer.SpriteEntity{{
 		ModelID: "progs/flame.spr",
 		Model:   &model.Model{Type: model.ModSprite},
+		Scale:   1,
 	}}, nil)
 	if got := len(state.DecalMarks); got != 1 {
 		t.Fatalf("DecalMarks len = %d, want 1", got)
@@ -349,7 +350,7 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	gameClient = cl.NewClient()
 	gameClient.ModelPrecache = []string{"progs/flame.spr"}
 	gameClient.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Alpha: 128},
+		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Alpha: 128, Scale: 32},
 	}
 	spriteModelCache = nil
 
@@ -366,6 +367,9 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	if got := entities[0].Alpha; math.Abs(float64(got-inet.ENTALPHA_DECODE(128))) > 0.0001 {
 		t.Fatalf("collectSpriteEntities alpha = %v, want %v", got, inet.ENTALPHA_DECODE(128))
 	}
+	if got := entities[0].Scale; math.Abs(float64(got-inet.ENTSCALE_DECODE(32))) > 0.0001 {
+		t.Fatalf("collectSpriteEntities scale = %v, want %v", got, inet.ENTSCALE_DECODE(32))
+	}
 	if got := testFS.loads; got != 1 {
 		t.Fatalf("filesystem loads after first collect = %d, want 1", got)
 	}
@@ -373,6 +377,18 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	_ = collectSpriteEntities()
 	if got := testFS.loads; got != 1 {
 		t.Fatalf("filesystem loads after cached collect = %d, want 1", got)
+	}
+}
+
+func TestEntityStateScaleDecodesProtocolScale(t *testing.T) {
+	if got := entityStateScale(inet.EntityState{Scale: inet.ENTSCALE_DEFAULT}); got != 1 {
+		t.Fatalf("entityStateScale(default) = %v, want 1", got)
+	}
+	if got := entityStateScale(inet.EntityState{Scale: 32}); got != 2 {
+		t.Fatalf("entityStateScale(32) = %v, want 2", got)
+	}
+	if got := entityStateScale(inet.EntityState{}); got != 1 {
+		t.Fatalf("entityStateScale(zero) = %v, want 1 fallback", got)
 	}
 }
 

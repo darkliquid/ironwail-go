@@ -9,12 +9,12 @@ import (
 
 // glSpriteModel holds OpenGL resources for a sprite model.
 type glSpriteModel struct {
-	modelID   string
+	modelID    string
 	spriteType int
-	frames    []glSpriteFrame
-	maxWidth  int
-	maxHeight int
-	bounds    [3][2]float32 // min/max for each axis
+	frames     []glSpriteFrame
+	maxWidth   int
+	maxHeight  int
+	bounds     [3][2]float32 // min/max for each axis
 }
 
 // glSpriteFrame holds rendering data for a single sprite frame.
@@ -123,9 +123,12 @@ func updateBounds(minBounds, maxBounds []float32, frame *model.MSpriteFrame) {
 
 // buildSpriteQuadVertices generates billboard quad vertices for a sprite.
 // The quad is centered on the sprite origin and faces the camera.
-func buildSpriteQuadVertices(sprite *glSpriteModel, frameIndex int, cameraForward [3]float32) []WorldVertex {
+func buildSpriteQuadVertices(sprite *glSpriteModel, frameIndex int, cameraForward [3]float32, scale float32) []WorldVertex {
 	if sprite == nil || frameIndex < 0 || frameIndex >= len(sprite.frames) {
 		return nil
+	}
+	if scale <= 0 {
+		scale = 1
 	}
 
 	frame := sprite.frames[frameIndex]
@@ -146,25 +149,25 @@ func buildSpriteQuadVertices(sprite *glSpriteModel, frameIndex int, cameraForwar
 	tMax := frame.tMax
 
 	vertices[0] = WorldVertex{
-		Position:      [3]float32{frame.left, frame.down, 0},
+		Position:      [3]float32{frame.left * scale, frame.down * scale, 0},
 		TexCoord:      [2]float32{0, tMax},
 		LightmapCoord: [2]float32{},
 		Normal:        [3]float32{0, 0, 1},
 	}
 	vertices[1] = WorldVertex{
-		Position:      [3]float32{frame.right, frame.down, 0},
+		Position:      [3]float32{frame.right * scale, frame.down * scale, 0},
 		TexCoord:      [2]float32{sMax, tMax},
 		LightmapCoord: [2]float32{},
 		Normal:        [3]float32{0, 0, 1},
 	}
 	vertices[2] = WorldVertex{
-		Position:      [3]float32{frame.right, frame.up, 0},
+		Position:      [3]float32{frame.right * scale, frame.up * scale, 0},
 		TexCoord:      [2]float32{sMax, 0},
 		LightmapCoord: [2]float32{},
 		Normal:        [3]float32{0, 0, 1},
 	}
 	vertices[3] = WorldVertex{
-		Position:      [3]float32{frame.left, frame.up, 0},
+		Position:      [3]float32{frame.left * scale, frame.up * scale, 0},
 		TexCoord:      [2]float32{0, 0},
 		LightmapCoord: [2]float32{},
 		Normal:        [3]float32{0, 0, 1},

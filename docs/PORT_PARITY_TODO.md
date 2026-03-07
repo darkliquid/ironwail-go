@@ -204,7 +204,8 @@ Use the render backends that already exist but are not yet driven by the live ru
 - [x] collect sprite entities from client state and pass them into `RenderFrameState.SpriteEntities`
 - [x] create and maintain a `DecalMarkSystem`; call `EmitDecalMarks()` and pass active marks into `RenderFrameState.DecalMarks`
 - map temp entities / entity effects into dynamic lights
-- honor protocol-driven alpha / scale / effects consistently across renderable entities
+- [x] honor protocol alpha / scale on alias and sprite entities
+- honor remaining entity effect flags and brush-entity protocol parity
 
 **Done when**
 

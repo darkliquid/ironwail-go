@@ -803,6 +803,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			Origin:  state.Origin,
 			Angles:  state.Angles,
 			Alpha:   entityStateAlpha(state),
+			Scale:   entityStateScale(state),
 		}, true
 	}
 
@@ -858,6 +859,7 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 			Frame:      frame,
 			Origin:     state.Origin,
 			Alpha:      entityStateAlpha(state),
+			Scale:      entityStateScale(state),
 			SpriteData: entry.sprite,
 		}, true
 	}
@@ -909,6 +911,14 @@ func entityStateAlpha(state inet.EntityState) float32 {
 	return inet.ENTALPHA_DECODE(state.Alpha)
 }
 
+func entityStateScale(state inet.EntityState) float32 {
+	scale := inet.ENTSCALE_DECODE(state.Scale)
+	if scale <= 0 {
+		return 1
+	}
+	return scale
+}
+
 func collectViewModelEntity() *renderer.AliasModelEntity {
 	if gameClient == nil || gameMenu == nil || gameMenu.IsActive() {
 		return nil
@@ -947,6 +957,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		Origin:  gameClient.PredictedOrigin,
 		Angles:  angles,
 		Alpha:   1,
+		Scale:   1,
 	}
 }
 

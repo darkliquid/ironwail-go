@@ -135,6 +135,7 @@ type glAliasDraw struct {
 	origin [3]float32
 	angles [3]float32
 	alpha  float32
+	scale  float32
 	full   bool
 }
 
@@ -1198,6 +1199,7 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 		origin: entity.Origin,
 		angles: entity.Angles,
 		alpha:  alpha,
+		scale:  entity.Scale,
 		full:   fullAngles,
 	}
 }
@@ -1246,7 +1248,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 
 	for _, draw := range draws {
 		// Use interpolated vertex building with two poses
-		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.full)
+		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
 		if len(vertices) == 0 {
 			continue
 		}
@@ -1351,6 +1353,7 @@ type glSpriteDraw struct {
 	frame  int
 	origin [3]float32
 	alpha  float32
+	scale  float32
 }
 
 // buildSpriteDrawLocked prepares a sprite for rendering (must be called with mutex held).
@@ -1383,6 +1386,7 @@ func (r *Renderer) buildSpriteDrawLocked(entity SpriteEntity) *glSpriteDraw {
 		frame:  frame,
 		origin: entity.Origin,
 		alpha:  entity.Alpha,
+		scale:  entity.Scale,
 	}
 }
 
@@ -1445,7 +1449,7 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, progr
 		camera.Angles.X,
 		camera.Angles.Y,
 		camera.Angles.Z,
-	})
+	}, draw.scale)
 
 	if len(vertices) == 0 {
 		return

@@ -28,7 +28,7 @@ func interpolateVertexPosition(pose1Vert, pose2Vert model.TriVertX, scale, origi
 // buildAliasVerticesInterpolated builds vertices for an alias model with interpolation between two poses.
 // pose1Index and pose2Index are the indices of the two poses to blend.
 // blend: 0 = fully pose1, 1 = fully pose2.
-func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, fullAngles bool) []WorldVertex {
+func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}
@@ -47,6 +47,9 @@ func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1
 	} else if blend > 1 {
 		blend = 1
 	}
+	if entityScale <= 0 {
+		entityScale = 1
+	}
 
 	pose1 := alias.poses[pose1Index]
 	pose2 := alias.poses[pose2Index]
@@ -63,6 +66,9 @@ func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1
 
 		// Interpolate vertex position between the two poses
 		position := interpolateVertexPosition(pose1[ref.vertexIndex], pose2[ref.vertexIndex], scale, origin_offset, blend)
+		position[0] *= entityScale
+		position[1] *= entityScale
+		position[2] *= entityScale
 
 		// For normal, we interpolate the compressed normal index values
 		// Since we don't have interpolated normals, we use the first pose's normal
@@ -141,7 +147,7 @@ func setupAliasFrameInterpolation(frameIndex int, frames []AliasFrameDesc, timeS
 
 	// For multi-pose frames, blend between current and next pose
 	nextPose := frameDesc.FirstPose + (poseOffset+1)%frameDesc.NumPoses
-	
+
 	shouldLerp := lerpModels && (flags&ModNoLerp == 0)
 	if shouldLerp {
 		interval := frameDesc.Interval
