@@ -71,10 +71,16 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassSkyOnly)
 	}
 	if state.DrawWorld && dc.gldc.renderer != nil {
-		dc.gldc.renderer.renderWorld(worldBrushPassLiquidOnly)
+		dc.gldc.renderer.renderWorld(worldBrushPassLiquidOpaqueOnly)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassLiquidOnly)
+		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassLiquidOpaqueOnly)
+	}
+	if state.DrawWorld && dc.gldc.renderer != nil {
+		dc.gldc.renderer.renderWorld(worldBrushPassLiquidTranslucentOnly)
+	}
+	if state.DrawEntities && dc.gldc.renderer != nil && len(state.BrushEntities) > 0 {
+		dc.gldc.renderer.renderBrushEntities(state.BrushEntities, worldBrushPassLiquidTranslucentOnly)
 	}
 	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
 		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)

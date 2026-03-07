@@ -923,7 +923,8 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	selector = normalizeWorldBrushPassSelector(selector)
 	drawSky := selector.includesSky()
 	drawNonLiquid := selector.includesNonLiquid()
-	drawLiquid := selector.includesLiquid()
+	drawLiquidOpaque := selector.includesLiquidOpaque()
+	drawLiquidTranslucent := selector.includesLiquidTranslucent()
 
 	r.mu.RLock()
 	program := r.worldProgram
@@ -1069,7 +1070,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				fallbackAlpha:               skyFallbackAlpha,
 				externalCubemap:             skyExternalCubemap,
 			})
-			if drawNonLiquid || drawLiquid {
+			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindWorldProgram()
 			}
 		}
@@ -1078,8 +1079,10 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
 			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
 		}
-		if drawLiquid {
+		if drawLiquidOpaque {
 			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+		}
+		if drawLiquidTranslucent {
 			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
 		}
 	}
@@ -1100,7 +1103,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	selector = normalizeWorldBrushPassSelector(selector)
 	drawSky := selector.includesSky()
 	drawNonLiquid := selector.includesNonLiquid()
-	drawLiquid := selector.includesLiquid()
+	drawLiquidOpaque := selector.includesLiquidOpaque()
+	drawLiquidTranslucent := selector.includesLiquidTranslucent()
 
 	r.mu.Lock()
 	program := r.worldProgram
@@ -1261,7 +1265,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				externalCubemap:             skyExternalCubemap,
 				frame:                       brush.frame,
 			})
-			if drawNonLiquid || drawLiquid {
+			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindBrushWorldProgram()
 			}
 		}
@@ -1270,8 +1274,10 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
 			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
 		}
-		if drawLiquid {
+		if drawLiquidOpaque {
 			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+		}
+		if drawLiquidTranslucent {
 			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
 		}
 	}

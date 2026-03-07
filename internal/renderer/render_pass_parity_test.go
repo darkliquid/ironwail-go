@@ -50,53 +50,78 @@ func TestSplitAliasEntitiesByAlpha(t *testing.T) {
 
 func TestWorldBrushPassSelector(t *testing.T) {
 	tests := []struct {
-		name               string
-		selector           worldBrushPassSelector
-		wantIncludesLiquid bool
-		wantIncludesOther  bool
-		wantIncludesSky    bool
+		name                     string
+		selector                 worldBrushPassSelector
+		wantIncludesLiquidOpaque bool
+		wantIncludesLiquidTrans  bool
+		wantIncludesOther        bool
+		wantIncludesSky          bool
 	}{
 		{
-			name:               "all",
-			selector:           worldBrushPassAll,
-			wantIncludesLiquid: true,
-			wantIncludesOther:  true,
-			wantIncludesSky:    true,
+			name:                     "all",
+			selector:                 worldBrushPassAll,
+			wantIncludesLiquidOpaque: true,
+			wantIncludesLiquidTrans:  true,
+			wantIncludesOther:        true,
+			wantIncludesSky:          true,
 		},
 		{
-			name:               "non-liquid",
-			selector:           worldBrushPassNonLiquid,
-			wantIncludesLiquid: false,
-			wantIncludesOther:  true,
-			wantIncludesSky:    false,
+			name:                     "non-liquid",
+			selector:                 worldBrushPassNonLiquid,
+			wantIncludesLiquidOpaque: false,
+			wantIncludesLiquidTrans:  false,
+			wantIncludesOther:        true,
+			wantIncludesSky:          false,
 		},
 		{
-			name:               "liquid-only",
-			selector:           worldBrushPassLiquidOnly,
-			wantIncludesLiquid: true,
-			wantIncludesOther:  false,
-			wantIncludesSky:    false,
+			name:                     "liquid-only",
+			selector:                 worldBrushPassLiquidOnly,
+			wantIncludesLiquidOpaque: true,
+			wantIncludesLiquidTrans:  true,
+			wantIncludesOther:        false,
+			wantIncludesSky:          false,
 		},
 		{
-			name:               "sky-only",
-			selector:           worldBrushPassSkyOnly,
-			wantIncludesLiquid: false,
-			wantIncludesOther:  false,
-			wantIncludesSky:    true,
+			name:                     "liquid-opaque-only",
+			selector:                 worldBrushPassLiquidOpaqueOnly,
+			wantIncludesLiquidOpaque: true,
+			wantIncludesLiquidTrans:  false,
+			wantIncludesOther:        false,
+			wantIncludesSky:          false,
 		},
 		{
-			name:               "invalid selector normalizes to all",
-			selector:           worldBrushPassSelector(99),
-			wantIncludesLiquid: true,
-			wantIncludesOther:  true,
-			wantIncludesSky:    true,
+			name:                     "liquid-translucent-only",
+			selector:                 worldBrushPassLiquidTranslucentOnly,
+			wantIncludesLiquidOpaque: false,
+			wantIncludesLiquidTrans:  true,
+			wantIncludesOther:        false,
+			wantIncludesSky:          false,
+		},
+		{
+			name:                     "sky-only",
+			selector:                 worldBrushPassSkyOnly,
+			wantIncludesLiquidOpaque: false,
+			wantIncludesLiquidTrans:  false,
+			wantIncludesOther:        false,
+			wantIncludesSky:          true,
+		},
+		{
+			name:                     "invalid selector normalizes to all",
+			selector:                 worldBrushPassSelector(99),
+			wantIncludesLiquidOpaque: true,
+			wantIncludesLiquidTrans:  true,
+			wantIncludesOther:        true,
+			wantIncludesSky:          true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.selector.includesLiquid(); got != tc.wantIncludesLiquid {
-				t.Fatalf("includesLiquid() = %v, want %v", got, tc.wantIncludesLiquid)
+			if got := tc.selector.includesLiquidOpaque(); got != tc.wantIncludesLiquidOpaque {
+				t.Fatalf("includesLiquidOpaque() = %v, want %v", got, tc.wantIncludesLiquidOpaque)
+			}
+			if got := tc.selector.includesLiquidTranslucent(); got != tc.wantIncludesLiquidTrans {
+				t.Fatalf("includesLiquidTranslucent() = %v, want %v", got, tc.wantIncludesLiquidTrans)
 			}
 			if got := tc.selector.includesNonLiquid(); got != tc.wantIncludesOther {
 				t.Fatalf("includesNonLiquid() = %v, want %v", got, tc.wantIncludesOther)
