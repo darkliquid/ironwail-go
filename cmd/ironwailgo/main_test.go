@@ -61,6 +61,17 @@ func (c *demoPlaybackConsole) Init() error  { return nil }
 func (c *demoPlaybackConsole) Print(string) {}
 func (c *demoPlaybackConsole) Shutdown()    {}
 
+type demoPlaybackCommandBuffer struct {
+	added    []string
+	executes int
+}
+
+func (c *demoPlaybackCommandBuffer) Init()               {}
+func (c *demoPlaybackCommandBuffer) Execute()            { c.executes++ }
+func (c *demoPlaybackCommandBuffer) AddText(text string) { c.added = append(c.added, text) }
+func (c *demoPlaybackCommandBuffer) InsertText(string)   {}
+func (c *demoPlaybackCommandBuffer) Shutdown()           {}
+
 func TestStartupMapArg(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -218,6 +229,108 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	}
 	if demo.FrameIndex != 2 {
 		t.Fatalf("frame index after second host frame = %d, want 2", demo.FrameIndex)
+	}
+}
+
+func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
+	originalHost := gameHost
+	originalSubs := gameSubs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameSubs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	message := bytes.NewBuffer(nil)
+	message.WriteByte(byte(inet.SVCStuffText))
+	message.WriteString("bf\n")
+	message.WriteByte(0)
+	message.WriteByte(0xff)
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("stuffcmd", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame(message.Bytes(), [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	cmd := &demoPlaybackCommandBuffer{}
+	gameHost = host.NewHost()
+	gameSubs = &host.Subsystems{
+		Server:   &demoPlaybackNoopServer{},
+		Console:  &demoPlaybackConsole{},
+		Commands: cmd,
+	}
+	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	gameHost.CmdPlaydemo("stuffcmd", gameSubs)
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame: %v", err)
+	}
+
+	if len(cmd.added) != 1 || cmd.added[0] != "bf\n" {
+		t.Fatalf("added commands = %v, want [bf\\n]", cmd.added)
+	}
+	if cmd.executes < 2 {
+		t.Fatalf("executes = %d, want at least 2", cmd.executes)
+	}
+	clientState := host.LoopbackClientState(gameSubs)
+	if clientState == nil {
+		t.Fatal("expected loopback client state")
+	}
+	if clientState.StuffCmdBuf != "" {
+		t.Fatalf("StuffCmdBuf = %q, want empty after same-frame flush", clientState.StuffCmdBuf)
+	}
+}
+
+func TestProcessClientFlushesLiveStuffTextSameFrame(t *testing.T) {
+	originalHost := gameHost
+	originalSubs := gameSubs
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameSubs = originalSubs
+	})
+
+	cmd := &demoPlaybackCommandBuffer{}
+	gameHost = host.NewHost()
+	gameSubs = &host.Subsystems{
+		Server:   &demoPlaybackNoopServer{},
+		Console:  &demoPlaybackConsole{},
+		Commands: cmd,
+	}
+	tmpDir := t.TempDir()
+	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+
+	clientState := host.LoopbackClientState(gameSubs)
+	if clientState == nil {
+		t.Fatal("expected loopback client state")
+	}
+	clientState.StuffCmdBuf = "bf\n"
+
+	gameCallbacks{}.ProcessClient()
+
+	if len(cmd.added) != 1 || cmd.added[0] != "bf\n" {
+		t.Fatalf("added commands = %v, want [bf\\n]", cmd.added)
+	}
+	if clientState.StuffCmdBuf != "" {
+		t.Fatalf("StuffCmdBuf = %q, want empty after live-frame flush", clientState.StuffCmdBuf)
 	}
 }
 

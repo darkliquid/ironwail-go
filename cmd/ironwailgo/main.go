@@ -438,6 +438,7 @@ func (gameCallbacks) ProcessClient() {
 			if err := parser.ParseServerMessage(msgData); err != nil {
 				slog.Warn("failed to parse demo message", "error", err)
 			}
+			host.DispatchLoopbackStuffText(gameSubs)
 
 			// Advance client time based on demo speed
 			clientState.AdvanceTime(demo, gameHost.FrameTime())
@@ -450,6 +451,7 @@ func (gameCallbacks) ProcessClient() {
 	// Normal networked gameplay
 	_ = gameSubs.Client.ReadFromServer()
 	recordRuntimeDemoFrame()
+	host.DispatchLoopbackStuffText(gameSubs)
 	_ = gameSubs.Client.SendCommand()
 }
 
