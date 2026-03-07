@@ -375,6 +375,7 @@ type Renderer struct {
 	worldFallbackTexture      uint32
 	worldLightmapFallback     uint32
 	worldTextures             map[int32]uint32
+	worldTextureAnimations    []*SurfaceTexture
 	worldLightmaps            []uint32
 	worldLiquidAlphaOverrides worldLiquidAlphaOverrides
 	lightStyleValues          [64]float32

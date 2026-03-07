@@ -38,6 +38,39 @@ func TestTextureAnimationBrokenCycle(t *testing.T) {
 	}
 }
 
+func TestBuildTextureAnimationsLinksPrimaryAndAlternateChains(t *testing.T) {
+	textures, err := BuildTextureAnimations([]string{"+0lava", "+1lava", "+Alava", "+Blava", "stone"})
+	if err != nil {
+		t.Fatalf("BuildTextureAnimations error: %v", err)
+	}
+
+	primary, err := TextureAnimation(textures[0], 0, 0.3)
+	if err != nil {
+		t.Fatalf("TextureAnimation(primary) error: %v", err)
+	}
+	if primary != textures[1] {
+		t.Fatalf("TextureAnimation(primary) = %#v, want frame 1", primary)
+	}
+
+	alternate, err := TextureAnimation(textures[0], 1, 0.0)
+	if err != nil {
+		t.Fatalf("TextureAnimation(alternate) error: %v", err)
+	}
+	if alternate != textures[2] {
+		t.Fatalf("TextureAnimation(alternate) = %#v, want alternate frame A", alternate)
+	}
+	if alternate.TextureIndex != 2 {
+		t.Fatalf("alternate TextureIndex = %d, want 2", alternate.TextureIndex)
+	}
+}
+
+func TestBuildTextureAnimationsRejectsMissingFrame(t *testing.T) {
+	_, err := BuildTextureAnimations([]string{"+0lava", "+2lava"})
+	if err == nil || err.Error() != "missing frame 1 of +0lava" {
+		t.Fatalf("BuildTextureAnimations error = %v, want missing frame error", err)
+	}
+}
+
 func TestChartAddSerpentine(t *testing.T) {
 	var c Chart
 	if err := c.Init(8, 4); err != nil {

@@ -99,6 +99,23 @@ func TestBuildBrushRotationMatrixNegatesPitch(t *testing.T) {
 	}
 }
 
+func TestWorldTextureForFaceUsesAnimatedFrame(t *testing.T) {
+	animations, err := BuildTextureAnimations([]string{"+0lava", "+1lava", "+Alava"})
+	if err != nil {
+		t.Fatalf("BuildTextureAnimations error: %v", err)
+	}
+
+	face := WorldFace{TextureIndex: 0}
+	textures := map[int32]uint32{0: 11, 1: 22, 2: 33}
+
+	if got := worldTextureForFace(face, textures, animations, 99, 0, 0.3); got != 22 {
+		t.Fatalf("worldTextureForFace(primary) = %d, want 22", got)
+	}
+	if got := worldTextureForFace(face, textures, animations, 99, 1, 0.0); got != 33 {
+		t.Fatalf("worldTextureForFace(alternate) = %d, want 33", got)
+	}
+}
+
 func TestWorldFaceAlpha(t *testing.T) {
 	alpha := worldLiquidAlphaSettings{water: 0.6, lava: 0.4, slime: 0.5, tele: 0.7}
 
@@ -245,7 +262,7 @@ func TestBucketWorldFaces_Sky(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, opaque, alphaTest, translucent := bucketWorldFaces(faces, textures, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, opaque, alphaTest, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 1 {
 		t.Fatalf("expected 1 sky face, got %d", len(sky))
@@ -288,7 +305,7 @@ func TestBucketWorldFaces_SkyWithOpaque(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, opaque, alphaTest, translucent := bucketWorldFaces(faces, textures, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, opaque, alphaTest, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 1 {
 		t.Fatalf("expected 1 sky face, got %d", len(sky))
@@ -323,7 +340,7 @@ func TestBucketWorldFaces_EmptySkyBucket(t *testing.T) {
 	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, _, _, _ := bucketWorldFaces(faces, textures, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, _, _, _ := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 0 {
 		t.Fatalf("expected 0 sky faces, got %d", len(sky))

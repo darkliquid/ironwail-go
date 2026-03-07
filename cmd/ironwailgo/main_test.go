@@ -91,6 +91,21 @@ func TestRuntimeViewStateUsesPredictedClientView(t *testing.T) {
 	}
 }
 
+func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.Time = 12.5
+
+	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{4, 5, 6})
+	if camera.Time != 12.5 {
+		t.Fatalf("runtimeCameraState time = %v, want 12.5", camera.Time)
+	}
+}
+
 func TestRuntimeAngleVectorsYawNinety(t *testing.T) {
 	forward, right, up := runtimeAngleVectors([3]float32{0, 90, 0})
 	if math.Abs(float64(forward[0])) > 0.0001 || math.Abs(float64(forward[1]-1)) > 0.0001 || math.Abs(float64(forward[2])) > 0.0001 {
@@ -476,6 +491,7 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 	gameClient.Entities = map[int]inet.EntityState{
 		1: {
 			ModelIndex: 2,
+			Frame:      3,
 			Origin:     [3]float32{1, 2, 3},
 			Angles:     [3]float32{10, 20, 30},
 			Alpha:      128,
@@ -490,6 +506,9 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 	}
 	if brushEntities[0].SubmodelIndex != 1 || brushEntities[0].Origin != [3]float32{1, 2, 3} {
 		t.Fatalf("brush entity = %#v, want submodel 1 at origin [1 2 3]", brushEntities[0])
+	}
+	if brushEntities[0].Frame != 3 {
+		t.Fatalf("brush frame = %d, want 3", brushEntities[0].Frame)
 	}
 	if got := brushEntities[0].Alpha; math.Abs(float64(got-inet.ENTALPHA_DECODE(128))) > 0.0001 {
 		t.Fatalf("brush alpha = %v, want %v", got, inet.ENTALPHA_DECODE(128))

@@ -343,19 +343,21 @@ func defaultLightStyleValues() [64]float32 {
 	return values
 }
 
-func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) {
+func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 	r.worldTextures = make(map[int32]uint32)
+	r.worldTextureAnimations = nil
 	r.ensureWorldFallbackTextureLocked()
 
 	if tree == nil || len(tree.TextureData) < 4 {
-		return
+		return nil
 	}
 
 	palette := append([]byte(nil), r.palette...)
 	count := int(binary.LittleEndian.Uint32(tree.TextureData[:4]))
 	if count <= 0 || len(tree.TextureData) < 4+count*4 {
-		return
+		return nil
 	}
+	textureNames := make([]string, count)
 
 	for i := 0; i < count; i++ {
 		offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[4+i*4:])))
@@ -367,6 +369,7 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) {
 			slog.Debug("OpenGL world texture parse failed", "index", i, "error", err)
 			continue
 		}
+		textureNames[i] = miptex.Name
 		pixels, width, height, err := miptex.MipLevel(0)
 		if err != nil || width <= 0 || height <= 0 {
 			continue
@@ -377,6 +380,13 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) {
 			r.worldTextures[int32(i)] = tex
 		}
 	}
+
+	animations, err := BuildTextureAnimations(textureNames)
+	if err != nil {
+		return fmt.Errorf("build world texture animations: %w", err)
+	}
+	r.worldTextureAnimations = animations
+	return nil
 }
 
 func lightstyleScale(values [64]float32, style uint8) float32 {
@@ -509,7 +519,9 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return err
 	}
 	r.worldTree = tree
-	r.uploadWorldTexturesLocked(tree)
+	if err := r.uploadWorldTexturesLocked(tree); err != nil {
+		return err
+	}
 	r.ensureLightmapFallbackTextureLocked()
 	worldMesh := uploadWorldMesh(renderData.Geometry.Vertices, renderData.Geometry.Indices)
 	if worldMesh == nil {
@@ -559,6 +571,7 @@ func (r *Renderer) renderWorld() {
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
 	}
+	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	worldLightmaps := append([]uint32(nil), r.worldLightmaps...)
 	lightPool := r.lightPool // Get light pool for light evaluation
 	r.mu.RUnlock()
@@ -568,7 +581,7 @@ func (r *Renderer) renderWorld() {
 	}
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
-	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, camera, liquidAlpha, lightPool)
+	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
 
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Disable(gl.CULL_FACE)
@@ -631,8 +644,10 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
 	}
+	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	lightPool := r.lightPool // Get light pool for light evaluation
 	type drawBrush struct {
+		frame    int
 		origin   [3]float32
 		rotation [16]float32
 		alpha    float32
@@ -646,6 +661,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 			continue
 		}
 		brushes = append(brushes, drawBrush{
+			frame:    entity.Frame,
 			origin:   entity.Origin,
 			rotation: buildBrushRotationMatrix(entity.Angles),
 			alpha:    entity.Alpha,
@@ -669,7 +685,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 
 	for _, brush := range brushes {
-		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, camera, liquidAlpha, lightPool)
+		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
 		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
 		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
 		gl.Uniform1f(modelScaleUniform, brush.scale)
@@ -691,12 +707,12 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 
 // bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
 // This variant accepts a light pool and computes light contributions for each face.
-func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, entityFrame int, timeSeconds float64, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, translucent []worldDrawCall) {
 	for _, face := range faces {
 		center := transformModelSpacePoint(face.Center, modelOffset, modelRotation, modelScale)
 		call := worldDrawCall{
 			face:       face,
-			texture:    worldTextureForFace(face, textures, fallbackTexture),
+			texture:    worldTextureForFace(face, textures, textureAnimations, fallbackTexture, entityFrame, timeSeconds),
 			lightmap:   worldLightmapForFace(face, lightmaps, fallbackLightmap),
 			alpha:      worldFaceAlpha(face.Flags, liquidAlpha) * entityAlpha,
 			distanceSq: worldFaceDistanceSq(center, camera),
@@ -727,12 +743,22 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, li
 	return sky, opaque, alphaTest, translucent
 }
 
-func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, translucent []worldDrawCall) {
-	return bucketWorldFacesWithLights(faces, textures, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, identityModelRotationMatrix, 1, 1, camera, liquidAlpha, nil)
+func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, translucent []worldDrawCall) {
+	return bucketWorldFacesWithLights(faces, textures, textureAnimations, lightmaps, fallbackTexture, fallbackLightmap, modelOffset, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, nil)
 }
 
-func worldTextureForFace(face WorldFace, textures map[int32]uint32, fallbackTexture uint32) uint32 {
-	tex := textures[face.TextureIndex]
+func worldTextureForFace(face WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackTexture uint32, frame int, timeSeconds float64) uint32 {
+	textureIndex := face.TextureIndex
+	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
+		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
+			textureIndex = animated.TextureIndex
+		}
+	}
+
+	tex := textures[textureIndex]
+	if tex == 0 && textureIndex != face.TextureIndex {
+		tex = textures[face.TextureIndex]
+	}
 	if tex == 0 {
 		tex = fallbackTexture
 	}
@@ -1596,6 +1622,7 @@ func (r *Renderer) clearWorldLocked() {
 		}
 		delete(r.worldTextures, textureIndex)
 	}
+	r.worldTextureAnimations = nil
 	for i, tex := range r.worldLightmaps {
 		if tex != 0 {
 			gl.DeleteTextures(1, &tex)

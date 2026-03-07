@@ -15,6 +15,7 @@ const (
 // BrushEntity describes an inline BSP submodel instance to render.
 type BrushEntity struct {
 	SubmodelIndex int
+	Frame         int
 	Origin        [3]float32
 	Angles        [3]float32
 	Alpha         float32

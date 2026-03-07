@@ -3,6 +3,7 @@ package renderer
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -15,11 +16,127 @@ var (
 )
 
 type SurfaceTexture struct {
+	TextureIndex   int32
 	AnimTotal      int
 	AnimMin        int
 	AnimMax        int
 	AnimNext       *SurfaceTexture
 	AlternateAnims *SurfaceTexture
+}
+
+const textureAnimationCycle = 2
+
+func BuildTextureAnimations(names []string) ([]*SurfaceTexture, error) {
+	textures := make([]*SurfaceTexture, len(names))
+	trimmed := make([]string, len(names))
+	for i, name := range names {
+		trimmed[i] = strings.TrimRight(name, "\x00")
+		if trimmed[i] == "" {
+			continue
+		}
+		textures[i] = &SurfaceTexture{TextureIndex: int32(i)}
+	}
+
+	for i, texture := range textures {
+		if texture == nil || texture.AnimNext != nil {
+			continue
+		}
+		name := trimmed[i]
+		if len(name) < 2 || name[0] != '+' {
+			continue
+		}
+
+		var (
+			anims    [10]*SurfaceTexture
+			altAnims [10]*SurfaceTexture
+			maxAnim  int
+			altMax   int
+		)
+
+		frameIndex, alternate, err := textureAnimationFrame(name)
+		if err != nil {
+			return nil, err
+		}
+		if alternate {
+			altAnims[frameIndex] = texture
+			altMax = frameIndex + 1
+		} else {
+			anims[frameIndex] = texture
+			maxAnim = frameIndex + 1
+		}
+
+		for j := i + 1; j < len(textures); j++ {
+			if textures[j] == nil {
+				continue
+			}
+			otherName := trimmed[j]
+			if len(otherName) < 2 || otherName[0] != '+' || otherName[2:] != name[2:] {
+				continue
+			}
+
+			frameIndex, alternate, err := textureAnimationFrame(otherName)
+			if err != nil {
+				return nil, err
+			}
+			if alternate {
+				altAnims[frameIndex] = textures[j]
+				if frameIndex+1 > altMax {
+					altMax = frameIndex + 1
+				}
+			} else {
+				anims[frameIndex] = textures[j]
+				if frameIndex+1 > maxAnim {
+					maxAnim = frameIndex + 1
+				}
+			}
+		}
+
+		for j := 0; j < maxAnim; j++ {
+			if anims[j] == nil {
+				return nil, fmt.Errorf("missing frame %d of %s", j, name)
+			}
+			anims[j].AnimTotal = maxAnim * textureAnimationCycle
+			anims[j].AnimMin = j * textureAnimationCycle
+			anims[j].AnimMax = (j + 1) * textureAnimationCycle
+			anims[j].AnimNext = anims[(j+1)%maxAnim]
+			if altMax > 0 {
+				anims[j].AlternateAnims = altAnims[0]
+			}
+		}
+
+		for j := 0; j < altMax; j++ {
+			if altAnims[j] == nil {
+				return nil, fmt.Errorf("missing frame %d of %s", j, name)
+			}
+			altAnims[j].AnimTotal = altMax * textureAnimationCycle
+			altAnims[j].AnimMin = j * textureAnimationCycle
+			altAnims[j].AnimMax = (j + 1) * textureAnimationCycle
+			altAnims[j].AnimNext = altAnims[(j+1)%altMax]
+			if maxAnim > 0 {
+				altAnims[j].AlternateAnims = anims[0]
+			}
+		}
+	}
+
+	return textures, nil
+}
+
+func textureAnimationFrame(name string) (frameIndex int, alternate bool, err error) {
+	if len(name) < 2 || name[0] != '+' {
+		return 0, false, fmt.Errorf("bad animating texture %q", name)
+	}
+
+	frame := name[1]
+	switch {
+	case frame >= '0' && frame <= '9':
+		return int(frame - '0'), false, nil
+	case frame >= 'a' && frame <= 'j':
+		return int(frame - 'a'), true, nil
+	case frame >= 'A' && frame <= 'J':
+		return int(frame - 'A'), true, nil
+	default:
+		return 0, false, fmt.Errorf("bad animating texture %q", name)
+	}
 }
 
 func TextureAnimation(base *SurfaceTexture, frame int, timeSeconds float64) (*SurfaceTexture, error) {

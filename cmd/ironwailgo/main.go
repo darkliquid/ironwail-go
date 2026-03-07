@@ -572,8 +572,7 @@ func main() {
 			// This is the critical rendering path for M4: view setup
 			if gameRenderer != nil {
 				origin, angles := runtimeViewState()
-				// Create camera state from client prediction (or fallback values)
-				camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
+				camera := runtimeCameraState(origin, angles)
 
 				// Update renderer matrices (near=0.1, far=4096 for Quake world)
 				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
@@ -676,6 +675,7 @@ func collectBrushEntities() []renderer.BrushEntity {
 		}
 		return renderer.BrushEntity{
 			SubmodelIndex: submodelIndex,
+			Frame:         int(state.Frame),
 			Origin:        state.Origin,
 			Angles:        state.Angles,
 			Alpha:         entityStateAlpha(state),
@@ -1446,6 +1446,14 @@ func runtimeViewState() (origin, angles [3]float32) {
 	}
 
 	return origin, angles
+}
+
+func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
+	camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
+	if gameClient != nil {
+		camera.Time = float32(gameClient.Time)
+	}
+	return camera
 }
 
 func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
