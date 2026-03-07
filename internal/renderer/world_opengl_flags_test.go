@@ -118,6 +118,103 @@ func TestWorldTextureForFaceUsesAnimatedFrame(t *testing.T) {
 	}
 }
 
+func TestExtractEmbeddedSkyLayers_Standard(t *testing.T) {
+	palette := make([]byte, 768)
+	for i := 0; i < 256; i++ {
+		palette[i*3] = byte(i)
+		palette[i*3+1] = byte(255 - i)
+		palette[i*3+2] = byte(i / 2)
+	}
+	// 4x2 test sky (left half = front, right half = back)
+	// Row0: front [0,2], back [3,4]
+	// Row1: front [5,255], back [7,8]
+	pixels := []byte{
+		0, 2, 3, 4,
+		5, 255, 7, 8,
+	}
+	solid, alpha, w, h, ok := extractEmbeddedSkyLayers(pixels, 4, 2, palette, false)
+	if !ok {
+		t.Fatalf("extractEmbeddedSkyLayers() failed")
+	}
+	if w != 2 || h != 2 {
+		t.Fatalf("layer size = %dx%d, want 2x2", w, h)
+	}
+	if len(solid) != 16 || len(alpha) != 16 {
+		t.Fatalf("unexpected RGBA sizes: solid=%d alpha=%d", len(solid), len(alpha))
+	}
+	if solid[0] != 3 || solid[1] != 252 || solid[2] != 1 || solid[3] != 255 {
+		t.Fatalf("solid first pixel = %v, want [3 252 1 255]", solid[:4])
+	}
+	if alpha[3] != 0 {
+		t.Fatalf("alpha first pixel alpha = %d, want 0 for front index 0", alpha[3])
+	}
+	if alpha[4] != 2 || alpha[5] != 253 || alpha[6] != 1 || alpha[7] != 255 {
+		t.Fatalf("alpha second pixel = %v, want [2 253 1 255]", alpha[4:8])
+	}
+	if alpha[15] != 0 {
+		t.Fatalf("alpha last pixel alpha = %d, want 0 for front index 255", alpha[15])
+	}
+}
+
+func TestExtractEmbeddedSkyLayers_Quake64(t *testing.T) {
+	palette := make([]byte, 768)
+	for i := 0; i < 256; i++ {
+		palette[i*3] = byte(i)
+		palette[i*3+1] = byte(i + 1)
+		palette[i*3+2] = byte(i + 2)
+	}
+	// 2x4 test sky (top half = front, bottom half = back)
+	pixels := []byte{
+		1, 2,
+		3, 4,
+		5, 6,
+		7, 8,
+	}
+	solid, alpha, w, h, ok := extractEmbeddedSkyLayers(pixels, 2, 4, palette, true)
+	if !ok {
+		t.Fatalf("extractEmbeddedSkyLayers(quake64) failed")
+	}
+	if w != 2 || h != 2 {
+		t.Fatalf("quake64 layer size = %dx%d, want 2x2", w, h)
+	}
+	if solid[0] != 5 || solid[1] != 6 || solid[2] != 7 || solid[3] != 255 {
+		t.Fatalf("quake64 solid first pixel = %v, want [5 6 7 255]", solid[:4])
+	}
+	if alpha[0] != 1 || alpha[1] != 2 || alpha[2] != 3 || alpha[3] != 128 {
+		t.Fatalf("quake64 alpha first pixel = %v, want [1 2 3 128]", alpha[:4])
+	}
+}
+
+func TestWorldSkyTexturesForFaceUsesAnimatedFrame(t *testing.T) {
+	animations, err := BuildTextureAnimations([]string{"+0sky", "+1sky"})
+	if err != nil {
+		t.Fatalf("BuildTextureAnimations error: %v", err)
+	}
+	face := WorldFace{TextureIndex: 0}
+	solidTextures := map[int32]uint32{0: 100, 1: 101}
+	alphaTextures := map[int32]uint32{0: 200, 1: 201}
+	solid, alpha := worldSkyTexturesForFace(face, solidTextures, alphaTextures, animations, 900, 901, 0, 0.2)
+	if solid != 101 || alpha != 201 {
+		t.Fatalf("worldSkyTexturesForFace(animated) = (%d,%d), want (101,201)", solid, alpha)
+	}
+	solid, alpha = worldSkyTexturesForFace(WorldFace{TextureIndex: 5}, solidTextures, alphaTextures, animations, 900, 901, 0, 0)
+	if solid != 900 || alpha != 901 {
+		t.Fatalf("worldSkyTexturesForFace(fallback) = (%d,%d), want (900,901)", solid, alpha)
+	}
+}
+
+func TestShouldSplitAsQuake64Sky(t *testing.T) {
+	if !shouldSplitAsQuake64Sky(bsp.BSPVersion_Quake64, 256, 128) {
+		t.Fatalf("expected quake64 BSP version to force quake64 split")
+	}
+	if !shouldSplitAsQuake64Sky(bsp.BSPVersion, 32, 64) {
+		t.Fatalf("expected 32x64 textures to use quake64 split")
+	}
+	if shouldSplitAsQuake64Sky(bsp.BSPVersion, 256, 128) {
+		t.Fatalf("unexpected quake64 split for standard sky dimensions")
+	}
+}
+
 func TestWorldFaceAlpha(t *testing.T) {
 	alpha := worldLiquidAlphaSettings{water: 0.6, lava: 0.4, slime: 0.5, tele: 0.7}
 
@@ -203,6 +300,43 @@ func TestParseWorldspawnLiquidAlphaOverrides_NotWorldspawn(t *testing.T) {
 	overrides := parseWorldspawnLiquidAlphaOverrides(entities)
 	if overrides.hasWater || overrides.hasLava || overrides.hasSlime || overrides.hasTele {
 		t.Fatalf("expected no overrides for non-worldspawn, got %+v", overrides)
+	}
+}
+
+func TestParseWorldspawnSkyFogOverride(t *testing.T) {
+	entities := []byte(`
+{
+"classname" "worldspawn"
+"skyfog" "0.8"
+}
+`)
+	override := parseWorldspawnSkyFogOverride(entities)
+	if !override.hasValue || override.value != 0.8 {
+		t.Fatalf("skyfog override = (%v, %v), want (true, 0.8)", override.hasValue, override.value)
+	}
+}
+
+func TestParseWorldspawnSkyFogOverride_NotWorldspawn(t *testing.T) {
+	entities := []byte(`{"classname" "info_player_start" "skyfog" "0.8"}`)
+	override := parseWorldspawnSkyFogOverride(entities)
+	if override.hasValue {
+		t.Fatalf("expected no skyfog override for non-worldspawn, got %+v", override)
+	}
+}
+
+func TestResolveWorldSkyFogMix(t *testing.T) {
+	if got := resolveWorldSkyFogMix(0.5, worldSkyFogOverride{}, 0.2); got != 0.5 {
+		t.Fatalf("resolveWorldSkyFogMix(default) = %v, want 0.5", got)
+	}
+	if got := resolveWorldSkyFogMix(2, worldSkyFogOverride{}, 0.2); got != 1 {
+		t.Fatalf("resolveWorldSkyFogMix(clamp cvar) = %v, want 1", got)
+	}
+	override := worldSkyFogOverride{hasValue: true, value: 0.8}
+	if got := resolveWorldSkyFogMix(0.1, override, 0.2); got != 0.8 {
+		t.Fatalf("resolveWorldSkyFogMix(override) = %v, want 0.8", got)
+	}
+	if got := resolveWorldSkyFogMix(0.5, override, 0); got != 0 {
+		t.Fatalf("resolveWorldSkyFogMix(no general fog) = %v, want 0", got)
 	}
 }
 

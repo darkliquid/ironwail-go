@@ -244,6 +244,8 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] integrate animated texture selection into world rendering
 - [x] apply C-style turbulent UV warp on `SurfDrawTurb` world + brush surfaces (OpenGL path)
 - [x] consume client fog state
+- [x] render embedded BSP sky via dedicated animated two-layer sky shader/path on canonical OpenGL runtime
+- [x] align embedded-sky fog mix semantics with C (`r_skyfog` + worldspawn `skyfog`, gated by general fog density)
 - consume client skybox state
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing
 
@@ -251,7 +253,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 
 - rotating/moving brush submodels render correctly
 - animated water/other texture sequences update the same way as C
-- fog/sky behavior comes from live client state instead of being ignored
+- fog and embedded sky animation behavior come from live client/runtime state instead of being ignored
 
 ### 9. Finish save/load behavior parity
 

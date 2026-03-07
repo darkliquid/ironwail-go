@@ -80,6 +80,43 @@ void main() {
 	fog = clamp(fog, 0.0, 1.0);
 	fragColor = vec4(mix(uFogColor, color, fog), base.a * uAlpha);
 }`
+
+	worldSkyVertexShaderGL = `#version 410 core
+layout(location = 0) in vec3 aPosition;
+
+uniform mat4 uViewProjection;
+uniform vec3 uModelOffset;
+uniform mat4 uModelRotation;
+uniform float uModelScale;
+uniform vec3 uCameraOrigin;
+
+out vec3 vDir;
+
+void main() {
+	vec3 worldPosition = (uModelRotation * vec4(aPosition * uModelScale, 1.0)).xyz + uModelOffset;
+	vDir = worldPosition - uCameraOrigin;
+	vDir.z *= 3.0;
+	gl_Position = uViewProjection * vec4(worldPosition, 1.0);
+}`
+
+	worldSkyFragmentShaderGL = `#version 410 core
+in vec3 vDir;
+out vec4 fragColor;
+
+uniform sampler2D uSolidLayer;
+uniform sampler2D uAlphaLayer;
+uniform float uTime;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+
+void main() {
+	vec2 uv = normalize(vDir).xy * (189.0 / 64.0);
+	vec4 result = texture(uSolidLayer, uv + vec2(uTime / 16.0));
+	vec4 layer = texture(uAlphaLayer, uv + vec2(uTime / 8.0));
+	result.rgb = mix(result.rgb, layer.rgb, layer.a);
+	result.rgb = mix(result.rgb, uFogColor, uFogDensity);
+	fragColor = result;
+}`
 )
 
 type worldRenderPass int
@@ -124,6 +161,11 @@ type worldLiquidAlphaOverrides struct {
 	slime    float32
 	hasTele  bool
 	tele     float32
+}
+
+type worldSkyFogOverride struct {
+	hasValue bool
+	value    float32
 }
 
 type glWorldMesh struct {
@@ -205,6 +247,36 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldCameraOriginUniform = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
 	r.worldFogColorUniform = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
 	r.worldFogDensityUniform = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
+	return nil
+}
+
+func (r *Renderer) ensureWorldSkyProgram() error {
+	if r.worldSkyProgram != 0 {
+		return nil
+	}
+
+	vs, err := compileShader(worldSkyVertexShaderGL, gl.VERTEX_SHADER)
+	if err != nil {
+		return fmt.Errorf("compile world sky vertex shader: %w", err)
+	}
+	fs, err := compileShader(worldSkyFragmentShaderGL, gl.FRAGMENT_SHADER)
+	if err != nil {
+		gl.DeleteShader(vs)
+		return fmt.Errorf("compile world sky fragment shader: %w", err)
+	}
+
+	program := createProgram(vs, fs)
+	r.worldSkyProgram = program
+	r.worldSkyVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
+	r.worldSkySolidUniform = gl.GetUniformLocation(program, gl.Str("uSolidLayer\x00"))
+	r.worldSkyAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlphaLayer\x00"))
+	r.worldSkyModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
+	r.worldSkyModelRotationUniform = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
+	r.worldSkyModelScaleUniform = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
+	r.worldSkyTimeUniform = gl.GetUniformLocation(program, gl.Str("uTime\x00"))
+	r.worldSkyCameraOriginUniform = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
+	r.worldSkyFogColorUniform = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
+	r.worldSkyFogDensityUniform = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
 	return nil
 }
 
@@ -347,6 +419,14 @@ func (r *Renderer) ensureLightmapFallbackTextureLocked() {
 	r.worldLightmapFallback = uploadWorldTextureRGBA(1, 1, []byte{255, 255, 255, 255})
 }
 
+func (r *Renderer) ensureWorldSkyFallbackTexturesLocked() {
+	r.ensureWorldFallbackTextureLocked()
+	if r.worldSkyAlphaFallback != 0 {
+		return
+	}
+	r.worldSkyAlphaFallback = uploadWorldTextureRGBA(1, 1, []byte{0, 0, 0, 0})
+}
+
 func (r *Renderer) setLightStyleValues(values [64]float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -362,10 +442,96 @@ func defaultLightStyleValues() [64]float32 {
 	return values
 }
 
+func shouldSplitAsQuake64Sky(treeVersion int32, width, height int) bool {
+	return bsp.IsQuake64(treeVersion) || (width == 32 && height == 64)
+}
+
+func indexedOpaqueToRGBA(pixels []byte, palette []byte) []byte {
+	rgba := make([]byte, len(pixels)*4)
+	for i, p := range pixels {
+		r, g, b := GetPaletteColor(p, palette)
+		rgba[i*4] = r
+		rgba[i*4+1] = g
+		rgba[i*4+2] = b
+		rgba[i*4+3] = 255
+	}
+	return rgba
+}
+
+func extractEmbeddedSkyLayers(pixels []byte, width, height int, palette []byte, quake64 bool) (solidRGBA, alphaRGBA []byte, layerWidth, layerHeight int, ok bool) {
+	if width <= 0 || height <= 0 || len(pixels) < width*height {
+		return nil, nil, 0, 0, false
+	}
+
+	if quake64 {
+		if height < 2 {
+			return nil, nil, 0, 0, false
+		}
+		halfHeight := height / 2
+		if halfHeight <= 0 {
+			return nil, nil, 0, 0, false
+		}
+		layerWidth = width
+		layerHeight = halfHeight
+		layerSize := layerWidth * layerHeight
+		front := pixels[:layerSize]
+		back := pixels[layerSize : layerSize*2]
+		solidRGBA = indexedOpaqueToRGBA(back, palette)
+		alphaRGBA = make([]byte, layerSize*4)
+		for i, p := range front {
+			r, g, b := GetPaletteColor(p, palette)
+			alphaRGBA[i*4] = r
+			alphaRGBA[i*4+1] = g
+			alphaRGBA[i*4+2] = b
+			alphaRGBA[i*4+3] = 128
+		}
+		return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
+	}
+
+	if width < 2 {
+		return nil, nil, 0, 0, false
+	}
+	halfWidth := width / 2
+	if halfWidth <= 0 {
+		return nil, nil, 0, 0, false
+	}
+	layerWidth = halfWidth
+	layerHeight = height
+	layerSize := layerWidth * layerHeight
+	backIndexed := make([]byte, layerSize)
+	frontIndexed := make([]byte, layerSize)
+	for y := 0; y < height; y++ {
+		row := y * width
+		copy(backIndexed[y*halfWidth:(y+1)*halfWidth], pixels[row+halfWidth:row+width])
+		copy(frontIndexed[y*halfWidth:(y+1)*halfWidth], pixels[row:row+halfWidth])
+	}
+	solidRGBA = indexedOpaqueToRGBA(backIndexed, palette)
+	alphaRGBA = make([]byte, layerSize*4)
+	for i, p := range frontIndexed {
+		if p == 0 || p == 255 {
+			r, g, b := GetPaletteColor(255, palette)
+			alphaRGBA[i*4] = r
+			alphaRGBA[i*4+1] = g
+			alphaRGBA[i*4+2] = b
+			alphaRGBA[i*4+3] = 0
+			continue
+		}
+		r, g, b := GetPaletteColor(p, palette)
+		alphaRGBA[i*4] = r
+		alphaRGBA[i*4+1] = g
+		alphaRGBA[i*4+2] = b
+		alphaRGBA[i*4+3] = 255
+	}
+	return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
+}
+
 func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 	r.worldTextures = make(map[int32]uint32)
+	r.worldSkySolidTextures = make(map[int32]uint32)
+	r.worldSkyAlphaTextures = make(map[int32]uint32)
 	r.worldTextureAnimations = nil
 	r.ensureWorldFallbackTextureLocked()
+	r.ensureWorldSkyFallbackTexturesLocked()
 
 	if tree == nil || len(tree.TextureData) < 4 {
 		return nil
@@ -397,6 +563,27 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 		tex := uploadWorldTextureRGBA(width, height, rgba)
 		if tex != 0 {
 			r.worldTextures[int32(i)] = tex
+		}
+		if classifyWorldTextureName(miptex.Name) != model.TexTypeSky {
+			continue
+		}
+		solidRGBA, alphaRGBA, layerWidth, layerHeight, ok := extractEmbeddedSkyLayers(
+			pixels,
+			width,
+			height,
+			palette,
+			shouldSplitAsQuake64Sky(tree.Version, width, height),
+		)
+		if !ok {
+			continue
+		}
+		solidTex := uploadWorldTextureRGBA(layerWidth, layerHeight, solidRGBA)
+		alphaTex := uploadWorldTextureRGBA(layerWidth, layerHeight, alphaRGBA)
+		if solidTex != 0 {
+			r.worldSkySolidTextures[int32(i)] = solidTex
+		}
+		if alphaTex != 0 {
+			r.worldSkyAlphaTextures[int32(i)] = alphaTex
 		}
 	}
 
@@ -541,6 +728,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 
 	r.clearWorldLocked()
 	r.worldLiquidAlphaOverrides = parseWorldspawnLiquidAlphaOverrides(tree.Entities)
+	r.worldSkyFogOverride = parseWorldspawnSkyFogOverride(tree.Entities)
 
 	renderData, err := buildWorldRenderData(tree)
 	if err != nil {
@@ -552,6 +740,9 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	if err := r.ensureWorldProgram(); err != nil {
+		return err
+	}
+	if err := r.ensureWorldSkyProgram(); err != nil {
 		return err
 	}
 	r.worldTree = tree
@@ -584,6 +775,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 func (r *Renderer) renderWorld() {
 	r.mu.RLock()
 	program := r.worldProgram
+	skyProgram := r.worldSkyProgram
 	vao := r.worldVAO
 	indexCount := r.worldIndexCount
 	vp := r.viewMatrices.VP
@@ -600,9 +792,21 @@ func (r *Renderer) renderWorld() {
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
+	skyVPUniform := r.worldSkyVPUniform
+	skySolidUniform := r.worldSkySolidUniform
+	skyAlphaUniform := r.worldSkyAlphaUniform
+	skyModelOffsetUniform := r.worldSkyModelOffsetUniform
+	skyModelRotationUniform := r.worldSkyModelRotationUniform
+	skyModelScaleUniform := r.worldSkyModelScaleUniform
+	skyTimeUniform := r.worldSkyTimeUniform
+	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
+	skyFogColorUniform := r.worldSkyFogColorUniform
+	skyFogDensityUniform := r.worldSkyFogDensityUniform
 	fallbackTexture := r.worldFallbackTexture
+	skyFallbackAlpha := r.worldSkyAlphaFallback
 	fallbackLightmap := r.worldLightmapFallback
 	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
+	skyFogOverride := r.worldSkyFogOverride
 	worldTree := r.worldTree
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
@@ -614,16 +818,25 @@ func (r *Renderer) renderWorld() {
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
 	}
+	worldSkySolidTextures := make(map[int32]uint32, len(r.worldSkySolidTextures))
+	for k, v := range r.worldSkySolidTextures {
+		worldSkySolidTextures[k] = v
+	}
+	worldSkyAlphaTextures := make(map[int32]uint32, len(r.worldSkyAlphaTextures))
+	for k, v := range r.worldSkyAlphaTextures {
+		worldSkyAlphaTextures[k] = v
+	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	worldLightmaps := append([]uint32(nil), r.worldLightmaps...)
 	lightPool := r.lightPool // Get light pool for light evaluation
 	r.mu.RUnlock()
 
-	if program == 0 || vao == 0 || indexCount <= 0 {
+	if program == 0 || skyProgram == 0 || vao == 0 || indexCount <= 0 {
 		return
 	}
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
+	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
 	skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
 
 	gl.Enable(gl.DEPTH_TEST)
@@ -653,7 +866,44 @@ func (r *Renderer) renderWorld() {
 		gl.ActiveTexture(gl.TEXTURE0)
 		gl.DrawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, unsafe.Pointer(nil))
 	} else {
-		renderSkyPass(skyFaces, alphaUniform, turbulentUniform)
+		renderSkyPass(skyFaces, skyPassState{
+			program:              skyProgram,
+			vpUniform:            skyVPUniform,
+			solidUniform:         skySolidUniform,
+			alphaUniform:         skyAlphaUniform,
+			modelOffsetUniform:   skyModelOffsetUniform,
+			modelRotationUniform: skyModelRotationUniform,
+			modelScaleUniform:    skyModelScaleUniform,
+			timeUniform:          skyTimeUniform,
+			cameraOriginUniform:  skyCameraOriginUniform,
+			fogColorUniform:      skyFogColorUniform,
+			fogDensityUniform:    skyFogDensityUniform,
+			vp:                   vp,
+			time:                 camera.Time,
+			cameraOrigin:         [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+			modelOffset:          [3]float32{0, 0, 0},
+			modelRotation:        identityModelRotationMatrix,
+			modelScale:           1,
+			fogColor:             fogColor,
+			fogDensity:           skyFogFactor,
+			solidTextures:        worldSkySolidTextures,
+			alphaTextures:        worldSkyAlphaTextures,
+			textureAnimations:    worldTextureAnimations,
+			fallbackSolid:        fallbackTexture,
+			fallbackAlpha:        skyFallbackAlpha,
+		})
+		gl.UseProgram(program)
+		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+		gl.Uniform1i(textureUniform, 0)
+		gl.Uniform1i(lightmapUniform, 1)
+		gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
+		gl.Uniform1f(modelScaleUniform, 1)
+		gl.Uniform1f(timeUniform, camera.Time)
+		gl.Uniform1f(turbulentUniform, 0)
+		gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+		gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
 		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
 		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
@@ -675,6 +925,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 
 	r.mu.Lock()
 	program := r.worldProgram
+	skyProgram := r.worldSkyProgram
 	vp := r.viewMatrices.VP
 	camera := r.cameraState
 	vpUniform := r.worldVPUniform
@@ -689,15 +940,35 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
+	skyVPUniform := r.worldSkyVPUniform
+	skySolidUniform := r.worldSkySolidUniform
+	skyAlphaUniform := r.worldSkyAlphaUniform
+	skyModelOffsetUniform := r.worldSkyModelOffsetUniform
+	skyModelRotationUniform := r.worldSkyModelRotationUniform
+	skyModelScaleUniform := r.worldSkyModelScaleUniform
+	skyTimeUniform := r.worldSkyTimeUniform
+	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
+	skyFogColorUniform := r.worldSkyFogColorUniform
+	skyFogDensityUniform := r.worldSkyFogDensityUniform
 	fallbackTexture := r.worldFallbackTexture
+	skyFallbackAlpha := r.worldSkyAlphaFallback
 	fallbackLightmap := r.worldLightmapFallback
 	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
+	skyFogOverride := r.worldSkyFogOverride
 	worldTree := r.worldTree
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
 	worldTextures := make(map[int32]uint32, len(r.worldTextures))
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
+	}
+	worldSkySolidTextures := make(map[int32]uint32, len(r.worldSkySolidTextures))
+	for k, v := range r.worldSkySolidTextures {
+		worldSkySolidTextures[k] = v
+	}
+	worldSkyAlphaTextures := make(map[int32]uint32, len(r.worldSkyAlphaTextures))
+	for k, v := range r.worldSkyAlphaTextures {
+		worldSkyAlphaTextures[k] = v
 	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	lightPool := r.lightPool // Get light pool for light evaluation
@@ -726,7 +997,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	}
 	r.mu.Unlock()
 
-	if program == 0 || len(brushes) == 0 {
+	if program == 0 || skyProgram == 0 || len(brushes) == 0 {
 		return
 	}
 
@@ -743,6 +1014,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
+	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
 
 	for _, brush := range brushes {
 		skyFaces, opaqueFaces, alphaTestFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
@@ -750,7 +1022,45 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity) {
 		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
 		gl.Uniform1f(modelScaleUniform, brush.scale)
 		gl.BindVertexArray(brush.mesh.vao)
-		renderSkyPass(skyFaces, alphaUniform, turbulentUniform)
+		renderSkyPass(skyFaces, skyPassState{
+			program:              skyProgram,
+			vpUniform:            skyVPUniform,
+			solidUniform:         skySolidUniform,
+			alphaUniform:         skyAlphaUniform,
+			modelOffsetUniform:   skyModelOffsetUniform,
+			modelRotationUniform: skyModelRotationUniform,
+			modelScaleUniform:    skyModelScaleUniform,
+			timeUniform:          skyTimeUniform,
+			cameraOriginUniform:  skyCameraOriginUniform,
+			fogColorUniform:      skyFogColorUniform,
+			fogDensityUniform:    skyFogDensityUniform,
+			vp:                   vp,
+			time:                 camera.Time,
+			cameraOrigin:         [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+			modelOffset:          brush.origin,
+			modelRotation:        brush.rotation,
+			modelScale:           brush.scale,
+			fogColor:             fogColor,
+			fogDensity:           skyFogFactor,
+			solidTextures:        worldSkySolidTextures,
+			alphaTextures:        worldSkyAlphaTextures,
+			textureAnimations:    worldTextureAnimations,
+			fallbackSolid:        fallbackTexture,
+			fallbackAlpha:        skyFallbackAlpha,
+			frame:                brush.frame,
+		})
+		gl.UseProgram(program)
+		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+		gl.Uniform1i(textureUniform, 0)
+		gl.Uniform1i(lightmapUniform, 1)
+		gl.Uniform1f(timeUniform, camera.Time)
+		gl.Uniform1f(turbulentUniform, 0)
+		gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+		gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+		gl.Uniform3f(modelOffsetUniform, brush.origin[0], brush.origin[1], brush.origin[2])
+		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &brush.rotation[0])
+		gl.Uniform1f(modelScaleUniform, brush.scale)
 		renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
 		renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
 		renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
@@ -959,6 +1269,29 @@ func parseWorldspawnLiquidAlphaOverrides(entities []byte) worldLiquidAlphaOverri
 	return overrides
 }
 
+func parseWorldspawnSkyFogOverride(entities []byte) worldSkyFogOverride {
+	if len(entities) == 0 {
+		return worldSkyFogOverride{}
+	}
+
+	entity, ok := firstEntityLumpObject(string(entities))
+	if !ok {
+		return worldSkyFogOverride{}
+	}
+
+	fields := parseEntityFields(entity)
+	if !strings.EqualFold(fields["classname"], "worldspawn") {
+		return worldSkyFogOverride{}
+	}
+
+	value, ok := parseEntityAlphaField(fields, "skyfog")
+	if !ok {
+		return worldSkyFogOverride{}
+	}
+
+	return worldSkyFogOverride{hasValue: true, value: value}
+}
+
 // mapVisTransparentWaterSafe determines if the map's visibility data is compiled for transparent water.
 // In Quake 1, transparent water requires special VIS-time flags; maps without them render water opaque to prevent rendering errors.
 // Returns true if map is safe for transparent liquids, false if opaque should be forced.
@@ -1039,6 +1372,21 @@ func readWorldAlphaCvar(name string, fallback float32) float32 {
 	return clamp01(cv.Float32())
 }
 
+func readWorldSkyFogCvar(fallback float32) float32 {
+	return readWorldAlphaCvar(CvarRSkyFog, fallback)
+}
+
+func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogDensity float32) float32 {
+	if fogDensity <= 0 {
+		return 0
+	}
+	skyFog := clamp01(cvarValue)
+	if override.hasValue {
+		skyFog = clamp01(override.value)
+	}
+	return skyFog
+}
+
 func worldFacePass(flags int32, alpha float32) worldRenderPass {
 	switch {
 	case flags&model.SurfDrawSky != 0:
@@ -1092,23 +1440,101 @@ func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
 	return dx*dx + dy*dy + dz*dz
 }
 
-func renderSkyPass(calls []worldDrawCall, alphaUniform, turbulentUniform int32) {
+type skyPassState struct {
+	program              uint32
+	vpUniform            int32
+	solidUniform         int32
+	alphaUniform         int32
+	modelOffsetUniform   int32
+	modelRotationUniform int32
+	modelScaleUniform    int32
+	timeUniform          int32
+	cameraOriginUniform  int32
+	fogColorUniform      int32
+	fogDensityUniform    int32
+	vp                   [16]float32
+	time                 float32
+	cameraOrigin         [3]float32
+	modelOffset          [3]float32
+	modelRotation        [16]float32
+	modelScale           float32
+	fogColor             [3]float32
+	fogDensity           float32
+	solidTextures        map[int32]uint32
+	alphaTextures        map[int32]uint32
+	textureAnimations    []*SurfaceTexture
+	fallbackSolid        uint32
+	fallbackAlpha        uint32
+	frame                int
+}
+
+func worldSkyTexturesForFace(face WorldFace, solidTextures, alphaTextures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackSolid, fallbackAlpha uint32, frame int, timeSeconds float64) (solid, alpha uint32) {
+	textureIndex := face.TextureIndex
+	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
+		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
+			textureIndex = animated.TextureIndex
+		}
+	}
+
+	solid = solidTextures[textureIndex]
+	alpha = alphaTextures[textureIndex]
+	if (solid == 0 || alpha == 0) && textureIndex != face.TextureIndex {
+		if solid == 0 {
+			solid = solidTextures[face.TextureIndex]
+		}
+		if alpha == 0 {
+			alpha = alphaTextures[face.TextureIndex]
+		}
+	}
+	if solid == 0 {
+		solid = fallbackSolid
+	}
+	if alpha == 0 {
+		alpha = fallbackAlpha
+	}
+	return solid, alpha
+}
+
+func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	if len(calls) == 0 {
 		return
 	}
+	if state.program == 0 {
+		return
+	}
+	gl.UseProgram(state.program)
+	gl.UniformMatrix4fv(state.vpUniform, 1, false, &state.vp[0])
+	gl.Uniform1i(state.solidUniform, 0)
+	gl.Uniform1i(state.alphaUniform, 1)
+	gl.Uniform3f(state.modelOffsetUniform, state.modelOffset[0], state.modelOffset[1], state.modelOffset[2])
+	gl.UniformMatrix4fv(state.modelRotationUniform, 1, false, &state.modelRotation[0])
+	gl.Uniform1f(state.modelScaleUniform, state.modelScale)
+	gl.Uniform1f(state.timeUniform, state.time)
+	gl.Uniform3f(state.cameraOriginUniform, state.cameraOrigin[0], state.cameraOrigin[1], state.cameraOrigin[2])
+	gl.Uniform3f(state.fogColorUniform, state.fogColor[0], state.fogColor[1], state.fogColor[2])
+	gl.Uniform1f(state.fogDensityUniform, state.fogDensity)
+
 	// Sky is rendered at maximum depth but doesn't write to depth buffer
 	gl.DepthFunc(gl.LEQUAL)
 	gl.DepthMask(false)
 	gl.Disable(gl.BLEND)
-	gl.Uniform1f(turbulentUniform, 0)
 
 	for _, call := range calls {
+		solid, alpha := worldSkyTexturesForFace(
+			call.face,
+			state.solidTextures,
+			state.alphaTextures,
+			state.textureAnimations,
+			state.fallbackSolid,
+			state.fallbackAlpha,
+			state.frame,
+			float64(state.time),
+		)
 		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, call.texture)
+		gl.BindTexture(gl.TEXTURE_2D, solid)
 		gl.ActiveTexture(gl.TEXTURE1)
-		gl.BindTexture(gl.TEXTURE_2D, call.lightmap)
+		gl.BindTexture(gl.TEXTURE_2D, alpha)
 		gl.ActiveTexture(gl.TEXTURE0)
-		gl.Uniform1f(alphaUniform, call.alpha)
 		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
 	}
 
@@ -1706,6 +2132,10 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteProgram(r.worldProgram)
 		r.worldProgram = 0
 	}
+	if r.worldSkyProgram != 0 {
+		gl.DeleteProgram(r.worldSkyProgram)
+		r.worldSkyProgram = 0
+	}
 	for idx, mesh := range r.brushModels {
 		if mesh != nil {
 			mesh.destroy()
@@ -1717,6 +2147,18 @@ func (r *Renderer) clearWorldLocked() {
 			gl.DeleteTextures(1, &tex)
 		}
 		delete(r.worldTextures, textureIndex)
+	}
+	for textureIndex, tex := range r.worldSkySolidTextures {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+		}
+		delete(r.worldSkySolidTextures, textureIndex)
+	}
+	for textureIndex, tex := range r.worldSkyAlphaTextures {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+		}
+		delete(r.worldSkyAlphaTextures, textureIndex)
 	}
 	r.worldTextureAnimations = nil
 	for i, tex := range r.worldLightmaps {
@@ -1734,22 +2176,37 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteTextures(1, &r.worldLightmapFallback)
 		r.worldLightmapFallback = 0
 	}
+	if r.worldSkyAlphaFallback != 0 {
+		gl.DeleteTextures(1, &r.worldSkyAlphaFallback)
+		r.worldSkyAlphaFallback = 0
+	}
 	r.worldVPUniform = -1
 	r.worldTextureUniform = -1
 	r.worldLightmapUniform = -1
+	r.worldSkyVPUniform = -1
+	r.worldSkySolidUniform = -1
+	r.worldSkyAlphaUniform = -1
 	r.worldModelOffsetUniform = -1
 	r.worldModelRotationUniform = -1
 	r.worldModelScaleUniform = -1
+	r.worldSkyModelOffsetUniform = -1
+	r.worldSkyModelRotationUniform = -1
+	r.worldSkyModelScaleUniform = -1
 	r.worldAlphaUniform = -1
 	r.worldTimeUniform = -1
+	r.worldSkyTimeUniform = -1
 	r.worldTurbulentUniform = -1
 	r.worldCameraOriginUniform = -1
+	r.worldSkyCameraOriginUniform = -1
 	r.worldFogColorUniform = -1
+	r.worldSkyFogColorUniform = -1
 	r.worldFogDensityUniform = -1
+	r.worldSkyFogDensityUniform = -1
 	r.worldIndexCount = 0
 	r.worldData = nil
 	r.worldTree = nil
 	r.worldLiquidAlphaOverrides = worldLiquidAlphaOverrides{}
+	r.worldSkyFogOverride = worldSkyFogOverride{}
 	r.worldFogColor = [3]float32{}
 	r.worldFogDensity = 0
 	for modelID, alias := range r.aliasModels {

@@ -127,6 +127,7 @@ func initGameHost() error {
 	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
 	cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
+	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
 	cvar.Register("developer", "0", 0, "Developer mode")
 
 	// Create host instance

@@ -8,6 +8,7 @@ COMPLETION STATUS BY FEATURE
 A. WORLD RENDERING         [█████████████░░░░░░] ~65%
     - Geometry load/binning/lightmaps: DONE on OpenGL parity path
     - Animated textures, turbulent UV warp, and fog runtime feed: DONE
+    - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
     - Skybox runtime consumption: TODO
     - Pass-order fidelity (sky/water/translucency/viewmodel): TODO
 
@@ -63,10 +64,10 @@ G. SAVE/LOAD               [████████████████░�
 BLOCKERS FOR PLAYABILITY (Must Fix First)
 ==========================================
 
-1. Skybox + render-pass ordering fidelity
+1. External skybox + render-pass ordering fidelity
    Location: internal/renderer/world_runtime_opengl.go
-   Impact: Scene composition differs from C in edge cases
-   Fix: Consume live skybox state and align draw pass sequencing with C
+   Impact: Scene composition still differs from C in edge cases even though embedded BSP sky now uses a dedicated animated path
+   Fix: Consume live external skybox state and align draw pass sequencing with C
    Reference: gl_sky.c + gl_rmain.c
 
 2. CONNECT command parity
