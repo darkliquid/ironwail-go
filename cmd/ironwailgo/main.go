@@ -428,10 +428,7 @@ func (gameCallbacks) ProcessClient() {
 		// Get the actual client state to access parser
 		clientState := host.LoopbackClientState(gameSubs)
 		if clientState != nil {
-			// Store current view angles as previous frame for interpolation
-			clientState.MViewAngles[1] = clientState.MViewAngles[0]
-			// Apply new view angles from demo
-			clientState.MViewAngles[0] = viewAngles
+			applyDemoPlaybackViewAngles(clientState, viewAngles)
 
 			// Parse the server message from demo
 			parser := cl.NewParser(clientState)
@@ -1456,6 +1453,15 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 		camera.Time = float32(gameClient.Time)
 	}
 	return camera
+}
+
+func applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) {
+	if clientState == nil {
+		return
+	}
+	clientState.MViewAngles[1] = clientState.MViewAngles[0]
+	clientState.MViewAngles[0] = viewAngles
+	clientState.ViewAngles = viewAngles
 }
 
 func recordRuntimeDemoFrame() {

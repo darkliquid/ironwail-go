@@ -118,6 +118,24 @@ func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 	}
 }
 
+func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T) {
+	clientState := cl.NewClient()
+	clientState.MViewAngles[0] = [3]float32{1, 2, 3}
+	clientState.ViewAngles = [3]float32{4, 5, 6}
+
+	applyDemoPlaybackViewAngles(clientState, [3]float32{10, 20, 30})
+
+	if clientState.MViewAngles[1] != [3]float32{1, 2, 3} {
+		t.Fatalf("previous demo angles = %v, want [1 2 3]", clientState.MViewAngles[1])
+	}
+	if clientState.MViewAngles[0] != [3]float32{10, 20, 30} {
+		t.Fatalf("current demo angles = %v, want [10 20 30]", clientState.MViewAngles[0])
+	}
+	if clientState.ViewAngles != [3]float32{10, 20, 30} {
+		t.Fatalf("view angles = %v, want [10 20 30]", clientState.ViewAngles)
+	}
+}
+
 func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 	originalHost := gameHost
 	originalClient := gameClient
