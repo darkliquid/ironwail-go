@@ -64,6 +64,7 @@ var (
 	aliasModelCache  map[string]*model.Model
 	spriteModelCache map[string]*runtimeSpriteModel
 	soundSFXByIndex  map[int]*audio.SFX
+	menuSFXByName    map[string]*audio.SFX
 	soundPrecacheKey string
 	staticSoundKey   string
 	musicTrackKey    string
@@ -127,7 +128,10 @@ func initGameHost() error {
 	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode (0=windowed, 1=fullscreen)")
 	cvar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
 	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
-	cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
+	sVolume := cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
+	sVolume.Callback = func(*cvar.CVar) {
+		applySVolume()
+	}
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
@@ -199,6 +203,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Initialize menu system
 	gameMenu = menu.NewManager(gameDraw, gameInput)
+	gameMenu.SetSoundPlayer(playMenuSound)
 
 	// Set up menu input callbacks
 	gameInput.OnMenuKey = handleMenuKeyEvent
@@ -319,6 +324,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	}, gameSubs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
 	}
+	applySVolume()
 
 	// Set menu in host
 	gameHost.SetMenu(gameMenu)
@@ -464,7 +470,12 @@ func (gameCallbacks) ProcessClient() {
 
 func (gameCallbacks) UpdateScreen() {}
 
-func (gameCallbacks) UpdateAudio(_, _, _, _ [3]float32) {}
+func (gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
+	if gameAudio == nil {
+		return
+	}
+	gameAudio.SetListener(origin, forward, right, up)
+}
 
 func startupMapArg(args []string) string {
 	for i := 0; i < len(args); i++ {
@@ -1723,6 +1734,7 @@ func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
 
 func resetRuntimeSoundState() {
 	soundSFXByIndex = nil
+	menuSFXByName = nil
 	soundPrecacheKey = ""
 	staticSoundKey = ""
 	musicTrackKey = ""
@@ -1843,6 +1855,42 @@ func resolveRuntimeSFX(soundIndex int) *audio.SFX {
 	})
 	soundSFXByIndex[soundIndex] = sfx
 	return sfx
+}
+
+func resolveMenuSFX(name string) *audio.SFX {
+	if gameAudio == nil || gameSubs == nil || gameSubs.Files == nil || name == "" {
+		return nil
+	}
+	if menuSFXByName == nil {
+		menuSFXByName = make(map[string]*audio.SFX)
+	}
+	if sfx, ok := menuSFXByName[name]; ok {
+		return sfx
+	}
+	sfx := gameAudio.PrecacheSound(name, func() ([]byte, error) {
+		return gameSubs.Files.LoadFile("sound/" + name)
+	})
+	menuSFXByName[name] = sfx
+	return sfx
+}
+
+func playMenuSound(name string) {
+	sfx := resolveMenuSFX(name)
+	if sfx == nil {
+		return
+	}
+	gameAudio.StartSound(0, 0, sfx, [3]float32{}, 1, 0)
+}
+
+func applySVolume() {
+	if gameAudio == nil {
+		return
+	}
+	vol := 0.7
+	if cv := cvar.Get("s_volume"); cv != nil {
+		vol = cv.Float
+	}
+	gameAudio.SetVolume(vol)
 }
 
 func buildRuntimeStaticSoundKey(c *cl.Client) string {

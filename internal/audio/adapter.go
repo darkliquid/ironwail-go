@@ -108,3 +108,10 @@ func (a *AudioAdapter) StopMusic() {
 	}
 	a.sys.StopMusic()
 }
+
+func (a *AudioAdapter) SetVolume(vol float64) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.SetVolume(vol)
+}

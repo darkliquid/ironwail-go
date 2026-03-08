@@ -545,3 +545,42 @@ func TestDrawQuitUsesMenuCharacterPath(t *testing.T) {
 		t.Fatalf("first menu char = (%d,%d,%d), want (56,64,%d)", first.x, first.y, first.num, int('A')+128)
 	}
 }
+
+func TestMenuNavigationAndSelectPlaySound(t *testing.T) {
+	mgr := NewManager(nil, nil)
+	var played []string
+	mgr.SetSoundPlayer(func(name string) {
+		played = append(played, name)
+	})
+	mgr.ShowMenu()
+	played = nil
+
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KEnter)
+
+	if len(played) < 2 {
+		t.Fatalf("played sounds = %v, want at least two menu sounds", played)
+	}
+	if played[0] != menuSoundNavigate {
+		t.Fatalf("first sound = %q, want %q", played[0], menuSoundNavigate)
+	}
+	if played[1] != menuSoundSelect {
+		t.Fatalf("second sound = %q, want %q", played[1], menuSoundSelect)
+	}
+}
+
+func TestMenuEscapePlaysCancelSound(t *testing.T) {
+	mgr := NewManager(nil, nil)
+	var last string
+	mgr.SetSoundPlayer(func(name string) {
+		last = name
+	})
+	mgr.ShowMenu()
+	last = ""
+
+	mgr.M_Key(input.KEscape)
+
+	if last != menuSoundCancel {
+		t.Fatalf("escape sound = %q, want %q", last, menuSoundCancel)
+	}
+}

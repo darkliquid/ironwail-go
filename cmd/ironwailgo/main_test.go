@@ -1977,6 +1977,45 @@ func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
 	}
 }
 
+func TestApplySVolumeUsesCVarAndClamps(t *testing.T) {
+	originalAudio := gameAudio
+	t.Cleanup(func() {
+		gameAudio = originalAudio
+	})
+
+	sys := audio.NewSystem()
+	if err := sys.Init(audio.NewNullBackend(), 44100, false); err != nil {
+		t.Fatalf("audio.Init failed: %v", err)
+	}
+	if err := sys.Startup(); err != nil {
+		t.Fatalf("audio.Startup failed: %v", err)
+	}
+	gameAudio = audio.NewAudioAdapter(sys)
+
+	cv := cvar.Get("s_volume")
+	if cv == nil {
+		cv = cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
+	}
+	originalValue := cv.String
+	originalCallback := cv.Callback
+	t.Cleanup(func() {
+		cv.Callback = originalCallback
+		cvar.Set("s_volume", originalValue)
+	})
+
+	cvar.Set("s_volume", "0.25")
+	applySVolume()
+	if got := sys.Volume(); math.Abs(got-0.25) > 0.0001 {
+		t.Fatalf("volume after s_volume=0.25 = %v, want 0.25", got)
+	}
+
+	cvar.Set("s_volume", "2.5")
+	applySVolume()
+	if got := sys.Volume(); math.Abs(got-1.0) > 0.0001 {
+		t.Fatalf("volume after s_volume=2.5 = %v, want clamped 1.0", got)
+	}
+}
+
 type runtimeMusicTestFS struct {
 	files map[string][]byte
 	loads int

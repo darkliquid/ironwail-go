@@ -41,6 +41,10 @@ const (
 	setupItems      = 4
 	setupNameMaxLen = 15
 	setupColorMax   = 13
+
+	menuSoundNavigate = "misc/menu1.wav"
+	menuSoundSelect   = "misc/menu2.wav"
+	menuSoundCancel   = "misc/menu3.wav"
 )
 
 // Manager handles the Quake menu system including navigation and rendering.
@@ -75,11 +79,17 @@ type Manager struct {
 
 	// commandText queues engine commands (map/load/save/quit).
 	commandText func(text string)
+
+	playSound func(name string)
 }
 
 // DrawManager defines the interface for loading menu graphics.
 type DrawManager interface {
 	GetPic(name string) *image.QPic
+}
+
+func (m *Manager) SetSoundPlayer(play func(name string)) {
+	m.playSound = play
 }
 
 // NewManager creates a new menu manager.
@@ -110,6 +120,7 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 func (m *Manager) ToggleMenu() {
 	if m.active {
 		// Close the menu
+		m.playMenuSound(menuSoundCancel)
 		m.active = false
 		m.state = MenuNone
 		// Restore input destination to game
@@ -118,6 +129,7 @@ func (m *Manager) ToggleMenu() {
 		}
 	} else {
 		// Open the menu
+		m.playMenuSound(menuSoundSelect)
 		m.active = true
 		m.state = MenuMain
 		m.mainCursor = 0
@@ -231,14 +243,18 @@ func (m *Manager) mainKey(key int) {
 		if m.mainCursor < 0 {
 			m.mainCursor = mainItems - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.mainCursor++
 		if m.mainCursor >= mainItems {
 			m.mainCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		m.mainSelect()
 	case input.KEscape, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.HideMenu()
 	}
 }
@@ -268,12 +284,15 @@ func (m *Manager) singlePlayerKey(key int) {
 		if m.singlePlayerCursor < 0 {
 			m.singlePlayerCursor = singlePlayerItems - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.singlePlayerCursor++
 		if m.singlePlayerCursor >= singlePlayerItems {
 			m.singlePlayerCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		switch m.singlePlayerCursor {
 		case 0:
 			m.HideMenu()
@@ -288,6 +307,7 @@ func (m *Manager) singlePlayerKey(key int) {
 			m.state = MenuSave
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
 	}
 }
@@ -299,15 +319,19 @@ func (m *Manager) loadKey(key int) {
 		if m.loadCursor < 0 {
 			m.loadCursor = maxSaveGames - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KRightArrow, input.KMWheelDown:
 		m.loadCursor++
 		if m.loadCursor >= maxSaveGames {
 			m.loadCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		m.HideMenu()
 		m.queueCommand(fmt.Sprintf("load s%d\n", m.loadCursor))
 	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuSinglePlayer
 	}
 }
@@ -319,15 +343,19 @@ func (m *Manager) saveKey(key int) {
 		if m.saveCursor < 0 {
 			m.saveCursor = maxSaveGames - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KRightArrow, input.KMWheelDown:
 		m.saveCursor++
 		if m.saveCursor >= maxSaveGames {
 			m.saveCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		m.HideMenu()
 		m.queueCommand(fmt.Sprintf("save s%d\n", m.saveCursor))
 	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuSinglePlayer
 	}
 }
@@ -339,12 +367,15 @@ func (m *Manager) multiPlayerKey(key int) {
 		if m.multiPlayerCursor < 0 {
 			m.multiPlayerCursor = multiPlayerItems - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.multiPlayerCursor++
 		if m.multiPlayerCursor >= multiPlayerItems {
 			m.multiPlayerCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		switch m.multiPlayerCursor {
 		case 0:
 			m.queueCommand("echo Join game menu is TODO\n")
@@ -354,6 +385,7 @@ func (m *Manager) multiPlayerKey(key int) {
 			m.enterSetupMenu()
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
 	}
 }
@@ -370,12 +402,15 @@ func (m *Manager) optionsKey(key int) {
 		if m.optionsCursor < 0 {
 			m.optionsCursor = optionsItems - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.optionsCursor++
 		if m.optionsCursor >= optionsItems {
 			m.optionsCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		switch m.optionsCursor {
 		case 0:
 			m.queueCommand("echo Controls menu is TODO\n")
@@ -389,6 +424,7 @@ func (m *Manager) optionsKey(key int) {
 			m.state = MenuMain
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
 	}
 }
@@ -396,17 +432,20 @@ func (m *Manager) optionsKey(key int) {
 func (m *Manager) helpKey(key int) {
 	switch key {
 	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
 	case input.KUpArrow, input.KRightArrow, input.KMWheelDown, input.KMouse1:
 		m.helpPage++
 		if m.helpPage >= helpPages {
 			m.helpPage = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KLeftArrow, input.KMWheelUp:
 		m.helpPage--
 		if m.helpPage < 0 {
 			m.helpPage = helpPages - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	}
 }
 
@@ -414,9 +453,11 @@ func (m *Manager) helpKey(key int) {
 func (m *Manager) quitKey(key int) {
 	switch key {
 	case input.KEnter, input.KSpace, input.KMouse1, 'y', 'Y':
+		m.playMenuSound(menuSoundSelect)
 		m.queueCommand("quit\n")
 		m.HideMenu()
 	case input.KEscape, input.KBackspace, input.KMouse2, 'n', 'N':
+		m.playMenuSound(menuSoundCancel)
 		// Cancel - return to main menu
 		m.state = m.quitPrevState
 	}
@@ -425,28 +466,36 @@ func (m *Manager) quitKey(key int) {
 func (m *Manager) setupKey(key int) {
 	switch key {
 	case input.KEscape, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMultiPlayer
 	case input.KUpArrow, input.KMWheelUp:
 		m.setupCursor--
 		if m.setupCursor < 0 {
 			m.setupCursor = setupItems - 1
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.setupCursor++
 		if m.setupCursor >= setupItems {
 			m.setupCursor = 0
 		}
+		m.playMenuSound(menuSoundNavigate)
 	case input.KLeftArrow:
 		m.adjustSetupColor(-1)
+		m.playMenuSound(menuSoundNavigate)
 	case input.KRightArrow:
 		m.adjustSetupColor(1)
+		m.playMenuSound(menuSoundNavigate)
 	case input.KBackspace:
 		if m.setupCursor == 0 {
 			m.deleteSetupNameRune()
+			m.playMenuSound(menuSoundCancel)
 			return
 		}
+		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMultiPlayer
 	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
 		switch m.setupCursor {
 		case 1, 2:
 			m.adjustSetupColor(1)
@@ -691,4 +740,11 @@ func (m *Manager) queueCommand(text string) {
 	}
 
 	slog.Debug("menu command dropped", "command", text)
+}
+
+func (m *Manager) playMenuSound(name string) {
+	if m.playSound == nil {
+		return
+	}
+	m.playSound(name)
 }

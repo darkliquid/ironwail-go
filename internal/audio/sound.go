@@ -252,6 +252,26 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 	s.paintedTime = s.mixer.PaintChannels(s.channels[:s.totalChans], &s.rawSamples, s.dma, s.paintedTime, endTime)
 }
 
+func (s *System) SetVolume(vol float64) {
+	if !s.initialized || s.mixer == nil {
+		return
+	}
+	if vol < 0 {
+		vol = 0
+	}
+	if vol > 1 {
+		vol = 1
+	}
+	s.mixer.SetVolume(vol)
+}
+
+func (s *System) Volume() float64 {
+	if s.mixer == nil {
+		return 0
+	}
+	return s.mixer.volume
+}
+
 func (s *System) pickChannel(entNum, entChannel int) *Channel {
 	firstToDie := -1
 	lifeLeft := 0x7fffffff
