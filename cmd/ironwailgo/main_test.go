@@ -110,6 +110,24 @@ func (dc *loadingPlaqueDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
 	dc.menuPics = append(dc.menuPics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
 }
 
+type mouseDeltaBackend struct {
+	dx int32
+	dy int32
+}
+
+func (b *mouseDeltaBackend) Init() error                            { return nil }
+func (b *mouseDeltaBackend) Shutdown()                              {}
+func (b *mouseDeltaBackend) PollEvents() bool                       { return true }
+func (b *mouseDeltaBackend) GetMouseDelta() (dx, dy int32)          { return b.dx, b.dy }
+func (b *mouseDeltaBackend) GetModifierState() input.ModifierState  { return input.ModifierState{} }
+func (b *mouseDeltaBackend) SetTextMode(input.TextMode)             {}
+func (b *mouseDeltaBackend) SetCursorMode(input.CursorMode)         {}
+func (b *mouseDeltaBackend) ShowKeyboard(bool)                      {}
+func (b *mouseDeltaBackend) GetGamepadState(int) input.GamepadState { return input.GamepadState{} }
+func (b *mouseDeltaBackend) IsGamepadConnected(int) bool            { return false }
+func (b *mouseDeltaBackend) SetMouseGrab(bool)                      {}
+func (b *mouseDeltaBackend) SetWindow(interface{})                  {}
+
 func TestStartupMapArg(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -1721,6 +1739,87 @@ func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
 
 	if got := gameInput.GetBinding(int('t')); got != want {
 		t.Fatalf("binding after reload = %q, want %q", got, want)
+	}
+}
+
+func TestSyncControlCvarsToClient(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	registerControlCvars()
+	cvar.Set("cl_alwaysrun", "0")
+	cvar.Set("freelook", "0")
+	cvar.Set("lookspring", "1")
+
+	gameClient = cl.NewClient()
+	syncControlCvarsToClient()
+
+	if gameClient.AlwaysRun {
+		t.Fatalf("AlwaysRun should follow cl_alwaysrun")
+	}
+	if gameClient.FreeLook {
+		t.Fatalf("FreeLook should follow freelook")
+	}
+	if !gameClient.LookSpring {
+		t.Fatalf("LookSpring should follow lookspring")
+	}
+}
+
+func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
+	originalInput := gameInput
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameClient = originalClient
+	})
+
+	registerControlCvars()
+	backend := &mouseDeltaBackend{}
+	gameInput = input.NewSystem(backend)
+	gameInput.SetKeyDest(input.KeyGame)
+	gameClient = cl.NewClient()
+
+	cvar.Set("sensitivity", "10")
+	cvar.Set("m_yaw", "0.01")
+	cvar.Set("m_pitch", "0.02")
+	cvar.Set("freelook", "1")
+
+	backend.dx = 2
+	backend.dy = 3
+	applyGameplayMouseLook()
+	if got := gameClient.ViewAngles[1]; math.Abs(float64(got-(-0.2))) > 0.0001 {
+		t.Fatalf("yaw after mouse look = %.2f, want -0.20", got)
+	}
+	if got := gameClient.ViewAngles[0]; math.Abs(float64(got-0.6)) > 0.0001 {
+		t.Fatalf("pitch after mouse look = %.2f, want 0.60", got)
+	}
+
+	gameClient.ViewAngles = [3]float32{}
+	cvar.Set("freelook", "0")
+	backend.dx = 0
+	backend.dy = 5
+	applyGameplayMouseLook()
+	if got := gameClient.ViewAngles[0]; got != 0 {
+		t.Fatalf("pitch should stay unchanged when freelook is off and +mlook inactive, got %.2f", got)
+	}
+
+	gameClient.InputMLook.State = 1
+	backend.dy = 5
+	applyGameplayMouseLook()
+	if got := gameClient.ViewAngles[0]; math.Abs(float64(got-1.0)) > 0.0001 {
+		t.Fatalf("pitch with +mlook held = %.2f, want 1.00", got)
+	}
+
+	gameClient.ViewAngles = [3]float32{}
+	gameClient.InputMLook.State = 0
+	cvar.Set("freelook", "1")
+	cvar.Set("m_pitch", "-0.02")
+	backend.dy = 5
+	applyGameplayMouseLook()
+	if got := gameClient.ViewAngles[0]; math.Abs(float64(got-(-1.0))) > 0.0001 {
+		t.Fatalf("pitch with inverted mouse = %.2f, want -1.00", got)
 	}
 }
 

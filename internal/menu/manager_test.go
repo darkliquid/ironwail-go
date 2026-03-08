@@ -2,6 +2,7 @@ package menu
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"testing"
@@ -493,6 +494,57 @@ func TestControlsMenuCancelRebinding(t *testing.T) {
 	}
 	if got := inputSys.GetBinding(input.KMouse1); got != "+attack" {
 		t.Fatalf("attack binding should be unchanged after cancel, got %q", got)
+	}
+}
+
+func TestControlsMenuAdjustsLiveControlCvars(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	cvar.Register("sensitivity", "6.8", cvar.FlagArchive, "Mouse sensitivity")
+	cvar.Register("m_pitch", "0.0176", cvar.FlagArchive, "Mouse pitch scale")
+	cvar.Register("cl_alwaysrun", "1", cvar.FlagArchive, "Always run")
+	cvar.Register("freelook", "1", cvar.FlagArchive, "Freelook")
+	cvar.Set("sensitivity", "6.8")
+	cvar.Set("m_pitch", "0.0176")
+	cvar.Set("cl_alwaysrun", "1")
+	cvar.Set("freelook", "1")
+
+	mgr.state = MenuControls
+	mgr.controlsCursor = controlItemMouseSpeed
+	mgr.M_Key(input.KRightArrow)
+	if got := cvar.FloatValue("sensitivity"); math.Abs(got-7.3) > 0.001 {
+		t.Fatalf("sensitivity = %.1f, want 7.3", got)
+	}
+
+	mgr.controlsCursor = controlItemInvertMouse
+	mgr.M_Key(input.KEnter)
+	if got := cvar.FloatValue("m_pitch"); math.Abs(got-(-0.0176)) > 0.0001 {
+		t.Fatalf("m_pitch = %.4f, want -0.0176", got)
+	}
+
+	mgr.controlsCursor = controlItemAlwaysRun
+	mgr.M_Key(input.KEnter)
+	if cvar.BoolValue("cl_alwaysrun") {
+		t.Fatalf("expected cl_alwaysrun toggled off")
+	}
+
+	mgr.controlsCursor = controlItemFreeLook
+	mgr.M_Key(input.KLeftArrow)
+	if cvar.BoolValue("freelook") {
+		t.Fatalf("expected freelook toggled off")
+	}
+
+	if mgr.controlsRebinding {
+		t.Fatalf("settings rows should not enter rebinding mode")
+	}
+
+	mgr.controlsCursor = controlItemMouseSpeed
+	mgr.M_Key(input.KBackspace)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("settings-row backspace should return to options, got %v", got)
 	}
 }
 

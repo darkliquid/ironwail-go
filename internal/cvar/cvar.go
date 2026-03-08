@@ -84,10 +84,8 @@ func (c *CVarSystem) Register(name, defaultValue string, flags CVarFlags, desc s
 }
 
 func (c *CVarSystem) Set(name, value string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	name = strings.ToLower(name)
+	c.mu.Lock()
 	cv, exists := c.vars[name]
 	if !exists {
 		cv = &CVar{
@@ -97,10 +95,12 @@ func (c *CVarSystem) Set(name, value string) {
 		}
 		c.parseValue(cv, value)
 		c.vars[name] = cv
+		c.mu.Unlock()
 		return
 	}
 
 	if cv.Flags&FlagNoSet != 0 {
+		c.mu.Unlock()
 		return
 	}
 
@@ -108,15 +108,18 @@ func (c *CVarSystem) Set(name, value string) {
 		cv.String = value
 		c.parseValue(cv, value)
 		cv.modified = true
+		c.mu.Unlock()
 		return
 	}
 
 	cv.String = value
 	c.parseValue(cv, value)
 	cv.modified = true
+	callback := cv.Callback
+	c.mu.Unlock()
 
-	if cv.Callback != nil {
-		cv.Callback(cv)
+	if callback != nil {
+		callback(cv)
 	}
 }
 

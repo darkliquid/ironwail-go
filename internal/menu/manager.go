@@ -44,7 +44,7 @@ const (
 	joinGameItems     = 3
 	hostGameItems     = 6
 	optionsItems      = 5
-	controlsItems     = 13
+	controlsItems     = 17
 	videoItems        = 7
 	audioItems        = 2
 
@@ -72,7 +72,11 @@ const (
 )
 
 const (
-	controlItemForward = iota
+	controlItemMouseSpeed = iota
+	controlItemInvertMouse
+	controlItemAlwaysRun
+	controlItemFreeLook
+	controlItemForward
 	controlItemBackward
 	controlItemTurnLeft
 	controlItemTurnRight
@@ -86,6 +90,8 @@ const (
 	controlItemToggleConsole
 	controlItemBack
 )
+
+const controlsBindingStart = controlItemForward
 
 const (
 	videoItemResolution = iota
@@ -695,8 +701,21 @@ func (m *Manager) controlsKey(key int) {
 			m.controlsCursor = 0
 		}
 		m.playMenuSound(menuSoundNavigate)
-	case input.KLeftArrow, input.KBackspace:
+	case input.KLeftArrow:
 		if m.controlsCursor == controlItemBack {
+			m.playMenuSound(menuSoundCancel)
+			m.state = MenuOptions
+			return
+		}
+		if m.controlsCursor < controlsBindingStart {
+			m.adjustControlSetting(-1)
+			m.playMenuSound(menuSoundNavigate)
+			return
+		}
+		m.clearControlBinding(m.controlsCursor)
+		m.playMenuSound(menuSoundCancel)
+	case input.KBackspace:
+		if m.controlsCursor < controlsBindingStart || m.controlsCursor == controlItemBack {
 			m.playMenuSound(menuSoundCancel)
 			m.state = MenuOptions
 			return
@@ -709,6 +728,11 @@ func (m *Manager) controlsKey(key int) {
 			m.state = MenuOptions
 			return
 		}
+		if m.controlsCursor < controlsBindingStart {
+			m.adjustControlSetting(1)
+			m.playMenuSound(menuSoundNavigate)
+			return
+		}
 		m.controlsRebinding = true
 		m.playMenuSound(menuSoundSelect)
 	case input.KEnter, input.KSpace, input.KMouse1:
@@ -717,11 +741,35 @@ func (m *Manager) controlsKey(key int) {
 			m.state = MenuOptions
 			return
 		}
+		if m.controlsCursor < controlsBindingStart {
+			m.adjustControlSetting(1)
+			m.playMenuSound(menuSoundSelect)
+			return
+		}
 		m.controlsRebinding = true
 		m.playMenuSound(menuSoundSelect)
 	case input.KEscape, input.KMouse2:
 		m.playMenuSound(menuSoundCancel)
 		m.state = MenuOptions
+	}
+}
+
+func (m *Manager) adjustControlSetting(delta int) {
+	switch m.controlsCursor {
+	case controlItemMouseSpeed:
+		speed := cvar.FloatValue("sensitivity") + 0.5*float64(delta)
+		speed = clampFloat(speed, 1, 11)
+		cvar.SetFloat("sensitivity", roundToTenth(speed))
+	case controlItemInvertMouse:
+		pitch := cvar.FloatValue("m_pitch")
+		if pitch == 0 {
+			pitch = 0.0176
+		}
+		cvar.SetFloat("m_pitch", -pitch)
+	case controlItemAlwaysRun:
+		cvar.SetBool("cl_alwaysrun", !cvar.BoolValue("cl_alwaysrun"))
+	case controlItemFreeLook:
+		cvar.SetBool("freelook", !cvar.BoolValue("freelook"))
 	}
 }
 
@@ -842,10 +890,11 @@ func (m *Manager) controlBindingLabel(index int) string {
 }
 
 func (m *Manager) controlCommand(index int) (string, bool) {
-	if index < 0 || index >= len(controlBindings) {
+	bindingIndex := index - controlsBindingStart
+	if bindingIndex < 0 || bindingIndex >= len(controlBindings) {
 		return "", false
 	}
-	return controlBindings[index].command, true
+	return controlBindings[bindingIndex].command, true
 }
 
 func (m *Manager) setControlBinding(index, key int) {
@@ -927,6 +976,10 @@ func wrapIndex(value, count int) int {
 		return 0
 	}
 	return value
+}
+
+func controlRowY(index int) int {
+	return 24 + index*8
 }
 
 func clampFloat(value, min, max float64) float64 {
@@ -1319,19 +1372,32 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 func (m *Manager) drawControls(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
-	for i, binding := range controlBindings {
-		y := 32 + i*12
-		m.drawText(dc, 40, y, binding.label, true)
-		m.drawText(dc, 200, y, m.controlBindingLabel(i), true)
-	}
-	m.drawText(dc, 40, 32+controlItemBack*12, "BACK", true)
+	m.drawText(dc, 32, controlRowY(controlItemMouseSpeed), "MOUSE SPEED", true)
+	m.drawText(dc, 208, controlRowY(controlItemMouseSpeed), fmt.Sprintf("%.1f", cvar.FloatValue("sensitivity")), true)
+	m.drawText(dc, 32, controlRowY(controlItemInvertMouse), "INVERT MOUSE", true)
+	m.drawText(dc, 208, controlRowY(controlItemInvertMouse), boolLabel(cvar.FloatValue("m_pitch") < 0), true)
+	m.drawText(dc, 32, controlRowY(controlItemAlwaysRun), "ALWAYS RUN", true)
+	m.drawText(dc, 208, controlRowY(controlItemAlwaysRun), boolLabel(cvar.BoolValue("cl_alwaysrun")), true)
+	m.drawText(dc, 32, controlRowY(controlItemFreeLook), "MOUSE LOOK", true)
+	m.drawText(dc, 208, controlRowY(controlItemFreeLook), boolLabel(cvar.BoolValue("freelook")), true)
 
-	m.drawArrowCursor(dc, 24, 32+m.controlsCursor*12)
+	for i, binding := range controlBindings {
+		y := controlRowY(controlsBindingStart + i)
+		m.drawText(dc, 40, y, binding.label, true)
+		m.drawText(dc, 200, y, m.controlBindingLabel(controlsBindingStart+i), true)
+	}
+	m.drawText(dc, 40, controlRowY(controlItemBack), "BACK", true)
+
+	m.drawArrowCursor(dc, 24, controlRowY(m.controlsCursor))
 	if m.controlsRebinding {
-		m.drawText(dc, 24, 188, "PRESS A KEY OR ESC TO CANCEL", true)
+		m.drawText(dc, 24, 176, "PRESS A KEY OR ESC TO CANCEL", true)
 		return
 	}
-	m.drawText(dc, 24, 188, "ENTER/RIGHT BIND LEFT/BKSP CLEAR", true)
+	if m.controlsCursor < controlsBindingStart {
+		m.drawText(dc, 24, 176, "LEFT/RIGHT/ENTER CHANGE, ESC BACK", true)
+		return
+	}
+	m.drawText(dc, 24, 176, "ENTER/RIGHT BIND LEFT/BKSP CLEAR", true)
 }
 
 func (m *Manager) drawAudio(dc renderer.RenderContext) {

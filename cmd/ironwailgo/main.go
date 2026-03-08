@@ -71,11 +71,6 @@ var (
 	skyboxNameKey    string
 )
 
-const (
-	mouseYawScale   = 0.15
-	mousePitchScale = 0.12
-)
-
 type defaultBinding struct {
 	key     int
 	command string
@@ -136,11 +131,38 @@ func initGameHost() error {
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
 	cvar.Register("developer", "0", 0, "Developer mode")
+	registerControlCvars()
 
 	// Create host instance
 	gameHost = host.NewHost()
 
 	return nil
+}
+
+func registerControlCvars() {
+	alwaysRun := cvar.Register("cl_alwaysrun", "1", cvar.FlagArchive, "Always run movement by default")
+	freelook := cvar.Register("freelook", "1", cvar.FlagArchive, "Enable mouse freelook")
+	lookspring := cvar.Register("lookspring", "0", cvar.FlagArchive, "Center view when look key released")
+	cvar.Register("lookstrafe", "0", cvar.FlagArchive, "Use mouse X for strafing when +strafe held")
+	cvar.Register("sensitivity", "6.8", cvar.FlagArchive, "Mouse sensitivity scale")
+	cvar.Register("m_pitch", "0.0176", cvar.FlagArchive, "Mouse pitch scale")
+	cvar.Register("m_yaw", "0.022", cvar.FlagArchive, "Mouse yaw scale")
+	cvar.Register("m_forward", "1", cvar.FlagArchive, "Mouse forward scale")
+	cvar.Register("m_side", "0.8", cvar.FlagArchive, "Mouse side scale")
+	for _, cv := range []*cvar.CVar{alwaysRun, freelook, lookspring} {
+		cv.Callback = func(*cvar.CVar) {
+			syncControlCvarsToClient()
+		}
+	}
+}
+
+func syncControlCvarsToClient() {
+	if gameClient == nil {
+		return
+	}
+	gameClient.AlwaysRun = cvar.BoolValue("cl_alwaysrun")
+	gameClient.FreeLook = cvar.BoolValue("freelook")
+	gameClient.LookSpring = cvar.BoolValue("lookspring")
 }
 
 func initGameServer() error {
@@ -361,6 +383,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
 	gameClient = host.LoopbackClientState(gameSubs)
+	syncControlCvarsToClient()
 	resetRuntimeVisualState()
 
 	// Make sure the menu is visible at startup
@@ -1514,11 +1537,24 @@ func applyGameplayMouseLook() {
 	}
 
 	state := gameInput.GetState()
-	if state.MouseDX != 0 {
-		gameClient.ViewAngles[1] -= float32(state.MouseDX) * mouseYawScale
+	sensitivity := float32(cvar.FloatValue("sensitivity"))
+	if sensitivity <= 0 {
+		sensitivity = 1
 	}
-	if state.MouseDY != 0 {
-		gameClient.ViewAngles[0] += float32(state.MouseDY) * mousePitchScale
+	yawScale := sensitivity * float32(cvar.FloatValue("m_yaw"))
+	if yawScale == 0 {
+		yawScale = 0.15
+	}
+	pitchScale := sensitivity * float32(cvar.FloatValue("m_pitch"))
+	if pitchScale == 0 {
+		pitchScale = 0.12
+	}
+	mouseLook := gameClient.FreeLook || gameClient.InputMLook.State&1 != 0
+	if state.MouseDX != 0 {
+		gameClient.ViewAngles[1] -= float32(state.MouseDX) * yawScale
+	}
+	if state.MouseDY != 0 && mouseLook {
+		gameClient.ViewAngles[0] += float32(state.MouseDY) * pitchScale
 		if gameClient.ViewAngles[0] > gameClient.MaxPitch {
 			gameClient.ViewAngles[0] = gameClient.MaxPitch
 		}
@@ -2077,6 +2113,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) {
 	if gameHost != nil {
 		gameHost.Frame(dt, cb)
 	}
+	syncControlCvarsToClient()
 	if gameClient != nil {
 		gameClient.PredictPlayers(float32(dt))
 	}
