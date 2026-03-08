@@ -147,6 +147,7 @@ type Client struct {
 	CompletedTime float64
 	Paused        bool
 	CenterPrint   string
+	CenterPrintAt float64
 
 	Stats  [32]int
 	StatsF [32]float32
@@ -291,6 +292,7 @@ func (c *Client) ClearState() {
 	c.CompletedTime = 0
 	c.Paused = false
 	c.CenterPrint = ""
+	c.CenterPrintAt = 0
 	c.FixAngle = false
 	c.MoveMessages = 0
 	c.InImpulse = 0

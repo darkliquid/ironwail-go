@@ -20,20 +20,28 @@ const (
 	StatRockets
 	StatCells
 	StatActiveWeapon
+	StatTotalSecrets
+	StatTotalMonsters
+	StatSecrets
+	StatMonsters
 )
 
 const (
-	statHealth       = StatHealth
-	statFrags        = StatFrags
-	statWeapon       = StatWeapon
-	statAmmo         = StatAmmo
-	statArmor        = StatArmor
-	statWeaponFrame  = StatWeaponFrame
-	statShells       = StatShells
-	statNails        = StatNails
-	statRockets      = StatRockets
-	statCells        = StatCells
-	statActiveWeapon = StatActiveWeapon
+	statHealth        = StatHealth
+	statFrags         = StatFrags
+	statWeapon        = StatWeapon
+	statAmmo          = StatAmmo
+	statArmor         = StatArmor
+	statWeaponFrame   = StatWeaponFrame
+	statShells        = StatShells
+	statNails         = StatNails
+	statRockets       = StatRockets
+	statCells         = StatCells
+	statActiveWeapon  = StatActiveWeapon
+	statTotalSecrets  = StatTotalSecrets
+	statTotalMonsters = StatTotalMonsters
+	statSecrets       = StatSecrets
+	statMonsters      = StatMonsters
 )
 
 type Parser struct {
@@ -187,6 +195,7 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			}
 		case inet.SVCCenterPrint:
 			p.Client.CenterPrint = msg.ReadString()
+			p.Client.CenterPrintAt = p.Client.Time
 		case inet.SVCUpdateName:
 			if err := p.parseUpdateName(msg); err != nil {
 				return err
@@ -213,11 +222,13 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.Intermission = 1
 			p.Client.CompletedTime = p.Client.Time
 		case inet.SVCFinale:
-			_ = msg.ReadString()
+			p.Client.CenterPrint = msg.ReadString()
+			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 2
 			p.Client.CompletedTime = p.Client.Time
 		case inet.SVCCutScene:
-			_ = msg.ReadString()
+			p.Client.CenterPrint = msg.ReadString()
+			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 3
 			p.Client.CompletedTime = p.Client.Time
 		default:

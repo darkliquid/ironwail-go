@@ -2070,16 +2070,26 @@ func updateHUDFromServer() {
 	if gameClient != nil {
 		shells, nails, rockets, cells := gameClient.AmmoCounts()
 		gameHUD.SetState(hud.State{
-			Health:       gameClient.Health(),
-			Armor:        gameClient.Armor(),
-			Ammo:         gameClient.Ammo(),
-			WeaponModel:  gameClient.WeaponModelIndex(),
-			ActiveWeapon: gameClient.ActiveWeapon(),
-			Shells:       shells,
-			Nails:        nails,
-			Rockets:      rockets,
-			Cells:        cells,
-			Items:        gameClient.Items,
+			Health:        gameClient.Health(),
+			Armor:         gameClient.Armor(),
+			Ammo:          gameClient.Ammo(),
+			WeaponModel:   gameClient.WeaponModelIndex(),
+			ActiveWeapon:  gameClient.ActiveWeapon(),
+			Shells:        shells,
+			Nails:         nails,
+			Rockets:       rockets,
+			Cells:         cells,
+			Items:         gameClient.Items,
+			Intermission:  gameClient.Intermission,
+			CompletedTime: gameClient.CompletedTime,
+			Time:          gameClient.Time,
+			CenterPrint:   gameClient.CenterPrint,
+			CenterPrintAt: gameClient.CenterPrintAt,
+			LevelName:     gameClient.LevelName,
+			Secrets:       gameClient.Stats[cl.StatSecrets],
+			TotalSecrets:  gameClient.Stats[cl.StatTotalSecrets],
+			Monsters:      gameClient.Stats[cl.StatMonsters],
+			TotalMonsters: gameClient.Stats[cl.StatTotalMonsters],
 		})
 		return
 	}

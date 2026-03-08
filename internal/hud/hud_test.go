@@ -147,6 +147,70 @@ func TestHUDDraw(t *testing.T) {
 	}
 }
 
+func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.SetState(State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          11,
+	})
+	active := &mockRenderContext{}
+	h.Draw(active)
+	if len(active.fills) <= 2 {
+		t.Fatalf("expected centerprint box fills while active, got %d fills", len(active.fills))
+	}
+
+	h.SetState(State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          13.1,
+	})
+	expired := &mockRenderContext{}
+	h.Draw(expired)
+	if len(expired.fills) != 2 {
+		t.Fatalf("expected only status bar fills after centerprint expiry, got %d", len(expired.fills))
+	}
+}
+
+func TestHUDIntermissionOverlaySuppressesStatusBar(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.SetState(State{
+		Intermission:  1,
+		CompletedTime: 125,
+		LevelName:     "Unit Test Map",
+		Secrets:       2,
+		TotalSecrets:  4,
+		Monsters:      5,
+		TotalMonsters: 8,
+	})
+	mock := &mockRenderContext{}
+	h.Draw(mock)
+	if len(mock.fills) != 0 {
+		t.Fatalf("expected no status-bar fill draws during intermission, got %d", len(mock.fills))
+	}
+	if len(mock.characters) == 0 {
+		t.Fatal("expected intermission overlay text draw")
+	}
+}
+
+func TestHUDFinaleOverlayShowsCenterTextWithoutTimeout(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.SetState(State{
+		Intermission:  2,
+		CenterPrint:   "Finale line",
+		CenterPrintAt: 1,
+		Time:          100,
+	})
+	mock := &mockRenderContext{}
+	h.Draw(mock)
+	if len(mock.characters) == 0 {
+		t.Fatal("expected finale center text draw")
+	}
+}
+
 func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
 	weaponOwned := &image.QPic{Width: 24, Height: 16}
 	weaponActive := &image.QPic{Width: 24, Height: 16}

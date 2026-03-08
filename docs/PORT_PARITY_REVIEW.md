@@ -30,7 +30,7 @@ A useful way to think about the current tree is:
 | Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local `connect`/`disconnect` session transitions | remote connection flow is still stubbed |
 | OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, and external skybox consumption via cubemap/per-face paths | exact render-pass ordering and fuller sprite-orientation fidelity still differ from C |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
-| Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
+| Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration, and bounded intermission/finale/cutscene + centerprint runtime overlay wiring | remote connection flow and finer intermission text-reveal/scoreboard polish still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
 | Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, in-game console UI, history/completion, bind persistence, Quake-style alias commands, menu-space text scaling for text-only prompts, and a base-game classic status-bar HUD path with weapon strip, ammo strip, key/powerup/sigil icons, and armor/face/ammo icon helpers | multiplayer/options submenus still TODO and HUD parity still lacks special-case overlays/expansion-pack variants |
 | Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, C-style `nomonsters`/intermission/dead-player restrictions, stop-all sound teardown on local load/map/reconnect-style transitions, and local loading-plaque overlay visibility for load/reconnect | broader C search behavior and remote connect/reconnect loading UX are still missing |
@@ -210,7 +210,7 @@ What already works:
 
 #### Remaining client/runtime divergences
 
-- special intermission / finale / cutscene handling is parsed into client state but not yet turned into full C-style runtime/UI flow
+- bounded intermission / finale / cutscene overlay flow now runs in the live HUD path (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay and `gfx/finale.lmp` + center text), but fuller C polish (score/deathmatch overlays, char-by-char centerprint reveal timing) is still pending
 - remote `connect` flow is still incomplete (Go now prints an explicit unsupported message rather than pretending success), and reconnect/loading UX outside the local loopback path is still missing even though local transition audio teardown/plaque behavior is now in place
 
 ### Exact C behavior still missing or not fully matched
@@ -316,7 +316,7 @@ What is already present:
 
 - multiplayer submenu selections still only emit TODO `echo` commands (`join game`, `host game`, `player setup`)
 - options submenu still only has one real action (`toggle vid_vsync`); controls/video/audio are placeholders
-- the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers), but it still omits expansion-pack special cases, pickup flash timing polish, and score/intermission overlays
+- the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers) plus a bounded live intermission/finale/cutscene overlay path, but it still omits expansion-pack special cases, pickup flash timing polish, deathmatch score overlays, and char-by-char centerprint reveal fidelity
 - the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
 - the HUD and option/menu surfaces still expose much less functionality than the C engine
 - `Host.WriteConfig()` now writes binds plus archived cvars, but it still does not append the extra state-preserving commands the C engine can emit

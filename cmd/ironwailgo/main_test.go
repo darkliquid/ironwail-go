@@ -1483,7 +1483,17 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	gameClient.Stats[cl.StatNails] = 20
 	gameClient.Stats[cl.StatRockets] = 30
 	gameClient.Stats[cl.StatCells] = 40
+	gameClient.Stats[11] = 9
+	gameClient.Stats[12] = 66
+	gameClient.Stats[13] = 3
+	gameClient.Stats[14] = 12
 	gameClient.Items = cl.ItemRocketLauncher | cl.ItemRockets | cl.ItemArmor2 | cl.ItemQuad
+	gameClient.Intermission = 2
+	gameClient.CompletedTime = 123
+	gameClient.Time = 124
+	gameClient.CenterPrint = "The End"
+	gameClient.CenterPrintAt = 120
+	gameClient.LevelName = "Unit Test Map"
 
 	updateHUDFromServer()
 
@@ -1499,6 +1509,15 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	}
 	if got.Items != gameClient.Items {
 		t.Fatalf("hud items = %#x, want %#x", got.Items, gameClient.Items)
+	}
+	if got.Intermission != 2 || got.CompletedTime != 123 || got.Time != 124 {
+		t.Fatalf("hud intermission state = %#v", got)
+	}
+	if got.CenterPrint != "The End" || got.CenterPrintAt != 120 || got.LevelName != "Unit Test Map" {
+		t.Fatalf("hud center/intermission text state = %#v", got)
+	}
+	if got.Secrets != 3 || got.TotalSecrets != 9 || got.Monsters != 12 || got.TotalMonsters != 66 {
+		t.Fatalf("hud intermission stats = %#v", got)
 	}
 }
 

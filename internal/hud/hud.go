@@ -38,6 +38,18 @@ type State struct {
 	Rockets      int
 	Cells        int
 	Items        uint32
+
+	Intermission    int
+	CompletedTime   float64
+	Time            float64
+	CenterPrint     string
+	CenterPrintAt   float64
+	CenterPrintHold float64
+	LevelName       string
+	Secrets         int
+	TotalSecrets    int
+	Monsters        int
+	TotalMonsters   int
 }
 
 // NewHUD creates a new HUD instance.
@@ -72,10 +84,10 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 	}
 
 	// Draw status bar at bottom of screen
-	h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
-
-	// Draw centerprint message if active
-	h.centerprint.Draw(rc, h.screenWidth, h.screenHeight)
+	if h.state.Intermission == 0 {
+		h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+	}
+	h.centerprint.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 }
 
 // SetCenterprint displays a centered message for the specified duration.

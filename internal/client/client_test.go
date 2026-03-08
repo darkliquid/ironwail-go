@@ -559,6 +559,9 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 	if c.CenterPrint != "centered" {
 		t.Fatalf("centerprint = %q, want centered", c.CenterPrint)
 	}
+	if c.CenterPrintAt != c.Time {
+		t.Fatalf("centerprint at = %f, want %f", c.CenterPrintAt, c.Time)
+	}
 	if !c.Paused {
 		t.Fatal("paused = false, want true")
 	}
@@ -584,6 +587,38 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 	}
 	if got := c.ParticleEvents[0]; got.Origin != [3]float32{4, 5, 6} || got.Dir != [3]float32{1, -1, 0.5} || got.Count != 1024 || got.Color != 99 {
 		t.Fatalf("particle event = %+v", got)
+	}
+}
+
+func TestParseFinaleCutScenePreservesCenterText(t *testing.T) {
+	c := NewClient()
+	c.Time = 12.5
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCFinale))
+	msg.WriteString("Finale text")
+	msg.WriteByte(0)
+	msg.WriteByte(byte(inet.SVCCutScene))
+	msg.WriteString("Cutscene text")
+	msg.WriteByte(0)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if c.Intermission != 3 {
+		t.Fatalf("intermission = %d, want 3", c.Intermission)
+	}
+	if c.CenterPrint != "Cutscene text" {
+		t.Fatalf("centerprint = %q, want cutscene text", c.CenterPrint)
+	}
+	if c.CenterPrintAt != 12.5 {
+		t.Fatalf("centerprint at = %f, want 12.5", c.CenterPrintAt)
+	}
+	if c.CompletedTime != 12.5 {
+		t.Fatalf("completed time = %f, want 12.5", c.CompletedTime)
 	}
 }
 

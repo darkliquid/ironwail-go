@@ -186,13 +186,14 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 - replace TODO submenu actions for join/host/player setup/controls/video/audio
 - wire real menu actions into cvars/commands
 - [x] bounded `hud-statusbar-icons` parity slice: thread live client HUD stats/items into `hud.State` and render a base-Quake classic status bar (`sbar`/`ibar`) with weapon strip, ammo counts strip, keys/powerups/sigils, armor+face+ammo icons, and numeric readouts
+- [x] bounded `intermission-cutscene-parity` slice: preserve parsed finale/cutscene strings in live client state, feed live centerprint/intermission state into runtime HUD overlay flow, and render base-Quake intermission (`gfx/complete.lmp` + `gfx/inter.lmp` + map/time/secrets/monsters) plus finale/cutscene (`gfx/finale.lmp` + center text) overlays on the canonical runtime path (static text draw, no char-by-char reveal yet)
 - [x] route menu key handling from key-down events only (avoid doubled cursor movement and double-fired one-shot menu actions on key release)
 - [x] render menu text/cursor glyphs through menu-space scaling so text-only prompts (for example quit y/n) align with image-backed menu layout
 
 **Done when**
 
 - all visible menu entries lead to real functionality
-- the HUD exposes the same gameplay-critical information the C engine does
+- the HUD exposes the same gameplay-critical information the C engine does, including bounded intermission/finale/cutscene overlays
 
 ### 7. Feed the remaining renderable state into the OpenGL renderer
 

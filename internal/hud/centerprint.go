@@ -4,9 +4,12 @@
 package hud
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/draw"
+	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
@@ -14,80 +17,152 @@ import (
 // These are typically used for level completion, key pickups, and important game events.
 type Centerprint struct {
 	drawManager *draw.Manager
-	message     string
-	expiryTime  time.Time
+	completePic *image.QPic
+	interPic    *image.QPic
+	finalePic   *image.QPic
+
+	manualMessage string
+	manualExpiry  time.Time
 }
 
 // NewCenterprint creates a new centerprint manager.
 func NewCenterprint(dm *draw.Manager) *Centerprint {
-	return &Centerprint{
-		drawManager: dm,
+	cp := &Centerprint{drawManager: dm}
+	if dm != nil {
+		cp.completePic = dm.GetPic("gfx/complete.lmp")
+		cp.interPic = dm.GetPic("gfx/inter.lmp")
+		cp.finalePic = dm.GetPic("gfx/finale.lmp")
 	}
+	return cp
 }
 
 // SetMessage displays a centered message for the specified duration.
 func (cp *Centerprint) SetMessage(message string, duration time.Duration) {
-	cp.message = message
-	cp.expiryTime = time.Now().Add(duration)
+	cp.manualMessage = message
+	cp.manualExpiry = time.Now().Add(duration)
 }
 
 // Clear removes any active centerprint message.
 func (cp *Centerprint) Clear() {
-	cp.message = ""
-	cp.expiryTime = time.Time{}
+	cp.manualMessage = ""
+	cp.manualExpiry = time.Time{}
 }
 
 // IsActive returns true if there's an active centerprint message.
 func (cp *Centerprint) IsActive() bool {
-	return cp.message != "" && time.Now().Before(cp.expiryTime)
+	return cp.manualMessage != "" && time.Now().Before(cp.manualExpiry)
 }
 
-// Draw renders the centerprint if active.
-func (cp *Centerprint) Draw(rc renderer.RenderContext, screenWidth, screenHeight int) {
-	if rc == nil || !cp.IsActive() {
+// Draw renders centerprint/intermission/finale overlays.
+func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
+	if rc == nil {
 		return
 	}
 
-	// Check if message has expired
-	if time.Now().After(cp.expiryTime) {
-		cp.Clear()
+	switch state.Intermission {
+	case 1:
+		cp.drawIntermissionOverlay(rc, state, screenWidth)
+		return
+	case 2, 3:
+		cp.drawFinaleOverlay(rc, state, screenWidth, screenHeight)
 		return
 	}
 
-	// Calculate position (center of screen)
-	// For MVP, draw a simple background box
-	msgLen := len(cp.message)
-	if msgLen == 0 {
+	message := cp.activeCenterText(state)
+	if message == "" {
 		return
 	}
+	cp.drawTextBlock(rc, message, screenWidth, screenHeight/3, true)
+}
 
-	// Approximate text width (8 pixels per character at 320 scale)
-	scale := float32(screenWidth) / 320.0
-	if scale < 1 {
-		scale = 1
+func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state State, screenWidth int) {
+	baseX := (screenWidth - 320) / 2
+	if cp.completePic != nil {
+		rc.DrawPic(baseX+(320-int(cp.completePic.Width))/2, 24, cp.completePic)
+	}
+	if cp.interPic != nil {
+		rc.DrawPic(baseX+(320-int(cp.interPic.Width))/2, 56, cp.interPic)
 	}
 
-	boxWidth := int(float32(msgLen+2) * 8 * scale)
-	boxHeight := int(24 * scale)
-	boxX := (screenWidth - boxWidth) / 2
-	boxY := screenHeight/2 - boxHeight/2
-
-	// Draw semi-transparent background (palette index 0 = black)
-	rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
-
-	// Draw border (palette index 15 = bright white)
-	borderWidth := 2
-	rc.DrawFill(boxX, boxY, boxWidth, borderWidth, 15)
-	rc.DrawFill(boxX, boxY+boxHeight-borderWidth, boxWidth, borderWidth, 15)
-	rc.DrawFill(boxX, boxY, borderWidth, boxHeight, 15)
-	rc.DrawFill(boxX+boxWidth-borderWidth, boxY, borderWidth, boxHeight, 15)
-
-	// Render each character of the message centered in the box
-	charW := int(8 * scale)
-	textWidth := msgLen * charW
-	textX := (screenWidth - textWidth) / 2
-	textY := boxY + int(8*scale)
-	for i, ch := range cp.message {
-		rc.DrawCharacter(textX+i*charW, textY, int(ch))
+	if state.LevelName != "" {
+		cp.drawTextBlock(rc, state.LevelName, screenWidth, 80, false)
 	}
+
+	const rowX = 72
+	const rowValueX = 184
+	rowY := 128
+	DrawString(rc, baseX+rowX, rowY, "time")
+	DrawString(rc, baseX+rowValueX, rowY, formatIntermissionTime(state.CompletedTime))
+	rowY += 16
+	DrawString(rc, baseX+rowX, rowY, "secrets")
+	DrawString(rc, baseX+rowValueX, rowY, fmt.Sprintf("%d/%d", state.Secrets, state.TotalSecrets))
+	rowY += 16
+	DrawString(rc, baseX+rowX, rowY, "monsters")
+	DrawString(rc, baseX+rowValueX, rowY, fmt.Sprintf("%d/%d", state.Monsters, state.TotalMonsters))
+}
+
+func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
+	if cp.finalePic != nil {
+		rc.DrawPic((screenWidth-int(cp.finalePic.Width))/2, 16, cp.finalePic)
+	}
+	text := cp.activeCenterText(state)
+	if text == "" {
+		return
+	}
+	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, false)
+}
+
+func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, boxed bool) {
+	lines := strings.Split(strings.ReplaceAll(message, "\r\n", "\n"), "\n")
+	maxChars := 0
+	for _, line := range lines {
+		if len(line) > maxChars {
+			maxChars = len(line)
+		}
+	}
+	if maxChars == 0 {
+		return
+	}
+	if boxed {
+		boxWidth := (maxChars + 2) * 8
+		boxHeight := len(lines)*8 + 8
+		boxX := (screenWidth - boxWidth) / 2
+		boxY := y - 4
+		rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
+		rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
+		rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
+		rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
+		rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
+	}
+	for i, line := range lines {
+		x := (screenWidth - len(line)*8) / 2
+		DrawString(rc, x, y+i*8, line)
+	}
+}
+
+func (cp *Centerprint) activeCenterText(state State) string {
+	if state.CenterPrint != "" {
+		if state.Intermission == 2 || state.Intermission == 3 {
+			return state.CenterPrint
+		}
+		hold := state.CenterPrintHold
+		if hold <= 0 {
+			hold = 2
+		}
+		if state.Time-state.CenterPrintAt <= hold {
+			return state.CenterPrint
+		}
+	}
+	if cp.IsActive() {
+		return cp.manualMessage
+	}
+	return ""
+}
+
+func formatIntermissionTime(seconds float64) string {
+	total := int(seconds)
+	if total < 0 {
+		total = 0
+	}
+	return fmt.Sprintf("%d:%02d", total/60, total%60)
 }
