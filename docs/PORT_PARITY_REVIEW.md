@@ -300,6 +300,7 @@ What is already present:
 
 - menu state machine for main, single-player, load, save, multiplayer, options, help, and quit screens
 - real menu navigation and command queuing for new game / load / save / help / quit flows
+- menu key routing now fires on key-down events only, matching C's `Key_Event(..., down=true)` menu path and preventing release-edge double navigation/actions
 - a basic Quake-style HUD with status bar and centerprint support
 - a real console text buffer with scrollback, resize behavior, notify lines, and debug logging
 - input destination routing (`KeyGame`, `KeyMenu`, `KeyConsole`, `KeyMessage`)

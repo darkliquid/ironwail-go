@@ -184,6 +184,7 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 - replace TODO submenu actions for join/host/player setup/controls/video/audio
 - wire real menu actions into cvars/commands
 - extend the HUD toward `sbar.c` behavior: inventory, face state, keys, weapon strip, ammo icons, powerup indicators, and other missing status elements
+- [x] route menu key handling from key-down events only (avoid doubled cursor movement and double-fired one-shot menu actions on key release)
 
 **Done when**
 

@@ -1587,6 +1587,65 @@ func TestToggleConsoleClosesMenuAndSwitchesKeyDest(t *testing.T) {
 	}
 }
 
+func TestMenuTapDownMovesCursorOnce(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameMenu.ShowMenu()
+	gameInput.SetKeyDest(input.KeyMenu)
+	gameInput.OnMenuKey = handleMenuKeyEvent
+
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: false})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: false})
+
+	if got := gameMenu.GetState(); got != menu.MenuMultiPlayer {
+		t.Fatalf("menu state after down+enter tap = %v, want %v", got, menu.MenuMultiPlayer)
+	}
+}
+
+func TestMenuTapEscapeFromSubmenuReturnsToMain(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameMenu.ShowMenu()
+	gameInput.SetKeyDest(input.KeyMenu)
+	gameInput.OnMenuKey = handleMenuKeyEvent
+
+	// Enter multiplayer menu.
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: false})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: false})
+
+	if got := gameMenu.GetState(); got != menu.MenuMultiPlayer {
+		t.Fatalf("menu state after entering submenu = %v, want %v", got, menu.MenuMultiPlayer)
+	}
+
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: false})
+
+	if !gameMenu.IsActive() {
+		t.Fatalf("menu should remain active after escape tap from submenu")
+	}
+	if got := gameMenu.GetState(); got != menu.MenuMain {
+		t.Fatalf("menu state after escape tap = %v, want %v", got, menu.MenuMain)
+	}
+}
+
 func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	originalInput := gameInput
 	originalMenu := gameMenu

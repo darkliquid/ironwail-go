@@ -200,9 +200,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	gameMenu = menu.NewManager(gameDraw, gameInput)
 
 	// Set up menu input callbacks
-	gameInput.OnMenuKey = func(event input.KeyEvent) {
-		gameMenu.M_Key(event.Key)
-	}
+	gameInput.OnMenuKey = handleMenuKeyEvent
 	gameInput.OnKey = handleGameKeyEvent
 	gameInput.OnChar = handleGameCharEvent
 
@@ -1356,6 +1354,13 @@ func handleGameKeyEvent(event input.KeyEvent) {
 	if event.Down {
 		cmdsys.ExecuteText(binding)
 	}
+}
+
+func handleMenuKeyEvent(event input.KeyEvent) {
+	if !event.Down || gameMenu == nil {
+		return
+	}
+	gameMenu.M_Key(event.Key)
 }
 
 func handleGameCharEvent(ch rune) {

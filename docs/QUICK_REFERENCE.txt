@@ -33,6 +33,7 @@ B. ENTITY RENDERING        [████████████████░�
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
+   - Menu key routing: DONE (menu actions now trigger on key-down only; key-up no longer double-fires)
    - Submenus: 6× stub (all echo TODO)
    - Key bindings and config persistence: DONE
    - Console UI/history/completion: DONE (includes command/cvar/alias completion)
