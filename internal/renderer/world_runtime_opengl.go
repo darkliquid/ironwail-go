@@ -152,6 +152,61 @@ void main() {
 	result.rgb = mix(result.rgb, uFogColor, uFogDensity);
 	fragColor = result;
 }`
+
+	worldSkyExternalFaceFragmentShaderGL = `#version 410 core
+in vec3 vDir;
+out vec4 fragColor;
+
+uniform sampler2D uSkyRT;
+uniform sampler2D uSkyBK;
+uniform sampler2D uSkyLF;
+uniform sampler2D uSkyFT;
+uniform sampler2D uSkyUP;
+uniform sampler2D uSkyDN;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+
+vec4 sampleExternalSky(vec3 dir) {
+	vec3 absDir = abs(dir);
+	float ma;
+	vec2 uv;
+	vec4 sampleColor;
+	if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
+		ma = absDir.x;
+		if (dir.x > 0.0) {
+			uv = vec2((-dir.z / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
+			sampleColor = texture(uSkyFT, uv);
+		} else {
+			uv = vec2((dir.z / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
+			sampleColor = texture(uSkyBK, uv);
+		}
+	} else if (absDir.y >= absDir.x && absDir.y >= absDir.z) {
+		ma = absDir.y;
+		if (dir.y > 0.0) {
+			uv = vec2((dir.x / ma + 1.0) * 0.5, (dir.z / ma + 1.0) * 0.5);
+			sampleColor = texture(uSkyUP, uv);
+		} else {
+			uv = vec2((dir.x / ma + 1.0) * 0.5, (-dir.z / ma + 1.0) * 0.5);
+			sampleColor = texture(uSkyDN, uv);
+		}
+	} else {
+		ma = absDir.z;
+		if (dir.z > 0.0) {
+			uv = vec2((dir.x / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
+			sampleColor = texture(uSkyRT, uv);
+		} else {
+			uv = vec2((-dir.x / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
+			sampleColor = texture(uSkyLF, uv);
+		}
+	}
+	return sampleColor;
+}
+
+void main() {
+	vec4 result = sampleExternalSky(normalize(vDir));
+	result.rgb = mix(result.rgb, uFogColor, uFogDensity);
+	fragColor = result;
+}`
 )
 
 type worldRenderPass int
@@ -331,6 +386,32 @@ func (r *Renderer) ensureWorldSkyPrograms() error {
 		r.worldSkyCubemapCameraOriginUniform = gl.GetUniformLocation(cubemapProgram, gl.Str("uCameraOrigin\x00"))
 		r.worldSkyCubemapFogColorUniform = gl.GetUniformLocation(cubemapProgram, gl.Str("uFogColor\x00"))
 		r.worldSkyCubemapFogDensityUniform = gl.GetUniformLocation(cubemapProgram, gl.Str("uFogDensity\x00"))
+	}
+	if r.worldSkyExternalFaceProgram == 0 {
+		vsExternalFaces, err := compileShader(worldSkyCubemapVertexShaderGL, gl.VERTEX_SHADER)
+		if err != nil {
+			return fmt.Errorf("compile world sky external-face vertex shader: %w", err)
+		}
+		fsExternalFaces, err := compileShader(worldSkyExternalFaceFragmentShaderGL, gl.FRAGMENT_SHADER)
+		if err != nil {
+			gl.DeleteShader(vsExternalFaces)
+			return fmt.Errorf("compile world sky external-face fragment shader: %w", err)
+		}
+		externalFaceProgram := createProgram(vsExternalFaces, fsExternalFaces)
+		r.worldSkyExternalFaceProgram = externalFaceProgram
+		r.worldSkyExternalFaceVPUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uViewProjection\x00"))
+		r.worldSkyExternalFaceRTUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uSkyRT\x00"))
+		r.worldSkyExternalFaceBKUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uSkyBK\x00"))
+		r.worldSkyExternalFaceLFUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uSkyLF\x00"))
+		r.worldSkyExternalFaceFTUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uSkyFT\x00"))
+		r.worldSkyExternalFaceUPUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uSkyUP\x00"))
+		r.worldSkyExternalFaceDNUniform = gl.GetUniformLocation(externalFaceProgram, gl.Str("uSkyDN\x00"))
+		r.worldSkyExternalFaceModelOffset = gl.GetUniformLocation(externalFaceProgram, gl.Str("uModelOffset\x00"))
+		r.worldSkyExternalFaceModelRotation = gl.GetUniformLocation(externalFaceProgram, gl.Str("uModelRotation\x00"))
+		r.worldSkyExternalFaceModelScale = gl.GetUniformLocation(externalFaceProgram, gl.Str("uModelScale\x00"))
+		r.worldSkyExternalFaceCameraOrigin = gl.GetUniformLocation(externalFaceProgram, gl.Str("uCameraOrigin\x00"))
+		r.worldSkyExternalFaceFogColor = gl.GetUniformLocation(externalFaceProgram, gl.Str("uFogColor\x00"))
+		r.worldSkyExternalFaceFogDensity = gl.GetUniformLocation(externalFaceProgram, gl.Str("uFogDensity\x00"))
 	}
 	return nil
 }
@@ -714,11 +795,51 @@ func uploadSkyboxCubemap(faces [6]externalSkyboxFace, faceSize int) uint32 {
 	return cubemap
 }
 
+func uploadSkyboxFaceTextures(faces [6]externalSkyboxFace) (textures [6]uint32, ok bool) {
+	fallbackPixel := [4]byte{0, 0, 0, 255}
+	for i := range textures {
+		gl.GenTextures(1, &textures[i])
+		if textures[i] == 0 {
+			for j := 0; j < i; j++ {
+				if textures[j] != 0 {
+					gl.DeleteTextures(1, &textures[j])
+					textures[j] = 0
+				}
+			}
+			return textures, false
+		}
+		gl.BindTexture(gl.TEXTURE_2D, textures[i])
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+		face := faces[i]
+		width := face.Width
+		height := face.Height
+		data := face.RGBA
+		if width <= 0 || height <= 0 || len(data) != width*height*4 {
+			width, height = 1, 1
+			data = fallbackPixel[:]
+		}
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(data))
+	}
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	return textures, true
+}
+
 func (r *Renderer) clearExternalSkyboxLocked() {
 	if r.worldSkyExternalCubemap != 0 {
 		gl.DeleteTextures(1, &r.worldSkyExternalCubemap)
 		r.worldSkyExternalCubemap = 0
 	}
+	for i := range r.worldSkyExternalFaceTextures {
+		if r.worldSkyExternalFaceTextures[i] != 0 {
+			gl.DeleteTextures(1, &r.worldSkyExternalFaceTextures[i])
+			r.worldSkyExternalFaceTextures[i] = 0
+		}
+	}
+	r.worldSkyExternalMode = externalSkyboxRenderEmbedded
 	r.worldSkyExternalName = ""
 }
 
@@ -736,9 +857,7 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 
 	faces, loaded := loadExternalSkyboxFaces(normalized, loadFile)
 	faceSize, cubemapEligible := externalSkyboxCubemapFaceSize(faces, loaded)
-	if loaded > 0 && !cubemapEligible {
-		slog.Debug("external skybox fallback to embedded sky", "name", normalized, "loadedFaces", loaded)
-	}
+	renderMode := selectExternalSkyboxRenderMode(loaded, cubemapEligible)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -747,15 +866,27 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 	}
 
 	r.clearExternalSkyboxLocked()
-	if normalized == "" || !cubemapEligible {
+	if normalized == "" || renderMode == externalSkyboxRenderEmbedded {
 		return
 	}
-	cubemap := uploadSkyboxCubemap(faces, faceSize)
-	if cubemap == 0 {
-		slog.Debug("external skybox upload failed; falling back to embedded sky", "name", normalized)
+	if renderMode == externalSkyboxRenderCubemap {
+		cubemap := uploadSkyboxCubemap(faces, faceSize)
+		if cubemap == 0 {
+			slog.Debug("external skybox cubemap upload failed; falling back to embedded sky", "name", normalized)
+			return
+		}
+		r.worldSkyExternalCubemap = cubemap
+		r.worldSkyExternalMode = externalSkyboxRenderCubemap
+		r.worldSkyExternalName = normalized
 		return
 	}
-	r.worldSkyExternalCubemap = cubemap
+	faceTextures, ok := uploadSkyboxFaceTextures(faces)
+	if !ok {
+		slog.Debug("external skybox face upload failed; falling back to embedded sky", "name", normalized)
+		return
+	}
+	r.worldSkyExternalFaceTextures = faceTextures
+	r.worldSkyExternalMode = externalSkyboxRenderFaces
 	r.worldSkyExternalName = normalized
 }
 
@@ -951,6 +1082,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	program := r.worldProgram
 	skyProgram := r.worldSkyProgram
 	skyCubemapProgram := r.worldSkyCubemapProgram
+	skyExternalFaceProgram := r.worldSkyExternalFaceProgram
 	vao := r.worldVAO
 	indexCount := r.worldIndexCount
 	vp := r.viewMatrices.VP
@@ -972,22 +1104,37 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	skyAlphaUniform := r.worldSkyAlphaUniform
 	skyCubemapVPUniform := r.worldSkyCubemapVPUniform
 	skyCubemapUniform := r.worldSkyCubemapUniform
+	skyExternalFaceVPUniform := r.worldSkyExternalFaceVPUniform
+	skyExternalFaceRTUniform := r.worldSkyExternalFaceRTUniform
+	skyExternalFaceBKUniform := r.worldSkyExternalFaceBKUniform
+	skyExternalFaceLFUniform := r.worldSkyExternalFaceLFUniform
+	skyExternalFaceFTUniform := r.worldSkyExternalFaceFTUniform
+	skyExternalFaceUPUniform := r.worldSkyExternalFaceUPUniform
+	skyExternalFaceDNUniform := r.worldSkyExternalFaceDNUniform
 	skyModelOffsetUniform := r.worldSkyModelOffsetUniform
 	skyModelRotationUniform := r.worldSkyModelRotationUniform
 	skyModelScaleUniform := r.worldSkyModelScaleUniform
 	skyCubemapModelOffsetUniform := r.worldSkyCubemapModelOffsetUniform
 	skyCubemapModelRotationUniform := r.worldSkyCubemapModelRotationUniform
 	skyCubemapModelScaleUniform := r.worldSkyCubemapModelScaleUniform
+	skyExternalFaceModelOffsetUniform := r.worldSkyExternalFaceModelOffset
+	skyExternalFaceModelRotationUniform := r.worldSkyExternalFaceModelRotation
+	skyExternalFaceModelScaleUniform := r.worldSkyExternalFaceModelScale
 	skyTimeUniform := r.worldSkyTimeUniform
 	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
 	skyCubemapCameraOriginUniform := r.worldSkyCubemapCameraOriginUniform
+	skyExternalFaceCameraOriginUniform := r.worldSkyExternalFaceCameraOrigin
 	skyFogColorUniform := r.worldSkyFogColorUniform
 	skyCubemapFogColorUniform := r.worldSkyCubemapFogColorUniform
+	skyExternalFaceFogColorUniform := r.worldSkyExternalFaceFogColor
 	skyFogDensityUniform := r.worldSkyFogDensityUniform
 	skyCubemapFogDensityUniform := r.worldSkyCubemapFogDensityUniform
+	skyExternalFaceFogDensityUniform := r.worldSkyExternalFaceFogDensity
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
 	skyExternalCubemap := r.worldSkyExternalCubemap
+	skyExternalFaceTextures := r.worldSkyExternalFaceTextures
+	skyExternalMode := r.worldSkyExternalMode
 	fallbackLightmap := r.worldLightmapFallback
 	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
 	skyFogOverride := r.worldSkyFogOverride
@@ -1015,7 +1162,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	lightPool := r.lightPool // Get light pool for light evaluation
 	r.mu.RUnlock()
 
-	if program == 0 || skyProgram == 0 || skyCubemapProgram == 0 || vao == 0 || indexCount <= 0 {
+	if program == 0 || skyProgram == 0 || skyCubemapProgram == 0 || skyExternalFaceProgram == 0 || vao == 0 || indexCount <= 0 {
 		return
 	}
 
@@ -1063,19 +1210,32 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				alphaUniform:                skyAlphaUniform,
 				cubemapVPUniform:            skyCubemapVPUniform,
 				cubemapUniform:              skyCubemapUniform,
+				externalFaceVPUniform:       skyExternalFaceVPUniform,
+				externalFaceRTUniform:       skyExternalFaceRTUniform,
+				externalFaceBKUniform:       skyExternalFaceBKUniform,
+				externalFaceLFUniform:       skyExternalFaceLFUniform,
+				externalFaceFTUniform:       skyExternalFaceFTUniform,
+				externalFaceUPUniform:       skyExternalFaceUPUniform,
+				externalFaceDNUniform:       skyExternalFaceDNUniform,
 				modelOffsetUniform:          skyModelOffsetUniform,
 				modelRotationUniform:        skyModelRotationUniform,
 				modelScaleUniform:           skyModelScaleUniform,
 				cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
 				cubemapModelRotationUniform: skyCubemapModelRotationUniform,
 				cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
+				externalFaceModelOffset:     skyExternalFaceModelOffsetUniform,
+				externalFaceModelRotation:   skyExternalFaceModelRotationUniform,
+				externalFaceModelScale:      skyExternalFaceModelScaleUniform,
 				timeUniform:                 skyTimeUniform,
 				cameraOriginUniform:         skyCameraOriginUniform,
 				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
+				externalFaceCameraOrigin:    skyExternalFaceCameraOriginUniform,
 				fogColorUniform:             skyFogColorUniform,
 				cubemapFogColorUniform:      skyCubemapFogColorUniform,
+				externalFaceFogColor:        skyExternalFaceFogColorUniform,
 				fogDensityUniform:           skyFogDensityUniform,
 				cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
+				externalFaceFogDensity:      skyExternalFaceFogDensityUniform,
 				vp:                          vp,
 				time:                        camera.Time,
 				cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
@@ -1089,7 +1249,10 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				textureAnimations:           worldTextureAnimations,
 				fallbackSolid:               fallbackTexture,
 				fallbackAlpha:               skyFallbackAlpha,
+				externalFaceProgram:         skyExternalFaceProgram,
 				externalCubemap:             skyExternalCubemap,
+				externalFaceTextures:        skyExternalFaceTextures,
+				externalSkyMode:             skyExternalMode,
 			})
 			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindWorldProgram()
@@ -1131,6 +1294,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	program := r.worldProgram
 	skyProgram := r.worldSkyProgram
 	skyCubemapProgram := r.worldSkyCubemapProgram
+	skyExternalFaceProgram := r.worldSkyExternalFaceProgram
 	vp := r.viewMatrices.VP
 	camera := r.cameraState
 	vpUniform := r.worldVPUniform
@@ -1150,22 +1314,37 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skyAlphaUniform := r.worldSkyAlphaUniform
 	skyCubemapVPUniform := r.worldSkyCubemapVPUniform
 	skyCubemapUniform := r.worldSkyCubemapUniform
+	skyExternalFaceVPUniform := r.worldSkyExternalFaceVPUniform
+	skyExternalFaceRTUniform := r.worldSkyExternalFaceRTUniform
+	skyExternalFaceBKUniform := r.worldSkyExternalFaceBKUniform
+	skyExternalFaceLFUniform := r.worldSkyExternalFaceLFUniform
+	skyExternalFaceFTUniform := r.worldSkyExternalFaceFTUniform
+	skyExternalFaceUPUniform := r.worldSkyExternalFaceUPUniform
+	skyExternalFaceDNUniform := r.worldSkyExternalFaceDNUniform
 	skyModelOffsetUniform := r.worldSkyModelOffsetUniform
 	skyModelRotationUniform := r.worldSkyModelRotationUniform
 	skyModelScaleUniform := r.worldSkyModelScaleUniform
 	skyCubemapModelOffsetUniform := r.worldSkyCubemapModelOffsetUniform
 	skyCubemapModelRotationUniform := r.worldSkyCubemapModelRotationUniform
 	skyCubemapModelScaleUniform := r.worldSkyCubemapModelScaleUniform
+	skyExternalFaceModelOffsetUniform := r.worldSkyExternalFaceModelOffset
+	skyExternalFaceModelRotationUniform := r.worldSkyExternalFaceModelRotation
+	skyExternalFaceModelScaleUniform := r.worldSkyExternalFaceModelScale
 	skyTimeUniform := r.worldSkyTimeUniform
 	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
 	skyCubemapCameraOriginUniform := r.worldSkyCubemapCameraOriginUniform
+	skyExternalFaceCameraOriginUniform := r.worldSkyExternalFaceCameraOrigin
 	skyFogColorUniform := r.worldSkyFogColorUniform
 	skyCubemapFogColorUniform := r.worldSkyCubemapFogColorUniform
+	skyExternalFaceFogColorUniform := r.worldSkyExternalFaceFogColor
 	skyFogDensityUniform := r.worldSkyFogDensityUniform
 	skyCubemapFogDensityUniform := r.worldSkyCubemapFogDensityUniform
+	skyExternalFaceFogDensityUniform := r.worldSkyExternalFaceFogDensity
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
 	skyExternalCubemap := r.worldSkyExternalCubemap
+	skyExternalFaceTextures := r.worldSkyExternalFaceTextures
+	skyExternalMode := r.worldSkyExternalMode
 	fallbackLightmap := r.worldLightmapFallback
 	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
 	skyFogOverride := r.worldSkyFogOverride
@@ -1211,7 +1390,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	}
 	r.mu.Unlock()
 
-	if program == 0 || skyProgram == 0 || skyCubemapProgram == 0 || len(brushes) == 0 {
+	if program == 0 || skyProgram == 0 || skyCubemapProgram == 0 || skyExternalFaceProgram == 0 || len(brushes) == 0 {
 		return
 	}
 
@@ -1257,19 +1436,32 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				alphaUniform:                skyAlphaUniform,
 				cubemapVPUniform:            skyCubemapVPUniform,
 				cubemapUniform:              skyCubemapUniform,
+				externalFaceVPUniform:       skyExternalFaceVPUniform,
+				externalFaceRTUniform:       skyExternalFaceRTUniform,
+				externalFaceBKUniform:       skyExternalFaceBKUniform,
+				externalFaceLFUniform:       skyExternalFaceLFUniform,
+				externalFaceFTUniform:       skyExternalFaceFTUniform,
+				externalFaceUPUniform:       skyExternalFaceUPUniform,
+				externalFaceDNUniform:       skyExternalFaceDNUniform,
 				modelOffsetUniform:          skyModelOffsetUniform,
 				modelRotationUniform:        skyModelRotationUniform,
 				modelScaleUniform:           skyModelScaleUniform,
 				cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
 				cubemapModelRotationUniform: skyCubemapModelRotationUniform,
 				cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
+				externalFaceModelOffset:     skyExternalFaceModelOffsetUniform,
+				externalFaceModelRotation:   skyExternalFaceModelRotationUniform,
+				externalFaceModelScale:      skyExternalFaceModelScaleUniform,
 				timeUniform:                 skyTimeUniform,
 				cameraOriginUniform:         skyCameraOriginUniform,
 				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
+				externalFaceCameraOrigin:    skyExternalFaceCameraOriginUniform,
 				fogColorUniform:             skyFogColorUniform,
 				cubemapFogColorUniform:      skyCubemapFogColorUniform,
+				externalFaceFogColor:        skyExternalFaceFogColorUniform,
 				fogDensityUniform:           skyFogDensityUniform,
 				cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
+				externalFaceFogDensity:      skyExternalFaceFogDensityUniform,
 				vp:                          vp,
 				time:                        camera.Time,
 				cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
@@ -1283,7 +1475,10 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				textureAnimations:           worldTextureAnimations,
 				fallbackSolid:               fallbackTexture,
 				fallbackAlpha:               skyFallbackAlpha,
+				externalFaceProgram:         skyExternalFaceProgram,
 				externalCubemap:             skyExternalCubemap,
+				externalFaceTextures:        skyExternalFaceTextures,
+				externalSkyMode:             skyExternalMode,
 				frame:                       brush.frame,
 			})
 			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
@@ -1695,24 +1890,38 @@ func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
 type skyPassState struct {
 	program                     uint32
 	cubemapProgram              uint32
+	externalFaceProgram         uint32
 	vpUniform                   int32
 	solidUniform                int32
 	alphaUniform                int32
 	cubemapVPUniform            int32
 	cubemapUniform              int32
+	externalFaceVPUniform       int32
+	externalFaceRTUniform       int32
+	externalFaceBKUniform       int32
+	externalFaceLFUniform       int32
+	externalFaceFTUniform       int32
+	externalFaceUPUniform       int32
+	externalFaceDNUniform       int32
 	modelOffsetUniform          int32
 	modelRotationUniform        int32
 	modelScaleUniform           int32
 	cubemapModelOffsetUniform   int32
 	cubemapModelRotationUniform int32
 	cubemapModelScaleUniform    int32
+	externalFaceModelOffset     int32
+	externalFaceModelRotation   int32
+	externalFaceModelScale      int32
 	timeUniform                 int32
 	cameraOriginUniform         int32
 	cubemapCameraOriginUniform  int32
+	externalFaceCameraOrigin    int32
 	fogColorUniform             int32
 	cubemapFogColorUniform      int32
+	externalFaceFogColor        int32
 	fogDensityUniform           int32
 	cubemapFogDensityUniform    int32
+	externalFaceFogDensity      int32
 	vp                          [16]float32
 	time                        float32
 	cameraOrigin                [3]float32
@@ -1726,7 +1935,9 @@ type skyPassState struct {
 	textureAnimations           []*SurfaceTexture
 	fallbackSolid               uint32
 	fallbackAlpha               uint32
+	externalSkyMode             externalSkyboxRenderMode
 	externalCubemap             uint32
+	externalFaceTextures        [6]uint32
 	frame                       int
 }
 
@@ -1761,11 +1972,12 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	if len(calls) == 0 {
 		return
 	}
-	if state.program == 0 || state.cubemapProgram == 0 {
-		return
-	}
-	useCubemap := state.externalCubemap != 0
+	useCubemap := state.externalSkyMode == externalSkyboxRenderCubemap && state.externalCubemap != 0
+	useExternalFaces := state.externalSkyMode == externalSkyboxRenderFaces
 	if useCubemap {
+		if state.cubemapProgram == 0 {
+			return
+		}
 		gl.UseProgram(state.cubemapProgram)
 		gl.UniformMatrix4fv(state.cubemapVPUniform, 1, false, &state.vp[0])
 		gl.Uniform1i(state.cubemapUniform, 2)
@@ -1778,7 +1990,33 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 		gl.ActiveTexture(gl.TEXTURE2)
 		gl.BindTexture(gl.TEXTURE_CUBE_MAP, state.externalCubemap)
 		gl.ActiveTexture(gl.TEXTURE0)
+	} else if useExternalFaces {
+		if state.externalFaceProgram == 0 {
+			return
+		}
+		gl.UseProgram(state.externalFaceProgram)
+		gl.UniformMatrix4fv(state.externalFaceVPUniform, 1, false, &state.vp[0])
+		gl.Uniform1i(state.externalFaceRTUniform, 2)
+		gl.Uniform1i(state.externalFaceBKUniform, 3)
+		gl.Uniform1i(state.externalFaceLFUniform, 4)
+		gl.Uniform1i(state.externalFaceFTUniform, 5)
+		gl.Uniform1i(state.externalFaceUPUniform, 6)
+		gl.Uniform1i(state.externalFaceDNUniform, 7)
+		gl.Uniform3f(state.externalFaceModelOffset, state.modelOffset[0], state.modelOffset[1], state.modelOffset[2])
+		gl.UniformMatrix4fv(state.externalFaceModelRotation, 1, false, &state.modelRotation[0])
+		gl.Uniform1f(state.externalFaceModelScale, state.modelScale)
+		gl.Uniform3f(state.externalFaceCameraOrigin, state.cameraOrigin[0], state.cameraOrigin[1], state.cameraOrigin[2])
+		gl.Uniform3f(state.externalFaceFogColor, state.fogColor[0], state.fogColor[1], state.fogColor[2])
+		gl.Uniform1f(state.externalFaceFogDensity, state.fogDensity)
+		for i, texture := range state.externalFaceTextures {
+			gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
+			gl.BindTexture(gl.TEXTURE_2D, texture)
+		}
+		gl.ActiveTexture(gl.TEXTURE0)
 	} else {
+		if state.program == 0 {
+			return
+		}
 		gl.UseProgram(state.program)
 		gl.UniformMatrix4fv(state.vpUniform, 1, false, &state.vp[0])
 		gl.Uniform1i(state.solidUniform, 0)
@@ -1798,7 +2036,7 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	gl.Disable(gl.BLEND)
 
 	for _, call := range calls {
-		if !useCubemap {
+		if !useCubemap && !useExternalFaces {
 			solid, alpha := worldSkyTexturesForFace(
 				call.face,
 				state.solidTextures,
@@ -1820,6 +2058,12 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	if useCubemap {
 		gl.ActiveTexture(gl.TEXTURE2)
 		gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
+		gl.ActiveTexture(gl.TEXTURE0)
+	} else if useExternalFaces {
+		for i := range state.externalFaceTextures {
+			gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+		}
 		gl.ActiveTexture(gl.TEXTURE0)
 	}
 
@@ -2441,6 +2685,10 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteProgram(r.worldSkyCubemapProgram)
 		r.worldSkyCubemapProgram = 0
 	}
+	if r.worldSkyExternalFaceProgram != 0 {
+		gl.DeleteProgram(r.worldSkyExternalFaceProgram)
+		r.worldSkyExternalFaceProgram = 0
+	}
 	for idx, mesh := range r.brushModels {
 		if mesh != nil {
 			mesh.destroy()
@@ -2489,6 +2737,12 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteTextures(1, &r.worldSkyExternalCubemap)
 		r.worldSkyExternalCubemap = 0
 	}
+	for i := range r.worldSkyExternalFaceTextures {
+		if r.worldSkyExternalFaceTextures[i] != 0 {
+			gl.DeleteTextures(1, &r.worldSkyExternalFaceTextures[i])
+			r.worldSkyExternalFaceTextures[i] = 0
+		}
+	}
 	r.worldVPUniform = -1
 	r.worldTextureUniform = -1
 	r.worldLightmapUniform = -1
@@ -2497,6 +2751,13 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldSkyAlphaUniform = -1
 	r.worldSkyCubemapVPUniform = -1
 	r.worldSkyCubemapUniform = -1
+	r.worldSkyExternalFaceVPUniform = -1
+	r.worldSkyExternalFaceRTUniform = -1
+	r.worldSkyExternalFaceBKUniform = -1
+	r.worldSkyExternalFaceLFUniform = -1
+	r.worldSkyExternalFaceFTUniform = -1
+	r.worldSkyExternalFaceUPUniform = -1
+	r.worldSkyExternalFaceDNUniform = -1
 	r.worldModelOffsetUniform = -1
 	r.worldModelRotationUniform = -1
 	r.worldModelScaleUniform = -1
@@ -2506,6 +2767,9 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldSkyCubemapModelOffsetUniform = -1
 	r.worldSkyCubemapModelRotationUniform = -1
 	r.worldSkyCubemapModelScaleUniform = -1
+	r.worldSkyExternalFaceModelOffset = -1
+	r.worldSkyExternalFaceModelRotation = -1
+	r.worldSkyExternalFaceModelScale = -1
 	r.worldAlphaUniform = -1
 	r.worldTimeUniform = -1
 	r.worldSkyTimeUniform = -1
@@ -2513,12 +2777,15 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldCameraOriginUniform = -1
 	r.worldSkyCameraOriginUniform = -1
 	r.worldSkyCubemapCameraOriginUniform = -1
+	r.worldSkyExternalFaceCameraOrigin = -1
 	r.worldFogColorUniform = -1
 	r.worldSkyFogColorUniform = -1
 	r.worldSkyCubemapFogColorUniform = -1
+	r.worldSkyExternalFaceFogColor = -1
 	r.worldFogDensityUniform = -1
 	r.worldSkyFogDensityUniform = -1
 	r.worldSkyCubemapFogDensityUniform = -1
+	r.worldSkyExternalFaceFogDensity = -1
 	r.worldIndexCount = 0
 	r.worldData = nil
 	r.worldTree = nil
@@ -2526,6 +2793,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldLiquidAlphaOverrides = worldLiquidAlphaOverrides{}
 	r.worldSkyFogOverride = worldSkyFogOverride{}
 	r.worldSkyExternalName = ""
+	r.worldSkyExternalMode = externalSkyboxRenderEmbedded
 	r.worldSkyExternalRequestID = 0
 	r.worldFogColor = [3]float32{}
 	r.worldFogDensity = 0

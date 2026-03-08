@@ -33,6 +33,24 @@ type externalSkyboxFace struct {
 	RGBA   []byte
 }
 
+type externalSkyboxRenderMode uint8
+
+const (
+	externalSkyboxRenderEmbedded externalSkyboxRenderMode = iota
+	externalSkyboxRenderCubemap
+	externalSkyboxRenderFaces
+)
+
+func selectExternalSkyboxRenderMode(loaded int, cubemapEligible bool) externalSkyboxRenderMode {
+	if loaded <= 0 {
+		return externalSkyboxRenderEmbedded
+	}
+	if cubemapEligible {
+		return externalSkyboxRenderCubemap
+	}
+	return externalSkyboxRenderFaces
+}
+
 func normalizeSkyboxBaseName(name string) string {
 	trimmed := strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
 	trimmed = strings.TrimLeft(trimmed, "/")

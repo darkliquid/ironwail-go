@@ -147,6 +147,41 @@ func TestSkyboxCubemapFaceOrderMatchesCIronwail(t *testing.T) {
 	}
 }
 
+func TestSelectExternalSkyboxRenderMode(t *testing.T) {
+	tests := []struct {
+		name            string
+		loaded          int
+		cubemapEligible bool
+		want            externalSkyboxRenderMode
+	}{
+		{
+			name:            "cubemap when eligible",
+			loaded:          6,
+			cubemapEligible: true,
+			want:            externalSkyboxRenderCubemap,
+		},
+		{
+			name:            "separate faces when non cubemap",
+			loaded:          6,
+			cubemapEligible: false,
+			want:            externalSkyboxRenderFaces,
+		},
+		{
+			name:            "embedded when nothing loaded",
+			loaded:          0,
+			cubemapEligible: false,
+			want:            externalSkyboxRenderEmbedded,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := selectExternalSkyboxRenderMode(tc.loaded, tc.cubemapEligible); got != tc.want {
+				t.Fatalf("selectExternalSkyboxRenderMode(%d, %v) = %v, want %v", tc.loaded, tc.cubemapEligible, got, tc.want)
+			}
+		})
+	}
+}
+
 var errNotFound = errors.New("not found")
 
 func encodePNG(t *testing.T, width, height int, c color.RGBA) []byte {

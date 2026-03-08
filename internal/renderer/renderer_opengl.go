@@ -396,6 +396,7 @@ type Renderer struct {
 	worldProgram                        uint32
 	worldSkyProgram                     uint32
 	worldSkyCubemapProgram              uint32
+	worldSkyExternalFaceProgram         uint32
 	worldVPUniform                      int32
 	worldTextureUniform                 int32
 	worldLightmapUniform                int32
@@ -404,6 +405,13 @@ type Renderer struct {
 	worldSkyAlphaUniform                int32
 	worldSkyCubemapVPUniform            int32
 	worldSkyCubemapUniform              int32
+	worldSkyExternalFaceVPUniform       int32
+	worldSkyExternalFaceRTUniform       int32
+	worldSkyExternalFaceBKUniform       int32
+	worldSkyExternalFaceLFUniform       int32
+	worldSkyExternalFaceFTUniform       int32
+	worldSkyExternalFaceUPUniform       int32
+	worldSkyExternalFaceDNUniform       int32
 	worldModelOffsetUniform             int32
 	worldModelRotationUniform           int32
 	worldModelScaleUniform              int32
@@ -413,6 +421,9 @@ type Renderer struct {
 	worldSkyCubemapModelOffsetUniform   int32
 	worldSkyCubemapModelRotationUniform int32
 	worldSkyCubemapModelScaleUniform    int32
+	worldSkyExternalFaceModelOffset     int32
+	worldSkyExternalFaceModelRotation   int32
+	worldSkyExternalFaceModelScale      int32
 	worldAlphaUniform                   int32
 	worldTimeUniform                    int32
 	worldSkyTimeUniform                 int32
@@ -420,17 +431,22 @@ type Renderer struct {
 	worldCameraOriginUniform            int32
 	worldSkyCameraOriginUniform         int32
 	worldSkyCubemapCameraOriginUniform  int32
+	worldSkyExternalFaceCameraOrigin    int32
 	worldFogColorUniform                int32
 	worldSkyFogColorUniform             int32
 	worldSkyCubemapFogColorUniform      int32
+	worldSkyExternalFaceFogColor        int32
 	worldFogDensityUniform              int32
 	worldSkyFogDensityUniform           int32
 	worldSkyCubemapFogDensityUniform    int32
+	worldSkyExternalFaceFogDensity      int32
 	worldIndexCount                     int32
 	worldFallbackTexture                uint32
 	worldLightmapFallback               uint32
 	worldSkyAlphaFallback               uint32
 	worldSkyExternalCubemap             uint32
+	worldSkyExternalFaceTextures        [6]uint32
+	worldSkyExternalMode                externalSkyboxRenderMode
 	worldTextures                       map[int32]uint32
 	worldSkySolidTextures               map[int32]uint32
 	worldSkyAlphaTextures               map[int32]uint32

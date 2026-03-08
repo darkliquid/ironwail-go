@@ -253,7 +253,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] consume client fog state
 - [x] render embedded BSP sky via dedicated animated two-layer sky shader/path on canonical OpenGL runtime
 - [x] align embedded-sky fog mix semantics with C (`r_skyfog` + worldspawn `skyfog`, gated by general fog density)
-- [x] consume client skybox state on canonical OpenGL path and load common external cubemap skyboxes from Quake FS search paths (`gfx/env/<name><suffix>.{png,tga,jpg}`), including partial square face sets (zero-filling missing faces) with fallback to embedded BSP sky for inconsistent/non-square cases
+- [x] consume client skybox state on canonical OpenGL path and load external skyboxes from Quake FS search paths (`gfx/env/<name><suffix>.{png,tga,jpg}`): use cubemap upload for square same-size face sets and a dedicated per-face external sky path for loaded non-cubemap sets, with embedded BSP fallback only when no external faces load or upload fails
 - [x] bounded post-38de7f3 parity slice: split particle rendering into explicit opaque/translucent subpasses so the top-level OpenGL frame path can separate those passes before the larger sky/water/translucency ordering refactor (with current runtime particles still landing in the opaque side)
 - [x] bounded post-5800311 parity slice: split world/brush liquid surfaces into explicit opaque-liquid/translucent-liquid buckets in canonical OpenGL runtime and draw those buckets separately from general opaque/translucent world buckets (no full-frame reorder yet)
 - [x] bounded post-aabf5ca parity slice: stage world + brush non-liquid buckets first, then alias/sprite + opaque particles, then world + brush liquid-only buckets in their own top-level frame step (while still deferring the broader sky/translucency/viewmodel reorder)
@@ -265,7 +265,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded post-19b917a parity slice: resolve runtime sprite-frame selection so `SPR_GROUP` sprites advance by client-time intervals and `SPR_ANGLED` sprites choose directional subframes from the current camera basis instead of time-stepping through those frames
 - [x] bounded post-ef3bee6 parity slice (`viewmodel-origin-and-gating`): anchor runtime viewmodel origin to the active eye/view origin, suppress the viewmodel during intermission, and honor `r_drawviewmodel`-style visibility gating (including invisibility/death suppression) on the canonical runtime path
 - [x] bounded parity slice (`fix-lightmap-block-artifacts`): route world + brush lightmap page uploads (and fallback lightmap texture) through a dedicated lightmap texture path using linear min/mag filtering while leaving generic world/sky/alias texture upload filtering unchanged
-- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor now centered on final viewmodel placement details, with broader sprite quad-orientation fidelity still tracked separately)
+- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor now centered on final viewmodel placement details plus broader sprite quad-orientation fidelity)
 
 **Done when**
 

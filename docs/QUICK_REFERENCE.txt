@@ -10,9 +10,9 @@ A. WORLD RENDERING         [████████████████░�
     - Lightmap sampler upload path: DONE (world/brush lightmaps + fallback now upload with linear min/mag filtering; generic world/sky texture uploads remain nearest-filtered)
     - Animated textures, turbulent UV warp, and fog runtime feed: DONE
     - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
-    - External skybox runtime consumption (client skybox name + Quake FS cubemap load path with C-like direction swizzle): DONE
-    - External skybox fallback behavior: DONE (partial square same-size face sets upload as cubemap with zero-filled missing faces; inconsistent/non-square sets fall back to embedded BSP sky)
-    - Sky now runs in its own post-opaque frame stage, and opaque liquid world/brush draws now run before translucent liquid world/brush draws; remaining sky/world fidelity gap is broader translucency/viewmodel ordering + non-cubemap/per-side edge cases
+    - External skybox runtime consumption (client skybox name + Quake FS load path with C-like direction swizzle): DONE
+    - External skybox mode selection: DONE (square same-size faces use cubemap; loaded non-cubemap sets use dedicated per-face external sky path; embedded BSP sky only when no faces load or upload fails)
+    - Sky now runs in its own post-opaque frame stage, and opaque liquid world/brush draws now run before translucent liquid world/brush draws; remaining sky/world fidelity gap is broader translucency/viewmodel ordering
 
 B. ENTITY RENDERING        [████████████████░░░] ~80%
    - Alias models: live runtime integration DONE
