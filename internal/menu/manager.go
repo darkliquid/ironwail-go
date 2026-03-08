@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ const (
 	MenuSave                          // Save game submenu
 	MenuMultiPlayer                   // Multiplayer submenu
 	MenuOptions                       // Options submenu
+	MenuControls                      // Controls options submenu
 	MenuVideo                         // Video options submenu
 	MenuAudio                         // Audio options submenu
 	MenuHelp                          // Help screens
@@ -38,6 +40,7 @@ const (
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
 	optionsItems      = 5
+	controlsItems     = 13
 	videoItems        = 7
 	audioItems        = 2
 
@@ -51,6 +54,22 @@ const (
 	menuSoundNavigate = "misc/menu1.wav"
 	menuSoundSelect   = "misc/menu2.wav"
 	menuSoundCancel   = "misc/menu3.wav"
+)
+
+const (
+	controlItemForward = iota
+	controlItemBackward
+	controlItemTurnLeft
+	controlItemTurnRight
+	controlItemStrafeLeft
+	controlItemStrafeRight
+	controlItemJump
+	controlItemAttack
+	controlItemUse
+	controlItemNextWeapon
+	controlItemPrevWeapon
+	controlItemToggleConsole
+	controlItemBack
 )
 
 const (
@@ -85,6 +104,26 @@ var videoResolutions = []videoResolution{
 
 var maxFPSValues = []int{60, 72, 120, 144, 165, 240, 250, 300}
 
+type controlBinding struct {
+	label   string
+	command string
+}
+
+var controlBindings = []controlBinding{
+	{label: "FORWARD", command: "+forward"},
+	{label: "BACKWARD", command: "+back"},
+	{label: "TURN LEFT", command: "+left"},
+	{label: "TURN RIGHT", command: "+right"},
+	{label: "STRAFE LEFT", command: "+moveleft"},
+	{label: "STRAFE RIGHT", command: "+moveright"},
+	{label: "JUMP", command: "+jump"},
+	{label: "ATTACK", command: "+attack"},
+	{label: "USE", command: "+use"},
+	{label: "NEXT WEAPON", command: "impulse 10"},
+	{label: "PREV WEAPON", command: "impulse 12"},
+	{label: "TOGGLE CONSOLE", command: "toggleconsole"},
+}
+
 // Manager handles the Quake menu system including navigation and rendering.
 type Manager struct {
 	// state is the current active menu state.
@@ -98,6 +137,8 @@ type Manager struct {
 	saveCursor         int
 	multiPlayerCursor  int
 	optionsCursor      int
+	controlsCursor     int
+	controlsRebinding  bool
 	videoCursor        int
 	audioCursor        int
 	helpPage           int
@@ -142,6 +183,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		saveCursor:         0,
 		multiPlayerCursor:  0,
 		optionsCursor:      0,
+		controlsCursor:     0,
+		controlsRebinding:  false,
 		videoCursor:        0,
 		audioCursor:        0,
 		helpPage:           0,
@@ -236,6 +279,8 @@ func (m *Manager) M_Key(key int) {
 		m.multiPlayerKey(key)
 	case MenuOptions:
 		m.optionsKey(key)
+	case MenuControls:
+		m.controlsKey(key)
 	case MenuVideo:
 		m.videoKey(key)
 	case MenuAudio:
@@ -272,6 +317,8 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawMultiPlayer(dc)
 	case MenuOptions:
 		m.drawOptions(dc)
+	case MenuControls:
+		m.drawControls(dc)
 	case MenuVideo:
 		m.drawVideo(dc)
 	case MenuAudio:
@@ -463,7 +510,9 @@ func (m *Manager) optionsKey(key int) {
 		m.playMenuSound(menuSoundSelect)
 		switch m.optionsCursor {
 		case 0:
-			m.queueCommand("echo Controls menu is TODO\n")
+			m.controlsCursor = 0
+			m.controlsRebinding = false
+			m.state = MenuControls
 		case 1:
 			m.videoCursor = 0
 			m.state = MenuVideo
@@ -478,6 +527,63 @@ func (m *Manager) optionsKey(key int) {
 	case input.KEscape, input.KBackspace, input.KMouse2:
 		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
+	}
+}
+
+func (m *Manager) controlsKey(key int) {
+	if m.controlsRebinding {
+		switch key {
+		case input.KEscape, input.KMouse2:
+			m.controlsRebinding = false
+			m.playMenuSound(menuSoundCancel)
+		default:
+			m.setControlBinding(m.controlsCursor, key)
+			m.controlsRebinding = false
+			m.playMenuSound(menuSoundSelect)
+		}
+		return
+	}
+
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.controlsCursor--
+		if m.controlsCursor < 0 {
+			m.controlsCursor = controlsItems - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.controlsCursor++
+		if m.controlsCursor >= controlsItems {
+			m.controlsCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KLeftArrow, input.KBackspace:
+		if m.controlsCursor == controlItemBack {
+			m.playMenuSound(menuSoundCancel)
+			m.state = MenuOptions
+			return
+		}
+		m.clearControlBinding(m.controlsCursor)
+		m.playMenuSound(menuSoundCancel)
+	case input.KRightArrow:
+		if m.controlsCursor == controlItemBack {
+			m.playMenuSound(menuSoundCancel)
+			m.state = MenuOptions
+			return
+		}
+		m.controlsRebinding = true
+		m.playMenuSound(menuSoundSelect)
+	case input.KEnter, input.KSpace, input.KMouse1:
+		if m.controlsCursor == controlItemBack {
+			m.playMenuSound(menuSoundSelect)
+			m.state = MenuOptions
+			return
+		}
+		m.controlsRebinding = true
+		m.playMenuSound(menuSoundSelect)
+	case input.KEscape, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuOptions
 	}
 }
 
@@ -580,6 +686,67 @@ func (m *Manager) adjustAudioSetting(delta int) {
 	volume := cvar.FloatValue("s_volume") + 0.1*float64(delta)
 	volume = clampFloat(volume, 0, 1)
 	cvar.SetFloat("s_volume", roundToTenth(volume))
+}
+
+func (m *Manager) controlBindingLabel(index int) string {
+	command, ok := m.controlCommand(index)
+	if !ok {
+		return ""
+	}
+	keys := m.keysForBinding(command)
+	if len(keys) == 0 {
+		return "UNBOUND"
+	}
+	if len(keys) == 1 {
+		return keys[0]
+	}
+	return fmt.Sprintf("%s +%d", keys[0], len(keys)-1)
+}
+
+func (m *Manager) controlCommand(index int) (string, bool) {
+	if index < 0 || index >= len(controlBindings) {
+		return "", false
+	}
+	return controlBindings[index].command, true
+}
+
+func (m *Manager) setControlBinding(index, key int) {
+	command, ok := m.controlCommand(index)
+	if !ok || m.inputSystem == nil || key < 0 || key >= input.NumKeycode {
+		return
+	}
+	m.clearControlBinding(index)
+	m.inputSystem.SetBinding(key, command)
+}
+
+func (m *Manager) clearControlBinding(index int) {
+	command, ok := m.controlCommand(index)
+	if !ok || m.inputSystem == nil {
+		return
+	}
+	for key := 0; key < input.NumKeycode; key++ {
+		if strings.TrimSpace(m.inputSystem.GetBinding(key)) == command {
+			m.inputSystem.SetBinding(key, "")
+		}
+	}
+}
+
+func (m *Manager) keysForBinding(command string) []string {
+	if m.inputSystem == nil {
+		return nil
+	}
+	keys := make([]string, 0, 2)
+	for key := 0; key < input.NumKeycode; key++ {
+		if strings.TrimSpace(m.inputSystem.GetBinding(key)) != command {
+			continue
+		}
+		name := input.KeyToString(key)
+		if name == "" {
+			name = strconv.Itoa(key)
+		}
+		keys = append(keys, name)
+	}
+	return keys
 }
 
 func (m *Manager) currentResolutionIndex() int {
@@ -867,6 +1034,24 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawArrowCursor(dc, 40, 32+m.videoCursor*16)
 	m.drawText(dc, 40, 168, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
 	m.drawText(dc, 40, 184, "SOME SETTINGS MAY NEED RESTART", true)
+}
+
+func (m *Manager) drawControls(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
+
+	for i, binding := range controlBindings {
+		y := 32 + i*12
+		m.drawText(dc, 40, y, binding.label, true)
+		m.drawText(dc, 200, y, m.controlBindingLabel(i), true)
+	}
+	m.drawText(dc, 40, 32+controlItemBack*12, "BACK", true)
+
+	m.drawArrowCursor(dc, 24, 32+m.controlsCursor*12)
+	if m.controlsRebinding {
+		m.drawText(dc, 24, 188, "PRESS A KEY OR ESC TO CANCEL", true)
+		return
+	}
+	m.drawText(dc, 24, 188, "ENTER/RIGHT BIND LEFT/BKSP CLEAR", true)
 }
 
 func (m *Manager) drawAudio(dc renderer.RenderContext) {

@@ -309,6 +309,18 @@ func TestOptionsNavigationAndAction(t *testing.T) {
 
 	mgr.ShowMenu()
 	mgr.state = MenuOptions
+	mgr.optionsCursor = 0 // CONTROLS
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuControls {
+		t.Fatalf("expected controls menu, got %v", got)
+	}
+
+	mgr.controlsCursor = controlItemBack
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("expected return to options from controls, got %v", got)
+	}
+
 	mgr.optionsCursor = 1 // VIDEO
 	mgr.M_Key(input.KEnter)
 	if got := mgr.GetState(); got != MenuVideo {
@@ -341,6 +353,61 @@ func TestOptionsNavigationAndAction(t *testing.T) {
 	mgr.M_Key(input.KEnter)
 	if mgr.GetState() != MenuMain {
 		t.Fatalf("expected back to main menu, got %v", mgr.GetState())
+	}
+}
+
+func TestControlsMenuRebindingAndClearing(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	inputSys.SetBinding(int('w'), "+forward")
+	inputSys.SetBinding(input.KUpArrow, "+forward")
+
+	mgr.state = MenuControls
+	mgr.controlsCursor = controlItemForward
+	mgr.M_Key(input.KEnter)
+	if !mgr.controlsRebinding {
+		t.Fatal("expected controls menu to enter rebinding mode")
+	}
+	mgr.M_Key(int('i'))
+	if mgr.controlsRebinding {
+		t.Fatal("expected controls menu to exit rebinding mode after key selection")
+	}
+	if got := inputSys.GetBinding(int('i')); got != "+forward" {
+		t.Fatalf("binding for i = %q, want +forward", got)
+	}
+	if got := inputSys.GetBinding(int('w')); got != "" {
+		t.Fatalf("binding for w should be cleared by menu rebind, got %q", got)
+	}
+	if got := inputSys.GetBinding(input.KUpArrow); got != "" {
+		t.Fatalf("binding for UPARROW should be cleared by menu rebind, got %q", got)
+	}
+
+	mgr.M_Key(input.KLeftArrow)
+	if got := inputSys.GetBinding(int('i')); got != "" {
+		t.Fatalf("binding for i should be cleared by menu clear action, got %q", got)
+	}
+}
+
+func TestControlsMenuCancelRebinding(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	inputSys.SetBinding(input.KMouse1, "+attack")
+
+	mgr.state = MenuControls
+	mgr.controlsCursor = controlItemAttack
+	mgr.M_Key(input.KEnter)
+	mgr.M_Key(input.KEscape)
+	if mgr.controlsRebinding {
+		t.Fatal("expected rebinding mode to cancel on escape")
+	}
+	if got := inputSys.GetBinding(input.KMouse1); got != "+attack" {
+		t.Fatalf("attack binding should be unchanged after cancel, got %q", got)
 	}
 }
 
@@ -613,6 +680,7 @@ func TestMenuStateStringability(t *testing.T) {
 		MenuSave,
 		MenuMultiPlayer,
 		MenuOptions,
+		MenuControls,
 		MenuVideo,
 		MenuAudio,
 		MenuHelp,
