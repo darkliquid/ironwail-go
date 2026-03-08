@@ -641,6 +641,7 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 		return
 	}
 
+	h.BeginLoadingPlaque(0)
 	h.stopSessionSounds(subs)
 
 	if h.serverActive && subs.Server != nil {
@@ -766,6 +767,7 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		return
 	}
 
+	h.BeginLoadingPlaque(0)
 	h.stopSessionSounds(subs)
 	h.serverActive = false
 	h.clientState = caDisconnected

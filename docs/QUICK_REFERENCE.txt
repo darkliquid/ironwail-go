@@ -98,8 +98,8 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 3. SAVE/LOAD UX parity
    Location: internal/host/commands.go + menu flow
-   Impact: Loading plaque rendering and broader save-file search behavior diverge (even though transition sound teardown now matches C more closely)
-   Fix: Align load UX/search behavior where practical without regressing local transition/audio parity
+   Impact: Broader save-file search behavior still diverges (local load/reconnect loading plaque visibility now exists for runtime transitions)
+   Fix: Align remaining load search UX where practical without regressing local transition/audio/plaque parity
    Reference: host_cmd.c:Host_Loadgame_f
 
 4. gogpu runtime parity gap
@@ -118,7 +118,7 @@ HIGH-PRIORITY SECONDARY FEATURES
 
 - Menu submenus (C.1): complete options/network parity surfaces
 - Skybox runtime integration (A/B): match C visual output
-- Save/load UX parity (G): loading plaque and search behavior
+- Save/load UX parity (G): broader save-file search behavior
 - Prediction physics fidelity (F.1): smoother C-like movement
 
 

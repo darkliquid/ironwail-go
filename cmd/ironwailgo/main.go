@@ -24,6 +24,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/hud"
+	qimage "github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -606,6 +607,14 @@ func main() {
 					w, h := gameRenderer.Size()
 					consoleVisible := gameInput != nil && gameInput.GetKeyDest() == input.KeyConsole
 
+					if gameHost != nil && gameHost.LoadingPlaqueActive(0) {
+						drawLoadingPlaque(overlay, gameDraw)
+						if consoleVisible {
+							console.Draw(overlay, w, h, true)
+						}
+						return
+					}
+
 					if gameMenu != nil && gameMenu.IsActive() {
 						gameMenu.M_Draw(overlay)
 						return
@@ -628,6 +637,10 @@ func main() {
 			}
 
 			dc.Clear(0, 0, 0, 1)
+			if gameHost != nil && gameHost.LoadingPlaqueActive(0) {
+				drawLoadingPlaque(dc, gameDraw)
+				return
+			}
 			if gameMenu != nil && gameMenu.IsActive() {
 				gameMenu.M_Draw(dc)
 			}
@@ -1621,6 +1634,23 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 		camera.Time = float32(gameClient.Time)
 	}
 	return camera
+}
+
+type picProvider interface {
+	GetPic(name string) *qimage.QPic
+}
+
+func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
+	if pics == nil {
+		return
+	}
+
+	if plaque := pics.GetPic("gfx/qplaque.lmp"); plaque != nil {
+		dc.DrawPic(16, 4, plaque)
+	}
+	if loading := pics.GetPic("gfx/loading.lmp"); loading != nil {
+		dc.DrawPic((320-int(loading.Width))/2, (240-48-int(loading.Height))/2, loading)
+	}
 }
 
 func applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) {

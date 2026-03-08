@@ -148,3 +148,15 @@ func TestHostCommands(t *testing.T) {
 		t.Errorf("Expected server paused")
 	}
 }
+
+func TestLoadingPlaqueAutoExpires(t *testing.T) {
+	h := NewHost()
+	h.BeginLoadingPlaque(100)
+
+	if !h.LoadingPlaqueActive(100.1) {
+		t.Fatal("loading plaque should be active before timeout")
+	}
+	if h.LoadingPlaqueActive(100.3) {
+		t.Fatal("loading plaque should expire after minimum duration")
+	}
+}

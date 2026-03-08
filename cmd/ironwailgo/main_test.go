@@ -17,6 +17,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
+	qimage "github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -75,6 +76,35 @@ func (c *demoPlaybackCommandBuffer) AddText(text string) { c.added = append(c.ad
 func (c *demoPlaybackCommandBuffer) InsertText(string)   {}
 func (c *demoPlaybackCommandBuffer) Shutdown()           {}
 
+type loadingPlaqueTestPics struct {
+	pics map[string]*qimage.QPic
+}
+
+func (p *loadingPlaqueTestPics) GetPic(name string) *qimage.QPic {
+	return p.pics[name]
+}
+
+type loadingPlaqueDrawCall struct {
+	x   int
+	y   int
+	pic *qimage.QPic
+}
+
+type loadingPlaqueDrawContext struct {
+	pics []loadingPlaqueDrawCall
+}
+
+func (dc *loadingPlaqueDrawContext) Clear(r, g, b, a float32)            {}
+func (dc *loadingPlaqueDrawContext) DrawTriangle(r, g, b, a float32)     {}
+func (dc *loadingPlaqueDrawContext) SurfaceView() interface{}            { return nil }
+func (dc *loadingPlaqueDrawContext) Gamma() float32                      { return 1 }
+func (dc *loadingPlaqueDrawContext) DrawFill(x, y, w, h int, color byte) {}
+func (dc *loadingPlaqueDrawContext) DrawCharacter(x, y int, num int)     {}
+func (dc *loadingPlaqueDrawContext) DrawMenuCharacter(x, y int, num int) {}
+func (dc *loadingPlaqueDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
+	dc.pics = append(dc.pics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
+}
+
 func TestStartupMapArg(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -116,6 +146,38 @@ func TestRegisterConsoleCompletionProvidersIncludesAliases(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("matches = %v, want zz_alias_test (alias)", matches)
+	}
+}
+
+func TestDrawLoadingPlaqueDrawsPlaqueAndCenteredLoadingPic(t *testing.T) {
+	plaque := &qimage.QPic{Width: 320, Height: 20}
+	loading := &qimage.QPic{Width: 160, Height: 24}
+	pics := &loadingPlaqueTestPics{
+		pics: map[string]*qimage.QPic{
+			"gfx/qplaque.lmp": plaque,
+			"gfx/loading.lmp": loading,
+		},
+	}
+	dc := &loadingPlaqueDrawContext{}
+
+	drawLoadingPlaque(dc, pics)
+
+	if len(dc.pics) != 2 {
+		t.Fatalf("draw call count = %d, want 2", len(dc.pics))
+	}
+	if dc.pics[0].x != 16 || dc.pics[0].y != 4 || dc.pics[0].pic != plaque {
+		t.Fatalf("plaque draw = %+v, want x=16 y=4 plaque", dc.pics[0])
+	}
+	if dc.pics[1].x != 80 || dc.pics[1].y != 84 || dc.pics[1].pic != loading {
+		t.Fatalf("loading draw = %+v, want centered loading pic", dc.pics[1])
+	}
+}
+
+func TestDrawLoadingPlaqueNoopWithoutPics(t *testing.T) {
+	dc := &loadingPlaqueDrawContext{}
+	drawLoadingPlaque(dc, nil)
+	if len(dc.pics) != 0 {
+		t.Fatalf("draw call count = %d, want 0", len(dc.pics))
 	}
 }
 

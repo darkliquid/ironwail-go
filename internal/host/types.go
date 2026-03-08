@@ -68,7 +68,10 @@ type Host struct {
 
 	menu      *menu.Manager
 	demoState *client.DemoState
-	
+
+	loadingPlaqueActive bool
+	loadingPlaqueUntil  float64
+
 	// Demo loop state (for startup demos like demo1, demo2, demo3)
 	demoList []string
 	demoNum  int // current demo index, -1 means don't play demos
@@ -233,6 +236,37 @@ func (h *Host) DemoNum() int {
 
 func (h *Host) SetDemoNum(num int) {
 	h.demoNum = num
+}
+
+const loadingPlaqueMinDuration = 0.2
+
+func (h *Host) BeginLoadingPlaque(now float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if now <= 0 {
+		now = currentTime()
+	}
+	h.loadingPlaqueActive = true
+	h.loadingPlaqueUntil = now + loadingPlaqueMinDuration
+}
+
+func (h *Host) LoadingPlaqueActive(now float64) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if !h.loadingPlaqueActive {
+		return false
+	}
+	if now <= 0 {
+		now = currentTime()
+	}
+	if now <= h.loadingPlaqueUntil {
+		return true
+	}
+	h.loadingPlaqueActive = false
+	h.loadingPlaqueUntil = 0
+	return false
 }
 
 func (h *Host) Lock() {

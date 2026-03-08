@@ -795,6 +795,9 @@ func TestCmdReconnectRestartsLocalHandshake(t *testing.T) {
 	if !audio.calls[0] {
 		t.Fatal("StopAllSounds clear flag = false, want true")
 	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after reconnect")
+	}
 }
 
 func TestCmdConnectLocalRestartsLocalHandshakeAndStopsDemoPlayback(t *testing.T) {
@@ -1063,6 +1066,9 @@ func TestCmdLoadStopsAllSoundsDuringSessionTransition(t *testing.T) {
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
 		t.Fatalf("console output = %q, want load failure text", got)
 	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after load transition")
+	}
 }
 
 func TestCmdReconnectClearsSignonsWithoutLocalServer(t *testing.T) {
@@ -1092,6 +1098,9 @@ func TestCmdReconnectClearsSignonsWithoutLocalServer(t *testing.T) {
 	}
 	if h.ClientState() != caConnected {
 		t.Fatalf("host client state = %v, want %v", h.ClientState(), caConnected)
+	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after reconnect")
 	}
 }
 
