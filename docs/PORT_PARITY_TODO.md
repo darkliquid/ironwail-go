@@ -123,6 +123,7 @@ Move from a hardcoded control map in `main.go` to bind-driven input behavior.
 - [x] route key events through bindings into `+attack`, `-attack`, `+jump`, and the rest of the Quake command set
 - [x] keep default binds equivalent to the current hardcoded controls until the config layer takes over
 - [x] persist bindings in `config.cfg` (startup config load + config writes now restore binds across restart)
+- [x] persist archived cvars through `config.cfg` with deterministic bind/cvar write ordering and explicit host-level roundtrip coverage
 
 **Why before menu/console polish**
 

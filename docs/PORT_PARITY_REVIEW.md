@@ -320,7 +320,7 @@ What is already present:
 - the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers) plus a bounded live intermission/finale/cutscene overlay path with timed center-text reveal, but it still omits expansion-pack special cases, pickup flash timing polish, and deathmatch score overlays
 - the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
 - the HUD and option/menu surfaces still expose much less functionality than the C engine
-- `Host.WriteConfig()` now writes binds plus archived cvars, but it still does not append the extra state-preserving commands the C engine can emit
+- `Host.WriteConfig()` now writes binds plus archived cvars in deterministic order, and startup `config.cfg` execution now round-trips archived cvar values through cmdsys cvar fallback handling
 
 ### Exact C behavior still missing or not fully matched
 
@@ -332,7 +332,7 @@ The C engine writes more than archived cvars:
 - `Cvar_WriteVariables(f)` writes archived cvars
 - it then appends extra state-preserving commands such as `vid_restart` and `+mlook` when needed
 
-Go currently writes only `cvar.ArchiveVars()`.
+Go now writes key bindings plus archived cvars in deterministic order and verifies cvar state reload through `config.cfg`; the remaining gap is the extra trailing state commands that depend on runtime features not yet exposed here.
 
 #### `keys.c` binding behavior
 

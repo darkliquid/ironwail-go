@@ -3,6 +3,8 @@ package cmdsys
 import (
 	"strings"
 	"sync"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 type CommandFunc func(args []string)
@@ -172,6 +174,13 @@ func (c *CmdSystem) executeLine(line string, expanding map[string]struct{}) {
 		return
 	}
 	c.mu.RUnlock()
+
+	if cvar.Get(cmdName) != nil {
+		if len(args) > 1 {
+			cvar.Set(cmdName, strings.Join(args[1:], " "))
+		}
+		return
+	}
 }
 
 func (c *CmdSystem) Exists(name string) bool {

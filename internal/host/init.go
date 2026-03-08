@@ -454,21 +454,12 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 	}
 	defer f.Close()
 
-	// Write archived cvars
-	archivedVars := cvar.ArchiveVars()
-	for _, line := range archivedVars {
-		fmt.Fprintf(f, "%s\n", line)
-	}
-
+	wroteBindings := false
 	if subs != nil && subs.Input != nil {
-		wroteBindings := false
 		for key := 0; key < input.NumKeycode; key++ {
 			binding := subs.Input.GetBinding(key)
 			if binding == "" {
 				continue
-			}
-			if !wroteBindings && len(archivedVars) > 0 {
-				fmt.Fprintln(f)
 			}
 			wroteBindings = true
 			keyName := input.KeyToString(key)
@@ -482,6 +473,14 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 			escapedBinding = strings.ReplaceAll(escapedBinding, "\"", "\\\"")
 			fmt.Fprintf(f, "bind %s \"%s\"\n", keyName, escapedBinding)
 		}
+	}
+
+	archivedVars := cvar.ArchiveVars()
+	if wroteBindings && len(archivedVars) > 0 {
+		fmt.Fprintln(f)
+	}
+	for _, line := range archivedVars {
+		fmt.Fprintf(f, "%s\n", line)
 	}
 
 	if subs != nil && subs.Console != nil {

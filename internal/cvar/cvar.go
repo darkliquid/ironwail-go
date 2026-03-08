@@ -1,6 +1,7 @@
 package cvar
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -193,6 +194,7 @@ func (c *CVarSystem) ArchiveVars() []string {
 			result = append(result, cv.Name+" \""+cv.String+"\"")
 		}
 	}
+	slices.Sort(result)
 	return result
 }
 
