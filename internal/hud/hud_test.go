@@ -4,6 +4,7 @@
 package hud
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/image"
@@ -209,6 +210,73 @@ func TestHUDFinaleOverlayShowsCenterTextWithoutTimeout(t *testing.T) {
 	if len(mock.characters) == 0 {
 		t.Fatal("expected finale center text draw")
 	}
+}
+
+func TestHUDFinaleOverlayRevealsCenterTextOverTime(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	base := State{
+		Intermission:  2,
+		CenterPrint:   "ABCD",
+		CenterPrintAt: 1,
+	}
+
+	h.SetState(func() State {
+		s := base
+		s.Time = 1.1
+		return s
+	}())
+	initial := &mockRenderContext{}
+	h.Draw(initial)
+	if got := charactersToString(initial.characters); got != "" {
+		t.Fatalf("initial finale reveal = %q, want empty", got)
+	}
+
+	h.SetState(func() State {
+		s := base
+		s.Time = 1.26
+		return s
+	}())
+	partial := &mockRenderContext{}
+	h.Draw(partial)
+	if got := charactersToString(partial.characters); got != "AB" {
+		t.Fatalf("partial finale reveal = %q, want AB", got)
+	}
+
+	h.SetState(func() State {
+		s := base
+		s.Time = 1.6
+		return s
+	}())
+	full := &mockRenderContext{}
+	h.Draw(full)
+	if got := charactersToString(full.characters); got != "ABCD" {
+		t.Fatalf("full finale reveal = %q, want ABCD", got)
+	}
+}
+
+func TestHUDCutsceneOverlayUsesTimedReveal(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.SetState(State{
+		Intermission:  3,
+		CenterPrint:   "A\nB",
+		CenterPrintAt: 4,
+		Time:          4.26,
+	})
+	mock := &mockRenderContext{}
+	h.Draw(mock)
+	if got := charactersToString(mock.characters); got != "AB" {
+		t.Fatalf("cutscene reveal = %q, want AB", got)
+	}
+}
+
+func charactersToString(chars []struct{ x, y, num int }) string {
+	out := strings.Builder{}
+	for _, ch := range chars {
+		out.WriteRune(rune(ch.num))
+	}
+	return out.String()
 }
 
 func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {

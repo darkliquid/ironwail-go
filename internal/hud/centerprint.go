@@ -13,6 +13,8 @@ import (
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
+const finaleRevealCharsPerSecond = 8.0
+
 // Centerprint displays centered text messages on the screen.
 // These are typically used for level completion, key pickups, and important game events.
 type Centerprint struct {
@@ -105,11 +107,42 @@ func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State,
 	if cp.finalePic != nil {
 		rc.DrawPic((screenWidth-int(cp.finalePic.Width))/2, 16, cp.finalePic)
 	}
-	text := cp.activeCenterText(state)
+	text := cp.revealedFinaleText(state, cp.activeCenterText(state))
 	if text == "" {
 		return
 	}
 	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, false)
+}
+
+func (cp *Centerprint) revealedFinaleText(state State, text string) string {
+	if text == "" || (state.Intermission != 2 && state.Intermission != 3) {
+		return text
+	}
+
+	visibleChars := int((state.Time - state.CenterPrintAt) * finaleRevealCharsPerSecond)
+	if visibleChars <= 0 {
+		return ""
+	}
+
+	return limitCenterTextVisibleChars(text, visibleChars)
+}
+
+func limitCenterTextVisibleChars(text string, visibleChars int) string {
+	if visibleChars <= 0 {
+		return ""
+	}
+
+	seen := 0
+	for i, r := range text {
+		if r == '\n' || r == '\r' {
+			continue
+		}
+		seen++
+		if seen > visibleChars {
+			return text[:i]
+		}
+	}
+	return text
 }
 
 func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, boxed bool) {

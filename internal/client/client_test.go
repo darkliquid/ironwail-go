@@ -622,6 +622,37 @@ func TestParseFinaleCutScenePreservesCenterText(t *testing.T) {
 	}
 }
 
+func TestParseFinaleCutSceneRefreshesRevealStartTime(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	c.Time = 3
+	finale := bytes.NewBuffer(nil)
+	finale.WriteByte(byte(inet.SVCFinale))
+	finale.WriteString("Finale")
+	finale.WriteByte(0)
+	finale.WriteByte(0xFF)
+	if err := p.ParseServerMessage(finale.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage(finale) error = %v", err)
+	}
+	if c.CenterPrintAt != 3 || c.CompletedTime != 3 {
+		t.Fatalf("finale timing = center %f completed %f, want 3/3", c.CenterPrintAt, c.CompletedTime)
+	}
+
+	c.Time = 7.25
+	cutscene := bytes.NewBuffer(nil)
+	cutscene.WriteByte(byte(inet.SVCCutScene))
+	cutscene.WriteString("Cutscene")
+	cutscene.WriteByte(0)
+	cutscene.WriteByte(0xFF)
+	if err := p.ParseServerMessage(cutscene.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage(cutscene) error = %v", err)
+	}
+	if c.CenterPrintAt != 7.25 || c.CompletedTime != 7.25 {
+		t.Fatalf("cutscene timing = center %f completed %f, want 7.25/7.25", c.CenterPrintAt, c.CompletedTime)
+	}
+}
+
 func TestConsumeTransientEffectsClearsBuffers(t *testing.T) {
 	c := NewClient()
 	c.SoundEvents = []SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}

@@ -43,7 +43,7 @@ C. MENUS/HUD/INPUT         [████████████░░░░░�
    - Console UI/history/completion: DONE (includes command/cvar/alias completion)
    - Command aliases (`alias`/`unalias`/`unaliasall`): DONE
     - HUD: Base-game classic status bar path DONE (weapon strip, ammo strip, keys/powerups/sigils, armor/face/ammo icons, live client-driven stats)
-    - Intermission/finale/cutscene overlays: BOUNDED DONE (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay, `gfx/finale.lmp` + center text via live client state; char-by-char reveal and deathmatch score overlays still TODO)
+    - Intermission/finale/cutscene overlays: BOUNDED DONE (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay, `gfx/finale.lmp` + live timed center-text reveal via client state; deathmatch score overlays still TODO)
 
 D. AUDIO/MUSIC             [████████████████░░░] ~80%
    - System init: DONE
