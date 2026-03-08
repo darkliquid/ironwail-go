@@ -100,9 +100,9 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 3. SAVE/LOAD UX parity
    Location: internal/host/commands.go + menu flow
-   Impact: Broader save-file search behavior still diverges (local load/reconnect loading plaque visibility now exists for runtime transitions)
-   Fix: Align remaining load search UX where practical without regressing local transition/audio/plaque parity
-   Reference: host_cmd.c:Host_Loadgame_f
+   Impact: Save-slot discovery now mirrors the C load/save menus, but legacy save import edge cases and remote loading UX still diverge
+   Fix: Keep user-dir saves primary, fall back to legacy install-dir loads where practical, and preserve local transition/audio/plaque parity
+   Reference: host_cmd.c:Host_Loadgame_f / menu.c:M_ScanSaves
 
 4. gogpu runtime parity gap
    Location: internal/renderer/renderer_gogpu.go + runtime feed

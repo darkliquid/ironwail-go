@@ -2,6 +2,8 @@ package menu
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -35,6 +37,32 @@ func (m *mockMenuRenderContext) DrawCharacter(x, y int, num int) {
 }
 func (m *mockMenuRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.menuCharacters = append(m.menuCharacters, struct{ x, y, num int }{x, y, num})
+}
+
+func renderedMenuLine(rc *mockMenuRenderContext, y int) string {
+	lineChars := make([]struct{ x, num int }, 0)
+	for _, ch := range rc.menuCharacters {
+		if ch.y == y && ch.x >= 24 {
+			lineChars = append(lineChars, struct{ x, num int }{x: ch.x, num: ch.num})
+		}
+	}
+	if len(lineChars) == 0 {
+		return ""
+	}
+	sort.Slice(lineChars, func(i, j int) bool {
+		return lineChars[i].x < lineChars[j].x
+	})
+	var builder strings.Builder
+	for _, ch := range lineChars {
+		num := ch.num
+		if num >= 128 {
+			num -= 128
+		}
+		if num >= 0 && num < 128 {
+			builder.WriteByte(byte(num))
+		}
+	}
+	return builder.String()
 }
 
 func TestNewManager(t *testing.T) {
@@ -268,6 +296,63 @@ func TestLoadSaveCommands(t *testing.T) {
 	mgr.M_Key(input.KEnter)
 	if got := commands[len(commands)-1]; got != "save s5\n" {
 		t.Fatalf("expected save command for slot 5, got %q", got)
+	}
+}
+
+func TestLoadSaveMenusRefreshLabelsFromProvider(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	providerCalls := 0
+	mgr.SetSaveSlotProvider(func(slotCount int) []SaveSlotInfo {
+		providerCalls++
+		slots := make([]SaveSlotInfo, 0, slotCount)
+		for i := 0; i < slotCount; i++ {
+			slots = append(slots, SaveSlotInfo{
+				Name:        fmt.Sprintf("s%d", i),
+				DisplayName: "--- UNUSED SLOT ---",
+			})
+		}
+		slots[0].DisplayName = "e1m1"
+		return slots
+	})
+
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuLoad {
+		t.Fatalf("expected load state, got %v", got)
+	}
+	loadRC := &mockMenuRenderContext{}
+	mgr.M_Draw(loadRC)
+	if got := renderedMenuLine(loadRC, 32); got != "e1m1" {
+		t.Fatalf("load slot 0 label = %q, want %q", got, "e1m1")
+	}
+	if got := renderedMenuLine(loadRC, 40); got != "--- UNUSED SLOT ---" {
+		t.Fatalf("load slot 1 label = %q, want %q", got, "--- UNUSED SLOT ---")
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 2
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuSave {
+		t.Fatalf("expected save state, got %v", got)
+	}
+	saveRC := &mockMenuRenderContext{}
+	mgr.M_Draw(saveRC)
+	if got := renderedMenuLine(saveRC, 32); got != "e1m1" {
+		t.Fatalf("save slot 0 label = %q, want %q", got, "e1m1")
+	}
+	if got := renderedMenuLine(saveRC, 40); got != "--- UNUSED SLOT ---" {
+		t.Fatalf("save slot 1 label = %q, want %q", got, "--- UNUSED SLOT ---")
+	}
+
+	if providerCalls != 2 {
+		t.Fatalf("provider calls = %d, want 2", providerCalls)
 	}
 }
 

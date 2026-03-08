@@ -30,6 +30,13 @@ type hostSaveFile struct {
 	Server  *server.SaveGameState `json:"server"`
 }
 
+type SaveSlotInfo struct {
+	Name        string
+	DisplayName string
+}
+
+const unusedSaveSlotDisplay = "--- UNUSED SLOT ---"
+
 type handshakeClient interface {
 	Client
 	LocalServerInfo() error
@@ -747,12 +754,7 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
 		return
 	}
-	path, err := h.saveFilePath(name)
-	if err != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
-		return
-	}
-	data, err := os.ReadFile(path)
+	path, data, err := h.readSaveFile(name)
 	if err != nil {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
 		return
@@ -940,6 +942,92 @@ func (h *Host) saveFilePath(name string) (string, error) {
 		return "", fmt.Errorf("user directory is not initialized")
 	}
 	return filepath.Join(h.userDir, "saves", name+".sav"), nil
+}
+
+func (h *Host) readSaveFile(name string) (string, []byte, error) {
+	searchPaths, err := h.saveFileSearchPaths(name)
+	if err != nil {
+		return "", nil, err
+	}
+
+	for _, path := range searchPaths {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return path, data, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", nil, err
+		}
+	}
+
+	return "", nil, fmt.Errorf("%s not found", filepath.Base(searchPaths[0]))
+}
+
+func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
+	userPath, err := h.saveFilePath(name)
+	if err != nil {
+		return nil, err
+	}
+
+	searchPaths := []string{userPath}
+	if h.baseDir == "" {
+		return searchPaths, nil
+	}
+
+	legacyName := name + ".sav"
+	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" {
+		legacyGameDir := filepath.Join(h.baseDir, gameDir, legacyName)
+		searchPaths = append(searchPaths, legacyGameDir)
+		if gameDir == "id1" {
+			return searchPaths, nil
+		}
+	}
+
+	searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", legacyName))
+	return searchPaths, nil
+}
+
+func (h *Host) ListSaveSlots(count int) []SaveSlotInfo {
+	if count <= 0 {
+		count = 12
+	}
+
+	slots := make([]SaveSlotInfo, 0, count)
+	for i := 0; i < count; i++ {
+		slotName := fmt.Sprintf("s%d", i)
+		slot := SaveSlotInfo{
+			Name:        slotName,
+			DisplayName: unusedSaveSlotDisplay,
+		}
+
+		path, err := h.saveFilePath(slotName)
+		if err != nil {
+			slots = append(slots, slot)
+			continue
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			slots = append(slots, slot)
+			continue
+		}
+
+		var save hostSaveFile
+		if err := json.Unmarshal(data, &save); err != nil {
+			slots = append(slots, slot)
+			continue
+		}
+
+		if save.Server != nil {
+			if mapName := strings.TrimSpace(save.Server.MapName); mapName != "" {
+				slot.DisplayName = mapName
+			}
+		}
+
+		slots = append(slots, slot)
+	}
+
+	return slots
 }
 
 func (h *Host) CmdGive(item, value string, subs *Subsystems) {

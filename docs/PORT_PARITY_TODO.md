@@ -304,13 +304,14 @@ Take the already-strong save/load system the rest of the way to C parity.
 - [x] enforce save restrictions (`nomonsters`, intermission, dead-player)
 - [x] stop active gameplay sounds on local session transitions (`disconnect`/`reconnect`/`load`/`map`) to mirror the C engine's stop-all behavior
 - [x] add local load/reconnect loading plaque visibility in the runtime overlay path (bounded host-managed state/timer, no remote connect work)
-- make sure menu/UI entry points reach the same save/load system
+- [x] make sure menu/UI entry points reach the same save/load system
+- [x] scan load/save slots for menu labels and fall back to legacy install-dir saves when the user save dir has no match
 
 **Done when**
 
 - a saved game restores the same gameplay-relevant state as the C engine
 - unsupported save situations fail the same way the C engine does
-- broader save-file search UX and remote connect/reconnect loading UX are still tracked separately as remaining parity work
+- remaining legacy save import edge cases and remote connect/reconnect loading UX are still tracked separately as remaining parity work
 
 ### 10. Finish demo recording parity
 

@@ -107,6 +107,11 @@ type videoResolution struct {
 	height int
 }
 
+type SaveSlotInfo struct {
+	Name        string
+	DisplayName string
+}
+
 var videoResolutions = []videoResolution{
 	{width: 640, height: 480},
 	{width: 800, height: 600},
@@ -184,6 +189,10 @@ type Manager struct {
 	commandText func(text string)
 
 	playSound func(name string)
+
+	saveSlotProvider func(slotCount int) []SaveSlotInfo
+	loadSlotLabels   [maxSaveGames]string
+	saveSlotLabels   [maxSaveGames]string
 }
 
 // DrawManager defines the interface for loading menu graphics.
@@ -195,9 +204,13 @@ func (m *Manager) SetSoundPlayer(play func(name string)) {
 	m.playSound = play
 }
 
+func (m *Manager) SetSaveSlotProvider(provider func(slotCount int) []SaveSlotInfo) {
+	m.saveSlotProvider = provider
+}
+
 // NewManager creates a new menu manager.
 func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
-	return &Manager{
+	mgr := &Manager{
 		state:              MenuNone,
 		mainCursor:         0,
 		singlePlayerCursor: 0,
@@ -226,6 +239,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		active:             false,
 		commandText:        cmdsys.AddText,
 	}
+	mgr.resetSaveSlotLabels()
+	return mgr
 }
 
 // ToggleMenu toggles the menu on or off.
@@ -440,9 +455,9 @@ func (m *Manager) singlePlayerKey(key int) {
 			m.queueCommand("coop 0\n")
 			m.queueCommand("map start\n")
 		case 1:
-			m.state = MenuLoad
+			m.enterLoadMenu()
 		case 2:
-			m.state = MenuSave
+			m.enterSaveMenu()
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:
 		m.playMenuSound(menuSoundCancel)
@@ -1191,7 +1206,7 @@ func (m *Manager) drawLoad(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_load.lmp")
 
 	for i := 0; i < maxSaveGames; i++ {
-		m.drawText(dc, 24, 32+i*8, fmt.Sprintf("s%d", i), true)
+		m.drawText(dc, 24, 32+i*8, m.loadSlotLabels[i], true)
 	}
 	m.drawArrowCursor(dc, 8, 32+m.loadCursor*8)
 }
@@ -1200,7 +1215,7 @@ func (m *Manager) drawSave(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_save.lmp")
 
 	for i := 0; i < maxSaveGames; i++ {
-		m.drawText(dc, 24, 32+i*8, fmt.Sprintf("s%d", i), true)
+		m.drawText(dc, 24, 32+i*8, m.saveSlotLabels[i], true)
 	}
 	m.drawArrowCursor(dc, 8, 32+m.saveCursor*8)
 }
@@ -1447,4 +1462,41 @@ func (m *Manager) playMenuSound(name string) {
 		return
 	}
 	m.playSound(name)
+}
+
+func (m *Manager) enterLoadMenu() {
+	m.state = MenuLoad
+	m.refreshSaveSlotLabels()
+}
+
+func (m *Manager) enterSaveMenu() {
+	m.state = MenuSave
+	m.refreshSaveSlotLabels()
+}
+
+func (m *Manager) resetSaveSlotLabels() {
+	for i := 0; i < maxSaveGames; i++ {
+		label := fmt.Sprintf("s%d", i)
+		m.loadSlotLabels[i] = label
+		m.saveSlotLabels[i] = label
+	}
+}
+
+func (m *Manager) refreshSaveSlotLabels() {
+	if m.saveSlotProvider == nil {
+		m.resetSaveSlotLabels()
+		return
+	}
+
+	slotInfos := m.saveSlotProvider(maxSaveGames)
+	for i := 0; i < maxSaveGames; i++ {
+		label := fmt.Sprintf("s%d", i)
+		if i < len(slotInfos) {
+			if slotLabel := strings.TrimSpace(slotInfos[i].DisplayName); slotLabel != "" {
+				label = slotLabel
+			}
+		}
+		m.loadSlotLabels[i] = label
+		m.saveSlotLabels[i] = label
+	}
 }

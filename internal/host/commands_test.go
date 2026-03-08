@@ -489,6 +489,75 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 }
 
+func TestListSaveSlotsUsesSavedMapNameAndUnusedPlaceholder(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	savesDir := filepath.Join(userDir, "saves")
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(saves): %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   2,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "e1m1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(save): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(savesDir, "s0.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile(s0): %v", err)
+	}
+
+	slots := h.ListSaveSlots(3)
+	if len(slots) != 3 {
+		t.Fatalf("slot count = %d, want 3", len(slots))
+	}
+	if got := slots[0].Name; got != "s0" {
+		t.Fatalf("slot[0].Name = %q, want s0", got)
+	}
+	if got := slots[0].DisplayName; got != "e1m1" {
+		t.Fatalf("slot[0].DisplayName = %q, want e1m1", got)
+	}
+	if got := slots[1].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[1].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
+	}
+	if got := slots[2].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[2].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
+	}
+}
+
+func TestListSaveSlotsTreatsMalformedSaveAsUnused(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	savesDir := filepath.Join(userDir, "saves")
+	if err := os.MkdirAll(savesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(saves): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(savesDir, "s0.sav"), []byte("{not json"), 0o644); err != nil {
+		t.Fatalf("WriteFile(s0): %v", err)
+	}
+
+	slots := h.ListSaveSlots(1)
+	if len(slots) != 1 {
+		t.Fatalf("slot count = %d, want 1", len(slots))
+	}
+	if got := slots[0].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[0].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
+	}
+}
+
 func TestCmdSaveRejectsIntermission(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}
@@ -1083,6 +1152,66 @@ func TestCmdLoadStopsAllSoundsDuringSessionTransition(t *testing.T) {
 	}
 	if !h.LoadingPlaqueActive(0) {
 		t.Fatal("loading plaque should be active after load transition")
+	}
+}
+
+func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) failed: %v", dir, err)
+		}
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "missingmap",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	audio := &stopAllTrackingAudio{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+		Audio:   audio,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("slot1", subs)
+
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
+		t.Fatalf("console output = %q, want load failure text", got)
+	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after legacy save fallback")
 	}
 }
 

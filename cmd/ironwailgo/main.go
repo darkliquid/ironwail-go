@@ -328,6 +328,17 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Set menu in host
 	gameHost.SetMenu(gameMenu)
+	gameMenu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
+		hostSlots := gameHost.ListSaveSlots(slotCount)
+		menuSlots := make([]menu.SaveSlotInfo, 0, len(hostSlots))
+		for _, slot := range hostSlots {
+			menuSlots = append(menuSlots, menu.SaveSlotInfo{
+				Name:        slot.Name,
+				DisplayName: slot.DisplayName,
+			})
+		}
+		return menuSlots
+	})
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
 	drawErr := gameDraw.Init(fileSys)
