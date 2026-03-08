@@ -1555,6 +1555,7 @@ func runtimeViewState() (origin, angles [3]float32) {
 
 	if gameClient != nil {
 		if clientOrigin, ok := runtimePlayerOrigin(); ok {
+			clientOrigin[2] += gameClient.ViewHeight
 			return clientOrigin, gameClient.ViewAngles
 		}
 	}
