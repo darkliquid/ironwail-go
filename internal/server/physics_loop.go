@@ -34,7 +34,7 @@ func (s *Server) Physics() {
 		case MoveTypeToss, MoveTypeGib, MoveTypeBounce, MoveTypeFly, MoveTypeFlyMissile:
 			s.PhysicsToss(ent)
 		case MoveTypeWalk:
-			s.RunThink(ent)
+			s.PhysicsWalk(ent)
 		}
 
 		if !ent.Free && ent.Vars.NextThink > s.Time {

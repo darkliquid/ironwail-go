@@ -426,6 +426,22 @@ func (s *Server) PhysicsStep(ent *Edict) {
 	s.CheckWaterTransition(ent)
 }
 
+func (s *Server) PhysicsWalk(ent *Edict) {
+	if !s.RunThink(ent) {
+		return
+	}
+
+	flags := uint32(ent.Vars.Flags)
+	if flags&FlagWaterJump == 0 && ent.Vars.WaterLevel <= 1 && flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
+		s.AddGravity(ent)
+	}
+
+	s.CheckVelocity(ent)
+	s.FlyMove(ent, s.FrameTime)
+	s.LinkEdict(ent, true)
+	s.CheckWaterTransition(ent)
+}
+
 func (s *Server) PhysicsToss(ent *Edict) {
 	if !s.RunThink(ent) {
 		return

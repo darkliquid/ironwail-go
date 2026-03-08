@@ -50,6 +50,8 @@ Make the live runtime actually use the client-side systems that already exist in
 - [x] raise the runtime camera to the client viewheight so normal gameplay view uses eye-space origin instead of raw player origin
 - [x] apply stored client punch angles to the runtime camera outside intermission so recoil/damage kick now affects the live eye-space view
 - [x] anchor runtime viewmodel placement to eye/view origin (not raw player origin), gate it behind `r_drawviewmodel`, and suppress it during intermission
+- [x] restore authoritative walk/gravity collision flow by running `RunClients()` before `Physics()` in server frames, fixing `FrameTime`/time-step propagation, and running `MoveTypeWalk` through server collision/gravity movement each physics tick
+- [x] make runtime camera prefer authoritative server entity origin over simplified predicted origin so manual runtime movement reflects server collision/gravity behavior
 - centralize one per-frame place where transient client events are consumed and applied
 
 **Why now**

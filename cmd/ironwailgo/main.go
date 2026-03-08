@@ -1590,11 +1590,6 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		return [3]float32{}, false
 	}
 
-	clientOrigin := gameClient.PredictedOrigin
-	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
-		return clientOrigin, true
-	}
-
 	if gameClient.ViewEntity != 0 {
 		if state, ok := gameClient.Entities[gameClient.ViewEntity]; ok {
 			return state.Origin, true
@@ -1605,6 +1600,11 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		if state, ok := gameClient.Entities[0]; ok {
 			return state.Origin, true
 		}
+	}
+
+	clientOrigin := gameClient.PredictedOrigin
+	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+		return clientOrigin, true
 	}
 
 	return [3]float32{}, false

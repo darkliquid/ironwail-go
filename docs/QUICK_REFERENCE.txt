@@ -62,8 +62,10 @@ E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░]
 
 F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
     - Basic prediction: DONE (simplified)
+    - Authoritative server walk/gravity collision step: DONE (bounded parity slice; `RunClients` now feeds same-frame physics and `MoveTypeWalk` runs collision/gravity physics)
     - Client viewheight state from `svc_clientdata`: DONE (stored and applied to runtime camera origin)
     - Client punch state from `svc_clientdata`: DONE for runtime camera kick (full C gun-kick interpolation still pending)
+    - Runtime camera authoritative origin preference: DONE (server entity origin first; prediction fallback only when entity origin is unavailable)
     - Viewmodel eye-origin + `r_drawviewmodel`/intermission gating: DONE as bounded canonical-runtime parity slice
     - Full physics: MISSING (no ground detect, steps, collision)
     - Command looping: PARTIAL

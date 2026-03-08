@@ -6,13 +6,13 @@ func (s *Server) Frame(frameTime float64) error {
 		return nil
 	}
 
-	s.Time += float32(frameTime)
+	s.FrameTime = float32(frameTime)
 
-	// Run server physics
-	s.Physics()
-
-	// Run client updates
+	// Read client input and update player intent before physics, matching C ordering.
 	s.RunClients()
+
+	// Run server physics.
+	s.Physics()
 
 	// Handle networking/datagrams
 	s.SendClientMessages()

@@ -199,7 +199,10 @@ What already works:
 
 - `main.go` now calls `PredictPlayers()` and uses the updated predicted state for camera/viewmodel work
 - the client now preserves `svc_clientdata` viewheight and punch state instead of discarding those server-driven eye-space inputs, narrowing the remaining camera/viewmodel fidelity gap
+- server frame ordering now matches C host flow for movement (`RunClients()` before `Physics()`), `FrameTime` is set from the outer frame step, and server time advances once per frame through physics
+- `MoveTypeWalk` entities now run authoritative server gravity/collision movement (`AddGravity` + `FlyMove` + `LinkEdict`) instead of only `RunThink`, restoring bounded walk/gravity collision behavior
 - the runtime camera now raises predicted/view-entity origin by the parsed client viewheight, so normal gameplay renders from eye space instead of raw player origin
+- runtime camera origin now prefers authoritative server entity origin and only falls back to simplified prediction when no entity origin is available
 - the runtime camera now applies stored punch angles during normal gameplay (while still skipping them in intermission), so damage/recoil kick feeds into the live view even though fuller C gun-kick interpolation remains future work
 - the runtime viewmodel now uses the active eye/view origin and honors bounded C-style visibility gates (`r_drawviewmodel`, intermission suppression, invisibility/death checks)
 - gameplay input routes through live `bind` / `unbind` / `unbindall` / `bindlist` handling, and `config.cfg` persists those bindings

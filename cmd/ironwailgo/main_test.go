@@ -143,7 +143,7 @@ func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStatePrefersPredictedOrigin(t *testing.T) {
+func TestRuntimeViewStatePrefersAuthoritativeViewEntityOrigin(t *testing.T) {
 	originalClient := gameClient
 	originalServer := gameServer
 	originalRenderer := gameRenderer
@@ -163,7 +163,7 @@ func TestRuntimeViewStatePrefersPredictedOrigin(t *testing.T) {
 	gameClient.ViewAngles = [3]float32{10, 20, 0}
 
 	origin, angles := runtimeViewState()
-	if want := [3]float32{64, 32, 46}; origin != want {
+	if want := [3]float32{128, 64, 62}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want %v", origin, want)
 	}
 	if angles != gameClient.ViewAngles {
@@ -171,7 +171,7 @@ func TestRuntimeViewStatePrefersPredictedOrigin(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateFallsBackToViewEntityOrigin(t *testing.T) {
+func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
 	originalClient := gameClient
 	originalServer := gameServer
 	originalRenderer := gameRenderer
@@ -185,7 +185,7 @@ func TestRuntimeViewStateFallsBackToViewEntityOrigin(t *testing.T) {
 	gameRenderer = nil
 	gameClient = cl.NewClient()
 	gameClient.ViewEntity = 1
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{128, 64, 32}}
+	gameClient.PredictedOrigin = [3]float32{128, 64, 32}
 	gameClient.ViewHeight = 18
 	gameClient.ViewAngles = [3]float32{10, 20, 0}
 
