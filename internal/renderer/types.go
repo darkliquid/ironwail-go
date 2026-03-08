@@ -57,8 +57,11 @@ type RenderContext interface {
 
 	// 2D Drawing API for menus and HUD
 
-	// DrawPic renders a QPic image at the specified position.
+	// DrawPic renders a QPic image at the specified screen-space position.
 	DrawPic(x, y int, pic *image.QPic)
+
+	// DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.
+	DrawMenuPic(x, y int, pic *image.QPic)
 
 	// DrawFill fills a rectangle with a Quake palette color.
 	DrawFill(x, y, w, h int, color byte)

@@ -139,11 +139,14 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 
 // RenderContext interface delegation to the underlying glDrawContext.
 
-func (dc *DrawContext) Clear(r, g, b, a float32)            { dc.gldc.Clear(r, g, b, a) }
-func (dc *DrawContext) DrawTriangle(r, g, b, a float32)     { dc.gldc.DrawTriangle(r, g, b, a) }
-func (dc *DrawContext) SurfaceView() interface{}            { return dc.gldc.SurfaceView() }
-func (dc *DrawContext) Gamma() float32                      { return dc.gldc.Gamma() }
-func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic)   { dc.gldc.DrawPic(x, y, pic) }
+func (dc *DrawContext) Clear(r, g, b, a float32)          { dc.gldc.Clear(r, g, b, a) }
+func (dc *DrawContext) DrawTriangle(r, g, b, a float32)   { dc.gldc.DrawTriangle(r, g, b, a) }
+func (dc *DrawContext) SurfaceView() interface{}          { return dc.gldc.SurfaceView() }
+func (dc *DrawContext) Gamma() float32                    { return dc.gldc.Gamma() }
+func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.gldc.DrawPic(x, y, pic) }
+func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
+	dc.gldc.DrawMenuPic(x, y, pic)
+}
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) { dc.gldc.DrawFill(x, y, w, h, color) }
 func (dc *DrawContext) DrawCharacter(x, y int, num int)     { dc.gldc.DrawCharacter(x, y, num) }
 func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {

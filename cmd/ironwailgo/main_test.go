@@ -92,7 +92,8 @@ type loadingPlaqueDrawCall struct {
 }
 
 type loadingPlaqueDrawContext struct {
-	pics []loadingPlaqueDrawCall
+	pics     []loadingPlaqueDrawCall
+	menuPics []loadingPlaqueDrawCall
 }
 
 func (dc *loadingPlaqueDrawContext) Clear(r, g, b, a float32)            {}
@@ -104,6 +105,9 @@ func (dc *loadingPlaqueDrawContext) DrawCharacter(x, y int, num int)     {}
 func (dc *loadingPlaqueDrawContext) DrawMenuCharacter(x, y int, num int) {}
 func (dc *loadingPlaqueDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
 	dc.pics = append(dc.pics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
+}
+func (dc *loadingPlaqueDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
+	dc.menuPics = append(dc.menuPics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
 }
 
 func TestStartupMapArg(t *testing.T) {
@@ -163,22 +167,25 @@ func TestDrawLoadingPlaqueDrawsPlaqueAndCenteredLoadingPic(t *testing.T) {
 
 	drawLoadingPlaque(dc, pics)
 
-	if len(dc.pics) != 2 {
-		t.Fatalf("draw call count = %d, want 2", len(dc.pics))
+	if len(dc.pics) != 0 {
+		t.Fatalf("screen-space draw call count = %d, want 0", len(dc.pics))
 	}
-	if dc.pics[0].x != 16 || dc.pics[0].y != 4 || dc.pics[0].pic != plaque {
-		t.Fatalf("plaque draw = %+v, want x=16 y=4 plaque", dc.pics[0])
+	if len(dc.menuPics) != 2 {
+		t.Fatalf("menu draw call count = %d, want 2", len(dc.menuPics))
 	}
-	if dc.pics[1].x != 80 || dc.pics[1].y != 84 || dc.pics[1].pic != loading {
-		t.Fatalf("loading draw = %+v, want centered loading pic", dc.pics[1])
+	if dc.menuPics[0].x != 16 || dc.menuPics[0].y != 4 || dc.menuPics[0].pic != plaque {
+		t.Fatalf("plaque draw = %+v, want x=16 y=4 plaque", dc.menuPics[0])
+	}
+	if dc.menuPics[1].x != 80 || dc.menuPics[1].y != 84 || dc.menuPics[1].pic != loading {
+		t.Fatalf("loading draw = %+v, want centered loading pic", dc.menuPics[1])
 	}
 }
 
 func TestDrawLoadingPlaqueNoopWithoutPics(t *testing.T) {
 	dc := &loadingPlaqueDrawContext{}
 	drawLoadingPlaque(dc, nil)
-	if len(dc.pics) != 0 {
-		t.Fatalf("draw call count = %d, want 0", len(dc.pics))
+	if len(dc.pics) != 0 || len(dc.menuPics) != 0 {
+		t.Fatalf("draw call counts = (%d screen, %d menu), want 0", len(dc.pics), len(dc.menuPics))
 	}
 }
 

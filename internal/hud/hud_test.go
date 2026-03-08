@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
 
@@ -14,6 +15,10 @@ import (
 type mockRenderContext struct {
 	characters []struct{ x, y, num int }
 	pics       []struct {
+		x, y int
+		pic  *image.QPic
+	}
+	menuPics []struct {
 		x, y int
 		pic  *image.QPic
 	}
@@ -29,6 +34,12 @@ func (m *mockRenderContext) SurfaceView() interface{}        { return nil }
 func (m *mockRenderContext) Gamma() float32                  { return 1.0 }
 func (m *mockRenderContext) DrawPic(x, y int, pic *image.QPic) {
 	m.pics = append(m.pics, struct {
+		x, y int
+		pic  *image.QPic
+	}{x, y, pic})
+}
+func (m *mockRenderContext) DrawMenuPic(x, y int, pic *image.QPic) {
+	m.menuPics = append(m.menuPics, struct {
 		x, y int
 		pic  *image.QPic
 	}{x, y, pic})
@@ -134,6 +145,53 @@ func TestStatusBarDraw(t *testing.T) {
 	}
 }
 
+func TestStatusBarDrawUsesScreenSpacePicCoordinates(t *testing.T) {
+	sbar := &image.QPic{Width: 320, Height: 24}
+	ibar := &image.QPic{Width: 320, Height: 24}
+	armor := &image.QPic{Width: 24, Height: 24}
+	face := &image.QPic{Width: 24, Height: 24}
+	ammo := &image.QPic{Width: 24, Height: 24}
+	sb := &StatusBar{
+		sbarPic:   sbar,
+		ibarPic:   ibar,
+		armorPics: [3]*image.QPic{armor},
+		ammoPics:  [4]*image.QPic{ammo},
+	}
+	sb.facePics[4][0] = face
+
+	mock := &mockRenderContext{}
+	sb.Draw(mock, State{
+		Health: 100,
+		Armor:  50,
+		Ammo:   30,
+		Items:  cl.ItemArmor1 | cl.ItemShells,
+	}, 1280, 720)
+
+	if len(mock.menuPics) != 0 {
+		t.Fatalf("expected HUD status bar to avoid menu-space pic draws, got %d", len(mock.menuPics))
+	}
+
+	want := []struct {
+		x, y int
+		pic  *image.QPic
+	}{
+		{x: 480, y: 696, pic: sbar},
+		{x: 480, y: 672, pic: ibar},
+		{x: 480, y: 696, pic: armor},
+		{x: 592, y: 696, pic: face},
+		{x: 704, y: 696, pic: ammo},
+	}
+	if len(mock.pics) != len(want) {
+		t.Fatalf("pic draw count = %d, want %d", len(mock.pics), len(want))
+	}
+	for i, expected := range want {
+		got := mock.pics[i]
+		if got.x != expected.x || got.y != expected.y || got.pic != expected.pic {
+			t.Fatalf("pic draw %d = %+v, want %+v", i, got, expected)
+		}
+	}
+}
+
 func TestHUDDraw(t *testing.T) {
 	hud := NewHUD(nil)
 	mock := &mockRenderContext{}
@@ -193,6 +251,38 @@ func TestHUDIntermissionOverlaySuppressesStatusBar(t *testing.T) {
 	}
 	if len(mock.characters) == 0 {
 		t.Fatal("expected intermission overlay text draw")
+	}
+}
+
+func TestCenterprintIntermissionUsesScreenSpacePicCoordinates(t *testing.T) {
+	complete := &image.QPic{Width: 100, Height: 20}
+	inter := &image.QPic{Width: 64, Height: 24}
+	cp := &Centerprint{
+		completePic: complete,
+		interPic:    inter,
+	}
+	mock := &mockRenderContext{}
+	cp.Draw(mock, State{Intermission: 1}, 1280, 720)
+
+	if len(mock.menuPics) != 0 {
+		t.Fatalf("expected centerprint to avoid menu-space pic draws, got %d", len(mock.menuPics))
+	}
+
+	want := []struct {
+		x, y int
+		pic  *image.QPic
+	}{
+		{x: 590, y: 24, pic: complete},
+		{x: 608, y: 56, pic: inter},
+	}
+	if len(mock.pics) < len(want) {
+		t.Fatalf("pic draw count = %d, want at least %d", len(mock.pics), len(want))
+	}
+	for i, expected := range want {
+		got := mock.pics[i]
+		if got.x != expected.x || got.y != expected.y || got.pic != expected.pic {
+			t.Fatalf("pic draw %d = %+v, want %+v", i, got, expected)
+		}
 	}
 }
 

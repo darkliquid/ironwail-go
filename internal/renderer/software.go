@@ -68,20 +68,27 @@ func (s *SoftwareRenderer) SurfaceView() interface{} { return nil }
 // Gamma returns the current gamma correction value.
 func (s *SoftwareRenderer) Gamma() float32 { return s.gamma }
 
-// DrawPic blits a QPic image at (x, y) using the stored palette.
-// Coordinates are in Quake's virtual 320-wide space and are scaled to physical pixels.
+// DrawPic blits a QPic image at a screen-space position using the stored palette.
 func (s *SoftwareRenderer) DrawPic(x, y int, pic *qimage.QPic) {
+	s.drawPicRect(screenPicRect(x, y, pic), pic)
+}
+
+// DrawMenuPic blits a QPic image in 320x200 menu-space coordinates.
+func (s *SoftwareRenderer) DrawMenuPic(x, y int, pic *qimage.QPic) {
+	s.drawPicRect(menuPicRect(s.width, s.height, x, y, pic), pic)
+}
+
+func (s *SoftwareRenderer) drawPicRect(rect picRect, pic *qimage.QPic) {
 	if pic == nil || len(pic.Pixels) == 0 {
 		return
 	}
 	rgba := ConvertPaletteToRGBA(pic.Pixels, s.palette)
 	srcW, srcH := int(pic.Width), int(pic.Height)
 
-	scale, xOff, yOff := menuScale(s.width, s.height)
-	dstX := int(float32(x)*scale + xOff)
-	dstY := int(float32(y)*scale + yOff)
-	dstW := int(float32(srcW) * scale)
-	dstH := int(float32(srcH) * scale)
+	dstX := int(rect.x)
+	dstY := int(rect.y)
+	dstW := int(rect.w)
+	dstH := int(rect.h)
 	if dstW <= 0 || dstH <= 0 {
 		return
 	}

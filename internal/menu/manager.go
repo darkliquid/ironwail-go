@@ -511,7 +511,7 @@ func (m *Manager) drawMain(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/ttl_main.lmp")
 
 	if pic := m.getPic("gfx/mainmenu.lmp"); pic != nil {
-		dc.DrawPic(72, 32, pic)
+		dc.DrawMenuPic(72, 32, pic)
 	} else {
 		m.drawText(dc, 84, 32, "SINGLE PLAYER", true)
 		m.drawText(dc, 84, 52, "MULTIPLAYER", true)
@@ -527,7 +527,7 @@ func (m *Manager) drawSinglePlayer(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/ttl_sgl.lmp")
 
 	if pic := m.getPic("gfx/sp_menu.lmp"); pic != nil {
-		dc.DrawPic(72, 32, pic)
+		dc.DrawMenuPic(72, 32, pic)
 	} else {
 		m.drawText(dc, 84, 32, "NEW GAME", true)
 		m.drawText(dc, 84, 52, "LOAD", true)
@@ -559,7 +559,7 @@ func (m *Manager) drawMultiPlayer(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
 	if pic := m.getPic("gfx/mp_menu.lmp"); pic != nil {
-		dc.DrawPic(72, 32, pic)
+		dc.DrawMenuPic(72, 32, pic)
 	} else {
 		m.drawText(dc, 84, 32, "JOIN GAME", true)
 		m.drawText(dc, 84, 52, "HOST GAME", true)
@@ -583,7 +583,7 @@ func (m *Manager) drawOptions(dc renderer.RenderContext) {
 
 func (m *Manager) drawHelp(dc renderer.RenderContext) {
 	if pic := m.getPic(fmt.Sprintf("gfx/help%d.lmp", m.helpPage)); pic != nil {
-		dc.DrawPic(0, 0, pic)
+		dc.DrawMenuPic(0, 0, pic)
 		return
 	}
 
@@ -633,7 +633,7 @@ func (m *Manager) drawSetup(dc renderer.RenderContext) {
 
 func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string) {
 	if pic := m.getPic("gfx/qplaque.lmp"); pic != nil {
-		dc.DrawPic(16, 4, pic)
+		dc.DrawMenuPic(16, 4, pic)
 	}
 
 	if titlePic == "" {
@@ -642,7 +642,7 @@ func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string)
 
 	if pic := m.getPic(titlePic); pic != nil {
 		x := (320 - int(pic.Width)) / 2
-		dc.DrawPic(x, 4, pic)
+		dc.DrawMenuPic(x, 4, pic)
 	}
 }
 
@@ -650,12 +650,12 @@ func (m *Manager) drawCursor(dc renderer.RenderContext, x, y int) {
 	frame := (time.Now().UnixNano()/int64(200*time.Millisecond))%6 + 1
 	picName := fmt.Sprintf("gfx/menudot%d.lmp", frame)
 	if pic := m.getPic(picName); pic != nil {
-		dc.DrawPic(x, y, pic)
+		dc.DrawMenuPic(x, y, pic)
 		return
 	}
 
 	if pic := m.getPic("gfx/m_surfs.lmp"); pic != nil {
-		dc.DrawPic(x, y, pic)
+		dc.DrawMenuPic(x, y, pic)
 		return
 	}
 

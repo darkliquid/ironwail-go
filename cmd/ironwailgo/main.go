@@ -1654,10 +1654,10 @@ func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 	}
 
 	if plaque := pics.GetPic("gfx/qplaque.lmp"); plaque != nil {
-		dc.DrawPic(16, 4, plaque)
+		dc.DrawMenuPic(16, 4, plaque)
 	}
 	if loading := pics.GetPic("gfx/loading.lmp"); loading != nil {
-		dc.DrawPic((320-int(loading.Width))/2, (240-48-int(loading.Height))/2, loading)
+		dc.DrawMenuPic((320-int(loading.Width))/2, (240-48-int(loading.Height))/2, loading)
 	}
 }
 

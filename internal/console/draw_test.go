@@ -21,6 +21,8 @@ func (m *mockRenderContext) DrawTriangle(r, g, b, a float32)   {}
 func (m *mockRenderContext) SurfaceView() interface{}          { return nil }
 func (m *mockRenderContext) Gamma() float32                    { return 1 }
 func (m *mockRenderContext) DrawPic(x, y int, pic *image.QPic) {}
+func (m *mockRenderContext) DrawMenuPic(x, y int, pic *image.QPic) {
+}
 func (m *mockRenderContext) DrawFill(x, y, w, h int, color byte) {
 	m.fills = append(m.fills, struct {
 		x, y, w, h int

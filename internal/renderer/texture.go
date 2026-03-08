@@ -64,6 +64,35 @@ func menuScale(screenW, screenH int) (scale, xOff, yOff float32) {
 	return
 }
 
+type picRect struct {
+	x float32
+	y float32
+	w float32
+	h float32
+}
+
+func screenPicRect(x, y int, pic *image.QPic) picRect {
+	if pic == nil {
+		return picRect{}
+	}
+	return picRect{
+		x: float32(x),
+		y: float32(y),
+		w: float32(pic.Width),
+		h: float32(pic.Height),
+	}
+}
+
+func menuPicRect(screenW, screenH, x, y int, pic *image.QPic) picRect {
+	rect := screenPicRect(x, y, pic)
+	scale, xOff, yOff := menuScale(screenW, screenH)
+	rect.x = rect.x*scale + xOff
+	rect.y = rect.y*scale + yOff
+	rect.w *= scale
+	rect.h *= scale
+	return rect
+}
+
 // IsTransparentIndex returns true if a palette index represents transparency.
 // In Quake, palette index 255 is the transparent color.
 func IsTransparentIndex(color byte) bool {

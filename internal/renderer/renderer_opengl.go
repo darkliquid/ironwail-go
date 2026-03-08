@@ -238,7 +238,7 @@ func (dc *glDrawContext) uploadQPicTexture(pic *image.QPic, rgba []byte) uint32 
 	return tex
 }
 
-// DrawPic renders a QPic image at specified position.
+// DrawPic renders a QPic image at the specified screen-space position.
 func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
 	if err := dc.init2DRenderer(); err != nil {
 		slog.Error("Failed to init 2D renderer", "error", err)
@@ -253,17 +253,39 @@ func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	// Create quad vertices (x, y, u, v)
-	scale, xOff, yOff := menuScale(dc.viewport.width, dc.viewport.height)
-	w := float32(pic.Width) * scale
-	h := float32(pic.Height) * scale
-	xPos := float32(x)*scale + xOff
-	yPos := float32(y)*scale + yOff
+	rect := screenPicRect(x, y, pic)
 	vertices := []quadVertex{
-		{xPos, yPos, 0.0, 0.0},         // Top-left
-		{xPos + w, yPos, 1.0, 0.0},     // Top-right
-		{xPos, yPos + h, 0.0, 1.0},     // Bottom-left
-		{xPos + w, yPos + h, 1.0, 1.0}, // Bottom-right
+		{rect.x, rect.y, 0.0, 0.0},                   // Top-left
+		{rect.x + rect.w, rect.y, 1.0, 0.0},          // Top-right
+		{rect.x, rect.y + rect.h, 0.0, 1.0},          // Bottom-left
+		{rect.x + rect.w, rect.y + rect.h, 1.0, 1.0}, // Bottom-right
+	}
+
+	// Render quad as triangle strip
+	dc.render2DQuad(vertices, tex, dc.shader2D)
+}
+
+// DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.
+func (dc *glDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
+	if err := dc.init2DRenderer(); err != nil {
+		slog.Error("Failed to init 2D renderer", "error", err)
+		return
+	}
+	if pic == nil || dc.renderer == nil {
+		return
+	}
+
+	tex := dc.renderer.getOrCreateTexture(dc, pic)
+	if tex == 0 {
+		return
+	}
+
+	rect := menuPicRect(dc.viewport.width, dc.viewport.height, x, y, pic)
+	vertices := []quadVertex{
+		{rect.x, rect.y, 0.0, 0.0},                   // Top-left
+		{rect.x + rect.w, rect.y, 1.0, 0.0},          // Top-right
+		{rect.x, rect.y + rect.h, 0.0, 1.0},          // Bottom-left
+		{rect.x + rect.w, rect.y + rect.h, 1.0, 1.0}, // Bottom-right
 	}
 
 	// Render quad as triangle strip

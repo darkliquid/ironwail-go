@@ -25,6 +25,8 @@ func (dc *stubDrawContext) DrawTriangle(r, g, b, a float32) {}
 
 func (dc *stubDrawContext) DrawPic(x, y int, pic *image.QPic) {}
 
+func (dc *stubDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {}
+
 func (dc *stubDrawContext) DrawFill(x, y, w, h int, color byte) {}
 
 func (dc *stubDrawContext) DrawCharacter(x, y int, num int) {}
@@ -86,6 +88,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 func (dc *DrawContext) Clear(r, g, b, a float32)          { dc.stubContext().Clear(r, g, b, a) }
 func (dc *DrawContext) DrawTriangle(r, g, b, a float32)   { dc.stubContext().DrawTriangle(r, g, b, a) }
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.stubContext().DrawPic(x, y, pic) }
+func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
+	dc.stubContext().DrawMenuPic(x, y, pic)
+}
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
 	dc.stubContext().DrawFill(x, y, w, h, color)
 }

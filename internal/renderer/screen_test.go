@@ -3,6 +3,8 @@ package renderer
 import (
 	"math"
 	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/image"
 )
 
 func TestUpdateZoomClampAndRecalc(t *testing.T) {
@@ -147,4 +149,24 @@ func TestComputeTileClear(t *testing.T) {
 	if len(blocked.Rects) != 0 {
 		t.Fatalf("blocked rect count = %d, want 0", len(blocked.Rects))
 	}
+}
+
+func TestScreenPicRectUsesScreenSpaceCoordinates(t *testing.T) {
+	rect := screenPicRect(480, 696, &image.QPic{Width: 24, Height: 16})
+	if rect.x != 480 || rect.y != 696 || rect.w != 24 || rect.h != 16 {
+		t.Fatalf("screenPicRect = %+v, want {x:480 y:696 w:24 h:16}", rect)
+	}
+}
+
+func TestMenuPicRectUsesMenuSpaceScaling(t *testing.T) {
+	rect := menuPicRect(1280, 720, 16, 4, &image.QPic{Width: 24, Height: 16})
+	want := picRect{x: 121.6, y: 14.4, w: 86.4, h: 57.6}
+	if !approxFloat32(rect.x, want.x) || !approxFloat32(rect.y, want.y) ||
+		!approxFloat32(rect.w, want.w) || !approxFloat32(rect.h, want.h) {
+		t.Fatalf("menuPicRect = %+v, want %+v", rect, want)
+	}
+}
+
+func approxFloat32(got, want float32) bool {
+	return math.Abs(float64(got-want)) < 1e-4
 }

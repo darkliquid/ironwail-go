@@ -119,8 +119,7 @@ func (dc *DrawContext) Gamma() float32 {
 
 // 2D Drawing API implementation
 
-// DrawPic renders a QPic image at the specified position.
-// Coordinates are in Quake's virtual 320-wide space and are scaled to physical pixels.
+// DrawPic renders a QPic image at the specified screen-space position.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 	if pic == nil {
 		return
@@ -131,11 +130,27 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
+	rect := screenPicRect(x, y, pic)
+	err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
+	if err != nil {
+		slog.Error("Failed to draw texture", "error", err)
+	}
+}
+
+// DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.
+func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
+	if pic == nil {
+		return
+	}
+
+	tex := dc.renderer.getOrCreateTexture(dc.ctx, pic)
+	if tex == nil {
+		return
+	}
+
 	screenW, screenH := dc.renderer.Size()
-	scale, xOff, yOff := menuScale(screenW, screenH)
-	err := dc.ctx.DrawTextureScaled(tex,
-		float32(x)*scale+xOff, float32(y)*scale+yOff,
-		float32(pic.Width)*scale, float32(pic.Height)*scale)
+	rect := menuPicRect(screenW, screenH, x, y, pic)
+	err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
 	if err != nil {
 		slog.Error("Failed to draw texture", "error", err)
 	}
