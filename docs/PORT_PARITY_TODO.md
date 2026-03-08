@@ -185,6 +185,7 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 - wire real menu actions into cvars/commands
 - extend the HUD toward `sbar.c` behavior: inventory, face state, keys, weapon strip, ammo icons, powerup indicators, and other missing status elements
 - [x] route menu key handling from key-down events only (avoid doubled cursor movement and double-fired one-shot menu actions on key release)
+- [x] render menu text/cursor glyphs through menu-space scaling so text-only prompts (for example quit y/n) align with image-backed menu layout
 
 **Done when**
 

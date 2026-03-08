@@ -320,6 +320,36 @@ func (dc *glDrawContext) DrawCharacter(x, y int, num int) {
 	dc.render2DQuad(vertices, tex, dc.shader2D)
 }
 
+// DrawMenuCharacter renders a single character from font in 320x200 menu space.
+func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
+	if err := dc.init2DRenderer(); err != nil {
+		slog.Error("Failed to init 2D renderer", "error", err)
+		return
+	}
+	if dc.renderer == nil || num < 0 || num > 255 {
+		return
+	}
+	pic := dc.renderer.getCharPic(num)
+	if pic == nil {
+		return
+	}
+	tex := dc.renderer.getOrCreateCharTexture(dc, pic)
+	if tex == 0 {
+		return
+	}
+	scale, xOff, yOff := menuScale(dc.viewport.width, dc.viewport.height)
+	xPos := float32(x)*scale + xOff
+	yPos := float32(y)*scale + yOff
+	charSize := float32(8) * scale
+	vertices := []quadVertex{
+		{xPos, yPos, 0.0, 0.0},
+		{xPos + charSize, yPos, 1.0, 0.0},
+		{xPos, yPos + charSize, 0.0, 1.0},
+		{xPos + charSize, yPos + charSize, 1.0, 1.0},
+	}
+	dc.render2DQuad(vertices, tex, dc.shader2D)
+}
+
 func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program uint32) {
 	gl.UseProgram(program)
 

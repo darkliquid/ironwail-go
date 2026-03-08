@@ -173,6 +173,32 @@ func (dc *DrawContext) DrawCharacter(x, y int, num int) {
 	}
 }
 
+// DrawMenuCharacter renders a single 8×8 character in menu-space coordinates.
+func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
+	if num < 0 || num > 255 {
+		return
+	}
+	pic := dc.renderer.getCharPic(num)
+	if pic == nil {
+		return
+	}
+	tex := dc.renderer.getOrCreateCharTexture(dc.ctx, num, pic)
+	if tex == nil {
+		return
+	}
+	screenW, screenH := dc.renderer.Size()
+	scale, xOff, yOff := menuScale(screenW, screenH)
+	if err := dc.ctx.DrawTextureScaled(
+		tex,
+		float32(x)*scale+xOff,
+		float32(y)*scale+yOff,
+		8*scale,
+		8*scale,
+	); err != nil {
+		slog.Error("DrawMenuCharacter: draw failed", "num", num, "error", err)
+	}
+}
+
 // SetConchars stores the raw 128×128 conchars pixel data and clears the
 // per-character texture cache so that DrawCharacter uses the real font.
 func (r *Renderer) SetConchars(data []byte) {

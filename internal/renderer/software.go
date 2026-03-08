@@ -137,6 +137,18 @@ func (s *SoftwareRenderer) DrawCharacter(x, y int, num int) {
 	s.DrawFill(x, y, 8, 8, byte(num%255))
 }
 
+// DrawMenuCharacter renders a single character in menu-space coordinates.
+func (s *SoftwareRenderer) DrawMenuCharacter(x, y int, num int) {
+	scale, xOff, yOff := menuScale(s.width, s.height)
+	menuX := int(float32(x)*scale + xOff)
+	menuY := int(float32(y)*scale + yOff)
+	menuSize := int(8 * scale)
+	if menuSize <= 0 {
+		return
+	}
+	s.DrawFill(menuX, menuY, menuSize, menuSize, byte(num%255))
+}
+
 // DrawBSPWorld renders the BSP world geometry as a flat-shaded top-down orthographic
 // projection. Each face is filled with a colour derived from its plane normal,
 // giving a floor-plan style overview of the map.

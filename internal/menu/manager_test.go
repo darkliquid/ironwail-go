@@ -15,6 +15,25 @@ func (m *mockDrawManager) GetPic(name string) *image.QPic {
 	return nil
 }
 
+type mockMenuRenderContext struct {
+	characters     []struct{ x, y, num int }
+	menuCharacters []struct{ x, y, num int }
+}
+
+func (m *mockMenuRenderContext) Clear(r, g, b, a float32)          {}
+func (m *mockMenuRenderContext) DrawTriangle(r, g, b, a float32)   {}
+func (m *mockMenuRenderContext) SurfaceView() interface{}          { return nil }
+func (m *mockMenuRenderContext) Gamma() float32                    { return 1.0 }
+func (m *mockMenuRenderContext) DrawPic(x, y int, pic *image.QPic) {}
+func (m *mockMenuRenderContext) DrawFill(x, y, w, h int, color byte) {
+}
+func (m *mockMenuRenderContext) DrawCharacter(x, y int, num int) {
+	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
+}
+func (m *mockMenuRenderContext) DrawMenuCharacter(x, y int, num int) {
+	m.menuCharacters = append(m.menuCharacters, struct{ x, y, num int }{x, y, num})
+}
+
 func TestNewManager(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	inputSys := input.NewSystem(nil)
@@ -430,5 +449,27 @@ func TestMenuStateStringability(t *testing.T) {
 		if int(state) != i {
 			t.Fatalf("state index mismatch: %s expected %d got %d", fmt.Sprint(state), i, state)
 		}
+	}
+}
+
+func TestDrawQuitUsesMenuCharacterPath(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	mgr.state = MenuQuit
+
+	rc := &mockMenuRenderContext{}
+	mgr.M_Draw(rc)
+
+	if len(rc.menuCharacters) == 0 {
+		t.Fatal("expected quit menu to draw menu characters")
+	}
+	if len(rc.characters) != 0 {
+		t.Fatalf("expected quit menu to avoid raw DrawCharacter path, got %d draws", len(rc.characters))
+	}
+	first := rc.menuCharacters[0]
+	if first.x != 56 || first.y != 64 || first.num != int('A')+128 {
+		t.Fatalf("first menu char = (%d,%d,%d), want (56,64,%d)", first.x, first.y, first.num, int('A')+128)
 	}
 }

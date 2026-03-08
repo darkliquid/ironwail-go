@@ -503,7 +503,7 @@ func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string)
 }
 
 func (m *Manager) drawCursor(dc renderer.RenderContext, x, y int) {
-	frame := (time.Now().UnixNano() / int64(200*time.Millisecond))%6 + 1
+	frame := (time.Now().UnixNano()/int64(200*time.Millisecond))%6 + 1
 	picName := fmt.Sprintf("gfx/menudot%d.lmp", frame)
 	if pic := m.getPic(picName); pic != nil {
 		dc.DrawPic(x, y, pic)
@@ -515,12 +515,12 @@ func (m *Manager) drawCursor(dc renderer.RenderContext, x, y int) {
 		return
 	}
 
-	dc.DrawCharacter(x, y, 12)
+	dc.DrawMenuCharacter(x, y, 12)
 }
 
 func (m *Manager) drawArrowCursor(dc renderer.RenderContext, x, y int) {
 	char := 12 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
-	dc.DrawCharacter(x, y, char)
+	dc.DrawMenuCharacter(x, y, char)
 }
 
 func (m *Manager) drawText(dc renderer.RenderContext, x, y int, text string, white bool) {
@@ -529,7 +529,7 @@ func (m *Manager) drawText(dc renderer.RenderContext, x, y int, text string, whi
 		if white {
 			ch += 128
 		}
-		dc.DrawCharacter(x+i*8, y, ch)
+		dc.DrawMenuCharacter(x+i*8, y, ch)
 	}
 }
 

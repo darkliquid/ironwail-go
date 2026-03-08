@@ -41,6 +41,9 @@ func (m *mockRenderContext) DrawFill(x, y, w, h int, color byte) {
 func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
 }
+func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
+	m.DrawCharacter(x, y, num)
+}
 
 func TestDrawNumber(t *testing.T) {
 	tests := []struct {
@@ -52,7 +55,7 @@ func TestDrawNumber(t *testing.T) {
 		{"zero", 0, 1, "0"},
 		{"single digit", 5, 1, "5"},
 		{"two digits", 42, 2, "42"},
-		{"padded", 7, 3, "7"},        // Spaces are not drawn, only visible chars
+		{"padded", 7, 3, "7"}, // Spaces are not drawn, only visible chars
 		{"negative", -10, 2, "-10"},
 		{"large number", 999, 3, "999"},
 	}

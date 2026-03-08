@@ -29,6 +29,8 @@ func (dc *stubDrawContext) DrawFill(x, y, w, h int, color byte) {}
 
 func (dc *stubDrawContext) DrawCharacter(x, y int, num int) {}
 
+func (dc *stubDrawContext) DrawMenuCharacter(x, y int, num int) {}
+
 func (dc *stubDrawContext) SurfaceView() interface{} {
 	return nil
 }
@@ -88,8 +90,11 @@ func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
 	dc.stubContext().DrawFill(x, y, w, h, color)
 }
 func (dc *DrawContext) DrawCharacter(x, y int, num int) { dc.stubContext().DrawCharacter(x, y, num) }
-func (dc *DrawContext) SurfaceView() interface{}        { return dc.stubContext().SurfaceView() }
-func (dc *DrawContext) Gamma() float32                  { return dc.stubContext().Gamma() }
+func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
+	dc.stubContext().DrawMenuCharacter(x, y, num)
+}
+func (dc *DrawContext) SurfaceView() interface{} { return dc.stubContext().SurfaceView() }
+func (dc *DrawContext) Gamma() float32           { return dc.stubContext().Gamma() }
 
 func (dc *DrawContext) stubContext() *stubDrawContext {
 	if dc.stub == nil {

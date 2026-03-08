@@ -30,6 +30,9 @@ func (m *mockRenderContext) DrawFill(x, y, w, h int, color byte) {
 func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
 }
+func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
+	m.DrawCharacter(x, y, num)
+}
 
 func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
 	c := NewConsole(DefaultTextSize)

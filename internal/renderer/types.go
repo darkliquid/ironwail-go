@@ -65,6 +65,9 @@ type RenderContext interface {
 
 	// DrawCharacter renders a single character from the font.
 	DrawCharacter(x, y int, num int)
+
+	// DrawMenuCharacter renders a single menu character in 320x200 menu-space coordinates.
+	DrawMenuCharacter(x, y int, num int)
 }
 
 // Backend manages the graphics backend and window.

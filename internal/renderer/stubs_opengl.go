@@ -145,6 +145,9 @@ func (dc *DrawContext) Gamma() float32                      { return dc.gldc.Gam
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic)   { dc.gldc.DrawPic(x, y, pic) }
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) { dc.gldc.DrawFill(x, y, w, h, color) }
 func (dc *DrawContext) DrawCharacter(x, y int, num int)     { dc.gldc.DrawCharacter(x, y, num) }
+func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
+	dc.gldc.DrawMenuCharacter(x, y, num)
+}
 
 // DefaultRenderFrameState returns a sensible default RenderFrameState.
 func DefaultRenderFrameState() *RenderFrameState {
