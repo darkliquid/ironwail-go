@@ -227,6 +227,21 @@ func TestShouldRunLateTranslucencyBlock(t *testing.T) {
 			},
 			want: true,
 		},
+		{
+			name: "sprite entities require draw entities",
+			inputs: lateTranslucencyBlockInputs{
+				hasSpriteEntities: true,
+			},
+			want: false,
+		},
+		{
+			name: "sprite entities with draw entities enabled",
+			inputs: lateTranslucencyBlockInputs{
+				drawEntities:      true,
+				hasSpriteEntities: true,
+			},
+			want: true,
+		},
 	}
 
 	for _, tc := range tests {

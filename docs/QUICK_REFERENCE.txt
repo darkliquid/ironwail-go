@@ -27,10 +27,11 @@ B. ENTITY RENDERING        [████████████████░�
       - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
       - translucent brush-entity non-liquid surfaces now move out of the early opaque stage and render later, after the separated liquid phases
       - late translucent liquid/entity/decal/particle work is now wrapped in an explicit begin/end translucency state block before the final viewmodel draw
+      - runtime sprites now render in that late translucency stage (instead of the earlier opaque entity block), keeping sprite staging aligned with late translucent scene content
       - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
       - bounded viewmodel parity slice landed: runtime viewmodel now anchors to eye/view origin, is suppressed in intermission, and honors `r_drawviewmodel` + invisibility/death gating
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-    - Remaining fidelity work: full C pass sequencing/ordering polish and broader sprite quad-orientation fidelity
+    - Remaining fidelity work: full C pass sequencing/ordering polish (especially final viewmodel-placement details) and broader sprite quad-orientation fidelity
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
@@ -85,7 +86,7 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 1. Render-pass ordering fidelity
     Location: internal/renderer/world_runtime_opengl.go
-    Impact: Scene composition is closer (liquids now have a distinct frame-level stage) but still differs from C in sky/translucency/viewmodel edge cases
+    Impact: Scene composition is closer (liquids plus sprites now have distinct late-stage placement) but still differs from C in some translucency/viewmodel edge cases
     Fix: Finish full C pass sequencing and close remaining non-cubemap skybox edge cases
     Reference: gl_sky.c + gl_rmain.c
 

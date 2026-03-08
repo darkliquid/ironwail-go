@@ -111,6 +111,7 @@ type lateTranslucencyBlockInputs struct {
 	drawWorld                   bool
 	hasTranslucentWorld         bool
 	drawEntities                bool
+	hasSpriteEntities           bool
 	drawParticles               bool
 	hasDecalMarks               bool
 	hasTranslucentBrushEntities bool
@@ -124,7 +125,7 @@ func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 	if !inputs.drawEntities {
 		return false
 	}
-	return inputs.hasTranslucentBrushEntities || inputs.hasTranslucentAliasEntities
+	return inputs.hasTranslucentBrushEntities || inputs.hasTranslucentAliasEntities || inputs.hasSpriteEntities
 }
 
 func worldLiquidFaceTypeMask(faces []WorldFace) int32 {
