@@ -558,6 +558,144 @@ func TestListSaveSlotsTreatsMalformedSaveAsUnused(t *testing.T) {
 	}
 }
 
+func TestListSaveSlotsFallsBackToLegacyBaseGameSaveWhenUserSaveMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   2,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "legacy-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(save): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "s0.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile(legacy s0): %v", err)
+	}
+
+	h := NewHost()
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	slots := h.ListSaveSlots(2)
+	if len(slots) != 2 {
+		t.Fatalf("slot count = %d, want 2", len(slots))
+	}
+	if got := slots[0].DisplayName; got != "legacy-map" {
+		t.Fatalf("slot[0].DisplayName = %q, want legacy-map", got)
+	}
+	if got := slots[1].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[1].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
+	}
+}
+
+func TestListSaveSlotsPrefersUserSaveOverLegacyFallback(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "saves"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(saves): %v", err)
+	}
+
+	legacySave, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "legacy-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(legacy): %v", err)
+	}
+	userSave, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "user-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(user): %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "s0.sav"), legacySave, 0o644); err != nil {
+		t.Fatalf("WriteFile(legacy s0): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "saves", "s0.sav"), userSave, 0o644); err != nil {
+		t.Fatalf("WriteFile(user s0): %v", err)
+	}
+
+	h := NewHost()
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	slots := h.ListSaveSlots(1)
+	if len(slots) != 1 {
+		t.Fatalf("slot count = %d, want 1", len(slots))
+	}
+	if got := slots[0].DisplayName; got != "user-map" {
+		t.Fatalf("slot[0].DisplayName = %q, want user-map", got)
+	}
+}
+
+func TestListSaveSlotsTreatsMalformedUserSaveAsUnusedWithLegacyFallback(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "saves"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(saves): %v", err)
+	}
+
+	legacySave, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "legacy-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(legacy): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "s0.sav"), legacySave, 0o644); err != nil {
+		t.Fatalf("WriteFile(legacy s0): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "saves", "s0.sav"), []byte("{bad json"), 0o644); err != nil {
+		t.Fatalf("WriteFile(user s0): %v", err)
+	}
+
+	h := NewHost()
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	slots := h.ListSaveSlots(2)
+	if len(slots) != 2 {
+		t.Fatalf("slot count = %d, want 2", len(slots))
+	}
+	if got := slots[0].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[0].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
+	}
+	if got := slots[1].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[1].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
+	}
+}
+
 func TestCmdSaveRejectsIntermission(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}

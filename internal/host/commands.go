@@ -1000,13 +1000,7 @@ func (h *Host) ListSaveSlots(count int) []SaveSlotInfo {
 			DisplayName: unusedSaveSlotDisplay,
 		}
 
-		path, err := h.saveFilePath(slotName)
-		if err != nil {
-			slots = append(slots, slot)
-			continue
-		}
-
-		data, err := os.ReadFile(path)
+		_, data, err := h.readSaveFile(slotName)
 		if err != nil {
 			slots = append(slots, slot)
 			continue
