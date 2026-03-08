@@ -79,6 +79,7 @@ type Client struct {
 	Spawned    bool
 	DropASAP   bool
 	SendSignon SignonStage
+	Loopback   bool
 
 	LastMessage float64
 
@@ -92,10 +93,11 @@ type Client struct {
 
 	SpawnParms [16]float32
 	// Client input state
-	LastCmd      UserCmd
-	Message      *MessageBuffer
-	OldFrags     int // Previous frags count for reliable message updates
-	EntityStates map[int]EntityState
+	LastCmd            UserCmd
+	LoopbackCmdPending bool
+	Message            *MessageBuffer
+	OldFrags           int // Previous frags count for reliable message updates
+	EntityStates       map[int]EntityState
 }
 
 // AreaNode is a node in the spatial partitioning tree for entity collision.

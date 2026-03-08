@@ -201,3 +201,60 @@ func TestRunClientsProcessesMoveOnSpawnedMap(t *testing.T) {
 		t.Fatalf("forwardmove = %v, want 100", client.LastCmd.ForwardMove)
 	}
 }
+
+func TestLoopbackCmdMovesAuthoritativePlayerOrigin(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	if err := s.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Spawned = true
+
+	pos, ok := findWalkablePointForUserTest(s)
+	if !ok {
+		t.Skip("no walkable point found on start map")
+	}
+
+	ent := client.Edict
+	ent.Vars.Origin = pos
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent.Vars.Health = 100
+	ent.Vars.Flags = float32(FlagOnGround)
+	s.LinkEdict(ent, false)
+
+	start := ent.Vars.Origin
+	if err := s.SubmitLoopbackCmd(0, [3]float32{0, 0, 0}, 200, 0, 0, 0, 0, float64(s.Time)); err != nil {
+		t.Fatalf("SubmitLoopbackCmd: %v", err)
+	}
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("Frame: %v", err)
+	}
+
+	end := ent.Vars.Origin
+	if end == start {
+		t.Fatalf("authoritative origin did not move: start=%v end=%v", start, end)
+	}
+	if dx, dy := end[0]-start[0], end[1]-start[1]; dx == 0 && dy == 0 {
+		t.Fatalf("authoritative origin only changed vertically: start=%v end=%v", start, end)
+	}
+}

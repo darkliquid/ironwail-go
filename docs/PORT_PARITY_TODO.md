@@ -52,6 +52,7 @@ Make the live runtime actually use the client-side systems that already exist in
 - [x] anchor runtime viewmodel placement to eye/view origin (not raw player origin), gate it behind `r_drawviewmodel`, and suppress it during intermission
 - [x] restore authoritative walk/gravity collision flow by running `RunClients()` before `Physics()` in server frames, fixing `FrameTime`/time-step propagation, and running `MoveTypeWalk` through server collision/gravity movement each physics tick
 - [x] make runtime camera prefer authoritative server entity origin over simplified predicted origin so manual runtime movement reflects server collision/gravity behavior
+- [x] restore loopback movement intake by consuming pre-submitted `SubmitLoopbackCmd()` input in `RunClients()` (instead of parsing server reliable buffers as client input), with map-backed regression coverage that asserts authoritative server player origin moves
 - centralize one per-frame place where transient client events are consumed and applied
 
 **Why now**

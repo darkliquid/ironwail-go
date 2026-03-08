@@ -546,6 +546,7 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 	if client == nil {
 		return fmt.Errorf("client %d is nil", clientNum)
 	}
+	client.Loopback = true
 	if !s.SV_ExecuteUserCommand(client, cmd) {
 		return fmt.Errorf("command %q rejected", cmd)
 	}
@@ -607,6 +608,7 @@ func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward
 	if client == nil {
 		return fmt.Errorf("client %d is nil", clientNum)
 	}
+	client.Loopback = true
 
 	client.LastCmd = UserCmd{
 		ViewAngles:  viewAngles,
@@ -616,6 +618,7 @@ func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward
 		Buttons:     uint8(buttons),
 		Impulse:     uint8(impulse),
 	}
+	client.LoopbackCmdPending = true
 	client.PingTimes[client.NumPings%NumPingTimes] = s.Time - float32(sentTime)
 	client.NumPings++
 
@@ -676,9 +679,16 @@ func (s *Server) RunClients() {
 			continue
 		}
 
-		if client.Message == nil || !s.SV_ReadClientMessage(client, client.Message) {
-			s.DropClient(client, false)
-			continue
+		if client.Loopback {
+			if !client.LoopbackCmdPending {
+				client.LastCmd = UserCmd{}
+			}
+			client.LoopbackCmdPending = false
+		} else {
+			if client.Message == nil || !s.SV_ReadClientMessage(client, client.Message) {
+				s.DropClient(client, false)
+				continue
+			}
 		}
 
 		if !client.Spawned {
