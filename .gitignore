@@ -20,3 +20,6 @@
 !.gitignore
 !/docs/*.md
 !/docs/*.txt
+
+# bv (beads viewer) local config and caches
+.bv/
