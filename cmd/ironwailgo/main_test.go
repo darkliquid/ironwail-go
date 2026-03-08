@@ -14,6 +14,7 @@ import (
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
 	"github.com/ironwail/ironwail-go/internal/input"
@@ -240,6 +241,152 @@ func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
 	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
 	if camera.Angles.X != 10 || camera.Angles.Y != 20 || camera.Angles.Z != 30 {
 		t.Fatalf("runtimeCameraState angles = %v, want {10 20 30}", camera.Angles)
+	}
+}
+
+func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
+	originalClient := gameClient
+	originalMenu := gameMenu
+	originalSubs := gameSubs
+	originalAliasCache := aliasModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameMenu = originalMenu
+		gameSubs = originalSubs
+		aliasModelCache = originalAliasCache
+	})
+
+	cvar.Set("r_drawviewmodel", "1")
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
+	gameClient.Stats[0] = 100
+	gameClient.Stats[2] = 1
+	gameClient.Stats[5] = 1
+	gameClient.ViewAngles = [3]float32{12, 34, 0}
+	gameClient.ViewHeight = 28
+	gameClient.PredictedOrigin = [3]float32{100, 200, 300}
+	gameMenu = menu.NewManager(nil, nil)
+	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	aliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 2},
+		},
+	}
+
+	entity := collectViewModelEntity()
+	if entity == nil {
+		t.Fatal("collectViewModelEntity() = nil, want entity")
+	}
+	if entity.Origin != [3]float32{100, 200, 328} {
+		t.Fatalf("viewmodel origin = %v, want eye origin [100 200 328]", entity.Origin)
+	}
+	if entity.Angles != [3]float32{-12, 34, 0} {
+		t.Fatalf("viewmodel angles = %v, want [-12 34 0]", entity.Angles)
+	}
+	if entity.Frame != 1 {
+		t.Fatalf("viewmodel frame = %d, want 1", entity.Frame)
+	}
+}
+
+func TestCollectViewModelEntitySuppressesIntermission(t *testing.T) {
+	originalClient := gameClient
+	originalMenu := gameMenu
+	originalSubs := gameSubs
+	originalAliasCache := aliasModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameMenu = originalMenu
+		gameSubs = originalSubs
+		aliasModelCache = originalAliasCache
+	})
+
+	cvar.Set("r_drawviewmodel", "1")
+	gameClient = cl.NewClient()
+	gameClient.Intermission = 1
+	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
+	gameClient.Stats[2] = 1
+	gameClient.Stats[0] = 100
+	gameMenu = menu.NewManager(nil, nil)
+	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	aliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	if entity := collectViewModelEntity(); entity != nil {
+		t.Fatalf("collectViewModelEntity() = %#v, want nil during intermission", entity)
+	}
+}
+
+func TestCollectViewModelEntityHonorsDrawViewModelCvar(t *testing.T) {
+	originalClient := gameClient
+	originalMenu := gameMenu
+	originalSubs := gameSubs
+	originalAliasCache := aliasModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameMenu = originalMenu
+		gameSubs = originalSubs
+		aliasModelCache = originalAliasCache
+		cvar.Set("r_drawviewmodel", "1")
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
+	gameClient.Stats[2] = 1
+	gameClient.Stats[0] = 100
+	gameMenu = menu.NewManager(nil, nil)
+	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	aliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	cvar.Set("r_drawviewmodel", "0")
+	if entity := collectViewModelEntity(); entity != nil {
+		t.Fatalf("collectViewModelEntity() = %#v, want nil when r_drawviewmodel=0", entity)
+	}
+
+	cvar.Set("r_drawviewmodel", "1")
+	if entity := collectViewModelEntity(); entity == nil {
+		t.Fatal("collectViewModelEntity() = nil, want entity when r_drawviewmodel=1")
+	}
+}
+
+func TestCollectViewModelEntitySuppressesWhenInvisible(t *testing.T) {
+	originalClient := gameClient
+	originalMenu := gameMenu
+	originalSubs := gameSubs
+	originalAliasCache := aliasModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameMenu = originalMenu
+		gameSubs = originalSubs
+		aliasModelCache = originalAliasCache
+	})
+
+	cvar.Set("r_drawviewmodel", "1")
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
+	gameClient.Stats[2] = 1
+	gameClient.Stats[0] = 100
+	gameClient.Items = cl.ItemInvisibility
+	gameMenu = menu.NewManager(nil, nil)
+	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	aliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	if entity := collectViewModelEntity(); entity != nil {
+		t.Fatalf("collectViewModelEntity() = %#v, want nil when invisibility is active", entity)
 	}
 }
 

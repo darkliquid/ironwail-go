@@ -128,6 +128,7 @@ func initGameHost() error {
 	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
 	cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
+	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
 	cvar.Register("developer", "0", 0, "Developer mode")
 
@@ -1071,7 +1072,7 @@ func entityStateScale(state inet.EntityState) float32 {
 }
 
 func collectViewModelEntity() *renderer.AliasModelEntity {
-	if gameClient == nil || gameMenu == nil || gameMenu.IsActive() {
+	if !runtimeViewModelVisible() {
 		return nil
 	}
 
@@ -1097,12 +1098,9 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
 		frame = 0
 	}
+	origin, _ := runtimeViewState()
 	angles := gameClient.ViewAngles
 	angles[0] = -angles[0]
-	origin := gameClient.PredictedOrigin
-	if playerOrigin, ok := runtimePlayerOrigin(); ok {
-		origin = playerOrigin
-	}
 
 	return &renderer.AliasModelEntity{
 		ModelID: modelName,
@@ -1114,6 +1112,25 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		Alpha:   1,
 		Scale:   1,
 	}
+}
+
+func runtimeViewModelVisible() bool {
+	if gameClient == nil {
+		return false
+	}
+	if gameMenu != nil && gameMenu.IsActive() {
+		return false
+	}
+	if gameClient.Intermission != 0 {
+		return false
+	}
+	if !cvar.BoolValue("r_drawviewmodel") {
+		return false
+	}
+	if gameClient.Health() <= 0 {
+		return false
+	}
+	return gameClient.Items&cl.ItemInvisibility == 0
 }
 
 func registerGameplayBindCommands() {

@@ -27,8 +27,9 @@ B. ENTITY RENDERING        [████████████████░�
       - translucent brush-entity non-liquid surfaces now move out of the early opaque stage and render later, after the separated liquid phases
       - late translucent liquid/entity/decal/particle work is now wrapped in an explicit begin/end translucency state block before the final viewmodel draw
       - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
+      - bounded viewmodel parity slice landed: runtime viewmodel now anchors to eye/view origin, is suppressed in intermission, and honors `r_drawviewmodel` + invisibility/death gating
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing focused on final viewmodel placement and related late-scene ordering edge cases, plus broader sprite quad-orientation fidelity
+    - Remaining fidelity work: full C pass sequencing/ordering polish and broader sprite quad-orientation fidelity
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
@@ -59,7 +60,8 @@ E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░]
 F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
     - Basic prediction: DONE (simplified)
     - Client viewheight state from `svc_clientdata`: DONE (stored and applied to runtime camera origin)
-    - Client punch state from `svc_clientdata`: DONE for runtime camera kick (full C gun-kick interpolation/viewmodel handling still pending)
+    - Client punch state from `svc_clientdata`: DONE for runtime camera kick (full C gun-kick interpolation still pending)
+    - Viewmodel eye-origin + `r_drawviewmodel`/intermission gating: DONE as bounded canonical-runtime parity slice
     - Full physics: MISSING (no ground detect, steps, collision)
     - Command looping: PARTIAL
     - Demo recording/playback forward path: DONE

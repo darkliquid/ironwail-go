@@ -16,6 +16,7 @@ const (
 	defaultMaxPitch   = 90.0
 	defaultMinPitch   = -90.0
 	defaultWheelPitch = 5.0
+	ItemInvisibility  = 1 << 19
 )
 
 type ClientState int
@@ -391,6 +392,14 @@ func (c *Client) WeaponFrame() int {
 		return 0
 	}
 	return c.Stats[statWeaponFrame]
+}
+
+// Health returns the current player health stat.
+func (c *Client) Health() int {
+	if c == nil {
+		return 0
+	}
+	return c.Stats[statHealth]
 }
 
 // LightStyleValues evaluates the current lightstyle scalars for the client clock.

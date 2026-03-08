@@ -49,7 +49,7 @@ Make the live runtime actually use the client-side systems that already exist in
 - [x] store `svc_clientdata` viewheight/punch state on the live client so later eye-space camera/viewmodel parity slices can consume real server-driven values
 - [x] raise the runtime camera to the client viewheight so normal gameplay view uses eye-space origin instead of raw player origin
 - [x] apply stored client punch angles to the runtime camera outside intermission so recoil/damage kick now affects the live eye-space view
-- ensure camera/viewmodel logic uses the updated predicted state consistently
+- [x] anchor runtime viewmodel placement to eye/view origin (not raw player origin), gate it behind `r_drawviewmodel`, and suppress it during intermission
 - centralize one per-frame place where transient client events are consumed and applied
 
 **Why now**
@@ -59,7 +59,7 @@ Rendering, audio, and viewmodel correctness all depend on the runtime using the 
 **Done when**
 
 - prediction code is exercised in the real runtime, not just tests
-- the camera and viewmodel no longer rely on stale or zeroed prediction fields (still in progress)
+- [x] the camera and bounded runtime viewmodel path no longer rely on stale or zeroed prediction fields
 
 ### 3. Wire audio end to end
 
@@ -259,6 +259,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded post-46f3ca3 parity slice: split brush entities into opaque/translucent frame groups so translucent brush non-liquid work moves later in the frame while opaque brush work stays in the earlier entity/liquid stages
 - [x] bounded post-f735cc1 parity slice: add an explicit late-frame translucency state block on the canonical OpenGL path, wrapping the translucent-liquid/entity/decal/particle stage and ending before viewmodel rendering
 - [x] bounded post-19b917a parity slice: resolve runtime sprite-frame selection so `SPR_GROUP` sprites advance by client-time intervals and `SPR_ANGLED` sprites choose directional subframes from the current camera basis instead of time-stepping through those frames
+- [x] bounded post-ef3bee6 parity slice (`viewmodel-origin-and-gating`): anchor runtime viewmodel origin to the active eye/view origin, suppress the viewmodel during intermission, and honor `r_drawviewmodel`-style visibility gating (including invisibility/death suppression) on the canonical runtime path
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor now centered on final viewmodel placement details, with broader sprite quad-orientation fidelity still tracked separately)
 
 **Done when**
