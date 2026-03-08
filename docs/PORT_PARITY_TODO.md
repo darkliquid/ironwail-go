@@ -48,6 +48,7 @@ Make the live runtime actually use the client-side systems that already exist in
 - ✅ call `PredictPlayers()` every frame instead of only reading `PredictedOrigin` (wired in live runtime frame loop)
 - [x] store `svc_clientdata` viewheight/punch state on the live client so later eye-space camera/viewmodel parity slices can consume real server-driven values
 - [x] raise the runtime camera to the client viewheight so normal gameplay view uses eye-space origin instead of raw player origin
+- [x] apply stored client punch angles to the runtime camera outside intermission so recoil/damage kick now affects the live eye-space view
 - ensure camera/viewmodel logic uses the updated predicted state consistently
 - centralize one per-frame place where transient client events are consumed and applied
 

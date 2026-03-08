@@ -1591,6 +1591,11 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
 	if gameClient != nil {
+		if gameClient.Intermission == 0 {
+			camera.Angles.X += gameClient.PunchAngle[0]
+			camera.Angles.Y += gameClient.PunchAngle[1]
+			camera.Angles.Z += gameClient.PunchAngle[2]
+		}
 		camera.Time = float32(gameClient.Time)
 	}
 	return camera

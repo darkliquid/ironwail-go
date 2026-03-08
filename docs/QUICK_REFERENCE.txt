@@ -59,7 +59,7 @@ E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░]
 F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
     - Basic prediction: DONE (simplified)
     - Client viewheight state from `svc_clientdata`: DONE (stored and applied to runtime camera origin)
-    - Client punch state from `svc_clientdata`: DONE (stored; camera/viewmodel application still pending)
+    - Client punch state from `svc_clientdata`: DONE for runtime camera kick (full C gun-kick interpolation/viewmodel handling still pending)
     - Full physics: MISSING (no ground detect, steps, collision)
     - Command looping: PARTIAL
     - Demo recording/playback forward path: DONE

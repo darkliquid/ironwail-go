@@ -199,6 +199,7 @@ What already works:
 - `main.go` now calls `PredictPlayers()` and uses the updated predicted state for camera/viewmodel work
 - the client now preserves `svc_clientdata` viewheight and punch state instead of discarding those server-driven eye-space inputs, narrowing the remaining camera/viewmodel fidelity gap
 - the runtime camera now raises predicted/view-entity origin by the parsed client viewheight, so normal gameplay renders from eye space instead of raw player origin
+- the runtime camera now applies stored punch angles during normal gameplay (while still skipping them in intermission), so damage/recoil kick feeds into the live view even though fuller C gun-kick interpolation remains future work
 - gameplay input routes through live `bind` / `unbind` / `unbindall` / `bindlist` handling, and `config.cfg` persists those bindings
 - demo recording writes live gameplay frames, connected-state snapshots, and a disconnect trailer; playback applies recorded view angles, flushes `stufftext` in the same frame, honors pause state, and paces reads against recorded server time
 

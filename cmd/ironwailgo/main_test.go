@@ -212,6 +212,37 @@ func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 	}
 }
 
+func TestRuntimeCameraStateAppliesPunchAnglesOutsideIntermission(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.PunchAngle = [3]float32{1, -2, 3}
+
+	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
+	if camera.Angles.X != 11 || camera.Angles.Y != 18 || camera.Angles.Z != 33 {
+		t.Fatalf("runtimeCameraState angles = %v, want {11 18 33}", camera.Angles)
+	}
+}
+
+func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.Intermission = 1
+	gameClient.PunchAngle = [3]float32{1, -2, 3}
+
+	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
+	if camera.Angles.X != 10 || camera.Angles.Y != 20 || camera.Angles.Z != 30 {
+		t.Fatalf("runtimeCameraState angles = %v, want {10 20 30}", camera.Angles)
+	}
+}
+
 func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T) {
 	clientState := cl.NewClient()
 	clientState.MViewAngles[0] = [3]float32{1, 2, 3}
