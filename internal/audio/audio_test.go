@@ -250,6 +250,81 @@ func TestClearStaticSoundsLeavesDynamicChannelsIntact(t *testing.T) {
 	}
 }
 
+func TestSetViewEntityRespatializesExistingChannels(t *testing.T) {
+	sys := NewSystem()
+	sys.started = true
+	sys.dma = &DMAInfo{Channels: 2}
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+	sys.listener.Right = [3]float32{1, 0, 0}
+
+	dyn := &sys.channels[NumAmbients]
+	*dyn = Channel{
+		SFX:       &SFX{Cache: &SoundCache{Length: 8, Width: 1, Data: make([]byte, 8)}},
+		EntNum:    5,
+		Origin:    [3]float32{128, 0, 0},
+		DistMult:  0,
+		MasterVol: 200,
+	}
+	sys.spatialize(dyn)
+	if dyn.RightVol <= dyn.LeftVol {
+		t.Fatalf("expected panned channel before setting view entity, got R:%d L:%d", dyn.RightVol, dyn.LeftVol)
+	}
+
+	sys.SetViewEntity(5)
+	if dyn.LeftVol != dyn.MasterVol || dyn.RightVol != dyn.MasterVol {
+		t.Fatalf("view-entity channel not forced full volume, got R:%d L:%d want %d", dyn.RightVol, dyn.LeftVol, dyn.MasterVol)
+	}
+
+	sys.SetViewEntity(0)
+	if dyn.RightVol <= dyn.LeftVol {
+		t.Fatalf("expected panning restored after clearing view entity, got R:%d L:%d", dyn.RightVol, dyn.LeftVol)
+	}
+}
+
+func TestUpdateCombinesIdenticalStaticSounds(t *testing.T) {
+	sys := NewSystem()
+	sys.started = true
+	sys.mixer = NewMixer()
+	sys.dma = &DMAInfo{
+		Channels:   2,
+		Samples:    4096,
+		SampleBits: 16,
+		Speed:      44100,
+		Buffer:     make([]byte, 4096*2*2),
+	}
+
+	staticBase := NumAmbients + MaxDynamicChannels
+	sys.totalChans = staticBase + 3
+	sys.listener.Right = [3]float32{1, 0, 0}
+
+	loop := &SFX{Cache: &SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}}
+	other := &SFX{Cache: &SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}}
+
+	sys.channels[staticBase] = Channel{SFX: loop, Origin: [3]float32{32, 0, 0}, DistMult: 0, MasterVol: 80}
+	sys.channels[staticBase+1] = Channel{SFX: loop, Origin: [3]float32{-32, 0, 0}, DistMult: 0, MasterVol: 50}
+	sys.channels[staticBase+2] = Channel{SFX: other, Origin: [3]float32{0, 32, 0}, DistMult: 0, MasterVol: 70}
+
+	expectedA := Channel{Origin: [3]float32{32, 0, 0}, DistMult: 0, MasterVol: 80}
+	expectedB := Channel{Origin: [3]float32{-32, 0, 0}, DistMult: 0, MasterVol: 50}
+	sys.spatialize(&expectedA)
+	sys.spatialize(&expectedB)
+
+	sys.Update([3]float32{}, [3]float32{}, [3]float32{1, 0, 0}, [3]float32{})
+
+	combined := sys.channels[staticBase]
+	dupe := sys.channels[staticBase+1]
+	if combined.LeftVol != expectedA.LeftVol+expectedB.LeftVol || combined.RightVol != expectedA.RightVol+expectedB.RightVol {
+		t.Fatalf("combined static channel volumes = R:%d L:%d, want R:%d L:%d",
+			combined.RightVol, combined.LeftVol, expectedA.RightVol+expectedB.RightVol, expectedA.LeftVol+expectedB.LeftVol)
+	}
+	if dupe.LeftVol != 0 || dupe.RightVol != 0 {
+		t.Fatalf("duplicate static channel should be muted after combine, got R:%d L:%d", dupe.RightVol, dupe.LeftVol)
+	}
+	if sys.channels[staticBase+2].LeftVol == 0 && sys.channels[staticBase+2].RightVol == 0 {
+		t.Fatalf("different static sound unexpectedly muted")
+	}
+}
+
 type lockOrderBackend struct {
 	t      *testing.T
 	locked bool

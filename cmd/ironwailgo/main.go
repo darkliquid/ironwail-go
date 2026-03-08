@@ -481,10 +481,23 @@ func (gameCallbacks) ProcessClient() {
 
 func (gameCallbacks) UpdateScreen() {}
 
+func syncAudioViewEntity() {
+	if gameAudio == nil {
+		return
+	}
+
+	viewEntity := 0
+	if gameClient != nil {
+		viewEntity = gameClient.ViewEntity
+	}
+	gameAudio.SetViewEntity(viewEntity)
+}
+
 func (gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
 	if gameAudio == nil {
 		return
 	}
+	syncAudioViewEntity()
 	gameAudio.SetListener(origin, forward, right, up)
 }
 
@@ -2071,6 +2084,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) {
 	syncRuntimeSkybox()
 	if gameAudio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
+		syncAudioViewEntity()
 		gameAudio.SetListener(viewOrigin, forward, right, up)
 		syncRuntimeStaticSounds()
 		syncRuntimeMusic()

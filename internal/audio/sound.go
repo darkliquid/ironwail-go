@@ -226,14 +226,34 @@ func (s *System) SetListener(origin, forward, right, up [3]float32) {
 	}
 }
 
+func (s *System) SetViewEntity(viewEntity int) {
+	if !s.started {
+		return
+	}
+	if s.viewEntity == viewEntity {
+		return
+	}
+	s.viewEntity = viewEntity
+
+	for i := NumAmbients; i < s.totalChans; i++ {
+		ch := &s.channels[i]
+		if ch.SFX == nil {
+			continue
+		}
+		s.spatialize(ch)
+	}
+}
+
+func (s *System) ViewEntity() int {
+	return s.viewEntity
+}
+
 func (s *System) Update(origin, forward, right, up [3]float32) {
 	if !s.started || s.blocked > 0 {
 		return
 	}
-
-	if s.listener.Origin != origin || s.listener.Forward != forward || s.listener.Right != right || s.listener.Up != up {
-		s.SetListener(origin, forward, right, up)
-	}
+	s.SetListener(origin, forward, right, up)
+	s.combineStaticChannels()
 
 	s.updateSoundTime()
 
@@ -250,6 +270,47 @@ func (s *System) Update(origin, forward, right, up [3]float32) {
 
 	s.updateMusic(endTime)
 	s.paintedTime = s.mixer.PaintChannels(s.channels[:s.totalChans], &s.rawSamples, s.dma, s.paintedTime, endTime)
+}
+
+func (s *System) combineStaticChannels() {
+	staticBase := NumAmbients + MaxDynamicChannels
+	if s.totalChans <= staticBase {
+		return
+	}
+
+	var lastCombined *Channel
+	for i := staticBase; i < s.totalChans; i++ {
+		ch := &s.channels[i]
+		if ch.SFX == nil || (ch.LeftVol == 0 && ch.RightVol == 0) {
+			continue
+		}
+
+		if lastCombined != nil && lastCombined.SFX == ch.SFX {
+			lastCombined.LeftVol += ch.LeftVol
+			lastCombined.RightVol += ch.RightVol
+			ch.LeftVol = 0
+			ch.RightVol = 0
+			continue
+		}
+
+		var combine *Channel
+		for j := staticBase; j < i; j++ {
+			prev := &s.channels[j]
+			if prev.SFX == ch.SFX {
+				combine = prev
+				break
+			}
+		}
+		if combine != nil && combine != ch {
+			combine.LeftVol += ch.LeftVol
+			combine.RightVol += ch.RightVol
+			ch.LeftVol = 0
+			ch.RightVol = 0
+			lastCombined = combine
+			continue
+		}
+		lastCombined = ch
+	}
 }
 
 func (s *System) SetVolume(vol float64) {

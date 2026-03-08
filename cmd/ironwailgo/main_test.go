@@ -213,6 +213,44 @@ func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	}
 }
 
+func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
+	originalHost := gameHost
+	originalClient := gameClient
+	originalAudio := gameAudio
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameClient = originalClient
+		gameAudio = originalAudio
+	})
+
+	sys := audio.NewSystem()
+	if err := sys.Init(audio.NewNullBackend(), 44100, false); err != nil {
+		t.Fatalf("audio.Init failed: %v", err)
+	}
+	if err := sys.Startup(); err != nil {
+		t.Fatalf("audio.Startup failed: %v", err)
+	}
+
+	gameHost = nil
+	gameAudio = audio.NewAudioAdapter(sys)
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ViewEntity = 3
+	gameClient.ViewHeight = 22
+	gameClient.Entities[3] = inet.EntityState{Origin: [3]float32{64, 32, 16}}
+
+	runRuntimeFrame(0.016, gameCallbacks{})
+	if got := sys.ViewEntity(); got != 3 {
+		t.Fatalf("audio view entity after active client frame = %d, want 3", got)
+	}
+
+	gameClient = nil
+	runRuntimeFrame(0.016, gameCallbacks{})
+	if got := sys.ViewEntity(); got != 0 {
+		t.Fatalf("audio view entity after clearing client = %d, want 0", got)
+	}
+}
+
 func TestRuntimeViewStatePrefersAuthoritativeViewEntityOrigin(t *testing.T) {
 	originalClient := gameClient
 	originalServer := gameServer

@@ -199,8 +199,8 @@ For input system:
 
 For audio fidelity follow-up:
   - Extend beyond WAV-backed CD tracks toward broader music parity
-  - Compare attenuation/spatial edge cases against snd_dma.c + bgmusic.c
-  - Keep listener/camera updates aligned with the active runtime view
+  - Keep ambient/underwater updates and large sound/entity packet edge cases aligned with snd_dma.c + bgmusic.c
+  - Keep active view-entity plus listener/camera updates aligned with the runtime view
 
 For lightmaps:
   - New file renderer/lightmap.go with LightmapAtlas

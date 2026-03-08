@@ -88,6 +88,13 @@ func (a *AudioAdapter) SetListener(origin, forward, right, up [3]float32) {
 	a.sys.SetListener(origin, forward, right, up)
 }
 
+func (a *AudioAdapter) SetViewEntity(viewEntity int) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.SetViewEntity(viewEntity)
+}
+
 func (a *AudioAdapter) StopSound(entNum, entChannel int) {
 	if a == nil || a.sys == nil {
 		return
