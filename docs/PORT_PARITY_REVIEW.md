@@ -94,6 +94,7 @@ What is already present:
 - BSP world geometry extraction in `BuildWorldGeometry()` / `BuildModelGeometry()`
 - real texture classification for sky, water, lava, slime, teleporter, cutout, and default surfaces
 - lightmap page allocation and upload
+- dedicated lightmap texture upload/filtering path now uses linear min/mag filtering for world/brush lightmaps (and fallback lightmap), avoiding generic nearest-filter world texture sampling artifacts
 - per-frame lightstyle evaluation flowing into `setLightStyleValues()` and `updateUploadedLightmapsLocked()`
 - world draw bucketing for sky / opaque / alpha-test / translucent faces
 - brush submodel rendering via `renderBrushEntities()`

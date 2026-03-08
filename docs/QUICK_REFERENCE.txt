@@ -7,6 +7,7 @@ COMPLETION STATUS BY FEATURE
 
 A. WORLD RENDERING         [████████████████░░░] ~80%
     - Geometry load/binning/lightmaps: DONE on OpenGL parity path
+    - Lightmap sampler upload path: DONE (world/brush lightmaps + fallback now upload with linear min/mag filtering; generic world/sky texture uploads remain nearest-filtered)
     - Animated textures, turbulent UV warp, and fog runtime feed: DONE
     - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
     - External skybox runtime consumption (client skybox name + Quake FS cubemap load path with C-like direction swizzle): DONE

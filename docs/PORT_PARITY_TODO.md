@@ -261,6 +261,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded post-f735cc1 parity slice: add an explicit late-frame translucency state block on the canonical OpenGL path, wrapping the translucent-liquid/entity/decal/particle stage and ending before viewmodel rendering
 - [x] bounded post-19b917a parity slice: resolve runtime sprite-frame selection so `SPR_GROUP` sprites advance by client-time intervals and `SPR_ANGLED` sprites choose directional subframes from the current camera basis instead of time-stepping through those frames
 - [x] bounded post-ef3bee6 parity slice (`viewmodel-origin-and-gating`): anchor runtime viewmodel origin to the active eye/view origin, suppress the viewmodel during intermission, and honor `r_drawviewmodel`-style visibility gating (including invisibility/death suppression) on the canonical runtime path
+- [x] bounded parity slice (`fix-lightmap-block-artifacts`): route world + brush lightmap page uploads (and fallback lightmap texture) through a dedicated lightmap texture path using linear min/mag filtering while leaving generic world/sky/alias texture upload filtering unchanged
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor now centered on final viewmodel placement details, with broader sprite quad-orientation fidelity still tracked separately)
 
 **Done when**

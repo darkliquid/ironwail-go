@@ -8,6 +8,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -76,6 +77,18 @@ func TestWorldFacePass(t *testing.T) {
 	}
 	if got := worldFacePass(0, 1); got != worldPassOpaque {
 		t.Fatalf("opaque pass = %v, want %v", got, worldPassOpaque)
+	}
+}
+
+func TestWorldTextureFilters(t *testing.T) {
+	minFilter, magFilter := worldTextureFilters(false)
+	if minFilter != gl.NEAREST || magFilter != gl.NEAREST {
+		t.Fatalf("worldTextureFilters(false) = (%d, %d), want (%d, %d)", minFilter, magFilter, gl.NEAREST, gl.NEAREST)
+	}
+
+	minFilter, magFilter = worldTextureFilters(true)
+	if minFilter != gl.LINEAR || magFilter != gl.LINEAR {
+		t.Fatalf("worldTextureFilters(true) = (%d, %d), want (%d, %d)", minFilter, magFilter, gl.LINEAR, gl.LINEAR)
 	}
 }
 

@@ -447,17 +447,34 @@ func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
 	return mesh
 }
 
-func uploadWorldTextureRGBA(width, height int, rgba []byte) uint32 {
+func worldTextureFilters(lightmap bool) (minFilter, magFilter int32) {
+	if lightmap {
+		return gl.LINEAR, gl.LINEAR
+	}
+	return gl.NEAREST, gl.NEAREST
+}
+
+func uploadWorldTextureRGBAWithFilters(width, height int, rgba []byte, minFilter, magFilter int32) uint32 {
 	var tex uint32
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
 	return tex
+}
+
+func uploadWorldTextureRGBA(width, height int, rgba []byte) uint32 {
+	minFilter, magFilter := worldTextureFilters(false)
+	return uploadWorldTextureRGBAWithFilters(width, height, rgba, minFilter, magFilter)
+}
+
+func uploadWorldLightmapTextureRGBA(width, height int, rgba []byte) uint32 {
+	minFilter, magFilter := worldTextureFilters(true)
+	return uploadWorldTextureRGBAWithFilters(width, height, rgba, minFilter, magFilter)
 }
 
 func (r *Renderer) ensureWorldFallbackTextureLocked() {
@@ -471,7 +488,7 @@ func (r *Renderer) ensureLightmapFallbackTextureLocked() {
 	if r.worldLightmapFallback != 0 {
 		return
 	}
-	r.worldLightmapFallback = uploadWorldTextureRGBA(1, 1, []byte{255, 255, 255, 255})
+	r.worldLightmapFallback = uploadWorldLightmapTextureRGBA(1, 1, []byte{255, 255, 255, 255})
 }
 
 func (r *Renderer) ensureWorldSkyFallbackTexturesLocked() {
@@ -825,7 +842,7 @@ func uploadLightmapPages(pages []WorldLightmapPage, values [64]float32) []uint32
 		if len(rgba) == 0 {
 			continue
 		}
-		textures = append(textures, uploadWorldTextureRGBA(page.Width, page.Height, rgba))
+		textures = append(textures, uploadWorldLightmapTextureRGBA(page.Width, page.Height, rgba))
 	}
 	return textures
 }
