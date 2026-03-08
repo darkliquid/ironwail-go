@@ -264,23 +264,25 @@ What already exists:
 ### What is missing or divergent
 
 - broader codec/music parity beyond the current WAV/OGG CD-track support is still missing
-- leaf-driven ambient updates and underwater-intensity behavior analogous to `snd_dma.c:S_UpdateAmbientSounds()` are still not wired into the live runtime
-- server sound sending currently only uses the compact packet form; the client parser supports larger sound/entity encodings, but the built-in server does not emit them
+- underwater visual blue-shift and broader audiovisual polish remain outside the current bounded parity slice
 
 ### Exact C behavior still missing or not fully matched
 
 #### `snd_dma.c:S_Update()`
 
-The Go runtime now mirrors two important C behaviors that were easy to miss in a source-only audit:
+The Go runtime now mirrors the main C runtime behavior in this area:
 
 - sounds tied to the active `viewentity` stay full volume during spatialization
 - identical static sound loops are re-spatialized then combined so clustered torches/drips do not all mix independently every frame
+- per-frame runtime code now samples the current BSP leaf and calls `UpdateAmbientSounds()` from `cmd/ironwailgo/main.go`, and `internal/audio/sound.go` applies ambient fade plus underwater-intensity behavior
 
-What still differs from C is the **ambient leaf / underwater** half of `S_Update()`: the original engine samples the current BSP leaf, fades water/wind ambient channels, and drives underwater filtering from contents each frame. The Go port has underwater filter plumbing, but not yet the world/leaf-driven update path.
+Coverage now includes `internal/audio/audio_test.go` for ambient/underwater behavior.
 
 #### `sv_main.c:SV_StartSound()`
 
-The client parser already accepts large sound/entity encodings, but the built-in Go server still only emits the compact packet form. This leaves edge cases such as large entity numbers, high channel indices, or large sound indices short of the C/Ironwail behavior.
+The client parser accepts both compact and large sound/entity encodings, and the built-in Go server now emits `SND_LARGEENTITY` / `SND_LARGESOUND` packets when entity/channel/sound index ranges require them, matching the C edge-case packet behavior for this bounded slice.
+
+Coverage now includes `internal/server/server_test.go` for sound-packet encoding edges.
 
 #### Music / CD behavior
 

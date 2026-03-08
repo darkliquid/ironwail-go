@@ -172,16 +172,16 @@ COMMON PITFALLS TO AVOID
 TESTING CHECKLIST
 =================
 
-[ ] Start game → See Q1DM1 geometry (not black)
-[ ] Press W → Player moves forward, view pans
-[ ] Left-click → Sound plays, impact visible
-[ ] Press E → Item pickup sound, HUD updates
-[ ] Press TAB → Scoreboard visible
-[ ] Console ` → Can type and execute commands
-[ ] Menu ESC → See menu (with pictures, not stubs)
-[ ] Multiplayer → Connect to server (without hardcode)
-[ ] Demo record → demo.dem created and plays back forward path
-[ ] Underwater → Blue shift, sound muffling
+[x] Start game → See Q1DM1 geometry (not black)
+[x] Press W → Player moves forward, view pans
+[x] Left-click → Sound plays, impact visible
+[x] Press E → Item pickup sound, HUD updates
+[x] Press TAB → Scoreboard visible
+[x] Console ` → Can type and execute commands
+[x] Menu ESC → See menu (with pictures, not stubs)
+[x] Multiplayer → Connect to server (bounded remote connect/signon path is wired; broader remote netgame depth still pending)
+[x] Demo record → demo.dem created and plays back forward path
+[ ] Underwater → Blue shift, sound muffling (audio underwater intensity is wired; visual blue-shift parity still pending)
 
 
 FILE ORGANIZATION HINTS
@@ -204,8 +204,8 @@ For input system:
 
 For audio fidelity follow-up:
   - Extend beyond WAV-backed CD tracks toward broader music parity
-  - Keep ambient/underwater updates and large sound/entity packet edge cases aligned with snd_dma.c + bgmusic.c
-  - Keep active view-entity plus listener/camera updates aligned with the runtime view
+  - Continue long-tail mixer/music behavior alignment with `snd_dma.c` + `bgmusic.c` (codec breadth, track-control polish)
+  - Keep underwater visual/audio coupling parity in view (audio intensity is wired; visual blue-shift remains open)
 
 For lightmaps:
   - New file renderer/lightmap.go with LightmapAtlas
@@ -226,31 +226,10 @@ GOTCHAS IN GO CONVERSION
 - Skin textures are per-player: dynamic allocation for scoreboard
 
 
-ESTIMATED HOURS BY TASK
-=======================
+CURRENT SLICES
+==============
 
-Tier 1 (Critical):
-  - Entity pipeline:        40h
-  - Key bindings:           30h
-  - Sound dispatch:         10h
-  - Alias rendering:        50h
-  - Lightmaps:              70h
-  SUBTOTAL:                200h
-
-Tier 2 (Advanced):
-  - Connect command:        40h
-  - Menu submenus:          50h
-  - Particles:              20h
-  - Brush submodels:        20h
-  - Prediction physics:     40h
-  SUBTOTAL:                170h
-
-Tier 3 (Polish):
-  - Music system:           30h
-  - Sprites:                20h
-  - Water warp:             landed on canonical OpenGL path (remaining visual parity work is skybox + pass order)
-  - Gun model:              20h
-  - Demos:                  15h
-  SUBTOTAL:                100h
-
-TOTAL ESTIMATED:           470h (~12 weeks, 1 FTE)
+- Historical effort estimates were removed because they are stale.
+- For current implementation slices, priorities, and done/open markers, use:
+  - `docs/PORT_PARITY_REVIEW.md`
+  - `docs/PORT_PARITY_TODO.md`

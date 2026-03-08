@@ -1,8 +1,8 @@
 # IRONWAIL-GO PARITY ANALYSIS: EXECUTIVE SUMMARY
 
-> **Status note (2026-03):** This file is retained as historical planning context from an earlier audit pass.
-> For current parity decisions and active scope, use `PORT_PARITY_REVIEW.md` and `PORT_PARITY_TODO.md`.
-> In particular, `gogpu` is a secondary/experimental backend and is not the parity acceptance target.
+> ⚠️ **HISTORICAL SNAPSHOT ONLY (2026-03):** The percentages, severity labels, tier tables, and task lists below are from an earlier audit pass and are **not** current progress tracking.
+> ✅ For current parity status, active backlog, and acceptance decisions, use **`PORT_PARITY_REVIEW.md` + `PORT_PARITY_TODO.md`**.
+> The OpenGL path is the parity target; `gogpu` remains secondary/experimental scope.
 
 ## Overview
 The Go port of Ironwail is **~40% feature-complete** relative to the C original across all 7 functional areas. The largest gaps are in real-time rendering (world + entity drawing) and integration between subsystems, not algorithm implementation.

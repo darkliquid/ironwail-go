@@ -1,7 +1,7 @@
 # IRONWAIL-GO COMPREHENSIVE PORT REVIEW & PARITY TODO LIST
 
-> **Status note (2026-03):** This report is retained as historical deep-dive context from an earlier wide-gap audit.
-> For current parity baseline, active backlog, and acceptance criteria, use `PORT_PARITY_REVIEW.md` and `PORT_PARITY_TODO.md`.
+> ⚠️ **HISTORICAL SNAPSHOT ONLY (2026-03):** Completion percentages, gap tables, and task framing in this document reflect an earlier wide-gap audit and are **not** current status tracking.
+> ✅ For current parity baseline, active backlog, and acceptance criteria, use **`PORT_PARITY_REVIEW.md` + `PORT_PARITY_TODO.md`**.
 > The OpenGL path is authoritative for parity; `gogpu` remains secondary/experimental scope.
 
 This report analyzes major parity gaps between the C Ironwail codebase and the Go port, focusing on the 7 primary functional areas.

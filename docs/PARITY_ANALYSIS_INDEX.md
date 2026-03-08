@@ -24,7 +24,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 - 🔗 Critical C function references with file locations
 - ✅ Integration test matrix for verification
 
-**Best for:** Technical planning, sprint breakdown, developer assignment
+**Best for:** Historical planning context, legacy task rationale, deep background
 
 ---
 
@@ -39,7 +39,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 - 🔍 **File references** throughout for precise citation
 - 🎓 Detailed explanation of C behavior for each gap
 
-**Best for:** Documentation, detailed justification, deep understanding
+**Best for:** Historical deep dives, detailed justification, older audit context
 
 ---
 
@@ -49,16 +49,16 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 → Use **QUICK_REFERENCE.txt** blockers section
 
 ### "We're starting a sprint"
-→ Use **PARITY_SUMMARY.md** Tier section matching your timeline
+→ Use **PORT_PARITY_REVIEW.md** (current baseline) + **PORT_PARITY_TODO.md** (active slices)
 
 ### "I'm implementing feature X"
-→ Find feature in **parity_report.md**, use C file references for behavior
+→ Start with **PORT_PARITY_REVIEW.md** + **PORT_PARITY_TODO.md**; use **parity_report.md** for historical deep context only
 
 ### "User asked 'why doesn't Y work'"
 → Find feature in **QUICK_REFERENCE.txt** completion status
 
 ### "We're updating the README"
-→ Use **PARITY_SUMMARY.md** "Stale Assumptions" section
+→ Use **PORT_PARITY_REVIEW.md** + **PORT_PARITY_TODO.md** as source of truth
 
 ---
 
@@ -119,9 +119,10 @@ Estimated combined: **ongoing parity integration work; use PORT_PARITY_TODO.md f
 
 These documents are designed to guide AI-assisted development:
 
-1. **QUICK_REFERENCE.txt** → Give to agent as sprint briefing
-2. **PARITY_SUMMARY.md** → Reference when implementing specific tasks
-3. **parity_report.md** → Provide full document to agent for context on any gap
+1. **PORT_PARITY_REVIEW.md** → Current parity baseline + source-backed status
+2. **PORT_PARITY_TODO.md** → Active implementation slices/checklists
+3. **QUICK_REFERENCE.txt** → Fast snapshot/checklist for day-to-day checks
+4. **PARITY_SUMMARY.md** / **parity_report.md** → Historical deep context only
 
 Each section includes:
 - ✅ What's already working (don't re-implement)
@@ -132,59 +133,35 @@ Each section includes:
 
 ---
 
-## Recommendation for Documentation Updates
+## Current Usage Guidance
 
-### Update README.md with this language:
-
-```markdown
-## Current Status
-
-### Implemented baseline
-- [x] OpenGL runtime path renders world + entities + particles + decals + viewmodel with lightmaps
-- [x] Key bindings and config persistence are wired
-- [x] Console UI/history/completion baseline is present (including alias completion)
-- [x] Quake-style command aliases (`alias` / `unalias` / `unaliasall`) are present
-- [x] Sound event dispatch and WAV-backed CD-track playback are wired
-- [x] Save/load round-trip exists with C-style `nomonsters`/intermission/dead-player save restrictions
-- [x] Demo recording/playback forward path is functional
-
-### Remaining high-priority parity gaps
-- [x] Render-pass ordering fidelity and remaining non-cubemap skybox edge cases (bounded parity slice)
-- [ ] Remote multiplayer command parity (`connect` and broader remote reconnect flow)
-- [ ] Save/load UX parity (loading plaque + broader save-file search behavior)
-- [ ] Menu/options/network submenu completion
-- [ ] Prediction/physics fidelity improvements
-
-See [PARITY_ANALYSIS.md](./parity_report.md) for detailed breakdown.
-```
+- Treat **PORT_PARITY_REVIEW.md** + **PORT_PARITY_TODO.md** as the only active planning/status source.
+- Keep **PARITY_SUMMARY.md** and **parity_report.md** for historical rationale and deep C/Go comparison context.
+- When documenting current progress elsewhere (README, issues, handoff notes), cite the canonical port docs above, not historical percentage tables.
 
 ---
 
 ## Verification Checklist
 
-Before considering the port "complete," verify:
+Current baseline verification snapshot:
 
-- [ ] World renders with correct lighting (lightmaps working)
-- [ ] Player model visible and animating smoothly
-- [ ] Monster spawns and animates
-- [ ] Weapon sounds play on fire
-- [ ] First-person weapon visible
-- [ ] Impact effects visible (particles/decals)
-- [ ] Menu displays with proper graphics (not stubs)
-- [ ] Can change video settings and see live updates
-- [ ] Can connect to remote multiplayer server
-- [ ] Prediction feels smooth (no visible stuttering)
-- [ ] Demo records and plays back with correct state
+- [x] World renders with lightmaps on the OpenGL parity path
+- [x] Alias/sprite/particle/decal/viewmodel runtime paths are wired
+- [x] Weapon and world sound dispatch/mixing are wired (including ambient leaf + underwater intensity updates)
+- [x] Menu/console/bind/config persistence baseline is functional
+- [x] Save/load round-trip enforces C-style save restrictions and restores gameplay state
+- [x] Demo records and plays back forward path with connected-state snapshot handling
+- [ ] Underwater visual blue-shift parity remains open
+- [ ] Remote multiplayer still needs broader netgame depth beyond bounded connect/reconnect slices
 
 ---
 
 ## Next Steps
 
-1. **Share** QUICK_REFERENCE.txt with team for prioritization
-2. **Assign** tasks from PARITY_SUMMARY.md Tier 1 to developers
-3. **Reference** parity_report.md when implementing each gap
-4. **Track** progress against completion percentages
-5. **Update** docs quarterly as features land
+1. **Plan/track** active work in `PORT_PARITY_TODO.md`
+2. **Validate status claims** against `PORT_PARITY_REVIEW.md`
+3. **Use** `PARITY_SUMMARY.md` and `parity_report.md` only when historical context is needed
+4. **Keep** `QUICK_REFERENCE.txt` aligned with the canonical port docs as slices land
 
 ---
 
@@ -199,8 +176,8 @@ Before considering the port "complete," verify:
 
 ---
 
-For questions about specific gaps, see the relevant section in **parity_report.md** (Section A-G).
+For active gaps, start with **PORT_PARITY_REVIEW.md** and **PORT_PARITY_TODO.md**.
 
-For sprint planning, use **PARITY_SUMMARY.md** Tier 1-3 breakdown.
+For historical deep dives and older rationale, see **PARITY_SUMMARY.md** and **parity_report.md**.
 
 For quick status checks, reference **QUICK_REFERENCE.txt** progress bars.

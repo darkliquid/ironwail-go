@@ -54,7 +54,7 @@ Make the live runtime actually use the client-side systems that already exist in
 - [x] make runtime camera prefer authoritative server entity origin over simplified predicted origin so manual runtime movement reflects server collision/gravity behavior
 - [x] restore loopback movement intake by consuming pre-submitted `SubmitLoopbackCmd()` input in `RunClients()` (instead of parsing server reliable buffers as client input), with map-backed regression coverage that asserts authoritative server player origin moves
 - [x] match C `SV_AirMove` walk parity by forcing `wishvel[2]=0` for `MoveTypeWalk`, preventing pitched forward intent from being projected into vertical velocity and clipped away by ground collision
-- centralize one per-frame place where transient client events are consumed and applied
+- [x] centralize one per-frame place where transient client events are consumed and applied (`Client.ConsumeTransientEvents()` in `runRuntimeFrame()`, covered by `TestRunRuntimeFrameConsumesTransientEventsOnce`)
 
 **Why now**
 
