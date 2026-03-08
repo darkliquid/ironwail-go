@@ -2061,20 +2061,40 @@ func captureScreenshot(sspath, _, _ string) error {
 	return nil
 }
 
-// updateHUDFromServer reads player state from the server's player edict and
-// pushes it into the HUD so it displays current health/armor/ammo.
+// updateHUDFromServer pushes current player/client state into the HUD.
 func updateHUDFromServer() {
-	if gameHUD == nil || gameServer == nil {
+	if gameHUD == nil {
+		return
+	}
+
+	if gameClient != nil {
+		shells, nails, rockets, cells := gameClient.AmmoCounts()
+		gameHUD.SetState(hud.State{
+			Health:       gameClient.Health(),
+			Armor:        gameClient.Armor(),
+			Ammo:         gameClient.Ammo(),
+			WeaponModel:  gameClient.WeaponModelIndex(),
+			ActiveWeapon: gameClient.ActiveWeapon(),
+			Shells:       shells,
+			Nails:        nails,
+			Rockets:      rockets,
+			Cells:        cells,
+			Items:        gameClient.Items,
+		})
+		return
+	}
+
+	if gameServer == nil {
 		return
 	}
 	ent := gameServer.EdictNum(1)
 	if ent == nil {
 		return
 	}
-	gameHUD.SetState(
-		int(ent.Vars.Health),
-		int(ent.Vars.ArmorValue),
-		int(ent.Vars.CurrentAmmo),
-		int(ent.Vars.Weapon),
-	)
+	gameHUD.SetState(hud.State{
+		Health:      int(ent.Vars.Health),
+		Armor:       int(ent.Vars.ArmorValue),
+		Ammo:        int(ent.Vars.CurrentAmmo),
+		WeaponModel: int(ent.Vars.Weapon),
+	})
 }

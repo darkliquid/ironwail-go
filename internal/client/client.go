@@ -12,11 +12,36 @@ import (
 )
 
 const (
-	Signons           = 4
-	defaultMaxPitch   = 90.0
-	defaultMinPitch   = -90.0
-	defaultWheelPitch = 5.0
-	ItemInvisibility  = 1 << 19
+	Signons             = 4
+	defaultMaxPitch     = 90.0
+	defaultMinPitch     = -90.0
+	defaultWheelPitch   = 5.0
+	ItemShotgun         = 1 << 0
+	ItemSuperShotgun    = 1 << 1
+	ItemNailgun         = 1 << 2
+	ItemSuperNailgun    = 1 << 3
+	ItemGrenadeLauncher = 1 << 4
+	ItemRocketLauncher  = 1 << 5
+	ItemLightning       = 1 << 6
+	ItemSuperLightning  = 1 << 7
+	ItemShells          = 1 << 8
+	ItemNails           = 1 << 9
+	ItemRockets         = 1 << 10
+	ItemCells           = 1 << 11
+	ItemAxe             = 1 << 12
+	ItemArmor1          = 1 << 13
+	ItemArmor2          = 1 << 14
+	ItemArmor3          = 1 << 15
+	ItemKey1            = 1 << 17
+	ItemKey2            = 1 << 18
+	ItemInvisibility    = 1 << 19
+	ItemInvulnerability = 1 << 20
+	ItemSuit            = 1 << 21
+	ItemQuad            = 1 << 22
+	ItemSigil1          = 1 << 28
+	ItemSigil2          = 1 << 29
+	ItemSigil3          = 1 << 30
+	ItemSigil4          = 1 << 31
 )
 
 type ClientState int
@@ -400,6 +425,38 @@ func (c *Client) Health() int {
 		return 0
 	}
 	return c.Stats[statHealth]
+}
+
+// Armor returns the current player armor stat.
+func (c *Client) Armor() int {
+	if c == nil {
+		return 0
+	}
+	return c.Stats[statArmor]
+}
+
+// Ammo returns the current player ammo stat.
+func (c *Client) Ammo() int {
+	if c == nil {
+		return 0
+	}
+	return c.Stats[statAmmo]
+}
+
+// ActiveWeapon returns the current active weapon bit flag.
+func (c *Client) ActiveWeapon() int {
+	if c == nil {
+		return 0
+	}
+	return c.Stats[statActiveWeapon]
+}
+
+// AmmoCounts returns the shells, nails, rockets and cells counts.
+func (c *Client) AmmoCounts() (int, int, int, int) {
+	if c == nil {
+		return 0, 0, 0, 0
+	}
+	return c.Stats[statShells], c.Stats[statNails], c.Stats[statRockets], c.Stats[statCells]
 }
 
 // LightStyleValues evaluates the current lightstyle scalars for the client clock.

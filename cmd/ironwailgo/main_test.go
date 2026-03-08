@@ -17,6 +17,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
+	"github.com/ironwail/ironwail-go/internal/hud"
 	qimage "github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
@@ -1458,6 +1459,46 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 	}
 	if got := brushEntities[0].Scale; math.Abs(float64(got-inet.ENTSCALE_DECODE(32))) > 0.0001 {
 		t.Fatalf("brush scale = %v, want %v", got, inet.ENTSCALE_DECODE(32))
+	}
+}
+
+func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
+	originalHUD := gameHUD
+	originalClient := gameClient
+	originalServer := gameServer
+	t.Cleanup(func() {
+		gameHUD = originalHUD
+		gameClient = originalClient
+		gameServer = originalServer
+	})
+
+	gameHUD = hud.NewHUD(nil)
+	gameClient = cl.NewClient()
+	gameClient.Stats[cl.StatHealth] = 111
+	gameClient.Stats[cl.StatArmor] = 55
+	gameClient.Stats[cl.StatAmmo] = 22
+	gameClient.Stats[cl.StatWeapon] = 7
+	gameClient.Stats[cl.StatActiveWeapon] = cl.ItemRocketLauncher
+	gameClient.Stats[cl.StatShells] = 10
+	gameClient.Stats[cl.StatNails] = 20
+	gameClient.Stats[cl.StatRockets] = 30
+	gameClient.Stats[cl.StatCells] = 40
+	gameClient.Items = cl.ItemRocketLauncher | cl.ItemRockets | cl.ItemArmor2 | cl.ItemQuad
+
+	updateHUDFromServer()
+
+	got := gameHUD.State()
+	if got.Health != 111 || got.Armor != 55 || got.Ammo != 22 {
+		t.Fatalf("hud core stats = %#v, want health=111 armor=55 ammo=22", got)
+	}
+	if got.WeaponModel != 7 || got.ActiveWeapon != cl.ItemRocketLauncher {
+		t.Fatalf("hud weapon state = %#v, want model=7 active=%d", got, cl.ItemRocketLauncher)
+	}
+	if got.Shells != 10 || got.Nails != 20 || got.Rockets != 30 || got.Cells != 40 {
+		t.Fatalf("hud ammo strip = %#v, want [10 20 30 40]", got)
+	}
+	if got.Items != gameClient.Items {
+		t.Fatalf("hud items = %#x, want %#x", got.Items, gameClient.Items)
 	}
 }
 

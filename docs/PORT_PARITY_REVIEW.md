@@ -32,7 +32,7 @@ A useful way to think about the current tree is:
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration | special intermission/finale/cutscene handling and remote connection flow still diverge |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
-| Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, basic HUD, in-game console UI, history/completion, bind persistence, Quake-style alias commands, and menu-space text scaling for text-only prompts | multiplayer/options submenus still TODO and the HUD is still much simpler than `sbar.c` |
+| Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, in-game console UI, history/completion, bind persistence, Quake-style alias commands, menu-space text scaling for text-only prompts, and a base-game classic status-bar HUD path with weapon strip, ammo strip, key/powerup/sigil icons, and armor/face/ammo icon helpers | multiplayer/options submenus still TODO and HUD parity still lacks special-case overlays/expansion-pack variants |
 | Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, C-style `nomonsters`/intermission/dead-player restrictions, stop-all sound teardown on local load/map/reconnect-style transitions, and local loading-plaque overlay visibility for load/reconnect | broader C search behavior and remote connect/reconnect loading UX are still missing |
 | Networking/multiplayer | loopback server/client and protocol work are present, `connect local` now drives the existing local reconnect/signon flow, `disconnect` now cleanly tears down local session state (including stop-all sounds), `reconnect` re-runs local signon flow, and local-host `kick` supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
 
@@ -316,7 +316,7 @@ What is already present:
 
 - multiplayer submenu selections still only emit TODO `echo` commands (`join game`, `host game`, `player setup`)
 - options submenu still only has one real action (`toggle vid_vsync`); controls/video/audio are placeholders
-- the HUD is much simpler than `sbar.c`; inventory, face states, sigils, keys, weapon strip, ammo icons, and other status-bar details are not yet matched
+- the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers), but it still omits expansion-pack special cases, pickup flash timing polish, and score/intermission overlays
 - the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
 - the HUD and option/menu surfaces still expose much less functionality than the C engine
 - `Host.WriteConfig()` now writes binds plus archived cvars, but it still does not append the extra state-preserving commands the C engine can emit

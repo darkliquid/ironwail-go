@@ -255,6 +255,39 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	}
 }
 
+func TestHUDAccessorsExposeParsedStats(t *testing.T) {
+	c := NewClient()
+	c.Stats[StatHealth] = 81
+	c.Stats[StatArmor] = 27
+	c.Stats[StatAmmo] = 14
+	c.Stats[StatWeapon] = 6
+	c.Stats[StatActiveWeapon] = ItemLightning
+	c.Stats[StatShells] = 11
+	c.Stats[StatNails] = 22
+	c.Stats[StatRockets] = 33
+	c.Stats[StatCells] = 44
+
+	if got := c.Health(); got != 81 {
+		t.Fatalf("Health() = %d, want 81", got)
+	}
+	if got := c.Armor(); got != 27 {
+		t.Fatalf("Armor() = %d, want 27", got)
+	}
+	if got := c.Ammo(); got != 14 {
+		t.Fatalf("Ammo() = %d, want 14", got)
+	}
+	if got := c.WeaponModelIndex(); got != 6 {
+		t.Fatalf("WeaponModelIndex() = %d, want 6", got)
+	}
+	if got := c.ActiveWeapon(); got != ItemLightning {
+		t.Fatalf("ActiveWeapon() = %d, want %d", got, ItemLightning)
+	}
+	s, n, r, ce := c.AmmoCounts()
+	if s != 11 || n != 22 || r != 33 || ce != 44 {
+		t.Fatalf("AmmoCounts() = (%d,%d,%d,%d), want (11,22,33,44)", s, n, r, ce)
+	}
+}
+
 func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	s := server.NewServer()
 	if err := s.Init(1); err != nil {

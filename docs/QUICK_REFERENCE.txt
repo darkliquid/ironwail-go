@@ -41,7 +41,7 @@ C. MENUS/HUD/INPUT         [████████████░░░░░�
    - Key bindings and config persistence: DONE
    - Console UI/history/completion: DONE (includes command/cvar/alias completion)
    - Command aliases (`alias`/`unalias`/`unaliasall`): DONE
-   - HUD: Numbers only (no icons/face)
+   - HUD: Base-game classic status bar path DONE (weapon strip, ammo strip, keys/powerups/sigils, armor/face/ammo icons, live client-driven stats); expansion-pack and overlay polish still TODO
 
 D. AUDIO/MUSIC             [████████████████░░░] ~80%
    - System init: DONE

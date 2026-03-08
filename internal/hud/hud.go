@@ -19,14 +19,25 @@ type HUD struct {
 	centerprint *Centerprint
 
 	// Player state
-	health int
-	armor  int
-	ammo   int
-	weapon int
+	state State
 
 	// Screen dimensions
 	screenWidth  int
 	screenHeight int
+}
+
+// State is the subset of client state required to render the classic status bar.
+type State struct {
+	Health       int
+	Armor        int
+	Ammo         int
+	WeaponModel  int
+	ActiveWeapon int
+	Shells       int
+	Nails        int
+	Rockets      int
+	Cells        int
+	Items        uint32
 }
 
 // NewHUD creates a new HUD instance.
@@ -44,12 +55,14 @@ func (h *HUD) SetScreenSize(width, height int) {
 	h.screenHeight = height
 }
 
-// SetState updates the HUD values from player state.
-func (h *HUD) SetState(health, armor, ammo, weapon int) {
-	h.health = health
-	h.armor = armor
-	h.ammo = ammo
-	h.weapon = weapon
+// SetState updates the HUD values from player/client state.
+func (h *HUD) SetState(state State) {
+	h.state = state
+}
+
+// State returns the latest HUD state snapshot.
+func (h *HUD) State() State {
+	return h.state
 }
 
 // Draw renders the complete HUD overlay.
@@ -59,7 +72,7 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 	}
 
 	// Draw status bar at bottom of screen
-	h.status.Draw(rc, h.health, h.armor, h.ammo, h.screenWidth, h.screenHeight)
+	h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 
 	// Draw centerprint message if active
 	h.centerprint.Draw(rc, h.screenWidth, h.screenHeight)

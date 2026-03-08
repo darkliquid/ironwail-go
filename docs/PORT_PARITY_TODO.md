@@ -185,7 +185,7 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 
 - replace TODO submenu actions for join/host/player setup/controls/video/audio
 - wire real menu actions into cvars/commands
-- extend the HUD toward `sbar.c` behavior: inventory, face state, keys, weapon strip, ammo icons, powerup indicators, and other missing status elements
+- [x] bounded `hud-statusbar-icons` parity slice: thread live client HUD stats/items into `hud.State` and render a base-Quake classic status bar (`sbar`/`ibar`) with weapon strip, ammo counts strip, keys/powerups/sigils, armor+face+ammo icons, and numeric readouts
 - [x] route menu key handling from key-down events only (avoid doubled cursor movement and double-fired one-shot menu actions on key release)
 - [x] render menu text/cursor glyphs through menu-space scaling so text-only prompts (for example quit y/n) align with image-backed menu layout
 

@@ -120,9 +120,9 @@ func TestStatusBarDraw(t *testing.T) {
 	mock := &mockRenderContext{}
 
 	// Draw with typical values
-	sb.Draw(mock, 100, 50, 30, 1280, 720)
+	sb.Draw(mock, State{Health: 100, Armor: 50, Ammo: 30}, 1280, 720)
 
-	// Should have drawn numeric values (health, armor, ammo)
+	// Should have drawn numeric values (health, armor, ammo and inventory counts)
 	if len(mock.characters) == 0 {
 		t.Error("StatusBar.Draw() drew no characters")
 	}
@@ -138,11 +138,75 @@ func TestHUDDraw(t *testing.T) {
 	mock := &mockRenderContext{}
 
 	hud.SetScreenSize(1280, 720)
-	hud.SetState(100, 75, 50, 1)
+	hud.SetState(State{Health: 100, Armor: 75, Ammo: 50, ActiveWeapon: 1})
 	hud.Draw(mock)
 
 	// HUD should draw status bar elements
 	if len(mock.characters) == 0 && len(mock.fills) == 0 {
 		t.Error("HUD.Draw() drew nothing")
+	}
+}
+
+func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
+	weaponOwned := &image.QPic{Width: 24, Height: 16}
+	weaponActive := &image.QPic{Width: 24, Height: 16}
+	itemPic := &image.QPic{Width: 16, Height: 16}
+	sigilPic := &image.QPic{Width: 8, Height: 16}
+	facePic := &image.QPic{Width: 24, Height: 24}
+	armorPic := &image.QPic{Width: 24, Height: 24}
+	ammoPic := &image.QPic{Width: 24, Height: 24}
+	sbarPic := &image.QPic{Width: 320, Height: 24}
+	ibarPic := &image.QPic{Width: 320, Height: 24}
+
+	sb := &StatusBar{
+		sbarPic:    sbarPic,
+		ibarPic:    ibarPic,
+		weaponPics: [2][7]*image.QPic{{weaponOwned}, {weaponActive}},
+		itemPics:   [6]*image.QPic{itemPic},
+		sigilPics:  [4]*image.QPic{sigilPic},
+		facePics:   [5][2]*image.QPic{{facePic}, {facePic}, {facePic}, {facePic}, {facePic}},
+		armorPics:  [3]*image.QPic{armorPic},
+		ammoPics:   [4]*image.QPic{ammoPic},
+	}
+	mock := &mockRenderContext{}
+
+	sb.Draw(mock, State{
+		Health:       100,
+		Armor:        40,
+		Ammo:         20,
+		ActiveWeapon: 1,
+		Shells:       20,
+		Nails:        30,
+		Rockets:      40,
+		Cells:        50,
+		Items:        1 | (1 << 8) | (1 << 13) | (1 << 17) | (1 << 28),
+	}, 320, 200)
+
+	if len(mock.pics) < 7 {
+		t.Fatalf("expected several icon pic draws, got %d", len(mock.pics))
+	}
+
+	var sawWeapon, sawActiveWeapon, sawItem, sawSigil, sawFace, sawArmor, sawAmmo bool
+	for _, draw := range mock.pics {
+		switch draw.pic {
+		case weaponOwned:
+			sawWeapon = true
+		case weaponActive:
+			sawWeapon = true
+			sawActiveWeapon = true
+		case itemPic:
+			sawItem = true
+		case sigilPic:
+			sawSigil = true
+		case facePic:
+			sawFace = true
+		case armorPic:
+			sawArmor = true
+		case ammoPic:
+			sawAmmo = true
+		}
+	}
+	if !sawWeapon || !sawActiveWeapon || !sawItem || !sawSigil || !sawFace || !sawArmor || !sawAmmo {
+		t.Fatalf("missing expected draws: weapon=%v activeWeapon=%v item=%v sigil=%v face=%v armor=%v ammo=%v", sawWeapon, sawActiveWeapon, sawItem, sawSigil, sawFace, sawArmor, sawAmmo)
 	}
 }
