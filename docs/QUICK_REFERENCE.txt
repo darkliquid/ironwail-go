@@ -12,7 +12,7 @@ A. WORLD RENDERING         [████████████████░�
     - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
     - External skybox runtime consumption (client skybox name + Quake FS load path with C-like direction swizzle): DONE
     - External skybox mode selection: DONE (square same-size faces use cubemap; loaded non-cubemap sets use dedicated per-face external sky path; embedded BSP sky only when no faces load or upload fails)
-    - Sky now runs in its own post-opaque frame stage, and opaque liquid world/brush draws now run before translucent liquid world/brush draws; remaining sky/world fidelity gap is broader translucency/viewmodel ordering
+    - Sky now runs in its own post-opaque frame stage, opaque liquid world/brush draws now run before translucent liquid world/brush draws, and the canonical viewmodel draw now stays after the late translucency block; remaining sky/world fidelity gap is mostly non-cubemap skybox edge cases
 
 B. ENTITY RENDERING        [████████████████░░░] ~80%
    - Alias models: live runtime integration DONE
@@ -23,7 +23,7 @@ B. ENTITY RENDERING        [████████████████░�
    - Bounded pass-order slices landed after 38de7f3 / 5800311 / aabf5ca / e74f73b:
       - particles now run as explicit opaque/translucent subpasses instead of one late lump
       - world + brush liquid surfaces now bucket into dedicated opaque-liquid/translucent-liquid bins (separate from general opaque/translucent world bins)
-      - frame-level OpenGL ordering now stages world + brush non-liquid draws before alias/sprite + opaque particles, then runs a dedicated sky step, then all opaque liquid world/brush draws, then all translucent liquid world/brush draws
+      - frame-level OpenGL ordering now stages world + brush non-liquid draws before opaque alias + opaque particles, then runs a dedicated sky step, then all opaque liquid world/brush draws, then all translucent liquid world/brush draws
       - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
       - translucent brush-entity non-liquid surfaces now move out of the early opaque stage and render later, after the separated liquid phases
       - late translucent liquid/entity/decal/particle work is now wrapped in an explicit begin/end translucency state block before the final viewmodel draw
@@ -31,7 +31,7 @@ B. ENTITY RENDERING        [████████████████░�
       - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
       - bounded viewmodel parity slice landed: runtime viewmodel now anchors to eye/view origin, is suppressed in intermission, and honors `r_drawviewmodel` + invisibility/death gating
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-    - Remaining fidelity work: full C pass sequencing/ordering polish (especially final viewmodel-placement details) and broader sprite quad-orientation fidelity
+    - Remaining fidelity work: fuller sprite quad-orientation fidelity plus the still-bounded `r_particles` behavior gap
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
@@ -86,11 +86,11 @@ G. SAVE/LOAD               [████████████████░�
 BLOCKERS FOR PLAYABILITY (Must Fix First)
 ==========================================
 
-1. Render-pass ordering fidelity
+1. Sprite-orientation / skybox edge-case fidelity
     Location: internal/renderer/world_runtime_opengl.go
-    Impact: Scene composition is closer (liquids plus sprites now have distinct late-stage placement) but still differs from C in some translucency/viewmodel edge cases
-    Fix: Finish full C pass sequencing and close remaining non-cubemap skybox edge cases
-    Reference: gl_sky.c + gl_rmain.c
+    Impact: Scene composition now matches the scoped late-translucency/viewmodel ordering, but sprite billboard orientation and loaded non-cubemap skybox edge cases still differ from C
+    Fix: Finish sprite quad-orientation parity and close the remaining non-cubemap skybox edge cases
+    Reference: gl_sky.c + r_sprite.c + gl_rmain.c
 
 2. CONNECT command parity
    Location: internal/host/commands.go
