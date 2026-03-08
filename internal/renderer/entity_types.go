@@ -48,6 +48,7 @@ type SpriteEntity struct {
 	Model   *model.Model
 	Frame   int
 	Origin  [3]float32
+	Angles  [3]float32
 	Alpha   float32
 	Scale   float32
 	// SpriteData holds the actual sprite loading data (optional, used internally)

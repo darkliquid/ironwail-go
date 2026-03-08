@@ -2493,9 +2493,14 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 	gl.ActiveTexture(gl.TEXTURE0)
+	cameraForward, cameraRight, cameraUp := spriteCameraBasis([3]float32{
+		camera.Angles.X,
+		camera.Angles.Y,
+		camera.Angles.Z,
+	})
 
 	for _, draw := range draws {
-		r.renderSpriteDraw(draw, camera, program, modelOffsetUniform, alphaUniform, fallbackLightmap)
+		r.renderSpriteDraw(draw, camera, cameraForward, cameraRight, cameraUp, program, modelOffsetUniform, alphaUniform, fallbackLightmap)
 	}
 
 	gl.BindVertexArray(0)
@@ -2512,6 +2517,7 @@ type glSpriteDraw struct {
 	model  *model.Model
 	frame  int
 	origin [3]float32
+	angles [3]float32
 	alpha  float32
 	scale  float32
 }
@@ -2545,6 +2551,7 @@ func (r *Renderer) buildSpriteDrawLocked(entity SpriteEntity) *glSpriteDraw {
 		model:  entity.Model,
 		frame:  frame,
 		origin: entity.Origin,
+		angles: entity.Angles,
 		alpha:  entity.Alpha,
 		scale:  entity.Scale,
 	}
@@ -2599,17 +2606,16 @@ func isModelSprite(mdl *model.Model) bool {
 }
 
 // renderSpriteDraw renders a single sprite billboard.
-func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, program uint32, modelOffsetUniform, alphaUniform int32, fallbackLightmap uint32) {
+func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, cameraForward, cameraRight, cameraUp [3]float32, program uint32, modelOffsetUniform, alphaUniform int32, fallbackLightmap uint32) {
 	if draw.sprite == nil || draw.frame < 0 || draw.frame >= len(draw.sprite.frames) {
 		return
 	}
 
-	// Build sprite quad vertices
 	vertices := buildSpriteQuadVertices(draw.sprite, draw.frame, [3]float32{
-		camera.Angles.X,
-		camera.Angles.Y,
-		camera.Angles.Z,
-	}, draw.scale)
+		camera.Origin.X,
+		camera.Origin.Y,
+		camera.Origin.Z,
+	}, draw.origin, draw.angles, cameraForward, cameraRight, cameraUp, draw.scale)
 
 	if len(vertices) == 0 {
 		return

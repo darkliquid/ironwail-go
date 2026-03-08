@@ -31,7 +31,7 @@ B. ENTITY RENDERING        [████████████████░�
       - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
       - bounded viewmodel parity slice landed: runtime viewmodel now anchors to eye/view origin, is suppressed in intermission, and honors `r_drawviewmodel` + invisibility/death gating
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-    - Remaining fidelity work: fuller sprite quad-orientation fidelity plus the still-bounded `r_particles` behavior gap
+    - Remaining fidelity work: the still-bounded `r_particles` behavior gap
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
@@ -86,10 +86,10 @@ G. SAVE/LOAD               [████████████████░�
 BLOCKERS FOR PLAYABILITY (Must Fix First)
 ==========================================
 
-1. Sprite-orientation / skybox edge-case fidelity
+1. Skybox edge-case fidelity
     Location: internal/renderer/world_runtime_opengl.go
-    Impact: Scene composition now matches the scoped late-translucency/viewmodel ordering, but sprite billboard orientation and loaded non-cubemap skybox edge cases still differ from C
-    Fix: Finish sprite quad-orientation parity and close the remaining non-cubemap skybox edge cases
+    Impact: Scene composition now matches the scoped late-translucency/viewmodel ordering, but loaded non-cubemap skybox edge cases still differ from C
+    Fix: Close the remaining non-cubemap skybox edge cases
     Reference: gl_sky.c + r_sprite.c + gl_rmain.c
 
 2. CONNECT command parity

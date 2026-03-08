@@ -941,6 +941,7 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 			Model:      entry.model,
 			Frame:      frame,
 			Origin:     state.Origin,
+			Angles:     state.Angles,
 			Alpha:      entityStateAlpha(state),
 			Scale:      entityStateScale(state),
 			SpriteData: entry.sprite,

@@ -5,6 +5,7 @@
 package renderer
 
 import (
+	"math"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -115,11 +116,143 @@ func TestUploadSpriteModelWithGroup(t *testing.T) {
 	}
 }
 
-// TestBuildSpriteQuadVertices tests billboard quad vertex generation.
+func spriteTestModel(spriteType int) *glSpriteModel {
+	return &glSpriteModel{
+		modelID:    "test",
+		spriteType: spriteType,
+		maxWidth:   64,
+		maxHeight:  64,
+		frames: []glSpriteFrame{
+			{
+				width:  64,
+				height: 64,
+				up:     32,
+				down:   -32,
+				left:   -32,
+				right:  32,
+				sMax:   1.0,
+				tMax:   1.0,
+			},
+		},
+	}
+}
+
+func quadAxes(vertices []WorldVertex) (up, right [3]float32) {
+	up = spriteNormalize3([3]float32{
+		vertices[1].Position[0] - vertices[0].Position[0],
+		vertices[1].Position[1] - vertices[0].Position[1],
+		vertices[1].Position[2] - vertices[0].Position[2],
+	})
+	right = spriteNormalize3([3]float32{
+		vertices[2].Position[0] - vertices[1].Position[0],
+		vertices[2].Position[1] - vertices[1].Position[1],
+		vertices[2].Position[2] - vertices[1].Position[2],
+	})
+	return up, right
+}
+
+func assertVecClose(t *testing.T, got, want [3]float32) {
+	t.Helper()
+	const epsilon = 1e-5
+	for i := range got {
+		if math.Abs(float64(got[i]-want[i])) > epsilon {
+			t.Fatalf("vec[%d]=%v, want %v (got=%v want=%v)", i, got[i], want[i], got, want)
+		}
+	}
+}
+
+func TestBuildSpriteQuadVerticesVPParallelUpright(t *testing.T) {
+	spr := spriteTestModel(spriteTypeVPParallelUpright)
+	vertices := buildSpriteQuadVertices(
+		spr, 0,
+		[3]float32{0, 0, 0},
+		[3]float32{10, 0, 0},
+		[3]float32{},
+		[3]float32{1, 0, 0},
+		[3]float32{0, -1, 0},
+		[3]float32{0, 0, 1},
+		1,
+	)
+	if len(vertices) != 4 {
+		t.Fatalf("vertex count = %d, want 4", len(vertices))
+	}
+	up, right := quadAxes(vertices)
+	assertVecClose(t, up, [3]float32{0, 0, 1})
+	assertVecClose(t, right, [3]float32{0, -1, 0})
+}
+
+func TestBuildSpriteQuadVerticesFacingUpright(t *testing.T) {
+	spr := spriteTestModel(spriteTypeFacingUpright)
+	vertices := buildSpriteQuadVertices(
+		spr, 0,
+		[3]float32{0, 0, 0},
+		[3]float32{10, 0, 4},
+		[3]float32{},
+		[3]float32{1, 0, 0},
+		[3]float32{0, -1, 0},
+		[3]float32{0, 0, 1},
+		1,
+	)
+	up, right := quadAxes(vertices)
+	assertVecClose(t, up, [3]float32{0, 0, 1})
+	assertVecClose(t, right, [3]float32{0, -1, 0})
+}
+
+func TestBuildSpriteQuadVerticesVPParallelUsesCameraBasis(t *testing.T) {
+	spr := spriteTestModel(spriteTypeVPParallel)
+	cameraForward, cameraRight, cameraUp := spriteCameraBasis([3]float32{20, 35, 15})
+	vertices := buildSpriteQuadVertices(
+		spr, 0,
+		[3]float32{0, 0, 0},
+		[3]float32{0, 0, 0},
+		[3]float32{},
+		cameraForward, cameraRight, cameraUp,
+		1,
+	)
+	up, right := quadAxes(vertices)
+	assertVecClose(t, up, spriteNormalize3(cameraUp))
+	assertVecClose(t, right, spriteNormalize3(cameraRight))
+}
+
+func TestBuildSpriteQuadVerticesOrientedUsesEntityAngles(t *testing.T) {
+	spr := spriteTestModel(spriteTypeOriented)
+	vertices := buildSpriteQuadVertices(
+		spr, 0,
+		[3]float32{0, 0, 0},
+		[3]float32{0, 0, 0},
+		[3]float32{0, 90, 0},
+		[3]float32{1, 0, 0},
+		[3]float32{0, -1, 0},
+		[3]float32{0, 0, 1},
+		1,
+	)
+	up, right := quadAxes(vertices)
+	assertVecClose(t, up, [3]float32{0, 0, 1})
+	assertVecClose(t, right, [3]float32{1, 0, 0})
+}
+
+func TestBuildSpriteQuadVerticesVPParallelOrientedAppliesEntityRoll(t *testing.T) {
+	spr := spriteTestModel(spriteTypeVPParallelOriented)
+	vertices := buildSpriteQuadVertices(
+		spr, 0,
+		[3]float32{0, 0, 0},
+		[3]float32{0, 0, 0},
+		[3]float32{0, 0, 90},
+		[3]float32{1, 0, 0},
+		[3]float32{0, -1, 0},
+		[3]float32{0, 0, 1},
+		1,
+	)
+	up, right := quadAxes(vertices)
+	assertVecClose(t, right, [3]float32{0, 0, 1})
+	assertVecClose(t, up, [3]float32{0, 1, 0})
+}
+
+// TestBuildSpriteQuadVertices tests C corner ordering and UV mapping.
 func TestBuildSpriteQuadVertices(t *testing.T) {
 	spr := &glSpriteModel{
 		modelID:    "test",
-		spriteType: 0,
+		spriteType: spriteTypeVPParallel,
 		maxWidth:   64,
 		maxHeight:  64,
 		frames: []glSpriteFrame{
@@ -136,7 +269,16 @@ func TestBuildSpriteQuadVertices(t *testing.T) {
 		},
 	}
 
-	vertices := buildSpriteQuadVertices(spr, 0, [3]float32{0, 0, 1}, 1)
+	vertices := buildSpriteQuadVertices(
+		spr, 0,
+		[3]float32{0, 0, 0},
+		[3]float32{0, 0, 0},
+		[3]float32{},
+		[3]float32{1, 0, 0},
+		[3]float32{1, 0, 0},
+		[3]float32{0, 1, 0},
+		1,
+	)
 	if vertices == nil {
 		t.Fatalf("buildSpriteQuadVertices returned nil")
 	}
@@ -145,24 +287,23 @@ func TestBuildSpriteQuadVertices(t *testing.T) {
 		t.Errorf("vertex count = %d, want 4", len(vertices))
 	}
 
-	// Verify quad corners
-	if vertices[0].Position[0] != -32 || vertices[0].Position[1] != -32 {
-		t.Errorf("quad[0] position = [%.1f, %.1f], want [-32, -32]",
-			vertices[0].Position[0], vertices[0].Position[1])
+	if vertices[0].Position != [3]float32{-32, -32, 0} {
+		t.Fatalf("quad[0] position = %v, want [-32 -32 0]", vertices[0].Position)
+	}
+	if vertices[1].Position != [3]float32{-32, 32, 0} {
+		t.Fatalf("quad[1] position = %v, want [-32 32 0]", vertices[1].Position)
+	}
+	if vertices[2].Position != [3]float32{32, 32, 0} {
+		t.Fatalf("quad[2] position = %v, want [32 32 0]", vertices[2].Position)
+	}
+	if vertices[3].Position != [3]float32{32, -32, 0} {
+		t.Fatalf("quad[3] position = %v, want [32 -32 0]", vertices[3].Position)
 	}
 
-	if vertices[2].Position[0] != 32 || vertices[2].Position[1] != 32 {
-		t.Errorf("quad[2] position = [%.1f, %.1f], want [32, 32]",
-			vertices[2].Position[0], vertices[2].Position[1])
-	}
-
-	// Verify texture coordinates are within expected bounds
+	wantUVs := [][2]float32{{0, 1}, {0, 0}, {1, 0}, {1, 1}}
 	for i, v := range vertices {
-		if v.TexCoord[0] < 0 || v.TexCoord[0] > 1.0 {
-			t.Errorf("vertex %d u coord = %.2f, want 0-1", i, v.TexCoord[0])
-		}
-		if v.TexCoord[1] < 0 || v.TexCoord[1] > 1.0 {
-			t.Errorf("vertex %d v coord = %.2f, want 0-1", i, v.TexCoord[1])
+		if v.TexCoord != wantUVs[i] {
+			t.Fatalf("vertex %d uv = %v, want %v", i, v.TexCoord, wantUVs[i])
 		}
 	}
 }

@@ -1153,7 +1153,7 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	gameClient = cl.NewClient()
 	gameClient.ModelPrecache = []string{"progs/flame.spr"}
 	gameClient.Entities = map[int]inet.EntityState{
-		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Alpha: 128, Scale: 32},
+		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Angles: [3]float32{10, 20, 30}, Alpha: 128, Scale: 32},
 	}
 	spriteModelCache = nil
 
@@ -1172,6 +1172,9 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	}
 	if got := entities[0].Scale; math.Abs(float64(got-inet.ENTSCALE_DECODE(32))) > 0.0001 {
 		t.Fatalf("collectSpriteEntities scale = %v, want %v", got, inet.ENTSCALE_DECODE(32))
+	}
+	if got := entities[0].Angles; got != [3]float32{10, 20, 30} {
+		t.Fatalf("collectSpriteEntities angles = %v, want [10 20 30]", got)
 	}
 	if got := testFS.loads; got != 1 {
 		t.Fatalf("filesystem loads after first collect = %d, want 1", got)
