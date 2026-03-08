@@ -51,8 +51,10 @@ Make the live runtime actually use the client-side systems that already exist in
 - [x] apply stored client punch angles to the runtime camera outside intermission so recoil/damage kick now affects the live eye-space view
 - [x] anchor runtime viewmodel placement to eye/view origin (not raw player origin), gate it behind `r_drawviewmodel`, and suppress it during intermission
 - [x] restore authoritative walk/gravity collision flow by running `RunClients()` before `Physics()` in server frames, fixing `FrameTime`/time-step propagation, and running `MoveTypeWalk` through server collision/gravity movement each physics tick
-- [x] make runtime camera prefer authoritative server entity origin over simplified predicted origin so manual runtime movement reflects server collision/gravity behavior
+- [x] run player `PlayerPreThink` / `PlayerPostThink` in the authoritative walk-physics path and clear stale `FL_ONGROUND` state before gravity, so server-backed fall handling and jump velocity generation use the same QC + server rules as C
+- [x] make the runtime camera anchor to authoritative server entity origin, apply only a small clamped local predicted XY offset during active movement, and only fall back to simplified predicted origin when no authoritative entity origin is available
 - [x] restore loopback movement intake by consuming pre-submitted `SubmitLoopbackCmd()` input in `RunClients()` (instead of parsing server reliable buffers as client input), with map-backed regression coverage that asserts authoritative server player origin moves
+- [x] preserve loopback authoritative entity deltas until the local client reads them, instead of consuming per-client entity state in `SendClientMessages()` before `GetClientLoopbackMessage()` can deliver the update
 - [x] match C `SV_AirMove` walk parity by forcing `wishvel[2]=0` for `MoveTypeWalk`, preventing pitched forward intent from being projected into vertical velocity and clipped away by ground collision
 - [x] centralize one per-frame place where transient client events are consumed and applied (`Client.ConsumeTransientEvents()` in `runRuntimeFrame()`, covered by `TestRunRuntimeFrameConsumesTransientEventsOnce`)
 

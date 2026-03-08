@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -211,6 +212,43 @@ func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 	data = s.GetClientLoopbackMessage(0)
 	if len(data) != 0 {
 		t.Fatalf("second GetClientLoopbackMessage len = %d, want 0", len(data))
+	}
+}
+
+func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	serverClient := s.Static.Clients[0]
+	serverClient.Loopback = true
+	serverClient.Spawned = true
+	serverClient.Edict.Vars.ModelIndex = 1
+	serverClient.Edict.Vars.Colormap = 1
+	serverClient.Edict.Vars.Origin = [3]float32{100, 200, 300}
+
+	parserClient := cl.NewClient()
+	parser := cl.NewParser(parserClient)
+
+	initial := s.GetClientLoopbackMessage(0)
+	if err := parser.ParseServerMessage(initial); err != nil {
+		t.Fatalf("parse initial loopback message: %v", err)
+	}
+	if got := parserClient.Entities[1].Origin; got != [3]float32{100, 200, 300} {
+		t.Fatalf("initial parsed origin = %v, want [100 200 300]", got)
+	}
+
+	serverClient.Edict.Vars.Origin = [3]float32{104, 208, 296}
+	s.SendClientMessages()
+
+	delta := s.GetClientLoopbackMessage(0)
+	if err := parser.ParseServerMessage(delta); err != nil {
+		t.Fatalf("parse loopback delta message: %v", err)
+	}
+	if got := parserClient.Entities[1].Origin; got != [3]float32{104, 208, 296} {
+		t.Fatalf("parsed origin after server send phase = %v, want [104 208 296]", got)
 	}
 }
 

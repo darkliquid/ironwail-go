@@ -427,11 +427,26 @@ func (s *Server) PhysicsStep(ent *Edict) {
 }
 
 func (s *Server) PhysicsWalk(ent *Edict) {
+	playerClient := s.playerClient(ent)
+	if playerClient != nil {
+		s.runClientQCThink(playerClient, "PlayerPreThink")
+		if ent.Free {
+			return
+		}
+	}
+
 	if !s.RunThink(ent) {
 		return
 	}
 
 	flags := uint32(ent.Vars.Flags)
+	if flags&FlagOnGround != 0 && !s.CheckBottom(ent) {
+		flags &^= FlagOnGround
+		ent.Vars.Flags = float32(flags)
+		ent.Vars.GroundEntity = 0
+	}
+
+	flags = uint32(ent.Vars.Flags)
 	if flags&FlagWaterJump == 0 && ent.Vars.WaterLevel <= 1 && flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 		s.AddGravity(ent)
 	}
@@ -440,6 +455,9 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 	s.FlyMove(ent, s.FrameTime)
 	s.LinkEdict(ent, true)
 	s.CheckWaterTransition(ent)
+	if playerClient != nil {
+		s.runClientQCThink(playerClient, "PlayerPostThink")
+	}
 }
 
 func (s *Server) PhysicsToss(ent *Edict) {

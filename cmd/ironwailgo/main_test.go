@@ -459,6 +459,108 @@ func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
 	}
 }
 
+func TestRuntimeViewStateUsesPredictedXYOffsetDuringActiveMovement(t *testing.T) {
+	originalHost := gameHost
+	originalClient := gameClient
+	originalServer := gameServer
+	originalRenderer := gameRenderer
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameClient = originalClient
+		gameServer = originalServer
+		gameRenderer = originalRenderer
+	})
+
+	gameHost = nil
+	gameServer = nil
+	gameRenderer = nil
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ViewEntity = 1
+	gameClient.ViewHeight = 22
+	gameClient.ViewAngles = [3]float32{10, 20, 0}
+	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	gameClient.PendingCmd = cl.UserCmd{
+		ViewAngles: [3]float32{0, 0, 0},
+		Forward:    100,
+	}
+
+	runRuntimeFrame(0.016, gameCallbacks{})
+	if got := gameClient.PredictedOrigin; got[0] <= 100 {
+		t.Fatalf("expected PredictPlayers to advance predicted origin, got %#v", got)
+	}
+	if got := gameClient.PredictedOrigin; got[2] >= 300 {
+		t.Fatalf("expected collisionless prediction to drift below authoritative Z, got %#v", got)
+	}
+
+	origin, _ := runtimeViewState()
+	if want := [3]float32{gameClient.PredictedOrigin[0], gameClient.PredictedOrigin[1], 300 + gameClient.ViewHeight}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want predicted XY with authoritative Z %v", origin, want)
+	}
+}
+
+func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
+	originalClient := gameClient
+	originalServer := gameServer
+	originalRenderer := gameRenderer
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameServer = originalServer
+		gameRenderer = originalRenderer
+	})
+
+	gameServer = nil
+	gameRenderer = nil
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ViewEntity = 1
+	gameClient.ViewHeight = 22
+	gameClient.ViewAngles = [3]float32{10, 20, 0}
+	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	gameClient.PredictedOrigin = [3]float32{120, 240, 280}
+	gameClient.PendingCmd = cl.UserCmd{Forward: 100}
+
+	offsetScale := float32(runtimeMaxPredictedXYOffset / math.Hypot(20, 40))
+	want := [3]float32{
+		100 + 20*offsetScale,
+		200 + 40*offsetScale,
+		300 + gameClient.ViewHeight,
+	}
+
+	origin, _ := runtimeViewState()
+	if origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want clamped predicted XY %v", origin, want)
+	}
+}
+
+func TestRuntimeViewStateIgnoresPredictedXYOffsetOnLargePredictionError(t *testing.T) {
+	originalClient := gameClient
+	originalServer := gameServer
+	originalRenderer := gameRenderer
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameServer = originalServer
+		gameRenderer = originalRenderer
+	})
+
+	gameServer = nil
+	gameRenderer = nil
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ViewEntity = 1
+	gameClient.ViewHeight = 22
+	gameClient.ViewAngles = [3]float32{10, 20, 0}
+	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	gameClient.PredictedOrigin = [3]float32{110, 200, 280}
+	gameClient.PredictionError = [3]float32{runtimeMaxPredictedXYOffset + 1, 0, 0}
+	gameClient.PendingCmd = cl.UserCmd{Forward: 100}
+
+	origin, _ := runtimeViewState()
+	if want := [3]float32{100, 200, 300 + gameClient.ViewHeight}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want authoritative origin %v", origin, want)
+	}
+}
+
 func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 	originalClient := gameClient
 	t.Cleanup(func() {
@@ -2035,6 +2137,109 @@ func TestSyncGameplayInputModeClearsHeldScoreboardOutsideGameInput(t *testing.T)
 	syncGameplayInputMode()
 	if gameShowScores {
 		t.Fatalf("scoreboard hold should clear when leaving gameplay input")
+	}
+}
+
+func TestStartupMenuStateSuppressesGameplayMovementInput(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	originalClient := gameClient
+	originalGrabbed := gameMouseGrabbed
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+		gameClient = originalClient
+		gameMouseGrabbed = originalGrabbed
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameClient = cl.NewClient()
+	gameMouseGrabbed = false
+
+	gameInput.OnMenuKey = handleMenuKeyEvent
+	gameInput.OnMenuChar = handleMenuCharEvent
+	gameInput.OnKey = handleGameKeyEvent
+	gameInput.OnChar = handleGameCharEvent
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	// initSubsystems shows the menu at startup; +map start does not close it.
+	gameMenu.ShowMenu()
+	syncGameplayInputMode()
+	if got := gameInput.GetKeyDest(); got != input.KeyMenu {
+		t.Fatalf("key destination with startup menu active = %v, want menu", got)
+	}
+
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	if gameClient.InputForward.State&1 != 0 {
+		t.Fatalf("+forward should not activate while key destination is menu")
+	}
+	if gameClient.InputJump.State&1 != 0 {
+		t.Fatalf("+jump should not activate while key destination is menu")
+	}
+
+	gameMenu.HideMenu()
+	syncGameplayInputMode()
+	gameInput.ClearKeyStates()
+
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	if gameClient.InputForward.State&1 == 0 {
+		t.Fatalf("+forward should activate after menu closes")
+	}
+	if gameClient.InputJump.State&1 == 0 {
+		t.Fatalf("+jump should activate after menu closes")
+	}
+}
+
+func TestApplyStartupGameplayInputModeHidesMenuAndEnablesMovementInput(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	originalClient := gameClient
+	originalGrabbed := gameMouseGrabbed
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+		gameClient = originalClient
+		gameMouseGrabbed = originalGrabbed
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameMouseGrabbed = false
+
+	gameInput.OnMenuKey = handleMenuKeyEvent
+	gameInput.OnMenuChar = handleMenuCharEvent
+	gameInput.OnKey = handleGameKeyEvent
+	gameInput.OnChar = handleGameCharEvent
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	gameMenu.ShowMenu()
+	syncGameplayInputMode()
+	if got := gameInput.GetKeyDest(); got != input.KeyMenu {
+		t.Fatalf("key destination before startup transition = %v, want menu", got)
+	}
+
+	applyStartupGameplayInputMode()
+	if gameMenu.IsActive() {
+		t.Fatalf("startup transition should hide menu")
+	}
+	if got := gameInput.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after startup transition = %v, want game", got)
+	}
+
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	if gameClient.InputForward.State&1 == 0 {
+		t.Fatalf("+forward should activate after startup transition")
+	}
+	if gameClient.InputJump.State&1 == 0 {
+		t.Fatalf("+jump should activate after startup transition")
 	}
 }
 

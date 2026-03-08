@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 
@@ -373,6 +374,54 @@ func (s *Server) SV_ClientThink(client *Client) {
 		return
 	}
 	s.airMove(ctx)
+}
+
+func (s *Server) playerClient(ent *Edict) *Client {
+	if s == nil || s.Static == nil || ent == nil {
+		return nil
+	}
+
+	entNum := s.NumForEdict(ent)
+	if entNum <= 0 || entNum > len(s.Static.Clients) {
+		return nil
+	}
+
+	client := s.Static.Clients[entNum-1]
+	if client == nil || !client.Active || !client.Spawned || client.Edict != ent {
+		return nil
+	}
+
+	return client
+}
+
+func (s *Server) runClientQCThink(client *Client, funcName string) {
+	if s == nil || s.QCVM == nil || client == nil || client.Edict == nil || client.Edict.Free {
+		return
+	}
+
+	funcIdx := s.QCVM.FindFunction(funcName)
+	if funcIdx < 0 {
+		return
+	}
+
+	entNum := s.NumForEdict(client.Edict)
+	if entNum <= 0 {
+		return
+	}
+
+	s.syncQCVMState()
+	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
+	s.QCVM.Time = float64(s.Time)
+	s.QCVM.SetGlobal("time", s.Time)
+	s.QCVM.SetGlobal("frametime", s.FrameTime)
+	s.QCVM.SetGlobal("self", entNum)
+	s.QCVM.SetGlobal("other", 0)
+	s.QCVM.SetGlobal("msg_entity", entNum)
+	if err := s.QCVM.ExecuteFunction(funcIdx); err != nil {
+		slog.Warn("client think QC failed", "function", funcName, "entity", entNum, "error", err)
+		return
+	}
+	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
 }
 
 func (s *Server) ClientThink(client *Client) {

@@ -201,8 +201,10 @@ What already works:
 - the client now preserves `svc_clientdata` viewheight and punch state instead of discarding those server-driven eye-space inputs, narrowing the remaining camera/viewmodel fidelity gap
 - server frame ordering now matches C host flow for movement (`RunClients()` before `Physics()`), `FrameTime` is set from the outer frame step, and server time advances once per frame through physics
 - `MoveTypeWalk` entities now run authoritative server gravity/collision movement (`AddGravity` + `FlyMove` + `LinkEdict`) instead of only `RunThink`, restoring bounded walk/gravity collision behavior
+- player `PlayerPreThink` / `PlayerPostThink` now run in the authoritative walk-physics path, and stale grounded state is cleared before gravity when support is gone, so server-backed jump velocity generation and falling use the same QC + server rules as the C path
 - the runtime camera now raises predicted/view-entity origin by the parsed client viewheight, so normal gameplay renders from eye space instead of raw player origin
-- runtime camera origin now prefers authoritative server entity origin and only falls back to simplified prediction when no entity origin is available
+- runtime camera origin now anchors to authoritative server entity origin, applies only a small clamped local predicted XY offset during active movement, and falls back to simplified predicted origin only when no authoritative entity origin is available
+- loopback server frames no longer consume per-client entity delta state before `GetClientLoopbackMessage()` runs, so the live local client now receives authoritative player-origin updates instead of staying pinned to the spawn snapshot
 - the runtime camera now applies stored punch angles during normal gameplay (while still skipping them in intermission), and the bounded `v_gunkick` path now supports off/instant/interpolated kick behavior in the live runtime
 - the runtime viewmodel now uses the active eye/view origin and honors bounded C-style visibility gates (`r_drawviewmodel`, intermission suppression, invisibility/death checks)
 - gameplay input routes through live `bind` / `unbind` / `unbindall` / `bindlist` handling, and `config.cfg` persists those bindings

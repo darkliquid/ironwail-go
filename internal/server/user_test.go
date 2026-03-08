@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"math"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
@@ -366,5 +368,138 @@ func TestLoopbackCmdWalkForwardWithPitchMovesHorizontally(t *testing.T) {
 	}
 	if dx, dy := end[0]-start[0], end[1]-start[1]; dx == 0 && dy == 0 {
 		t.Fatalf("authoritative origin only changed vertically with pitched view: start=%v end=%v", start, end)
+	}
+}
+
+func TestLoopbackJumpAppliesVerticalVelocity(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	progsData, err := vfs.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("load progs.dat: %v", err)
+	}
+	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(s.QCVM)
+
+	if err := s.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	for _, cmd := range []string{"prespawn", "spawn", "begin"} {
+		if err := s.SubmitLoopbackStringCommand(0, cmd); err != nil {
+			t.Fatalf("SubmitLoopbackStringCommand(%s): %v", cmd, err)
+		}
+	}
+	if !client.Spawned {
+		t.Fatal("client not marked spawned after signon")
+	}
+
+	pos, ok := findWalkablePointForUserTest(s)
+	if !ok {
+		t.Skip("no walkable point found on start map")
+	}
+
+	ent := client.Edict
+	ent.Vars.Origin = pos
+	ent.Vars.Velocity = [3]float32{}
+	ent.Vars.Flags = float32(FlagOnGround | FlagJumpReleased)
+	ent.Vars.GroundEntity = 1
+	s.LinkEdict(ent, false)
+
+	start := ent.Vars.Origin
+	if err := s.SubmitLoopbackCmd(0, [3]float32{}, 0, 0, 0, 2, 0, float64(s.Time)); err != nil {
+		t.Fatalf("SubmitLoopbackCmd: %v", err)
+	}
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("Frame: %v", err)
+	}
+
+	if ent.Vars.Velocity[2] <= 0 {
+		t.Fatalf("jump did not apply upward velocity: velocity=%v", ent.Vars.Velocity)
+	}
+	if ent.Vars.Origin[2] <= start[2] {
+		t.Fatalf("jump did not move player upward: start=%v end=%v", start, ent.Vars.Origin)
+	}
+	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
+		t.Fatalf("jump left player grounded: flags=0x%x", uint32(ent.Vars.Flags))
+	}
+}
+
+func TestPhysicsWalkClearsStaleGroundFlagWhenUnsupported(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	if err := s.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+
+	pos, ok := findWalkablePointForUserTest(s)
+	if !ok {
+		t.Skip("no walkable point found on start map")
+	}
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+
+	pos[2] += 96
+	ent.Vars.Origin = pos
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent.Vars.Health = 100
+	ent.Vars.Flags = float32(FlagOnGround)
+	s.LinkEdict(ent, false)
+
+	if s.CheckBottom(ent) {
+		t.Skipf("lifted test position unexpectedly has support: origin=%v", ent.Vars.Origin)
+	}
+
+	start := ent.Vars.Origin
+	s.FrameTime = 0.05
+	s.PhysicsWalk(ent)
+
+	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
+		t.Fatalf("stale onground flag was not cleared: flags=0x%x", uint32(ent.Vars.Flags))
+	}
+	if ent.Vars.GroundEntity != 0 {
+		t.Fatalf("ground entity = %v, want 0", ent.Vars.GroundEntity)
+	}
+	if ent.Vars.Origin[2] >= start[2] {
+		t.Fatalf("entity did not fall after losing support: start=%v end=%v", start, ent.Vars.Origin)
 	}
 }

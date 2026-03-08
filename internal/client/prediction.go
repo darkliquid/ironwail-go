@@ -7,8 +7,9 @@ import "math"
 // to reduce perceived lag. The prediction is corrected when server updates arrive.
 //
 // This should be called once per frame after input processing but before rendering.
-// The predicted position (c.PredictedOrigin) should be used for view setup instead
-// of the raw entity origin from the server.
+// The predicted position (c.PredictedOrigin) is currently used only for a small
+// horizontal camera smoothing delta and as a fallback when authoritative player
+// origin is unavailable, because prediction remains collisionless.
 //
 // Algorithm:
 //  1. Start with last known server entity state

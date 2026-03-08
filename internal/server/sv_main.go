@@ -1246,6 +1246,9 @@ func (s *Server) SendClientMessages() {
 		}
 
 		if client.Spawned {
+			if client.Loopback {
+				continue
+			}
 			s.SendClientDatagram(client)
 		} else {
 			if client.SendSignon == SignonNone {

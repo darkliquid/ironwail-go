@@ -41,6 +41,8 @@ const (
 	VersionMajor = 0
 	VersionMinor = 2
 	VersionPatch = 0
+
+	runtimeMaxPredictedXYOffset = 4.0
 )
 
 var (
@@ -637,6 +639,7 @@ func main() {
 		} else {
 			slog.Info("map spawn finished", "map", mapArg)
 			if gameClient != nil && gameClient.State == cl.StateActive && gameHost.SignOns() == 4 {
+				applyStartupGameplayInputMode()
 				slog.Info("client active", "map", mapArg)
 			}
 		}
@@ -1740,6 +1743,27 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		return [3]float32{}, false
 	}
 
+	if authoritativeOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+		if predictedOffset, ok := runtimePredictedXYOffset(authoritativeOrigin); ok {
+			authoritativeOrigin[0] += predictedOffset[0]
+			authoritativeOrigin[1] += predictedOffset[1]
+		}
+		return authoritativeOrigin, true
+	}
+
+	clientOrigin := gameClient.PredictedOrigin
+	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+		return clientOrigin, true
+	}
+
+	return [3]float32{}, false
+}
+
+func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
+	if gameClient == nil {
+		return [3]float32{}, false
+	}
+
 	if gameClient.ViewEntity != 0 {
 		if state, ok := gameClient.Entities[gameClient.ViewEntity]; ok {
 			return state.Origin, true
@@ -1752,12 +1776,58 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		}
 	}
 
-	clientOrigin := gameClient.PredictedOrigin
-	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
-		return clientOrigin, true
+	return [3]float32{}, false
+}
+
+func runtimePredictedXYOffset(authoritativeOrigin [3]float32) ([2]float32, bool) {
+	if gameClient == nil || gameClient.State != cl.StateActive {
+		return [2]float32{}, false
 	}
 
-	return [3]float32{}, false
+	cmd := gameClient.PendingCmd
+	if cmd.Forward == 0 && cmd.Side == 0 {
+		return [2]float32{}, false
+	}
+
+	clientOrigin := gameClient.PredictedOrigin
+	if clientOrigin[0] == 0 && clientOrigin[1] == 0 && clientOrigin[2] == 0 {
+		return [2]float32{}, false
+	}
+
+	if predictionErrorXYMagnitude(gameClient.PredictionError) > runtimeMaxPredictedXYOffset {
+		return [2]float32{}, false
+	}
+
+	offset := [2]float32{
+		clientOrigin[0] - authoritativeOrigin[0],
+		clientOrigin[1] - authoritativeOrigin[1],
+	}
+	offsetMagnitude := predictionErrorXYMagnitude([3]float32{offset[0], offset[1], 0})
+	if offsetMagnitude == 0 {
+		return [2]float32{}, false
+	}
+
+	if offsetMagnitude > runtimeMaxPredictedXYOffset {
+		scale := float32(runtimeMaxPredictedXYOffset / offsetMagnitude)
+		offset[0] *= scale
+		offset[1] *= scale
+	}
+
+	return offset, true
+}
+
+func predictionErrorXYMagnitude(v [3]float32) float64 {
+	return math.Hypot(float64(v[0]), float64(v[1]))
+}
+
+func applyStartupGameplayInputMode() {
+	if gameMenu != nil {
+		gameMenu.HideMenu()
+	}
+	syncGameplayInputMode()
+	if gameInput != nil {
+		gameInput.ClearKeyStates()
+	}
 }
 
 func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
