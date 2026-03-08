@@ -367,7 +367,7 @@ Close the host-command and UI gaps that keep the port local-only.
 - [x] stop active gameplay sounds during local disconnect/reconnect-style session transitions
 - [x] add local reconnect loading-plaque visibility in runtime overlay flow
 - implement remote transport-backed `connect` flow (currently explicit unsupported path with console messaging)
-- connect the multiplayer menus to real behavior
+- [~] connect the multiplayer menus to real behavior (bounded local join/host menu flows now dispatch real `connect`/host setup commands; remote transport parity remains)
 
 **Done when**
 

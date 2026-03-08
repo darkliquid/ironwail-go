@@ -502,6 +502,37 @@ func TestMultiPlayerNavigation(t *testing.T) {
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
 
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+
+	mgr.multiPlayerCursor = 0
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuJoinGame {
+		t.Fatalf("join selection should enter join menu, got %v", got)
+	}
+	mgr.M_Key(input.KEscape)
+
+	mgr.multiPlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuHostGame {
+		t.Fatalf("host selection should enter host menu, got %v", got)
+	}
+	mgr.M_Key(input.KEscape)
+
+	mgr.multiPlayerCursor = 2
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuSetup {
+		t.Fatalf("setup selection should enter setup menu, got %v", got)
+	}
+}
+
+func TestJoinGameMenuEditingAndConnectCommand(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
 	var commands []string
 	mgr.commandText = func(text string) {
 		commands = append(commands, text)
@@ -509,19 +540,92 @@ func TestMultiPlayerNavigation(t *testing.T) {
 
 	mgr.ShowMenu()
 	mgr.state = MenuMultiPlayer
-
 	mgr.multiPlayerCursor = 0
 	mgr.M_Key(input.KEnter)
-	mgr.multiPlayerCursor = 1
-	mgr.M_Key(input.KEnter)
-	mgr.multiPlayerCursor = 2
+
+	if got := mgr.GetState(); got != MenuJoinGame {
+		t.Fatalf("expected join game menu, got %v", got)
+	}
+
+	mgr.M_Key(input.KBackspace)
+	if got := mgr.joinAddress; got != "loca" {
+		t.Fatalf("join address after backspace = %q, want %q", got, "loca")
+	}
+	mgr.M_Char('l')
+	mgr.M_Char(':')
+	mgr.M_Char('2')
+	mgr.M_Char('6')
+	mgr.M_Char('0')
+	mgr.M_Char('0')
+
+	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KEnter)
 
-	if len(commands) != 2 {
-		t.Fatalf("expected 2 multiplayer commands, got %d", len(commands))
+	if mgr.IsActive() {
+		t.Fatal("connect should hide menu")
 	}
-	if got := mgr.GetState(); got != MenuSetup {
-		t.Fatalf("setup selection should enter setup menu, got %v", got)
+	if len(commands) == 0 {
+		t.Fatal("expected connect command to be queued")
+	}
+	if got := commands[len(commands)-1]; got != "connect \"local:2600\"\n" {
+		t.Fatalf("unexpected connect command: %q", got)
+	}
+}
+
+func TestHostGameMenuEditingAndCommands(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+	mgr.multiPlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuHostGame {
+		t.Fatalf("expected host game menu, got %v", got)
+	}
+
+	mgr.M_Key(input.KLeftArrow) // max players: 4 -> 3
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow) // mode: coop -> deathmatch
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow) // skill: 1 -> 2
+	mgr.M_Key(input.KDownArrow)
+	for i := 0; i < 5; i++ {
+		mgr.M_Key(input.KBackspace) // map: start ->
+	}
+	mgr.M_Char('d')
+	mgr.M_Char('m')
+	mgr.M_Char('2')
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KEnter)
+
+	if mgr.IsActive() {
+		t.Fatal("host start should hide menu")
+	}
+
+	want := []string{
+		"disconnect\n",
+		"maxplayers 3\n",
+		"deathmatch 1\n",
+		"coop 0\n",
+		"skill 2\n",
+		"map \"dm2\"\n",
+	}
+	if len(commands) < len(want) {
+		t.Fatalf("expected at least %d commands, got %d (%v)", len(want), len(commands), commands)
+	}
+	for i, expected := range want {
+		if got := commands[i]; got != expected {
+			t.Fatalf("command %d = %q, want %q", i, got, expected)
+		}
 	}
 }
 
@@ -679,6 +783,8 @@ func TestMenuStateStringability(t *testing.T) {
 		MenuLoad,
 		MenuSave,
 		MenuMultiPlayer,
+		MenuJoinGame,
+		MenuHostGame,
 		MenuOptions,
 		MenuControls,
 		MenuVideo,

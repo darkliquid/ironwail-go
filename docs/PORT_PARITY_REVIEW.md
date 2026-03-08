@@ -314,7 +314,7 @@ What is already present:
 
 ### What is missing or divergent
 
-- multiplayer submenu still has TODO `echo` commands for `join game` and `host game`; bounded `player setup` now works for player name plus shirt/pants color and applies changes through `name`/`color`
+- multiplayer submenu now has bounded `join game` and `host game` flows: join supports menu text entry and dispatches `connect <address>`, while host applies bounded local options (`maxplayers`/`coop`/`deathmatch`/`skill`/`map`) through queued commands; bounded `player setup` works for player name plus shirt/pants color and applies changes through `name`/`color`
 - options submenu now has bounded video/audio submenus wired to supported cvars; controls remains a placeholder
 - setup-menu hostname editing is still intentionally not implemented in this bounded slice
 - the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers) plus a bounded live intermission/finale/cutscene overlay path with timed center-text reveal, but it still omits expansion-pack special cases, pickup flash timing polish, and deathmatch score overlays
@@ -400,7 +400,7 @@ Go already restores most of the world/QC state, including lightstyles, transitio
 ### What is missing or divergent
 
 - `connect` is not feature-complete, and `reconnect` is still only wired through the local loopback path
-- multiplayer menu flows are still placeholder UX
+- multiplayer menu flows now cover bounded local join/host setup UX, but full remote transport parity and broader game-options depth are still pending
 - the current runtime should be treated as single-player-first even though pieces of the multiplayer protocol are already present
 
 ### Exact C behavior still missing or not fully matched

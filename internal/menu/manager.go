@@ -25,6 +25,8 @@ const (
 	MenuLoad                          // Load game submenu
 	MenuSave                          // Save game submenu
 	MenuMultiPlayer                   // Multiplayer submenu
+	MenuJoinGame                      // Join game submenu
+	MenuHostGame                      // Host game submenu
 	MenuOptions                       // Options submenu
 	MenuControls                      // Controls options submenu
 	MenuVideo                         // Video options submenu
@@ -39,6 +41,8 @@ const (
 
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
+	joinGameItems     = 3
+	hostGameItems     = 6
 	optionsItems      = 5
 	controlsItems     = 13
 	videoItems        = 7
@@ -50,10 +54,21 @@ const (
 	setupItems      = 4
 	setupNameMaxLen = 15
 	setupColorMax   = 13
+	joinAddressMax  = 63
+	hostMapMaxLen   = 32
 
 	menuSoundNavigate = "misc/menu1.wav"
 	menuSoundSelect   = "misc/menu2.wav"
 	menuSoundCancel   = "misc/menu3.wav"
+)
+
+const (
+	hostGameItemMaxPlayers = iota
+	hostGameItemMode
+	hostGameItemSkill
+	hostGameItemMap
+	hostGameItemStart
+	hostGameItemBack
 )
 
 const (
@@ -146,6 +161,13 @@ type Manager struct {
 	setupName          string
 	setupTopColor      int
 	setupBottomColor   int
+	joinGameCursor     int
+	joinAddress        string
+	hostGameCursor     int
+	hostMaxPlayers     int
+	hostGameMode       int
+	hostSkill          int
+	hostMapName        string
 
 	quitPrevState MenuState
 
@@ -192,6 +214,13 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		setupName:          "player",
 		setupTopColor:      0,
 		setupBottomColor:   0,
+		joinGameCursor:     0,
+		joinAddress:        "local",
+		hostGameCursor:     0,
+		hostMaxPlayers:     4,
+		hostGameMode:       0,
+		hostSkill:          1,
+		hostMapName:        "start",
 		drawManager:        drawMgr,
 		inputSystem:        inputSys,
 		active:             false,
@@ -277,6 +306,10 @@ func (m *Manager) M_Key(key int) {
 		m.saveKey(key)
 	case MenuMultiPlayer:
 		m.multiPlayerKey(key)
+	case MenuJoinGame:
+		m.joinGameKey(key)
+	case MenuHostGame:
+		m.hostGameKey(key)
 	case MenuOptions:
 		m.optionsKey(key)
 	case MenuControls:
@@ -296,10 +329,14 @@ func (m *Manager) M_Key(key int) {
 
 // M_Char handles typed characters for menu text-entry fields.
 func (m *Manager) M_Char(char rune) {
-	if m.state != MenuSetup {
-		return
+	switch m.state {
+	case MenuSetup:
+		m.setupChar(char)
+	case MenuJoinGame:
+		m.joinGameChar(char)
+	case MenuHostGame:
+		m.hostGameChar(char)
 	}
-	m.setupChar(char)
 }
 
 // M_Draw renders the current menu state.
@@ -315,6 +352,10 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawSave(dc)
 	case MenuMultiPlayer:
 		m.drawMultiPlayer(dc)
+	case MenuJoinGame:
+		m.drawJoinGame(dc)
+	case MenuHostGame:
+		m.drawHostGame(dc)
 	case MenuOptions:
 		m.drawOptions(dc)
 	case MenuControls:
@@ -475,15 +516,97 @@ func (m *Manager) multiPlayerKey(key int) {
 		m.playMenuSound(menuSoundSelect)
 		switch m.multiPlayerCursor {
 		case 0:
-			m.queueCommand("echo Join game menu is TODO\n")
+			m.state = MenuJoinGame
+			m.joinGameCursor = 0
 		case 1:
-			m.queueCommand("echo Host game menu is TODO\n")
+			m.state = MenuHostGame
+			m.hostGameCursor = 0
 		case 2:
 			m.enterSetupMenu()
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:
 		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
+	}
+}
+
+func (m *Manager) joinGameKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.joinGameCursor--
+		if m.joinGameCursor < 0 {
+			m.joinGameCursor = joinGameItems - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.joinGameCursor++
+		if m.joinGameCursor >= joinGameItems {
+			m.joinGameCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KBackspace:
+		if m.joinGameCursor == 0 {
+			m.deleteJoinAddressRune()
+			m.playMenuSound(menuSoundCancel)
+			return
+		}
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuMultiPlayer
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
+		switch m.joinGameCursor {
+		case 1:
+			m.applyJoinGame()
+		case 2:
+			m.state = MenuMultiPlayer
+		}
+	case input.KEscape, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuMultiPlayer
+	}
+}
+
+func (m *Manager) hostGameKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.hostGameCursor--
+		if m.hostGameCursor < 0 {
+			m.hostGameCursor = hostGameItems - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.hostGameCursor++
+		if m.hostGameCursor >= hostGameItems {
+			m.hostGameCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KLeftArrow:
+		m.adjustHostGameSetting(-1)
+		m.playMenuSound(menuSoundNavigate)
+	case input.KRightArrow:
+		m.adjustHostGameSetting(1)
+		m.playMenuSound(menuSoundNavigate)
+	case input.KBackspace:
+		if m.hostGameCursor == hostGameItemMap {
+			m.deleteHostMapRune()
+			m.playMenuSound(menuSoundCancel)
+			return
+		}
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuMultiPlayer
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
+		switch m.hostGameCursor {
+		case hostGameItemStart:
+			m.applyHostGame()
+		case hostGameItemBack:
+			m.state = MenuMultiPlayer
+		default:
+			m.adjustHostGameSetting(1)
+		}
+	case input.KEscape, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuMultiPlayer
 	}
 }
 
@@ -902,11 +1025,53 @@ func (m *Manager) setupChar(char rune) {
 	m.setupName += string(char)
 }
 
+func (m *Manager) joinGameChar(char rune) {
+	if m.joinGameCursor != 0 {
+		return
+	}
+	if char < 32 || char > 126 {
+		return
+	}
+	if len(m.joinAddress) >= joinAddressMax {
+		return
+	}
+	m.joinAddress += string(char)
+}
+
+func (m *Manager) hostGameChar(char rune) {
+	if m.hostGameCursor != hostGameItemMap {
+		return
+	}
+	if char < 32 || char > 126 {
+		return
+	}
+	if len(m.hostMapName) >= hostMapMaxLen {
+		return
+	}
+	m.hostMapName += string(char)
+}
+
 func (m *Manager) deleteSetupNameRune() {
 	if len(m.setupName) == 0 {
 		return
 	}
 	m.setupName = m.setupName[:len(m.setupName)-1]
+}
+
+func (m *Manager) deleteJoinAddressRune() {
+	if len(m.joinAddress) == 0 {
+		return
+	}
+	runes := []rune(m.joinAddress)
+	m.joinAddress = string(runes[:len(runes)-1])
+}
+
+func (m *Manager) deleteHostMapRune() {
+	if len(m.hostMapName) == 0 {
+		return
+	}
+	runes := []rune(m.hostMapName)
+	m.hostMapName = string(runes[:len(runes)-1])
 }
 
 func (m *Manager) adjustSetupColor(delta int) {
@@ -915,6 +1080,29 @@ func (m *Manager) adjustSetupColor(delta int) {
 		m.setupTopColor = wrapSetupColor(m.setupTopColor + delta)
 	case 2:
 		m.setupBottomColor = wrapSetupColor(m.setupBottomColor + delta)
+	}
+}
+
+func (m *Manager) adjustHostGameSetting(delta int) {
+	switch m.hostGameCursor {
+	case hostGameItemMaxPlayers:
+		m.hostMaxPlayers += delta
+		if m.hostMaxPlayers < 2 {
+			m.hostMaxPlayers = 16
+		}
+		if m.hostMaxPlayers > 16 {
+			m.hostMaxPlayers = 2
+		}
+	case hostGameItemMode:
+		m.hostGameMode = wrapIndex(m.hostGameMode+delta, 2)
+	case hostGameItemSkill:
+		m.hostSkill += delta
+		if m.hostSkill < 0 {
+			m.hostSkill = 3
+		}
+		if m.hostSkill > 3 {
+			m.hostSkill = 0
+		}
 	}
 }
 
@@ -936,6 +1124,36 @@ func (m *Manager) applySetupChanges() {
 		m.queueCommand(fmt.Sprintf("name \"%s\"\n", escaped))
 	}
 	m.queueCommand(fmt.Sprintf("color %d %d\n", m.setupTopColor, m.setupBottomColor))
+}
+
+func (m *Manager) applyJoinGame() {
+	address := strings.TrimSpace(m.joinAddress)
+	if address == "" {
+		address = "local"
+	}
+	m.HideMenu()
+	m.queueCommand(fmt.Sprintf("connect %q\n", address))
+}
+
+func (m *Manager) applyHostGame() {
+	mapName := strings.TrimSpace(m.hostMapName)
+	if mapName == "" {
+		mapName = "start"
+	}
+	coop := 0
+	deathmatch := 0
+	if m.hostGameMode == 0 {
+		coop = 1
+	} else {
+		deathmatch = 1
+	}
+	m.HideMenu()
+	m.queueCommand("disconnect\n")
+	m.queueCommand(fmt.Sprintf("maxplayers %d\n", m.hostMaxPlayers))
+	m.queueCommand(fmt.Sprintf("deathmatch %d\n", deathmatch))
+	m.queueCommand(fmt.Sprintf("coop %d\n", coop))
+	m.queueCommand(fmt.Sprintf("skill %d\n", m.hostSkill))
+	m.queueCommand(fmt.Sprintf("map %q\n", mapName))
 }
 
 // drawMain renders the main menu.
@@ -999,6 +1217,53 @@ func (m *Manager) drawMultiPlayer(dc renderer.RenderContext) {
 	}
 
 	m.drawCursor(dc, 54, 32+m.multiPlayerCursor*20)
+}
+
+func (m *Manager) drawJoinGame(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
+
+	m.drawText(dc, 56, 48, "ADDRESS", true)
+	m.drawText(dc, 56, 72, "CONNECT", true)
+	m.drawText(dc, 56, 96, "BACK", true)
+	m.drawText(dc, 160, 48, m.joinAddress, true)
+	m.drawText(dc, 40, 136, "REMOTE CONNECT IS STILL PENDING", true)
+	m.drawText(dc, 40, 152, "USE LOCAL FOR LOOPBACK JOIN", true)
+
+	m.drawArrowCursor(dc, 40, 48+m.joinGameCursor*24)
+	if m.joinGameCursor == 0 {
+		cursorX := 160 + len(m.joinAddress)*8
+		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
+		dc.DrawMenuCharacter(cursorX, 48, cursorChar)
+	}
+}
+
+func (m *Manager) drawHostGame(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
+
+	m.drawText(dc, 56, 32, "MAX PLAYERS", true)
+	m.drawText(dc, 56, 48, "MODE", true)
+	m.drawText(dc, 56, 64, "SKILL", true)
+	m.drawText(dc, 56, 80, "MAP", true)
+	m.drawText(dc, 56, 112, "START GAME", true)
+	m.drawText(dc, 56, 136, "BACK", true)
+
+	m.drawText(dc, 192, 32, fmt.Sprintf("%d", m.hostMaxPlayers), true)
+	modeLabel := "COOP"
+	if m.hostGameMode == 1 {
+		modeLabel = "DEATHMATCH"
+	}
+	m.drawText(dc, 192, 48, modeLabel, true)
+	m.drawText(dc, 192, 64, fmt.Sprintf("%d", m.hostSkill), true)
+	m.drawText(dc, 192, 80, m.hostMapName, true)
+	m.drawText(dc, 40, 168, "HOSTING USES EXISTING LOCAL LOOPBACK", true)
+
+	cursorRows := []int{32, 48, 64, 80, 112, 136}
+	m.drawArrowCursor(dc, 40, cursorRows[m.hostGameCursor])
+	if m.hostGameCursor == hostGameItemMap {
+		cursorX := 192 + len(m.hostMapName)*8
+		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
+		dc.DrawMenuCharacter(cursorX, 80, cursorChar)
+	}
 }
 
 func (m *Manager) drawOptions(dc renderer.RenderContext) {
