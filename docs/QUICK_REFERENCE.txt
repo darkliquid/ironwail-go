@@ -26,8 +26,9 @@ B. ENTITY RENDERING        [████████████████░�
       - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
       - translucent brush-entity non-liquid surfaces now move out of the early opaque stage and render later, after the separated liquid phases
       - late translucent liquid/entity/decal/particle work is now wrapped in an explicit begin/end translucency state block before the final viewmodel draw
+      - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing across sprite timing and final viewmodel placement
+   - Remaining fidelity work: full C pass sequencing focused on final viewmodel placement and related late-scene ordering edge cases, plus broader sprite quad-orientation fidelity
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE

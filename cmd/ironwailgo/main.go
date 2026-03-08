@@ -880,6 +880,7 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 		return nil
 	}
 
+	viewForward, viewRight, _ := runtimeAngleVectors(gameClient.ViewAngles)
 	resolve := func(state inet.EntityState) (renderer.SpriteEntity, bool) {
 		if state.ModelIndex == 0 {
 			return renderer.SpriteEntity{}, false
@@ -898,10 +899,7 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 			return renderer.SpriteEntity{}, false
 		}
 
-		frame := int(state.Frame)
-		if frame < 0 || frame >= entry.sprite.NumFrames {
-			frame = 0
-		}
+		frame := resolveRuntimeSpriteFrame(entry.sprite, int(state.Frame), state.Angles, viewForward, viewRight, gameClient.Time)
 
 		return renderer.SpriteEntity{
 			ModelID:    modelName,
@@ -930,6 +928,108 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 	}
 
 	return spriteEntities
+}
+
+func resolveRuntimeSpriteFrame(sprite *model.MSprite, frame int, entityAngles [3]float32, viewForward, viewRight [3]float32, clientTime float64) int {
+	if sprite == nil || sprite.NumFrames == 0 || len(sprite.Frames) == 0 {
+		return 0
+	}
+	if frame < 0 || frame >= sprite.NumFrames || frame >= len(sprite.Frames) {
+		frame = 0
+	}
+
+	flatOffset := spriteFlatFrameOffset(sprite, frame)
+	frameDesc := sprite.Frames[frame]
+	switch frameDesc.Type {
+	case model.SpriteFrameGroup:
+		return flatOffset + resolveRuntimeSpriteGroupSubframe(frameDesc.FramePtr, clientTime)
+	case model.SpriteFrameAngled:
+		return flatOffset + resolveRuntimeSpriteAngledSubframe(frameDesc.FramePtr, entityAngles, viewForward, viewRight)
+	default:
+		return flatOffset
+	}
+}
+
+func resolveRuntimeSpriteGroupSubframe(framePtr interface{}, clientTime float64) int {
+	group, ok := framePtr.(*model.MSpriteGroup)
+	if !ok || group == nil || group.NumFrames <= 0 || len(group.Intervals) == 0 {
+		return 0
+	}
+	lastInterval := group.Intervals[len(group.Intervals)-1]
+	if lastInterval <= 0 {
+		return 0
+	}
+
+	targetTime := float32(math.Mod(clientTime, float64(lastInterval)))
+	if targetTime < 0 {
+		targetTime += lastInterval
+	}
+	for subframe := 0; subframe < group.NumFrames && subframe < len(group.Intervals); subframe++ {
+		if targetTime < group.Intervals[subframe] {
+			return subframe
+		}
+	}
+	return 0
+}
+
+func resolveRuntimeSpriteAngledSubframe(framePtr interface{}, entityAngles [3]float32, viewForward, viewRight [3]float32) int {
+	group, ok := framePtr.(*model.MSpriteGroup)
+	if !ok || group == nil || group.NumFrames <= 0 || len(group.Frames) == 0 {
+		return 0
+	}
+
+	frameCount := group.NumFrames
+	if len(group.Frames) < frameCount {
+		frameCount = len(group.Frames)
+	}
+	if frameCount <= 0 {
+		return 0
+	}
+
+	entityForward, _, _ := runtimeAngleVectors(entityAngles)
+	forwardDot := qtypes.Vec3Dot(
+		qtypes.Vec3{X: viewForward[0], Y: viewForward[1], Z: viewForward[2]},
+		qtypes.Vec3{X: entityForward[0], Y: entityForward[1], Z: entityForward[2]},
+	)
+	rightDot := qtypes.Vec3Dot(
+		qtypes.Vec3{X: viewRight[0], Y: viewRight[1], Z: viewRight[2]},
+		qtypes.Vec3{X: entityForward[0], Y: entityForward[1], Z: entityForward[2]},
+	)
+
+	dir := int((math.Atan2(float64(rightDot), float64(forwardDot)) + 1.125*math.Pi) * (4.0 / math.Pi))
+	dir %= frameCount
+	if dir < 0 {
+		dir += frameCount
+	}
+	return dir
+}
+
+func spriteFlatFrameOffset(sprite *model.MSprite, frame int) int {
+	if sprite == nil || frame <= 0 {
+		return 0
+	}
+	maxFrame := frame
+	if maxFrame > len(sprite.Frames) {
+		maxFrame = len(sprite.Frames)
+	}
+	offset := 0
+	for i := 0; i < maxFrame; i++ {
+		offset += spriteFrameSpan(sprite.Frames[i])
+	}
+	return offset
+}
+
+func spriteFrameSpan(frameDesc model.MSpriteFrameDesc) int {
+	switch frameDesc.Type {
+	case model.SpriteFrameGroup, model.SpriteFrameAngled:
+		group, ok := frameDesc.FramePtr.(*model.MSpriteGroup)
+		if !ok || group == nil || group.NumFrames <= 0 {
+			return 1
+		}
+		return group.NumFrames
+	default:
+		return 1
+	}
 }
 
 func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, spriteEntities []renderer.SpriteEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {

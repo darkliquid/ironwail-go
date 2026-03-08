@@ -933,6 +933,206 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimeSpriteFrameGroupTimingWraps(t *testing.T) {
+	viewForward, viewRight, _ := runtimeAngleVectors([3]float32{})
+	sprite := &model.MSprite{
+		NumFrames: 1,
+		Frames: []model.MSpriteFrameDesc{
+			{
+				Type: model.SpriteFrameGroup,
+				FramePtr: &model.MSpriteGroup{
+					NumFrames: 3,
+					Intervals: []float32{0.1, 0.3, 0.6},
+					Frames: []*model.MSpriteFrame{
+						{},
+						{},
+						{},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		clientTime float64
+		want       int
+	}{
+		{name: "first interval", clientTime: 0.05, want: 0},
+		{name: "second interval", clientTime: 0.20, want: 1},
+		{name: "third interval", clientTime: 0.45, want: 2},
+		{name: "wrap interval", clientTime: 0.65, want: 0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveRuntimeSpriteFrame(sprite, 0, [3]float32{}, viewForward, viewRight, tc.clientTime); got != tc.want {
+				t.Fatalf("resolveRuntimeSpriteFrame(time=%v) = %d, want %d", tc.clientTime, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveRuntimeSpriteFrameUsesFlatOffsetForGroupedFrames(t *testing.T) {
+	viewForward, viewRight, _ := runtimeAngleVectors([3]float32{})
+	sprite := &model.MSprite{
+		NumFrames: 3,
+		Frames: []model.MSpriteFrameDesc{
+			{Type: model.SpriteFrameSingle, FramePtr: &model.MSpriteFrame{}},
+			{
+				Type: model.SpriteFrameGroup,
+				FramePtr: &model.MSpriteGroup{
+					NumFrames: 2,
+					Intervals: []float32{0.2, 0.4},
+					Frames: []*model.MSpriteFrame{
+						{},
+						{},
+					},
+				},
+			},
+			{Type: model.SpriteFrameSingle, FramePtr: &model.MSpriteFrame{}},
+		},
+	}
+
+	if got := resolveRuntimeSpriteFrame(sprite, 1, [3]float32{}, viewForward, viewRight, 0.05); got != 1 {
+		t.Fatalf("resolveRuntimeSpriteFrame(group first) = %d, want 1", got)
+	}
+	if got := resolveRuntimeSpriteFrame(sprite, 1, [3]float32{}, viewForward, viewRight, 0.25); got != 2 {
+		t.Fatalf("resolveRuntimeSpriteFrame(group second) = %d, want 2", got)
+	}
+	if got := resolveRuntimeSpriteFrame(sprite, 2, [3]float32{}, viewForward, viewRight, 0.25); got != 3 {
+		t.Fatalf("resolveRuntimeSpriteFrame(single after group) = %d, want 3", got)
+	}
+}
+
+func TestResolveRuntimeSpriteFrameAngledUsesViewDirection(t *testing.T) {
+	sprite := &model.MSprite{
+		NumFrames: 1,
+		Frames: []model.MSpriteFrameDesc{
+			{
+				Type: model.SpriteFrameAngled,
+				FramePtr: &model.MSpriteGroup{
+					NumFrames: 8,
+					Intervals: []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8},
+					Frames: []*model.MSpriteFrame{
+						{}, {}, {}, {}, {}, {}, {}, {},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		viewAngles [3]float32
+		want       int
+	}{
+		{name: "front", viewAngles: [3]float32{0, 0, 0}, want: 4},
+		{name: "right", viewAngles: [3]float32{0, 90, 0}, want: 6},
+		{name: "back", viewAngles: [3]float32{0, 180, 0}, want: 0},
+		{name: "left", viewAngles: [3]float32{0, 270, 0}, want: 2},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			viewForward, viewRight, _ := runtimeAngleVectors(tc.viewAngles)
+			if got := resolveRuntimeSpriteFrame(sprite, 0, [3]float32{}, viewForward, viewRight, 0.35); got != tc.want {
+				t.Fatalf("resolveRuntimeSpriteFrame(view=%v) = %d, want %d", tc.viewAngles, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveRuntimeSpriteFrameUsesFlatOffsetForAngledFrames(t *testing.T) {
+	viewForward, viewRight, _ := runtimeAngleVectors([3]float32{})
+	sprite := &model.MSprite{
+		NumFrames: 2,
+		Frames: []model.MSpriteFrameDesc{
+			{Type: model.SpriteFrameSingle, FramePtr: &model.MSpriteFrame{}},
+			{
+				Type: model.SpriteFrameAngled,
+				FramePtr: &model.MSpriteGroup{
+					NumFrames: 8,
+					Intervals: []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8},
+					Frames: []*model.MSpriteFrame{
+						{}, {}, {}, {}, {}, {}, {}, {},
+					},
+				},
+			},
+		},
+	}
+
+	if got := resolveRuntimeSpriteFrame(sprite, 1, [3]float32{}, viewForward, viewRight, 0.35); got != 5 {
+		t.Fatalf("resolveRuntimeSpriteFrame(angled offset) = %d, want 5", got)
+	}
+}
+
+func TestCollectSpriteEntitiesResolvesGroupedFrameFromClientTime(t *testing.T) {
+	originalClient := gameClient
+	originalSubs := gameSubs
+	originalCache := spriteModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameSubs = originalSubs
+		spriteModelCache = originalCache
+	})
+
+	testFS := &runtimeMusicTestFS{
+		files: map[string][]byte{
+			"progs/flame.spr": testRuntimeSpriteGroup(t, 2, []float32{0.2, 0.4}),
+		},
+	}
+	gameSubs = &host.Subsystems{Files: testFS}
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"progs/flame.spr"}
+	gameClient.Time = 0.25
+	gameClient.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, Frame: 0},
+	}
+	spriteModelCache = nil
+
+	entities := collectSpriteEntities()
+	if got := len(entities); got != 1 {
+		t.Fatalf("collectSpriteEntities len = %d, want 1", got)
+	}
+	if got := entities[0].Frame; got != 1 {
+		t.Fatalf("collectSpriteEntities grouped frame = %d, want 1", got)
+	}
+}
+
+func TestCollectSpriteEntitiesResolvesAngledFrameFromViewAngles(t *testing.T) {
+	originalClient := gameClient
+	originalSubs := gameSubs
+	originalCache := spriteModelCache
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameSubs = originalSubs
+		spriteModelCache = originalCache
+	})
+
+	testFS := &runtimeMusicTestFS{
+		files: map[string][]byte{
+			"progs/flame.spr": testRuntimeAngledSprite(t),
+		},
+	}
+	gameSubs = &host.Subsystems{Files: testFS}
+	gameClient = cl.NewClient()
+	gameClient.ModelPrecache = []string{"progs/flame.spr"}
+	gameClient.ViewAngles = [3]float32{0, 90, 0}
+	gameClient.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, Frame: 0, Angles: [3]float32{0, 0, 0}},
+	}
+	spriteModelCache = nil
+
+	entities := collectSpriteEntities()
+	if got := len(entities); got != 1 {
+		t.Fatalf("collectSpriteEntities len = %d, want 1", got)
+	}
+	if got := entities[0].Frame; got != 6 {
+		t.Fatalf("collectSpriteEntities angled frame = %d, want 6", got)
+	}
+}
+
 func TestEntityStateScaleDecodesProtocolScale(t *testing.T) {
 	if got := entityStateScale(inet.EntityState{Scale: inet.ENTSCALE_DEFAULT}); got != 1 {
 		t.Fatalf("entityStateScale(default) = %v, want 1", got)
@@ -1475,6 +1675,86 @@ func testRuntimeSprite(t *testing.T, width, height int32) []byte {
 	write(height)
 	if _, err := spr.Write([]byte{1}); err != nil {
 		t.Fatalf("Write pixel data: %v", err)
+	}
+
+	return spr.Bytes()
+}
+
+func testRuntimeSpriteGroup(t *testing.T, frames int32, intervals []float32) []byte {
+	t.Helper()
+	if frames <= 0 {
+		t.Fatalf("invalid frame count: %d", frames)
+	}
+	if len(intervals) != int(frames) {
+		t.Fatalf("interval count = %d, want %d", len(intervals), frames)
+	}
+
+	var spr bytes.Buffer
+	write := func(value interface{}) {
+		if err := binary.Write(&spr, binary.LittleEndian, value); err != nil {
+			t.Fatalf("binary.Write(%T): %v", value, err)
+		}
+	}
+
+	write(int32(model.IDSpriteHeader))
+	write(int32(model.SpriteVersion))
+	write(int32(0))
+	write(float32(1))
+	write(int32(1))
+	write(int32(1))
+	write(int32(1))
+	write(float32(0))
+	write(int32(0))
+
+	write(int32(model.SpriteFrameGroup))
+	write(frames)
+	for _, interval := range intervals {
+		write(interval)
+	}
+	for i := int32(0); i < frames; i++ {
+		write([2]int32{0, 0})
+		write(int32(1))
+		write(int32(1))
+		if err := spr.WriteByte(byte(i + 1)); err != nil {
+			t.Fatalf("Write pixel data: %v", err)
+		}
+	}
+
+	return spr.Bytes()
+}
+
+func testRuntimeAngledSprite(t *testing.T) []byte {
+	t.Helper()
+
+	var spr bytes.Buffer
+	write := func(value interface{}) {
+		if err := binary.Write(&spr, binary.LittleEndian, value); err != nil {
+			t.Fatalf("binary.Write(%T): %v", value, err)
+		}
+	}
+
+	write(int32(model.IDSpriteHeader))
+	write(int32(model.SpriteVersion))
+	write(int32(0))
+	write(float32(1))
+	write(int32(1))
+	write(int32(1))
+	write(int32(1))
+	write(float32(0))
+	write(int32(0))
+
+	write(int32(model.SpriteFrameAngled))
+	write(int32(8))
+	for i := 0; i < 8; i++ {
+		write(float32(i+1) * 0.1)
+	}
+	for i := 0; i < 8; i++ {
+		write([2]int32{0, 0})
+		write(int32(1))
+		write(int32(1))
+		if err := spr.WriteByte(byte(i + 1)); err != nil {
+			t.Fatalf("Write pixel data: %v", err)
+		}
 	}
 
 	return spr.Bytes()

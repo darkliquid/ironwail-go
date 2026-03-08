@@ -255,7 +255,8 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded post-c2233bc parity slice: split opaque and translucent liquid world/brush draws into separate top-level frame stages so all opaque liquid work now precedes all translucent liquid work on the canonical OpenGL path
 - [x] bounded post-46f3ca3 parity slice: split brush entities into opaque/translucent frame groups so translucent brush non-liquid work moves later in the frame while opaque brush work stays in the earlier entity/liquid stages
 - [x] bounded post-f735cc1 parity slice: add an explicit late-frame translucency state block on the canonical OpenGL path, wrapping the translucent-liquid/entity/decal/particle stage and ending before viewmodel rendering
-- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor, including sprite timing and final viewmodel placement details)
+- [x] bounded post-19b917a parity slice: resolve runtime sprite-frame selection so `SPR_GROUP` sprites advance by client-time intervals and `SPR_ANGLED` sprites choose directional subframes from the current camera basis instead of time-stepping through those frames
+- bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor now centered on final viewmodel placement details, with broader sprite quad-orientation fidelity still tracked separately)
 
 **Done when**
 
