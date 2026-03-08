@@ -3,10 +3,12 @@ package menu
 import (
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -23,6 +25,8 @@ const (
 	MenuSave                          // Save game submenu
 	MenuMultiPlayer                   // Multiplayer submenu
 	MenuOptions                       // Options submenu
+	MenuVideo                         // Video options submenu
+	MenuAudio                         // Audio options submenu
 	MenuHelp                          // Help screens
 	MenuQuit                          // Quit confirmation screen
 	MenuSetup                         // Player setup screen
@@ -34,6 +38,8 @@ const (
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
 	optionsItems      = 5
+	videoItems        = 7
+	audioItems        = 2
 
 	maxSaveGames = 12
 	helpPages    = 6
@@ -46,6 +52,38 @@ const (
 	menuSoundSelect   = "misc/menu2.wav"
 	menuSoundCancel   = "misc/menu3.wav"
 )
+
+const (
+	videoItemResolution = iota
+	videoItemFullscreen
+	videoItemVSync
+	videoItemMaxFPS
+	videoItemGamma
+	videoItemViewModel
+	videoItemBack
+)
+
+const (
+	audioItemVolume = iota
+	audioItemBack
+)
+
+type videoResolution struct {
+	width  int
+	height int
+}
+
+var videoResolutions = []videoResolution{
+	{width: 640, height: 480},
+	{width: 800, height: 600},
+	{width: 1024, height: 768},
+	{width: 1280, height: 720},
+	{width: 1366, height: 768},
+	{width: 1600, height: 900},
+	{width: 1920, height: 1080},
+}
+
+var maxFPSValues = []int{60, 72, 120, 144, 165, 240, 250, 300}
 
 // Manager handles the Quake menu system including navigation and rendering.
 type Manager struct {
@@ -60,6 +98,8 @@ type Manager struct {
 	saveCursor         int
 	multiPlayerCursor  int
 	optionsCursor      int
+	videoCursor        int
+	audioCursor        int
 	helpPage           int
 	setupCursor        int
 	setupName          string
@@ -102,6 +142,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		saveCursor:         0,
 		multiPlayerCursor:  0,
 		optionsCursor:      0,
+		videoCursor:        0,
+		audioCursor:        0,
 		helpPage:           0,
 		setupCursor:        0,
 		setupName:          "player",
@@ -194,6 +236,10 @@ func (m *Manager) M_Key(key int) {
 		m.multiPlayerKey(key)
 	case MenuOptions:
 		m.optionsKey(key)
+	case MenuVideo:
+		m.videoKey(key)
+	case MenuAudio:
+		m.audioKey(key)
 	case MenuHelp:
 		m.helpKey(key)
 	case MenuQuit:
@@ -226,6 +272,10 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawMultiPlayer(dc)
 	case MenuOptions:
 		m.drawOptions(dc)
+	case MenuVideo:
+		m.drawVideo(dc)
+	case MenuAudio:
+		m.drawAudio(dc)
 	case MenuHelp:
 		m.drawHelp(dc)
 	case MenuQuit:
@@ -415,11 +465,13 @@ func (m *Manager) optionsKey(key int) {
 		case 0:
 			m.queueCommand("echo Controls menu is TODO\n")
 		case 1:
-			m.queueCommand("echo Video menu is TODO\n")
+			m.videoCursor = 0
+			m.state = MenuVideo
 		case 2:
-			m.queueCommand("echo Audio menu is TODO\n")
+			m.audioCursor = 0
+			m.state = MenuAudio
 		case 3:
-			m.queueCommand("toggle vid_vsync\n")
+			cvar.SetBool("vid_vsync", !cvar.BoolValue("vid_vsync"))
 		case 4:
 			m.state = MenuMain
 		}
@@ -427,6 +479,170 @@ func (m *Manager) optionsKey(key int) {
 		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
 	}
+}
+
+func (m *Manager) videoKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.videoCursor--
+		if m.videoCursor < 0 {
+			m.videoCursor = videoItems - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.videoCursor++
+		if m.videoCursor >= videoItems {
+			m.videoCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KLeftArrow:
+		m.adjustVideoSetting(-1)
+		m.playMenuSound(menuSoundNavigate)
+	case input.KRightArrow:
+		m.adjustVideoSetting(1)
+		m.playMenuSound(menuSoundNavigate)
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
+		if m.videoCursor == videoItemBack {
+			m.state = MenuOptions
+			return
+		}
+		m.adjustVideoSetting(1)
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuOptions
+	}
+}
+
+func (m *Manager) audioKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.audioCursor--
+		if m.audioCursor < 0 {
+			m.audioCursor = audioItems - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.audioCursor++
+		if m.audioCursor >= audioItems {
+			m.audioCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KLeftArrow:
+		m.adjustAudioSetting(-1)
+		m.playMenuSound(menuSoundNavigate)
+	case input.KRightArrow:
+		m.adjustAudioSetting(1)
+		m.playMenuSound(menuSoundNavigate)
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
+		if m.audioCursor == audioItemBack {
+			m.state = MenuOptions
+			return
+		}
+		m.adjustAudioSetting(1)
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuOptions
+	}
+}
+
+func (m *Manager) adjustVideoSetting(delta int) {
+	switch m.videoCursor {
+	case videoItemResolution:
+		index := m.currentResolutionIndex()
+		index = wrapIndex(index+delta, len(videoResolutions))
+		selected := videoResolutions[index]
+		cvar.SetInt("vid_width", selected.width)
+		cvar.SetInt("vid_height", selected.height)
+	case videoItemFullscreen:
+		cvar.SetBool("vid_fullscreen", !cvar.BoolValue("vid_fullscreen"))
+	case videoItemVSync:
+		cvar.SetBool("vid_vsync", !cvar.BoolValue("vid_vsync"))
+	case videoItemMaxFPS:
+		index := nearestMaxFPSIndex(cvar.IntValue("host_maxfps"))
+		index = wrapIndex(index+delta, len(maxFPSValues))
+		cvar.SetInt("host_maxfps", maxFPSValues[index])
+	case videoItemGamma:
+		gamma := cvar.FloatValue("r_gamma") + 0.1*float64(delta)
+		gamma = clampFloat(gamma, 0.5, 1.5)
+		cvar.SetFloat("r_gamma", roundToTenth(gamma))
+	case videoItemViewModel:
+		cvar.SetBool("r_drawviewmodel", !cvar.BoolValue("r_drawviewmodel"))
+	}
+}
+
+func (m *Manager) adjustAudioSetting(delta int) {
+	if m.audioCursor != audioItemVolume {
+		return
+	}
+
+	volume := cvar.FloatValue("s_volume") + 0.1*float64(delta)
+	volume = clampFloat(volume, 0, 1)
+	cvar.SetFloat("s_volume", roundToTenth(volume))
+}
+
+func (m *Manager) currentResolutionIndex() int {
+	width := cvar.IntValue("vid_width")
+	height := cvar.IntValue("vid_height")
+	for i, mode := range videoResolutions {
+		if mode.width == width && mode.height == height {
+			return i
+		}
+	}
+	return nearestResolutionIndex(width, height)
+}
+
+func nearestResolutionIndex(width, height int) int {
+	for i, mode := range videoResolutions {
+		if mode.width >= width && mode.height >= height {
+			return i
+		}
+	}
+	return len(videoResolutions) - 1
+}
+
+func nearestMaxFPSIndex(value int) int {
+	for i, maxFPS := range maxFPSValues {
+		if maxFPS >= value {
+			return i
+		}
+	}
+	return len(maxFPSValues) - 1
+}
+
+func wrapIndex(value, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	if value < 0 {
+		return count - 1
+	}
+	if value >= count {
+		return 0
+	}
+	return value
+}
+
+func clampFloat(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}
+
+func roundToTenth(value float64) float64 {
+	return math.Round(value*10) / 10
+}
+
+func boolLabel(value bool) string {
+	if value {
+		return "ON"
+	}
+	return "OFF"
 }
 
 func (m *Manager) helpKey(key int) {
@@ -628,6 +844,40 @@ func (m *Manager) drawOptions(dc renderer.RenderContext) {
 	m.drawText(dc, 84, 112, "BACK", true)
 
 	m.drawCursor(dc, 54, 32+m.optionsCursor*20)
+}
+
+func (m *Manager) drawVideo(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
+
+	mode := videoResolutions[m.currentResolutionIndex()]
+	m.drawText(dc, 56, 32, "RESOLUTION", true)
+	m.drawText(dc, 184, 32, fmt.Sprintf("%dx%d", mode.width, mode.height), true)
+	m.drawText(dc, 56, 48, "FULLSCREEN", true)
+	m.drawText(dc, 184, 48, boolLabel(cvar.BoolValue("vid_fullscreen")), true)
+	m.drawText(dc, 56, 64, "VSYNC", true)
+	m.drawText(dc, 184, 64, boolLabel(cvar.BoolValue("vid_vsync")), true)
+	m.drawText(dc, 56, 80, "MAX FPS", true)
+	m.drawText(dc, 184, 80, fmt.Sprintf("%d", cvar.IntValue("host_maxfps")), true)
+	m.drawText(dc, 56, 96, "GAMMA", true)
+	m.drawText(dc, 184, 96, fmt.Sprintf("%.1f", cvar.FloatValue("r_gamma")), true)
+	m.drawText(dc, 56, 112, "VIEWMODEL", true)
+	m.drawText(dc, 184, 112, boolLabel(cvar.BoolValue("r_drawviewmodel")), true)
+	m.drawText(dc, 56, 136, "BACK", true)
+
+	m.drawArrowCursor(dc, 40, 32+m.videoCursor*16)
+	m.drawText(dc, 40, 168, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
+	m.drawText(dc, 40, 184, "SOME SETTINGS MAY NEED RESTART", true)
+}
+
+func (m *Manager) drawAudio(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
+
+	volumePercent := int(clampFloat(cvar.FloatValue("s_volume"), 0, 1)*100 + 0.5)
+	m.drawText(dc, 72, 56, "SOUND VOLUME", true)
+	m.drawText(dc, 200, 56, fmt.Sprintf("%d%%", volumePercent), true)
+	m.drawText(dc, 72, 88, "BACK", true)
+
+	m.drawArrowCursor(dc, 56, 56+m.audioCursor*32)
 }
 
 func (m *Manager) drawHelp(dc renderer.RenderContext) {

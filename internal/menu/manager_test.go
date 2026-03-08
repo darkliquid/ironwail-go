@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
 )
@@ -303,28 +304,128 @@ func TestOptionsNavigationAndAction(t *testing.T) {
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
 
-	var commands []string
-	mgr.commandText = func(text string) {
-		commands = append(commands, text)
-	}
+	cvar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
+	cvar.Set("vid_vsync", "1")
 
 	mgr.ShowMenu()
 	mgr.state = MenuOptions
-	mgr.optionsCursor = 3 // VSYNC
+	mgr.optionsCursor = 1 // VIDEO
 	mgr.M_Key(input.KEnter)
-
-	if len(commands) == 0 {
-		t.Fatal("expected command from options action")
+	if got := mgr.GetState(); got != MenuVideo {
+		t.Fatalf("expected video menu, got %v", got)
 	}
 
-	if commands[len(commands)-1] != "toggle vid_vsync\n" {
-		t.Fatalf("unexpected options command: %q", commands[len(commands)-1])
+	mgr.M_Key(input.KEscape)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("expected return to options from video, got %v", got)
+	}
+
+	mgr.optionsCursor = 2 // AUDIO
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuAudio {
+		t.Fatalf("expected audio menu, got %v", got)
+	}
+
+	mgr.M_Key(input.KBackspace)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("expected return to options from audio, got %v", got)
+	}
+
+	mgr.optionsCursor = 3 // VSYNC
+	mgr.M_Key(input.KEnter)
+	if cvar.BoolValue("vid_vsync") {
+		t.Fatal("expected options vsync toggle to set cvar off")
 	}
 
 	mgr.optionsCursor = 4 // Back
 	mgr.M_Key(input.KEnter)
 	if mgr.GetState() != MenuMain {
 		t.Fatalf("expected back to main menu, got %v", mgr.GetState())
+	}
+}
+
+func TestVideoMenuAdjustmentsWriteCvars(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	cvar.Register("vid_width", "1280", cvar.FlagArchive, "Video width")
+	cvar.Register("vid_height", "720", cvar.FlagArchive, "Video height")
+	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode")
+	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
+	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
+	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
+	cvar.Set("vid_width", "1280")
+	cvar.Set("vid_height", "720")
+	cvar.Set("vid_fullscreen", "0")
+	cvar.Set("host_maxfps", "250")
+	cvar.Set("r_gamma", "1.0")
+	cvar.Set("r_drawviewmodel", "1")
+
+	mgr.state = MenuVideo
+	mgr.videoCursor = videoItemResolution
+	mgr.M_Key(input.KRightArrow)
+	if gotW, gotH := cvar.IntValue("vid_width"), cvar.IntValue("vid_height"); gotW != 1366 || gotH != 768 {
+		t.Fatalf("resolution cvars = %dx%d, want 1366x768", gotW, gotH)
+	}
+
+	mgr.videoCursor = videoItemFullscreen
+	mgr.M_Key(input.KEnter)
+	if !cvar.BoolValue("vid_fullscreen") {
+		t.Fatal("fullscreen toggle did not update cvar")
+	}
+
+	mgr.videoCursor = videoItemMaxFPS
+	mgr.M_Key(input.KLeftArrow)
+	if got := cvar.IntValue("host_maxfps"); got != 240 {
+		t.Fatalf("host_maxfps = %d, want 240", got)
+	}
+
+	mgr.videoCursor = videoItemGamma
+	mgr.M_Key(input.KRightArrow)
+	if got := cvar.FloatValue("r_gamma"); got != 1.1 {
+		t.Fatalf("r_gamma = %.1f, want 1.1", got)
+	}
+
+	mgr.videoCursor = videoItemViewModel
+	mgr.M_Key(input.KEnter)
+	if cvar.BoolValue("r_drawviewmodel") {
+		t.Fatal("viewmodel toggle did not update cvar")
+	}
+
+	mgr.videoCursor = videoItemBack
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("video back should return to options, got %v", got)
+	}
+}
+
+func TestAudioMenuVolumeAdjustment(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
+	cvar.Set("s_volume", "0.7")
+
+	mgr.state = MenuAudio
+	mgr.audioCursor = audioItemVolume
+	mgr.M_Key(input.KRightArrow)
+	if got := cvar.FloatValue("s_volume"); got != 0.8 {
+		t.Fatalf("s_volume after right = %.1f, want 0.8", got)
+	}
+
+	mgr.M_Key(input.KLeftArrow)
+	if got := cvar.FloatValue("s_volume"); got != 0.7 {
+		t.Fatalf("s_volume after left = %.1f, want 0.7", got)
+	}
+
+	mgr.audioCursor = audioItemBack
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("audio back should return to options, got %v", got)
 	}
 }
 
@@ -512,6 +613,8 @@ func TestMenuStateStringability(t *testing.T) {
 		MenuSave,
 		MenuMultiPlayer,
 		MenuOptions,
+		MenuVideo,
+		MenuAudio,
 		MenuHelp,
 		MenuQuit,
 		MenuSetup,
