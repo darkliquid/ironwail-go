@@ -89,8 +89,12 @@ type Client struct {
 
 	ViewAngles  [3]float32
 	MViewAngles [2][3]float32
+	PunchAngle  [3]float32
+	PunchAngles [2][3]float32
+	PunchTime   float64
 	MVelocity   [2][3]float32
 	Velocity    [3]float32
+	ViewHeight  float32
 
 	FixAngle bool
 
@@ -221,6 +225,7 @@ func NewClient() *Client {
 		MoveSpeedKey:    2.0,
 		AlwaysRun:       true,
 		FreeLook:        true,
+		ViewHeight:      inet.DEFAULT_VIEWHEIGHT,
 		MaxPitch:        defaultMaxPitch,
 		MinPitch:        defaultMinPitch,
 		WheelPitch:      defaultWheelPitch,
@@ -244,6 +249,10 @@ func (c *Client) ClearState() {
 	c.MTime = [2]float64{}
 	c.Time = 0
 	c.OldTime = 0
+	c.PunchAngle = [3]float32{}
+	c.PunchAngles = [2][3]float32{}
+	c.PunchTime = 0
+	c.ViewHeight = inet.DEFAULT_VIEWHEIGHT
 	c.ViewEntity = 0
 	c.CDTrack = 0
 	c.LoopTrack = 0

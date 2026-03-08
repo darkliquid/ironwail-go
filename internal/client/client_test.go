@@ -76,6 +76,7 @@ func TestParseServerSignOnSequence(t *testing.T) {
 
 func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	c := NewClient()
+	c.Time = 2.5
 	p := NewParser(c)
 
 	msg := bytes.NewBuffer(nil)
@@ -157,6 +158,21 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if got := c.Velocity[0]; got != 64 {
 		t.Fatalf("velocity[0] = %v, want 64", got)
 	}
+	if got := c.ViewHeight; got != 30 {
+		t.Fatalf("viewheight = %v, want 30", got)
+	}
+	if got := c.PunchAngle; got != [3]float32{7, 0, 0} {
+		t.Fatalf("punch angle = %v, want [7 0 0]", got)
+	}
+	if got := c.PunchAngles[0]; got != [3]float32{7, 0, 0} {
+		t.Fatalf("current punch angles = %v, want [7 0 0]", got)
+	}
+	if got := c.PunchAngles[1]; got != [3]float32{} {
+		t.Fatalf("previous punch angles = %v, want zero", got)
+	}
+	if got := c.PunchTime; got != 2.5 {
+		t.Fatalf("punch time = %v, want 2.5", got)
+	}
 
 	ent := c.Entities[1]
 	if got := ent.Frame; got != 4 {
@@ -177,6 +193,65 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	}
 	if got := c.TempEntities[0].Origin; got != [3]float32{100, 200, 300} {
 		t.Fatalf("temp entity origin = %v, want [100 200 300]", got)
+	}
+}
+
+func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
+	c := NewClient()
+	c.Time = 1.5
+	p := NewParser(c)
+
+	first := bytes.NewBuffer(nil)
+	first.WriteByte(byte(inet.SVCClientData))
+	writeShort(first, int(inet.SU_VIEWHEIGHT|inet.SU_PUNCH1))
+	first.WriteByte(byte(int8(30)))
+	first.WriteByte(byte(int8(7)))
+	writeLong(first, 0)
+	writeShort(first, 100)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(first.Bytes()); err != nil {
+		t.Fatalf("first ParseServerMessage() error = %v", err)
+	}
+
+	c.Time = 3.5
+	second := bytes.NewBuffer(nil)
+	second.WriteByte(byte(inet.SVCClientData))
+	writeShort(second, 0)
+	writeLong(second, 0)
+	writeShort(second, 100)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(second.Bytes()); err != nil {
+		t.Fatalf("second ParseServerMessage() error = %v", err)
+	}
+
+	if got := c.ViewHeight; got != inet.DEFAULT_VIEWHEIGHT {
+		t.Fatalf("viewheight = %v, want %d", got, inet.DEFAULT_VIEWHEIGHT)
+	}
+	if got := c.PunchAngle; got != [3]float32{} {
+		t.Fatalf("punch angle = %v, want zero", got)
+	}
+	if got := c.PunchAngles[0]; got != [3]float32{} {
+		t.Fatalf("current punch angles = %v, want zero", got)
+	}
+	if got := c.PunchAngles[1]; got != [3]float32{7, 0, 0} {
+		t.Fatalf("previous punch angles = %v, want [7 0 0]", got)
+	}
+	if got := c.PunchTime; got != 3.5 {
+		t.Fatalf("punch time = %v, want 3.5", got)
 	}
 }
 

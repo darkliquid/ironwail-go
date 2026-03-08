@@ -613,22 +613,29 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 		bits |= uint32(ext) << 24
 	}
 
+	viewHeight := float32(inet.DEFAULT_VIEWHEIGHT)
 	if bits&inet.SU_VIEWHEIGHT != 0 {
-		if _, err := readChar(msg, "svc_clientdata: missing viewheight"); err != nil {
+		v, err := readChar(msg, "svc_clientdata: missing viewheight")
+		if err != nil {
 			return err
 		}
+		viewHeight = float32(v)
 	}
+	p.Client.ViewHeight = viewHeight
 	if bits&inet.SU_IDEALPITCH != 0 {
 		if _, err := readChar(msg, "svc_clientdata: missing idealpitch"); err != nil {
 			return err
 		}
 	}
 
+	punch := [3]float32{}
 	for i := 0; i < 3; i++ {
 		if bits&(inet.SU_PUNCH1<<uint(i)) != 0 {
-			if _, err := readChar(msg, fmt.Sprintf("svc_clientdata: missing punch %d", i)); err != nil {
+			v, err := readChar(msg, fmt.Sprintf("svc_clientdata: missing punch %d", i))
+			if err != nil {
 				return err
 			}
+			punch[i] = float32(v)
 		}
 		if bits&(inet.SU_VELOCITY1<<uint(i)) != 0 {
 			v, err := readChar(msg, fmt.Sprintf("svc_clientdata: missing velocity %d", i))
@@ -640,6 +647,15 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 			p.Client.Velocity[i] = p.Client.MVelocity[0][i]
 		}
 	}
+	if punch != p.Client.PunchAngles[0] {
+		p.Client.PunchAngles[1] = p.Client.PunchAngles[0]
+		p.Client.PunchAngles[0] = punch
+		p.Client.PunchTime = p.Client.Time
+		if p.Client.PunchTime == 0 {
+			p.Client.PunchTime = p.Client.MTime[0]
+		}
+	}
+	p.Client.PunchAngle = punch
 
 	p.Client.OnGround = bits&inet.SU_ONGROUND != 0
 	p.Client.InWater = bits&inet.SU_INWATER != 0

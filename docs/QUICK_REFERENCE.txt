@@ -57,10 +57,11 @@ E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░]
    - Deathmatch mode: MISSING
 
 F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
-   - Basic prediction: DONE (simplified)
-   - Full physics: MISSING (no ground detect, steps, collision)
-   - Command looping: PARTIAL
-   - Demo recording/playback forward path: DONE
+    - Basic prediction: DONE (simplified)
+    - Client viewheight / punch state from `svc_clientdata`: DONE (stored; eye-space application still pending)
+    - Full physics: MISSING (no ground detect, steps, collision)
+    - Command looping: PARTIAL
+    - Demo recording/playback forward path: DONE
    - Advanced tooling (timedemo/rewind): TODO
 
 G. SAVE/LOAD               [████████████████░░░] ~80%

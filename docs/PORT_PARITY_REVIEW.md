@@ -197,6 +197,7 @@ What already works:
 #### Core prediction, bindings, and demos are now wired into the live runtime
 
 - `main.go` now calls `PredictPlayers()` and uses the updated predicted state for camera/viewmodel work
+- the client now preserves `svc_clientdata` viewheight and punch state instead of discarding those server-driven eye-space inputs, narrowing the remaining camera/viewmodel fidelity gap
 - gameplay input routes through live `bind` / `unbind` / `unbindall` / `bindlist` handling, and `config.cfg` persists those bindings
 - demo recording writes live gameplay frames, connected-state snapshots, and a disconnect trailer; playback applies recorded view angles, flushes `stufftext` in the same frame, honors pause state, and paces reads against recorded server time
 
