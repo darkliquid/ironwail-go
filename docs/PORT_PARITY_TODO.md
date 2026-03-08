@@ -271,6 +271,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded parity slice (`sprite-pass-order-fidelity`): move runtime sprite draws out of the early opaque-entity block and into the explicit late translucency stage so sprite rendering is staged with the rest of late translucent entity content
 - [x] bounded post-ef3bee6 parity slice (`viewmodel-origin-and-gating`): anchor runtime viewmodel origin to the active eye/view origin, suppress the viewmodel during intermission, and honor `r_drawviewmodel`-style visibility gating (including invisibility/death suppression) on the canonical runtime path
 - [x] bounded parity slice (`fix-lightmap-block-artifacts`): route world + brush lightmap page uploads (and fallback lightmap texture) through a dedicated lightmap texture path using linear min/mag filtering while leaving generic world/sky/alias texture upload filtering unchanged
+- [x] bounded parity slice (`lighting-diffuse-parity`): remove unintended world lightmap overbright scaling and feed per-surface dynamic-light accumulation into the canonical OpenGL world shader so diffuse lighting matches C behavior more closely without regressing linear-filter artifact fixes
 - bring sky, water, translucent ordering, and viewmodel ordering closer to C pass sequencing (remaining larger pass-order refactor now centered on final viewmodel placement details and broader sprite quad-orientation fidelity)
 
 **Done when**

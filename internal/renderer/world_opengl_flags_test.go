@@ -6,6 +6,7 @@ package renderer
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
@@ -566,6 +567,51 @@ func TestBucketWorldFaces_TurbulentCallFlag(t *testing.T) {
 	}
 	if len(opaque) != 1 || opaque[0].turbulent {
 		t.Fatalf("expected one non-turbulent opaque call, got %#v", opaque)
+	}
+}
+
+func TestBucketWorldFacesWithLights_PropagatesDynamicLight(t *testing.T) {
+	faces := []WorldFace{
+		{
+			FirstIndex:    0,
+			NumIndices:    6,
+			TextureIndex:  0,
+			LightmapIndex: 0,
+			Flags:         0,
+			Center:        [3]float32{0, 0, 0},
+		},
+	}
+	textures := map[int32]uint32{0: 1}
+	lightmaps := []uint32{2}
+	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
+	pool := NewGLLightPool(4)
+	pool.SpawnLight(DynamicLight{
+		Position:   [3]float32{0, 0, 0},
+		Color:      [3]float32{0.25, 0.5, 0.75},
+		Radius:     128,
+		Brightness: 1,
+		Lifetime:   1,
+	})
+
+	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, textures, nil, lightmaps, 999, 998, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
+	if len(opaque) != 1 {
+		t.Fatalf("opaque count = %d, want 1", len(opaque))
+	}
+	if !almostEqualVec3(opaque[0].light, [3]float32{0.25, 0.5, 0.75}, 1e-5) {
+		t.Fatalf("opaque[0].light = %v, want [0.25 0.5 0.75]", opaque[0].light)
+	}
+}
+
+func TestWorldFragmentShader_DiffuseAndDynamicLightParity(t *testing.T) {
+	if strings.Contains(worldFragmentShaderGL, "texture(uLightmap, vLightmapCoord).rgb * 2.0") {
+		t.Fatalf("world fragment shader still overbrightens lightmaps")
+	}
+	if !strings.Contains(worldFragmentShaderGL, "uniform vec3 uDynamicLight;") {
+		t.Fatalf("world fragment shader missing uDynamicLight uniform")
+	}
+	if !strings.Contains(worldFragmentShaderGL, "vec3 light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;") {
+		t.Fatalf("world fragment shader missing dynamic light accumulation")
 	}
 }
 

@@ -57,6 +57,7 @@ out vec4 fragColor;
 
 uniform sampler2D uTexture;
 uniform sampler2D uLightmap;
+uniform vec3 uDynamicLight;
 uniform float uAlpha;
 uniform float uTime;
 uniform float uTurbulent;
@@ -70,7 +71,7 @@ void main() {
 		uv = uv * 2.0 + 0.125 * sin(uv.yx * (3.14159265 * 2.0) + uTime);
 	}
 	vec4 base = texture(uTexture, uv);
-	vec3 light = texture(uLightmap, vLightmapCoord).rgb * 2.0;
+	vec3 light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;
 	if (base.a < 0.1) {
 		discard;
 	}
@@ -328,6 +329,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
 	r.worldTextureUniform = gl.GetUniformLocation(program, gl.Str("uTexture\x00"))
 	r.worldLightmapUniform = gl.GetUniformLocation(program, gl.Str("uLightmap\x00"))
+	r.worldDynamicLightUniform = gl.GetUniformLocation(program, gl.Str("uDynamicLight\x00"))
 	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
 	r.worldModelRotationUniform = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
 	r.worldModelScaleUniform = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
@@ -1090,6 +1092,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
+	dynamicLightUniform := r.worldDynamicLightUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
@@ -1174,6 +1177,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 		gl.Uniform1i(textureUniform, 0)
 		gl.Uniform1i(lightmapUniform, 1)
+		gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 		gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 		gl.Uniform1f(modelScaleUniform, 1)
@@ -1259,15 +1263,15 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 			}
 		}
 		if drawNonLiquid {
-			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
-			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
-			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, true)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, dynamicLightUniform, true)
+			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, dynamicLightUniform, false)
 		}
 		if drawLiquidOpaque {
-			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, true)
 		}
 		if drawLiquidTranslucent {
-			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
+			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, dynamicLightUniform, false)
 		}
 	}
 	gl.BindVertexArray(0)
@@ -1300,6 +1304,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
+	dynamicLightUniform := r.worldDynamicLightUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
@@ -1400,6 +1405,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
+	gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.Uniform1f(timeUniform, camera.Time)
 	gl.Uniform1f(turbulentUniform, 0)
@@ -1416,6 +1422,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 			gl.Uniform1i(textureUniform, 0)
 			gl.Uniform1i(lightmapUniform, 1)
+			gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 			gl.Uniform1f(timeUniform, camera.Time)
 			gl.Uniform1f(turbulentUniform, 0)
 			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
@@ -1486,15 +1493,15 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			}
 		}
 		if drawNonLiquid {
-			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, true)
-			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, true)
-			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, false)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, true)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, dynamicLightUniform, true)
+			renderWorldDrawCalls(translucentFaces, alphaUniform, turbulentUniform, dynamicLightUniform, false)
 		}
 		if drawLiquidOpaque {
-			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, true)
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, true)
 		}
 		if drawLiquidTranslucent {
-			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, false)
+			renderWorldDrawCalls(liquidTranslucentFaces, alphaUniform, turbulentUniform, dynamicLightUniform, false)
 		}
 	}
 
@@ -2072,7 +2079,7 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	gl.DepthMask(true)
 }
 
-func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform int32, depthWrite bool) {
+func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, dynamicLightUniform int32, depthWrite bool) {
 	if len(calls) == 0 {
 		return
 	}
@@ -2093,6 +2100,7 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform 
 		} else {
 			gl.Uniform1f(turbulentUniform, 0)
 		}
+		gl.Uniform3f(dynamicLightUniform, call.light[0], call.light[1], call.light[2])
 		gl.Uniform1f(alphaUniform, call.alpha)
 		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
 	}
@@ -2331,6 +2339,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
+	dynamicLightUniform := r.worldDynamicLightUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
@@ -2363,6 +2372,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
+	gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
@@ -2441,6 +2451,7 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
+	dynamicLightUniform := r.worldDynamicLightUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	modelRotationUniform := r.worldModelRotationUniform
 	modelScaleUniform := r.worldModelScaleUniform
@@ -2473,6 +2484,7 @@ func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
+	gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
 	gl.Uniform1f(modelScaleUniform, 1)
 	gl.Uniform1f(timeUniform, camera.Time)
