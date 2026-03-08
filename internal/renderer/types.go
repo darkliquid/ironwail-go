@@ -112,6 +112,7 @@ const (
 	CvarRLavaAlpha    = "r_lavaalpha"    // Lava alpha (0 uses water alpha)
 	CvarRSlimeAlpha   = "r_slimealpha"   // Slime alpha (0 uses water alpha)
 	CvarRTeleAlpha    = "r_telealpha"    // Teleport alpha (0 uses water alpha)
+	CvarRParticles    = "r_particles"    // Particle blend mode (1=alpha, 2=opaque)
 	CvarRSkyFog       = "r_skyfog"       // Sky fog mix factor (0..1, default 0.5)
 )
 

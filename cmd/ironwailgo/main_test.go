@@ -39,6 +39,23 @@ func (c *demoMessageClient) ReadFromServer() error     { return nil }
 func (c *demoMessageClient) SendCommand() error        { return nil }
 func (c *demoMessageClient) LastServerMessage() []byte { return append([]byte(nil), c.message...) }
 
+type activeStateTestClient struct {
+	state       host.ClientState
+	clientState *cl.Client
+}
+
+func (c *activeStateTestClient) Init() error         { return nil }
+func (c *activeStateTestClient) Frame(float64) error { return nil }
+func (c *activeStateTestClient) Shutdown()           {}
+func (c *activeStateTestClient) State() host.ClientState {
+	return c.state
+}
+func (c *activeStateTestClient) ReadFromServer() error { return nil }
+func (c *activeStateTestClient) SendCommand() error    { return nil }
+func (c *activeStateTestClient) ClientState() *cl.Client {
+	return c.clientState
+}
+
 type demoPlaybackNoopServer struct{}
 
 func (s *demoPlaybackNoopServer) Init(int) error                           { return nil }
@@ -1532,10 +1549,12 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	originalHUD := gameHUD
 	originalClient := gameClient
 	originalServer := gameServer
+	originalShowScores := gameShowScores
 	t.Cleanup(func() {
 		gameHUD = originalHUD
 		gameClient = originalClient
 		gameServer = originalServer
+		gameShowScores = originalShowScores
 	})
 
 	gameHUD = hud.NewHUD(nil)
@@ -1553,6 +1572,18 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	gameClient.Stats[12] = 66
 	gameClient.Stats[13] = 3
 	gameClient.Stats[14] = 12
+	gameClient.MaxClients = 4
+	gameClient.GameType = 1
+	gameClient.ViewEntity = 2
+	gameClient.PlayerNames[0] = "alpha"
+	gameClient.PlayerNames[1] = "bravo"
+	gameClient.PlayerNames[2] = "charlie"
+	gameClient.PlayerColors[0] = 0x1f
+	gameClient.PlayerColors[1] = 0x2e
+	gameClient.PlayerColors[2] = 0x3d
+	gameClient.Frags[0] = 4
+	gameClient.Frags[1] = 10
+	gameClient.Frags[2] = 6
 	gameClient.Items = cl.ItemRocketLauncher | cl.ItemRockets | cl.ItemArmor2 | cl.ItemQuad
 	gameClient.Intermission = 2
 	gameClient.CompletedTime = 123
@@ -1560,6 +1591,7 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	gameClient.CenterPrint = "The End"
 	gameClient.CenterPrintAt = 120
 	gameClient.LevelName = "Unit Test Map"
+	gameShowScores = true
 
 	updateHUDFromServer()
 
@@ -1585,6 +1617,15 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	if got.Secrets != 3 || got.TotalSecrets != 9 || got.Monsters != 12 || got.TotalMonsters != 66 {
 		t.Fatalf("hud intermission stats = %#v", got)
 	}
+	if !got.ShowScores || got.GameType != 1 || got.MaxClients != 4 {
+		t.Fatalf("hud multiplayer state = %#v", got)
+	}
+	if len(got.Scoreboard) != 3 {
+		t.Fatalf("hud scoreboard len = %d, want 3", len(got.Scoreboard))
+	}
+	if got.Scoreboard[0].Name != "bravo" || got.Scoreboard[0].Frags != 10 || !got.Scoreboard[0].IsCurrent {
+		t.Fatalf("hud scoreboard top row = %#v, want bravo/10/current", got.Scoreboard[0])
+	}
 }
 
 func TestApplyDefaultGameplayBindings(t *testing.T) {
@@ -1605,6 +1646,7 @@ func TestApplyDefaultGameplayBindings(t *testing.T) {
 		{key: input.KUpArrow, want: "+forward"},
 		{key: input.KMouse1, want: "+attack"},
 		{key: input.KMouse2, want: "+jump"},
+		{key: input.KTab, want: "+showscores"},
 		{key: input.KMWheelUp, want: "impulse 10"},
 		{key: input.KMWheelDown, want: "impulse 12"},
 	}
@@ -1662,6 +1704,42 @@ func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 	cmdsys.ExecuteText("unbindall")
 	if got := gameInput.GetBinding(input.KMWheelUp); got != "" {
 		t.Fatalf("unbindall did not clear MWHEELUP binding, got %q", got)
+	}
+}
+
+func TestSyncGameplayInputModeClearsHeldScoreboardOutsideGameInput(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	originalClient := gameClient
+	originalShowScores := gameShowScores
+	originalGrabbed := gameMouseGrabbed
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+		gameClient = originalClient
+		gameShowScores = originalShowScores
+		gameMouseGrabbed = originalGrabbed
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameClient = cl.NewClient()
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	gameInput.SetKeyDest(input.KeyGame)
+	gameMouseGrabbed = false
+	syncGameplayInputMode()
+
+	handleGameKeyEvent(input.KeyEvent{Key: input.KTab, Down: true})
+	if !gameShowScores {
+		t.Fatalf("+showscores should set held scoreboard state")
+	}
+
+	gameInput.SetKeyDest(input.KeyConsole)
+	syncGameplayInputMode()
+	if gameShowScores {
+		t.Fatalf("scoreboard hold should clear when leaving gameplay input")
 	}
 }
 
@@ -1764,6 +1842,47 @@ func TestSyncControlCvarsToClient(t *testing.T) {
 	}
 	if !gameClient.LookSpring {
 		t.Fatalf("LookSpring should follow lookspring")
+	}
+}
+
+func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.T) {
+	originalClient := gameClient
+	originalSubs := gameSubs
+	t.Cleanup(func() {
+		gameClient = originalClient
+		gameSubs = originalSubs
+	})
+
+	registerControlCvars()
+	cvar.Set("cl_alwaysrun", "0")
+	cvar.Set("freelook", "0")
+	cvar.Set("lookspring", "1")
+
+	firstClient := cl.NewClient()
+	gameSubs = &host.Subsystems{
+		Client: &activeStateTestClient{
+			state:       host.ClientState(1),
+			clientState: firstClient,
+		},
+	}
+	syncHostClientState()
+
+	if firstClient.AlwaysRun || firstClient.FreeLook || !firstClient.LookSpring {
+		t.Fatalf("first client controls = %+v, want alwaysrun=false freelook=false lookspring=true", firstClient)
+	}
+
+	replacedClient := cl.NewClient()
+	replacedClient.AlwaysRun = true
+	replacedClient.FreeLook = true
+	replacedClient.LookSpring = false
+	gameSubs.Client = &activeStateTestClient{
+		state:       host.ClientState(1),
+		clientState: replacedClient,
+	}
+	syncHostClientState()
+
+	if replacedClient.AlwaysRun || replacedClient.FreeLook || !replacedClient.LookSpring {
+		t.Fatalf("replaced client controls = %+v, want alwaysrun=false freelook=false lookspring=true", replacedClient)
 	}
 }
 

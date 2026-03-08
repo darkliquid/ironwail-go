@@ -110,7 +110,7 @@ func loadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 	for i, suffix := range skyboxFaceSuffixes {
 		paths := skyboxFaceSearchPaths(baseName, suffix)
 		for _, candidate := range paths {
-			data, err := loadFile(candidate)
+			data, err := loadSkyboxFileCandidate(candidate, loadFile)
 			if err != nil || len(data) == 0 {
 				continue
 			}
@@ -130,6 +130,22 @@ func loadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 		}
 	}
 	return faces, loaded
+}
+
+func loadSkyboxFileCandidate(candidate string, loadFile func(string) ([]byte, error)) ([]byte, error) {
+	data, err := loadFile(candidate)
+	if err == nil && len(data) > 0 {
+		return data, nil
+	}
+	lowerCandidate := strings.ToLower(candidate)
+	if lowerCandidate == candidate {
+		return data, err
+	}
+	lowerData, lowerErr := loadFile(lowerCandidate)
+	if lowerErr == nil && len(lowerData) > 0 {
+		return lowerData, nil
+	}
+	return data, err
 }
 
 func externalSkyboxCubemapEligible(faces [6]externalSkyboxFace, loaded int) bool {

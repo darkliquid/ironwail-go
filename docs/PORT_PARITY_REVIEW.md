@@ -12,7 +12,7 @@ The Go port is materially farther along than several older planning notes imply.
 
 The biggest remaining parity problems are mostly **integration and fidelity gaps**, not total subsystem absence:
 
-- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, fog, turbulent UV warp, embedded two-layer Quake sky integration, and external skybox consumption (cubemap plus non-cubemap per-face path) in the live runtime; the main remaining render gaps are the still-bounded `r_particles` behavior gap and some non-cubemap skybox edge cases
+- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, fog, turbulent UV warp, embedded two-layer Quake sky integration, and external skybox consumption (cubemap plus non-cubemap per-face path, including mixed-case lowercase asset fallback); the main remaining render gaps are now mostly broader polish beyond the bounded pass-order/skybox/particle staging slices
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
 - the input/command layer now uses Quake-style bindings, config persistence, command aliases (`alias`/`unalias`/`unaliasall`), and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
 - the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
@@ -27,14 +27,14 @@ A useful way to think about the current tree is:
 
 | Area | What is already implemented | Main missing / divergent behavior |
 | --- | --- | --- |
-| Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local `connect`/`disconnect` session transitions | remote connection flow is still stubbed |
-| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, and external skybox consumption via cubemap/per-face paths | the still-bounded `r_particles` behavior gap and some non-cubemap skybox edge cases still differ from C |
+| Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local/remote `connect`/`disconnect` session transitions | remote transport edge-case polish still remains |
+| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, and external skybox consumption via cubemap/per-face paths (with lowercase fallback for mixed-case names) | remaining divergences are now mostly broader visual polish rather than the previously-bounded particle-pass and per-face skybox edge slices |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
-| Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration, and bounded intermission/finale/cutscene + centerprint runtime overlay wiring | remote connection flow and deathmatch scoreboard polish still diverge |
+| Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration, bounded intermission/finale/cutscene + centerprint runtime overlay wiring plus deathmatch scoreboard hold/overlay support, and remote signon auto-reply progression (`prespawn`/`spawn`/`begin`) | broader netgame depth still diverges |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
 | Menus/HUD/console/config | main menu flow, load/save/help/options/quit menus, bounded options video/audio/controls submenus (including live controls cvars for sensitivity/invert-mouse/always-run/freelook plus bind editing), in-game console UI, history/completion, bind persistence, Quake-style alias commands, menu-space text scaling for text-only prompts, and a base-game classic status-bar HUD path with weapon strip, ammo strip, key/powerup/sigil icons, and armor/face/ammo icon helpers | HUD parity still lacks special-case overlays/expansion-pack variants and broader C menu polish |
-| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, C-style `nomonsters`/intermission/dead-player restrictions, stop-all sound teardown on local load/map/reconnect-style transitions, and local loading-plaque overlay visibility for load/reconnect | broader C search behavior and remote connect/reconnect loading UX are still missing |
-| Networking/multiplayer | loopback server/client and protocol work are present, `connect local` now drives the existing local reconnect/signon flow, `disconnect` now cleanly tears down local session state (including stop-all sounds), `reconnect` re-runs local signon flow, and local-host `kick` supports C-style target/reason handling | remote `connect` flow is still missing, and remote networking flow remains incomplete |
+| Save/load | host commands, QC/global/edict/static state capture+restore, real-assets save/load test, lightstyles, C-style `nomonsters`/intermission/dead-player restrictions, stop-all sound teardown on local load/map/reconnect-style transitions, and loading-plaque overlay visibility for load/reconnect across local and remote transition paths | broader C search behavior and long-tail transition UX polish are still missing |
+| Networking/multiplayer | loopback server/client and protocol work are present, local+remote `connect` now drive signon-capable sessions, `disconnect` tears down session state (including stop-all sounds), `reconnect` re-runs signon flow (including remote reconnect command dispatch), local-host `kick` supports C-style target/reason handling, and join/host/setup menus route through live host commands | broader remote networking flow depth remains incomplete |
 
 ## 1. Runtime baseline and core engine state
 
@@ -62,16 +62,16 @@ What already works:
 
 The runtime is still biased toward **local loopback play**.
 
-- `Host.CmdConnect()` now handles local-loopback parity slices (`demonum=-1`, demo-playback stop/reset, `connect local` handoff) and emits explicit unsupported messaging for remote targets
+- `Host.CmdConnect()` now handles local-loopback parity slices (`demonum=-1`, demo-playback stop/reset, `connect local` handoff) and also establishes remote transport-backed sessions
 - `Host.CmdKick()` now supports local name/slot targeting, optional reasons, and self-kick protection
-- parity should currently be judged on the local/OpenGL path, not on remote multiplayer or the gogpu path
+- parity should currently be judged on the OpenGL path first; remote multiplayer is now functional but still in bounded parity scope
 
 ### Exact C behavior still missing
 
 The original C engine does more here than the Go port currently exposes:
 
 - `host_cmd.c:Host_Connect_f()` stops demo loop/playback if needed, calls `CL_EstablishConnection(name)`, then immediately calls `Host_Reconnect_f()`; Go now mirrors this sequence for local loopback targets and explicit disconnect/reset behavior
-- `host_cmd.c:Host_Reconnect_f()` begins the loading plaque and calls `CL_ClearSignons()` so the client re-runs the full signon process; Go now mirrors the local signon reset/restart, stop-all sound teardown, and local loading-plaque visibility, but the wider remote path remains
+- `host_cmd.c:Host_Reconnect_f()` begins the loading plaque and calls `CL_ClearSignons()` so the client re-runs the full signon process; Go now mirrors local and remote signon reset/restart plus transition sound teardown/loading-plaque visibility in bounded scope
 - `host_cmd.c:Host_Kick_f()` supports kicking either by player name or by `# <slot>`, accepts an optional message, and refuses to kick the caller
 
 ## 2. Rendering parity
@@ -120,7 +120,7 @@ The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 #### Remaining divergences from C
 
 - embedded BSP sky surfaces now render through a dedicated animated sky-layer shader/path (instead of the ordinary world shader), and the external skybox path now consumes both cubemap-eligible sets and loaded non-cubemap face sets (per-face external sky draw) with embedded fallback when no external faces load or upload fails
-- particle rendering now has explicit opaque/translucent subpass plumbing in the top-level OpenGL frame path, sky now runs in its own post-opaque stage, world/brush liquid surfaces bucket into dedicated opaque/translucent liquid bins and are staged so all opaque liquid draws happen before any translucent liquid draws, alias-model entities now split into explicit opaque/translucent frame stages, translucent brush-entity non-liquid work has moved out of the early opaque stage, the late-frame translucent pass is now wrapped in an explicit begin/end translucency state block before viewmodel rendering, runtime sprites now render in that late translucency stage (instead of the early opaque entity block), runtime sprite-frame selection now mirrors C more closely (`SPR_GROUP` uses client-time intervals while `SPR_ANGLED` chooses directional subframes from the current camera basis), runtime sprite quad orientation now mirrors C sprite-type behavior (`SPR_VP_PARALLEL_UPRIGHT` / `SPR_FACING_UPRIGHT` / `SPR_VP_PARALLEL` / `SPR_ORIENTED` / `SPR_VP_PARALLEL_ORIENTED`), and the runtime viewmodel path now anchors to eye origin with `r_drawviewmodel`/intermission/invisibility/death gating while staying on the dedicated post-translucency depth-range pass; the remaining render gaps are the still-bounded `r_particles` behavior gap and some non-cubemap skybox edge cases
+- particle rendering now has explicit opaque/translucent subpass plumbing in the top-level OpenGL frame path, sky now runs in its own post-opaque stage, world/brush liquid surfaces bucket into dedicated opaque/translucent liquid bins and are staged so all opaque liquid draws happen before any translucent liquid draws, alias-model entities now split into explicit opaque/translucent frame stages, translucent brush-entity non-liquid work has moved out of the early opaque stage, the late-frame translucent pass is now wrapped in an explicit begin/end translucency state block before viewmodel rendering, runtime sprites now render in that late translucency stage (instead of the early opaque entity block), runtime sprite-frame selection now mirrors C more closely (`SPR_GROUP` uses client-time intervals while `SPR_ANGLED` chooses directional subframes from the current camera basis), runtime sprite quad orientation now mirrors C sprite-type behavior (`SPR_VP_PARALLEL_UPRIGHT` / `SPR_FACING_UPRIGHT` / `SPR_VP_PARALLEL` / `SPR_ORIENTED` / `SPR_VP_PARALLEL_ORIENTED`), runtime particles now honor `r_particles` mode when selecting opaque vs translucent passes, lowercase fallback resolves mixed-case per-face external skybox lookups, and the runtime viewmodel path now anchors to eye origin with `r_drawviewmodel`/intermission/invisibility/death gating while staying on the dedicated post-translucency depth-range pass
 
 ### 2.3 gogpu path: current status
 
@@ -158,7 +158,7 @@ The C engine's scene ordering is:
 13. end translucency
 14. `R_DrawViewModel()`
 
-The Go OpenGL path now uses explicit staged ordering (opaque world/entities/particles, dedicated sky, split liquid opaque/translucent, late translucent block, then the depth-ranged viewmodel pass) for the currently scoped `R_RenderScene()` parity slice; the remaining render differences are the still-bounded `r_particles` behavior gap and some non-cubemap skybox edge cases.
+The Go OpenGL path now uses explicit staged ordering (opaque world/entities/particles, dedicated sky, split liquid opaque/translucent, late translucent block, then the depth-ranged viewmodel pass) for the currently scoped `R_RenderScene()` parity slice, with runtime particles honoring `r_particles` pass routing and per-face skybox loads handling mixed-case lowercase fallback.
 
 #### `r_brush.c:R_TextureAnimation()`
 
@@ -211,7 +211,7 @@ What already works:
 #### Remaining client/runtime divergences
 
 - bounded intermission / finale / cutscene overlay flow now runs in the live HUD path (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay and `gfx/finale.lmp` + timed center-text reveal), but fuller C polish (score/deathmatch overlays) is still pending
-- remote `connect` flow is still incomplete (Go now prints an explicit unsupported message rather than pretending success), and reconnect/loading UX outside the local loopback path is still missing even though local transition audio teardown/plaque behavior is now in place
+- remote `connect` now establishes transport-backed sessions and auto-progresses signon replies (`prespawn`/`spawn`/`begin`), while broader netgame/deathmatch polish still remains
 
 ### Exact C behavior still missing or not fully matched
 
@@ -316,7 +316,7 @@ What is already present:
 - multiplayer submenu now has bounded `join game` and `host game` flows: join supports menu text entry and dispatches `connect <address>`, while host applies bounded local options (`maxplayers`/`coop`/`deathmatch`/`skill`/`map`) through queued commands; bounded `player setup` now syncs hostname/player name/colors from live cvars and applies changes through `hostname`/`name`/`color`
 - options submenu now has bounded video/audio/controls submenus wired to supported cvars; controls now exposes live sensitivity/invert-mouse/always-run/freelook settings plus existing bind editing
 - setup menu still uses a simplified color-swatch preview instead of the C menu's translated player preview/text-box art in this bounded slice
-- the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers) plus a bounded live intermission/finale/cutscene overlay path with timed center-text reveal, but it still omits expansion-pack special cases, pickup flash timing polish, and deathmatch score overlays
+- the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers), bounded deathmatch scoreboard overlays (`+showscores` hold and multiplayer frag rows), and a bounded live intermission/finale/cutscene overlay path with timed center-text reveal; it still omits expansion-pack special cases and pickup flash timing polish
 - the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
 - the HUD and option/menu surfaces still expose much less functionality than the C engine
 - `Host.WriteConfig()` now writes binds plus archived cvars in deterministic order, and startup `config.cfg` execution now round-trips archived cvar values through cmdsys cvar fallback handling
@@ -354,7 +354,7 @@ What already works:
 - restore recreates edicts, relinks the world, syncs the QC VM, and restores saved globals
 - lightstyles are saved/restored and resent through the restored loopback signon flow
 - the save command now rejects `nomonsters`, intermission, and dead-player states to match the C engine's restrictions
-- `TestCmdSaveLoadRealAssetsRoundTrip` proves a real-assets session can save, reload, and recover player state
+- `TestCmdSaveLoadRealAssetsRoundTrip` proves a real-assets session can save, reload, and recover player state, and `TestSaveGameStateRoundTripsGameplayState` adds focused inventory/gameplay-state restore coverage (ammo/weapon/items/armor, server flags, pause/time, and client spawn parms)
 
 This is one of the biggest places where older status docs understated current progress.
 
@@ -398,14 +398,14 @@ Go already restores most of the world/QC state, including lightstyles, transitio
 
 ### What is missing or divergent
 
-- `connect` is not feature-complete, and `reconnect` is still only wired through the local loopback path
-- multiplayer menu flows now cover bounded local join/host setup UX, but full remote transport parity and broader game-options depth are still pending
-- the current runtime should be treated as single-player-first even though pieces of the multiplayer protocol are already present
+- remote transport-backed `connect`/`reconnect` is now wired and signon-completing, but broader game-options/deathmatch depth is still pending
+- multiplayer menu flows now route join/host/setup through the same live remote-capable host command path
+- runtime remains parity-scoped and still lacks full C netgame breadth despite real remote session transitions
 
 ### Exact C behavior still missing or not fully matched
 
 - `Host_Connect_f()` establishes the remote connection and then forces a reconnect-style signon restart
-- `Host_Reconnect_f()` begins a loading plaque and clears signons; Go now matches local signon reset/restart, transition sound teardown, and local plaque visibility, but not full remote reconnect flow
+- `Host_Reconnect_f()` begins a loading plaque and clears signons; Go now mirrors that bounded behavior for local and remote reconnect flows
 - `Host_Kick_f()` supports name or slot-number targeting plus an optional kick message (now mirrored on the local host path)
 
 ## 8. Overall parity judgement

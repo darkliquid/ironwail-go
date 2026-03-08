@@ -432,3 +432,61 @@ func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
 		t.Fatalf("missing expected draws: weapon=%v activeWeapon=%v item=%v sigil=%v face=%v armor=%v ammo=%v", sawWeapon, sawActiveWeapon, sawItem, sawSigil, sawFace, sawArmor, sawAmmo)
 	}
 }
+
+func TestStatusBarDrawMiniScoreboardForDeathmatch(t *testing.T) {
+	sb := NewStatusBar(nil)
+	mock := &mockRenderContext{}
+	const screenWidth = 320
+	const screenHeight = 200
+	const sbarY = screenHeight - 24
+	sb.Draw(mock, State{
+		Health:     100,
+		Armor:      50,
+		Ammo:       30,
+		GameType:   1,
+		MaxClients: 4,
+		Scoreboard: []ScoreEntry{
+			{Name: "alpha", Frags: 2, Colors: 0x1f},
+			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
+		},
+	}, screenWidth, screenHeight)
+	if len(mock.fills) < 6 {
+		t.Fatalf("expected status bar and mini scoreboard fills, got %d", len(mock.fills))
+	}
+	var sawMiniTop, sawMiniBottom, sawTopAnchoredMini bool
+	for _, f := range mock.fills {
+		if f.x == 194 && f.w == 28 && f.h == 4 && f.y == sbarY+1 {
+			sawMiniTop = true
+		}
+		if f.x == 194 && f.w == 28 && f.h == 3 && f.y == sbarY+5 {
+			sawMiniBottom = true
+		}
+		if f.x == 194 && (f.y == 1 || f.y == 5) {
+			sawTopAnchoredMini = true
+		}
+	}
+	if !sawMiniTop || !sawMiniBottom {
+		t.Fatalf("expected mini scoreboard fills anchored to status bar y=%d; top=%v bottom=%v", sbarY, sawMiniTop, sawMiniBottom)
+	}
+	if sawTopAnchoredMini {
+		t.Fatalf("mini scoreboard still appears top-anchored")
+	}
+}
+
+func TestStatusBarDrawScoreboardOverlayWhenHeld(t *testing.T) {
+	sb := NewStatusBar(nil)
+	mock := &mockRenderContext{}
+	sb.Draw(mock, State{
+		Health:     100,
+		GameType:   1,
+		MaxClients: 2,
+		ShowScores: true,
+		Scoreboard: []ScoreEntry{
+			{Name: "alpha", Frags: 2, Colors: 0x1f},
+			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
+		},
+	}, 320, 200)
+	if got := charactersToString(mock.characters); !strings.Contains(got, "bravo") {
+		t.Fatalf("expected scoreboard name draw, got %q", got)
+	}
+}

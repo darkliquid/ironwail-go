@@ -38,6 +38,10 @@ type State struct {
 	Rockets      int
 	Cells        int
 	Items        uint32
+	GameType     int
+	MaxClients   int
+	ShowScores   bool
+	Scoreboard   []ScoreEntry
 
 	Intermission    int
 	CompletedTime   float64
@@ -50,6 +54,15 @@ type State struct {
 	TotalSecrets    int
 	Monsters        int
 	TotalMonsters   int
+}
+
+// ScoreEntry is a single player row in the multiplayer scoreboard.
+type ScoreEntry struct {
+	ClientIndex int
+	Name        string
+	Frags       int
+	Colors      byte
+	IsCurrent   bool
 }
 
 // NewHUD creates a new HUD instance.

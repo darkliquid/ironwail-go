@@ -12,6 +12,7 @@ import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/gogpu/gogpu/gmath"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
@@ -379,41 +380,158 @@ func TestResolveWorldLiquidAlphaSettings_CvarSpecificWinsWithoutMapOverride(t *t
 	}
 }
 
-func TestMapVisTransparentWaterSafe_Default(t *testing.T) {
-	// Test that mapVisTransparentWaterSafe returns true by default (safe assumption)
-	got := mapVisTransparentWaterSafe(nil)
-	if !got {
+func TestMapVisTransparentWaterSafe(t *testing.T) {
+	if got := mapVisTransparentWaterSafe(nil); !got {
 		t.Fatalf("mapVisTransparentWaterSafe(nil) = %v, want true", got)
 	}
 
-	// Test with a non-nil tree (still safe by default)
-	tree := &bsp.Tree{}
-	got = mapVisTransparentWaterSafe(tree)
-	if !got {
-		t.Fatalf("mapVisTransparentWaterSafe(tree) = %v, want true", got)
-	}
+	t.Run("safe when no liquid", func(t *testing.T) {
+		tree := &bsp.Tree{Leafs: []bsp.TreeLeaf{{}, {Contents: bsp.ContentsEmpty, VisOfs: -1}}}
+		if got := mapVisTransparentWaterSafe(tree); !got {
+			t.Fatalf("mapVisTransparentWaterSafe(no-liquid) = %v, want true", got)
+		}
+	})
+
+	t.Run("safe when liquid sees non-liquid", func(t *testing.T) {
+		tree := testWaterVisTree([]byte{0x02})
+		if got := mapVisTransparentWaterSafe(tree); !got {
+			t.Fatalf("mapVisTransparentWaterSafe(vised) = %v, want true", got)
+		}
+	})
+
+	t.Run("unsafe when water cannot see non-water", func(t *testing.T) {
+		tree := testWaterVisTree([]byte{0x01})
+		if got := mapVisTransparentWaterSafe(tree); got {
+			t.Fatalf("mapVisTransparentWaterSafe(unvised) = %v, want false", got)
+		}
+	})
+
+	t.Run("worldspawn override controls result", func(t *testing.T) {
+		tree := testWaterVisTree([]byte{0x01})
+		tree.Entities = []byte(`{"classname" "worldspawn" "transwater" "1"}`)
+		if got := mapVisTransparentWaterSafe(tree); !got {
+			t.Fatalf("mapVisTransparentWaterSafe(transwater=1) = %v, want true", got)
+		}
+		tree.Entities = []byte(`{"classname" "worldspawn" "_watervis" "0"}`)
+		if got := mapVisTransparentWaterSafe(tree); got {
+			t.Fatalf("mapVisTransparentWaterSafe(_watervis=0) = %v, want false", got)
+		}
+	})
 }
 
 func TestResolveWorldLiquidAlphaSettings_VisUnsafeForcesOpaque(t *testing.T) {
-	// Create a test case to verify that when vis-safety gating is implemented,
-	// vis-unsafe maps will force all liquid alphas to opaque (1.0)
 	overrides := worldLiquidAlphaOverrides{hasWater: true, water: 0.5, hasLava: true, lava: 0.3}
 
-	// Test with nil tree (treated as safe by mapVisTransparentWaterSafe)
 	got := resolveWorldLiquidAlphaSettings(1.0, 0.7, 0.6, 0.8, overrides, nil)
-	// water: override at 0.5, slime: cvar at 0.6, lava: override at 0.3, tele: cvar at 0.8
 	if got.water != 0.5 || got.lava != 0.3 || got.slime != 0.6 || got.tele != 0.8 {
 		t.Fatalf("resolveWorldLiquidAlphaSettings(nil tree) = %+v, expected water:0.5 lava:0.3 slime:0.6 tele:0.8", got)
 	}
 
-	// Test with a tree (also treated as safe by current default implementation)
-	tree := &bsp.Tree{}
-	got = resolveWorldLiquidAlphaSettings(1.0, 0.7, 0.6, 0.8, overrides, tree)
-	if got.water != 0.5 || got.lava != 0.3 || got.slime != 0.6 || got.tele != 0.8 {
-		t.Fatalf("resolveWorldLiquidAlphaSettings(tree) = %+v, expected water:0.5 lava:0.3 slime:0.6 tele:0.8", got)
+	unsafeTree := testWaterVisTree([]byte{0x01})
+	got = resolveWorldLiquidAlphaSettings(1.0, 0.7, 0.6, 0.8, overrides, unsafeTree)
+	if got.water != 1 || got.lava != 1 || got.slime != 1 || got.tele != 1 {
+		t.Fatalf("resolveWorldLiquidAlphaSettings(unsafe tree) = %+v, want all 1", got)
 	}
-	// Note: When mapVisTransparentWaterSafe is fully implemented to detect unsafe maps,
-	// this test should be updated to verify that vis-unsafe maps force all alphas to 1.0
+}
+
+func TestMapVisTransparentWaterSafe_TeleVisibilityCountsAsTransparent(t *testing.T) {
+	tree := &bsp.Tree{
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{Contents: bsp.ContentsWater, VisOfs: 0, FirstMarkSurface: 0, NumMarkSurfaces: 1},
+			{Contents: bsp.ContentsWater, VisOfs: 1, FirstMarkSurface: 1, NumMarkSurfaces: 1},
+		},
+		Visibility: []byte{
+			0x02, // leaf 1 can only see leaf 2
+			0x01, // leaf 2 can only see leaf 1
+		},
+		MarkSurfaces: []int{
+			0, // leaf1 face
+			1, // leaf2 face
+		},
+		Faces: []bsp.TreeFace{
+			{Texinfo: 0},
+			{Texinfo: 1},
+		},
+		Texinfo: []bsp.Texinfo{
+			{Flags: model.SurfDrawTele},
+			{Flags: model.SurfDrawWater},
+		},
+	}
+
+	if got := mapVisTransparentWaterSafe(tree); !got {
+		t.Fatalf("mapVisTransparentWaterSafe(tele sees only water) = %v, want true", got)
+	}
+}
+
+func TestShouldDrawParticlePassUsesRParticlesMode(t *testing.T) {
+	original := cvar.Get(CvarRParticles)
+	if original != nil {
+		defer cvar.Set(CvarRParticles, original.String)
+	}
+
+	cvar.Set(CvarRParticles, "1")
+	if !shouldDrawParticlePass(readParticleModeCvar(), particlePassTranslucent, false, 4) {
+		t.Fatalf("mode 1 should draw translucent pass")
+	}
+	if shouldDrawParticlePass(readParticleModeCvar(), particlePassOpaque, false, 4) {
+		t.Fatalf("mode 1 should not draw opaque pass")
+	}
+
+	cvar.Set(CvarRParticles, "2")
+	if !shouldDrawParticlePass(readParticleModeCvar(), particlePassOpaque, false, 4) {
+		t.Fatalf("mode 2 should draw opaque pass")
+	}
+	if shouldDrawParticlePass(readParticleModeCvar(), particlePassTranslucent, false, 4) {
+		t.Fatalf("mode 2 should not draw translucent pass")
+	}
+
+	if original == nil {
+		cvar.Set(CvarRParticles, "")
+	}
+}
+
+func TestParticleVerticesForPassUsesModeNotVertexAlpha(t *testing.T) {
+	vertices := []ParticleVertex{
+		{Color: [4]byte{255, 255, 255, 255}},
+		{Color: [4]byte{10, 20, 30, 255}},
+	}
+
+	drawn := particleVerticesForPass(vertices, 1, particlePassTranslucent, false)
+	if len(drawn) != len(vertices) {
+		t.Fatalf("mode 1 translucent drew %d vertices, want %d", len(drawn), len(vertices))
+	}
+	if particleVerticesForPass(vertices, 1, particlePassOpaque, false) != nil {
+		t.Fatalf("mode 1 opaque should be skipped")
+	}
+
+	drawn = particleVerticesForPass(vertices, 2, particlePassOpaque, false)
+	if len(drawn) != len(vertices) {
+		t.Fatalf("mode 2 opaque drew %d vertices, want %d", len(drawn), len(vertices))
+	}
+	if particleVerticesForPass(vertices, 2, particlePassTranslucent, false) != nil {
+		t.Fatalf("mode 2 translucent should be skipped")
+	}
+}
+
+func testWaterVisTree(leaf1Vis []byte) *bsp.Tree {
+	return &bsp.Tree{
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{Contents: bsp.ContentsWater, VisOfs: 0, FirstMarkSurface: 0, NumMarkSurfaces: 1},
+			{Contents: bsp.ContentsEmpty, VisOfs: 0},
+		},
+		Visibility: leaf1Vis,
+		MarkSurfaces: []int{
+			0,
+		},
+		Faces: []bsp.TreeFace{
+			{Texinfo: 0},
+		},
+		Texinfo: []bsp.Texinfo{
+			{Flags: model.SurfDrawWater},
+		},
+	}
 }
 
 func TestBucketWorldFaces_Sky(t *testing.T) {

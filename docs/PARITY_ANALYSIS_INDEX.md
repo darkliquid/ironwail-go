@@ -70,14 +70,14 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 | Key bindings + baseline console UI/completion + aliases | **done** |
 | Local reconnect + loopback connect/disconnect session handling | **done (local slice)** |
 | Local session-transition sound teardown (`disconnect`/`reconnect`/`load`/`map`) | **done (stop-all parity slice)** |
-| High-priority remaining gaps | **integration/fidelity (pass-order + remaining skybox edge cases, remote connect transport flow, load UX)** |
+| High-priority remaining gaps | **integration/fidelity (broader visual polish, remote connect transport flow, load UX)** |
 | Source of truth | **PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md** |
 
 ---
 
 ## Tier 1 Critical Blockers (Fix These First)
 
-1. **Pass-order + remaining skybox edge-case fidelity** → visual sequencing still diverges from C (embedded and common external cubemap sky paths are wired on OpenGL)
+1. **Pass-order + skybox fidelity follow-through** → canonical OpenGL sequencing is now in place; keep validating additional external skybox content packs beyond baseline parity cases
 2. **Connect parity** → remote multiplayer workflow remains incomplete after landing local reconnect + local connect/disconnect + local kick parity slices
 3. **Save/load UX parity** → loading plaque and broader save-file search behavior still differ
 4. **gogpu backend catch-up** → parity baseline remains OpenGL runtime path
@@ -147,7 +147,7 @@ Each section includes:
 - [x] Demo recording/playback forward path is functional
 
 ### Remaining high-priority parity gaps
-- [ ] Render-pass ordering fidelity and remaining non-cubemap skybox edge cases
+- [x] Render-pass ordering fidelity and remaining non-cubemap skybox edge cases (bounded parity slice)
 - [ ] Remote multiplayer command parity (`connect` and broader remote reconnect flow)
 - [ ] Save/load UX parity (loading plaque + broader save-file search behavior)
 - [ ] Menu/options/network submenu completion

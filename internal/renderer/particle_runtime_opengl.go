@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 const (
@@ -123,11 +124,7 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass part
 	if len(vertices) == 0 {
 		return
 	}
-	opaqueVertices, translucentVertices := splitParticleVerticesByAlpha(vertices)
-	drawVertices := opaqueVertices
-	if pass == particlePassTranslucent {
-		drawVertices = translucentVertices
-	}
+	drawVertices := particleVerticesForPass(vertices, readParticleModeCvar(), pass, false)
 	if len(drawVertices) == 0 {
 		return
 	}
@@ -178,6 +175,25 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass part
 	gl.UseProgram(0)
 	gl.DepthMask(true)
 	gl.Enable(gl.BLEND)
+}
+
+func readParticleModeCvar() int {
+	cv := cvar.Get(CvarRParticles)
+	if cv == nil {
+		return 1
+	}
+	return cv.Int
+}
+
+func shouldDrawParticlePass(mode int, pass particleRenderPass, showTris bool, activeParticles int) bool {
+	return ShouldDrawParticles(mode, pass == particlePassTranslucent, showTris, activeParticles)
+}
+
+func particleVerticesForPass(vertices []ParticleVertex, mode int, pass particleRenderPass, showTris bool) []ParticleVertex {
+	if !shouldDrawParticlePass(mode, pass, showTris, len(vertices)) {
+		return nil
+	}
+	return vertices
 }
 
 func (r *Renderer) clearParticleResourcesLocked() {

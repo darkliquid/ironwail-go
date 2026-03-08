@@ -39,6 +39,21 @@ func (s *disconnectTrackingServer) Shutdown() {
 	s.mockServer.Shutdown()
 }
 
+type sessionStartTrackingServer struct {
+	mockServer
+	connectCalls  int
+	shutdownCalls int
+}
+
+func (s *sessionStartTrackingServer) ConnectClient(clientNum int) {
+	s.connectCalls++
+}
+
+func (s *sessionStartTrackingServer) Shutdown() {
+	s.shutdownCalls++
+	s.mockServer.Shutdown()
+}
+
 type reconnectHandshakeClient struct {
 	state ClientState
 
@@ -91,6 +106,54 @@ func (c *reconnectHandshakeClient) LocalSignonReply(command string) error {
 
 func (c *reconnectHandshakeClient) LocalSignon() int {
 	return c.signon
+}
+
+type remoteSignonTestClient struct {
+	state          ClientState
+	signonCommands []string
+	shutdownCalls  int
+}
+
+func (c *remoteSignonTestClient) Init() error                   { return nil }
+func (c *remoteSignonTestClient) Frame(frameTime float64) error { return nil }
+func (c *remoteSignonTestClient) Shutdown()                     { c.shutdownCalls++ }
+func (c *remoteSignonTestClient) State() ClientState            { return c.state }
+func (c *remoteSignonTestClient) ReadFromServer() error         { return nil }
+func (c *remoteSignonTestClient) SendCommand() error            { return nil }
+func (c *remoteSignonTestClient) SendSignonCommand(command string) error {
+	c.signonCommands = append(c.signonCommands, command)
+	return nil
+}
+
+type remoteReconnectStateClient struct {
+	state          ClientState
+	clientState    *cl.Client
+	signonCommands []string
+	resetCalls     int
+}
+
+func (c *remoteReconnectStateClient) Init() error                   { return nil }
+func (c *remoteReconnectStateClient) Frame(frameTime float64) error { return nil }
+func (c *remoteReconnectStateClient) Shutdown()                     {}
+func (c *remoteReconnectStateClient) State() ClientState            { return c.state }
+func (c *remoteReconnectStateClient) ReadFromServer() error         { return nil }
+func (c *remoteReconnectStateClient) SendCommand() error            { return nil }
+func (c *remoteReconnectStateClient) SendSignonCommand(command string) error {
+	c.signonCommands = append(c.signonCommands, command)
+	return nil
+}
+func (c *remoteReconnectStateClient) ResetConnectionState() error {
+	c.resetCalls++
+	if c.clientState == nil {
+		c.clientState = cl.NewClient()
+	}
+	c.clientState.ClearState()
+	c.clientState.State = cl.StateConnected
+	c.state = caConnected
+	return nil
+}
+func (c *remoteReconnectStateClient) ClientState() *cl.Client {
+	return c.clientState
 }
 
 type stopAllTrackingAudio struct {
@@ -1123,7 +1186,7 @@ func TestCmdConnectLocalRestartsLocalHandshakeAndStopsDemoPlayback(t *testing.T)
 	}
 }
 
-func TestCmdConnectRemoteUnsupportedDisconnectsCurrentSession(t *testing.T) {
+func TestCmdConnectRemoteUsesTransportClientAndDisconnectsCurrentSession(t *testing.T) {
 	h := NewHost()
 	h.SetDemoNum(3)
 	h.demoState = &cl.DemoState{Playback: true}
@@ -1136,6 +1199,17 @@ func TestCmdConnectRemoteUnsupportedDisconnectsCurrentSession(t *testing.T) {
 	lc := newLocalLoopbackClient()
 	lc.inner.State = cl.StateActive
 	lc.inner.Signon = cl.Signons
+	remoteClient := &remoteSignonTestClient{state: caConnected}
+	oldFactory := remoteClientFactory
+	remoteClientFactory = func(address string) (Client, error) {
+		if address != "example.com:26000" {
+			t.Fatalf("remoteClientFactory address = %q, want %q", address, "example.com:26000")
+		}
+		return remoteClient, nil
+	}
+	t.Cleanup(func() {
+		remoteClientFactory = oldFactory
+	})
 	subs := &Subsystems{
 		Server:  srv,
 		Client:  lc,
@@ -1156,20 +1230,17 @@ func TestCmdConnectRemoteUnsupportedDisconnectsCurrentSession(t *testing.T) {
 	if h.ServerActive() {
 		t.Fatal("serverActive = true, want false")
 	}
-	if h.ClientState() != caDisconnected {
-		t.Fatalf("client state = %v, want %v", h.ClientState(), caDisconnected)
+	if h.ClientState() != caConnected {
+		t.Fatalf("client state = %v, want %v", h.ClientState(), caConnected)
 	}
 	if h.SignOns() != 0 {
 		t.Fatalf("host signons = %d, want 0", h.SignOns())
 	}
-	if lc.inner.State != cl.StateDisconnected {
-		t.Fatalf("loopback state = %v, want disconnected", lc.inner.State)
+	if subs.Client != remoteClient {
+		t.Fatalf("client = %T, want remote transport client", subs.Client)
 	}
-	if lc.inner.Signon != 0 {
-		t.Fatalf("loopback signon = %d, want 0", lc.inner.Signon)
-	}
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "remote multiplayer connect is not implemented yet") {
-		t.Fatalf("console output = %q, want unsupported remote connect message", got)
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Connecting to example.com:26000...") {
+		t.Fatalf("console output = %q, want remote connect banner", got)
 	}
 }
 
@@ -1285,6 +1356,73 @@ func TestCmdMapStopsAllSoundsBeforeStartingSession(t *testing.T) {
 	}
 	if !audio.calls[0] {
 		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+}
+
+func TestCmdMapShutsDownRemoteClientBeforeReplacingWithLocalClient(t *testing.T) {
+	h := NewHost()
+	srv := &sessionStartTrackingServer{}
+	remoteClient := &remoteSignonTestClient{state: caConnected}
+	subs := &Subsystems{
+		Files:   &fs.FileSystem{},
+		Server:  srv,
+		Client:  remoteClient,
+		Console: &mockConsole{},
+	}
+
+	err := h.CmdMap("start", subs)
+	if err == nil {
+		t.Fatal("CmdMap(start) error = nil, want local handshake failure")
+	}
+	if !strings.Contains(err.Error(), "local serverinfo handshake failed") {
+		t.Fatalf("CmdMap(start) error = %q, want local serverinfo handshake failure", err)
+	}
+	if remoteClient.shutdownCalls != 1 {
+		t.Fatalf("remote client Shutdown calls = %d, want 1", remoteClient.shutdownCalls)
+	}
+	if _, ok := subs.Client.(*localLoopbackClient); !ok {
+		t.Fatalf("client = %T, want *localLoopbackClient", subs.Client)
+	}
+}
+
+func TestStartLocalServerSessionRollsBackOnAfterConnectFailure(t *testing.T) {
+	h := NewHost()
+	h.SetClientState(caConnected)
+	h.SetSignOns(2)
+
+	srv := &sessionStartTrackingServer{}
+	remoteClient := &remoteSignonTestClient{state: caConnected}
+	subs := &Subsystems{
+		Server: srv,
+		Client: remoteClient,
+	}
+
+	err := h.startLocalServerSession(subs, func() error {
+		return fmt.Errorf("restore failed")
+	})
+	if err == nil {
+		t.Fatal("startLocalServerSession error = nil, want restore failure")
+	}
+	if !strings.Contains(err.Error(), "restore failed") {
+		t.Fatalf("startLocalServerSession error = %q, want restore failure", err)
+	}
+	if srv.connectCalls != 1 {
+		t.Fatalf("ConnectClient calls = %d, want 1", srv.connectCalls)
+	}
+	if srv.shutdownCalls != 1 {
+		t.Fatalf("Shutdown calls = %d, want 1", srv.shutdownCalls)
+	}
+	if remoteClient.shutdownCalls != 1 {
+		t.Fatalf("remote client Shutdown calls = %d, want 1", remoteClient.shutdownCalls)
+	}
+	if h.ServerActive() {
+		t.Fatal("serverActive = true, want false after rollback")
+	}
+	if got := h.ClientState(); got != caDisconnected {
+		t.Fatalf("client state = %v, want %v after rollback", got, caDisconnected)
+	}
+	if got := h.SignOns(); got != 0 {
+		t.Fatalf("host signons = %d, want 0 after rollback", got)
 	}
 }
 
@@ -1442,6 +1580,52 @@ func TestCmdReconnectClearsSignonsWithoutLocalServer(t *testing.T) {
 	}
 }
 
+func TestCmdReconnectForRemoteClientResetsClientStateWithoutSignonCommand(t *testing.T) {
+	h := NewHost()
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	remoteState := cl.NewClient()
+	remoteState.State = cl.StateActive
+	remoteState.Signon = cl.Signons
+	remoteState.LevelName = "stale level"
+	client := &remoteReconnectStateClient{
+		state:       caActive,
+		clientState: remoteState,
+	}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdReconnect(subs)
+
+	if got := client.resetCalls; got != 1 {
+		t.Fatalf("ResetConnectionState calls = %d, want 1", got)
+	}
+	if len(client.signonCommands) != 0 {
+		t.Fatalf("remote reconnect sent signon commands = %v, want none", client.signonCommands)
+	}
+	if got := remoteState.Signon; got != 0 {
+		t.Fatalf("remote signon = %d, want 0", got)
+	}
+	if got := remoteState.State; got != cl.StateConnected {
+		t.Fatalf("remote client state = %v, want %v", got, cl.StateConnected)
+	}
+	if got := remoteState.LevelName; got != "" {
+		t.Fatalf("remote level name = %q, want cleared", got)
+	}
+	if got := h.SignOns(); got != 0 {
+		t.Fatalf("host signons = %d, want 0", got)
+	}
+	if got := h.ClientState(); got != caConnected {
+		t.Fatalf("host client state = %v, want %v", got, caConnected)
+	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after remote reconnect")
+	}
+}
+
 func TestCmdReconnectIgnoresDemoPlayback(t *testing.T) {
 	h := NewHost()
 	h.demoState = &cl.DemoState{Playback: true}
@@ -1471,6 +1655,25 @@ func TestCmdReconnectIgnoresDemoPlayback(t *testing.T) {
 	}
 	if h.ClientState() != caActive {
 		t.Fatalf("host client state = %v, want %v", h.ClientState(), caActive)
+	}
+}
+
+func TestCmdPreSpawnForRemoteClientSendsSignonCommand(t *testing.T) {
+	h := NewHost()
+	h.SetClientState(caConnected)
+
+	client := &remoteSignonTestClient{state: caConnected}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdPreSpawn(subs)
+	h.CmdSpawn(subs)
+	h.CmdBegin(subs)
+
+	if want := []string{"prespawn", "spawn", "begin"}; !reflect.DeepEqual(client.signonCommands, want) {
+		t.Fatalf("remote signon commands = %v, want %v", client.signonCommands, want)
 	}
 }
 

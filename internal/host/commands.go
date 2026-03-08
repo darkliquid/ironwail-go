@@ -17,10 +17,24 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 var saveNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
+
+var remoteClientFactory = func(address string) (Client, error) {
+	socket := inet.Connect(address)
+	if socket == nil {
+		return nil, fmt.Errorf("unable to connect to %s", address)
+	}
+	client := newRemoteDatagramClient(socket)
+	if err := client.Init(); err != nil {
+		client.Shutdown()
+		return nil, err
+	}
+	return client, nil
+}
 
 const maxAliasName = 32
 
@@ -328,8 +342,6 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 		return fmt.Errorf("filesystem implementation is missing")
 	}
 
-	h.serverActive = true
-
 	return h.startLocalServerSession(subs, nil)
 }
 
@@ -594,9 +606,14 @@ func (h *Host) CmdConnect(address string, subs *Subsystems) {
 		}
 		return
 	}
-
+	if err := h.startRemoteSession(address, subs); err != nil {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("connect %q failed: %v\n", address, err))
+		}
+		return
+	}
 	if subs != nil && subs.Console != nil {
-		subs.Console.Print(fmt.Sprintf("connect %q: remote multiplayer connect is not implemented yet.\n", address))
+		subs.Console.Print(fmt.Sprintf("Connecting to %s...\n", address))
 	}
 }
 
@@ -624,6 +641,9 @@ func (h *Host) disconnectCurrentSession(subs *Subsystems, stopServer bool) {
 
 	if stopServer && h.serverActive {
 		h.ShutdownServer(subs)
+	}
+	if subs != nil && subs.Client != nil {
+		subs.Client.Shutdown()
 	}
 
 	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
@@ -661,10 +681,23 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 		return
 	}
 
-	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
-		loopbackClient.ClearSignons()
-		if loopbackClient.State != cl.StateDisconnected {
-			loopbackClient.State = cl.StateConnected
+	remoteReset := false
+	if remoteClient, ok := subs.Client.(reconnectResetClient); ok {
+		if err := remoteClient.ResetConnectionState(); err != nil {
+			if subs.Console != nil {
+				subs.Console.Print(fmt.Sprintf("reconnect reset failed: %v\n", err))
+			}
+		} else {
+			remoteReset = true
+		}
+	}
+
+	if !remoteReset {
+		if clientState := ActiveClientState(subs); clientState != nil {
+			clientState.ClearSignons()
+			if clientState.State != cl.StateDisconnected {
+				clientState.State = cl.StateConnected
+			}
 		}
 	}
 
@@ -729,19 +762,19 @@ func (h *Host) CmdKill(subs *Subsystems) {
 }
 
 func (h *Host) CmdSpawn(subs *Subsystems) {
-	if err := h.runLocalHandshakeStep("spawn", subs); err != nil && subs != nil && subs.Console != nil {
+	if err := h.runHandshakeStep("spawn", subs); err != nil && subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("spawn failed: %v\n", err))
 	}
 }
 
 func (h *Host) CmdBegin(subs *Subsystems) {
-	if err := h.runLocalHandshakeStep("begin", subs); err != nil && subs != nil && subs.Console != nil {
+	if err := h.runHandshakeStep("begin", subs); err != nil && subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("begin failed: %v\n", err))
 	}
 }
 
 func (h *Host) CmdPreSpawn(subs *Subsystems) {
-	if err := h.runLocalHandshakeStep("prespawn", subs); err != nil && subs != nil && subs.Console != nil {
+	if err := h.runHandshakeStep("prespawn", subs); err != nil && subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("prespawn failed: %v\n", err))
 	}
 }
@@ -897,9 +930,60 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 	subs.Console.Print(fmt.Sprintf("Saved %s\n", filepath.Base(path)))
 }
 
-func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() error) error {
+func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() error) (err error) {
 	if subs == nil || subs.Server == nil {
 		return fmt.Errorf("server not initialized")
+	}
+
+	previousServerActive := h.serverActive
+	previousClientState := h.clientState
+	previousSignOns := h.signOns
+	teardownOnFailure := !previousServerActive
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		if teardownOnFailure {
+			subs.Server.Shutdown()
+			if subs.Client != nil {
+				subs.Client.Shutdown()
+			}
+			if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+				loopbackClient.ClearState()
+				loopbackClient.State = cl.StateDisconnected
+			}
+			h.serverActive = false
+			h.clientState = caDisconnected
+			h.signOns = 0
+			return
+		}
+		h.serverActive = previousServerActive
+		h.clientState = previousClientState
+		h.signOns = previousSignOns
+	}()
+
+	handshake, ok := subs.Client.(handshakeClient)
+	if !ok {
+		if subs.Client != nil {
+			subs.Client.Shutdown()
+		}
+		localClient := newLocalLoopbackClient()
+		if serverSource, sourceOK := subs.Server.(serverDatagramSource); sourceOK {
+			localClient.srv = serverSource
+			if cmdSource, cmdOK := subs.Server.(serverCommandSink); cmdOK {
+				localClient.cmd = cmdSource
+			}
+		}
+		if err := localClient.Init(); err != nil {
+			return fmt.Errorf("failed to initialize local client: %w", err)
+		}
+		subs.Client = localClient
+		handshake = localClient
+		ok = true
+	}
+	if !ok {
+		return fmt.Errorf("client handshake implementation missing")
 	}
 
 	h.serverActive = true
@@ -913,10 +997,6 @@ func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() err
 	h.clientState = caConnected
 	h.signOns = 0
 
-	handshake, ok := subs.Client.(handshakeClient)
-	if !ok {
-		return fmt.Errorf("client handshake implementation missing")
-	}
 	if err := handshake.LocalServerInfo(); err != nil {
 		return fmt.Errorf("local serverinfo handshake failed: %w", err)
 	}
@@ -932,6 +1012,43 @@ func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() err
 		return err
 	}
 
+	return nil
+}
+
+func (h *Host) runHandshakeStep(step string, subs *Subsystems) error {
+	if h.serverActive {
+		return h.runLocalHandshakeStep(step, subs)
+	}
+	if subs == nil || subs.Client == nil {
+		return fmt.Errorf("client not initialized")
+	}
+	remoteClient, ok := subs.Client.(signonCommandClient)
+	if !ok {
+		return fmt.Errorf("client does not support %s handshake", step)
+	}
+	if err := remoteClient.SendSignonCommand(step); err != nil {
+		return fmt.Errorf("%s handshake failed: %w", step, err)
+	}
+	if state := ActiveClientState(subs); state != nil {
+		h.signOns = state.Signon
+	}
+	h.clientState = subs.Client.State()
+	return nil
+}
+
+func (h *Host) startRemoteSession(address string, subs *Subsystems) error {
+	if subs == nil {
+		return fmt.Errorf("subsystems not initialized")
+	}
+	remoteClient, err := remoteClientFactory(address)
+	if err != nil {
+		return err
+	}
+	subs.Client = remoteClient
+	h.serverActive = false
+	h.clientState = caConnected
+	h.signOns = 0
+	h.BeginLoadingPlaque(0)
 	return nil
 }
 

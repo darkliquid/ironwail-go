@@ -751,6 +751,25 @@ func (c *Client) SendMove(cmd *UserCmd) ([]byte, error) {
 	return buf.Data[:buf.CurSize], nil
 }
 
+func (c *Client) SendStringCmd(command string) ([]byte, error) {
+	if c == nil {
+		return nil, nil
+	}
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return nil, nil
+	}
+
+	buf := common.NewSizeBuf(128 + len(command))
+	if !buf.WriteByte(byte(inet.CLCStringCmd)) {
+		return nil, fmt.Errorf("failed to write CLCStringCmd opcode")
+	}
+	if !buf.WriteString(command) {
+		return nil, fmt.Errorf("failed to write CLCStringCmd payload")
+	}
+	return buf.Data[:buf.CurSize], nil
+}
+
 // SendCmd is the top-level function called each frame to send client commands
 // to the server. It handles state checking, input gathering, and message sending.
 //

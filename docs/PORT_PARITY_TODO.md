@@ -191,6 +191,7 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 - [x] sync multiplayer setup text-entry fields from live `hostname`/`_cl_name`/`_cl_color` state so reopening the menu reflects current player/server settings
 - [x] bounded `hud-statusbar-icons` parity slice: thread live client HUD stats/items into `hud.State` and render a base-Quake classic status bar (`sbar`/`ibar`) with weapon strip, ammo counts strip, keys/powerups/sigils, armor+face+ammo icons, and numeric readouts
 - [x] bounded `intermission-cutscene-parity` slice: preserve parsed finale/cutscene strings in live client state, feed live centerprint/intermission state into runtime HUD overlay flow, and render base-Quake intermission (`gfx/complete.lmp` + `gfx/inter.lmp` + map/time/secrets/monsters) plus finale/cutscene (`gfx/finale.lmp` + timed center-text reveal) overlays on the canonical runtime path
+- [x] bounded `deathmatch-scoreboard-parity` slice: wire default `TAB`/`+showscores` bindings, feed live multiplayer name/color/frags into `hud.State`, and render ranked deathmatch scoreboard overlays plus compact multiplayer frag rows
 - [x] route menu key handling from key-down events only (avoid doubled cursor movement and double-fired one-shot menu actions on key release)
 - [x] restore audible menu interaction feedback by wiring menu navigation/accept/cancel events to local `misc/menu*.wav` playback on the canonical runtime path
 - [x] fix canonical OpenGL HUD/icon coordinate-space regression by splitting `DrawPic` (screen-space HUD/intermission) from `DrawMenuPic` (320x200 menu/loading-plaque space), restoring classic status/intermission imagery without menu regressions
@@ -199,7 +200,7 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 **Done when**
 
 - all visible menu entries lead to real functionality
-- the HUD exposes the same gameplay-critical information the C engine does, including bounded intermission/finale/cutscene overlays
+- the HUD exposes the same gameplay-critical information the C engine does, including bounded intermission/finale/cutscene and deathmatch-scoreboard overlays
 
 ### 7. Feed the remaining renderable state into the OpenGL renderer
 
@@ -276,6 +277,10 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded parity slice (`fix-lightmap-block-artifacts`): route world + brush lightmap page uploads (and fallback lightmap texture) through a dedicated lightmap texture path using linear min/mag filtering while leaving generic world/sky/alias texture upload filtering unchanged
 - [x] bounded parity slice (`lighting-diffuse-parity`): remove unintended world lightmap overbright scaling and feed per-surface dynamic-light accumulation into the canonical OpenGL world shader so diffuse lighting matches C behavior more closely without regressing linear-filter artifact fixes
 - [x] bounded parity slice (`final-opengl-pass-order-and-viewmodel-placement`): keep the canonical OpenGL frame schedule aligned with the scoped C `R_RenderScene()` ordering by staging sky after opaque entities/particles, drawing opaque liquid before the late translucency block, and rendering the viewmodel after late translucent liquid/entity/decal/sprite/particle work via the dedicated viewmodel depth-range path
+- [x] bounded parity slice (`transparent-water-vis-safety`): gate liquid translucency by map VIS/worldspawn compatibility (`transwater`/`watervis`) and force unsafe maps to opaque liquid fallback
+- [x] bounded parity slice (`runtime-particle-pass-mode`): honor `r_particles` pass mode during runtime particle rendering so particles route through the opaque or late translucent pass instead of always resolving through opaque staging
+- [x] bounded parity slice (`skybox-per-face-lowercase-fallback`): keep per-face non-cubemap skybox mode but retry lowercase file paths when mixed-case sky names fail against lowercase asset packs on case-sensitive filesystems
+- [x] bounded parity slice (`sky-water-translucency-regressions`): add focused renderer regression coverage for transparent-water VIS safety, `r_particles` pass routing, and mixed-case per-face skybox load fallback
 
 **Done when**
 
@@ -369,8 +374,8 @@ Close the host-command and UI gaps that keep the port local-only.
 - [x] implement local host `kick` parity by name or slot with optional message
 - [x] stop active gameplay sounds during local disconnect/reconnect-style session transitions
 - [x] add local reconnect loading-plaque visibility in runtime overlay flow
-- implement remote transport-backed `connect` flow (currently explicit unsupported path with console messaging)
-- [~] connect the multiplayer menus to real behavior (bounded local join/host menu flows now dispatch real `connect`/host setup commands; remote transport parity remains)
+- [x] implement remote transport-backed `connect` flow (transport client now establishes remote sessions and auto-progresses signon via `prespawn`/`spawn`/`begin` replies)
+- [x] connect the multiplayer menus to real behavior (join/host/setup dispatch live `connect`/host setup/hostname+player options through the same remote-capable host command path)
 
 **Done when**
 

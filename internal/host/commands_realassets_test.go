@@ -110,6 +110,15 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player := srv.Static.Clients[0].Edict
 	player.Vars.Health = 61
 	player.Vars.Origin = [3]float32{320, 144, 40}
+	player.Vars.CurrentAmmo = 12
+	player.Vars.AmmoShells = 25
+	player.Vars.AmmoNails = 50
+	player.Vars.AmmoRockets = 8
+	player.Vars.AmmoCells = 31
+	player.Vars.Weapon = 8
+	player.Vars.Items = 0x0001 | 0x0002 | 0x0040
+	player.Vars.ArmorType = 0.6
+	player.Vars.ArmorValue = 95
 	srv.LightStyles[3] = "az"
 
 	h.CmdSave("roundtrip", subs)
@@ -120,6 +129,15 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 
 	player.Vars.Health = 12
 	player.Vars.Origin = [3]float32{0, 0, 0}
+	player.Vars.CurrentAmmo = 1
+	player.Vars.AmmoShells = 1
+	player.Vars.AmmoNails = 1
+	player.Vars.AmmoRockets = 1
+	player.Vars.AmmoCells = 1
+	player.Vars.Weapon = 1
+	player.Vars.Items = 0
+	player.Vars.ArmorType = 0
+	player.Vars.ArmorValue = 0
 
 	h.CmdLoad("roundtrip", subs)
 
@@ -131,6 +149,33 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	}
 	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
 		t.Fatalf("loaded player origin = %v, want restored origin", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.CurrentAmmo; got != 12 {
+		t.Fatalf("loaded current ammo = %v, want 12", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoShells; got != 25 {
+		t.Fatalf("loaded shells = %v, want 25", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoNails; got != 50 {
+		t.Fatalf("loaded nails = %v, want 50", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoRockets; got != 8 {
+		t.Fatalf("loaded rockets = %v, want 8", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoCells; got != 31 {
+		t.Fatalf("loaded cells = %v, want 31", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Weapon; got != 8 {
+		t.Fatalf("loaded weapon = %v, want 8", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Items; got != (0x0001 | 0x0002 | 0x0040) {
+		t.Fatalf("loaded items = %v, want %v", got, float32(0x0001|0x0002|0x0040))
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.ArmorType; got != 0.6 {
+		t.Fatalf("loaded armor type = %v, want 0.6", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.ArmorValue; got != 95 {
+		t.Fatalf("loaded armor value = %v, want 95", got)
 	}
 	if !srv.Static.Clients[0].Spawned {
 		t.Fatal("loaded client not marked spawned")

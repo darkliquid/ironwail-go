@@ -12,7 +12,7 @@ A. WORLD RENDERING         [████████████████░�
     - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
     - External skybox runtime consumption (client skybox name + Quake FS load path with C-like direction swizzle): DONE
     - External skybox mode selection: DONE (square same-size faces use cubemap; loaded non-cubemap sets use dedicated per-face external sky path; embedded BSP sky only when no faces load or upload fails)
-    - Sky now runs in its own post-opaque frame stage, opaque liquid world/brush draws now run before translucent liquid world/brush draws, and the canonical viewmodel draw now stays after the late translucency block; remaining sky/world fidelity gap is mostly non-cubemap skybox edge cases
+    - Sky now runs in its own post-opaque frame stage, opaque liquid world/brush draws now run before translucent liquid world/brush draws, and the canonical viewmodel draw now stays after the late translucency block; non-cubemap per-face skybox edge handling now includes lowercase asset-path fallback for mixed-case skybox names
 
 B. ENTITY RENDERING        [████████████████░░░] ~80%
    - Alias models: live runtime integration DONE
@@ -30,8 +30,8 @@ B. ENTITY RENDERING        [████████████████░�
       - runtime sprites now render in that late translucency stage (instead of the earlier opaque entity block), keeping sprite staging aligned with late translucent scene content
       - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
       - bounded viewmodel parity slice landed: runtime viewmodel now anchors to eye/view origin, is suppressed in intermission, and honors `r_drawviewmodel` + invisibility/death gating
-      - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-    - Remaining fidelity work: the still-bounded `r_particles` behavior gap
+      - runtime particles now honor `r_particles` mode at pass time (`1` routes to late translucent particle stage, `2` routes to opaque stage), so particle staging no longer always resolves through the opaque side
+    - Remaining fidelity work: broader particle visual polish beyond pass-mode parity
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
@@ -43,7 +43,8 @@ C. MENUS/HUD/INPUT         [████████████░░░░░�
    - Console UI/history/completion: DONE (includes command/cvar/alias completion)
    - Command aliases (`alias`/`unalias`/`unaliasall`): DONE
     - HUD: Base-game classic status bar path DONE (weapon strip, ammo strip, keys/powerups/sigils, armor/face/ammo icons, live client-driven stats)
-    - Intermission/finale/cutscene overlays: BOUNDED DONE (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay, `gfx/finale.lmp` + live timed center-text reveal via client state; deathmatch score overlays still TODO)
+    - Intermission/finale/cutscene overlays: BOUNDED DONE (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay, `gfx/finale.lmp` + live timed center-text reveal via client state)
+    - Deathmatch scoreboard overlay/HUD rows: BOUNDED DONE (`+showscores` hold path, ranked frag rows, and multiplayer mini-frag strip)
 
 D. AUDIO/MUSIC             [████████████████░░░] ~80%
    - System init: DONE
@@ -53,12 +54,12 @@ D. AUDIO/MUSIC             [████████████████░�
    - Music/BGM: PARTIAL (WAV-backed CD tracks; broader codec parity still missing)
    - Sound effects: DONE
 
-E. NETWORKING/MULTIPLAYER  [████████░░░░░░░░░] ~65%
+E. NETWORKING/MULTIPLAYER  [████████████░░░░░░░] ~70%
    - Loopback: DONE
    - UDP: DONE
    - Disconnect command/session teardown: DONE for local loopback architecture (includes active sound stop-all)
-   - Reconnect: DONE for local loopback signon restart + transition sound teardown
-   - Connect: PARTIAL (local `connect local` parity slice done; remote targets explicit unsupported)
+   - Reconnect: DONE (local + remote signon reset/restart command path + transition sound teardown/loading plaque)
+   - Connect: DONE as bounded parity slice (remote transport-backed connect now auto-progresses signon without manual `prespawn`/`spawn`/`begin`)
    - Kick: DONE for local host command parity (name / # slot / optional message / self-protect)
    - Server commands: 85% (most working)
    - Deathmatch mode: MISSING
@@ -80,22 +81,22 @@ G. SAVE/LOAD               [████████████████░�
    - Deserialization: DONE
    - Save restrictions (`nomonsters`, intermission, dead-player): DONE
    - QC globals/edicts/lightstyles: DONE
-   - Inventory: Implemented but untested
+   - Inventory/gameplay-state restoration: DONE (save/load round-trip coverage validates player ammo/weapon/items/armor plus server/client gameplay-state restoration)
 
 
 BLOCKERS FOR PLAYABILITY (Must Fix First)
 ==========================================
 
 1. Skybox edge-case fidelity
-    Location: internal/renderer/world_runtime_opengl.go
-    Impact: Scene composition now matches the scoped late-translucency/viewmodel ordering, but loaded non-cubemap skybox edge cases still differ from C
-    Fix: Close the remaining non-cubemap skybox edge cases
+     Location: internal/renderer/world_runtime_opengl.go
+     Impact: Scene composition now matches scoped late-translucency/viewmodel ordering and mixed-case skybox names now resolve through lowercase fallback when only lowercase assets exist
+     Fix: Continue validating additional non-cubemap content packs for parity confidence
     Reference: gl_sky.c + r_sprite.c + gl_rmain.c
 
-2. CONNECT command parity
+2. Remote networking depth
    Location: internal/host/commands.go
-   Impact: Remote multiplayer workflow remains incomplete even though local connect/disconnect transitions now mirror bounded C behavior
-   Fix: Port remaining host_cmd.c remote connect/reconnect behavior and broader remote transport/menu flow
+   Impact: Remote connect/reconnect and multiplayer menus now use the real transport-backed path, but broader deathmatch/netgame depth still differs from C
+   Fix: Continue parity slices for deeper remote game-options/netgame behavior
    Reference: host_cmd.c:Host_Connect_f / Host_Reconnect_f / Host_Kick_f
 
 3. SAVE/LOAD UX parity

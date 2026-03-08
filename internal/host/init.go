@@ -175,11 +175,33 @@ func LoopbackClientState(subs *Subsystems) *cl.Client {
 	return lc.inner
 }
 
+type clientStateProvider interface {
+	ClientState() *cl.Client
+}
+
+func (c *localLoopbackClient) ClientState() *cl.Client {
+	if c == nil {
+		return nil
+	}
+	return c.inner
+}
+
+func ActiveClientState(subs *Subsystems) *cl.Client {
+	if subs == nil || subs.Client == nil {
+		return nil
+	}
+	provider, ok := subs.Client.(clientStateProvider)
+	if !ok {
+		return nil
+	}
+	return provider.ClientState()
+}
+
 func DispatchLoopbackStuffText(subs *Subsystems) {
 	if subs == nil || subs.Commands == nil {
 		return
 	}
-	if c := LoopbackClientState(subs); c != nil {
+	if c := ActiveClientState(subs); c != nil {
 		if text := c.ConsumeStuffCommands(); text != "" {
 			subs.Commands.AddText(text)
 		}

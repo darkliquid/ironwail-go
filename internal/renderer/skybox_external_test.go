@@ -82,6 +82,32 @@ func TestLoadExternalSkyboxFacesPrefersPngThenTgaThenJpg(t *testing.T) {
 	}
 }
 
+func TestLoadExternalSkyboxFacesFallsBackToLowercasePath(t *testing.T) {
+	pngData := encodePNG(t, 2, 2, color.RGBA{R: 10, G: 20, B: 30, A: 255})
+	assets := map[string][]byte{
+		"gfx/env/upperrt.png": pngData,
+		"gfx/env/upperbk.png": pngData,
+		"gfx/env/upperlf.png": pngData,
+		"gfx/env/upperft.png": pngData,
+		"gfx/env/upperup.png": pngData,
+		"gfx/env/upperdn.png": pngData,
+	}
+	loadFile := func(name string) ([]byte, error) {
+		if data, ok := assets[name]; ok {
+			return data, nil
+		}
+		return nil, errNotFound
+	}
+
+	faces, loaded := loadExternalSkyboxFaces("UPPER", loadFile)
+	if loaded != 6 {
+		t.Fatalf("loaded = %d, want 6", loaded)
+	}
+	if faces[0].Path != "gfx/env/UPPERrt.png" {
+		t.Fatalf("rt path = %q, want original-cased candidate", faces[0].Path)
+	}
+}
+
 func TestExternalSkyboxCubemapEligible(t *testing.T) {
 	var faces [6]externalSkyboxFace
 	for i := range faces {

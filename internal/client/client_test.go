@@ -984,6 +984,24 @@ func TestSendMoveNotConnected(t *testing.T) {
 	}
 }
 
+func TestSendStringCmdEncodesOpcodeAndPayload(t *testing.T) {
+	c := NewClient()
+
+	msg, err := c.SendStringCmd("prespawn")
+	if err != nil {
+		t.Fatalf("SendStringCmd error = %v", err)
+	}
+	if len(msg) < 2 {
+		t.Fatalf("message too short: %d", len(msg))
+	}
+	if msg[0] != byte(inet.CLCStringCmd) {
+		t.Fatalf("opcode = %d, want %d", msg[0], inet.CLCStringCmd)
+	}
+	if got := string(msg[1:]); got != "prespawn\x00" {
+		t.Fatalf("payload = %q, want %q", got, "prespawn\\x00")
+	}
+}
+
 func TestSendMovePacking(t *testing.T) {
 	c := NewClient()
 	c.Protocol = inet.PROTOCOL_NETQUAKE

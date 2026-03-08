@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -69,6 +70,7 @@ var (
 	staticSoundKey   string
 	musicTrackKey    string
 	skyboxNameKey    string
+	gameShowScores   bool
 )
 
 type defaultBinding struct {
@@ -93,6 +95,7 @@ var gameplayDefaultBindings = []defaultBinding{
 	{key: input.KRightArrow, command: "+right"},
 	{key: input.KShift, command: "+speed"},
 	{key: input.KAlt, command: "+strafe"},
+	{key: input.KTab, command: "+showscores"},
 	{key: input.KCtrl, command: "+attack"},
 	{key: input.KMouse1, command: "+attack"},
 	{key: input.KSpace, command: "+jump"},
@@ -382,7 +385,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
-	gameClient = host.LoopbackClientState(gameSubs)
+	gameClient = host.ActiveClientState(gameSubs)
 	syncControlCvarsToClient()
 	resetRuntimeVisualState()
 
@@ -424,6 +427,7 @@ func (gameCallbacks) ProcessClient() {
 	if gameSubs == nil || gameSubs.Client == nil {
 		return
 	}
+	syncHostClientState()
 
 	// Handle demo playback
 	if gameHost != nil && gameHost.DemoState() != nil && gameHost.DemoState().Playback {
@@ -431,7 +435,7 @@ func (gameCallbacks) ProcessClient() {
 		if !demo.ShouldReadFrame(gameHost.FrameCount()) {
 			return
 		}
-		clientState := host.LoopbackClientState(gameSubs)
+		clientState := host.ActiveClientState(gameSubs)
 		if clientState != nil {
 			clientState.AdvanceTime(demo, gameHost.FrameTime())
 			if !shouldReadNextDemoMessage(clientState, demo) {
@@ -497,12 +501,31 @@ func (gameCallbacks) ProcessClient() {
 
 	// Normal networked gameplay
 	_ = gameSubs.Client.ReadFromServer()
+	syncHostClientState()
 	recordRuntimeDemoFrame()
 	host.DispatchLoopbackStuffText(gameSubs)
 	_ = gameSubs.Client.SendCommand()
 }
 
 func (gameCallbacks) UpdateScreen() {}
+
+func syncHostClientState() {
+	if gameSubs == nil || gameSubs.Client == nil {
+		return
+	}
+	prevClient := gameClient
+	gameClient = host.ActiveClientState(gameSubs)
+	if gameClient != prevClient {
+		syncControlCvarsToClient()
+	}
+	if gameHost == nil {
+		return
+	}
+	gameHost.SetClientState(gameSubs.Client.State())
+	if gameClient != nil {
+		gameHost.SetSignOns(gameClient.Signon)
+	}
+}
 
 func syncAudioViewEntity() {
 	if gameAudio == nil {
@@ -1211,6 +1234,8 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
+	cmdsys.AddCommand("+showscores", cmdShowScores, "Show multiplayer scoreboard while held")
+	cmdsys.AddCommand("-showscores", cmdHideScores, "Hide multiplayer scoreboard")
 
 	registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
 	registerGameplayButtonCommand("back", func(c *cl.Client) *cl.KButton { return &c.InputBack })
@@ -1385,6 +1410,17 @@ func cmdToggleConsole(_ []string) {
 	console.ResetCompletion()
 	gameInput.SetKeyDest(input.KeyConsole)
 	syncGameplayInputMode()
+}
+
+func cmdShowScores(_ []string) {
+	if gameClient == nil {
+		return
+	}
+	gameShowScores = true
+}
+
+func cmdHideScores(_ []string) {
+	gameShowScores = false
 }
 
 func handleGameKeyEvent(event input.KeyEvent) {
@@ -1566,6 +1602,7 @@ func applyGameplayMouseLook() {
 }
 
 func releaseGameplayButtons() {
+	gameShowScores = false
 	if gameClient == nil {
 		return
 	}
@@ -2199,6 +2236,10 @@ func updateHUDFromServer() {
 			Rockets:       rockets,
 			Cells:         cells,
 			Items:         gameClient.Items,
+			GameType:      gameClient.GameType,
+			MaxClients:    gameClient.MaxClients,
+			ShowScores:    gameShowScores && gameClient.MaxClients > 1,
+			Scoreboard:    buildHUDScoreboard(gameClient),
 			Intermission:  gameClient.Intermission,
 			CompletedTime: gameClient.CompletedTime,
 			Time:          gameClient.Time,
@@ -2226,4 +2267,32 @@ func updateHUDFromServer() {
 		Ammo:        int(ent.Vars.CurrentAmmo),
 		WeaponModel: int(ent.Vars.Weapon),
 	})
+}
+
+func buildHUDScoreboard(client *cl.Client) []hud.ScoreEntry {
+	if client == nil || client.MaxClients <= 1 {
+		return nil
+	}
+	rows := make([]hud.ScoreEntry, 0, client.MaxClients)
+	current := client.ViewEntity - 1
+	for i := 0; i < client.MaxClients; i++ {
+		name := strings.TrimSpace(client.PlayerNames[i])
+		if name == "" {
+			continue
+		}
+		rows = append(rows, hud.ScoreEntry{
+			ClientIndex: i,
+			Name:        name,
+			Frags:       client.Frags[i],
+			Colors:      client.PlayerColors[i],
+			IsCurrent:   i == current,
+		})
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Frags == rows[j].Frags {
+			return rows[i].ClientIndex < rows[j].ClientIndex
+		}
+		return rows[i].Frags > rows[j].Frags
+	})
+	return rows
 }

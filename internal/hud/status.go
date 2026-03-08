@@ -4,6 +4,8 @@
 package hud
 
 import (
+	"sort"
+
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/image"
@@ -16,6 +18,8 @@ type StatusBar struct {
 	palette     []byte
 	sbarPic     *image.QPic
 	ibarPic     *image.QPic
+	scorebarPic *image.QPic
+	rankingPic  *image.QPic
 	discPic     *image.QPic
 	weaponPics  [2][7]*image.QPic
 	ammoPics    [4]*image.QPic
@@ -36,6 +40,8 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 		sb.palette = dm.Palette()
 		sb.sbarPic = dm.GetPic("sbar")
 		sb.ibarPic = dm.GetPic("ibar")
+		sb.scorebarPic = dm.GetPic("scorebar")
+		sb.rankingPic = dm.GetPic("gfx/ranking.lmp")
 		sb.discPic = dm.GetPic("disc")
 		sb.weaponPics = [2][7]*image.QPic{
 			{
@@ -111,6 +117,11 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	sbarY := screenHeight - sbarHeight
 	inventoryY := sbarY - inventoryHeight
 
+	if state.GameType == 1 && state.MaxClients > 1 && (state.ShowScores || state.Health <= 0) {
+		sb.drawScoreboard(rc, state, sbarX, sbarY)
+		return
+	}
+
 	if sb.sbarPic != nil {
 		rc.DrawPic(sbarX, sbarY, sb.sbarPic)
 	} else {
@@ -137,6 +148,10 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 		rc.DrawPic(sbarX+224, sbarY, pic)
 	}
 	sb.drawBigNum(rc, sbarX+248, sbarY, state.Ammo, 3, state.Ammo <= 10)
+
+	if state.GameType == 1 && state.MaxClients > 1 {
+		sb.drawMiniScoreboard(rc, state, sbarX, sbarY)
+	}
 }
 
 func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state State) {
@@ -260,4 +275,74 @@ func armorValue(state State) int {
 		return 666
 	}
 	return state.Armor
+}
+
+func (sb *StatusBar) drawScoreboard(rc renderer.RenderContext, state State, sbarX, sbarY int) {
+	const scorebarHeight = 24
+	if sb.scorebarPic != nil {
+		rc.DrawPic(sbarX, sbarY, sb.scorebarPic)
+	} else {
+		rc.DrawFill(sbarX, sbarY, 320, scorebarHeight, 4)
+	}
+
+	if sb.rankingPic != nil {
+		rc.DrawPic(sbarX+(320-int(sb.rankingPic.Width))/2, 8, sb.rankingPic)
+	}
+
+	rows := sortedScoreboard(state.Scoreboard)
+	y := 40
+	for _, row := range rows {
+		top := colorForMap(int(row.Colors & 0xf0))
+		bottom := colorForMap(int((row.Colors & 0x0f) << 4))
+		rowX := sbarX + 80
+		rc.DrawFill(rowX, y, 40, 4, top)
+		rc.DrawFill(rowX, y+4, 40, 4, bottom)
+		DrawNumber(rc, rowX+32, y, row.Frags, 3)
+		if row.IsCurrent {
+			rc.DrawCharacter(rowX-8, y, int('>'))
+		}
+		DrawString(rc, rowX+64, y, row.Name)
+		y += 10
+	}
+}
+
+func (sb *StatusBar) drawMiniScoreboard(rc renderer.RenderContext, state State, sbarX, sbarY int) {
+	rows := sortedScoreboard(state.Scoreboard)
+	if len(rows) > 4 {
+		rows = rows[:4]
+	}
+	x := sbarX + 184
+	for _, row := range rows {
+		top := colorForMap(int(row.Colors & 0xf0))
+		bottom := colorForMap(int((row.Colors & 0x0f) << 4))
+		rc.DrawFill(x+10, sbarY+1, 28, 4, top)
+		rc.DrawFill(x+10, sbarY+5, 28, 3, bottom)
+		DrawNumber(rc, x+28, sbarY, row.Frags, 3)
+		if row.IsCurrent {
+			rc.DrawCharacter(x+6, sbarY, 16)
+			rc.DrawCharacter(x+32, sbarY, 17)
+		}
+		x += 32
+	}
+}
+
+func sortedScoreboard(rows []ScoreEntry) []ScoreEntry {
+	sorted := make([]ScoreEntry, 0, len(rows))
+	for _, row := range rows {
+		if row.Name == "" {
+			continue
+		}
+		sorted = append(sorted, row)
+	}
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Frags == sorted[j].Frags {
+			return sorted[i].ClientIndex < sorted[j].ClientIndex
+		}
+		return sorted[i].Frags > sorted[j].Frags
+	})
+	return sorted
+}
+
+func colorForMap(m int) byte {
+	return byte(m + 8)
 }
