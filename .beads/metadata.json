@@ -1,4 +1,7 @@
 {
-  "database": "beads.db",
-  "jsonl_export": "issues.jsonl"
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "ironwail_go",
+  "project_id": "d7a98d5c-86b5-4843-985f-1fcbe3bfab7f"
 }
