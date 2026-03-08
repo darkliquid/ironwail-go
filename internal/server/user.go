@@ -281,6 +281,8 @@ func (s *Server) airMove(ctx *clientMoveContext) {
 
 	if MoveType(ctx.player.Vars.MoveType) != MoveTypeWalk {
 		wishvel[2] = ctx.cmd.UpMove
+	} else {
+		wishvel[2] = 0
 	}
 
 	wishdir := wishvel
