@@ -14,6 +14,9 @@ func (s *Server) Frame(frameTime float64) error {
 	// Run server physics.
 	s.Physics()
 
+	// Enforce multiplayer match rules after simulation.
+	s.CheckRules()
+
 	// Handle networking/datagrams
 	s.SendClientMessages()
 

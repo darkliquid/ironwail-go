@@ -473,6 +473,19 @@ func (s *System) ClearKeyStates() {
 
 // HandleKeyEvent processes a key event from the backend.
 func (s *System) HandleKeyEvent(event KeyEvent) {
+	wasDown := false
+	if event.Key >= 0 && event.Key < NumKeycode {
+		wasDown = s.state.Keys[event.Key]
+	}
+
+	if event.Down {
+		if wasDown && s.keyDest == KeyGame {
+			return
+		}
+	} else if !wasDown {
+		return
+	}
+
 	if event.Key >= 0 && event.Key < NumKeycode {
 		s.state.Keys[event.Key] = event.Down
 	}

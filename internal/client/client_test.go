@@ -660,18 +660,15 @@ func TestConsumeTransientEffectsClearsBuffers(t *testing.T) {
 	c.ParticleEvents = []ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
 	c.TempEntities = []TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}}}
 
-	sounds := c.ConsumeSoundEvents()
-	stops := c.ConsumeStopSoundEvents()
-	particles := c.ConsumeParticleEvents()
-	temps := c.ConsumeTempEntities()
-	if len(sounds) != 1 || len(stops) != 1 || len(particles) != 1 || len(temps) != 1 {
-		t.Fatalf("consumed = %d sounds, %d stops, %d particles, %d temps; want 1,1,1,1", len(sounds), len(stops), len(particles), len(temps))
+	events := c.ConsumeTransientEvents()
+	if len(events.SoundEvents) != 1 || len(events.StopSoundEvents) != 1 || len(events.ParticleEvents) != 1 || len(events.TempEntities) != 1 {
+		t.Fatalf("consumed = %d sounds, %d stops, %d particles, %d temps; want 1,1,1,1", len(events.SoundEvents), len(events.StopSoundEvents), len(events.ParticleEvents), len(events.TempEntities))
 	}
 	if len(c.SoundEvents) != 0 || len(c.StopSoundEvents) != 0 || len(c.ParticleEvents) != 0 || len(c.TempEntities) != 0 {
 		t.Fatalf("client buffers not cleared: %d sounds %d stops %d particles %d temps", len(c.SoundEvents), len(c.StopSoundEvents), len(c.ParticleEvents), len(c.TempEntities))
 	}
-	if got := len(c.ConsumeSoundEvents()) + len(c.ConsumeStopSoundEvents()) + len(c.ConsumeParticleEvents()) + len(c.ConsumeTempEntities()); got != 0 {
-		t.Fatalf("second consume returned %d events, want 0", got)
+	if second := c.ConsumeTransientEvents(); len(second.SoundEvents)+len(second.StopSoundEvents)+len(second.ParticleEvents)+len(second.TempEntities) != 0 {
+		t.Fatalf("second consume returned %d events, want 0", len(second.SoundEvents)+len(second.StopSoundEvents)+len(second.ParticleEvents)+len(second.TempEntities))
 	}
 }
 
@@ -944,6 +941,50 @@ func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
 	}
 	if c.fogFadeDone != 6 {
 		t.Fatalf("fogFadeDone = %v, want 6", c.fogFadeDone)
+	}
+}
+
+func TestParseSoundSupportsExtendedEntityChannelAndSoundIndex(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCSound))
+	msg.WriteByte(byte(inet.SND_VOLUME | inet.SND_ATTENUATION | inet.SND_LARGEENTITY | inet.SND_LARGESOUND))
+	msg.WriteByte(200)
+	msg.WriteByte(byte(0.5 * 64))
+	writeShort(msg, 8192)
+	msg.WriteByte(17)
+	writeShort(msg, 300)
+	writeCoord(msg, 10)
+	writeCoord(msg, 20)
+	writeCoord(msg, 30)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+	if len(c.SoundEvents) != 1 {
+		t.Fatalf("SoundEvents len = %d, want 1", len(c.SoundEvents))
+	}
+	ev := c.SoundEvents[0]
+	if ev.Entity != 8192 {
+		t.Fatalf("entity = %d, want 8192", ev.Entity)
+	}
+	if ev.Channel != 17 {
+		t.Fatalf("channel = %d, want 17", ev.Channel)
+	}
+	if ev.SoundIndex != 300 {
+		t.Fatalf("sound index = %d, want 300", ev.SoundIndex)
+	}
+	if ev.Volume != 200 {
+		t.Fatalf("volume = %d, want 200", ev.Volume)
+	}
+	if ev.Attenuation != 0.5 {
+		t.Fatalf("attenuation = %v, want 0.5", ev.Attenuation)
+	}
+	if ev.Origin != [3]float32{10, 20, 30} {
+		t.Fatalf("origin = %v, want [10 20 30]", ev.Origin)
 	}
 }
 

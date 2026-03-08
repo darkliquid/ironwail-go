@@ -6,6 +6,8 @@ package host
 import (
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -97,6 +99,32 @@ func TestHostInit(t *testing.T) {
 	}
 }
 
+func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", MaxClients: 1}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	for _, name := range []string{"fraglimit", "timelimit"} {
+		cv := cvar.Get(name)
+		if cv == nil {
+			t.Fatalf("cvar %q not registered", name)
+		}
+		if cv.Flags&cvar.FlagServerInfo == 0 {
+			t.Fatalf("cvar %q missing serverinfo flag", name)
+		}
+	}
+}
+
 func TestHostFrame(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
@@ -158,5 +186,35 @@ func TestLoadingPlaqueAutoExpires(t *testing.T) {
 	}
 	if h.LoadingPlaqueActive(100.3) {
 		t.Fatal("loading plaque should expire after minimum duration")
+	}
+}
+
+func TestLoadingTransitionPlaqueHoldsUntilSignonComplete(t *testing.T) {
+	h := NewHost()
+	h.BeginLoadingTransitionPlaque(100)
+
+	if !h.LoadingPlaqueActive(101) {
+		t.Fatal("loading transition plaque should remain active before signon completion")
+	}
+
+	h.SetSignOns(client.Signons)
+
+	if !h.LoadingPlaqueActive(100.1) {
+		t.Fatal("loading transition plaque should remain active through minimum duration")
+	}
+	if h.LoadingPlaqueActive(100.3) {
+		t.Fatal("loading transition plaque should clear after signon completion and minimum duration")
+	}
+}
+
+func TestLoadingTransitionPlaqueFailsafeTimeout(t *testing.T) {
+	h := NewHost()
+	h.BeginLoadingTransitionPlaque(100)
+
+	if !h.LoadingPlaqueActive(159.9) {
+		t.Fatal("loading transition plaque should stay active before failsafe timeout")
+	}
+	if h.LoadingPlaqueActive(160.1) {
+		t.Fatal("loading transition plaque should timeout after failsafe duration")
 	}
 }

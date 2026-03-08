@@ -98,6 +98,7 @@ type Client struct {
 	Message            *MessageBuffer
 	OldFrags           int // Previous frags count for reliable message updates
 	EntityStates       map[int]EntityState
+	RespawnTime        float32
 }
 
 // AreaNode is a node in the spatial partitioning tree for entity collision.

@@ -5,6 +5,11 @@ package audio
 
 import "fmt"
 
+const (
+	ambientVolumeScale = 0.3
+	ambientFadeRate    = 100.0
+)
+
 type System struct {
 	channels    [MaxChannels]Channel
 	totalChans  int
@@ -24,6 +29,9 @@ type System struct {
 	soundTime   int
 	paintedTime int
 	mixAhead    float64
+
+	ambientSFX    [NumAmbients]*SFX
+	ambientLevels [NumAmbients]float32
 }
 
 func NewSystem() *System {
@@ -419,6 +427,96 @@ func (s *System) Unblock() {
 
 func (s *System) SetUnderwaterIntensity(intensity float32) {
 	s.mixer.SetUnderwaterIntensity(intensity)
+}
+
+func (s *System) SetAmbientSound(channel int, sfx *SFX) {
+	if channel < 0 || channel >= NumAmbients {
+		return
+	}
+	s.ambientSFX[channel] = sfx
+	if s.channels[channel].SFX != sfx {
+		s.channels[channel].SFX = sfx
+		s.channels[channel].Pos = 0
+		s.channels[channel].End = s.paintedTime
+	}
+}
+
+func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLevels [NumAmbients]uint8, underwaterIntensity float32) {
+	if s.mixer == nil {
+		return
+	}
+
+	s.mixer.SetUnderwaterIntensity(underwaterIntensity)
+
+	if !hasLeaf {
+		for i := 0; i < NumAmbients; i++ {
+			s.channels[i] = Channel{}
+			s.ambientLevels[i] = 0
+		}
+		return
+	}
+
+	fadeStep := frameTime * ambientFadeRate
+	if fadeStep < 0 {
+		fadeStep = 0
+	}
+
+	for i := 0; i < NumAmbients; i++ {
+		ch := &s.channels[i]
+		sfx := s.ambientSFX[i]
+		if ch.SFX != sfx {
+			ch.SFX = sfx
+			ch.Pos = 0
+			ch.End = s.paintedTime
+		}
+
+		target := float32(ambientLevels[i]) * ambientVolumeScale
+		if target < 8 {
+			target = 0
+		} else if target > 255 {
+			target = 255
+		}
+
+		level := s.ambientLevels[i]
+		if level < target {
+			level += fadeStep
+			if level > target {
+				level = target
+			}
+		} else if level > target {
+			level -= fadeStep
+			if level < target {
+				level = target
+			}
+		}
+		s.ambientLevels[i] = level
+
+		vol := int(level)
+		ch.LeftVol = vol
+		ch.RightVol = vol
+		ch.MasterVol = vol
+	}
+}
+
+func (s *System) UnderwaterIntensity() float32 {
+	if s == nil || s.mixer == nil {
+		return 0
+	}
+	return s.mixer.underwater.Intensity
+}
+
+func (s *System) AmbientVolume(channel int) int {
+	if s == nil || channel < 0 || channel >= NumAmbients {
+		return 0
+	}
+	return s.channels[channel].MasterVol
+}
+
+func (s *System) AmbientSound(channel int) *SFX {
+	if s == nil || channel < 0 || channel >= NumAmbients {
+		return nil
+	}
+	return s.channels[channel].SFX
 }
 
 func (s *System) IsInitialized() bool { return s.initialized }

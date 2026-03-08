@@ -51,7 +51,7 @@ D. AUDIO/MUSIC             [████████████████░�
    - Backend (SDL3/Oto): DONE
    - Event dispatch: DONE
    - Session-transition teardown (`StopAllSounds(true)` on local disconnect/reconnect/load/map paths): DONE
-   - Music/BGM: PARTIAL (WAV-backed CD tracks; broader codec parity still missing)
+- Music/BGM: PARTIAL (WAV/OGG CD tracks with search-path parity; broader codec parity still missing)
    - Sound effects: DONE
 
 E. NETWORKING/MULTIPLAYER  [████████████░░░░░░░] ~70%
@@ -62,7 +62,7 @@ E. NETWORKING/MULTIPLAYER  [████████████░░░░░�
    - Connect: DONE as bounded parity slice (remote transport-backed connect now auto-progresses signon without manual `prespawn`/`spawn`/`begin`)
    - Kick: DONE for local host command parity (name / # slot / optional message / self-protect)
    - Server commands: 85% (most working)
-   - Deathmatch mode: MISSING
+   - Deathmatch mode: BOUNDED DONE (fraglimit/timelimit rule checks + delayed deathmatch respawn flow)
 
 F. PREDICTION/DEMO         [████████████████░░░] ~80%
     - Basic prediction: DONE (simplified)
@@ -95,7 +95,7 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 2. Remote networking depth
    Location: internal/host/commands.go
-   Impact: Remote connect/reconnect and multiplayer menus now use the real transport-backed path, but broader deathmatch/netgame depth still differs from C
+   Impact: Remote connect/reconnect and multiplayer menus now use the real transport-backed path; bounded fraglimit/timelimit and delayed DM respawn behavior are now in place, while broader netgame depth still differs from C
    Fix: Continue parity slices for deeper remote game-options/netgame behavior
    Reference: host_cmd.c:Host_Connect_f / Host_Reconnect_f / Host_Kick_f
 

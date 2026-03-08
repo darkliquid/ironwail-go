@@ -10,6 +10,8 @@ import (
 
 var supportedMusicExtensions = []string{".wav", ".ogg"}
 
+type musicResolveFunc func([]string) (string, []byte, error)
+
 type musicTrack struct {
 	name     string
 	data     []byte
@@ -25,15 +27,20 @@ type musicState struct {
 	activeTrack  int
 	position     int
 	loader       func(string) ([]byte, error)
+	resolver     musicResolveFunc
 	track        *musicTrack
 }
 
-func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, error)) error {
+func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, error), resolvers ...musicResolveFunc) error {
 	if track <= 0 {
 		s.StopMusic()
 		return nil
 	}
-	if loader == nil {
+	var resolver musicResolveFunc
+	if len(resolvers) > 0 {
+		resolver = resolvers[0]
+	}
+	if loader == nil && resolver == nil {
 		s.StopMusic()
 		return fmt.Errorf("music loader is not available")
 	}
@@ -44,7 +51,7 @@ func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, 
 		return nil
 	}
 
-	resolved, err := loadMusicTrack(track, loader)
+	resolved, err := loadMusicTrack(track, loader, resolver)
 	if err != nil {
 		s.StopMusic()
 		return err
@@ -55,6 +62,7 @@ func (s *System) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, 
 		loopTrack:    loopTrack,
 		activeTrack:  track,
 		loader:       loader,
+		resolver:     resolver,
 		track:        resolved,
 	}
 	if s.rawSamples.End < s.paintedTime {
@@ -127,7 +135,7 @@ func (s *System) advanceMusicTrack() error {
 		return nil
 	}
 
-	resolved, err := loadMusicTrack(s.music.loopTrack, s.music.loader)
+	resolved, err := loadMusicTrack(s.music.loopTrack, s.music.loader, s.music.resolver)
 	if err != nil {
 		return err
 	}
@@ -137,10 +145,34 @@ func (s *System) advanceMusicTrack() error {
 	return nil
 }
 
-func loadMusicTrack(track int, loader func(string) ([]byte, error)) (*musicTrack, error) {
-	var lastErr error
+func musicTrackCandidates(track int) []string {
+	candidates := make([]string, 0, len(supportedMusicExtensions))
 	for _, ext := range supportedMusicExtensions {
-		name := fmt.Sprintf("music/track%02d%s", track, ext)
+		candidates = append(candidates, fmt.Sprintf("music/track%02d%s", track, ext))
+	}
+	return candidates
+}
+
+func loadMusicTrack(track int, loader func(string) ([]byte, error), resolver musicResolveFunc) (*musicTrack, error) {
+	candidates := musicTrackCandidates(track)
+	if resolver != nil {
+		name, data, err := resolver(candidates)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load CD track %d: %w", track, err)
+		}
+		loaded, err := decodeMusicTrack(name, data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load CD track %d: %w", track, err)
+		}
+		return loaded, nil
+	}
+
+	if loader == nil {
+		return nil, fmt.Errorf("failed to load CD track %d: music loader is not available", track)
+	}
+
+	var lastErr error
+	for _, name := range candidates {
 		data, err := loader(name)
 		if err != nil {
 			lastErr = err
@@ -156,7 +188,7 @@ func loadMusicTrack(track int, loader func(string) ([]byte, error)) (*musicTrack
 	}
 
 	if lastErr == nil {
-		lastErr = fmt.Errorf("music/track%02d%s not found", track, supportedMusicExtensions[0])
+		lastErr = fmt.Errorf("%s not found", candidates[0])
 	}
 	return nil, fmt.Errorf("failed to load CD track %d: %w", track, lastErr)
 }

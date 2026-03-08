@@ -2,7 +2,9 @@ package server
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +14,65 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
+
+func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T) {
+	s := NewServer()
+	s.MaxEdicts = 9000
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	const (
+		entNum   = 8192
+		channel  = 17
+		soundNum = 300
+	)
+	s.SoundPrecache[soundNum] = "misc/large.wav"
+	ent := &Edict{
+		Vars: &EntVars{
+			Origin: [3]float32{10, 20, 30},
+			Mins:   [3]float32{-2, -4, -6},
+			Maxs:   [3]float32{2, 4, 6},
+		},
+	}
+	s.Edicts = make([]*Edict, entNum+1)
+	s.Edicts[entNum] = ent
+
+	s.StartSound(ent, channel, "misc/large.wav", 200, 0.5)
+
+	data := s.Datagram.Data[:s.Datagram.Len()]
+	if len(data) != 21 {
+		t.Fatalf("datagram len = %d, want 21", len(data))
+	}
+	if got := data[0]; got != byte(inet.SVCSound) {
+		t.Fatalf("svc = %d, want %d", got, inet.SVCSound)
+	}
+	wantMask := byte(inet.SND_VOLUME | inet.SND_ATTENUATION | inet.SND_LARGEENTITY | inet.SND_LARGESOUND)
+	if got := data[1]; got != wantMask {
+		t.Fatalf("field mask = 0x%02x, want 0x%02x", got, wantMask)
+	}
+	if got := data[2]; got != 200 {
+		t.Fatalf("volume = %d, want 200", got)
+	}
+	if got := data[3]; got != byte(0.5*64) {
+		t.Fatalf("attenuation byte = %d, want %d", got, byte(0.5*64))
+	}
+	if got := int(binary.LittleEndian.Uint16(data[4:6])); got != entNum {
+		t.Fatalf("entity = %d, want %d", got, entNum)
+	}
+	if got := int(data[6]); got != channel {
+		t.Fatalf("channel = %d, want %d", got, channel)
+	}
+	if got := int(binary.LittleEndian.Uint16(data[7:9])); got != soundNum {
+		t.Fatalf("sound = %d, want %d", got, soundNum)
+	}
+	for i, want := range []float32{10, 20, 30} {
+		start := 9 + i*4
+		if got := math.Float32frombits(binary.LittleEndian.Uint32(data[start : start+4])); got != want {
+			t.Fatalf("origin[%d] = %v, want %v", i, got, want)
+		}
+	}
+}
 
 func TestSpawnServerStartMap(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)

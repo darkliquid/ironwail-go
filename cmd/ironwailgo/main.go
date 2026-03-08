@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -66,11 +67,13 @@ var (
 	spriteModelCache map[string]*runtimeSpriteModel
 	soundSFXByIndex  map[int]*audio.SFX
 	menuSFXByName    map[string]*audio.SFX
+	ambientSFX       [audio.NumAmbients]*audio.SFX
 	soundPrecacheKey string
 	staticSoundKey   string
 	musicTrackKey    string
 	skyboxNameKey    string
 	gameShowScores   bool
+	gameModDir       string
 )
 
 type defaultBinding struct {
@@ -218,6 +221,7 @@ func preferWaylandForGoGPU() {
 }
 
 func initSubsystems(headless bool, basedir, gamedir string, args []string) error {
+	gameModDir = strings.ToLower(strings.TrimSpace(gamedir))
 	// Initialize input system
 	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer
 	if err := gameInput.Init(); err != nil {
@@ -656,7 +660,7 @@ func main() {
 				applyGameplayMouseLook()
 			}
 
-			runRuntimeFrame(dt, cb)
+			transientEvents := runRuntimeFrame(dt, cb)
 			if gameHost != nil && gameHost.IsAborted() {
 				if gameRenderer != nil {
 					gameRenderer.Stop()
@@ -674,7 +678,7 @@ func main() {
 				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
 			}
 
-			syncRuntimeVisualEffects(dt)
+			syncRuntimeVisualEffects(dt, transientEvents)
 		})
 		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
 			if gameRenderer != nil && gameServer != nil && gameServer.WorldTree != nil && !gameRenderer.HasWorldData() {
@@ -1452,6 +1456,13 @@ func handleGameKeyEvent(event input.KeyEvent) {
 
 	binding := strings.TrimSpace(gameInput.GetBinding(event.Key))
 	if binding == "" {
+		if event.Down && event.Key >= input.KMouseBegin && !isDemoPlaybackActive() {
+			keyName := input.KeyToString(event.Key)
+			if keyName == "" {
+				keyName = fmt.Sprintf("KEY%d", event.Key)
+			}
+			console.Printf("%s is unbound, use Options menu to set.\n", keyName)
+		}
 		return
 	}
 	if strings.HasPrefix(binding, "+") {
@@ -1468,6 +1479,10 @@ func handleGameKeyEvent(event input.KeyEvent) {
 	if event.Down {
 		cmdsys.ExecuteText(binding)
 	}
+}
+
+func isDemoPlaybackActive() bool {
+	return gameHost != nil && gameHost.DemoState() != nil && gameHost.DemoState().Playback
 }
 
 func handleMenuKeyEvent(event input.KeyEvent) {
@@ -1916,6 +1931,7 @@ func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
 func resetRuntimeSoundState() {
 	soundSFXByIndex = nil
 	menuSFXByName = nil
+	ambientSFX = [audio.NumAmbients]*audio.SFX{}
 	soundPrecacheKey = ""
 	staticSoundKey = ""
 	musicTrackKey = ""
@@ -1938,16 +1954,12 @@ func resetRuntimeVisualState() {
 	skyboxNameKey = ""
 }
 
-func syncRuntimeVisualEffects(dt float64) {
+func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	if gameParticles == nil && gameDecalMarks == nil && gameRenderer == nil {
 		return
 	}
 
 	if gameClient == nil || gameClient.State != cl.StateActive {
-		if gameClient != nil {
-			gameClient.ConsumeParticleEvents()
-			gameClient.ConsumeTempEntities()
-		}
 		if gameRenderer != nil {
 			gameRenderer.ClearDynamicLights()
 		}
@@ -1960,8 +1972,8 @@ func syncRuntimeVisualEffects(dt float64) {
 	oldTime := particleTime
 	particleTime += float32(dt)
 
-	particleEvents := gameClient.ConsumeParticleEvents()
-	tempEntities := gameClient.ConsumeTempEntities()
+	particleEvents := transientEvents.ParticleEvents
+	tempEntities := transientEvents.TempEntities
 	effectSources := collectEntityEffectSources()
 
 	if gameRenderer != nil {
@@ -2053,6 +2065,107 @@ func resolveMenuSFX(name string) *audio.SFX {
 	})
 	menuSFXByName[name] = sfx
 	return sfx
+}
+
+func resolveAmbientSFX(name string) *audio.SFX {
+	if name == "" {
+		return nil
+	}
+	if gameAudio == nil || gameSubs == nil || gameSubs.Files == nil {
+		return nil
+	}
+	return gameAudio.PrecacheSound(name, func() ([]byte, error) {
+		return gameSubs.Files.LoadFile("sound/" + name)
+	})
+}
+
+func ensureRuntimeAmbientSFX() {
+	if gameAudio == nil {
+		ambientSFX = [audio.NumAmbients]*audio.SFX{}
+		return
+	}
+
+	if ambientSFX[0] == nil {
+		if sfx := resolveAmbientSFX("ambience/water1.wav"); sfx != nil {
+			ambientSFX[0] = sfx
+		}
+	}
+	if ambientSFX[1] == nil {
+		if sfx := resolveAmbientSFX("ambience/wind2.wav"); sfx != nil {
+			ambientSFX[1] = sfx
+		}
+	}
+
+	for i, sfx := range ambientSFX {
+		if sfx != nil {
+			gameAudio.SetAmbientSound(i, sfx)
+		}
+	}
+}
+
+func runtimeUnderwaterIntensity(contents int32) float32 {
+	switch contents {
+	case bsp.ContentsWater, bsp.ContentsSlime, bsp.ContentsLava:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
+	if tree == nil || len(tree.Nodes) == 0 || len(tree.Planes) == 0 || len(tree.Leafs) == 0 {
+		return bsp.TreeLeaf{}, false
+	}
+
+	nodeIndex := 0
+	for {
+		if nodeIndex < 0 || nodeIndex >= len(tree.Nodes) {
+			return bsp.TreeLeaf{}, false
+		}
+		node := tree.Nodes[nodeIndex]
+		if int(node.PlaneNum) < 0 || int(node.PlaneNum) >= len(tree.Planes) {
+			return bsp.TreeLeaf{}, false
+		}
+		plane := tree.Planes[node.PlaneNum]
+		dist := point[0]*plane.Normal[0] + point[1]*plane.Normal[1] + point[2]*plane.Normal[2] - plane.Dist
+		side := 0
+		if dist < 0 {
+			side = 1
+		}
+
+		child := node.Children[side]
+		if child.IsLeaf {
+			if child.Index < 0 || child.Index >= len(tree.Leafs) {
+				return bsp.TreeLeaf{}, false
+			}
+			return tree.Leafs[child.Index], true
+		}
+		nodeIndex = child.Index
+	}
+}
+
+func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
+	if gameAudio == nil {
+		return
+	}
+
+	ensureRuntimeAmbientSFX()
+
+	var (
+		ambientLevels [audio.NumAmbients]uint8
+		hasLeaf       bool
+		underwater    float32
+	)
+	if gameClient != nil && gameClient.State == cl.StateActive && gameServer != nil && gameServer.WorldTree != nil {
+		if leaf, ok := pointInTreeLeaf(gameServer.WorldTree, viewOrigin); ok {
+			hasLeaf = true
+			ambientLevels[0] = leaf.AmbientLevel[bsp.AmbientWater]
+			ambientLevels[1] = leaf.AmbientLevel[bsp.AmbientSky]
+			underwater = runtimeUnderwaterIntensity(leaf.Contents)
+		}
+	}
+
+	gameAudio.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwater)
 }
 
 func playMenuSound(name string) {
@@ -2185,20 +2298,19 @@ func syncRuntimeMusic() {
 	}
 	if err := gameAudio.PlayCDTrack(track, loopTrack, func(name string) ([]byte, error) {
 		return gameSubs.Files.LoadFile(name)
+	}, func(candidates []string) (string, []byte, error) {
+		return gameSubs.Files.LoadFirstAvailable(candidates)
 	}); err != nil {
 		slog.Warn("failed to play cd track", "track", track, "loop", loopTrack, "error", err)
 	}
 }
 
-func processRuntimeAudioEvents(viewOrigin [3]float32) {
-	if gameClient == nil {
-		return
-	}
-	soundEvents := gameClient.ConsumeSoundEvents()
-	stopEvents := gameClient.ConsumeStopSoundEvents()
+func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.TransientEvents) {
 	if gameAudio == nil {
 		return
 	}
+	soundEvents := transientEvents.SoundEvents
+	stopEvents := transientEvents.StopSoundEvents
 	for _, stopEvent := range stopEvents {
 		gameAudio.StopSound(stopEvent.Entity, stopEvent.Channel)
 	}
@@ -2229,13 +2341,17 @@ func processRuntimeAudioEvents(viewOrigin [3]float32) {
 	}
 }
 
-func runRuntimeFrame(dt float64, cb gameCallbacks) {
+func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	if gameHost != nil {
 		gameHost.Frame(dt, cb)
 	}
 	syncControlCvarsToClient()
 	if gameClient != nil {
 		gameClient.PredictPlayers(float32(dt))
+	}
+	transientEvents := cl.TransientEvents{}
+	if gameClient != nil {
+		transientEvents = gameClient.ConsumeTransientEvents()
 	}
 	viewOrigin, viewAngles := runtimeViewState()
 	syncRuntimeSkybox()
@@ -2244,10 +2360,12 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) {
 		syncAudioViewEntity()
 		gameAudio.SetListener(viewOrigin, forward, right, up)
 		syncRuntimeStaticSounds()
+		syncRuntimeAmbientAudio(viewOrigin, float32(dt))
 		syncRuntimeMusic()
-		processRuntimeAudioEvents(viewOrigin)
+		processRuntimeAudioEvents(viewOrigin, transientEvents)
 		gameAudio.Update(viewOrigin, forward, right, up)
 	}
+	return transientEvents
 }
 
 func isRendererError(err error) bool {
@@ -2319,6 +2437,8 @@ func updateHUDFromServer() {
 			Rockets:       rockets,
 			Cells:         cells,
 			Items:         gameClient.Items,
+			ModHipnotic:   gameModDir == "hipnotic",
+			ModRogue:      gameModDir == "rogue",
 			GameType:      gameClient.GameType,
 			MaxClients:    gameClient.MaxClients,
 			ShowScores:    gameShowScores && gameClient.MaxClients > 1,

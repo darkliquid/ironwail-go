@@ -102,11 +102,11 @@ func (a *AudioAdapter) StopSound(entNum, entChannel int) {
 	a.sys.StopSound(entNum, entChannel)
 }
 
-func (a *AudioAdapter) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, error)) error {
+func (a *AudioAdapter) PlayCDTrack(track, loopTrack int, loader func(string) ([]byte, error), resolvers ...musicResolveFunc) error {
 	if a == nil || a.sys == nil {
 		return nil
 	}
-	return a.sys.PlayCDTrack(track, loopTrack, loader)
+	return a.sys.PlayCDTrack(track, loopTrack, loader, resolvers...)
 }
 
 func (a *AudioAdapter) StopMusic() {
@@ -121,4 +121,18 @@ func (a *AudioAdapter) SetVolume(vol float64) {
 		return
 	}
 	a.sys.SetVolume(vol)
+}
+
+func (a *AudioAdapter) SetAmbientSound(channel int, sfx *SFX) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.SetAmbientSound(channel, sfx)
+}
+
+func (a *AudioAdapter) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLevels [NumAmbients]uint8, underwaterIntensity float32) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwaterIntensity)
 }

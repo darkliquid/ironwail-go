@@ -71,6 +71,8 @@ type Host struct {
 
 	loadingPlaqueActive bool
 	loadingPlaqueUntil  float64
+	loadingPlaqueHeld   bool
+	loadingPlaqueHoldTo float64
 
 	// Demo loop state (for startup demos like demo1, demo2, demo3)
 	demoList []string
@@ -137,6 +139,9 @@ func (h *Host) SignOns() int {
 
 func (h *Host) SetSignOns(count int) {
 	h.signOns = count
+	if count >= client.Signons {
+		h.EndLoadingPlaque(0)
+	}
 }
 
 func (h *Host) CurrentSkill() int {
@@ -238,7 +243,10 @@ func (h *Host) SetDemoNum(num int) {
 	h.demoNum = num
 }
 
-const loadingPlaqueMinDuration = 0.2
+const (
+	loadingPlaqueMinDuration  = 0.2
+	loadingPlaqueHoldDuration = 60.0
+)
 
 func (h *Host) BeginLoadingPlaque(now float64) {
 	h.mu.Lock()
@@ -249,6 +257,33 @@ func (h *Host) BeginLoadingPlaque(now float64) {
 	}
 	h.loadingPlaqueActive = true
 	h.loadingPlaqueUntil = now + loadingPlaqueMinDuration
+	h.loadingPlaqueHeld = false
+	h.loadingPlaqueHoldTo = 0
+}
+
+func (h *Host) BeginLoadingTransitionPlaque(now float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if now <= 0 {
+		now = currentTime()
+	}
+	h.loadingPlaqueActive = true
+	h.loadingPlaqueUntil = now + loadingPlaqueMinDuration
+	h.loadingPlaqueHeld = true
+	h.loadingPlaqueHoldTo = now + loadingPlaqueHoldDuration
+}
+
+func (h *Host) EndLoadingPlaque(now float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.loadingPlaqueHeld = false
+	h.loadingPlaqueHoldTo = 0
+	if now > 0 && now > h.loadingPlaqueUntil {
+		h.loadingPlaqueActive = false
+		h.loadingPlaqueUntil = 0
+	}
 }
 
 func (h *Host) LoadingPlaqueActive(now float64) bool {
@@ -263,6 +298,13 @@ func (h *Host) LoadingPlaqueActive(now float64) bool {
 	}
 	if now <= h.loadingPlaqueUntil {
 		return true
+	}
+	if h.loadingPlaqueHeld {
+		if now <= h.loadingPlaqueHoldTo {
+			return true
+		}
+		h.loadingPlaqueHeld = false
+		h.loadingPlaqueHoldTo = 0
 	}
 	h.loadingPlaqueActive = false
 	h.loadingPlaqueUntil = 0

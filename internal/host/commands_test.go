@@ -716,6 +716,94 @@ func TestListSaveSlotsFallsBackToLegacyBaseGameSaveWhenUserSaveMissing(t *testin
 	}
 }
 
+func TestListSaveSlotsFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   2,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "install-root-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(save): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "s0.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile(install root s0): %v", err)
+	}
+
+	h := NewHost()
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	slots := h.ListSaveSlots(1)
+	if len(slots) != 1 {
+		t.Fatalf("slot count = %d, want 1", len(slots))
+	}
+	if got := slots[0].DisplayName; got != "install-root-map" {
+		t.Fatalf("slot[0].DisplayName = %q, want install-root-map", got)
+	}
+}
+
+func TestListSaveSlotsPrefersLegacyInstallRootOverBaseGameFallback(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+
+	baseGameSave, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "base-game-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(base game): %v", err)
+	}
+	installRootSave, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "install-root-map",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(install root): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "s0.sav"), baseGameSave, 0o644); err != nil {
+		t.Fatalf("WriteFile(id1 s0): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "s0.sav"), installRootSave, 0o644); err != nil {
+		t.Fatalf("WriteFile(root s0): %v", err)
+	}
+
+	h := NewHost()
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	slots := h.ListSaveSlots(1)
+	if len(slots) != 1 {
+		t.Fatalf("slot count = %d, want 1", len(slots))
+	}
+	if got := slots[0].DisplayName; got != "install-root-map" {
+		t.Fatalf("slot[0].DisplayName = %q, want install-root-map", got)
+	}
+}
+
 func TestListSaveSlotsPrefersUserSaveOverLegacyFallback(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()
@@ -1356,7 +1444,14 @@ func TestCmdConnectRemoteUsesTransportClientAndDisconnectsCurrentSession(t *test
 	lc := newLocalLoopbackClient()
 	lc.inner.State = cl.StateActive
 	lc.inner.Signon = cl.Signons
-	remoteClient := &remoteSignonTestClient{state: caConnected}
+	remoteState := cl.NewClient()
+	remoteState.State = cl.StateActive
+	remoteState.Signon = cl.Signons
+	remoteState.LevelName = "stale-level"
+	remoteClient := &remoteReconnectStateClient{
+		state:       caActive,
+		clientState: remoteState,
+	}
 	oldFactory := remoteClientFactory
 	remoteClientFactory = func(address string) (Client, error) {
 		if address != "example.com:26000" {
@@ -1395,6 +1490,21 @@ func TestCmdConnectRemoteUsesTransportClientAndDisconnectsCurrentSession(t *test
 	}
 	if subs.Client != remoteClient {
 		t.Fatalf("client = %T, want remote transport client", subs.Client)
+	}
+	if got := remoteClient.resetCalls; got != 1 {
+		t.Fatalf("ResetConnectionState calls = %d, want 1", got)
+	}
+	if got := remoteState.State; got != cl.StateConnected {
+		t.Fatalf("remote state = %v, want %v", got, cl.StateConnected)
+	}
+	if got := remoteState.Signon; got != 0 {
+		t.Fatalf("remote signon = %d, want 0", got)
+	}
+	if got := remoteState.LevelName; got != "" {
+		t.Fatalf("remote level = %q, want cleared", got)
+	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after remote connect")
 	}
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Connecting to example.com:26000...") {
 		t.Fatalf("console output = %q, want remote connect banner", got)
@@ -1701,6 +1811,66 @@ func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
 	}
 	if !h.LoadingPlaqueActive(0) {
 		t.Fatal("loading plaque should be active after legacy save fallback")
+	}
+}
+
+func TestCmdLoadFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) failed: %v", dir, err)
+		}
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "missingmap",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	audio := &stopAllTrackingAudio{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+		Audio:   audio,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("slot1", subs)
+
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
+		t.Fatalf("console output = %q, want load failure text", got)
+	}
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active after install-root save fallback")
 	}
 }
 

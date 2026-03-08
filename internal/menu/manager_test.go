@@ -22,6 +22,14 @@ func (m *mockDrawManager) GetPic(name string) *image.QPic {
 type mockMenuRenderContext struct {
 	characters     []struct{ x, y, num int }
 	menuCharacters []struct{ x, y, num int }
+	menuPics       []struct {
+		x, y int
+		pic  *image.QPic
+	}
+	fills []struct {
+		x, y, w, h int
+		color      byte
+	}
 }
 
 func (m *mockMenuRenderContext) Clear(r, g, b, a float32)          {}
@@ -30,8 +38,16 @@ func (m *mockMenuRenderContext) SurfaceView() interface{}          { return nil 
 func (m *mockMenuRenderContext) Gamma() float32                    { return 1.0 }
 func (m *mockMenuRenderContext) DrawPic(x, y int, pic *image.QPic) {}
 func (m *mockMenuRenderContext) DrawMenuPic(x, y int, pic *image.QPic) {
+	m.menuPics = append(m.menuPics, struct {
+		x, y int
+		pic  *image.QPic
+	}{x: x, y: y, pic: pic})
 }
 func (m *mockMenuRenderContext) DrawFill(x, y, w, h int, color byte) {
+	m.fills = append(m.fills, struct {
+		x, y, w, h int
+		color      byte
+	}{x: x, y: y, w: w, h: h, color: color})
 }
 func (m *mockMenuRenderContext) DrawCharacter(x, y int, num int) {
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
@@ -85,6 +101,32 @@ func setSetupTestCVars(t *testing.T, hostname, name string, color int) {
 		cvar.Set(hostnameCV.Name, oldHostname)
 		cvar.Set(nameCV.Name, oldName)
 		cvar.Set(colorCV.Name, oldColor)
+	})
+}
+
+func setHostGameTestCVars(t *testing.T, maxPlayers, coop, deathmatch, skill int) {
+	t.Helper()
+
+	maxPlayersCV := cvar.Register("maxplayers", "16", cvar.FlagServerInfo, "")
+	coopCV := cvar.Register("coop", "0", cvar.FlagServerInfo, "")
+	deathmatchCV := cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "")
+	skillCV := cvar.Register("skill", "1", cvar.FlagArchive, "")
+
+	oldMaxPlayers := maxPlayersCV.String
+	oldCoop := coopCV.String
+	oldDeathmatch := deathmatchCV.String
+	oldSkill := skillCV.String
+
+	cvar.SetInt(maxPlayersCV.Name, maxPlayers)
+	cvar.SetInt(coopCV.Name, coop)
+	cvar.SetInt(deathmatchCV.Name, deathmatch)
+	cvar.SetInt(skillCV.Name, skill)
+
+	t.Cleanup(func() {
+		cvar.Set(maxPlayersCV.Name, oldMaxPlayers)
+		cvar.Set(coopCV.Name, oldCoop)
+		cvar.Set(deathmatchCV.Name, oldDeathmatch)
+		cvar.Set(skillCV.Name, oldSkill)
 	})
 }
 
@@ -736,6 +778,7 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
+	setHostGameTestCVars(t, 4, 1, 0, 1)
 
 	var commands []string
 	mgr.commandText = func(text string) {
@@ -772,6 +815,7 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 
 	want := []string{
 		"disconnect\n",
+		"listen 0\n",
 		"maxplayers 3\n",
 		"deathmatch 1\n",
 		"coop 0\n",
@@ -785,6 +829,57 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 		if got := commands[i]; got != expected {
 			t.Fatalf("command %d = %q, want %q", i, got, expected)
 		}
+	}
+}
+
+func TestHostGameMenuSyncsFromLiveNetgameCVars(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	setHostGameTestCVars(t, 1, 0, 1, 3)
+
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+	mgr.multiPlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuHostGame {
+		t.Fatalf("expected host game menu, got %v", got)
+	}
+	if got := mgr.hostMaxPlayers; got != hostMaxPlayersMax {
+		t.Fatalf("host maxplayers = %d, want %d", got, hostMaxPlayersMax)
+	}
+	if got := mgr.hostGameMode; got != 1 {
+		t.Fatalf("host mode = %d, want deathmatch mode (1)", got)
+	}
+	if got := mgr.hostSkill; got != 3 {
+		t.Fatalf("host skill = %d, want 3", got)
+	}
+}
+
+func TestHostGameMenuMaxPlayersClampsAtBounds(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	setHostGameTestCVars(t, hostMaxPlayersMin, 0, 1, 1)
+
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+	mgr.multiPlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+
+	mgr.hostGameCursor = hostGameItemMaxPlayers
+	mgr.M_Key(input.KLeftArrow)
+	if got := mgr.hostMaxPlayers; got != hostMaxPlayersMin {
+		t.Fatalf("host maxplayers after decrement = %d, want %d", got, hostMaxPlayersMin)
+	}
+
+	mgr.hostMaxPlayers = hostMaxPlayersMax
+	mgr.M_Key(input.KRightArrow)
+	if got := mgr.hostMaxPlayers; got != hostMaxPlayersMax {
+		t.Fatalf("host maxplayers after increment = %d, want %d", got, hostMaxPlayersMax)
 	}
 }
 
@@ -917,6 +1012,98 @@ func TestSetupMenuEscapesBackslashesAndQuotesInName(t *testing.T) {
 	}
 	if commands[0] != "name \"player\\\\t\\\"name\\\"\"\n" {
 		t.Fatalf("unexpected escaped name command: %q", commands[0])
+	}
+}
+
+type mapDrawManager struct {
+	pics map[string]*image.QPic
+}
+
+func (m *mapDrawManager) GetPic(name string) *image.QPic {
+	if m.pics == nil {
+		return nil
+	}
+	return m.pics[name]
+}
+
+func TestDrawSetupUsesTextBoxesAndTranslatedPlayerArt(t *testing.T) {
+	box := &image.QPic{Width: 8, Height: 8, Pixels: []byte{1}}
+	menuplyr := &image.QPic{
+		Width:  2,
+		Height: 2,
+		Pixels: []byte{16, 31, 96, 111},
+	}
+	drawMgr := &mapDrawManager{
+		pics: map[string]*image.QPic{
+			"gfx/bigbox.lmp":   box,
+			"gfx/menuplyr.lmp": menuplyr,
+			"gfx/box_tl.lmp":   box,
+			"gfx/box_ml.lmp":   box,
+			"gfx/box_bl.lmp":   box,
+			"gfx/box_tm.lmp":   box,
+			"gfx/box_mm.lmp":   box,
+			"gfx/box_mm2.lmp":  box,
+			"gfx/box_bm.lmp":   box,
+			"gfx/box_tr.lmp":   box,
+			"gfx/box_mr.lmp":   box,
+			"gfx/box_br.lmp":   box,
+		},
+	}
+	mgr := NewManager(drawMgr, input.NewSystem(nil))
+	mgr.setupTopColor = 2
+	mgr.setupBottomColor = 9
+
+	rc := &mockMenuRenderContext{}
+	mgr.drawSetup(rc)
+
+	if len(rc.fills) != 0 {
+		t.Fatalf("drawSetup should not use color swatch DrawFill, got %d calls", len(rc.fills))
+	}
+
+	var foundBigBox bool
+	var translated *image.QPic
+	for _, call := range rc.menuPics {
+		if call.x == 160 && call.y == 64 && call.pic == box {
+			foundBigBox = true
+		}
+		if call.x == 172 && call.y == 72 {
+			translated = call.pic
+		}
+	}
+	if !foundBigBox {
+		t.Fatalf("expected bigbox preview draw call at (160,64), calls=%v", rc.menuPics)
+	}
+	if translated == nil {
+		t.Fatalf("expected translated player preview draw call at (172,72), calls=%v", rc.menuPics)
+	}
+	if translated == menuplyr {
+		t.Fatal("expected translated player preview pic copy, got original pic pointer")
+	}
+	if got, want := translated.Pixels, []byte{32, 47, 159, 144}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] || got[3] != want[3] {
+		t.Fatalf("translated preview pixels = %v, want %v", got, want)
+	}
+}
+
+func TestTranslateSetupPlayerPicMapsTopAndBottomRanges(t *testing.T) {
+	pic := &image.QPic{
+		Width:  5,
+		Height: 1,
+		Pixels: []byte{15, 16, 31, 96, 111},
+	}
+
+	got := translateSetupPlayerPic(pic, 2, 9)
+	want := []byte{15, 32, 47, 159, 144}
+	if len(got.Pixels) != len(want) {
+		t.Fatalf("translated length = %d, want %d", len(got.Pixels), len(want))
+	}
+	for i := range want {
+		if got.Pixels[i] != want[i] {
+			t.Fatalf("translated[%d] = %d, want %d (all=%v)", i, got.Pixels[i], want[i], got.Pixels)
+		}
+	}
+
+	if pic.Pixels[1] != 16 || pic.Pixels[2] != 31 || pic.Pixels[3] != 96 || pic.Pixels[4] != 111 {
+		t.Fatalf("source pic mutated: %v", pic.Pixels)
 	}
 }
 

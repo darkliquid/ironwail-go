@@ -103,6 +103,13 @@ type ParticleEvent struct {
 	Color  int
 }
 
+type TransientEvents struct {
+	SoundEvents     []SoundEvent
+	StopSoundEvents []StopSoundEvent
+	ParticleEvents  []ParticleEvent
+	TempEntities    []TempEntityEvent
+}
+
 type Client struct {
 	State  ClientState
 	Signon int
@@ -445,6 +452,18 @@ func (c *Client) ConsumeTempEntities() []TempEntityEvent {
 	events := c.TempEntities
 	c.TempEntities = nil
 	return events
+}
+
+func (c *Client) ConsumeTransientEvents() TransientEvents {
+	if c == nil {
+		return TransientEvents{}
+	}
+	return TransientEvents{
+		SoundEvents:     c.ConsumeSoundEvents(),
+		StopSoundEvents: c.ConsumeStopSoundEvents(),
+		ParticleEvents:  c.ConsumeParticleEvents(),
+		TempEntities:    c.ConsumeTempEntities(),
+	}
 }
 
 func (c *Client) ConsumeStuffCommands() string {

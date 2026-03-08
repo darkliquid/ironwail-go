@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
@@ -283,6 +284,123 @@ func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
 	runRuntimeFrame(0.016, gameCallbacks{})
 	if got := sys.ViewEntity(); got != 0 {
 		t.Fatalf("audio view entity after clearing client = %d, want 0", got)
+	}
+}
+
+func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
+	originalHost := gameHost
+	originalClient := gameClient
+	originalAudio := gameAudio
+	originalServer := gameServer
+	originalSubs := gameSubs
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameClient = originalClient
+		gameAudio = originalAudio
+		gameServer = originalServer
+		gameSubs = originalSubs
+	})
+
+	sys := audio.NewSystem()
+	if err := sys.Init(audio.NewNullBackend(), 44100, false); err != nil {
+		t.Fatalf("audio.Init failed: %v", err)
+	}
+	if err := sys.Startup(); err != nil {
+		t.Fatalf("audio.Startup failed: %v", err)
+	}
+	gameAudio = audio.NewAudioAdapter(sys)
+	gameAudio.SetAmbientSound(0, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
+	gameAudio.SetAmbientSound(1, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
+
+	gameHost = nil
+	gameSubs = nil
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.ViewEntity = 1
+	gameClient.ViewHeight = 0
+	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{64, 0, 0}}
+	gameServer = &server.Server{
+		WorldTree: &bsp.Tree{
+			Planes: []bsp.DPlane{
+				{Normal: [3]float32{1, 0, 0}, Dist: 0},
+			},
+			Nodes: []bsp.TreeNode{
+				{
+					PlaneNum: 0,
+					Children: [2]bsp.TreeChild{
+						{IsLeaf: true, Index: 1},
+						{IsLeaf: true, Index: 2},
+					},
+				},
+			},
+			Leafs: []bsp.TreeLeaf{
+				{Contents: bsp.ContentsSolid},
+				{Contents: bsp.ContentsWater, AmbientLevel: [bsp.NumAmbients]uint8{80, 80, 0, 0}},
+				{Contents: bsp.ContentsEmpty, AmbientLevel: [bsp.NumAmbients]uint8{0, 0, 0, 0}},
+			},
+		},
+	}
+
+	runRuntimeFrame(0.1, gameCallbacks{})
+	if got := sys.UnderwaterIntensity(); got <= 0 {
+		t.Fatalf("underwater intensity in water leaf = %v, want > 0", got)
+	}
+	if got := sys.ViewEntity(); got != 1 {
+		t.Fatalf("audio view entity after leaf update = %d, want 1", got)
+	}
+	if got := sys.AmbientVolume(0); got != 10 {
+		t.Fatalf("ambient channel 0 volume = %d, want 10", got)
+	}
+	if got := sys.AmbientVolume(1); got != 10 {
+		t.Fatalf("ambient channel 1 volume = %d, want 10", got)
+	}
+
+	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{-64, 0, 0}}
+	runRuntimeFrame(0.1, gameCallbacks{})
+	if got := sys.UnderwaterIntensity(); got != 0 {
+		t.Fatalf("underwater intensity in dry leaf = %v, want 0", got)
+	}
+	if got := sys.AmbientVolume(0); got != 0 {
+		t.Fatalf("ambient channel 0 volume in dry leaf = %d, want 0", got)
+	}
+	if got := sys.AmbientVolume(1); got != 0 {
+		t.Fatalf("ambient channel 1 volume in dry leaf = %d, want 0", got)
+	}
+
+	gameServer = nil
+	runRuntimeFrame(0.1, gameCallbacks{})
+	if sys.AmbientSound(0) != nil || sys.AmbientSound(1) != nil {
+		t.Fatalf("ambient channels should clear when no world tree is available")
+	}
+}
+
+func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
+	originalHost := gameHost
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameClient = originalClient
+	})
+
+	gameHost = nil
+	gameClient = cl.NewClient()
+	gameClient.State = cl.StateActive
+	gameClient.SoundEvents = []cl.SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
+	gameClient.StopSoundEvents = []cl.StopSoundEvent{{Entity: 4, Channel: 5}}
+	gameClient.ParticleEvents = []cl.ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
+	gameClient.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}}}
+
+	events := runRuntimeFrame(0.016, gameCallbacks{})
+	if len(events.SoundEvents) != 1 || len(events.StopSoundEvents) != 1 || len(events.ParticleEvents) != 1 || len(events.TempEntities) != 1 {
+		t.Fatalf("runRuntimeFrame consumed = %d sounds, %d stops, %d particles, %d temps; want 1,1,1,1", len(events.SoundEvents), len(events.StopSoundEvents), len(events.ParticleEvents), len(events.TempEntities))
+	}
+	if len(gameClient.SoundEvents) != 0 || len(gameClient.StopSoundEvents) != 0 || len(gameClient.ParticleEvents) != 0 || len(gameClient.TempEntities) != 0 {
+		t.Fatalf("client buffers not cleared: %d sounds %d stops %d particles %d temps", len(gameClient.SoundEvents), len(gameClient.StopSoundEvents), len(gameClient.ParticleEvents), len(gameClient.TempEntities))
+	}
+
+	events = runRuntimeFrame(0.016, gameCallbacks{})
+	if len(events.SoundEvents) != 0 || len(events.StopSoundEvents) != 0 || len(events.ParticleEvents) != 0 || len(events.TempEntities) != 0 {
+		t.Fatalf("second frame consumed = %d sounds, %d stops, %d particles, %d temps; want 0,0,0,0", len(events.SoundEvents), len(events.StopSoundEvents), len(events.ParticleEvents), len(events.TempEntities))
 	}
 }
 
@@ -1226,7 +1344,8 @@ func TestSyncRuntimeVisualEffectsEmitsParticlesAndDecals(t *testing.T) {
 		{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}},
 	}
 
-	syncRuntimeVisualEffects(0.1)
+	transientEvents := gameClient.ConsumeTransientEvents()
+	syncRuntimeVisualEffects(0.1, transientEvents)
 
 	if gameParticles == nil || gameParticles.ActiveCount() == 0 {
 		t.Fatalf("expected runtime visual sync to emit particles")
@@ -1271,7 +1390,7 @@ func TestSyncRuntimeVisualEffectsEmitsBrightFieldParticles(t *testing.T) {
 		1: {ModelIndex: 1, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTFIELD},
 	}
 
-	syncRuntimeVisualEffects(0.1)
+	syncRuntimeVisualEffects(0.1, cl.TransientEvents{})
 
 	if gameParticles == nil {
 		t.Fatalf("expected runtime visual sync to keep particle system initialized")
@@ -1309,7 +1428,8 @@ func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
 	gameClient.State = cl.StateConnected
 	gameClient.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 1, 1}}}
 
-	syncRuntimeVisualEffects(0.1)
+	transientEvents := gameClient.ConsumeTransientEvents()
+	syncRuntimeVisualEffects(0.1, transientEvents)
 
 	gotMarks := 0
 	if gameDecalMarks != nil {
@@ -2329,6 +2449,51 @@ func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
 	}
 }
 
+func TestHandleGameKeyEventUnboundSpecialKeyFeedback(t *testing.T) {
+	originalInput := gameInput
+	originalHost := gameHost
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameHost = originalHost
+		console.SetPrintCallback(nil)
+	})
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+
+	gameInput = input.NewSystem(nil)
+	gameInput.SetKeyDest(input.KeyGame)
+
+	var printed strings.Builder
+	console.SetPrintCallback(func(msg string) {
+		printed.WriteString(msg)
+	})
+
+	handleGameKeyEvent(input.KeyEvent{Key: input.KMouse4, Down: true})
+	output := printed.String()
+	if !strings.Contains(output, "MOUSE4 is unbound, use Options menu to set.") {
+		t.Fatalf("unbound special-key feedback = %q, missing expected hint", output)
+	}
+
+	printed.Reset()
+	gameInput.SetKeyDest(input.KeyMenu)
+	handleGameKeyEvent(input.KeyEvent{Key: input.KMouse4, Down: true})
+	if got := printed.String(); got != "" {
+		t.Fatalf("menu destination should not print unbound game hint, got %q", got)
+	}
+
+	printed.Reset()
+	gameInput.SetKeyDest(input.KeyGame)
+	gameHost = host.NewHost()
+	gameHost.SetDemoState(&cl.DemoState{Playback: true})
+	handleGameKeyEvent(input.KeyEvent{Key: input.KMouse4, Down: true})
+	if got := printed.String(); got != "" {
+		t.Fatalf("demo playback should suppress unbound hint, got %q", got)
+	}
+}
+
 func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
 	originalHost := gameHost
 	originalClient := gameClient
@@ -2465,6 +2630,16 @@ func (fsys *runtimeMusicTestFS) LoadFile(filename string) ([]byte, error) {
 		return data, nil
 	}
 	return nil, fmt.Errorf("missing %s", filename)
+}
+
+func (fsys *runtimeMusicTestFS) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	fsys.loads++
+	for _, filename := range filenames {
+		if data, ok := fsys.files[filename]; ok {
+			return filename, data, nil
+		}
+	}
+	return "", nil, fmt.Errorf("missing files: %v", filenames)
 }
 
 func testRuntimeMusicWAV(t *testing.T, sampleRate, channels, width, frames int) []byte {

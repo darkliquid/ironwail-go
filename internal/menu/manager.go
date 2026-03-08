@@ -56,6 +56,8 @@ const (
 	setupColorMax       = 13
 	joinAddressMax      = 63
 	hostMapMaxLen       = 32
+	hostMaxPlayersMin   = 2
+	hostMaxPlayersMax   = 16
 
 	menuSoundNavigate = "misc/menu1.wav"
 	menuSoundSelect   = "misc/menu2.wav"
@@ -256,8 +258,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		joinGameCursor:     0,
 		joinAddress:        "local",
 		hostGameCursor:     0,
-		hostMaxPlayers:     4,
-		hostGameMode:       0,
+		hostMaxPlayers:     hostMaxPlayersMax,
+		hostGameMode:       1,
 		hostSkill:          1,
 		hostMapName:        "start",
 		drawManager:        drawMgr,
@@ -560,6 +562,7 @@ func (m *Manager) multiPlayerKey(key int) {
 			m.state = MenuJoinGame
 			m.joinGameCursor = 0
 		case 1:
+			m.syncHostGameValues()
 			m.state = MenuHostGame
 			m.hostGameCursor = 0
 		case 2:
@@ -661,6 +664,35 @@ func (m *Manager) syncSetupValues() {
 	m.setupHostname = currentSetupHostname()
 	m.setupName = currentSetupName()
 	m.setupTopColor, m.setupBottomColor = splitSetupColors(currentSetupColor())
+}
+
+func (m *Manager) syncHostGameValues() {
+	maxPlayers := m.hostMaxPlayers
+	if cv := cvar.Get("maxplayers"); cv != nil {
+		maxPlayers = cv.Int
+	}
+	if maxPlayers < hostMaxPlayersMin {
+		maxPlayers = hostMaxPlayersMax
+	}
+	if maxPlayers > hostMaxPlayersMax {
+		maxPlayers = hostMaxPlayersMax
+	}
+	m.hostMaxPlayers = maxPlayers
+
+	if cv := cvar.Get("skill"); cv != nil {
+		m.hostSkill = cv.Int
+	}
+	if m.hostSkill < 0 {
+		m.hostSkill = 3
+	}
+	if m.hostSkill > 3 {
+		m.hostSkill = 0
+	}
+
+	m.hostGameMode = 1
+	if cv := cvar.Get("coop"); cv != nil && cv.Int != 0 {
+		m.hostGameMode = 0
+	}
 }
 
 func currentSetupHostname() string {
@@ -1221,14 +1253,21 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 	switch m.hostGameCursor {
 	case hostGameItemMaxPlayers:
 		m.hostMaxPlayers += delta
-		if m.hostMaxPlayers < 2 {
-			m.hostMaxPlayers = 16
+		if m.hostMaxPlayers < hostMaxPlayersMin {
+			m.hostMaxPlayers = hostMaxPlayersMin
 		}
-		if m.hostMaxPlayers > 16 {
-			m.hostMaxPlayers = 2
+		if m.hostMaxPlayers > hostMaxPlayersMax {
+			m.hostMaxPlayers = hostMaxPlayersMax
 		}
 	case hostGameItemMode:
 		m.hostGameMode = wrapIndex(m.hostGameMode+delta, 2)
+		if m.hostGameMode == 0 {
+			cvar.SetInt("coop", 1)
+			cvar.SetInt("deathmatch", 0)
+		} else {
+			cvar.SetInt("coop", 0)
+			cvar.SetInt("deathmatch", 1)
+		}
 	case hostGameItemSkill:
 		m.hostSkill += delta
 		if m.hostSkill < 0 {
@@ -1237,6 +1276,7 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 		if m.hostSkill > 3 {
 			m.hostSkill = 0
 		}
+		cvar.SetInt("skill", m.hostSkill)
 	}
 }
 
@@ -1287,6 +1327,7 @@ func (m *Manager) applyHostGame() {
 	}
 	m.HideMenu()
 	m.queueCommand("disconnect\n")
+	m.queueCommand("listen 0\n")
 	m.queueCommand(fmt.Sprintf("maxplayers %d\n", m.hostMaxPlayers))
 	m.queueCommand(fmt.Sprintf("deathmatch %d\n", deathmatch))
 	m.queueCommand(fmt.Sprintf("coop %d\n", coop))
@@ -1511,17 +1552,21 @@ func (m *Manager) drawSetup(dc renderer.RenderContext) {
 	m.drawText(dc, 64, 104, "PANTS COLOR", true)
 	m.drawText(dc, 72, 140, "ACCEPT CHANGES", true)
 
+	m.drawMenuTextBox(dc, 160, 32, 16, 1)
+	m.drawMenuTextBox(dc, 160, 48, 16, 1)
+	m.drawMenuTextBox(dc, 64, 132, 14, 1)
+
 	m.drawText(dc, 176, 40, m.setupHostname, true)
 	m.drawText(dc, 176, 56, m.setupName, true)
 	m.drawText(dc, 176, 80, fmt.Sprintf("%d", m.setupTopColor), true)
 	m.drawText(dc, 176, 104, fmt.Sprintf("%d", m.setupBottomColor), true)
 
-	swatchX := 224
-	swatchY := 76
-	swatchW := 32
-	swatchHalfH := 16
-	dc.DrawFill(swatchX, swatchY, swatchW, swatchHalfH, byte(m.setupTopColor*16))
-	dc.DrawFill(swatchX, swatchY+swatchHalfH, swatchW, swatchHalfH, byte(m.setupBottomColor*16))
+	if bigBox := m.getPic("gfx/bigbox.lmp"); bigBox != nil {
+		dc.DrawMenuPic(160, 64, bigBox)
+	}
+	if player := m.getPic("gfx/menuplyr.lmp"); player != nil {
+		dc.DrawMenuPic(172, 72, translateSetupPlayerPic(player, m.setupTopColor, m.setupBottomColor))
+	}
 
 	setupCursorTable := []int{40, 56, 80, 104, 140}
 	m.drawArrowCursor(dc, 56, setupCursorTable[m.setupCursor])
@@ -1537,6 +1582,94 @@ func (m *Manager) drawSetup(dc renderer.RenderContext) {
 		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
 		dc.DrawMenuCharacter(cursorX, 56, cursorChar)
 	}
+}
+
+func (m *Manager) drawMenuTextBox(dc renderer.RenderContext, x, y, width, lines int) {
+	cx := x
+	cy := y
+
+	if pic := m.getPic("gfx/box_tl.lmp"); pic != nil {
+		dc.DrawMenuPic(cx, cy, pic)
+	}
+	if pic := m.getPic("gfx/box_ml.lmp"); pic != nil {
+		for n := 0; n < lines; n++ {
+			cy += 8
+			dc.DrawMenuPic(cx, cy, pic)
+		}
+	}
+	if pic := m.getPic("gfx/box_bl.lmp"); pic != nil {
+		dc.DrawMenuPic(cx, cy+8, pic)
+	}
+
+	cx += 8
+	for remaining := width; remaining > 0; remaining -= 2 {
+		cy = y
+		if pic := m.getPic("gfx/box_tm.lmp"); pic != nil {
+			dc.DrawMenuPic(cx, cy, pic)
+		}
+		for n := 0; n < lines; n++ {
+			cy += 8
+			name := "gfx/box_mm.lmp"
+			if n == 1 {
+				name = "gfx/box_mm2.lmp"
+			}
+			if pic := m.getPic(name); pic != nil {
+				dc.DrawMenuPic(cx, cy, pic)
+			}
+		}
+		if pic := m.getPic("gfx/box_bm.lmp"); pic != nil {
+			dc.DrawMenuPic(cx, cy+8, pic)
+		}
+		cx += 16
+	}
+
+	cy = y
+	if pic := m.getPic("gfx/box_tr.lmp"); pic != nil {
+		dc.DrawMenuPic(cx, cy, pic)
+	}
+	if pic := m.getPic("gfx/box_mr.lmp"); pic != nil {
+		for n := 0; n < lines; n++ {
+			cy += 8
+			dc.DrawMenuPic(cx, cy, pic)
+		}
+	}
+	if pic := m.getPic("gfx/box_br.lmp"); pic != nil {
+		dc.DrawMenuPic(cx, cy+8, pic)
+	}
+}
+
+func translateSetupPlayerPic(pic *image.QPic, topColor, bottomColor int) *image.QPic {
+	if pic == nil {
+		return nil
+	}
+
+	translated := make([]byte, len(pic.Pixels))
+	copy(translated, pic.Pixels)
+
+	topStart := byte((topColor & 15) << 4)
+	bottomStart := byte((bottomColor & 15) << 4)
+
+	for i, pixel := range translated {
+		switch {
+		case pixel >= 16 && pixel < 32:
+			translated[i] = translatedPlayerColor(topStart, pixel-16)
+		case pixel >= 96 && pixel < 112:
+			translated[i] = translatedPlayerColor(bottomStart, pixel-96)
+		}
+	}
+
+	return &image.QPic{
+		Width:  pic.Width,
+		Height: pic.Height,
+		Pixels: translated,
+	}
+}
+
+func translatedPlayerColor(start, offset byte) byte {
+	if start < 128 {
+		return start + offset
+	}
+	return start + (15 - offset)
 }
 
 func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string) {

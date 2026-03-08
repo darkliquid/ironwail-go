@@ -14,6 +14,7 @@ import (
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/image"
 )
 
 // Uniforms structure for world rendering, must match WGSL Uniforms struct
@@ -72,6 +73,8 @@ type WorldFace struct {
 	Flags int32
 }
 
+const worldDepthTextureFormat = gputypes.TextureFormatDepth24Plus
+
 // WorldRenderData holds GPU-side resources for world rendering.
 // This is what gets uploaded to the GPU and used during rendering.
 type WorldRenderData struct {
@@ -83,13 +86,12 @@ type WorldRenderData struct {
 	// BoundsMax is the maximum XYZ world-space coordinate of uploaded geometry.
 	BoundsMax [3]float32
 
-	// TODO: GPU buffer handles (when gogpu exposes buffer API)
-	// VertexBuffer  *gogpu.Buffer
-	// IndexBuffer   *gogpu.Buffer
-
-	// TODO: Texture arrays/atlases
-	// DiffuseTextures  []*gogpu.Texture
-	// LightmapTextures []*gogpu.Texture
+	// Backend resource status used for diagnostics and parity tracking.
+	VertexBufferUploaded bool
+	IndexBufferUploaded  bool
+	HasDiffuseTextures   bool
+	HasLightmapTextures  bool
+	HasDepthBuffer       bool
 
 	// Stats for debugging
 	TotalVertices int
@@ -148,10 +150,10 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 		// Extract face metadata
 		faceData := WorldFace{
 			FirstIndex:    uint32(len(geom.Indices)),
-			NumIndices:    0,            // Will be computed during triangulation
-			TextureIndex:  face.Texinfo, // TODO: Map to actual texture
-			LightmapIndex: -1,           // TODO: Process lightmaps
-			Flags:         0,            // TODO: Extract flags from texinfo
+			NumIndices:    0, // Will be computed during triangulation
+			TextureIndex:  worldFaceTextureIndex(tree, face),
+			LightmapIndex: worldFaceLightmapIndex(face),
+			Flags:         worldFaceFlags(tree, face),
 		}
 
 		// Extract vertices for this face
@@ -224,7 +226,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 			"planeNum", face.PlaneNum,
 			"numPlanes", len(tree.Planes))
 	}
-	
+
 	// Check if normal is valid (not all zeros)
 	normalLen := float32(math.Sqrt(float64(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])))
 	if normalLen < 0.01 {
@@ -232,6 +234,9 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 			"faceIdx", face,
 			"normalLen", normalLen)
 	}
+
+	texInfo := worldFaceTexInfo(tree, face)
+	textureWidth, textureHeight := worldTextureDimensions(tree, texInfo)
 
 	// Iterate through edges to extract vertex positions
 	for i := int32(0); i < face.NumEdges; i++ {
@@ -263,16 +268,14 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 
 		position := tree.Vertexes[vertIdx].Point
 
-		// TODO: Compute texture coordinates from TexInfo
-		// For now, use placeholder values
 		texCoord := [2]float32{0.0, 0.0}
 		lightmapCoord := [2]float32{0.0, 0.0}
-
-		// TODO: Proper texture coordinate calculation
-		// The TexInfo contains texture axis vectors that need to be
-		// applied to the vertex position to get UV coordinates.
-		// Formula: u = dot(position, texInfo.Vecs[0]) + texInfo.Vecs[0][3]
-		//          v = dot(position, texInfo.Vecs[1]) + texInfo.Vecs[1][3]
+		if texInfo != nil {
+			u := position[0]*texInfo.Vecs[0][0] + position[1]*texInfo.Vecs[0][1] + position[2]*texInfo.Vecs[0][2] + texInfo.Vecs[0][3]
+			v := position[0]*texInfo.Vecs[1][0] + position[1]*texInfo.Vecs[1][1] + position[2]*texInfo.Vecs[1][2] + texInfo.Vecs[1][3]
+			texCoord = [2]float32{u / textureWidth, v / textureHeight}
+			lightmapCoord = [2]float32{u / 16.0, v / 16.0}
+		}
 
 		vertices = append(vertices, WorldVertex{
 			Position:      position,
@@ -283,6 +286,77 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 	}
 
 	return vertices, nil
+}
+
+func worldFaceTexInfo(tree *bsp.Tree, face *bsp.TreeFace) *bsp.Texinfo {
+	if tree == nil || face == nil {
+		return nil
+	}
+	if int(face.Texinfo) < 0 || int(face.Texinfo) >= len(tree.Texinfo) {
+		return nil
+	}
+	return &tree.Texinfo[face.Texinfo]
+}
+
+func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
+	texInfo := worldFaceTexInfo(tree, face)
+	if texInfo == nil || texInfo.Miptex < 0 {
+		return -1
+	}
+	return texInfo.Miptex
+}
+
+func worldFaceLightmapIndex(face *bsp.TreeFace) int32 {
+	if face == nil || face.LightOfs < 0 || face.Styles[0] == 255 {
+		return -1
+	}
+	// gogpu path does not allocate lightmap pages yet; keep a stable "present" sentinel.
+	return 0
+}
+
+func worldFaceFlags(tree *bsp.Tree, face *bsp.TreeFace) int32 {
+	texInfo := worldFaceTexInfo(tree, face)
+	if texInfo == nil {
+		return 0
+	}
+	return texInfo.Flags
+}
+
+func worldTextureDimensions(tree *bsp.Tree, texInfo *bsp.Texinfo) (float32, float32) {
+	textureWidth := float32(1)
+	textureHeight := float32(1)
+	if tree == nil || texInfo == nil || texInfo.Miptex < 0 || len(tree.TextureData) < 4 {
+		return textureWidth, textureHeight
+	}
+
+	textureCount := int(int32(binary.LittleEndian.Uint32(tree.TextureData[:4])))
+	miptexIndex := int(texInfo.Miptex)
+	if miptexIndex < 0 || miptexIndex >= textureCount {
+		return textureWidth, textureHeight
+	}
+	offsetTableEnd := 4 + textureCount*4
+	if len(tree.TextureData) < offsetTableEnd {
+		return textureWidth, textureHeight
+	}
+
+	offsetPos := 4 + miptexIndex*4
+	offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[offsetPos : offsetPos+4])))
+	if offset <= 0 || offset >= len(tree.TextureData) {
+		return textureWidth, textureHeight
+	}
+
+	miptex, err := image.ParseMipTex(tree.TextureData[offset:])
+	if err != nil {
+		return textureWidth, textureHeight
+	}
+
+	if miptex.Width > 0 {
+		textureWidth = float32(miptex.Width)
+	}
+	if miptex.Height > 0 {
+		textureHeight = float32(miptex.Height)
+	}
+	return textureWidth, textureHeight
 }
 
 // worldVertexShaderWGSL is the WGSL source for world vertex shader
@@ -618,6 +692,14 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		Targets:    fragmentTargets,
 	}
 
+	depthStencilState := hal.DepthStencilState{
+		Format:            worldDepthTextureFormat,
+		DepthWriteEnabled: true,
+		DepthCompare:      gputypes.CompareFunctionLessEqual,
+		StencilReadMask:   0xFFFFFFFF,
+		StencilWriteMask:  0xFFFFFFFF,
+	}
+
 	// Create render pipeline descriptor
 	pipelineDesc := &hal.RenderPipelineDescriptor{
 		Label:  "World Render Pipeline",
@@ -628,7 +710,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
 		},
 		Primitive:    primitiveState,
-		DepthStencil: nil,
+		DepthStencil: &depthStencilState,
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -887,6 +969,16 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		// Don't fail completely, will use direct rendering fallback
 	}
 
+	width, height := r.Size()
+	var depthTexture hal.Texture
+	var depthTextureView hal.TextureView
+	if width > 0 && height > 0 {
+		depthTexture, depthTextureView, err = r.createWorldDepthTexture(device, width, height)
+		if err != nil {
+			slog.Warn("Failed to create world depth texture", "error", err)
+		}
+	}
+
 	// Store GPU resources in renderer
 	r.mu.Lock()
 	r.worldData = renderData
@@ -899,6 +991,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.uniformBuffer = uniformBuffer
 	r.whiteTexture = whiteTexture
 	r.whiteTextureView = whiteTextureView
+	r.worldDepthTexture = depthTexture
+	r.worldDepthTextureView = depthTextureView
+	renderData.VertexBufferUploaded = vertexBuffer != nil
+	renderData.IndexBufferUploaded = indexBuffer != nil
+	renderData.HasDepthBuffer = depthTextureView != nil
 	r.mu.Unlock()
 
 	slog.Info("World geometry uploaded to GPU",
@@ -976,7 +1073,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	slog.Info("renderWorldInternal: surface view acquired", "id", debugSurfaceViewID(surfaceViewAny), "queue_type", fmt.Sprintf("%T", queue))
-	
+
 	// Get HAL texture view from the gogpu surface view
 	// The surface view is already a hal.TextureView - just need to type assert it
 	textureView, ok := surfaceViewAny.(hal.TextureView)
@@ -1003,14 +1100,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				ClearValue: clearColor,
 			},
 		},
-		// Depth attachment if depth texture available
-		DepthStencilAttachment: nil, // TODO: Add depth texture support
-	}
-
-	// If we have a depth texture, enable it
-	if dc.renderer.worldIndexCount > 0 {
-		// Could set depth attachment here when implemented
-		// renderPassDesc.DepthStencilAttachment = &depthAttachment
+		DepthStencilAttachment: worldDepthAttachmentForView(dc.renderer.worldDepthTextureView),
 	}
 
 	// Begin render pass
@@ -1035,7 +1125,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	vpBytes := matrixToBytes(vpMatrix)
-	slog.Info("renderWorldInternal: VP matrix", 
+	slog.Info("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Info("renderWorldInternal: writing uniform buffer", "matrix_len", len(vpBytes))
 	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, vpBytes)
@@ -1135,6 +1225,55 @@ func TransformVertex(pos [3]float32, mvp gmath.Mat4) gmath.Vec4 {
 	return result
 }
 
+func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int) (hal.Texture, hal.TextureView, error) {
+	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "World Depth Texture",
+		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        worldDepthTextureFormat,
+		Usage:         gputypes.TextureUsageRenderAttachment,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("create depth texture: %w", err)
+	}
+
+	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+		Label:           "World Depth Texture View",
+		Format:          worldDepthTextureFormat,
+		Dimension:       gputypes.TextureViewDimension2D,
+		Aspect:          gputypes.TextureAspectDepthOnly,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: 1,
+	})
+	if err != nil {
+		texture.Destroy()
+		return nil, nil, fmt.Errorf("create depth texture view: %w", err)
+	}
+
+	return texture, view, nil
+}
+
+func worldDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+	if view == nil {
+		return nil
+	}
+	return &hal.RenderPassDepthStencilAttachment{
+		View:              view,
+		DepthLoadOp:       gputypes.LoadOpClear,
+		DepthStoreOp:      gputypes.StoreOpStore,
+		DepthClearValue:   1.0,
+		DepthReadOnly:     false,
+		StencilLoadOp:     gputypes.LoadOpClear,
+		StencilStoreOp:    gputypes.StoreOpStore,
+		StencilClearValue: 0,
+		StencilReadOnly:   true,
+	}
+}
+
 // ClearWorld releases world geometry resources.
 // Called when switching maps or shutting down.
 func (r *Renderer) ClearWorld() {
@@ -1161,6 +1300,9 @@ func (r *Renderer) ClearWorld() {
 		if r.whiteTexture != nil {
 			r.whiteTexture.Destroy()
 		}
+		if r.worldDepthTexture != nil {
+			r.worldDepthTexture.Destroy()
+		}
 
 		r.worldData = nil
 		r.worldVertexBuffer = nil
@@ -1173,6 +1315,8 @@ func (r *Renderer) ClearWorld() {
 		r.worldBindGroup = nil
 		r.whiteTexture = nil
 		r.whiteTextureView = nil
+		r.worldDepthTexture = nil
+		r.worldDepthTextureView = nil
 
 		slog.Debug("World geometry cleared")
 	}

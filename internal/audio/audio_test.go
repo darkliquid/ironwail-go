@@ -325,6 +325,49 @@ func TestUpdateCombinesIdenticalStaticSounds(t *testing.T) {
 	}
 }
 
+func TestUpdateAmbientSoundsFadesAndAppliesUnderwater(t *testing.T) {
+	sys := NewSystem()
+	sys.mixer = NewMixer()
+	sys.paintedTime = 100
+	water := &SFX{Cache: &SoundCache{Length: 8, LoopStart: 0, Width: 1, Data: make([]byte, 8)}}
+	wind := &SFX{Cache: &SoundCache{Length: 8, LoopStart: 0, Width: 1, Data: make([]byte, 8)}}
+	sys.SetAmbientSound(0, water)
+	sys.SetAmbientSound(1, wind)
+
+	sys.UpdateAmbientSounds(0.1, true, [NumAmbients]uint8{100, 50}, 1)
+	if got := sys.channels[0].MasterVol; got != 10 {
+		t.Fatalf("ambient water master volume = %d, want 10 after first fade step", got)
+	}
+	if got := sys.channels[1].MasterVol; got != 10 {
+		t.Fatalf("ambient wind master volume = %d, want 10 after first fade step", got)
+	}
+	if got := sys.channels[0].SFX; got != water {
+		t.Fatalf("ambient water channel sfx = %v, want %v", got, water)
+	}
+	if got := sys.channels[1].SFX; got != wind {
+		t.Fatalf("ambient wind channel sfx = %v, want %v", got, wind)
+	}
+	if got := sys.UnderwaterIntensity(); got <= 0 {
+		t.Fatalf("underwater intensity = %v, want > 0", got)
+	}
+}
+
+func TestUpdateAmbientSoundsClearsWithoutLeaf(t *testing.T) {
+	sys := NewSystem()
+	sys.mixer = NewMixer()
+	sys.channels[0] = Channel{SFX: &SFX{}, LeftVol: 12, RightVol: 12, MasterVol: 12}
+	sys.channels[1] = Channel{SFX: &SFX{}, LeftVol: 8, RightVol: 8, MasterVol: 8}
+	sys.ambientLevels = [NumAmbients]float32{12, 8}
+
+	sys.UpdateAmbientSounds(0.016, false, [NumAmbients]uint8{}, 0)
+	if sys.channels[0].SFX != nil || sys.channels[1].SFX != nil {
+		t.Fatalf("ambient channels should be cleared without leaf")
+	}
+	if sys.ambientLevels != [NumAmbients]float32{} {
+		t.Fatalf("ambient levels = %v, want zeroed", sys.ambientLevels)
+	}
+}
+
 type lockOrderBackend struct {
 	t      *testing.T
 	locked bool

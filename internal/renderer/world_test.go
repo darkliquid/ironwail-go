@@ -140,6 +140,81 @@ func TestBuildWorldGeometry_SimpleQuad(t *testing.T) {
 	}
 }
 
+func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
+	tree := &bsp.Tree{
+		Models: []bsp.DModel{
+			{FirstFace: 0, NumFaces: 1},
+		},
+		Faces: []bsp.TreeFace{
+			{
+				PlaneNum:  0,
+				FirstEdge: 0,
+				NumEdges:  4,
+				Texinfo:   0,
+				LightOfs:  64,
+				Styles:    [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
+			},
+		},
+		Texinfo: []bsp.Texinfo{
+			{
+				Vecs: [2][4]float32{
+					{1, 0, 0, 0},
+					{0, 1, 0, 0},
+				},
+				Miptex: 3,
+				Flags:  bsp.TexSpecial | bsp.TexMissing,
+			},
+		},
+		Edges: []bsp.TreeEdge{
+			{V: [2]uint32{0, 1}},
+			{V: [2]uint32{1, 2}},
+			{V: [2]uint32{2, 3}},
+			{V: [2]uint32{3, 0}},
+		},
+		Surfedges: []int32{0, 1, 2, 3},
+		Vertexes: []bsp.DVertex{
+			{Point: [3]float32{0, 0, 0}},
+			{Point: [3]float32{16, 0, 0}},
+			{Point: [3]float32{16, 16, 0}},
+			{Point: [3]float32{0, 16, 0}},
+		},
+		Planes: []bsp.DPlane{
+			{Normal: [3]float32{0, 0, 1}},
+		},
+	}
+
+	geom, err := BuildWorldGeometry(tree)
+	if err != nil {
+		t.Fatalf("BuildWorldGeometry failed: %v", err)
+	}
+	if len(geom.Faces) != 1 {
+		t.Fatalf("Expected 1 face, got %d", len(geom.Faces))
+	}
+	face := geom.Faces[0]
+	if face.TextureIndex != 3 {
+		t.Fatalf("TextureIndex = %d, want 3", face.TextureIndex)
+	}
+	if face.LightmapIndex != 0 {
+		t.Fatalf("LightmapIndex = %d, want 0 (present sentinel)", face.LightmapIndex)
+	}
+	if face.Flags != (bsp.TexSpecial | bsp.TexMissing) {
+		t.Fatalf("Flags = %#x, want %#x", face.Flags, bsp.TexSpecial|bsp.TexMissing)
+	}
+
+	if geom.Vertices[1].TexCoord != ([2]float32{16, 0}) {
+		t.Fatalf("TexCoord[1] = %v, want [16 0]", geom.Vertices[1].TexCoord)
+	}
+	if geom.Vertices[1].LightmapCoord != ([2]float32{1, 0}) {
+		t.Fatalf("LightmapCoord[1] = %v, want [1 0]", geom.Vertices[1].LightmapCoord)
+	}
+}
+
+func TestWorldDepthAttachmentForViewNil(t *testing.T) {
+	if got := worldDepthAttachmentForView(nil); got != nil {
+		t.Fatalf("worldDepthAttachmentForView(nil) = %#v, want nil", got)
+	}
+}
+
 // TestBuildWorldGeometry_Triangle tests triangulation for a triangle face.
 func TestBuildWorldGeometry_Triangle(t *testing.T) {
 	tree := &bsp.Tree{

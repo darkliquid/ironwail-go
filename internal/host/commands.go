@@ -651,6 +651,7 @@ func (h *Host) CmdConnect(address string, subs *Subsystems) {
 		}
 		return
 	}
+	h.CmdReconnect(subs)
 	if subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("Connecting to %s...\n", address))
 	}
@@ -708,7 +709,7 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 		return
 	}
 
-	h.BeginLoadingPlaque(0)
+	h.BeginLoadingTransitionPlaque(0)
 	h.stopSessionSounds(subs)
 
 	if h.serverActive && subs.Server != nil {
@@ -871,7 +872,7 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		return
 	}
 
-	h.BeginLoadingPlaque(0)
+	h.BeginLoadingTransitionPlaque(0)
 	h.stopSessionSounds(subs)
 	h.serverActive = false
 	h.clientState = caDisconnected
@@ -1087,7 +1088,6 @@ func (h *Host) startRemoteSession(address string, subs *Subsystems) error {
 	h.serverActive = false
 	h.clientState = caConnected
 	h.signOns = 0
-	h.BeginLoadingPlaque(0)
 	return nil
 }
 
@@ -1146,9 +1146,12 @@ func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
 	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" {
 		legacyGameDir := filepath.Join(h.baseDir, gameDir, legacyName)
 		searchPaths = append(searchPaths, legacyGameDir)
-		if gameDir == "id1" {
-			return searchPaths, nil
-		}
+	}
+
+	searchPaths = append(searchPaths, filepath.Join(h.baseDir, legacyName))
+
+	if strings.TrimSpace(h.gameDir) == "id1" {
+		return searchPaths, nil
 	}
 
 	searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", legacyName))

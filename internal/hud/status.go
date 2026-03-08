@@ -4,6 +4,7 @@
 package hud
 
 import (
+	"math/bits"
 	"sort"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -21,17 +22,45 @@ type StatusBar struct {
 	scorebarPic *image.QPic
 	rankingPic  *image.QPic
 	discPic     *image.QPic
-	weaponPics  [2][7]*image.QPic
+	weaponPics  [7][7]*image.QPic
 	ammoPics    [4]*image.QPic
+	rogueAmmo   [3]*image.QPic
 	armorPics   [3]*image.QPic
 	itemPics    [6]*image.QPic
+	hipItemPics [2]*image.QPic
+	rogueItems  [2]*image.QPic
 	sigilPics   [4]*image.QPic
+	hipWeapons  [7][5]*image.QPic
+	rogueInvBar [2]*image.QPic
+	rogueWeps   [5]*image.QPic
 	facePics    [5][2]*image.QPic
 	faceInvis   *image.QPic
 	faceInvuln  *image.QPic
 	faceBoth    *image.QPic
 	faceQuad    *image.QPic
+	lastItems   uint32
+	pickupTimes [32]float64
+	pickupKnown uint32
 }
+
+const (
+	hipLaserCannonBit = 23
+	hipMjolnirBit     = 7
+	hipProximityBit   = 16
+	hipWetsuitBit     = 25
+	hipEmpathyBit     = 26
+
+	rogueLavaNailgun      = 1 << 12
+	rogueLavaSuperNailgun = 1 << 13
+	rogueMultiGrenade     = 1 << 14
+	rogueMultiRocket      = 1 << 15
+	roguePlasmaGun        = 1 << 16
+	rogueLavaNails        = 1 << 26
+	roguePlasmaAmmo       = 1 << 27
+	rogueMultiRockets     = 1 << 28
+	rogueShield           = 1 << 29
+	rogueAntiGrav         = 1 << 30
+)
 
 // NewStatusBar creates a new status bar renderer.
 func NewStatusBar(dm *draw.Manager) *StatusBar {
@@ -43,31 +72,24 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 		sb.scorebarPic = dm.GetPic("scorebar")
 		sb.rankingPic = dm.GetPic("gfx/ranking.lmp")
 		sb.discPic = dm.GetPic("disc")
-		sb.weaponPics = [2][7]*image.QPic{
-			{
-				dm.GetPic("inv_shotgun"),
-				dm.GetPic("inv_sshotgun"),
-				dm.GetPic("inv_nailgun"),
-				dm.GetPic("inv_snailgun"),
-				dm.GetPic("inv_rlaunch"),
-				dm.GetPic("inv_srlaunch"),
-				dm.GetPic("inv_lightng"),
-			},
-			{
-				dm.GetPic("inv2_shotgun"),
-				dm.GetPic("inv2_sshotgun"),
-				dm.GetPic("inv2_nailgun"),
-				dm.GetPic("inv2_snailgun"),
-				dm.GetPic("inv2_rlaunch"),
-				dm.GetPic("inv2_srlaunch"),
-				dm.GetPic("inv2_lightng"),
-			},
+		baseWeaponNames := [...]string{"shotgun", "sshotgun", "nailgun", "snailgun", "rlaunch", "srlaunch", "lightng"}
+		for i, name := range baseWeaponNames {
+			sb.weaponPics[0][i] = dm.GetPic("inv_" + name)
+			sb.weaponPics[1][i] = dm.GetPic("inv2_" + name)
+			for flash := 0; flash < 5; flash++ {
+				sb.weaponPics[2+flash][i] = dm.GetPic("inva" + string('1'+rune(flash)) + "_" + name)
+			}
 		}
 		sb.ammoPics = [4]*image.QPic{
 			dm.GetPic("sb_shells"),
 			dm.GetPic("sb_nails"),
 			dm.GetPic("sb_rocket"),
 			dm.GetPic("sb_cells"),
+		}
+		sb.rogueAmmo = [3]*image.QPic{
+			dm.GetPic("r_ammolava"),
+			dm.GetPic("r_ammomulti"),
+			dm.GetPic("r_ammoplasma"),
 		}
 		sb.armorPics = [3]*image.QPic{
 			dm.GetPic("sb_armor1"),
@@ -81,6 +103,14 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 			dm.GetPic("sb_invuln"),
 			dm.GetPic("sb_suit"),
 			dm.GetPic("sb_quad"),
+		}
+		sb.hipItemPics = [2]*image.QPic{
+			dm.GetPic("sb_wsuit"),
+			dm.GetPic("sb_eshld"),
+		}
+		sb.rogueItems = [2]*image.QPic{
+			dm.GetPic("r_shield1"),
+			dm.GetPic("r_agrav1"),
 		}
 		sb.sigilPics = [4]*image.QPic{
 			dm.GetPic("sb_sigil1"),
@@ -99,6 +129,25 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 		sb.faceInvuln = dm.GetPic("face_invul2")
 		sb.faceBoth = dm.GetPic("face_inv2")
 		sb.faceQuad = dm.GetPic("face_quad")
+		sb.rogueInvBar = [2]*image.QPic{
+			dm.GetPic("r_invbar1"),
+			dm.GetPic("r_invbar2"),
+		}
+		sb.rogueWeps = [5]*image.QPic{
+			dm.GetPic("r_lava"),
+			dm.GetPic("r_superlava"),
+			dm.GetPic("r_gren"),
+			dm.GetPic("r_multirock"),
+			dm.GetPic("r_plasma"),
+		}
+		hipNames := [...]string{"laser", "mjolnir", "gren_prox", "prox_gren", "prox"}
+		for i, name := range hipNames {
+			sb.hipWeapons[0][i] = dm.GetPic("inv_" + name)
+			sb.hipWeapons[1][i] = dm.GetPic("inv2_" + name)
+			for flash := 0; flash < 5; flash++ {
+				sb.hipWeapons[2+flash][i] = dm.GetPic("inva" + string('1'+rune(flash)) + "_" + name)
+			}
+		}
 	}
 	return sb
 }
@@ -116,6 +165,7 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	sbarX := (screenWidth - sbarWidth) / 2
 	sbarY := screenHeight - sbarHeight
 	inventoryY := sbarY - inventoryHeight
+	sb.trackPickups(state)
 
 	if state.GameType == 1 && state.MaxClients > 1 && (state.ShowScores || state.Health <= 0) {
 		sb.drawScoreboard(rc, state, sbarX, sbarY)
@@ -128,7 +178,7 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 		rc.DrawFill(sbarX, sbarY, sbarWidth, sbarHeight, 4)
 	}
 	if sb.ibarPic != nil {
-		rc.DrawPic(sbarX, inventoryY, sb.ibarPic)
+		rc.DrawPic(sbarX, inventoryY, sb.inventoryBarPic(state))
 	} else {
 		rc.DrawFill(sbarX, inventoryY, sbarWidth, inventoryHeight, 4)
 	}
@@ -144,7 +194,16 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	}
 	sb.drawBigNum(rc, sbarX+136, sbarY, state.Health, 3, state.Health <= 25)
 
-	if pic := sb.ammoPic(state.Items); pic != nil {
+	if state.ModHipnotic {
+		if state.Items&cl.ItemKey1 != 0 && sb.itemPics[0] != nil {
+			rc.DrawPic(sbarX+209, sbarY+3, sb.itemPics[0])
+		}
+		if state.Items&cl.ItemKey2 != 0 && sb.itemPics[1] != nil {
+			rc.DrawPic(sbarX+209, sbarY+12, sb.itemPics[1])
+		}
+	}
+
+	if pic := sb.ammoPic(state); pic != nil {
 		rc.DrawPic(sbarX+224, sbarY, pic)
 	}
 	sb.drawBigNum(rc, sbarX+248, sbarY, state.Ammo, 3, state.Ammo <= 10)
@@ -168,13 +227,16 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 		if state.Items&bit == 0 {
 			continue
 		}
-		iconSet := 0
-		if state.ActiveWeapon == int(bit) {
-			iconSet = 1
-		}
-		if pic := sb.weaponPics[iconSet][i]; pic != nil {
+		flashOn := sb.weaponFlashIndex(state, bit, state.ActiveWeapon == int(bit))
+		if pic := sb.weaponPic(i, flashOn); pic != nil {
 			rc.DrawPic(x+i*24, y+8, pic)
 		}
+	}
+	if state.ModHipnotic {
+		sb.drawHipnoticWeapons(rc, x, y, state)
+	}
+	if state.ModRogue {
+		sb.drawRogueWeapon(rc, x, y, state)
 	}
 
 	ammoCounts := []int{state.Shells, state.Nails, state.Rockets, state.Cells}
@@ -191,11 +253,37 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 		cl.ItemQuad,
 	}
 	for i, bit := range itemBits {
+		if state.ModHipnotic && i < 2 {
+			continue
+		}
 		if state.Items&bit != 0 {
 			if pic := sb.itemPics[i]; pic != nil {
 				rc.DrawPic(x+192+i*16, y+8, pic)
 			}
 		}
+	}
+	if state.ModHipnotic {
+		hipItemBits := []uint32{1 << hipWetsuitBit, 1 << hipEmpathyBit}
+		for i, bit := range hipItemBits {
+			if state.Items&bit == 0 {
+				continue
+			}
+			if pic := sb.hipItemPics[i]; pic != nil {
+				rc.DrawPic(x+288+i*16, y+8, pic)
+			}
+		}
+	}
+	if state.ModRogue {
+		rogueBits := []uint32{rogueShield, rogueAntiGrav}
+		for i, bit := range rogueBits {
+			if state.Items&bit == 0 {
+				continue
+			}
+			if pic := sb.rogueItems[i]; pic != nil {
+				rc.DrawPic(x+288+i*16, y+8, pic)
+			}
+		}
+		return
 	}
 
 	sigilBits := []uint32{cl.ItemSigil1, cl.ItemSigil2, cl.ItemSigil3, cl.ItemSigil4}
@@ -255,7 +343,28 @@ func (sb *StatusBar) armorPic(items uint32) *image.QPic {
 	}
 }
 
-func (sb *StatusBar) ammoPic(items uint32) *image.QPic {
+func (sb *StatusBar) ammoPic(state State) *image.QPic {
+	items := state.Items
+	if state.ModRogue {
+		switch {
+		case items&cl.ItemShells != 0:
+			return sb.ammoPics[0]
+		case items&cl.ItemNails != 0:
+			return sb.ammoPics[1]
+		case items&cl.ItemRockets != 0:
+			return sb.ammoPics[2]
+		case items&cl.ItemCells != 0:
+			return sb.ammoPics[3]
+		case items&rogueLavaNails != 0:
+			return sb.rogueAmmo[0]
+		case items&roguePlasmaAmmo != 0:
+			return sb.rogueAmmo[1]
+		case items&rogueMultiRockets != 0:
+			return sb.rogueAmmo[2]
+		default:
+			return nil
+		}
+	}
 	switch {
 	case items&cl.ItemShells != 0:
 		return sb.ammoPics[0]
@@ -267,6 +376,131 @@ func (sb *StatusBar) ammoPic(items uint32) *image.QPic {
 		return sb.ammoPics[3]
 	default:
 		return nil
+	}
+}
+
+func (sb *StatusBar) inventoryBarPic(state State) *image.QPic {
+	if state.ModRogue {
+		if state.ActiveWeapon < rogueLavaNailgun {
+			if sb.rogueInvBar[1] != nil {
+				return sb.rogueInvBar[1]
+			}
+		} else if sb.rogueInvBar[0] != nil {
+			return sb.rogueInvBar[0]
+		}
+	}
+	return sb.ibarPic
+}
+
+func (sb *StatusBar) weaponPic(slot, flashOn int) *image.QPic {
+	if flashOn < 0 || flashOn >= len(sb.weaponPics) {
+		flashOn = 1
+	}
+	if pic := sb.weaponPics[flashOn][slot]; pic != nil {
+		return pic
+	}
+	if flashOn > 1 {
+		if pic := sb.weaponPics[1][slot]; pic != nil {
+			return pic
+		}
+	}
+	if pic := sb.weaponPics[0][slot]; pic != nil {
+		return pic
+	}
+	return sb.weaponPics[1][slot]
+}
+
+func (sb *StatusBar) weaponFlashIndex(state State, bit uint32, active bool) int {
+	if !sb.pickedUp(bit) {
+		if active {
+			return 0
+		}
+		return 1
+	}
+	delta := state.Time - sb.pickupTimes[bits.TrailingZeros32(bit)]
+	if delta >= 0 && delta < 1 {
+		return (int(delta*10) % 5) + 2
+	}
+	if active {
+		return 0
+	}
+	return 1
+}
+
+func (sb *StatusBar) trackPickups(state State) {
+	added := state.Items &^ sb.lastItems
+	removed := sb.lastItems &^ state.Items
+	for i := 0; i < 32; i++ {
+		bit := uint32(1) << i
+		if added&bit != 0 {
+			sb.pickupTimes[i] = state.Time
+			sb.pickupKnown |= bit
+		}
+		if removed&bit != 0 {
+			sb.pickupKnown &^= bit
+			sb.pickupTimes[i] = 0
+		}
+	}
+	sb.lastItems = state.Items
+}
+
+func (sb *StatusBar) pickedUp(bit uint32) bool {
+	return sb.pickupKnown&bit != 0
+}
+
+func (sb *StatusBar) drawHipnoticWeapons(rc renderer.RenderContext, x, y int, state State) {
+	hipBits := []uint32{1 << hipLaserCannonBit, 1 << hipMjolnirBit, cl.ItemGrenadeLauncher, 1 << hipProximityBit}
+	grenadeFlashing := false
+	for i, bit := range hipBits {
+		if state.Items&bit == 0 {
+			continue
+		}
+		flashOn := sb.weaponFlashIndex(state, bit, state.ActiveWeapon == int(bit))
+		switch i {
+		case 2:
+			if state.Items&(1<<hipProximityBit) != 0 && flashOn > 1 {
+				grenadeFlashing = true
+				if pic := sb.hipWeapons[flashOn][2]; pic != nil {
+					rc.DrawPic(x+96, y+8, pic)
+				}
+			}
+		case 3:
+			if state.Items&cl.ItemGrenadeLauncher != 0 {
+				if !grenadeFlashing {
+					idx := flashOn
+					if idx == 0 {
+						idx = 1
+					}
+					if pic := sb.hipWeapons[idx][3]; pic != nil {
+						rc.DrawPic(x+96, y+8, pic)
+					}
+				}
+			} else if pic := sb.hipWeapons[flashOn][4]; pic != nil {
+				rc.DrawPic(x+96, y+8, pic)
+			}
+		default:
+			if pic := sb.hipWeapons[flashOn][i]; pic != nil {
+				rc.DrawPic(x+176+i*24, y+8, pic)
+			}
+		}
+	}
+}
+
+func (sb *StatusBar) drawRogueWeapon(rc renderer.RenderContext, x, y int, state State) {
+	if state.ActiveWeapon < rogueLavaNailgun {
+		return
+	}
+	rogueActive := []int{
+		rogueLavaNailgun,
+		rogueLavaSuperNailgun,
+		rogueMultiGrenade,
+		rogueMultiRocket,
+		roguePlasmaGun,
+	}
+	for i, weapon := range rogueActive {
+		if state.ActiveWeapon == weapon && sb.rogueWeps[i] != nil {
+			rc.DrawPic(x+(i+2)*24, y+8, sb.rogueWeps[i])
+		}
 	}
 }
 

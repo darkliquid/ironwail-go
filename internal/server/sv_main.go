@@ -70,9 +70,10 @@ func (s *Server) Init(maxClients int) error {
 	resetLightStyles(&s.LightStyles)
 
 	s.Static = &ServerStatic{
-		MaxClients:      maxClients,
-		MaxClientsLimit: maxClients,
-		Clients:         make([]*Client, maxClients),
+		MaxClients:        maxClients,
+		MaxClientsLimit:   maxClients,
+		Clients:           make([]*Client, maxClients),
+		ChangeLevelIssued: false,
 	}
 
 	s.Edicts = make([]*Edict, maxClients+1)
@@ -127,6 +128,9 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.Paused = false
 	s.State = ServerStateLoading
 	s.Time = 1
+	if s.Static != nil {
+		s.Static.ChangeLevelIssued = false
+	}
 	resetLightStyles(&s.LightStyles)
 
 	s.Name = filepath.Base(mapName)
@@ -537,7 +541,7 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	if attenuation < 0 || attenuation > 4 {
 		return
 	}
-	if channel < 0 || channel > 7 {
+	if channel < 0 || channel > 255 {
 		return
 	}
 	if s.Datagram.Len() > MaxDatagram-21 {
@@ -558,6 +562,12 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	if attenuation != DefaultSoundAttenuation {
 		fieldMask |= 2
 	}
+	if entNum >= 8192 || channel >= 8 {
+		fieldMask |= inet.SND_LARGEENTITY
+	}
+	if soundNum >= 256 {
+		fieldMask |= inet.SND_LARGESOUND
+	}
 
 	if s.Datagram.Len() > MaxDatagram-21 {
 		return
@@ -573,8 +583,17 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 		s.Datagram.WriteByte(byte(attenuation * 64))
 	}
 
-	s.Datagram.WriteShort(int16(entNum<<3 | channel))
-	s.Datagram.WriteByte(byte(soundNum))
+	if fieldMask&inet.SND_LARGEENTITY != 0 {
+		s.Datagram.WriteShort(int16(entNum))
+		s.Datagram.WriteByte(byte(channel))
+	} else {
+		s.Datagram.WriteShort(int16(entNum<<3 | channel))
+	}
+	if fieldMask&inet.SND_LARGESOUND != 0 {
+		s.Datagram.WriteShort(int16(soundNum))
+	} else {
+		s.Datagram.WriteByte(byte(soundNum))
+	}
 
 	for i := 0; i < 3; i++ {
 		s.Datagram.WriteCoord(ent.Vars.Origin[i] + 0.5*(ent.Vars.Mins[i]+ent.Vars.Maxs[i]))
@@ -778,6 +797,7 @@ func (s *Server) ConnectClient(clientNum int) {
 
 	client.Active = true
 	client.Spawned = false
+	client.RespawnTime = 0
 	client.Edict = ent
 	client.Name = "unconnected"
 	if client.Message != nil {

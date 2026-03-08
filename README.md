@@ -19,7 +19,7 @@ Well, apart from the obvious that this is Go, rather than C, I'm building this
 with the following changes:
 
 - OpenGL/CGO as the default gameplay renderer/runtime
-- gogpu/WebGPU as a secondary backend while its runtime bugs are being worked through
+- gogpu/WebGPU as a secondary backend for non-parity experimentation
 - Dividing the codebase up into packages
 - Use Go stdlib for as much as possible, rather than custom implementations of
   things from the original C codebase
@@ -37,8 +37,9 @@ the tasks for running tests, builds, etc.
 
 You can see what tasks are available to run using `mise tasks`
 
-The canonical renderer/build path is the CGO/OpenGL runtime:
+The canonical parity/build path is the CGO/OpenGL runtime:
 
+- `mise run test`
 - `mise run build-cgo`
 - `mise run smoke-cgo-map-start`
 

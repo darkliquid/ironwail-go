@@ -383,7 +383,7 @@ func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
 	sb := &StatusBar{
 		sbarPic:    sbarPic,
 		ibarPic:    ibarPic,
-		weaponPics: [2][7]*image.QPic{{weaponOwned}, {weaponActive}},
+		weaponPics: [7][7]*image.QPic{{weaponActive}, {weaponOwned}},
 		itemPics:   [6]*image.QPic{itemPic},
 		sigilPics:  [4]*image.QPic{sigilPic},
 		facePics:   [5][2]*image.QPic{{facePic}, {facePic}, {facePic}, {facePic}, {facePic}},
@@ -391,18 +391,21 @@ func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
 		ammoPics:   [4]*image.QPic{ammoPic},
 	}
 	mock := &mockRenderContext{}
-
-	sb.Draw(mock, State{
+	state := State{
 		Health:       100,
 		Armor:        40,
 		Ammo:         20,
-		ActiveWeapon: 1,
+		ActiveWeapon: int(cl.ItemShotgun),
 		Shells:       20,
 		Nails:        30,
 		Rockets:      40,
 		Cells:        50,
 		Items:        1 | (1 << 8) | (1 << 13) | (1 << 17) | (1 << 28),
-	}, 320, 200)
+	}
+	sb.Draw(&mockRenderContext{}, state, 320, 200)
+	state.Time = 2.2
+
+	sb.Draw(mock, state, 320, 200)
 
 	if len(mock.pics) < 7 {
 		t.Fatalf("expected several icon pic draws, got %d", len(mock.pics))
@@ -430,6 +433,92 @@ func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
 	}
 	if !sawWeapon || !sawActiveWeapon || !sawItem || !sawSigil || !sawFace || !sawArmor || !sawAmmo {
 		t.Fatalf("missing expected draws: weapon=%v activeWeapon=%v item=%v sigil=%v face=%v armor=%v ammo=%v", sawWeapon, sawActiveWeapon, sawItem, sawSigil, sawFace, sawArmor, sawAmmo)
+	}
+}
+
+func TestStatusBarRogueItemsReplaceSigils(t *testing.T) {
+	rogueShieldPic := &image.QPic{Width: 16, Height: 16}
+	rogueAntiPic := &image.QPic{Width: 16, Height: 16}
+	sigilPic := &image.QPic{Width: 8, Height: 16}
+	sb := &StatusBar{
+		sbarPic:    &image.QPic{Width: 320, Height: 24},
+		ibarPic:    &image.QPic{Width: 320, Height: 24},
+		rogueItems: [2]*image.QPic{rogueShieldPic, rogueAntiPic},
+		sigilPics:  [4]*image.QPic{sigilPic, sigilPic, sigilPic, sigilPic},
+	}
+	mock := &mockRenderContext{}
+	sb.Draw(mock, State{
+		Health:     100,
+		Ammo:       20,
+		ModRogue:   true,
+		Items:      rogueShield | rogueAntiGrav,
+		Time:       10,
+		GameType:   0,
+		MaxClients: 1,
+	}, 320, 200)
+	var sawRogue, sawSigil bool
+	for _, draw := range mock.pics {
+		if draw.pic == rogueShieldPic || draw.pic == rogueAntiPic {
+			sawRogue = true
+		}
+		if draw.pic == sigilPic {
+			sawSigil = true
+		}
+	}
+	if !sawRogue {
+		t.Fatal("expected rogue expansion item icons")
+	}
+	if sawSigil {
+		t.Fatal("expected rogue item path to suppress sigils")
+	}
+}
+
+func TestStatusBarWeaponPickupFlashTiming(t *testing.T) {
+	active := &image.QPic{Width: 24, Height: 16}
+	owned := &image.QPic{Width: 24, Height: 16}
+	flash := &image.QPic{Width: 24, Height: 16}
+	sb := &StatusBar{
+		sbarPic: &image.QPic{Width: 320, Height: 24},
+		ibarPic: &image.QPic{Width: 320, Height: 24},
+		weaponPics: [7][7]*image.QPic{
+			{active},
+			{owned},
+			{flash},
+			{flash},
+			{flash},
+			{flash},
+			{flash},
+		},
+	}
+	sb.Draw(&mockRenderContext{}, State{Time: 1}, 320, 200)
+	flashFrame := &mockRenderContext{}
+	sb.Draw(flashFrame, State{
+		Time:  1.1,
+		Items: cl.ItemShotgun,
+	}, 320, 200)
+	var sawFlash bool
+	for _, draw := range flashFrame.pics {
+		if draw.pic == flash {
+			sawFlash = true
+		}
+	}
+	if !sawFlash {
+		t.Fatal("expected flashing weapon frame right after pickup")
+	}
+
+	steady := &mockRenderContext{}
+	sb.Draw(steady, State{
+		Time:  2.2,
+		Items: cl.ItemShotgun,
+	}, 320, 200)
+	var sawOwned bool
+	for _, draw := range steady.pics {
+		if draw.pic == owned {
+			sawOwned = true
+		}
+	}
+	if !sawOwned {
+		t.Fatal("expected non-flashing owned weapon frame after flash window")
 	}
 }
 

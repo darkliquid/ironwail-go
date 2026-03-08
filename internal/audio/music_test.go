@@ -162,6 +162,50 @@ func TestPlayCDTrackLoadsOGGWhenWAVMissing(t *testing.T) {
 	}
 }
 
+func TestPlayCDTrackUsesResolverSelection(t *testing.T) {
+	sys := newTestMusicSystem()
+	oggData := testMusicOGG(t, 44100, 2, 2, 64)
+	loaderCalled := false
+	resolverCalled := false
+
+	err := sys.PlayCDTrack(2, 2, func(name string) ([]byte, error) {
+		loaderCalled = true
+		return nil, fmt.Errorf("loader should not be used, got %s", name)
+	}, func(candidates []string) (string, []byte, error) {
+		resolverCalled = true
+		if len(candidates) != 2 {
+			t.Fatalf("resolver candidate count = %d, want 2", len(candidates))
+		}
+		if got := candidates[0]; got != "music/track02.wav" {
+			t.Fatalf("resolver first candidate = %q, want music/track02.wav", got)
+		}
+		if got := candidates[1]; got != "music/track02.ogg" {
+			t.Fatalf("resolver second candidate = %q, want music/track02.ogg", got)
+		}
+		return "music/track02.ogg", oggData, nil
+	})
+	if err != nil {
+		t.Fatalf("PlayCDTrack failed: %v", err)
+	}
+	if loaderCalled {
+		t.Fatalf("expected loader to be bypassed when resolver is provided")
+	}
+	if !resolverCalled {
+		t.Fatalf("expected resolver to be called")
+	}
+
+	sys.updateMusic(96)
+	if sys.rawSamples.End < 96 {
+		t.Fatalf("rawSamples.End = %d, want at least 96", sys.rawSamples.End)
+	}
+	if sys.music == nil || sys.music.track == nil {
+		t.Fatalf("expected active music track")
+	}
+	if got := sys.music.track.name; got != "music/track02.ogg" {
+		t.Fatalf("resolved track name = %q, want music/track02.ogg", got)
+	}
+}
+
 func newTestMusicSystem() *System {
 	return &System{
 		started: true,

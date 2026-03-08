@@ -1,6 +1,7 @@
 package server
 
 import (
+	"math"
 	"path/filepath"
 	"testing"
 
@@ -132,6 +133,31 @@ func TestSVClientThinkWalkForwardIgnoresPitchVerticalProjection(t *testing.T) {
 	}
 	if ent.Vars.Velocity[0] == 0 && ent.Vars.Velocity[1] == 0 {
 		t.Fatalf("walk forward move did not produce horizontal velocity: %v", ent.Vars.Velocity)
+	}
+}
+
+func TestSVClientThinkGroundFrictionFeedsAccelerate(t *testing.T) {
+	s := NewServer()
+	s.FrameTime = 0.1
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent.Vars.Health = 100
+	ent.Vars.Flags = float32(FlagOnGround)
+	ent.Vars.VAngle = [3]float32{0, 0, 0}
+	ent.Vars.Velocity = [3]float32{100, 0, 0}
+
+	client := &Client{
+		Edict: ent,
+		LastCmd: UserCmd{
+			ForwardMove: 200,
+		},
+	}
+
+	s.SV_ClientThink(client)
+
+	if diff := math.Abs(float64(ent.Vars.Velocity[0] - 200)); diff > 0.001 {
+		t.Fatalf("ground accelerate used stale pre-friction speed: got %.3f want 200", ent.Vars.Velocity[0])
 	}
 }
 

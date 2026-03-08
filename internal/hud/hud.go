@@ -38,6 +38,8 @@ type State struct {
 	Rockets      int
 	Cells        int
 	Items        uint32
+	ModHipnotic  bool
+	ModRogue     bool
 	GameType     int
 	MaxClients   int
 	ShowScores   bool

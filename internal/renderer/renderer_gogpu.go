@@ -367,8 +367,10 @@ type Renderer struct {
 	textureBindGroupLayout hal.BindGroupLayout
 
 	// 1x1 white texture for fallback
-	whiteTexture     hal.Texture
-	whiteTextureView hal.TextureView
+	whiteTexture          hal.Texture
+	whiteTextureView      hal.TextureView
+	worldDepthTexture     hal.Texture
+	worldDepthTextureView hal.TextureView
 
 	// Offscreen render target for world rendering
 	worldRenderTexture      hal.Texture
@@ -776,7 +778,7 @@ type RenderFrameState struct {
 // RenderFrame executes the complete frame pipeline in order:
 // 1. Clear screen
 // 2. Draw 3D world (stub)
-// 3. Draw entities (stub)
+// 3. Draw entities (baseline projected markers)
 // 4. Draw particles
 // 5. Draw 2D overlay (HUD, menu, console)
 func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(dc RenderContext)) {
@@ -822,7 +824,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
-	// Phase 3: Draw entities (stub - M4.4 will implement)
+	// Phase 3: Draw entities (baseline projected markers)
 	if state.DrawEntities {
 		dc.renderEntities(state)
 	}
@@ -1064,12 +1066,71 @@ func (dc *DrawContext) renderWorld(state *RenderFrameState) {
 // Note: ensureWorldRenderTarget removed - we now render directly to the surface view
 // provided by gogpu via dc.ctx.SurfaceView() for zero-copy rendering.
 
-// renderEntities draws entity models (alias models, brush models).
-// Stub implementation - M4.4 will implement proper entity rendering.
+// renderEntities draws a bounded fallback for runtime entities.
+// Instead of a full model pipeline, it projects entity origins to screen-space
+// and draws small colored markers so gameplay-relevant entities are visible.
 func (dc *DrawContext) renderEntities(state *RenderFrameState) {
-	// TODO: Implement entity rendering (M4.4)
-	// For now, this is a stub that does nothing.
-	// Entities will be rendered using MDL/alias model pipeline.
+	if dc == nil || dc.renderer == nil || state == nil {
+		return
+	}
+
+	screenW, screenH := dc.renderer.Size()
+	if screenW <= 0 || screenH <= 0 {
+		return
+	}
+
+	vpMatrix := dc.renderer.GetViewProjectionMatrix()
+
+	for _, entity := range state.AliasEntities {
+		dc.drawProjectedEntityMarker(entity.Origin, vpMatrix, screenW, screenH, 4, 248)
+	}
+	for _, entity := range state.SpriteEntities {
+		dc.drawProjectedEntityMarker(entity.Origin, vpMatrix, screenW, screenH, 6, 220)
+	}
+	for _, mark := range state.DecalMarks {
+		dc.drawProjectedEntityMarker(mark.Origin, vpMatrix, screenW, screenH, 2, 180)
+	}
+	if state.ViewModel != nil {
+		dc.drawProjectedEntityMarker(state.ViewModel.Origin, vpMatrix, screenW, screenH, 5, 251)
+	}
+}
+
+func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp gmath.Mat4, screenW, screenH, size int, color byte) {
+	x, y, ok := projectWorldPointToScreen(pos, vp, screenW, screenH)
+	if !ok {
+		return
+	}
+
+	if size < 1 {
+		size = 1
+	}
+	half := size / 2
+	dc.DrawFill(x-half, y-half, size, size, color)
+}
+
+func projectWorldPointToScreen(pos [3]float32, vp gmath.Mat4, screenW, screenH int) (x int, y int, ok bool) {
+	if screenW <= 0 || screenH <= 0 {
+		return 0, 0, false
+	}
+
+	clipPos := TransformVertex(pos, vp)
+	if clipPos.W <= 0.001 {
+		return 0, 0, false
+	}
+
+	invW := float32(1.0) / clipPos.W
+	ndcX := clipPos.X * invW
+	ndcY := clipPos.Y * invW
+	ndcZ := clipPos.Z * invW
+
+	if ndcX < -1 || ndcX > 1 || ndcY < -1 || ndcY > 1 || ndcZ < -1 || ndcZ > 1 {
+		return 0, 0, false
+	}
+
+	screenX := (ndcX*0.5 + 0.5) * float32(screenW-1)
+	screenY := (1 - (ndcY*0.5 + 0.5)) * float32(screenH-1)
+
+	return int(screenX), int(screenY), true
 }
 
 // renderParticles draws the particle system.

@@ -236,13 +236,6 @@ type worldDrawCall struct {
 	light      [3]float32
 }
 
-type worldLiquidAlphaSettings struct {
-	water float32
-	lava  float32
-	slime float32
-	tele  float32
-}
-
 type worldLiquidAlphaOverrides struct {
 	hasWater bool
 	water    float32

@@ -199,6 +199,42 @@ func TestPackLookupIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1")
+	modDir := filepath.Join(baseDir, "hipnotic")
+	if err := os.MkdirAll(filepath.Join(id1Dir, "music"), 0o755); err != nil {
+		t.Fatalf("failed to create id1 music dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(modDir, "music"), 0o755); err != nil {
+		t.Fatalf("failed to create mod music dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(id1Dir, "music", "track02.wav"), []byte("id1-wav"), 0o644); err != nil {
+		t.Fatalf("failed to write id1 wav: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "music", "track02.ogg"), []byte("mod-ogg"), 0o644); err != nil {
+		t.Fatalf("failed to write mod ogg: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("failed to init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	name, data, err := fileSys.LoadFirstAvailable([]string{"music/track02.wav", "music/track02.ogg"})
+	if err != nil {
+		t.Fatalf("LoadFirstAvailable failed: %v", err)
+	}
+	if name != "music/track02.ogg" {
+		t.Fatalf("resolved filename = %q, want %q", name, "music/track02.ogg")
+	}
+	if got := string(data); got != "mod-ogg" {
+		t.Fatalf("resolved data = %q, want %q", got, "mod-ogg")
+	}
+}
+
 func writeTestPak(t *testing.T, path string, files map[string][]byte) {
 	t.Helper()
 

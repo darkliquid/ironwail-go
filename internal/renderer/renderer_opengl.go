@@ -105,8 +105,8 @@ func (dc *glDrawContext) Clear(r, g, b, a float32) {
 }
 
 func (dc *glDrawContext) DrawTriangle(r, g, b, a float32) {
-	// TODO: Implement modern OpenGL triangle rendering with shaders and VBOs
-	// For now, just clear to the triangle color as a simple test
+	// Debug helper for RenderContext tests: clear to a solid color.
+	// Canonical OpenGL rendering runs through world/entity draw paths.
 	gl.ClearColor(r, g, b, a)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 }
@@ -616,7 +616,8 @@ func (r *Renderer) OnClose(callback func()) {
 
 // Input returns the input state for keyboard and mouse polling.
 func (r *Renderer) Input() interface{} {
-	// TODO: Implement input polling for GLFW
+	// OpenGL backend does not expose a polling object yet.
+	// Input handling currently flows through host/input callbacks.
 	return nil
 }
 

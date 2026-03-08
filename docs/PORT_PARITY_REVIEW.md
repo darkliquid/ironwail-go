@@ -130,8 +130,8 @@ Relevant Go file:
 
 The gogpu path still contains major parity gaps:
 
-- `DrawContext.RenderFrame()` explicitly labels entity rendering as a stub
-- `renderEntities()` is still TODO
+- `DrawContext.RenderFrame()` now runs a bounded entity-marker baseline instead of a full model pipeline
+- `renderEntities()` projects entity origins as screen-space markers; full model/sprite/decal parity is still TODO
 - particle rendering is a simplified 2D fallback, not a full world-space parity implementation
 - the path includes backend-specific state hacks to preserve a HAL world render beneath the overlay; this is not a parity-complete gameplay renderer yet
 
@@ -263,7 +263,7 @@ What already exists:
 
 ### What is missing or divergent
 
-- broader codec/music parity beyond WAV-backed CD tracks is still missing
+- broader codec/music parity beyond the current WAV/OGG CD-track support is still missing
 - leaf-driven ambient updates and underwater-intensity behavior analogous to `snd_dma.c:S_UpdateAmbientSounds()` are still not wired into the live runtime
 - server sound sending currently only uses the compact packet form; the client parser supports larger sound/entity encodings, but the built-in server does not emit them
 
@@ -284,7 +284,7 @@ The client parser already accepts large sound/entity encodings, but the built-in
 
 #### Music / CD behavior
 
-The original engine keeps a separate music path (`bgmusic.c`) distinct from one-shot SFX. The Go port now responds to `CDTrack` / `LoopTrack` with WAV-backed playback, but broader codec and search-path parity from `bgmusic.c` still remains.
+The original engine keeps a separate music path (`bgmusic.c`) distinct from one-shot SFX. The Go port now responds to `CDTrack` / `LoopTrack` with WAV/OGG playback and C-style search-path priority across those supported formats, but broader codec parity from `bgmusic.c` still remains.
 
 ## 5. Menus, HUD, console, bindings, and config persistence
 
@@ -361,7 +361,7 @@ This is one of the biggest places where older status docs understated current pr
 ### What is missing or divergent
 
 - load/save path behavior is simplified to `userDir/saves/<name>.sav`
-- there is still no equivalent of the C engine's loading-plaque rendering / broader save-file search behavior (despite matching stop-all transition-audio behavior more closely)
+- there is still no equivalent of the C engine's broader save-file search behavior; loading-plaque rendering now covers local load/reconnect plus remote reconnect hold-until-signon with a bounded failsafe timeout
 
 ### Exact C behavior still missing or not fully matched
 
@@ -386,7 +386,7 @@ The C load path does more than simple deserialization:
 - restores spawn parms, skill, map, time, lightstyles, globals, and edicts
 - re-enters the connection/signon flow after restoration
 
-Go already restores most of the world/QC state, including lightstyles, transition sound teardown, post-load signon re-entry, and local loading-plaque visibility, but it still lacks the broader search/UX behavior.
+Go already restores most of the world/QC state, including lightstyles, transition sound teardown, post-load signon re-entry, and local/remote reconnect loading-plaque transition visibility; it still lacks the broader save-file search behavior.
 
 ## 7. Networking and multiplayer parity
 
@@ -398,15 +398,15 @@ Go already restores most of the world/QC state, including lightstyles, transitio
 
 ### What is missing or divergent
 
-- remote transport-backed `connect`/`reconnect` is now wired and signon-completing, but broader game-options/deathmatch depth is still pending
+- remote transport-backed `connect`/`reconnect` is now wired and signon-completing; bounded deathmatch rules now enforce `fraglimit`/`timelimit` and delayed respawn, while broader game-options/netgame depth is still pending
 - multiplayer menu flows now route join/host/setup through the same live remote-capable host command path
 - runtime remains parity-scoped and still lacks full C netgame breadth despite real remote session transitions
 
-### Exact C behavior still missing or not fully matched
+### Exact C behavior recently closed in this slice
 
-- `Host_Connect_f()` establishes the remote connection and then forces a reconnect-style signon restart
-- `Host_Reconnect_f()` begins a loading plaque and clears signons; Go now mirrors that bounded behavior for local and remote reconnect flows
-- `Host_Kick_f()` supports name or slot-number targeting plus an optional kick message (now mirrored on the local host path)
+- `Host_Connect_f()` parity: remote connect now mirrors C sequencing by establishing transport and then forcing reconnect-style signon reset state
+- `Host_Reconnect_f()` parity: reconnect starts loading plaque and clears signons for both local and remote flows, matching the bounded C behavior targeted here
+- `Host_Kick_f()` supports name or slot-number targeting plus an optional kick message (mirrored on the local host path)
 
 ## 8. Overall parity judgement
 

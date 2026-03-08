@@ -72,3 +72,58 @@ func TestUpdateTextModeEnablesTextForMenu(t *testing.T) {
 		t.Fatalf("text mode after returning to game = %v, want %v", backend.lastMode, TextModeOff)
 	}
 }
+
+func TestHandleKeyEventFiltersAutorepeatOnlyInGame(t *testing.T) {
+	sys := NewSystem(nil)
+
+	var gameEvents []KeyEvent
+	sys.OnKey = func(event KeyEvent) { gameEvents = append(gameEvents, event) }
+
+	sys.SetKeyDest(KeyGame)
+	sys.HandleKeyEvent(KeyEvent{Key: int('x'), Down: true})
+	sys.HandleKeyEvent(KeyEvent{Key: int('x'), Down: true})
+
+	if len(gameEvents) != 1 {
+		t.Fatalf("game key callback count = %d, want 1", len(gameEvents))
+	}
+
+	sys.HandleKeyEvent(KeyEvent{Key: int('x'), Down: false})
+
+	var menuEvents []KeyEvent
+	var menuOnlyEvents []KeyEvent
+	sys.OnKey = func(event KeyEvent) { menuEvents = append(menuEvents, event) }
+	sys.OnMenuKey = func(event KeyEvent) { menuOnlyEvents = append(menuOnlyEvents, event) }
+	sys.SetKeyDest(KeyMenu)
+	sys.HandleKeyEvent(KeyEvent{Key: int('x'), Down: true})
+	sys.HandleKeyEvent(KeyEvent{Key: int('x'), Down: true})
+
+	if len(menuEvents) != 2 {
+		t.Fatalf("menu OnKey callback count = %d, want 2", len(menuEvents))
+	}
+	if len(menuOnlyEvents) != 2 {
+		t.Fatalf("menu OnMenuKey callback count = %d, want 2", len(menuOnlyEvents))
+	}
+}
+
+func TestHandleKeyEventIgnoresStrayKeyUp(t *testing.T) {
+	sys := NewSystem(nil)
+	sys.SetKeyDest(KeyGame)
+
+	var events []KeyEvent
+	sys.OnKey = func(event KeyEvent) { events = append(events, event) }
+
+	sys.HandleKeyEvent(KeyEvent{Key: int('z'), Down: false})
+	if len(events) != 0 {
+		t.Fatalf("stray key up should not dispatch callbacks, got %d", len(events))
+	}
+	if sys.IsKeyDown(int('z')) {
+		t.Fatalf("stray key up should not mark key down")
+	}
+
+	sys.HandleKeyEvent(KeyEvent{Key: int('z'), Down: true})
+	sys.HandleKeyEvent(KeyEvent{Key: int('z'), Down: false})
+
+	if len(events) != 2 {
+		t.Fatalf("expected down/up callbacks after valid press, got %d", len(events))
+	}
+}

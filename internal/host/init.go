@@ -35,6 +35,10 @@ const (
 
 func registerHostCVars() {
 	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
+	cvar.Register("coop", "0", cvar.FlagServerInfo, "Cooperative game mode")
+	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
+	cvar.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
+	cvar.Register("timelimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match time limit in minutes")
 	cvar.Register(clientNameCVar, defaultClientName, cvar.FlagArchive|cvar.FlagUserInfo, "Player name")
 	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
 	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
@@ -266,6 +270,7 @@ type Filesystem interface {
 	Init(baseDir, gameDir string) error
 	Close()
 	LoadFile(filename string) ([]byte, error)
+	LoadFirstAvailable(filenames []string) (string, []byte, error)
 }
 
 type CommandBuffer interface {
@@ -515,6 +520,12 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 	}
 	for _, line := range archivedVars {
 		fmt.Fprintf(f, "%s\n", line)
+	}
+
+	if clientState := ActiveClientState(subs); clientState != nil && (clientState.InputMLook.State&1) != 0 {
+		if _, err := fmt.Fprintln(f, "+mlook"); err != nil {
+			return fmt.Errorf("failed to write +mlook state: %w", err)
+		}
 	}
 
 	if subs != nil && subs.Console != nil {

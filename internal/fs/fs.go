@@ -226,6 +226,86 @@ func (fs *FileSystem) LoadFile(filename string) ([]byte, error) {
 	return iofs.ReadFile(result.SourceFS, result.Name)
 }
 
+func (fs *FileSystem) FindFirstAvailable(filenames []string) (*SearchResult, error) {
+	if len(filenames) == 0 {
+		return nil, fmt.Errorf("no filenames provided")
+	}
+
+	type candidate struct {
+		name   string
+		lookup string
+	}
+	candidates := make([]candidate, 0, len(filenames))
+	for _, filename := range filenames {
+		sanitizedName, err := sanitizePath(filename)
+		if err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, candidate{
+			name:   sanitizedName,
+			lookup: canonicalPackLookup(sanitizedName),
+		})
+	}
+
+	for _, searchPath := range fs.lookupPaths {
+		if searchPath.pack == nil {
+			for _, candidate := range candidates {
+				fullPath := filepath.Join(searchPath.root, filepath.FromSlash(candidate.name))
+				if !isWithinRoot(searchPath.root, fullPath) {
+					return nil, fmt.Errorf("invalid path traversal attempt: %s", candidate.name)
+				}
+				if stat, err := iofs.Stat(searchPath.fs, candidate.name); err == nil && !stat.IsDir() {
+					return &SearchResult{
+						Path:     fullPath,
+						Name:     candidate.name,
+						SourceFS: searchPath.fs,
+						IsPack:   false,
+					}, nil
+				}
+			}
+			continue
+		}
+
+		for _, candidate := range candidates {
+			for _, pf := range searchPath.pack.Files {
+				if pf.Lookup == candidate.lookup {
+					return &SearchResult{
+						Path:    searchPath.pack.Filename,
+						Name:    candidate.name,
+						IsPack:  true,
+						Pack:    searchPath.pack,
+						FilePos: pf.FilePos,
+						FileLen: pf.FileLen,
+					}, nil
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("none of the files were found: %s", strings.Join(filenames, ", "))
+}
+
+func (fs *FileSystem) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	result, err := fs.FindFirstAvailable(filenames)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if result.IsPack {
+		data, err := fs.loadFromPack(result)
+		if err != nil {
+			return "", nil, err
+		}
+		return result.Name, data, nil
+	}
+
+	data, err := iofs.ReadFile(result.SourceFS, result.Name)
+	if err != nil {
+		return "", nil, err
+	}
+	return result.Name, data, nil
+}
+
 func (fs *FileSystem) loadFromPack(result *SearchResult) ([]byte, error) {
 	if _, err := result.Pack.Handle.Seek(int64(result.FilePos), io.SeekStart); err != nil {
 		return nil, err

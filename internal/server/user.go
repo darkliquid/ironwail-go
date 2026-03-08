@@ -139,10 +139,11 @@ func (s *Server) userFriction(ctx *clientMoveContext) {
 	ctx.player.Vars.Velocity[0] *= newspeed
 	ctx.player.Vars.Velocity[1] *= newspeed
 	ctx.player.Vars.Velocity[2] *= newspeed
+	ctx.velocity = ctx.player.Vars.Velocity
 }
 
 func (s *Server) accelerate(wishspeed float32, wishdir [3]float32, ctx *clientMoveContext) {
-	currentSpeed := VecDot(ctx.velocity, wishdir)
+	currentSpeed := VecDot(ctx.player.Vars.Velocity, wishdir)
 	addspeed := wishspeed - currentSpeed
 	if addspeed <= 0 {
 		return
@@ -156,6 +157,7 @@ func (s *Server) accelerate(wishspeed float32, wishdir [3]float32, ctx *clientMo
 	ctx.player.Vars.Velocity[0] += accelspeed * wishdir[0]
 	ctx.player.Vars.Velocity[1] += accelspeed * wishdir[1]
 	ctx.player.Vars.Velocity[2] += accelspeed * wishdir[2]
+	ctx.velocity = ctx.player.Vars.Velocity
 }
 
 func (s *Server) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *clientMoveContext) {
@@ -178,6 +180,7 @@ func (s *Server) airAccelerate(wishspeed float32, wishvel [3]float32, ctx *clien
 	ctx.player.Vars.Velocity[0] += accelspeed * wishvel[0]
 	ctx.player.Vars.Velocity[1] += accelspeed * wishvel[1]
 	ctx.player.Vars.Velocity[2] += accelspeed * wishvel[2]
+	ctx.velocity = ctx.player.Vars.Velocity
 }
 
 func (s *Server) dropPunchAngle(ent *Edict) {
@@ -697,6 +700,10 @@ func (s *Server) RunClients() {
 			client.LastCmd = UserCmd{}
 			continue
 		}
+		if s.handleDeathmatchRespawn(client) {
+			client.LastCmd = UserCmd{}
+			continue
+		}
 
 		if !s.Paused {
 			s.SV_ClientThink(client)
@@ -721,6 +728,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 
 	client.Active = false
 	client.Spawned = false
+	client.RespawnTime = 0
 	if client.Edict != nil {
 		client.Edict.Free = true
 		client.Edict.FreeTime = s.Time

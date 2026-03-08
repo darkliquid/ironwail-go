@@ -310,7 +310,7 @@ Take the already-strong save/load system the rest of the way to C parity.
 - [x] save and restore lightstyles
 - [x] enforce save restrictions (`nomonsters`, intermission, dead-player)
 - [x] stop active gameplay sounds on local session transitions (`disconnect`/`reconnect`/`load`/`map`) to mirror the C engine's stop-all behavior
-- [x] add local load/reconnect loading plaque visibility in the runtime overlay path (bounded host-managed state/timer, no remote connect work)
+- [x] add load/reconnect loading plaque visibility in the runtime overlay path, including remote reconnect hold-until-signon behavior with a bounded failsafe timeout
 - [x] make sure menu/UI entry points reach the same save/load system
 - [x] scan load/save slots for menu labels and fall back to legacy install-dir saves when the user save dir has no match
 
@@ -318,7 +318,7 @@ Take the already-strong save/load system the rest of the way to C parity.
 
 - a saved game restores the same gameplay-relevant state as the C engine
 - unsupported save situations fail the same way the C engine does
-- remaining legacy save import edge cases and remote connect/reconnect loading UX are still tracked separately as remaining parity work
+- remaining legacy save import edge cases are still tracked separately as remaining parity work
 
 ### 10. Finish demo recording parity
 
@@ -369,12 +369,13 @@ Close the host-command and UI gaps that keep the port local-only.
 
 **Work**
 
-- [~] implement bounded `connect`/`disconnect` parity for local loopback (`demonum=-1`, demo playback stop/reset, `connect local` re-entry into local signon flow)
+- [x] implement bounded `connect`/`disconnect` parity for local loopback (`demonum=-1`, demo playback stop/reset, `connect local` re-entry into local signon flow)
 - [x] implement local-loopback `reconnect` signon restart behavior
 - [x] implement local host `kick` parity by name or slot with optional message
 - [x] stop active gameplay sounds during local disconnect/reconnect-style session transitions
 - [x] add local reconnect loading-plaque visibility in runtime overlay flow
 - [x] implement remote transport-backed `connect` flow (transport client now establishes remote sessions and auto-progresses signon via `prespawn`/`spawn`/`begin` replies)
+- [x] mirror C connect sequencing edge cases by forcing reconnect-style signon reset immediately after successful remote connection establishment
 - [x] connect the multiplayer menus to real behavior (join/host/setup dispatch live `connect`/host setup/hostname+player options through the same remote-capable host command path)
 
 **Done when**
