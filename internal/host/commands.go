@@ -502,6 +502,7 @@ func (h *Host) CmdServerInfo(subs *Subsystems) {
 	}
 
 	subs.Console.Print(fmt.Sprintf("Server info:\n"))
+	subs.Console.Print(fmt.Sprintf("  host:      %s\n", currentServerHostname()))
 	subs.Console.Print(fmt.Sprintf("  active:    %v\n", h.serverActive))
 	subs.Console.Print(fmt.Sprintf("  paused:    %v\n", h.serverPaused))
 	subs.Console.Print(fmt.Sprintf("  maxclients: %d\n", h.maxClients))
@@ -674,35 +675,46 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 }
 
 func (h *Host) CmdName(name string, subs *Subsystems) {
+	cvar.Set(clientNameCVar, name)
 	if subs.Server != nil {
 		subs.Server.SetClientName(0, name)
 	}
 }
 
 func (h *Host) CmdColor(args []string, subs *Subsystems) {
-	if subs.Server == nil || len(args) == 0 {
-		return
-	}
-
-	if len(args) == 1 {
-		var color int
-		fmt.Sscanf(args[0], "%d", &color)
-		subs.Server.SetClientColor(0, color)
+	if len(args) == 0 {
 		return
 	}
 
 	var top, bottom int
 	fmt.Sscanf(args[0], "%d", &top)
-	fmt.Sscanf(args[1], "%d", &bottom)
-	top &= 15
-	bottom &= 15
-	if top > 13 {
-		top = 13
+	if len(args) == 1 {
+		bottom = top
+	} else {
+		fmt.Sscanf(args[1], "%d", &bottom)
 	}
-	if bottom > 13 {
-		bottom = 13
+	top = clampClientColor(top)
+	bottom = clampClientColor(bottom)
+	color := top*16 + bottom
+	cvar.SetInt(clientColorCVar, color)
+	if subs.Server != nil {
+		subs.Server.SetClientColor(0, color)
 	}
-	subs.Server.SetClientColor(0, top*16+bottom)
+}
+
+func clampClientColor(value int) int {
+	value &= 15
+	if value > 13 {
+		return 13
+	}
+	return value
+}
+
+func currentServerHostname() string {
+	if value := cvar.StringValue(serverHostnameCVar); value != "" {
+		return value
+	}
+	return defaultServerHostname
 }
 
 func (h *Host) CmdKill(subs *Subsystems) {

@@ -51,15 +51,24 @@ const (
 	maxSaveGames = 12
 	helpPages    = 6
 
-	setupItems      = 4
-	setupNameMaxLen = 15
-	setupColorMax   = 13
-	joinAddressMax  = 63
-	hostMapMaxLen   = 32
+	setupNameMaxLen     = 15
+	setupHostnameMaxLen = 15
+	setupColorMax       = 13
+	joinAddressMax      = 63
+	hostMapMaxLen       = 32
 
 	menuSoundNavigate = "misc/menu1.wav"
 	menuSoundSelect   = "misc/menu2.wav"
 	menuSoundCancel   = "misc/menu3.wav"
+)
+
+const (
+	setupClientNameCVar  = "_cl_name"
+	setupClientColorCVar = "_cl_color"
+	setupHostnameCVar    = "hostname"
+
+	setupDefaultName     = "player"
+	setupDefaultHostname = "UNNAMED"
 )
 
 const (
@@ -69,6 +78,15 @@ const (
 	hostGameItemMap
 	hostGameItemStart
 	hostGameItemBack
+)
+
+const (
+	setupItemHostname = iota
+	setupItemName
+	setupItemTopColor
+	setupItemBottomColor
+	setupItemAccept
+	setupItems
 )
 
 const (
@@ -169,6 +187,7 @@ type Manager struct {
 	audioCursor        int
 	helpPage           int
 	setupCursor        int
+	setupHostname      string
 	setupName          string
 	setupTopColor      int
 	setupBottomColor   int
@@ -230,7 +249,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		audioCursor:        0,
 		helpPage:           0,
 		setupCursor:        0,
-		setupName:          "player",
+		setupHostname:      setupDefaultHostname,
+		setupName:          setupDefaultName,
 		setupTopColor:      0,
 		setupBottomColor:   0,
 		joinGameCursor:     0,
@@ -632,8 +652,40 @@ func (m *Manager) hostGameKey(key int) {
 }
 
 func (m *Manager) enterSetupMenu() {
+	m.syncSetupValues()
 	m.state = MenuSetup
-	m.setupCursor = 0
+	m.setupCursor = setupItemHostname
+}
+
+func (m *Manager) syncSetupValues() {
+	m.setupHostname = currentSetupHostname()
+	m.setupName = currentSetupName()
+	m.setupTopColor, m.setupBottomColor = splitSetupColors(currentSetupColor())
+}
+
+func currentSetupHostname() string {
+	if cv := cvar.Get(setupHostnameCVar); cv != nil && cv.String != "" {
+		return cv.String
+	}
+	return setupDefaultHostname
+}
+
+func currentSetupName() string {
+	if cv := cvar.Get(setupClientNameCVar); cv != nil {
+		return cv.String
+	}
+	return setupDefaultName
+}
+
+func currentSetupColor() int {
+	if cv := cvar.Get(setupClientColorCVar); cv != nil {
+		return cv.Int
+	}
+	return 0
+}
+
+func splitSetupColors(color int) (top, bottom int) {
+	return wrapSetupColor((color >> 4) & 0x0f), wrapSetupColor(color & 0x0f)
 }
 
 func (m *Manager) optionsKey(key int) {
@@ -1055,42 +1107,55 @@ func (m *Manager) setupKey(key int) {
 		}
 		m.playMenuSound(menuSoundNavigate)
 	case input.KLeftArrow:
+		if m.setupCursor < setupItemTopColor || m.setupCursor > setupItemBottomColor {
+			return
+		}
 		m.adjustSetupColor(-1)
 		m.playMenuSound(menuSoundNavigate)
 	case input.KRightArrow:
+		if m.setupCursor < setupItemTopColor || m.setupCursor > setupItemBottomColor {
+			return
+		}
 		m.adjustSetupColor(1)
 		m.playMenuSound(menuSoundNavigate)
 	case input.KBackspace:
-		if m.setupCursor == 0 {
+		switch m.setupCursor {
+		case setupItemHostname:
+			m.deleteSetupHostnameRune()
+			m.playMenuSound(menuSoundCancel)
+		case setupItemName:
 			m.deleteSetupNameRune()
 			m.playMenuSound(menuSoundCancel)
-			return
 		}
-		m.playMenuSound(menuSoundCancel)
-		m.state = MenuMultiPlayer
 	case input.KEnter, input.KSpace, input.KMouse1:
-		m.playMenuSound(menuSoundSelect)
 		switch m.setupCursor {
-		case 1, 2:
+		case setupItemTopColor, setupItemBottomColor:
 			m.adjustSetupColor(1)
-		case 3:
+			m.playMenuSound(menuSoundSelect)
+		case setupItemAccept:
 			m.applySetupChanges()
+			m.playMenuSound(menuSoundSelect)
 			m.state = MenuMultiPlayer
 		}
 	}
 }
 
 func (m *Manager) setupChar(char rune) {
-	if m.setupCursor != 0 {
-		return
-	}
 	if char < 32 || char > 126 {
 		return
 	}
-	if len(m.setupName) >= setupNameMaxLen {
-		return
+	switch m.setupCursor {
+	case setupItemHostname:
+		if len(m.setupHostname) >= setupHostnameMaxLen {
+			return
+		}
+		m.setupHostname += string(char)
+	case setupItemName:
+		if len(m.setupName) >= setupNameMaxLen {
+			return
+		}
+		m.setupName += string(char)
 	}
-	m.setupName += string(char)
 }
 
 func (m *Manager) joinGameChar(char rune) {
@@ -1120,33 +1185,34 @@ func (m *Manager) hostGameChar(char rune) {
 }
 
 func (m *Manager) deleteSetupNameRune() {
-	if len(m.setupName) == 0 {
-		return
+	m.setupName = deleteLastRune(m.setupName)
+}
+
+func (m *Manager) deleteSetupHostnameRune() {
+	m.setupHostname = deleteLastRune(m.setupHostname)
+}
+
+func deleteLastRune(text string) string {
+	if len(text) == 0 {
+		return text
 	}
-	m.setupName = m.setupName[:len(m.setupName)-1]
+	runes := []rune(text)
+	return string(runes[:len(runes)-1])
 }
 
 func (m *Manager) deleteJoinAddressRune() {
-	if len(m.joinAddress) == 0 {
-		return
-	}
-	runes := []rune(m.joinAddress)
-	m.joinAddress = string(runes[:len(runes)-1])
+	m.joinAddress = deleteLastRune(m.joinAddress)
 }
 
 func (m *Manager) deleteHostMapRune() {
-	if len(m.hostMapName) == 0 {
-		return
-	}
-	runes := []rune(m.hostMapName)
-	m.hostMapName = string(runes[:len(runes)-1])
+	m.hostMapName = deleteLastRune(m.hostMapName)
 }
 
 func (m *Manager) adjustSetupColor(delta int) {
 	switch m.setupCursor {
-	case 1:
+	case setupItemTopColor:
 		m.setupTopColor = wrapSetupColor(m.setupTopColor + delta)
-	case 2:
+	case setupItemBottomColor:
 		m.setupBottomColor = wrapSetupColor(m.setupBottomColor + delta)
 	}
 }
@@ -1186,12 +1252,16 @@ func wrapSetupColor(value int) int {
 
 func (m *Manager) applySetupChanges() {
 	name := strings.TrimSpace(m.setupName)
-	if name != "" {
-		escaped := strings.ReplaceAll(name, "\\", "\\\\")
-		escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
-		m.queueCommand(fmt.Sprintf("name \"%s\"\n", escaped))
+	if name != "" && name != currentSetupName() {
+		m.queueCommand(fmt.Sprintf("name %q\n", name))
 	}
-	m.queueCommand(fmt.Sprintf("color %d %d\n", m.setupTopColor, m.setupBottomColor))
+	if m.setupHostname != currentSetupHostname() {
+		cvar.Set(setupHostnameCVar, m.setupHostname)
+	}
+	top, bottom := splitSetupColors(currentSetupColor())
+	if m.setupTopColor != top || m.setupBottomColor != bottom {
+		m.queueCommand(fmt.Sprintf("color %d %d\n", m.setupTopColor, m.setupBottomColor))
+	}
 }
 
 func (m *Manager) applyJoinGame() {
@@ -1435,29 +1505,37 @@ func (m *Manager) drawQuit(dc renderer.RenderContext) {
 func (m *Manager) drawSetup(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
-	m.drawText(dc, 64, 48, "YOUR NAME", true)
-	m.drawText(dc, 64, 72, "SHIRT COLOR", true)
-	m.drawText(dc, 64, 96, "PANTS COLOR", true)
-	m.drawText(dc, 72, 128, "ACCEPT CHANGES", true)
+	m.drawText(dc, 64, 40, "HOSTNAME", true)
+	m.drawText(dc, 64, 56, "YOUR NAME", true)
+	m.drawText(dc, 64, 80, "SHIRT COLOR", true)
+	m.drawText(dc, 64, 104, "PANTS COLOR", true)
+	m.drawText(dc, 72, 140, "ACCEPT CHANGES", true)
 
-	m.drawText(dc, 176, 48, m.setupName, true)
-	m.drawText(dc, 176, 72, fmt.Sprintf("%d", m.setupTopColor), true)
-	m.drawText(dc, 176, 96, fmt.Sprintf("%d", m.setupBottomColor), true)
+	m.drawText(dc, 176, 40, m.setupHostname, true)
+	m.drawText(dc, 176, 56, m.setupName, true)
+	m.drawText(dc, 176, 80, fmt.Sprintf("%d", m.setupTopColor), true)
+	m.drawText(dc, 176, 104, fmt.Sprintf("%d", m.setupBottomColor), true)
 
 	swatchX := 224
-	swatchY := 68
+	swatchY := 76
 	swatchW := 32
 	swatchHalfH := 16
 	dc.DrawFill(swatchX, swatchY, swatchW, swatchHalfH, byte(m.setupTopColor*16))
 	dc.DrawFill(swatchX, swatchY+swatchHalfH, swatchW, swatchHalfH, byte(m.setupBottomColor*16))
 
-	setupCursorTable := []int{48, 72, 96, 128}
+	setupCursorTable := []int{40, 56, 80, 104, 140}
 	m.drawArrowCursor(dc, 56, setupCursorTable[m.setupCursor])
 
-	if m.setupCursor == 0 {
+	if m.setupCursor == setupItemHostname {
+		cursorX := 176 + len(m.setupHostname)*8
+		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
+		dc.DrawMenuCharacter(cursorX, 40, cursorChar)
+	}
+
+	if m.setupCursor == setupItemName {
 		cursorX := 176 + len(m.setupName)*8
 		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
-		dc.DrawMenuCharacter(cursorX, 48, cursorChar)
+		dc.DrawMenuCharacter(cursorX, 56, cursorChar)
 	}
 }
 

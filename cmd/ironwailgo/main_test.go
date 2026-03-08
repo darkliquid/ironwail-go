@@ -1941,6 +1941,7 @@ func TestMenuCharRoutingUpdatesSetupName(t *testing.T) {
 		t.Fatalf("menu state = %v, want %v", got, menu.MenuSetup)
 	}
 
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // name
 	gameInput.HandleCharEvent('x')
 	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // shirt
 	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // pants

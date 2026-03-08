@@ -187,8 +187,8 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 
 **Work**
 
-- [x] replace remaining TODO submenu actions for join/host/controls (bounded player setup menu now supports name + shirt/pants colors + accept/apply via `name`/`color`; options now routes to bounded video/audio/controls submenus backed by live cvars and bind commands, including live controls sensitivity/invert/always-run/freelook and bind editing)
-- wire real menu actions into cvars/commands
+- [x] replace remaining TODO submenu actions for join/host/controls (bounded player setup menu now supports hostname + player name + shirt/pants colors + accept/apply via `hostname`/`name`/`color`; options now route to bounded video/audio/controls submenus backed by live cvars and bind commands, including live controls sensitivity/invert/always-run/freelook and bind editing)
+- [x] sync multiplayer setup text-entry fields from live `hostname`/`_cl_name`/`_cl_color` state so reopening the menu reflects current player/server settings
 - [x] bounded `hud-statusbar-icons` parity slice: thread live client HUD stats/items into `hud.State` and render a base-Quake classic status bar (`sbar`/`ibar`) with weapon strip, ammo counts strip, keys/powerups/sigils, armor+face+ammo icons, and numeric readouts
 - [x] bounded `intermission-cutscene-parity` slice: preserve parsed finale/cutscene strings in live client state, feed live centerprint/intermission state into runtime HUD overlay flow, and render base-Quake intermission (`gfx/complete.lmp` + `gfx/inter.lmp` + map/time/secrets/monsters) plus finale/cutscene (`gfx/finale.lmp` + timed center-text reveal) overlays on the canonical runtime path
 - [x] route menu key handling from key-down events only (avoid doubled cursor movement and double-fired one-shot menu actions on key release)

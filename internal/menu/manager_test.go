@@ -66,6 +66,28 @@ func renderedMenuLine(rc *mockMenuRenderContext, y int) string {
 	return builder.String()
 }
 
+func setSetupTestCVars(t *testing.T, hostname, name string, color int) {
+	t.Helper()
+
+	hostnameCV := cvar.Register(setupHostnameCVar, setupDefaultHostname, cvar.FlagServerInfo, "")
+	nameCV := cvar.Register(setupClientNameCVar, setupDefaultName, cvar.FlagArchive|cvar.FlagUserInfo, "")
+	colorCV := cvar.Register(setupClientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "")
+
+	oldHostname := hostnameCV.String
+	oldName := nameCV.String
+	oldColor := colorCV.String
+
+	cvar.Set(hostnameCV.Name, hostname)
+	cvar.Set(nameCV.Name, name)
+	cvar.SetInt(colorCV.Name, color)
+
+	t.Cleanup(func() {
+		cvar.Set(hostnameCV.Name, oldHostname)
+		cvar.Set(nameCV.Name, oldName)
+		cvar.Set(colorCV.Name, oldColor)
+	})
+}
+
 func TestNewManager(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	inputSys := input.NewSystem(nil)
@@ -766,11 +788,41 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 	}
 }
 
-func TestSetupMenuNameColorAndAccept(t *testing.T) {
+func TestSetupMenuLoadsCurrentHostnameNameAndColor(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
+	setSetupTestCVars(t, "LAN Party", "Ranger", 0x12)
+
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+	mgr.multiPlayerCursor = 2
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuSetup {
+		t.Fatalf("expected setup state, got %v", got)
+	}
+	if got := mgr.setupHostname; got != "LAN Party" {
+		t.Fatalf("setup hostname = %q, want %q", got, "LAN Party")
+	}
+	if got := mgr.setupName; got != "Ranger" {
+		t.Fatalf("setup name = %q, want %q", got, "Ranger")
+	}
+	if got := mgr.setupTopColor; got != 1 {
+		t.Fatalf("setup top color = %d, want 1", got)
+	}
+	if got := mgr.setupBottomColor; got != 2 {
+		t.Fatalf("setup bottom color = %d, want 2", got)
+	}
+}
+
+func TestSetupMenuHostnameNameColorAndAccept(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	setSetupTestCVars(t, "UNNAMED", "player", 0)
 
 	var commands []string
 	mgr.commandText = func(text string) {
@@ -785,6 +837,16 @@ func TestSetupMenuNameColorAndAccept(t *testing.T) {
 		t.Fatalf("expected setup state, got %v", got)
 	}
 
+	for range len("UNNAMED") {
+		mgr.M_Key(input.KBackspace)
+	}
+	mgr.M_Char('H')
+	mgr.M_Char('Q')
+
+	mgr.M_Key(input.KDownArrow)
+	for range len("player") {
+		mgr.M_Key(input.KBackspace)
+	}
 	mgr.M_Char('R')
 	mgr.M_Char('a')
 	mgr.M_Char('n')
@@ -805,11 +867,31 @@ func TestSetupMenuNameColorAndAccept(t *testing.T) {
 	if len(commands) != 2 {
 		t.Fatalf("expected name and color commands, got %v", commands)
 	}
-	if commands[0] != "name \"playerRanger\"\n" {
+	if commands[0] != "name \"Ranger\"\n" {
 		t.Fatalf("unexpected name command: %q", commands[0])
 	}
 	if commands[1] != "color 1 1\n" {
 		t.Fatalf("unexpected color command: %q", commands[1])
+	}
+	if got := cvar.StringValue(setupHostnameCVar); got != "HQ" {
+		t.Fatalf("hostname cvar = %q, want %q", got, "HQ")
+	}
+}
+
+func TestSetupMenuBackspaceOnColorRowDoesNotExit(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	setSetupTestCVars(t, "UNNAMED", "player", 0)
+
+	mgr.enterSetupMenu()
+	mgr.setupCursor = setupItemTopColor
+
+	mgr.M_Key(input.KBackspace)
+
+	if got := mgr.GetState(); got != MenuSetup {
+		t.Fatalf("backspace on color row should stay in setup, got %v", got)
 	}
 }
 
@@ -818,6 +900,7 @@ func TestSetupMenuEscapesBackslashesAndQuotesInName(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
+	setSetupTestCVars(t, "UNNAMED", "player", 0)
 
 	var commands []string
 	mgr.commandText = func(text string) {
@@ -825,11 +908,12 @@ func TestSetupMenuEscapesBackslashesAndQuotesInName(t *testing.T) {
 	}
 
 	mgr.state = MenuSetup
+	mgr.setupHostname = currentSetupHostname()
 	mgr.setupName = `player\t"name"`
 	mgr.applySetupChanges()
 
-	if len(commands) != 2 {
-		t.Fatalf("expected name and color commands, got %v", commands)
+	if len(commands) != 1 {
+		t.Fatalf("expected name command only, got %v", commands)
 	}
 	if commands[0] != "name \"player\\\\t\\\"name\\\"\"\n" {
 		t.Fatalf("unexpected escaped name command: %q", commands[0])

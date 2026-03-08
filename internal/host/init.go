@@ -24,8 +24,20 @@ var (
 	hostCVarsOnce         sync.Once
 )
 
+const (
+	clientNameCVar     = "_cl_name"
+	clientColorCVar    = "_cl_color"
+	serverHostnameCVar = "hostname"
+
+	defaultClientName     = "player"
+	defaultServerHostname = "UNNAMED"
+)
+
 func registerHostCVars() {
 	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
+	cvar.Register(clientNameCVar, defaultClientName, cvar.FlagArchive|cvar.FlagUserInfo, "Player name")
+	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
+	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready

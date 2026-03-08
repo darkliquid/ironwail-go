@@ -313,9 +313,9 @@ What is already present:
 
 ### What is missing or divergent
 
-- multiplayer submenu now has bounded `join game` and `host game` flows: join supports menu text entry and dispatches `connect <address>`, while host applies bounded local options (`maxplayers`/`coop`/`deathmatch`/`skill`/`map`) through queued commands; bounded `player setup` works for player name plus shirt/pants color and applies changes through `name`/`color`
+- multiplayer submenu now has bounded `join game` and `host game` flows: join supports menu text entry and dispatches `connect <address>`, while host applies bounded local options (`maxplayers`/`coop`/`deathmatch`/`skill`/`map`) through queued commands; bounded `player setup` now syncs hostname/player name/colors from live cvars and applies changes through `hostname`/`name`/`color`
 - options submenu now has bounded video/audio/controls submenus wired to supported cvars; controls now exposes live sensitivity/invert-mouse/always-run/freelook settings plus existing bind editing
-- setup-menu hostname editing is still intentionally not implemented in this bounded slice
+- setup menu still uses a simplified color-swatch preview instead of the C menu's translated player preview/text-box art in this bounded slice
 - the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers) plus a bounded live intermission/finale/cutscene overlay path with timed center-text reveal, but it still omits expansion-pack special cases, pickup flash timing polish, and deathmatch score overlays
 - the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
 - the HUD and option/menu surfaces still expose much less functionality than the C engine

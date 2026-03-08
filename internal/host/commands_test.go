@@ -122,8 +122,17 @@ type colorTrackingServer struct {
 	lastColor int
 }
 
+type nameTrackingServer struct {
+	mockServer
+	lastName string
+}
+
 func (s *colorTrackingServer) SetClientColor(clientNum int, color int) {
 	s.lastColor = color
+}
+
+func (s *nameTrackingServer) SetClientName(clientNum int, name string) {
+	s.lastName = name
 }
 
 func newKickTrackingServer(names ...string) *kickTrackingServer {
@@ -289,18 +298,29 @@ func TestCmdGive(t *testing.T) {
 
 func TestCmdName(t *testing.T) {
 	h := NewHost()
+	srv := &nameTrackingServer{}
 	subs := &mockSubsystems{
-		server:  &mockServer{},
+		server:  &srv.mockServer,
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Server = srv
 	subs.Subsystems.Client = subs.client
 	subs.Subsystems.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	oldName := cvar.StringValue(clientNameCVar)
+	t.Cleanup(func() {
+		cvar.Set(clientNameCVar, oldName)
+	})
 
 	h.CmdName("Player", &subs.Subsystems)
+	if got := srv.lastName; got != "Player" {
+		t.Fatalf("server name = %q, want %q", got, "Player")
+	}
+	if got := cvar.StringValue(clientNameCVar); got != "Player" {
+		t.Fatalf("%s = %q, want %q", clientNameCVar, got, "Player")
+	}
 }
 
 func TestCmdColor(t *testing.T) {
@@ -313,15 +333,51 @@ func TestCmdColor(t *testing.T) {
 	}
 
 	h.Init(&InitParams{BaseDir: "."}, subs)
+	oldColor := cvar.StringValue(clientColorCVar)
+	t.Cleanup(func() {
+		cvar.Set(clientColorCVar, oldColor)
+	})
 
 	h.CmdColor([]string{"13"}, subs)
-	if got := srv.lastColor; got != 13 {
-		t.Fatalf("single-arg color = %d, want 13", got)
+	if got := srv.lastColor; got != 221 {
+		t.Fatalf("single-arg color = %d, want 221", got)
+	}
+	if got := cvar.IntValue(clientColorCVar); got != 221 {
+		t.Fatalf("%s = %d, want 221", clientColorCVar, got)
 	}
 
 	h.CmdColor([]string{"1", "2"}, subs)
 	if got := srv.lastColor; got != 18 {
 		t.Fatalf("two-arg color = %d, want 18", got)
+	}
+	if got := cvar.IntValue(clientColorCVar); got != 18 {
+		t.Fatalf("%s = %d, want 18", clientColorCVar, got)
+	}
+}
+
+func TestCmdServerInfoIncludesHostname(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	oldHostname := cvar.StringValue(serverHostnameCVar)
+	t.Cleanup(func() {
+		cvar.Set(serverHostnameCVar, oldHostname)
+	})
+	cvar.Set(serverHostnameCVar, "LAN Party")
+
+	h.CmdServerInfo(&subs.Subsystems)
+
+	got := strings.Join(subs.console.messages, "")
+	if !strings.Contains(got, "host:      LAN Party\n") {
+		t.Fatalf("serverinfo output missing hostname in:\n%s", got)
 	}
 }
 

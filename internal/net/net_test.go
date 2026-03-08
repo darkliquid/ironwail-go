@@ -6,6 +6,8 @@ package net
 import (
 	"testing"
 	"time"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 func TestUDPConnection(t *testing.T) {
@@ -134,5 +136,23 @@ func TestUDPUnreliable(t *testing.T) {
 	}
 	if string(receivedMsg) != "Unreliable Server" {
 		t.Fatalf("Expected 'Unreliable Server', got '%s'", string(receivedMsg))
+	}
+}
+
+func TestServerInfoHostnameFallback(t *testing.T) {
+	hostname := cvar.Register("hostname", defaultServerInfoHostname, cvar.FlagServerInfo, "")
+	oldHostname := hostname.String
+	t.Cleanup(func() {
+		cvar.Set(hostname.Name, oldHostname)
+	})
+
+	cvar.Set(hostname.Name, "")
+	if got := serverInfoHostname(); got != defaultServerInfoHostname {
+		t.Fatalf("serverInfoHostname() with empty cvar = %q, want %q", got, defaultServerInfoHostname)
+	}
+
+	cvar.Set(hostname.Name, "LAN Party")
+	if got := serverInfoHostname(); got != "LAN Party" {
+		t.Fatalf("serverInfoHostname() = %q, want %q", got, "LAN Party")
 	}
 }

@@ -6,7 +6,18 @@ package net
 import (
 	"encoding/binary"
 	stdnet "net"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
+
+const defaultServerInfoHostname = "UNNAMED"
+
+func serverInfoHostname() string {
+	if value := cvar.StringValue("hostname"); value != "" {
+		return value
+	}
+	return defaultServerInfoHostname
+}
 
 func DatagramSendMessage(sock *Socket, data []byte) int {
 	if len(data) > MaxMessage {
@@ -309,7 +320,7 @@ func DatagramCheckNewConnections() *Socket {
 		binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 		resp[8] = CCRepServerInfo
 		copy(resp[9:], "localhost:26000\x00")
-		copy(resp[25:], "Ironwail-Go\x00")
+		copy(resp[25:40], []byte(serverInfoHostname()))
 		copy(resp[41:], "e1m1\x00")
 		resp[57] = 0 // current players
 		resp[58] = 8 // max players
