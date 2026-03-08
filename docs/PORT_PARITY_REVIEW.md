@@ -119,7 +119,7 @@ The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 #### Remaining divergences from C
 
 - embedded BSP sky surfaces now render through a dedicated animated sky-layer shader/path (instead of the ordinary world shader), and the common external cubemap skybox path is consumed (including partial square face sets with zero-filled missing faces) with fallback to embedded sky for unsupported face sets
-- particle rendering now has explicit opaque/translucent subpass plumbing in the top-level OpenGL frame path, sky now runs in its own post-opaque stage, world/brush liquid surfaces bucket into dedicated opaque/translucent liquid bins and are staged so all opaque liquid draws happen before any translucent liquid draws, alias-model entities now split into explicit opaque/translucent frame stages, and translucent brush-entity non-liquid work has moved out of the early opaque stage; the broader scene ordering is still simpler than `R_RenderScene()` and sprite timing plus final viewmodel/translucency sequencing still diverge
+- particle rendering now has explicit opaque/translucent subpass plumbing in the top-level OpenGL frame path, sky now runs in its own post-opaque stage, world/brush liquid surfaces bucket into dedicated opaque/translucent liquid bins and are staged so all opaque liquid draws happen before any translucent liquid draws, alias-model entities now split into explicit opaque/translucent frame stages, translucent brush-entity non-liquid work has moved out of the early opaque stage, and the late-frame translucent pass is now wrapped in an explicit begin/end translucency state block before viewmodel rendering; the broader scene ordering is still simpler than `R_RenderScene()` and sprite timing plus final viewmodel placement still diverge
 
 ### 2.3 gogpu path: current status
 
@@ -157,7 +157,7 @@ The C engine's scene ordering is:
 13. end translucency
 14. `R_DrawViewModel()`
 
-The Go OpenGL path currently clears, then draws world, brush entities, alias entities, sprite entities, decals, particles, and viewmodel in a simpler sequence. It has the pieces, but not yet the same top-level pass structure.
+The Go OpenGL path now uses explicit staged ordering (opaque world/entities/particles, dedicated sky, split liquid opaque/translucent, late translucent block, then viewmodel), but it still does not fully match the exact C top-level pass structure.
 
 #### `r_brush.c:R_TextureAnimation()`
 

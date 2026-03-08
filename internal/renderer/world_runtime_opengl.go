@@ -881,6 +881,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err != nil {
 		return fmt.Errorf("build world render data: %w", err)
 	}
+	r.worldLiquidFaceTypes = 0
+	if renderData.Geometry != nil {
+		r.worldLiquidFaceTypes = worldLiquidFaceTypeMask(renderData.Geometry.Faces)
+	}
 	if renderData.Geometry == nil || len(renderData.Geometry.Vertices) == 0 || len(renderData.Geometry.Indices) == 0 {
 		r.worldData = renderData
 		return nil
@@ -2369,6 +2373,22 @@ func (r *Renderer) HasWorldData() bool {
 	return r.worldData != nil && r.worldVAO != 0 && r.worldProgram != 0 && r.worldIndexCount > 0
 }
 
+func (r *Renderer) hasTranslucentWorldLiquidFaces() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	liquidFaceTypes := r.worldLiquidFaceTypes
+	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
+	worldTree := r.worldTree
+	r.mu.RUnlock()
+	if liquidFaceTypes == 0 {
+		return false
+	}
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
+	return hasTranslucentWorldLiquidFaceType(liquidFaceTypes, liquidAlpha)
+}
+
 // GetWorldBounds returns the bounds of the uploaded world geometry.
 func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	r.mu.RLock()
@@ -2485,6 +2505,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldIndexCount = 0
 	r.worldData = nil
 	r.worldTree = nil
+	r.worldLiquidFaceTypes = 0
 	r.worldLiquidAlphaOverrides = worldLiquidAlphaOverrides{}
 	r.worldSkyFogOverride = worldSkyFogOverride{}
 	r.worldSkyExternalName = ""

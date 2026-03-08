@@ -406,6 +406,7 @@ type Renderer struct {
 	worldSkyAlphaTextures               map[int32]uint32
 	worldTextureAnimations              []*SurfaceTexture
 	worldLightmaps                      []uint32
+	worldLiquidFaceTypes                int32
 	worldLiquidAlphaOverrides           worldLiquidAlphaOverrides
 	worldSkyFogOverride                 worldSkyFogOverride
 	worldSkyExternalName                string

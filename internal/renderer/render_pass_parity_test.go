@@ -1,6 +1,10 @@
 package renderer
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/model"
+)
 
 func TestSplitParticleVerticesByAlpha(t *testing.T) {
 	vertices := []ParticleVertex{
@@ -157,5 +161,110 @@ func TestWorldBrushPassSelector(t *testing.T) {
 				t.Fatalf("includesSky() = %v, want %v", got, tc.wantIncludesSky)
 			}
 		})
+	}
+}
+
+func TestShouldRunLateTranslucencyBlock(t *testing.T) {
+	tests := []struct {
+		name   string
+		inputs lateTranslucencyBlockInputs
+		want   bool
+	}{
+		{
+			name:   "disabled when no late translucent work",
+			inputs: lateTranslucencyBlockInputs{},
+			want:   false,
+		},
+		{
+			name: "world draw without translucent world work does not enable block",
+			inputs: lateTranslucencyBlockInputs{
+				drawWorld: true,
+			},
+			want: false,
+		},
+		{
+			name: "world draw with translucent world work enables block",
+			inputs: lateTranslucencyBlockInputs{
+				drawWorld:           true,
+				hasTranslucentWorld: true,
+			},
+			want: true,
+		},
+		{
+			name: "particles draw enables block",
+			inputs: lateTranslucencyBlockInputs{
+				drawParticles: true,
+			},
+			want: true,
+		},
+		{
+			name: "decal marks enable block",
+			inputs: lateTranslucencyBlockInputs{
+				hasDecalMarks: true,
+			},
+			want: true,
+		},
+		{
+			name: "translucent entity slices require draw entities",
+			inputs: lateTranslucencyBlockInputs{
+				hasTranslucentBrushEntities: true,
+			},
+			want: false,
+		},
+		{
+			name: "translucent brush entities with draw entities enabled",
+			inputs: lateTranslucencyBlockInputs{
+				drawEntities:                true,
+				hasTranslucentBrushEntities: true,
+			},
+			want: true,
+		},
+		{
+			name: "translucent alias entities with draw entities enabled",
+			inputs: lateTranslucencyBlockInputs{
+				drawEntities:                true,
+				hasTranslucentAliasEntities: true,
+			},
+			want: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldRunLateTranslucencyBlock(tc.inputs); got != tc.want {
+				t.Fatalf("shouldRunLateTranslucencyBlock() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorldLiquidFaceTypeMask(t *testing.T) {
+	faces := []WorldFace{
+		{Flags: model.SurfDrawWater},                       // non-turbulent should not count
+		{Flags: model.SurfDrawTurb | model.SurfDrawWater},  // turbulent water counts
+		{Flags: model.SurfDrawTurb | model.SurfDrawLava},   // turbulent lava counts
+		{Flags: model.SurfDrawTurb | model.SurfDrawSky},    // non-liquid
+		{Flags: model.SurfDrawTurb | model.SurfDrawSlime},  // turbulent slime counts
+		{Flags: model.SurfDrawTurb | model.SurfDrawTele},   // turbulent tele counts
+		{Flags: model.SurfDrawTurb | model.SurfDrawFence},  // non-liquid
+		{Flags: model.SurfDrawWater | model.SurfDrawFence}, // still non-turbulent
+	}
+	got := worldLiquidFaceTypeMask(faces)
+	want := int32(model.SurfDrawWater | model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele)
+	if got != want {
+		t.Fatalf("worldLiquidFaceTypeMask() = %#x, want %#x", got, want)
+	}
+}
+
+func TestHasTranslucentWorldLiquidFaceType(t *testing.T) {
+	mask := int32(model.SurfDrawWater | model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele)
+	if got := hasTranslucentWorldLiquidFaceType(mask, worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}); got {
+		t.Fatalf("all-opaque alpha should not be translucent")
+	}
+	if got := hasTranslucentWorldLiquidFaceType(mask, worldLiquidAlphaSettings{water: 1, lava: 0.5, slime: 1, tele: 1}); !got {
+		t.Fatalf("translucent lava should be translucent")
+	}
+	if got := hasTranslucentWorldLiquidFaceType(int32(model.SurfDrawWater), worldLiquidAlphaSettings{water: 0.75, lava: 1, slime: 1, tele: 1}); !got {
+		t.Fatalf("translucent water should be translucent")
 	}
 }

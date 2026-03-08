@@ -35,6 +35,16 @@ type DrawContext struct {
 	gldc *glDrawContext
 }
 
+func beginLateTranslucencyStateBlock() {
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+}
+
+func endLateTranslucencyStateBlock() {
+	gl.DepthMask(true)
+	gl.Disable(gl.BLEND)
+}
+
 // RenderFrame executes the frame pipeline for the OpenGL path.
 func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(dc RenderContext)) {
 	if state == nil {
@@ -48,6 +58,15 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && len(state.AliasEntities) > 0 {
 		opaqueAliasEntities, translucentAliasEntities = splitAliasEntitiesByAlpha(state.AliasEntities)
 	}
+	lateTranslucency := shouldRunLateTranslucencyBlock(lateTranslucencyBlockInputs{
+		drawWorld:                   state.DrawWorld,
+		hasTranslucentWorld:         state.DrawWorld && dc.gldc.renderer != nil && dc.gldc.renderer.hasTranslucentWorldLiquidFaces(),
+		drawEntities:                state.DrawEntities,
+		drawParticles:               state.DrawParticles,
+		hasDecalMarks:               len(state.DecalMarks) > 0,
+		hasTranslucentBrushEntities: len(translucentBrushEntities) > 0,
+		hasTranslucentAliasEntities: len(translucentAliasEntities) > 0,
+	})
 	if dc.gldc.renderer != nil {
 		dc.gldc.renderer.setLightStyleValues(state.LightStyles)
 		dc.gldc.renderer.setFogState(state.FogColor, state.FogDensity)
@@ -80,6 +99,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueBrushEntities) > 0 {
 		dc.gldc.renderer.renderBrushEntities(opaqueBrushEntities, worldBrushPassLiquidOpaqueOnly)
 	}
+	if lateTranslucency {
+		beginLateTranslucencyStateBlock()
+	}
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassLiquidTranslucentOnly)
 	}
@@ -100,6 +122,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
 		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassTranslucent)
+	}
+	if lateTranslucency {
+		endLateTranslucencyStateBlock()
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && state.ViewModel != nil {
 		dc.gldc.renderer.renderViewModel(*state.ViewModel)

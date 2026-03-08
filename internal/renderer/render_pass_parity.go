@@ -1,5 +1,7 @@
 package renderer
 
+import "github.com/ironwail/ironwail-go/internal/model"
+
 type worldBrushPassSelector int
 
 const (
@@ -103,4 +105,51 @@ func splitParticleVerticesByAlpha(vertices []ParticleVertex) (opaque, translucen
 		translucent = append(translucent, vertex)
 	}
 	return opaque, translucent
+}
+
+type lateTranslucencyBlockInputs struct {
+	drawWorld                   bool
+	hasTranslucentWorld         bool
+	drawEntities                bool
+	drawParticles               bool
+	hasDecalMarks               bool
+	hasTranslucentBrushEntities bool
+	hasTranslucentAliasEntities bool
+}
+
+func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
+	if (inputs.drawWorld && inputs.hasTranslucentWorld) || inputs.hasDecalMarks || inputs.drawParticles {
+		return true
+	}
+	if !inputs.drawEntities {
+		return false
+	}
+	return inputs.hasTranslucentBrushEntities || inputs.hasTranslucentAliasEntities
+}
+
+func worldLiquidFaceTypeMask(faces []WorldFace) int32 {
+	var mask int32
+	for _, face := range faces {
+		if face.Flags&model.SurfDrawTurb == 0 {
+			continue
+		}
+		mask |= face.Flags & (model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele | model.SurfDrawWater)
+	}
+	return mask
+}
+
+func hasTranslucentWorldLiquidFaceType(mask int32, liquidAlpha worldLiquidAlphaSettings) bool {
+	if mask&model.SurfDrawLava != 0 && !isFullyOpaqueAlpha(liquidAlpha.lava) {
+		return true
+	}
+	if mask&model.SurfDrawSlime != 0 && !isFullyOpaqueAlpha(liquidAlpha.slime) {
+		return true
+	}
+	if mask&model.SurfDrawTele != 0 && !isFullyOpaqueAlpha(liquidAlpha.tele) {
+		return true
+	}
+	if mask&model.SurfDrawWater != 0 && !isFullyOpaqueAlpha(liquidAlpha.water) {
+		return true
+	}
+	return false
 }

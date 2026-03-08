@@ -25,8 +25,9 @@ B. ENTITY RENDERING        [████████████████░�
       - frame-level OpenGL ordering now stages world + brush non-liquid draws before alias/sprite + opaque particles, then runs a dedicated sky step, then all opaque liquid world/brush draws, then all translucent liquid world/brush draws
       - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
       - translucent brush-entity non-liquid surfaces now move out of the early opaque stage and render later, after the separated liquid phases
+      - late translucent liquid/entity/decal/particle work is now wrapped in an explicit begin/end translucency state block before the final viewmodel draw
       - current runtime particles still all resolve through the opaque side, so full C `r_particles` behavior remains future work
-   - Remaining fidelity work: full C pass sequencing across sprite timing, translucency begin/end semantics, and final viewmodel placement
+   - Remaining fidelity work: full C pass sequencing across sprite timing and final viewmodel placement
 
 C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
    - Menu nav: DONE
