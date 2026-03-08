@@ -1768,6 +1768,43 @@ func TestMenuTapEscapeFromSubmenuReturnsToMain(t *testing.T) {
 	}
 }
 
+func TestMenuCharRoutingUpdatesSetupName(t *testing.T) {
+	originalInput := gameInput
+	originalMenu := gameMenu
+	t.Cleanup(func() {
+		gameInput = originalInput
+		gameMenu = originalMenu
+	})
+
+	gameInput = input.NewSystem(nil)
+	gameMenu = menu.NewManager(nil, gameInput)
+	gameMenu.ShowMenu()
+	gameInput.SetKeyDest(input.KeyMenu)
+	gameInput.OnMenuKey = handleMenuKeyEvent
+	gameInput.OnMenuChar = handleMenuCharEvent
+
+	// Enter multiplayer -> setup.
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+
+	if got := gameMenu.GetState(); got != menu.MenuSetup {
+		t.Fatalf("menu state = %v, want %v", got, menu.MenuSetup)
+	}
+
+	gameInput.HandleCharEvent('x')
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // shirt
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // pants
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // accept
+	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+
+	if got := gameMenu.GetState(); got != menu.MenuMultiPlayer {
+		t.Fatalf("menu state after accept = %v, want %v", got, menu.MenuMultiPlayer)
+	}
+}
+
 func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	originalInput := gameInput
 	originalMenu := gameMenu

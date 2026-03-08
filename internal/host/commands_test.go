@@ -117,6 +117,15 @@ type kickTrackingServer struct {
 	kicks  []kickRecord
 }
 
+type colorTrackingServer struct {
+	mockServer
+	lastColor int
+}
+
+func (s *colorTrackingServer) SetClientColor(clientNum int, color int) {
+	s.lastColor = color
+}
+
 func newKickTrackingServer(names ...string) *kickTrackingServer {
 	active := make([]bool, len(names))
 	for i := range active {
@@ -296,18 +305,24 @@ func TestCmdName(t *testing.T) {
 
 func TestCmdColor(t *testing.T) {
 	h := NewHost()
-	subs := &mockSubsystems{
-		server:  &mockServer{},
-		client:  &mockClient{},
-		console: &mockConsole{},
+	srv := &colorTrackingServer{}
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  &mockClient{},
+		Console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	h.Init(&InitParams{BaseDir: "."}, subs)
 
-	h.CmdColor("13", &subs.Subsystems)
+	h.CmdColor([]string{"13"}, subs)
+	if got := srv.lastColor; got != 13 {
+		t.Fatalf("single-arg color = %d, want 13", got)
+	}
+
+	h.CmdColor([]string{"1", "2"}, subs)
+	if got := srv.lastColor; got != 18 {
+		t.Fatalf("two-arg color = %d, want 18", got)
+	}
 }
 
 func TestCmdPing(t *testing.T) {

@@ -183,7 +183,7 @@ Close the player-facing UI gaps together instead of as isolated stubs.
 
 **Work**
 
-- replace TODO submenu actions for join/host/player setup/controls/video/audio
+- replace remaining TODO submenu actions for join/host/controls/video/audio (bounded player setup menu now supports name + shirt/pants colors + accept/apply via `name`/`color`)
 - wire real menu actions into cvars/commands
 - [x] bounded `hud-statusbar-icons` parity slice: thread live client HUD stats/items into `hud.State` and render a base-Quake classic status bar (`sbar`/`ibar`) with weapon strip, ammo counts strip, keys/powerups/sigils, armor+face+ammo icons, and numeric readouts
 - [x] bounded `intermission-cutscene-parity` slice: preserve parsed finale/cutscene strings in live client state, feed live centerprint/intermission state into runtime HUD overlay flow, and render base-Quake intermission (`gfx/complete.lmp` + `gfx/inter.lmp` + map/time/secrets/monsters) plus finale/cutscene (`gfx/finale.lmp` + center text) overlays on the canonical runtime path (static text draw, no char-by-char reveal yet)

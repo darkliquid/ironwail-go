@@ -3,6 +3,7 @@ package menu
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
@@ -24,6 +25,7 @@ const (
 	MenuOptions                       // Options submenu
 	MenuHelp                          // Help screens
 	MenuQuit                          // Quit confirmation screen
+	MenuSetup                         // Player setup screen
 )
 
 const (
@@ -35,6 +37,10 @@ const (
 
 	maxSaveGames = 12
 	helpPages    = 6
+
+	setupItems      = 4
+	setupNameMaxLen = 15
+	setupColorMax   = 13
 )
 
 // Manager handles the Quake menu system including navigation and rendering.
@@ -51,6 +57,10 @@ type Manager struct {
 	multiPlayerCursor  int
 	optionsCursor      int
 	helpPage           int
+	setupCursor        int
+	setupName          string
+	setupTopColor      int
+	setupBottomColor   int
 
 	quitPrevState MenuState
 
@@ -83,6 +93,10 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		multiPlayerCursor:  0,
 		optionsCursor:      0,
 		helpPage:           0,
+		setupCursor:        0,
+		setupName:          "player",
+		setupTopColor:      0,
+		setupBottomColor:   0,
 		drawManager:        drawMgr,
 		inputSystem:        inputSys,
 		active:             false,
@@ -172,7 +186,17 @@ func (m *Manager) M_Key(key int) {
 		m.helpKey(key)
 	case MenuQuit:
 		m.quitKey(key)
+	case MenuSetup:
+		m.setupKey(key)
 	}
+}
+
+// M_Char handles typed characters for menu text-entry fields.
+func (m *Manager) M_Char(char rune) {
+	if m.state != MenuSetup {
+		return
+	}
+	m.setupChar(char)
 }
 
 // M_Draw renders the current menu state.
@@ -194,6 +218,8 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawHelp(dc)
 	case MenuQuit:
 		m.drawQuit(dc)
+	case MenuSetup:
+		m.drawSetup(dc)
 	}
 }
 
@@ -325,11 +351,16 @@ func (m *Manager) multiPlayerKey(key int) {
 		case 1:
 			m.queueCommand("echo Host game menu is TODO\n")
 		case 2:
-			m.queueCommand("echo Player setup menu is TODO\n")
+			m.enterSetupMenu()
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:
 		m.state = MenuMain
 	}
+}
+
+func (m *Manager) enterSetupMenu() {
+	m.state = MenuSetup
+	m.setupCursor = 0
 }
 
 func (m *Manager) optionsKey(key int) {
@@ -389,6 +420,90 @@ func (m *Manager) quitKey(key int) {
 		// Cancel - return to main menu
 		m.state = m.quitPrevState
 	}
+}
+
+func (m *Manager) setupKey(key int) {
+	switch key {
+	case input.KEscape, input.KMouse2:
+		m.state = MenuMultiPlayer
+	case input.KUpArrow, input.KMWheelUp:
+		m.setupCursor--
+		if m.setupCursor < 0 {
+			m.setupCursor = setupItems - 1
+		}
+	case input.KDownArrow, input.KMWheelDown:
+		m.setupCursor++
+		if m.setupCursor >= setupItems {
+			m.setupCursor = 0
+		}
+	case input.KLeftArrow:
+		m.adjustSetupColor(-1)
+	case input.KRightArrow:
+		m.adjustSetupColor(1)
+	case input.KBackspace:
+		if m.setupCursor == 0 {
+			m.deleteSetupNameRune()
+			return
+		}
+		m.state = MenuMultiPlayer
+	case input.KEnter, input.KSpace, input.KMouse1:
+		switch m.setupCursor {
+		case 1, 2:
+			m.adjustSetupColor(1)
+		case 3:
+			m.applySetupChanges()
+			m.state = MenuMultiPlayer
+		}
+	}
+}
+
+func (m *Manager) setupChar(char rune) {
+	if m.setupCursor != 0 {
+		return
+	}
+	if char < 32 || char > 126 {
+		return
+	}
+	if len(m.setupName) >= setupNameMaxLen {
+		return
+	}
+	m.setupName += string(char)
+}
+
+func (m *Manager) deleteSetupNameRune() {
+	if len(m.setupName) == 0 {
+		return
+	}
+	m.setupName = m.setupName[:len(m.setupName)-1]
+}
+
+func (m *Manager) adjustSetupColor(delta int) {
+	switch m.setupCursor {
+	case 1:
+		m.setupTopColor = wrapSetupColor(m.setupTopColor + delta)
+	case 2:
+		m.setupBottomColor = wrapSetupColor(m.setupBottomColor + delta)
+	}
+}
+
+func wrapSetupColor(value int) int {
+	if value > setupColorMax {
+		return 0
+	}
+	if value < 0 {
+		return setupColorMax
+	}
+	return value
+}
+
+func (m *Manager) applySetupChanges() {
+	name := strings.TrimSpace(m.setupName)
+	if name != "" {
+		escaped := strings.ReplaceAll(name, "\\", "\\\\")
+		escaped = strings.ReplaceAll(escaped, "\"", "\\\"")
+		m.queueCommand(fmt.Sprintf("name \"%s\"\n", escaped))
+	}
+	m.queueCommand(fmt.Sprintf("color %d %d\n", m.setupTopColor, m.setupBottomColor))
 }
 
 // drawMain renders the main menu.
@@ -485,6 +600,35 @@ func (m *Manager) drawQuit(dc renderer.RenderContext) {
 	m.drawText(dc, 56, 64, "ARE YOU SURE YOU WANT TO QUIT?", true)
 	m.drawText(dc, 56, 88, "PRESS Y OR ENTER TO QUIT", true)
 	m.drawText(dc, 56, 104, "PRESS N OR ESC TO CANCEL", true)
+}
+
+func (m *Manager) drawSetup(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
+
+	m.drawText(dc, 64, 48, "YOUR NAME", true)
+	m.drawText(dc, 64, 72, "SHIRT COLOR", true)
+	m.drawText(dc, 64, 96, "PANTS COLOR", true)
+	m.drawText(dc, 72, 128, "ACCEPT CHANGES", true)
+
+	m.drawText(dc, 176, 48, m.setupName, true)
+	m.drawText(dc, 176, 72, fmt.Sprintf("%d", m.setupTopColor), true)
+	m.drawText(dc, 176, 96, fmt.Sprintf("%d", m.setupBottomColor), true)
+
+	swatchX := 224
+	swatchY := 68
+	swatchW := 32
+	swatchHalfH := 16
+	dc.DrawFill(swatchX, swatchY, swatchW, swatchHalfH, byte(m.setupTopColor*16))
+	dc.DrawFill(swatchX, swatchY+swatchHalfH, swatchW, swatchHalfH, byte(m.setupBottomColor*16))
+
+	setupCursorTable := []int{48, 72, 96, 128}
+	m.drawArrowCursor(dc, 56, setupCursorTable[m.setupCursor])
+
+	if m.setupCursor == 0 {
+		cursorX := 176 + len(m.setupName)*8
+		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
+		dc.DrawMenuCharacter(cursorX, 48, cursorChar)
+	}
 }
 
 func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string) {

@@ -84,7 +84,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	}, "Set player name")
 	cmdsys.AddCommand("color", func(args []string) {
 		if len(args) > 0 {
-			h.CmdColor(args[0], subs)
+			h.CmdColor(args, subs)
 		}
 	}, "Set player color")
 	cmdsys.AddCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
@@ -672,12 +672,30 @@ func (h *Host) CmdName(name string, subs *Subsystems) {
 	}
 }
 
-func (h *Host) CmdColor(colorStr string, subs *Subsystems) {
-	if subs.Server != nil {
-		var color int
-		fmt.Sscanf(colorStr, "%d", &color)
-		subs.Server.SetClientColor(0, color)
+func (h *Host) CmdColor(args []string, subs *Subsystems) {
+	if subs.Server == nil || len(args) == 0 {
+		return
 	}
+
+	if len(args) == 1 {
+		var color int
+		fmt.Sscanf(args[0], "%d", &color)
+		subs.Server.SetClientColor(0, color)
+		return
+	}
+
+	var top, bottom int
+	fmt.Sscanf(args[0], "%d", &top)
+	fmt.Sscanf(args[1], "%d", &bottom)
+	top &= 15
+	bottom &= 15
+	if top > 13 {
+		top = 13
+	}
+	if bottom > 13 {
+		bottom = 13
+	}
+	subs.Server.SetClientColor(0, top*16+bottom)
 }
 
 func (h *Host) CmdKill(subs *Subsystems) {

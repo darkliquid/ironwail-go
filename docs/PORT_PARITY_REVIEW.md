@@ -314,8 +314,9 @@ What is already present:
 
 ### What is missing or divergent
 
-- multiplayer submenu selections still only emit TODO `echo` commands (`join game`, `host game`, `player setup`)
+- multiplayer submenu still has TODO `echo` commands for `join game` and `host game`; bounded `player setup` now works for player name plus shirt/pants color and applies changes through `name`/`color`
 - options submenu still only has one real action (`toggle vid_vsync`); controls/video/audio are placeholders
+- setup-menu hostname editing is still intentionally not implemented in this bounded slice
 - the HUD now has a base-game classic `sbar.c`-style strip (weapon/ammo inventory, keys/powerups/sigils, armor/face/ammo icons, and live client-driven numbers) plus a bounded live intermission/finale/cutscene overlay path, but it still omits expansion-pack special cases, pickup flash timing polish, deathmatch score overlays, and char-by-char centerprint reveal fidelity
 - the menu/console layer still lacks a number of C-polish details even though the baseline in-game console UI/render/input path is now wired
 - the HUD and option/menu surfaces still expose much less functionality than the C engine

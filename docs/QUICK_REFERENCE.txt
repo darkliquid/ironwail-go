@@ -37,7 +37,8 @@ C. MENUS/HUD/INPUT         [████████████░░░░░�
    - Menu nav: DONE
    - Menu key routing: DONE (menu actions now trigger on key-down only; key-up no longer double-fires)
    - Text-only menu prompt layout: DONE (menu glyphs now use the same 320x200 scaling/centering path as menu pics)
-   - Submenus: 6× stub (all echo TODO)
+   - Submenus: 5× stub remaining (`join game`, `host game`, `controls`, `video`, `audio`)
+   - Multiplayer setup menu: BOUNDED DONE (name text entry + shirt/pants colors + accept applies `name`/`color`; hostname edit still TODO)
    - Key bindings and config persistence: DONE
    - Console UI/history/completion: DONE (includes command/cvar/alias completion)
    - Command aliases (`alias`/`unalias`/`unaliasall`): DONE

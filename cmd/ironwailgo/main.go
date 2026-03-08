@@ -202,6 +202,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Set up menu input callbacks
 	gameInput.OnMenuKey = handleMenuKeyEvent
+	gameInput.OnMenuChar = handleMenuCharEvent
 	gameInput.OnKey = handleGameKeyEvent
 	gameInput.OnChar = handleGameCharEvent
 
@@ -1374,6 +1375,13 @@ func handleMenuKeyEvent(event input.KeyEvent) {
 		return
 	}
 	gameMenu.M_Key(event.Key)
+}
+
+func handleMenuCharEvent(ch rune) {
+	if gameInput == nil || gameInput.GetKeyDest() != input.KeyMenu || gameMenu == nil {
+		return
+	}
+	gameMenu.M_Char(ch)
 }
 
 func handleGameCharEvent(ch rune) {

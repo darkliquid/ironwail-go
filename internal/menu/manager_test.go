@@ -340,19 +340,88 @@ func TestMultiPlayerNavigation(t *testing.T) {
 	mgr.ShowMenu()
 	mgr.state = MenuMultiPlayer
 
-	for i := 0; i < multiPlayerItems; i++ {
-		mgr.multiPlayerCursor = i
-		mgr.M_Key(input.KEnter)
+	mgr.multiPlayerCursor = 0
+	mgr.M_Key(input.KEnter)
+	mgr.multiPlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+	mgr.multiPlayerCursor = 2
+	mgr.M_Key(input.KEnter)
+
+	if len(commands) != 2 {
+		t.Fatalf("expected 2 multiplayer commands, got %d", len(commands))
+	}
+	if got := mgr.GetState(); got != MenuSetup {
+		t.Fatalf("setup selection should enter setup menu, got %v", got)
+	}
+}
+
+func TestSetupMenuNameColorAndAccept(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
 	}
 
-	if len(commands) != multiPlayerItems {
-		t.Fatalf("expected %d multiplayer commands, got %d", multiPlayerItems, len(commands))
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+	mgr.multiPlayerCursor = 2
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuSetup {
+		t.Fatalf("expected setup state, got %v", got)
 	}
 
-	for i, cmd := range commands {
-		if cmd == "" {
-			t.Fatalf("command %d should not be empty", i)
-		}
+	mgr.M_Char('R')
+	mgr.M_Char('a')
+	mgr.M_Char('n')
+	mgr.M_Char('g')
+	mgr.M_Char('e')
+	mgr.M_Char('r')
+
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow)
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow)
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuMultiPlayer {
+		t.Fatalf("accept should return to multiplayer menu, got %v", got)
+	}
+	if len(commands) != 2 {
+		t.Fatalf("expected name and color commands, got %v", commands)
+	}
+	if commands[0] != "name \"playerRanger\"\n" {
+		t.Fatalf("unexpected name command: %q", commands[0])
+	}
+	if commands[1] != "color 1 1\n" {
+		t.Fatalf("unexpected color command: %q", commands[1])
+	}
+}
+
+func TestSetupMenuEscapesBackslashesAndQuotesInName(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.state = MenuSetup
+	mgr.setupName = `player\t"name"`
+	mgr.applySetupChanges()
+
+	if len(commands) != 2 {
+		t.Fatalf("expected name and color commands, got %v", commands)
+	}
+	if commands[0] != "name \"player\\\\t\\\"name\\\"\"\n" {
+		t.Fatalf("unexpected escaped name command: %q", commands[0])
 	}
 }
 
@@ -443,6 +512,7 @@ func TestMenuStateStringability(t *testing.T) {
 		MenuOptions,
 		MenuHelp,
 		MenuQuit,
+		MenuSetup,
 	}
 
 	for i, state := range states {

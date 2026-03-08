@@ -411,7 +411,7 @@ func (s *System) UpdateTextMode() {
 		return
 	}
 	switch s.keyDest {
-	case KeyConsole, KeyMessage:
+	case KeyConsole, KeyMessage, KeyMenu:
 		s.backend.SetTextMode(TextModeOn)
 	default:
 		s.backend.SetTextMode(TextModeOff)
@@ -509,6 +509,10 @@ func (s *System) HandleKeyEvent(event KeyEvent) {
 // HandleCharEvent processes a character input event.
 func (s *System) HandleCharEvent(char rune) {
 	s.state.Chars = append(s.state.Chars, char)
+
+	if s.keyDest == KeyMenu && s.OnMenuChar != nil {
+		s.OnMenuChar(char)
+	}
 
 	if s.OnChar != nil {
 		s.OnChar(char)
