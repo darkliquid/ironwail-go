@@ -1413,3 +1413,19 @@ func TestSendCmdIntegrationWithSocket(t *testing.T) {
 		t.Errorf("client Cmd not updated")
 	}
 }
+
+func TestAccumulateCmdSetsPerCommandMsec(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Signon = Signons
+
+	c.AccumulateCmd(0.016)
+	if c.PendingCmd.Msec != 16 {
+		t.Fatalf("PendingCmd.Msec = %d, want 16", c.PendingCmd.Msec)
+	}
+
+	c.AccumulateCmd(1.0)
+	if c.PendingCmd.Msec != 255 {
+		t.Fatalf("PendingCmd.Msec clamp = %d, want 255", c.PendingCmd.Msec)
+	}
+}

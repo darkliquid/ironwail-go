@@ -64,17 +64,17 @@ E. NETWORKING/MULTIPLAYER  [████████████░░░░░�
    - Server commands: 85% (most working)
    - Deathmatch mode: MISSING
 
-F. PREDICTION/DEMO         [██████████████░░░░░] ~70%
+F. PREDICTION/DEMO         [████████████████░░░] ~80%
     - Basic prediction: DONE (simplified)
     - Authoritative server walk/gravity collision step: DONE (bounded parity slice; `RunClients` now feeds same-frame physics and `MoveTypeWalk` runs collision/gravity physics)
     - Client viewheight state from `svc_clientdata`: DONE (stored and applied to runtime camera origin)
-    - Client punch state from `svc_clientdata`: DONE for runtime camera kick (full C gun-kick interpolation still pending)
+    - Client punch state from `svc_clientdata`: DONE (runtime camera kick + `v_gunkick` 0/1/2 bounded interpolation path)
     - Runtime camera authoritative origin preference: DONE (server entity origin first; prediction fallback only when entity origin is unavailable)
     - Viewmodel eye-origin + `r_drawviewmodel`/intermission gating: DONE as bounded canonical-runtime parity slice
-    - Full physics: MISSING (no ground detect, steps, collision)
-    - Command looping: PARTIAL
+    - Full physics: BOUNDED DONE (authoritative walk/gravity/collision/step behavior runs in live server physics flow; long-tail feel polish still remains)
+    - Command looping: DONE (runtime command accumulation parity slice landed)
     - Demo recording/playback forward path: DONE
-   - Advanced tooling (timedemo/rewind): TODO
+    - Advanced tooling (timedemo/rewind): DONE
 
 G. SAVE/LOAD               [████████████████░░░] ~80%
    - Serialization: DONE
@@ -107,22 +107,22 @@ BLOCKERS FOR PLAYABILITY (Must Fix First)
 
 4. gogpu runtime parity gap
    Location: internal/renderer/renderer_gogpu.go + runtime feed
-   Impact: gogpu output still behind OpenGL parity path
-   Fix: Continue parity catch-up without regressing OpenGL baseline
+   Impact: gogpu remains intentionally behind canonical OpenGL parity path
+   Fix: keep gogpu buildable as a bounded secondary backend; do not use it as a parity gate
 
-5. Prediction/physics fidelity
-   Location: internal/client
-   Impact: movement feel diverges from C in advanced movement scenarios
-   Fix: Port more of C movement physics details
+5. Movement long-tail fidelity
+    Location: internal/client
+    Impact: bounded advanced movement slices are landed, but deeper edge-case feel tuning still differs in some scenarios
+    Fix: keep parity polish focused on remaining C edge-case movement feel
 
 
 HIGH-PRIORITY SECONDARY FEATURES
 =================================
 
-- Menu submenus (C.1): complete options/network parity surfaces
+- Menu/HUD polish (C): expansion-pack overlays + broader menu polish
 - Skybox runtime integration (A/B): match C visual output
 - Save/load UX parity (G): broader save-file search behavior
-- Prediction physics fidelity (F.1): smoother C-like movement
+- Movement long-tail polish (F): smoother C-like edge-case behavior
 
 
 KEY C FILES TO REFERENCE
@@ -186,6 +186,10 @@ TESTING CHECKLIST
 
 FILE ORGANIZATION HINTS
 =======================
+
+NOTE: The implementation-hint bullets below are legacy brainstorming from the original broad-gap audit.
+      Do not auto-promote them into active backlog items without first reconciling against
+      PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md.
 
 For entity rendering refactor:
   - Move entity drawing logic to renderer/entity_renderer.go

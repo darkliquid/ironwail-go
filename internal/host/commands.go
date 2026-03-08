@@ -146,6 +146,45 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdPlaydemo(args[0], subs)
 		}
 	}, "Play a demo")
+	cmdsys.AddCommand("timedemo", func(args []string) {
+		if len(args) > 0 {
+			h.CmdTimedemo(args[0], subs)
+			return
+		}
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: timedemo <demoname>\n")
+		}
+	}, "Benchmark demo playback speed")
+	cmdsys.AddCommand("demoseek", func(args []string) {
+		if len(args) > 0 {
+			target, err := strconv.Atoi(args[0])
+			if err != nil {
+				if subs != nil && subs.Console != nil {
+					subs.Console.Print("usage: demoseek <frame>\n")
+				}
+				return
+			}
+			h.CmdDemoSeek(target, subs)
+			return
+		}
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: demoseek <frame>\n")
+		}
+	}, "Seek to an absolute demo frame")
+	cmdsys.AddCommand("rewind", func(args []string) {
+		frames := 1
+		if len(args) > 0 {
+			value, err := strconv.Atoi(args[0])
+			if err != nil || value <= 0 {
+				if subs != nil && subs.Console != nil {
+					subs.Console.Print("usage: rewind [frames]\n")
+				}
+				return
+			}
+			frames = value
+		}
+		h.CmdRewind(frames, subs)
+	}, "Rewind demo playback by frame count")
 	cmdsys.AddCommand("stopdemo", func(args []string) {
 		h.CmdStopdemo(subs)
 	}, "Stop demo playback")
@@ -1354,4 +1393,86 @@ func (h *Host) CmdStopdemo(subs *Subsystems) {
 
 	subs.Console.Print("Demo playback stopped.\n")
 	h.clientState = caDisconnected
+}
+
+func (h *Host) CmdTimedemo(filename string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	h.CmdPlaydemo(filename, subs)
+	if h.demoState == nil || !h.demoState.Playback {
+		return
+	}
+	h.demoState.EnableTimeDemo()
+	subs.Console.Print(fmt.Sprintf("Timing demo %s\n", h.demoState.Filename))
+}
+
+func (h *Host) CmdDemoSeek(frame int, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if h.demoState == nil || !h.demoState.Playback {
+		subs.Console.Print("Not playing back a demo.\n")
+		return
+	}
+	if frame < 0 || frame >= len(h.demoState.Frames) {
+		subs.Console.Print(fmt.Sprintf("Frame %d out of range (0-%d).\n", frame, len(h.demoState.Frames)))
+		return
+	}
+	if err := h.seekDemoFrame(frame, subs); err != nil {
+		subs.Console.Print(fmt.Sprintf("Failed to seek demo: %v\n", err))
+		return
+	}
+	subs.Console.Print(fmt.Sprintf("Demo seeked to frame %d.\n", frame))
+}
+
+func (h *Host) CmdRewind(frames int, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if h.demoState == nil || !h.demoState.Playback {
+		subs.Console.Print("Not playing back a demo.\n")
+		return
+	}
+	if frames <= 0 {
+		frames = 1
+	}
+	target := h.demoState.FrameIndex - frames
+	if target < 0 {
+		target = 0
+	}
+	h.CmdDemoSeek(target, subs)
+}
+
+func (h *Host) seekDemoFrame(frame int, subs *Subsystems) error {
+	if h.demoState == nil {
+		return fmt.Errorf("demo state unavailable")
+	}
+	clientState := LoopbackClientState(subs)
+	if clientState == nil {
+		return fmt.Errorf("loopback client state unavailable")
+	}
+	if err := h.demoState.SeekFrame(0); err != nil {
+		return err
+	}
+	clientState.ClearState()
+	clientState.State = cl.StateDisconnected
+	h.clientState = caConnected
+	h.signOns = 0
+
+	parser := cl.NewParser(clientState)
+	for i := 0; i < frame; i++ {
+		msgData, viewAngles, err := h.demoState.ReadDemoFrame()
+		if err != nil {
+			return fmt.Errorf("read frame %d: %w", i, err)
+		}
+		clientState.MViewAngles[1] = clientState.MViewAngles[0]
+		clientState.MViewAngles[0] = viewAngles
+		clientState.ViewAngles = viewAngles
+		if err := parser.ParseServerMessage(msgData); err != nil {
+			return fmt.Errorf("parse frame %d: %w", i, err)
+		}
+		DispatchLoopbackStuffText(subs)
+	}
+	return nil
 }

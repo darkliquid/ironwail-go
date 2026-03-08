@@ -13,12 +13,12 @@ import "math"
 // Algorithm:
 //  1. Start with last known server entity state
 //  2. Apply all accumulated user commands since last server update
-//  3. For each command: apply acceleration, friction, clamp speed, update position
+//  3. For each command: apply friction/acceleration, gravity, update position
 //  4. Calculate prediction error (difference from server position)
 //  5. Smoothly correct error over time using lerp
 //
 // The prediction is framerate-independent and uses simplified physics
-// (no collision detection, no gravity). Full physics prediction is future work.
+// (no collision detection). Full collision-aware prediction is future work.
 func (c *Client) PredictPlayers(frametime float32) {
 	if c == nil || c.State != StateActive {
 		return
@@ -58,6 +58,7 @@ func (c *Client) PredictPlayers(frametime float32) {
 		// Don't reset predicted origin immediately - error correction will smooth it
 		// Reset velocity to server's velocity
 		c.PredictedVelocity = c.Velocity
+		c.acknowledgeCommand()
 	}
 
 	// Apply error correction (smooth lerp towards server)
@@ -85,76 +86,92 @@ func (c *Client) PredictPlayers(frametime float32) {
 		}
 	}
 
-	// Predict position based on current command
-	// In a full implementation, we'd loop through c.CommandBuffer
-	// For MVP, we predict based on current PendingCmd
-	c.predictMovement(&c.PendingCmd, frametime)
+	commands := c.bufferedCommands()
+	if len(commands) == 0 {
+		commands = append(commands, c.PendingCmd)
+	}
+	for i := range commands {
+		cmdFrametime := frametime / float32(len(commands))
+		if commands[i].Msec > 0 {
+			cmdFrametime = float32(commands[i].Msec) / 1000.0
+		}
+		c.predictMovement(&commands[i], cmdFrametime)
+	}
 }
 
 // predictMovement simulates player movement for a single command.
-// This is a simplified physics model without collision detection.
+// This is a simplified movement model without collision detection.
 func (c *Client) predictMovement(cmd *UserCmd, frametime float32) {
 	if cmd == nil || frametime <= 0 {
 		return
 	}
 
-	// Get forward, right, up vectors from view angles
+	// Get forward and right vectors from view angles.
 	angles := [3]float32{cmd.ViewAngles[0], cmd.ViewAngles[1], cmd.ViewAngles[2]}
-	forward, right, up := angleVectorsQuake(angles)
+	forward, right, _ := angleVectorsQuake(angles)
 
-	// Apply input to velocity (acceleration)
-	// Forward/back movement
-	if cmd.Forward != 0 {
-		c.PredictedVelocity[0] += forward[0] * cmd.Forward * c.PredictionAccel * frametime
-		c.PredictedVelocity[1] += forward[1] * cmd.Forward * c.PredictionAccel * frametime
-		c.PredictedVelocity[2] += forward[2] * cmd.Forward * c.PredictionAccel * frametime
+	if c.OnGround {
+		applyGroundFriction(&c.PredictedVelocity, c.PredictionFriction, c.PredictionStopSpeed, frametime)
 	}
 
-	// Side (strafe) movement
-	if cmd.Side != 0 {
-		c.PredictedVelocity[0] += right[0] * cmd.Side * c.PredictionAccel * frametime
-		c.PredictedVelocity[1] += right[1] * cmd.Side * c.PredictionAccel * frametime
-		c.PredictedVelocity[2] += right[2] * cmd.Side * c.PredictionAccel * frametime
+	wishVel := [2]float32{
+		forward[0]*cmd.Forward + right[0]*cmd.Side,
+		forward[1]*cmd.Forward + right[1]*cmd.Side,
+	}
+	wishSpeed := sqrtFloat32(wishVel[0]*wishVel[0] + wishVel[1]*wishVel[1])
+	if wishSpeed > 0 {
+		wishDir := [2]float32{wishVel[0] / wishSpeed, wishVel[1] / wishSpeed}
+		if wishSpeed > c.PredictionMaxSpeed {
+			wishSpeed = c.PredictionMaxSpeed
+		}
+		currentSpeed := c.PredictedVelocity[0]*wishDir[0] + c.PredictedVelocity[1]*wishDir[1]
+		addSpeed := wishSpeed - currentSpeed
+		if addSpeed > 0 {
+			accelSpeed := c.PredictionAccel * frametime * wishSpeed
+			if accelSpeed > addSpeed {
+				accelSpeed = addSpeed
+			}
+			c.PredictedVelocity[0] += wishDir[0] * accelSpeed
+			c.PredictedVelocity[1] += wishDir[1] * accelSpeed
+		}
 	}
 
-	// Up movement (jump/swim)
 	if cmd.Up != 0 {
-		c.PredictedVelocity[0] += up[0] * cmd.Up * c.PredictionAccel * frametime
-		c.PredictedVelocity[1] += up[1] * cmd.Up * c.PredictionAccel * frametime
-		c.PredictedVelocity[2] += up[2] * cmd.Up * c.PredictionAccel * frametime
+		c.PredictedVelocity[2] += cmd.Up * c.PredictionAccel * frametime
 	}
-
-	// Apply friction (velocity decay)
-	speed := sqrtFloat32(
-		c.PredictedVelocity[0]*c.PredictedVelocity[0] +
-			c.PredictedVelocity[1]*c.PredictedVelocity[1] +
-			c.PredictedVelocity[2]*c.PredictedVelocity[2])
-
-	if speed > 0 {
-		// Friction reduces velocity over time
-		frictionScale := maxFloat32(0, 1.0-c.PredictionFriction*frametime)
-		c.PredictedVelocity[0] *= frictionScale
-		c.PredictedVelocity[1] *= frictionScale
-		c.PredictedVelocity[2] *= frictionScale
-	}
-
-	// Clamp to max speed
-	speed = sqrtFloat32(
-		c.PredictedVelocity[0]*c.PredictedVelocity[0] +
-			c.PredictedVelocity[1]*c.PredictedVelocity[1] +
-			c.PredictedVelocity[2]*c.PredictedVelocity[2])
-
-	if speed > c.PredictionMaxSpeed {
-		scale := c.PredictionMaxSpeed / speed
-		c.PredictedVelocity[0] *= scale
-		c.PredictedVelocity[1] *= scale
-		c.PredictedVelocity[2] *= scale
+	if !c.OnGround {
+		c.PredictedVelocity[2] -= c.PredictionGravity * frametime
 	}
 
 	// Update position
 	c.PredictedOrigin[0] += c.PredictedVelocity[0] * frametime
 	c.PredictedOrigin[1] += c.PredictedVelocity[1] * frametime
 	c.PredictedOrigin[2] += c.PredictedVelocity[2] * frametime
+}
+
+func applyGroundFriction(velocity *[3]float32, friction, stopSpeed, frametime float32) {
+	if velocity == nil || frametime <= 0 {
+		return
+	}
+	speed := sqrtFloat32(velocity[0]*velocity[0] + velocity[1]*velocity[1])
+	if speed <= 0 {
+		return
+	}
+	control := speed
+	if stopSpeed > control {
+		control = stopSpeed
+	}
+	drop := control * friction * frametime
+	newSpeed := speed - drop
+	if newSpeed < 0 {
+		newSpeed = 0
+	}
+	if newSpeed == speed {
+		return
+	}
+	scale := newSpeed / speed
+	velocity[0] *= scale
+	velocity[1] *= scale
 }
 
 // GetPredictedOrigin returns the predicted player origin for rendering.

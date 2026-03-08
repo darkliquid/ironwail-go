@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"time"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
@@ -36,6 +37,8 @@ type DemoState struct {
 	Frames []DemoFrame
 
 	playbackHostFrame int
+	timedemoStart     time.Time
+	timedemoFrames    int
 }
 
 // NewDemoState creates a new demo state with default values
@@ -81,6 +84,8 @@ func (d *DemoState) StartDemoRecording(filename string, cdtrack int) error {
 	d.Recording = true
 	d.CDTrack = cdtrack
 	d.Filename = fullPath
+	d.FrameIndex = 0
+	d.Frames = nil
 
 	// Write CD track number header
 	if _, err := fmt.Fprintf(d.Writer, "%d\n", cdtrack); err != nil {
@@ -120,6 +125,14 @@ func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) er
 		return fmt.Errorf("not recording")
 	}
 
+	frameOffset := int64(0)
+	if d.File != nil {
+		fileOffset, err := d.File.Seek(0, io.SeekCurrent)
+		if err == nil {
+			frameOffset = fileOffset + int64(d.Writer.Buffered())
+		}
+	}
+
 	// Write message size (4 bytes, little endian)
 	msgSize := int32(len(messageData))
 	if err := binary.Write(d.Writer, binary.LittleEndian, msgSize); err != nil {
@@ -137,6 +150,11 @@ func (d *DemoState) WriteDemoFrame(messageData []byte, viewAngles [3]float32) er
 	if _, err := d.Writer.Write(messageData); err != nil {
 		return fmt.Errorf("failed to write message data: %w", err)
 	}
+	d.Frames = append(d.Frames, DemoFrame{
+		FileOffset:       frameOffset,
+		SerializedEvents: len(messageData),
+	})
+	d.FrameIndex = len(d.Frames)
 
 	return nil
 }
@@ -424,7 +442,28 @@ func (d *DemoState) StartDemoPlayback(filename string) error {
 	}
 	d.FrameIndex = 0
 	d.Frames = nil
+	d.TimeDemo = false
+	d.timedemoStart = time.Time{}
+	d.timedemoFrames = 0
 	d.playbackHostFrame = -1
+
+	firstFrameOffset, err := d.currentReadOffset()
+	if err != nil {
+		d.StopPlayback()
+		return fmt.Errorf("failed to determine demo frame start: %w", err)
+	}
+	frames, err := d.indexFrames()
+	if err != nil {
+		d.StopPlayback()
+		return err
+	}
+	d.Frames = frames
+	if _, err := d.File.Seek(firstFrameOffset, io.SeekStart); err != nil {
+		d.StopPlayback()
+		return fmt.Errorf("failed to rewind demo stream: %w", err)
+	}
+	d.Reader = bufio.NewReader(d.File)
+	d.FrameIndex = 0
 
 	return nil
 }
@@ -447,9 +486,47 @@ func (d *DemoState) StopPlayback() error {
 	d.Speed = 1.0
 	d.Frames = nil
 	d.FrameIndex = 0
+	d.TimeDemo = false
+	d.timedemoStart = time.Time{}
+	d.timedemoFrames = 0
 	d.playbackHostFrame = -1
 
 	return err
+}
+
+func (d *DemoState) EnableTimeDemo() {
+	if d == nil {
+		return
+	}
+	d.TimeDemo = true
+	d.timedemoStart = time.Now()
+	d.timedemoFrames = 0
+	d.playbackHostFrame = -1
+}
+
+func (d *DemoState) NotePlaybackFrame() {
+	if d == nil || !d.TimeDemo {
+		return
+	}
+	if d.timedemoStart.IsZero() {
+		d.timedemoStart = time.Now()
+	}
+	d.timedemoFrames++
+}
+
+func (d *DemoState) TimeDemoSummary() (frames int, seconds float64, fps float64) {
+	if d == nil {
+		return 0, 0, 0
+	}
+	frames = d.timedemoFrames
+	if d.timedemoStart.IsZero() {
+		return frames, 0, 0
+	}
+	seconds = time.Since(d.timedemoStart).Seconds()
+	if seconds > 0 {
+		fps = float64(frames) / seconds
+	}
+	return frames, seconds, fps
 }
 
 func (d *DemoState) ShouldReadFrame(hostFrame int) bool {
@@ -472,6 +549,14 @@ func (d *DemoState) ShouldReadFrame(hostFrame int) bool {
 func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles [3]float32, err error) {
 	if !d.Playback || d.Reader == nil {
 		return nil, viewAngles, fmt.Errorf("not playing back")
+	}
+
+	frameOffset := int64(0)
+	if d.File != nil {
+		fileOffset, seekErr := d.File.Seek(0, io.SeekCurrent)
+		if seekErr == nil {
+			frameOffset = fileOffset - int64(d.Reader.Buffered())
+		}
 	}
 
 	// Read message size
@@ -498,9 +583,81 @@ func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles [3]float32, 
 		return nil, viewAngles, fmt.Errorf("failed to read message data: %w", err)
 	}
 
+	if d.FrameIndex < len(d.Frames) {
+		d.Frames[d.FrameIndex].FileOffset = frameOffset
+		d.Frames[d.FrameIndex].SerializedEvents = len(messageData)
+	} else {
+		d.Frames = append(d.Frames, DemoFrame{
+			FileOffset:       frameOffset,
+			SerializedEvents: len(messageData),
+		})
+	}
 	d.FrameIndex++
+	d.NotePlaybackFrame()
 
 	return messageData, viewAngles, nil
+}
+
+func (d *DemoState) SeekFrame(frame int) error {
+	if !d.Playback || d.File == nil {
+		return fmt.Errorf("not playing back")
+	}
+	if frame < 0 || frame >= len(d.Frames) {
+		return fmt.Errorf("frame %d out of range", frame)
+	}
+	offset := d.Frames[frame].FileOffset
+	if _, err := d.File.Seek(offset, io.SeekStart); err != nil {
+		return fmt.Errorf("seek demo frame %d: %w", frame, err)
+	}
+	d.Reader = bufio.NewReader(d.File)
+	d.FrameIndex = frame
+	d.playbackHostFrame = -1
+	return nil
+}
+
+func (d *DemoState) currentReadOffset() (int64, error) {
+	if d == nil || d.File == nil || d.Reader == nil {
+		return 0, fmt.Errorf("demo stream is not open")
+	}
+	fileOffset, err := d.File.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, err
+	}
+	return fileOffset - int64(d.Reader.Buffered()), nil
+}
+
+func (d *DemoState) indexFrames() ([]DemoFrame, error) {
+	if d == nil || d.Reader == nil {
+		return nil, fmt.Errorf("demo stream is not open")
+	}
+	frames := make([]DemoFrame, 0, 1024)
+	for {
+		frameOffset, err := d.currentReadOffset()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read demo offset: %w", err)
+		}
+		var msgSize int32
+		if err := binary.Read(d.Reader, binary.LittleEndian, &msgSize); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("failed to index demo frame size: %w", err)
+		}
+		if msgSize < 0 || msgSize > 65536 {
+			return nil, fmt.Errorf("invalid message size: %d", msgSize)
+		}
+		if _, err := io.CopyN(io.Discard, d.Reader, 12); err != nil {
+			return nil, fmt.Errorf("failed to index demo view angles: %w", err)
+		}
+		if _, err := io.CopyN(io.Discard, d.Reader, int64(msgSize)); err != nil {
+			return nil, fmt.Errorf("failed to index demo message data: %w", err)
+		}
+		frames = append(frames, DemoFrame{
+			FileOffset:       frameOffset,
+			SerializedEvents: int(msgSize),
+		})
+	}
+	return frames, nil
 }
 
 // Client demo helper methods

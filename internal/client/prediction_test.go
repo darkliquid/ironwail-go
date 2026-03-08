@@ -9,6 +9,7 @@ import (
 func TestPredictPlayersInitialization(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
+	c.OnGround = true
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
 		Origin: [3]float32{100, 200, 300},
@@ -69,6 +70,7 @@ func TestPredictPlayersForwardMovement(t *testing.T) {
 func TestPredictPlayersFriction(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
+	c.OnGround = true
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
 		Origin: [3]float32{0, 0, 0},
@@ -105,6 +107,7 @@ func TestPredictPlayersFriction(t *testing.T) {
 func TestPredictPlayersSpeedClamping(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
+	c.OnGround = true
 	c.ViewEntity = 0
 	c.Entities[0] = inet.EntityState{
 		Origin: [3]float32{0, 0, 0},
@@ -113,14 +116,14 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 	// Initialize prediction
 	c.PredictPlayers(0.016)
 
-	// Set velocity above max speed
-	c.PredictedVelocity = [3]float32{400, 0, 0} // Above default 320
-
-	// Apply prediction
+	// Apply prediction with oversized desired speed.
 	c.PendingCmd = UserCmd{
 		ViewAngles: [3]float32{0, 0, 0},
+		Forward:    1000,
 	}
-	c.PredictPlayers(0.016)
+	for i := 0; i < 60; i++ {
+		c.PredictPlayers(0.016)
+	}
 
 	// Calculate speed
 	speed := sqrtFloat32(
@@ -128,10 +131,44 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 			c.PredictedVelocity[1]*c.PredictedVelocity[1] +
 			c.PredictedVelocity[2]*c.PredictedVelocity[2])
 
-	// Speed should be clamped to max
+	// Speed should remain bounded by configured max speed.
 	if speed > c.PredictionMaxSpeed+0.1 {
 		t.Errorf("Speed not clamped: got %.2f, max %.2f",
 			speed, c.PredictionMaxSpeed)
+	}
+}
+
+func TestPredictPlayersAirborneNoGroundFriction(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.OnGround = false
+	c.PredictionGravity = 0
+	c.ViewEntity = 0
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{1, 0, 0}}
+	c.PredictPlayers(0.016)
+	c.PredictedVelocity = [3]float32{100, 0, 0}
+
+	c.PendingCmd = UserCmd{ViewAngles: [3]float32{0, 0, 0}}
+	c.PredictPlayers(0.016)
+
+	if absFloat32(c.PredictedVelocity[0]-100) > 0.001 {
+		t.Fatalf("airborne x velocity changed by ground friction: got %.3f, want 100", c.PredictedVelocity[0])
+	}
+}
+
+func TestPredictPlayersAirborneGravity(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.OnGround = false
+	c.ViewEntity = 0
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{1, 0, 0}}
+	c.PredictPlayers(0.016)
+
+	c.PendingCmd = UserCmd{ViewAngles: [3]float32{0, 0, 0}}
+	c.PredictPlayers(0.016)
+
+	if c.PredictedVelocity[2] >= 0 {
+		t.Fatalf("airborne gravity not applied: z velocity %.3f", c.PredictedVelocity[2])
 	}
 }
 
@@ -274,6 +311,65 @@ func TestPredictPlayersMultipleFrames(t *testing.T) {
 
 	if distance < 0.1 {
 		t.Errorf("Distance too small after 60 frames: %.2f", distance)
+	}
+}
+
+func TestPredictPlayersConsumesBufferedCommands(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Signon = Signons
+	c.ViewEntity = 0
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{0, 0, 0}}
+	c.PredictPlayers(0.016)
+
+	c.enqueueCommand(UserCmd{ViewAngles: [3]float32{0, 0, 0}, Forward: 200})
+	c.enqueueCommand(UserCmd{ViewAngles: [3]float32{0, 90, 0}, Side: 200})
+
+	c.PredictPlayers(0.032)
+	if c.CommandCount != 2 {
+		t.Fatalf("command count after prediction = %d, want 2 (unacknowledged)", c.CommandCount)
+	}
+	if c.PredictedOrigin == [3]float32{} {
+		t.Fatal("predicted origin unchanged after buffered command prediction")
+	}
+}
+
+func TestConsumeCommandBufferHandlesNegativeSequence(t *testing.T) {
+	c := NewClient()
+	c.CommandCount = 2
+	c.CommandSequence = -1
+	wantFirst := UserCmd{Forward: 10}
+	wantSecond := UserCmd{Forward: 20}
+	start := c.CommandSequence - c.CommandCount
+	c.CommandBuffer[wrapBufferIndex(start, len(c.CommandBuffer))] = wantFirst
+	c.CommandBuffer[wrapBufferIndex(start+1, len(c.CommandBuffer))] = wantSecond
+
+	got := c.bufferedCommands()
+	if len(got) != 2 {
+		t.Fatalf("bufferedCommands len = %d, want 2", len(got))
+	}
+	if got[0].Forward != wantFirst.Forward || got[1].Forward != wantSecond.Forward {
+		t.Fatalf("bufferedCommands order mismatch: got %+v", got)
+	}
+	if c.CommandCount != 2 {
+		t.Fatalf("command count changed by bufferedCommands: got %d, want 2", c.CommandCount)
+	}
+}
+
+func TestPredictPlayersAcknowledgeCommandOnServerUpdate(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.ViewEntity = 0
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{2, 0, 0}}
+	c.PredictPlayers(0.016)
+	c.enqueueCommand(UserCmd{Forward: 100, Msec: 16})
+	c.enqueueCommand(UserCmd{Forward: 100, Msec: 16})
+
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{3, 0, 0}}
+	c.PredictPlayers(0.016)
+
+	if c.CommandCount != 1 {
+		t.Fatalf("command count after server update = %d, want 1", c.CommandCount)
 	}
 }
 

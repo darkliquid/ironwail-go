@@ -1,5 +1,7 @@
 package client
 
+import "math"
+
 import "github.com/ironwail/ironwail-go/pkg/types"
 
 func (c *Client) KeyDown(b *KButton, key int) {
@@ -143,6 +145,8 @@ func (c *Client) BaseMove(cmd *UserCmd) {
 
 func (c *Client) AccumulateCmd(frametime float32) {
 	c.AdjustAngles(frametime)
+	c.MViewAngles[1] = c.MViewAngles[0]
+	c.MViewAngles[0] = c.ViewAngles
 	c.BaseMove(&c.PendingCmd)
 	c.PendingCmd.ViewAngles = c.ViewAngles
 
@@ -158,4 +162,15 @@ func (c *Client) AccumulateCmd(frametime float32) {
 
 	c.PendingCmd.Impulse = c.InImpulse
 	c.InImpulse = 0
+	cmdMS := int(math.Round(float64(frametime * 1000)))
+	if cmdMS < 0 {
+		cmdMS = 0
+	}
+	if cmdMS > 255 {
+		cmdMS = 255
+	}
+	c.PendingCmd.Msec = uint8(cmdMS)
+	if c.State == StateActive && c.Signon >= Signons {
+		c.enqueueCommand(c.PendingCmd)
+	}
 }

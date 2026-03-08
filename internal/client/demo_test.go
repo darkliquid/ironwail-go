@@ -256,6 +256,91 @@ func TestDemoPlaybackSequence(t *testing.T) {
 	}
 }
 
+func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("seek_test", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		msg := []byte{byte(i), byte(i + 1)}
+		angles := [3]float32{float32(i), 0, 0}
+		if err := demo.WriteDemoFrame(msg, angles); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("seek_test"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	for i := 0; i < 4; i++ {
+		if _, _, err := demo.ReadDemoFrame(); err != nil {
+			t.Fatalf("ReadDemoFrame %d failed: %v", i, err)
+		}
+	}
+
+	if err := demo.SeekFrame(1); err != nil {
+		t.Fatalf("SeekFrame failed: %v", err)
+	}
+	msg, angles, err := demo.ReadDemoFrame()
+	if err != nil {
+		t.Fatalf("ReadDemoFrame after seek failed: %v", err)
+	}
+	if !bytes.Equal(msg, []byte{1, 2}) {
+		t.Fatalf("seeked frame message = %v, want [1 2]", msg)
+	}
+	if angles[0] != 1 {
+		t.Fatalf("seeked frame angle = %v, want 1", angles[0])
+	}
+}
+
+func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("indexed_seek", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		msg := []byte{byte(i), byte(i + 1)}
+		angles := [3]float32{float32(i), 0, 0}
+		if err := demo.WriteDemoFrame(msg, angles); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("indexed_seek"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	if got := len(demo.Frames); got != 3 {
+		t.Fatalf("indexed frame count = %d, want 3", got)
+	}
+	if err := demo.SeekFrame(2); err != nil {
+		t.Fatalf("SeekFrame failed: %v", err)
+	}
+	msg, angles, err := demo.ReadDemoFrame()
+	if err != nil {
+		t.Fatalf("ReadDemoFrame after seek failed: %v", err)
+	}
+	if !bytes.Equal(msg, []byte{2, 3}) {
+		t.Fatalf("seeked frame message = %v, want [2 3]", msg)
+	}
+	if angles[0] != 2 {
+		t.Fatalf("seeked frame angle = %v, want 2", angles[0])
+	}
+}
+
 func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 	defer os.RemoveAll("demos")
 

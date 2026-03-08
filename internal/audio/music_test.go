@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"os/exec"
 	"testing"
 )
 
@@ -120,6 +121,47 @@ func TestStopMusicClearsQueuedSamples(t *testing.T) {
 	}
 }
 
+func TestPlayCDTrackLoadsOGGWhenWAVMissing(t *testing.T) {
+	sys := newTestMusicSystem()
+	oggData := testMusicOGG(t, 44100, 2, 2, 64)
+
+	var loads []string
+	err := sys.PlayCDTrack(2, 2, func(name string) ([]byte, error) {
+		loads = append(loads, name)
+		switch name {
+		case "music/track02.wav":
+			return nil, fmt.Errorf("missing %s", name)
+		case "music/track02.ogg":
+			return oggData, nil
+		default:
+			return nil, fmt.Errorf("unexpected path %q", name)
+		}
+	})
+	if err != nil {
+		t.Fatalf("PlayCDTrack failed: %v", err)
+	}
+	if len(loads) != 2 {
+		t.Fatalf("loader called %d times, want 2 (wav then ogg)", len(loads))
+	}
+
+	sys.updateMusic(128)
+	if sys.rawSamples.End < 128 {
+		t.Fatalf("rawSamples.End = %d, want at least 128", sys.rawSamples.End)
+	}
+	if got := sys.CurrentMusicTrack(); got != 2 {
+		t.Fatalf("CurrentMusicTrack = %d, want 2", got)
+	}
+	if sys.music == nil || sys.music.track == nil {
+		t.Fatalf("expected active OGG track")
+	}
+	if sys.music.track.width != 2 {
+		t.Fatalf("music width = %d, want 2", sys.music.track.width)
+	}
+	if sys.music.track.channels != 2 {
+		t.Fatalf("music channels = %d, want 2", sys.music.track.channels)
+	}
+}
+
 func newTestMusicSystem() *System {
 	return &System{
 		started: true,
@@ -198,4 +240,26 @@ func testMusicWAV(t *testing.T, sampleRate, channels, width, frames int) []byte 
 	}
 
 	return wav.Bytes()
+}
+
+func testMusicOGG(t *testing.T, sampleRate, channels, width, frames int) []byte {
+	t.Helper()
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skipf("ffmpeg not available: %v", err)
+	}
+
+	wavData := testMusicWAV(t, sampleRate, channels, width, frames)
+	cmd := exec.Command("ffmpeg", "-loglevel", "error", "-f", "wav", "-i", "pipe:0", "-c:a", "libvorbis", "-f", "ogg", "pipe:1")
+	cmd.Stdin = bytes.NewReader(wavData)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("ffmpeg OGG encoding failed: %v", err)
+	}
+	if out.Len() == 0 {
+		t.Fatalf("ffmpeg OGG encoding returned empty output")
+	}
+	return out.Bytes()
 }

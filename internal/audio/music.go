@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var supportedMusicExtensions = []string{".wav"}
+var supportedMusicExtensions = []string{".wav", ".ogg"}
 
 type musicTrack struct {
 	name     string
@@ -162,22 +162,23 @@ func loadMusicTrack(track int, loader func(string) ([]byte, error)) (*musicTrack
 }
 
 func decodeMusicTrack(name string, data []byte) (*musicTrack, error) {
-	switch strings.ToLower(name) {
-	default:
-		if strings.HasSuffix(strings.ToLower(name), ".wav") {
-			sampleData, info, err := LoadMusicWAV(name, data)
-			if err != nil {
-				return nil, err
-			}
-			return &musicTrack{
-				name:     name,
-				data:     sampleData,
-				samples:  info.Samples,
-				rate:     info.Rate,
-				width:    info.Width,
-				channels: info.Channels,
-			}, nil
+	lowerName := strings.ToLower(name)
+	switch {
+	case strings.HasSuffix(lowerName, ".wav"):
+		sampleData, info, err := LoadMusicWAV(name, data)
+		if err != nil {
+			return nil, err
 		}
+		return &musicTrack{
+			name:     name,
+			data:     sampleData,
+			samples:  info.Samples,
+			rate:     info.Rate,
+			width:    info.Width,
+			channels: info.Channels,
+		}, nil
+	case strings.HasSuffix(lowerName, ".ogg"):
+		return decodeMusicOGG(name, data)
 	}
 	return nil, fmt.Errorf("unsupported music file type for %s", name)
 }

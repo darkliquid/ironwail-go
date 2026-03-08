@@ -387,6 +387,109 @@ func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
 	}
 }
 
+func TestRuntimeViewStateInterpolatesViewAngles(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.ViewHeight = 22
+	gameClient.PredictedOrigin = [3]float32{32, 64, 96}
+	gameClient.MViewAngles[1] = [3]float32{0, 0, 0}
+	gameClient.MViewAngles[0] = [3]float32{10, 20, 30}
+	gameClient.MTime[1] = 1.0
+	gameClient.MTime[0] = 1.1
+	gameClient.Time = 1.05
+
+	_, angles := runtimeViewState()
+	if angles != [3]float32{5, 10, 15} {
+		t.Fatalf("runtimeViewState angles = %v, want [5 10 15]", angles)
+	}
+}
+
+func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.Intermission = 0
+	gameClient.PunchAngles[1] = [3]float32{0, 0, 0}
+	gameClient.PunchAngles[0] = [3]float32{10, 0, 0}
+	gameClient.PunchTime = 1.0
+	gameClient.Time = 1.05
+
+	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	if camera.Angles.X < 5.9 || camera.Angles.X > 6.1 {
+		t.Fatalf("runtimeCameraState punch interpolation = %v, want ~6", camera.Angles.X)
+	}
+}
+
+func TestRuntimeCameraStateGunKickModeRaw(t *testing.T) {
+	originalClient := gameClient
+	originalKick := cvar.StringValue("v_gunkick")
+	t.Cleanup(func() {
+		gameClient = originalClient
+		cvar.Set("v_gunkick", originalKick)
+	})
+
+	cvar.Set("v_gunkick", "1")
+	gameClient = cl.NewClient()
+	gameClient.Intermission = 0
+	gameClient.PunchAngle = [3]float32{2, -4, 6}
+	gameClient.PunchAngles[1] = [3]float32{0, 0, 0}
+	gameClient.PunchAngles[0] = [3]float32{10, 0, 0}
+	gameClient.PunchTime = 1.0
+	gameClient.Time = 1.05
+
+	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	if camera.Angles.X != 3 || camera.Angles.Y != -2 || camera.Angles.Z != 9 {
+		t.Fatalf("runtimeCameraState raw punch = %v, want {3 -2 9}", camera.Angles)
+	}
+}
+
+func TestRuntimeCameraStateGunKickModeOff(t *testing.T) {
+	originalClient := gameClient
+	originalKick := cvar.StringValue("v_gunkick")
+	t.Cleanup(func() {
+		gameClient = originalClient
+		cvar.Set("v_gunkick", originalKick)
+	})
+
+	cvar.Set("v_gunkick", "0")
+	gameClient = cl.NewClient()
+	gameClient.Intermission = 0
+	gameClient.PunchAngle = [3]float32{2, -4, 6}
+
+	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	if camera.Angles.X != 1 || camera.Angles.Y != 2 || camera.Angles.Z != 3 {
+		t.Fatalf("runtimeCameraState with gunkick off = %v, want {1 2 3}", camera.Angles)
+	}
+}
+
+func TestRuntimeViewStateInterpolatesYawAcrossWrap(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.ViewHeight = 22
+	gameClient.PredictedOrigin = [3]float32{32, 64, 96}
+	gameClient.MViewAngles[1] = [3]float32{0, 350, 0}
+	gameClient.MViewAngles[0] = [3]float32{0, 10, 0}
+	gameClient.MTime[1] = 1.0
+	gameClient.MTime[0] = 1.1
+	gameClient.Time = 1.05
+
+	_, angles := runtimeViewState()
+	if math.Abs(float64(angles[1]-360)) > 0.01 && math.Abs(float64(angles[1])) > 0.01 {
+		t.Fatalf("runtimeViewState wrapped yaw = %v, want 0/360 short-path interpolation", angles[1])
+	}
+}
+
 func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	originalClient := gameClient
 	originalMenu := gameMenu
@@ -743,6 +846,78 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 	}
 	if demo.FrameIndex != 2 {
 		t.Fatalf("frame index after recorded time elapses = %d, want 2", demo.FrameIndex)
+	}
+}
+
+func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
+	originalHost := gameHost
+	originalSubs := gameSubs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		gameHost = originalHost
+		gameSubs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	writeDemoTimeFrame := func(seconds float32) []byte {
+		var msg bytes.Buffer
+		msg.WriteByte(byte(inet.SVCTime))
+		if err := binary.Write(&msg, binary.LittleEndian, seconds); err != nil {
+			t.Fatalf("Write(time): %v", err)
+		}
+		msg.WriteByte(0xff)
+		return msg.Bytes()
+	}
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("timedemo", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(0.1), [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame first: %v", err)
+	}
+	if err := recorder.WriteDemoFrame(writeDemoTimeFrame(2.0), [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame second: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	gameHost = host.NewHost()
+	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	gameHost.CmdTimedemo("timedemo", gameSubs)
+
+	clientState := host.LoopbackClientState(gameSubs)
+	if clientState == nil {
+		t.Fatal("expected loopback client state")
+	}
+	clientState.State = cl.StateActive
+	clientState.Signon = cl.Signons
+
+	demo := gameHost.DemoState()
+	if demo == nil || !demo.Playback || !demo.TimeDemo {
+		t.Fatal("expected active timedemo playback")
+	}
+
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame first: %v", err)
+	}
+	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame second: %v", err)
+	}
+	if demo.FrameIndex != 2 {
+		t.Fatalf("frame index after timedemo frames = %d, want 2", demo.FrameIndex)
 	}
 }
 

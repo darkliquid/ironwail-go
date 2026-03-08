@@ -1090,6 +1090,163 @@ func TestCmdPlaydemoLeavesLoopbackClientDisconnectedForServerInfo(t *testing.T) 
 	}
 }
 
+func TestCmdTimedemoEnablesTimeDemoPlayback(t *testing.T) {
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("timedemo_cmd", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame failed: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: tmpDir, UserDir: tmpDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdTimedemo("timedemo_cmd", subs)
+	if h.demoState == nil || !h.demoState.Playback {
+		t.Fatal("expected demo playback to be active")
+	}
+	if !h.demoState.TimeDemo {
+		t.Fatal("expected timedemo mode to be active")
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Timing demo") {
+		t.Fatalf("console output = %q, want timedemo banner", got)
+	}
+}
+
+func TestCmdRewindSeeksBackwardFromCurrentFrame(t *testing.T) {
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("rewind_cmd", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: tmpDir, UserDir: tmpDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdPlaydemo("rewind_cmd", subs)
+	if h.demoState == nil || !h.demoState.Playback {
+		t.Fatal("expected demo playback to be active")
+	}
+	for i := 0; i < 3; i++ {
+		if _, _, err := h.demoState.ReadDemoFrame(); err != nil {
+			t.Fatalf("ReadDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if got := h.demoState.FrameIndex; got != 3 {
+		t.Fatalf("frame index before rewind = %d, want 3", got)
+	}
+
+	h.CmdRewind(2, subs)
+	if got := h.demoState.FrameIndex; got != 1 {
+		t.Fatalf("frame index after rewind = %d, want 1", got)
+	}
+}
+
+func TestCmdDemoSeekRejectsFrameEqualToFrameCount(t *testing.T) {
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("demoseek_bounds", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: tmpDir, UserDir: tmpDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdPlaydemo("demoseek_bounds", subs)
+	if h.demoState == nil || !h.demoState.Playback {
+		t.Fatal("expected demo playback to be active")
+	}
+	frameCount := len(h.demoState.Frames)
+
+	h.CmdDemoSeek(frameCount, subs)
+
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, fmt.Sprintf("Frame %d out of range", frameCount)) {
+		t.Fatalf("console output = %q, want out-of-range message for frame %d", output, frameCount)
+	}
+	if strings.Contains(output, "Failed to seek demo") {
+		t.Fatalf("console output = %q, did not expect seek failure from lower-level demo code", output)
+	}
+}
+
 func TestCmdReconnectRestartsLocalHandshake(t *testing.T) {
 	h := NewHost()
 	h.SetServerActive(true)

@@ -11,6 +11,7 @@ require (
 	github.com/gogpu/gpucontext v0.9.0
 	github.com/gogpu/gputypes v0.2.0
 	github.com/gogpu/wgpu v0.19.7
+	github.com/jfreymuth/oggvorbis v1.0.5
 )
 
 require (
@@ -19,6 +20,7 @@ require (
 	github.com/go-webgpu/goffi v0.4.2 // indirect
 	github.com/go-webgpu/webgpu v0.4.2 // indirect
 	github.com/gogpu/naga v0.14.6 // indirect
+	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect

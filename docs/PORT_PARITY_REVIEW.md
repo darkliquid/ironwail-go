@@ -203,14 +203,14 @@ What already works:
 - `MoveTypeWalk` entities now run authoritative server gravity/collision movement (`AddGravity` + `FlyMove` + `LinkEdict`) instead of only `RunThink`, restoring bounded walk/gravity collision behavior
 - the runtime camera now raises predicted/view-entity origin by the parsed client viewheight, so normal gameplay renders from eye space instead of raw player origin
 - runtime camera origin now prefers authoritative server entity origin and only falls back to simplified prediction when no entity origin is available
-- the runtime camera now applies stored punch angles during normal gameplay (while still skipping them in intermission), so damage/recoil kick feeds into the live view even though fuller C gun-kick interpolation remains future work
+- the runtime camera now applies stored punch angles during normal gameplay (while still skipping them in intermission), and the bounded `v_gunkick` path now supports off/instant/interpolated kick behavior in the live runtime
 - the runtime viewmodel now uses the active eye/view origin and honors bounded C-style visibility gates (`r_drawviewmodel`, intermission suppression, invisibility/death checks)
 - gameplay input routes through live `bind` / `unbind` / `unbindall` / `bindlist` handling, and `config.cfg` persists those bindings
-- demo recording writes live gameplay frames, connected-state snapshots, and a disconnect trailer; playback applies recorded view angles, flushes `stufftext` in the same frame, honors pause state, and paces reads against recorded server time
+- demo recording writes live gameplay frames, connected-state snapshots, and a disconnect trailer; playback applies recorded view angles, flushes `stufftext` in the same frame, honors pause state, and paces reads against recorded server time; bounded `timedemo` and `rewind` tooling now runs on top of that forward path
 
 #### Remaining client/runtime divergences
 
-- bounded intermission / finale / cutscene overlay flow now runs in the live HUD path (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay and `gfx/finale.lmp` + timed center-text reveal), but fuller C polish (score/deathmatch overlays) is still pending
+- bounded intermission / finale / cutscene overlay flow now runs in the live HUD path (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay and `gfx/finale.lmp` + timed center-text reveal), while remaining HUD divergence is now mostly expansion-pack special-casing and broader menu polish
 - remote `connect` now establishes transport-backed sessions and auto-progresses signon replies (`prespawn`/`spawn`/`begin`), while broader netgame/deathmatch polish still remains
 
 ### Exact C behavior still missing or not fully matched
@@ -235,7 +235,7 @@ The forward recording path now matches the C runtime much more closely:
 - `stop` writes the final disconnect trailer
 - playback consumes one frame per host frame, flushes stuffed commands in-frame, and waits on recorded server time instead of host FPS alone
 
-Advanced tooling such as rewind/timedemo remains outside the currently matched forward-playback path.
+Bounded rewind/timedemo tooling is now wired, while deeper C demo tooling/benchmark polish remains future work.
 
 ## 4. Audio and music parity
 

@@ -385,7 +385,7 @@ Close the host-command and UI gaps that keep the port local-only.
 
 **Goal**
 
-Bring the secondary renderer up to a consciously chosen level instead of letting it block the main parity path.
+Keep the secondary renderer at a consciously bounded scope so it does not block or redefine the main parity path.
 
 **Primary Go files**
 
@@ -393,13 +393,15 @@ Bring the secondary renderer up to a consciously chosen level instead of letting
 
 **Work**
 
-- either port the now-correct OpenGL/runtime behavior forward into gogpu
-- or explicitly document gogpu as a non-parity experimental/fallback path
+- [x] explicit scope decision: `gogpu` is an **experimental, secondary backend** and is **not** a parity acceptance target
+- expected support in this phase: keep the `gogpu` path buildable/runnable for bounded smoke usage (world draw + 2D overlay + particle fallback) without regressing the canonical OpenGL path
+- explicitly out of scope in this phase: full render-fidelity parity, entity-rendering parity, or using `gogpu` behavior to judge overall port parity
+- revisit deeper `gogpu` catch-up only after authoritative OpenGL parity milestones are met, via separately scoped follow-up planning
 
 **Done when**
 
-- the repo has a clear, honest statement about gogpu's role
-- gogpu no longer creates ambiguity about whether parity has actually been reached
+- the repo has a clear, honest statement about gogpu's role and non-goals
+- secondary-backend notes no longer imply that `gogpu` is a parity gate
 
 ## Final acceptance checklist
 

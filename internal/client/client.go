@@ -62,6 +62,7 @@ type UserCmd struct {
 	Forward    float32
 	Side       float32
 	Up         float32
+	Msec       uint8
 	Buttons    int
 	Impulse    int
 }
@@ -230,11 +231,14 @@ type Client struct {
 	LastServerOrigin  [3]float32   // Last known server position
 	PredictionError   [3]float32   // Error to correct over time
 	CommandBuffer     [256]UserCmd // Queue of user commands for prediction
-	CommandCount      int          // Number of commands in buffer
+	CommandCount      int          // Number of unacknowledged commands in buffer
+	CommandSequence   int          // Total number of queued commands
 
 	// Prediction tuning parameters
-	PredictionFriction  float32 // Velocity decay per second (0.8-0.95)
-	PredictionAccel     float32 // Acceleration multiplier
+	PredictionFriction  float32 // Ground friction coefficient
+	PredictionAccel     float32 // Acceleration coefficient
+	PredictionStopSpeed float32 // Ground friction minimum control speed
+	PredictionGravity   float32 // Downward acceleration when airborne
 	PredictionMaxSpeed  float32 // Maximum predicted speed
 	PredictionErrorLerp float32 // Error correction speed (0.1-0.5)
 }
@@ -261,11 +265,13 @@ func NewClient() *Client {
 		Frags:           make(map[int]int),
 		PlayerNames:     make(map[int]string),
 		PlayerColors:    make(map[int]byte),
-		// Prediction defaults
-		PredictionFriction:  0.85,  // 15% velocity decay per second
-		PredictionAccel:     10.0,  // Acceleration multiplier
-		PredictionMaxSpeed:  320.0, // Max predicted speed (Quake default)
-		PredictionErrorLerp: 0.3,   // 30% error correction per frame
+		// Prediction defaults (Quake movement-like tuning)
+		PredictionFriction:  4.0,
+		PredictionAccel:     10.0,
+		PredictionStopSpeed: 100.0,
+		PredictionGravity:   800.0,
+		PredictionMaxSpeed:  320.0,
+		PredictionErrorLerp: 0.3,
 	}
 }
 
@@ -354,6 +360,55 @@ func (c *Client) ClearState() {
 	c.LastServerOrigin = [3]float32{}
 	c.PredictionError = [3]float32{}
 	c.CommandCount = 0
+	c.CommandSequence = 0
+}
+
+func (c *Client) enqueueCommand(cmd UserCmd) {
+	if c == nil {
+		return
+	}
+	if c.CommandCount >= len(c.CommandBuffer) {
+		// Drop the oldest unacknowledged command when the ring is full.
+		c.CommandCount = len(c.CommandBuffer) - 1
+	}
+	idx := wrapBufferIndex(c.CommandSequence, len(c.CommandBuffer))
+	c.CommandBuffer[idx] = cmd
+	c.CommandSequence++
+	if c.CommandCount < len(c.CommandBuffer) {
+		c.CommandCount++
+	}
+}
+
+func (c *Client) bufferedCommands() []UserCmd {
+	if c == nil || c.CommandCount == 0 {
+		return nil
+	}
+	count := c.CommandCount
+	start := c.CommandSequence - count
+	commands := make([]UserCmd, 0, count)
+	for i := 0; i < count; i++ {
+		idx := wrapBufferIndex(start+i, len(c.CommandBuffer))
+		commands = append(commands, c.CommandBuffer[idx])
+	}
+	return commands
+}
+
+func (c *Client) acknowledgeCommand() {
+	if c == nil || c.CommandCount == 0 {
+		return
+	}
+	c.CommandCount--
+}
+
+func wrapBufferIndex(idx, size int) int {
+	if size <= 0 {
+		return 0
+	}
+	idx %= size
+	if idx < 0 {
+		idx += size
+	}
+	return idx
 }
 
 func (c *Client) ConsumeParticleEvents() []ParticleEvent {

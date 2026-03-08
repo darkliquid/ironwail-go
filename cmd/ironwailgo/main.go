@@ -132,6 +132,7 @@ func initGameHost() error {
 	}
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
+	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
 	cvar.Register("developer", "0", 0, "Developer mode")
 	registerControlCvars()
@@ -447,6 +448,10 @@ func (gameCallbacks) ProcessClient() {
 		msgData, viewAngles, err := demo.ReadDemoFrame()
 		if err != nil {
 			if err.Error() == "EOF" || err.Error() == "unexpected EOF" {
+				if demo.TimeDemo && gameSubs != nil && gameSubs.Console != nil {
+					frames, seconds, fps := demo.TimeDemoSummary()
+					gameSubs.Console.Print(fmt.Sprintf("timedemo: %d frames %.3f seconds %.1f fps\n", frames, seconds, fps))
+				}
 				// Demo ended, check if we should loop to next demo
 				_ = demo.StopPlayback()
 				gameHost.SetClientState(0) // caDisconnected
@@ -1708,7 +1713,7 @@ func runtimeViewState() (origin, angles [3]float32) {
 	if gameClient != nil {
 		if clientOrigin, ok := runtimePlayerOrigin(); ok {
 			clientOrigin[2] += gameClient.ViewHeight
-			return clientOrigin, gameClient.ViewAngles
+			return clientOrigin, runtimeInterpolatedViewAngles()
 		}
 	}
 
@@ -1744,13 +1749,88 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
 	if gameClient != nil {
 		if gameClient.Intermission == 0 {
-			camera.Angles.X += gameClient.PunchAngle[0]
-			camera.Angles.Y += gameClient.PunchAngle[1]
-			camera.Angles.Z += gameClient.PunchAngle[2]
+			punch := runtimeGunKickAngles()
+			camera.Angles.X += punch[0]
+			camera.Angles.Y += punch[1]
+			camera.Angles.Z += punch[2]
 		}
 		camera.Time = float32(gameClient.Time)
 	}
 	return camera
+}
+
+func runtimeInterpolatedViewAngles() [3]float32 {
+	if gameClient == nil {
+		return [3]float32{}
+	}
+	prev, curr := gameClient.MViewAngles[1], gameClient.MViewAngles[0]
+	if prev == [3]float32{} && curr == [3]float32{} {
+		return gameClient.ViewAngles
+	}
+	frac := float32(gameClient.LerpPoint())
+	if frac < 0 {
+		frac = 0
+	} else if frac > 1 {
+		frac = 1
+	}
+	var out [3]float32
+	for i := range out {
+		out[i] = angleLerp(prev[i], curr[i], frac)
+	}
+	return out
+}
+
+func runtimeGunKickAngles() [3]float32 {
+	if gameClient == nil {
+		return [3]float32{}
+	}
+	mode := 2
+	if cv := cvar.Get("v_gunkick"); cv != nil {
+		mode = cv.Int
+	}
+	switch mode {
+	case 0:
+		return [3]float32{}
+	case 1:
+		return gameClient.PunchAngle
+	default:
+		return runtimeInterpolatedPunchAngles()
+	}
+}
+
+func angleLerp(prev, curr, frac float32) float32 {
+	delta := curr - prev
+	for delta > 180 {
+		delta -= 360
+	}
+	for delta < -180 {
+		delta += 360
+	}
+	return prev + delta*frac
+}
+
+func runtimeInterpolatedPunchAngles() [3]float32 {
+	if gameClient == nil {
+		return [3]float32{}
+	}
+	prev, curr := gameClient.PunchAngles[1], gameClient.PunchAngles[0]
+	if prev == [3]float32{} && curr == [3]float32{} {
+		return gameClient.PunchAngle
+	}
+	alpha := float32(1.0)
+	if gameClient.PunchTime > 0 {
+		alpha = float32((gameClient.Time - gameClient.PunchTime) / 0.1)
+		if alpha < 0 {
+			alpha = 0
+		} else if alpha > 1 {
+			alpha = 1
+		}
+	}
+	var out [3]float32
+	for i := range out {
+		out[i] = prev[i] + (curr[i]-prev[i])*alpha
+	}
+	return out
 }
 
 type picProvider interface {
@@ -1781,6 +1861,9 @@ func applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) 
 
 func shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool {
 	if clientState == nil || demo == nil {
+		return true
+	}
+	if demo.TimeDemo {
 		return true
 	}
 	if clientState.Signon < cl.Signons {

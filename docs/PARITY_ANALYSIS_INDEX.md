@@ -16,6 +16,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 ---
 
 ### 2. **PARITY_SUMMARY.md** (TECHNICAL ROADMAP)
+- Historical snapshot; keep for context only (superseded by canonical review/todo docs)
 - 📌 Status table for all 7 categories with severity levels
 - 🎯 **15 prioritized tasks** split into 3 tiers (Playability → Features → Polish)
 - 📝 Detailed scope, C references, and concrete tasks for each gap
@@ -28,6 +29,7 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 ---
 
 ### 3. **parity_report.md** (DEEP ANALYSIS - 32KB)
+- Historical deep-dive snapshot; keep for context only (superseded by canonical review/todo docs)
 - 🏗️ **Section A-G:** Detailed breakdown of all 7 functional areas
   - Current Go implementation status (which files, what's working)
   - Critical gaps (what's missing, how it breaks)
@@ -80,8 +82,8 @@ This directory contains a comprehensive analysis of the parity gaps between the 
 1. **Pass-order + skybox fidelity follow-through** → canonical OpenGL sequencing is now in place; keep validating additional external skybox content packs beyond baseline parity cases
 2. **Connect parity** → remote multiplayer workflow remains incomplete after landing local reconnect + local connect/disconnect + local kick parity slices
 3. **Save/load UX parity** → loading plaque and broader save-file search behavior still differ
-4. **gogpu backend catch-up** → parity baseline remains OpenGL runtime path
-5. **Prediction/physics fidelity** → advanced movement behavior still differs
+4. **gogpu scope guard** → treat gogpu as secondary/experimental; parity baseline remains OpenGL runtime path
+5. **Movement long-tail fidelity** → bounded prediction/physics slices are now landed (including command accumulation, gun-kick interpolation, and timedemo/rewind), with deeper edge-case feel tuning still remaining
 
 Estimated combined: **ongoing parity integration work; use PORT_PARITY_TODO.md for current slices**
 
