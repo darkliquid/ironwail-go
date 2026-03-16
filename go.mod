@@ -11,7 +11,9 @@ require (
 	github.com/gogpu/gpucontext v0.9.0
 	github.com/gogpu/gputypes v0.2.0
 	github.com/gogpu/wgpu v0.19.7
+	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5
+	github.com/kazzmir/opus-go v1.3.0
 )
 
 require (

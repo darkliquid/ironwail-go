@@ -27,3 +27,6 @@
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+.gemini/
+gha-creds-*.json
