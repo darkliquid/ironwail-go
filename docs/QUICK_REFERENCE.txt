@@ -2,234 +2,87 @@
 IRONWAIL-GO PARITY: QUICK REFERENCE CARD
 ================================================================================
 
-COMPLETION STATUS BY FEATURE
-=============================
+AUTHORITATIVE SOURCES
+=====================
 
-A. WORLD RENDERING         [████████████████░░░] ~80%
-    - Geometry load/binning/lightmaps: DONE on OpenGL parity path
-    - Lightmap sampler upload path: DONE (world/brush lightmaps + fallback now upload with linear min/mag filtering; generic world/sky texture uploads remain nearest-filtered)
-    - Animated textures, turbulent UV warp, and fog runtime feed: DONE
-    - Embedded BSP sky animation (dual-layer Quake sky shader path + `r_skyfog`/worldspawn `skyfog` mix semantics): DONE
-    - External skybox runtime consumption (client skybox name + Quake FS load path with C-like direction swizzle): DONE
-    - External skybox mode selection: DONE (square same-size faces use cubemap; loaded non-cubemap sets use dedicated per-face external sky path; embedded BSP sky only when no faces load or upload fails)
-    - Sky now runs in its own post-opaque frame stage, opaque liquid world/brush draws now run before translucent liquid world/brush draws, and the canonical viewmodel draw now stays after the late translucency block; non-cubemap per-face skybox edge handling now includes lowercase asset-path fallback for mixed-case skybox names
+  Canonical parity docs:    docs/PORT_PARITY_REVIEW.md  (current baseline)
+                            docs/PORT_PARITY_TODO.md    (active backlog)
+  Audit table:              docs/PARITY_AUDIT_TABLE.md
+  Source code wins:         when docs and code disagree, code is correct
 
-B. ENTITY RENDERING        [████████████████░░░] ~80%
-   - Alias models: live runtime integration DONE
-   - Sprites: live runtime integration DONE
-   - Particles: live runtime integration DONE
-   - Brush submodels: live runtime integration DONE
-   - Dynamic lights / protocol-driven effects: DONE
-   - Bounded pass-order slices landed after 38de7f3 / 5800311 / aabf5ca / e74f73b:
-      - particles now run as explicit opaque/translucent subpasses instead of one late lump
-      - world + brush liquid surfaces now bucket into dedicated opaque-liquid/translucent-liquid bins (separate from general opaque/translucent world bins)
-      - frame-level OpenGL ordering now stages world + brush non-liquid draws before opaque alias + opaque particles, then runs a dedicated sky step, then all opaque liquid world/brush draws, then all translucent liquid world/brush draws
-      - alias-model entities now split into explicit opaque/translucent frame stages, so fully opaque aliases stay before water while non-opaque aliases move later in the frame
-      - translucent brush-entity non-liquid surfaces now move out of the early opaque stage and render later, after the separated liquid phases
-      - late translucent liquid/entity/decal/particle work is now wrapped in an explicit begin/end translucency state block before the final viewmodel draw
-      - runtime sprites now render in that late translucency stage (instead of the earlier opaque entity block), keeping sprite staging aligned with late translucent scene content
-      - runtime sprite-frame selection now matches C more closely: `SPR_GROUP` advances by interval timing and `SPR_ANGLED` picks directional subframes from the current camera basis
-      - bounded viewmodel parity slice landed: runtime viewmodel now anchors to eye/view origin, is suppressed in intermission, and honors `r_drawviewmodel` + invisibility/death gating
-      - runtime particles now honor `r_particles` mode at pass time (`1` routes to late translucent particle stage, `2` routes to opaque stage), so particle staging no longer always resolves through the opaque side
-    - Remaining fidelity work: broader particle visual polish beyond pass-mode parity
+PARITY TARGET
+=============
 
-C. MENUS/HUD/INPUT         [████████████░░░░░░░] ~60%
-   - Menu nav: DONE
-   - Menu key routing: DONE (menu actions now trigger on key-down only; key-up no longer double-fires)
-   - Text-only menu prompt layout: DONE (menu glyphs now use the same 320x200 scaling/centering path as menu pics)
-    - Options/network submenus: BOUNDED DONE (`join game`, `host game`, `setup`, `controls`, `video`, `audio` now lead to live commands/cvars/bind UX; broader C polish still pending)
-   - Multiplayer setup menu: BOUNDED DONE (hostname + name text entry + shirt/pants colors + accept syncs/applies `hostname`/`name`/`color`)
-   - Key bindings and config persistence: DONE
-   - Console UI/history/completion: DONE (includes command/cvar/alias completion)
-   - Command aliases (`alias`/`unalias`/`unaliasall`): DONE
-    - HUD: Base-game classic status bar path DONE (weapon strip, ammo strip, keys/powerups/sigils, armor/face/ammo icons, live client-driven stats)
-    - Intermission/finale/cutscene overlays: BOUNDED DONE (`gfx/complete.lmp` + `gfx/inter.lmp` stats overlay, `gfx/finale.lmp` + live timed center-text reveal via client state)
-    - Deathmatch scoreboard overlay/HUD rows: BOUNDED DONE (`+showscores` hold path, ranked frag rows, and multiplayer mini-frag strip)
+  PRIMARY:    CGO/OpenGL path  (renderer_opengl.go + GLFW + SDL3/Oto)
+  SECONDARY:  gogpu/WebGPU     (NOT a parity gate; intentionally behind)
 
-D. AUDIO/MUSIC             [████████████████░░░] ~80%
-   - System init: DONE
-   - Backend (SDL3/Oto): DONE
-   - Event dispatch: DONE
-   - Session-transition teardown (`StopAllSounds(true)` on local disconnect/reconnect/load/map paths): DONE
-- Music/BGM: PARTIAL (WAV/OGG CD tracks with search-path parity; broader codec parity still missing)
-   - Sound effects: DONE
-
-E. NETWORKING/MULTIPLAYER  [████████████░░░░░░░] ~70%
-   - Loopback: DONE
-   - UDP: DONE
-   - Disconnect command/session teardown: DONE for local loopback architecture (includes active sound stop-all)
-   - Reconnect: DONE (local + remote signon reset/restart command path + transition sound teardown/loading plaque)
-   - Connect: DONE as bounded parity slice (remote transport-backed connect now auto-progresses signon without manual `prespawn`/`spawn`/`begin`)
-   - Kick: DONE for local host command parity (name / # slot / optional message / self-protect)
-   - Server commands: 85% (most working)
-   - Deathmatch mode: BOUNDED DONE (fraglimit/timelimit rule checks + delayed deathmatch respawn flow)
-
-F. PREDICTION/DEMO         [████████████████░░░] ~80%
-    - Basic prediction: DONE (simplified)
-    - Authoritative server walk/gravity collision step: DONE (bounded parity slice; `RunClients` now feeds same-frame physics and `MoveTypeWalk` runs collision/gravity physics)
-    - Client viewheight state from `svc_clientdata`: DONE (stored and applied to runtime camera origin)
-    - Client punch state from `svc_clientdata`: DONE (runtime camera kick + `v_gunkick` 0/1/2 bounded interpolation path)
-    - Runtime camera authoritative origin preference: DONE (server entity origin first; prediction fallback only when entity origin is unavailable)
-    - Viewmodel eye-origin + `r_drawviewmodel`/intermission gating: DONE as bounded canonical-runtime parity slice
-    - Full physics: BOUNDED DONE (authoritative walk/gravity/collision/step behavior runs in live server physics flow; long-tail feel polish still remains)
-    - Command looping: DONE (runtime command accumulation parity slice landed)
-    - Demo recording/playback forward path: DONE
-    - Advanced tooling (timedemo/rewind): DONE
-
-G. SAVE/LOAD               [████████████████░░░] ~80%
-   - Serialization: DONE
-   - Deserialization: DONE
-   - Save restrictions (`nomonsters`, intermission, dead-player): DONE
-   - QC globals/edicts/lightstyles: DONE
-   - Inventory/gameplay-state restoration: DONE (save/load round-trip coverage validates player ammo/weapon/items/armor plus server/client gameplay-state restoration)
+  Do not judge parity from the gogpu path.
+  Run: mise run build-cgo  and  mise run smoke-cgo-map-start  for OpenGL checks.
 
 
-BLOCKERS FOR PLAYABILITY (Must Fix First)
-==========================================
+CURRENT STRENGTHS (OpenGL path)
+================================
 
-1. Skybox edge-case fidelity
-     Location: internal/renderer/world_runtime_opengl.go
-     Impact: Scene composition now matches scoped late-translucency/viewmodel ordering and mixed-case skybox names now resolve through lowercase fallback when only lowercase assets exist
-     Fix: Continue validating additional non-cubemap content packs for parity confidence
-    Reference: gl_sky.c + r_sprite.c + gl_rmain.c
-
-2. Remote networking depth
-   Location: internal/host/commands.go
-   Impact: Remote connect/reconnect and multiplayer menus now use the real transport-backed path; bounded fraglimit/timelimit and delayed DM respawn behavior are now in place, while broader netgame depth still differs from C
-   Fix: Continue parity slices for deeper remote game-options/netgame behavior
-   Reference: host_cmd.c:Host_Connect_f / Host_Reconnect_f / Host_Kick_f
-
-3. SAVE/LOAD UX parity
-   Location: internal/host/commands.go + menu flow
-   Impact: Save-slot discovery now mirrors the C load/save menus, but legacy save import edge cases and remote loading UX still diverge
-   Fix: Keep user-dir saves primary, fall back to legacy install-dir loads where practical, and preserve local transition/audio/plaque parity
-   Reference: host_cmd.c:Host_Loadgame_f / menu.c:M_ScanSaves
-
-4. gogpu runtime parity gap
-   Location: internal/renderer/renderer_gogpu.go + runtime feed
-   Impact: gogpu remains intentionally behind canonical OpenGL parity path
-   Fix: keep gogpu buildable as a bounded secondary backend; do not use it as a parity gate
-
-5. Movement long-tail fidelity
-    Location: internal/client
-    Impact: bounded advanced movement slices are landed, but deeper edge-case feel tuning still differs in some scenarios
-    Fix: keep parity polish focused on remaining C edge-case movement feel
+  - World rendering: BSP geometry, lightmaps, animated textures, turbulent UV
+    warp, fog, embedded BSP sky, external skybox (cubemap + per-face paths)
+  - Entity rendering: alias models, sprites, brush submodels, particles,
+    decals, dynamic lights, viewmodel, all with correct pass ordering
+  - Input / bindings: Quake-style bind/unbind/bindlist, config persistence
+  - Console: tab completion (commands/cvars/aliases), history, scrollback
+  - Menus: main, load/save, options (video/audio/controls), multiplayer setup,
+    bounded join/host flows
+  - HUD: classic status bar, intermission/finale overlays, deathmatch scoreboard
+  - Audio: sound dispatch, mixer, spatialization, WAV/OGG CD tracks, ambient
+  - Save/load: full QC/edict/global round-trip, C-style save restrictions
+  - Demo: forward record/playback including connected-state snapshot
+  - Networking: loopback + UDP; remote connect/disconnect/reconnect/kick
 
 
-HIGH-PRIORITY SECONDARY FEATURES
-=================================
+BIGGEST REMAINING GAPS
+======================
 
-- Menu/HUD polish (C): expansion-pack overlays + broader menu polish
-- Skybox runtime integration (A/B): match C visual output
-- Save/load UX parity (G): broader save-file search behavior
-- Movement long-tail polish (F): smoother C-like edge-case behavior
+  1. gogpu backend        Full entity/model/sprite pipeline is a stub
+  2. OpenGL fidelity      Broader visual polish beyond bounded slices
+  3. Mods menu            No Ironwail-style installed add-on browser
+  4. Alt HUD styles       Q64-style HUD variants not implemented
+  5. Mouse-driven UI      Menu mouse interaction is incomplete
+  6. Remote netgame       Deeper multiplayer / net-game behavior still needed
+  7. Audio codec parity   Broader music format coverage beyond WAV/OGG
+  8. Demo long-tail       Edge-case recording/playback accuracy
+  9. Save UX long-tail    Broader save-file search, legacy import edge cases
+ 10. Underwater fx        Visual blue-shift parity open (audio intensity wired)
+
+
+DOC USAGE RULES
+===============
+
+  USE for current state:    PORT_PARITY_REVIEW.md, PORT_PARITY_TODO.md,
+                            PARITY_AUDIT_TABLE.md, QUICK_REFERENCE.txt
+  HISTORICAL context only:  parity_report.md, older PARITY_SUMMARY.md content
+  DO NOT cite as current:   any parity percentages from older audit docs
 
 
 KEY C FILES TO REFERENCE
 ========================
 
-World Rendering:
-  - gl_rmain.c: Main render loop
-  - r_brush.c: Surface/lightmap processing
-  - gl_warp.c: Water animation
-  - gl_sky.c: Sky rendering
-
-Entity Rendering:
-  - r_alias.c: Model rendering
-  - r_sprite.c: Sprite rendering
-  - r_part.c: Particle system
-  - gl_refrag.c: Decal projection
-
-Input/Menus:
-  - keys.c: Key binding
-  - cl_input.c: Input processing
-  - menu.c: Menu system
-  - sbar.c: Status bar
-
-Audio:
-  - snd_dma.c: Sound system core
-  - cl_parse.c: Sound event parsing
-  - bgmusic.c: Music playback
-
-Network:
-  - host_cmd.c: Server commands
-  - net_dgrm.c: Datagram protocol
-  - cl_parse.c: Client message parsing
-
-
-COMMON PITFALLS TO AVOID
-========================
-
-1. Don't render entities before world geometry (depth test will fail)
-2. Lightmap coordinates are NOT texture coordinates (different calculation)
-3. Prediction must accumulate commands, not just apply current frame
-4. Sprite rotation requires full 3D camera basis vectors
-5. Audio attenuation uses both distance AND listener angle (3D panning)
-6. Menu draws OVER 3D view, not instead of it
-7. Sky is its own pass; don't just fold it into the normal world draw or move it to the very start blindly
+  World rendering:   gl_rmain.c, r_brush.c, gl_warp.c, gl_sky.c
+  Entity rendering:  r_alias.c, r_sprite.c, r_part.c, gl_refrag.c
+  Input / menus:     keys.c, cl_input.c, menu.c, sbar.c
+  Audio:             snd_dma.c, cl_parse.c, bgmusic.c
+  Network:           host_cmd.c, net_dgrm.c, cl_parse.c
 
 
 TESTING CHECKLIST
 =================
 
-[x] Start game → See Q1DM1 geometry (not black)
-[x] Press W → Player moves forward, view pans
-[x] Left-click → Sound plays, impact visible
-[x] Press E → Item pickup sound, HUD updates
-[x] Press TAB → Scoreboard visible
-[x] Console ` → Can type and execute commands
-[x] Menu ESC → See menu (with pictures, not stubs)
-[x] Multiplayer → Connect to server (bounded remote connect/signon path is wired; broader remote netgame depth still pending)
-[x] Demo record → demo.dem created and plays back forward path
-[ ] Underwater → Blue shift, sound muffling (audio underwater intensity is wired; visual blue-shift parity still pending)
-
-
-FILE ORGANIZATION HINTS
-=======================
-
-NOTE: The implementation-hint bullets below are legacy brainstorming from the original broad-gap audit.
-      Do not auto-promote them into active backlog items without first reconciling against
-      PORT_PARITY_REVIEW.md + PORT_PARITY_TODO.md.
-
-For entity rendering refactor:
-  - Move entity drawing logic to renderer/entity_renderer.go
-  - Define RenderEntity interface/union
-  - Split: renderBrushEntities, renderAliasEntities, renderSpriteEntities
-  - Each returns []DrawCall for batching
-
-For input system:
-  - New files: input/keybutton.go, input/bindings.go
-  - Extend input/types.go with KButton array
-  - Hook client/input.go to button state
-
-For audio fidelity follow-up:
-  - Extend beyond WAV-backed CD tracks toward broader music parity
-  - Continue long-tail mixer/music behavior alignment with `snd_dma.c` + `bgmusic.c` (codec breadth, track-control polish)
-  - Keep underwater visual/audio coupling parity in view (audio intensity is wired; visual blue-shift remains open)
-
-For lightmaps:
-  - New file renderer/lightmap.go with LightmapAtlas
-  - Parser: BSP → lightmap_data
-  - Allocator: Chart algorithm (match C exactly for byte-for-byte parity)
-  - Shader: Add lightmap sampler, modulate diffuse
-
-
-GOTCHAS IN GO CONVERSION
-========================
-
-- C array bounds check missing: bounds = []byte{0x6f, 0x6d, ...} is OK
-- Entity lerp flags use bitwise: state & 1, state |= 2 (use bit operators)
-- Light cache is sparse: allocate on-demand, not full array
-- Particle colors are palette indices: use ramp lookup, not RGB directly
-- Console commands are case-insensitive: normalize before dispatch
-- CVars can have callbacks: need event system when value changes
-- Skin textures are per-player: dynamic allocation for scoreboard
-
-
-CURRENT SLICES
-==============
-
-- Historical effort estimates were removed because they are stale.
-- For current implementation slices, priorities, and done/open markers, use:
-  - `docs/PORT_PARITY_REVIEW.md`
-  - `docs/PORT_PARITY_TODO.md`
+  [x] Start game  -> Q1DM1 geometry visible with lightmaps
+  [x] Press W     -> Player moves forward, view follows
+  [x] Left-click  -> Sound plays, impact visible
+  [x] Tab         -> Scoreboard visible
+  [x] Backtick    -> Console opens, accepts commands, tab-completes
+  [x] Escape      -> Menu opens with images, submenus are functional
+  [x] Save/Load   -> Savegame round-trips player state correctly
+  [x] Demo record -> demo.dem created and plays back (forward path)
+  [x] Connect     -> Remote connect/signon path is wired (bounded depth)
+  [ ] Underwater  -> Visual blue-shift parity still pending
+================================================================================
