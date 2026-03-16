@@ -72,32 +72,19 @@ func (s *Server) Impact(e1, e2 *Edict) {
 }
 
 // ClipVelocity slides off an impacting surface.
-func ClipVelocity(in, normal [3]float32, overbounce float32) ([3]float32, int) {
-	var backoff float32
-	var change float32
-	blocked := 0
-
-	if normal[2] > 0 {
-		blocked |= 1
-	}
-	if normal[2] == 0 {
-		blocked |= 2
-	}
-
-	backoff = float32(float64(in[0])*float64(normal[0])+
-		float64(in[1])*float64(normal[1])+
-		float64(in[2])*float64(normal[2])) * overbounce
+func ClipVelocity(in, normal [3]float32, overbounce float32) [3]float32 {
+	backoff := VecDot(in, normal) * overbounce
 
 	var out [3]float32
 	for i := 0; i < 3; i++ {
-		change = normal[i] * backoff
+		change := normal[i] * backoff
 		out[i] = in[i] - change
 		if out[i] > -StopEpsilon && out[i] < StopEpsilon {
 			out[i] = 0
 		}
 	}
 
-	return out, blocked
+	return out
 }
 
 const maxClipPlanes = 5
@@ -126,7 +113,6 @@ func (s *Server) CheckWaterTransition(ent *Edict) {
 }
 
 func (s *Server) FlyMove(ent *Edict, time float32) int {
-	numbumps := 4
 	blocked := 0
 	originalVelocity := ent.Vars.Velocity
 	primalVelocity := ent.Vars.Velocity
@@ -134,18 +120,14 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 	var planes [maxClipPlanes][3]float32
 	timeLeft := time
 
-	for bumpCount := 0; bumpCount < numbumps; bumpCount++ {
+	for bumpCount := 0; bumpCount < 4; bumpCount++ {
 		if ent.Vars.Velocity[0] == 0 && ent.Vars.Velocity[1] == 0 && ent.Vars.Velocity[2] == 0 {
 			break
 		}
 
-		end := [3]float32{
-			ent.Vars.Origin[0] + timeLeft*ent.Vars.Velocity[0],
-			ent.Vars.Origin[1] + timeLeft*ent.Vars.Velocity[1],
-			ent.Vars.Origin[2] + timeLeft*ent.Vars.Velocity[2],
-		}
+		end := VecAdd(ent.Vars.Origin, VecScale(ent.Vars.Velocity, timeLeft))
+		trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, end, MoveNormal, ent)
 
-		trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, end, MoveType(MoveNormal), ent)
 		if trace.AllSolid {
 			ent.Vars.Velocity = [3]float32{}
 			return 3
@@ -161,24 +143,19 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 			break
 		}
 
-		if trace.Entity == nil {
-			break
-		}
-
 		if trace.PlaneNormal[2] > 0.7 {
 			blocked |= 1
-			if int(trace.Entity.Vars.Solid) == int(SolidBSP) {
-				ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
-				ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
-			}
 		}
 		if trace.PlaneNormal[2] == 0 {
 			blocked |= 2
 		}
 
-		s.Impact(ent, trace.Entity)
-		if ent.Free {
-			break
+		// Run touch functions
+		if trace.Entity != nil {
+			s.Impact(ent, trace.Entity)
+			if ent.Free {
+				break
+			}
 		}
 
 		timeLeft -= timeLeft * trace.Fraction
@@ -191,39 +168,38 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 		planes[numPlanes] = trace.PlaneNormal
 		numPlanes++
 
-		clipped := false
+		// Standard Quake recursive plane clipping
+		var newVelocity [3]float32
 		for i := 0; i < numPlanes; i++ {
-			newVelocity, _ := ClipVelocity(originalVelocity, planes[i], 1)
-
-			ok := true
-			for j := 0; j < numPlanes; j++ {
+			newVelocity = ClipVelocity(originalVelocity, planes[i], 1.001) // overbounce for precision
+			j := 0
+			for ; j < numPlanes; j++ {
 				if j == i {
 					continue
 				}
 				if VecDot(newVelocity, planes[j]) < 0 {
-					ok = false
 					break
 				}
 			}
-
-			if ok {
-				ent.Vars.Velocity = newVelocity
-				clipped = true
+			if j == numPlanes {
 				break
 			}
 		}
 
-		if !clipped {
-			if numPlanes != 2 {
-				ent.Vars.Velocity = [3]float32{}
-				return 7
-			}
-
+		if numPlanes >= 2 {
+			// Slide along intersection of two planes
 			dir := VecCross(planes[0], planes[1])
 			d := VecDot(dir, ent.Vars.Velocity)
-			ent.Vars.Velocity = VecScale(dir, d)
+			newVelocity = VecScale(dir, d)
+
+			if numPlanes >= 3 {
+				// Stuck in a corner
+				ent.Vars.Velocity = [3]float32{}
+				return blocked
+			}
 		}
 
+		ent.Vars.Velocity = newVelocity
 		if VecDot(ent.Vars.Velocity, primalVelocity) <= 0 {
 			ent.Vars.Velocity = [3]float32{}
 			return blocked
@@ -547,7 +523,7 @@ func (s *Server) PhysicsToss(ent *Edict) {
 		backoff = 1.5
 	}
 
-	newVel, _ := ClipVelocity(ent.Vars.Velocity, trace.PlaneNormal, backoff)
+	newVel := ClipVelocity(ent.Vars.Velocity, trace.PlaneNormal, backoff)
 	ent.Vars.Velocity = newVel
 
 	if trace.PlaneNormal[2] > 0.7 {

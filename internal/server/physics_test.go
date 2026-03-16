@@ -22,11 +22,8 @@ func newPhysicsTestServer() *Server {
 func TestClipVelocity(t *testing.T) {
 	in := [3]float32{100, 0.05, -5}
 	normal := [3]float32{0, 0, 1}
-	out, blocked := ClipVelocity(in, normal, 1)
+	out := ClipVelocity(in, normal, 1)
 
-	if blocked != 1 {
-		t.Fatalf("blocked = %d, want 1", blocked)
-	}
 	if out[2] != 0 {
 		t.Fatalf("out[2] = %v, want 0", out[2])
 	}

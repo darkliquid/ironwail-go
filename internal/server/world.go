@@ -625,10 +625,20 @@ func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, l
 	}
 }
 
+var inTouchLinks bool
+
 func (s *Server) touchLinks(ent *Edict) {
 	if len(s.Areanodes) == 0 || s.QCVM == nil {
 		return
 	}
+
+	if inTouchLinks {
+		return
+	}
+	inTouchLinks = true
+	defer func() {
+		inTouchLinks = false
+	}()
 
 	touches := make([]*Edict, 0, s.NumEdicts)
 	s.areaTriggerEdicts(ent, &s.Areanodes[0], &touches, s.NumEdicts)

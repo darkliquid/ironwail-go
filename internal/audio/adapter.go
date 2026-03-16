@@ -21,13 +21,19 @@ func (a *AudioAdapter) Init() error {
 		return nil
 	}
 
+	sdl3 := NewSDL3AudioBackend()
+	oto := NewOtoBackend()
+	slog.Info("audio backend availability", "sdl3", sdl3 != nil, "oto", oto != nil)
+
 	backend := Backend(NewNullBackend())
-	if preferred := NewSDL3AudioBackend(); preferred != nil {
-		slog.Info("using SDL3 audio backend")
-		backend = preferred
-	} else if preferred := NewOtoBackend(); preferred != nil {
-		slog.Info("using Oto audio backend")
-		backend = preferred
+	if sdl3 != nil {
+		slog.Info("selecting SDL3 audio backend")
+		backend = sdl3
+	} else if oto != nil {
+		slog.Info("selecting Oto audio backend")
+		backend = oto
+	} else {
+		slog.Warn("no hardware audio backends available, using null backend")
 	}
 
 	if err := a.sys.Init(backend, 44100, false); err != nil {
