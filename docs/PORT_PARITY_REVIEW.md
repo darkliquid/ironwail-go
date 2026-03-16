@@ -12,7 +12,7 @@ The Go port is materially farther along than several older planning notes imply.
 
 The biggest remaining parity problems are mostly **integration and fidelity gaps**, not total subsystem absence:
 
-- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, fog, turbulent UV warp, embedded two-layer Quake sky integration, and external skybox consumption (cubemap plus non-cubemap per-face path, including mixed-case lowercase asset fallback); the main remaining render gaps are now mostly broader polish beyond the bounded pass-order/skybox/particle staging slices
+- the OpenGL renderer already has world, brush, alias, sprite, particle, decal, viewmodel, dynamic-light, animated-texture, fog, turbulent UV warp, embedded two-layer Quake sky integration, external skybox consumption (cubemap plus non-cubemap per-face path, including mixed-case lowercase asset fallback), and full underwater/view warp parity (`r_waterwarp` screen-space sinusoidal post-process and FOV-oscillation modes, with menu-driven forced-underwater preview); the main remaining render gaps are now mostly broader polish beyond the bounded pass-order/skybox/particle staging slices
 - the gogpu path is still visibly behind the OpenGL path and should not be the parity gate
 - the input/command layer now uses Quake-style bindings, config persistence, command aliases (`alias`/`unalias`/`unaliasall`), and live prediction; the bigger remaining client-state gaps are special intermission/cutscene handling and remote networking flow
 - the audio/music path now dispatches parsed sounds into the live mixer, maintains static sounds, updates the listener, and plays WAV-backed CD tracks; broader fidelity/format parity still remains
@@ -28,7 +28,7 @@ A useful way to think about the current tree is:
 | Area | What is already implemented | Main missing / divergent behavior |
 | --- | --- | --- |
 | Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local/remote `connect`/`disconnect` session transitions | remote transport edge-case polish still remains |
-| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, and external skybox consumption via cubemap/per-face paths (with lowercase fallback for mixed-case names) | remaining divergences are now mostly broader visual polish rather than the previously-bounded particle-pass and per-face skybox edge slices |
+| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, external skybox consumption via cubemap/per-face paths (with lowercase fallback for mixed-case names), and underwater visual warp (`r_waterwarp` screen-space sinusoidal post-process + FOV-oscillation modes with forced-underwater menu preview) | `v_blend` polyblend screen tint still absent; remaining divergences are now mostly broader visual polish |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration, bounded intermission/finale/cutscene + centerprint runtime overlay wiring plus deathmatch scoreboard hold/overlay support, and remote signon auto-reply progression (`prespawn`/`spawn`/`begin`) | broader netgame depth still diverges |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
@@ -116,6 +116,7 @@ The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 - brush entities now honor rotation, and the runtime feeds protocol alpha/scale/effect lighting through the active entity paths
 - animated world textures are evaluated against live client time, and client fog state is consumed by the shared runtime renderer
 - turbulent (`SurfDrawTurb`) world/brush surfaces now apply C-style time-varying UV warp on the canonical OpenGL path
+- underwater visual warp is now fully implemented: `r_waterwarp == 1` renders the 3D scene to an offscreen FBO and applies a sinusoidal screen-space distortion pass (`warpscale_opengl.go`); `r_waterwarp > 1` applies C-style FOV oscillation (`ApplyWaterwarpFOV()`); the Video options menu previews the effect when the cursor rests on the WATERWARP item, mirroring C `M_ForcedUnderwater()`; `v_blend` polyblend overlay compositing is still absent
 
 #### Remaining divergences from C
 
@@ -266,7 +267,7 @@ What already exists:
 ### What is missing or divergent
 
 - broader codec/music parity beyond the current WAV/OGG CD-track support is still missing
-- underwater visual blue-shift and broader audiovisual polish remain outside the current bounded parity slice
+- `v_blend` (screen color tint / polyblend overlay) remains unimplemented; this is composited in C's `R_WarpScaleView()` but has no Go equivalent yet
 
 ### Exact C behavior still missing or not fully matched
 

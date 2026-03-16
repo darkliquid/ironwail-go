@@ -64,7 +64,13 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 | Liquid surface bucketing | Separate opaque-liquid / translucent-liquid bins | Implemented | `PORT_PARITY_TODO.md §8 (post-5800311 / post-c2233bc slices)` | — | — |
 | Liquid pass ordering | Opaque liquid before translucent liquid, all after opaque entities/sky | Implemented | `PORT_PARITY_TODO.md §8 (final-opengl-pass-order slice)` | — | — |
 | Transparent water VIS safety | Gate liquid translucency by `transwater`/`watervis` worldspawn; force opaque on unsafe maps | Implemented | `PORT_PARITY_TODO.md §8 (transparent-water-vis-safety slice)` | — | — |
-| Underwater visual warp | Screen-space view distortion (`r_waterwarp`, C `R_WarpScaleView()`) | Missing | Audio intensity is wired; visual blue-shift/warp not yet implemented | Missing feature | Medium |
+| Turbulent UV warp | Per-surface sinusoidal UV distortion on liquid surfaces (`SurfDrawTurb`) | Implemented | `worldFragmentShaderGL` `uTurbulent` branch; `worldFaceUsesTurb()` | — | — |
+| `r_waterwarp` cvar | Screen-space underwater distortion enable/disable (0=off, 1=screen warp, 2=FOV warp) | Implemented | `renderer.CvarRWaterwarp`; registered in `cmd/ironwailgo/main.go`; Video options menu | — | — |
+| Underwater screen-space warp | `r_waterwarp == 1`: render scene to offscreen FBO, apply sinusoidal post-process distortion | Implemented | `warpscale_opengl.go`; `RenderFrameState.WaterWarp`; `applyWarpScaleEffect()`; mirrors C `R_WarpScaleView()` + `glprogs.warpscale[1]` | — | — |
+| Underwater FOV warp | `r_waterwarp > 1`: sinusoidal FOV oscillation while underwater | Implemented | `CameraState.WaterwarpFOV`; `ApplyWaterwarpFOV()`; `UpdateCamera()` applies when set; mirrors C `R_SetupView()` r_waterwarp > 1 branch | — | — |
+| Underwater state detection | Camera in water/slime/lava leaf activates visual warp | Implemented | `runtimeCameraInLiquid` in `main.go`; updated in `syncRuntimeAmbientAudio()`; feeds `runtimeWaterwarpState()` | — | — |
+| Forced-underwater menu preview | While `r_waterwarp` option is focused in Video menu, preview the warp effect | Implemented | `menu.Manager.ForcedUnderwater()`; `RenderFrameState.ForceUnderwater`; mirrors C `M_ForcedUnderwater()` | Minor divergence: Go uses `cl.time` for preview animation; C uses `realtime`. Effect is indistinguishable when game is running | Low |
+| `v_blend` polyblend overlay | Screen color tint (damage, environment) composited with warpscale pass | Missing | C composites `v_blend` in `R_WarpScaleView()` via `BlendColor` uniform. Go has no `v_blend` system. Tracked separately. | Missing feature | Low |
 
 ---
 
@@ -160,7 +166,7 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 | CD track / music | WAV/OGG CD-track playback with `CDTrack`/`LoopTrack` change | Mostly implemented | `PORT_PARITY_TODO.md §3`; bounded search-path parity | — | — |
 | Sound packet encoding | `SND_LARGEENTITY`/`SND_LARGESOUND` edge-case packets from server | Implemented | `PORT_PARITY_REVIEW.md §4`; `server_test.go` coverage | — | — |
 | Broader codec parity | Full `bgmusic.c` codec breadth (OGG beyond CD tracks, etc.) | Partial | `PORT_PARITY_REVIEW.md §4` — broader codec parity still missing | Incomplete integration | Medium |
-| Underwater visual blue-shift | Screen visual effect when camera is underwater | Missing | Audio intensity wired; visual coupling remains open | Missing feature | Medium |
+| Underwater visual blue-shift | Screen visual effect when camera is underwater | Implemented | `r_waterwarp` cvar, screen-space FBO warp and FOV-oscillation modes; `v_blend` (poly-blend color tint) remains missing | `v_blend` still absent | Low |
 | Music/BGM fidelity | Full C `bgmusic.c` behavior, track-control polish | Mostly implemented | `PORT_PARITY_REVIEW.md §4` — broader codec breadth and track-control polish remain | Behavioral inaccuracy | Medium |
 
 ---

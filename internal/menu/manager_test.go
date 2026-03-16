@@ -1269,3 +1269,71 @@ func TestMenuEscapePlaysCancelSound(t *testing.T) {
 		t.Fatalf("escape sound = %q, want %q", last, menuSoundCancel)
 	}
 }
+
+// TestForcedUnderwaterOnlyWhenVideoMenuOpen verifies that ForcedUnderwater returns
+// true only when the video options menu is open and cursor is on the WATERWARP item.
+// Mirrors C Ironwail M_ForcedUnderwater() / M_Options_ForcedUnderwater().
+func TestForcedUnderwaterOnlyWhenVideoMenuOpen(t *testing.T) {
+	mgr := NewManager(nil, nil)
+
+	// Not active: should be false regardless of state.
+	mgr.active = false
+	mgr.state = MenuVideo
+	mgr.videoCursor = videoItemWaterwarp
+	if mgr.ForcedUnderwater() {
+		t.Error("ForcedUnderwater() should be false when menu is not active")
+	}
+
+	// Active, wrong menu state.
+	mgr.active = true
+	mgr.state = MenuOptions
+	mgr.videoCursor = videoItemWaterwarp
+	if mgr.ForcedUnderwater() {
+		t.Error("ForcedUnderwater() should be false when not in MenuVideo")
+	}
+
+	// Active, right menu state, wrong cursor.
+	mgr.state = MenuVideo
+	mgr.videoCursor = videoItemGamma
+	if mgr.ForcedUnderwater() {
+		t.Error("ForcedUnderwater() should be false when cursor is not on videoItemWaterwarp")
+	}
+
+	// Active, right menu state, right cursor → should be true.
+	mgr.videoCursor = videoItemWaterwarp
+	if !mgr.ForcedUnderwater() {
+		t.Error("ForcedUnderwater() should be true when video menu is open and cursor is on WATERWARP")
+	}
+}
+
+// TestWaterwarpCvarCyclesCorrectly verifies that adjustVideoSetting cycles r_waterwarp
+// through 0→1→2→0 when pressing right, and 0→2→1→0 when pressing left.
+func TestWaterwarpCvarCyclesCorrectly(t *testing.T) {
+	mgr := NewManager(nil, nil)
+	mgr.state = MenuVideo
+	mgr.videoCursor = videoItemWaterwarp
+
+	// Register cvar if not already registered.
+	if cvar.Get("r_waterwarp") == nil {
+		cvar.Register("r_waterwarp", "0", 0, "Underwater warp test")
+	}
+	cvar.Set("r_waterwarp", "0")
+
+	// Right: 0 → 1
+	mgr.adjustVideoSetting(1)
+	if got := cvar.IntValue("r_waterwarp"); got != 1 {
+		t.Fatalf("after right from 0: r_waterwarp = %d, want 1", got)
+	}
+
+	// Right: 1 → 2
+	mgr.adjustVideoSetting(1)
+	if got := cvar.IntValue("r_waterwarp"); got != 2 {
+		t.Fatalf("after right from 1: r_waterwarp = %d, want 2", got)
+	}
+
+	// Right: 2 → 0 (wraps)
+	mgr.adjustVideoSetting(1)
+	if got := cvar.IntValue("r_waterwarp"); got != 0 {
+		t.Fatalf("after right from 2 (wrap): r_waterwarp = %d, want 0", got)
+	}
+}

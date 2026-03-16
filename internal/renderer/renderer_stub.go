@@ -67,6 +67,12 @@ type RenderFrameState struct {
 	MenuActive     bool
 	Particles      *ParticleSystem
 	Palette        []byte
+
+	// WaterWarp, WaterWarpTime, ForceUnderwater: see stubs_opengl.go for semantics.
+	// These fields are parsed by the authoritative OpenGL path only; stub ignores them.
+	WaterWarp       bool
+	WaterWarpTime   float32
+	ForceUnderwater bool
 }
 
 // DrawContext is the no-backend draw context used by untagged builds.

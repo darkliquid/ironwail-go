@@ -500,6 +500,17 @@ type Renderer struct {
 	decalVAO                            uint32
 	decalVBO                            uint32
 
+	// Scene FBO and warpscale post-process for r_waterwarp == 1 underwater screen warp.
+	// Mirrors C Ironwail: framebufs.scene / R_WarpScaleView / glprogs.warpscale[1].
+	warpScaleProgram        uint32
+	warpScaleSceneTex       int32 // uniform location: uSceneTex
+	warpScaleUVScaleWarpTime int32 // uniform location: uUVScaleWarpTime
+	sceneFBO                uint32
+	sceneColorTex           uint32
+	sceneDepthRBO           uint32
+	sceneFBOWidth           int
+	sceneFBOHeight          int
+
 	lightPool      *glLightPool
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -806,6 +817,11 @@ func (r *Renderer) Shutdown() {
 	r.mu.Lock()
 	r.clearParticleResourcesLocked()
 	r.mu.Unlock()
+	r.destroySceneFBO()
+	if r.warpScaleProgram != 0 {
+		gl.DeleteProgram(r.warpScaleProgram)
+		r.warpScaleProgram = 0
+	}
 	r.deleteAllTextures()
 	if r.window != nil {
 		r.window.Destroy()

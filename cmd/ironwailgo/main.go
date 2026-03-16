@@ -76,6 +76,11 @@ var (
 	skyboxNameKey    string
 	gameShowScores   bool
 	gameModDir       string
+
+	// runtimeCameraInLiquid tracks whether the current camera/view leaf is a
+	// liquid leaf (water, slime, or lava). Updated each frame in the OnUpdate
+	// callback alongside ambient audio; used to drive the visual waterwarp effect.
+	runtimeCameraInLiquid bool
 )
 
 type defaultBinding struct {
@@ -139,6 +144,9 @@ func initGameHost() error {
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
+	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
+	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).
+	cvar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
 	cvar.Register("developer", "0", 0, "Developer mode")
 	registerControlCvars()
 
@@ -1162,6 +1170,14 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	if gameDraw != nil {
 		state.Palette = gameDraw.Palette()
 	}
+	// Set underwater visual warp state (r_waterwarp).
+	// WaterWarp (r_waterwarp == 1): screen-space sinusoidal post-process.
+	// ForceUnderwater: menu is previewing the waterwarp option.
+	// WaterwarpFOV is applied via CameraState.WaterwarpFOV in UpdateCamera.
+	waterWarp, _, warpTime := runtimeWaterwarpState()
+	state.WaterWarp = waterWarp
+	state.WaterWarpTime = warpTime
+	state.ForceUnderwater = gameMenu != nil && gameMenu.ForcedUnderwater()
 	return state
 }
 
@@ -1841,6 +1857,9 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 		}
 		camera.Time = float32(gameClient.Time)
 	}
+	// Apply r_waterwarp > 1 FOV oscillation when underwater.
+	_, wwFOV, _ := runtimeWaterwarpState()
+	camera.WaterwarpFOV = wwFOV
 	return camera
 }
 
@@ -2182,6 +2201,46 @@ func runtimeUnderwaterIntensity(contents int32) float32 {
 	}
 }
 
+// runtimeWaterwarpState returns the current underwater visual warp state
+// based on r_waterwarp cvar, camera leaf contents, and optional menu forced-underwater.
+//
+// Returns:
+//   - waterWarp true: r_waterwarp == 1 and camera is in liquid (or forced); use screen-space post-process.
+//   - waterwarpFOV true: r_waterwarp > 1 and camera is in liquid (or forced); use FOV modulation.
+//   - warpTime: the time value to use for warp animation.
+//
+// Mirrors C Ironwail R_SetupView() r_waterwarp logic and R_WarpScaleView() time selection.
+func runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
+	wwCvar := cvar.Get(renderer.CvarRWaterwarp)
+	if wwCvar == nil || wwCvar.Float32() == 0 {
+		return false, false, 0
+	}
+	wwValue := wwCvar.Float32()
+
+	// Forced-underwater from menu preview (mirrors C M_ForcedUnderwater()).
+	forced := gameMenu != nil && gameMenu.ForcedUnderwater()
+
+	// Camera in liquid leaf (from most recent syncRuntimeAmbientAudio call).
+	active := runtimeCameraInLiquid || forced
+
+	if !active {
+		return false, false, 0
+	}
+
+	// Time: use realtime for forced preview so it animates even while game is paused.
+	// In Go we use cl.time for both (no separate realtime equivalent exposed here).
+	// This is a minor divergence; note it for doc purposes.
+	var t float32
+	if gameClient != nil {
+		t = float32(gameClient.Time)
+	}
+
+	if wwValue > 1.0 {
+		return false, true, t
+	}
+	return true, false, t
+}
+
 func pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
 	if tree == nil || len(tree.Nodes) == 0 || len(tree.Planes) == 0 || len(tree.Leafs) == 0 {
 		return bsp.TreeLeaf{}, false
@@ -2232,7 +2291,13 @@ func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
 			ambientLevels[0] = leaf.AmbientLevel[bsp.AmbientWater]
 			ambientLevels[1] = leaf.AmbientLevel[bsp.AmbientSky]
 			underwater = runtimeUnderwaterIntensity(leaf.Contents)
+			// Track liquid-leaf state for visual waterwarp (r_waterwarp).
+			runtimeCameraInLiquid = underwater > 0
+		} else {
+			runtimeCameraInLiquid = false
 		}
+	} else {
+		runtimeCameraInLiquid = false
 	}
 
 	gameAudio.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwater)

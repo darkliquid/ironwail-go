@@ -27,6 +27,21 @@ type RenderFrameState struct {
 	MenuActive     bool
 	Particles      *ParticleSystem
 	Palette        []byte
+
+	// WaterWarp enables the screen-space sinusoidal post-process warp effect.
+	// Set when r_waterwarp == 1 and the camera is in a liquid leaf (or ForceUnderwater is true).
+	// Mirrors C Ironwail: water_warp flag fed into R_WarpScaleView().
+	WaterWarp bool
+
+	// WaterWarpTime is the time value driving the warp animation.
+	// Use cl.time normally; use realtime when ForceUnderwater is true (menu preview).
+	// Mirrors C Ironwail: `t = M_ForcedUnderwater() ? realtime : cl.time` in R_WarpScaleView().
+	WaterWarpTime float32
+
+	// ForceUnderwater signals that the menu is previewing the underwater warp effect.
+	// When true, the warp is active regardless of camera leaf contents.
+	// Mirrors C Ironwail: M_ForcedUnderwater() used in R_SetupView() and R_WarpScaleView().
+	ForceUnderwater bool
 }
 
 // DrawContext wraps the underlying OpenGL draw context and is the concrete type
@@ -46,6 +61,11 @@ func endLateTranslucencyStateBlock() {
 }
 
 // RenderFrame executes the frame pipeline for the OpenGL path.
+//
+// When state.WaterWarp is true (r_waterwarp == 1, camera in liquid leaf), the
+// 3D scene is rendered to an offscreen FBO and then blitted to the default
+// framebuffer through the warpscale post-process shader, producing the
+// sinusoidal screen-space distortion. Mirrors C Ironwail R_WarpScaleView().
 func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(dc RenderContext)) {
 	if state == nil {
 		return
@@ -72,6 +92,21 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.gldc.renderer.setLightStyleValues(state.LightStyles)
 		dc.gldc.renderer.setFogState(state.FogColor, state.FogDensity)
 	}
+
+	// --- Screen-space underwater warp setup (r_waterwarp == 1) ---
+	// When active, redirect all 3D scene rendering to the scene FBO.
+	// After the 3D scene, apply the warpscale post-process then restore default FBO.
+	// Mirrors C Ironwail: R_WarpScaleView() after R_RenderScene().
+	warpViewport := dc.gldc.viewport
+	if state.WaterWarp && dc.gldc.renderer != nil {
+		w, h := warpViewport.width, warpViewport.height
+		if w > 0 && h > 0 {
+			if err := dc.gldc.renderer.ensureSceneFBO(w, h); err == nil {
+				gl.BindFramebuffer(gl.FRAMEBUFFER, dc.gldc.renderer.sceneFBO)
+			}
+		}
+	}
+
 	dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassNonLiquid)
@@ -130,6 +165,16 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && dc.gldc.renderer != nil && state.ViewModel != nil {
 		dc.gldc.renderer.renderViewModel(*state.ViewModel)
 	}
+
+	// --- Screen-space underwater warp post-process ---
+	// Apply the warpscale effect and restore the default framebuffer before 2D overlay.
+	if state.WaterWarp && dc.gldc.renderer != nil && dc.gldc.renderer.sceneFBO != 0 {
+		w, h := warpViewport.width, warpViewport.height
+		dc.gldc.renderer.applyWarpScaleEffect(true, state.WaterWarpTime, w, h)
+		// Restore viewport for 2D overlay.
+		gl.Viewport(0, 0, int32(w), int32(h))
+	}
+
 	if state.Draw2DOverlay && draw2DOverlay != nil {
 		gl.Disable(gl.DEPTH_TEST)
 		draw2DOverlay(dc)

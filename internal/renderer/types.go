@@ -114,6 +114,12 @@ const (
 	CvarRTeleAlpha    = "r_telealpha"    // Teleport alpha (0 uses water alpha)
 	CvarRParticles    = "r_particles"    // Particle blend mode (1=alpha, 2=opaque)
 	CvarRSkyFog       = "r_skyfog"       // Sky fog mix factor (0..1, default 0.5)
+	// CvarRWaterwarp controls the underwater visual warp effect.
+	// 0 = off (no underwater visual effect)
+	// 1 = screen-space sinusoidal warp (post-process distortion of the rendered scene)
+	// 2 = FOV-based warp (oscillates horizontal/vertical FOV while underwater)
+	// Mirrors C Ironwail r_waterwarp: values >1 use FOV modulation, value 1 uses screen warp.
+	CvarRWaterwarp = "r_waterwarp"
 )
 
 // Config holds the video configuration for the renderer.
