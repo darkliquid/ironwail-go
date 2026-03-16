@@ -391,6 +391,16 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 		}
 		return menuSlots
 	})
+	// Wire mod enumeration and current-mod tracking into the menu.
+	gameMenu.SetModsProvider(func() []menu.ModInfo {
+		mods := fileSys.ListMods()
+		out := make([]menu.ModInfo, 0, len(mods))
+		for _, m := range mods {
+			out = append(out, menu.ModInfo{Name: m.Name})
+		}
+		return out
+	})
+	gameMenu.SetCurrentMod(gameModDir)
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
 	drawErr := gameDraw.Init(fileSys)
@@ -680,6 +690,7 @@ func main() {
 			if gameInput != nil {
 				_ = gameInput.PollEvents()
 				syncGameplayInputMode()
+				applyMenuMouseMove()
 				applyGameplayMouseLook()
 			}
 
@@ -1652,6 +1663,22 @@ func syncGameplayInputMode() {
 		releaseGameplayButtons()
 	}
 	gameMouseGrabbed = shouldGrab
+}
+
+// applyMenuMouseMove forwards accumulated mouse Y movement to the menu manager
+// when the menu is active. This implements the M_Mousemove() equivalent from
+// C Ironwail, allowing mouse scrolling to drive menu cursor selection.
+func applyMenuMouseMove() {
+	if gameInput == nil || gameMenu == nil || !gameMenu.IsActive() {
+		return
+	}
+	if gameInput.GetKeyDest() != input.KeyMenu {
+		return
+	}
+	state := gameInput.GetState()
+	if state.MouseDX != 0 || state.MouseDY != 0 {
+		gameMenu.M_Mousemove(int(state.MouseDX), int(state.MouseDY))
+	}
 }
 
 func applyGameplayMouseLook() {

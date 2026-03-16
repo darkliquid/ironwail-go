@@ -300,3 +300,75 @@ func writeTestPak(t *testing.T, path string, files map[string][]byte) {
 		t.Fatalf("failed to write pak file: %v", err)
 	}
 }
+
+// TestListModsReturnsValidDirs verifies that ListMods discovers directories
+// containing pak files or progs.dat while ignoring id1 and empty directories.
+func TestListModsReturnsValidDirs(t *testing.T) {
+baseDir := t.TempDir()
+
+// id1 – should always be excluded.
+id1 := filepath.Join(baseDir, "id1")
+if err := os.MkdirAll(id1, 0755); err != nil {
+t.Fatal(err)
+}
+if err := os.WriteFile(filepath.Join(id1, "pak0.pak"), []byte("fake"), 0644); err != nil {
+t.Fatal(err)
+}
+
+// hipnotic – valid: contains pak0.pak.
+hipDir := filepath.Join(baseDir, "hipnotic")
+if err := os.MkdirAll(hipDir, 0755); err != nil {
+t.Fatal(err)
+}
+if err := os.WriteFile(filepath.Join(hipDir, "pak0.pak"), []byte("fake"), 0644); err != nil {
+t.Fatal(err)
+}
+
+// mypatch – valid: contains progs.dat.
+patchDir := filepath.Join(baseDir, "mypatch")
+if err := os.MkdirAll(patchDir, 0755); err != nil {
+t.Fatal(err)
+}
+if err := os.WriteFile(filepath.Join(patchDir, "progs.dat"), []byte("fake"), 0644); err != nil {
+t.Fatal(err)
+}
+
+// empty – invalid: no pak or progs.dat.
+emptyDir := filepath.Join(baseDir, "emptydocs")
+if err := os.MkdirAll(emptyDir, 0755); err != nil {
+t.Fatal(err)
+}
+
+fileSys := fs.NewFileSystem()
+if err := fileSys.Init(baseDir, "id1"); err != nil {
+t.Fatalf("Init failed: %v", err)
+}
+
+mods := fileSys.ListMods()
+modNames := make(map[string]bool)
+for _, m := range mods {
+modNames[m.Name] = true
+}
+
+if modNames["id1"] {
+t.Error("id1 should be excluded from mod list")
+}
+if !modNames["hipnotic"] {
+t.Error("hipnotic should be listed as a valid mod (has pak0.pak)")
+}
+if !modNames["mypatch"] {
+t.Error("mypatch should be listed as a valid mod (has progs.dat)")
+}
+if modNames["emptydocs"] {
+t.Error("emptydocs should not be listed (no pak or progs.dat)")
+}
+}
+
+// TestListModsEmptyBaseDir verifies that ListMods returns nil for an unset basedir.
+func TestListModsEmptyBaseDir(t *testing.T) {
+fileSys := fs.NewFileSystem()
+mods := fileSys.ListMods()
+if mods != nil {
+t.Fatalf("expected nil from ListMods with no basedir, got %v", mods)
+}
+}
