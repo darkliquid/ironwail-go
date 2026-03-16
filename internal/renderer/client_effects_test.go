@@ -126,6 +126,24 @@ func TestEmitEntityEffectLightsQuadAndPentaColors(t *testing.T) {
 	}
 }
 
+func TestEmitEntityEffectLightsCandlelight(t *testing.T) {
+	var lights []DynamicLight
+	EmitEntityEffectLights(func(light DynamicLight) bool {
+		lights = append(lights, light)
+		return true
+	}, []EntityEffectSource{{
+		Origin:  [3]float32{1, 2, 3},
+		Effects: inet.EF_CANDLELIGHT,
+	}})
+
+	if got := len(lights); got != 1 {
+		t.Fatalf("light count = %d, want 1", got)
+	}
+	if lights[0].Position != [3]float32{1, 2, 3} || lights[0].Color != [3]float32{1.0, 0.75, 0.2} {
+		t.Fatalf("candle light = %#v, want unlifted yellow light", lights[0])
+	}
+}
+
 func TestEmitDecalMarksMapsImpactAndExplosion(t *testing.T) {
 	ms := NewDecalMarkSystem()
 	rng := rand.New(rand.NewSource(9))

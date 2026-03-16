@@ -264,6 +264,15 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Lifetime:   0.001,
 			})
 		}
+		if entity.Effects&inet.EF_CANDLELIGHT != 0 {
+			spawn(DynamicLight{
+				Position:   entity.Origin,
+				Radius:     160,
+				Color:      [3]float32{1.0, 0.75, 0.2},
+				Brightness: 0.8,
+				Lifetime:   0.001,
+			})
+		}
 	}
 }
 

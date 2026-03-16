@@ -224,6 +224,7 @@ Use the render backends that already exist but are not yet driven by the live ru
 - [x] map temp entities into dynamic lights
 - [x] map alias-entity muzzle/bright/dim effect flags into dynamic lights
 - [x] map alias-entity quad/penta effect flags into dynamic lights
+- [x] map expansion-pack EF_QUADLIGHT / EF_PENTALIGHT / EF_CANDLELIGHT flags into dynamic lights
 - [x] keep defined-but-unrendered effect-light flags aligned with C Ironwail
 - [x] honor protocol alpha / scale on alias and sprite entities
 - [x] honor protocol alpha / scale on brush entities
