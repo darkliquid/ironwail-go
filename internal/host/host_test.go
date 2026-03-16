@@ -60,6 +60,7 @@ type mockConsole struct {
 
 func (m *mockConsole) Init() error      { return nil }
 func (m *mockConsole) Print(msg string) { m.messages = append(m.messages, msg) }
+func (m *mockConsole) Clear()           { m.messages = nil }
 func (m *mockConsole) Shutdown()        {}
 
 type mockCallbacks struct {

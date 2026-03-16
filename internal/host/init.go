@@ -284,6 +284,7 @@ type CommandBuffer interface {
 type Console interface {
 	Init() error
 	Print(msg string)
+	Clear()
 	Shutdown()
 }
 

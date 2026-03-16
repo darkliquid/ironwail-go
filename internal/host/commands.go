@@ -208,6 +208,12 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			subs.Console.Print("usage: exec <filename>\n")
 		}
 	}, "Execute a script file")
+	cmdsys.AddCommand("echo", func(args []string) {
+		h.CmdEcho(args, subs)
+	}, "Print text to the console")
+	cmdsys.AddCommand("clear", func(args []string) {
+		h.CmdClear(subs)
+	}, "Clear the console buffer")
 	cmdsys.AddCommand("alias", func(args []string) {
 		h.CmdAlias(args, subs)
 	}, "Create, list, and inspect command aliases")
@@ -255,6 +261,9 @@ func (h *Host) CmdExec(filename string, subs *Subsystems) {
 		err = os.ErrNotExist
 	}
 	if err == nil {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
+		}
 		executeConfigText(subs, string(data))
 		return
 	}
@@ -267,6 +276,9 @@ func (h *Host) CmdExec(filename string, subs *Subsystems) {
 	if subs != nil && subs.Files != nil {
 		data, err = subs.Files.LoadFile(filename)
 		if err == nil {
+			if subs != nil && subs.Console != nil {
+				subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
+			}
 			executeConfigText(subs, string(data))
 			return
 		}
@@ -274,6 +286,20 @@ func (h *Host) CmdExec(filename string, subs *Subsystems) {
 	if subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("couldn't exec %s\n", filename))
 	}
+}
+
+func (h *Host) CmdEcho(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	subs.Console.Print(strings.Join(args, " ") + "\n")
+}
+
+func (h *Host) CmdClear(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	subs.Console.Clear()
 }
 
 func (h *Host) CmdAlias(args []string, subs *Subsystems) {
