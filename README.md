@@ -30,6 +30,12 @@ canonical OpenGL renderer currently requires CGo bindings, but the gameplay and
 engine logic remain in Go and can still be understood without diving deeply
 into C engine code.
 
+## Project Status & Parity Roadmap
+
+The goal of this project is 100% behavioral parity with the original C Ironwail engine on the OpenGL path. 
+
+You can track our progress and see the remaining gaps in the [Final Parity Roadmap](docs/FINAL_PARITY_ROADMAP.md).
+
 ## Building
 
 The toolchain is built around [mise][2] which provides both the tooling and
