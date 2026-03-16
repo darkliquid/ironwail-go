@@ -70,7 +70,7 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 | Underwater FOV warp | `r_waterwarp > 1`: sinusoidal FOV oscillation while underwater | Implemented | `CameraState.WaterwarpFOV`; `ApplyWaterwarpFOV()`; `UpdateCamera()` applies when set; mirrors C `R_SetupView()` r_waterwarp > 1 branch | — | — |
 | Underwater state detection | Camera in water/slime/lava leaf activates visual warp | Implemented | `runtimeCameraInLiquid` in `main.go`; updated in `syncRuntimeAmbientAudio()`; feeds `runtimeWaterwarpState()` | — | — |
 | Forced-underwater menu preview | While `r_waterwarp` option is focused in Video menu, preview the warp effect | Implemented | `menu.Manager.ForcedUnderwater()`; `RenderFrameState.ForceUnderwater`; mirrors C `M_ForcedUnderwater()` | Minor divergence: Go uses `cl.time` for preview animation; C uses `realtime`. Effect is indistinguishable when game is running | Low |
-| `v_blend` polyblend overlay | Screen color tint (damage, environment) composited with warpscale pass | Missing | C composites `v_blend` in `R_WarpScaleView()` via `BlendColor` uniform. Go has no `v_blend` system. Tracked separately. | Missing feature | Low |
+| `v_blend` polyblend overlay | Screen color tint (damage, environment, powerups, item flash) composited after 3D scene and before HUD | Implemented | `internal/client/viewblend.go`: four color-shift channels (contents/damage/bonus/powerup) mirror C `view.c` `cshift_t`; `CalcBlend()` + `UpdateBlend()` mirror `V_CalcBlend()` / `V_UpdateBlend()`; `polyblend_opengl.go` renders a full-screen alpha-blended quad; `gl_polyblend` + `gl_cshiftpercent` cvars; `bf` + `v_cshift` commands wired; 24 unit tests in `viewblend_test.go` | — | — |
 
 ---
 
@@ -166,7 +166,7 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 | CD track / music | WAV/OGG CD-track playback with `CDTrack`/`LoopTrack` change | Mostly implemented | `PORT_PARITY_TODO.md §3`; bounded search-path parity | — | — |
 | Sound packet encoding | `SND_LARGEENTITY`/`SND_LARGESOUND` edge-case packets from server | Implemented | `PORT_PARITY_REVIEW.md §4`; `server_test.go` coverage | — | — |
 | Broader codec parity | Full `bgmusic.c` codec breadth (OGG beyond CD tracks, etc.) | Partial | `PORT_PARITY_REVIEW.md §4` — broader codec parity still missing | Incomplete integration | Medium |
-| Underwater visual blue-shift | Screen visual effect when camera is underwater | Implemented | `r_waterwarp` cvar, screen-space FBO warp and FOV-oscillation modes; `v_blend` (poly-blend color tint) remains missing | `v_blend` still absent | Low |
+| Underwater visual blue-shift | Screen visual effect when camera is underwater (via contents cshift) | Implemented | `r_waterwarp` cvar, screen-space FBO warp and FOV-oscillation modes; `v_blend` polyblend contents-cshift now sets lava/slime/water tints | — | — |
 | Music/BGM fidelity | Full C `bgmusic.c` behavior, track-control polish | Mostly implemented | `PORT_PARITY_REVIEW.md §4` — broader codec breadth and track-control polish remain | Behavioral inaccuracy | Medium |
 
 ---

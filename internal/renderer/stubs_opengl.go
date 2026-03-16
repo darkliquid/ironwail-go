@@ -42,6 +42,13 @@ type RenderFrameState struct {
 	// When true, the warp is active regardless of camera leaf contents.
 	// Mirrors C Ironwail: M_ForcedUnderwater() used in R_SetupView() and R_WarpScaleView().
 	ForceUnderwater bool
+
+	// VBlend is the composite RGBA screen-tint from v_blend color shifts.
+	// Applied as a full-screen alpha-blended quad after the 3D scene and any
+	// FBO blit, and before the 2D HUD overlay.
+	// Mirrors C Ironwail: view.c V_PolyBlend() / glprogs.viewblend.
+	// RGB in 0..1; Alpha is the composite opacity (0 = no tint, 1 = full cover).
+	VBlend [4]float32
 }
 
 // DrawContext wraps the underlying OpenGL draw context and is the concrete type
@@ -173,6 +180,13 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.gldc.renderer.applyWarpScaleEffect(true, state.WaterWarpTime, w, h)
 		// Restore viewport for 2D overlay.
 		gl.Viewport(0, 0, int32(w), int32(h))
+	}
+
+	// --- v_blend polyblend screen tint ---
+	// Applied after the 3D scene (and any FBO blit) but before the 2D overlay.
+	// Mirrors C Ironwail: view.c V_PolyBlend() / glprogs.viewblend.
+	if dc.gldc.renderer != nil && state.VBlend[3] > 0 {
+		dc.gldc.renderer.renderPolyBlend(state.VBlend)
 	}
 
 	if state.Draw2DOverlay && draw2DOverlay != nil {

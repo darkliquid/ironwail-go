@@ -73,6 +73,10 @@ type RenderFrameState struct {
 	WaterWarp       bool
 	WaterWarpTime   float32
 	ForceUnderwater bool
+
+	// VBlend: see stubs_opengl.go for semantics.
+	// Parsed by the authoritative OpenGL path only; stub ignores this field.
+	VBlend [4]float32
 }
 
 // DrawContext is the no-backend draw context used by untagged builds.

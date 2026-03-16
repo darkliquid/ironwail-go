@@ -192,6 +192,10 @@ type Client struct {
 	DamageSaved     int
 	DamageOrigin    [3]float32
 
+	// CShifts holds the four color-shift blend channels used to compute the
+	// v_blend polyblend screen tint each frame.  Mirrors C cl.cshifts[].
+	CShifts [numCShifts]ColorShift
+
 	StuffCmdBuf string
 
 	ForwardSpeed float32
@@ -317,6 +321,7 @@ func (c *Client) ClearState() {
 	c.DamageTaken = 0
 	c.DamageSaved = 0
 	c.DamageOrigin = [3]float32{}
+	c.CShifts = [numCShifts]ColorShift{}
 	c.OnGround = false
 	c.InWater = false
 	c.KillCount = 0

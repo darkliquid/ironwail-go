@@ -283,6 +283,7 @@ Make the authoritative renderer behave like the C renderer, not just draw approx
 - [x] bounded parity slice (`runtime-particle-pass-mode`): honor `r_particles` pass mode during runtime particle rendering so particles route through the opaque or late translucent pass instead of always resolving through opaque staging
 - [x] bounded parity slice (`skybox-per-face-lowercase-fallback`): keep per-face non-cubemap skybox mode but retry lowercase file paths when mixed-case sky names fail against lowercase asset packs on case-sensitive filesystems
 - [x] bounded parity slice (`sky-water-translucency-regressions`): add focused renderer regression coverage for transparent-water VIS safety, `r_particles` pass routing, and mixed-case per-face skybox load fallback
+- [x] bounded parity slice (`v-blend-polyblend-screen-tint`): implement `v_blend` / polyblend screen-tint pass on the canonical OpenGL path — four color-shift channels (contents/damage/bonus/powerup) mirror C `view.c` `cshift_t` state; per-frame decay and powerup computation mirror `V_UpdateBlend()`; composite RGBA computed via `V_CalcBlend()` and rendered as a full-screen alpha-blended quad after the 3D scene (and FBO blit) but before the HUD overlay; `gl_polyblend` / `gl_cshiftpercent` cvars, server-stuffed `bf` command, and `v_cshift` console command are wired; covered by unit tests in `internal/client/viewblend_test.go`
 
 **Done when**
 

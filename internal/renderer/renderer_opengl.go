@@ -511,6 +511,11 @@ type Renderer struct {
 	sceneFBOWidth           int
 	sceneFBOHeight          int
 
+	// Polyblend (v_blend) full-screen color tint pass.
+	// Mirrors C Ironwail: glprogs.viewblend / V_PolyBlend().
+	polyBlendProgram      uint32
+	polyBlendColorUniform int32 // uniform location: uBlendColor
+
 	lightPool      *glLightPool
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
@@ -821,6 +826,10 @@ func (r *Renderer) Shutdown() {
 	if r.warpScaleProgram != 0 {
 		gl.DeleteProgram(r.warpScaleProgram)
 		r.warpScaleProgram = 0
+	}
+	if r.polyBlendProgram != 0 {
+		gl.DeleteProgram(r.polyBlendProgram)
+		r.polyBlendProgram = 0
 	}
 	r.deleteAllTextures()
 	if r.window != nil {
