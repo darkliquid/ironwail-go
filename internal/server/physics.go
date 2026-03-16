@@ -94,21 +94,56 @@ func (s *Server) AddGravity(ent *Edict) {
 	ent.Vars.Velocity[2] -= entGravity * s.Gravity * s.FrameTime
 }
 
+func (s *Server) SV_CheckWater(ent *Edict) bool {
+	var point [3]float32
+	point[0] = ent.Vars.Origin[0]
+	point[1] = ent.Vars.Origin[1]
+	point[2] = ent.Vars.Origin[2] + ent.Vars.Mins[2] + 1
+
+	ent.Vars.WaterLevel = 0
+	ent.Vars.WaterType = float32(bsp.ContentsEmpty)
+	cont := s.PointContents(point)
+	if cont <= bsp.ContentsWater {
+		ent.Vars.WaterType = float32(cont)
+		ent.Vars.WaterLevel = 1
+		point[2] = ent.Vars.Origin[2] + (ent.Vars.Mins[2]+ent.Vars.Maxs[2])*0.5
+		cont = s.PointContents(point)
+		if cont <= bsp.ContentsWater {
+			ent.Vars.WaterLevel = 2
+			point[2] = ent.Vars.Origin[2] + ent.Vars.ViewOfs[2]
+			cont = s.PointContents(point)
+			if cont <= bsp.ContentsWater {
+				ent.Vars.WaterLevel = 3
+			}
+		}
+	}
+
+	return ent.Vars.WaterLevel > 1
+}
+
 func (s *Server) CheckWaterTransition(ent *Edict) {
 	cont := s.PointContents(ent.Vars.Origin)
 
-	if ent.Vars.WaterType == 0 {
+	if ent.Vars.WaterType == 0 { // just spawned here
 		ent.Vars.WaterType = float32(cont)
 		ent.Vars.WaterLevel = 1
 		return
 	}
 
 	if cont <= bsp.ContentsWater {
+		if ent.Vars.WaterType == float32(bsp.ContentsEmpty) {
+			// just crossed into water
+			s.StartSound(ent, 0, "misc/h2ohit1.wav", 255, 1)
+		}
 		ent.Vars.WaterType = float32(cont)
 		ent.Vars.WaterLevel = 1
 	} else {
+		if ent.Vars.WaterType != float32(bsp.ContentsEmpty) {
+			// just crossed out of water
+			s.StartSound(ent, 0, "misc/h2ohit1.wav", 255, 1)
+		}
 		ent.Vars.WaterType = float32(bsp.ContentsEmpty)
-		ent.Vars.WaterLevel = float32(cont)
+		ent.Vars.WaterLevel = 0
 	}
 }
 
@@ -462,8 +497,7 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 		ent.Vars.GroundEntity = 0
 	}
 
-	flags = uint32(ent.Vars.Flags)
-	if flags&FlagWaterJump == 0 && ent.Vars.WaterLevel <= 1 && flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
+	if !s.SV_CheckWater(ent) && flags&FlagWaterJump == 0 && flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 		s.AddGravity(ent)
 	}
 
@@ -475,6 +509,7 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 	}
 
 	s.CheckVelocity(ent)
+	s.SV_CheckStuck(ent)
 
 	if flags&FlagOnGround != 0 {
 		move := VecScale(ent.Vars.Velocity, s.FrameTime)
@@ -490,6 +525,29 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 	if playerClient != nil {
 		s.runClientQCThink(playerClient, "PlayerPostThink")
 	}
+}
+
+func (s *Server) SV_CheckStuck(ent *Edict) {
+	if s.TestEntityPosition(ent) == nil {
+		return
+	}
+
+	originalOrigin := ent.Vars.Origin
+	var test [3]float32
+
+	for i := 0; i < 3; i++ {
+		for j := -1; j <= 1; j++ {
+			test = originalOrigin
+			test[i] += float32(j)
+			ent.Vars.Origin = test
+			if s.TestEntityPosition(ent) == nil {
+				s.LinkEdict(ent, true)
+				return
+			}
+		}
+	}
+
+	ent.Vars.Origin = originalOrigin
 }
 
 func (s *Server) PhysicsToss(ent *Edict) {

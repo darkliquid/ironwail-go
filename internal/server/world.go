@@ -515,14 +515,15 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 	ent.Vars.AbsMax[1] = ent.Vars.Origin[1] + ent.Vars.Maxs[1]
 	ent.Vars.AbsMax[2] = ent.Vars.Origin[2] + ent.Vars.Maxs[2]
 
-	// Items get expanded bounding boxes for easier pickup
+	// to make items easier to pick up and allow them to be grabbed off
+	// of shelves, the abs sizes are expanded
 	if int(ent.Vars.Flags)&FlagItem != 0 {
 		ent.Vars.AbsMin[0] -= 15
 		ent.Vars.AbsMin[1] -= 15
 		ent.Vars.AbsMax[0] += 15
 		ent.Vars.AbsMax[1] += 15
 	} else {
-		// Because movement is clipped an epsilon away from an actual edge,
+		// because movement is clipped an epsilon away from an actual edge,
 		// we must fully check even when bounding boxes don't quite touch
 		ent.Vars.AbsMin[0] -= 1
 		ent.Vars.AbsMin[1] -= 1
@@ -591,7 +592,7 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 }
 
 func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, listCap int) {
-	for touch := node.TriggerEdicts.AreaNext; touch != nil; touch = touch.AreaNext {
+	for touch := node.TriggerEdicts.AreaNext; touch != nil && touch != &node.TriggerEdicts; touch = touch.AreaNext {
 		if touch == ent {
 			continue
 		}

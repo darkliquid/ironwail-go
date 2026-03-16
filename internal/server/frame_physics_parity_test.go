@@ -1,12 +1,14 @@
 package server
-
 import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
+
 
 func newSyntheticClientServer(t *testing.T) (*Server, *Client, *Edict) {
 	t.Helper()
@@ -105,6 +107,17 @@ func TestPhysicsWalkAppliesGravityAirborne(t *testing.T) {
 
 func TestPhysicsWalkSkipsGravityUnderwater(t *testing.T) {
 	s, _, ent := newSyntheticClientServer(t)
+	// SV_CheckWater needs a WorldModel to perform PointContents checks
+	s.WorldModel = &model.Model{
+		Hulls: [4]model.Hull{{
+			ClipNodes: []model.MClipNode{{
+				PlaneNum: 0,
+				Children: [2]int{bsp.ContentsWater, bsp.ContentsWater},
+			}},
+			Planes: []model.MPlane{{Normal: [3]float32{0, 0, 1}, Dist: 0}},
+		}},
+	}
+
 	ent.Vars.Flags = 0
 	ent.Vars.WaterLevel = 2
 	ent.Vars.Origin = [3]float32{0, 0, 128}

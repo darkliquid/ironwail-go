@@ -602,6 +602,7 @@ func NewServer() *Server {
 				e.Vars.Origin = org
 				e.Vars.AbsMin = [3]float32{org[0] + e.Vars.Mins[0], org[1] + e.Vars.Mins[1], org[2] + e.Vars.Mins[2]}
 				e.Vars.AbsMax = [3]float32{org[0] + e.Vars.Maxs[0], org[1] + e.Vars.Maxs[1], org[2] + e.Vars.Maxs[2]}
+				s.LinkEdict(e, false)
 			}
 		},
 		SetSize: func(vm *qc.VM, entNum int, mins, maxs [3]float32) {
