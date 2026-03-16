@@ -366,6 +366,14 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 	}
 
 	h.stopSessionSounds(subs)
+
+	if h.demoState != nil && h.demoState.Playback {
+		if err := h.demoState.StopPlayback(); err != nil && subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
+		}
+	}
+	h.SetDemoNum(-1)
+
 	h.clientState = caDisconnected
 	h.serverActive = false
 
@@ -647,7 +655,14 @@ func (h *Host) CmdConnect(address string, subs *Subsystems) {
 	}
 	if err := h.startRemoteSession(address, subs); err != nil {
 		if subs != nil && subs.Console != nil {
-			subs.Console.Print(fmt.Sprintf("connect %q failed: %v\n", address, err))
+			msg := fmt.Sprintf("connect %q failed: %v", address, err)
+			// Check if the client knows the reason
+			if remote, ok := subs.Client.(interface{ Error() string }); ok {
+				if reason := remote.Error(); reason != "" {
+					msg = fmt.Sprintf("connect %q rejected: %s", address, reason)
+				}
+			}
+			subs.Console.Print(msg + "\n")
 		}
 		return
 	}
@@ -874,6 +889,14 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 
 	h.BeginLoadingTransitionPlaque(0)
 	h.stopSessionSounds(subs)
+
+	if h.demoState != nil && h.demoState.Playback {
+		if err := h.demoState.StopPlayback(); err != nil && subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
+		}
+	}
+	h.SetDemoNum(-1)
+
 	h.serverActive = false
 	h.clientState = caDisconnected
 	h.signOns = 0

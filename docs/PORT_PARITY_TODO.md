@@ -93,7 +93,7 @@ Connect parsed sound data to the real audio engine.
 - ✅ implement `parseStopSound()` dispatch to `audio.System.StopSound()`
 - ✅ drive listener updates from the real camera/orientation each frame
 - ✅ route the active `ViewEntity` into audio re-spatialization and combine identical static loops after spatialization, matching C self-sound/full-volume and static ambient mix behavior
-- ✅ add WAV-backed CD-track playback semantics (track change/stop/loop wiring landed; broader codec parity is still outstanding)
+- ✅ add WAV-backed CD-track playback semantics (track change/stop/loop wiring landed; broader codec parity via MP3/Opus integrated)
 
 **Done when**
 

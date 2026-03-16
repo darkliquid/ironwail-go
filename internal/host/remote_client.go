@@ -91,12 +91,25 @@ func (c *remoteDatagramClient) ReadFromServer() error {
 	if c == nil || c.socket == nil || c.inner == nil || c.parser == nil {
 		return nil
 	}
-	msgType, data := inet.GetMessage(c.socket)
-	if msgType <= 0 || len(data) == 0 {
-		return nil
-	}
-	if err := c.parser.ParseServerMessage(data); err != nil {
-		return fmt.Errorf("parse remote server message: %w", err)
+	for {
+		msgType, data := inet.GetMessage(c.socket)
+		if msgType <= 0 {
+			break
+		}
+		if len(data) == 0 {
+			continue
+		}
+		if msgType == 3 {
+			// Control message (disconnect, etc.)
+			if len(data) > 0 && data[0] == 0x82 { // CCRepReject used as disconnect
+				c.inner.State = cl.StateDisconnected
+				break
+			}
+			continue
+		}
+		if err := c.parser.ParseServerMessage(data); err != nil {
+			return fmt.Errorf("parse remote server message: %w", err)
+		}
 	}
 	return nil
 }

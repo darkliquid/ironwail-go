@@ -6,6 +6,8 @@ package net
 import (
 	"encoding/binary"
 	stdnet "net"
+	"strings"
+	"time"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
@@ -163,7 +165,10 @@ func DatagramGetMessage(sock *Socket) (int, []byte) {
 		length := int(header & uint32(LengthMask))
 
 		if flags&FlagCtl != 0 {
-			continue
+			if n < HeaderSize+1 {
+				continue
+			}
+			return 3, buf[HeaderSize:n]
 		}
 
 		if flags&FlagUnreliable != 0 {
@@ -258,7 +263,7 @@ func DatagramConnect(host string) *Socket {
 	sock.udpConn = conn
 	sock.remoteAddr = addr
 
-	// Send connection request
+	// Send connection request with retries
 	buf := make([]byte, 1024)
 	binary.BigEndian.PutUint32(buf[0:], uint32(HeaderSize+1+6+1)|FlagCtl) // Header + cmd + "QUAKE" + version
 	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
@@ -266,25 +271,39 @@ func DatagramConnect(host string) *Socket {
 	copy(buf[9:], "QUAKE\x00")
 	buf[15] = 3 // Protocol version
 
-	if _, err := UDPWrite(conn, buf[:16], addr); err != nil {
-		UDPCloseSocket(conn)
-		return nil
-	}
+	// C Quake typically retries a few times with a 2-5 second timeout
+	const maxRetries = 3
+	const timeout = 2 * time.Second
 
-	// Wait for response (simplified for now)
-	n, _, err := UDPRead(conn, buf)
-	if err != nil || n < HeaderSize+1 {
-		UDPCloseSocket(conn)
-		return nil
-	}
+	for i := 0; i < maxRetries; i++ {
+		if _, err := UDPWrite(conn, buf[:16], addr); err != nil {
+			UDPCloseSocket(conn)
+			return nil
+		}
 
-	cmd := buf[8]
-	if cmd == CCRepAccept {
-		// In Quake, the accept message contains a new port to connect to.
-		// For simplicity in this port, we might just use the same port or handle it if needed.
-		newPort := int(binary.LittleEndian.Uint32(buf[9:])) // Quake uses LittleEndian for the port in CCREP_ACCEPT? No, it uses MSG_WriteLong which is LittleEndian.
-		sock.remoteAddr.Port = newPort
-		return sock
+		conn.SetReadDeadline(time.Now().Add(timeout))
+		n, recvAddr, err := UDPRead(conn, buf)
+		if err == nil && n >= HeaderSize+1 {
+			// Check if it's from the same server
+			if recvAddr.IP.Equal(addr.IP) && recvAddr.Port == addr.Port {
+				cmd := buf[8]
+				if cmd == CCRepAccept {
+					newPort := int(binary.LittleEndian.Uint32(buf[9:]))
+					sock.remoteAddr.Port = newPort
+					conn.SetReadDeadline(time.Time{}) // Reset deadline
+					return sock
+				}
+				if cmd == CCRepReject {
+					reason := string(buf[9:n])
+					if idx := strings.Index(reason, "\x00"); idx != -1 {
+						reason = reason[:idx]
+					}
+					sock.rejectionReason = reason
+					break
+				}
+			}
+		}
+		// On timeout or wrong packet, retry or continue to failure
 	}
 
 	UDPCloseSocket(conn)

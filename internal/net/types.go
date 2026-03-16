@@ -42,6 +42,7 @@ type Socket struct {
 	connectTime          float64
 	disconnected         bool
 	sendNext             bool
+	rejectionReason      string
 
 	// Driver specific
 	driver     int
@@ -69,4 +70,8 @@ func (s *Socket) CanSendMessage() bool {
 
 func (s *Socket) CanSendUnreliable() bool {
 	return true
+}
+
+func (s *Socket) Error() string {
+	return s.rejectionReason
 }
