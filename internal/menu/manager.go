@@ -34,10 +34,11 @@ const (
 	MenuHelp                          // Help screens
 	MenuQuit                          // Quit confirmation screen
 	MenuSetup                         // Player setup screen
+	MenuMods                          // Mods browser
 )
 
 const (
-	mainItems = 5
+	mainItemsBase = 5 // SP, MP, Options, Help, Quit (without Mods)
 
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
@@ -45,7 +46,7 @@ const (
 	hostGameItems     = 6
 	optionsItems      = 5
 	controlsItems     = 17
-	videoItems        = 8
+	videoItems        = 9 // added videoItemHUDStyle
 	audioItems        = 2
 
 	maxSaveGames = 12
@@ -121,6 +122,7 @@ const (
 	videoItemGamma
 	videoItemViewModel
 	videoItemWaterwarp // r_waterwarp: mirrors C Ironwail options-menu OPT_WATERWARP preview
+	videoItemHUDStyle  // hud_style: selects classic vs compact HUD
 	videoItemBack
 )
 
@@ -137,6 +139,12 @@ type videoResolution struct {
 type SaveSlotInfo struct {
 	Name        string
 	DisplayName string
+}
+
+// ModInfo describes a mod directory available for selection.
+type ModInfo struct {
+	// Name is the directory name (e.g. "hipnotic", "rogue", "mymod").
+	Name string
 }
 
 var videoResolutions = []videoResolution{
@@ -204,6 +212,19 @@ type Manager struct {
 
 	quitPrevState MenuState
 
+	// modsCursor is the current selection in the mods menu.
+	modsCursor int
+	// modsList holds the mods available for selection, populated on menu entry.
+	modsList []ModInfo
+	// modsProvider is called to enumerate available mods.
+	modsProvider func() []ModInfo
+	// currentMod is the currently active mod directory name ("" or "id1" = vanilla).
+	currentMod string
+
+	// mouseAccumY accumulates mouse Y movement (in menu-space pixels) to drive
+	// cursor selection. Mirrors C Ironwail M_Mousemove() scroll semantics.
+	mouseAccumY float32
+
 	// drawManager provides access to graphics assets.
 	drawManager DrawManager
 
@@ -234,6 +255,18 @@ func (m *Manager) SetSoundPlayer(play func(name string)) {
 
 func (m *Manager) SetSaveSlotProvider(provider func(slotCount int) []SaveSlotInfo) {
 	m.saveSlotProvider = provider
+}
+
+// SetModsProvider sets the callback used to enumerate available mod directories.
+// The callback is invoked each time the Mods menu is opened to refresh the list.
+func (m *Manager) SetModsProvider(provider func() []ModInfo) {
+	m.modsProvider = provider
+}
+
+// SetCurrentMod records the currently active mod directory name so the mods
+// menu can highlight it.  Pass "" or "id1" for vanilla.
+func (m *Manager) SetCurrentMod(name string) {
+	m.currentMod = name
 }
 
 // NewManager creates a new menu manager.
@@ -291,6 +324,7 @@ func (m *Manager) ToggleMenu() {
 		m.active = true
 		m.state = MenuMain
 		m.mainCursor = 0
+		m.refreshModsList()
 		// Redirect input to menu
 		if m.inputSystem != nil {
 			m.inputSystem.SetKeyDest(input.KeyMenu)
@@ -304,6 +338,7 @@ func (m *Manager) ShowMenu() {
 	if m.state == MenuNone {
 		m.state = MenuMain
 		m.mainCursor = 0
+		m.refreshModsList()
 	}
 	if m.inputSystem != nil {
 		m.inputSystem.SetKeyDest(input.KeyMenu)
@@ -356,6 +391,8 @@ func (m *Manager) GetState() MenuState {
 
 // M_Key handles keyboard input for the menu.
 func (m *Manager) M_Key(key int) {
+	// Any key resets the mouse accumulator so keyboard nav takes precedence.
+	m.mouseAccumY = 0
 	switch m.state {
 	case MenuMain:
 		m.mainKey(key)
@@ -385,6 +422,8 @@ func (m *Manager) M_Key(key int) {
 		m.quitKey(key)
 	case MenuSetup:
 		m.setupKey(key)
+	case MenuMods:
+		m.modsKey(key)
 	}
 }
 
@@ -431,21 +470,164 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawQuit(dc)
 	case MenuSetup:
 		m.drawSetup(dc)
+	case MenuMods:
+		m.drawMods(dc)
 	}
 }
 
-// mainKey handles input when in the main menu.
+// M_Mousemove drives menu cursor selection from accumulated mouse movement.
+// It mirrors C Ironwail's M_Mousemove() semantics: mouse Y movement is
+// accumulated in menu-space units and translated to cursor steps.
+// dx is currently unused but accepted for future left/right slider support.
+//
+// Callers should pass the raw mouse delta (in screen pixels) each frame when
+// the menu is active. The method translates these to menu-space units using
+// the 320×200 reference grid, then moves the cursor when the accumulator
+// crosses a full item height (8 px in menu space).
+func (m *Manager) M_Mousemove(dx, dy int) {
+	if !m.active || dy == 0 {
+		return
+	}
+	// Scale dy to menu-space coordinates (320×200 reference).
+	// Each menu item is approximately 8–20 px tall in menu space;
+	// use 8 px as the scroll threshold (one text line).
+	const menuItemPx = 8
+	m.mouseAccumY += float32(dy)
+	for m.mouseAccumY >= menuItemPx {
+		m.mouseAccumY -= menuItemPx
+		m.moveCursorDown()
+	}
+	for m.mouseAccumY <= -menuItemPx {
+		m.mouseAccumY += menuItemPx
+		m.moveCursorUp()
+	}
+}
+
+// moveCursorDown moves the active menu cursor down one step.
+func (m *Manager) moveCursorDown() {
+	switch m.state {
+	case MenuMain:
+		m.mainCursor = (m.mainCursor + 1) % m.mainMenuCount()
+	case MenuSinglePlayer:
+		m.singlePlayerCursor = (m.singlePlayerCursor + 1) % singlePlayerItems
+	case MenuLoad:
+		m.loadCursor = (m.loadCursor + 1) % maxSaveGames
+	case MenuSave:
+		m.saveCursor = (m.saveCursor + 1) % maxSaveGames
+	case MenuMultiPlayer:
+		m.multiPlayerCursor = (m.multiPlayerCursor + 1) % multiPlayerItems
+	case MenuOptions:
+		m.optionsCursor = (m.optionsCursor + 1) % optionsItems
+	case MenuControls:
+		m.controlsCursor = (m.controlsCursor + 1) % controlsItems
+	case MenuVideo:
+		m.videoCursor = (m.videoCursor + 1) % videoItems
+	case MenuAudio:
+		m.audioCursor = (m.audioCursor + 1) % audioItems
+	case MenuMods:
+		if len(m.modsList) > 0 {
+			m.modsCursor = (m.modsCursor + 1) % (len(m.modsList) + 1) // +1 for Back
+		}
+	}
+	m.playMenuSound(menuSoundNavigate)
+}
+
+// moveCursorUp moves the active menu cursor up one step.
+func (m *Manager) moveCursorUp() {
+	switch m.state {
+	case MenuMain:
+		m.mainCursor--
+		if m.mainCursor < 0 {
+			m.mainCursor = m.mainMenuCount() - 1
+		}
+	case MenuSinglePlayer:
+		m.singlePlayerCursor--
+		if m.singlePlayerCursor < 0 {
+			m.singlePlayerCursor = singlePlayerItems - 1
+		}
+	case MenuLoad:
+		m.loadCursor--
+		if m.loadCursor < 0 {
+			m.loadCursor = maxSaveGames - 1
+		}
+	case MenuSave:
+		m.saveCursor--
+		if m.saveCursor < 0 {
+			m.saveCursor = maxSaveGames - 1
+		}
+	case MenuMultiPlayer:
+		m.multiPlayerCursor--
+		if m.multiPlayerCursor < 0 {
+			m.multiPlayerCursor = multiPlayerItems - 1
+		}
+	case MenuOptions:
+		m.optionsCursor--
+		if m.optionsCursor < 0 {
+			m.optionsCursor = optionsItems - 1
+		}
+	case MenuControls:
+		m.controlsCursor--
+		if m.controlsCursor < 0 {
+			m.controlsCursor = controlsItems - 1
+		}
+	case MenuVideo:
+		m.videoCursor--
+		if m.videoCursor < 0 {
+			m.videoCursor = videoItems - 1
+		}
+	case MenuAudio:
+		m.audioCursor--
+		if m.audioCursor < 0 {
+			m.audioCursor = audioItems - 1
+		}
+	case MenuMods:
+		total := len(m.modsList) + 1 // +1 for Back
+		if total > 0 {
+			m.modsCursor--
+			if m.modsCursor < 0 {
+				m.modsCursor = total - 1
+			}
+		}
+	}
+	m.playMenuSound(menuSoundNavigate)
+}
+
+// mainMenuCount returns the number of main menu items, adding one for MODS
+// when mods are available.
+func (m *Manager) mainMenuCount() int {
+	if len(m.modsList) > 0 {
+		return mainItemsBase + 1
+	}
+	return mainItemsBase
+}
+
+// mainMenuModsIdx returns the cursor index for the MODS item, or -1 if no
+// mods are available.
+func (m *Manager) mainMenuModsIdx() int {
+	if len(m.modsList) == 0 {
+		return -1
+	}
+	return mainItemsBase - 1 // index 4 = before Quit
+}
+
+// mainMenuQuitIdx returns the cursor index for the QUIT item.
+func (m *Manager) mainMenuQuitIdx() int {
+	if len(m.modsList) > 0 {
+		return mainItemsBase // index 5 when Mods present
+	}
+	return mainItemsBase - 1 // index 4 normally
+}
 func (m *Manager) mainKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
 		m.mainCursor--
 		if m.mainCursor < 0 {
-			m.mainCursor = mainItems - 1
+			m.mainCursor = m.mainMenuCount() - 1
 		}
 		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.mainCursor++
-		if m.mainCursor >= mainItems {
+		if m.mainCursor >= m.mainMenuCount() {
 			m.mainCursor = 0
 		}
 		m.playMenuSound(menuSoundNavigate)
@@ -470,9 +652,13 @@ func (m *Manager) mainSelect() {
 	case 3: // Help
 		m.state = MenuHelp
 		m.helpPage = 0
-	case 4: // Quit
-		m.quitPrevState = MenuMain
-		m.state = MenuQuit
+	default:
+		if m.mainCursor == m.mainMenuModsIdx() {
+			m.enterModsMenu()
+		} else if m.mainCursor == m.mainMenuQuitIdx() {
+			m.quitPrevState = MenuMain
+			m.state = MenuQuit
+		}
 	}
 }
 
@@ -967,6 +1153,10 @@ func (m *Manager) adjustVideoSetting(delta int) {
 		// Cycle through 0=off, 1=screen warp, 2=FOV warp.
 		next := (cvar.IntValue("r_waterwarp") + delta + 3) % 3
 		cvar.SetInt("r_waterwarp", next)
+	case videoItemHUDStyle:
+		// Cycle through 0=classic, 1=compact.
+		next := (cvar.IntValue("hud_style") + delta + 2) % 2
+		cvar.SetInt("hud_style", next)
 	}
 }
 
@@ -1140,6 +1330,55 @@ func (m *Manager) quitKey(key int) {
 		m.playMenuSound(menuSoundCancel)
 		// Cancel - return to main menu
 		m.state = m.quitPrevState
+	}
+}
+
+// enterModsMenu refreshes the mod list and navigates to the Mods menu.
+func (m *Manager) enterModsMenu() {
+	m.refreshModsList()
+	m.modsCursor = 0
+	m.state = MenuMods
+}
+
+// refreshModsList calls the provider (if set) to update the cached mod list.
+func (m *Manager) refreshModsList() {
+	if m.modsProvider != nil {
+		m.modsList = m.modsProvider()
+	}
+}
+
+// modsKey handles input when in the Mods browser menu.
+func (m *Manager) modsKey(key int) {
+	total := len(m.modsList) + 1 // items + "Back"
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.modsCursor--
+		if m.modsCursor < 0 {
+			m.modsCursor = total - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.modsCursor++
+		if m.modsCursor >= total {
+			m.modsCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
+		if m.modsCursor == len(m.modsList) {
+			// "Back" item
+			m.state = MenuMain
+			return
+		}
+		if m.modsCursor >= 0 && m.modsCursor < len(m.modsList) {
+			mod := m.modsList[m.modsCursor]
+			m.HideMenu()
+			// Relaunch with the selected game directory via the host "game" command.
+			m.queueCommand(fmt.Sprintf("game %q\n", mod.Name))
+		}
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuMain
 	}
 }
 
@@ -1363,12 +1602,25 @@ func (m *Manager) drawMain(dc renderer.RenderContext) {
 
 	if pic := m.getPic("gfx/mainmenu.lmp"); pic != nil {
 		dc.DrawMenuPic(72, 32, pic)
+		// When Mods are available, draw additional text items below the picture
+		// since the original 5-item graphic doesn't include a Mods entry.
+		if m.mainMenuModsIdx() >= 0 {
+			modsY := 32 + m.mainMenuModsIdx()*20
+			quitY := 32 + m.mainMenuQuitIdx()*20
+			m.drawText(dc, 84, modsY, "MODS", true)
+			m.drawText(dc, 84, quitY, "QUIT", true)
+		}
 	} else {
 		m.drawText(dc, 84, 32, "SINGLE PLAYER", true)
 		m.drawText(dc, 84, 52, "MULTIPLAYER", true)
 		m.drawText(dc, 84, 72, "OPTIONS", true)
 		m.drawText(dc, 84, 92, "HELP", true)
-		m.drawText(dc, 84, 112, "QUIT", true)
+		if m.mainMenuModsIdx() >= 0 {
+			m.drawText(dc, 84, 112, "MODS", true)
+			m.drawText(dc, 84, 132, "QUIT", true)
+		} else {
+			m.drawText(dc, 84, 112, "QUIT", true)
+		}
 	}
 
 	m.drawCursor(dc, 54, 32+m.mainCursor*20)
@@ -1490,6 +1742,13 @@ func waterwarpLabel(v int) string {
 	}
 }
 
+func hudStyleLabel(v int) string {
+	if v == 1 {
+		return "COMPACT"
+	}
+	return "CLASSIC"
+}
+
 func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -1508,11 +1767,12 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 184, 112, boolLabel(cvar.BoolValue("r_drawviewmodel")), true)
 	m.drawText(dc, 56, 128, "WATERWARP", true)
 	m.drawText(dc, 184, 128, waterwarpLabel(cvar.IntValue("r_waterwarp")), true)
-	m.drawText(dc, 56, 152, "BACK", true)
+	m.drawText(dc, 56, 144, "HUD STYLE", true)
+	m.drawText(dc, 184, 144, hudStyleLabel(cvar.IntValue("hud_style")), true)
+	m.drawText(dc, 56, 168, "BACK", true)
 
 	m.drawArrowCursor(dc, 40, 32+m.videoCursor*16)
-	m.drawText(dc, 40, 168, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
-	m.drawText(dc, 40, 184, "SOME SETTINGS MAY NEED RESTART", true)
+	m.drawText(dc, 40, 180, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
 }
 
 func (m *Manager) drawControls(dc renderer.RenderContext) {
@@ -1576,6 +1836,46 @@ func (m *Manager) drawQuit(dc renderer.RenderContext) {
 	m.drawText(dc, 56, 64, "ARE YOU SURE YOU WANT TO QUIT?", true)
 	m.drawText(dc, 56, 88, "PRESS Y OR ENTER TO QUIT", true)
 	m.drawText(dc, 56, 104, "PRESS N OR ESC TO CANCEL", true)
+}
+
+// drawMods renders the Mods browser screen.
+// It lists every valid mod directory found in the base directory, highlights
+// the currently active mod, and shows a "Back" item at the bottom.
+func (m *Manager) drawMods(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/ttl_main.lmp")
+	m.drawText(dc, 84, 16, "MODS", true)
+
+	if len(m.modsList) == 0 {
+		m.drawText(dc, 48, 56, "NO MODS FOUND", true)
+		m.drawText(dc, 48, 80, "PLACE MOD DIRECTORIES", true)
+		m.drawText(dc, 48, 96, "NEXT TO ID1 IN YOUR", true)
+		m.drawText(dc, 48, 112, "QUAKE DIRECTORY", true)
+		m.drawText(dc, 48, 136, "BACK", true)
+		m.drawArrowCursor(dc, 32, 136)
+		return
+	}
+
+	const startY = 32
+	const lineH = 8
+	for i, mod := range m.modsList {
+		y := startY + i*lineH
+		label := strings.ToUpper(mod.Name)
+		// Mark the currently active mod with a trailing asterisk.
+		if strings.EqualFold(mod.Name, m.currentMod) {
+			label += " *"
+		}
+		m.drawText(dc, 48, y, label, true)
+	}
+	// "Back" item after the list
+	backY := startY + len(m.modsList)*lineH + lineH
+	m.drawText(dc, 48, backY, "BACK", true)
+
+	// Cursor
+	cursorY := startY + m.modsCursor*lineH
+	if m.modsCursor == len(m.modsList) {
+		cursorY = backY
+	}
+	m.drawArrowCursor(dc, 32, cursorY)
 }
 
 func (m *Manager) drawSetup(dc renderer.RenderContext) {

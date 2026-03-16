@@ -8,14 +8,29 @@ package hud
 import (
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
+
+// HUDStyle selects the active HUD presentation.
+type HUDStyle int
+
+const (
+	// HUDStyleClassic is the original Quake status-bar strip (default).
+	HUDStyleClassic HUDStyle = 0
+	// HUDStyleCompact is a minimal corner-overlay inspired by the Q64 layout
+	// and the alternate HUD styles advertised in Ironwail's README.
+	HUDStyleCompact HUDStyle = 1
+)
+
+const hudStyleCVar = "hud_style"
 
 // HUD manages the heads-up display rendering.
 type HUD struct {
 	drawManager *draw.Manager
 	status      *StatusBar
+	compact     *CompactHUD
 	centerprint *Centerprint
 
 	// Player state
@@ -69,9 +84,13 @@ type ScoreEntry struct {
 
 // NewHUD creates a new HUD instance.
 func NewHUD(dm *draw.Manager) *HUD {
+	// Register hud_style cvar if not already present.
+	// 0 = classic status bar, 1 = compact corner overlay (Q64-inspired).
+	cvar.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=compact Q64-style overlay")
 	return &HUD{
 		drawManager: dm,
 		status:      NewStatusBar(dm),
+		compact:     NewCompactHUD(),
 		centerprint: NewCenterprint(dm),
 	}
 }
@@ -92,15 +111,24 @@ func (h *HUD) State() State {
 	return h.state
 }
 
+// Style returns the currently configured HUD style.
+func (h *HUD) Style() HUDStyle {
+	return HUDStyle(cvar.IntValue(hudStyleCVar))
+}
+
 // Draw renders the complete HUD overlay.
 func (h *HUD) Draw(rc renderer.RenderContext) {
 	if rc == nil {
 		return
 	}
 
-	// Draw status bar at bottom of screen
 	if h.state.Intermission == 0 {
-		h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+		switch h.Style() {
+		case HUDStyleCompact:
+			h.compact.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+		default: // HUDStyleClassic
+			h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+		}
 	}
 	h.centerprint.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 }
@@ -119,3 +147,4 @@ func (h *HUD) ClearCenterprint() {
 func (h *HUD) IsActive() bool {
 	return h.centerprint.IsActive()
 }
+

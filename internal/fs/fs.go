@@ -332,6 +332,64 @@ func (fs *FileSystem) GetBaseDir() string {
 	return fs.baseDir
 }
 
+// ModInfo describes a discovered mod directory under the base Quake directory.
+type ModInfo struct {
+	// Name is the directory name (e.g. "hipnotic", "rogue", "mymod").
+	Name string
+}
+
+// ListMods returns all valid mod directories found in the basedir.
+// A directory is considered a valid mod if it contains at least one pak file
+// or a progs.dat file, following the same convention as C Ironwail's mod list.
+// The well-known base directory "id1" is excluded because it is not a
+// user-selectable mod; other directories are returned in sorted order.
+func (fs *FileSystem) ListMods() []ModInfo {
+	if fs.baseDir == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(fs.baseDir)
+	if err != nil {
+		return nil
+	}
+
+	var mods []ModInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.EqualFold(name, "id1") {
+			continue
+		}
+		dirPath := filepath.Join(fs.baseDir, name)
+		if isValidModDir(dirPath) {
+			mods = append(mods, ModInfo{Name: name})
+		}
+	}
+	return mods
+}
+
+// isValidModDir returns true if dir contains a pak file or a progs.dat.
+func isValidModDir(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.EqualFold(name, "progs.dat") {
+			return true
+		}
+		if pakFilePattern.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
 func (fs *FileSystem) ListFiles(pattern string) []string {
 	var results []string
 

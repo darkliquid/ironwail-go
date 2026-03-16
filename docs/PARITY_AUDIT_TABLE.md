@@ -128,8 +128,8 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 | Multiplayer setup | Hostname + player name + shirt/pants colors + accept | Implemented | `PORT_PARITY_TODO.md §6`; syncs from live `hostname`/`_cl_name`/`_cl_color` cvars | — | — |
 | Multiplayer join/host | Menu-driven join + host with live command dispatch | Mostly implemented | Bounded `PORT_PARITY_TODO.md §11`; broader remote netgame depth still pending | Incomplete integration | Medium |
 | Player setup preview | Translated player preview / text-box art as in C | Partial | Simplified color-swatch preview used; C-style translated art not yet ported | UX/product gap | Low |
-| Mods menu | Ironwail-style installed add-on browser | Missing | Not found in `internal/menu/manager.go`; Ironwail advertises this as a product feature | Missing feature | Medium |
-| Mouse-driven UI | Mouse movement in menus (`M_Mousemove` equivalent) | Partial | Menu key routing is functional; comprehensive mouse-driven menu navigation is incomplete | UX/product gap | Medium |
+| Mods menu | Ironwail-style installed add-on browser | **Implemented** | `internal/menu/manager.go` `MenuMods` state; `internal/fs/fs.go` `ListMods()`; main menu gains MODS entry when mods present; `game <dir>` command dispatched on selection | — | — |
+| Mouse-driven UI | Mouse movement in menus (`M_Mousemove` equivalent) | **Implemented** | `M_Mousemove(dx,dy)` in `internal/menu/manager.go`; accumulates Y delta and advances cursor when threshold crossed; wired into frame loop via `applyMenuMouseMove()` in `cmd/ironwailgo/main.go` | — | — |
 | Weapon bind UI | Ironwail richer weapon key-binding UI in menus | Partial | Base bind editing exists; Ironwail-specific weapon bind UI not fully matched | UX/product gap | Low |
 | Broader menu polish | Full C menu behavior, C-style UX details | Mostly implemented | `PORT_PARITY_REVIEW.md §5` — some C-polish details still missing | UX/product gap | Low |
 | Menu audio feedback | `misc/menu*.wav` on navigation/accept/cancel | Implemented | `PORT_PARITY_TODO.md §6` | — | — |
@@ -146,7 +146,7 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 | Deathmatch scoreboard | `+showscores` hold, ranked frag rows, multiplayer mini-frag strip | Implemented | `PORT_PARITY_TODO.md §6` | — | — |
 | DrawPic / DrawMenuPic split | Screen-space HUD vs 320×200 menu/loading-plaque coordinate spaces | Implemented | `PORT_PARITY_TODO.md §6` | — | — |
 | Expansion-pack HUD variants | Special-case overlays for missionpack/episode content | Partial | `PORT_PARITY_REVIEW.md §5` — expansion-pack special-casing not yet ported | Missing feature | Low |
-| Alternate HUD styles (Q64) | Ironwail-specific Q64-layout HUD mode | Missing | `PORT_PARITY_REVIEW.md §5`; Ironwail advertises alternate HUD styles | UX/product gap | Medium |
+| Alternate HUD styles (Q64) | Ironwail-specific Q64-layout HUD mode | **Implemented** | `internal/hud/compact.go` `CompactHUD`; `hud_style` cvar (0=classic, 1=compact corner overlay); exposed in Video options menu; `internal/hud/hud.go` dispatches based on style | — | — |
 | Pickup flash timing | Item pickup animation timing polish | Mostly implemented | `PORT_PARITY_REVIEW.md §5` notes this as remaining polish | Behavioral inaccuracy | Low |
 
 ---
@@ -233,7 +233,7 @@ Source-backed audit comparing `darkliquid/ironwail-go` against `andrei-drexler/i
 |---|---|---|---|---|---|
 | GPU performance architecture | Compute shaders, instancing, persistent buffer mapping, indirect multi-draw, bindless textures | Missing | Go port prioritizes readability/portability over GPU-heavy optimization | Backend divergence | Low (intentional) |
 | Decoupled renderer/server timing | Ironwail decouples renderer timing from server tick for smoother visuals | Partial | Not a current parity priority; Go port uses simpler frame loop | Backend divergence | Low |
-| Mods menu / add-on browser | Ironwail new Mods menu for installed add-ons | Missing | Not present in Go menu system | Missing feature | Medium |
+| Mods menu / add-on browser | Ironwail new Mods menu for installed add-ons | **Implemented** | `MenuMods` state in `internal/menu/manager.go`; `ListMods()` in `internal/fs/fs.go`; `game` command dispatched on selection | — | — |
 
 ---
 
