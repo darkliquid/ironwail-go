@@ -773,6 +773,12 @@ type RenderFrameState struct {
 
 	// Palette for color conversion
 	Palette []byte
+
+	// WaterWarp, WaterWarpTime, ForceUnderwater: see stubs_opengl.go for semantics.
+	// These fields are parsed by the authoritative OpenGL path only; gogpu ignores them.
+	WaterWarp       bool
+	WaterWarpTime   float32
+	ForceUnderwater bool
 }
 
 // RenderFrame executes the complete frame pipeline in order:

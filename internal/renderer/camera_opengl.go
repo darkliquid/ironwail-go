@@ -16,6 +16,12 @@ type CameraState struct {
 	Angles gmath.Vec3
 	FOV    float32
 	Time   float32
+
+	// WaterwarpFOV enables sinusoidal FOV oscillation for the r_waterwarp > 1 mode.
+	// When true and r_waterwarp > 1, UpdateCamera modulates the horizontal FOV using
+	// the C Ironwail formula: fov = 2*atan(scale * tan(fov/2)), scale ≈ 0.97..1.00.
+	// Mirrors C Ironwail R_SetupView r_waterwarp > 1 branch.
+	WaterwarpFOV bool
 }
 
 // ViewMatrixData holds cached view/projection matrices for rendering.
@@ -113,6 +119,9 @@ func ConvertClientStateToCamera(origin [3]float32, angles [3]float32, fov float3
 }
 
 // UpdateCamera updates the camera state and cached matrices.
+// If camera.WaterwarpFOV is true and r_waterwarp > 1, the horizontal FOV is
+// sinusoidally oscillated to produce the r_waterwarp 2 view-space warp effect.
+// Mirrors C Ironwail R_SetupView r_waterwarp > 1 branch.
 func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -126,7 +135,12 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 		aspect = float32(w) / float32(h)
 	}
 
-	r.viewMatrices.Projection = ComputeProjectionMatrix(camera.FOV, aspect, nearPlane, farPlane)
+	fov := camera.FOV
+	if camera.WaterwarpFOV {
+		fov = ApplyWaterwarpFOV(fov, camera.Time)
+	}
+
+	r.viewMatrices.Projection = ComputeProjectionMatrix(fov, aspect, nearPlane, farPlane)
 	r.viewMatrices.VP = r.viewMatrices.Projection.Mul(r.viewMatrices.View)
 }
 

@@ -45,7 +45,7 @@ const (
 	hostGameItems     = 6
 	optionsItems      = 5
 	controlsItems     = 17
-	videoItems        = 7
+	videoItems        = 8
 	audioItems        = 2
 
 	maxSaveGames = 12
@@ -120,6 +120,7 @@ const (
 	videoItemMaxFPS
 	videoItemGamma
 	videoItemViewModel
+	videoItemWaterwarp // r_waterwarp: mirrors C Ironwail options-menu OPT_WATERWARP preview
 	videoItemBack
 )
 
@@ -329,6 +330,23 @@ func (m *Manager) RequestQuit() {
 // IsActive returns true if the menu is currently displayed.
 func (m *Manager) IsActive() bool {
 	return m.active
+}
+
+// ForcedUnderwater returns true when the Video options menu is open and the cursor
+// is positioned on the WATERWARP option. This causes the renderer to preview the
+// underwater warp effect even if the camera is not in a liquid leaf.
+//
+// Mirrors C Ironwail M_ForcedUnderwater() / M_Options_ForcedUnderwater():
+//
+//	qboolean M_ForcedUnderwater(void) {
+//	    return key_dest == key_menu && M_GetBaseState(m_state) == m_options
+//	        && M_Options_ForcedUnderwater();
+//	}
+//	static qboolean M_Options_ForcedUnderwater(void) {
+//	    return optionsmenu.preview.id == OPT_WATERWARP;
+//	}
+func (m *Manager) ForcedUnderwater() bool {
+	return m.active && m.state == MenuVideo && m.videoCursor == videoItemWaterwarp
 }
 
 // GetState returns the current menu state.
@@ -945,6 +963,10 @@ func (m *Manager) adjustVideoSetting(delta int) {
 		cvar.SetFloat("r_gamma", roundToTenth(gamma))
 	case videoItemViewModel:
 		cvar.SetBool("r_drawviewmodel", !cvar.BoolValue("r_drawviewmodel"))
+	case videoItemWaterwarp:
+		// Cycle through 0=off, 1=screen warp, 2=FOV warp.
+		next := (cvar.IntValue("r_waterwarp") + delta + 3) % 3
+		cvar.SetInt("r_waterwarp", next)
 	}
 }
 
@@ -1457,6 +1479,17 @@ func (m *Manager) drawOptions(dc renderer.RenderContext) {
 	m.drawCursor(dc, 54, 32+m.optionsCursor*20)
 }
 
+func waterwarpLabel(v int) string {
+	switch v {
+	case 1:
+		return "SCREEN WARP"
+	case 2:
+		return "FOV WARP"
+	default:
+		return "OFF"
+	}
+}
+
 func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -1473,7 +1506,9 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 184, 96, fmt.Sprintf("%.1f", cvar.FloatValue("r_gamma")), true)
 	m.drawText(dc, 56, 112, "VIEWMODEL", true)
 	m.drawText(dc, 184, 112, boolLabel(cvar.BoolValue("r_drawviewmodel")), true)
-	m.drawText(dc, 56, 136, "BACK", true)
+	m.drawText(dc, 56, 128, "WATERWARP", true)
+	m.drawText(dc, 184, 128, waterwarpLabel(cvar.IntValue("r_waterwarp")), true)
+	m.drawText(dc, 56, 152, "BACK", true)
 
 	m.drawArrowCursor(dc, 40, 32+m.videoCursor*16)
 	m.drawText(dc, 40, 168, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
