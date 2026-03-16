@@ -285,6 +285,7 @@ type Console interface {
 	Init() error
 	Print(msg string)
 	Clear()
+	Dump(filename string) error
 	Shutdown()
 }
 

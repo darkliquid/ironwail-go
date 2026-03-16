@@ -286,6 +286,51 @@ func (c *Console) Clear() {
 	}
 }
 
+func (c *Console) Dump(filename string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Find the oldest line that isn't entirely blank
+	startLine := c.current - c.totalLines + 1
+	if startLine < 0 {
+		startLine = 0
+	}
+
+	for i := startLine; i <= c.current; i++ {
+		lineNum := i % c.totalLines
+		start := lineNum * c.lineWidth
+		end := start + c.lineWidth
+		if end > len(c.text) {
+			end = len(c.text)
+		}
+
+		line := c.text[start:end]
+
+		// Strip trailing spaces and Quake's high-bit colors
+		cleanLine := make([]byte, 0, len(line))
+		lastNonSpace := -1
+		for j, ch := range line {
+			cleanCh := ch & 0x7F
+			cleanLine = append(cleanLine, cleanCh)
+			if cleanCh != ' ' {
+				lastNonSpace = j
+			}
+		}
+
+		if lastNonSpace >= 0 {
+			f.Write(cleanLine[:lastNonSpace+1])
+		}
+		f.WriteString("\n")
+	}
+	return nil
+}
+
 func (c *Console) InputLine() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

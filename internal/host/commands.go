@@ -214,6 +214,9 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("clear", func(args []string) {
 		h.CmdClear(subs)
 	}, "Clear the console buffer")
+	cmdsys.AddCommand("condump", func(args []string) {
+		h.CmdCondump(args, subs)
+	}, "Dump the console text to a file")
 	cmdsys.AddCommand("alias", func(args []string) {
 		h.CmdAlias(args, subs)
 	}, "Create, list, and inspect command aliases")
@@ -300,6 +303,27 @@ func (h *Host) CmdClear(subs *Subsystems) {
 		return
 	}
 	subs.Console.Clear()
+}
+
+func (h *Host) CmdCondump(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	filename := "condump.txt"
+	if len(args) > 0 {
+		filename = args[0]
+	}
+
+	path := filename
+	if h.userDir != "" && !filepath.IsAbs(filename) {
+		path = filepath.Join(h.userDir, filename)
+	}
+
+	if err := subs.Console.Dump(path); err != nil {
+		subs.Console.Print(fmt.Sprintf("condump failed: %v\n", err))
+	} else {
+		subs.Console.Print(fmt.Sprintf("Dumped console text to %s.\n", filename))
+	}
 }
 
 func (h *Host) CmdAlias(args []string, subs *Subsystems) {
