@@ -4,6 +4,7 @@
 package audio
 
 import (
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -51,7 +52,13 @@ func (b *OtoBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DM
 	if err != nil {
 		return nil, err
 	}
-	<-ready
+	
+	select {
+	case <-ready:
+		// OK
+	case <-time.After(2 * time.Second):
+		return nil, fmt.Errorf("oto context readiness timeout")
+	}
 
 	dma := &DMAInfo{
 		Channels:        channels,

@@ -3,6 +3,10 @@
 
 package audio
 
+import (
+	"log/slog"
+)
+
 // AudioAdapter wraps audio.System to implement host.Audio interface
 type AudioAdapter struct {
 	sys *System
@@ -19,16 +23,27 @@ func (a *AudioAdapter) Init() error {
 
 	backend := Backend(NewNullBackend())
 	if preferred := NewSDL3AudioBackend(); preferred != nil {
+		slog.Info("using SDL3 audio backend")
 		backend = preferred
 	} else if preferred := NewOtoBackend(); preferred != nil {
+		slog.Info("using Oto audio backend")
 		backend = preferred
 	}
 
 	if err := a.sys.Init(backend, 44100, false); err != nil {
-		fallback := Backend(NewNullBackend())
-		if err2 := a.sys.Init(fallback, 44100, false); err2 != nil {
-			return err
+		slog.Warn("failed to init audio at 44.1kHz, retrying at 48kHz", "error", err)
+		// Fallback to 48kHz which is common on modern Linux/Pipewire
+		if err2 := a.sys.Init(backend, 48000, false); err2 != nil {
+			slog.Error("failed to init audio at 48kHz, using null backend", "error", err2)
+			fallback := Backend(NewNullBackend())
+			if err3 := a.sys.Init(fallback, 44100, false); err3 != nil {
+				return err
+			}
+		} else {
+			slog.Info("audio initialized at 48kHz")
 		}
+	} else {
+		slog.Info("audio initialized at 44.1kHz")
 	}
 
 	return a.sys.Startup()

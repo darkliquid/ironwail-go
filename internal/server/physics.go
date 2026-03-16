@@ -426,6 +426,46 @@ func (s *Server) PhysicsStep(ent *Edict) {
 	s.CheckWaterTransition(ent)
 }
 
+func (s *Server) SV_StepMove(ent *Edict, move [3]float32, relink bool) bool {
+	// Try moving at current height
+	trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, move), MoveType(MoveNormal), ent)
+	if trace.Fraction == 1 {
+		ent.Vars.Origin = trace.EndPos
+		if relink {
+			s.LinkEdict(ent, true)
+		}
+		return true
+	}
+
+	// Try stepping up
+	originalOrigin := ent.Vars.Origin
+	
+	// Raise up
+	up := [3]float32{0, 0, 18} // Quake step size
+	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, up), MoveType(MoveNormal), ent)
+	ent.Vars.Origin = trace.EndPos
+	
+	// Move forward
+	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, move), MoveType(MoveNormal), ent)
+	ent.Vars.Origin = trace.EndPos
+	
+	// Push back down
+	down := [3]float32{0, 0, -18}
+	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, down), MoveType(MoveNormal), ent)
+	ent.Vars.Origin = trace.EndPos
+	
+	// If we didn't move at all, or we're in a worse spot, revert
+	if trace.AllSolid || trace.StartSolid || trace.Fraction == 0 {
+		ent.Vars.Origin = originalOrigin
+		return false
+	}
+	
+	if relink {
+		s.LinkEdict(ent, true)
+	}
+	return true
+}
+
 func (s *Server) PhysicsWalk(ent *Edict) {
 	playerClient := s.playerClient(ent)
 	if playerClient != nil {
@@ -451,8 +491,24 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 		s.AddGravity(ent)
 	}
 
+	// Player jump processing (Server side fallback/parity)
+	if playerClient != nil && (flags&FlagOnGround != 0) && ent.Vars.Button2 != 0 {
+		ent.Vars.Flags = float32(flags &^ FlagOnGround)
+		ent.Vars.GroundEntity = 0
+		ent.Vars.Velocity[2] += 270 // Standard Quake jump speed
+	}
+
 	s.CheckVelocity(ent)
-	s.FlyMove(ent, s.FrameTime)
+
+	if flags&FlagOnGround != 0 {
+		move := VecScale(ent.Vars.Velocity, s.FrameTime)
+		if move[0] != 0 || move[1] != 0 || move[2] != 0 {
+			s.SV_StepMove(ent, move, true)
+		}
+	} else {
+		s.FlyMove(ent, s.FrameTime)
+	}
+
 	s.LinkEdict(ent, true)
 	s.CheckWaterTransition(ent)
 	if playerClient != nil {
