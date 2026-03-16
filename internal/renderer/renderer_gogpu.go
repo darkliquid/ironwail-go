@@ -779,6 +779,10 @@ type RenderFrameState struct {
 	WaterWarp       bool
 	WaterWarpTime   float32
 	ForceUnderwater bool
+
+	// VBlend: see stubs_opengl.go for semantics.
+	// Parsed by the authoritative OpenGL path only; gogpu ignores this field.
+	VBlend [4]float32
 }
 
 // RenderFrame executes the complete frame pipeline in order:

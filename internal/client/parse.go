@@ -486,6 +486,9 @@ func (p *Parser) parseDamage(msg *common.SizeBuf) error {
 		}
 		p.Client.DamageOrigin[i] = coord
 	}
+	// Update the damage color shift (percent + color) from the new event.
+	// Mirrors C view.c:V_ParseDamage() cshift update block.
+	p.Client.ApplyDamage()
 	return nil
 }
 

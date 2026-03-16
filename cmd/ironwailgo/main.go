@@ -81,6 +81,12 @@ var (
 	// liquid leaf (water, slime, or lava). Updated each frame in the OnUpdate
 	// callback alongside ambient audio; used to drive the visual waterwarp effect.
 	runtimeCameraInLiquid bool
+
+	// runtimeCameraLeafContents is the BSP leaf contents type at the current
+	// camera position (e.g. bsp.ContentsWater, ContentsLava, ContentsEmpty).
+	// Updated alongside runtimeCameraInLiquid in syncRuntimeAmbientAudio.
+	// Used to drive the contents color-shift (v_blend underwater tint).
+	runtimeCameraLeafContents int32
 )
 
 type defaultBinding struct {
@@ -147,6 +153,12 @@ func initGameHost() error {
 	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
 	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).
 	cvar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
+	// gl_polyblend: enable/disable the v_blend polyblend screen-tint pass.
+	// Mirrors C Ironwail gl_polyblend. Default 1 (enabled).
+	cvar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")
+	// gl_cshiftpercent: global scale for all color shifts (0–100).
+	// Mirrors C Ironwail gl_cshiftpercent. Default 100 (full intensity).
+	cvar.Register("gl_cshiftpercent", "100", cvar.FlagArchive, "Global color-shift intensity percentage (0–100)")
 	cvar.Register("developer", "0", 0, "Developer mode")
 	registerControlCvars()
 
@@ -1178,6 +1190,23 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	state.WaterWarp = waterWarp
 	state.WaterWarpTime = warpTime
 	state.ForceUnderwater = gameMenu != nil && gameMenu.ForcedUnderwater()
+
+	// Compute v_blend (polyblend) screen tint from client color shifts.
+	// Mirrors C Ironwail: view.c V_CalcBlend() → V_PolyBlend().
+	// Only apply when gl_polyblend is enabled.
+	if gameClient != nil && gameClient.State == cl.StateActive {
+		polyblendEnabled := true
+		if cv := cvar.Get("gl_polyblend"); cv != nil {
+			polyblendEnabled = cv.Float32() != 0
+		}
+		if polyblendEnabled {
+			globalPct := float32(100)
+			if cv := cvar.Get("gl_cshiftpercent"); cv != nil {
+				globalPct = cv.Float32()
+			}
+			state.VBlend = gameClient.CalcBlend(globalPct)
+		}
+	}
 	return state
 }
 
@@ -1264,6 +1293,29 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("+showscores", cmdShowScores, "Show multiplayer scoreboard while held")
 	cmdsys.AddCommand("-showscores", cmdHideScores, "Hide multiplayer scoreboard")
+
+	// bf: bonus flash – gold item-pickup screen tint stuffed by the server.
+	// Mirrors C Ironwail: view.c V_BonusFlash_f().
+	cmdsys.AddCommand("bf", func(args []string) {
+		if gameClient != nil {
+			gameClient.BonusFlash()
+		}
+	}, "Trigger bonus-pickup screen flash")
+
+	// v_cshift: custom screen tint command (used by some QC mods).
+	// Usage: v_cshift <r> <g> <b> <percent>  (all 0–255)
+	// Mirrors C Ironwail: view.c V_cshift_f().
+	cmdsys.AddCommand("v_cshift", func(args []string) {
+		if gameClient == nil || len(args) < 5 {
+			return
+		}
+		parseArg := func(s string) float32 {
+			var v float64
+			fmt.Sscanf(s, "%f", &v)
+			return float32(v)
+		}
+		gameClient.SetCustomShift(parseArg(args[1]), parseArg(args[2]), parseArg(args[3]), parseArg(args[4]))
+	}, "Set custom screen color shift (r g b percent, 0–255)")
 
 	registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
 	registerGameplayButtonCommand("back", func(c *cl.Client) *cl.KButton { return &c.InputBack })
@@ -2058,6 +2110,12 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 		return
 	}
 
+	// Update v_blend color shifts: decay damage/bonus, compute powerup, sync contents tint.
+	// runtimeCameraLeafContents was updated by syncRuntimeAmbientAudio earlier this frame.
+	// Mirrors C view.c:V_UpdateBlend() + V_SetContentsColor().
+	gameClient.SetContentsColor(runtimeCameraLeafContents)
+	gameClient.UpdateBlend(dt)
+
 	oldTime := particleTime
 	particleTime += float32(dt)
 
@@ -2291,13 +2349,17 @@ func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
 			ambientLevels[0] = leaf.AmbientLevel[bsp.AmbientWater]
 			ambientLevels[1] = leaf.AmbientLevel[bsp.AmbientSky]
 			underwater = runtimeUnderwaterIntensity(leaf.Contents)
-			// Track liquid-leaf state for visual waterwarp (r_waterwarp).
+			// Track liquid-leaf state for visual waterwarp (r_waterwarp) and
+			// contents color shift (v_blend).
 			runtimeCameraInLiquid = underwater > 0
+			runtimeCameraLeafContents = leaf.Contents
 		} else {
 			runtimeCameraInLiquid = false
+			runtimeCameraLeafContents = bsp.ContentsEmpty
 		}
 	} else {
 		runtimeCameraInLiquid = false
+		runtimeCameraLeafContents = bsp.ContentsEmpty
 	}
 
 	gameAudio.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwater)

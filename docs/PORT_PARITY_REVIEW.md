@@ -28,7 +28,7 @@ A useful way to think about the current tree is:
 | Area | What is already implemented | Main missing / divergent behavior |
 | --- | --- | --- |
 | Boot, FS, QC, local runtime | real asset boot, filesystem semantics, QC VM load, local loopback single-player startup, and local/remote `connect`/`disconnect` session transitions | remote transport edge-case polish still remains |
-| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, external skybox consumption via cubemap/per-face paths (with lowercase fallback for mixed-case names), and underwater visual warp (`r_waterwarp` screen-space sinusoidal post-process + FOV-oscillation modes with forced-underwater menu preview) | `v_blend` polyblend screen tint still absent; remaining divergences are now mostly broader visual polish |
+| OpenGL renderer | world upload, lightmaps, lightstyle updates, brush entities, alias entities, sprites, particles, decals, viewmodel, dynamic lights, brush rotation, animated textures, turbulent UV warp, live fog, dedicated embedded sky layer animation path, external skybox consumption via cubemap/per-face paths (with lowercase fallback for mixed-case names), underwater visual warp (`r_waterwarp` screen-space sinusoidal post-process + FOV-oscillation modes with forced-underwater menu preview), and `v_blend` polyblend screen tint (damage flash, liquid contents tint, item-pickup flash, powerup color shift via four color-shift channels and per-frame decay) | remaining divergences are now mostly broader visual polish beyond the bounded pass-order/polyblend slices |
 | gogpu renderer | world draw path, 2D overlay, particle fallback | entity rendering is still a stub and parity should not be judged here |
 | Client/input runtime | broad SVC parsing, Quake-style `KButton` handling, movement command assembly, live prediction, bind-driven command routing, config persistence, loopback send path, demo record/playback integration, bounded intermission/finale/cutscene + centerprint runtime overlay wiring plus deathmatch scoreboard hold/overlay support, and remote signon auto-reply progression (`prespawn`/`spawn`/`begin`) | broader netgame depth still diverges |
 | Audio/music | real mixer/backend/spatialization code, sound event parsing and dispatch, static sound lifecycle, listener updates, WAV CD-track playback | broader codec/fidelity parity still remains |
@@ -116,7 +116,8 @@ The gaps are mostly about **runtime collection, exact behavior, and fidelity**.
 - brush entities now honor rotation, and the runtime feeds protocol alpha/scale/effect lighting through the active entity paths
 - animated world textures are evaluated against live client time, and client fog state is consumed by the shared runtime renderer
 - turbulent (`SurfDrawTurb`) world/brush surfaces now apply C-style time-varying UV warp on the canonical OpenGL path
-- underwater visual warp is now fully implemented: `r_waterwarp == 1` renders the 3D scene to an offscreen FBO and applies a sinusoidal screen-space distortion pass (`warpscale_opengl.go`); `r_waterwarp > 1` applies C-style FOV oscillation (`ApplyWaterwarpFOV()`); the Video options menu previews the effect when the cursor rests on the WATERWARP item, mirroring C `M_ForcedUnderwater()`; `v_blend` polyblend overlay compositing is still absent
+- underwater visual warp is now fully implemented: `r_waterwarp == 1` renders the 3D scene to an offscreen FBO and applies a sinusoidal screen-space distortion pass (`warpscale_opengl.go`); `r_waterwarp > 1` applies C-style FOV oscillation (`ApplyWaterwarpFOV()`); the Video options menu previews the effect when the cursor rests on the WATERWARP item, mirroring C `M_ForcedUnderwater()`
+- `v_blend` polyblend screen tint is now fully implemented: four color-shift channels (contents/damage/bonus/powerup) mirror C `view.c` `cshift_t` state, per-frame decay and powerup computation mirror `V_UpdateBlend()`, composite RGBA is computed via `V_CalcBlend()` and rendered as a full-screen alpha-blended quad (`polyblend_opengl.go`) after the 3D scene and FBO blit but before the HUD overlay; `gl_polyblend` and `gl_cshiftpercent` cvars, and the server-stuffed `bf` command and `v_cshift` console command are wired; damage, lava/slime/water contents, item-pickup flash (bonus), quad/suit/invisibility/invulnerability powerup tints and intermission-only-contents gating all match C behavior
 
 #### Remaining divergences from C
 
@@ -267,7 +268,6 @@ What already exists:
 ### What is missing or divergent
 
 - broader codec/music parity beyond the current WAV/OGG CD-track support is still missing
-- `v_blend` (screen color tint / polyblend overlay) remains unimplemented; this is composited in C's `R_WarpScaleView()` but has no Go equivalent yet
 
 ### Exact C behavior still missing or not fully matched
 
