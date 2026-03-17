@@ -1,5 +1,7 @@
 package client
 
+import "math"
+
 // Color shift channel indices – mirrors C Quake view.c CSHIFT_* constants.
 const (
 	CShiftContents = 0 // liquid/environment tint (water/lava/slime)
@@ -88,6 +90,70 @@ func (c *Client) ApplyDamage() {
 // Mirrors C view.c:V_BonusFlash_f().
 func (c *Client) BonusFlash() {
 	c.CShifts[CShiftBonus] = ColorShift{R: 215, G: 186, B: 69, Percent: 50}
+}
+
+// CalculateDamageKick computes damage-induced camera kick angles from the most
+// recently parsed damage event.  Mirrors C Ironwail V_ParseDamage damage kick
+// calculation (view.c:329-345).
+//
+// This must be called after parseDamage() has stored DamageTaken/DamageSaved/
+// DamageOrigin, typically right after ApplyDamage().
+//
+// Parameters:
+//   - entityOrigin: player entity origin (used to compute damage direction)
+//   - entityAngles: player entity angles (used to compute right/forward vectors)
+//   - kickTime:     v_kicktime cvar value (duration of kick effect)
+//   - kickRoll:     v_kickroll cvar value (roll intensity multiplier)
+//   - kickPitch:    v_kickpitch cvar value (pitch intensity multiplier)
+func (c *Client) CalculateDamageKick(entityOrigin, entityAngles [3]float32, kickTime, kickRoll, kickPitch float32) {
+	blood := float32(c.DamageTaken)
+	armor := float32(c.DamageSaved)
+	count := blood*0.5 + armor*0.5
+	if count < 10 {
+		count = 10
+	}
+
+	// Compute damage direction: from DamageOrigin to entity.
+	from := [3]float32{
+		c.DamageOrigin[0] - entityOrigin[0],
+		c.DamageOrigin[1] - entityOrigin[1],
+		c.DamageOrigin[2] - entityOrigin[2],
+	}
+	// Normalize.
+	length := float32(math.Sqrt(float64(from[0]*from[0] + from[1]*from[1] + from[2]*from[2])))
+	if length > 0 {
+		from[0] /= length
+		from[1] /= length
+		from[2] /= length
+	}
+
+	// Compute right and forward vectors from entity angles.
+	// Quake angles: [pitch, yaw, roll] in degrees.
+	yawRad := float64(entityAngles[1]) * math.Pi / 180.0
+	pitchRad := float64(entityAngles[0]) * math.Pi / 180.0
+
+	// Forward vector.
+	forward := [3]float32{
+		float32(math.Cos(yawRad) * math.Cos(pitchRad)),
+		float32(math.Sin(yawRad) * math.Cos(pitchRad)),
+		float32(-math.Sin(pitchRad)),
+	}
+	// Right vector (perpendicular to forward, in XY plane).
+	right := [3]float32{
+		float32(math.Sin(yawRad)),
+		float32(-math.Cos(yawRad)),
+		0,
+	}
+
+	// Roll kick: lateral component of damage direction.
+	sideRoll := from[0]*right[0] + from[1]*right[1] + from[2]*right[2]
+	c.DamageKickRoll = count * sideRoll * kickRoll
+
+	// Pitch kick: forward/back component of damage direction.
+	sidePitch := from[0]*forward[0] + from[1]*forward[1] + from[2]*forward[2]
+	c.DamageKickPitch = count * sidePitch * kickPitch
+
+	c.DamageKickTime = kickTime
 }
 
 // SetCustomShift overrides the contents (empty) shift with an arbitrary color,

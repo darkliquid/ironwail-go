@@ -170,6 +170,11 @@ func initGameHost() error {
 	cvar.Register("cl_rollangle", "2.0", cvar.FlagArchive, "Camera roll angle when strafing")
 	cvar.Register("cl_rollspeed", "200", 0, "Lateral speed at which full roll is applied")
 
+	// View kick effects (V_ParseDamage damage kick).
+	cvar.Register("v_kicktime", "0.5", 0, "Duration of damage kick effect")
+	cvar.Register("v_kickroll", "0.6", 0, "Damage kick roll intensity")
+	cvar.Register("v_kickpitch", "0.6", 0, "Damage kick pitch intensity")
+
 	// Idle-sway cvars (V_AddIdle / CalcGunAngle).
 	cvar.Register("v_idlescale", "0", 0, "Idle sway scale (0 = off)")
 	cvar.Register("v_iyaw_cycle", "2", 0, "Idle sway yaw cycle frequency")
@@ -1337,6 +1342,19 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 	origin = viewApplyViewmodelQuakeFudge(origin, scrViewSize)
 
+	// Apply stair step smoothing to weapon origin.
+	// Mirrors C Ironwail V_CalcRefdef: view->origin[2] += oldz - ent->origin[2].
+	// Note: globalViewCalc.oldZ was already updated by runtimeCameraState, so we just
+	// need to apply the offset. However, since we don't have the offset stored, we need
+	// to recompute it. But we can't call viewStairSmoothOffset again because it modifies
+	// state. Instead, we'll compute the offset directly from globalViewCalc.oldZ.
+	if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+		if globalViewCalc.oldZInit {
+			offset := globalViewCalc.oldZ - entityOrigin[2]
+			origin[2] += offset
+		}
+	}
+
 	return &renderer.AliasModelEntity{
 		ModelID: modelName,
 		Model:   mdl,
@@ -1898,7 +1916,12 @@ func runtimeViewState() (origin, angles [3]float32) {
 
 	if gameClient != nil {
 		if clientOrigin, ok := runtimePlayerOrigin(); ok {
+			// Apply ViewHeight + bob to camera Z.
+			// Mirrors C Ironwail V_CalcRefdef: r_refdef.vieworg[2] += cl.viewheight + bob.
 			clientOrigin[2] += gameClient.ViewHeight
+			bob := viewCalcBob(gameClient.Time, gameClient.Velocity)
+			clientOrigin[2] += bob
+
 			viewAngles := runtimeInterpolatedViewAngles()
 			return clientOrigin, viewAngles
 		}
@@ -2003,20 +2026,63 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	// Apply node-line bias to camera origin to prevent BSP z-fighting.
 	// Mirrors C Ironwail: r_refdef.vieworg[i] += 1.0/32 (applied just before R_RenderView).
 	cameraOrigin := viewNodeLineOffset(origin)
+
+	// Apply V_BoundOffsets to clamp camera relative to entity origin.
+	// Mirrors C Ironwail view.c:665-686.
+	if gameClient != nil {
+		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+			cameraOrigin = viewBoundOffsets(cameraOrigin, entityOrigin)
+
+			// Apply stair step smoothing.
+			// Mirrors C Ironwail V_CalcRefdef stair smoothing (view.c:871-888).
+			deltaTime := 0.0
+			if gameHost != nil {
+				deltaTime = gameHost.FrameTime()
+			}
+			stairOffset := viewStairSmoothOffset(&globalViewCalc, entityOrigin[2], gameClient.OnGround, deltaTime)
+			cameraOrigin[2] += stairOffset
+		}
+	}
+
 	camera := renderer.ConvertClientStateToCamera(cameraOrigin, angles, 96.0)
 	if gameClient != nil {
 		if gameClient.Intermission == 0 {
+			// Check for dead view angle (health <= 0 → roll = 80).
+			// Mirrors C Ironwail view.c:728-731.
+			health := gameClient.Health()
+			if health <= 0 {
+				camera.Angles.Z = 80
+				// Dead players don't get other view effects.
+				camera.Time = float32(gameClient.Time)
+				// Apply r_waterwarp > 1 FOV oscillation when underwater.
+				_, wwFOV, _ := runtimeWaterwarpState()
+				camera.WaterwarpFOV = wwFOV
+				return camera
+			}
+
 			punch := runtimeGunKickAngles()
 			camera.Angles.X += punch[0]
 			camera.Angles.Y += punch[1]
 			camera.Angles.Z += punch[2]
+
+			// Apply damage kick (V_CalcViewRoll damage kick block).
+			// Mirrors C Ironwail view.c:718-722.
+			deltaTime := 0.0
+			if gameHost != nil {
+				deltaTime = gameHost.FrameTime()
+			}
+			cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+			cameraAngles = viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
+			camera.Angles.X = cameraAngles[0]
+			camera.Angles.Y = cameraAngles[1]
+			camera.Angles.Z = cameraAngles[2]
 
 			// View roll from lateral movement (V_CalcViewRoll).
 			roll := viewCalcRoll(angles, gameClient.Velocity)
 			camera.Angles.Z += roll
 
 			// Idle sway on the camera (V_AddIdle).
-			cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+			cameraAngles = [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 			cameraAngles = viewAddIdle(cameraAngles, gameClient.Time)
 			camera.Angles.X = cameraAngles[0]
 			camera.Angles.Y = cameraAngles[1]
@@ -2230,6 +2296,36 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	// Mirrors C view.c:V_UpdateBlend() + V_SetContentsColor().
 	gameClient.SetContentsColor(runtimeCameraLeafContents)
 	gameClient.UpdateBlend(dt)
+
+	// Update damage kick angles if damage was recently taken.
+	// Mirrors C Ironwail V_ParseDamage damage kick calculation (view.c:329-345).
+	if gameClient.DamageTaken > 0 || gameClient.DamageSaved > 0 {
+		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+			var entityAngles [3]float32
+			// Get player entity angles from ViewEntity.
+			if gameClient.ViewEntity != 0 {
+				if state, ok := gameClient.Entities[gameClient.ViewEntity]; ok {
+					entityAngles = state.Angles
+				}
+			} else if state, ok := gameClient.Entities[0]; ok {
+				entityAngles = state.Angles
+			}
+			// Get cvar values.
+			kickTime := float32(0.5)
+			kickRoll := float32(0.6)
+			kickPitch := float32(0.6)
+			if cv := cvar.Get("v_kicktime"); cv != nil {
+				kickTime = cv.Float32()
+			}
+			if cv := cvar.Get("v_kickroll"); cv != nil {
+				kickRoll = cv.Float32()
+			}
+			if cv := cvar.Get("v_kickpitch"); cv != nil {
+				kickPitch = cv.Float32()
+			}
+			gameClient.CalculateDamageKick(entityOrigin, entityAngles, kickTime, kickRoll, kickPitch)
+		}
+	}
 
 	oldTime := particleTime
 	particleTime += float32(dt)

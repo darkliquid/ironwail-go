@@ -191,6 +191,11 @@ type Client struct {
 	DamageTaken     int
 	DamageSaved     int
 	DamageOrigin    [3]float32
+	// Damage kick state - roll/pitch angles and time remaining.
+	// Computed by CalculateDamageKick() and consumed by view calculation.
+	DamageKickRoll  float32
+	DamageKickPitch float32
+	DamageKickTime  float32
 
 	// CShifts holds the four color-shift blend channels used to compute the
 	// v_blend polyblend screen tint each frame.  Mirrors C cl.cshifts[].

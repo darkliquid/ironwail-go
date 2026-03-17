@@ -583,6 +583,7 @@ func TestRuntimeCameraStateAppliesPunchAnglesOutsideIntermission(t *testing.T) {
 	})
 
 	gameClient = cl.NewClient()
+	gameClient.Stats[inet.StatHealth] = 100 // Alive player
 	gameClient.PunchAngle = [3]float32{1, -2, 3}
 
 	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
@@ -635,6 +636,7 @@ func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
 	})
 
 	gameClient = cl.NewClient()
+	gameClient.Stats[inet.StatHealth] = 100 // Alive player
 	gameClient.Intermission = 0
 	gameClient.PunchAngles[1] = [3]float32{0, 0, 0}
 	gameClient.PunchAngles[0] = [3]float32{10, 0, 0}
@@ -657,6 +659,7 @@ func TestRuntimeCameraStateGunKickModeRaw(t *testing.T) {
 
 	cvar.Set("v_gunkick", "1")
 	gameClient = cl.NewClient()
+	gameClient.Stats[inet.StatHealth] = 100 // Alive player
 	gameClient.Intermission = 0
 	gameClient.PunchAngle = [3]float32{2, -4, 6}
 	gameClient.PunchAngles[1] = [3]float32{0, 0, 0}
@@ -680,12 +683,31 @@ func TestRuntimeCameraStateGunKickModeOff(t *testing.T) {
 
 	cvar.Set("v_gunkick", "0")
 	gameClient = cl.NewClient()
+	gameClient.Stats[inet.StatHealth] = 100 // Alive player
 	gameClient.Intermission = 0
 	gameClient.PunchAngle = [3]float32{2, -4, 6}
 
 	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
 	if camera.Angles.X != 1 || camera.Angles.Y != 2 || camera.Angles.Z != 3 {
 		t.Fatalf("runtimeCameraState with gunkick off = %v, want {1 2 3}", camera.Angles)
+	}
+}
+
+func TestRuntimeCameraStateDeadPlayerRoll(t *testing.T) {
+	originalClient := gameClient
+	t.Cleanup(func() {
+		gameClient = originalClient
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.Stats[inet.StatHealth] = 0 // Dead player
+	gameClient.Intermission = 0
+	gameClient.PunchAngle = [3]float32{10, 10, 10}
+
+	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
+	// Dead players should have roll = 80 and ignore other view effects.
+	if camera.Angles.Z != 80 {
+		t.Fatalf("runtimeCameraState dead player roll = %v, want 80", camera.Angles.Z)
 	}
 }
 

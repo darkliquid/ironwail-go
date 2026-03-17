@@ -8,10 +8,17 @@ import (
 )
 
 // viewCalcState holds persistent (frame-to-frame) state for view calculations.
-// It mirrors the static locals in C Ironwail's CalcGunAngle.
+// It mirrors the static locals in C Ironwail's CalcGunAngle and V_CalcViewRoll.
 type viewCalcState struct {
 	oldGunYaw   float32
 	oldGunPitch float32
+	// Damage kick state (V_ParseDamage / V_CalcViewRoll)
+	dmgTime  float32
+	dmgRoll  float32
+	dmgPitch float32
+	// Stair smoothing state (V_CalcRefdef oldz)
+	oldZ     float32
+	oldZInit bool
 }
 
 // globalViewCalc is the singleton view calc state used during gameplay.
@@ -268,4 +275,132 @@ func viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float64) [3]flo
 		origin[2] += 0.5
 	}
 	return origin
+}
+
+// viewSetDamageKick initializes damage kick state from a damage event.
+// Mirrors C Ironwail V_ParseDamage damage kick calculation (view.c:329-345).
+//
+// Parameters:
+//   - state:        persistent view state (modified in-place)
+//   - count:        damage amount (blood*0.5 + armor*0.5, min 10)
+//   - from:         normalized direction vector from damage source to player
+//   - entityAngles: player entity angles (for computing right/forward vectors)
+func viewSetDamageKick(state *viewCalcState, count float32, from, entityAngles [3]float32) {
+	kickRollCv := cvar.Get("v_kickroll")
+	kickPitchCv := cvar.Get("v_kickpitch")
+	kickTimeCv := cvar.Get("v_kicktime")
+	if kickRollCv == nil || kickPitchCv == nil || kickTimeCv == nil {
+		return
+	}
+
+	// Compute right and forward vectors from entity angles.
+	_, right, _ := qtypes.AngleVectors(qtypes.Vec3{X: entityAngles[0], Y: entityAngles[1], Z: entityAngles[2]})
+	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{X: entityAngles[0], Y: entityAngles[1], Z: entityAngles[2]})
+
+	// Roll kick: lateral component of damage direction.
+	sideRoll := from[0]*right.X + from[1]*right.Y + from[2]*right.Z
+	state.dmgRoll = count * sideRoll * float32(kickRollCv.Float)
+
+	// Pitch kick: forward/back component of damage direction.
+	sidePitch := from[0]*forward.X + from[1]*forward.Y + from[2]*forward.Z
+	state.dmgPitch = count * sidePitch * float32(kickPitchCv.Float)
+
+	state.dmgTime = float32(kickTimeCv.Float)
+}
+
+// viewApplyDamageKick applies damage-induced camera roll/pitch and decays the
+// damage kick timer.  Mirrors C Ironwail V_CalcViewRoll damage kick block
+// (view.c:718-722).
+//
+// Parameters:
+//   - state:     persistent view state (dmgTime/dmgRoll/dmgPitch); modified in-place
+//   - angles:    current camera angles [pitch, yaw, roll]
+//   - deltaTime: time elapsed since last frame (host_frametime or cl.time - cl.oldtime)
+//
+// Returns the updated camera angles.
+func viewApplyDamageKick(state *viewCalcState, angles [3]float32, deltaTime float64) [3]float32 {
+	if state.dmgTime > 0 {
+		kickTimeCv := cvar.Get("v_kicktime")
+		if kickTimeCv == nil || kickTimeCv.Float == 0 {
+			state.dmgTime = 0
+			return angles
+		}
+		kickTime := float32(kickTimeCv.Float)
+		angles[2] += state.dmgTime / kickTime * state.dmgRoll  // ROLL
+		angles[0] += state.dmgTime / kickTime * state.dmgPitch // PITCH
+		state.dmgTime -= float32(math.Abs(deltaTime))
+		if state.dmgTime < 0 {
+			state.dmgTime = 0
+		}
+	}
+	return angles
+}
+
+// viewBoundOffsets clamps the camera origin to within ±14 units in XY and
+// -22/+30 units in Z relative to the entity origin.  Mirrors C Ironwail
+// V_BoundOffsets (view.c:665-686).
+func viewBoundOffsets(vieworg, entityOrigin [3]float32) [3]float32 {
+	if vieworg[0] < entityOrigin[0]-14 {
+		vieworg[0] = entityOrigin[0] - 14
+	}
+	if vieworg[0] > entityOrigin[0]+14 {
+		vieworg[0] = entityOrigin[0] + 14
+	}
+	if vieworg[1] < entityOrigin[1]-14 {
+		vieworg[1] = entityOrigin[1] - 14
+	}
+	if vieworg[1] > entityOrigin[1]+14 {
+		vieworg[1] = entityOrigin[1] + 14
+	}
+	if vieworg[2] < entityOrigin[2]-22 {
+		vieworg[2] = entityOrigin[2] - 22
+	}
+	if vieworg[2] > entityOrigin[2]+30 {
+		vieworg[2] = entityOrigin[2] + 30
+	}
+	return vieworg
+}
+
+// viewStairSmooth computes and applies stair step smoothing offset.
+// Mirrors C Ironwail V_CalcRefdef stair smoothing block (view.c:871-888).
+//
+// Parameters:
+//   - state:      persistent view state (oldZ); modified in-place
+//   - entityZ:    player entity Z coordinate
+//   - onGround:   whether player is on ground
+//   - deltaTime:  time elapsed since last frame
+//
+// Returns the smoothing offset to add to both camera and weapon Z coordinates.
+func viewStairSmoothOffset(state *viewCalcState, entityZ float32, onGround bool, deltaTime float64) float32 {
+	// Initialize oldZ on first call.
+	if !state.oldZInit {
+		state.oldZ = entityZ
+		state.oldZInit = true
+		return 0
+	}
+
+	// Only smooth when on ground and moving upward (stairs).
+	// !noclip_anglehack is assumed (we don't have this hack in Go port).
+	if onGround && entityZ-state.oldZ > 0 {
+		steptime := float32(deltaTime)
+		if steptime < 0 {
+			steptime = 0
+		}
+
+		// Smooth oldZ toward entityZ at 80 units/sec.
+		state.oldZ += steptime * 80
+		if state.oldZ > entityZ {
+			state.oldZ = entityZ
+		}
+		// Clamp smoothing to max 12 units below current position.
+		if entityZ-state.oldZ > 12 {
+			state.oldZ = entityZ - 12
+		}
+
+		// Return the offset: oldZ - entityZ.
+		return state.oldZ - entityZ
+	}
+
+	state.oldZ = entityZ
+	return 0
 }

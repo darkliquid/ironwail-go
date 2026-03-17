@@ -277,3 +277,172 @@ func TestViewApplyViewmodelQuakeFudge_Size100AddsTwo(t *testing.T) {
 		cv.Int = 0
 	}
 }
+
+// ---- viewSetDamageKick / viewApplyDamageKick tests --------------------------
+
+func TestViewDamageKick_InitializesState(t *testing.T) {
+	ensureDamageKickCvars()
+	state := viewCalcState{}
+	// Damage from the right (+Y direction in Quake, which is -right).
+	from := [3]float32{0, 1, 0}
+	entityAngles := [3]float32{0, 0, 0}
+	viewSetDamageKick(&state, 20, from, entityAngles)
+	if state.dmgTime == 0 {
+		t.Error("expected dmgTime to be set")
+	}
+	if state.dmgRoll == 0 && state.dmgPitch == 0 {
+		t.Error("expected dmgRoll or dmgPitch to be non-zero")
+	}
+}
+
+func TestViewDamageKick_DecaysOverTime(t *testing.T) {
+	ensureDamageKickCvars()
+	state := viewCalcState{dmgTime: 0.5, dmgRoll: 10, dmgPitch: 5}
+	angles := [3]float32{0, 0, 0}
+	// Apply damage kick with a time delta.
+	angles = viewApplyDamageKick(&state, angles, 0.1)
+	if state.dmgTime >= 0.5 {
+		t.Errorf("expected dmgTime to decay, got %v", state.dmgTime)
+	}
+	if angles[2] == 0 && angles[0] == 0 {
+		t.Error("expected angles to be modified by damage kick")
+	}
+}
+
+func TestViewDamageKick_DecaysToZero(t *testing.T) {
+	ensureDamageKickCvars()
+	state := viewCalcState{dmgTime: 0.5, dmgRoll: 10, dmgPitch: 5}
+	angles := [3]float32{0, 0, 0}
+	// Apply damage kick with a large time delta to decay completely.
+	angles = viewApplyDamageKick(&state, angles, 1.0)
+	if state.dmgTime != 0 {
+		t.Errorf("expected dmgTime to decay to 0, got %v", state.dmgTime)
+	}
+}
+
+// ---- viewBoundOffsets tests -------------------------------------------------
+
+func TestViewBoundOffsets_WithinBounds(t *testing.T) {
+	entityOrigin := [3]float32{100, 100, 100}
+	vieworg := [3]float32{105, 105, 105}
+	out := viewBoundOffsets(vieworg, entityOrigin)
+	if out != vieworg {
+		t.Errorf("expected no change for vieworg within bounds, got %v", out)
+	}
+}
+
+func TestViewBoundOffsets_ClampedXPositive(t *testing.T) {
+	entityOrigin := [3]float32{100, 100, 100}
+	vieworg := [3]float32{120, 100, 100} // 20 units away
+	out := viewBoundOffsets(vieworg, entityOrigin)
+	if out[0] != 114 { // 100 + 14
+		t.Errorf("expected X clamped to 114, got %v", out[0])
+	}
+}
+
+func TestViewBoundOffsets_ClampedXNegative(t *testing.T) {
+	entityOrigin := [3]float32{100, 100, 100}
+	vieworg := [3]float32{80, 100, 100} // -20 units
+	out := viewBoundOffsets(vieworg, entityOrigin)
+	if out[0] != 86 { // 100 - 14
+		t.Errorf("expected X clamped to 86, got %v", out[0])
+	}
+}
+
+func TestViewBoundOffsets_ClampedZPositive(t *testing.T) {
+	entityOrigin := [3]float32{100, 100, 100}
+	vieworg := [3]float32{100, 100, 140} // +40 units
+	out := viewBoundOffsets(vieworg, entityOrigin)
+	if out[2] != 130 { // 100 + 30
+		t.Errorf("expected Z clamped to 130, got %v", out[2])
+	}
+}
+
+func TestViewBoundOffsets_ClampedZNegative(t *testing.T) {
+	entityOrigin := [3]float32{100, 100, 100}
+	vieworg := [3]float32{100, 100, 70} // -30 units
+	out := viewBoundOffsets(vieworg, entityOrigin)
+	if out[2] != 78 { // 100 - 22
+		t.Errorf("expected Z clamped to 78, got %v", out[2])
+	}
+}
+
+// ---- viewStairSmooth tests --------------------------------------------------
+
+func TestViewStairSmooth_InitializesOldZ(t *testing.T) {
+	state := viewCalcState{}
+	entityZ := float32(100)
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.016)
+	if !state.oldZInit {
+		t.Error("expected oldZInit to be true")
+	}
+	if state.oldZ != 100 {
+		t.Errorf("expected oldZ=100, got %v", state.oldZ)
+	}
+	// First frame should return zero offset.
+	if offset != 0 {
+		t.Errorf("expected zero offset on first frame, got %v", offset)
+	}
+}
+
+func TestViewStairSmooth_SmoothsUpwardStep(t *testing.T) {
+	state := viewCalcState{oldZ: 100, oldZInit: true}
+	entityZ := float32(110)
+	// oldZ should move from 100 toward 110 at 80 units/sec.
+	// delta = 0.1 * 80 = 8, so oldZ = 100 + 8 = 108.
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1)
+	expectedOldZ := float32(108)
+	if math.Abs(float64(state.oldZ-expectedOldZ)) > 0.01 {
+		t.Errorf("expected oldZ=%v, got %v", expectedOldZ, state.oldZ)
+	}
+	// Offset should be oldZ - entityZ = 108 - 110 = -2.
+	expectedOffset := float32(-2)
+	if math.Abs(float64(offset-expectedOffset)) > 0.01 {
+		t.Errorf("expected offset=%v, got %v", expectedOffset, offset)
+	}
+}
+
+func TestViewStairSmooth_NoSmoothWhenNotOnGround(t *testing.T) {
+	state := viewCalcState{oldZ: 100, oldZInit: true}
+	entityZ := float32(110)
+	offset := viewStairSmoothOffset(&state, entityZ, false, 0.1)
+	// Not on ground, so oldZ should just be set to entityZ.
+	if state.oldZ != entityZ {
+		t.Errorf("expected oldZ=%v, got %v", entityZ, state.oldZ)
+	}
+	// No smoothing offset.
+	if offset != 0 {
+		t.Errorf("expected zero offset, got %v", offset)
+	}
+}
+
+func TestViewStairSmooth_NoSmoothWhenMovingDown(t *testing.T) {
+	state := viewCalcState{oldZ: 110, oldZInit: true}
+	entityZ := float32(100)
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1)
+	// Moving down, so oldZ should just be set to entityZ.
+	if state.oldZ != entityZ {
+		t.Errorf("expected oldZ=%v, got %v", entityZ, state.oldZ)
+	}
+	// No smoothing offset.
+	if offset != 0 {
+		t.Errorf("expected zero offset, got %v", offset)
+	}
+}
+
+// ensureDamageKickCvars registers damage kick cvars if not already present.
+func ensureDamageKickCvars() {
+	ensureViewCalcCvars()
+	defaults := map[string]string{
+		"v_kicktime":  "0.5",
+		"v_kickroll":  "0.6",
+		"v_kickpitch": "0.6",
+	}
+	for name, def := range defaults {
+		if cvar.Get(name) == nil {
+			cvar.Register(name, def, 0, "")
+		} else {
+			cvar.Set(name, def)
+		}
+	}
+}
