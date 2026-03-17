@@ -160,6 +160,30 @@ func initGameHost() error {
 	// Mirrors C Ironwail gl_cshiftpercent. Default 100 (full intensity).
 	cvar.Register("gl_cshiftpercent", "100", cvar.FlagArchive, "Global color-shift intensity percentage (0–100)")
 	cvar.Register("developer", "0", 0, "Developer mode")
+
+	// View-bob cvars (V_CalcBob).
+	cvar.Register("cl_bob", "0.02", cvar.FlagArchive, "View bobbing scale")
+	cvar.Register("cl_bobcycle", "0.6", 0, "View bobbing cycle length in seconds")
+	cvar.Register("cl_bobup", "0.5", 0, "Fraction of bob cycle spent moving upward")
+
+	// View-roll cvars (V_CalcViewRoll).
+	cvar.Register("cl_rollangle", "2.0", cvar.FlagArchive, "Camera roll angle when strafing")
+	cvar.Register("cl_rollspeed", "200", 0, "Lateral speed at which full roll is applied")
+
+	// Idle-sway cvars (V_AddIdle / CalcGunAngle).
+	cvar.Register("v_idlescale", "0", 0, "Idle sway scale (0 = off)")
+	cvar.Register("v_iyaw_cycle", "2", 0, "Idle sway yaw cycle frequency")
+	cvar.Register("v_iroll_cycle", "0.5", 0, "Idle sway roll cycle frequency")
+	cvar.Register("v_ipitch_cycle", "1", 0, "Idle sway pitch cycle frequency")
+	cvar.Register("v_iyaw_level", "0.3", 0, "Idle sway yaw amplitude")
+	cvar.Register("v_iroll_level", "0.1", 0, "Idle sway roll amplitude")
+	cvar.Register("v_ipitch_level", "0.3", 0, "Idle sway pitch amplitude")
+
+	// r_viewmodel_quake: origin fudge for different view sizes.
+	cvar.Register("r_viewmodel_quake", "0", 0, "Apply Quake-style viewmodel origin fudge based on scr_viewsize")
+	// scr_viewsize: screen view size percentage (100 = full), used by
+	// r_viewmodel_quake fudge.
+	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
 	registerControlCvars()
 
 	// Create host instance
@@ -1263,8 +1287,28 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		frame = 0
 	}
 	origin, _ := runtimeViewState()
-	angles := gameClient.ViewAngles
-	angles[0] = -angles[0]
+	viewAngles := gameClient.ViewAngles
+
+	// CalcGunAngle: rate-limited drift + idle sway on the weapon model.
+	frameTime := 0.0
+	if gameHost != nil {
+		frameTime = gameHost.FrameTime()
+	}
+	angles := viewCalcGunAngle(&globalViewCalc, viewAngles, gameClient.Time, frameTime)
+
+	// Apply view bob to weapon origin (V_CalcRefdef: forward*bob*0.4 + Z bob).
+	bob := viewCalcBob(gameClient.Time, gameClient.Velocity)
+	if bob != 0 {
+		forward, _, _ := runtimeAngleVectors(viewAngles)
+		origin = viewApplyBobToOrigin(origin, forward, bob)
+	}
+
+	// r_viewmodel_quake origin fudge.
+	scrViewSize := 100.0
+	if cv := cvar.Get("scr_viewsize"); cv != nil {
+		scrViewSize = cv.Float
+	}
+	origin = viewApplyViewmodelQuakeFudge(origin, scrViewSize)
 
 	return &renderer.AliasModelEntity{
 		ModelID: modelName,
@@ -1828,7 +1872,8 @@ func runtimeViewState() (origin, angles [3]float32) {
 	if gameClient != nil {
 		if clientOrigin, ok := runtimePlayerOrigin(); ok {
 			clientOrigin[2] += gameClient.ViewHeight
-			return clientOrigin, runtimeInterpolatedViewAngles()
+			viewAngles := runtimeInterpolatedViewAngles()
+			return clientOrigin, viewAngles
 		}
 	}
 
@@ -1928,13 +1973,27 @@ func applyStartupGameplayInputMode() {
 }
 
 func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
-	camera := renderer.ConvertClientStateToCamera(origin, angles, 96.0)
+	// Apply node-line bias to camera origin to prevent BSP z-fighting.
+	// Mirrors C Ironwail: r_refdef.vieworg[i] += 1.0/32 (applied just before R_RenderView).
+	cameraOrigin := viewNodeLineOffset(origin)
+	camera := renderer.ConvertClientStateToCamera(cameraOrigin, angles, 96.0)
 	if gameClient != nil {
 		if gameClient.Intermission == 0 {
 			punch := runtimeGunKickAngles()
 			camera.Angles.X += punch[0]
 			camera.Angles.Y += punch[1]
 			camera.Angles.Z += punch[2]
+
+			// View roll from lateral movement (V_CalcViewRoll).
+			roll := viewCalcRoll(angles, gameClient.Velocity)
+			camera.Angles.Z += roll
+
+			// Idle sway on the camera (V_AddIdle).
+			cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+			cameraAngles = viewAddIdle(cameraAngles, gameClient.Time)
+			camera.Angles.X = cameraAngles[0]
+			camera.Angles.Y = cameraAngles[1]
+			camera.Angles.Z = cameraAngles[2]
 		}
 		camera.Time = float32(gameClient.Time)
 	}

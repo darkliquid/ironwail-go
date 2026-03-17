@@ -723,11 +723,18 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	})
 
 	cvar.Set("r_drawviewmodel", "1")
+	// Register view-calc cvars needed by collectViewModelEntity.
+	cvar.Set("cl_bob", "0")       // disable bob so origin is predictable
+	cvar.Set("cl_bobcycle", "0")  // zero cycle → bob returns 0
+	cvar.Set("cl_bobup", "0.5")
+	cvar.Set("v_idlescale", "0")  // no idle sway
+	cvar.Set("r_viewmodel_quake", "0")
+
 	gameClient = cl.NewClient()
 	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[0] = 100
-	gameClient.Stats[2] = 1
-	gameClient.Stats[5] = 1
+	gameClient.Stats[inet.StatHealth] = 100
+	gameClient.Stats[inet.StatWeapon] = 1
+	gameClient.Stats[inet.StatWeaponFrame] = 1
 	gameClient.ViewAngles = [3]float32{12, 34, 0}
 	gameClient.ViewHeight = 28
 	gameClient.PredictedOrigin = [3]float32{100, 200, 300}
@@ -747,8 +754,12 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	if entity.Origin != [3]float32{100, 200, 328} {
 		t.Fatalf("viewmodel origin = %v, want eye origin [100 200 328]", entity.Origin)
 	}
-	if entity.Angles != [3]float32{-12, 34, 0} {
-		t.Fatalf("viewmodel angles = %v, want [-12 34 0]", entity.Angles)
+	// viewCalcGunAngle negates pitch: -(12 + 0) = -12.
+	if entity.Angles[0] != -12 {
+		t.Fatalf("viewmodel pitch = %v, want -12", entity.Angles[0])
+	}
+	if entity.Angles[1] != 34 {
+		t.Fatalf("viewmodel yaw = %v, want 34", entity.Angles[1])
 	}
 	if entity.Frame != 1 {
 		t.Fatalf("viewmodel frame = %d, want 1", entity.Frame)
@@ -771,8 +782,8 @@ func TestCollectViewModelEntitySuppressesIntermission(t *testing.T) {
 	gameClient = cl.NewClient()
 	gameClient.Intermission = 1
 	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[2] = 1
-	gameClient.Stats[0] = 100
+	gameClient.Stats[inet.StatWeapon] = 1
+	gameClient.Stats[inet.StatHealth] = 100
 	gameMenu = menu.NewManager(nil, nil)
 	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
 	aliasModelCache = map[string]*model.Model{
@@ -802,8 +813,8 @@ func TestCollectViewModelEntityHonorsDrawViewModelCvar(t *testing.T) {
 
 	gameClient = cl.NewClient()
 	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[2] = 1
-	gameClient.Stats[0] = 100
+	gameClient.Stats[inet.StatWeapon] = 1
+	gameClient.Stats[inet.StatHealth] = 100
 	gameMenu = menu.NewManager(nil, nil)
 	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
 	aliasModelCache = map[string]*model.Model{
@@ -812,6 +823,9 @@ func TestCollectViewModelEntityHonorsDrawViewModelCvar(t *testing.T) {
 			AliasHeader: &model.AliasHeader{NumFrames: 1},
 		},
 	}
+	cvar.Set("cl_bobcycle", "0") // disable bob for predictable test
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
 
 	cvar.Set("r_drawviewmodel", "0")
 	if entity := collectViewModelEntity(); entity != nil {
@@ -839,8 +853,8 @@ func TestCollectViewModelEntitySuppressesWhenInvisible(t *testing.T) {
 	cvar.Set("r_drawviewmodel", "1")
 	gameClient = cl.NewClient()
 	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[2] = 1
-	gameClient.Stats[0] = 100
+	gameClient.Stats[inet.StatWeapon] = 1
+	gameClient.Stats[inet.StatHealth] = 100
 	gameClient.Items = cl.ItemInvisibility
 	gameMenu = menu.NewManager(nil, nil)
 	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
