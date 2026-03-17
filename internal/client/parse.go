@@ -1060,7 +1060,11 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 	}
 	if state.ModelIndex == 0 {
-		delete(p.Client.Entities, entNum)
+		// Server sent ModelIndex=0 → entity is invisible (equivalent to C's
+		// ent->model = NULL). Keep the slot in the map so delta decoding on
+		// the next entity update starts from a valid state, matching C Quake's
+		// fixed-size entity array where slots are never freed.
+		p.Client.Entities[entNum] = state
 		return nil
 	}
 

@@ -371,8 +371,15 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if err := p.ParseServerMessage(data); err != nil {
 		t.Fatalf("ParseServerMessage third datagram: %v", err)
 	}
-	if _, ok := c.Entities[s.NumForEdict(ent)]; ok {
-		t.Fatalf("entity %d still present after retire update", s.NumForEdict(ent))
+	// After the server retires the entity (ModelIndex → 0), the client keeps
+	// the slot in the map with ModelIndex==0, matching C Quake's fixed-size
+	// entity array where slots persist. The renderer skips ModelIndex==0.
+	if state, ok := c.Entities[s.NumForEdict(ent)]; ok {
+		if state.ModelIndex != 0 {
+			t.Fatalf("retired entity %d has ModelIndex=%d, want 0", s.NumForEdict(ent), state.ModelIndex)
+		}
+	} else {
+		t.Fatalf("entity %d should still be in map (with ModelIndex==0) after retire, but was deleted", s.NumForEdict(ent))
 	}
 }
 

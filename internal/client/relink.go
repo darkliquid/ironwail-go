@@ -22,15 +22,14 @@ func (c *Client) RelinkEntities() {
 	frac := float32(c.LerpPoint())
 	bobjRotate := angleMod(100 * float32(c.Time))
 
-	var toDelete []int
-
 	for entNum, state := range c.Entities {
-		// If this entity was not updated in the latest server message, remove it.
+		// If this entity was not updated in the latest server message, skip it.
 		// Mirrors C: if (ent->msgtime != cl.mtime[0]) { ent->model = NULL; continue; }
+		// C keeps the entity slot alive in a fixed array; we keep it in the map
+		// with ModelIndex intact so the next entity update's delta decoding starts
+		// from a valid state. The renderer already skips ModelIndex==0 entities,
+		// and stale entities won't be collected because they aren't re-linked.
 		if state.MsgTime != c.MTime[0] {
-			state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
-			c.Entities[entNum] = state
-			toDelete = append(toDelete, entNum)
 			continue
 		}
 
@@ -76,10 +75,6 @@ func (c *Client) RelinkEntities() {
 		state.ForceLink = false
 		state.LerpFlags &^= inet.LerpResetMove
 		c.Entities[entNum] = state
-	}
-
-	for _, entNum := range toDelete {
-		delete(c.Entities, entNum)
 	}
 }
 
