@@ -422,6 +422,12 @@ func (s *Server) createAreaNode(depth int, mins, maxs [3]float32) *AreaNode {
 	node := &s.Areanodes[s.numAreaNodes]
 	s.numAreaNodes++
 
+	// Initialize sentinel nodes for doubly-linked lists (matching C's ClearLink)
+	node.TriggerEdicts.AreaNext = &node.TriggerEdicts
+	node.TriggerEdicts.AreaPrev = &node.TriggerEdicts
+	node.SolidEdicts.AreaNext = &node.SolidEdicts
+	node.SolidEdicts.AreaPrev = &node.SolidEdicts
+
 	if depth == AreaDepth {
 		node.Axis = -1
 		node.Children[0] = nil
