@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
@@ -17,6 +18,25 @@ func newPhysicsTestServer() *Server {
 		NumEdicts:   1,
 	}
 	return s
+}
+
+func withPhysicsCVars(t *testing.T, values map[string]string) {
+	t.Helper()
+	original := make(map[string]string, len(values))
+	for name := range values {
+		if cvar.Get(name) == nil {
+			cvar.Register(name, "0", cvar.FlagServerInfo, "")
+		}
+		original[name] = cvar.StringValue(name)
+	}
+	for name, value := range values {
+		cvar.Set(name, value)
+	}
+	t.Cleanup(func() {
+		for name, value := range original {
+			cvar.Set(name, value)
+		}
+	})
 }
 
 func TestClipVelocity(t *testing.T) {
@@ -113,4 +133,48 @@ func TestPhysicsFrameOnSpawnedMap(t *testing.T) {
 	if s.Time <= before {
 		t.Fatalf("time did not advance: before=%v after=%v", before, s.Time)
 	}
+}
+
+func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
+	mkServer := func() (*Server, *Edict, *Edict) {
+		s := newPhysicsTestServer()
+		s.Static = &ServerStatic{MaxClients: 1}
+		clientEnt := &Edict{Vars: &EntVars{}}
+		clientEnt.Vars.MoveType = float32(MoveTypeNoClip)
+		clientEnt.Vars.Velocity = [3]float32{10, 0, 0}
+		nonClientEnt := &Edict{Vars: &EntVars{}}
+		nonClientEnt.Vars.MoveType = float32(MoveTypeNoClip)
+		nonClientEnt.Vars.Velocity = [3]float32{20, 0, 0}
+		s.Edicts = append(s.Edicts, clientEnt, nonClientEnt)
+		s.NumEdicts = len(s.Edicts)
+		return s, clientEnt, nonClientEnt
+	}
+
+	t.Run("freeze enabled skips non-clients", func(t *testing.T) {
+		withPhysicsCVars(t, map[string]string{"sv_freezenonclients": "1"})
+		s, clientEnt, nonClientEnt := mkServer()
+
+		s.Physics()
+
+		if clientEnt.Vars.Origin[0] == 0 {
+			t.Fatalf("client entity did not move with freeze enabled: origin=%v", clientEnt.Vars.Origin)
+		}
+		if nonClientEnt.Vars.Origin[0] != 0 {
+			t.Fatalf("non-client entity moved with freeze enabled: origin=%v", nonClientEnt.Vars.Origin)
+		}
+	})
+
+	t.Run("freeze disabled updates all entities", func(t *testing.T) {
+		withPhysicsCVars(t, map[string]string{"sv_freezenonclients": "0"})
+		s, clientEnt, nonClientEnt := mkServer()
+
+		s.Physics()
+
+		if clientEnt.Vars.Origin[0] == 0 {
+			t.Fatalf("client entity did not move with freeze disabled: origin=%v", clientEnt.Vars.Origin)
+		}
+		if nonClientEnt.Vars.Origin[0] == 0 {
+			t.Fatalf("non-client entity did not move with freeze disabled: origin=%v", nonClientEnt.Vars.Origin)
+		}
+	})
 }

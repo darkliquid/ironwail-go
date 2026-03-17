@@ -1,5 +1,7 @@
 package server
 
+import "github.com/ironwail/ironwail-go/internal/cvar"
+
 func (s *Server) Physics() {
 	if s.QCVM != nil {
 		if startFrame := s.QCVM.FindFunction("StartFrame"); startFrame >= 0 {
@@ -14,6 +16,12 @@ func (s *Server) Physics() {
 		ent := s.Edicts[i]
 		if ent == nil || ent.Free {
 			continue
+		}
+		if cv := cvar.Get("sv_freezenonclients"); cv != nil && cv.Bool() {
+			isClientEnt := s.Static != nil && i > 0 && i <= s.Static.MaxClients
+			if !isClientEnt {
+				continue
+			}
 		}
 
 		if s.QCVM != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
@@ -323,9 +324,20 @@ func (s *Server) syncQCVMState() {
 	if s.QCVM == nil {
 		return
 	}
+	skill := 1
+	if skillCV := cvar.Get("skill"); skillCV != nil {
+		skill = int(skillCV.Float + 0.5)
+		if skill < 0 {
+			skill = 0
+		} else if skill > 3 {
+			skill = 3
+		}
+		cvar.Set("skill", strconv.Itoa(skill))
+	}
 	s.ensureQCVMEdictStorage()
 	s.QCVM.SetGlobal("world", 0)
 	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
+	s.QCVM.SetGlobal("skill", skill)
 	for entNum := 0; entNum < s.NumEdicts; entNum++ {
 		syncEdictToQCVM(s.QCVM, entNum, s.EdictNum(entNum))
 	}

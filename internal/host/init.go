@@ -34,9 +34,12 @@ const (
 )
 
 func registerHostCVars() {
+	cvar.Register("skill", "1", cvar.FlagArchive, "Single-player skill level")
 	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
 	cvar.Register("coop", "0", cvar.FlagServerInfo, "Cooperative game mode")
 	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
+	cvar.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
+	cvar.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
 	cvar.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
 	cvar.Register("timelimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match time limit in minutes")
 	cvar.Register("teamplay", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Teamplay rules")

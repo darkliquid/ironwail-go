@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -108,6 +109,76 @@ func TestSVClientThinkNoclip(t *testing.T) {
 	}
 	if ent.Vars.Velocity == [3]float32{} {
 		t.Fatalf("noclip move did not update velocity")
+	}
+}
+
+func withUserCVars(t *testing.T, values map[string]string) {
+	t.Helper()
+	original := make(map[string]string, len(values))
+	for name := range values {
+		if cvar.Get(name) == nil {
+			cvar.Register(name, "0", cvar.FlagServerInfo, "")
+		}
+		original[name] = cvar.StringValue(name)
+	}
+	for name, value := range values {
+		cvar.Set(name, value)
+	}
+	t.Cleanup(func() {
+		for name, value := range original {
+			cvar.Set(name, value)
+		}
+	})
+}
+
+func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
+	withUserCVars(t, map[string]string{"sv_altnoclip": "1"})
+
+	s := NewServer()
+	s.FrameTime = 0.1
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.MoveType = float32(MoveTypeNoClip)
+	ent.Vars.Health = 100
+	ent.Vars.VAngle = [3]float32{45, 0, 0}
+
+	client := &Client{
+		Edict: ent,
+		LastCmd: UserCmd{
+			ForwardMove: 100,
+		},
+	}
+
+	s.SV_ClientThink(client)
+
+	if ent.Vars.Velocity[2] == 0 {
+		t.Fatalf("sv_altnoclip=1 expected pitched noclip to include vertical velocity, got %v", ent.Vars.Velocity)
+	}
+}
+
+func TestSVClientThinkNoclipClassicIgnoresPitch(t *testing.T) {
+	withUserCVars(t, map[string]string{"sv_altnoclip": "0"})
+
+	s := NewServer()
+	s.FrameTime = 0.1
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.MoveType = float32(MoveTypeNoClip)
+	ent.Vars.Health = 100
+	ent.Vars.VAngle = [3]float32{45, 0, 0}
+
+	client := &Client{
+		Edict: ent,
+		LastCmd: UserCmd{
+			ForwardMove: 100,
+		},
+	}
+
+	s.SV_ClientThink(client)
+
+	if ent.Vars.Velocity[2] != 0 {
+		t.Fatalf("sv_altnoclip=0 expected horizontal noclip forward move, got %v", ent.Vars.Velocity)
+	}
+	if ent.Vars.Velocity[0] == 0 && ent.Vars.Velocity[1] == 0 {
+		t.Fatalf("sv_altnoclip=0 expected non-zero horizontal velocity, got %v", ent.Vars.Velocity)
 	}
 }
 

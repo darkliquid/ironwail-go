@@ -257,7 +257,13 @@ func (s *Server) waterJump(ent *Edict) {
 }
 
 func (s *Server) noclipMove(ctx *clientMoveContext) {
-	AngleVectors(ctx.player.Vars.VAngle, &ctx.forward, &ctx.right, &ctx.up)
+	viewAngles := ctx.player.Vars.VAngle
+	// Ironwail parity: sv_altnoclip 0 keeps noclip movement horizontal by
+	// ignoring pitch for forward/strafe vectors.
+	if cv := cvar.Get("sv_altnoclip"); cv != nil && !cv.Bool() {
+		viewAngles[0] = 0
+	}
+	AngleVectors(viewAngles, &ctx.forward, &ctx.right, &ctx.up)
 
 	ctx.player.Vars.Velocity[0] = ctx.forward[0]*ctx.cmd.ForwardMove + ctx.right[0]*ctx.cmd.SideMove
 	ctx.player.Vars.Velocity[1] = ctx.forward[1]*ctx.cmd.ForwardMove + ctx.right[1]*ctx.cmd.SideMove
