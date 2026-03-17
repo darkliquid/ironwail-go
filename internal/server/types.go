@@ -1279,105 +1279,384 @@ const (
 	SignonDone
 )
 
-// NetMessageType defines client-to-server message types.
+// NetMessageType defines client-to-server (CLC = "client command") message types.
+//
+// These are the messages a connected client can send to the server. The server
+// reads these from the client's network stream and dispatches to the appropriate
+// handler. The message type byte is the first byte of each client message.
 type NetMessageType int
 
 const (
+	// CLCNop — no-operation keepalive message. Sent by the client to keep the
+	// connection alive when there is no other data to send. The server reads
+	// and discards it. Prevents timeout disconnection.
 	CLCNop NetMessageType = iota
+
+	// CLCDisconnect — the client is disconnecting gracefully. The server
+	// removes the client's entity from the world, frees the client slot,
+	// and broadcasts a disconnect message to other players. This is the
+	// "clean" way to leave; network errors cause timeout-based disconnection.
 	CLCDisconnect
+
+	// CLCMove — movement input from the client (the most frequent message).
+	// Contains a UserCmd struct: view angles, movement speeds, button states,
+	// and impulse. Sent every client frame (typically 60-72 Hz). The server
+	// applies this to the player entity in SV_ClientThink. This is the core
+	// of Quake's client-server input pipeline.
 	CLCMove
+
+	// CLCStringCmd — a console command string from the client. The client sends
+	// this when the player types a command in the console (e.g., "say hello",
+	// "kill", "name newname"). The server parses and executes allowed commands.
+	// Dangerous commands (e.g., server-side file access) are blocked.
 	CLCStringCmd
 )
 
-// ServerNetMessage defines server-to-client message types.
+// ServerNetMessage defines server-to-client (SVC = "server command") message types.
+//
+// These are the messages the server sends to clients to communicate world state
+// changes, entity updates, sounds, effects, and game events. The client reads
+// these from the server's network stream and updates its local state accordingly.
+//
+// Many of these messages have "2" variants (e.g., SVCSpawnBaseline2) which are
+// extended-protocol versions supporting larger index ranges (16-bit instead of
+// 8-bit model/sound indices) for mods with more than 256 models or sounds.
 type ServerNetMessage int
 
 const (
+	// SVCNop — no-operation keepalive. Server sends this to prevent client
+	// timeout when there's no real data to transmit.
 	SVCNop ServerNetMessage = iota
+
+	// SVCDamage — notifies the client that their player took damage. Contains
+	// the armor-absorbed amount, health-lost amount, and the direction the
+	// damage came from. The client uses this to show the red screen flash,
+	// directional damage indicator, and view kick.
 	SVCDamage
+
+	// SVCDisplayDisconnect — instructs the client to display a disconnect
+	// message (e.g., "Server shutting down"). The client shows the message
+	// and returns to the main menu.
 	SVCDisplayDisconnect
+
+	// SVCLevelName — sends the human-readable level name (e.g., "The Slipgate
+	// Complex"). Displayed in the loading screen and intermission scoreboard.
 	SVCLevelName
+
+	// SVCLoaded — signals that the server has finished loading the level and
+	// the client can proceed with signon stages.
 	SVCLoaded
+
+	// SVCMove — server-side acknowledgment of a client move, potentially
+	// including corrections. Used for server-authoritative position updates.
 	SVCMove
+
+	// SVCEnterServer — signals the client to transition from signon to active
+	// gameplay. The client starts its render loop and begins sending UserCmd.
 	SVCEnterServer
+
+	// SVCSound — plays a sound effect. Contains: sound index, volume,
+	// attenuation, channel, entity number, and origin. The client spatializes
+	// the sound relative to the listener (distance, direction, Doppler).
 	SVCSound
+
+	// SVCPrint — prints a text message to the client's console/HUD. Used for
+	// chat messages, kill notifications, and server announcements. The text
+	// appears in the top-left message area and scrolls into the console log.
 	SVCPrint
+
+	// SVCSinglePrecisionFrame — sends entity frame numbers as single-precision
+	// values (standard protocol). Sufficient for models with < 256 frames.
 	SVCSinglePrecisionFrame
+
+	// SVCDoublePrecisionFrame — sends entity frame numbers with extended
+	// precision for models with large frame counts (> 255).
 	SVCDoublePrecisionFrame
+
+	// SVCCreateBaseline — sends a complete entity baseline during signon.
+	// The baseline is the reference state for delta compression. Standard
+	// protocol version with 8-bit model/sound indices.
 	SVCCreateBaseline
+
+	// SVCCreateBaseline2 — extended-protocol baseline with 16-bit indices,
+	// supporting more than 256 models/sounds.
 	SVCCreateBaseline2
+
+	// SVCLightStyle — defines a lightstyle pattern. Contains a style index
+	// and a string of brightness characters ('a' = dark, 'z' = bright).
+	// The client cycles through the string to animate lights. Style 0 is
+	// normal, style 1 is flicker, etc.
 	SVCLightStyle
+
+	// SVCTempEntity — spawns a temporary visual effect entity (explosion,
+	// blood splash, lightning beam, spark shower, etc.). Temp entities are
+	// client-side only; they have no server-side edict. Each type has its
+	// own data format (position, direction, color, etc.).
 	SVCTempEntity
+
+	// SVCCenterPrint — displays a message in the center of the screen.
+	// Used for story text, item pickup messages, and mod notifications.
+	// The message fades after a few seconds.
 	SVCCenterPrint
+
+	// SVCKillMonster — increments the client's killed-monsters count.
+	// Sent when a monster dies. The client updates its HUD stat display.
+	// The server also tracks total monsters and sends that separately.
 	SVCKillMonster
+
+	// SVCSpawnBaseline — sends entity baseline state during signon (standard
+	// protocol). Equivalent to SVCCreateBaseline but may use a different
+	// encoding path in some engine variants.
 	SVCSpawnBaseline
+
+	// SVCSpawnBaseline2 — extended-protocol spawn baseline with 16-bit indices.
 	SVCSpawnBaseline2
+
+	// SVCSpawnStatic — spawns a static entity (a world decoration that never
+	// moves, like a torch or armor model on a pedestal). Static entities are
+	// rendered but have no edict; they consume no server entity slots. Standard
+	// protocol with 8-bit model index.
 	SVCSpawnStatic
+
+	// SVCSpawnStatic2 — extended-protocol static entity with 16-bit model index.
 	SVCSpawnStatic2
+
+	// SVCSpawnStaticSound — creates a looping ambient sound at a fixed position
+	// (wind, lava bubbling, etc.). Standard protocol with 8-bit sound index.
 	SVCSpawnStaticSound
+
+	// SVCSpawnStaticSound2 — extended-protocol static sound with 16-bit sound index.
 	SVCSpawnStaticSound2
+
+	// SVCClientData — per-frame client-specific data update. Contains: view
+	// height, ideal pitch, punch angle, velocity, items bitmask, weapon model,
+	// weapon frame, ammo counts, and active weapon. This is the "HUD update"
+	// message — everything the client needs to draw the status bar.
 	SVCClientData
+
+	// SVCDownload — file download data. Used when the client needs to download
+	// custom content (models, sounds, maps) from the server. Contains a data
+	// chunk and progress information.
 	SVCDownload
+
+	// SVCUpdatePing — updates a player's ping display in the scoreboard.
+	// Contains the client index and their current ping in milliseconds.
 	SVCUpdatePing
+
+	// SVCUpdateFrags — updates a player's frag (kill) count. Contains the
+	// client index and new frag count. All clients receive this for scoreboard.
 	SVCUpdateFrags
+
+	// SVCUpdateStat — updates a single client stat value (health, armor, ammo,
+	// etc.). Used for incremental stat changes between full SVCClientData updates.
 	SVCUpdateStat
+
+	// SVCParticle — spawns a burst of particles at a position with a direction.
+	// Used for bullet impact sparks, blood sprays, and other particle effects.
+	// Legacy message type; modern engines may use SVCTempEntity instead.
 	SVCParticle
+
+	// SVCCDTrack — commands the client to play a CD audio track. Contains the
+	// track number. Originally played from the game CD; modern source ports
+	// play equivalent music files (OGG/MP3).
 	SVCCDTrack
+
+	// SVCLocalSound — plays a sound that only this client hears (not spatialized
+	// from a world position). Used for UI sounds, pickup sounds, and other
+	// feedback that doesn't need 3D positioning.
 	SVCLocalSound
+
+	// SVCSetAngle — forces the client's view angles to specific values. Used
+	// after teleportation to face the destination's target direction, and
+	// during intermission to look at the camera angle.
 	SVCSetAngle
+
+	// SVCSetView — sets which entity the client's camera follows. Normally
+	// this is the player's own entity, but can be changed for spectator
+	// cameras, cutscenes, or intermission views.
 	SVCSetView
+
+	// SVCUpdateUserInfo — updates a client's user info (name, colors, etc.)
+	// for all other clients. Sent when a player changes their name or colors.
 	SVCUpdateUserInfo
+
+	// SVCSignOnNum — advances the client's signon stage. The server sends
+	// this to tell the client to proceed to the next stage of the connection
+	// handshake. Contains the signon stage number.
 	SVCSignOnNum
+
+	// SVCStuffText — sends a console command for the client to execute locally.
+	// The server can force clients to run commands (e.g., "reconnect", "bf"
+	// for bonus flash). Security-sensitive: modern engines restrict which
+	// commands the server can stuff.
 	SVCStuffText
+
+	// SVCTime — sends the current server time to the client. The client uses
+	// this for interpolation timing, prediction, and animation. Sent at the
+	// start of each server frame's client update.
 	SVCTime
+
+	// SVCSetInfo — sets a key-value pair in the client's server info. Used
+	// for server-wide settings like hostname, maxclients, deathmatch mode.
 	SVCSetInfo
+
+	// SVCServerInfo — sends the server's info string containing map name,
+	// game directory, and protocol version. Sent during the first signon
+	// stage so the client knows which map to load.
 	SVCServerInfo
+
+	// SVCUpdateEnt — updates an entity's state using delta compression against
+	// its baseline. Contains a bitmask of changed fields followed by the new
+	// values for those fields. This is the primary entity update message and
+	// constitutes the majority of network bandwidth.
 	SVCUpdateEnt
+
+	// SVCLocalSound2 — extended-protocol local sound with 16-bit sound index.
 	SVCLocalSound2
 )
 
 // Max constants for server limits.
+//
+// These constants define hard upper bounds on various server resources. They
+// originate from the original Quake protocol and engine design, where fixed-size
+// arrays were used for performance. Some have been increased from original Quake
+// values (e.g., MaxModels was 256 in the original protocol) by extended protocols
+// like FitzQuake Protocol 666 and its derivatives.
 const (
-	MaxClients       = 16
-	MaxModels        = 2048
-	MaxSounds        = 2048
-	MaxEdicts        = 8192
-	MaxDatagram      = 32000
+	// MaxClients — maximum number of simultaneous player connections. Original
+	// Quake supported up to 16 players in deathmatch. Each client occupies an
+	// edict slot (edicts 1 through MaxClients) and a client_t structure that
+	// tracks connection state, signon progress, and network stats.
+	MaxClients = 16
+
+	// MaxModels — maximum number of precached models (maps, sprites, aliases).
+	// Models are referenced by index in network messages. The original protocol
+	// used 8-bit indices (max 256); extended protocols use 16-bit indices,
+	// allowing 2048. Includes the world BSP (always index 1), all monster/weapon
+	// models, brush entity models (doors, platforms), and sprite effects.
+	MaxModels = 2048
+
+	// MaxSounds — maximum number of precached sound effects. Like models, sounds
+	// are referenced by index. Original protocol: 256; extended: 2048. Includes
+	// all weapon sounds, monster sounds, ambient sounds, and UI sounds.
+	MaxSounds = 2048
+
+	// MaxEdicts — maximum number of entities that can exist simultaneously. This
+	// is the size of the server's edict array. Every player, monster, projectile,
+	// door, trigger, and item consumes an edict. Original Quake: 600; modern
+	// engines: 8192 or more. Running out of edicts causes "ED_Alloc: no free
+	// edicts" errors, which is a common problem in complex maps.
+	MaxEdicts = 8192
+
+	// MaxDatagram — maximum size in bytes of a single network datagram (UDP
+	// packet payload). Quake uses unreliable datagrams for real-time updates.
+	// If a frame's entity updates exceed this size, entities are dropped from
+	// that frame's update (the client uses its previous data). Larger values
+	// allow more entities per update but risk UDP fragmentation.
+	MaxDatagram = 32000
+
+	// MaxSignonBuffers — maximum number of signon buffer segments. The signon
+	// data (baselines, static entities, static sounds, lightstyles) is split
+	// into multiple buffers that are sent as reliable messages. If the total
+	// signon data exceeds MaxSignonBuffers * buffer_size, the level cannot load.
 	MaxSignonBuffers = 16
-	MaxEntityLeafs   = 32
+
+	// MaxEntityLeafs — maximum number of BSP leaves an entity can touch for
+	// PVS visibility tracking. If an entity overlaps more leaves than this,
+	// it is marked as "always visible" to prevent PVS culling from hiding
+	// large entities. Matches the LeafNums array size in Edict.
+	MaxEntityLeafs = 32
 )
 
-// Default physics/sound constants.
+// Default physics/sound constants used when entity-specific values are not set.
 const (
-	DefaultSoundVolume      = 255
+	// DefaultSoundVolume — default volume for sound playback (0-255 scale).
+	// 255 is maximum volume. QuakeC can specify lower volumes for quieter
+	// effects, but most sounds use this default (full volume at the source,
+	// attenuated by distance).
+	DefaultSoundVolume = 255
+
+	// DefaultSoundAttenuation — default distance falloff for sounds. Controls
+	// how quickly a sound fades with distance from the listener. Standard
+	// attenuation values:
+	//  0.0 = no attenuation (plays at equal volume everywhere, like music)
+	//  1.0 = normal (standard falloff, good for most game sounds)
+	//  2.0 = idle (shorter range, for ambient/idle sounds)
+	//  3.0 = static (very short range, for point-source effects like torches)
 	DefaultSoundAttenuation = 1.0
-	ViewHeight              = 22
-	OneEpsilon              = 0.01
+
+	// ViewHeight — default eye-level offset from the entity's origin, in
+	// Quake units. The player's origin is at their feet; the camera is
+	// ViewHeight (22) units above. This produces a camera height of roughly
+	// eye-level for Quake's player model. QuakeC can override this via
+	// the ViewOfs field for crouching or special camera effects.
+	ViewHeight = 22
+
+	// OneEpsilon — general-purpose small epsilon for floating-point
+	// comparisons throughout the physics and collision code. Used to prevent
+	// division by zero, avoid degenerate cases in plane distance checks,
+	// and provide tolerance for "close enough" comparisons.
+	OneEpsilon = 0.01
 )
 
 // Vector math helper functions.
+//
+// These operate on [3]float32 vectors representing 3D positions, velocities,
+// normals, and directions in Quake's coordinate system:
+//   - X axis: east (+) / west (-)
+//   - Y axis: north (+) / south (-)
+//   - Z axis: up (+) / down (-)
+//
+// Quake uses a right-handed coordinate system with Z-up, which differs from
+// some 3D engines that use Y-up. All positions are in "Quake units" where
+// 1 unit ≈ 1 inch (a player is about 56 units tall, door frames are 128 units).
 
-// VecAdd adds two vectors.
+// VecAdd returns the component-wise sum of two vectors: result[i] = a[i] + b[i].
+//
+// Physics use: computing new positions from current position + velocity * dt,
+// combining force vectors, offsetting positions (e.g., origin + view offset).
 func VecAdd(a, b [3]float32) [3]float32 {
 	return [3]float32{a[0] + b[0], a[1] + b[1], a[2] + b[2]}
 }
 
-// VecSub subtracts two vectors.
+// VecSub returns the component-wise difference of two vectors: result[i] = a[i] - b[i].
+//
+// Physics use: computing displacement vectors between entities (target - self),
+// finding velocity change (new_velocity - old_velocity), and computing relative
+// positions for distance/direction calculations.
 func VecSub(a, b [3]float32) [3]float32 {
 	return [3]float32{a[0] - b[0], a[1] - b[1], a[2] - b[2]}
 }
 
-// VecScale scales a vector by a scalar.
+// VecScale returns a vector scaled by a scalar: result[i] = v[i] * s.
+//
+// Physics use: applying frametime to velocity (velocity * dt), scaling normals
+// for backoff calculations, applying friction multipliers, and attenuating
+// forces. For example, gravity application: velocity[2] -= sv_gravity * dt
+// is equivalent to VecAdd(velocity, VecScale({0,0,-1}, gravity * dt)).
 func VecScale(v [3]float32, s float32) [3]float32 {
 	return [3]float32{v[0] * s, v[1] * s, v[2] * s}
 }
 
-// VecLen returns the length of a vector.
+// VecLen returns the Euclidean length (magnitude) of a vector:
+// sqrt(v[0]² + v[1]² + v[2]²).
+//
+// Physics use: computing entity speed (length of velocity vector), measuring
+// distances between points (len(VecSub(a, b))), and as a precursor to
+// normalization. Note: uses float64 math internally for precision, matching
+// the original C engine's use of double-precision sqrt.
 func VecLen(v [3]float32) float32 {
 	return float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
 }
 
-// VecNormalize normalizes a vector, returning its original length.
+// VecNormalize normalizes a vector in-place to unit length and returns its
+// original length. If the vector has zero length, it remains unchanged.
+//
+// Physics use: converting displacement vectors to direction vectors for
+// AI aiming (aim_direction = normalize(target - self)), computing surface
+// normals, and preparing vectors for dot product angle calculations.
+// The returned length is useful for simultaneous distance+direction queries
+// (e.g., "how far is the enemy and which direction?").
 func VecNormalize(v *[3]float32) float32 {
 	len := VecLen(*v)
 	if len > 0 {
@@ -1388,19 +1667,37 @@ func VecNormalize(v *[3]float32) float32 {
 	return len
 }
 
-// VecDot returns the dot product of two vectors.
+// VecDot returns the dot product of two vectors: a[0]*b[0] + a[1]*b[1] + a[2]*b[2].
+//
+// Physics use: the dot product is fundamental to collision response and physics.
+//   - Dot(velocity, plane_normal) gives the speed of impact against a surface.
+//     Used in ClipVelocity to compute the velocity component to remove.
+//   - Dot(direction, normal) gives cos(angle) between them. Used for line-of-sight
+//     angle checks (is the player in the monster's field of view?).
+//   - Dot(point - plane_point, plane_normal) gives signed distance from a plane.
+//     Used extensively in BSP traversal and collision detection.
 func VecDot(a, b [3]float32) float32 {
 	return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
 }
 
-// VecCopy copies a vector.
+// VecCopy copies the source vector's components into the destination vector.
+//
+// Physics use: saving entity positions before movement (for rollback on
+// collision), copying positions between entity fields (e.g., OldOrigin = Origin
+// before physics runs), and initializing trace result positions.
 func VecCopy(src [3]float32, dst *[3]float32) {
 	dst[0] = src[0]
 	dst[1] = src[1]
 	dst[2] = src[2]
 }
 
-// VecCross returns the cross product of two vectors.
+// VecCross returns the cross product of two vectors, producing a vector
+// perpendicular to both inputs. The result follows the right-hand rule.
+//
+// Physics use: computing surface normals from two edge vectors (for dynamic
+// geometry), calculating torque or rotational forces, and finding perpendicular
+// directions. Less commonly used in Quake's physics than VecDot, but essential
+// for certain geometric operations like building coordinate frames from angles.
 func VecCross(a, b [3]float32) [3]float32 {
 	return [3]float32{
 		a[1]*b[2] - a[2]*b[1],

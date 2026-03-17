@@ -1,3 +1,24 @@
+// server.go — Core server-side game state for the Ironwail Go Quake engine port.
+//
+// This file defines the primary data structures that make up the running game
+// server: the [Server] struct (per-level state), [ServerStatic] (cross-level
+// persistent state), the [Client] struct (per-connected-player state), and the
+// [AreaNode] spatial-partitioning tree used for entity collision queries.
+//
+// It also contains all QuakeC builtin hook registrations. The Quake engine
+// executes game logic via a bytecode VM (the QuakeC VM, or QCVM). The engine
+// exposes "builtins" — native Go functions — that QuakeC scripts call to
+// interact with the world: spawning entities, performing traces, precaching
+// resources, sending network messages, etc. The [NewServer] constructor wires
+// these builtins so that QC code drives the authoritative server state defined
+// here.
+//
+// A central design challenge is the "dual-representation" problem: every entity
+// (edict) exists both as a typed Go struct ([Edict]/[EntVars]) and as a flat
+// byte array inside the QC VM's memory. The sync* family of functions in this
+// file bridges these two representations, copying data between them at key
+// boundaries so that Go physics/networking code and QuakeC game logic always
+// operate on consistent values.
 package server
 
 import (
