@@ -3,7 +3,12 @@
 
 package host
 
-import "time"
+import (
+	"log/slog"
+	"time"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 type FrameStats struct {
 	GameTime float64
@@ -53,6 +58,7 @@ func (h *Host) advanceTime(dt float64) {
 }
 
 func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
+	frameStart := time.Now()
 	if h.aborted {
 		return nil
 	}
@@ -106,6 +112,12 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 	}
 
 	h.frameCount++
+
+	if cvar.BoolValue("host_speeds") {
+		elapsed := time.Since(frameStart)
+		slog.Debug("frame timing", "ms", elapsed.Milliseconds(), "frame", h.frameCount)
+	}
+
 	return nil
 }
 

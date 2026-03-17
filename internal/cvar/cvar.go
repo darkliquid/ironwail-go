@@ -1,6 +1,7 @@
 package cvar
 
 import (
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ const (
 	FlagUserInfo
 	FlagNoSet
 	FlagLatched
+	FlagROM
 )
 
 type CVar struct {
@@ -101,6 +103,12 @@ func (c *CVarSystem) Set(name, value string) {
 
 	if cv.Flags&FlagNoSet != 0 {
 		c.mu.Unlock()
+		return
+	}
+
+	if cv.Flags&FlagROM != 0 {
+		c.mu.Unlock()
+		slog.Info("cvar is read-only", "name", name)
 		return
 	}
 

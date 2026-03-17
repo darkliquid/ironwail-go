@@ -44,3 +44,23 @@ func TestSetCallbackCanReadUpdatedValue(t *testing.T) {
 		t.Fatal("expected callback to run")
 	}
 }
+
+func TestFlagROM(t *testing.T) {
+	sys := NewCVarSystem()
+	cv := sys.Register("test_rom", "42", FlagROM, "read-only test")
+
+	if cv.Int != 42 {
+		t.Errorf("initial value = %d, want 42", cv.Int)
+	}
+
+	sys.Set("test_rom", "100")
+
+	if cv.Int != 42 {
+		t.Errorf("ROM cvar was modified: got %d, want 42", cv.Int)
+	}
+
+	if sys.IntValue("test_rom") != 42 {
+		t.Errorf("ROM cvar readback = %d, want 42", sys.IntValue("test_rom"))
+	}
+}
+

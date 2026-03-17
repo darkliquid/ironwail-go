@@ -300,6 +300,9 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("echo", func(args []string) {
 		h.CmdEcho(args, subs)
 	}, "Print text to the console")
+	cmdsys.AddCommand("version", func(args []string) {
+		h.CmdVersion(subs)
+	}, "Print engine version")
 	cmdsys.AddCommand("clear", func(args []string) {
 		h.CmdClear(subs)
 	}, "Clear the console buffer")
@@ -436,6 +439,13 @@ func (h *Host) CmdEcho(args []string, subs *Subsystems) {
 		return
 	}
 	subs.Console.Print(strings.Join(args, " ") + "\n")
+}
+
+func (h *Host) CmdVersion(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	subs.Console.Print(fmt.Sprintf("Version %d.%d.%d (Ironwail Go)\n", h.versionMajor, h.versionMinor, h.versionPatch))
 }
 
 func (h *Host) CmdClear(subs *Subsystems) {

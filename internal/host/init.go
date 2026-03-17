@@ -46,6 +46,7 @@ func registerHostCVars() {
 	cvar.Register(clientNameCVar, defaultClientName, cvar.FlagArchive|cvar.FlagUserInfo, "Player name")
 	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
 	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
+	cvar.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready
@@ -259,11 +260,14 @@ func (c *localLoopbackClient) LocalSignon() int {
 }
 
 type InitParams struct {
-	BaseDir    string
-	GameDir    string
-	UserDir    string
-	Args       []string
-	MaxClients int
+	BaseDir      string
+	GameDir      string
+	UserDir      string
+	Args         []string
+	MaxClients   int
+	VersionMajor int
+	VersionMinor int
+	VersionPatch int
 }
 
 type Subsystems struct {
@@ -354,6 +358,9 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	h.userDir = params.UserDir
 	h.args = params.Args
 	h.maxClients = params.MaxClients
+	h.versionMajor = params.VersionMajor
+	h.versionMinor = params.VersionMinor
+	h.versionPatch = params.VersionPatch
 	if h.maxClients < 1 {
 		h.maxClients = 1
 	}

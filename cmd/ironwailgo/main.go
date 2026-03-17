@@ -409,11 +409,14 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	applyDefaultGameplayBindings()
 
 	if err := gameHost.Init(&host.InitParams{
-		BaseDir:    basedir,
-		GameDir:    gamedir,
-		UserDir:    "",
-		Args:       append([]string(nil), args...),
-		MaxClients: 1,
+		BaseDir:      basedir,
+		GameDir:      gamedir,
+		UserDir:      "",
+		Args:         append([]string(nil), args...),
+		MaxClients:   1,
+		VersionMajor: VersionMajor,
+		VersionMinor: VersionMinor,
+		VersionPatch: VersionPatch,
 	}, gameSubs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
 	}

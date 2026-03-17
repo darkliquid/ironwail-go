@@ -77,6 +77,11 @@ type Host struct {
 	// Demo loop state (for startup demos like demo1, demo2, demo3)
 	demoList []string
 	demoNum  int // current demo index, -1 means don't play demos
+
+	// Version info
+	versionMajor int
+	versionMinor int
+	versionPatch int
 }
 
 func NewHost() *Host {
