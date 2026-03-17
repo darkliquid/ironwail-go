@@ -68,6 +68,13 @@ func (a *AudioAdapter) StopAllSounds(clear bool) {
 	a.sys.StopAllSounds(clear)
 }
 
+func (a *AudioAdapter) SoundInfo() string {
+	if a == nil || a.sys == nil {
+		return "sound system not available\n"
+	}
+	return a.sys.SoundInfo()
+}
+
 func (a *AudioAdapter) Shutdown() {
 	if a.sys != nil {
 		a.sys.Shutdown()

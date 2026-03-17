@@ -19,6 +19,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/fs"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
+	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
 var saveNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
@@ -125,6 +126,16 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("kick", func(args []string) {
 		h.CmdKick(args, subs)
 	}, "Kick a player from the server")
+	cmdsys.AddCommand("ban", func(args []string) {
+		h.CmdBan(args, subs)
+	}, "Ban a player from the server")
+	cmdsys.AddCommand("tracepos", func(args []string) { h.CmdTracepos(subs) }, "Trace from view origin to find surface/edict info")
+	cmdsys.AddCommand("soundinfo", func(args []string) { h.CmdSoundinfo(subs) }, "Show audio system statistics")
+	cmdsys.AddCommand("particle_texture", func(args []string) {
+		if len(args) > 0 {
+			h.CmdParticleTexture(args[0], subs)
+		}
+	}, "Change particle rendering style (1=soft, 2=pixel)")
 	cmdsys.AddCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
 	cmdsys.AddCommand("load", func(args []string) {
 		if len(args) > 0 {
@@ -567,11 +578,114 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("host:    Ironwail Go %v\n", Version))
-	sb.WriteString(fmt.Sprintf("map:     active=%v\n", h.serverActive))
-	sb.WriteString(fmt.Sprintf("players: %d active (%d max)\n", 0, h.maxClients))
+	sb.WriteString("host:    Ironwail Go\n")
+	if h.serverActive && subs.Server != nil {
+		sb.WriteString(fmt.Sprintf("map:     %s\n", subs.Server.GetMapName()))
+		maxClients := subs.Server.GetMaxClients()
+		activeCount := 0
+		for i := 0; i < maxClients; i++ {
+			if subs.Server.IsClientActive(i) {
+				activeCount++
+			}
+		}
+		sb.WriteString(fmt.Sprintf("players: %d active (%d max)\n", activeCount, maxClients))
+		sb.WriteString("\nslot  name             ping\n")
+		sb.WriteString("----  ---------------- ----\n")
+		for i := 0; i < maxClients; i++ {
+			if !subs.Server.IsClientActive(i) {
+				continue
+			}
+			name := subs.Server.GetClientName(i)
+			ping := subs.Server.GetClientPing(i)
+			sb.WriteString(fmt.Sprintf("%4d  %-16s %4.0f\n", i, name, ping))
+		}
+	} else {
+		sb.WriteString("map:     (no server active)\n")
+	}
 
 	subs.Console.Print(sb.String())
+}
+
+var bannedPlayers = make(map[string]bool)
+
+func (h *Host) CmdBan(args []string, subs *Subsystems) {
+	if !h.serverActive || subs.Server == nil || subs.Console == nil {
+		return
+	}
+	if len(args) == 0 {
+		subs.Console.Print("Banned names:\n")
+		for name := range bannedPlayers {
+			subs.Console.Print(fmt.Sprintf("  %s\n", name))
+		}
+		return
+	}
+
+	target := args[0]
+	maxClients := subs.Server.GetMaxClients()
+
+	found := false
+	for i := 0; i < maxClients; i++ {
+		if subs.Server.IsClientActive(i) && subs.Server.GetClientName(i) == target {
+			bannedPlayers[target] = true
+			subs.Server.KickClient(i, "host", "Banned by admin")
+			subs.Console.Print(fmt.Sprintf("Banned and kicked %s\n", target))
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		bannedPlayers[target] = true
+		subs.Console.Print(fmt.Sprintf("Added %s to ban list\n", target))
+	}
+}
+
+func (h *Host) CmdTracepos(subs *Subsystems) {
+	if !h.serverActive || subs.Server == nil || subs.Console == nil {
+		return
+	}
+	ent := h.getLocalPlayerEdict(subs)
+	if ent == nil {
+		return
+	}
+
+	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{X: ent.Vars.VAngle[0], Y: ent.Vars.VAngle[1], Z: ent.Vars.VAngle[2]})
+	start := ent.Vars.Origin
+	start[2] += 22 // eye height
+	end := [3]float32{
+		start[0] + forward.X*8192,
+		start[1] + forward.Y*8192,
+		start[2] + forward.Z*8192,
+	}
+
+	srv, _ := subs.Server.(*server.Server)
+	trace := srv.Move(start, [3]float32{}, [3]float32{}, end, server.MoveType(server.MoveNormal), ent)
+
+	subs.Console.Print(fmt.Sprintf("trace at: %.1f %.1f %.1f\n", trace.EndPos[0], trace.EndPos[1], trace.EndPos[2]))
+	subs.Console.Print(fmt.Sprintf("fraction: %.4f\n", trace.Fraction))
+	if trace.Entity != nil {
+		entNum := srv.NumForEdict(trace.Entity)
+		className := srv.GetString(trace.Entity.Vars.ClassName)
+		subs.Console.Print(fmt.Sprintf("hit entity %d: %s\n", entNum, className))
+	} else {
+		subs.Console.Print("hit world\n")
+	}
+	subs.Console.Print(fmt.Sprintf("plane normal: %.2f %.2f %.2f\n", trace.PlaneNormal[0], trace.PlaneNormal[1], trace.PlaneNormal[2]))
+}
+
+func (h *Host) CmdSoundinfo(subs *Subsystems) {
+	if subs.Audio == nil || subs.Console == nil {
+		return
+	}
+	subs.Console.Print(subs.Audio.SoundInfo())
+}
+
+func (h *Host) CmdParticleTexture(mode string, subs *Subsystems) {
+	if subs.Console == nil {
+		return
+	}
+	cvar.Set("r_particles", mode)
+	subs.Console.Print(fmt.Sprintf("particle_texture set to %s\n", mode))
 }
 
 func (h *Host) CmdMaps(subs *Subsystems) {

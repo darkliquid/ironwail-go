@@ -435,17 +435,38 @@ func (s *System) Unblock() {
 func (s *System) SetUnderwaterIntensity(intensity float32) {
 	s.mixer.SetUnderwaterIntensity(intensity)
 }
-
 func (s *System) SetAmbientSound(channel int, sfx *SFX) {
 	if channel < 0 || channel >= NumAmbients {
 		return
 	}
 	s.ambientSFX[channel] = sfx
-	if s.channels[channel].SFX != sfx {
-		s.channels[channel].SFX = sfx
-		s.channels[channel].Pos = 0
-		s.channels[channel].End = s.paintedTime
+}
+
+func (s *System) SoundInfo() string {
+	if !s.initialized {
+		return "sound system not initialized\n"
 	}
+
+	active := 0
+	for i := 0; i < s.totalChans; i++ {
+		if s.channels[i].SFX != nil {
+			active++
+		}
+	}
+
+	cached := 0
+	memory := 0
+	if s.cache != nil {
+		cached = s.cache.numSounds
+		for i := 0; i < s.cache.numSounds; i++ {
+			if sfx := s.cache.sounds[i]; sfx != nil && sfx.Cache != nil {
+				memory += len(sfx.Cache.Data)
+			}
+		}
+	}
+
+	return fmt.Sprintf("%d active channels\n%d precached sounds\n%.1f MB sound memory\n",
+		active, cached, float32(memory)/(1024*1024))
 }
 
 func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLevels [NumAmbients]uint8, underwaterIntensity float32) {

@@ -34,13 +34,20 @@ in vec4 vColor;
 out vec4 fragColor;
 
 void main() {
+	// gl_PointCoord is in [0, 1]. Map to [-1, 1] for radial distance.
 	vec2 centered = gl_PointCoord * 2.0 - 1.0;
-	float dist2 = dot(centered, centered);
-	if (dist2 > 1.0) {
+	float radius = length(centered);
+	
+	// fwidth provides the screen-space rate of change, allowing for 
+	// pixel-accurate anti-aliased edges. Matches C Ironwail style.
+	float delta = fwidth(radius);
+	float alpha = clamp((1.0 - radius) / delta, 0.0, 1.0);
+	
+	if (alpha <= 0.0) {
 		discard;
 	}
-	float alpha = (1.0 - dist2) * vColor.a;
-	fragColor = vec4(vColor.rgb, alpha);
+	
+	fragColor = vec4(vColor.rgb, vColor.a * alpha);
 }`
 )
 
