@@ -694,6 +694,9 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 		if client.SendSignon != SignonFlush {
 			return fmt.Errorf("prespawn out of order")
 		}
+		// Send accumulated signon buffers (static entities, ambient sounds)
+		// to this client before advancing the signon stage.
+		s.SendSignonBuffers(client)
 		client.Message.WriteByte(byte(inet.SVCSignOnNum))
 		client.Message.WriteByte(2)
 		client.SendSignon = SignonSignonBufs

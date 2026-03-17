@@ -514,6 +514,12 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 
 	newClient := &Client{Edict: world, Message: NewMessageBuffer(MaxDatagram)}
 	s.SendServerInfo(newClient)
+	// Static entities and sounds are now in signon buffers (populated during
+	// SpawnServer). Build them here to simulate the full flow.
+	if err := s.buildSignonBuffers(); err != nil {
+		t.Fatalf("buildSignonBuffers: %v", err)
+	}
+	s.SendSignonBuffers(newClient)
 	if newClient.Message.Len() == 0 {
 		t.Fatalf("SendServerInfo did not produce signon message")
 	}

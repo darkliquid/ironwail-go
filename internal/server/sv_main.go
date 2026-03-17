@@ -107,6 +107,8 @@ func (s *Server) Shutdown() {
 	s.ModelPrecache = nil
 	s.StaticEntities = nil
 	s.StaticSounds = nil
+	s.SignonBuffers = nil
+	s.Signon = nil
 	resetLightStyles(&s.LightStyles)
 	if s.Datagram != nil {
 		s.Datagram.Clear()
@@ -214,6 +216,12 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.ClearWorld()
 	s.LinkEdict(world, false)
 	s.syncQCVMState()
+
+	// Populate signon buffers with static entities and ambient sounds.
+	// These are shared across all connecting clients.
+	if err := s.buildSignonBuffers(); err != nil {
+		return fmt.Errorf("build signon buffers: %w", err)
+	}
 
 	s.Active = true
 	s.State = ServerStateActive
@@ -753,13 +761,6 @@ func (s *Server) SendServerInfo(client *Client) {
 		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
 	}
 
-	for _, ent := range s.StaticEntities {
-		s.writeSpawnStaticMessage(client.Message, ent)
-	}
-	for _, snd := range s.StaticSounds {
-		s.writeSpawnStaticSoundMessage(client.Message, snd)
-	}
-
 	client.Message.WriteByte(byte(inet.SVCSetView))
 	client.Message.WriteShort(int16(s.NumForEdict(client.Edict)))
 
@@ -827,6 +828,278 @@ func (s *Server) ConnectClient(clientNum int) {
 
 func (s *Server) ClearDatagram() {
 	s.Datagram.Clear()
+}
+
+// ============================================================================
+// SIGNON BUFFER SYSTEM
+// ============================================================================
+
+// AddSignonBuffer allocates a new signon buffer and sets it as the current
+// write target. Signon buffers hold the initial game state (precache lists,
+// static entities, ambient sounds) that is sent to every connecting client.
+// This mirrors SV_AddSignonBuffer in C Ironwail (sv_main.c:1485).
+func (s *Server) AddSignonBuffer() error {
+	if len(s.SignonBuffers) >= MaxSignonBuffers {
+		return fmt.Errorf("SV_AddSignonBuffer: overflow (%d buffers)", MaxSignonBuffers)
+	}
+	buf := NewMessageBuffer(SignonSize)
+	s.SignonBuffers = append(s.SignonBuffers, buf)
+	s.Signon = buf
+	return nil
+}
+
+// ReserveSignonSpace ensures the current signon buffer has room for size bytes.
+// If the current buffer would overflow, a new buffer is allocated.
+// This mirrors SV_ReserveSignonSpace in C Ironwail (sv_main.c:1503).
+func (s *Server) ReserveSignonSpace(size int) error {
+	if s.Signon == nil {
+		return s.AddSignonBuffer()
+	}
+	if s.Signon.Len()+size > len(s.Signon.Data) {
+		return s.AddSignonBuffer()
+	}
+	return nil
+}
+
+// WriteSignonByte writes a single byte to the current signon buffer,
+// allocating a new buffer if needed.
+func (s *Server) WriteSignonByte(b byte) error {
+	if err := s.ReserveSignonSpace(1); err != nil {
+		return err
+	}
+	s.Signon.WriteByte(b)
+	return nil
+}
+
+// WriteSignonShort writes a 16-bit integer to the current signon buffer.
+func (s *Server) WriteSignonShort(v int16) error {
+	if err := s.ReserveSignonSpace(2); err != nil {
+		return err
+	}
+	s.Signon.WriteShort(v)
+	return nil
+}
+
+// WriteSignonLong writes a 32-bit integer to the current signon buffer.
+func (s *Server) WriteSignonLong(v int32) error {
+	if err := s.ReserveSignonSpace(4); err != nil {
+		return err
+	}
+	s.Signon.WriteLong(v)
+	return nil
+}
+
+// WriteSignonFloat writes a 32-bit float to the current signon buffer.
+func (s *Server) WriteSignonFloat(f float32) error {
+	if err := s.ReserveSignonSpace(4); err != nil {
+		return err
+	}
+	s.Signon.WriteFloat(f)
+	return nil
+}
+
+// WriteSignonString writes a null-terminated string to the current signon buffer.
+func (s *Server) WriteSignonString(str string) error {
+	if err := s.ReserveSignonSpace(len(str) + 1); err != nil {
+		return err
+	}
+	s.Signon.WriteString(str)
+	return nil
+}
+
+// WriteSignonCoord writes a coordinate to the current signon buffer.
+func (s *Server) WriteSignonCoord(c float32) error {
+	if err := s.ReserveSignonSpace(4); err != nil {
+		return err
+	}
+	s.Signon.WriteCoord(c)
+	return nil
+}
+
+// WriteSignonAngle writes an angle to the current signon buffer.
+func (s *Server) WriteSignonAngle(a float32) error {
+	if err := s.ReserveSignonSpace(1); err != nil {
+		return err
+	}
+	s.Signon.WriteAngle(a)
+	return nil
+}
+
+// WriteSignonData writes raw bytes to the current signon buffer.
+func (s *Server) WriteSignonData(data []byte) error {
+	if err := s.ReserveSignonSpace(len(data)); err != nil {
+		return err
+	}
+	s.Signon.Write(data)
+	return nil
+}
+
+// SendSignonBuffers copies all signon buffer data to the client's message
+// buffer. This is called during the prespawn phase to send the initial game
+// state (precache lists, static entities, ambient sounds) to a connecting client.
+func (s *Server) SendSignonBuffers(client *Client) {
+	for _, buf := range s.SignonBuffers {
+		if buf.Len() > 0 {
+			client.Message.Write(buf.Data[:buf.Len()])
+		}
+	}
+}
+
+// buildSignonBuffers populates the server's signon buffers with static entity
+// and sound data that is shared across all connecting clients. Called once
+// during SpawnServer after map entities have been loaded.
+func (s *Server) buildSignonBuffers() error {
+	s.SignonBuffers = nil
+	s.Signon = nil
+	if err := s.AddSignonBuffer(); err != nil {
+		return err
+	}
+
+	// Write static entity baselines.
+	for _, ent := range s.StaticEntities {
+		if err := s.writeSpawnStaticToSignon(ent); err != nil {
+			return err
+		}
+	}
+
+	// Write static/ambient sounds.
+	for _, snd := range s.StaticSounds {
+		if err := s.writeSpawnStaticSoundToSignon(snd); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeSpawnStaticToSignon writes a static entity spawn message into the
+// current signon buffer, using SVCSpawnStatic2 for extended entities.
+func (s *Server) writeSpawnStaticToSignon(ent EntityState) error {
+	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
+
+	if extended {
+		if err := s.WriteSignonByte(byte(inet.SVCSpawnStatic2)); err != nil {
+			return err
+		}
+	} else {
+		if err := s.WriteSignonByte(byte(inet.SVCSpawnStatic)); err != nil {
+			return err
+		}
+	}
+
+	// Write entity state bits and fields (mirrors writeEntityState logic).
+	var bits byte
+	if extended {
+		if ent.ModelIndex > 255 {
+			bits |= 1 << 0
+		}
+		if ent.Frame > 255 {
+			bits |= 1 << 1
+		}
+		if ent.Alpha != 0 {
+			bits |= 1 << 2
+		}
+		if ent.Scale != 0 && ent.Scale != 16 {
+			bits |= 1 << 3
+		}
+		if err := s.WriteSignonByte(bits); err != nil {
+			return err
+		}
+	}
+
+	// Model index.
+	if extended && bits&(1<<0) != 0 {
+		if err := s.WriteSignonShort(int16(ent.ModelIndex)); err != nil {
+			return err
+		}
+	} else {
+		if err := s.WriteSignonByte(byte(ent.ModelIndex)); err != nil {
+			return err
+		}
+	}
+
+	// Frame.
+	if extended && bits&(1<<1) != 0 {
+		if err := s.WriteSignonShort(int16(ent.Frame)); err != nil {
+			return err
+		}
+	} else {
+		if err := s.WriteSignonByte(byte(ent.Frame)); err != nil {
+			return err
+		}
+	}
+
+	// Colormap and skin.
+	if err := s.WriteSignonByte(byte(ent.Colormap)); err != nil {
+		return err
+	}
+	if err := s.WriteSignonByte(byte(ent.Skin)); err != nil {
+		return err
+	}
+
+	// Origin and angles.
+	for i := 0; i < 3; i++ {
+		if err := s.WriteSignonCoord(ent.Origin[i]); err != nil {
+			return err
+		}
+	}
+	for i := 0; i < 3; i++ {
+		if err := s.WriteSignonAngle(ent.Angles[i]); err != nil {
+			return err
+		}
+	}
+
+	// Extended fields.
+	if extended && bits&(1<<2) != 0 {
+		if err := s.WriteSignonByte(ent.Alpha); err != nil {
+			return err
+		}
+	}
+	if extended && bits&(1<<3) != 0 {
+		if err := s.WriteSignonByte(ent.Scale); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeSpawnStaticSoundToSignon writes a static sound spawn message into the
+// current signon buffer, using SVCSpawnStaticSound2 for large sound indices.
+func (s *Server) writeSpawnStaticSoundToSignon(snd StaticSound) error {
+	if snd.SoundIndex > 255 {
+		if err := s.WriteSignonByte(byte(inet.SVCSpawnStaticSound2)); err != nil {
+			return err
+		}
+		for i := 0; i < 3; i++ {
+			if err := s.WriteSignonCoord(snd.Origin[i]); err != nil {
+				return err
+			}
+		}
+		if err := s.WriteSignonShort(int16(snd.SoundIndex)); err != nil {
+			return err
+		}
+		if err := s.WriteSignonByte(byte(snd.Volume)); err != nil {
+			return err
+		}
+		return s.WriteSignonByte(byte(snd.Attenuation * 64))
+	}
+
+	if err := s.WriteSignonByte(byte(inet.SVCSpawnStaticSound)); err != nil {
+		return err
+	}
+	for i := 0; i < 3; i++ {
+		if err := s.WriteSignonCoord(snd.Origin[i]); err != nil {
+			return err
+		}
+	}
+	if err := s.WriteSignonByte(byte(snd.SoundIndex)); err != nil {
+		return err
+	}
+	if err := s.WriteSignonByte(byte(snd.Volume)); err != nil {
+		return err
+	}
+	return s.WriteSignonByte(byte(snd.Attenuation * 64))
 }
 
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
@@ -1458,4 +1731,62 @@ func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 	}
 
 	return false
+}
+
+// SV_EdictInPVS checks whether any of the edict's leaf numbers are visible
+// in the given PVS byte array. Returns true if any leaf is set.
+func (s *Server) SV_EdictInPVS(test *Edict, pvs []byte) bool {
+	if test == nil || len(pvs) == 0 || test.NumLeafs == 0 {
+		return true
+	}
+	for i := 0; i < test.NumLeafs; i++ {
+		leafIdx := test.LeafNums[i]
+		if leafIdx <= 0 {
+			continue
+		}
+		byteIdx := (leafIdx - 1) >> 3
+		if byteIdx < 0 || byteIdx >= len(pvs) {
+			continue
+		}
+		if (pvs[byteIdx] & (1 << (uint(leafIdx-1) & 7))) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckForNewClients polls the network layer for incoming connections and
+// assigns them to a free client slot. Returns an error if a connection arrives
+// but no free slot is available.
+func (s *Server) CheckForNewClients() error {
+	for {
+		sock := inet.CheckNewConnections()
+		if sock == nil {
+			break
+		}
+
+		// Find a free client slot
+		freeSlot := -1
+		for i := 0; i < s.Static.MaxClients; i++ {
+			if s.Static.Clients[i] == nil || !s.Static.Clients[i].Active {
+				freeSlot = i
+				break
+			}
+		}
+		if freeSlot < 0 {
+			slog.Warn("CheckForNewClients: no free client slots")
+			return errors.New("no free client slots")
+		}
+
+		if s.Static.Clients[freeSlot] == nil {
+			s.Static.Clients[freeSlot] = &Client{
+				Message: NewMessageBuffer(MaxDatagram),
+			}
+		}
+		s.ConnectClient(freeSlot)
+		slog.Info("CheckForNewClients: client connected", "slot", freeSlot)
+
+		_ = sock // socket will be used when full network plumbing is wired
+	}
+	return nil
 }

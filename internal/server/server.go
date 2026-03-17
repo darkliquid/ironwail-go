@@ -53,6 +53,11 @@ type Server struct {
 	// Network messaging
 	Datagram *MessageBuffer
 
+	// Signon buffer system - shared initial game state sent to connecting clients.
+	// Populated during SpawnServer with precache lists, static entities, and sounds.
+	SignonBuffers []*MessageBuffer
+	Signon       *MessageBuffer // Current signon buffer being written to
+
 	// Precached resources
 	SoundPrecache  []string
 	ModelPrecache  []string
