@@ -165,8 +165,8 @@ func TestPlayCDTrackUsesResolverSelection(t *testing.T) {
 		return nil, fmt.Errorf("loader should not be used, got %s", name)
 	}, func(candidates []string) (string, []byte, error) {
 		resolverCalled = true
-		if len(candidates) != 5 {
-			t.Fatalf("resolver candidate count = %d, want 5", len(candidates))
+		if len(candidates) != 9 {
+			t.Fatalf("resolver candidate count = %d, want 9", len(candidates))
 		}
 		if got := candidates[0]; got != "music/track02.ogg" {
 			t.Fatalf("resolver first candidate = %q, want music/track02.ogg", got)

@@ -38,7 +38,7 @@ The Go renderer draws the right things, but not always in the right way.
 
 - [x] **Precise Spatialization**: `spatialize()` in `spatial.go` matches C's `SND_Spatialize` exactly (distance attenuation + stereo panning via dot product with listener right vector).
 - [x] **Low-Pass Filtering**: `S_ApplyFilter` implemented as `Mixer.lowpassFilter` in `mix.go`.
-- [x] **Full Codec Parity**: OGG, Opus, MP3, FLAC, WAV decoders in `internal/audio/`. Extension priority matches C (OGG → Opus → MP3 → FLAC → WAV). MOD/UMX tracker formats not ported (niche).
+- [x] **Full Codec Parity**: OGG, Opus, MP3, FLAC, WAV decoders in `internal/audio/`. Tracker music formats (MOD, S3M, XM, IT) added via gotracker/playback library. Extension priority matches C (OGG → Opus → MP3 → FLAC → WAV → MOD → S3M → XM → IT). UMX container format not yet supported (nice-to-have).
 - [x] **Pitch Shifting**: Doppler effect implemented in `spatial.go` with per-channel pitch multiplier applied in `mix.go`. Clamped to [0.5, 2.0] range. Go is ahead of C here (C has no Doppler).
 
 ---
