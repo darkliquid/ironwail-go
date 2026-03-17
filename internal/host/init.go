@@ -279,6 +279,7 @@ type Filesystem interface {
 	Close()
 	LoadFile(filename string) ([]byte, error)
 	LoadFirstAvailable(filenames []string) (string, []byte, error)
+	FileExists(filename string) bool
 }
 
 type CommandBuffer interface {
@@ -421,8 +422,19 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		}
 	}
 
-	if err := h.execUserConfig(subs); err != nil && subs.Console != nil {
-		subs.Console.Print(fmt.Sprintf("Warning: couldn't exec config.cfg: %v\n", err))
+	// Execute quake.rc from the game filesystem (pak0.pak).
+	// This mirrors C Ironwail's Cbuf_InsertText("exec quake.rc\n") in Host_Init.
+	// quake.rc chains: exec default.cfg → exec config.cfg → exec autoexec.cfg
+	//                  → stuffcmds → startdemos demo1 demo2 demo3
+	//
+	// If quake.rc isn't available (e.g. no PAK files in test environments),
+	// fall back to directly loading config.cfg from userDir.
+	if subs.Files != nil && subs.Files.FileExists("quake.rc") {
+		executeConfigText(subs, "exec quake.rc\n")
+	} else {
+		if err := h.execUserConfig(subs); err != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("Warning: couldn't exec config.cfg: %v\n", err))
+		}
 	}
 
 	h.initialized = true

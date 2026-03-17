@@ -757,6 +757,11 @@ func main() {
 					w, h := gameRenderer.Size()
 					consoleVisible := gameInput != nil && gameInput.GetKeyDest() == input.KeyConsole
 
+					// con_forcedup: when disconnected or not fully signed on,
+					// force full console behind everything (mirrors C Ironwail
+					// gl_screen.c:1511: con_forcedup = !cl.worldmodel || cls.signon != SIGNONS)
+					conForcedup := gameClient == nil || gameClient.Signon < cl.Signons
+
 					if gameHost != nil && gameHost.LoadingPlaqueActive(0) {
 						drawLoadingPlaque(overlay, gameDraw)
 						if consoleVisible {
@@ -765,23 +770,31 @@ func main() {
 						return
 					}
 
+					// When disconnected, draw full console as background
+					if conForcedup {
+						console.Draw(overlay, w, h, true)
+					}
+
+					// Menu draws on top of console
 					if gameMenu != nil && gameMenu.IsActive() {
 						gameMenu.M_Draw(overlay)
 						return
 					}
 
-					if gameHUD != nil {
-						gameHUD.SetScreenSize(w, h)
-						updateHUDFromServer()
-						gameHUD.Draw(overlay)
-					}
+					if !conForcedup {
+						if gameHUD != nil {
+							gameHUD.SetScreenSize(w, h)
+							updateHUDFromServer()
+							gameHUD.Draw(overlay)
+						}
 
-					if consoleVisible {
-						console.Draw(overlay, w, h, true)
-						return
-					}
+						if consoleVisible {
+							console.Draw(overlay, w, h, true)
+							return
+						}
 
-					console.Draw(overlay, w, h, false)
+						console.Draw(overlay, w, h, false)
+					}
 				})
 				return
 			}
@@ -790,6 +803,11 @@ func main() {
 			if gameHost != nil && gameHost.LoadingPlaqueActive(0) {
 				drawLoadingPlaque(dc, gameDraw)
 				return
+			}
+			// con_forcedup for gogpu path
+			conForcedup := gameClient == nil || gameClient.Signon < cl.Signons
+			if conForcedup {
+				// In gogpu path we just show menu over black
 			}
 			if gameMenu != nil && gameMenu.IsActive() {
 				gameMenu.M_Draw(dc)

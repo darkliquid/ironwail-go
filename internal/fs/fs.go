@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	MaxQPath  = 64
-	MaxOSPath = 1024
+	MaxQPath      = 64
+	MaxOSPath     = 1024
+	EnginePakName = "ironwail.pak"
 )
 
 type PackFile struct {
@@ -73,6 +74,7 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 	if err := fs.AddGameDirectory(filepath.Join(basedir, "id1")); err != nil {
 		return fmt.Errorf("failed to add id1 directory: %w", err)
 	}
+	fs.addEnginePak()
 
 	if gamedir != "" && gamedir != "id1" {
 		if err := fs.AddGameDirectory(filepath.Join(basedir, gamedir)); err != nil {
@@ -81,6 +83,44 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 	}
 
 	return nil
+}
+
+func (fs *FileSystem) addEnginePak() {
+	candidates := make([]string, 0, 2)
+	seen := make(map[string]struct{}, 2)
+
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Clean(filepath.Dir(exePath))
+		if _, exists := seen[exeDir]; !exists {
+			candidates = append(candidates, exeDir)
+			seen[exeDir] = struct{}{}
+		}
+	}
+
+	if fs.baseDir != "" {
+		baseDir := filepath.Clean(fs.baseDir)
+		if _, exists := seen[baseDir]; !exists {
+			candidates = append(candidates, baseDir)
+		}
+	}
+
+	for _, dir := range candidates {
+		enginePakPath := filepath.Join(dir, EnginePakName)
+		if _, err := os.Stat(enginePakPath); err != nil {
+			continue
+		}
+
+		pack, err := fs.loadPack(enginePakPath)
+		if err != nil {
+			fmt.Printf("Warning: failed to load engine pak %s: %v\n", enginePakPath, err)
+			continue
+		}
+
+		fs.packs = append(fs.packs, pack)
+		fs.lookupPaths = append([]searchPath{{pack: pack}}, fs.lookupPaths...)
+		fmt.Printf("Added engine pak: %s (%d files)\n", EnginePakName, len(pack.Files))
+		return
+	}
 }
 
 func (fs *FileSystem) AddGameDirectory(dir string) error {

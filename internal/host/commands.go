@@ -294,6 +294,9 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			subs.Console.Print("usage: exec <filename>\n")
 		}
 	}, "Execute a script file")
+	cmdsys.AddCommand("stuffcmds", func(args []string) {
+		h.CmdStuffCmds(subs)
+	}, "Insert command-line +commands into the buffer")
 	cmdsys.AddCommand("echo", func(args []string) {
 		h.CmdEcho(args, subs)
 	}, "Print text to the console")
@@ -321,6 +324,57 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 
 func (h *Host) CmdQuit() {
 	h.Abort("quit")
+}
+
+func (h *Host) CmdStuffCmds(subs *Subsystems) {
+	if subs == nil || subs.Commands == nil {
+		return
+	}
+
+	args := h.args
+	if len(args) == 0 {
+		args = os.Args[1:]
+	}
+
+	var (
+		builder strings.Builder
+		current []string
+	)
+
+	flush := func() {
+		if len(current) == 0 {
+			return
+		}
+		builder.WriteString(strings.Join(current, " "))
+		builder.WriteByte('\n')
+		current = nil
+	}
+
+	for _, arg := range args {
+		if arg == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(arg, "+"):
+			flush()
+			command := strings.TrimPrefix(arg, "+")
+			if command == "" {
+				continue
+			}
+			current = []string{command}
+		case strings.HasPrefix(arg, "-"):
+			flush()
+		default:
+			if len(current) > 0 {
+				current = append(current, arg)
+			}
+		}
+	}
+	flush()
+
+	if builder.Len() > 0 {
+		subs.Commands.InsertText(builder.String())
+	}
 }
 
 func (h *Host) CmdExec(filename string, subs *Subsystems) {

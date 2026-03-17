@@ -235,6 +235,69 @@ func TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder(t *testing.T) {
 	}
 }
 
+func TestEnginePakLoadedWhenPresent(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1")
+	if err := os.MkdirAll(id1Dir, 0o755); err != nil {
+		t.Fatalf("failed to create id1 dir: %v", err)
+	}
+
+	writeTestPak(t, filepath.Join(id1Dir, "pak0.pak"), map[string][]byte{
+		"progs.dat": []byte("id1-progs"),
+	})
+	writeTestPak(t, filepath.Join(baseDir, "ironwail.pak"), map[string][]byte{
+		"test.cfg": []byte("test"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("failed to init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	engineData, err := fileSys.LoadFile("test.cfg")
+	if err != nil {
+		t.Fatalf("failed to load test.cfg from engine pak: %v", err)
+	}
+	if got := string(engineData); got != "test" {
+		t.Fatalf("test.cfg = %q, want %q", got, "test")
+	}
+
+	progs, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("failed to load id1 pak file: %v", err)
+	}
+	if got := string(progs); got != "id1-progs" {
+		t.Fatalf("progs.dat = %q, want %q", got, "id1-progs")
+	}
+}
+
+func TestEnginePakOptionalWhenMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1")
+	if err := os.MkdirAll(id1Dir, 0o755); err != nil {
+		t.Fatalf("failed to create id1 dir: %v", err)
+	}
+
+	writeTestPak(t, filepath.Join(id1Dir, "pak0.pak"), map[string][]byte{
+		"progs.dat": []byte("id1-progs"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init should succeed without ironwail.pak: %v", err)
+	}
+	defer fileSys.Close()
+
+	progs, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("failed to load id1 pak file: %v", err)
+	}
+	if got := string(progs); got != "id1-progs" {
+		t.Fatalf("progs.dat = %q, want %q", got, "id1-progs")
+	}
+}
+
 func writeTestPak(t *testing.T, path string, files map[string][]byte) {
 	t.Helper()
 
@@ -304,71 +367,71 @@ func writeTestPak(t *testing.T, path string, files map[string][]byte) {
 // TestListModsReturnsValidDirs verifies that ListMods discovers directories
 // containing pak files or progs.dat while ignoring id1 and empty directories.
 func TestListModsReturnsValidDirs(t *testing.T) {
-baseDir := t.TempDir()
+	baseDir := t.TempDir()
 
-// id1 – should always be excluded.
-id1 := filepath.Join(baseDir, "id1")
-if err := os.MkdirAll(id1, 0755); err != nil {
-t.Fatal(err)
-}
-if err := os.WriteFile(filepath.Join(id1, "pak0.pak"), []byte("fake"), 0644); err != nil {
-t.Fatal(err)
-}
+	// id1 – should always be excluded.
+	id1 := filepath.Join(baseDir, "id1")
+	if err := os.MkdirAll(id1, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(id1, "pak0.pak"), []byte("fake"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-// hipnotic – valid: contains pak0.pak.
-hipDir := filepath.Join(baseDir, "hipnotic")
-if err := os.MkdirAll(hipDir, 0755); err != nil {
-t.Fatal(err)
-}
-if err := os.WriteFile(filepath.Join(hipDir, "pak0.pak"), []byte("fake"), 0644); err != nil {
-t.Fatal(err)
-}
+	// hipnotic – valid: contains pak0.pak.
+	hipDir := filepath.Join(baseDir, "hipnotic")
+	if err := os.MkdirAll(hipDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(hipDir, "pak0.pak"), []byte("fake"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-// mypatch – valid: contains progs.dat.
-patchDir := filepath.Join(baseDir, "mypatch")
-if err := os.MkdirAll(patchDir, 0755); err != nil {
-t.Fatal(err)
-}
-if err := os.WriteFile(filepath.Join(patchDir, "progs.dat"), []byte("fake"), 0644); err != nil {
-t.Fatal(err)
-}
+	// mypatch – valid: contains progs.dat.
+	patchDir := filepath.Join(baseDir, "mypatch")
+	if err := os.MkdirAll(patchDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(patchDir, "progs.dat"), []byte("fake"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-// empty – invalid: no pak or progs.dat.
-emptyDir := filepath.Join(baseDir, "emptydocs")
-if err := os.MkdirAll(emptyDir, 0755); err != nil {
-t.Fatal(err)
-}
+	// empty – invalid: no pak or progs.dat.
+	emptyDir := filepath.Join(baseDir, "emptydocs")
+	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 
-fileSys := fs.NewFileSystem()
-if err := fileSys.Init(baseDir, "id1"); err != nil {
-t.Fatalf("Init failed: %v", err)
-}
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
 
-mods := fileSys.ListMods()
-modNames := make(map[string]bool)
-for _, m := range mods {
-modNames[m.Name] = true
-}
+	mods := fileSys.ListMods()
+	modNames := make(map[string]bool)
+	for _, m := range mods {
+		modNames[m.Name] = true
+	}
 
-if modNames["id1"] {
-t.Error("id1 should be excluded from mod list")
-}
-if !modNames["hipnotic"] {
-t.Error("hipnotic should be listed as a valid mod (has pak0.pak)")
-}
-if !modNames["mypatch"] {
-t.Error("mypatch should be listed as a valid mod (has progs.dat)")
-}
-if modNames["emptydocs"] {
-t.Error("emptydocs should not be listed (no pak or progs.dat)")
-}
+	if modNames["id1"] {
+		t.Error("id1 should be excluded from mod list")
+	}
+	if !modNames["hipnotic"] {
+		t.Error("hipnotic should be listed as a valid mod (has pak0.pak)")
+	}
+	if !modNames["mypatch"] {
+		t.Error("mypatch should be listed as a valid mod (has progs.dat)")
+	}
+	if modNames["emptydocs"] {
+		t.Error("emptydocs should not be listed (no pak or progs.dat)")
+	}
 }
 
 // TestListModsEmptyBaseDir verifies that ListMods returns nil for an unset basedir.
 func TestListModsEmptyBaseDir(t *testing.T) {
-fileSys := fs.NewFileSystem()
-mods := fileSys.ListMods()
-if mods != nil {
-t.Fatalf("expected nil from ListMods with no basedir, got %v", mods)
-}
+	fileSys := fs.NewFileSystem()
+	mods := fileSys.ListMods()
+	if mods != nil {
+		t.Fatalf("expected nil from ListMods with no basedir, got %v", mods)
+	}
 }

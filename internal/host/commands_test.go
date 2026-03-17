@@ -194,6 +194,18 @@ type nameTrackingServer struct {
 	lastName string
 }
 
+type insertTrackingCommandBuffer struct {
+	inserted []string
+}
+
+func (b *insertTrackingCommandBuffer) Init()               {}
+func (b *insertTrackingCommandBuffer) Execute()            {}
+func (b *insertTrackingCommandBuffer) AddText(text string) {}
+func (b *insertTrackingCommandBuffer) InsertText(text string) {
+	b.inserted = append(b.inserted, text)
+}
+func (b *insertTrackingCommandBuffer) Shutdown() {}
+
 func (s *colorTrackingServer) SetClientColor(clientNum int, color int) {
 	s.lastColor = color
 }
@@ -558,6 +570,22 @@ func TestKickCommandRegistrationPreservesFullArgs(t *testing.T) {
 	}
 	if got := srv.kicks[0].reason; got != "too much ping" {
 		t.Fatalf("kick reason = %q, want %q", got, "too much ping")
+	}
+}
+
+func TestStuffCmds(t *testing.T) {
+	h := NewHost()
+	cmdBuf := &insertTrackingCommandBuffer{}
+	subs := &Subsystems{Commands: cmdBuf}
+
+	h.SetArgs([]string{"+map", "start", "+skill", "2", "-window"})
+	h.CmdStuffCmds(subs)
+
+	if len(cmdBuf.inserted) != 1 {
+		t.Fatalf("InsertText calls = %d, want 1", len(cmdBuf.inserted))
+	}
+	if got, want := cmdBuf.inserted[0], "map start\nskill 2\n"; got != want {
+		t.Fatalf("InsertText text = %q, want %q", got, want)
 	}
 }
 
@@ -2443,6 +2471,7 @@ func (m *mapListingFiles) LoadFile(filename string) ([]byte, error) {
 func (m *mapListingFiles) LoadFirstAvailable(filenames []string) (string, []byte, error) {
 	return "", nil, fmt.Errorf("not found")
 }
+func (m *mapListingFiles) FileExists(filename string) bool { return false }
 
 func TestCmdRandmapNoServer(t *testing.T) {
 	h := NewHost()

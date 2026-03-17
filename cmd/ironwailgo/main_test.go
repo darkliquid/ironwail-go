@@ -32,28 +32,28 @@ type demoMessageClient struct {
 	message []byte
 }
 
-func (c *demoMessageClient) Init() error               { return nil }
-func (c *demoMessageClient) Frame(float64) error       { return nil }
-func (c *demoMessageClient) Shutdown()                 {}
-func (c *demoMessageClient) State() host.ClientState   { return 0 }
-func (c *demoMessageClient) ReadFromServer() error     { return nil }
-func (c *demoMessageClient) SendCommand() error        { return nil }
+func (c *demoMessageClient) Init() error                { return nil }
+func (c *demoMessageClient) Frame(float64) error        { return nil }
+func (c *demoMessageClient) Shutdown()                  {}
+func (c *demoMessageClient) State() host.ClientState    { return 0 }
+func (c *demoMessageClient) ReadFromServer() error      { return nil }
+func (c *demoMessageClient) SendCommand() error         { return nil }
 func (c *demoMessageClient) SendStringCmd(string) error { return nil }
-func (c *demoMessageClient) LastServerMessage() []byte { return append([]byte(nil), c.message...) }
+func (c *demoMessageClient) LastServerMessage() []byte  { return append([]byte(nil), c.message...) }
 
 type activeStateTestClient struct {
 	state       host.ClientState
 	clientState *cl.Client
 }
 
-func (c *activeStateTestClient) Init() error         { return nil }
-func (c *activeStateTestClient) Frame(float64) error { return nil }
-func (c *activeStateTestClient) Shutdown()           {}
-func (c *activeStateTestClient) State() host.ClientState { return c.state }
-func (c *activeStateTestClient) ReadFromServer() error   { return nil }
-func (c *activeStateTestClient) SendCommand() error      { return nil }
+func (c *activeStateTestClient) Init() error                { return nil }
+func (c *activeStateTestClient) Frame(float64) error        { return nil }
+func (c *activeStateTestClient) Shutdown()                  {}
+func (c *activeStateTestClient) State() host.ClientState    { return c.state }
+func (c *activeStateTestClient) ReadFromServer() error      { return nil }
+func (c *activeStateTestClient) SendCommand() error         { return nil }
 func (c *activeStateTestClient) SendStringCmd(string) error { return nil }
-func (c *activeStateTestClient) ClientState() *cl.Client { return c.clientState }
+func (c *activeStateTestClient) ClientState() *cl.Client    { return c.clientState }
 
 type demoPlaybackNoopServer struct{}
 
@@ -78,11 +78,11 @@ func (s *demoPlaybackNoopServer) IsPaused() bool                           { ret
 
 type demoPlaybackConsole struct{}
 
-func (c *demoPlaybackConsole) Init() error  { return nil }
-func (c *demoPlaybackConsole) Print(string) {}
-func (c *demoPlaybackConsole) Clear()       {}
+func (c *demoPlaybackConsole) Init() error       { return nil }
+func (c *demoPlaybackConsole) Print(string)      {}
+func (c *demoPlaybackConsole) Clear()            {}
 func (c *demoPlaybackConsole) Dump(string) error { return nil }
-func (c *demoPlaybackConsole) Shutdown()    {}
+func (c *demoPlaybackConsole) Shutdown()         {}
 
 type demoPlaybackCommandBuffer struct {
 	added    []string
@@ -724,10 +724,10 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 
 	cvar.Set("r_drawviewmodel", "1")
 	// Register view-calc cvars needed by collectViewModelEntity.
-	cvar.Set("cl_bob", "0")       // disable bob so origin is predictable
-	cvar.Set("cl_bobcycle", "0")  // zero cycle → bob returns 0
+	cvar.Set("cl_bob", "0")      // disable bob so origin is predictable
+	cvar.Set("cl_bobcycle", "0") // zero cycle → bob returns 0
 	cvar.Set("cl_bobup", "0.5")
-	cvar.Set("v_idlescale", "0")  // no idle sway
+	cvar.Set("v_idlescale", "0") // no idle sway
 	cvar.Set("r_viewmodel_quake", "0")
 
 	gameClient = cl.NewClient()
@@ -2859,6 +2859,11 @@ func (fsys *runtimeMusicTestFS) LoadFirstAvailable(filenames []string) (string, 
 		}
 	}
 	return "", nil, fmt.Errorf("missing files: %v", filenames)
+}
+
+func (fsys *runtimeMusicTestFS) FileExists(filename string) bool {
+	_, ok := fsys.files[filename]
+	return ok
 }
 
 func testRuntimeMusicWAV(t *testing.T, sampleRate, channels, width, frames int) []byte {
