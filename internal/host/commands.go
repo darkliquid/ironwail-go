@@ -110,6 +110,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	}, "Connect to a server")
 	cmdsys.AddCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
 	cmdsys.AddCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
+	cmdsys.AddCommand("slist", func(args []string) { h.CmdSlist(subs) }, "Search for LAN servers")
 	cmdsys.AddCommand("name", func(args []string) {
 		if len(args) > 0 {
 			h.CmdName(args[0], subs)
@@ -1002,6 +1003,29 @@ func (h *Host) CmdServerInfo(subs *Subsystems) {
 	subs.Console.Print(fmt.Sprintf("  skill:     %d\n", h.currentSkill))
 }
 
+// CmdSlist initiates a LAN server search and prints discovered servers
+// to the console, matching the C Ironwail "slist" command.
+func (h *Host) CmdSlist(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	subs.Console.Print("Searching for LAN servers...\n")
+
+	sb := inet.NewServerBrowser()
+	sb.Start()
+	sb.Wait()
+
+	results := sb.Results()
+	if len(results) == 0 {
+		subs.Console.Print("No servers found.\n")
+		return
+	}
+	subs.Console.Print(fmt.Sprintf("Found %d server(s):\n", len(results)))
+	for _, entry := range results {
+		subs.Console.Print(fmt.Sprintf("  %s\n", entry.String()))
+	}
+}
+
 func (h *Host) EndGame(message string, subs *Subsystems) {
 	if subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("Host_EndGame: %s\n", message))
@@ -1756,9 +1780,9 @@ func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 		}
 	}
 
-	// Get CD track (default to 0)
-	cdtrack := 0
-	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+	// Get CD track (default to -1, meaning no forced track, matching C Ironwail)
+	cdtrack := -1
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil && loopbackClient.CDTrack > 0 {
 		cdtrack = loopbackClient.CDTrack
 	}
 

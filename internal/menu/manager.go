@@ -12,6 +12,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
@@ -42,7 +43,7 @@ const (
 
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
-	joinGameItems     = 3
+	joinGameItems     = 4
 	hostGameItems     = 8
 	optionsItems      = 5
 	controlsItems     = 17
@@ -206,6 +207,8 @@ type Manager struct {
 	setupBottomColor   int
 	joinGameCursor     int
 	joinAddress        string
+	serverBrowser      *inet.ServerBrowser
+	serverResults      []inet.HostCacheEntry
 	hostGameCursor     int
 	hostMaxPlayers     int
 	hostGameMode       int
@@ -295,6 +298,7 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		setupBottomColor:   0,
 		joinGameCursor:     0,
 		joinAddress:        "local",
+		serverBrowser:      inet.NewServerBrowser(),
 		hostGameCursor:     0,
 		hostMaxPlayers:     hostMaxPlayersMax,
 		hostGameMode:       1,
@@ -831,8 +835,10 @@ func (m *Manager) joinGameKey(key int) {
 		m.playMenuSound(menuSoundSelect)
 		switch m.joinGameCursor {
 		case 1:
-			m.applyJoinGame()
+			m.startServerSearch()
 		case 2:
+			m.applyJoinGame()
+		case 3:
 			m.state = MenuMultiPlayer
 		}
 	case input.KEscape, input.KMouse2:
@@ -1741,11 +1747,10 @@ func (m *Manager) drawJoinGame(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
 	m.drawText(dc, 56, 48, "ADDRESS", true)
-	m.drawText(dc, 56, 72, "CONNECT", true)
-	m.drawText(dc, 56, 96, "BACK", true)
+	m.drawText(dc, 56, 72, "SEARCH LAN", true)
+	m.drawText(dc, 56, 96, "CONNECT", true)
+	m.drawText(dc, 56, 120, "BACK", true)
 	m.drawText(dc, 160, 48, m.joinAddress, true)
-	m.drawText(dc, 40, 136, "REMOTE CONNECT IS STILL PENDING", true)
-	m.drawText(dc, 40, 152, "USE LOCAL FOR LOOPBACK JOIN", true)
 
 	m.drawArrowCursor(dc, 40, 48+m.joinGameCursor*24)
 	if m.joinGameCursor == 0 {
@@ -1753,6 +1758,40 @@ func (m *Manager) drawJoinGame(dc renderer.RenderContext) {
 		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
 		dc.DrawMenuCharacter(cursorX, 48, cursorChar)
 	}
+
+	// Server list display
+	y := 152
+	if m.serverBrowser != nil && m.serverBrowser.IsSearching() {
+		m.drawText(dc, 40, y, "SEARCHING...", true)
+	} else if m.serverBrowser != nil {
+		// Refresh results from browser (safe — called from main thread)
+		m.serverResults = m.serverBrowser.Results()
+		if len(m.serverResults) == 0 {
+			m.drawText(dc, 40, y, "NO SERVERS FOUND", true)
+		} else {
+			for i, entry := range m.serverResults {
+				if y+i*8 > 192 {
+					break // Don't draw off screen
+				}
+				line := fmt.Sprintf("%-15s %-8s %d/%d", entry.Name, entry.Map, entry.Players, entry.MaxPlayers)
+				m.drawText(dc, 40, y+i*8, line, true)
+			}
+		}
+	} else {
+		m.drawText(dc, 40, y, "PRESS SEARCH LAN TO FIND SERVERS", true)
+	}
+}
+
+// startServerSearch initiates a LAN server scan and stores results when done.
+func (m *Manager) startServerSearch() {
+	if m.serverBrowser == nil {
+		m.serverBrowser = inet.NewServerBrowser()
+	}
+	if m.serverBrowser.IsSearching() {
+		return
+	}
+	m.serverResults = nil
+	m.serverBrowser.Start()
 }
 
 func (m *Manager) drawHostGame(dc renderer.RenderContext) {

@@ -5,6 +5,7 @@ package net
 
 import (
 	"encoding/binary"
+	"fmt"
 	stdnet "net"
 	"strings"
 	"time"
@@ -13,6 +14,24 @@ import (
 )
 
 const defaultServerInfoHostname = "UNNAMED"
+
+// ServerInfoProvider is a callback that returns current server state
+// for responding to LAN browser queries. When set, the server info
+// response uses live data instead of placeholders.
+type ServerInfoProvider struct {
+	Hostname   func() string
+	MapName    func() string
+	Players    func() int
+	MaxPlayers func() int
+	Address    func() string
+}
+
+var serverInfoProvider *ServerInfoProvider
+
+// SetServerInfoProvider installs a callback for live server info.
+func SetServerInfoProvider(p *ServerInfoProvider) {
+	serverInfoProvider = p
+}
 
 func serverInfoHostname() string {
 	if value := cvar.StringValue("hostname"); value != "" {
@@ -333,18 +352,7 @@ func DatagramCheckNewConnections() *Socket {
 
 	cmd := buf[8]
 	if cmd == CCReqServerInfo {
-		// Send server info response
-		resp := make([]byte, 1024)
-		binary.BigEndian.PutUint32(resp[0:], uint32(HeaderSize+1+16+16+1+1+1)|FlagCtl)
-		binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
-		resp[8] = CCRepServerInfo
-		copy(resp[9:], "localhost:26000\x00")
-		copy(resp[25:40], []byte(serverInfoHostname()))
-		copy(resp[41:], "e1m1\x00")
-		resp[57] = 0 // current players
-		resp[58] = 8 // max players
-		resp[59] = 3 // protocol version
-		UDPWrite(acceptSocket, resp[:60], addr)
+		sendServerInfoResponse(acceptSocket, addr)
 		return nil
 	}
 
@@ -367,4 +375,53 @@ func DatagramCheckNewConnections() *Socket {
 	}
 
 	return nil
+}
+
+// sendServerInfoResponse writes a CCRepServerInfo control packet back to the
+// querying client. If a ServerInfoProvider is installed, live server state is
+// used; otherwise placeholder values are returned.
+func sendServerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr) {
+	hostname := serverInfoHostname()
+	mapName := "e1m1"
+	var players, maxPlayers byte
+	maxPlayers = 8
+	address := fmt.Sprintf("%s:%d", myTCPIPAddress, netHostPort)
+	if address == ":26000" || address == ":" {
+		address = addr.IP.String() + fmt.Sprintf(":%d", netHostPort)
+	}
+
+	if serverInfoProvider != nil {
+		if serverInfoProvider.Hostname != nil {
+			hostname = serverInfoProvider.Hostname()
+		}
+		if serverInfoProvider.MapName != nil {
+			mapName = serverInfoProvider.MapName()
+		}
+		if serverInfoProvider.Players != nil {
+			players = byte(serverInfoProvider.Players())
+		}
+		if serverInfoProvider.MaxPlayers != nil {
+			maxPlayers = byte(serverInfoProvider.MaxPlayers())
+		}
+		if serverInfoProvider.Address != nil {
+			address = serverInfoProvider.Address()
+		}
+	}
+
+	// Build response: header(8) + cmd(1) + address\0 + hostname\0 + mapname\0 + players + maxplayers + proto
+	var payload []byte
+	payload = append(payload, CCRepServerInfo)
+	payload = append(payload, []byte(address)...)
+	payload = append(payload, 0)
+	payload = append(payload, []byte(hostname)...)
+	payload = append(payload, 0)
+	payload = append(payload, []byte(mapName)...)
+	payload = append(payload, 0)
+	payload = append(payload, players, maxPlayers, 3) // protocol version 3
+
+	resp := make([]byte, HeaderSize+len(payload))
+	binary.BigEndian.PutUint32(resp[0:], uint32(HeaderSize+len(payload))|FlagCtl)
+	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
+	copy(resp[HeaderSize:], payload)
+	UDPWrite(conn, resp, addr)
 }

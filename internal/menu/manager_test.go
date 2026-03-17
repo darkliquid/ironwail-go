@@ -760,6 +760,7 @@ func TestJoinGameMenuEditingAndConnectCommand(t *testing.T) {
 	mgr.M_Char('0')
 
 	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KEnter)
 
 	if mgr.IsActive() {
