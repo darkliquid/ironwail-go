@@ -57,7 +57,7 @@ type Server struct {
 	// Signon buffer system - shared initial game state sent to connecting clients.
 	// Populated during SpawnServer with precache lists, static entities, and sounds.
 	SignonBuffers []*MessageBuffer
-	Signon       *MessageBuffer // Current signon buffer being written to
+	Signon        *MessageBuffer // Current signon buffer being written to
 
 	// Precached resources
 	SoundPrecache  []string
@@ -120,6 +120,9 @@ type AreaNode struct {
 	SolidEdicts   Edict
 }
 
+// syncEdictToQCVM copies one Go edict's EntVars into the QuakeC VM edict table.
+// This is part of the engine↔QC bridge: before QC runs, the authoritative Go state
+// is mirrored so QC builtins and scripts read the same fields (origin, health, etc.).
 func syncEdictToQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
 		return
@@ -133,6 +136,9 @@ func syncEdictToQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	}
 }
 
+// syncEdictFromQCVM pulls one VM edict's fields back into the Go Edict struct.
+// It is used after QC mutates fields so server physics/network code can continue
+// from the updated authoritative values produced by QuakeC logic.
 func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
 		return
@@ -141,6 +147,9 @@ func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	syncEntVarsFromQC(vm, entNum, ent.Vars, fieldOffsets)
 }
 
+// qcFieldOffsets builds a normalized field-name → VM offset table for entvars.
+// QuakeC field layouts are data-driven from progs.dat; this lookup lets reflection
+// code map Go struct field names onto runtime VM offsets safely.
 func qcFieldOffsets(vm *qc.VM) map[string]int {
 	offsets := make(map[string]int, len(defaultEntFieldOffsets)+len(vm.FieldDefs))
 	for key, ofs := range defaultEntFieldOffsets {
@@ -236,6 +245,9 @@ var defaultEntFieldOffsets = map[string]int{
 	normalizeFieldName("Noise3"):       qc.EntFieldNoise3,
 }
 
+// syncEntVarsToQC reflects over EntVars and writes each mapped field into VM edict memory.
+// This generic reflection pass avoids hand-writing dozens of assignments and keeps
+// the Go-side EntVars schema synchronized with QuakeC-visible entity fields.
 func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[string]int) {
 	if vm == nil || vars == nil {
 		return
@@ -267,6 +279,9 @@ func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[stri
 	}
 }
 
+// syncEntVarsFromQC reflects over EntVars and imports values from VM edict memory.
+// It is the inverse of syncEntVarsToQC and keeps engine systems (physics, networking,
+// savegames) in lockstep with whatever game DLL logic changed in QuakeC this frame.
 func syncEntVarsFromQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[string]int) {
 	if vm == nil || vars == nil {
 		return
@@ -297,6 +312,9 @@ func syncEntVarsFromQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[st
 	}
 }
 
+// ensureQCVMEdictStorage grows VM edict backing storage to match server edict capacity.
+// QuakeC addresses entities by index into a flat byte block; this guarantees indexes
+// the server hands to QC are always valid before any builtin or script executes.
 func (s *Server) ensureQCVMEdictStorage() {
 	if s.QCVM == nil || s.QCVM.EdictSize <= 0 {
 		return
@@ -320,6 +338,9 @@ func (s *Server) ensureQCVMEdictStorage() {
 	}
 }
 
+// syncQCVMState publishes core server globals and all live edicts into the QC VM.
+// This is called at key boundaries (e.g. map spawn/load) so QuakeC starts from an
+// accurate world snapshot before executing functions like worldspawn or client logic.
 func (s *Server) syncQCVMState() {
 	if s.QCVM == nil {
 		return
@@ -430,6 +451,15 @@ func NewServer() *Server {
 		}
 		return nil
 	}
+	// Register the engine-side implementations of QuakeC builtins.
+	//
+	// QC source calls builtins like:
+	//   sound(self, CHAN_AUTO, "misc/hit.wav", 1, ATTN_NORM);
+	// The VM places arguments on its parameter stack (OFS_PARM* globals), and
+	// AdaptServerBuiltinHooks decodes those stack slots into typed Go arguments
+	// for each closure below. These closures then bridge script intent into
+	// authoritative engine systems: entity allocation, traces, networking,
+	// precache lists, and world mutation.
 	qc.RegisterServerHooks(qc.AdaptServerBuiltinHooks(qc.ServerBuiltinHooks{
 		Traceline: func(vm *qc.VM, start, end [3]float32, noMonsters bool, passEnt int) qc.BuiltinTraceResult {
 			moveType := MoveType(MoveNormal)
@@ -932,6 +962,8 @@ func (s *Server) NumForEdict(e *Edict) int {
 	}
 	return -1
 }
+
+// GetMaxClients returns configured client slot count from persistent server static state.
 func (s *Server) GetMaxClients() int {
 	if s.Static == nil {
 		return 0
@@ -939,6 +971,7 @@ func (s *Server) GetMaxClients() int {
 	return s.Static.MaxClients
 }
 
+// IsClientActive reports whether a client slot is currently occupied by an active connection.
 func (s *Server) IsClientActive(clientNum int) bool {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return false
@@ -947,6 +980,7 @@ func (s *Server) IsClientActive(clientNum int) bool {
 	return client != nil && client.Active
 }
 
+// GetClientName returns the user-visible name for a connected client slot.
 func (s *Server) GetClientName(clientNum int) string {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return ""
@@ -957,6 +991,7 @@ func (s *Server) GetClientName(clientNum int) string {
 	return s.Static.Clients[clientNum].Name
 }
 
+// SetClientName updates a client's display name used by chat, scoreboards, and prints.
 func (s *Server) SetClientName(clientNum int, name string) {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return
@@ -967,6 +1002,7 @@ func (s *Server) SetClientName(clientNum int, name string) {
 	s.Static.Clients[clientNum].Name = name
 }
 
+// GetClientColor returns the top/bottom shirt color bits for the given client slot.
 func (s *Server) GetClientColor(clientNum int) int {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return 0
@@ -977,6 +1013,7 @@ func (s *Server) GetClientColor(clientNum int) int {
 	return s.Static.Clients[clientNum].Color
 }
 
+// SetClientColor updates a client's color setting used by player model colormap rendering.
 func (s *Server) SetClientColor(clientNum int, color int) {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return
@@ -987,6 +1024,7 @@ func (s *Server) SetClientColor(clientNum int, color int) {
 	s.Static.Clients[clientNum].Color = color
 }
 
+// GetClientPing returns average ping (ms) from the client's rolling network sample window.
 func (s *Server) GetClientPing(clientNum int) float32 {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return 0
@@ -1004,6 +1042,7 @@ func (s *Server) GetClientPing(clientNum int) float32 {
 	return total / float32(count) * 1000
 }
 
+// KickClient sends a kick reason to a client then drops the connection from the server.
 func (s *Server) KickClient(clientNum int, who, reason string) bool {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return false
@@ -1028,10 +1067,13 @@ func (s *Server) KickClient(clientNum int, who, reason string) bool {
 	s.DropClient(client, false)
 	return true
 }
+
+// GetMapName returns the currently loaded map short name (without maps/ path or .bsp suffix).
 func (s *Server) GetMapName() string {
 	return s.Name
 }
 
+// SV_BroadcastPrintf prints formatted text to server console and all active clients reliably.
 func (s *Server) SV_BroadcastPrintf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	console.Printf("%s", msg)
@@ -1047,6 +1089,7 @@ func (s *Server) SV_BroadcastPrintf(format string, args ...any) {
 	}
 }
 
+// SV_ClientPrintf queues a formatted print message to a single client's reliable stream.
 func (s *Server) SV_ClientPrintf(client *Client, format string, args ...any) {
 	if client == nil || !client.Active || client.Message == nil {
 		return

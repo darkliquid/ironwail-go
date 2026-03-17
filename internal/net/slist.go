@@ -3,6 +3,26 @@
 
 package net
 
+// slist.go implements the LAN server browser for Quake multiplayer.
+// It discovers servers on the local network by broadcasting
+// CCReqServerInfo control packets and collecting CCRepServerInfo
+// responses. This mirrors the "slist" functionality from net_main.c
+// in the original C engine.
+//
+// The discovery process follows the original Quake timing:
+//   - T=0ms: first broadcast query sent to 255.255.255.255:26000
+//   - T=500ms: retry broadcast (in case the first was lost)
+//   - T=1500ms: search complete, results available
+//
+// Servers that receive the query respond with their hostname, current
+// map, player count, max players, and protocol version. The browser
+// deduplicates responses by address and presents the results to the
+// player for server selection.
+//
+// The ServerBrowser type is safe for concurrent use. The search runs
+// in a background goroutine, and Results() can be called at any time
+// to get the current snapshot of discovered servers.
+
 import (
 	"encoding/binary"
 	"fmt"

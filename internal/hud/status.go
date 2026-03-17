@@ -43,13 +43,21 @@ type StatusBar struct {
 	pickupKnown uint32
 }
 
+// Bit indices and bitmask constants for Hipnotic (Scourge of Armagon) and
+// Rogue (Dissolution of Eternity) expansion pack items and weapons. These
+// extension packs added weapons and items beyond the base Quake set, each
+// identified by a specific bit in the 32-bit items bitmask sent from the
+// server. The naming follows the C Ironwail sbar.c constants.
 const (
+	// Hipnotic expansion weapon/item bit positions within cl.Items.
 	hipLaserCannonBit = 23
 	hipMjolnirBit     = 7
 	hipProximityBit   = 16
 	hipWetsuitBit     = 25
 	hipEmpathyBit     = 26
 
+	// Rogue expansion weapon/item bitmasks. Unlike Hipnotic, these are stored
+	// as pre-shifted bitmasks rather than bit indices.
 	rogueLavaNailgun      = 1 << 12
 	rogueLavaSuperNailgun = 1 << 13
 	rogueMultiGrenade     = 1 << 14
@@ -213,6 +221,10 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	}
 }
 
+// drawInventory renders the inventory strip that sits above the main status
+// bar. It shows owned weapons (with flash animation on pickup), ammo counts
+// for all four ammo types, powerup/item icons (keys, quad, etc.), and sigils.
+// Expansion pack (Hipnotic/Rogue) items are drawn via helper methods.
 func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state State) {
 	weaponBits := []uint32{
 		cl.ItemShotgun,
@@ -296,10 +308,19 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 	}
 }
 
+// drawBigNum draws a numeric value using 8×24 "big number" character glyphs,
+// right-aligned within the given digit count. The alt parameter was originally
+// used for the red-flash low-value warning but is currently unused; the base
+// DrawNumber helper handles all rendering.
 func (sb *StatusBar) drawBigNum(rc renderer.RenderContext, x, y, value, digits int, alt bool) {
 	DrawNumber(rc, x+digits*8, y, value, digits)
 }
 
+// facePic selects the appropriate face graphic for the current player state.
+// Quake's face changes based on powerup status (quad, invisibility,
+// invulnerability, or both invis+invuln) and health bucket (0–19, 20–39,
+// 40–59, 60–79, 80–99, 100+). The second dimension [1] would be the
+// pain face (unused here; index [0] is the idle face).
 func (sb *StatusBar) facePic(state State) *image.QPic {
 	items := state.Items
 	if items&(cl.ItemInvisibility|cl.ItemInvulnerability) == (cl.ItemInvisibility | cl.ItemInvulnerability) {
@@ -327,6 +348,9 @@ func (sb *StatusBar) facePic(state State) *image.QPic {
 	return sb.facePics[bucket][0]
 }
 
+// armorPic returns the correct armor icon for the player's current armor type
+// (green/yellow/red), or the pentagram disc if invulnerability is active.
+// Returns nil if no armor is equipped.
 func (sb *StatusBar) armorPic(items uint32) *image.QPic {
 	if items&cl.ItemInvulnerability != 0 && sb.discPic != nil {
 		return sb.discPic
@@ -343,6 +367,9 @@ func (sb *StatusBar) armorPic(items uint32) *image.QPic {
 	}
 }
 
+// ammoPic returns the ammo-type icon (shells, nails, rockets, or cells) for
+// the player's currently selected weapon. In the Rogue expansion, additional
+// ammo types (lava nails, plasma, multi-rockets) are also checked.
 func (sb *StatusBar) ammoPic(state State) *image.QPic {
 	items := state.Items
 	if state.ModRogue {
@@ -379,6 +406,9 @@ func (sb *StatusBar) ammoPic(state State) *image.QPic {
 	}
 }
 
+// inventoryBarPic returns the inventory bar background graphic. For the Rogue
+// expansion, there are two variants: one for standard weapons and one for
+// Rogue-specific weapons (lava nailgun, etc.).
 func (sb *StatusBar) inventoryBarPic(state State) *image.QPic {
 	if state.ModRogue {
 		if state.ActiveWeapon < rogueLavaNailgun {
@@ -392,6 +422,10 @@ func (sb *StatusBar) inventoryBarPic(state State) *image.QPic {
 	return sb.ibarPic
 }
 
+// weaponPic returns the weapon icon graphic for the given slot and flash frame.
+// flashOn selects the animation frame: 0 = active/highlighted, 1 = inactive,
+// 2–6 = pickup flash frames. Falls back through the hierarchy if a specific
+// frame graphic is missing.
 func (sb *StatusBar) weaponPic(slot, flashOn int) *image.QPic {
 	if flashOn < 0 || flashOn >= len(sb.weaponPics) {
 		flashOn = 1
@@ -410,6 +444,10 @@ func (sb *StatusBar) weaponPic(slot, flashOn int) *image.QPic {
 	return sb.weaponPics[1][slot]
 }
 
+// weaponFlashIndex returns the animation frame index for a weapon icon. When
+// the weapon was recently picked up (within 1 second), it cycles through 5
+// flash frames (indices 2–6) at 10 fps. Otherwise returns 0 (active) or
+// 1 (inactive) based on whether this is the currently selected weapon.
 func (sb *StatusBar) weaponFlashIndex(state State, bit uint32, active bool) int {
 	if !sb.pickedUp(bit) {
 		if active {
@@ -427,6 +465,9 @@ func (sb *StatusBar) weaponFlashIndex(state State, bit uint32, active bool) int 
 	return 1
 }
 
+// trackPickups detects item additions and removals by comparing the current
+// items bitmask against the previous frame. Newly acquired items record their
+// pickup time for the flash animation; lost items clear their tracking state.
 func (sb *StatusBar) trackPickups(state State) {
 	added := state.Items &^ sb.lastItems
 	removed := sb.lastItems &^ state.Items
@@ -444,10 +485,17 @@ func (sb *StatusBar) trackPickups(state State) {
 	sb.lastItems = state.Items
 }
 
+// pickedUp returns true if the given item bit has been seen as a pickup event
+// (i.e. it transitioned from absent to present in the items bitmask).
 func (sb *StatusBar) pickedUp(bit uint32) bool {
 	return sb.pickupKnown&bit != 0
 }
 
+// drawHipnoticWeapons renders weapon icons specific to the Hipnotic (Scourge
+// of Armagon) expansion pack: Laser Cannon, Mjolnir, Proximity Gun, and the
+// grenade/proximity weapon-sharing slot. The grenade launcher and proximity
+// gun share the same visual slot, with special logic to show the correct icon
+// and flash animation.
 func (sb *StatusBar) drawHipnoticWeapons(rc renderer.RenderContext, x, y int, state State) {
 	hipBits := []uint32{1 << hipLaserCannonBit, 1 << hipMjolnirBit, cl.ItemGrenadeLauncher, 1 << hipProximityBit}
 	grenadeFlashing := false
@@ -486,6 +534,9 @@ func (sb *StatusBar) drawHipnoticWeapons(rc renderer.RenderContext, x, y int, st
 	}
 }
 
+// drawRogueWeapon renders the weapon icon for Rogue (Dissolution of Eternity)
+// expansion weapons when one of them is the actively selected weapon. Only one
+// Rogue weapon icon is drawn at a time (the active one).
 func (sb *StatusBar) drawRogueWeapon(rc renderer.RenderContext, x, y int, state State) {
 	if state.ActiveWeapon < rogueLavaNailgun {
 		return
@@ -504,6 +555,9 @@ func (sb *StatusBar) drawRogueWeapon(rc renderer.RenderContext, x, y int, state 
 	}
 }
 
+// armorValue returns the displayed armor value. If invulnerability is active
+// the classic "666" is shown (a Quake tradition); otherwise the actual armor
+// stat is returned.
 func armorValue(state State) int {
 	if state.Items&cl.ItemInvulnerability != 0 {
 		return 666
@@ -511,6 +565,10 @@ func armorValue(state State) int {
 	return state.Armor
 }
 
+// drawScoreboard renders the full-screen deathmatch scoreboard that appears
+// when the player is dead or holds the +showscores key. It draws the ranking
+// header, then each player row with colour bars, frag count, and name,
+// sorted by frags descending.
 func (sb *StatusBar) drawScoreboard(rc renderer.RenderContext, state State, sbarX, sbarY int) {
 	const scorebarHeight = 24
 	if sb.scorebarPic != nil {
@@ -540,6 +598,9 @@ func (sb *StatusBar) drawScoreboard(rc renderer.RenderContext, state State, sbar
 	}
 }
 
+// drawMiniScoreboard renders a compact 4-player scoreboard strip overlaid on
+// the right side of the status bar during deathmatch games. Each player gets
+// a small colour bar and frag count; the current player is bracketed.
 func (sb *StatusBar) drawMiniScoreboard(rc renderer.RenderContext, state State, sbarX, sbarY int) {
 	rows := sortedScoreboard(state.Scoreboard)
 	if len(rows) > 4 {
@@ -560,6 +621,10 @@ func (sb *StatusBar) drawMiniScoreboard(rc renderer.RenderContext, state State, 
 	}
 }
 
+// sortedScoreboard returns a copy of the scoreboard rows with empty-name
+// entries filtered out and the remainder sorted by frags descending (ties
+// broken by client index ascending). This matches the C Ironwail scoreboard
+// display order.
 func sortedScoreboard(rows []ScoreEntry) []ScoreEntry {
 	sorted := make([]ScoreEntry, 0, len(rows))
 	for _, row := range rows {
@@ -577,6 +642,9 @@ func sortedScoreboard(rows []ScoreEntry) []ScoreEntry {
 	return sorted
 }
 
+// colorForMap converts a Quake colour map value (upper nibble × 16) to a
+// palette index suitable for DrawFill. Adding 8 shifts from the darkest shade
+// to a mid-tone in that colour row, matching the C Ironwail Sbar_ColorForMap().
 func colorForMap(m int) byte {
 	return byte(m + 8)
 }

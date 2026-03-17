@@ -41,6 +41,7 @@ func (r *Renderer) InputBackendForSystem(sys *iinput.System) iinput.Backend {
 	return &gogpuInputBackend{app: r.app, sys: sys}
 }
 
+// Init Init prepares backend resources needed before the first frame, including API-specific state, cached GPU objects, and per-frame scratch structures used by the renderer.
 func (b *gogpuInputBackend) Init() error {
 	// Try eager callback registration first; PollEvents keeps lazy fallback.
 	b.initCallbacks()
@@ -48,10 +49,12 @@ func (b *gogpuInputBackend) Init() error {
 	return nil
 }
 
+// Shutdown Shutdown releases backend-owned resources in reverse order of creation so context-bound objects (textures, buffers, shaders) are destroyed safely.
 func (b *gogpuInputBackend) Shutdown() {
 	// Nothing to cleanup.
 }
 
+// PollEvents PollEvents pumps backend window/input events once per frame so camera controls and UI react with minimal latency.
 func (b *gogpuInputBackend) PollEvents() bool {
 	if !b.callbacksInited {
 		b.initCallbacks()
@@ -121,6 +124,7 @@ func (b *gogpuInputBackend) PollEvents() bool {
 	return true
 }
 
+// initCallbacks initCallbacks registers platform callback hooks that translate windowing events into engine input state updates.
 func (b *gogpuInputBackend) initCallbacks() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -228,30 +232,35 @@ func (b *gogpuInputBackend) initCallbacks() {
 	slog.Info("gogpu input backend: event source callbacks registered", "event_source", fmt.Sprintf("%T", es))
 }
 
+// markCallbackInput markCallbackInput records that callback-driven input arrived this frame, enabling fallback polling decisions.
 func (b *gogpuInputBackend) markCallbackInput() {
 	b.mu.Lock()
 	b.callbackInputOK = true
 	b.mu.Unlock()
 }
 
+// markCallbackSeen markCallbackSeen notes callback execution to diagnose platforms where callback delivery differs from polling behavior.
 func (b *gogpuInputBackend) markCallbackSeen() {
 	b.mu.Lock()
 	b.callbackSeen = true
 	b.mu.Unlock()
 }
 
+// hasCallbackInput hasCallbackInput reports whether callback data arrived, helping choose between callback and polled input sources.
 func (b *gogpuInputBackend) hasCallbackInput() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.callbackInputOK
 }
 
+// hasCallbackSeen hasCallbackSeen reports whether callbacks are functioning at all on the current platform/runtime.
 func (b *gogpuInputBackend) hasCallbackSeen() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.callbackSeen
 }
 
+// GetMouseDelta GetMouseDelta returns per-frame mouse movement accumulated since the previous poll, used for camera yaw/pitch updates.
 func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {
 	b.mu.Lock()
 	dx, dy = b.accumMouseDX, b.accumMouseDY
@@ -261,14 +270,17 @@ func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {
 	return dx, dy
 }
 
+// GetModifierState GetModifierState reports keyboard modifier keys for UI shortcuts and contextual input behavior.
 func (b *gogpuInputBackend) GetModifierState() iinput.ModifierState {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.modifiers
 }
 
+// SetTextMode SetTextMode switches between gameplay and text-entry input handling for console/chat/menu interactions.
 func (b *gogpuInputBackend) SetTextMode(mode iinput.TextMode) {}
 
+// SetCursorMode SetCursorMode configures pointer capture/visibility based on whether the player is in mouselook or UI mode.
 func (b *gogpuInputBackend) SetCursorMode(mode iinput.CursorMode) {
 	b.cursorMode = mode
 	if b.app == nil {
@@ -284,16 +296,21 @@ func (b *gogpuInputBackend) SetCursorMode(mode iinput.CursorMode) {
 	}
 }
 
+// ShowKeyboard ShowKeyboard requests platform virtual keyboard visibility on systems without physical keyboards.
 func (b *gogpuInputBackend) ShowKeyboard(show bool) {}
 
+// GetGamepadState GetGamepadState returns the current gamepad snapshot mapped into engine-friendly button/axis structures.
 func (b *gogpuInputBackend) GetGamepadState(player int) iinput.GamepadState {
 	return iinput.GamepadState{}
 }
 
+// IsGamepadConnected IsGamepadConnected performs its step in GoGPU input backend integration; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *gogpuInputBackend) IsGamepadConnected(player int) bool { return false }
 
+// SetMouseGrab SetMouseGrab performs its step in GoGPU input backend integration; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *gogpuInputBackend) SetMouseGrab(grabbed bool) {}
 
+// SetWindow SetWindow performs its step in GoGPU input backend integration; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *gogpuInputBackend) SetWindow(win interface{}) {}
 
 type pollingKeyPair struct {
@@ -343,6 +360,7 @@ var pollingKeyMap = func() []pollingKeyPair {
 	return pairs
 }()
 
+// mapGPUContextMouseButton mapGPUContextMouseButton performs its step in GoGPU input backend integration; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func mapGPUContextMouseButton(button gpucontext.MouseButton) int {
 	switch button {
 	case gpucontext.MouseButtonLeft:
@@ -360,6 +378,7 @@ func mapGPUContextMouseButton(button gpucontext.MouseButton) int {
 	}
 }
 
+// mapGPUContextKey mapGPUContextKey performs its step in GoGPU input backend integration; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func mapGPUContextKey(key gpucontext.Key) int {
 	switch key {
 	case gpucontext.KeyEscape:

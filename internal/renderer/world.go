@@ -288,6 +288,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 	return vertices, nil
 }
 
+// worldFaceTexInfo worldFaceTexInfo resolves the texture-info record for a BSP face, which maps geometric vertices into texture/lightmap UV space.
 func worldFaceTexInfo(tree *bsp.Tree, face *bsp.TreeFace) *bsp.Texinfo {
 	if tree == nil || face == nil {
 		return nil
@@ -298,6 +299,7 @@ func worldFaceTexInfo(tree *bsp.Tree, face *bsp.TreeFace) *bsp.Texinfo {
 	return &tree.Texinfo[face.Texinfo]
 }
 
+// worldFaceTextureIndex worldFaceTextureIndex resolves the diffuse texture atlas slot for a face so world pass shaders can sample the correct base map.
 func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	texInfo := worldFaceTexInfo(tree, face)
 	if texInfo == nil || texInfo.Miptex < 0 {
@@ -306,6 +308,7 @@ func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	return texInfo.Miptex
 }
 
+// worldFaceLightmapIndex worldFaceLightmapIndex returns the lightmap atlas page/index used for static lighting lookup during world shading.
 func worldFaceLightmapIndex(face *bsp.TreeFace) int32 {
 	if face == nil || face.LightOfs < 0 || face.Styles[0] == 255 {
 		return -1
@@ -314,6 +317,7 @@ func worldFaceLightmapIndex(face *bsp.TreeFace) int32 {
 	return 0
 }
 
+// worldFaceFlags worldFaceFlags exposes per-face material/render flags (sky, liquid, turbulent, etc.) that drive pass routing and shader behavior.
 func worldFaceFlags(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	texInfo := worldFaceTexInfo(tree, face)
 	if texInfo == nil {
@@ -322,6 +326,7 @@ func worldFaceFlags(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	return texInfo.Flags
 }
 
+// worldTextureDimensions worldTextureDimensions fetches source texture dimensions for texel-density and UV conversion computations.
 func worldTextureDimensions(tree *bsp.Tree, texInfo *bsp.Texinfo) (float32, float32) {
 	textureWidth := float32(1)
 	textureHeight := float32(1)
@@ -810,6 +815,7 @@ func float32ToBytes(f []float32) []byte {
 	return result
 }
 
+// uint32ToBytes uint32ToBytes expands packed integer data into byte form for uploads to APIs expecting byte-addressable buffers/textures.
 func uint32ToBytes(u uint32) []byte {
 	result := make([]byte, 4)
 	binary.LittleEndian.PutUint32(result, u)
@@ -1211,6 +1217,7 @@ func TransformVertex(pos [3]float32, mvp types.Mat4) types.Vec4 {
 	return types.Mat4MulVec4(mvp, v)
 }
 
+// createWorldDepthTexture createWorldDepthTexture allocates a depth attachment used by multi-pass world rendering so later passes can depth-test against the opaque world.
 func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int) (hal.Texture, hal.TextureView, error) {
 	texture, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "World Depth Texture",
@@ -1243,6 +1250,7 @@ func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int)
 	return texture, view, nil
 }
 
+// worldDepthAttachmentForView worldDepthAttachmentForView picks the correct depth target for the current view configuration and pass sequence.
 func worldDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
 	if view == nil {
 		return nil

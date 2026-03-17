@@ -68,6 +68,7 @@ type LerpData struct {
 	Angles [3]float32
 }
 
+// SetupAliasFrame SetupAliasFrame computes alias-model frame interpolation data (old/new keyframes plus lerp factor), producing smooth animation from Quake's discrete baked poses.
 func SetupAliasFrame(e *AliasEntity, hdr *AliasHeader, timeSeconds float64, lerpModels bool, demoPlayback bool, demoSpeed float64) (LerpData, error) {
 	var out LerpData
 	if e == nil || hdr == nil {
@@ -144,6 +145,7 @@ func SetupAliasFrame(e *AliasEntity, hdr *AliasHeader, timeSeconds float64, lerp
 	return out, nil
 }
 
+// SetupEntityTransform SetupEntityTransform builds the model matrix from entity origin and Euler angles, placing monsters/items in world space before view/projection transforms.
 func SetupEntityTransform(e *AliasEntity, timeSeconds float64, lerpMove bool, isViewEntity bool, chaseActive bool, demoPlayback bool, demoSpeed float64) (origin [3]float32, angles [3]float32) {
 	if e == nil {
 		return origin, angles
@@ -227,6 +229,7 @@ type AliasBatch struct {
 	instances    []AliasInstance
 }
 
+// NewAliasBatch NewAliasBatch allocates batching storage for alias draw calls so entities sharing state can be submitted with fewer API transitions.
 func NewAliasBatch(maxInstances int) *AliasBatch {
 	if maxInstances <= 0 {
 		maxInstances = 256
@@ -234,6 +237,7 @@ func NewAliasBatch(maxInstances int) *AliasBatch {
 	return &AliasBatch{maxInstances: maxInstances}
 }
 
+// Count Count reports how many batched entries are currently queued, useful for deciding when to flush before state or texture changes.
 func (b *AliasBatch) Count() int {
 	if b == nil {
 		return 0
@@ -241,6 +245,7 @@ func (b *AliasBatch) Count() int {
 	return b.count
 }
 
+// CanAdd CanAdd checks batch capacity limits before appending geometry, preventing overflow and preserving contiguous upload/write patterns.
 func (b *AliasBatch) CanAdd(key AliasBatchKey) bool {
 	if b == nil {
 		return false
@@ -260,6 +265,7 @@ func (b *AliasBatch) CanAdd(key AliasBatchKey) bool {
 	return true
 }
 
+// Add Add appends a surface/lightmap block into an allocator or batch structure, centralizing bounds/capacity checks before write.
 func (b *AliasBatch) Add(key AliasBatchKey, instance AliasInstance) bool {
 	if !b.CanAdd(key) {
 		return false
@@ -276,6 +282,7 @@ func (b *AliasBatch) Add(key AliasBatchKey, instance AliasInstance) bool {
 	return true
 }
 
+// Flush Flush submits the queued alias batch to the GPU and resets counters, trading many small draws for a single larger draw whenever possible.
 func (b *AliasBatch) Flush() []AliasInstance {
 	if b == nil || b.count == 0 {
 		return nil
@@ -287,6 +294,7 @@ func (b *AliasBatch) Flush() []AliasInstance {
 	return out
 }
 
+// MatrixTranspose4x3 MatrixTranspose4x3 converts Quake-style transform layout into the matrix packing expected by the active shader path.
 func MatrixTranspose4x3(in [16]float32) [12]float32 {
 	return [12]float32{
 		in[0], in[4], in[8],
@@ -296,6 +304,7 @@ func MatrixTranspose4x3(in [16]float32) [12]float32 {
 	}
 }
 
+// clamp01 clamp01 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func clamp01(v float32) float32 {
 	if math.IsNaN(float64(v)) {
 		return 0

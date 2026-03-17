@@ -366,42 +366,68 @@ func (ba BitArray) Toggle(i uint32) {
 	ba[i/32] ^= 1 << (i % 32)
 }
 
-// Little-endian binary I/O helpers.
-// Quake data files and network protocol use little-endian byte order.
+// ─────────────────────────────────────────────────────────────────────────────
+// Little-endian and big-endian binary I/O helpers
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// All Quake data files (BSP maps, MDL models, SPR sprites, PAK archives,
+// progs.dat QuakeC bytecode) and the network protocol use little-endian
+// byte order — a legacy of the x86-only world of 1996. The original C code
+// had LittleShort/LittleLong/LittleFloat functions that were no-ops on x86
+// and byte-swapped on big-endian platforms. In Go, encoding/binary handles
+// this portably.
+//
+// Two API styles are provided:
+//   - Slice-based (LittleShort, LittleLong, LittleFloat): Operate on []byte
+//     slices for direct, zero-copy access into memory-mapped file data.
+//     These are used when parsing BSP lumps, PAK directory entries, and
+//     other pre-loaded binary blobs.
+//   - Reader/Writer-based (ReadLittleShort, WriteLittleShort, etc.): Operate
+//     on io.Reader/io.Writer for streaming I/O. These are used when reading
+//     from pack files or writing network messages and savegame files.
+//
+// Big-endian helpers (BigShort, BigLong, BigFloat) exist for completeness
+// and for parsing external formats that use network byte order.
 
-// LittleShort reads a 16-bit signed integer from a 2-byte slice.
+// LittleShort reads a 16-bit signed integer from a 2-byte little-endian slice.
+// Used for BSP lump offsets, texture dimensions, and network protocol fields.
 func LittleShort(data []byte) int16 {
 	return int16(binary.LittleEndian.Uint16(data))
 }
 
-// LittleLong reads a 32-bit signed integer from a 4-byte slice.
+// LittleLong reads a 32-bit signed integer from a 4-byte little-endian slice.
+// Used for BSP lump sizes, PAK file offsets, model vertex counts, and
+// magic numbers (file format identifiers like IDSP, IDPO, PACK).
 func LittleLong(data []byte) int32 {
 	return int32(binary.LittleEndian.Uint32(data))
 }
 
-// LittleFloat reads a 32-bit float from a 4-byte slice in little-endian IEEE 754 format.
+// LittleFloat reads a 32-bit float from a 4-byte little-endian IEEE 754 slice.
+// Used for BSP plane distances, model vertex coordinates, bounding box
+// extents, and other geometric data stored in binary file formats.
 func LittleFloat(data []byte) float32 {
 	bits := binary.LittleEndian.Uint32(data)
 	return math.Float32frombits(bits)
 }
 
-// BigShort reads a 16-bit signed integer in big-endian format.
+// BigShort reads a 16-bit signed integer in big-endian (network byte order) format.
 func BigShort(data []byte) int16 {
 	return int16(binary.BigEndian.Uint16(data))
 }
 
-// BigLong reads a 32-bit signed integer in big-endian format.
+// BigLong reads a 32-bit signed integer in big-endian (network byte order) format.
 func BigLong(data []byte) int32 {
 	return int32(binary.BigEndian.Uint32(data))
 }
 
-// BigFloat reads a 32-bit float in big-endian IEEE 754 format.
+// BigFloat reads a 32-bit float in big-endian (network byte order) IEEE 754 format.
 func BigFloat(data []byte) float32 {
 	bits := binary.BigEndian.Uint32(data)
 	return math.Float32frombits(bits)
 }
 
-// WriteLittleShort writes a 16-bit signed integer to a writer in little-endian format.
+// WriteLittleShort writes a 16-bit signed integer to a writer in little-endian
+// format. Used for serializing network messages and savegame data.
 func WriteLittleShort(w io.Writer, v int16) error {
 	var buf [2]byte
 	binary.LittleEndian.PutUint16(buf[:], uint16(v))
@@ -409,7 +435,8 @@ func WriteLittleShort(w io.Writer, v int16) error {
 	return err
 }
 
-// WriteLittleLong writes a 32-bit signed integer to a writer in little-endian format.
+// WriteLittleLong writes a 32-bit signed integer to a writer in little-endian
+// format. Used for serializing entity counts, file offsets, and protocol fields.
 func WriteLittleLong(w io.Writer, v int32) error {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], uint32(v))
@@ -417,7 +444,9 @@ func WriteLittleLong(w io.Writer, v int32) error {
 	return err
 }
 
-// WriteLittleFloat writes a 32-bit float to a writer in little-endian IEEE 754 format.
+// WriteLittleFloat writes a 32-bit float to a writer in little-endian IEEE 754
+// format. Used for serializing coordinates, angles, and other floating-point
+// values in savegames and binary export formats.
 func WriteLittleFloat(w io.Writer, v float32) error {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], math.Float32bits(v))
@@ -425,7 +454,8 @@ func WriteLittleFloat(w io.Writer, v float32) error {
 	return err
 }
 
-// ReadLittleShort reads a 16-bit signed integer from a reader in little-endian format.
+// ReadLittleShort reads a 16-bit signed integer from a reader in little-endian
+// format. Uses io.ReadFull to ensure exactly 2 bytes are consumed.
 func ReadLittleShort(r io.Reader) (int16, error) {
 	var buf [2]byte
 	_, err := io.ReadFull(r, buf[:])
@@ -435,7 +465,8 @@ func ReadLittleShort(r io.Reader) (int16, error) {
 	return int16(binary.LittleEndian.Uint16(buf[:])), nil
 }
 
-// ReadLittleLong reads a 32-bit signed integer from a reader in little-endian format.
+// ReadLittleLong reads a 32-bit signed integer from a reader in little-endian
+// format. Uses io.ReadFull to ensure exactly 4 bytes are consumed.
 func ReadLittleLong(r io.Reader) (int32, error) {
 	var buf [4]byte
 	_, err := io.ReadFull(r, buf[:])
@@ -445,7 +476,8 @@ func ReadLittleLong(r io.Reader) (int32, error) {
 	return int32(binary.LittleEndian.Uint32(buf[:])), nil
 }
 
-// ReadLittleFloat reads a 32-bit float from a reader in little-endian IEEE 754 format.
+// ReadLittleFloat reads a 32-bit float from a reader in little-endian IEEE 754
+// format. Uses io.ReadFull to ensure exactly 4 bytes are consumed.
 func ReadLittleFloat(r io.Reader) (float32, error) {
 	var buf [4]byte
 	_, err := io.ReadFull(r, buf[:])
@@ -455,21 +487,47 @@ func ReadLittleFloat(r io.Reader) (float32, error) {
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:])), nil
 }
 
-// Global variables for command line arguments and parsing.
+// Global variables for the Quake command-line argument system and tokenizer.
+//
+// Quake's command-line handling predates Go's flag package and has specific
+// behaviors that mods and configs depend on (case-insensitive matching,
+// integer indexing, etc.). These globals mirror the C engine's com_argc,
+// com_argv, and com_token variables.
+//
+//   - ComToken: Holds the most recently parsed token from COM_Parse/COM_ParseEx.
+//     This global-state design matches the original C code where com_token
+//     is a static buffer shared across all callers.
+//   - ComArgc: Number of command-line arguments (mirrors C's com_argc).
+//   - ComArgv: The argument strings themselves (mirrors C's com_argv).
 var (
 	ComToken string
 	ComArgc  int
 	ComArgv  []string
 )
 
-// COM_InitArgv initializes the command line arguments.
+// COM_InitArgv initializes the command-line argument system with the
+// provided argument list. This is called once during engine startup
+// (Host_Init) before any subsystem that might query command-line parameters.
+//
+// Various engine systems check for command-line flags early in their
+// initialization: -dedicated (headless server), -basedir (game data path),
+// -heapsize (memory pool), -listen (max players), etc.
 func COM_InitArgv(args []string) {
 	ComArgv = args
 	ComArgc = len(args)
 }
 
-// COM_CheckParmNext returns the position (1 to argc-1) in the program's argument list
-// where the given parameter appears after the 'last' index, or 0 if not present.
+// COM_CheckParmNext searches the command-line arguments for the parameter
+// 'parm', starting after index 'last'. Returns the index (1-based) where
+// the parameter was found, or 0 if not present.
+//
+// The 'last' parameter enables scanning for repeated flags. For example,
+// "-game hipnotic -game rogue" can be iterated by calling:
+//
+//	idx := COM_CheckParmNext(0, "-game")   // finds first -game
+//	idx = COM_CheckParmNext(idx, "-game")  // finds second -game
+//
+// Comparison is case-insensitive to match C Quake's Q_strcasecmp behavior.
 func COM_CheckParmNext(last int, parm string) int {
 	for i := last + 1; i < ComArgc; i++ {
 		if ComArgv[i] == "" {
@@ -482,27 +540,71 @@ func COM_CheckParmNext(last int, parm string) int {
 	return 0
 }
 
-// COM_CheckParm returns the position (1 to argc-1) in the program's argument list
-// where the given parameter appears, or 0 if not present.
+// COM_CheckParm searches the entire command-line for the parameter 'parm'.
+// Returns the 1-based index where it was found, or 0 if absent.
+//
+// This is the primary way engine subsystems check for command-line flags:
+//
+//	if idx := COM_CheckParm("-dedicated"); idx != 0 {
+//	    // start in dedicated server mode
+//	}
 func COM_CheckParm(parm string) int {
 	return COM_CheckParmNext(0, parm)
 }
 
-// CPE_Mode controls how overflow is handled in COM_ParseEx.
+// CPE_Mode controls how token overflow (exceeding the maximum token buffer
+// size) is handled in [COM_ParseEx]. In the C engine, com_token is a
+// fixed-size char array; this Go port uses strings so overflow is less of
+// a concern, but the mode is preserved for behavioral compatibility.
 type CPE_Mode int
 
+// CPE_NOTRUNC and CPE_ALLOWTRUNC control the overflow behavior of COM_ParseEx.
+// CPE_NOTRUNC aborts parsing entirely on overflow (returning ""), which is the
+// safe default for untrusted input. CPE_ALLOWTRUNC silently truncates the token,
+// which is acceptable when a best-effort result is sufficient.
 const (
 	CPE_NOTRUNC    CPE_Mode = iota // return "" (abort parsing) in case of overflow
 	CPE_ALLOWTRUNC                 // truncate ComToken in case of overflow
 )
 
-// COM_Parse parses a token out of a string. Returns the advanced buffer position.
-// The token is stored in the global ComToken variable.
+// COM_Parse is the Quake tokenizer — the engine's equivalent of a lexer.
+//
+// It parses one token from 'data' and stores it in the global ComToken,
+// returning the remaining unparsed string. This function drives the parsing
+// of virtually all text-based data in the engine:
+//
+//   - Entity definitions in BSP maps (key-value pairs in curly braces)
+//   - Console commands and aliases (e.g., "bind w +forward")
+//   - Configuration files (config.cfg, autoexec.cfg)
+//   - QuakeC source listings and progs headers
+//   - Server info strings
+//
+// The tokenizer recognizes:
+//   - Whitespace as delimiters (space, tab, newline, carriage return)
+//   - C-style comments: // line comments and /* block comments */
+//   - Quoted strings: "hello world" is a single token (preserving spaces)
+//   - Special single-character tokens: { } ( ) ' :
+//   - Regular words: contiguous non-whitespace characters
+//
+// Returns "" when the input is exhausted, signaling end-of-data to callers
+// that loop until the return is empty.
 func COM_Parse(data string) string {
 	return COM_ParseEx(data, CPE_NOTRUNC)
 }
 
-// COM_ParseEx parses a token out of a string with overflow control.
+// COM_ParseEx is the extended tokenizer with overflow control.
+//
+// This is the core implementation behind [COM_Parse]. The 'mode' parameter
+// controls what happens if a token exceeds the maximum buffer size:
+//
+//   - CPE_NOTRUNC: returns "" and aborts (used for untrusted/network input)
+//   - CPE_ALLOWTRUNC: silently truncates (used for best-effort parsing)
+//
+// The parsing algorithm uses a "goto skipwhite" pattern inherited from
+// the original C code. While unconventional in Go, this preserves the
+// exact control flow of C Quake's COM_Parse for compatibility — some
+// mods depend on subtle tokenizer behavior (e.g., how comments interact
+// with whitespace skipping).
 func COM_ParseEx(data string, mode CPE_Mode) string {
 	ComToken = ""
 	if data == "" {
@@ -572,17 +674,33 @@ skipwhite:
 	return data[i:]
 }
 
-// COM_SkipPath returns the filename portion of a path.
+// COM_SkipPath returns the filename portion of a path (everything after
+// the last directory separator).
+//
+// In Quake's virtual filesystem, paths use forward slashes regardless of
+// the host OS (e.g., "maps/e1m1.bsp"). This function extracts the bare
+// filename for display in the console, logging, and model/sound name
+// lookups where only the leaf name matters.
 func COM_SkipPath(pathname string) string {
 	return filepath.Base(pathname)
 }
 
-// COM_SkipSpace skips leading whitespace in a string.
+// COM_SkipSpace skips leading whitespace characters (space, tab, newline,
+// carriage return, vertical tab, form feed) and returns the trimmed string.
+// Used by the console command parser and config file loader.
 func COM_SkipSpace(str string) string {
 	return strings.TrimLeft(str, " \t\n\r\v\f")
 }
 
-// COM_StripExtension removes the extension from a filename.
+// COM_StripExtension removes the file extension (including the dot) from
+// a path string.
+//
+// This is used throughout the engine to derive related filenames from a
+// base path. For example, when loading a BSP map "maps/e1m1.bsp", the
+// engine strips the extension and appends ".lit" to find the external
+// lightmap file, or ".ent" to find entity overrides. The function is
+// careful not to strip dots that appear in directory names (e.g.,
+// "id1.5/maps/start" should not lose "5/maps/start").
 func COM_StripExtension(in string) string {
 	ext := filepath.Ext(in)
 	if ext == "" {
@@ -597,7 +715,12 @@ func COM_StripExtension(in string) string {
 	return in[:lastDot]
 }
 
-// COM_FileGetExtension returns the extension of a filename (without the dot).
+// COM_FileGetExtension returns the file extension without the leading dot.
+//
+// Used by the filesystem and model loader to determine file types:
+// "bsp" → BSP map, "mdl" → alias model, "spr" → sprite, "wav" → sound,
+// "lmp" → lump (2D image), "pak" → package archive. Returns "" if the
+// path has no extension, or if the only dot is in a directory component.
 func COM_FileGetExtension(in string) string {
 	ext := filepath.Ext(in)
 	if ext == "" {
@@ -612,12 +735,20 @@ func COM_FileGetExtension(in string) string {
 	return ext[1:] // skip the dot
 }
 
-// COM_ExtractExtension extracts the extension into a buffer.
+// COM_ExtractExtension is a compatibility wrapper around [COM_FileGetExtension].
+// In the original C code, COM_ExtractExtension wrote into a caller-supplied
+// buffer; this Go version simply returns the extension string.
 func COM_ExtractExtension(in string) string {
 	return COM_FileGetExtension(in)
 }
 
 // COM_FileBase returns the base filename without path or extension.
+//
+// For "maps/e1m1.bsp", this returns "e1m1". Used by the model loader
+// to derive the display name of a model (shown in the console when loading),
+// and by the demo system to construct demo filenames. The fallback "?model?"
+// matches C Quake's behavior for empty/invalid paths and serves as a
+// visible sentinel in debug output.
 func COM_FileBase(in string) string {
 	base := filepath.Base(in)
 	ext := filepath.Ext(base)
@@ -630,7 +761,12 @@ func COM_FileBase(in string) string {
 	return base
 }
 
-// COM_AddExtension appends an extension if it's not already there.
+// COM_AddExtension appends an extension to a path if it doesn't already
+// end with that extension (case-insensitive comparison).
+//
+// Used when the engine needs to ensure a canonical file extension, e.g.,
+// adding ".dem" to a demo filename or ".cfg" to a config filename that
+// the user specified without one.
 func COM_AddExtension(path, extension string) string {
 	if !strings.HasSuffix(strings.ToLower(path), strings.ToLower(extension)) {
 		return path + extension
@@ -638,7 +774,19 @@ func COM_AddExtension(path, extension string) string {
 	return path
 }
 
-// COM_HashString computes the FNV-1a hash of a string.
+// COM_HashString computes a 32-bit FNV-1a hash of the given string.
+//
+// FNV-1a (Fowler–Noll–Vo) is a non-cryptographic hash chosen for its
+// simplicity, speed, and excellent distribution properties. The algorithm
+// starts with the FNV offset basis (0x811c9dc5), and for each byte:
+//  1. XORs the byte into the hash
+//  2. Multiplies by the FNV prime (0x01000193)
+//
+// This hash is used throughout the engine for fast string lookups in
+// hash tables: model name → model cache entry, texture name → texture
+// object, console command name → handler function, etc. The hash is
+// NOT suitable for security purposes (it's trivially invertible), but
+// its speed and low collision rate make it ideal for engine data structures.
 func COM_HashString(str string) uint32 {
 	var hash uint32 = 0x811c9dc5
 	for i := 0; i < len(str); i++ {
@@ -648,7 +796,12 @@ func COM_HashString(str string) uint32 {
 	return hash
 }
 
-// COM_HashBlock computes the FNV-1a hash of a memory block.
+// COM_HashBlock computes the FNV-1a hash of an arbitrary byte slice.
+//
+// Same algorithm as [COM_HashString] but operates on raw bytes instead of
+// a string. Used for hashing binary data such as texture pixel buffers
+// (for deduplication in the texture cache) and compiled QuakeC bytecode
+// (for integrity checks).
 func COM_HashBlock(data []byte) uint32 {
 	var hash uint32 = 0x811c9dc5
 	for _, b := range data {
@@ -658,7 +811,18 @@ func COM_HashBlock(data []byte) uint32 {
 	return hash
 }
 
-// COM_ParseIntNewline attempts to parse an int, followed by a newline.
+// COM_ParseIntNewline parses an integer from the beginning of 'buffer',
+// then consumes any trailing whitespace including the newline.
+//
+// This function is designed for reading line-oriented text data files where
+// each line contains a single numeric value — for example, Quake's savegame
+// format (*.sav) and certain server configuration files. The pattern is:
+//
+//	remaining, value := COM_ParseIntNewline(buffer)
+//	// 'value' is the parsed int, 'remaining' points past the newline
+//
+// Returns 0 for the value if no valid integer is found (matching C's atoi
+// behavior on invalid input).
 func COM_ParseIntNewline(buffer string) (string, int) {
 	buffer = strings.TrimLeft(buffer, " \t\v\f") // skip leading spaces but not newline
 	i := 0
@@ -673,7 +837,13 @@ func COM_ParseIntNewline(buffer string) (string, int) {
 	return buffer[i:], val
 }
 
-// COM_ParseFloatNewline attempts to parse a float followed by a newline.
+// COM_ParseFloatNewline parses a float32 from the beginning of 'buffer',
+// then consumes any trailing whitespace including the newline.
+//
+// Used for reading float values from line-oriented text data such as
+// savegame files (entity field values like origin, velocity) and
+// lightmap configuration files. Handles negative values and decimal
+// points. Returns 0.0 for invalid input.
 func COM_ParseFloatNewline(buffer string) (string, float32) {
 	buffer = strings.TrimLeft(buffer, " \t\v\f") // skip leading spaces but not newline
 	i := 0
@@ -688,7 +858,14 @@ func COM_ParseFloatNewline(buffer string) (string, float32) {
 	return buffer[i:], float32(val64)
 }
 
-// COM_ParseStringNewline parses a string of non-whitespace into ComToken, then tries to consume a newline.
+// COM_ParseStringNewline parses a string of non-whitespace characters from
+// 'buffer' into the global ComToken, then consumes trailing whitespace
+// including the newline. Returns the remaining unparsed portion of buffer.
+//
+// This is a simpler, line-oriented alternative to [COM_Parse] — it does
+// not handle quoted strings, comments, or special single-character tokens.
+// It is used for line-by-line text file parsing where each line contains
+// a single unquoted word (e.g., entity classnames in certain config formats).
 func COM_ParseStringNewline(buffer string) string {
 	i := 0
 	for i < len(buffer) && buffer[i] > ' ' {

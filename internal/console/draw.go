@@ -1,3 +1,23 @@
+// draw.go — Console rendering (2D overlay drawing)
+//
+// This file handles rendering the Quake console overlay using the 2D drawing
+// system. The console is drawn character-by-character using Quake's bitmap
+// font (conchars.lmp — a 128×128 texture containing a 16×16 grid of 8×8
+// pixel glyphs). Each glyph index maps to an ASCII-like code point; setting
+// bit 7 (values 128–255) selects an alternate "bronze" colour row, which is
+// how Quake renders warnings and chat messages in a distinct colour.
+//
+// The file implements two visual modes:
+//   - Full console: a translucent overlay covering the top half of the screen,
+//     showing the scrollback buffer and the input prompt. Toggled with ~.
+//   - Notify lines: a small set of recently-printed lines shown at the top of
+//     the screen during gameplay (without the console open) that fade after a
+//     few seconds. This lets important messages reach the player without
+//     requiring the console to be open.
+//
+// Rendering is decoupled from the console's data model via the DrawContext
+// interface, so this file has no dependency on OpenGL, Vulkan, or any
+// specific graphics API.
 package console
 
 import (
@@ -5,24 +25,58 @@ import (
 	"time"
 )
 
+// DrawContext is the rendering abstraction that decouples console drawing from
+// any specific graphics backend. A renderer (OpenGL, Vulkan, software, etc.)
+// implements this interface so the console can issue primitive draw calls
+// without importing graphics-API-specific packages.
+//
+// DrawFill fills a rectangle with a palette colour (used for the console
+// background). DrawCharacter renders a single glyph from Quake's bitmap font
+// at the given pixel coordinates; "num" is the character index into the
+// conchars texture (0–255).
 type DrawContext interface {
 	DrawFill(x, y, w, h int, color byte)
 	DrawCharacter(x, y int, num int)
 }
 
+// Drawing constants for the console overlay.
+//
+// Quake's bitmap font (conchars) uses a fixed 8×8 pixel grid for each glyph.
+// These constants define the character cell size, how long notify lines remain
+// visible, and the minimum console height in pixels.
 const (
-	consoleCharWidth     = 8
-	consoleCharHeight    = 8
-	consoleNotifyTTL     = 3 * time.Second
+	// consoleCharWidth is the width in pixels of a single character cell in
+	// Quake's bitmap font (conchars.lmp). All text layout is a simple
+	// multiple of this value — no variable-width font metrics are needed.
+	consoleCharWidth = 8
+
+	// consoleCharHeight is the height in pixels of a single character cell.
+	consoleCharHeight = 8
+
+	// consoleNotifyTTL is how long a notify line remains visible on screen
+	// before it fades. Classic Quake used 3 seconds.
+	consoleNotifyTTL = 3 * time.Second
+
+	// consoleMinDrawHeight prevents the console from being drawn too small
+	// to be readable — at least 4 rows of text.
 	consoleMinDrawHeight = consoleCharHeight * 4
 )
 
-// Draw renders either the full console overlay or the compact notify lines.
+// Draw is the package-level entry point that renders the global console.
+// It delegates to the singleton globalConsole. When full is true, the
+// entire drop-down console overlay is drawn; when false, only the compact
+// notify lines are rendered over the game view.
 func Draw(rc DrawContext, screenWidth, screenHeight int, full bool) {
 	globalConsole.Draw(rc, screenWidth, screenHeight, full)
 }
 
-// Draw renders either the full console overlay or the compact notify lines.
+// Draw renders either the full console overlay (when full == true) or just the
+// compact notify lines (when full == false). It first recalculates the line
+// width to match the current screen resolution (via Resize), then dispatches
+// to drawFull or drawNotify.
+//
+// Safety checks ensure we never attempt to draw with invalid dimensions or
+// nil contexts.
 func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool) {
 	if c == nil || rc == nil || screenWidth < consoleCharWidth || screenHeight < consoleCharHeight {
 		return
@@ -41,6 +95,20 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool)
 	c.drawNotify(rc, charsWide)
 }
 
+// drawFull renders the complete drop-down console overlay. The layout is:
+//
+//	┌────────────────────────────── screenWidth ──────────────────────────────┐
+//	│ (optional) "^^^" scroll indicator row  (if backScroll > 0)            │
+//	│ scrollback line N-2                                                   │
+//	│ scrollback line N-1                                                   │
+//	│ scrollback line N   (most recent, adjusted for backScroll)            │
+//	│ ] user input line_                                                    │
+//	└───────────────────────────────────────────────────────────────────────┘
+//
+// The console occupies the top half of the screen (screenHeight / 2). A solid
+// fill is drawn behind the text for readability. Lines are fetched from the
+// ring buffer under the read lock, copied out, then drawn after releasing the
+// lock to minimise lock contention with the printing goroutine.
 func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide int) {
 	consoleHeight := screenHeight / 2
 	if consoleHeight < consoleMinDrawHeight {
@@ -82,6 +150,11 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, clipPrompt(prompt, charsWide-2))
 }
 
+// drawNotify renders only the most recent lines that were printed within the
+// last consoleNotifyTTL (3 seconds). These appear at the very top of the
+// screen during gameplay — without the console being open — so the player
+// can see kill messages, chat, and other transient information. Lines whose
+// timestamps have expired are silently skipped.
 func (c *Console) drawNotify(rc DrawContext, charsWide int) {
 	now := time.Now()
 
@@ -108,6 +181,12 @@ func (c *Console) drawNotify(rc DrawContext, charsWide int) {
 	}
 }
 
+// lineBytesLocked returns a defensive copy of the raw byte content for the
+// given line number. Trailing spaces are trimmed. The caller MUST hold at
+// least c.mu.RLock — this method does not acquire the lock itself, which is
+// intentional: the draw methods snapshot several related fields (current,
+// backScroll, notifyTimes) under a single lock acquisition for consistency,
+// then call lineBytesLocked for each visible line.
 func (c *Console) lineBytesLocked(lineNum int) []byte {
 	if c.totalLines <= 0 || c.lineWidth <= 0 || len(c.text) == 0 {
 		return nil
@@ -135,6 +214,11 @@ func (c *Console) lineBytesLocked(lineNum int) []byte {
 	return text
 }
 
+// drawByteText renders a slice of raw bytes as a horizontal row of characters
+// using the DrawContext. Each byte is a direct glyph index into Quake's bitmap
+// font (0–255). The text is clipped to maxChars columns to prevent drawing
+// outside the console area. This is used for scrollback lines, which are
+// stored as []byte in the ring buffer.
 func drawByteText(rc DrawContext, x, y int, text []byte, maxChars int) {
 	if rc == nil || maxChars == 0 {
 		return
@@ -147,6 +231,11 @@ func drawByteText(rc DrawContext, x, y int, text []byte, maxChars int) {
 	}
 }
 
+// drawRuneText renders a slice of runes as a horizontal row of characters.
+// Runes outside the 0–255 range (i.e. characters that don't exist in Quake's
+// bitmap font) are replaced with '?' to avoid out-of-bounds glyph lookups.
+// This is used for the input line, which is stored as []rune to support
+// correct backspacing of multi-byte UTF-8 characters.
 func drawRuneText(rc DrawContext, x, y int, text []rune) {
 	if rc == nil {
 		return
@@ -160,6 +249,11 @@ func drawRuneText(rc DrawContext, x, y int, text []rune) {
 	}
 }
 
+// clipPrompt truncates the input prompt to fit within maxChars columns. When
+// the user's input is longer than the visible area, the prompt is clipped
+// from the left (keeping the most recently typed characters visible) and the
+// leading ']' prompt character is re-prepended. This mimics the behaviour of
+// the original Quake console where long commands scroll the input area.
 func clipPrompt(prompt []rune, maxChars int) []rune {
 	if maxChars <= 0 {
 		return nil
@@ -173,6 +267,9 @@ func clipPrompt(prompt []rune, maxChars int) []rune {
 	return clipped
 }
 
+// max returns the larger of two ints. This is a local helper because Go
+// versions prior to 1.21 did not provide a generic max built-in, and this
+// package targets broad compatibility.
 func max(a, b int) int {
 	if a > b {
 		return a

@@ -36,33 +36,105 @@ const (
 	MaxInputHistory  = 32
 )
 
+// Console is the core state for the Quake-style drop-down developer console.
+//
+// Architecturally, the console serves as the bridge between the human operator
+// and the engine's command system (cmdsys) and console variable (cvar) system.
+// It owns:
+//   - A scrollback buffer — a ring buffer of fixed-width text lines stored as
+//     a flat []byte slice. Each line occupies exactly lineWidth bytes, and the
+//     buffer wraps when "current" exceeds totalLines.
+//   - An input line with cursor — a slice of runes the user is currently typing.
+//   - A command history — remembering previously entered commands so the user
+//     can recall them with the up/down arrow keys.
+//   - Notification timestamps — tracking when each of the most recent lines was
+//     printed so the renderer can display them briefly during gameplay.
+//
+// The struct is safe for concurrent use: a sync.RWMutex guards all mutable
+// state so that the game loop's rendering goroutine can read the buffer while
+// the main thread writes to it.
 type Console struct {
+	// mu protects every field below. Writers take a full Lock; readers (draw,
+	// accessors) take RLock for minimal contention.
 	mu sync.RWMutex
 
-	text       []byte
-	bufSize    int
-	lineWidth  int
+	// text is the flat ring buffer backing the scrollback. It is allocated once
+	// during Init and never re-allocated. Characters are stored as raw bytes
+	// (with Quake's high-bit colour convention — setting bit 7 makes a char
+	// display in the alternate "bronze" colour).
+	text []byte
+
+	// bufSize is the total capacity of text in bytes. Together with lineWidth
+	// it determines totalLines = bufSize / lineWidth.
+	bufSize int
+
+	// lineWidth is the current number of characters per console line. It is
+	// adjusted at runtime via Resize when the screen resolution changes.
+	lineWidth int
+
+	// totalLines is the total number of lines that fit in the ring buffer.
 	totalLines int
 
-	current    int
-	x          int
+	// current is the index of the most recently written line (the "head" of
+	// the ring). It only ever increments; modular arithmetic wraps it into
+	// the buffer range.
+	current int
+
+	// x is the column position within the current line where the next
+	// character will be written. When x reaches lineWidth, a new line begins.
+	x int
+
+	// backScroll is how many lines the user has scrolled upward from the
+	// bottom of the console. 0 means "viewing the latest output".
 	backScroll int
 
+	// notifyTimes records the wall-clock time at which each of the most recent
+	// NumNotifyTimes lines was printed. The draw code uses these to decide
+	// whether a line should still be visible in the notify area.
 	notifyTimes [NumNotifyTimes]time.Time
 
+	// initialized guards one-time setup of the text buffer.
 	initialized bool
-	debugLog    *os.File
-	logFile     string
 
-	inputLine  []rune
-	history    []string
+	// debugLog is an optional file handle for writing all console output to
+	// disk. Used via the "condebug" console command for debugging sessions.
+	debugLog *os.File
+
+	// logFile stores the path of the currently-open debug log file.
+	logFile string
+
+	// inputLine holds the runes the user is currently typing at the bottom of
+	// the console. Using []rune (not []byte) so that multibyte characters are
+	// handled correctly when backspacing or measuring width.
+	inputLine []rune
+
+	// history stores previously committed input lines. Up/down arrow keys
+	// navigate this list.
+	history []string
+
+	// historyPos is the cursor into history. When equal to len(history) the
+	// user is editing a fresh (empty) line; otherwise it indexes a recalled
+	// entry.
 	historyPos int
 
+	// printCallback is an optional hook invoked after every Printf call.
+	// External systems (e.g. a network broadcast or a GUI widget) can register
+	// here to receive a copy of every console message.
 	printCallback func(msg string)
 }
 
+// globalConsole is the process-wide singleton Console instance. Most callers
+// interact with the console through the package-level convenience functions
+// (Printf, Clear, Scroll, etc.) which delegate to this instance. A singleton
+// makes sense because the engine only ever has one console, and many
+// subsystems need to print to it without passing a *Console around.
 var globalConsole = NewConsole(DefaultTextSize)
 
+// NewConsole allocates a Console with the given buffer capacity. The buffer
+// is not usable until Init is called — NewConsole only records the desired
+// size. This two-phase construction mirrors the original C Quake pattern
+// where Con_Init ran after command-line parsing so the user could override
+// the buffer size via "-consize".
 func NewConsole(bufSize int) *Console {
 	if bufSize < MinTextSize {
 		bufSize = MinTextSize
@@ -76,6 +148,14 @@ func NewConsole(bufSize int) *Console {
 	return c
 }
 
+// Init performs one-time initialisation of the console buffer. It allocates
+// the scrollback ring, fills it with spaces (the Quake convention for "empty"
+// characters), and positions the write cursor at the last line. Calling Init
+// more than once is a no-op, making it safe for subsystems that may race to
+// initialise.
+//
+// customBufSize overrides the default buffer capacity if positive. This allows
+// the engine's startup code to honour a user-specified console size.
 func (c *Console) Init(customBufSize int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -107,34 +187,46 @@ func (c *Console) Init(customBufSize int) error {
 	return nil
 }
 
+// InitGlobal initialises the process-wide singleton console. This is the
+// entry point called during engine startup (e.g. from Host_Init).
 func InitGlobal(bufSize int) error {
 	return globalConsole.Init(bufSize)
 }
 
+// LineWidth returns the current number of characters per line. The draw code
+// uses this to know how many columns of text it can render.
 func (c *Console) LineWidth() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.lineWidth
 }
 
+// TotalLines returns the number of lines the ring buffer can hold. This is
+// derived from bufSize / lineWidth and changes whenever the console is resized.
 func (c *Console) TotalLines() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.totalLines
 }
 
+// CurrentLine returns the index of the most recently written line in the ring
+// buffer. Combined with TotalLines it lets callers navigate the scrollback.
 func (c *Console) CurrentLine() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.current
 }
 
+// BackScroll returns how many lines the user has scrolled upward from the
+// latest output. 0 means "viewing the bottom / most recent text".
 func (c *Console) BackScroll() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.backScroll
 }
 
+// SetBackScroll jumps to an absolute scroll position. Values are clamped to
+// [0, totalLines-10] so the user always sees at least 10 lines of context.
 func (c *Console) SetBackScroll(lines int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -152,6 +244,9 @@ func (c *Console) SetBackScroll(lines int) {
 	c.backScroll = lines
 }
 
+// Scroll adjusts the scrollback position by the given number of lines
+// (positive = scroll up into history, negative = scroll back toward latest).
+// This is typically bound to mouse wheel or Page Up / Page Down keys.
 func (c *Console) Scroll(lines int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -175,6 +270,15 @@ func (c *Console) Scroll(lines int) {
 	}
 }
 
+// Resize adapts the console to a new character width (e.g. when the window
+// resolution changes). This is non-trivial because the flat ring buffer stores
+// lines at fixed offsets — changing the line width means re-laying-out every
+// line in the buffer. The algorithm copies the old buffer into a temporary
+// slice, clears the real buffer, then transfers as many characters per line as
+// fit in the new width, preserving the most recent lines first.
+//
+// Notify timestamps are also re-mapped so that recently-printed lines continue
+// to display in the notify area even after a resize.
 func (c *Console) Resize(newWidth int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -234,6 +338,10 @@ func (c *Console) Resize(newWidth int) {
 	}
 }
 
+// GetLine retrieves the text of a specific line from the ring buffer. The line
+// index is absolute (not modular); GetLine applies the modular wrap internally.
+// Trailing spaces are trimmed, matching the Quake convention where unused
+// columns are filled with 0x20.
 func (c *Console) GetLine(lineNum int) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -265,6 +373,9 @@ func (c *Console) GetLine(lineNum int) string {
 	return string(text)
 }
 
+// Clear wipes the entire scrollback buffer, resets the write cursor, and
+// clears the input line and notification timestamps. This is the handler
+// for the "clear" console command.
 func (c *Console) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -286,6 +397,10 @@ func (c *Console) Clear() {
 	}
 }
 
+// Dump writes the entire scrollback buffer to a file, stripping Quake's
+// high-bit colour encoding (bit 7) so the output is clean ASCII. This is
+// the handler for the "condump" console command, useful for capturing debug
+// sessions or game logs.
 func (c *Console) Dump(filename string) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -331,12 +446,18 @@ func (c *Console) Dump(filename string) error {
 	return nil
 }
 
+// InputLine returns the current contents of the user's input line as a string.
+// The input line is the editable text at the bottom of the console where the
+// user types commands.
 func (c *Console) InputLine() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return string(c.inputLine)
 }
 
+// SetInputLine replaces the entire input line. This is used by tab completion
+// and history recall to overwrite whatever the user had typed. Setting the
+// input also resets the history cursor to the end (a fresh position).
 func (c *Console) SetInputLine(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -344,6 +465,10 @@ func (c *Console) SetInputLine(text string) {
 	c.historyPos = len(c.history)
 }
 
+// AppendInputRune appends a single character to the input line. Control
+// characters (newline, carriage return, tab, and anything below ASCII 32) are
+// silently ignored — those are handled by dedicated key handlers (CommitInput
+// for Enter, BackspaceInput for backspace, etc.).
 func (c *Console) AppendInputRune(ch rune) {
 	if ch == '\n' || ch == '\r' || ch == '\t' || ch < 32 {
 		return
@@ -354,6 +479,8 @@ func (c *Console) AppendInputRune(ch rune) {
 	c.historyPos = len(c.history)
 }
 
+// BackspaceInput removes the last rune from the input line, implementing the
+// Backspace key. It is a no-op if the line is already empty.
 func (c *Console) BackspaceInput() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -364,6 +491,11 @@ func (c *Console) BackspaceInput() {
 	c.historyPos = len(c.history)
 }
 
+// CommitInput finalises the current input line (the user pressed Enter).
+// It saves the line to the command history (deduplicating consecutive
+// identical entries and evicting the oldest when the history is full),
+// clears the input line, and returns the committed text so the caller can
+// pass it to the command system for execution.
 func (c *Console) CommitInput() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -383,6 +515,9 @@ func (c *Console) CommitInput() string {
 	return line
 }
 
+// PreviousHistory moves the history cursor one entry backward (toward older
+// commands) and replaces the input line with that entry, implementing the
+// Up arrow key. If already at the oldest entry, it stays there.
 func (c *Console) PreviousHistory() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -397,6 +532,10 @@ func (c *Console) PreviousHistory() string {
 	return string(c.inputLine)
 }
 
+// NextHistory moves the history cursor one entry forward (toward newer
+// commands) and replaces the input line, implementing the Down arrow key.
+// Moving past the newest entry clears the input line (returns to a fresh
+// prompt).
 func (c *Console) NextHistory() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -416,6 +555,11 @@ func (c *Console) NextHistory() string {
 	return ""
 }
 
+// lineFeed advances the write cursor to the next line in the ring buffer.
+// If the user is scrolled up (backScroll > 0), the scroll position is
+// incremented to keep the viewport stable — otherwise new output would
+// cause the visible text to "jump". The new line is filled with spaces
+// (the Quake "empty character" convention).
 func (c *Console) lineFeed() {
 	if c.backScroll > 0 {
 		c.backScroll++
@@ -438,6 +582,21 @@ func (c *Console) lineFeed() {
 	}
 }
 
+// printRaw writes a raw string into the scrollback ring buffer, one byte at
+// a time. This is the lowest-level print routine — all other Printf variants
+// ultimately funnel through here.
+//
+// Special handling:
+//   - A leading byte of 0x01 or 0x02 activates Quake's "bronze" text mode
+//     (bit 7 set on every character) for the entire message. 0x01 is used
+//     for chat messages, 0x02 for warnings.
+//   - The "[skipnotify]" prefix is stripped so tagged messages don't appear
+//     in the on-screen notify area.
+//   - Carriage return ('\r') causes the next character to overwrite the
+//     current line from the beginning (used for progress indicators).
+//   - Newline ('\n') starts a fresh line.
+//   - Ordinary characters are written at position (current, x) and the
+//     column counter x advances, wrapping to a new line at lineWidth.
 func (c *Console) printRaw(txt string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -494,6 +653,10 @@ func (c *Console) printRaw(txt string) {
 	}
 }
 
+// Printf formats a message and writes it to the console scrollback, then
+// invokes any registered print callback and writes to the debug log. This is
+// the workhorse print function used throughout the engine — analogous to
+// Con_Printf in the original C Quake source.
 func (c *Console) Printf(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	c.printRaw(msg)
@@ -505,6 +668,10 @@ func (c *Console) Printf(format string, args ...interface{}) {
 	c.debugLogWrite(msg)
 }
 
+// DPrintf ("developer printf") prints only when the developer flag is true
+// (typically controlled by the "developer" cvar). This keeps verbose debug
+// spew out of the console during normal gameplay while letting developers
+// opt in with "developer 1".
 func (c *Console) DPrintf(developer bool, format string, args ...interface{}) {
 	if !developer {
 		return
@@ -514,11 +681,16 @@ func (c *Console) DPrintf(developer bool, format string, args ...interface{}) {
 	c.debugLogWrite(msg)
 }
 
+// Warning prints a message prefixed with "Warning: " in Quake's bronze
+// (high-bit) text colour. The 0x02 leader byte triggers the bronze rendering
+// path in printRaw, making warnings visually distinct.
 func (c *Console) Warning(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	c.Printf("\x02Warning: %s", msg)
 }
 
+// DWarning is the developer-only variant of Warning. It prints a bronze
+// warning message only when the developer flag is true.
 func (c *Console) DWarning(developer bool, format string, args ...interface{}) {
 	if !developer {
 		return
@@ -527,10 +699,20 @@ func (c *Console) DWarning(developer bool, format string, args ...interface{}) {
 	c.Printf("\x02Warning: %s", msg)
 }
 
+// SafePrintf prints to the console. In the original C engine, Con_SafePrintf
+// temporarily disabled screen updates to avoid re-entrant rendering during
+// long operations (e.g. loading). In this Go port the operation is identical
+// to Printf since Go's concurrency model handles re-entrancy differently,
+// but the API is preserved for source compatibility with callers that
+// distinguish between the two.
 func (c *Console) SafePrintf(format string, args ...interface{}) {
 	c.Printf(format, args...)
 }
 
+// CenterPrintf prints text horizontally centered within the given character
+// width. Each line of the message is individually padded with leading spaces.
+// This is used for title screens, MOTD banners, and other decorative output
+// where centred text is desired.
 func (c *Console) CenterPrintf(width int, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	lines := strings.Split(msg, "\n")
@@ -551,6 +733,10 @@ func (c *Console) CenterPrintf(width int, format string, args ...interface{}) {
 	}
 }
 
+// QuakeBar builds a decorative horizontal rule using Quake's special line-
+// drawing characters (0x35 = left cap, 0x36 = middle segment, 0x37 = right
+// cap). These are glyph indices into Quake's bitmap font (conchars.lmp).
+// The bar is capped at 40 characters and terminated with a newline.
 func QuakeBar(length int) string {
 	if length > 40 {
 		length = 40
@@ -570,18 +756,29 @@ func QuakeBar(length int) string {
 	return string(result[:length+1])
 }
 
+// SetPrintCallback registers an optional function that is called with a copy
+// of every message written via Printf. This allows external subsystems (such
+// as a network relay or a graphical log viewer) to observe console output
+// without polling the scrollback buffer.
 func (c *Console) SetPrintCallback(fn func(msg string)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.printCallback = fn
 }
 
+// debugLogWrite appends raw message text to the debug log file, if one is
+// currently open. It is intentionally not guarded by the mutex — callers
+// (Printf, DPrintf) already hold the lock or call from a safe context.
 func (c *Console) debugLogWrite(msg string) {
 	if c.debugLog != nil {
 		c.debugLog.WriteString(msg)
 	}
 }
 
+// EnableDebugLog opens (or re-opens) a file for logging all console output.
+// This is the handler for the "condebug" console command. A timestamp header
+// is written at the top of the file to identify the session. The directory
+// structure is created automatically if it doesn't exist.
 func (c *Console) EnableDebugLog(filename string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -609,6 +806,8 @@ func (c *Console) EnableDebugLog(filename string) error {
 	return nil
 }
 
+// DisableDebugLog closes the debug log file, if one is open. Further console
+// output will no longer be written to disk until EnableDebugLog is called again.
 func (c *Console) DisableDebugLog() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -619,16 +818,24 @@ func (c *Console) DisableDebugLog() {
 	}
 }
 
+// Close performs orderly shutdown of the console, closing any open debug log.
+// It should be called during engine teardown (Host_Shutdown).
 func (c *Console) Close() {
 	c.DisableDebugLog()
 }
 
+// NotifyTimes returns a snapshot of the timestamps for the most recent
+// NumNotifyTimes lines. The draw code compares these against the current
+// time to decide which lines are recent enough to display in the notify area.
 func (c *Console) NotifyTimes() [NumNotifyTimes]time.Time {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.notifyTimes
 }
 
+// ClearNotify zeroes all notification timestamps so that no lines appear in
+// the notify area. This is typically called when transitioning between game
+// states (e.g. loading a new map) to avoid stale messages lingering on screen.
 func (c *Console) ClearNotify() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -637,98 +844,132 @@ func (c *Console) ClearNotify() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Package-level convenience functions
+// ---------------------------------------------------------------------------
+// The functions below delegate to the global singleton Console instance
+// (globalConsole). They exist so that the vast majority of the engine can
+// simply call  console.Printf(...)  without needing to carry a *Console
+// pointer through every subsystem. This mirrors the original Quake C API
+// where Con_Printf was a global function.
+// ---------------------------------------------------------------------------
+
+// Printf formats and prints a message to the global console.
 func Printf(format string, args ...interface{}) {
 	globalConsole.Printf(format, args...)
 }
 
+// DPrintf prints a developer-only message to the global console.
 func DPrintf(developer bool, format string, args ...interface{}) {
 	globalConsole.DPrintf(developer, format, args...)
 }
 
+// Warning prints a bronze-coloured warning to the global console.
 func Warning(format string, args ...interface{}) {
 	globalConsole.Warning(format, args...)
 }
 
+// DWarning prints a developer-only warning to the global console.
 func DWarning(developer bool, format string, args ...interface{}) {
 	globalConsole.DWarning(developer, format, args...)
 }
 
+// SafePrintf prints to the global console (see Console.SafePrintf for details).
 func SafePrintf(format string, args ...interface{}) {
 	globalConsole.SafePrintf(format, args...)
 }
 
+// CenterPrintf prints centred text to the global console.
 func CenterPrintf(width int, format string, args ...interface{}) {
 	globalConsole.CenterPrintf(width, format, args...)
 }
 
+// Clear wipes the global console scrollback.
 func Clear() {
 	globalConsole.Clear()
 }
 
+// Scroll adjusts the global console's scrollback position.
 func Scroll(lines int) {
 	globalConsole.Scroll(lines)
 }
 
+// Resize adjusts the global console's line width.
 func Resize(newWidth int) {
 	globalConsole.Resize(newWidth)
 }
 
+// GetLine retrieves a line from the global console's scrollback.
 func GetLine(lineNum int) string {
 	return globalConsole.GetLine(lineNum)
 }
 
+// Close shuts down the global console (closes debug log, etc.).
 func Close() {
 	globalConsole.Close()
 }
 
+// EnableDebugLog opens a debug log file for the global console.
 func EnableDebugLog(filename string) error {
 	return globalConsole.EnableDebugLog(filename)
 }
 
+// DisableDebugLog closes the global console's debug log file.
 func DisableDebugLog() {
 	globalConsole.DisableDebugLog()
 }
 
+// SetPrintCallback registers a print observer on the global console.
 func SetPrintCallback(fn func(msg string)) {
 	globalConsole.SetPrintCallback(fn)
 }
 
+// CurrentLine returns the most recent line index from the global console.
 func CurrentLine() int {
 	return globalConsole.CurrentLine()
 }
 
+// LineWidth returns the characters-per-line of the global console.
 func LineWidth() int {
 	return globalConsole.LineWidth()
 }
 
+// TotalLines returns the total line capacity of the global console.
 func TotalLines() int {
 	return globalConsole.TotalLines()
 }
 
+// InputLine returns the current input text from the global console.
 func InputLine() string {
 	return globalConsole.InputLine()
 }
 
+// SetInputLine replaces the global console's input line.
 func SetInputLine(text string) {
 	globalConsole.SetInputLine(text)
 }
 
+// AppendInputRune appends a character to the global console's input line.
 func AppendInputRune(ch rune) {
 	globalConsole.AppendInputRune(ch)
 }
 
+// BackspaceInput removes the last character from the global console's input.
 func BackspaceInput() {
 	globalConsole.BackspaceInput()
 }
 
+// CommitInput finalises the global console's input line and returns it.
 func CommitInput() string {
 	return globalConsole.CommitInput()
 }
 
+// PreviousHistory recalls an older command in the global console's history.
 func PreviousHistory() string {
 	return globalConsole.PreviousHistory()
 }
 
+// NextHistory recalls a newer command in the global console's history.
 func NextHistory() string {
 	return globalConsole.NextHistory()
 }

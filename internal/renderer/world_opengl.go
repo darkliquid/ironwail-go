@@ -16,6 +16,8 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
+// worldTextureMeta holds parsed texture metadata (name, dimensions, classified type)
+// from the BSP miptex lump entries.
 type worldTextureMeta struct {
 	Width  int
 	Height int
@@ -50,6 +52,8 @@ type WorldFace struct {
 	Center        [3]float32
 }
 
+// WorldLightmapSurface describes a single face's lightmap data within an atlas page,
+// including its position, dimensions, lightstyle references, and raw light samples.
 type WorldLightmapSurface struct {
 	X       int
 	Y       int
@@ -59,6 +63,8 @@ type WorldLightmapSurface struct {
 	Samples []byte
 }
 
+// WorldLightmapPage represents a shared lightmap atlas texture page containing multiple
+// surface lightmaps packed together to minimize texture binds during rendering.
 type WorldLightmapPage struct {
 	Width    int
 	Height   int
@@ -167,6 +173,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 	return geom, nil
 }
 
+// parseWorldTextureMeta parses the BSP miptex lump to extract texture names and dimensions.
 func parseWorldTextureMeta(tree *bsp.Tree) []worldTextureMeta {
 	if tree == nil || len(tree.TextureData) < 4 {
 		return nil
@@ -197,6 +204,9 @@ func parseWorldTextureMeta(tree *bsp.Tree) []worldTextureMeta {
 	return textures
 }
 
+// classifyWorldTextureName classifies a texture by its name prefix convention: '{' = fence/cutout,
+// 'sky' = sky surface, '*lava/*slime/*tele/*' = liquid types. This naming convention dates back
+// to Quake's original map tools.
 func classifyWorldTextureName(name string) model.TextureType {
 	name = strings.TrimRight(strings.ToLower(name), "\x00")
 	switch {
@@ -217,6 +227,8 @@ func classifyWorldTextureName(name string) model.TextureType {
 	}
 }
 
+// deriveWorldFaceFlags converts texture type and texinfo flags into surface rendering flags
+// that control how the face is drawn (tiled, turbulent warp for liquids, sky, fence alpha test).
 func deriveWorldFaceFlags(textureType model.TextureType, texinfoFlags int32) int32 {
 	flags := int32(0)
 	if texinfoFlags&bsp.TexMissing != 0 {
@@ -244,6 +256,8 @@ func deriveWorldFaceFlags(textureType model.TextureType, texinfoFlags int32) int
 	return flags
 }
 
+// worldFaceCenter computes the centroid of a face's vertices, used for distance-based
+// sorting of translucent faces.
 func worldFaceCenter(vertices []WorldVertex) [3]float32 {
 	if len(vertices) == 0 {
 		return [3]float32{}
@@ -261,10 +275,15 @@ func worldFaceCenter(vertices []WorldVertex) [3]float32 {
 	return center
 }
 
+// faceLightmapSurface is an internal result type tracking which atlas page a face's
+// lightmap was allocated to during geometry building.
 type faceLightmapSurface struct {
 	pageIndex int
 }
 
+// extractFaceVertices extracts vertices for a BSP face by walking the surfedge table.
+// Positive surfedge index means first vertex of edge, negative means second vertex (reversed
+// winding). Computes both diffuse texture UVs and raw lightmap UVs.
 func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []worldTextureMeta, allocator *LightmapAllocator, pages *[]WorldLightmapPage) ([]WorldVertex, *faceLightmapSurface, error) {
 	if int(face.NumEdges) < 3 {
 		return nil, nil, fmt.Errorf("face has < 3 edges")
@@ -357,6 +376,8 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []world
 	return vertices, lightmapSurface, nil
 }
 
+// assignFaceLightmap allocates a lightmap rectangle for a face in the atlas and computes
+// lightmap texture coordinates. Each face gets a unique region in a shared lightmap page.
 func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
 	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
 		return nil, nil
@@ -439,10 +460,12 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bs
 	return &faceLightmapSurface{pageIndex: texNum}, nil
 }
 
+// buildWorldRenderData builds complete CPU-side render data: geometry, lightmaps, and bounding box.
 func buildWorldRenderData(tree *bsp.Tree) (*WorldRenderData, error) {
 	return buildModelRenderData(tree, 0)
 }
 
+// buildModelRenderData builds render data for a specific BSP submodel index (used for brush entities like doors).
 func buildModelRenderData(tree *bsp.Tree, modelIndex int) (*WorldRenderData, error) {
 	geom, err := BuildModelGeometry(tree, modelIndex)
 	if err != nil {

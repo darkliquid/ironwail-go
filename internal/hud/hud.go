@@ -24,6 +24,9 @@ const (
 	HUDStyleCompact HUDStyle = 1
 )
 
+// hudStyleCVar is the console variable name that selects between the classic
+// full-width status bar (0) and the compact corner overlay (1). The value is
+// read each frame via cvar.IntValue so changes take effect immediately.
 const hudStyleCVar = "hud_style"
 
 // HUD manages the heads-up display rendering.

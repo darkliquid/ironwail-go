@@ -16,6 +16,11 @@ const (
 	PROTOCOL_RMQ       = 999 // RMQ protocol
 )
 
+// RMQ (Re-Make Quake) protocol flags. These are negotiated between client
+// and server to enable enhanced coordinate precision and entity features
+// beyond the original Quake protocol. Sent as part of serverinfo when
+// using PROTOCOL_RMQ.
+//
 // PROTOCOL_RMQ protocol flags
 const (
 	PRFL_SHORTANGLE  = 1 << 0
@@ -28,6 +33,15 @@ const (
 	PRFL_MOREFLAGS   = 1 << 31
 )
 
+// Server-to-client (SVC) message types define every command the server
+// can send to a connected client. These are the first byte of each
+// message in the server's update stream. The client's message parser
+// (CL_ParseServerMessage) switches on these values to process updates.
+//
+// The original Quake protocol (PROTOCOL_NETQUAKE) defines types 0-34.
+// FitzQuake added types 37-44 for extended model/frame/alpha support.
+// The 2021 re-release added types 38, 45-56 for additional features.
+//
 // Server to client message types (svc_*)
 const (
 	SVCBad              = 0  // Invalid message
@@ -89,6 +103,10 @@ const (
 	SVCLocalSound     = 56
 )
 
+// Stat indices identify which player statistic is being updated in an
+// SVCUpdateStat message. The server sends [stat_index, value] pairs
+// to keep the client's HUD (health, ammo, armor, etc.) up to date.
+//
 // Stat indices for SVCUpdateStat
 const (
 	StatHealth = iota
@@ -109,6 +127,10 @@ const (
 	StatMonsters
 )
 
+// Client-to-server (CLC) message types define the commands a client
+// can send to the server. CLCMove carries the player's input every
+// frame; CLCStringCmd is used for console commands (e.g., "say hello").
+//
 // Client to server message types (clc_*)
 const (
 	CLCBad        = 0 // Invalid message
@@ -118,6 +140,10 @@ const (
 	CLCStringCmd  = 4 // [string] message
 )
 
+// Temporary entity (TE) events are short-lived visual effects spawned
+// by the server. When the server sends an SVCTempEntity message, the
+// first byte is one of these constants identifying the effect type.
+//
 // Temp entity events (TE_*)
 const (
 	TE_SPIKE        = 0
@@ -136,6 +162,11 @@ const (
 	TE_BEAM         = 13
 )
 
+// Entity effect flags are bitmask values stored in an entity's effects
+// field. They control real-time visual effects rendered around the
+// entity (dynamic lights, particle fields). Multiple effects can be
+// combined.
+//
 // Entity effect flags (EF_*).
 const (
 	EF_BRIGHTFIELD = 1 << iota
@@ -147,6 +178,10 @@ const (
 	EF_CANDLELIGHT
 )
 
+// Sound flags modify how an SVCSound message is encoded on the wire.
+// They tell the client which optional fields follow, allowing the
+// common case (default volume/attenuation) to use fewer bytes.
+//
 // Sound flags
 const (
 	SND_VOLUME      = 1 << 0 // a byte
@@ -157,11 +192,17 @@ const (
 	SND_LARGESOUND  = 1 << 4 // a short soundindex (instead of a byte)
 )
 
+// Default values for optional sound fields. When these defaults apply,
+// the corresponding sound flag bit is omitted, saving bandwidth.
 const (
 	DEFAULT_SOUND_PACKET_VOLUME      = 255
 	DEFAULT_SOUND_PACKET_ATTENUATION = 1.0
 )
 
+// Baseline flags control the wire format of SVCSpawnBaseline2 messages.
+// Entity baselines define the "default" state; delta encoding in
+// subsequent updates only transmits fields that differ from baseline.
+//
 // Baseline flags (B_*)
 const (
 	BLARGEMODEL = 1 << 0 // modelindex is short instead of byte
@@ -170,6 +211,10 @@ const (
 	BSCALE      = 1 << 3
 )
 
+// Alpha encoding maps floating-point transparency (0.0-1.0) to single
+// bytes for network transmission. 0=engine default, 1=invisible,
+// 255=fully opaque, 2-254=linear range. Introduced by FitzQuake.
+//
 // Alpha encoding constants
 const (
 	ENTALPHA_DEFAULT = 0   // entity's alpha is "default" (i.e. water obeys r_wateralpha) -- must be zero
@@ -215,6 +260,10 @@ func ENTALPHA_TOSAVE(a byte) float32 {
 	return float32(a-1) / 254.0
 }
 
+// Scale encoding packs entity scale as a single byte where 16 = 1.0x.
+// This gives a range of roughly 0-16x with 1/16th resolution. Added
+// by the RMQ protocol extension (PRFL_EDICTSCALE).
+//
 // Scale encoding constants
 const (
 	ENTSCALE_DEFAULT = 16 // Equivalent to float 1.0f due to byte packing
@@ -233,11 +282,18 @@ func ENTSCALE_DECODE(a byte) float32 {
 	return float32(a) / float32(ENTSCALE_DEFAULT)
 }
 
+// DEFAULT_VIEWHEIGHT is the player's eye height above their origin
+// in Quake units (22 units ≈ 56 cm), used when the server doesn't
+// send an explicit SU_VIEWHEIGHT update.
+//
 // Client info defaults
 const (
 	DEFAULT_VIEWHEIGHT = 22
 )
 
+// Game type constants sent in SVCServerInfo during connection setup.
+// They determine which end-of-level screen is shown.
+//
 // Game types sent by serverinfo
 // These determine which intermission screen plays
 const (
@@ -245,6 +301,10 @@ const (
 	GAME_DEATHMATCH = 1
 )
 
+// Lerp flags control how the client interpolates entity positions and
+// animations between server updates. Critical for smooth visuals at
+// frame rates higher than the server's tick rate (typically 72 Hz).
+//
 // LerpFlags control entity interpolation behavior. Correspond to LERP_* in C Quake.
 const (
 	LerpResetMove uint8 = 1 << 0 // Reset position lerp (e.g. teleport or stale slot)
@@ -300,6 +360,10 @@ type ClientFrame struct {
 	// Note: Client frame structure is more complex in full implementation
 }
 
+// SVCClientData update flags (SU_*) form a bitmask telling the client
+// which fields are included in a client data update. This is Quake's
+// delta compression for player state: only changed fields are sent.
+//
 // Update flags for SVCClientData (SU_*)
 const (
 	SU_VIEWHEIGHT   = 1 << 0
@@ -336,6 +400,10 @@ const (
 	SU_EXTEND3      = 1 << 31 // another byte to follow, future expansion
 )
 
+// Entity update flags (U_*) form a bitmask controlling which fields
+// are included in a per-entity delta update. This is the core of
+// Quake's bandwidth-efficient entity state synchronization.
+//
 // Update flags for SVCUpdate (U_*)
 const (
 	U_MOREBITS   = 1 << 0

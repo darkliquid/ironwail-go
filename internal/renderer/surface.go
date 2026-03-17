@@ -26,6 +26,7 @@ type SurfaceTexture struct {
 
 const textureAnimationCycle = 2
 
+// BuildTextureAnimations BuildTextureAnimations precomputes linked animation chains for anim textures so runtime sampling can jump directly to the proper frame.
 func BuildTextureAnimations(names []string) ([]*SurfaceTexture, error) {
 	textures := make([]*SurfaceTexture, len(names))
 	trimmed := make([]string, len(names))
@@ -121,6 +122,7 @@ func BuildTextureAnimations(names []string) ([]*SurfaceTexture, error) {
 	return textures, nil
 }
 
+// textureAnimationFrame textureAnimationFrame selects the correct animation frame for a texture at the current time, matching Quake's deterministic anim cadence.
 func textureAnimationFrame(name string) (frameIndex int, alternate bool, err error) {
 	if len(name) < 2 || name[0] != '+' {
 		return 0, false, fmt.Errorf("bad animating texture %q", name)
@@ -139,6 +141,7 @@ func textureAnimationFrame(name string) (frameIndex int, alternate bool, err err
 	}
 }
 
+// TextureAnimation TextureAnimation resolves the final texture pointer after following animation and alternate-chain rules used by switches and water variants.
 func TextureAnimation(base *SurfaceTexture, frame int, timeSeconds float64) (*SurfaceTexture, error) {
 	if base == nil {
 		return nil, nil
@@ -180,6 +183,7 @@ type Chart struct {
 	allocated []int
 }
 
+// Init Init prepares backend resources needed before the first frame, including API-specific state, cached GPU objects, and per-frame scratch structures used by the renderer.
 func (c *Chart) Init(width, height int) error {
 	if width <= 0 || height <= 0 {
 		return fmt.Errorf("invalid chart size %dx%d", width, height)
@@ -192,6 +196,7 @@ func (c *Chart) Init(width, height int) error {
 	return nil
 }
 
+// Add Add appends a surface/lightmap block into an allocator or batch structure, centralizing bounds/capacity checks before write.
 func (c *Chart) Add(w, h int) (outX, outY int, ok bool, err error) {
 	if w <= 0 || h <= 0 {
 		return 0, 0, false, fmt.Errorf("invalid block size %dx%d", w, h)
@@ -256,6 +261,7 @@ type LightmapAllocator struct {
 	reserveFirstTexel bool
 }
 
+// NewLightmapAllocator NewLightmapAllocator creates atlas packing state for static lightmaps so many faces can share a small set of GPU textures.
 func NewLightmapAllocator(blockWidth, blockHeight int, reserveFirstTexel bool) (*LightmapAllocator, error) {
 	if blockWidth <= 0 || blockHeight <= 0 {
 		return nil, fmt.Errorf("invalid block size %dx%d", blockWidth, blockHeight)
@@ -270,16 +276,19 @@ func NewLightmapAllocator(blockWidth, blockHeight int, reserveFirstTexel bool) (
 	return lm, nil
 }
 
+// Count Count reports how many batched entries are currently queued, useful for deciding when to flush before state or texture changes.
 func (l *LightmapAllocator) Count() int {
 	return len(l.lightmaps)
 }
 
+// Lightmaps Lightmaps exposes currently allocated lightmap pages for upload/debugging and runtime pass binding.
 func (l *LightmapAllocator) Lightmaps() []Lightmap {
 	out := make([]Lightmap, len(l.lightmaps))
 	copy(out, l.lightmaps)
 	return out
 }
 
+// AllocBlock AllocBlock performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (l *LightmapAllocator) AllocBlock(w, h int) (texnum, x, y int, err error) {
 	for texnum = l.lastAllocated; texnum < MaxSanityLightmaps; texnum++ {
 		if texnum == len(l.lightmaps) {
@@ -318,6 +327,7 @@ type SurfaceLightmapInput struct {
 	Samples []byte
 }
 
+// NumLightmapTaps NumLightmapTaps performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func NumLightmapTaps(styles [4]byte) int {
 	if styles[1] == 255 {
 		return 1
@@ -328,6 +338,7 @@ func NumLightmapTaps(styles [4]byte) int {
 	return 3
 }
 
+// lightstyleCount lightstyleCount performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func lightstyleCount(styles [4]byte) int {
 	count := 0
 	for _, s := range styles {
@@ -342,6 +353,7 @@ func lightstyleCount(styles [4]byte) int {
 	return count
 }
 
+// FillSurfaceLightmap FillSurfaceLightmap performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func FillSurfaceLightmap(in SurfaceLightmapInput, lightmap Lightmap, lightmapWidth int, dst []uint32) error {
 	if len(in.Samples) == 0 {
 		return nil

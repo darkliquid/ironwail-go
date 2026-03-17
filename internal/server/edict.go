@@ -9,6 +9,43 @@
 // - Entity 0 is always worldspawn (the level itself)
 // - Free entities are tracked for reuse with a 500ms delay
 // - Entities have both engine fields and QuakeC-visible fields
+//
+// # Allocation / Free / Reuse Lifecycle
+//
+// Entities are pooled in a flat array (edicts). When an entity is freed via
+// ED_Free it is not immediately destroyed — instead its index is appended to
+// freeList together with the current server time recorded in freeTime.
+// ED_Alloc pops candidates from freeList but will skip any whose freeTime is
+// less than 500 ms ago. This "cooldown" prevents the client from
+// interpolating between the old entity's last state and the new entity's
+// first state, which would look like the old object morphing into the new
+// one. If no reusable candidate is found, a fresh slot at the end of the
+// array is consumed and numEdicts grows. Client slots (indices 0 through
+// maxClients-1) are never added to freeList because those slots are reserved
+// for the duration of the level.
+//
+// # QuakeC String Handling
+//
+// Many int32 fields in EntVars are *not* plain integers — they are indices
+// into the QuakeC VM string table. Positive indices point into the static
+// progs string data that was compiled into the .dat file. Negative indices
+// refer to strings that were dynamically allocated at runtime via
+// vm.AllocString (e.g. player names, map-entity key values). Zero is the
+// empty string by convention. When setting one of these fields from a map
+// entity value, the engine calls vm.AllocString to obtain a negative index
+// and stores that index in the int32 field. The set of fields that require
+// this treatment is enumerated in stringEntFieldNames.
+//
+// # Field Mapping (Map Entity Keys → EntVars Struct)
+//
+// Map files store entity properties as free-form "key" "value" pairs. To
+// match a key to a Go struct field in EntVars, the engine normalises both
+// sides by lowercasing and stripping underscores. For example, the map key
+// "classname" matches the struct field "ClassName", "target_name" matches
+// "TargetName", and "MoveType" matches "movetype". This mirrors the
+// case-insensitive, underscore-insensitive lookup used by the original C
+// engine and ensures broad compatibility with map editors that use varying
+// conventions.
 package server
 
 import (
@@ -21,8 +58,19 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
+// entVarsFieldIndex is a pre-computed reflection lookup table that maps
+// normalised field names (lowercased, underscores stripped) to struct field
+// indices within EntVars. It is built once at package init time by
+// buildEntVarsFieldIndex so that parseEdictFieldValue can resolve a map key
+// to its target struct field in O(1) without repeated reflection.
 var entVarsFieldIndex = buildEntVarsFieldIndex()
 
+// stringEntFieldNames lists entity fields whose int32 values are indices
+// into the QuakeC VM string table rather than raw numeric values. When
+// parsing map entity data, if the key matches one of these names (after
+// normalisation) the value string is allocated in the VM via AllocString and
+// the returned negative index is stored in the int32 field. Fields not in
+// this set are parsed as numeric integers (or hashed via FNV fallback).
 var stringEntFieldNames = map[string]struct{}{
 	"classname":   {},
 	"message":     {},
@@ -203,6 +251,13 @@ func (em *EntityManager) ED_ClearEdict(entNum int) {
 	edict.Scale = 16 // ENTSCALE_DEFAULT
 }
 
+// SV_UnlinkEdict removes an entity from the spatial partitioning
+// doubly-linked list (the "area chain") that the engine uses for
+// broad-phase collision and trigger queries. It splices the edict out by
+// patching up the prev/next pointers of its neighbours, then sets AreaPrev
+// and AreaNext to nil and NumLeafs to 0. After this call the entity is
+// invisible to SV_TouchLinks, SV_ClipMoveToEntity, and similar world
+// queries until SV_LinkEdict inserts it again at its new position.
 func (em *EntityManager) SV_UnlinkEdict(entNum int) {
 	if entNum < 0 || entNum >= em.numEdicts {
 		return
@@ -403,9 +458,19 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 
 		hasData = true
 
-		// Handle QuakeEd compatibility hacks
-		// "angle" -> "angles" (scalar to vector)
-		// "light" -> "light_lev"
+		// QuakeEd compatibility hacks — early map editors used slightly
+		// different key names than the engine's EntVars fields:
+		//
+		//   "angle" → "angles": QuakeEd stored a single yaw rotation as
+		//     the key "angle". The engine expects a three-component vector
+		//     "pitch yaw roll" in the "angles" field, so the scalar value
+		//     is wrapped as "0 <yaw> 0".
+		//
+		//   "light" → "light_lev": Some editors used "light" for the
+		//     brightness key, but the engine field is "light_lev".
+		//
+		// These rewrites ensure maps authored with different editors load
+		// correctly without requiring map authors to update key names.
 		finalKeyName := keyName
 		if keyName == "angle" {
 			finalKeyName = "angles"
@@ -415,7 +480,9 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 			finalKeyName = "light_lev"
 		}
 
-		// Skip underscore keys (comments)
+		// Keys that start with an underscore are editor-private metadata
+		// (e.g. "_color", "_tb_type"). They carry no game-relevant
+		// information and are silently skipped.
 		if len(finalKeyName) > 0 && finalKeyName[0] == '_' {
 			continue
 		}
@@ -446,6 +513,15 @@ func (em *EntityManager) ActiveCount() int {
 	return em.numEdicts - len(em.freeList)
 }
 
+// fieldType looks up a field's QuakeC type (EvString, EvEntity, EvFunction,
+// etc.) from the VM's compiled field definitions. It normalises keyName and
+// scans the VM's FieldDefs slice for a matching name. The returned EType
+// tells parseEdictFieldValue how to interpret the raw string value — for
+// instance, EvString values must be allocated via AllocString, EvFunction
+// values are resolved to function indices, and EvEntity values are parsed
+// as plain integers. The DefSaveGlobal flag is masked off because it only
+// matters for save/load, not for type dispatch. Returns false if no
+// matching field definition exists in the loaded progs.
 func (em *EntityManager) fieldType(keyName string) (qc.EType, bool) {
 	if em == nil || em.vm == nil {
 		return 0, false
@@ -460,6 +536,13 @@ func (em *EntityManager) fieldType(keyName string) (qc.EType, bool) {
 	return 0, false
 }
 
+// buildEntVarsFieldIndex uses reflection to iterate over every exported
+// field of the EntVars struct and builds a map from normalised field name
+// (lowercased, underscores stripped) to the field's positional index. This
+// function is called exactly once at package init time; the resulting map
+// is stored in entVarsFieldIndex so that parseEdictFieldValue can resolve
+// any map-file key to its target struct field without repeated reflection
+// or linear scans.
 func buildEntVarsFieldIndex() map[string]int {
 	index := make(map[string]int)
 	entType := reflect.TypeOf(EntVars{})
@@ -470,10 +553,20 @@ func buildEntVarsFieldIndex() map[string]int {
 	return index
 }
 
+// normalizeFieldName strips underscores and lowercases the input string to
+// produce a canonical form suitable for case-insensitive,
+// underscore-insensitive field name matching. This mirrors the original
+// Quake engine's forgiving key-name lookup, allowing map editors and mods
+// to use "ClassName", "classname", "class_name", etc. interchangeably.
 func normalizeFieldName(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, "_", ""))
 }
 
+// parseVec3 parses a space-separated "x y z" string (as found in map entity
+// definitions) into a [3]float32 vector. Quake stores all spatial data —
+// origins, angles, velocities, bounding box corners — as three-component
+// float vectors in this text format. Returns an error if the string does
+// not contain exactly three parseable float components.
 func parseVec3(raw string) ([3]float32, error) {
 	parts := strings.Fields(raw)
 	if len(parts) != 3 {
@@ -491,6 +584,9 @@ func parseVec3(raw string) ([3]float32, error) {
 	return out, nil
 }
 
+// parseFloat32 parses a single string token into a float32, trimming
+// surrounding whitespace first. Used for scalar entity fields such as
+// health, speed, and delay that are stored as float32 in EntVars.
 func parseFloat32(raw string) (float32, error) {
 	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 32)
 	if err != nil {
@@ -499,6 +595,10 @@ func parseFloat32(raw string) (float32, error) {
 	return float32(v), nil
 }
 
+// parseInt32 parses a string into a base-10 int32 value, trimming
+// surrounding whitespace. Used for integer-valued entity fields such as
+// entity numbers (EvEntity), function indices (EvFunction), spawnflags,
+// and bit-flag fields.
 func parseInt32(raw string) (int32, error) {
 	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
 	if err != nil {
@@ -507,12 +607,42 @@ func parseInt32(raw string) (int32, error) {
 	return int32(v), nil
 }
 
+// parseStringFallbackInt32 computes an FNV-1a hash of the input string and
+// returns it as an int32. This is used as a deterministic fallback when a
+// field value cannot be parsed as a plain integer — it guarantees a
+// consistent int32 from any arbitrary string. The hash is not
+// cryptographic; its purpose is to produce a stable, reproducible numeric
+// key that can be stored in an int32 field without losing the identity of
+// the original string (at the cost of possible hash collisions).
 func parseStringFallbackInt32(raw string) int32 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(raw))
 	return int32(h.Sum32())
 }
 
+// parseEdictFieldValue sets a single field on an edict's EntVars from a
+// key-value pair read from map entity data. It normalises the key, looks up
+// the matching struct field index in entVarsFieldIndex, and uses reflection
+// to write the parsed value.
+//
+// Type-specific handling:
+//   - float32 fields: parsed directly as floats via parseFloat32.
+//   - int32 fields: dispatched through several layers of type resolution:
+//     1. If the field is in stringEntFieldNames, the value is allocated in the
+//     VM string table and the returned index is stored.
+//     2. Otherwise, the VM's compiled field definitions are consulted via
+//     fieldType. Depending on the QC type (EvString, EvField, EvFunction,
+//     EvEntity, etc.) the value is resolved appropriately (string alloc,
+//     field offset lookup, function index lookup, or integer parse).
+//     3. As a last resort, the value is parsed as a plain integer; if that
+//     also fails, parseStringFallbackInt32 produces a deterministic FNV-1a
+//     hash so the field is never left uninitialised.
+//   - [3]float32 arrays: parsed as "x y z" vec3 via parseVec3.
+//
+// After setting either the "mins" or "maxs" field, the entity's Size vector
+// is automatically recalculated as (Maxs - Mins) on each axis. This keeps
+// Size consistent whenever a bounding box corner changes, which is required
+// by the physics and collision systems.
 func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value string) error {
 	if edict == nil {
 		return fmt.Errorf("nil edict")
@@ -592,6 +722,9 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value strin
 		return fmt.Errorf("unsupported field kind %s", rv.Kind())
 	}
 
+	// Recalculate entity bounding-box Size whenever either corner changes.
+	// The physics code (SV_Physics, SV_ClipMoveToEntity) relies on Size
+	// being the delta (Maxs − Mins) and does not recompute it on the fly.
 	if normalizeFieldName(keyName) == "mins" || normalizeFieldName(keyName) == "maxs" {
 		edict.Vars.Size[0] = edict.Vars.Maxs[0] - edict.Vars.Mins[0]
 		edict.Vars.Size[1] = edict.Vars.Maxs[1] - edict.Vars.Mins[1]
@@ -601,6 +734,18 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value strin
 	return nil
 }
 
+// parseGlobalValue sets a single QuakeC global variable from a key-value
+// pair encountered during map or savegame loading. It scans the VM's
+// GlobalDefs for a matching name and dispatches by the declared QC type:
+//   - EvVector: parsed as "x y z" and written via SetGVector.
+//   - EvString: allocated in the VM string table and stored as an index.
+//   - EvEntity / EvField / EvFunction / EvPointer / EvExtInteger: parsed as
+//     a plain int32 and stored via SetGInt.
+//   - Everything else (typically EvFloat): parsed as float32 via SetGFloat.
+//
+// Unrecognised key names are silently ignored; parse errors cause the
+// key to be skipped rather than aborting the entire load, matching the
+// original engine's lenient behaviour.
 func (em *EntityManager) parseGlobalValue(vm *qc.VM, keyName, value string) {
 	for _, def := range vm.GlobalDefs {
 		if vm.GetString(def.Name) != keyName {

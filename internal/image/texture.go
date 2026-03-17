@@ -9,8 +9,25 @@ import (
 	"io"
 )
 
+// Palette represents the Quake 256-color palette as an array of RGBA colors.
+//
+// Quake (and other id Software engines of that era) use 8-bit paletted textures
+// to save memory and disk space. Every pixel in the game's textures, sprites,
+// and 2D art is stored as a single byte — an index (0–255) into this palette.
+// Modern GPUs do not natively support paletted rendering, so during texture
+// upload the engine expands each palette index into a full 32-bit RGBA color
+// using this table. The palette is defined once in palette.lmp and shared
+// across the entire engine.
 type Palette [256]color.RGBA
 
+// LoadPalette reads a 768-byte Quake palette from the given reader and returns
+// a Palette array with full alpha (A=255) for every entry.
+//
+// The on-disk format is simply 256 consecutive RGB triplets (3 bytes each,
+// no header). This matches Quake's palette.lmp format found in pak0.pak.
+// Alpha is set to 255 (fully opaque) for all colors because the palette file
+// does not store alpha; transparency in Quake is handled per-pixel by treating
+// palette index 255 as the transparent color (see ToRGBA).
 func LoadPalette(r io.Reader) (Palette, error) {
 	var p Palette
 	data := make([]byte, 768)
@@ -28,6 +45,18 @@ func LoadPalette(r io.Reader) (Palette, error) {
 	return p, nil
 }
 
+// ToRGBA converts palette-indexed pixel data into a standard Go RGBA image
+// suitable for GPU texture upload.
+//
+// Each byte in data is treated as a palette index. The method looks up the
+// corresponding RGBA color and writes it into the output image's pixel buffer.
+//
+// When transparent is true, palette index 255 is treated as fully transparent
+// (alpha = 0). This is Quake's convention for masked textures such as fence
+// textures, grates, and sprites — the artists painted transparent areas with
+// color index 255 (typically a bright magenta/cyan in the palette), and the
+// engine skips those pixels during rendering or sets alpha to zero for
+// alpha-blended drawing.
 func (p Palette) ToRGBA(data []byte, width, height int, transparent bool) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for i, idx := range data {
@@ -46,10 +75,34 @@ func (p Palette) ToRGBA(data []byte, width, height int, transparent bool) *image
 	return img
 }
 
+// LoadPNG decodes a PNG image from the given reader, returning a standard Go
+// image.Image. This is a thin wrapper around the standard library's png.Decode.
+//
+// PNG support allows the engine to load high-resolution replacement textures,
+// HD skins, and other modern assets that the Quake modding community provides.
+// While original Quake used only paletted formats (WAD lumps, .lmp files),
+// source ports commonly support PNG/TGA/JPEG for texture packs that replace
+// or enhance the original 8-bit art with full-color, higher-resolution images.
 func LoadPNG(r io.Reader) (image.Image, error) {
 	return png.Decode(r)
 }
 
+// MipTex represents a Quake mip-mapped texture with up to 4 detail levels.
+//
+// Mip-mapping is a technique where each texture is stored at multiple
+// resolutions: full size (mip 0), half size (mip 1), quarter size (mip 2),
+// and eighth size (mip 3). The GPU selects the appropriate mip level based
+// on the distance of the surface from the camera, which reduces aliasing
+// artifacts on distant surfaces and improves cache performance.
+//
+// The on-disk format is a 40-byte header (16-byte name + width + height +
+// 4 offsets), followed by the pixel data for all four mip levels stored
+// contiguously. Offsets are relative to the start of the MipTex data.
+// Each pixel is a single byte indexing into the Quake palette.
+//
+// MipTex is used for world textures (walls, floors, ceilings) in BSP files,
+// and also appears as a lump type in WAD files. The conchars font bitmap
+// is stored as a MipTex-type lump in gfx.wad (though without the header).
 type MipTex struct {
 	Name    string
 	Width   uint32
@@ -58,6 +111,15 @@ type MipTex struct {
 	Pixels  []byte // All mip levels
 }
 
+// ParseMipTex parses a MipTex structure from raw binary data.
+//
+// The input data must be at least 40 bytes (the fixed-size header). The
+// pixel data referenced by the four mip offsets is retained as a slice of
+// the original data buffer, so the caller must not modify data after parsing.
+//
+// The 16-byte name field may contain trailing NUL bytes or spaces, which
+// are cleaned up by CleanupName to produce a normalized lowercase key
+// suitable for texture lookups.
 func ParseMipTex(data []byte) (*MipTex, error) {
 	if len(data) < 40 {
 		return nil, fmt.Errorf("miptex data too short")
@@ -78,6 +140,16 @@ func ParseMipTex(data []byte) (*MipTex, error) {
 	}, nil
 }
 
+// MipLevel extracts the pixel data for the specified mip level (0–3) and
+// returns the raw bytes along with the level's width and height.
+//
+// Each successive mip level halves both dimensions (clamped to a minimum of 1).
+// For example, a 64×64 base texture has mip levels of 64×64, 32×32, 16×16,
+// and 8×8. The offset stored in the MipTex header points to where each level's
+// contiguous block of palette-indexed pixels begins within the Pixels slice.
+//
+// This method validates that the requested level is in range and that the
+// pixel data does not exceed the buffer, returning an error otherwise.
 func (m *MipTex) MipLevel(level int) ([]byte, int, int, error) {
 	if level < 0 || level >= 4 {
 		return nil, 0, 0, fmt.Errorf("invalid mip level")
@@ -98,6 +170,25 @@ func (m *MipTex) MipLevel(level int) ([]byte, int, int, error) {
 	return m.Pixels[off : int(off)+size], w, h, nil
 }
 
+// AlphaEdgeFix corrects color bleeding artifacts on transparent texture edges
+// by averaging the RGB values of neighboring opaque pixels into transparent pixels.
+//
+// When a texture with transparency (e.g., a fence texture or sprite) is rendered
+// with bilinear or trilinear filtering on the GPU, the hardware interpolates
+// between adjacent texels. If a transparent pixel has arbitrary RGB values
+// (often black or garbage), the interpolation produces visible dark or colored
+// fringes around the edges of the opaque regions — a common artifact known as
+// "dark halos" or "alpha bleeding."
+//
+// This function fixes the problem by examining each transparent pixel's 8
+// neighbors (with toroidal wrapping for tiling textures). If any neighbors are
+// opaque, their RGB values are averaged and written into the transparent pixel.
+// The alpha channel remains zero, so the pixel is still invisible, but when the
+// GPU interpolates between this pixel and an adjacent opaque one, the blended
+// color will be a smooth continuation rather than an ugly fringe.
+//
+// This is a standard technique used in many game engines and is equivalent to
+// the "premultiplied alpha edge padding" step in texture processing pipelines.
 func AlphaEdgeFix(img *image.RGBA) {
 	width := img.Bounds().Dx()
 	height := img.Bounds().Dy()

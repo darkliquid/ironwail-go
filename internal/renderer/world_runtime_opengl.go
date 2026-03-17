@@ -303,6 +303,7 @@ type glAliasDraw struct {
 	full   bool
 }
 
+// flattenWorldVertices converts WorldVertex structs to a flat float32 array for GL buffer upload. Layout: 3 position + 2 texcoord + 2 lightmap UV + 3 normal = 10 floats per vertex.
 func flattenWorldVertices(vertices []WorldVertex) []float32 {
 	data := make([]float32, 0, len(vertices)*10)
 	for _, v := range vertices {
@@ -316,6 +317,7 @@ func flattenWorldVertices(vertices []WorldVertex) []float32 {
 	return data
 }
 
+// ensureWorldProgram lazily compiles the world rendering shader program. The world shader performs multi-texture rendering: diffuse texture * lightmap, with optional fullbright overlay and dynamic light contribution.
 func (r *Renderer) ensureWorldProgram() error {
 	if r.worldProgram != 0 {
 		return nil
@@ -351,6 +353,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	return nil
 }
 
+// ensureWorldSkyPrograms lazily compiles all three sky shader variants: embedded two-layer scrolling sky, cubemap sky (GL_TEXTURE_CUBE_MAP for external skybox), and individual-face sky (fallback for non-uniform face sizes).
 func (r *Renderer) ensureWorldSkyPrograms() error {
 	if r.worldSkyProgram == 0 {
 		vs, err := compileShader(worldSkyVertexShaderGL, gl.VERTEX_SHADER)
@@ -427,6 +430,7 @@ func (r *Renderer) ensureWorldSkyPrograms() error {
 	return nil
 }
 
+// ensureAliasScratchLocked creates a scratch VAO/VBO for alias model rendering. Alias models re-upload interpolated vertex data each frame, so the buffer uses GL_DYNAMIC_DRAW.
 func (r *Renderer) ensureAliasScratchLocked() {
 	if r.aliasScratchVAO != 0 && r.aliasScratchVBO != 0 {
 		return
@@ -453,6 +457,7 @@ func (r *Renderer) ensureAliasScratchLocked() {
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 }
 
+// uploadWorldMesh uploads BSP geometry (vertices + indices) to GPU buffers, creating a VAO with the standard world vertex layout. Returns a glWorldMesh handle for later binding during draw calls.
 func uploadWorldMesh(vertices []WorldVertex, indices []uint32) *glWorldMesh {
 	if len(vertices) == 0 || len(indices) == 0 {
 		return nil
@@ -488,6 +493,7 @@ func uploadWorldMesh(vertices []WorldVertex, indices []uint32) *glWorldMesh {
 	return mesh
 }
 
+// destroy releases the GL resources (VAO, VBO, EBO) for a world mesh.
 func (mesh *glWorldMesh) destroy() {
 	if mesh == nil {
 		return
@@ -512,6 +518,7 @@ func (mesh *glWorldMesh) destroy() {
 	}
 }
 
+// ensureBrushModelLocked lazily builds and uploads GPU geometry for a BSP submodel (doors, platforms, lifts). Each brush entity references a submodel by index.
 func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
 	if mesh, ok := r.brushModels[submodelIndex]; ok && mesh != nil {
 		return mesh
@@ -539,6 +546,7 @@ func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
 	return mesh
 }
 
+// worldTextureFilters returns GL texture filter parameters: lightmaps use LINEAR for smooth interpolation; diffuse textures use NEAREST_MIPMAP_LINEAR for Quake's pixel-art look with distance mipmapping.
 func worldTextureFilters(lightmap bool) (minFilter, magFilter int32) {
 	if lightmap {
 		return gl.LINEAR, gl.LINEAR
@@ -546,6 +554,7 @@ func worldTextureFilters(lightmap bool) (minFilter, magFilter int32) {
 	return gl.NEAREST, gl.NEAREST
 }
 
+// uploadWorldTextureRGBAWithFilters creates a GL texture from RGBA data with specified min/mag filters and generates mipmaps to reduce aliasing at distance.
 func uploadWorldTextureRGBAWithFilters(width, height int, rgba []byte, minFilter, magFilter int32) uint32 {
 	var tex uint32
 	gl.GenTextures(1, &tex)
@@ -559,16 +568,19 @@ func uploadWorldTextureRGBAWithFilters(width, height int, rgba []byte, minFilter
 	return tex
 }
 
+// uploadWorldTextureRGBA uploads a world diffuse texture with NEAREST filtering for Quake's pixel-art aesthetic.
 func uploadWorldTextureRGBA(width, height int, rgba []byte) uint32 {
 	minFilter, magFilter := worldTextureFilters(false)
 	return uploadWorldTextureRGBAWithFilters(width, height, rgba, minFilter, magFilter)
 }
 
+// uploadWorldLightmapTextureRGBA uploads a lightmap texture with LINEAR filtering for smooth lighting gradients.
 func uploadWorldLightmapTextureRGBA(width, height int, rgba []byte) uint32 {
 	minFilter, magFilter := worldTextureFilters(true)
 	return uploadWorldTextureRGBAWithFilters(width, height, rgba, minFilter, magFilter)
 }
 
+// ensureWorldFallbackTextureLocked creates a 1x1 white fallback texture for faces missing their texture data, ensuring the shader always has a valid texture bound.
 func (r *Renderer) ensureWorldFallbackTextureLocked() {
 	if r.worldFallbackTexture != 0 {
 		return
@@ -576,6 +588,7 @@ func (r *Renderer) ensureWorldFallbackTextureLocked() {
 	r.worldFallbackTexture = uploadWorldTextureRGBA(1, 1, []byte{200, 200, 200, 255})
 }
 
+// ensureLightmapFallbackTextureLocked creates a 1x1 white fallback lightmap so unlit faces render at full brightness.
 func (r *Renderer) ensureLightmapFallbackTextureLocked() {
 	if r.worldLightmapFallback != 0 {
 		return
@@ -583,6 +596,7 @@ func (r *Renderer) ensureLightmapFallbackTextureLocked() {
 	r.worldLightmapFallback = uploadWorldLightmapTextureRGBA(1, 1, []byte{255, 255, 255, 255})
 }
 
+// ensureAliasShadowTextureLocked creates a 1x1 dark semi-transparent texture used for alias model ground shadows.
 func (r *Renderer) ensureAliasShadowTextureLocked() {
 	if r.aliasShadowTexture != 0 {
 		return
@@ -590,6 +604,7 @@ func (r *Renderer) ensureAliasShadowTextureLocked() {
 	r.aliasShadowTexture = uploadWorldTextureRGBA(1, 1, []byte{0, 0, 0, 255})
 }
 
+// ensureWorldSkyFallbackTexturesLocked creates fallback sky textures: dark blue for the solid layer, transparent black for the alpha layer.
 func (r *Renderer) ensureWorldSkyFallbackTexturesLocked() {
 	r.ensureWorldFallbackTextureLocked()
 	if r.worldSkyAlphaFallback != 0 {
@@ -598,6 +613,7 @@ func (r *Renderer) ensureWorldSkyFallbackTexturesLocked() {
 	r.worldSkyAlphaFallback = uploadWorldTextureRGBA(1, 1, []byte{0, 0, 0, 0})
 }
 
+// setLightStyleValues updates the 64-element lightstyle brightness array. Quake's lightstyle system animates lighting using 64 independent channels for effects like flickering torches and pulsing lights.
 func (r *Renderer) setLightStyleValues(values [64]float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -605,6 +621,7 @@ func (r *Renderer) setLightStyleValues(values [64]float32) {
 	r.updateUploadedLightmapsLocked()
 }
 
+// defaultLightStyleValues returns the default lightstyle array where style 0 has brightness 1.0 (normal) and all others are 0.
 func defaultLightStyleValues() [64]float32 {
 	var values [64]float32
 	for i := range values {
@@ -613,10 +630,12 @@ func defaultLightStyleValues() [64]float32 {
 	return values
 }
 
+// shouldSplitAsQuake64Sky detects Quake 64 remaster sky textures which use different splitting dimensions than standard Quake.
 func shouldSplitAsQuake64Sky(treeVersion int32, width, height int) bool {
 	return bsp.IsQuake64(treeVersion) || (width == 32 && height == 64)
 }
 
+// indexedOpaqueToRGBA converts palette-indexed pixels to RGBA, treating all pixels as fully opaque. Used for sky solid layers and other non-transparent textures.
 func indexedOpaqueToRGBA(pixels []byte, palette []byte) []byte {
 	rgba := make([]byte, len(pixels)*4)
 	for i, p := range pixels {
@@ -629,6 +648,7 @@ func indexedOpaqueToRGBA(pixels []byte, palette []byte) []byte {
 	return rgba
 }
 
+// extractEmbeddedSkyLayers splits a Quake sky texture into solid and alpha layers. Sky textures are double-width: the left half is the foreground (scrolls faster, transparent areas reveal background), the right half is the background (scrolls slower). Both scroll independently for a parallax cloud effect.
 func extractEmbeddedSkyLayers(pixels []byte, width, height int, palette []byte, quake64 bool) (solidRGBA, alphaRGBA []byte, layerWidth, layerHeight int, ok bool) {
 	if width <= 0 || height <= 0 || len(pixels) < width*height {
 		return nil, nil, 0, 0, false
@@ -696,6 +716,7 @@ func extractEmbeddedSkyLayers(pixels []byte, width, height int, palette []byte, 
 	return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
 }
 
+// uploadWorldTexturesLocked uploads all world textures to the GPU: converts from palette to RGBA, extracts fullbright masks (palette indices 224-254 glow in the dark), splits sky textures into layers, and uploads to GL textures. Called once per map load.
 func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 	r.worldTextures = make(map[int32]uint32)
 	r.worldFullbrightTextures = make(map[int32]uint32)
@@ -784,6 +805,7 @@ var skyboxCubemapTargets = [...]uint32{
 	gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
 }
 
+// uploadSkyboxCubemap uploads 6 skybox face images as a GL_TEXTURE_CUBE_MAP, reordering faces from Quake convention (rt/bk/lf/ft/up/dn) to OpenGL convention (+X/-X/+Y/-Y/+Z/-Z).
 func uploadSkyboxCubemap(faces [6]externalSkyboxFace, faceSize int) uint32 {
 	if faceSize <= 0 {
 		return 0
@@ -822,6 +844,7 @@ func uploadSkyboxCubemap(faces [6]externalSkyboxFace, faceSize int) uint32 {
 	return cubemap
 }
 
+// uploadSkyboxFaceTextures uploads each skybox face as an individual GL_TEXTURE_2D, used as fallback when faces aren't all square and can't form a cubemap.
 func uploadSkyboxFaceTextures(faces [6]externalSkyboxFace) (textures [6]uint32, ok bool) {
 	fallbackPixel := [4]byte{0, 0, 0, 255}
 	for i := range textures {
@@ -855,6 +878,7 @@ func uploadSkyboxFaceTextures(faces [6]externalSkyboxFace) (textures [6]uint32, 
 	return textures, true
 }
 
+// clearExternalSkyboxLocked deletes external skybox GL textures and resets to the embedded sky rendering mode.
 func (r *Renderer) clearExternalSkyboxLocked() {
 	if r.worldSkyExternalCubemap != 0 {
 		gl.DeleteTextures(1, &r.worldSkyExternalCubemap)
@@ -870,6 +894,7 @@ func (r *Renderer) clearExternalSkyboxLocked() {
 	r.worldSkyExternalName = ""
 }
 
+// SetExternalSkybox loads an external skybox by name, attempting cubemap first and falling back to individual face textures.
 func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {
 	normalized := normalizeSkyboxBaseName(name)
 
@@ -917,6 +942,7 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 	r.worldSkyExternalName = normalized
 }
 
+// lightstyleScale looks up a lightstyle's current brightness from the 64-element value array. The 255 sentinel (no light) returns 0.
 func lightstyleScale(values [64]float32, style uint8) float32 {
 	if int(style) < len(values) && values[style] > 0 {
 		return values[style]
@@ -924,6 +950,7 @@ func lightstyleScale(values [64]float32, style uint8) float32 {
 	return 1
 }
 
+// setFogState updates the fog color and density values used by world and sky shader fog calculations.
 func (r *Renderer) setFogState(color [3]float32, density float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -931,6 +958,7 @@ func (r *Renderer) setFogState(color [3]float32, density float32) {
 	r.worldFogDensity = density
 }
 
+// worldFogUniformDensity converts the fog density cvar value to the uniform value used in the shader's exponential fog formula.
 func worldFogUniformDensity(density float32) float32 {
 	const (
 		expAdjustment       = 1.20112241
@@ -941,6 +969,7 @@ func worldFogUniformDensity(density float32) float32 {
 	return density * density
 }
 
+// buildLightmapPageRGBA rasterizes a lightmap atlas page to RGBA by blending all surface lightmap samples with their lightstyle brightness values. This CPU-side compositing makes Quake's animated lighting work: each surface can reference up to 4 lightstyles.
 func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
 	if page.Width <= 0 || page.Height <= 0 {
 		return nil
@@ -993,6 +1022,7 @@ func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
 	return rgba
 }
 
+// uploadLightmapPages uploads all lightmap atlas pages as GL textures with LINEAR filtering.
 func uploadLightmapPages(pages []WorldLightmapPage, values [64]float32) []uint32 {
 	textures := make([]uint32, 0, len(pages))
 	for _, page := range pages {
@@ -1005,6 +1035,7 @@ func uploadLightmapPages(pages []WorldLightmapPage, values [64]float32) []uint32
 	return textures
 }
 
+// updateLightmapTextures re-uploads lightmap textures when lightstyle values change, called each frame to support animated lighting effects.
 func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values [64]float32) {
 	count := len(textures)
 	if len(pages) < count {
@@ -1026,6 +1057,7 @@ func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values
 	}
 }
 
+// updateUploadedLightmapsLocked rebuilds and re-uploads all lightmap pages with current lightstyle values.
 func (r *Renderer) updateUploadedLightmapsLocked() {
 	values := r.lightStyleValues
 	if r.worldData != nil {
@@ -1098,6 +1130,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	return nil
 }
 
+// renderWorld renders the world BSP geometry using the specified pass selector. Binds the world shader, sets the view-projection matrix and camera uniforms, buckets faces by type (sky, opaque, liquid, translucent), and issues draw calls with per-face diffuse + lightmap + fullbright texture binds.
 func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	selector = normalizeWorldBrushPassSelector(selector)
 	drawSky := selector.includesSky()
@@ -1323,6 +1356,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	gl.Enable(gl.BLEND)
 }
 
+// renderBrushEntities renders BSP brush entities (doors, platforms, lifts). Each entity has a model offset, rotation matrix, and optional alpha. Uses the same world shader with model transform uniforms.
 func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBrushPassSelector) {
 	if len(entities) == 0 {
 		return
@@ -1624,10 +1658,12 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, fu
 	return sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent
 }
 
+// bucketWorldFaces is a simplified face bucketing function without dynamic light support, used for brush entities.
 func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
 	return bucketWorldFacesWithLights(faces, textures, fullbrightTextures, textureAnimations, lightmaps, fallbackTexture, fallbackLightmap, 0, modelOffset, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, nil)
 }
 
+// worldTextureForFace resolves the current diffuse texture GL handle for a face, accounting for texture animation chains.
 func worldTextureForFace(face WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackTexture uint32, frame int, timeSeconds float64) uint32 {
 	textureIndex := face.TextureIndex
 	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
@@ -1646,6 +1682,7 @@ func worldTextureForFace(face WorldFace, textures map[int32]uint32, textureAnima
 	return tex
 }
 
+// worldLightmapForFace resolves the lightmap texture GL handle for a face from the atlas page array.
 func worldLightmapForFace(face WorldFace, lightmaps []uint32, fallbackLightmap uint32) uint32 {
 	if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(lightmaps) && lightmaps[face.LightmapIndex] != 0 {
 		return lightmaps[face.LightmapIndex]
@@ -1653,6 +1690,7 @@ func worldLightmapForFace(face WorldFace, lightmaps []uint32, fallbackLightmap u
 	return fallbackLightmap
 }
 
+// worldFaceAlpha determines the alpha value for a face based on its liquid type flags and current r_*alpha cvar settings.
 func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
 	if flags&model.SurfDrawTurb == 0 {
 		return 1
@@ -1672,14 +1710,17 @@ func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
 	return 1
 }
 
+// worldFaceUsesTurb returns true if a face uses turbulent warp animation, applied to liquid surfaces like water and lava.
 func worldFaceUsesTurb(flags int32) bool {
 	return flags&model.SurfDrawTurb != 0 && flags&model.SurfDrawSky == 0
 }
 
+// worldFaceIsLiquid returns true if a face is any liquid type (water, lava, slime, or teleporter).
 func worldFaceIsLiquid(flags int32) bool {
 	return flags&(model.SurfDrawLava|model.SurfDrawSlime|model.SurfDrawTele|model.SurfDrawWater) != 0
 }
 
+// worldLiquidAlphaSettingsFromCvars reads liquid alpha cvars (r_wateralpha etc.) and applies worldspawn overrides to compute the final per-liquid-type alpha settings.
 func worldLiquidAlphaSettingsFromCvars(overrides worldLiquidAlphaOverrides, tree *bsp.Tree) worldLiquidAlphaSettings {
 	return resolveWorldLiquidAlphaSettings(
 		readWorldAlphaCvar(CvarRWaterAlpha, 1),
@@ -1691,6 +1732,7 @@ func worldLiquidAlphaSettingsFromCvars(overrides worldLiquidAlphaOverrides, tree
 	)
 }
 
+// resolveWorldLiquidAlphaSettings resolves final liquid alpha values with fallback logic: slime/lava/tele default to the water alpha if their cvar is 0, and worldspawn overrides can force specific values.
 func resolveWorldLiquidAlphaSettings(cvarWater, cvarLava, cvarSlime, cvarTele float32, overrides worldLiquidAlphaOverrides, tree *bsp.Tree) worldLiquidAlphaSettings {
 	water := clamp01(cvarWater)
 	if overrides.hasWater {
@@ -1747,6 +1789,7 @@ func resolveWorldLiquidAlphaSettings(cvarWater, cvarLava, cvarSlime, cvarTele fl
 	return settings
 }
 
+// parseWorldspawnLiquidAlphaOverrides parses the BSP entity lump's worldspawn for liquid alpha override keys.
 func parseWorldspawnLiquidAlphaOverrides(entities []byte) worldLiquidAlphaOverrides {
 	if len(entities) == 0 {
 		return worldLiquidAlphaOverrides{}
@@ -1783,6 +1826,7 @@ func parseWorldspawnLiquidAlphaOverrides(entities []byte) worldLiquidAlphaOverri
 	return overrides
 }
 
+// parseWorldspawnSkyFogOverride parses the worldspawn entity for sky fog override values.
 func parseWorldspawnSkyFogOverride(entities []byte) worldSkyFogOverride {
 	if len(entities) == 0 {
 		return worldSkyFogOverride{}
@@ -1825,6 +1869,7 @@ func mapVisTransparentWaterSafe(tree *bsp.Tree) bool {
 	return contentTransparent&contentFound == contentFound
 }
 
+// worldspawnTransparentWaterOverride reads the _watervis worldspawn key to determine if the map explicitly supports transparent water rendering.
 func worldspawnTransparentWaterOverride(entities []byte) (bool, bool) {
 	entity, ok := firstEntityLumpObject(string(entities))
 	if !ok {
@@ -1842,6 +1887,7 @@ func worldspawnTransparentWaterOverride(entities []byte) (bool, bool) {
 	return false, false
 }
 
+// parseEntityBoolField parses a boolean entity field using Quake's convention: 0 means false, any non-zero value means true.
 func parseEntityBoolField(fields map[string]string, key string) (bool, bool) {
 	value, ok := fields[key]
 	if !ok {
@@ -1864,6 +1910,7 @@ func parseEntityBoolField(fields map[string]string, key string) (bool, bool) {
 	return f != 0, true
 }
 
+// worldLiquidVisibilityMasks scans BSP leaves to determine which liquid content types exist and which are marked transparent in the PVS data.
 func worldLiquidVisibilityMasks(tree *bsp.Tree) (contentTransparent, contentFound int32) {
 	if tree == nil || len(tree.Leafs) <= 1 {
 		return 0, 0
@@ -1894,6 +1941,7 @@ func worldLiquidVisibilityMasks(tree *bsp.Tree) (contentTransparent, contentFoun
 	return contentTransparent, contentFound
 }
 
+// liquidTypeForLeaf determines the liquid content type of a BSP leaf from its contents field (water, slime, lava, or none).
 func liquidTypeForLeaf(tree *bsp.Tree, leaf bsp.TreeLeaf) int32 {
 	switch leaf.Contents {
 	case bsp.ContentsWater:
@@ -1907,6 +1955,7 @@ func liquidTypeForLeaf(tree *bsp.Tree, leaf bsp.TreeLeaf) int32 {
 	}
 }
 
+// liquidWaterOrTeleTypeForLeaf checks if a BSP leaf contains water or teleporter liquid content.
 func liquidWaterOrTeleTypeForLeaf(tree *bsp.Tree, leaf bsp.TreeLeaf) int32 {
 	start := int(leaf.FirstMarkSurface)
 	count := int(leaf.NumMarkSurfaces)
@@ -1931,6 +1980,7 @@ func liquidWaterOrTeleTypeForLeaf(tree *bsp.Tree, leaf bsp.TreeLeaf) int32 {
 	return 0
 }
 
+// decompressLeafVisibility decompresses a BSP PVS (Potentially Visible Set) bitstring using Quake's run-length encoding. Each bit represents whether a leaf is visible from the given leaf.
 func decompressLeafVisibility(visibility []byte, visOfs int32, leafCount int) []byte {
 	maskBytes := (leafCount + 7) / 8
 	if maskBytes <= 0 {
@@ -1963,6 +2013,7 @@ func decompressLeafVisibility(visibility []byte, visOfs int32, leafCount int) []
 	return mask
 }
 
+// leafVisibleInMask tests if a specific BSP leaf is visible in a decompressed PVS bitmask.
 func leafVisibleInMask(mask []byte, leafBit int) bool {
 	if leafBit < 0 {
 		return false
@@ -1974,6 +2025,7 @@ func leafVisibleInMask(mask []byte, leafBit int) bool {
 	return mask[byteIndex]&(1<<uint(leafBit&7)) != 0
 }
 
+// parseEntityAlphaField parses a floating-point alpha value from an entity key-value field.
 func parseEntityAlphaField(fields map[string]string, key string) (float32, bool) {
 	value, ok := fields[key]
 	if !ok {
@@ -1989,6 +2041,7 @@ func parseEntityAlphaField(fields map[string]string, key string) (float32, bool)
 	return float32(f), true
 }
 
+// firstEntityLumpObject extracts the first entity block (the worldspawn) from the BSP entity lump.
 func firstEntityLumpObject(data string) (string, bool) {
 	start := strings.IndexByte(data, '{')
 	if start < 0 {
@@ -2001,6 +2054,7 @@ func firstEntityLumpObject(data string) (string, bool) {
 	return data[start+1 : start+1+end], true
 }
 
+// parseEntityFields parses key-value pairs from a Quake entity definition string into a map.
 func parseEntityFields(data string) map[string]string {
 	fields := make(map[string]string)
 	pos := 0
@@ -2019,6 +2073,7 @@ func parseEntityFields(data string) map[string]string {
 	return fields
 }
 
+// nextQuotedEntityToken extracts the next double-quoted string token from Quake entity lump data.
 func nextQuotedEntityToken(data string, pos int) (string, int, bool) {
 	start := strings.IndexByte(data[pos:], '"')
 	if start < 0 {
@@ -2033,6 +2088,7 @@ func nextQuotedEntityToken(data string, pos int) (string, int, bool) {
 	return data[start+1 : end], end + 1, true
 }
 
+// readWorldAlphaCvar reads a liquid alpha cvar value with a fallback default for when the cvar is unset.
 func readWorldAlphaCvar(name string, fallback float32) float32 {
 	cv := cvar.Get(name)
 	if cv == nil {
@@ -2041,10 +2097,12 @@ func readWorldAlphaCvar(name string, fallback float32) float32 {
 	return clamp01(cv.Float32())
 }
 
+// readWorldSkyFogCvar reads the r_skyfog cvar value with a fallback default.
 func readWorldSkyFogCvar(fallback float32) float32 {
 	return readWorldAlphaCvar(CvarRSkyFog, fallback)
 }
 
+// parseAliasShadowExclusions parses the r_noshadow_list cvar into a set of model names that should not cast ground shadows.
 func parseAliasShadowExclusions(value string) map[string]struct{} {
 	fields := strings.Fields(strings.ToLower(value))
 	if len(fields) == 0 {
@@ -2057,6 +2115,7 @@ func parseAliasShadowExclusions(value string) map[string]struct{} {
 	return exclusions
 }
 
+// resolveWorldSkyFogMix resolves the final sky fog mix factor from the cvar value, worldspawn override, and fog density.
 func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogDensity float32) float32 {
 	if fogDensity <= 0 {
 		return 0
@@ -2068,6 +2127,7 @@ func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogD
 	return skyFog
 }
 
+// worldFacePass determines which render pass a face belongs to (opaque, translucent, sky, etc.) based on its flags and alpha value.
 func worldFacePass(flags int32, alpha float32) worldRenderPass {
 	switch {
 	case flags&model.SurfDrawSky != 0:
@@ -2081,6 +2141,7 @@ func worldFacePass(flags int32, alpha float32) worldRenderPass {
 	}
 }
 
+// buildBrushRotationMatrix builds a 4x4 rotation matrix from Euler angles for brush entity transforms (doors, platforms that rotate).
 func buildBrushRotationMatrix(angles [3]float32) [16]float32 {
 	if angles == [3]float32{} {
 		return identityModelRotationMatrix
@@ -2100,6 +2161,7 @@ func buildBrushRotationMatrix(angles [3]float32) [16]float32 {
 	}
 }
 
+// transformModelSpacePoint transforms a point from model space to world space using the entity's offset, rotation matrix, and scale.
 func transformModelSpacePoint(point, modelOffset [3]float32, modelRotation [16]float32, modelScale float32) [3]float32 {
 	if modelScale <= 0 {
 		modelScale = 1
@@ -2114,6 +2176,7 @@ func transformModelSpacePoint(point, modelOffset [3]float32, modelRotation [16]f
 	}
 }
 
+// worldFaceDistanceSq computes the squared distance from a face center to the camera for translucent face depth sorting.
 func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
 	dx := center[0] - camera.Origin.X
 	dy := center[1] - camera.Origin.Y
@@ -2175,6 +2238,7 @@ type skyPassState struct {
 	frame                       int
 }
 
+// worldSkyTexturesForFace resolves the solid and alpha sky layer texture handles for a sky face, with animation support.
 func worldSkyTexturesForFace(face WorldFace, solidTextures, alphaTextures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackSolid, fallbackAlpha uint32, frame int, timeSeconds float64) (solid, alpha uint32) {
 	textureIndex := face.TextureIndex
 	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
@@ -2202,6 +2266,7 @@ func worldSkyTexturesForFace(face WorldFace, solidTextures, alphaTextures map[in
 	return solid, alpha
 }
 
+// renderSkyPass renders sky surfaces using one of three sky shader programs: embedded two-layer scrolling sky, cubemap sky, or individual face textures. Draws sky as a backdrop with depth clamped to the far plane.
 func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	if len(calls) == 0 {
 		return
@@ -2306,6 +2371,7 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	gl.DepthMask(true)
 }
 
+// renderWorldDrawCalls issues GL draw calls for bucketed world faces. Each call binds its diffuse + lightmap + fullbright textures and draws the face's index range from the VAO.
 func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform int32, depthWrite bool) {
 	if len(calls) == 0 {
 		return
@@ -2354,6 +2420,7 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 	}
 }
 
+// ensureAliasModelLocked lazily creates GPU data for an alias (MDL) model. Parses triangles, vertices, and texture coordinates, stores all pose vertices for CPU-side interpolation, and uploads the skin texture.
 func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glAliasModel {
 	if modelID == "" || mdl == nil || mdl.AliasHeader == nil {
 		return nil
@@ -2417,6 +2484,7 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 	return alias
 }
 
+// buildAliasVertices builds world-space vertices for a single alias model pose without interpolation. Used for shadow rendering and static pose display.
 func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, origin, angles [3]float32, fullAngles bool) []WorldVertex {
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil || poseIndex < 0 || poseIndex >= len(alias.poses) {
 		return nil
@@ -2450,6 +2518,7 @@ func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, or
 	return vertices
 }
 
+// rotateAliasAngles applies full pitch/yaw/roll rotation to a vertex position in alias model space.
 func rotateAliasAngles(v [3]float32, angles [3]float32) [3]float32 {
 	v = rotateAliasYaw(v, angles[1])
 	v = rotateAliasPitch(v, angles[0])
@@ -2457,6 +2526,7 @@ func rotateAliasAngles(v [3]float32, angles [3]float32) [3]float32 {
 	return v
 }
 
+// rotateAliasYaw applies yaw-only rotation to a vertex, the most common rotation for monsters that don't pitch or roll.
 func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
 	if yawDegrees == 0 {
 		return v
@@ -2471,6 +2541,7 @@ func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
 	}
 }
 
+// rotateAliasPitch applies pitch rotation to a vertex position in alias model space.
 func rotateAliasPitch(v [3]float32, pitchDegrees float32) [3]float32 {
 	if pitchDegrees == 0 {
 		return v
@@ -2485,6 +2556,7 @@ func rotateAliasPitch(v [3]float32, pitchDegrees float32) [3]float32 {
 	}
 }
 
+// rotateAliasRoll applies roll rotation to a vertex position in alias model space.
 func rotateAliasRoll(v [3]float32, rollDegrees float32) [3]float32 {
 	if rollDegrees == 0 {
 		return v
@@ -2499,6 +2571,7 @@ func rotateAliasRoll(v [3]float32, rollDegrees float32) [3]float32 {
 	}
 }
 
+// buildAliasDrawLocked prepares a complete alias model draw command: resolves the model, computes pose interpolation, builds interpolated vertices, and uploads to the scratch VBO.
 func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool) *glAliasDraw {
 	alias := r.ensureAliasModelLocked(entity.ModelID, entity.Model)
 	if alias == nil || entity.Model == nil || entity.Model.AliasHeader == nil || len(alias.refs) == 0 {
@@ -2575,6 +2648,7 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 	}
 }
 
+// renderAliasDraws renders a batch of alias model draw commands. Sets up GL state with depth test, backface culling, and the world shader. For view model rendering, narrows the depth range to prevent the weapon from clipping into nearby walls.
 func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange bool) {
 	if len(draws) == 0 {
 		return
@@ -2661,6 +2735,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	}
 }
 
+// renderAliasEntities renders all alias model entities by building draw commands and dispatching them to renderAliasDraws.
 func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	if len(entities) == 0 {
 		return
@@ -2677,6 +2752,7 @@ func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	r.renderAliasDraws(draws, false)
 }
 
+// renderAliasShadows renders simple projected ground shadows under alias model entities as darkened, flattened copies projected onto a plane below each entity.
 func (r *Renderer) renderAliasShadows(entities []AliasModelEntity) {
 	if len(entities) == 0 {
 		return
@@ -2830,6 +2906,7 @@ func (r *Renderer) renderAliasShadows(entities []AliasModelEntity) {
 	gl.DepthMask(true)
 }
 
+// renderViewModel renders the first-person weapon model with a narrower depth range (0..0.3) to prevent it from clipping into nearby walls. This depth range trick is a classic Quake rendering technique.
 func (r *Renderer) renderViewModel(entity AliasModelEntity) {
 	r.mu.Lock()
 	draw := r.buildAliasDrawLocked(entity, true)
@@ -2840,6 +2917,7 @@ func (r *Renderer) renderViewModel(entity AliasModelEntity) {
 	r.renderAliasDraws([]glAliasDraw{*draw}, true)
 }
 
+// renderSpriteEntities renders sprite entities as textured billboard quads with alpha blending, no depth write, and no backface culling. Sprite vertex positions are computed on CPU based on the sprite's orientation type.
 func (r *Renderer) renderSpriteEntities(entities []SpriteEntity) {
 	if len(entities) == 0 {
 		return
@@ -3053,6 +3131,7 @@ func (r *Renderer) HasWorldData() bool {
 	return r.worldData != nil && r.worldVAO != 0 && r.worldProgram != 0 && r.worldIndexCount > 0
 }
 
+// hasTranslucentWorldLiquidFaces checks if any world liquid faces would render with alpha < 1.0 at current cvar settings.
 func (r *Renderer) hasTranslucentWorldLiquidFaces() bool {
 	if r == nil {
 		return false
@@ -3079,6 +3158,7 @@ func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	return r.worldData.BoundsMin, r.worldData.BoundsMax, true
 }
 
+// clearWorldLocked releases all world GPU resources: textures, lightmaps, shader programs, VAOs/VBOs, and all cached brush/alias/sprite model data.
 func (r *Renderer) clearWorldLocked() {
 	if r.worldVAO != 0 {
 		gl.DeleteVertexArrays(1, &r.worldVAO)
@@ -3268,12 +3348,14 @@ func (r *Renderer) ClearWorld() {
 	r.clearWorldLocked()
 }
 
+// ClearTranslucentCalls resets the per-frame translucent draw call list for the next frame.
 func (r *Renderer) ClearTranslucentCalls() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.translucentCalls = r.translucentCalls[:0]
 }
 
+// DrawTranslucentCalls renders the accumulated translucent draw calls sorted by distance from the camera for correct alpha blending order.
 func (r *Renderer) DrawTranslucentCalls() {
 	r.mu.RLock()
 	if len(r.translucentCalls) == 0 {

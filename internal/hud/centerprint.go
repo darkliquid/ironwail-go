@@ -13,6 +13,10 @@ import (
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
+// finaleRevealCharsPerSecond controls the typewriter-style text reveal speed
+// during the end-of-episode finale sequences (Intermission types 2 and 3).
+// At 8 characters per second, the text gradually appears as if being typed,
+// creating the dramatic storytelling effect between Quake episodes.
 const finaleRevealCharsPerSecond = 8.0
 
 // Centerprint displays centered text messages on the screen.
@@ -77,6 +81,9 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	cp.drawTextBlock(rc, message, screenWidth, screenHeight/3, true)
 }
 
+// drawIntermissionOverlay renders the level-completion screen (Intermission 1).
+// It shows the "COMPLETE" and inter-level graphics, the level name, and the
+// three completion statistics: time, secrets found, and monsters killed.
 func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state State, screenWidth int) {
 	baseX := (screenWidth - 320) / 2
 	if cp.completePic != nil {
@@ -103,6 +110,9 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 	DrawString(rc, baseX+rowValueX, rowY, fmt.Sprintf("%d/%d", state.Monsters, state.TotalMonsters))
 }
 
+// drawFinaleOverlay renders the end-of-episode text crawl (Intermission 2/3).
+// It displays the "FINALE" header graphic and progressively reveals the story
+// text using a typewriter effect controlled by finaleRevealCharsPerSecond.
 func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
 	if cp.finalePic != nil {
 		rc.DrawPic((screenWidth-int(cp.finalePic.Width))/2, 16, cp.finalePic)
@@ -114,6 +124,10 @@ func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State,
 	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, false)
 }
 
+// revealedFinaleText returns the portion of the center text that should be
+// visible during a finale sequence. The number of visible characters increases
+// over time at finaleRevealCharsPerSecond, creating the typewriter effect.
+// For non-finale intermissions, the full text is returned immediately.
 func (cp *Centerprint) revealedFinaleText(state State, text string) string {
 	if text == "" || (state.Intermission != 2 && state.Intermission != 3) {
 		return text
@@ -127,6 +141,9 @@ func (cp *Centerprint) revealedFinaleText(state State, text string) string {
 	return limitCenterTextVisibleChars(text, visibleChars)
 }
 
+// limitCenterTextVisibleChars truncates text to at most visibleChars printable
+// characters. Newline and carriage-return characters are not counted towards
+// the limit, ensuring line breaks don't consume character slots.
 func limitCenterTextVisibleChars(text string, visibleChars int) string {
 	if visibleChars <= 0 {
 		return ""
@@ -145,6 +162,10 @@ func limitCenterTextVisibleChars(text string, visibleChars int) string {
 	return text
 }
 
+// drawTextBlock renders a multi-line text message centered on the screen at
+// the given Y position. If boxed is true, a dark background rectangle with
+// a thin white border is drawn behind the text for readability (used for
+// in-game centerprint messages but not for intermission/finale text).
 func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, boxed bool) {
 	lines := strings.Split(strings.ReplaceAll(message, "\r\n", "\n"), "\n")
 	maxChars := 0
@@ -173,6 +194,11 @@ func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, 
 	}
 }
 
+// activeCenterText returns the text that should currently be displayed as the
+// centerprint message. It checks the server-sent CenterPrint first (with a
+// hold-time expiry), then falls back to any manually set message. During
+// finale sequences (Intermission 2/3) the CenterPrint text is always shown
+// regardless of hold time.
 func (cp *Centerprint) activeCenterText(state State) string {
 	if state.CenterPrint != "" {
 		if state.Intermission == 2 || state.Intermission == 3 {
@@ -192,6 +218,8 @@ func (cp *Centerprint) activeCenterText(state State) string {
 	return ""
 }
 
+// formatIntermissionTime converts a floating-point seconds value to a "M:SS"
+// string suitable for the intermission time display (e.g. 125.7 → "2:05").
 func formatIntermissionTime(seconds float64) string {
 	total := int(seconds)
 	if total < 0 {

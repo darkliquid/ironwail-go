@@ -1,3 +1,18 @@
+// Package menu implements the Quake in-game menu system as a finite state
+// machine. Each MenuState value represents a distinct menu page (Main,
+// Single Player, Options, Video, etc.). The Manager struct owns the complete
+// menu state — cursors, text-entry buffers, cached graphics — and routes
+// keyboard/mouse input to the active page via M_Key / M_Char / M_Mousemove.
+//
+// Rendering uses the Quake 320×200 virtual coordinate system: every draw
+// call positions characters and pictures on a fixed grid that the renderer
+// scales to the real window size. This mirrors the C Ironwail approach where
+// menu drawing is a 2D overlay pass that happens after 3D world rendering.
+//
+// Navigation is hierarchical: the main menu leads to sub-menus (Options →
+// Video, Multiplayer → Host Game, etc.) and Escape always returns one level
+// up. Sound effects punctuate navigation (menu1.wav), selection (menu2.wav),
+// and cancellation (menu3.wav).
 package menu
 
 import (
@@ -38,6 +53,11 @@ const (
 	MenuMods                          // Mods browser
 )
 
+// Main-menu item indices and per-page item counts.
+//
+// Each menu page has a fixed number of selectable items. The cursor for that
+// page wraps modulo that count. These constants mirror the hard-coded slot
+// layout in C Ironwail's M_Main_Key(), M_Options_Key(), etc.
 const (
 	// Main menu item indices — fixed enum matching C Ironwail.
 	// When no mods are available, mainMods is skipped during navigation.
@@ -74,6 +94,8 @@ const (
 	menuSoundCancel   = "misc/menu3.wav"
 )
 
+// CVar names and defaults used by the Player Setup menu.
+// These correspond to the engine console variables that persist across sessions.
 const (
 	setupClientNameCVar  = "_cl_name"
 	setupClientColorCVar = "_cl_color"
@@ -83,6 +105,9 @@ const (
 	setupDefaultHostname = "UNNAMED"
 )
 
+// Host Game menu item indices — ordered top-to-bottom as they appear on screen.
+// Each index maps to a row the cursor can land on, and the key handler uses
+// these values to decide which setting to adjust or which action to perform.
 const (
 	hostGameItemMaxPlayers = iota
 	hostGameItemMode
@@ -94,6 +119,8 @@ const (
 	hostGameItemBack
 )
 
+// Player Setup menu item indices. The setup screen lets the player edit their
+// name, hostname, and shirt/pants colors before joining a multiplayer game.
 const (
 	setupItemHostname = iota
 	setupItemName
@@ -103,6 +130,10 @@ const (
 	setupItems
 )
 
+// Controls menu item indices. Items before controlsBindingStart are simple
+// toggle/slider settings (mouse speed, invert, always-run, freelook). Items
+// from controlsBindingStart onward are key-binding rows where the player
+// presses Enter to rebind or Backspace/Left to clear.
 const (
 	controlItemMouseSpeed = iota
 	controlItemInvertMouse
@@ -123,8 +154,13 @@ const (
 	controlItemBack
 )
 
+// controlsBindingStart is the first Controls-menu index that corresponds to a
+// key-binding row (as opposed to a slider/toggle). Items at or above this
+// index enter "rebinding mode" when activated.
 const controlsBindingStart = controlItemForward
 
+// Video menu item indices. Each row maps to a cvar that the left/right keys
+// cycle through. videoItemBack returns to the Options parent menu.
 const (
 	videoItemResolution = iota
 	videoItemFullscreen
@@ -137,16 +173,23 @@ const (
 	videoItemBack
 )
 
+// Audio menu item indices.
 const (
 	audioItemVolume = iota
 	audioItemBack
 )
 
+// videoResolution pairs a display width and height. The Video menu cycles
+// through a predefined list of these resolutions, matching the choices
+// available in C Ironwail's video options.
 type videoResolution struct {
 	width  int
 	height int
 }
 
+// SaveSlotInfo describes a single save-game slot as returned by the host's
+// save-slot provider. Name is the internal slot identifier (e.g. "s0") and
+// DisplayName is the human-readable label shown in the Load/Save menu.
 type SaveSlotInfo struct {
 	Name        string
 	DisplayName string
@@ -158,6 +201,8 @@ type ModInfo struct {
 	Name string
 }
 
+// videoResolutions is the ordered list of display modes the Video menu cycles
+// through. They range from 640×480 (classic 4:3) up to 1920×1080 (Full HD).
 var videoResolutions = []videoResolution{
 	{width: 640, height: 480},
 	{width: 800, height: 600},
@@ -168,13 +213,23 @@ var videoResolutions = []videoResolution{
 	{width: 1920, height: 1080},
 }
 
+// maxFPSValues is the ordered list of frame-rate caps the Video menu offers.
+// 72 is the original Quake physics rate; higher values are common for modern
+// monitors (144 Hz, 165 Hz, etc.).
 var maxFPSValues = []int{60, 72, 120, 144, 165, 240, 250, 300}
 
+// controlBinding pairs a display label (shown in the Controls menu) with the
+// console command string that the key will be bound to (e.g. "+forward",
+// "+attack", "impulse 10"). This mirrors the bind_name/bind_command arrays
+// in C Ironwail's M_Controls_Key().
 type controlBinding struct {
 	label   string
 	command string
 }
 
+// controlBindings is the full list of rebindable actions shown in the Controls
+// menu, in display order. Each entry maps a human-readable label to the engine
+// command that will be bound when the player presses a key.
 var controlBindings = []controlBinding{
 	{label: "FORWARD", command: "+forward"},
 	{label: "BACKWARD", command: "+back"},
@@ -269,10 +324,16 @@ type DrawManager interface {
 	GetPic(name string) *image.QPic
 }
 
+// SetSoundPlayer registers the callback used to play menu sound effects.
+// The three standard Quake menu sounds are navigate (menu1.wav), select
+// (menu2.wav), and cancel (menu3.wav).
 func (m *Manager) SetSoundPlayer(play func(name string)) {
 	m.playSound = play
 }
 
+// SetSaveSlotProvider registers a callback that returns display labels for
+// save-game slots. The provider is called each time the Load or Save menu is
+// opened, allowing the labels to reflect the current save files on disk.
 func (m *Manager) SetSaveSlotProvider(provider func(slotCount int) []SaveSlotInfo) {
 	m.saveSlotProvider = provider
 }
@@ -645,6 +706,9 @@ func (m *Manager) moveCursorUp() {
 	m.playMenuSound(menuSoundNavigate)
 }
 
+// mainKey routes keyboard input while the Main menu page is active.
+// Up/Down (and mouse wheel) move the cursor; Enter/Space/Mouse1 selects;
+// Escape/Mouse2 closes the menu entirely.
 func (m *Manager) mainKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -694,6 +758,8 @@ func (m *Manager) mainSelect() {
 	}
 }
 
+// singlePlayerKey routes keyboard input on the Single Player menu page.
+// Items: 0 = New Game (issues "map start"), 1 = Load, 2 = Save.
 func (m *Manager) singlePlayerKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -729,6 +795,8 @@ func (m *Manager) singlePlayerKey(key int) {
 	}
 }
 
+// loadKey routes keyboard input on the Load Game menu. Selecting a slot issues
+// the "load sN" console command where N is the slot index (0–11).
 func (m *Manager) loadKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KLeftArrow, input.KMWheelUp:
@@ -753,6 +821,8 @@ func (m *Manager) loadKey(key int) {
 	}
 }
 
+// saveKey routes keyboard input on the Save Game menu. Selecting a slot issues
+// the "save sN" console command where N is the slot index (0–11).
 func (m *Manager) saveKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KLeftArrow, input.KMWheelUp:
@@ -777,6 +847,8 @@ func (m *Manager) saveKey(key int) {
 	}
 }
 
+// multiPlayerKey routes keyboard input on the Multiplayer menu page.
+// Items: 0 = Join Game, 1 = Host Game, 2 = Player Setup.
 func (m *Manager) multiPlayerKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -810,6 +882,9 @@ func (m *Manager) multiPlayerKey(key int) {
 	}
 }
 
+// joinGameKey routes keyboard input on the Join Game menu. The address field
+// (item 0) accepts typed characters via joinGameChar; Search LAN (item 1)
+// starts a broadcast scan; Connect (item 2) issues "connect <address>".
 func (m *Manager) joinGameKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -848,6 +923,9 @@ func (m *Manager) joinGameKey(key int) {
 	}
 }
 
+// hostGameKey routes keyboard input on the Host Game menu. Left/Right adjust
+// numeric settings (max players, frag limit, etc.); Enter on Start Game
+// issues the full sequence of console commands to launch a listen server.
 func (m *Manager) hostGameKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -892,18 +970,26 @@ func (m *Manager) hostGameKey(key int) {
 	}
 }
 
+// enterSetupMenu synchronises the setup fields with current cvar values and
+// transitions to the Player Setup menu page.
 func (m *Manager) enterSetupMenu() {
 	m.syncSetupValues()
 	m.state = MenuSetup
 	m.setupCursor = setupItemHostname
 }
 
+// syncSetupValues reads the current hostname, player name, and shirt/pants
+// color cvars into the Manager's editing buffers so the Setup menu shows
+// up-to-date values when opened.
 func (m *Manager) syncSetupValues() {
 	m.setupHostname = currentSetupHostname()
 	m.setupName = currentSetupName()
 	m.setupTopColor, m.setupBottomColor = splitSetupColors(currentSetupColor())
 }
 
+// syncHostGameValues reads the current maxplayers, skill, coop/deathmatch,
+// fraglimit, and timelimit cvars into the Manager's host-game editing fields
+// so the Host Game menu reflects the engine's active settings.
 func (m *Manager) syncHostGameValues() {
 	maxPlayers := m.hostMaxPlayers
 	if cv := cvar.Get("maxplayers"); cv != nil {
@@ -953,6 +1039,8 @@ func (m *Manager) syncHostGameValues() {
 	}
 }
 
+// currentSetupHostname returns the current hostname cvar value, falling back
+// to the default "UNNAMED" if the cvar is missing or empty.
 func currentSetupHostname() string {
 	if cv := cvar.Get(setupHostnameCVar); cv != nil && cv.String != "" {
 		return cv.String
@@ -960,6 +1048,8 @@ func currentSetupHostname() string {
 	return setupDefaultHostname
 }
 
+// currentSetupName returns the current player name cvar value, falling back
+// to "player" if the cvar is missing.
 func currentSetupName() string {
 	if cv := cvar.Get(setupClientNameCVar); cv != nil {
 		return cv.String
@@ -967,6 +1057,8 @@ func currentSetupName() string {
 	return setupDefaultName
 }
 
+// currentSetupColor returns the packed color byte from the _cl_color cvar.
+// The upper nibble is shirt color and the lower nibble is pants color.
 func currentSetupColor() int {
 	if cv := cvar.Get(setupClientColorCVar); cv != nil {
 		return cv.Int
@@ -974,10 +1066,14 @@ func currentSetupColor() int {
 	return 0
 }
 
+// splitSetupColors unpacks a combined color byte into separate top (shirt) and
+// bottom (pants) color indices, each in the range [0, setupColorMax].
 func splitSetupColors(color int) (top, bottom int) {
 	return wrapSetupColor((color >> 4) & 0x0f), wrapSetupColor(color & 0x0f)
 }
 
+// optionsKey routes keyboard input on the Options menu page.
+// Items: 0 = Controls, 1 = Video, 2 = Audio, 3 = VSync toggle, 4 = Back.
 func (m *Manager) optionsKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -1016,6 +1112,10 @@ func (m *Manager) optionsKey(key int) {
 	}
 }
 
+// controlsKey routes keyboard input on the Controls menu page. It handles two
+// modes: normal navigation (up/down/left/right/enter) and rebinding mode,
+// where the next key press is captured as the new binding for the selected
+// action.
 func (m *Manager) controlsKey(key int) {
 	if m.controlsRebinding {
 		switch key {
@@ -1096,6 +1196,9 @@ func (m *Manager) controlsKey(key int) {
 	}
 }
 
+// adjustControlSetting modifies the slider/toggle control setting at the
+// current cursor position by the given delta (+1 or -1). Only applies to
+// the non-binding items (mouse speed, invert mouse, always run, freelook).
 func (m *Manager) adjustControlSetting(delta int) {
 	switch m.controlsCursor {
 	case controlItemMouseSpeed:
@@ -1115,6 +1218,9 @@ func (m *Manager) adjustControlSetting(delta int) {
 	}
 }
 
+// videoKey routes keyboard input on the Video settings menu page. Left/Right
+// adjust the current setting; Enter cycles it forward; Escape returns to
+// the Options parent menu.
 func (m *Manager) videoKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -1148,6 +1254,8 @@ func (m *Manager) videoKey(key int) {
 	}
 }
 
+// audioKey routes keyboard input on the Audio settings menu page.
+// Currently only volume is adjustable via left/right arrows.
 func (m *Manager) audioKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
@@ -1181,6 +1289,11 @@ func (m *Manager) audioKey(key int) {
 	}
 }
 
+// adjustVideoSetting modifies the video cvar at the current cursor position
+// by the given delta. Each item maps to a specific cvar: resolution cycles
+// through videoResolutions, fullscreen/vsync/viewmodel are toggles, maxFPS
+// cycles through maxFPSValues, gamma is a float slider, waterwarp cycles
+// 0/1/2, and hud_style cycles 0/1.
 func (m *Manager) adjustVideoSetting(delta int) {
 	switch m.videoCursor {
 	case videoItemResolution:
@@ -1214,6 +1327,8 @@ func (m *Manager) adjustVideoSetting(delta int) {
 	}
 }
 
+// adjustAudioSetting modifies the audio cvar at the current cursor position
+// by the given delta. Currently only s_volume is supported, clamped to [0, 1].
 func (m *Manager) adjustAudioSetting(delta int) {
 	if m.audioCursor != audioItemVolume {
 		return
@@ -1224,6 +1339,9 @@ func (m *Manager) adjustAudioSetting(delta int) {
 	cvar.SetFloat("s_volume", roundToTenth(volume))
 }
 
+// controlBindingLabel returns the display string for the key bound to the
+// action at the given Controls-menu index. Returns "UNBOUND" if no key is
+// assigned, or "KEY +N" if multiple keys are bound.
 func (m *Manager) controlBindingLabel(index int) string {
 	command, ok := m.controlCommand(index)
 	if !ok {
@@ -1239,6 +1357,9 @@ func (m *Manager) controlBindingLabel(index int) string {
 	return fmt.Sprintf("%s +%d", keys[0], len(keys)-1)
 }
 
+// controlCommand maps a Controls-menu cursor index to the console command
+// string for that binding row. Returns ("", false) if the index is outside
+// the binding range.
 func (m *Manager) controlCommand(index int) (string, bool) {
 	bindingIndex := index - controlsBindingStart
 	if bindingIndex < 0 || bindingIndex >= len(controlBindings) {
@@ -1247,6 +1368,8 @@ func (m *Manager) controlCommand(index int) (string, bool) {
 	return controlBindings[bindingIndex].command, true
 }
 
+// setControlBinding clears the old binding for the action at index, then
+// assigns the given key to the action's console command.
 func (m *Manager) setControlBinding(index, key int) {
 	command, ok := m.controlCommand(index)
 	if !ok || m.inputSystem == nil || key < 0 || key >= input.NumKeycode {
@@ -1256,6 +1379,8 @@ func (m *Manager) setControlBinding(index, key int) {
 	m.inputSystem.SetBinding(key, command)
 }
 
+// clearControlBinding removes all key bindings for the action at the given
+// Controls-menu index by scanning every keycode and clearing matches.
 func (m *Manager) clearControlBinding(index int) {
 	command, ok := m.controlCommand(index)
 	if !ok || m.inputSystem == nil {
@@ -1268,6 +1393,8 @@ func (m *Manager) clearControlBinding(index int) {
 	}
 }
 
+// keysForBinding scans all keycodes and returns the human-readable names of
+// any keys currently bound to the given console command string.
 func (m *Manager) keysForBinding(command string) []string {
 	if m.inputSystem == nil {
 		return nil
@@ -1286,6 +1413,9 @@ func (m *Manager) keysForBinding(command string) []string {
 	return keys
 }
 
+// currentResolutionIndex returns the videoResolutions index that matches the
+// current vid_width/vid_height cvars, or the nearest higher resolution if
+// no exact match is found.
 func (m *Manager) currentResolutionIndex() int {
 	width := cvar.IntValue("vid_width")
 	height := cvar.IntValue("vid_height")
@@ -1297,6 +1427,8 @@ func (m *Manager) currentResolutionIndex() int {
 	return nearestResolutionIndex(width, height)
 }
 
+// nearestResolutionIndex returns the index of the first videoResolution whose
+// width and height are >= the given values, or the last index if none qualifies.
 func nearestResolutionIndex(width, height int) int {
 	for i, mode := range videoResolutions {
 		if mode.width >= width && mode.height >= height {
@@ -1306,6 +1438,8 @@ func nearestResolutionIndex(width, height int) int {
 	return len(videoResolutions) - 1
 }
 
+// nearestMaxFPSIndex returns the index of the first maxFPSValues entry >= value,
+// or the last index if all entries are below value.
 func nearestMaxFPSIndex(value int) int {
 	for i, maxFPS := range maxFPSValues {
 		if maxFPS >= value {
@@ -1315,6 +1449,9 @@ func nearestMaxFPSIndex(value int) int {
 	return len(maxFPSValues) - 1
 }
 
+// wrapIndex wraps value into the range [0, count). If value underflows it
+// wraps to count-1; if it overflows it wraps to 0. Used for circular menu
+// cursor navigation.
 func wrapIndex(value, count int) int {
 	if count <= 0 {
 		return 0
@@ -1328,10 +1465,13 @@ func wrapIndex(value, count int) int {
 	return value
 }
 
+// controlRowY converts a Controls-menu item index to a Y pixel coordinate.
+// Items are spaced 8 pixels apart starting at Y=24.
 func controlRowY(index int) int {
 	return 24 + index*8
 }
 
+// clampFloat restricts value to the closed interval [min, max].
 func clampFloat(value, min, max float64) float64 {
 	if value < min {
 		return min
@@ -1342,10 +1482,13 @@ func clampFloat(value, min, max float64) float64 {
 	return value
 }
 
+// roundToTenth rounds a float64 to one decimal place (e.g. 0.72 → 0.7).
+// Used for display-friendly cvar values like sensitivity and gamma.
 func roundToTenth(value float64) float64 {
 	return math.Round(value*10) / 10
 }
 
+// boolLabel returns "ON" or "OFF" for display in menu toggle items.
 func boolLabel(value bool) string {
 	if value {
 		return "ON"
@@ -1353,6 +1496,8 @@ func boolLabel(value bool) string {
 	return "OFF"
 }
 
+// helpKey routes keyboard input on the Help screens. Left/Right (and scroll)
+// page through the help images; Escape returns to the Main menu.
 func (m *Manager) helpKey(key int) {
 	switch key {
 	case input.KEscape, input.KBackspace, input.KMouse2:
@@ -1436,6 +1581,9 @@ func (m *Manager) modsKey(key int) {
 	}
 }
 
+// setupKey routes keyboard input on the Player Setup menu page. Text fields
+// (hostname, name) accept typed characters via setupChar; color selectors
+// respond to left/right arrows; Accept applies changes via console commands.
 func (m *Manager) setupKey(key int) {
 	switch key {
 	case input.KEscape, input.KMouse2:
@@ -1487,6 +1635,8 @@ func (m *Manager) setupKey(key int) {
 	}
 }
 
+// setupChar handles typed character input for the Player Setup menu's text
+// fields (hostname and player name). Only printable ASCII is accepted.
 func (m *Manager) setupChar(char rune) {
 	if char < 32 || char > 126 {
 		return
@@ -1505,6 +1655,8 @@ func (m *Manager) setupChar(char rune) {
 	}
 }
 
+// joinGameChar handles typed character input for the Join Game address field.
+// Only printable ASCII is accepted, up to joinAddressMax characters.
 func (m *Manager) joinGameChar(char rune) {
 	if m.joinGameCursor != 0 {
 		return
@@ -1518,6 +1670,8 @@ func (m *Manager) joinGameChar(char rune) {
 	m.joinAddress += string(char)
 }
 
+// hostGameChar handles typed character input for the Host Game map name field.
+// Only printable ASCII is accepted, up to hostMapMaxLen characters.
 func (m *Manager) hostGameChar(char rune) {
 	if m.hostGameCursor != hostGameItemMap {
 		return
@@ -1531,14 +1685,18 @@ func (m *Manager) hostGameChar(char rune) {
 	m.hostMapName += string(char)
 }
 
+// deleteSetupNameRune removes the last rune from the player name editing buffer.
 func (m *Manager) deleteSetupNameRune() {
 	m.setupName = deleteLastRune(m.setupName)
 }
 
+// deleteSetupHostnameRune removes the last rune from the hostname editing buffer.
 func (m *Manager) deleteSetupHostnameRune() {
 	m.setupHostname = deleteLastRune(m.setupHostname)
 }
 
+// deleteLastRune returns text with the final rune removed, handling multi-byte
+// UTF-8 correctly by converting to a rune slice first.
 func deleteLastRune(text string) string {
 	if len(text) == 0 {
 		return text
@@ -1547,14 +1705,18 @@ func deleteLastRune(text string) string {
 	return string(runes[:len(runes)-1])
 }
 
+// deleteJoinAddressRune removes the last rune from the join-game address buffer.
 func (m *Manager) deleteJoinAddressRune() {
 	m.joinAddress = deleteLastRune(m.joinAddress)
 }
 
+// deleteHostMapRune removes the last rune from the host-game map name buffer.
 func (m *Manager) deleteHostMapRune() {
 	m.hostMapName = deleteLastRune(m.hostMapName)
 }
 
+// adjustSetupColor changes the shirt or pants color by delta, wrapping around
+// the [0, setupColorMax] range.
 func (m *Manager) adjustSetupColor(delta int) {
 	switch m.setupCursor {
 	case setupItemTopColor:
@@ -1564,6 +1726,9 @@ func (m *Manager) adjustSetupColor(delta int) {
 	}
 }
 
+// adjustHostGameSetting modifies the Host Game setting at the current cursor
+// by the given delta. Settings include max players, game mode (coop/DM),
+// frag limit, time limit, and skill level.
 func (m *Manager) adjustHostGameSetting(delta int) {
 	switch m.hostGameCursor {
 	case hostGameItemMaxPlayers:
@@ -1611,6 +1776,8 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 	}
 }
 
+// wrapSetupColor clamps a player color index to the valid range [0, setupColorMax],
+// wrapping around when the value exceeds either bound.
 func wrapSetupColor(value int) int {
 	if value > setupColorMax {
 		return 0
@@ -1621,6 +1788,9 @@ func wrapSetupColor(value int) int {
 	return value
 }
 
+// applySetupChanges commits the edited hostname, player name, and colors to
+// the engine by issuing "name" and "color" console commands and setting the
+// hostname cvar directly.
 func (m *Manager) applySetupChanges() {
 	name := strings.TrimSpace(m.setupName)
 	if name != "" && name != currentSetupName() {
@@ -1635,6 +1805,8 @@ func (m *Manager) applySetupChanges() {
 	}
 }
 
+// applyJoinGame issues a "connect" console command with the entered address
+// and closes the menu. Defaults to "local" if the address field is empty.
 func (m *Manager) applyJoinGame() {
 	address := strings.TrimSpace(m.joinAddress)
 	if address == "" {
@@ -1644,6 +1816,9 @@ func (m *Manager) applyJoinGame() {
 	m.queueCommand(fmt.Sprintf("connect %q\n", address))
 }
 
+// applyHostGame issues the full sequence of console commands to start a listen
+// server: disconnect, set maxplayers/deathmatch/coop/fraglimit/timelimit/skill,
+// then load the selected map.
 func (m *Manager) applyHostGame() {
 	mapName := strings.TrimSpace(m.hostMapName)
 	if mapName == "" {
@@ -1738,6 +1913,8 @@ func (m *Manager) drawMainCursor(dc renderer.RenderContext) {
 	m.drawCursor(dc, 54, 32+cursor*20)
 }
 
+// drawSinglePlayer renders the Single Player sub-menu with its three items
+// (New Game, Load, Save) using either a graphic sprite or text fallback.
 func (m *Manager) drawSinglePlayer(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/ttl_sgl.lmp")
 
@@ -1752,6 +1929,8 @@ func (m *Manager) drawSinglePlayer(dc renderer.RenderContext) {
 	m.drawCursor(dc, 54, 32+m.singlePlayerCursor*20)
 }
 
+// drawLoad renders the Load Game menu showing all maxSaveGames save slots
+// with their display labels and a text-mode arrow cursor.
 func (m *Manager) drawLoad(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_load.lmp")
 
@@ -1761,6 +1940,8 @@ func (m *Manager) drawLoad(dc renderer.RenderContext) {
 	m.drawArrowCursor(dc, 8, 32+m.loadCursor*8)
 }
 
+// drawSave renders the Save Game menu, identical in layout to Load but
+// writing to save slots instead of reading from them.
 func (m *Manager) drawSave(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_save.lmp")
 
@@ -1770,6 +1951,8 @@ func (m *Manager) drawSave(dc renderer.RenderContext) {
 	m.drawArrowCursor(dc, 8, 32+m.saveCursor*8)
 }
 
+// drawMultiPlayer renders the Multiplayer sub-menu with its three items
+// (Join Game, Host Game, Setup) using either a graphic sprite or text fallback.
 func (m *Manager) drawMultiPlayer(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
@@ -1784,6 +1967,8 @@ func (m *Manager) drawMultiPlayer(dc renderer.RenderContext) {
 	m.drawCursor(dc, 54, 32+m.multiPlayerCursor*20)
 }
 
+// drawJoinGame renders the Join Game menu with the address text field,
+// Search LAN / Connect / Back items, and the server browser results list.
 func (m *Manager) drawJoinGame(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
@@ -1835,6 +2020,8 @@ func (m *Manager) startServerSearch() {
 	m.serverBrowser.Start()
 }
 
+// drawHostGame renders the Host Game menu with all configurable settings
+// (max players, mode, frag/time limits, skill, map name) and action buttons.
 func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
@@ -1876,6 +2063,8 @@ func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 	}
 }
 
+// drawOptions renders the Options sub-menu with its five items: Controls,
+// Video, Audio, VSync shortcut, and Back.
 func (m *Manager) drawOptions(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -1888,6 +2077,8 @@ func (m *Manager) drawOptions(dc renderer.RenderContext) {
 	m.drawCursor(dc, 54, 32+m.optionsCursor*20)
 }
 
+// waterwarpLabel returns a human-readable label for the r_waterwarp cvar value:
+// 0 → "OFF", 1 → "SCREEN WARP", 2 → "FOV WARP".
 func waterwarpLabel(v int) string {
 	switch v {
 	case 1:
@@ -1899,6 +2090,8 @@ func waterwarpLabel(v int) string {
 	}
 }
 
+// hudStyleLabel returns a human-readable label for the hud_style cvar value:
+// 0 → "CLASSIC" (full status bar), 1 → "COMPACT" (corner overlay).
 func hudStyleLabel(v int) string {
 	if v == 1 {
 		return "COMPACT"
@@ -1906,6 +2099,9 @@ func hudStyleLabel(v int) string {
 	return "CLASSIC"
 }
 
+// drawVideo renders the Video settings menu showing resolution, fullscreen,
+// vsync, max FPS, gamma, viewmodel, waterwarp, HUD style, and a Back item.
+// Each row displays the label on the left and the current cvar value on the right.
 func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -1932,6 +2128,9 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 40, 180, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
 }
 
+// drawControls renders the Controls settings menu with sliders (mouse speed),
+// toggles (invert mouse, always run, freelook), key-binding rows, and a Back
+// item. A status line at the bottom shows context-sensitive help.
 func (m *Manager) drawControls(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -1963,6 +2162,8 @@ func (m *Manager) drawControls(dc renderer.RenderContext) {
 	m.drawText(dc, 24, 176, "ENTER/RIGHT BIND LEFT/BKSP CLEAR", true)
 }
 
+// drawAudio renders the Audio settings menu with a volume percentage bar and
+// a Back item.
 func (m *Manager) drawAudio(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -1974,6 +2175,9 @@ func (m *Manager) drawAudio(dc renderer.RenderContext) {
 	m.drawArrowCursor(dc, 56, 56+m.audioCursor*32)
 }
 
+// drawHelp renders one of the six help screens. If the corresponding graphic
+// (gfx/helpN.lmp) is available it fills the screen; otherwise a text fallback
+// with page number and navigation instructions is shown.
 func (m *Manager) drawHelp(dc renderer.RenderContext) {
 	if pic := m.getPic(fmt.Sprintf("gfx/help%d.lmp", m.helpPage)); pic != nil {
 		dc.DrawMenuPic(0, 0, pic)
@@ -2035,6 +2239,9 @@ func (m *Manager) drawMods(dc renderer.RenderContext) {
 	m.drawArrowCursor(dc, 32, cursorY)
 }
 
+// drawSetup renders the Player Setup menu with editable hostname and name
+// text fields, shirt/pants color selectors with a color-translated player
+// preview sprite, and an Accept button.
 func (m *Manager) drawSetup(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
@@ -2076,6 +2283,9 @@ func (m *Manager) drawSetup(dc renderer.RenderContext) {
 	}
 }
 
+// drawMenuTextBox draws a 9-patch text box (top-left/mid/right, mid-left/mid/
+// right, bottom-left/mid/right) using the box_*.lmp graphics. width is in
+// 16-pixel columns and lines is the number of 8-pixel text rows inside.
 func (m *Manager) drawMenuTextBox(dc renderer.RenderContext, x, y, width, lines int) {
 	cx := x
 	cy := y
@@ -2130,6 +2340,10 @@ func (m *Manager) drawMenuTextBox(dc renderer.RenderContext, x, y, width, lines 
 	}
 }
 
+// translateSetupPlayerPic creates a copy of the player sprite with the shirt
+// (palette indices 16–31) and pants (palette indices 96–111) colour ranges
+// remapped to the selected top and bottom colours. This mirrors the player
+// color translation used in C Quake's R_TranslatePlayerSkin().
 func translateSetupPlayerPic(pic *image.QPic, topColor, bottomColor int) *image.QPic {
 	if pic == nil {
 		return nil
@@ -2157,6 +2371,10 @@ func translateSetupPlayerPic(pic *image.QPic, topColor, bottomColor int) *image.
 	}
 }
 
+// translatedPlayerColor maps a palette offset within a 16-colour range to the
+// target colour row. For rows below 128 the offset is added directly; for rows
+// at 128+ the offset is reversed (15 - offset), producing the "bright to dark"
+// inversion used by Quake's darker colour rows.
 func translatedPlayerColor(start, offset byte) byte {
 	if start < 128 {
 		return start + offset
@@ -2164,6 +2382,9 @@ func translatedPlayerColor(start, offset byte) byte {
 	return start + (15 - offset)
 }
 
+// drawPlaqueAndTitle draws the standard Quake menu frame: the Quake plaque
+// graphic on the left (gfx/qplaque.lmp) and an optional title banner centered
+// at the top. Most menu pages call this first to establish the visual frame.
 func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string) {
 	if pic := m.getPic("gfx/qplaque.lmp"); pic != nil {
 		dc.DrawMenuPic(16, 4, pic)
@@ -2179,6 +2400,9 @@ func (m *Manager) drawPlaqueAndTitle(dc renderer.RenderContext, titlePic string)
 	}
 }
 
+// drawCursor draws the animated menu cursor (spinning Quake dot) at the given
+// position. Falls back to m_surfs.lmp, then a plain character glyph if no
+// animation frames are available.
 func (m *Manager) drawCursor(dc renderer.RenderContext, x, y int) {
 	frame := (time.Now().UnixNano()/int64(200*time.Millisecond))%6 + 1
 	picName := fmt.Sprintf("gfx/menudot%d.lmp", frame)
@@ -2195,11 +2419,17 @@ func (m *Manager) drawCursor(dc renderer.RenderContext, x, y int) {
 	dc.DrawMenuCharacter(x, y, 12)
 }
 
+// drawArrowCursor draws a blinking text-mode arrow cursor (characters 12/13)
+// that alternates every 250 ms. Used for list-style menus (Load, Save, Controls).
 func (m *Manager) drawArrowCursor(dc renderer.RenderContext, x, y int) {
 	char := 12 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
 	dc.DrawMenuCharacter(x, y, char)
 }
 
+// drawText renders a string of characters at the given position using Quake's
+// 8×8 character glyphs. If white is true, 128 is added to each character code
+// to select the "white" (bright) character set; otherwise the default brownish
+// set is used.
 func (m *Manager) drawText(dc renderer.RenderContext, x, y int, text string, white bool) {
 	for i, r := range text {
 		ch := int(r)
@@ -2210,6 +2440,8 @@ func (m *Manager) drawText(dc renderer.RenderContext, x, y int, text string, whi
 	}
 }
 
+// getPic is a nil-safe wrapper around drawManager.GetPic. Returns nil if the
+// draw manager is not set (headless / test mode).
 func (m *Manager) getPic(name string) *image.QPic {
 	if m.drawManager == nil {
 		return nil
@@ -2217,6 +2449,8 @@ func (m *Manager) getPic(name string) *image.QPic {
 	return m.drawManager.GetPic(name)
 }
 
+// queueCommand sends a console command string to the engine's command buffer.
+// Falls back to a debug log if no command callback has been registered.
 func (m *Manager) queueCommand(text string) {
 	if m.commandText != nil {
 		m.commandText(text)
@@ -2226,6 +2460,8 @@ func (m *Manager) queueCommand(text string) {
 	slog.Debug("menu command dropped", "command", text)
 }
 
+// playMenuSound plays a menu sound effect if a sound player callback has been
+// registered. Silently does nothing otherwise (e.g. in tests).
 func (m *Manager) playMenuSound(name string) {
 	if m.playSound == nil {
 		return
@@ -2233,16 +2469,22 @@ func (m *Manager) playMenuSound(name string) {
 	m.playSound(name)
 }
 
+// enterLoadMenu transitions to the Load Game menu and refreshes the save-slot
+// labels from disk so the display names reflect the current save files.
 func (m *Manager) enterLoadMenu() {
 	m.state = MenuLoad
 	m.refreshSaveSlotLabels()
 }
 
+// enterSaveMenu transitions to the Save Game menu and refreshes the save-slot
+// labels from disk so the display names reflect the current save files.
 func (m *Manager) enterSaveMenu() {
 	m.state = MenuSave
 	m.refreshSaveSlotLabels()
 }
 
+// resetSaveSlotLabels initialises all load/save slot labels to their default
+// names ("s0", "s1", …, "s11") when no provider is available.
 func (m *Manager) resetSaveSlotLabels() {
 	for i := 0; i < maxSaveGames; i++ {
 		label := fmt.Sprintf("s%d", i)
@@ -2251,6 +2493,9 @@ func (m *Manager) resetSaveSlotLabels() {
 	}
 }
 
+// refreshSaveSlotLabels queries the save-slot provider (if set) and updates
+// both loadSlotLabels and saveSlotLabels with the display names of existing
+// save files.
 func (m *Manager) refreshSaveSlotLabels() {
 	if m.saveSlotProvider == nil {
 		m.resetSaveSlotLabels()

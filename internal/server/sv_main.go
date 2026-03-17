@@ -28,18 +28,21 @@ const (
 
 var LocalModels [MaxModels][8]byte
 
+// init precomputes *0..*n inline BSP submodel names used by Quake's local model convention.
 func init() {
 	for i := 0; i < MaxModels; i++ {
 		copy(LocalModels[i][:], fmt.Sprintf("*%d", i))
 	}
 }
 
+// resetLightStyles initializes all dynamic lightstyle slots to "m" (normal brightness baseline).
 func resetLightStyles(values *[64]string) {
 	for i := range values {
 		values[i] = "m"
 	}
 }
 
+// Init prepares a fresh runtime server state: client slots, world edicts, caches, and buffers.
 func (s *Server) Init(maxClients int) error {
 	if maxClients <= 0 {
 		return fmt.Errorf("maxClients must be > 0")
@@ -95,6 +98,7 @@ func (s *Server) Init(maxClients int) error {
 	return nil
 }
 
+// Shutdown tears down active server state so a new map/server can start from clean memory.
 func (s *Server) Shutdown() {
 	s.Active = false
 	s.Paused = false
@@ -115,6 +119,7 @@ func (s *Server) Shutdown() {
 	}
 }
 
+// SpawnServer loads BSP assets, resets world state, builds entities, and enters active simulation.
 func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	if s.Static == nil {
 		return errors.New("server not initialized")
@@ -231,6 +236,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	return nil
 }
 
+// loadMapEntities parses the BSP entity lump and instantiates edicts from textual key/value blocks.
 func (s *Server) loadMapEntities(raw string) error {
 	if strings.Trim(raw, " \t\r\n\x00") == "" {
 		return nil
@@ -277,6 +283,7 @@ func (s *Server) loadMapEntities(raw string) error {
 	return nil
 }
 
+// worldModelFromBSPTree adapts parsed BSP tree data into the runtime model.Model expected by engine subsystems.
 func worldModelFromBSPTree(modelName string, tree *bsp.Tree) *model.Model {
 	m := &model.Model{
 		Name:      modelName,
@@ -348,6 +355,7 @@ var brushHullClipBounds = [model.MaxMapHulls]struct {
 	2: {mins: [3]float32{-32, -32, -24}, maxs: [3]float32{32, 32, 64}},
 }
 
+// populateWorldModelCollision builds movement hulls/clipnodes so SV_Move can trace against map geometry.
 func populateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File) {
 	if m == nil || tree == nil || len(m.Planes) == 0 || len(tree.Models) == 0 {
 		return
@@ -377,6 +385,7 @@ func populateWorldModelCollision(m *model.Model, tree *bsp.Tree, file *bsp.File)
 	}
 }
 
+// buildNodeHull converts BSP nodes/leaves into a hull clipnode graph for player/world collision tracing.
 func buildNodeHull(tree *bsp.Tree, planes []model.MPlane, headNode int) model.Hull {
 	if tree == nil || len(tree.Nodes) == 0 || headNode < 0 || headNode >= len(tree.Nodes) {
 		return model.Hull{FirstClipNode: -1, LastClipNode: -1}
@@ -406,6 +415,7 @@ func buildNodeHull(tree *bsp.Tree, planes []model.MPlane, headNode int) model.Hu
 	}
 }
 
+// bspClipNodesToModel normalizes BSP clipnode lump variants into model.MClipNode runtime format.
 func bspClipNodesToModel(file *bsp.File) []model.MClipNode {
 	if file == nil {
 		return nil
@@ -435,6 +445,7 @@ func bspClipNodesToModel(file *bsp.File) []model.MClipNode {
 	}
 }
 
+// modelBounds resolves bounding boxes for world and inline BSP models for SetModel/LinkEdict updates.
 func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) {
 	if modelName == "" {
 		return mins, maxs, true
@@ -473,10 +484,12 @@ const (
 	ProtocolFlagFloatAngles
 )
 
+// ProtocolFlags advertises protocol capabilities (float coords/angles) used by message encoders.
 func (s *Server) ProtocolFlags() ProtocolFlags {
 	return ProtocolFlagFloatCoords | ProtocolFlagFloatAngles
 }
 
+// CalcStats derives HUD/stat slots from player entvars for SVCUpdateStat style networking.
 func (s *Server) CalcStats(client *Client, statsi []int, statsf []float32, statss []string) {
 	ent := client.Edict
 	if ent == nil {
@@ -518,6 +531,7 @@ func (s *Server) CalcStats(client *Client, statsi []int, statsf []float32, stats
 	statsf[StatActiveWeapon] = ent.Vars.Weapon
 }
 
+// StartParticle emits a transient particle event into the unreliable datagram broadcast stream.
 func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
 	if s.Datagram.Len() > MaxDatagram-18 {
 		return
@@ -542,6 +556,7 @@ func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
 	s.Datagram.WriteByte(byte(color))
 }
 
+// StartSound serializes a positional sound event from QC builtin sound() into network protocol fields.
 func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, attenuation float32) {
 	if volume < 0 || volume > 255 {
 		return
@@ -608,6 +623,7 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	}
 }
 
+// FindSound returns the precache index for a sound sample name used by network sound messages.
 func (s *Server) FindSound(sample string) int {
 	for i, name := range s.SoundPrecache {
 		if name == sample {
@@ -617,6 +633,7 @@ func (s *Server) FindSound(sample string) int {
 	return -1
 }
 
+// LocalSound sends a non-positional local-only sound to one client's reliable message queue.
 func (s *Server) LocalSound(client *Client, sample string) {
 	soundNum := s.FindSound(sample)
 	if soundNum < 0 {
@@ -641,6 +658,7 @@ func (s *Server) LocalSound(client *Client, sample string) {
 	}
 }
 
+// writeEntityState encodes baseline/static entity payloads, including optional extended fields.
 func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended bool, includeEntNum bool, entNum int) {
 	var bits byte
 	if ent.ModelIndex > 255 {
@@ -688,6 +706,7 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 	}
 }
 
+// writeSpawnStaticMessage emits SVCSpawnStatic(_2) for entities baked into signon world state.
 func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
 	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
 	if extended {
@@ -699,6 +718,7 @@ func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
 	s.writeEntityState(msg, ent, false, false, 0)
 }
 
+// writeSpawnStaticSoundMessage emits ambient/static sound signon messages with large-index fallback.
 func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSound) {
 	if snd.SoundIndex > 255 {
 		msg.WriteByte(byte(inet.SVCSpawnStaticSound2))
@@ -719,6 +739,7 @@ func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSoun
 	msg.WriteByte(byte(snd.Attenuation * 64))
 }
 
+// SendServerInfo writes the initial serverinfo handshake block for a connecting client.
 func (s *Server) SendServerInfo(client *Client) {
 	client.Message.WriteByte(byte(inet.SVCPrint))
 	client.Message.WriteString(fmt.Sprintf("\nFITZQUAKE GO SERVER\n"))
@@ -771,6 +792,7 @@ func (s *Server) SendServerInfo(client *Client) {
 	client.Spawned = false
 }
 
+// GetString resolves a QC string table index into UTF-8 text for game messages and model names.
 func (s *Server) GetString(idx int32) string {
 	if idx == 0 {
 		return ""
@@ -781,6 +803,7 @@ func (s *Server) GetString(idx int32) string {
 	return s.QCVM.GetString(idx)
 }
 
+// ConnectClient initializes one client slot, bind its edict, runs spawn parm QC, and starts signon.
 func (s *Server) ConnectClient(clientNum int) {
 	client := s.Static.Clients[clientNum]
 	if client == nil {
@@ -826,6 +849,7 @@ func (s *Server) ConnectClient(clientNum int) {
 	s.SendServerInfo(client)
 }
 
+// ClearDatagram resets the shared unreliable broadcast packet assembled each simulation frame.
 func (s *Server) ClearDatagram() {
 	s.Datagram.Clear()
 }
@@ -1102,6 +1126,7 @@ func (s *Server) writeSpawnStaticSoundToSignon(snd StaticSound) error {
 	return s.WriteSignonByte(byte(snd.Attenuation * 64))
 }
 
+// WriteClientDataToMessage serializes player-centric data (damage, view, ammo, items) for one frame.
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	if ent.Vars.DmgTake != 0 || ent.Vars.DmgSave != 0 {
 		other := s.EdictNum(int(ent.Vars.DmgInflictor))
@@ -1211,6 +1236,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	msg.WriteByte(activeWeapon)
 }
 
+// FindModel returns a model precache slot index used by entity baselines and delta updates.
 func (s *Server) FindModel(name string) int {
 	if name == "" {
 		return 0
@@ -1223,6 +1249,7 @@ func (s *Server) FindModel(name string) int {
 	return 0
 }
 
+// entityStateForClient builds render/network state for an edict as seen by a specific client.
 func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool) {
 	if ent == nil || ent.Free || ent.Vars == nil {
 		return EntityState{}, false
@@ -1257,6 +1284,7 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 	return state, true
 }
 
+// writeEntityUpdate performs Quake's bitflag delta encoding between previous and current entity states.
 func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev EntityState, force bool) bool {
 	bits := uint32(0)
 
@@ -1392,6 +1420,7 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	return true
 }
 
+// writeEntitiesToClient applies PVS culling then emits per-entity deltas for the target client.
 func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	if client == nil {
 		return
@@ -1439,6 +1468,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	}
 }
 
+// SV_WriteStats compares stat cache and emits reliable SVCUpdateStat messages for changed HUD values.
 func (s *Server) SV_WriteStats(client *Client, msg *MessageBuffer) {
 	ent := client.Edict
 	if ent != nil {
@@ -1464,6 +1494,7 @@ func (s *Server) SV_WriteStats(client *Client, msg *MessageBuffer) {
 	}
 }
 
+// buildClientDatagram assembles one full per-frame packet: time, clientdata, stats, entities, events.
 func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	msg.WriteByte(byte(inet.SVCTime))
 	msg.WriteFloat(s.Time)
@@ -1484,6 +1515,7 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	msg.WriteByte(0xff)
 }
 
+// SendClientDatagram builds and would transmit one frame datagram for a spawned network client.
 func (s *Server) SendClientDatagram(client *Client) bool {
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
@@ -1512,6 +1544,7 @@ func (s *Server) GetClientDatagram(clientNum int) []byte {
 	return result
 }
 
+// GetClientLoopbackMessage merges reliable + frame data for the in-process loopback client path.
 func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 	if clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return nil
@@ -1547,12 +1580,14 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 	return result
 }
 
+// SendNop constructs a keepalive NOP packet used to avoid connection timeout during idle periods.
 func (s *Server) SendNop(client *Client) {
 	var msg MessageBuffer
 	msg.Data = make([]byte, 4)
 	msg.WriteByte(byte(inet.SVCNop))
 }
 
+// SendClientMessages drives per-client send policy: spawned datagrams vs. signon/reliable traffic.
 func (s *Server) SendClientMessages() {
 	s.UpdateToReliableMessages()
 
@@ -1583,6 +1618,7 @@ func (s *Server) SendClientMessages() {
 	s.CleanupEnts()
 }
 
+// UpdateToReliableMessages queues scoreboard frag changes on reliable channels for all clients.
 func (s *Server) UpdateToReliableMessages() {
 	for _, client := range s.Static.Clients {
 		if client == nil || !client.Active {
@@ -1603,6 +1639,7 @@ func (s *Server) UpdateToReliableMessages() {
 	}
 }
 
+// CleanupEnts clears one-frame transient effect bits (e.g. muzzleflash) after packets are built.
 func (s *Server) CleanupEnts() {
 	for i := 1; i < s.NumEdicts; i++ {
 		ent := s.Edicts[i]
@@ -1612,6 +1649,7 @@ func (s *Server) CleanupEnts() {
 	}
 }
 
+// CreateBaseline snapshots initial entity states used as delta baselines for future updates.
 func (s *Server) CreateBaseline() {
 	for entNum := 0; entNum < s.NumEdicts; entNum++ {
 		ent := s.Edicts[entNum]
@@ -1643,6 +1681,7 @@ func (s *Server) CreateBaseline() {
 	}
 }
 
+// SendReconnect writes a reconnect command broadcast used during map/server transitions.
 func (s *Server) SendReconnect() {
 	var msg MessageBuffer
 	msg.Data = make([]byte, 128)
@@ -1650,6 +1689,7 @@ func (s *Server) SendReconnect() {
 	msg.WriteString("reconnect\n")
 }
 
+// SaveSpawnParms runs SetChangeParms QC to persist per-client parms across level transitions.
 func (s *Server) SaveSpawnParms() {
 	for _, client := range s.Static.Clients {
 		if client == nil || !client.Active {
@@ -1669,6 +1709,7 @@ func (s *Server) SaveSpawnParms() {
 	}
 }
 
+// SV_AddToFatPVS builds an expanded visibility set around a point to reduce pop-in during movement.
 func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
 	if s.WorldTree == nil || len(s.WorldTree.Nodes) == 0 {
 		return
@@ -1676,6 +1717,7 @@ func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
 	s.sv_AddToFatPVSRecursive(org, bsp.TreeChild{Index: 0, IsLeaf: false}, client)
 }
 
+// sv_AddToFatPVSRecursive walks BSP recursively and ORs visible leaves into the client's FatPVS mask.
 func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, client *Client) {
 	for {
 		if child.IsLeaf {
@@ -1715,6 +1757,7 @@ func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, cl
 	}
 }
 
+// SV_VisibleToClient checks whether any entity leaf intersects the client's precomputed FatPVS.
 func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 	if client.FatPVS == nil || ent.NumLeafs == 0 {
 		return true

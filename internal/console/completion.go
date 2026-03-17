@@ -1,6 +1,27 @@
-// Package console provides tab completion for commands, variables, and aliases.
-// This file implements the tab completion system that allows users to
-// auto-complete partial input by cycling through matching options.
+// completion.go — Tab completion for the Quake console
+//
+// This file implements tab-completion for console commands, console variables
+// (cvars), and aliases. Tab completion is essential UX for any command-line
+// interface: without it, users would need to memorise hundreds of command and
+// variable names. Pressing Tab while typing a partial name cycles through all
+// matching completions; pressing Shift+Tab cycles in reverse.
+//
+// The completion system bridges the console (which owns the input line) with
+// the command system (cmdsys) and the cvar system by accepting "provider"
+// functions that query each subsystem for matching names. This dependency-
+// injection design keeps the console package free of hard imports on cmdsys
+// or cvar, making it testable in isolation.
+//
+// Architecture:
+//   - The TabCompleter holds a set of provider functions (CommandProvider,
+//     CVarProvider, AliasProvider, FileProvider) that are injected at startup.
+//   - When the user presses Tab, Complete() is called. It extracts the
+//     partial word from the input, queries all providers, merges and sorts the
+//     results, and cycles through them.
+//   - GetHint() provides a non-destructive preview (auto-hint) of what the
+//     completion would be, without modifying the input line.
+//   - A global singleton (GlobalTabCompleter) and package-level convenience
+//     functions mirror the pattern used in console.go.
 package console
 
 import (
@@ -9,90 +30,168 @@ import (
 	"sync"
 )
 
-// TabCompletionMode represents the type of completion action.
+// TabCompletionMode represents the type of completion action. The mode
+// distinguishes between passive hinting (showing a ghost suffix as the user
+// types) and active completion (the user explicitly pressed Tab).
 type TabCompletionMode int
 
+// Completion mode constants.
 const (
-	// TabCompleteAutoHint shows a hint without modifying the input.
+	// TabCompleteAutoHint shows a hint without modifying the input. This is
+	// used for inline "ghost text" that appears after the cursor as the user
+	// types, similar to IDE autocompletion suggestions.
 	TabCompleteAutoHint TabCompletionMode = iota
-	// TabCompleteUser performs user-initiated completion.
+
+	// TabCompleteUser performs user-initiated completion — the user pressed
+	// Tab, and the input line should be modified to contain the completed text.
 	TabCompleteUser
 )
 
-// TabMatch represents a single completion match.
+// TabMatch represents a single completion candidate. Each match carries the
+// name (the actual text that will be inserted), a type label (e.g. "command",
+// "cvar", "alias") for display in the completion list, and a count used for
+// deduplication bookkeeping.
 type TabMatch struct {
-	Name  string
-	Type  string
+	// Name is the completion string that will replace the user's partial input.
+	Name string
+
+	// Type identifies the source of this match (e.g. "command", "cvar",
+	// "alias"). Displayed next to the name in the match list so the user can
+	// distinguish between identically-named items from different sources.
+	Type string
+
+	// Count tracks how many providers returned this same name. Used during
+	// deduplication — if both the command and alias providers return "map",
+	// only one TabMatch is kept but its Count is incremented.
 	Count int
 }
 
-// TabCompleter provides autocompletion for console input.
+// TabCompleter provides autocompletion for console input. It maintains the
+// current completion state (the list of matches, the cycling index, and the
+// partial string being completed) and a set of pluggable provider functions
+// that supply candidate names from various engine subsystems.
+//
+// The completer is thread-safe: all public methods acquire the mutex. This
+// is necessary because key-input processing and hint rendering may happen on
+// different goroutines.
 type TabCompleter struct {
+	// mu guards all mutable state. Read-only queries (GetHint, MatchCount)
+	// use RLock; mutating calls (Complete, Reset) use Lock.
 	mu sync.RWMutex
 
-	// Current completion state
-	matches    []*TabMatch
-	matchIndex int
-	partial    string
-	lastInput  string
+	// --- Current completion session state ---
 
-	// Providers for completion sources
-	cmdProvider   CommandProvider
-	cvarProvider  CVarProvider
+	// matches is the sorted, deduplicated list of candidates for the current
+	// partial string. Rebuilt whenever the input changes.
+	matches []*TabMatch
+
+	// matchIndex is the position in matches[] that will be returned on the
+	// next Tab press. It wraps around in both directions for forward/backward
+	// cycling.
+	matchIndex int
+
+	// partial is the fragment of the input that is being completed (e.g. if
+	// the user typed "sv_g", partial is "sv_g").
+	partial string
+
+	// lastInput caches the full input string from the previous Complete call.
+	// If the input hasn't changed between Tab presses, the match list is
+	// reused and only the cycling index advances.
+	lastInput string
+
+	// --- Providers: pluggable functions that supply completion candidates ---
+
+	// cmdProvider queries the command system (cmdsys) for commands whose names
+	// contain the partial string.
+	cmdProvider CommandProvider
+
+	// cvarProvider queries the cvar registry for variable names matching the
+	// partial string.
+	cvarProvider CVarProvider
+
+	// aliasProvider queries the alias table for alias names matching the
+	// partial string.
 	aliasProvider AliasProvider
-	fileProvider  FileProvider
+
+	// fileProvider queries the filesystem for file names matching a glob
+	// pattern. Used for commands like "exec" or "map" that take file arguments.
+	fileProvider FileProvider
 }
 
-// CommandProvider returns available commands for completion.
+// CommandProvider is a function that returns command names matching a partial
+// string. It is injected by the command system (cmdsys) at engine startup,
+// decoupling the console package from the command implementation.
 type CommandProvider func(partial string) []string
 
-// CVarProvider returns available console variables for completion.
+// CVarProvider is a function that returns console variable names matching a
+// partial string. Injected by the cvar registry so the console can complete
+// variable names without importing the cvar package directly.
 type CVarProvider func(partial string) []string
 
-// AliasProvider returns available aliases for completion.
+// AliasProvider is a function that returns alias names matching a partial
+// string. Aliases are user-defined shorthand commands (e.g. "alias rj
+// +jump;+attack").
 type AliasProvider func(partial string) []string
 
-// FileProvider returns files matching a pattern for completion.
+// FileProvider is a function that returns filesystem paths matching a glob
+// pattern. Used for argument completion on commands that accept file names
+// (e.g. "exec autoexec.cfg", "map e1m1").
 type FileProvider func(pattern string) []string
 
-// NewTabCompleter creates a new tab completer with the given providers.
+// NewTabCompleter creates a new tab completer with empty provider slots.
+// Providers must be registered via the Set*Provider methods before completion
+// will return any results.
 func NewTabCompleter() *TabCompleter {
 	return &TabCompleter{
 		matches: make([]*TabMatch, 0),
 	}
 }
 
-// SetCommandProvider sets the command provider function.
+// SetCommandProvider registers the function used to query available commands.
+// This is typically called once during engine initialisation, passing a
+// closure that calls into the cmdsys package.
 func (tc *TabCompleter) SetCommandProvider(provider CommandProvider) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.cmdProvider = provider
 }
 
-// SetCVarProvider sets the cvar provider function.
+// SetCVarProvider registers the function used to query console variables.
+// Injected by the cvar subsystem so that typing "sv_" + Tab completes to
+// matching cvar names like "sv_gravity".
 func (tc *TabCompleter) SetCVarProvider(provider CVarProvider) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.cvarProvider = provider
 }
 
-// SetAliasProvider sets the alias provider function.
+// SetAliasProvider registers the function used to query alias definitions.
 func (tc *TabCompleter) SetAliasProvider(provider AliasProvider) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.aliasProvider = provider
 }
 
-// SetFileProvider sets the file provider function.
+// SetFileProvider registers the function used to query filesystem paths.
 func (tc *TabCompleter) SetFileProvider(provider FileProvider) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 	tc.fileProvider = provider
 }
 
-// Complete performs tab completion on the input string.
-// It returns the completed string and a list of possible matches.
-// If forward is true, cycles forward through matches; otherwise backward.
+// Complete performs tab completion on the input string. This is the main
+// entry point called when the user presses Tab (forward=true) or Shift+Tab
+// (forward=false).
+//
+// On the first call (or when the input has changed), it rebuilds the match
+// list by querying all registered providers. On subsequent calls with the
+// same input, it simply advances the cycling index to the next match.
+//
+// Returns:
+//   - The modified input string with the partial word replaced by the current
+//     match's name.
+//   - A slice of human-readable descriptions of all matches (for display in
+//     a completion popup or list).
 func (tc *TabCompleter) Complete(input string, forward bool) (string, []string) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -141,8 +240,13 @@ func (tc *TabCompleter) Complete(input string, forward bool) (string, []string) 
 	return result, descriptions
 }
 
-// GetHint returns a completion hint without modifying input.
-// This is used to show the user what the completion would be.
+// GetHint returns a completion hint (the suffix that would be appended) without
+// modifying the input line. This powers "ghost text" inline hints that show
+// the user what Tab would complete to as they type.
+//
+// If multiple matches exist, the hint is the longest common prefix among all
+// matches beyond what the user has already typed. This ensures the hint only
+// shows characters that are unambiguous.
 func (tc *TabCompleter) GetHint(input string) string {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
@@ -184,7 +288,18 @@ func (tc *TabCompleter) GetHint(input string) string {
 	return ""
 }
 
-// buildMatches builds the list of completion matches for the partial string.
+// buildMatches queries all registered providers and assembles a sorted,
+// deduplicated list of completion candidates that contain the partial string
+// (case-insensitive substring match). This is called whenever the input
+// changes between Tab presses.
+//
+// The algorithm:
+//  1. Query each provider (commands, cvars, aliases) for names containing
+//     the partial string.
+//  2. Tag each result with its source type for display purposes.
+//  3. Sort all results alphabetically (case-insensitive).
+//  4. Deduplicate: if the same name appears from multiple sources, keep one
+//     entry and increment its Count.
 func (tc *TabCompleter) buildMatches(partial string) {
 	tc.matches = make([]*TabMatch, 0)
 	partialLower := strings.ToLower(partial)
@@ -248,7 +363,17 @@ func (tc *TabCompleter) buildMatches(partial string) {
 	}
 }
 
-// extractPartial extracts the partial word to complete from the input.
+// extractPartial extracts the "word" at the end of the input that should be
+// completed. It walks backward from the end of the string, stopping at spaces,
+// semicolons (which separate chained Quake commands), or the beginning of the
+// string. Quoted strings are handled so that a space inside quotes doesn't
+// split the word.
+//
+// Examples:
+//
+//	"map e1"    → "e1"     (completing a map name argument)
+//	"sv_grav"   → "sv_grav" (completing a cvar name)
+//	"bind x \"" → ""       (cursor is inside a quoted string)
 func extractPartial(input string) string {
 	// Find the start of the current word
 	input = strings.TrimLeft(input, " ")
@@ -282,7 +407,10 @@ func extractPartial(input string) string {
 	return input[start:]
 }
 
-// replacePartial replaces the partial word in input with the completion.
+// replacePartial substitutes the partial word at the end of the input string
+// with the completed name. It searches backward from the end of input for the
+// partial string and replaces it, preserving any prefix (e.g. "map " in
+// "map e1m1" is kept when replacing "e1m1" with "e1m2").
 func replacePartial(input, partial, completion string) string {
 	// Find where the partial starts in the input
 	inputLen := len(input)
@@ -307,7 +435,10 @@ func replacePartial(input, partial, completion string) string {
 	return input[:start] + completion + input[inputLen:]
 }
 
-// commonPrefixPrefix finds the common prefix between two strings.
+// commonPrefixPrefix computes the longest case-insensitive common prefix of
+// two strings. This is used by GetHint to determine how much of a completion
+// is unambiguous when multiple matches exist. For example, if the matches are
+// "sv_gravity" and "sv_greet", the common prefix is "sv_gr".
 func commonPrefixPrefix(a, b string) string {
 	minLen := len(a)
 	if len(b) < minLen {
@@ -325,7 +456,10 @@ func commonPrefixPrefix(a, b string) string {
 	return a[:i]
 }
 
-// Reset resets the completer state for a new input line.
+// Reset clears all completion state, forcing the next Complete call to rebuild
+// the match list from scratch. This should be called when the user commits
+// the input line (presses Enter), clears the input, or otherwise starts a
+// new editing context.
 func (tc *TabCompleter) Reset() {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -335,14 +469,18 @@ func (tc *TabCompleter) Reset() {
 	tc.lastInput = ""
 }
 
-// MatchCount returns the number of current matches.
+// MatchCount returns the number of candidates in the current completion set.
+// Useful for UI code that wants to show "N matches" or decide whether to
+// display a completion popup.
 func (tc *TabCompleter) MatchCount() int {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
 	return len(tc.matches)
 }
 
-// GetCurrentMatches returns the current list of matches.
+// GetCurrentMatches returns a defensive copy of all current completion
+// candidates. The copy prevents callers from mutating the completer's
+// internal state.
 func (tc *TabCompleter) GetCurrentMatches() []*TabMatch {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
@@ -351,40 +489,51 @@ func (tc *TabCompleter) GetCurrentMatches() []*TabMatch {
 	return result
 }
 
-// GlobalTabCompleter is the global tab completer instance.
+// ---------------------------------------------------------------------------
+// Global singleton and package-level convenience functions
+// ---------------------------------------------------------------------------
+// Like the Console type, the TabCompleter has a global singleton so that most
+// callers can use simple package-level functions without threading a
+// *TabCompleter through every subsystem.
+// ---------------------------------------------------------------------------
+
+// GlobalTabCompleter is the process-wide tab completer instance. It is used
+// by the package-level convenience functions below and by the console's key
+// handling code.
 var GlobalTabCompleter = NewTabCompleter()
 
-// SetGlobalCommandProvider sets the command provider for the global completer.
+// SetGlobalCommandProvider registers a command provider on the global completer.
 func SetGlobalCommandProvider(provider CommandProvider) {
 	GlobalTabCompleter.SetCommandProvider(provider)
 }
 
-// SetGlobalCVarProvider sets the cvar provider for the global completer.
+// SetGlobalCVarProvider registers a cvar provider on the global completer.
 func SetGlobalCVarProvider(provider CVarProvider) {
 	GlobalTabCompleter.SetCVarProvider(provider)
 }
 
-// SetGlobalAliasProvider sets the alias provider for the global completer.
+// SetGlobalAliasProvider registers an alias provider on the global completer.
 func SetGlobalAliasProvider(provider AliasProvider) {
 	GlobalTabCompleter.SetAliasProvider(provider)
 }
 
-// SetGlobalFileProvider sets the file provider for the global completer.
+// SetGlobalFileProvider registers a file provider on the global completer.
 func SetGlobalFileProvider(provider FileProvider) {
 	GlobalTabCompleter.SetFileProvider(provider)
 }
 
-// CompleteInput performs tab completion using the global completer.
+// CompleteInput performs tab completion on the global completer. This is the
+// function called by the console's key handler when the user presses Tab.
 func CompleteInput(input string, forward bool) (string, []string) {
 	return GlobalTabCompleter.Complete(input, forward)
 }
 
-// GetCompletionHint returns a completion hint using the global completer.
+// GetCompletionHint returns a non-destructive hint from the global completer.
 func GetCompletionHint(input string) string {
 	return GlobalTabCompleter.GetHint(input)
 }
 
-// ResetCompletion resets the global completer state.
+// ResetCompletion clears the global completer's state for a new input session.
 func ResetCompletion() {
 	GlobalTabCompleter.Reset()
 }

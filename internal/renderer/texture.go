@@ -71,6 +71,7 @@ type picRect struct {
 	h float32
 }
 
+// screenPicRect screenPicRect calculates pixel-aligned destination rectangles for HUD/console pictures in screen-space coordinates.
 func screenPicRect(x, y int, pic *image.QPic) picRect {
 	if pic == nil {
 		return picRect{}
@@ -83,6 +84,7 @@ func screenPicRect(x, y int, pic *image.QPic) picRect {
 	}
 }
 
+// menuPicRect menuPicRect computes menu image placement rectangles while preserving legacy UI layout expectations.
 func menuPicRect(screenW, screenH, x, y int, pic *image.QPic) picRect {
 	rect := screenPicRect(x, y, pic)
 	scale, xOff, yOff := menuScale(screenW, screenH)

@@ -6,13 +6,22 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
+// deathmatchRespawnDelay defines how long dead players wait before automatic
+// respawn in deathmatch. The delay mirrors classic Quake pacing: the player
+// sees death feedback briefly before re-entering the simulation.
 const deathmatchRespawnDelay = 2.0
 
+// syncGameModeFromCVars snapshots coop/deathmatch cvars into server booleans.
+// This keeps per-frame rule evaluation coupled to console-configured game mode
+// without requiring every caller to query cvars directly.
 func (s *Server) syncGameModeFromCVars() {
 	s.Coop = cvar.BoolValue("coop")
 	s.Deathmatch = cvar.BoolValue("deathmatch")
 }
 
+// CheckRules enforces match-end conditions after each simulation frame.
+// It bridges cvar policy (fraglimit/timelimit) to authoritative server state:
+// once a win condition is met, it triggers QuakeC-level transition logic.
 func (s *Server) CheckRules() {
 	if s == nil || s.Static == nil {
 		return
@@ -41,6 +50,9 @@ func (s *Server) CheckRules() {
 	}
 }
 
+// issueMatchEnd triggers the QuakeC NextLevel path exactly once per match end.
+// The ChangeLevelIssued guard prevents duplicate transitions when multiple
+// clients satisfy end conditions in the same frame.
 func (s *Server) issueMatchEnd(reason string) {
 	if s == nil || s.Static == nil || s.Static.ChangeLevelIssued {
 		return
@@ -65,6 +77,9 @@ func (s *Server) issueMatchEnd(reason string) {
 	}
 }
 
+// handleDeathmatchRespawn applies deathmatch-specific delayed auto-respawn.
+// It gates dead players for a short timeout, then invokes QC spawn routines so
+// spawnpoint selection and inventory reset remain gamecode-driven.
 func (s *Server) handleDeathmatchRespawn(client *Client) bool {
 	if s == nil || client == nil || client.Edict == nil || client.Edict.Free {
 		return false

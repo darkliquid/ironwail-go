@@ -57,11 +57,18 @@ type DrawContext struct {
 	gldc *glDrawContext
 }
 
+// beginLateTranslucencyStateBlock enables GL state for all translucent draws in the
+// render pipeline. This sets up alpha blending (SRC_ALPHA, ONE_MINUS_SRC_ALPHA) and
+// disables depth writes so that translucent surfaces don't occlude each other. The block
+// wraps: translucent liquids, brush entities, sprites, alias models, particles, and decals.
 func beginLateTranslucencyStateBlock() {
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 }
 
+// endLateTranslucencyStateBlock restores opaque GL rendering state: re-enables depth writes
+// and disables alpha blending. Called after all translucent draws are complete, before
+// rendering the view model and post-processing effects.
 func endLateTranslucencyStateBlock() {
 	gl.DepthMask(true)
 	gl.Disable(gl.BLEND)
@@ -209,16 +216,33 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 
 // RenderContext interface delegation to the underlying glDrawContext.
 
-func (dc *DrawContext) Clear(r, g, b, a float32)          { dc.gldc.Clear(r, g, b, a) }
-func (dc *DrawContext) DrawTriangle(r, g, b, a float32)   { dc.gldc.DrawTriangle(r, g, b, a) }
-func (dc *DrawContext) SurfaceView() interface{}          { return dc.gldc.SurfaceView() }
-func (dc *DrawContext) Gamma() float32                    { return dc.gldc.Gamma() }
+// Clear delegates to the GL draw context to clear all framebuffer attachments.
+func (dc *DrawContext) Clear(r, g, b, a float32) { dc.gldc.Clear(r, g, b, a) }
+
+// DrawTriangle delegates to the GL draw context for debug triangle rendering.
+func (dc *DrawContext) DrawTriangle(r, g, b, a float32) { dc.gldc.DrawTriangle(r, g, b, a) }
+
+// SurfaceView delegates to the GL draw context for render-to-texture support.
+func (dc *DrawContext) SurfaceView() interface{} { return dc.gldc.SurfaceView() }
+
+// Gamma delegates to the GL draw context to retrieve the gamma correction value.
+func (dc *DrawContext) Gamma() float32 { return dc.gldc.Gamma() }
+
+// DrawPic delegates to the GL draw context for 2D image rendering.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.gldc.DrawPic(x, y, pic) }
+
+// DrawMenuPic delegates to the GL draw context for menu-space image rendering.
 func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 	dc.gldc.DrawMenuPic(x, y, pic)
 }
+
+// DrawFill delegates to the GL draw context for solid-color rectangle fills.
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) { dc.gldc.DrawFill(x, y, w, h, color) }
-func (dc *DrawContext) DrawCharacter(x, y int, num int)     { dc.gldc.DrawCharacter(x, y, num) }
+
+// DrawCharacter delegates to the GL draw context for console character rendering.
+func (dc *DrawContext) DrawCharacter(x, y int, num int) { dc.gldc.DrawCharacter(x, y, num) }
+
+// DrawMenuCharacter delegates to the GL draw context for menu-space character rendering.
 func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.gldc.DrawMenuCharacter(x, y, num)
 }

@@ -14,6 +14,23 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
+// SDL3 backend constants for gamepad processing.
+//
+// altGamepadOffset is the distance between a primary gamepad key code and its
+// alternate-layer counterpart (e.g. KLThumb → KLThumbAlt). When the
+// "+altmodifier" command is active, all transformable gamepad keys are shifted
+// by this offset so they hit a different set of bindings.
+//
+// gamepadTriggerThreshold is the normalised [0,1] value above which an analog
+// trigger is treated as a binary "pressed" button. This creates a crisp
+// press/release transition from a continuous analog signal.
+//
+// radiansToDegrees converts gyroscope angular-velocity readings from the
+// sensor's native rad/s units to the deg/s that the engine uses for
+// sensitivity scaling and noise-threshold comparison.
+//
+// The gyroMode* constants define how the alt-modifier interacts with gyro
+// aiming — see applyGyroMode for the full truth table.
 const (
 	altGamepadOffset = KLThumbAlt - KLThumb
 
@@ -26,6 +43,35 @@ const (
 	gyroModeInvertsDir = 3
 )
 
+// Cvar-driven gamepad and gyroscope configuration.
+//
+// All of these cvars are registered with FlagArchive so their values are
+// persisted to config.cfg automatically. They let the player tune deadzone
+// sizes, response curves, gyro sensitivity, and gyro calibration offsets
+// without recompiling.
+//
+// Gyro pipeline overview:
+//
+//  1. Raw sensor data arrives in rad/s via SDL_EVENT_GAMEPAD_SENSOR_UPDATE.
+//  2. The values are converted to deg/s and have calibration offsets subtracted
+//     (gyro_calibration_{x,y,z}).
+//  3. A noise gate (gyro_noise_thresh) attenuates small movements to reject
+//     controller vibration and hand jitter.
+//  4. The user's chosen turning axis (gyro_turning_axis: pitch-X or roll-Z)
+//     is selected for yaw control.
+//  5. Sensitivity multipliers (gyro_yawsensitivity, gyro_pitchsensitivity)
+//     are applied.
+//  6. The gyro mode (gyro_mode) determines whether the alt-modifier button
+//     enables, disables, inverts, or has no effect on gyro output.
+//  7. The final yaw/pitch deltas are integrated over the sensor timestamp
+//     interval and accumulated into gyroYawDelta / gyroPitchDelta, which the
+//     game reads via GetGamepadState each frame.
+//
+// Stick deadzone and curve cvars follow a similar pattern: the raw ±32767
+// axis value is normalised to [-1,1], the deadzone is subtracted and the
+// remaining range is re-normalised, then raised to an exponent for a
+// non-linear response curve (exponent > 1 = slower near centre, faster at
+// extremes).
 var (
 	gyroEnable = cvar.Register("gyro_enable", "1", cvar.FlagArchive, "Enable gamepad gyro input")
 	gyroMode   = cvar.Register("gyro_mode", "2", cvar.FlagArchive, "Gyro mode: 0=ignore modifier, 1=modifier enables, 2=modifier disables, 3=modifier inverts")
@@ -45,6 +91,13 @@ var (
 	joyExponentMove    = cvar.Register("joy_exponent_move", "2.0", cvar.FlagArchive, "Exponential response curve for move stick")
 )
 
+// sdlButtonToKey maps SDL3 gamepad button constants to engine key codes.
+//
+// The mapping follows the Xbox-style "ABXY" layout that SDL3's gamepad API
+// uses as its canonical model. SDL internally handles controller-specific
+// remapping (e.g. DualSense ×/○ → A/B) via its game controller database, so
+// this table only needs to express the logical mapping once. Unmapped buttons
+// (GUIDE, MISC2–6) are mapped to 0 and silently dropped by emitGamepadKeyEvent.
 var sdlButtonToKey = map[sdl.GamepadButton]int{
 	sdl.GAMEPAD_BUTTON_SOUTH:          KAButton,
 	sdl.GAMEPAD_BUTTON_EAST:           KBButton,
@@ -74,16 +127,34 @@ var sdlButtonToKey = map[sdl.GamepadButton]int{
 	sdl.GAMEPAD_BUTTON_MISC6:          0,
 }
 
+// Module-level singleton state for the SDL3 backend.
+//
+// sdl3CommandOnce ensures that console commands (+altmodifier, gyro_calibrate,
+// etc.) are registered exactly once, even if the backend is re-initialised.
+// activeSDL3Input points to the currently active backend instance so that the
+// global console-command callbacks can reach it.
 var (
 	sdl3CommandOnce sync.Once
 	activeSDL3Input *sdl3Backend
 )
 
+// triggerState tracks the digital (pressed/released) interpretation of each
+// controller's analog triggers. Because triggers are continuous [0,1] axes
+// but the engine's binding system expects discrete button events, we must
+// detect threshold crossings and emit synthetic press/release key events.
+// Each controller (identified by JoystickID) has its own triggerState to
+// avoid cross-talk in multi-controller setups.
 type triggerState struct {
 	left  bool
 	right bool
 }
 
+// gyroCalibrationState accumulates gyroscope sensor samples during an active
+// calibration run. The "gyro_calibrate" console command sets active=true and
+// the backend then collects 300 samples (≈5 seconds at 60 Hz). Once enough
+// samples are gathered, the mean offsets are stored in the gyro_calibration_*
+// cvars and the struct is reset. Calibration should be performed with the
+// controller resting motionless on a flat surface.
 type gyroCalibrationState struct {
 	active  bool
 	samples int
@@ -92,6 +163,21 @@ type gyroCalibrationState struct {
 	sumZ    float64
 }
 
+// sdl3Backend implements the Backend interface using go-sdl3 (pure-Go SDL3
+// bindings — no CGO required for the input layer itself).
+//
+// It is responsible for the Platform and Translation layers of the input
+// pipeline: it polls SDL for raw events (keyboard, mouse, gamepad, gyro) and
+// translates them into engine key codes before forwarding them to the System.
+//
+// State tracking:
+//   - mx, my:               Accumulated mouse-motion deltas for this frame.
+//   - modifiers:            Current Shift/Ctrl/Alt state from SDL_GetModState.
+//   - altModifierPressed:   True when "+altmodifier" is active (gamepad layer).
+//   - triggerStates:        Per-controller digital trigger state.
+//   - gyroLastTimestamp:    Per-controller last gyro sensor timestamp (ns).
+//   - gyroYawDelta/PitchDelta: Accumulated gyro rotation for this frame.
+//   - calibration:          Active gyro calibration run (if any).
 type sdl3Backend struct {
 	sys         *System
 	controllers []*sdl.Gamepad
@@ -112,6 +198,14 @@ func NewSDL3Backend(sys *System) Backend {
 	return &sdl3Backend{sys: sys}
 }
 
+// Init initialises the SDL3 joystick subsystem and prepares internal state
+// maps. A deferred recover is used to catch panics from the SDL bindings
+// (which can occur if the native library is missing or ABI-incompatible)
+// and convert them to a regular error.
+//
+// Actual gamepad devices are not opened here — they are discovered and opened
+// dynamically when SDL fires EVENT_JOYSTICK_ADDED or EVENT_GAMEPAD_ADDED
+// events in PollEvents, which handles hot-plug correctly.
 func (b *sdl3Backend) Init() (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -134,6 +228,9 @@ func (b *sdl3Backend) Init() (err error) {
 	return nil
 }
 
+// Shutdown closes all open gamepad handles, clears the singleton pointer, and
+// tears down the SDL joystick subsystem. After Shutdown the backend must not
+// be used.
 func (b *sdl3Backend) Shutdown() {
 	for _, c := range b.controllers {
 		if c != nil {
@@ -146,6 +243,31 @@ func (b *sdl3Backend) Shutdown() {
 	sdl.QuitSubSystem(sdl.INIT_JOYSTICK)
 }
 
+// PollEvents drains the SDL event queue and translates each event into engine
+// input. This is the heart of the Platform → Translation layer. The method
+// handles the following event types:
+//
+//   - EVENT_QUIT: Returns false to signal application exit.
+//   - EVENT_KEY_DOWN / EVENT_KEY_UP: Maps SDL keycodes to engine K_* codes.
+//     Letters are folded to lowercase ASCII; common navigation and modifier
+//     keys are mapped explicitly. Unmapped keys are dropped (key == 0).
+//   - EVENT_MOUSE_MOTION: Accumulates relative pixel deltas into (mx, my).
+//   - EVENT_MOUSE_BUTTON_DOWN/UP: Maps SDL button indices (1=left, 2=middle,
+//     3=right, 4/5=side) to KMouse1–KMouse5.
+//   - EVENT_MOUSE_WHEEL: Emits an instantaneous press+release pair for
+//     KMWheelUp or KMWheelDown so scroll can be bound like a button.
+//   - EVENT_TEXT_INPUT: Forwards composed Unicode runes to HandleCharEvent for
+//     console/chat text entry.
+//   - EVENT_JOYSTICK_ADDED / EVENT_GAMEPAD_ADDED: Opens the new controller
+//     via the Gamepad API and enables the gyroscope sensor if available.
+//   - EVENT_GAMEPAD_BUTTON_DOWN/UP: Looks up the engine key in sdlButtonToKey
+//     and emits via emitGamepadKeyEvent (which applies the alt-modifier layer).
+//   - EVENT_GAMEPAD_AXIS_MOTION: Converts analog trigger axes to digital
+//     press/release events when they cross gamepadTriggerThreshold. Stick
+//     axes are read on-demand in GetGamepadState instead.
+//   - EVENT_GAMEPAD_SENSOR_UPDATE: Routes gyroscope data to updateGyro.
+//   - EVENT_GAMEPAD_REMOVED / EVENT_JOYSTICK_REMOVED: Cleans up controller
+//     state and closes the Gamepad handle.
 func (b *sdl3Backend) PollEvents() bool {
 	var event sdl.Event
 	for sdl.PollEvent(&event) {
@@ -328,20 +450,40 @@ func (b *sdl3Backend) PollEvents() bool {
 	return true
 }
 
+// GetMouseDelta returns the accumulated mouse movement since the last call and
+// resets the accumulators to zero. The engine calls this exactly once per frame
+// via System.GetState to ensure no motion is lost or double-counted.
 func (b *sdl3Backend) GetMouseDelta() (int32, int32) {
 	dx, dy := b.mx, b.my
 	b.mx, b.my = 0, 0
 	return dx, dy
 }
 
+// GetModifierState returns the cached modifier key state that was last updated
+// during PollEvents from SDL_GetModState. This is more reliable than tracking
+// individual KShift/KCtrl/KAlt events because it handles edge cases where a
+// modifier is pressed or released while the window is unfocused.
 func (b *sdl3Backend) GetModifierState() ModifierState { return b.modifiers }
 
+// SetTextMode is a no-op in the current SDL3 backend. SDL's text input is
+// implicitly enabled when the event loop receives TEXT_INPUT events.
+// A full implementation would call sdl.StartTextInput / sdl.StopTextInput.
 func (b *sdl3Backend) SetTextMode(mode TextMode) {}
 
+// SetCursorMode is a no-op stub. Cursor visibility is managed through
+// SetMouseGrab and the renderer's own cursor handling.
 func (b *sdl3Backend) SetCursorMode(mode CursorMode) {}
 
+// ShowKeyboard is a no-op on desktop platforms. On mobile it would call
+// SDL_StartTextInput to raise the virtual keyboard.
 func (b *sdl3Backend) ShowKeyboard(show bool) {}
 
+// SetMouseGrab enables or disables SDL relative mouse mode on the attached
+// window. In relative mode the cursor is hidden and SDL reports motion as
+// deltas from the window centre, which is what first-person look control
+// needs. If no window has been attached yet (SetWindow not called), this is
+// a no-op — the renderer is expected to call SetWindow once its window is
+// ready.
 func (b *sdl3Backend) SetMouseGrab(grabbed bool) {
 	if b.window != nil {
 		_ = b.window.SetRelativeMouseMode(grabbed)
@@ -364,6 +506,18 @@ func (b *sdl3Backend) SetWindow(win interface{}) {
 	}
 }
 
+// GetGamepadState returns the fully-processed state of the gamepad at the
+// given player index. This method performs the following processing pipeline:
+//
+//  1. Reads raw axis values from the SDL Gamepad API (int16 range ±32767).
+//  2. Normalises each axis to [-1,1] (sticks) or [0,1] (triggers).
+//  3. Applies cvar-driven deadzone removal and exponential response curves
+//     via applyDeadzoneAndCurve / applyTriggerDeadzone. The move stick and
+//     look stick use separate deadzone and exponent cvars so the player can
+//     tune them independently.
+//  4. Reads button state into a bitmask (bits 0–4 = South/East/West/North/Start).
+//  5. Copies the accumulated gyro yaw/pitch deltas and resets the accumulators
+//     so the game receives exactly one frame's worth of gyro rotation.
 func (b *sdl3Backend) GetGamepadState(player int) GamepadState {
 	var gs GamepadState
 	if player < 0 || player >= len(b.controllers) {
@@ -414,6 +568,8 @@ func (b *sdl3Backend) GetGamepadState(player int) GamepadState {
 	return gs
 }
 
+// IsGamepadConnected returns true if a gamepad is present and open at the
+// given player index.
 func (b *sdl3Backend) IsGamepadConnected(player int) bool {
 	if player < 0 || player >= len(b.controllers) {
 		return false
@@ -421,6 +577,9 @@ func (b *sdl3Backend) IsGamepadConnected(player int) bool {
 	return b.controllers[player] != nil
 }
 
+// emitGamepadKeyEvent applies the alt-modifier layer transformation (via
+// transformKey) and then forwards the resulting key event to the System's
+// HandleKeyEvent. If the transformed key is 0 (unmapped) the event is dropped.
 func (b *sdl3Backend) emitGamepadKeyEvent(key int, down bool) {
 	if b.sys == nil {
 		return
@@ -445,6 +604,16 @@ func (b *sdl3Backend) transformKey(key int) int {
 	return key
 }
 
+// applyDeadzoneAndCurve removes stick deadzone and applies an exponential
+// response curve to a normalised stick axis value in [-1,1].
+//
+// Processing steps:
+//  1. If |value| ≤ deadzone, return 0 (ignore tiny movements near centre).
+//  2. Re-normalise the remaining range [deadzone,1] → [0,1].
+//  3. Raise to the power of exponent. An exponent > 1 makes small deflections
+//     more precise (good for aiming) while preserving full range at the
+//     extremes. An exponent of 1 gives a linear response.
+//  4. Restore the original sign.
 func applyDeadzoneAndCurve(value, deadzone, exponent float32) float32 {
 	absValue := float32(math.Abs(float64(value)))
 	if absValue <= deadzone {
@@ -468,6 +637,10 @@ func applyDeadzoneAndCurve(value, deadzone, exponent float32) float32 {
 	return curved
 }
 
+// applyTriggerDeadzone removes the deadzone from a trigger value in [0,1] and
+// re-normalises the result so that the trigger reports 0.0 until it passes
+// the deadzone threshold, then linearly ramps to 1.0 at full depression.
+// Unlike sticks, triggers are unipolar so no sign handling is needed.
 func applyTriggerDeadzone(value, deadzone float32) float32 {
 	if value <= deadzone {
 		return 0
@@ -482,6 +655,16 @@ func applyTriggerDeadzone(value, deadzone float32) float32 {
 	return scaled
 }
 
+// filterGyroValue implements a soft noise gate for gyroscope readings. Values
+// below the threshold are attenuated proportionally to their magnitude
+// (linear fade-out) rather than hard-clamped to zero. This avoids the
+// "quantisation" feel of a hard threshold while still suppressing jitter when
+// the controller is nearly stationary.
+//
+//	If |value| ≥ threshold: output = value (unmodified).
+//	If |value| <  threshold: output = value × (|value| / threshold).
+//
+// A threshold of 0 disables filtering entirely.
 func filterGyroValue(value, threshold float32) float32 {
 	if threshold <= 0 {
 		return value
@@ -493,6 +676,18 @@ func filterGyroValue(value, threshold float32) float32 {
 	return value * (absValue / threshold)
 }
 
+// applyGyroMode determines whether gyro input is active this frame and
+// optionally modifies the yaw/pitch values based on the gyro_mode cvar and
+// the alt-modifier button state. The four modes are:
+//
+//   - 0 (Ignored):    Alt-modifier has no effect on gyro — always active.
+//   - 1 (Enables):    Gyro is only active while alt-modifier is held.
+//   - 2 (Disables):   Gyro is active by default but disabled while alt-modifier
+//     is held (e.g. for a "gyro pause" button).
+//   - 3 (Inverts):    Gyro is always active but yaw/pitch are negated while
+//     alt-modifier is held (useful for flick-stick combos).
+//
+// Returns the (possibly modified) yaw/pitch and whether the gyro is active.
 func (b *sdl3Backend) applyGyroMode(yaw, pitch float32) (outYaw, outPitch float32, active bool) {
 	switch gyroMode.Int {
 	case gyroModeEnables:
@@ -516,6 +711,22 @@ func (b *sdl3Backend) applyGyroMode(yaw, pitch float32) (outYaw, outPitch float3
 	return yaw, pitch, true
 }
 
+// updateGyro processes a single gyroscope sensor event from SDL3.
+//
+// The full pipeline for each event:
+//
+//  1. Convert raw sensor data from rad/s to deg/s and subtract calibration
+//     offsets (gyro_calibration_{x,y,z} cvars).
+//  2. If a calibration run is active, accumulate the sample and, once 300
+//     samples are collected, compute and store the mean offsets.
+//  3. If gyro_enable is false, discard the data entirely.
+//  4. Apply the soft noise gate (filterGyroValue) with gyro_noise_thresh.
+//  5. Select the yaw axis: by default X (pitch axis of the physical sensor),
+//     but gyro_turning_axis=1 uses Z (roll axis) instead.
+//  6. Multiply by sensitivity cvars.
+//  7. Apply the gyro mode filter (applyGyroMode) — may zero or invert.
+//  8. Integrate over the time delta (sensorTimestamp difference in nanoseconds)
+//     and accumulate into gyroYawDelta / gyroPitchDelta.
 func (b *sdl3Backend) updateGyro(id sdl.JoystickID, raw [3]float32, sensorTimestamp uint64) {
 	// Gyro event data is in rad/s. Convert to deg/s for thresholding and scaling.
 	x := raw[0]*radiansToDegrees - gyroCalibrationX.Float32()
@@ -573,6 +784,10 @@ func (b *sdl3Backend) updateGyro(id sdl.JoystickID, raw [3]float32, sensorTimest
 	b.gyroPitchDelta += pitchRate * dt
 }
 
+// Rumble sends a haptic rumble command to the first connected gamepad. The
+// low-frequency and high-frequency motor intensities are in the range 0–65535
+// and the duration is in milliseconds. Only the first non-nil controller
+// receives the command (Quake is single-player so only one gamepad matters).
 func (b *sdl3Backend) Rumble(lowFreq, highFreq uint16, durationMS uint32) error {
 	for _, gp := range b.controllers {
 		if gp == nil {
@@ -583,6 +798,8 @@ func (b *sdl3Backend) Rumble(lowFreq, highFreq uint16, durationMS uint32) error 
 	return nil
 }
 
+// SetLED sets the RGB colour of the first connected gamepad's LED (e.g. the
+// DualSense light bar). Values are 0–255 per channel.
 func (b *sdl3Backend) SetLED(r, g, bl uint8) error {
 	for _, gp := range b.controllers {
 		if gp == nil {
@@ -593,6 +810,19 @@ func (b *sdl3Backend) SetLED(r, g, bl uint8) error {
 	return nil
 }
 
+// registerCommands registers console commands for gamepad features. This is
+// called once (guarded by sync.Once) during Init. The commands use the
+// module-level activeSDL3Input pointer so they work even if the backend
+// instance is replaced.
+//
+// Registered commands:
+//   - +altmodifier / -altmodifier: Toggles the alternate gamepad binding layer.
+//     Bound to a gamepad button, this lets one physical button double the
+//     number of available bindings (see altGamepadOffset).
+//   - gyro_calibrate: Starts a 300-sample calibration run to determine gyro
+//     zero-point offsets.
+//   - joy_rumble <low> <high> <duration_ms>: Triggers haptic feedback.
+//   - joy_led <r> <g> <b>: Sets the controller's LED colour.
 func (b *sdl3Backend) registerCommands() {
 	sdl3CommandOnce.Do(func() {
 		cmdsys.AddCommand("+altmodifier", func(args []string) {

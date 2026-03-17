@@ -112,7 +112,19 @@ type Mat4 [16]float32
 // Vec4
 // ---------------------------------------------------------------------------
 
-// Vec4 represents a 4-component vector (homogeneous coordinates).
+// Vec4 represents a 4-component vector used for homogeneous coordinates.
+//
+// In 3D graphics, homogeneous coordinates extend a 3D point (x, y, z) to
+// 4D by adding a W component. This allows both translation and projection
+// to be expressed as matrix multiplication:
+//
+//   - For positions: W = 1.0 (translation applies: the point is at x/w, y/w, z/w)
+//   - For directions: W = 0.0 (translation has no effect, only rotation applies)
+//   - After projection: W = distance along the view axis (used for perspective divide)
+//
+// The GPU's rasterizer performs the "perspective divide" (x/w, y/w, z/w)
+// automatically after the vertex shader, which is why the Quake projection
+// matrix ([FrustumMatrix]) places the forward-axis distance into W.
 type Vec4 struct {
 	X, Y, Z, W float32
 }
@@ -122,7 +134,13 @@ type Vec4 struct {
 // ---------------------------------------------------------------------------
 
 // Color represents an RGBA color with floating-point components, typically
-// in the range [0, 1].
+// in the range [0.0, 1.0].
+//
+// The engine uses float colors internally for lighting calculations (which
+// can temporarily exceed 1.0 for overbright effects) and clamps to [0,1]
+// only when uploading to GPU textures or uniform buffers. The A (alpha)
+// component controls transparency for blended surfaces like water, teleporters,
+// and particle effects.
 type Color struct {
 	R, G, B, A float32
 }
@@ -260,7 +278,16 @@ func Mat4Multiply(left, right Mat4) Mat4 {
 	return out
 }
 
-// Mul returns m × right. This is a method wrapper around [Mat4Multiply].
+// Mul returns the matrix product m × right. This is a method wrapper around
+// [Mat4Multiply] for fluent chaining of transform composition:
+//
+//	mvp := projection.Mul(view).Mul(model)
+//
+// In the MVP (Model-View-Projection) pipeline, matrices are multiplied
+// right-to-left: a vertex is first transformed by the model matrix, then
+// the view matrix, then the projection matrix. Because matrix multiplication
+// is associative, these can be pre-multiplied into a single MVP matrix and
+// applied once per vertex in the shader.
 func (m Mat4) Mul(right Mat4) Mat4 {
 	return Mat4Multiply(m, right)
 }
@@ -373,8 +400,16 @@ func ViewMatrix(angles Vec3, origin Vec3) Mat4 {
 // Determinant returns the determinant of the 4×4 matrix using cofactor
 // expansion along the first row.
 //
-// For a valid rotation/view matrix, the absolute value of the determinant
-// should be ≈ 1.
+// The determinant measures how a transformation scales volume:
+//   - |det| = 1 for pure rotations (volume-preserving)
+//   - |det| > 1 for scaling up, |det| < 1 for scaling down
+//   - det < 0 indicates a reflection (orientation-reversing)
+//   - det = 0 means the matrix is singular (non-invertible)
+//
+// For a valid view or model matrix composed only of rotations and
+// translations, the absolute value should be ≈ 1.0. This method is
+// useful for debugging matrix construction and for computing the
+// inverse (via the adjugate/determinant formula) when needed.
 func (m Mat4) Determinant() float32 {
 	// Column-major: element at (row, col) = m[col*4+row]
 	// Cofactor expansion along row 0.
@@ -387,6 +422,13 @@ func (m Mat4) Determinant() float32 {
 
 // Mat4ToBytes converts a Mat4 into a 64-byte array of little-endian float32
 // values, suitable for uploading to the GPU as a uniform buffer.
+//
+// GPU shader uniform buffers expect data in a specific byte layout. Since
+// both the Mat4 and the GPU use column-major order, the 16 floats can be
+// copied sequentially. Little-endian format matches x86/x64 and ARM (the
+// dominant GPU host architectures). The fixed 64-byte size ([16]float32 ×
+// 4 bytes each) allows the result to be passed directly as a UBO or push
+// constant without heap allocation.
 func Mat4ToBytes(m Mat4) [64]byte {
 	var buf [64]byte
 	for i := 0; i < 16; i++ {
