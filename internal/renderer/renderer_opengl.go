@@ -489,6 +489,7 @@ type Renderer struct {
 	brushModels                         map[int]*glWorldMesh
 	aliasModels                         map[string]*glAliasModel
 	spriteModels                        map[string]*glSpriteModel
+	aliasShadowTexture                  uint32
 	aliasScratchVAO                     uint32
 	aliasScratchVBO                     uint32
 	particleProgram                     uint32

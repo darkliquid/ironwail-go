@@ -225,6 +225,7 @@ var identityModelRotationMatrix = [16]float32{
 	0, 0, 1, 0,
 	0, 0, 0, 1,
 }
+
 type worldDrawCall struct {
 	face          WorldFace
 	texture       uint32
@@ -568,6 +569,13 @@ func (r *Renderer) ensureLightmapFallbackTextureLocked() {
 		return
 	}
 	r.worldLightmapFallback = uploadWorldLightmapTextureRGBA(1, 1, []byte{255, 255, 255, 255})
+}
+
+func (r *Renderer) ensureAliasShadowTextureLocked() {
+	if r.aliasShadowTexture != 0 {
+		return
+	}
+	r.aliasShadowTexture = uploadWorldTextureRGBA(1, 1, []byte{0, 0, 0, 255})
 }
 
 func (r *Renderer) ensureWorldSkyFallbackTexturesLocked() {
@@ -1993,6 +2001,18 @@ func readWorldSkyFogCvar(fallback float32) float32 {
 	return readWorldAlphaCvar(CvarRSkyFog, fallback)
 }
 
+func parseAliasShadowExclusions(value string) map[string]struct{} {
+	fields := strings.Fields(strings.ToLower(value))
+	if len(fields) == 0 {
+		return nil
+	}
+	exclusions := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		exclusions[field] = struct{}{}
+	}
+	return exclusions
+}
+
 func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogDensity float32) float32 {
 	if fogDensity <= 0 {
 		return 0
@@ -2602,6 +2622,159 @@ func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
 	r.renderAliasDraws(draws, false)
 }
 
+func (r *Renderer) renderAliasShadows(entities []AliasModelEntity) {
+	if len(entities) == 0 {
+		return
+	}
+	if cvar.FloatValue(CvarRShadows) <= 0 {
+		return
+	}
+
+	excludedModels := parseAliasShadowExclusions(cvar.StringValue(CvarRNoshadowList))
+
+	const (
+		shadowSegments = 16
+		shadowAlpha    = 0.5
+		shadowLift     = 0.1
+		minShadowSize  = 8.0
+		maxShadowSize  = 48.0
+	)
+
+	r.mu.Lock()
+	program := r.worldProgram
+	vp := r.viewMatrices.VP
+	camera := r.cameraState
+	vpUniform := r.worldVPUniform
+	textureUniform := r.worldTextureUniform
+	lightmapUniform := r.worldLightmapUniform
+	dynamicLightUniform := r.worldDynamicLightUniform
+	modelOffsetUniform := r.worldModelOffsetUniform
+	modelRotationUniform := r.worldModelRotationUniform
+	modelScaleUniform := r.worldModelScaleUniform
+	alphaUniform := r.worldAlphaUniform
+	timeUniform := r.worldTimeUniform
+	turbulentUniform := r.worldTurbulentUniform
+	cameraOriginUniform := r.worldCameraOriginUniform
+	fogColorUniform := r.worldFogColorUniform
+	fogDensityUniform := r.worldFogDensityUniform
+	r.ensureAliasScratchLocked()
+	r.ensureAliasShadowTextureLocked()
+	scratchVAO := r.aliasScratchVAO
+	scratchVBO := r.aliasScratchVBO
+	shadowTexture := r.aliasShadowTexture
+	fallbackLightmap := r.worldLightmapFallback
+	fogColor := r.worldFogColor
+	fogDensity := r.worldFogDensity
+	r.mu.Unlock()
+
+	if program == 0 || scratchVAO == 0 || scratchVBO == 0 || shadowTexture == 0 || fallbackLightmap == 0 {
+		return
+	}
+
+	gl.Enable(gl.DEPTH_TEST)
+	gl.DepthMask(false)
+	gl.Disable(gl.CULL_FACE)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	gl.UseProgram(program)
+	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
+	gl.Uniform1i(textureUniform, 0)
+	gl.Uniform1i(lightmapUniform, 1)
+	gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
+	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
+	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
+	gl.Uniform1f(modelScaleUniform, 1)
+	gl.Uniform1f(timeUniform, camera.Time)
+	gl.Uniform1f(turbulentUniform, 0)
+	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
+	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, shadowTexture)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindVertexArray(scratchVAO)
+	gl.BindBuffer(gl.ARRAY_BUFFER, scratchVBO)
+
+	for _, entity := range entities {
+		modelID := strings.ToLower(entity.ModelID)
+		if _, skip := excludedModels[modelID]; skip {
+			continue
+		}
+		if entity.Model == nil || entity.Model.AliasHeader == nil {
+			continue
+		}
+		if _, visible := visibleEntityAlpha(entity.Alpha); !visible {
+			continue
+		}
+
+		modelScale := entity.Scale
+		if modelScale == 0 {
+			modelScale = 1
+		}
+		mins := entity.Model.Mins
+		maxs := entity.Model.Maxs
+		spanX := (maxs[0] - mins[0]) * modelScale
+		spanY := (maxs[1] - mins[1]) * modelScale
+		shadowRadius := 0.5 * float32(math.Max(float64(spanX), float64(spanY)))
+		if shadowRadius < minShadowSize {
+			shadowRadius = minShadowSize
+		}
+		if shadowRadius > maxShadowSize {
+			shadowRadius = maxShadowSize
+		}
+
+		shadowZ := entity.Origin[2] + mins[2]*modelScale + shadowLift
+		center := WorldVertex{
+			Position:      [3]float32{entity.Origin[0], entity.Origin[1], shadowZ},
+			TexCoord:      [2]float32{0.5, 0.5},
+			LightmapCoord: [2]float32{},
+			Normal:        [3]float32{0, 0, 1},
+		}
+		vertices := make([]WorldVertex, 0, shadowSegments*3)
+		for i := 0; i < shadowSegments; i++ {
+			a0 := float32(i) * 2 * float32(math.Pi) / shadowSegments
+			a1 := float32(i+1) * 2 * float32(math.Pi) / shadowSegments
+			p0 := WorldVertex{
+				Position: [3]float32{
+					entity.Origin[0] + float32(math.Cos(float64(a0)))*shadowRadius,
+					entity.Origin[1] + float32(math.Sin(float64(a0)))*shadowRadius,
+					shadowZ,
+				},
+				TexCoord:      [2]float32{0, 0},
+				LightmapCoord: [2]float32{},
+				Normal:        [3]float32{0, 0, 1},
+			}
+			p1 := WorldVertex{
+				Position: [3]float32{
+					entity.Origin[0] + float32(math.Cos(float64(a1)))*shadowRadius,
+					entity.Origin[1] + float32(math.Sin(float64(a1)))*shadowRadius,
+					shadowZ,
+				},
+				TexCoord:      [2]float32{1, 1},
+				LightmapCoord: [2]float32{},
+				Normal:        [3]float32{0, 0, 1},
+			}
+			vertices = append(vertices, center, p0, p1)
+		}
+
+		vertexData := flattenWorldVertices(vertices)
+		gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
+		gl.Uniform1f(alphaUniform, shadowAlpha)
+		gl.DrawArrays(gl.TRIANGLES, 0, int32(len(vertices)))
+	}
+
+	gl.BindVertexArray(0)
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.UseProgram(0)
+	gl.DepthMask(true)
+}
+
 func (r *Renderer) renderViewModel(entity AliasModelEntity) {
 	r.mu.Lock()
 	draw := r.buildAliasDrawLocked(entity, true)
@@ -2923,6 +3096,10 @@ func (r *Renderer) clearWorldLocked() {
 	if r.worldSkyAlphaFallback != 0 {
 		gl.DeleteTextures(1, &r.worldSkyAlphaFallback)
 		r.worldSkyAlphaFallback = 0
+	}
+	if r.aliasShadowTexture != 0 {
+		gl.DeleteTextures(1, &r.aliasShadowTexture)
+		r.aliasShadowTexture = 0
 	}
 	if r.worldSkyExternalCubemap != 0 {
 		gl.DeleteTextures(1, &r.worldSkyExternalCubemap)
