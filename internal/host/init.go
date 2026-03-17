@@ -409,7 +409,9 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 
 	if subs.Audio != nil {
 		if err := subs.Audio.Init(); err != nil {
-			subs.Console.Print(fmt.Sprintf("Warning: failed to init audio: %v\n", err))
+			if subs.Console != nil {
+				subs.Console.Print(fmt.Sprintf("Warning: failed to init audio: %v\n", err))
+			}
 		}
 	}
 
