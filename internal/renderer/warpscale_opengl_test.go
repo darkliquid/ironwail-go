@@ -31,8 +31,8 @@ func TestApplyWaterwarpFOV(t *testing.T) {
 			baseFOV:    90.0,
 			time:       0,
 			// scale = 0.97 + sin(0)*0.03 = 0.97
-			// new = 2*atan(tan(45°)*0.97) * 180/π ≈ 2*atan(0.97) * 57.296 ≈ 87.76°
-			wantApprox: 87.76,
+			// new = atan(tan(45°)*0.97) * 360/π ≈ atan(0.97) * 114.59 ≈ 88.26°
+			wantApprox: 88.26,
 			tolerance:  0.05,
 		},
 		{
@@ -48,11 +48,10 @@ func TestApplyWaterwarpFOV(t *testing.T) {
 			baseFOV: 96.0,
 			time:    0,
 			// scale = 0.97
-			// new = 2*atan(tan(48°)*0.97)*180/π
-			// tan(48°) = 1.11061
-			// atan(1.11061*0.97) = atan(1.077) ≈ 47.104°
-			// new ≈ 94.21°
-			wantApprox: 94.21,
+			// new = atan(tan(48°)*0.97)*360/π
+			// tan(48°) ≈ 1.11061, scaled ≈ 1.07729
+			// atan(1.07729)*360/π ≈ 94.26°
+			wantApprox: 94.26,
 			tolerance:  0.05,
 		},
 	}
