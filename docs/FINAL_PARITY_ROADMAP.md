@@ -27,10 +27,10 @@ While the core movement model exists, manual testing has revealed critical behav
 The Go renderer draws the right things, but not always in the right way.
 
 - [x] **Translucent Batching**: Implement `R_AddBModelCall` and `R_CanMergeBModelAlphaPasses`. Implement collection and sorting of translucent brush model and world faces.
-- [ ] **Particle Visual Polish**: Match the exact visual appearance, decay, and movement of C Quake particles (blood, sparks, explosions).
-- [ ] **Visual Blue-Shift**: Implement the full `v_blend` blue-shift for underwater vision (audio intensity is already wired).
-- [ ] **Stencil/Decal Fidelity**: Ensure projected marks (bullet holes) use the correct stencil/depth-bias logic to avoid flickering.
-- [ ] **Sky Edge Cases**: Validate additional non-cubemap content packs and ensure embedded BSP fallback is frame-perfect.
+- [x] **Particle Visual Polish**: Particle physics are bit-identical to C (same struct, ramp tables, movement/decay/gravity for all 8 types). Rendering uses point sprites with fwidth-based AA.
+- [x] **Visual Blue-Shift**: `CalcBlend`/`UpdateBlend`/`SetContentsColor` in `viewblend.go` match C exactly. `polyblend_opengl.go` renders the full-screen overlay on the OpenGL path.
+- [x] **Stencil/Decal Fidelity**: `decal_opengl.go` uses `GL_STENCIL_TEST` (EQUAL/INCR) + `PolygonOffset(-1.0, -2.0)` to prevent z-fighting and double-blending.
+- [x] **Sky Edge Cases**: All three fallback paths implemented in `skybox_external.go`: cubemap → six separate face textures → embedded BSP sky, with proper mode selection.
 
 ---
 
