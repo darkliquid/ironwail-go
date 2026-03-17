@@ -15,66 +15,66 @@ import (
 )
 
 func resetRuntimeSoundState() {
-	soundSFXByIndex = nil
-	menuSFXByName = nil
-	ambientSFX = [audio.NumAmbients]*audio.SFX{}
-	soundPrecacheKey = ""
-	staticSoundKey = ""
-	musicTrackKey = ""
+	g.SoundSFXByIndex = nil
+	g.MenuSFXByName = nil
+	g.AmbientSFX = [audio.NumAmbients]*audio.SFX{}
+	g.SoundPrecacheKey = ""
+	g.StaticSoundKey = ""
+	g.MusicTrackKey = ""
 }
 
 func refreshRuntimeSoundCache() {
-	if gameClient == nil {
+	if g.Client == nil {
 		resetRuntimeSoundState()
 		return
 	}
-	key := strings.Join(gameClient.SoundPrecache, "\x00")
-	if key == soundPrecacheKey {
+	key := strings.Join(g.Client.SoundPrecache, "\x00")
+	if key == g.SoundPrecacheKey {
 		return
 	}
-	soundPrecacheKey = key
-	soundSFXByIndex = make(map[int]*audio.SFX)
+	g.SoundPrecacheKey = key
+	g.SoundSFXByIndex = make(map[int]*audio.SFX)
 }
 
 func resolveRuntimeSFX(soundIndex int) *audio.SFX {
-	if gameAudio == nil || gameClient == nil || gameSubs == nil || gameSubs.Files == nil || soundIndex <= 0 {
+	if g.Audio == nil || g.Client == nil || g.Subs == nil || g.Subs.Files == nil || soundIndex <= 0 {
 		return nil
 	}
 	refreshRuntimeSoundCache()
-	if sfx, ok := soundSFXByIndex[soundIndex]; ok {
+	if sfx, ok := g.SoundSFXByIndex[soundIndex]; ok {
 		return sfx
 	}
 	precacheIndex := soundIndex - 1
-	if precacheIndex < 0 || precacheIndex >= len(gameClient.SoundPrecache) {
-		soundSFXByIndex[soundIndex] = nil
+	if precacheIndex < 0 || precacheIndex >= len(g.Client.SoundPrecache) {
+		g.SoundSFXByIndex[soundIndex] = nil
 		return nil
 	}
-	soundName := gameClient.SoundPrecache[precacheIndex]
+	soundName := g.Client.SoundPrecache[precacheIndex]
 	if soundName == "" {
-		soundSFXByIndex[soundIndex] = nil
+		g.SoundSFXByIndex[soundIndex] = nil
 		return nil
 	}
-	sfx := gameAudio.PrecacheSound(soundName, func() ([]byte, error) {
-		return gameSubs.Files.LoadFile("sound/" + soundName)
+	sfx := g.Audio.PrecacheSound(soundName, func() ([]byte, error) {
+		return g.Subs.Files.LoadFile("sound/" + soundName)
 	})
-	soundSFXByIndex[soundIndex] = sfx
+	g.SoundSFXByIndex[soundIndex] = sfx
 	return sfx
 }
 
 func resolveMenuSFX(name string) *audio.SFX {
-	if gameAudio == nil || gameSubs == nil || gameSubs.Files == nil || name == "" {
+	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || name == "" {
 		return nil
 	}
-	if menuSFXByName == nil {
-		menuSFXByName = make(map[string]*audio.SFX)
+	if g.MenuSFXByName == nil {
+		g.MenuSFXByName = make(map[string]*audio.SFX)
 	}
-	if sfx, ok := menuSFXByName[name]; ok {
+	if sfx, ok := g.MenuSFXByName[name]; ok {
 		return sfx
 	}
-	sfx := gameAudio.PrecacheSound(name, func() ([]byte, error) {
-		return gameSubs.Files.LoadFile("sound/" + name)
+	sfx := g.Audio.PrecacheSound(name, func() ([]byte, error) {
+		return g.Subs.Files.LoadFile("sound/" + name)
 	})
-	menuSFXByName[name] = sfx
+	g.MenuSFXByName[name] = sfx
 	return sfx
 }
 
@@ -82,34 +82,34 @@ func resolveAmbientSFX(name string) *audio.SFX {
 	if name == "" {
 		return nil
 	}
-	if gameAudio == nil || gameSubs == nil || gameSubs.Files == nil {
+	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil {
 		return nil
 	}
-	return gameAudio.PrecacheSound(name, func() ([]byte, error) {
-		return gameSubs.Files.LoadFile("sound/" + name)
+	return g.Audio.PrecacheSound(name, func() ([]byte, error) {
+		return g.Subs.Files.LoadFile("sound/" + name)
 	})
 }
 
 func ensureRuntimeAmbientSFX() {
-	if gameAudio == nil {
-		ambientSFX = [audio.NumAmbients]*audio.SFX{}
+	if g.Audio == nil {
+		g.AmbientSFX = [audio.NumAmbients]*audio.SFX{}
 		return
 	}
 
-	if ambientSFX[0] == nil {
+	if g.AmbientSFX[0] == nil {
 		if sfx := resolveAmbientSFX("ambience/water1.wav"); sfx != nil {
-			ambientSFX[0] = sfx
+			g.AmbientSFX[0] = sfx
 		}
 	}
-	if ambientSFX[1] == nil {
+	if g.AmbientSFX[1] == nil {
 		if sfx := resolveAmbientSFX("ambience/wind2.wav"); sfx != nil {
-			ambientSFX[1] = sfx
+			g.AmbientSFX[1] = sfx
 		}
 	}
 
-	for i, sfx := range ambientSFX {
+	for i, sfx := range g.AmbientSFX {
 		if sfx != nil {
-			gameAudio.SetAmbientSound(i, sfx)
+			g.Audio.SetAmbientSound(i, sfx)
 		}
 	}
 }
@@ -140,10 +140,10 @@ func runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
 	wwValue := wwCvar.Float32()
 
 	// Forced-underwater from menu preview (mirrors C M_ForcedUnderwater()).
-	forced := gameMenu != nil && gameMenu.ForcedUnderwater()
+	forced := g.Menu != nil && g.Menu.ForcedUnderwater()
 
 	// Camera in liquid leaf (from most recent syncRuntimeAmbientAudio call).
-	active := runtimeCameraInLiquid || forced
+	active := g.CameraInLiquid || forced
 
 	if !active {
 		return false, false, 0
@@ -153,8 +153,8 @@ func runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
 	// In Go we use cl.time for both (no separate realtime equivalent exposed here).
 	// This is a minor divergence; note it for doc purposes.
 	var t float32
-	if gameClient != nil {
-		t = float32(gameClient.Time)
+	if g.Client != nil {
+		t = float32(g.Client.Time)
 	}
 
 	if wwValue > 1.0 {
@@ -196,7 +196,7 @@ func pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
 }
 
 func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
-	if gameAudio == nil {
+	if g.Audio == nil {
 		return
 	}
 
@@ -207,26 +207,26 @@ func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
 		hasLeaf       bool
 		underwater    float32
 	)
-	if gameClient != nil && gameClient.State == cl.StateActive && gameServer != nil && gameServer.WorldTree != nil {
-		if leaf, ok := pointInTreeLeaf(gameServer.WorldTree, viewOrigin); ok {
+	if g.Client != nil && g.Client.State == cl.StateActive && g.Server != nil && g.Server.WorldTree != nil {
+		if leaf, ok := pointInTreeLeaf(g.Server.WorldTree, viewOrigin); ok {
 			hasLeaf = true
 			ambientLevels[0] = leaf.AmbientLevel[bsp.AmbientWater]
 			ambientLevels[1] = leaf.AmbientLevel[bsp.AmbientSky]
 			underwater = runtimeUnderwaterIntensity(leaf.Contents)
 			// Track liquid-leaf state for visual waterwarp (r_waterwarp) and
 			// contents color shift (v_blend).
-			runtimeCameraInLiquid = underwater > 0
-			runtimeCameraLeafContents = leaf.Contents
+			g.CameraInLiquid = underwater > 0
+			g.CameraLeafContents = leaf.Contents
 		} else {
-			runtimeCameraInLiquid = false
-			runtimeCameraLeafContents = bsp.ContentsEmpty
+			g.CameraInLiquid = false
+			g.CameraLeafContents = bsp.ContentsEmpty
 		}
 	} else {
-		runtimeCameraInLiquid = false
-		runtimeCameraLeafContents = bsp.ContentsEmpty
+		g.CameraInLiquid = false
+		g.CameraLeafContents = bsp.ContentsEmpty
 	}
 
-	gameAudio.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwater)
+	g.Audio.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwater)
 }
 
 func playMenuSound(name string) {
@@ -234,18 +234,18 @@ func playMenuSound(name string) {
 	if sfx == nil {
 		return
 	}
-	gameAudio.StartSound(0, 0, sfx, [3]float32{}, [3]float32{}, 1, 0)
+	g.Audio.StartSound(0, 0, sfx, [3]float32{}, [3]float32{}, 1, 0)
 }
 
 func applySVolume() {
-	if gameAudio == nil {
+	if g.Audio == nil {
 		return
 	}
 	vol := 0.7
 	if cv := cvar.Get("s_volume"); cv != nil {
 		vol = cv.Float
 	}
-	gameAudio.SetVolume(vol)
+	g.Audio.SetVolume(vol)
 }
 
 func buildRuntimeStaticSoundKey(c *cl.Client) string {
@@ -258,7 +258,7 @@ func buildRuntimeStaticSoundKey(c *cl.Client) string {
 	b.WriteByte('\x1f')
 	b.WriteString(strconv.Itoa(int(c.State)))
 	b.WriteByte('\x1f')
-	b.WriteString(soundPrecacheKey)
+	b.WriteString(g.SoundPrecacheKey)
 	for _, snd := range c.StaticSounds {
 		b.WriteByte('\x1f')
 		b.WriteString(strconv.Itoa(snd.SoundIndex))
@@ -275,31 +275,31 @@ func buildRuntimeStaticSoundKey(c *cl.Client) string {
 }
 
 func syncRuntimeStaticSounds() {
-	if gameAudio == nil {
-		staticSoundKey = ""
+	if g.Audio == nil {
+		g.StaticSoundKey = ""
 		return
 	}
-	if gameClient == nil || gameClient.State != cl.StateActive {
-		if staticSoundKey != "" {
-			gameAudio.ClearStaticSounds()
-			staticSoundKey = ""
+	if g.Client == nil || g.Client.State != cl.StateActive {
+		if g.StaticSoundKey != "" {
+			g.Audio.ClearStaticSounds()
+			g.StaticSoundKey = ""
 		}
 		return
 	}
 
 	refreshRuntimeSoundCache()
-	key := buildRuntimeStaticSoundKey(gameClient)
-	if key == staticSoundKey {
+	key := buildRuntimeStaticSoundKey(g.Client)
+	if key == g.StaticSoundKey {
 		return
 	}
 
-	gameAudio.ClearStaticSounds()
-	for _, staticSound := range gameClient.StaticSounds {
+	g.Audio.ClearStaticSounds()
+	for _, staticSound := range g.Client.StaticSounds {
 		sfx := resolveRuntimeSFX(staticSound.SoundIndex)
 		if sfx == nil {
 			continue
 		}
-		gameAudio.StartStaticSound(
+		g.Audio.StartStaticSound(
 			sfx,
 			staticSound.Origin,
 			[3]float32{}, // Static sounds have no velocity
@@ -307,15 +307,15 @@ func syncRuntimeStaticSounds() {
 			staticSound.Attenuation,
 		)
 	}
-	staticSoundKey = key
+	g.StaticSoundKey = key
 }
 
 func runtimeMusicSelection() (track, loopTrack int) {
-	if gameHost != nil {
-		if demo := gameHost.DemoState(); demo != nil && demo.Playback {
-			if gameClient != nil && gameClient.CDTrack != 0 {
-				track = gameClient.CDTrack
-				loopTrack = gameClient.LoopTrack
+	if g.Host != nil {
+		if demo := g.Host.DemoState(); demo != nil && demo.Playback {
+			if g.Client != nil && g.Client.CDTrack != 0 {
+				track = g.Client.CDTrack
+				loopTrack = g.Client.LoopTrack
 			} else if demo.CDTrack != 0 {
 				track = demo.CDTrack
 				loopTrack = demo.CDTrack
@@ -326,11 +326,11 @@ func runtimeMusicSelection() (track, loopTrack int) {
 			return track, loopTrack
 		}
 	}
-	if gameClient == nil {
+	if g.Client == nil {
 		return 0, 0
 	}
-	track = gameClient.CDTrack
-	loopTrack = gameClient.LoopTrack
+	track = g.Client.CDTrack
+	loopTrack = g.Client.LoopTrack
 	if track != 0 && loopTrack == 0 {
 		loopTrack = track
 	}
@@ -341,40 +341,40 @@ func syncRuntimeMusic() {
 	track, loopTrack := runtimeMusicSelection()
 	key := fmt.Sprintf("%d/%d", track, loopTrack)
 
-	if gameAudio == nil {
-		musicTrackKey = ""
+	if g.Audio == nil {
+		g.MusicTrackKey = ""
 		return
 	}
-	if key == musicTrackKey {
+	if key == g.MusicTrackKey {
 		return
 	}
-	musicTrackKey = key
+	g.MusicTrackKey = key
 	if track == 0 {
-		gameAudio.StopMusic()
+		g.Audio.StopMusic()
 		return
 	}
-	if gameSubs == nil || gameSubs.Files == nil {
-		gameAudio.StopMusic()
+	if g.Subs == nil || g.Subs.Files == nil {
+		g.Audio.StopMusic()
 		slog.Warn("cannot play cd track without filesystem", "track", track)
 		return
 	}
-	if err := gameAudio.PlayCDTrack(track, loopTrack, func(name string) ([]byte, error) {
-		return gameSubs.Files.LoadFile(name)
+	if err := g.Audio.PlayCDTrack(track, loopTrack, func(name string) ([]byte, error) {
+		return g.Subs.Files.LoadFile(name)
 	}, func(candidates []string) (string, []byte, error) {
-		return gameSubs.Files.LoadFirstAvailable(candidates)
+		return g.Subs.Files.LoadFirstAvailable(candidates)
 	}); err != nil {
 		slog.Warn("failed to play cd track", "track", track, "loop", loopTrack, "error", err)
 	}
 }
 
 func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.TransientEvents) {
-	if gameAudio == nil {
+	if g.Audio == nil {
 		return
 	}
 	soundEvents := transientEvents.SoundEvents
 	stopEvents := transientEvents.StopSoundEvents
 	for _, stopEvent := range stopEvents {
-		gameAudio.StopSound(stopEvent.Entity, stopEvent.Channel)
+		g.Audio.StopSound(stopEvent.Entity, stopEvent.Channel)
 	}
 	for _, soundEvent := range soundEvents {
 		sfx := resolveRuntimeSFX(soundEvent.SoundIndex)
@@ -388,11 +388,11 @@ func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.Transie
 		if soundEvent.Local {
 			origin = viewOrigin
 			attenuation = 0
-			if gameClient.ViewEntity != 0 {
-				entNum = gameClient.ViewEntity
+			if g.Client.ViewEntity != 0 {
+				entNum = g.Client.ViewEntity
 			}
 		}
-		gameAudio.StartSound(
+		g.Audio.StartSound(
 			entNum,
 			entChannel,
 			sfx,

@@ -29,8 +29,8 @@ func registerGameplayBindCommands() {
 	// bf: bonus flash – gold item-pickup screen tint stuffed by the server.
 	// Mirrors C Ironwail: view.c V_BonusFlash_f().
 	cmdsys.AddCommand("bf", func(args []string) {
-		if gameClient != nil {
-			gameClient.BonusFlash()
+		if g.Client != nil {
+			g.Client.BonusFlash()
 		}
 	}, "Trigger bonus-pickup screen flash")
 
@@ -38,7 +38,7 @@ func registerGameplayBindCommands() {
 	// Usage: v_cshift <r> <g> <b> <percent>  (all 0–255)
 	// Mirrors C Ironwail: view.c V_cshift_f().
 	cmdsys.AddCommand("v_cshift", func(args []string) {
-		if gameClient == nil || len(args) < 5 {
+		if g.Client == nil || len(args) < 5 {
 			return
 		}
 		parseArg := func(s string) float32 {
@@ -46,7 +46,7 @@ func registerGameplayBindCommands() {
 			fmt.Sscanf(s, "%f", &v)
 			return float32(v)
 		}
-		gameClient.SetCustomShift(parseArg(args[1]), parseArg(args[2]), parseArg(args[3]), parseArg(args[4]))
+		g.Client.SetCustomShift(parseArg(args[1]), parseArg(args[2]), parseArg(args[3]), parseArg(args[4]))
 	}, "Set custom screen color shift (r g b percent, 0–255)")
 
 	registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
@@ -84,7 +84,7 @@ func registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *c
 }
 
 func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bool, args []string) {
-	if gameClient == nil {
+	if g.Client == nil {
 		return
 	}
 	key := -1
@@ -93,20 +93,20 @@ func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bo
 			key = parsed
 		}
 	}
-	button := selectButton(gameClient)
+	button := selectButton(g.Client)
 	if down {
-		gameClient.KeyDown(button, key)
+		g.Client.KeyDown(button, key)
 		return
 	}
-	gameClient.KeyUp(button, key)
+	g.Client.KeyUp(button, key)
 }
 
 func applyDefaultGameplayBindings() {
-	if gameInput == nil {
+	if g.Input == nil {
 		return
 	}
 	for _, binding := range gameplayDefaultBindings {
-		gameInput.SetBinding(binding.key, binding.command)
+		g.Input.SetBinding(binding.key, binding.command)
 	}
 }
 
@@ -119,7 +119,7 @@ func parseBindingKey(name string) (int, bool) {
 }
 
 func cmdBind(args []string) {
-	if gameInput == nil {
+	if g.Input == nil {
 		return
 	}
 	if len(args) < 1 {
@@ -132,7 +132,7 @@ func cmdBind(args []string) {
 		return
 	}
 	if len(args) == 1 {
-		binding := gameInput.GetBinding(key)
+		binding := g.Input.GetBinding(key)
 		if binding == "" {
 			console.Printf("\"%s\" is not bound\n", args[0])
 		} else {
@@ -140,11 +140,11 @@ func cmdBind(args []string) {
 		}
 		return
 	}
-	gameInput.SetBinding(key, strings.Join(args[1:], " "))
+	g.Input.SetBinding(key, strings.Join(args[1:], " "))
 }
 
 func cmdUnbind(args []string) {
-	if gameInput == nil {
+	if g.Input == nil {
 		return
 	}
 	if len(args) != 1 {
@@ -156,25 +156,25 @@ func cmdUnbind(args []string) {
 		console.Printf("unbind: \"%s\" is not a valid key\n", args[0])
 		return
 	}
-	gameInput.SetBinding(key, "")
+	g.Input.SetBinding(key, "")
 }
 
 func cmdUnbindAll(_ []string) {
-	if gameInput == nil {
+	if g.Input == nil {
 		return
 	}
 	for key := 0; key < input.NumKeycode; key++ {
-		gameInput.SetBinding(key, "")
+		g.Input.SetBinding(key, "")
 	}
 }
 
 func cmdBindList(_ []string) {
-	if gameInput == nil {
+	if g.Input == nil {
 		return
 	}
 	count := 0
 	for key := 0; key < input.NumKeycode; key++ {
-		binding := gameInput.GetBinding(key)
+		binding := g.Input.GetBinding(key)
 		if binding == "" {
 			continue
 		}
@@ -189,7 +189,7 @@ func cmdBindList(_ []string) {
 }
 
 func cmdImpulse(args []string) {
-	if gameClient == nil {
+	if g.Client == nil {
 		return
 	}
 	if len(args) < 1 {
@@ -201,26 +201,26 @@ func cmdImpulse(args []string) {
 		console.Printf("impulse: \"%s\" is not a number\n", args[0])
 		return
 	}
-	gameClient.InImpulse = impulse
+	g.Client.InImpulse = impulse
 }
 
 func cmdToggleConsole(_ []string) {
-	if gameInput == nil {
+	if g.Input == nil {
 		return
 	}
 
-	if gameInput.GetKeyDest() == input.KeyConsole {
+	if g.Input.GetKeyDest() == input.KeyConsole {
 		console.ResetCompletion()
-		gameInput.SetKeyDest(input.KeyGame)
+		g.Input.SetKeyDest(input.KeyGame)
 		syncGameplayInputMode()
 		return
 	}
 
-	if gameMenu != nil && gameMenu.IsActive() {
-		gameMenu.HideMenu()
+	if g.Menu != nil && g.Menu.IsActive() {
+		g.Menu.HideMenu()
 	}
 	console.ResetCompletion()
-	gameInput.SetKeyDest(input.KeyConsole)
+	g.Input.SetKeyDest(input.KeyConsole)
 	syncGameplayInputMode()
 }
 
@@ -239,10 +239,10 @@ func cmdScreenshot(args []string) {
 	}
 
 	baseDir := "."
-	if gameHost != nil && strings.TrimSpace(gameHost.BaseDir()) != "" {
-		baseDir = gameHost.BaseDir()
+	if g.Host != nil && strings.TrimSpace(g.Host.BaseDir()) != "" {
+		baseDir = g.Host.BaseDir()
 	}
-	modDir := strings.TrimSpace(gameModDir)
+	modDir := strings.TrimSpace(g.ModDir)
 	if modDir == "" {
 		modDir = "id1"
 	}
@@ -264,12 +264,12 @@ func cmdScreenshot(args []string) {
 }
 
 func cmdShowScores(_ []string) {
-	if gameClient == nil {
+	if g.Client == nil {
 		return
 	}
-	gameShowScores = true
+	g.ShowScores = true
 }
 
 func cmdHideScores(_ []string) {
-	gameShowScores = false
+	g.ShowScores = false
 }

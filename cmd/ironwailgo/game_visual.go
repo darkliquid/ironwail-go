@@ -42,16 +42,16 @@ func shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool 
 }
 
 func recordRuntimeDemoFrame() {
-	if gameHost == nil || gameSubs == nil || gameSubs.Client == nil || gameClient == nil {
+	if g.Host == nil || g.Subs == nil || g.Subs.Client == nil || g.Client == nil {
 		return
 	}
 
-	demo := gameHost.DemoState()
+	demo := g.Host.DemoState()
 	if demo == nil || !demo.Recording {
 		return
 	}
 
-	source, ok := gameSubs.Client.(interface{ LastServerMessage() []byte })
+	source, ok := g.Subs.Client.(interface{ LastServerMessage() []byte })
 	if !ok {
 		return
 	}
@@ -60,60 +60,60 @@ func recordRuntimeDemoFrame() {
 		return
 	}
 
-	if err := demo.WriteDemoFrame(message, gameClient.ViewAngles); err != nil {
+	if err := demo.WriteDemoFrame(message, g.Client.ViewAngles); err != nil {
 		slog.Warn("failed to record demo frame", "error", err)
 	}
 }
 
 func resetRuntimeVisualState() {
-	if gameRenderer == nil {
-		gameParticles = nil
-		gameDecalMarks = nil
-		particleRNG = nil
-		particleTime = 0
-		skyboxNameKey = ""
+	if g.Renderer == nil {
+		g.Particles = nil
+		g.DecalMarks = nil
+		g.ParticleRNG = nil
+		g.ParticleTime = 0
+		g.SkyboxNameKey = ""
 		return
 	}
 
-	gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
-	gameDecalMarks = renderer.NewDecalMarkSystem()
-	particleRNG = rand.New(rand.NewSource(1))
-	particleTime = 0
-	skyboxNameKey = ""
+	g.Particles = renderer.NewParticleSystem(renderer.MaxParticles)
+	g.DecalMarks = renderer.NewDecalMarkSystem()
+	g.ParticleRNG = rand.New(rand.NewSource(1))
+	g.ParticleTime = 0
+	g.SkyboxNameKey = ""
 }
 
 func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
-	if gameParticles == nil && gameDecalMarks == nil && gameRenderer == nil {
+	if g.Particles == nil && g.DecalMarks == nil && g.Renderer == nil {
 		return
 	}
 
-	if gameClient == nil || gameClient.State != cl.StateActive {
-		if gameRenderer != nil {
-			gameRenderer.ClearDynamicLights()
+	if g.Client == nil || g.Client.State != cl.StateActive {
+		if g.Renderer != nil {
+			g.Renderer.ClearDynamicLights()
 		}
-		if (gameParticles != nil && gameParticles.ActiveCount() > 0) || (gameDecalMarks != nil && gameDecalMarks.ActiveCount() > 0) {
+		if (g.Particles != nil && g.Particles.ActiveCount() > 0) || (g.DecalMarks != nil && g.DecalMarks.ActiveCount() > 0) {
 			resetRuntimeVisualState()
 		}
 		return
 	}
 
 	// Update v_blend color shifts: decay damage/bonus, compute powerup, sync contents tint.
-	// runtimeCameraLeafContents was updated by syncRuntimeAmbientAudio earlier this frame.
+	// g.CameraLeafContents was updated by syncRuntimeAmbientAudio earlier this frame.
 	// Mirrors C view.c:V_UpdateBlend() + V_SetContentsColor().
-	gameClient.SetContentsColor(runtimeCameraLeafContents)
-	gameClient.UpdateBlend(dt)
+	g.Client.SetContentsColor(g.CameraLeafContents)
+	g.Client.UpdateBlend(dt)
 
 	// Update damage kick angles if damage was recently taken.
 	// Mirrors C Ironwail V_ParseDamage damage kick calculation (view.c:329-345).
-	if gameClient.DamageTaken > 0 || gameClient.DamageSaved > 0 {
+	if g.Client.DamageTaken > 0 || g.Client.DamageSaved > 0 {
 		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
 			var entityAngles [3]float32
 			// Get player entity angles from ViewEntity.
-			if gameClient.ViewEntity != 0 {
-				if state, ok := gameClient.Entities[gameClient.ViewEntity]; ok {
+			if g.Client.ViewEntity != 0 {
+				if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
 					entityAngles = state.Angles
 				}
-			} else if state, ok := gameClient.Entities[0]; ok {
+			} else if state, ok := g.Client.Entities[0]; ok {
 				entityAngles = state.Angles
 			}
 			// Get cvar values.
@@ -129,106 +129,106 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 			if cv := cvar.Get("v_kickpitch"); cv != nil {
 				kickPitch = cv.Float32()
 			}
-			gameClient.CalculateDamageKick(entityOrigin, entityAngles, kickTime, kickRoll, kickPitch)
+			g.Client.CalculateDamageKick(entityOrigin, entityAngles, kickTime, kickRoll, kickPitch)
 		}
 	}
 
-	oldTime := particleTime
-	particleTime += float32(dt)
+	oldTime := g.ParticleTime
+	g.ParticleTime += float32(dt)
 
 	// Interpolate entity positions/angles from double-buffered network origins.
 	// Must run before any entity collection so rendered positions are lerped.
-	if gameClient != nil {
-		gameClient.RelinkEntities()
+	if g.Client != nil {
+		g.Client.RelinkEntities()
 	}
 
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
 	effectSources := collectEntityEffectSources()
 
-	if gameRenderer != nil {
-		gameRenderer.UpdateLights(float32(dt))
-		renderer.EmitDynamicLights(gameRenderer.SpawnDynamicLight, tempEntities)
-		renderer.EmitEntityEffectLights(gameRenderer.SpawnKeyedDynamicLight, effectSources)
+	if g.Renderer != nil {
+		g.Renderer.UpdateLights(float32(dt))
+		renderer.EmitDynamicLights(g.Renderer.SpawnDynamicLight, tempEntities)
+		renderer.EmitEntityEffectLights(g.Renderer.SpawnKeyedDynamicLight, effectSources)
 	}
-	if gameParticles != nil {
-		renderer.EmitClientEffects(gameParticles, particleEvents, tempEntities, particleRNG, particleTime)
-		renderer.EmitEntityEffectParticles(gameParticles, effectSources, particleTime)
-		gameParticles.RunParticles(particleTime, oldTime, 800)
+	if g.Particles != nil {
+		renderer.EmitClientEffects(g.Particles, particleEvents, tempEntities, g.ParticleRNG, g.ParticleTime)
+		renderer.EmitEntityEffectParticles(g.Particles, effectSources, g.ParticleTime)
+		g.Particles.RunParticles(g.ParticleTime, oldTime, 800)
 	}
-	if gameDecalMarks != nil {
-		gameDecalMarks.Run(particleTime)
-		renderer.EmitDecalMarks(gameDecalMarks, tempEntities, particleRNG, particleTime)
+	if g.DecalMarks != nil {
+		g.DecalMarks.Run(g.ParticleTime)
+		renderer.EmitDecalMarks(g.DecalMarks, tempEntities, g.ParticleRNG, g.ParticleTime)
 	}
 }
 
 func syncRuntimeSkybox() {
-	if gameRenderer == nil {
-		skyboxNameKey = ""
+	if g.Renderer == nil {
+		g.SkyboxNameKey = ""
 		return
 	}
 	skyboxName := ""
-	if gameClient != nil && gameClient.State == cl.StateActive {
-		skyboxName = gameClient.SkyboxName
+	if g.Client != nil && g.Client.State == cl.StateActive {
+		skyboxName = g.Client.SkyboxName
 	}
-	if skyboxName == skyboxNameKey {
+	if skyboxName == g.SkyboxNameKey {
 		return
 	}
-	skyboxNameKey = skyboxName
-	if skyboxName == "" || gameSubs == nil || gameSubs.Files == nil {
-		gameRenderer.SetExternalSkybox("", nil)
+	g.SkyboxNameKey = skyboxName
+	if skyboxName == "" || g.Subs == nil || g.Subs.Files == nil {
+		g.Renderer.SetExternalSkybox("", nil)
 		return
 	}
-	gameRenderer.SetExternalSkybox(skyboxName, gameSubs.Files.LoadFile)
+	g.Renderer.SetExternalSkybox(skyboxName, g.Subs.Files.LoadFile)
 }
 
 // updateHUDFromServer pushes current player/client state into the HUD.
 func updateHUDFromServer() {
-	if gameHUD == nil {
+	if g.HUD == nil {
 		return
 	}
 
-	if gameClient != nil {
-		shells, nails, rockets, cells := gameClient.AmmoCounts()
-		gameHUD.SetState(hud.State{
-			Health:        gameClient.Health(),
-			Armor:         gameClient.Armor(),
-			Ammo:          gameClient.Ammo(),
-			WeaponModel:   gameClient.WeaponModelIndex(),
-			ActiveWeapon:  gameClient.ActiveWeapon(),
+	if g.Client != nil {
+		shells, nails, rockets, cells := g.Client.AmmoCounts()
+		g.HUD.SetState(hud.State{
+			Health:        g.Client.Health(),
+			Armor:         g.Client.Armor(),
+			Ammo:          g.Client.Ammo(),
+			WeaponModel:   g.Client.WeaponModelIndex(),
+			ActiveWeapon:  g.Client.ActiveWeapon(),
 			Shells:        shells,
 			Nails:         nails,
 			Rockets:       rockets,
 			Cells:         cells,
-			Items:         gameClient.Items,
-			ModHipnotic:   gameModDir == "hipnotic",
-			ModRogue:      gameModDir == "rogue",
-			GameType:      gameClient.GameType,
-			MaxClients:    gameClient.MaxClients,
-			ShowScores:    gameShowScores && gameClient.MaxClients > 1,
-			Scoreboard:    buildHUDScoreboard(gameClient),
-			Intermission:  gameClient.Intermission,
-			CompletedTime: gameClient.CompletedTime,
-			Time:          gameClient.Time,
-			CenterPrint:   gameClient.CenterPrint,
-			CenterPrintAt: gameClient.CenterPrintAt,
-			LevelName:     gameClient.LevelName,
-			Secrets:       gameClient.Stats[inet.StatSecrets],
-			TotalSecrets:  gameClient.Stats[inet.StatTotalSecrets],
-			Monsters:      gameClient.Stats[inet.StatMonsters],
-			TotalMonsters: gameClient.Stats[inet.StatTotalMonsters],
+			Items:         g.Client.Items,
+			ModHipnotic:   g.ModDir == "hipnotic",
+			ModRogue:      g.ModDir == "rogue",
+			GameType:      g.Client.GameType,
+			MaxClients:    g.Client.MaxClients,
+			ShowScores:    g.ShowScores && g.Client.MaxClients > 1,
+			Scoreboard:    buildHUDScoreboard(g.Client),
+			Intermission:  g.Client.Intermission,
+			CompletedTime: g.Client.CompletedTime,
+			Time:          g.Client.Time,
+			CenterPrint:   g.Client.CenterPrint,
+			CenterPrintAt: g.Client.CenterPrintAt,
+			LevelName:     g.Client.LevelName,
+			Secrets:       g.Client.Stats[inet.StatSecrets],
+			TotalSecrets:  g.Client.Stats[inet.StatTotalSecrets],
+			Monsters:      g.Client.Stats[inet.StatMonsters],
+			TotalMonsters: g.Client.Stats[inet.StatTotalMonsters],
 		})
 		return
 	}
 
-	if gameServer == nil {
+	if g.Server == nil {
 		return
 	}
-	ent := gameServer.EdictNum(1)
+	ent := g.Server.EdictNum(1)
 	if ent == nil {
 		return
 	}
-	gameHUD.SetState(hud.State{
+	g.HUD.SetState(hud.State{
 		Health:      int(ent.Vars.Health),
 		Armor:       int(ent.Vars.ArmorValue),
 		Ammo:        int(ent.Vars.CurrentAmmo),

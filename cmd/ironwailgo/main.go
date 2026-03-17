@@ -32,49 +32,46 @@ const (
 	runtimeMaxPredictedXYOffset = 4.0
 )
 
-var (
-	gameHost       *host.Host
-	gameServer     *server.Server
-	gameQC         *qc.VM
-	gameRenderer   *renderer.Renderer
-	gameSubs       *host.Subsystems // Store subsystems for command execution
-	gameClient     *cl.Client
-	gameParticles  *renderer.ParticleSystem
-	gameDecalMarks *renderer.DecalMarkSystem
-	particleRNG    *rand.Rand
-	particleTime   float32
+// Game consolidates all top-level engine state into a single struct.
+// Previously these were scattered package-level variables; grouping them
+// here makes ownership, lifetime, and dependencies explicit.
+type Game struct {
+	Host       *host.Host
+	Server     *server.Server
+	QC         *qc.VM
+	Renderer   *renderer.Renderer
+	Subs       *host.Subsystems
+	Client     *cl.Client
+	Particles  *renderer.ParticleSystem
+	DecalMarks *renderer.DecalMarkSystem
 
-	// Menu subsystem
-	gameMenu  *menu.Manager
-	gameInput *input.System
-	gameDraw  *draw.Manager
-	gameHUD   *hud.HUD
-	gameAudio *audio.AudioAdapter
+	ParticleRNG  *rand.Rand
+	ParticleTime float32
 
-	gameMouseGrabbed bool
-	aliasModelCache  map[string]*model.Model
-	spriteModelCache map[string]*runtimeSpriteModel
-	soundSFXByIndex  map[int]*audio.SFX
-	menuSFXByName    map[string]*audio.SFX
-	ambientSFX       [audio.NumAmbients]*audio.SFX
-	soundPrecacheKey string
-	staticSoundKey   string
-	musicTrackKey    string
-	skyboxNameKey    string
-	gameShowScores   bool
-	gameModDir       string
+	Menu  *menu.Manager
+	Input *input.System
+	Draw  *draw.Manager
+	HUD   *hud.HUD
+	Audio *audio.AudioAdapter
 
-	// runtimeCameraInLiquid tracks whether the current camera/view leaf is a
-	// liquid leaf (water, slime, or lava). Updated each frame in the OnUpdate
-	// callback alongside ambient audio; used to drive the visual waterwarp effect.
-	runtimeCameraInLiquid bool
+	MouseGrabbed     bool
+	AliasModelCache  map[string]*model.Model
+	SpriteModelCache map[string]*runtimeSpriteModel
+	SoundSFXByIndex  map[int]*audio.SFX
+	MenuSFXByName    map[string]*audio.SFX
+	AmbientSFX       [audio.NumAmbients]*audio.SFX
+	SoundPrecacheKey string
+	StaticSoundKey   string
+	MusicTrackKey    string
+	SkyboxNameKey    string
+	ShowScores       bool
+	ModDir           string
 
-	// runtimeCameraLeafContents is the BSP leaf contents type at the current
-	// camera position (e.g. bsp.ContentsWater, ContentsLava, ContentsEmpty).
-	// Updated alongside runtimeCameraInLiquid in syncRuntimeAmbientAudio.
-	// Used to drive the contents color-shift (v_blend underwater tint).
-	runtimeCameraLeafContents int32
-)
+	CameraInLiquid     bool
+	CameraLeafContents int32
+}
+
+var g Game
 
 type defaultBinding struct {
 	key     int
@@ -182,10 +179,10 @@ func main() {
 	}
 	cvar.SetBool("dedicated", dedicated)
 	defer func() {
-		if gameHost == nil {
+		if g.Host == nil {
 			return
 		}
-		if err := gameHost.WriteConfig(gameSubs); err != nil {
+		if err := g.Host.WriteConfig(g.Subs); err != nil {
 			log.Printf("Failed to write config: %v", err)
 		}
 	}()
@@ -200,11 +197,11 @@ func main() {
 	// Execute map command if map argument was provided
 	if mapArg != "" {
 		slog.Info("map spawn started", "map", mapArg)
-		if err := gameHost.CmdMap(mapArg, gameSubs); err != nil {
+		if err := g.Host.CmdMap(mapArg, g.Subs); err != nil {
 			log.Printf("Failed to spawn map %s: %v", mapArg, err)
 		} else {
 			slog.Info("map spawn finished", "map", mapArg)
-			if gameClient != nil && gameClient.State == cl.StateActive && gameHost.SignOns() == 4 {
+			if g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
 				applyStartupGameplayInputMode()
 				slog.Info("client active", "map", mapArg)
 			}
@@ -222,37 +219,37 @@ func main() {
 	if !headless {
 		cb := gameCallbacks{}
 		// Set up renderer callbacks
-		gameRenderer.OnUpdate(func(dt float64) {
-			if gameInput != nil {
-				_ = gameInput.PollEvents()
+		g.Renderer.OnUpdate(func(dt float64) {
+			if g.Input != nil {
+				_ = g.Input.PollEvents()
 				syncGameplayInputMode()
 				applyMenuMouseMove()
 				applyGameplayMouseLook()
 			}
 
 			transientEvents := runRuntimeFrame(dt, cb)
-			if gameHost != nil && gameHost.IsAborted() {
-				if gameRenderer != nil {
-					gameRenderer.Stop()
+			if g.Host != nil && g.Host.IsAborted() {
+				if g.Renderer != nil {
+					g.Renderer.Stop()
 				}
 				return
 			}
 
 			// Update camera from client state each frame
 			// This is the critical rendering path for M4: view setup
-			if gameRenderer != nil {
+			if g.Renderer != nil {
 				origin, angles := runtimeViewState()
 				camera := runtimeCameraState(origin, angles)
 
 				// Update renderer matrices (near=0.1, far=4096 for Quake world)
-				gameRenderer.UpdateCamera(camera, 0.1, 4096.0)
+				g.Renderer.UpdateCamera(camera, 0.1, 4096.0)
 			}
 
 			syncRuntimeVisualEffects(dt, transientEvents)
 		})
-		gameRenderer.OnDraw(func(dc renderer.RenderContext) {
-			if gameRenderer != nil && gameServer != nil && gameServer.WorldTree != nil && !gameRenderer.HasWorldData() {
-				if err := gameRenderer.UploadWorld(gameServer.WorldTree); err != nil {
+		g.Renderer.OnDraw(func(dc renderer.RenderContext) {
+			if g.Renderer != nil && g.Server != nil && g.Server.WorldTree != nil && !g.Renderer.HasWorldData() {
+				if err := g.Renderer.UploadWorld(g.Server.WorldTree); err != nil {
 					slog.Warn("deferred world upload failed", "error", err)
 				}
 			}
@@ -265,16 +262,16 @@ func main() {
 			if drawCtx, ok := dc.(*renderer.DrawContext); ok {
 				state := buildRuntimeRenderFrameState(brushEntities, aliasEntities, spriteEntities, viewModel)
 				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
-					w, h := gameRenderer.Size()
-					consoleVisible := gameInput != nil && gameInput.GetKeyDest() == input.KeyConsole
+					w, h := g.Renderer.Size()
+					consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
 
 					// con_forcedup: when disconnected or not fully signed on,
 					// force full console behind everything (mirrors C Ironwail
 					// gl_screen.c:1511: con_forcedup = !cl.worldmodel || cls.signon != SIGNONS)
-					conForcedup := gameClient == nil || gameClient.Signon < cl.Signons
+					conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
 
-					if gameHost != nil && gameHost.LoadingPlaqueActive(0) {
-						drawLoadingPlaque(overlay, gameDraw)
+					if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
+						drawLoadingPlaque(overlay, g.Draw)
 						if consoleVisible {
 							console.Draw(overlay, w, h, true)
 						}
@@ -287,16 +284,16 @@ func main() {
 					}
 
 					// Menu draws on top of console
-					if gameMenu != nil && gameMenu.IsActive() {
-						gameMenu.M_Draw(overlay)
+					if g.Menu != nil && g.Menu.IsActive() {
+						g.Menu.M_Draw(overlay)
 						return
 					}
 
 					if !conForcedup {
-						if gameHUD != nil {
-							gameHUD.SetScreenSize(w, h)
+						if g.HUD != nil {
+							g.HUD.SetScreenSize(w, h)
 							updateHUDFromServer()
-							gameHUD.Draw(overlay)
+							g.HUD.Draw(overlay)
 						}
 
 						if consoleVisible {
@@ -311,25 +308,25 @@ func main() {
 			}
 
 			dc.Clear(0, 0, 0, 1)
-			if gameHost != nil && gameHost.LoadingPlaqueActive(0) {
-				drawLoadingPlaque(dc, gameDraw)
+			if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
+				drawLoadingPlaque(dc, g.Draw)
 				return
 			}
 			// con_forcedup for gogpu path
-			conForcedup := gameClient == nil || gameClient.Signon < cl.Signons
+			conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
 			if conForcedup {
 				// In gogpu path we just show menu over black
 			}
-			if gameMenu != nil && gameMenu.IsActive() {
-				gameMenu.M_Draw(dc)
+			if g.Menu != nil && g.Menu.IsActive() {
+				g.Menu.M_Draw(dc)
 			}
 		})
 
 		// Start the main loop (blocking)
 		slog.Info("frame loop started")
-		runErr := gameRenderer.Run()
+		runErr := g.Renderer.Run()
 		if runErr != nil {
-			gameRenderer.Shutdown()
+			g.Renderer.Shutdown()
 			if isRendererError(runErr) {
 				fmt.Println("WARNING: Render loop failed. Falling back to headless mode.")
 				fmt.Printf("Error: %v\n", runErr)
@@ -340,7 +337,7 @@ func main() {
 			}
 		} else {
 			// Cleanup
-			gameRenderer.Shutdown()
+			g.Renderer.Shutdown()
 		}
 	}
 
@@ -357,20 +354,20 @@ func main() {
 }
 
 func runtimeViewModelVisible() bool {
-	if gameClient == nil {
+	if g.Client == nil {
 		return false
 	}
-	if gameMenu != nil && gameMenu.IsActive() {
+	if g.Menu != nil && g.Menu.IsActive() {
 		return false
 	}
-	if gameClient.Intermission != 0 {
+	if g.Client.Intermission != 0 {
 		return false
 	}
 	if !cvar.BoolValue("r_drawviewmodel") {
 		return false
 	}
-	if gameClient.Health() <= 0 {
+	if g.Client.Health() <= 0 {
 		return false
 	}
-	return gameClient.Items&cl.ItemInvisibility == 0
+	return g.Client.Items&cl.ItemInvisibility == 0
 }

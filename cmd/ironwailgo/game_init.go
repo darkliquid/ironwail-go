@@ -87,15 +87,15 @@ func initGameHost() error {
 	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
 	crosshair := cvar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
 	crosshair.Callback = func(cv *cvar.CVar) {
-		if gameHUD != nil {
-			gameHUD.UpdateCrosshair(cv.Float)
+		if g.HUD != nil {
+			g.HUD.UpdateCrosshair(cv.Float)
 		}
 	}
 	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
 	registerControlCvars()
 
 	// Create host instance
-	gameHost = host.NewHost()
+	g.Host = host.NewHost()
 
 	return nil
 }
@@ -118,24 +118,24 @@ func registerControlCvars() {
 }
 
 func syncControlCvarsToClient() {
-	if gameClient == nil {
+	if g.Client == nil {
 		return
 	}
-	gameClient.AlwaysRun = cvar.BoolValue("cl_alwaysrun")
-	gameClient.FreeLook = cvar.BoolValue("freelook")
-	gameClient.LookSpring = cvar.BoolValue("lookspring")
+	g.Client.AlwaysRun = cvar.BoolValue("cl_alwaysrun")
+	g.Client.FreeLook = cvar.BoolValue("freelook")
+	g.Client.LookSpring = cvar.BoolValue("lookspring")
 }
 
 func initGameServer() error {
 	// Create server instance
-	gameServer = server.NewServer()
+	g.Server = server.NewServer()
 
 	return nil
 }
 
 func initGameQC() error {
 	// Create QC VM instance
-	gameQC = qc.NewVM()
+	g.QC = qc.NewVM()
 	// slog.Info("QC loaded") - moved to main for deterministic logs
 
 	return nil
@@ -151,7 +151,7 @@ func initGameRenderer() error {
 	if err != nil {
 		return fmt.Errorf("failed to create renderer: %w", err)
 	}
-	gameRenderer = tr
+	g.Renderer = tr
 
 	return nil
 }
@@ -175,31 +175,31 @@ func preferWaylandForGoGPU() {
 }
 
 func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []string) error {
-	gameModDir = strings.ToLower(strings.TrimSpace(gamedir))
-	gameInput = nil
-	gameDraw = nil
-	gameMenu = nil
-	gameHUD = nil
+	g.ModDir = strings.ToLower(strings.TrimSpace(gamedir))
+	g.Input = nil
+	g.Draw = nil
+	g.Menu = nil
+	g.HUD = nil
 
 	// Initialize base input system (used for binds/console routing even in dedicated mode).
-	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer when available.
-	if err := gameInput.Init(); err != nil {
+	g.Input = input.NewSystem(nil) // No backend yet - will be set by renderer when available.
+	if err := g.Input.Init(); err != nil {
 		return fmt.Errorf("failed to init input system: %w", err)
 	}
 
 	if !dedicated {
 		// Initialize draw manager
-		gameDraw = draw.NewManager()
+		g.Draw = draw.NewManager()
 
 		// Initialize menu system
-		gameMenu = menu.NewManager(gameDraw, gameInput)
-		gameMenu.SetSoundPlayer(playMenuSound)
+		g.Menu = menu.NewManager(g.Draw, g.Input)
+		g.Menu.SetSoundPlayer(playMenuSound)
 
 		// Set up menu input callbacks
-		gameInput.OnMenuKey = handleMenuKeyEvent
-		gameInput.OnMenuChar = handleMenuCharEvent
-		gameInput.OnKey = handleGameKeyEvent
-		gameInput.OnChar = handleGameCharEvent
+		g.Input.OnMenuKey = handleMenuKeyEvent
+		g.Input.OnMenuChar = handleMenuCharEvent
+		g.Input.OnKey = handleGameKeyEvent
+		g.Input.OnChar = handleGameCharEvent
 	}
 
 	if err := initGameHost(); err != nil {
@@ -222,17 +222,17 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 	if err != nil {
 		return fmt.Errorf("failed to load progs.dat: %w", err)
 	}
-	if err := gameQC.LoadProgs(bytes.NewReader(progsData)); err != nil {
+	if err := g.QC.LoadProgs(bytes.NewReader(progsData)); err != nil {
 		return fmt.Errorf("failed to parse progs.dat: %w", err)
 	}
 	// Link the builtins and set up entity sizes
-	qc.RegisterBuiltins(gameQC)
+	qc.RegisterBuiltins(g.QC)
 
 	if err := initGameServer(); err != nil {
 		return err
 	}
 	// Link QC VM into the server
-	gameServer.QCVM = gameQC
+	g.Server.QCVM = g.QC
 
 	if !headless {
 		if err := initGameRenderer(); err != nil {
@@ -241,11 +241,11 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 	}
 
 	// If renderer was created, wire its input backend into the input system
-	if !dedicated && gameRenderer != nil && gameInput != nil {
+	if !dedicated && g.Renderer != nil && g.Input != nil {
 		// Some renderers provide a backend factory to adapt window events
 		// to the engine input system.
-		if bb := gameRenderer.InputBackendForSystem(gameInput); bb != nil {
-			if err := gameInput.SetBackend(bb); err != nil {
+		if bb := g.Renderer.InputBackendForSystem(g.Input); bb != nil {
+			if err := g.Input.SetBackend(bb); err != nil {
 				return fmt.Errorf("failed to set renderer input backend: %w", err)
 			}
 		}
@@ -253,13 +253,13 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 
 	// Optional override to force SDL3 input even when renderer backend exists.
 	// Useful when platform-specific window backends do not emit keyboard events.
-	if !dedicated && gameInput != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
-		previousBackend := gameInput.Backend()
-		if b := input.NewSDL3Backend(gameInput); b != nil {
-			if err := gameInput.SetBackend(b); err != nil {
+	if !dedicated && g.Input != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
+		previousBackend := g.Input.Backend()
+		if b := input.NewSDL3Backend(g.Input); b != nil {
+			if err := g.Input.SetBackend(b); err != nil {
 				slog.Warn("failed to force SDL3 input backend; keeping previous backend", "error", err)
 				if previousBackend != nil {
-					if restoreErr := gameInput.SetBackend(previousBackend); restoreErr != nil {
+					if restoreErr := g.Input.SetBackend(previousBackend); restoreErr != nil {
 						return fmt.Errorf("failed to restore previous input backend after SDL3 override failure: %w", restoreErr)
 					}
 				}
@@ -274,14 +274,14 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 	// If no backend was provided by the renderer, allow other build-tagged
 	// backends (e.g. SDL3) to provide system input. input.NewSDL3Backend
 	// is a no-op stub when the sdl3 build tag is not present.
-	if !dedicated && gameInput != nil {
+	if !dedicated && g.Input != nil {
 		if err := func() error {
 			// Only set SDL3 backend if renderer didn't provide one
-			if gameInput.Backend() != nil {
+			if g.Input.Backend() != nil {
 				return nil
 			}
-			if b := input.NewSDL3Backend(gameInput); b != nil {
-				return gameInput.SetBackend(b)
+			if b := input.NewSDL3Backend(g.Input); b != nil {
+				return g.Input.SetBackend(b)
 			}
 			return nil
 		}(); err != nil {
@@ -295,22 +295,22 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 		audioAdapter = audio.NewAudioAdapter(audio.NewSystem())
 	}
 	// Audio init is deferred to host.Init to avoid double-initialization.
-	gameAudio = audioAdapter
+	g.Audio = audioAdapter
 	resetRuntimeSoundState()
-	gameSubs = &host.Subsystems{
+	g.Subs = &host.Subsystems{
 		Files:    fileSys,
 		Commands: globalCommandBuffer{},
-		Server:   gameServer,
-		Input:    gameInput,
+		Server:   g.Server,
+		Input:    g.Input,
 		Audio:    audioAdapter,
 	}
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
-	host.SetupLoopbackClientServer(gameSubs, gameServer)
+	host.SetupLoopbackClientServer(g.Subs, g.Server)
 	registerGameplayBindCommands()
 	registerConsoleCompletionProviders()
 	applyDefaultGameplayBindings()
 
-	if err := gameHost.Init(&host.InitParams{
+	if err := g.Host.Init(&host.InitParams{
 		BaseDir:      basedir,
 		GameDir:      gamedir,
 		UserDir:      "",
@@ -319,16 +319,16 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 		VersionMajor: VersionMajor,
 		VersionMinor: VersionMinor,
 		VersionPatch: VersionPatch,
-	}, gameSubs); err != nil {
+	}, g.Subs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
 	}
 	applySVolume()
 
 	// Set menu in host
-	gameHost.SetMenu(gameMenu)
-	if gameMenu != nil {
-		gameMenu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
-			hostSlots := gameHost.ListSaveSlots(slotCount)
+	g.Host.SetMenu(g.Menu)
+	if g.Menu != nil {
+		g.Menu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
+			hostSlots := g.Host.ListSaveSlots(slotCount)
 			menuSlots := make([]menu.SaveSlotInfo, 0, len(hostSlots))
 			for _, slot := range hostSlots {
 				menuSlots = append(menuSlots, menu.SaveSlotInfo{
@@ -339,7 +339,7 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 			return menuSlots
 		})
 		// Wire mod enumeration and current-mod tracking into the menu.
-		gameMenu.SetModsProvider(func() []menu.ModInfo {
+		g.Menu.SetModsProvider(func() []menu.ModInfo {
 			mods := fileSys.ListMods()
 			out := make([]menu.ModInfo, 0, len(mods))
 			for _, m := range mods {
@@ -347,39 +347,39 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 			}
 			return out
 		})
-		gameMenu.SetCurrentMod(gameModDir)
+		g.Menu.SetCurrentMod(g.ModDir)
 	}
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
-	if gameDraw != nil {
-		drawErr := gameDraw.Init(fileSys)
+	if g.Draw != nil {
+		drawErr := g.Draw.Init(fileSys)
 		if drawErr != nil {
 			// Fall back to local "data" directory for development/testing
 			slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
-			drawErr = gameDraw.InitFromDir("data")
+			drawErr = g.Draw.InitFromDir("data")
 		}
 		if drawErr != nil {
 			slog.Warn("Failed to initialize draw manager", "error", drawErr)
-		} else if gameRenderer != nil {
-			if pal := gameDraw.Palette(); len(pal) >= 768 {
-				gameRenderer.SetPalette(pal)
+		} else if g.Renderer != nil {
+			if pal := g.Draw.Palette(); len(pal) >= 768 {
+				g.Renderer.SetPalette(pal)
 			}
-			if conchars := gameDraw.GetConcharsData(); len(conchars) >= 128*128 {
-				gameRenderer.SetConchars(conchars)
+			if conchars := g.Draw.GetConcharsData(); len(conchars) >= 128*128 {
+				g.Renderer.SetConchars(conchars)
 			}
 		}
 
 		// Initialize HUD
-		gameHUD = hud.NewHUD(gameDraw)
-		gameHUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
+		g.HUD = hud.NewHUD(g.Draw)
+		g.HUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
 	}
-	gameClient = host.ActiveClientState(gameSubs)
+	g.Client = host.ActiveClientState(g.Subs)
 	syncControlCvarsToClient()
 	resetRuntimeVisualState()
 
 	// Wire ModelFlagsFunc callback for EF_ROTATE support
-	if gameClient != nil {
-		gameClient.ModelFlagsFunc = func(modelName string) int {
+	if g.Client != nil {
+		g.Client.ModelFlagsFunc = func(modelName string) int {
 			if mdl, ok := loadAliasModel(modelName); ok && mdl != nil {
 				return mdl.Flags
 			}
@@ -388,8 +388,8 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 	}
 
 	// Make sure the menu is visible at startup
-	if gameMenu != nil {
-		gameMenu.ShowMenu()
+	if g.Menu != nil {
+		g.Menu.ShowMenu()
 	}
 	// slog.Info("menu active") - moved to main for deterministic logs
 

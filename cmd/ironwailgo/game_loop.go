@@ -21,43 +21,43 @@ import (
 type gameCallbacks struct{}
 
 func (gameCallbacks) GetEvents() {
-	if gameInput != nil {
-		gameInput.PollEvents()
+	if g.Input != nil {
+		g.Input.PollEvents()
 	}
-	if gameSubs != nil && gameSubs.Client != nil && gameHost != nil {
-		_ = gameSubs.Client.Frame(gameHost.FrameTime())
+	if g.Subs != nil && g.Subs.Client != nil && g.Host != nil {
+		_ = g.Subs.Client.Frame(g.Host.FrameTime())
 	}
 }
 
 func (gameCallbacks) ProcessConsoleCommands() {
-	host.DispatchLoopbackStuffText(gameSubs)
+	host.DispatchLoopbackStuffText(g.Subs)
 }
 
 func (gameCallbacks) ProcessServer() {
-	if gameSubs == nil || gameSubs.Server == nil {
+	if g.Subs == nil || g.Subs.Server == nil {
 		return
 	}
-	dt := gameHost.FrameTime()
-	if err := gameSubs.Server.Frame(dt); err != nil {
+	dt := g.Host.FrameTime()
+	if err := g.Subs.Server.Frame(dt); err != nil {
 		slog.Warn("server frame error", "error", err)
 	}
 }
 
 func (gameCallbacks) ProcessClient() {
-	if gameSubs == nil || gameSubs.Client == nil {
+	if g.Subs == nil || g.Subs.Client == nil {
 		return
 	}
 	syncHostClientState()
 
 	// Handle demo playback
-	if gameHost != nil && gameHost.DemoState() != nil && gameHost.DemoState().Playback {
-		demo := gameHost.DemoState()
-		if !demo.ShouldReadFrame(gameHost.FrameCount()) {
+	if g.Host != nil && g.Host.DemoState() != nil && g.Host.DemoState().Playback {
+		demo := g.Host.DemoState()
+		if !demo.ShouldReadFrame(g.Host.FrameCount()) {
 			return
 		}
-		clientState := host.ActiveClientState(gameSubs)
+		clientState := host.ActiveClientState(g.Subs)
 		if clientState != nil {
-			clientState.AdvanceTime(demo, gameHost.FrameTime())
+			clientState.AdvanceTime(demo, g.Host.FrameTime())
 			if !shouldReadNextDemoMessage(clientState, demo) {
 				return
 			}
@@ -67,33 +67,33 @@ func (gameCallbacks) ProcessClient() {
 		msgData, viewAngles, err := demo.ReadDemoFrame()
 		if err != nil {
 			if err.Error() == "EOF" || err.Error() == "unexpected EOF" {
-				if demo.TimeDemo && gameSubs != nil && gameSubs.Console != nil {
+				if demo.TimeDemo && g.Subs != nil && g.Subs.Console != nil {
 					frames, seconds, fps := demo.TimeDemoSummary()
-					gameSubs.Console.Print(fmt.Sprintf("timedemo: %d frames %.3f seconds %.1f fps\n", frames, seconds, fps))
+					g.Subs.Console.Print(fmt.Sprintf("timedemo: %d frames %.3f seconds %.1f fps\n", frames, seconds, fps))
 				}
 				// Demo ended, check if we should loop to next demo
 				_ = demo.StopPlayback()
-				gameHost.SetClientState(0) // caDisconnected
+				g.Host.SetClientState(0) // caDisconnected
 
 				// Demo loop: play next demo if demo loop is active
-				if gameHost.DemoNum() >= 0 && len(gameHost.DemoList()) > 0 {
-					demoNum := gameHost.DemoNum()
-					demos := gameHost.DemoList()
+				if g.Host.DemoNum() >= 0 && len(g.Host.DemoList()) > 0 {
+					demoNum := g.Host.DemoNum()
+					demos := g.Host.DemoList()
 
 					// Wrap around to start
 					if demoNum >= len(demos) {
 						demoNum = 0
-						gameHost.SetDemoNum(demoNum)
+						g.Host.SetDemoNum(demoNum)
 					}
 
 					if demoNum < len(demos) && demos[demoNum] != "" {
 						// Play the next demo
-						gameHost.CmdPlaydemo(demos[demoNum], gameSubs)
+						g.Host.CmdPlaydemo(demos[demoNum], g.Subs)
 						// Advance for next time
-						gameHost.SetDemoNum(demoNum + 1)
+						g.Host.SetDemoNum(demoNum + 1)
 					} else {
 						// No more demos
-						gameHost.SetDemoNum(-1)
+						g.Host.SetDemoNum(-1)
 					}
 				}
 				return
@@ -101,7 +101,7 @@ func (gameCallbacks) ProcessClient() {
 			// Other errors - stop playback
 			slog.Warn("demo playback error", "error", err)
 			_ = demo.StopPlayback()
-			gameHost.SetClientState(0) // caDisconnected
+			g.Host.SetClientState(0) // caDisconnected
 			return
 		}
 
@@ -115,7 +115,7 @@ func (gameCallbacks) ProcessClient() {
 			if err := parser.ParseServerMessage(msgData); err != nil {
 				slog.Warn("failed to parse demo message", "error", err)
 			}
-			host.DispatchLoopbackStuffText(gameSubs)
+			host.DispatchLoopbackStuffText(g.Subs)
 
 		}
 
@@ -124,51 +124,51 @@ func (gameCallbacks) ProcessClient() {
 	}
 
 	// Normal networked gameplay
-	_ = gameSubs.Client.ReadFromServer()
+	_ = g.Subs.Client.ReadFromServer()
 	syncHostClientState()
 	recordRuntimeDemoFrame()
-	host.DispatchLoopbackStuffText(gameSubs)
-	_ = gameSubs.Client.SendCommand()
+	host.DispatchLoopbackStuffText(g.Subs)
+	_ = g.Subs.Client.SendCommand()
 }
 
 func (gameCallbacks) UpdateScreen() {}
 
 func syncHostClientState() {
-	if gameSubs == nil || gameSubs.Client == nil {
+	if g.Subs == nil || g.Subs.Client == nil {
 		return
 	}
-	prevClient := gameClient
-	gameClient = host.ActiveClientState(gameSubs)
-	if gameClient != prevClient {
+	prevClient := g.Client
+	g.Client = host.ActiveClientState(g.Subs)
+	if g.Client != prevClient {
 		syncControlCvarsToClient()
 	}
-	if gameHost == nil {
+	if g.Host == nil {
 		return
 	}
-	gameHost.SetClientState(gameSubs.Client.State())
-	if gameClient != nil {
-		gameHost.SetSignOns(gameClient.Signon)
+	g.Host.SetClientState(g.Subs.Client.State())
+	if g.Client != nil {
+		g.Host.SetSignOns(g.Client.Signon)
 	}
 }
 
 func syncAudioViewEntity() {
-	if gameAudio == nil {
+	if g.Audio == nil {
 		return
 	}
 
 	viewEntity := 0
-	if gameClient != nil {
-		viewEntity = gameClient.ViewEntity
+	if g.Client != nil {
+		viewEntity = g.Client.ViewEntity
 	}
-	gameAudio.SetViewEntity(viewEntity)
+	g.Audio.SetViewEntity(viewEntity)
 }
 
 func (gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
-	if gameAudio == nil {
+	if g.Audio == nil {
 		return
 	}
 	syncAudioViewEntity()
-	gameAudio.SetListener(origin, [3]float32{}, forward, right, up)
+	g.Audio.SetListener(origin, [3]float32{}, forward, right, up)
 }
 
 func headlessGameLoop() {
@@ -181,7 +181,7 @@ func headlessGameLoop() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if gameHost != nil && gameHost.IsAborted() {
+		if g.Host != nil && g.Host.IsAborted() {
 			return
 		}
 		now := time.Now()
@@ -189,10 +189,10 @@ func headlessGameLoop() {
 		lastTime = now
 
 		// Update game state
-		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
+		if err := g.Host.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
 		}
-		if gameHost != nil && gameHost.IsAborted() {
+		if g.Host != nil && g.Host.IsAborted() {
 			return
 		}
 	}
@@ -222,9 +222,9 @@ func dedicatedGameLoop() {
 		if !strings.HasSuffix(text, "\n") {
 			text += "\n"
 		}
-		if gameSubs != nil && gameSubs.Commands != nil {
-			gameSubs.Commands.AddText(text)
-			gameSubs.Commands.Execute()
+		if g.Subs != nil && g.Subs.Commands != nil {
+			g.Subs.Commands.AddText(text)
+			g.Subs.Commands.Execute()
 			return
 		}
 		cmdsys.AddText(text)
@@ -236,7 +236,7 @@ func dedicatedGameLoop() {
 			select {
 			case command := <-consoleCommands:
 				queueConsoleCommand(command)
-				if gameHost != nil && gameHost.IsAborted() {
+				if g.Host != nil && g.Host.IsAborted() {
 					return
 				}
 			default:
@@ -245,17 +245,17 @@ func dedicatedGameLoop() {
 		}
 
 	frame:
-		if gameHost != nil && gameHost.IsAborted() {
+		if g.Host != nil && g.Host.IsAborted() {
 			return
 		}
 		now := time.Now()
 		dt := now.Sub(lastTime).Seconds()
 		lastTime = now
 
-		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
+		if err := g.Host.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
 		}
-		if gameHost != nil && gameHost.IsAborted() {
+		if g.Host != nil && g.Host.IsAborted() {
 			return
 		}
 	}
@@ -279,33 +279,33 @@ func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 }
 
 func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
-	if gameHost != nil {
-		gameHost.Frame(dt, cb)
+	if g.Host != nil {
+		g.Host.Frame(dt, cb)
 	}
 	syncControlCvarsToClient()
-	if gameClient != nil {
-		gameClient.PredictPlayers(float32(dt))
-		gameClient.UpdateBlend(dt)
+	if g.Client != nil {
+		g.Client.PredictPlayers(float32(dt))
+		g.Client.UpdateBlend(dt)
 	}
 	transientEvents := cl.TransientEvents{}
-	if gameClient != nil {
-		transientEvents = gameClient.ConsumeTransientEvents()
+	if g.Client != nil {
+		transientEvents = g.Client.ConsumeTransientEvents()
 	}
 	viewOrigin, viewAngles := runtimeViewState()
 	syncRuntimeSkybox()
-	if gameAudio != nil {
+	if g.Audio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
 		syncAudioViewEntity()
 		viewVelocity := [3]float32{}
-		if gameClient != nil {
-			viewVelocity = gameClient.GetPredictedVelocity()
+		if g.Client != nil {
+			viewVelocity = g.Client.GetPredictedVelocity()
 		}
-		gameAudio.SetListener(viewOrigin, viewVelocity, forward, right, up)
+		g.Audio.SetListener(viewOrigin, viewVelocity, forward, right, up)
 		syncRuntimeStaticSounds()
 		syncRuntimeAmbientAudio(viewOrigin, float32(dt))
 		syncRuntimeMusic()
 		processRuntimeAudioEvents(viewOrigin, transientEvents)
-		gameAudio.Update(viewOrigin, viewVelocity, forward, right, up)
+		g.Audio.Update(viewOrigin, viewVelocity, forward, right, up)
 	}
 	return transientEvents
 }
@@ -322,8 +322,8 @@ func isRendererError(err error) bool {
 }
 
 func captureScreenshot(sspath, _, _ string) error {
-	if gameRenderer != nil {
-		if capturer, ok := any(gameRenderer).(interface {
+	if g.Renderer != nil {
+		if capturer, ok := any(g.Renderer).(interface {
 			CaptureScreenshot(string) error
 		}); ok {
 			if err := capturer.CaptureScreenshot(sspath); err != nil {
@@ -340,8 +340,8 @@ func captureScreenshot(sspath, _, _ string) error {
 	)
 
 	var palette []byte
-	if gameDraw != nil {
-		palette = gameDraw.Palette()
+	if g.Draw != nil {
+		palette = g.Draw.Palette()
 	}
 	soft := renderer.NewSoftwareRenderer(ssWidth, ssHeight, 1.0, palette)
 
@@ -349,13 +349,13 @@ func captureScreenshot(sspath, _, _ string) error {
 	soft.Clear(0.08, 0.08, 0.18, 1.0)
 
 	// Render BSP world geometry if a map is loaded
-	if gameServer != nil && gameServer.WorldTree != nil {
-		soft.DrawBSPWorld(gameServer.WorldTree)
+	if g.Server != nil && g.Server.WorldTree != nil {
+		soft.DrawBSPWorld(g.Server.WorldTree)
 	}
 
 	// Render 2D overlay (menu if active)
-	if gameMenu != nil && gameMenu.IsActive() {
-		gameMenu.M_Draw(soft)
+	if g.Menu != nil && g.Menu.IsActive() {
+		g.Menu.M_Draw(soft)
 	}
 
 	f, err := os.Create(sspath)

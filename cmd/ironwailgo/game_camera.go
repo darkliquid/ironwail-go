@@ -15,12 +15,12 @@ func runtimeViewState() (origin, angles [3]float32) {
 	angles = [3]float32{45, 0, 0}
 	foundPlayerStart := false
 
-	if gameServer != nil {
-		for _, ent := range gameServer.Edicts {
+	if g.Server != nil {
+		for _, ent := range g.Server.Edicts {
 			if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
 				continue
 			}
-			className := gameServer.GetString(ent.Vars.ClassName)
+			className := g.Server.GetString(ent.Vars.ClassName)
 			if className != "info_player_start" && className != "info_player_deathmatch" {
 				continue
 			}
@@ -32,8 +32,8 @@ func runtimeViewState() (origin, angles [3]float32) {
 		}
 	}
 
-	if !foundPlayerStart && gameRenderer != nil {
-		if minBounds, maxBounds, ok := gameRenderer.GetWorldBounds(); ok {
+	if !foundPlayerStart && g.Renderer != nil {
+		if minBounds, maxBounds, ok := g.Renderer.GetWorldBounds(); ok {
 			centerX := (minBounds[0] + maxBounds[0]) * 0.5
 			centerY := (minBounds[1] + maxBounds[1]) * 0.5
 			centerZ := (minBounds[2] + maxBounds[2]) * 0.5
@@ -58,12 +58,12 @@ func runtimeViewState() (origin, angles [3]float32) {
 		}
 	}
 
-	if gameClient != nil {
+	if g.Client != nil {
 		if clientOrigin, ok := runtimePlayerOrigin(); ok {
 			// Apply ViewHeight + bob to camera Z.
 			// Mirrors C Ironwail V_CalcRefdef: r_refdef.vieworg[2] += cl.viewheight + bob.
-			clientOrigin[2] += gameClient.ViewHeight
-			bob := viewCalcBob(gameClient.Time, gameClient.Velocity)
+			clientOrigin[2] += g.Client.ViewHeight
+			bob := viewCalcBob(g.Client.Time, g.Client.Velocity)
 			clientOrigin[2] += bob
 
 			viewAngles := runtimeInterpolatedViewAngles()
@@ -75,7 +75,7 @@ func runtimeViewState() (origin, angles [3]float32) {
 }
 
 func runtimePlayerOrigin() ([3]float32, bool) {
-	if gameClient == nil {
+	if g.Client == nil {
 		return [3]float32{}, false
 	}
 
@@ -87,7 +87,7 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		return authoritativeOrigin, true
 	}
 
-	clientOrigin := gameClient.PredictedOrigin
+	clientOrigin := g.Client.PredictedOrigin
 	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
 		return clientOrigin, true
 	}
@@ -96,18 +96,18 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 }
 
 func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
-	if gameClient == nil {
+	if g.Client == nil {
 		return [3]float32{}, false
 	}
 
-	if gameClient.ViewEntity != 0 {
-		if state, ok := gameClient.Entities[gameClient.ViewEntity]; ok {
+	if g.Client.ViewEntity != 0 {
+		if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
 			return state.Origin, true
 		}
 	}
 
-	if gameClient.ViewEntity == 0 {
-		if state, ok := gameClient.Entities[0]; ok {
+	if g.Client.ViewEntity == 0 {
+		if state, ok := g.Client.Entities[0]; ok {
 			return state.Origin, true
 		}
 	}
@@ -116,21 +116,21 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 }
 
 func runtimePredictedXYOffset(authoritativeOrigin [3]float32) ([2]float32, bool) {
-	if gameClient == nil || gameClient.State != cl.StateActive {
+	if g.Client == nil || g.Client.State != cl.StateActive {
 		return [2]float32{}, false
 	}
 
-	cmd := gameClient.PendingCmd
+	cmd := g.Client.PendingCmd
 	if cmd.Forward == 0 && cmd.Side == 0 {
 		return [2]float32{}, false
 	}
 
-	clientOrigin := gameClient.PredictedOrigin
+	clientOrigin := g.Client.PredictedOrigin
 	if clientOrigin[0] == 0 && clientOrigin[1] == 0 && clientOrigin[2] == 0 {
 		return [2]float32{}, false
 	}
 
-	if predictionErrorXYMagnitude(gameClient.PredictionError) > runtimeMaxPredictedXYOffset {
+	if predictionErrorXYMagnitude(g.Client.PredictionError) > runtimeMaxPredictedXYOffset {
 		return [2]float32{}, false
 	}
 
@@ -163,28 +163,28 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 
 	// Apply V_BoundOffsets to clamp camera relative to entity origin.
 	// Mirrors C Ironwail view.c:665-686.
-	if gameClient != nil {
+	if g.Client != nil {
 		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
 			cameraOrigin = viewBoundOffsets(cameraOrigin, entityOrigin)
 
 			// Apply stair step smoothing.
 			// Mirrors C Ironwail V_CalcRefdef stair smoothing (view.c:871-888).
 			deltaTime := 0.0
-			if gameHost != nil {
-				deltaTime = gameHost.FrameTime()
+			if g.Host != nil {
+				deltaTime = g.Host.FrameTime()
 			}
-			stairOffset := viewStairSmoothOffset(&globalViewCalc, entityOrigin[2], gameClient.OnGround, deltaTime)
+			stairOffset := viewStairSmoothOffset(&globalViewCalc, entityOrigin[2], g.Client.OnGround, deltaTime)
 			cameraOrigin[2] += stairOffset
 		}
 	}
 
 	camera := renderer.ConvertClientStateToCamera(cameraOrigin, angles, 96.0)
-	if gameClient != nil {
-		if gameClient.Intermission == 0 {
+	if g.Client != nil {
+		if g.Client.Intermission == 0 {
 			deadPlayer := false
 			// Check for dead view angle (health <= 0 → roll = 80).
 			// Mirrors C Ironwail view.c:728-731.
-			health := gameClient.Health()
+			health := g.Client.Health()
 			if health <= 0 {
 				camera.Angles.Z = 80
 				// Dead players don't get other view effects.
@@ -200,8 +200,8 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 				// Apply damage kick (V_CalcViewRoll damage kick block).
 				// Mirrors C Ironwail view.c:718-722.
 				deltaTime := 0.0
-				if gameHost != nil {
-					deltaTime = gameHost.FrameTime()
+				if g.Host != nil {
+					deltaTime = g.Host.FrameTime()
 				}
 				cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 				cameraAngles = viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
@@ -210,18 +210,18 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 				camera.Angles.Z = cameraAngles[2]
 
 				// View roll from lateral movement (V_CalcViewRoll).
-				roll := viewCalcRoll(angles, gameClient.Velocity)
+				roll := viewCalcRoll(angles, g.Client.Velocity)
 				camera.Angles.Z += roll
 
 				// Idle sway on the camera (V_AddIdle).
 				cameraAngles = [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
-				cameraAngles = viewAddIdle(cameraAngles, gameClient.Time)
+				cameraAngles = viewAddIdle(cameraAngles, g.Client.Time)
 				camera.Angles.X = cameraAngles[0]
 				camera.Angles.Y = cameraAngles[1]
 				camera.Angles.Z = cameraAngles[2]
 			}
 		}
-		camera.Time = float32(gameClient.Time)
+		camera.Time = float32(g.Client.Time)
 	}
 	if cvar.BoolValue("chase_active") {
 		traceFn := runtimeChaseTraceFn()
@@ -247,30 +247,30 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 }
 
 func runtimeChaseTraceFn() chaseTraceFunc {
-	if gameServer == nil {
+	if g.Server == nil {
 		return nil
 	}
 
 	var passEnt *server.Edict
-	if gameClient != nil && gameClient.ViewEntity > 0 {
-		passEnt = gameServer.EdictNum(gameClient.ViewEntity)
+	if g.Client != nil && g.Client.ViewEntity > 0 {
+		passEnt = g.Server.EdictNum(g.Client.ViewEntity)
 	}
 
 	return func(start, end [3]float32) [3]float32 {
-		trace := gameServer.SV_Move(start, [3]float32{}, [3]float32{}, end, server.MoveType(server.MoveNoMonsters), passEnt)
+		trace := g.Server.SV_Move(start, [3]float32{}, [3]float32{}, end, server.MoveType(server.MoveNoMonsters), passEnt)
 		return trace.EndPos
 	}
 }
 
 func runtimeInterpolatedViewAngles() [3]float32 {
-	if gameClient == nil {
+	if g.Client == nil {
 		return [3]float32{}
 	}
-	prev, curr := gameClient.MViewAngles[1], gameClient.MViewAngles[0]
+	prev, curr := g.Client.MViewAngles[1], g.Client.MViewAngles[0]
 	if prev == [3]float32{} && curr == [3]float32{} {
-		return gameClient.ViewAngles
+		return g.Client.ViewAngles
 	}
-	frac := float32(gameClient.LerpPoint())
+	frac := float32(g.Client.LerpPoint())
 	if frac < 0 {
 		frac = 0
 	} else if frac > 1 {
@@ -284,7 +284,7 @@ func runtimeInterpolatedViewAngles() [3]float32 {
 }
 
 func runtimeGunKickAngles() [3]float32 {
-	if gameClient == nil {
+	if g.Client == nil {
 		return [3]float32{}
 	}
 	mode := 2
@@ -295,7 +295,7 @@ func runtimeGunKickAngles() [3]float32 {
 	case 0:
 		return [3]float32{}
 	case 1:
-		return gameClient.PunchAngle
+		return g.Client.PunchAngle
 	default:
 		return runtimeInterpolatedPunchAngles()
 	}
@@ -313,16 +313,16 @@ func angleLerp(prev, curr, frac float32) float32 {
 }
 
 func runtimeInterpolatedPunchAngles() [3]float32 {
-	if gameClient == nil {
+	if g.Client == nil {
 		return [3]float32{}
 	}
-	prev, curr := gameClient.PunchAngles[1], gameClient.PunchAngles[0]
+	prev, curr := g.Client.PunchAngles[1], g.Client.PunchAngles[0]
 	if prev == [3]float32{} && curr == [3]float32{} {
-		return gameClient.PunchAngle
+		return g.Client.PunchAngle
 	}
 	alpha := float32(1.0)
-	if gameClient.PunchTime > 0 {
-		alpha = float32((gameClient.Time - gameClient.PunchTime) / 0.1)
+	if g.Client.PunchTime > 0 {
+		alpha = float32((g.Client.Time - g.Client.PunchTime) / 0.1)
 		if alpha < 0 {
 			alpha = 0
 		} else if alpha > 1 {

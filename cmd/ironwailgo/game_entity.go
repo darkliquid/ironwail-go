@@ -16,7 +16,7 @@ import (
 )
 
 func collectBrushEntities() []renderer.BrushEntity {
-	if gameClient == nil || gameServer == nil || gameServer.WorldTree == nil || len(gameServer.WorldTree.Models) <= 1 {
+	if g.Client == nil || g.Server == nil || g.Server.WorldTree == nil || len(g.Server.WorldTree.Models) <= 1 {
 		return nil
 	}
 
@@ -25,15 +25,15 @@ func collectBrushEntities() []renderer.BrushEntity {
 			return renderer.BrushEntity{}, false
 		}
 		precacheIndex := int(state.ModelIndex) - 1
-		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+		if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
 			return renderer.BrushEntity{}, false
 		}
-		modelName := gameClient.ModelPrecache[precacheIndex]
+		modelName := g.Client.ModelPrecache[precacheIndex]
 		if len(modelName) < 2 || modelName[0] != '*' {
 			return renderer.BrushEntity{}, false
 		}
 		submodelIndex, err := strconv.Atoi(modelName[1:])
-		if err != nil || submodelIndex <= 0 || submodelIndex >= len(gameServer.WorldTree.Models) {
+		if err != nil || submodelIndex <= 0 || submodelIndex >= len(g.Server.WorldTree.Models) {
 			return renderer.BrushEntity{}, false
 		}
 		return renderer.BrushEntity{
@@ -46,16 +46,16 @@ func collectBrushEntities() []renderer.BrushEntity {
 		}, true
 	}
 
-	brushEntities := make([]renderer.BrushEntity, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
-	for entityNum, state := range gameClient.Entities {
-		if entityNum == gameClient.ViewEntity {
+	brushEntities := make([]renderer.BrushEntity, 0, len(g.Client.Entities)+len(g.Client.StaticEntities))
+	for entityNum, state := range g.Client.Entities {
+		if entityNum == g.Client.ViewEntity {
 			continue
 		}
 		if brushEntity, ok := resolve(state); ok {
 			brushEntities = append(brushEntities, brushEntity)
 		}
 	}
-	for _, state := range gameClient.StaticEntities {
+	for _, state := range g.Client.StaticEntities {
 		if brushEntity, ok := resolve(state); ok {
 			brushEntities = append(brushEntities, brushEntity)
 		}
@@ -65,54 +65,54 @@ func collectBrushEntities() []renderer.BrushEntity {
 }
 
 func loadAliasModel(modelName string) (*model.Model, bool) {
-	if modelName == "" || gameSubs == nil || gameSubs.Files == nil {
+	if modelName == "" || g.Subs == nil || g.Subs.Files == nil {
 		return nil, false
 	}
-	if aliasModelCache == nil {
-		aliasModelCache = make(map[string]*model.Model)
+	if g.AliasModelCache == nil {
+		g.AliasModelCache = make(map[string]*model.Model)
 	}
-	if mdl, ok := aliasModelCache[modelName]; ok {
+	if mdl, ok := g.AliasModelCache[modelName]; ok {
 		return mdl, mdl != nil
 	}
 
-	data, err := gameSubs.Files.LoadFile(modelName)
+	data, err := g.Subs.Files.LoadFile(modelName)
 	if err != nil {
 		slog.Debug("alias model load skipped", "model", modelName, "error", err)
-		aliasModelCache[modelName] = nil
+		g.AliasModelCache[modelName] = nil
 		return nil, false
 	}
 	loaded, err := model.LoadAliasModel(bytes.NewReader(data))
 	if err != nil {
 		slog.Debug("alias model parse skipped", "model", modelName, "error", err)
-		aliasModelCache[modelName] = nil
+		g.AliasModelCache[modelName] = nil
 		return nil, false
 	}
 	loaded.Name = modelName
-	aliasModelCache[modelName] = loaded
+	g.AliasModelCache[modelName] = loaded
 	return loaded, true
 }
 
 func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
-	if gameSubs == nil || gameSubs.Files == nil || modelName == "" {
+	if g.Subs == nil || g.Subs.Files == nil || modelName == "" {
 		return nil, false
 	}
-	if spriteModelCache == nil {
-		spriteModelCache = make(map[string]*runtimeSpriteModel)
+	if g.SpriteModelCache == nil {
+		g.SpriteModelCache = make(map[string]*runtimeSpriteModel)
 	}
-	if entry, ok := spriteModelCache[modelName]; ok {
+	if entry, ok := g.SpriteModelCache[modelName]; ok {
 		return entry, entry != nil
 	}
 
-	data, err := gameSubs.Files.LoadFile(modelName)
+	data, err := g.Subs.Files.LoadFile(modelName)
 	if err != nil {
 		slog.Debug("sprite model load skipped", "model", modelName, "error", err)
-		spriteModelCache[modelName] = nil
+		g.SpriteModelCache[modelName] = nil
 		return nil, false
 	}
 	loaded, err := model.LoadSprite(bytes.NewReader(data))
 	if err != nil {
 		slog.Debug("sprite model parse skipped", "model", modelName, "error", err)
-		spriteModelCache[modelName] = nil
+		g.SpriteModelCache[modelName] = nil
 		return nil, false
 	}
 
@@ -128,12 +128,12 @@ func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
 		},
 		sprite: loaded,
 	}
-	spriteModelCache[modelName] = entry
+	g.SpriteModelCache[modelName] = entry
 	return entry, true
 }
 
 func collectAliasEntities() []renderer.AliasModelEntity {
-	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
+	if g.Client == nil || g.Subs == nil || g.Subs.Files == nil {
 		return nil
 	}
 
@@ -142,10 +142,10 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			return renderer.AliasModelEntity{}, false
 		}
 		precacheIndex := int(state.ModelIndex) - 1
-		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+		if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
 			return renderer.AliasModelEntity{}, false
 		}
-		modelName := gameClient.ModelPrecache[precacheIndex]
+		modelName := g.Client.ModelPrecache[precacheIndex]
 		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
 			return renderer.AliasModelEntity{}, false
 		}
@@ -172,16 +172,16 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		}, true
 	}
 
-	aliasEntities := make([]renderer.AliasModelEntity, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
-	for entityNum, state := range gameClient.Entities {
-		if entityNum == gameClient.ViewEntity {
+	aliasEntities := make([]renderer.AliasModelEntity, 0, len(g.Client.Entities)+len(g.Client.StaticEntities))
+	for entityNum, state := range g.Client.Entities {
+		if entityNum == g.Client.ViewEntity {
 			continue
 		}
 		if aliasEntity, ok := resolve(state); ok {
 			aliasEntities = append(aliasEntities, aliasEntity)
 		}
 	}
-	for _, state := range gameClient.StaticEntities {
+	for _, state := range g.Client.StaticEntities {
 		if aliasEntity, ok := resolve(state); ok {
 			aliasEntities = append(aliasEntities, aliasEntity)
 		}
@@ -191,7 +191,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 }
 
 func collectEntityEffectSources() []renderer.EntityEffectSource {
-	if gameClient == nil {
+	if g.Client == nil {
 		return nil
 	}
 
@@ -200,10 +200,10 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 			return renderer.EntityEffectSource{}, false
 		}
 		precacheIndex := int(state.ModelIndex) - 1
-		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+		if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
 			return renderer.EntityEffectSource{}, false
 		}
-		modelName := gameClient.ModelPrecache[precacheIndex]
+		modelName := g.Client.ModelPrecache[precacheIndex]
 		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
 			return renderer.EntityEffectSource{}, false
 		}
@@ -214,14 +214,14 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 		}, true
 	}
 
-	sources := make([]renderer.EntityEffectSource, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
-	for entNum, state := range gameClient.Entities {
+	sources := make([]renderer.EntityEffectSource, 0, len(g.Client.Entities)+len(g.Client.StaticEntities))
+	for entNum, state := range g.Client.Entities {
 		if source, ok := resolve(state); ok {
 			source.EntityNum = entNum
 			sources = append(sources, source)
 		}
 	}
-	for _, state := range gameClient.StaticEntities {
+	for _, state := range g.Client.StaticEntities {
 		if source, ok := resolve(state); ok {
 			sources = append(sources, source)
 		}
@@ -231,20 +231,20 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 }
 
 func collectSpriteEntities() []renderer.SpriteEntity {
-	if gameClient == nil || gameSubs == nil || gameSubs.Files == nil {
+	if g.Client == nil || g.Subs == nil || g.Subs.Files == nil {
 		return nil
 	}
 
-	viewForward, viewRight, _ := runtimeAngleVectors(gameClient.ViewAngles)
+	viewForward, viewRight, _ := runtimeAngleVectors(g.Client.ViewAngles)
 	resolve := func(state inet.EntityState) (renderer.SpriteEntity, bool) {
 		if state.ModelIndex == 0 {
 			return renderer.SpriteEntity{}, false
 		}
 		precacheIndex := int(state.ModelIndex) - 1
-		if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+		if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
 			return renderer.SpriteEntity{}, false
 		}
-		modelName := gameClient.ModelPrecache[precacheIndex]
+		modelName := g.Client.ModelPrecache[precacheIndex]
 		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".spr") {
 			return renderer.SpriteEntity{}, false
 		}
@@ -254,7 +254,7 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 			return renderer.SpriteEntity{}, false
 		}
 
-		frame := resolveRuntimeSpriteFrame(entry.sprite, int(state.Frame), state.Angles, viewForward, viewRight, gameClient.Time)
+		frame := resolveRuntimeSpriteFrame(entry.sprite, int(state.Frame), state.Angles, viewForward, viewRight, g.Client.Time)
 
 		return renderer.SpriteEntity{
 			ModelID:    modelName,
@@ -268,16 +268,16 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 		}, true
 	}
 
-	spriteEntities := make([]renderer.SpriteEntity, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
-	for entityNum, state := range gameClient.Entities {
-		if entityNum == gameClient.ViewEntity {
+	spriteEntities := make([]renderer.SpriteEntity, 0, len(g.Client.Entities)+len(g.Client.StaticEntities))
+	for entityNum, state := range g.Client.Entities {
+		if entityNum == g.Client.ViewEntity {
 			continue
 		}
 		if spriteEntity, ok := resolve(state); ok {
 			spriteEntities = append(spriteEntities, spriteEntity)
 		}
 	}
-	for _, state := range gameClient.StaticEntities {
+	for _, state := range g.Client.StaticEntities {
 		if spriteEntity, ok := resolve(state); ok {
 			spriteEntities = append(spriteEntities, spriteEntity)
 		}
@@ -391,25 +391,25 @@ func spriteFrameSpan(frameDesc model.MSpriteFrameDesc) int {
 func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, spriteEntities []renderer.SpriteEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
 	state := renderer.DefaultRenderFrameState()
 	state.ClearColor = [4]float32{0, 0, 0, 1}
-	state.DrawWorld = gameRenderer != nil && gameRenderer.HasWorldData()
+	state.DrawWorld = g.Renderer != nil && g.Renderer.HasWorldData()
 	state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || len(spriteEntities) > 0 || viewModel != nil
 	state.BrushEntities = brushEntities
 	state.AliasEntities = aliasEntities
 	state.SpriteEntities = spriteEntities
 	state.ViewModel = viewModel
-	state.DrawParticles = gameParticles != nil && gameParticles.ActiveCount() > 0
+	state.DrawParticles = g.Particles != nil && g.Particles.ActiveCount() > 0
 	state.Draw2DOverlay = true
-	state.MenuActive = gameMenu != nil && gameMenu.IsActive()
-	state.Particles = gameParticles
-	if gameDecalMarks != nil {
-		state.DecalMarks = gameDecalMarks.ActiveMarks()
+	state.MenuActive = g.Menu != nil && g.Menu.IsActive()
+	state.Particles = g.Particles
+	if g.DecalMarks != nil {
+		state.DecalMarks = g.DecalMarks.ActiveMarks()
 	}
-	if gameClient != nil {
-		state.LightStyles = gameClient.LightStyleValues()
-		state.FogDensity, state.FogColor = gameClient.CurrentFog()
+	if g.Client != nil {
+		state.LightStyles = g.Client.LightStyleValues()
+		state.FogDensity, state.FogColor = g.Client.CurrentFog()
 	}
-	if gameDraw != nil {
-		state.Palette = gameDraw.Palette()
+	if g.Draw != nil {
+		state.Palette = g.Draw.Palette()
 	}
 	// Set underwater visual warp state (r_waterwarp).
 	// WaterWarp (r_waterwarp == 1): screen-space sinusoidal post-process.
@@ -418,12 +418,12 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	waterWarp, _, warpTime := runtimeWaterwarpState()
 	state.WaterWarp = waterWarp
 	state.WaterWarpTime = warpTime
-	state.ForceUnderwater = gameMenu != nil && gameMenu.ForcedUnderwater()
+	state.ForceUnderwater = g.Menu != nil && g.Menu.ForcedUnderwater()
 
 	// Compute v_blend (polyblend) screen tint from client color shifts.
 	// Mirrors C Ironwail: view.c V_CalcBlend() → V_PolyBlend().
 	// Only apply when gl_polyblend is enabled.
-	if gameClient != nil && gameClient.State == cl.StateActive {
+	if g.Client != nil && g.Client.State == cl.StateActive {
 		polyblendEnabled := true
 		if cv := cvar.Get("gl_polyblend"); cv != nil {
 			polyblendEnabled = cv.Float32() != 0
@@ -433,8 +433,8 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 			if cv := cvar.Get("gl_cshiftpercent"); cv != nil {
 				globalPct = cv.Float32()
 			}
-			gameClient.SetContentsColor(runtimeCameraLeafContents)
-			state.VBlend = gameClient.CalcBlend(globalPct)
+			g.Client.SetContentsColor(g.CameraLeafContents)
+			state.VBlend = g.Client.CalcBlend(globalPct)
 		}
 	}
 	return state
@@ -457,16 +457,16 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		return nil
 	}
 
-	modelIndex := gameClient.WeaponModelIndex()
+	modelIndex := g.Client.WeaponModelIndex()
 	if modelIndex <= 0 {
 		return nil
 	}
 	precacheIndex := modelIndex - 1
-	if precacheIndex < 0 || precacheIndex >= len(gameClient.ModelPrecache) {
+	if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
 		return nil
 	}
 
-	modelName := gameClient.ModelPrecache[precacheIndex]
+	modelName := g.Client.ModelPrecache[precacheIndex]
 	if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
 		return nil
 	}
@@ -475,22 +475,22 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		return nil
 	}
 
-	frame := gameClient.WeaponFrame()
+	frame := g.Client.WeaponFrame()
 	if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
 		frame = 0
 	}
 	origin, _ := runtimeViewState()
-	viewAngles := gameClient.ViewAngles
+	viewAngles := g.Client.ViewAngles
 
 	// CalcGunAngle: rate-limited drift + idle sway on the weapon model.
 	frameTime := 0.0
-	if gameHost != nil {
-		frameTime = gameHost.FrameTime()
+	if g.Host != nil {
+		frameTime = g.Host.FrameTime()
 	}
-	angles := viewCalcGunAngle(&globalViewCalc, viewAngles, gameClient.Time, frameTime)
+	angles := viewCalcGunAngle(&globalViewCalc, viewAngles, g.Client.Time, frameTime)
 
 	// Apply view bob to weapon origin (V_CalcRefdef: forward*bob*0.4 + Z bob).
-	bob := viewCalcBob(gameClient.Time, gameClient.Velocity)
+	bob := viewCalcBob(g.Client.Time, g.Client.Velocity)
 	if bob != 0 {
 		forward, _, _ := runtimeAngleVectors(viewAngles)
 		origin = viewApplyBobToOrigin(origin, forward, bob)
