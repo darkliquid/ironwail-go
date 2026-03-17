@@ -403,6 +403,64 @@ func (b *lockOrderBackend) GetPosition() int {
 func (b *lockOrderBackend) Block()   {}
 func (b *lockOrderBackend) Unblock() {}
 
+// positionBackend is a mock backend that returns a programmable position sequence.
+type positionBackend struct {
+	positions []int
+	index     int
+}
+
+func (b *positionBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
+	return nil, nil
+}
+func (b *positionBackend) Shutdown()  {}
+func (b *positionBackend) Lock()      {}
+func (b *positionBackend) Unlock()    {}
+func (b *positionBackend) Block()     {}
+func (b *positionBackend) Unblock()   {}
+func (b *positionBackend) GetPosition() int {
+	if b.index >= len(b.positions) {
+		return b.positions[len(b.positions)-1]
+	}
+	pos := b.positions[b.index]
+	b.index++
+	return pos
+}
+
+func TestUpdateSoundTimeMonotonicAcrossWraps(t *testing.T) {
+	// Simulate a DMA buffer of 4096 samples that wraps around.
+	// Position sequence: 1024, 2048, 3072, 0 (wrap), 1024, 2048
+	backend := &positionBackend{
+		positions: []int{1024, 2048, 3072, 0, 1024, 2048},
+	}
+	sys := NewSystem()
+	sys.backend = backend
+	sys.dma = &DMAInfo{Samples: 4096}
+
+	var times []int
+	for range backend.positions {
+		sys.updateSoundTime()
+		times = append(times, sys.soundTime)
+	}
+
+	// Verify monotonically increasing
+	for i := 1; i < len(times); i++ {
+		if times[i] <= times[i-1] {
+			t.Fatalf("soundTime not monotonic: times[%d]=%d <= times[%d]=%d (full: %v)",
+				i, times[i], i-1, times[i-1], times)
+		}
+	}
+
+	// Verify expected values:
+	// Before wrap: 0*4096+1024=1024, 0*4096+2048=2048, 0*4096+3072=3072
+	// After wrap:  1*4096+0=4096,    1*4096+1024=5120, 1*4096+2048=6144
+	expected := []int{1024, 2048, 3072, 4096, 5120, 6144}
+	for i, want := range expected {
+		if times[i] != want {
+			t.Fatalf("soundTime[%d] = %d, want %d (full: %v)", i, times[i], want, times)
+		}
+	}
+}
+
 func TestUpdateDoesNotCallGetPositionWhileLocked(t *testing.T) {
 	backend := &lockOrderBackend{t: t}
 	sys := NewSystem()

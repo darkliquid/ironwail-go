@@ -3,7 +3,9 @@
 
 package audio
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const (
 	ambientVolumeScale = 0.3
@@ -30,6 +32,11 @@ type System struct {
 	paintedTime int
 	mixAhead    float64
 
+	// For tracking DMA buffer wraps to keep soundTime monotonic
+	// (mirrors C Quake's GetSoundtime logic)
+	oldSamplePos int
+	bufferCount  int
+
 	ambientSFX    [NumAmbients]*SFX
 	ambientLevels [NumAmbients]float32
 }
@@ -55,6 +62,7 @@ func (s *System) Init(backend Backend, sampleRate int, load8Bit bool) error {
 
 	s.cache = NewSFXCache(s.dma.Speed, load8Bit)
 	s.mixer = NewMixer()
+	s.mixer.SetSndSpeed(s.dma.Speed)
 	s.initialized = true
 
 	return nil
@@ -373,10 +381,22 @@ func (s *System) pickChannel(entNum, entChannel int) *Channel {
 }
 
 func (s *System) updateSoundTime() {
-	if s.backend == nil {
+	if s.backend == nil || s.dma == nil {
 		return
 	}
-	s.soundTime = s.backend.GetPosition()
+
+	// Get the raw DMA position (wraps at dma.Samples)
+	samplePos := s.backend.GetPosition()
+	fullSamples := s.dma.Samples
+
+	// Detect buffer wrap-around: if position went backwards, the buffer wrapped
+	if samplePos < s.oldSamplePos {
+		s.bufferCount++
+	}
+	s.oldSamplePos = samplePos
+
+	// Compute monotonically increasing sound time
+	s.soundTime = s.bufferCount*fullSamples + samplePos
 }
 
 func (s *System) AddRawSamples(samples int, rate, width, channels int, data []byte, volume float32) {

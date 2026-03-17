@@ -77,6 +77,7 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 			}
 
 			cache := ch.SFX.Cache
+
 			ltime := paintedTime
 
 			pitch := ch.Pitch
@@ -91,7 +92,7 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 					remainingSource = 0
 				}
 				outputNeeded := int(math.Ceil(float64(remainingSource / pitch)))
-				
+
 				paintCount := end - ltime
 				if outputNeeded < paintCount {
 					paintCount = outputNeeded
@@ -110,7 +111,7 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 					if cache.LoopStart >= 0 {
 						ch.Pos = cache.LoopStart
 						ch.PosFraction = 0
-						// We don't really use ch.End for termination anymore, but 
+						// We don't really use ch.End for termination anymore, but
 						// let's keep it somewhat sane.
 						ch.End = ltime + int(float32(cache.Length-ch.Pos)/pitch)
 					} else {
@@ -219,7 +220,7 @@ func (m *Mixer) paintChannel16(ch *Channel, cache *SoundCache, count int, sndVol
 		}
 
 		s1 := getSample(ch.Pos)
-		s2 := getSample(ch.Pos+1)
+		s2 := getSample(ch.Pos + 1)
 
 		sample := int32(float32(s1) + frac*(float32(s2-s1)))
 

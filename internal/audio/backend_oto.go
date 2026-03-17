@@ -52,7 +52,7 @@ func (b *OtoBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DM
 	if err != nil {
 		return nil, err
 	}
-	
+
 	select {
 	case <-ready:
 		// OK
