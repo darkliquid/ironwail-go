@@ -184,6 +184,13 @@ func initGameHost() error {
 	// scr_viewsize: screen view size percentage (100 = full), used by
 	// r_viewmodel_quake fudge.
 	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
+	crosshair := cvar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
+	crosshair.Callback = func(cv *cvar.CVar) {
+		if gameHUD != nil {
+			gameHUD.UpdateCrosshair(cv.Float)
+		}
+	}
+	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
 	registerControlCvars()
 
 	// Create host instance
@@ -447,6 +454,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Initialize HUD
 	gameHUD = hud.NewHUD(gameDraw)
+	gameHUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
 	gameClient = host.ActiveClientState(gameSubs)
 	syncControlCvarsToClient()
 	resetRuntimeVisualState()

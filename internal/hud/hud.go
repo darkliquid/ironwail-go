@@ -31,6 +31,7 @@ type HUD struct {
 	drawManager *draw.Manager
 	status      *StatusBar
 	compact     *CompactHUD
+	crosshair   Crosshair
 	centerprint *Centerprint
 
 	// Player state
@@ -91,6 +92,7 @@ func NewHUD(dm *draw.Manager) *HUD {
 		drawManager: dm,
 		status:      NewStatusBar(dm),
 		compact:     NewCompactHUD(),
+		crosshair:   Crosshair{},
 		centerprint: NewCenterprint(dm),
 	}
 }
@@ -130,7 +132,13 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 			h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 		}
 	}
+	h.crosshair.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 	h.centerprint.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+}
+
+// UpdateCrosshair updates the crosshair glyph from the crosshair cvar value.
+func (h *HUD) UpdateCrosshair(crosshairValue float64) {
+	h.crosshair.UpdateCvar(crosshairValue)
 }
 
 // SetCenterprint displays a centered message for the specified duration.
@@ -147,4 +155,3 @@ func (h *HUD) ClearCenterprint() {
 func (h *HUD) IsActive() bool {
 	return h.centerprint.IsActive()
 }
-
