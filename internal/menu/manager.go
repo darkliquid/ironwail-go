@@ -39,7 +39,15 @@ const (
 )
 
 const (
-	mainItemsBase = 5 // SP, MP, Options, Help, Quit (without Mods)
+	// Main menu item indices — fixed enum matching C Ironwail.
+	// When no mods are available, mainMods is skipped during navigation.
+	mainSinglePlayer = 0
+	mainMultiPlayer  = 1
+	mainOptions      = 2
+	mainMods         = 3
+	mainHelp         = 4
+	mainQuit         = 5
+	mainItems        = 6 // total slots (Mods may be skipped)
 
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
@@ -231,6 +239,11 @@ type Manager struct {
 	// mouseAccumY accumulates mouse Y movement (in menu-space pixels) to drive
 	// cursor selection. Mirrors C Ironwail M_Mousemove() scroll semantics.
 	mouseAccumY float32
+
+	// Cached main menu sub-pics (computed once, reused).
+	mainMenuTop    *image.QPic // Top portion of mainmenu.lmp (rows 0-59)
+	mainMenuBottom *image.QPic // Bottom portion of mainmenu.lmp (rows 60+)
+	mainMenuSplit  bool        // true if sub-pics have been computed
 
 	// drawManager provides access to graphics assets.
 	drawManager DrawManager
@@ -517,7 +530,13 @@ func (m *Manager) M_Mousemove(dx, dy int) {
 func (m *Manager) moveCursorDown() {
 	switch m.state {
 	case MenuMain:
-		m.mainCursor = (m.mainCursor + 1) % m.mainMenuCount()
+		m.mainCursor++
+		if m.mainCursor >= mainItems {
+			m.mainCursor = 0
+		}
+		if len(m.modsList) == 0 && m.mainCursor == mainMods {
+			m.mainCursor++
+		}
 	case MenuSinglePlayer:
 		m.singlePlayerCursor = (m.singlePlayerCursor + 1) % singlePlayerItems
 	case MenuLoad:
@@ -554,7 +573,10 @@ func (m *Manager) moveCursorUp() {
 	case MenuMain:
 		m.mainCursor--
 		if m.mainCursor < 0 {
-			m.mainCursor = m.mainMenuCount() - 1
+			m.mainCursor = mainItems - 1
+		}
+		if len(m.modsList) == 0 && m.mainCursor == mainMods {
+			m.mainCursor--
 		}
 	case MenuSinglePlayer:
 		m.singlePlayerCursor--
@@ -623,43 +645,24 @@ func (m *Manager) moveCursorUp() {
 	m.playMenuSound(menuSoundNavigate)
 }
 
-// mainMenuCount returns the number of main menu items, adding one for MODS
-// when mods are available.
-func (m *Manager) mainMenuCount() int {
-	if len(m.modsList) > 0 {
-		return mainItemsBase + 1
-	}
-	return mainItemsBase
-}
-
-// mainMenuModsIdx returns the cursor index for the MODS item, or -1 if no
-// mods are available.
-func (m *Manager) mainMenuModsIdx() int {
-	if len(m.modsList) == 0 {
-		return -1
-	}
-	return mainItemsBase - 1 // index 4 = before Quit
-}
-
-// mainMenuQuitIdx returns the cursor index for the QUIT item.
-func (m *Manager) mainMenuQuitIdx() int {
-	if len(m.modsList) > 0 {
-		return mainItemsBase // index 5 when Mods present
-	}
-	return mainItemsBase - 1 // index 4 normally
-}
 func (m *Manager) mainKey(key int) {
 	switch key {
 	case input.KUpArrow, input.KMWheelUp:
 		m.mainCursor--
 		if m.mainCursor < 0 {
-			m.mainCursor = m.mainMenuCount() - 1
+			m.mainCursor = mainItems - 1
+		}
+		if len(m.modsList) == 0 && m.mainCursor == mainMods {
+			m.mainCursor--
 		}
 		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.mainCursor++
-		if m.mainCursor >= m.mainMenuCount() {
+		if m.mainCursor >= mainItems {
 			m.mainCursor = 0
+		}
+		if len(m.modsList) == 0 && m.mainCursor == mainMods {
+			m.mainCursor++
 		}
 		m.playMenuSound(menuSoundNavigate)
 	case input.KEnter, input.KSpace, input.KMouse1:
@@ -674,22 +677,20 @@ func (m *Manager) mainKey(key int) {
 // mainSelect handles selecting an item from the main menu.
 func (m *Manager) mainSelect() {
 	switch m.mainCursor {
-	case 0: // Single Player
+	case mainSinglePlayer:
 		m.state = MenuSinglePlayer
-	case 1: // Multi Player
+	case mainMultiPlayer:
 		m.state = MenuMultiPlayer
-	case 2: // Options
+	case mainOptions:
 		m.state = MenuOptions
-	case 3: // Help
+	case mainMods:
+		m.enterModsMenu()
+	case mainHelp:
 		m.state = MenuHelp
 		m.helpPage = 0
-	default:
-		if m.mainCursor == m.mainMenuModsIdx() {
-			m.enterModsMenu()
-		} else if m.mainCursor == m.mainMenuQuitIdx() {
-			m.quitPrevState = MenuMain
-			m.state = MenuQuit
-		}
+	case mainQuit:
+		m.quitPrevState = MenuMain
+		m.state = MenuQuit
 	}
 }
 
@@ -1671,30 +1672,70 @@ func (m *Manager) applyHostGame() {
 func (m *Manager) drawMain(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/ttl_main.lmp")
 
-	if pic := m.getPic("gfx/mainmenu.lmp"); pic != nil {
-		dc.DrawMenuPic(72, 32, pic)
-		// When Mods are available, draw additional text items below the picture
-		// since the original 5-item graphic doesn't include a Mods entry.
-		if m.mainMenuModsIdx() >= 0 {
-			modsY := 32 + m.mainMenuModsIdx()*20
-			quitY := 32 + m.mainMenuQuitIdx()*20
-			m.drawText(dc, 84, modsY, "MODS", true)
-			m.drawText(dc, 84, quitY, "QUIT", true)
-		}
-	} else {
+	pic := m.getPic("gfx/mainmenu.lmp")
+	if pic == nil {
+		// Text-only fallback (no graphics loaded).
 		m.drawText(dc, 84, 32, "SINGLE PLAYER", true)
 		m.drawText(dc, 84, 52, "MULTIPLAYER", true)
 		m.drawText(dc, 84, 72, "OPTIONS", true)
-		m.drawText(dc, 84, 92, "HELP", true)
-		if m.mainMenuModsIdx() >= 0 {
-			m.drawText(dc, 84, 112, "MODS", true)
-			m.drawText(dc, 84, 132, "QUIT", true)
-		} else {
-			m.drawText(dc, 84, 112, "QUIT", true)
+		if len(m.modsList) > 0 {
+			m.drawText(dc, 84, 92, "MODS", true)
 		}
+		m.drawText(dc, 84, 32+mainHelp*20, "HELP", true)
+		m.drawText(dc, 84, 32+mainQuit*20, "QUIT", true)
+		m.drawMainCursor(dc)
+		return
 	}
 
-	m.drawCursor(dc, 54, 32+m.mainCursor*20)
+	if len(m.modsList) > 0 {
+		// Split the graphic and insert MODS between OPTIONS and HELP.
+		m.ensureMainMenuSplit(pic)
+
+		const split = 60 // pixel row to split at (after OPTIONS)
+
+		// Draw top portion (SP, MP, OPTIONS).
+		if m.mainMenuTop != nil {
+			dc.DrawMenuPic(72, 32, m.mainMenuTop)
+		}
+
+		// Draw MODS item (sprite or text fallback).
+		if modsPic := m.getPic("gfx/menumods.lmp"); modsPic != nil {
+			dc.DrawMenuPic(72, 32+split, modsPic)
+		} else {
+			m.drawText(dc, 74, 32+split+1, "MODS", true)
+		}
+
+		// Draw bottom portion (HELP, QUIT).
+		if m.mainMenuBottom != nil {
+			dc.DrawMenuPic(72, 32+split+20, m.mainMenuBottom)
+		}
+	} else {
+		// No mods — draw full graphic.
+		dc.DrawMenuPic(72, 32, pic)
+	}
+
+	m.drawMainCursor(dc)
+}
+
+// ensureMainMenuSplit creates cached sub-pics from the full main menu graphic.
+func (m *Manager) ensureMainMenuSplit(pic *image.QPic) {
+	if m.mainMenuSplit {
+		return
+	}
+	const split = 60
+	m.mainMenuTop = pic.SubPic(0, 0, int(pic.Width), split)
+	m.mainMenuBottom = pic.SubPic(0, split, int(pic.Width), int(pic.Height)-split)
+	m.mainMenuSplit = true
+}
+
+// drawMainCursor draws the animated main menu cursor at the correct visual position.
+func (m *Manager) drawMainCursor(dc renderer.RenderContext) {
+	cursor := m.mainCursor
+	// When no mods, items after the mods slot shift up visually.
+	if len(m.modsList) == 0 && cursor > mainMods {
+		cursor--
+	}
+	m.drawCursor(dc, 54, 32+cursor*20)
 }
 
 func (m *Manager) drawSinglePlayer(dc renderer.RenderContext) {

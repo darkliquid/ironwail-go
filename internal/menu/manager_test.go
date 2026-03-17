@@ -198,10 +198,10 @@ func TestMainMenuKey(t *testing.T) {
 	mgr := NewManager(drawMgr, inputSys)
 	mgr.ShowMenu()
 
-	// Test up arrow wraps to last item.
+	// Test up arrow wraps to last item (mainQuit=5).
 	mgr.M_Key(input.KUpArrow)
-	if mgr.mainCursor != 4 {
-		t.Error("Up arrow should wrap cursor to end")
+	if mgr.mainCursor != mainQuit {
+		t.Errorf("Up arrow should wrap cursor to mainQuit(%d), got %d", mainQuit, mgr.mainCursor)
 	}
 
 	// Test down arrow wraps back to start.
@@ -230,11 +230,11 @@ func TestQuitMenu(t *testing.T) {
 
 	mgr.ShowMenu()
 
-	// Navigate to quit (item 4).
-	mgr.M_Key(input.KDownArrow) // Item 1
-	mgr.M_Key(input.KDownArrow) // Item 2
-	mgr.M_Key(input.KDownArrow) // Item 3
-	mgr.M_Key(input.KDownArrow) // Item 4 (Quit)
+	// Navigate to quit — 4 down presses (skips mainMods when no mods).
+	mgr.M_Key(input.KDownArrow) // 0→1
+	mgr.M_Key(input.KDownArrow) // 1→2
+	mgr.M_Key(input.KDownArrow) // 2→4 (skip 3)
+	mgr.M_Key(input.KDownArrow) // 4→5 (Quit)
 	mgr.M_Key(input.KEnter)     // Enter to select quit
 
 	if mgr.GetState() != MenuQuit {
@@ -248,7 +248,7 @@ func TestQuitMenu(t *testing.T) {
 	}
 
 	// Confirm quit with Y.
-	mgr.mainCursor = 4
+	mgr.mainCursor = mainQuit
 	mgr.M_Key(input.KEnter)
 	mgr.M_Key('y')
 
@@ -272,11 +272,11 @@ func TestMainMenuSelections(t *testing.T) {
 		cursor int
 		want   MenuState
 	}{
-		{0, MenuSinglePlayer},
-		{1, MenuMultiPlayer},
-		{2, MenuOptions},
-		{3, MenuHelp},
-		{4, MenuQuit},
+		{mainSinglePlayer, MenuSinglePlayer},
+		{mainMultiPlayer, MenuMultiPlayer},
+		{mainOptions, MenuOptions},
+		{mainHelp, MenuHelp},
+		{mainQuit, MenuQuit},
 	}
 
 	for _, tc := range selections {
@@ -1350,125 +1350,133 @@ func TestWaterwarpCvarCyclesCorrectly(t *testing.T) {
 // TestModsMenuEmptyWithNoProvider verifies that the mods menu opens with an empty
 // list when no provider is set, and that navigating away with ESC returns to main.
 func TestModsMenuEmptyWithNoProvider(t *testing.T) {
-mgr := NewManager(nil, nil)
-mgr.state = MenuMain
-mgr.enterModsMenu()
+	mgr := NewManager(nil, nil)
+	mgr.state = MenuMain
+	mgr.enterModsMenu()
 
-if got := mgr.GetState(); got != MenuMods {
-t.Fatalf("expected MenuMods, got %v", got)
-}
-if len(mgr.modsList) != 0 {
-t.Fatalf("expected empty mods list, got %d items", len(mgr.modsList))
-}
+	if got := mgr.GetState(); got != MenuMods {
+		t.Fatalf("expected MenuMods, got %v", got)
+	}
+	if len(mgr.modsList) != 0 {
+		t.Fatalf("expected empty mods list, got %d items", len(mgr.modsList))
+	}
 
-// ESC should return to main menu.
-mgr.M_Key(input.KEscape)
-if got := mgr.GetState(); got != MenuMain {
-t.Fatalf("expected MenuMain after ESC from mods, got %v", got)
-}
+	// ESC should return to main menu.
+	mgr.M_Key(input.KEscape)
+	if got := mgr.GetState(); got != MenuMain {
+		t.Fatalf("expected MenuMain after ESC from mods, got %v", got)
+	}
 }
 
 // TestModsMenuWithMods verifies that the mods provider populates the list and that
 // selecting a mod queues the "game" command.
 func TestModsMenuWithMods(t *testing.T) {
-mgr := NewManager(nil, nil)
+	mgr := NewManager(nil, nil)
 
-var commands []string
-mgr.commandText = func(text string) { commands = append(commands, text) }
+	var commands []string
+	mgr.commandText = func(text string) { commands = append(commands, text) }
 
-mgr.SetModsProvider(func() []ModInfo {
-return []ModInfo{{Name: "hipnotic"}, {Name: "rogue"}}
-})
+	mgr.SetModsProvider(func() []ModInfo {
+		return []ModInfo{{Name: "hipnotic"}, {Name: "rogue"}}
+	})
 
-mgr.state = MenuMain
-mgr.enterModsMenu()
+	mgr.state = MenuMain
+	mgr.enterModsMenu()
 
-if got := mgr.GetState(); got != MenuMods {
-t.Fatalf("expected MenuMods, got %v", got)
-}
-if len(mgr.modsList) != 2 {
-t.Fatalf("expected 2 mods, got %d", len(mgr.modsList))
-}
+	if got := mgr.GetState(); got != MenuMods {
+		t.Fatalf("expected MenuMods, got %v", got)
+	}
+	if len(mgr.modsList) != 2 {
+		t.Fatalf("expected 2 mods, got %d", len(mgr.modsList))
+	}
 
-// Select the first mod (hipnotic).
-mgr.modsCursor = 0
-mgr.M_Key(input.KEnter)
+	// Select the first mod (hipnotic).
+	mgr.modsCursor = 0
+	mgr.M_Key(input.KEnter)
 
-// Menu should hide and a "game" command should be queued.
-if mgr.IsActive() {
-t.Fatal("menu should be hidden after selecting a mod")
-}
-if len(commands) == 0 {
-t.Fatal("expected a game command to be queued")
-}
-if !strings.Contains(commands[0], "game") {
-t.Fatalf("expected game command, got: %q", commands[0])
-}
-if !strings.Contains(commands[0], "hipnotic") {
-t.Fatalf("expected hipnotic in game command, got: %q", commands[0])
-}
+	// Menu should hide and a "game" command should be queued.
+	if mgr.IsActive() {
+		t.Fatal("menu should be hidden after selecting a mod")
+	}
+	if len(commands) == 0 {
+		t.Fatal("expected a game command to be queued")
+	}
+	if !strings.Contains(commands[0], "game") {
+		t.Fatalf("expected game command, got: %q", commands[0])
+	}
+	if !strings.Contains(commands[0], "hipnotic") {
+		t.Fatalf("expected hipnotic in game command, got: %q", commands[0])
+	}
 }
 
 // TestModsMenuBackItem verifies that the last item (Back) returns to the main menu.
 func TestModsMenuBackItem(t *testing.T) {
-mgr := NewManager(nil, nil)
-mgr.SetModsProvider(func() []ModInfo {
-return []ModInfo{{Name: "mod1"}}
-})
+	mgr := NewManager(nil, nil)
+	mgr.SetModsProvider(func() []ModInfo {
+		return []ModInfo{{Name: "mod1"}}
+	})
 
-mgr.state = MenuMain
-mgr.enterModsMenu()
+	mgr.state = MenuMain
+	mgr.enterModsMenu()
 
-// Move to the Back item (index == len(modsList)).
-mgr.modsCursor = len(mgr.modsList)
-mgr.M_Key(input.KEnter)
+	// Move to the Back item (index == len(modsList)).
+	mgr.modsCursor = len(mgr.modsList)
+	mgr.M_Key(input.KEnter)
 
-if got := mgr.GetState(); got != MenuMain {
-t.Fatalf("expected MenuMain after selecting Back, got %v", got)
+	if got := mgr.GetState(); got != MenuMain {
+		t.Fatalf("expected MenuMain after selecting Back, got %v", got)
+	}
 }
-}
 
-// TestMainMenuIncludesModsWhenAvailable verifies that the main menu cursor wraps
-// over 6 items when mods are available, and selecting index 4 enters the mods menu.
+// TestMainMenuIncludesModsWhenAvailable verifies that selecting mainMods enters
+// the mods menu when mods are available.
 func TestMainMenuIncludesModsWhenAvailable(t *testing.T) {
-backend := &mockInputBackend{}
-inputSys := input.NewSystem(backend)
-mgr := NewManager(nil, inputSys)
-mgr.SetModsProvider(func() []ModInfo {
-return []ModInfo{{Name: "mymod"}}
-})
-mgr.ShowMenu()
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.SetModsProvider(func() []ModInfo {
+		return []ModInfo{{Name: "mymod"}}
+	})
+	mgr.ShowMenu()
 
-if count := mgr.mainMenuCount(); count != 6 {
-t.Fatalf("expected 6 menu items with mods, got %d", count)
+	mgr.state = MenuMain
+	mgr.mainCursor = mainMods
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuMods {
+		t.Fatalf("expected MenuMods from main menu, got %v", got)
+	}
 }
 
-mgr.state = MenuMain
-mgr.mainCursor = mgr.mainMenuModsIdx()
-mgr.M_Key(input.KEnter)
+// TestMainMenuCursorSkipsModsWhenNone verifies that cursor navigation skips
+// the mainMods slot when no mods are available.
+func TestMainMenuCursorSkipsModsWhenNone(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.ShowMenu()
 
-if got := mgr.GetState(); got != MenuMods {
-t.Fatalf("expected MenuMods from main menu, got %v", got)
-}
-}
+	// Move down from Options — should skip mainMods, land on mainHelp.
+	mgr.mainCursor = mainOptions
+	mgr.M_Key(input.KDownArrow)
+	if mgr.mainCursor != mainHelp {
+		t.Fatalf("expected cursor at mainHelp(%d), got %d", mainHelp, mgr.mainCursor)
+	}
 
-// TestMainMenuQuitIdxWithAndWithoutMods verifies that the QUIT item is at the
-// correct index depending on whether mods are available.
-func TestMainMenuQuitIdxWithAndWithoutMods(t *testing.T) {
-mgr := NewManager(nil, nil)
+	// Move up from mainHelp — should skip mainMods, land on mainOptions.
+	mgr.M_Key(input.KUpArrow)
+	if mgr.mainCursor != mainOptions {
+		t.Fatalf("expected cursor at mainOptions(%d), got %d", mainOptions, mgr.mainCursor)
+	}
 
-// No mods: QUIT at index 4.
-if got := mgr.mainMenuQuitIdx(); got != 4 {
-t.Fatalf("expected quit at 4 without mods, got %d", got)
-}
-
-mgr.SetModsProvider(func() []ModInfo { return []ModInfo{{Name: "mod"}} })
-mgr.refreshModsList()
-
-// With mods: QUIT at index 5.
-if got := mgr.mainMenuQuitIdx(); got != 5 {
-t.Fatalf("expected quit at 5 with mods, got %d", got)
-}
+	// With mods, cursor should NOT skip mainMods.
+	mgr.SetModsProvider(func() []ModInfo { return []ModInfo{{Name: "mod"}} })
+	mgr.refreshModsList()
+	mgr.mainCursor = mainOptions
+	mgr.M_Key(input.KDownArrow)
+	if mgr.mainCursor != mainMods {
+		t.Fatalf("expected cursor at mainMods(%d) with mods, got %d", mainMods, mgr.mainCursor)
+	}
 }
 
 // ---- M_Mousemove tests ----
@@ -1476,129 +1484,128 @@ t.Fatalf("expected quit at 5 with mods, got %d", got)
 // TestMousemoveScrollsMainMenuCursor verifies that mouse Y movement accumulates
 // and moves the cursor down when the threshold is crossed.
 func TestMousemoveScrollsMainMenuCursor(t *testing.T) {
-backend := &mockInputBackend{}
-inputSys := input.NewSystem(backend)
-mgr := NewManager(nil, inputSys)
-mgr.ShowMenu()
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.ShowMenu()
 
-initialCursor := mgr.mainCursor
-// Each call to M_Mousemove with dy=4 should not move yet.
-mgr.M_Mousemove(0, 4)
-if mgr.mainCursor != initialCursor {
-t.Fatalf("cursor moved too early; mouseAccumY threshold not reached")
-}
+	initialCursor := mgr.mainCursor
+	// Each call to M_Mousemove with dy=4 should not move yet.
+	mgr.M_Mousemove(0, 4)
+	if mgr.mainCursor != initialCursor {
+		t.Fatalf("cursor moved too early; mouseAccumY threshold not reached")
+	}
 
-// Another dy=4 → total 8 ≥ menuItemPx(8) → cursor should advance.
-mgr.M_Mousemove(0, 4)
-expected := (initialCursor + 1) % mgr.mainMenuCount()
-if mgr.mainCursor != expected {
-t.Fatalf("expected cursor %d after crossing threshold, got %d", expected, mgr.mainCursor)
-}
+	// Another dy=4 → total 8 ≥ menuItemPx(8) → cursor should advance.
+	mgr.M_Mousemove(0, 4)
+	if mgr.mainCursor != 1 {
+		t.Fatalf("expected cursor 1 after crossing threshold, got %d", mgr.mainCursor)
+	}
 }
 
 // TestMousemoveScrollsUp verifies that negative dy accumulates and moves cursor up.
 func TestMousemoveScrollsUp(t *testing.T) {
-backend := &mockInputBackend{}
-inputSys := input.NewSystem(backend)
-mgr := NewManager(nil, inputSys)
-mgr.ShowMenu()
-mgr.mainCursor = 2 // not at top
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.ShowMenu()
+	mgr.mainCursor = 2 // not at top
 
-mgr.M_Mousemove(0, -8)
-expected := 1
-if mgr.mainCursor != expected {
-t.Fatalf("expected cursor %d after upward scroll, got %d", expected, mgr.mainCursor)
-}
+	mgr.M_Mousemove(0, -8)
+	expected := 1
+	if mgr.mainCursor != expected {
+		t.Fatalf("expected cursor %d after upward scroll, got %d", expected, mgr.mainCursor)
+	}
 }
 
 // TestMousemoveInactiveMenuIsNoop verifies that M_Mousemove does nothing when
 // the menu is not active.
 func TestMousemoveInactiveMenuIsNoop(t *testing.T) {
-backend := &mockInputBackend{}
-inputSys := input.NewSystem(backend)
-mgr := NewManager(nil, inputSys)
-// Don't call ShowMenu.
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	// Don't call ShowMenu.
 
-mgr.M_Mousemove(0, 100) // large delta — should be ignored
-if mgr.mainCursor != 0 {
-t.Fatalf("cursor should not change when menu is inactive, got %d", mgr.mainCursor)
-}
+	mgr.M_Mousemove(0, 100) // large delta — should be ignored
+	if mgr.mainCursor != 0 {
+		t.Fatalf("cursor should not change when menu is inactive, got %d", mgr.mainCursor)
+	}
 }
 
 // TestKeyPressResetMouseAccum verifies that a key press resets the mouse accumulator.
 func TestKeyPressResetMouseAccum(t *testing.T) {
-backend := &mockInputBackend{}
-inputSys := input.NewSystem(backend)
-mgr := NewManager(nil, inputSys)
-mgr.ShowMenu()
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.ShowMenu()
 
-// Accumulate some mouse movement without crossing the threshold.
-mgr.M_Mousemove(0, 4)
-if mgr.mouseAccumY == 0 {
-t.Fatal("mouse accumulator should be non-zero after partial movement")
-}
+	// Accumulate some mouse movement without crossing the threshold.
+	mgr.M_Mousemove(0, 4)
+	if mgr.mouseAccumY == 0 {
+		t.Fatal("mouse accumulator should be non-zero after partial movement")
+	}
 
-// A key press should reset the accumulator.
-mgr.M_Key(input.KUpArrow)
-if mgr.mouseAccumY != 0 {
-t.Fatalf("mouse accumulator should be zero after key press, got %f", mgr.mouseAccumY)
-}
+	// A key press should reset the accumulator.
+	mgr.M_Key(input.KUpArrow)
+	if mgr.mouseAccumY != 0 {
+		t.Fatalf("mouse accumulator should be zero after key press, got %f", mgr.mouseAccumY)
+	}
 }
 
 // ---- HUD style tests ----
 
 // TestHUDStyleLabelClassic verifies that hudStyleLabel returns "CLASSIC" for 0.
 func TestHUDStyleLabelClassic(t *testing.T) {
-if got := hudStyleLabel(0); got != "CLASSIC" {
-t.Fatalf("expected CLASSIC, got %q", got)
-}
+	if got := hudStyleLabel(0); got != "CLASSIC" {
+		t.Fatalf("expected CLASSIC, got %q", got)
+	}
 }
 
 // TestHUDStyleLabelCompact verifies that hudStyleLabel returns "COMPACT" for 1.
 func TestHUDStyleLabelCompact(t *testing.T) {
-if got := hudStyleLabel(1); got != "COMPACT" {
-t.Fatalf("expected COMPACT, got %q", got)
-}
+	if got := hudStyleLabel(1); got != "COMPACT" {
+		t.Fatalf("expected COMPACT, got %q", got)
+	}
 }
 
 // TestVideoMenuHUDStyleCyclesCorrectly verifies that adjustVideoSetting cycles
 // hud_style through 0→1→0 when pressing right.
 func TestVideoMenuHUDStyleCyclesCorrectly(t *testing.T) {
-mgr := NewManager(nil, nil)
-mgr.state = MenuVideo
-mgr.videoCursor = videoItemHUDStyle
+	mgr := NewManager(nil, nil)
+	mgr.state = MenuVideo
+	mgr.videoCursor = videoItemHUDStyle
 
-cvar.Set("hud_style", "0")
+	cvar.Set("hud_style", "0")
 
-// Right: 0 → 1.
-mgr.adjustVideoSetting(1)
-if got := cvar.IntValue("hud_style"); got != 1 {
-t.Fatalf("after right from 0: hud_style = %d, want 1", got)
-}
+	// Right: 0 → 1.
+	mgr.adjustVideoSetting(1)
+	if got := cvar.IntValue("hud_style"); got != 1 {
+		t.Fatalf("after right from 0: hud_style = %d, want 1", got)
+	}
 
-// Right: 1 → 0 (wraps).
-mgr.adjustVideoSetting(1)
-if got := cvar.IntValue("hud_style"); got != 0 {
-t.Fatalf("after right from 1 (wrap): hud_style = %d, want 0", got)
-}
+	// Right: 1 → 0 (wraps).
+	mgr.adjustVideoSetting(1)
+	if got := cvar.IntValue("hud_style"); got != 0 {
+		t.Fatalf("after right from 1 (wrap): hud_style = %d, want 0", got)
+	}
 }
 
 // TestModsMenuCurrentModLabel verifies that the current mod is marked with an
 // asterisk in the mods menu draw output.
 func TestModsMenuCurrentModLabel(t *testing.T) {
-mgr := NewManager(nil, nil)
-mgr.SetModsProvider(func() []ModInfo {
-return []ModInfo{{Name: "rogue"}, {Name: "hipnotic"}}
-})
-mgr.SetCurrentMod("rogue")
-mgr.enterModsMenu()
+	mgr := NewManager(nil, nil)
+	mgr.SetModsProvider(func() []ModInfo {
+		return []ModInfo{{Name: "rogue"}, {Name: "hipnotic"}}
+	})
+	mgr.SetCurrentMod("rogue")
+	mgr.enterModsMenu()
 
-rc := &mockMenuRenderContext{}
-mgr.drawMods(rc)
+	rc := &mockMenuRenderContext{}
+	mgr.drawMods(rc)
 
-// Find characters drawn — the rogue entry should contain an asterisk.
-rendered := renderedMenuLine(rc, 32) // startY=32 for first item
-if !strings.Contains(rendered, "*") {
-t.Fatalf("current mod (rogue) should have asterisk marker in rendered output; got %q", rendered)
-}
+	// Find characters drawn — the rogue entry should contain an asterisk.
+	rendered := renderedMenuLine(rc, 32) // startY=32 for first item
+	if !strings.Contains(rendered, "*") {
+		t.Fatalf("current mod (rogue) should have asterisk marker in rendered output; got %q", rendered)
+	}
 }

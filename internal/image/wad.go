@@ -132,3 +132,37 @@ func ParseQPic(data []byte) (*QPic, error) {
 		Pixels: data[8 : 8+width*height],
 	}, nil
 }
+
+// SubPic returns a new QPic containing the specified rectangular region
+// of the source image. Coordinates are clamped to source bounds.
+func (p *QPic) SubPic(srcX, srcY, srcW, srcH int) *QPic {
+	if srcX < 0 {
+		srcX = 0
+	}
+	if srcY < 0 {
+		srcY = 0
+	}
+	w := int(p.Width)
+	h := int(p.Height)
+	if srcX+srcW > w {
+		srcW = w - srcX
+	}
+	if srcY+srcH > h {
+		srcH = h - srcY
+	}
+	if srcW <= 0 || srcH <= 0 {
+		return &QPic{Width: 0, Height: 0}
+	}
+
+	sub := &QPic{
+		Width:  uint32(srcW),
+		Height: uint32(srcH),
+		Pixels: make([]byte, srcW*srcH),
+	}
+	for row := 0; row < srcH; row++ {
+		srcOff := (srcY+row)*w + srcX
+		dstOff := row * srcW
+		copy(sub.Pixels[dstOff:dstOff+srcW], p.Pixels[srcOff:srcOff+srcW])
+	}
+	return sub
+}
