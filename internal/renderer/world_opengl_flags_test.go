@@ -553,7 +553,7 @@ func TestBucketWorldFaces_Sky(t *testing.T) {
 	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 1 {
 		t.Fatalf("expected 1 sky face, got %d", len(sky))
@@ -602,7 +602,7 @@ func TestBucketWorldFaces_SkyWithOpaque(t *testing.T) {
 	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 1 {
 		t.Fatalf("expected 1 sky face, got %d", len(sky))
@@ -643,7 +643,7 @@ func TestBucketWorldFaces_EmptySkyBucket(t *testing.T) {
 	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
-	sky, _, _, _, _, _ := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	sky, _, _, _, _, _ := bucketWorldFaces(faces, textures, nil, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 
 	if len(sky) != 0 {
 		t.Fatalf("expected 0 sky faces, got %d", len(sky))
@@ -676,7 +676,7 @@ func TestBucketWorldFaces_TurbulentCallFlag(t *testing.T) {
 	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
 
-	_, opaque, _, _, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
+	_, opaque, _, _, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
 	if len(liquidTranslucent) != 1 || !liquidTranslucent[0].turbulent {
 		t.Fatalf("expected one turbulent translucent liquid call, got %#v", liquidTranslucent)
 	}
@@ -712,7 +712,7 @@ func TestBucketWorldFacesWithLights_PropagatesDynamicLight(t *testing.T) {
 		Lifetime:   1,
 	})
 
-	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, textures, nil, lightmaps, 999, 998, 0, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
+	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, textures, nil, nil, lightmaps, 999, 998, 0, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
 	if len(opaque) != 1 {
 		t.Fatalf("opaque count = %d, want 1", len(opaque))
 	}
@@ -763,7 +763,7 @@ func TestBucketWorldFaces_LiquidBuckets(t *testing.T) {
 	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 0.5, slime: 0.25, tele: 1}
 
-	_, opaque, _, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, 999, 998, [3]float32{}, camera, alphaSettings)
+	_, opaque, _, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, nil, lightmaps, 999, 998, [3]float32{}, camera, alphaSettings)
 	if len(opaque) != 1 {
 		t.Fatalf("opaque count = %d, want 1", len(opaque))
 	}

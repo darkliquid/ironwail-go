@@ -425,6 +425,8 @@ type Renderer struct {
 	worldVPUniform                      int32
 	worldTextureUniform                 int32
 	worldLightmapUniform                int32
+	worldFullbrightUniform              int32
+	worldHasFullbrightUniform           int32
 	worldDynamicLightUniform            int32
 	worldSkyVPUniform                   int32
 	worldSkySolidUniform                int32
@@ -474,6 +476,7 @@ type Renderer struct {
 	worldSkyExternalFaceTextures        [6]uint32
 	worldSkyExternalMode                externalSkyboxRenderMode
 	worldTextures                       map[int32]uint32
+	worldFullbrightTextures             map[int32]uint32
 	worldSkySolidTextures               map[int32]uint32
 	worldSkyAlphaTextures               map[int32]uint32
 	worldTextureAnimations              []*SurfaceTexture
@@ -595,8 +598,9 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		window:                window,
 		config:                cfg,
 		textureCache:          make(map[glCacheKey]*glCachedTexture),
-		worldTextures:         make(map[int32]uint32),
-		worldSkySolidTextures: make(map[int32]uint32),
+		worldTextures:           make(map[int32]uint32),
+		worldFullbrightTextures: make(map[int32]uint32),
+		worldSkySolidTextures:   make(map[int32]uint32),
 		worldSkyAlphaTextures: make(map[int32]uint32),
 		brushModels:           make(map[int]*glWorldMesh),
 		aliasModels:           make(map[string]*glAliasModel),

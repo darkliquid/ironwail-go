@@ -141,6 +141,32 @@ func ConvertConcharsToRGBA(pixels []byte, palette []byte) []byte {
 	return rgba
 }
 
+// ConvertPaletteToFullbrightRGBA creates a fullbright-only texture.
+// Pixels with palette index 224-254 retain their color at full brightness.
+// All other pixels (including 255 which is transparent) become fully transparent (0,0,0,0).
+// Returns the RGBA data and whether any fullbright pixels were found.
+func ConvertPaletteToFullbrightRGBA(pixels []byte, palette []byte) ([]byte, bool) {
+	rgba := make([]byte, len(pixels)*4)
+	hasFullbright := false
+	for i, idx := range pixels {
+		if idx >= 224 && idx != 255 { // 224-254 are fullbright, 255 is transparent
+			hasFullbright = true
+			r, g, b := GetPaletteColor(idx, palette)
+			rgba[i*4+0] = r
+			rgba[i*4+1] = g
+			rgba[i*4+2] = b
+			rgba[i*4+3] = 255
+		} else {
+			// All non-fullbright pixels become transparent
+			rgba[i*4+0] = 0
+			rgba[i*4+1] = 0
+			rgba[i*4+2] = 0
+			rgba[i*4+3] = 0
+		}
+	}
+	return rgba, hasFullbright
+}
+
 // ConvertPaletteToRGBA converts a palette-indexed image to RGBA format.
 // This is useful for texture uploaders that require RGBA input.
 func ConvertPaletteToRGBA(pixels []byte, palette []byte) []byte {
