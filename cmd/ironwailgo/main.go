@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -285,26 +286,33 @@ func preferWaylandForGoGPU() {
 	}
 }
 
-func initSubsystems(headless bool, basedir, gamedir string, args []string) error {
+func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []string) error {
 	gameModDir = strings.ToLower(strings.TrimSpace(gamedir))
-	// Initialize input system
-	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer
+	gameInput = nil
+	gameDraw = nil
+	gameMenu = nil
+	gameHUD = nil
+
+	// Initialize base input system (used for binds/console routing even in dedicated mode).
+	gameInput = input.NewSystem(nil) // No backend yet - will be set by renderer when available.
 	if err := gameInput.Init(); err != nil {
 		return fmt.Errorf("failed to init input system: %w", err)
 	}
 
-	// Initialize draw manager
-	gameDraw = draw.NewManager()
+	if !dedicated {
+		// Initialize draw manager
+		gameDraw = draw.NewManager()
 
-	// Initialize menu system
-	gameMenu = menu.NewManager(gameDraw, gameInput)
-	gameMenu.SetSoundPlayer(playMenuSound)
+		// Initialize menu system
+		gameMenu = menu.NewManager(gameDraw, gameInput)
+		gameMenu.SetSoundPlayer(playMenuSound)
 
-	// Set up menu input callbacks
-	gameInput.OnMenuKey = handleMenuKeyEvent
-	gameInput.OnMenuChar = handleMenuCharEvent
-	gameInput.OnKey = handleGameKeyEvent
-	gameInput.OnChar = handleGameCharEvent
+		// Set up menu input callbacks
+		gameInput.OnMenuKey = handleMenuKeyEvent
+		gameInput.OnMenuChar = handleMenuCharEvent
+		gameInput.OnKey = handleGameKeyEvent
+		gameInput.OnChar = handleGameCharEvent
+	}
 
 	if err := initGameHost(); err != nil {
 		return err
@@ -345,7 +353,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	}
 
 	// If renderer was created, wire its input backend into the input system
-	if gameRenderer != nil && gameInput != nil {
+	if !dedicated && gameRenderer != nil && gameInput != nil {
 		// Some renderers provide a backend factory to adapt window events
 		// to the engine input system.
 		if bb := gameRenderer.InputBackendForSystem(gameInput); bb != nil {
@@ -357,7 +365,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Optional override to force SDL3 input even when renderer backend exists.
 	// Useful when platform-specific window backends do not emit keyboard events.
-	if gameInput != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
+	if !dedicated && gameInput != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
 		previousBackend := gameInput.Backend()
 		if b := input.NewSDL3Backend(gameInput); b != nil {
 			if err := gameInput.SetBackend(b); err != nil {
@@ -378,7 +386,7 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	// If no backend was provided by the renderer, allow other build-tagged
 	// backends (e.g. SDL3) to provide system input. input.NewSDL3Backend
 	// is a no-op stub when the sdl3 build tag is not present.
-	if gameInput != nil {
+	if !dedicated && gameInput != nil {
 		if err := func() error {
 			// Only set SDL3 backend if renderer didn't provide one
 			if gameInput.Backend() != nil {
@@ -394,7 +402,10 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	}
 
 	// Wire subsystems together through Host.Init
-	audioAdapter := audio.NewAudioAdapter(audio.NewSystem())
+	var audioAdapter *audio.AudioAdapter
+	if !dedicated {
+		audioAdapter = audio.NewAudioAdapter(audio.NewSystem())
+	}
 	// Audio init is deferred to host.Init to avoid double-initialization.
 	gameAudio = audioAdapter
 	resetRuntimeSoundState()
@@ -427,49 +438,53 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Set menu in host
 	gameHost.SetMenu(gameMenu)
-	gameMenu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
-		hostSlots := gameHost.ListSaveSlots(slotCount)
-		menuSlots := make([]menu.SaveSlotInfo, 0, len(hostSlots))
-		for _, slot := range hostSlots {
-			menuSlots = append(menuSlots, menu.SaveSlotInfo{
-				Name:        slot.Name,
-				DisplayName: slot.DisplayName,
-			})
-		}
-		return menuSlots
-	})
-	// Wire mod enumeration and current-mod tracking into the menu.
-	gameMenu.SetModsProvider(func() []menu.ModInfo {
-		mods := fileSys.ListMods()
-		out := make([]menu.ModInfo, 0, len(mods))
-		for _, m := range mods {
-			out = append(out, menu.ModInfo{Name: m.Name})
-		}
-		return out
-	})
-	gameMenu.SetCurrentMod(gameModDir)
+	if gameMenu != nil {
+		gameMenu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
+			hostSlots := gameHost.ListSaveSlots(slotCount)
+			menuSlots := make([]menu.SaveSlotInfo, 0, len(hostSlots))
+			for _, slot := range hostSlots {
+				menuSlots = append(menuSlots, menu.SaveSlotInfo{
+					Name:        slot.Name,
+					DisplayName: slot.DisplayName,
+				})
+			}
+			return menuSlots
+		})
+		// Wire mod enumeration and current-mod tracking into the menu.
+		gameMenu.SetModsProvider(func() []menu.ModInfo {
+			mods := fileSys.ListMods()
+			out := make([]menu.ModInfo, 0, len(mods))
+			for _, m := range mods {
+				out = append(out, menu.ModInfo{Name: m.Name})
+			}
+			return out
+		})
+		gameMenu.SetCurrentMod(gameModDir)
+	}
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
-	drawErr := gameDraw.Init(fileSys)
-	if drawErr != nil {
-		// Fall back to local "data" directory for development/testing
-		slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
-		drawErr = gameDraw.InitFromDir("data")
-	}
-	if drawErr != nil {
-		slog.Warn("Failed to initialize draw manager", "error", drawErr)
-	} else if gameRenderer != nil {
-		if pal := gameDraw.Palette(); len(pal) >= 768 {
-			gameRenderer.SetPalette(pal)
+	if gameDraw != nil {
+		drawErr := gameDraw.Init(fileSys)
+		if drawErr != nil {
+			// Fall back to local "data" directory for development/testing
+			slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
+			drawErr = gameDraw.InitFromDir("data")
 		}
-		if conchars := gameDraw.GetConcharsData(); len(conchars) >= 128*128 {
-			gameRenderer.SetConchars(conchars)
+		if drawErr != nil {
+			slog.Warn("Failed to initialize draw manager", "error", drawErr)
+		} else if gameRenderer != nil {
+			if pal := gameDraw.Palette(); len(pal) >= 768 {
+				gameRenderer.SetPalette(pal)
+			}
+			if conchars := gameDraw.GetConcharsData(); len(conchars) >= 128*128 {
+				gameRenderer.SetConchars(conchars)
+			}
 		}
-	}
 
-	// Initialize HUD
-	gameHUD = hud.NewHUD(gameDraw)
-	gameHUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
+		// Initialize HUD
+		gameHUD = hud.NewHUD(gameDraw)
+		gameHUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
+	}
 	gameClient = host.ActiveClientState(gameSubs)
 	syncControlCvarsToClient()
 	resetRuntimeVisualState()
@@ -485,7 +500,9 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	}
 
 	// Make sure the menu is visible at startup
-	gameMenu.ShowMenu()
+	if gameMenu != nil {
+		gameMenu.ShowMenu()
+	}
 	// slog.Info("menu active") - moved to main for deterministic logs
 
 	slog.Info("All subsystems initialized")
@@ -668,6 +685,7 @@ func main() {
 	baseDir := flag.String("basedir", ".", "Base Quake directory containing id1")
 	gameDir := flag.String("game", "id1", "Game directory (e.g. id1, hipnotic)")
 	headlessFlag := flag.Bool("headless", false, "Run without rendering")
+	dedicatedFlag := flag.Bool("dedicated", false, "Run as dedicated server")
 	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
 	logLevel := flag.String("loglvl", "INFO", "logging level (INFO, WARN, ERROR, DEBUG)")
 	flag.Parse()
@@ -688,8 +706,9 @@ func main() {
 	mapArg := startupMapArg(args)
 
 	// Try to initialize with renderer, fall back to headless if it fails
-	headless := *headlessFlag
-	initErr := initSubsystems(headless, *baseDir, *gameDir, args)
+	dedicated := *dedicatedFlag
+	headless := *headlessFlag || dedicated
+	initErr := initSubsystems(headless, dedicated, *baseDir, *gameDir, args)
 	if initErr != nil && !headless {
 		// Check if error is related to renderer initialization
 		if isRendererError(initErr) {
@@ -698,13 +717,14 @@ func main() {
 			fmt.Println("Continuing with game loop (no rendering)...")
 			headless = true
 			// Re-initialize without renderer
-			if err := initSubsystems(true, *baseDir, *gameDir, args); err != nil {
+			if err := initSubsystems(true, false, *baseDir, *gameDir, args); err != nil {
 				log.Fatal("Initialization failed:", err)
 			}
 		} else {
 			log.Fatal("Initialization failed:", initErr)
 		}
 	}
+	cvar.SetBool("dedicated", dedicated)
 	defer func() {
 		if gameHost == nil {
 			return
@@ -717,7 +737,9 @@ func main() {
 	// Deterministic startup logs after successful initialization
 	slog.Info("FS mounted")
 	slog.Info("QC loaded")
-	slog.Info("menu active")
+	if !dedicated {
+		slog.Info("menu active")
+	}
 
 	// Execute map command if map argument was provided
 	if mapArg != "" {
@@ -868,7 +890,11 @@ func main() {
 
 	if headless {
 		// Run in headless mode (no rendering, just game loop)
-		headlessGameLoop()
+		if dedicated {
+			dedicatedGameLoop()
+		} else {
+			headlessGameLoop()
+		}
 	}
 
 	slog.Info("Engine shutdown complete")
@@ -1923,6 +1949,69 @@ func headlessGameLoop() {
 		lastTime = now
 
 		// Update game state
+		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
+			log.Fatal("host frame error", err)
+		}
+		if gameHost != nil && gameHost.IsAborted() {
+			return
+		}
+	}
+}
+
+func dedicatedGameLoop() {
+	slog.Info("Starting dedicated game loop")
+	slog.Info("frame loop started")
+
+	consoleCommands := make(chan string, 64)
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			text := strings.TrimSpace(scanner.Text())
+			if text == "" {
+				continue
+			}
+			consoleCommands <- text
+		}
+	}()
+
+	lastTime := time.Now()
+	ticker := time.NewTicker(time.Second / 250) // 250 FPS target
+	defer ticker.Stop()
+
+	queueConsoleCommand := func(text string) {
+		if !strings.HasSuffix(text, "\n") {
+			text += "\n"
+		}
+		if gameSubs != nil && gameSubs.Commands != nil {
+			gameSubs.Commands.AddText(text)
+			gameSubs.Commands.Execute()
+			return
+		}
+		cmdsys.AddText(text)
+		cmdsys.Execute()
+	}
+
+	for range ticker.C {
+		for {
+			select {
+			case command := <-consoleCommands:
+				queueConsoleCommand(command)
+				if gameHost != nil && gameHost.IsAborted() {
+					return
+				}
+			default:
+				goto frame
+			}
+		}
+
+	frame:
+		if gameHost != nil && gameHost.IsAborted() {
+			return
+		}
+		now := time.Now()
+		dt := now.Sub(lastTime).Seconds()
+		lastTime = now
+
 		if err := gameHost.Frame(dt, gameCallbacks{}); err != nil {
 			log.Fatal("host frame error", err)
 		}

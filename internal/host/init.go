@@ -35,6 +35,7 @@ const (
 
 func registerHostCVars() {
 	cvar.Register("skill", "1", cvar.FlagArchive, "Single-player skill level")
+	cvar.Register("dedicated", "0", cvar.FlagServerInfo, "Run as dedicated server")
 	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
 	cvar.Register("coop", "0", cvar.FlagServerInfo, "Cooperative game mode")
 	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
