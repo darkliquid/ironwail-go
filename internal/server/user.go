@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -322,12 +323,26 @@ func CalcRoll(angles, velocity [3]float32) float32 {
 		side = -side
 	}
 
-	value := side * 0.05
-	if value > 0.3 {
-		value = 0.3
+	// Use cl_rollangle and cl_rollspeed cvars, matching C Ironwail V_CalcRoll
+	rollAngle := float32(2.0)
+	rollSpeed := float32(200.0)
+	if cv := cvar.Get("cl_rollangle"); cv != nil {
+		rollAngle = float32(cv.Float)
+	}
+	if cv := cvar.Get("cl_rollspeed"); cv != nil {
+		rollSpeed = float32(cv.Float)
 	}
 
-	return value * sign
+	if rollSpeed == 0 {
+		return 0
+	}
+	if side < rollSpeed {
+		side = side * rollAngle / rollSpeed
+	} else {
+		side = rollAngle
+	}
+
+	return side * sign
 }
 
 func (s *Server) SV_ClientThink(client *Client) {

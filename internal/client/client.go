@@ -789,9 +789,9 @@ func (c *Client) SendMove(cmd *UserCmd) ([]byte, error) {
 	}
 
 	// Write view angles (protocol-dependent encoding)
-	// Use 16-bit angles for FitzQuake/RMQ with PRFL_SHORTANGLE flag
-	useShortAngles := (c.Protocol == inet.PROTOCOL_FITZQUAKE || c.Protocol == inet.PROTOCOL_RMQ) &&
-		(c.ProtocolFlags&inet.PRFL_SHORTANGLE != 0)
+	// FitzQuake and RMQ always use 16-bit angles for CLC_MOVE,
+	// matching C Ironwail CL_SendMove behavior. Only NetQuake uses 8-bit.
+	useShortAngles := c.Protocol != inet.PROTOCOL_NETQUAKE
 
 	for i := 0; i < 3; i++ {
 		if useShortAngles {

@@ -1165,6 +1165,7 @@ func TestSendMoveWithShortAngles(t *testing.T) {
 
 func TestSendCmdDuringSignOn(t *testing.T) {
 	c := NewClient()
+	c.Protocol = inet.PROTOCOL_NETQUAKE
 	c.State = StateConnected
 	c.Signon = 2 // Not yet complete
 	c.MoveMessages = 2
@@ -1208,6 +1209,7 @@ func TestSendCmdDuringSignOn(t *testing.T) {
 
 func TestSendCmdAfterSignOn(t *testing.T) {
 	c := NewClient()
+	c.Protocol = inet.PROTOCOL_NETQUAKE
 	c.State = StateActive
 	c.Signon = Signons // Complete
 	c.MoveMessages = 2

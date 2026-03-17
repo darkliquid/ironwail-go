@@ -110,9 +110,10 @@ func (a *AudioAdapter) ClearStaticSounds() {
 }
 
 func (a *AudioAdapter) SetListener(origin, velocity, forward, right, up [3]float32) {
-	if a == nil || a.sys != nil {
-		a.sys.SetListener(origin, velocity, forward, right, up)
+	if a == nil || a.sys == nil {
+		return
 	}
+	a.sys.SetListener(origin, velocity, forward, right, up)
 }
 
 func (a *AudioAdapter) SetViewEntity(viewEntity int) {

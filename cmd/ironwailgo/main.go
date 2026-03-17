@@ -376,6 +376,9 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 
 	// Wire subsystems together through Host.Init
 	audioAdapter := audio.NewAudioAdapter(audio.NewSystem())
+	if err := audioAdapter.Init(); err != nil {
+		slog.Warn("failed to initialize audio system", "error", err)
+	}
 	gameAudio = audioAdapter
 	resetRuntimeSoundState()
 	gameSubs = &host.Subsystems{
