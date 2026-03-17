@@ -82,10 +82,10 @@ func (r *Renderer) ensureWorldProgram() error {
 
 // lightstyleScale looks up a lightstyle's current brightness from the 64-element value array. The 255 sentinel (no light) returns 0.
 func lightstyleScale(values [64]float32, style uint8) float32 {
-	if int(style) < len(values) && values[style] > 0 {
-		return values[style]
+	if int(style) >= len(values) {
+		return 0
 	}
-	return 1
+	return values[style]
 }
 
 // setFogState updates the fog color and density values used by world and sky shader fog calculations.

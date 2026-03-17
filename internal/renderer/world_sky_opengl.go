@@ -68,7 +68,7 @@ void main() {
 	if (base.a < 0.1) {
 		discard;
 	}
-	vec3 color = base.rgb * light;
+	vec3 color = base.rgb * light * 2.0;
 	
 	// Add fullbright contribution (additive blend)
 	if (uHasFullbright > 0.5) {

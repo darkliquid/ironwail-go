@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
 )
@@ -23,6 +24,14 @@ const (
 	SignonSize    = 31500
 	NumSpawnParms = 16
 	NumPingTimes  = 16
+
+	// Spawnflag bits stored in EntVars.SpawnFlags, used to filter entities
+	// by difficulty and game mode during map loading. Matches the C
+	// definitions in pr_edict.c.
+	spawnFlagNotEasy       = 0x100 // Don't spawn on Easy difficulty
+	spawnFlagNotMedium     = 0x200 // Don't spawn on Medium difficulty
+	spawnFlagNotHard       = 0x400 // Don't spawn on Hard/Nightmare difficulty
+	spawnFlagNotDeathmatch = 0x800 // Don't spawn in Deathmatch mode
 )
 
 var LocalModels [MaxModels][8]byte
@@ -204,9 +213,12 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.StaticEntities = nil
 	s.StaticSounds = nil
 
-	if err := s.loadMapEntities(string(tree.Entities)); err != nil {
-		return fmt.Errorf("parse map entities %q: %w", s.ModelName, err)
-	}
+	// Initialize the spatial partition tree before entity loading.
+	// QC spawn functions (called during loadMapEntities) invoke builtins
+	// like setmodel/setsize that call LinkEdict, which requires the area
+	// tree to exist. C Ironwail calls SV_ClearWorld() before ED_LoadFromFile().
+	s.ClearWorld()
+
 	if s.QCVM != nil {
 		if world.Vars.Model == 0 {
 			world.Vars.Model = s.QCVM.AllocString(s.ModelName)
@@ -216,9 +228,16 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 		}
 	}
 
-	s.ClearWorld()
-	s.LinkEdict(world, false)
+	// Push QC globals (skill, mapname, deathmatch, coop) and the world
+	// entity to the VM before spawning map entities. QC spawn functions
+	// read these globals to decide behavior.
 	s.syncQCVMState()
+
+	if err := s.loadMapEntities(string(tree.Entities)); err != nil {
+		return fmt.Errorf("parse map entities %q: %w", s.ModelName, err)
+	}
+
+	s.LinkEdict(world, false)
 
 	// Populate signon buffers with static entities and ambient sounds.
 	// These are shared across all connecting clients.
@@ -235,6 +254,13 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 }
 
 // loadMapEntities parses the BSP entity lump and instantiates edicts from textual key/value blocks.
+//
+// This is the Go equivalent of C Ironwail's ED_LoadFromFile(). After parsing
+// each entity's key-value pairs, it filters by skill/deathmatch flags and
+// calls the QC spawn function matching the entity's classname (e.g.,
+// "trigger_teleport" → QC function trigger_teleport()). Without this dispatch
+// step, map entities would have no touch functions, think routines, or solid
+// types — making triggers, doors, items, and monsters non-functional.
 func (s *Server) loadMapEntities(raw string) error {
 	if strings.Trim(raw, " \t\r\n\x00") == "" {
 		return nil
@@ -252,6 +278,20 @@ func (s *Server) loadMapEntities(raw string) error {
 		freeTime:   make([]float32, max(s.MaxEdicts, len(s.Edicts))),
 	}
 
+	// Read skill and deathmatch cvars for entity filtering.
+	skill := 1
+	if skillCV := cvar.Get("skill"); skillCV != nil {
+		skill = int(skillCV.Float + 0.5)
+		if skill < 0 {
+			skill = 0
+		} else if skill > 3 {
+			skill = 3
+		}
+	}
+	isDeathmatch := cvar.FloatValue("deathmatch") != 0
+	noMonsters := cvar.FloatValue("nomonsters") != 0
+
+	inhibited := 0
 	remaining := raw
 	for entIndex := 0; ; entIndex++ {
 		remaining = strings.TrimLeft(remaining, " \t\r\n\x00")
@@ -275,8 +315,89 @@ func (s *Server) loadMapEntities(raw string) error {
 			return err
 		}
 		remaining = next
+
+		ent := s.EdictNum(entNum)
+		if ent == nil || ent.Vars == nil {
+			continue
+		}
+
+		// Entity 0 is the worldspawn — it gets special handling and
+		// its spawn function runs like any other entity.
+		if s.QCVM == nil {
+			continue
+		}
+
+		// Resolve the classname string from the QC string table.
+		className := s.QCVM.GetString(ent.Vars.ClassName)
+		if className == "" {
+			slog.Warn("entity has no classname", "entNum", entNum)
+			s.FreeEdict(ent)
+			continue
+		}
+
+		// Filter entities by skill level and deathmatch flags, matching
+		// C Ironwail's ED_LoadFromFile (pr_edict.c:1527-1549).
+		spawnFlags := int(ent.Vars.SpawnFlags)
+		if isDeathmatch {
+			if spawnFlags&spawnFlagNotDeathmatch != 0 {
+				s.FreeEdict(ent)
+				inhibited++
+				continue
+			}
+		} else {
+			if skill == 0 && spawnFlags&spawnFlagNotEasy != 0 {
+				s.FreeEdict(ent)
+				inhibited++
+				continue
+			}
+			if skill == 1 && spawnFlags&spawnFlagNotMedium != 0 {
+				s.FreeEdict(ent)
+				inhibited++
+				continue
+			}
+			if skill >= 2 && spawnFlags&spawnFlagNotHard != 0 {
+				s.FreeEdict(ent)
+				inhibited++
+				continue
+			}
+		}
+
+		// Skip monsters if nomonsters cvar is set.
+		if noMonsters && strings.HasPrefix(className, "monster_") {
+			s.FreeEdict(ent)
+			inhibited++
+			continue
+		}
+
+		// Find the QC function matching the classname (e.g. "trigger_teleport").
+		funcIdx := s.QCVM.FindFunction(className)
+		if funcIdx < 0 {
+			slog.Warn("no spawn function for entity", "classname", className, "entNum", entNum)
+			s.FreeEdict(ent)
+			continue
+		}
+
+		// Push parsed entity fields to the QCVM so the spawn function
+		// can read them (origin, angles, target, etc.).
+		s.ensureQCVMEdictStorage()
+		syncEdictToQCVM(s.QCVM, entNum, ent)
+
+		// Set QC globals and execute the spawn function.
+		s.QCVM.SetGlobal("self", entNum)
+		s.QCVM.SetGlobal("time", s.Time)
+		if err := s.QCVM.ExecuteFunction(funcIdx); err != nil {
+			slog.Error("spawn function failed", "classname", className, "entNum", entNum, "err", err)
+			s.FreeEdict(ent)
+			continue
+		}
+
+		// Pull QC-modified fields back to Go (solid, touch, think, etc.).
+		syncEdictFromQCVM(s.QCVM, entNum, ent)
 	}
 
+	if inhibited > 0 {
+		slog.Info("entities inhibited by skill/deathmatch filtering", "count", inhibited)
+	}
 	s.NumEdicts = len(s.Edicts)
 	return nil
 }

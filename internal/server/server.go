@@ -380,6 +380,18 @@ func (s *Server) syncQCVMState() {
 	s.QCVM.SetGlobal("world", 0)
 	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
 	s.QCVM.SetGlobal("skill", skill)
+	s.QCVM.SetGlobal("time", s.Time)
+
+	// C Ironwail sets coop/deathmatch globals before ED_LoadFromFile so
+	// QC spawn functions can branch on game mode.
+	coopVal := cvar.FloatValue("coop")
+	dmVal := cvar.FloatValue("deathmatch")
+	if coopVal != 0 {
+		s.QCVM.SetGlobal("coop", float32(coopVal))
+	} else {
+		s.QCVM.SetGlobal("deathmatch", float32(dmVal))
+	}
+
 	for entNum := 0; entNum < s.NumEdicts; entNum++ {
 		syncEdictToQCVM(s.QCVM, entNum, s.EdictNum(entNum))
 	}
@@ -691,6 +703,9 @@ func NewServer() *Server {
 				e.Vars.Size = size
 				e.Vars.AbsMin = [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]}
 				e.Vars.AbsMax = [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]}
+				// C's SetMinMaxSize calls SV_LinkEdict(e, false) to update
+				// the spatial partition after bounds change.
+				s.LinkEdict(e, false)
 			}
 		},
 		SetModel: func(vm *qc.VM, entNum int, modelName string) {
@@ -726,7 +741,18 @@ func NewServer() *Server {
 					e.Vars.Maxs[2] - e.Vars.Mins[2],
 				}
 				s.LinkEdict(e, false)
-				syncEdictToQCVM(vm, entNum, e)
+
+				// Only push the fields SetModel actually modified back to
+				// the QCVM. A full syncEdictToQCVM here would clobber any
+				// QC-set fields (e.g. solid, touch, movetype) that were
+				// changed between builtins within the same QC function.
+				vm.SetEVector(entNum, qc.EntFieldMins, e.Vars.Mins)
+				vm.SetEVector(entNum, qc.EntFieldMaxs, e.Vars.Maxs)
+				vm.SetEVector(entNum, qc.EntFieldSize, e.Vars.Size)
+				// LinkEdict updates AbsMin/AbsMax (including fat-1 for BSP
+				// entities); push those back so QC sees consistent bounds.
+				vm.SetEVector(entNum, qc.EntFieldAbsMin, e.Vars.AbsMin)
+				vm.SetEVector(entNum, qc.EntFieldAbsMax, e.Vars.AbsMax)
 			}
 		},
 		PrecacheSound: func(vm *qc.VM, sample string) {

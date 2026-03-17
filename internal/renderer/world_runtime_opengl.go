@@ -189,9 +189,7 @@ func (r *Renderer) setLightStyleValues(values [64]float32) {
 // defaultLightStyleValues returns the default lightstyle array where style 0 has brightness 1.0 (normal) and all others are 0.
 func defaultLightStyleValues() [64]float32 {
 	var values [64]float32
-	for i := range values {
-		values[i] = 1
-	}
+	values[0] = 1
 	return values
 }
 
