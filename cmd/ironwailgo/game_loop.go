@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"image/png"
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -66,7 +68,7 @@ func (gameCallbacks) ProcessClient() {
 		// Try to read next demo frame
 		msgData, viewAngles, err := demo.ReadDemoFrame()
 		if err != nil {
-			if err.Error() == "EOF" || err.Error() == "unexpected EOF" {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				if demo.TimeDemo && g.Subs != nil && g.Subs.Console != nil {
 					frames, seconds, fps := demo.TimeDemoSummary()
 					g.Subs.Console.Print(fmt.Sprintf("timedemo: %d frames %.3f seconds %.1f fps\n", frames, seconds, fps))

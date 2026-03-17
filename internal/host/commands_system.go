@@ -173,7 +173,7 @@ func (h *Host) CmdAlias(args []string, subs *Subsystems) {
 		count := 0
 		for name, value := range aliases {
 			if subs != nil && subs.Console != nil {
-				subs.Console.Print(fmt.Sprintf("   %s: %s", name, value))
+				subs.Console.Print(fmt.Sprintf("   %s: %s\n", name, value))
 			}
 			count++
 		}
@@ -183,7 +183,7 @@ func (h *Host) CmdAlias(args []string, subs *Subsystems) {
 	case 1:
 		if value, ok := cmdsys.Alias(args[0]); ok {
 			if subs != nil && subs.Console != nil {
-				subs.Console.Print(fmt.Sprintf("   %s: %s", strings.ToLower(args[0]), value))
+				subs.Console.Print(fmt.Sprintf("   %s: %s\n", strings.ToLower(args[0]), value))
 			}
 		}
 	default:

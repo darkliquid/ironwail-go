@@ -156,11 +156,19 @@ func (m *Manager) drawArrowCursor(dc renderer.RenderContext, x, y int) {
 // to select the "white" (bright) character set; otherwise the default brownish
 // set is used.
 func (m *Manager) drawText(dc renderer.RenderContext, x, y int, text string, white bool) {
-	for i, r := range text {
+	runes := []rune(text)
+	for idx, r := range runes {
 		ch := int(r)
+		// Quake fonts only support 0–255; replace unsupported runes with '?'.
+		if ch < 0 || ch > 255 {
+			ch = int('?')
+		}
 		if white {
 			ch += 128
+			if ch > 255 {
+				ch = 255
+			}
 		}
-		dc.DrawMenuCharacter(x+i*8, y, ch)
+		dc.DrawMenuCharacter(x+idx*8, y, ch)
 	}
 }

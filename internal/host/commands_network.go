@@ -211,9 +211,6 @@ func (h *Host) ShutdownServer(subs *Subsystems) {
 	if subs != nil && subs.Server != nil {
 		subs.Server.Shutdown()
 	}
-
-	if subs != nil && subs.Client != nil {
-	}
 }
 
 func (h *Host) CmdConnect(address string, subs *Subsystems) {

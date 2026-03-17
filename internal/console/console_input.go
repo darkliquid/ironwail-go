@@ -17,21 +17,12 @@ func (c *Console) InputLine() string {
 // SetInputLine replaces the entire input line. This is used by tab completion
 // and history recall to overwrite whatever the user had typed. Setting the
 // input also resets the history cursor to the end (a fresh position).
-
-// SetInputLine replaces the entire input line. This is used by tab completion
-// and history recall to overwrite whatever the user had typed. Setting the
-// input also resets the history cursor to the end (a fresh position).
 func (c *Console) SetInputLine(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.inputLine = []rune(text)
 	c.historyPos = len(c.history)
 }
-
-// AppendInputRune appends a single character to the input line. Control
-// characters (newline, carriage return, tab, and anything below ASCII 32) are
-// silently ignored — those are handled by dedicated key handlers (CommitInput
-// for Enter, BackspaceInput for backspace, etc.).
 
 // AppendInputRune appends a single character to the input line. Control
 // characters (newline, carriage return, tab, and anything below ASCII 32) are
@@ -46,9 +37,6 @@ func (c *Console) AppendInputRune(ch rune) {
 	c.inputLine = append(c.inputLine, ch)
 	c.historyPos = len(c.history)
 }
-
-// BackspaceInput removes the last rune from the input line, implementing the
-// Backspace key. It is a no-op if the line is already empty.
 
 // BackspaceInput removes the last rune from the input line, implementing the
 // Backspace key. It is a no-op if the line is already empty.

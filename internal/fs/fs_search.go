@@ -37,6 +37,7 @@ func (fs *FileSystem) addEnginePak() {
 		baseDir := filepath.Clean(fs.baseDir)
 		if _, exists := seen[baseDir]; !exists {
 			candidates = append(candidates, baseDir)
+			seen[baseDir] = struct{}{}
 		}
 	}
 

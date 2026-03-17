@@ -3,6 +3,8 @@
 // This file implements key binding and key-state management methods.
 package input
 
+import "strings"
+
 // SetBinding associates a console command string with an engine key code.
 // When the key is pressed in KeyGame mode, the command is submitted to the
 // console system. Out-of-range keys are silently ignored.
@@ -274,6 +276,7 @@ func StringToKey(name string) int {
 	}
 
 	// Named keys (case insensitive)
+	name = strings.ToUpper(name)
 	switch name {
 	case "TAB", "Tab":
 		return KTab
