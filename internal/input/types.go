@@ -228,6 +228,10 @@ type GamepadState struct {
 
 	// Button state bitmask
 	Buttons uint32
+
+	// Gyro deltas accumulated from the last frame (degrees).
+	// These are backend-provided and currently only populated by SDL3.
+	GyroYawDelta, GyroPitchDelta float32
 }
 
 // InputState contains the accumulated input state for a frame.

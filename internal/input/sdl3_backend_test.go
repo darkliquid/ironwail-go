@@ -1,0 +1,192 @@
+//go:build sdl3
+// +build sdl3
+
+package input
+
+import (
+	"math"
+	"strconv"
+	"testing"
+
+	sdl "github.com/Zyko0/go-sdl3/sdl"
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
+
+func TestTransformKey(t *testing.T) {
+	b := &sdl3Backend{}
+
+	if got := b.transformKey(KLThumb); got != KLThumb {
+		t.Fatalf("without alt modifier: got %d want %d", got, KLThumb)
+	}
+
+	b.altModifierPressed = true
+	if got := b.transformKey(KLThumb); got != KLThumbAlt {
+		t.Fatalf("with alt modifier KLThumb: got %d want %d", got, KLThumbAlt)
+	}
+	if got := b.transformKey(KRTrigger); got != KRTriggerAlt {
+		t.Fatalf("with alt modifier KRTrigger: got %d want %d", got, KRTriggerAlt)
+	}
+	// Start/back are outside the transformable range and should not shift.
+	if got := b.transformKey(KStart); got != KStart {
+		t.Fatalf("with alt modifier KStart should not shift: got %d want %d", got, KStart)
+	}
+}
+
+func TestTransformKeyRangeMatchesOffset(t *testing.T) {
+	b := &sdl3Backend{altModifierPressed: true}
+	for key := KLThumb; key <= KTouchpad; key++ {
+		got := b.transformKey(key)
+		want := key + altGamepadOffset
+		if got != want {
+			t.Fatalf("key %d transformed to %d want %d", key, got, want)
+		}
+	}
+}
+
+func TestSDLButtonToKeyCoverage(t *testing.T) {
+	if got, want := len(sdlButtonToKey), int(sdl.GAMEPAD_BUTTON_COUNT); got != want {
+		t.Fatalf("mapping entries = %d, want %d", got, want)
+	}
+
+	cases := []struct {
+		button sdl.GamepadButton
+		want   int
+	}{
+		{sdl.GAMEPAD_BUTTON_SOUTH, KAButton},
+		{sdl.GAMEPAD_BUTTON_EAST, KBButton},
+		{sdl.GAMEPAD_BUTTON_START, KStart},
+		{sdl.GAMEPAD_BUTTON_DPAD_LEFT, KDpadLeft},
+		{sdl.GAMEPAD_BUTTON_LEFT_SHOULDER, KLShoulder},
+		{sdl.GAMEPAD_BUTTON_TOUCHPAD, KTouchpad},
+		{sdl.GAMEPAD_BUTTON_GUIDE, 0},
+		{sdl.GAMEPAD_BUTTON_MISC2, 0},
+	}
+	for _, tc := range cases {
+		if got := sdlButtonToKey[tc.button]; got != tc.want {
+			t.Fatalf("button %v mapped to %d, want %d", tc.button, got, tc.want)
+		}
+	}
+}
+
+func TestApplyGyroMode(t *testing.T) {
+	b := &sdl3Backend{}
+	oldMode := gyroMode.String
+	defer cvar.Set(gyroMode.Name, oldMode)
+
+	cvar.Set(gyroMode.Name, strconv.Itoa(gyroModeIgnored))
+	if yaw, pitch, active := b.applyGyroMode(1, 2); !active || yaw != 1 || pitch != 2 {
+		t.Fatalf("ignored mode: yaw=%f pitch=%f active=%v", yaw, pitch, active)
+	}
+
+	cvar.Set(gyroMode.Name, strconv.Itoa(gyroModeEnables))
+	if _, _, active := b.applyGyroMode(1, 2); active {
+		t.Fatal("enables mode should be inactive when modifier is not held")
+	}
+	b.altModifierPressed = true
+	if yaw, pitch, active := b.applyGyroMode(1, 2); !active || yaw != 1 || pitch != 2 {
+		t.Fatalf("enables mode with modifier: yaw=%f pitch=%f active=%v", yaw, pitch, active)
+	}
+
+	cvar.Set(gyroMode.Name, strconv.Itoa(gyroModeDisables))
+	if _, _, active := b.applyGyroMode(1, 2); active {
+		t.Fatal("disables mode should be inactive when modifier is held")
+	}
+	b.altModifierPressed = false
+	if _, _, active := b.applyGyroMode(1, 2); !active {
+		t.Fatal("disables mode should be active when modifier is not held")
+	}
+
+	cvar.Set(gyroMode.Name, strconv.Itoa(gyroModeInvertsDir))
+	b.altModifierPressed = true
+	if yaw, pitch, active := b.applyGyroMode(1, -2); !active || yaw != -1 || pitch != 2 {
+		t.Fatalf("invert mode with modifier: yaw=%f pitch=%f active=%v", yaw, pitch, active)
+	}
+}
+
+func TestFilterGyroValue(t *testing.T) {
+	if got := filterGyroValue(1, 2); math.Abs(float64(got-0.5)) > 1e-6 {
+		t.Fatalf("filtered value = %f, want 0.5", got)
+	}
+	if got := filterGyroValue(-1, 2); math.Abs(float64(got+0.5)) > 1e-6 {
+		t.Fatalf("filtered negative value = %f, want -0.5", got)
+	}
+	if got := filterGyroValue(3, 2); got != 3 {
+		t.Fatalf("above threshold should pass through: got %f", got)
+	}
+}
+
+func TestUpdateGyroAccumulatesDeltas(t *testing.T) {
+	oldEnable := gyroEnable.String
+	oldMode := gyroMode.String
+	oldNoise := gyroNoiseThresh.String
+	oldYaw := gyroYawSensitivity.String
+	oldPitch := gyroPitchSensitivity.String
+	oldTurn := gyroTurningAxis.String
+	oldCalX := gyroCalibrationX.String
+	oldCalY := gyroCalibrationY.String
+	oldCalZ := gyroCalibrationZ.String
+	defer func() {
+		cvar.Set(gyroEnable.Name, oldEnable)
+		cvar.Set(gyroMode.Name, oldMode)
+		cvar.Set(gyroNoiseThresh.Name, oldNoise)
+		cvar.Set(gyroYawSensitivity.Name, oldYaw)
+		cvar.Set(gyroPitchSensitivity.Name, oldPitch)
+		cvar.Set(gyroTurningAxis.Name, oldTurn)
+		cvar.Set(gyroCalibrationX.Name, oldCalX)
+		cvar.Set(gyroCalibrationY.Name, oldCalY)
+		cvar.Set(gyroCalibrationZ.Name, oldCalZ)
+	}()
+
+	cvar.Set(gyroEnable.Name, "1")
+	cvar.Set(gyroMode.Name, strconv.Itoa(gyroModeIgnored))
+	cvar.Set(gyroNoiseThresh.Name, "0")
+	cvar.Set(gyroYawSensitivity.Name, "1")
+	cvar.Set(gyroPitchSensitivity.Name, "1")
+	cvar.Set(gyroTurningAxis.Name, "0")
+	cvar.Set(gyroCalibrationX.Name, "0")
+	cvar.Set(gyroCalibrationY.Name, "0")
+	cvar.Set(gyroCalibrationZ.Name, "0")
+
+	b := &sdl3Backend{
+		gyroLastTimestamp: make(map[sdl.JoystickID]uint64),
+	}
+	id := sdl.JoystickID(1)
+	raw := [3]float32{1, 2, 3} // rad/s
+
+	// First sample seeds timestamp, second sample integrates one second.
+	b.updateGyro(id, raw, 1_000_000_000)
+	b.updateGyro(id, raw, 2_000_000_000)
+
+	if math.Abs(float64(b.gyroYawDelta-57.29578)) > 0.001 {
+		t.Fatalf("gyro yaw delta = %f, want ~57.29578", b.gyroYawDelta)
+	}
+	if math.Abs(float64(b.gyroPitchDelta-114.59156)) > 0.001 {
+		t.Fatalf("gyro pitch delta = %f, want ~114.59156", b.gyroPitchDelta)
+	}
+}
+
+func TestApplyDeadzoneAndCurve(t *testing.T) {
+	if got := applyDeadzoneAndCurve(0.1, 0.2, 2.0); got != 0 {
+		t.Fatalf("deadzone expected 0, got %f", got)
+	}
+	got := applyDeadzoneAndCurve(0.6, 0.2, 2.0)
+	// ((0.6 - 0.2) / 0.8)^2 = 0.25
+	if math.Abs(float64(got-0.25)) > 1e-6 {
+		t.Fatalf("curve value = %f, want 0.25", got)
+	}
+	got = applyDeadzoneAndCurve(-0.6, 0.2, 2.0)
+	if math.Abs(float64(got+0.25)) > 1e-6 {
+		t.Fatalf("negative curve value = %f, want -0.25", got)
+	}
+}
+
+func TestApplyTriggerDeadzone(t *testing.T) {
+	if got := applyTriggerDeadzone(0.02, 0.05); got != 0 {
+		t.Fatalf("trigger below deadzone should be 0, got %f", got)
+	}
+	got := applyTriggerDeadzone(0.525, 0.05)
+	// (0.525 - 0.05) / 0.95 = 0.5
+	if math.Abs(float64(got-0.5)) > 1e-6 {
+		t.Fatalf("trigger scaled value = %f, want 0.5", got)
+	}
+}
