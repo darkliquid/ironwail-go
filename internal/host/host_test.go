@@ -117,7 +117,7 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 		t.Fatalf("Init failed: %v", err)
 	}
 
-	for _, name := range []string{"fraglimit", "timelimit"} {
+	for _, name := range []string{"fraglimit", "timelimit", "teamplay"} {
 		cv := cvar.Get(name)
 		if cv == nil {
 			t.Fatalf("cvar %q not registered", name)

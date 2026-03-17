@@ -39,6 +39,7 @@ func registerHostCVars() {
 	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
 	cvar.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
 	cvar.Register("timelimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match time limit in minutes")
+	cvar.Register("teamplay", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Teamplay rules")
 	cvar.Register(clientNameCVar, defaultClientName, cvar.FlagArchive|cvar.FlagUserInfo, "Player name")
 	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
 	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")

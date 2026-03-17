@@ -43,7 +43,7 @@ const (
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
 	joinGameItems     = 3
-	hostGameItems     = 6
+	hostGameItems     = 8
 	optionsItems      = 5
 	controlsItems     = 17
 	videoItems        = 9 // added videoItemHUDStyle
@@ -77,6 +77,8 @@ const (
 const (
 	hostGameItemMaxPlayers = iota
 	hostGameItemMode
+	hostGameItemFragLimit
+	hostGameItemTimeLimit
 	hostGameItemSkill
 	hostGameItemMap
 	hostGameItemStart
@@ -207,6 +209,8 @@ type Manager struct {
 	hostGameCursor     int
 	hostMaxPlayers     int
 	hostGameMode       int
+	hostFragLimit      int
+	hostTimeLimit      int
 	hostSkill          int
 	hostMapName        string
 
@@ -294,6 +298,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		hostGameCursor:     0,
 		hostMaxPlayers:     hostMaxPlayersMax,
 		hostGameMode:       1,
+		hostFragLimit:      0,
+		hostTimeLimit:      0,
 		hostSkill:          1,
 		hostMapName:        "start",
 		drawManager:        drawMgr,
@@ -917,6 +923,26 @@ func (m *Manager) syncHostGameValues() {
 	m.hostGameMode = 1
 	if cv := cvar.Get("coop"); cv != nil && cv.Int != 0 {
 		m.hostGameMode = 0
+	}
+
+	if cv := cvar.Get("fraglimit"); cv != nil {
+		m.hostFragLimit = cv.Int
+	}
+	if m.hostFragLimit < 0 {
+		m.hostFragLimit = 0
+	}
+	if m.hostFragLimit > 100 {
+		m.hostFragLimit = 100
+	}
+
+	if cv := cvar.Get("timelimit"); cv != nil {
+		m.hostTimeLimit = cv.Int
+	}
+	if m.hostTimeLimit < 0 {
+		m.hostTimeLimit = 0
+	}
+	if m.hostTimeLimit > 60 {
+		m.hostTimeLimit = 60
 	}
 }
 
@@ -1550,6 +1576,22 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 			cvar.SetInt("coop", 0)
 			cvar.SetInt("deathmatch", 1)
 		}
+	case hostGameItemFragLimit:
+		m.hostFragLimit += delta * 10
+		if m.hostFragLimit < 0 {
+			m.hostFragLimit = 100
+		}
+		if m.hostFragLimit > 100 {
+			m.hostFragLimit = 0
+		}
+	case hostGameItemTimeLimit:
+		m.hostTimeLimit += delta * 5
+		if m.hostTimeLimit < 0 {
+			m.hostTimeLimit = 60
+		}
+		if m.hostTimeLimit > 60 {
+			m.hostTimeLimit = 0
+		}
 	case hostGameItemSkill:
 		m.hostSkill += delta
 		if m.hostSkill < 0 {
@@ -1613,6 +1655,8 @@ func (m *Manager) applyHostGame() {
 	m.queueCommand(fmt.Sprintf("maxplayers %d\n", m.hostMaxPlayers))
 	m.queueCommand(fmt.Sprintf("deathmatch %d\n", deathmatch))
 	m.queueCommand(fmt.Sprintf("coop %d\n", coop))
+	m.queueCommand(fmt.Sprintf("fraglimit %d\n", m.hostFragLimit))
+	m.queueCommand(fmt.Sprintf("timelimit %d\n", m.hostTimeLimit))
 	m.queueCommand(fmt.Sprintf("skill %d\n", m.hostSkill))
 	m.queueCommand(fmt.Sprintf("map %q\n", mapName))
 }
@@ -1716,10 +1760,12 @@ func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 
 	m.drawText(dc, 56, 32, "MAX PLAYERS", true)
 	m.drawText(dc, 56, 48, "MODE", true)
-	m.drawText(dc, 56, 64, "SKILL", true)
-	m.drawText(dc, 56, 80, "MAP", true)
-	m.drawText(dc, 56, 112, "START GAME", true)
-	m.drawText(dc, 56, 136, "BACK", true)
+	m.drawText(dc, 56, 64, "FRAG LIMIT", true)
+	m.drawText(dc, 56, 80, "TIME LIMIT", true)
+	m.drawText(dc, 56, 96, "SKILL", true)
+	m.drawText(dc, 56, 112, "MAP", true)
+	m.drawText(dc, 56, 144, "START GAME", true)
+	m.drawText(dc, 56, 168, "BACK", true)
 
 	m.drawText(dc, 192, 32, fmt.Sprintf("%d", m.hostMaxPlayers), true)
 	modeLabel := "COOP"
@@ -1727,16 +1773,26 @@ func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 		modeLabel = "DEATHMATCH"
 	}
 	m.drawText(dc, 192, 48, modeLabel, true)
-	m.drawText(dc, 192, 64, fmt.Sprintf("%d", m.hostSkill), true)
-	m.drawText(dc, 192, 80, m.hostMapName, true)
-	m.drawText(dc, 40, 168, "HOSTING USES EXISTING LOCAL LOOPBACK", true)
+	fragLabel := "NONE"
+	if m.hostFragLimit > 0 {
+		fragLabel = fmt.Sprintf("%d FRAGS", m.hostFragLimit)
+	}
+	m.drawText(dc, 192, 64, fragLabel, true)
+	timeLabel := "NONE"
+	if m.hostTimeLimit > 0 {
+		timeLabel = fmt.Sprintf("%d MINUTES", m.hostTimeLimit)
+	}
+	m.drawText(dc, 192, 80, timeLabel, true)
+	m.drawText(dc, 192, 96, fmt.Sprintf("%d", m.hostSkill), true)
+	m.drawText(dc, 192, 112, m.hostMapName, true)
+	m.drawText(dc, 40, 200, "HOSTING USES EXISTING LOCAL LOOPBACK", true)
 
-	cursorRows := []int{32, 48, 64, 80, 112, 136}
+	cursorRows := []int{32, 48, 64, 80, 96, 112, 144, 168}
 	m.drawArrowCursor(dc, 40, cursorRows[m.hostGameCursor])
 	if m.hostGameCursor == hostGameItemMap {
 		cursorX := 192 + len(m.hostMapName)*8
 		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
-		dc.DrawMenuCharacter(cursorX, 80, cursorChar)
+		dc.DrawMenuCharacter(cursorX, 112, cursorChar)
 	}
 }
 

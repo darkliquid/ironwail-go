@@ -798,6 +798,10 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KRightArrow) // mode: coop -> deathmatch
 	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow) // fraglimit: 0 -> 10
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow) // timelimit: 0 -> 5
+	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KRightArrow) // skill: 1 -> 2
 	mgr.M_Key(input.KDownArrow)
 	for i := 0; i < 5; i++ {
@@ -819,6 +823,8 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 		"maxplayers 3\n",
 		"deathmatch 1\n",
 		"coop 0\n",
+		"fraglimit 10\n",
+		"timelimit 5\n",
 		"skill 2\n",
 		"map \"dm2\"\n",
 	}

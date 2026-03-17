@@ -122,3 +122,263 @@ func TestHandleDeathmatchRespawnDelay(t *testing.T) {
 		t.Fatalf("respawn time not cleared: %v", client.RespawnTime)
 	}
 }
+
+func TestCheckRulesNoTriggerInCoop(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "1",
+		"deathmatch": "0",
+		"fraglimit":  "10",
+		"timelimit":  "2",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Time = 300
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("fraglimit/timelimit should not trigger in coop mode")
+	}
+}
+
+func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "0",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 999
+	s.Time = 99999
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("zero fraglimit/timelimit should not trigger match end")
+	}
+}
+
+func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "20",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 20
+
+	s.CheckRules()
+	if !s.Static.ChangeLevelIssued {
+		t.Fatal("fraglimit should trigger when frags exactly equal limit")
+	}
+}
+
+func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "20",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 19
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("fraglimit should not trigger when frags are below limit")
+	}
+}
+
+func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "0",
+		"timelimit":  "5",
+	})
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.Time = 299 // 5 minutes = 300 seconds
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("timelimit should not trigger when time is below limit")
+	}
+}
+
+func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "10",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.ChangeLevelIssued = true
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 20
+
+	// Should be a no-op since ChangeLevelIssued is already true.
+	s.CheckRules()
+	// No crash or panic means success; the guard clause prevented re-entry.
+}
+
+func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "10",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(4); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	// Client 0: below limit.
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 5
+
+	// Client 1: inactive.
+	s.Static.Clients[1].Active = false
+
+	// Client 2: at limit.
+	s.Static.Clients[2].Active = true
+	s.Static.Clients[2].Spawned = true
+	s.Static.Clients[2].Edict.Vars.Frags = 10
+
+	s.CheckRules()
+	if !s.Static.ChangeLevelIssued {
+		t.Fatal("fraglimit should trigger when any client reaches limit")
+	}
+}
+
+func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "-5",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 50
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("negative fraglimit should be treated as disabled")
+	}
+}
+
+func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "0",
+		"timelimit":  "-10",
+	})
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.Time = 99999
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("negative timelimit should be treated as disabled")
+	}
+}
+
+func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "1",
+		"deathmatch": "1",
+		"fraglimit":  "10",
+		"timelimit":  "2",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Time = 300
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("coop flag should override deathmatch; rules should not trigger")
+	}
+}
+
+func TestCheckRulesSkipsFreedEdicts(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+		"fraglimit":  "10",
+		"timelimit":  "0",
+	})
+
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+	s.Static.Clients[0].Edict.Vars.Frags = 20
+	s.Static.Clients[0].Edict.Free = true // Freed edict should be skipped.
+
+	s.CheckRules()
+	if s.Static.ChangeLevelIssued {
+		t.Fatal("freed edicts should be skipped in fraglimit check")
+	}
+}
