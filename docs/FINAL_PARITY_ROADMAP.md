@@ -37,7 +37,7 @@ The Go renderer draws the right things, but not always in the right way.
 ## 4. Audio & Music (Codec & Spatialization)
 
 - [ ] **Precise Spatialization**: Match the exact distance/panning curves from C's `SND_Spatialize`.
-- [ ] **Low-Pass Filtering**: Implement `S_ApplyFilter` to muffle sounds when the listener is underwater.
+- [x] **Low-Pass Filtering**: `S_ApplyFilter` implemented as `Mixer.lowpassFilter` in `mix.go`.
 - [ ] **Full Codec Parity**: Port remaining `bgmusic.c` codecs to support OGG/FLAC/Opus beyond just CD tracks.
 - [ ] **Pitch Shifting**: Implement entity velocity-based pitch shifting (Doppler effect simulation).
 
@@ -59,8 +59,9 @@ Remote play is functional but shallow compared to the original engine.
 Over 40 standard console commands are still missing or use non-standard naming.
 
 ### Missing Game Flow & Admin Commands
-- [ ] `kick` (by slot/name), `ban`, `status` (with full network stats), `ping`.
-- [ ] `changelevel`, `restart`, `maps`, `randmap`.
+- [x] `kick` (by name), `ban`, `status` (map name, active players, ping table), `ping`.
+- [ ] `kick` by slot number (currently name-only).
+- [ ] `changelevel`, `restart`, `randmap`.
 - [x] `maps`: Implemented.
 - [x] `say`, `say_team`, `tell`.
 
@@ -71,7 +72,7 @@ Over 40 standard console commands are still missing or use non-standard naming.
 
 ### Missing UI & Media Commands
 - [ ] `demos`, `startdemos`, `stopdemo`.
-- [ ] `soundinfo`, `particle_texture`.
+- [x] `soundinfo`, `particle_texture`.
 
 ---
 
