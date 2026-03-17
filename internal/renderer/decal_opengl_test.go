@@ -7,11 +7,11 @@ import (
 	"math"
 	"testing"
 
-	"github.com/gogpu/gogpu/gmath"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func TestPrepareDecalDrawsSortsBackToFront(t *testing.T) {
-	camera := CameraState{Origin: gmath.NewVec3(0, 0, 0)}
+	camera := CameraState{Origin: types.NewVec3(0, 0, 0)}
 	marks := []DecalMarkEntity{
 		{Origin: [3]float32{10, 0, 0}, Normal: [3]float32{0, 0, 1}, Size: 8, Alpha: 1, Color: [3]float32{1, 1, 1}},
 		{Origin: [3]float32{30, 0, 0}, Normal: [3]float32{0, 0, 1}, Size: 8, Alpha: 1, Color: [3]float32{1, 1, 1}},
@@ -28,7 +28,7 @@ func TestPrepareDecalDrawsSortsBackToFront(t *testing.T) {
 }
 
 func TestPrepareDecalDrawsFiltersInvalidMarks(t *testing.T) {
-	camera := CameraState{Origin: gmath.NewVec3(0, 0, 0)}
+	camera := CameraState{Origin: types.NewVec3(0, 0, 0)}
 	marks := []DecalMarkEntity{
 		{Origin: [3]float32{0, 0, 0}, Normal: [3]float32{0, 0, 1}, Size: 0, Alpha: 1, Color: [3]float32{1, 1, 1}},
 		{Origin: [3]float32{0, 0, 0}, Normal: [3]float32{0, 0, 1}, Size: 4, Alpha: -0.5, Color: [3]float32{1, 1, 1}},
@@ -136,13 +136,13 @@ func TestNormalizeDecalVariant(t *testing.T) {
 
 func TestGenerateDecalAtlasData(t *testing.T) {
 	data := generateDecalAtlasData()
-	
+
 	// Check size
 	expectedSize := 256 * 256 * 4 // RGBA
 	if len(data) != expectedSize {
 		t.Fatalf("atlas data size = %d, want %d", len(data), expectedSize)
 	}
-	
+
 	// Check that all regions have some non-zero data
 	regions := []struct {
 		name   string
@@ -155,7 +155,7 @@ func TestGenerateDecalAtlasData(t *testing.T) {
 		{"scorch", 0, 128, 128, 128},
 		{"magic", 128, 128, 128, 128},
 	}
-	
+
 	for _, region := range regions {
 		hasData := false
 		for y := region.y; y < region.y+region.height && !hasData; y++ {
@@ -183,7 +183,7 @@ func TestSmoothstepf(t *testing.T) {
 		{0, 1, -0.5, 0},
 		{0, 1, 1.5, 1},
 	}
-	
+
 	for _, tt := range tests {
 		got := smoothstepf(tt.edge0, tt.edge1, tt.x)
 		if tt.x <= tt.edge0 {

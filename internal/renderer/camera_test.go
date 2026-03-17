@@ -7,17 +7,17 @@ import (
 	"math"
 	"testing"
 
-	"github.com/gogpu/gogpu/gmath"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // TestComputeViewMatrixIdentity tests that camera at origin with zero angles produces a valid view.
 // Note: The view matrix is not identity because Quake's forward direction is along +X,
-// not the standard +Z. The gmath.LookAt function will produce a non-identity matrix
+// not the standard +Z. The types.ViewMatrix function will produce a non-identity matrix
 // that correctly transforms world space to camera space.
 func TestComputeViewMatrixIdentity(t *testing.T) {
 	camera := CameraState{
-		Origin: gmath.NewVec3(0, 0, 0),
-		Angles: gmath.NewVec3(0, 0, 0),
+		Origin: types.NewVec3(0, 0, 0),
+		Angles: types.NewVec3(0, 0, 0),
 		FOV:    90,
 	}
 
@@ -42,8 +42,8 @@ func TestComputeViewMatrixIdentity(t *testing.T) {
 func TestComputeViewMatrixPitch(t *testing.T) {
 	// Looking up by 90 degrees
 	camera := CameraState{
-		Origin: gmath.NewVec3(0, 0, 0),
-		Angles: gmath.NewVec3(-90, 0, 0), // Negative pitch = look up
+		Origin: types.NewVec3(0, 0, 0),
+		Angles: types.NewVec3(-90, 0, 0), // Negative pitch = look up
 		FOV:    90,
 	}
 
@@ -60,8 +60,8 @@ func TestComputeViewMatrixPitch(t *testing.T) {
 func TestComputeViewMatrixYaw(t *testing.T) {
 	// Looking to the right by 90 degrees
 	camera := CameraState{
-		Origin: gmath.NewVec3(0, 0, 0),
-		Angles: gmath.NewVec3(0, 90, 0), // Positive yaw = turn right
+		Origin: types.NewVec3(0, 0, 0),
+		Angles: types.NewVec3(0, 90, 0), // Positive yaw = turn right
 		FOV:    90,
 	}
 
@@ -84,7 +84,7 @@ func TestComputeProjectionMatrix(t *testing.T) {
 	proj := ComputeProjectionMatrix(fov, aspect, near, far)
 
 	// Verify projection is not identity (perspective should change the values)
-	identity := gmath.Identity4()
+	identity := types.IdentityMatrix()
 	isIdentity := true
 	for i := 0; i < 16; i++ {
 		if proj[i] != identity[i] {
@@ -159,8 +159,8 @@ func TestConvertClientStateToCamera(t *testing.T) {
 // TestVPMatrixComposition tests that view and projection can be properly composed.
 func TestVPMatrixComposition(t *testing.T) {
 	camera := CameraState{
-		Origin: gmath.NewVec3(0, 0, 0),
-		Angles: gmath.NewVec3(0, 0, 0),
+		Origin: types.NewVec3(0, 0, 0),
+		Angles: types.NewVec3(0, 0, 0),
 		FOV:    90,
 	}
 
@@ -168,10 +168,10 @@ func TestVPMatrixComposition(t *testing.T) {
 	proj := ComputeProjectionMatrix(90, 16.0/9.0, 0.1, 4096)
 
 	// VP = Projection * View
-	vp := proj.Mul(view)
+	vp := types.Mat4Multiply(proj, view)
 
 	// Verify VP is not identity
-	identity := gmath.Identity4()
+	identity := types.IdentityMatrix()
 	isIdentity := true
 	for i := 0; i < 16; i++ {
 		if vp[i] != identity[i] {

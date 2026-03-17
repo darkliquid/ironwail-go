@@ -222,3 +222,43 @@ func Vec3Lerp(veca, vecb Vec3, frac float32) Vec3 {
 		Z: Lerp(veca.Z, vecb.Z, frac),
 	}
 }
+
+// NewVec3 creates a Vec3 from individual components.
+func NewVec3(x, y, z float32) Vec3 {
+	return Vec3{X: x, Y: y, Z: z}
+}
+
+// Sub returns v - other.
+func (v Vec3) Sub(other Vec3) Vec3 {
+	return Vec3Sub(v, other)
+}
+
+// Add returns v + other.
+func (v Vec3) Add(other Vec3) Vec3 {
+	return Vec3Add(v, other)
+}
+
+// Scale returns v * s.
+func (v Vec3) Scale(s float32) Vec3 {
+	return Vec3Scale(v, s)
+}
+
+// Dot returns the dot product of v and other.
+func (v Vec3) Dot(other Vec3) float32 {
+	return Vec3Dot(v, other)
+}
+
+// Cross returns the cross product of v and other.
+func (v Vec3) Cross(other Vec3) Vec3 {
+	return Vec3Cross(v, other)
+}
+
+// Len returns the length (magnitude) of the vector.
+func (v Vec3) Len() float32 {
+	return Vec3Len(v)
+}
+
+// Normalize returns a unit-length vector in the same direction.
+func (v Vec3) Normalize() Vec3 {
+	return Vec3Normalize(v)
+}

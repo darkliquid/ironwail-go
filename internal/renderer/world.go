@@ -10,11 +10,11 @@ import (
 	"math"
 	"os"
 
-	"github.com/gogpu/gogpu/gmath"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // Uniforms structure for world rendering, must match WGSL Uniforms struct
@@ -1198,31 +1198,17 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Info("World render commands submitted successfully")
 }
 
-// matrixToBytes converts a gmath.Mat4 to bytes (column-major, little-endian).
-func matrixToBytes(m gmath.Mat4) []byte {
-	result := make([]byte, 64) // 16 floats * 4 bytes
-	for i, v := range m {
-		binary.LittleEndian.PutUint32(result[i*4:i*4+4], math.Float32bits(v))
-	}
-	return result
+// matrixToBytes converts a types.Mat4 to bytes (column-major, little-endian).
+func matrixToBytes(m types.Mat4) []byte {
+	b := types.Mat4ToBytes(m)
+	return b[:]
 }
 
 // TransformVertex applies model-view-projection transformation to a vertex.
 // This is a helper for software rendering fallback.
-func TransformVertex(pos [3]float32, mvp gmath.Mat4) gmath.Vec4 {
-	// Convert position to Vec4 (w=1 for point)
-	v := gmath.Vec4{X: pos[0], Y: pos[1], Z: pos[2], W: 1.0}
-
-	// Transform by MVP matrix
-	// result = MVP * vertex
-	result := gmath.Vec4{
-		X: mvp[0]*v.X + mvp[4]*v.Y + mvp[8]*v.Z + mvp[12]*v.W,
-		Y: mvp[1]*v.X + mvp[5]*v.Y + mvp[9]*v.Z + mvp[13]*v.W,
-		Z: mvp[2]*v.X + mvp[6]*v.Y + mvp[10]*v.Z + mvp[14]*v.W,
-		W: mvp[3]*v.X + mvp[7]*v.Y + mvp[11]*v.Z + mvp[15]*v.W,
-	}
-
-	return result
+func TransformVertex(pos [3]float32, mvp types.Mat4) types.Vec4 {
+	v := types.Vec4{X: pos[0], Y: pos[1], Z: pos[2], W: 1.0}
+	return types.Mat4MulVec4(mvp, v)
 }
 
 func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int) (hal.Texture, hal.TextureView, error) {

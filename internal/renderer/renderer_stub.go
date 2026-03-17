@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gogpu/gogpu/gmath"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 var (
@@ -43,8 +43,8 @@ func (dc *stubDrawContext) Gamma() float32 {
 
 // CameraState holds the player's camera position and orientation for view setup.
 type CameraState struct {
-	Origin gmath.Vec3
-	Angles gmath.Vec3
+	Origin types.Vec3
+	Angles types.Vec3
 	FOV    float32
 	Time   float32
 }
@@ -133,8 +133,8 @@ func DefaultRenderFrameState() *RenderFrameState {
 // ConvertClientStateToCamera converts predicted client state to camera state.
 func ConvertClientStateToCamera(origin [3]float32, angles [3]float32, fov float32) CameraState {
 	return CameraState{
-		Origin: gmath.NewVec3(origin[0], origin[1], origin[2]),
-		Angles: gmath.NewVec3(angles[0], angles[1], angles[2]),
+		Origin: types.NewVec3(origin[0], origin[1], origin[2]),
+		Angles: types.NewVec3(angles[0], angles[1], angles[2]),
 		FOV:    fov,
 	}
 }

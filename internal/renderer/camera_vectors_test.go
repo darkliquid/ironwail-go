@@ -7,11 +7,9 @@ package renderer
 import (
 	"math"
 	"testing"
-)
 
-func radians(degrees float32) float32 {
-	return degrees * (float32(math.Pi) / 180)
-}
+	"github.com/ironwail/ironwail-go/pkg/types"
+)
 
 func assertVec3Close(t *testing.T, name string, got [3]float32, want [3]float32) {
 	t.Helper()
@@ -24,9 +22,7 @@ func assertVec3Close(t *testing.T, name string, got [3]float32, want [3]float32)
 }
 
 func TestAngleVectorsMatchQuakeZeroAngles(t *testing.T) {
-	forward := angleVectors(0, 0)
-	right := angleVectorsRight(0)
-	up := angleVectorsUp(0, 0)
+	forward, right, up := types.AngleVectors(types.Vec3{X: 0, Y: 0, Z: 0})
 
 	assertVec3Close(t, "forward", [3]float32{forward.X, forward.Y, forward.Z}, [3]float32{1, 0, 0})
 	assertVec3Close(t, "right", [3]float32{right.X, right.Y, right.Z}, [3]float32{0, -1, 0})
@@ -34,10 +30,7 @@ func TestAngleVectorsMatchQuakeZeroAngles(t *testing.T) {
 }
 
 func TestAngleVectorsMatchQuakeYaw90(t *testing.T) {
-	yaw := radians(90)
-	forward := angleVectors(0, yaw)
-	right := angleVectorsRight(yaw)
-	up := angleVectorsUp(0, yaw)
+	forward, right, up := types.AngleVectors(types.Vec3{X: 0, Y: 90, Z: 0})
 
 	assertVec3Close(t, "forward", [3]float32{forward.X, forward.Y, forward.Z}, [3]float32{0, 1, 0})
 	assertVec3Close(t, "right", [3]float32{right.X, right.Y, right.Z}, [3]float32{1, 0, 0})
@@ -45,9 +38,7 @@ func TestAngleVectorsMatchQuakeYaw90(t *testing.T) {
 }
 
 func TestAngleVectorsMatchQuakePitchUp90(t *testing.T) {
-	pitch := radians(-90)
-	forward := angleVectors(pitch, 0)
-	up := angleVectorsUp(pitch, 0)
+	forward, _, up := types.AngleVectors(types.Vec3{X: -90, Y: 0, Z: 0})
 
 	assertVec3Close(t, "forward", [3]float32{forward.X, forward.Y, forward.Z}, [3]float32{0, 0, 1})
 	assertVec3Close(t, "up", [3]float32{up.X, up.Y, up.Z}, [3]float32{-1, 0, 0})

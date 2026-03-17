@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/gogpu/gogpu/gmath"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func TestClassifyWorldTextureName(t *testing.T) {
@@ -550,7 +550,7 @@ func TestBucketWorldFaces_Sky(t *testing.T) {
 	lightmaps := []uint32{0}
 	fallbackTex := uint32(999)
 	fallbackLM := uint32(998)
-	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
 	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
@@ -599,7 +599,7 @@ func TestBucketWorldFaces_SkyWithOpaque(t *testing.T) {
 	lightmaps := []uint32{0}
 	fallbackTex := uint32(999)
 	fallbackLM := uint32(998)
-	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
 	sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
@@ -640,7 +640,7 @@ func TestBucketWorldFaces_EmptySkyBucket(t *testing.T) {
 	lightmaps := []uint32{0}
 	fallbackTex := uint32(999)
 	fallbackLM := uint32(998)
-	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 
 	sky, _, _, _, _, _ := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
@@ -673,7 +673,7 @@ func TestBucketWorldFaces_TurbulentCallFlag(t *testing.T) {
 	lightmaps := []uint32{0}
 	fallbackTex := uint32(999)
 	fallbackLM := uint32(998)
-	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
 
 	_, opaque, _, _, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, fallbackTex, fallbackLM, [3]float32{}, camera, alphaSettings)
@@ -701,7 +701,7 @@ func TestBucketWorldFacesWithLights_PropagatesDynamicLight(t *testing.T) {
 	}
 	textures := map[int32]uint32{0: 1}
 	lightmaps := []uint32{2}
-	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 	pool := NewGLLightPool(4)
 	pool.SpawnLight(DynamicLight{
@@ -760,7 +760,7 @@ func TestBucketWorldFaces_LiquidBuckets(t *testing.T) {
 	}
 	textures := map[int32]uint32{0: 1}
 	lightmaps := []uint32{0}
-	camera := CameraState{Origin: gmath.Zero3(), Angles: gmath.Zero3()}
+	camera := CameraState{Origin: types.Vec3{}, Angles: types.Vec3{}}
 	alphaSettings := worldLiquidAlphaSettings{water: 1, lava: 0.5, slime: 0.25, tele: 1}
 
 	_, opaque, _, liquidOpaque, liquidTranslucent, translucent := bucketWorldFaces(faces, textures, nil, lightmaps, 999, 998, [3]float32{}, camera, alphaSettings)

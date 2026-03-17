@@ -6,11 +6,11 @@ package renderer
 import (
 	"testing"
 
-	"github.com/gogpu/gogpu/gmath"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func TestProjectWorldPointToScreenCenter(t *testing.T) {
-	vp := gmath.Identity4()
+	vp := types.IdentityMatrix()
 
 	x, y, ok := projectWorldPointToScreen([3]float32{0, 0, 0}, vp, 801, 601)
 	if !ok {
@@ -22,7 +22,7 @@ func TestProjectWorldPointToScreenCenter(t *testing.T) {
 }
 
 func TestProjectWorldPointToScreenRejectsOutOfClip(t *testing.T) {
-	vp := gmath.Identity4()
+	vp := types.IdentityMatrix()
 
 	if _, _, ok := projectWorldPointToScreen([3]float32{2, 0, 0}, vp, 800, 600); ok {
 		t.Fatal("projectWorldPointToScreen accepted point outside clip space")
@@ -30,7 +30,7 @@ func TestProjectWorldPointToScreenRejectsOutOfClip(t *testing.T) {
 }
 
 func TestProjectWorldPointToScreenRejectsNonPositiveW(t *testing.T) {
-	var vp gmath.Mat4 = gmath.Identity4()
+	var vp types.Mat4 = types.IdentityMatrix()
 	vp[3] = 0
 	vp[7] = 0
 	vp[11] = -1

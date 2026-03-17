@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/gogpu/gogpu/gmath"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // CameraState holds the player's camera position and orientation for view setup.
@@ -16,14 +16,14 @@ import (
 type CameraState struct {
 	// Origin is the camera's world position (player eye position).
 	// This comes from client.PredictedOrigin.
-	Origin gmath.Vec3
+	Origin types.Vec3
 
 	// Angles are the pitch, yaw, and roll rotations in degrees.
 	// Pitch: rotation around the right/X axis (up/down looking)
 	// Yaw: rotation around the up/Z axis (left/right turning)
 	// Roll: rotation around the forward/Y axis (rarely used, usually 0)
 	// These come from client.ViewAngles.
-	Angles gmath.Vec3
+	Angles types.Vec3
 
 	// FOV is the field of view in degrees (typically 90 or 96 for widescreen).
 	FOV float32
@@ -42,81 +42,39 @@ type CameraState struct {
 type ViewMatrixData struct {
 	// View matrix transforms world coordinates to camera-relative coordinates.
 	// Computed from camera position and orientation.
-	View gmath.Mat4
+	View types.Mat4
 
 	// Projection matrix transforms camera-relative coordinates to NDC (-1..1).
 	// Computed from FOV, aspect ratio, and near/far clipping distances.
-	Projection gmath.Mat4
+	Projection types.Mat4
 
 	// VP is the combined View × Projection matrix.
 	// Used by shaders for vertex transformation.
-	VP gmath.Mat4
+	VP types.Mat4
 
 	// InverseVP is the inverse of the VP matrix.
 	// Used for screen-space calculations and ray tracing.
-	InverseVP gmath.Mat4
+	InverseVP types.Mat4
 }
 
-// ComputeViewMatrix computes a view matrix from camera state.
-// The view matrix transforms world coordinates to camera-relative coordinates.
+// ComputeViewMatrix computes a view matrix from camera state using the
+// C Ironwail convention:
 //
-// The implementation uses Euler angles (pitch, yaw, roll) in the standard Quake convention:
-//   - Pitch: rotation around the right axis (X), positive = look down
-//   - Yaw: rotation around the up axis (Z), positive = turn right
-//   - Roll: rotation around the forward axis (Y), usually 0
+//	View = Rx(-roll) · Ry(-pitch) · Rz(-yaw) · T(-origin)
 //
-// The camera is positioned at origin with orientation derived from angles.
-func ComputeViewMatrix(camera CameraState) gmath.Mat4 {
-	// Log camera setup for debugging
+// There is no coordinate remapping in the view matrix — the projection
+// matrix ([types.FrustumMatrix]) handles the Quake→clip-space conversion.
+func ComputeViewMatrix(camera CameraState) types.Mat4 {
 	slog.Debug("ComputeViewMatrix",
 		"origin", camera.Origin,
 		"angles", camera.Angles,
 		"fov", camera.FOV)
 
-	// Convert angles from degrees to radians
-	pitchRad := float32(math.Pi) / 180.0 * camera.Angles.X
-	yawRad := float32(math.Pi) / 180.0 * camera.Angles.Y
-	rollRad := float32(math.Pi) / 180.0 * camera.Angles.Z
+	viewMatrix := types.ViewMatrix(camera.Angles, camera.Origin)
 
-	// Compute forward, right, and up vectors from Euler angles.
-	// This follows the standard Quake engine convention.
-	forward := angleVectors(pitchRad, yawRad)
-	right := angleVectorsRight(yawRad)
-	up := angleVectorsUp(pitchRad, yawRad)
-
-	// If roll is non-zero, rotate the right and up vectors around the forward axis.
-	if math.Abs(float64(rollRad)) > 1e-6 {
-		cosRoll := float32(math.Cos(float64(rollRad)))
-		sinRoll := float32(math.Sin(float64(rollRad)))
-		oldRight := right
-		right = gmath.Vec3{
-			X: oldRight.X*cosRoll - up.X*sinRoll,
-			Y: oldRight.Y*cosRoll - up.Y*sinRoll,
-			Z: oldRight.Z*cosRoll - up.Z*sinRoll,
-		}
-		up = gmath.Vec3{
-			X: oldRight.X*sinRoll + up.X*cosRoll,
-			Y: oldRight.Y*sinRoll + up.Y*cosRoll,
-			Z: oldRight.Z*sinRoll + up.Z*cosRoll,
-		}
-	}
-
-	// Compute the target point by moving forward from the camera origin.
-	target := gmath.Vec3{
-		X: camera.Origin.X + forward.X,
-		Y: camera.Origin.Y + forward.Y,
-		Z: camera.Origin.Z + forward.Z,
-	}
-
-	// Use gmath.LookAt to build the view matrix.
-	// LookAt creates a view matrix that looks from eye (origin) to target, with up vector.
-	viewMatrix := gmath.LookAt(camera.Origin, target, up)
 	slog.Info("View matrix computed",
 		"origin", camera.Origin,
-		"target", target,
-		"up", up,
-		"forward", forward,
-		"right", right,
+		"angles", camera.Angles,
 		"view_m00", viewMatrix[0],
 		"view_m11", viewMatrix[5],
 		"view_m22", viewMatrix[10],
@@ -124,92 +82,31 @@ func ComputeViewMatrix(camera CameraState) gmath.Mat4 {
 	return viewMatrix
 }
 
-// ComputeProjectionMatrix computes a perspective projection matrix.
+// ComputeProjectionMatrix computes a Quake-style perspective projection matrix
+// that also bakes in the Quake→clip-space coordinate conversion.
 //
 // Parameters:
-//   - fovDegrees: field of view in degrees (typically 90-96)
+//   - fovDegrees: horizontal field of view in degrees (typically 90-96)
 //   - aspect: aspect ratio (width / height)
 //   - near: near clipping plane distance (typically 0.1)
 //   - far: far clipping plane distance (typically 4096 for Quake)
 //
-// The projection matrix transforms camera-relative coordinates to normalized device coordinates.
-func ComputeProjectionMatrix(fovDegrees, aspect, near, far float32) gmath.Mat4 {
-	// Convert FOV from degrees to radians
-	fovRad := float32(math.Pi) / 180.0 * fovDegrees
-
-	// gogpu's gmath.Perspective expects FOV in radians and computes the projection correctly.
-	return gmath.Perspective(fovRad, aspect, near, far)
-}
-
-// angleVectors computes the forward vector from pitch and yaw Euler angles.
-// This follows Quake's angle convention where:
-//   - Yaw rotates around the Z axis (up)
-//   - Pitch rotates around the right axis (affects Z component)
-//   - When yaw=0 and pitch=0, forward points along +X
-func angleVectors(pitch, yaw float32) gmath.Vec3 {
-	cosPitch := float32(math.Cos(float64(pitch)))
-	sinPitch := float32(math.Sin(float64(pitch)))
-	cosYaw := float32(math.Cos(float64(yaw)))
-	sinYaw := float32(math.Sin(float64(yaw)))
-
-	// Forward vector in Quake convention:
-	// When pitch=0, yaw=0: forward = (1, 0, 0)  [pointing in +X]
-	// When pitch=0, yaw=π/2: forward = (0, 1, 0) [pointing in +Y]
-	// X = cos(yaw) * cos(pitch)
-	// Y = sin(yaw) * cos(pitch)
-	// Z = -sin(pitch)  [negative because positive pitch = looking up]
-	return gmath.Vec3{
-		X: cosYaw * cosPitch,
-		Y: sinYaw * cosPitch,
-		Z: -sinPitch,
-	}
-}
-
-// angleVectorsRight computes the right vector from yaw angle.
-// The right vector is perpendicular to the forward direction.
-// When yaw=0: right = (0, -1, 0)
-// When yaw=π/2: right = (1, 0, 0)
-func angleVectorsRight(yaw float32) gmath.Vec3 {
-	cosYaw := float32(math.Cos(float64(yaw)))
-	sinYaw := float32(math.Sin(float64(yaw)))
-
-	// Right vector (perpendicular to forward in XY plane):
-	// X = sin(yaw)
-	// Y = -cos(yaw)
-	// Z = 0 (right is always horizontal in Quake)
-	return gmath.Vec3{
-		X: sinYaw,
-		Y: -cosYaw,
-		Z: 0,
-	}
-}
-
-// angleVectorsUp computes the up vector from pitch and yaw angles.
-// The up vector is computed as cross(right, forward) to maintain orthogonality.
-func angleVectorsUp(pitch, yaw float32) gmath.Vec3 {
-	cosPitch := float32(math.Cos(float64(pitch)))
-	sinPitch := float32(math.Sin(float64(pitch)))
-	cosYaw := float32(math.Cos(float64(yaw)))
-	sinYaw := float32(math.Sin(float64(yaw)))
-
-	// Up vector: cross(right, forward)
-	// right = (sin(yaw), -cos(yaw), 0)
-	// forward = (cos(yaw)*cos(pitch), sin(yaw)*cos(pitch), -sin(pitch))
-	right := gmath.Vec3{X: sinYaw, Y: -cosYaw, Z: 0}
-	forward := gmath.Vec3{
-		X: cosYaw * cosPitch,
-		Y: sinYaw * cosPitch,
-		Z: -sinPitch,
-	}
-	return right.Cross(forward)
+// The projection uses [types.FrustumMatrix] which follows C Ironwail's
+// GL_FrustumMatrix — it maps Quake axes (X-forward, Y-left, Z-up) directly
+// to clip space without requiring a separate coordinate-system remapping in
+// the view matrix.
+func ComputeProjectionMatrix(fovDegrees, aspect, near, far float32) types.Mat4 {
+	fovxRad := fovDegrees * math.Pi / 180.0
+	fovyRad := float32(2 * math.Atan(float64(float32(math.Tan(float64(fovxRad/2)))/aspect)))
+	return types.FrustumMatrix(fovxRad, fovyRad, near, far)
 }
 
 // ConvertClientStateToCamera converts client prediction state to camera state.
 // This is the main integration point between the client system and the renderer.
 func ConvertClientStateToCamera(origin [3]float32, angles [3]float32, fov float32) CameraState {
 	return CameraState{
-		Origin: gmath.NewVec3(origin[0], origin[1], origin[2]),
-		Angles: gmath.NewVec3(angles[0], angles[1], angles[2]),
+		Origin: types.NewVec3(origin[0], origin[1], origin[2]),
+		Angles: types.NewVec3(angles[0], angles[1], angles[2]),
 		FOV:    fov,
 		Time:   0, // Will be set by caller if needed
 	}

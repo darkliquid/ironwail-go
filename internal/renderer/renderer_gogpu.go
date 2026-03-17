@@ -54,10 +54,11 @@ import (
 	"unsafe"
 
 	"github.com/gogpu/gogpu"
-	"github.com/gogpu/gogpu/gmath"
+	"github.com/gogpu/gogpu/gmath" // retained only for gogpu API boundary (Color type)
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // DrawContext provides frame-specific rendering operations.
@@ -87,8 +88,8 @@ var halOnlyFrameConsumed atomic.Bool
 // but can be adjusted for different visual effects.
 func (dc *DrawContext) Clear(r, g, b, a float32) {
 	// Use gogpu's proper clear operation
-	color := gmath.Color{R: r, G: g, B: b, A: a}
-	dc.ctx.ClearColor(color)
+	// Convert to gmath.Color at the gogpu API boundary.
+	dc.ctx.ClearColor(gmath.Color{R: r, G: g, B: b, A: a})
 }
 
 // DrawTriangle renders a simple colored triangle.
@@ -96,8 +97,8 @@ func (dc *DrawContext) Clear(r, g, b, a float32) {
 // In a full implementation, this would be replaced with proper
 // 3D geometry rendering using shaders.
 func (dc *DrawContext) DrawTriangle(r, g, b, a float32) {
-	color := gmath.Color{R: r, G: g, B: b, A: a}
-	dc.ctx.DrawTriangleColor(color)
+	// Convert to gmath.Color at the gogpu API boundary.
+	dc.ctx.DrawTriangleColor(gmath.Color{R: r, G: g, B: b, A: a})
 }
 
 // SurfaceView returns the current frame's GPU texture view.
@@ -526,7 +527,7 @@ func (r *Renderer) getOrCreateColorTexture(ctx *gogpu.Context, color byte) *gogp
 // Example:
 //
 //	r.OnDraw(func(dc *renderer.DrawContext) {
-//	    dc.Clear(gmath.Color{R: 0.1, G: 0.1, B: 0.1, A: 1.0})
+//	    dc.Clear(0.1, 0.1, 0.1, 1.0)
 //	    // Draw world geometry...
 //	})
 func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
@@ -1105,7 +1106,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	}
 }
 
-func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp gmath.Mat4, screenW, screenH, size int, color byte) {
+func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp types.Mat4, screenW, screenH, size int, color byte) {
 	x, y, ok := projectWorldPointToScreen(pos, vp, screenW, screenH)
 	if !ok {
 		return
@@ -1118,7 +1119,7 @@ func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp gmath.Mat4, 
 	dc.DrawFill(x-half, y-half, size, size, color)
 }
 
-func projectWorldPointToScreen(pos [3]float32, vp gmath.Mat4, screenW, screenH int) (x int, y int, ok bool) {
+func projectWorldPointToScreen(pos [3]float32, vp types.Mat4, screenW, screenH int) (x int, y int, ok bool) {
 	if screenW <= 0 || screenH <= 0 {
 		return 0, 0, false
 	}
@@ -1243,7 +1244,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 		"proj_m33", r.viewMatrices.Projection[15])
 
 	// Compute combined VP matrix
-	r.viewMatrices.VP = r.viewMatrices.Projection.Mul(r.viewMatrices.View)
+	r.viewMatrices.VP = types.Mat4Multiply(r.viewMatrices.Projection, r.viewMatrices.View)
 
 	// Log VP matrix for debugging
 	slog.Debug("Camera updated",
@@ -1259,7 +1260,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 
 // GetViewMatrix returns the currently cached view matrix.
 // Thread-safe read.
-func (r *Renderer) GetViewMatrix() gmath.Mat4 {
+func (r *Renderer) GetViewMatrix() types.Mat4 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.viewMatrices.View
@@ -1267,7 +1268,7 @@ func (r *Renderer) GetViewMatrix() gmath.Mat4 {
 
 // GetProjectionMatrix returns the currently cached projection matrix.
 // Thread-safe read.
-func (r *Renderer) GetProjectionMatrix() gmath.Mat4 {
+func (r *Renderer) GetProjectionMatrix() types.Mat4 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.viewMatrices.Projection
@@ -1276,7 +1277,7 @@ func (r *Renderer) GetProjectionMatrix() gmath.Mat4 {
 // GetViewProjectionMatrix returns the combined View × Projection matrix.
 // This is the matrix typically used in vertex shaders for world-to-NDC transformation.
 // Thread-safe read.
-func (r *Renderer) GetViewProjectionMatrix() gmath.Mat4 {
+func (r *Renderer) GetViewProjectionMatrix() types.Mat4 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.viewMatrices.VP
@@ -1298,6 +1299,10 @@ func (r *Renderer) HasWorldData() bool {
 }
 
 func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
+	return false
+}
+
+func (r *Renderer) SpawnKeyedDynamicLight(light DynamicLight) bool {
 	return false
 }
 

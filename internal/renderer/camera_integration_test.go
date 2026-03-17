@@ -6,7 +6,7 @@ package renderer
 import (
 	"testing"
 
-	"github.com/gogpu/gogpu/gmath"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // TestRendererUpdateCamera tests that camera updates are properly cached.
@@ -24,8 +24,8 @@ func TestRendererUpdateCamera(t *testing.T) {
 
 	// Create a test camera
 	camera := CameraState{
-		Origin: gmath.NewVec3(100, 200, 300),
-		Angles: gmath.NewVec3(45, 90, 0),
+		Origin: types.NewVec3(100, 200, 300),
+		Angles: types.NewVec3(45, 90, 0),
 		FOV:    96.0,
 	}
 
@@ -90,8 +90,8 @@ func TestRendererCameraThreadSafety(t *testing.T) {
 	}
 
 	camera := CameraState{
-		Origin: gmath.NewVec3(0, 0, 0),
-		Angles: gmath.NewVec3(0, 0, 0),
+		Origin: types.NewVec3(0, 0, 0),
+		Angles: types.NewVec3(0, 0, 0),
 		FOV:    90.0,
 	}
 
