@@ -108,7 +108,7 @@ func (s *System) PrecacheSound(name string, loader func() ([]byte, error)) *SFX 
 	return sfx
 }
 
-func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin [3]float32, vol, attenuation float32) {
+func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
 	if !s.started || sfx == nil || sfx.Cache == nil {
 		return
 	}
@@ -120,11 +120,14 @@ func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin [3]float32,
 
 	targetChan.SFX = sfx
 	targetChan.Origin = origin
+	targetChan.Velocity = velocity
 	targetChan.DistMult = attenuation / SoundNominalClipDist
 	targetChan.MasterVol = int(vol * 255)
 	targetChan.EntNum = entNum
 	targetChan.EntChannel = entChannel
 	targetChan.Pos = 0
+	targetChan.PosFraction = 0
+	targetChan.Pitch = 1.0
 
 	s.spatialize(targetChan)
 
@@ -146,7 +149,7 @@ func (s *System) StopSound(entNum, entChannel int) {
 	}
 }
 
-func (s *System) StartStaticSound(sfx *SFX, origin [3]float32, vol, attenuation float32) {
+func (s *System) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
 	if !s.started || sfx == nil || sfx.Cache == nil || sfx.Cache.LoopStart < 0 {
 		return
 	}
@@ -173,11 +176,14 @@ func (s *System) StartStaticSound(sfx *SFX, origin [3]float32, vol, attenuation 
 
 	ch := &s.channels[chanIndex]
 	*ch = Channel{
-		SFX:       sfx,
-		Origin:    origin,
-		DistMult:  attenuation / SoundNominalClipDist,
-		MasterVol: int(vol * 255),
-		End:       s.paintedTime + sfx.Cache.Length,
+		SFX:         sfx,
+		Origin:      origin,
+		Velocity:    velocity,
+		DistMult:    attenuation / SoundNominalClipDist,
+		MasterVol:   int(vol * 255),
+		End:         s.paintedTime + sfx.Cache.Length,
+		Pitch:       1.0,
+		PosFraction: 0,
 	}
 	s.spatialize(ch)
 }
@@ -215,12 +221,13 @@ func (s *System) StopAllSounds(clear bool) {
 	}
 }
 
-func (s *System) SetListener(origin, forward, right, up [3]float32) {
+func (s *System) SetListener(origin, velocity, forward, right, up [3]float32) {
 	if !s.started {
 		return
 	}
 
 	s.listener.Origin = origin
+	s.listener.Velocity = velocity
 	s.listener.Forward = forward
 	s.listener.Right = right
 	s.listener.Up = up
@@ -256,11 +263,11 @@ func (s *System) ViewEntity() int {
 	return s.viewEntity
 }
 
-func (s *System) Update(origin, forward, right, up [3]float32) {
+func (s *System) Update(origin, velocity, forward, right, up [3]float32) {
 	if !s.started || s.blocked > 0 {
 		return
 	}
-	s.SetListener(origin, forward, right, up)
+	s.SetListener(origin, velocity, forward, right, up)
 	s.combineStaticChannels()
 
 	s.updateSoundTime()

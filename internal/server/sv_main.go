@@ -1397,17 +1397,47 @@ func (s *Server) SaveSpawnParms() {
 }
 
 func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
-	if s.WorldTree == nil {
+	if s.WorldTree == nil || len(s.WorldTree.Nodes) == 0 {
 		return
 	}
-	leaf := s.WorldTree.PointInLeaf(org)
-	pvs := s.WorldTree.LeafPVS(leaf)
-	if client.FatPVS == nil || len(client.FatPVS) != len(pvs) {
-		client.FatPVS = make([]byte, len(pvs))
-		copy(client.FatPVS, pvs)
-	} else {
-		for i := range pvs {
-			client.FatPVS[i] |= pvs[i]
+	s.sv_AddToFatPVSRecursive(org, bsp.TreeChild{Index: 0, IsLeaf: false}, client)
+}
+
+func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, client *Client) {
+	for {
+		if child.IsLeaf {
+			leaf := &s.WorldTree.Leafs[child.Index]
+			if leaf.Contents != bsp.ContentsSolid {
+				pvs := s.WorldTree.LeafPVS(leaf)
+				if client.FatPVS == nil || len(client.FatPVS) != len(pvs) {
+					client.FatPVS = make([]byte, len(pvs))
+					copy(client.FatPVS, pvs)
+				} else {
+					for i := range pvs {
+						client.FatPVS[i] |= pvs[i]
+					}
+				}
+			}
+			return
+		}
+
+		node := &s.WorldTree.Nodes[child.Index]
+		plane := &s.WorldTree.Planes[node.PlaneNum]
+		var d float32
+		if plane.Type < 3 {
+			d = org[plane.Type] - plane.Dist
+		} else {
+			d = VecDot(org, plane.Normal) - plane.Dist
+		}
+
+		if d > 8 {
+			child = node.Children[0]
+		} else if d < -8 {
+			child = node.Children[1]
+		} else {
+			// go down both
+			s.sv_AddToFatPVSRecursive(org, node.Children[0], client)
+			child = node.Children[1]
 		}
 	}
 }

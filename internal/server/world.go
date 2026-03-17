@@ -535,10 +535,8 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 
 	// Link to PVS leafs
 	ent.NumLeafs = 0
-	if ent.Vars.ModelIndex != 0 && s.WorldModel != nil {
-		if m, ok := s.WorldModel.(*model.Model); ok && len(m.Nodes) > 0 {
-			s.findTouchedLeafs(ent, &m.Nodes[0])
-		}
+	if ent.Vars.ModelIndex != 0 && s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
+		s.findTouchedLeafs(ent, bsp.TreeChild{Index: 0, IsLeaf: false})
 	}
 
 	if int(ent.Vars.Solid) == int(SolidNot) {
@@ -672,30 +670,52 @@ func (s *Server) touchLinks(ent *Edict) {
 }
 
 // findTouchedLeafs finds all PVS leafs that an entity touches.
-func (s *Server) findTouchedLeafs(ent *Edict, node *model.MNode) {
-	// Check for solid node
-	if node.Contents == bsp.ContentsSolid {
+func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
+	if child.IsLeaf {
+		if child.Index < 0 || child.Index >= len(s.WorldTree.Leafs) {
+			return
+		}
+		leaf := &s.WorldTree.Leafs[child.Index]
+		if leaf.Contents != bsp.ContentsSolid {
+			if ent.NumLeafs < MaxEntityLeafs {
+				// Quake leaf numbers are 1-based in the PVS bitmask, but
+				// we store the 0-based index here. We'll add 1 when checking PVS.
+				ent.LeafNums[ent.NumLeafs] = child.Index
+				ent.NumLeafs++
+			}
+		}
 		return
 	}
 
-	if ent.NumLeafs >= MaxEntityLeafs {
-		return
+	node := &s.WorldTree.Nodes[child.Index]
+	plane := &s.WorldTree.Planes[node.PlaneNum]
+
+	var sides int
+	if plane.Type < 3 {
+		if ent.Vars.AbsMin[plane.Type] > plane.Dist {
+			sides = 1
+		} else if ent.Vars.AbsMax[plane.Type] < plane.Dist {
+			sides = 2
+		} else {
+			sides = 3
+		}
+	} else {
+		d1 := VecDot(ent.Vars.AbsMin, plane.Normal) - plane.Dist
+		d2 := VecDot(ent.Vars.AbsMax, plane.Normal) - plane.Dist
+		// This is a rough approximation for non-axial planes
+		if d1 > 0 && d2 > 0 {
+			sides = 1
+		} else if d1 < 0 && d2 < 0 {
+			sides = 2
+		} else {
+			sides = 3
+		}
 	}
 
-	// Check if this is a leaf (MNode with negative contents means leaf-like)
-	// In our model, MLeaf is separate, but we check for leaf-like behavior
-	if node.Children[0] == nil && node.Children[1] == nil {
-		// This is effectively a leaf
-		ent.NumLeafs++
-		return
-	}
-
-	// NODE_MIXED - check which sides we touch
-	// This is a simplified version - full version would check plane bounds
-	if node.Children[0] != nil {
+	if sides&1 != 0 {
 		s.findTouchedLeafs(ent, node.Children[0])
 	}
-	if node.Children[1] != nil {
+	if sides&2 != 0 {
 		s.findTouchedLeafs(ent, node.Children[1])
 	}
 }

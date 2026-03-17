@@ -222,6 +222,12 @@ type Channel struct {
 	// Incremented as the sound plays.
 	Pos int
 
+	// PosFraction is the sub-sample position for interpolation (0-1).
+	PosFraction float32
+
+	// Pitch is the playback speed multiplier (1.0 = normal).
+	Pitch float32
+
 	// Looping indicates if this is a looping sound.
 	// -1 = not looping, otherwise this is the loop start position.
 	Looping int
@@ -238,6 +244,10 @@ type Channel struct {
 	// Origin is the world position of the sound source.
 	// Used for distance attenuation and stereo panning.
 	Origin [3]float32
+
+	// Velocity is the world velocity of the sound source.
+	// Used for Doppler effect calculation.
+	Velocity [3]float32
 
 	// DistMult is the distance attenuation multiplier.
 	// Higher values make the sound fade faster with distance.
@@ -286,6 +296,9 @@ type WAVInfo struct {
 type ListenerState struct {
 	// Origin is the listener's world position.
 	Origin [3]float32
+
+	// Velocity is the listener's world velocity.
+	Velocity [3]float32
 
 	// Forward is the forward direction vector.
 	Forward [3]float32

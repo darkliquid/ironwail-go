@@ -585,7 +585,7 @@ func (gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
 		return
 	}
 	syncAudioViewEntity()
-	gameAudio.SetListener(origin, forward, right, up)
+	gameAudio.SetListener(origin, [3]float32{}, forward, right, up)
 }
 
 func startupMapArg(args []string) string {
@@ -2398,7 +2398,7 @@ func playMenuSound(name string) {
 	if sfx == nil {
 		return
 	}
-	gameAudio.StartSound(0, 0, sfx, [3]float32{}, 1, 0)
+	gameAudio.StartSound(0, 0, sfx, [3]float32{}, [3]float32{}, 1, 0)
 }
 
 func applySVolume() {
@@ -2466,6 +2466,7 @@ func syncRuntimeStaticSounds() {
 		gameAudio.StartStaticSound(
 			sfx,
 			staticSound.Origin,
+			[3]float32{}, // Static sounds have no velocity
 			float32(staticSound.Volume)/255.0,
 			staticSound.Attenuation,
 		)
@@ -2560,6 +2561,7 @@ func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.Transie
 			entChannel,
 			sfx,
 			origin,
+			[3]float32{}, // Velocity unknown for most entities
 			float32(soundEvent.Volume)/255.0,
 			attenuation,
 		)
@@ -2584,12 +2586,16 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	if gameAudio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
 		syncAudioViewEntity()
-		gameAudio.SetListener(viewOrigin, forward, right, up)
+		viewVelocity := [3]float32{}
+		if gameClient != nil {
+			viewVelocity = gameClient.GetPredictedVelocity()
+		}
+		gameAudio.SetListener(viewOrigin, viewVelocity, forward, right, up)
 		syncRuntimeStaticSounds()
 		syncRuntimeAmbientAudio(viewOrigin, float32(dt))
 		syncRuntimeMusic()
 		processRuntimeAudioEvents(viewOrigin, transientEvents)
-		gameAudio.Update(viewOrigin, forward, right, up)
+		gameAudio.Update(viewOrigin, viewVelocity, forward, right, up)
 	}
 	return transientEvents
 }

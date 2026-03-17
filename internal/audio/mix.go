@@ -79,12 +79,22 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 			cache := ch.SFX.Cache
 			ltime := paintedTime
 
+			pitch := ch.Pitch
+			if pitch <= 0 {
+				pitch = 1.0
+			}
+
 			for ltime < end {
-				var paintCount int
-				if ch.End < end {
-					paintCount = ch.End - ltime
-				} else {
-					paintCount = end - ltime
+				// How many output samples until we hit the end of the cache?
+				remainingSource := float32(cache.Length-1-ch.Pos) - ch.PosFraction
+				if remainingSource < 0 {
+					remainingSource = 0
+				}
+				outputNeeded := int(math.Ceil(float64(remainingSource / pitch)))
+				
+				paintCount := end - ltime
+				if outputNeeded < paintCount {
+					paintCount = outputNeeded
 				}
 
 				if paintCount > 0 {
@@ -96,14 +106,20 @@ func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, 
 					ltime += paintCount
 				}
 
-				if ltime >= ch.End {
+				if ch.Pos >= cache.Length-1 {
 					if cache.LoopStart >= 0 {
 						ch.Pos = cache.LoopStart
-						ch.End = ltime + cache.Length - ch.Pos
+						ch.PosFraction = 0
+						// We don't really use ch.End for termination anymore, but 
+						// let's keep it somewhat sane.
+						ch.End = ltime + int(float32(cache.Length-ch.Pos)/pitch)
 					} else {
 						ch.SFX = nil
 						break
 					}
+				} else {
+					// We filled the buffer but haven't reached the end of the sound
+					break
 				}
 			}
 		}
@@ -154,14 +170,31 @@ func (m *Mixer) paintChannel8(ch *Channel, cache *SoundCache, count int, paintBu
 	lscale := m.scaleTable[ch.LeftVol>>3]
 	rscale := m.scaleTable[ch.RightVol>>3]
 
+	step := ch.Pitch
+	if step <= 0 {
+		step = 1.0
+	}
+
 	for i := 0; i < count; i++ {
-		if ch.Pos >= cache.Length {
+		if ch.Pos >= cache.Length-1 {
 			break
 		}
-		data := cache.Data[ch.Pos]
-		m.paintBuffer[paintBufferStart+i].Left += lscale[data]
-		m.paintBuffer[paintBufferStart+i].Right += rscale[data]
-		ch.Pos++
+
+		// Linear interpolation
+		frac := ch.PosFraction
+		s1L := float32(lscale[cache.Data[ch.Pos]])
+		s1R := float32(rscale[cache.Data[ch.Pos]])
+		s2L := float32(lscale[cache.Data[ch.Pos+1]])
+		s2R := float32(rscale[cache.Data[ch.Pos+1]])
+
+		m.paintBuffer[paintBufferStart+i].Left += int32(s1L + frac*(s2L-s1L))
+		m.paintBuffer[paintBufferStart+i].Right += int32(s1R + frac*(s2R-s1R))
+
+		ch.PosFraction += step
+		for ch.PosFraction >= 1.0 {
+			ch.PosFraction -= 1.0
+			ch.Pos++
+		}
 	}
 }
 
@@ -169,14 +202,35 @@ func (m *Mixer) paintChannel16(ch *Channel, cache *SoundCache, count int, sndVol
 	leftVol := ch.LeftVol * sndVol / 256
 	rightVol := ch.RightVol * sndVol / 256
 
+	step := ch.Pitch
+	if step <= 0 {
+		step = 1.0
+	}
+
 	for i := 0; i < count; i++ {
-		if ch.Pos >= cache.Length {
+		if ch.Pos >= cache.Length-1 {
 			break
 		}
-		sample := int(int16(uint16(cache.Data[ch.Pos*2]) | uint16(cache.Data[ch.Pos*2+1])<<8))
-		m.paintBuffer[paintBufferStart+i].Left += int32(sample * leftVol)
-		m.paintBuffer[paintBufferStart+i].Right += int32(sample * rightVol)
-		ch.Pos++
+
+		// Linear interpolation
+		frac := ch.PosFraction
+		getSample := func(p int) int32 {
+			return int32(int16(uint16(cache.Data[p*2]) | uint16(cache.Data[p*2+1])<<8))
+		}
+
+		s1 := getSample(ch.Pos)
+		s2 := getSample(ch.Pos+1)
+
+		sample := int32(float32(s1) + frac*(float32(s2-s1)))
+
+		m.paintBuffer[paintBufferStart+i].Left += sample * int32(leftVol)
+		m.paintBuffer[paintBufferStart+i].Right += sample * int32(rightVol)
+
+		ch.PosFraction += step
+		for ch.PosFraction >= 1.0 {
+			ch.PosFraction -= 1.0
+			ch.Pos++
+		}
 	}
 }
 

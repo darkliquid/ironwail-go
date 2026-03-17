@@ -18,6 +18,23 @@ func (s *System) spatialize(ch *Channel) {
 	dist := VectorNormalize(&sourceVec) * ch.DistMult
 	dot := DotProduct(s.listener.Right, sourceVec)
 
+	// Doppler effect
+	ch.Pitch = 1.0
+	// Only apply if there's significant relative velocity and Doppler is enabled (assuming always for now)
+	const soundSpeed = 1100.0 // Quake units per second
+	// direction from listener to source is sourceVec (already normalized)
+	vL := DotProduct(s.listener.Velocity, sourceVec)
+	vS := DotProduct(ch.Velocity, sourceVec)
+
+	if soundSpeed > vL && soundSpeed > vS {
+		ch.Pitch = (soundSpeed - vL) / (soundSpeed - vS)
+		if ch.Pitch < 0.5 {
+			ch.Pitch = 0.5
+		} else if ch.Pitch > 2.0 {
+			ch.Pitch = 2.0
+		}
+	}
+
 	var lscale, rscale float32
 	if s.dma.Channels == 1 {
 		rscale = 1.0

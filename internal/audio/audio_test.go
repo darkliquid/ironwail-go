@@ -69,6 +69,7 @@ func TestMixing(t *testing.T) {
 			RightVol:  255,
 			End:       100,
 			Pos:       0,
+			Pitch:     1.0,
 			MasterVol: 255,
 		},
 	}
@@ -118,6 +119,7 @@ func TestLooping(t *testing.T) {
 			RightVol:  255,
 			End:       100,
 			Pos:       0,
+			Pitch:     1.0,
 			MasterVol: 255,
 		},
 	}
@@ -138,8 +140,8 @@ func TestLooping(t *testing.T) {
 	if channels[0].SFX == nil {
 		t.Errorf("Expected channel to still be active (looping)")
 	}
-	if channels[0].Pos != 50 {
-		t.Errorf("Expected channel position to be 50 after loop, got %d", channels[0].Pos)
+	if channels[0].Pos != 51 {
+		t.Errorf("Expected channel position to be 51 after loop, got %d", channels[0].Pos)
 	}
 }
 
@@ -190,12 +192,12 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 		},
 	}
 
-	sys.StartStaticSound(nonLooped, [3]float32{0, 0, 0}, 1, 1)
+	sys.StartStaticSound(nonLooped, [3]float32{0, 0, 0}, [3]float32{}, 1, 1)
 	if got := sys.totalChans; got != base {
 		t.Fatalf("non-looped static sound allocated channel: totalChans = %d, want %d", got, base)
 	}
 
-	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, 1, 1)
+	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, [3]float32{}, 1, 1)
 	if got := sys.totalChans; got != base+1 {
 		t.Fatalf("looped static sound did not allocate static channel: totalChans = %d, want %d", got, base+1)
 	}
@@ -203,7 +205,7 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 		t.Fatalf("static channel SFX = %v, want %v", got, looped)
 	}
 
-	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, 1, 9999)
+	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, [3]float32{}, 1, 9999)
 	if got := sys.totalChans; got != base+2 {
 		t.Fatalf("inaudible static sound should still persist in static range: totalChans = %d, want %d", got, base+2)
 	}
@@ -309,7 +311,7 @@ func TestUpdateCombinesIdenticalStaticSounds(t *testing.T) {
 	sys.spatialize(&expectedA)
 	sys.spatialize(&expectedB)
 
-	sys.Update([3]float32{}, [3]float32{}, [3]float32{1, 0, 0}, [3]float32{})
+	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{1, 0, 0}, [3]float32{})
 
 	combined := sys.channels[staticBase]
 	dupe := sys.channels[staticBase+1]
@@ -415,7 +417,7 @@ func TestUpdateDoesNotCallGetPositionWhileLocked(t *testing.T) {
 	}
 	sys.mixer = NewMixer()
 
-	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
 
 	expectedEvents := []string{"getpos", "lock", "unlock"}
 	if !slices.Equal(backend.events, expectedEvents) {

@@ -55,9 +55,9 @@ func (a *AudioAdapter) Init() error {
 	return a.sys.Startup()
 }
 
-func (a *AudioAdapter) Update(origin, forward, right, up [3]float32) {
+func (a *AudioAdapter) Update(origin, velocity, forward, right, up [3]float32) {
 	if a.sys != nil {
-		a.sys.Update(origin, forward, right, up)
+		a.sys.Update(origin, velocity, forward, right, up)
 	}
 }
 
@@ -81,18 +81,18 @@ func (a *AudioAdapter) PrecacheSound(name string, loader func() ([]byte, error))
 	return a.sys.PrecacheSound(name, loader)
 }
 
-func (a *AudioAdapter) StartSound(entNum, entChannel int, sfx *SFX, origin [3]float32, vol, attenuation float32) {
+func (a *AudioAdapter) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
 	if a == nil || a.sys == nil {
 		return
 	}
-	a.sys.StartSound(entNum, entChannel, sfx, origin, vol, attenuation)
+	a.sys.StartSound(entNum, entChannel, sfx, origin, velocity, vol, attenuation)
 }
 
-func (a *AudioAdapter) StartStaticSound(sfx *SFX, origin [3]float32, vol, attenuation float32) {
+func (a *AudioAdapter) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
 	if a == nil || a.sys == nil {
 		return
 	}
-	a.sys.StartStaticSound(sfx, origin, vol, attenuation)
+	a.sys.StartStaticSound(sfx, origin, velocity, vol, attenuation)
 }
 
 func (a *AudioAdapter) ClearStaticSounds() {
@@ -102,11 +102,10 @@ func (a *AudioAdapter) ClearStaticSounds() {
 	a.sys.ClearStaticSounds()
 }
 
-func (a *AudioAdapter) SetListener(origin, forward, right, up [3]float32) {
-	if a == nil || a.sys == nil {
-		return
+func (a *AudioAdapter) SetListener(origin, velocity, forward, right, up [3]float32) {
+	if a == nil || a.sys != nil {
+		a.sys.SetListener(origin, velocity, forward, right, up)
 	}
-	a.sys.SetListener(origin, forward, right, up)
 }
 
 func (a *AudioAdapter) SetViewEntity(viewEntity int) {
