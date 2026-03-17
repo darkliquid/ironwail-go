@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -1410,6 +1411,7 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
+	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
 	cmdsys.AddCommand("+showscores", cmdShowScores, "Show multiplayer scoreboard while held")
 	cmdsys.AddCommand("-showscores", cmdHideScores, "Hide multiplayer scoreboard")
 
@@ -1611,6 +1613,45 @@ func cmdToggleConsole(_ []string) {
 	syncGameplayInputMode()
 }
 
+func cmdScreenshot(args []string) {
+	if len(args) > 1 {
+		console.Printf("usage: screenshot [filename]\n")
+		return
+	}
+
+	filename := ""
+	if len(args) == 1 {
+		filename = strings.TrimSpace(args[0])
+	}
+	if filename == "" {
+		filename = fmt.Sprintf("ironwail_%s.png", time.Now().Format("20060102_150405"))
+	}
+
+	baseDir := "."
+	if gameHost != nil && strings.TrimSpace(gameHost.BaseDir()) != "" {
+		baseDir = gameHost.BaseDir()
+	}
+	modDir := strings.TrimSpace(gameModDir)
+	if modDir == "" {
+		modDir = "id1"
+	}
+
+	outputPath := filename
+	if !filepath.IsAbs(outputPath) {
+		outputPath = filepath.Join(baseDir, modDir, outputPath)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		console.Printf("screenshot: create output directory: %v\n", err)
+		return
+	}
+
+	if err := captureScreenshot(outputPath, baseDir, modDir); err != nil {
+		console.Printf("screenshot failed: %v\n", err)
+		return
+	}
+}
+
 func cmdShowScores(_ []string) {
 	if gameClient == nil {
 		return
@@ -1642,6 +1683,12 @@ func handleGameKeyEvent(event input.KeyEvent) {
 		}
 		syncGameplayInputMode()
 		return
+	}
+	if event.Key == input.KEnter && event.Down {
+		if mods := gameInput.GetModifierState(); mods.Alt {
+			cvar.SetBool("vid_fullscreen", !cvar.BoolValue("vid_fullscreen"))
+			return
+		}
 	}
 
 	binding := strings.TrimSpace(gameInput.GetBinding(event.Key))
@@ -2850,6 +2897,18 @@ func isRendererError(err error) bool {
 }
 
 func captureScreenshot(sspath, _, _ string) error {
+	if gameRenderer != nil {
+		if capturer, ok := any(gameRenderer).(interface {
+			CaptureScreenshot(string) error
+		}); ok {
+			if err := capturer.CaptureScreenshot(sspath); err != nil {
+				return fmt.Errorf("capture renderer screenshot: %w", err)
+			}
+			slog.Info("Screenshot saved", "path", sspath)
+			return nil
+		}
+	}
+
 	const (
 		ssWidth  = 1280
 		ssHeight = 720

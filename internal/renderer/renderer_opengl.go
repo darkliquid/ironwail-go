@@ -5,7 +5,10 @@ package renderer
 
 import (
 	"fmt"
+	stdimage "image"
+	"image/png"
 	"log/slog"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -505,14 +508,14 @@ type Renderer struct {
 
 	// Scene FBO and warpscale post-process for r_waterwarp == 1 underwater screen warp.
 	// Mirrors C Ironwail: framebufs.scene / R_WarpScaleView / glprogs.warpscale[1].
-	warpScaleProgram        uint32
-	warpScaleSceneTex       int32 // uniform location: uSceneTex
+	warpScaleProgram         uint32
+	warpScaleSceneTex        int32 // uniform location: uSceneTex
 	warpScaleUVScaleWarpTime int32 // uniform location: uUVScaleWarpTime
-	sceneFBO                uint32
-	sceneColorTex           uint32
-	sceneDepthRBO           uint32
-	sceneFBOWidth           int
-	sceneFBOHeight          int
+	sceneFBO                 uint32
+	sceneColorTex            uint32
+	sceneDepthRBO            uint32
+	sceneFBOWidth            int
+	sceneFBOHeight           int
 
 	// Polyblend (v_blend) full-screen color tint pass.
 	// Mirrors C Ironwail: glprogs.viewblend / V_PolyBlend().
@@ -644,6 +647,41 @@ func (r *Renderer) Input() interface{} {
 // Size returns the current window size in pixels.
 func (r *Renderer) Size() (width, height int) {
 	return r.window.GetSize()
+}
+
+// CaptureScreenshot reads the current OpenGL framebuffer and saves it as a PNG.
+func (r *Renderer) CaptureScreenshot(filename string) error {
+	if r.window == nil {
+		return fmt.Errorf("capture screenshot: renderer window is nil")
+	}
+
+	width, height := r.Size()
+	if width <= 0 || height <= 0 {
+		return fmt.Errorf("capture screenshot: invalid framebuffer size %dx%d", width, height)
+	}
+
+	pixels := make([]byte, width*height*4)
+	gl.ReadPixels(0, 0, int32(width), int32(height), gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(&pixels[0]))
+
+	img := stdimage.NewRGBA(stdimage.Rect(0, 0, width, height))
+	rowBytes := width * 4
+	for y := 0; y < height; y++ {
+		src := (height - 1 - y) * rowBytes
+		dst := y * img.Stride
+		copy(img.Pix[dst:dst+rowBytes], pixels[src:src+rowBytes])
+	}
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("capture screenshot: create file: %w", err)
+	}
+	defer f.Close()
+
+	if err := png.Encode(f, img); err != nil {
+		return fmt.Errorf("capture screenshot: encode png: %w", err)
+	}
+
+	return nil
 }
 
 // ScaleFactor returns the DPI scale factor.

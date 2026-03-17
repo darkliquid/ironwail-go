@@ -21,6 +21,7 @@ type gogpuInputBackend struct {
 	sys             *iinput.System
 	cursorMode      iinput.CursorMode
 	callbacksInited bool
+	modifiers       iinput.ModifierState
 
 	mu              sync.Mutex
 	hasMousePos     bool
@@ -137,21 +138,33 @@ func (b *gogpuInputBackend) initCallbacks() {
 	es.OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := mapGPUContextKey(key)
 		b.markCallbackSeen()
+		b.mu.Lock()
+		b.modifiers = iinput.ModifierState{
+			Shift: mods.HasShift(),
+			Ctrl:  mods.HasControl(),
+			Alt:   mods.HasAlt(),
+		}
+		b.mu.Unlock()
 		if mapped >= 0 {
 			b.markCallbackInput()
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: true, Device: iinput.DeviceKeyboard})
 		}
-		_ = mods
 	})
 
 	es.OnKeyRelease(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := mapGPUContextKey(key)
 		b.markCallbackSeen()
+		b.mu.Lock()
+		b.modifiers = iinput.ModifierState{
+			Shift: mods.HasShift(),
+			Ctrl:  mods.HasControl(),
+			Alt:   mods.HasAlt(),
+		}
+		b.mu.Unlock()
 		if mapped >= 0 {
 			b.markCallbackInput()
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: false, Device: iinput.DeviceKeyboard})
 		}
-		_ = mods
 	})
 
 	es.OnTextInput(func(text string) {
@@ -249,7 +262,9 @@ func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {
 }
 
 func (b *gogpuInputBackend) GetModifierState() iinput.ModifierState {
-	return iinput.ModifierState{}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.modifiers
 }
 
 func (b *gogpuInputBackend) SetTextMode(mode iinput.TextMode) {}
