@@ -226,37 +226,37 @@ func TestDrawLoadingPlaqueNoopWithoutPics(t *testing.T) {
 }
 
 func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
+	originalHost := g.Host
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
+		g.Host = originalHost
+		g.Client = originalClient
 	})
 
-	gameHost = nil
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.Entities[0] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
-	gameClient.PendingCmd = cl.UserCmd{
+	g.Host = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.Entities[0] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.PendingCmd = cl.UserCmd{
 		ViewAngles: [3]float32{0, 0, 0},
 		Forward:    100,
 	}
 
 	runRuntimeFrame(0.016, gameCallbacks{})
 
-	if got := gameClient.PredictedOrigin; got[0] <= 100 {
+	if got := g.Client.PredictedOrigin; got[0] <= 100 {
 		t.Fatalf("expected PredictPlayers to advance predicted origin, got %#v", got)
 	}
 }
 
 func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
-	originalAudio := gameAudio
+	originalHost := g.Host
+	originalClient := g.Client
+	originalAudio := g.Audio
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
-		gameAudio = originalAudio
+		g.Host = originalHost
+		g.Client = originalClient
+		g.Audio = originalAudio
 	})
 
 	sys := audio.NewSystem()
@@ -267,20 +267,20 @@ func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
 		t.Fatalf("audio.Startup failed: %v", err)
 	}
 
-	gameHost = nil
-	gameAudio = audio.NewAudioAdapter(sys)
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ViewEntity = 3
-	gameClient.ViewHeight = 22
-	gameClient.Entities[3] = inet.EntityState{Origin: [3]float32{64, 32, 16}}
+	g.Host = nil
+	g.Audio = audio.NewAudioAdapter(sys)
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 3
+	g.Client.ViewHeight = 22
+	g.Client.Entities[3] = inet.EntityState{Origin: [3]float32{64, 32, 16}}
 
 	runRuntimeFrame(0.016, gameCallbacks{})
 	if got := sys.ViewEntity(); got != 3 {
 		t.Fatalf("audio view entity after active client frame = %d, want 3", got)
 	}
 
-	gameClient = nil
+	g.Client = nil
 	runRuntimeFrame(0.016, gameCallbacks{})
 	if got := sys.ViewEntity(); got != 0 {
 		t.Fatalf("audio view entity after clearing client = %d, want 0", got)
@@ -288,17 +288,17 @@ func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
 }
 
 func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
-	originalAudio := gameAudio
-	originalServer := gameServer
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalClient := g.Client
+	originalAudio := g.Audio
+	originalServer := g.Server
+	originalSubs := g.Subs
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
-		gameAudio = originalAudio
-		gameServer = originalServer
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Client = originalClient
+		g.Audio = originalAudio
+		g.Server = originalServer
+		g.Subs = originalSubs
 	})
 
 	sys := audio.NewSystem()
@@ -308,18 +308,18 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 	if err := sys.Startup(); err != nil {
 		t.Fatalf("audio.Startup failed: %v", err)
 	}
-	gameAudio = audio.NewAudioAdapter(sys)
-	gameAudio.SetAmbientSound(0, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
-	gameAudio.SetAmbientSound(1, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
+	g.Audio = audio.NewAudioAdapter(sys)
+	g.Audio.SetAmbientSound(0, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
+	g.Audio.SetAmbientSound(1, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
 
-	gameHost = nil
-	gameSubs = nil
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ViewEntity = 1
-	gameClient.ViewHeight = 0
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{64, 0, 0}}
-	gameServer = &server.Server{
+	g.Host = nil
+	g.Subs = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 0
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{64, 0, 0}}
+	g.Server = &server.Server{
 		WorldTree: &bsp.Tree{
 			Planes: []bsp.DPlane{
 				{Normal: [3]float32{1, 0, 0}, Dist: 0},
@@ -355,7 +355,7 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 		t.Fatalf("ambient channel 1 volume = %d, want 10", got)
 	}
 
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{-64, 0, 0}}
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{-64, 0, 0}}
 	runRuntimeFrame(0.1, gameCallbacks{})
 	if got := sys.UnderwaterIntensity(); got != 0 {
 		t.Fatalf("underwater intensity in dry leaf = %v, want 0", got)
@@ -367,7 +367,7 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 		t.Fatalf("ambient channel 1 volume in dry leaf = %d, want 0", got)
 	}
 
-	gameServer = nil
+	g.Server = nil
 	runRuntimeFrame(0.1, gameCallbacks{})
 	if sys.AmbientSound(0) != nil || sys.AmbientSound(1) != nil {
 		t.Fatalf("ambient channels should clear when no world tree is available")
@@ -375,27 +375,27 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 }
 
 func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
+	originalHost := g.Host
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
+		g.Host = originalHost
+		g.Client = originalClient
 	})
 
-	gameHost = nil
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.SoundEvents = []cl.SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
-	gameClient.StopSoundEvents = []cl.StopSoundEvent{{Entity: 4, Channel: 5}}
-	gameClient.ParticleEvents = []cl.ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
-	gameClient.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}}}
+	g.Host = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.SoundEvents = []cl.SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
+	g.Client.StopSoundEvents = []cl.StopSoundEvent{{Entity: 4, Channel: 5}}
+	g.Client.ParticleEvents = []cl.ParticleEvent{{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 4}}
+	g.Client.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}}}
 
 	events := runRuntimeFrame(0.016, gameCallbacks{})
 	if len(events.SoundEvents) != 1 || len(events.StopSoundEvents) != 1 || len(events.ParticleEvents) != 1 || len(events.TempEntities) != 1 {
 		t.Fatalf("runRuntimeFrame consumed = %d sounds, %d stops, %d particles, %d temps; want 1,1,1,1", len(events.SoundEvents), len(events.StopSoundEvents), len(events.ParticleEvents), len(events.TempEntities))
 	}
-	if len(gameClient.SoundEvents) != 0 || len(gameClient.StopSoundEvents) != 0 || len(gameClient.ParticleEvents) != 0 || len(gameClient.TempEntities) != 0 {
-		t.Fatalf("client buffers not cleared: %d sounds %d stops %d particles %d temps", len(gameClient.SoundEvents), len(gameClient.StopSoundEvents), len(gameClient.ParticleEvents), len(gameClient.TempEntities))
+	if len(g.Client.SoundEvents) != 0 || len(g.Client.StopSoundEvents) != 0 || len(g.Client.ParticleEvents) != 0 || len(g.Client.TempEntities) != 0 {
+		t.Fatalf("client buffers not cleared: %d sounds %d stops %d particles %d temps", len(g.Client.SoundEvents), len(g.Client.StopSoundEvents), len(g.Client.ParticleEvents), len(g.Client.TempEntities))
 	}
 
 	events = runRuntimeFrame(0.016, gameCallbacks{})
@@ -405,126 +405,126 @@ func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
 }
 
 func TestRuntimeViewStatePrefersAuthoritativeViewEntityOrigin(t *testing.T) {
-	originalClient := gameClient
-	originalServer := gameServer
-	originalRenderer := gameRenderer
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameServer = originalServer
-		gameRenderer = originalRenderer
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
 	})
 
-	gameServer = nil
-	gameRenderer = nil
-	gameClient = cl.NewClient()
-	gameClient.ViewEntity = 1
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{128, 64, 32}}
-	gameClient.PredictedOrigin = [3]float32{64, 32, 16}
-	gameClient.ViewHeight = 30
-	gameClient.ViewAngles = [3]float32{10, 20, 0}
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{128, 64, 32}}
+	g.Client.PredictedOrigin = [3]float32{64, 32, 16}
+	g.Client.ViewHeight = 30
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
 
 	origin, angles := runtimeViewState()
 	if want := [3]float32{128, 64, 62}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want %v", origin, want)
 	}
-	if angles != gameClient.ViewAngles {
-		t.Fatalf("runtimeViewState angles = %v, want %v", angles, gameClient.ViewAngles)
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want %v", angles, g.Client.ViewAngles)
 	}
 }
 
 func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
-	originalClient := gameClient
-	originalServer := gameServer
-	originalRenderer := gameRenderer
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameServer = originalServer
-		gameRenderer = originalRenderer
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
 	})
 
-	gameServer = nil
-	gameRenderer = nil
-	gameClient = cl.NewClient()
-	gameClient.ViewEntity = 1
-	gameClient.PredictedOrigin = [3]float32{128, 64, 32}
-	gameClient.ViewHeight = 18
-	gameClient.ViewAngles = [3]float32{10, 20, 0}
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.ViewEntity = 1
+	g.Client.PredictedOrigin = [3]float32{128, 64, 32}
+	g.Client.ViewHeight = 18
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
 
 	origin, angles := runtimeViewState()
 	if want := [3]float32{128, 64, 50}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want %v", origin, want)
 	}
-	if angles != gameClient.ViewAngles {
-		t.Fatalf("runtimeViewState angles = %v, want %v", angles, gameClient.ViewAngles)
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want %v", angles, g.Client.ViewAngles)
 	}
 }
 
 func TestRuntimeViewStateUsesPredictedXYOffsetDuringActiveMovement(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
-	originalServer := gameServer
-	originalRenderer := gameRenderer
+	originalHost := g.Host
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
-		gameServer = originalServer
-		gameRenderer = originalRenderer
+		g.Host = originalHost
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
 	})
 
-	gameHost = nil
-	gameServer = nil
-	gameRenderer = nil
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ViewEntity = 1
-	gameClient.ViewHeight = 22
-	gameClient.ViewAngles = [3]float32{10, 20, 0}
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
-	gameClient.PendingCmd = cl.UserCmd{
+	g.Host = nil
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.PendingCmd = cl.UserCmd{
 		ViewAngles: [3]float32{0, 0, 0},
 		Forward:    100,
 	}
 
 	runRuntimeFrame(0.016, gameCallbacks{})
-	if got := gameClient.PredictedOrigin; got[0] <= 100 {
+	if got := g.Client.PredictedOrigin; got[0] <= 100 {
 		t.Fatalf("expected PredictPlayers to advance predicted origin, got %#v", got)
 	}
-	if got := gameClient.PredictedOrigin; got[2] >= 300 {
+	if got := g.Client.PredictedOrigin; got[2] >= 300 {
 		t.Fatalf("expected collisionless prediction to drift below authoritative Z, got %#v", got)
 	}
 
 	origin, _ := runtimeViewState()
-	if want := [3]float32{gameClient.PredictedOrigin[0], gameClient.PredictedOrigin[1], 300 + gameClient.ViewHeight}; origin != want {
+	if want := [3]float32{g.Client.PredictedOrigin[0], g.Client.PredictedOrigin[1], 300 + g.Client.ViewHeight}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want predicted XY with authoritative Z %v", origin, want)
 	}
 }
 
 func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
-	originalClient := gameClient
-	originalServer := gameServer
-	originalRenderer := gameRenderer
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameServer = originalServer
-		gameRenderer = originalRenderer
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
 	})
 
-	gameServer = nil
-	gameRenderer = nil
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ViewEntity = 1
-	gameClient.ViewHeight = 22
-	gameClient.ViewAngles = [3]float32{10, 20, 0}
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
-	gameClient.PredictedOrigin = [3]float32{120, 240, 280}
-	gameClient.PendingCmd = cl.UserCmd{Forward: 100}
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.PredictedOrigin = [3]float32{120, 240, 280}
+	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
 
 	offsetScale := float32(runtimeMaxPredictedXYOffset / math.Hypot(20, 40))
 	want := [3]float32{
 		100 + 20*offsetScale,
 		200 + 40*offsetScale,
-		300 + gameClient.ViewHeight,
+		300 + g.Client.ViewHeight,
 	}
 
 	origin, _ := runtimeViewState()
@@ -534,41 +534,41 @@ func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
 }
 
 func TestRuntimeViewStateIgnoresPredictedXYOffsetOnLargePredictionError(t *testing.T) {
-	originalClient := gameClient
-	originalServer := gameServer
-	originalRenderer := gameRenderer
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameServer = originalServer
-		gameRenderer = originalRenderer
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
 	})
 
-	gameServer = nil
-	gameRenderer = nil
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ViewEntity = 1
-	gameClient.ViewHeight = 22
-	gameClient.ViewAngles = [3]float32{10, 20, 0}
-	gameClient.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
-	gameClient.PredictedOrigin = [3]float32{110, 200, 280}
-	gameClient.PredictionError = [3]float32{runtimeMaxPredictedXYOffset + 1, 0, 0}
-	gameClient.PendingCmd = cl.UserCmd{Forward: 100}
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.PredictedOrigin = [3]float32{110, 200, 280}
+	g.Client.PredictionError = [3]float32{runtimeMaxPredictedXYOffset + 1, 0, 0}
+	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
 
 	origin, _ := runtimeViewState()
-	if want := [3]float32{100, 200, 300 + gameClient.ViewHeight}; origin != want {
+	if want := [3]float32{100, 200, 300 + g.Client.ViewHeight}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want authoritative origin %v", origin, want)
 	}
 }
 
 func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.Time = 12.5
+	g.Client = cl.NewClient()
+	g.Client.Time = 12.5
 
 	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{4, 5, 6})
 	if camera.Time != 12.5 {
@@ -577,14 +577,14 @@ func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 }
 
 func TestRuntimeCameraStateAppliesPunchAnglesOutsideIntermission(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 100 // Alive player
-	gameClient.PunchAngle = [3]float32{1, -2, 3}
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 100 // Alive player
+	g.Client.PunchAngle = [3]float32{1, -2, 3}
 
 	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
 	if camera.Angles.X != 11 || camera.Angles.Y != 18 || camera.Angles.Z != 33 {
@@ -593,14 +593,14 @@ func TestRuntimeCameraStateAppliesPunchAnglesOutsideIntermission(t *testing.T) {
 }
 
 func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.Intermission = 1
-	gameClient.PunchAngle = [3]float32{1, -2, 3}
+	g.Client = cl.NewClient()
+	g.Client.Intermission = 1
+	g.Client.PunchAngle = [3]float32{1, -2, 3}
 
 	camera := runtimeCameraState([3]float32{1, 2, 3}, [3]float32{10, 20, 30})
 	if camera.Angles.X != 10 || camera.Angles.Y != 20 || camera.Angles.Z != 30 {
@@ -609,19 +609,19 @@ func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
 }
 
 func TestRuntimeViewStateInterpolatesViewAngles(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.ViewHeight = 22
-	gameClient.PredictedOrigin = [3]float32{32, 64, 96}
-	gameClient.MViewAngles[1] = [3]float32{0, 0, 0}
-	gameClient.MViewAngles[0] = [3]float32{10, 20, 30}
-	gameClient.MTime[1] = 1.0
-	gameClient.MTime[0] = 1.1
-	gameClient.Time = 1.05
+	g.Client = cl.NewClient()
+	g.Client.ViewHeight = 22
+	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
+	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
+	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
+	g.Client.MTime[1] = 1.0
+	g.Client.MTime[0] = 1.1
+	g.Client.Time = 1.05
 
 	_, angles := runtimeViewState()
 	if angles != [3]float32{5, 10, 15} {
@@ -630,18 +630,18 @@ func TestRuntimeViewStateInterpolatesViewAngles(t *testing.T) {
 }
 
 func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 100 // Alive player
-	gameClient.Intermission = 0
-	gameClient.PunchAngles[1] = [3]float32{0, 0, 0}
-	gameClient.PunchAngles[0] = [3]float32{10, 0, 0}
-	gameClient.PunchTime = 1.0
-	gameClient.Time = 1.05
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 100 // Alive player
+	g.Client.Intermission = 0
+	g.Client.PunchAngles[1] = [3]float32{0, 0, 0}
+	g.Client.PunchAngles[0] = [3]float32{10, 0, 0}
+	g.Client.PunchTime = 1.0
+	g.Client.Time = 1.05
 
 	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
 	if camera.Angles.X < 5.9 || camera.Angles.X > 6.1 {
@@ -650,22 +650,22 @@ func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
 }
 
 func TestRuntimeCameraStateGunKickModeRaw(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	originalKick := cvar.StringValue("v_gunkick")
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 		cvar.Set("v_gunkick", originalKick)
 	})
 
 	cvar.Set("v_gunkick", "1")
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 100 // Alive player
-	gameClient.Intermission = 0
-	gameClient.PunchAngle = [3]float32{2, -4, 6}
-	gameClient.PunchAngles[1] = [3]float32{0, 0, 0}
-	gameClient.PunchAngles[0] = [3]float32{10, 0, 0}
-	gameClient.PunchTime = 1.0
-	gameClient.Time = 1.05
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 100 // Alive player
+	g.Client.Intermission = 0
+	g.Client.PunchAngle = [3]float32{2, -4, 6}
+	g.Client.PunchAngles[1] = [3]float32{0, 0, 0}
+	g.Client.PunchAngles[0] = [3]float32{10, 0, 0}
+	g.Client.PunchTime = 1.0
+	g.Client.Time = 1.05
 
 	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
 	if camera.Angles.X != 3 || camera.Angles.Y != -2 || camera.Angles.Z != 9 {
@@ -674,18 +674,18 @@ func TestRuntimeCameraStateGunKickModeRaw(t *testing.T) {
 }
 
 func TestRuntimeCameraStateGunKickModeOff(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	originalKick := cvar.StringValue("v_gunkick")
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 		cvar.Set("v_gunkick", originalKick)
 	})
 
 	cvar.Set("v_gunkick", "0")
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 100 // Alive player
-	gameClient.Intermission = 0
-	gameClient.PunchAngle = [3]float32{2, -4, 6}
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 100 // Alive player
+	g.Client.Intermission = 0
+	g.Client.PunchAngle = [3]float32{2, -4, 6}
 
 	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
 	if camera.Angles.X != 1 || camera.Angles.Y != 2 || camera.Angles.Z != 3 {
@@ -694,15 +694,15 @@ func TestRuntimeCameraStateGunKickModeOff(t *testing.T) {
 }
 
 func TestRuntimeCameraStateDeadPlayerRoll(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 0 // Dead player
-	gameClient.Intermission = 0
-	gameClient.PunchAngle = [3]float32{10, 10, 10}
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 0 // Dead player
+	g.Client.Intermission = 0
+	g.Client.PunchAngle = [3]float32{10, 10, 10}
 
 	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{1, 2, 3})
 	// Dead players should have roll = 80 and ignore other view effects.
@@ -712,7 +712,7 @@ func TestRuntimeCameraStateDeadPlayerRoll(t *testing.T) {
 }
 
 func TestRuntimeCameraStateAppliesChaseCameraWhenActive(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	if cvar.Get("chase_active") == nil {
 		cvar.Register("chase_active", "0", 0, "")
 	}
@@ -730,15 +730,15 @@ func TestRuntimeCameraStateAppliesChaseCameraWhenActive(t *testing.T) {
 	originalUp := cvar.StringValue("chase_up")
 	originalRight := cvar.StringValue("chase_right")
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 		cvar.Set("chase_active", originalActive)
 		cvar.Set("chase_back", originalBack)
 		cvar.Set("chase_up", originalUp)
 		cvar.Set("chase_right", originalRight)
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 100
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 100
 	cvar.Set("chase_active", "1")
 	cvar.Set("chase_back", "100")
 	cvar.Set("chase_up", "16")
@@ -757,19 +757,19 @@ func TestRuntimeCameraStateAppliesChaseCameraWhenActive(t *testing.T) {
 }
 
 func TestRuntimeViewStateInterpolatesYawAcrossWrap(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.ViewHeight = 22
-	gameClient.PredictedOrigin = [3]float32{32, 64, 96}
-	gameClient.MViewAngles[1] = [3]float32{0, 350, 0}
-	gameClient.MViewAngles[0] = [3]float32{0, 10, 0}
-	gameClient.MTime[1] = 1.0
-	gameClient.MTime[0] = 1.1
-	gameClient.Time = 1.05
+	g.Client = cl.NewClient()
+	g.Client.ViewHeight = 22
+	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
+	g.Client.MViewAngles[1] = [3]float32{0, 350, 0}
+	g.Client.MViewAngles[0] = [3]float32{0, 10, 0}
+	g.Client.MTime[1] = 1.0
+	g.Client.MTime[0] = 1.1
+	g.Client.Time = 1.05
 
 	_, angles := runtimeViewState()
 	if math.Abs(float64(angles[1]-360)) > 0.01 && math.Abs(float64(angles[1])) > 0.01 {
@@ -778,15 +778,15 @@ func TestRuntimeViewStateInterpolatesYawAcrossWrap(t *testing.T) {
 }
 
 func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
-	originalClient := gameClient
-	originalMenu := gameMenu
-	originalSubs := gameSubs
-	originalAliasCache := aliasModelCache
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameMenu = originalMenu
-		gameSubs = originalSubs
-		aliasModelCache = originalAliasCache
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
 	})
 
 	cvar.Set("r_drawviewmodel", "1")
@@ -797,17 +797,17 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	cvar.Set("v_idlescale", "0") // no idle sway
 	cvar.Set("r_viewmodel_quake", "0")
 
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[inet.StatHealth] = 100
-	gameClient.Stats[inet.StatWeapon] = 1
-	gameClient.Stats[inet.StatWeaponFrame] = 1
-	gameClient.ViewAngles = [3]float32{12, 34, 0}
-	gameClient.ViewHeight = 28
-	gameClient.PredictedOrigin = [3]float32{100, 200, 300}
-	gameMenu = menu.NewManager(nil, nil)
-	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
-	aliasModelCache = map[string]*model.Model{
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 1
+	g.Client.ViewAngles = [3]float32{12, 34, 0}
+	g.Client.ViewHeight = 28
+	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
 		"progs/v_axe.mdl": {
 			Type:        model.ModAlias,
 			AliasHeader: &model.AliasHeader{NumFrames: 2},
@@ -834,26 +834,26 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 }
 
 func TestCollectViewModelEntitySuppressesIntermission(t *testing.T) {
-	originalClient := gameClient
-	originalMenu := gameMenu
-	originalSubs := gameSubs
-	originalAliasCache := aliasModelCache
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameMenu = originalMenu
-		gameSubs = originalSubs
-		aliasModelCache = originalAliasCache
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
 	})
 
 	cvar.Set("r_drawviewmodel", "1")
-	gameClient = cl.NewClient()
-	gameClient.Intermission = 1
-	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[inet.StatWeapon] = 1
-	gameClient.Stats[inet.StatHealth] = 100
-	gameMenu = menu.NewManager(nil, nil)
-	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
-	aliasModelCache = map[string]*model.Model{
+	g.Client = cl.NewClient()
+	g.Client.Intermission = 1
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
 		"progs/v_axe.mdl": {
 			Type:        model.ModAlias,
 			AliasHeader: &model.AliasHeader{NumFrames: 1},
@@ -866,25 +866,25 @@ func TestCollectViewModelEntitySuppressesIntermission(t *testing.T) {
 }
 
 func TestCollectViewModelEntityHonorsDrawViewModelCvar(t *testing.T) {
-	originalClient := gameClient
-	originalMenu := gameMenu
-	originalSubs := gameSubs
-	originalAliasCache := aliasModelCache
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameMenu = originalMenu
-		gameSubs = originalSubs
-		aliasModelCache = originalAliasCache
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
 		cvar.Set("r_drawviewmodel", "1")
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[inet.StatWeapon] = 1
-	gameClient.Stats[inet.StatHealth] = 100
-	gameMenu = menu.NewManager(nil, nil)
-	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
-	aliasModelCache = map[string]*model.Model{
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
 		"progs/v_axe.mdl": {
 			Type:        model.ModAlias,
 			AliasHeader: &model.AliasHeader{NumFrames: 1},
@@ -906,26 +906,26 @@ func TestCollectViewModelEntityHonorsDrawViewModelCvar(t *testing.T) {
 }
 
 func TestCollectViewModelEntitySuppressesWhenInvisible(t *testing.T) {
-	originalClient := gameClient
-	originalMenu := gameMenu
-	originalSubs := gameSubs
-	originalAliasCache := aliasModelCache
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameMenu = originalMenu
-		gameSubs = originalSubs
-		aliasModelCache = originalAliasCache
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
 	})
 
 	cvar.Set("r_drawviewmodel", "1")
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"progs/v_axe.mdl"}
-	gameClient.Stats[inet.StatWeapon] = 1
-	gameClient.Stats[inet.StatHealth] = 100
-	gameClient.Items = cl.ItemInvisibility
-	gameMenu = menu.NewManager(nil, nil)
-	gameSubs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
-	aliasModelCache = map[string]*model.Model{
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Items = cl.ItemInvisibility
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
 		"progs/v_axe.mdl": {
 			Type:        model.ModAlias,
 			AliasHeader: &model.AliasHeader{NumFrames: 1},
@@ -956,15 +956,15 @@ func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T
 }
 
 func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
-	originalHost := gameHost
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalSubs := g.Subs
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Subs = originalSubs
 		_ = os.Chdir(cwd)
 	})
 
@@ -987,26 +987,26 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	gameHost = host.NewHost()
-	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
-	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
 	}
-	gameHost.CmdPlaydemo("single_step", gameSubs)
+	g.Host.CmdPlaydemo("single_step", g.Subs)
 
-	demo := gameHost.DemoState()
+	demo := g.Host.DemoState()
 	if demo == nil || !demo.Playback {
 		t.Fatal("expected active demo playback")
 	}
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame first: %v", err)
 	}
 	if demo.FrameIndex != 1 {
 		t.Fatalf("frame index after first host frame = %d, want 1", demo.FrameIndex)
 	}
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame second: %v", err)
 	}
 	if demo.FrameIndex != 2 {
@@ -1015,15 +1015,15 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 }
 
 func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
-	originalHost := gameHost
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalSubs := g.Subs
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Subs = originalSubs
 		_ = os.Chdir(cwd)
 	})
 
@@ -1043,20 +1043,20 @@ func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	gameHost = host.NewHost()
-	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
-	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
 	}
-	gameHost.CmdPlaydemo("paused", gameSubs)
+	g.Host.CmdPlaydemo("paused", g.Subs)
 
-	demo := gameHost.DemoState()
+	demo := g.Host.DemoState()
 	if demo == nil || !demo.Playback {
 		t.Fatal("expected active demo playback")
 	}
 	demo.Paused = true
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame: %v", err)
 	}
 	if demo.FrameIndex != 0 {
@@ -1065,15 +1065,15 @@ func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
 }
 
 func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
-	originalHost := gameHost
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalSubs := g.Subs
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Subs = originalSubs
 		_ = os.Chdir(cwd)
 	})
 
@@ -1106,24 +1106,24 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	gameHost = host.NewHost()
-	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
-	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
 	}
-	gameHost.CmdPlaydemo("timed", gameSubs)
+	g.Host.CmdPlaydemo("timed", g.Subs)
 
-	clientState := host.LoopbackClientState(gameSubs)
+	clientState := host.LoopbackClientState(g.Subs)
 	if clientState == nil {
 		t.Fatal("expected loopback client state")
 	}
 
-	demo := gameHost.DemoState()
+	demo := g.Host.DemoState()
 	if demo == nil || !demo.Playback {
 		t.Fatal("expected active demo playback")
 	}
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame first: %v", err)
 	}
 	if demo.FrameIndex != 1 {
@@ -1133,7 +1133,7 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 	clientState.State = cl.StateActive
 	clientState.Signon = cl.Signons
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame second: %v", err)
 	}
 	if demo.FrameIndex != 1 {
@@ -1141,7 +1141,7 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 	}
 
 	for i := 0; i < 6; i++ {
-		if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+		if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 			t.Fatalf("Host.Frame catch-up %d: %v", i, err)
 		}
 	}
@@ -1151,15 +1151,15 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 }
 
 func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
-	originalHost := gameHost
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalSubs := g.Subs
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Subs = originalSubs
 		_ = os.Chdir(cwd)
 	})
 
@@ -1192,29 +1192,29 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	gameHost = host.NewHost()
-	gameSubs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
-	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
 	}
-	gameHost.CmdTimedemo("timedemo", gameSubs)
+	g.Host.CmdTimedemo("timedemo", g.Subs)
 
-	clientState := host.LoopbackClientState(gameSubs)
+	clientState := host.LoopbackClientState(g.Subs)
 	if clientState == nil {
 		t.Fatal("expected loopback client state")
 	}
 	clientState.State = cl.StateActive
 	clientState.Signon = cl.Signons
 
-	demo := gameHost.DemoState()
+	demo := g.Host.DemoState()
 	if demo == nil || !demo.Playback || !demo.TimeDemo {
 		t.Fatal("expected active timedemo playback")
 	}
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame first: %v", err)
 	}
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame second: %v", err)
 	}
 	if demo.FrameIndex != 2 {
@@ -1223,15 +1223,15 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 }
 
 func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
-	originalHost := gameHost
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalSubs := g.Subs
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Subs = originalSubs
 		_ = os.Chdir(cwd)
 	})
 
@@ -1258,18 +1258,18 @@ func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 	}
 
 	cmd := &demoPlaybackCommandBuffer{}
-	gameHost = host.NewHost()
-	gameSubs = &host.Subsystems{
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{
 		Server:   &demoPlaybackNoopServer{},
 		Console:  &demoPlaybackConsole{},
 		Commands: cmd,
 	}
-	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
 	}
-	gameHost.CmdPlaydemo("stuffcmd", gameSubs)
+	g.Host.CmdPlaydemo("stuffcmd", g.Subs)
 
-	if err := gameHost.Frame(0.016, gameCallbacks{}); err != nil {
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame: %v", err)
 	}
 
@@ -1279,7 +1279,7 @@ func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 	if cmd.executes < 2 {
 		t.Fatalf("executes = %d, want at least 2", cmd.executes)
 	}
-	clientState := host.LoopbackClientState(gameSubs)
+	clientState := host.LoopbackClientState(g.Subs)
 	if clientState == nil {
 		t.Fatal("expected loopback client state")
 	}
@@ -1289,26 +1289,26 @@ func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 }
 
 func TestProcessClientFlushesLiveStuffTextSameFrame(t *testing.T) {
-	originalHost := gameHost
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalSubs := g.Subs
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Subs = originalSubs
 	})
 
 	cmd := &demoPlaybackCommandBuffer{}
-	gameHost = host.NewHost()
-	gameSubs = &host.Subsystems{
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{
 		Server:   &demoPlaybackNoopServer{},
 		Console:  &demoPlaybackConsole{},
 		Commands: cmd,
 	}
 	tmpDir := t.TempDir()
-	if err := gameHost.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, gameSubs); err != nil {
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
 	}
 
-	clientState := host.LoopbackClientState(gameSubs)
+	clientState := host.LoopbackClientState(g.Subs)
 	if clientState == nil {
 		t.Fatal("expected loopback client state")
 	}
@@ -1325,17 +1325,17 @@ func TestProcessClientFlushesLiveStuffTextSameFrame(t *testing.T) {
 }
 
 func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
-	originalSubs := gameSubs
+	originalHost := g.Host
+	originalClient := g.Client
+	originalSubs := g.Subs
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
-		gameSubs = originalSubs
+		g.Host = originalHost
+		g.Client = originalClient
+		g.Subs = originalSubs
 		_ = os.Chdir(cwd)
 	})
 
@@ -1344,7 +1344,7 @@ func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 		t.Fatalf("Chdir: %v", err)
 	}
 
-	gameHost = host.NewHost()
+	g.Host = host.NewHost()
 	demo := cl.NewDemoState()
 	if err := demo.StartDemoRecording("runtime_demo", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)
@@ -1352,11 +1352,11 @@ func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 	t.Cleanup(func() {
 		_ = demo.StopRecording()
 	})
-	gameHost.SetDemoState(demo)
+	g.Host.SetDemoState(demo)
 
-	gameClient = cl.NewClient()
-	gameClient.ViewAngles = [3]float32{10, 20, 30}
-	gameSubs = &host.Subsystems{Client: &demoMessageClient{message: []byte{1, 2, 3}}}
+	g.Client = cl.NewClient()
+	g.Client.ViewAngles = [3]float32{10, 20, 30}
+	g.Subs = &host.Subsystems{Client: &demoMessageClient{message: []byte{1, 2, 3}}}
 
 	recordRuntimeDemoFrame()
 	if err := demo.StopRecording(); err != nil {
@@ -1412,248 +1412,248 @@ func TestRuntimeAngleVectorsYawNinety(t *testing.T) {
 }
 
 func TestRefreshRuntimeSoundCacheResetsOnPrecacheChange(t *testing.T) {
-	originalClient := gameClient
-	originalMap := soundSFXByIndex
-	originalKey := soundPrecacheKey
+	originalClient := g.Client
+	originalMap := g.SoundSFXByIndex
+	originalKey := g.SoundPrecacheKey
 	t.Cleanup(func() {
-		gameClient = originalClient
-		soundSFXByIndex = originalMap
-		soundPrecacheKey = originalKey
+		g.Client = originalClient
+		g.SoundSFXByIndex = originalMap
+		g.SoundPrecacheKey = originalKey
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.SoundPrecache = []string{"weapons/rocket1.wav"}
-	soundPrecacheKey = "weapons/rocket1.wav"
-	soundSFXByIndex = map[int]*audio.SFX{1: nil}
+	g.Client = cl.NewClient()
+	g.Client.SoundPrecache = []string{"weapons/rocket1.wav"}
+	g.SoundPrecacheKey = "weapons/rocket1.wav"
+	g.SoundSFXByIndex = map[int]*audio.SFX{1: nil}
 
 	refreshRuntimeSoundCache()
-	if got := len(soundSFXByIndex); got != 1 {
+	if got := len(g.SoundSFXByIndex); got != 1 {
 		t.Fatalf("same precache unexpectedly reset cache; len = %d, want 1", got)
 	}
 
-	gameClient.SoundPrecache = []string{"weapons/shotgn2.wav"}
+	g.Client.SoundPrecache = []string{"weapons/shotgn2.wav"}
 	refreshRuntimeSoundCache()
-	if got := len(soundSFXByIndex); got != 0 {
+	if got := len(g.SoundSFXByIndex); got != 0 {
 		t.Fatalf("changed precache should reset cache; len = %d, want 0", got)
 	}
 }
 
 func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T) {
-	originalClient := gameClient
-	originalAudio := gameAudio
-	originalSubs := gameSubs
-	originalMap := soundSFXByIndex
-	originalPrecacheKey := soundPrecacheKey
-	originalStaticKey := staticSoundKey
+	originalClient := g.Client
+	originalAudio := g.Audio
+	originalSubs := g.Subs
+	originalMap := g.SoundSFXByIndex
+	originalPrecacheKey := g.SoundPrecacheKey
+	originalStaticKey := g.StaticSoundKey
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameAudio = originalAudio
-		gameSubs = originalSubs
-		soundSFXByIndex = originalMap
-		soundPrecacheKey = originalPrecacheKey
-		staticSoundKey = originalStaticKey
+		g.Client = originalClient
+		g.Audio = originalAudio
+		g.Subs = originalSubs
+		g.SoundSFXByIndex = originalMap
+		g.SoundPrecacheKey = originalPrecacheKey
+		g.StaticSoundKey = originalStaticKey
 	})
 
-	gameSubs = nil
-	gameAudio = audio.NewAudioAdapter(nil)
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.SoundPrecache = []string{"ambience/drip.wav"}
-	gameClient.StaticSounds = []cl.StaticSound{
+	g.Subs = nil
+	g.Audio = audio.NewAudioAdapter(nil)
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.SoundPrecache = []string{"ambience/drip.wav"}
+	g.Client.StaticSounds = []cl.StaticSound{
 		{Origin: [3]float32{10, 20, 30}, SoundIndex: 1, Volume: 255, Attenuation: 1},
 	}
 
 	syncRuntimeStaticSounds()
-	firstKey := staticSoundKey
+	firstKey := g.StaticSoundKey
 	if firstKey == "" {
 		t.Fatalf("expected static sound snapshot key to be populated")
 	}
 
 	syncRuntimeStaticSounds()
-	if staticSoundKey != firstKey {
-		t.Fatalf("unchanged snapshot should not churn static key; got %q, want %q", staticSoundKey, firstKey)
+	if g.StaticSoundKey != firstKey {
+		t.Fatalf("unchanged snapshot should not churn static key; got %q, want %q", g.StaticSoundKey, firstKey)
 	}
 
-	gameClient.StaticSounds = append(gameClient.StaticSounds, cl.StaticSound{
+	g.Client.StaticSounds = append(g.Client.StaticSounds, cl.StaticSound{
 		Origin: [3]float32{40, 50, 60}, SoundIndex: 2, Volume: 200, Attenuation: 0.5,
 	})
 	syncRuntimeStaticSounds()
-	secondKey := staticSoundKey
+	secondKey := g.StaticSoundKey
 	if secondKey == firstKey {
 		t.Fatalf("static sound list change should rebuild snapshot key")
 	}
 
-	soundSFXByIndex = map[int]*audio.SFX{1: nil}
-	gameClient.SoundPrecache = []string{"ambience/wind2.wav"}
+	g.SoundSFXByIndex = map[int]*audio.SFX{1: nil}
+	g.Client.SoundPrecache = []string{"ambience/wind2.wav"}
 	syncRuntimeStaticSounds()
-	if got := len(soundSFXByIndex); got != 0 {
+	if got := len(g.SoundSFXByIndex); got != 0 {
 		t.Fatalf("precache change should reset runtime SFX cache before static sync; len = %d, want 0", got)
 	}
-	if staticSoundKey == secondKey {
+	if g.StaticSoundKey == secondKey {
 		t.Fatalf("precache change should rebuild static snapshot key")
 	}
 
-	gameClient.State = cl.StateConnected
+	g.Client.State = cl.StateConnected
 	syncRuntimeStaticSounds()
-	if staticSoundKey != "" {
-		t.Fatalf("non-active client state should clear static snapshot key, got %q", staticSoundKey)
+	if g.StaticSoundKey != "" {
+		t.Fatalf("non-active client state should clear static snapshot key, got %q", g.StaticSoundKey)
 	}
 }
 
 func TestSyncRuntimeVisualEffectsEmitsParticlesAndDecals(t *testing.T) {
-	originalClient := gameClient
-	originalRenderer := gameRenderer
-	originalParticles := gameParticles
-	originalMarks := gameDecalMarks
-	originalRNG := particleRNG
-	originalTime := particleTime
+	originalClient := g.Client
+	originalRenderer := g.Renderer
+	originalParticles := g.Particles
+	originalMarks := g.DecalMarks
+	originalRNG := g.ParticleRNG
+	originalTime := g.ParticleTime
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameRenderer = originalRenderer
-		gameParticles = originalParticles
-		gameDecalMarks = originalMarks
-		particleRNG = originalRNG
-		particleTime = originalTime
+		g.Client = originalClient
+		g.Renderer = originalRenderer
+		g.Particles = originalParticles
+		g.DecalMarks = originalMarks
+		g.ParticleRNG = originalRNG
+		g.ParticleTime = originalTime
 	})
 
-	gameRenderer = &renderer.Renderer{}
+	g.Renderer = &renderer.Renderer{}
 	resetRuntimeVisualState()
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ParticleEvents = []cl.ParticleEvent{
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ParticleEvents = []cl.ParticleEvent{
 		{Origin: [3]float32{1, 2, 3}, Count: 12, Color: 99},
 	}
-	gameClient.TempEntities = []cl.TempEntityEvent{
+	g.Client.TempEntities = []cl.TempEntityEvent{
 		{Type: inet.TE_GUNSHOT, Origin: [3]float32{4, 5, 6}},
 	}
 
-	transientEvents := gameClient.ConsumeTransientEvents()
+	transientEvents := g.Client.ConsumeTransientEvents()
 	syncRuntimeVisualEffects(0.1, transientEvents)
 
-	if gameParticles == nil || gameParticles.ActiveCount() == 0 {
+	if g.Particles == nil || g.Particles.ActiveCount() == 0 {
 		t.Fatalf("expected runtime visual sync to emit particles")
 	}
 	gotMarks := 0
-	if gameDecalMarks != nil {
-		gotMarks = gameDecalMarks.ActiveCount()
+	if g.DecalMarks != nil {
+		gotMarks = g.DecalMarks.ActiveCount()
 	}
 	if gotMarks != 1 {
 		t.Fatalf("expected runtime visual sync to emit one decal mark, got %d", gotMarks)
 	}
-	if got := particleTime; got <= 0 {
-		t.Fatalf("particleTime = %v, want > 0", got)
+	if got := g.ParticleTime; got <= 0 {
+		t.Fatalf("g.ParticleTime = %v, want > 0", got)
 	}
-	if len(gameClient.ParticleEvents) != 0 || len(gameClient.TempEntities) != 0 {
+	if len(g.Client.ParticleEvents) != 0 || len(g.Client.TempEntities) != 0 {
 		t.Fatalf("runtime visual sync should consume client effect buffers")
 	}
 }
 
 func TestSyncRuntimeVisualEffectsEmitsBrightFieldParticles(t *testing.T) {
-	originalClient := gameClient
-	originalRenderer := gameRenderer
-	originalParticles := gameParticles
-	originalMarks := gameDecalMarks
-	originalRNG := particleRNG
-	originalTime := particleTime
+	originalClient := g.Client
+	originalRenderer := g.Renderer
+	originalParticles := g.Particles
+	originalMarks := g.DecalMarks
+	originalRNG := g.ParticleRNG
+	originalTime := g.ParticleTime
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameRenderer = originalRenderer
-		gameParticles = originalParticles
-		gameDecalMarks = originalMarks
-		particleRNG = originalRNG
-		particleTime = originalTime
+		g.Client = originalClient
+		g.Renderer = originalRenderer
+		g.Particles = originalParticles
+		g.DecalMarks = originalMarks
+		g.ParticleRNG = originalRNG
+		g.ParticleTime = originalTime
 	})
 
-	gameRenderer = &renderer.Renderer{}
+	g.Renderer = &renderer.Renderer{}
 	resetRuntimeVisualState()
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameClient.ModelPrecache = []string{"progs/player.mdl"}
-	gameClient.Entities = map[int]inet.EntityState{
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ModelPrecache = []string{"progs/player.mdl"}
+	g.Client.Entities = map[int]inet.EntityState{
 		1: {ModelIndex: 1, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTFIELD},
 	}
 
 	syncRuntimeVisualEffects(0.1, cl.TransientEvents{})
 
-	if gameParticles == nil {
+	if g.Particles == nil {
 		t.Fatalf("expected runtime visual sync to keep particle system initialized")
 	}
-	if got := gameParticles.ActiveCount(); got != 162 {
+	if got := g.Particles.ActiveCount(); got != 162 {
 		t.Fatalf("brightfield particle count = %d, want 162", got)
 	}
 }
 
 func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
-	originalClient := gameClient
-	originalRenderer := gameRenderer
-	originalParticles := gameParticles
-	originalMarks := gameDecalMarks
-	originalRNG := particleRNG
-	originalTime := particleTime
+	originalClient := g.Client
+	originalRenderer := g.Renderer
+	originalParticles := g.Particles
+	originalMarks := g.DecalMarks
+	originalRNG := g.ParticleRNG
+	originalTime := g.ParticleTime
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameRenderer = originalRenderer
-		gameParticles = originalParticles
-		gameDecalMarks = originalMarks
-		particleRNG = originalRNG
-		particleTime = originalTime
+		g.Client = originalClient
+		g.Renderer = originalRenderer
+		g.Particles = originalParticles
+		g.DecalMarks = originalMarks
+		g.ParticleRNG = originalRNG
+		g.ParticleTime = originalTime
 	})
 
-	gameRenderer = &renderer.Renderer{}
+	g.Renderer = &renderer.Renderer{}
 	resetRuntimeVisualState()
-	gameDecalMarks.AddMark(renderer.DecalMarkEntity{
+	g.DecalMarks.AddMark(renderer.DecalMarkEntity{
 		Origin: [3]float32{0, 0, 0},
 		Normal: [3]float32{0, 0, 1},
 		Size:   8,
 		Alpha:  1,
 	}, 5, 0)
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateConnected
-	gameClient.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 1, 1}}}
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateConnected
+	g.Client.TempEntities = []cl.TempEntityEvent{{Type: inet.TE_EXPLOSION, Origin: [3]float32{1, 1, 1}}}
 
-	transientEvents := gameClient.ConsumeTransientEvents()
+	transientEvents := g.Client.ConsumeTransientEvents()
 	syncRuntimeVisualEffects(0.1, transientEvents)
 
 	gotMarks := 0
-	if gameDecalMarks != nil {
-		gotMarks = gameDecalMarks.ActiveCount()
+	if g.DecalMarks != nil {
+		gotMarks = g.DecalMarks.ActiveCount()
 	}
 	if gotMarks != 0 {
 		t.Fatalf("inactive client should clear runtime decal marks")
 	}
-	if gameParticles == nil {
+	if g.Particles == nil {
 		t.Fatalf("inactive client reset should leave runtime particle system initialized")
 	}
-	if len(gameClient.TempEntities) != 0 {
+	if len(g.Client.TempEntities) != 0 {
 		t.Fatalf("inactive client should consume queued temp entities")
 	}
 }
 
 func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
-	originalClient := gameClient
-	originalMenu := gameMenu
-	originalDraw := gameDraw
-	originalRenderer := gameRenderer
-	originalParticles := gameParticles
-	originalMarks := gameDecalMarks
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalDraw := g.Draw
+	originalRenderer := g.Renderer
+	originalParticles := g.Particles
+	originalMarks := g.DecalMarks
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameMenu = originalMenu
-		gameDraw = originalDraw
-		gameRenderer = originalRenderer
-		gameParticles = originalParticles
-		gameDecalMarks = originalMarks
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Draw = originalDraw
+		g.Renderer = originalRenderer
+		g.Particles = originalParticles
+		g.DecalMarks = originalMarks
 	})
 
-	gameRenderer = &renderer.Renderer{}
-	gameClient = cl.NewClient()
-	gameClient.FogDensity = 128
-	gameClient.FogColor = [3]byte{64, 128, 255}
-	gameMenu = nil
-	gameDraw = nil
-	gameParticles = renderer.NewParticleSystem(renderer.MaxParticles)
-	gameDecalMarks = renderer.NewDecalMarkSystem()
-	gameDecalMarks.AddMark(renderer.DecalMarkEntity{
+	g.Renderer = &renderer.Renderer{}
+	g.Client = cl.NewClient()
+	g.Client.FogDensity = 128
+	g.Client.FogColor = [3]byte{64, 128, 255}
+	g.Menu = nil
+	g.Draw = nil
+	g.Particles = renderer.NewParticleSystem(renderer.MaxParticles)
+	g.DecalMarks = renderer.NewDecalMarkSystem()
+	g.DecalMarks.AddMark(renderer.DecalMarkEntity{
 		Origin: [3]float32{1, 2, 3},
 		Normal: [3]float32{0, 0, 1},
 		Size:   12,
@@ -1686,13 +1686,13 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 }
 
 func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
-	originalClient := gameClient
-	originalSubs := gameSubs
-	originalCache := spriteModelCache
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalCache := g.SpriteModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameSubs = originalSubs
-		spriteModelCache = originalCache
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.SpriteModelCache = originalCache
 	})
 
 	testFS := &runtimeMusicTestFS{
@@ -1700,13 +1700,13 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 			"progs/flame.spr": testRuntimeSprite(t, 1, 1),
 		},
 	}
-	gameSubs = &host.Subsystems{Files: testFS}
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"progs/flame.spr"}
-	gameClient.Entities = map[int]inet.EntityState{
+	g.Subs = &host.Subsystems{Files: testFS}
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/flame.spr"}
+	g.Client.Entities = map[int]inet.EntityState{
 		1: {ModelIndex: 1, Frame: 0, Origin: [3]float32{7, 8, 9}, Angles: [3]float32{10, 20, 30}, Alpha: 128, Scale: 32},
 	}
-	spriteModelCache = nil
+	g.SpriteModelCache = nil
 
 	entities := collectSpriteEntities()
 	if got := len(entities); got != 1 {
@@ -1872,13 +1872,13 @@ func TestResolveRuntimeSpriteFrameUsesFlatOffsetForAngledFrames(t *testing.T) {
 }
 
 func TestCollectSpriteEntitiesResolvesGroupedFrameFromClientTime(t *testing.T) {
-	originalClient := gameClient
-	originalSubs := gameSubs
-	originalCache := spriteModelCache
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalCache := g.SpriteModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameSubs = originalSubs
-		spriteModelCache = originalCache
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.SpriteModelCache = originalCache
 	})
 
 	testFS := &runtimeMusicTestFS{
@@ -1886,14 +1886,14 @@ func TestCollectSpriteEntitiesResolvesGroupedFrameFromClientTime(t *testing.T) {
 			"progs/flame.spr": testRuntimeSpriteGroup(t, 2, []float32{0.2, 0.4}),
 		},
 	}
-	gameSubs = &host.Subsystems{Files: testFS}
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"progs/flame.spr"}
-	gameClient.Time = 0.25
-	gameClient.Entities = map[int]inet.EntityState{
+	g.Subs = &host.Subsystems{Files: testFS}
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/flame.spr"}
+	g.Client.Time = 0.25
+	g.Client.Entities = map[int]inet.EntityState{
 		1: {ModelIndex: 1, Frame: 0},
 	}
-	spriteModelCache = nil
+	g.SpriteModelCache = nil
 
 	entities := collectSpriteEntities()
 	if got := len(entities); got != 1 {
@@ -1905,13 +1905,13 @@ func TestCollectSpriteEntitiesResolvesGroupedFrameFromClientTime(t *testing.T) {
 }
 
 func TestCollectSpriteEntitiesResolvesAngledFrameFromViewAngles(t *testing.T) {
-	originalClient := gameClient
-	originalSubs := gameSubs
-	originalCache := spriteModelCache
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalCache := g.SpriteModelCache
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameSubs = originalSubs
-		spriteModelCache = originalCache
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.SpriteModelCache = originalCache
 	})
 
 	testFS := &runtimeMusicTestFS{
@@ -1919,14 +1919,14 @@ func TestCollectSpriteEntitiesResolvesAngledFrameFromViewAngles(t *testing.T) {
 			"progs/flame.spr": testRuntimeAngledSprite(t),
 		},
 	}
-	gameSubs = &host.Subsystems{Files: testFS}
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"progs/flame.spr"}
-	gameClient.ViewAngles = [3]float32{0, 90, 0}
-	gameClient.Entities = map[int]inet.EntityState{
+	g.Subs = &host.Subsystems{Files: testFS}
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/flame.spr"}
+	g.Client.ViewAngles = [3]float32{0, 90, 0}
+	g.Client.Entities = map[int]inet.EntityState{
 		1: {ModelIndex: 1, Frame: 0, Angles: [3]float32{0, 0, 0}},
 	}
-	spriteModelCache = nil
+	g.SpriteModelCache = nil
 
 	entities := collectSpriteEntities()
 	if got := len(entities); got != 1 {
@@ -1950,24 +1950,24 @@ func TestEntityStateScaleDecodesProtocolScale(t *testing.T) {
 }
 
 func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{
 		"progs/player.mdl",
 		"*1",
 		"progs/flame.spr",
 	}
-	gameClient.Entities = map[int]inet.EntityState{
+	g.Client.Entities = map[int]inet.EntityState{
 		1: {ModelIndex: 1, Origin: [3]float32{1, 2, 3}, Angles: [3]float32{0, 90, 0}, Effects: inet.EF_MUZZLEFLASH},
 		2: {ModelIndex: 2, Origin: [3]float32{4, 5, 6}, Effects: inet.EF_BRIGHTLIGHT},
 		3: {ModelIndex: 3, Origin: [3]float32{7, 8, 9}, Effects: inet.EF_DIMLIGHT},
 		4: {ModelIndex: 1, Origin: [3]float32{9, 9, 9}},
 	}
-	gameClient.StaticEntities = []inet.EntityState{
+	g.Client.StaticEntities = []inet.EntityState{
 		{ModelIndex: 1, Origin: [3]float32{10, 11, 12}, Effects: inet.EF_DIMLIGHT},
 	}
 
@@ -1984,16 +1984,16 @@ func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
 }
 
 func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
-	originalClient := gameClient
-	originalServer := gameServer
+	originalClient := g.Client
+	originalServer := g.Server
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameServer = originalServer
+		g.Client = originalClient
+		g.Server = originalServer
 	})
 
-	gameClient = cl.NewClient()
-	gameClient.ModelPrecache = []string{"maps/start.bsp", "*1"}
-	gameClient.Entities = map[int]inet.EntityState{
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"maps/start.bsp", "*1"}
+	g.Client.Entities = map[int]inet.EntityState{
 		1: {
 			ModelIndex: 2,
 			Frame:      3,
@@ -2003,7 +2003,7 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 			Scale:      32,
 		},
 	}
-	gameServer = &server.Server{WorldTree: &bsp.Tree{Models: []bsp.DModel{{}, {}}}}
+	g.Server = &server.Server{WorldTree: &bsp.Tree{Models: []bsp.DModel{{}, {}}}}
 
 	brushEntities := collectBrushEntities()
 	if got := len(brushEntities); got != 1 {
@@ -2024,56 +2024,56 @@ func TestCollectBrushEntitiesDecodesProtocolAlphaAndScale(t *testing.T) {
 }
 
 func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
-	originalHUD := gameHUD
-	originalClient := gameClient
-	originalServer := gameServer
-	originalShowScores := gameShowScores
+	originalHUD := g.HUD
+	originalClient := g.Client
+	originalServer := g.Server
+	originalShowScores := g.ShowScores
 	t.Cleanup(func() {
-		gameHUD = originalHUD
-		gameClient = originalClient
-		gameServer = originalServer
-		gameShowScores = originalShowScores
+		g.HUD = originalHUD
+		g.Client = originalClient
+		g.Server = originalServer
+		g.ShowScores = originalShowScores
 	})
 
-	gameHUD = hud.NewHUD(nil)
-	gameClient = cl.NewClient()
-	gameClient.Stats[inet.StatHealth] = 111
-	gameClient.Stats[inet.StatArmor] = 55
-	gameClient.Stats[inet.StatAmmo] = 22
-	gameClient.Stats[inet.StatWeapon] = 7
-	gameClient.Stats[inet.StatActiveWeapon] = cl.ItemRocketLauncher
-	gameClient.Stats[inet.StatShells] = 10
-	gameClient.Stats[inet.StatNails] = 20
-	gameClient.Stats[inet.StatRockets] = 30
-	gameClient.Stats[inet.StatCells] = 40
-	gameClient.Stats[inet.StatTotalSecrets] = 9
-	gameClient.Stats[inet.StatTotalMonsters] = 66
-	gameClient.Stats[inet.StatSecrets] = 3
-	gameClient.Stats[inet.StatMonsters] = 12
-	gameClient.MaxClients = 4
-	gameClient.GameType = 1
-	gameClient.ViewEntity = 2
-	gameClient.PlayerNames[0] = "alpha"
-	gameClient.PlayerNames[1] = "bravo"
-	gameClient.PlayerNames[2] = "charlie"
-	gameClient.PlayerColors[0] = 0x1f
-	gameClient.PlayerColors[1] = 0x2e
-	gameClient.PlayerColors[2] = 0x3d
-	gameClient.Frags[0] = 4
-	gameClient.Frags[1] = 10
-	gameClient.Frags[2] = 6
-	gameClient.Items = cl.ItemRocketLauncher | cl.ItemRockets | cl.ItemArmor2 | cl.ItemQuad
-	gameClient.Intermission = 2
-	gameClient.CompletedTime = 123
-	gameClient.Time = 124
-	gameClient.CenterPrint = "The End"
-	gameClient.CenterPrintAt = 120
-	gameClient.LevelName = "Unit Test Map"
-	gameShowScores = true
+	g.HUD = hud.NewHUD(nil)
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 111
+	g.Client.Stats[inet.StatArmor] = 55
+	g.Client.Stats[inet.StatAmmo] = 22
+	g.Client.Stats[inet.StatWeapon] = 7
+	g.Client.Stats[inet.StatActiveWeapon] = cl.ItemRocketLauncher
+	g.Client.Stats[inet.StatShells] = 10
+	g.Client.Stats[inet.StatNails] = 20
+	g.Client.Stats[inet.StatRockets] = 30
+	g.Client.Stats[inet.StatCells] = 40
+	g.Client.Stats[inet.StatTotalSecrets] = 9
+	g.Client.Stats[inet.StatTotalMonsters] = 66
+	g.Client.Stats[inet.StatSecrets] = 3
+	g.Client.Stats[inet.StatMonsters] = 12
+	g.Client.MaxClients = 4
+	g.Client.GameType = 1
+	g.Client.ViewEntity = 2
+	g.Client.PlayerNames[0] = "alpha"
+	g.Client.PlayerNames[1] = "bravo"
+	g.Client.PlayerNames[2] = "charlie"
+	g.Client.PlayerColors[0] = 0x1f
+	g.Client.PlayerColors[1] = 0x2e
+	g.Client.PlayerColors[2] = 0x3d
+	g.Client.Frags[0] = 4
+	g.Client.Frags[1] = 10
+	g.Client.Frags[2] = 6
+	g.Client.Items = cl.ItemRocketLauncher | cl.ItemRockets | cl.ItemArmor2 | cl.ItemQuad
+	g.Client.Intermission = 2
+	g.Client.CompletedTime = 123
+	g.Client.Time = 124
+	g.Client.CenterPrint = "The End"
+	g.Client.CenterPrintAt = 120
+	g.Client.LevelName = "Unit Test Map"
+	g.ShowScores = true
 
 	updateHUDFromServer()
 
-	got := gameHUD.State()
+	got := g.HUD.State()
 	if got.Health != 111 || got.Armor != 55 || got.Ammo != 22 {
 		t.Fatalf("hud core stats = %#v, want health=111 armor=55 ammo=22", got)
 	}
@@ -2083,8 +2083,8 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	if got.Shells != 10 || got.Nails != 20 || got.Rockets != 30 || got.Cells != 40 {
 		t.Fatalf("hud ammo strip = %#v, want [10 20 30 40]", got)
 	}
-	if got.Items != gameClient.Items {
-		t.Fatalf("hud items = %#x, want %#x", got.Items, gameClient.Items)
+	if got.Items != g.Client.Items {
+		t.Fatalf("hud items = %#x, want %#x", got.Items, g.Client.Items)
 	}
 	if got.Intermission != 2 || got.CompletedTime != 123 || got.Time != 124 {
 		t.Fatalf("hud intermission state = %#v", got)
@@ -2107,12 +2107,12 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 }
 
 func TestApplyDefaultGameplayBindings(t *testing.T) {
-	originalInput := gameInput
+	originalInput := g.Input
 	t.Cleanup(func() {
-		gameInput = originalInput
+		g.Input = originalInput
 	})
 
-	gameInput = input.NewSystem(nil)
+	g.Input = input.NewSystem(nil)
 	applyDefaultGameplayBindings()
 
 	cases := []struct {
@@ -2130,207 +2130,207 @@ func TestApplyDefaultGameplayBindings(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		if got := gameInput.GetBinding(tc.key); got != tc.want {
+		if got := g.Input.GetBinding(tc.key); got != tc.want {
 			t.Fatalf("binding for key %d = %q, want %q", tc.key, got, tc.want)
 		}
 	}
 }
 
 func TestGameplayBindCommandsAndDispatch(t *testing.T) {
-	originalInput := gameInput
-	originalClient := gameClient
+	originalInput := g.Input
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameClient = originalClient
+		g.Input = originalInput
+		g.Client = originalClient
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameInput.SetKeyDest(input.KeyGame)
-	gameClient = cl.NewClient()
+	g.Input = input.NewSystem(nil)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Client = cl.NewClient()
 	registerGameplayBindCommands()
 
 	cmdsys.ExecuteText("unbindall")
 	cmdsys.ExecuteText("bind w +forward")
 	cmdsys.ExecuteText("bind MWHEELUP \"impulse 12\"")
 
-	if got := gameInput.GetBinding(int('w')); got != "+forward" {
+	if got := g.Input.GetBinding(int('w')); got != "+forward" {
 		t.Fatalf("bind command did not set w binding, got %q", got)
 	}
-	if got := gameInput.GetBinding(input.KMWheelUp); got != "impulse 12" {
+	if got := g.Input.GetBinding(input.KMWheelUp); got != "impulse 12" {
 		t.Fatalf("bind command did not set MWHEELUP binding, got %q", got)
 	}
 
 	handleGameKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
-	if gameClient.InputForward.State&1 == 0 {
+	if g.Client.InputForward.State&1 == 0 {
 		t.Fatalf("expected +forward to press InputForward")
 	}
 	handleGameKeyEvent(input.KeyEvent{Key: int('w'), Down: false})
-	if gameClient.InputForward.State&1 != 0 {
+	if g.Client.InputForward.State&1 != 0 {
 		t.Fatalf("expected -forward to release InputForward")
 	}
 
 	handleGameKeyEvent(input.KeyEvent{Key: input.KMWheelUp, Down: true})
-	if gameClient.InImpulse != 12 {
-		t.Fatalf("expected wheel bind to set impulse 12, got %d", gameClient.InImpulse)
+	if g.Client.InImpulse != 12 {
+		t.Fatalf("expected wheel bind to set impulse 12, got %d", g.Client.InImpulse)
 	}
 
 	cmdsys.ExecuteText("unbind w")
-	if got := gameInput.GetBinding(int('w')); got != "" {
+	if got := g.Input.GetBinding(int('w')); got != "" {
 		t.Fatalf("unbind did not clear w binding, got %q", got)
 	}
 
 	cmdsys.ExecuteText("unbindall")
-	if got := gameInput.GetBinding(input.KMWheelUp); got != "" {
+	if got := g.Input.GetBinding(input.KMWheelUp); got != "" {
 		t.Fatalf("unbindall did not clear MWHEELUP binding, got %q", got)
 	}
 }
 
 func TestSyncGameplayInputModeClearsHeldScoreboardOutsideGameInput(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
-	originalClient := gameClient
-	originalShowScores := gameShowScores
-	originalGrabbed := gameMouseGrabbed
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalClient := g.Client
+	originalShowScores := g.ShowScores
+	originalGrabbed := g.MouseGrabbed
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
-		gameClient = originalClient
-		gameShowScores = originalShowScores
-		gameMouseGrabbed = originalGrabbed
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.Client = originalClient
+		g.ShowScores = originalShowScores
+		g.MouseGrabbed = originalGrabbed
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameClient = cl.NewClient()
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Client = cl.NewClient()
 	registerGameplayBindCommands()
 	applyDefaultGameplayBindings()
 
-	gameInput.SetKeyDest(input.KeyGame)
-	gameMouseGrabbed = false
+	g.Input.SetKeyDest(input.KeyGame)
+	g.MouseGrabbed = false
 	syncGameplayInputMode()
 
 	handleGameKeyEvent(input.KeyEvent{Key: input.KTab, Down: true})
-	if !gameShowScores {
+	if !g.ShowScores {
 		t.Fatalf("+showscores should set held scoreboard state")
 	}
 
-	gameInput.SetKeyDest(input.KeyConsole)
+	g.Input.SetKeyDest(input.KeyConsole)
 	syncGameplayInputMode()
-	if gameShowScores {
+	if g.ShowScores {
 		t.Fatalf("scoreboard hold should clear when leaving gameplay input")
 	}
 }
 
 func TestStartupMenuStateSuppressesGameplayMovementInput(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
-	originalClient := gameClient
-	originalGrabbed := gameMouseGrabbed
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalClient := g.Client
+	originalGrabbed := g.MouseGrabbed
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
-		gameClient = originalClient
-		gameMouseGrabbed = originalGrabbed
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.Client = originalClient
+		g.MouseGrabbed = originalGrabbed
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameClient = cl.NewClient()
-	gameMouseGrabbed = false
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Client = cl.NewClient()
+	g.MouseGrabbed = false
 
-	gameInput.OnMenuKey = handleMenuKeyEvent
-	gameInput.OnMenuChar = handleMenuCharEvent
-	gameInput.OnKey = handleGameKeyEvent
-	gameInput.OnChar = handleGameCharEvent
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnMenuChar = handleMenuCharEvent
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.OnChar = handleGameCharEvent
 	registerGameplayBindCommands()
 	applyDefaultGameplayBindings()
 
 	// initSubsystems shows the menu at startup; +map start does not close it.
-	gameMenu.ShowMenu()
+	g.Menu.ShowMenu()
 	syncGameplayInputMode()
-	if got := gameInput.GetKeyDest(); got != input.KeyMenu {
+	if got := g.Input.GetKeyDest(); got != input.KeyMenu {
 		t.Fatalf("key destination with startup menu active = %v, want menu", got)
 	}
 
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
-	if gameClient.InputForward.State&1 != 0 {
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	if g.Client.InputForward.State&1 != 0 {
 		t.Fatalf("+forward should not activate while key destination is menu")
 	}
-	if gameClient.InputJump.State&1 != 0 {
+	if g.Client.InputJump.State&1 != 0 {
 		t.Fatalf("+jump should not activate while key destination is menu")
 	}
 
-	gameMenu.HideMenu()
+	g.Menu.HideMenu()
 	syncGameplayInputMode()
-	gameInput.ClearKeyStates()
+	g.Input.ClearKeyStates()
 
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
-	if gameClient.InputForward.State&1 == 0 {
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	if g.Client.InputForward.State&1 == 0 {
 		t.Fatalf("+forward should activate after menu closes")
 	}
-	if gameClient.InputJump.State&1 == 0 {
+	if g.Client.InputJump.State&1 == 0 {
 		t.Fatalf("+jump should activate after menu closes")
 	}
 }
 
 func TestApplyStartupGameplayInputModeHidesMenuAndEnablesMovementInput(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
-	originalClient := gameClient
-	originalGrabbed := gameMouseGrabbed
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalClient := g.Client
+	originalGrabbed := g.MouseGrabbed
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
-		gameClient = originalClient
-		gameMouseGrabbed = originalGrabbed
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.Client = originalClient
+		g.MouseGrabbed = originalGrabbed
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameClient = cl.NewClient()
-	gameClient.State = cl.StateActive
-	gameMouseGrabbed = false
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.MouseGrabbed = false
 
-	gameInput.OnMenuKey = handleMenuKeyEvent
-	gameInput.OnMenuChar = handleMenuCharEvent
-	gameInput.OnKey = handleGameKeyEvent
-	gameInput.OnChar = handleGameCharEvent
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnMenuChar = handleMenuCharEvent
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.OnChar = handleGameCharEvent
 	registerGameplayBindCommands()
 	applyDefaultGameplayBindings()
 
-	gameMenu.ShowMenu()
+	g.Menu.ShowMenu()
 	syncGameplayInputMode()
-	if got := gameInput.GetKeyDest(); got != input.KeyMenu {
+	if got := g.Input.GetKeyDest(); got != input.KeyMenu {
 		t.Fatalf("key destination before startup transition = %v, want menu", got)
 	}
 
 	applyStartupGameplayInputMode()
-	if gameMenu.IsActive() {
+	if g.Menu.IsActive() {
 		t.Fatalf("startup transition should hide menu")
 	}
-	if got := gameInput.GetKeyDest(); got != input.KeyGame {
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after startup transition = %v, want game", got)
 	}
 
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
-	if gameClient.InputForward.State&1 == 0 {
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: int('w'), Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	if g.Client.InputForward.State&1 == 0 {
 		t.Fatalf("+forward should activate after startup transition")
 	}
-	if gameClient.InputJump.State&1 == 0 {
+	if g.Client.InputJump.State&1 == 0 {
 		t.Fatalf("+jump should activate after startup transition")
 	}
 }
 
 func TestHostInitLoadsBindingOverridesFromConfig(t *testing.T) {
-	originalInput := gameInput
+	originalInput := g.Input
 	t.Cleanup(func() {
-		gameInput = originalInput
+		g.Input = originalInput
 	})
 
-	gameInput = input.NewSystem(nil)
+	g.Input = input.NewSystem(nil)
 	registerGameplayBindCommands()
 	applyDefaultGameplayBindings()
 
@@ -2343,34 +2343,34 @@ func TestHostInitLoadsBindingOverridesFromConfig(t *testing.T) {
 	h := host.NewHost()
 	subs := &host.Subsystems{
 		Commands: globalCommandBuffer{},
-		Input:    gameInput,
+		Input:    g.Input,
 	}
 	if err := h.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, subs); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
-	if got := gameInput.GetBinding(int('w')); got != "+back" {
+	if got := g.Input.GetBinding(int('w')); got != "+back" {
 		t.Fatalf("binding for w after config load = %q, want %q", got, "+back")
 	}
-	if got := gameInput.GetBinding(input.KF10); got != "+attack" {
+	if got := g.Input.GetBinding(input.KF10); got != "+attack" {
 		t.Fatalf("binding for F10 after config load = %q, want %q", got, "+attack")
 	}
 }
 
 func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
-	originalInput := gameInput
+	originalInput := g.Input
 	t.Cleanup(func() {
-		gameInput = originalInput
+		g.Input = originalInput
 	})
 
 	userDir := t.TempDir()
-	gameInput = input.NewSystem(nil)
+	g.Input = input.NewSystem(nil)
 	registerGameplayBindCommands()
 
 	writerHost := host.NewHost()
 	writerSubs := &host.Subsystems{
 		Commands: globalCommandBuffer{},
-		Input:    gameInput,
+		Input:    g.Input,
 	}
 	if err := writerHost.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, writerSubs); err != nil {
 		t.Fatalf("writer Init failed: %v", err)
@@ -2378,33 +2378,33 @@ func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
 
 	want := "say He said \"hello\" \\world\nnext\tline"
 	cmdsys.ExecuteText(`bind t "say He said \"hello\" \\world\nnext\tline"`)
-	if got := gameInput.GetBinding(int('t')); got != want {
+	if got := g.Input.GetBinding(int('t')); got != want {
 		t.Fatalf("binding before save = %q, want %q", got, want)
 	}
 	if err := writerHost.WriteConfig(writerSubs); err != nil {
 		t.Fatalf("WriteConfig failed: %v", err)
 	}
 
-	gameInput = input.NewSystem(nil)
+	g.Input = input.NewSystem(nil)
 	registerGameplayBindCommands()
 	readerHost := host.NewHost()
 	readerSubs := &host.Subsystems{
 		Commands: globalCommandBuffer{},
-		Input:    gameInput,
+		Input:    g.Input,
 	}
 	if err := readerHost.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, readerSubs); err != nil {
 		t.Fatalf("reader Init failed: %v", err)
 	}
 
-	if got := gameInput.GetBinding(int('t')); got != want {
+	if got := g.Input.GetBinding(int('t')); got != want {
 		t.Fatalf("binding after reload = %q, want %q", got, want)
 	}
 }
 
 func TestSyncControlCvarsToClient(t *testing.T) {
-	originalClient := gameClient
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameClient = originalClient
+		g.Client = originalClient
 	})
 
 	registerControlCvars()
@@ -2412,26 +2412,26 @@ func TestSyncControlCvarsToClient(t *testing.T) {
 	cvar.Set("freelook", "0")
 	cvar.Set("lookspring", "1")
 
-	gameClient = cl.NewClient()
+	g.Client = cl.NewClient()
 	syncControlCvarsToClient()
 
-	if gameClient.AlwaysRun {
+	if g.Client.AlwaysRun {
 		t.Fatalf("AlwaysRun should follow cl_alwaysrun")
 	}
-	if gameClient.FreeLook {
+	if g.Client.FreeLook {
 		t.Fatalf("FreeLook should follow freelook")
 	}
-	if !gameClient.LookSpring {
+	if !g.Client.LookSpring {
 		t.Fatalf("LookSpring should follow lookspring")
 	}
 }
 
 func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.T) {
-	originalClient := gameClient
-	originalSubs := gameSubs
+	originalClient := g.Client
+	originalSubs := g.Subs
 	t.Cleanup(func() {
-		gameClient = originalClient
-		gameSubs = originalSubs
+		g.Client = originalClient
+		g.Subs = originalSubs
 	})
 
 	registerControlCvars()
@@ -2440,7 +2440,7 @@ func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.
 	cvar.Set("lookspring", "1")
 
 	firstClient := cl.NewClient()
-	gameSubs = &host.Subsystems{
+	g.Subs = &host.Subsystems{
 		Client: &activeStateTestClient{
 			state:       host.ClientState(1),
 			clientState: firstClient,
@@ -2456,7 +2456,7 @@ func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.
 	replacedClient.AlwaysRun = true
 	replacedClient.FreeLook = true
 	replacedClient.LookSpring = false
-	gameSubs.Client = &activeStateTestClient{
+	g.Subs.Client = &activeStateTestClient{
 		state:       host.ClientState(1),
 		clientState: replacedClient,
 	}
@@ -2468,18 +2468,18 @@ func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.
 }
 
 func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
-	originalInput := gameInput
-	originalClient := gameClient
+	originalInput := g.Input
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameClient = originalClient
+		g.Input = originalInput
+		g.Client = originalClient
 	})
 
 	registerControlCvars()
 	backend := &mouseDeltaBackend{}
-	gameInput = input.NewSystem(backend)
-	gameInput.SetKeyDest(input.KeyGame)
-	gameClient = cl.NewClient()
+	g.Input = input.NewSystem(backend)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Client = cl.NewClient()
 
 	cvar.Set("sensitivity", "10")
 	cvar.Set("m_yaw", "0.01")
@@ -2489,178 +2489,178 @@ func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
 	backend.dx = 2
 	backend.dy = 3
 	applyGameplayMouseLook()
-	if got := gameClient.ViewAngles[1]; math.Abs(float64(got-(-0.2))) > 0.0001 {
+	if got := g.Client.ViewAngles[1]; math.Abs(float64(got-(-0.2))) > 0.0001 {
 		t.Fatalf("yaw after mouse look = %.2f, want -0.20", got)
 	}
-	if got := gameClient.ViewAngles[0]; math.Abs(float64(got-0.6)) > 0.0001 {
+	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-0.6)) > 0.0001 {
 		t.Fatalf("pitch after mouse look = %.2f, want 0.60", got)
 	}
 
-	gameClient.ViewAngles = [3]float32{}
+	g.Client.ViewAngles = [3]float32{}
 	cvar.Set("freelook", "0")
 	backend.dx = 0
 	backend.dy = 5
 	applyGameplayMouseLook()
-	if got := gameClient.ViewAngles[0]; got != 0 {
+	if got := g.Client.ViewAngles[0]; got != 0 {
 		t.Fatalf("pitch should stay unchanged when freelook is off and +mlook inactive, got %.2f", got)
 	}
 
-	gameClient.InputMLook.State = 1
+	g.Client.InputMLook.State = 1
 	backend.dy = 5
 	applyGameplayMouseLook()
-	if got := gameClient.ViewAngles[0]; math.Abs(float64(got-1.0)) > 0.0001 {
+	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-1.0)) > 0.0001 {
 		t.Fatalf("pitch with +mlook held = %.2f, want 1.00", got)
 	}
 
-	gameClient.ViewAngles = [3]float32{}
-	gameClient.InputMLook.State = 0
+	g.Client.ViewAngles = [3]float32{}
+	g.Client.InputMLook.State = 0
 	cvar.Set("freelook", "1")
 	cvar.Set("m_pitch", "-0.02")
 	backend.dy = 5
 	applyGameplayMouseLook()
-	if got := gameClient.ViewAngles[0]; math.Abs(float64(got-(-1.0))) > 0.0001 {
+	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-(-1.0))) > 0.0001 {
 		t.Fatalf("pitch with inverted mouse = %.2f, want -1.00", got)
 	}
 }
 
 func TestToggleConsoleClosesMenuAndSwitchesKeyDest(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
-	originalGrabbed := gameMouseGrabbed
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalGrabbed := g.MouseGrabbed
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
-		gameMouseGrabbed = originalGrabbed
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.MouseGrabbed = originalGrabbed
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameMenu.ShowMenu()
-	gameMouseGrabbed = true
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+	g.MouseGrabbed = true
 
 	cmdToggleConsole(nil)
 
-	if gameMenu.IsActive() {
+	if g.Menu.IsActive() {
 		t.Fatalf("toggleconsole should hide the menu")
 	}
-	if got := gameInput.GetKeyDest(); got != input.KeyConsole {
+	if got := g.Input.GetKeyDest(); got != input.KeyConsole {
 		t.Fatalf("key destination after toggleconsole = %v, want console", got)
 	}
-	if gameMouseGrabbed {
+	if g.MouseGrabbed {
 		t.Fatalf("console mode should release mouse grab")
 	}
 
 	cmdToggleConsole(nil)
-	if got := gameInput.GetKeyDest(); got != input.KeyGame {
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after closing console = %v, want game", got)
 	}
 }
 
 func TestMenuTapDownMovesCursorOnce(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
+	originalInput := g.Input
+	originalMenu := g.Menu
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
+		g.Input = originalInput
+		g.Menu = originalMenu
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameMenu.ShowMenu()
-	gameInput.SetKeyDest(input.KeyMenu)
-	gameInput.OnMenuKey = handleMenuKeyEvent
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.Input.OnMenuKey = handleMenuKeyEvent
 
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: false})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: false})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: false})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: false})
 
-	if got := gameMenu.GetState(); got != menu.MenuMultiPlayer {
+	if got := g.Menu.GetState(); got != menu.MenuMultiPlayer {
 		t.Fatalf("menu state after down+enter tap = %v, want %v", got, menu.MenuMultiPlayer)
 	}
 }
 
 func TestMenuTapEscapeFromSubmenuReturnsToMain(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
+	originalInput := g.Input
+	originalMenu := g.Menu
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
+		g.Input = originalInput
+		g.Menu = originalMenu
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameMenu.ShowMenu()
-	gameInput.SetKeyDest(input.KeyMenu)
-	gameInput.OnMenuKey = handleMenuKeyEvent
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.Input.OnMenuKey = handleMenuKeyEvent
 
 	// Enter multiplayer menu.
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: false})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: false})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: false})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: false})
 
-	if got := gameMenu.GetState(); got != menu.MenuMultiPlayer {
+	if got := g.Menu.GetState(); got != menu.MenuMultiPlayer {
 		t.Fatalf("menu state after entering submenu = %v, want %v", got, menu.MenuMultiPlayer)
 	}
 
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: false})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: false})
 
-	if !gameMenu.IsActive() {
+	if !g.Menu.IsActive() {
 		t.Fatalf("menu should remain active after escape tap from submenu")
 	}
-	if got := gameMenu.GetState(); got != menu.MenuMain {
+	if got := g.Menu.GetState(); got != menu.MenuMain {
 		t.Fatalf("menu state after escape tap = %v, want %v", got, menu.MenuMain)
 	}
 }
 
 func TestMenuCharRoutingUpdatesSetupName(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
+	originalInput := g.Input
+	originalMenu := g.Menu
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
+		g.Input = originalInput
+		g.Menu = originalMenu
 	})
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameMenu.ShowMenu()
-	gameInput.SetKeyDest(input.KeyMenu)
-	gameInput.OnMenuKey = handleMenuKeyEvent
-	gameInput.OnMenuChar = handleMenuCharEvent
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnMenuChar = handleMenuCharEvent
 
 	// Enter multiplayer -> setup.
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
 
-	if got := gameMenu.GetState(); got != menu.MenuSetup {
+	if got := g.Menu.GetState(); got != menu.MenuSetup {
 		t.Fatalf("menu state = %v, want %v", got, menu.MenuSetup)
 	}
 
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // name
-	gameInput.HandleCharEvent('x')
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // shirt
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // pants
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // accept
-	gameInput.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // name
+	g.Input.HandleCharEvent('x')
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // shirt
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // pants
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KDownArrow, Down: true}) // accept
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
 
-	if got := gameMenu.GetState(); got != menu.MenuMultiPlayer {
+	if got := g.Menu.GetState(); got != menu.MenuMultiPlayer {
 		t.Fatalf("menu state after accept = %v, want %v", got, menu.MenuMultiPlayer)
 	}
 }
 
 func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
-	originalGrabbed := gameMouseGrabbed
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalGrabbed := g.MouseGrabbed
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
-		gameMouseGrabbed = originalGrabbed
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.MouseGrabbed = originalGrabbed
 	})
 
 	if err := console.InitGlobal(0); err != nil {
@@ -2668,9 +2668,9 @@ func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	}
 	console.Clear()
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
-	gameInput.SetKeyDest(input.KeyGame)
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Input.SetKeyDest(input.KeyGame)
 	registerGameplayBindCommands()
 	applyDefaultGameplayBindings()
 
@@ -2680,7 +2680,7 @@ func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	}, "test console command")
 
 	handleGameKeyEvent(input.KeyEvent{Key: int('`'), Down: true})
-	if got := gameInput.GetKeyDest(); got != input.KeyConsole {
+	if got := g.Input.GetKeyDest(); got != input.KeyConsole {
 		t.Fatalf("key destination after console bind = %v, want console", got)
 	}
 
@@ -2700,17 +2700,17 @@ func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	}
 
 	handleGameKeyEvent(input.KeyEvent{Key: int('`'), Down: true})
-	if got := gameInput.GetKeyDest(); got != input.KeyGame {
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after closing console = %v, want game", got)
 	}
 }
 
 func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
-	originalInput := gameInput
-	originalMenu := gameMenu
+	originalInput := g.Input
+	originalMenu := g.Menu
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameMenu = originalMenu
+		g.Input = originalInput
+		g.Menu = originalMenu
 	})
 
 	if err := console.InitGlobal(0); err != nil {
@@ -2719,11 +2719,11 @@ func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
 	console.Clear()
 	console.ResetCompletion()
 
-	gameInput = input.NewSystem(nil)
-	gameMenu = menu.NewManager(nil, gameInput)
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
 	registerGameplayBindCommands()
 	registerConsoleCompletionProviders()
-	gameInput.SetKeyDest(input.KeyConsole)
+	g.Input.SetKeyDest(input.KeyConsole)
 
 	for _, ch := range "tog" {
 		handleGameCharEvent(ch)
@@ -2736,11 +2736,11 @@ func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
 }
 
 func TestHandleGameKeyEventUnboundSpecialKeyFeedback(t *testing.T) {
-	originalInput := gameInput
-	originalHost := gameHost
+	originalInput := g.Input
+	originalHost := g.Host
 	t.Cleanup(func() {
-		gameInput = originalInput
-		gameHost = originalHost
+		g.Input = originalInput
+		g.Host = originalHost
 		console.SetPrintCallback(nil)
 	})
 
@@ -2749,8 +2749,8 @@ func TestHandleGameKeyEventUnboundSpecialKeyFeedback(t *testing.T) {
 	}
 	console.Clear()
 
-	gameInput = input.NewSystem(nil)
-	gameInput.SetKeyDest(input.KeyGame)
+	g.Input = input.NewSystem(nil)
+	g.Input.SetKeyDest(input.KeyGame)
 
 	var printed strings.Builder
 	console.SetPrintCallback(func(msg string) {
@@ -2764,16 +2764,16 @@ func TestHandleGameKeyEventUnboundSpecialKeyFeedback(t *testing.T) {
 	}
 
 	printed.Reset()
-	gameInput.SetKeyDest(input.KeyMenu)
+	g.Input.SetKeyDest(input.KeyMenu)
 	handleGameKeyEvent(input.KeyEvent{Key: input.KMouse4, Down: true})
 	if got := printed.String(); got != "" {
 		t.Fatalf("menu destination should not print unbound game hint, got %q", got)
 	}
 
 	printed.Reset()
-	gameInput.SetKeyDest(input.KeyGame)
-	gameHost = host.NewHost()
-	gameHost.SetDemoState(&cl.DemoState{Playback: true})
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Host = host.NewHost()
+	g.Host.SetDemoState(&cl.DemoState{Playback: true})
 	handleGameKeyEvent(input.KeyEvent{Key: input.KMouse4, Down: true})
 	if got := printed.String(); got != "" {
 		t.Fatalf("demo playback should suppress unbound hint, got %q", got)
@@ -2781,27 +2781,27 @@ func TestHandleGameKeyEventUnboundSpecialKeyFeedback(t *testing.T) {
 }
 
 func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
-	originalHost := gameHost
-	originalClient := gameClient
+	originalHost := g.Host
+	originalClient := g.Client
 	t.Cleanup(func() {
-		gameHost = originalHost
-		gameClient = originalClient
+		g.Host = originalHost
+		g.Client = originalClient
 	})
 
-	gameHost = host.NewHost()
+	g.Host = host.NewHost()
 	demo := cl.NewDemoState()
 	demo.Playback = true
 	demo.CDTrack = 5
-	gameHost.SetDemoState(demo)
-	gameClient = cl.NewClient()
+	g.Host.SetDemoState(demo)
+	g.Client = cl.NewClient()
 
 	track, loopTrack := runtimeMusicSelection()
 	if track != 5 || loopTrack != 5 {
 		t.Fatalf("runtimeMusicSelection() = %d/%d, want 5/5", track, loopTrack)
 	}
 
-	gameClient.CDTrack = 2
-	gameClient.LoopTrack = 3
+	g.Client.CDTrack = 2
+	g.Client.LoopTrack = 3
 	track, loopTrack = runtimeMusicSelection()
 	if track != 2 || loopTrack != 3 {
 		t.Fatalf("runtimeMusicSelection() with live client track = %d/%d, want 2/3", track, loopTrack)
@@ -2809,17 +2809,17 @@ func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
 }
 
 func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
-	originalAudio := gameAudio
-	originalClient := gameClient
-	originalHost := gameHost
-	originalSubs := gameSubs
-	originalKey := musicTrackKey
+	originalAudio := g.Audio
+	originalClient := g.Client
+	originalHost := g.Host
+	originalSubs := g.Subs
+	originalKey := g.MusicTrackKey
 	t.Cleanup(func() {
-		gameAudio = originalAudio
-		gameClient = originalClient
-		gameHost = originalHost
-		gameSubs = originalSubs
-		musicTrackKey = originalKey
+		g.Audio = originalAudio
+		g.Client = originalClient
+		g.Host = originalHost
+		g.Subs = originalSubs
+		g.MusicTrackKey = originalKey
 	})
 
 	sys := &audio.System{}
@@ -2831,16 +2831,16 @@ func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
 		t.Fatalf("audio.Startup failed: %v", err)
 	}
 
-	gameAudio = audio.NewAudioAdapter(sys)
-	gameClient = cl.NewClient()
-	gameClient.CDTrack = 2
-	gameClient.LoopTrack = 2
+	g.Audio = audio.NewAudioAdapter(sys)
+	g.Client = cl.NewClient()
+	g.Client.CDTrack = 2
+	g.Client.LoopTrack = 2
 	testFS := &runtimeMusicTestFS{
 		files: map[string][]byte{
 			"music/track02.wav": testRuntimeMusicWAV(t, 44100, 2, 2, 64),
 		},
 	}
-	gameSubs = &host.Subsystems{Files: testFS}
+	g.Subs = &host.Subsystems{Files: testFS}
 
 	syncRuntimeMusic()
 	if got := sys.CurrentMusicTrack(); got != 2 {
@@ -2855,8 +2855,8 @@ func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
 		t.Fatalf("filesystem loads = %d, want no reload for unchanged request", got)
 	}
 
-	gameClient.CDTrack = 0
-	gameClient.LoopTrack = 0
+	g.Client.CDTrack = 0
+	g.Client.LoopTrack = 0
 	syncRuntimeMusic()
 	if got := sys.CurrentMusicTrack(); got != 0 {
 		t.Fatalf("CurrentMusicTrack = %d, want 0 after stopping music", got)
@@ -2864,9 +2864,9 @@ func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
 }
 
 func TestApplySVolumeUsesCVarAndClamps(t *testing.T) {
-	originalAudio := gameAudio
+	originalAudio := g.Audio
 	t.Cleanup(func() {
-		gameAudio = originalAudio
+		g.Audio = originalAudio
 	})
 
 	sys := audio.NewSystem()
@@ -2876,7 +2876,7 @@ func TestApplySVolumeUsesCVarAndClamps(t *testing.T) {
 	if err := sys.Startup(); err != nil {
 		t.Fatalf("audio.Startup failed: %v", err)
 	}
-	gameAudio = audio.NewAudioAdapter(sys)
+	g.Audio = audio.NewAudioAdapter(sys)
 
 	cv := cvar.Get("s_volume")
 	if cv == nil {

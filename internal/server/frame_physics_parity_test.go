@@ -1,4 +1,5 @@
 package server
+
 import (
 	"path/filepath"
 	"testing"
@@ -8,7 +9,6 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
-
 
 func newSyntheticClientServer(t *testing.T) (*Server, *Client, *Edict) {
 	t.Helper()

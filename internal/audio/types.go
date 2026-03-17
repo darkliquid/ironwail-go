@@ -362,34 +362,58 @@ type UnderwaterState struct {
 }
 
 // ============================================================================
+// MIXER PIPELINE INTERFACE
+// ============================================================================
+
+// MixerPipeline abstracts the audio mixing algorithm used by System.Update.
+// The default implementation (Mixer) combines active sound channels plus raw
+// streaming samples into the DMA buffer consumed by the backend.
+//
+// This indirection improves testability (mock/no-op mixers in headless tests)
+// and allows alternative mixing strategies without changing System wiring.
+type MixerPipeline interface {
+	// PaintChannels mixes active channels into the DMA buffer and returns the
+	// updated painted time cursor.
+	PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, dma *DMAInfo, paintedTime, endTime int) int
+
+	// SetSndSpeed updates the expected source sample rate used by mixer logic.
+	SetSndSpeed(speed int)
+
+	// SndSpeed reports the currently configured source sample rate.
+	SndSpeed() int
+}
+
+// ============================================================================
 // AUDIO BACKEND INTERFACE
 // ============================================================================
 
-// Backend defines the interface for audio output implementations.
-// Different platforms can provide different backends (SDL, oto, etc.)
-// that implement this interface.
+// Backend defines the platform audio device contract used by System.
+// Implementations (SDL3, oto, null, etc.) hide OS/hardware details while
+// exposing just enough control for safe DMA writes and playback state queries.
 type Backend interface {
-	// Init initializes the audio backend with the specified parameters.
-	// Returns a DMAInfo describing the audio buffer, or an error.
+	// Init opens/configures the playback device and allocates its DMA buffer.
+	// It returns DMAInfo describing the negotiated format and buffer layout.
 	Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error)
 
-	// Shutdown closes the audio device and releases resources.
+	// Shutdown closes the playback device and releases backend resources.
 	Shutdown()
 
-	// Lock prevents the audio callback from running.
-	// Call before modifying the DMA buffer.
+	// Lock synchronizes with backend playback so callers can safely write DMA.
+	// Typical implementations stop/serialize the callback while the lock is held.
 	Lock()
 
-	// Unlock allows the audio callback to run again.
-	// Call after modifying the DMA buffer.
+	// Unlock releases the DMA synchronization lock acquired by Lock.
+	// Playback callbacks may resume reading the DMA buffer after this returns.
 	Unlock()
 
-	// GetPosition returns the current playback position in samples.
+	// GetPosition reports the current hardware play cursor in sample units.
+	// System uses this to keep soundTime monotonic and avoid over/under-mixing.
 	GetPosition() int
 
-	// Block pauses audio output (e.g., when window loses focus).
+	// Block pauses/suspends output without tearing down backend state.
+	// Used when the app is backgrounded or explicitly mutes runtime audio.
 	Block()
 
-	// Unblock resumes audio output.
+	// Unblock resumes playback after Block.
 	Unblock()
 }

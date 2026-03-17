@@ -20,8 +20,7 @@ import (
 )
 
 var (
-	hostSubsystemRegistry sync.Map
-	hostCVarsOnce         sync.Once
+	hostCVarsOnce sync.Once
 )
 
 const (
@@ -449,7 +448,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 
 	h.initialized = true
-	hostSubsystemRegistry.Store(h, subs)
+	h.Subs = subs
 	h.realtime = currentTime()
 	h.oldrealtime = h.realtime
 	h.frameCount = 0
@@ -518,9 +517,7 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 		return nil
 	}
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 
 	configPath := filepath.Join(h.userDir, "config.cfg")

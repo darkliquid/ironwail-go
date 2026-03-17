@@ -47,23 +47,23 @@ type mockClient struct {
 	state ClientState
 }
 
-func (m *mockClient) Init() error                   { return nil }
-func (m *mockClient) Frame(frameTime float64) error { return nil }
-func (m *mockClient) Shutdown()                     {}
-func (m *mockClient) State() ClientState            { return m.state }
-func (m *mockClient) ReadFromServer() error         { return nil }
-func (m *mockClient) SendCommand() error            { return nil }
+func (m *mockClient) Init() error                    { return nil }
+func (m *mockClient) Frame(frameTime float64) error  { return nil }
+func (m *mockClient) Shutdown()                      {}
+func (m *mockClient) State() ClientState             { return m.state }
+func (m *mockClient) ReadFromServer() error          { return nil }
+func (m *mockClient) SendCommand() error             { return nil }
 func (m *mockClient) SendStringCmd(cmd string) error { return nil }
 
 type mockConsole struct {
 	messages []string
 }
 
-func (m *mockConsole) Init() error      { return nil }
-func (m *mockConsole) Print(msg string) { m.messages = append(m.messages, msg) }
-func (m *mockConsole) Clear()           { m.messages = nil }
+func (m *mockConsole) Init() error                { return nil }
+func (m *mockConsole) Print(msg string)           { m.messages = append(m.messages, msg) }
+func (m *mockConsole) Clear()                     { m.messages = nil }
 func (m *mockConsole) Dump(filename string) error { return nil }
-func (m *mockConsole) Shutdown()        {}
+func (m *mockConsole) Shutdown()                  {}
 
 type mockCallbacks struct {
 	serverCalled bool

@@ -12,20 +12,20 @@ import (
 // initGameCvars() to keep setup minimal.
 func ensureViewCalcCvars() {
 	defaults := map[string]string{
-		"cl_bob":         "0.02",
-		"cl_bobcycle":    "0.6",
-		"cl_bobup":       "0.5",
-		"cl_rollangle":   "2.0",
-		"cl_rollspeed":   "200",
-		"v_idlescale":    "0",
-		"v_iyaw_cycle":   "2",
-		"v_iroll_cycle":  "0.5",
-		"v_ipitch_cycle": "1",
-		"v_iyaw_level":   "0.3",
-		"v_iroll_level":  "0.1",
-		"v_ipitch_level": "0.3",
+		"cl_bob":            "0.02",
+		"cl_bobcycle":       "0.6",
+		"cl_bobup":          "0.5",
+		"cl_rollangle":      "2.0",
+		"cl_rollspeed":      "200",
+		"v_idlescale":       "0",
+		"v_iyaw_cycle":      "2",
+		"v_iroll_cycle":     "0.5",
+		"v_ipitch_cycle":    "1",
+		"v_iyaw_level":      "0.3",
+		"v_iroll_level":     "0.1",
+		"v_ipitch_level":    "0.3",
 		"r_viewmodel_quake": "0",
-		"scr_viewsize":   "100",
+		"scr_viewsize":      "100",
 	}
 	for name, def := range defaults {
 		if cvar.Get(name) == nil {

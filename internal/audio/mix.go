@@ -32,6 +32,8 @@ type Mixer struct {
 	sndSpeed      int
 }
 
+var _ MixerPipeline = (*Mixer)(nil)
+
 func NewMixer() *Mixer {
 	return &Mixer{
 		volume:        0.7,
@@ -45,12 +47,20 @@ func (m *Mixer) SetVolume(vol float64) {
 	InitScaleTable(&m.scaleTable, vol)
 }
 
+func (m *Mixer) Volume() float64 {
+	return m.volume
+}
+
 func (m *Mixer) SetFilterQuality(quality int) {
 	m.filterQuality = quality
 }
 
 func (m *Mixer) SetSndSpeed(speed int) {
 	m.sndSpeed = speed
+}
+
+func (m *Mixer) SndSpeed() int {
+	return m.sndSpeed
 }
 
 func (m *Mixer) PaintChannels(channels []Channel, rawSamples *RawSamplesBuffer, dma *DMAInfo, paintedTime, endTime int) int {
@@ -385,6 +395,10 @@ func (m *Mixer) SetUnderwaterIntensity(target float32) {
 		}
 	}
 	m.underwater.Alpha = float32(math.Exp(-float64(m.underwater.Intensity) * math.Log(12)))
+}
+
+func (m *Mixer) UnderwaterIntensity() float32 {
+	return m.underwater.Intensity
 }
 
 func (m *Mixer) ClearLevels() {
