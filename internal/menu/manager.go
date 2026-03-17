@@ -528,6 +528,12 @@ func (m *Manager) moveCursorDown() {
 		if len(m.modsList) > 0 {
 			m.modsCursor = (m.modsCursor + 1) % (len(m.modsList) + 1) // +1 for Back
 		}
+	case MenuSetup:
+		m.setupCursor = (m.setupCursor + 1) % setupItems
+	case MenuJoinGame:
+		m.joinGameCursor = (m.joinGameCursor + 1) % joinGameItems
+	case MenuHostGame:
+		m.hostGameCursor = (m.hostGameCursor + 1) % hostGameItems
 	}
 	m.playMenuSound(menuSoundNavigate)
 }
@@ -587,6 +593,21 @@ func (m *Manager) moveCursorUp() {
 			if m.modsCursor < 0 {
 				m.modsCursor = total - 1
 			}
+		}
+	case MenuSetup:
+		m.setupCursor--
+		if m.setupCursor < 0 {
+			m.setupCursor = setupItems - 1
+		}
+	case MenuJoinGame:
+		m.joinGameCursor--
+		if m.joinGameCursor < 0 {
+			m.joinGameCursor = joinGameItems - 1
+		}
+	case MenuHostGame:
+		m.hostGameCursor--
+		if m.hostGameCursor < 0 {
+			m.hostGameCursor = hostGameItems - 1
 		}
 	}
 	m.playMenuSound(menuSoundNavigate)

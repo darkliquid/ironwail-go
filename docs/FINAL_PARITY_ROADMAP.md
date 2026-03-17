@@ -78,10 +78,10 @@ Over 40 standard console commands are still missing or use non-standard naming.
 
 ## 7. Menus, HUD & Add-ons
 
-- [ ] **Expansion Pack HUDs**: Add special-case overlays for Mission Pack 1 (Hipnotic) and Mission Pack 2 (Rogue).
-- [ ] **Add-on Browser**: Implement the Ironwail-specific **Mods Menu** for browsing and launching installed add-ons.
-- [ ] **Player Preview**: Replace the simplified color-swatch preview in the Setup menu with the C engine's translated player model art.
-- [ ] **Menu Mouse Polish**: Complete the `M_Mousemove` implementation for full menu mouse navigation.
+- [x] **Expansion Pack HUDs**: Hipnotic and Rogue weapon/item/inventory overlays implemented in `internal/hud/status.go`. Activated via `ModHipnotic`/`ModRogue` flags set from `gameModDir`.
+- [x] **Add-on Browser**: `MenuMods` implemented in `internal/menu/manager.go` with mod list, current-mod highlighting, and back navigation.
+- [x] **Player Preview**: Setup menu uses `gfx/menuplyr.lmp` with top/bottom color translation, matching C engine behavior.
+- [x] **Menu Mouse Polish**: `M_Mousemove` now covers all menu screens including Setup, JoinGame, and HostGame.
 
 ---
 
