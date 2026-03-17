@@ -2089,3 +2089,133 @@ func TestAliasCommandSupportsQuotedSemicolonBodies(t *testing.T) {
 		t.Fatalf("alias chain = %v, want %v", got, want)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// startdemos / demos / stopdemo playlist tests
+// ---------------------------------------------------------------------------
+
+func TestCmdStartdemosStoresDemoNames(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	// Provide some demo names. The host has no game running so it will try
+	// CmdDemos which calls CmdPlaydemo. Without a real filesystem the
+	// playback will fail, but the list should still be stored.
+	h.CmdStartdemos([]string{"demo1", "demo2", "demo3"}, subs)
+
+	got := h.DemoList()
+	want := []string{"demo1", "demo2", "demo3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DemoList = %v, want %v", got, want)
+	}
+}
+
+func TestCmdStartdemosClipsToMaxDemos(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	names := make([]string, 12)
+	for i := range names {
+		names[i] = fmt.Sprintf("demo%d", i)
+	}
+	h.CmdStartdemos(names, subs)
+
+	got := h.DemoList()
+	if len(got) != MaxDemos {
+		t.Fatalf("DemoList length = %d, want %d", len(got), MaxDemos)
+	}
+	if got[MaxDemos-1] != fmt.Sprintf("demo%d", MaxDemos-1) {
+		t.Fatalf("last demo = %q, want %q", got[MaxDemos-1], fmt.Sprintf("demo%d", MaxDemos-1))
+	}
+}
+
+func TestCmdStartdemosSetsDemoNumToZero(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.SetDemoNum(-1)
+	h.CmdStartdemos([]string{"demo1"}, subs)
+
+	// After CmdDemos runs (triggered because no game active), demoNum
+	// advances to 1 (past the first demo that was queued).
+	if got := h.DemoNum(); got < 0 {
+		t.Fatalf("DemoNum = %d, want >= 0", got)
+	}
+}
+
+func TestCmdStartdemosNoArgsPrintsUsage(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.CmdStartdemos(nil, subs)
+
+	if len(console.messages) == 0 || !strings.Contains(console.messages[0], "usage") {
+		t.Fatalf("expected usage message, got %v", console.messages)
+	}
+	if h.DemoNum() != -1 {
+		t.Fatalf("DemoNum = %d, want -1 (unchanged)", h.DemoNum())
+	}
+}
+
+func TestCmdDemosCyclesToNextDemo(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.SetDemoList([]string{"demo1", "demo2", "demo3"})
+	h.SetDemoNum(1) // start from second entry
+
+	h.CmdDemos(subs)
+
+	// Should have advanced past demo2.
+	if got := h.DemoNum(); got != 2 {
+		t.Fatalf("DemoNum = %d, want 2", got)
+	}
+}
+
+func TestCmdDemosWrapsAround(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.SetDemoList([]string{"demo1", "demo2"})
+	h.SetDemoNum(2) // past end
+
+	h.CmdDemos(subs)
+
+	// Should wrap to 0 then advance to 1.
+	if got := h.DemoNum(); got != 1 {
+		t.Fatalf("DemoNum = %d, want 1", got)
+	}
+}
+
+func TestCmdDemosDisabledPrintsMessage(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.SetDemoNum(-1)
+	h.CmdDemos(subs)
+
+	if len(console.messages) == 0 || !strings.Contains(console.messages[0], "No demo loop") {
+		t.Fatalf("expected 'No demo loop' message, got %v", console.messages)
+	}
+}
+
+func TestCmdStopdemoResetsDemoNum(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.demoState = &cl.DemoState{Playback: true}
+	h.SetDemoNum(2)
+	h.CmdStopdemo(subs)
+
+	if got := h.DemoNum(); got != -1 {
+		t.Fatalf("DemoNum = %d, want -1 after stopdemo", got)
+	}
+}

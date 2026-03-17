@@ -212,6 +212,12 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("stopdemo", func(args []string) {
 		h.CmdStopdemo(subs)
 	}, "Stop demo playback")
+	cmdsys.AddCommand("startdemos", func(args []string) {
+		h.CmdStartdemos(args, subs)
+	}, "Set a list of demos to cycle through")
+	cmdsys.AddCommand("demos", func(args []string) {
+		h.CmdDemos(subs)
+	}, "Restart the demo loop")
 
 	// Menu commands
 	cmdsys.AddCommand("togglemenu", func(args []string) {
@@ -1709,6 +1715,65 @@ func (h *Host) CmdStopdemo(subs *Subsystems) {
 
 	subs.Console.Print("Demo playback stopped.\n")
 	h.clientState = caDisconnected
+	h.SetDemoNum(-1)
+}
+
+// MaxDemos is the maximum number of demos in a startdemos playlist.
+const MaxDemos = 8
+
+// CmdStartdemos stores a list of demo names for attract-mode cycling.
+// If no game is active it begins playback immediately.
+func (h *Host) CmdStartdemos(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if len(args) == 0 {
+		subs.Console.Print("usage: startdemos <demo1> [demo2] ...\n")
+		return
+	}
+
+	count := len(args)
+	if count > MaxDemos {
+		count = MaxDemos
+	}
+	h.SetDemoList(args[:count])
+	h.SetDemoNum(0)
+
+	// If no game is in progress, start playing the first demo now.
+	if h.clientState == caDisconnected && !h.serverActive {
+		h.CmdDemos(subs)
+	}
+}
+
+// CmdDemos restarts the demo loop from the current position.
+func (h *Host) CmdDemos(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if h.DemoNum() < 0 {
+		subs.Console.Print("No demo loop active.\n")
+		return
+	}
+
+	demos := h.DemoList()
+	if len(demos) == 0 {
+		h.SetDemoNum(-1)
+		return
+	}
+
+	num := h.DemoNum()
+	// Wrap around when we reach the end.
+	if num >= len(demos) || demos[num] == "" {
+		num = 0
+		h.SetDemoNum(num)
+		if len(demos) == 0 || demos[0] == "" {
+			h.SetDemoNum(-1)
+			return
+		}
+	}
+
+	h.CmdPlaydemo(demos[num], subs)
+	h.SetDemoNum(num + 1)
 }
 
 func (h *Host) CmdTimedemo(filename string, subs *Subsystems) {
