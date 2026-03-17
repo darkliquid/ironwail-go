@@ -47,6 +47,7 @@ func (b *OtoBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DM
 		SampleRate:   sampleRate,
 		ChannelCount: channels,
 		Format:       oto.FormatSignedInt16LE,
+		BufferSize:   50 * time.Millisecond, // Low-latency ALSA/system buffer
 	}
 	ctx, ready, err := oto.NewContext(op)
 	if err != nil {
@@ -72,6 +73,10 @@ func (b *OtoBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DM
 
 	pr, pw := io.Pipe()
 	player := ctx.NewPlayer(pr)
+	// Oto default player buffer is 0.5s which adds ~500ms latency.
+	// Reduce to ~50ms for responsive game audio.
+	bytesPerFrame := channels * (sampleBits / 8)
+	player.SetBufferSize(sampleRate / 20 * bytesPerFrame) // ~50ms
 	player.Play()
 
 	b.ctx = ctx
