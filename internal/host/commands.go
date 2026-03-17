@@ -150,9 +150,9 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 	}, "Save current game")
 	cmdsys.AddCommand("give", func(args []string) {
-	        if len(args) > 1 {
-	                h.CmdGive(args[0], args[1], subs)
-	        }
+		if len(args) > 1 {
+			h.CmdGive(args[0], args[1], subs)
+		}
 	}, "Give items/ammo")
 	cmdsys.AddCommand("maps", func(args []string) { h.CmdMaps(subs) }, "List all maps")
 	cmdsys.AddCommand("randmap", func(args []string) { h.CmdRandmap(subs) }, "Change to a random map")

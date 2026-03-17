@@ -869,3 +869,123 @@ func TestNilDemoStateConvenienceMethods(t *testing.T) {
 	}
 	d.SetSpeed(2.0) // Should not panic
 }
+
+func TestDemoRecordingNegativeTrack(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("negtrack_test", -1); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+
+	if err := demo.WriteDemoFrame([]byte{0x01}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame failed: %v", err)
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("negtrack_test"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	if demo.CDTrack != -1 {
+		t.Errorf("CDTrack = %d, want -1", demo.CDTrack)
+	}
+	demo.StopPlayback()
+}
+
+func TestDemoRecordingMidLevelSnapshot(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("midlevel_test", 3); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+
+	c := &Client{
+		State:      StateConnected,
+		Signon:     2,
+		MaxClients: 1,
+		Protocol:   inet.PROTOCOL_FITZQUAKE,
+		LevelName:  "start",
+		CDTrack:    3,
+		LoopTrack:  3,
+		ViewEntity: 1,
+		ViewAngles: [3]float32{10, 20, 30},
+	}
+
+	if err := demo.WriteInitialStateSnapshot(c); err != nil {
+		t.Fatalf("WriteInitialStateSnapshot failed: %v", err)
+	}
+	if err := demo.WriteDisconnectTrailer([3]float32{}); err != nil {
+		t.Fatalf("WriteDisconnectTrailer failed: %v", err)
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("midlevel_test"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	if demo.CDTrack != 3 {
+		t.Errorf("CDTrack = %d, want 3", demo.CDTrack)
+	}
+
+	frameCount := 0
+	for {
+		if _, _, err := demo.ReadDemoFrame(); err != nil {
+			break
+		}
+		frameCount++
+	}
+	// 3 snapshot frames (serverinfo, signon, state) + 1 disconnect trailer
+	if frameCount != 4 {
+		t.Errorf("frame count = %d, want 4", frameCount)
+	}
+	demo.StopPlayback()
+}
+
+func TestDemoDisconnectDuringRecording(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("disconnect_test", -1); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{float32(i), 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+
+	if err := demo.WriteDisconnectTrailer([3]float32{}); err != nil {
+		t.Fatalf("WriteDisconnectTrailer failed: %v", err)
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("disconnect_test"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+
+	frameCount := 0
+	var lastMsg []byte
+	for {
+		msg, _, err := demo.ReadDemoFrame()
+		if err != nil {
+			break
+		}
+		lastMsg = msg
+		frameCount++
+	}
+
+	if frameCount != 4 {
+		t.Errorf("frame count = %d, want 4 (3 data + 1 disconnect)", frameCount)
+	}
+	if len(lastMsg) != 1 || lastMsg[0] != inet.SVCDisconnect {
+		t.Errorf("last message = %v, want [%d] (svc_disconnect)", lastMsg, inet.SVCDisconnect)
+	}
+	demo.StopPlayback()
+}

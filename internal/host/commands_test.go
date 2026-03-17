@@ -63,12 +63,12 @@ type reconnectHandshakeClient struct {
 	signonReplies   []string
 }
 
-func (c *reconnectHandshakeClient) Init() error                   { return nil }
-func (c *reconnectHandshakeClient) Frame(frameTime float64) error { return nil }
-func (c *reconnectHandshakeClient) Shutdown()                     {}
-func (c *reconnectHandshakeClient) State() ClientState            { return c.state }
-func (c *reconnectHandshakeClient) ReadFromServer() error         { return nil }
-func (c *reconnectHandshakeClient) SendCommand() error            { return nil }
+func (c *reconnectHandshakeClient) Init() error                    { return nil }
+func (c *reconnectHandshakeClient) Frame(frameTime float64) error  { return nil }
+func (c *reconnectHandshakeClient) Shutdown()                      {}
+func (c *reconnectHandshakeClient) State() ClientState             { return c.state }
+func (c *reconnectHandshakeClient) ReadFromServer() error          { return nil }
+func (c *reconnectHandshakeClient) SendCommand() error             { return nil }
 func (c *reconnectHandshakeClient) SendStringCmd(cmd string) error { return nil }
 
 func (c *reconnectHandshakeClient) LocalServerInfo() error {
@@ -115,12 +115,12 @@ type remoteSignonTestClient struct {
 	shutdownCalls  int
 }
 
-func (c *remoteSignonTestClient) Init() error                   { return nil }
-func (c *remoteSignonTestClient) Frame(frameTime float64) error { return nil }
-func (c *remoteSignonTestClient) Shutdown()                     { c.shutdownCalls++ }
-func (c *remoteSignonTestClient) State() ClientState            { return c.state }
-func (c *remoteSignonTestClient) ReadFromServer() error         { return nil }
-func (c *remoteSignonTestClient) SendCommand() error            { return nil }
+func (c *remoteSignonTestClient) Init() error                    { return nil }
+func (c *remoteSignonTestClient) Frame(frameTime float64) error  { return nil }
+func (c *remoteSignonTestClient) Shutdown()                      { c.shutdownCalls++ }
+func (c *remoteSignonTestClient) State() ClientState             { return c.state }
+func (c *remoteSignonTestClient) ReadFromServer() error          { return nil }
+func (c *remoteSignonTestClient) SendCommand() error             { return nil }
 func (c *remoteSignonTestClient) SendStringCmd(cmd string) error { return nil }
 func (c *remoteSignonTestClient) SendSignonCommand(command string) error {
 	c.signonCommands = append(c.signonCommands, command)
@@ -134,12 +134,12 @@ type remoteReconnectStateClient struct {
 	resetCalls     int
 }
 
-func (c *remoteReconnectStateClient) Init() error                   { return nil }
-func (c *remoteReconnectStateClient) Frame(frameTime float64) error { return nil }
-func (c *remoteReconnectStateClient) Shutdown()                     {}
-func (c *remoteReconnectStateClient) State() ClientState            { return c.state }
-func (c *remoteReconnectStateClient) ReadFromServer() error         { return nil }
-func (c *remoteReconnectStateClient) SendCommand() error            { return nil }
+func (c *remoteReconnectStateClient) Init() error                    { return nil }
+func (c *remoteReconnectStateClient) Frame(frameTime float64) error  { return nil }
+func (c *remoteReconnectStateClient) Shutdown()                      {}
+func (c *remoteReconnectStateClient) State() ClientState             { return c.state }
+func (c *remoteReconnectStateClient) ReadFromServer() error          { return nil }
+func (c *remoteReconnectStateClient) SendCommand() error             { return nil }
 func (c *remoteReconnectStateClient) SendStringCmd(cmd string) error { return nil }
 func (c *remoteReconnectStateClient) SendSignonCommand(command string) error {
 	c.signonCommands = append(c.signonCommands, command)
@@ -165,8 +165,8 @@ type stopAllTrackingAudio struct {
 
 func (a *stopAllTrackingAudio) Init() error                                            { return nil }
 func (a *stopAllTrackingAudio) Update(origin, velocity, forward, right, up [3]float32) {}
-func (a *stopAllTrackingAudio) Shutdown()                                    {}
-func (a *stopAllTrackingAudio) SoundInfo() string                            { return "" }
+func (a *stopAllTrackingAudio) Shutdown()                                              {}
+func (a *stopAllTrackingAudio) SoundInfo() string                                      { return "" }
 func (a *stopAllTrackingAudio) StopAllSounds(clear bool) {
 	a.calls = append(a.calls, clear)
 }
@@ -2426,5 +2426,141 @@ func TestCmdDemoSpeedNotPlayingBack(t *testing.T) {
 	output := strings.Join(console.messages, "")
 	if !strings.Contains(output, "Not playing back") {
 		t.Fatalf("console output = %q, expected not-playing message", output)
+	}
+}
+
+// --- randmap tests ---
+
+type mapListingFiles struct {
+	files []string
+}
+
+func (m *mapListingFiles) Init(baseDir, gameDir string) error { return nil }
+func (m *mapListingFiles) Close()                             {}
+func (m *mapListingFiles) LoadFile(filename string) ([]byte, error) {
+	return nil, fmt.Errorf("not found")
+}
+func (m *mapListingFiles) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	return "", nil, fmt.Errorf("not found")
+}
+
+func TestCmdRandmapNoServer(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+		Files:   &mapListingFiles{},
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	// serverActive is false by default
+	h.CmdRandmap(subs)
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "no server running") {
+		t.Errorf("expected 'no server running', got %q", output)
+	}
+}
+
+func TestCmdRandmapNoFiles(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+		Files:   &mapListingFiles{files: nil},
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	h.SetServerActive(true)
+	// Files is not *fs.FileSystem, so the type assertion fails and returns early silently
+	h.CmdRandmap(subs)
+}
+
+// --- viewframe/viewnext/viewprev tests ---
+
+func TestCmdViewframeNoServer(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	h.CmdViewframe(5, subs)
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "no server running") {
+		t.Errorf("expected 'no server running', got %q", output)
+	}
+}
+
+func TestCmdViewframeNoViewthing(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	h.SetServerActive(true)
+	h.CmdViewframe(5, subs)
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "no viewthing") {
+		t.Errorf("expected 'no viewthing', got %q", output)
+	}
+}
+
+func TestCmdViewnextNoViewthing(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	h.SetServerActive(true)
+	h.CmdViewnext(subs)
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "no viewthing") {
+		t.Errorf("expected 'no viewthing', got %q", output)
+	}
+}
+
+func TestCmdViewprevNoViewthing(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	h.SetServerActive(true)
+	h.CmdViewprev(subs)
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "no viewthing") {
+		t.Errorf("expected 'no viewthing', got %q", output)
+	}
+}
+
+func TestCmdViewframeNegativeClampsToZero(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+	h.Init(&InitParams{BaseDir: "."}, subs)
+	h.SetServerActive(true)
+	// With mockServer, findViewthing returns nil (type assertion fails).
+	// This tests the "no viewthing" path with negative frame.
+	h.CmdViewframe(-5, subs)
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "no viewthing") {
+		t.Errorf("expected 'no viewthing', got %q", output)
 	}
 }

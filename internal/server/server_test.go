@@ -566,3 +566,113 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 		t.Fatalf("player health = %v, want > 0 after PutClientInServer", client.Edict.Vars.Health)
 	}
 }
+
+// --- SV_EdictInPVS tests ---
+
+func TestEdictInPVSVisibleLeaf(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: 1,
+	}
+	ent.LeafNums[0] = 3 // leaf 3: (3-1)=2 → byte 0, bit 2
+
+	pvs := make([]byte, 4)
+	pvs[0] = 1 << 2 // bit 2 set
+
+	if !s.SV_EdictInPVS(ent, pvs) {
+		t.Error("expected edict to be visible in PVS")
+	}
+}
+
+func TestEdictInPVSNotVisible(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: 1,
+	}
+	ent.LeafNums[0] = 3
+
+	pvs := make([]byte, 4) // all zeros
+
+	if s.SV_EdictInPVS(ent, pvs) {
+		t.Error("expected edict to NOT be visible in PVS")
+	}
+}
+
+func TestEdictInPVSNoLeafs(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: 0,
+	}
+
+	pvs := make([]byte, 4)
+	if !s.SV_EdictInPVS(ent, pvs) {
+		t.Error("expected edict with no leafs to be visible")
+	}
+}
+
+func TestEdictInPVSNilPVS(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: 1,
+	}
+	ent.LeafNums[0] = 5
+
+	if !s.SV_EdictInPVS(ent, nil) {
+		t.Error("expected edict to be visible with nil PVS")
+	}
+}
+
+func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: 3,
+	}
+	ent.LeafNums[0] = 2  // byte 0, bit 1
+	ent.LeafNums[1] = 10 // byte 1, bit 1
+	ent.LeafNums[2] = 20 // byte 2, bit 3
+
+	pvs := make([]byte, 4)
+	pvs[1] = 1 << 1 // only leaf 10 visible: (10-1)=9 → byte 1, bit 1
+
+	if !s.SV_EdictInPVS(ent, pvs) {
+		t.Error("expected edict to be visible when one of multiple leafs is in PVS")
+	}
+}
+
+// --- CheckForNewClients tests ---
+
+func TestCheckForNewClientsNoConnections(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	if err := s.CheckForNewClients(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
