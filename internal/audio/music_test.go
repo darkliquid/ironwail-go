@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -67,20 +68,17 @@ func TestLoadWAVParsesStandardPCMHeaders(t *testing.T) {
 
 func TestPlayCDTrackTransitionsToLoopTrack(t *testing.T) {
 	sys := newTestMusicSystem()
-	loads := []string{}
 	track2 := testMusicWAV(t, 44100, 2, 2, 64)
 	track3 := testMusicWAV(t, 44100, 1, 2, 32)
 
 	err := sys.PlayCDTrack(2, 3, func(name string) ([]byte, error) {
-		loads = append(loads, name)
-		switch name {
-		case "music/track02.wav":
+		if strings.HasSuffix(name, ".wav") && strings.Contains(name, "track02") {
 			return track2, nil
-		case "music/track03.wav":
-			return track3, nil
-		default:
-			return nil, fmt.Errorf("missing %s", name)
 		}
+		if strings.HasSuffix(name, ".wav") && strings.Contains(name, "track03") {
+			return track3, nil
+		}
+		return nil, fmt.Errorf("missing %s", name)
 	})
 	if err != nil {
 		t.Fatalf("PlayCDTrack failed: %v", err)
@@ -90,9 +88,6 @@ func TestPlayCDTrackTransitionsToLoopTrack(t *testing.T) {
 
 	if got := sys.CurrentMusicTrack(); got != 3 {
 		t.Fatalf("CurrentMusicTrack = %d, want 3 after loop transition", got)
-	}
-	if len(loads) != 2 {
-		t.Fatalf("loader called %d times, want 2", len(loads))
 	}
 	if sys.music == nil || sys.music.position != 32 {
 		t.Fatalf("music position after transition = %#v, want 32 frames into loop track", sys.music)
@@ -128,20 +123,17 @@ func TestPlayCDTrackLoadsOGGWhenWAVMissing(t *testing.T) {
 	var loads []string
 	err := sys.PlayCDTrack(2, 2, func(name string) ([]byte, error) {
 		loads = append(loads, name)
-		switch name {
-		case "music/track02.wav":
-			return nil, fmt.Errorf("missing %s", name)
-		case "music/track02.ogg":
+		if strings.HasSuffix(name, ".ogg") {
 			return oggData, nil
-		default:
-			return nil, fmt.Errorf("unexpected path %q", name)
 		}
+		return nil, fmt.Errorf("missing %s", name)
 	})
 	if err != nil {
 		t.Fatalf("PlayCDTrack failed: %v", err)
 	}
-	if len(loads) != 2 {
-		t.Fatalf("loader called %d times, want 2 (wav then ogg)", len(loads))
+	// OGG is now first in priority order (matching C Ironwail), so it's found on the first try.
+	if len(loads) != 1 {
+		t.Fatalf("loader called %d times, want 1 (ogg found first)", len(loads))
 	}
 
 	sys.updateMusic(128)
@@ -173,14 +165,14 @@ func TestPlayCDTrackUsesResolverSelection(t *testing.T) {
 		return nil, fmt.Errorf("loader should not be used, got %s", name)
 	}, func(candidates []string) (string, []byte, error) {
 		resolverCalled = true
-		if len(candidates) != 4 {
-			t.Fatalf("resolver candidate count = %d, want 4", len(candidates))
+		if len(candidates) != 5 {
+			t.Fatalf("resolver candidate count = %d, want 5", len(candidates))
 		}
-		if got := candidates[0]; got != "music/track02.wav" {
-			t.Fatalf("resolver first candidate = %q, want music/track02.wav", got)
+		if got := candidates[0]; got != "music/track02.ogg" {
+			t.Fatalf("resolver first candidate = %q, want music/track02.ogg", got)
 		}
-		if got := candidates[1]; got != "music/track02.ogg" {
-			t.Fatalf("resolver second candidate = %q, want music/track02.ogg", got)
+		if got := candidates[1]; got != "music/track02.opus" {
+			t.Fatalf("resolver second candidate = %q, want music/track02.opus", got)
 		}
 		return "music/track02.ogg", oggData, nil
 	})

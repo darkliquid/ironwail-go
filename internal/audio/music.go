@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var supportedMusicExtensions = []string{".wav", ".ogg", ".mp3", ".opus"}
+var supportedMusicExtensions = []string{".ogg", ".opus", ".mp3", ".flac", ".wav"}
 
 type musicResolveFunc func([]string) (string, []byte, error)
 
@@ -215,6 +215,8 @@ func decodeMusicTrack(name string, data []byte) (*musicTrack, error) {
 		return decodeMusicMP3(name, data)
 	case strings.HasSuffix(lowerName, ".opus"):
 		return decodeMusicOpus(name, data)
+	case strings.HasSuffix(lowerName, ".flac"):
+		return decodeMusicFLAC(name, data)
 	}
 	return nil, fmt.Errorf("unsupported music file type for %s", name)
 }
