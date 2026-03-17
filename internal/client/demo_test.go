@@ -573,3 +573,299 @@ func TestDemoEmptyFile(t *testing.T) {
 		t.Fatalf("StopPlayback failed: %v", err)
 	}
 }
+
+func TestDemoFrameCount(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if got := demo.FrameCount(); got != 0 {
+		t.Fatalf("FrameCount() on fresh state = %d, want 0", got)
+	}
+
+	if err := demo.StartDemoRecording("framecount", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{0, 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("framecount"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	if got := demo.FrameCount(); got != 5 {
+		t.Fatalf("FrameCount() = %d, want 5", got)
+	}
+}
+
+func TestDemoProgress(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if got := demo.Progress(); got != 0 {
+		t.Fatalf("Progress() on fresh state = %f, want 0", got)
+	}
+
+	if err := demo.StartDemoRecording("progress", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{0, 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("progress"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	if got := demo.Progress(); got != 0 {
+		t.Fatalf("Progress() at start = %f, want 0", got)
+	}
+
+	// Read 2 of 4 frames → 50%
+	for i := 0; i < 2; i++ {
+		if _, _, err := demo.ReadDemoFrame(); err != nil {
+			t.Fatalf("ReadDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if got := demo.Progress(); got != 0.5 {
+		t.Fatalf("Progress() after 2/4 frames = %f, want 0.5", got)
+	}
+
+	// Read remaining 2 frames → 100%
+	for i := 0; i < 2; i++ {
+		if _, _, err := demo.ReadDemoFrame(); err != nil {
+			t.Fatalf("ReadDemoFrame %d failed: %v", i+2, err)
+		}
+	}
+	if got := demo.Progress(); got != 1.0 {
+		t.Fatalf("Progress() after 4/4 frames = %f, want 1.0", got)
+	}
+}
+
+func TestDemoTogglePause(t *testing.T) {
+	demo := NewDemoState()
+	if demo.Paused {
+		t.Fatal("expected not paused initially")
+	}
+
+	if got := demo.TogglePause(); !got {
+		t.Fatal("TogglePause() returned false, want true (paused)")
+	}
+	if !demo.Paused {
+		t.Fatal("expected Paused to be true")
+	}
+
+	if got := demo.TogglePause(); got {
+		t.Fatal("TogglePause() returned true, want false (unpaused)")
+	}
+	if demo.Paused {
+		t.Fatal("expected Paused to be false")
+	}
+}
+
+func TestDemoSetSpeed(t *testing.T) {
+	demo := NewDemoState()
+
+	demo.SetSpeed(2.0)
+	if demo.Speed != 2.0 {
+		t.Fatalf("Speed = %f, want 2.0", demo.Speed)
+	}
+
+	demo.SetSpeed(0.5)
+	if demo.Speed != 0.5 {
+		t.Fatalf("Speed = %f, want 0.5", demo.Speed)
+	}
+
+	// Negative/zero clamped to 0.01
+	demo.SetSpeed(0)
+	if demo.Speed != 0.01 {
+		t.Fatalf("Speed = %f, want 0.01 after setting 0", demo.Speed)
+	}
+
+	demo.SetSpeed(-5)
+	if demo.Speed != 0.01 {
+		t.Fatalf("Speed = %f, want 0.01 after setting -5", demo.Speed)
+	}
+}
+
+func TestDemoFrameForTime(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+
+	// No frames → always 0
+	if got := demo.FrameForTime(1.0); got != 0 {
+		t.Fatalf("FrameForTime(1.0) with no frames = %d, want 0", got)
+	}
+
+	if err := demo.StartDemoRecording("timeseek", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 144; i++ { // 2 seconds at 72 Hz
+		if err := demo.WriteDemoFrame([]byte{byte(i % 256)}, [3]float32{0, 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("timeseek"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	tests := []struct {
+		seconds float64
+		want    int
+	}{
+		{0, 0},
+		{0.5, 36},   // 0.5 * 72 = 36
+		{1.0, 72},   // 1.0 * 72 = 72
+		{2.0, 143},  // 2.0 * 72 = 144, clamped to 143
+		{10.0, 143}, // Way past end, clamped
+		{-1.0, 0},   // Negative, clamped to 0
+	}
+	for _, tt := range tests {
+		if got := demo.FrameForTime(tt.seconds); got != tt.want {
+			t.Errorf("FrameForTime(%f) = %d, want %d", tt.seconds, got, tt.want)
+		}
+	}
+}
+
+func TestDemoTimeForFrame(t *testing.T) {
+	demo := NewDemoState()
+
+	tests := []struct {
+		frame int
+		want  float64
+	}{
+		{0, 0},
+		{72, 1.0},
+		{36, 0.5},
+	}
+	for _, tt := range tests {
+		if got := demo.TimeForFrame(tt.frame); got != tt.want {
+			t.Errorf("TimeForFrame(%d) = %f, want %f", tt.frame, got, tt.want)
+		}
+	}
+}
+
+func TestDemoSeekToFrame0(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("seek_zero", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{float32(i), 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("seek_zero"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	// Read all frames
+	for i := 0; i < 3; i++ {
+		if _, _, err := demo.ReadDemoFrame(); err != nil {
+			t.Fatalf("ReadDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if demo.FrameIndex != 3 {
+		t.Fatalf("FrameIndex = %d, want 3", demo.FrameIndex)
+	}
+
+	// Seek back to 0
+	if err := demo.SeekFrame(0); err != nil {
+		t.Fatalf("SeekFrame(0) failed: %v", err)
+	}
+	if demo.FrameIndex != 0 {
+		t.Fatalf("FrameIndex after seek = %d, want 0", demo.FrameIndex)
+	}
+
+	// Read first frame again
+	msg, angles, err := demo.ReadDemoFrame()
+	if err != nil {
+		t.Fatalf("ReadDemoFrame after seek to 0 failed: %v", err)
+	}
+	if !bytes.Equal(msg, []byte{0}) {
+		t.Fatalf("frame 0 message = %v, want [0]", msg)
+	}
+	if angles[0] != 0 {
+		t.Fatalf("frame 0 angle = %v, want 0", angles[0])
+	}
+}
+
+func TestDemoSeekPastEnd(t *testing.T) {
+	defer os.RemoveAll("demos")
+
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("seek_past_end", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := demo.WriteDemoFrame([]byte{byte(i)}, [3]float32{0, 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := demo.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	if err := demo.StartDemoPlayback("seek_past_end"); err != nil {
+		t.Fatalf("StartDemoPlayback failed: %v", err)
+	}
+	defer demo.StopPlayback()
+
+	// Seek past end should error
+	if err := demo.SeekFrame(10); err == nil {
+		t.Fatal("SeekFrame(10) with 3 frames should error")
+	}
+
+	// Seek to exactly frame count should error
+	if err := demo.SeekFrame(3); err == nil {
+		t.Fatal("SeekFrame(3) with 3 frames should error")
+	}
+
+	// Negative frame should error
+	if err := demo.SeekFrame(-1); err == nil {
+		t.Fatal("SeekFrame(-1) should error")
+	}
+}
+
+func TestNilDemoStateConvenienceMethods(t *testing.T) {
+	var d *DemoState
+
+	if got := d.FrameCount(); got != 0 {
+		t.Fatalf("nil.FrameCount() = %d, want 0", got)
+	}
+	if got := d.Progress(); got != 0 {
+		t.Fatalf("nil.Progress() = %f, want 0", got)
+	}
+	if got := d.TogglePause(); got {
+		t.Fatal("nil.TogglePause() = true, want false")
+	}
+	if got := d.FrameForTime(1.0); got != 0 {
+		t.Fatalf("nil.FrameForTime() = %d, want 0", got)
+	}
+	d.SetSpeed(2.0) // Should not panic
+}

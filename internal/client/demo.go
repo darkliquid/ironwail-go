@@ -615,6 +615,68 @@ func (d *DemoState) SeekFrame(frame int) error {
 	return nil
 }
 
+// FrameCount returns the total number of indexed frames in the demo.
+func (d *DemoState) FrameCount() int {
+	if d == nil {
+		return 0
+	}
+	return len(d.Frames)
+}
+
+// Progress returns the current playback position as a fraction in [0, 1].
+func (d *DemoState) Progress() float64 {
+	if d == nil || len(d.Frames) == 0 {
+		return 0
+	}
+	return float64(d.FrameIndex) / float64(len(d.Frames))
+}
+
+// TogglePause flips the demo pause state and returns the new value.
+func (d *DemoState) TogglePause() bool {
+	if d == nil {
+		return false
+	}
+	d.Paused = !d.Paused
+	return d.Paused
+}
+
+// SetSpeed sets the demo playback speed multiplier.
+// Values <= 0 are clamped to a small positive value.
+func (d *DemoState) SetSpeed(speed float32) {
+	if d == nil {
+		return
+	}
+	if speed <= 0 {
+		speed = 0.01
+	}
+	d.Speed = speed
+}
+
+// FrameForTime returns the frame index closest to the given time in seconds,
+// assuming the demo was recorded at the standard Quake server tick rate (72 Hz).
+// The result is clamped to [0, FrameCount()-1].
+func (d *DemoState) FrameForTime(seconds float64) int {
+	if d == nil || len(d.Frames) == 0 {
+		return 0
+	}
+	const serverTickRate = 72.0
+	frame := int(seconds * serverTickRate)
+	if frame < 0 {
+		frame = 0
+	}
+	if frame >= len(d.Frames) {
+		frame = len(d.Frames) - 1
+	}
+	return frame
+}
+
+// TimeForFrame returns the estimated time in seconds for the given frame,
+// assuming the demo was recorded at the standard Quake server tick rate (72 Hz).
+func (d *DemoState) TimeForFrame(frame int) float64 {
+	const serverTickRate = 72.0
+	return float64(frame) / serverTickRate
+}
+
 func (d *DemoState) currentReadOffset() (int64, error) {
 	if d == nil || d.File == nil || d.Reader == nil {
 		return 0, fmt.Errorf("demo stream is not open")

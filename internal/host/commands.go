@@ -6,6 +6,7 @@ package host
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -153,6 +154,21 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	        }
 	}, "Give items/ammo")
 	cmdsys.AddCommand("maps", func(args []string) { h.CmdMaps(subs) }, "List all maps")
+	cmdsys.AddCommand("randmap", func(args []string) { h.CmdRandmap(subs) }, "Change to a random map")
+	cmdsys.AddCommand("viewframe", func(args []string) {
+		if len(args) > 0 {
+			frame, err := strconv.Atoi(args[0])
+			if err != nil {
+				if subs != nil && subs.Console != nil {
+					subs.Console.Print("usage: viewframe <frame>\n")
+				}
+				return
+			}
+			h.CmdViewframe(frame, subs)
+		}
+	}, "Set viewthing animation frame")
+	cmdsys.AddCommand("viewnext", func(args []string) { h.CmdViewnext(subs) }, "Advance viewthing to next frame")
+	cmdsys.AddCommand("viewprev", func(args []string) { h.CmdViewprev(subs) }, "Rewind viewthing to previous frame")
 	cmdsys.AddCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
 	cmdsys.AddCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
 
@@ -209,6 +225,45 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 		h.CmdRewind(frames, subs)
 	}, "Rewind demo playback by frame count")
+	cmdsys.AddCommand("demogoto", func(args []string) {
+		if len(args) > 0 {
+			seconds, err := strconv.ParseFloat(args[0], 64)
+			if err != nil {
+				if subs != nil && subs.Console != nil {
+					subs.Console.Print("usage: demogoto <seconds>\n")
+				}
+				return
+			}
+			h.CmdDemoGoto(seconds, subs)
+			return
+		}
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: demogoto <seconds>\n")
+		}
+	}, "Seek demo playback to a time in seconds")
+	cmdsys.AddCommand("demopause", func(args []string) {
+		h.CmdDemoPause(subs)
+	}, "Toggle demo playback pause")
+	cmdsys.AddCommand("demospeed", func(args []string) {
+		if len(args) > 0 {
+			speed, err := strconv.ParseFloat(args[0], 32)
+			if err != nil || speed <= 0 {
+				if subs != nil && subs.Console != nil {
+					subs.Console.Print("usage: demospeed <multiplier> (positive number)\n")
+				}
+				return
+			}
+			h.CmdDemoSpeed(float32(speed), subs)
+			return
+		}
+		if subs != nil && subs.Console != nil {
+			if h.demoState != nil && h.demoState.Playback {
+				subs.Console.Print(fmt.Sprintf("Demo speed: %.2f\n", h.demoState.Speed))
+			} else {
+				subs.Console.Print("Not playing back a demo.\n")
+			}
+		}
+	}, "Set demo playback speed multiplier")
 	cmdsys.AddCommand("stopdemo", func(args []string) {
 		h.CmdStopdemo(subs)
 	}, "Stop demo playback")
@@ -709,6 +764,118 @@ func (h *Host) CmdMaps(subs *Subsystems) {
 		name = strings.TrimSuffix(name, ".bsp")
 		subs.Console.Print(fmt.Sprintf("  %s\n", name))
 	}
+}
+
+// CmdRandmap picks a random map from the available maps and changes to it.
+func (h *Host) CmdRandmap(subs *Subsystems) {
+	if subs == nil || subs.Files == nil || subs.Console == nil {
+		return
+	}
+	if !h.serverActive || subs.Server == nil {
+		subs.Console.Print("randmap: no server running\n")
+		return
+	}
+	fsInstance, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return
+	}
+	files := fsInstance.ListFiles("maps/*.bsp")
+	if len(files) == 0 {
+		subs.Console.Print("randmap: no maps found\n")
+		return
+	}
+
+	// Build list of map names
+	maps := make([]string, 0, len(files))
+	for _, f := range files {
+		name := filepath.Base(f)
+		name = strings.TrimSuffix(name, ".bsp")
+		maps = append(maps, name)
+	}
+
+	choice := maps[rand.Intn(len(maps))]
+	subs.Console.Print(fmt.Sprintf("randmap: changing to %s\n", choice))
+	h.CmdMap(choice, subs)
+}
+
+// findViewthing searches the server's edicts for an entity with classname "viewthing".
+func (h *Host) findViewthing(subs *Subsystems) *server.Edict {
+	srv, ok := subs.Server.(*server.Server)
+	if !ok || srv == nil {
+		return nil
+	}
+	for i := 1; i < srv.NumEdicts; i++ {
+		ent := srv.EdictNum(i)
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if srv.GetString(ent.Vars.ClassName) == "viewthing" {
+			return ent
+		}
+	}
+	return nil
+}
+
+// CmdViewframe sets the viewthing entity's animation frame to the given value.
+func (h *Host) CmdViewframe(frame int, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if !h.serverActive || subs.Server == nil {
+		subs.Console.Print("viewframe: no server running\n")
+		return
+	}
+	ent := h.findViewthing(subs)
+	if ent == nil {
+		subs.Console.Print("viewframe: no viewthing on map\n")
+		return
+	}
+	if frame < 0 {
+		frame = 0
+	}
+	ent.Vars.Frame = float32(frame)
+	subs.Console.Print(fmt.Sprintf("frame %d\n", frame))
+}
+
+// CmdViewnext advances the viewthing entity's animation frame by one.
+func (h *Host) CmdViewnext(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if !h.serverActive || subs.Server == nil {
+		subs.Console.Print("viewnext: no server running\n")
+		return
+	}
+	ent := h.findViewthing(subs)
+	if ent == nil {
+		subs.Console.Print("viewnext: no viewthing on map\n")
+		return
+	}
+	frame := int(ent.Vars.Frame) + 1
+	ent.Vars.Frame = float32(frame)
+	subs.Console.Print(fmt.Sprintf("frame %d\n", frame))
+}
+
+// CmdViewprev decrements the viewthing entity's animation frame by one (clamped to 0).
+func (h *Host) CmdViewprev(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if !h.serverActive || subs.Server == nil {
+		subs.Console.Print("viewprev: no server running\n")
+		return
+	}
+	ent := h.findViewthing(subs)
+	if ent == nil {
+		subs.Console.Print("viewprev: no viewthing on map\n")
+		return
+	}
+	frame := int(ent.Vars.Frame) - 1
+	if frame < 0 {
+		frame = 0
+	}
+	ent.Vars.Frame = float32(frame)
+	subs.Console.Print(fmt.Sprintf("frame %d\n", frame))
 }
 
 func (h *Host) CmdViewpos(subs *Subsystems) {
@@ -1856,4 +2023,51 @@ func (h *Host) seekDemoFrame(frame int, subs *Subsystems) error {
 		DispatchLoopbackStuffText(subs)
 	}
 	return nil
+}
+
+func (h *Host) CmdDemoGoto(seconds float64, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if h.demoState == nil || !h.demoState.Playback {
+		subs.Console.Print("Not playing back a demo.\n")
+		return
+	}
+	if seconds < 0 {
+		seconds = 0
+	}
+	frame := h.demoState.FrameForTime(seconds)
+	if err := h.seekDemoFrame(frame, subs); err != nil {
+		subs.Console.Print(fmt.Sprintf("Failed to seek demo: %v\n", err))
+		return
+	}
+	subs.Console.Print(fmt.Sprintf("Demo seeked to %.2fs (frame %d).\n", seconds, frame))
+}
+
+func (h *Host) CmdDemoPause(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if h.demoState == nil || !h.demoState.Playback {
+		subs.Console.Print("Not playing back a demo.\n")
+		return
+	}
+	paused := h.demoState.TogglePause()
+	if paused {
+		subs.Console.Print("Demo paused.\n")
+	} else {
+		subs.Console.Print("Demo resumed.\n")
+	}
+}
+
+func (h *Host) CmdDemoSpeed(speed float32, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if h.demoState == nil || !h.demoState.Playback {
+		subs.Console.Print("Not playing back a demo.\n")
+		return
+	}
+	h.demoState.SetSpeed(speed)
+	subs.Console.Print(fmt.Sprintf("Demo speed set to %.2f.\n", h.demoState.Speed))
 }
