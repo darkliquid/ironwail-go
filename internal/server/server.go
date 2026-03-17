@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -99,6 +100,9 @@ type Client struct {
 	OldFrags           int // Previous frags count for reliable message updates
 	EntityStates       map[int]EntityState
 	RespawnTime        float32
+	FatPVS             []byte
+	Stats              [32]int32
+	OldStats           [32]int32
 }
 
 // AreaNode is a node in the spatial partitioning tree for entity collision.
@@ -1009,4 +1013,28 @@ func (s *Server) KickClient(clientNum int, who, reason string) bool {
 }
 func (s *Server) GetMapName() string {
 	return s.Name
+}
+
+func (s *Server) SV_BroadcastPrintf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	console.Printf("%s", msg)
+	if s.Static == nil {
+		return
+	}
+	for _, client := range s.Static.Clients {
+		if client == nil || !client.Active || client.Message == nil {
+			continue
+		}
+		client.Message.WriteByte(byte(SVCPrint))
+		client.Message.WriteString(msg)
+	}
+}
+
+func (s *Server) SV_ClientPrintf(client *Client, format string, args ...any) {
+	if client == nil || !client.Active || client.Message == nil {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	client.Message.WriteByte(byte(SVCPrint))
+	client.Message.WriteString(msg)
 }

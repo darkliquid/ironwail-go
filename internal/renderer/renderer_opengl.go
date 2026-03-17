@@ -500,6 +500,9 @@ type Renderer struct {
 	decalVAO                            uint32
 	decalVBO                            uint32
 
+	// Frame-level translucency sorting (matches C ironwail: r_world.c)
+	translucentCalls []worldDrawCall
+
 	// Scene FBO and warpscale post-process for r_waterwarp == 1 underwater screen warp.
 	// Mirrors C Ironwail: framebufs.scene / R_WarpScaleView / glprogs.warpscale[1].
 	warpScaleProgram        uint32

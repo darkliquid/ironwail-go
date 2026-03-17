@@ -2675,10 +2675,10 @@ func updateHUDFromServer() {
 			CenterPrint:   gameClient.CenterPrint,
 			CenterPrintAt: gameClient.CenterPrintAt,
 			LevelName:     gameClient.LevelName,
-			Secrets:       gameClient.Stats[cl.StatSecrets],
-			TotalSecrets:  gameClient.Stats[cl.StatTotalSecrets],
-			Monsters:      gameClient.Stats[cl.StatMonsters],
-			TotalMonsters: gameClient.Stats[cl.StatTotalMonsters],
+			Secrets:       gameClient.Stats[inet.StatSecrets],
+			TotalSecrets:  gameClient.Stats[inet.StatTotalSecrets],
+			Monsters:      gameClient.Stats[inet.StatMonsters],
+			TotalMonsters: gameClient.Stats[inet.StatTotalMonsters],
 		})
 		return
 	}

@@ -712,7 +712,7 @@ func TestBucketWorldFacesWithLights_PropagatesDynamicLight(t *testing.T) {
 		Lifetime:   1,
 	})
 
-	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, textures, nil, lightmaps, 999, 998, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
+	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, textures, nil, lightmaps, 999, 998, 0, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
 	if len(opaque) != 1 {
 		t.Fatalf("opaque count = %d, want 1", len(opaque))
 	}

@@ -84,6 +84,16 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdSay(strings.Join(args, " "), subs)
 		}
 	}, "Send a message to all players")
+	cmdsys.AddCommand("say_team", func(args []string) {
+		if len(args) > 0 {
+			h.CmdSayTeam(strings.Join(args, " "), subs)
+		}
+	}, "Send a message to your team")
+	cmdsys.AddCommand("tell", func(args []string) {
+		if len(args) > 1 {
+			h.CmdTell(args, subs)
+		}
+	}, "Send a message to a specific player")
 	cmdsys.AddCommand("serverinfo", func(args []string) { h.CmdServerInfo(subs) }, "Show server information")
 	cmdsys.AddCommand("restart", func(args []string) { h.CmdRestart(subs) }, "Restart current map")
 	cmdsys.AddCommand("changelevel", func(args []string) {
@@ -135,7 +145,8 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
 	cmdsys.AddCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
 
-	// Demo commands	cmdsys.AddCommand("record", func(args []string) {
+	// Demo commands
+	cmdsys.AddCommand("record", func(args []string) {
 		if len(args) > 0 {
 			h.CmdRecord(args[0], subs)
 		}
@@ -671,9 +682,24 @@ func (h *Host) CmdKick(args []string, subs *Subsystems) {
 }
 
 func (h *Host) CmdSay(message string, subs *Subsystems) {
-	if subs.Console != nil {
-		subs.Console.Print(fmt.Sprintf("say: %s\n", message))
+	if subs.Client == nil || message == "" {
+		return
 	}
+	subs.Client.SendStringCmd(fmt.Sprintf("say %s", message))
+}
+
+func (h *Host) CmdSayTeam(message string, subs *Subsystems) {
+	if subs.Client == nil || message == "" {
+		return
+	}
+	subs.Client.SendStringCmd(fmt.Sprintf("say_team %s", message))
+}
+
+func (h *Host) CmdTell(args []string, subs *Subsystems) {
+	if subs.Client == nil || len(args) < 2 {
+		return
+	}
+	subs.Client.SendStringCmd(fmt.Sprintf("tell %s", strings.Join(args, " ")))
 }
 
 func (h *Host) CmdServerInfo(subs *Subsystems) {
@@ -1287,18 +1313,19 @@ func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
 	}
 
 	legacyName := name + ".sav"
-	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" {
-		legacyGameDir := filepath.Join(h.baseDir, gameDir, legacyName)
-		searchPaths = append(searchPaths, legacyGameDir)
+	// 2. Active game directory
+	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" && gameDir != "id1" {
+		searchPaths = append(searchPaths, filepath.Join(h.baseDir, gameDir, legacyName))
 	}
 
+	// 3. Base directory
 	searchPaths = append(searchPaths, filepath.Join(h.baseDir, legacyName))
 
-	if strings.TrimSpace(h.gameDir) == "id1" {
-		return searchPaths, nil
+	// 4. Vanilla Quake directory
+	if strings.TrimSpace(h.gameDir) != "id1" {
+		searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", legacyName))
 	}
 
-	searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", legacyName))
 	return searchPaths, nil
 }
 

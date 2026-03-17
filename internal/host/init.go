@@ -149,6 +149,13 @@ func (c *localLoopbackClient) SendCommand() error {
 	return nil
 }
 
+func (c *localLoopbackClient) SendStringCmd(cmd string) error {
+	if c == nil || c.cmd == nil {
+		return fmt.Errorf("loopback client not initialized")
+	}
+	return c.cmd.SubmitLoopbackStringCommand(0, cmd)
+}
+
 // SetupLoopbackClientServer wires the loopback client inside subs to the given
 // server so that ReadFromServer actually parses per-frame datagrams.
 // Call this after constructing subs but before Host.Init.
@@ -317,6 +324,7 @@ type Client interface {
 	State() ClientState
 	ReadFromServer() error
 	SendCommand() error
+	SendStringCmd(cmd string) error
 }
 
 type Audio interface {

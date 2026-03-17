@@ -751,3 +751,87 @@ func (t *Tree) loadModels(r *Reader) error {
 
 	return nil
 }
+
+func (t *Tree) LeafPVS(leaf *TreeLeaf) []byte {
+	if leaf == nil || leaf.VisOfs < 0 || len(t.Visibility) == 0 {
+		// If no visibility info, everything is visible
+		numLeafs := len(t.Leafs)
+		res := make([]byte, (numLeafs+7)/8)
+		for i := range res {
+			res[i] = 0xFF
+		}
+		return res
+	}
+
+	return t.DecompressVis(t.Visibility[leaf.VisOfs:])
+}
+
+func (t *Tree) DecompressVis(in []byte) []byte {
+	numLeafs := len(t.Leafs)
+	out := make([]byte, (numLeafs+7)/8)
+	row := (numLeafs + 7) / 8
+
+	outPos := 0
+	inPos := 0
+
+	for outPos < row {
+		if inPos >= len(in) {
+			break
+		}
+		if in[inPos] == 0 {
+			inPos++
+			if inPos >= len(in) {
+				break
+			}
+			count := int(in[inPos])
+			inPos++
+			outPos += count
+			if outPos > row {
+				outPos = row
+			}
+		} else {
+			out[outPos] = in[inPos]
+			outPos++
+			inPos++
+		}
+	}
+	return out
+}
+
+func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {
+	if len(t.Nodes) == 0 {
+		if len(t.Leafs) > 0 {
+			return &t.Leafs[0]
+		}
+		return nil
+	}
+
+	nodeIdx := 0
+	for {
+		node := &t.Nodes[nodeIdx]
+		plane := &t.Planes[node.PlaneNum]
+
+		var d float32
+		if plane.Type < 3 {
+			d = p[plane.Type] - plane.Dist
+		} else {
+			d = p[0]*plane.Normal[0] + p[1]*plane.Normal[1] + p[2]*plane.Normal[2] - plane.Dist
+		}
+
+		var child TreeChild
+		if d >= 0 {
+			child = node.Children[0]
+		} else {
+			child = node.Children[1]
+		}
+
+		if child.IsLeaf {
+			if child.Index < 0 || child.Index >= len(t.Leafs) {
+				return nil
+			}
+			return &t.Leafs[child.Index]
+		}
+		nodeIdx = child.Index
+	}
+}
+

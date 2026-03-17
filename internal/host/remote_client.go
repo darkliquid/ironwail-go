@@ -172,6 +172,23 @@ func (c *remoteDatagramClient) SendSignonCommand(command string) error {
 	return nil
 }
 
+func (c *remoteDatagramClient) SendStringCmd(command string) error {
+	if c == nil || c.socket == nil || c.inner == nil {
+		return fmt.Errorf("remote client not connected")
+	}
+	data, err := c.inner.SendStringCmd(command)
+	if err != nil {
+		return err
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	if sent := inet.SendUnreliableMessage(c.socket, data); sent != 1 {
+		return fmt.Errorf("failed to send command %q", command)
+	}
+	return nil
+}
+
 func (c *remoteDatagramClient) ResetConnectionState() error {
 	if c == nil || c.inner == nil {
 		return fmt.Errorf("remote client not initialized")

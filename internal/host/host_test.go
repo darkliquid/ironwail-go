@@ -53,6 +53,7 @@ func (m *mockClient) Shutdown()                     {}
 func (m *mockClient) State() ClientState            { return m.state }
 func (m *mockClient) ReadFromServer() error         { return nil }
 func (m *mockClient) SendCommand() error            { return nil }
+func (m *mockClient) SendStringCmd(cmd string) error { return nil }
 
 type mockConsole struct {
 	messages []string

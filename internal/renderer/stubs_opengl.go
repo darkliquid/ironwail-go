@@ -96,6 +96,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		hasTranslucentAliasEntities: len(translucentAliasEntities) > 0,
 	})
 	if dc.gldc.renderer != nil {
+		dc.gldc.renderer.ClearTranslucentCalls()
 		dc.gldc.renderer.setLightStyleValues(state.LightStyles)
 		dc.gldc.renderer.setFogState(state.FogColor, state.FogDensity)
 	}
@@ -149,13 +150,16 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.gldc.renderer.renderBrushEntities(opaqueBrushEntities, worldBrushPassLiquidTranslucentOnly)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentBrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(translucentBrushEntities, worldBrushPassLiquidTranslucentOnly)
+		dc.gldc.renderer.renderBrushEntities(translucentBrushEntities, worldBrushPassAll)
 	}
+
+	// Draw sorted translucent world/brush model faces
+	if dc.gldc.renderer != nil {
+		dc.gldc.renderer.DrawTranslucentCalls()
+	}
+
 	if dc.gldc.renderer != nil && len(state.DecalMarks) > 0 {
 		dc.gldc.renderer.renderDecalMarks(state.DecalMarks)
-	}
-	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentBrushEntities) > 0 {
-		dc.gldc.renderer.renderBrushEntities(translucentBrushEntities, worldBrushPassNonLiquid)
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && len(translucentAliasEntities) > 0 {
 		dc.gldc.renderer.renderAliasEntities(translucentAliasEntities)

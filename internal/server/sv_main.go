@@ -1134,6 +1134,17 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		if !ok {
 			continue
 		}
+
+		// PVS culling
+		// Always send client's own entity, other players, and entities with NoPVS flag if it existed
+		// In Quake, we usually always send players.
+		isPlayer := entNum <= s.Static.MaxClients
+		if !isPlayer && ent != client.Edict {
+			if !s.SV_VisibleToClient(ent, client) {
+				continue
+			}
+		}
+
 		current[entNum] = state
 		prev, seen := client.EntityStates[entNum]
 		force := !seen
@@ -1155,11 +1166,43 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	}
 }
 
+func (s *Server) SV_WriteStats(client *Client, msg *MessageBuffer) {
+	ent := client.Edict
+	if ent != nil {
+		client.Stats[inet.StatHealth] = int32(ent.Vars.Health)
+		client.Stats[inet.StatItems] = int32(ent.Vars.Items)
+		client.Stats[inet.StatArmor] = int32(ent.Vars.ArmorValue)
+		client.Stats[inet.StatWeapon] = int32(s.FindModel(s.GetString(ent.Vars.WeaponModel)))
+		client.Stats[inet.StatAmmo] = int32(ent.Vars.CurrentAmmo)
+		client.Stats[inet.StatShells] = int32(ent.Vars.AmmoShells)
+		client.Stats[inet.StatNails] = int32(ent.Vars.AmmoNails)
+		client.Stats[inet.StatRockets] = int32(ent.Vars.AmmoRockets)
+		client.Stats[inet.StatCells] = int32(ent.Vars.AmmoCells)
+		client.Stats[inet.StatActiveWeapon] = int32(ent.Vars.Weapon)
+	}
+
+	for i := 0; i < 32; i++ {
+		if client.Stats[i] != client.OldStats[i] {
+			msg.WriteByte(byte(inet.SVCUpdateStat))
+			msg.WriteByte(byte(i))
+			msg.WriteLong(client.Stats[i])
+			client.OldStats[i] = client.Stats[i]
+		}
+	}
+}
+
 func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	msg.WriteByte(byte(inet.SVCTime))
 	msg.WriteFloat(s.Time)
 
+	// Build PVS for this client
+	client.FatPVS = nil
+	if client.Edict != nil {
+		s.SV_AddToFatPVS(client.Edict.Vars.Origin, client)
+	}
+
 	s.WriteClientDataToMessage(client.Edict, msg)
+	s.SV_WriteStats(client, msg)
 	s.writeEntitiesToClient(client, msg)
 
 	if s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < MaxDatagram {
@@ -1351,4 +1394,38 @@ func (s *Server) SaveSpawnParms() {
 			}
 		}
 	}
+}
+
+func (s *Server) SV_AddToFatPVS(org [3]float32, client *Client) {
+	if s.WorldTree == nil {
+		return
+	}
+	leaf := s.WorldTree.PointInLeaf(org)
+	pvs := s.WorldTree.LeafPVS(leaf)
+	if client.FatPVS == nil || len(client.FatPVS) != len(pvs) {
+		client.FatPVS = make([]byte, len(pvs))
+		copy(client.FatPVS, pvs)
+	} else {
+		for i := range pvs {
+			client.FatPVS[i] |= pvs[i]
+		}
+	}
+}
+
+func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
+	if client.FatPVS == nil || ent.NumLeafs == 0 {
+		return true
+	}
+
+	for i := 0; i < ent.NumLeafs; i++ {
+		leafIdx := ent.LeafNums[i]
+		if leafIdx <= 0 {
+			continue
+		}
+		if (client.FatPVS[(leafIdx-1)>>3] & (1 << (uint(leafIdx-1) & 7))) != 0 {
+			return true
+		}
+	}
+
+	return false
 }

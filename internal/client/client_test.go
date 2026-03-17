@@ -257,15 +257,15 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 
 func TestHUDAccessorsExposeParsedStats(t *testing.T) {
 	c := NewClient()
-	c.Stats[StatHealth] = 81
-	c.Stats[StatArmor] = 27
-	c.Stats[StatAmmo] = 14
-	c.Stats[StatWeapon] = 6
-	c.Stats[StatActiveWeapon] = ItemLightning
-	c.Stats[StatShells] = 11
-	c.Stats[StatNails] = 22
-	c.Stats[StatRockets] = 33
-	c.Stats[StatCells] = 44
+	c.Stats[inet.StatHealth] = 81
+	c.Stats[inet.StatArmor] = 27
+	c.Stats[inet.StatAmmo] = 14
+	c.Stats[inet.StatWeapon] = 6
+	c.Stats[inet.StatActiveWeapon] = ItemLightning
+	c.Stats[inet.StatShells] = 11
+	c.Stats[inet.StatNails] = 22
+	c.Stats[inet.StatRockets] = 33
+	c.Stats[inet.StatCells] = 44
 
 	if got := c.Health(); got != 81 {
 		t.Fatalf("Health() = %d, want 81", got)

@@ -69,6 +69,7 @@ func (c *reconnectHandshakeClient) Shutdown()                     {}
 func (c *reconnectHandshakeClient) State() ClientState            { return c.state }
 func (c *reconnectHandshakeClient) ReadFromServer() error         { return nil }
 func (c *reconnectHandshakeClient) SendCommand() error            { return nil }
+func (c *reconnectHandshakeClient) SendStringCmd(cmd string) error { return nil }
 
 func (c *reconnectHandshakeClient) LocalServerInfo() error {
 	c.serverInfoCalls++
@@ -120,6 +121,7 @@ func (c *remoteSignonTestClient) Shutdown()                     { c.shutdownCall
 func (c *remoteSignonTestClient) State() ClientState            { return c.state }
 func (c *remoteSignonTestClient) ReadFromServer() error         { return nil }
 func (c *remoteSignonTestClient) SendCommand() error            { return nil }
+func (c *remoteSignonTestClient) SendStringCmd(cmd string) error { return nil }
 func (c *remoteSignonTestClient) SendSignonCommand(command string) error {
 	c.signonCommands = append(c.signonCommands, command)
 	return nil
@@ -138,6 +140,7 @@ func (c *remoteReconnectStateClient) Shutdown()                     {}
 func (c *remoteReconnectStateClient) State() ClientState            { return c.state }
 func (c *remoteReconnectStateClient) ReadFromServer() error         { return nil }
 func (c *remoteReconnectStateClient) SendCommand() error            { return nil }
+func (c *remoteReconnectStateClient) SendStringCmd(cmd string) error { return nil }
 func (c *remoteReconnectStateClient) SendSignonCommand(command string) error {
 	c.signonCommands = append(c.signonCommands, command)
 	return nil

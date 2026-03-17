@@ -38,6 +38,7 @@ func (c *demoMessageClient) Shutdown()                 {}
 func (c *demoMessageClient) State() host.ClientState   { return 0 }
 func (c *demoMessageClient) ReadFromServer() error     { return nil }
 func (c *demoMessageClient) SendCommand() error        { return nil }
+func (c *demoMessageClient) SendStringCmd(string) error { return nil }
 func (c *demoMessageClient) LastServerMessage() []byte { return append([]byte(nil), c.message...) }
 
 type activeStateTestClient struct {
@@ -48,14 +49,11 @@ type activeStateTestClient struct {
 func (c *activeStateTestClient) Init() error         { return nil }
 func (c *activeStateTestClient) Frame(float64) error { return nil }
 func (c *activeStateTestClient) Shutdown()           {}
-func (c *activeStateTestClient) State() host.ClientState {
-	return c.state
-}
-func (c *activeStateTestClient) ReadFromServer() error { return nil }
-func (c *activeStateTestClient) SendCommand() error    { return nil }
-func (c *activeStateTestClient) ClientState() *cl.Client {
-	return c.clientState
-}
+func (c *activeStateTestClient) State() host.ClientState { return c.state }
+func (c *activeStateTestClient) ReadFromServer() error   { return nil }
+func (c *activeStateTestClient) SendCommand() error      { return nil }
+func (c *activeStateTestClient) SendStringCmd(string) error { return nil }
+func (c *activeStateTestClient) ClientState() *cl.Client { return c.clientState }
 
 type demoPlaybackNoopServer struct{}
 
@@ -82,6 +80,8 @@ type demoPlaybackConsole struct{}
 
 func (c *demoPlaybackConsole) Init() error  { return nil }
 func (c *demoPlaybackConsole) Print(string) {}
+func (c *demoPlaybackConsole) Clear()       {}
+func (c *demoPlaybackConsole) Dump(string) error { return nil }
 func (c *demoPlaybackConsole) Shutdown()    {}
 
 type demoPlaybackCommandBuffer struct {
@@ -1956,19 +1956,19 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 
 	gameHUD = hud.NewHUD(nil)
 	gameClient = cl.NewClient()
-	gameClient.Stats[cl.StatHealth] = 111
-	gameClient.Stats[cl.StatArmor] = 55
-	gameClient.Stats[cl.StatAmmo] = 22
-	gameClient.Stats[cl.StatWeapon] = 7
-	gameClient.Stats[cl.StatActiveWeapon] = cl.ItemRocketLauncher
-	gameClient.Stats[cl.StatShells] = 10
-	gameClient.Stats[cl.StatNails] = 20
-	gameClient.Stats[cl.StatRockets] = 30
-	gameClient.Stats[cl.StatCells] = 40
-	gameClient.Stats[11] = 9
-	gameClient.Stats[12] = 66
-	gameClient.Stats[13] = 3
-	gameClient.Stats[14] = 12
+	gameClient.Stats[inet.StatHealth] = 111
+	gameClient.Stats[inet.StatArmor] = 55
+	gameClient.Stats[inet.StatAmmo] = 22
+	gameClient.Stats[inet.StatWeapon] = 7
+	gameClient.Stats[inet.StatActiveWeapon] = cl.ItemRocketLauncher
+	gameClient.Stats[inet.StatShells] = 10
+	gameClient.Stats[inet.StatNails] = 20
+	gameClient.Stats[inet.StatRockets] = 30
+	gameClient.Stats[inet.StatCells] = 40
+	gameClient.Stats[inet.StatTotalSecrets] = 9
+	gameClient.Stats[inet.StatTotalMonsters] = 66
+	gameClient.Stats[inet.StatSecrets] = 3
+	gameClient.Stats[inet.StatMonsters] = 12
 	gameClient.MaxClients = 4
 	gameClient.GameType = 1
 	gameClient.ViewEntity = 2

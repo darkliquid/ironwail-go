@@ -9,39 +9,21 @@ import (
 )
 
 const (
-	StatHealth = iota
-	StatFrags
-	StatWeapon
-	StatAmmo
-	StatArmor
-	StatWeaponFrame
-	StatShells
-	StatNails
-	StatRockets
-	StatCells
-	StatActiveWeapon
-	StatTotalSecrets
-	StatTotalMonsters
-	StatSecrets
-	StatMonsters
-)
-
-const (
-	statHealth        = StatHealth
-	statFrags         = StatFrags
-	statWeapon        = StatWeapon
-	statAmmo          = StatAmmo
-	statArmor         = StatArmor
-	statWeaponFrame   = StatWeaponFrame
-	statShells        = StatShells
-	statNails         = StatNails
-	statRockets       = StatRockets
-	statCells         = StatCells
-	statActiveWeapon  = StatActiveWeapon
-	statTotalSecrets  = StatTotalSecrets
-	statTotalMonsters = StatTotalMonsters
-	statSecrets       = StatSecrets
-	statMonsters      = StatMonsters
+	statHealth        = inet.StatHealth
+	statFrags         = inet.StatFrags
+	statWeapon        = inet.StatWeapon
+	statAmmo          = inet.StatAmmo
+	statArmor         = inet.StatArmor
+	statWeaponFrame   = inet.StatWeaponFrame
+	statShells        = inet.StatShells
+	statNails         = inet.StatNails
+	statRockets       = inet.StatRockets
+	statCells         = inet.StatCells
+	statActiveWeapon  = inet.StatActiveWeapon
+	statTotalSecrets  = inet.StatTotalSecrets
+	statTotalMonsters = inet.StatTotalMonsters
+	statSecrets       = inet.StatSecrets
+	statMonsters      = inet.StatMonsters
 )
 
 type Parser struct {

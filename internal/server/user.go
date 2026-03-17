@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
 	"strings"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -463,13 +464,93 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	return cmd
 }
 
-func (s *Server) SV_ExecuteUserCommand(_ *Client, cmd string) bool {
+func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
 		return true
 	}
 
 	lower := strings.ToLower(cmd)
+	args := strings.Fields(cmd)
+	if len(args) == 0 {
+		return true
+	}
+	verb := strings.ToLower(args[0])
+
+	switch verb {
+	case "say":
+		if len(args) < 2 {
+			return true
+		}
+		msg := strings.Join(args[1:], " ")
+		s.SV_BroadcastPrintf("%s: %s\n", client.Name, msg)
+		return true
+	case "say_team":
+		if len(args) < 2 {
+			return true
+		}
+		msg := strings.Join(args[1:], " ")
+		if s.Static == nil {
+			return true
+		}
+		for _, c := range s.Static.Clients {
+			if c == nil || !c.Active || c.Edict == nil {
+				continue
+			}
+			if c.Edict.Vars.Team == client.Edict.Vars.Team {
+				s.SV_ClientPrintf(c, "(team) %s: %s\n", client.Name, msg)
+			}
+		}
+		return true
+	case "tell":
+		if len(args) < 3 {
+			return true
+		}
+		targetName := args[1]
+		msg := strings.Join(args[2:], " ")
+		if s.Static == nil {
+			return true
+		}
+		for _, c := range s.Static.Clients {
+			if c == nil || !c.Active {
+				continue
+			}
+			if strings.EqualFold(c.Name, targetName) {
+				s.SV_ClientPrintf(c, "%s tells you: %s\n", client.Name, msg)
+				s.SV_ClientPrintf(client, "you tell %s: %s\n", c.Name, msg)
+				return true
+			}
+		}
+		s.SV_ClientPrintf(client, "player %s not found\n", targetName)
+		return true
+	case "name":
+		if len(args) < 2 {
+			s.SV_ClientPrintf(client, "name is %s\n", client.Name)
+			return true
+		}
+		newName := args[1]
+		if len(newName) > 15 {
+			newName = newName[:15]
+		}
+		s.SV_BroadcastPrintf("%s changed name to %s\n", client.Name, newName)
+		client.Name = newName
+		if client.Edict != nil && s.QCVM != nil {
+			client.Edict.Vars.NetName = s.QCVM.AllocString(client.Name)
+		}
+		return true
+	case "color":
+		if len(args) < 2 {
+			s.SV_ClientPrintf(client, "color is %d\n", client.Color)
+			return true
+		}
+		color, _ := strconv.Atoi(args[1])
+		client.Color = color
+		if client.Edict != nil {
+			client.Edict.Vars.Team = float32(color + 1)
+		}
+		return true
+	}
+
 	for _, allowed := range svAllowedUserCommands {
 		if strings.HasPrefix(lower, allowed) {
 			return true

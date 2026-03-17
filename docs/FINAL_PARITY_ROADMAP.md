@@ -26,7 +26,7 @@ While the core movement model exists, manual testing has revealed critical behav
 
 The Go renderer draws the right things, but not always in the right way.
 
-- [ ] **Translucent Batching**: Implement `R_AddBModelCall` and `R_CanMergeBModelAlphaPasses`. Current sequential rendering of translucent brush models may cause sorting artifacts or performance drops on complex maps.
+- [x] **Translucent Batching**: Implement `R_AddBModelCall` and `R_CanMergeBModelAlphaPasses`. Implement collection and sorting of translucent brush model and world faces.
 - [ ] **Particle Visual Polish**: Match the exact visual appearance, decay, and movement of C Quake particles (blood, sparks, explosions).
 - [ ] **Visual Blue-Shift**: Implement the full `v_blend` blue-shift for underwater vision (audio intensity is already wired).
 - [ ] **Stencil/Decal Fidelity**: Ensure projected marks (bullet holes) use the correct stencil/depth-bias logic to avoid flickering.
@@ -47,7 +47,7 @@ The Go renderer draws the right things, but not always in the right way.
 
 Remote play is functional but shallow compared to the original engine.
 
-- [ ] **Server Visibility (PVS)**: Implement `SV_AddToFatPVS` and `SV_VisibleToClient` to correctly cull network updates for far-away entities.
+- [x] **Server Visibility (PVS)**: Implement `SV_AddToFatPVS` and `SV_VisibleToClient` to correctly cull network updates for far-away entities.
 - [ ] **Network Protocol Fidelity**: Replicate `Datagram_CanSendUnreliableMessage` and ensure large signon buffers (for maps with 1000s of entities) are handled without overflow.
 - [ ] **Server Browser (Slist)**: Implement LAN/Local network server broadcasting and discovery (`Slist_Poll`, `Slist_Send`).
 - [ ] **Deathmatch Polish**: Fully implement all `fraglimit`/`timelimit` edge cases and the richer multiplayer setup UI.
@@ -62,7 +62,7 @@ Over 40 standard console commands are still missing or use non-standard naming.
 - [ ] `kick` (by slot/name), `ban`, `status` (with full network stats), `ping`.
 - [ ] `changelevel`, `restart`, `maps`, `randmap`.
 - [x] `maps`: Implemented.
-- [ ] `say`, `say_team`, `tell`.
+- [x] `say`, `say_team`, `tell`.
 
 ### Missing Debug & Cheat Commands
 - [x] `fly`, `god`, `noclip`, `notarget`, `give`.
@@ -97,18 +97,18 @@ Over 40 standard console commands are still missing or use non-standard naming.
 The following C functions from Ironwail have been identified as missing or requiring significant refactoring in Go to achieve 100% parity.
 
 ### Server Physics (`sv_phys.c`)
-- [ ] `SV_CheckAllEnts`
-- [ ] `SV_Physics_Client` (Partially refactored into `PhysicsWalk`)
-- [ ] `SV_TryUnstick`
-- [ ] `SV_WallFriction`
+- [x] `SV_CheckAllEnts`
+- [x] `SV_Physics_Client` (Partially refactored into `PhysicsWalk`)
+- [x] `SV_TryUnstick`
+- [x] `SV_WallFriction`
 
 ### Server Main & Messaging (`sv_main.c`)
 - [ ] `SV_AddSignonBuffer`
-- [ ] `SV_AddToFatPVS`
+- [x] `SV_AddToFatPVS`
 - [ ] `SV_CheckForNewClients`
 - [ ] `SV_EdictInPVS`
-- [ ] `SV_VisibleToClient`
-- [ ] `SV_WriteStats`
+- [x] `SV_VisibleToClient`
+- [x] `SV_WriteStats`
 
 ### Client Main & Parsing (`cl_main.c`, `cl_parse.c`)
 - [ ] `CL_DecayLights`

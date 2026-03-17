@@ -89,6 +89,26 @@ const (
 	SVCLocalSound     = 56
 )
 
+// Stat indices for SVCUpdateStat
+const (
+	StatHealth = iota
+	StatFrags
+	StatItems
+	StatWeapon
+	StatAmmo
+	StatArmor
+	StatWeaponFrame
+	StatShells
+	StatNails
+	StatRockets
+	StatCells
+	StatActiveWeapon
+	StatTotalSecrets
+	StatTotalMonsters
+	StatSecrets
+	StatMonsters
+)
+
 // Client to server message types (clc_*)
 const (
 	CLCBad        = 0 // Invalid message
