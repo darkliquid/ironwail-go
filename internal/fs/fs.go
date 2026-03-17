@@ -54,6 +54,7 @@ type FileSystem struct {
 	packs       []*Pack
 	gameDir     string
 	baseDir     string
+	initialized bool
 }
 
 func NewFileSystem() *FileSystem {
@@ -65,6 +66,9 @@ func NewFileSystem() *FileSystem {
 }
 
 func (fs *FileSystem) Init(basedir, gamedir string) error {
+	if fs.initialized {
+		return nil
+	}
 	fs.baseDir = basedir
 	fs.gameDir = gamedir
 
@@ -82,6 +86,7 @@ func (fs *FileSystem) Init(basedir, gamedir string) error {
 		}
 	}
 
+	fs.initialized = true
 	return nil
 }
 

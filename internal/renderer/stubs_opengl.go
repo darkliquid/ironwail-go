@@ -194,8 +194,14 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	if state.Draw2DOverlay && draw2DOverlay != nil {
+		// Set up 2D state: disable depth testing and face culling.
+		// Mirrors C Ironwail's GL_Set2D() before the 2D overlay pass.
+		// Without this, 2D quads are back-face culled when no 3D scene
+		// rendered first (e.g., main menu at boot with no map loaded).
 		gl.Disable(gl.DEPTH_TEST)
+		gl.Disable(gl.CULL_FACE)
 		draw2DOverlay(dc)
+		gl.Enable(gl.CULL_FACE)
 		gl.Enable(gl.DEPTH_TEST)
 	}
 }
