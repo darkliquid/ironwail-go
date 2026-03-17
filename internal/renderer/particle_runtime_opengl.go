@@ -173,10 +173,21 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass part
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1f(pointScaleUniform, pointScale)
+	// Upload and draw in fixed-size batches to match C Ironwail's partverts[] behavior.
+	// C flushes at MAX_PARTVERTS (512) and again at end-of-frame.
+	const maxPartVerts = 512
 	gl.BindVertexArray(vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-	gl.BufferData(gl.ARRAY_BUFFER, len(drawVertices)*int(unsafe.Sizeof(ParticleVertex{})), gl.Ptr(drawVertices), gl.DYNAMIC_DRAW)
-	gl.DrawArrays(gl.POINTS, 0, int32(len(drawVertices)))
+	vertSize := int(unsafe.Sizeof(ParticleVertex{}))
+	for len(drawVertices) > 0 {
+		batch := drawVertices
+		if len(batch) > maxPartVerts {
+			batch = drawVertices[:maxPartVerts]
+		}
+		gl.BufferData(gl.ARRAY_BUFFER, len(batch)*vertSize, gl.Ptr(batch), gl.DYNAMIC_DRAW)
+		gl.DrawArrays(gl.POINTS, 0, int32(len(batch)))
+		drawVertices = drawVertices[len(batch):]
+	}
 	gl.BindVertexArray(0)
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.UseProgram(0)

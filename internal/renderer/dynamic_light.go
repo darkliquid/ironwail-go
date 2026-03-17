@@ -23,6 +23,10 @@ type DynamicLight struct {
 
 	// Type identifies the light source for optional filtering
 	Type int
+
+	// EntityKey is the entity number this light is bound to, enabling per-entity
+	// slot reuse (mirrors C's CL_AllocDlight key parameter). Zero means no key.
+	EntityKey int
 }
 
 // IsAlive returns true if the light has not yet expired.

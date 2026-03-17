@@ -111,24 +111,24 @@ The following C functions from Ironwail have been identified as missing or requi
 - [x] `SV_WriteStats`
 
 ### Client Main & Parsing (`cl_main.c`, `cl_parse.c`)
-- [ ] `CL_DecayLights`
-- [ ] `CL_Disconnect_f`
-- [ ] `CL_EstablishConnection`
-- [ ] `CL_RelinkEntities`
-- [ ] `CL_ParseBaseline`
-- [ ] `CL_ParseLocalSound`
-- [ ] `CL_ParseStartSoundPacket`
-- [ ] `CL_ParseStaticSound`
+- [x] `CL_DecayLights` → `glLightPool.UpdateAndFilter` + `SpawnOrReplaceKeyed` for per-entity slot reuse
+- [x] `CL_Disconnect_f` → `Host.CmdDisconnect`
+- [x] `CL_EstablishConnection` → `Host.CmdConnect`
+- [x] `CL_RelinkEntities` → `Client.RelinkEntities` in `internal/client/relink.go`
+- [x] `CL_ParseBaseline` → `Parser.parseSpawnBaseline`
+- [x] `CL_ParseLocalSound` → `Parser.parseSound(local=true)`
+- [x] `CL_ParseStartSoundPacket` → `Parser.parseSound(local=false)`
+- [x] `CL_ParseStaticSound` → `Parser.parseSpawnStaticSound`
 
 ### Renderer (`r_world.c`, `r_alias.c`, `r_part.c`)
-- [ ] `R_AddBModelCall`
-- [ ] `R_FlushBModelCalls`
-- [ ] `R_CanMergeBModelAlphaPasses`
-- [ ] `R_Alias_CanAddToBatch`
-- [ ] `R_ClearParticles`
-- [ ] `R_FlushParticleBatch`
+- [x] `R_AddBModelCall` → brush entity draw loop in `world_runtime_opengl.go`
+- [x] `R_FlushBModelCalls` → brush entity draw loop (no indirect multi-draw, intentional)
+- [x] `R_CanMergeBModelAlphaPasses` → face bucketing/sorting in `world_opengl.go`
+- [x] `R_Alias_CanAddToBatch` → `AliasBatch.CanAdd` in `model.go`
+- [x] `R_ClearParticles` → `ParticleSystem.Clear` in `particle.go`
+- [x] `R_FlushParticleBatch` → batched upload loop (512-vertex chunks) in `particle_runtime_opengl.go`
 
 ### Audio Mixer (`snd_mix.c`, `snd_dma.c`)
-- [ ] `SND_PaintChannelFrom16` / `From8` (Go uses internal mixer, verify fidelity)
-- [ ] `S_ApplyFilter` (Low-pass)
-- [ ] `S_UnderwaterIntensityForContents`
+- [x] `SND_PaintChannelFrom16` / `From8` → `paintChannel16`/`paintChannel8` in `mix.go` (with linear interpolation, higher quality than C)
+- [x] `S_ApplyFilter` (Low-pass) → `Mixer.lowpassFilter` in `mix.go`
+- [x] `S_UnderwaterIntensityForContents` → `runtimeUnderwaterIntensity` in `main.go`

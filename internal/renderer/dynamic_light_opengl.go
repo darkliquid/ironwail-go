@@ -35,6 +35,23 @@ func (pool *glLightPool) SpawnLight(light DynamicLight) bool {
 	return true
 }
 
+// SpawnOrReplaceKeyed adds a keyed dynamic light, replacing any existing light
+// with the same EntityKey. This matches C's CL_AllocDlight(key) behavior where
+// a muzzle flash or effect light reuses the same slot for the same entity each frame.
+// If key is 0 (no key), falls back to SpawnLight.
+func (pool *glLightPool) SpawnOrReplaceKeyed(light DynamicLight) bool {
+	if light.EntityKey == 0 {
+		return pool.SpawnLight(light)
+	}
+	for i := range pool.lights {
+		if pool.lights[i].EntityKey == light.EntityKey {
+			pool.lights[i] = light
+			return true
+		}
+	}
+	return pool.SpawnLight(light)
+}
+
 // UpdateAndFilter advances all lights' ages and removes expired lights.
 // This should be called once per frame before light evaluation.
 func (pool *glLightPool) UpdateAndFilter(deltaTime float32) {

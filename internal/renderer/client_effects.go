@@ -211,12 +211,15 @@ func EmitEntityEffectParticles(ps *ParticleSystem, entities []EntityEffectSource
 }
 
 // EmitEntityEffectLights maps runtime entity effect flags to transient dynamic lights.
+// Uses keyed spawning so each entity reuses the same light slot across frames,
+// matching C's CL_AllocDlight(entityNum) per-entity slot reuse behavior.
 func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffectSource) {
 	if spawn == nil || len(entities) == 0 {
 		return
 	}
 
 	for _, entity := range entities {
+		key := entity.EntityNum
 		base := entityEffectLightOrigin(entity.Origin)
 		if entity.Effects&inet.EF_MUZZLEFLASH != 0 {
 			spawn(DynamicLight{
@@ -225,6 +228,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Color:      [3]float32{1.0, 0.82, 0.45},
 				Brightness: 1.1,
 				Lifetime:   0.1,
+				EntityKey:  key,
 			})
 		}
 		if entity.Effects&inet.EF_BRIGHTLIGHT != 0 {
@@ -234,6 +238,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Color:      [3]float32{1.0, 1.0, 0.95},
 				Brightness: 1.25,
 				Lifetime:   0.001,
+				EntityKey:  key,
 			})
 		}
 		if entity.Effects&inet.EF_DIMLIGHT != 0 {
@@ -244,6 +249,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Color:      [3]float32{0.7, 0.8, 1.0},
 				Brightness: 0.9,
 				Lifetime:   0.001,
+				EntityKey:  key,
 			})
 		}
 		if entity.Effects&inet.EF_QUADLIGHT != 0 {
@@ -253,6 +259,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Color:      [3]float32{0.25, 0.25, 1.0},
 				Brightness: 0.9,
 				Lifetime:   0.001,
+				EntityKey:  key,
 			})
 		}
 		if entity.Effects&inet.EF_PENTALIGHT != 0 {
@@ -262,6 +269,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Color:      [3]float32{1.0, 0.25, 0.25},
 				Brightness: 0.9,
 				Lifetime:   0.001,
+				EntityKey:  key,
 			})
 		}
 		if entity.Effects&inet.EF_CANDLELIGHT != 0 {
@@ -271,6 +279,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Color:      [3]float32{1.0, 0.75, 0.2},
 				Brightness: 0.8,
 				Lifetime:   0.001,
+				EntityKey:  key,
 			})
 		}
 	}

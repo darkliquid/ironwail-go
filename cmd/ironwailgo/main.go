@@ -998,8 +998,9 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 	}
 
 	sources := make([]renderer.EntityEffectSource, 0, len(gameClient.Entities)+len(gameClient.StaticEntities))
-	for _, state := range gameClient.Entities {
+	for entNum, state := range gameClient.Entities {
 		if source, ok := resolve(state); ok {
+			source.EntityNum = entNum
 			sources = append(sources, source)
 		}
 	}
@@ -2147,6 +2148,12 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	oldTime := particleTime
 	particleTime += float32(dt)
 
+	// Interpolate entity positions/angles from double-buffered network origins.
+	// Must run before any entity collection so rendered positions are lerped.
+	if gameClient != nil {
+		gameClient.RelinkEntities()
+	}
+
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
 	effectSources := collectEntityEffectSources()
@@ -2154,7 +2161,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	if gameRenderer != nil {
 		gameRenderer.UpdateLights(float32(dt))
 		renderer.EmitDynamicLights(gameRenderer.SpawnDynamicLight, tempEntities)
-		renderer.EmitEntityEffectLights(gameRenderer.SpawnDynamicLight, effectSources)
+		renderer.EmitEntityEffectLights(gameRenderer.SpawnKeyedDynamicLight, effectSources)
 	}
 	if gameParticles != nil {
 		renderer.EmitClientEffects(gameParticles, particleEvents, tempEntities, particleRNG, particleTime)

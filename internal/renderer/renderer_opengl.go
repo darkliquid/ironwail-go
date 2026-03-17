@@ -701,6 +701,18 @@ func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
 	return r.lightPool.SpawnLight(light)
 }
 
+// SpawnKeyedDynamicLight adds or replaces a keyed dynamic light.
+// If light.EntityKey != 0, any existing light with the same key is replaced in-place,
+// matching C's CL_AllocDlight per-entity slot reuse behavior.
+func (r *Renderer) SpawnKeyedDynamicLight(light DynamicLight) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool == nil {
+		return false
+	}
+	return r.lightPool.SpawnOrReplaceKeyed(light)
+}
+
 // GetDynamicLightPool returns the light pool for direct access (read-only recommended).
 // Use this to query active lights or manually manage the pool.
 func (r *Renderer) GetDynamicLightPool() *glLightPool {

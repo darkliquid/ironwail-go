@@ -942,8 +942,10 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	if !ok {
 		state = inet.EntityState{Alpha: inet.ENTALPHA_DEFAULT, Scale: inet.ENTSCALE_DEFAULT}
 	}
+	isNew := true
 	if current, ok := p.Client.Entities[entNum]; ok {
 		state = current
+		isNew = false
 	}
 
 	if bits&inet.U_MODEL != 0 {
@@ -1060,6 +1062,27 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	if state.ModelIndex == 0 {
 		delete(p.Client.Entities, entNum)
 		return nil
+	}
+
+	// Update interpolation double-buffer: shift previous position/angles, then
+	// store the new network values in [0]. Mirrors C's entity_t msg_origins handling.
+	state.MsgOrigins[1] = state.MsgOrigins[0]
+	state.MsgAngles[1] = state.MsgAngles[0]
+	state.MsgOrigins[0] = state.Origin
+	state.MsgAngles[0] = state.Angles
+	state.MsgTime = p.Client.MTime[0]
+	if isNew {
+		// Brand new entity: initialize [1] to match [0] so no spurious lerp on first frame.
+		state.MsgOrigins[1] = state.MsgOrigins[0]
+		state.MsgAngles[1] = state.MsgAngles[0]
+		state.ForceLink = true
+	}
+
+	// U_STEP indicates a monster step-move entity; position should not be lerped.
+	if bits&inet.U_STEP != 0 {
+		state.LerpFlags |= inet.LerpMoveStep
+	} else {
+		state.LerpFlags &^= inet.LerpMoveStep
 	}
 
 	p.Client.Entities[entNum] = state

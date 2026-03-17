@@ -245,11 +245,18 @@ const (
 	GAME_DEATHMATCH = 1
 )
 
+// LerpFlags control entity interpolation behavior. Correspond to LERP_* in C Quake.
+const (
+	LerpResetMove uint8 = 1 << 0 // Reset position lerp (e.g. teleport or stale slot)
+	LerpResetAnim uint8 = 1 << 1 // Reset animation lerp (e.g. after muzzle flash)
+	LerpMoveStep  uint8 = 1 << 2 // Monster step-move: don't lerp position (U_STEP)
+)
+
 // EntityState represents entity baseline state sent to clients.
 // Corresponds to entity_state_t in protocol.h
 type EntityState struct {
-	Origin     [3]float32 // Entity position
-	Angles     [3]float32 // Entity orientation
+	Origin     [3]float32 // Rendered entity position (set by RelinkEntities)
+	Angles     [3]float32 // Rendered entity orientation (set by RelinkEntities)
 	ModelIndex uint16     // Index into model cache (FitzQuake extension)
 	Frame      uint16     // Animation frame number (FitzQuake extension)
 	Colormap   uint8      // Player colormap
@@ -257,6 +264,13 @@ type EntityState struct {
 	Effects    int        // Visual effect flags
 	Alpha      uint8      // Transparency value (FitzQuake extension)
 	Scale      uint8      // Model scale (FitzQuake extension)
+
+	// Interpolation state (mirrors C entity_t msg_origins/msg_angles)
+	MsgOrigins [2][3]float32 // [0]=current network pos, [1]=previous network pos
+	MsgAngles  [2][3]float32 // [0]=current network angles, [1]=previous network angles
+	MsgTime    float64       // Server time when this entity was last updated
+	ForceLink  bool          // Jump to MsgOrigins[0] without lerping (new or teleported)
+	LerpFlags  uint8         // LERP_* bits controlling interpolation behavior
 }
 
 // UserCmd represents client input commands sent to server.

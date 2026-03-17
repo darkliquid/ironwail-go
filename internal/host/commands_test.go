@@ -166,6 +166,7 @@ type stopAllTrackingAudio struct {
 func (a *stopAllTrackingAudio) Init() error                                            { return nil }
 func (a *stopAllTrackingAudio) Update(origin, velocity, forward, right, up [3]float32) {}
 func (a *stopAllTrackingAudio) Shutdown()                                    {}
+func (a *stopAllTrackingAudio) SoundInfo() string                            { return "" }
 func (a *stopAllTrackingAudio) StopAllSounds(clear bool) {
 	a.calls = append(a.calls, clear)
 }
