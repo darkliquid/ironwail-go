@@ -101,7 +101,7 @@ func init() {
 
 func (dc *glDrawContext) Clear(r, g, b, a float32) {
 	gl.ClearColor(r, g, b, a)
-	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 }
 
 func (dc *glDrawContext) DrawTriangle(r, g, b, a float32) {
@@ -546,6 +546,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	glfw.WindowHint(glfw.OpenGLProfile, glfw.OpenGLCoreProfile)
 	glfw.WindowHint(glfw.OpenGLForwardCompatible, glfw.True)
 	glfw.WindowHint(glfw.Visible, glfw.False) // Hide initially
+	glfw.WindowHint(glfw.StencilBits, 8)
 
 	window, err := glfw.CreateWindow(cfg.Width, cfg.Height, cfg.Title, nil, nil)
 	if err != nil {

@@ -226,8 +226,15 @@ func (r *Renderer) renderDecalMarks(marks []DecalMarkEntity) {
 	gl.DepthMask(false)
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+	// Use stencil to prevent overlapping decals from blending multiple times on same spot.
+	// This avoids the "doubled-up" look where bullet holes overlap.
+	gl.Enable(gl.STENCIL_TEST)
+	gl.StencilFunc(gl.EQUAL, 0, 0xFF)
+	gl.StencilOp(gl.KEEP, gl.KEEP, gl.INCR)
+
 	gl.Enable(gl.POLYGON_OFFSET_FILL)
-	gl.PolygonOffset(-1.0, -1.0)
+	gl.PolygonOffset(-1.0, -2.0)
 
 	gl.UseProgram(program)
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
@@ -252,6 +259,7 @@ func (r *Renderer) renderDecalMarks(marks []DecalMarkEntity) {
 	gl.UseProgram(0)
 
 	gl.Disable(gl.POLYGON_OFFSET_FILL)
+	gl.Disable(gl.STENCIL_TEST)
 	gl.DepthMask(true)
 }
 
