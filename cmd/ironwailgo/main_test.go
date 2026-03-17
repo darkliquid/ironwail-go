@@ -711,6 +711,51 @@ func TestRuntimeCameraStateDeadPlayerRoll(t *testing.T) {
 	}
 }
 
+func TestRuntimeCameraStateAppliesChaseCameraWhenActive(t *testing.T) {
+	originalClient := gameClient
+	if cvar.Get("chase_active") == nil {
+		cvar.Register("chase_active", "0", 0, "")
+	}
+	if cvar.Get("chase_back") == nil {
+		cvar.Register("chase_back", "100", 0, "")
+	}
+	if cvar.Get("chase_up") == nil {
+		cvar.Register("chase_up", "16", 0, "")
+	}
+	if cvar.Get("chase_right") == nil {
+		cvar.Register("chase_right", "0", 0, "")
+	}
+	originalActive := cvar.StringValue("chase_active")
+	originalBack := cvar.StringValue("chase_back")
+	originalUp := cvar.StringValue("chase_up")
+	originalRight := cvar.StringValue("chase_right")
+	t.Cleanup(func() {
+		gameClient = originalClient
+		cvar.Set("chase_active", originalActive)
+		cvar.Set("chase_back", originalBack)
+		cvar.Set("chase_up", originalUp)
+		cvar.Set("chase_right", originalRight)
+	})
+
+	gameClient = cl.NewClient()
+	gameClient.Stats[inet.StatHealth] = 100
+	cvar.Set("chase_active", "1")
+	cvar.Set("chase_back", "100")
+	cvar.Set("chase_up", "16")
+	cvar.Set("chase_right", "0")
+
+	camera := runtimeCameraState([3]float32{0, 0, 0}, [3]float32{0, 0, 0})
+	if math.Abs(float64(camera.Origin.X+100)) > 0.001 || math.Abs(float64(camera.Origin.Y)) > 0.001 || math.Abs(float64(camera.Origin.Z-16)) > 0.001 {
+		t.Fatalf("runtimeCameraState chase origin = %v, want {-100 0 16}", camera.Origin)
+	}
+	if math.Abs(float64(camera.Angles.Y)) > 0.001 {
+		t.Fatalf("runtimeCameraState chase yaw = %v, want 0", camera.Angles.Y)
+	}
+	if camera.Angles.X <= 0 {
+		t.Fatalf("runtimeCameraState chase pitch = %v, want positive down-look pitch", camera.Angles.X)
+	}
+}
+
 func TestRuntimeViewStateInterpolatesYawAcrossWrap(t *testing.T) {
 	originalClient := gameClient
 	t.Cleanup(func() {

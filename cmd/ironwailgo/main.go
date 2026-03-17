@@ -186,6 +186,10 @@ func initGameHost() error {
 
 	// r_viewmodel_quake: origin fudge for different view sizes.
 	cvar.Register("r_viewmodel_quake", "0", 0, "Apply Quake-style viewmodel origin fudge based on scr_viewsize")
+	cvar.Register("chase_active", "0", 0, "Enable third-person chase camera")
+	cvar.Register("chase_back", "100", cvar.FlagArchive, "Chase camera distance behind player")
+	cvar.Register("chase_up", "16", cvar.FlagArchive, "Chase camera height above player")
+	cvar.Register("chase_right", "0", cvar.FlagArchive, "Chase camera right offset")
 	// scr_viewsize: screen view size percentage (100 = full), used by
 	// r_viewmodel_quake fudge.
 	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
@@ -2057,53 +2061,85 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	camera := renderer.ConvertClientStateToCamera(cameraOrigin, angles, 96.0)
 	if gameClient != nil {
 		if gameClient.Intermission == 0 {
+			deadPlayer := false
 			// Check for dead view angle (health <= 0 → roll = 80).
 			// Mirrors C Ironwail view.c:728-731.
 			health := gameClient.Health()
 			if health <= 0 {
 				camera.Angles.Z = 80
 				// Dead players don't get other view effects.
-				camera.Time = float32(gameClient.Time)
-				// Apply r_waterwarp > 1 FOV oscillation when underwater.
-				_, wwFOV, _ := runtimeWaterwarpState()
-				camera.WaterwarpFOV = wwFOV
-				return camera
+				deadPlayer = true
 			}
 
-			punch := runtimeGunKickAngles()
-			camera.Angles.X += punch[0]
-			camera.Angles.Y += punch[1]
-			camera.Angles.Z += punch[2]
+			if !deadPlayer {
+				punch := runtimeGunKickAngles()
+				camera.Angles.X += punch[0]
+				camera.Angles.Y += punch[1]
+				camera.Angles.Z += punch[2]
 
-			// Apply damage kick (V_CalcViewRoll damage kick block).
-			// Mirrors C Ironwail view.c:718-722.
-			deltaTime := 0.0
-			if gameHost != nil {
-				deltaTime = gameHost.FrameTime()
+				// Apply damage kick (V_CalcViewRoll damage kick block).
+				// Mirrors C Ironwail view.c:718-722.
+				deltaTime := 0.0
+				if gameHost != nil {
+					deltaTime = gameHost.FrameTime()
+				}
+				cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+				cameraAngles = viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
+				camera.Angles.X = cameraAngles[0]
+				camera.Angles.Y = cameraAngles[1]
+				camera.Angles.Z = cameraAngles[2]
+
+				// View roll from lateral movement (V_CalcViewRoll).
+				roll := viewCalcRoll(angles, gameClient.Velocity)
+				camera.Angles.Z += roll
+
+				// Idle sway on the camera (V_AddIdle).
+				cameraAngles = [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
+				cameraAngles = viewAddIdle(cameraAngles, gameClient.Time)
+				camera.Angles.X = cameraAngles[0]
+				camera.Angles.Y = cameraAngles[1]
+				camera.Angles.Z = cameraAngles[2]
 			}
-			cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
-			cameraAngles = viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
-			camera.Angles.X = cameraAngles[0]
-			camera.Angles.Y = cameraAngles[1]
-			camera.Angles.Z = cameraAngles[2]
-
-			// View roll from lateral movement (V_CalcViewRoll).
-			roll := viewCalcRoll(angles, gameClient.Velocity)
-			camera.Angles.Z += roll
-
-			// Idle sway on the camera (V_AddIdle).
-			cameraAngles = [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
-			cameraAngles = viewAddIdle(cameraAngles, gameClient.Time)
-			camera.Angles.X = cameraAngles[0]
-			camera.Angles.Y = cameraAngles[1]
-			camera.Angles.Z = cameraAngles[2]
 		}
 		camera.Time = float32(gameClient.Time)
+	}
+	if cvar.BoolValue("chase_active") {
+		traceFn := runtimeChaseTraceFn()
+		chaseOrigin, chaseAngles := chaseUpdate(
+			origin,
+			angles,
+			float32(cvar.FloatValue("chase_back")),
+			float32(cvar.FloatValue("chase_up")),
+			float32(cvar.FloatValue("chase_right")),
+			traceFn,
+		)
+		camera.Origin.X = chaseOrigin[0]
+		camera.Origin.Y = chaseOrigin[1]
+		camera.Origin.Z = chaseOrigin[2]
+		camera.Angles.X = chaseAngles[0]
+		camera.Angles.Y = chaseAngles[1]
+		camera.Angles.Z = chaseAngles[2]
 	}
 	// Apply r_waterwarp > 1 FOV oscillation when underwater.
 	_, wwFOV, _ := runtimeWaterwarpState()
 	camera.WaterwarpFOV = wwFOV
 	return camera
+}
+
+func runtimeChaseTraceFn() chaseTraceFunc {
+	if gameServer == nil {
+		return nil
+	}
+
+	var passEnt *server.Edict
+	if gameClient != nil && gameClient.ViewEntity > 0 {
+		passEnt = gameServer.EdictNum(gameClient.ViewEntity)
+	}
+
+	return func(start, end [3]float32) [3]float32 {
+		trace := gameServer.SV_Move(start, [3]float32{}, [3]float32{}, end, server.MoveType(server.MoveNoMonsters), passEnt)
+		return trace.EndPos
+	}
 }
 
 func runtimeInterpolatedViewAngles() [3]float32 {
