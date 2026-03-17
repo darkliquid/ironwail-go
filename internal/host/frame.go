@@ -52,7 +52,7 @@ func (h *Host) advanceTime(dt float64) {
 		h.frameTime *= h.timeScale
 	} else if h.framerate > 0 {
 		h.frameTime = 1.0 / h.framerate
-	} else if h.maxFPS > 0 {
+	} else {
 		h.frameTime = clamp(h.frameTime, 0.0001, 0.1)
 	}
 }

@@ -147,7 +147,7 @@ func (s *Server) CheckWaterTransition(ent *Edict) {
 	}
 }
 
-func (s *Server) FlyMove(ent *Edict, time float32) int {
+func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 	blocked := 0
 	originalVelocity := ent.Vars.Velocity
 	primalVelocity := ent.Vars.Velocity
@@ -187,6 +187,9 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 		}
 		if trace.PlaneNormal[2] == 0 {
 			blocked |= 2
+			if steptrace != nil {
+				*steptrace = trace
+			}
 		}
 
 		// Run touch functions
@@ -207,17 +210,17 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 		planes[numPlanes] = trace.PlaneNormal
 		numPlanes++
 
-		// Standard Quake recursive plane clipping
+		// modify original_velocity so it parallels all of the clip planes
 		var newVelocity [3]float32
-		for i := 0; i < numPlanes; i++ {
-			newVelocity = ClipVelocity(originalVelocity, planes[i], 1.001) // overbounce for precision
+		i := 0
+		for i = 0; i < numPlanes; i++ {
+			newVelocity = ClipVelocity(originalVelocity, planes[i], 1)
 			j := 0
-			for ; j < numPlanes; j++ {
-				if j == i {
-					continue
-				}
-				if VecDot(newVelocity, planes[j]) < 0 {
-					break
+			for j = 0; j < numPlanes; j++ {
+				if j != i {
+					if VecDot(newVelocity, planes[j]) < 0 {
+						break
+					}
 				}
 			}
 			if j == numPlanes {
@@ -225,20 +228,19 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 			}
 		}
 
-		if numPlanes >= 2 {
-			// Slide along intersection of two planes
+		if i != numPlanes {
+			// go along this plane
+			ent.Vars.Velocity = newVelocity
+		} else {
+			// go along the crease
+			if numPlanes != 2 {
+				ent.Vars.Velocity = [3]float32{}
+				return 7
+			}
 			dir := VecCross(planes[0], planes[1])
 			d := VecDot(dir, ent.Vars.Velocity)
-			newVelocity = VecScale(dir, d)
-
-			if numPlanes >= 3 {
-				// Stuck in a corner
-				ent.Vars.Velocity = [3]float32{}
-				return blocked
-			}
+			ent.Vars.Velocity = VecScale(dir, d)
 		}
-
-		ent.Vars.Velocity = newVelocity
 		if VecDot(ent.Vars.Velocity, primalVelocity) <= 0 {
 			ent.Vars.Velocity = [3]float32{}
 			return blocked
@@ -433,7 +435,7 @@ func (s *Server) PhysicsStep(ent *Edict) {
 	if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 		s.AddGravity(ent)
 		s.CheckVelocity(ent)
-		s.FlyMove(ent, s.FrameTime)
+		s.FlyMove(ent, s.FrameTime, nil)
 		s.LinkEdict(ent, true)
 	}
 
@@ -497,7 +499,7 @@ func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
 		ent.Vars.Velocity[0] = oldVel[0]
 		ent.Vars.Velocity[1] = oldVel[1]
 		ent.Vars.Velocity[2] = 0
-		blocked := s.FlyMove(ent, 0.1)
+		blocked := s.FlyMove(ent, 0.1, nil)
 
 		if math.Abs(float64(oldOrg[0]-ent.Vars.Origin[0])) > 4 ||
 			math.Abs(float64(oldOrg[1]-ent.Vars.Origin[1])) > 4 {
@@ -512,66 +514,75 @@ func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
 	return 7 // still not moving
 }
 
-func (s *Server) SV_StepMove(ent *Edict, move [3]float32, relink bool) bool {
-	// Try moving at current height
-	trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, move), MoveType(MoveNormal), ent)
-	if trace.Fraction == 1 {
-		ent.Vars.Origin = trace.EndPos
-		if relink {
-			s.LinkEdict(ent, true)
+func (s *Server) SV_WalkMove(ent *Edict) {
+	oldonground := uint32(ent.Vars.Flags) & FlagOnGround
+	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) &^ FlagOnGround)
+
+	oldorg := ent.Vars.Origin
+	oldvel := ent.Vars.Velocity
+
+	var steptrace TraceResult
+	clip := s.FlyMove(ent, s.FrameTime, &steptrace)
+
+	if clip&2 == 0 {
+		return // move didn't block on a step
+	}
+
+	if oldonground == 0 && ent.Vars.WaterLevel == 0 {
+		return // don't stair up while jumping
+	}
+
+	if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
+		return // gibbed by a trigger
+	}
+
+	if uint32(ent.Vars.Flags)&FlagWaterJump != 0 {
+		return
+	}
+
+	nosteporg := ent.Vars.Origin
+	nostepvel := ent.Vars.Velocity
+
+	// back to start pos
+	ent.Vars.Origin = oldorg
+
+	// step up
+	upmove := [3]float32{0, 0, 18}
+	s.PushEntity(ent, upmove)
+
+	// move forward with zeroed Z velocity
+	ent.Vars.Velocity[0] = oldvel[0]
+	ent.Vars.Velocity[1] = oldvel[1]
+	ent.Vars.Velocity[2] = 0
+	clip = s.FlyMove(ent, s.FrameTime, &steptrace)
+
+	// check for stuckness
+	if clip != 0 {
+		if math.Abs(float64(oldorg[0]-ent.Vars.Origin[0])) < 0.03125 &&
+			math.Abs(float64(oldorg[1]-ent.Vars.Origin[1])) < 0.03125 {
+			clip = s.SV_TryUnstick(ent, oldvel)
 		}
-		return true
 	}
 
-	// Try stepping up
-	originalOrigin := ent.Vars.Origin
-	oldVel := ent.Vars.Velocity
-
-	// Raise up
-	up := [3]float32{0, 0, 18} // Quake step size
-	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, up), MoveType(MoveNormal), ent)
-	ent.Vars.Origin = trace.EndPos
-
-	// Move forward
-	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, move), MoveType(MoveNormal), ent)
-	ent.Vars.Origin = trace.EndPos
-
-	if trace.Fraction < 1 {
-		if math.Abs(float64(originalOrigin[0]-ent.Vars.Origin[0])) < 0.03125 &&
-			math.Abs(float64(originalOrigin[1]-ent.Vars.Origin[1])) < 0.03125 {
-			s.SV_TryUnstick(ent, oldVel)
-		}
+	// extra friction based on view angle
+	if clip&2 != 0 {
+		s.SV_WallFriction(ent, &steptrace)
 	}
 
-	if trace.Fraction < 1 && trace.PlaneNormal[2] == 0 {
-		s.SV_WallFriction(ent, &trace)
-	}
-	// Push back down
-	down := [3]float32{0, 0, -18}
-	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, down), MoveType(MoveNormal), ent)
-	ent.Vars.Origin = trace.EndPos
+	// move down
+	downmove := [3]float32{0, 0, -18 + oldvel[2]*s.FrameTime}
+	downtrace := s.PushEntity(ent, downmove)
 
-	// If we didn't move at all, or we're in a worse spot, revert
-	if trace.AllSolid || trace.StartSolid || trace.Fraction == 0 {
-		ent.Vars.Origin = originalOrigin
-		return false
-	}
-
-	if trace.PlaneNormal[2] > 0.7 {
-		if trace.Entity != nil && int(trace.Entity.Vars.Solid) == int(SolidBSP) {
+	if downtrace.PlaneNormal[2] > 0.7 {
+		if int(ent.Vars.Solid) == int(SolidBSP) {
 			ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
-			ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+			ent.Vars.GroundEntity = int32(s.NumForEdict(downtrace.Entity))
 		}
 	} else {
-		// if the push down didn't end up on good ground, use the move without the step up.
-		ent.Vars.Origin = originalOrigin
-		return false
+		// if the push down didn't end up on good ground, use the move without the step up
+		ent.Vars.Origin = nosteporg
+		ent.Vars.Velocity = nostepvel
 	}
-
-	if relink {
-		s.LinkEdict(ent, true)
-	}
-	return true
 }
 
 func (s *Server) SV_WallFriction(ent *Edict, trace *TraceResult) {
@@ -602,42 +613,20 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 		}
 	}
 
+	s.CheckVelocity(ent)
+
 	if !s.RunThink(ent) {
 		return
 	}
 
-	flags := uint32(ent.Vars.Flags)
-	if flags&FlagOnGround != 0 && !s.CheckBottom(ent) {
-		flags &^= FlagOnGround
-		ent.Vars.Flags = float32(flags)
-		ent.Vars.GroundEntity = 0
-	}
-
-	if !s.SV_CheckWater(ent) && flags&FlagWaterJump == 0 && flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
+	if !s.SV_CheckWater(ent) && uint32(ent.Vars.Flags)&FlagWaterJump == 0 {
 		s.AddGravity(ent)
 	}
 
-	// Player jump processing (Server side fallback/parity)
-	if playerClient != nil && (flags&FlagOnGround != 0) && ent.Vars.Button2 != 0 {
-		ent.Vars.Flags = float32(flags &^ FlagOnGround)
-		ent.Vars.GroundEntity = 0
-		ent.Vars.Velocity[2] += 270 // Standard Quake jump speed
-	}
-
-	s.CheckVelocity(ent)
 	s.SV_CheckStuck(ent)
-
-	if flags&FlagOnGround != 0 {
-		move := VecScale(ent.Vars.Velocity, s.FrameTime)
-		if move[0] != 0 || move[1] != 0 || move[2] != 0 {
-			s.SV_StepMove(ent, move, true)
-		}
-	} else {
-		s.FlyMove(ent, s.FrameTime)
-	}
+	s.SV_WalkMove(ent)
 
 	s.LinkEdict(ent, true)
-	s.CheckWaterTransition(ent)
 	if playerClient != nil {
 		s.runClientQCThink(playerClient, "PlayerPostThink")
 	}
