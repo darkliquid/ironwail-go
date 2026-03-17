@@ -107,3 +107,87 @@ func TestRecursiveAliasStopsAtActiveExpansion(t *testing.T) {
 		t.Fatalf("recursive alias mark calls = %d, want 1", calls)
 	}
 }
+
+func TestWaitCommandDefersRemainingCommands(t *testing.T) {
+	c := NewCmdSystem()
+
+	var executed []string
+	c.AddCommand("first", func(args []string) {
+		executed = append(executed, "first")
+	}, "")
+	c.AddCommand("second", func(args []string) {
+		executed = append(executed, "second")
+	}, "")
+	c.AddCommand("third", func(args []string) {
+		executed = append(executed, "third")
+	}, "")
+
+	// Add commands to buffer: first; wait; second; third
+	c.AddText("first; wait; second; third")
+
+	// First Execute() should run 'first' then stop at 'wait'
+	c.Execute()
+	want := []string{"first"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("after first Execute: executed = %v, want %v", executed, want)
+	}
+
+	// Second Execute() should run 'second' and 'third'
+	c.Execute()
+	want = []string{"first", "second", "third"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("after second Execute: executed = %v, want %v", executed, want)
+	}
+}
+
+func TestWaitCommandWithExistingBufferContent(t *testing.T) {
+	c := NewCmdSystem()
+
+	var executed []string
+	c.AddCommand("cmd", func(args []string) {
+		executed = append(executed, args[0])
+	}, "")
+
+	// Add initial content to buffer
+	c.AddText("cmd A; wait; cmd B")
+	// Add more content (should go after deferred commands)
+	c.AddText("cmd C")
+
+	// First Execute() runs "cmd A" and defers "cmd B"
+	c.Execute()
+	if !reflect.DeepEqual(executed, []string{"A"}) {
+		t.Fatalf("after first Execute: executed = %v, want [A]", executed)
+	}
+
+	// Second Execute() should run "cmd B" then "cmd C"
+	c.Execute()
+	want := []string{"A", "B", "C"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("after second Execute: executed = %v, want %v", executed, want)
+	}
+}
+
+func TestWaitCommandAtEnd(t *testing.T) {
+	c := NewCmdSystem()
+
+	var executed []string
+	c.AddCommand("first", func(args []string) {
+		executed = append(executed, "first")
+	}, "")
+
+	// Wait at end with no remaining commands
+	c.AddText("first; wait")
+	c.Execute()
+
+	want := []string{"first"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("executed = %v, want %v", executed, want)
+	}
+
+	// Second Execute() should do nothing (no deferred commands)
+	c.Execute()
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("after second Execute: executed = %v, want %v (unchanged)", executed, want)
+	}
+}
+

@@ -464,6 +464,16 @@ func initSubsystems(headless bool, basedir, gamedir string, args []string) error
 	syncControlCvarsToClient()
 	resetRuntimeVisualState()
 
+	// Wire ModelFlagsFunc callback for EF_ROTATE support
+	if gameClient != nil {
+		gameClient.ModelFlagsFunc = func(modelName string) int {
+			if mdl, ok := loadAliasModel(modelName); ok && mdl != nil {
+				return mdl.Flags
+			}
+			return 0
+		}
+	}
+
 	// Make sure the menu is visible at startup
 	gameMenu.ShowMenu()
 	// slog.Info("menu active") - moved to main for deterministic logs

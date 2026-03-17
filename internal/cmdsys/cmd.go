@@ -26,10 +26,15 @@ type CmdSystem struct {
 var globalCmd = NewCmdSystem()
 
 func NewCmdSystem() *CmdSystem {
-	return &CmdSystem{
+	cs := &CmdSystem{
 		commands: make(map[string]*Command),
 		aliases:  make(map[string]string),
 	}
+	// Register wait command
+	cs.AddCommand("wait", func(args []string) {
+		cs.waitCount++
+	}, "Wait one frame before executing remaining commands")
+	return cs
 }
 
 func (c *CmdSystem) Init() {
@@ -125,11 +130,41 @@ func (c *CmdSystem) Execute() {
 	c.buffer.Reset()
 	c.mu.Unlock()
 
-	c.ExecuteText(text)
+	c.executeTextWithWait(text)
 }
 
 func (c *CmdSystem) ExecuteText(text string) {
 	c.executeText(text, nil)
+}
+
+func (c *CmdSystem) executeTextWithWait(text string) {
+	commands := splitCommands(text)
+	for i, line := range commands {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "//") {
+			continue
+		}
+		c.executeLine(line, nil)
+		
+		// If a wait command was executed, put remaining commands back in buffer
+		if c.waitCount > 0 {
+			c.waitCount--
+			if i+1 < len(commands) {
+				remaining := strings.Join(commands[i+1:], "\n")
+				c.mu.Lock()
+				// Prepend remaining to buffer (existing buffer content goes after)
+				existing := c.buffer.String()
+				c.buffer.Reset()
+				c.buffer.WriteString(remaining)
+				if existing != "" {
+					c.buffer.WriteString("\n")
+					c.buffer.WriteString(existing)
+				}
+				c.mu.Unlock()
+			}
+			return
+		}
+	}
 }
 
 func (c *CmdSystem) executeText(text string, expanding map[string]struct{}) {

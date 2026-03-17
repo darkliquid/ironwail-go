@@ -3,6 +3,7 @@ package client
 import (
 	"math"
 
+	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -66,11 +67,16 @@ func (c *Client) RelinkEntities() {
 			}
 		}
 
-		// Rotate binary objects locally (items, health packs, etc.) if the model
-		// has the EF_ROTATE flag. We apply rotation to the yaw axis (index 1).
-		// Model flag lookup is deferred to the renderer; here we check entity
-		// effects as a proxy — a future pass can supply model flags explicitly.
-		_ = bobjRotate // used when model flags are available
+		// Apply EF_ROTATE: spinning bonus items
+		if c.ModelFlagsFunc != nil && int(state.ModelIndex) < len(c.ModelPrecache) {
+			modelName := c.ModelPrecache[int(state.ModelIndex)]
+			if modelName != "" {
+				flags := c.ModelFlagsFunc(modelName)
+				if flags&model.EFRotate != 0 {
+					state.Angles[1] = bobjRotate
+				}
+			}
+		}
 
 		state.ForceLink = false
 		state.LerpFlags &^= inet.LerpResetMove

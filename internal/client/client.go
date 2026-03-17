@@ -257,6 +257,10 @@ type Client struct {
 	PredictionGravity   float32 // Downward acceleration when airborne
 	PredictionMaxSpeed  float32 // Maximum predicted speed
 	PredictionErrorLerp float32 // Error correction speed (0.1-0.5)
+
+	// ModelFlagsFunc returns model flags for a given model name.
+	// Set by the host to allow RelinkEntities to check EF_ROTATE etc.
+	ModelFlagsFunc func(modelName string) int
 }
 
 func NewClient() *Client {
