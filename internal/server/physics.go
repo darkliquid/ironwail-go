@@ -180,6 +180,10 @@ func (s *Server) FlyMove(ent *Edict, time float32) int {
 
 		if trace.PlaneNormal[2] > 0.7 {
 			blocked |= 1
+			if trace.Entity != nil && int(trace.Entity.Vars.Solid) == int(SolidBSP) {
+				ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
+				ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+			}
 		}
 		if trace.PlaneNormal[2] == 0 {
 			blocked |= 2
@@ -437,6 +441,77 @@ func (s *Server) PhysicsStep(ent *Edict) {
 	s.CheckWaterTransition(ent)
 }
 
+func (s *Server) SV_CheckAllEnts() {
+	for i := 1; i < s.NumEdicts; i++ {
+		ent := s.Edicts[i]
+		if ent == nil || ent.Free {
+			continue
+		}
+		mt := MoveType(ent.Vars.MoveType)
+		if mt == MoveTypePush || mt == MoveTypeNone || mt == MoveTypeNoClip {
+			continue
+		}
+
+		if s.TestEntityPosition(ent) != nil {
+			// entity in invalid position
+		}
+	}
+}
+
+func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
+	oldOrg := ent.Vars.Origin
+	var dir [3]float32
+
+	for i := 0; i < 8; i++ {
+		dir = [3]float32{}
+		switch i {
+		case 0:
+			dir[0] = 2
+			dir[1] = 0
+		case 1:
+			dir[0] = 0
+			dir[1] = 2
+		case 2:
+			dir[0] = -2
+			dir[1] = 0
+		case 3:
+			dir[0] = 0
+			dir[1] = -2
+		case 4:
+			dir[0] = 2
+			dir[1] = 2
+		case 5:
+			dir[0] = -2
+			dir[1] = 2
+		case 6:
+			dir[0] = 2
+			dir[1] = -2
+		case 7:
+			dir[0] = -2
+			dir[1] = -2
+		}
+
+		s.PushEntity(ent, dir)
+
+		// retry the original move
+		ent.Vars.Velocity[0] = oldVel[0]
+		ent.Vars.Velocity[1] = oldVel[1]
+		ent.Vars.Velocity[2] = 0
+		blocked := s.FlyMove(ent, 0.1)
+
+		if math.Abs(float64(oldOrg[0]-ent.Vars.Origin[0])) > 4 ||
+			math.Abs(float64(oldOrg[1]-ent.Vars.Origin[1])) > 4 {
+			return blocked
+		}
+
+		// go back to the original pos and try again
+		ent.Vars.Origin = oldOrg
+	}
+
+	ent.Vars.Velocity = [3]float32{}
+	return 7 // still not moving
+}
+
 func (s *Server) SV_StepMove(ent *Edict, move [3]float32, relink bool) bool {
 	// Try moving at current height
 	trace := s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, move), MoveType(MoveNormal), ent)
@@ -450,31 +525,72 @@ func (s *Server) SV_StepMove(ent *Edict, move [3]float32, relink bool) bool {
 
 	// Try stepping up
 	originalOrigin := ent.Vars.Origin
-	
+	oldVel := ent.Vars.Velocity
+
 	// Raise up
 	up := [3]float32{0, 0, 18} // Quake step size
 	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, up), MoveType(MoveNormal), ent)
 	ent.Vars.Origin = trace.EndPos
-	
+
 	// Move forward
 	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, move), MoveType(MoveNormal), ent)
 	ent.Vars.Origin = trace.EndPos
-	
+
+	if trace.Fraction < 1 {
+		if math.Abs(float64(originalOrigin[0]-ent.Vars.Origin[0])) < 0.03125 &&
+			math.Abs(float64(originalOrigin[1]-ent.Vars.Origin[1])) < 0.03125 {
+			s.SV_TryUnstick(ent, oldVel)
+		}
+	}
+
+	if trace.Fraction < 1 && trace.PlaneNormal[2] == 0 {
+		s.SV_WallFriction(ent, &trace)
+	}
 	// Push back down
 	down := [3]float32{0, 0, -18}
 	trace = s.Move(ent.Vars.Origin, ent.Vars.Mins, ent.Vars.Maxs, VecAdd(ent.Vars.Origin, down), MoveType(MoveNormal), ent)
 	ent.Vars.Origin = trace.EndPos
-	
+
 	// If we didn't move at all, or we're in a worse spot, revert
 	if trace.AllSolid || trace.StartSolid || trace.Fraction == 0 {
 		ent.Vars.Origin = originalOrigin
 		return false
 	}
-	
+
+	if trace.PlaneNormal[2] > 0.7 {
+		if trace.Entity != nil && int(trace.Entity.Vars.Solid) == int(SolidBSP) {
+			ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
+			ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+		}
+	} else {
+		// if the push down didn't end up on good ground, use the move without the step up.
+		ent.Vars.Origin = originalOrigin
+		return false
+	}
+
 	if relink {
 		s.LinkEdict(ent, true)
 	}
 	return true
+}
+
+func (s *Server) SV_WallFriction(ent *Edict, trace *TraceResult) {
+	var forward, right, up [3]float32
+	AngleVectors(ent.Vars.VAngle, &forward, &right, &up)
+
+	d := VecDot(trace.PlaneNormal, forward)
+	d += 0.5
+	if d >= 0 {
+		return
+	}
+
+	// cut the tangential velocity
+	i := VecDot(trace.PlaneNormal, ent.Vars.Velocity)
+	into := VecScale(trace.PlaneNormal, i)
+	side := VecSub(ent.Vars.Velocity, into)
+
+	ent.Vars.Velocity[0] = side[0] * (1 + d)
+	ent.Vars.Velocity[1] = side[1] * (1 + d)
 }
 
 func (s *Server) PhysicsWalk(ent *Edict) {
@@ -529,25 +645,35 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 
 func (s *Server) SV_CheckStuck(ent *Edict) {
 	if s.TestEntityPosition(ent) == nil {
+		ent.Vars.OldOrigin = ent.Vars.Origin
 		return
 	}
 
-	originalOrigin := ent.Vars.Origin
-	var test [3]float32
+	org := ent.Vars.Origin
+	ent.Vars.Origin = ent.Vars.OldOrigin
+	if s.TestEntityPosition(ent) == nil {
+		// Unstuck.
+		s.LinkEdict(ent, true)
+		return
+	}
 
-	for i := 0; i < 3; i++ {
-		for j := -1; j <= 1; j++ {
-			test = originalOrigin
-			test[i] += float32(j)
-			ent.Vars.Origin = test
-			if s.TestEntityPosition(ent) == nil {
-				s.LinkEdict(ent, true)
-				return
+	for z := float32(0); z < 18; z++ {
+		for i := float32(-1); i <= 1; i++ {
+			for j := float32(-1); j <= 1; j++ {
+				ent.Vars.Origin[0] = org[0] + i
+				ent.Vars.Origin[1] = org[1] + j
+				ent.Vars.Origin[2] = org[2] + z
+				if s.TestEntityPosition(ent) == nil {
+					// Unstuck.
+					s.LinkEdict(ent, true)
+					return
+				}
 			}
 		}
 	}
 
-	ent.Vars.Origin = originalOrigin
+	ent.Vars.Origin = org
+	// player is stuck
 }
 
 func (s *Server) PhysicsToss(ent *Edict) {

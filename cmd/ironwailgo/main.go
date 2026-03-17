@@ -1215,6 +1215,7 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 			if cv := cvar.Get("gl_cshiftpercent"); cv != nil {
 				globalPct = cv.Float32()
 			}
+			gameClient.SetContentsColor(runtimeCameraLeafContents)
 			state.VBlend = gameClient.CalcBlend(globalPct)
 		}
 	}
@@ -2572,6 +2573,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	syncControlCvarsToClient()
 	if gameClient != nil {
 		gameClient.PredictPlayers(float32(dt))
+		gameClient.UpdateBlend(dt)
 	}
 	transientEvents := cl.TransientEvents{}
 	if gameClient != nil {

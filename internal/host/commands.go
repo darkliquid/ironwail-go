@@ -127,13 +127,15 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 	}, "Save current game")
 	cmdsys.AddCommand("give", func(args []string) {
-		if len(args) > 1 {
-			h.CmdGive(args[0], args[1], subs)
-		}
+	        if len(args) > 1 {
+	                h.CmdGive(args[0], args[1], subs)
+	        }
 	}, "Give items/ammo")
+	cmdsys.AddCommand("maps", func(args []string) { h.CmdMaps(subs) }, "List all maps")
+	cmdsys.AddCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
+	cmdsys.AddCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
 
-	// Demo commands
-	cmdsys.AddCommand("record", func(args []string) {
+	// Demo commands	cmdsys.AddCommand("record", func(args []string) {
 		if len(args) > 0 {
 			h.CmdRecord(args[0], subs)
 		}
@@ -483,8 +485,14 @@ func (h *Host) CmdGod(subs *Subsystems) {
 		return
 	}
 	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) ^ server.FlagGodMode)
+	if subs.Console != nil {
+		if uint32(ent.Vars.Flags)&server.FlagGodMode != 0 {
+			subs.Console.Print("godmode ON\n")
+		} else {
+			subs.Console.Print("godmode OFF\n")
+		}
+	}
 }
-
 func (h *Host) CmdNoClip(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
@@ -495,11 +503,16 @@ func (h *Host) CmdNoClip(subs *Subsystems) {
 	}
 	if server.MoveType(ent.Vars.MoveType) == server.MoveTypeNoClip {
 		ent.Vars.MoveType = float32(server.MoveTypeWalk)
+		if subs.Console != nil {
+			subs.Console.Print("noclip OFF\n")
+		}
 	} else {
 		ent.Vars.MoveType = float32(server.MoveTypeNoClip)
+		if subs.Console != nil {
+			subs.Console.Print("noclip ON\n")
+		}
 	}
 }
-
 func (h *Host) CmdFly(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
@@ -510,11 +523,16 @@ func (h *Host) CmdFly(subs *Subsystems) {
 	}
 	if server.MoveType(ent.Vars.MoveType) == server.MoveTypeFly {
 		ent.Vars.MoveType = float32(server.MoveTypeWalk)
+		if subs.Console != nil {
+			subs.Console.Print("fly OFF\n")
+		}
 	} else {
 		ent.Vars.MoveType = float32(server.MoveTypeFly)
+		if subs.Console != nil {
+			subs.Console.Print("fly ON\n")
+		}
 	}
 }
-
 func (h *Host) CmdNotarget(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
@@ -524,8 +542,14 @@ func (h *Host) CmdNotarget(subs *Subsystems) {
 		return
 	}
 	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) ^ server.FlagNoTarget)
+	if subs.Console != nil {
+		if uint32(ent.Vars.Flags)&server.FlagNoTarget != 0 {
+			subs.Console.Print("notarget ON\n")
+		} else {
+			subs.Console.Print("notarget OFF\n")
+		}
+	}
 }
-
 func (h *Host) CmdStatus(subs *Subsystems) {
 	if subs.Console == nil {
 		return
@@ -537,6 +561,53 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 	sb.WriteString(fmt.Sprintf("players: %d active (%d max)\n", 0, h.maxClients))
 
 	subs.Console.Print(sb.String())
+}
+
+func (h *Host) CmdMaps(subs *Subsystems) {
+	if subs == nil || subs.Files == nil || subs.Console == nil {
+		return
+	}
+	fsInstance, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return
+	}
+	files := fsInstance.ListFiles("maps/*.bsp")
+	subs.Console.Print("Maps found:\n")
+	for _, f := range files {
+		name := filepath.Base(f)
+		name = strings.TrimSuffix(name, ".bsp")
+		subs.Console.Print(fmt.Sprintf("  %s\n", name))
+	}
+}
+
+func (h *Host) CmdViewpos(subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	ent := h.getLocalPlayerEdict(subs)
+	if ent == nil {
+		return
+	}
+	subs.Console.Print(fmt.Sprintf("viewpos: %.2f %.2f %.2f (yaw: %.2f pitch: %.2f)\n", ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2], ent.Vars.VAngle[1], ent.Vars.VAngle[0]))
+}
+
+func (h *Host) CmdPrEnts(subs *Subsystems) {
+	if subs == nil || subs.Server == nil || subs.Console == nil {
+		return
+	}
+	srv, ok := subs.Server.(*server.Server)
+	if !ok {
+		return
+	}
+	subs.Console.Print(fmt.Sprintf("%d edicts\n", srv.NumEdicts))
+	for i := 0; i < srv.NumEdicts; i++ {
+		ent := srv.Edicts[i]
+		if ent == nil || ent.Free {
+			continue
+		}
+		className := srv.GetString(ent.Vars.ClassName)
+		subs.Console.Print(fmt.Sprintf("%d: %s\n", i, className))
+	}
 }
 
 func (h *Host) CmdMapname(subs *Subsystems) {
@@ -1272,9 +1343,37 @@ func (h *Host) CmdGive(item, value string, subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil || subs.Console == nil {
 		return
 	}
-	subs.Console.Print(fmt.Sprintf("give %s %s (not fully implemented)\n", item, value))
-}
+	ent := h.getLocalPlayerEdict(subs)
+	if ent == nil {
+		return
+	}
 
+	val := float32(0)
+	fmt.Sscanf(value, "%f", &val)
+	if val <= 0 {
+		val = 100
+	}
+
+	switch item {
+	case "h":
+		ent.Vars.Health += val
+		subs.Console.Print(fmt.Sprintf("Gave %.0f health\n", val))
+	case "s":
+		ent.Vars.AmmoShells += val
+		subs.Console.Print(fmt.Sprintf("Gave %.0f shells\n", val))
+	case "n":
+		ent.Vars.AmmoNails += val
+		subs.Console.Print(fmt.Sprintf("Gave %.0f nails\n", val))
+	case "r":
+		ent.Vars.AmmoRockets += val
+		subs.Console.Print(fmt.Sprintf("Gave %.0f rockets\n", val))
+	case "c":
+		ent.Vars.AmmoCells += val
+		subs.Console.Print(fmt.Sprintf("Gave %.0f cells\n", val))
+	default:
+		subs.Console.Print(fmt.Sprintf("give %s %s (not supported)\n", item, value))
+	}
+}
 func (h *Host) getLocalPlayerEdict(subs *Subsystems) *server.Edict {
 	if subs.Server == nil {
 		return nil

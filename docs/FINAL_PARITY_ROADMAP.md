@@ -15,10 +15,10 @@ This is the authoritative master document for reaching 100% feature and behavior
 
 While the core movement model exists, manual testing has revealed critical behavioral gaps that must be closed immediately for playability.
 
-- [ ] **Movement Friction**: Implement `SV_WallFriction`. The player should lose some speed when sliding against walls based on view angle.
-- [ ] **Unsticking Polish**: Refine `SV_CheckStuck` to match the exact recursive "nudge" behavior of C Quake.
-- [ ] **Collision Hull Accuracy**: Verify that all three Quake hulls (Point, Player, Large) are correctly selected and utilized in `SV_Move`.
-- [ ] **Fall Damage & Landing**: Verify QuakeC `PlayerPreThink`/`PlayerPostThink` correctly calculates `fall_velocity` and triggers landing sounds/damage.
+- [x] **Movement Friction**: Implement `SV_WallFriction`. The player should lose some speed when sliding against walls based on view angle.
+- [x] **Unsticking Polish**: Refine `SV_CheckStuck` to match the exact recursive "nudge" behavior of C Quake.
+- [x] **Collision Hull Accuracy**: Verify that all three Quake hulls (Point, Player, Large) are correctly selected and utilized in `SV_Move`.
+- [x] **Fall Damage & Landing**: Verify QuakeC `PlayerPreThink`/`PlayerPostThink` correctly calculates `fall_velocity` and triggers landing sounds/damage.
 
 ---
 
@@ -61,11 +61,12 @@ Over 40 standard console commands are still missing or use non-standard naming.
 ### Missing Game Flow & Admin Commands
 - [ ] `kick` (by slot/name), `ban`, `status` (with full network stats), `ping`.
 - [ ] `changelevel`, `restart`, `maps`, `randmap`.
+- [x] `maps`: Implemented.
 - [ ] `say`, `say_team`, `tell`.
 
 ### Missing Debug & Cheat Commands
-- [ ] `fly`, `god`, `noclip`, `notarget`, `give`.
-- [ ] `viewpos`, `tracepos`, `pr_ents` (print entities).
+- [x] `fly`, `god`, `noclip`, `notarget`, `give`.
+- [x] `viewpos`, `tracepos`, `pr_ents` (print entities).
 - [ ] `viewframe`, `viewnext`, `viewprev`.
 
 ### Missing UI & Media Commands
