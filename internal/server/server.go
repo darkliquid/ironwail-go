@@ -45,7 +45,7 @@ type Server struct {
 	Name      string
 	ModelName string
 
-	WorldModel interface{}
+	WorldModel CollisionModel
 	WorldTree  *bsp.Tree // BSP tree retained for rendering
 
 	// Physics settings

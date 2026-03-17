@@ -26,6 +26,9 @@ func CreateSyntheticWorldModel() *model.Model {
 	m.Hulls[0] = hull
 	m.Mins = [3]float32{-512, -512, 0}
 	m.Maxs = [3]float32{512, 512, 512}
+	m.ClipBox = true
+	m.ClipMins = m.Mins
+	m.ClipMaxs = m.Maxs
 
 	return m
 }

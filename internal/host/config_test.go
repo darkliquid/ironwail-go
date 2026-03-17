@@ -26,12 +26,12 @@ type testClientWithState struct {
 	state *cl.Client
 }
 
-func (c *testClientWithState) Init() error           { return nil }
-func (c *testClientWithState) Frame(float64) error   { return nil }
-func (c *testClientWithState) Shutdown()             {}
-func (c *testClientWithState) State() ClientState    { return caDisconnected }
-func (c *testClientWithState) ReadFromServer() error         { return nil }
-func (c *testClientWithState) SendCommand() error            { return nil }
+func (c *testClientWithState) Init() error                    { return nil }
+func (c *testClientWithState) Frame(float64) error            { return nil }
+func (c *testClientWithState) Shutdown()                      {}
+func (c *testClientWithState) State() ClientState             { return caDisconnected }
+func (c *testClientWithState) ReadFromServer() error          { return nil }
+func (c *testClientWithState) SendCommand() error             { return nil }
 func (c *testClientWithState) SendStringCmd(cmd string) error { return nil }
 func (c *testClientWithState) ClientState() *cl.Client {
 	if c == nil {

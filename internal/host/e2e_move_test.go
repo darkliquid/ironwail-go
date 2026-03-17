@@ -213,5 +213,5 @@ func (c *testFrameCallbacks) ProcessServer() {
 		c.processServer()
 	}
 }
-func (c *testFrameCallbacks) UpdateScreen()                                      {}
+func (c *testFrameCallbacks) UpdateScreen()                                     {}
 func (c *testFrameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {}

@@ -10,9 +10,7 @@ import (
 
 func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 	if subs == nil {
 		fallbackClient := newLocalLoopbackClient()

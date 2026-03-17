@@ -31,7 +31,7 @@ func TestPhysicsWalkStepUp(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.01
 	s.Gravity = 800
-	
+
 	// Create a world with a step
 	s.WorldModel = &model.Model{
 		Type: model.ModBrush,

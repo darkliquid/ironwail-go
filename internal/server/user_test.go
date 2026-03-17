@@ -9,7 +9,6 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
@@ -235,20 +234,20 @@ func TestSVClientThinkGroundFrictionFeedsAccelerate(t *testing.T) {
 }
 
 func findWalkablePointForUserTest(s *Server) ([3]float32, bool) {
-	wm, ok := s.WorldModel.(*model.Model)
-	if !ok || wm == nil {
+	mins, maxs, ok := s.modelBounds(s.ModelName)
+	if !ok {
 		return [3]float32{}, false
 	}
 
 	for xi := 1; xi < 15; xi++ {
-		x := wm.Mins[0] + (wm.Maxs[0]-wm.Mins[0])*(float32(xi)/16)
+		x := mins[0] + (maxs[0]-mins[0])*(float32(xi)/16)
 		for yi := 1; yi < 15; yi++ {
-			y := wm.Mins[1] + (wm.Maxs[1]-wm.Mins[1])*(float32(yi)/16)
-			start := [3]float32{x, y, wm.Maxs[2] - 8}
+			y := mins[1] + (maxs[1]-mins[1])*(float32(yi)/16)
+			start := [3]float32{x, y, maxs[2] - 8}
 			if s.PointContents(start) == bsp.ContentsSolid {
 				continue
 			}
-			end := [3]float32{x, y, wm.Mins[2] - 256}
+			end := [3]float32{x, y, mins[2] - 256}
 			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNoMonsters), nil)
 			if trace.Fraction == 1 || trace.AllSolid {
 				continue

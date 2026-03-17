@@ -205,9 +205,7 @@ func (h *Host) ShutdownServer(subs *Subsystems) {
 	h.serverPaused = false
 
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 
 	if subs != nil && subs.Server != nil {
@@ -229,9 +227,7 @@ func (h *Host) CmdConnect(address string, subs *Subsystems) {
 	}
 
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 
 	isLocal := strings.EqualFold(address, "local")
@@ -277,9 +273,7 @@ func (h *Host) CmdDisconnect(subs *Subsystems) {
 
 func (h *Host) disconnectCurrentSession(subs *Subsystems, stopServer bool) {
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 
 	h.stopSessionSounds(subs)
@@ -312,9 +306,7 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 	}
 
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 	if subs == nil || subs.Client == nil {
 		return

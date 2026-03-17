@@ -68,9 +68,7 @@ func (h *Host) CmdStuffCmds(subs *Subsystems) {
 
 func (h *Host) CmdExec(filename string, subs *Subsystems) {
 	if subs == nil {
-		if cached, ok := hostSubsystemRegistry.Load(h); ok {
-			subs, _ = cached.(*Subsystems)
-		}
+		subs = h.Subs
 	}
 
 	if filename == "" {

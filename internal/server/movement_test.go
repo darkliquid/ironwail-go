@@ -76,15 +76,10 @@ func TestSVHullForEntityAndSVMoveWrappers(t *testing.T) {
 
 func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 	s := newMovementTestServer()
-	s.WorldModel = &model.Model{
+	wm := &model.Model{
 		Type:   model.ModBrush,
 		Planes: []model.MPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}, {Normal: [3]float32{1, 0, 0}, Dist: 10, Type: 0}},
-		SubModels: []bsp.DModel{
-			{HeadNode: [bsp.MaxMapHulls]int32{0, 0, 0, 0}},
-			{HeadNode: [bsp.MaxMapHulls]int32{0, 1, 1, 0}},
-		},
 	}
-	wm := s.WorldModel.(*model.Model)
 	wm.Hulls[1] = model.Hull{
 		ClipNodes: []model.MClipNode{
 			{PlaneNum: 0, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}},
@@ -96,6 +91,11 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 		ClipMins:      [3]float32{-16, -16, -24},
 		ClipMaxs:      [3]float32{16, 16, 32},
 	}
+	s.WorldModel = wm
+	s.WorldTree = &bsp.Tree{Models: []bsp.DModel{
+		{HeadNode: [bsp.MaxMapHulls]int32{0, 0, 0, 0}},
+		{HeadNode: [bsp.MaxMapHulls]int32{0, 1, 1, 0}},
+	}}
 
 	ent := &Edict{Vars: &EntVars{}}
 	ent.Vars.Origin = [3]float32{}
@@ -121,20 +121,20 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 }
 
 func findWalkablePoint(s *Server) ([3]float32, bool) {
-	wm, ok := s.WorldModel.(*model.Model)
-	if !ok || wm == nil {
+	mins, maxs, ok := s.modelBounds(s.ModelName)
+	if !ok {
 		return [3]float32{}, false
 	}
 
 	for xi := 1; xi < 15; xi++ {
-		x := wm.Mins[0] + (wm.Maxs[0]-wm.Mins[0])*(float32(xi)/16)
+		x := mins[0] + (maxs[0]-mins[0])*(float32(xi)/16)
 		for yi := 1; yi < 15; yi++ {
-			y := wm.Mins[1] + (wm.Maxs[1]-wm.Mins[1])*(float32(yi)/16)
-			start := [3]float32{x, y, wm.Maxs[2] - 8}
+			y := mins[1] + (maxs[1]-mins[1])*(float32(yi)/16)
+			start := [3]float32{x, y, maxs[2] - 8}
 			if s.PointContents(start) == bsp.ContentsSolid {
 				continue
 			}
-			end := [3]float32{x, y, wm.Mins[2] - 256}
+			end := [3]float32{x, y, mins[2] - 256}
 			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNoMonsters), nil)
 			if trace.Fraction == 1 || trace.AllSolid {
 				continue

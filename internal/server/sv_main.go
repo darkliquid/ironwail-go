@@ -156,10 +156,9 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 		return fmt.Errorf("parse collision bsp %q: %w", s.ModelName, err)
 	}
 
-	s.WorldModel = worldModelFromBSPTree(s.ModelName, tree)
-	if wm, ok := s.WorldModel.(*model.Model); ok {
-		populateWorldModelCollision(wm, tree, bspFile)
-	}
+	worldModel := worldModelFromBSPTree(s.ModelName, tree)
+	populateWorldModelCollision(worldModel, tree, bspFile)
+	s.WorldModel = worldModel
 	s.WorldTree = tree
 
 	if s.Static != nil {
@@ -450,12 +449,16 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 		return mins, maxs, true
 	}
 
-	if wm, ok := s.WorldModel.(*model.Model); ok && wm != nil {
+	if wm := s.WorldModel; wm != nil {
 		if modelName == s.ModelName {
-			if wm.Type == model.ModBrush && (wm.ClipBox || wm.ClipMins != [3]float32{} || wm.ClipMaxs != [3]float32{}) {
-				return wm.ClipMins, wm.ClipMaxs, true
+			clipMins := wm.CollisionClipMins()
+			clipMaxs := wm.CollisionClipMaxs()
+			if wm.ModelType() == int(model.ModBrush) && (wm.IsClipBox() || clipMins != [3]float32{} || clipMaxs != [3]float32{}) {
+				return clipMins, clipMaxs, true
 			}
-			return wm.Mins, wm.Maxs, true
+			if s.WorldTree != nil && len(s.WorldTree.Models) > 0 {
+				return s.WorldTree.Models[0].BoundsMin, s.WorldTree.Models[0].BoundsMax, true
+			}
 		}
 
 		if len(modelName) > 1 && modelName[0] == '*' {
@@ -463,10 +466,6 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 			if err == nil && idx >= 0 {
 				if s.WorldTree != nil && idx < len(s.WorldTree.Models) {
 					sub := s.WorldTree.Models[idx]
-					return sub.BoundsMin, sub.BoundsMax, true
-				}
-				if idx < len(wm.SubModels) {
-					sub := wm.SubModels[idx]
 					return sub.BoundsMin, sub.BoundsMax, true
 				}
 			}

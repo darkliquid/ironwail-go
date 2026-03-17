@@ -69,6 +69,11 @@ type Host struct {
 	menu      *menu.Manager
 	demoState *client.DemoState
 
+	// Subs holds the subsystem container for this host instance.
+	// Previously stored in a package-level sync.Map registry; now owned
+	// directly by the Host for explicit lifetime and dependency management.
+	Subs *Subsystems
+
 	loadingPlaqueActive bool
 	loadingPlaqueUntil  float64
 	loadingPlaqueHeld   bool

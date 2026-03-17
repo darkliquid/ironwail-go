@@ -412,11 +412,11 @@ type positionBackend struct {
 func (b *positionBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
 	return nil, nil
 }
-func (b *positionBackend) Shutdown()  {}
-func (b *positionBackend) Lock()      {}
-func (b *positionBackend) Unlock()    {}
-func (b *positionBackend) Block()     {}
-func (b *positionBackend) Unblock()   {}
+func (b *positionBackend) Shutdown() {}
+func (b *positionBackend) Lock()     {}
+func (b *positionBackend) Unlock()   {}
+func (b *positionBackend) Block()    {}
+func (b *positionBackend) Unblock()  {}
 func (b *positionBackend) GetPosition() int {
 	if b.index >= len(b.positions) {
 		return b.positions[len(b.positions)-1]

@@ -109,17 +109,18 @@ func TestSpawnServerStartMap(t *testing.T) {
 	if s.WorldModel == nil {
 		t.Fatalf("world model is nil")
 	}
-	if _, ok := s.WorldModel.(*model.Model); !ok {
-		t.Fatalf("world model has unexpected type %T", s.WorldModel)
+	if got := s.WorldModel.ModelType(); got != int(model.ModBrush) {
+		t.Fatalf("world model type = %d, want %d", got, model.ModBrush)
 	}
 	if len(s.WorldTree.Models) > 1 && s.FindModel("*1") == 0 {
 		t.Fatal("local brush model *1 was not precached")
 	}
-	wm := s.WorldModel.(*model.Model)
-	if len(wm.Hulls[0].ClipNodes) == 0 {
+	wmHull0 := s.WorldModel.Hull(0)
+	if len(wmHull0.ClipNodes) == 0 {
 		t.Fatal("world hull 0 was not initialized")
 	}
-	if len(wm.Hulls[1].ClipNodes) == 0 {
+	wmHull1 := s.WorldModel.Hull(1)
+	if len(wmHull1.ClipNodes) == 0 {
 		t.Fatal("world hull 1 was not initialized")
 	}
 }

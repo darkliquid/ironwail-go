@@ -21,7 +21,7 @@ type System struct {
 
 	dma        *DMAInfo
 	cache      *SFXCache
-	mixer      *Mixer
+	mixer      MixerPipeline
 	rawSamples RawSamplesBuffer
 	backend    Backend
 	music      *musicState
@@ -346,14 +346,19 @@ func (s *System) SetVolume(vol float64) {
 	if vol > 1 {
 		vol = 1
 	}
-	s.mixer.SetVolume(vol)
+	if mixer, ok := s.mixer.(interface{ SetVolume(float64) }); ok {
+		mixer.SetVolume(vol)
+	}
 }
 
 func (s *System) Volume() float64 {
 	if s.mixer == nil {
 		return 0
 	}
-	return s.mixer.volume
+	if mixer, ok := s.mixer.(interface{ Volume() float64 }); ok {
+		return mixer.Volume()
+	}
+	return 0
 }
 
 func (s *System) pickChannel(entNum, entChannel int) *Channel {
@@ -453,7 +458,9 @@ func (s *System) Unblock() {
 }
 
 func (s *System) SetUnderwaterIntensity(intensity float32) {
-	s.mixer.SetUnderwaterIntensity(intensity)
+	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32) }); ok {
+		mixer.SetUnderwaterIntensity(intensity)
+	}
 }
 func (s *System) SetAmbientSound(channel int, sfx *SFX) {
 	if channel < 0 || channel >= NumAmbients {
@@ -494,7 +501,9 @@ func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLev
 		return
 	}
 
-	s.mixer.SetUnderwaterIntensity(underwaterIntensity)
+	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32) }); ok {
+		mixer.SetUnderwaterIntensity(underwaterIntensity)
+	}
 
 	if !hasLeaf {
 		for i := 0; i < NumAmbients; i++ {
@@ -550,7 +559,10 @@ func (s *System) UnderwaterIntensity() float32 {
 	if s == nil || s.mixer == nil {
 		return 0
 	}
-	return s.mixer.underwater.Intensity
+	if mixer, ok := s.mixer.(interface{ UnderwaterIntensity() float32 }); ok {
+		return mixer.UnderwaterIntensity()
+	}
+	return 0
 }
 
 func (s *System) AmbientVolume(channel int) int {

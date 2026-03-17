@@ -96,4 +96,3 @@ func TestDecodeMusicTrackDispatchesTrackerFormats(t *testing.T) {
 		}
 	}
 }
-

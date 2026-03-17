@@ -123,17 +123,17 @@ func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]flo
 		}
 
 		if s.WorldModel != nil {
-			if m, ok := s.WorldModel.(*model.Model); ok && m != nil {
+			if m := s.WorldModel; m != nil {
 				var hull model.Hull
-				if hullNum >= 0 && hullNum < len(m.Hulls) {
-					hull = m.Hulls[hullNum]
+				if hullNum >= 0 && hullNum < m.NumHulls() {
+					hull = m.Hull(hullNum)
 				}
 				modelIndex := int(ent.Vars.ModelIndex)
 				if ent == s.Edicts[0] || modelIndex <= 1 {
 					modelIndex = 1
 				}
-				if modelIndex > 1 && modelIndex-1 < len(m.SubModels) {
-					headNode := int(m.SubModels[modelIndex-1].HeadNode[hullNum])
+				if modelIndex > 1 && s.WorldTree != nil && modelIndex-1 < len(s.WorldTree.Models) {
+					headNode := int(s.WorldTree.Models[modelIndex-1].HeadNode[hullNum])
 					if headNode >= 0 {
 						hull.FirstClipNode = headNode
 					}
@@ -233,12 +233,13 @@ func (s *Server) PointContents(p [3]float32) int {
 		return bsp.ContentsSolid
 	}
 
-	m, ok := s.WorldModel.(*model.Model)
-	if !ok || len(m.Hulls) == 0 {
+	m := s.WorldModel
+	if m == nil || m.NumHulls() == 0 {
 		return bsp.ContentsSolid
 	}
 
-	cont := hullPointContents(&m.Hulls[0], 0, p)
+	hull := m.Hull(0)
+	cont := hullPointContents(&hull, 0, p)
 
 	// Current contents are simplified to water
 	if cont <= bsp.ContentsCurrent0 && cont >= bsp.ContentsCurrentDown {
@@ -473,10 +474,8 @@ func (s *Server) ClearWorld() {
 	// Get world bounds
 	var mins, maxs [3]float32
 	if s.WorldModel != nil {
-		if m, ok := s.WorldModel.(*model.Model); ok && m != nil {
-			mins = m.Mins
-			maxs = m.Maxs
-		}
+		mins = s.WorldModel.CollisionClipMins()
+		maxs = s.WorldModel.CollisionClipMaxs()
 	}
 
 	// Create area node tree
