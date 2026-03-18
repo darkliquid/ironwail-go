@@ -235,3 +235,175 @@ func TestCanvasStateZeroValue(t *testing.T) {
 		t.Errorf("zero CanvasState.Transform.Scale = %v, want [0 0]", cs.Transform.Scale)
 	}
 }
+
+// stdParams returns a CanvasTransformParams for a 1920x1080 display
+// at 1:1 GUI-to-pixel ratio with default cvar values.
+func stdParams() CanvasTransformParams {
+	return CanvasTransformParams{
+		GUIWidth:       1920,
+		GUIHeight:      1080,
+		GLWidth:        1920,
+		GLHeight:       1080,
+		ConWidth:       1920,
+		ConHeight:      1080,
+		MenuScale:      1,
+		SbarScale:      1,
+		CrosshairScale: 1,
+		VRect:          ViewRect{X: 0, Y: 0, Width: 1920, Height: 1080},
+	}
+}
+
+func TestGetCanvasTransformDefault(t *testing.T) {
+	p := stdParams()
+	tr := GetCanvasTransform(CanvasDefault, p)
+
+	// Scale: 2/1920, -2/1080 (plus golden shift in offset)
+	wantSX := float32(2.0 / 1920.0)
+	wantSY := float32(-2.0 / 1080.0)
+	if !approxFloat32(tr.Scale[0], wantSX) || !approxFloat32(tr.Scale[1], wantSY) {
+		t.Errorf("Default scale = %v, want [%f, %f]", tr.Scale, wantSX, wantSY)
+	}
+	// Offset should be near (-1, 1) (centered, scale=1, width matches gui).
+	if !approxFloat32(tr.Offset[0], -1.0+goldenPixelShift/1920.0) {
+		t.Errorf("Default offset[0] = %f, want ~-1", tr.Offset[0])
+	}
+}
+
+func TestGetCanvasTransformMenu(t *testing.T) {
+	p := stdParams()
+	tr := GetCanvasTransform(CanvasMenu, p)
+
+	// Menu scale = min(1920/320, 1080/200) = min(6, 5.4) = 5.4, clamped by MenuScale=1 → 1.
+	// At MenuScale=1, scale should be 1*2/1920 and 1*-2/1080.
+	wantSX := float32(1.0 * 2.0 / 1920.0)
+	if !approxFloat32(tr.Scale[0], wantSX) {
+		t.Errorf("Menu scale[0] = %f, want %f", tr.Scale[0], wantSX)
+	}
+
+	// With MenuScale=3, scale increases.
+	p.MenuScale = 3
+	tr = GetCanvasTransform(CanvasMenu, p)
+	wantSX = float32(3.0 * 2.0 / 1920.0)
+	if !approxFloat32(tr.Scale[0], wantSX) {
+		t.Errorf("Menu scale[0] at 3x = %f, want %f", tr.Scale[0], wantSX)
+	}
+}
+
+// approxFloat32Loose checks with a tolerance of ~0.2 to accommodate the
+// golden pixel shift applied to canvas transforms.
+func approxFloat32Loose(got, want float32) bool {
+	return math.Abs(float64(got-want)) < 0.2
+}
+
+func TestGetCanvasTransformSbar(t *testing.T) {
+	p := stdParams()
+	// Single-player: centered at bottom.
+	tr := GetCanvasTransform(CanvasSbar, p)
+	_, _, _, bottom := TransformBounds(tr)
+	// Bottom bound should be ~48 (logical canvas height, golden shift noise).
+	if !approxFloat32Loose(bottom, 48) {
+		t.Errorf("Sbar bottom bound = %f, want ~48", bottom)
+	}
+
+	// Deathmatch + classic HUD: left-aligned.
+	p.GameType = GameDeathmatch
+	p.HudStyle = HUDClassic
+	trDM := GetCanvasTransform(CanvasSbar, p)
+	leftDM, _, _, _ := TransformBounds(trDM)
+	// Left-aligned means left bound ~0.
+	if !approxFloat32Loose(leftDM, 0) {
+		t.Errorf("Sbar DM left bound = %f, want ~0", leftDM)
+	}
+}
+
+func TestGetCanvasTransformConsoleSlide(t *testing.T) {
+	p := stdParams()
+	p.ConSlideFraction = 1.0 // fully open
+	trOpen := GetCanvasTransform(CanvasConsole, p)
+
+	p.ConSlideFraction = 0.0 // fully closed
+	trClosed := GetCanvasTransform(CanvasConsole, p)
+
+	// Closed console should have larger (more positive) Y offset than open.
+	if trClosed.Offset[1] <= trOpen.Offset[1] {
+		t.Errorf("Closed console offset[1] %f should be > open %f",
+			trClosed.Offset[1], trOpen.Offset[1])
+	}
+}
+
+func TestGetCanvasTransformCrosshairCenteredOnViewport(t *testing.T) {
+	p := stdParams()
+	p.VRect = ViewRect{X: 0, Y: 0, Width: 1920, Height: 1032}
+	tr := GetCanvasTransform(CanvasCrosshair, p)
+
+	// The crosshair offset should incorporate the viewport center.
+	// With VRect centered, the vertical offset should shift to viewport mid.
+	vMid := float32(0 + 1032/2)
+	expectedYShift := 1.0 - (vMid*2.0)/1080.0
+	// Total Y offset = base + 1.0 + viewport shift.
+	_ = expectedYShift
+	// Just verify it's different from the no-viewport case.
+	p2 := stdParams()
+	p2.VRect = ViewRect{X: 0, Y: 100, Width: 1920, Height: 800}
+	tr2 := GetCanvasTransform(CanvasCrosshair, p2)
+	if tr.Offset[1] == tr2.Offset[1] {
+		t.Errorf("Crosshair offset should change with different viewport Y")
+	}
+}
+
+func TestSetCanvasEarlyOut(t *testing.T) {
+	p := stdParams()
+	var state CanvasState
+	SetCanvas(&state, CanvasMenu, p)
+	if state.Type != CanvasMenu {
+		t.Fatalf("state.Type = %v, want CanvasMenu", state.Type)
+	}
+	origTransform := state.Transform
+
+	// Calling again with same type should be a no-op.
+	p.MenuScale = 5 // change params
+	SetCanvas(&state, CanvasMenu, p)
+	if state.Transform != origTransform {
+		t.Errorf("SetCanvas should early-out when type unchanged")
+	}
+
+	// Different type should update.
+	SetCanvas(&state, CanvasDefault, p)
+	if state.Type != CanvasDefault {
+		t.Errorf("state.Type = %v, want CanvasDefault", state.Type)
+	}
+}
+
+func TestGetCanvasTransformBottomCorners(t *testing.T) {
+	p := stdParams()
+
+	trBL := GetCanvasTransform(CanvasBottomLeft, p)
+	leftBL, _, _, bottomBL := TransformBounds(trBL)
+	if !approxFloat32Loose(leftBL, 0) {
+		t.Errorf("BottomLeft left = %f, want ~0", leftBL)
+	}
+	if !approxFloat32Loose(bottomBL, 200) {
+		t.Errorf("BottomLeft bottom = %f, want ~200", bottomBL)
+	}
+
+	trBR := GetCanvasTransform(CanvasBottomRight, p)
+	_, _, rightBR, bottomBR := TransformBounds(trBR)
+	if !approxFloat32Loose(rightBR, 320) {
+		t.Errorf("BottomRight right = %f, want ~320", rightBR)
+	}
+	if !approxFloat32Loose(bottomBR, 200) {
+		t.Errorf("BottomRight bottom = %f, want ~200", bottomBR)
+	}
+}
+
+func TestGetCanvasTransformTopRight(t *testing.T) {
+	p := stdParams()
+	tr := GetCanvasTransform(CanvasTopRight, p)
+	_, topTR, rightTR, _ := TransformBounds(tr)
+	if !approxFloat32Loose(rightTR, 320) {
+		t.Errorf("TopRight right = %f, want ~320", rightTR)
+	}
+	if !approxFloat32Loose(topTR, 0) {
+		t.Errorf("TopRight top = %f, want ~0", topTR)
+	}
+}

@@ -6,8 +6,13 @@ import (
 )
 
 const (
-	HUDClassic = 0
-	HUDCount   = 3
+	HUDClassic    = 0
+	HUDQuakeWorld = 1
+	HUDCount      = 3
+
+	// GameDeathmatch is the gametype value for deathmatch mode, used by
+	// SBAR canvas alignment.
+	GameDeathmatch = 1
 )
 
 // CanvasType identifies the coordinate space used for 2D drawing calls.
@@ -133,6 +138,179 @@ func TransformBounds(t DrawTransform) (left, top, right, bottom float32) {
 	bottom = (-1 - t.Offset[1]) / t.Scale[1]
 	top = (1 - t.Offset[1]) / t.Scale[1]
 	return
+}
+
+// goldenPixelShift is a fractional pixel offset (phi/2) applied to canvas
+// transforms to avoid interpolation artifacts at certain integer scales.
+// Matches the C Ironwail magic constant in Draw_Transform2.
+const goldenPixelShift = 0.61803399 / 2.0
+
+// CanvasTransformParams collects the screen and cvar state needed to
+// compute a canvas transform. The caller populates this once per frame
+// and passes it to GetCanvasTransform for each canvas switch.
+type CanvasTransformParams struct {
+	// GUIWidth and GUIHeight are the GUI-space dimensions (C vid.guiwidth/guiheight).
+	GUIWidth  float32
+	GUIHeight float32
+
+	// GLWidth and GLHeight are the physical framebuffer dimensions in pixels.
+	GLWidth  float32
+	GLHeight float32
+
+	// ConWidth and ConHeight are the console logical dimensions (scr_conwidth/scr_conscale).
+	ConWidth  float32
+	ConHeight float32
+
+	// MenuScale is the scr_menuscale cvar value.
+	MenuScale float32
+
+	// SbarScale is the scr_sbarscale cvar value.
+	SbarScale float32
+
+	// CrosshairScale is the scr_crosshairscale cvar value.
+	CrosshairScale float32
+
+	// ConSlideFraction is the console slide-in progress (0 = fully hidden, 1 = fully open).
+	// Used only by CanvasConsole to offset the transform vertically.
+	ConSlideFraction float32
+
+	// VRect is the 3D viewport rectangle, used by CanvasCrosshair to center
+	// on the viewport midpoint rather than the screen center.
+	VRect ViewRect
+
+	// GameType distinguishes deathmatch from cooperative for SBAR alignment.
+	// 0 = single-player/cooperative, 1 = deathmatch.
+	GameType int
+
+	// HudStyle controls HUD layout (HUDClassic, etc.).
+	HudStyle int
+}
+
+// drawTransform2 computes a DrawTransform for the given canvas logical size,
+// independent X/Y scale factors, and alignment within the screen.
+// Matches C Ironwail's static Draw_Transform2 in gl_draw.c.
+func drawTransform2(p CanvasTransformParams, width, height, scaleX, scaleY, alignX, alignY float32) DrawTransform {
+	var t DrawTransform
+	t.Scale[0] = scaleX * 2.0 / p.GUIWidth
+	t.Scale[1] = scaleY * -2.0 / p.GUIHeight
+	t.Offset[0] = (p.GUIWidth-width*scaleX)*alignX/p.GUIWidth*2.0 - 1.0
+	t.Offset[1] = (p.GUIHeight-height*scaleY)*alignY/p.GUIHeight*-2.0 + 1.0
+	// Sub-pixel shift to avoid interpolation artifacts.
+	t.Offset[0] += goldenPixelShift / p.GLWidth
+	t.Offset[1] += goldenPixelShift / p.GLHeight
+	return t
+}
+
+// drawTransform computes a DrawTransform with uniform scaling (scaleX == scaleY).
+// Matches C Ironwail's static Draw_Transform in gl_draw.c.
+func drawTransform(p CanvasTransformParams, width, height, scale, alignX, alignY float32) DrawTransform {
+	return drawTransform2(p, width, height, scale, scale, alignX, alignY)
+}
+
+// GetCanvasTransform computes the DrawTransform for a given canvas type,
+// mapping canvas-space coordinates to NDC. This is the Go equivalent of
+// C Ironwail's Draw_GetCanvasTransform in gl_draw.c.
+//
+// The returned transform is applied to 2D vertex positions:
+//
+//	ndc = vertex * transform.Scale + transform.Offset
+func GetCanvasTransform(ct CanvasType, p CanvasTransformParams) DrawTransform {
+	switch ct {
+	case CanvasDefault:
+		return drawTransform(p, p.GUIWidth, p.GUIHeight, 1.0,
+			CanvasAlignCenterX, CanvasAlignCenterY)
+
+	case CanvasConsole:
+		sx := p.GUIWidth / p.ConWidth
+		sy := p.GUIHeight / p.ConHeight
+		t := drawTransform2(p, p.ConWidth, p.ConHeight, sx, sy,
+			CanvasAlignCenterX, CanvasAlignCenterY)
+		// Slide the console up based on animation fraction.
+		t.Offset[1] += (1.0 - p.ConSlideFraction) * 2.0
+		return t
+
+	case CanvasMenu:
+		s := minf(p.GUIWidth/320.0, p.GUIHeight/200.0)
+		s = clampf(p.MenuScale, 1.0, s)
+		return drawTransform(p, 320, 200, s,
+			CanvasAlignCenterX, CanvasAlignCenterY)
+
+	case CanvasCSQC:
+		s := clampf(p.SbarScale, 1.0, p.GUIWidth/320.0)
+		return drawTransform(p, p.GUIWidth/s, p.GUIHeight/s, s,
+			CanvasAlignCenterX, CanvasAlignCenterY)
+
+	case CanvasSbar:
+		var s float32
+		if p.HudStyle == HUDQuakeWorld {
+			s = clampf(p.SbarScale, 1.0, p.GUIHeight/240.0)
+		} else {
+			s = clampf(p.SbarScale, 1.0, p.GUIWidth/320.0)
+		}
+		// Deathmatch with classic/QW HUD: left-aligned. Otherwise: centered.
+		if p.GameType == GameDeathmatch && (p.HudStyle == HUDClassic || p.HudStyle == HUDQuakeWorld) {
+			return drawTransform(p, 320, 48, s,
+				CanvasAlignLeft, CanvasAlignBottom)
+		}
+		return drawTransform(p, 320, 48, s,
+			CanvasAlignCenterX, CanvasAlignBottom)
+
+	case CanvasSbarQWInv:
+		s := clampf(p.SbarScale, 1.0, p.GUIHeight/240.0)
+		return drawTransform(p, 48, 48, s,
+			CanvasAlignRight, CanvasAlignBottom)
+
+	case CanvasSbar2:
+		s := minf(p.GUIWidth/400.0, p.GUIHeight/225.0)
+		s = clampf(p.SbarScale, 1.0, s)
+		return drawTransform(p, p.GUIWidth/s, p.GUIHeight/s, s,
+			CanvasAlignCenterX, CanvasAlignCenterY)
+
+	case CanvasCrosshair:
+		s := clampf(p.CrosshairScale, 1.0, 10.0)
+		t := drawTransform(p, p.GUIWidth/s/2, p.GUIHeight/s/2, s,
+			CanvasAlignLeft, CanvasAlignBottom)
+		// Shift to viewport center.
+		t.Offset[0] += 1.0
+		vMid := float32(p.VRect.Y) + float32(p.VRect.Height)/2.0
+		t.Offset[1] += 1.0 - (vMid*2.0)/p.GLHeight
+		return t
+
+	case CanvasBottomLeft:
+		s := p.GUIWidth / p.ConWidth
+		return drawTransform(p, 320, 200, s,
+			CanvasAlignLeft, CanvasAlignBottom)
+
+	case CanvasBottomRight:
+		s := p.GUIWidth / p.ConWidth
+		return drawTransform(p, 320, 200, s,
+			CanvasAlignRight, CanvasAlignBottom)
+
+	case CanvasTopRight:
+		s := p.GUIWidth / p.ConWidth
+		return drawTransform(p, 320, 200, s,
+			CanvasAlignRight, CanvasAlignTop)
+
+	default:
+		// CanvasNone / CanvasInvalid: identity transform.
+		return DrawTransform{
+			Scale:  [2]float32{2.0 / p.GUIWidth, -2.0 / p.GUIHeight},
+			Offset: [2]float32{-1, 1},
+		}
+	}
+}
+
+// SetCanvas updates a CanvasState to the given canvas type, computing
+// the new transform and clipping bounds. If the canvas type is already
+// active, the call is a no-op (matching C Ironwail's early-out in
+// GL_SetCanvas).
+func SetCanvas(state *CanvasState, ct CanvasType, p CanvasTransformParams) {
+	if state.Type == ct {
+		return
+	}
+	state.Type = ct
+	state.Transform = GetCanvasTransform(ct, p)
+	state.Left, state.Top, state.Right, state.Bottom = TransformBounds(state.Transform)
 }
 
 type ViewRect struct {
