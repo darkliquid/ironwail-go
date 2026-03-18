@@ -87,11 +87,12 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	msg.WriteByte(1)
 	msg.WriteByte(2)
 	msg.WriteByte(3)
+	// Origins and angles interleaved: O1, A1, O2, A2, O3, A3
 	writeCoord(msg, 1)
-	writeCoord(msg, 2)
-	writeCoord(msg, 3)
 	writeAngle(msg, 0)
+	writeCoord(msg, 2)
 	writeAngle(msg, 90)
+	writeCoord(msg, 3)
 	writeAngle(msg, 180)
 
 	msg.WriteByte(byte(inet.SVCClientData))
@@ -116,11 +117,12 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 
 	msg.WriteByte(0x80 | byte(inet.U_FRAME|inet.U_ANGLE2|inet.U_ORIGIN1|inet.U_ORIGIN2|inet.U_ORIGIN3))
 	msg.WriteByte(1)
+	// Field order: FRAME, O1, O2, A2, O3 (interleaved)
 	msg.WriteByte(4)
 	writeCoord(msg, 10)
 	writeCoord(msg, 20)
-	writeCoord(msg, 30)
 	writeAngle(msg, 45)
+	writeCoord(msg, 30)
 
 	msg.WriteByte(byte(inet.SVCTempEntity))
 	msg.WriteByte(byte(inet.TE_EXPLOSION))
@@ -415,31 +417,33 @@ func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 	msg := bytes.NewBuffer(nil)
 
 	msg.WriteByte(byte(inet.SVCSpawnStatic))
-	msg.WriteByte(5)
-	msg.WriteByte(1)
-	msg.WriteByte(2)
-	msg.WriteByte(3)
+	msg.WriteByte(5)  // model
+	msg.WriteByte(1)  // frame
+	msg.WriteByte(2)  // colormap
+	msg.WriteByte(3)  // skin
+	// Interleaved origins and angles: O1, A1, O2, A2, O3, A3
 	writeCoord(msg, 10)
-	writeCoord(msg, 20)
-	writeCoord(msg, 30)
 	writeAngle(msg, 45)
+	writeCoord(msg, 20)
 	writeAngle(msg, 90)
+	writeCoord(msg, 30)
 	writeAngle(msg, 180)
 
 	msg.WriteByte(byte(inet.SVCSpawnStatic2))
 	msg.WriteByte(byte(inet.BLARGEMODEL | inet.BLARGEFRAME | inet.BALPHA | inet.BSCALE))
-	writeShort(msg, 300)
-	writeShort(msg, 400)
-	msg.WriteByte(0)
-	msg.WriteByte(7)
+	writeShort(msg, 300)  // model (large)
+	writeShort(msg, 400)  // frame (large)
+	msg.WriteByte(0)      // colormap
+	msg.WriteByte(7)      // skin
+	// Interleaved origins and angles
 	writeCoord(msg, 1)
-	writeCoord(msg, 2)
-	writeCoord(msg, 3)
 	writeAngle(msg, 0)
+	writeCoord(msg, 2)
 	writeAngle(msg, 10)
+	writeCoord(msg, 3)
 	writeAngle(msg, 20)
-	msg.WriteByte(200)
-	msg.WriteByte(24)
+	msg.WriteByte(200) // alpha
+	msg.WriteByte(24)  // scale
 
 	msg.WriteByte(byte(inet.SVCSpawnStaticSound))
 	writeCoord(msg, 4)

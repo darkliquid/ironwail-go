@@ -830,14 +830,13 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 	}
 	b.Skin = skin
 
+	// Origins and angles are interleaved: O1, A1, O2, A2, O3, A3
 	for i := 0; i < 3; i++ {
 		coord, err := readCoord(msg, fmt.Sprintf("%s: missing origin %d", prefix, i))
 		if err != nil {
 			return b, 0, err
 		}
 		b.Origin[i] = coord
-	}
-	for i := 0; i < 3; i++ {
 		angle, err := readAngle(msg, fmt.Sprintf("%s: missing angle %d", prefix, i))
 		if err != nil {
 			return b, 0, err
@@ -948,6 +947,10 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		isNew = false
 	}
 
+	// Field read order must match C exactly (CL_ParseUpdate in cl_parse.c):
+	// MODEL, FRAME, COLORMAP, SKIN, EFFECTS,
+	// ORIGIN1, ANGLE1, ORIGIN2, ANGLE2, ORIGIN3, ANGLE3,
+	// ALPHA, SCALE, FRAME2, MODEL2, LERPFINISH
 	if bits&inet.U_MODEL != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
@@ -955,26 +958,12 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		state.ModelIndex = uint16(v)
 	}
-	if bits&inet.U_MODEL2 != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing model2")
-		}
-		state.ModelIndex = (state.ModelIndex & 0x00ff) | (uint16(v) << 8)
-	}
 	if bits&inet.U_FRAME != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
 			return fmt.Errorf("entity update: missing frame")
 		}
 		state.Frame = uint16(v)
-	}
-	if bits&inet.U_FRAME2 != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing frame2")
-		}
-		state.Frame = (state.Frame & 0x00ff) | (uint16(v) << 8)
 	}
 	if bits&inet.U_COLORMAP != 0 {
 		v, ok := msg.ReadByte()
@@ -997,27 +986,13 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		state.Effects = int(v)
 	}
-
+	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
 	if bits&inet.U_ORIGIN1 != 0 {
 		v, err := readCoord(msg, "entity update: missing origin1")
 		if err != nil {
 			return err
 		}
 		state.Origin[0] = v
-	}
-	if bits&inet.U_ORIGIN2 != 0 {
-		v, err := readCoord(msg, "entity update: missing origin2")
-		if err != nil {
-			return err
-		}
-		state.Origin[1] = v
-	}
-	if bits&inet.U_ORIGIN3 != 0 {
-		v, err := readCoord(msg, "entity update: missing origin3")
-		if err != nil {
-			return err
-		}
-		state.Origin[2] = v
 	}
 	if bits&inet.U_ANGLE1 != 0 {
 		v, err := readAngle(msg, "entity update: missing angle1")
@@ -1026,12 +1001,26 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		state.Angles[0] = v
 	}
+	if bits&inet.U_ORIGIN2 != 0 {
+		v, err := readCoord(msg, "entity update: missing origin2")
+		if err != nil {
+			return err
+		}
+		state.Origin[1] = v
+	}
 	if bits&inet.U_ANGLE2 != 0 {
 		v, err := readAngle(msg, "entity update: missing angle2")
 		if err != nil {
 			return err
 		}
 		state.Angles[1] = v
+	}
+	if bits&inet.U_ORIGIN3 != 0 {
+		v, err := readCoord(msg, "entity update: missing origin3")
+		if err != nil {
+			return err
+		}
+		state.Origin[2] = v
 	}
 	if bits&inet.U_ANGLE3 != 0 {
 		v, err := readAngle(msg, "entity update: missing angle3")
@@ -1040,6 +1029,7 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		state.Angles[2] = v
 	}
+	// FitzQuake extensions come AFTER origins/angles
 	if bits&inet.U_ALPHA != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
@@ -1053,6 +1043,20 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 			return fmt.Errorf("entity update: missing scale")
 		}
 		state.Scale = v
+	}
+	if bits&inet.U_FRAME2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("entity update: missing frame2")
+		}
+		state.Frame = (state.Frame & 0x00ff) | (uint16(v) << 8)
+	}
+	if bits&inet.U_MODEL2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("entity update: missing model2")
+		}
+		state.ModelIndex = (state.ModelIndex & 0x00ff) | (uint16(v) << 8)
 	}
 	if bits&inet.U_LERPFINISH != 0 {
 		if _, ok := msg.ReadByte(); !ok {

@@ -208,10 +208,9 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 	}
 	msg.WriteByte(byte(ent.Colormap))
 	msg.WriteByte(byte(ent.Skin))
+	// Origins and angles must be interleaved: O1, A1, O2, A2, O3, A3
 	for i := 0; i < 3; i++ {
 		msg.WriteCoord(ent.Origin[i])
-	}
-	for i := 0; i < 3; i++ {
 		msg.WriteAngle(ent.Angles[i])
 	}
 	if extended && bits&(1<<2) != 0 {
@@ -467,17 +466,15 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	} else {
 		msg.WriteByte(byte(entNum))
 	}
+	// Field write order must match C exactly (sv_main.c:920-954):
+	// MODEL, FRAME, COLORMAP, SKIN, EFFECTS,
+	// ORIGIN1, ANGLE1, ORIGIN2, ANGLE2, ORIGIN3, ANGLE3,
+	// ALPHA, SCALE, FRAME2, MODEL2, LERPFINISH
 	if bits&inet.U_MODEL != 0 {
 		msg.WriteByte(byte(state.ModelIndex))
 	}
-	if bits&inet.U_MODEL2 != 0 {
-		msg.WriteByte(byte(state.ModelIndex >> 8))
-	}
 	if bits&inet.U_FRAME != 0 {
 		msg.WriteByte(byte(state.Frame))
-	}
-	if bits&inet.U_FRAME2 != 0 {
-		msg.WriteByte(byte(state.Frame >> 8))
 	}
 	if bits&inet.U_COLORMAP != 0 {
 		msg.WriteByte(byte(state.Colormap))
@@ -488,30 +485,39 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	if bits&inet.U_EFFECTS != 0 {
 		msg.WriteByte(byte(state.Effects))
 	}
+	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
 	if bits&inet.U_ORIGIN1 != 0 {
 		msg.WriteCoord(state.Origin[0])
-	}
-	if bits&inet.U_ORIGIN2 != 0 {
-		msg.WriteCoord(state.Origin[1])
-	}
-	if bits&inet.U_ORIGIN3 != 0 {
-		msg.WriteCoord(state.Origin[2])
 	}
 	if bits&inet.U_ANGLE1 != 0 {
 		msg.WriteAngle(state.Angles[0])
 	}
+	if bits&inet.U_ORIGIN2 != 0 {
+		msg.WriteCoord(state.Origin[1])
+	}
 	if bits&inet.U_ANGLE2 != 0 {
 		msg.WriteAngle(state.Angles[1])
+	}
+	if bits&inet.U_ORIGIN3 != 0 {
+		msg.WriteCoord(state.Origin[2])
 	}
 	if bits&inet.U_ANGLE3 != 0 {
 		msg.WriteAngle(state.Angles[2])
 	}
+	// FitzQuake extensions come AFTER origins/angles
 	if bits&inet.U_ALPHA != 0 {
 		msg.WriteByte(state.Alpha)
 	}
 	if bits&inet.U_SCALE != 0 {
 		msg.WriteByte(state.Scale)
 	}
+	if bits&inet.U_FRAME2 != 0 {
+		msg.WriteByte(byte(state.Frame >> 8))
+	}
+	if bits&inet.U_MODEL2 != 0 {
+		msg.WriteByte(byte(state.ModelIndex >> 8))
+	}
+	// TODO: U_LERPFINISH support (task #26)
 
 	return true
 }

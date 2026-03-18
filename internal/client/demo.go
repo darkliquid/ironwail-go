@@ -355,10 +355,9 @@ func appendEntityState(dst []byte, ent inet.EntityState, extended bool, includeE
 		dst = append(dst, byte(ent.Frame))
 	}
 	dst = append(dst, ent.Colormap, ent.Skin)
+	// Origins and angles interleaved: O1, A1, O2, A2, O3, A3
 	for i := range ent.Origin {
 		dst = appendCoord16(dst, ent.Origin[i])
-	}
-	for i := range ent.Angles {
 		dst = append(dst, byte(ent.Angles[i]*256.0/360.0))
 	}
 	if extended && bits&inet.BALPHA != 0 {
