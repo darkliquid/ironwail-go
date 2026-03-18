@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log/slog"
 	"math"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -69,4 +70,20 @@ func (s *Server) Physics() {
 	}
 
 	s.Time += s.FrameTime
+
+	// Track active edict count and warn if exceeding standard limit of 600.
+	// Matches C host.c dev_stats/dev_peakstats tracking.
+	active := 0
+	for i := 0; i < s.NumEdicts; i++ {
+		if s.Edicts[i] != nil && !s.Edicts[i].Free {
+			active++
+		}
+	}
+	if active > 600 && s.peakEdicts <= 600 {
+		slog.Warn("edict count exceeds standard limit",
+			"active", active, "limit", 600, "max", s.MaxEdicts)
+	}
+	if active > s.peakEdicts {
+		s.peakEdicts = active
+	}
 }

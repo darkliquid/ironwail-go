@@ -60,9 +60,10 @@ type Server struct {
 	FrameTime float32
 
 	// Entity management
-	Edicts    []*Edict
-	NumEdicts int
-	MaxEdicts int
+	Edicts     []*Edict
+	NumEdicts  int
+	MaxEdicts  int
+	peakEdicts int // Dev stats: peak active edict count
 
 	// QuakeC VM integration
 	QCVM *qc.VM
