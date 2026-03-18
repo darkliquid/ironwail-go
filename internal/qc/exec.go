@@ -64,7 +64,8 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 		return err
 	}
 
-	vm.XStatement = int(f.FirstStatement)
+	// Start at first_statement - 1 because the loop body ends with XStatement++
+	vm.XStatement = int(f.FirstStatement) - 1
 
 	for {
 		if vm.XStatement < 0 || vm.XStatement >= len(vm.Statements) {
@@ -76,6 +77,13 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		switch op {
 		case OPDone, OPReturn:
+			// Copy return value from operand A to OFS_RETURN (3 slots for vector).
+			// C: globals[OFS_RETURN+i] = globals[st->a+i] for i in 0..2
+			a := int(uint16(st.A))
+			vm.Globals[OFSReturn] = vm.Globals[a]
+			vm.Globals[OFSReturn+1] = vm.Globals[a+1]
+			vm.Globals[OFSReturn+2] = vm.Globals[a+2]
+
 			if err := vm.LeaveFunction(); err != nil {
 				return err
 			}
@@ -412,7 +420,9 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 		return err
 	}
 
-	vm.XStatement = int(f.FirstStatement)
+	// Subtract 1 to compensate for the vm.XStatement++ at the bottom of the
+	// main execution loop. C does: return f->first_statement - 1; // offset the s++
+	vm.XStatement = int(f.FirstStatement) - 1
 	return nil
 }
 

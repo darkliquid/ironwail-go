@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 )
 
 func (vm *VM) LoadProgs(r io.ReadSeeker) error {
@@ -107,16 +108,30 @@ func (vm *VM) EnterFunction(f *DFunction) error {
 
 	vm.Stack[vm.Depth].S = vm.XStatement
 	vm.Stack[vm.Depth].Func = vm.XFunction
-	vm.Stack[vm.Depth].LocalBase = vm.LocalUsed
 	vm.Depth++
 
-	vm.XFunction = f
-
+	// Save off any locals that the new function steps on.
+	// C: for (i = 0; i < c; i++) localstack[used+i] = ((int*)globals)[parm_start+i]
 	c := int(f.Locals)
 	if vm.LocalUsed+c > LocalStackSize {
 		return fmt.Errorf("local stack overflow")
 	}
+	for i := 0; i < c; i++ {
+		vm.LocalStack[vm.LocalUsed+i] = int32(math.Float32bits(vm.Globals[int(f.ParmStart)+i]))
+	}
 	vm.LocalUsed += c
+
+	// Copy parameters from OFS_PARM* to the function's local space.
+	// C: o = f->parm_start; for each parm, copy parm_size slots from OFS_PARMn
+	o := int(f.ParmStart)
+	for i := 0; i < int(f.NumParms); i++ {
+		for j := 0; j < int(f.ParmSize[i]); j++ {
+			vm.Globals[o] = vm.Globals[OFSParm0+i*3+j]
+			o++
+		}
+	}
+
+	vm.XFunction = f
 
 	return nil
 }
@@ -126,12 +141,21 @@ func (vm *VM) LeaveFunction() error {
 		return fmt.Errorf("stack underflow")
 	}
 
-	vm.Depth--
-
+	// Restore locals from the stack.
+	// C: localstack_used -= c; for (i = 0; i < c; i++) ((int*)globals)[parm_start+i] = localstack[used+i]
 	if vm.XFunction != nil {
-		vm.LocalUsed -= int(vm.XFunction.Locals)
+		c := int(vm.XFunction.Locals)
+		vm.LocalUsed -= c
+		if vm.LocalUsed < 0 {
+			return fmt.Errorf("local stack underflow")
+		}
+		for i := 0; i < c; i++ {
+			vm.Globals[int(vm.XFunction.ParmStart)+i] = math.Float32frombits(uint32(vm.LocalStack[vm.LocalUsed+i]))
+		}
 	}
 
+	// Up stack
+	vm.Depth--
 	vm.XFunction = vm.Stack[vm.Depth].Func
 	vm.XStatement = vm.Stack[vm.Depth].S
 
