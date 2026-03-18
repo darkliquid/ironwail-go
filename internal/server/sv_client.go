@@ -586,7 +586,7 @@ func (s *Server) CreateBaseline() {
 		if entNum > 0 && entNum <= s.Static.MaxClients {
 			ent.Baseline.Colormap = entNum
 			ent.Baseline.ModelIndex = s.FindModel("progs/player.mdl")
-			ent.Baseline.Alpha = 255
+			ent.Baseline.Alpha = 0 // ENTALPHA_DEFAULT
 			ent.Baseline.Scale = 16
 		} else {
 			ent.Baseline.Colormap = 0
