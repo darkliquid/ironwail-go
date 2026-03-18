@@ -67,7 +67,13 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 	// Start at first_statement - 1 because the loop body ends with XStatement++
 	vm.XStatement = int(f.FirstStatement) - 1
 
+	profile := 0
 	for {
+		profile++
+		if profile > 0x1000000 {
+			return fmt.Errorf("runaway loop error")
+		}
+
 		if vm.XStatement < 0 || vm.XStatement >= len(vm.Statements) {
 			return fmt.Errorf("statement out of bounds: %d", vm.XStatement)
 		}
@@ -134,11 +140,9 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			vm.SetGVector(int(st.C), [3]float32{v[0] * fv, v[1] * fv, v[2] * fv})
 
 		case OPDivF:
-			b := vm.GFloat(int(st.B))
-			if b == 0 {
-				return fmt.Errorf("division by zero")
-			}
-			vm.SetGFloat(int(st.C), vm.GFloat(int(st.A))/b)
+			// C does not check for division by zero — IEEE 754 produces ±Inf/NaN.
+			// Match C behavior by allowing the division to proceed naturally.
+			vm.SetGFloat(int(st.C), vm.GFloat(int(st.A))/vm.GFloat(int(st.B)))
 
 		case OPAddF:
 			vm.SetGFloat(int(st.C), vm.GFloat(int(st.A))+vm.GFloat(int(st.B)))
