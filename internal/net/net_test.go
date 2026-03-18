@@ -4,6 +4,7 @@
 package net
 
 import (
+	stdnet "net"
 	"testing"
 	"time"
 
@@ -154,5 +155,101 @@ func TestServerInfoHostnameFallback(t *testing.T) {
 	cvar.Set(hostname.Name, "LAN Party")
 	if got := serverInfoHostname(); got != "LAN Party" {
 		t.Fatalf("serverInfoHostname() = %q, want %q", got, "LAN Party")
+	}
+}
+
+func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
+	Init()
+	netHostPort = 26003
+	Listen(true)
+	defer Listen(false)
+
+	type connectResult struct {
+		sock *Socket
+	}
+
+	results := make(chan connectResult, 2)
+	go func() { results <- connectResult{sock: Connect("127.0.0.1:26003")} }()
+	go func() { results <- connectResult{sock: Connect("127.0.0.1:26003")} }()
+
+	serverSocks := make([]*Socket, 0, 2)
+	deadline := time.Now().Add(2 * time.Second)
+	for len(serverSocks) < 2 && time.Now().Before(deadline) {
+		if sock := CheckNewConnections(); sock != nil {
+			serverSocks = append(serverSocks, sock)
+		} else {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if len(serverSocks) != 2 {
+		t.Fatalf("expected 2 server sockets, got %d", len(serverSocks))
+	}
+	defer Close(serverSocks[0])
+	defer Close(serverSocks[1])
+
+	clientA := (<-results).sock
+	clientB := (<-results).sock
+	if clientA == nil || clientB == nil {
+		t.Fatal("failed to connect both clients")
+	}
+	defer Close(clientA)
+	defer Close(clientB)
+
+	if acceptSocket == nil {
+		t.Fatal("accept socket should be open while listening")
+	}
+	acceptPort := acceptSocket.LocalAddr().(*stdnet.UDPAddr).Port
+
+	serverPortA := serverSocks[0].udpConn.LocalAddr().(*stdnet.UDPAddr).Port
+	serverPortB := serverSocks[1].udpConn.LocalAddr().(*stdnet.UDPAddr).Port
+	if serverPortA == acceptPort || serverPortB == acceptPort {
+		t.Fatalf("server client socket reused accept socket port: accept=%d, clientPorts=%d/%d", acceptPort, serverPortA, serverPortB)
+	}
+	if serverPortA == serverPortB {
+		t.Fatalf("expected distinct per-client server ports, both were %d", serverPortA)
+	}
+
+	clientPortA := clientA.udpConn.LocalAddr().(*stdnet.UDPAddr).Port
+	clientPortB := clientB.udpConn.LocalAddr().(*stdnet.UDPAddr).Port
+	var serverForA, serverForB *Socket
+	for _, s := range serverSocks {
+		switch s.remoteAddr.Port {
+		case clientPortA:
+			serverForA = s
+		case clientPortB:
+			serverForB = s
+		}
+	}
+	if serverForA == nil || serverForB == nil {
+		t.Fatalf("could not map server sockets to clients (client ports %d/%d)", clientPortA, clientPortB)
+	}
+
+	// Regression guard: if sockets are shared, polling the wrong server socket
+	// can consume-and-drop another client's packet.
+	if SendMessage(clientA, []byte("for-client-a")) != 1 {
+		t.Fatal("failed to send message from client A")
+	}
+
+	for i := 0; i < 20; i++ {
+		serverForB.udpConn.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
+		msgType, _ := GetMessage(serverForB)
+		if msgType != 0 {
+			t.Fatalf("server socket for client B received unexpected message type %d", msgType)
+		}
+	}
+	serverForB.udpConn.SetReadDeadline(time.Time{})
+
+	var gotType int
+	var gotData []byte
+	for i := 0; i < 100; i++ {
+		serverForA.udpConn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		gotType, gotData = GetMessage(serverForA)
+		if gotType != 0 {
+			break
+		}
+	}
+	serverForA.udpConn.SetReadDeadline(time.Time{})
+	if gotType != 1 || string(gotData) != "for-client-a" {
+		t.Fatalf("server socket for client A got type=%d data=%q, want type=1 data=%q", gotType, string(gotData), "for-client-a")
 	}
 }
