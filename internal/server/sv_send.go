@@ -103,10 +103,18 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	if attenuation != DefaultSoundAttenuation {
 		fieldMask |= 2
 	}
-	if entNum >= 8192 || channel >= 8 {
+	// FitzQuake extension: large entity/sound numbers.
+	// NetQuake protocol can't support these — silently drop the sound.
+	if entNum >= 8192 {
+		if s.Protocol == ProtocolNetQuake {
+			return
+		}
 		fieldMask |= inet.SND_LARGEENTITY
 	}
-	if soundNum >= 256 {
+	if soundNum >= 256 || channel >= 8 {
+		if s.Protocol == ProtocolNetQuake {
+			return
+		}
 		fieldMask |= inet.SND_LARGESOUND
 	}
 
@@ -160,7 +168,10 @@ func (s *Server) LocalSound(client *Client, sample string) {
 
 	fieldMask := 0
 	if soundNum >= 256 {
-		fieldMask = 1
+		if s.Protocol == ProtocolNetQuake {
+			return
+		}
+		fieldMask = inet.SND_LARGESOUND
 	}
 
 	if client.Message.Len() > MaxDatagram-4 {
@@ -169,7 +180,7 @@ func (s *Server) LocalSound(client *Client, sample string) {
 
 	client.Message.WriteByte(byte(inet.SVCLocalSound))
 	client.Message.WriteByte(byte(fieldMask))
-	if fieldMask != 0 {
+	if fieldMask&inet.SND_LARGESOUND != 0 {
 		client.Message.WriteShort(int16(soundNum))
 	} else {
 		client.Message.WriteByte(byte(soundNum))
