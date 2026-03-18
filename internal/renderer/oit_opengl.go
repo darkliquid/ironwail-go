@@ -117,3 +117,46 @@ func (r *Renderer) clearOITBuffers() {
 
 	gl.BindFramebuffer(gl.FRAMEBUFFER, uint32(prevFBO))
 }
+
+// beginTranslucencyBlock enables frame-global translucent rendering state.
+// In OIT mode this redirects translucent draws to the OIT MRT FBO and configures
+// per-attachment blend equations for weighted blended accumulation.
+func (r *Renderer) beginTranslucencyBlock() {
+	alphaMode := GetAlphaMode()
+
+	if alphaMode == AlphaModeOIT && r.oitFB.fbo != 0 {
+		gl.BindFramebuffer(gl.FRAMEBUFFER, r.oitFB.fbo)
+		drawBuffers := [2]uint32{gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1}
+		gl.DrawBuffers(2, &drawBuffers[0])
+		r.clearOITBuffers()
+
+		gl.Enable(gl.BLEND)
+		gl.BlendFunci(0, gl.ONE, gl.ONE)
+		gl.BlendFunci(1, gl.ZERO, gl.ONE_MINUS_SRC_ALPHA)
+		return
+	}
+
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+}
+
+// endTranslucencyBlock restores default framebuffer/blend state after translucent
+// rendering and leaves room for the follow-up OIT resolve pass.
+func (r *Renderer) endTranslucencyBlock() {
+	alphaMode := GetAlphaMode()
+
+	if alphaMode == AlphaModeOIT && r.oitFB.fbo != 0 {
+		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+		if r.sceneFBO != 0 {
+			gl.BindFramebuffer(gl.FRAMEBUFFER, r.sceneFBO)
+		} else {
+			gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		}
+
+		// TODO(xetpw-5d): resolve OIT accum/revealage targets into the scene framebuffer.
+	}
+
+	gl.DepthMask(true)
+	gl.Disable(gl.BLEND)
+}

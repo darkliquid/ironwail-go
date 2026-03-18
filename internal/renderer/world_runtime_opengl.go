@@ -858,9 +858,11 @@ func (r *Renderer) DrawTranslucentCalls() {
 		return
 	}
 
-	sort.SliceStable(calls, func(i, j int) bool {
-		return calls[i].distanceSq > calls[j].distanceSq
-	})
+	if shouldSortTranslucentCalls(GetAlphaMode()) {
+		sort.SliceStable(calls, func(i, j int) bool {
+			return calls[i].distanceSq > calls[j].distanceSq
+		})
+	}
 
 	gl.Enable(gl.DEPTH_TEST)
 	gl.Enable(gl.BLEND)

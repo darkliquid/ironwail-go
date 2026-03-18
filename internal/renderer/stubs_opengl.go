@@ -5,6 +5,8 @@
 package renderer
 
 import (
+	"log/slog"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
@@ -57,23 +59,6 @@ type DrawContext struct {
 	gldc *glDrawContext
 }
 
-// beginLateTranslucencyStateBlock enables GL state for all translucent draws in the
-// render pipeline. This sets up alpha blending (SRC_ALPHA, ONE_MINUS_SRC_ALPHA) and
-// disables depth writes so that translucent surfaces don't occlude each other. The block
-// wraps: translucent liquids, brush entities, sprites, alias models, particles, and decals.
-func beginLateTranslucencyStateBlock() {
-	gl.Enable(gl.BLEND)
-	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-}
-
-// endLateTranslucencyStateBlock restores opaque GL rendering state: re-enables depth writes
-// and disables alpha blending. Called after all translucent draws are complete, before
-// rendering the view model and post-processing effects.
-func endLateTranslucencyStateBlock() {
-	gl.DepthMask(true)
-	gl.Disable(gl.BLEND)
-}
-
 // RenderFrame executes the frame pipeline for the OpenGL path.
 //
 // When state.WaterWarp is true (r_waterwarp == 1, camera in liquid leaf), the
@@ -113,6 +98,15 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// After the 3D scene, apply the warpscale post-process then restore default FBO.
 	// Mirrors C Ironwail: R_WarpScaleView() after R_RenderScene().
 	warpViewport := dc.gldc.viewport
+	if ShouldUseOITResources() && dc.gldc.renderer != nil {
+		w, h := warpViewport.width, warpViewport.height
+		if w > 0 && h > 0 {
+			if err := dc.gldc.renderer.ensureOITFramebuffers(w, h); err != nil {
+				slog.Error("OIT framebuffer creation failed, falling back", "error", err)
+				SetAlphaMode(AlphaModeSorted)
+			}
+		}
+	}
 	if state.WaterWarp && dc.gldc.renderer != nil {
 		w, h := warpViewport.width, warpViewport.height
 		if w > 0 && h > 0 {
@@ -148,8 +142,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && dc.gldc.renderer != nil && len(opaqueBrushEntities) > 0 {
 		dc.gldc.renderer.renderBrushEntities(opaqueBrushEntities, worldBrushPassLiquidOpaqueOnly)
 	}
-	if lateTranslucency {
-		beginLateTranslucencyStateBlock()
+	if lateTranslucency && dc.gldc.renderer != nil {
+		dc.gldc.renderer.beginTranslucencyBlock()
 	}
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassLiquidTranslucentOnly)
@@ -178,8 +172,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawParticles && dc.gldc.renderer != nil && state.Particles != nil {
 		dc.gldc.renderer.renderParticles(state.Particles, state.Palette, particlePassTranslucent)
 	}
-	if lateTranslucency {
-		endLateTranslucencyStateBlock()
+	if lateTranslucency && dc.gldc.renderer != nil {
+		dc.gldc.renderer.endTranslucencyBlock()
 	}
 	if state.DrawEntities && dc.gldc.renderer != nil && state.ViewModel != nil {
 		dc.gldc.renderer.renderViewModel(*state.ViewModel)
