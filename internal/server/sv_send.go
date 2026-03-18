@@ -5,6 +5,11 @@ import (
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
+const (
+	ENTALPHA_DEFAULT = 0
+	ENTALPHA_ZERO    = 255
+)
+
 // CalcStats derives HUD/stat slots from player entvars for SVCUpdateStat style networking.
 func (s *Server) CalcStats(client *Client, statsi []int, statsf []float32, statss []string) {
 	ent := client.Edict
@@ -476,7 +481,7 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 		if s.QCFieldAlpha >= 0 {
 			ent.Alpha = encodeAlpha(s.QCVM.EFloat(entNum, s.QCFieldAlpha))
 		} else {
-			ent.Alpha = 0 // ENTALPHA_DEFAULT
+			ent.Alpha = ENTALPHA_DEFAULT
 		}
 		if s.QCFieldScale >= 0 {
 			ent.Scale = encodeScale(s.QCVM.EFloat(entNum, s.QCFieldScale))
@@ -692,6 +697,9 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		ent := s.Edicts[entNum]
 		state, ok := s.entityStateForClient(entNum, ent)
 		if !ok {
+			continue
+		}
+		if state.Alpha == ENTALPHA_ZERO {
 			continue
 		}
 

@@ -366,6 +366,39 @@ func TestWriteEntityUpdate_NonNetQuakeSetsFitzExtensions(t *testing.T) {
 	}
 }
 
+func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
+	t.Parallel()
+
+	vm := newTestQCVM()
+	vm.SetEFloat(1, 0, 1.0) // alpha -> encodeAlpha(1.0) == ENTALPHA_ZERO (255)
+
+	ent := &Edict{
+		Vars: &EntVars{},
+	}
+	client := &Client{
+		Edict: ent,
+	}
+	s := &Server{
+		Protocol:     ProtocolFitzQuake,
+		Static:       &ServerStatic{MaxClients: 1},
+		QCVM:         vm,
+		QCFieldAlpha: 0,
+		QCFieldScale: -1,
+		Edicts:       []*Edict{{}, ent},
+		NumEdicts:    2,
+	}
+
+	msg := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, msg)
+
+	if got := msg.Len(); got != 0 {
+		t.Fatalf("writeEntitiesToClient wrote %d bytes for ENTALPHA_ZERO entity, want 0", got)
+	}
+	if _, ok := client.EntityStates[1]; ok {
+		t.Fatal("ENTALPHA_ZERO entity should not be tracked in client.EntityStates")
+	}
+}
+
 func decodeEntityUpdateBitsAndPayload(t *testing.T, data []byte) (uint32, []byte) {
 	t.Helper()
 	if len(data) < 2 {
