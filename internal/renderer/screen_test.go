@@ -407,3 +407,228 @@ func TestGetCanvasTransformTopRight(t *testing.T) {
 		t.Errorf("TopRight top = %f, want ~0", topTR)
 	}
 }
+
+// paramsForRes builds a CanvasTransformParams for the given resolution
+// with typical 1:1 GUI mapping and default cvar values.
+func paramsForRes(w, h int) CanvasTransformParams {
+	return CanvasTransformParams{
+		GUIWidth:       float32(w),
+		GUIHeight:      float32(h),
+		GLWidth:        float32(w),
+		GLHeight:       float32(h),
+		ConWidth:       float32(w),
+		ConHeight:      float32(h),
+		MenuScale:      1,
+		SbarScale:      1,
+		CrosshairScale: 1,
+		VRect:          ViewRect{X: 0, Y: 0, Width: w, Height: h},
+	}
+}
+
+// TestGetCanvasTransformMultiResolution verifies that every canvas type
+// produces a valid transform (non-zero scale, reasonable offset, valid
+// bounds) across 4:3, 16:9, and 21:9 resolutions.
+func TestGetCanvasTransformMultiResolution(t *testing.T) {
+	resolutions := []struct {
+		name string
+		w, h int
+	}{
+		{"800x600_4:3", 800, 600},
+		{"1024x768_4:3", 1024, 768},
+		{"1280x720_16:9", 1280, 720},
+		{"1920x1080_16:9", 1920, 1080},
+		{"2560x1440_16:9", 2560, 1440},
+		{"2560x1080_21:9", 2560, 1080},
+		{"3440x1440_21:9", 3440, 1440},
+	}
+
+	canvasTypes := []CanvasType{
+		CanvasDefault, CanvasConsole, CanvasMenu, CanvasSbar,
+		CanvasSbar2, CanvasCrosshair, CanvasBottomLeft,
+		CanvasBottomRight, CanvasTopRight, CanvasCSQC,
+	}
+
+	for _, res := range resolutions {
+		p := paramsForRes(res.w, res.h)
+		for _, ct := range canvasTypes {
+			name := res.name + "/" + ct.String()
+			t.Run(name, func(t *testing.T) {
+				tp := p
+				// Console with slide=0 is off-screen; use fully open for validation.
+				if ct == CanvasConsole {
+					tp.ConSlideFraction = 1.0
+				}
+				tr := GetCanvasTransform(ct, tp)
+
+				// Scale must be non-zero with correct sign (positive X, negative Y).
+				if tr.Scale[0] <= 0 {
+					t.Errorf("Scale[0] = %f, want > 0", tr.Scale[0])
+				}
+				if tr.Scale[1] >= 0 {
+					t.Errorf("Scale[1] = %f, want < 0", tr.Scale[1])
+				}
+
+				// Offset should be in a reasonable NDC range.
+				for i := 0; i < 2; i++ {
+					if tr.Offset[i] < -3 || tr.Offset[i] > 3 {
+						t.Errorf("Offset[%d] = %f, out of reasonable NDC range", i, tr.Offset[i])
+					}
+				}
+
+				// TransformBounds must produce left < right and top < bottom.
+				left, top, right, bottom := TransformBounds(tr)
+				if left >= right {
+					t.Errorf("left=%f >= right=%f", left, right)
+				}
+				if top >= bottom {
+					t.Errorf("top=%f >= bottom=%f", top, bottom)
+				}
+			})
+		}
+	}
+}
+
+// TestGetCanvasTransformMenuCentered verifies that menu transforms center
+// the 320x200 logical canvas regardless of aspect ratio.
+func TestGetCanvasTransformMenuCentered(t *testing.T) {
+	resolutions := []struct {
+		name string
+		w, h int
+	}{
+		{"800x600", 800, 600},
+		{"1920x1080", 1920, 1080},
+		{"3440x1440", 3440, 1440},
+	}
+
+	for _, res := range resolutions {
+		t.Run(res.name, func(t *testing.T) {
+			p := paramsForRes(res.w, res.h)
+			tr := GetCanvasTransform(CanvasMenu, p)
+			left, top, right, bottom := TransformBounds(tr)
+
+			// Menu should be roughly centered: midpoint ≈ 160 horizontally, 100 vertically.
+			midX := (left + right) / 2
+			midY := (top + bottom) / 2
+			if !approxFloat32Loose(midX, 160) {
+				t.Errorf("Menu midX = %f, want ~160", midX)
+			}
+			if !approxFloat32Loose(midY, 100) {
+				t.Errorf("Menu midY = %f, want ~100", midY)
+			}
+		})
+	}
+}
+
+// TestGetCanvasTransformSbarBottomAligned verifies the sbar transform
+// anchors to the bottom of the screen at every resolution.
+func TestGetCanvasTransformSbarBottomAligned(t *testing.T) {
+	resolutions := []struct {
+		name string
+		w, h int
+	}{
+		{"800x600", 800, 600},
+		{"1920x1080", 1920, 1080},
+		{"2560x1080", 2560, 1080},
+	}
+
+	for _, res := range resolutions {
+		t.Run(res.name, func(t *testing.T) {
+			p := paramsForRes(res.w, res.h)
+			tr := GetCanvasTransform(CanvasSbar, p)
+			_, _, _, bottom := TransformBounds(tr)
+			// Sbar logical height is 48; bottom should be ~48.
+			if !approxFloat32Loose(bottom, 48) {
+				t.Errorf("Sbar bottom = %f, want ~48", bottom)
+			}
+		})
+	}
+}
+
+// TestGetCanvasTransformDefaultFullScreen verifies the default canvas
+// spans the full screen at every resolution.
+func TestGetCanvasTransformDefaultFullScreen(t *testing.T) {
+	resolutions := []struct {
+		name string
+		w, h int
+	}{
+		{"800x600", 800, 600},
+		{"1920x1080", 1920, 1080},
+		{"3440x1440", 3440, 1440},
+	}
+
+	for _, res := range resolutions {
+		t.Run(res.name, func(t *testing.T) {
+			p := paramsForRes(res.w, res.h)
+			tr := GetCanvasTransform(CanvasDefault, p)
+			left, top, right, bottom := TransformBounds(tr)
+
+			width := right - left
+			height := bottom - top
+			// Default canvas should span the full GUI resolution.
+			if !approxFloat32Loose(width, float32(res.w)) {
+				t.Errorf("Default width = %f, want ~%d", width, res.w)
+			}
+			if !approxFloat32Loose(height, float32(res.h)) {
+				t.Errorf("Default height = %f, want ~%d", height, res.h)
+			}
+		})
+	}
+}
+
+// TestGetCanvasTransformConsoleFullWidth verifies the console canvas
+// spans the full width and its ConWidth at all resolutions.
+func TestGetCanvasTransformConsoleFullWidth(t *testing.T) {
+	resolutions := []struct {
+		name string
+		w, h int
+	}{
+		{"800x600", 800, 600},
+		{"1920x1080", 1920, 1080},
+		{"2560x1080", 2560, 1080},
+	}
+
+	for _, res := range resolutions {
+		t.Run(res.name, func(t *testing.T) {
+			p := paramsForRes(res.w, res.h)
+			p.ConSlideFraction = 1.0 // fully open
+			tr := GetCanvasTransform(CanvasConsole, p)
+			left, _, right, _ := TransformBounds(tr)
+			width := right - left
+			// Console spans conWidth (= GUI width with default params).
+			if !approxFloat32Loose(width, p.ConWidth) {
+				t.Errorf("Console width = %f, want ~%f", width, p.ConWidth)
+			}
+		})
+	}
+}
+
+// TestGetCanvasTransformCrosshairCenteredMultiRes verifies the crosshair
+// is centered within the viewport at different resolutions.
+func TestGetCanvasTransformCrosshairCenteredMultiRes(t *testing.T) {
+	resolutions := []struct {
+		name string
+		w, h int
+	}{
+		{"800x600", 800, 600},
+		{"1920x1080", 1920, 1080},
+		{"3440x1440", 3440, 1440},
+	}
+
+	for _, res := range resolutions {
+		t.Run(res.name, func(t *testing.T) {
+			p := paramsForRes(res.w, res.h)
+			tr := GetCanvasTransform(CanvasCrosshair, p)
+
+			// The crosshair canvas is 1x1 pixel centered on the viewport.
+			// Scale should match 1*2/gui and 1*-2/gui.
+			wantSX := float32(1.0 * 2.0 / float32(res.w))
+			wantSY := float32(1.0 * -2.0 / float32(res.h))
+			if !approxFloat32(tr.Scale[0], wantSX) {
+				t.Errorf("Crosshair Scale[0] = %f, want %f", tr.Scale[0], wantSX)
+			}
+			if !approxFloat32(tr.Scale[1], wantSY) {
+				t.Errorf("Crosshair Scale[1] = %f, want %f", tr.Scale[1], wantSY)
+			}
+		})
+	}
+}
