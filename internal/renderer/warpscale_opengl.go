@@ -136,6 +136,10 @@ func (r *Renderer) ensureSceneFBO(w, h int) error {
 
 // destroySceneFBO releases the scene framebuffer resources.
 func (r *Renderer) destroySceneFBO() {
+	// OIT scene FBO reuses the scene depth attachment. Tear OIT down first so
+	// no stale framebuffer references remain across resize/recreation.
+	r.destroyOITFramebuffers()
+
 	if r.sceneFBO != 0 {
 		gl.DeleteFramebuffers(1, &r.sceneFBO)
 		r.sceneFBO = 0

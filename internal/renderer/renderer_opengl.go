@@ -592,6 +592,7 @@ type Renderer struct {
 	sceneDepthRBO            uint32
 	sceneFBOWidth            int
 	sceneFBOHeight           int
+	oitFB                    oitFramebuffers
 
 	// Polyblend (v_blend) full-screen color tint pass.
 	// Mirrors C Ironwail: glprogs.viewblend / V_PolyBlend().
