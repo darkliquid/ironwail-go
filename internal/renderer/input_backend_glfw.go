@@ -37,7 +37,7 @@ func (r *Renderer) InputBackendForSystem(sys *iinput.System) iinput.Backend {
 	}
 }
 
-// Init Init prepares backend resources needed before the first frame, including API-specific state, cached GPU objects, and per-frame scratch structures used by the renderer.
+// Init prepares backend resources needed before the first frame, including API-specific state, cached GPU objects, and per-frame scratch structures used by the renderer.
 func (b *glfwInputBackend) Init() error {
 	b.window.SetKeyCallback(b.keyCallback)
 	b.window.SetCharCallback(b.charCallback)
@@ -52,7 +52,7 @@ func (b *glfwInputBackend) Init() error {
 	return nil
 }
 
-// Shutdown Shutdown releases backend-owned resources in reverse order of creation so context-bound objects (textures, buffers, shaders) are destroyed safely.
+// Shutdown releases backend-owned resources in reverse order of creation so context-bound objects (textures, buffers, shaders) are destroyed safely.
 func (b *glfwInputBackend) Shutdown() {
 	b.window.SetKeyCallback(nil)
 	b.window.SetCharCallback(nil)
@@ -71,7 +71,7 @@ func (b *glfwInputBackend) PollEvents() bool {
 	return !quit
 }
 
-// GetMouseDelta GetMouseDelta returns per-frame mouse movement accumulated since the previous poll, used for camera yaw/pitch updates.
+// GetMouseDelta returns per-frame mouse movement accumulated since the previous poll, used for camera yaw/pitch updates.
 func (b *glfwInputBackend) GetMouseDelta() (dx, dy int32) {
 	b.mu.Lock()
 	x := int32(b.accumDX)
@@ -82,7 +82,7 @@ func (b *glfwInputBackend) GetMouseDelta() (dx, dy int32) {
 	return x, y
 }
 
-// GetModifierState GetModifierState reports keyboard modifier keys for UI shortcuts and contextual input behavior.
+// GetModifierState reports keyboard modifier keys for UI shortcuts and contextual input behavior.
 func (b *glfwInputBackend) GetModifierState() iinput.ModifierState {
 	b.mu.Lock()
 	m := b.modifiers
@@ -90,14 +90,14 @@ func (b *glfwInputBackend) GetModifierState() iinput.ModifierState {
 	return m
 }
 
-// SetTextMode SetTextMode switches between gameplay and text-entry input handling for console/chat/menu interactions.
+// SetTextMode switches between gameplay and text-entry input handling for console/chat/menu interactions.
 func (b *glfwInputBackend) SetTextMode(mode iinput.TextMode) {
 	b.mu.Lock()
 	b.textMode = mode
 	b.mu.Unlock()
 }
 
-// SetCursorMode SetCursorMode configures pointer capture/visibility based on whether the player is in mouselook or UI mode.
+// SetCursorMode configures pointer capture/visibility based on whether the player is in mouselook or UI mode.
 func (b *glfwInputBackend) SetCursorMode(mode iinput.CursorMode) {
 	b.mu.Lock()
 	b.accumDX = 0
@@ -115,20 +115,20 @@ func (b *glfwInputBackend) SetCursorMode(mode iinput.CursorMode) {
 	}
 }
 
-// ShowKeyboard ShowKeyboard requests platform virtual keyboard visibility on systems without physical keyboards.
+// ShowKeyboard requests platform virtual keyboard visibility on systems without physical keyboards.
 func (b *glfwInputBackend) ShowKeyboard(_ bool) {}
 
-// GetGamepadState GetGamepadState returns the current gamepad snapshot mapped into engine-friendly button/axis structures.
+// GetGamepadState returns the current gamepad snapshot mapped into engine-friendly button/axis structures.
 func (b *glfwInputBackend) GetGamepadState(_ int) iinput.GamepadState {
 	return iinput.GamepadState{}
 }
 
-// IsGamepadConnected IsGamepadConnected performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// IsGamepadConnected performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) IsGamepadConnected(_ int) bool {
 	return false
 }
 
-// SetMouseGrab SetMouseGrab performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// SetMouseGrab performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) SetMouseGrab(grabbed bool) {
 	b.mu.Lock()
 	b.accumDX = 0
@@ -143,7 +143,7 @@ func (b *glfwInputBackend) SetMouseGrab(grabbed bool) {
 	}
 }
 
-// SetWindow SetWindow performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// SetWindow performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) SetWindow(_ interface{}) {}
 
 // GLFW callbacks — all called from the main thread during glfw.PollEvents().
@@ -168,7 +168,7 @@ func (b *glfwInputBackend) keyCallback(_ *glfw.Window, key glfw.Key, _ int, acti
 	}
 }
 
-// charCallback charCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// charCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) charCallback(_ *glfw.Window, r rune) {
 	b.mu.Lock()
 	mode := b.textMode
@@ -178,7 +178,7 @@ func (b *glfwInputBackend) charCallback(_ *glfw.Window, r rune) {
 	}
 }
 
-// mouseButtonCallback mouseButtonCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// mouseButtonCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) mouseButtonCallback(_ *glfw.Window, button glfw.MouseButton, action glfw.Action, _ glfw.ModifierKey) {
 	down := action == glfw.Press
 	if key := mapGLFWMouseButton(button); key >= 0 {
@@ -186,7 +186,7 @@ func (b *glfwInputBackend) mouseButtonCallback(_ *glfw.Window, button glfw.Mouse
 	}
 }
 
-// scrollCallback scrollCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// scrollCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) scrollCallback(_ *glfw.Window, _, yoff float64) {
 	if yoff > 0 {
 		b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelUp, Down: true, Device: iinput.DeviceMouse})
@@ -197,7 +197,7 @@ func (b *glfwInputBackend) scrollCallback(_ *glfw.Window, _, yoff float64) {
 	}
 }
 
-// cursorPosCallback cursorPosCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// cursorPosCallback performs its step in GLFW input integration for desktop platforms; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (b *glfwInputBackend) cursorPosCallback(_ *glfw.Window, x, y float64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()

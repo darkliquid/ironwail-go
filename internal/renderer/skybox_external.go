@@ -41,7 +41,7 @@ const (
 	externalSkyboxRenderFaces
 )
 
-// selectExternalSkyboxRenderMode selectExternalSkyboxRenderMode chooses between classic scrolling sky and external skybox paths based on assets and user settings.
+// selectExternalSkyboxRenderMode chooses between classic scrolling sky and external skybox paths based on assets and user settings.
 func selectExternalSkyboxRenderMode(loaded int, cubemapEligible bool) externalSkyboxRenderMode {
 	if loaded <= 0 {
 		return externalSkyboxRenderEmbedded
@@ -52,7 +52,7 @@ func selectExternalSkyboxRenderMode(loaded int, cubemapEligible bool) externalSk
 	return externalSkyboxRenderFaces
 }
 
-// normalizeSkyboxBaseName normalizeSkyboxBaseName canonicalizes skybox names so pack files and loose files resolve identically across platforms.
+// normalizeSkyboxBaseName canonicalizes skybox names so pack files and loose files resolve identically across platforms.
 func normalizeSkyboxBaseName(name string) string {
 	trimmed := strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
 	trimmed = strings.TrimLeft(trimmed, "/")
@@ -73,7 +73,7 @@ func normalizeSkyboxBaseName(name string) string {
 	return path.Base(trimmed)
 }
 
-// skyboxFaceSearchPaths skyboxFaceSearchPaths enumerates candidate file paths for six cubemap faces and multiple supported image extensions.
+// skyboxFaceSearchPaths enumerates candidate file paths for six cubemap faces and multiple supported image extensions.
 func skyboxFaceSearchPaths(baseName, suffix string) []string {
 	paths := make([]string, 0, len(skyboxFaceExts))
 	for _, ext := range skyboxFaceExts {
@@ -82,7 +82,7 @@ func skyboxFaceSearchPaths(baseName, suffix string) []string {
 	return paths
 }
 
-// decodeSkyboxImage decodeSkyboxImage decodes one skybox face image into GPU-ready pixels while validating dimensions/format.
+// decodeSkyboxImage decodes one skybox face image into GPU-ready pixels while validating dimensions/format.
 func decodeSkyboxImage(path string, data []byte) (rgba []byte, width, height int, ok bool) {
 	ext := strings.ToLower(filepath.Ext(path))
 	var (
@@ -107,7 +107,7 @@ func decodeSkyboxImage(path string, data []byte) (rgba []byte, width, height int
 	return append([]byte(nil), rgbaImg.Pix...), bounds.Dx(), bounds.Dy(), true
 }
 
-// loadExternalSkyboxFaces loadExternalSkyboxFaces loads and validates all six sky faces before creating cubemap or layered sky resources.
+// loadExternalSkyboxFaces loads and validates all six sky faces before creating cubemap or layered sky resources.
 func loadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, error)) (faces [6]externalSkyboxFace, loaded int) {
 	if baseName == "" || loadFile == nil {
 		return faces, 0
@@ -137,7 +137,7 @@ func loadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 	return faces, loaded
 }
 
-// loadSkyboxFileCandidate loadSkyboxFileCandidate tries one specific sky face file candidate and reports whether decoding succeeded.
+// loadSkyboxFileCandidate tries one specific sky face file candidate and reports whether decoding succeeded.
 func loadSkyboxFileCandidate(candidate string, loadFile func(string) ([]byte, error)) ([]byte, error) {
 	data, err := loadFile(candidate)
 	if err == nil && len(data) > 0 {
@@ -154,13 +154,13 @@ func loadSkyboxFileCandidate(candidate string, loadFile func(string) ([]byte, er
 	return data, err
 }
 
-// externalSkyboxCubemapEligible externalSkyboxCubemapEligible checks whether loaded faces satisfy cubemap constraints (format/size/orientation compatibility).
+// externalSkyboxCubemapEligible checks whether loaded faces satisfy cubemap constraints (format/size/orientation compatibility).
 func externalSkyboxCubemapEligible(faces [6]externalSkyboxFace, loaded int) bool {
 	_, ok := externalSkyboxCubemapFaceSize(faces, loaded)
 	return ok
 }
 
-// externalSkyboxCubemapFaceSize externalSkyboxCubemapFaceSize returns the agreed face dimension used for cubemap allocation.
+// externalSkyboxCubemapFaceSize returns the agreed face dimension used for cubemap allocation.
 func externalSkyboxCubemapFaceSize(faces [6]externalSkyboxFace, loaded int) (int, bool) {
 	if loaded <= 0 {
 		return 0, false

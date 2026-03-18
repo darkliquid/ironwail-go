@@ -194,7 +194,7 @@ const (
 	spriteTypeVPParallelOriented = 4
 )
 
-// spriteCameraBasis spriteCameraBasis builds camera right/up/forward vectors used to orient sprite quads in view space.
+// spriteCameraBasis builds camera right/up/forward vectors used to orient sprite quads in view space.
 func spriteCameraBasis(cameraAngles [3]float32) (forward, right, up [3]float32) {
 	f, r, u := qtypes.AngleVectors(qtypes.Vec3{
 		X: cameraAngles[0],
@@ -204,7 +204,7 @@ func spriteCameraBasis(cameraAngles [3]float32) (forward, right, up [3]float32) 
 	return [3]float32{f.X, f.Y, f.Z}, [3]float32{r.X, r.Y, r.Z}, [3]float32{u.X, u.Y, u.Z}
 }
 
-// spriteOrientationAxes spriteOrientationAxes picks sprite axes based on sprite type (view-facing, oriented, or beam-like).
+// spriteOrientationAxes picks sprite axes based on sprite type (view-facing, oriented, or beam-like).
 func spriteOrientationAxes(spriteType int, cameraOrigin, entityOrigin, entityAngles, cameraForward, cameraRight, cameraUp [3]float32) (up, right [3]float32) {
 	switch spriteType {
 	case spriteTypeVPParallelUpright:
@@ -261,7 +261,7 @@ func spriteOrientationAxes(spriteType int, cameraOrigin, entityOrigin, entityAng
 	return spriteNormalize3(up), spriteNormalize3(right)
 }
 
-// spriteCross3 spriteCross3 computes a 3D cross product used to derive orthogonal billboard axes.
+// spriteCross3 computes a 3D cross product used to derive orthogonal billboard axes.
 func spriteCross3(a, b [3]float32) [3]float32 {
 	return [3]float32{
 		a[1]*b[2] - a[2]*b[1],
@@ -270,12 +270,12 @@ func spriteCross3(a, b [3]float32) [3]float32 {
 	}
 }
 
-// spriteVecLen3 spriteVecLen3 returns vector length for sprite axis normalization.
+// spriteVecLen3 returns vector length for sprite axis normalization.
 func spriteVecLen3(v [3]float32) float32 {
 	return float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
 }
 
-// spriteNormalize3 spriteNormalize3 normalizes a 3D vector and guards against zero-length degenerates.
+// spriteNormalize3 normalizes a 3D vector and guards against zero-length degenerates.
 func spriteNormalize3(v [3]float32) [3]float32 {
 	length := spriteVecLen3(v)
 	if length == 0 {
@@ -284,7 +284,7 @@ func spriteNormalize3(v [3]float32) [3]float32 {
 	return [3]float32{v[0] / length, v[1] / length, v[2] / length}
 }
 
-// vec3FromArray vec3FromArray converts fixed-size arrays into mutable vector values used by sprite math helpers.
+// vec3FromArray converts fixed-size arrays into mutable vector values used by sprite math helpers.
 func vec3FromArray(v [3]float32) qtypes.Vec3 {
 	return qtypes.Vec3{X: v[0], Y: v[1], Z: v[2]}
 }

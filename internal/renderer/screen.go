@@ -43,7 +43,7 @@ type ScreenMetrics struct {
 	CSQCDrawHud  bool
 }
 
-// UpdateZoom UpdateZoom updates zoom-derived field-of-view values so scoped views change perspective consistently while keeping aspect-correct horizontal/vertical FOV math.
+// UpdateZoom updates zoom-derived field-of-view values so scoped views change perspective consistently while keeping aspect-correct horizontal/vertical FOV math.
 func UpdateZoom(zoom, zoomDir, zoomSpeed, oldTime, time float32) (newZoom, newZoomDir float32, recalcRefdef bool) {
 	if zoomSpeed <= 0 {
 		zoomSpeed = 1e6
@@ -66,7 +66,7 @@ func UpdateZoom(zoom, zoomDir, zoomSpeed, oldTime, time float32) (newZoom, newZo
 	return zoom, zoomDir, true
 }
 
-// AdaptFovX AdaptFovX remaps horizontal FOV to the current aspect ratio, preserving gameplay feel across widescreen and legacy resolutions.
+// AdaptFovX remaps horizontal FOV to the current aspect ratio, preserving gameplay feel across widescreen and legacy resolutions.
 func AdaptFovX(fovX, width, height float32, adapt bool) (float32, error) {
 	if fovX < 1 || fovX > 179 {
 		return 0, fmt.Errorf("bad fov: %f", fovX)
@@ -82,7 +82,7 @@ func AdaptFovX(fovX, width, height float32, adapt bool) (float32, error) {
 	return float32(a * 360 / math.Pi), nil
 }
 
-// CalcFovY CalcFovY derives vertical FOV from horizontal FOV and viewport geometry, ensuring projection matrices keep object scale consistent.
+// CalcFovY derives vertical FOV from horizontal FOV and viewport geometry, ensuring projection matrices keep object scale consistent.
 func CalcFovY(fovX, width, height float32) (float32, error) {
 	if fovX < 1 || fovX > 179 {
 		return 0, fmt.Errorf("bad fov: %f", fovX)
@@ -92,7 +92,7 @@ func CalcFovY(fovX, width, height float32) (float32, error) {
 	return float32(a * 360 / math.Pi), nil
 }
 
-// CalcRefdef CalcRefdef computes final per-frame view rectangles and projection parameters, the bridge between UI layout decisions and 3D camera setup.
+// CalcRefdef computes final per-frame view rectangles and projection parameters, the bridge between UI layout decisions and 3D camera setup.
 func CalcRefdef(m ScreenMetrics) (Refdef, error) {
 	if m.GLWidth <= 0 || m.GLHeight <= 0 || m.VidWidth <= 0 || m.VidHeight <= 0 {
 		return Refdef{}, fmt.Errorf("invalid dimensions gl=%dx%d vid=%dx%d", m.GLWidth, m.GLHeight, m.VidWidth, m.VidHeight)
@@ -175,7 +175,7 @@ type TileClearOutput struct {
 	Rects            []TileRect
 }
 
-// ComputeTileClear ComputeTileClear determines which screen areas need tile background redraw when the 3D view does not cover the full window.
+// ComputeTileClear determines which screen areas need tile background redraw when the 3D view does not cover the full window.
 func ComputeTileClear(in TileClearInput) TileClearOutput {
 	out := TileClearOutput{TileClearUpdates: in.TileClearUpdates}
 	if in.TileClearUpdates >= in.NumPages && !in.GLClear && in.VidGamma == 1 {
@@ -200,7 +200,7 @@ func ComputeTileClear(in TileClearInput) TileClearOutput {
 	return out
 }
 
-// appendNonEmptyRect appendNonEmptyRect appends clip rectangles only when they have positive area, avoiding useless clear/draw work.
+// appendNonEmptyRect appends clip rectangles only when they have positive area, avoiding useless clear/draw work.
 func appendNonEmptyRect(dst []TileRect, rects ...TileRect) []TileRect {
 	for _, r := range rects {
 		if r.W > 0 && r.H > 0 {
@@ -210,7 +210,7 @@ func appendNonEmptyRect(dst []TileRect, rects ...TileRect) []TileRect {
 	return dst
 }
 
-// clampf clampf bounds scalar values to a safe range used by FOV and blend calculations that must stay numerically stable.
+// clampf bounds scalar values to a safe range used by FOV and blend calculations that must stay numerically stable.
 func clampf(v, minV, maxV float32) float32 {
 	if v < minV {
 		return minV
@@ -221,7 +221,7 @@ func clampf(v, minV, maxV float32) float32 {
 	return v
 }
 
-// minf minf returns the smaller scalar and is used in viewport and effect calculations where conservative bounds are required.
+// minf returns the smaller scalar and is used in viewport and effect calculations where conservative bounds are required.
 func minf(a, b float32) float32 {
 	if a < b {
 		return a
@@ -229,7 +229,7 @@ func minf(a, b float32) float32 {
 	return b
 }
 
-// maxf maxf performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// maxf performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func maxf(a, b float32) float32 {
 	if a > b {
 		return a
@@ -237,7 +237,7 @@ func maxf(a, b float32) float32 {
 	return b
 }
 
-// minInt minInt performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// minInt performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -245,7 +245,7 @@ func minInt(a, b int) int {
 	return b
 }
 
-// lerpf lerpf performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// lerpf performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func lerpf(a, b, t float32) float32 {
 	return a + (b-a)*t
 }

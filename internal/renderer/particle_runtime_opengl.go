@@ -58,7 +58,7 @@ const (
 	particlePassTranslucent
 )
 
-// buildParticlePaletteRGBA buildParticlePaletteRGBA converts indexed particle colors into RGBA lookup data suitable for GPU-side tinting.
+// buildParticlePaletteRGBA converts indexed particle colors into RGBA lookup data suitable for GPU-side tinting.
 func buildParticlePaletteRGBA(palette []byte) [256][4]byte {
 	var p [256][4]byte
 	if len(palette) < 768 {
@@ -74,7 +74,7 @@ func buildParticlePaletteRGBA(palette []byte) [256][4]byte {
 	return p
 }
 
-// ensureParticleProgramLocked ensureParticleProgramLocked lazily creates particle shaders for billboard rendering with additive/alpha blend variants.
+// ensureParticleProgramLocked lazily creates particle shaders for billboard rendering with additive/alpha blend variants.
 func (r *Renderer) ensureParticleProgramLocked() error {
 	if r.particleProgram != 0 {
 		return nil
@@ -97,7 +97,7 @@ func (r *Renderer) ensureParticleProgramLocked() error {
 	return nil
 }
 
-// ensureParticleBuffersLocked ensureParticleBuffersLocked allocates dynamic VBO/IBO resources sized for the current particle budget.
+// ensureParticleBuffersLocked allocates dynamic VBO/IBO resources sized for the current particle budget.
 func (r *Renderer) ensureParticleBuffersLocked() {
 	if r.particleVAO != 0 && r.particleVBO != 0 {
 		return
@@ -120,7 +120,7 @@ func (r *Renderer) ensureParticleBuffersLocked() {
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 }
 
-// renderParticles renderParticles builds camera-facing quads and submits them in blend-order-aware passes so explosions/smoke read correctly over the world.
+// renderParticles builds camera-facing quads and submits them in blend-order-aware passes so explosions/smoke read correctly over the world.
 func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass particleRenderPass) {
 	if ps == nil || ps.ActiveCount() == 0 {
 		return
@@ -199,7 +199,7 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass part
 	gl.Enable(gl.BLEND)
 }
 
-// readParticleModeCvar readParticleModeCvar maps user cvars to concrete particle rendering modes (classic points vs textured quads, etc.).
+// readParticleModeCvar maps user cvars to concrete particle rendering modes (classic points vs textured quads, etc.).
 func readParticleModeCvar() int {
 	cv := cvar.Get(CvarRParticles)
 	if cv == nil {
@@ -208,12 +208,12 @@ func readParticleModeCvar() int {
 	return cv.Int
 }
 
-// shouldDrawParticlePass shouldDrawParticlePass decides whether a particle pass should run for the current view/configuration, skipping unnecessary work.
+// shouldDrawParticlePass decides whether a particle pass should run for the current view/configuration, skipping unnecessary work.
 func shouldDrawParticlePass(mode int, pass particleRenderPass, showTris bool, activeParticles int) bool {
 	return ShouldDrawParticles(mode, pass == particlePassTranslucent, showTris, activeParticles)
 }
 
-// particleVerticesForPass particleVerticesForPass generates pass-specific billboard vertices using camera right/up vectors for correct facing.
+// particleVerticesForPass generates pass-specific billboard vertices using camera right/up vectors for correct facing.
 func particleVerticesForPass(vertices []ParticleVertex, mode int, pass particleRenderPass, showTris bool) []ParticleVertex {
 	if !shouldDrawParticlePass(mode, pass, showTris, len(vertices)) {
 		return nil
@@ -221,7 +221,7 @@ func particleVerticesForPass(vertices []ParticleVertex, mode int, pass particleR
 	return vertices
 }
 
-// clearParticleResourcesLocked clearParticleResourcesLocked releases particle GPU resources when contexts reset or particle rendering is disabled.
+// clearParticleResourcesLocked releases particle GPU resources when contexts reset or particle rendering is disabled.
 func (r *Renderer) clearParticleResourcesLocked() {
 	if r.particleProgram != 0 {
 		gl.DeleteProgram(r.particleProgram)

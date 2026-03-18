@@ -13,7 +13,7 @@ const (
 	worldBrushPassSkyOnly
 )
 
-// normalizeWorldBrushPassSelector normalizeWorldBrushPassSelector normalizes requested pass filters so parity checks compare equivalent selector forms.
+// normalizeWorldBrushPassSelector normalizes requested pass filters so parity checks compare equivalent selector forms.
 func normalizeWorldBrushPassSelector(selector worldBrushPassSelector) worldBrushPassSelector {
 	switch selector {
 	case worldBrushPassAll, worldBrushPassNonLiquid, worldBrushPassLiquidOnly, worldBrushPassLiquidOpaqueOnly, worldBrushPassLiquidTranslucentOnly, worldBrushPassSkyOnly:
@@ -23,42 +23,42 @@ func normalizeWorldBrushPassSelector(selector worldBrushPassSelector) worldBrush
 	}
 }
 
-// includesNonLiquid includesNonLiquid reports whether a selector includes standard opaque/translucent non-liquid world passes.
+// includesNonLiquid reports whether a selector includes standard opaque/translucent non-liquid world passes.
 func (selector worldBrushPassSelector) includesNonLiquid() bool {
 	selector = normalizeWorldBrushPassSelector(selector)
 	return selector == worldBrushPassAll || selector == worldBrushPassNonLiquid
 }
 
-// includesLiquidOpaque includesLiquidOpaque reports whether opaque liquid surfaces belong to the selected world pass set.
+// includesLiquidOpaque reports whether opaque liquid surfaces belong to the selected world pass set.
 func (selector worldBrushPassSelector) includesLiquidOpaque() bool {
 	selector = normalizeWorldBrushPassSelector(selector)
 	return selector == worldBrushPassAll || selector == worldBrushPassLiquidOnly || selector == worldBrushPassLiquidOpaqueOnly
 }
 
-// includesLiquidTranslucent includesLiquidTranslucent reports whether translucent liquid surfaces belong to the selected world pass set.
+// includesLiquidTranslucent reports whether translucent liquid surfaces belong to the selected world pass set.
 func (selector worldBrushPassSelector) includesLiquidTranslucent() bool {
 	selector = normalizeWorldBrushPassSelector(selector)
 	return selector == worldBrushPassAll || selector == worldBrushPassLiquidOnly || selector == worldBrushPassLiquidTranslucentOnly
 }
 
-// includesSky includesSky reports whether sky surfaces should be emitted for the selected pass selector.
+// includesSky reports whether sky surfaces should be emitted for the selected pass selector.
 func (selector worldBrushPassSelector) includesSky() bool {
 	selector = normalizeWorldBrushPassSelector(selector)
 	return selector == worldBrushPassAll || selector == worldBrushPassSkyOnly
 }
 
-// isFullyOpaqueAlpha isFullyOpaqueAlpha classifies alpha values that can stay in the opaque pass, avoiding unnecessary blending work.
+// isFullyOpaqueAlpha classifies alpha values that can stay in the opaque pass, avoiding unnecessary blending work.
 func isFullyOpaqueAlpha(alpha float32) bool {
 	return alpha >= 1
 }
 
-// visibleEntityAlpha visibleEntityAlpha computes effective entity alpha after visibility and render-mode rules are applied.
+// visibleEntityAlpha computes effective entity alpha after visibility and render-mode rules are applied.
 func visibleEntityAlpha(alpha float32) (float32, bool) {
 	alpha = clamp01(alpha)
 	return alpha, alpha > 0
 }
 
-// splitAliasEntitiesByAlpha splitAliasEntitiesByAlpha partitions alias entities into opaque and blended groups to preserve depth correctness and batching.
+// splitAliasEntitiesByAlpha partitions alias entities into opaque and blended groups to preserve depth correctness and batching.
 func splitAliasEntitiesByAlpha(entities []AliasModelEntity) (opaque, translucent []AliasModelEntity) {
 	if len(entities) == 0 {
 		return nil, nil
@@ -79,7 +79,7 @@ func splitAliasEntitiesByAlpha(entities []AliasModelEntity) (opaque, translucent
 	return opaque, translucent
 }
 
-// splitBrushEntitiesByAlpha splitBrushEntitiesByAlpha performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// splitBrushEntitiesByAlpha performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func splitBrushEntitiesByAlpha(entities []BrushEntity) (opaque, translucent []BrushEntity) {
 	if len(entities) == 0 {
 		return nil, nil
@@ -100,7 +100,7 @@ func splitBrushEntitiesByAlpha(entities []BrushEntity) (opaque, translucent []Br
 	return opaque, translucent
 }
 
-// splitParticleVerticesByAlpha splitParticleVerticesByAlpha performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// splitParticleVerticesByAlpha performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func splitParticleVerticesByAlpha(vertices []ParticleVertex) (opaque, translucent []ParticleVertex) {
 	if len(vertices) == 0 {
 		return nil, nil
@@ -128,7 +128,7 @@ type lateTranslucencyBlockInputs struct {
 	hasTranslucentAliasEntities bool
 }
 
-// shouldRunLateTranslucencyBlock shouldRunLateTranslucencyBlock performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// shouldRunLateTranslucencyBlock performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 	if (inputs.drawWorld && inputs.hasTranslucentWorld) || inputs.hasDecalMarks || inputs.drawParticles {
 		return true
@@ -139,7 +139,7 @@ func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 	return inputs.hasTranslucentBrushEntities || inputs.hasTranslucentAliasEntities || inputs.hasSpriteEntities
 }
 
-// worldLiquidFaceTypeMask worldLiquidFaceTypeMask performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// worldLiquidFaceTypeMask performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func worldLiquidFaceTypeMask(faces []WorldFace) int32 {
 	var mask int32
 	for _, face := range faces {
@@ -151,7 +151,7 @@ func worldLiquidFaceTypeMask(faces []WorldFace) int32 {
 	return mask
 }
 
-// hasTranslucentWorldLiquidFaceType hasTranslucentWorldLiquidFaceType performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// hasTranslucentWorldLiquidFaceType performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func hasTranslucentWorldLiquidFaceType(mask int32, liquidAlpha worldLiquidAlphaSettings) bool {
 	if mask&model.SurfDrawLava != 0 && !isFullyOpaqueAlpha(liquidAlpha.lava) {
 		return true

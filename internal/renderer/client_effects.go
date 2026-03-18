@@ -60,7 +60,7 @@ func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, tr
 	}
 }
 
-// DrawParticles2D DrawParticles2D renders UI-space particles/effects that should appear on top of the 3D scene.
+// DrawParticles2D renders UI-space particles/effects that should appear on top of the 3D scene.
 func DrawParticles2D(dc RenderContext, ps *ParticleSystem) {
 	if dc == nil || ps == nil || ps.ActiveCount() == 0 {
 		return
@@ -292,7 +292,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 	}
 }
 
-// midpoint3 midpoint3 computes the center between two 3D points for effect placement heuristics.
+// midpoint3 computes the center between two 3D points for effect placement heuristics.
 func midpoint3(a, b [3]float32) [3]float32 {
 	return [3]float32{
 		(a[0] + b[0]) * 0.5,
@@ -301,13 +301,13 @@ func midpoint3(a, b [3]float32) [3]float32 {
 	}
 }
 
-// entityEffectLightOrigin entityEffectLightOrigin derives a stable light-emission origin for dynamic lights attached to entities.
+// entityEffectLightOrigin derives a stable light-emission origin for dynamic lights attached to entities.
 func entityEffectLightOrigin(origin [3]float32) [3]float32 {
 	origin[2] += 16
 	return origin
 }
 
-// muzzleFlashLightOrigin muzzleFlashLightOrigin offsets muzzle-light position toward weapon muzzle so flashes appear physically attached to firing points.
+// muzzleFlashLightOrigin offsets muzzle-light position toward weapon muzzle so flashes appear physically attached to firing points.
 func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
 	origin := entityEffectLightOrigin(entity.Origin)
 	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{
@@ -321,7 +321,7 @@ func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
 	return origin
 }
 
-// randomMarkRotation randomMarkRotation picks a random decal rotation to reduce repetition in impact marks.
+// randomMarkRotation picks a random decal rotation to reduce repetition in impact marks.
 func randomMarkRotation(rng *rand.Rand) float32 {
 	if rng == nil {
 		return 0

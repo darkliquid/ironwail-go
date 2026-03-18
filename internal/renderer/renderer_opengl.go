@@ -97,19 +97,19 @@ type glCachedTexture struct {
 	height int
 }
 
-// init init performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// init performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func init() {
 	// OpenGL must run on main OS thread
 	runtime.LockOSThread()
 }
 
-// Clear Clear resets particle state between level loads or hard resets so stale effects do not leak into new scenes.
+// Clear resets particle state between level loads or hard resets so stale effects do not leak into new scenes.
 func (dc *glDrawContext) Clear(r, g, b, a float32) {
 	gl.ClearColor(r, g, b, a)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 }
 
-// DrawTriangle DrawTriangle is a debug helper that submits immediate triangle vertices so renderer experiments can visualize geometry without touching BSP or model pipelines.
+// DrawTriangle is a debug helper that submits immediate triangle vertices so renderer experiments can visualize geometry without touching BSP or model pipelines.
 func (dc *glDrawContext) DrawTriangle(r, g, b, a float32) {
 	// Debug helper for RenderContext tests: clear to a solid color.
 	// Canonical OpenGL rendering runs through world/entity draw paths.
@@ -117,13 +117,13 @@ func (dc *glDrawContext) DrawTriangle(r, g, b, a float32) {
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 }
 
-// SurfaceView SurfaceView returns the backend view over visible world surfaces, which tools and tests use to inspect BSP marking and pass assignment decisions.
+// SurfaceView returns the backend view over visible world surfaces, which tools and tests use to inspect BSP marking and pass assignment decisions.
 func (dc *glDrawContext) SurfaceView() interface{} {
 	// In a full implementation, this would return an OpenGL texture view
 	return nil
 }
 
-// Gamma Gamma exposes the current gamma configuration so post-processing and UI code can stay in sync with renderer brightness calibration.
+// Gamma exposes the current gamma configuration so post-processing and UI code can stay in sync with renderer brightness calibration.
 func (dc *glDrawContext) Gamma() float32 {
 	return dc.gamma
 }
@@ -186,7 +186,7 @@ func (dc *glDrawContext) init2DRenderer() error {
 	return nil
 }
 
-// compileShader compileShader compiles one GLSL stage and reports detailed driver errors, the first half of creating programmable pipeline state in modern OpenGL.
+// compileShader compiles one GLSL stage and reports detailed driver errors, the first half of creating programmable pipeline state in modern OpenGL.
 func compileShader(source string, shaderType uint32) (uint32, error) {
 	shader := gl.CreateShader(shaderType)
 	cstr, free := gl.Strs(source + "\x00")
@@ -207,7 +207,7 @@ func compileShader(source string, shaderType uint32) (uint32, error) {
 	return shader, nil
 }
 
-// createProgram createProgram links compiled shader stages into a GPU program object so later draw passes can bind one handle and execute fixed vertex/fragment logic.
+// createProgram links compiled shader stages into a GPU program object so later draw passes can bind one handle and execute fixed vertex/fragment logic.
 func createProgram(vertexShader, fragmentShader uint32) uint32 {
 	program := gl.CreateProgram()
 	gl.AttachShader(program, vertexShader)
@@ -230,7 +230,7 @@ func createProgram(vertexShader, fragmentShader uint32) uint32 {
 	return program
 }
 
-// uploadQPicTexture uploadQPicTexture converts Quake palette-indexed UI images into GPU textures, including nearest filtering choices that preserve classic pixel-art readability.
+// uploadQPicTexture converts Quake palette-indexed UI images into GPU textures, including nearest filtering choices that preserve classic pixel-art readability.
 func (dc *glDrawContext) uploadQPicTexture(pic *image.QPic, rgba []byte) uint32 {
 	var tex uint32
 	gl.GenTextures(1, &tex)
@@ -387,7 +387,7 @@ func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.render2DQuad(vertices, tex, dc.shader2D)
 }
 
-// render2DQuad render2DQuad performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// render2DQuad performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program uint32) {
 	gl.UseProgram(program)
 
@@ -934,7 +934,7 @@ func (r *Renderer) SetConchars(data []byte) {
 	r.clearTextureCacheLocked()
 }
 
-// clearTextureCacheLocked clearTextureCacheLocked performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// clearTextureCacheLocked performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (r *Renderer) clearTextureCacheLocked() {
 	for key, entry := range r.textureCache {
 		if entry != nil && entry.id != 0 {
@@ -951,14 +951,14 @@ func (r *Renderer) clearTextureCacheLocked() {
 	}
 }
 
-// deleteAllTextures deleteAllTextures performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// deleteAllTextures performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (r *Renderer) deleteAllTextures() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.clearTextureCacheLocked()
 }
 
-// getOrCreateTexture getOrCreateTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// getOrCreateTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (r *Renderer) getOrCreateTexture(dc *glDrawContext, pic *image.QPic) uint32 {
 	if pic == nil {
 		return 0
@@ -985,7 +985,7 @@ func (r *Renderer) getOrCreateTexture(dc *glDrawContext, pic *image.QPic) uint32
 	return tex
 }
 
-// getOrCreateColorTexture getOrCreateColorTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// getOrCreateColorTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (r *Renderer) getOrCreateColorTexture(dc *glDrawContext, color byte) uint32 {
 	r.mu.RLock()
 	if tex := r.colorTextures[color]; tex != 0 {
@@ -1014,7 +1014,7 @@ func (r *Renderer) getOrCreateColorTexture(dc *glDrawContext, color byte) uint32
 	return tex
 }
 
-// getCharPic getCharPic performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// getCharPic performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (r *Renderer) getCharPic(num int) *image.QPic {
 	r.mu.RLock()
 	if num < 0 || num > 255 || len(r.concharsData) < 128*128 {
@@ -1044,7 +1044,7 @@ func (r *Renderer) getCharPic(num int) *image.QPic {
 	return pic
 }
 
-// getOrCreateCharTexture getOrCreateCharTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// getOrCreateCharTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (r *Renderer) getOrCreateCharTexture(dc *glDrawContext, pic *image.QPic) uint32 {
 	if pic == nil {
 		return 0

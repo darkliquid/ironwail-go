@@ -184,7 +184,7 @@ var (
 	entityParticleAngularVelocities = initEntityParticleAngularVelocities()
 )
 
-// initEntityParticleAngularVelocities initEntityParticleAngularVelocities seeds deterministic spin vectors used to vary particle billboard rotation and keep effects visually rich.
+// initEntityParticleAngularVelocities seeds deterministic spin vectors used to vary particle billboard rotation and keep effects visually rich.
 func initEntityParticleAngularVelocities() [len(entityParticleNormals)][3]float32 {
 	rng := rand.New(rand.NewSource(1))
 	var velocities [len(entityParticleNormals)][3]float32
@@ -230,7 +230,7 @@ type ParticleSystem struct {
 	active    int
 }
 
-// NewParticleSystem NewParticleSystem allocates the particle pool and freelists used by Quake effects, avoiding per-frame allocations in hot rendering paths.
+// NewParticleSystem allocates the particle pool and freelists used by Quake effects, avoiding per-frame allocations in hot rendering paths.
 func NewParticleSystem(requested int) *ParticleSystem {
 	switch {
 	case requested <= 0:
@@ -242,7 +242,7 @@ func NewParticleSystem(requested int) *ParticleSystem {
 	return &ParticleSystem{particles: make([]Particle, requested)}
 }
 
-// Capacity Capacity reports total particle slots so emitters can budget effects and avoid overcommitting transient visuals.
+// Capacity reports total particle slots so emitters can budget effects and avoid overcommitting transient visuals.
 func (ps *ParticleSystem) Capacity() int {
 	if ps == nil {
 		return 0
@@ -250,7 +250,7 @@ func (ps *ParticleSystem) Capacity() int {
 	return len(ps.particles)
 }
 
-// ActiveCount ActiveCount reports currently living particles, useful for diagnostics and adaptive quality controls.
+// ActiveCount reports currently living particles, useful for diagnostics and adaptive quality controls.
 func (ps *ParticleSystem) ActiveCount() int {
 	if ps == nil {
 		return 0
@@ -258,7 +258,7 @@ func (ps *ParticleSystem) ActiveCount() int {
 	return ps.active
 }
 
-// ActiveParticles ActiveParticles returns the active particle slice used by render passes to build camera-facing quads.
+// ActiveParticles returns the active particle slice used by render passes to build camera-facing quads.
 func (ps *ParticleSystem) ActiveParticles() []Particle {
 	if ps == nil || ps.active == 0 {
 		return nil
@@ -268,7 +268,7 @@ func (ps *ParticleSystem) ActiveParticles() []Particle {
 	return out
 }
 
-// AllocParticle AllocParticle grabs one free particle slot and initializes lifecycle bookkeeping for a new effect element.
+// AllocParticle grabs one free particle slot and initializes lifecycle bookkeeping for a new effect element.
 func (ps *ParticleSystem) AllocParticle(now float32) *Particle {
 	if ps == nil || ps.active >= len(ps.particles) {
 		return nil
@@ -279,7 +279,7 @@ func (ps *ParticleSystem) AllocParticle(now float32) *Particle {
 	return p
 }
 
-// Clear Clear resets particle state between level loads or hard resets so stale effects do not leak into new scenes.
+// Clear resets particle state between level loads or hard resets so stale effects do not leak into new scenes.
 func (ps *ParticleSystem) Clear() {
 	if ps == nil {
 		return
@@ -287,7 +287,7 @@ func (ps *ParticleSystem) Clear() {
 	ps.active = 0
 }
 
-// ParticleTexture ParticleTexture returns the texture handle used by particle passes, typically a small alpha mask sampled by billboard shaders.
+// ParticleTexture returns the texture handle used by particle passes, typically a small alpha mask sampled by billboard shaders.
 func ParticleTexture(mode int) (uvScale, textureScaleFactor float32) {
 	switch mode {
 	case 1:
@@ -297,7 +297,7 @@ func ParticleTexture(mode int) (uvScale, textureScaleFactor float32) {
 	}
 }
 
-// ShouldDrawParticles ShouldDrawParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// ShouldDrawParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func ShouldDrawParticles(mode int, alpha, showTris bool, activeParticles int) bool {
 	if mode == 0 || activeParticles == 0 {
 		return false
@@ -308,13 +308,13 @@ func ShouldDrawParticles(mode int, alpha, showTris bool, activeParticles int) bo
 	return true
 }
 
-// ParticleProjection ParticleProjection performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// ParticleProjection performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func ParticleProjection(textureScaleFactor float32, matProj [16]float32) (scaleX, scaleY float32) {
 	s := textureScaleFactor * 0.375
 	return s * matProj[4], s * -matProj[9]
 }
 
-// BuildParticleVertices BuildParticleVertices performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// BuildParticleVertices performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func BuildParticleVertices(active []Particle, palette [256][4]byte, showTris bool) []ParticleVertex {
 	if len(active) == 0 {
 		return nil
@@ -331,7 +331,7 @@ func BuildParticleVertices(active []Particle, palette [256][4]byte, showTris boo
 	return v
 }
 
-// RunParticles RunParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// RunParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 	if ps == nil || ps.active == 0 {
 		return
@@ -408,7 +408,7 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 	ps.active = active
 }
 
-// RunParticleEffect RunParticleEffect performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// RunParticleEffect performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, count int, rng *rand.Rand, timeNow float32) {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(1))
@@ -446,7 +446,7 @@ func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, cou
 	}
 }
 
-// EntityParticles EntityParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// EntityParticles performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) EntityParticles(org [3]float32, timeNow float32) {
 	if ps == nil {
 		return
@@ -479,7 +479,7 @@ func (ps *ParticleSystem) EntityParticles(org [3]float32, timeNow float32) {
 	}
 }
 
-// ParticleExplosion2 ParticleExplosion2 performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// ParticleExplosion2 performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLength byte, rng *rand.Rand, timeNow float32) {
 	if ps == nil || colorLength == 0 {
 		return
@@ -506,7 +506,7 @@ func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLe
 	}
 }
 
-// BlobExplosion BlobExplosion performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// BlobExplosion performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
@@ -536,7 +536,7 @@ func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow 
 	}
 }
 
-// LavaSplash LavaSplash performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// LavaSplash performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
@@ -574,7 +574,7 @@ func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow flo
 	}
 }
 
-// TeleportSplash TeleportSplash performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// TeleportSplash performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
@@ -610,7 +610,7 @@ func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow
 	}
 }
 
-// RocketTrail RocketTrail performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// RocketTrail performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.Rand, timeNow float32) {
 	if rng == nil {
 		rng = rand.New(rand.NewSource(1))
@@ -695,7 +695,7 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 	}
 }
 
-// normalize3 normalize3 performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// normalize3 performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func normalize3(v *[3]float32) float32 {
 	l := float32(math.Sqrt(float64(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])))
 	if l == 0 {

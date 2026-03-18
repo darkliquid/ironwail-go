@@ -137,13 +137,13 @@ func generateDecalAtlasData() []byte {
 	return data
 }
 
-// smoothstepf smoothstepf provides a smooth interpolation curve used by decal fade and softness calculations.
+// smoothstepf provides a smooth interpolation curve used by decal fade and softness calculations.
 func smoothstepf(edge0, edge1, x float32) float32 {
 	t := clamp01((x - edge0) / (edge1 - edge0))
 	return t * t * (3.0 - 2.0*t)
 }
 
-// ensureDecalProgramLocked ensureDecalProgramLocked creates shaders used to project and blend bullet-hole/blood decals onto world geometry.
+// ensureDecalProgramLocked creates shaders used to project and blend bullet-hole/blood decals onto world geometry.
 func (r *Renderer) ensureDecalProgramLocked() error {
 	if r.decalProgram != 0 && r.decalVAO != 0 && r.decalVBO != 0 && r.decalAtlasTexture != 0 {
 		return nil
@@ -200,7 +200,7 @@ func (r *Renderer) ensureDecalProgramLocked() error {
 	return nil
 }
 
-// renderDecalMarks renderDecalMarks draws persistent mark geometry after opaque world passes using blending and depth bias to avoid z-fighting.
+// renderDecalMarks draws persistent mark geometry after opaque world passes using blending and depth bias to avoid z-fighting.
 func (r *Renderer) renderDecalMarks(marks []DecalMarkEntity) {
 	if len(marks) == 0 {
 		return
@@ -267,7 +267,7 @@ func (r *Renderer) renderDecalMarks(marks []DecalMarkEntity) {
 	gl.DepthMask(true)
 }
 
-// prepareDecalDraws prepareDecalDraws culls and sorts decals into draw-ready batches with precomputed projection and fade parameters.
+// prepareDecalDraws culls and sorts decals into draw-ready batches with precomputed projection and fade parameters.
 func prepareDecalDraws(marks []DecalMarkEntity, camera CameraState) []decalDraw {
 	draws := make([]decalDraw, 0, len(marks))
 	for _, mark := range marks {
@@ -292,7 +292,7 @@ func prepareDecalDraws(marks []DecalMarkEntity, camera CameraState) []decalDraw 
 	return draws
 }
 
-// decalDistanceSq decalDistanceSq computes squared distance for cheap sorting/culling decisions without expensive square roots.
+// decalDistanceSq computes squared distance for cheap sorting/culling decisions without expensive square roots.
 func decalDistanceSq(origin [3]float32, camera CameraState) float32 {
 	dx := origin[0] - camera.Origin.X
 	dy := origin[1] - camera.Origin.Y
@@ -300,7 +300,7 @@ func decalDistanceSq(origin [3]float32, camera CameraState) float32 {
 	return dx*dx + dy*dy + dz*dz
 }
 
-// buildDecalTriangleVertices buildDecalTriangleVertices clips/project triangles into decal space, producing geometry that conforms to impacted surfaces.
+// buildDecalTriangleVertices clips/project triangles into decal space, producing geometry that conforms to impacted surfaces.
 func buildDecalTriangleVertices(mark DecalMarkEntity) []float32 {
 	corners, ok := buildDecalQuad(mark)
 	if !ok {
@@ -326,7 +326,7 @@ func buildDecalTriangleVertices(mark DecalMarkEntity) []float32 {
 	return out
 }
 
-// normalizeDecalVariant normalizeDecalVariant maps decal type aliases into canonical variants so texture lookup and blending stay consistent.
+// normalizeDecalVariant maps decal type aliases into canonical variants so texture lookup and blending stay consistent.
 func normalizeDecalVariant(variant DecalVariant) DecalVariant {
 	switch variant {
 	case DecalVariantBullet, DecalVariantChip, DecalVariantScorch, DecalVariantMagic:
@@ -336,7 +336,7 @@ func normalizeDecalVariant(variant DecalVariant) DecalVariant {
 	}
 }
 
-// buildDecalQuad buildDecalQuad constructs camera-friendly quad data for simple mark types that do not require mesh clipping.
+// buildDecalQuad constructs camera-friendly quad data for simple mark types that do not require mesh clipping.
 func buildDecalQuad(mark DecalMarkEntity) ([4][3]float32, bool) {
 	var corners [4][3]float32
 	normal, ok := decalNormalize3(mark.Normal)
@@ -364,7 +364,7 @@ func buildDecalQuad(mark DecalMarkEntity) ([4][3]float32, bool) {
 	return corners, true
 }
 
-// buildDecalBasis buildDecalBasis performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// buildDecalBasis performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func buildDecalBasis(normal [3]float32, rotation float32) (tangent [3]float32, bitangent [3]float32) {
 	up := [3]float32{0, 0, 1}
 	if float32(math.Abs(float64(normal[2]))) > 0.99 {
@@ -386,17 +386,17 @@ func buildDecalBasis(normal [3]float32, rotation float32) (tangent [3]float32, b
 	return tangent, bitangent
 }
 
-// add3 add3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// add3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func add3(a, b [3]float32) [3]float32 {
 	return [3]float32{a[0] + b[0], a[1] + b[1], a[2] + b[2]}
 }
 
-// scale3 scale3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// scale3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func scale3(a [3]float32, s float32) [3]float32 {
 	return [3]float32{a[0] * s, a[1] * s, a[2] * s}
 }
 
-// cross3 cross3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// cross3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func cross3(a, b [3]float32) [3]float32 {
 	return [3]float32{
 		a[1]*b[2] - a[2]*b[1],
@@ -405,7 +405,7 @@ func cross3(a, b [3]float32) [3]float32 {
 	}
 }
 
-// decalNormalize3 decalNormalize3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
+// decalNormalize3 performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func decalNormalize3(v [3]float32) ([3]float32, bool) {
 	lengthSq := v[0]*v[0] + v[1]*v[1] + v[2]*v[2]
 	if lengthSq <= 1e-12 {
