@@ -573,22 +573,25 @@ func (s *Server) SendClientMessages() {
 
 // UpdateToReliableMessages queues scoreboard frag changes on reliable channels for all clients.
 func (s *Server) UpdateToReliableMessages() {
-	for _, client := range s.Static.Clients {
-		if client == nil || !client.Active {
+	for playerNum, changedClient := range s.Static.Clients {
+		if changedClient == nil || !changedClient.Active {
+			continue
+		}
+		currentFrags := int(changedClient.Edict.Vars.Frags)
+		if changedClient.OldFrags == currentFrags {
 			continue
 		}
 
-		for j, other := range s.Static.Clients {
-			if other == nil || !other.Active {
+		for _, receiver := range s.Static.Clients {
+			if receiver == nil || !receiver.Active {
 				continue
 			}
-			if client.OldFrags != int(other.Edict.Vars.Frags) {
-				client.Message.WriteByte(byte(inet.SVCUpdateFrags))
-				client.Message.WriteByte(byte(j))
-				client.Message.WriteShort(int16(other.Edict.Vars.Frags))
-				client.OldFrags = int(other.Edict.Vars.Frags)
-			}
+			receiver.Message.WriteByte(byte(inet.SVCUpdateFrags))
+			receiver.Message.WriteByte(byte(playerNum))
+			receiver.Message.WriteShort(int16(currentFrags))
 		}
+
+		changedClient.OldFrags = currentFrags
 	}
 }
 

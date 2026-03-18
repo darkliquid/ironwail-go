@@ -118,3 +118,60 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 		t.Fatalf("baseline entity = %d, want 1", entNum)
 	}
 }
+
+func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients(t *testing.T) {
+	s := &Server{
+		Static: &ServerStatic{
+			Clients: make([]*Client, 4),
+		},
+	}
+
+	s.Static.Clients[0] = &Client{
+		Active:   true,
+		Edict:    &Edict{Vars: &EntVars{Frags: 5}},
+		OldFrags: 0, // changed
+		Message:  NewMessageBuffer(MaxDatagram),
+	}
+	s.Static.Clients[1] = &Client{
+		Active:   true,
+		Edict:    &Edict{Vars: &EntVars{Frags: 10}},
+		OldFrags: 10, // unchanged
+		Message:  NewMessageBuffer(MaxDatagram),
+	}
+	s.Static.Clients[2] = &Client{
+		Active:   true,
+		Edict:    &Edict{Vars: &EntVars{Frags: -2}},
+		OldFrags: -2, // unchanged
+		Message:  NewMessageBuffer(MaxDatagram),
+	}
+	s.Static.Clients[3] = &Client{
+		Active:   false,
+		Edict:    &Edict{Vars: &EntVars{Frags: 99}},
+		OldFrags: 0,
+		Message:  NewMessageBuffer(MaxDatagram),
+	}
+
+	s.UpdateToReliableMessages()
+
+	want := []byte{byte(inet.SVCUpdateFrags), 0, 5, 0}
+	for i := 0; i < 3; i++ {
+		got := s.Static.Clients[i].Message.Data[:s.Static.Clients[i].Message.Len()]
+		if !bytes.Equal(got, want) {
+			t.Fatalf("client %d message = %v, want %v", i, got, want)
+		}
+	}
+
+	if got := s.Static.Clients[3].Message.Len(); got != 0 {
+		t.Fatalf("inactive client received frag update, message len = %d, want 0", got)
+	}
+
+	if got := s.Static.Clients[0].OldFrags; got != 5 {
+		t.Fatalf("changed client OldFrags = %d, want 5", got)
+	}
+	if got := s.Static.Clients[1].OldFrags; got != 10 {
+		t.Fatalf("unchanged client 1 OldFrags = %d, want 10", got)
+	}
+	if got := s.Static.Clients[2].OldFrags; got != -2 {
+		t.Fatalf("unchanged client 2 OldFrags = %d, want -2", got)
+	}
+}
