@@ -384,17 +384,14 @@ func (p *Parser) parseUpdateName(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseStopSound(msg *common.SizeBuf) error {
-	entity, ok := msg.ReadShort()
+	// C reads a single short: entity = i>>3, channel = i&7
+	i, ok := msg.ReadShort()
 	if !ok {
-		return fmt.Errorf("svc_stopsound: missing entity")
-	}
-	channel, ok := msg.ReadByte()
-	if !ok {
-		return fmt.Errorf("svc_stopsound: missing channel")
+		return fmt.Errorf("svc_stopsound: missing data")
 	}
 	p.Client.StopSoundEvents = append(p.Client.StopSoundEvents, StopSoundEvent{
-		Entity:  int(entity),
-		Channel: int(channel),
+		Entity:  int(i >> 3),
+		Channel: int(i & 7),
 	})
 	return nil
 }

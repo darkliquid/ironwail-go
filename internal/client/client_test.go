@@ -766,8 +766,8 @@ func TestSVCStopSound(t *testing.T) {
 
 	msg := bytes.NewBuffer(nil)
 	msg.WriteByte(byte(inet.SVCStopSound))
-	writeShort(msg, 10) // entity index
-	msg.WriteByte(3)    // channel
+	// C encodes entity and channel in one short: (entity << 3) | channel
+	writeShort(msg, (10<<3)|3)
 	msg.WriteByte(0xFF) // frame terminator
 
 	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
