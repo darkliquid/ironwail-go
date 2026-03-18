@@ -352,7 +352,7 @@ const (
 	// data (baselines, static entities, static sounds, lightstyles) is split
 	// into multiple buffers that are sent as reliable messages. If the total
 	// signon data exceeds MaxSignonBuffers * buffer_size, the level cannot load.
-	MaxSignonBuffers = 16
+	MaxSignonBuffers = 256
 
 	// MaxEntityLeafs — maximum number of BSP leaves an entity can touch for
 	// PVS visibility tracking. If an entity overlaps more leaves than this,

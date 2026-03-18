@@ -95,6 +95,7 @@ func (s *Server) SendServerInfo(client *Client) {
 	client.Message.WriteByte(1)
 
 	client.SendSignon = SignonFlush
+	client.SignonIdx = 0
 	client.Spawned = false
 }
 
@@ -128,6 +129,7 @@ func (s *Server) ConnectClient(clientNum int) {
 	client.Active = true
 	client.Spawned = false
 	client.RespawnTime = 0
+	client.SignonIdx = 0
 	client.Edict = ent
 	client.Name = "unconnected"
 	if client.Message != nil {
@@ -473,7 +475,13 @@ func (s *Server) SendClientDatagram(client *Client) bool {
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
 	s.buildClientDatagram(client, &msg)
-
+	if client == nil || client.NetConnection == nil || msg.Len() == 0 {
+		return true
+	}
+	if inet.SendUnreliableMessage(client.NetConnection, msg.Data[:msg.Len()]) == -1 {
+		return false
+	}
+	client.LastMessage = float64(s.Time)
 	return true
 }
 
@@ -553,22 +561,71 @@ func (s *Server) SendClientMessages() {
 			if client.Loopback {
 				continue
 			}
-			s.SendClientDatagram(client)
-		} else {
-			if client.SendSignon == SignonNone {
+			if !s.SendClientDatagram(client) {
+				s.DropClient(client, false)
 				continue
 			}
-			if client.Message.Len() > 0 || client.DropASAP {
-				if client.DropASAP {
-					s.DropClient(client, false)
-				} else {
-					client.Message.Clear()
-				}
+		} else {
+			s.queuePendingSignon(client)
+			if client.Message.Len() == 0 && client.SendSignon == SignonNone {
+				continue
 			}
 		}
+
+		if client.Loopback {
+			continue
+		}
+		if client.Message.Len() == 0 && !client.DropASAP {
+			continue
+		}
+		if client.NetConnection == nil || !inet.CanSendMessage(client.NetConnection) {
+			continue
+		}
+		if client.DropASAP {
+			s.DropClient(client, false)
+			continue
+		}
+		if inet.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()]) == -1 {
+			s.DropClient(client, true)
+			continue
+		}
+		client.Message.Clear()
+		client.LastMessage = float64(s.Time)
 	}
 
 	s.CleanupEnts()
+}
+
+func (s *Server) queuePendingSignon(client *Client) {
+	if client == nil || client.Message == nil {
+		return
+	}
+	if client.SendSignon != SignonPrespawn {
+		return
+	}
+
+	local := client.Loopback || (client.NetConnection != nil && client.NetConnection.Address() == "localhost")
+	for client.SignonIdx < len(s.SignonBuffers) {
+		buf := s.SignonBuffers[client.SignonIdx]
+		if buf == nil || buf.Len() == 0 {
+			client.SignonIdx++
+			continue
+		}
+		if client.Message.Len()+buf.Len() > len(client.Message.Data) {
+			break
+		}
+		client.Message.Write(buf.Data[:buf.Len()])
+		client.SignonIdx++
+		if !local {
+			break
+		}
+	}
+
+	if client.SignonIdx == len(s.SignonBuffers) && client.Message.Len()+2 <= len(client.Message.Data) {
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(2)
+		client.SendSignon = SignonSignonBufs
+	}
 }
 
 // UpdateToReliableMessages queues scoreboard frag changes on reliable channels for all clients.

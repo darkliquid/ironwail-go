@@ -142,6 +142,7 @@ type Client struct {
 	LastCmd            UserCmd
 	LoopbackCmdPending bool
 	Message            *MessageBuffer
+	SignonIdx          int
 	OldFrags           int // Previous frags count for reliable message updates
 	EntityStates       map[int]EntityState
 	RespawnTime        float32

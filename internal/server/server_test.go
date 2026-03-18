@@ -582,10 +582,10 @@ func TestEdictInPVSVisibleLeaf(t *testing.T) {
 		Vars:     &EntVars{},
 		NumLeafs: 1,
 	}
-	ent.LeafNums[0] = 3 // leaf 3: (3-1)=2 → byte 0, bit 2
+	ent.LeafNums[0] = 3 // leaf 3 -> byte 0, bit 3
 
 	pvs := make([]byte, 4)
-	pvs[0] = 1 << 2 // bit 2 set
+	pvs[0] = 1 << 3
 
 	if !s.SV_EdictInPVS(ent, pvs) {
 		t.Error("expected edict to be visible in PVS")
@@ -623,8 +623,8 @@ func TestEdictInPVSNoLeafs(t *testing.T) {
 	}
 
 	pvs := make([]byte, 4)
-	if !s.SV_EdictInPVS(ent, pvs) {
-		t.Error("expected edict with no leafs to be visible")
+	if s.SV_EdictInPVS(ent, pvs) {
+		t.Error("expected edict with no leafs to be excluded from PVS")
 	}
 }
 
@@ -640,8 +640,8 @@ func TestEdictInPVSNilPVS(t *testing.T) {
 	}
 	ent.LeafNums[0] = 5
 
-	if !s.SV_EdictInPVS(ent, nil) {
-		t.Error("expected edict to be visible with nil PVS")
+	if s.SV_EdictInPVS(ent, nil) {
+		t.Error("expected edict to be excluded with nil PVS")
 	}
 }
 
@@ -655,15 +655,31 @@ func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 		Vars:     &EntVars{},
 		NumLeafs: 3,
 	}
-	ent.LeafNums[0] = 2  // byte 0, bit 1
-	ent.LeafNums[1] = 10 // byte 1, bit 1
-	ent.LeafNums[2] = 20 // byte 2, bit 3
+	ent.LeafNums[0] = 2  // byte 0, bit 2
+	ent.LeafNums[1] = 10 // byte 1, bit 2
+	ent.LeafNums[2] = 20 // byte 2, bit 4
 
 	pvs := make([]byte, 4)
-	pvs[1] = 1 << 1 // only leaf 10 visible: (10-1)=9 → byte 1, bit 1
+	pvs[1] = 1 << 2 // only leaf 10 visible
 
 	if !s.SV_EdictInPVS(ent, pvs) {
 		t.Error("expected edict to be visible when one of multiple leafs is in PVS")
+	}
+}
+
+func TestEdictInPVSMaxLeafsAlwaysVisible(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: MaxEntityLeafs,
+	}
+
+	if !s.SV_EdictInPVS(ent, make([]byte, 1)) {
+		t.Error("expected edict touching max leafs to bypass PVS culling")
 	}
 }
 
@@ -677,5 +693,41 @@ func TestCheckForNewClientsNoConnections(t *testing.T) {
 
 	if err := s.CheckForNewClients(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFrameClearsDatagramBeforeSimulation(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	s.Active = true
+	s.Datagram.WriteByte(0x42)
+
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("Frame: %v", err)
+	}
+	if got := s.Datagram.Len(); got != 0 {
+		t.Fatalf("datagram len after frame = %d, want 0", got)
+	}
+}
+
+func TestReadClientMessageProcessesStringCmdWithoutSentinel(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+
+	msg := NewMessageBuffer(32)
+	msg.WriteByte(byte(CLCStringCmd))
+	msg.WriteString("prespawn")
+
+	if !s.SV_ReadClientMessage(client, msg) {
+		t.Fatal("SV_ReadClientMessage rejected a complete stringcmd payload")
+	}
+	if got := client.SendSignon; got != SignonPrespawn {
+		t.Fatalf("SendSignon = %v, want %v", got, SignonPrespawn)
 	}
 }

@@ -8,6 +8,12 @@ func (s *Server) Frame(frameTime float64) error {
 
 	s.FrameTime = float32(frameTime)
 
+	s.ClearDatagram()
+
+	if err := s.CheckForNewClients(); err != nil {
+		return err
+	}
+
 	// Read client input and update player intent before physics, matching C ordering.
 	s.RunClients()
 

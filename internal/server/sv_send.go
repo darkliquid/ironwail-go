@@ -853,15 +853,22 @@ func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, cl
 // SV_VisibleToClient checks whether any entity leaf intersects the client's precomputed FatPVS.
 func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 	if client.FatPVS == nil || ent.NumLeafs == 0 {
+		return false
+	}
+	if ent.NumLeafs >= MaxEntityLeafs {
 		return true
 	}
 
 	for i := 0; i < ent.NumLeafs; i++ {
 		leafIdx := ent.LeafNums[i]
-		if leafIdx <= 0 {
+		if leafIdx < 0 {
 			continue
 		}
-		if (client.FatPVS[(leafIdx-1)>>3] & (1 << (uint(leafIdx-1) & 7))) != 0 {
+		byteIdx := leafIdx >> 3
+		if byteIdx >= len(client.FatPVS) {
+			continue
+		}
+		if (client.FatPVS[byteIdx] & (1 << (uint(leafIdx) & 7))) != 0 {
 			return true
 		}
 	}
@@ -873,18 +880,21 @@ func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 // in the given PVS byte array. Returns true if any leaf is set.
 func (s *Server) SV_EdictInPVS(test *Edict, pvs []byte) bool {
 	if test == nil || len(pvs) == 0 || test.NumLeafs == 0 {
+		return false
+	}
+	if test.NumLeafs >= MaxEntityLeafs {
 		return true
 	}
 	for i := 0; i < test.NumLeafs; i++ {
 		leafIdx := test.LeafNums[i]
-		if leafIdx <= 0 {
+		if leafIdx < 0 {
 			continue
 		}
-		byteIdx := (leafIdx - 1) >> 3
+		byteIdx := leafIdx >> 3
 		if byteIdx < 0 || byteIdx >= len(pvs) {
 			continue
 		}
-		if (pvs[byteIdx] & (1 << (uint(leafIdx-1) & 7))) != 0 {
+		if (pvs[byteIdx] & (1 << (uint(leafIdx) & 7))) != 0 {
 			return true
 		}
 	}

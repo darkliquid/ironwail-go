@@ -587,7 +587,64 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 }
 
 func (s *Server) ExecuteClientString(client *Client, cmd string) bool {
-	return s.SV_ExecuteUserCommand(client, cmd)
+	return s.executeClientStringCommand(client, cmd) == nil
+}
+
+func (s *Server) executeClientStringCommand(client *Client, cmd string) error {
+	if !s.SV_ExecuteUserCommand(client, cmd) {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+	return s.handleClientStringCommand(client, cmd)
+}
+
+func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
+	cmd = strings.ToLower(strings.TrimSpace(cmd))
+	switch cmd {
+	case "prespawn":
+		if client.SendSignon != SignonFlush {
+			return fmt.Errorf("prespawn out of order")
+		}
+		if client.Loopback {
+			s.SendSignonBuffers(client)
+			client.Message.WriteByte(byte(inet.SVCSignOnNum))
+			client.Message.WriteByte(2)
+			client.SendSignon = SignonSignonBufs
+			return nil
+		}
+		client.SignonIdx = 0
+		client.SendSignon = SignonPrespawn
+	case "spawn":
+		if client.SendSignon != SignonSignonBufs {
+			return fmt.Errorf("spawn out of order")
+		}
+		if !s.LoadGame {
+			if err := s.runClientSpawnQC(client); err != nil {
+				return err
+			}
+		}
+		for style, value := range s.LightStyles {
+			client.Message.WriteByte(byte(inet.SVCLightStyle))
+			client.Message.WriteByte(byte(style))
+			client.Message.WriteString(value)
+		}
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(3)
+		client.SendSignon = SignonSignonMsg
+	case "begin":
+		if client.SendSignon != SignonSignonMsg {
+			return fmt.Errorf("begin out of order")
+		}
+		client.Message.WriteByte(byte(inet.SVCSignOnNum))
+		client.Message.WriteByte(4)
+		client.Spawned = true
+		client.SendSignon = SignonDone
+		if !s.LoadGame {
+			if err := s.runClientPutInServerQC(client); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Server) findLocalSpawnPoint() *Edict {
@@ -708,57 +765,11 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 		return fmt.Errorf("client %d is nil", clientNum)
 	}
 	client.Loopback = true
-	if !s.SV_ExecuteUserCommand(client, cmd) {
-		return fmt.Errorf("command %q rejected", cmd)
+	if err := s.executeClientStringCommand(client, cmd); err != nil {
+		return err
 	}
 	if client.Message == nil {
 		client.Message = NewMessageBuffer(MaxDatagram)
-	}
-
-	switch strings.ToLower(strings.TrimSpace(cmd)) {
-	case "prespawn":
-		if client.SendSignon != SignonFlush {
-			return fmt.Errorf("prespawn out of order")
-		}
-		// Send accumulated signon buffers (static entities, ambient sounds)
-		// to this client before advancing the signon stage.
-		s.SendSignonBuffers(client)
-		client.Message.WriteByte(byte(inet.SVCSignOnNum))
-		client.Message.WriteByte(2)
-		client.SendSignon = SignonSignonBufs
-	case "spawn":
-		if client.SendSignon != SignonSignonBufs {
-			return fmt.Errorf("spawn out of order")
-		}
-		if !s.LoadGame {
-			if err := s.runClientSpawnQC(client); err != nil {
-				return err
-			}
-		}
-		for style, value := range s.LightStyles {
-			client.Message.WriteByte(byte(inet.SVCLightStyle))
-			client.Message.WriteByte(byte(style))
-			client.Message.WriteString(value)
-		}
-		client.Message.WriteByte(byte(inet.SVCSignOnNum))
-		client.Message.WriteByte(3)
-		client.SendSignon = SignonSignonMsg
-	case "begin":
-		if client.SendSignon != SignonSignonMsg {
-			return fmt.Errorf("begin out of order")
-		}
-		client.Message.WriteByte(byte(inet.SVCSignOnNum))
-		client.Message.WriteByte(4)
-		client.Spawned = true
-		client.SendSignon = SignonDone
-		// Execute PutClientInServer to finalize player initialization via QC
-		if !s.LoadGame {
-			if err := s.runClientPutInServerQC(client); err != nil {
-				return err
-			}
-		}
-	default:
-		// Other allowed commands have no special loopback response yet.
 	}
 
 	return nil
@@ -799,7 +810,7 @@ func (s *Server) SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward
 }
 
 func (s *Server) SV_ReadClientMessage(client *Client, buf *MessageBuffer) bool {
-	for {
+	for buf.ReadPos < buf.Len() {
 		ccmd := int(buf.ReadChar())
 		if buf.BadRead {
 			return false
@@ -812,7 +823,7 @@ func (s *Server) SV_ReadClientMessage(client *Client, buf *MessageBuffer) bool {
 			continue
 		case int(CLCStringCmd):
 			cmd := buf.ReadString()
-			if !s.SV_ExecuteUserCommand(client, cmd) {
+			if err := s.executeClientStringCommand(client, cmd); err != nil {
 				return false
 			}
 		case int(CLCDisconnect):
@@ -827,6 +838,7 @@ func (s *Server) SV_ReadClientMessage(client *Client, buf *MessageBuffer) bool {
 			return false
 		}
 	}
+	return !buf.BadRead
 }
 
 func (s *Server) ReadClientMessage(client *Client, buf *MessageBuffer) bool {
@@ -849,12 +861,39 @@ func (s *Server) RunClients() {
 			}
 			client.LoopbackCmdPending = false
 		} else {
-			if client.Message == nil || !s.SV_ReadClientMessage(client, client.Message) {
+			if client.NetConnection == nil && client.Message != nil && client.Message.Len() > 0 {
+				if !s.SV_ReadClientMessage(client, client.Message) {
+					s.DropClient(client, false)
+					continue
+				}
+				client.Message.Clear()
+				client.LastMessage = float64(s.Time)
+				goto processedInput
+			}
+			if client.NetConnection == nil {
 				s.DropClient(client, false)
 				continue
 			}
+			for {
+				msgType, payload := inet.GetMessage(client.NetConnection)
+				if msgType == 0 {
+					break
+				}
+				if msgType != 1 && msgType != 2 {
+					s.DropClient(client, false)
+					break
+				}
+				incoming := NewMessageBuffer(len(payload))
+				incoming.Write(payload)
+				if !s.SV_ReadClientMessage(client, incoming) {
+					s.DropClient(client, false)
+					break
+				}
+				client.LastMessage = float64(s.Time)
+			}
 		}
 
+	processedInput:
 		if !client.Spawned {
 			client.LastCmd = UserCmd{}
 			continue
