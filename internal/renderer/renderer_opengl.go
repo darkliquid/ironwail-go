@@ -107,6 +107,12 @@ type glCachedTexture struct {
 	height int
 }
 
+type glTextureWithUV struct {
+	texture uint32
+	u0, v0  float32
+	u1, v1  float32
+}
+
 // init performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func init() {
 	// OpenGL must run on main OS thread
@@ -303,21 +309,21 @@ func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	tex := dc.renderer.getOrCreateTexture(dc, pic)
-	if tex == 0 {
+	tex := dc.renderer.getTextureWithUVs(dc, pic)
+	if tex.texture == 0 {
 		return
 	}
 
 	rect := screenPicRect(x, y, pic)
 	vertices := []quadVertex{
-		{rect.x, rect.y, 0.0, 0.0},                   // Top-left
-		{rect.x + rect.w, rect.y, 1.0, 0.0},          // Top-right
-		{rect.x, rect.y + rect.h, 0.0, 1.0},          // Bottom-left
-		{rect.x + rect.w, rect.y + rect.h, 1.0, 1.0}, // Bottom-right
+		{rect.x, rect.y, tex.u0, tex.v0},                   // Top-left
+		{rect.x + rect.w, rect.y, tex.u1, tex.v0},          // Top-right
+		{rect.x, rect.y + rect.h, tex.u0, tex.v1},          // Bottom-left
+		{rect.x + rect.w, rect.y + rect.h, tex.u1, tex.v1}, // Bottom-right
 	}
 
 	// Render quad as triangle strip
-	dc.render2DQuad(vertices, tex, dc.shader2D)
+	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
 }
 
 // DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.
@@ -330,21 +336,21 @@ func (dc *glDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	tex := dc.renderer.getOrCreateTexture(dc, pic)
-	if tex == 0 {
+	tex := dc.renderer.getTextureWithUVs(dc, pic)
+	if tex.texture == 0 {
 		return
 	}
 
 	rect := menuPicRect(dc.viewport.width, dc.viewport.height, x, y, pic)
 	vertices := []quadVertex{
-		{rect.x, rect.y, 0.0, 0.0},                   // Top-left
-		{rect.x + rect.w, rect.y, 1.0, 0.0},          // Top-right
-		{rect.x, rect.y + rect.h, 0.0, 1.0},          // Bottom-left
-		{rect.x + rect.w, rect.y + rect.h, 1.0, 1.0}, // Bottom-right
+		{rect.x, rect.y, tex.u0, tex.v0},                   // Top-left
+		{rect.x + rect.w, rect.y, tex.u1, tex.v0},          // Top-right
+		{rect.x, rect.y + rect.h, tex.u0, tex.v1},          // Bottom-left
+		{rect.x + rect.w, rect.y + rect.h, tex.u1, tex.v1}, // Bottom-right
 	}
 
 	// Render quad as triangle strip
-	dc.render2DQuad(vertices, tex, dc.shader2D)
+	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
 }
 
 // DrawFill fills a rectangle with a Quake palette color.
@@ -384,17 +390,17 @@ func (dc *glDrawContext) DrawCharacter(x, y int, num int) {
 	if pic == nil {
 		return
 	}
-	tex := dc.renderer.getOrCreateCharTexture(dc, pic)
-	if tex == 0 {
+	tex := dc.renderer.getCharTextureWithUVs(dc, pic)
+	if tex.texture == 0 {
 		return
 	}
 	vertices := []quadVertex{
-		{float32(x), float32(y), 0.0, 0.0},
-		{float32(x + 8), float32(y), 1.0, 0.0},
-		{float32(x), float32(y + 8), 0.0, 1.0},
-		{float32(x + 8), float32(y + 8), 1.0, 1.0},
+		{float32(x), float32(y), tex.u0, tex.v0},
+		{float32(x + 8), float32(y), tex.u1, tex.v0},
+		{float32(x), float32(y + 8), tex.u0, tex.v1},
+		{float32(x + 8), float32(y + 8), tex.u1, tex.v1},
 	}
-	dc.render2DQuad(vertices, tex, dc.shader2D)
+	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
 }
 
 // DrawMenuCharacter renders a single character from font in 320x200 menu space.
@@ -410,8 +416,8 @@ func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
 	if pic == nil {
 		return
 	}
-	tex := dc.renderer.getOrCreateCharTexture(dc, pic)
-	if tex == 0 {
+	tex := dc.renderer.getCharTextureWithUVs(dc, pic)
+	if tex.texture == 0 {
 		return
 	}
 	scale, xOff, yOff := menuScale(dc.viewport.width, dc.viewport.height)
@@ -419,12 +425,12 @@ func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
 	yPos := float32(y)*scale + yOff
 	charSize := float32(8) * scale
 	vertices := []quadVertex{
-		{xPos, yPos, 0.0, 0.0},
-		{xPos + charSize, yPos, 1.0, 0.0},
-		{xPos, yPos + charSize, 0.0, 1.0},
-		{xPos + charSize, yPos + charSize, 1.0, 1.0},
+		{xPos, yPos, tex.u0, tex.v0},
+		{xPos + charSize, yPos, tex.u1, tex.v0},
+		{xPos, yPos + charSize, tex.u0, tex.v1},
+		{xPos + charSize, yPos + charSize, tex.u1, tex.v1},
 	}
-	dc.render2DQuad(vertices, tex, dc.shader2D)
+	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
 }
 
 // render2DQuad performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
@@ -481,6 +487,9 @@ type Renderer struct {
 	palette       []byte
 	concharsData  []byte
 	charCache     [256]*image.QPic
+	scrapAtlas    *ScrapAtlas
+	scrapTextures []uint32
+	scrapEntries  map[glCacheKey]*ScrapEntry
 	drawContext   *glDrawContext
 
 	cameraState                         CameraState
@@ -705,6 +714,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		lightStyleValues:        defaultLightStyleValues(),
 		lightPool:               NewGLLightPool(512),
 	}
+	r.initScrapAtlas()
 
 	slog.Info("OpenGL renderer created",
 		"width", cfg.Width,
@@ -941,6 +951,7 @@ func (r *Renderer) Run() error {
 			}{width, height}
 			gldc := r.drawContext
 			r.mu.Unlock()
+			r.uploadDirtyScrapPages(gldc)
 
 			dc := &DrawContext{gldc: gldc}
 			drawCallback(dc)
@@ -1034,6 +1045,8 @@ func (r *Renderer) clearTextureCacheLocked() {
 			r.colorTextures[i] = 0
 		}
 	}
+	r.destroyScrapAtlas()
+	r.initScrapAtlas()
 }
 
 // deleteAllTextures performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
@@ -1068,6 +1081,31 @@ func (r *Renderer) getOrCreateTexture(dc *glDrawContext, pic *image.QPic) uint32
 	r.textureCache[glCacheKey{pic: pic}] = &glCachedTexture{id: tex, width: int(pic.Width), height: int(pic.Height)}
 	r.mu.Unlock()
 	return tex
+}
+
+func (r *Renderer) getTextureWithUVs(dc *glDrawContext, pic *image.QPic) glTextureWithUV {
+	if pic == nil {
+		return glTextureWithUV{}
+	}
+	if r.scrapAtlas != nil && pic.Width <= 128 && pic.Height <= 128 {
+		if entry, tex, ok := r.tryScrapAlloc(dc, pic); ok && tex != 0 {
+			return glTextureWithUV{
+				texture: tex,
+				u0:      entry.UV.U0,
+				v0:      entry.UV.V0,
+				u1:      entry.UV.U1,
+				v1:      entry.UV.V1,
+			}
+		}
+	}
+	tex := r.getOrCreateTexture(dc, pic)
+	return glTextureWithUV{
+		texture: tex,
+		u0:      0,
+		v0:      0,
+		u1:      1,
+		v1:      1,
+	}
 }
 
 // getOrCreateColorTexture performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
@@ -1154,6 +1192,31 @@ func (r *Renderer) getOrCreateCharTexture(dc *glDrawContext, pic *image.QPic) ui
 	r.textureCache[glCacheKey{pic: pic}] = &glCachedTexture{id: tex, width: int(pic.Width), height: int(pic.Height)}
 	r.mu.Unlock()
 	return tex
+}
+
+func (r *Renderer) getCharTextureWithUVs(dc *glDrawContext, pic *image.QPic) glTextureWithUV {
+	if pic == nil {
+		return glTextureWithUV{}
+	}
+	if r.scrapAtlas != nil && pic.Width <= 128 && pic.Height <= 128 {
+		if entry, tex, ok := r.tryScrapAllocConchars(dc, pic); ok && tex != 0 {
+			return glTextureWithUV{
+				texture: tex,
+				u0:      entry.UV.U0,
+				v0:      entry.UV.V0,
+				u1:      entry.UV.U1,
+				v1:      entry.UV.V1,
+			}
+		}
+	}
+	tex := r.getOrCreateCharTexture(dc, pic)
+	return glTextureWithUV{
+		texture: tex,
+		u0:      0,
+		v0:      0,
+		u1:      1,
+		v1:      1,
+	}
 }
 
 // IsRunning returns true if the render loop is active.
