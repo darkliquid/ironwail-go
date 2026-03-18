@@ -43,10 +43,11 @@ func (dc *stubDrawContext) Gamma() float32 {
 
 // CameraState holds the player's camera position and orientation for view setup.
 type CameraState struct {
-	Origin types.Vec3
-	Angles types.Vec3
-	FOV    float32
-	Time   float32
+	Origin       types.Vec3
+	Angles       types.Vec3
+	FOV          float32
+	Time         float32
+	WaterwarpFOV bool
 }
 
 // RenderFrameState carries per-frame render configuration passed to RenderFrame.
@@ -238,11 +239,27 @@ func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
 	return false
 }
 
+// SpawnKeyedDynamicLight adds or replaces a keyed dynamic light (no-op in stub).
+func (r *Renderer) SpawnKeyedDynamicLight(light DynamicLight) bool {
+	return false
+}
+
 func (r *Renderer) UpdateLights(deltaTime float32) {}
 
 func (r *Renderer) ClearDynamicLights() {}
 
 func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {}
+
+// WorldFace is a minimal stub matching the fields referenced by untagged
+// parity helpers (worldLiquidFaceTypeMask). The authoritative definitions
+// live in world.go (gogpu) and world_opengl.go (opengl/cgo).
+type WorldFace struct {
+	FirstIndex    uint32
+	NumIndices    uint32
+	TextureIndex  int32
+	LightmapIndex int32
+	Flags         int32
+}
 
 // GetWorldBounds returns no bounds in the no-backend build.
 func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {

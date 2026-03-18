@@ -5,7 +5,7 @@ package host
 
 import (
 	"fmt"
-	"github.com/ironwail/ironwail-go/internal/client"
+	cl "github.com/ironwail/ironwail-go/internal/client"
 )
 
 func (h *Host) CmdRecord(filename string, subs *Subsystems) {
@@ -27,7 +27,7 @@ func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 
 	// Create demo state if needed
 	if h.demoState == nil {
-		h.demoState = &client.DemoState{
+		h.demoState = &cl.DemoState{
 			Speed:     1.0,
 			BaseSpeed: 1.0,
 		}
@@ -45,7 +45,7 @@ func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 		return
 	}
 
-	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil && loopbackClient.State != client.StateDisconnected && loopbackClient.Signon > 0 {
+	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil && loopbackClient.State != cl.StateDisconnected && loopbackClient.Signon > 0 {
 		if err := h.demoState.WriteInitialStateSnapshot(loopbackClient); err != nil {
 			stopErr := h.demoState.StopRecording()
 			if stopErr != nil {
@@ -118,7 +118,7 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 
 	// Create demo state if needed
 	if h.demoState == nil {
-		h.demoState = &client.DemoState{
+		h.demoState = &cl.DemoState{
 			Speed:     1.0,
 			BaseSpeed: 1.0,
 		}
