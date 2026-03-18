@@ -87,6 +87,9 @@ type Server struct {
 	StaticSounds   []StaticSound
 	LightStyles    [64]string
 
+	// Protocol version (15=NetQuake, 666=FitzQuake, 999=RMQ)
+	Protocol int
+
 	// Game rules
 	Coop       bool
 	Deathmatch bool
@@ -405,6 +408,7 @@ func NewServer() *Server {
 		Friction:    4,
 		StopSpeed:   100,
 		MaxEdicts:   1024,
+		Protocol:    ProtocolFitzQuake,
 		QCVM:        qc.NewVM(),
 	}
 

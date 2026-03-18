@@ -406,15 +406,9 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	}
 	if force || state.ModelIndex != prev.ModelIndex {
 		bits |= inet.U_MODEL
-		if state.ModelIndex > 255 {
-			bits |= inet.U_MODEL2
-		}
 	}
 	if force || state.Frame != prev.Frame {
 		bits |= inet.U_FRAME
-		if state.Frame > 255 {
-			bits |= inet.U_FRAME2
-		}
 	}
 	if force || state.Colormap != prev.Colormap {
 		bits |= inet.U_COLORMAP
@@ -425,14 +419,30 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	if force || state.Effects != prev.Effects {
 		bits |= inet.U_EFFECTS
 	}
-	if force || state.Alpha != prev.Alpha {
-		if state.Alpha != 0 || prev.Alpha != 0 || force {
-			bits |= inet.U_ALPHA
+
+	// FitzQuake/RMQ extension bits — only for non-NetQuake protocols
+	if s.Protocol != ProtocolNetQuake {
+		if state.Alpha != prev.Alpha {
+			if state.Alpha != 0 || prev.Alpha != 0 || force {
+				bits |= inet.U_ALPHA
+			}
 		}
-	}
-	if force || state.Scale != prev.Scale {
-		if state.Scale != 16 || prev.Scale != 16 || force {
-			bits |= inet.U_SCALE
+		if state.Scale != prev.Scale {
+			if state.Scale != 16 || prev.Scale != 16 || force {
+				bits |= inet.U_SCALE
+			}
+		}
+		if bits&inet.U_FRAME != 0 && state.Frame > 255 {
+			bits |= inet.U_FRAME2
+		}
+		if bits&inet.U_MODEL != 0 && state.ModelIndex > 255 {
+			bits |= inet.U_MODEL2
+		}
+		if bits >= 65536 {
+			bits |= inet.U_EXTEND1
+		}
+		if bits >= 16777216 {
+			bits |= inet.U_EXTEND2
 		}
 	}
 
@@ -441,12 +451,6 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	}
 	if bits&0x0000ff00 != 0 {
 		bits |= inet.U_MOREBITS
-	}
-	if bits&0x00ff0000 != 0 {
-		bits |= inet.U_EXTEND1
-	}
-	if bits&0xff000000 != 0 {
-		bits |= inet.U_EXTEND2
 	}
 
 	first := byte(bits&0x7f) | 0x80

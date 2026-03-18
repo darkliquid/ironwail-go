@@ -47,7 +47,10 @@ func (s *Server) SendServerInfo(client *Client) {
 	client.Message.WriteString(fmt.Sprintf("\nFITZQUAKE GO SERVER\n"))
 
 	client.Message.WriteByte(byte(inet.SVCServerInfo))
-	client.Message.WriteLong(ProtocolFitzQuake)
+	client.Message.WriteLong(int32(s.Protocol))
+	if s.Protocol == ProtocolRMQ {
+		client.Message.WriteLong(int32(s.ProtocolFlags()))
+	}
 	client.Message.WriteByte(byte(s.Static.MaxClients))
 
 	if !s.Coop && s.Deathmatch {
