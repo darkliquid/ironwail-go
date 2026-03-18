@@ -28,6 +28,7 @@ package qc
 import (
 	"fmt"
 	"math"
+	"sort"
 )
 
 // ExecuteProgram runs a QuakeC function by its number.
@@ -67,7 +68,10 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 	// Start at first_statement - 1 because the loop body ends with XStatement++
 	vm.XStatement = int(f.FirstStatement) - 1
 
+	// Profile counters track per-function statement execution counts.
+	// C: startprofile = profile = 0; xfunction->profile += profile - startprofile
 	profile := 0
+	startProfile := 0
 	for {
 		profile++
 		if profile > 0x1000000 {
@@ -83,6 +87,13 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		switch op {
 		case OPDone, OPReturn:
+			// Accumulate profile count for the returning function.
+			// C: xfunction->profile += profile - startprofile
+			if vm.XFunction != nil {
+				vm.XFunction.Profile += int32(profile - startProfile)
+				startProfile = profile
+			}
+
 			// Copy return value from operand A to OFS_RETURN (3 slots for vector).
 			// C: globals[OFS_RETURN+i] = globals[st->a+i] for i in 0..2
 			a := int(uint16(st.A))
@@ -100,6 +111,12 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			continue
 
 		case OPCall0, OPCall1, OPCall2, OPCall3, OPCall4, OPCall5, OPCall6, OPCall7, OPCall8:
+			// Accumulate profile count for the calling function before entering callee.
+			// C: xfunction->profile += profile - startprofile
+			if vm.XFunction != nil {
+				vm.XFunction.Profile += int32(profile - startProfile)
+				startProfile = profile
+			}
 			argc := int(op - OPCall0)
 			if err := vm.callFunction(int(vm.GFunction(int(st.A))), argc); err != nil {
 				return err
@@ -464,4 +481,50 @@ func (vm *VM) pointerToField(ptr int) (edictNum int, fieldOfs int, ok bool) {
 		return 0, 0, false
 	}
 	return edictNum, fieldOfs, true
+}
+
+// ProfileResult holds the profiling data for a single QC function.
+type ProfileResult struct {
+	Name    string
+	Profile int32
+}
+
+// ProfileResults returns the top N QC functions by execution count,
+// sorted descending. Matches C PR_Profile_f: iterates all functions,
+// collects those with profile > 0, sorts by count, returns top N.
+// Resets all profile counters after collecting (like C).
+func (vm *VM) ProfileResults(top int) []ProfileResult {
+	type entry struct {
+		idx     int
+		profile int32
+	}
+	var entries []entry
+	for i := range vm.Functions {
+		if vm.Functions[i].Profile > 0 {
+			entries = append(entries, entry{i, vm.Functions[i].Profile})
+		}
+	}
+
+	sort.Slice(entries, func(a, b int) bool {
+		return entries[a].profile > entries[b].profile
+	})
+
+	if top > len(entries) {
+		top = len(entries)
+	}
+
+	results := make([]ProfileResult, top)
+	for i := 0; i < top; i++ {
+		results[i] = ProfileResult{
+			Name:    vm.GetString(vm.Functions[entries[i].idx].Name),
+			Profile: entries[i].profile,
+		}
+	}
+
+	// Reset all profile counters (C: best->profile = 0 in the do..while loop)
+	for i := range vm.Functions {
+		vm.Functions[i].Profile = 0
+	}
+
+	return results
 }

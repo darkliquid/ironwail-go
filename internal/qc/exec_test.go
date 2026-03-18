@@ -229,3 +229,80 @@ func TestExecuteProgramOPReturnCopiesThreeSlotsToOFSReturn(t *testing.T) {
 		t.Fatalf("OFSReturn vector = %v, want [11 22 33]", got)
 	}
 }
+
+func TestProfileResultsAccumulatesPerFunction(t *testing.T) {
+	// Set up a VM where main calls callee twice in a loop (via goto).
+	// After execution, ProfileResults should show both functions with
+	// non-zero statement counts, callee having more than main.
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+
+	// String table: "main\0callee\0"
+	vm.Strings = []byte("main\x00callee\x00")
+
+	const (
+		mainFuncNum   = 0
+		calleeFuncNum = 1
+		calleeRefOfs  = 10
+		counterOfs    = 11
+		oneOfs        = 12
+		twoOfs        = 13
+	)
+
+	vm.Functions = []DFunction{
+		{FirstStatement: 1, Name: 0},  // "main" at string offset 0
+		{FirstStatement: 6, Name: 5},  // "callee" at string offset 5
+	}
+
+	// main: counter=2; loop: call callee; counter--; if counter>0 goto loop; done
+	vm.Statements = []DStatement{
+		// stmt 0: counter = 2
+		{Op: uint16(OPStoreF), A: uint16(twoOfs), B: uint16(counterOfs)},
+		// stmt 1: call callee
+		{Op: uint16(OPCall0), A: uint16(calleeRefOfs)},
+		// stmt 2: counter = counter - 1
+		{Op: uint16(OPSubF), A: uint16(counterOfs), B: uint16(oneOfs), C: uint16(counterOfs)},
+		// stmt 3: if counter != 0, goto stmt 1 (offset = 1-4 = -3)
+		{Op: uint16(OPIF), A: uint16(counterOfs), B: uint16(65534)},
+		// stmt 4: done
+		{Op: uint16(OPDone), A: 0},
+
+		// filler
+		{Op: uint16(OPDone), A: 0},
+
+		// callee: stmt 6: just return
+		{Op: uint16(OPDone), A: 0},
+	}
+
+	vm.SetGInt(calleeRefOfs, calleeFuncNum)
+	vm.SetGFloat(oneOfs, 1)
+	vm.SetGFloat(twoOfs, 2)
+
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+
+	results := vm.ProfileResults(10)
+	if len(results) == 0 {
+		t.Fatal("ProfileResults returned no results")
+	}
+
+	// Both main and callee should appear with non-zero counts.
+	found := map[string]int32{}
+	for _, r := range results {
+		found[r.Name] = r.Profile
+	}
+
+	if found["main"] == 0 {
+		t.Error("main should have non-zero profile count")
+	}
+	if found["callee"] == 0 {
+		t.Error("callee should have non-zero profile count")
+	}
+
+	// After ProfileResults, counters should be reset.
+	results2 := vm.ProfileResults(10)
+	if len(results2) != 0 {
+		t.Errorf("after reset, ProfileResults should be empty, got %d entries", len(results2))
+	}
+}
