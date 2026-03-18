@@ -27,12 +27,10 @@ func (s *Server) SV_TestEntityPosition(ent *Edict) *Edict {
 	return s.TestEntityPosition(ent)
 }
 
+// anglemod normalizes an angle using 16-bit quantization matching C's mathlib.c:
+//   a = (360.0/65536) * ((int)(a*(65536/360.0)) & 65535)
 func anglemod(yaw float32) float32 {
-	v := float32(math.Mod(float64(yaw), 360.0))
-	if v < 0 {
-		v += 360
-	}
-	return v
+	return (360.0 / 65536) * float32(int(yaw*(65536.0/360.0))&65535)
 }
 
 func (s *Server) changeYaw(ent *Edict) {

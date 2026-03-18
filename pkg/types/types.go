@@ -207,18 +207,15 @@ func ClampInt(value, min, max int) int {
 	return value
 }
 
-// AngleMod normalizes an angle to the range [0, 360) by quantizing it
-// through the 8-bit byte representation and back.
+// AngleMod normalizes an angle to the range [0, 360) using 16-bit
+// quantization matching C's mathlib.c anglemod():
 //
-// In Quake's original network protocol, entity angles are transmitted as
-// a single byte (0–255 linearly mapping to 0°–360°), giving ~1.41°
-// resolution per step. AngleMod simulates this quantization: it converts
-// the float angle to byte precision (masking to 0–255) and then back to
-// float degrees. This ensures that client-side predicted angles match
-// exactly what the server sends over the wire, preventing visual jitter
-// from floating-point drift.
+//	a = (360.0/65536) * ((int)(a*(65536/360.0)) & 65535)
+//
+// This uses 16-bit precision (~0.0055° per step), matching the exact
+// quantization behavior of the C Quake engine.
 func AngleMod(angle float32) float32 {
-	return float32(int(angle*float32(256.0/360.0))&255) * float32(360.0/256.0)
+	return (360.0 / 65536) * float32(int(angle*(65536.0/360.0))&65535)
 }
 
 // AngleByte converts a float angle (in degrees) to the 8-bit byte

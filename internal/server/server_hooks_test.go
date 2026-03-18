@@ -606,10 +606,11 @@ func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
 	} else {
 		fn(vm)
 	}
-	if self.Vars.Angles[1] != 355 {
-		t.Fatalf("changeyaw yaw = %v, want 355", self.Vars.Angles[1])
+	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
+	if got := self.Vars.Angles[1]; got < 354.99 || got > 355.01 {
+		t.Fatalf("changeyaw yaw = %v, want ~355", got)
 	}
-	if got := vm.EVector(selfNum, qc.EntFieldAngles); got[1] != 355 {
+	if got := vm.EVector(selfNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
 		t.Fatalf("vm yaw not synchronized after changeyaw: got=%v", got[1])
 	}
 }

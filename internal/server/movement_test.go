@@ -28,8 +28,9 @@ func TestChangeYaw(t *testing.T) {
 	ent.Vars.YawSpeed = 15
 
 	s.changeYaw(ent)
-	if ent.Vars.Angles[1] != 355 {
-		t.Fatalf("angles yaw = %v, want 355", ent.Vars.Angles[1])
+	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
+	if got := ent.Vars.Angles[1]; got < 354.99 || got > 355.01 {
+		t.Fatalf("angles yaw = %v, want ~355", got)
 	}
 }
 
