@@ -594,6 +594,28 @@ type Renderer struct {
 	sceneFBOHeight           int
 	oitFB                    oitFramebuffers
 
+	// OIT shader programs and cached uniform locations.
+	oitWorldProgram              uint32
+	oitWorldVPUniform            int32
+	oitWorldTextureUniform       int32
+	oitWorldLightmapUniform      int32
+	oitWorldFullbrightUniform    int32
+	oitWorldHasFullbrightUniform int32
+	oitWorldDynamicLightUniform  int32
+	oitWorldModelOffsetUniform   int32
+	oitWorldModelRotationUniform int32
+	oitWorldModelScaleUniform    int32
+	oitWorldAlphaUniform         int32
+	oitWorldTimeUniform          int32
+	oitWorldTurbulentUniform     int32
+	oitWorldCameraOriginUniform  int32
+	oitWorldFogColorUniform      int32
+	oitWorldFogDensityUniform    int32
+	oitResolveProgram            uint32
+	oitResolveAccumLoc           int32
+	oitResolveRevealLoc          int32
+	oitResolveVAO                uint32
+
 	// Polyblend (v_blend) full-screen color tint pass.
 	// Mirrors C Ironwail: glprogs.viewblend / V_PolyBlend().
 	polyBlendProgram      uint32
@@ -963,6 +985,7 @@ func (r *Renderer) Shutdown() {
 		gl.DeleteProgram(r.polyBlendProgram)
 		r.polyBlendProgram = 0
 	}
+	r.destroyOITShaders()
 	r.deleteAllTextures()
 	if r.window != nil {
 		r.window.Destroy()

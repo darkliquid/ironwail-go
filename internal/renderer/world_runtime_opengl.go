@@ -852,10 +852,53 @@ func (r *Renderer) DrawTranslucentCalls() {
 	cameraOrigin := r.cameraState.Origin
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
+	timeUniform := r.worldTimeUniform
+	cameraOriginUniform := r.worldCameraOriginUniform
+	fogColorUniform := r.worldFogColorUniform
+	fogDensityUniform := r.worldFogDensityUniform
+
+	// Snapshot OIT world program state for potential use below.
+	oitProg := r.oitWorldProgram
+	oitVP := r.oitWorldVPUniform
+	oitTex := r.oitWorldTextureUniform
+	oitLM := r.oitWorldLightmapUniform
+	oitFB := r.oitWorldFullbrightUniform
+	oitHasFB := r.oitWorldHasFullbrightUniform
+	oitDL := r.oitWorldDynamicLightUniform
+	oitOff := r.oitWorldModelOffsetUniform
+	oitRot := r.oitWorldModelRotationUniform
+	oitScl := r.oitWorldModelScaleUniform
+	oitAlpha := r.oitWorldAlphaUniform
+	oitTurb := r.oitWorldTurbulentUniform
+	oitTime := r.oitWorldTimeUniform
+	oitCamOrig := r.oitWorldCameraOriginUniform
+	oitFogCol := r.oitWorldFogColorUniform
+	oitFogDen := r.oitWorldFogDensityUniform
 	r.mu.RUnlock()
 
 	if program == 0 {
 		return
+	}
+
+	// When OIT is active and the OIT world program is ready,
+	// switch so translucent surfaces output to the MRT.
+	if oitProg != 0 && GetAlphaMode() == AlphaModeOIT {
+		program = oitProg
+		vpUniform = oitVP
+		textureUniform = oitTex
+		lightmapUniform = oitLM
+		fullbrightUniform = oitFB
+		hasFullbrightUniform = oitHasFB
+		dynamicLightUniform = oitDL
+		modelOffsetUniform = oitOff
+		modelRotationUniform = oitRot
+		modelScaleUniform = oitScl
+		alphaUniform = oitAlpha
+		turbulentUniform = oitTurb
+		timeUniform = oitTime
+		cameraOriginUniform = oitCamOrig
+		fogColorUniform = oitFogCol
+		fogDensityUniform = oitFogDen
 	}
 
 	if shouldSortTranslucentCalls(GetAlphaMode()) {
@@ -872,10 +915,10 @@ func (r *Renderer) DrawTranslucentCalls() {
 	gl.Uniform1i(lightmapUniform, 1)
 	gl.Uniform1i(fullbrightUniform, 2)
 	gl.Uniform1f(hasFullbrightUniform, 0)
-	gl.Uniform1f(r.worldTimeUniform, cameraTime)
-	gl.Uniform3f(r.worldCameraOriginUniform, cameraOrigin.X, cameraOrigin.Y, cameraOrigin.Z)
-	gl.Uniform3f(r.worldFogColorUniform, fogColor[0], fogColor[1], fogColor[2])
-	gl.Uniform1f(r.worldFogDensityUniform, worldFogUniformDensity(fogDensity))
+	gl.Uniform1f(timeUniform, cameraTime)
+	gl.Uniform3f(cameraOriginUniform, cameraOrigin.X, cameraOrigin.Y, cameraOrigin.Z)
+	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
+	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 
 	renderWorldDrawCalls(calls, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, false)
 

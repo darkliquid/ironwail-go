@@ -125,15 +125,17 @@ func (r *Renderer) beginTranslucencyBlock() {
 	alphaMode := GetAlphaMode()
 
 	if alphaMode == AlphaModeOIT && r.oitFB.fbo != 0 {
-		gl.BindFramebuffer(gl.FRAMEBUFFER, r.oitFB.fbo)
-		drawBuffers := [2]uint32{gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1}
-		gl.DrawBuffers(2, &drawBuffers[0])
-		r.clearOITBuffers()
+		if err := r.ensureOITShaders(); err == nil {
+			gl.BindFramebuffer(gl.FRAMEBUFFER, r.oitFB.fbo)
+			drawBuffers := [2]uint32{gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1}
+			gl.DrawBuffers(2, &drawBuffers[0])
+			r.clearOITBuffers()
 
-		gl.Enable(gl.BLEND)
-		gl.BlendFunci(0, gl.ONE, gl.ONE)
-		gl.BlendFunci(1, gl.ZERO, gl.ONE_MINUS_SRC_ALPHA)
-		return
+			gl.Enable(gl.BLEND)
+			gl.BlendFunci(0, gl.ONE, gl.ONE)
+			gl.BlendFunci(1, gl.ZERO, gl.ONE_MINUS_SRC_ALPHA)
+			return
+		}
 	}
 
 	gl.Enable(gl.BLEND)
@@ -154,7 +156,31 @@ func (r *Renderer) endTranslucencyBlock() {
 			gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 		}
 
-		// TODO(xetpw-5d): resolve OIT accum/revealage targets into the scene framebuffer.
+		// Resolve OIT accum/revealage into the scene framebuffer.
+		if r.oitResolveProgram != 0 {
+			gl.Viewport(0, 0, int32(r.oitFB.width), int32(r.oitFB.height))
+			gl.Disable(gl.DEPTH_TEST)
+			gl.DepthMask(false)
+
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.BindTexture(gl.TEXTURE_2D, r.oitFB.accumTex)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, r.oitFB.revealageTex)
+
+			gl.UseProgram(r.oitResolveProgram)
+
+			gl.BindVertexArray(r.oitResolveVAO)
+			gl.DrawArrays(gl.TRIANGLES, 0, 3)
+			gl.BindVertexArray(0)
+
+			gl.UseProgram(0)
+			gl.ActiveTexture(gl.TEXTURE1)
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+			gl.ActiveTexture(gl.TEXTURE0)
+			gl.BindTexture(gl.TEXTURE_2D, 0)
+
+			gl.Enable(gl.DEPTH_TEST)
+		}
 	}
 
 	gl.DepthMask(true)
