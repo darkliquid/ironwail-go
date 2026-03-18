@@ -80,3 +80,26 @@ func TestLockedCvarRejectsSet(t *testing.T) {
 		t.Fatalf("unlocked cvar = %q, want 20", sys.StringValue("test_lock"))
 	}
 }
+
+func TestAutoCvarCallback(t *testing.T) {
+	sys := NewCVarSystem()
+	sys.Register("sv_gravity", "800", FlagAutoCvar, "gravity")
+
+	var calledWith string
+	sys.AutoCvarChanged = func(cv *CVar) {
+		calledWith = cv.String
+	}
+
+	sys.Set("sv_gravity", "400")
+	if calledWith != "400" {
+		t.Fatalf("autocvar callback got %q, want 400", calledWith)
+	}
+
+	// Non-autocvar cvar should not trigger the callback.
+	sys.Register("sv_speed", "320", 0, "speed")
+	calledWith = ""
+	sys.Set("sv_speed", "640")
+	if calledWith != "" {
+		t.Fatalf("non-autocvar triggered callback with %q", calledWith)
+	}
+}
