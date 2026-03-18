@@ -288,6 +288,7 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	if g.Client != nil {
 		g.Client.PredictPlayers(float32(dt))
 		g.Client.UpdateBlend(dt)
+		g.Client.UpdateTempEntities()
 	}
 	transientEvents := cl.TransientEvents{}
 	if g.Client != nil {

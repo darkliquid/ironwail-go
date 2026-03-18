@@ -108,6 +108,7 @@ type TransientEvents struct {
 	StopSoundEvents []StopSoundEvent
 	ParticleEvents  []ParticleEvent
 	TempEntities    []TempEntityEvent
+	BeamSegments    []BeamSegment
 }
 
 type Client struct {
@@ -147,10 +148,10 @@ type Client struct {
 	ModelPrecache []string
 	SoundPrecache []string
 
-	ViewEntity    int
-	ViewEntAlpha  byte
-	CDTrack       int
-	LoopTrack  int
+	ViewEntity   int
+	ViewEntAlpha byte
+	CDTrack      int
+	LoopTrack    int
 
 	Intermission  int
 	CompletedTime float64
@@ -189,6 +190,8 @@ type Client struct {
 	StopSoundEvents []StopSoundEvent
 	ParticleEvents  []ParticleEvent
 	TempEntities    []TempEntityEvent
+	BeamSegments    []BeamSegment
+	beams           [maxBeams]beamState
 	DamageTaken     int
 	DamageSaved     int
 	DamageOrigin    [3]float32
@@ -348,6 +351,8 @@ func (c *Client) ClearState() {
 	c.StopSoundEvents = nil
 	c.ParticleEvents = nil
 	c.TempEntities = nil
+	c.BeamSegments = nil
+	c.beams = [maxBeams]beamState{}
 	c.StaticEntities = nil
 	c.StaticSounds = nil
 	if c.Frags == nil {
@@ -469,6 +474,15 @@ func (c *Client) ConsumeTempEntities() []TempEntityEvent {
 	return events
 }
 
+func (c *Client) ConsumeBeamSegments() []BeamSegment {
+	if c == nil || len(c.BeamSegments) == 0 {
+		return nil
+	}
+	segments := c.BeamSegments
+	c.BeamSegments = nil
+	return segments
+}
+
 func (c *Client) ConsumeTransientEvents() TransientEvents {
 	if c == nil {
 		return TransientEvents{}
@@ -478,6 +492,7 @@ func (c *Client) ConsumeTransientEvents() TransientEvents {
 		StopSoundEvents: c.ConsumeStopSoundEvents(),
 		ParticleEvents:  c.ConsumeParticleEvents(),
 		TempEntities:    c.ConsumeTempEntities(),
+		BeamSegments:    c.ConsumeBeamSegments(),
 	}
 }
 
