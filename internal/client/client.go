@@ -583,8 +583,42 @@ func (c *Client) AmmoCounts() (int, int, int, int) {
 	return c.Stats[statShells], c.Stats[statNails], c.Stats[statRockets], c.Stats[statCells]
 }
 
+// LightStyleConfig controls lightstyle animation behavior. These correspond
+// to the C Ironwail cvars r_flatlightstyles and r_lerplightstyles.
+type LightStyleConfig struct {
+	// FlatLightStyles controls flattening:
+	//   0 = dynamic animation (default)
+	//   1 = use average brightness (static)
+	//   2 = use peak brightness (static)
+	FlatLightStyles int
+	// LerpLightStyles controls interpolation between animation frames:
+	//   0 = no interpolation (snap to frame)
+	//   1 = interpolate, but skip abrupt changes (default)
+	//   2 = always interpolate
+	LerpLightStyles int
+	// DynamicLights enables dynamic light animation. When false, lightstyles
+	// use their average value (equivalent to r_flatlightstyles=1).
+	DynamicLights bool
+}
+
+// DefaultLightStyleConfig returns the default configuration matching
+// C Ironwail's default cvar values.
+func DefaultLightStyleConfig() LightStyleConfig {
+	return LightStyleConfig{
+		FlatLightStyles: 0,
+		LerpLightStyles: 1,
+		DynamicLights:   true,
+	}
+}
+
 // LightStyleValues evaluates the current lightstyle scalars for the client clock.
 func (c *Client) LightStyleValues() [64]float32 {
+	return c.LightStyleValuesWithConfig(DefaultLightStyleConfig())
+}
+
+// LightStyleValuesWithConfig evaluates lightstyle brightness with the given
+// animation configuration, matching C R_AnimateLight() behavior.
+func (c *Client) LightStyleValuesWithConfig(cfg LightStyleConfig) [64]float32 {
 	var out [64]float32
 	for i := range out {
 		out[i] = 1
@@ -593,7 +627,7 @@ func (c *Client) LightStyleValues() [64]float32 {
 		return out
 	}
 	for i, style := range c.LightStyles {
-		out[i] = evalLightStyleValue(style, c.Time)
+		out[i] = evalLightStyleValue(style, c.Time, cfg)
 	}
 	return out
 }
@@ -645,23 +679,53 @@ func (c *Client) CurrentFog() (density float32, color [3]float32) {
 	return density, color
 }
 
-func evalLightStyleValue(style LightStyle, timeSeconds float64) float32 {
+// lightstyleNormalBrightness is the brightness of character 'm' (normal light).
+const lightstyleNormalBrightness = float32('m' - 'a') // 12
+
+func evalLightStyleValue(style LightStyle, timeSeconds float64, cfg LightStyleConfig) float32 {
 	if style.Length <= 0 || style.Map == "" {
 		return 1
 	}
-	index := int(timeSeconds * 10)
-	if index < 0 {
-		index = 0
+
+	// Flat lightstyle modes use precomputed average/peak.
+	if cfg.FlatLightStyles == 2 {
+		return float32(style.Peak-'a') / lightstyleNormalBrightness
 	}
-	index %= style.Length
-	if index < 0 || index >= len(style.Map) {
-		return 1
+	if cfg.FlatLightStyles == 1 || !cfg.DynamicLights {
+		return float32(style.Average-'a') / lightstyleNormalBrightness
 	}
-	ch := style.Map[index]
-	if ch < 'a' {
-		return 0
+
+	// Dynamic animation: 10 frames per second, matching C cl.time * 10.0.
+	f := timeSeconds * 10.0
+	base := math.Floor(f)
+	frac := float32(f - base)
+	if cfg.LerpLightStyles == 0 {
+		frac = 0
 	}
-	return float32(ch-'a') / float32('m'-'a')
+
+	idx := int(base) % style.Length
+	if idx < 0 {
+		idx += style.Length
+	}
+	next := (idx + 1) % style.Length
+
+	k := float32(style.Map[idx] - 'a')
+	n := float32(style.Map[next] - 'a')
+
+	// Skip interpolation for abrupt changes (e.g. flickering) unless
+	// r_lerplightstyles >= 2, matching C behavior.
+	if cfg.LerpLightStyles < 2 {
+		abruptThreshold := lightstyleNormalBrightness / 2 // 6
+		diff := k - n
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff >= abruptThreshold {
+			n = k
+		}
+	}
+
+	return (k + (n-k)*frac) / lightstyleNormalBrightness
 }
 
 func (c *Client) SetLightStyle(i int, style string) error {

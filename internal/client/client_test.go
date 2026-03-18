@@ -444,6 +444,141 @@ func TestLightStyleValues(t *testing.T) {
 	}
 }
 
+func TestEvalLightStyleInterpolation(t *testing.T) {
+	// "mm" is constant normal brightness — no interpolation needed.
+	style := LightStyle{Map: "mm", Length: 2, Average: 'm', Peak: 'm'}
+	cfg := DefaultLightStyleConfig()
+	cfg.LerpLightStyles = 2 // always lerp
+
+	// At any time, brightness should be 1.0 (normal).
+	for _, tm := range []float64{0, 0.05, 0.1, 0.15} {
+		v := evalLightStyleValue(style, tm, cfg)
+		if math.Abs(float64(v-1.0)) > 1e-5 {
+			t.Errorf("constant 'mm' at t=%f = %f, want 1.0", tm, v)
+		}
+	}
+
+	// "mn" (12, 13): small change, should interpolate smoothly.
+	style = LightStyle{Map: "mn", Length: 2, Average: 'm', Peak: 'n'}
+	// At t=0.0: idx=0 ('m'=12), next=1 ('n'=13), frac=0 → 12/12 = 1.0
+	v0 := evalLightStyleValue(style, 0.0, cfg)
+	if math.Abs(float64(v0-1.0)) > 1e-5 {
+		t.Errorf("'mn' at t=0.0 = %f, want 1.0", v0)
+	}
+	// At t=0.05: frac=0.5 → lerp(12, 13, 0.5) = 12.5/12 ≈ 1.0417
+	v05 := evalLightStyleValue(style, 0.05, cfg)
+	if v05 <= 1.0 || v05 >= 13.0/12.0+0.01 {
+		t.Errorf("'mn' at t=0.05 = %f, want ~1.04", v05)
+	}
+	// At t=0.1: idx=1 ('n'=13), frac=0 → 13/12 ≈ 1.0833
+	v1 := evalLightStyleValue(style, 0.1, cfg)
+	expected := float32(13.0) / 12.0
+	if math.Abs(float64(v1-expected)) > 1e-5 {
+		t.Errorf("'mn' at t=0.1 = %f, want %f", v1, expected)
+	}
+}
+
+func TestEvalLightStyleAbruptChangeSkip(t *testing.T) {
+	// "az" has a large brightness jump (0 to 25).
+	style := LightStyle{Map: "az", Length: 2, Average: 'm', Peak: 'z'}
+
+	// With LerpLightStyles=1 (default): abrupt changes are NOT interpolated.
+	cfg := DefaultLightStyleConfig()
+	// At t=0.0, idx=0 ('a'=0), next=1 ('z'=25), diff=25 >= 6 → snap.
+	v := evalLightStyleValue(style, 0.0, cfg)
+	if v != 0 {
+		t.Errorf("abrupt skip at t=0: got %f, want 0", v)
+	}
+	// At midframe t=0.05, should still snap (no interpolation).
+	v05 := evalLightStyleValue(style, 0.05, cfg)
+	if v05 != 0 {
+		t.Errorf("abrupt skip at t=0.05: got %f, want 0 (no lerp)", v05)
+	}
+
+	// With LerpLightStyles=2 (always lerp): should interpolate even abrupt changes.
+	cfg.LerpLightStyles = 2
+	v05lerp := evalLightStyleValue(style, 0.05, cfg)
+	if v05lerp <= 0 {
+		t.Errorf("forced lerp at t=0.05: got %f, want > 0", v05lerp)
+	}
+}
+
+func TestEvalLightStyleFlatModes(t *testing.T) {
+	// "azaz" pattern with average ≈ 'm' and peak = 'z'.
+	style := LightStyle{Map: "azaz", Length: 4}
+	// Manually compute average and peak.
+	style.Peak = 'z'
+	style.Average = byte((0+25+0+25)/4) + 'a' // 12 + 'a' = 'm'
+
+	// FlatLightStyles=1: use average.
+	cfg := DefaultLightStyleConfig()
+	cfg.FlatLightStyles = 1
+	v := evalLightStyleValue(style, 0.0, cfg)
+	expected := float32(style.Average-'a') / 12.0
+	if math.Abs(float64(v-expected)) > 1e-5 {
+		t.Errorf("flat=1 average: got %f, want %f", v, expected)
+	}
+	// Should be same at any time (static).
+	v2 := evalLightStyleValue(style, 0.35, cfg)
+	if v != v2 {
+		t.Errorf("flat=1 should be time-independent: t=0 %f, t=0.35 %f", v, v2)
+	}
+
+	// FlatLightStyles=2: use peak.
+	cfg.FlatLightStyles = 2
+	vPeak := evalLightStyleValue(style, 0.0, cfg)
+	expectedPeak := float32(style.Peak-'a') / 12.0
+	if math.Abs(float64(vPeak-expectedPeak)) > 1e-5 {
+		t.Errorf("flat=2 peak: got %f, want %f", vPeak, expectedPeak)
+	}
+}
+
+func TestEvalLightStyleDynamicLightsOff(t *testing.T) {
+	style := LightStyle{Map: "azaz", Length: 4, Average: 'm', Peak: 'z'}
+	cfg := DefaultLightStyleConfig()
+	cfg.DynamicLights = false
+	// Should use average, matching r_dynamic=0 in C.
+	v := evalLightStyleValue(style, 0.0, cfg)
+	expected := float32(style.Average-'a') / 12.0
+	if math.Abs(float64(v-expected)) > 1e-5 {
+		t.Errorf("dynamic off: got %f, want %f (average)", v, expected)
+	}
+}
+
+func TestEvalLightStyleNoLerpMode(t *testing.T) {
+	// "mn" small change, should snap with LerpLightStyles=0.
+	style := LightStyle{Map: "mn", Length: 2, Average: 'm', Peak: 'n'}
+	cfg := DefaultLightStyleConfig()
+	cfg.LerpLightStyles = 0
+
+	// At t=0.05 (mid-frame): should snap to frame 0 value, no interpolation.
+	v := evalLightStyleValue(style, 0.05, cfg)
+	expected := float32(12.0) / 12.0 // 'm'=12
+	if math.Abs(float64(v-expected)) > 1e-5 {
+		t.Errorf("no-lerp at t=0.05: got %f, want %f (snapped)", v, expected)
+	}
+}
+
+func TestLightStyleValuesWithConfig(t *testing.T) {
+	c := NewClient()
+	_ = c.SetLightStyle(0, "m") // normal
+	_ = c.SetLightStyle(1, "a") // dark
+	c.Time = 0.0
+
+	cfg := DefaultLightStyleConfig()
+	values := c.LightStyleValuesWithConfig(cfg)
+	if math.Abs(float64(values[0]-1.0)) > 1e-5 {
+		t.Errorf("style 0 = %f, want 1.0", values[0])
+	}
+	if values[1] != 0 {
+		t.Errorf("style 1 = %f, want 0.0", values[1])
+	}
+	// Unset styles default to 1.0.
+	if values[2] != 1.0 {
+		t.Errorf("style 2 (unset) = %f, want 1.0", values[2])
+	}
+}
+
 func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
