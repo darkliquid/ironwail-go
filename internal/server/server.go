@@ -31,6 +31,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
@@ -111,11 +112,12 @@ type ServerStatic struct {
 
 // Client represents a connected player.
 type Client struct {
-	Active     bool
-	Spawned    bool
-	DropASAP   bool
-	SendSignon SignonStage
-	Loopback   bool
+	Active        bool
+	Spawned       bool
+	DropASAP      bool
+	SendSignon    SignonStage
+	Loopback      bool
+	NetConnection *inet.Socket // Per-client network socket
 
 	LastMessage float64
 

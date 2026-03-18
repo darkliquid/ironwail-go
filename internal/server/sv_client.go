@@ -645,6 +645,7 @@ func (s *Server) CheckForNewClients() error {
 		}
 		if freeSlot < 0 {
 			slog.Warn("CheckForNewClients: no free client slots")
+			inet.Close(sock)
 			return errors.New("no free client slots")
 		}
 
@@ -653,10 +654,9 @@ func (s *Server) CheckForNewClients() error {
 				Message: NewMessageBuffer(MaxDatagram),
 			}
 		}
+		s.Static.Clients[freeSlot].NetConnection = sock
 		s.ConnectClient(freeSlot)
 		slog.Info("CheckForNewClients: client connected", "slot", freeSlot)
-
-		_ = sock // socket will be used when full network plumbing is wired
 	}
 	return nil
 }

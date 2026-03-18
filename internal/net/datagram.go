@@ -481,19 +481,28 @@ func DatagramCheckNewConnections() *Socket {
 	}
 
 	if cmd == CCReqConnect {
-		// Send accept response
-		// In a real implementation, we would open a new socket for the client.
-		// For now, we'll just accept it on the same port (not quite right but okay for a start).
+		// Create a new per-client socket on a random port (matching C's dfunc.Open_Socket(0)).
+		// Each client gets its own socket so packets are demultiplexed by the OS.
+		clientConn, err := UDPOpenSocket(0)
+		if err != nil {
+			return nil
+		}
+
+		// Get the port assigned to the new socket
+		newPort := clientConn.LocalAddr().(*stdnet.UDPAddr).Port
+
+		// Send CCREP_ACCEPT with the new socket's port (not the accept socket port).
+		// The response is sent via the accept socket since the client is still listening there.
 		resp := make([]byte, HeaderSize+1+4)
 		binary.BigEndian.PutUint32(resp[0:], uint32(HeaderSize+1+4)|FlagCtl)
 		binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 		resp[8] = CCRepAccept
-		binary.LittleEndian.PutUint32(resp[9:], uint32(netHostPort))
+		binary.LittleEndian.PutUint32(resp[9:], uint32(newPort))
 		UDPWrite(acceptSocket, resp, addr)
 
 		sock := NewSocket(addr.String())
 		sock.driver = DriverDatagram
-		sock.udpConn = acceptSocket // Should be a new socket in real Quake
+		sock.udpConn = clientConn
 		sock.remoteAddr = addr
 		return sock
 	}
