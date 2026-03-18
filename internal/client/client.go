@@ -207,6 +207,12 @@ type Client struct {
 
 	StuffCmdBuf string
 
+	// LerpPoint bypass flags — set by the host each frame.
+	// When any is true, LerpPoint returns 1.0 (no interpolation).
+	TimeDemoActive  bool // cls.timedemo equivalent
+	LocalServerFast bool // sv.active && !host_netinterval equivalent
+	NoLerp          bool // cl_nolerp cvar equivalent
+
 	ForwardSpeed float32
 	BackSpeed    float32
 	SideSpeed    float32
@@ -674,7 +680,8 @@ func (c *Client) SetLightStyle(i int, style string) error {
 
 func (c *Client) LerpPoint() float64 {
 	f := c.MTime[0] - c.MTime[1]
-	if f == 0 {
+	// C: if (!f || cls.timedemo || (sv.active && !host_netinterval))
+	if f == 0 || c.TimeDemoActive || c.LocalServerFast || c.NoLerp {
 		c.Time = c.MTime[0]
 		return 1
 	}

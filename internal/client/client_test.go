@@ -755,6 +755,32 @@ func TestLerpPointClampsAndInterpolates(t *testing.T) {
 	}
 }
 
+func TestLerpPointBypassConditions(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(c *Client)
+	}{
+		{"TimeDemoActive", func(c *Client) { c.TimeDemoActive = true }},
+		{"LocalServerFast", func(c *Client) { c.LocalServerFast = true }},
+		{"NoLerp", func(c *Client) { c.NoLerp = true }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewClient()
+			c.MTime[1] = 1.0
+			c.MTime[0] = 1.1
+			c.Time = 1.05
+			tc.set(c)
+			frac := c.LerpPoint()
+			if frac != 1 {
+				t.Fatalf("LerpPoint() = %f, want 1 (bypass)", frac)
+			}
+			if c.Time != c.MTime[0] {
+				t.Fatalf("Time = %f, want MTime[0] = %f", c.Time, c.MTime[0])
+			}
+		})
+	}
+}
+
 func TestSVCUpdateName(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
