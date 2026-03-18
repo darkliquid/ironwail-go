@@ -117,19 +117,19 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	if attenuation != DefaultSoundAttenuation {
 		fieldMask |= 2
 	}
-	// FitzQuake extension: large entity/sound numbers.
+	// FitzQuake/RMQ extension: large entity/sound numbers.
 	// NetQuake protocol can't support these — silently drop the sound.
-	if entNum >= 8192 {
-		if s.Protocol == ProtocolNetQuake {
+	if s.Protocol == ProtocolNetQuake {
+		if entNum >= 8192 || soundNum >= 256 || channel >= 8 {
 			return
 		}
-		fieldMask |= inet.SND_LARGEENTITY
-	}
-	if soundNum >= 256 || channel >= 8 {
-		if s.Protocol == ProtocolNetQuake {
-			return
+	} else {
+		if entNum >= 8192 || channel >= 8 {
+			fieldMask |= inet.SND_LARGEENTITY
 		}
-		fieldMask |= inet.SND_LARGESOUND
+		if soundNum >= 256 {
+			fieldMask |= inet.SND_LARGESOUND
+		}
 	}
 
 	if s.Datagram.Len() > MaxDatagram-21 {
