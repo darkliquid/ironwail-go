@@ -10,6 +10,131 @@ const (
 	HUDCount   = 3
 )
 
+// CanvasType identifies the coordinate space used for 2D drawing calls.
+// Each canvas type defines its own logical dimensions, scale factor, and
+// alignment within the physical viewport. This matches the C Ironwail
+// canvastype enum from screen.h.
+type CanvasType int
+
+const (
+	// CanvasNone means no canvas is active; drawing is undefined.
+	CanvasNone CanvasType = iota
+	// CanvasDefault is the full-screen GUI canvas at native resolution.
+	CanvasDefault
+	// CanvasConsole is the console overlay, scaled by scr_conwidth/scr_conscale.
+	CanvasConsole
+	// CanvasMenu is the 320x200 menu canvas, scaled by scr_menuscale.
+	CanvasMenu
+	// CanvasSbar is the 320x48 status bar, bottom-aligned, scaled by scr_sbarscale.
+	CanvasSbar
+	// CanvasSbarQWInv is the 48x48 QuakeWorld inventory, bottom-right-aligned.
+	CanvasSbarQWInv
+	// CanvasSbar2 is the modern HUD canvas at 400x225 base, centered.
+	CanvasSbar2
+	// CanvasCrosshair is centered on the viewport midpoint, scaled by scr_crosshairscale.
+	CanvasCrosshair
+	// CanvasBottomLeft is the 320x200 bottom-left corner (dev stats display).
+	CanvasBottomLeft
+	// CanvasBottomRight is the 320x200 bottom-right corner (FPS/speed display).
+	CanvasBottomRight
+	// CanvasTopRight is the 320x200 top-right corner (disc icon).
+	CanvasTopRight
+	// CanvasCSQC is the client-side QuakeC drawing canvas, using scr_sbarscale.
+	CanvasCSQC
+
+	// CanvasInvalid is a sentinel for error states.
+	CanvasInvalid CanvasType = -1
+)
+
+// String returns the human-readable name of a CanvasType for logging and debugging.
+func (c CanvasType) String() string {
+	switch c {
+	case CanvasNone:
+		return "NONE"
+	case CanvasDefault:
+		return "DEFAULT"
+	case CanvasConsole:
+		return "CONSOLE"
+	case CanvasMenu:
+		return "MENU"
+	case CanvasSbar:
+		return "SBAR"
+	case CanvasSbarQWInv:
+		return "SBAR_QW_INV"
+	case CanvasSbar2:
+		return "SBAR2"
+	case CanvasCrosshair:
+		return "CROSSHAIR"
+	case CanvasBottomLeft:
+		return "BOTTOMLEFT"
+	case CanvasBottomRight:
+		return "BOTTOMRIGHT"
+	case CanvasTopRight:
+		return "TOPRIGHT"
+	case CanvasCSQC:
+		return "CSQC"
+	case CanvasInvalid:
+		return "INVALID"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// Canvas alignment constants control how a canvas is positioned within
+// the physical viewport. They correspond to the C CANVAS_ALIGN_* macros
+// in gl_draw.c and are used as fractional multipliers (0.0 = left/top,
+// 0.5 = center, 1.0 = right/bottom).
+const (
+	CanvasAlignLeft    = 0.0
+	CanvasAlignCenterX = 0.5
+	CanvasAlignRight   = 1.0
+	CanvasAlignTop     = 0.0
+	CanvasAlignCenterY = 0.5
+	CanvasAlignBottom  = 1.0
+)
+
+// DrawTransform maps canvas-space pixel coordinates to normalised device
+// coordinates (NDC, -1 to +1). Each canvas type produces a different
+// transform depending on its logical size, scale cvar, and alignment.
+//
+// Vertex transformation:  ndc = vertex * Scale + Offset
+//
+// Scale[0] converts canvas X pixels to NDC width.
+// Scale[1] converts canvas Y pixels to NDC height (negative for top-down Y).
+// Offset[0] shifts the canvas horizontally within the viewport.
+// Offset[1] shifts the canvas vertically within the viewport.
+type DrawTransform struct {
+	Scale  [2]float32
+	Offset [2]float32
+}
+
+// CanvasState tracks the active 2D drawing canvas. It caches the current
+// canvas type and its computed transform so redundant GL_SetCanvas calls
+// are skipped (matching C Ironwail's early-out in GL_SetCanvas).
+type CanvasState struct {
+	Type      CanvasType
+	Transform DrawTransform
+	// Left, Top, Right, Bottom are the canvas-space clipping bounds
+	// derived from the transform. They define the drawable area in
+	// canvas coordinates.
+	Left   float32
+	Top    float32
+	Right  float32
+	Bottom float32
+}
+
+// TransformBounds computes canvas-space clipping bounds from a DrawTransform.
+// These bounds define the visible rectangle in canvas coordinates and are
+// used for text wrapping and element positioning. Matches C Ironwail's
+// Draw_GetTransformBounds in gl_draw.c.
+func TransformBounds(t DrawTransform) (left, top, right, bottom float32) {
+	left = (-1 - t.Offset[0]) / t.Scale[0]
+	right = (1 - t.Offset[0]) / t.Scale[0]
+	bottom = (-1 - t.Offset[1]) / t.Scale[1]
+	top = (1 - t.Offset[1]) / t.Scale[1]
+	return
+}
+
 type ViewRect struct {
 	X      int
 	Y      int
@@ -26,21 +151,26 @@ type Refdef struct {
 }
 
 type ScreenMetrics struct {
-	GLWidth      int
-	GLHeight     int
-	VidWidth     int
-	VidHeight    int
-	GUIHeight    int
-	ViewSize     float32
-	FOV          float32
-	FOVAdapt     bool
-	ZoomFOV      float32
-	Zoom         float32
-	SbarScale    float32
-	SbarAlpha    float32
-	Intermission bool
-	HudStyle     int
-	CSQCDrawHud  bool
+	GLWidth        int
+	GLHeight       int
+	VidWidth       int
+	VidHeight      int
+	GUIWidth       int // GUI-space width (physical pixels, matches C vid.guiwidth)
+	GUIHeight      int
+	ConWidth       int // Console logical width (controlled by scr_conwidth/scr_conscale)
+	ConHeight      int // Console logical height
+	ViewSize       float32
+	FOV            float32
+	FOVAdapt       bool
+	ZoomFOV        float32
+	Zoom           float32
+	SbarScale      float32
+	SbarAlpha      float32
+	MenuScale      float32 // scr_menuscale cvar value
+	CrosshairScale float32 // scr_crosshairscale cvar value
+	Intermission   bool
+	HudStyle       int
+	CSQCDrawHud    bool
 }
 
 // UpdateZoom updates zoom-derived field-of-view values so scoped views change perspective consistently while keeping aspect-correct horizontal/vertical FOV math.

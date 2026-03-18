@@ -170,3 +170,68 @@ func TestMenuPicRectUsesMenuSpaceScaling(t *testing.T) {
 func approxFloat32(got, want float32) bool {
 	return math.Abs(float64(got-want)) < 1e-4
 }
+
+func TestCanvasTypeString(t *testing.T) {
+	tests := []struct {
+		ct   CanvasType
+		want string
+	}{
+		{CanvasNone, "NONE"},
+		{CanvasDefault, "DEFAULT"},
+		{CanvasConsole, "CONSOLE"},
+		{CanvasMenu, "MENU"},
+		{CanvasSbar, "SBAR"},
+		{CanvasSbarQWInv, "SBAR_QW_INV"},
+		{CanvasSbar2, "SBAR2"},
+		{CanvasCrosshair, "CROSSHAIR"},
+		{CanvasBottomLeft, "BOTTOMLEFT"},
+		{CanvasBottomRight, "BOTTOMRIGHT"},
+		{CanvasTopRight, "TOPRIGHT"},
+		{CanvasCSQC, "CSQC"},
+		{CanvasInvalid, "INVALID"},
+		{CanvasType(99), "UNKNOWN"},
+	}
+	for _, tt := range tests {
+		if got := tt.ct.String(); got != tt.want {
+			t.Errorf("CanvasType(%d).String() = %q, want %q", tt.ct, got, tt.want)
+		}
+	}
+}
+
+func TestTransformBounds(t *testing.T) {
+	// Identity-like transform: 1920x1080 at scale 1, centered.
+	// scale[0] = 2/1920, scale[1] = -2/1080, offset = (0,0)
+	transform := DrawTransform{
+		Scale:  [2]float32{2.0 / 1920.0, -2.0 / 1080.0},
+		Offset: [2]float32{0, 0},
+	}
+	left, top, right, bottom := TransformBounds(transform)
+
+	// left = (-1 - 0) / (2/1920) = -960
+	if !approxFloat32(left, -960) {
+		t.Errorf("left = %f, want -960", left)
+	}
+	// right = (1 - 0) / (2/1920) = 960
+	if !approxFloat32(right, 960) {
+		t.Errorf("right = %f, want 960", right)
+	}
+	// top = (1 - 0) / (-2/1080) = -540
+	// (negative scale flips the sign, so top < bottom)
+	if !approxFloat32(top, -540) {
+		t.Errorf("top = %f, want -540", top)
+	}
+	// bottom = (-1 - 0) / (-2/1080) = 540
+	if !approxFloat32(bottom, 540) {
+		t.Errorf("bottom = %f, want 540", bottom)
+	}
+}
+
+func TestCanvasStateZeroValue(t *testing.T) {
+	var cs CanvasState
+	if cs.Type != CanvasNone {
+		t.Errorf("zero CanvasState.Type = %v, want CanvasNone", cs.Type)
+	}
+	if cs.Transform.Scale != [2]float32{0, 0} {
+		t.Errorf("zero CanvasState.Transform.Scale = %v, want [0 0]", cs.Transform.Scale)
+	}
+}
