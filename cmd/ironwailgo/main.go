@@ -274,9 +274,15 @@ func main() {
 					// gl_screen.c:1511: con_forcedup = !cl.worldmodel || cls.signon != SIGNONS)
 					conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
 
+					// Begin 2D overlay with default canvas.
+					overlay.SetCanvas(renderer.CanvasDefault)
+
 					if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
+						// Loading plaque uses menu-space coordinates.
+						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu when DrawMenuPic is canvas-aware
 						drawLoadingPlaque(overlay, g.Draw)
 						if consoleVisible {
+							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
 							console.Draw(overlay, w, h, true)
 						}
 						return
@@ -284,27 +290,32 @@ func main() {
 
 					// When disconnected, draw full console as background
 					if conForcedup {
+						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
 						console.Draw(overlay, w, h, true)
 					}
 
 					// Menu draws on top of console
 					if g.Menu != nil && g.Menu.IsActive() {
+						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu
 						g.Menu.M_Draw(overlay)
 						return
 					}
 
 					if !conForcedup {
 						if g.HUD != nil {
+							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasSbar
 							g.HUD.SetScreenSize(w, h)
 							updateHUDFromServer()
 							g.HUD.Draw(overlay)
 						}
 
 						if consoleVisible {
+							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
 							console.Draw(overlay, w, h, true)
 							return
 						}
 
+						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole for notify lines
 						console.Draw(overlay, w, h, false)
 					}
 				})
@@ -312,6 +323,7 @@ func main() {
 			}
 
 			dc.Clear(0, 0, 0, 1)
+			dc.SetCanvas(renderer.CanvasDefault)
 			if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
 				drawLoadingPlaque(dc, g.Draw)
 				return
@@ -322,6 +334,7 @@ func main() {
 				// In gogpu path we just show menu over black
 			}
 			if g.Menu != nil && g.Menu.IsActive() {
+				dc.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu
 				g.Menu.M_Draw(dc)
 			}
 		})
