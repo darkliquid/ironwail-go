@@ -46,6 +46,35 @@ func SetCSQCDrawHooks(hooks CSQCDrawHooks) {
 	csqcDrawHooks = hooks
 }
 
+// CSQCClientHooks provides client state access for CSQC builtins.
+type CSQCClientHooks struct {
+	// GetStatInt returns a client stat value as an integer.
+	GetStatInt func(statNum int) int32
+
+	// GetStatFloat returns a client stat value as a float, optionally
+	// extracting a bitfield (firstBit, bitCount). If bitCount is 0,
+	// returns the full float value.
+	GetStatFloat func(statNum int, firstBit, bitCount int) float32
+
+	// GetStatString returns a client stat value as a string.
+	GetStatString func(statNum int) string
+
+	// GetPlayerKeyValue returns a player info value by key name.
+	// playerNum is 0-based. Common keys: "name", "frags", "colors", "ping".
+	GetPlayerKeyValue func(playerNum int, keyName string) string
+
+	// RegisterCommand registers a console command name that the CSQC
+	// program wants to handle.
+	RegisterCommand func(cmdName string)
+}
+
+var csqcClientHooks CSQCClientHooks
+
+// SetCSQCClientHooks registers the client state hooks for CSQC builtins.
+func SetCSQCClientHooks(hooks CSQCClientHooks) {
+	csqcClientHooks = hooks
+}
+
 // csqcIsCachedPic implements CSQC builtin 316: iscachedpic.
 // float iscachedpic(string name)
 func csqcIsCachedPic(vm *VM) {
@@ -222,4 +251,61 @@ func csqcDrawSubPic(vm *VM) {
 		srcPos[0], srcPos[1], srcSize[0], srcSize[1],
 		rgb[0], rgb[1], rgb[2], alpha, drawflag,
 	)
+}
+
+// csqcGetStatI implements CSQC builtin 330: getstati.
+// int getstati(float stnum)
+func csqcGetStatI(vm *VM) {
+	if csqcClientHooks.GetStatInt == nil {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+	statNum := int(vm.GFloat(OFSParm0))
+	result := csqcClientHooks.GetStatInt(statNum)
+	vm.SetGInt(OFSReturn, result)
+}
+
+// csqcGetStatF implements CSQC builtin 331: getstatf.
+// float getstatf(float stnum, float firstbit, float bitcount)
+func csqcGetStatF(vm *VM) {
+	if csqcClientHooks.GetStatFloat == nil {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+	statNum := int(vm.GFloat(OFSParm0))
+	firstBit := int(vm.GFloat(OFSParm1))
+	bitCount := int(vm.GFloat(OFSParm2))
+	vm.SetGFloat(OFSReturn, csqcClientHooks.GetStatFloat(statNum, firstBit, bitCount))
+}
+
+// csqcGetStatS implements CSQC builtin 332: getstats.
+// string getstats(float stnum)
+func csqcGetStatS(vm *VM) {
+	if csqcClientHooks.GetStatString == nil {
+		vm.SetGString(OFSReturn, "")
+		return
+	}
+	statNum := int(vm.GFloat(OFSParm0))
+	vm.SetGString(OFSReturn, csqcClientHooks.GetStatString(statNum))
+}
+
+// csqcGetPlayerKeyValue implements CSQC builtin 348: getplayerkeyvalue.
+// string getplayerkeyvalue(float playernum, string keyname)
+func csqcGetPlayerKeyValue(vm *VM) {
+	if csqcClientHooks.GetPlayerKeyValue == nil {
+		vm.SetGString(OFSReturn, "")
+		return
+	}
+	playerNum := int(vm.GFloat(OFSParm0))
+	keyName := vm.GString(OFSParm1)
+	vm.SetGString(OFSReturn, csqcClientHooks.GetPlayerKeyValue(playerNum, keyName))
+}
+
+// csqcRegisterCommand implements CSQC builtin 352: registercommand.
+// void registercommand(string cmdname)
+func csqcRegisterCommand(vm *VM) {
+	if csqcClientHooks.RegisterCommand == nil {
+		return
+	}
+	csqcClientHooks.RegisterCommand(vm.GString(OFSParm0))
 }

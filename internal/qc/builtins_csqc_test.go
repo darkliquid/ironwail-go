@@ -265,3 +265,126 @@ func TestCSQCDrawBuiltinsUseHooks(t *testing.T) {
 		t.Fatalf("drawstring useColors calls = %v, want [false true]", drawStringUseColors)
 	}
 }
+
+func TestCSQCClientBuiltinsNoHooks(t *testing.T) {
+	SetCSQCClientHooks(CSQCClientHooks{})
+	defer SetCSQCClientHooks(CSQCClientHooks{})
+
+	vm := newBuiltinsTestVM(4)
+
+	vm.SetGFloat(OFSParm0, 5)
+	csqcGetStatI(vm)
+	if got := vm.GFloat(OFSReturn); got != 0 {
+		t.Fatalf("getstati = %v, want 0", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 5)
+	vm.SetGFloat(OFSParm1, 1)
+	vm.SetGFloat(OFSParm2, 3)
+	csqcGetStatF(vm)
+	if got := vm.GFloat(OFSReturn); got != 0 {
+		t.Fatalf("getstatf = %v, want 0", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 5)
+	csqcGetStatS(vm)
+	if got := vm.GString(OFSReturn); got != "" {
+		t.Fatalf("getstats = %q, want empty", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 0)
+	vm.SetGString(OFSParm1, "name")
+	csqcGetPlayerKeyValue(vm)
+	if got := vm.GString(OFSReturn); got != "" {
+		t.Fatalf("getplayerkeyvalue = %q, want empty", got)
+	}
+
+	vm.SetGString(OFSParm0, "csqc_cmd")
+	csqcRegisterCommand(vm)
+}
+
+func TestCSQCClientBuiltinsUseHooks(t *testing.T) {
+	SetCSQCClientHooks(CSQCClientHooks{})
+	defer SetCSQCClientHooks(CSQCClientHooks{})
+
+	vm := newBuiltinsTestVM(4)
+
+	var gotRegisterCommand string
+	SetCSQCClientHooks(CSQCClientHooks{
+		GetStatInt: func(statNum int) int32 {
+			if statNum != 7 {
+				t.Fatalf("getstati statNum = %d, want 7", statNum)
+			}
+			return 123
+		},
+		GetStatFloat: func(statNum int, firstBit, bitCount int) float32 {
+			if statNum != 9 {
+				t.Fatalf("getstatf statNum = %d, want 9", statNum)
+			}
+			if firstBit == 0 && bitCount == 0 {
+				return 42.5
+			}
+			if firstBit == 4 && bitCount == 3 {
+				return 5
+			}
+			t.Fatalf("unexpected bitfield args: firstBit=%d bitCount=%d", firstBit, bitCount)
+			return 0
+		},
+		GetStatString: func(statNum int) string {
+			if statNum != 11 {
+				t.Fatalf("getstats statNum = %d, want 11", statNum)
+			}
+			return "weapon_supershotgun"
+		},
+		GetPlayerKeyValue: func(playerNum int, keyName string) string {
+			if playerNum != 2 || keyName != "name" {
+				t.Fatalf("getplayerkeyvalue args = (%d, %q), want (2, %q)", playerNum, keyName, "name")
+			}
+			return "ranger"
+		},
+		RegisterCommand: func(cmdName string) {
+			gotRegisterCommand = cmdName
+		},
+	})
+
+	vm.SetGFloat(OFSParm0, 7)
+	csqcGetStatI(vm)
+	if got := vm.GInt(OFSReturn); got != 123 {
+		t.Fatalf("getstati = %d, want 123", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 9)
+	vm.SetGFloat(OFSParm1, 0)
+	vm.SetGFloat(OFSParm2, 0)
+	csqcGetStatF(vm)
+	if got := vm.GFloat(OFSReturn); got != 42.5 {
+		t.Fatalf("getstatf full = %v, want 42.5", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 9)
+	vm.SetGFloat(OFSParm1, 4)
+	vm.SetGFloat(OFSParm2, 3)
+	csqcGetStatF(vm)
+	if got := vm.GFloat(OFSReturn); got != 5 {
+		t.Fatalf("getstatf bitfield = %v, want 5", got)
+	}
+
+	vm.SetGFloat(OFSParm0, 11)
+	csqcGetStatS(vm)
+	if got := vm.GString(OFSReturn); got != "weapon_supershotgun" {
+		t.Fatalf("getstats = %q, want %q", got, "weapon_supershotgun")
+	}
+
+	vm.SetGFloat(OFSParm0, 2)
+	vm.SetGString(OFSParm1, "name")
+	csqcGetPlayerKeyValue(vm)
+	if got := vm.GString(OFSReturn); got != "ranger" {
+		t.Fatalf("getplayerkeyvalue = %q, want %q", got, "ranger")
+	}
+
+	vm.SetGString(OFSParm0, "cl_cmd_test")
+	csqcRegisterCommand(vm)
+	if gotRegisterCommand != "cl_cmd_test" {
+		t.Fatalf("registercommand cmd = %q, want %q", gotRegisterCommand, "cl_cmd_test")
+	}
+}

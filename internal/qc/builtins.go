@@ -197,6 +197,12 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[326] = csqcDrawString
 	vm.Builtins[327] = csqcStringWidth
 	vm.Builtins[328] = csqcDrawSubPic
+	// CSQC client/input builtins
+	vm.Builtins[330] = csqcGetStatI
+	vm.Builtins[331] = csqcGetStatF
+	vm.Builtins[332] = csqcGetStatS
+	vm.Builtins[348] = csqcGetPlayerKeyValue
+	vm.Builtins[352] = csqcRegisterCommand
 	vm.Builtins[471] = asinBuiltin
 	vm.Builtins[472] = acosBuiltin
 	vm.Builtins[473] = atanBuiltin
