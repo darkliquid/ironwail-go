@@ -61,6 +61,7 @@ type WorldLightmapSurface struct {
 	Height  int
 	Styles  [bsp.MaxLightmaps]uint8
 	Samples []byte
+	Dirty   bool // true when lightstyle values have changed since last composite
 }
 
 // WorldLightmapPage represents a shared lightmap atlas texture page containing multiple
@@ -69,6 +70,7 @@ type WorldLightmapPage struct {
 	Width    int
 	Height   int
 	Surfaces []WorldLightmapSurface
+	Dirty    bool // true when any surface in this page is dirty
 }
 
 // WorldRenderData holds CPU-side world data and bounds.

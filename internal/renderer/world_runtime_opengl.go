@@ -182,6 +182,19 @@ func (r *Renderer) ensureLightmapFallbackTextureLocked() {
 func (r *Renderer) setLightStyleValues(values [64]float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	// Mark surfaces dirty where any referenced lightstyle changed.
+	changed := lightStylesChanged(r.lightStyleValues, values)
+	if r.worldData != nil {
+		markDirtyLightmapPages(r.worldData.Lightmaps, changed)
+	}
+	for _, mesh := range r.brushModels {
+		if mesh == nil {
+			continue
+		}
+		markDirtyLightmapPages(mesh.lightmapPages, changed)
+	}
+
 	r.lightStyleValues = values
 	r.updateUploadedLightmapsLocked()
 }
@@ -293,6 +306,57 @@ var skyboxCubemapTargets = [...]uint32{
 	gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
 }
 
+// lightStylesChanged returns a 64-element bitmask indicating which lightstyle
+// indices changed between the old and new value arrays.
+func lightStylesChanged(old, new_ [64]float32) [64]bool {
+	var changed [64]bool
+	for i := range old {
+		if old[i] != new_[i] {
+			changed[i] = true
+		}
+	}
+	return changed
+}
+
+// markDirtyLightmapPages sets the Dirty flag on surfaces and pages where
+// any referenced lightstyle changed. This enables partial re-upload:
+// only dirty pages need recompositing.
+func markDirtyLightmapPages(pages []WorldLightmapPage, changed [64]bool) {
+	for i := range pages {
+		pageDirty := false
+		for j := range pages[i].Surfaces {
+			surf := &pages[i].Surfaces[j]
+			for _, style := range surf.Styles {
+				if style == 255 {
+					break
+				}
+				if style < 64 && changed[style] {
+					surf.Dirty = true
+					pageDirty = true
+					break
+				}
+			}
+		}
+		if pageDirty {
+			pages[i].Dirty = true
+		}
+	}
+}
+
+// clearDirtyFlags resets Dirty flags on all surfaces and pages after
+// their lightmaps have been recomposited and uploaded.
+func clearDirtyFlags(pages []WorldLightmapPage) {
+	for i := range pages {
+		if !pages[i].Dirty {
+			continue
+		}
+		for j := range pages[i].Surfaces {
+			pages[i].Surfaces[j].Dirty = false
+		}
+		pages[i].Dirty = false
+	}
+}
+
 // buildLightmapPageRGBA rasterizes a lightmap atlas page to RGBA by blending all surface lightmap samples with their lightstyle brightness values. This CPU-side compositing makes Quake's animated lighting work: each surface can reference up to 4 lightstyles.
 func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
 	if page.Width <= 0 || page.Height <= 0 {
@@ -359,14 +423,15 @@ func uploadLightmapPages(pages []WorldLightmapPage, values [64]float32) []uint32
 	return textures
 }
 
-// updateLightmapTextures re-uploads lightmap textures when lightstyle values change, called each frame to support animated lighting effects.
+// updateLightmapTextures re-uploads lightmap textures for dirty pages only.
+// Pages without dirty surfaces are skipped to avoid redundant GPU uploads.
 func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values [64]float32) {
 	count := len(textures)
 	if len(pages) < count {
 		count = len(pages)
 	}
 	for i := 0; i < count; i++ {
-		if textures[i] == 0 {
+		if textures[i] == 0 || !pages[i].Dirty {
 			continue
 		}
 		rgba := buildLightmapPageRGBA(pages[i], values)
@@ -379,6 +444,7 @@ func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values
 	if count > 0 {
 		gl.BindTexture(gl.TEXTURE_2D, 0)
 	}
+	clearDirtyFlags(pages)
 }
 
 // updateUploadedLightmapsLocked rebuilds and re-uploads all lightmap pages with current lightstyle values.
