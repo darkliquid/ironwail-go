@@ -400,6 +400,7 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	state.DrawParticles = g.Particles != nil && g.Particles.ActiveCount() > 0
 	state.Draw2DOverlay = true
 	state.MenuActive = g.Menu != nil && g.Menu.IsActive()
+	state.CSQCDrawHud = g.CSQC != nil && g.CSQC.IsLoaded()
 	state.Particles = g.Particles
 	if g.DecalMarks != nil {
 		state.DecalMarks = g.DecalMarks.ActiveMarks()

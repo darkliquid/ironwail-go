@@ -782,6 +782,9 @@ type RenderFrameState struct {
 	// MenuActive indicates if menu is currently displayed
 	MenuActive bool
 
+	// CSQCDrawHud indicates CSQC is drawing HUD this frame.
+	CSQCDrawHud bool
+
 	// Particles is the active particle system to render
 	Particles *ParticleSystem
 

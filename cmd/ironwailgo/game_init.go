@@ -138,7 +138,11 @@ func initGameServer() error {
 func initGameQC() error {
 	// Create QC VM instance
 	g.QC = qc.NewVM()
+	g.CSQC = qc.NewCSQC()
 	// slog.Info("QC loaded") - moved to main for deterministic logs
+
+	// Register server and CSQC builtins with their respective VMs.
+	qc.RegisterBuiltins(g.CSQC.VM)
 
 	return nil
 }

@@ -39,6 +39,7 @@ type Game struct {
 	Host       *host.Host
 	Server     *server.Server
 	QC         *qc.VM
+	CSQC       *qc.CSQC // Client-side QuakeC VM (nil when not loaded)
 	Renderer   *renderer.Renderer
 	Subs       *host.Subsystems
 	Client     *cl.Client
@@ -130,6 +131,75 @@ func startupMapArg(args []string) string {
 		return args[0]
 	}
 	return ""
+}
+
+// wireCSQCDrawHooks connects CSQC drawing builtins to a RenderContext.
+func wireCSQCDrawHooks(rc renderer.RenderContext) {
+	qc.SetCSQCDrawHooks(qc.CSQCDrawHooks{
+		IsCachedPic: func(name string) bool {
+			// Pics are currently loaded on demand.
+			return true
+		},
+		PrecachePic: func(name string, flags int) string {
+			// No-op for now; pics are loaded on demand.
+			return name
+		},
+		GetImageSize: func(name string) (float32, float32) {
+			// TODO: implement image size lookup when pic registry is wired.
+			return 0, 0
+		},
+		DrawCharacter: func(posX, posY float32, char int, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
+			rc.DrawCharacter(int(posX), int(posY), char)
+		},
+		DrawString: func(posX, posY float32, text string, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int, useColors bool) {
+			step := int(sizeX)
+			if step <= 0 {
+				step = 8
+			}
+			x := int(posX)
+			for _, ch := range text {
+				rc.DrawCharacter(x, int(posY), int(ch))
+				x += step
+			}
+		},
+		DrawPic: func(posX, posY float32, name string, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
+			// TODO: implement named pic drawing when pic registry is wired.
+		},
+		DrawFill: func(posX, posY float32, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
+			// TODO: map RGB to nearest palette color.
+			rc.DrawFill(int(posX), int(posY), int(sizeX), int(sizeY), 0)
+		},
+		DrawSubPic: func(posX, posY float32, sizeX, sizeY float32, name string, srcX, srcY, srcW, srcH float32, r, g, b, alpha float32, drawflag int) {
+			// TODO: implement sub-pic drawing.
+		},
+		SetClipArea: func(x, y, width, height float32) {
+			// TODO: implement scissor rect.
+		},
+		ResetClipArea: func() {
+			// TODO: implement scissor reset.
+		},
+		StringWidth: func(text string, useColors bool, fontSizeX, fontSizeY float32) float32 {
+			var count float32
+			for range text {
+				count++
+			}
+			return count * fontSizeX
+		},
+	})
+}
+
+func buildCSQCFrameState() qc.CSQCFrameState {
+	var state qc.CSQCFrameState
+	if g.Host != nil {
+		state.FrameTime = float32(g.Host.FrameTime())
+	}
+	if g.Client != nil {
+		state.Time = float32(g.Client.Time)
+		state.MaxClients = float32(g.Client.MaxClients)
+		state.Intermission = float32(g.Client.Intermission)
+		state.ViewAngles = g.Client.ViewAngles
+	}
+	return state
 }
 
 func main() {
@@ -302,7 +372,28 @@ func main() {
 					}
 
 					if !conForcedup {
-						if g.HUD != nil {
+						csqcActive := false
+						if g.CSQC != nil && g.CSQC.IsLoaded() {
+							csqcActive = true
+							overlay.SetCanvas(renderer.CanvasCSQC)
+							wireCSQCDrawHooks(overlay)
+
+							frameState := buildCSQCFrameState()
+							showScores := g.ShowScores && g.Client != nil && g.Client.MaxClients > 1
+							canvas := overlay.Canvas()
+							virtW := canvas.Right - canvas.Left
+							virtH := canvas.Bottom - canvas.Top
+							if err := g.CSQC.CallDrawHud(frameState, virtW, virtH, showScores); err != nil {
+								slog.Error("CSQC_DrawHud failed", "error", err)
+							}
+							if showScores && g.CSQC.HasDrawScores() {
+								if err := g.CSQC.CallDrawScores(frameState, virtW, virtH, showScores); err != nil {
+									slog.Error("CSQC_DrawScores failed", "error", err)
+								}
+							}
+						}
+
+						if !csqcActive && g.HUD != nil {
 							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasSbar
 							g.HUD.SetScreenSize(w, h)
 							updateHUDFromServer()
@@ -365,6 +456,13 @@ func main() {
 		} else {
 			headlessGameLoop()
 		}
+	}
+
+	if g.CSQC != nil && g.CSQC.IsLoaded() {
+		if err := g.CSQC.CallShutdown(); err != nil {
+			slog.Error("CSQC_Shutdown failed", "error", err)
+		}
+		g.CSQC.Unload()
 	}
 
 	slog.Info("Engine shutdown complete")

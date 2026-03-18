@@ -76,6 +76,7 @@ type RenderFrameState struct {
 	DrawParticles  bool
 	Draw2DOverlay  bool
 	MenuActive     bool
+	CSQCDrawHud    bool
 	Particles      *ParticleSystem
 	Palette        []byte
 
