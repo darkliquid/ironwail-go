@@ -372,7 +372,7 @@ const (
 //     string and protocol version 3.
 //  4. Wait for CCRepAccept (which includes the server's game port) or
 //     CCRepReject (which includes a human-readable rejection reason).
-//  5. Retry up to 3 times with a 2-second timeout per attempt.
+//  5. Retry up to 3 times with a 2.5-second timeout per attempt.
 //
 // On success, the socket's remoteAddr is updated to the port number
 // provided in the accept response (the server may redirect the client
@@ -401,9 +401,9 @@ func DatagramConnect(host string) *Socket {
 	copy(buf[9:], "QUAKE\x00")
 	buf[15] = 3 // Protocol version
 
-	// C Quake typically retries a few times with a 2-5 second timeout
+	// Match C net_dgrm.c: 2.5-second timeout per attempt, with 3 retries.
 	const maxRetries = 3
-	const timeout = 2 * time.Second
+	const timeout = 2500 * time.Millisecond
 
 	for i := 0; i < maxRetries; i++ {
 		if _, err := UDPWrite(conn, buf[:16], addr); err != nil {
