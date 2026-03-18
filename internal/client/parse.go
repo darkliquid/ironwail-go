@@ -213,6 +213,12 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 3
 			p.Client.CompletedTime = p.Client.Time
+		case inet.SVCSellScreen:
+			// C: Cmd_ExecuteString("help", src_command) — no data to read
+		case inet.SVCBF:
+			// C: Cmd_ExecuteString("bf", src_command) — bonus flash, no data to read
+		case inet.SVCAchievement:
+			_ = msg.ReadString() // achievement ID string, ignored
 		default:
 			return fmt.Errorf("unsupported server command: %d", cmd)
 		}
