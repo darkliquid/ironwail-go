@@ -162,7 +162,7 @@ func TestUpdateBlend_PowerupSuit(t *testing.T) {
 // TestCalcBlend_ZeroAlphaWhenNoShifts verifies no tint when all shifts are zero.
 func TestCalcBlend_ZeroAlphaWhenNoShifts(t *testing.T) {
 	c := NewClient()
-	blend := c.CalcBlend(100)
+	blend := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
 	if blend[3] != 0 {
 		t.Fatalf("empty blend alpha = %g, want 0", blend[3])
 	}
@@ -172,7 +172,7 @@ func TestCalcBlend_ZeroAlphaWhenNoShifts(t *testing.T) {
 func TestCalcBlend_ZeroWhenGlobalPercentIsZero(t *testing.T) {
 	c := NewClient()
 	c.BonusFlash()
-	blend := c.CalcBlend(0)
+	blend := c.CalcBlend(0, [NumCShifts]float32{100, 100, 100, 100})
 	if blend[3] != 0 {
 		t.Fatalf("blend with 0 global percent = %g, want 0", blend[3])
 	}
@@ -184,7 +184,7 @@ func TestCalcBlend_DamageRedTint(t *testing.T) {
 	c.DamageTaken = 30
 	c.DamageSaved = 0
 	c.ApplyDamage()
-	blend := c.CalcBlend(100)
+	blend := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
 	if blend[3] <= 0 {
 		t.Fatalf("damage blend alpha = %g, want > 0", blend[3])
 	}
@@ -200,7 +200,7 @@ func TestCalcBlend_AlphaIsClamped(t *testing.T) {
 	for i := range c.CShifts {
 		c.CShifts[i] = ColorShift{R: 255, G: 0, B: 0, Percent: 255}
 	}
-	blend := c.CalcBlend(100)
+	blend := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
 	if blend[3] > 1 {
 		t.Fatalf("alpha = %g, want <= 1", blend[3])
 	}
@@ -214,7 +214,7 @@ func TestCalcBlend_IntermissionOnlyContents(t *testing.T) {
 	c.SetContentsColor(-5) // lava: percent 150, orange-red
 	c.BonusFlash()         // bonus: percent 50, gold
 
-	blend := c.CalcBlend(100)
+	blend := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
 	// Only lava contents shift should apply.
 	// Lava: R=255/255=1.0, G=80/255≈0.314, B=0
 	// The blend color should be dominated by lava's orange-red.
@@ -243,7 +243,7 @@ func TestCalcBlend_CompositeMultipleShifts(t *testing.T) {
 	// Set bonus flash (percent=50, color=215,186,69)
 	c.BonusFlash()
 
-	blend := c.CalcBlend(100)
+	blend := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
 	// Both should contribute: alpha should be somewhere between the two individual alphas.
 	if blend[3] <= 0 {
 		t.Fatalf("composite blend alpha = %g, want > 0", blend[3])
@@ -256,6 +256,23 @@ func TestCalcBlend_CompositeMultipleShifts(t *testing.T) {
 		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
 			t.Fatalf("blend[%d] = %g, want finite", i, v)
 		}
+	}
+}
+
+// TestCalcBlend_PerChannelPercent verifies per-channel gl_cshiftpercent_* scaling.
+func TestCalcBlend_PerChannelPercent(t *testing.T) {
+	c := NewClient()
+	c.DamageTaken = 50
+	c.ApplyDamage()
+
+	full := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
+	// Zero out damage channel specifically.
+	zeroDamage := c.CalcBlend(100, [NumCShifts]float32{100, 0, 100, 100})
+	if zeroDamage[3] != 0 {
+		t.Fatalf("zeroed damage channel alpha = %g, want 0", zeroDamage[3])
+	}
+	if full[3] <= 0 {
+		t.Fatalf("full damage channel alpha = %g, want > 0", full[3])
 	}
 }
 

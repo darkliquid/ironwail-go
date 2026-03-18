@@ -433,8 +433,21 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 			if cv := cvar.Get("gl_cshiftpercent"); cv != nil {
 				globalPct = cv.Float32()
 			}
+			var chPct [cl.NumCShifts]float32
+			cshiftCvars := [cl.NumCShifts]string{
+				"gl_cshiftpercent_contents",
+				"gl_cshiftpercent_damage",
+				"gl_cshiftpercent_bonus",
+				"gl_cshiftpercent_powerup",
+			}
+			for i, name := range cshiftCvars {
+				chPct[i] = 100
+				if cv := cvar.Get(name); cv != nil {
+					chPct[i] = cv.Float32()
+				}
+			}
 			g.Client.SetContentsColor(g.CameraLeafContents)
-			state.VBlend = g.Client.CalcBlend(globalPct)
+			state.VBlend = g.Client.CalcBlend(globalPct, chPct)
 		}
 	}
 	return state

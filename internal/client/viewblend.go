@@ -8,7 +8,8 @@ const (
 	CShiftDamage   = 1 // red/armor flash when taking damage
 	CShiftBonus    = 2 // gold flash when picking up items (from server-stuffed "bf")
 	CShiftPowerup  = 3 // blue/green/etc while holding a powerup
-	numCShifts     = 4
+	NumCShifts     = 4
+	numCShifts     = NumCShifts
 )
 
 // ColorShift mirrors C Quake cshift_t: a destination color (0–255 per channel)
@@ -201,12 +202,14 @@ func (c *Client) UpdateBlend(frametime float64) {
 
 // CalcBlend computes the composite RGBA screen-tint from all active color shifts.
 // globalPercent is the value of the gl_cshiftpercent cvar (0–100).
+// channelPercent holds the per-channel gl_cshiftpercent_* cvar values (0–100),
+// indexed as [contents, damage, bonus, powerup].
 // Returns [r, g, b, a] in the 0–1 float range suitable for GL blending.
 //
 // During intermission only the contents shift applies (matches C behavior).
 //
 // Mirrors C view.c:V_CalcBlend().
-func (c *Client) CalcBlend(globalPercent float32) [4]float32 {
+func (c *Client) CalcBlend(globalPercent float32, channelPercent [numCShifts]float32) [4]float32 {
 	if globalPercent <= 0 {
 		return [4]float32{}
 	}
@@ -221,6 +224,8 @@ func (c *Client) CalcBlend(globalPercent float32) [4]float32 {
 			continue
 		}
 		a2 := (percent * globalPercent / 100.0) / 255.0
+		// Per-channel scaling (gl_cshiftpercent_contents, etc.)
+		a2 *= channelPercent[i] / 100.0
 		if a2 <= 0 {
 			continue
 		}
