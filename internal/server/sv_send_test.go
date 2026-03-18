@@ -110,6 +110,27 @@ func TestEntityStateForClient_ReadsQCAlphaScale(t *testing.T) {
 	}
 }
 
+func TestEntityStateForClient_AppliesEffectsMask(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{
+		EffectsMask: 0x0f,
+	}
+	ent := &Edict{
+		Vars: &EntVars{
+			Effects: float32(EffectMuzzleFlash | EffectPentaLight),
+		},
+	}
+
+	state, ok := s.entityStateForClient(1, ent)
+	if !ok {
+		t.Fatal("entityStateForClient returned ok=false")
+	}
+	if state.Effects != EffectMuzzleFlash {
+		t.Fatalf("state.Effects = %#x, want %#x", state.Effects, EffectMuzzleFlash)
+	}
+}
+
 func newTestQCVM() *qc.VM {
 	vm := &qc.VM{
 		NumEdicts: 2,
@@ -163,7 +184,7 @@ func TestWriteEntityUpdate_FieldOrderMatchesCProtocol(t *testing.T) {
 	}
 
 	msg := NewMessageBuffer(512)
-	if !s.writeEntityUpdate(msg, 1, state, EntityState{}, true, 200, true) {
+	if !s.writeEntityUpdate(msg, 1, state, EntityState{}, true, 0, 200, true) {
 		t.Fatal("writeEntityUpdate returned false")
 	}
 
@@ -206,7 +227,7 @@ func TestWriteEntityUpdate_OriginsAnglesInterleaved(t *testing.T) {
 	prev.Angles = [3]float32{}
 
 	msg := NewMessageBuffer(256)
-	if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, false) {
+	if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, 0, false) {
 		t.Fatal("writeEntityUpdate returned false")
 	}
 
@@ -244,7 +265,7 @@ func TestWriteEntityUpdate_Frame2Model2AfterAlphaScale(t *testing.T) {
 	}
 
 	msg := NewMessageBuffer(256)
-	if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, false) {
+	if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, 0, false) {
 		t.Fatal("writeEntityUpdate returned false")
 	}
 
@@ -283,7 +304,7 @@ func TestWriteEntityUpdate_NetQuakeOmitsFitzExtensions(t *testing.T) {
 	}
 
 	msg := NewMessageBuffer(256)
-	if !s.writeEntityUpdate(msg, 1, state, prev, false, 200, true) {
+	if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, 200, true) {
 		t.Fatal("writeEntityUpdate returned false")
 	}
 
@@ -336,7 +357,7 @@ func TestWriteEntityUpdate_NonNetQuakeSetsFitzExtensions(t *testing.T) {
 			}
 
 			msg := NewMessageBuffer(256)
-			if !s.writeEntityUpdate(msg, 1, state, prev, false, 200, true) {
+			if !s.writeEntityUpdate(msg, 1, state, prev, false, 0, 200, true) {
 				t.Fatal("writeEntityUpdate returned false")
 			}
 
@@ -363,6 +384,271 @@ func TestWriteEntityUpdate_NonNetQuakeSetsFitzExtensions(t *testing.T) {
 				t.Fatalf("%s payload mismatch:\n got: %v\nwant: %v", tc.name, payload, want)
 			}
 		})
+	}
+}
+
+func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolFitzQuake}
+	baseline := EntityState{
+		Origin: [3]float32{100, 200, 300},
+		Scale:  16,
+	}
+
+	tests := []struct {
+		name       string
+		originX    float32
+		wantUpdate bool
+		wantBit    uint32
+	}{
+		{
+			name:       "within tolerance no update",
+			originX:    100.1,
+			wantUpdate: false,
+		},
+		{
+			name:       "beyond tolerance sets origin1",
+			originX:    100.1001,
+			wantUpdate: true,
+			wantBit:    inet.U_ORIGIN1,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			state := baseline
+			state.Origin[0] = tc.originX
+			msg := NewMessageBuffer(256)
+			gotUpdate := s.writeEntityUpdate(msg, 1, state, baseline, false, 0, 0, false)
+			if gotUpdate != tc.wantUpdate {
+				t.Fatalf("writeEntityUpdate update=%v, want %v", gotUpdate, tc.wantUpdate)
+			}
+			if !tc.wantUpdate {
+				return
+			}
+			bits, _ := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+			if bits&tc.wantBit == 0 {
+				t.Fatalf("bits=%#x missing expected bit %#x", bits, tc.wantBit)
+			}
+		})
+	}
+}
+
+func TestWriteEntityUpdate_SetsUStepForStepMoveType(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolFitzQuake}
+	state := EntityState{Scale: 16}
+	baseline := state
+
+	msg := NewMessageBuffer(256)
+	if !s.writeEntityUpdate(msg, 1, state, baseline, false, float32(MoveTypeStep), 0, false) {
+		t.Fatal("writeEntityUpdate returned false; expected U_STEP-only update")
+	}
+
+	bits, payload := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+	if bits&inet.U_STEP == 0 {
+		t.Fatalf("bits=%#x missing U_STEP", bits)
+	}
+	if len(payload) != 0 {
+		t.Fatalf("U_STEP-only update wrote unexpected payload bytes: %v", payload)
+	}
+}
+
+func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
+	t.Parallel()
+
+	ent := &Edict{
+		Vars: &EntVars{
+			Origin: [3]float32{10, 0, 0},
+		},
+	}
+	client := &Client{
+		Edict:        ent,
+		EntityStates: make(map[int]EntityState),
+	}
+	s := &Server{
+		Protocol:  ProtocolFitzQuake,
+		Static:    &ServerStatic{MaxClients: 1},
+		Edicts:    []*Edict{{Vars: &EntVars{}}, ent},
+		NumEdicts: 2,
+	}
+
+	currentState, ok := s.entityStateForClient(1, ent)
+	if !ok {
+		t.Fatal("entityStateForClient returned ok=false")
+	}
+	ent.Baseline = currentState
+	ent.Baseline.Origin[0] = 0
+	client.EntityStates[1] = currentState
+
+	msg := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, msg)
+	if msg.Len() == 0 {
+		t.Fatal("writeEntitiesToClient wrote no update; expected baseline-relative delta")
+	}
+
+	bits, _ := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+	if bits&inet.U_ORIGIN1 == 0 {
+		t.Fatalf("bits=%#x missing U_ORIGIN1 baseline delta", bits)
+	}
+}
+
+func TestWriteClientDataToMessage_NetQuakeOmitsExtensions(t *testing.T) {
+	t.Parallel()
+
+	vm := newTestQCVM()
+	vm.StringTable = map[int32]string{}
+	weaponModel := vm.AllocString("progs/v_super.mdl")
+
+	modelPrecache := make([]string, 0x124)
+	modelPrecache[0x123] = "progs/v_super.mdl"
+
+	s := &Server{
+		Protocol:      ProtocolNetQuake,
+		QCVM:          vm,
+		ModelPrecache: modelPrecache,
+	}
+	ent := &Edict{
+		Vars: &EntVars{
+			WeaponModel: weaponModel,
+			WeaponFrame: 0x234,
+			ArmorValue:  0x345,
+			Health:      100,
+			CurrentAmmo: 0x456,
+			AmmoShells:  0x567,
+			AmmoNails:   0x678,
+			AmmoRockets: 0x789,
+			AmmoCells:   0x89a,
+		},
+		Alpha: 0x7f,
+	}
+
+	msg := NewMessageBuffer(512)
+	s.WriteClientDataToMessage(ent, msg)
+
+	bits, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
+
+	extBits := uint32(
+		inet.SU_EXTEND1 | inet.SU_EXTEND2 |
+			inet.SU_WEAPON2 | inet.SU_ARMOR2 | inet.SU_AMMO2 |
+			inet.SU_SHELLS2 | inet.SU_NAILS2 | inet.SU_ROCKETS2 | inet.SU_CELLS2 |
+			inet.SU_WEAPONFRAME2 | inet.SU_WEAPONALPHA,
+	)
+	if bits&extBits != 0 {
+		t.Fatalf("netquake unexpectedly set extension bits: %#x", bits&extBits)
+	}
+
+	// NetQuake payload ends after base fields only.
+	if len(payload) != 16 {
+		t.Fatalf("netquake payload length = %d, want 16; payload=%v", len(payload), payload)
+	}
+}
+
+func TestWriteClientDataToMessage_FitzSendsWeapon2(t *testing.T) {
+	t.Parallel()
+
+	vm := newTestQCVM()
+	vm.StringTable = map[int32]string{}
+	weaponModel := vm.AllocString("progs/v_super.mdl")
+
+	modelPrecache := make([]string, 0x124)
+	modelPrecache[0x123] = "progs/v_super.mdl"
+
+	s := &Server{
+		Protocol:      ProtocolFitzQuake,
+		QCVM:          vm,
+		ModelPrecache: modelPrecache,
+	}
+	ent := &Edict{
+		Vars: &EntVars{
+			WeaponModel: weaponModel,
+			Health:      100,
+		},
+	}
+
+	msg := NewMessageBuffer(256)
+	s.WriteClientDataToMessage(ent, msg)
+
+	bits, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
+
+	if bits&inet.SU_WEAPON2 == 0 {
+		t.Fatalf("missing SU_WEAPON2 bit: %#x", bits)
+	}
+	if bits&inet.SU_EXTEND1 == 0 {
+		t.Fatalf("missing SU_EXTEND1 bit for SU_WEAPON2: %#x", bits)
+	}
+	if bits&inet.SU_EXTEND2 != 0 {
+		t.Fatalf("unexpected SU_EXTEND2 bit: %#x", bits)
+	}
+
+	if got, want := payload[len(payload)-1], byte(0x01); got != want {
+		t.Fatalf("weapon2 high byte = %#x, want %#x; payload=%v", got, want, payload)
+	}
+}
+
+func TestWriteClientDataToMessage_FitzExtensionsPayloadOrder(t *testing.T) {
+	t.Parallel()
+
+	vm := newTestQCVM()
+	vm.StringTable = map[int32]string{}
+	weaponModel := vm.AllocString("progs/v_super.mdl")
+
+	modelPrecache := make([]string, 0x124)
+	modelPrecache[0x123] = "progs/v_super.mdl"
+
+	s := &Server{
+		Protocol:      ProtocolFitzQuake,
+		QCVM:          vm,
+		ModelPrecache: modelPrecache,
+	}
+	ent := &Edict{
+		Vars: &EntVars{
+			WeaponModel: weaponModel,
+			WeaponFrame: 0x234,
+			ArmorValue:  0x345,
+			Health:      100,
+			CurrentAmmo: 0x456,
+			AmmoShells:  0x567,
+			AmmoNails:   0x678,
+			AmmoRockets: 0x789,
+			AmmoCells:   0x89a,
+		},
+		Alpha: 0x7f,
+	}
+
+	msg := NewMessageBuffer(512)
+	s.WriteClientDataToMessage(ent, msg)
+
+	bits, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
+
+	required := uint32(
+		inet.SU_EXTEND1 | inet.SU_EXTEND2 |
+			inet.SU_WEAPON2 | inet.SU_ARMOR2 | inet.SU_AMMO2 |
+			inet.SU_SHELLS2 | inet.SU_NAILS2 | inet.SU_ROCKETS2 | inet.SU_CELLS2 |
+			inet.SU_WEAPONFRAME2 | inet.SU_WEAPONALPHA,
+	)
+	if bits&required != required {
+		t.Fatalf("missing extension bits: bits=%#x required=%#x", bits, required)
+	}
+
+	got := payload[len(payload)-9:]
+	want := []byte{
+		0x01, // SU_WEAPON2
+		0x03, // SU_ARMOR2
+		0x04, // SU_AMMO2
+		0x05, // SU_SHELLS2
+		0x06, // SU_NAILS2
+		0x07, // SU_ROCKETS2
+		0x08, // SU_CELLS2
+		0x02, // SU_WEAPONFRAME2
+		0x7f, // SU_WEAPONALPHA
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("extension payload order mismatch:\n got: %v\nwant: %v", got, want)
 	}
 }
 
@@ -397,6 +683,35 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	if _, ok := client.EntityStates[1]; ok {
 		t.Fatal("ENTALPHA_ZERO entity should not be tracked in client.EntityStates")
 	}
+}
+
+func decodeClientDataBitsAndPayload(t *testing.T, data []byte) (uint32, []byte) {
+	t.Helper()
+	if len(data) < 3 {
+		t.Fatalf("short clientdata message: %v", data)
+	}
+	if got, want := data[0], byte(inet.SVCClientData); got != want {
+		t.Fatalf("message type = %d, want %d", got, want)
+	}
+
+	i := 1
+	bits := uint32(data[i]) | uint32(data[i+1])<<8
+	i += 2
+	if bits&inet.SU_EXTEND1 != 0 {
+		if i >= len(data) {
+			t.Fatalf("missing extend1 byte in %v", data)
+		}
+		bits |= uint32(data[i]) << 16
+		i++
+	}
+	if bits&inet.SU_EXTEND2 != 0 {
+		if i >= len(data) {
+			t.Fatalf("missing extend2 byte in %v", data)
+		}
+		bits |= uint32(data[i]) << 24
+		i++
+	}
+	return bits, data[i:]
 }
 
 func decodeEntityUpdateBitsAndPayload(t *testing.T, data []byte) (uint32, []byte) {
