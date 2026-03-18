@@ -1,9 +1,11 @@
 package server
 
 import (
+	"log/slog"
 	"math"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 // CheckVelocity ensures entity velocity is within valid bounds.
@@ -369,6 +371,20 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			check.Vars.Mins[0], check.Vars.Mins[1], check.Vars.Mins[2] = 0, 0, 0
 			check.Vars.Maxs = check.Vars.Mins
 			continue
+		}
+
+		// Elevator gameplay fix: if entity is riding the pusher and blocked
+		// by it, try nudging upward by DIST_EPSILON to prevent crushing.
+		// Matches C sv_phys.c:552-578 (sv_gameplayfix_elevators).
+		fixLevel := cvar.FloatValue("sv_gameplayfix_elevators")
+		if riding && block == pusher &&
+			(fixLevel >= 2 || (fixLevel > 0 && e <= s.GetMaxClients())) {
+			check.Vars.Origin[2] += DistEpsilon
+			if s.TestEntityPosition(check) == nil {
+				slog.Debug("elevator fix nudged entity",
+					"entity", e, "pusher", s.NumForEdict(pusher))
+				continue
+			}
 		}
 
 		check.Vars.Origin = entorig
