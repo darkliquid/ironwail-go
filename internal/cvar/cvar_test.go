@@ -64,3 +64,19 @@ func TestFlagROM(t *testing.T) {
 	}
 }
 
+func TestLockedCvarRejectsSet(t *testing.T) {
+	sys := NewCVarSystem()
+	sys.Register("test_lock", "10", FlagNone, "lockable cvar")
+
+	sys.LockVar("test_lock")
+	sys.Set("test_lock", "20")
+	if sys.StringValue("test_lock") != "10" {
+		t.Fatalf("locked cvar changed to %q, want 10", sys.StringValue("test_lock"))
+	}
+
+	sys.UnlockVar("test_lock")
+	sys.Set("test_lock", "20")
+	if sys.StringValue("test_lock") != "20" {
+		t.Fatalf("unlocked cvar = %q, want 20", sys.StringValue("test_lock"))
+	}
+}

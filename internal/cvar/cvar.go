@@ -79,6 +79,7 @@ const (
 	FlagNoSet
 	FlagLatched
 	FlagROM
+	FlagLocked // Temporarily locked during gameplay; rejects Set until unlocked.
 )
 
 // CVar represents a single console variable. It corresponds to cvar_t in
@@ -224,6 +225,12 @@ func (c *CVarSystem) Set(name, value string) {
 		return
 	}
 
+	if cv.Flags&FlagLocked != 0 {
+		c.mu.Unlock()
+		slog.Info("cvar is locked", "name", name)
+		return
+	}
+
 	if cv.Flags&FlagLatched != 0 {
 		cv.String = value
 		c.parseValue(cv, value)
@@ -327,6 +334,27 @@ func (c *CVarSystem) All() []*CVar {
 		result = append(result, cv)
 	}
 	return result
+}
+
+// LockVar sets FlagLocked on the named cvar, preventing it from being
+// changed via Set until UnlockVar is called. Matches C Cvar_LockVar.
+func (c *CVarSystem) LockVar(name string) {
+	name = strings.ToLower(name)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cv, ok := c.vars[name]; ok {
+		cv.Flags |= FlagLocked
+	}
+}
+
+// UnlockVar clears FlagLocked on the named cvar. Matches C Cvar_UnlockVar.
+func (c *CVarSystem) UnlockVar(name string) {
+	name = strings.ToLower(name)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cv, ok := c.vars[name]; ok {
+		cv.Flags &^= FlagLocked
+	}
 }
 
 // ArchiveVars returns a sorted slice of 'name "value"' strings for every cvar
@@ -440,4 +468,14 @@ func ArchiveVars() []string {
 // Complete returns cvar name completions from the global registry.
 func Complete(partial string) []string {
 	return globalCVar.Complete(partial)
+}
+
+// LockVar locks a cvar in the global registry, preventing changes via Set.
+func LockVar(name string) {
+	globalCVar.LockVar(name)
+}
+
+// UnlockVar unlocks a cvar in the global registry, allowing changes again.
+func UnlockVar(name string) {
+	globalCVar.UnlockVar(name)
 }
