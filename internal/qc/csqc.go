@@ -5,6 +5,51 @@ import (
 	"io"
 )
 
+// csqcGlobals caches offsets for CSQC-specific global variables.
+// Offsets are -1 when the global is not defined in the loaded progs.
+type csqcGlobals struct {
+	cltime             int
+	clframetime        int
+	maxclients         int
+	intermission       int
+	intermissionTime   int
+	playerLocalNum     int
+	playerLocalEntNum  int
+	viewAngles         int
+	clientCommandFrame int
+	serverCommandFrame int
+}
+
+func newCSQCGlobals() csqcGlobals {
+	return csqcGlobals{
+		cltime:             -1,
+		clframetime:        -1,
+		maxclients:         -1,
+		intermission:       -1,
+		intermissionTime:   -1,
+		playerLocalNum:     -1,
+		playerLocalEntNum:  -1,
+		viewAngles:         -1,
+		clientCommandFrame: -1,
+		serverCommandFrame: -1,
+	}
+}
+
+// CSQCFrameState holds per-frame state values synced to CSQC globals
+// before each entry point call.
+type CSQCFrameState struct {
+	Time               float32
+	FrameTime          float32
+	MaxClients         float32
+	Intermission       float32
+	IntermissionTime   float32
+	PlayerLocalNum     float32
+	PlayerLocalEntNum  float32
+	ViewAngles         [3]float32
+	ClientCommandFrame float32
+	ServerCommandFrame float32
+}
+
 // CSQC represents a client-side QuakeC VM instance.
 // It wraps a standard VM with CSQC-specific entry points and lifecycle.
 type CSQC struct {
@@ -16,6 +61,9 @@ type CSQC struct {
 	shutdownFunc   int
 	drawHudFunc    int
 	drawScoresFunc int
+
+	// Cached CSQC global variable offsets.
+	globals csqcGlobals
 
 	// State.
 	loaded bool
@@ -29,6 +77,7 @@ func NewCSQC() *CSQC {
 		shutdownFunc:   -1,
 		drawHudFunc:    -1,
 		drawScoresFunc: -1,
+		globals:        newCSQCGlobals(),
 	}
 }
 
@@ -40,6 +89,7 @@ func (c *CSQC) Load(r io.ReadSeeker) error {
 	c.shutdownFunc = -1
 	c.drawHudFunc = -1
 	c.drawScoresFunc = -1
+	c.globals = newCSQCGlobals()
 
 	if err := c.VM.LoadProgs(r); err != nil {
 		return fmt.Errorf("csqc: load progs: %w", err)
@@ -49,6 +99,17 @@ func (c *CSQC) Load(r io.ReadSeeker) error {
 	c.shutdownFunc = c.VM.FindFunction("CSQC_Shutdown")
 	c.drawHudFunc = c.VM.FindFunction("CSQC_DrawHud")
 	c.drawScoresFunc = c.VM.FindFunction("CSQC_DrawScores")
+
+	c.globals.cltime = c.VM.FindGlobal("cltime")
+	c.globals.clframetime = c.VM.FindGlobal("clframetime")
+	c.globals.maxclients = c.VM.FindGlobal("maxclients")
+	c.globals.intermission = c.VM.FindGlobal("intermission")
+	c.globals.intermissionTime = c.VM.FindGlobal("intermission_time")
+	c.globals.playerLocalNum = c.VM.FindGlobal("player_localnum")
+	c.globals.playerLocalEntNum = c.VM.FindGlobal("player_localentnum")
+	c.globals.viewAngles = c.VM.FindGlobal("view_angles")
+	c.globals.clientCommandFrame = c.VM.FindGlobal("clientcommandframe")
+	c.globals.serverCommandFrame = c.VM.FindGlobal("servercommandframe")
 
 	if c.drawHudFunc < 0 {
 		return fmt.Errorf("csqc: required function CSQC_DrawHud not found")
@@ -66,6 +127,47 @@ func (c *CSQC) IsLoaded() bool {
 // HasDrawScores reports whether the optional CSQC_DrawScores entry point exists.
 func (c *CSQC) HasDrawScores() bool {
 	return c.loaded && c.drawScoresFunc >= 0
+}
+
+// SyncGlobals writes per-frame CSQC state to globals before entry point calls.
+func (c *CSQC) SyncGlobals(state CSQCFrameState) {
+	if !c.loaded || c.VM == nil {
+		return
+	}
+
+	if c.globals.cltime >= 0 {
+		c.VM.SetGFloat(c.globals.cltime, state.Time)
+	}
+	if c.globals.clframetime >= 0 {
+		c.VM.SetGFloat(c.globals.clframetime, state.FrameTime)
+	}
+	if c.globals.maxclients >= 0 {
+		c.VM.SetGFloat(c.globals.maxclients, state.MaxClients)
+	}
+	if c.globals.intermission >= 0 {
+		c.VM.SetGFloat(c.globals.intermission, state.Intermission)
+	}
+	if c.globals.intermissionTime >= 0 {
+		c.VM.SetGFloat(c.globals.intermissionTime, state.IntermissionTime)
+	}
+	if c.globals.playerLocalNum >= 0 {
+		c.VM.SetGFloat(c.globals.playerLocalNum, state.PlayerLocalNum)
+	}
+	if c.globals.playerLocalEntNum >= 0 {
+		c.VM.SetGFloat(c.globals.playerLocalEntNum, state.PlayerLocalEntNum)
+	}
+	if c.globals.viewAngles >= 0 {
+		c.VM.SetGVector(c.globals.viewAngles, state.ViewAngles)
+	}
+	if c.globals.clientCommandFrame >= 0 {
+		c.VM.SetGFloat(c.globals.clientCommandFrame, state.ClientCommandFrame)
+	}
+	if c.globals.serverCommandFrame >= 0 {
+		c.VM.SetGFloat(c.globals.serverCommandFrame, state.ServerCommandFrame)
+	}
+
+	c.VM.SetGFloat(OFSTime, state.Time)
+	c.VM.SetGFloat(OFSFrameTime, state.FrameTime)
 }
 
 // CallInit calls CSQC_Init when available.
@@ -105,7 +207,7 @@ func (c *CSQC) CallShutdown() error {
 
 // CallDrawHud calls CSQC_DrawHud.
 // Parameters: (vector virtSize, float showScores).
-func (c *CSQC) CallDrawHud(virtSizeX, virtSizeY float32, showScores bool) error {
+func (c *CSQC) CallDrawHud(state CSQCFrameState, virtSizeX, virtSizeY float32, showScores bool) error {
 	if !c.loaded {
 		return fmt.Errorf("csqc: not loaded")
 	}
@@ -113,6 +215,7 @@ func (c *CSQC) CallDrawHud(virtSizeX, virtSizeY float32, showScores bool) error 
 		return fmt.Errorf("csqc: required function CSQC_DrawHud not found")
 	}
 
+	c.SyncGlobals(state)
 	c.VM.SetGVector(OFSParm0, [3]float32{virtSizeX, virtSizeY, 0})
 	if showScores {
 		c.VM.SetGFloat(OFSParm1, 1)
@@ -128,7 +231,7 @@ func (c *CSQC) CallDrawHud(virtSizeX, virtSizeY float32, showScores bool) error 
 
 // CallDrawScores calls CSQC_DrawScores when available.
 // Parameters: (vector virtSize, float showScores).
-func (c *CSQC) CallDrawScores(virtSizeX, virtSizeY float32, showScores bool) error {
+func (c *CSQC) CallDrawScores(state CSQCFrameState, virtSizeX, virtSizeY float32, showScores bool) error {
 	if !c.loaded {
 		return fmt.Errorf("csqc: not loaded")
 	}
@@ -136,6 +239,7 @@ func (c *CSQC) CallDrawScores(virtSizeX, virtSizeY float32, showScores bool) err
 		return nil
 	}
 
+	c.SyncGlobals(state)
 	c.VM.SetGVector(OFSParm0, [3]float32{virtSizeX, virtSizeY, 0})
 	if showScores {
 		c.VM.SetGFloat(OFSParm1, 1)
@@ -156,5 +260,6 @@ func (c *CSQC) Unload() {
 	c.shutdownFunc = -1
 	c.drawHudFunc = -1
 	c.drawScoresFunc = -1
+	c.globals = newCSQCGlobals()
 	c.loaded = false
 }
