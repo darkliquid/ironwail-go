@@ -494,7 +494,21 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		frame = 0
 	}
 	origin, _ := runtimeViewState()
-	viewAngles := g.Client.ViewAngles
+	viewAngles := runtimeInterpolatedViewAngles()
+	punch := runtimeGunKickAngles()
+	viewAngles[0] += punch[0]
+	viewAngles[1] += punch[1]
+	viewAngles[2] += punch[2]
+	if globalViewCalc.dmgTime > 0 {
+		kickTime := float32(0)
+		if cv := cvar.Get("v_kicktime"); cv != nil {
+			kickTime = float32(cv.Float)
+		}
+		if kickTime > 0 {
+			viewAngles[2] += globalViewCalc.dmgTime / kickTime * globalViewCalc.dmgRoll
+			viewAngles[0] += globalViewCalc.dmgTime / kickTime * globalViewCalc.dmgPitch
+		}
+	}
 
 	// CalcGunAngle: rate-limited drift + idle sway on the weapon model.
 	frameTime := 0.0

@@ -965,6 +965,97 @@ func TestCollectViewModelEntitySuppressesWhenInvisible(t *testing.T) {
 	}
 }
 
+func TestCollectViewModelEntitySuppressesDuringChaseCamera(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		cvar.Set("chase_active", "0")
+	})
+
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("chase_active", "1")
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	if entity := collectViewModelEntity(); entity != nil {
+		t.Fatalf("collectViewModelEntity() = %#v, want nil when chase_active=1", entity)
+	}
+}
+
+func TestCollectViewModelEntityAppliesPunchAndDamageKickAngles(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+	})
+
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("cl_bob", "0")
+	cvar.Set("cl_bobcycle", "0")
+	cvar.Set("cl_bobup", "0.5")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+	cvar.Set("v_gunkick", "1")
+	cvar.Set("v_kicktime", "1")
+
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.ViewAngles = [3]float32{12, 34, 0}
+	g.Client.PunchAngle = [3]float32{2, 3, 4}
+	g.Client.ViewHeight = 28
+	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+	globalViewCalc.dmgTime = 0.5
+	globalViewCalc.dmgPitch = 6
+	globalViewCalc.dmgRoll = 8
+
+	entity := collectViewModelEntity()
+	if entity == nil {
+		t.Fatal("collectViewModelEntity() = nil, want entity")
+	}
+	if entity.Angles[0] != -17 {
+		t.Fatalf("viewmodel pitch = %v, want -17", entity.Angles[0])
+	}
+	if entity.Angles[1] != 37 {
+		t.Fatalf("viewmodel yaw = %v, want 37", entity.Angles[1])
+	}
+	if entity.Angles[2] != 8 {
+		t.Fatalf("viewmodel roll = %v, want 8", entity.Angles[2])
+	}
+}
+
 func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T) {
 	clientState := cl.NewClient()
 	clientState.MViewAngles[0] = [3]float32{1, 2, 3}

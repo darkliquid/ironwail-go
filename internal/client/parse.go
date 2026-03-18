@@ -58,6 +58,10 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.FinishDemoFrame()
 			return nil
 		}
+		if p.Client.Signon == Signons-1 && cmd != inet.SVCSignOnNum {
+			p.Client.Signon = Signons
+			p.Client.setState(StateActive)
+		}
 		if cmd&0x80 != 0 {
 			if err := p.parseEntityUpdate(msg, cmd); err != nil {
 				return err

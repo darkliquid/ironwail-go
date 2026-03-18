@@ -26,9 +26,9 @@ var (
 		byte(inet.SVCSignOnNum), 0x01,
 		0xff,
 	}
-	testRemoteServerSignOnMsg2 = []byte{byte(inet.SVCSignOnNum), 0x02, 0xff}
-	testRemoteServerSignOnMsg3 = []byte{byte(inet.SVCSignOnNum), 0x03, 0xff}
-	testRemoteServerSignOnMsg4 = []byte{byte(inet.SVCSignOnNum), 0x04, 0xff}
+	testRemoteServerSignOnMsg2  = []byte{byte(inet.SVCSignOnNum), 0x02, 0xff}
+	testRemoteServerSignOnMsg3  = []byte{byte(inet.SVCSignOnNum), 0x03, 0xff}
+	testRemoteFirstServerUpdate = []byte{byte(inet.SVCTime), 0x00, 0x00, 0x00, 0x00, 0xff}
 )
 
 func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) {
@@ -90,7 +90,7 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 	runFrame(testRemoteServerSignOnMsg1)
 	runFrame(testRemoteServerSignOnMsg2)
 	runFrame(testRemoteServerSignOnMsg3)
-	runFrame(testRemoteServerSignOnMsg4)
+	runFrame(testRemoteFirstServerUpdate)
 
 	if want := []string{"prespawn", "spawn", "begin"}; !reflect.DeepEqual(gotSignonCommands, want) {
 		t.Fatalf("signon command sequence = %v, want %v", gotSignonCommands, want)

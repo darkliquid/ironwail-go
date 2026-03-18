@@ -749,7 +749,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		if entNum >= 0 && entNum < len(s.Edicts) && s.Edicts[entNum] != nil {
 			baseline = s.Edicts[entNum].Baseline
 		}
-		if s.writeEntityUpdate(msg, entNum, zero, baseline, false, 0, 0, false) {
+		if s.writeEntityUpdate(msg, entNum, zero, baseline, true, 0, 0, false) {
 			delete(client.EntityStates, entNum)
 		}
 	}
@@ -855,9 +855,6 @@ func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 	if client.FatPVS == nil || ent.NumLeafs == 0 {
 		return false
 	}
-	if ent.NumLeafs >= MaxEntityLeafs {
-		return true
-	}
 
 	for i := 0; i < ent.NumLeafs; i++ {
 		leafIdx := ent.LeafNums[i]
@@ -881,9 +878,6 @@ func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 func (s *Server) SV_EdictInPVS(test *Edict, pvs []byte) bool {
 	if test == nil || len(pvs) == 0 || test.NumLeafs == 0 {
 		return false
-	}
-	if test.NumLeafs >= MaxEntityLeafs {
-		return true
 	}
 	for i := 0; i < test.NumLeafs; i++ {
 		leafIdx := test.LeafNums[i]

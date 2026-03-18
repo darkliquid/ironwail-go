@@ -543,9 +543,12 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 
 // SendNop constructs a keepalive NOP packet used to avoid connection timeout during idle periods.
 func (s *Server) SendNop(client *Client) {
-	var msg MessageBuffer
-	msg.Data = make([]byte, 4)
-	msg.WriteByte(byte(inet.SVCNop))
+	if client == nil || client.NetConnection == nil {
+		return
+	}
+	if inet.SendUnreliableMessage(client.NetConnection, []byte{byte(inet.SVCNop)}) != -1 {
+		client.LastMessage = float64(s.Time)
+	}
 }
 
 // SendClientMessages drives per-client send policy: spawned datagrams vs. signon/reliable traffic.
@@ -568,8 +571,24 @@ func (s *Server) SendClientMessages() {
 		} else {
 			s.queuePendingSignon(client)
 			if client.Message.Len() == 0 && client.SendSignon == SignonNone {
+				if !client.Loopback && float64(s.Time)-client.LastMessage > 5 {
+					s.SendNop(client)
+				}
+			}
+			if client.Message.Len() == 0 && client.SendSignon == SignonNone {
 				continue
 			}
+			if client.Message.Len() > 0 && client.SendSignon == SignonNone {
+				continue
+			}
+		}
+
+		if client.Message != nil && client.Message.Overflowed {
+			s.DropClient(client, true)
+			if client.Message != nil {
+				client.Message.Clear()
+			}
+			continue
 		}
 
 		if client.Loopback {

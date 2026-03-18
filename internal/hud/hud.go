@@ -130,13 +130,31 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 	if h.state.Intermission == 0 {
 		switch h.Style() {
 		case HUDStyleCompact:
-			h.compact.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+			rc.SetCanvas(renderer.CanvasSbar2)
+			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
+			h.compact.Draw(rc, h.state, width, height)
 		default: // HUDStyleClassic
-			h.status.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+			rc.SetCanvas(renderer.CanvasSbar)
+			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
+			h.status.Draw(rc, h.state, width, height)
 		}
 	}
+	rc.SetCanvas(renderer.CanvasDefault)
 	h.crosshair.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 	h.centerprint.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+}
+
+func canvasDimensions(rc renderer.RenderContext, fallbackWidth, fallbackHeight int) (int, int) {
+	canvas := rc.Canvas()
+	width := int(canvas.Right - canvas.Left)
+	height := int(canvas.Bottom - canvas.Top)
+	if width <= 0 {
+		width = fallbackWidth
+	}
+	if height <= 0 {
+		height = fallbackHeight
+	}
+	return width, height
 }
 
 // UpdateCrosshair updates the crosshair glyph from the crosshair cvar value.

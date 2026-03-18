@@ -7,6 +7,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/console"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -31,13 +32,13 @@ var serverSignOnMsg1 = []byte{
 
 var serverSignOnMsg2 = []byte{byte(inet.SVCSignOnNum), 0x02, 0xff}
 var serverSignOnMsg3 = []byte{byte(inet.SVCSignOnNum), 0x03, 0xff}
-var serverSignOnMsg4 = []byte{byte(inet.SVCSignOnNum), 0x04, 0xff}
+var firstServerUpdateMsg = []byte{byte(inet.SVCTime), 0, 0, 0, 0, 0xff}
 
 func TestParseServerSignOnSequence(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
 
-	for _, msg := range [][]byte{serverSignOnMsg1, serverSignOnMsg2, serverSignOnMsg3, serverSignOnMsg4} {
+	for _, msg := range [][]byte{serverSignOnMsg1, serverSignOnMsg2, serverSignOnMsg3, firstServerUpdateMsg} {
 		if err := p.ParseServerMessage(msg); err != nil {
 			t.Fatalf("ParseServerMessage() error = %v", err)
 		}
@@ -334,6 +335,17 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	s.ModelPrecache = make([]string, server.MaxModels)
 	s.ModelPrecache[1] = "progs/player.mdl"
 	s.ModelPrecache[2] = "progs/ogre.mdl"
+	s.WorldTree = &bsp.Tree{
+		Planes: []bsp.DPlane{{Type: 0, Dist: 0}},
+		Nodes: []bsp.TreeNode{{
+			PlaneNum: 0,
+			Children: [2]bsp.TreeChild{
+				{IsLeaf: true, Index: 0},
+				{IsLeaf: true, Index: 0},
+			},
+		}},
+		Leafs: []bsp.TreeLeaf{{VisOfs: -1}},
+	}
 
 	clientSlot := s.Static.Clients[0]
 	clientSlot.Active = true
@@ -355,6 +367,8 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	ent.Vars.Frame = 4
 	ent.Vars.Skin = 2
 	ent.Vars.Effects = 8
+	ent.NumLeafs = 1
+	ent.LeafNums[0] = 0
 
 	c := NewClient()
 	p := NewParser(c)

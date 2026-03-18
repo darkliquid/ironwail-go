@@ -28,7 +28,8 @@ type mockRenderContext struct {
 		x, y, w, h int
 		color      byte
 	}
-	canvas renderer.CanvasState
+	canvas       renderer.CanvasState
+	canvasSwitch []renderer.CanvasType
 }
 
 func (m *mockRenderContext) Clear(r, g, b, a float32)        {}
@@ -61,6 +62,7 @@ func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 }
 func (m *mockRenderContext) SetCanvas(ct renderer.CanvasType) {
 	m.canvas.Type = ct
+	m.canvasSwitch = append(m.canvasSwitch, ct)
 }
 func (m *mockRenderContext) Canvas() renderer.CanvasState { return m.canvas }
 
@@ -695,5 +697,41 @@ func TestHUDStyleSwitchesRenderer(t *testing.T) {
 	// Compact should not use fills (no status bar background).
 	if len(rc2.fills) != 0 {
 		t.Errorf("compact HUD should not use DrawFill, got %d calls", len(rc2.fills))
+	}
+}
+
+func TestHUDDrawUsesParityCanvases(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(640, 480)
+	h.SetState(State{Health: 100})
+
+	classic := &mockRenderContext{
+		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 320, Bottom: 48},
+	}
+	cvar.Set("hud_style", "0")
+	h.Draw(classic)
+	if len(classic.canvasSwitch) == 0 || classic.canvasSwitch[0] != renderer.CanvasSbar {
+		t.Fatalf("classic HUD first canvas = %v, want %v", classic.canvasSwitch, renderer.CanvasSbar)
+	}
+	if classic.canvas.Type != renderer.CanvasDefault {
+		t.Fatalf("final classic canvas = %v, want %v", classic.canvas.Type, renderer.CanvasDefault)
+	}
+	if len(classic.fills) == 0 {
+		t.Fatal("classic HUD drew nothing")
+	}
+
+	compact := &mockRenderContext{
+		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 400, Bottom: 225},
+	}
+	cvar.Set("hud_style", "1")
+	h.Draw(compact)
+	if len(compact.canvasSwitch) == 0 || compact.canvasSwitch[0] != renderer.CanvasSbar2 {
+		t.Fatalf("compact HUD first canvas = %v, want %v", compact.canvasSwitch, renderer.CanvasSbar2)
+	}
+	if compact.canvas.Type != renderer.CanvasDefault {
+		t.Fatalf("final compact canvas = %v, want %v", compact.canvas.Type, renderer.CanvasDefault)
+	}
+	if len(compact.characters) == 0 {
+		t.Fatal("compact HUD drew nothing")
 	}
 }

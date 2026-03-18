@@ -139,6 +139,12 @@ func TestUDPUnreliable(t *testing.T) {
 	if string(receivedMsg) != "Unreliable Server" {
 		t.Fatalf("Expected 'Unreliable Server', got '%s'", string(receivedMsg))
 	}
+	if !CanSendUnreliableMessage(clientSock) {
+		t.Fatal("CanSendUnreliableMessage(clientSock) = false, want true")
+	}
+	if !CanSendUnreliableMessage(serverSock) {
+		t.Fatal("CanSendUnreliableMessage(serverSock) = false, want true")
+	}
 }
 
 func TestServerInfoHostnameFallback(t *testing.T) {

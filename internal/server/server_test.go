@@ -375,8 +375,8 @@ func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 	if !client.Spawned {
 		t.Fatal("client not marked spawned after begin")
 	}
-	if client.SendSignon != SignonDone {
-		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonDone)
+	if client.SendSignon != SignonNone {
+		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonNone)
 	}
 }
 
@@ -435,8 +435,67 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 	if !client.Spawned {
 		t.Fatal("client not marked spawned after load begin")
 	}
-	if client.SendSignon != SignonDone {
-		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonDone)
+	if client.SendSignon != SignonNone {
+		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonNone)
+	}
+}
+
+func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.Time = 12.5
+	s.LightStyles[0] = "m"
+	s.LightStyles[1] = "abc"
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Name = "player"
+	client.Color = 7
+	client.Edict.Vars.Frags = 3
+
+	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
+		t.Fatalf("prespawn: %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "spawn"); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	data := client.Message.Data[:client.Message.Len()]
+	if len(data) < 2 {
+		t.Fatal("spawn snapshot missing")
+	}
+	if data[0] != byte(inet.SVCTime) {
+		t.Fatalf("first spawn snapshot command = %d, want SVCTime", data[0])
+	}
+	if idx := bytes.Index(data, []byte{byte(inet.SVCUpdateName), 0}); idx < 0 {
+		t.Fatal("spawn snapshot missing SVCUpdateName for player 0")
+	}
+	if idx := bytes.Index(data, []byte{byte(inet.SVCUpdateFrags), 0, 3, 0}); idx < 0 {
+		t.Fatal("spawn snapshot missing SVCUpdateFrags for player 0")
+	}
+	if idx := bytes.Index(data, []byte{byte(inet.SVCUpdateColors), 0, 7}); idx < 0 {
+		t.Fatal("spawn snapshot missing SVCUpdateColors for player 0")
+	}
+	if idx := bytes.Index(data, []byte{byte(inet.SVCLightStyle), 0}); idx < 0 {
+		t.Fatal("spawn snapshot missing lightstyle 0")
+	}
+	if idx := bytes.Index(data, []byte{byte(inet.SVCSetAngle)}); idx < 0 {
+		t.Fatal("spawn snapshot missing setangle")
+	}
+	if idx := bytes.Index(data, []byte{byte(inet.SVCClientData)}); idx < 0 {
+		t.Fatal("spawn snapshot missing clientdata")
+	}
+	if got := data[len(data)-2]; got != byte(inet.SVCSignOnNum) {
+		t.Fatalf("final spawn snapshot command = 0x%02x, want signon", got)
+	}
+	if got := data[len(data)-1]; got != 3 {
+		t.Fatalf("final spawn signon = %d, want 3", got)
+	}
+	if client.SendSignon != SignonNone {
+		t.Fatalf("SendSignon after spawn = %v, want %v", client.SendSignon, SignonNone)
 	}
 }
 
@@ -667,7 +726,7 @@ func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 	}
 }
 
-func TestEdictInPVSMaxLeafsAlwaysVisible(t *testing.T) {
+func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init: %v", err)
@@ -678,8 +737,8 @@ func TestEdictInPVSMaxLeafsAlwaysVisible(t *testing.T) {
 		NumLeafs: MaxEntityLeafs,
 	}
 
-	if !s.SV_EdictInPVS(ent, make([]byte, 1)) {
-		t.Error("expected edict touching max leafs to bypass PVS culling")
+	if s.SV_EdictInPVS(ent, make([]byte, 1)) {
+		t.Error("expected edict touching max leafs with no visible bits to be culled")
 	}
 }
 
@@ -729,5 +788,96 @@ func TestReadClientMessageProcessesStringCmdWithoutSentinel(t *testing.T) {
 	}
 	if got := client.SendSignon; got != SignonPrespawn {
 		t.Fatalf("SendSignon = %v, want %v", got, SignonPrespawn)
+	}
+}
+
+func TestSendClientMessagesQueuesKeepaliveNopForIdleRemoteClient(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init: %v", err)
+	}
+	clientSock := loop.Connect()
+	serverSock := loop.CheckNewConnections()
+	if serverSock == nil {
+		t.Fatal("server socket missing")
+	}
+	defer inet.Close(clientSock)
+	defer inet.Close(serverSock)
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Spawned = false
+	client.Loopback = false
+	client.NetConnection = serverSock
+	client.LastMessage = float64(s.Time) - 6
+	client.Message.Clear()
+
+	s.SendClientMessages()
+
+	msgType, payload := inet.GetMessage(clientSock)
+	if msgType != 2 {
+		t.Fatalf("message type = %d, want 2", msgType)
+	}
+	if len(payload) != 1 || payload[0] != byte(inet.SVCNop) {
+		t.Fatalf("payload = %v, want [SVCNop]", payload)
+	}
+}
+
+func TestSendClientMessagesHoldsReliableDataForIdleUnspawnedClient(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init: %v", err)
+	}
+	clientSock := loop.Connect()
+	serverSock := loop.CheckNewConnections()
+	if serverSock == nil {
+		t.Fatal("server socket missing")
+	}
+	defer inet.Close(clientSock)
+	defer inet.Close(serverSock)
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Spawned = false
+	client.Loopback = false
+	client.NetConnection = serverSock
+	client.SendSignon = SignonNone
+	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.WriteString("held")
+
+	s.SendClientMessages()
+
+	msgType, payload := inet.GetMessage(clientSock)
+	if msgType != 0 || len(payload) != 0 {
+		t.Fatalf("got network payload type=%d payload=%v, want none", msgType, payload)
+	}
+	if client.Message.Len() == 0 {
+		t.Fatal("expected reliable payload to stay queued")
+	}
+}
+
+func TestMessageBufferOverflowSetsFlag(t *testing.T) {
+	msg := NewMessageBuffer(1)
+	msg.WriteByte(0x01)
+	msg.WriteByte(0x02)
+	if !msg.Overflowed {
+		t.Fatal("expected overflow flag after write past capacity")
+	}
+	if got := msg.Len(); got != 1 {
+		t.Fatalf("len = %d, want 1", got)
+	}
+	msg.Clear()
+	if msg.Overflowed {
+		t.Fatal("Clear should reset overflow flag")
 	}
 }

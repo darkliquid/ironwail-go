@@ -21,6 +21,7 @@ type MessageBuffer struct {
 	ReadPos    int           // Current read position
 	writePos   int           // Current write position
 	BadRead    bool          // Set if a read operation failed (past end of buffer)
+	Overflowed bool          // Set if a write operation exceeded buffer capacity
 	ProtoFlags ProtocolFlags // Protocol flags controlling coord/angle precision
 }
 
@@ -41,6 +42,7 @@ func (m *MessageBuffer) Clear() {
 	m.writePos = 0
 	m.ReadPos = 0
 	m.BadRead = false
+	m.Overflowed = false
 }
 
 // ============================================================================
@@ -49,10 +51,15 @@ func (m *MessageBuffer) Clear() {
 
 // WriteByte writes a single byte to the buffer.
 func (m *MessageBuffer) WriteByte(b byte) {
-	if m.writePos < len(m.Data) {
-		m.Data[m.writePos] = b
-		m.writePos++
+	if m == nil {
+		return
 	}
+	if m.writePos >= len(m.Data) {
+		m.Overflowed = true
+		return
+	}
+	m.Data[m.writePos] = b
+	m.writePos++
 }
 
 // WriteChar writes a signed 8-bit character.
@@ -62,26 +69,41 @@ func (m *MessageBuffer) WriteChar(c int8) {
 
 // WriteShort writes a 16-bit signed integer (little-endian).
 func (m *MessageBuffer) WriteShort(s int16) {
-	if m.writePos+2 <= len(m.Data) {
-		binary.LittleEndian.PutUint16(m.Data[m.writePos:], uint16(s))
-		m.writePos += 2
+	if m == nil {
+		return
 	}
+	if m.writePos+2 > len(m.Data) {
+		m.Overflowed = true
+		return
+	}
+	binary.LittleEndian.PutUint16(m.Data[m.writePos:], uint16(s))
+	m.writePos += 2
 }
 
 // WriteLong writes a 32-bit signed integer (little-endian).
 func (m *MessageBuffer) WriteLong(l int32) {
-	if m.writePos+4 <= len(m.Data) {
-		binary.LittleEndian.PutUint32(m.Data[m.writePos:], uint32(l))
-		m.writePos += 4
+	if m == nil {
+		return
 	}
+	if m.writePos+4 > len(m.Data) {
+		m.Overflowed = true
+		return
+	}
+	binary.LittleEndian.PutUint32(m.Data[m.writePos:], uint32(l))
+	m.writePos += 4
 }
 
 // WriteFloat writes a 32-bit float (little-endian).
 func (m *MessageBuffer) WriteFloat(f float32) {
-	if m.writePos+4 <= len(m.Data) {
-		binary.LittleEndian.PutUint32(m.Data[m.writePos:], math.Float32bits(f))
-		m.writePos += 4
+	if m == nil {
+		return
 	}
+	if m.writePos+4 > len(m.Data) {
+		m.Overflowed = true
+		return
+	}
+	binary.LittleEndian.PutUint32(m.Data[m.writePos:], math.Float32bits(f))
+	m.writePos += 4
 }
 
 // coordWireSize returns encoded byte size for one coordinate value under flags.
@@ -144,20 +166,29 @@ func (m *MessageBuffer) WriteAngle(a float32, flags uint32) {
 
 // WriteString writes a null-terminated string.
 func (m *MessageBuffer) WriteString(s string) {
+	if m == nil {
+		return
+	}
 	for i := 0; i < len(s) && m.writePos < len(m.Data); i++ {
 		m.Data[m.writePos] = s[i]
 		m.writePos++
 	}
-	if m.writePos < len(m.Data) {
-		m.Data[m.writePos] = 0
-		m.writePos++
+	if m.writePos >= len(m.Data) {
+		m.Overflowed = true
+		return
 	}
+	m.Data[m.writePos] = 0
+	m.writePos++
 }
 
 // Write appends raw bytes to the buffer.
 func (m *MessageBuffer) Write(data []byte) {
+	if m == nil {
+		return
+	}
 	for _, b := range data {
 		if m.writePos >= len(m.Data) {
+			m.Overflowed = true
 			break
 		}
 		m.Data[m.writePos] = b

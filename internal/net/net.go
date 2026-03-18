@@ -126,6 +126,17 @@ func CanSendMessage(sock *Socket) bool {
 	return DatagramCanSendMessage(sock)
 }
 
+// CanSendUnreliableMessage reports whether the socket can accept an unreliable
+// message right now. This mirrors NET_CanSendUnreliableMessage(); datagram and
+// loopback transports always return true because unreliable messages bypass the
+// reliable stop-and-wait flow control.
+func CanSendUnreliableMessage(sock *Socket) bool {
+	if sock == nil {
+		return false
+	}
+	return sock.CanSendUnreliable()
+}
+
 // Close shuts down a network connection, releasing the underlying
 // transport resources. For loopback sockets this disconnects the
 // client/server peer link; for datagram sockets it closes the UDP

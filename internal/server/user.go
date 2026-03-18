@@ -622,22 +622,13 @@ func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
 				return err
 			}
 		}
-		for style, value := range s.LightStyles {
-			client.Message.WriteByte(byte(inet.SVCLightStyle))
-			client.Message.WriteByte(byte(style))
-			client.Message.WriteString(value)
-		}
-		client.Message.WriteByte(byte(inet.SVCSignOnNum))
-		client.Message.WriteByte(3)
-		client.SendSignon = SignonSignonMsg
+		s.writeSpawnSnapshot(client)
+		client.SendSignon = SignonNone
 	case "begin":
-		if client.SendSignon != SignonSignonMsg {
+		if client.SendSignon != SignonNone {
 			return fmt.Errorf("begin out of order")
 		}
-		client.Message.WriteByte(byte(inet.SVCSignOnNum))
-		client.Message.WriteByte(4)
 		client.Spawned = true
-		client.SendSignon = SignonDone
 		if !s.LoadGame {
 			if err := s.runClientPutInServerQC(client); err != nil {
 				return err
@@ -645,6 +636,94 @@ func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
 		}
 	}
 	return nil
+}
+
+func (s *Server) writeSpawnSnapshot(client *Client) {
+	if client == nil || client.Message == nil {
+		return
+	}
+
+	client.Message.Clear()
+	client.Message.WriteByte(byte(inet.SVCTime))
+	client.Message.WriteFloat(s.Time)
+	s.writeSpawnClientRoster(client, client.Message)
+	s.writeSpawnLightStyles(client.Message)
+	s.writeSpawnGlobalStats(client, client.Message)
+	s.writeSpawnSetAngle(client, client.Message)
+	s.WriteClientDataToMessage(client.Edict, client.Message)
+	client.Message.WriteByte(byte(inet.SVCSignOnNum))
+	client.Message.WriteByte(3)
+}
+
+func (s *Server) writeSpawnClientRoster(_ *Client, msg *MessageBuffer) {
+	if s.Static == nil || msg == nil {
+		return
+	}
+	for playerNum, rosterClient := range s.Static.Clients {
+		name := ""
+		frags := 0
+		color := 0
+		if rosterClient != nil {
+			name = rosterClient.Name
+			if rosterClient.Edict != nil {
+				frags = int(rosterClient.Edict.Vars.Frags)
+			}
+			color = rosterClient.Color
+		}
+		msg.WriteByte(byte(inet.SVCUpdateName))
+		msg.WriteByte(byte(playerNum))
+		msg.WriteString(name)
+		msg.WriteByte(byte(inet.SVCUpdateFrags))
+		msg.WriteByte(byte(playerNum))
+		msg.WriteShort(int16(frags))
+		msg.WriteByte(byte(inet.SVCUpdateColors))
+		msg.WriteByte(byte(playerNum))
+		msg.WriteByte(byte(color))
+	}
+}
+
+func (s *Server) writeSpawnLightStyles(msg *MessageBuffer) {
+	if msg == nil {
+		return
+	}
+	for style, value := range s.LightStyles {
+		msg.WriteByte(byte(inet.SVCLightStyle))
+		msg.WriteByte(byte(style))
+		msg.WriteString(value)
+	}
+}
+
+func (s *Server) writeSpawnGlobalStats(client *Client, msg *MessageBuffer) {
+	if client == nil || msg == nil {
+		return
+	}
+	stats := [32]int32{}
+	for i := range stats {
+		stats[i] = client.Stats[i]
+	}
+	msg.WriteByte(byte(inet.SVCUpdateStat))
+	msg.WriteByte(byte(inet.StatTotalSecrets))
+	msg.WriteLong(stats[inet.StatTotalSecrets])
+	msg.WriteByte(byte(inet.SVCUpdateStat))
+	msg.WriteByte(byte(inet.StatTotalMonsters))
+	msg.WriteLong(stats[inet.StatTotalMonsters])
+	msg.WriteByte(byte(inet.SVCUpdateStat))
+	msg.WriteByte(byte(inet.StatSecrets))
+	msg.WriteLong(stats[inet.StatSecrets])
+	msg.WriteByte(byte(inet.SVCUpdateStat))
+	msg.WriteByte(byte(inet.StatMonsters))
+	msg.WriteLong(stats[inet.StatMonsters])
+}
+
+func (s *Server) writeSpawnSetAngle(client *Client, msg *MessageBuffer) {
+	if client == nil || client.Edict == nil || msg == nil {
+		return
+	}
+	msg.WriteByte(byte(inet.SVCSetAngle))
+	flags := uint32(s.ProtocolFlags())
+	msg.WriteAngle(client.Edict.Vars.VAngle[0], flags)
+	msg.WriteAngle(client.Edict.Vars.VAngle[1], flags)
+	msg.WriteAngle(client.Edict.Vars.VAngle[2], flags)
 }
 
 func (s *Server) findLocalSpawnPoint() *Edict {
