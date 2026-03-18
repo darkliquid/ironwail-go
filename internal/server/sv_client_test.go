@@ -74,3 +74,47 @@ func TestSendServerInfoRMQIncludesProtocolFlags(t *testing.T) {
 		t.Fatalf("byte after protocolflags = %d, want maxclients %d", got, s.Static.MaxClients)
 	}
 }
+
+func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
+	s := &Server{
+		Protocol: ProtocolFitzQuake,
+		Static: &ServerStatic{
+			MaxClients: 1,
+		},
+		NumEdicts: 2,
+		Edicts: []*Edict{
+			{Free: true, Vars: &EntVars{}}, // skipped
+			{
+				Vars: &EntVars{
+					ModelIndex: 2,
+					Frame:      3,
+				},
+			},
+		},
+		ModelPrecache: []string{"", "progs/player.mdl"},
+	}
+
+	if err := s.buildSignonBuffers(); err != nil {
+		t.Fatalf("buildSignonBuffers: %v", err)
+	}
+	if len(s.SignonBuffers) == 0 {
+		t.Fatal("expected signon buffers")
+	}
+
+	data := s.SignonBuffers[0].Data[:s.SignonBuffers[0].Len()]
+	if len(data) == 0 {
+		t.Fatal("expected signon data")
+	}
+	if data[0] != byte(inet.SVCSpawnBaseline) {
+		t.Fatalf("first signon command = %d, want SVCSpawnBaseline(%d)", data[0], inet.SVCSpawnBaseline)
+	}
+
+	// Ensure the baseline command is for entity #1.
+	if len(data) < 4 {
+		t.Fatalf("short baseline message: %v", data)
+	}
+	entNum := binary.LittleEndian.Uint16(data[1:3])
+	if entNum != 1 {
+		t.Fatalf("baseline entity = %d, want 1", entNum)
+	}
+}

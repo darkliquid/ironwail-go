@@ -514,8 +514,19 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 	return state, true
 }
 
+func encodeLerpFinish(nextThink, time float32) (byte, bool) {
+	delta := nextThink - time
+	if delta <= 0 {
+		return 0, false
+	}
+	if delta > 1 {
+		delta = 1
+	}
+	return byte(delta*255.0 + 0.5), true
+}
+
 // writeEntityUpdate performs Quake's bitflag delta encoding between previous and current entity states.
-func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev EntityState, force bool) bool {
+func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev EntityState, force bool, lerpFinish byte, hasLerpFinish bool) bool {
 	flags := uint32(s.ProtocolFlags())
 	bits := uint32(0)
 
@@ -573,6 +584,9 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 		}
 		if bits&inet.U_MODEL != 0 && state.ModelIndex > 255 {
 			bits |= inet.U_MODEL2
+		}
+		if hasLerpFinish {
+			bits |= inet.U_LERPFINISH
 		}
 		if bits >= 65536 {
 			bits |= inet.U_EXTEND1
@@ -657,7 +671,9 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	if bits&inet.U_MODEL2 != 0 {
 		msg.WriteByte(byte(state.ModelIndex >> 8))
 	}
-	// TODO: U_LERPFINISH support (task #26)
+	if bits&inet.U_LERPFINISH != 0 {
+		msg.WriteByte(lerpFinish)
+	}
 
 	return true
 }
@@ -692,7 +708,8 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		current[entNum] = state
 		prev, seen := client.EntityStates[entNum]
 		force := !seen
-		if !s.writeEntityUpdate(msg, entNum, state, prev, force) {
+		lerpFinish, hasLerpFinish := encodeLerpFinish(ent.Vars.NextThink, s.Time)
+		if !s.writeEntityUpdate(msg, entNum, state, prev, force, lerpFinish, hasLerpFinish) {
 			continue
 		}
 		client.EntityStates[entNum] = state
@@ -704,7 +721,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		}
 		zero := prev
 		zero.ModelIndex = 0
-		if s.writeEntityUpdate(msg, entNum, zero, prev, false) {
+		if s.writeEntityUpdate(msg, entNum, zero, prev, false, 0, false) {
 			delete(client.EntityStates, entNum)
 		}
 	}

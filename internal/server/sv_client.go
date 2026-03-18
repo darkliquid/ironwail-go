@@ -287,6 +287,21 @@ func (s *Server) buildSignonBuffers() error {
 		return err
 	}
 
+	// Snapshot dynamic entity baselines and write svc_spawnbaseline(_2) signon data.
+	s.CreateBaseline()
+	for entNum := 0; entNum < s.NumEdicts; entNum++ {
+		ent := s.Edicts[entNum]
+		if ent == nil || ent.Free {
+			continue
+		}
+		if s.Static != nil && entNum > s.Static.MaxClients && ent.Baseline.ModelIndex == 0 {
+			continue
+		}
+		if err := s.writeSpawnBaselineToSignon(entNum, ent.Baseline); err != nil {
+			return err
+		}
+	}
+
 	// Write static entity baselines.
 	for _, ent := range s.StaticEntities {
 		if err := s.writeSpawnStaticToSignon(ent); err != nil {
@@ -302,6 +317,25 @@ func (s *Server) buildSignonBuffers() error {
 	}
 
 	return nil
+}
+
+func (s *Server) writeSpawnBaselineToSignon(entNum int, ent EntityState) error {
+	extended := s.Protocol != ProtocolNetQuake &&
+		(ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16))
+
+	if extended {
+		if err := s.WriteSignonByte(byte(inet.SVCSpawnBaseline2)); err != nil {
+			return err
+		}
+	} else {
+		if err := s.WriteSignonByte(byte(inet.SVCSpawnBaseline)); err != nil {
+			return err
+		}
+	}
+
+	payload := NewMessageBuffer(64)
+	s.writeEntityState(payload, ent, extended, true, entNum)
+	return s.WriteSignonData(payload.Data[:payload.Len()])
 }
 
 // writeSpawnStaticToSignon writes a static entity spawn message into the
