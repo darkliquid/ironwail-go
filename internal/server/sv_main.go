@@ -233,6 +233,12 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	// read these globals to decide behavior.
 	s.syncQCVMState()
 
+	// Cache QC field offsets for alpha/scale (used every frame in entity updates).
+	if s.QCVM != nil {
+		s.QCFieldAlpha = s.QCVM.FindField("alpha")
+		s.QCFieldScale = s.QCVM.FindField("scale")
+	}
+
 	if err := s.loadMapEntities(string(tree.Entities)); err != nil {
 		return fmt.Errorf("parse map entities %q: %w", s.ModelName, err)
 	}

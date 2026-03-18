@@ -90,6 +90,11 @@ type Server struct {
 	// Protocol version (15=NetQuake, 666=FitzQuake, 999=RMQ)
 	Protocol int
 
+	// Cached QC field offsets for alpha/scale (populated once per progs.dat load).
+	// -1 means the field doesn't exist in the loaded progs.
+	QCFieldAlpha int
+	QCFieldScale int
+
 	// Game rules
 	Coop       bool
 	Deathmatch bool
@@ -403,13 +408,15 @@ func (s *Server) syncQCVMState() {
 // NewServer creates a new server instance.
 func NewServer() *Server {
 	s := &Server{
-		Gravity:     800,
-		MaxVelocity: 2000,
-		Friction:    4,
-		StopSpeed:   100,
-		MaxEdicts:   1024,
-		Protocol:    ProtocolFitzQuake,
-		QCVM:        qc.NewVM(),
+		Gravity:      800,
+		MaxVelocity:  2000,
+		Friction:     4,
+		StopSpeed:    100,
+		MaxEdicts:    1024,
+		Protocol:     ProtocolFitzQuake,
+		QCFieldAlpha: -1,
+		QCFieldScale: -1,
+		QCVM:         qc.NewVM(),
 	}
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations

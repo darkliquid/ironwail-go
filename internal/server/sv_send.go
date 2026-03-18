@@ -1,6 +1,8 @@
 package server
 
 import (
+	"math"
+
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
@@ -344,10 +346,48 @@ func (s *Server) FindModel(name string) int {
 	return 0
 }
 
+// encodeAlpha converts a QC alpha float (0.0=default, 0..1 range) to
+// the byte encoding used on the wire. Matches C's ENTALPHA_ENCODE macro.
+func encodeAlpha(a float32) byte {
+	if a == 0 {
+		return 0 // ENTALPHA_DEFAULT
+	}
+	v := a*254.0 + 1
+	if v < 1 {
+		v = 1
+	}
+	if v > 255 {
+		v = 255
+	}
+	return byte(math.RoundToEven(float64(v)))
+}
+
+// encodeScale converts a QC scale float to byte encoding.
+// Matches C's ENTSCALE_ENCODE macro: scale * 16, default if 0.
+func encodeScale(a float32) byte {
+	if a == 0 {
+		return 16 // ENTSCALE_DEFAULT
+	}
+	return byte(a * 16)
+}
+
 // entityStateForClient builds render/network state for an edict as seen by a specific client.
 func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool) {
 	if ent == nil || ent.Free || ent.Vars == nil {
 		return EntityState{}, false
+	}
+
+	// Read alpha and scale from QC edict fields (matching C's GetEdictFieldValueByName).
+	// Field offsets are cached on server init to avoid per-frame string lookups.
+	if s.QCVM != nil {
+		if s.QCFieldAlpha >= 0 {
+			ent.Alpha = encodeAlpha(s.QCVM.EFloat(entNum, s.QCFieldAlpha))
+		}
+		if s.QCFieldScale >= 0 {
+			ent.Scale = encodeScale(s.QCVM.EFloat(entNum, s.QCFieldScale))
+		} else {
+			ent.Scale = 16 // ENTSCALE_DEFAULT
+		}
 	}
 
 	state := EntityState{
