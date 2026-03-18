@@ -45,6 +45,9 @@ func TestParseServerSignOnSequence(t *testing.T) {
 	if c.Protocol != inet.PROTOCOL_FITZQUAKE {
 		t.Fatalf("protocol = %d, want %d", c.Protocol, inet.PROTOCOL_FITZQUAKE)
 	}
+	if c.ProtocolFlags != 0 {
+		t.Fatalf("protocol flags = %d, want 0 for FitzQuake serverinfo", c.ProtocolFlags)
+	}
 	if c.MaxClients != 4 {
 		t.Fatalf("maxclients = %d, want 4", c.MaxClients)
 	}
@@ -71,6 +74,37 @@ func TestParseServerSignOnSequence(t *testing.T) {
 	}
 	if c.State != StateActive {
 		t.Fatalf("state = %d, want active", c.State)
+	}
+}
+
+func TestParseServerInfoRMQReadsProtocolFlags(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	flags := int32(inet.PRFL_FLOATCOORD | inet.PRFL_SHORTANGLE)
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCServerInfo))
+	writeLong(msg, inet.PROTOCOL_RMQ)
+	writeLong(msg, flags)
+	msg.WriteByte(0x04) // maxclients
+	msg.WriteByte(0x00) // gametype
+	msg.WriteString("RMQ Test Map")
+	msg.WriteByte(0)
+	msg.WriteString("maps/start.bsp")
+	msg.WriteByte(0)
+	msg.WriteByte(0) // model list terminator
+	msg.WriteByte(0) // sound list terminator
+	msg.WriteByte(0xff)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if c.Protocol != inet.PROTOCOL_RMQ {
+		t.Fatalf("protocol = %d, want %d", c.Protocol, inet.PROTOCOL_RMQ)
+	}
+	if c.ProtocolFlags != uint32(flags) {
+		t.Fatalf("protocol flags = %d, want %d", c.ProtocolFlags, uint32(flags))
 	}
 }
 
@@ -417,10 +451,10 @@ func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 	msg := bytes.NewBuffer(nil)
 
 	msg.WriteByte(byte(inet.SVCSpawnStatic))
-	msg.WriteByte(5)  // model
-	msg.WriteByte(1)  // frame
-	msg.WriteByte(2)  // colormap
-	msg.WriteByte(3)  // skin
+	msg.WriteByte(5) // model
+	msg.WriteByte(1) // frame
+	msg.WriteByte(2) // colormap
+	msg.WriteByte(3) // skin
 	// Interleaved origins and angles: O1, A1, O2, A2, O3, A3
 	writeCoord(msg, 10)
 	writeAngle(msg, 45)
@@ -431,10 +465,10 @@ func TestParseStaticEntityAndSoundMessages(t *testing.T) {
 
 	msg.WriteByte(byte(inet.SVCSpawnStatic2))
 	msg.WriteByte(byte(inet.BLARGEMODEL | inet.BLARGEFRAME | inet.BALPHA | inet.BSCALE))
-	writeShort(msg, 300)  // model (large)
-	writeShort(msg, 400)  // frame (large)
-	msg.WriteByte(0)      // colormap
-	msg.WriteByte(7)      // skin
+	writeShort(msg, 300) // model (large)
+	writeShort(msg, 400) // frame (large)
+	msg.WriteByte(0)     // colormap
+	msg.WriteByte(7)     // skin
 	// Interleaved origins and angles
 	writeCoord(msg, 1)
 	writeAngle(msg, 0)
