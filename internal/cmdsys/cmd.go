@@ -562,6 +562,9 @@ func parseCommand(line string) []string {
 		ch := line[i]
 
 		switch {
+		case ch == '/' && !inQuote && i+1 < len(line) && line[i+1] == '/':
+			// Strip // comments outside quotes, matching C COM_Parse behavior
+			goto done
 		case ch == '\\' && inQuote && i+1 < len(line):
 			switch line[i+1] {
 			case '"', '\\':
@@ -590,6 +593,7 @@ func parseCommand(line string) []string {
 			current.WriteByte(ch)
 		}
 	}
+done:
 
 	if current.Len() > 0 {
 		args = append(args, current.String())

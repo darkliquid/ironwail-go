@@ -245,3 +245,27 @@ func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
 		t.Fatalf("source in buffered execute = %v, want %v", seen, SrcClient)
 	}
 }
+
+func TestParseCommandStripsComments(t *testing.T) {
+	tests := []struct {
+		line string
+		want []string
+	}{
+		{"sv_gravity 800 // normal gravity", []string{"sv_gravity", "800"}},
+		{"// full line comment", nil},
+		{"echo \"hello // world\"", []string{"echo", "hello // world"}},
+		{"cmd arg1 arg2//attached", []string{"cmd", "arg1", "arg2"}},
+	}
+	for _, tc := range tests {
+		got := parseCommand(tc.line)
+		if len(got) != len(tc.want) {
+			t.Errorf("parseCommand(%q) = %v, want %v", tc.line, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("parseCommand(%q)[%d] = %q, want %q", tc.line, i, got[i], tc.want[i])
+			}
+		}
+	}
+}
