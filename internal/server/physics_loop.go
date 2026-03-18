@@ -1,6 +1,10 @@
 package server
 
-import "github.com/ironwail/ironwail-go/internal/cvar"
+import (
+	"math"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 func (s *Server) Physics() {
 	if s.QCVM != nil {
@@ -45,8 +49,16 @@ func (s *Server) Physics() {
 			s.PhysicsWalk(ent)
 		}
 
-		if !ent.Free && ent.Vars.NextThink > s.Time {
-			ent.SendInterval = true
+		ent.SendInterval = false
+		if !ent.Free && ent.Vars.NextThink > s.Time &&
+			(MoveType(ent.Vars.MoveType) == MoveTypeStep || MoveType(ent.Vars.MoveType) == MoveTypeWalk || ent.Vars.Frame != ent.OldFrame) {
+			// Encode the interval to next think as a byte (0-255).
+			// Values 25 and 26 are close enough to 0.1 (the client default)
+			// that sending them would be redundant.
+			j := int(math.Round(float64((ent.Vars.NextThink - ent.OldThinkTime) * 255)))
+			if j >= 0 && j < 256 && j != 25 && j != 26 {
+				ent.SendInterval = true
+			}
 		}
 	}
 
