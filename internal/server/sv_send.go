@@ -285,8 +285,53 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	}
 	bits |= inet.SU_WEAPON
 
+	// FitzQuake/RMQ extension bits — only for non-NetQuake protocols
+	weaponModelIdx := s.FindModel(s.GetString(ent.Vars.WeaponModel))
+	if s.Protocol != ProtocolNetQuake {
+		if bits&inet.SU_WEAPON != 0 && weaponModelIdx&0xFF00 != 0 {
+			bits |= inet.SU_WEAPON2
+		}
+		if int(ent.Vars.ArmorValue)&0xFF00 != 0 {
+			bits |= inet.SU_ARMOR2
+		}
+		if int(ent.Vars.CurrentAmmo)&0xFF00 != 0 {
+			bits |= inet.SU_AMMO2
+		}
+		if int(ent.Vars.AmmoShells)&0xFF00 != 0 {
+			bits |= inet.SU_SHELLS2
+		}
+		if int(ent.Vars.AmmoNails)&0xFF00 != 0 {
+			bits |= inet.SU_NAILS2
+		}
+		if int(ent.Vars.AmmoRockets)&0xFF00 != 0 {
+			bits |= inet.SU_ROCKETS2
+		}
+		if int(ent.Vars.AmmoCells)&0xFF00 != 0 {
+			bits |= inet.SU_CELLS2
+		}
+		if bits&inet.SU_WEAPONFRAME != 0 && int(ent.Vars.WeaponFrame)&0xFF00 != 0 {
+			bits |= inet.SU_WEAPONFRAME2
+		}
+		if bits&inet.SU_WEAPON != 0 && ent.Alpha != 0 { // weaponalpha = client entity alpha
+			bits |= inet.SU_WEAPONALPHA
+		}
+		if bits >= 65536 {
+			bits |= inet.SU_EXTEND1
+		}
+		if bits >= 16777216 {
+			bits |= inet.SU_EXTEND2
+		}
+	}
+
 	msg.WriteByte(byte(inet.SVCClientData))
 	msg.WriteShort(int16(bits))
+
+	if bits&inet.SU_EXTEND1 != 0 {
+		msg.WriteByte(byte(bits >> 16))
+	}
+	if bits&inet.SU_EXTEND2 != 0 {
+		msg.WriteByte(byte(bits >> 24))
+	}
 
 	if bits&inet.SU_VIEWHEIGHT != 0 {
 		msg.WriteChar(int8(ent.Vars.ViewOfs[2]))
@@ -313,7 +358,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 		msg.WriteByte(byte(ent.Vars.ArmorValue))
 	}
 	if bits&inet.SU_WEAPON != 0 {
-		msg.WriteByte(byte(s.FindModel(s.GetString(ent.Vars.WeaponModel))))
+		msg.WriteByte(byte(weaponModelIdx))
 	}
 
 	msg.WriteShort(int16(ent.Vars.Health))
@@ -331,6 +376,35 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 		}
 	}
 	msg.WriteByte(activeWeapon)
+
+	// FitzQuake extension data
+	if bits&inet.SU_WEAPON2 != 0 {
+		msg.WriteByte(byte(weaponModelIdx >> 8))
+	}
+	if bits&inet.SU_ARMOR2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.ArmorValue) >> 8))
+	}
+	if bits&inet.SU_AMMO2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.CurrentAmmo) >> 8))
+	}
+	if bits&inet.SU_SHELLS2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.AmmoShells) >> 8))
+	}
+	if bits&inet.SU_NAILS2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.AmmoNails) >> 8))
+	}
+	if bits&inet.SU_ROCKETS2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.AmmoRockets) >> 8))
+	}
+	if bits&inet.SU_CELLS2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.AmmoCells) >> 8))
+	}
+	if bits&inet.SU_WEAPONFRAME2 != 0 {
+		msg.WriteByte(byte(int(ent.Vars.WeaponFrame) >> 8))
+	}
+	if bits&inet.SU_WEAPONALPHA != 0 {
+		msg.WriteByte(ent.Alpha) // weaponalpha = client entity alpha
+	}
 }
 
 // FindModel returns a model precache slot index used by entity baselines and delta updates.
