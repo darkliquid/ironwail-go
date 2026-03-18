@@ -58,6 +58,28 @@ func (s *Server) changeYaw(ent *Edict) {
 }
 
 func (s *Server) CheckBottom(ent *Edict) bool {
+	result := s.checkBottom(ent)
+	if result {
+		checkBottomYes++
+	} else {
+		checkBottomNo++
+	}
+	return result
+}
+
+// checkBottomYes and checkBottomNo track CheckBottom results for debug stats.
+// Matches C sv_move.c c_yes/c_no counters.
+var (
+	checkBottomYes int
+	checkBottomNo  int
+)
+
+// CheckBottomStats returns the c_yes/c_no debug counters.
+func CheckBottomStats() (yes, no int) {
+	return checkBottomYes, checkBottomNo
+}
+
+func (s *Server) checkBottom(ent *Edict) bool {
 	mins := VecAdd(ent.Vars.Origin, ent.Vars.Mins)
 	maxs := VecAdd(ent.Vars.Origin, ent.Vars.Maxs)
 
