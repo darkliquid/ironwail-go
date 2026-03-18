@@ -4,6 +4,7 @@
 package net
 
 import (
+	"encoding/binary"
 	stdnet "net"
 	"testing"
 	"time"
@@ -251,5 +252,76 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	serverForA.udpConn.SetReadDeadline(time.Time{})
 	if gotType != 1 || string(gotData) != "for-client-a" {
 		t.Fatalf("server socket for client A got type=%d data=%q, want type=1 data=%q", gotType, string(gotData), "for-client-a")
+	}
+}
+
+func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
+	Init()
+	netHostPort = 26004
+	Listen(true)
+	defer Listen(false)
+
+	if acceptSocket == nil {
+		t.Fatal("accept socket should be open while listening")
+	}
+	acceptPort := acceptSocket.LocalAddr().(*stdnet.UDPAddr).Port
+
+	clientConn, err := UDPOpenSocket(0)
+	if err != nil {
+		t.Fatalf("failed to open client udp socket: %v", err)
+	}
+	defer UDPCloseSocket(clientConn)
+
+	serverAddr, err := UDPStringToAddr("127.0.0.1:26004")
+	if err != nil {
+		t.Fatalf("failed to parse server address: %v", err)
+	}
+
+	req := make([]byte, HeaderSize+1+6+1)
+	binary.BigEndian.PutUint32(req[0:], uint32(len(req))|FlagCtl)
+	binary.BigEndian.PutUint32(req[4:], 0xffffffff)
+	req[8] = CCReqConnect
+	copy(req[9:], "QUAKE\x00")
+	req[15] = 3
+
+	if _, err := UDPWrite(clientConn, req, serverAddr); err != nil {
+		t.Fatalf("failed to send connection request: %v", err)
+	}
+
+	var serverSock *Socket
+	for i := 0; i < 100; i++ {
+		serverSock = CheckNewConnections()
+		if serverSock != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if serverSock == nil {
+		t.Fatal("server failed to accept connection")
+	}
+	defer Close(serverSock)
+
+	resp := make([]byte, 1024)
+	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, _, err := UDPRead(clientConn, resp)
+	clientConn.SetReadDeadline(time.Time{})
+	if err != nil {
+		t.Fatalf("failed to read accept response: %v", err)
+	}
+	if n < HeaderSize+1+4 {
+		t.Fatalf("accept response too short: %d bytes", n)
+	}
+	if resp[8] != CCRepAccept {
+		t.Fatalf("expected CCRepAccept (%#x), got %#x", CCRepAccept, resp[8])
+	}
+
+	reportedPort := int(binary.LittleEndian.Uint32(resp[9:13]))
+	serverPort := serverSock.udpConn.LocalAddr().(*stdnet.UDPAddr).Port
+
+	if reportedPort == acceptPort {
+		t.Fatalf("CCRepAccept reported accept socket port %d; expected per-client socket port", acceptPort)
+	}
+	if reportedPort != serverPort {
+		t.Fatalf("CCRepAccept reported port %d, but accepted socket is on port %d", reportedPort, serverPort)
 	}
 }
