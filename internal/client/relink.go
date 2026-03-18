@@ -90,6 +90,45 @@ func (c *Client) RelinkEntities() {
 
 		state.ForceLink = false
 		state.LerpFlags &^= inet.LerpResetMove
+
+		// Emit particle trails based on model flags.
+		// Matches C CL_RelinkEntities trail dispatch:
+		//   if (model->flags & EF_GIB) R_RocketTrail(old, new, 2);
+		//   else if (model->flags & EF_ZOMGIB) R_RocketTrail(old, new, 4);
+		//   etc.
+		// After trail emission, TrailOrigin is updated to the current position.
+		if c.ModelFlagsFunc != nil && int(state.ModelIndex) < len(c.ModelPrecache) {
+			modelName := c.ModelPrecache[int(state.ModelIndex)]
+			if modelName != "" {
+				flags := c.ModelFlagsFunc(modelName)
+				trailType := -1
+				switch {
+				case flags&model.EFGib != 0:
+					trailType = 2 // blood trail
+				case flags&model.EFZomGib != 0:
+					trailType = 4 // slight blood trail
+				case flags&model.EFTracer != 0:
+					trailType = 3 // tracer (green split)
+				case flags&model.EFTracer2 != 0:
+					trailType = 5 // tracer2 (orange split)
+				case flags&model.EFTracer3 != 0:
+					trailType = 6 // voor trail (purple)
+				case flags&model.EFRocket != 0:
+					trailType = 0 // rocket trail + dynamic light
+				case flags&model.EFGrenade != 0:
+					trailType = 1 // grenade smoke trail
+				}
+				if trailType >= 0 {
+					c.TrailEvents = append(c.TrailEvents, TrailEvent{
+						Start: state.TrailOrigin,
+						End:   state.Origin,
+						Type:  trailType,
+					})
+				}
+			}
+		}
+		state.TrailOrigin = state.Origin
+
 		c.Entities[entNum] = state
 	}
 }

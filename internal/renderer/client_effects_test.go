@@ -14,6 +14,7 @@ func TestEmitClientEffectsMapsEvents(t *testing.T) {
 
 	EmitClientEffects(ps,
 		[]cl.ParticleEvent{{Origin: [3]float32{1, 2, 3}, Dir: [3]float32{1, 0, 0}, Count: 12, Color: 99}},
+		nil, // no trail events
 		[]cl.TempEntityEvent{
 			{Type: inet.TE_EXPLOSION, Origin: [3]float32{4, 5, 6}},
 			{Type: inet.TE_TAREXPLOSION, Origin: [3]float32{7, 8, 9}},

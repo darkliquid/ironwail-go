@@ -3,6 +3,9 @@ package client
 import (
 	"math"
 	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/model"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 func TestRelinkEntities_DemoViewAngleInterpolation(t *testing.T) {
@@ -67,5 +70,84 @@ func TestRelinkEntities_NoDemoNoViewAngleChange(t *testing.T) {
 	want := [3]float32{10, 20, 30}
 	if c.ViewAngles != want {
 		t.Errorf("ViewAngles = %v, want %v (should be unchanged without demo)", c.ViewAngles, want)
+	}
+}
+
+func TestRelinkEntities_TrailEvents(t *testing.T) {
+	c := &Client{}
+	c.MTime = [2]float64{1.0, 0.9}
+	c.Time = 1.0
+
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 1,
+			MsgTime:    1.0,
+			MsgOrigins: [2][3]float32{{100, 200, 300}, {100, 200, 300}},
+			TrailOrigin: [3]float32{90, 190, 290},
+			ForceLink:  false,
+		},
+		2: {
+			ModelIndex: 2,
+			MsgTime:    1.0,
+			MsgOrigins: [2][3]float32{{50, 60, 70}, {50, 60, 70}},
+			TrailOrigin: [3]float32{40, 50, 60},
+			ForceLink:  false,
+		},
+		3: {
+			ModelIndex: 3,
+			MsgTime:    1.0,
+			MsgOrigins: [2][3]float32{{10, 20, 30}, {10, 20, 30}},
+			TrailOrigin: [3]float32{5, 15, 25},
+			ForceLink:  false,
+		},
+	}
+	c.ModelPrecache = []string{"", "progs/missile.mdl", "progs/grenade.mdl", "progs/player.mdl"}
+	c.ModelFlagsFunc = func(name string) int {
+		switch name {
+		case "progs/missile.mdl":
+			return model.EFRocket
+		case "progs/grenade.mdl":
+			return model.EFGrenade
+		default:
+			return 0
+		}
+	}
+
+	c.RelinkEntities()
+
+	// Should have 2 trail events (rocket + grenade), none for player.
+	if len(c.TrailEvents) != 2 {
+		t.Fatalf("TrailEvents count = %d, want 2", len(c.TrailEvents))
+	}
+
+	// Find rocket and grenade trails (map iteration order is non-deterministic).
+	var gotRocket, gotGrenade bool
+	for _, te := range c.TrailEvents {
+		switch te.Type {
+		case 0: // rocket
+			gotRocket = true
+			if te.Start != [3]float32{90, 190, 290} {
+				t.Errorf("rocket trail start = %v, want [90 190 290]", te.Start)
+			}
+		case 1: // grenade
+			gotGrenade = true
+			if te.Start != [3]float32{40, 50, 60} {
+				t.Errorf("grenade trail start = %v, want [40 50 60]", te.Start)
+			}
+		default:
+			t.Errorf("unexpected trail type %d", te.Type)
+		}
+	}
+	if !gotRocket {
+		t.Error("missing rocket trail event")
+	}
+	if !gotGrenade {
+		t.Error("missing grenade trail event")
+	}
+
+	// After relink, TrailOrigin should be updated to current origin.
+	ent1 := c.Entities[1]
+	if ent1.TrailOrigin != ent1.Origin {
+		t.Errorf("entity 1 TrailOrigin = %v, want %v", ent1.TrailOrigin, ent1.Origin)
 	}
 }

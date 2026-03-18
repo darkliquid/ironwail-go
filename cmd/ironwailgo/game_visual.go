@@ -152,6 +152,15 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
+
+	// Trail events are emitted by RelinkEntities based on model flags,
+	// so collect them from the Client after relinking (not from TransientEvents).
+	var trailEvents []cl.TrailEvent
+	if g.Client != nil {
+		trailEvents = g.Client.TrailEvents
+		g.Client.TrailEvents = nil
+	}
+
 	effectSources := collectEntityEffectSources()
 
 	if g.Renderer != nil {
@@ -160,7 +169,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 		renderer.EmitEntityEffectLights(g.Renderer.SpawnKeyedDynamicLight, effectSources)
 	}
 	if g.Particles != nil {
-		renderer.EmitClientEffects(g.Particles, particleEvents, tempEntities, g.ParticleRNG, g.ParticleTime)
+		renderer.EmitClientEffects(g.Particles, particleEvents, trailEvents, tempEntities, g.ParticleRNG, g.ParticleTime)
 		renderer.EmitEntityEffectParticles(g.Particles, effectSources, g.ParticleTime)
 		g.Particles.RunParticles(g.ParticleTime, oldTime, 800)
 	}

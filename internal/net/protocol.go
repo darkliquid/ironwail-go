@@ -331,6 +331,11 @@ type EntityState struct {
 	MsgTime    float64       // Server time when this entity was last updated
 	ForceLink  bool          // Jump to MsgOrigins[0] without lerping (new or teleported)
 	LerpFlags  uint8         // LERP_* bits controlling interpolation behavior
+
+	// Trail state: TrailOrigin tracks the entity's position from the
+	// previous frame so trail particle emitters (RocketTrail, etc.) know
+	// where each trail segment starts.
+	TrailOrigin [3]float32
 }
 
 // UserCmd represents client input commands sent to server.

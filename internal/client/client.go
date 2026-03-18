@@ -103,12 +103,22 @@ type ParticleEvent struct {
 	Color  int
 }
 
+// TrailEvent represents a particle trail spawned by an entity each frame,
+// based on its model flags (EF_ROCKET, EF_GRENADE, etc.). The renderer
+// calls RocketTrail(Start, End, Type) for each event.
+type TrailEvent struct {
+	Start [3]float32 // Previous entity position (trail start)
+	End   [3]float32 // Current entity position (trail end)
+	Type  int        // Trail type: 0=rocket, 1=grenade smoke, 2=blood, 3=tracer, 4=slight blood, 5=tracer2, 6=voor trail
+}
+
 type TransientEvents struct {
 	SoundEvents     []SoundEvent
 	StopSoundEvents []StopSoundEvent
 	ParticleEvents  []ParticleEvent
 	TempEntities    []TempEntityEvent
 	BeamSegments    []BeamSegment
+	TrailEvents     []TrailEvent
 }
 
 type Client struct {
@@ -189,6 +199,7 @@ type Client struct {
 	SoundEvents     []SoundEvent
 	StopSoundEvents []StopSoundEvent
 	ParticleEvents  []ParticleEvent
+	TrailEvents     []TrailEvent
 	TempEntities    []TempEntityEvent
 	BeamSegments    []BeamSegment
 	beams           [maxBeams]beamState

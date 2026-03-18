@@ -9,8 +9,8 @@ import (
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
-// EmitClientEffects EmitClientEffects spawns transient render-side effects (muzzle flashes, trails, impacts) from current client/entity state.
-func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, tempEntities []cl.TempEntityEvent, rng *rand.Rand, timeNow float32) {
+// EmitClientEffects spawns transient render-side effects (muzzle flashes, trails, impacts) from current client/entity state.
+func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, trailEvents []cl.TrailEvent, tempEntities []cl.TempEntityEvent, rng *rand.Rand, timeNow float32) {
 	if ps == nil {
 		return
 	}
@@ -21,6 +21,11 @@ func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, te
 			continue
 		}
 		ps.RunParticleEffect(event.Origin, event.Dir, byte(event.Color), event.Count, rng, timeNow)
+	}
+
+	// Process trail events emitted by RelinkEntities based on model flags.
+	for _, event := range trailEvents {
+		ps.RocketTrail(event.Start, event.End, event.Type, rng, timeNow)
 	}
 
 	for _, event := range tempEntities {
