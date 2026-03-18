@@ -743,6 +743,73 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 	}
 	p.Client.Stats[statActiveWeapon] = int(activeWeapon)
 
+	// FitzQuake extensions — high bytes for 16-bit stat values
+	if bits&inet.SU_WEAPON2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing weapon2")
+		}
+		p.Client.Stats[statWeapon] |= int(v) << 8
+	}
+	if bits&inet.SU_ARMOR2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing armor2")
+		}
+		p.Client.Stats[statArmor] |= int(v) << 8
+	}
+	if bits&inet.SU_AMMO2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing ammo2")
+		}
+		p.Client.Stats[statAmmo] |= int(v) << 8
+	}
+	if bits&inet.SU_SHELLS2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing shells2")
+		}
+		p.Client.Stats[statShells] |= int(v) << 8
+	}
+	if bits&inet.SU_NAILS2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing nails2")
+		}
+		p.Client.Stats[statNails] |= int(v) << 8
+	}
+	if bits&inet.SU_ROCKETS2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing rockets2")
+		}
+		p.Client.Stats[statRockets] |= int(v) << 8
+	}
+	if bits&inet.SU_CELLS2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing cells2")
+		}
+		p.Client.Stats[statCells] |= int(v) << 8
+	}
+	if bits&inet.SU_WEAPONFRAME2 != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing weaponframe2")
+		}
+		p.Client.Stats[statWeaponFrame] |= int(v) << 8
+	}
+	if bits&inet.SU_WEAPONALPHA != 0 {
+		v, ok := msg.ReadByte()
+		if !ok {
+			return fmt.Errorf("svc_clientdata: missing weaponalpha")
+		}
+		p.Client.ViewEntAlpha = v
+	} else {
+		p.Client.ViewEntAlpha = inet.ENTALPHA_DEFAULT
+	}
+
 	return nil
 }
 

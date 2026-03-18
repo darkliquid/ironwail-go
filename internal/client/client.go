@@ -147,8 +147,9 @@ type Client struct {
 	ModelPrecache []string
 	SoundPrecache []string
 
-	ViewEntity int
-	CDTrack    int
+	ViewEntity    int
+	ViewEntAlpha  byte
+	CDTrack       int
 	LoopTrack  int
 
 	Intermission  int
