@@ -396,10 +396,9 @@ const (
 	ViewHeight = 22
 
 	// OneEpsilon — general-purpose small epsilon for floating-point
-	// comparisons throughout the physics and collision code. Used to prevent
-	// division by zero, avoid degenerate cases in plane distance checks,
-	// and provide tolerance for "close enough" comparisons.
-	OneEpsilon = 0.01
+	// comparisons. Matches C ON_EPSILON (0.1) from quakedef.h, used in
+	// movement stair-stepping and plane distance checks.
+	OneEpsilon = 0.1
 )
 
 // Vector math helper functions.
