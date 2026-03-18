@@ -285,8 +285,10 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 		t1 = p1[plane.Type] - plane.Dist
 		t2 = p2[plane.Type] - plane.Dist
 	} else {
-		t1 = plane.Normal[0]*p1[0] + plane.Normal[1]*p1[1] + plane.Normal[2]*p1[2] - plane.Dist
-		t2 = plane.Normal[0]*p2[0] + plane.Normal[1]*p2[1] + plane.Normal[2]*p2[2] - plane.Dist
+		// Use double precision for non-axial planes to avoid clipping errors
+		// on rotated brushes. Matches C DoublePrecisionDotProduct().
+		t1 = float32(float64(plane.Normal[0])*float64(p1[0]) + float64(plane.Normal[1])*float64(p1[1]) + float64(plane.Normal[2])*float64(p1[2]) - float64(plane.Dist))
+		t2 = float32(float64(plane.Normal[0])*float64(p2[0]) + float64(plane.Normal[1])*float64(p2[1]) + float64(plane.Normal[2])*float64(p2[2]) - float64(plane.Dist))
 	}
 
 	// Both points on same side - recurse down that side
