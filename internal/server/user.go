@@ -458,7 +458,12 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	client.NumPings++
 
 	for i := 0; i < 3; i++ {
-		cmd.ViewAngles[i] = buf.ReadAngle16()
+		// NetQuake uses 8-bit angles, FitzQuake/RMQ use 16-bit
+		if s.Protocol == ProtocolNetQuake {
+			cmd.ViewAngles[i] = buf.ReadAngle()
+		} else {
+			cmd.ViewAngles[i] = buf.ReadAngle16()
+		}
 	}
 
 	if client.Edict != nil {
