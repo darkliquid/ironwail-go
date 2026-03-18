@@ -147,6 +147,12 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[57] = writeAngleBuiltin
 	vm.Builtins[58] = writeStringBuiltin
 	vm.Builtins[59] = writeEntityBuiltin
+	// 60-62: Trigonometric and math functions
+	vm.Builtins[60] = sinBuiltin
+	vm.Builtins[61] = cosBuiltin
+	vm.Builtins[62] = sqrtBuiltin
+	// 65: Entity to string
+	vm.Builtins[65] = etosBuiltin
 	vm.Builtins[67] = movetogoal
 	vm.Builtins[68] = precacheFile
 	vm.Builtins[69] = makestatic
@@ -157,6 +163,32 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[78] = setspawnparms
 	vm.Builtins[79] = finaleFinished
 	vm.Builtins[80] = localsound
+
+	// Extended builtins: precache variants (aliases for standard precache)
+	vm.Builtins[75] = precacheModel // precache_model2
+	vm.Builtins[76] = precacheSound // precache_sound2
+	vm.Builtins[77] = precacheFile  // precache_file2
+
+	// Extended builtins: string/math operations
+	vm.Builtins[81] = stofBuiltin
+	vm.Builtins[94] = minBuiltin
+	vm.Builtins[95] = maxBuiltin
+	vm.Builtins[96] = boundBuiltin
+	vm.Builtins[97] = powBuiltin
+	vm.Builtins[114] = strlenBuiltin
+	vm.Builtins[115] = strcatBuiltin
+	vm.Builtins[116] = substringBuiltin
+	vm.Builtins[117] = stovBuiltin
+	vm.Builtins[118] = strzoneBuiltin
+	vm.Builtins[119] = strunzoneBuiltin
+	vm.Builtins[222] = str2chrBuiltin
+	vm.Builtins[223] = chr2strBuiltin
+	vm.Builtins[245] = modBuiltin
+	vm.Builtins[471] = asinBuiltin
+	vm.Builtins[472] = acosBuiltin
+	vm.Builtins[473] = atanBuiltin
+	vm.Builtins[474] = atan2Builtin
+	vm.Builtins[475] = tanBuiltin
 
 	// Non-canonical helpers we still want available: place them at high indices
 	vm.Builtins[1000] = findfloat

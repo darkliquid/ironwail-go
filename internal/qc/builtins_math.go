@@ -4,6 +4,7 @@
 package qc
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 )
@@ -161,4 +162,122 @@ func ceilBuiltin(vm *VM) {
 func fabsBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
 	vm.SetGFloat(OFSReturn, float32(math.Abs(float64(v))))
+}
+
+// sin returns the sine of an angle in degrees.
+// QuakeC signature: float(float angle) sin
+func sinBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Sin(float64(v)*math.Pi/180.0)))
+}
+
+// cos returns the cosine of an angle in degrees.
+// QuakeC signature: float(float angle) cos
+func cosBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Cos(float64(v)*math.Pi/180.0)))
+}
+
+// sqrt returns the square root of a value.
+// QuakeC signature: float(float value) sqrt
+func sqrtBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Sqrt(float64(v))))
+}
+
+// stof converts a string to a float.
+// QuakeC signature: float(string s) stof
+func stofBuiltin(vm *VM) {
+	s := vm.GString(OFSParm0)
+	var f float64
+	fmt.Sscanf(s, "%f", &f)
+	vm.SetGFloat(OFSReturn, float32(f))
+}
+
+// minBuiltin returns the smaller of two floats.
+// QuakeC signature: float(float a, float b) min
+func minBuiltin(vm *VM) {
+	a := vm.GFloat(OFSParm0)
+	b := vm.GFloat(OFSParm0 + 3)
+	if a < b {
+		vm.SetGFloat(OFSReturn, a)
+	} else {
+		vm.SetGFloat(OFSReturn, b)
+	}
+}
+
+// maxBuiltin returns the larger of two floats.
+// QuakeC signature: float(float a, float b) max
+func maxBuiltin(vm *VM) {
+	a := vm.GFloat(OFSParm0)
+	b := vm.GFloat(OFSParm0 + 3)
+	if a > b {
+		vm.SetGFloat(OFSReturn, a)
+	} else {
+		vm.SetGFloat(OFSReturn, b)
+	}
+}
+
+// boundBuiltin clamps a value between min and max.
+// QuakeC signature: float(float min, float value, float max) bound
+func boundBuiltin(vm *VM) {
+	lo := vm.GFloat(OFSParm0)
+	v := vm.GFloat(OFSParm0 + 3)
+	hi := vm.GFloat(OFSParm0 + 6)
+	if v < lo {
+		v = lo
+	} else if v > hi {
+		v = hi
+	}
+	vm.SetGFloat(OFSReturn, v)
+}
+
+// powBuiltin raises base to exponent.
+// QuakeC signature: float(float base, float exp) pow
+func powBuiltin(vm *VM) {
+	base := vm.GFloat(OFSParm0)
+	exp := vm.GFloat(OFSParm0 + 3)
+	vm.SetGFloat(OFSReturn, float32(math.Pow(float64(base), float64(exp))))
+}
+
+// asinBuiltin returns the arcsine in degrees.
+func asinBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Asin(float64(v))*180.0/math.Pi))
+}
+
+// acosBuiltin returns the arccosine in degrees.
+func acosBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Acos(float64(v))*180.0/math.Pi))
+}
+
+// atanBuiltin returns the arctangent in degrees.
+func atanBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Atan(float64(v))*180.0/math.Pi))
+}
+
+// atan2Builtin returns the two-argument arctangent in degrees.
+func atan2Builtin(vm *VM) {
+	y := vm.GFloat(OFSParm0)
+	x := vm.GFloat(OFSParm0 + 3)
+	vm.SetGFloat(OFSReturn, float32(math.Atan2(float64(y), float64(x))*180.0/math.Pi))
+}
+
+// tanBuiltin returns the tangent of an angle in degrees.
+func tanBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	vm.SetGFloat(OFSReturn, float32(math.Tan(float64(v)*math.Pi/180.0)))
+}
+
+// modBuiltin returns the remainder of a/b.
+func modBuiltin(vm *VM) {
+	a := vm.GFloat(OFSParm0)
+	b := vm.GFloat(OFSParm0 + 3)
+	if b == 0 {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+	vm.SetGFloat(OFSReturn, a - float32(int(a/b))*b)
 }

@@ -498,3 +498,138 @@ func TestSearchBuiltinsFallback(t *testing.T) {
 		t.Fatalf("findradius return = %d, want 2", got)
 	}
 }
+
+func TestMathBuiltins(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+	RegisterBuiltins(vm)
+
+	tests := []struct {
+		name string
+		fn   func(*VM)
+		parm float32
+		want float32
+		tol  float32
+	}{
+		{"sin(90)", sinBuiltin, 90, 1.0, 0.001},
+		{"sin(0)", sinBuiltin, 0, 0.0, 0.001},
+		{"cos(0)", cosBuiltin, 0, 1.0, 0.001},
+		{"cos(90)", cosBuiltin, 90, 0.0, 0.001},
+		{"sqrt(4)", sqrtBuiltin, 4, 2.0, 0.001},
+		{"sqrt(9)", sqrtBuiltin, 9, 3.0, 0.001},
+		{"tan(45)", tanBuiltin, 45, 1.0, 0.001},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm.SetGFloat(OFSParm0, tt.parm)
+			tt.fn(vm)
+			got := vm.GFloat(OFSReturn)
+			diff := got - tt.want
+			if diff < -tt.tol || diff > tt.tol {
+				t.Errorf("%s = %v, want %v", tt.name, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMinMaxBoundPow(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+
+	// min(3, 7) = 3
+	vm.SetGFloat(OFSParm0, 3)
+	vm.SetGFloat(OFSParm0+3, 7)
+	minBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 3 {
+		t.Errorf("min(3,7) = %v, want 3", got)
+	}
+
+	// max(3, 7) = 7
+	vm.SetGFloat(OFSParm0, 3)
+	vm.SetGFloat(OFSParm0+3, 7)
+	maxBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 7 {
+		t.Errorf("max(3,7) = %v, want 7", got)
+	}
+
+	// bound(1, 5, 3) = 3 (value clamped to max)
+	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGFloat(OFSParm0+3, 5)
+	vm.SetGFloat(OFSParm0+6, 3)
+	boundBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 3 {
+		t.Errorf("bound(1,5,3) = %v, want 3", got)
+	}
+
+	// pow(2, 3) = 8
+	vm.SetGFloat(OFSParm0, 2)
+	vm.SetGFloat(OFSParm0+3, 3)
+	powBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 8 {
+		t.Errorf("pow(2,3) = %v, want 8", got)
+	}
+}
+
+func TestStringBuiltins(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+
+	// strlen("hello") = 5
+	vm.SetGString(OFSParm0, "hello")
+	strlenBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 5 {
+		t.Errorf("strlen(hello) = %v, want 5", got)
+	}
+
+	// strcat("foo", "bar") = "foobar"
+	vm.SetGString(OFSParm0, "foo")
+	vm.SetGString(OFSParm1, "bar")
+	strcatBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "foobar" {
+		t.Errorf("strcat(foo,bar) = %q, want foobar", got)
+	}
+
+	// substring("hello world", 6, 5) = "world"
+	vm.SetGString(OFSParm0, "hello world")
+	vm.SetGFloat(OFSParm0+3, 6)
+	vm.SetGFloat(OFSParm0+6, 5)
+	substringBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "world" {
+		t.Errorf("substring(hello world,6,5) = %q, want world", got)
+	}
+
+	// stov("'1 2 3'") = [1,2,3]
+	vm.SetGString(OFSParm0, "'1 2 3'")
+	stovBuiltin(vm)
+	if got := vm.GVector(OFSReturn); got != [3]float32{1, 2, 3} {
+		t.Errorf("stov('1 2 3') = %v, want [1 2 3]", got)
+	}
+
+	// stof("3.14") = 3.14
+	vm.SetGString(OFSParm0, "3.14")
+	stofBuiltin(vm)
+	got := vm.GFloat(OFSReturn)
+	if got < 3.13 || got > 3.15 {
+		t.Errorf("stof(3.14) = %v, want ~3.14", got)
+	}
+
+	// etos(42) = "42"
+	vm.SetGFloat(OFSParm0, 42)
+	etosBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "42" {
+		t.Errorf("etos(42) = %q, want 42", got)
+	}
+
+	// chr2str(65) = "A"
+	vm.SetGFloat(OFSParm0, 65)
+	chr2strBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "A" {
+		t.Errorf("chr2str(65) = %q, want A", got)
+	}
+
+	// str2chr("A", 0) = 65
+	vm.SetGString(OFSParm0, "A")
+	vm.SetGFloat(OFSParm0+3, 0)
+	str2chrBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 65 {
+		t.Errorf("str2chr(A,0) = %v, want 65", got)
+	}
+}
