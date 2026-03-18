@@ -27,11 +27,12 @@ type worldTextureMeta struct {
 
 // WorldGeometry holds BSP world data prepared for rendering.
 type WorldGeometry struct {
-	Vertices  []WorldVertex
-	Indices   []uint32
-	Faces     []WorldFace
-	Lightmaps []WorldLightmapPage
-	Tree      *bsp.Tree
+	Vertices    []WorldVertex
+	Indices     []uint32
+	Faces       []WorldFace
+	Lightmaps   []WorldLightmapPage
+	HasLitWater bool
+	Tree        *bsp.Tree
 }
 
 // WorldVertex matches the packed vertex layout used by the OpenGL world path.
@@ -78,6 +79,7 @@ type WorldLightmapPage struct {
 type WorldRenderData struct {
 	Geometry      *WorldGeometry
 	Lightmaps     []WorldLightmapPage
+	HasLitWater   bool
 	BoundsMin     [3]float32
 	BoundsMax     [3]float32
 	TotalVertices int
@@ -168,6 +170,9 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		faceData.Center = worldFaceCenter(faceVerts)
 		if lightmapSurface != nil {
 			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
+		}
+		if worldFaceHasLitWater(textureFlags, lightmapSurface) {
+			geom.HasLitWater = true
 		}
 		geom.Faces = append(geom.Faces, faceData)
 	}
@@ -276,6 +281,12 @@ func worldFaceCenter(vertices []WorldVertex) [3]float32 {
 	center[1] *= scale
 	center[2] *= scale
 	return center
+}
+
+func worldFaceHasLitWater(textureFlags int32, lightmapSurface *faceLightmapSurface) bool {
+	return textureFlags&model.SurfDrawTurb != 0 &&
+		textureFlags&model.SurfDrawSky == 0 &&
+		lightmapSurface != nil
 }
 
 // faceLightmapSurface is an internal result type tracking which atlas page a face's
@@ -478,6 +489,7 @@ func buildModelRenderData(tree *bsp.Tree, modelIndex int) (*WorldRenderData, err
 	renderData := &WorldRenderData{
 		Geometry:      geom,
 		Lightmaps:     append([]WorldLightmapPage(nil), geom.Lightmaps...),
+		HasLitWater:   geom.HasLitWater,
 		TotalVertices: len(geom.Vertices),
 		TotalIndices:  len(geom.Indices),
 		TotalFaces:    len(geom.Faces),

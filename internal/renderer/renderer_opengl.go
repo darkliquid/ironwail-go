@@ -537,6 +537,7 @@ type Renderer struct {
 	worldTimeUniform                    int32
 	worldSkyTimeUniform                 int32
 	worldTurbulentUniform               int32
+	worldLitWaterUniform                int32
 	worldCameraOriginUniform            int32
 	worldSkyCameraOriginUniform         int32
 	worldSkyCubemapCameraOriginUniform  int32
@@ -562,6 +563,7 @@ type Renderer struct {
 	worldSkyAlphaTextures               map[int32]uint32
 	worldTextureAnimations              []*SurfaceTexture
 	worldLightmaps                      []uint32
+	worldHasLitWater                    bool
 	worldLiquidFaceTypes                int32
 	worldLiquidAlphaOverrides           worldLiquidAlphaOverrides
 	worldSkyFogOverride                 worldSkyFogOverride
@@ -617,6 +619,7 @@ type Renderer struct {
 	oitWorldAlphaUniform         int32
 	oitWorldTimeUniform          int32
 	oitWorldTurbulentUniform     int32
+	oitWorldLitWaterUniform      int32
 	oitWorldCameraOriginUniform  int32
 	oitWorldFogColorUniform      int32
 	oitWorldFogDensityUniform    int32

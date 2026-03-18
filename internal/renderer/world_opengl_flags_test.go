@@ -712,7 +712,7 @@ func TestBucketWorldFacesWithLights_PropagatesDynamicLight(t *testing.T) {
 		Lifetime:   1,
 	})
 
-	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, textures, nil, nil, lightmaps, 999, 998, 0, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
+	_, opaque, _, _, _, _ := bucketWorldFacesWithLights(faces, true, textures, nil, nil, lightmaps, 999, 998, 0, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, 0, camera, alphaSettings, pool)
 	if len(opaque) != 1 {
 		t.Fatalf("opaque count = %d, want 1", len(opaque))
 	}
@@ -728,8 +728,23 @@ func TestWorldFragmentShader_DiffuseAndDynamicLightParity(t *testing.T) {
 	if !strings.Contains(worldFragmentShaderGL, "uniform vec3 uDynamicLight;") {
 		t.Fatalf("world fragment shader missing uDynamicLight uniform")
 	}
-	if !strings.Contains(worldFragmentShaderGL, "vec3 light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;") {
-		t.Fatalf("world fragment shader missing dynamic light accumulation")
+	if !strings.Contains(worldFragmentShaderGL, "uniform float uLitWater;") {
+		t.Fatalf("world fragment shader missing uLitWater uniform")
+	}
+	if !strings.Contains(worldFragmentShaderGL, "if (uTurbulent > 0.5 && uLitWater < 0.5)") {
+		t.Fatalf("world fragment shader missing lit-water conditional")
+	}
+	if !strings.Contains(worldFragmentShaderGL, "light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;") {
+		t.Fatalf("world fragment shader missing lit-water lightmap path")
+	}
+}
+
+func TestWorldFaceHasLitWater(t *testing.T) {
+	if !worldFaceHasLitWater(model.SurfDrawTurb|model.SurfDrawWater, &faceLightmapSurface{pageIndex: 0}) {
+		t.Fatalf("expected turbulent face with lightmap to report lit water")
+	}
+	if worldFaceHasLitWater(model.SurfDrawTurb|model.SurfDrawWater, nil) {
+		t.Fatalf("expected turbulent face without lightmap to not report lit water")
 	}
 }
 

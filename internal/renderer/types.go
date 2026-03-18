@@ -131,6 +131,7 @@ const (
 	// 2 = FOV-based warp (oscillates horizontal/vertical FOV while underwater)
 	// Mirrors C Ironwail r_waterwarp: values >1 use FOV modulation, value 1 uses screen warp.
 	CvarRWaterwarp = "r_waterwarp"
+	CvarRLitWater  = "r_litwater" // Lit water: 1=lightmapped water surfaces, 0=unlit (default: 1)
 )
 
 // Config holds the video configuration for the renderer.

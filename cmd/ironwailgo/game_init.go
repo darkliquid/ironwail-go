@@ -47,6 +47,7 @@ func initGameHost() error {
 	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
 	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).
 	cvar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
+	cvar.Register(renderer.CvarRLitWater, "1", cvar.FlagArchive, "Enable lightmapped water when map has lit water data (0=off, 1=on)")
 	// gl_polyblend: enable/disable the v_blend polyblend screen-tint pass.
 	// Mirrors C Ironwail gl_polyblend. Default 1 (enabled).
 	cvar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")

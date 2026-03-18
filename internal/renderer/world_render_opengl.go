@@ -7,6 +7,7 @@ package renderer
 import (
 	"fmt"
 	"github.com/go-gl/gl/v4.6-core/gl"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 	"sort"
@@ -36,6 +37,7 @@ type worldDrawCall struct {
 	lightmap          uint32
 	alpha             float32
 	turbulent         bool
+	hasLitWater       bool
 	distanceSq        float32
 	light             [3]float32
 	vao               uint32
@@ -74,6 +76,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldAlphaUniform = gl.GetUniformLocation(program, gl.Str("uAlpha\x00"))
 	r.worldTimeUniform = gl.GetUniformLocation(program, gl.Str("uTime\x00"))
 	r.worldTurbulentUniform = gl.GetUniformLocation(program, gl.Str("uTurbulent\x00"))
+	r.worldLitWaterUniform = gl.GetUniformLocation(program, gl.Str("uLitWater\x00"))
 	r.worldCameraOriginUniform = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
 	r.worldFogColorUniform = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
 	r.worldFogDensityUniform = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
@@ -125,6 +128,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	alphaUniform := r.worldAlphaUniform
 	timeUniform := r.worldTimeUniform
 	turbulentUniform := r.worldTurbulentUniform
+	litWaterUniform := r.worldLitWaterUniform
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
@@ -168,6 +172,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	liquidAlphaOverrides := r.worldLiquidAlphaOverrides
 	skyFogOverride := r.worldSkyFogOverride
 	worldTree := r.worldTree
+	worldHasLitWater := r.worldHasLitWater
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
 	faces := []WorldFace(nil)
@@ -201,7 +206,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
-	skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldTextures, worldFullbrightTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, vao, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
+	skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(faces, worldHasLitWater, worldTextures, worldFullbrightTextures, worldTextureAnimations, worldLightmaps, fallbackTexture, fallbackLightmap, vao, [3]float32{}, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, lightPool)
 	bindWorldProgram := func() {
 		gl.UseProgram(program)
 		gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
@@ -215,6 +220,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 		gl.Uniform1f(modelScaleUniform, 1)
 		gl.Uniform1f(timeUniform, camera.Time)
 		gl.Uniform1f(turbulentUniform, 0)
+		gl.Uniform1f(litWaterUniform, 0)
 		gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 		gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 		gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -295,14 +301,14 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 			}
 		}
 		if drawNonLiquid {
-			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
-			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
 			r.mu.Lock()
 			r.translucentCalls = append(r.translucentCalls, translucentFaces...)
 			r.mu.Unlock()
 		}
 		if drawLiquidOpaque {
-			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
 		}
 		if drawLiquidTranslucent {
 			r.mu.Lock()
@@ -352,6 +358,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	alphaUniform := r.worldAlphaUniform
 	timeUniform := r.worldTimeUniform
 	turbulentUniform := r.worldTurbulentUniform
+	litWaterUniform := r.worldLitWaterUniform
 	cameraOriginUniform := r.worldCameraOriginUniform
 	fogColorUniform := r.worldFogColorUniform
 	fogDensityUniform := r.worldFogDensityUniform
@@ -416,12 +423,13 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	lightPool := r.lightPool // Get light pool for light evaluation
 	type drawBrush struct {
-		frame    int
-		origin   [3]float32
-		rotation [16]float32
-		alpha    float32
-		scale    float32
-		mesh     *glWorldMesh
+		frame       int
+		origin      [3]float32
+		rotation    [16]float32
+		alpha       float32
+		scale       float32
+		hasLitWater bool
+		mesh        *glWorldMesh
 	}
 	brushes := make([]drawBrush, 0, len(entities))
 	for _, entity := range entities {
@@ -430,12 +438,13 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			continue
 		}
 		brushes = append(brushes, drawBrush{
-			frame:    entity.Frame,
-			origin:   entity.Origin,
-			rotation: buildBrushRotationMatrix(entity.Angles),
-			alpha:    entity.Alpha,
-			scale:    entity.Scale,
-			mesh:     mesh,
+			frame:       entity.Frame,
+			origin:      entity.Origin,
+			rotation:    buildBrushRotationMatrix(entity.Angles),
+			alpha:       entity.Alpha,
+			scale:       entity.Scale,
+			hasLitWater: mesh.hasLitWater,
+			mesh:        mesh,
 		})
 	}
 	r.mu.Unlock()
@@ -456,6 +465,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.Uniform1f(timeUniform, camera.Time)
 	gl.Uniform1f(turbulentUniform, 0)
+	gl.Uniform1f(litWaterUniform, 0)
 	gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -463,7 +473,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
 
 	for _, brush := range brushes {
-		skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, worldTextures, worldFullbrightTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.mesh.vao, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
+		skyFaces, opaqueFaces, alphaTestFaces, liquidOpaqueFaces, liquidTranslucentFaces, translucentFaces := bucketWorldFacesWithLights(brush.mesh.faces, brush.hasLitWater, worldTextures, worldFullbrightTextures, worldTextureAnimations, brush.mesh.lightmaps, fallbackTexture, fallbackLightmap, brush.mesh.vao, brush.origin, brush.rotation, brush.scale, brush.alpha, brush.frame, float64(camera.Time), camera, liquidAlpha, lightPool)
 		bindBrushWorldProgram := func() {
 			gl.UseProgram(program)
 			gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
@@ -474,6 +484,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 			gl.Uniform1f(timeUniform, camera.Time)
 			gl.Uniform1f(turbulentUniform, 0)
+			gl.Uniform1f(litWaterUniform, 0)
 			gl.Uniform3f(cameraOriginUniform, camera.Origin.X, camera.Origin.Y, camera.Origin.Z)
 			gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 			gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
@@ -542,14 +553,14 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			}
 		}
 		if drawNonLiquid {
-			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
-			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
 			r.mu.Lock()
 			r.translucentCalls = append(r.translucentCalls, translucentFaces...)
 			r.mu.Unlock()
 		}
 		if drawLiquidOpaque {
-			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
 		}
 		if drawLiquidTranslucent {
 			r.mu.Lock()
@@ -571,7 +582,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 
 // bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
 // This variant accepts a light pool and computes light contributions for each face.
-func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap, vao uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, entityFrame int, timeSeconds float64, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
+func bucketWorldFacesWithLights(faces []WorldFace, hasLitWater bool, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap, vao uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, entityFrame int, timeSeconds float64, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
 	for _, face := range faces {
 		center := transformModelSpacePoint(face.Center, modelOffset, modelRotation, modelScale)
 		call := worldDrawCall{
@@ -581,6 +592,7 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, fu
 			lightmap:          worldLightmapForFace(face, lightmaps, fallbackLightmap),
 			alpha:             worldFaceAlpha(face.Flags, liquidAlpha) * entityAlpha,
 			turbulent:         worldFaceUsesTurb(face.Flags),
+			hasLitWater:       hasLitWater,
 			distanceSq:        worldFaceDistanceSq(center, camera),
 			light:             [3]float32{}, // Will be populated below
 			vao:               vao,
@@ -626,7 +638,7 @@ func bucketWorldFacesWithLights(faces []WorldFace, textures map[int32]uint32, fu
 
 // bucketWorldFaces is a simplified face bucketing function without dynamic light support, used for brush entities.
 func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
-	return bucketWorldFacesWithLights(faces, textures, fullbrightTextures, textureAnimations, lightmaps, fallbackTexture, fallbackLightmap, 0, modelOffset, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, nil)
+	return bucketWorldFacesWithLights(faces, worldFacesHaveLitWater(faces), textures, fullbrightTextures, textureAnimations, lightmaps, fallbackTexture, fallbackLightmap, 0, modelOffset, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, nil)
 }
 
 // worldTextureForFace resolves the current diffuse texture GL handle for a face, accounting for texture animation chains.
@@ -744,10 +756,11 @@ func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
 }
 
 // renderWorldDrawCalls issues GL draw calls for bucketed world faces. Each call binds its diffuse + lightmap + fullbright textures and draws the face's index range from the VAO.
-func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform int32, depthWrite bool) {
+func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform int32, depthWrite bool) {
 	if len(calls) == 0 {
 		return
 	}
+	litWaterEnabled := worldLitWaterCvarEnabled()
 	gl.DepthMask(depthWrite)
 	if depthWrite {
 		gl.Disable(gl.BLEND)
@@ -756,6 +769,7 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 	}
 
 	lastVAO := uint32(0xFFFFFFFF)
+	lastLitWaterValue := float32(-1)
 	for _, call := range calls {
 		if call.vao != lastVAO {
 			gl.BindVertexArray(call.vao)
@@ -786,8 +800,35 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 		} else {
 			gl.Uniform1f(turbulentUniform, 0)
 		}
+		if litWaterUniform >= 0 {
+			litWaterValue := float32(0)
+			if litWaterEnabled && call.hasLitWater {
+				litWaterValue = 1
+			}
+			if litWaterValue != lastLitWaterValue {
+				gl.Uniform1f(litWaterUniform, litWaterValue)
+				lastLitWaterValue = litWaterValue
+			}
+		}
 		gl.Uniform3f(dynamicLightUniform, call.light[0], call.light[1], call.light[2])
 		gl.Uniform1f(alphaUniform, call.alpha)
 		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
 	}
+}
+
+func worldLitWaterCvarEnabled() bool {
+	cv := cvar.Get(CvarRLitWater)
+	if cv == nil {
+		return true
+	}
+	return cv.Int != 0
+}
+
+func worldFacesHaveLitWater(faces []WorldFace) bool {
+	for _, face := range faces {
+		if face.Flags&model.SurfDrawTurb != 0 && face.LightmapIndex >= 0 {
+			return true
+		}
+	}
+	return false
 }

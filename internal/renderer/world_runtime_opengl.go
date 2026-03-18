@@ -20,6 +20,7 @@ type glWorldMesh struct {
 	vbo           uint32
 	ebo           uint32
 	indexCount    int32
+	hasLitWater   bool
 	faces         []WorldFace
 	lightmaps     []uint32
 	lightmapPages []WorldLightmapPage
@@ -122,6 +123,7 @@ func (r *Renderer) ensureBrushModelLocked(submodelIndex int) *glWorldMesh {
 		return nil
 	}
 	mesh.faces = append(mesh.faces, renderData.Geometry.Faces...)
+	mesh.hasLitWater = renderData.HasLitWater
 	mesh.lightmapPages = append(mesh.lightmapPages, renderData.Lightmaps...)
 	mesh.lightmaps = uploadLightmapPages(renderData.Lightmaps, r.lightStyleValues)
 	r.brushModels[submodelIndex] = mesh
@@ -560,6 +562,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 	if renderData.Geometry == nil || len(renderData.Geometry.Vertices) == 0 || len(renderData.Geometry.Indices) == 0 {
 		r.worldData = renderData
+		r.worldHasLitWater = renderData.HasLitWater
 		return nil
 	}
 
@@ -583,6 +586,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldEBO = worldMesh.ebo
 
 	r.worldData = renderData
+	r.worldHasLitWater = renderData.HasLitWater
 	r.worldIndexCount = worldMesh.indexCount
 	r.worldLightmaps = uploadLightmapPages(renderData.Lightmaps, r.lightStyleValues)
 
@@ -757,6 +761,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldTimeUniform = -1
 	r.worldSkyTimeUniform = -1
 	r.worldTurbulentUniform = -1
+	r.worldLitWaterUniform = -1
 	r.worldCameraOriginUniform = -1
 	r.worldSkyCameraOriginUniform = -1
 	r.worldSkyCubemapCameraOriginUniform = -1
@@ -772,6 +777,7 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldIndexCount = 0
 	r.worldData = nil
 	r.worldTree = nil
+	r.worldHasLitWater = false
 	r.worldLiquidFaceTypes = 0
 	r.worldLiquidAlphaOverrides = worldLiquidAlphaOverrides{}
 	r.worldSkyFogOverride = worldSkyFogOverride{}
@@ -848,6 +854,7 @@ func (r *Renderer) DrawTranslucentCalls() {
 	modelScaleUniform := r.worldModelScaleUniform
 	alphaUniform := r.worldAlphaUniform
 	turbulentUniform := r.worldTurbulentUniform
+	litWaterUniform := r.worldLitWaterUniform
 	cameraTime := r.cameraState.Time
 	cameraOrigin := r.cameraState.Origin
 	fogColor := r.worldFogColor
@@ -870,6 +877,7 @@ func (r *Renderer) DrawTranslucentCalls() {
 	oitScl := r.oitWorldModelScaleUniform
 	oitAlpha := r.oitWorldAlphaUniform
 	oitTurb := r.oitWorldTurbulentUniform
+	oitLitWater := r.oitWorldLitWaterUniform
 	oitTime := r.oitWorldTimeUniform
 	oitCamOrig := r.oitWorldCameraOriginUniform
 	oitFogCol := r.oitWorldFogColorUniform
@@ -895,6 +903,7 @@ func (r *Renderer) DrawTranslucentCalls() {
 		modelScaleUniform = oitScl
 		alphaUniform = oitAlpha
 		turbulentUniform = oitTurb
+		litWaterUniform = oitLitWater
 		timeUniform = oitTime
 		cameraOriginUniform = oitCamOrig
 		fogColorUniform = oitFogCol
@@ -920,7 +929,7 @@ func (r *Renderer) DrawTranslucentCalls() {
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 
-	renderWorldDrawCalls(calls, alphaUniform, turbulentUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, false)
+	renderWorldDrawCalls(calls, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, false)
 
 	gl.UseProgram(0)
 }

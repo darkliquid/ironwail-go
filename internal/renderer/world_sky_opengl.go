@@ -57,6 +57,7 @@ uniform vec3 uCameraOrigin;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 uniform float uHasFullbright;
+uniform float uLitWater;
 
 void main() {
 	vec2 uv = vTexCoord;
@@ -64,7 +65,12 @@ void main() {
 		uv = uv * 2.0 + 0.125 * sin(uv.yx * (3.14159265 * 2.0) + uTime);
 	}
 	vec4 base = texture(uTexture, uv);
-	vec3 light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;
+	vec3 light;
+	if (uTurbulent > 0.5 && uLitWater < 0.5) {
+		light = vec3(0.5) + uDynamicLight;
+	} else {
+		light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;
+	}
 	if (base.a < 0.1) {
 		discard;
 	}
