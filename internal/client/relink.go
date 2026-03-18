@@ -22,6 +22,17 @@ func (c *Client) RelinkEntities() {
 	frac := float32(c.LerpPoint())
 	bobjRotate := types.AngleMod(100 * float32(c.Time))
 
+	// During demo playback, interpolate view angles between double-buffered
+	// MViewAngles frames. Matches C CL_RelinkEntities:
+	//   if (cls.demoplayback) { for j: d = mviewangles[0]-[1]; wrap; viewangles = [1]+frac*d; }
+	if c.DemoPlayback {
+		for j := 0; j < 3; j++ {
+			d := c.MViewAngles[0][j] - c.MViewAngles[1][j]
+			d = wrapAngleDelta(d)
+			c.ViewAngles[j] = c.MViewAngles[1][j] + frac*d
+		}
+	}
+
 	for entNum, state := range c.Entities {
 		// If this entity was not updated in the latest server message, skip it.
 		// Mirrors C: if (ent->msgtime != cl.mtime[0]) { ent->model = NULL; continue; }

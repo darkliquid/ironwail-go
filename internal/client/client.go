@@ -212,6 +212,7 @@ type Client struct {
 	TimeDemoActive  bool // cls.timedemo equivalent
 	LocalServerFast bool // sv.active && !host_netinterval equivalent
 	NoLerp          bool // cl_nolerp cvar equivalent
+	DemoPlayback    bool // cls.demoplayback — enables view angle interpolation
 
 	ForwardSpeed float32
 	BackSpeed    float32
