@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -432,10 +433,15 @@ func (d *DemoState) StartDemoPlayback(filename string) error {
 	d.Filename = fullPath
 
 	// Read CD track header
-	var cdtrack int
-	if _, err := fmt.Fscanf(d.Reader, "%d\n", &cdtrack); err != nil {
+	line, err := d.Reader.ReadString('\n')
+	if err != nil {
 		d.StopPlayback()
 		return fmt.Errorf("failed to read demo header: %w", err)
+	}
+	var cdtrack int
+	if _, err := fmt.Sscanf(strings.TrimSpace(line), "%d", &cdtrack); err != nil {
+		d.StopPlayback()
+		return fmt.Errorf("failed to parse demo header track '%s': %w", strings.TrimSpace(line), err)
 	}
 	d.CDTrack = cdtrack
 

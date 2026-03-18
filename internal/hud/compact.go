@@ -6,6 +6,7 @@ package hud
 import (
 	"fmt"
 
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
@@ -73,14 +74,14 @@ func drawCompactString(rc renderer.RenderContext, x, y int, s string) {
 
 // currentAmmo returns the ammo count for the active weapon, or -1 if unknown.
 func currentAmmo(state State) int {
-	switch state.ActiveWeapon {
-	case 2, 3: // shotgun / super shotgun
+	switch compactWeaponBit(state.ActiveWeapon) {
+	case cl.ItemShotgun, cl.ItemSuperShotgun:
 		return state.Shells
-	case 4, 5: // nailgun / super nailgun
+	case cl.ItemNailgun, cl.ItemSuperNailgun:
 		return state.Nails
-	case 6, 7: // rocket launcher / grenade launcher
+	case cl.ItemGrenadeLauncher, cl.ItemRocketLauncher:
 		return state.Rockets
-	case 8: // lightning gun
+	case cl.ItemLightning, cl.ItemSuperLightning:
 		return state.Cells
 	default:
 		if state.Ammo > 0 {
@@ -90,25 +91,51 @@ func currentAmmo(state State) int {
 	}
 }
 
-// compactWeaponName returns a short uppercase name for the given weapon impulse
-// number, matching the item bit layout used in sbar.c.
-func compactWeaponName(weapon int) string {
+func compactWeaponBit(weapon int) uint32 {
 	switch weapon {
 	case 1:
-		return "AXE"
+		return cl.ItemAxe
 	case 2:
-		return "SG"
+		return cl.ItemShotgun
 	case 3:
-		return "SSG"
+		return cl.ItemSuperShotgun
 	case 4:
-		return "NG"
+		return cl.ItemNailgun
 	case 5:
-		return "SNG"
+		return cl.ItemSuperNailgun
 	case 6:
-		return "GL"
+		return cl.ItemGrenadeLauncher
 	case 7:
-		return "RL"
+		return cl.ItemRocketLauncher
 	case 8:
+		return cl.ItemLightning
+	default:
+		if weapon <= 0 {
+			return 0
+		}
+		return uint32(weapon)
+	}
+}
+
+// compactWeaponName returns a short uppercase name for the given active weapon.
+// It accepts either classic impulse numbers or the bitmask form used by stats.
+func compactWeaponName(weapon int) string {
+	switch compactWeaponBit(weapon) {
+	case cl.ItemAxe:
+		return "AXE"
+	case cl.ItemShotgun:
+		return "SG"
+	case cl.ItemSuperShotgun:
+		return "SSG"
+	case cl.ItemNailgun:
+		return "NG"
+	case cl.ItemSuperNailgun:
+		return "SNG"
+	case cl.ItemGrenadeLauncher:
+		return "GL"
+	case cl.ItemRocketLauncher:
+		return "RL"
+	case cl.ItemLightning, cl.ItemSuperLightning:
 		return "LG"
 	default:
 		return ""

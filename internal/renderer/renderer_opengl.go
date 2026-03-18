@@ -651,6 +651,7 @@ func New() (*Renderer, error) {
 // NewWithConfig creates a new Renderer with the specified configuration.
 func NewWithConfig(cfg Config) (*Renderer, error) {
 	slog.Debug("Creating OpenGL renderer", "width", cfg.Width, "height", cfg.Height, "fullscreen", cfg.Fullscreen)
+	fmt.Println("Video initialization")
 
 	if err := glfw.Init(); err != nil {
 		return nil, fmt.Errorf("failed to initialize glfw: %w", err)
@@ -703,6 +704,26 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	// Show the window
 	window.Show()
 
+	vendor := gl.GoStr(gl.GetString(gl.VENDOR))
+	rendererName := gl.GoStr(gl.GetString(gl.RENDERER))
+	version := gl.GoStr(gl.GetString(gl.VERSION))
+	refreshRate := 0
+	if cfg.Fullscreen {
+		if monitor := glfw.GetPrimaryMonitor(); monitor != nil {
+			if mode := monitor.GetVideoMode(); mode != nil {
+				refreshRate = mode.RefreshRate
+			}
+		}
+	}
+	if refreshRate > 0 {
+		fmt.Printf("Video mode: %d x %d 24bit Z24 S8 %dHz\n", cfg.Width, cfg.Height, refreshRate)
+	} else {
+		fmt.Printf("Video mode: %d x %d 24bit Z24 S8\n", cfg.Width, cfg.Height)
+	}
+	fmt.Printf("GL_VENDOR:   %s\n", vendor)
+	fmt.Printf("GL_RENDERER: %s\n", rendererName)
+	fmt.Printf("GL_VERSION:  %s\n", version)
+
 	r := &Renderer{
 		window:                  window,
 		config:                  cfg,
@@ -725,7 +746,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		"fullscreen", cfg.Fullscreen,
 		"vsync", cfg.VSync,
 		"maxfps", cfg.MaxFPS,
-		"gl_version", gl.GoStr(gl.GetString(gl.VERSION)),
+		"gl_version", version,
 	)
 
 	return r, nil

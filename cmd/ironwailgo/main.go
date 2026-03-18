@@ -410,6 +410,10 @@ func main() {
 
 						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole for notify lines
 						console.Draw(overlay, w, h, false)
+
+						if g.Input != nil && g.Input.GetKeyDest() == input.KeyMessage {
+							drawChatInput(overlay, w, h)
+						}
 					}
 				})
 				return
@@ -487,4 +491,28 @@ func runtimeViewModelVisible() bool {
 		return false
 	}
 	return g.Client.Items&cl.ItemInvisibility == 0
+}
+
+func drawChatInput(rc renderer.RenderContext, w, h int) {
+	prompt := "say: "
+	if chatTeam {
+		prompt = "say_team: "
+	}
+	fullText := prompt + chatBuffer + "_"
+	
+	// Draw at roughly 1/3 down the screen or near top, standard Quake is just below notify lines?
+	// Actually Quake draws it at specific Y.
+	// Let's draw it at Y=60 or similar, or center?
+	// Quake draws it around y=32 or so?
+	y := 64
+	x := 8
+	
+	// Green text
+	// Manual string drawing:
+	charSize := 8
+	currentX := x
+	for _, char := range fullText {
+		rc.DrawCharacter(currentX, y, int(char))
+		currentX += charSize
+	}
 }

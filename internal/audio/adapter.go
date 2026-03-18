@@ -5,6 +5,8 @@ package audio
 
 import (
 	"log/slog"
+
+	"github.com/ironwail/ironwail-go/internal/console"
 )
 
 // AudioAdapter wraps audio.System to implement host.Audio interface
@@ -20,6 +22,7 @@ func (a *AudioAdapter) Init() error {
 	if a.sys == nil {
 		return nil
 	}
+	console.Printf("Sound Initialization\n")
 
 	sdl3 := NewSDL3AudioBackend()
 	oto := NewOtoBackend()
@@ -52,7 +55,13 @@ func (a *AudioAdapter) Init() error {
 		slog.Info("audio initialized at 44.1kHz")
 	}
 
-	return a.sys.Startup()
+	if err := a.sys.Startup(); err != nil {
+		return err
+	}
+	if a.sys.dma != nil {
+		console.Printf("Audio: %d bit, stereo, %d Hz\n\n", a.sys.dma.SampleBits, a.sys.dma.Speed)
+	}
+	return nil
 }
 
 func (a *AudioAdapter) Update(origin, velocity, forward, right, up [3]float32) {

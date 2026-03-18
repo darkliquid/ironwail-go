@@ -20,6 +20,9 @@ func handleGameKeyEvent(event input.KeyEvent) {
 	case input.KeyConsole:
 		handleConsoleKeyEvent(event)
 		return
+	case input.KeyMessage:
+		handleMessageKeyEvent(event)
+		return
 	case input.KeyGame:
 	default:
 		return
@@ -85,13 +88,24 @@ func handleMenuCharEvent(ch rune) {
 }
 
 func handleGameCharEvent(ch rune) {
-	if g.Input == nil || g.Input.GetKeyDest() != input.KeyConsole {
+	if g.Input == nil {
 		return
 	}
-	if ch == '`' {
-		return
+
+	switch g.Input.GetKeyDest() {
+	case input.KeyConsole:
+		if ch == '`' {
+			return
+		}
+		console.AppendInputRune(ch)
+	case input.KeyMessage:
+		// Basic ASCII/Latin filtering, matching Quake's limited text support
+		if ch >= 32 && ch < 127 {
+			if len(chatBuffer) < 31 { // MAX_SAY
+				chatBuffer += string(ch)
+			}
+		}
 	}
-	console.AppendInputRune(ch)
 }
 
 func handleConsoleKeyEvent(event input.KeyEvent) {
@@ -136,6 +150,36 @@ func handleConsoleKeyEvent(event input.KeyEvent) {
 	}
 }
 
+func handleMessageKeyEvent(event input.KeyEvent) {
+	if !event.Down {
+		return
+	}
+
+	switch event.Key {
+	case input.KEscape:
+		g.Input.SetKeyDest(input.KeyGame)
+		syncGameplayInputMode()
+	case input.KEnter:
+		g.Input.SetKeyDest(input.KeyGame)
+		syncGameplayInputMode()
+		if chatBuffer != "" {
+			cmd := "say"
+			if chatTeam {
+				cmd = "say_team"
+			}
+			// Escape quotes in the message
+			msg := strings.ReplaceAll(chatBuffer, "\"", "'")
+			if g.Client != nil {
+				g.Client.SendStringCmd(fmt.Sprintf("%s \"%s\"", cmd, msg))
+			}
+		}
+	case input.KBackspace:
+		if len(chatBuffer) > 0 {
+			chatBuffer = chatBuffer[:len(chatBuffer)-1]
+		}
+	}
+}
+
 func syncGameplayInputMode() {
 	if g.Input == nil {
 		return
@@ -148,7 +192,7 @@ func syncGameplayInputMode() {
 		wantDest = input.KeyMenu
 	case wantDest == input.KeyMenu:
 		wantDest = input.KeyGame
-	case wantDest != input.KeyConsole:
+	case wantDest != input.KeyConsole && wantDest != input.KeyMessage:
 		wantDest = input.KeyGame
 	}
 	if g.Input.GetKeyDest() != wantDest {

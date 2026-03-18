@@ -59,19 +59,18 @@ Remote play is functional but shallow compared to the original engine.
 Over 40 standard console commands are still missing or use non-standard naming.
 
 ### Missing Game Flow & Admin Commands
-- [x] `kick` (by name), `ban`, `status` (map name, active players, ping table), `ping`.
-- [ ] `kick` by slot number (currently name-only).
-- [ ] `changelevel`, `restart`, `randmap`.
+- [x] `kick` (by name, and by `# slot`), `ban`, `status` (map name, active players, ping table), `ping`.
+- [x] `changelevel`, `restart`, `randmap`.
 - [x] `maps`: Implemented.
-- [x] `say`, `say_team`, `tell`.
+- [x] `say`, `say_team`, `tell`, `messagemode`, `messagemode2`.
 
 ### Missing Debug & Cheat Commands
 - [x] `fly`, `god`, `noclip`, `notarget`, `give`.
 - [x] `viewpos`, `tracepos`, `pr_ents` (print entities).
-- [ ] `viewframe`, `viewnext`, `viewprev`.
+- [x] `viewframe`, `viewnext`, `viewprev`.
 
 ### Missing UI & Media Commands
-- [ ] `demos`, `startdemos`, `stopdemo`.
+- [x] `demos`, `startdemos`, `stopdemo`.
 - [x] `soundinfo`, `particle_texture`.
 
 ---
@@ -87,9 +86,9 @@ Over 40 standard console commands are still missing or use non-standard naming.
 
 ## 8. Save/Load & Demos (Long-tail)
 
-- [ ] **Broader Save Search**: Replicate the C engine's behavior of searching for saves outside the active game directory (e.g., falling back to `id1/` or install root).
-- [ ] **Demo Metadata Accuracy**: Ensure all metadata and edge-case recording scenarios match `cl_demo.c`.
-- [ ] **Timedemo/Rewind**: Complete the advanced demo playback tooling for benchmarking and scrubbing.
+- [x] **Broader Save Search**: Replicate the C engine's behavior of searching for saves outside the active game directory (e.g., falling back to `id1/` or install root).
+- [x] **Demo Metadata Accuracy**: Ensure all metadata and edge-case recording scenarios match `cl_demo.c`.
+- [x] **Timedemo/Rewind**: Complete the advanced demo playback tooling for benchmarking and scrubbing.
 
 ---
 

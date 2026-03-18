@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/bits"
 
 	"github.com/ironwail/ironwail-go/internal/common"
+	"github.com/ironwail/ironwail-go/internal/console"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -77,7 +79,7 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.MTime[0] = float64(v)
 			p.Client.FixAngle = false
 		case inet.SVCPrint:
-			_ = msg.ReadString()
+			console.Printf("%s", msg.ReadString())
 		case inet.SVCUpdateStat:
 			if err := p.parseUpdateStat(msg); err != nil {
 				return err
@@ -330,12 +332,27 @@ func (p *Parser) parseSetAngle(msg *common.SizeBuf) error {
 		}
 		p.Client.ViewAngles[i] = float32(b) * (360.0 / 256.0)
 	}
+	p.Client.MViewAngles[0] = p.Client.ViewAngles
+	p.Client.MViewAngles[1] = p.Client.ViewAngles
 	p.Client.FixAngle = true
 	return nil
 }
 
 func (p *Parser) parseStuffText(s string) {
 	p.Client.StuffCmdBuf += s
+}
+
+func normalizeActiveWeapon(raw byte) int {
+	if raw == 0 {
+		return 0
+	}
+	if bits.OnesCount8(raw) == 1 {
+		return int(raw)
+	}
+	if raw < 32 {
+		return 1 << raw
+	}
+	return int(raw)
 }
 
 func (p *Parser) parseUpdateStat(msg *common.SizeBuf) error {
@@ -743,7 +760,7 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing active weapon")
 	}
-	p.Client.Stats[statActiveWeapon] = int(activeWeapon)
+	p.Client.Stats[statActiveWeapon] = normalizeActiveWeapon(activeWeapon)
 
 	// FitzQuake extensions — high bytes for 16-bit stat values
 	if bits&inet.SU_WEAPON2 != 0 {

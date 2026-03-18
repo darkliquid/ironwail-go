@@ -17,14 +17,30 @@ import (
 	"github.com/ironwail/ironwail-go/internal/hud"
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
+type globalConsoleAdapter struct{}
+
+func (globalConsoleAdapter) Init() error                { return nil }
+func (globalConsoleAdapter) Print(msg string)           { console.Printf("%s", msg) }
+func (globalConsoleAdapter) Clear()                     { console.Clear() }
+func (globalConsoleAdapter) Dump(filename string) error { return nil }
+func (globalConsoleAdapter) Shutdown()                  {}
+
 func initGameHost() error {
+	fmt.Printf("Detected %d CPUs.\n", runtime.NumCPU())
+	fmt.Println("Host_Init")
+	fmt.Println()
+
 	// Initialize console and command system
 	console.InitGlobal(0)
+	console.SetPrintCallback(func(msg string) {
+		fmt.Print(msg)
+	})
 
 	// Initialize cvars for video, sound, gameplay
 	cvar.Register("vid_width", "1280", cvar.FlagArchive, "Video width")
@@ -130,10 +146,29 @@ func syncControlCvarsToClient() {
 }
 
 func initGameServer() error {
+	if err := inet.Init(); err != nil {
+		return fmt.Errorf("failed to initialize networking: %w", err)
+	}
+	console.Printf("UDP Initialized\n")
+
 	// Create server instance
 	g.Server = server.NewServer()
+	console.Printf("Server using protocol %d (%s)\n", g.Server.Protocol, serverProtocolName(g.Server.Protocol))
 
 	return nil
+}
+
+func serverProtocolName(protocol int) string {
+	switch protocol {
+	case server.ProtocolNetQuake:
+		return "NetQuake"
+	case server.ProtocolFitzQuake:
+		return "FitzQuake"
+	case server.ProtocolRMQ:
+		return "RMQ"
+	default:
+		return "Unknown"
+	}
 }
 
 func initGameQC() error {
@@ -321,6 +356,7 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 	g.Subs = &host.Subsystems{
 		Files:    fileSys,
 		Commands: globalCommandBuffer{},
+		Console:  globalConsoleAdapter{},
 		Server:   g.Server,
 		Input:    g.Input,
 		Audio:    audioAdapter,

@@ -112,6 +112,7 @@ type loadingPlaqueDrawCall struct {
 type loadingPlaqueDrawContext struct {
 	pics     []loadingPlaqueDrawCall
 	menuPics []loadingPlaqueDrawCall
+	canvas   renderer.CanvasState
 }
 
 func (dc *loadingPlaqueDrawContext) Clear(r, g, b, a float32)            {}
@@ -127,6 +128,10 @@ func (dc *loadingPlaqueDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
 func (dc *loadingPlaqueDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
 	dc.menuPics = append(dc.menuPics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
 }
+func (dc *loadingPlaqueDrawContext) SetCanvas(ct renderer.CanvasType) {
+	dc.canvas.Type = ct
+}
+func (dc *loadingPlaqueDrawContext) Canvas() renderer.CanvasState { return dc.canvas }
 
 type mouseDeltaBackend struct {
 	dx int32
@@ -626,6 +631,29 @@ func TestRuntimeViewStateInterpolatesViewAngles(t *testing.T) {
 	_, angles := runtimeViewState()
 	if angles != [3]float32{5, 10, 15} {
 		t.Fatalf("runtimeViewState angles = %v, want [5 10 15]", angles)
+	}
+}
+
+func TestRuntimeViewStateUsesForcedAnglesWithoutInterpolation(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.ViewHeight = 22
+	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
+	g.Client.ViewAngles = [3]float32{45, 135, 225}
+	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
+	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
+	g.Client.MTime[1] = 1.0
+	g.Client.MTime[0] = 1.1
+	g.Client.Time = 1.05
+	g.Client.FixAngle = true
+
+	_, angles := runtimeViewState()
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want forced angles %v", angles, g.Client.ViewAngles)
 	}
 }
 

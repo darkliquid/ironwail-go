@@ -403,6 +403,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		if err := subs.Console.Init(); err != nil {
 			return fmt.Errorf("failed to init console: %w", err)
 		}
+		subs.Console.Print("Console initialized.\n")
 	}
 
 	if subs.Server != nil {
@@ -432,6 +433,11 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		if err := subs.Renderer.Init(); err != nil {
 			return fmt.Errorf("failed to init renderer: %w", err)
 		}
+	}
+
+	if subs.Console != nil {
+		subs.Console.Print("\nLanguage initialization\n\n")
+		subs.Console.Print("========= Quake Initialized =========\n\n")
 	}
 
 	// Execute quake.rc from the game filesystem (pak0.pak).

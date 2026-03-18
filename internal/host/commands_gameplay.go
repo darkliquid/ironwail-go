@@ -367,6 +367,7 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
 		return
 	}
+	subs.Console.Print(fmt.Sprintf("Loading game from %s...\n", filepath.Base(path)))
 	var save hostSaveFile
 	if err := json.Unmarshal(data, &save); err != nil {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
@@ -430,7 +431,6 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		return
 	}
 
-	subs.Console.Print(fmt.Sprintf("Loaded %s\n", filepath.Base(path)))
 }
 
 func (h *Host) CmdSave(name string, subs *Subsystems) {
@@ -498,7 +498,7 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 		return
 	}
 
-	subs.Console.Print(fmt.Sprintf("Saved %s\n", filepath.Base(path)))
+	subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", filepath.Base(path)))
 }
 
 func (h *Host) saveFilePath(name string) (string, error) {
@@ -547,8 +547,9 @@ func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
 
 	legacyName := name + ".sav"
 	// 2. Active game directory
-	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" && gameDir != "id1" {
+	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" {
 		searchPaths = append(searchPaths, filepath.Join(h.baseDir, gameDir, legacyName))
+		searchPaths = append(searchPaths, filepath.Join(h.baseDir, gameDir, "saves", legacyName))
 	}
 
 	// 3. Base directory
@@ -557,6 +558,7 @@ func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
 	// 4. Vanilla Quake directory
 	if strings.TrimSpace(h.gameDir) != "id1" {
 		searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", legacyName))
+		searchPaths = append(searchPaths, filepath.Join(h.baseDir, "id1", "saves", legacyName))
 	}
 
 	return searchPaths, nil

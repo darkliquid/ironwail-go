@@ -10,6 +10,7 @@ import (
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
 // mockRenderContext is a test double for renderer.RenderContext
@@ -27,6 +28,7 @@ type mockRenderContext struct {
 		x, y, w, h int
 		color      byte
 	}
+	canvas renderer.CanvasState
 }
 
 func (m *mockRenderContext) Clear(r, g, b, a float32)        {}
@@ -57,6 +59,10 @@ func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.DrawCharacter(x, y, num)
 }
+func (m *mockRenderContext) SetCanvas(ct renderer.CanvasType) {
+	m.canvas.Type = ct
+}
+func (m *mockRenderContext) Canvas() renderer.CanvasState { return m.canvas }
 
 func TestDrawNumber(t *testing.T) {
 	tests := []struct {
@@ -644,6 +650,19 @@ func TestCompactHUDNilRenderContextNoPanic(t *testing.T) {
 		}
 	}()
 	c.Draw(nil, State{Health: 50}, 640, 480)
+}
+
+func TestCompactHUDSupportsBitmaskActiveWeapon(t *testing.T) {
+	state := State{
+		ActiveWeapon: int(cl.ItemRocketLauncher),
+		Rockets:      12,
+	}
+	if got := currentAmmo(state); got != 12 {
+		t.Fatalf("currentAmmo(bitmask RL) = %d, want 12", got)
+	}
+	if got := compactWeaponName(int(cl.ItemRocketLauncher)); got != "RL" {
+		t.Fatalf("compactWeaponName(bitmask RL) = %q, want RL", got)
+	}
 }
 
 // TestHUDStyleSwitchesRenderer verifies that hud.Draw dispatches to the compact

@@ -23,6 +23,8 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
+	cmdsys.AddCommand("messagemode", cmdMessagemode, "Input a message to say")
+	cmdsys.AddCommand("messagemode2", cmdMessagemode2, "Input a message to say_team")
 	cmdsys.AddCommand("+showscores", cmdShowScores, "Show multiplayer scoreboard while held")
 	cmdsys.AddCommand("-showscores", cmdHideScores, "Hide multiplayer scoreboard")
 
@@ -272,4 +274,28 @@ func cmdShowScores(_ []string) {
 
 func cmdHideScores(_ []string) {
 	g.ShowScores = false
+}
+
+// Global chat state shared with main.go
+var (
+	chatBuffer string
+	chatTeam   bool
+)
+
+func cmdMessagemode(_ []string) {
+	if g.Input == nil {
+		return
+	}
+	chatBuffer = ""
+	chatTeam = false
+	g.Input.SetKeyDest(input.KeyMessage)
+}
+
+func cmdMessagemode2(_ []string) {
+	if g.Input == nil {
+		return
+	}
+	chatBuffer = ""
+	chatTeam = true
+	g.Input.SetKeyDest(input.KeyMessage)
 }

@@ -7,6 +7,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/console"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -1191,6 +1192,90 @@ func TestParseSoundSupportsExtendedEntityChannelAndSoundIndex(t *testing.T) {
 	}
 	if ev.Origin != [3]float32{10, 20, 30} {
 		t.Fatalf("origin = %v, want [10 20 30]", ev.Origin)
+	}
+}
+
+func TestParseSetAngleSnapsViewAngleHistory(t *testing.T) {
+	c := NewClient()
+	c.MViewAngles[1] = [3]float32{1, 2, 3}
+	c.MViewAngles[0] = [3]float32{4, 5, 6}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCSetAngle))
+	msg.WriteByte(64)
+	msg.WriteByte(128)
+	msg.WriteByte(192)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	want := [3]float32{90, 180, 270}
+	if c.ViewAngles != want {
+		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
+	}
+	if c.MViewAngles[0] != want {
+		t.Fatalf("MViewAngles[0] = %v, want %v", c.MViewAngles[0], want)
+	}
+	if c.MViewAngles[1] != want {
+		t.Fatalf("MViewAngles[1] = %v, want %v", c.MViewAngles[1], want)
+	}
+	if !c.FixAngle {
+		t.Fatal("FixAngle = false, want true")
+	}
+}
+
+func TestParseClientDataNormalizesIndexedActiveWeapon(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCClientData))
+	writeShort(msg, 0)
+	writeLong(msg, 0)
+	writeShort(msg, 100)
+	msg.WriteByte(20)
+	msg.WriteByte(5)
+	msg.WriteByte(6)
+	msg.WriteByte(7)
+	msg.WriteByte(8)
+	msg.WriteByte(5)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if got, want := c.ActiveWeapon(), ItemRocketLauncher; got != want {
+		t.Fatalf("ActiveWeapon() = %d, want %d", got, want)
+	}
+}
+
+func TestSVCPrintWritesToConsole(t *testing.T) {
+	var printed []string
+	console.SetPrintCallback(func(msg string) {
+		printed = append(printed, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
+
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCPrint))
+	msg.WriteString("hello from server")
+	msg.WriteByte(0)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+	if len(printed) != 1 || printed[0] != "hello from server" {
+		t.Fatalf("printed = %v, want [hello from server]", printed)
 	}
 }
 

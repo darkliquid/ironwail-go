@@ -652,6 +652,27 @@ func TestWriteClientDataToMessage_FitzExtensionsPayloadOrder(t *testing.T) {
 	}
 }
 
+func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolNetQuake}
+	ent := &Edict{
+		Vars: &EntVars{
+			Weapon:      1 << 5,
+			Health:      100,
+			CurrentAmmo: 5,
+		},
+	}
+
+	msg := NewMessageBuffer(128)
+	s.WriteClientDataToMessage(ent, msg)
+
+	_, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
+	if got, want := payload[len(payload)-1], byte(1<<5); got != want {
+		t.Fatalf("active weapon byte = %#x, want %#x; payload=%v", got, want, payload)
+	}
+}
+
 func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	t.Parallel()
 

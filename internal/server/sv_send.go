@@ -396,11 +396,15 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	msg.WriteByte(byte(ent.Vars.AmmoRockets))
 	msg.WriteByte(byte(ent.Vars.AmmoCells))
 
-	activeWeapon := byte(0)
-	for i := 0; i < 32; i++ {
-		if uint32(ent.Vars.Weapon)&(1<<i) != 0 {
-			activeWeapon = byte(i)
-			break
+	weaponBits := uint32(ent.Vars.Weapon)
+	activeWeapon := byte(weaponBits)
+	if weaponBits > 0xff {
+		activeWeapon = 0
+		for i := 0; i < 32; i++ {
+			if weaponBits&(1<<i) != 0 {
+				activeWeapon = byte(i)
+				break
+			}
 		}
 	}
 	msg.WriteByte(activeWeapon)

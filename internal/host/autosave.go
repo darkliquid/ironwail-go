@@ -3,7 +3,10 @@
 
 package host
 
-import "github.com/ironwail/ironwail-go/internal/cvar"
+import (
+	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 // checkAutosave mirrors Quake's Host_CheckAutosave behavior by periodically
 // queuing "save auto" while in an active single-player game.
@@ -33,5 +36,6 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	}
 
 	h.nextAutosave = h.realtime + intervalMinutes*60
+	console.Printf("Autosaving...\n")
 	subs.Commands.AddText("save auto\n")
 }
