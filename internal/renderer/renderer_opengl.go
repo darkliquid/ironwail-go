@@ -27,12 +27,15 @@ const (
 in vec2 aPosition;
 in vec2 aTexCoord;
 out vec2 vTexCoord;
-uniform vec2 uScreenSize;
+uniform vec2 uCanvasScale;
+uniform vec2 uCanvasOffset;
 
 void main() {
-	// Convert pixel coordinates to clip space (-1 to 1)
-	vec2 clipPos = (aPosition / uScreenSize) * 2.0 - 1.0;
-	gl_Position = vec4(clipPos.x, -clipPos.y, 0.0, 1.0);
+	// Canvas transform: map canvas-space coords to NDC via scale + offset.
+	gl_Position = vec4(
+		aPosition.x * uCanvasScale.x + uCanvasOffset.x,
+		aPosition.y * uCanvasScale.y + uCanvasOffset.y,
+		0.0, 1.0);
 	vTexCoord = aTexCoord;
 }`
 
@@ -47,13 +50,16 @@ void main() {
 
 	vertexShaderSolid = `#version 410 core
 in vec2 aPosition;
-uniform vec2 uScreenSize;
+uniform vec2 uCanvasScale;
+uniform vec2 uCanvasOffset;
 uniform vec4 uColor;
 out vec4 vColor;
 
 void main() {
-	vec2 clipPos = (aPosition / uScreenSize) * 2.0 - 1.0;
-	gl_Position = vec4(clipPos.x, -clipPos.y, 0.0, 1.0);
+	gl_Position = vec4(
+		aPosition.x * uCanvasScale.x + uCanvasOffset.x,
+		aPosition.y * uCanvasScale.y + uCanvasOffset.y,
+		0.0, 1.0);
 	vColor = uColor;
 }`
 
@@ -425,9 +431,28 @@ func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
 func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program uint32) {
 	gl.UseProgram(program)
 
-	// Set screen size uniform
-	screenLoc := gl.GetUniformLocation(program, gl.Str("uScreenSize\x00"))
-	gl.Uniform2f(screenLoc, float32(dc.viewport.width), float32(dc.viewport.height))
+	// Use the active canvas transform, or compute a default from viewport.
+	t := dc.canvas.Transform
+	if dc.canvas.Type == CanvasNone {
+		// Fallback: screen-pixel identity transform (equivalent to old uScreenSize path).
+		w := float32(dc.viewport.width)
+		h := float32(dc.viewport.height)
+		if w <= 0 {
+			w = 1
+		}
+		if h <= 0 {
+			h = 1
+		}
+		t = DrawTransform{
+			Scale:  [2]float32{2.0 / w, -2.0 / h},
+			Offset: [2]float32{-1.0, 1.0},
+		}
+	}
+
+	scaleLoc := gl.GetUniformLocation(program, gl.Str("uCanvasScale\x00"))
+	gl.Uniform2f(scaleLoc, t.Scale[0], t.Scale[1])
+	offsetLoc := gl.GetUniformLocation(program, gl.Str("uCanvasOffset\x00"))
+	gl.Uniform2f(offsetLoc, t.Offset[0], t.Offset[1])
 
 	// Upload vertices
 	gl.BindBuffer(gl.ARRAY_BUFFER, dc.vbo2D)
