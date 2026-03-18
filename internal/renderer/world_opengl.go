@@ -70,7 +70,8 @@ type WorldLightmapPage struct {
 	Width    int
 	Height   int
 	Surfaces []WorldLightmapSurface
-	Dirty    bool // true when any surface in this page is dirty
+	Dirty    bool   // true when any surface in this page is dirty
+	rgba     []byte // cached composited RGBA buffer for partial re-upload
 }
 
 // WorldRenderData holds CPU-side world data and bounds.

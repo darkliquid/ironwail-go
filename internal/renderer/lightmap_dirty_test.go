@@ -151,7 +151,7 @@ func TestRecompositeDirtySurfaces(t *testing.T) {
 	var values [64]float32
 	values[0] = 1.0
 	values[1] = 1.0
-	rgba := buildLightmapPageRGBA(page, values)
+	rgba := buildLightmapPageRGBA(&page, values)
 
 	// Record surface 1's pixel (should be unchanged after recomposite).
 	surf1Pixel := make([]byte, 4)
@@ -182,5 +182,41 @@ func TestRecompositeDirtySurfaces(t *testing.T) {
 	page.Surfaces[0].Dirty = false
 	if recompositeDirtySurfaces(rgba, page, values) {
 		t.Error("expected recomposite to return false when nothing is dirty")
+	}
+}
+
+func TestDirtyBounds(t *testing.T) {
+	page := WorldLightmapPage{
+		Width: 64, Height: 64,
+		Surfaces: []WorldLightmapSurface{
+			{X: 10, Y: 5, Width: 4, Height: 3, Dirty: true},
+			{X: 20, Y: 8, Width: 6, Height: 2, Dirty: false},
+			{X: 30, Y: 2, Width: 2, Height: 5, Dirty: true},
+		},
+	}
+
+	x, y, w, h := dirtyBounds(page)
+	// Dirty surfaces: (10,5,4,3) and (30,2,2,5)
+	// Bounding box: x=10..32, y=2..8 → x=10, y=2, w=22, h=6
+	if x != 10 {
+		t.Errorf("x = %d, want 10", x)
+	}
+	if y != 2 {
+		t.Errorf("y = %d, want 2", y)
+	}
+	if w != 22 {
+		t.Errorf("w = %d, want 22", w)
+	}
+	if h != 6 {
+		t.Errorf("h = %d, want 6", h)
+	}
+
+	// No dirty surfaces.
+	for i := range page.Surfaces {
+		page.Surfaces[i].Dirty = false
+	}
+	x, y, w, h = dirtyBounds(page)
+	if w != 0 || h != 0 {
+		t.Errorf("no dirty: got bounds %d,%d,%d,%d, want zeros", x, y, w, h)
 	}
 }

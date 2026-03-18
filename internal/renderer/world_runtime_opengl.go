@@ -397,8 +397,8 @@ func compositeSurfaceRGBA(rgba []byte, pageWidth int, surface WorldLightmapSurfa
 	}
 }
 
-// buildLightmapPageRGBA rasterizes a lightmap atlas page to RGBA by blending all surface lightmap samples with their lightstyle brightness values. This CPU-side compositing makes Quake's animated lighting work: each surface can reference up to 4 lightstyles.
-func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
+// buildLightmapPageRGBA rasterizes a lightmap atlas page to RGBA by blending all surface lightmap samples with their lightstyle brightness values. This CPU-side compositing makes Quake's animated lighting work: each surface can reference up to 4 lightstyles. The result is cached in page.rgba for subsequent partial updates.
+func buildLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []byte {
 	if page.Width <= 0 || page.Height <= 0 {
 		return nil
 	}
@@ -414,6 +414,7 @@ func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
 		compositeSurfaceRGBA(rgba, page.Width, surface, values)
 	}
 
+	page.rgba = rgba
 	return rgba
 }
 
@@ -435,18 +436,49 @@ func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [64]fl
 // uploadLightmapPages uploads all lightmap atlas pages as GL textures with LINEAR filtering.
 func uploadLightmapPages(pages []WorldLightmapPage, values [64]float32) []uint32 {
 	textures := make([]uint32, 0, len(pages))
-	for _, page := range pages {
-		rgba := buildLightmapPageRGBA(page, values)
+	for i := range pages {
+		rgba := buildLightmapPageRGBA(&pages[i], values)
 		if len(rgba) == 0 {
 			continue
 		}
-		textures = append(textures, uploadWorldLightmapTextureRGBA(page.Width, page.Height, rgba))
+		textures = append(textures, uploadWorldLightmapTextureRGBA(pages[i].Width, pages[i].Height, rgba))
 	}
 	return textures
 }
 
+// dirtyBounds computes the bounding rectangle of all dirty surfaces in a page.
+// Returns x, y, width, height. If no surfaces are dirty, returns zeros.
+func dirtyBounds(page WorldLightmapPage) (x, y, w, h int) {
+	minX, minY := page.Width, page.Height
+	maxX, maxY := 0, 0
+	found := false
+	for _, s := range page.Surfaces {
+		if !s.Dirty || s.Width <= 0 || s.Height <= 0 {
+			continue
+		}
+		if s.X < minX {
+			minX = s.X
+		}
+		if s.Y < minY {
+			minY = s.Y
+		}
+		if s.X+s.Width > maxX {
+			maxX = s.X + s.Width
+		}
+		if s.Y+s.Height > maxY {
+			maxY = s.Y + s.Height
+		}
+		found = true
+	}
+	if !found {
+		return 0, 0, 0, 0
+	}
+	return minX, minY, maxX - minX, maxY - minY
+}
+
 // updateLightmapTextures re-uploads lightmap textures for dirty pages only.
-// Pages without dirty surfaces are skipped to avoid redundant GPU uploads.
+// Uses cached RGBA buffers and partial glTexSubImage2D to minimize both CPU
+// recomposition and GPU upload bandwidth.
 func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values [64]float32) {
 	count := len(textures)
 	if len(pages) < count {
@@ -456,12 +488,34 @@ func updateLightmapTextures(textures []uint32, pages []WorldLightmapPage, values
 		if textures[i] == 0 || !pages[i].Dirty {
 			continue
 		}
-		rgba := buildLightmapPageRGBA(pages[i], values)
+
+		// If we have a cached RGBA buffer, do partial recomposition.
+		if pages[i].rgba != nil {
+			recompositeDirtySurfaces(pages[i].rgba, pages[i], values)
+
+			// Compute dirty bounding box and upload only that region.
+			dx, dy, dw, dh := dirtyBounds(pages[i])
+			if dw > 0 && dh > 0 {
+				gl.BindTexture(gl.TEXTURE_2D, textures[i])
+				// glTexSubImage2D expects a pointer to the sub-rectangle's first pixel.
+				// Since our buffer is row-major for the full page, we use GL_UNPACK_ROW_LENGTH.
+				gl.PixelStorei(gl.UNPACK_ROW_LENGTH, int32(pages[i].Width))
+				offset := (dy*pages[i].Width + dx) * 4
+				gl.TexSubImage2D(gl.TEXTURE_2D, 0, int32(dx), int32(dy), int32(dw), int32(dh),
+					gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(pages[i].rgba[offset:]))
+				gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+			}
+			continue
+		}
+
+		// No cached buffer — full rebuild (first frame after level load edge case).
+		rgba := buildLightmapPageRGBA(&pages[i], values)
 		if len(rgba) == 0 {
 			continue
 		}
 		gl.BindTexture(gl.TEXTURE_2D, textures[i])
-		gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
+		gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height),
+			gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
 	}
 	if count > 0 {
 		gl.BindTexture(gl.TEXTURE_2D, 0)
