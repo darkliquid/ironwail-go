@@ -1,14 +1,24 @@
 package server
 
 import (
+	"math"
+
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 const (
-	ENTALPHA_DEFAULT = 0
-	ENTALPHA_ZERO    = 255
+	ENTALPHA_DEFAULT   = 0
+	ENTALPHA_ZERO      = 255
+	defaultEffectsMask = 0xff
 )
+
+func (s *Server) effectsMask() int {
+	if s == nil || s.EffectsMask == 0 {
+		return defaultEffectsMask
+	}
+	return s.EffectsMask
+}
 
 // CalcStats derives HUD/stat slots from player entvars for SVCUpdateStat style networking.
 func (s *Server) CalcStats(client *Client, statsi []int, statsf []float32, statss []string) {
@@ -497,7 +507,7 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 		Frame:      int(ent.Vars.Frame),
 		Colormap:   int(ent.Vars.Colormap),
 		Skin:       int(ent.Vars.Skin),
-		Effects:    int(ent.Vars.Effects),
+		Effects:    int(ent.Vars.Effects) & s.effectsMask(),
 		Alpha:      ent.Alpha,
 		Scale:      ent.Scale,
 	}
@@ -530,57 +540,60 @@ func encodeLerpFinish(nextThink, time float32) (byte, bool) {
 	return byte(delta*255.0 + 0.5), true
 }
 
-// writeEntityUpdate performs Quake's bitflag delta encoding between previous and current entity states.
-func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev EntityState, force bool, lerpFinish byte, hasLerpFinish bool) bool {
+// writeEntityUpdate performs Quake's bitflag delta encoding between baseline and current entity states.
+func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, baseline EntityState, force bool, moveType float32, lerpFinish byte, hasLerpFinish bool) bool {
 	flags := uint32(s.ProtocolFlags())
 	bits := uint32(0)
 
 	if entNum > 255 {
 		bits |= inet.U_LONGENTITY
 	}
-	if force || state.Origin[0] != prev.Origin[0] {
+	if force || math.Abs(float64(state.Origin[0]-baseline.Origin[0])) > 0.1 {
 		bits |= inet.U_ORIGIN1
 	}
-	if force || state.Origin[1] != prev.Origin[1] {
+	if force || math.Abs(float64(state.Origin[1]-baseline.Origin[1])) > 0.1 {
 		bits |= inet.U_ORIGIN2
 	}
-	if force || state.Origin[2] != prev.Origin[2] {
+	if force || math.Abs(float64(state.Origin[2]-baseline.Origin[2])) > 0.1 {
 		bits |= inet.U_ORIGIN3
 	}
-	if force || state.Angles[0] != prev.Angles[0] {
+	if force || state.Angles[0] != baseline.Angles[0] {
 		bits |= inet.U_ANGLE1
 	}
-	if force || state.Angles[1] != prev.Angles[1] {
+	if force || state.Angles[1] != baseline.Angles[1] {
 		bits |= inet.U_ANGLE2
 	}
-	if force || state.Angles[2] != prev.Angles[2] {
+	if force || state.Angles[2] != baseline.Angles[2] {
 		bits |= inet.U_ANGLE3
 	}
-	if force || state.ModelIndex != prev.ModelIndex {
+	if force || state.ModelIndex != baseline.ModelIndex {
 		bits |= inet.U_MODEL
 	}
-	if force || state.Frame != prev.Frame {
+	if force || state.Frame != baseline.Frame {
 		bits |= inet.U_FRAME
 	}
-	if force || state.Colormap != prev.Colormap {
+	if force || state.Colormap != baseline.Colormap {
 		bits |= inet.U_COLORMAP
 	}
-	if force || state.Skin != prev.Skin {
+	if force || state.Skin != baseline.Skin {
 		bits |= inet.U_SKIN
 	}
-	if force || state.Effects != prev.Effects {
+	if force || state.Effects != baseline.Effects {
 		bits |= inet.U_EFFECTS
+	}
+	if MoveType(moveType) == MoveTypeStep {
+		bits |= inet.U_STEP
 	}
 
 	// FitzQuake/RMQ extension bits — only for non-NetQuake protocols
 	if s.Protocol != ProtocolNetQuake {
-		if state.Alpha != prev.Alpha {
-			if state.Alpha != 0 || prev.Alpha != 0 || force {
+		if state.Alpha != baseline.Alpha {
+			if state.Alpha != 0 || baseline.Alpha != 0 || force {
 				bits |= inet.U_ALPHA
 			}
 		}
-		if state.Scale != prev.Scale {
-			if state.Scale != 16 || prev.Scale != 16 || force {
+		if state.Scale != baseline.Scale {
+			if state.Scale != 16 || baseline.Scale != 16 || force {
 				bits |= inet.U_SCALE
 			}
 		}
@@ -714,10 +727,9 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		}
 
 		current[entNum] = state
-		prev, seen := client.EntityStates[entNum]
-		force := !seen
+		baseline := ent.Baseline
 		lerpFinish, hasLerpFinish := encodeLerpFinish(ent.Vars.NextThink, s.Time)
-		if !s.writeEntityUpdate(msg, entNum, state, prev, force, lerpFinish, hasLerpFinish) {
+		if !s.writeEntityUpdate(msg, entNum, state, baseline, false, ent.Vars.MoveType, lerpFinish, hasLerpFinish) {
 			continue
 		}
 		client.EntityStates[entNum] = state
@@ -729,7 +741,11 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		}
 		zero := prev
 		zero.ModelIndex = 0
-		if s.writeEntityUpdate(msg, entNum, zero, prev, false, 0, false) {
+		baseline := EntityState{}
+		if entNum >= 0 && entNum < len(s.Edicts) && s.Edicts[entNum] != nil {
+			baseline = s.Edicts[entNum].Baseline
+		}
+		if s.writeEntityUpdate(msg, entNum, zero, baseline, false, 0, 0, false) {
 			delete(client.EntityStates, entNum)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
 const (
@@ -50,6 +51,38 @@ func resetLightStyles(values *[64]string) {
 	}
 }
 
+func globalEffectBitSupported(vm *qc.VM, bit int, names ...string) bool {
+	for _, name := range names {
+		ofs := vm.FindGlobal(name)
+		if ofs < 0 {
+			continue
+		}
+		if int(vm.GFloat(ofs)) == bit {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) detectEffectsMaskFromQC() int {
+	mask := defaultEffectsMask
+	if s == nil || s.QCVM == nil {
+		return mask
+	}
+
+	if !globalEffectBitSupported(s.QCVM, EffectQuadLight, "EF_QEX_QUADLIGHT", "EF_QUADLIGHT") {
+		mask &^= EffectQuadLight
+	}
+	if !globalEffectBitSupported(s.QCVM, EffectPentaLight, "EF_QEX_PENTALIGHT", "EF_PENTALIGHT") {
+		mask &^= EffectPentaLight
+	}
+	if !globalEffectBitSupported(s.QCVM, EffectCandleLight, "EF_QEX_CANDLELIGHT", "EF_CANDLELIGHT") {
+		mask &^= EffectCandleLight
+	}
+
+	return mask
+}
+
 // Init prepares a fresh runtime server state: client slots, world edicts, caches, and buffers.
 func (s *Server) Init(maxClients int) error {
 	if maxClients <= 0 {
@@ -68,6 +101,7 @@ func (s *Server) Init(maxClients int) error {
 	s.WorldModel = nil
 	s.Time = 1
 	s.FrameTime = 0.1
+	s.EffectsMask = defaultEffectsMask
 
 	if s.MaxEdicts <= 0 {
 		s.MaxEdicts = MaxEdicts
@@ -237,6 +271,9 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	if s.QCVM != nil {
 		s.QCFieldAlpha = s.QCVM.FindField("alpha")
 		s.QCFieldScale = s.QCVM.FindField("scale")
+		s.EffectsMask = s.detectEffectsMaskFromQC()
+	} else {
+		s.EffectsMask = defaultEffectsMask
 	}
 
 	if err := s.loadMapEntities(string(tree.Entities)); err != nil {
@@ -607,13 +644,13 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 type ProtocolFlags uint32
 
 const (
-	ProtocolFlagShortAngle ProtocolFlags = 1 << 1 // PRFL_SHORTANGLE: 16-bit angles
-	ProtocolFlagFloatAngle ProtocolFlags = 1 << 2 // PRFL_FLOATANGLE: 32-bit angles
-	ProtocolFlag24BitCoord ProtocolFlags = 1 << 3 // PRFL_24BITCOORD: 24-bit coords
-	ProtocolFlagFloatCoord ProtocolFlags = 1 << 4 // PRFL_FLOATCOORD: 32-bit coords
-	ProtocolFlagEdictScale ProtocolFlags = 1 << 5 // PRFL_EDICTSCALE: entity scale
+	ProtocolFlagShortAngle  ProtocolFlags = 1 << 1 // PRFL_SHORTANGLE: 16-bit angles
+	ProtocolFlagFloatAngle  ProtocolFlags = 1 << 2 // PRFL_FLOATANGLE: 32-bit angles
+	ProtocolFlag24BitCoord  ProtocolFlags = 1 << 3 // PRFL_24BITCOORD: 24-bit coords
+	ProtocolFlagFloatCoord  ProtocolFlags = 1 << 4 // PRFL_FLOATCOORD: 32-bit coords
+	ProtocolFlagEdictScale  ProtocolFlags = 1 << 5 // PRFL_EDICTSCALE: entity scale
 	ProtocolFlagAlphaSanity ProtocolFlags = 1 << 6 // PRFL_ALPHASANITY: alpha cleanup
-	ProtocolFlagInt32Coord ProtocolFlags = 1 << 7 // PRFL_INT32COORD: 32-bit int coords
+	ProtocolFlagInt32Coord  ProtocolFlags = 1 << 7 // PRFL_INT32COORD: 32-bit int coords
 )
 
 // ProtocolFlags returns the protocol flags for the current server.

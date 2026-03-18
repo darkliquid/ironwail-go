@@ -97,6 +97,11 @@ type Server struct {
 	QCFieldScale  int
 	QCFieldItems2 int
 
+	// EffectsMask filters EntVars.Effects before serializing entity updates.
+	// Defaults to 0xFF (all low 8 bits allowed) and can be narrowed when loaded
+	// progs.dat does not define specific effect bits (e.g. QEX-only bits).
+	EffectsMask int
+
 	// Game rules
 	Coop       bool
 	Deathmatch bool
@@ -419,6 +424,7 @@ func NewServer() *Server {
 		Protocol:     ProtocolFitzQuake,
 		QCFieldAlpha: -1,
 		QCFieldScale: -1,
+		EffectsMask:  defaultEffectsMask,
 		QCVM:         qc.NewVM(),
 	}
 
@@ -917,7 +923,7 @@ func NewServer() *Server {
 				Frame:      int(ent.Vars.Frame),
 				Colormap:   int(ent.Vars.Colormap),
 				Skin:       int(ent.Vars.Skin),
-				Effects:    int(ent.Vars.Effects),
+				Effects:    int(ent.Vars.Effects) & s.effectsMask(),
 				Alpha:      ent.Alpha,
 				Scale:      ent.Scale,
 			}
