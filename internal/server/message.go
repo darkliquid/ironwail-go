@@ -17,10 +17,11 @@ import (
 //   - Client input: reading movement commands, angles, impulses
 //   - Server output: writing entity updates, sounds, particles
 type MessageBuffer struct {
-	Data     []byte // Raw message data
-	ReadPos  int    // Current read position
-	writePos int    // Current write position
-	BadRead  bool   // Set if a read operation failed (past end of buffer)
+	Data          []byte        // Raw message data
+	ReadPos       int           // Current read position
+	writePos      int           // Current write position
+	BadRead       bool          // Set if a read operation failed (past end of buffer)
+	ProtoFlags    ProtocolFlags // Protocol flags controlling coord/angle precision
 }
 
 // NewMessageBuffer creates a new message buffer with the given capacity.
@@ -83,14 +84,40 @@ func (m *MessageBuffer) WriteFloat(f float32) {
 	}
 }
 
-// WriteCoord writes a coordinate (float32 in FitzQuake protocol).
+// WriteCoord writes a coordinate using the precision dictated by protocol flags.
+// C reference: MSG_WriteCoord in common.c:782-791
+//   - PRFL_FLOATCOORD:  32-bit float (4 bytes)
+//   - PRFL_INT32COORD:  32-bit int, value * 16 (4 bytes)
+//   - PRFL_24BITCOORD:  16-bit int + 8-bit frac (3 bytes)
+//   - default:          16-bit fixed-point, value * 8 (2 bytes)
 func (m *MessageBuffer) WriteCoord(c float32) {
-	m.WriteFloat(c)
+	if m.ProtoFlags&ProtocolFlagFloatCoord != 0 {
+		m.WriteFloat(c)
+	} else if m.ProtoFlags&ProtocolFlagInt32Coord != 0 {
+		m.WriteLong(int32(math.RoundToEven(float64(c) * 16)))
+	} else if m.ProtoFlags&ProtocolFlag24BitCoord != 0 {
+		m.WriteShort(int16(c))
+		m.WriteByte(byte(int(c*255) % 255))
+	} else {
+		// Default: 16-bit fixed-point (2 bytes). This is the standard for
+		// FitzQuake protocol 666 where protocolflags == 0.
+		m.WriteShort(int16(math.RoundToEven(float64(c) * 8)))
+	}
 }
 
-// WriteAngle writes an angle as a single byte (0-255 maps to 0-360 degrees).
+// WriteAngle writes an angle using the precision dictated by protocol flags.
+// C reference: MSG_WriteAngle in common.c:793-800
+//   - PRFL_FLOATANGLE: 32-bit float (4 bytes)
+//   - PRFL_SHORTANGLE: 16-bit (2 bytes)
+//   - default:         8-bit (1 byte, 0-255 maps to 0-360 degrees)
 func (m *MessageBuffer) WriteAngle(a float32) {
-	m.WriteByte(byte(a * 256.0 / 360.0))
+	if m.ProtoFlags&ProtocolFlagFloatAngle != 0 {
+		m.WriteFloat(a)
+	} else if m.ProtoFlags&ProtocolFlagShortAngle != 0 {
+		m.WriteShort(int16(math.RoundToEven(float64(a) * 65536.0 / 360.0)))
+	} else {
+		m.WriteByte(byte(int(math.RoundToEven(float64(a)*256.0/360.0)) & 255))
+	}
 }
 
 // WriteString writes a null-terminated string.
@@ -188,12 +215,29 @@ func (m *MessageBuffer) ReadChar() int8 {
 	return int8(m.ReadByte())
 }
 
-// ReadCoord reads a coordinate (float32 in FitzQuake protocol).
+// ReadCoord reads a coordinate using the precision dictated by protocol flags.
+// Mirror of WriteCoord — must match the encoding format.
 func (m *MessageBuffer) ReadCoord() float32 {
-	return m.ReadFloat()
+	if m.ProtoFlags&ProtocolFlagFloatCoord != 0 {
+		return m.ReadFloat()
+	} else if m.ProtoFlags&ProtocolFlagInt32Coord != 0 {
+		return float32(m.ReadLong()) / 16.0
+	} else if m.ProtoFlags&ProtocolFlag24BitCoord != 0 {
+		whole := float32(m.ReadShort())
+		frac := float32(m.ReadByte()) / 255.0
+		return whole + frac
+	}
+	// Default: 16-bit fixed-point
+	return float32(m.ReadShort()) / 8.0
 }
 
-// ReadAngle reads an angle as a single byte (0-255 maps to 0-360 degrees).
+// ReadAngle reads an angle using the precision dictated by protocol flags.
+// Mirror of WriteAngle — must match the encoding format.
 func (m *MessageBuffer) ReadAngle() float32 {
+	if m.ProtoFlags&ProtocolFlagFloatAngle != 0 {
+		return m.ReadFloat()
+	} else if m.ProtoFlags&ProtocolFlagShortAngle != 0 {
+		return float32(m.ReadShort()) * (360.0 / 65536.0)
+	}
 	return float32(m.ReadByte()) * (360.0 / 256.0)
 }

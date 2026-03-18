@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math"
 	"path/filepath"
 	"testing"
 
@@ -42,8 +41,9 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	s.StartSound(ent, channel, "misc/large.wav", 200, 0.5)
 
 	data := s.Datagram.Data[:s.Datagram.Len()]
-	if len(data) != 21 {
-		t.Fatalf("datagram len = %d, want 21", len(data))
+	// 1(svc) + 1(mask) + 1(vol) + 1(atten) + 2(ent) + 1(chan) + 2(snd) + 3*2(coords) = 15
+	if len(data) != 15 {
+		t.Fatalf("datagram len = %d, want 15", len(data))
 	}
 	if got := data[0]; got != byte(inet.SVCSound) {
 		t.Fatalf("svc = %d, want %d", got, inet.SVCSound)
@@ -67,9 +67,11 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 	if got := int(binary.LittleEndian.Uint16(data[7:9])); got != soundNum {
 		t.Fatalf("sound = %d, want %d", got, soundNum)
 	}
+	// Coords are 16-bit fixed-point (value * 8), 2 bytes each
 	for i, want := range []float32{10, 20, 30} {
-		start := 9 + i*4
-		if got := math.Float32frombits(binary.LittleEndian.Uint32(data[start : start+4])); got != want {
+		start := 9 + i*2
+		got := float32(int16(binary.LittleEndian.Uint16(data[start:start+2]))) / 8.0
+		if got != want {
 			t.Fatalf("origin[%d] = %v, want %v", i, got, want)
 		}
 	}

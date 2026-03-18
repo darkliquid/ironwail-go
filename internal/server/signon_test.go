@@ -203,8 +203,9 @@ func TestWriteSignonCoord(t *testing.T) {
 	if err := s.WriteSignonCoord(128.5); err != nil {
 		t.Fatalf("WriteSignonCoord: %v", err)
 	}
-	if s.Signon.Len() != 4 {
-		t.Fatalf("signon len = %d, want 4", s.Signon.Len())
+	// Default FitzQuake protocol writes coords as 16-bit fixed-point (2 bytes)
+	if s.Signon.Len() != 2 {
+		t.Fatalf("signon len = %d, want 2", s.Signon.Len())
 	}
 }
 

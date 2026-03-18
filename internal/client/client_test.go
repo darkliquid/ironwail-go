@@ -1003,8 +1003,9 @@ func writeLong(buf *bytes.Buffer, v int32) {
 	_ = binary.Write(buf, binary.LittleEndian, v)
 }
 
+// writeCoord writes a coordinate as 16-bit fixed-point (default FitzQuake encoding).
 func writeCoord(buf *bytes.Buffer, v float32) {
-	_ = binary.Write(buf, binary.LittleEndian, math.Float32bits(v))
+	_ = binary.Write(buf, binary.LittleEndian, int16(math.RoundToEven(float64(v)*8)))
 }
 
 func writeAngle(buf *bytes.Buffer, deg float32) {

@@ -309,7 +309,7 @@ func appendSpawnStaticSoundMessage(dst []byte, snd StaticSound) []byte {
 	if snd.SoundIndex > 255 {
 		dst = append(dst, byte(inet.SVCSpawnStaticSound2))
 		for i := range snd.Origin {
-			dst = appendFloat(dst, snd.Origin[i])
+			dst = appendCoord16(dst, snd.Origin[i])
 		}
 		dst = appendShort(dst, int16(snd.SoundIndex))
 		dst = append(dst, byte(snd.Volume), byte(snd.Attenuation*64))
@@ -317,7 +317,7 @@ func appendSpawnStaticSoundMessage(dst []byte, snd StaticSound) []byte {
 	}
 	dst = append(dst, byte(inet.SVCSpawnStaticSound))
 	for i := range snd.Origin {
-		dst = appendFloat(dst, snd.Origin[i])
+		dst = appendCoord16(dst, snd.Origin[i])
 	}
 	dst = append(dst, byte(snd.SoundIndex), byte(snd.Volume), byte(snd.Attenuation*64))
 	return dst
@@ -356,7 +356,7 @@ func appendEntityState(dst []byte, ent inet.EntityState, extended bool, includeE
 	}
 	dst = append(dst, ent.Colormap, ent.Skin)
 	for i := range ent.Origin {
-		dst = appendFloat(dst, ent.Origin[i])
+		dst = appendCoord16(dst, ent.Origin[i])
 	}
 	for i := range ent.Angles {
 		dst = append(dst, byte(ent.Angles[i]*256.0/360.0))
@@ -394,6 +394,12 @@ func appendFloat(dst []byte, v float32) []byte {
 	dst = append(dst, 0, 0, 0, 0)
 	binary.LittleEndian.PutUint32(dst[n:], math.Float32bits(v))
 	return dst
+}
+
+// appendCoord16 writes a coordinate as 16-bit fixed-point (default FitzQuake encoding).
+func appendCoord16(dst []byte, v float32) []byte {
+	s := int16(math.RoundToEven(float64(v) * 8))
+	return appendShort(dst, s)
 }
 
 // StartDemoPlayback opens a demo file for playback

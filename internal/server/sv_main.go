@@ -596,14 +596,23 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 	return mins, maxs, false
 }
 
-type ProtocolFlags int
+// ProtocolFlags control coordinate/angle precision in network messages.
+// Bit positions match C Ironwail's PRFL_* defines in protocol.h.
+type ProtocolFlags uint32
 
 const (
-	ProtocolFlagFloatCoords ProtocolFlags = 1 << iota
-	ProtocolFlagFloatAngles
+	ProtocolFlagShortAngle ProtocolFlags = 1 << 1 // PRFL_SHORTANGLE: 16-bit angles
+	ProtocolFlagFloatAngle ProtocolFlags = 1 << 2 // PRFL_FLOATANGLE: 32-bit angles
+	ProtocolFlag24BitCoord ProtocolFlags = 1 << 3 // PRFL_24BITCOORD: 24-bit coords
+	ProtocolFlagFloatCoord ProtocolFlags = 1 << 4 // PRFL_FLOATCOORD: 32-bit coords
+	ProtocolFlagEdictScale ProtocolFlags = 1 << 5 // PRFL_EDICTSCALE: entity scale
+	ProtocolFlagAlphaSanity ProtocolFlags = 1 << 6 // PRFL_ALPHASANITY: alpha cleanup
+	ProtocolFlagInt32Coord ProtocolFlags = 1 << 7 // PRFL_INT32COORD: 32-bit int coords
 )
 
-// ProtocolFlags advertises protocol capabilities (float coords/angles) used by message encoders.
+// ProtocolFlags returns the protocol flags for the current server.
+// For FitzQuake protocol (666), protocolflags is 0 (default 16-bit coords, 8-bit angles).
+// Protocol flags are only meaningful for RMQ protocol (999).
 func (s *Server) ProtocolFlags() ProtocolFlags {
-	return ProtocolFlagFloatCoords | ProtocolFlagFloatAngles
+	return 0
 }

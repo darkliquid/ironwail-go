@@ -1101,14 +1101,18 @@ func readChar(msg *common.SizeBuf, errMsg string) (int8, error) {
 	return int8(v), nil
 }
 
+// readCoord reads a coordinate using 16-bit fixed-point (default FitzQuake encoding).
+// TODO: Support protocol flags for float/int32/24-bit coord formats.
 func readCoord(msg *common.SizeBuf, errMsg string) (float32, error) {
-	v, ok := msg.ReadFloat()
+	v, ok := msg.ReadShort()
 	if !ok {
 		return 0, errors.New(errMsg)
 	}
-	return v, nil
+	return float32(v) / 8.0, nil
 }
 
+// readAngle reads an angle as a single byte (default FitzQuake encoding).
+// TODO: Support protocol flags for float/short angle formats.
 func readAngle(msg *common.SizeBuf, errMsg string) (float32, error) {
 	v, ok := msg.ReadByte()
 	if !ok {
