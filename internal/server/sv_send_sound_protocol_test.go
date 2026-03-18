@@ -137,3 +137,52 @@ func TestLocalSoundFitzQuakeUsesLargeSoundEncoding(t *testing.T) {
 		t.Fatalf("sound = %d, want %d", got, soundNum)
 	}
 }
+
+func TestStartSoundDropsChannelAbove7ForNetQuake(t *testing.T) {
+	s := NewServer()
+	s.Protocol = ProtocolNetQuake
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.SoundPrecache = make([]string, 2)
+	s.SoundPrecache[1] = "sound/test.wav"
+
+	ent := &Edict{Vars: &EntVars{}}
+	s.Edicts[1] = ent
+
+	// Channel 7 should work for NetQuake.
+	s.Datagram.Clear()
+	s.StartSound(ent, 7, "sound/test.wav", DefaultSoundVolume, DefaultSoundAttenuation)
+	if s.Datagram.Len() == 0 {
+		t.Fatal("channel 7 should be accepted for NetQuake")
+	}
+
+	// Channel 8 should be rejected for NetQuake (3-bit encoding overflow).
+	s.Datagram.Clear()
+	s.StartSound(ent, 8, "sound/test.wav", DefaultSoundVolume, DefaultSoundAttenuation)
+	if s.Datagram.Len() != 0 {
+		t.Fatalf("channel 8 should be rejected for NetQuake, got %d bytes", s.Datagram.Len())
+	}
+}
+
+func TestStartSoundAcceptsChannelAbove7ForFitzQuake(t *testing.T) {
+	s := NewServer()
+	s.Protocol = ProtocolFitzQuake
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.SoundPrecache = make([]string, 2)
+	s.SoundPrecache[1] = "sound/test.wav"
+
+	ent := &Edict{Vars: &EntVars{}}
+	s.Edicts[1] = ent
+
+	// Channel 8 should work for FitzQuake (uses SND_LARGEENTITY).
+	s.Datagram.Clear()
+	s.StartSound(ent, 8, "sound/test.wav", DefaultSoundVolume, DefaultSoundAttenuation)
+	if s.Datagram.Len() == 0 {
+		t.Fatal("channel 8 should be accepted for FitzQuake via SND_LARGEENTITY")
+	}
+}
