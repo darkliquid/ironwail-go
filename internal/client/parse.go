@@ -3,6 +3,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/ironwail/ironwail-go/internal/common"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -27,7 +28,8 @@ const (
 )
 
 type Parser struct {
-	Client *Client
+	Client         *Client
+	warnedNehahra  bool // Log Nehahra protocol warning only once per connection
 }
 
 func NewParser(c *Client) *Parser {
@@ -977,19 +979,23 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		bits |= uint32(v) << 8
 	}
-	if bits&inet.U_EXTEND1 != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing extend1 bits")
+	// FitzQuake/RMQ protocols use bits 15+ as extension flags for additional
+	// bytes. NetQuake reuses bit 15 as Nehahra's U_TRANS (transparency hack).
+	if p.Client.Protocol != inet.PROTOCOL_NETQUAKE {
+		if bits&inet.U_EXTEND1 != 0 {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("entity update: missing extend1 bits")
+			}
+			bits |= uint32(v) << 16
 		}
-		bits |= uint32(v) << 16
-	}
-	if bits&inet.U_EXTEND2 != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing extend2 bits")
+		if bits&inet.U_EXTEND2 != 0 {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("entity update: missing extend2 bits")
+			}
+			bits |= uint32(v) << 24
 		}
-		bits |= uint32(v) << 24
 	}
 
 	var entNum int
@@ -1099,39 +1105,71 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		state.Angles[2] = v
 	}
-	// FitzQuake extensions come AFTER origins/angles
-	if bits&inet.U_ALPHA != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing alpha")
+	// FitzQuake/RMQ extensions come AFTER origins/angles.
+	// For NetQuake protocol, handle Nehahra U_TRANS transparency hack instead.
+	if p.Client.Protocol != inet.PROTOCOL_NETQUAKE {
+		if bits&inet.U_ALPHA != 0 {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("entity update: missing alpha")
+			}
+			state.Alpha = v
 		}
-		state.Alpha = v
-	}
-	if bits&inet.U_SCALE != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing scale")
+		if bits&inet.U_SCALE != 0 {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("entity update: missing scale")
+			}
+			state.Scale = v
 		}
-		state.Scale = v
-	}
-	if bits&inet.U_FRAME2 != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing frame2")
+		if bits&inet.U_FRAME2 != 0 {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("entity update: missing frame2")
+			}
+			state.Frame = (state.Frame & 0x00ff) | (uint16(v) << 8)
 		}
-		state.Frame = (state.Frame & 0x00ff) | (uint16(v) << 8)
-	}
-	if bits&inet.U_MODEL2 != 0 {
-		v, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("entity update: missing model2")
+		if bits&inet.U_MODEL2 != 0 {
+			v, ok := msg.ReadByte()
+			if !ok {
+				return fmt.Errorf("entity update: missing model2")
+			}
+			state.ModelIndex = (state.ModelIndex & 0x00ff) | (uint16(v) << 8)
 		}
-		state.ModelIndex = (state.ModelIndex & 0x00ff) | (uint16(v) << 8)
-	}
-	if bits&inet.U_LERPFINISH != 0 {
-		if _, ok := msg.ReadByte(); !ok {
-			return fmt.Errorf("entity update: missing lerpfinish")
+		if bits&inet.U_LERPFINISH != 0 {
+			if _, ok := msg.ReadByte(); !ok {
+				return fmt.Errorf("entity update: missing lerpfinish")
+			}
 		}
+	} else {
+		// PROTOCOL_NETQUAKE: bit 15 is Nehahra's U_TRANS, not U_EXTEND1.
+		// Read transparency floats if set. Mirrors C cl_parse.c Nehahra hack.
+		if bits&inet.U_EXTEND1 != 0 {
+			if !p.warnedNehahra {
+				slog.Warn("nonstandard update bit, assuming Nehahra protocol")
+				p.warnedNehahra = true
+			}
+			a, ok := msg.ReadFloat()
+			if !ok {
+				return fmt.Errorf("entity update: missing nehahra trans type")
+			}
+			b, ok := msg.ReadFloat()
+			if !ok {
+				return fmt.Errorf("entity update: missing nehahra alpha")
+			}
+			if a == 2 {
+				// Fullbright flag (not used yet).
+				if _, ok := msg.ReadFloat(); !ok {
+					return fmt.Errorf("entity update: missing nehahra fullbright")
+				}
+			}
+			state.Alpha = inet.ENTALPHA_ENCODE(b)
+		} else {
+			baseline, _ := p.Client.EntityBaselines[entNum]
+			state.Alpha = baseline.Alpha
+		}
+		baseline, _ := p.Client.EntityBaselines[entNum]
+		state.Scale = baseline.Scale
 	}
 	if state.ModelIndex == 0 {
 		// Server sent ModelIndex=0 → entity is invisible (equivalent to C's
