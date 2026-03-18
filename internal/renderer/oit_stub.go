@@ -10,4 +10,5 @@ type oitFramebuffers struct {
 	fbo          uint32
 	width        int
 	height       int
+	samples      int
 }

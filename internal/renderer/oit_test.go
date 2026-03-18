@@ -7,6 +7,9 @@ func TestOITFramebuffersZeroValue(t *testing.T) {
 	if fb.fbo != 0 {
 		t.Fatalf("zero-value oitFramebuffers.fbo = %d, want 0", fb.fbo)
 	}
+	if fb.samples != 0 {
+		t.Fatalf("zero-value oitFramebuffers.samples = %d, want 0", fb.samples)
+	}
 }
 
 func TestShouldUseOITResources(t *testing.T) {

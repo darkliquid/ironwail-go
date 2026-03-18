@@ -612,8 +612,10 @@ type Renderer struct {
 	oitWorldFogColorUniform      int32
 	oitWorldFogDensityUniform    int32
 	oitResolveProgram            uint32
+	oitResolveMSAAProgram        uint32
 	oitResolveAccumLoc           int32
 	oitResolveRevealLoc          int32
+	oitResolveMSAASamplesLoc     int32
 	oitResolveVAO                uint32
 
 	// Polyblend (v_blend) full-screen color tint pass.

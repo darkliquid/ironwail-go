@@ -101,7 +101,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if ShouldUseOITResources() && dc.gldc.renderer != nil {
 		w, h := warpViewport.width, warpViewport.height
 		if w > 0 && h > 0 {
-			if err := dc.gldc.renderer.ensureOITFramebuffers(w, h); err != nil {
+			if err := dc.gldc.renderer.ensureOITFramebuffers(w, h, 0); err != nil {
 				slog.Error("OIT framebuffer creation failed, falling back", "error", err)
 				SetAlphaMode(AlphaModeSorted)
 			}

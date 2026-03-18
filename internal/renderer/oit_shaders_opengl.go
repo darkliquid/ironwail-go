@@ -87,10 +87,33 @@ void main() {
 	fragColor = vec4(accum.rgb / max(accum.a, 1e-5), 1.0 - reveal);
 }` + "\x00"
 
+// oitResolveMSAAFragmentShaderGL resolves multisample OIT textures by averaging
+// across samples before compositing.
+const oitResolveMSAAFragmentShaderGL = `#version 410 core
+
+uniform sampler2DMS uTexAccum;
+uniform sampler2DMS uTexReveal;
+uniform int uSamples;
+
+out vec4 fragColor;
+
+void main() {
+	ivec2 coord = ivec2(gl_FragCoord.xy);
+	vec4 accum = vec4(0.0);
+	float reveal = 0.0;
+	for (int i = 0; i < uSamples; i++) {
+		accum += texelFetch(uTexAccum, coord, i);
+		reveal += texelFetch(uTexReveal, coord, i).r;
+	}
+	accum /= float(uSamples);
+	reveal /= float(uSamples);
+	fragColor = vec4(accum.rgb / max(accum.a, 1e-5), 1.0 - reveal);
+}` + "\x00"
+
 // ensureOITShaders lazily compiles the OIT world and resolve shader programs
 // and caches their uniform locations.
 func (r *Renderer) ensureOITShaders() error {
-	if r.oitWorldProgram != 0 && r.oitResolveProgram != 0 {
+	if r.oitWorldProgram != 0 && r.oitResolveProgram != 0 && r.oitResolveMSAAProgram != 0 {
 		return nil
 	}
 
@@ -147,6 +170,30 @@ func (r *Renderer) ensureOITShaders() error {
 		gl.UseProgram(0)
 	}
 
+	// --- OIT resolve program (MSAA) ---
+	if r.oitResolveMSAAProgram == 0 {
+		vs, err := compileShader(oitResolveVertexShaderGL, gl.VERTEX_SHADER)
+		if err != nil {
+			return fmt.Errorf("compile OIT resolve MSAA vertex shader: %w", err)
+		}
+		fs, err := compileShader(oitResolveMSAAFragmentShaderGL, gl.FRAGMENT_SHADER)
+		if err != nil {
+			gl.DeleteShader(vs)
+			return fmt.Errorf("compile OIT resolve MSAA fragment shader: %w", err)
+		}
+		prog := createProgram(vs, fs)
+		r.oitResolveMSAAProgram = prog
+		accumLoc := gl.GetUniformLocation(prog, gl.Str("uTexAccum\x00"))
+		revealLoc := gl.GetUniformLocation(prog, gl.Str("uTexReveal\x00"))
+		r.oitResolveMSAASamplesLoc = gl.GetUniformLocation(prog, gl.Str("uSamples\x00"))
+
+		// Sampler bindings are constant; set once.
+		gl.UseProgram(prog)
+		gl.Uniform1i(accumLoc, 0)
+		gl.Uniform1i(revealLoc, 1)
+		gl.UseProgram(0)
+	}
+
 	// --- Empty VAO for core-profile full-screen draw ---
 	if r.oitResolveVAO == 0 {
 		gl.GenVertexArrays(1, &r.oitResolveVAO)
@@ -164,6 +211,10 @@ func (r *Renderer) destroyOITShaders() {
 	if r.oitResolveProgram != 0 {
 		gl.DeleteProgram(r.oitResolveProgram)
 		r.oitResolveProgram = 0
+	}
+	if r.oitResolveMSAAProgram != 0 {
+		gl.DeleteProgram(r.oitResolveMSAAProgram)
+		r.oitResolveMSAAProgram = 0
 	}
 	if r.oitResolveVAO != 0 {
 		gl.DeleteVertexArrays(1, &r.oitResolveVAO)

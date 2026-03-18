@@ -22,6 +22,7 @@ type oitFramebuffers struct {
 	fbo          uint32 // FBO with both textures as MRT
 	width        int
 	height       int
+	samples      int // MSAA sample count (0/1 = single-sample textures)
 }
 
 // ensureOITFramebuffers creates/recreates weighted blended OIT render targets.
@@ -30,34 +31,47 @@ type oitFramebuffers struct {
 //   - attachment 1: revealage buffer (R8)
 //
 // The scene depth renderbuffer is shared to preserve depth testing behavior.
-func (r *Renderer) ensureOITFramebuffers(w, h int) error {
-	if r.oitFB.width == w && r.oitFB.height == h && r.oitFB.fbo != 0 {
+func (r *Renderer) ensureOITFramebuffers(w, h, samples int) error {
+	if r.oitFB.width == w && r.oitFB.height == h && r.oitFB.samples == samples && r.oitFB.fbo != 0 {
 		return nil
 	}
 
 	r.destroyOITFramebuffers()
 
+	target := uint32(gl.TEXTURE_2D)
+	if samples > 1 {
+		target = gl.TEXTURE_2D_MULTISAMPLE
+	}
+
 	gl.GenTextures(1, &r.oitFB.accumTex)
-	gl.BindTexture(gl.TEXTURE_2D, r.oitFB.accumTex)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(w), int32(h), 0, gl.RGBA, gl.HALF_FLOAT, nil)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	gl.BindTexture(target, r.oitFB.accumTex)
+	if samples > 1 {
+		gl.TexImage2DMultisample(target, int32(samples), gl.RGBA16F, int32(w), int32(h), true)
+	} else {
+		gl.TexImage2D(target, 0, gl.RGBA16F, int32(w), int32(h), 0, gl.RGBA, gl.HALF_FLOAT, nil)
+		gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+		gl.TexParameteri(target, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(target, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	}
 
 	gl.GenTextures(1, &r.oitFB.revealageTex)
-	gl.BindTexture(gl.TEXTURE_2D, r.oitFB.revealageTex)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.R8, int32(w), int32(h), 0, gl.RED, gl.UNSIGNED_BYTE, nil)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.BindTexture(target, r.oitFB.revealageTex)
+	if samples > 1 {
+		gl.TexImage2DMultisample(target, int32(samples), gl.R8, int32(w), int32(h), true)
+	} else {
+		gl.TexImage2D(target, 0, gl.R8, int32(w), int32(h), 0, gl.RED, gl.UNSIGNED_BYTE, nil)
+		gl.TexParameteri(target, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(target, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+		gl.TexParameteri(target, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(target, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	}
+	gl.BindTexture(target, 0)
 
 	gl.GenFramebuffers(1, &r.oitFB.fbo)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, r.oitFB.fbo)
-	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, r.oitFB.accumTex, 0)
-	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, r.oitFB.revealageTex, 0)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, target, r.oitFB.accumTex, 0)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, target, r.oitFB.revealageTex, 0)
 	if r.sceneDepthRBO != 0 {
 		gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, r.sceneDepthRBO)
 	}
@@ -74,6 +88,7 @@ func (r *Renderer) ensureOITFramebuffers(w, h int) error {
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	r.oitFB.width = w
 	r.oitFB.height = h
+	r.oitFB.samples = samples
 	return nil
 }
 
@@ -93,6 +108,7 @@ func (r *Renderer) destroyOITFramebuffers() {
 	}
 	r.oitFB.width = 0
 	r.oitFB.height = 0
+	r.oitFB.samples = 0
 }
 
 // clearOITBuffers resets weighted blended OIT targets to the algorithm's
@@ -157,17 +173,28 @@ func (r *Renderer) endTranslucencyBlock() {
 		}
 
 		// Resolve OIT accum/revealage into the scene framebuffer.
-		if r.oitResolveProgram != 0 {
+		resolveProgram := r.oitResolveProgram
+		if r.oitFB.samples > 1 && r.oitResolveMSAAProgram != 0 {
+			resolveProgram = r.oitResolveMSAAProgram
+		}
+		if resolveProgram != 0 {
 			gl.Viewport(0, 0, int32(r.oitFB.width), int32(r.oitFB.height))
 			gl.Disable(gl.DEPTH_TEST)
 			gl.DepthMask(false)
 
+			target := uint32(gl.TEXTURE_2D)
+			if r.oitFB.samples > 1 {
+				target = gl.TEXTURE_2D_MULTISAMPLE
+			}
 			gl.ActiveTexture(gl.TEXTURE0)
-			gl.BindTexture(gl.TEXTURE_2D, r.oitFB.accumTex)
+			gl.BindTexture(target, r.oitFB.accumTex)
 			gl.ActiveTexture(gl.TEXTURE1)
-			gl.BindTexture(gl.TEXTURE_2D, r.oitFB.revealageTex)
+			gl.BindTexture(target, r.oitFB.revealageTex)
 
-			gl.UseProgram(r.oitResolveProgram)
+			gl.UseProgram(resolveProgram)
+			if resolveProgram == r.oitResolveMSAAProgram {
+				gl.Uniform1i(r.oitResolveMSAASamplesLoc, int32(r.oitFB.samples))
+			}
 
 			gl.BindVertexArray(r.oitResolveVAO)
 			gl.DrawArrays(gl.TRIANGLES, 0, 3)
@@ -175,9 +202,9 @@ func (r *Renderer) endTranslucencyBlock() {
 
 			gl.UseProgram(0)
 			gl.ActiveTexture(gl.TEXTURE1)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
+			gl.BindTexture(target, 0)
 			gl.ActiveTexture(gl.TEXTURE0)
-			gl.BindTexture(gl.TEXTURE_2D, 0)
+			gl.BindTexture(target, 0)
 
 			gl.Enable(gl.DEPTH_TEST)
 		}
