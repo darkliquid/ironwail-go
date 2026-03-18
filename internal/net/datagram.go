@@ -445,7 +445,50 @@ func DatagramConnect(host string) *Socket {
 // configured host port (default 26000) when Listen(true) is called.
 var (
 	acceptSocket *stdnet.UDPConn
+	// acceptedServerSockets tracks currently accepted datagram sockets so
+	// reconnects from the same remote endpoint can close stale sockets before
+	// creating a new one (matching Quake's duplicate-address handling).
+	acceptedServerSockets []*Socket
 )
+
+func sameUDPAddress(a, b *stdnet.UDPAddr) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Port == b.Port && a.Zone == b.Zone && a.IP.Equal(b.IP)
+}
+
+func closeDuplicateAcceptedServerSockets(addr *stdnet.UDPAddr) {
+	var duplicates []*Socket
+	for _, sock := range acceptedServerSockets {
+		if sameUDPAddress(sock.remoteAddr, addr) {
+			duplicates = append(duplicates, sock)
+		}
+	}
+	for _, sock := range duplicates {
+		Close(sock)
+	}
+}
+
+func trackAcceptedServerSocket(sock *Socket) {
+	if sock == nil {
+		return
+	}
+	acceptedServerSockets = append(acceptedServerSockets, sock)
+}
+
+func untrackAcceptedServerSocket(sock *Socket) {
+	if sock == nil {
+		return
+	}
+	for i, tracked := range acceptedServerSockets {
+		if tracked != sock {
+			continue
+		}
+		acceptedServerSockets = append(acceptedServerSockets[:i], acceptedServerSockets[i+1:]...)
+		return
+	}
+}
 
 // DatagramCheckNewConnections checks the server's accept socket for
 // incoming control packets from clients. It handles two cases:
@@ -481,6 +524,10 @@ func DatagramCheckNewConnections() *Socket {
 	}
 
 	if cmd == CCReqConnect {
+		// Quake closes stale server-side sockets if a client reconnects from
+		// the same address:port. Do that before accepting the replacement.
+		closeDuplicateAcceptedServerSockets(addr)
+
 		// Create a new per-client socket on a random port (matching C's dfunc.Open_Socket(0)).
 		// Each client gets its own socket so packets are demultiplexed by the OS.
 		clientConn, err := UDPOpenSocket(0)
@@ -504,6 +551,7 @@ func DatagramCheckNewConnections() *Socket {
 		sock.driver = DriverDatagram
 		sock.udpConn = clientConn
 		sock.remoteAddr = addr
+		trackAcceptedServerSocket(sock)
 		return sock
 	}
 

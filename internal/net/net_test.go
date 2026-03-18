@@ -325,3 +325,70 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 		t.Fatalf("CCRepAccept reported port %d, but accepted socket is on port %d", reportedPort, serverPort)
 	}
 }
+
+func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
+	Init()
+	netHostPort = 26005
+	Listen(true)
+	defer Listen(false)
+
+	clientConn, err := UDPOpenSocket(0)
+	if err != nil {
+		t.Fatalf("failed to open client udp socket: %v", err)
+	}
+	defer UDPCloseSocket(clientConn)
+
+	serverAddr, err := UDPStringToAddr("127.0.0.1:26005")
+	if err != nil {
+		t.Fatalf("failed to parse server address: %v", err)
+	}
+
+	req := make([]byte, HeaderSize+1+6+1)
+	binary.BigEndian.PutUint32(req[0:], uint32(len(req))|FlagCtl)
+	binary.BigEndian.PutUint32(req[4:], 0xffffffff)
+	req[8] = CCReqConnect
+	copy(req[9:], "QUAKE\x00")
+	req[15] = 3
+
+	if _, err := UDPWrite(clientConn, req, serverAddr); err != nil {
+		t.Fatalf("failed to send first connection request: %v", err)
+	}
+
+	var firstServerSock *Socket
+	for i := 0; i < 100; i++ {
+		firstServerSock = CheckNewConnections()
+		if firstServerSock != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if firstServerSock == nil {
+		t.Fatal("server failed to accept first connection")
+	}
+	defer Close(firstServerSock)
+
+	if _, err := UDPWrite(clientConn, req, serverAddr); err != nil {
+		t.Fatalf("failed to send second connection request: %v", err)
+	}
+
+	var secondServerSock *Socket
+	for i := 0; i < 100; i++ {
+		secondServerSock = CheckNewConnections()
+		if secondServerSock != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if secondServerSock == nil {
+		t.Fatal("server failed to accept second connection")
+	}
+	defer Close(secondServerSock)
+
+	if rc := SendUnreliableMessage(firstServerSock, []byte("stale-connection-payload")); rc != -1 {
+		t.Fatalf("old server socket should be closed after duplicate connect, send returned %d", rc)
+	}
+
+	if rc := SendUnreliableMessage(secondServerSock, []byte("fresh-connection-payload")); rc != 1 {
+		t.Fatalf("new server socket should be usable, send returned %d", rc)
+	}
+}

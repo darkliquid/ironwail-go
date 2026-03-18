@@ -131,9 +131,14 @@ func CanSendMessage(sock *Socket) bool {
 // client/server peer link; for datagram sockets it closes the UDP
 // connection. Corresponds to NET_Close() in net_main.c.
 func Close(sock *Socket) {
+	if sock == nil {
+		return
+	}
+
 	if sock.driver == DriverLoopback {
 		CloseLoopback(sock)
 	} else {
+		untrackAcceptedServerSocket(sock)
 		UDPCloseSocket(sock.udpConn)
 	}
 }
