@@ -271,6 +271,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	if s.QCVM != nil {
 		s.QCFieldAlpha = s.QCVM.FindField("alpha")
 		s.QCFieldScale = s.QCVM.FindField("scale")
+		s.QCFieldGravity = s.QCVM.FindField("gravity")
 		s.EffectsMask = s.detectEffectsMaskFromQC()
 	} else {
 		s.EffectsMask = defaultEffectsMask

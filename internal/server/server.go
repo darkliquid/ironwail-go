@@ -93,9 +93,10 @@ type Server struct {
 
 	// Cached QC field offsets for alpha/scale/items2 (populated once per progs.dat load).
 	// -1 means the field doesn't exist in the loaded progs.
-	QCFieldAlpha  int
-	QCFieldScale  int
-	QCFieldItems2 int
+	QCFieldAlpha   int
+	QCFieldScale   int
+	QCFieldGravity int
+	QCFieldItems2  int
 
 	// EffectsMask filters EntVars.Effects before serializing entity updates.
 	// Defaults to 0xFF (all low 8 bits allowed) and can be narrowed when loaded
@@ -416,16 +417,17 @@ func (s *Server) syncQCVMState() {
 // NewServer creates a new server instance.
 func NewServer() *Server {
 	s := &Server{
-		Gravity:      800,
-		MaxVelocity:  2000,
-		Friction:     4,
-		StopSpeed:    100,
-		MaxEdicts:    1024,
-		Protocol:     ProtocolFitzQuake,
-		QCFieldAlpha: -1,
-		QCFieldScale: -1,
-		EffectsMask:  defaultEffectsMask,
-		QCVM:         qc.NewVM(),
+		Gravity:        800,
+		MaxVelocity:    2000,
+		Friction:       4,
+		StopSpeed:      100,
+		MaxEdicts:      1024,
+		Protocol:       ProtocolFitzQuake,
+		QCFieldAlpha:   -1,
+		QCFieldScale:   -1,
+		QCFieldGravity: -1,
+		EffectsMask:    defaultEffectsMask,
+		QCVM:           qc.NewVM(),
 	}
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations

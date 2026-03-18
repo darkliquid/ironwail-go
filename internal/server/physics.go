@@ -91,6 +91,13 @@ const maxClipPlanes = 5
 
 func (s *Server) AddGravity(ent *Edict) {
 	entGravity := float32(1)
+	// Check for per-entity gravity multiplier (used by mods for flying
+	// monsters, low-gravity areas, etc). Matches C GetEdictFieldValueByName.
+	if s.QCFieldGravity >= 0 && s.QCVM != nil {
+		if g := s.QCVM.EFloat(s.NumForEdict(ent), s.QCFieldGravity); g != 0 {
+			entGravity = g
+		}
+	}
 	ent.Vars.Velocity[2] -= entGravity * s.Gravity * s.FrameTime
 }
 
