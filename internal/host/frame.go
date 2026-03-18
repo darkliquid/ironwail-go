@@ -94,6 +94,7 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 
 			if h.serverActive {
 				cb.ProcessServer()
+				h.checkAutosave(h.Subs)
 			}
 			h.frameTime = realFrameTime
 		}

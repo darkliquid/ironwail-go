@@ -47,6 +47,7 @@ func registerHostCVars() {
 	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
 	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
 	cvar.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
+	cvar.Register("host_autosave", "5", cvar.FlagArchive, "Autosave interval in minutes (<=0 disables)")
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready

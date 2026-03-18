@@ -43,6 +43,7 @@ type Host struct {
 	oldrealtime  float64
 	frameTime    float64
 	rawFrameTime float64
+	nextAutosave float64
 	netInterval  float64
 	accumTime    float64
 
