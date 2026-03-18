@@ -30,4 +30,8 @@
 // pure-Go build-tag selection, including a stub path for headless development
 // and tests. Adapter types, backend-neutral callbacks, and clearer package
 // boundaries replace the original renderer's tightly intertwined C files.
+//
+// Recent additions include entity trail events in client_effects.go (rocket
+// smoke, blood trails, grenade smoke, etc. dispatched from model flags during
+// entity relinking), lightning beam rendering, and decal mark projection.
 package renderer

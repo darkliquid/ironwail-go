@@ -1,5 +1,9 @@
 package image
 
+// export.go provides image export functionality for screenshots and texture
+// debugging. WritePNG and WriteTGA encode paletted or RGBA image data to the
+// respective formats. RGBAFromPalette expands 8-bit paletted pixels to RGBA.
+
 import (
 	"fmt"
 	"image"

@@ -30,4 +30,8 @@
 // global cross-calls. Typed structs, slices and maps, and ordinary errors
 // replace much of the original pointer-heavy plumbing while keeping the
 // server-authoritative Quake model intact.
+//
+// Recent additions include per-frame physics counters for profiling entity
+// simulation work, edict count warnings when approaching MAX_EDICTS, autosave
+// triggering before level changes, and per-entity gravity fields.
 package server

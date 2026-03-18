@@ -30,4 +30,8 @@
 // it keeps Quake's host responsibilities but replaces much of the global
 // singleton wiring with explicit interfaces, structured init parameters, and
 // ordinary error returns. That makes the engine core easier to extend and test.
+//
+// Recent additions include autosave functionality (automatic quicksave before
+// entering new levels, matching C Host_Changelevel_f) and demo playback
+// commands with frame-accurate seeking.
 package host

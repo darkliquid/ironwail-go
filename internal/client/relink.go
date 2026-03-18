@@ -1,5 +1,10 @@
 package client
 
+// relink.go implements per-frame entity interpolation and trail emission,
+// matching C CL_RelinkEntities. RelinkEntities lerps entity positions and
+// angles between double-buffered network origins, emits particle trail
+// events based on model flags, and interpolates demo view angles.
+
 import (
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"

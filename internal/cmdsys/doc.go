@@ -28,4 +28,9 @@
 // system and omits some wider engine coupling while the port is still in
 // progress. Mutex-protected maps, strings.Builder, and plain function callbacks
 // replace shared globals, linked command lists, and function-pointer plumbing.
+//
+// Recent additions include command source tracking (CommandSource type with
+// SetSource/Source methods, matching C's cmd_source), command forwarding via
+// ForwardFunc for routing client commands to the server, and comment stripping
+// in command text parsing.
 package cmdsys

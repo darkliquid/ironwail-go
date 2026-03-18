@@ -27,4 +27,8 @@
 // even though it still offers a convenient global instance. Mutex-protected
 // maps, typed helper methods, and callback hooks replace macro-heavy access and
 // loosely coordinated globals while preserving Quake cvar semantics.
+//
+// Recent additions include FlagLocked for server-controlled cvar locking during
+// multiplayer (with Lock/Unlock methods), and cvar console commands for
+// listing, toggling, cycling, and resetting cvars from the command system.
 package cvar

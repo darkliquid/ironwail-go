@@ -1,5 +1,9 @@
 package net
 
+// partial_ip.go implements abbreviated IP address resolution matching C
+// Quake's NET_PartialIPAddress. It allows specifying partial addresses like
+// "192.168" or ":26001" and fills in defaults for omitted octets and port.
+
 import (
 	"fmt"
 	"net"

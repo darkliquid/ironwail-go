@@ -1,5 +1,9 @@
 package net
 
+// ban.go implements server-side IP banning matching C Quake's SV_Ban_f.
+// IPBanList maintains a list of banned IP/mask pairs with thread-safe
+// Add, Remove, Check, and List operations.
+
 import (
 	"fmt"
 	"net"
