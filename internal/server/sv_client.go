@@ -22,10 +22,11 @@ func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
 
 // writeSpawnStaticSoundMessage emits ambient/static sound signon messages with large-index fallback.
 func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSound) {
+	flags := uint32(s.ProtocolFlags())
 	if snd.SoundIndex > 255 {
 		msg.WriteByte(byte(inet.SVCSpawnStaticSound2))
 		for i := 0; i < 3; i++ {
-			msg.WriteCoord(snd.Origin[i])
+			msg.WriteCoord(snd.Origin[i], flags)
 		}
 		msg.WriteShort(int16(snd.SoundIndex))
 		msg.WriteByte(byte(snd.Volume))
@@ -34,7 +35,7 @@ func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSoun
 	}
 	msg.WriteByte(byte(inet.SVCSpawnStaticSound))
 	for i := 0; i < 3; i++ {
-		msg.WriteCoord(snd.Origin[i])
+		msg.WriteCoord(snd.Origin[i], flags)
 	}
 	msg.WriteByte(byte(snd.SoundIndex))
 	msg.WriteByte(byte(snd.Volume))
@@ -238,19 +239,21 @@ func (s *Server) WriteSignonString(str string) error {
 
 // WriteSignonCoord writes a coordinate to the current signon buffer.
 func (s *Server) WriteSignonCoord(c float32) error {
-	if err := s.ReserveSignonSpace(4); err != nil {
+	flags := uint32(s.ProtocolFlags())
+	if err := s.ReserveSignonSpace(coordWireSize(flags)); err != nil {
 		return err
 	}
-	s.Signon.WriteCoord(c)
+	s.Signon.WriteCoord(c, flags)
 	return nil
 }
 
 // WriteSignonAngle writes an angle to the current signon buffer.
 func (s *Server) WriteSignonAngle(a float32) error {
-	if err := s.ReserveSignonSpace(1); err != nil {
+	flags := uint32(s.ProtocolFlags())
+	if err := s.ReserveSignonSpace(angleWireSize(flags)); err != nil {
 		return err
 	}
-	s.Signon.WriteAngle(a)
+	s.Signon.WriteAngle(a, flags)
 	return nil
 }
 

@@ -23,7 +23,7 @@ const (
 //
 // PROTOCOL_RMQ protocol flags
 const (
-	PRFL_SHORTANGLE  = 1 << 0
+	PRFL_SHORTANGLE  = 1 << 1
 	PRFL_FLOATANGLE  = 1 << 2
 	PRFL_24BITCOORD  = 1 << 3
 	PRFL_FLOATCOORD  = 1 << 4

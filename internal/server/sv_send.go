@@ -56,9 +56,10 @@ func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
 	}
 
 	s.Datagram.WriteByte(byte(inet.SVCParticle))
-	s.Datagram.WriteCoord(org[0])
-	s.Datagram.WriteCoord(org[1])
-	s.Datagram.WriteCoord(org[2])
+	flags := uint32(s.ProtocolFlags())
+	s.Datagram.WriteCoord(org[0], flags)
+	s.Datagram.WriteCoord(org[1], flags)
+	s.Datagram.WriteCoord(org[2], flags)
 
 	for i := 0; i < 3; i++ {
 		v := int(dir[i] * 16)
@@ -144,8 +145,9 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 		s.Datagram.WriteByte(byte(soundNum))
 	}
 
+	flags := uint32(s.ProtocolFlags())
 	for i := 0; i < 3; i++ {
-		s.Datagram.WriteCoord(ent.Vars.Origin[i] + 0.5*(ent.Vars.Mins[i]+ent.Vars.Maxs[i]))
+		s.Datagram.WriteCoord(ent.Vars.Origin[i]+0.5*(ent.Vars.Mins[i]+ent.Vars.Maxs[i]), flags)
 	}
 }
 
@@ -189,6 +191,7 @@ func (s *Server) LocalSound(client *Client, sample string) {
 
 // writeEntityState encodes baseline/static entity payloads, including optional extended fields.
 func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended bool, includeEntNum bool, entNum int) {
+	flags := uint32(s.ProtocolFlags())
 	var bits byte
 	if ent.ModelIndex > 255 {
 		bits |= 1
@@ -223,8 +226,8 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 	msg.WriteByte(byte(ent.Skin))
 	// Origins and angles must be interleaved: O1, A1, O2, A2, O3, A3
 	for i := 0; i < 3; i++ {
-		msg.WriteCoord(ent.Origin[i])
-		msg.WriteAngle(ent.Angles[i])
+		msg.WriteCoord(ent.Origin[i], flags)
+		msg.WriteAngle(ent.Angles[i], flags)
 	}
 	if extended && bits&(1<<2) != 0 {
 		msg.WriteByte(ent.Alpha)
@@ -236,6 +239,7 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 
 // WriteClientDataToMessage serializes player-centric data (damage, view, ammo, items) for one frame.
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
+	flags := uint32(s.ProtocolFlags())
 	if ent.Vars.DmgTake != 0 || ent.Vars.DmgSave != 0 {
 		other := s.EdictNum(int(ent.Vars.DmgInflictor))
 		msg.WriteByte(byte(inet.SVCDamage))
@@ -243,11 +247,11 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 		msg.WriteByte(byte(ent.Vars.DmgTake))
 		if other != nil {
 			for i := 0; i < 3; i++ {
-				msg.WriteCoord(other.Vars.Origin[i] + 0.5*(other.Vars.Mins[i]+other.Vars.Maxs[i]))
+				msg.WriteCoord(other.Vars.Origin[i]+0.5*(other.Vars.Mins[i]+other.Vars.Maxs[i]), flags)
 			}
 		} else {
 			for i := 0; i < 3; i++ {
-				msg.WriteCoord(0)
+				msg.WriteCoord(0, flags)
 			}
 		}
 		ent.Vars.DmgTake = 0
@@ -259,7 +263,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	if ent.Vars.FixAngle != 0 {
 		msg.WriteByte(byte(inet.SVCSetAngle))
 		for i := 0; i < 3; i++ {
-			msg.WriteAngle(ent.Vars.Angles[i])
+			msg.WriteAngle(ent.Vars.Angles[i], flags)
 		}
 		ent.Vars.FixAngle = 0
 	}
@@ -506,6 +510,7 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 
 // writeEntityUpdate performs Quake's bitflag delta encoding between previous and current entity states.
 func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev EntityState, force bool) bool {
+	flags := uint32(s.ProtocolFlags())
 	bits := uint32(0)
 
 	if entNum > 255 {
@@ -616,22 +621,22 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, prev E
 	}
 	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
 	if bits&inet.U_ORIGIN1 != 0 {
-		msg.WriteCoord(state.Origin[0])
+		msg.WriteCoord(state.Origin[0], flags)
 	}
 	if bits&inet.U_ANGLE1 != 0 {
-		msg.WriteAngle(state.Angles[0])
+		msg.WriteAngle(state.Angles[0], flags)
 	}
 	if bits&inet.U_ORIGIN2 != 0 {
-		msg.WriteCoord(state.Origin[1])
+		msg.WriteCoord(state.Origin[1], flags)
 	}
 	if bits&inet.U_ANGLE2 != 0 {
-		msg.WriteAngle(state.Angles[1])
+		msg.WriteAngle(state.Angles[1], flags)
 	}
 	if bits&inet.U_ORIGIN3 != 0 {
-		msg.WriteCoord(state.Origin[2])
+		msg.WriteCoord(state.Origin[2], flags)
 	}
 	if bits&inet.U_ANGLE3 != 0 {
-		msg.WriteAngle(state.Angles[2])
+		msg.WriteAngle(state.Angles[2], flags)
 	}
 	// FitzQuake extensions come AFTER origins/angles
 	if bits&inet.U_ALPHA != 0 {

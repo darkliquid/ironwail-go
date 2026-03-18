@@ -91,10 +91,11 @@ type Server struct {
 	// Protocol version (15=NetQuake, 666=FitzQuake, 999=RMQ)
 	Protocol int
 
-	// Cached QC field offsets for alpha/scale (populated once per progs.dat load).
+	// Cached QC field offsets for alpha/scale/items2 (populated once per progs.dat load).
 	// -1 means the field doesn't exist in the loaded progs.
-	QCFieldAlpha int
-	QCFieldScale int
+	QCFieldAlpha  int
+	QCFieldScale  int
+	QCFieldItems2 int
 
 	// Game rules
 	Coop       bool
@@ -858,13 +859,15 @@ func NewServer() *Server {
 			}
 		},
 		WriteCoord: func(vm *qc.VM, dest int, value float32) {
+			flags := uint32(s.ProtocolFlags())
 			for _, buf := range writeBuffers(vm, dest) {
-				buf.WriteCoord(value)
+				buf.WriteCoord(value, flags)
 			}
 		},
 		WriteAngle: func(vm *qc.VM, dest int, value float32) {
+			flags := uint32(s.ProtocolFlags())
 			for _, buf := range writeBuffers(vm, dest) {
-				buf.WriteAngle(value)
+				buf.WriteAngle(value, flags)
 			}
 		},
 		WriteString: func(vm *qc.VM, dest int, value string) {
