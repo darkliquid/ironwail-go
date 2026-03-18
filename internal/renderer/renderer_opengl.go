@@ -85,6 +85,10 @@ type glDrawContext struct {
 	vao2D         uint32
 	vbo2D         uint32
 	initialized2D bool
+
+	// Canvas coordinate system state.
+	canvas       CanvasState
+	canvasParams CanvasTransformParams
 }
 
 type glCacheKey struct {
@@ -126,6 +130,36 @@ func (dc *glDrawContext) SurfaceView() interface{} {
 // Gamma exposes the current gamma configuration so post-processing and UI code can stay in sync with renderer brightness calibration.
 func (dc *glDrawContext) Gamma() float32 {
 	return dc.gamma
+}
+
+// SetCanvas switches the active 2D drawing canvas. Coordinates in
+// subsequent draw calls are interpreted in the canvas's logical space.
+func (dc *glDrawContext) SetCanvas(ct CanvasType) {
+	// Update canvasParams from current viewport state.
+	dc.canvasParams.GUIWidth = float32(dc.viewport.width)
+	dc.canvasParams.GUIHeight = float32(dc.viewport.height)
+	dc.canvasParams.GLWidth = float32(dc.viewport.width)
+	dc.canvasParams.GLHeight = float32(dc.viewport.height)
+	if dc.canvasParams.ConWidth == 0 {
+		dc.canvasParams.ConWidth = float32(dc.viewport.width)
+	}
+	if dc.canvasParams.ConHeight == 0 {
+		dc.canvasParams.ConHeight = float32(dc.viewport.height)
+	}
+	SetCanvas(&dc.canvas, ct, dc.canvasParams)
+}
+
+// Canvas returns the current canvas state.
+func (dc *glDrawContext) Canvas() CanvasState {
+	return dc.canvas
+}
+
+// SetCanvasParams updates the per-frame canvas transform parameters.
+// Call this at the start of each frame before any SetCanvas calls.
+func (dc *glDrawContext) SetCanvasParams(p CanvasTransformParams) {
+	dc.canvasParams = p
+	// Force re-evaluation on next SetCanvas call.
+	dc.canvas.Type = CanvasNone
 }
 
 // 2D Drawing API implementation

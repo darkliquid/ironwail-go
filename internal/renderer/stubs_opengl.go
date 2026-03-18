@@ -247,6 +247,12 @@ func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.gldc.DrawMenuCharacter(x, y, num)
 }
 
+// SetCanvas switches the active 2D canvas coordinate system.
+func (dc *DrawContext) SetCanvas(ct CanvasType) { dc.gldc.SetCanvas(ct) }
+
+// Canvas returns the current canvas state.
+func (dc *DrawContext) Canvas() CanvasState { return dc.gldc.Canvas() }
+
 // DefaultRenderFrameState returns a sensible default RenderFrameState.
 func DefaultRenderFrameState() *RenderFrameState {
 	return &RenderFrameState{

@@ -71,6 +71,13 @@ type RenderContext interface {
 
 	// DrawMenuCharacter renders a single menu character in 320x200 menu-space coordinates.
 	DrawMenuCharacter(x, y int, num int)
+
+	// SetCanvas switches the active 2D canvas coordinate system.
+	// Subsequent draw calls use coordinates in the canvas's logical space.
+	SetCanvas(ct CanvasType)
+
+	// Canvas returns the current canvas state including type, transform, and bounds.
+	Canvas() CanvasState
 }
 
 // Backend manages the graphics backend and window.

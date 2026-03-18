@@ -17,7 +17,9 @@ var (
 	ErrNoBackend = errors.New("no rendering backend available - build with -tags=gogpu or -tags=opengl")
 )
 
-type stubDrawContext struct{}
+type stubDrawContext struct {
+	canvas CanvasState
+}
 
 func (dc *stubDrawContext) Clear(r, g, b, a float32) {}
 
@@ -39,6 +41,14 @@ func (dc *stubDrawContext) SurfaceView() interface{} {
 
 func (dc *stubDrawContext) Gamma() float32 {
 	return 1.0
+}
+
+func (dc *stubDrawContext) SetCanvas(ct CanvasType) {
+	dc.canvas.Type = ct
+}
+
+func (dc *stubDrawContext) Canvas() CanvasState {
+	return dc.canvas
 }
 
 // CameraState holds the player's camera position and orientation for view setup.
@@ -111,6 +121,8 @@ func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
 }
 func (dc *DrawContext) SurfaceView() interface{} { return dc.stubContext().SurfaceView() }
 func (dc *DrawContext) Gamma() float32           { return dc.stubContext().Gamma() }
+func (dc *DrawContext) SetCanvas(ct CanvasType)  { dc.stubContext().SetCanvas(ct) }
+func (dc *DrawContext) Canvas() CanvasState      { return dc.stubContext().Canvas() }
 
 func (dc *DrawContext) stubContext() *stubDrawContext {
 	if dc.stub == nil {

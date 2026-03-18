@@ -20,6 +20,7 @@ type SoftwareRenderer struct {
 	height  int
 	gamma   float32
 	palette []byte
+	canvas  CanvasState
 }
 
 // NewSoftwareRenderer creates a SoftwareRenderer for an image of the given dimensions.
@@ -67,6 +68,12 @@ func (s *SoftwareRenderer) SurfaceView() interface{} { return nil }
 
 // Gamma returns the current gamma correction value.
 func (s *SoftwareRenderer) Gamma() float32 { return s.gamma }
+
+// SetCanvas switches the active 2D canvas coordinate system.
+func (s *SoftwareRenderer) SetCanvas(ct CanvasType) { s.canvas.Type = ct }
+
+// Canvas returns the current canvas state.
+func (s *SoftwareRenderer) Canvas() CanvasState { return s.canvas }
 
 // DrawPic blits a QPic image at a screen-space position using the stored palette.
 func (s *SoftwareRenderer) DrawPic(x, y int, pic *qimage.QPic) {

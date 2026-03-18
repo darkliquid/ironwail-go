@@ -76,6 +76,9 @@ type DrawContext struct {
 
 	// renderer is the parent Renderer instance.
 	renderer *Renderer
+
+	// Canvas coordinate system state.
+	canvas CanvasState
 }
 
 var halOnlyFrameConsumed atomic.Bool
@@ -116,6 +119,16 @@ func (dc *DrawContext) SurfaceView() interface{} {
 // Gamma returns the current gamma correction value.
 func (dc *DrawContext) Gamma() float32 {
 	return dc.gamma
+}
+
+// SetCanvas switches the active 2D canvas coordinate system.
+func (dc *DrawContext) SetCanvas(ct CanvasType) {
+	dc.canvas.Type = ct
+}
+
+// Canvas returns the current canvas state.
+func (dc *DrawContext) Canvas() CanvasState {
+	return dc.canvas
 }
 
 // 2D Drawing API implementation
