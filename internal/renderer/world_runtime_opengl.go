@@ -357,6 +357,46 @@ func clearDirtyFlags(pages []WorldLightmapPage) {
 	}
 }
 
+// compositeSurfaceRGBA blends a single surface's lightmap samples into an
+// existing RGBA atlas buffer. Each surface can reference up to 4 lightstyles
+// whose brightness values are looked up from the values array.
+func compositeSurfaceRGBA(rgba []byte, pageWidth int, surface WorldLightmapSurface, values [64]float32) {
+	if surface.Width <= 0 || surface.Height <= 0 {
+		return
+	}
+	styleCount := 0
+	for _, style := range surface.Styles {
+		if style == 255 {
+			break
+		}
+		styleCount++
+	}
+	if styleCount == 0 {
+		styleCount = 1
+	}
+	faceSize := surface.Width * surface.Height * 3
+	if len(surface.Samples) < faceSize*styleCount {
+		return
+	}
+	for y := 0; y < surface.Height; y++ {
+		for x := 0; x < surface.Width; x++ {
+			sampleIndex := (y*surface.Width + x) * 3
+			var rSum, gSum, bSum float32
+			for styleIndex := 0; styleIndex < styleCount; styleIndex++ {
+				offset := styleIndex*faceSize + sampleIndex
+				scale := lightstyleScale(values, surface.Styles[styleIndex])
+				rSum += float32(surface.Samples[offset]) * scale
+				gSum += float32(surface.Samples[offset+1]) * scale
+				bSum += float32(surface.Samples[offset+2]) * scale
+			}
+			dst := ((surface.Y+y)*pageWidth + (surface.X + x)) * 4
+			rgba[dst] = byte(clamp01(rSum/255.0) * 255)
+			rgba[dst+1] = byte(clamp01(gSum/255.0) * 255)
+			rgba[dst+2] = byte(clamp01(bSum/255.0) * 255)
+		}
+	}
+}
+
 // buildLightmapPageRGBA rasterizes a lightmap atlas page to RGBA by blending all surface lightmap samples with their lightstyle brightness values. This CPU-side compositing makes Quake's animated lighting work: each surface can reference up to 4 lightstyles.
 func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
 	if page.Width <= 0 || page.Height <= 0 {
@@ -371,43 +411,25 @@ func buildLightmapPageRGBA(page WorldLightmapPage, values [64]float32) []byte {
 	}
 
 	for _, surface := range page.Surfaces {
-		if surface.Width <= 0 || surface.Height <= 0 {
-			continue
-		}
-		styleCount := 0
-		for _, style := range surface.Styles {
-			if style == 255 {
-				break
-			}
-			styleCount++
-		}
-		if styleCount == 0 {
-			styleCount = 1
-		}
-		faceSize := surface.Width * surface.Height * 3
-		if len(surface.Samples) < faceSize*styleCount {
-			continue
-		}
-		for y := 0; y < surface.Height; y++ {
-			for x := 0; x < surface.Width; x++ {
-				sampleIndex := (y*surface.Width + x) * 3
-				var rSum, gSum, bSum float32
-				for styleIndex := 0; styleIndex < styleCount; styleIndex++ {
-					offset := styleIndex*faceSize + sampleIndex
-					scale := lightstyleScale(values, surface.Styles[styleIndex])
-					rSum += float32(surface.Samples[offset]) * scale
-					gSum += float32(surface.Samples[offset+1]) * scale
-					bSum += float32(surface.Samples[offset+2]) * scale
-				}
-				dst := ((surface.Y+y)*page.Width + (surface.X + x)) * 4
-				rgba[dst] = byte(clamp01(rSum/255.0) * 255)
-				rgba[dst+1] = byte(clamp01(gSum/255.0) * 255)
-				rgba[dst+2] = byte(clamp01(bSum/255.0) * 255)
-			}
-		}
+		compositeSurfaceRGBA(rgba, page.Width, surface, values)
 	}
 
 	return rgba
+}
+
+// recompositeDirtySurfaces updates only the dirty surface regions in an
+// existing RGBA atlas buffer. Returns true if any surfaces were recomposited.
+// This avoids rebuilding the entire page when only a few surfaces changed.
+func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [64]float32) bool {
+	recomposited := false
+	for _, surface := range page.Surfaces {
+		if !surface.Dirty {
+			continue
+		}
+		compositeSurfaceRGBA(rgba, page.Width, surface, values)
+		recomposited = true
+	}
+	return recomposited
 }
 
 // uploadLightmapPages uploads all lightmap atlas pages as GL textures with LINEAR filtering.

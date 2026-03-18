@@ -126,3 +126,61 @@ func TestClearDirtyFlags(t *testing.T) {
 		t.Error("page 1 should remain clean")
 	}
 }
+
+func TestRecompositeDirtySurfaces(t *testing.T) {
+	// Create a 4x4 page with two 2x2 surfaces using different lightstyles.
+	page := WorldLightmapPage{
+		Width: 4, Height: 4,
+		Surfaces: []WorldLightmapSurface{
+			{
+				X: 0, Y: 0, Width: 2, Height: 2,
+				Styles:  [4]uint8{0, 255, 255, 255},
+				Samples: []byte{128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128},
+				Dirty:   true,
+			},
+			{
+				X: 2, Y: 0, Width: 2, Height: 2,
+				Styles:  [4]uint8{1, 255, 255, 255},
+				Samples: []byte{200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200},
+				Dirty:   false, // not dirty
+			},
+		},
+	}
+
+	// Build initial RGBA.
+	var values [64]float32
+	values[0] = 1.0
+	values[1] = 1.0
+	rgba := buildLightmapPageRGBA(page, values)
+
+	// Record surface 1's pixel (should be unchanged after recomposite).
+	surf1Pixel := make([]byte, 4)
+	dst := (0*4 + 2) * 4 // surface 1 at (2,0)
+	copy(surf1Pixel, rgba[dst:dst+4])
+
+	// Change style 0 brightness and recomposite only dirty surfaces.
+	values[0] = 0.5
+	recomposited := recompositeDirtySurfaces(rgba, page, values)
+	if !recomposited {
+		t.Error("expected recomposite to return true")
+	}
+
+	// Surface 0's pixel should have changed (lower brightness).
+	dst0 := 0 // surface 0 at (0,0)
+	if rgba[dst0] >= 128 {
+		t.Errorf("surface 0 pixel R = %d, want < 128 after halving brightness", rgba[dst0])
+	}
+
+	// Surface 1's pixel should be unchanged (not dirty).
+	for i := 0; i < 4; i++ {
+		if rgba[dst+i] != surf1Pixel[i] {
+			t.Errorf("surface 1 pixel[%d] changed: got %d, want %d", i, rgba[dst+i], surf1Pixel[i])
+		}
+	}
+
+	// No dirty surfaces → recomposite returns false.
+	page.Surfaces[0].Dirty = false
+	if recompositeDirtySurfaces(rgba, page, values) {
+		t.Error("expected recomposite to return false when nothing is dirty")
+	}
+}
