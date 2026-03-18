@@ -142,6 +142,14 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 		g.Client.RelinkEntities()
 	}
 
+	// Update scope zoom transition after relink, matching C CL_RelinkEntities
+	// calling SCR_UpdateZoom() post-velocity interpolation.
+	zoomSpeed := float32(8)
+	if cv := cvar.Get("scr_zoomspeed"); cv != nil {
+		zoomSpeed = cv.Float32()
+	}
+	g.Zoom, g.ZoomDir, _ = renderer.UpdateZoom(g.Zoom, g.ZoomDir, zoomSpeed, float32(g.ParticleTime-float32(dt)), g.ParticleTime)
+
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
 	effectSources := collectEntityEffectSources()

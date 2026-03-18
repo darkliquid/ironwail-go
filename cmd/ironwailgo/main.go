@@ -69,6 +69,10 @@ type Game struct {
 
 	CameraInLiquid     bool
 	CameraLeafContents int32
+
+	// Scope zoom state, updated each frame via renderer.UpdateZoom.
+	Zoom    float32
+	ZoomDir float32
 }
 
 var g Game
