@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"log/slog"
 	stdnet "net"
+	"sort"
 	"sync"
 	"time"
 )
@@ -78,12 +79,16 @@ func (sb *ServerBrowser) Start() {
 	go sb.run()
 }
 
-// Results returns the current list of discovered servers.
+// Results returns the current list of discovered servers, sorted by name.
+// Matches C NET_SlistSort() which sorts the host cache alphabetically.
 func (sb *ServerBrowser) Results() []HostCacheEntry {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 	out := make([]HostCacheEntry, len(sb.entries))
 	copy(out, sb.entries)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
 	return out
 }
 
