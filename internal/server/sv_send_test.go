@@ -265,6 +265,107 @@ func TestWriteEntityUpdate_Frame2Model2AfterAlphaScale(t *testing.T) {
 	}
 }
 
+func TestWriteEntityUpdate_NetQuakeOmitsFitzExtensions(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolNetQuake}
+	state := EntityState{
+		ModelIndex: 0x345,
+		Frame:      0x267,
+		Alpha:      0x89,
+		Scale:      0x9a,
+	}
+	prev := EntityState{
+		ModelIndex: 1,
+		Frame:      1,
+		Alpha:      0,
+		Scale:      16,
+	}
+
+	msg := NewMessageBuffer(256)
+	if !s.writeEntityUpdate(msg, 1, state, prev, false, 200, true) {
+		t.Fatal("writeEntityUpdate returned false")
+	}
+
+	bits, payload := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+
+	if bits&inet.U_ALPHA != 0 || bits&inet.U_SCALE != 0 || bits&inet.U_FRAME2 != 0 || bits&inet.U_MODEL2 != 0 || bits&inet.U_LERPFINISH != 0 {
+		t.Fatalf("netquake unexpectedly set extension bits: %#x", bits)
+	}
+	if bits&inet.U_EXTEND1 != 0 || bits&inet.U_EXTEND2 != 0 {
+		t.Fatalf("netquake unexpectedly set extension header bits: %#x", bits)
+	}
+
+	want := []byte{
+		byte(state.ModelIndex),
+		byte(state.Frame),
+	}
+	if !bytes.Equal(payload, want) {
+		t.Fatalf("netquake payload contains unexpected extension bytes:\n got: %v\nwant: %v", payload, want)
+	}
+}
+
+func TestWriteEntityUpdate_NonNetQuakeSetsFitzExtensions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		protocol int
+	}{
+		{name: "fitzquake", protocol: ProtocolFitzQuake},
+		{name: "rmq", protocol: ProtocolRMQ},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &Server{Protocol: tc.protocol}
+			state := EntityState{
+				ModelIndex: 0x345,
+				Frame:      0x267,
+				Alpha:      0x89,
+				Scale:      0x9a,
+			}
+			prev := EntityState{
+				ModelIndex: 1,
+				Frame:      1,
+				Alpha:      0,
+				Scale:      16,
+			}
+
+			msg := NewMessageBuffer(256)
+			if !s.writeEntityUpdate(msg, 1, state, prev, false, 200, true) {
+				t.Fatal("writeEntityUpdate returned false")
+			}
+
+			bits, payload := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+
+			required := uint32(inet.U_ALPHA | inet.U_SCALE | inet.U_FRAME2 | inet.U_MODEL2 | inet.U_LERPFINISH)
+			if bits&required != required {
+				t.Fatalf("%s missing extension bits: bits=%#x required=%#x", tc.name, bits, required)
+			}
+			if bits&inet.U_EXTEND1 == 0 {
+				t.Fatalf("%s missing U_EXTEND1 for extension bits: %#x", tc.name, bits)
+			}
+
+			want := []byte{
+				byte(state.ModelIndex),
+				byte(state.Frame),
+				state.Alpha,
+				state.Scale,
+				byte(state.Frame >> 8),
+				byte(state.ModelIndex >> 8),
+				200,
+			}
+			if !bytes.Equal(payload, want) {
+				t.Fatalf("%s payload mismatch:\n got: %v\nwant: %v", tc.name, payload, want)
+			}
+		})
+	}
+}
+
 func decodeEntityUpdateBitsAndPayload(t *testing.T, data []byte) (uint32, []byte) {
 	t.Helper()
 	if len(data) < 2 {
