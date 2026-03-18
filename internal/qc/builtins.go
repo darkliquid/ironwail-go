@@ -4,6 +4,8 @@
 package qc
 
 import (
+	"fmt"
+
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -111,6 +113,8 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[23] = bprint
 	vm.Builtins[24] = sprint
 	vm.Builtins[25] = dprint
+	vm.Builtins[26] = ftosBuiltin
+	vm.Builtins[27] = vtosBuiltin
 	vm.Builtins[28] = noopBuiltin
 	vm.Builtins[29] = noopBuiltin
 	vm.Builtins[30] = noopBuiltin
@@ -175,6 +179,27 @@ func errorBuiltin(vm *VM) {
 func objerrorBuiltin(vm *VM) {
 	console.Printf("QC objerror: %s", vm.GString(OFSParm0))
 }
+// ftosBuiltin converts a float to a string. If the float is an integer value,
+// formats as "%d", otherwise as "%5.1f". Matches C PF_ftos behavior exactly.
+func ftosBuiltin(vm *VM) {
+	v := vm.GFloat(OFSParm0)
+	var s string
+	if v == float32(int(v)) {
+		s = fmt.Sprintf("%d", int(v))
+	} else {
+		s = fmt.Sprintf("%5.1f", v)
+	}
+	vm.SetGString(OFSReturn, s)
+}
+
+// vtosBuiltin converts a vector to a string in the format "'%5.1f %5.1f %5.1f'".
+// Matches C PF_vtos behavior exactly.
+func vtosBuiltin(vm *VM) {
+	vec := vm.GVector(OFSParm0)
+	s := fmt.Sprintf("'%5.1f %5.1f %5.1f'", vec[0], vec[1], vec[2])
+	vm.SetGString(OFSReturn, s)
+}
+
 func cvarBuiltin(vm *VM) {
 	vm.SetGFloat(OFSReturn, float32(cvar.FloatValue(vm.GString(OFSParm0))))
 }
