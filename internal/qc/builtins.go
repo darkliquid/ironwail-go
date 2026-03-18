@@ -184,6 +184,19 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[222] = str2chrBuiltin
 	vm.Builtins[223] = chr2strBuiltin
 	vm.Builtins[245] = modBuiltin
+	// CSQC drawing builtins
+	vm.Builtins[316] = csqcIsCachedPic
+	vm.Builtins[317] = csqcPrecachePic
+	vm.Builtins[318] = csqcDrawGetImageSize
+	vm.Builtins[320] = csqcDrawCharacter
+	vm.Builtins[321] = csqcDrawRawString
+	vm.Builtins[322] = csqcDrawPic
+	vm.Builtins[323] = csqcDrawFill
+	vm.Builtins[324] = csqcDrawSetClipArea
+	vm.Builtins[325] = csqcDrawResetClipArea
+	vm.Builtins[326] = csqcDrawString
+	vm.Builtins[327] = csqcStringWidth
+	vm.Builtins[328] = csqcDrawSubPic
 	vm.Builtins[471] = asinBuiltin
 	vm.Builtins[472] = acosBuiltin
 	vm.Builtins[473] = atanBuiltin

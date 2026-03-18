@@ -399,7 +399,7 @@ func TestRegisterBuiltinsCanonicalMappings(t *testing.T) {
 	vm := newBuiltinsTestVM(8)
 	RegisterBuiltins(vm)
 
-	for _, slot := range []int{6, 8, 10, 11, 16, 17, 19, 20, 21, 23, 24, 25, 31, 35, 36, 37, 38, 40, 41, 43, 44, 45, 46, 48, 52, 53, 54, 55, 56, 57, 58, 59, 68, 69, 70, 72, 73, 74, 78, 79, 80} {
+	for _, slot := range []int{6, 8, 10, 11, 16, 17, 19, 20, 21, 23, 24, 25, 31, 35, 36, 37, 38, 40, 41, 43, 44, 45, 46, 48, 52, 53, 54, 55, 56, 57, 58, 59, 68, 69, 70, 72, 73, 74, 78, 79, 80, 316, 317, 318, 320, 321, 322, 323, 324, 325, 326, 327, 328} {
 		if vm.Builtins[slot] == nil {
 			t.Fatalf("builtin %d is nil", slot)
 		}
