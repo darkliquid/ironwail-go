@@ -390,6 +390,20 @@ type Renderer struct {
 	worldRenderTexture      hal.Texture
 	worldRenderTextureView  hal.TextureView
 	worldRenderTextureGogpu *gogpu.Texture // gogpu-wrapped version for compositing
+
+	// Alias-model resources for the gogpu backend.
+	aliasModels                 map[string]*gpuAliasModel
+	aliasScratchBuffer          hal.Buffer
+	aliasScratchBufferSize      uint64
+	aliasPipeline               hal.RenderPipeline
+	aliasPipelineLayout         hal.PipelineLayout
+	aliasVertexShader           hal.ShaderModule
+	aliasFragmentShader         hal.ShaderModule
+	aliasUniformBuffer          hal.Buffer
+	aliasUniformBindGroup       hal.BindGroup
+	aliasUniformBindGroupLayout hal.BindGroupLayout
+	aliasTextureBindGroupLayout hal.BindGroupLayout
+	aliasSampler                hal.Sampler
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -443,6 +457,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		app:          app,
 		config:       cfg,
 		textureCache: make(map[cacheKey]*cachedTexture),
+		aliasModels:  make(map[string]*gpuAliasModel),
 	}
 
 	slog.Info("Renderer created",
@@ -469,6 +484,7 @@ func (r *Renderer) SetPalette(palette []byte) {
 	for i := range r.colorTextures {
 		r.colorTextures[i] = nil
 	}
+	r.clearAliasModelsLocked()
 }
 
 func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogpu.Texture {
@@ -727,6 +743,9 @@ func (r *Renderer) Stop() {
 // but can be called manually for explicit cleanup.
 func (r *Renderer) Shutdown() {
 	slog.Debug("Renderer shutting down")
+	r.mu.Lock()
+	r.destroyAliasResourcesLocked()
+	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
 
@@ -859,6 +878,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Phase 4: Draw particles
 	if state.DrawParticles && state.Particles != nil {
 		dc.renderParticles(state)
+	}
+
+	if state.DrawEntities && state.ViewModel != nil {
+		dc.renderViewModelHAL(*state.ViewModel)
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
@@ -1093,13 +1116,14 @@ func (dc *DrawContext) renderWorld(state *RenderFrameState) {
 // Note: ensureWorldRenderTarget removed - we now render directly to the surface view
 // provided by gogpu via dc.ctx.SurfaceView() for zero-copy rendering.
 
-// renderEntities draws a bounded fallback for runtime entities.
-// Instead of a full model pipeline, it projects entity origins to screen-space
-// and draws small colored markers so gameplay-relevant entities are visible.
+// renderEntities draws runtime entities. Alias models use the HAL-backed 3D
+// path, while sprite and decal entities still fall back to projected markers.
 func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
+
+	dc.renderAliasEntitiesHAL(state.AliasEntities)
 
 	screenW, screenH := dc.renderer.Size()
 	if screenW <= 0 || screenH <= 0 {
@@ -1108,17 +1132,11 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 
-	for _, entity := range state.AliasEntities {
-		dc.drawProjectedEntityMarker(entity.Origin, vpMatrix, screenW, screenH, 4, 248)
-	}
 	for _, entity := range state.SpriteEntities {
 		dc.drawProjectedEntityMarker(entity.Origin, vpMatrix, screenW, screenH, 6, 220)
 	}
 	for _, mark := range state.DecalMarks {
 		dc.drawProjectedEntityMarker(mark.Origin, vpMatrix, screenW, screenH, 2, 180)
-	}
-	if state.ViewModel != nil {
-		dc.drawProjectedEntityMarker(state.ViewModel.Origin, vpMatrix, screenW, screenH, 5, 251)
 	}
 }
 
