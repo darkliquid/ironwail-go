@@ -40,6 +40,20 @@ import (
 // This mirrors Quake's xcommand_t function pointer typedef in cmd.c.
 type CommandFunc func(args []string)
 
+// CommandSource identifies where command text originated from.
+// This mirrors cmd_source_t in Quake's cmd.c and is used by command handlers
+// that need to restrict execution based on origin (e.g., client vs server).
+type CommandSource int
+
+const (
+	// SrcCommand indicates command text from local console/config execution.
+	SrcCommand CommandSource = iota
+	// SrcClient indicates command text came from a client.
+	SrcClient
+	// SrcServer indicates command text came from server command injection.
+	SrcServer
+)
+
 // Command represents a single registered console command. In Quake's original
 // architecture (cmd_function_t in cmd.c), each command has a name used for
 // lookup, a function pointer to execute, and a description for the "help" or
@@ -68,6 +82,7 @@ type CmdSystem struct {
 	aliases   map[string]string   // User-defined alias expansions, keyed by lowercase alias name.
 	buffer    strings.Builder     // Accumulated command text waiting to be executed.
 	waitCount int                 // Tracks pending "wait" frames; see executeTextWithWait.
+	source    CommandSource       // Current command source for handlers executing in this context.
 }
 
 // globalCmd is the package-level singleton CmdSystem instance. Quake's original
@@ -88,6 +103,7 @@ func NewCmdSystem() *CmdSystem {
 	cs := &CmdSystem{
 		commands: make(map[string]*Command),
 		aliases:  make(map[string]string),
+		source:   SrcCommand,
 	}
 	// Register wait command
 	cs.AddCommand("wait", func(args []string) {
@@ -237,12 +253,20 @@ func (c *CmdSystem) InsertText(text string) {
 // contents and resets it, then processes each command. The "wait" command can
 // interrupt execution, deferring remaining commands to the next frame.
 func (c *CmdSystem) Execute() {
+	c.ExecuteWithSource(SrcCommand)
+}
+
+// ExecuteWithSource drains the command buffer and executes the buffered command
+// text under the provided command source.
+func (c *CmdSystem) ExecuteWithSource(source CommandSource) {
 	c.mu.Lock()
 	text := c.buffer.String()
 	c.buffer.Reset()
 	c.mu.Unlock()
 
-	c.executeTextWithWait(text)
+	c.withSource(source, func() {
+		c.executeTextWithWait(text)
+	})
 }
 
 // ExecuteText immediately executes the given command text without going through
@@ -250,7 +274,44 @@ func (c *CmdSystem) Execute() {
 // such as processing a single console line typed by the player. Unlike
 // AddText+Execute, this does not support the "wait" command's frame-delay.
 func (c *CmdSystem) ExecuteText(text string) {
-	c.executeText(text, nil)
+	c.ExecuteTextWithSource(text, SrcCommand)
+}
+
+// ExecuteTextWithSource immediately executes command text under the provided
+// command source.
+func (c *CmdSystem) ExecuteTextWithSource(text string, source CommandSource) {
+	c.withSource(source, func() {
+		c.executeText(text, nil)
+	})
+}
+
+// SetSource sets the current command source.
+func (c *CmdSystem) SetSource(source CommandSource) {
+	c.mu.Lock()
+	c.source = source
+	c.mu.Unlock()
+}
+
+// Source returns the current command source.
+func (c *CmdSystem) Source() CommandSource {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.source
+}
+
+func (c *CmdSystem) withSource(source CommandSource, fn func()) {
+	c.mu.Lock()
+	prev := c.source
+	c.source = source
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		c.source = prev
+		c.mu.Unlock()
+	}()
+
+	fn()
 }
 
 // executeTextWithWait processes command text with support for the "wait"
@@ -597,9 +658,29 @@ func Execute() {
 	globalCmd.Execute()
 }
 
+// ExecuteWithSource drains and executes the global command buffer using source.
+func ExecuteWithSource(source CommandSource) {
+	globalCmd.ExecuteWithSource(source)
+}
+
 // ExecuteText immediately executes command text on the global command system.
 func ExecuteText(text string) {
 	globalCmd.ExecuteText(text)
+}
+
+// ExecuteTextWithSource immediately executes command text using source.
+func ExecuteTextWithSource(text string, source CommandSource) {
+	globalCmd.ExecuteTextWithSource(text, source)
+}
+
+// SetSource sets the current source on the global command system.
+func SetSource(source CommandSource) {
+	globalCmd.SetSource(source)
+}
+
+// Source returns the current source from the global command system.
+func Source() CommandSource {
+	return globalCmd.Source()
 }
 
 // Exists checks whether a command is registered on the global command system.

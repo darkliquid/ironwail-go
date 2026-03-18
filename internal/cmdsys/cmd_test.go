@@ -191,3 +191,57 @@ func TestWaitCommandAtEnd(t *testing.T) {
 	}
 }
 
+func TestCommandSourceDefaultsToSrcCommand(t *testing.T) {
+	c := NewCmdSystem()
+
+	if got := c.Source(); got != SrcCommand {
+		t.Fatalf("default source = %v, want %v", got, SrcCommand)
+	}
+
+	var sourceInHandler CommandSource
+	c.AddCommand("capture", func(args []string) {
+		sourceInHandler = c.Source()
+	}, "")
+
+	c.ExecuteText("capture")
+
+	if sourceInHandler != SrcCommand {
+		t.Fatalf("source in handler = %v, want %v", sourceInHandler, SrcCommand)
+	}
+}
+
+func TestExecuteTextWithSourceSetsSourceForHandler(t *testing.T) {
+	c := NewCmdSystem()
+
+	var seen []CommandSource
+	c.AddCommand("capture", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+
+	c.ExecuteTextWithSource("capture", SrcClient)
+	c.ExecuteTextWithSource("capture", SrcServer)
+
+	want := []CommandSource{SrcClient, SrcServer}
+	if !reflect.DeepEqual(seen, want) {
+		t.Fatalf("seen sources = %v, want %v", seen, want)
+	}
+	if got := c.Source(); got != SrcCommand {
+		t.Fatalf("source after execution = %v, want %v", got, SrcCommand)
+	}
+}
+
+func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
+	c := NewCmdSystem()
+
+	var seen CommandSource
+	c.AddCommand("capture", func(args []string) {
+		seen = c.Source()
+	}, "")
+
+	c.AddText("capture")
+	c.ExecuteWithSource(SrcClient)
+
+	if seen != SrcClient {
+		t.Fatalf("source in buffered execute = %v, want %v", seen, SrcClient)
+	}
+}
