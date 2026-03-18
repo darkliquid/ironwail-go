@@ -11,6 +11,8 @@ import (
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
+const joinGameVisibleResults = 6
+
 // loadKey routes keyboard input on the Load Game menu. Selecting a slot issues
 // the "load sN" console command where N is the slot index (0–11).
 func (m *Manager) loadKey(key int) {
@@ -71,12 +73,12 @@ func (m *Manager) joinGameKey(key int) {
 	case input.KUpArrow, input.KMWheelUp:
 		m.joinGameCursor--
 		if m.joinGameCursor < 0 {
-			m.joinGameCursor = joinGameItems - 1
+			m.joinGameCursor = m.joinGameItemCount() - 1
 		}
 		m.playMenuSound(menuSoundNavigate)
 	case input.KDownArrow, input.KMWheelDown:
 		m.joinGameCursor++
-		if m.joinGameCursor >= joinGameItems {
+		if m.joinGameCursor >= m.joinGameItemCount() {
 			m.joinGameCursor = 0
 		}
 		m.playMenuSound(menuSoundNavigate)
@@ -97,6 +99,11 @@ func (m *Manager) joinGameKey(key int) {
 			m.applyJoinGame()
 		case 3:
 			m.state = MenuMultiPlayer
+		default:
+			if entry, ok := m.selectedServerResult(); ok {
+				m.joinAddress = entry.Address
+				m.applyJoinGame()
+			}
 		}
 	case input.KEscape, input.KMouse2:
 		m.playMenuSound(menuSoundCancel)
@@ -353,6 +360,18 @@ func (m *Manager) applyJoinGame() {
 	m.queueCommand(fmt.Sprintf("connect %q\n", address))
 }
 
+func (m *Manager) joinGameItemCount() int {
+	return joinGameBaseItems + min(len(m.serverResults), joinGameVisibleResults)
+}
+
+func (m *Manager) selectedServerResult() (inet.HostCacheEntry, bool) {
+	index := m.joinGameCursor - joinGameBaseItems
+	if index < 0 || index >= len(m.serverResults) || index >= joinGameVisibleResults {
+		return inet.HostCacheEntry{}, false
+	}
+	return m.serverResults[index], true
+}
+
 // applyHostGame issues the full sequence of console commands to start a listen
 // server: disconnect, set maxplayers/deathmatch/coop/fraglimit/timelimit/skill,
 // then load the selected map.
@@ -413,7 +432,12 @@ func (m *Manager) drawJoinGame(dc renderer.RenderContext) {
 	m.drawText(dc, 56, 120, "BACK", true)
 	m.drawText(dc, 160, 48, m.joinAddress, true)
 
-	m.drawArrowCursor(dc, 40, 48+m.joinGameCursor*24)
+	cursorY := 48 + m.joinGameCursor*24
+	if entry, ok := m.selectedServerResult(); ok {
+		_ = entry
+		cursorY = yForJoinServerResult(m.joinGameCursor - joinGameBaseItems)
+	}
+	m.drawArrowCursor(dc, 40, cursorY)
 	if m.joinGameCursor == 0 {
 		cursorX := 160 + len(m.joinAddress)*8
 		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
@@ -427,11 +451,14 @@ func (m *Manager) drawJoinGame(dc renderer.RenderContext) {
 	} else if m.serverBrowser != nil {
 		// Refresh results from browser (safe — called from main thread)
 		m.serverResults = m.serverBrowser.Results()
+		if m.joinGameCursor >= m.joinGameItemCount() {
+			m.joinGameCursor = m.joinGameItemCount() - 1
+		}
 		if len(m.serverResults) == 0 {
 			m.drawText(dc, 40, y, "NO SERVERS FOUND", true)
 		} else {
 			for i, entry := range m.serverResults {
-				if y+i*8 > 192 {
+				if i >= joinGameVisibleResults || y+i*8 > 192 {
 					break // Don't draw off screen
 				}
 				line := fmt.Sprintf("%-15s %-8s %d/%d", entry.Name, entry.Map, entry.Players, entry.MaxPlayers)
@@ -452,7 +479,14 @@ func (m *Manager) startServerSearch() {
 		return
 	}
 	m.serverResults = nil
+	if m.joinGameCursor >= joinGameBaseItems {
+		m.joinGameCursor = 1
+	}
 	m.serverBrowser.Start()
+}
+
+func yForJoinServerResult(index int) int {
+	return 152 + index*8
 }
 
 // drawHostGame renders the Host Game menu with all configurable settings

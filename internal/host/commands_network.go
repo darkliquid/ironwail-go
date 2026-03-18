@@ -207,6 +207,7 @@ func (h *Host) ShutdownServer(subs *Subsystems) {
 	if subs == nil {
 		subs = h.Subs
 	}
+	h.updateServerBrowserNetworking(subs)
 
 	if subs != nil && subs.Server != nil {
 		subs.Server.Shutdown()

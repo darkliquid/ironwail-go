@@ -327,6 +327,7 @@ func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() err
 	teardownOnFailure := !previousServerActive
 
 	defer func() {
+		h.updateServerBrowserNetworking(subs)
 		if err == nil {
 			return
 		}
@@ -373,6 +374,7 @@ func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() err
 	}
 
 	h.serverActive = true
+	h.updateServerBrowserNetworking(subs)
 	subs.Server.ConnectClient(0)
 	if afterConnect != nil {
 		if err := afterConnect(); err != nil {

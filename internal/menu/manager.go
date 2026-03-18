@@ -66,7 +66,7 @@ const (
 
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
-	joinGameItems     = 4
+	joinGameBaseItems = 4
 	hostGameItems     = 8
 	optionsItems      = 5
 	controlsItems     = 17
@@ -616,7 +616,7 @@ func (m *Manager) moveCursorDown() {
 	case MenuSetup:
 		m.setupCursor = (m.setupCursor + 1) % setupItems
 	case MenuJoinGame:
-		m.joinGameCursor = (m.joinGameCursor + 1) % joinGameItems
+		m.joinGameCursor = (m.joinGameCursor + 1) % m.joinGameItemCount()
 	case MenuHostGame:
 		m.hostGameCursor = (m.hostGameCursor + 1) % hostGameItems
 	}
@@ -690,7 +690,7 @@ func (m *Manager) moveCursorUp() {
 	case MenuJoinGame:
 		m.joinGameCursor--
 		if m.joinGameCursor < 0 {
-			m.joinGameCursor = joinGameItems - 1
+			m.joinGameCursor = m.joinGameItemCount() - 1
 		}
 	case MenuHostGame:
 		m.hostGameCursor--

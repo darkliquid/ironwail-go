@@ -10,6 +10,8 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/input"
+	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
 // mockDrawManager is a mock implementation of DrawManager for testing.
@@ -30,6 +32,7 @@ type mockMenuRenderContext struct {
 		x, y, w, h int
 		color      byte
 	}
+	canvas renderer.CanvasState
 }
 
 func (m *mockMenuRenderContext) Clear(r, g, b, a float32)          {}
@@ -55,6 +58,8 @@ func (m *mockMenuRenderContext) DrawCharacter(x, y int, num int) {
 func (m *mockMenuRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.menuCharacters = append(m.menuCharacters, struct{ x, y, num int }{x, y, num})
 }
+func (m *mockMenuRenderContext) SetCanvas(ct renderer.CanvasType) { m.canvas.Type = ct }
+func (m *mockMenuRenderContext) Canvas() renderer.CanvasState     { return m.canvas }
 
 func renderedMenuLine(rc *mockMenuRenderContext, y int) string {
 	lineChars := make([]struct{ x, num int }, 0)
@@ -836,6 +841,37 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 		if got := commands[i]; got != expected {
 			t.Fatalf("command %d = %q, want %q", i, got, expected)
 		}
+	}
+}
+
+func TestJoinGameMenuConnectsSelectedServerResult(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.serverResults = []inet.HostCacheEntry{
+		{Name: "Alpha", Map: "start", Players: 1, MaxPlayers: 4, Address: "10.0.0.2:26000"},
+		{Name: "Beta", Map: "dm2", Players: 3, MaxPlayers: 8, Address: "10.0.0.3:26000"},
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuJoinGame
+	mgr.joinGameCursor = joinGameBaseItems + 1
+	mgr.M_Key(input.KEnter)
+
+	if mgr.IsActive() {
+		t.Fatal("selecting a discovered server should hide menu")
+	}
+	if got := commands[len(commands)-1]; got != "connect \"10.0.0.3:26000\"\n" {
+		t.Fatalf("unexpected connect command: %q", got)
+	}
+	if got := mgr.joinAddress; got != "10.0.0.3:26000" {
+		t.Fatalf("joinAddress = %q, want selected server address", got)
 	}
 }
 

@@ -128,6 +128,29 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 	}
 }
 
+func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
+	srv := &mockServer{active: true}
+	subs := &Subsystems{Server: srv}
+	cvar.Set(serverHostnameCVar, "LAN Party")
+
+	provider := makeServerInfoProvider(subs)
+	if provider == nil {
+		t.Fatal("makeServerInfoProvider() = nil")
+	}
+	if got := provider.Hostname(); got != "LAN Party" {
+		t.Fatalf("Hostname() = %q, want %q", got, "LAN Party")
+	}
+	if got := provider.MapName(); got != "start" {
+		t.Fatalf("MapName() = %q, want %q", got, "start")
+	}
+	if got := provider.Players(); got != 1 {
+		t.Fatalf("Players() = %d, want 1", got)
+	}
+	if got := provider.MaxPlayers(); got != 1 {
+		t.Fatalf("MaxPlayers() = %d, want 1", got)
+	}
+}
+
 func TestHostFrame(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
