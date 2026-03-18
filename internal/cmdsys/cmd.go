@@ -77,12 +77,13 @@ type Command struct {
 // The RWMutex allows concurrent reads (e.g., tab-completion, command lookup)
 // while serializing writes (e.g., registering new commands, modifying aliases).
 type CmdSystem struct {
-	mu        sync.RWMutex        // Protects concurrent access to commands, aliases, and buffer.
-	commands  map[string]*Command // Registry of all named commands, keyed by lowercase name.
-	aliases   map[string]string   // User-defined alias expansions, keyed by lowercase alias name.
-	buffer    strings.Builder     // Accumulated command text waiting to be executed.
-	waitCount int                 // Tracks pending "wait" frames; see executeTextWithWait.
-	source    CommandSource       // Current command source for handlers executing in this context.
+	mu          sync.RWMutex        // Protects concurrent access to commands, aliases, and buffer.
+	commands    map[string]*Command // Registry of all named commands, keyed by lowercase name.
+	aliases     map[string]string   // User-defined alias expansions, keyed by lowercase alias name.
+	buffer      strings.Builder     // Accumulated command text waiting to be executed.
+	waitCount   int                 // Tracks pending "wait" frames; see executeTextWithWait.
+	source      CommandSource       // Current command source for handlers executing in this context.
+	ForwardFunc func(line string)   // Called for unrecognized commands (e.g., forward to server).
 }
 
 // globalCmd is the package-level singleton CmdSystem instance. Quake's original
@@ -422,6 +423,13 @@ func (c *CmdSystem) executeLine(line string, expanding map[string]struct{}) {
 		}
 		return
 	}
+
+	// No command, alias, or cvar matched — forward to server if connected.
+	// This matches C Cmd_ForwardToServer() which sends unrecognized commands
+	// as clc_stringcmd messages so "say", "name", "color" etc. work in MP.
+	if c.ForwardFunc != nil {
+		c.ForwardFunc(line)
+	}
 }
 
 // Exists checks whether a command with the given name is registered. This is
@@ -700,4 +708,12 @@ func Complete(partial string) []string {
 // CompleteAliases returns alias name completions from the global command system.
 func CompleteAliases(partial string) []string {
 	return globalCmd.CompleteAliases(partial)
+}
+
+// SetForwardFunc sets the callback for unrecognized commands on the global
+// command system. When a command is not found as a registered command, alias,
+// or cvar, this function is called with the full command line. In Quake, this
+// forwards the command to the remote server (Cmd_ForwardToServer).
+func SetForwardFunc(fn func(line string)) {
+	globalCmd.ForwardFunc = fn
 }

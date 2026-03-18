@@ -269,3 +269,28 @@ func TestParseCommandStripsComments(t *testing.T) {
 		}
 	}
 }
+
+func TestForwardFuncCalledForUnknownCommands(t *testing.T) {
+	cs := NewCmdSystem()
+	var forwarded string
+	cs.ForwardFunc = func(line string) {
+		forwarded = line
+	}
+	cs.ExecuteText("unknowncmd arg1 arg2")
+	if forwarded != "unknowncmd arg1 arg2" {
+		t.Fatalf("ForwardFunc got %q, want %q", forwarded, "unknowncmd arg1 arg2")
+	}
+}
+
+func TestForwardFuncNotCalledForKnownCommands(t *testing.T) {
+	cs := NewCmdSystem()
+	called := false
+	cs.ForwardFunc = func(line string) {
+		called = true
+	}
+	cs.AddCommand("known", func(args []string) {}, "test")
+	cs.ExecuteText("known arg1")
+	if called {
+		t.Fatal("ForwardFunc should not be called for known commands")
+	}
+}
