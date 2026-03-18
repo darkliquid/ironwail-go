@@ -141,7 +141,9 @@ func wireCSQCDrawHooks(rc renderer.RenderContext) {
 			return true
 		},
 		PrecachePic: func(name string, flags int) string {
-			// No-op for now; pics are loaded on demand.
+			if g.CSQC != nil {
+				g.CSQC.PrecachePic(name)
+			}
 			return name
 		},
 		GetImageSize: func(name string) (float32, float32) {

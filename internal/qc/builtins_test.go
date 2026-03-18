@@ -122,6 +122,46 @@ func TestSetModelStoresModelAndModelIndex(t *testing.T) {
 	}
 }
 
+func TestPrecacheBuiltinsFallbackToCSQCHooks(t *testing.T) {
+	SetServerBuiltinHooks(ServerBuiltinHooks{})
+	SetCSQCClientHooks(CSQCClientHooks{})
+	defer SetServerBuiltinHooks(ServerBuiltinHooks{})
+	defer SetCSQCClientHooks(CSQCClientHooks{})
+
+	vm := newBuiltinsTestVM(4)
+
+	var gotSound string
+	var gotModel string
+	SetCSQCClientHooks(CSQCClientHooks{
+		PrecacheSound: func(name string) int {
+			gotSound = name
+			return 1
+		},
+		PrecacheModel: func(name string) int {
+			gotModel = name
+			return 1
+		},
+	})
+
+	vm.SetGString(OFSParm0, "weapons/rocket1i.wav")
+	precacheSound(vm)
+	if gotSound != "weapons/rocket1i.wav" {
+		t.Fatalf("precacheSound CSQC hook name = %q, want %q", gotSound, "weapons/rocket1i.wav")
+	}
+	if got := vm.GString(OFSReturn); got != "weapons/rocket1i.wav" {
+		t.Fatalf("precacheSound return = %q, want input string", got)
+	}
+
+	vm.SetGString(OFSParm0, "progs/player.mdl")
+	precacheModel(vm)
+	if gotModel != "progs/player.mdl" {
+		t.Fatalf("precacheModel CSQC hook name = %q, want %q", gotModel, "progs/player.mdl")
+	}
+	if got := vm.GString(OFSReturn); got != "progs/player.mdl" {
+		t.Fatalf("precacheModel return = %q, want input string", got)
+	}
+}
+
 func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	hookCalls := struct {
 		traceline      int

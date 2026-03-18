@@ -48,6 +48,12 @@ func SetCSQCDrawHooks(hooks CSQCDrawHooks) {
 
 // CSQCClientHooks provides client state access for CSQC builtins.
 type CSQCClientHooks struct {
+	// PrecacheModel registers a model for CSQC use and returns its index.
+	PrecacheModel func(name string) int
+
+	// PrecacheSound registers a sound for CSQC use and returns its index.
+	PrecacheSound func(name string) int
+
 	// GetStatInt returns a client stat value as an integer.
 	GetStatInt func(statNum int) int32
 

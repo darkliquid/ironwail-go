@@ -65,6 +65,11 @@ type CSQC struct {
 	// Cached CSQC global variable offsets.
 	globals csqcGlobals
 
+	// Precache registries (resource name -> index).
+	precachedModels map[string]int
+	precachedSounds map[string]int
+	precachedPics   map[string]int
+
 	// State.
 	loaded bool
 }
@@ -72,12 +77,15 @@ type CSQC struct {
 // NewCSQC creates a new CSQC instance with a fresh VM.
 func NewCSQC() *CSQC {
 	return &CSQC{
-		VM:             NewVM(),
-		initFunc:       -1,
-		shutdownFunc:   -1,
-		drawHudFunc:    -1,
-		drawScoresFunc: -1,
-		globals:        newCSQCGlobals(),
+		VM:              NewVM(),
+		initFunc:        -1,
+		shutdownFunc:    -1,
+		drawHudFunc:     -1,
+		drawScoresFunc:  -1,
+		globals:         newCSQCGlobals(),
+		precachedModels: make(map[string]int),
+		precachedSounds: make(map[string]int),
+		precachedPics:   make(map[string]int),
 	}
 }
 
@@ -90,6 +98,9 @@ func (c *CSQC) Load(r io.ReadSeeker) error {
 	c.drawHudFunc = -1
 	c.drawScoresFunc = -1
 	c.globals = newCSQCGlobals()
+	c.precachedModels = make(map[string]int)
+	c.precachedSounds = make(map[string]int)
+	c.precachedPics = make(map[string]int)
 
 	if err := c.VM.LoadProgs(r); err != nil {
 		return fmt.Errorf("csqc: load progs: %w", err)
@@ -253,6 +264,65 @@ func (c *CSQC) CallDrawScores(state CSQCFrameState, virtSizeX, virtSizeY float32
 	return nil
 }
 
+// PrecacheModel registers a model for CSQC use.
+// Returns the model index.
+func (c *CSQC) PrecacheModel(name string) int {
+	if idx, ok := c.precachedModels[name]; ok {
+		return idx
+	}
+	idx := len(c.precachedModels) + 1
+	c.precachedModels[name] = idx
+	return idx
+}
+
+// PrecacheSound registers a sound for CSQC use.
+// Returns the sound index.
+func (c *CSQC) PrecacheSound(name string) int {
+	if idx, ok := c.precachedSounds[name]; ok {
+		return idx
+	}
+	idx := len(c.precachedSounds) + 1
+	c.precachedSounds[name] = idx
+	return idx
+}
+
+// PrecachePic registers a pic for CSQC use.
+// Returns the pic index.
+func (c *CSQC) PrecachePic(name string) int {
+	if idx, ok := c.precachedPics[name]; ok {
+		return idx
+	}
+	idx := len(c.precachedPics) + 1
+	c.precachedPics[name] = idx
+	return idx
+}
+
+func namesByIndex(registry map[string]int) []string {
+	names := make([]string, len(registry))
+	for name, idx := range registry {
+		if idx <= 0 || idx > len(names) {
+			continue
+		}
+		names[idx-1] = name
+	}
+	return names
+}
+
+// PrecachedModels returns model names in their registration order.
+func (c *CSQC) PrecachedModels() []string {
+	return namesByIndex(c.precachedModels)
+}
+
+// PrecachedSounds returns sound names in their registration order.
+func (c *CSQC) PrecachedSounds() []string {
+	return namesByIndex(c.precachedSounds)
+}
+
+// PrecachedPics returns pic names in their registration order.
+func (c *CSQC) PrecachedPics() []string {
+	return namesByIndex(c.precachedPics)
+}
+
 // Unload resets CSQC state and replaces the VM with a fresh instance.
 func (c *CSQC) Unload() {
 	c.VM = NewVM()
@@ -261,5 +331,8 @@ func (c *CSQC) Unload() {
 	c.drawHudFunc = -1
 	c.drawScoresFunc = -1
 	c.globals = newCSQCGlobals()
+	c.precachedModels = make(map[string]int)
+	c.precachedSounds = make(map[string]int)
+	c.precachedPics = make(map[string]int)
 	c.loaded = false
 }

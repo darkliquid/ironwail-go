@@ -345,6 +345,8 @@ func precacheSound(vm *VM) {
 	sample := vm.GString(OFSParm0)
 	if serverBuiltinHooks.PrecacheSound != nil {
 		serverBuiltinHooks.PrecacheSound(vm, sample)
+	} else if csqcClientHooks.PrecacheSound != nil {
+		csqcClientHooks.PrecacheSound(sample)
 	}
 	vm.SetGInt(OFSReturn, vm.GInt(OFSParm0))
 }
@@ -354,6 +356,8 @@ func precacheModel(vm *VM) {
 	modelName := vm.GString(OFSParm0)
 	if serverBuiltinHooks.PrecacheModel != nil {
 		serverBuiltinHooks.PrecacheModel(vm, modelName)
+	} else if csqcClientHooks.PrecacheModel != nil {
+		csqcClientHooks.PrecacheModel(modelName)
 	}
 	vm.SetGInt(OFSReturn, vm.GInt(OFSParm0))
 }

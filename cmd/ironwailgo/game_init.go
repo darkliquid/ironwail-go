@@ -143,6 +143,20 @@ func initGameQC() error {
 
 	// Register server and CSQC builtins with their respective VMs.
 	qc.RegisterBuiltins(g.CSQC.VM)
+	qc.SetCSQCClientHooks(qc.CSQCClientHooks{
+		PrecacheModel: func(name string) int {
+			if g.CSQC == nil {
+				return 0
+			}
+			return g.CSQC.PrecacheModel(name)
+		},
+		PrecacheSound: func(name string) int {
+			if g.CSQC == nil {
+				return 0
+			}
+			return g.CSQC.PrecacheSound(name)
+		},
+	})
 
 	return nil
 }
