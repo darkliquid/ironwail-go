@@ -633,3 +633,17 @@ func TestStringBuiltins(t *testing.T) {
 		t.Errorf("str2chr(A,0) = %v, want 65", got)
 	}
 }
+
+func TestRandomBuiltinDistribution(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+
+	// Verify random() produces values in open interval (0, 1).
+	// With the gameplayfix formula: ((r+0.5)/0x8000), min=0.5/32768, max=32767.5/32768.
+	for i := 0; i < 1000; i++ {
+		random(vm)
+		v := vm.GFloat(OFSReturn)
+		if v <= 0 || v >= 1 {
+			t.Fatalf("random() = %v, want (0,1) exclusive", v)
+		}
+	}
+}

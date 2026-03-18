@@ -137,11 +137,18 @@ func normalize(vm *VM) {
 //
 // QuakeC signature: float() random
 
-// random returns a random float in the range [0, 1].
+// random returns a random float matching C Quake's PF_random behavior.
+// With sv_gameplayfix_random (default): ((rand()&0x7fff)+0.5)*(1/0x8000)
+// produces values in open interval (0,1), never exactly 0 or 1.
+// Without fix: (rand()&0x7fff)/0x7fff, values in [0,1].
 //
 // QuakeC signature: float() random
 func random(vm *VM) {
-	vm.SetGFloat(OFSReturn, rand.Float32())
+	// Match C's 15-bit quantization: rand() & 0x7fff
+	r := rand.Intn(0x8000) // [0, 32767]
+	// Default: gameplayfix_random=1 formula avoids exact 0.0 and 1.0
+	num := (float32(r) + 0.5) * (1.0 / 0x8000)
+	vm.SetGFloat(OFSReturn, num)
 }
 
 func rintBuiltin(vm *VM) {
