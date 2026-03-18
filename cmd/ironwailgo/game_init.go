@@ -37,6 +37,8 @@ func initGameHost() error {
 		applySVolume()
 	}
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
+	cvar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
+	cvar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")

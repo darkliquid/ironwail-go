@@ -115,6 +115,8 @@ const (
 	CvarVidVsync      = "vid_vsync"      // Vertical sync: 0=off, 1=on (default: 1)
 	CvarHostMaxFPS    = "host_maxfps"    // Maximum frames per second (default: 250)
 	CvarRGamma        = "r_gamma"        // Gamma correction value (default: 1.0)
+	CvarRAlphaSort    = "r_alphasort"    // Alpha surface sorting (0=basic, 1=sorted)
+	CvarROIT          = "r_oit"          // Order-independent transparency mode (0=off, 1=on)
 	CvarRWaterAlpha   = "r_wateralpha"   // Water alpha (0..1, default 1.0)
 	CvarRLavaAlpha    = "r_lavaalpha"    // Lava alpha (0 uses water alpha)
 	CvarRSlimeAlpha   = "r_slimealpha"   // Slime alpha (0 uses water alpha)
