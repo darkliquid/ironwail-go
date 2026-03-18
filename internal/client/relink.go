@@ -1,10 +1,9 @@
 package client
 
 import (
-	"math"
-
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // RelinkEntities interpolates all entity positions and angles between their
@@ -21,7 +20,7 @@ func (c *Client) RelinkEntities() {
 	}
 
 	frac := float32(c.LerpPoint())
-	bobjRotate := angleMod(100 * float32(c.Time))
+	bobjRotate := types.AngleMod(100 * float32(c.Time))
 
 	for entNum, state := range c.Entities {
 		// If this entity was not updated in the latest server message, skip it.
@@ -93,14 +92,4 @@ func wrapAngleDelta(d float32) float32 {
 		return d + 360
 	}
 	return d
-}
-
-// angleMod normalizes an angle to the range [0, 360).
-// Equivalent to C's anglemod() in mathlib.c.
-func angleMod(a float32) float32 {
-	a = float32(math.Mod(float64(a), 360.0))
-	if a < 0 {
-		a += 360
-	}
-	return a
 }

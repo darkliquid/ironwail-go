@@ -215,7 +215,7 @@ func ClampInt(value, min, max int) int {
 // This uses 16-bit precision (~0.0055° per step), matching the exact
 // quantization behavior of the C Quake engine.
 func AngleMod(angle float32) float32 {
-	return (360.0 / 65536) * float32(int(angle*(65536.0/360.0))&65535)
+	return float32((360.0 / 65536.0) * float64(int(float64(angle)*(65536.0/360.0))&65535))
 }
 
 // AngleByte converts a float angle (in degrees) to the 8-bit byte

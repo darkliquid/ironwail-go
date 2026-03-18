@@ -6,6 +6,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 const (
@@ -27,14 +28,8 @@ func (s *Server) SV_TestEntityPosition(ent *Edict) *Edict {
 	return s.TestEntityPosition(ent)
 }
 
-// anglemod normalizes an angle using 16-bit quantization matching C's mathlib.c:
-//   a = (360.0/65536) * ((int)(a*(65536/360.0)) & 65535)
-func anglemod(yaw float32) float32 {
-	return (360.0 / 65536) * float32(int(yaw*(65536.0/360.0))&65535)
-}
-
 func (s *Server) changeYaw(ent *Edict) {
-	current := anglemod(ent.Vars.Angles[1])
+	current := types.AngleMod(ent.Vars.Angles[1])
 	ideal := ent.Vars.IdealYaw
 	speed := ent.Vars.YawSpeed
 
@@ -59,7 +54,7 @@ func (s *Server) changeYaw(ent *Edict) {
 		move = -speed
 	}
 
-	ent.Vars.Angles[1] = anglemod(current + move)
+	ent.Vars.Angles[1] = types.AngleMod(current + move)
 }
 
 func (s *Server) CheckBottom(ent *Edict) bool {
@@ -274,8 +269,8 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		return
 	}
 
-	olddir := anglemod(float32(int(actor.Vars.IdealYaw/45)) * 45)
-	turnaround := anglemod(olddir - 180)
+	olddir := types.AngleMod(float32(int(actor.Vars.IdealYaw/45)) * 45)
+	turnaround := types.AngleMod(olddir - 180)
 
 	deltax := enemy.Vars.Origin[0] - actor.Vars.Origin[0]
 	deltay := enemy.Vars.Origin[1] - actor.Vars.Origin[1]

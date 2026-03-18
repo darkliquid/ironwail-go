@@ -44,6 +44,34 @@ func TestAngles(t *testing.T) {
 	}
 }
 
+func cAngleModReference(a float32) float32 {
+	return float32((360.0 / 65536.0) * float64(int(float64(a)*(65536.0/360.0))&65535))
+}
+
+func TestAngleModMatchesCQuantization(t *testing.T) {
+	step := float32(360.0 / 65536.0)
+	tests := []float32{
+		0,
+		360,
+		-1,
+		721.5,
+		step,        // exact 1-step value
+		2 * step,    // exact 2-step value
+		0.5 * step,  // truncates to 0
+		1.9 * step,  // truncates to 1 step
+		-step,       // wraps to 360 - 1 step
+		-0.5 * step, // truncates to 0 then wraps via mask
+	}
+
+	for _, in := range tests {
+		got := AngleMod(in)
+		want := cAngleModReference(in)
+		if got != want {
+			t.Fatalf("AngleMod(%f) = %f, want %f", in, got, want)
+		}
+	}
+}
+
 func TestVectorAngles(t *testing.T) {
 	forward := Vec3{X: 1, Y: 0, Z: 0}
 	angles := VectorAngles(forward)
