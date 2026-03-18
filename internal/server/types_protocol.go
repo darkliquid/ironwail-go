@@ -344,9 +344,9 @@ const (
 	// MaxDatagram — maximum size in bytes of a single network datagram (UDP
 	// packet payload). Quake uses unreliable datagrams for real-time updates.
 	// If a frame's entity updates exceed this size, entities are dropped from
-	// that frame's update (the client uses its previous data). Larger values
-	// allow more entities per update but risk UDP fragmentation.
-	MaxDatagram = 32000
+	// that frame's update (the client uses its previous data). Matches C's
+	// MAX_DATAGRAM (64000, raised from original 1024 by johnfitz).
+	MaxDatagram = 64000
 
 	// MaxSignonBuffers — maximum number of signon buffer segments. The signon
 	// data (baselines, static entities, static sounds, lightstyles) is split

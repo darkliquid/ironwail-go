@@ -42,7 +42,7 @@ import (
 //
 // LengthMask extracts the packet length from the header's first uint32.
 const (
-	MaxMessage     = 64000
+	MaxMessage     = 65535 // NET_MAXMESSAGE in C (was 32000, raised by ericw)
 	MaxDatagram    = 1400
 	HeaderSize     = 8
 	FlagData       = 1 << 16 // 0x00010000
