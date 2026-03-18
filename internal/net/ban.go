@@ -11,7 +11,7 @@ import (
 // matching C Ironwail's net_dgrm.c banAddr/banMask.
 type IPBan struct {
 	mu   sync.RWMutex
-	addr net.IP   // Ban address (nil = not active)
+	addr net.IP     // Ban address (nil = not active)
 	mask net.IPMask // Ban mask
 }
 

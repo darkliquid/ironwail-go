@@ -286,5 +286,5 @@ func modBuiltin(vm *VM) {
 		vm.SetGFloat(OFSReturn, 0)
 		return
 	}
-	vm.SetGFloat(OFSReturn, a - float32(int(a/b))*b)
+	vm.SetGFloat(OFSReturn, a-float32(int(a/b))*b)
 }

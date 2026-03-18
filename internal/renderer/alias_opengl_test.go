@@ -17,13 +17,13 @@ func TestInterpolateVertexPosition(t *testing.T) {
 	origin := [3]float32{0.0, 0.0, 0.0}
 
 	tests := []struct {
-		name         string
-		vert1        model.TriVertX
-		vert2        model.TriVertX
-		factor       float32
-		expectedX    float32
-		expectedY    float32
-		expectedZ    float32
+		name      string
+		vert1     model.TriVertX
+		vert2     model.TriVertX
+		factor    float32
+		expectedX float32
+		expectedY float32
+		expectedZ float32
 	}{
 		{
 			name:      "factor 0 should return position from pose1",
@@ -66,7 +66,7 @@ func TestInterpolateVertexPosition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := interpolateVertexPosition(tt.vert1, tt.vert2, scale, origin, tt.factor)
-			
+
 			tolerance := float32(0.01)
 			if math.Abs(float64(result[0]-tt.expectedX)) > float64(tolerance) ||
 				math.Abs(float64(result[1]-tt.expectedY)) > float64(tolerance) ||
@@ -128,15 +128,15 @@ func TestSetupAliasFrameInterpolation(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		frameIndex     int
-		timeSeconds    float64
-		lerpModels     bool
-		flags          int
-		expectedPose1  int
-		expectedPose2  int
-		expectedBlend  float32
-		blendRange     float32 // tolerance for blend comparison
+		name          string
+		frameIndex    int
+		timeSeconds   float64
+		lerpModels    bool
+		flags         int
+		expectedPose1 int
+		expectedPose2 int
+		expectedBlend float32
+		blendRange    float32 // tolerance for blend comparison
 	}{
 		{
 			name:          "single-pose frame has no blend",
@@ -149,37 +149,37 @@ func TestSetupAliasFrameInterpolation(t *testing.T) {
 			expectedBlend: 0.0,
 		},
 		{
-			name:           "multi-pose frame at t=0 shows blend at start",
-			frameIndex:     1,
-			timeSeconds:    0.0,
-			lerpModels:     true,
-			flags:          0,
-			expectedPose1:  1,
-			expectedPose2:  2,
-			expectedBlend:  0.0,
-			blendRange:     0.1,
+			name:          "multi-pose frame at t=0 shows blend at start",
+			frameIndex:    1,
+			timeSeconds:   0.0,
+			lerpModels:    true,
+			flags:         0,
+			expectedPose1: 1,
+			expectedPose2: 2,
+			expectedBlend: 0.0,
+			blendRange:    0.1,
 		},
 		{
-			name:           "multi-pose frame at t=0.025 is halfway through interval",
-			frameIndex:     1,
-			timeSeconds:    0.025,
-			lerpModels:     true,
-			flags:          0,
-			expectedPose1:  1,
-			expectedPose2:  2,
-			expectedBlend:  0.5,
-			blendRange:     0.1,
+			name:          "multi-pose frame at t=0.025 is halfway through interval",
+			frameIndex:    1,
+			timeSeconds:   0.025,
+			lerpModels:    true,
+			flags:         0,
+			expectedPose1: 1,
+			expectedPose2: 2,
+			expectedBlend: 0.5,
+			blendRange:    0.1,
 		},
 		{
-			name:           "with ModNoLerp flag, blend is always 0",
-			frameIndex:     1,
-			timeSeconds:    0.025,
-			lerpModels:     true,
-			flags:          ModNoLerp,
-			expectedPose1:  1,
-			expectedPose2:  2,
-			expectedBlend:  0.0,
-			blendRange:     0.01,
+			name:          "with ModNoLerp flag, blend is always 0",
+			frameIndex:    1,
+			timeSeconds:   0.025,
+			lerpModels:    true,
+			flags:         ModNoLerp,
+			expectedPose1: 1,
+			expectedPose2: 2,
+			expectedBlend: 0.0,
+			blendRange:    0.01,
 		},
 		{
 			name:          "invalid frame index defaults to 0",
@@ -196,14 +196,14 @@ func TestSetupAliasFrameInterpolation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := setupAliasFrameInterpolation(tt.frameIndex, frames, tt.timeSeconds, tt.lerpModels, tt.flags)
-			
+
 			if result.Pose1 != tt.expectedPose1 {
 				t.Errorf("Pose1: got %d, want %d", result.Pose1, tt.expectedPose1)
 			}
 			if result.Pose2 != tt.expectedPose2 {
 				t.Errorf("Pose2: got %d, want %d", result.Pose2, tt.expectedPose2)
 			}
-			
+
 			if tt.blendRange == 0 {
 				tt.blendRange = 0.01 // default tolerance
 			}

@@ -834,4 +834,3 @@ func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {
 		nodeIdx = child.Index
 	}
 }
-

@@ -79,7 +79,7 @@ const (
 	FlagNoSet
 	FlagLatched
 	FlagROM
-	FlagLocked // Temporarily locked during gameplay; rejects Set until unlocked.
+	FlagLocked   // Temporarily locked during gameplay; rejects Set until unlocked.
 	FlagAutoCvar // Automatically syncs value to QC global variable autocvar_<name>.
 )
 
@@ -124,9 +124,9 @@ func (cv *CVar) Float32() float32 {
 // (common during rendering and physics), while writes (setting values,
 // registering new cvars) are serialized.
 type CVarSystem struct {
-	mu               sync.RWMutex     // Protects concurrent access to the vars map.
-	vars             map[string]*CVar // All registered cvars, keyed by lowercase name.
-	AutoCvarChanged  func(cv *CVar)   // Called when a FlagAutoCvar cvar's value changes.
+	mu              sync.RWMutex     // Protects concurrent access to the vars map.
+	vars            map[string]*CVar // All registered cvars, keyed by lowercase name.
+	AutoCvarChanged func(cv *CVar)   // Called when a FlagAutoCvar cvar's value changes.
 }
 
 // globalCVar is the package-level singleton CVarSystem instance. Like the

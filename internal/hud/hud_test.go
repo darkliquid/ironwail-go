@@ -586,95 +586,95 @@ func TestStatusBarDrawScoreboardOverlayWhenHeld(t *testing.T) {
 // TestCompactHUDDrawsHealthBottomLeft verifies that the compact HUD renders the
 // player health in the bottom-left corner using DrawCharacter calls.
 func TestCompactHUDDrawsHealthBottomLeft(t *testing.T) {
-c := NewCompactHUD()
-rc := &mockRenderContext{}
+	c := NewCompactHUD()
+	rc := &mockRenderContext{}
 
-state := State{Health: 75, ActiveWeapon: 2, Shells: 30}
-c.Draw(rc, state, 640, 480)
+	state := State{Health: 75, ActiveWeapon: 2, Shells: 30}
+	c.Draw(rc, state, 640, 480)
 
-if len(rc.characters) == 0 {
-t.Fatal("expected DrawCharacter calls for compact HUD, got none")
-}
+	if len(rc.characters) == 0 {
+		t.Fatal("expected DrawCharacter calls for compact HUD, got none")
+	}
 
-// Health is drawn at the bottom-left; the first chars should be at low X, near bottom.
-bottomY := 480 - compactCharSize - compactMargin
-found := false
-for _, ch := range rc.characters {
-if ch.y == bottomY {
-found = true
-break
-}
-}
-if !found {
-t.Fatalf("expected a character drawn at y=%d (bottom-left health), none found; chars: %v", bottomY, rc.characters)
-}
+	// Health is drawn at the bottom-left; the first chars should be at low X, near bottom.
+	bottomY := 480 - compactCharSize - compactMargin
+	found := false
+	for _, ch := range rc.characters {
+		if ch.y == bottomY {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected a character drawn at y=%d (bottom-left health), none found; chars: %v", bottomY, rc.characters)
+	}
 }
 
 // TestCompactHUDDrawsAmmoBottomRight verifies that ammo is drawn near the right
 // side of the screen.
 func TestCompactHUDDrawsAmmoBottomRight(t *testing.T) {
-c := NewCompactHUD()
-rc := &mockRenderContext{}
+	c := NewCompactHUD()
+	rc := &mockRenderContext{}
 
-state := State{Health: 100, ActiveWeapon: 4, Nails: 50}
-c.Draw(rc, state, 640, 480)
+	state := State{Health: 100, ActiveWeapon: 4, Nails: 50}
+	c.Draw(rc, state, 640, 480)
 
-// The ammo string "  50" (right-aligned, 3 chars wide) starts at
-// x = 640 - 3*8 - 4 = 612. Verify some char is near the right edge.
-rightX := 640 - 4*compactCharSize - compactMargin
-found := false
-for _, ch := range rc.characters {
-if ch.x >= rightX {
-found = true
-break
-}
-}
-if !found {
-t.Fatalf("expected a character near right edge (x>=%d) for ammo, none found", rightX)
-}
+	// The ammo string "  50" (right-aligned, 3 chars wide) starts at
+	// x = 640 - 3*8 - 4 = 612. Verify some char is near the right edge.
+	rightX := 640 - 4*compactCharSize - compactMargin
+	found := false
+	for _, ch := range rc.characters {
+		if ch.x >= rightX {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected a character near right edge (x>=%d) for ammo, none found", rightX)
+	}
 }
 
 // TestCompactHUDNilRenderContextNoPanic verifies that Draw with a nil context does
 // not panic.
 func TestCompactHUDNilRenderContextNoPanic(t *testing.T) {
-c := NewCompactHUD()
-defer func() {
-if r := recover(); r != nil {
-t.Fatalf("panicked with nil RenderContext: %v", r)
-}
-}()
-c.Draw(nil, State{Health: 50}, 640, 480)
+	c := NewCompactHUD()
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panicked with nil RenderContext: %v", r)
+		}
+	}()
+	c.Draw(nil, State{Health: 50}, 640, 480)
 }
 
 // TestHUDStyleSwitchesRenderer verifies that hud.Draw dispatches to the compact
 // renderer when hud_style=1.
 func TestHUDStyleSwitchesRenderer(t *testing.T) {
-h := NewHUD(nil)
-h.SetScreenSize(640, 480)
-h.SetState(State{Health: 42, ActiveWeapon: 2, Shells: 10})
+	h := NewHUD(nil)
+	h.SetScreenSize(640, 480)
+	h.SetState(State{Health: 42, ActiveWeapon: 2, Shells: 10})
 
-rc := &mockRenderContext{}
+	rc := &mockRenderContext{}
 
-// Classic style: status bar draws pics (from sbar.go); with nil draw manager
-// it falls through to DrawFill calls. Reset and count.
-_ = strings.Contains // keep import
-_ = cl.Client{}      // keep import
-cvar.Set("hud_style", "0")
-h.Draw(rc)
-classicCalls := len(rc.characters) + len(rc.fills)
+	// Classic style: status bar draws pics (from sbar.go); with nil draw manager
+	// it falls through to DrawFill calls. Reset and count.
+	_ = strings.Contains // keep import
+	_ = cl.Client{}      // keep import
+	cvar.Set("hud_style", "0")
+	h.Draw(rc)
+	classicCalls := len(rc.characters) + len(rc.fills)
 
-// Compact style: only DrawCharacter calls.
-rc2 := &mockRenderContext{}
-cvar.Set("hud_style", "1")
-h.Draw(rc2)
-compactCalls := len(rc2.characters)
+	// Compact style: only DrawCharacter calls.
+	rc2 := &mockRenderContext{}
+	cvar.Set("hud_style", "1")
+	h.Draw(rc2)
+	compactCalls := len(rc2.characters)
 
-// Both should produce output.
-if classicCalls == 0 && compactCalls == 0 {
-t.Fatal("both styles produced no output")
-}
-// Compact should not use fills (no status bar background).
-if len(rc2.fills) != 0 {
-t.Errorf("compact HUD should not use DrawFill, got %d calls", len(rc2.fills))
-}
+	// Both should produce output.
+	if classicCalls == 0 && compactCalls == 0 {
+		t.Fatal("both styles produced no output")
+	}
+	// Compact should not use fills (no status bar background).
+	if len(rc2.fills) != 0 {
+		t.Errorf("compact HUD should not use DrawFill, got %d calls", len(rc2.fills))
+	}
 }

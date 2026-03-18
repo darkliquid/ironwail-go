@@ -27,18 +27,18 @@ func TestApplyWaterwarpFOV(t *testing.T) {
 		tolerance  float32
 	}{
 		{
-			name:       "sin=0 (t=0): scale=0.97, FOV should decrease",
-			baseFOV:    90.0,
-			time:       0,
+			name:    "sin=0 (t=0): scale=0.97, FOV should decrease",
+			baseFOV: 90.0,
+			time:    0,
 			// scale = 0.97 + sin(0)*0.03 = 0.97
 			// new = atan(tan(45°)*0.97) * 360/π ≈ atan(0.97) * 114.59 ≈ 88.26°
 			wantApprox: 88.26,
 			tolerance:  0.05,
 		},
 		{
-			name:       "sin=1 (t=π/3): scale=1.0, FOV unchanged",
-			baseFOV:    90.0,
-			time:       float32(math.Pi / 3), // t*1.5 = π/2, sin(π/2)=1
+			name:    "sin=1 (t=π/3): scale=1.0, FOV unchanged",
+			baseFOV: 90.0,
+			time:    float32(math.Pi / 3), // t*1.5 = π/2, sin(π/2)=1
 			// scale = 0.97 + 1*0.03 = 1.0 → FOV unchanged
 			wantApprox: 90.0,
 			tolerance:  0.05,

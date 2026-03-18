@@ -28,8 +28,8 @@ const (
 )
 
 type Parser struct {
-	Client         *Client
-	warnedNehahra  bool // Log Nehahra protocol warning only once per connection
+	Client        *Client
+	warnedNehahra bool // Log Nehahra protocol warning only once per connection
 }
 
 func NewParser(c *Client) *Parser {

@@ -250,8 +250,8 @@ func TestProfileResultsAccumulatesPerFunction(t *testing.T) {
 	)
 
 	vm.Functions = []DFunction{
-		{FirstStatement: 1, Name: 0},  // "main" at string offset 0
-		{FirstStatement: 6, Name: 5},  // "callee" at string offset 5
+		{FirstStatement: 1, Name: 0}, // "main" at string offset 0
+		{FirstStatement: 6, Name: 5}, // "callee" at string offset 5
 	}
 
 	// main: counter=2; loop: call callee; counter--; if counter>0 goto loop; done

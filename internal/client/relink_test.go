@@ -19,7 +19,7 @@ func TestRelinkEntities_DemoViewAngleInterpolation(t *testing.T) {
 	c.DemoPlayback = true
 
 	// Set double-buffered view angles: old=[0,0,0], new=[90,180,45]
-	c.MViewAngles[1] = [3]float32{0, 0, 0}   // old frame
+	c.MViewAngles[1] = [3]float32{0, 0, 0}     // old frame
 	c.MViewAngles[0] = [3]float32{90, 180, 45} // new frame
 
 	c.RelinkEntities()
@@ -80,25 +80,25 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 
 	c.Entities = map[int]inet.EntityState{
 		1: {
-			ModelIndex: 1,
-			MsgTime:    1.0,
-			MsgOrigins: [2][3]float32{{100, 200, 300}, {100, 200, 300}},
+			ModelIndex:  1,
+			MsgTime:     1.0,
+			MsgOrigins:  [2][3]float32{{100, 200, 300}, {100, 200, 300}},
 			TrailOrigin: [3]float32{90, 190, 290},
-			ForceLink:  false,
+			ForceLink:   false,
 		},
 		2: {
-			ModelIndex: 2,
-			MsgTime:    1.0,
-			MsgOrigins: [2][3]float32{{50, 60, 70}, {50, 60, 70}},
+			ModelIndex:  2,
+			MsgTime:     1.0,
+			MsgOrigins:  [2][3]float32{{50, 60, 70}, {50, 60, 70}},
 			TrailOrigin: [3]float32{40, 50, 60},
-			ForceLink:  false,
+			ForceLink:   false,
 		},
 		3: {
-			ModelIndex: 3,
-			MsgTime:    1.0,
-			MsgOrigins: [2][3]float32{{10, 20, 30}, {10, 20, 30}},
+			ModelIndex:  3,
+			MsgTime:     1.0,
+			MsgOrigins:  [2][3]float32{{10, 20, 30}, {10, 20, 30}},
 			TrailOrigin: [3]float32{5, 15, 25},
-			ForceLink:  false,
+			ForceLink:   false,
 		},
 	}
 	c.ModelPrecache = []string{"", "progs/missile.mdl", "progs/grenade.mdl", "progs/player.mdl"}

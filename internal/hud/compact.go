@@ -28,9 +28,9 @@ type CompactHUD struct{}
 func NewCompactHUD() *CompactHUD { return &CompactHUD{} }
 
 const (
-	compactMargin   = 4  // pixel gap from screen edge
-	compactCharSize = 8  // Quake character glyph width/height
-	compactScale    = 2  // scale factor for big corner numbers
+	compactMargin   = 4 // pixel gap from screen edge
+	compactCharSize = 8 // Quake character glyph width/height
+	compactScale    = 2 // scale factor for big corner numbers
 )
 
 // Draw renders the compact overlay onto rc.

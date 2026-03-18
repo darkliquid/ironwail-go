@@ -211,6 +211,7 @@ func errorBuiltin(vm *VM) {
 func objerrorBuiltin(vm *VM) {
 	console.Printf("QC objerror: %s", vm.GString(OFSParm0))
 }
+
 // ftosBuiltin converts a float to a string. If the float is an integer value,
 // formats as "%d", otherwise as "%5.1f". Matches C PF_ftos behavior exactly.
 func ftosBuiltin(vm *VM) {
