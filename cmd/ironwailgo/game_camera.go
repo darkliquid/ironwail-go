@@ -63,7 +63,7 @@ func runtimeViewState() (origin, angles [3]float32) {
 			// Apply ViewHeight + bob to camera Z.
 			// Mirrors C Ironwail V_CalcRefdef: r_refdef.vieworg[2] += cl.viewheight + bob.
 			clientOrigin[2] += g.Client.ViewHeight
-			bob := viewCalcBob(g.Client.Time, g.Client.Velocity)
+			bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity())
 			clientOrigin[2] += bob
 
 			viewAngles := runtimeInterpolatedViewAngles()
@@ -199,6 +199,32 @@ func runtimePredictionBaselineOrigin(fallback [3]float32) [3]float32 {
 	return fallback
 }
 
+func runtimeInterpolatedVelocity() [3]float32 {
+	if g.Client == nil {
+		return [3]float32{}
+	}
+
+	current := g.Client.MVelocity[0]
+	previous := g.Client.MVelocity[1]
+	if current == [3]float32{} && previous == [3]float32{} {
+		return g.Client.Velocity
+	}
+
+	frac := float32(g.Client.LerpPoint())
+	if frac <= 0 {
+		return previous
+	}
+	if frac >= 1 {
+		return current
+	}
+
+	return [3]float32{
+		previous[0] + frac*(current[0]-previous[0]),
+		previous[1] + frac*(current[1]-previous[1]),
+		previous[2] + frac*(current[2]-previous[2]),
+	}
+}
+
 func predictionErrorXYMagnitude(v [3]float32) float64 {
 	return math.Hypot(float64(v[0]), float64(v[1]))
 }
@@ -261,7 +287,7 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 				camera.Angles.Z = cameraAngles[2]
 
 				// View roll from lateral movement (V_CalcViewRoll).
-				roll := viewCalcRoll(angles, g.Client.Velocity)
+				roll := viewCalcRoll(angles, runtimeInterpolatedVelocity())
 				camera.Angles.Z += roll
 
 				// Idle sway on the camera (V_AddIdle).

@@ -592,6 +592,24 @@ func TestRuntimeViewStateUsesPredictedXYOffsetDuringActiveMovement(t *testing.T)
 	}
 }
 
+func TestRuntimeInterpolatedVelocityUsesLerpHistory(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{0.1, 0}
+	g.Client.Time = 0.05
+	g.Client.MVelocity[1] = [3]float32{0, 0, 0}
+	g.Client.MVelocity[0] = [3]float32{320, 0, 0}
+	g.Client.Velocity = [3]float32{320, 0, 0}
+
+	if got := runtimeInterpolatedVelocity(); got != [3]float32{160, 0, 0} {
+		t.Fatalf("runtimeInterpolatedVelocity() = %v, want [160 0 0]", got)
+	}
+}
+
 func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server

@@ -665,6 +665,7 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 	}
 
 	punch := [3]float32{}
+	velocity := [3]float32{}
 	for i := 0; i < 3; i++ {
 		if bits&(inet.SU_PUNCH1<<uint(i)) != 0 {
 			v, err := readChar(msg, fmt.Sprintf("svc_clientdata: missing punch %d", i))
@@ -678,11 +679,12 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 			if err != nil {
 				return err
 			}
-			p.Client.MVelocity[1][i] = p.Client.MVelocity[0][i]
-			p.Client.MVelocity[0][i] = float32(v) * 16
-			p.Client.Velocity[i] = p.Client.MVelocity[0][i]
+			velocity[i] = float32(v) * 16
 		}
 	}
+	p.Client.MVelocity[1] = p.Client.MVelocity[0]
+	p.Client.MVelocity[0] = velocity
+	p.Client.Velocity = velocity
 	if punch != p.Client.PunchAngles[0] {
 		p.Client.PunchAngles[1] = p.Client.PunchAngles[0]
 		p.Client.PunchAngles[0] = punch

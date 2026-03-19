@@ -293,6 +293,58 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	}
 }
 
+func TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	buildClientDataMsg := func(bits uint32, velocity [3]int8) []byte {
+		msg := bytes.NewBuffer(nil)
+		msg.WriteByte(byte(inet.SVCClientData))
+		writeShort(msg, int(bits))
+		for i := 0; i < 3; i++ {
+			if bits&(inet.SU_VELOCITY1<<uint(i)) != 0 {
+				msg.WriteByte(byte(velocity[i]))
+			}
+		}
+		writeLong(msg, 0)
+		writeShort(msg, 100)
+		msg.WriteByte(0)
+		msg.WriteByte(0)
+		msg.WriteByte(0)
+		msg.WriteByte(0)
+		msg.WriteByte(0)
+		msg.WriteByte(0)
+		msg.WriteByte(0xFF)
+		return msg.Bytes()
+	}
+
+	if err := p.ParseServerMessage(buildClientDataMsg(inet.SU_VELOCITY1, [3]int8{4, 0, 0})); err != nil {
+		t.Fatalf("first ParseServerMessage() error = %v", err)
+	}
+	if got := c.Velocity; got != [3]float32{64, 0, 0} {
+		t.Fatalf("Velocity = %v, want [64 0 0]", got)
+	}
+	if got := c.MVelocity[0]; got != [3]float32{64, 0, 0} {
+		t.Fatalf("current velocity = %v, want [64 0 0]", got)
+	}
+	if got := c.MVelocity[1]; got != [3]float32{} {
+		t.Fatalf("previous velocity = %v, want zero", got)
+	}
+
+	if err := p.ParseServerMessage(buildClientDataMsg(0, [3]int8{})); err != nil {
+		t.Fatalf("second ParseServerMessage() error = %v", err)
+	}
+	if got := c.Velocity; got != [3]float32{} {
+		t.Fatalf("Velocity = %v, want zero when SU_VELOCITY bits are absent", got)
+	}
+	if got := c.MVelocity[0]; got != [3]float32{} {
+		t.Fatalf("current velocity = %v, want zeroed current sample", got)
+	}
+	if got := c.MVelocity[1]; got != [3]float32{64, 0, 0} {
+		t.Fatalf("previous velocity = %v, want prior sample [64 0 0]", got)
+	}
+}
+
 func TestParseEntityUpdatePreservesRawSnapshotForPartialDelta(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{2.0, 1.9}

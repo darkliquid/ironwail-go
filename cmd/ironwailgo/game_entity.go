@@ -521,7 +521,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	angles := viewCalcGunAngle(&globalViewCalc, viewAngles, g.Client.Time, frameTime)
 
 	// Apply view bob to weapon origin (V_CalcRefdef: forward*bob*0.4 + Z bob).
-	bob := viewCalcBob(g.Client.Time, g.Client.Velocity)
+	bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity())
 	if bob != 0 {
 		forward, _, _ := runtimeAngleVectors(viewAngles)
 		origin = viewApplyBobToOrigin(origin, forward, bob)
