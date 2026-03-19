@@ -38,6 +38,9 @@ func (c *Client) RelinkEntities() {
 		}
 	}
 
+	c.LocalViewTeleport = false
+	localViewEntity := c.ViewEntity
+
 	for entNum, state := range c.Entities {
 		// If this entity was not updated in the latest server message, skip it.
 		// Mirrors C: if (ent->msgtime != cl.mtime[0]) { ent->model = NULL; continue; }
@@ -49,6 +52,7 @@ func (c *Client) RelinkEntities() {
 			continue
 		}
 
+		teleported := state.ForceLink
 		if state.ForceLink {
 			// Newly tracked or teleported: jump directly to network position.
 			state.Origin = state.MsgOrigins[0]
@@ -61,7 +65,7 @@ func (c *Client) RelinkEntities() {
 				delta := state.MsgOrigins[0][j] - state.MsgOrigins[1][j]
 				if delta > 100 || delta < -100 {
 					f = 1
-					state.LerpFlags |= inet.LerpResetMove
+					teleported = true
 					break
 				}
 			}
@@ -81,6 +85,11 @@ func (c *Client) RelinkEntities() {
 				state.Angles[j] = state.MsgAngles[1][j] + f*ad
 			}
 		}
+		if teleported {
+			state.LerpFlags |= inet.LerpResetMove
+		} else {
+			state.LerpFlags &^= inet.LerpResetMove
+		}
 
 		// Apply EF_ROTATE: spinning bonus items
 		if c.ModelFlagsFunc != nil && int(state.ModelIndex) < len(c.ModelPrecache) {
@@ -94,7 +103,10 @@ func (c *Client) RelinkEntities() {
 		}
 
 		state.ForceLink = false
-		state.LerpFlags &^= inet.LerpResetMove
+		if teleported && entNum == localViewEntity {
+			c.LocalViewTeleport = true
+			c.resetLocalTeleportPrediction(state.Origin)
+		}
 
 		// Emit particle trails based on model flags.
 		// Matches C CL_RelinkEntities trail dispatch:

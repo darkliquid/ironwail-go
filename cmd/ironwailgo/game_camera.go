@@ -146,7 +146,7 @@ func runtimePredictedXYOffset(authoritativeOrigin [3]float32) ([2]float32, bool)
 		return [2]float32{}, false
 	}
 
-	if predictionErrorXYMagnitude(g.Client.PredictionError) > runtimeMaxPredictedXYOffset {
+	if runtimeLocalViewTeleportActive() || predictionErrorXYMagnitude(g.Client.PredictionError) > runtimeMaxPredictedXYOffset {
 		return [2]float32{}, false
 	}
 
@@ -172,6 +172,10 @@ func predictionErrorXYMagnitude(v [3]float32) float64 {
 	return math.Hypot(float64(v[0]), float64(v[1]))
 }
 
+func runtimeLocalViewTeleportActive() bool {
+	return g.Client != nil && g.Client.LocalViewTeleportActive()
+}
+
 func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	// Apply node-line bias to camera origin to prevent BSP z-fighting.
 	// Mirrors C Ironwail: r_refdef.vieworg[i] += 1.0/32 (applied just before R_RenderView).
@@ -189,7 +193,7 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 			if g.Host != nil {
 				deltaTime = g.Host.FrameTime()
 			}
-			stairOffset := viewStairSmoothOffset(&globalViewCalc, entityOrigin[2], g.Client.OnGround, deltaTime)
+			stairOffset := viewStairSmoothOffset(&globalViewCalc, entityOrigin[2], g.Client.OnGround, deltaTime, runtimeLocalViewTeleportActive())
 			cameraOrigin[2] += stairOffset
 		}
 	}

@@ -73,6 +73,72 @@ func TestRelinkEntities_NoDemoNoViewAngleChange(t *testing.T) {
 	}
 }
 
+func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{1.0, 0.9}
+	c.Time = 1.0
+	c.ViewEntity = 1
+	c.LastServerOrigin = [3]float32{16, 0, 0}
+	c.PredictedOrigin = [3]float32{40, 5, 0}
+	c.PredictionError = [3]float32{24, 5, 0}
+	c.Velocity = [3]float32{1, 2, 3}
+	c.CommandSequence = 2
+	c.CommandCount = 2
+	c.CommandBuffer[0] = UserCmd{Forward: 200, Msec: 16}
+	c.CommandBuffer[1] = UserCmd{Forward: 200, Msec: 16}
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 1,
+			MsgTime:    1.0,
+			MsgOrigins: [2][3]float32{{512, 256, 128}, {16, 0, 0}},
+			MsgAngles:  [2][3]float32{{0, 90, 0}, {0, 0, 0}},
+		},
+	}
+
+	c.RelinkEntities()
+
+	ent := c.Entities[1]
+	if ent.Origin != [3]float32{512, 256, 128} {
+		t.Fatalf("Origin = %v, want teleported origin", ent.Origin)
+	}
+	if ent.LerpFlags&inet.LerpResetMove == 0 {
+		t.Fatal("expected LerpResetMove to persist after teleport relink")
+	}
+	if !c.LocalViewTeleportActive() {
+		t.Fatal("expected local teleport signal to stay active for frame consumers")
+	}
+	if c.PredictedOrigin != ent.Origin {
+		t.Fatalf("PredictedOrigin = %v, want snapped origin %v", c.PredictedOrigin, ent.Origin)
+	}
+	if c.LastServerOrigin != ent.Origin {
+		t.Fatalf("LastServerOrigin = %v, want snapped origin %v", c.LastServerOrigin, ent.Origin)
+	}
+	if c.PredictionError != [3]float32{} {
+		t.Fatalf("PredictionError = %v, want cleared", c.PredictionError)
+	}
+	if c.PredictedVelocity != c.Velocity {
+		t.Fatalf("PredictedVelocity = %v, want velocity %v", c.PredictedVelocity, c.Velocity)
+	}
+	if c.CommandCount != 0 {
+		t.Fatalf("CommandCount = %d, want 0 after teleport reset", c.CommandCount)
+	}
+
+	c.MTime = [2]float64{1.1, 1.0}
+	ent.MsgTime = 1.1
+	ent.MsgOrigins = [2][3]float32{{520, 260, 128}, {512, 256, 128}}
+	ent.MsgAngles = [2][3]float32{{0, 100, 0}, {0, 90, 0}}
+	c.Entities[1] = ent
+	c.RelinkEntities()
+
+	ent = c.Entities[1]
+	if ent.LerpFlags&inet.LerpResetMove != 0 {
+		t.Fatal("expected LerpResetMove to clear on the next non-teleport relink")
+	}
+	if c.LocalViewTeleportActive() {
+		t.Fatal("expected local teleport signal to clear on the next relink")
+	}
+}
+
 func TestRelinkEntities_TrailEvents(t *testing.T) {
 	c := &Client{}
 	c.MTime = [2]float64{1.0, 0.9}

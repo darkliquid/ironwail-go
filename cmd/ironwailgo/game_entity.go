@@ -541,6 +541,10 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	// to recompute it. But we can't call viewStairSmoothOffset again because it modifies
 	// state. Instead, we'll compute the offset directly from globalViewCalc.oldZ.
 	if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+		if runtimeLocalViewTeleportActive() {
+			globalViewCalc.oldZ = entityOrigin[2]
+			globalViewCalc.oldZInit = true
+		}
 		if globalViewCalc.oldZInit {
 			offset := globalViewCalc.oldZ - entityOrigin[2]
 			origin[2] += offset

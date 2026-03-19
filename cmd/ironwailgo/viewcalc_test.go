@@ -372,7 +372,7 @@ func TestViewBoundOffsets_ClampedZNegative(t *testing.T) {
 func TestViewStairSmooth_InitializesOldZ(t *testing.T) {
 	state := viewCalcState{}
 	entityZ := float32(100)
-	offset := viewStairSmoothOffset(&state, entityZ, true, 0.016)
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.016, false)
 	if !state.oldZInit {
 		t.Error("expected oldZInit to be true")
 	}
@@ -390,7 +390,7 @@ func TestViewStairSmooth_SmoothsUpwardStep(t *testing.T) {
 	entityZ := float32(110)
 	// oldZ should move from 100 toward 110 at 80 units/sec.
 	// delta = 0.1 * 80 = 8, so oldZ = 100 + 8 = 108.
-	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1)
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1, false)
 	expectedOldZ := float32(108)
 	if math.Abs(float64(state.oldZ-expectedOldZ)) > 0.01 {
 		t.Errorf("expected oldZ=%v, got %v", expectedOldZ, state.oldZ)
@@ -405,7 +405,7 @@ func TestViewStairSmooth_SmoothsUpwardStep(t *testing.T) {
 func TestViewStairSmooth_NoSmoothWhenNotOnGround(t *testing.T) {
 	state := viewCalcState{oldZ: 100, oldZInit: true}
 	entityZ := float32(110)
-	offset := viewStairSmoothOffset(&state, entityZ, false, 0.1)
+	offset := viewStairSmoothOffset(&state, entityZ, false, 0.1, false)
 	// Not on ground, so oldZ should just be set to entityZ.
 	if state.oldZ != entityZ {
 		t.Errorf("expected oldZ=%v, got %v", entityZ, state.oldZ)
@@ -419,7 +419,7 @@ func TestViewStairSmooth_NoSmoothWhenNotOnGround(t *testing.T) {
 func TestViewStairSmooth_NoSmoothWhenMovingDown(t *testing.T) {
 	state := viewCalcState{oldZ: 110, oldZInit: true}
 	entityZ := float32(100)
-	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1)
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1, false)
 	// Moving down, so oldZ should just be set to entityZ.
 	if state.oldZ != entityZ {
 		t.Errorf("expected oldZ=%v, got %v", entityZ, state.oldZ)
@@ -427,6 +427,21 @@ func TestViewStairSmooth_NoSmoothWhenMovingDown(t *testing.T) {
 	// No smoothing offset.
 	if offset != 0 {
 		t.Errorf("expected zero offset, got %v", offset)
+	}
+}
+
+func TestViewStairSmooth_HardResetSnapsOldZ(t *testing.T) {
+	state := viewCalcState{oldZ: 100, oldZInit: true}
+	entityZ := float32(250)
+	offset := viewStairSmoothOffset(&state, entityZ, true, 0.1, true)
+	if state.oldZ != entityZ {
+		t.Fatalf("expected oldZ=%v after hard reset, got %v", entityZ, state.oldZ)
+	}
+	if !state.oldZInit {
+		t.Fatal("expected oldZInit to remain true after hard reset")
+	}
+	if offset != 0 {
+		t.Fatalf("expected zero offset after hard reset, got %v", offset)
 	}
 }
 

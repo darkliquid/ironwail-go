@@ -371,7 +371,13 @@ func viewBoundOffsets(vieworg, entityOrigin [3]float32) [3]float32 {
 //   - deltaTime:  time elapsed since last frame
 //
 // Returns the smoothing offset to add to both camera and weapon Z coordinates.
-func viewStairSmoothOffset(state *viewCalcState, entityZ float32, onGround bool, deltaTime float64) float32 {
+func viewStairSmoothOffset(state *viewCalcState, entityZ float32, onGround bool, deltaTime float64, hardReset bool) float32 {
+	if hardReset {
+		state.oldZ = entityZ
+		state.oldZInit = true
+		return 0
+	}
+
 	// Initialize oldZ on first call.
 	if !state.oldZInit {
 		state.oldZ = entityZ

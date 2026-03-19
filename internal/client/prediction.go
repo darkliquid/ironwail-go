@@ -20,6 +20,17 @@ import "math"
 //
 // The prediction is framerate-independent and uses simplified physics
 // (no collision detection). Full collision-aware prediction is future work.
+func (c *Client) resetLocalTeleportPrediction(origin [3]float32) {
+	if c == nil {
+		return
+	}
+	c.LastServerOrigin = origin
+	c.PredictedOrigin = origin
+	c.PredictionError = [3]float32{}
+	c.PredictedVelocity = c.Velocity
+	c.CommandCount = 0
+}
+
 func (c *Client) PredictPlayers(frametime float32) {
 	if c == nil || c.State != StateActive {
 		return

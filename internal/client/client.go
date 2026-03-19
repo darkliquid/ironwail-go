@@ -268,6 +268,7 @@ type Client struct {
 	PredictedVelocity [3]float32   // Predicted player velocity
 	LastServerOrigin  [3]float32   // Last known server position
 	PredictionError   [3]float32   // Error to correct over time
+	LocalViewTeleport bool         // True for the current relink frame when the local player hard-snapped
 	CommandBuffer     [256]UserCmd // Queue of user commands for prediction
 	CommandCount      int          // Number of unacknowledged commands in buffer
 	CommandSequence   int          // Total number of queued commands
@@ -404,8 +405,13 @@ func (c *Client) ClearState() {
 	c.PredictedVelocity = [3]float32{}
 	c.LastServerOrigin = [3]float32{}
 	c.PredictionError = [3]float32{}
+	c.LocalViewTeleport = false
 	c.CommandCount = 0
 	c.CommandSequence = 0
+}
+
+func (c *Client) LocalViewTeleportActive() bool {
+	return c != nil && c.LocalViewTeleport
 }
 
 func (c *Client) enqueueCommand(cmd UserCmd) {

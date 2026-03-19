@@ -654,6 +654,113 @@ func TestRuntimeViewStateIgnoresPredictedXYOffsetOnLargePredictionError(t *testi
 	}
 }
 
+func TestRuntimeViewStateSkipsPredictedOffsetOnTeleport(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{512, 256, 128}}
+	g.Client.PredictedOrigin = [3]float32{540, 280, 128}
+	g.Client.PredictionError = [3]float32{28, 24, 0}
+	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
+	g.Client.LocalViewTeleport = true
+
+	origin, _ := runtimeViewState()
+	if want := [3]float32{512, 256, 150}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want hard-snapped origin %v", origin, want)
+	}
+}
+
+func TestRuntimeCameraStateResetsStairSmoothingOnTeleport(t *testing.T) {
+	originalClient := g.Client
+	originalHost := g.Host
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Host = originalHost
+		globalViewCalc = originalViewCalc
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.OnGround = true
+	g.Client.LocalViewTeleport = true
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{0, 0, 300}}
+	globalViewCalc.oldZ = 100
+	globalViewCalc.oldZInit = true
+
+	camera := runtimeCameraState([3]float32{0, 0, 322}, [3]float32{0, 0, 0})
+	if math.Abs(float64(globalViewCalc.oldZ-300)) > 0.001 {
+		t.Fatalf("oldZ = %v, want 300 after teleport reset", globalViewCalc.oldZ)
+	}
+	if math.Abs(float64(camera.Origin.Z-(322+1.0/32.0))) > 0.001 {
+		t.Fatalf("camera origin z = %v, want snapped z %v", camera.Origin.Z, 322+1.0/32.0)
+	}
+}
+
+func TestCollectViewModelEntityResetsWeaponOffsetOnTeleport(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+	})
+
+	cvar.Set("r_drawentities", "1")
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("cl_bob", "0")
+	cvar.Set("cl_bobcycle", "0")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{0, 0, 0}
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 0
+	g.Client.LocalViewTeleport = true
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+	globalViewCalc.oldZ = 100
+	globalViewCalc.oldZInit = true
+
+	entity := collectViewModelEntity()
+	if entity == nil {
+		t.Fatal("collectViewModelEntity() = nil, want entity")
+	}
+	if entity.Origin != [3]float32{100, 200, 322} {
+		t.Fatalf("viewmodel origin = %v, want hard-snapped eye origin", entity.Origin)
+	}
+	if math.Abs(float64(globalViewCalc.oldZ-300)) > 0.001 {
+		t.Fatalf("oldZ = %v, want 300 after teleport reset", globalViewCalc.oldZ)
+	}
+}
+
 func TestRuntimeCameraStateCarriesClientTime(t *testing.T) {
 	originalClient := g.Client
 	t.Cleanup(func() {
