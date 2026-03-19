@@ -286,3 +286,40 @@ func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
 		t.Fatalf("summary line = %q", lines[2])
 	}
 }
+
+func TestDebugTelemetryBatchesProductionOutputPerFrame(t *testing.T) {
+	vm := qc.NewVM()
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
+
+	chunks := make([]string, 0, 1)
+	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			Enabled:      true,
+			EventMask:    debugEventMaskAll,
+			EntityFilter: debugEntityFilter{all: true},
+			SummaryMode:  1,
+			QCVerbosity:  1,
+		}
+	}, func(line string) {
+		chunks = append(chunks, line)
+	})
+	telemetry.batchOutput = true
+
+	telemetry.BeginFrame(6, 0.1)
+	telemetry.LogEventf(DebugEventTrigger, vm, 3, ent, "touchlinks candidates=1")
+	if len(chunks) != 0 {
+		t.Fatalf("batched output emitted early: %v", chunks)
+	}
+	telemetry.EndFrame()
+
+	if len(chunks) != 1 {
+		t.Fatalf("emitted %d chunks, want 1", len(chunks))
+	}
+	if !strings.Contains(chunks[0], "touchlinks candidates=1") {
+		t.Fatalf("batched chunk missing event line: %q", chunks[0])
+	}
+	if !strings.Contains(chunks[0], "summary total=1 qc=0") {
+		t.Fatalf("batched chunk missing summary: %q", chunks[0])
+	}
+}

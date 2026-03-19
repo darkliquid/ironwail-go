@@ -166,6 +166,8 @@ type DebugEntitySnapshot struct {
 type DebugTelemetry struct {
 	emit           func(string)
 	configProvider func() DebugTelemetryConfig
+	batchOutput    bool
+	pendingLines   []string
 
 	frameIndex  uint64
 	serverTime  float32
@@ -180,9 +182,11 @@ type DebugTelemetry struct {
 }
 
 func NewDebugTelemetry() *DebugTelemetry {
-	return NewDebugTelemetryWithConfig(readDebugTelemetryConfig, func(line string) {
+	t := NewDebugTelemetryWithConfig(readDebugTelemetryConfig, func(line string) {
 		console.Printf("%s\n", line)
 	})
+	t.batchOutput = true
+	return t
 }
 
 func NewDebugTelemetryWithConfig(configProvider func() DebugTelemetryConfig, emit func(string)) *DebugTelemetry {
@@ -194,6 +198,7 @@ func NewDebugTelemetryWithConfig(configProvider func() DebugTelemetryConfig, emi
 	}
 	return &DebugTelemetry{
 		emit:           emit,
+		pendingLines:   make([]string, 0, 16),
 		configProvider: configProvider,
 		perKind:        make(map[DebugEventKind]int, len(debugEventKindOrder)),
 	}
@@ -201,6 +206,7 @@ func NewDebugTelemetryWithConfig(configProvider func() DebugTelemetryConfig, emi
 
 func (t *DebugTelemetry) BeginFrame(serverTime, frameTime float32) {
 	t.flushCoalescedRepeats()
+	t.flushPendingLines()
 	t.frameIndex++
 	t.serverTime = serverTime
 	t.frameTime = frameTime
@@ -213,11 +219,13 @@ func (t *DebugTelemetry) EndFrame() {
 	t.flushCoalescedRepeats()
 	cfg := t.configProvider()
 	if !cfg.AnyEnabled() || cfg.SummaryMode == 0 {
+		t.flushPendingLines()
 		return
 	}
 
 	total := t.frameEvents + t.frameQC
 	if cfg.SummaryMode == 1 && total == 0 {
+		t.flushPendingLines()
 		return
 	}
 
@@ -233,7 +241,8 @@ func (t *DebugTelemetry) EndFrame() {
 	if len(counts) > 0 {
 		line += " counts=" + strings.Join(counts, ",")
 	}
-	t.emit(line)
+	t.emitLine(line)
+	t.flushPendingLines()
 }
 
 func (t *DebugTelemetry) EventsEnabled() bool {
@@ -316,7 +325,7 @@ func (t *DebugTelemetry) emitCoalescedLine(kind DebugEventKind, key, line string
 		t.coalesceKey = key
 		t.coalesceKind = kind
 		t.coalesceCount = 0
-		t.emit(line)
+		t.emitLine(line)
 		return
 	}
 	if key == t.coalesceKey {
@@ -327,17 +336,36 @@ func (t *DebugTelemetry) emitCoalescedLine(kind DebugEventKind, key, line string
 	t.coalesceKey = key
 	t.coalesceKind = kind
 	t.coalesceCount = 0
-	t.emit(line)
+	t.emitLine(line)
 }
 
 func (t *DebugTelemetry) flushCoalescedRepeats() {
 	if t.coalesceCount > 0 {
-		t.emit(fmt.Sprintf("[svdbg frame=%d time=%.3f kind=%s] repeated x%d",
+		t.emitLine(fmt.Sprintf("[svdbg frame=%d time=%.3f kind=%s] repeated x%d",
 			t.frameIndex, t.serverTime, t.coalesceKind, t.coalesceCount))
 	}
 	t.coalesceKey = ""
 	t.coalesceKind = ""
 	t.coalesceCount = 0
+}
+
+func (t *DebugTelemetry) emitLine(line string) {
+	if t == nil || line == "" {
+		return
+	}
+	if t.batchOutput {
+		t.pendingLines = append(t.pendingLines, line)
+		return
+	}
+	t.emit(line)
+}
+
+func (t *DebugTelemetry) flushPendingLines() {
+	if t == nil || len(t.pendingLines) == 0 {
+		return
+	}
+	t.emit(strings.Join(t.pendingLines, "\n"))
+	t.pendingLines = t.pendingLines[:0]
 }
 
 func (t *DebugTelemetry) coalesceEventKey(kind DebugEventKind, snapshot, msg string) string {
