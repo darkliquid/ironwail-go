@@ -548,7 +548,7 @@ func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateUsesPredictedXYOffsetDuringActiveMovement(t *testing.T) {
+func TestRuntimeViewStateUsesAuthoritativeOriginDuringActiveMovement(t *testing.T) {
 	originalHost := g.Host
 	originalClient := g.Client
 	originalServer := g.Server
@@ -587,8 +587,8 @@ func TestRuntimeViewStateUsesPredictedXYOffsetDuringActiveMovement(t *testing.T)
 	}
 
 	origin, _ := runtimeViewState()
-	if want := [3]float32{g.Client.PredictedOrigin[0], g.Client.PredictedOrigin[1], 300 + g.Client.ViewHeight}; origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want predicted XY with authoritative Z %v", origin, want)
+	if want := [3]float32{100, 200, 300 + g.Client.ViewHeight}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want authoritative origin %v", origin, want)
 	}
 }
 
@@ -610,7 +610,7 @@ func TestRuntimeInterpolatedVelocityUsesLerpHistory(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
+func TestRuntimeViewStateIgnoresPredictedXYDrift(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -631,20 +631,13 @@ func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
 	g.Client.PredictedOrigin = [3]float32{120, 240, 280}
 	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
 
-	offsetScale := float32(runtimeMaxPredictedXYOffset / math.Hypot(20, 40))
-	want := [3]float32{
-		100 + 20*offsetScale,
-		200 + 40*offsetScale,
-		300 + g.Client.ViewHeight,
-	}
-
 	origin, _ := runtimeViewState()
-	if origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want clamped predicted XY %v", origin, want)
+	if want := [3]float32{100, 200, 322}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want authoritative origin %v", origin, want)
 	}
 }
 
-func TestRuntimeViewStateUsesInterpolatedOriginForPredictedXYBaseline(t *testing.T) {
+func TestRuntimeViewStateUsesAuthoritativeOriginDespitePredictedMovement(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -670,12 +663,12 @@ func TestRuntimeViewStateUsesInterpolatedOriginForPredictedXYBaseline(t *testing
 	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
 
 	origin, _ := runtimeViewState()
-	if want := [3]float32{97, 200, 322}; origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want predicted lead measured from interpolated origin %v", origin, want)
+	if want := [3]float32{95, 200, 322}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want authoritative interpolated origin %v", origin, want)
 	}
 }
 
-func TestRuntimeViewStateIgnoresPredictedXYOffsetOnLargePredictionError(t *testing.T) {
+func TestRuntimeViewStateUsesAuthoritativeOriginEvenWithLargePredictionError(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -703,7 +696,7 @@ func TestRuntimeViewStateIgnoresPredictedXYOffsetOnLargePredictionError(t *testi
 	}
 }
 
-func TestRuntimeViewStateSkipsPredictedOffsetOnTeleport(t *testing.T) {
+func TestRuntimeViewStateUsesTeleportSnappedOrigin(t *testing.T) {
 	originalClient := g.Client
 	t.Cleanup(func() {
 		g.Client = originalClient

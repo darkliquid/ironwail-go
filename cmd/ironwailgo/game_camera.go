@@ -1,9 +1,6 @@
 package main
 
 import (
-	"math"
-
-	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -96,10 +93,6 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 	}
 
 	if authoritativeOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
-		if predictedOffset, ok := runtimePredictedXYOffset(authoritativeOrigin); ok {
-			authoritativeOrigin[0] += predictedOffset[0]
-			authoritativeOrigin[1] += predictedOffset[1]
-		}
 		return authoritativeOrigin, true
 	}
 
@@ -131,43 +124,6 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 	return [3]float32{}, false
 }
 
-func runtimePredictedXYOffset(authoritativeOrigin [3]float32) ([2]float32, bool) {
-	if g.Client == nil || g.Client.State != cl.StateActive {
-		return [2]float32{}, false
-	}
-
-	cmd := g.Client.PendingCmd
-	if cmd.Forward == 0 && cmd.Side == 0 {
-		return [2]float32{}, false
-	}
-
-	clientOrigin := g.Client.PredictedOrigin
-	if clientOrigin[0] == 0 && clientOrigin[1] == 0 && clientOrigin[2] == 0 {
-		return [2]float32{}, false
-	}
-
-	if runtimeLocalViewTeleportActive() || predictionErrorXYMagnitude(g.Client.PredictionError) > runtimeMaxPredictedXYOffset {
-		return [2]float32{}, false
-	}
-
-	offset := [2]float32{
-		clientOrigin[0] - authoritativeOrigin[0],
-		clientOrigin[1] - authoritativeOrigin[1],
-	}
-	offsetMagnitude := predictionErrorXYMagnitude([3]float32{offset[0], offset[1], 0})
-	if offsetMagnitude == 0 {
-		return [2]float32{}, false
-	}
-
-	if offsetMagnitude > runtimeMaxPredictedXYOffset {
-		scale := float32(runtimeMaxPredictedXYOffset / offsetMagnitude)
-		offset[0] *= scale
-		offset[1] *= scale
-	}
-
-	return offset, true
-}
-
 func runtimeInterpolatedVelocity() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
@@ -192,10 +148,6 @@ func runtimeInterpolatedVelocity() [3]float32 {
 		previous[1] + frac*(current[1]-previous[1]),
 		previous[2] + frac*(current[2]-previous[2]),
 	}
-}
-
-func predictionErrorXYMagnitude(v [3]float32) float64 {
-	return math.Hypot(float64(v[0]), float64(v[1]))
 }
 
 func runtimeLocalViewTeleportActive() bool {
