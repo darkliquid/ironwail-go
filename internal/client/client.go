@@ -347,6 +347,8 @@ func (c *Client) ClearState() {
 	c.InImpulse = 0
 	c.PendingCmd = UserCmd{}
 	c.Cmd = UserCmd{}
+	c.ViewAngles = [3]float32{}
+	c.MViewAngles = [2][3]float32{}
 	c.Stats = [32]int{}
 	c.StatsF = [32]float32{}
 	c.Items = 0
@@ -356,6 +358,8 @@ func (c *Client) ClearState() {
 	c.CShifts = [numCShifts]ColorShift{}
 	c.OnGround = false
 	c.InWater = false
+	c.Velocity = [3]float32{}
+	c.MVelocity = [2][3]float32{}
 	c.KillCount = 0
 	c.SecretCount = 0
 	c.SkyboxName = ""

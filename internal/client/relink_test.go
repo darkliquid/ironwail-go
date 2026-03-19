@@ -116,8 +116,14 @@ func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing
 	if c.PredictionError != [3]float32{} {
 		t.Fatalf("PredictionError = %v, want cleared", c.PredictionError)
 	}
-	if c.PredictedVelocity != c.Velocity {
-		t.Fatalf("PredictedVelocity = %v, want velocity %v", c.PredictedVelocity, c.Velocity)
+	if c.Velocity != [3]float32{} {
+		t.Fatalf("Velocity = %v, want cleared", c.Velocity)
+	}
+	if c.MVelocity != [2][3]float32{} {
+		t.Fatalf("MVelocity = %v, want cleared", c.MVelocity)
+	}
+	if c.PredictedVelocity != [3]float32{} {
+		t.Fatalf("PredictedVelocity = %v, want cleared", c.PredictedVelocity)
 	}
 	if c.CommandCount != 0 {
 		t.Fatalf("CommandCount = %d, want 0 after teleport reset", c.CommandCount)

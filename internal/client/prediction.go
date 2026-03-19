@@ -27,7 +27,9 @@ func (c *Client) resetLocalTeleportPrediction(origin [3]float32) {
 	c.LastServerOrigin = origin
 	c.PredictedOrigin = origin
 	c.PredictionError = [3]float32{}
-	c.PredictedVelocity = c.Velocity
+	c.Velocity = [3]float32{}
+	c.MVelocity = [2][3]float32{}
+	c.PredictedVelocity = [3]float32{}
 	c.CommandCount = 0
 }
 

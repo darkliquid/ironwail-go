@@ -290,3 +290,26 @@ func TestClearState_ResetsColorShifts(t *testing.T) {
 		}
 	}
 }
+
+func TestClearState_ResetsVelocityAndViewHistory(t *testing.T) {
+	c := NewClient()
+	c.ViewAngles = [3]float32{10, 20, 30}
+	c.MViewAngles = [2][3]float32{{40, 50, 60}, {70, 80, 90}}
+	c.Velocity = [3]float32{100, 200, 300}
+	c.MVelocity = [2][3]float32{{1, 2, 3}, {4, 5, 6}}
+
+	c.ClearState()
+
+	if c.ViewAngles != [3]float32{} {
+		t.Fatalf("ViewAngles = %v, want zero", c.ViewAngles)
+	}
+	if c.MViewAngles != [2][3]float32{} {
+		t.Fatalf("MViewAngles = %v, want zero", c.MViewAngles)
+	}
+	if c.Velocity != [3]float32{} {
+		t.Fatalf("Velocity = %v, want zero", c.Velocity)
+	}
+	if c.MVelocity != [2][3]float32{} {
+		t.Fatalf("MVelocity = %v, want zero", c.MVelocity)
+	}
+}

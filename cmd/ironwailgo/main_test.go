@@ -1944,6 +1944,42 @@ func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
 	}
 }
 
+func TestResetRuntimeVisualStateResetsPersistentViewCalcState(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalParticles := g.Particles
+	originalMarks := g.DecalMarks
+	originalRNG := g.ParticleRNG
+	originalTime := g.ParticleTime
+	originalSkyboxKey := g.SkyboxNameKey
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Particles = originalParticles
+		g.DecalMarks = originalMarks
+		g.ParticleRNG = originalRNG
+		g.ParticleTime = originalTime
+		g.SkyboxNameKey = originalSkyboxKey
+		globalViewCalc = originalViewCalc
+	})
+
+	g.Renderer = &renderer.Renderer{}
+	globalViewCalc = viewCalcState{
+		oldGunYaw:   12,
+		oldGunPitch: -7,
+		dmgTime:     0.5,
+		dmgRoll:     3,
+		dmgPitch:    -4,
+		oldZ:        128,
+		oldZInit:    true,
+	}
+
+	resetRuntimeVisualState()
+
+	if globalViewCalc != (viewCalcState{}) {
+		t.Fatalf("globalViewCalc = %+v, want zero value", globalViewCalc)
+	}
+}
+
 func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	originalClient := g.Client
 	originalMenu := g.Menu

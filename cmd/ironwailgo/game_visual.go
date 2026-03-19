@@ -66,6 +66,8 @@ func recordRuntimeDemoFrame() {
 }
 
 func resetRuntimeVisualState() {
+	globalViewCalc = viewCalcState{}
+
 	if g.Renderer == nil {
 		g.Particles = nil
 		g.DecalMarks = nil
