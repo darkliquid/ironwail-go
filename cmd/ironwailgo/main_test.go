@@ -76,7 +76,7 @@ func (s *demoPlaybackNoopServer) EdictNum(int) *server.Edict               { ret
 func (s *demoPlaybackNoopServer) GetMapName() string                       { return "" }
 func (s *demoPlaybackNoopServer) IsActive() bool                           { return false }
 func (s *demoPlaybackNoopServer) IsPaused() bool                           { return false }
-func (s *demoPlaybackNoopServer) SetLoadGame(bool)                        {}
+func (s *demoPlaybackNoopServer) SetLoadGame(bool)                         {}
 
 type demoPlaybackConsole struct{}
 
@@ -2734,6 +2734,32 @@ func TestMenuTapEscapeFromSubmenuReturnsToMain(t *testing.T) {
 	}
 	if got := g.Menu.GetState(); got != menu.MenuMain {
 		t.Fatalf("menu state after escape tap = %v, want %v", got, menu.MenuMain)
+	}
+}
+
+func TestMenuTapEscapeFromMainReturnsToGame(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnKey = handleGameKeyEvent
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KEscape, Down: false})
+
+	if g.Menu.IsActive() {
+		t.Fatalf("menu should be inactive after escape tap from main menu")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after escape tap = %v, want %v", got, input.KeyGame)
 	}
 }
 

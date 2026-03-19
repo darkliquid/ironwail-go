@@ -105,6 +105,33 @@ func TestHandleKeyEventFiltersAutorepeatOnlyInGame(t *testing.T) {
 	}
 }
 
+func TestHandleKeyEventStopsGeneralDispatchWhenMenuChangesDest(t *testing.T) {
+	sys := NewSystem(nil)
+	sys.SetKeyDest(KeyMenu)
+
+	var menuEvents []KeyEvent
+	var gameEvents []KeyEvent
+	sys.OnMenuKey = func(event KeyEvent) {
+		menuEvents = append(menuEvents, event)
+		sys.SetKeyDest(KeyGame)
+	}
+	sys.OnKey = func(event KeyEvent) {
+		gameEvents = append(gameEvents, event)
+	}
+
+	sys.HandleKeyEvent(KeyEvent{Key: KEscape, Down: true})
+
+	if len(menuEvents) != 1 {
+		t.Fatalf("menu OnMenuKey callback count = %d, want 1", len(menuEvents))
+	}
+	if len(gameEvents) != 0 {
+		t.Fatalf("general OnKey callback count = %d, want 0", len(gameEvents))
+	}
+	if got := sys.GetKeyDest(); got != KeyGame {
+		t.Fatalf("key destination after menu handler = %v, want %v", got, KeyGame)
+	}
+}
+
 func TestHandleKeyEventIgnoresStrayKeyUp(t *testing.T) {
 	sys := NewSystem(nil)
 	sys.SetKeyDest(KeyGame)

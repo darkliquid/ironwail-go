@@ -61,8 +61,9 @@ func (s *System) ClearKeyStates() {
 //  3. Updates the key-state array (state.Keys).
 //  4. Tracks modifier flags (Shift, Ctrl, Alt).
 //  5. Dispatches to the appropriate callback based on KeyDest — in menu mode
-//     the event goes to both OnMenuKey (for menu navigation) and OnKey (for
-//     global state tracking); in all other modes it goes only to OnKey.
+//     the event goes to OnMenuKey first and then OnKey only if the menu
+//     handler kept the destination in KeyMenu; in all other modes it goes only
+//     to OnKey.
 func (s *System) HandleKeyEvent(event KeyEvent) {
 	wasDown := false
 	if event.Key >= 0 && event.Key < NumKeycode {
@@ -97,8 +98,9 @@ func (s *System) HandleKeyEvent(event KeyEvent) {
 		if s.OnMenuKey != nil {
 			s.OnMenuKey(event)
 		}
-		// Still forward to general callback for game state tracking
-		if s.OnKey != nil {
+		// Still forward to the general callback if the menu handler kept the
+		// event in menu mode.
+		if s.keyDest == KeyMenu && s.OnKey != nil {
 			s.OnKey(event)
 		}
 	} else {
