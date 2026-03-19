@@ -740,9 +740,6 @@ func TestRuntimeCameraStateResetsStairSmoothingOnTeleport(t *testing.T) {
 	globalViewCalc.oldZInit = true
 
 	camera := runtimeCameraState([3]float32{0, 0, 322}, [3]float32{0, 0, 0})
-	if math.Abs(float64(globalViewCalc.oldZ-300)) > 0.001 {
-		t.Fatalf("oldZ = %v, want 300 after teleport reset", globalViewCalc.oldZ)
-	}
 	if math.Abs(float64(camera.Origin.Z-(322+1.0/32.0))) > 0.001 {
 		t.Fatalf("camera origin z = %v, want snapped z %v", camera.Origin.Z, 322+1.0/32.0)
 	}
@@ -797,9 +794,6 @@ func TestCollectViewModelEntityResetsWeaponOffsetOnTeleport(t *testing.T) {
 	}
 	if entity.Origin != [3]float32{100, 200, 322} {
 		t.Fatalf("viewmodel origin = %v, want hard-snapped eye origin", entity.Origin)
-	}
-	if math.Abs(float64(globalViewCalc.oldZ-300)) > 0.001 {
-		t.Fatalf("oldZ = %v, want 300 after teleport reset", globalViewCalc.oldZ)
 	}
 }
 

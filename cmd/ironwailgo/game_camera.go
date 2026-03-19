@@ -164,15 +164,6 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	if g.Client != nil {
 		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
 			cameraOrigin = viewBoundOffsets(cameraOrigin, entityOrigin)
-
-			// Apply stair step smoothing.
-			// Mirrors C Ironwail V_CalcRefdef stair smoothing (view.c:871-888).
-			deltaTime := 0.0
-			if g.Host != nil {
-				deltaTime = g.Host.FrameTime()
-			}
-			stairOffset := viewStairSmoothOffset(&globalViewCalc, entityOrigin[2], g.Client.OnGround, deltaTime, runtimeLocalViewTeleportActive())
-			cameraOrigin[2] += stairOffset
 		}
 	}
 

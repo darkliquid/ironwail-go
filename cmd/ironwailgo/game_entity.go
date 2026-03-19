@@ -534,23 +534,6 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 	origin = viewApplyViewmodelQuakeFudge(origin, scrViewSize)
 
-	// Apply stair step smoothing to weapon origin.
-	// Mirrors C Ironwail V_CalcRefdef: view->origin[2] += oldz - ent->origin[2].
-	// Note: globalViewCalc.oldZ was already updated by runtimeCameraState, so we just
-	// need to apply the offset. However, since we don't have the offset stored, we need
-	// to recompute it. But we can't call viewStairSmoothOffset again because it modifies
-	// state. Instead, we'll compute the offset directly from globalViewCalc.oldZ.
-	if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
-		if runtimeLocalViewTeleportActive() {
-			globalViewCalc.oldZ = entityOrigin[2]
-			globalViewCalc.oldZInit = true
-		}
-		if globalViewCalc.oldZInit {
-			offset := globalViewCalc.oldZ - entityOrigin[2]
-			origin[2] += offset
-		}
-	}
-
 	alpha := inet.ENTALPHA_DECODE(g.Client.ViewEntAlpha)
 
 	return &renderer.AliasModelEntity{
