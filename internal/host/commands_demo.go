@@ -5,6 +5,8 @@ package host
 
 import (
 	"fmt"
+	"path/filepath"
+
 	cl "github.com/ironwail/ironwail-go/internal/client"
 )
 
@@ -124,9 +126,27 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 		}
 	}
 
-	// Start playback
-	if err := h.demoState.StartDemoPlayback(filename); err != nil {
-		subs.Console.Print(fmt.Sprintf("Failed to start playback: %v\n", err))
+	// Add .dem extension if not present
+	demoName := filename
+	if filepath.Ext(demoName) == "" {
+		demoName = demoName + ".dem"
+	}
+
+	// Try loading from the game filesystem first (PAK-aware).
+	// This matches C Ironwail which uses COM_FOpenFile to search PAK files.
+	var startErr error
+	if subs.Files != nil {
+		if data, err := subs.Files.LoadFile(demoName); err == nil {
+			startErr = h.demoState.StartDemoPlaybackFromData(demoName, data)
+		} else {
+			// Not in filesystem, fall back to loose file
+			startErr = h.demoState.StartDemoPlayback(filename)
+		}
+	} else {
+		startErr = h.demoState.StartDemoPlayback(filename)
+	}
+	if startErr != nil {
+		subs.Console.Print(fmt.Sprintf("Failed to start playback: %v\n", startErr))
 		return
 	}
 

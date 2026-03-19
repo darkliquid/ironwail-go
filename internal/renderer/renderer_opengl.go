@@ -780,9 +780,11 @@ func (r *Renderer) Input() interface{} {
 	return nil
 }
 
-// Size returns the current window size in pixels.
+// Size returns the current framebuffer size in pixels.
+// Uses GetFramebufferSize rather than GetSize so that coordinates
+// match the actual OpenGL viewport on HiDPI/Wayland displays.
 func (r *Renderer) Size() (width, height int) {
-	return r.window.GetSize()
+	return r.window.GetFramebufferSize()
 }
 
 // CaptureScreenshot reads the current OpenGL framebuffer and saves it as a PNG.
@@ -951,8 +953,12 @@ func (r *Renderer) Run() error {
 			updateCallback(dt)
 		}
 
-		// Render
-		width, height := r.window.GetSize()
+		// Render — use GetFramebufferSize for the GL viewport and all 2D
+		// drawing coordinate calculations.  GLFW's GetSize() returns logical
+		// screen coordinates which can differ from framebuffer pixels on
+		// HiDPI/Wayland displays; GetFramebufferSize() always returns the
+		// actual framebuffer pixel dimensions that OpenGL expects.
+		width, height := r.window.GetFramebufferSize()
 		gl.Viewport(0, 0, int32(width), int32(height))
 
 		r.mu.RLock()
@@ -969,6 +975,15 @@ func (r *Renderer) Run() error {
 				}
 			}
 			r.drawContext.gamma = gamma
+			// Reset canvas when viewport dimensions change so that
+			// SetCanvas recomputes the transform for the new size.
+			// Without this, the SetCanvas early-exit (same type → no-op)
+			// keeps a stale transform from a previous frame's dimensions,
+			// which causes mis-scaled menus on Wayland where the initial
+			// window size can differ from the final compositor-assigned size.
+			if r.drawContext.viewport.width != width || r.drawContext.viewport.height != height {
+				r.drawContext.canvas.Type = CanvasNone
+			}
 			r.drawContext.viewport = struct {
 				width  int
 				height int

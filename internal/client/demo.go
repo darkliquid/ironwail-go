@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -22,8 +23,8 @@ type DemoFrame struct {
 }
 
 type DemoState struct {
-	File       *os.File
-	Reader     *bufio.Reader
+	File       *os.File      // Used for recording only
+	Reader     *bufio.Reader // Buffered reader for playback or recording offset tracking
 	Writer     *bufio.Writer
 	Playback   bool
 	Recording  bool
@@ -36,6 +37,12 @@ type DemoState struct {
 	Filename   string
 
 	Frames []DemoFrame
+
+	// playbackSource is the underlying ReadSeeker for demo playback.
+	// This can be an *os.File (loose file) or *bytes.Reader (PAK data).
+	playbackSource io.ReadSeeker
+	// playbackCloser is non-nil when playbackSource needs closing (e.g. *os.File).
+	playbackCloser io.Closer
 
 	playbackHostFrame int
 	timedemoStart     time.Time
@@ -402,7 +409,8 @@ func appendCoord16(dst []byte, v float32) []byte {
 	return appendShort(dst, s)
 }
 
-// StartDemoPlayback opens a demo file for playback
+// StartDemoPlayback opens a loose demo file for playback.
+// For demos inside PAK files, use StartDemoPlaybackFromData instead.
 func (d *DemoState) StartDemoPlayback(filename string) error {
 	if d.Recording {
 		return fmt.Errorf("cannot playback while recording")
@@ -428,9 +436,28 @@ func (d *DemoState) StartDemoPlayback(filename string) error {
 		fullPath = filename
 	}
 
-	d.File = f
-	d.Reader = bufio.NewReader(f)
-	d.Filename = fullPath
+	return d.startPlaybackInternal(fullPath, f, f)
+}
+
+// StartDemoPlaybackFromData starts playback from in-memory demo data
+// (e.g. loaded from a PAK file via the game filesystem).
+func (d *DemoState) StartDemoPlaybackFromData(filename string, data []byte) error {
+	if d.Recording {
+		return fmt.Errorf("cannot playback while recording")
+	}
+	if d.Playback {
+		return fmt.Errorf("already playing back a demo")
+	}
+
+	return d.startPlaybackInternal(filename, bytes.NewReader(data), nil)
+}
+
+// startPlaybackInternal sets up demo playback from any ReadSeeker source.
+func (d *DemoState) startPlaybackInternal(filename string, source io.ReadSeeker, closer io.Closer) error {
+	d.playbackSource = source
+	d.playbackCloser = closer
+	d.Reader = bufio.NewReader(source)
+	d.Filename = filename
 
 	// Read CD track header
 	line, err := d.Reader.ReadString('\n')
@@ -469,11 +496,11 @@ func (d *DemoState) StartDemoPlayback(filename string) error {
 		return err
 	}
 	d.Frames = frames
-	if _, err := d.File.Seek(firstFrameOffset, io.SeekStart); err != nil {
+	if _, err := d.playbackSource.Seek(firstFrameOffset, io.SeekStart); err != nil {
 		d.StopPlayback()
 		return fmt.Errorf("failed to rewind demo stream: %w", err)
 	}
-	d.Reader = bufio.NewReader(d.File)
+	d.Reader = bufio.NewReader(d.playbackSource)
 	d.FrameIndex = 0
 
 	return nil
@@ -486,11 +513,12 @@ func (d *DemoState) StopPlayback() error {
 	}
 
 	var err error
-	if d.File != nil {
-		err = d.File.Close()
+	if d.playbackCloser != nil {
+		err = d.playbackCloser.Close()
 	}
 
-	d.File = nil
+	d.playbackSource = nil
+	d.playbackCloser = nil
 	d.Reader = nil
 	d.Playback = false
 	d.Paused = false
@@ -563,8 +591,8 @@ func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles [3]float32, 
 	}
 
 	frameOffset := int64(0)
-	if d.File != nil {
-		fileOffset, seekErr := d.File.Seek(0, io.SeekCurrent)
+	if d.playbackSource != nil {
+		fileOffset, seekErr := d.playbackSource.Seek(0, io.SeekCurrent)
 		if seekErr == nil {
 			frameOffset = fileOffset - int64(d.Reader.Buffered())
 		}
@@ -610,17 +638,17 @@ func (d *DemoState) ReadDemoFrame() (messageData []byte, viewAngles [3]float32, 
 }
 
 func (d *DemoState) SeekFrame(frame int) error {
-	if !d.Playback || d.File == nil {
+	if !d.Playback || d.playbackSource == nil {
 		return fmt.Errorf("not playing back")
 	}
 	if frame < 0 || frame >= len(d.Frames) {
 		return fmt.Errorf("frame %d out of range", frame)
 	}
 	offset := d.Frames[frame].FileOffset
-	if _, err := d.File.Seek(offset, io.SeekStart); err != nil {
+	if _, err := d.playbackSource.Seek(offset, io.SeekStart); err != nil {
 		return fmt.Errorf("seek demo frame %d: %w", frame, err)
 	}
-	d.Reader = bufio.NewReader(d.File)
+	d.Reader = bufio.NewReader(d.playbackSource)
 	d.FrameIndex = frame
 	d.playbackHostFrame = -1
 	return nil
@@ -689,10 +717,10 @@ func (d *DemoState) TimeForFrame(frame int) float64 {
 }
 
 func (d *DemoState) currentReadOffset() (int64, error) {
-	if d == nil || d.File == nil || d.Reader == nil {
+	if d == nil || d.playbackSource == nil || d.Reader == nil {
 		return 0, fmt.Errorf("demo stream is not open")
 	}
-	fileOffset, err := d.File.Seek(0, io.SeekCurrent)
+	fileOffset, err := d.playbackSource.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return 0, err
 	}

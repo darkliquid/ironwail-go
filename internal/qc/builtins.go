@@ -228,7 +228,21 @@ func errorBuiltin(vm *VM) {
 }
 
 func objerrorBuiltin(vm *VM) {
-	console.Printf("QC objerror: %s", vm.GString(OFSParm0))
+	msg := vm.GString(OFSParm0)
+	entNum := int(vm.GInt(OFSSelf))
+	console.Printf("QC objerror (entity %d): %s", entNum, msg)
+
+	// Free the entity, matching C PF_objerror which calls ED_Free(ed).
+	// This prevents broken entities from continuing to think/touch.
+	if serverBuiltinHooks.Remove != nil {
+		_ = serverBuiltinHooks.Remove(vm, entNum)
+	} else if entNum > 0 && entNum < vm.NumEdicts {
+		if data := vm.EdictData(entNum); data != nil {
+			for i := range data {
+				data[i] = 0
+			}
+		}
+	}
 }
 
 // ftosBuiltin converts a float to a string. If the float is an integer value,
