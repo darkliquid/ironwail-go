@@ -8,12 +8,32 @@ import (
 )
 
 func (s *Server) Physics() {
+	telemetryActive := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
+	if telemetryActive {
+		s.DebugTelemetry.BeginFrame(s.Time, s.FrameTime)
+		s.DebugTelemetry.LogEventf(DebugEventFrame, s.QCVM, 0, s.EdictNum(0),
+			"physics begin edicts=%d", s.NumEdicts)
+		defer func() {
+			s.DebugTelemetry.LogEventf(DebugEventFrame, s.QCVM, 0, s.EdictNum(0),
+				"physics end edicts=%d", s.NumEdicts)
+			s.DebugTelemetry.EndFrame()
+		}()
+	}
+
 	if s.QCVM != nil {
 		if startFrame := s.QCVM.FindFunction("StartFrame"); startFrame >= 0 {
+			if telemetryActive {
+				s.DebugTelemetry.LogEventf(DebugEventFrame, s.QCVM, 0, s.EdictNum(0),
+					"startframe begin function=%d", startFrame)
+			}
 			s.QCVM.SetGlobal("self", 0)
 			s.QCVM.SetGlobal("other", 0)
 			s.QCVM.Time = float64(s.Time)
 			s.QCVM.ExecuteFunction(startFrame)
+			if telemetryActive {
+				s.DebugTelemetry.LogEventf(DebugEventFrame, s.QCVM, 0, s.EdictNum(0),
+					"startframe end function=%d", startFrame)
+			}
 		}
 	}
 

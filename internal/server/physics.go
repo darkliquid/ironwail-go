@@ -40,11 +40,22 @@ func (s *Server) RunThink(ent *Edict) bool {
 	ent.OldFrame = ent.Vars.Frame
 	ent.Vars.NextThink = 0
 
+	entNum := s.NumForEdict(ent)
+	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
+	if telemetryEnabled {
+		s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
+			"runthink begin think_time=%.3f fn=%d", thinkTime, ent.Vars.Think)
+	}
+
 	s.QCVM.Time = float64(thinkTime)
-	s.QCVM.SetGlobal("self", s.NumForEdict(ent))
+	s.QCVM.SetGlobal("self", entNum)
 	s.QCVM.SetGlobal("other", 0)
 	if ent.Vars.Think != 0 {
 		s.QCVM.ExecuteFunction(int(ent.Vars.Think))
+	}
+	if telemetryEnabled {
+		s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
+			"runthink end think_time=%.3f freed=%t", thinkTime, ent.Free)
 	}
 
 	return !ent.Free
@@ -54,19 +65,38 @@ func (s *Server) RunThink(ent *Edict) bool {
 func (s *Server) Impact(e1, e2 *Edict) {
 	oldSelf := s.QCVM.GetGlobalInt("self")
 	oldOther := s.QCVM.GetGlobalInt("other")
+	e1Num := s.NumForEdict(e1)
+	e2Num := s.NumForEdict(e2)
+	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 
 	s.QCVM.Time = float64(s.Time)
 
 	if e1.Vars.Touch != 0 && e1.Vars.Solid != float32(SolidNot) {
-		s.QCVM.SetGlobal("self", s.NumForEdict(e1))
-		s.QCVM.SetGlobal("other", s.NumForEdict(e2))
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
+				"impact touch begin other=%d fn=%d", e2Num, e1.Vars.Touch)
+		}
+		s.QCVM.SetGlobal("self", e1Num)
+		s.QCVM.SetGlobal("other", e2Num)
 		s.QCVM.ExecuteFunction(int(e1.Vars.Touch))
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
+				"impact touch end other=%d fn=%d", e2Num, e1.Vars.Touch)
+		}
 	}
 
 	if e2.Vars.Touch != 0 && e2.Vars.Solid != float32(SolidNot) {
-		s.QCVM.SetGlobal("self", s.NumForEdict(e2))
-		s.QCVM.SetGlobal("other", s.NumForEdict(e1))
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
+				"impact touch begin other=%d fn=%d", e1Num, e2.Vars.Touch)
+		}
+		s.QCVM.SetGlobal("self", e2Num)
+		s.QCVM.SetGlobal("other", e1Num)
 		s.QCVM.ExecuteFunction(int(e2.Vars.Touch))
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
+				"impact touch end other=%d fn=%d", e1Num, e2.Vars.Touch)
+		}
 	}
 
 	s.QCVM.SetGlobalInt("self", oldSelf)
@@ -395,9 +425,20 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 		pusher.Vars.LTime -= movetime
 
 		if pusher.Vars.Blocked != 0 && s.QCVM != nil {
-			s.QCVM.SetGlobal("self", s.NumForEdict(pusher))
-			s.QCVM.SetGlobal("other", s.NumForEdict(check))
+			pusherNum := s.NumForEdict(pusher)
+			checkNum := s.NumForEdict(check)
+			telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
+					"pushmove blocked by=%d callback=%d movetime=%.3f", checkNum, pusher.Vars.Blocked, movetime)
+			}
+			s.QCVM.SetGlobal("self", pusherNum)
+			s.QCVM.SetGlobal("other", checkNum)
 			s.QCVM.ExecuteFunction(int(pusher.Vars.Blocked))
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
+					"pushmove blocked callback done by=%d callback=%d", checkNum, pusher.Vars.Blocked)
+			}
 		}
 
 		for i, moved := range movedEdicts {
@@ -427,6 +468,8 @@ func (s *Server) PhysicsNoClip(ent *Edict) {
 }
 
 func (s *Server) PhysicsPusher(ent *Edict) {
+	entNum := s.NumForEdict(ent)
+	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	oldLTime := ent.Vars.LTime
 	thinkTime := ent.Vars.NextThink
 	movetime := s.FrameTime
@@ -437,6 +480,10 @@ func (s *Server) PhysicsPusher(ent *Edict) {
 			movetime = 0
 		}
 	}
+	if telemetryEnabled {
+		s.DebugTelemetry.LogEventf(DebugEventPhysics, s.QCVM, entNum, ent,
+			"physicspusher movetime=%.3f think_time=%.3f ltime=%.3f", movetime, thinkTime, oldLTime)
+	}
 
 	if movetime != 0 {
 		s.PushMove(ent, movetime)
@@ -445,10 +492,18 @@ func (s *Server) PhysicsPusher(ent *Edict) {
 	if thinkTime > oldLTime && thinkTime <= ent.Vars.LTime {
 		ent.Vars.NextThink = 0
 		if s.QCVM != nil && ent.Vars.Think != 0 {
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
+					"physicspusher think begin fn=%d", ent.Vars.Think)
+			}
 			s.QCVM.Time = float64(s.Time)
-			s.QCVM.SetGlobal("self", s.NumForEdict(ent))
+			s.QCVM.SetGlobal("self", entNum)
 			s.QCVM.SetGlobal("other", 0)
 			s.QCVM.ExecuteFunction(int(ent.Vars.Think))
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventThink, s.QCVM, entNum, ent,
+					"physicspusher think end fn=%d freed=%t", ent.Vars.Think, ent.Free)
+			}
 		}
 	}
 }

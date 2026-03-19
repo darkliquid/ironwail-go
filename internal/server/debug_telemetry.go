@@ -230,6 +230,16 @@ func (t *DebugTelemetry) EndFrame() {
 	t.emit(line)
 }
 
+func (t *DebugTelemetry) EventsEnabled() bool {
+	if t == nil {
+		return false
+	}
+	if debugTelemetryEnableCVar != nil {
+		return debugTelemetryEnableCVar.Bool()
+	}
+	return t.configProvider().Enabled
+}
+
 func (t *DebugTelemetry) ShouldLogEvent(kind DebugEventKind, vm *qc.VM, entNum int, ent *Edict) bool {
 	cfg := t.configProvider()
 	if !cfg.Enabled {

@@ -2,10 +2,12 @@ package server
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
@@ -177,4 +179,84 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 			t.Fatalf("non-client entity did not move with freeze disabled: origin=%v", nonClientEnt.Vars.Origin)
 		}
 	})
+}
+
+func TestPhysicsTelemetryFrameHooks(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.MoveType = float32(MoveTypeNoClip)
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+
+	lines := make([]string, 0, 4)
+	s.DebugTelemetry = NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			Enabled:      true,
+			EventMask:    debugEventMaskFrame,
+			EntityFilter: debugEntityFilter{all: true},
+			SummaryMode:  2,
+		}
+	}, func(line string) {
+		lines = append(lines, line)
+	})
+	oldEnable := debugTelemetryEnableCVar
+	debugTelemetryEnableCVar = cvar.Register("sv_debug_telemetry_test_frame", "1", cvar.FlagNone, "")
+	t.Cleanup(func() {
+		debugTelemetryEnableCVar = oldEnable
+	})
+
+	s.Physics()
+
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{
+		"kind=frame",
+		"physics begin",
+		"physics end",
+		"summary total=2 qc=0",
+		"counts=frame=2",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("telemetry output missing %q in:\n%s", want, joined)
+		}
+	}
+}
+
+func TestRunThinkTelemetry(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.NextThink = 0.05
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+
+	lines := make([]string, 0, 2)
+	s.DebugTelemetry = NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			Enabled:      true,
+			EventMask:    debugEventMaskThink,
+			EntityFilter: debugEntityFilter{all: true},
+			SummaryMode:  0,
+		}
+	}, func(line string) {
+		lines = append(lines, line)
+	})
+	oldEnable := debugTelemetryEnableCVar
+	debugTelemetryEnableCVar = cvar.Register("sv_debug_telemetry_test_think", "1", cvar.FlagNone, "")
+	t.Cleanup(func() {
+		debugTelemetryEnableCVar = oldEnable
+	})
+
+	if ok := s.RunThink(ent); !ok {
+		t.Fatal("RunThink unexpectedly returned false")
+	}
+
+	if len(lines) != 2 {
+		t.Fatalf("got %d telemetry lines, want 2", len(lines))
+	}
+	if !strings.Contains(lines[0], "runthink begin") || !strings.Contains(lines[1], "runthink end") {
+		t.Fatalf("unexpected telemetry lines: %#v", lines)
+	}
 }

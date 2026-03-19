@@ -638,16 +638,32 @@ func (s *Server) touchLinks(ent *Edict) {
 		return
 	}
 
+	entNum := s.NumForEdict(ent)
+	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	if inTouchLinks {
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+				"touchlinks reentrant-skip")
+		}
 		return
 	}
 	inTouchLinks = true
 	defer func() {
 		inTouchLinks = false
 	}()
+	if telemetryEnabled {
+		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+			"touchlinks begin")
+		defer s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+			"touchlinks end")
+	}
 
 	touches := make([]*Edict, 0, s.NumEdicts)
 	s.areaTriggerEdicts(ent, &s.Areanodes[0], &touches, s.NumEdicts)
+	if telemetryEnabled {
+		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+			"touchlinks candidates=%d", len(touches))
+	}
 
 	oldSelf := s.QCVM.GetGlobalInt("self")
 	oldOther := s.QCVM.GetGlobalInt("other")
@@ -669,10 +685,19 @@ func (s *Server) touchLinks(ent *Edict) {
 			continue
 		}
 
-		s.QCVM.SetGlobal("self", s.NumForEdict(touch))
-		s.QCVM.SetGlobal("other", s.NumForEdict(ent))
+		touchNum := s.NumForEdict(touch)
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
+				"touchlinks callback begin other=%d fn=%d", entNum, touch.Vars.Touch)
+		}
+		s.QCVM.SetGlobal("self", touchNum)
+		s.QCVM.SetGlobal("other", entNum)
 		s.QCVM.Time = float64(s.Time)
 		_ = s.QCVM.ExecuteFunction(int(touch.Vars.Touch))
+		if telemetryEnabled {
+			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
+				"touchlinks callback end other=%d fn=%d", entNum, touch.Vars.Touch)
+		}
 	}
 }
 
