@@ -293,6 +293,126 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	}
 }
 
+func TestParseEntityUpdatePreservesRawSnapshotForPartialDelta(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		Origin:     [3]float32{999, 999, 999}, // rendered/interpolated value, not raw network snapshot
+		Angles:     [3]float32{90, 0, 0},
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{5, 6, 7},
+			{8, 9, 10},
+		},
+		MsgTime: 1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_ANGLE2))
+	msg.WriteByte(1) // entity num
+	writeAngle(msg, 45)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
+		t.Fatalf("MsgOrigins[1] = %v, want prior raw snapshot [10 20 30]", got)
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{10, 20, 30} {
+		t.Fatalf("MsgOrigins[0] = %v, want unchanged raw origin [10 20 30]", got)
+	}
+	if got := ent.MsgAngles[1]; got != [3]float32{5, 6, 7} {
+		t.Fatalf("MsgAngles[1] = %v, want prior raw snapshot [5 6 7]", got)
+	}
+	if got := ent.MsgAngles[0][0]; got != 5 {
+		t.Fatalf("MsgAngles[0][0] = %v, want preserved raw pitch 5", got)
+	}
+	if got := ent.MsgAngles[0][1]; got < 44.5 || got > 45.5 {
+		t.Fatalf("MsgAngles[0][1] = %v, want updated yaw ~45", got)
+	}
+	if got := ent.MsgAngles[0][2]; got != 7 {
+		t.Fatalf("MsgAngles[0][2] = %v, want preserved raw roll 7", got)
+	}
+	if got := ent.Origin; got != ent.MsgOrigins[0] {
+		t.Fatalf("render Origin = %v, want raw snapshot %v", got, ent.MsgOrigins[0])
+	}
+	if got := ent.Angles; got != ent.MsgAngles[0] {
+		t.Fatalf("render Angles = %v, want raw snapshot %v", got, ent.MsgAngles[0])
+	}
+}
+
+func TestParseEntityUpdatePreservesSpawnBaselineValuesOnFirstPartialDelta(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	p := NewParser(c)
+
+	baseline := bytes.NewBuffer(nil)
+	baseline.WriteByte(byte(inet.SVCSpawnBaseline))
+	writeShort(baseline, 1)
+	baseline.WriteByte(5)
+	baseline.WriteByte(0)
+	baseline.WriteByte(0)
+	baseline.WriteByte(0)
+	writeCoord(baseline, 1)
+	writeAngle(baseline, 10)
+	writeCoord(baseline, 2)
+	writeAngle(baseline, 20)
+	writeCoord(baseline, 3)
+	writeAngle(baseline, 30)
+	baseline.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(baseline.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage(baseline) error = %v", err)
+	}
+	wantBaselineOrigin := c.EntityBaselines[1].Origin
+	wantBaselineAngles := c.EntityBaselines[1].Angles
+
+	update := bytes.NewBuffer(nil)
+	update.WriteByte(byte(0x80 | inet.U_ORIGIN1 | inet.U_ANGLE2))
+	update.WriteByte(1)
+	writeCoord(update, 11)
+	writeAngle(update, 45)
+	update.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(update.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage(update) error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if got := ent.MsgOrigins[1]; got != wantBaselineOrigin {
+		t.Fatalf("MsgOrigins[1] = %v, want baseline origin %v", got, wantBaselineOrigin)
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{11, wantBaselineOrigin[1], wantBaselineOrigin[2]} {
+		t.Fatalf("MsgOrigins[0] = %v, want partial delta over baseline [%v %v %v]", got, float32(11), wantBaselineOrigin[1], wantBaselineOrigin[2])
+	}
+	if got := ent.MsgAngles[1]; got != wantBaselineAngles {
+		t.Fatalf("MsgAngles[1] = %v, want baseline angles %v", got, wantBaselineAngles)
+	}
+	wantAngles := [3]float32{wantBaselineAngles[0], 45, wantBaselineAngles[2]}
+	if got := ent.MsgAngles[0]; got != wantAngles {
+		t.Fatalf("MsgAngles[0] = %v, want partial delta over baseline %v", got, wantAngles)
+	}
+	if got := ent.Origin; got != ent.MsgOrigins[0] {
+		t.Fatalf("render Origin = %v, want raw snapshot %v", got, ent.MsgOrigins[0])
+	}
+	if got := ent.Angles; got != ent.MsgAngles[0] {
+		t.Fatalf("render Angles = %v, want raw snapshot %v", got, ent.MsgAngles[0])
+	}
+}
+
 func TestHUDAccessorsExposeParsedStats(t *testing.T) {
 	c := NewClient()
 	c.Stats[inet.StatHealth] = 81

@@ -936,6 +936,10 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 		}
 		b.Angles[i] = angle
 	}
+	b.MsgOrigins[0] = b.Origin
+	b.MsgOrigins[1] = b.Origin
+	b.MsgAngles[0] = b.Angles
+	b.MsgAngles[1] = b.Angles
 
 	if extended && bits&inet.BALPHA != 0 {
 		alpha, ok := msg.ReadByte()
@@ -1043,6 +1047,8 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		state = current
 		isNew = false
 	}
+	rawOrigin := state.MsgOrigins[0]
+	rawAngles := state.MsgAngles[0]
 
 	// Field read order must match C exactly (CL_ParseUpdate in cl_parse.c):
 	// MODEL, FRAME, COLORMAP, SKIN, EFFECTS,
@@ -1089,42 +1095,42 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		if err != nil {
 			return err
 		}
-		state.Origin[0] = v
+		rawOrigin[0] = v
 	}
 	if bits&inet.U_ANGLE1 != 0 {
 		v, err := readAngle(msg, "entity update: missing angle1")
 		if err != nil {
 			return err
 		}
-		state.Angles[0] = v
+		rawAngles[0] = v
 	}
 	if bits&inet.U_ORIGIN2 != 0 {
 		v, err := readCoord(msg, "entity update: missing origin2")
 		if err != nil {
 			return err
 		}
-		state.Origin[1] = v
+		rawOrigin[1] = v
 	}
 	if bits&inet.U_ANGLE2 != 0 {
 		v, err := readAngle(msg, "entity update: missing angle2")
 		if err != nil {
 			return err
 		}
-		state.Angles[1] = v
+		rawAngles[1] = v
 	}
 	if bits&inet.U_ORIGIN3 != 0 {
 		v, err := readCoord(msg, "entity update: missing origin3")
 		if err != nil {
 			return err
 		}
-		state.Origin[2] = v
+		rawOrigin[2] = v
 	}
 	if bits&inet.U_ANGLE3 != 0 {
 		v, err := readAngle(msg, "entity update: missing angle3")
 		if err != nil {
 			return err
 		}
-		state.Angles[2] = v
+		rawAngles[2] = v
 	}
 	// FitzQuake/RMQ extensions come AFTER origins/angles.
 	// For NetQuake protocol, handle Nehahra U_TRANS transparency hack instead.
@@ -1205,8 +1211,10 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	// store the new network values in [0]. Mirrors C's entity_t msg_origins handling.
 	state.MsgOrigins[1] = state.MsgOrigins[0]
 	state.MsgAngles[1] = state.MsgAngles[0]
-	state.MsgOrigins[0] = state.Origin
-	state.MsgAngles[0] = state.Angles
+	state.MsgOrigins[0] = rawOrigin
+	state.MsgAngles[0] = rawAngles
+	state.Origin = rawOrigin
+	state.Angles = rawAngles
 	state.MsgTime = p.Client.MTime[0]
 	if isNew {
 		// Brand new entity: initialize [1] to match [0] so no spurious lerp on first frame.
