@@ -644,7 +644,7 @@ func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateUsesRawSnapshotForPredictedXYBaseline(t *testing.T) {
+func TestRuntimeViewStateUsesInterpolatedOriginForPredictedXYBaseline(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -666,12 +666,12 @@ func TestRuntimeViewStateUsesRawSnapshotForPredictedXYBaseline(t *testing.T) {
 		MsgOrigins: [2][3]float32{{100, 200, 300}, {90, 200, 300}},
 	}
 	g.Client.LastServerOrigin = [3]float32{100, 200, 300}
-	g.Client.PredictedOrigin = [3]float32{104, 200, 280}
+	g.Client.PredictedOrigin = [3]float32{97, 200, 280}
 	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
 
 	origin, _ := runtimeViewState()
-	if want := [3]float32{99, 200, 322}; origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want interpolated origin plus raw-baseline predicted lead %v", origin, want)
+	if want := [3]float32{97, 200, 322}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want predicted lead measured from interpolated origin %v", origin, want)
 	}
 }
 

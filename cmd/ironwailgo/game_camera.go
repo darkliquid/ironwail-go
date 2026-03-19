@@ -150,10 +150,9 @@ func runtimePredictedXYOffset(authoritativeOrigin [3]float32) ([2]float32, bool)
 		return [2]float32{}, false
 	}
 
-	baselineOrigin := runtimePredictionBaselineOrigin(authoritativeOrigin)
 	offset := [2]float32{
-		clientOrigin[0] - baselineOrigin[0],
-		clientOrigin[1] - baselineOrigin[1],
+		clientOrigin[0] - authoritativeOrigin[0],
+		clientOrigin[1] - authoritativeOrigin[1],
 	}
 	offsetMagnitude := predictionErrorXYMagnitude([3]float32{offset[0], offset[1], 0})
 	if offsetMagnitude == 0 {
@@ -167,36 +166,6 @@ func runtimePredictedXYOffset(authoritativeOrigin [3]float32) ([2]float32, bool)
 	}
 
 	return offset, true
-}
-
-func runtimePredictionBaselineOrigin(fallback [3]float32) [3]float32 {
-	if g.Client == nil {
-		return fallback
-	}
-
-	if g.Client.ViewEntity != 0 {
-		if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
-			if state.MsgOrigins[0] != [3]float32{} || state.MsgOrigins[1] != [3]float32{} || state.Origin == [3]float32{} {
-				return state.MsgOrigins[0]
-			}
-			return state.Origin
-		}
-	}
-
-	if g.Client.ViewEntity == 0 {
-		if state, ok := g.Client.Entities[0]; ok {
-			if state.MsgOrigins[0] != [3]float32{} || state.MsgOrigins[1] != [3]float32{} || state.Origin == [3]float32{} {
-				return state.MsgOrigins[0]
-			}
-			return state.Origin
-		}
-	}
-
-	if g.Client.LastServerOrigin != [3]float32{} {
-		return g.Client.LastServerOrigin
-	}
-
-	return fallback
 }
 
 func runtimeInterpolatedVelocity() [3]float32 {
