@@ -493,7 +493,10 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
 		frame = 0
 	}
-	origin, _ := runtimeViewState()
+	// Use raw entity origin + viewheight for weapon origin, NOT camera origin.
+	// C Ironwail V_CalcRefdef: VectorCopy(ent->origin, view->origin); view->origin[2] += cl.viewheight;
+	// The camera origin already has bob applied — using it would double-bob.
+	origin := runtimeWeaponBaseOrigin()
 	viewAngles := runtimeInterpolatedViewAngles()
 	punch := runtimeGunKickAngles()
 	viewAngles[0] += punch[0]

@@ -38,3 +38,9 @@ func (s *Server) IsActive() bool {
 func (s *Server) IsPaused() bool {
 	return s.Paused
 }
+
+// SetLoadGame sets the LoadGame flag, which controls whether ConnectClient
+// skips SetNewParms (preserving spawn parms across level changes).
+func (s *Server) SetLoadGame(v bool) {
+	s.LoadGame = v
+}

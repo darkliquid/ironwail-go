@@ -12,7 +12,7 @@ import (
 
 func runtimeViewState() (origin, angles [3]float32) {
 	origin = [3]float32{0, 0, 128}
-	angles = [3]float32{45, 0, 0}
+	angles = [3]float32{0, 0, 0}
 	foundPlayerStart := false
 
 	if g.Server != nil {
@@ -54,7 +54,7 @@ func runtimeViewState() (origin, angles [3]float32) {
 			}
 
 			origin = [3]float32{centerX, centerY + radius, centerZ + radius*0.5}
-			angles = [3]float32{26.565052, 0, 0}
+			angles = [3]float32{0, 0, 0}
 		}
 	}
 
@@ -72,6 +72,22 @@ func runtimeViewState() (origin, angles [3]float32) {
 	}
 
 	return origin, angles
+}
+
+// runtimeWeaponBaseOrigin returns the weapon model base origin: entity origin + viewheight.
+// This does NOT include bob — bob is applied separately by viewApplyBobToOrigin.
+// Mirrors C Ironwail V_CalcRefdef: VectorCopy(ent->origin, view->origin); view->origin[2] += cl.viewheight;
+func runtimeWeaponBaseOrigin() [3]float32 {
+	if g.Client != nil {
+		if clientOrigin, ok := runtimePlayerOrigin(); ok {
+			clientOrigin[2] += g.Client.ViewHeight
+			return clientOrigin
+		}
+	}
+	// Fallback: use the camera origin from runtimeViewState (has bob, but no weapon
+	// bob will be applied since velocity is zero in this case).
+	origin, _ := runtimeViewState()
+	return origin
 }
 
 func runtimePlayerOrigin() ([3]float32, bool) {

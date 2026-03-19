@@ -327,6 +327,7 @@ type Server interface {
 	GetMapName() string
 	IsActive() bool
 	IsPaused() bool
+	SetLoadGame(v bool)
 }
 
 type Client interface {

@@ -106,10 +106,30 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
+
+	h.stopSessionSounds(subs)
 	subs.Server.SaveSpawnParms()
+
+	// Set LoadGame so ConnectClient preserves spawn parms (skips SetNewParms).
+	// Mirrors C Ironwail: SV_SpawnServer sends reconnect to connected clients,
+	// and SV_Spawn_f restores saved spawn parms from host_client->spawn_parms.
+	subs.Server.SetLoadGame(true)
+
 	if fsInstance, ok := subs.Files.(*fs.FileSystem); ok {
 		if err := subs.Server.SpawnServer(level, fsInstance); err != nil {
+			subs.Server.SetLoadGame(false)
 			h.Error(fmt.Sprintf("failed to change level to %s: %v", level, err), subs)
+			return
 		}
+	} else {
+		subs.Server.SetLoadGame(false)
+		return
 	}
+
+	if err := h.startLocalServerSession(subs, nil); err != nil {
+		subs.Server.SetLoadGame(false)
+		h.Error(fmt.Sprintf("failed to start session for %s: %v", level, err), subs)
+		return
+	}
+	subs.Server.SetLoadGame(false)
 }
