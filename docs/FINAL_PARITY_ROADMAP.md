@@ -68,6 +68,9 @@ Over 40 standard console commands are still missing or use non-standard naming.
 - [x] `fly`, `god`, `noclip`, `notarget`, `give`.
 - [x] `viewpos`, `tracepos`, `pr_ents` (print entities).
 - [x] `viewframe`, `viewnext`, `viewprev`.
+- [x] Server debug telemetry controls: `sv_debug_telemetry*` and
+  `sv_debug_qc_trace*` now expose filtered engine-side event logging and
+  QuakeC call-chain tracing for parity/debug investigations.
 
 ### Missing UI & Media Commands
 - [x] `demos`, `startdemos`, `stopdemo`.
