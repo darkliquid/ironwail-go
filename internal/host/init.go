@@ -49,6 +49,7 @@ func registerHostCVars() {
 	cvar.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
 	cvar.Register("host_autosave", "5", cvar.FlagArchive, "Autosave interval in minutes (<=0 disables)")
 	cvar.Register("sv_gameplayfix_elevators", "2", cvar.FlagArchive, "Nudge entities on elevators to prevent crushing (0=off, 1=clients, 2=all)")
+	server.RegisterDebugTelemetryCVars()
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready

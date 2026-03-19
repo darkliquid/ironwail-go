@@ -130,6 +130,24 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 	}
 }
 
+func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
+	registerHostCVars()
+
+	for _, name := range []string{
+		"sv_debug_telemetry",
+		"sv_debug_telemetry_events",
+		"sv_debug_telemetry_classname",
+		"sv_debug_telemetry_entnum",
+		"sv_debug_telemetry_summary",
+		"sv_debug_qc_trace",
+		"sv_debug_qc_trace_verbosity",
+	} {
+		if cv := cvar.Get(name); cv == nil {
+			t.Fatalf("cvar %q not registered", name)
+		}
+	}
+}
+
 func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
 	srv := &mockServer{active: true}
 	subs := &Subsystems{Server: srv}

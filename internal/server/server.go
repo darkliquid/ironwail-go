@@ -107,6 +107,8 @@ type Server struct {
 	// Game rules
 	Coop       bool
 	Deathmatch bool
+
+	DebugTelemetry *DebugTelemetry
 }
 
 // ServerStatic holds state that persists across level changes.
@@ -430,6 +432,7 @@ func NewServer() *Server {
 		QCFieldGravity: -1,
 		EffectsMask:    defaultEffectsMask,
 		QCVM:           qc.NewVM(),
+		DebugTelemetry: NewDebugTelemetry(),
 	}
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
