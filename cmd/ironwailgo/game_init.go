@@ -72,6 +72,7 @@ func initGameHost() error {
 	// Mirrors C Ironwail gl_cshiftpercent. Default 100 (full intensity).
 	cvar.Register("gl_cshiftpercent", "100", cvar.FlagArchive, "Global color-shift intensity percentage (0–100)")
 	cvar.Register("developer", "0", 0, "Developer mode")
+	registerDebugViewTelemetryCVar()
 
 	// View-bob cvars (V_CalcBob).
 	cvar.Register("cl_bob", "0.02", cvar.FlagArchive, "View bobbing scale")

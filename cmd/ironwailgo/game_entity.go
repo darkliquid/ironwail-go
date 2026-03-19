@@ -536,7 +536,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 
 	alpha := inet.ENTALPHA_DECODE(g.Client.ViewEntAlpha)
 
-	return &renderer.AliasModelEntity{
+	entity := &renderer.AliasModelEntity{
 		ModelID: modelName,
 		Model:   mdl,
 		Frame:   frame,
@@ -546,4 +546,6 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		Alpha:   alpha,
 		Scale:   1,
 	}
+	runtimeDebugViewLogViewModel(entity)
+	return entity
 }

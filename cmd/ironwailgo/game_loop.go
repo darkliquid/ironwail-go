@@ -286,18 +286,22 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	}
 	syncControlCvarsToClient()
 	if g.Client != nil {
+		runtimeDebugViewBeginFrame()
 		g.Client.PredictPlayers(float32(dt))
+		runtimeDebugViewLogRelinkPhase("pre")
 		g.Client.UpdateBlend(dt)
 		g.Client.UpdateTempEntities()
 		// Relink before view/audio consumers so camera, listener, and viewmodel
 		// calculations all observe the same interpolated entity state this frame.
 		g.Client.RelinkEntities()
+		runtimeDebugViewLogRelinkPhase("post")
 	}
 	transientEvents := cl.TransientEvents{}
 	if g.Client != nil {
 		transientEvents = g.Client.ConsumeTransientEvents()
 	}
 	viewOrigin, viewAngles := runtimeViewState()
+	runtimeDebugViewLogState(viewOrigin, viewAngles)
 	syncRuntimeSkybox()
 	if g.Audio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
