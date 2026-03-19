@@ -276,7 +276,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	if ent.Vars.FixAngle != 0 {
 		msg.WriteByte(byte(inet.SVCSetAngle))
 		for i := 0; i < 3; i++ {
-			msg.WriteAngle(ent.Vars.Angles[i], flags)
+			msg.WriteAngle(ent.Vars.VAngle[i], flags)
 		}
 		ent.Vars.FixAngle = 0
 	}

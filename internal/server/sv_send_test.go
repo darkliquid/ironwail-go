@@ -652,6 +652,39 @@ func TestWriteClientDataToMessage_FitzExtensionsPayloadOrder(t *testing.T) {
 	}
 }
 
+func TestWriteClientDataToMessage_FixAngleUsesVAngle(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolFitzQuake}
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.FixAngle = 1
+	ent.Vars.Angles = [3]float32{10, 20, 30}
+	ent.Vars.VAngle = [3]float32{90, 180, 270}
+
+	msg := NewMessageBuffer(256)
+	s.WriteClientDataToMessage(ent, msg)
+
+	data := msg.Data[:msg.Len()]
+	if len(data) < 4 {
+		t.Fatalf("short message: %v", data)
+	}
+	if got, want := data[0], byte(inet.SVCSetAngle); got != want {
+		t.Fatalf("message[0] = %d, want %d", got, want)
+	}
+
+	want := NewMessageBuffer(16)
+	flags := uint32(s.ProtocolFlags())
+	want.WriteAngle(ent.Vars.VAngle[0], flags)
+	want.WriteAngle(ent.Vars.VAngle[1], flags)
+	want.WriteAngle(ent.Vars.VAngle[2], flags)
+	if got := data[1:4]; !bytes.Equal(got, want.Data[:want.Len()]) {
+		t.Fatalf("setangle payload = %v, want %v", got, want.Data[:want.Len()])
+	}
+	if ent.Vars.FixAngle != 0 {
+		t.Fatalf("FixAngle = %v, want 0", ent.Vars.FixAngle)
+	}
+}
+
 func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 	t.Parallel()
 
