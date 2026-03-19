@@ -402,15 +402,27 @@ func TestViewStairSmooth_SmoothsUpwardStep(t *testing.T) {
 	}
 }
 
-func TestViewStairSmooth_NoSmoothWhenNotOnGround(t *testing.T) {
+func TestViewStairSmooth_SmoothsSmallUpwardRiseWhenOnGroundBitDrops(t *testing.T) {
 	state := viewCalcState{oldZ: 100, oldZInit: true}
 	entityZ := float32(110)
 	offset := viewStairSmoothOffset(&state, entityZ, false, 0.1, false)
-	// Not on ground, so oldZ should just be set to entityZ.
+	expectedOldZ := float32(108)
+	if math.Abs(float64(state.oldZ-expectedOldZ)) > 0.01 {
+		t.Errorf("expected oldZ=%v, got %v", expectedOldZ, state.oldZ)
+	}
+	expectedOffset := float32(-2)
+	if math.Abs(float64(offset-expectedOffset)) > 0.01 {
+		t.Errorf("expected offset=%v, got %v", expectedOffset, offset)
+	}
+}
+
+func TestViewStairSmooth_NoSmoothForLargeAirborneRise(t *testing.T) {
+	state := viewCalcState{oldZ: 100, oldZInit: true}
+	entityZ := float32(140)
+	offset := viewStairSmoothOffset(&state, entityZ, false, 0.1, false)
 	if state.oldZ != entityZ {
 		t.Errorf("expected oldZ=%v, got %v", entityZ, state.oldZ)
 	}
-	// No smoothing offset.
 	if offset != 0 {
 		t.Errorf("expected zero offset, got %v", offset)
 	}

@@ -385,9 +385,10 @@ func viewStairSmoothOffset(state *viewCalcState, entityZ float32, onGround bool,
 		return 0
 	}
 
-	// Only smooth when on ground and moving upward (stairs).
-	// !noclip_anglehack is assumed (we don't have this hack in Go port).
-	if onGround && entityZ-state.oldZ > 0 {
+	// Smooth small upward rises even if the on-ground bit flickers for a frame.
+	// Steps/slopes can briefly clear SU_ONGROUND before the next server update.
+	rise := entityZ - state.oldZ
+	if rise > 0 && (onGround || rise <= 18) {
 		steptime := float32(deltaTime)
 		if steptime < 0 {
 			steptime = 0
