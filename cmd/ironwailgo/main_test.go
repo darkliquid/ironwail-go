@@ -626,6 +626,37 @@ func TestRuntimeViewStateClampsPredictedXYOffset(t *testing.T) {
 	}
 }
 
+func TestRuntimeViewStateUsesRawSnapshotForPredictedXYBaseline(t *testing.T) {
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
+	})
+
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.Entities[1] = inet.EntityState{
+		Origin:     [3]float32{95, 200, 300},
+		MsgOrigins: [2][3]float32{{100, 200, 300}, {90, 200, 300}},
+	}
+	g.Client.LastServerOrigin = [3]float32{100, 200, 300}
+	g.Client.PredictedOrigin = [3]float32{104, 200, 280}
+	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
+
+	origin, _ := runtimeViewState()
+	if want := [3]float32{99, 200, 322}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want interpolated origin plus raw-baseline predicted lead %v", origin, want)
+	}
+}
+
 func TestRuntimeViewStateIgnoresPredictedXYOffsetOnLargePredictionError(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
