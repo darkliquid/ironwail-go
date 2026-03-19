@@ -80,7 +80,6 @@ func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
-	s.Areanodes = make([]AreaNode, AreaNodes)
 	s.ClearWorld()
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
@@ -187,7 +186,6 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
-	s.Areanodes = make([]AreaNode, AreaNodes)
 	s.ClearWorld()
 	vm.GlobalDefs = []qc.DDef{
 		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
@@ -298,5 +296,25 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	}
 	if reused.AreaPrev != nil || reused.AreaNext != nil {
 		t.Fatalf("reused edict still has area links: prev=%p next=%p", reused.AreaPrev, reused.AreaNext)
+	}
+}
+
+func TestClearWorldAllocatesAreaNodesWhenMissing(t *testing.T) {
+	s := NewServer()
+	if len(s.Areanodes) != 0 {
+		t.Fatalf("initial areanodes len = %d, want 0", len(s.Areanodes))
+	}
+
+	s.ClearWorld()
+
+	if got := len(s.Areanodes); got != AreaNodes {
+		t.Fatalf("ClearWorld areanodes len = %d, want %d", got, AreaNodes)
+	}
+	if s.numAreaNodes == 0 {
+		t.Fatal("ClearWorld did not build any area nodes")
+	}
+	root := s.Areanodes[0]
+	if root.TriggerEdicts.AreaNext == nil || root.TriggerEdicts.AreaPrev == nil {
+		t.Fatal("ClearWorld did not initialize trigger sentinel links")
 	}
 }

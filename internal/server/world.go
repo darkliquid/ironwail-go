@@ -471,6 +471,10 @@ func (s *Server) createAreaNode(depth int, mins, maxs [3]float32) *AreaNode {
 func (s *Server) ClearWorld() {
 	initBoxHull()
 
+	if len(s.Areanodes) != AreaNodes {
+		s.Areanodes = make([]AreaNode, AreaNodes)
+	}
+
 	// Reset area nodes
 	s.numAreaNodes = 0
 
