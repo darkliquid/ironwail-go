@@ -1,5 +1,4 @@
 [env]
-QUAKE_DIR = "/home/darkliquid/Games/Heroic/Quake"
 TIMEOUT = "5"
 
 [tools]
@@ -10,7 +9,11 @@ go = "1.26"
 description = "Run the ironwailgo binary (internal task)"
 hide = true
 run = """
-CGO_ENABLED=1 go run ./cmd/ironwailgo -basedir ${QUAKE_DIR}
+if [ -z "${QUAKE_DIR:-}" ]; then
+  echo "QUAKE_DIR is required" >&2
+  exit 1
+fi
+CGO_ENABLED=1 go run ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
 """
 
 [tasks.clean-logs]
@@ -21,8 +24,12 @@ run = "rm -f smoke-*.log"
 description = "Smoke test: verify menu loads correctly"
 depends = ["clean-logs"]
 run = """
+if [ -z "${QUAKE_DIR:-}" ]; then
+  echo "QUAKE_DIR is required" >&2
+  exit 1
+fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} 2>&1 | tee smoke-menu.log || true
+CGO_ENABLED=0 timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir "${QUAKE_DIR}" 2>&1 | tee smoke-menu.log || true
 grep "FS mounted" smoke-menu.log
 grep "QC loaded" smoke-menu.log
 grep "menu active" smoke-menu.log
@@ -33,8 +40,12 @@ grep "frame loop started" smoke-menu.log
 description = "Smoke test: verify headless mode works"
 depends = ["clean-logs"]
 run = """
+if [ -z "${QUAKE_DIR:-}" ]; then
+  echo "QUAKE_DIR is required" >&2
+  exit 1
+fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} -headless 2>&1 | tee smoke-headless.log || true
+CGO_ENABLED=0 timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir "${QUAKE_DIR}" -headless 2>&1 | tee smoke-headless.log || true
 grep "FS mounted" smoke-headless.log
 grep "QC loaded" smoke-headless.log
 grep "menu active" smoke-headless.log
@@ -45,8 +56,12 @@ grep "frame loop started" smoke-headless.log
 description = "Smoke test: verify map spawning works"
 depends = ["clean-logs"]
 run = """
+if [ -z "${QUAKE_DIR:-}" ]; then
+  echo "QUAKE_DIR is required" >&2
+  exit 1
+fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir ${QUAKE_DIR} +map start 2>&1 | tee smoke-map-start.log || true
+CGO_ENABLED=0 timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-map-start.log || true
 grep "FS mounted" smoke-map-start.log
 grep "QC loaded" smoke-map-start.log
 grep "menu active" smoke-map-start.log
@@ -60,7 +75,11 @@ grep "frame loop started" smoke-map-start.log
 description = "Smoke test: verify CGO/OpenGL boots to map start without headless fallback"
 depends = ["clean-logs", "build-cgo"]
 run = """
-timeout 8 ./ironwailgo-cgo -basedir ${QUAKE_DIR} +map start 2>&1 | tee smoke-cgo-map-start.log || true
+if [ -z "${QUAKE_DIR:-}" ]; then
+  echo "QUAKE_DIR is required" >&2
+  exit 1
+fi
+timeout 8 ./ironwailgo-cgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-cgo-map-start.log || true
 grep "OpenGL renderer created" smoke-cgo-map-start.log
 grep "Starting OpenGL render loop" smoke-cgo-map-start.log
 grep "OpenGL world uploaded" smoke-cgo-map-start.log
@@ -87,7 +106,11 @@ depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]
 
 [tasks.test]
 description = "Run Go tests"
-run = "QUAKE_DIR=${QUAKE_DIR} go test ./internal/testutil"
+run = "go test ./..."
+
+[tasks.verify]
+description = "Run core verification suite"
+depends = ["test", "build-gogpu", "build-cgo"]
 
 [tasks.build-gogpu]
 depends = ["go-generate"]
@@ -118,6 +141,24 @@ run = "CGO_ENABLED=1 go build -o ironwailgo-cgo ./cmd/ironwailgo"
 depends = ["build-cgo"]
 description = "Run CGO build (OpenGL + oto + GLFW)"
 run = "./ironwailgo-cgo -basedir ${QUAKE_DIR}"
+
+[tasks.parity-ref]
+description = "Capture reference screenshots from C Ironwail"
+run = "./scripts/parity_screenshots.sh reference"
+
+[tasks.parity-go]
+description = "Capture screenshots from Go port"
+depends = ["build-gogpu"]
+run = "./scripts/parity_screenshots.sh go"
+
+[tasks.parity-compare]
+description = "Compare reference vs Go screenshots"
+run = "./scripts/parity_screenshots.sh compare"
+
+[tasks.parity-all]
+description = "Capture both and compare parity screenshots"
+depends = ["build-gogpu"]
+run = "./scripts/parity_screenshots.sh both"
 
 [tasks.go-generate]
 hide = true

@@ -34,7 +34,7 @@ func TestServerHooksSpawnAndRemove(t *testing.T) {
 		t.Fatal("spawn builtin not registered")
 	}
 
-	if got := int(vm.GFloat(qc.OFSReturn)); got != 1 {
+	if got := int(vm.GInt(qc.OFSReturn)); got != 1 {
 		t.Fatalf("spawn return = %d, want 1", got)
 	}
 	if s.NumEdicts != 2 {
@@ -42,7 +42,7 @@ func TestServerHooksSpawnAndRemove(t *testing.T) {
 	}
 
 	// Remove entity via builtin (15)
-	vm.SetGFloat(qc.OFSParm0, 1)
+	vm.SetGInt(qc.OFSParm0, 1)
 	if fn := vm.Builtins[15]; fn != nil {
 		fn(vm)
 	}
@@ -70,33 +70,33 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	vm.SetEVector(3, qc.EntFieldOrigin, [3]float32{40, 0, 0})
 
 	// find by string (canonical builtin 18)
-	vm.SetGFloat(qc.OFSParm0, 0)
+	vm.SetGInt(qc.OFSParm0, 0)
 	vm.SetGInt(qc.OFSParm1, qc.EntFieldTargetName)
 	vm.SetGString(qc.OFSParm2, "trigger")
 	if fn := vm.Builtins[18]; fn != nil {
 		fn(vm)
 	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got != 2 {
+	if got := int(vm.GInt(qc.OFSReturn)); got != 2 {
 		t.Fatalf("find return = %d, want 2", got)
 	}
 
 	// findfloat (temporary non-canonical helper slot)
-	vm.SetGFloat(qc.OFSParm0, 0)
+	vm.SetGInt(qc.OFSParm0, 0)
 	vm.SetGInt(qc.OFSParm1, qc.EntFieldHealth)
 	vm.SetGFloat(qc.OFSParm2, 100)
 	if fn := vm.Builtins[1000]; fn != nil {
 		fn(vm)
 	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got != 2 {
+	if got := int(vm.GInt(qc.OFSReturn)); got != 2 {
 		t.Fatalf("findfloat return = %d, want 2", got)
 	}
 
 	// nextent (canonical builtin 47)
-	vm.SetGFloat(qc.OFSParm0, 1)
+	vm.SetGInt(qc.OFSParm0, 1)
 	if fn := vm.Builtins[47]; fn != nil {
 		fn(vm)
 	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got != 2 {
+	if got := int(vm.GInt(qc.OFSReturn)); got != 2 {
 		t.Fatalf("nextent return = %d, want 2", got)
 	}
 
@@ -106,14 +106,14 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	if fn := vm.Builtins[22]; fn != nil {
 		fn(vm)
 	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got != 2 {
+	if got := int(vm.GInt(qc.OFSReturn)); got != 2 {
 		t.Fatalf("findradius return = %d, want 2", got)
 	}
 
 	// setmodel
 	s.ModelPrecache = make([]string, MaxModels)
 	s.ModelPrecache[1] = "progs/test.mdl"
-	vm.SetGFloat(qc.OFSParm0, 1)
+	vm.SetGInt(qc.OFSParm0, 1)
 	vm.SetGString(qc.OFSParm1, "progs/test.mdl")
 	if fn := vm.Builtins[3]; fn != nil {
 		fn(vm)
@@ -152,7 +152,7 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	}}
 	s.WorldModel = worldModelFromBSPTree(s.ModelName, s.WorldTree)
 
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(ent)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(ent)))
 	vm.SetGString(qc.OFSParm1, "*1")
 	if fn := vm.Builtins[3]; fn == nil {
 		t.Fatal("setmodel builtin not registered")
@@ -198,7 +198,7 @@ func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 		}
 	}()
 
-	vm.SetGFloat(qc.OFSParm0, 1)
+	vm.SetGInt(qc.OFSParm0, 1)
 	vm.SetGString(qc.OFSParm1, "progs/missing.mdl")
 	vm.Builtins[3](vm)
 }
@@ -275,7 +275,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	// checkbottom: entity resting on the synthetic plane should be supported.
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(e)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
 	if fn := vm.Builtins[40]; fn == nil {
 		t.Fatal("checkbottom builtin not registered")
 	} else {
@@ -292,7 +292,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	} else {
 		fn(vm)
 	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got == 0 {
+	if got := int(vm.GFloat(qc.OFSReturn)); got == 0 { // pointcontents returns a float content type
 		t.Fatalf("pointcontents returned empty contents for solid point")
 	}
 
@@ -314,7 +314,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 
 	// sound and particle should write to the datagram.
 	datagramBefore := s.Datagram.Len()
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(e)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
 	vm.SetGFloat(qc.OFSParm1, 1)
 	vm.SetGString(qc.OFSParm2, "misc/menu1.wav")
 	vm.SetGFloat(qc.OFSParm3, DefaultSoundVolume)
@@ -336,7 +336,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 
 	// client-targeted messaging should write into the client's reliable buffer.
 	clientBefore := s.Static.Clients[0].Message.Len()
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(e)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
 	vm.SetGString(qc.OFSParm1, "bf\n")
 	vm.Builtins[21](vm)
 	if s.Static.Clients[0].Message.Len() <= clientBefore {
@@ -355,7 +355,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(e)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
 	vm.SetGString(qc.OFSParm1, "misc/menu1.wav")
 	vm.Builtins[80](vm)
 	if s.Static.Clients[0].Message.Len() <= clientBefore {
@@ -376,7 +376,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	vm.Builtins[57](vm)
 	vm.SetGString(qc.OFSParm1, "hello")
 	vm.Builtins[58](vm)
-	vm.SetGFloat(qc.OFSParm1, float32(s.NumForEdict(e)))
+	vm.SetGInt(qc.OFSParm1, int32(s.NumForEdict(e)))
 	vm.Builtins[59](vm)
 	if s.Static.Clients[0].Message.Len() <= clientBefore {
 		t.Fatalf("Write* builtins did not write to MSG_ONE buffer")
@@ -423,11 +423,11 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	} else {
 		fn(vm)
 	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got != s.NumForEdict(target) {
+	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
 		t.Fatalf("checkclient = %d, want %d", got, s.NumForEdict(target))
 	}
 
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(self)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
 	vm.SetGFloat(qc.OFSParm1, 0)
 	if fn := vm.Builtins[44]; fn == nil {
 		t.Fatal("aim builtin not registered")
@@ -439,7 +439,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 		t.Fatalf("aim vector = %v, want mostly +Y", aim)
 	}
 
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(target)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(target)))
 	if fn := vm.Builtins[78]; fn == nil {
 		t.Fatal("setspawnparms builtin not registered")
 	} else {
@@ -479,7 +479,7 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	qc.RegisterBuiltins(vm)
 
 	before := clientMsg.Len()
-	vm.SetGFloat(qc.OFSParm0, float32(s.NumForEdict(ent)))
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(ent)))
 	if fn := vm.Builtins[69]; fn == nil {
 		t.Fatal("makestatic builtin not registered")
 	} else {
@@ -580,7 +580,7 @@ func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
 	vm.SetEVector(selfNum, qc.EntFieldAbsMin, self.Vars.AbsMin)
 	vm.SetEVector(selfNum, qc.EntFieldAbsMax, self.Vars.AbsMax)
 	vm.SetEFloat(selfNum, qc.EntFieldFlags, self.Vars.Flags)
-	vm.SetEFloat(selfNum, qc.EntFieldGoalEntity, float32(self.Vars.GoalEntity))
+	vm.SetEInt(selfNum, qc.EntFieldGoalEntity, self.Vars.GoalEntity)
 
 	vm.SetGFloat(qc.OFSParm0, 16)
 	if fn := vm.Builtins[67]; fn == nil {

@@ -60,6 +60,7 @@ type demoPlaybackNoopServer struct{}
 func (s *demoPlaybackNoopServer) Init(int) error                           { return nil }
 func (s *demoPlaybackNoopServer) SpawnServer(string, *fs.FileSystem) error { return nil }
 func (s *demoPlaybackNoopServer) ConnectClient(int)                        {}
+func (s *demoPlaybackNoopServer) KillClient(int) bool                      { return false }
 func (s *demoPlaybackNoopServer) KickClient(int, string, string) bool      { return false }
 func (s *demoPlaybackNoopServer) Frame(float64) error                      { return nil }
 func (s *demoPlaybackNoopServer) Shutdown()                                {}
@@ -817,6 +818,7 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 		g.AliasModelCache = originalAliasCache
 	})
 
+	cvar.Set("r_drawentities", "1")
 	cvar.Set("r_drawviewmodel", "1")
 	// Register view-calc cvars needed by collectViewModelEntity.
 	cvar.Set("cl_bob", "0")      // disable bob so origin is predictable

@@ -311,6 +311,7 @@ type Server interface {
 	Init(maxClients int) error
 	SpawnServer(mapName string, vfs *fs.FileSystem) error
 	ConnectClient(clientNum int)
+	KillClient(clientNum int) bool
 	KickClient(clientNum int, who, reason string) bool
 	Frame(frameTime float64) error
 	Shutdown()

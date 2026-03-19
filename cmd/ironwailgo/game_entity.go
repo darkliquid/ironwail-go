@@ -544,6 +544,8 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		}
 	}
 
+	alpha := inet.ENTALPHA_DECODE(g.Client.ViewEntAlpha)
+
 	return &renderer.AliasModelEntity{
 		ModelID: modelName,
 		Model:   mdl,
@@ -551,7 +553,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		SkinNum: 0,
 		Origin:  origin,
 		Angles:  angles,
-		Alpha:   1,
+		Alpha:   alpha,
 		Scale:   1,
 	}
 }

@@ -96,7 +96,7 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 	if attenuation < 0 || attenuation > 4 {
 		return
 	}
-	if channel < 0 || channel > 255 {
+	if channel < 0 || channel > 7 {
 		return
 	}
 	if s.Datagram.Len() > MaxDatagram-21 {
@@ -124,10 +124,10 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 			return
 		}
 	} else {
-		if entNum >= 8192 || channel >= 8 {
+		if entNum >= 8192 {
 			fieldMask |= inet.SND_LARGEENTITY
 		}
-		if soundNum >= 256 {
+		if soundNum >= 256 || channel >= 8 {
 			fieldMask |= inet.SND_LARGESOUND
 		}
 	}

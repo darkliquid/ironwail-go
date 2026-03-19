@@ -68,7 +68,7 @@ func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
 	}
 }
 
-func TestHandleDeathmatchRespawnDelay(t *testing.T) {
+func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
@@ -89,25 +89,24 @@ func TestHandleDeathmatchRespawnDelay(t *testing.T) {
 	ent.Vars.Health = 0
 	ent.Vars.DeadFlag = float32(DeadDead)
 
-	s.Time = 10
 	waiting := s.handleDeathmatchRespawn(client)
 	if !waiting {
-		t.Fatal("dead client should wait for respawn delay")
-	}
-	if got, want := client.RespawnTime, float32(12); got != want {
-		t.Fatalf("respawn time = %v, want %v", got, want)
+		t.Fatal("dead client should wait until QC marks it respawnable")
 	}
 	if ent.Vars.Health > 0 {
-		t.Fatalf("client respawned too early: health=%v", ent.Vars.Health)
+		t.Fatalf("client respawned before deadflag was ready: health=%v", ent.Vars.Health)
 	}
 
-	s.Time = 11.5
+	ent.Vars.DeadFlag = float32(DeadRespawnable)
 	waiting = s.handleDeathmatchRespawn(client)
 	if !waiting {
-		t.Fatal("client should still be waiting before delay expiry")
+		t.Fatal("dead client should still wait for respawn input")
+	}
+	if ent.Vars.Health > 0 {
+		t.Fatalf("client respawned before button press: health=%v", ent.Vars.Health)
 	}
 
-	s.Time = 12
+	client.LastCmd.Buttons = 1
 	waiting = s.handleDeathmatchRespawn(client)
 	if waiting {
 		t.Fatal("client should no longer be blocked after respawn")
@@ -117,9 +116,6 @@ func TestHandleDeathmatchRespawnDelay(t *testing.T) {
 	}
 	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadNo; got != want {
 		t.Fatalf("deadflag = %v, want %v", got, want)
-	}
-	if client.RespawnTime != 0 {
-		t.Fatalf("respawn time not cleared: %v", client.RespawnTime)
 	}
 }
 

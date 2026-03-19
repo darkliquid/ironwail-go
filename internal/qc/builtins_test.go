@@ -24,7 +24,7 @@ func TestSpawnAllocatesEntity(t *testing.T) {
 
 	spawn(vm)
 
-	if got := int(vm.GFloat(OFSReturn)); got != 1 {
+	if got := int(vm.GInt(OFSReturn)); got != 1 {
 		t.Fatalf("spawn return = %d, want 1", got)
 	}
 	if vm.NumEdicts != 2 {
@@ -39,7 +39,7 @@ func TestRemoveClearsEntityData(t *testing.T) {
 
 	vm.SetEFloat(1, EntFieldHealth, 99)
 	vm.SetEVector(1, EntFieldOrigin, [3]float32{1, 2, 3})
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 
 	remove(vm)
 
@@ -58,7 +58,7 @@ func TestSetOriginUpdatesAbsBounds(t *testing.T) {
 
 	vm.SetEVector(1, EntFieldMins, [3]float32{-1, -2, -3})
 	vm.SetEVector(1, EntFieldMaxs, [3]float32{4, 5, 6})
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 	vm.SetGVector(OFSParm1, [3]float32{10, 20, 30})
 
 	setorigin(vm)
@@ -80,7 +80,7 @@ func TestSetSizeUpdatesSizeAndAbsBounds(t *testing.T) {
 	vm.NumEdicts = 2
 
 	vm.SetEVector(1, EntFieldOrigin, [3]float32{10, 20, 30})
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 	vm.SetGVector(OFSParm1, [3]float32{-1, -2, -3})
 	vm.SetGVector(OFSParm2, [3]float32{4, 5, 6})
 
@@ -108,7 +108,7 @@ func TestSetModelStoresModelAndModelIndex(t *testing.T) {
 	vm := newBuiltinsTestVM(8)
 	vm.NumEdicts = 2
 
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 	vm.SetGString(OFSParm1, "progs/test.mdl")
 
 	setmodel(vm)
@@ -329,10 +329,10 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 		t.Fatalf("trace_endpos = %v", got)
 	}
 	checkclient(vm)
-	if got := int(vm.GFloat(OFSReturn)); got != 10 {
+	if got := int(vm.GInt(OFSReturn)); got != 10 {
 		t.Fatalf("checkclient return = %d, want 10", got)
 	}
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 	vm.SetGFloat(OFSParm1, 0)
 	aimBuiltin(vm)
 	if got := vm.GVector(OFSReturn); got != [3]float32{0, 1, 0} {
@@ -340,11 +340,11 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	}
 
 	spawn(vm)
-	if got := int(vm.GFloat(OFSReturn)); got != 5 {
+	if got := int(vm.GInt(OFSReturn)); got != 5 {
 		t.Fatalf("spawn return = %d, want 5", got)
 	}
 
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 	remove(vm)
 	sound(vm)
 	find(vm)
@@ -356,6 +356,9 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	pointcontents(vm)
 	walkmove(vm)
 	droptofloor(vm)
+	if got := int(vm.GFloat(OFSReturn)); got != 1 {
+		t.Fatalf("droptofloor return = %d, want 1", got)
+	}
 	lightstyle(vm)
 	particle(vm)
 	precacheSound(vm)
@@ -388,10 +391,6 @@ func TestBuiltinsUseServerHooksWhenConfigured(t *testing.T) {
 	vm.SetGFloat(OFSParm0, 1)
 	movetogoal(vm)
 	changeyaw(vm)
-
-	if got := int(vm.GFloat(OFSReturn)); got != 1 {
-		t.Fatalf("droptofloor return = %d, want 1", got)
-	}
 
 	if hookCalls.traceline != 1 ||
 		hookCalls.checkclient != 1 ||
@@ -509,32 +508,32 @@ func TestSearchBuiltinsFallback(t *testing.T) {
 	vm.SetEVector(2, EntFieldOrigin, [3]float32{10, 0, 0})
 	vm.SetEVector(3, EntFieldOrigin, [3]float32{40, 0, 0})
 
-	vm.SetGFloat(OFSParm0, 0)
+	vm.SetGInt(OFSParm0, 0)
 	vm.SetGInt(OFSParm1, EntFieldTargetName)
 	vm.SetGString(OFSParm2, "trigger")
 	find(vm)
-	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+	if got := int(vm.GInt(OFSReturn)); got != 2 {
 		t.Fatalf("find return = %d, want 2", got)
 	}
 
-	vm.SetGFloat(OFSParm0, 0)
+	vm.SetGInt(OFSParm0, 0)
 	vm.SetGInt(OFSParm1, EntFieldHealth)
 	vm.SetGFloat(OFSParm2, 100)
 	findfloat(vm)
-	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+	if got := int(vm.GInt(OFSReturn)); got != 2 {
 		t.Fatalf("findfloat return = %d, want 2", got)
 	}
 
-	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGInt(OFSParm0, 1)
 	nextent(vm)
-	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+	if got := int(vm.GInt(OFSReturn)); got != 2 {
 		t.Fatalf("nextent return = %d, want 2", got)
 	}
 
 	vm.SetGVector(OFSParm0, [3]float32{0, 0, 0})
 	vm.SetGFloat(OFSParm1, 15)
 	findradius(vm)
-	if got := int(vm.GFloat(OFSReturn)); got != 2 {
+	if got := int(vm.GInt(OFSReturn)); got != 2 {
 		t.Fatalf("findradius return = %d, want 2", got)
 	}
 }
@@ -652,7 +651,7 @@ func TestStringBuiltins(t *testing.T) {
 	}
 
 	// etos(42) = "42"
-	vm.SetGFloat(OFSParm0, 42)
+	vm.SetGInt(OFSParm0, 42)
 	etosBuiltin(vm)
 	if got := vm.GString(OFSReturn); got != "42" {
 		t.Errorf("etos(42) = %q, want 42", got)

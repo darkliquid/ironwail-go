@@ -15,10 +15,10 @@ func spawn(vm *VM) {
 	if serverBuiltinHooks.Spawn != nil {
 		entNum, err := serverBuiltinHooks.Spawn(vm)
 		if err != nil {
-			vm.SetGFloat(OFSReturn, 0)
+			vm.SetGInt(OFSReturn, 0)
 			return
 		}
-		vm.SetGFloat(OFSReturn, float32(entNum))
+		vm.SetGInt(OFSReturn, int32(entNum))
 		return
 	}
 
@@ -26,7 +26,7 @@ func spawn(vm *VM) {
 		vm.NumEdicts = 1
 	}
 	if vm.MaxEdicts > 0 && vm.NumEdicts >= vm.MaxEdicts {
-		vm.SetGFloat(OFSReturn, 0)
+		vm.SetGInt(OFSReturn, 0)
 		return
 	}
 
@@ -39,7 +39,7 @@ func spawn(vm *VM) {
 		}
 	}
 
-	vm.SetGFloat(OFSReturn, float32(entNum))
+	vm.SetGInt(OFSReturn, int32(entNum))
 }
 
 // traceline performs a line trace and stores the result in the trace globals.
@@ -51,7 +51,7 @@ func spawn(vm *VM) {
 //
 // QuakeC signature: void(entity e) remove
 func remove(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	if serverBuiltinHooks.Remove != nil {
 		_ = serverBuiltinHooks.Remove(vm, entNum)
 		return
@@ -77,23 +77,23 @@ func remove(vm *VM) {
 //
 // QuakeC signature: entity(entity start, .string fld, string match) find
 func find(vm *VM) {
-	startEnt := int(vm.GFloat(OFSParm0))
+	startEnt := int(vm.GInt(OFSParm0))
 	fieldOfs := int(vm.GInt(OFSParm1))
 	match := vm.GString(OFSParm2)
 
 	if serverBuiltinHooks.Find != nil {
-		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.Find(vm, startEnt, fieldOfs, match)))
+		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.Find(vm, startEnt, fieldOfs, match)))
 		return
 	}
 
 	for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
 		if vm.GetString(vm.EString(entNum, fieldOfs)) == match {
-			vm.SetGFloat(OFSReturn, float32(entNum))
+			vm.SetGInt(OFSReturn, int32(entNum))
 			return
 		}
 	}
 
-	vm.SetGFloat(OFSReturn, 0)
+	vm.SetGInt(OFSReturn, 0)
 }
 
 // findfloat searches for an entity with a matching float field value.
@@ -106,23 +106,23 @@ func find(vm *VM) {
 //
 // QuakeC signature: entity(entity start, .float fld, float match) findfloat
 func findfloat(vm *VM) {
-	startEnt := int(vm.GFloat(OFSParm0))
+	startEnt := int(vm.GInt(OFSParm0))
 	fieldOfs := int(vm.GInt(OFSParm1))
 	match := vm.GFloat(OFSParm2)
 
 	if serverBuiltinHooks.FindFloat != nil {
-		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.FindFloat(vm, startEnt, fieldOfs, match)))
+		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.FindFloat(vm, startEnt, fieldOfs, match)))
 		return
 	}
 
 	for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
 		if vm.EFloat(entNum, fieldOfs) == match {
-			vm.SetGFloat(OFSReturn, float32(entNum))
+			vm.SetGInt(OFSReturn, int32(entNum))
 			return
 		}
 	}
 
-	vm.SetGFloat(OFSReturn, 0)
+	vm.SetGInt(OFSReturn, 0)
 }
 
 // nextent returns the entity after the given one in the entity list.
@@ -133,18 +133,18 @@ func findfloat(vm *VM) {
 //
 // QuakeC signature: entity(entity e) nextent
 func nextent(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	if serverBuiltinHooks.NextEnt != nil {
-		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.NextEnt(vm, entNum)))
+		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.NextEnt(vm, entNum)))
 		return
 	}
 
 	if entNum+1 > 0 && entNum+1 < vm.NumEdicts {
-		vm.SetGFloat(OFSReturn, float32(entNum+1))
+		vm.SetGInt(OFSReturn, int32(entNum+1))
 		return
 	}
 
-	vm.SetGFloat(OFSReturn, 0)
+	vm.SetGInt(OFSReturn, 0)
 }
 
 // findradius finds entities within a certain radius.
@@ -161,12 +161,12 @@ func findradius(vm *VM) {
 	rad := vm.GFloat(OFSParm1)
 
 	if serverBuiltinHooks.FindRadius != nil {
-		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.FindRadius(vm, org, rad)))
+		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.FindRadius(vm, org, rad)))
 		return
 	}
 
 	if rad < 0 {
-		vm.SetGFloat(OFSReturn, 0)
+		vm.SetGInt(OFSReturn, 0)
 		return
 	}
 
@@ -177,12 +177,12 @@ func findradius(vm *VM) {
 		dy := entOrg[1] - org[1]
 		dz := entOrg[2] - org[2]
 		if dx*dx+dy*dy+dz*dz <= radSq {
-			vm.SetGFloat(OFSReturn, float32(entNum))
+			vm.SetGInt(OFSReturn, int32(entNum))
 			return
 		}
 	}
 
-	vm.SetGFloat(OFSReturn, 0)
+	vm.SetGInt(OFSReturn, 0)
 }
 
 // precacheSound records a sound resource for later lookup.
@@ -192,7 +192,7 @@ func findradius(vm *VM) {
 //
 // QuakeC signature: void(entity e, vector org) setorigin
 func setorigin(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	org := vm.GVector(OFSParm1)
 	if serverBuiltinHooks.SetOrigin != nil {
 		serverBuiltinHooks.SetOrigin(vm, entNum, org)
@@ -215,7 +215,7 @@ func setorigin(vm *VM) {
 //
 // QuakeC signature: void(entity e, vector min, vector max) setsize
 func setsize(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	mins := vm.GVector(OFSParm1)
 	maxs := vm.GVector(OFSParm2)
 	if serverBuiltinHooks.SetSize != nil {
@@ -248,7 +248,7 @@ func setsize(vm *VM) {
 //
 // QuakeC signature: void(entity e, string model) setmodel
 func setmodel(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	modelName := vm.GString(OFSParm1)
 	if serverBuiltinHooks.SetModel != nil {
 		serverBuiltinHooks.SetModel(vm, entNum, modelName)
@@ -269,7 +269,7 @@ func setmodel(vm *VM) {
 // QuakeC signature: void(float dist) movetogoal
 
 func makestatic(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	if serverBuiltinHooks.MakeStatic != nil {
 		serverBuiltinHooks.MakeStatic(vm, entNum)
 	}
@@ -277,7 +277,7 @@ func makestatic(vm *VM) {
 }
 
 func setspawnparms(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	if serverBuiltinHooks.SetSpawnParms != nil {
 		serverBuiltinHooks.SetSpawnParms(vm, entNum)
 	}

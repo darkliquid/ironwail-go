@@ -12,7 +12,7 @@ import (
 // etosBuiltin converts an entity number to a string "entity N".
 // QuakeC signature: string(entity e) etos
 func etosBuiltin(vm *VM) {
-	e := int(vm.GFloat(OFSParm0))
+	e := int(vm.GInt(OFSParm0))
 	vm.SetGString(OFSReturn, fmt.Sprintf("%d", e))
 }
 

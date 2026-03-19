@@ -11,8 +11,10 @@ import (
 	"github.com/ironwail/ironwail-go/internal/server"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 	"math/rand"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -294,6 +296,74 @@ func (h *Host) CmdViewpos(subs *Subsystems) {
 	subs.Console.Print(fmt.Sprintf("viewpos: %.2f %.2f %.2f (yaw: %.2f pitch: %.2f)\n", ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2], ent.Vars.VAngle[1], ent.Vars.VAngle[0]))
 }
 
+func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
+	if !h.serverActive || subs == nil || subs.Server == nil {
+		return
+	}
+	ent := h.getLocalPlayerEdict(subs)
+	if ent == nil {
+		return
+	}
+
+	// Filter out parentheses (for copy-pasting from viewpos output)
+	var filtered []float32
+	for _, arg := range args {
+		if arg == "(" || arg == ")" {
+			continue
+		}
+		v, err := strconv.ParseFloat(arg, 32)
+		if err != nil {
+			continue
+		}
+		filtered = append(filtered, float32(v))
+	}
+
+	if len(filtered) != 3 && len(filtered) != 6 {
+		if subs.Console != nil {
+			subs.Console.Print("usage:\n")
+			subs.Console.Print("   setpos <x> <y> <z>\n")
+			subs.Console.Print("   setpos <x> <y> <z> <pitch> <yaw> <roll>\n")
+			subs.Console.Print(fmt.Sprintf("current values:\n   %d %d %d %d %d %d\n",
+				int(math.Round(float64(ent.Vars.Origin[0]))),
+				int(math.Round(float64(ent.Vars.Origin[1]))),
+				int(math.Round(float64(ent.Vars.Origin[2]))),
+				int(math.Round(float64(ent.Vars.VAngle[0]))),
+				int(math.Round(float64(ent.Vars.VAngle[1]))),
+				int(math.Round(float64(ent.Vars.VAngle[2])))))
+		}
+		return
+	}
+
+	// Auto-enable noclip
+	if server.MoveType(ent.Vars.MoveType) != server.MoveTypeNoClip {
+		ent.Vars.MoveType = float32(server.MoveTypeNoClip)
+		if subs.Console != nil {
+			subs.Console.Print("noclip ON\n")
+		}
+	}
+
+	// Clear velocity
+	ent.Vars.Velocity = [3]float32{}
+
+	// Set origin
+	ent.Vars.Origin[0] = filtered[0]
+	ent.Vars.Origin[1] = filtered[1]
+	ent.Vars.Origin[2] = filtered[2]
+
+	// Optionally set angles
+	if len(filtered) == 6 {
+		ent.Vars.Angles[0] = filtered[3]
+		ent.Vars.Angles[1] = filtered[4]
+		ent.Vars.Angles[2] = filtered[5]
+		ent.Vars.FixAngle = 1
+	}
+
+	// Relink entity in world
+	if srv, ok := subs.Server.(*server.Server); ok {
+		srv.LinkEdict(ent, false)
+	}
+}
+
 func (h *Host) CmdPrEnts(subs *Subsystems) {
 	if subs == nil || subs.Server == nil || subs.Console == nil {
 		return
@@ -317,11 +387,7 @@ func (h *Host) CmdKill(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
-	ent := h.getLocalPlayerEdict(subs)
-	if ent == nil {
-		return
-	}
-	ent.Vars.Health = 0
+	subs.Server.KillClient(0)
 }
 
 func (h *Host) CmdSpawn(subs *Subsystems) {

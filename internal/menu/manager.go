@@ -67,7 +67,7 @@ const (
 	singlePlayerItems = 3
 	multiPlayerItems  = 3
 	joinGameBaseItems = 4
-	hostGameItems     = 8
+	hostGameItems     = 9
 	optionsItems      = 5
 	controlsItems     = 17
 	videoItems        = 9 // added videoItemHUDStyle
@@ -106,9 +106,10 @@ const (
 const (
 	hostGameItemMaxPlayers = iota
 	hostGameItemMode
+	hostGameItemTeamplay
+	hostGameItemSkill
 	hostGameItemFragLimit
 	hostGameItemTimeLimit
-	hostGameItemSkill
 	hostGameItemMap
 	hostGameItemStart
 	hostGameItemBack
@@ -270,6 +271,7 @@ type Manager struct {
 	hostGameCursor     int
 	hostMaxPlayers     int
 	hostGameMode       int
+	hostTeamplay       int
 	hostFragLimit      int
 	hostTimeLimit      int
 	hostSkill          int
@@ -371,6 +373,7 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		hostGameCursor:     0,
 		hostMaxPlayers:     hostMaxPlayersMax,
 		hostGameMode:       1,
+		hostTeamplay:       0,
 		hostFragLimit:      0,
 		hostTimeLimit:      0,
 		hostSkill:          1,

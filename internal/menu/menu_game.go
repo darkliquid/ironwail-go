@@ -159,7 +159,8 @@ func (m *Manager) hostGameKey(key int) {
 }
 
 // syncHostGameValues reads the current maxplayers, skill, coop/deathmatch,
-// fraglimit, and timelimit cvars into the Manager's host-game editing fields
+// teamplay, fraglimit, and timelimit cvars into the Manager's host-game
+// editing fields
 // so the Host Game menu reflects the engine's active settings.
 func (m *Manager) syncHostGameValues() {
 	maxPlayers := m.hostMaxPlayers
@@ -187,6 +188,12 @@ func (m *Manager) syncHostGameValues() {
 	m.hostGameMode = 1
 	if cv := cvar.Get("coop"); cv != nil && cv.Int != 0 {
 		m.hostGameMode = 0
+	}
+	if cv := cvar.Get("teamplay"); cv != nil {
+		m.hostTeamplay = cv.Int
+	}
+	if m.hostTeamplay < 0 || m.hostTeamplay > 2 {
+		m.hostTeamplay = 0
 	}
 
 	if cv := cvar.Get("fraglimit"); cv != nil {
@@ -301,7 +308,7 @@ func (m *Manager) deleteHostMapRune() {
 
 // adjustHostGameSetting modifies the Host Game setting at the current cursor
 // by the given delta. Settings include max players, game mode (coop/DM),
-// frag limit, time limit, and skill level.
+// teamplay, skill, frag limit, time limit, and the map name.
 func (m *Manager) adjustHostGameSetting(delta int) {
 	switch m.hostGameCursor {
 	case hostGameItemMaxPlayers:
@@ -321,6 +328,18 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 			cvar.SetInt("coop", 0)
 			cvar.SetInt("deathmatch", 1)
 		}
+	case hostGameItemTeamplay:
+		m.hostTeamplay = wrapIndex(m.hostTeamplay+delta, 3)
+		cvar.SetInt("teamplay", m.hostTeamplay)
+	case hostGameItemSkill:
+		m.hostSkill += delta
+		if m.hostSkill < 0 {
+			m.hostSkill = 3
+		}
+		if m.hostSkill > 3 {
+			m.hostSkill = 0
+		}
+		cvar.SetInt("skill", m.hostSkill)
 	case hostGameItemFragLimit:
 		m.hostFragLimit += delta * 10
 		if m.hostFragLimit < 0 {
@@ -337,15 +356,6 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 		if m.hostTimeLimit > 60 {
 			m.hostTimeLimit = 0
 		}
-	case hostGameItemSkill:
-		m.hostSkill += delta
-		if m.hostSkill < 0 {
-			m.hostSkill = 3
-		}
-		if m.hostSkill > 3 {
-			m.hostSkill = 0
-		}
-		cvar.SetInt("skill", m.hostSkill)
 	}
 }
 
@@ -373,7 +383,7 @@ func (m *Manager) selectedServerResult() (inet.HostCacheEntry, bool) {
 }
 
 // applyHostGame issues the full sequence of console commands to start a listen
-// server: disconnect, set maxplayers/deathmatch/coop/fraglimit/timelimit/skill,
+// server: disconnect, set maxplayers/deathmatch/coop/teamplay/fraglimit/timelimit/skill,
 // then load the selected map.
 func (m *Manager) applyHostGame() {
 	mapName := strings.TrimSpace(m.hostMapName)
@@ -393,6 +403,7 @@ func (m *Manager) applyHostGame() {
 	m.queueCommand(fmt.Sprintf("maxplayers %d\n", m.hostMaxPlayers))
 	m.queueCommand(fmt.Sprintf("deathmatch %d\n", deathmatch))
 	m.queueCommand(fmt.Sprintf("coop %d\n", coop))
+	m.queueCommand(fmt.Sprintf("teamplay %d\n", m.hostTeamplay))
 	m.queueCommand(fmt.Sprintf("fraglimit %d\n", m.hostFragLimit))
 	m.queueCommand(fmt.Sprintf("timelimit %d\n", m.hostTimeLimit))
 	m.queueCommand(fmt.Sprintf("skill %d\n", m.hostSkill))
@@ -490,18 +501,19 @@ func yForJoinServerResult(index int) int {
 }
 
 // drawHostGame renders the Host Game menu with all configurable settings
-// (max players, mode, frag/time limits, skill, map name) and action buttons.
+// (max players, mode, teamplay, skill, frag/time limits, map name) and action buttons.
 func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_multi.lmp")
 
 	m.drawText(dc, 56, 32, "MAX PLAYERS", true)
 	m.drawText(dc, 56, 48, "MODE", true)
-	m.drawText(dc, 56, 64, "FRAG LIMIT", true)
-	m.drawText(dc, 56, 80, "TIME LIMIT", true)
-	m.drawText(dc, 56, 96, "SKILL", true)
-	m.drawText(dc, 56, 112, "MAP", true)
-	m.drawText(dc, 56, 144, "START GAME", true)
-	m.drawText(dc, 56, 168, "BACK", true)
+	m.drawText(dc, 56, 64, "TEAMPLAY", true)
+	m.drawText(dc, 56, 80, "SKILL", true)
+	m.drawText(dc, 56, 96, "FRAG LIMIT", true)
+	m.drawText(dc, 56, 112, "TIME LIMIT", true)
+	m.drawText(dc, 56, 128, "MAP", true)
+	m.drawText(dc, 56, 152, "START GAME", true)
+	m.drawText(dc, 56, 176, "BACK", true)
 
 	m.drawText(dc, 192, 32, fmt.Sprintf("%d", m.hostMaxPlayers), true)
 	modeLabel := "COOP"
@@ -509,26 +521,38 @@ func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 		modeLabel = "DEATHMATCH"
 	}
 	m.drawText(dc, 192, 48, modeLabel, true)
+	m.drawText(dc, 192, 64, hostTeamplayLabel(m.hostTeamplay), true)
+	m.drawText(dc, 192, 80, fmt.Sprintf("%d", m.hostSkill), true)
 	fragLabel := "NONE"
 	if m.hostFragLimit > 0 {
 		fragLabel = fmt.Sprintf("%d FRAGS", m.hostFragLimit)
 	}
-	m.drawText(dc, 192, 64, fragLabel, true)
+	m.drawText(dc, 192, 96, fragLabel, true)
 	timeLabel := "NONE"
 	if m.hostTimeLimit > 0 {
 		timeLabel = fmt.Sprintf("%d MINUTES", m.hostTimeLimit)
 	}
-	m.drawText(dc, 192, 80, timeLabel, true)
-	m.drawText(dc, 192, 96, fmt.Sprintf("%d", m.hostSkill), true)
-	m.drawText(dc, 192, 112, m.hostMapName, true)
+	m.drawText(dc, 192, 112, timeLabel, true)
+	m.drawText(dc, 192, 128, m.hostMapName, true)
 	m.drawText(dc, 40, 200, "HOSTING USES EXISTING LOCAL LOOPBACK", true)
 
-	cursorRows := []int{32, 48, 64, 80, 96, 112, 144, 168}
+	cursorRows := []int{32, 48, 64, 80, 96, 112, 128, 152, 176}
 	m.drawArrowCursor(dc, 40, cursorRows[m.hostGameCursor])
 	if m.hostGameCursor == hostGameItemMap {
 		cursorX := 192 + len(m.hostMapName)*8
 		cursorChar := 10 + int((time.Now().UnixNano()/int64(250*time.Millisecond))&1)
-		dc.DrawMenuCharacter(cursorX, 112, cursorChar)
+		dc.DrawMenuCharacter(cursorX, 128, cursorChar)
+	}
+}
+
+func hostTeamplayLabel(value int) string {
+	switch value {
+	case 1:
+		return "NO FRIENDLY FIRE"
+	case 2:
+		return "FRIENDLY FIRE"
+	default:
+		return "OFF"
 	}
 }
 

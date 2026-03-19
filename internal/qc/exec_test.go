@@ -17,11 +17,12 @@ func TestExecuteProgramCallRunsCalleeFirstStatement(t *testing.T) {
 
 	vm.Functions = []DFunction{
 		{
-			// ExecuteProgram initializes XStatement to FirstStatement-1.
-			// Use 1 so execution starts at statement 0.
-			FirstStatement: 1,
+			// ExecuteProgram starts at FirstStatement directly.
+			FirstStatement: 0,
 		},
 		{
+			// callFunction uses FirstStatement-1 because the loop's
+			// bottom XStatement++ fires after it returns.
 			FirstStatement: 3,
 		},
 	}
@@ -70,10 +71,10 @@ func TestExecuteProgramCallCopiesParametersIntoCalleeLocals(t *testing.T) {
 
 	vm.Functions = []DFunction{
 		{
-			FirstStatement: 1, // start at statement 0
+			FirstStatement: 0, // entry point starts at statement 0
 		},
 		{
-			FirstStatement: 3, // start at statement 3
+			FirstStatement: 3, // callees use FirstStatement-1 internally
 			ParmStart:      calleeParm0,
 			Locals:         1,
 			NumParms:       1,
@@ -127,15 +128,15 @@ func TestExecuteProgramNestedCallRestoresCallerLocals(t *testing.T) {
 
 	vm.Functions = []DFunction{
 		{
-			FirstStatement: 1, // start at statement 0
+			FirstStatement: 0, // entry point starts at statement 0
 		},
 		{
-			FirstStatement: 3, // start at statement 3
+			FirstStatement: 3, // callee
 			ParmStart:      sharedLocalOfs,
 			Locals:         1,
 		},
 		{
-			FirstStatement: 8, // start at statement 8
+			FirstStatement: 8, // callee
 			ParmStart:      sharedLocalOfs,
 			Locals:         1,
 		},
@@ -198,10 +199,10 @@ func TestExecuteProgramOPReturnCopiesThreeSlotsToOFSReturn(t *testing.T) {
 
 	vm.Functions = []DFunction{
 		{
-			FirstStatement: 1, // start at statement 0
+			FirstStatement: 0, // entry point starts at statement 0
 		},
 		{
-			FirstStatement: 3, // start at statement 3
+			FirstStatement: 3, // callee
 		},
 	}
 
@@ -250,7 +251,7 @@ func TestProfileResultsAccumulatesPerFunction(t *testing.T) {
 	)
 
 	vm.Functions = []DFunction{
-		{FirstStatement: 1, Name: 0}, // "main" at string offset 0
+		{FirstStatement: 0, Name: 0}, // "main" at string offset 0
 		{FirstStatement: 6, Name: 5}, // "callee" at string offset 5
 	}
 

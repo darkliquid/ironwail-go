@@ -1069,10 +1069,18 @@ func (s *Server) SetClientName(clientNum int, name string) {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return
 	}
-	if s.Static.Clients[clientNum] == nil {
+	client := s.Static.Clients[clientNum]
+	if client == nil {
 		return
 	}
-	s.Static.Clients[clientNum].Name = name
+	if len(name) > 15 {
+		name = name[:15]
+	}
+	client.Name = name
+	if client.Edict != nil && client.Edict.Vars != nil && s.QCVM != nil {
+		client.Edict.Vars.NetName = s.QCVM.AllocString(name)
+	}
+	s.broadcastClientNameUpdate(clientNum, name)
 }
 
 // GetClientColor returns the top/bottom shirt color bits for the given client slot.
@@ -1091,10 +1099,15 @@ func (s *Server) SetClientColor(clientNum int, color int) {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return
 	}
-	if s.Static.Clients[clientNum] == nil {
+	client := s.Static.Clients[clientNum]
+	if client == nil {
 		return
 	}
-	s.Static.Clients[clientNum].Color = color
+	client.Color = color
+	if client.Edict != nil && client.Edict.Vars != nil {
+		client.Edict.Vars.Team = float32((color & 15) + 1)
+	}
+	s.broadcastClientColorUpdate(clientNum, color)
 }
 
 // GetClientPing returns average ping (ms) from the client's rolling network sample window.
@@ -1113,6 +1126,28 @@ func (s *Server) GetClientPing(clientNum int) float32 {
 		total += c.PingTimes[i]
 	}
 	return total / float32(count) * 1000
+}
+
+// KillClient triggers QC ClientKill for a live player, mirroring the classic
+// server-side "kill" command behavior used by both local and remote clients.
+func (s *Server) KillClient(clientNum int) bool {
+	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
+		return false
+	}
+	client := s.Static.Clients[clientNum]
+	if client == nil || !client.Active || client.Edict == nil || client.Edict.Free {
+		return false
+	}
+	if client.Edict.Vars.Health <= 0 {
+		s.SV_ClientPrintf(client, "Can't suicide -- already dead!\n")
+		return false
+	}
+	if err := s.runClientKillQC(client); err != nil {
+		client.Edict.Vars.Health = 0
+		client.Edict.Vars.DeadFlag = float32(DeadDead)
+		return true
+	}
+	return true
 }
 
 // KickClient sends a kick reason to a client then drops the connection from the server.
@@ -1170,4 +1205,32 @@ func (s *Server) SV_ClientPrintf(client *Client, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	client.Message.WriteByte(byte(SVCPrint))
 	client.Message.WriteString(msg)
+}
+
+func (s *Server) broadcastClientNameUpdate(clientNum int, name string) {
+	if s == nil || s.Static == nil {
+		return
+	}
+	for _, receiver := range s.Static.Clients {
+		if receiver == nil || !receiver.Active || receiver.Message == nil {
+			continue
+		}
+		receiver.Message.WriteByte(byte(inet.SVCUpdateName))
+		receiver.Message.WriteByte(byte(clientNum))
+		receiver.Message.WriteString(name)
+	}
+}
+
+func (s *Server) broadcastClientColorUpdate(clientNum int, color int) {
+	if s == nil || s.Static == nil {
+		return
+	}
+	for _, receiver := range s.Static.Clients {
+		if receiver == nil || !receiver.Active || receiver.Message == nil {
+			continue
+		}
+		receiver.Message.WriteByte(byte(inet.SVCUpdateColors))
+		receiver.Message.WriteByte(byte(clientNum))
+		receiver.Message.WriteByte(byte(color))
+	}
 }

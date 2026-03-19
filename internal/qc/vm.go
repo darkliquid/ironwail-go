@@ -509,6 +509,9 @@ type VM struct {
 	// Trace enables execution tracing for debugging.
 	Trace bool
 
+	// TraceFunc is called for each statement when Trace is true.
+	TraceFunc func(vm *VM, stmtIdx int, st *DStatement, op Opcode)
+
 	// XFunction is the currently executing function.
 	XFunction *DFunction
 
@@ -560,9 +563,10 @@ func (vm *VM) GFloat(o int) float32 {
 }
 
 // GInt returns an integer global value by offset.
-// The float32 is converted via int32() cast.
+// Uses bit-cast (not value conversion) to match C's eval_t union semantics:
+// the raw float32 bits are reinterpreted as int32.
 func (vm *VM) GInt(o int) int32 {
-	return int32(vm.Globals[o])
+	return int32(math.Float32bits(vm.Globals[o]))
 }
 
 // GVector returns a 3-component vector global by offset.
@@ -596,9 +600,10 @@ func (vm *VM) SetGFloat(o int, v float32) {
 }
 
 // SetGInt sets an integer global value by offset.
-// The int32 is converted to float32 for storage.
+// Uses bit-cast (not value conversion) to match C's eval_t union semantics:
+// the raw int32 bits are reinterpreted as float32.
 func (vm *VM) SetGInt(o int, v int32) {
-	vm.Globals[o] = float32(v)
+	vm.Globals[o] = math.Float32frombits(uint32(v))
 }
 
 // SetGVector sets a 3-component vector global by offset.
@@ -789,7 +794,8 @@ func (vm *VM) EFloat(edictNum int, fieldOfs int) float32 {
 // EInt returns an integer entity field value.
 // The offset is in float-units (multiply by 4 for byte offset).
 func (vm *VM) EInt(edictNum int, fieldOfs int) int32 {
-	return int32(vm.EFloat(edictNum, fieldOfs))
+	// Bit-cast: EFloat reads raw IEEE 754 bits, reinterpret as int32.
+	return int32(math.Float32bits(vm.EFloat(edictNum, fieldOfs)))
 }
 
 // EVector returns a 3-component vector entity field.
@@ -833,7 +839,8 @@ func (vm *VM) SetEFloat(edictNum int, fieldOfs int, v float32) {
 
 // SetEInt sets an integer entity field value.
 func (vm *VM) SetEInt(edictNum int, fieldOfs int, v int32) {
-	vm.SetEFloat(edictNum, fieldOfs, float32(v))
+	// Bit-cast: store int32 bits as float32 for SetEFloat.
+	vm.SetEFloat(edictNum, fieldOfs, math.Float32frombits(uint32(v)))
 }
 
 // SetEVector sets a 3-component vector entity field.

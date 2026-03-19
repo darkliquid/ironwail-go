@@ -65,9 +65,11 @@ const (
 // Draw is the package-level entry point that renders the global console.
 // It delegates to the singleton globalConsole. When full is true, the
 // entire drop-down console overlay is drawn; when false, only the compact
-// notify lines are rendered over the game view.
-func Draw(rc DrawContext, screenWidth, screenHeight int, full bool) {
-	globalConsole.Draw(rc, screenWidth, screenHeight, full)
+// notify lines are rendered over the game view. When forcedup is true,
+// the console fills the entire screen (used before a map is loaded).
+func Draw(rc DrawContext, screenWidth, screenHeight int, full bool, forcedup ...bool) {
+	forced := len(forcedup) > 0 && forcedup[0]
+	globalConsole.Draw(rc, screenWidth, screenHeight, full, forced)
 }
 
 // Draw renders either the full console overlay (when full == true) or just the
@@ -77,7 +79,7 @@ func Draw(rc DrawContext, screenWidth, screenHeight int, full bool) {
 //
 // Safety checks ensure we never attempt to draw with invalid dimensions or
 // nil contexts.
-func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool) {
+func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool, forcedup ...bool) {
 	if c == nil || rc == nil || screenWidth < consoleCharWidth || screenHeight < consoleCharHeight {
 		return
 	}
@@ -89,7 +91,8 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool)
 	c.Resize(charsWide)
 
 	if full {
-		c.drawFull(rc, screenWidth, screenHeight, charsWide)
+		forced := len(forcedup) > 0 && forcedup[0]
+		c.drawFull(rc, screenWidth, screenHeight, charsWide, forced)
 		return
 	}
 	c.drawNotify(rc, charsWide)
@@ -109,9 +112,9 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool)
 // fill is drawn behind the text for readability. Lines are fetched from the
 // ring buffer under the read lock, copied out, then drawn after releasing the
 // lock to minimise lock contention with the printing goroutine.
-func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide int) {
+func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide int, forcedup bool) {
 	consoleHeight := screenHeight / 2
-	if consoleHeight < consoleMinDrawHeight {
+	if forcedup || consoleHeight < consoleMinDrawHeight {
 		consoleHeight = screenHeight
 	}
 	if consoleHeight <= 0 {

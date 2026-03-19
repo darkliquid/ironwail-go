@@ -109,28 +109,32 @@ func setSetupTestCVars(t *testing.T, hostname, name string, color int) {
 	})
 }
 
-func setHostGameTestCVars(t *testing.T, maxPlayers, coop, deathmatch, skill int) {
+func setHostGameTestCVars(t *testing.T, maxPlayers, coop, deathmatch, teamplay, skill int) {
 	t.Helper()
 
 	maxPlayersCV := cvar.Register("maxplayers", "16", cvar.FlagServerInfo, "")
 	coopCV := cvar.Register("coop", "0", cvar.FlagServerInfo, "")
 	deathmatchCV := cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "")
+	teamplayCV := cvar.Register("teamplay", "0", cvar.FlagServerInfo, "")
 	skillCV := cvar.Register("skill", "1", cvar.FlagArchive, "")
 
 	oldMaxPlayers := maxPlayersCV.String
 	oldCoop := coopCV.String
 	oldDeathmatch := deathmatchCV.String
+	oldTeamplay := teamplayCV.String
 	oldSkill := skillCV.String
 
 	cvar.SetInt(maxPlayersCV.Name, maxPlayers)
 	cvar.SetInt(coopCV.Name, coop)
 	cvar.SetInt(deathmatchCV.Name, deathmatch)
+	cvar.SetInt(teamplayCV.Name, teamplay)
 	cvar.SetInt(skillCV.Name, skill)
 
 	t.Cleanup(func() {
 		cvar.Set(maxPlayersCV.Name, oldMaxPlayers)
 		cvar.Set(coopCV.Name, oldCoop)
 		cvar.Set(deathmatchCV.Name, oldDeathmatch)
+		cvar.Set(teamplayCV.Name, oldTeamplay)
 		cvar.Set(skillCV.Name, oldSkill)
 	})
 }
@@ -784,7 +788,7 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
-	setHostGameTestCVars(t, 4, 1, 0, 1)
+	setHostGameTestCVars(t, 4, 1, 0, 0, 1)
 
 	var commands []string
 	mgr.commandText = func(text string) {
@@ -804,11 +808,13 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KRightArrow) // mode: coop -> deathmatch
 	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow) // teamplay: 0 -> 1
+	mgr.M_Key(input.KDownArrow)
+	mgr.M_Key(input.KRightArrow) // skill: 1 -> 2
+	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KRightArrow) // fraglimit: 0 -> 10
 	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KRightArrow) // timelimit: 0 -> 5
-	mgr.M_Key(input.KDownArrow)
-	mgr.M_Key(input.KRightArrow) // skill: 1 -> 2
 	mgr.M_Key(input.KDownArrow)
 	for i := 0; i < 5; i++ {
 		mgr.M_Key(input.KBackspace) // map: start ->
@@ -829,6 +835,7 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 		"maxplayers 3\n",
 		"deathmatch 1\n",
 		"coop 0\n",
+		"teamplay 1\n",
 		"fraglimit 10\n",
 		"timelimit 5\n",
 		"skill 2\n",
@@ -880,7 +887,7 @@ func TestHostGameMenuSyncsFromLiveNetgameCVars(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
-	setHostGameTestCVars(t, 1, 0, 1, 3)
+	setHostGameTestCVars(t, 1, 0, 1, 2, 3)
 
 	mgr.ShowMenu()
 	mgr.state = MenuMultiPlayer
@@ -896,6 +903,9 @@ func TestHostGameMenuSyncsFromLiveNetgameCVars(t *testing.T) {
 	if got := mgr.hostGameMode; got != 1 {
 		t.Fatalf("host mode = %d, want deathmatch mode (1)", got)
 	}
+	if got := mgr.hostTeamplay; got != 2 {
+		t.Fatalf("host teamplay = %d, want 2", got)
+	}
 	if got := mgr.hostSkill; got != 3 {
 		t.Fatalf("host skill = %d, want 3", got)
 	}
@@ -906,7 +916,7 @@ func TestHostGameMenuMaxPlayersClampsAtBounds(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
-	setHostGameTestCVars(t, hostMaxPlayersMin, 0, 1, 1)
+	setHostGameTestCVars(t, hostMaxPlayersMin, 0, 1, 0, 1)
 
 	mgr.ShowMenu()
 	mgr.state = MenuMultiPlayer

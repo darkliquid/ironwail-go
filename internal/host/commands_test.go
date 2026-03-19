@@ -177,6 +177,11 @@ type kickRecord struct {
 	reason    string
 }
 
+type killTrackingServer struct {
+	mockServer
+	killCalls []int
+}
+
 type kickTrackingServer struct {
 	mockServer
 	names  []string
@@ -208,6 +213,11 @@ func (b *insertTrackingCommandBuffer) Shutdown() {}
 
 func (s *colorTrackingServer) SetClientColor(clientNum int, color int) {
 	s.lastColor = color
+}
+
+func (s *killTrackingServer) KillClient(clientNum int) bool {
+	s.killCalls = append(s.killCalls, clientNum)
+	return true
 }
 
 func (s *nameTrackingServer) SetClientName(clientNum int, name string) {
@@ -292,12 +302,13 @@ func TestCmdRestart(t *testing.T) {
 
 func TestCmdKill(t *testing.T) {
 	h := NewHost()
+	server := &killTrackingServer{}
 	subs := &mockSubsystems{
-		server:  &mockServer{},
+		server:  &server.mockServer,
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Server = server
 	subs.Subsystems.Client = subs.client
 	subs.Subsystems.Console = subs.console
 
@@ -305,6 +316,9 @@ func TestCmdKill(t *testing.T) {
 	h.SetServerActive(true)
 
 	h.CmdKill(&subs.Subsystems)
+	if len(server.killCalls) != 1 || server.killCalls[0] != 0 {
+		t.Fatalf("KillClient calls = %v, want [0]", server.killCalls)
+	}
 }
 
 func TestCmdGod(t *testing.T) {

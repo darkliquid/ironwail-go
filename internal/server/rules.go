@@ -6,11 +6,6 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
-// deathmatchRespawnDelay defines how long dead players wait before automatic
-// respawn in deathmatch. The delay mirrors classic Quake pacing: the player
-// sees death feedback briefly before re-entering the simulation.
-const deathmatchRespawnDelay = 2.0
-
 // syncGameModeFromCVars snapshots coop/deathmatch cvars into server booleans.
 // This keeps per-frame rule evaluation coupled to console-configured game mode
 // without requiring every caller to query cvars directly.
@@ -77,9 +72,10 @@ func (s *Server) issueMatchEnd(reason string) {
 	}
 }
 
-// handleDeathmatchRespawn applies deathmatch-specific delayed auto-respawn.
-// It gates dead players for a short timeout, then invokes QC spawn routines so
-// spawnpoint selection and inventory reset remain gamecode-driven.
+// handleDeathmatchRespawn mirrors classic Quake deathmatch respawn behavior:
+// once QC marks the player as respawnable, pressing attack or jump re-enters
+// the player through PutClientInServer. Until then, movement/thinking stays
+// blocked while the death sequence runs.
 func (s *Server) handleDeathmatchRespawn(client *Client) bool {
 	if s == nil || client == nil || client.Edict == nil || client.Edict.Free {
 		return false
@@ -87,34 +83,24 @@ func (s *Server) handleDeathmatchRespawn(client *Client) bool {
 
 	s.syncGameModeFromCVars()
 	if !s.Deathmatch || s.Coop {
-		client.RespawnTime = 0
 		return false
 	}
 
 	ent := client.Edict
 	dead := ent.Vars.Health <= 0 || DeadFlag(ent.Vars.DeadFlag) >= DeadDead
 	if !dead {
-		client.RespawnTime = 0
 		return false
 	}
-
-	if client.RespawnTime <= 0 {
-		client.RespawnTime = s.Time + deathmatchRespawnDelay
-	}
-	if s.Time < client.RespawnTime {
+	if DeadFlag(ent.Vars.DeadFlag) < DeadRespawnable {
 		return true
 	}
 
-	ent.Vars.DeadFlag = float32(DeadRespawnable)
+	if client.LastCmd.Buttons&0x3 == 0 {
+		return true
+	}
+
 	if err := s.runClientPutInServerQC(client); err != nil {
 		return true
 	}
-	if ent.Vars.Health <= 0 {
-		if err := s.runClientSpawnQC(client); err != nil {
-			return true
-		}
-	}
-	ent.Vars.DeadFlag = float32(DeadNo)
-	client.RespawnTime = 0
 	return false
 }

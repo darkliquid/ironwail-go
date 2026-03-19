@@ -166,7 +166,7 @@ func TestStartSoundDropsChannelAbove7ForNetQuake(t *testing.T) {
 	}
 }
 
-func TestStartSoundAcceptsChannelAbove7ForFitzQuake(t *testing.T) {
+func TestStartSoundRejectsChannelAbove7ForFitzQuake(t *testing.T) {
 	s := NewServer()
 	s.Protocol = ProtocolFitzQuake
 	if err := s.Init(1); err != nil {
@@ -179,10 +179,11 @@ func TestStartSoundAcceptsChannelAbove7ForFitzQuake(t *testing.T) {
 	ent := &Edict{Vars: &EntVars{}}
 	s.Edicts[1] = ent
 
-	// Channel 8 should work for FitzQuake (uses SND_LARGEENTITY).
+	// Channel 8 should be rejected regardless of protocol — C engine
+	// validates channel 0-7 before protocol encoding (sv_main.c:272-273).
 	s.Datagram.Clear()
 	s.StartSound(ent, 8, "sound/test.wav", DefaultSoundVolume, DefaultSoundAttenuation)
-	if s.Datagram.Len() == 0 {
-		t.Fatal("channel 8 should be accepted for FitzQuake via SND_LARGEENTITY")
+	if s.Datagram.Len() != 0 {
+		t.Fatalf("channel 8 should be rejected for all protocols, got %d bytes", s.Datagram.Len())
 	}
 }

@@ -286,6 +286,12 @@ func main() {
 
 	// Screenshot mode: render single frame and save to PNG
 	if *screenshotFlag != "" {
+		// Flush pending console commands (e.g. +setpos, +noclip from command line)
+		// so camera positioning takes effect before the screenshot.
+		cmdsys.Execute()
+		if g.Host != nil && g.Server != nil {
+			_ = g.Server.Frame(0.05) // run one physics frame to apply position changes
+		}
 		if err := captureScreenshot(*screenshotFlag, *baseDir, *gameDir); err != nil {
 			log.Fatal("Screenshot failed:", err)
 		}
@@ -360,10 +366,10 @@ func main() {
 						return
 					}
 
-					// When disconnected, draw full console as background
+					// When disconnected, draw full console as background (full screen)
 					if conForcedup {
 						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
-						console.Draw(overlay, w, h, true)
+						console.Draw(overlay, w, h, true, true)
 					}
 
 					// Menu draws on top of console
@@ -484,10 +490,16 @@ func runtimeViewModelVisible() bool {
 	if g.Client.Intermission != 0 {
 		return false
 	}
+	if !cvar.BoolValue("r_drawentities") {
+		return false
+	}
 	if !cvar.BoolValue("r_drawviewmodel") {
 		return false
 	}
 	if cvar.BoolValue("chase_active") {
+		return false
+	}
+	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float >= 130 {
 		return false
 	}
 	if g.Client.Health() <= 0 {

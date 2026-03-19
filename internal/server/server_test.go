@@ -24,7 +24,7 @@ func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T)
 
 	const (
 		entNum   = 8192
-		channel  = 17
+		channel  = 3
 		soundNum = 300
 	)
 	s.SoundPrecache[soundNum] = "misc/large.wav"
@@ -540,6 +540,76 @@ func TestKickClientRejectsInvalidTargets(t *testing.T) {
 	}
 	if ok := s.KickClient(9, "Console", ""); ok {
 		t.Fatal("KickClient succeeded for out-of-range client")
+	}
+}
+
+func TestKillClientRejectsAlreadyDead(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Edict.Vars.Health = 0
+
+	if ok := s.KillClient(0); ok {
+		t.Fatal("KillClient succeeded for dead client")
+	}
+	if !bytes.Contains(client.Message.Data[:client.Message.Len()], []byte("Can't suicide -- already dead!\n")) {
+		t.Fatalf("kill rejection message = %q, want already-dead warning", string(client.Message.Data[:client.Message.Len()]))
+	}
+}
+
+func TestSetClientNameBroadcastsReliableScoreboardUpdate(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	s.ConnectClient(1)
+	for _, client := range s.Static.Clients[:2] {
+		client.Active = true
+		client.Message.Clear()
+	}
+
+	s.SetClientName(0, "Ranger")
+
+	for i, client := range s.Static.Clients[:2] {
+		data := client.Message.Data[:client.Message.Len()]
+		if idx := bytes.Index(data, []byte{byte(inet.SVCUpdateName), 0}); idx < 0 {
+			t.Fatalf("client %d missing SVCUpdateName broadcast: %v", i, data)
+		}
+		if !bytes.Contains(data, []byte("Ranger\x00")) {
+			t.Fatalf("client %d missing updated player name in reliable stream: %q", i, string(data))
+		}
+	}
+}
+
+func TestSetClientColorBroadcastsReliableScoreboardUpdate(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	s.ConnectClient(1)
+	for _, client := range s.Static.Clients[:2] {
+		client.Active = true
+		client.Message.Clear()
+	}
+
+	s.SetClientColor(0, 0x23)
+
+	if got := int(s.Static.Clients[0].Edict.Vars.Team); got != 4 {
+		t.Fatalf("team = %d, want 4 from bottom color nibble", got)
+	}
+	for i, client := range s.Static.Clients[:2] {
+		data := client.Message.Data[:client.Message.Len()]
+		if idx := bytes.Index(data, []byte{byte(inet.SVCUpdateColors), 0, 0x23}); idx < 0 {
+			t.Fatalf("client %d missing SVCUpdateColors broadcast: %v", i, data)
+		}
 	}
 }
 

@@ -310,7 +310,7 @@ func writeStringBuiltin(vm *VM) {
 
 func writeEntityBuiltin(vm *VM) {
 	if serverBuiltinHooks.WriteEntity != nil {
-		serverBuiltinHooks.WriteEntity(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
+		serverBuiltinHooks.WriteEntity(vm, int(vm.GFloat(OFSParm0)), int(vm.GInt(OFSParm1)))
 	}
 }
 
@@ -329,7 +329,7 @@ func setTraceGlobals(vm *VM, trace BuiltinTraceResult) {
 	vm.SetGVector(OFSTraceEndPos, trace.EndPos)
 	vm.SetGVector(OFSTracePlaneNormal, trace.PlaneNormal)
 	vm.SetGFloat(OFSTracePlaneDist, trace.PlaneDist)
-	vm.SetGFloat(OFSTraceEnt, float32(trace.EntNum))
+	vm.SetGInt(OFSTraceEnt, int32(trace.EntNum))
 	if trace.InOpen {
 		vm.SetGFloat(OFSTraceInOpen, 1)
 	} else {
@@ -363,7 +363,7 @@ func precacheModel(vm *VM) {
 }
 
 func stuffcmd(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	cmd := vm.GString(OFSParm1)
 	if serverBuiltinHooks.StuffCmd != nil {
 		serverBuiltinHooks.StuffCmd(vm, entNum, cmd)
@@ -384,7 +384,7 @@ func bprint(vm *VM) {
 
 // sprint prints a message intended for one client.
 func sprint(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	msg := vm.GString(OFSParm1)
 	if serverBuiltinHooks.ClientPrint != nil {
 		serverBuiltinHooks.ClientPrint(vm, entNum, msg)
@@ -404,7 +404,7 @@ func dprint(vm *VM) {
 }
 
 func eprint(vm *VM) {
-	console.Printf("entity %d", int(vm.GFloat(OFSParm0)))
+	console.Printf("entity %d", int(vm.GInt(OFSParm0)))
 }
 func precacheFile(vm *VM) {
 	vm.SetGInt(OFSReturn, vm.GInt(OFSParm0))

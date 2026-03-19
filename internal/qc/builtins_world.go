@@ -14,7 +14,7 @@ func traceline(vm *VM) {
 	start := vm.GVector(OFSParm0)
 	end := vm.GVector(OFSParm1)
 	noMonsters := vm.GFloat(OFSParm2) != 0
-	passEnt := int(vm.GFloat(OFSSelf))
+	passEnt := int(vm.GInt(OFSSelf))
 
 	trace := BuiltinTraceResult{Fraction: 1, EndPos: end, EntNum: 0, InOpen: true}
 	if serverBuiltinHooks.Traceline != nil {
@@ -26,14 +26,14 @@ func traceline(vm *VM) {
 
 func checkclient(vm *VM) {
 	if serverBuiltinHooks.CheckClient != nil {
-		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.CheckClient(vm)))
+		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.CheckClient(vm)))
 		return
 	}
-	vm.SetGFloat(OFSReturn, 0)
+	vm.SetGInt(OFSReturn, 0)
 }
 
 func sound(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	channel := int(vm.GFloat(OFSParm1))
 	sample := vm.GString(OFSParm2)
 	volume := 255
@@ -85,7 +85,7 @@ func walkmove(vm *VM) {
 
 // checkbottom verifies that the entity is supported by the floor.
 func checkbottom(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	if serverBuiltinHooks.CheckBottom != nil {
 		if serverBuiltinHooks.CheckBottom(vm, entNum) {
 			vm.SetGFloat(OFSReturn, 1)
@@ -110,7 +110,7 @@ func pointcontents(vm *VM) {
 }
 
 func aimBuiltin(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	speed := vm.GFloat(OFSParm1)
 	if serverBuiltinHooks.Aim != nil {
 		vm.SetGVector(OFSReturn, serverBuiltinHooks.Aim(vm, entNum, speed))
@@ -205,7 +205,7 @@ func changeyaw(vm *VM) {
 
 // centerprint prints a centered message, currently falling back to console output.
 func centerprint(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	msg := vm.GString(OFSParm1)
 	if serverBuiltinHooks.CenterPrint != nil {
 		serverBuiltinHooks.CenterPrint(vm, entNum, msg)
@@ -215,7 +215,7 @@ func centerprint(vm *VM) {
 }
 
 func localsound(vm *VM) {
-	entNum := int(vm.GFloat(OFSParm0))
+	entNum := int(vm.GInt(OFSParm0))
 	sample := vm.GString(OFSParm1)
 	if serverBuiltinHooks.LocalSound != nil {
 		serverBuiltinHooks.LocalSound(vm, entNum, sample)

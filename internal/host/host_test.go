@@ -31,6 +31,7 @@ func (m *mockServer) IsActive() bool                                       { ret
 func (m *mockServer) IsPaused() bool                                       { return m.paused }
 func (m *mockServer) SpawnServer(mapName string, vfs *fs.FileSystem) error { return nil }
 func (m *mockServer) ConnectClient(clientNum int)                          {}
+func (m *mockServer) KillClient(clientNum int) bool                        { return false }
 func (m *mockServer) KickClient(clientNum int, who, reason string) bool    { return false }
 func (m *mockServer) SaveSpawnParms()                                      {}
 func (m *mockServer) GetMaxClients() int                                   { return 1 }

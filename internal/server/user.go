@@ -558,10 +558,15 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 		if len(newName) > 15 {
 			newName = newName[:15]
 		}
-		s.SV_BroadcastPrintf("%s changed name to %s\n", client.Name, newName)
-		client.Name = newName
-		if client.Edict != nil && s.QCVM != nil {
-			client.Edict.Vars.NetName = s.QCVM.AllocString(client.Name)
+		oldName := client.Name
+		s.SV_BroadcastPrintf("%s changed name to %s\n", oldName, newName)
+		if clientNum := s.clientIndex(client); clientNum >= 0 {
+			s.SetClientName(clientNum, newName)
+		} else {
+			client.Name = newName
+			if client.Edict != nil && s.QCVM != nil {
+				client.Edict.Vars.NetName = s.QCVM.AllocString(client.Name)
+			}
 		}
 		return true
 	case "color":
@@ -570,9 +575,18 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 			return true
 		}
 		color, _ := strconv.Atoi(args[1])
-		client.Color = color
-		if client.Edict != nil {
-			client.Edict.Vars.Team = float32(color + 1)
+		if clientNum := s.clientIndex(client); clientNum >= 0 {
+			s.SetClientColor(clientNum, color)
+		} else {
+			client.Color = color
+			if client.Edict != nil {
+				client.Edict.Vars.Team = float32((color & 15) + 1)
+			}
+		}
+		return true
+	case "kill":
+		if clientNum := s.clientIndex(client); clientNum >= 0 {
+			s.KillClient(clientNum)
 		}
 		return true
 	}
@@ -629,11 +643,6 @@ func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
 			return fmt.Errorf("begin out of order")
 		}
 		client.Spawned = true
-		if !s.LoadGame {
-			if err := s.runClientPutInServerQC(client); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }
@@ -741,7 +750,7 @@ func (s *Server) findLocalSpawnPoint() *Edict {
 	return nil
 }
 
-func (s *Server) runClientSpawnQC(client *Client) error {
+func (s *Server) initClientSpawnFallback(client *Client) error {
 	if client == nil || client.Edict == nil {
 		return fmt.Errorf("client edict missing")
 	}
@@ -753,8 +762,18 @@ func (s *Server) runClientSpawnQC(client *Client) error {
 
 	ent := client.Edict
 	ent.Free = false
+	savedFrags := float32(0)
+	if ent.Vars != nil {
+		savedFrags = ent.Vars.Frags
+	}
+	if ent.Vars == nil {
+		ent.Vars = &EntVars{}
+	} else {
+		*ent.Vars = EntVars{}
+	}
 	ent.Vars.Colormap = float32(entNum)
-	ent.Vars.Team = float32(client.Color + 1)
+	ent.Vars.Team = float32((client.Color & 15) + 1)
+	ent.Vars.Frags = savedFrags
 	ent.Vars.Health = 100
 	ent.Vars.TakeDamage = 1
 	ent.Vars.MoveType = float32(MoveTypeWalk)
@@ -791,17 +810,30 @@ func (s *Server) runClientSpawnQC(client *Client) error {
 	return nil
 }
 
-func (s *Server) runClientPutInServerQC(client *Client) error {
+func (s *Server) runClientSpawnQC(client *Client) error {
+	if client == nil || client.Edict == nil {
+		return fmt.Errorf("client edict missing")
+	}
+	if err := s.initClientSpawnFallback(client); err != nil {
+		return err
+	}
+	if s.QCVM == nil || s.QCVM.FindFunction("PutClientInServer") < 0 {
+		return nil
+	}
+	return s.runClientPutInServerQC(client)
+}
+
+func (s *Server) runClientQCFunction(client *Client, functionName string, includeSpawnParms bool) error {
 	if client == nil || client.Edict == nil {
 		return fmt.Errorf("client edict missing")
 	}
 	if s.QCVM == nil {
-		return nil // No VM, skip execution
+		return nil
 	}
 
-	funcNum := s.QCVM.FindFunction("PutClientInServer")
+	funcNum := s.QCVM.FindFunction(functionName)
 	if funcNum < 0 {
-		return nil // Function not in progs, skip
+		return nil
 	}
 
 	entNum := s.NumForEdict(client.Edict)
@@ -820,19 +852,51 @@ func (s *Server) runClientPutInServerQC(client *Client) error {
 	s.QCVM.SetGlobal("self", entNum)
 	s.QCVM.SetGlobal("other", 0)
 	s.QCVM.SetGlobal("msg_entity", entNum)
-	for i := 0; i < len(client.SpawnParms); i++ {
-		s.QCVM.SetGlobal(fmt.Sprintf("parm%d", i+1), client.SpawnParms[i])
+	if includeSpawnParms {
+		for i := 0; i < len(client.SpawnParms); i++ {
+			s.QCVM.SetGlobal(fmt.Sprintf("parm%d", i+1), client.SpawnParms[i])
+		}
 	}
 
-	// Execute PutClientInServer
 	if err := s.QCVM.ExecuteFunction(funcNum); err != nil {
-		return fmt.Errorf("PutClientInServer execution failed: %w", err)
+		return fmt.Errorf("%s execution failed: %w", functionName, err)
 	}
 
-	// Sync changes back from QCVM to edict
 	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
 
 	return nil
+}
+
+func (s *Server) runClientPutInServerQC(client *Client) error {
+	if s.QCVM == nil || s.QCVM.FindFunction("PutClientInServer") < 0 {
+		return s.initClientSpawnFallback(client)
+	}
+	if err := s.runClientQCFunction(client, "PutClientInServer", true); err != nil {
+		return err
+	}
+	if client == nil || client.Edict == nil || client.Edict.Vars == nil {
+		return nil
+	}
+	if client.Edict.Vars.Health <= 0 || s.GetString(client.Edict.Vars.ClassName) == "" {
+		return s.initClientSpawnFallback(client)
+	}
+	return nil
+}
+
+func (s *Server) runClientKillQC(client *Client) error {
+	return s.runClientQCFunction(client, "ClientKill", false)
+}
+
+func (s *Server) clientIndex(target *Client) int {
+	if s == nil || s.Static == nil || target == nil {
+		return -1
+	}
+	for i, client := range s.Static.Clients {
+		if client == target {
+			return i
+		}
+	}
+	return -1
 }
 
 func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {

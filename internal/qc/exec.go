@@ -65,8 +65,12 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 		return err
 	}
 
-	// Start at first_statement - 1 because the loop body ends with XStatement++
-	vm.XStatement = int(f.FirstStatement) - 1
+	// The Go loop reads Statements[XStatement] then increments at the bottom.
+	// Unlike C (which pre-increments: st++ before reading), we start at
+	// FirstStatement directly so the first iteration executes the correct
+	// statement. callFunction uses FirstStatement-1 because the bottom
+	// XStatement++ fires after it returns.
+	vm.XStatement = int(f.FirstStatement)
 
 	// Profile counters track per-function statement execution counts.
 	// C: startprofile = profile = 0; xfunction->profile += profile - startprofile
@@ -84,6 +88,10 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		st := &vm.Statements[vm.XStatement]
 		op := Opcode(st.Op)
+
+		if vm.Trace && vm.TraceFunc != nil {
+			vm.TraceFunc(vm, vm.XStatement, st, op)
+		}
 
 		switch op {
 		case OPDone, OPReturn:
@@ -330,6 +338,9 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		case OPAddress:
 			edictNum := int(vm.GInt(int(st.A)))
+			// B is a global offset whose value is the entity field index.
+			// C: OPB->_int gives the field offset via globals[st->b].
+			fieldOfs := int(vm.GInt(int(st.B)))
 			maxEdicts := 0
 			if vm.EdictSize > 0 {
 				maxEdicts = len(vm.Edicts) / vm.EdictSize
@@ -340,7 +351,7 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			if edictNum == 0 {
 				return fmt.Errorf("OPAddress assignment to world entity")
 			}
-			ptr := edictNum*vm.EdictSize + 28 + int(st.B)*4
+			ptr := edictNum*vm.EdictSize + 28 + fieldOfs*4
 			if ptr < 0 || ptr+4 > len(vm.Edicts) {
 				return fmt.Errorf("OPAddress pointer out of bounds: %d", ptr)
 			}
@@ -348,15 +359,19 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		case OPLoadF:
 			edictNum := int(vm.GInt(int(st.A)))
-			vm.SetGFloat(int(st.C), vm.EFloat(edictNum, int(st.B)))
+			// B is a global offset whose value is the entity field index.
+			fieldOfs := int(vm.GInt(int(st.B)))
+			vm.SetGFloat(int(st.C), vm.EFloat(edictNum, fieldOfs))
 
 		case OPLoadV:
 			edictNum := int(vm.GInt(int(st.A)))
-			vm.SetGVector(int(st.C), vm.EVector(edictNum, int(st.B)))
+			fieldOfs := int(vm.GInt(int(st.B)))
+			vm.SetGVector(int(st.C), vm.EVector(edictNum, fieldOfs))
 
 		case OPLoadS, OPLoadEnt, OPLoadFld, OPLoadFNC:
 			edictNum := int(vm.GInt(int(st.A)))
-			vm.SetGInt(int(st.C), vm.EInt(edictNum, int(st.B)))
+			fieldOfs := int(vm.GInt(int(st.B)))
+			vm.SetGInt(int(st.C), vm.EInt(edictNum, fieldOfs))
 
 		case OPStorePF:
 			ptr := int(vm.GInt(int(st.B)))

@@ -5,13 +5,14 @@ package host
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 var saveNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`)
@@ -162,6 +163,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("viewnext", func(args []string) { h.CmdViewnext(subs) }, "Advance viewthing to next frame")
 	cmdsys.AddCommand("viewprev", func(args []string) { h.CmdViewprev(subs) }, "Rewind viewthing to previous frame")
 	cmdsys.AddCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
+	cmdsys.AddCommand("setpos", func(args []string) { h.CmdSetPos(args, subs) }, "Teleport to position")
 	cmdsys.AddCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
 
 	// Demo commands
