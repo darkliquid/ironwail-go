@@ -344,92 +344,15 @@ func (s *Server) writeSpawnBaselineToSignon(entNum int, ent EntityState) error {
 // current signon buffer, using SVCSpawnStatic2 for extended entities.
 func (s *Server) writeSpawnStaticToSignon(ent EntityState) error {
 	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
-
+	buf := NewMessageBuffer(32)
 	if extended {
-		if err := s.WriteSignonByte(byte(inet.SVCSpawnStatic2)); err != nil {
-			return err
-		}
+		buf.WriteByte(byte(inet.SVCSpawnStatic2))
+		s.writeEntityState(buf, ent, true, false, 0)
 	} else {
-		if err := s.WriteSignonByte(byte(inet.SVCSpawnStatic)); err != nil {
-			return err
-		}
+		buf.WriteByte(byte(inet.SVCSpawnStatic))
+		s.writeEntityState(buf, ent, false, false, 0)
 	}
-
-	// Write entity state bits and fields (mirrors writeEntityState logic).
-	var bits byte
-	if extended {
-		if ent.ModelIndex > 255 {
-			bits |= 1 << 0
-		}
-		if ent.Frame > 255 {
-			bits |= 1 << 1
-		}
-		if ent.Alpha != 0 {
-			bits |= 1 << 2
-		}
-		if ent.Scale != 0 && ent.Scale != 16 {
-			bits |= 1 << 3
-		}
-		if err := s.WriteSignonByte(bits); err != nil {
-			return err
-		}
-	}
-
-	// Model index.
-	if extended && bits&(1<<0) != 0 {
-		if err := s.WriteSignonShort(int16(ent.ModelIndex)); err != nil {
-			return err
-		}
-	} else {
-		if err := s.WriteSignonByte(byte(ent.ModelIndex)); err != nil {
-			return err
-		}
-	}
-
-	// Frame.
-	if extended && bits&(1<<1) != 0 {
-		if err := s.WriteSignonShort(int16(ent.Frame)); err != nil {
-			return err
-		}
-	} else {
-		if err := s.WriteSignonByte(byte(ent.Frame)); err != nil {
-			return err
-		}
-	}
-
-	// Colormap and skin.
-	if err := s.WriteSignonByte(byte(ent.Colormap)); err != nil {
-		return err
-	}
-	if err := s.WriteSignonByte(byte(ent.Skin)); err != nil {
-		return err
-	}
-
-	// Origin and angles.
-	for i := 0; i < 3; i++ {
-		if err := s.WriteSignonCoord(ent.Origin[i]); err != nil {
-			return err
-		}
-	}
-	for i := 0; i < 3; i++ {
-		if err := s.WriteSignonAngle(ent.Angles[i]); err != nil {
-			return err
-		}
-	}
-
-	// Extended fields.
-	if extended && bits&(1<<2) != 0 {
-		if err := s.WriteSignonByte(ent.Alpha); err != nil {
-			return err
-		}
-	}
-	if extended && bits&(1<<3) != 0 {
-		if err := s.WriteSignonByte(ent.Scale); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return s.WriteSignonData(buf.Data[:buf.Len()])
 }
 
 // writeSpawnStaticSoundToSignon writes a static sound spawn message into the

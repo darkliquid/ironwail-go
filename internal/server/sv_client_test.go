@@ -119,6 +119,56 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 	}
 }
 
+func TestWriteSpawnStaticToSignon_MatchesDirectSpawnStaticEncoding(t *testing.T) {
+	s := &Server{Protocol: ProtocolFitzQuake}
+	ent := EntityState{
+		ModelIndex: 5,
+		Frame:      7,
+		Colormap:   2,
+		Skin:       3,
+		Origin:     [3]float32{10, 20, 30},
+		Angles:     [3]float32{45, 90, 180},
+	}
+
+	direct := NewMessageBuffer(64)
+	s.writeSpawnStaticMessage(direct, ent)
+	if err := s.writeSpawnStaticToSignon(ent); err != nil {
+		t.Fatalf("writeSpawnStaticToSignon: %v", err)
+	}
+
+	got := s.Signon.Data[:s.Signon.Len()]
+	want := direct.Data[:direct.Len()]
+	if !bytes.Equal(got, want) {
+		t.Fatalf("signon static encoding mismatch:\n got: %v\nwant: %v", got, want)
+	}
+}
+
+func TestWriteSpawnStaticToSignon_MatchesDirectSpawnStaticEncodingExtended(t *testing.T) {
+	s := &Server{Protocol: ProtocolFitzQuake}
+	ent := EntityState{
+		ModelIndex: 300,
+		Frame:      400,
+		Colormap:   1,
+		Skin:       4,
+		Origin:     [3]float32{1, 2, 3},
+		Angles:     [3]float32{10, 20, 30},
+		Alpha:      200,
+		Scale:      24,
+	}
+
+	direct := NewMessageBuffer(64)
+	s.writeSpawnStaticMessage(direct, ent)
+	if err := s.writeSpawnStaticToSignon(ent); err != nil {
+		t.Fatalf("writeSpawnStaticToSignon: %v", err)
+	}
+
+	got := s.Signon.Data[:s.Signon.Len()]
+	want := direct.Data[:direct.Len()]
+	if !bytes.Equal(got, want) {
+		t.Fatalf("extended signon static encoding mismatch:\n got: %v\nwant: %v", got, want)
+	}
+}
+
 func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients(t *testing.T) {
 	s := &Server{
 		Static: &ServerStatic{
