@@ -639,11 +639,13 @@ func (s *Server) touchLinks(ent *Edict) {
 	}
 
 	entNum := s.NumForEdict(ent)
+	moverClassName := qcString(s.QCVM, ent.Vars.ClassName)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	if inTouchLinks {
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
-				"touchlinks reentrant-skip")
+				"touchlinks reentrant-skip mover_classname=%q touchfn=%d solid=%d",
+				moverClassName, ent.Vars.Touch, int(ent.Vars.Solid))
 		}
 		return
 	}
@@ -653,16 +655,22 @@ func (s *Server) touchLinks(ent *Edict) {
 	}()
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
-			"touchlinks begin")
+			"touchlinks begin mover_classname=%q touchfn=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
+			moverClassName, ent.Vars.Touch, int(ent.Vars.Solid),
+			ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+			ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
 		defer s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
-			"touchlinks end")
+			"touchlinks end mover_classname=%q solid=%d touchfn=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
+			moverClassName, int(ent.Vars.Solid), ent.Vars.Touch,
+			ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+			ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
 	}
 
 	touches := make([]*Edict, 0, s.NumEdicts)
 	s.areaTriggerEdicts(ent, &s.Areanodes[0], &touches, s.NumEdicts)
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
-			"touchlinks candidates=%d", len(touches))
+			"touchlinks candidates=%d mover_classname=%q", len(touches), moverClassName)
 	}
 
 	oldSelf := s.QCVM.GetGlobalInt("self")
@@ -673,7 +681,29 @@ func (s *Server) touchLinks(ent *Edict) {
 	}()
 
 	for _, touch := range touches {
-		if touch == ent || touch.Vars.Touch == 0 || int(touch.Vars.Solid) != int(SolidTrigger) {
+		touchNum := s.NumForEdict(touch)
+		touchClassName := qcString(s.QCVM, touch.Vars.ClassName)
+		if touch == ent {
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+					"touchlinks scan skip-self candidate=%d classname=%q", touchNum, touchClassName)
+			}
+			continue
+		}
+		if touch.Vars.Touch == 0 {
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
+					"touchlinks scan reject candidate=%d other=%d reason=no-touch classname=%q solid=%d",
+					touchNum, entNum, touchClassName, int(touch.Vars.Solid))
+			}
+			continue
+		}
+		if int(touch.Vars.Solid) != int(SolidTrigger) {
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
+					"touchlinks scan reject candidate=%d other=%d reason=not-trigger classname=%q solid=%d",
+					touchNum, entNum, touchClassName, int(touch.Vars.Solid))
+			}
 			continue
 		}
 		if ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] ||
@@ -685,7 +715,6 @@ func (s *Server) touchLinks(ent *Edict) {
 			continue
 		}
 
-		touchNum := s.NumForEdict(touch)
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 				"touchlinks callback begin other=%d fn=%d", entNum, touch.Vars.Touch)

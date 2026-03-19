@@ -173,6 +173,10 @@ type DebugTelemetry struct {
 	frameEvents int
 	frameQC     int
 	perKind     map[DebugEventKind]int
+
+	coalesceKey   string
+	coalesceKind  DebugEventKind
+	coalesceCount int
 }
 
 func NewDebugTelemetry() *DebugTelemetry {
@@ -196,6 +200,7 @@ func NewDebugTelemetryWithConfig(configProvider func() DebugTelemetryConfig, emi
 }
 
 func (t *DebugTelemetry) BeginFrame(serverTime, frameTime float32) {
+	t.flushCoalescedRepeats()
 	t.frameIndex++
 	t.serverTime = serverTime
 	t.frameTime = frameTime
@@ -205,6 +210,7 @@ func (t *DebugTelemetry) BeginFrame(serverTime, frameTime float32) {
 }
 
 func (t *DebugTelemetry) EndFrame() {
+	t.flushCoalescedRepeats()
 	cfg := t.configProvider()
 	if !cfg.AnyEnabled() || cfg.SummaryMode == 0 {
 		return
@@ -272,12 +278,15 @@ func (t *DebugTelemetry) LogEventf(kind DebugEventKind, vm *qc.VM, entNum int, e
 	t.frameEvents++
 	t.perKind[kind]++
 
+	snapshot := t.FormatEntitySnapshot(t.EntitySnapshot(vm, entNum, ent))
+	msg := formatDebugMessage(format, args...)
 	line := fmt.Sprintf("[svdbg frame=%d time=%.3f kind=%s] %s",
-		t.frameIndex, t.serverTime, kind, t.FormatEntitySnapshot(t.EntitySnapshot(vm, entNum, ent)))
-	if msg := formatDebugMessage(format, args...); msg != "" {
+		t.frameIndex, t.serverTime, kind, snapshot)
+	if msg != "" {
 		line += " " + msg
 	}
-	t.emit(line)
+	key := t.coalesceEventKey(kind, snapshot, msg)
+	t.emitCoalescedLine(kind, key, line)
 	return true
 }
 
@@ -289,13 +298,60 @@ func (t *DebugTelemetry) LogQCEventf(phase string, verbosity int, depth int, fun
 	t.frameQC++
 	t.perKind[DebugEventQC]++
 
+	fn := t.FormatQCFunction(vm, functionIndex)
+	snapshot := t.FormatEntitySnapshot(t.EntitySnapshot(vm, entNum, ent))
+	msg := formatDebugMessage(format, args...)
 	line := fmt.Sprintf("[svdbg frame=%d time=%.3f kind=qc depth=%d phase=%s fn=%s] %s",
-		t.frameIndex, t.serverTime, depth, phase, t.FormatQCFunction(vm, functionIndex), t.FormatEntitySnapshot(t.EntitySnapshot(vm, entNum, ent)))
-	if msg := formatDebugMessage(format, args...); msg != "" {
+		t.frameIndex, t.serverTime, depth, phase, fn, snapshot)
+	if msg != "" {
 		line += " " + msg
 	}
-	t.emit(line)
+	key := t.coalesceQCEventKey(depth, phase, fn, snapshot, msg)
+	t.emitCoalescedLine(DebugEventQC, key, line)
 	return true
+}
+
+func (t *DebugTelemetry) emitCoalescedLine(kind DebugEventKind, key, line string) {
+	if t.coalesceKey == "" {
+		t.coalesceKey = key
+		t.coalesceKind = kind
+		t.coalesceCount = 0
+		t.emit(line)
+		return
+	}
+	if key == t.coalesceKey {
+		t.coalesceCount++
+		return
+	}
+	t.flushCoalescedRepeats()
+	t.coalesceKey = key
+	t.coalesceKind = kind
+	t.coalesceCount = 0
+	t.emit(line)
+}
+
+func (t *DebugTelemetry) flushCoalescedRepeats() {
+	if t.coalesceCount > 0 {
+		t.emit(fmt.Sprintf("[svdbg frame=%d time=%.3f kind=%s] repeated x%d",
+			t.frameIndex, t.serverTime, t.coalesceKind, t.coalesceCount))
+	}
+	t.coalesceKey = ""
+	t.coalesceKind = ""
+	t.coalesceCount = 0
+}
+
+func (t *DebugTelemetry) coalesceEventKey(kind DebugEventKind, snapshot, msg string) string {
+	if msg == "" {
+		return fmt.Sprintf("event kind=%s %s", kind, snapshot)
+	}
+	return fmt.Sprintf("event kind=%s %s %s", kind, snapshot, msg)
+}
+
+func (t *DebugTelemetry) coalesceQCEventKey(depth int, phase, fn, snapshot, msg string) string {
+	if msg == "" {
+		return fmt.Sprintf("qc depth=%d phase=%s fn=%s %s", depth, phase, fn, snapshot)
+	}
+	return fmt.Sprintf("qc depth=%d phase=%s fn=%s %s %s", depth, phase, fn, snapshot, msg)
 }
 
 func (t *DebugTelemetry) EntitySnapshot(vm *qc.VM, entNum int, ent *Edict) DebugEntitySnapshot {

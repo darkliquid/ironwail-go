@@ -336,6 +336,7 @@ func (s *Server) loadMapEntities(raw string) error {
 	noMonsters := cvar.FloatValue("nomonsters") != 0
 
 	inhibited := 0
+	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	remaining := raw
 	for entIndex := 0; ; entIndex++ {
 		remaining = strings.TrimLeft(remaining, " \t\r\n\x00")
@@ -427,6 +428,17 @@ func (s *Server) loadMapEntities(raw string) error {
 		syncEdictToQCVM(s.QCVM, entNum, ent)
 
 		// Set QC globals and execute the spawn function.
+		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
+			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+				"spawn trigger qc begin classname=%q targetname=%q target=%q touch=%d solid=%d origin=(%.1f %.1f %.1f)",
+				className,
+				s.QCVM.GetString(ent.Vars.TargetName),
+				s.QCVM.GetString(ent.Vars.Target),
+				ent.Vars.Touch,
+				int(ent.Vars.Solid),
+				ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2],
+			)
+		}
 		s.QCVM.SetGlobal("self", entNum)
 		s.QCVM.SetGlobal("time", s.Time)
 		if err := s.executeQCFunction(funcIdx); err != nil {

@@ -210,3 +210,79 @@ func TestDebugTelemetrySummaryModeTwoLogsEmptyFrames(t *testing.T) {
 		t.Fatalf("summary line = %q", lines[0])
 	}
 }
+
+func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
+	vm := qc.NewVM()
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
+
+	lines := make([]string, 0, 8)
+	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			Enabled:      true,
+			EventMask:    debugEventMaskAll,
+			EntityFilter: debugEntityFilter{all: true},
+			SummaryMode:  1,
+			QCVerbosity:  1,
+		}
+	}, func(line string) {
+		lines = append(lines, line)
+	})
+
+	telemetry.BeginFrame(4, 0.1)
+	telemetry.LogEventf(DebugEventTrigger, vm, 4, ent, "touchlinks overlap-reject reason=axis0")
+	telemetry.LogEventf(DebugEventTrigger, vm, 4, ent, "touchlinks overlap-reject reason=axis0")
+	telemetry.LogEventf(DebugEventTrigger, vm, 4, ent, "touchlinks overlap-reject reason=axis0")
+	telemetry.LogEventf(DebugEventTrigger, vm, 4, ent, "touchlinks callback begin fn=12")
+	telemetry.EndFrame()
+
+	if len(lines) != 4 {
+		t.Fatalf("logged %d lines, want 4", len(lines))
+	}
+	if !strings.Contains(lines[0], "touchlinks overlap-reject reason=axis0") {
+		t.Fatalf("first line = %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "repeated x2") {
+		t.Fatalf("repeat line = %q", lines[1])
+	}
+	if !strings.Contains(lines[2], "touchlinks callback begin fn=12") {
+		t.Fatalf("third line = %q", lines[2])
+	}
+	if !strings.Contains(lines[3], "summary total=4 qc=0") || !strings.Contains(lines[3], "counts=trigger=4") {
+		t.Fatalf("summary line = %q", lines[3])
+	}
+}
+
+func TestDebugTelemetryCoalescingFlushesAtEndFrame(t *testing.T) {
+	vm := qc.NewVM()
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.ClassName = vm.AllocString("trigger_teleport")
+
+	lines := make([]string, 0, 8)
+	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			Enabled:      true,
+			EventMask:    debugEventMaskAll,
+			EntityFilter: debugEntityFilter{all: true},
+			SummaryMode:  1,
+			QCVerbosity:  1,
+		}
+	}, func(line string) {
+		lines = append(lines, line)
+	})
+
+	telemetry.BeginFrame(5, 0.1)
+	telemetry.LogEventf(DebugEventTrigger, vm, 7, ent, "touchlinks scan reject candidate=11 reason=axis2")
+	telemetry.LogEventf(DebugEventTrigger, vm, 7, ent, "touchlinks scan reject candidate=11 reason=axis2")
+	telemetry.EndFrame()
+
+	if len(lines) != 3 {
+		t.Fatalf("logged %d lines, want 3", len(lines))
+	}
+	if !strings.Contains(lines[1], "repeated x1") {
+		t.Fatalf("repeat line = %q", lines[1])
+	}
+	if !strings.Contains(lines[2], "summary total=2 qc=0") || !strings.Contains(lines[2], "counts=trigger=2") {
+		t.Fatalf("summary line = %q", lines[2])
+	}
+}
