@@ -146,7 +146,7 @@ func (s *Server) ConnectClient(clientNum int) {
 		if s.QCVM != nil {
 			if setNewParms := s.QCVM.FindFunction("SetNewParms"); setNewParms >= 0 {
 				s.QCVM.Time = float64(s.Time)
-				s.QCVM.ExecuteFunction(setNewParms)
+				_ = s.executeQCFunction(setNewParms)
 				for i := 0; i < NumSpawnParms; i++ {
 					client.SpawnParms[i] = float32(s.QCVM.GetGlobalFloat(fmt.Sprintf("parm%d", i+1)))
 				}
@@ -732,7 +732,7 @@ func (s *Server) SaveSpawnParms() {
 			if setChangeParms := s.QCVM.FindFunction("SetChangeParms"); setChangeParms >= 0 {
 				s.QCVM.Time = float64(s.Time)
 				s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
-				s.QCVM.ExecuteFunction(setChangeParms)
+				_ = s.executeQCFunction(setChangeParms)
 				for i := 0; i < NumSpawnParms; i++ {
 					client.SpawnParms[i] = float32(s.QCVM.GetGlobalFloat(fmt.Sprintf("parm%d", i+1)))
 				}

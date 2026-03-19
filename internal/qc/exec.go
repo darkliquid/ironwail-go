@@ -31,6 +31,17 @@ import (
 	"sort"
 )
 
+func (vm *VM) traceCall(phase string, depth int, functionIndex int32) {
+	if vm.TraceCallFunc == nil {
+		return
+	}
+	vm.TraceCallFunc(vm, TraceCallEvent{
+		Phase:         phase,
+		Depth:         depth,
+		FunctionIndex: functionIndex,
+	})
+}
+
 // ExecuteProgram runs a QuakeC function by its number.
 //
 // If the function is a built-in (negative FirstStatement), the corresponding
@@ -53,17 +64,21 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 	f := &vm.Functions[fnum]
 	if f.FirstStatement < 0 {
+		vm.traceCall("enter", vm.Depth+1, int32(fnum))
 		builtin := int(-f.FirstStatement)
 		if builtin >= len(vm.Builtins) || vm.Builtins[builtin] == nil {
 			return fmt.Errorf("unknown builtin function: %d", builtin)
 		}
+		vm.traceCall("builtin", vm.Depth+1, int32(fnum))
 		vm.Builtins[builtin](vm)
+		vm.traceCall("leave", vm.Depth+1, int32(fnum))
 		return nil
 	}
 
-	if err := vm.EnterFunction(f); err != nil {
+	if err := vm.EnterFunction(int32(fnum), f); err != nil {
 		return err
 	}
+	vm.traceCall("enter", vm.Depth, int32(fnum))
 
 	// The Go loop reads Statements[XStatement] then increments at the bottom.
 	// Unlike C (which pre-increments: st++ before reading), we start at
@@ -95,6 +110,9 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 
 		switch op {
 		case OPDone, OPReturn:
+			if vm.TraceCallFunc != nil {
+				vm.traceCall("leave", vm.Depth, vm.XFunctionIndex)
+			}
 			// Accumulate profile count for the returning function.
 			// C: xfunction->profile += profile - startprofile
 			if vm.XFunction != nil {
@@ -434,6 +452,7 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 			return fmt.Errorf("unknown builtin: %d", builtin)
 		}
 		vm.ArgC = argc
+		vm.traceCall("builtin", vm.Depth+1, int32(fnum))
 		vm.Builtins[builtin](vm)
 		return nil
 	}
@@ -448,13 +467,15 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 			return fmt.Errorf("unknown builtin: %d", builtin)
 		}
 		vm.ArgC = argc
+		vm.traceCall("builtin", vm.Depth+1, int32(fnum))
 		vm.Builtins[builtin](vm)
 		return nil
 	}
 
-	if err := vm.EnterFunction(f); err != nil {
+	if err := vm.EnterFunction(int32(fnum), f); err != nil {
 		return err
 	}
+	vm.traceCall("enter", vm.Depth, int32(fnum))
 
 	// Subtract 1 to compensate for the vm.XStatement++ at the bottom of the
 	// main execution loop. C does: return f->first_statement - 1; // offset the s++

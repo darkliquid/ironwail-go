@@ -256,6 +256,14 @@ func (t *DebugTelemetry) ShouldLogQCEvent(vm *qc.VM, entNum int, ent *Edict, ver
 	return cfg.ShouldLog(DebugEventQC, entNum, entityClassname(vm, ent))
 }
 
+func (t *DebugTelemetry) QCTraceVerbosityEnabled(verbosity int) bool {
+	if t == nil {
+		return false
+	}
+	cfg := t.configProvider()
+	return cfg.QCTrace && cfg.EventMask&debugEventMaskQC != 0 && verbosity <= cfg.QCVerbosity
+}
+
 func (t *DebugTelemetry) LogEventf(kind DebugEventKind, vm *qc.VM, entNum int, ent *Edict, format string, args ...any) bool {
 	if !t.ShouldLogEvent(kind, vm, entNum, ent) {
 		return false
@@ -317,9 +325,6 @@ func (t *DebugTelemetry) FormatEntitySnapshot(snapshot DebugEntitySnapshot) stri
 }
 
 func (t *DebugTelemetry) FormatQCFunction(vm *qc.VM, functionIndex int32) string {
-	if functionIndex == 0 {
-		return "<none>"
-	}
 	if vm == nil || functionIndex < 0 || int(functionIndex) >= len(vm.Functions) {
 		return fmt.Sprintf("#%d", functionIndex)
 	}

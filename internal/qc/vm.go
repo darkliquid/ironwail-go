@@ -512,8 +512,16 @@ type VM struct {
 	// TraceFunc is called for each statement when Trace is true.
 	TraceFunc func(vm *VM, stmtIdx int, st *DStatement, op Opcode)
 
+	// TraceCallFunc is called on QuakeC function entry/exit and builtin calls
+	// when non-nil. Unlike TraceFunc, this is call-oriented and avoids
+	// per-statement noise.
+	TraceCallFunc func(vm *VM, event TraceCallEvent)
+
 	// XFunction is the currently executing function.
 	XFunction *DFunction
+
+	// XFunctionIndex is the index of the currently executing function.
+	XFunctionIndex int32
 
 	// XStatement is the current instruction pointer.
 	XStatement int
@@ -544,15 +552,23 @@ type VM struct {
 	GlobalVars *GlobalVars
 }
 
+// TraceCallEvent describes a QuakeC function-oriented trace event.
+type TraceCallEvent struct {
+	Phase         string
+	Depth         int
+	FunctionIndex int32
+}
+
 // NewVM creates a new uninitialized QuakeC VM.
 // The returned VM has stacks allocated but no progs loaded.
 // Call LoadProgs to initialize with a .dat file.
 func NewVM() *VM {
 	return &VM{
-		Builtins:    make([]BuiltinFunc, MaxBuiltins),
-		Stack:       make([]PRStack, MaxStackDepth),
-		LocalStack:  make([]int32, LocalStackSize),
-		StringTable: make(map[int32]string),
+		Builtins:       make([]BuiltinFunc, MaxBuiltins),
+		Stack:          make([]PRStack, MaxStackDepth),
+		LocalStack:     make([]int32, LocalStackSize),
+		StringTable:    make(map[int32]string),
+		XFunctionIndex: -1,
 	}
 }
 

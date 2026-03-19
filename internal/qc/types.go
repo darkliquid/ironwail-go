@@ -336,5 +336,6 @@ type Eval struct {
 type PRStack struct {
 	S         int        // Saved statement pointer
 	Func      *DFunction // Saved function pointer
+	FuncIndex int32      // Saved function index
 	LocalBase int        // Saved local stack base
 }

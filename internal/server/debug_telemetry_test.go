@@ -127,6 +127,9 @@ func TestDebugTelemetrySummaryAndQCFormatting(t *testing.T) {
 	if !telemetry.LogQCEventf("enter", 2, 3, 1, vm, 3, ent, "trace") {
 		t.Fatal("LogQCEventf() returned false")
 	}
+	if telemetry.LogQCEventf("builtin", 3, 3, 1, vm, 3, ent, "too-verbose") {
+		t.Fatal("LogQCEventf() unexpectedly logged high-verbosity event")
+	}
 	telemetry.EndFrame()
 
 	if len(lines) != 2 {
@@ -137,6 +140,49 @@ func TestDebugTelemetrySummaryAndQCFormatting(t *testing.T) {
 	}
 	if !strings.Contains(lines[1], "summary total=1 qc=1") || !strings.Contains(lines[1], "counts=qc=1") {
 		t.Fatalf("summary line = %q", lines[1])
+	}
+}
+
+func TestDebugTelemetryQCTraceVerbosityEnabled(t *testing.T) {
+	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			QCTrace:     true,
+			EventMask:   debugEventMaskQC,
+			QCVerbosity: 1,
+		}
+	}, nil)
+
+	if !telemetry.QCTraceVerbosityEnabled(1) {
+		t.Fatal("expected verbosity=1 to be enabled")
+	}
+	if telemetry.QCTraceVerbosityEnabled(2) {
+		t.Fatal("expected verbosity=2 to be disabled")
+	}
+}
+
+func TestDebugTelemetryQCTraceVerbosityEnabledRequiresQCEventMask(t *testing.T) {
+	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		return DebugTelemetryConfig{
+			QCTrace:     true,
+			EventMask:   debugEventMaskTrigger,
+			QCVerbosity: 1,
+		}
+	}, nil)
+
+	if telemetry.QCTraceVerbosityEnabled(1) {
+		t.Fatal("expected QC trace to stay disabled when qc events are masked out")
+	}
+}
+
+func TestDebugTelemetryFormatQCFunctionFormatsIndexZero(t *testing.T) {
+	vm := qc.NewVM()
+	vm.Functions = []qc.DFunction{
+		{Name: vm.AllocString("monster_use"), FirstStatement: 42},
+	}
+
+	telemetry := NewDebugTelemetryWithConfig(nil, nil)
+	if got := telemetry.FormatQCFunction(vm, 0); got != "monster_use[#0]" {
+		t.Fatalf("FormatQCFunction() = %q, want %q", got, "monster_use[#0]")
 	}
 }
 

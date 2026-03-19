@@ -307,3 +307,98 @@ func TestProfileResultsAccumulatesPerFunction(t *testing.T) {
 		t.Errorf("after reset, ProfileResults should be empty, got %d entries", len(results2))
 	}
 }
+
+func TestExecuteProgramTraceCallEventsNested(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+
+	const (
+		mainFuncNum   = 0
+		calleeFuncNum = 1
+		calleeRefOfs  = 10
+	)
+
+	vm.Functions = []DFunction{
+		{FirstStatement: 0},
+		{FirstStatement: 2},
+	}
+	vm.Statements = []DStatement{
+		{Op: uint16(OPCall0), A: uint16(calleeRefOfs)},
+		{Op: uint16(OPDone), A: 0},
+		{Op: uint16(OPDone), A: 0},
+	}
+	vm.SetGInt(calleeRefOfs, calleeFuncNum)
+
+	var got []TraceCallEvent
+	vm.TraceCallFunc = func(vm *VM, event TraceCallEvent) {
+		got = append(got, event)
+	}
+
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+	if vm.XFunction != nil {
+		t.Fatalf("XFunction = %#v, want nil after unwind", vm.XFunction)
+	}
+	if vm.XFunctionIndex != -1 {
+		t.Fatalf("XFunctionIndex = %d, want -1 after unwind", vm.XFunctionIndex)
+	}
+
+	want := []TraceCallEvent{
+		{Phase: "enter", Depth: 1, FunctionIndex: 0},
+		{Phase: "enter", Depth: 2, FunctionIndex: 1},
+		{Phase: "leave", Depth: 2, FunctionIndex: 1},
+		{Phase: "leave", Depth: 1, FunctionIndex: 0},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("trace events len=%d, want %d; got=%#v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("trace event[%d]=%#v, want %#v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestExecuteProgramTraceCallEventsBuiltin(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+
+	const (
+		mainFuncNum = 0
+		funcRefOfs  = 10
+	)
+
+	vm.Functions = []DFunction{
+		{FirstStatement: 0},
+	}
+	vm.Statements = []DStatement{
+		{Op: uint16(OPCall0), A: uint16(funcRefOfs)},
+		{Op: uint16(OPDone), A: 0},
+	}
+	vm.SetGInt(funcRefOfs, -1)
+	vm.Builtins[1] = func(vm *VM) {}
+
+	var got []TraceCallEvent
+	vm.TraceCallFunc = func(vm *VM, event TraceCallEvent) {
+		got = append(got, event)
+	}
+
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+
+	want := []TraceCallEvent{
+		{Phase: "enter", Depth: 1, FunctionIndex: 0},
+		{Phase: "builtin", Depth: 2, FunctionIndex: -1},
+		{Phase: "leave", Depth: 1, FunctionIndex: 0},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("trace events len=%d, want %d; got=%#v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("trace event[%d]=%#v, want %#v", i, got[i], want[i])
+		}
+	}
+}

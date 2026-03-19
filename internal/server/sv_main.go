@@ -429,7 +429,7 @@ func (s *Server) loadMapEntities(raw string) error {
 		// Set QC globals and execute the spawn function.
 		s.QCVM.SetGlobal("self", entNum)
 		s.QCVM.SetGlobal("time", s.Time)
-		if err := s.QCVM.ExecuteFunction(funcIdx); err != nil {
+		if err := s.executeQCFunction(funcIdx); err != nil {
 			slog.Error("spawn function failed", "classname", className, "entNum", entNum, "err", err)
 			s.FreeEdict(ent)
 			continue

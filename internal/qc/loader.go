@@ -101,13 +101,14 @@ func (vm *VM) FindField(name string) int {
 	return -1
 }
 
-func (vm *VM) EnterFunction(f *DFunction) error {
+func (vm *VM) EnterFunction(functionIndex int32, f *DFunction) error {
 	if vm.Depth >= MaxStackDepth {
 		return fmt.Errorf("stack overflow")
 	}
 
 	vm.Stack[vm.Depth].S = vm.XStatement
 	vm.Stack[vm.Depth].Func = vm.XFunction
+	vm.Stack[vm.Depth].FuncIndex = vm.XFunctionIndex
 	vm.Depth++
 
 	// Save off any locals that the new function steps on.
@@ -132,6 +133,7 @@ func (vm *VM) EnterFunction(f *DFunction) error {
 	}
 
 	vm.XFunction = f
+	vm.XFunctionIndex = functionIndex
 
 	return nil
 }
@@ -157,6 +159,7 @@ func (vm *VM) LeaveFunction() error {
 	// Up stack
 	vm.Depth--
 	vm.XFunction = vm.Stack[vm.Depth].Func
+	vm.XFunctionIndex = vm.Stack[vm.Depth].FuncIndex
 	vm.XStatement = vm.Stack[vm.Depth].S
 
 	return nil

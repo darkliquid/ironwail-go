@@ -439,7 +439,7 @@ func (s *Server) runClientQCThink(client *Client, funcName string) {
 	s.QCVM.SetGlobal("self", entNum)
 	s.QCVM.SetGlobal("other", 0)
 	s.QCVM.SetGlobal("msg_entity", entNum)
-	if err := s.QCVM.ExecuteFunction(funcIdx); err != nil {
+	if err := s.executeQCFunction(funcIdx); err != nil {
 		slog.Warn("client think QC failed", "function", funcName, "entity", entNum, "error", err)
 		return
 	}
@@ -858,7 +858,7 @@ func (s *Server) runClientQCFunction(client *Client, functionName string, includ
 		}
 	}
 
-	if err := s.QCVM.ExecuteFunction(funcNum); err != nil {
+	if err := s.executeQCFunction(funcNum); err != nil {
 		return fmt.Errorf("%s execution failed: %w", functionName, err)
 	}
 
@@ -1063,7 +1063,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 		if funcIdx >= 0 {
 			s.QCVM.Time = float64(s.Time)
 			s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
-			s.QCVM.ExecuteFunction(funcIdx)
+			_ = s.executeQCFunction(funcIdx)
 		}
 	}
 

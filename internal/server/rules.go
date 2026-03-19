@@ -67,7 +67,7 @@ func (s *Server) issueMatchEnd(reason string) {
 	s.QCVM.SetGlobal("frametime", s.FrameTime)
 	s.QCVM.SetGlobal("self", 0)
 	s.QCVM.SetGlobal("other", 0)
-	if err := s.QCVM.ExecuteFunction(nextLevel); err != nil {
+	if err := s.executeQCFunction(nextLevel); err != nil {
 		slog.Warn("failed to execute NextLevel", "reason", reason, "error", err)
 	}
 }

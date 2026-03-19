@@ -693,7 +693,7 @@ func (s *Server) touchLinks(ent *Edict) {
 		s.QCVM.SetGlobal("self", touchNum)
 		s.QCVM.SetGlobal("other", entNum)
 		s.QCVM.Time = float64(s.Time)
-		_ = s.QCVM.ExecuteFunction(int(touch.Vars.Touch))
+		_ = s.executeQCFunction(int(touch.Vars.Touch))
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
 				"touchlinks callback end other=%d fn=%d", entNum, touch.Vars.Touch)
