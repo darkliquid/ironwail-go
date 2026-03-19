@@ -1016,6 +1016,8 @@ func NewServer() *Server {
 func (s *Server) AllocEdict() *Edict {
 	for i, e := range s.Edicts {
 		if e.Free {
+			UnlinkEdict(e)
+			*e = Edict{Vars: &EntVars{}}
 			s.NumEdicts = max(s.NumEdicts, i+1)
 			s.ensureQCVMEdictStorage()
 			syncEdictToQCVM(s.QCVM, i, e)
@@ -1037,6 +1039,7 @@ func (s *Server) AllocEdict() *Edict {
 
 // FreeEdict marks an entity as free.
 func (s *Server) FreeEdict(e *Edict) {
+	UnlinkEdict(e)
 	e.Free = true
 	e.FreeTime = s.Time
 }
