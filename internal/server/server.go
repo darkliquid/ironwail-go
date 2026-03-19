@@ -418,6 +418,14 @@ func (s *Server) syncQCVMState() {
 	}
 }
 
+func (s *Server) setQCTimeGlobal(time float32) {
+	if s.QCVM == nil {
+		return
+	}
+	s.QCVM.Time = float64(time)
+	s.QCVM.SetGlobal("time", time)
+}
+
 // NewServer creates a new server instance.
 func NewServer() *Server {
 	s := &Server{
@@ -560,7 +568,11 @@ func NewServer() *Server {
 			return nil
 		},
 		Find: func(vm *qc.VM, startEnt, fieldOfs int, match string) int {
-			for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
+			for entNum := startEnt + 1; entNum < s.NumEdicts && entNum < vm.NumEdicts; entNum++ {
+				ent := s.EdictNum(entNum)
+				if ent == nil || ent.Free {
+					continue
+				}
 				if vm.GetString(vm.EString(entNum, fieldOfs)) == match {
 					return entNum
 				}
@@ -568,7 +580,11 @@ func NewServer() *Server {
 			return 0
 		},
 		FindFloat: func(vm *qc.VM, startEnt, fieldOfs int, match float32) int {
-			for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
+			for entNum := startEnt + 1; entNum < s.NumEdicts && entNum < vm.NumEdicts; entNum++ {
+				ent := s.EdictNum(entNum)
+				if ent == nil || ent.Free {
+					continue
+				}
 				if vm.EFloat(entNum, fieldOfs) == match {
 					return entNum
 				}
@@ -608,8 +624,12 @@ func NewServer() *Server {
 			return 0
 		},
 		NextEnt: func(vm *qc.VM, entNum int) int {
-			if entNum+1 > 0 && entNum+1 < vm.NumEdicts {
-				return entNum + 1
+			for next := entNum + 1; next < s.NumEdicts && next < vm.NumEdicts; next++ {
+				ent := s.EdictNum(next)
+				if ent == nil || ent.Free {
+					continue
+				}
+				return next
 			}
 			return 0
 		},

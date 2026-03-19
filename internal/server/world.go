@@ -9,6 +9,7 @@
 package server
 
 import (
+	"log/slog"
 	"math"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
@@ -712,20 +713,58 @@ func (s *Server) touchLinks(ent *Edict) {
 			ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0] ||
 			ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1] ||
 			ent.Vars.AbsMax[2] < touch.Vars.AbsMin[2] {
+			if telemetryEnabled {
+				reason := "axis2"
+				switch {
+				case ent.Vars.AbsMin[0] > touch.Vars.AbsMax[0] || ent.Vars.AbsMax[0] < touch.Vars.AbsMin[0]:
+					reason = "axis0"
+				case ent.Vars.AbsMin[1] > touch.Vars.AbsMax[1] || ent.Vars.AbsMax[1] < touch.Vars.AbsMin[1]:
+					reason = "axis1"
+				}
+				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
+					"touchlinks overlap-reject candidate=%d other=%d reason=%s candidate_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
+					touchNum, entNum, reason,
+					touch.Vars.AbsMin[0], touch.Vars.AbsMin[1], touch.Vars.AbsMin[2],
+					touch.Vars.AbsMax[0], touch.Vars.AbsMax[1], touch.Vars.AbsMax[2],
+					ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+					ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2],
+				)
+			}
 			continue
 		}
 
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
-				"touchlinks callback begin other=%d fn=%d", entNum, touch.Vars.Touch)
+				"touchlinks callback begin self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
+				touchNum, touchClassName, entNum, moverClassName, touch.Vars.Touch, int(touch.Vars.Solid), int(ent.Vars.Solid),
+				touch.Vars.AbsMin[0], touch.Vars.AbsMin[1], touch.Vars.AbsMin[2],
+				touch.Vars.AbsMax[0], touch.Vars.AbsMax[1], touch.Vars.AbsMax[2],
+				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
 		}
+		syncEdictToQCVM(s.QCVM, touchNum, touch)
+		syncEdictToQCVM(s.QCVM, entNum, ent)
 		s.QCVM.SetGlobal("self", touchNum)
 		s.QCVM.SetGlobal("other", entNum)
-		s.QCVM.Time = float64(s.Time)
-		_ = s.executeQCFunction(int(touch.Vars.Touch))
+		s.setQCTimeGlobal(s.Time)
+		if err := s.executeQCFunction(int(touch.Vars.Touch)); err != nil {
+			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touch.Vars.Touch, "err", err)
+		} else {
+			syncEdictFromQCVM(s.QCVM, touchNum, touch)
+			syncEdictFromQCVM(s.QCVM, entNum, ent)
+			s.LinkEdict(touch, false)
+			s.LinkEdict(ent, false)
+		}
 		if telemetryEnabled {
+			linkState := "linked"
+			if touch.AreaPrev == nil {
+				linkState = "unlinked"
+			}
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
-				"touchlinks callback end other=%d fn=%d", entNum, touch.Vars.Touch)
+				"touchlinks callback end self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_link=%s self_origin=(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
+				touchNum, touchClassName, entNum, moverClassName, touch.Vars.Touch, int(touch.Vars.Solid), int(ent.Vars.Solid), linkState,
+				touch.Vars.Origin[0], touch.Vars.Origin[1], touch.Vars.Origin[2],
+				ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2])
 		}
 	}
 }

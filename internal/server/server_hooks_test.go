@@ -61,7 +61,17 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	qc.RegisterBuiltins(vm)
 
 	// Prepare multiple entities for search tests
+	s.Edicts = []*Edict{
+		{Vars: &EntVars{}},
+		{Vars: &EntVars{}},
+		{Vars: &EntVars{}},
+		{Vars: &EntVars{}},
+	}
+	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = 4
+	for entNum, ent := range s.Edicts {
+		syncEdictToQCVM(vm, entNum, ent)
+	}
 	vm.SetEInt(1, qc.EntFieldTargetName, vm.AllocString("door"))
 	vm.SetEVector(1, qc.EntFieldOrigin, [3]float32{100, 0, 0})
 	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("trigger"))
@@ -124,6 +134,59 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	}
 	if got := vm.EFloat(1, qc.EntFieldModelIndex); got != 1 {
 		t.Fatalf("modelindex = %v, want 1", got)
+	}
+}
+
+func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	s.Edicts = []*Edict{
+		{Vars: &EntVars{}},
+		{Vars: &EntVars{}},
+		{Vars: &EntVars{}, Free: true},
+		{Vars: &EntVars{}},
+	}
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+	for entNum, ent := range s.Edicts {
+		syncEdictToQCVM(vm, entNum, ent)
+	}
+
+	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("tele_dest"))
+	vm.SetEFloat(2, qc.EntFieldHealth, 100)
+	vm.SetEInt(3, qc.EntFieldTargetName, vm.AllocString("tele_dest"))
+	vm.SetEFloat(3, qc.EntFieldHealth, 100)
+
+	vm.SetGInt(qc.OFSParm0, 0)
+	vm.SetGInt(qc.OFSParm1, qc.EntFieldTargetName)
+	vm.SetGString(qc.OFSParm2, "tele_dest")
+	if fn := vm.Builtins[18]; fn != nil {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != 3 {
+		t.Fatalf("find return = %d, want 3", got)
+	}
+
+	vm.SetGInt(qc.OFSParm0, 0)
+	vm.SetGInt(qc.OFSParm1, qc.EntFieldHealth)
+	vm.SetGFloat(qc.OFSParm2, 100)
+	if fn := vm.Builtins[1000]; fn != nil {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != 3 {
+		t.Fatalf("findfloat return = %d, want 3", got)
+	}
+
+	vm.SetGInt(qc.OFSParm0, 1)
+	if fn := vm.Builtins[47]; fn != nil {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != 3 {
+		t.Fatalf("nextent return = %d, want 3", got)
 	}
 }
 

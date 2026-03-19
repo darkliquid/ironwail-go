@@ -28,7 +28,7 @@ func (s *Server) Physics() {
 			}
 			s.QCVM.SetGlobal("self", 0)
 			s.QCVM.SetGlobal("other", 0)
-			s.QCVM.Time = float64(s.Time)
+			s.setQCTimeGlobal(s.Time)
 			_ = s.executeQCFunction(startFrame)
 			if telemetryActive {
 				s.DebugTelemetry.LogEventf(DebugEventFrame, s.QCVM, 0, s.EdictNum(0),

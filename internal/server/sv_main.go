@@ -449,6 +449,31 @@ func (s *Server) loadMapEntities(raw string) error {
 
 		// Pull QC-modified fields back to Go (solid, touch, think, etc.).
 		syncEdictFromQCVM(s.QCVM, entNum, ent)
+		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
+			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+				"spawn trigger qc end classname=%q targetname=%q target=%q touch=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
+				className,
+				s.QCVM.GetString(ent.Vars.TargetName),
+				s.QCVM.GetString(ent.Vars.Target),
+				ent.Vars.Touch,
+				int(ent.Vars.Solid),
+				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2],
+			)
+		}
+		s.LinkEdict(ent, false)
+		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
+			linkState := "linked"
+			if ent.AreaPrev == nil {
+				linkState = "unlinked"
+			}
+			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
+				"spawn trigger relink classname=%q link=%s solid=%d touch=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
+				className, linkState, int(ent.Vars.Solid), ent.Vars.Touch,
+				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
+				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2],
+			)
+		}
 	}
 
 	if inhibited > 0 {

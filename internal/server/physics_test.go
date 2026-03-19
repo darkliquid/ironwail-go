@@ -260,3 +260,34 @@ func TestRunThinkTelemetry(t *testing.T) {
 		t.Fatalf("unexpected telemetry lines: %#v", lines)
 	}
 }
+
+func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("test_think"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+	}
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.NextThink = 0.05
+	ent.Vars.Think = 1
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+
+	if ok := s.RunThink(ent); !ok {
+		t.Fatal("RunThink unexpectedly returned false")
+	}
+	if got := s.QCVM.GetGlobalFloat("time"); got != 0.05 {
+		t.Fatalf("QC global time = %v, want 0.05", got)
+	}
+}

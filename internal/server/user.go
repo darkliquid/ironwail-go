@@ -1061,7 +1061,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	if client.Edict != nil && s.QCVM != nil {
 		funcIdx := s.QCVM.FindFunction("ClientDisconnect")
 		if funcIdx >= 0 {
-			s.QCVM.Time = float64(s.Time)
+			s.setQCTimeGlobal(s.Time)
 			s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
 			_ = s.executeQCFunction(funcIdx)
 		}
