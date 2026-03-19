@@ -32,6 +32,21 @@ type demoMessageClient struct {
 	message []byte
 }
 
+func markCurrentPredictionFresh(c *cl.Client) {
+	if c == nil {
+		return
+	}
+	entNum := c.ViewEntity
+	if entNum == 0 {
+		if _, ok := c.Entities[1]; ok {
+			entNum = 1
+		}
+	}
+	c.PredictionValid = true
+	c.PredictionEntityNum = entNum
+	c.PredictionFrameTime = c.Time
+}
+
 func (c *demoMessageClient) Init() error                { return nil }
 func (c *demoMessageClient) Frame(float64) error        { return nil }
 func (c *demoMessageClient) Shutdown()                  {}
@@ -54,6 +69,20 @@ func (c *activeStateTestClient) ReadFromServer() error      { return nil }
 func (c *activeStateTestClient) SendCommand() error         { return nil }
 func (c *activeStateTestClient) SendStringCmd(string) error { return nil }
 func (c *activeStateTestClient) ClientState() *cl.Client    { return c.clientState }
+
+type processClientPhaseTestClient struct {
+	readCalls int
+	sendCalls int
+	state     host.ClientState
+}
+
+func (c *processClientPhaseTestClient) Init() error                { return nil }
+func (c *processClientPhaseTestClient) Frame(float64) error        { return nil }
+func (c *processClientPhaseTestClient) Shutdown()                  {}
+func (c *processClientPhaseTestClient) State() host.ClientState    { return c.state }
+func (c *processClientPhaseTestClient) ReadFromServer() error      { c.readCalls++; return nil }
+func (c *processClientPhaseTestClient) SendCommand() error         { c.sendCalls++; return nil }
+func (c *processClientPhaseTestClient) SendStringCmd(string) error { return nil }
 
 type demoPlaybackNoopServer struct{}
 
@@ -243,7 +272,15 @@ func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	g.Host = nil
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
-	g.Client.Entities[0] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.ViewEntity = 1
+	g.Client.MTime[1] = 1.0
+	g.Client.MTime[0] = 1.1
+	g.Client.Time = g.Client.MTime[0]
+	g.Client.Entities[1] = inet.EntityState{
+		Origin:     [3]float32{100, 200, 300},
+		MsgOrigins: [2][3]float32{{100, 200, 300}, {100, 200, 300}},
+		MsgTime:    g.Client.MTime[0],
+	}
 	g.Client.PendingCmd = cl.UserCmd{
 		ViewAngles: [3]float32{0, 0, 0},
 		Forward:    100,
@@ -535,9 +572,11 @@ func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
 	g.Renderer = nil
 	g.Client = cl.NewClient()
 	g.Client.ViewEntity = 1
+	g.Client.MTime = [2]float64{1, 0.9}
 	g.Client.PredictedOrigin = [3]float32{128, 64, 32}
 	g.Client.ViewHeight = 18
 	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	markCurrentPredictionFresh(g.Client)
 
 	origin, angles := runtimeViewState()
 	if want := [3]float32{128, 64, 50}; origin != want {
@@ -548,7 +587,43 @@ func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateUsesAuthoritativeOriginDuringActiveMovement(t *testing.T) {
+func TestRuntimeViewStateFallsBackToPredictedOriginWhenAuthoritativeEntityStale(t *testing.T) {
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
+	})
+
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.MTime = [2]float64{1.0, 0.9}
+	g.Client.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		MsgTime:    0.9,
+		Origin:     [3]float32{10, 20, 30},
+	}
+	g.Client.PredictedOrigin = [3]float32{128, 64, 32}
+	g.Client.ViewHeight = 18
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.Time = 1.0
+	markCurrentPredictionFresh(g.Client)
+
+	origin, angles := runtimeViewState()
+	if want := [3]float32{128, 64, 50}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want predicted fallback %v", origin, want)
+	}
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want %v", angles, g.Client.ViewAngles)
+	}
+}
+
+func TestRuntimeViewStateUsesPredictedXYDuringActiveMovementWhenSafe(t *testing.T) {
 	originalHost := g.Host
 	originalClient := g.Client
 	originalServer := g.Server
@@ -610,7 +685,7 @@ func TestRuntimeInterpolatedVelocityUsesLerpHistory(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateIgnoresPredictedXYDrift(t *testing.T) {
+func TestRuntimeViewStateUsesAuthoritativeOriginWhenPredictionIsSafe(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -628,8 +703,9 @@ func TestRuntimeViewStateIgnoresPredictedXYDrift(t *testing.T) {
 	g.Client.ViewHeight = 22
 	g.Client.ViewAngles = [3]float32{10, 20, 0}
 	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
-	g.Client.PredictedOrigin = [3]float32{120, 240, 280}
+	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
 	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
+	markCurrentPredictionFresh(g.Client)
 
 	origin, _ := runtimeViewState()
 	if want := [3]float32{100, 200, 322}; origin != want {
@@ -637,7 +713,28 @@ func TestRuntimeViewStateIgnoresPredictedXYDrift(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateUsesAuthoritativeOriginDespitePredictedMovement(t *testing.T) {
+func TestRuntimeEvaluatePredictedFirstPersonXYOriginRejectsStalePrediction(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
+
+	decision := runtimeEvaluatePredictedFirstPersonXYOrigin([3]float32{100, 200, 300})
+	if decision.OK {
+		t.Fatalf("runtimeEvaluatePredictedFirstPersonXYOrigin() = %+v, want rejection for stale prediction", decision)
+	}
+	if decision.RejectReason != runtimeOriginRejectInvalidPrediction {
+		t.Fatalf("reject reason = %s, want %s", decision.RejectReason, runtimeOriginRejectInvalidPrediction)
+	}
+}
+
+func TestRuntimeViewStateUsesRelinkedAuthoritativeOriginWhenPredictionIsSafe(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -661,14 +758,15 @@ func TestRuntimeViewStateUsesAuthoritativeOriginDespitePredictedMovement(t *test
 	g.Client.LastServerOrigin = [3]float32{100, 200, 300}
 	g.Client.PredictedOrigin = [3]float32{97, 200, 280}
 	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
+	markCurrentPredictionFresh(g.Client)
 
 	origin, _ := runtimeViewState()
 	if want := [3]float32{95, 200, 322}; origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want authoritative interpolated origin %v", origin, want)
+		t.Fatalf("runtimeViewState origin = %v, want relinked authoritative origin %v", origin, want)
 	}
 }
 
-func TestRuntimeViewStateUsesAuthoritativeOriginEvenWithLargePredictionError(t *testing.T) {
+func TestRuntimeViewStateUsesAuthoritativeOriginWhenPredictionUnsafe(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -698,8 +796,10 @@ func TestRuntimeViewStateUsesAuthoritativeOriginEvenWithLargePredictionError(t *
 
 func TestRuntimeViewStateUsesTeleportSnappedOrigin(t *testing.T) {
 	originalClient := g.Client
+	originalViewCalc := globalViewCalc
 	t.Cleanup(func() {
 		g.Client = originalClient
+		globalViewCalc = originalViewCalc
 	})
 
 	g.Client = cl.NewClient()
@@ -712,10 +812,224 @@ func TestRuntimeViewStateUsesTeleportSnappedOrigin(t *testing.T) {
 	g.Client.PredictionError = [3]float32{28, 24, 0}
 	g.Client.PendingCmd = cl.UserCmd{Forward: 100}
 	g.Client.LocalViewTeleport = true
+	g.Client.Time = 1.1
+	g.Client.OldTime = 1.0
+	globalViewCalc.oldZ = 64
+	globalViewCalc.oldZInit = true
 
 	origin, _ := runtimeViewState()
 	if want := [3]float32{512, 256, 150}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want hard-snapped origin %v", origin, want)
+	}
+}
+
+func TestRuntimeViewStateKeepsViewModelAlignedWithAuthoritativeOrigin(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+	})
+
+	ensureViewCalcCvars()
+	cvar.Set("r_drawentities", "1")
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("cl_bob", "0")
+	cvar.Set("cl_bobcycle", "0")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{0, 0, 0}
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.PredictedOrigin = [3]float32{102, 198, 280}
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 0
+	markCurrentPredictionFresh(g.Client)
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	viewOrigin, _ := runtimeViewState()
+	if want := [3]float32{100, 200, 322}; viewOrigin != want {
+		t.Fatalf("runtimeViewState origin = %v, want authoritative eye origin %v", viewOrigin, want)
+	}
+
+	viewModel := collectViewModelEntity()
+	if viewModel == nil {
+		t.Fatal("collectViewModelEntity() = nil, want viewmodel")
+	}
+	if viewModel.Origin != viewOrigin {
+		t.Fatalf("viewmodel origin = %v, want aligned eye origin %v", viewModel.Origin, viewOrigin)
+	}
+}
+
+func TestRuntimeViewStateIgnoresBobInFirstPersonPath(t *testing.T) {
+	originalClient := g.Client
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		globalViewCalc = originalViewCalc
+	})
+
+	ensureViewCalcCvars()
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.Time = 0.1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.Velocity = [3]float32{300, 0, 0}
+
+	if bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity()); bob == 0 {
+		t.Fatal("test setup produced zero bob, want non-zero bob input")
+	}
+
+	origin, _ := runtimeViewState()
+	if want := [3]float32{100, 200, 322}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want bob-free eye origin %v", origin, want)
+	}
+}
+
+func TestRuntimeViewStateSmoothsUpwardStepAndKeepsViewModelAligned(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+	})
+
+	ensureViewCalcCvars()
+	cvar.Set("r_drawentities", "1")
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("cl_bob", "0")
+	cvar.Set("cl_bobcycle", "0")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{0, 0, 0}
+	g.Client.Time = 1.1
+	g.Client.OldTime = 1.0
+	g.Client.OnGround = true
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 110}}
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 0
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+	globalViewCalc.oldZ = 100
+	globalViewCalc.oldZInit = true
+
+	viewOrigin, _ := runtimeViewState()
+	if want := [3]float32{100, 200, 130}; viewOrigin != want {
+		t.Fatalf("runtimeViewState origin = %v, want smoothed eye origin %v", viewOrigin, want)
+	}
+	if got := runtimeWeaponBaseOrigin(); got != viewOrigin {
+		t.Fatalf("runtimeWeaponBaseOrigin() = %v, want same smoothed eye origin %v", got, viewOrigin)
+	}
+
+	entity := collectViewModelEntity()
+	if entity == nil {
+		t.Fatal("collectViewModelEntity() = nil, want entity")
+	}
+	if entity.Origin != viewOrigin {
+		t.Fatalf("viewmodel origin = %v, want aligned smoothed eye origin %v", entity.Origin, viewOrigin)
+	}
+}
+
+func TestCollectViewModelEntityStaysAlignedWhenBobInputPresent(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+	})
+
+	ensureViewCalcCvars()
+	cvar.Set("r_drawentities", "1")
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{0, 0, 0}
+	g.Client.Time = 0.1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.Velocity = [3]float32{300, 0, 0}
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 0
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	if bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity()); bob == 0 {
+		t.Fatal("test setup produced zero bob, want non-zero bob input")
+	}
+
+	viewOrigin, _ := runtimeViewState()
+	if want := [3]float32{100, 200, 322}; viewOrigin != want {
+		t.Fatalf("runtimeViewState origin = %v, want bob-free eye origin %v", viewOrigin, want)
+	}
+	if got := runtimeWeaponBaseOrigin(); got != viewOrigin {
+		t.Fatalf("runtimeWeaponBaseOrigin() = %v, want bob-free eye origin %v", got, viewOrigin)
+	}
+
+	entity := collectViewModelEntity()
+	if entity == nil {
+		t.Fatal("collectViewModelEntity() = nil, want entity")
+	}
+	if entity.Origin != viewOrigin {
+		t.Fatalf("viewmodel origin = %v, want aligned bob-free eye origin %v", entity.Origin, viewOrigin)
 	}
 }
 
@@ -844,7 +1158,7 @@ func TestRuntimeCameraStateSkipsPunchAnglesDuringIntermission(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateInterpolatesViewAngles(t *testing.T) {
+func TestRuntimeViewStateUsesLiveViewAnglesWithoutInterpolation(t *testing.T) {
 	originalClient := g.Client
 	t.Cleanup(func() {
 		g.Client = originalClient
@@ -853,15 +1167,17 @@ func TestRuntimeViewStateInterpolatesViewAngles(t *testing.T) {
 	g.Client = cl.NewClient()
 	g.Client.ViewHeight = 22
 	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
+	g.Client.ViewAngles = [3]float32{45, 135, 225}
 	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
 	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
 	g.Client.MTime[1] = 1.0
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
+	markCurrentPredictionFresh(g.Client)
 
 	_, angles := runtimeViewState()
-	if angles != [3]float32{5, 10, 15} {
-		t.Fatalf("runtimeViewState angles = %v, want [5 10 15]", angles)
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want live angles %v", angles, g.Client.ViewAngles)
 	}
 }
 
@@ -881,6 +1197,7 @@ func TestRuntimeViewStateUsesForcedAnglesWithoutInterpolation(t *testing.T) {
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
 	g.Client.FixAngle = true
+	markCurrentPredictionFresh(g.Client)
 
 	_, angles := runtimeViewState()
 	if angles != g.Client.ViewAngles {
@@ -904,6 +1221,7 @@ func TestRuntimeViewStateUsesDemoViewAnglesWithoutDoubleInterpolation(t *testing
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
 	g.Client.DemoPlayback = true
+	markCurrentPredictionFresh(g.Client)
 
 	_, angles := runtimeViewState()
 	if angles != g.Client.ViewAngles {
@@ -1052,6 +1370,7 @@ func TestRuntimeViewStateInterpolatesYawAcrossWrap(t *testing.T) {
 	g.Client.MTime[1] = 1.0
 	g.Client.MTime[0] = 1.1
 	g.Client.Time = 1.05
+	markCurrentPredictionFresh(g.Client)
 
 	_, angles := runtimeViewState()
 	if math.Abs(float64(angles[1]-360)) > 0.01 && math.Abs(float64(angles[1])) > 0.01 {
@@ -1088,6 +1407,7 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	g.Client.ViewAngles = [3]float32{12, 34, 0}
 	g.Client.ViewHeight = 28
 	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	markCurrentPredictionFresh(g.Client)
 	g.Menu = menu.NewManager(nil, nil)
 	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
 	g.AliasModelCache = map[string]*model.Model{
@@ -1284,6 +1604,7 @@ func TestCollectViewModelEntityAppliesPunchAndDamageKickAngles(t *testing.T) {
 	g.Client.PunchAngle = [3]float32{2, 3, 4}
 	g.Client.ViewHeight = 28
 	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	markCurrentPredictionFresh(g.Client)
 	g.Menu = menu.NewManager(nil, nil)
 	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
 	g.AliasModelCache = map[string]*model.Model{
@@ -1695,6 +2016,44 @@ func TestProcessClientFlushesLiveStuffTextSameFrame(t *testing.T) {
 	}
 	if clientState.StuffCmdBuf != "" {
 		t.Fatalf("StuffCmdBuf = %q, want empty after live-frame flush", clientState.StuffCmdBuf)
+	}
+}
+
+func TestProcessClientSendPhaseOnlySendsCommand(t *testing.T) {
+	originalSubs := g.Subs
+	originalPhase := runtimeProcessClientPhase
+	t.Cleanup(func() {
+		g.Subs = originalSubs
+		runtimeProcessClientPhase = originalPhase
+	})
+
+	client := &processClientPhaseTestClient{state: host.ClientState(3)}
+	g.Subs = &host.Subsystems{Client: client}
+	runtimeProcessClientPhase = "send"
+
+	gameCallbacks{}.ProcessClient()
+
+	if client.sendCalls != 1 || client.readCalls != 0 {
+		t.Fatalf("send/read calls = %d/%d, want 1/0", client.sendCalls, client.readCalls)
+	}
+}
+
+func TestProcessClientReadPhaseOnlyReadsServer(t *testing.T) {
+	originalSubs := g.Subs
+	originalPhase := runtimeProcessClientPhase
+	t.Cleanup(func() {
+		g.Subs = originalSubs
+		runtimeProcessClientPhase = originalPhase
+	})
+
+	client := &processClientPhaseTestClient{state: host.ClientState(3)}
+	g.Subs = &host.Subsystems{Client: client}
+	runtimeProcessClientPhase = "read"
+
+	gameCallbacks{}.ProcessClient()
+
+	if client.sendCalls != 0 || client.readCalls != 1 {
+		t.Fatalf("send/read calls = %d/%d, want 0/1", client.sendCalls, client.readCalls)
 	}
 }
 

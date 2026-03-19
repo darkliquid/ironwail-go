@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
@@ -19,6 +20,25 @@ type viewCalcState struct {
 	// Stair smoothing state (V_CalcRefdef oldz)
 	oldZ     float32
 	oldZInit bool
+	// Per-frame runtime stair smoothing cache so multiple consumers
+	// (camera/viewmodel/audio) share the same smoothed local-player Z.
+	stairFrameValid     bool
+	stairFrameTime      float64
+	stairFrameEntityZ   float32
+	stairFrameOnGround  bool
+	stairFrameHardReset bool
+	stairFrameSmoothedZ float32
+	originSelectLatch   runtimeOriginSelectLatch
+}
+
+type runtimeOriginSelectLatch struct {
+	valid             bool
+	client            *cl.Client
+	serverUpdateTime  float64
+	source            runtimeOriginSource
+	rejectReason      runtimeOriginRejectReason
+	xyDelta           [2]float32
+	predictionErrorXY [2]float32
 }
 
 // globalViewCalc is the singleton view calc state used during gameplay.
@@ -385,10 +405,8 @@ func viewStairSmoothOffset(state *viewCalcState, entityZ float32, onGround bool,
 		return 0
 	}
 
-	// Smooth small upward rises even if the on-ground bit flickers for a frame.
-	// Steps/slopes can briefly clear SU_ONGROUND before the next server update.
 	rise := entityZ - state.oldZ
-	if rise > 0 && (onGround || rise <= 18) {
+	if rise > 0 && onGround {
 		steptime := float32(deltaTime)
 		if steptime < 0 {
 			steptime = 0

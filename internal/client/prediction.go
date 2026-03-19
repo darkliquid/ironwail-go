@@ -27,6 +27,9 @@ func (c *Client) resetLocalTeleportPrediction(origin [3]float32) {
 	c.LastServerOrigin = origin
 	c.PredictedOrigin = origin
 	c.PredictionError = [3]float32{}
+	c.PredictionValid = false
+	c.PredictionEntityNum = 0
+	c.PredictionFrameTime = 0
 	c.Velocity = [3]float32{}
 	c.MVelocity = [2][3]float32{}
 	c.PredictedVelocity = [3]float32{}
@@ -34,21 +37,43 @@ func (c *Client) resetLocalTeleportPrediction(origin [3]float32) {
 }
 
 func (c *Client) PredictPlayers(frametime float32) {
-	if c == nil || c.State != StateActive {
+	if c == nil {
+		return
+	}
+	if c.State != StateActive {
+		c.PredictionValid = false
+		c.PredictionEntityNum = 0
+		c.PredictionFrameTime = 0
+		c.LastPredictionReplayTelemetry = PredictionReplayTelemetry{}
 		return
 	}
 
-	// Get player entity (view entity or entity 0)
-	entNum := c.ViewEntity
-	if entNum == 0 {
-		entNum = 0 // Player is always entity 0 in single player
+	entNum := c.predictionEntityNum()
+	telemetry := PredictionReplayTelemetry{
+		FrameTime:               c.Time,
+		EntityNum:               entNum,
+		PendingCmd:              c.PendingCmd,
+		PreviousPredictedOrigin: c.PredictedOrigin,
+		CommandCountBeforeAck:   c.CommandCount,
 	}
+	c.PredictionValid = false
+	c.PredictionEntityNum = entNum
+	c.PredictionFrameTime = c.Time
 
 	ent, ok := c.Entities[entNum]
 	if !ok {
 		// No player entity yet, can't predict
+		telemetry.CommandCountAfterAck = c.CommandCount
+		telemetry.RebasedPredictedOrigin = c.PredictedOrigin
+		telemetry.RebasedPredictedVelocity = c.PredictedVelocity
+		telemetry.OutputPredictedOrigin = c.PredictedOrigin
+		telemetry.OutputPredictedVelocity = c.PredictedVelocity
+		c.LastPredictionReplayTelemetry = telemetry
 		return
 	}
+	telemetry.EntityFound = true
+	telemetry.ServerBaseOrigin = ent.Origin
+	telemetry.ServerBaseVelocity = c.Velocity
 
 	// On first run or server update, initialize prediction state
 	if c.LastServerOrigin == [3]float32{} {
@@ -68,26 +93,18 @@ func (c *Client) PredictPlayers(frametime float32) {
 		}
 
 		// Update last known server position
+		telemetry.ServerBaseChanged = true
 		c.LastServerOrigin = ent.Origin
-		// Don't reset predicted origin immediately - error correction will smooth it
-		// Reset velocity to server's velocity
-		c.PredictedVelocity = c.Velocity
-		c.acknowledgeCommand()
 	}
+	telemetry.CommandCountAfterAck = c.CommandCount
 
-	// Apply error correction (smooth lerp towards server)
-	// This prevents jumpy corrections when prediction mismatches server
+	// Keep prediction error as a decaying telemetry/guard signal.
 	if c.PredictionError != [3]float32{} {
 		errorLerpSpeed := c.PredictionErrorLerp * frametime * 60.0 // Scale for 60fps baseline
 		if errorLerpSpeed > 1.0 {
 			errorLerpSpeed = 1.0
 		}
 
-		c.PredictedOrigin[0] += c.PredictionError[0] * errorLerpSpeed
-		c.PredictedOrigin[1] += c.PredictionError[1] * errorLerpSpeed
-		c.PredictedOrigin[2] += c.PredictionError[2] * errorLerpSpeed
-
-		// Reduce error
 		c.PredictionError[0] *= (1.0 - errorLerpSpeed)
 		c.PredictionError[1] *= (1.0 - errorLerpSpeed)
 		c.PredictionError[2] *= (1.0 - errorLerpSpeed)
@@ -99,10 +116,29 @@ func (c *Client) PredictPlayers(frametime float32) {
 			c.PredictionError = [3]float32{}
 		}
 	}
-
 	commands := c.bufferedCommands()
+	if telemetry.ServerBaseChanged || len(commands) > 0 {
+		// When replaying a buffered backlog, restart from the latest
+		// authoritative base so old commands are not compounded frame-over-frame.
+		c.PredictedOrigin = ent.Origin
+		c.PredictedVelocity = c.Velocity
+	}
 	if len(commands) == 0 {
+		// PendingCmd is a between-send preview only. Restart from the current
+		// authoritative base each render frame so stale predicted velocity does
+		// not compound while waiting for the next real send/ack.
+		c.PredictedOrigin = ent.Origin
+		c.PredictedVelocity = c.Velocity
 		commands = append(commands, c.PendingCmd)
+		telemetry.UsedPendingCmdFallback = true
+	}
+	telemetry.RebasedPredictedOrigin = c.PredictedOrigin
+	telemetry.RebasedPredictedVelocity = c.PredictedVelocity
+	telemetry.ReplayedCommandCount = len(commands)
+	if len(commands) > 0 {
+		telemetry.HasReplayedCmds = true
+		telemetry.OldestReplayedCmd = commands[0]
+		telemetry.NewestReplayedCmd = commands[len(commands)-1]
 	}
 	for i := range commands {
 		cmdFrametime := frametime / float32(len(commands))
@@ -111,6 +147,27 @@ func (c *Client) PredictPlayers(frametime float32) {
 		}
 		c.predictMovement(&commands[i], cmdFrametime)
 	}
+	telemetry.OutputPredictedOrigin = c.PredictedOrigin
+	telemetry.OutputPredictedVelocity = c.PredictedVelocity
+	telemetry.Valid = true
+	c.PredictionValid = true
+	c.LastPredictionReplayTelemetry = telemetry
+}
+
+func (c *Client) predictionEntityNum() int {
+	if c == nil {
+		return 0
+	}
+	if c.ViewEntity != 0 {
+		return c.ViewEntity
+	}
+	// FitzQuake single-player viewentity is typically 1 after svc_setview.
+	// Before or around signon, prefer entity 1 when present so local prediction
+	// tracks the actual player instead of a nonexistent entity 0.
+	if _, ok := c.Entities[1]; ok {
+		return 1
+	}
+	return 0
 }
 
 // predictMovement simulates player movement for a single command.
@@ -120,8 +177,11 @@ func (c *Client) predictMovement(cmd *UserCmd, frametime float32) {
 		return
 	}
 
-	// Get forward and right vectors from view angles.
-	angles := [3]float32{cmd.ViewAngles[0], cmd.ViewAngles[1], cmd.ViewAngles[2]}
+	// Match the server movement basis from SV_ClientThink/SV_AirMove:
+	// use v_angle + punch, then derive movement angles with pitch scaled by -1/3
+	// and roll from velocity. Keep water movement on raw view angles to match
+	// the server's water movement path.
+	angles := c.predictionMovementAngles(cmd.ViewAngles)
 	forward, right, _ := angleVectorsQuake(angles)
 
 	if c.OnGround {
@@ -161,6 +221,58 @@ func (c *Client) predictMovement(cmd *UserCmd, frametime float32) {
 	c.PredictedOrigin[0] += c.PredictedVelocity[0] * frametime
 	c.PredictedOrigin[1] += c.PredictedVelocity[1] * frametime
 	c.PredictedOrigin[2] += c.PredictedVelocity[2] * frametime
+}
+
+func (c *Client) predictionMovementAngles(viewAngles [3]float32) [3]float32 {
+	if c != nil && c.InWater {
+		return viewAngles
+	}
+
+	punchAngles := [3]float32{}
+	predictedVelocity := [3]float32{}
+	if c != nil {
+		punchAngles = c.PunchAngle
+		predictedVelocity = c.PredictedVelocity
+	}
+
+	vAngle := [3]float32{
+		viewAngles[0] + punchAngles[0],
+		viewAngles[1] + punchAngles[1],
+		viewAngles[2] + punchAngles[2],
+	}
+	angles := [3]float32{
+		-vAngle[0] / 3,
+		vAngle[1],
+	}
+	angles[2] = predictionCalcRoll(angles, predictedVelocity) * 4
+	return angles
+}
+
+func predictionCalcRoll(angles, velocity [3]float32) float32 {
+	_, right, _ := angleVectorsQuake(angles)
+
+	side := velocity[0]*right[0] + velocity[1]*right[1] + velocity[2]*right[2]
+	sign := float32(1)
+	if side < 0 {
+		sign = -1
+		side = -side
+	}
+
+	const (
+		rollAngle = float32(2.0)
+		rollSpeed = float32(200.0)
+	)
+
+	if rollSpeed == 0 {
+		return 0
+	}
+	if side < rollSpeed {
+		side = side * rollAngle / rollSpeed
+	} else {
+		side = rollAngle
+	}
+
+	return side * sign
 }
 
 func applyGroundFriction(velocity *[3]float32, friction, stopSpeed, frametime float32) {

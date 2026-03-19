@@ -250,8 +250,11 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 	if err := parser.ParseServerMessage(delta); err != nil {
 		t.Fatalf("parse loopback delta message: %v", err)
 	}
-	if got := parserClient.Entities[1].Origin; got != [3]float32{104, 208, 296} {
-		t.Fatalf("parsed origin after server send phase = %v, want [104 208 296]", got)
+	if got := parserClient.Entities[1].MsgOrigins[0]; got != [3]float32{104, 208, 296} {
+		t.Fatalf("parsed raw origin after server send phase = %v, want [104 208 296]", got)
+	}
+	if got := parserClient.Entities[1].Origin; got != [3]float32{100, 200, 300} {
+		t.Fatalf("parsed live origin after server send phase = %v, want preserved [100 200 300] until relink", got)
 	}
 }
 
@@ -521,8 +524,8 @@ func TestKickClientDropsTargetAndWritesReason(t *testing.T) {
 	if target.Spawned {
 		t.Fatal("target client still spawned after kick")
 	}
-	if target.Message.Len() == 0 || target.Message.Data[0] != byte(SVCPrint) {
-		t.Fatalf("target message opcode = %v, want %v", target.Message.Data, byte(SVCPrint))
+	if target.Message.Len() == 0 || target.Message.Data[0] != byte(inet.SVCPrint) {
+		t.Fatalf("target message opcode = %v, want %v", target.Message.Data, byte(inet.SVCPrint))
 	}
 	if !bytes.Contains(target.Message.Data, []byte("Kicked by Ranger: too much ping\n")) {
 		t.Fatalf("target message = %q, want kick reason", string(target.Message.Data))

@@ -579,21 +579,17 @@ func (s *Server) LinkEdict(ent *Edict, touchTriggers bool) {
 
 	// Link it in
 	if int(ent.Vars.Solid) == int(SolidTrigger) {
-		// Insert at head of trigger list
-		ent.AreaNext = node.TriggerEdicts.AreaNext
-		if node.TriggerEdicts.AreaNext != nil {
-			node.TriggerEdicts.AreaNext.AreaPrev = ent
-		}
-		ent.AreaPrev = &node.TriggerEdicts
-		node.TriggerEdicts.AreaNext = ent
+		sentinel := &node.TriggerEdicts
+		ent.AreaNext = sentinel
+		ent.AreaPrev = sentinel.AreaPrev
+		ent.AreaPrev.AreaNext = ent
+		ent.AreaNext.AreaPrev = ent
 	} else {
-		// Insert at head of solid list
-		ent.AreaNext = node.SolidEdicts.AreaNext
-		if node.SolidEdicts.AreaNext != nil {
-			node.SolidEdicts.AreaNext.AreaPrev = ent
-		}
-		ent.AreaPrev = &node.SolidEdicts
-		node.SolidEdicts.AreaNext = ent
+		sentinel := &node.SolidEdicts
+		ent.AreaNext = sentinel
+		ent.AreaPrev = sentinel.AreaPrev
+		ent.AreaPrev.AreaNext = ent
+		ent.AreaNext.AreaPrev = ent
 	}
 
 	if touchTriggers {
@@ -636,8 +632,6 @@ func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, l
 	}
 }
 
-var inTouchLinks bool
-
 func (s *Server) touchLinks(ent *Edict) {
 	if len(s.Areanodes) == 0 || s.QCVM == nil {
 		return
@@ -646,18 +640,6 @@ func (s *Server) touchLinks(ent *Edict) {
 	entNum := s.NumForEdict(ent)
 	moverClassName := qcString(s.QCVM, ent.Vars.ClassName)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
-	if inTouchLinks {
-		if telemetryEnabled {
-			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
-				"touchlinks reentrant-skip mover_classname=%q touchfn=%d solid=%d",
-				moverClassName, ent.Vars.Touch, int(ent.Vars.Solid))
-		}
-		return
-	}
-	inTouchLinks = true
-	defer func() {
-		inTouchLinks = false
-	}()
 	if telemetryEnabled {
 		s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 			"touchlinks begin mover_classname=%q touchfn=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
@@ -739,8 +721,12 @@ func (s *Server) touchLinks(ent *Edict) {
 
 		if telemetryEnabled {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
-				"touchlinks callback begin self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
+				"touchlinks callback begin self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) other_abs=(%.1f %.1f %.1f)-(%.1f %.1f %.1f)",
 				touchNum, touchClassName, entNum, moverClassName, touch.Vars.Touch, int(touch.Vars.Solid), int(ent.Vars.Solid),
+				uint32(ent.Vars.Flags), int(ent.Vars.GroundEntity),
+				ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
+				ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
+				int(ent.Vars.FixAngle), ent.Vars.TeleportTime,
 				touch.Vars.AbsMin[0], touch.Vars.AbsMin[1], touch.Vars.AbsMin[2],
 				touch.Vars.AbsMax[0], touch.Vars.AbsMax[1], touch.Vars.AbsMax[2],
 				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
@@ -756,8 +742,6 @@ func (s *Server) touchLinks(ent *Edict) {
 		} else {
 			syncEdictFromQCVM(s.QCVM, touchNum, touch)
 			syncEdictFromQCVM(s.QCVM, entNum, ent)
-			s.LinkEdict(touch, false)
-			s.LinkEdict(ent, false)
 		}
 		if telemetryEnabled {
 			linkState := "linked"
@@ -765,8 +749,12 @@ func (s *Server) touchLinks(ent *Edict) {
 				linkState = "unlinked"
 			}
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
-				"touchlinks callback end self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_link=%s self_origin=(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
+				"touchlinks callback end self=%d(%q) other=%d(%q) fn=%d self_solid=%d other_solid=%d self_link=%s other_flags=%#x other_ground=%d other_vel=(%.1f %.1f %.1f) other_punch=(%.1f %.1f %.1f) other_fixangle=%d other_teleport=%.3f self_origin=(%.1f %.1f %.1f) other_origin=(%.1f %.1f %.1f)",
 				touchNum, touchClassName, entNum, moverClassName, touch.Vars.Touch, int(touch.Vars.Solid), int(ent.Vars.Solid), linkState,
+				uint32(ent.Vars.Flags), int(ent.Vars.GroundEntity),
+				ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
+				ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
+				int(ent.Vars.FixAngle), ent.Vars.TeleportTime,
 				touch.Vars.Origin[0], touch.Vars.Origin[1], touch.Vars.Origin[2],
 				ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2])
 		}

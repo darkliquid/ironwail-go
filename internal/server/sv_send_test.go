@@ -2,8 +2,10 @@ package server
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
@@ -703,6 +705,64 @@ func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 	_, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
 	if got, want := payload[len(payload)-1], byte(1<<5); got != want {
 		t.Fatalf("active weapon byte = %#x, want %#x; payload=%v", got, want, payload)
+	}
+}
+
+func TestWriteClientDataToMessage_LogsPhysicsTelemetry(t *testing.T) {
+	t.Parallel()
+
+	lines := make([]string, 0, 4)
+	s := &Server{
+		Protocol: ProtocolNetQuake,
+		DebugTelemetry: NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+			return DebugTelemetryConfig{
+				Enabled:      true,
+				EventMask:    debugEventMaskPhysics,
+				EntityFilter: debugEntityFilter{all: true},
+				SummaryMode:  0,
+			}
+		}, func(line string) {
+			lines = append(lines, line)
+		}),
+	}
+	oldEnable := debugTelemetryEnableCVar
+	debugTelemetryEnableCVar = cvar.Register("sv_debug_telemetry_test_clientdata", "1", cvar.FlagNone, "")
+	t.Cleanup(func() {
+		debugTelemetryEnableCVar = oldEnable
+	})
+
+	ent := &Edict{
+		Vars: &EntVars{
+			Flags:        FlagPartialGround,
+			ViewOfs:      [3]float32{0, 0, 22},
+			IdealPitch:   7,
+			Velocity:     [3]float32{0, 1840, 0},
+			PunchAngle:   [3]float32{105, 0, 32},
+			FixAngle:     1,
+			GroundEntity: 99,
+			TeleportTime: 1.25,
+			Health:       100,
+		},
+	}
+	s.Edicts = []*Edict{{Vars: &EntVars{}}, ent}
+
+	msg := NewMessageBuffer(256)
+	s.WriteClientDataToMessage(ent, msg)
+
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{
+		"kind=physics",
+		"clientdata serialize bits=",
+		"onground=false",
+		"vel=(0.0 1840.0 0.0)",
+		"punch=(105.0 0.0 32.0)",
+		"fixangle_sent=true",
+		"ground=99",
+		"teleport=1.250",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing %q in telemetry:\n%s", want, joined)
+		}
 	}
 }
 

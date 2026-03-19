@@ -40,6 +40,9 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	if lc.cmdReady {
 		t.Fatal("command still marked ready after send")
 	}
+	if lc.inner.CommandCount != 1 {
+		t.Fatalf("CommandCount = %d, want 1 after loopback send", lc.inner.CommandCount)
+	}
 
 	got := s.Static.Clients[0].LastCmd
 	if got.ForwardMove <= 0 {

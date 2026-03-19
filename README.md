@@ -47,6 +47,7 @@ The canonical parity/build path is the CGO/OpenGL runtime:
 
 - `mise run test`
 - `mise run build-cgo`
+- `mise run smoke-map-start`
 - `mise run smoke-cgo-map-start`
 
 The gogpu tasks remain available for secondary-backend work, but they are no

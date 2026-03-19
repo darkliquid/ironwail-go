@@ -405,6 +405,9 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if s.Static.Clients[0].Message.Len() <= clientBefore {
 		t.Fatalf("stuffcmd builtin did not write to client message")
 	}
+	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCStuffText) {
+		t.Fatalf("stuffcmd opcode = %d, want %d", got, inet.SVCStuffText)
+	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
 	vm.SetGFloat(qc.OFSParm0, 0)
@@ -413,8 +416,22 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if s.Static.Clients[0].Message.Len() <= clientBefore {
 		t.Fatalf("lightstyle builtin did not write to client message")
 	}
+	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCLightStyle) {
+		t.Fatalf("lightstyle opcode = %d, want %d", got, inet.SVCLightStyle)
+	}
 	if got := s.LightStyles[0]; got != "m" {
 		t.Fatalf("stored lightstyle = %q, want %q", got, "m")
+	}
+
+	clientBefore = s.Static.Clients[0].Message.Len()
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
+	vm.SetGString(qc.OFSParm1, "centered")
+	vm.Builtins[73](vm)
+	if s.Static.Clients[0].Message.Len() <= clientBefore {
+		t.Fatalf("centerprint builtin did not write to client message")
+	}
+	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCCenterPrint) {
+		t.Fatalf("centerprint opcode = %d, want %d", got, inet.SVCCenterPrint)
 	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()

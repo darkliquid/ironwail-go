@@ -817,14 +817,14 @@ func NewServer() *Server {
 				if client == nil || client.Message == nil {
 					continue
 				}
-				client.Message.WriteByte(byte(SVCPrint))
+				client.Message.WriteByte(byte(inet.SVCPrint))
 				client.Message.WriteString(msg)
 			}
 		},
 		ClientPrint: func(vm *qc.VM, entNum int, msg string) {
 			console.Printf("%s", msg)
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
-				client.Message.WriteByte(byte(SVCPrint))
+				client.Message.WriteByte(byte(inet.SVCPrint))
 				client.Message.WriteString(msg)
 			}
 		},
@@ -834,7 +834,7 @@ func NewServer() *Server {
 		CenterPrint: func(vm *qc.VM, entNum int, msg string) {
 			console.CenterPrintf(40, "%s", msg)
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
-				client.Message.WriteByte(byte(SVCCenterPrint))
+				client.Message.WriteByte(byte(inet.SVCCenterPrint))
 				client.Message.WriteString(msg)
 			}
 		},
@@ -845,7 +845,7 @@ func NewServer() *Server {
 		},
 		StuffCmd: func(vm *qc.VM, entNum int, cmd string) {
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
-				client.Message.WriteByte(byte(SVCStuffText))
+				client.Message.WriteByte(byte(inet.SVCStuffText))
 				client.Message.WriteString(cmd)
 			}
 		},
@@ -858,7 +858,7 @@ func NewServer() *Server {
 				if client == nil || client.Message == nil {
 					continue
 				}
-				client.Message.WriteByte(byte(SVCLightStyle))
+				client.Message.WriteByte(byte(inet.SVCLightStyle))
 				client.Message.WriteByte(byte(style))
 				client.Message.WriteString(value)
 			}
@@ -1194,7 +1194,7 @@ func (s *Server) KickClient(clientNum int, who, reason string) bool {
 		if reason != "" {
 			message += ": " + reason
 		}
-		client.Message.WriteByte(byte(SVCPrint))
+		client.Message.WriteByte(byte(inet.SVCPrint))
 		client.Message.WriteString(message + "\n")
 	}
 
@@ -1218,7 +1218,7 @@ func (s *Server) SV_BroadcastPrintf(format string, args ...any) {
 		if client == nil || !client.Active || client.Message == nil {
 			continue
 		}
-		client.Message.WriteByte(byte(SVCPrint))
+		client.Message.WriteByte(byte(inet.SVCPrint))
 		client.Message.WriteString(msg)
 	}
 }
@@ -1229,7 +1229,7 @@ func (s *Server) SV_ClientPrintf(client *Client, format string, args ...any) {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
-	client.Message.WriteByte(byte(SVCPrint))
+	client.Message.WriteByte(byte(inet.SVCPrint))
 	client.Message.WriteString(msg)
 }
 

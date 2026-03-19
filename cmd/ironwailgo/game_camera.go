@@ -7,6 +7,57 @@ import (
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
+func runtimeViewDeltaTime() float64 {
+	if g.Host != nil {
+		return g.Host.FrameTime()
+	}
+	if g.Client == nil {
+		return 0
+	}
+	delta := g.Client.Time - g.Client.OldTime
+	if delta < 0 {
+		return 0
+	}
+	return delta
+}
+
+func runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
+	origin, ok := runtimePlayerOrigin()
+	if !ok || g.Client == nil {
+		return origin, ok
+	}
+
+	state := &globalViewCalc
+	entityZ := origin[2]
+	frameTime := g.Client.Time
+	onGround := g.Client.OnGround
+	hardReset := runtimeLocalViewTeleportActive()
+	if state.stairFrameValid &&
+		state.stairFrameTime == frameTime &&
+		state.stairFrameEntityZ == entityZ &&
+		state.stairFrameOnGround == onGround &&
+		state.stairFrameHardReset == hardReset {
+		origin[2] = state.stairFrameSmoothedZ
+		return origin, true
+	}
+
+	origin[2] += viewStairSmoothOffset(state, entityZ, onGround, runtimeViewDeltaTime(), hardReset)
+	state.stairFrameValid = true
+	state.stairFrameTime = frameTime
+	state.stairFrameEntityZ = entityZ
+	state.stairFrameOnGround = onGround
+	state.stairFrameHardReset = hardReset
+	state.stairFrameSmoothedZ = origin[2]
+	return origin, true
+}
+
+func runtimeFirstPersonBobOffset() float32 {
+	// Isolation fix: keep the active first-person camera/viewmodel path anchored
+	// to the smoothed eye origin while we verify whether bob is the remaining
+	// source of visible Z pops.
+	return 0
+}
+
 func runtimeViewState() (origin, angles [3]float32) {
 	origin = [3]float32{0, 0, 128}
 	angles = [3]float32{0, 0, 0}
@@ -56,12 +107,10 @@ func runtimeViewState() (origin, angles [3]float32) {
 	}
 
 	if g.Client != nil {
-		if clientOrigin, ok := runtimePlayerOrigin(); ok {
-			// Apply ViewHeight + bob to camera Z.
-			// Mirrors C Ironwail V_CalcRefdef: r_refdef.vieworg[2] += cl.viewheight + bob.
+		if clientOrigin, ok := runtimeSmoothedLocalPlayerBaseOrigin(); ok {
+			// Keep the first-person camera anchored to the smoothed eye origin.
 			clientOrigin[2] += g.Client.ViewHeight
-			bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity())
-			clientOrigin[2] += bob
+			clientOrigin[2] += runtimeFirstPersonBobOffset()
 
 			viewAngles := runtimeInterpolatedViewAngles()
 			return clientOrigin, viewAngles
@@ -72,36 +121,165 @@ func runtimeViewState() (origin, angles [3]float32) {
 }
 
 // runtimeWeaponBaseOrigin returns the weapon model base origin: entity origin + viewheight.
-// This does NOT include bob — bob is applied separately by viewApplyBobToOrigin.
 // Mirrors C Ironwail V_CalcRefdef: VectorCopy(ent->origin, view->origin); view->origin[2] += cl.viewheight;
 func runtimeWeaponBaseOrigin() [3]float32 {
 	if g.Client != nil {
-		if clientOrigin, ok := runtimePlayerOrigin(); ok {
+		if clientOrigin, ok := runtimeSmoothedLocalPlayerBaseOrigin(); ok {
 			clientOrigin[2] += g.Client.ViewHeight
 			return clientOrigin
 		}
 	}
-	// Fallback: use the camera origin from runtimeViewState (has bob, but no weapon
-	// bob will be applied since velocity is zero in this case).
+	// Fallback: use the camera origin from runtimeViewState.
 	origin, _ := runtimeViewState()
 	return origin
 }
 
 func runtimePlayerOrigin() ([3]float32, bool) {
+	telemetry := runtimeOriginSelectTelemetry{
+		XYOffsetThreshold:        runtimeMaxPredictedXYOffset,
+		PredictionErrorThreshold: runtimeMaxPredictedXYOffset,
+	}
+	state := &globalViewCalc
 	if g.Client == nil {
+		runtimeResetOriginSelectLatch(state)
+		telemetry.RejectReason = runtimeOriginRejectMissingAuth
+		runtimeDebugViewRecordOriginSelect(telemetry)
 		return [3]float32{}, false
 	}
+	telemetry.PredictedOrigin = g.Client.PredictedOrigin
+	telemetry.PredictionValid = g.Client.HasFreshPredictionForCurrentEntity()
 
 	if authoritativeOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+		telemetry.AuthoritativeOrigin = authoritativeOrigin
+		runtimeLatchOriginSelect(state, authoritativeOrigin)
+		telemetry.Source = state.originSelectLatch.source
+		telemetry.XYDelta = state.originSelectLatch.xyDelta
+		telemetry.PredictionErrorXY = state.originSelectLatch.predictionErrorXY
+		telemetry.RejectReason = state.originSelectLatch.rejectReason
+		telemetry.FinalBaseOrigin = authoritativeOrigin
+		runtimeDebugViewRecordOriginSelect(telemetry)
 		return authoritativeOrigin, true
 	}
 
+	runtimeResetOriginSelectLatch(state)
+	if !telemetry.PredictionValid {
+		telemetry.RejectReason = runtimeOriginRejectInvalidPrediction
+		runtimeDebugViewRecordOriginSelect(telemetry)
+		return [3]float32{}, false
+	}
 	clientOrigin := g.Client.PredictedOrigin
 	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
+		telemetry.Source = runtimeOriginSourcePredictedFallback
+		telemetry.RejectReason = runtimeOriginRejectMissingAuth
+		telemetry.FinalBaseOrigin = clientOrigin
+		runtimeDebugViewRecordOriginSelect(telemetry)
 		return clientOrigin, true
 	}
 
+	telemetry.RejectReason = runtimeOriginRejectMissingAuth
+	runtimeDebugViewRecordOriginSelect(telemetry)
 	return [3]float32{}, false
+}
+
+func runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin [3]float32) {
+	if state == nil || g.Client == nil {
+		return
+	}
+	serverUpdateTime := g.Client.MTime[0]
+	if state.originSelectLatch.valid &&
+		state.originSelectLatch.client == g.Client &&
+		state.originSelectLatch.serverUpdateTime == serverUpdateTime &&
+		(state.originSelectLatch.source != runtimeOriginSourceAuthoritativePredictedXY || g.Client.HasFreshPredictionForCurrentEntity()) &&
+		!runtimeLocalViewTeleportActive() {
+		return
+	}
+
+	decision := runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
+	source := runtimeOriginSourceAuthoritativeOnly
+	if decision.OK {
+		source = runtimeOriginSourceAuthoritativePredictedXY
+	}
+	state.originSelectLatch = runtimeOriginSelectLatch{
+		valid:             true,
+		client:            g.Client,
+		serverUpdateTime:  serverUpdateTime,
+		source:            source,
+		rejectReason:      decision.RejectReason,
+		xyDelta:           decision.XYDelta,
+		predictionErrorXY: decision.PredictionErrorXY,
+	}
+}
+
+func runtimeResetOriginSelectLatch(state *viewCalcState) {
+	if state == nil {
+		return
+	}
+	state.originSelectLatch = runtimeOriginSelectLatch{}
+}
+
+func runtimePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) ([3]float32, bool) {
+	decision := runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
+	return decision.Origin, decision.OK
+}
+
+type runtimePredictedXYDecision struct {
+	Origin            [3]float32
+	OK                bool
+	RejectReason      runtimeOriginRejectReason
+	XYDelta           [2]float32
+	PredictionErrorXY [2]float32
+}
+
+func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) runtimePredictedXYDecision {
+	decision := runtimePredictedXYDecision{}
+	if g.Client == nil {
+		decision.RejectReason = runtimeOriginRejectMissingAuth
+		return decision
+	}
+	if !g.Client.HasFreshPredictionForCurrentEntity() {
+		decision.RejectReason = runtimeOriginRejectInvalidPrediction
+		return decision
+	}
+
+	predictedOrigin := g.Client.PredictedOrigin
+	decision.Origin = predictedOrigin
+	decision.XYDelta = [2]float32{
+		predictedOrigin[0] - authoritativeOrigin[0],
+		predictedOrigin[1] - authoritativeOrigin[1],
+	}
+	decision.PredictionErrorXY = [2]float32{
+		g.Client.PredictionError[0],
+		g.Client.PredictionError[1],
+	}
+
+	if runtimeLocalViewTeleportActive() {
+		decision.RejectReason = runtimeOriginRejectTeleportGate
+		return decision
+	}
+	if predictedOrigin == [3]float32{} {
+		decision.RejectReason = runtimeOriginRejectZeroPrediction
+		return decision
+	}
+	if runtimeFloat32Abs(decision.XYDelta[0]) > runtimeMaxPredictedXYOffset ||
+		runtimeFloat32Abs(decision.XYDelta[1]) > runtimeMaxPredictedXYOffset {
+		decision.RejectReason = runtimeOriginRejectXYOffsetThreshold
+		return decision
+	}
+	if runtimeFloat32Abs(decision.PredictionErrorXY[0]) > runtimeMaxPredictedXYOffset ||
+		runtimeFloat32Abs(decision.PredictionErrorXY[1]) > runtimeMaxPredictedXYOffset {
+		decision.RejectReason = runtimeOriginRejectPredictionErrorThreshold
+		return decision
+	}
+
+	decision.OK = true
+	return decision
+}
+
+func runtimeFloat32Abs(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
@@ -111,12 +289,18 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 
 	if g.Client.ViewEntity != 0 {
 		if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
+			if g.Client.MTime[0] != 0 && state.MsgTime != g.Client.MTime[0] {
+				return [3]float32{}, false
+			}
 			return state.Origin, true
 		}
 	}
 
 	if g.Client.ViewEntity == 0 {
 		if state, ok := g.Client.Entities[0]; ok {
+			if g.Client.MTime[0] != 0 && state.MsgTime != g.Client.MTime[0] {
+				return [3]float32{}, false
+			}
 			return state.Origin, true
 		}
 	}
@@ -255,24 +439,7 @@ func runtimeInterpolatedViewAngles() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
 	}
-	if g.Client.FixAngle || g.Client.DemoPlayback {
-		return g.Client.ViewAngles
-	}
-	prev, curr := g.Client.MViewAngles[1], g.Client.MViewAngles[0]
-	if prev == [3]float32{} && curr == [3]float32{} {
-		return g.Client.ViewAngles
-	}
-	frac := float32(g.Client.LerpPoint())
-	if frac < 0 {
-		frac = 0
-	} else if frac > 1 {
-		frac = 1
-	}
-	var out [3]float32
-	for i := range out {
-		out[i] = angleLerp(prev[i], curr[i], frac)
-	}
-	return out
+	return g.Client.ViewAngles
 }
 
 func runtimeGunKickAngles() [3]float32 {

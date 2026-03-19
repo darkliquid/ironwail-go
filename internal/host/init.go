@@ -153,6 +153,7 @@ func (c *localLoopbackClient) SendCommand() error {
 		return err
 	}
 	c.inner.Cmd = cmd
+	c.inner.RecordSentCmd(cmd)
 	c.cmdReady = false
 	return nil
 }

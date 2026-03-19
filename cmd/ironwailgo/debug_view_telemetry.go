@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -21,12 +22,79 @@ type debugViewTelemetryState struct {
 	haveViewOrigin      bool
 	haveViewModelOrigin bool
 	viewModelFrame      uint64
+	originSelect        runtimeOriginSelectTelemetry
 }
 
 var runtimeDebugView debugViewTelemetryState
 
+type runtimeOriginSource uint8
+
+const (
+	runtimeOriginSourceNone runtimeOriginSource = iota
+	runtimeOriginSourceAuthoritativeOnly
+	runtimeOriginSourceAuthoritativePredictedXY
+	runtimeOriginSourcePredictedFallback
+)
+
+func (s runtimeOriginSource) String() string {
+	switch s {
+	case runtimeOriginSourceAuthoritativeOnly:
+		return "authoritative_only"
+	case runtimeOriginSourceAuthoritativePredictedXY:
+		return "authoritative_plus_predicted_xy"
+	case runtimeOriginSourcePredictedFallback:
+		return "predicted_fallback"
+	default:
+		return "none"
+	}
+}
+
+type runtimeOriginRejectReason uint8
+
+const (
+	runtimeOriginRejectNone runtimeOriginRejectReason = iota
+	runtimeOriginRejectMissingAuth
+	runtimeOriginRejectInvalidPrediction
+	runtimeOriginRejectTeleportGate
+	runtimeOriginRejectZeroPrediction
+	runtimeOriginRejectXYOffsetThreshold
+	runtimeOriginRejectPredictionErrorThreshold
+)
+
+func (r runtimeOriginRejectReason) String() string {
+	switch r {
+	case runtimeOriginRejectMissingAuth:
+		return "missing_auth"
+	case runtimeOriginRejectInvalidPrediction:
+		return "invalid_prediction"
+	case runtimeOriginRejectTeleportGate:
+		return "teleport_gate"
+	case runtimeOriginRejectZeroPrediction:
+		return "zero_prediction"
+	case runtimeOriginRejectXYOffsetThreshold:
+		return "xy_offset_threshold"
+	case runtimeOriginRejectPredictionErrorThreshold:
+		return "prediction_error_threshold"
+	default:
+		return "none"
+	}
+}
+
+type runtimeOriginSelectTelemetry struct {
+	Source                   runtimeOriginSource
+	RejectReason             runtimeOriginRejectReason
+	AuthoritativeOrigin      [3]float32
+	PredictedOrigin          [3]float32
+	PredictionValid          bool
+	FinalBaseOrigin          [3]float32
+	XYDelta                  [2]float32
+	PredictionErrorXY        [2]float32
+	XYOffsetThreshold        float32
+	PredictionErrorThreshold float32
+}
+
 func registerDebugViewTelemetryCVar() {
-	debugViewTelemetryCVar = cvar.Register(debugViewTelemetryCVarName, "0", 0, "Client view debug telemetry (0=off, 1=view, 2=relink+view, 3=include viewmodel)")
+	debugViewTelemetryCVar = cvar.Register(debugViewTelemetryCVarName, "0", 0, "Client view debug telemetry (0=off, 1=view, 2=relink+view+lerp+prediction+origin_select, 3=include viewmodel)")
 }
 
 func runtimeDebugViewLevel() int {
@@ -135,6 +203,98 @@ func runtimeDebugViewLogState(viewOrigin, viewAngles [3]float32) {
 	)
 }
 
+func runtimeDebugViewRecordOriginSelect(telemetry runtimeOriginSelectTelemetry) {
+	runtimeDebugView.originSelect = telemetry
+}
+
+func runtimeDebugViewLogLerp() {
+	if !runtimeDebugViewEnabled(2) || g.Client == nil {
+		return
+	}
+	telemetry := g.Client.LerpTelemetrySnapshot()
+	rawFrac := "n/a"
+	if telemetry.HasRawFrac {
+		rawFrac = fmt.Sprintf("%.3f", telemetry.RawFrac)
+	}
+	runtimeDebugViewLogf(
+		"lerp",
+		"reason=%s time=%.3f->%.3f old=%.3f mtime=(%.3f %.3f)->(%.3f %.3f) f=%.3f->%.3f raw=%s frac=%.3f gap=%t snap=%t",
+		telemetry.Reason.String(),
+		telemetry.TimeBefore,
+		telemetry.TimeAfter,
+		telemetry.OldTime,
+		telemetry.MTime0Before,
+		telemetry.MTime1Before,
+		telemetry.MTime0After,
+		telemetry.MTime1After,
+		telemetry.FrameDeltaBefore,
+		telemetry.FrameDeltaAfter,
+		rawFrac,
+		telemetry.Frac,
+		telemetry.GapClamped,
+		telemetry.TimeSnapped,
+	)
+}
+
+func runtimeDebugViewLogPrediction() {
+	if !runtimeDebugViewEnabled(2) || g.Client == nil {
+		return
+	}
+	telemetry := g.Client.PredictionReplayTelemetrySnapshot()
+	oldest := "-"
+	newest := "-"
+	if telemetry.HasReplayedCmds {
+		oldest = debugUserCmd(telemetry.OldestReplayedCmd)
+		newest = debugUserCmd(telemetry.NewestReplayedCmd)
+	}
+	runtimeDebugViewLogf(
+		"prediction",
+		"time=%.3f ent=%d found=%t valid=%t base_changed=%t server_origin=%s server_vel=%s prev_pred=%s rebased=%s rebased_vel=%s out=%s out_vel=%s cmds=%d->%d replayed=%d fallback=%t pending=%s oldest=%s newest=%s",
+		telemetry.FrameTime,
+		telemetry.EntityNum,
+		telemetry.EntityFound,
+		telemetry.Valid,
+		telemetry.ServerBaseChanged,
+		debugVec3(telemetry.ServerBaseOrigin),
+		debugVec3(telemetry.ServerBaseVelocity),
+		debugVec3(telemetry.PreviousPredictedOrigin),
+		debugVec3(telemetry.RebasedPredictedOrigin),
+		debugVec3(telemetry.RebasedPredictedVelocity),
+		debugVec3(telemetry.OutputPredictedOrigin),
+		debugVec3(telemetry.OutputPredictedVelocity),
+		telemetry.CommandCountBeforeAck,
+		telemetry.CommandCountAfterAck,
+		telemetry.ReplayedCommandCount,
+		telemetry.UsedPendingCmdFallback,
+		debugUserCmd(telemetry.PendingCmd),
+		oldest,
+		newest,
+	)
+}
+
+func runtimeDebugViewLogOriginSelect() {
+	if !runtimeDebugViewEnabled(2) {
+		return
+	}
+	telemetry := runtimeDebugView.originSelect
+	runtimeDebugViewLogf(
+		"origin_select",
+		"source=%s reject=%s pred_valid=%t auth=%s predicted=%s final=%s d_xy=(%.3f %.3f) pred_err=(%.3f %.3f) xy_thresh=%.3f err_thresh=%.3f",
+		telemetry.Source.String(),
+		telemetry.RejectReason.String(),
+		telemetry.PredictionValid,
+		debugVec3(telemetry.AuthoritativeOrigin),
+		debugVec3(telemetry.PredictedOrigin),
+		debugVec3(telemetry.FinalBaseOrigin),
+		telemetry.XYDelta[0],
+		telemetry.XYDelta[1],
+		telemetry.PredictionErrorXY[0],
+		telemetry.PredictionErrorXY[1],
+		telemetry.XYOffsetThreshold,
+		telemetry.PredictionErrorThreshold,
+	)
+}
+
 func runtimeDebugViewLogViewModel(entity *renderer.AliasModelEntity) {
 	if !runtimeDebugViewEnabled(3) || entity == nil || runtimeDebugView.viewModelFrame == runtimeDebugView.frame {
 		return
@@ -162,4 +322,8 @@ func runtimeDebugViewLogViewModel(entity *renderer.AliasModelEntity) {
 
 func debugVec3(v [3]float32) string {
 	return fmt.Sprintf("(%.3f %.3f %.3f)", v[0], v[1], v[2])
+}
+
+func debugUserCmd(cmd cl.UserCmd) string {
+	return fmt.Sprintf("(%.1f %.1f %.1f msec=%d)", cmd.Forward, cmd.Side, cmd.Up, cmd.Msec)
 }

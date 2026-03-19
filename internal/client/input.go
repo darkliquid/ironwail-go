@@ -170,7 +170,4 @@ func (c *Client) AccumulateCmd(frametime float32) {
 		cmdMS = 255
 	}
 	c.PendingCmd.Msec = uint8(cmdMS)
-	if c.State == StateActive && c.Signon >= Signons {
-		c.enqueueCommand(c.PendingCmd)
-	}
 }

@@ -264,14 +264,19 @@ type Client struct {
 	LightStyles [64]LightStyle
 
 	// Movement prediction state
-	PredictedOrigin   [3]float32   // Predicted player position
-	PredictedVelocity [3]float32   // Predicted player velocity
-	LastServerOrigin  [3]float32   // Last known server position
-	PredictionError   [3]float32   // Error to correct over time
-	LocalViewTeleport bool         // True for the current relink frame when the local player hard-snapped
-	CommandBuffer     [256]UserCmd // Queue of user commands for prediction
-	CommandCount      int          // Number of unacknowledged commands in buffer
-	CommandSequence   int          // Total number of queued commands
+	PredictedOrigin               [3]float32                // Predicted player position
+	PredictedVelocity             [3]float32                // Predicted player velocity
+	LastServerOrigin              [3]float32                // Last known server position
+	PredictionError               [3]float32                // Error to correct over time
+	PredictionValid               bool                      // Current-frame prediction is valid for camera use
+	PredictionEntityNum           int                       // Entity number predicted on the current frame
+	PredictionFrameTime           float64                   // Client time for the current prediction snapshot
+	LocalViewTeleport             bool                      // True for the current relink frame when the local player hard-snapped
+	CommandBuffer                 [256]UserCmd              // Queue of user commands for prediction
+	CommandCount                  int                       // Number of unacknowledged commands in buffer
+	CommandSequence               int                       // Total number of queued commands
+	LastLerpTelemetry             LerpTelemetry             // Last LerpPoint evaluation snapshot
+	LastPredictionReplayTelemetry PredictionReplayTelemetry // Last prediction replay snapshot
 
 	// Prediction tuning parameters
 	PredictionFriction  float32 // Ground friction coefficient
@@ -409,13 +414,42 @@ func (c *Client) ClearState() {
 	c.PredictedVelocity = [3]float32{}
 	c.LastServerOrigin = [3]float32{}
 	c.PredictionError = [3]float32{}
+	c.PredictionValid = false
+	c.PredictionEntityNum = 0
+	c.PredictionFrameTime = 0
 	c.LocalViewTeleport = false
 	c.CommandCount = 0
 	c.CommandSequence = 0
+	c.LastLerpTelemetry = LerpTelemetry{}
+	c.LastPredictionReplayTelemetry = PredictionReplayTelemetry{}
 }
 
 func (c *Client) LocalViewTeleportActive() bool {
 	return c != nil && c.LocalViewTeleport
+}
+
+func (c *Client) LerpTelemetrySnapshot() LerpTelemetry {
+	if c == nil {
+		return LerpTelemetry{}
+	}
+	return c.LastLerpTelemetry
+}
+
+func (c *Client) PredictionReplayTelemetrySnapshot() PredictionReplayTelemetry {
+	if c == nil {
+		return PredictionReplayTelemetry{}
+	}
+	return c.LastPredictionReplayTelemetry
+}
+
+func (c *Client) HasFreshPredictionForCurrentEntity() bool {
+	if c == nil || !c.PredictionValid {
+		return false
+	}
+	if c.PredictionFrameTime != c.Time {
+		return false
+	}
+	return c.PredictionEntityNum == c.predictionEntityNum()
 }
 
 func (c *Client) enqueueCommand(cmd UserCmd) {
@@ -432,6 +466,13 @@ func (c *Client) enqueueCommand(cmd UserCmd) {
 	if c.CommandCount < len(c.CommandBuffer) {
 		c.CommandCount++
 	}
+}
+
+func (c *Client) RecordSentCmd(cmd UserCmd) {
+	if c == nil {
+		return
+	}
+	c.enqueueCommand(cmd)
 }
 
 func (c *Client) bufferedCommands() []UserCmd {
@@ -453,6 +494,21 @@ func (c *Client) acknowledgeCommand() {
 		return
 	}
 	c.CommandCount--
+}
+
+func (c *Client) newestBufferedCommand() (UserCmd, bool) {
+	if c == nil || c.CommandCount == 0 {
+		return UserCmd{}, false
+	}
+	idx := wrapBufferIndex(c.CommandSequence-1, len(c.CommandBuffer))
+	return c.CommandBuffer[idx], true
+}
+
+func (c *Client) clearCommandReplayBacklog() {
+	if c == nil || c.CommandCount == 0 {
+		return
+	}
+	c.CommandCount = 0
 }
 
 func wrapBufferIndex(idx, size int) int {
@@ -765,29 +821,73 @@ func (c *Client) SetLightStyle(i int, style string) error {
 }
 
 func (c *Client) LerpPoint() float64 {
+	telemetry := LerpTelemetry{
+		TimeBefore:   c.Time,
+		TimeAfter:    c.Time,
+		OldTime:      c.OldTime,
+		MTime0Before: c.MTime[0],
+		MTime1Before: c.MTime[1],
+		MTime0After:  c.MTime[0],
+		MTime1After:  c.MTime[1],
+		Reason:       LerpTelemetryReasonNormal,
+	}
 	f := c.MTime[0] - c.MTime[1]
+	telemetry.FrameDeltaBefore = f
+	telemetry.FrameDeltaAfter = f
 	// C: if (!f || cls.timedemo || (sv.active && !host_netinterval))
-	if f == 0 || c.TimeDemoActive || c.LocalServerFast || c.NoLerp {
+	switch {
+	case f == 0:
+		telemetry.Reason = LerpTelemetryReasonF0
+	case c.TimeDemoActive:
+		telemetry.Reason = LerpTelemetryReasonTimeDemo
+	case c.LocalServerFast:
+		telemetry.Reason = LerpTelemetryReasonFastServer
+	case c.NoLerp:
+		telemetry.Reason = LerpTelemetryReasonNoLerp
+	}
+	if telemetry.Reason != LerpTelemetryReasonNormal {
 		c.Time = c.MTime[0]
+		telemetry.TimeAfter = c.Time
+		telemetry.Frac = 1
+		c.LastLerpTelemetry = telemetry
 		return 1
 	}
 	if f > 0.1 {
 		c.MTime[1] = c.MTime[0] - 0.1
 		f = 0.1
+		telemetry.GapClamped = true
+		telemetry.Reason = LerpTelemetryReasonGapClamp
 	}
+	telemetry.MTime1After = c.MTime[1]
+	telemetry.FrameDeltaAfter = f
 	frac := (c.Time - c.MTime[1]) / f
+	telemetry.HasRawFrac = true
+	telemetry.RawFrac = frac
 	if frac < 0 {
 		if frac < -0.01 {
 			c.Time = c.MTime[1]
+			telemetry.TimeSnapped = true
 		}
+		telemetry.TimeAfter = c.Time
+		telemetry.Frac = 0
+		telemetry.Reason = LerpTelemetryReasonFracLT0
+		c.LastLerpTelemetry = telemetry
 		return 0
 	}
 	if frac > 1 {
 		if frac > 1.01 {
 			c.Time = c.MTime[0]
+			telemetry.TimeSnapped = true
 		}
+		telemetry.TimeAfter = c.Time
+		telemetry.Frac = 1
+		telemetry.Reason = LerpTelemetryReasonFracGT1
+		c.LastLerpTelemetry = telemetry
 		return 1
 	}
+	telemetry.TimeAfter = c.Time
+	telemetry.Frac = frac
+	c.LastLerpTelemetry = telemetry
 	return frac
 }
 
@@ -1023,6 +1123,7 @@ func (c *Client) SendCmd(sendFunc func([]byte) error) error {
 	// Update command state
 	if c.Signon >= Signons {
 		c.Cmd = c.PendingCmd
+		c.RecordSentCmd(*cmd)
 	}
 
 	return nil

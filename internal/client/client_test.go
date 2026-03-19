@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/common"
 	"github.com/ironwail/ironwail-go/internal/console"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -76,6 +78,22 @@ func TestParseServerSignOnSequence(t *testing.T) {
 	}
 	if c.State != StateActive {
 		t.Fatalf("state = %d, want active", c.State)
+	}
+}
+
+func TestParseServerMessageAcknowledgesCommandOnServerTime(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Signon = Signons
+	c.CommandCount = 2
+	p := NewParser(c)
+
+	if err := p.ParseServerMessage(firstServerUpdateMsg); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if c.CommandCount != 1 {
+		t.Fatalf("CommandCount = %d, want 1 after svc_time", c.CommandCount)
 	}
 }
 
@@ -216,11 +234,17 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if got := ent.Frame; got != 4 {
 		t.Fatalf("entity frame = %d, want 4", got)
 	}
-	if got := ent.Origin; got != [3]float32{10, 20, 30} {
-		t.Fatalf("entity origin = %v, want [10 20 30]", got)
+	if got := ent.MsgOrigins[0]; got != [3]float32{10, 20, 30} {
+		t.Fatalf("entity MsgOrigins[0] = %v, want [10 20 30]", got)
 	}
-	if got := ent.Angles[1]; got < 44.5 || got > 45.5 {
-		t.Fatalf("entity yaw = %f, want ~45", got)
+	if got := ent.Origin; got != [3]float32{1, 2, 3} {
+		t.Fatalf("entity origin = %v, want preserved live origin [1 2 3] until relink", got)
+	}
+	if got := ent.MsgAngles[0][1]; got < 44.5 || got > 45.5 {
+		t.Fatalf("entity raw yaw = %f, want ~45", got)
+	}
+	if got := ent.Angles[1]; got != 90 {
+		t.Fatalf("entity yaw = %f, want preserved live yaw 90 until relink", got)
 	}
 
 	if len(c.TempEntities) != 1 {
@@ -345,11 +369,13 @@ func TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory(t *testing.T
 	}
 }
 
-func TestParseEntityUpdatePreservesRawSnapshotForPartialDelta(t *testing.T) {
+func TestParseEntityUpdateUsesBaselineForOmittedPartialDeltaFields(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{2.0, 1.9}
 	c.EntityBaselines[1] = inet.EntityState{
 		ModelIndex: 1,
+		Origin:     [3]float32{1, 2, 3},
+		Angles:     [3]float32{11, 22, 33},
 		Alpha:      inet.ENTALPHA_DEFAULT,
 		Scale:      inet.ENTSCALE_DEFAULT,
 	}
@@ -383,30 +409,90 @@ func TestParseEntityUpdatePreservesRawSnapshotForPartialDelta(t *testing.T) {
 	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
 		t.Fatalf("MsgOrigins[1] = %v, want prior raw snapshot [10 20 30]", got)
 	}
-	if got := ent.MsgOrigins[0]; got != [3]float32{10, 20, 30} {
-		t.Fatalf("MsgOrigins[0] = %v, want unchanged raw origin [10 20 30]", got)
+	if got := ent.MsgOrigins[0]; got != [3]float32{1, 2, 3} {
+		t.Fatalf("MsgOrigins[0] = %v, want baseline origin [1 2 3] for omitted fields", got)
 	}
 	if got := ent.MsgAngles[1]; got != [3]float32{5, 6, 7} {
 		t.Fatalf("MsgAngles[1] = %v, want prior raw snapshot [5 6 7]", got)
 	}
-	if got := ent.MsgAngles[0][0]; got != 5 {
-		t.Fatalf("MsgAngles[0][0] = %v, want preserved raw pitch 5", got)
+	if got := ent.MsgAngles[0][0]; got != 11 {
+		t.Fatalf("MsgAngles[0][0] = %v, want baseline pitch 11", got)
 	}
 	if got := ent.MsgAngles[0][1]; got < 44.5 || got > 45.5 {
 		t.Fatalf("MsgAngles[0][1] = %v, want updated yaw ~45", got)
 	}
-	if got := ent.MsgAngles[0][2]; got != 7 {
-		t.Fatalf("MsgAngles[0][2] = %v, want preserved raw roll 7", got)
+	if got := ent.MsgAngles[0][2]; got != 33 {
+		t.Fatalf("MsgAngles[0][2] = %v, want baseline roll 33", got)
 	}
-	if got := ent.Origin; got != ent.MsgOrigins[0] {
-		t.Fatalf("render Origin = %v, want raw snapshot %v", got, ent.MsgOrigins[0])
+	if got := ent.Origin; got != [3]float32{999, 999, 999} {
+		t.Fatalf("render Origin = %v, want preserved live origin [999 999 999] until relink", got)
 	}
-	if got := ent.Angles; got != ent.MsgAngles[0] {
-		t.Fatalf("render Angles = %v, want raw snapshot %v", got, ent.MsgAngles[0])
+	if got := ent.Angles; got != [3]float32{90, 0, 0} {
+		t.Fatalf("render Angles = %v, want preserved live angles [90 0 0] until relink", got)
 	}
 }
 
-func TestParseEntityUpdatePreservesSpawnBaselineValuesOnFirstPartialDelta(t *testing.T) {
+func TestParseEntityUpdateKeepsLiveOriginUntilRelink(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		Origin:     [3]float32{999, 888, 777},
+		Angles:     [3]float32{10, 20, 30},
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{4, 5, 6},
+			{7, 8, 9},
+		},
+		MsgTime: 1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_MOREBITS | inet.U_ORIGIN1 | inet.U_ORIGIN2 | inet.U_ORIGIN3 | inet.U_ANGLE2))
+	msg.WriteByte(byte(inet.U_ANGLE1 >> 8))
+	msg.WriteByte(1)
+	writeCoord(msg, 40)
+	writeAngle(msg, 15)
+	writeCoord(msg, 50)
+	writeAngle(msg, 25)
+	writeCoord(msg, 60)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if ent.ForceLink {
+		t.Fatal("ForceLink = true, want false for normal delta with fresh previous frame")
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [40 50 60]", got)
+	}
+	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
+		t.Fatalf("MsgOrigins[1] = %v, want prior raw origin [10 20 30]", got)
+	}
+	if got := ent.MsgAngles[0]; got[0] < 13.5 || got[0] > 14.5 || got[1] < 23.5 || got[1] > 24.5 || got[2] != 0 {
+		t.Fatalf("MsgAngles[0] = %v, want updated raw angles [~14 ~24 0]", got)
+	}
+	if got := ent.Origin; got != [3]float32{999, 888, 777} {
+		t.Fatalf("Origin = %v, want preserved live origin [999 888 777] until relink", got)
+	}
+	if got := ent.Angles; got != [3]float32{10, 20, 30} {
+		t.Fatalf("Angles = %v, want preserved live angles [10 20 30] until relink", got)
+	}
+}
+
+func TestParseEntityUpdateForceLinksFirstPartialDeltaWithoutPreviousFrame(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{2.0, 1.9}
 	p := NewParser(c)
@@ -444,24 +530,248 @@ func TestParseEntityUpdatePreservesSpawnBaselineValuesOnFirstPartialDelta(t *tes
 	}
 
 	ent := c.Entities[1]
-	if got := ent.MsgOrigins[1]; got != wantBaselineOrigin {
-		t.Fatalf("MsgOrigins[1] = %v, want baseline origin %v", got, wantBaselineOrigin)
-	}
 	if got := ent.MsgOrigins[0]; got != [3]float32{11, wantBaselineOrigin[1], wantBaselineOrigin[2]} {
 		t.Fatalf("MsgOrigins[0] = %v, want partial delta over baseline [%v %v %v]", got, float32(11), wantBaselineOrigin[1], wantBaselineOrigin[2])
 	}
-	if got := ent.MsgAngles[1]; got != wantBaselineAngles {
-		t.Fatalf("MsgAngles[1] = %v, want baseline angles %v", got, wantBaselineAngles)
+	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
+		t.Fatalf("MsgOrigins[1] = %v, want snapped previous origin %v", got, ent.MsgOrigins[0])
 	}
 	wantAngles := [3]float32{wantBaselineAngles[0], 45, wantBaselineAngles[2]}
 	if got := ent.MsgAngles[0]; got != wantAngles {
 		t.Fatalf("MsgAngles[0] = %v, want partial delta over baseline %v", got, wantAngles)
+	}
+	if got := ent.MsgAngles[1]; got != ent.MsgAngles[0] {
+		t.Fatalf("MsgAngles[1] = %v, want snapped previous angles %v", got, ent.MsgAngles[0])
+	}
+	if !ent.ForceLink {
+		t.Fatal("ForceLink = false, want true on first partial delta without previous frame")
 	}
 	if got := ent.Origin; got != ent.MsgOrigins[0] {
 		t.Fatalf("render Origin = %v, want raw snapshot %v", got, ent.MsgOrigins[0])
 	}
 	if got := ent.Angles; got != ent.MsgAngles[0] {
 		t.Fatalf("render Angles = %v, want raw snapshot %v", got, ent.MsgAngles[0])
+	}
+}
+
+func TestParseEntityUpdateForceLinksWhenPreviousFrameMissing(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		Origin:     [3]float32{111, 222, 333},
+		Angles:     [3]float32{1, 2, 3},
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{5, 6, 7},
+			{8, 9, 10},
+		},
+		MsgTime: 1.7,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_ORIGIN1 | inet.U_ORIGIN2 | inet.U_ORIGIN3))
+	msg.WriteByte(1)
+	writeCoord(msg, 40)
+	writeCoord(msg, 50)
+	writeCoord(msg, 60)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if !ent.ForceLink {
+		t.Fatal("ForceLink = false, want true when previous message time is stale")
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [40 50 60]", got)
+	}
+	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
+		t.Fatalf("MsgOrigins[1] = %v, want snapped previous origin %v", got, ent.MsgOrigins[0])
+	}
+	if got := ent.Origin; got != ent.MsgOrigins[0] {
+		t.Fatalf("Origin = %v, want snapped origin %v", got, ent.MsgOrigins[0])
+	}
+}
+
+func TestParseEntityUpdateUsesBaselineForOmittedFitzFields(t *testing.T) {
+	c := NewClient()
+	c.Protocol = inet.PROTOCOL_FITZQUAKE
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 513,
+		Frame:      514,
+		Colormap:   3,
+		Skin:       4,
+		Effects:    5,
+		Origin:     [3]float32{1, 2, 3},
+		Angles:     [3]float32{10, 20, 30},
+		Alpha:      200,
+		Scale:      190,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1024,
+		Frame:      1025,
+		Colormap:   8,
+		Skin:       9,
+		Effects:    10,
+		Origin:     [3]float32{40, 50, 60},
+		Angles:     [3]float32{70, 80, 90},
+		MsgOrigins: [2][3]float32{
+			{40, 50, 60},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{70, 80, 90},
+			{10, 20, 30},
+		},
+		MsgTime: 1.9,
+		Alpha:   111,
+		Scale:   112,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_ORIGIN1))
+	msg.WriteByte(1)
+	writeCoord(msg, 9)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if got := ent.ModelIndex; got != 513 {
+		t.Fatalf("ModelIndex = %d, want baseline 513", got)
+	}
+	if got := ent.Frame; got != 514 {
+		t.Fatalf("Frame = %d, want baseline 514", got)
+	}
+	if got := ent.Colormap; got != 3 {
+		t.Fatalf("Colormap = %d, want baseline 3", got)
+	}
+	if got := ent.Skin; got != 4 {
+		t.Fatalf("Skin = %d, want baseline 4", got)
+	}
+	if got := ent.Effects; got != 5 {
+		t.Fatalf("Effects = %d, want baseline 5", got)
+	}
+	if got := ent.Alpha; got != 200 {
+		t.Fatalf("Alpha = %d, want baseline 200", got)
+	}
+	if got := ent.Scale; got != 190 {
+		t.Fatalf("Scale = %d, want baseline 190", got)
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{9, 2, 3} {
+		t.Fatalf("MsgOrigins[0] = %v, want baseline-relative [9 2 3]", got)
+	}
+	if got := ent.MsgAngles[0]; got != [3]float32{10, 20, 30} {
+		t.Fatalf("MsgAngles[0] = %v, want baseline angles [10 20 30]", got)
+	}
+}
+
+func TestParseEntityUpdateNetQuakeResetsAlphaAndScaleToBaselineWhenTransAbsent(t *testing.T) {
+	c := NewClient()
+	c.Protocol = inet.PROTOCOL_NETQUAKE
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      200,
+		Scale:      190,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      111,
+		Scale:      112,
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{5, 6, 7},
+			{8, 9, 10},
+		},
+		MsgTime: 1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_ORIGIN1))
+	msg.WriteByte(1)
+	writeCoord(msg, 9)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if got := ent.Alpha; got != 200 {
+		t.Fatalf("Alpha = %d, want baseline 200", got)
+	}
+	if got := ent.Scale; got != 190 {
+		t.Fatalf("Scale = %d, want baseline 190", got)
+	}
+}
+
+func TestParseEntityUpdateStepMoveForceLinks(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		Origin:     [3]float32{10, 20, 30},
+		Angles:     [3]float32{0, 0, 0},
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{0, 45, 0},
+			{0, 30, 0},
+		},
+		MsgTime: 1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_ORIGIN1 | inet.U_STEP))
+	msg.WriteByte(1)
+	writeCoord(msg, 24)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if !ent.ForceLink {
+		t.Fatal("ForceLink = false, want true for U_STEP updates")
+	}
+	if ent.LerpFlags&inet.LerpMoveStep == 0 {
+		t.Fatal("LerpFlags missing LerpMoveStep for U_STEP update")
+	}
+	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
+		t.Fatalf("MsgOrigins[1] = %v, want snapped previous origin %v", got, ent.MsgOrigins[0])
+	}
+	if got := ent.Origin; got != ent.MsgOrigins[0] {
+		t.Fatalf("Origin = %v, want snapped origin %v", got, ent.MsgOrigins[0])
 	}
 }
 
@@ -563,11 +873,17 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if got.Frame != 4 {
 		t.Fatalf("entity frame = %d, want 4", got.Frame)
 	}
+	if got.MsgOrigins[0] != [3]float32{10, 20, 30} {
+		t.Fatalf("entity MsgOrigins[0] = %v, want [10 20 30]", got.MsgOrigins[0])
+	}
 	if got.Origin != [3]float32{10, 20, 30} {
-		t.Fatalf("entity origin = %v, want [10 20 30]", got.Origin)
+		t.Fatalf("entity origin = %v, want initial forced-link origin [10 20 30]", got.Origin)
+	}
+	if got.MsgAngles[0][1] < 44.5 || got.MsgAngles[0][1] > 45.5 {
+		t.Fatalf("entity raw yaw = %f, want ~45", got.MsgAngles[0][1])
 	}
 	if got.Angles[1] < 44.5 || got.Angles[1] > 45.5 {
-		t.Fatalf("entity yaw = %f, want ~45", got.Angles[1])
+		t.Fatalf("entity yaw = %f, want initial forced-link yaw ~45", got.Angles[1])
 	}
 
 	s.Time = 1.6
@@ -584,8 +900,11 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if got.Frame != 4 {
 		t.Fatalf("entity frame after delta = %d, want 4", got.Frame)
 	}
-	if got.Origin != [3]float32{42, 20, 30} {
-		t.Fatalf("entity origin after delta = %v, want [42 20 30]", got.Origin)
+	if got.MsgOrigins[0] != [3]float32{42, 20, 30} {
+		t.Fatalf("entity MsgOrigins[0] after delta = %v, want [42 20 30]", got.MsgOrigins[0])
+	}
+	if got.Origin != [3]float32{10, 20, 30} {
+		t.Fatalf("entity origin after delta = %v, want preserved live origin [10 20 30] until relink", got.Origin)
 	}
 
 	s.FreeEdict(ent)
@@ -1079,12 +1398,13 @@ func TestLerpPointClampsAndInterpolates(t *testing.T) {
 
 func TestLerpPointBypassConditions(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		set  func(c *Client)
+		name       string
+		set        func(c *Client)
+		wantReason LerpTelemetryReason
 	}{
-		{"TimeDemoActive", func(c *Client) { c.TimeDemoActive = true }},
-		{"LocalServerFast", func(c *Client) { c.LocalServerFast = true }},
-		{"NoLerp", func(c *Client) { c.NoLerp = true }},
+		{"TimeDemoActive", func(c *Client) { c.TimeDemoActive = true }, LerpTelemetryReasonTimeDemo},
+		{"LocalServerFast", func(c *Client) { c.LocalServerFast = true }, LerpTelemetryReasonFastServer},
+		{"NoLerp", func(c *Client) { c.NoLerp = true }, LerpTelemetryReasonNoLerp},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := NewClient()
@@ -1099,7 +1419,84 @@ func TestLerpPointBypassConditions(t *testing.T) {
 			if c.Time != c.MTime[0] {
 				t.Fatalf("Time = %f, want MTime[0] = %f", c.Time, c.MTime[0])
 			}
+			if telemetry := c.LerpTelemetrySnapshot(); telemetry.Reason != tc.wantReason {
+				t.Fatalf("LerpTelemetrySnapshot().Reason = %s, want %s", telemetry.Reason, tc.wantReason)
+			}
 		})
+	}
+}
+
+func TestLerpPointTelemetryCapturesNormalAndGapClamp(t *testing.T) {
+	c := NewClient()
+	c.MTime[1] = 1.0
+	c.MTime[0] = 1.08
+	c.Time = 1.04
+	c.OldTime = 1.0
+
+	if got := c.LerpPoint(); got < 0.49 || got > 0.51 {
+		t.Fatalf("LerpPoint() = %f, want ~0.5", got)
+	}
+	telemetry := c.LerpTelemetrySnapshot()
+	if telemetry.Reason != LerpTelemetryReasonNormal {
+		t.Fatalf("normal telemetry reason = %s, want %s", telemetry.Reason, LerpTelemetryReasonNormal)
+	}
+	if !telemetry.HasRawFrac || telemetry.RawFrac < 0.49 || telemetry.RawFrac > 0.51 {
+		t.Fatalf("normal telemetry raw frac = %f (valid=%t), want ~0.5", telemetry.RawFrac, telemetry.HasRawFrac)
+	}
+	if telemetry.FrameDeltaBefore >= 0.1 || telemetry.FrameDeltaAfter >= 0.1 {
+		t.Fatalf("normal frame delta = %f->%f, want unclamped delta below 0.1", telemetry.FrameDeltaBefore, telemetry.FrameDeltaAfter)
+	}
+
+	c.MTime[1] = 1.0
+	c.MTime[0] = 1.5
+	c.Time = 1.45
+	c.OldTime = 1.4
+
+	if got := c.LerpPoint(); got < 0.49 || got > 0.51 {
+		t.Fatalf("gap-clamped LerpPoint() = %f, want ~0.5", got)
+	}
+	telemetry = c.LerpTelemetrySnapshot()
+	if telemetry.Reason != LerpTelemetryReasonGapClamp {
+		t.Fatalf("gap clamp telemetry reason = %s, want %s", telemetry.Reason, LerpTelemetryReasonGapClamp)
+	}
+	if !telemetry.GapClamped {
+		t.Fatal("gap clamp telemetry did not record GapClamped")
+	}
+	if telemetry.MTime1After != 1.4 {
+		t.Fatalf("gap clamp MTime1After = %f, want 1.4", telemetry.MTime1After)
+	}
+}
+
+func TestLerpPointTelemetryCapturesFractionClampReasons(t *testing.T) {
+	c := NewClient()
+	c.MTime[1] = 1.0
+	c.MTime[0] = 1.1
+	c.Time = 0.98
+
+	if got := c.LerpPoint(); got != 0 {
+		t.Fatalf("LerpPoint() low clamp = %f, want 0", got)
+	}
+	telemetry := c.LerpTelemetrySnapshot()
+	if telemetry.Reason != LerpTelemetryReasonFracLT0 {
+		t.Fatalf("low clamp telemetry reason = %s, want %s", telemetry.Reason, LerpTelemetryReasonFracLT0)
+	}
+	if !telemetry.TimeSnapped || telemetry.TimeAfter != c.MTime[1] {
+		t.Fatalf("low clamp telemetry snap = %t time_after=%f, want snapped to %f", telemetry.TimeSnapped, telemetry.TimeAfter, c.MTime[1])
+	}
+
+	c.MTime[1] = 1.0
+	c.MTime[0] = 1.1
+	c.Time = 1.12
+
+	if got := c.LerpPoint(); got != 1 {
+		t.Fatalf("LerpPoint() high clamp = %f, want 1", got)
+	}
+	telemetry = c.LerpTelemetrySnapshot()
+	if telemetry.Reason != LerpTelemetryReasonFracGT1 {
+		t.Fatalf("high clamp telemetry reason = %s, want %s", telemetry.Reason, LerpTelemetryReasonFracGT1)
+	}
+	if !telemetry.TimeSnapped || telemetry.TimeAfter != c.MTime[0] {
+		t.Fatalf("high clamp telemetry snap = %t time_after=%f, want snapped to %f", telemetry.TimeSnapped, telemetry.TimeAfter, c.MTime[0])
 	}
 }
 
@@ -1413,6 +1810,97 @@ func TestParseSetAngleSnapsViewAngleHistory(t *testing.T) {
 	}
 }
 
+func TestParseSetAngleUsesProtocolShortAngles(t *testing.T) {
+	c := NewClient()
+	c.ProtocolFlags = inet.PRFL_SHORTANGLE
+	p := NewParser(c)
+
+	msg := common.NewSizeBuf(32)
+	msg.WriteByte(byte(inet.SVCSetAngle))
+	msg.WriteAngle16(90)
+	msg.WriteAngle16(180)
+	msg.WriteAngle16(270)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Data); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	want := [3]float32{90, 180, 270}
+	if c.ViewAngles != want {
+		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
+	}
+	if c.MViewAngles[0] != want || c.MViewAngles[1] != want {
+		t.Fatalf("MViewAngles = %v / %v, want both %v", c.MViewAngles[0], c.MViewAngles[1], want)
+	}
+}
+
+func TestParseSetAngleUsesProtocolFloatAngles(t *testing.T) {
+	c := NewClient()
+	c.ProtocolFlags = inet.PRFL_FLOATANGLE
+	p := NewParser(c)
+
+	msg := common.NewSizeBuf(32)
+	msg.WriteByte(byte(inet.SVCSetAngle))
+	msg.WriteFloat(12.5)
+	msg.WriteFloat(181.25)
+	msg.WriteFloat(-45.75)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Data); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	want := [3]float32{12.5, 181.25, -45.75}
+	if c.ViewAngles != want {
+		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
+	}
+	if c.MViewAngles[0] != want || c.MViewAngles[1] != want {
+		t.Fatalf("MViewAngles = %v / %v, want both %v", c.MViewAngles[0], c.MViewAngles[1], want)
+	}
+}
+
+func TestParseEntityUpdateUsesRMQFloatCoordsAndAngles(t *testing.T) {
+	c := NewClient()
+	c.Protocol = inet.PROTOCOL_RMQ
+	c.ProtocolFlags = inet.PRFL_FLOATCOORD | inet.PRFL_FLOATANGLE
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	p := NewParser(c)
+
+	msg := common.NewSizeBuf(32)
+	msg.WriteByte(byte(0x80 | inet.U_MOREBITS | inet.U_ORIGIN1))
+	msg.WriteByte(byte(inet.U_ANGLE1 >> 8))
+	msg.WriteByte(1)
+	msg.WriteFloat(10.25)
+	msg.WriteFloat(12.5)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Data[:msg.CurSize]); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	wantOrigin := [3]float32{10.25, 0, 0}
+	wantAngles := [3]float32{12.5, 0, 0}
+	if ent.MsgOrigins[0] != wantOrigin {
+		t.Fatalf("MsgOrigins[0] = %v, want %v", ent.MsgOrigins[0], wantOrigin)
+	}
+	if ent.MsgAngles[0] != wantAngles {
+		t.Fatalf("MsgAngles[0] = %v, want %v", ent.MsgAngles[0], wantAngles)
+	}
+	if ent.Origin != wantOrigin {
+		t.Fatalf("Origin = %v, want %v", ent.Origin, wantOrigin)
+	}
+	if ent.Angles != wantAngles {
+		t.Fatalf("Angles = %v, want %v", ent.Angles, wantAngles)
+	}
+}
+
 func TestParseClientDataNormalizesIndexedActiveWeapon(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -1462,6 +1950,56 @@ func TestSVCPrintWritesToConsole(t *testing.T) {
 	}
 	if len(printed) != 1 || printed[0] != "hello from server" {
 		t.Fatalf("printed = %v, want [hello from server]", printed)
+	}
+}
+
+func TestParseClientDataLogsSuspiciousPacketTrace(t *testing.T) {
+	var printed []string
+	console.SetPrintCallback(func(msg string) {
+		printed = append(printed, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
+
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCStuffText))
+	msg.WriteString("echo test")
+	msg.WriteByte(0)
+	msg.WriteByte(byte(inet.SVCClientData))
+	writeShort(msg, int(inet.SU_PUNCH1|inet.SU_PUNCH3|inet.SU_VELOCITY2))
+	msg.WriteByte(byte(int8(105)))
+	msg.WriteByte(byte(int8(32)))
+	msg.WriteByte(byte(int8(115)))
+	writeLong(msg, 0)
+	writeShort(msg, 100)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	joined := strings.Join(printed, "\n")
+	if !strings.Contains(joined, "client packet anomaly:") {
+		t.Fatalf("console output missing anomaly log: %q", joined)
+	}
+	if !strings.Contains(joined, "current=svc_clientdata") {
+		t.Fatalf("console output missing clientdata offsets: %q", joined)
+	}
+	if !strings.Contains(joined, "recent=svc_stufftext") {
+		t.Fatalf("console output missing prior svc trace: %q", joined)
+	}
+	if !strings.Contains(joined, "0f 54 00") {
+		t.Fatalf("console output missing raw clientdata bytes: %q", joined)
 	}
 }
 
@@ -1718,6 +2256,9 @@ func TestSendCmdAfterSignOn(t *testing.T) {
 	if len(sentData) == 0 {
 		t.Fatal("SendCmd() did not send data after signon")
 	}
+	if c.CommandCount != 1 {
+		t.Fatalf("CommandCount = %d, want 1 after sending one command", c.CommandCount)
+	}
 
 	// Verify real command was sent
 	buf := bytes.NewBuffer(sentData)
@@ -1948,5 +2489,8 @@ func TestAccumulateCmdSetsPerCommandMsec(t *testing.T) {
 	c.AccumulateCmd(1.0)
 	if c.PendingCmd.Msec != 255 {
 		t.Fatalf("PendingCmd.Msec clamp = %d, want 255", c.PendingCmd.Msec)
+	}
+	if c.CommandCount != 0 {
+		t.Fatalf("CommandCount = %d, want 0 until a command is actually sent", c.CommandCount)
 	}
 }

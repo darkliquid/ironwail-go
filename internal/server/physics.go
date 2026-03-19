@@ -219,7 +219,7 @@ func (s *Server) FlyMove(ent *Edict, time float32, steptrace *TraceResult) int {
 
 		if trace.PlaneNormal[2] > 0.7 {
 			blocked |= 1
-			if trace.Entity != nil && trace.Entity.Vars.Solid != float32(SolidNot) && trace.Entity.Vars.Solid != float32(SolidTrigger) {
+			if trace.Entity != nil && int(trace.Entity.Vars.Solid) == int(SolidBSP) {
 				ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
 				ent.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
 			}
@@ -652,7 +652,7 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 	downtrace := s.PushEntity(ent, downmove)
 
 	if downtrace.PlaneNormal[2] > 0.7 {
-		if int(ent.Vars.Solid) == int(SolidBSP) || int(ent.Vars.Solid) == int(SolidBBox) || int(ent.Vars.Solid) == int(SolidSlideBox) {
+		if downtrace.Entity != nil && int(downtrace.Entity.Vars.Solid) == int(SolidBSP) {
 			ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
 			ent.Vars.GroundEntity = int32(s.NumForEdict(downtrace.Entity))
 		}

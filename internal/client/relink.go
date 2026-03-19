@@ -11,6 +11,21 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
+const hardResetMsgOriginDelta = 100.0
+
+func entityNeedsHardReset(state inet.EntityState) bool {
+	if state.ForceLink {
+		return true
+	}
+	for j := 0; j < 3; j++ {
+		delta := state.MsgOrigins[0][j] - state.MsgOrigins[1][j]
+		if delta > hardResetMsgOriginDelta || delta < -hardResetMsgOriginDelta {
+			return true
+		}
+	}
+	return false
+}
+
 // RelinkEntities interpolates all entity positions and angles between their
 // double-buffered network origins, matching C's CL_RelinkEntities behavior.
 //
@@ -43,12 +58,14 @@ func (c *Client) RelinkEntities() {
 
 	for entNum, state := range c.Entities {
 		// If this entity was not updated in the latest server message, skip it.
-		// Mirrors C: if (ent->msgtime != cl.mtime[0]) { ent->model = NULL; continue; }
+		// Mirrors C: if (ent->msgtime != cl.mtime[0]) { ent->model = NULL; ent->lerpflags |= LERP_RESETMOVE|LERP_RESETANIM; continue; }
 		// C keeps the entity slot alive in a fixed array; we keep it in the map
-		// with ModelIndex intact so the next entity update's delta decoding starts
-		// from a valid state. The renderer already skips ModelIndex==0 entities,
-		// and stale entities won't be collected because they aren't re-linked.
+		// with a zero model so the next entity update still has a stable slot while
+		// render/view consumers stop treating stale state as current.
 		if state.MsgTime != c.MTime[0] {
+			state.ModelIndex = 0
+			state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
+			c.Entities[entNum] = state
 			continue
 		}
 
@@ -61,13 +78,9 @@ func (c *Client) RelinkEntities() {
 			f := frac
 
 			// If the position delta is large, assume a teleport and don't lerp.
-			for j := 0; j < 3; j++ {
-				delta := state.MsgOrigins[0][j] - state.MsgOrigins[1][j]
-				if delta > 100 || delta < -100 {
-					f = 1
-					teleported = true
-					break
-				}
+			if entityNeedsHardReset(state) {
+				f = 1
+				teleported = true
 			}
 
 			// Step-move entities (monsters) do not lerp position.

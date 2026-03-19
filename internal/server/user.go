@@ -71,7 +71,7 @@ func (s *Server) SetIdealPitch(ent *Edict) {
 		}
 		bottom := [3]float32{top[0], top[1], top[2] - 160}
 
-		tr := s.Move(top, [3]float32{}, [3]float32{}, bottom, MoveTypeNone, ent)
+		tr := s.Move(top, [3]float32{}, [3]float32{}, bottom, MoveType(MoveNoMonsters), ent)
 		if tr.AllSolid || tr.Fraction == 1 {
 			return
 		}
@@ -121,7 +121,7 @@ func (s *Server) userFriction(ctx *clientMoveContext) {
 	}
 	stop := [3]float32{start[0], start[1], start[2] - 34}
 
-	trace := s.Move(start, [3]float32{}, [3]float32{}, stop, MoveTypeNone, ctx.player)
+	trace := s.Move(start, [3]float32{}, [3]float32{}, stop, MoveType(MoveNoMonsters), ctx.player)
 
 	friction := s.Friction
 	if trace.Fraction == 1.0 {

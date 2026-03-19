@@ -223,3 +223,30 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 		t.Errorf("entity 1 TrailOrigin = %v, want %v", ent1.TrailOrigin, ent1.Origin)
 	}
 }
+
+func TestRelinkEntities_StaleEntityClearsModelAndResetsLerp(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{1.0, 0.9}
+	c.Time = 1.0
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 2,
+			MsgTime:    0.9,
+			LerpFlags:  0,
+			Origin:     [3]float32{10, 20, 30},
+		},
+	}
+
+	c.RelinkEntities()
+
+	ent := c.Entities[1]
+	if ent.ModelIndex != 0 {
+		t.Fatalf("ModelIndex = %v, want 0 for stale entity", ent.ModelIndex)
+	}
+	if ent.LerpFlags&inet.LerpResetMove == 0 {
+		t.Fatal("expected stale entity to set LerpResetMove")
+	}
+	if ent.LerpFlags&inet.LerpResetAnim == 0 {
+		t.Fatal("expected stale entity to set LerpResetAnim")
+	}
+}

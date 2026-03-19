@@ -21,15 +21,17 @@ description = "Remove smoke test log files"
 run = "rm -f smoke-*.log"
 
 [tasks.smoke-menu]
-description = "Smoke test: verify menu loads correctly"
-depends = ["clean-logs"]
+description = "Smoke test: verify CGO/OpenGL menu startup works"
+depends = ["clean-logs", "build-cgo"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
 export WAYLAND_DISPLAY=
-CGO_ENABLED=0 timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir "${QUAKE_DIR}" 2>&1 | tee smoke-menu.log || true
+timeout ${TIMEOUT} ./ironwailgo-cgo -basedir "${QUAKE_DIR}" 2>&1 | tee smoke-menu.log || true
+grep "OpenGL renderer created" smoke-menu.log
+grep "Starting OpenGL render loop" smoke-menu.log
 grep "FS mounted" smoke-menu.log
 grep "QC loaded" smoke-menu.log
 grep "menu active" smoke-menu.log
@@ -37,15 +39,15 @@ grep "frame loop started" smoke-menu.log
 """
 
 [tasks.smoke-headless]
-description = "Smoke test: verify headless mode works"
-depends = ["clean-logs"]
+description = "Smoke test: verify headless mode works from the CGO build"
+depends = ["clean-logs", "build-cgo"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
 export WAYLAND_DISPLAY=
-CGO_ENABLED=0 timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir "${QUAKE_DIR}" -headless 2>&1 | tee smoke-headless.log || true
+timeout ${TIMEOUT} ./ironwailgo-cgo -basedir "${QUAKE_DIR}" -headless 2>&1 | tee smoke-headless.log || true
 grep "FS mounted" smoke-headless.log
 grep "QC loaded" smoke-headless.log
 grep "menu active" smoke-headless.log
@@ -53,15 +55,17 @@ grep "frame loop started" smoke-headless.log
 """
 
 [tasks.smoke-map-start]
-description = "Smoke test: verify map spawning works"
-depends = ["clean-logs"]
+description = "Smoke test: verify CGO/OpenGL map spawning works"
+depends = ["clean-logs", "build-cgo"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
 export WAYLAND_DISPLAY=
-CGO_ENABLED=0 timeout ${TIMEOUT} go run -tags=gogpu ./cmd/ironwailgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-map-start.log || true
+timeout ${TIMEOUT} ./ironwailgo-cgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-map-start.log || true
+grep "OpenGL renderer created" smoke-map-start.log
+grep "Starting OpenGL render loop" smoke-map-start.log
 grep "FS mounted" smoke-map-start.log
 grep "QC loaded" smoke-map-start.log
 grep "menu active" smoke-map-start.log

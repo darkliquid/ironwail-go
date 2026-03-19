@@ -96,6 +96,50 @@ func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
 	}
 }
 
+func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
+	s := NewServer()
+	s.FrameTime = 0.1
+	s.WorldModel = CreateSyntheticWorldModel()
+	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
+		t.Fatal("missing world edict")
+	}
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+
+	platform := s.AllocEdict()
+	if platform == nil {
+		t.Fatal("failed to alloc platform")
+	}
+	platform.Vars.Origin = [3]float32{0, 0, 72}
+	platform.Vars.Mins = [3]float32{-64, -64, -8}
+	platform.Vars.Maxs = [3]float32{64, 64, 8}
+	platform.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(platform, false)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to alloc mover")
+	}
+	ent.Vars.Origin = [3]float32{0, 0, 112}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent.Vars.Velocity = [3]float32{0, 0, -200}
+	s.LinkEdict(ent, false)
+
+	blocked := s.FlyMove(ent, s.FrameTime, nil)
+	if blocked&1 == 0 {
+		t.Fatalf("FlyMove blocked=%d, want floor contact bit set", blocked)
+	}
+	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
+		t.Fatalf("Flags unexpectedly include onground after SolidBBox contact: flags=%#x", uint32(ent.Vars.Flags))
+	}
+	if ent.Vars.GroundEntity != 0 {
+		t.Fatalf("ground entity = %d, want 0 for non-BSP contact", ent.Vars.GroundEntity)
+	}
+}
+
 func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 	s := newPhysicsTestServer()
 	ent := &Edict{Vars: &EntVars{}}

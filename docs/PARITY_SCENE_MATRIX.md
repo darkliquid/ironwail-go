@@ -201,10 +201,10 @@ prerequisite for any scene matrix run.
 
 | Smoke Test | What It Validates |
 |---|---|
-| `mise run smoke-menu` | Basic startup: filesystem mount (`"FS mounted"`), QuakeC load (`"QC loaded"`), menu activation (`"menu active"`), frame loop (`"frame loop started"`) |
-| `mise run smoke-headless` | Headless mode operation (no window, no renderer) |
-| `mise run smoke-map-start` | Map spawn lifecycle: `"map spawn started"` → `"map spawn finished"` |
-| `mise run smoke-cgo-map-start` | Full CGO/OpenGL pipeline: renderer init through map spawn with actual GPU output |
+| `mise run smoke-menu` | Basic CGO/OpenGL startup: renderer init plus filesystem mount (`"FS mounted"`), QuakeC load (`"QC loaded"`), menu activation (`"menu active"`), frame loop (`"frame loop started"`) |
+| `mise run smoke-headless` | Headless mode operation from the CGO parity build (no window, no renderer) |
+| `mise run smoke-map-start` | CGO/OpenGL map spawn lifecycle: renderer init plus `"map spawn started"` → `"map spawn finished"` |
+| `mise run smoke-cgo-map-start` | Full CGO/OpenGL pipeline with explicit headless-fallback guards through map spawn |
 | `mise run smoke-all` | Runs all of the above in sequence |
 
 ### Deterministic Markers

@@ -28,6 +28,16 @@ type FrameCallbacks interface {
 	UpdateAudio(origin, forward, right, up [3]float32)
 }
 
+type processClientPhaseAware interface {
+	SetProcessClientPhase(phase string)
+}
+
+func setProcessClientPhase(cb FrameCallbacks, phase string) {
+	if aware, ok := cb.(processClientPhaseAware); ok {
+		aware.SetProcessClientPhase(phase)
+	}
+}
+
 func (h *Host) GetFrameInterval() float64 {
 	if h.maxFPS > 0 || h.clientState == caDisconnected {
 		maxfps := h.maxFPS
@@ -90,7 +100,9 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 				h.accumTime -= h.netInterval
 			}
 
+			setProcessClientPhase(cb, "send")
 			cb.ProcessClient() // This should be CL_SendCmd
+			setProcessClientPhase(cb, "")
 
 			if h.serverActive {
 				cb.ProcessServer()
@@ -100,7 +112,9 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		}
 
 		if h.clientState == caConnected || h.clientState == caActive {
+			setProcessClientPhase(cb, "read")
 			cb.ProcessClient() // This should be CL_ReadFromServer
+			setProcessClientPhase(cb, "")
 		}
 
 		cb.UpdateScreen()

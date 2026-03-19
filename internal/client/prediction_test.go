@@ -29,6 +29,25 @@ func TestPredictPlayersInitialization(t *testing.T) {
 	}
 }
 
+func TestPredictPlayersPrefersEntityOneWhenViewEntityUnset(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.ViewEntity = 0
+	c.OnGround = true
+	c.Entities[1] = inet.EntityState{
+		Origin: [3]float32{10, 20, 30},
+	}
+
+	c.PredictPlayers(0.016)
+
+	if c.LastServerOrigin != c.Entities[1].Origin {
+		t.Fatalf("LastServerOrigin = %v, want entity 1 origin %v", c.LastServerOrigin, c.Entities[1].Origin)
+	}
+	if c.PredictedOrigin != c.Entities[1].Origin {
+		t.Fatalf("PredictedOrigin = %v, want entity 1 origin %v", c.PredictedOrigin, c.Entities[1].Origin)
+	}
+}
+
 func TestPredictPlayersForwardMovement(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -140,16 +159,11 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 
 func TestPredictPlayersAirborneNoGroundFriction(t *testing.T) {
 	c := NewClient()
-	c.State = StateActive
 	c.OnGround = false
 	c.PredictionGravity = 0
-	c.ViewEntity = 0
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{1, 0, 0}}
-	c.PredictPlayers(0.016)
 	c.PredictedVelocity = [3]float32{100, 0, 0}
 
-	c.PendingCmd = UserCmd{ViewAngles: [3]float32{0, 0, 0}}
-	c.PredictPlayers(0.016)
+	c.predictMovement(&UserCmd{ViewAngles: [3]float32{0, 0, 0}}, 0.016)
 
 	if absFloat32(c.PredictedVelocity[0]-100) > 0.001 {
 		t.Fatalf("airborne x velocity changed by ground friction: got %.3f, want 100", c.PredictedVelocity[0])
@@ -356,20 +370,157 @@ func TestConsumeCommandBufferHandlesNegativeSequence(t *testing.T) {
 	}
 }
 
-func TestPredictPlayersAcknowledgeCommandOnServerUpdate(t *testing.T) {
+func TestPredictPlayersRebasesFromServerOriginEachFrame(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
 	c.ViewEntity = 0
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{2, 0, 0}}
+	c.OnGround = true
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{0, 0, 0}}
 	c.PredictPlayers(0.016)
-	c.enqueueCommand(UserCmd{Forward: 100, Msec: 16})
-	c.enqueueCommand(UserCmd{Forward: 100, Msec: 16})
+	c.enqueueCommand(UserCmd{Forward: 200, Msec: 16})
+	c.enqueueCommand(UserCmd{Forward: 200, Msec: 16})
 
-	c.Entities[0] = inet.EntityState{Origin: [3]float32{3, 0, 0}}
+	c.PredictPlayers(0.032)
+	first := c.PredictedOrigin
+
+	c.PredictPlayers(0.032)
+
+	if c.PredictedOrigin != first {
+		t.Fatalf("PredictedOrigin compounded across frames: first=%v second=%v", first, c.PredictedOrigin)
+	}
+}
+
+func TestPredictPlayersPendingFallbackRebasesEachFrame(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.ViewEntity = 0
+	c.OnGround = false
+	c.PredictionGravity = 0
+	c.Entities[0] = inet.EntityState{Origin: [3]float32{10, 20, 30}}
+	c.Velocity = [3]float32{0, 100, 0}
+	c.PendingCmd = UserCmd{ViewAngles: [3]float32{0, 0, 0}, Msec: 16}
+
+	c.PredictPlayers(0.016)
+	first := c.PredictedOrigin
+
 	c.PredictPlayers(0.016)
 
-	if c.CommandCount != 1 {
-		t.Fatalf("command count after server update = %d, want 1", c.CommandCount)
+	if c.PredictedOrigin != first {
+		t.Fatalf("pending fallback compounded across frames: first=%v second=%v", first, c.PredictedOrigin)
+	}
+	if !c.LastPredictionReplayTelemetry.UsedPendingCmdFallback {
+		t.Fatal("UsedPendingCmdFallback = false, want true")
+	}
+}
+
+func TestPredictPlayersRecordsCurrentFrameTelemetryAndValidity(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Time = 1.25
+	c.ViewEntity = 1
+	c.OnGround = true
+	c.Entities[1] = inet.EntityState{Origin: [3]float32{10, 20, 30}}
+	c.PendingCmd = UserCmd{
+		ViewAngles: [3]float32{0, 0, 0},
+		Forward:    100,
+		Msec:       16,
+	}
+
+	c.PredictPlayers(0.016)
+
+	if !c.PredictionValid {
+		t.Fatal("PredictionValid = false, want true")
+	}
+	if c.PredictionEntityNum != 1 {
+		t.Fatalf("PredictionEntityNum = %d, want 1", c.PredictionEntityNum)
+	}
+	if c.PredictionFrameTime != c.Time {
+		t.Fatalf("PredictionFrameTime = %v, want %v", c.PredictionFrameTime, c.Time)
+	}
+	if !c.HasFreshPredictionForCurrentEntity() {
+		t.Fatal("HasFreshPredictionForCurrentEntity() = false, want true")
+	}
+
+	telemetry := c.PredictionReplayTelemetrySnapshot()
+	if telemetry.FrameTime != c.Time {
+		t.Fatalf("telemetry.FrameTime = %v, want %v", telemetry.FrameTime, c.Time)
+	}
+	if telemetry.EntityNum != 1 {
+		t.Fatalf("telemetry.EntityNum = %d, want 1", telemetry.EntityNum)
+	}
+	if !telemetry.EntityFound {
+		t.Fatal("telemetry.EntityFound = false, want true")
+	}
+	if !telemetry.Valid {
+		t.Fatal("telemetry.Valid = false, want true")
+	}
+	if telemetry.ServerBaseOrigin != [3]float32{10, 20, 30} {
+		t.Fatalf("telemetry.ServerBaseOrigin = %v, want [10 20 30]", telemetry.ServerBaseOrigin)
+	}
+	if !telemetry.UsedPendingCmdFallback {
+		t.Fatal("telemetry.UsedPendingCmdFallback = false, want true")
+	}
+	if telemetry.ReplayedCommandCount != 1 {
+		t.Fatalf("telemetry.ReplayedCommandCount = %d, want 1", telemetry.ReplayedCommandCount)
+	}
+	if !telemetry.HasReplayedCmds {
+		t.Fatal("telemetry.HasReplayedCmds = false, want true")
+	}
+	if telemetry.PendingCmd != c.PendingCmd {
+		t.Fatalf("telemetry.PendingCmd = %+v, want %+v", telemetry.PendingCmd, c.PendingCmd)
+	}
+	if telemetry.OldestReplayedCmd != c.PendingCmd || telemetry.NewestReplayedCmd != c.PendingCmd {
+		t.Fatalf("telemetry replayed cmds = oldest %+v newest %+v, want pending cmd %+v", telemetry.OldestReplayedCmd, telemetry.NewestReplayedCmd, c.PendingCmd)
+	}
+	if telemetry.OutputPredictedOrigin != c.PredictedOrigin {
+		t.Fatalf("telemetry.OutputPredictedOrigin = %v, want %v", telemetry.OutputPredictedOrigin, c.PredictedOrigin)
+	}
+	if telemetry.OutputPredictedVelocity != c.PredictedVelocity {
+		t.Fatalf("telemetry.OutputPredictedVelocity = %v, want %v", telemetry.OutputPredictedVelocity, c.PredictedVelocity)
+	}
+}
+
+func TestPredictPlayersInvalidatesMissingEntityAndTelemetry(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Time = 2.5
+	c.ViewEntity = 1
+	c.PredictedOrigin = [3]float32{99, 88, 77}
+	c.PredictedVelocity = [3]float32{1, 2, 3}
+	c.PredictionValid = true
+	c.PredictionEntityNum = 1
+	c.PredictionFrameTime = 1.0
+
+	c.PredictPlayers(0.016)
+
+	if c.PredictionValid {
+		t.Fatal("PredictionValid = true, want false")
+	}
+	if c.HasFreshPredictionForCurrentEntity() {
+		t.Fatal("HasFreshPredictionForCurrentEntity() = true, want false")
+	}
+	if c.PredictionEntityNum != 1 {
+		t.Fatalf("PredictionEntityNum = %d, want 1", c.PredictionEntityNum)
+	}
+	if c.PredictionFrameTime != c.Time {
+		t.Fatalf("PredictionFrameTime = %v, want %v", c.PredictionFrameTime, c.Time)
+	}
+
+	telemetry := c.PredictionReplayTelemetrySnapshot()
+	if telemetry.EntityNum != 1 {
+		t.Fatalf("telemetry.EntityNum = %d, want 1", telemetry.EntityNum)
+	}
+	if telemetry.EntityFound {
+		t.Fatal("telemetry.EntityFound = true, want false")
+	}
+	if telemetry.Valid {
+		t.Fatal("telemetry.Valid = true, want false")
+	}
+	if telemetry.OutputPredictedOrigin != [3]float32{99, 88, 77} {
+		t.Fatalf("telemetry.OutputPredictedOrigin = %v, want stale predicted origin snapshot", telemetry.OutputPredictedOrigin)
+	}
+	if telemetry.OutputPredictedVelocity != [3]float32{1, 2, 3} {
+		t.Fatalf("telemetry.OutputPredictedVelocity = %v, want stale predicted velocity snapshot", telemetry.OutputPredictedVelocity)
 	}
 }
 
@@ -410,6 +561,54 @@ func TestAngleVectorsQuake(t *testing.T) {
 	// Forward should be approximately (0, 1, 0) after 90 degree yaw
 	if absFloat32(forward[0]) > 0.01 || absFloat32(forward[1]-1.0) > 0.01 || absFloat32(forward[2]) > 0.01 {
 		t.Errorf("Forward vector after 90° yaw incorrect: got %v, want ~[0 1 0]", forward)
+	}
+}
+
+func TestPredictionMovementAnglesMatchesServerSemantics(t *testing.T) {
+	c := NewClient()
+	c.PunchAngle = [3]float32{6, -15, 4}
+
+	got := c.predictionMovementAngles([3]float32{-30, 90, 17})
+	want := [3]float32{8, 75, 0}
+
+	if got != want {
+		t.Fatalf("predictionMovementAngles = %v, want %v", got, want)
+	}
+}
+
+func TestPredictMovementUsesServerStylePitchForAcceleration(t *testing.T) {
+	c := NewClient()
+	c.OnGround = false
+	c.PredictionGravity = 0
+	c.PredictionAccel = 10
+	c.PredictionMaxSpeed = 1000
+	c.PunchAngle = [3]float32{30, 0, 0}
+
+	cmd := UserCmd{
+		ViewAngles: [3]float32{-30, 0, 15},
+		Forward:    320,
+	}
+
+	c.predictMovement(&cmd, 0.016)
+
+	wantAccel := float32(c.PredictionAccel * 0.016 * cmd.Forward)
+	if absFloat32(c.PredictedVelocity[0]-wantAccel) > 0.001 {
+		t.Fatalf("PredictedVelocity[0] = %.3f, want %.3f from server-style move pitch", c.PredictedVelocity[0], wantAccel)
+	}
+	if absFloat32(c.PredictedVelocity[1]) > 0.001 || absFloat32(c.PredictedVelocity[2]) > 0.001 {
+		t.Fatalf("PredictedVelocity = %v, want only +X acceleration", c.PredictedVelocity)
+	}
+}
+
+func TestPredictionMovementAnglesIncludeServerStyleRoll(t *testing.T) {
+	c := NewClient()
+	c.PredictedVelocity = [3]float32{0, 200, 0}
+
+	got := c.predictionMovementAngles([3]float32{})
+	want := [3]float32{0, 0, -8}
+
+	if got != want {
+		t.Fatalf("predictionMovementAngles roll = %v, want %v", got, want)
 	}
 }
 

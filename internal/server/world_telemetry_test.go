@@ -8,7 +8,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
-func TestTouchLinksTelemetryAndReentrantSkip(t *testing.T) {
+func TestTouchLinksTelemetry(t *testing.T) {
 	s := NewServer()
 	s.QCVM = qc.NewVM()
 	s.Areanodes = make([]AreaNode, AreaNodes)
@@ -39,16 +39,11 @@ func TestTouchLinksTelemetryAndReentrantSkip(t *testing.T) {
 
 	s.touchLinks(ent)
 
-	inTouchLinks = true
-	s.touchLinks(ent)
-	inTouchLinks = false
-
 	joined := strings.Join(lines, "\n")
 	for _, want := range []string{
 		"touchlinks begin",
 		"touchlinks candidates=0",
 		"touchlinks end",
-		"touchlinks reentrant-skip",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in telemetry:\n%s", want, joined)
@@ -140,24 +135,27 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 	if got := mover.Vars.Origin; got != [3]float32{128, 0, 0} {
 		t.Fatalf("mover origin = %v", got)
 	}
-	if got := mover.Vars.AbsMin; got != [3]float32{111, -17, -17} {
+	if got := mover.Vars.AbsMin; got != [3]float32{112, -16, -16} {
 		t.Fatalf("mover absmin = %v", got)
 	}
-	if got := mover.Vars.AbsMax; got != [3]float32{145, 17, 17} {
+	if got := mover.Vars.AbsMax; got != [3]float32{144, 16, 16} {
 		t.Fatalf("mover absmax = %v", got)
 	}
 	if got := trigger.Vars.Solid; got != float32(SolidNot) {
 		t.Fatalf("trigger solid = %v, want %v", got, float32(SolidNot))
 	}
-	if trigger.AreaPrev != nil || trigger.AreaNext != nil {
-		t.Fatalf("trigger still linked after solid_not touch mutation: prev=%p next=%p", trigger.AreaPrev, trigger.AreaNext)
+	if trigger.AreaPrev == nil {
+		t.Fatalf("trigger unexpectedly unlinked after direct QC solid mutation")
 	}
 
 	joined := strings.Join(lines, "\n")
 	for _, want := range []string{
 		"touchlinks callback begin self=",
 		"touchlinks callback end self=",
-		"self_link=unlinked",
+		"self_link=linked",
+		"other_vel=(",
+		"other_punch=(",
+		"other_flags=",
 		"other_origin=(128.0 0.0 0.0)",
 	} {
 		if !strings.Contains(joined, want) {

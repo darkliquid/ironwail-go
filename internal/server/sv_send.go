@@ -253,6 +253,7 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 // WriteClientDataToMessage serializes player-centric data (damage, view, ammo, items) for one frame.
 func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	flags := uint32(s.ProtocolFlags())
+	fixAngleSent := ent.Vars.FixAngle != 0
 	if ent.Vars.DmgTake != 0 || ent.Vars.DmgSave != 0 {
 		other := s.EdictNum(int(ent.Vars.DmgInflictor))
 		msg.WriteByte(byte(inet.SVCDamage))
@@ -349,6 +350,18 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 		if bits >= 16777216 {
 			bits |= inet.SU_EXTEND2
 		}
+	}
+
+	if entNum := s.NumForEdict(ent); s.DebugTelemetry != nil &&
+		s.DebugTelemetry.ShouldLogEvent(DebugEventPhysics, s.QCVM, entNum, ent) {
+		s.DebugTelemetry.LogEventf(DebugEventPhysics, s.QCVM, entNum, ent,
+			"clientdata serialize bits=%#x onground=%t waterlevel=%d viewofs=(%.1f %.1f %.1f) idealpitch=%.1f vel=(%.1f %.1f %.1f) punch=(%.1f %.1f %.1f) fixangle_sent=%t ground=%d teleport=%.3f",
+			bits, uint32(ent.Vars.Flags)&FlagOnGround != 0, int(ent.Vars.WaterLevel),
+			ent.Vars.ViewOfs[0], ent.Vars.ViewOfs[1], ent.Vars.ViewOfs[2],
+			ent.Vars.IdealPitch,
+			ent.Vars.Velocity[0], ent.Vars.Velocity[1], ent.Vars.Velocity[2],
+			ent.Vars.PunchAngle[0], ent.Vars.PunchAngle[1], ent.Vars.PunchAngle[2],
+			fixAngleSent, int(ent.Vars.GroundEntity), ent.Vars.TeleportTime)
 	}
 
 	msg.WriteByte(byte(inet.SVCClientData))

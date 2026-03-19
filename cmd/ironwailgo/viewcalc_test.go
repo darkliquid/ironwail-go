@@ -402,17 +402,15 @@ func TestViewStairSmooth_SmoothsUpwardStep(t *testing.T) {
 	}
 }
 
-func TestViewStairSmooth_SmoothsSmallUpwardRiseWhenOnGroundBitDrops(t *testing.T) {
+func TestViewStairSmooth_DoesNotSmoothUpwardRiseWhenOnGroundBitDrops(t *testing.T) {
 	state := viewCalcState{oldZ: 100, oldZInit: true}
 	entityZ := float32(110)
 	offset := viewStairSmoothOffset(&state, entityZ, false, 0.1, false)
-	expectedOldZ := float32(108)
-	if math.Abs(float64(state.oldZ-expectedOldZ)) > 0.01 {
-		t.Errorf("expected oldZ=%v, got %v", expectedOldZ, state.oldZ)
+	if state.oldZ != entityZ {
+		t.Errorf("expected oldZ=%v, got %v", entityZ, state.oldZ)
 	}
-	expectedOffset := float32(-2)
-	if math.Abs(float64(offset-expectedOffset)) > 0.01 {
-		t.Errorf("expected offset=%v, got %v", expectedOffset, offset)
+	if offset != 0 {
+		t.Errorf("expected offset=0, got %v", offset)
 	}
 }
 

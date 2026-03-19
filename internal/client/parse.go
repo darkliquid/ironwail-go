@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/bits"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/common"
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -32,10 +33,18 @@ const (
 type Parser struct {
 	Client        *Client
 	warnedNehahra bool // Log Nehahra protocol warning only once per connection
+	packetTrace   [8]packetTraceEntry
+	traceCount    int
 }
 
 func NewParser(c *Client) *Parser {
 	return &Parser{Client: c}
+}
+
+type packetTraceEntry struct {
+	name  string
+	start int
+	end   int
 }
 
 func (p *Parser) ParseServerMessage(data []byte) error {
@@ -48,8 +57,10 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 		return fmt.Errorf("failed to load message bytes")
 	}
 	msg.BeginReading()
+	p.traceCount = 0
 
 	for {
+		cmdStart := msg.ReadCount
 		cmd, ok := msg.ReadByte()
 		if !ok {
 			return fmt.Errorf("unexpected end of message")
@@ -66,11 +77,13 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			if err := p.parseEntityUpdate(msg, cmd); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, "entity_update")
 			continue
 		}
 
 		switch cmd {
 		case inet.SVCNop:
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCDisconnect:
 			p.Client.setState(StateDisconnected)
 			return fmt.Errorf("server disconnected")
@@ -82,28 +95,38 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.MTime[1] = p.Client.MTime[0]
 			p.Client.MTime[0] = float64(v)
 			p.Client.FixAngle = false
+			if p.Client.Signon >= Signons && p.Client.State == StateActive {
+				p.Client.acknowledgeCommand()
+			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCPrint:
 			console.Printf("%s", msg.ReadString())
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCUpdateStat:
 			if err := p.parseUpdateStat(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCStuffText:
 			p.parseStuffText(msg.ReadString())
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCVersion:
 			if err := p.parseVersion(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCServerInfo:
 			if err := p.parseServerInfo(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSetView:
 			v, ok := msg.ReadShort()
 			if !ok {
 				return fmt.Errorf("svc_setview: missing entity")
 			}
 			p.Client.ViewEntity = int(v)
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCCDTrack:
 			cd, ok := msg.ReadByte()
 			if !ok {
@@ -115,118 +138,150 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			}
 			p.Client.CDTrack = int(cd)
 			p.Client.LoopTrack = int(loop)
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSignOnNum:
 			if err := p.parseSignOnNum(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCClientData:
-			if err := p.parseClientData(msg); err != nil {
+			if err := p.parseClientData(msg, cmdStart); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSound:
 			if err := p.parseSound(msg, false); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCLocalSound:
 			if err := p.parseSound(msg, true); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCUpdateFrags:
 			if err := p.parseUpdateFrags(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCDamage:
 			if err := p.parseDamage(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSpawnBaseline:
 			if err := p.parseSpawnBaseline(msg, false); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSpawnBaseline2:
 			if err := p.parseSpawnBaseline(msg, true); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSpawnStatic:
 			if err := p.parseSpawnStatic(msg, false); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSpawnStatic2:
 			if err := p.parseSpawnStatic(msg, true); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSpawnStaticSound:
 			if err := p.parseSpawnStaticSound(msg, false); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSpawnStaticSound2:
 			if err := p.parseSpawnStaticSound(msg, true); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCParticle:
 			if err := p.parseParticle(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCTempEntity:
 			if err := p.parseTempEntity(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCLightStyle:
 			if err := p.parseLightStyle(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSetAngle:
 			if err := p.parseSetAngle(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSetPause:
 			if err := p.parseSetPause(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCCenterPrint:
 			p.Client.CenterPrint = msg.ReadString()
 			p.Client.CenterPrintAt = p.Client.Time
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCUpdateName:
 			if err := p.parseUpdateName(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCStopSound:
 			if err := p.parseStopSound(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCUpdateColors:
 			if err := p.parseUpdateColors(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCKillMonster:
 			p.Client.KillCount++
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCFoundSecret:
 			p.Client.SecretCount++
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSkyBox:
 			p.Client.SkyboxName = msg.ReadString()
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCFog:
 			if err := p.parseFog(msg); err != nil {
 				return err
 			}
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCIntermission:
 			p.Client.Intermission = 1
 			p.Client.CompletedTime = p.Client.Time
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCFinale:
 			p.Client.CenterPrint = msg.ReadString()
 			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 2
 			p.Client.CompletedTime = p.Client.Time
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCCutScene:
 			p.Client.CenterPrint = msg.ReadString()
 			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 3
 			p.Client.CompletedTime = p.Client.Time
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSellScreen:
 			// C: Cmd_ExecuteString("help", src_command) — no data to read
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCBF:
 			// C: Cmd_ExecuteString("bf", src_command) — bonus flash, no data to read
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCAchievement:
 			_ = msg.ReadString() // achievement ID string, ignored
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		default:
 			return fmt.Errorf("unsupported server command: %d", cmd)
 		}
@@ -330,16 +385,70 @@ func (p *Parser) parseLightStyle(msg *common.SizeBuf) error {
 
 func (p *Parser) parseSetAngle(msg *common.SizeBuf) error {
 	for i := 0; i < 3; i++ {
-		b, ok := msg.ReadByte()
-		if !ok {
-			return fmt.Errorf("svc_setangle: missing component %d", i)
+		angle, err := p.readAngle(msg, fmt.Sprintf("svc_setangle: missing component %d", i))
+		if err != nil {
+			return err
 		}
-		p.Client.ViewAngles[i] = float32(b) * (360.0 / 256.0)
+		p.Client.ViewAngles[i] = angle
 	}
 	p.Client.MViewAngles[0] = p.Client.ViewAngles
 	p.Client.MViewAngles[1] = p.Client.ViewAngles
 	p.Client.FixAngle = true
 	return nil
+}
+
+func (p *Parser) readAngle(msg *common.SizeBuf, missingErr string) (float32, error) {
+	if p != nil && p.Client != nil {
+		switch {
+		case p.Client.ProtocolFlags&inet.PRFL_FLOATANGLE != 0:
+			v, ok := msg.ReadFloat()
+			if !ok {
+				return 0, fmt.Errorf("%s", missingErr)
+			}
+			return v, nil
+		case p.Client.ProtocolFlags&inet.PRFL_SHORTANGLE != 0:
+			v, ok := msg.ReadAngle16()
+			if !ok {
+				return 0, fmt.Errorf("%s", missingErr)
+			}
+			return v, nil
+		}
+	}
+	v, ok := msg.ReadAngle()
+	if !ok {
+		return 0, fmt.Errorf("%s", missingErr)
+	}
+	return v, nil
+}
+
+func (p *Parser) readCoord(msg *common.SizeBuf, missingErr string) (float32, error) {
+	if p != nil && p.Client != nil {
+		switch {
+		case p.Client.ProtocolFlags&inet.PRFL_FLOATCOORD != 0:
+			v, ok := msg.ReadFloat()
+			if !ok {
+				return 0, fmt.Errorf("%s", missingErr)
+			}
+			return v, nil
+		case p.Client.ProtocolFlags&inet.PRFL_INT32COORD != 0:
+			v, ok := msg.ReadLong()
+			if !ok {
+				return 0, fmt.Errorf("%s", missingErr)
+			}
+			return float32(v) / 16.0, nil
+		case p.Client.ProtocolFlags&inet.PRFL_24BITCOORD != 0:
+			whole, ok := msg.ReadShort()
+			if !ok {
+				return 0, fmt.Errorf("%s", missingErr)
+			}
+			frac, ok := msg.ReadByte()
+			if !ok {
+				return 0, fmt.Errorf("%s", missingErr)
+			}
+			return float32(whole) + float32(frac)/255.0, nil
+		}
+	}
+	return readCoord(msg, missingErr)
 }
 
 func (p *Parser) parseStuffText(s string) {
@@ -488,7 +597,7 @@ func (p *Parser) parseDamage(msg *common.SizeBuf) error {
 	p.Client.DamageSaved = int(save)
 	p.Client.DamageTaken = int(take)
 	for i := 0; i < 3; i++ {
-		coord, err := readCoord(msg, fmt.Sprintf("svc_damage: missing origin %d", i))
+		coord, err := p.readCoord(msg, fmt.Sprintf("svc_damage: missing origin %d", i))
 		if err != nil {
 			return err
 		}
@@ -583,7 +692,7 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 	}
 
 	for i := 0; i < 3; i++ {
-		coord, err := readCoord(msg, fmt.Sprintf("svc_sound: missing origin %d", i))
+		coord, err := p.readCoord(msg, fmt.Sprintf("svc_sound: missing origin %d", i))
 		if err != nil {
 			return err
 		}
@@ -597,7 +706,7 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 func (p *Parser) parseParticle(msg *common.SizeBuf) error {
 	var event ParticleEvent
 	for i := 0; i < 3; i++ {
-		coord, err := readCoord(msg, fmt.Sprintf("svc_particle: missing origin %d", i))
+		coord, err := p.readCoord(msg, fmt.Sprintf("svc_particle: missing origin %d", i))
 		if err != nil {
 			return err
 		}
@@ -627,7 +736,7 @@ func (p *Parser) parseParticle(msg *common.SizeBuf) error {
 	return nil
 }
 
-func (p *Parser) parseClientData(msg *common.SizeBuf) error {
+func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 	bits16, ok := msg.ReadShort()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing bits")
@@ -835,7 +944,191 @@ func (p *Parser) parseClientData(msg *common.SizeBuf) error {
 		p.Client.ViewEntAlpha = inet.ENTALPHA_DEFAULT
 	}
 
+	p.logSuspiciousClientData(msg, packetOffset, msg.ReadCount, bits, velocity, punch)
+
 	return nil
+}
+
+func (p *Parser) recordPacketTrace(start, end int, name string) {
+	p.packetTrace[p.traceCount%len(p.packetTrace)] = packetTraceEntry{
+		name:  name,
+		start: start,
+		end:   end,
+	}
+	p.traceCount++
+}
+
+func (p *Parser) logSuspiciousClientData(msg *common.SizeBuf, start, end int, bits uint32, velocity, punch [3]float32) {
+	if !isSuspiciousClientData(velocity, punch) {
+		return
+	}
+
+	console.Printf(
+		"client packet anomaly: current=%s[%d:%d] bits=0x%x onground=%t vel=%v punch=%v bytes=%s recent=%s\n",
+		svcCommandName(inet.SVCClientData),
+		start,
+		end,
+		bits,
+		p.Client.OnGround,
+		velocity,
+		punch,
+		formatPacketBytes(msg.Data[start:end]),
+		p.packetTraceSummary(),
+	)
+}
+
+func (p *Parser) packetTraceSummary() string {
+	if p.traceCount == 0 {
+		return "none"
+	}
+	count := p.traceCount
+	if count > len(p.packetTrace) {
+		count = len(p.packetTrace)
+	}
+	start := p.traceCount - count
+	var b strings.Builder
+	for i := start; i < p.traceCount; i++ {
+		entry := p.packetTrace[i%len(p.packetTrace)]
+		if b.Len() > 0 {
+			b.WriteString(" | ")
+		}
+		fmt.Fprintf(&b, "%s[%d:%d]", entry.name, entry.start, entry.end)
+	}
+	return b.String()
+}
+
+func isSuspiciousClientData(velocity, punch [3]float32) bool {
+	const suspiciousVelocity = 1000
+	const suspiciousPunch = 90
+	for _, v := range velocity {
+		if abs32(v) > suspiciousVelocity {
+			return true
+		}
+	}
+	for _, v := range punch {
+		if abs32(v) > suspiciousPunch {
+			return true
+		}
+	}
+	return false
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func formatPacketBytes(data []byte) string {
+	if len(data) == 0 {
+		return "-"
+	}
+	originalLen := len(data)
+	const maxBytes = 24
+	if len(data) > maxBytes {
+		data = data[:maxBytes]
+	}
+	var b strings.Builder
+	for i, v := range data {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "%02x", v)
+	}
+	if originalLen > maxBytes {
+		b.WriteString(" ...")
+	}
+	return b.String()
+}
+
+func svcCommandName(cmd byte) string {
+	switch cmd {
+	case inet.SVCNop:
+		return "svc_nop"
+	case inet.SVCDisconnect:
+		return "svc_disconnect"
+	case inet.SVCUpdateStat:
+		return "svc_updatestat"
+	case inet.SVCVersion:
+		return "svc_version"
+	case inet.SVCSetView:
+		return "svc_setview"
+	case inet.SVCSound:
+		return "svc_sound"
+	case inet.SVCTime:
+		return "svc_time"
+	case inet.SVCPrint:
+		return "svc_print"
+	case inet.SVCStuffText:
+		return "svc_stufftext"
+	case inet.SVCSetAngle:
+		return "svc_setangle"
+	case inet.SVCServerInfo:
+		return "svc_serverinfo"
+	case inet.SVCLightStyle:
+		return "svc_lightstyle"
+	case inet.SVCUpdateName:
+		return "svc_updatename"
+	case inet.SVCUpdateFrags:
+		return "svc_updatefrags"
+	case inet.SVCClientData:
+		return "svc_clientdata"
+	case inet.SVCStopSound:
+		return "svc_stopsound"
+	case inet.SVCUpdateColors:
+		return "svc_updatecolors"
+	case inet.SVCParticle:
+		return "svc_particle"
+	case inet.SVCDamage:
+		return "svc_damage"
+	case inet.SVCSpawnStatic:
+		return "svc_spawnstatic"
+	case inet.SVCSpawnBaseline:
+		return "svc_spawnbaseline"
+	case inet.SVCTempEntity:
+		return "svc_temp_entity"
+	case inet.SVCSetPause:
+		return "svc_setpause"
+	case inet.SVCSignOnNum:
+		return "svc_signonnum"
+	case inet.SVCCenterPrint:
+		return "svc_centerprint"
+	case inet.SVCKillMonster:
+		return "svc_killmonster"
+	case inet.SVCFoundSecret:
+		return "svc_foundsecret"
+	case inet.SVCSpawnStaticSound:
+		return "svc_spawnstaticsound"
+	case inet.SVCIntermission:
+		return "svc_intermission"
+	case inet.SVCFinale:
+		return "svc_finale"
+	case inet.SVCCDTrack:
+		return "svc_cdtrack"
+	case inet.SVCSellScreen:
+		return "svc_sellscreen"
+	case inet.SVCCutScene:
+		return "svc_cutscene"
+	case inet.SVCSkyBox:
+		return "svc_skybox"
+	case inet.SVCBF:
+		return "svc_bf"
+	case inet.SVCFog:
+		return "svc_fog"
+	case inet.SVCSpawnBaseline2:
+		return "svc_spawnbaseline2"
+	case inet.SVCSpawnStatic2:
+		return "svc_spawnstatic2"
+	case inet.SVCSpawnStaticSound2:
+		return "svc_spawnstaticsound2"
+	case inet.SVCAchievement:
+		return "svc_achievement"
+	case inet.SVCLocalSound:
+		return "svc_localsound"
+	default:
+		return fmt.Sprintf("svc_%d", cmd)
+	}
 }
 
 func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
@@ -927,12 +1220,12 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 
 	// Origins and angles are interleaved: O1, A1, O2, A2, O3, A3
 	for i := 0; i < 3; i++ {
-		coord, err := readCoord(msg, fmt.Sprintf("%s: missing origin %d", prefix, i))
+		coord, err := p.readCoord(msg, fmt.Sprintf("%s: missing origin %d", prefix, i))
 		if err != nil {
 			return b, 0, err
 		}
 		b.Origin[i] = coord
-		angle, err := readAngle(msg, fmt.Sprintf("%s: missing angle %d", prefix, i))
+		angle, err := p.readAngle(msg, fmt.Sprintf("%s: missing angle %d", prefix, i))
 		if err != nil {
 			return b, 0, err
 		}
@@ -964,7 +1257,7 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error {
 	var snd StaticSound
 	for i := 0; i < 3; i++ {
-		coord, err := readCoord(msg, fmt.Sprintf("svc_spawnstaticsound: missing origin %d", i))
+		coord, err := p.readCoord(msg, fmt.Sprintf("svc_spawnstaticsound: missing origin %d", i))
 		if err != nil {
 			return err
 		}
@@ -1040,17 +1333,30 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		entNum = int(v)
 	}
 
-	state, ok := p.Client.EntityBaselines[entNum]
+	// Delta decode is baseline-relative: omitted fields inherit from baseline, not
+	// from the entity's previous current state. Runtime interpolation/trail
+	// bookkeeping is restored from the previous current state below.
+	decode, ok := p.Client.EntityBaselines[entNum]
 	if !ok {
-		state = inet.EntityState{Alpha: inet.ENTALPHA_DEFAULT, Scale: inet.ENTSCALE_DEFAULT}
+		decode = inet.EntityState{Alpha: inet.ENTALPHA_DEFAULT, Scale: inet.ENTSCALE_DEFAULT}
 	}
+	state := decode
 	isNew := true
+	forceLink := true
 	if current, ok := p.Client.Entities[entNum]; ok {
-		state = current
 		isNew = false
+		forceLink = current.MsgTime != p.Client.MTime[1]
+		state.MsgOrigins = current.MsgOrigins
+		state.MsgAngles = current.MsgAngles
+		state.MsgTime = current.MsgTime
+		state.ForceLink = current.ForceLink
+		state.LerpFlags = current.LerpFlags
+		state.TrailOrigin = current.TrailOrigin
+		state.Origin = current.Origin
+		state.Angles = current.Angles
 	}
-	rawOrigin := state.MsgOrigins[0]
-	rawAngles := state.MsgAngles[0]
+	rawOrigin := decode.Origin
+	rawAngles := decode.Angles
 
 	// Field read order must match C exactly (CL_ParseUpdate in cl_parse.c):
 	// MODEL, FRAME, COLORMAP, SKIN, EFFECTS,
@@ -1061,74 +1367,74 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		if !ok {
 			return fmt.Errorf("entity update: missing model")
 		}
-		state.ModelIndex = uint16(v)
+		decode.ModelIndex = uint16(v)
 	}
 	if bits&inet.U_FRAME != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
 			return fmt.Errorf("entity update: missing frame")
 		}
-		state.Frame = uint16(v)
+		decode.Frame = uint16(v)
 	}
 	if bits&inet.U_COLORMAP != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
 			return fmt.Errorf("entity update: missing colormap")
 		}
-		state.Colormap = v
+		decode.Colormap = v
 	}
 	if bits&inet.U_SKIN != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
 			return fmt.Errorf("entity update: missing skin")
 		}
-		state.Skin = v
+		decode.Skin = v
 	}
 	if bits&inet.U_EFFECTS != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {
 			return fmt.Errorf("entity update: missing effects")
 		}
-		state.Effects = int(v)
+		decode.Effects = int(v)
 	}
 	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
 	if bits&inet.U_ORIGIN1 != 0 {
-		v, err := readCoord(msg, "entity update: missing origin1")
+		v, err := p.readCoord(msg, "entity update: missing origin1")
 		if err != nil {
 			return err
 		}
 		rawOrigin[0] = v
 	}
 	if bits&inet.U_ANGLE1 != 0 {
-		v, err := readAngle(msg, "entity update: missing angle1")
+		v, err := p.readAngle(msg, "entity update: missing angle1")
 		if err != nil {
 			return err
 		}
 		rawAngles[0] = v
 	}
 	if bits&inet.U_ORIGIN2 != 0 {
-		v, err := readCoord(msg, "entity update: missing origin2")
+		v, err := p.readCoord(msg, "entity update: missing origin2")
 		if err != nil {
 			return err
 		}
 		rawOrigin[1] = v
 	}
 	if bits&inet.U_ANGLE2 != 0 {
-		v, err := readAngle(msg, "entity update: missing angle2")
+		v, err := p.readAngle(msg, "entity update: missing angle2")
 		if err != nil {
 			return err
 		}
 		rawAngles[1] = v
 	}
 	if bits&inet.U_ORIGIN3 != 0 {
-		v, err := readCoord(msg, "entity update: missing origin3")
+		v, err := p.readCoord(msg, "entity update: missing origin3")
 		if err != nil {
 			return err
 		}
 		rawOrigin[2] = v
 	}
 	if bits&inet.U_ANGLE3 != 0 {
-		v, err := readAngle(msg, "entity update: missing angle3")
+		v, err := p.readAngle(msg, "entity update: missing angle3")
 		if err != nil {
 			return err
 		}
@@ -1142,28 +1448,28 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 			if !ok {
 				return fmt.Errorf("entity update: missing alpha")
 			}
-			state.Alpha = v
+			decode.Alpha = v
 		}
 		if bits&inet.U_SCALE != 0 {
 			v, ok := msg.ReadByte()
 			if !ok {
 				return fmt.Errorf("entity update: missing scale")
 			}
-			state.Scale = v
+			decode.Scale = v
 		}
 		if bits&inet.U_FRAME2 != 0 {
 			v, ok := msg.ReadByte()
 			if !ok {
 				return fmt.Errorf("entity update: missing frame2")
 			}
-			state.Frame = (state.Frame & 0x00ff) | (uint16(v) << 8)
+			decode.Frame = (decode.Frame & 0x00ff) | (uint16(v) << 8)
 		}
 		if bits&inet.U_MODEL2 != 0 {
 			v, ok := msg.ReadByte()
 			if !ok {
 				return fmt.Errorf("entity update: missing model2")
 			}
-			state.ModelIndex = (state.ModelIndex & 0x00ff) | (uint16(v) << 8)
+			decode.ModelIndex = (decode.ModelIndex & 0x00ff) | (uint16(v) << 8)
 		}
 		if bits&inet.U_LERPFINISH != 0 {
 			if _, ok := msg.ReadByte(); !ok {
@@ -1192,14 +1498,16 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 					return fmt.Errorf("entity update: missing nehahra fullbright")
 				}
 			}
-			state.Alpha = inet.ENTALPHA_ENCODE(b)
-		} else {
-			baseline, _ := p.Client.EntityBaselines[entNum]
-			state.Alpha = baseline.Alpha
+			decode.Alpha = inet.ENTALPHA_ENCODE(b)
 		}
-		baseline, _ := p.Client.EntityBaselines[entNum]
-		state.Scale = baseline.Scale
 	}
+	state.ModelIndex = decode.ModelIndex
+	state.Frame = decode.Frame
+	state.Colormap = decode.Colormap
+	state.Skin = decode.Skin
+	state.Effects = decode.Effects
+	state.Alpha = decode.Alpha
+	state.Scale = decode.Scale
 	if state.ModelIndex == 0 {
 		// Server sent ModelIndex=0 → entity is invisible (equivalent to C's
 		// ent->model = NULL). Keep the slot in the map so delta decoding on
@@ -1211,25 +1519,35 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 
 	// Update interpolation double-buffer: shift previous position/angles, then
 	// store the new network values in [0]. Mirrors C's entity_t msg_origins handling.
+	// Keep live Origin/Angles untouched on normal updates; CL_RelinkEntities owns
+	// the render state except on force-link snaps.
 	state.MsgOrigins[1] = state.MsgOrigins[0]
 	state.MsgAngles[1] = state.MsgAngles[0]
 	state.MsgOrigins[0] = rawOrigin
 	state.MsgAngles[0] = rawAngles
-	state.Origin = rawOrigin
-	state.Angles = rawAngles
 	state.MsgTime = p.Client.MTime[0]
 	if isNew {
 		// Brand new entity: initialize [1] to match [0] so no spurious lerp on first frame.
 		state.MsgOrigins[1] = state.MsgOrigins[0]
 		state.MsgAngles[1] = state.MsgAngles[0]
-		state.ForceLink = true
+		forceLink = true
 	}
 
 	// U_STEP indicates a monster step-move entity; position should not be lerped.
 	if bits&inet.U_STEP != 0 {
 		state.LerpFlags |= inet.LerpMoveStep
+		forceLink = true
 	} else {
 		state.LerpFlags &^= inet.LerpMoveStep
+	}
+	if forceLink {
+		state.MsgOrigins[1] = state.MsgOrigins[0]
+		state.MsgAngles[1] = state.MsgAngles[0]
+		state.Origin = state.MsgOrigins[0]
+		state.Angles = state.MsgAngles[0]
+		state.ForceLink = true
+	} else {
+		state.ForceLink = false
 	}
 
 	p.Client.Entities[entNum] = state

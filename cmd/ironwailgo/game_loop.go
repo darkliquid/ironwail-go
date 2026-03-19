@@ -22,6 +22,12 @@ import (
 // gameCallbacks implements host.FrameCallbacks to drive server+client each frame.
 type gameCallbacks struct{}
 
+var runtimeProcessClientPhase string
+
+func (gameCallbacks) SetProcessClientPhase(phase string) {
+	runtimeProcessClientPhase = phase
+}
+
 func (gameCallbacks) GetEvents() {
 	if g.Input != nil {
 		g.Input.PollEvents()
@@ -126,11 +132,21 @@ func (gameCallbacks) ProcessClient() {
 	}
 
 	// Normal networked gameplay
-	_ = g.Subs.Client.ReadFromServer()
-	syncHostClientState()
-	recordRuntimeDemoFrame()
-	host.DispatchLoopbackStuffText(g.Subs)
-	_ = g.Subs.Client.SendCommand()
+	switch runtimeProcessClientPhase {
+	case "send":
+		_ = g.Subs.Client.SendCommand()
+	case "read":
+		_ = g.Subs.Client.ReadFromServer()
+		syncHostClientState()
+		recordRuntimeDemoFrame()
+		host.DispatchLoopbackStuffText(g.Subs)
+	default:
+		_ = g.Subs.Client.ReadFromServer()
+		syncHostClientState()
+		recordRuntimeDemoFrame()
+		host.DispatchLoopbackStuffText(g.Subs)
+		_ = g.Subs.Client.SendCommand()
+	}
 }
 
 func (gameCallbacks) UpdateScreen() {}
@@ -286,8 +302,10 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	}
 	syncControlCvarsToClient()
 	if g.Client != nil {
+		if g.Host != nil && (g.Host.DemoState() == nil || !g.Host.DemoState().Playback) {
+			g.Client.AdvanceTime(nil, dt)
+		}
 		runtimeDebugViewBeginFrame()
-		g.Client.PredictPlayers(float32(dt))
 		runtimeDebugViewLogRelinkPhase("pre")
 		g.Client.UpdateBlend(dt)
 		g.Client.UpdateTempEntities()
@@ -295,6 +313,10 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 		// calculations all observe the same interpolated entity state this frame.
 		g.Client.RelinkEntities()
 		runtimeDebugViewLogRelinkPhase("post")
+		// Predict after relink so prediction freshness is stamped against the
+		// final post-LerpPoint frame state consumed by camera selection.
+		g.Client.PredictPlayers(float32(dt))
+		runtimeDebugViewLogPrediction()
 	}
 	transientEvents := cl.TransientEvents{}
 	if g.Client != nil {
@@ -302,6 +324,8 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	}
 	viewOrigin, viewAngles := runtimeViewState()
 	runtimeDebugViewLogState(viewOrigin, viewAngles)
+	runtimeDebugViewLogLerp()
+	runtimeDebugViewLogOriginSelect()
 	syncRuntimeSkybox()
 	if g.Audio != nil {
 		forward, right, up := runtimeAngleVectors(viewAngles)
