@@ -286,7 +286,7 @@ func runtimeInterpolatedViewAngles() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
 	}
-	if g.Client.FixAngle {
+	if g.Client.FixAngle || g.Client.DemoPlayback {
 		return g.Client.ViewAngles
 	}
 	prev, curr := g.Client.MViewAngles[1], g.Client.MViewAngles[0]

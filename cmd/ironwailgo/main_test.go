@@ -852,6 +852,29 @@ func TestRuntimeViewStateUsesForcedAnglesWithoutInterpolation(t *testing.T) {
 	}
 }
 
+func TestRuntimeViewStateUsesDemoViewAnglesWithoutDoubleInterpolation(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.ViewHeight = 22
+	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
+	g.Client.ViewAngles = [3]float32{5, 10, 15}
+	g.Client.MViewAngles[1] = [3]float32{0, 0, 0}
+	g.Client.MViewAngles[0] = [3]float32{10, 20, 30}
+	g.Client.MTime[1] = 1.0
+	g.Client.MTime[0] = 1.1
+	g.Client.Time = 1.05
+	g.Client.DemoPlayback = true
+
+	_, angles := runtimeViewState()
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState demo angles = %v, want current angles %v", angles, g.Client.ViewAngles)
+	}
+}
+
 func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
 	originalClient := g.Client
 	t.Cleanup(func() {
