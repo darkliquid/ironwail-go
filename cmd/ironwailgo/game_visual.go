@@ -136,12 +136,6 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	oldTime := g.ParticleTime
 	g.ParticleTime += float32(dt)
 
-	// Interpolate entity positions/angles from double-buffered network origins.
-	// Must run before any entity collection so rendered positions are lerped.
-	if g.Client != nil {
-		g.Client.RelinkEntities()
-	}
-
 	// Update scope zoom transition after relink, matching C CL_RelinkEntities
 	// calling SCR_UpdateZoom() post-velocity interpolation.
 	zoomSpeed := float32(8)

@@ -325,7 +325,11 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 	g.Client.State = cl.StateActive
 	g.Client.ViewEntity = 1
 	g.Client.ViewHeight = 0
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{64, 0, 0}}
+	g.Client.Entities[1] = inet.EntityState{
+		Origin:     [3]float32{64, 0, 0},
+		MsgOrigins: [2][3]float32{{64, 0, 0}, {64, 0, 0}},
+		MsgTime:    g.Client.MTime[0],
+	}
 	g.Server = &server.Server{
 		WorldTree: &bsp.Tree{
 			Planes: []bsp.DPlane{
@@ -362,7 +366,11 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 		t.Fatalf("ambient channel 1 volume = %d, want 10", got)
 	}
 
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{-64, 0, 0}}
+	g.Client.Entities[1] = inet.EntityState{
+		Origin:     [3]float32{-64, 0, 0},
+		MsgOrigins: [2][3]float32{{-64, 0, 0}, {-64, 0, 0}},
+		MsgTime:    g.Client.MTime[0],
+	}
 	runRuntimeFrame(0.1, gameCallbacks{})
 	if got := sys.UnderwaterIntensity(); got != 0 {
 		t.Fatalf("underwater intensity in dry leaf = %v, want 0", got)
@@ -408,6 +416,80 @@ func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
 	events = runRuntimeFrame(0.016, gameCallbacks{})
 	if len(events.SoundEvents) != 0 || len(events.StopSoundEvents) != 0 || len(events.ParticleEvents) != 0 || len(events.TempEntities) != 0 {
 		t.Fatalf("second frame consumed = %d sounds, %d stops, %d particles, %d temps; want 0,0,0,0", len(events.SoundEvents), len(events.StopSoundEvents), len(events.ParticleEvents), len(events.TempEntities))
+	}
+}
+
+func TestRunRuntimeFrameRelinksBeforeViewAndViewModelConsumers(t *testing.T) {
+	originalHost := g.Host
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+		cvar.Set("r_drawentities", "1")
+		cvar.Set("r_drawviewmodel", "1")
+		cvar.Set("chase_active", "0")
+	})
+
+	cvar.Set("r_drawentities", "1")
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("chase_active", "0")
+	cvar.Set("cl_bob", "0")
+	cvar.Set("cl_bobcycle", "0")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+
+	g.Host = nil
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+	globalViewCalc.oldZInit = false
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 20
+	g.Client.Time = 1.05
+	g.Client.MTime[1] = 1.0
+	g.Client.MTime[0] = 1.1
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 0
+	g.Client.Entities[1] = inet.EntityState{
+		ModelIndex:  1,
+		Origin:      [3]float32{0, 0, 0}, // stale rendered position from previous frame
+		MsgOrigins:  [2][3]float32{{100, 0, 0}, {0, 0, 0}},
+		MsgAngles:   [2][3]float32{{0, 0, 0}, {0, 0, 0}},
+		MsgTime:     1.1,
+		TrailOrigin: [3]float32{0, 0, 0},
+	}
+
+	runRuntimeFrame(0.016, gameCallbacks{})
+
+	viewOrigin, _ := runtimeViewState()
+	if want := [3]float32{50, 0, 20}; viewOrigin != want {
+		t.Fatalf("runtimeViewState origin = %v, want relinked origin %v", viewOrigin, want)
+	}
+
+	viewModel := collectViewModelEntity()
+	if viewModel == nil {
+		t.Fatal("collectViewModelEntity() = nil, want viewmodel")
+	}
+	if viewModel.Origin != viewOrigin {
+		t.Fatalf("viewmodel origin = %v, want same relinked eye origin %v", viewModel.Origin, viewOrigin)
 	}
 }
 
@@ -486,7 +568,11 @@ func TestRuntimeViewStateUsesPredictedXYOffsetDuringActiveMovement(t *testing.T)
 	g.Client.ViewEntity = 1
 	g.Client.ViewHeight = 22
 	g.Client.ViewAngles = [3]float32{10, 20, 0}
-	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.Entities[1] = inet.EntityState{
+		Origin:     [3]float32{100, 200, 300},
+		MsgOrigins: [2][3]float32{{100, 200, 300}, {100, 200, 300}},
+		MsgTime:    g.Client.MTime[0],
+	}
 	g.Client.PendingCmd = cl.UserCmd{
 		ViewAngles: [3]float32{0, 0, 0},
 		Forward:    100,

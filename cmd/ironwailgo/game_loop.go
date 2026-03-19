@@ -289,6 +289,9 @@ func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 		g.Client.PredictPlayers(float32(dt))
 		g.Client.UpdateBlend(dt)
 		g.Client.UpdateTempEntities()
+		// Relink before view/audio consumers so camera, listener, and viewmodel
+		// calculations all observe the same interpolated entity state this frame.
+		g.Client.RelinkEntities()
 	}
 	transientEvents := cl.TransientEvents{}
 	if g.Client != nil {
