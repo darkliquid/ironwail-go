@@ -77,44 +77,72 @@ func (s *Server) Impact(e1, e2 *Edict) {
 	s.setQCTimeGlobal(s.Time)
 
 	if e1.Vars.Touch != 0 && e1.Vars.Solid != float32(SolidNot) {
-		prevNumEdicts := s.NumEdicts
-		if telemetryEnabled {
-			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
-				"impact touch begin other=%d fn=%d", e2Num, e1.Vars.Touch)
+		allowTouch := true
+		if s.touchFrameActive {
+			if s.impactFrameSeen == nil {
+				s.impactFrameSeen = make(map[impactTouchKey]struct{})
+			}
+			key := impactTouchKey{self: e1Num, other: e2Num, fn: e1.Vars.Touch}
+			if _, seen := s.impactFrameSeen[key]; seen {
+				allowTouch = false
+			} else {
+				s.impactFrameSeen[key] = struct{}{}
+			}
 		}
-		syncEdictToQCVM(s.QCVM, e1Num, e1)
-		syncEdictToQCVM(s.QCVM, e2Num, e2)
-		s.QCVM.SetGlobal("self", e1Num)
-		s.QCVM.SetGlobal("other", e2Num)
-		if err := s.executeQCFunction(int(e1.Vars.Touch)); err == nil {
-			syncEdictFromQCVM(s.QCVM, e1Num, e1)
-			syncEdictFromQCVM(s.QCVM, e2Num, e2)
-			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
-		}
-		if telemetryEnabled {
-			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
-				"impact touch end other=%d fn=%d", e2Num, e1.Vars.Touch)
+		if allowTouch {
+			prevNumEdicts := s.NumEdicts
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
+					"impact touch begin other=%d fn=%d", e2Num, e1.Vars.Touch)
+			}
+			syncEdictToQCVM(s.QCVM, e1Num, e1)
+			syncEdictToQCVM(s.QCVM, e2Num, e2)
+			s.QCVM.SetGlobal("self", e1Num)
+			s.QCVM.SetGlobal("other", e2Num)
+			if err := s.executeQCFunction(int(e1.Vars.Touch)); err == nil {
+				syncEdictFromQCVM(s.QCVM, e1Num, e1)
+				syncEdictFromQCVM(s.QCVM, e2Num, e2)
+				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+			}
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
+					"impact touch end other=%d fn=%d", e2Num, e1.Vars.Touch)
+			}
 		}
 	}
 
 	if e2.Vars.Touch != 0 && e2.Vars.Solid != float32(SolidNot) {
-		prevNumEdicts := s.NumEdicts
-		if telemetryEnabled {
-			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
-				"impact touch begin other=%d fn=%d", e1Num, e2.Vars.Touch)
+		allowTouch := true
+		if s.touchFrameActive {
+			if s.impactFrameSeen == nil {
+				s.impactFrameSeen = make(map[impactTouchKey]struct{})
+			}
+			key := impactTouchKey{self: e2Num, other: e1Num, fn: e2.Vars.Touch}
+			if _, seen := s.impactFrameSeen[key]; seen {
+				allowTouch = false
+			} else {
+				s.impactFrameSeen[key] = struct{}{}
+			}
 		}
-		syncEdictToQCVM(s.QCVM, e2Num, e2)
-		syncEdictToQCVM(s.QCVM, e1Num, e1)
-		s.QCVM.SetGlobal("self", e2Num)
-		s.QCVM.SetGlobal("other", e1Num)
-		if err := s.executeQCFunction(int(e2.Vars.Touch)); err == nil {
-			syncEdictFromQCVM(s.QCVM, e2Num, e2)
-			syncEdictFromQCVM(s.QCVM, e1Num, e1)
-			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
-		}
-		if telemetryEnabled {
-			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
-				"impact touch end other=%d fn=%d", e1Num, e2.Vars.Touch)
+		if allowTouch {
+			prevNumEdicts := s.NumEdicts
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
+					"impact touch begin other=%d fn=%d", e1Num, e2.Vars.Touch)
+			}
+			syncEdictToQCVM(s.QCVM, e2Num, e2)
+			syncEdictToQCVM(s.QCVM, e1Num, e1)
+			s.QCVM.SetGlobal("self", e2Num)
+			s.QCVM.SetGlobal("other", e1Num)
+			if err := s.executeQCFunction(int(e2.Vars.Touch)); err == nil {
+				syncEdictFromQCVM(s.QCVM, e2Num, e2)
+				syncEdictFromQCVM(s.QCVM, e1Num, e1)
+				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+			}
+			if telemetryEnabled {
+				s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
+					"impact touch end other=%d fn=%d", e1Num, e2.Vars.Touch)
+			}
 		}
 	}
 

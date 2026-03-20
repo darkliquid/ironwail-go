@@ -641,6 +641,60 @@ func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
 	}
 }
 
+func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	callbacks := 0
+	const countBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		callbacks++
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("door_touch"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(countBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(countBuiltinOfs, -1)
+
+	e1 := &Edict{Vars: &EntVars{}}
+	e1.Vars.Touch = 1
+	e1.Vars.Solid = float32(SolidBSP)
+	e2 := &Edict{Vars: &EntVars{}}
+	e2.Vars.Solid = float32(SolidSlideBox)
+	s.Edicts = append(s.Edicts, e1, e2)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	s.touchFrameActive = true
+	clear(s.impactFrameSeen)
+	s.Impact(e1, e2)
+	s.Impact(e1, e2)
+	s.touchFrameActive = false
+
+	if callbacks != 1 {
+		t.Fatalf("same-frame impact callbacks = %d, want 1", callbacks)
+	}
+
+	clear(s.impactFrameSeen)
+	s.touchFrameActive = true
+	s.Impact(e1, e2)
+	s.touchFrameActive = false
+
+	if callbacks != 2 {
+		t.Fatalf("next-frame impact callbacks = %d, want 2", callbacks)
+	}
+}
+
 func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
