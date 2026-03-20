@@ -10,11 +10,9 @@ import (
 func (s *Server) Physics() {
 	s.touchFrameActive = true
 	clear(s.touchFrameSeen)
-	clear(s.impactFrameSeen)
 	defer func() {
 		s.touchFrameActive = false
 		clear(s.touchFrameSeen)
-		clear(s.impactFrameSeen)
 	}()
 
 	telemetryActive := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()

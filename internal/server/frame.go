@@ -7,6 +7,15 @@ func (s *Server) Frame(frameTime float64) error {
 	}
 
 	s.FrameTime = float32(frameTime)
+	s.impactFrameActive = true
+	if s.impactFrameSeen == nil {
+		s.impactFrameSeen = make(map[impactTouchKey]struct{})
+	}
+	clear(s.impactFrameSeen)
+	defer func() {
+		s.impactFrameActive = false
+		clear(s.impactFrameSeen)
+	}()
 
 	s.ClearDatagram()
 

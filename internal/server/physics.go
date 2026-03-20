@@ -78,7 +78,7 @@ func (s *Server) Impact(e1, e2 *Edict) {
 
 	if e1.Vars.Touch != 0 && e1.Vars.Solid != float32(SolidNot) {
 		allowTouch := true
-		if s.touchFrameActive {
+		if s.impactFrameActive {
 			if s.impactFrameSeen == nil {
 				s.impactFrameSeen = make(map[impactTouchKey]struct{})
 			}
@@ -113,7 +113,7 @@ func (s *Server) Impact(e1, e2 *Edict) {
 
 	if e2.Vars.Touch != 0 && e2.Vars.Solid != float32(SolidNot) {
 		allowTouch := true
-		if s.touchFrameActive {
+		if s.impactFrameActive {
 			if s.impactFrameSeen == nil {
 				s.impactFrameSeen = make(map[impactTouchKey]struct{})
 			}

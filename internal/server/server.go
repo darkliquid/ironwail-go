@@ -117,9 +117,10 @@ type Server struct {
 	checkClientTime float32
 	checkClientPVS  []byte
 
-	touchFrameActive bool
-	touchFrameSeen   map[uint64]struct{}
-	impactFrameSeen  map[impactTouchKey]struct{}
+	touchFrameActive  bool
+	touchFrameSeen    map[uint64]struct{}
+	impactFrameActive bool
+	impactFrameSeen   map[impactTouchKey]struct{}
 
 	compatRNG *compatrand.RNG
 }
