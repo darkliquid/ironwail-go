@@ -957,3 +957,88 @@ func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
 		t.Fatalf("vm yaw not synchronized after changeyaw: got=%v", got[1])
 	}
 }
+
+func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
+
+	vm := newServerTestVM(s, 16)
+	vm.NumEdicts = s.NumEdicts
+	qc.RegisterBuiltins(vm)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_callback"), FirstStatement: 0},
+		{Name: vm.AllocString("outer_qc_func"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	self := s.AllocEdict()
+	goal := s.AllocEdict()
+	trigger := s.AllocEdict()
+	if self == nil || goal == nil || trigger == nil {
+		t.Fatal("failed to allocate edicts")
+	}
+	vm.NumEdicts = s.NumEdicts
+
+	selfNum := s.NumForEdict(self)
+	self.Vars.Origin = [3]float32{0, 0, 24}
+	self.Vars.Mins = [3]float32{-16, -16, -24}
+	self.Vars.Maxs = [3]float32{16, 16, 32}
+	self.Vars.Solid = float32(SolidSlideBox)
+	self.Vars.Flags = float32(FlagOnGround)
+	self.Vars.IdealYaw = 0
+	self.Vars.YawSpeed = 360
+
+	goal.Vars.Origin = [3]float32{64, 0, 24}
+	goal.Vars.Mins = [3]float32{-16, -16, -24}
+	goal.Vars.Maxs = [3]float32{16, 16, 32}
+	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
+
+	trigger.Vars.Origin = [3]float32{24, 0, 24}
+	trigger.Vars.Mins = [3]float32{-16, -16, -24}
+	trigger.Vars.Maxs = [3]float32{16, 16, 32}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+
+	s.LinkEdict(self, false)
+	s.LinkEdict(goal, false)
+	s.LinkEdict(trigger, false)
+	syncEdictToQCVM(vm, selfNum, self)
+	syncEdictToQCVM(vm, s.NumForEdict(goal), goal)
+	syncEdictToQCVM(vm, s.NumForEdict(trigger), trigger)
+
+	vm.SetGInt(qc.OFSSelf, int32(selfNum))
+	vm.SetGInt(qc.OFSOther, 77)
+	vm.XFunction = &vm.Functions[2]
+	vm.XFunctionIndex = 2
+	vm.SetGFloat(qc.OFSParm0, 24)
+	if fn := vm.Builtins[67]; fn == nil {
+		t.Fatal("movetogoal builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.GInt(qc.OFSSelf); got != int32(selfNum) {
+		t.Fatalf("self after nested movetogoal = %d, want %d", got, selfNum)
+	}
+	if got := vm.GInt(qc.OFSOther); got != 77 {
+		t.Fatalf("other after nested movetogoal = %d, want 77", got)
+	}
+	if vm.XFunction != &vm.Functions[2] || vm.XFunctionIndex != 2 {
+		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)
+	}
+}

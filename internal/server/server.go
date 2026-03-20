@@ -1306,7 +1306,15 @@ func NewServer() *Server {
 			if ent == nil || ent.Vars == nil || ent.Free {
 				return
 			}
+			oldSelf := vm.GInt(qc.OFSSelf)
+			oldOther := vm.GInt(qc.OFSOther)
+			oldXFunction := vm.XFunction
+			oldXFunctionIndex := vm.XFunctionIndex
 			s.MoveToGoal(ent, dist)
+			vm.SetGInt(qc.OFSSelf, oldSelf)
+			vm.SetGInt(qc.OFSOther, oldOther)
+			vm.XFunction = oldXFunction
+			vm.XFunctionIndex = oldXFunctionIndex
 			syncEdictToQCVM(vm, entNum, ent)
 		},
 		ChangeYaw: func(vm *qc.VM) {
