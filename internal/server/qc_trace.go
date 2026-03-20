@@ -12,7 +12,11 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	}
 
 	if s.DebugTelemetry == nil || !s.DebugTelemetry.QCTraceVerbosityEnabled(1) {
-		return s.QCVM.ExecuteFunction(funcIdx)
+		err := s.QCVM.ExecuteFunction(funcIdx)
+		if err == nil {
+			s.syncSchedulerFieldsFromQCVM()
+		}
+		return err
 	}
 
 	vm := s.QCVM
@@ -27,7 +31,11 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 		vm.TraceCallFunc = previousTraceCallFunc
 	}()
 
-	return vm.ExecuteFunction(funcIdx)
+	err := vm.ExecuteFunction(funcIdx)
+	if err == nil {
+		s.syncSchedulerFieldsFromQCVM()
+	}
+	return err
 }
 
 func (s *Server) logQCTraceEvent(vm *qc.VM, event qc.TraceCallEvent) {

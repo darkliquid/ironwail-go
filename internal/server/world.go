@@ -262,9 +262,9 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 		if num != bsp.ContentsSolid {
 			trace.AllSolid = false
 			if num == bsp.ContentsEmpty {
-				// trace.inOpen = true  // Could track this for line-of-sight
+				trace.InOpen = true
 			} else {
-				// trace.inWater = true
+				trace.InWater = true
 			}
 		} else {
 			trace.StartSolid = true
@@ -734,14 +734,19 @@ func (s *Server) touchLinks(ent *Edict) {
 		}
 		syncEdictToQCVM(s.QCVM, touchNum, touch)
 		syncEdictToQCVM(s.QCVM, entNum, ent)
+		pusherSnapshots := s.capturePusherSnapshots()
+		s.syncPushersToQCVM()
 		s.QCVM.SetGlobal("self", touchNum)
 		s.QCVM.SetGlobal("other", entNum)
 		s.setQCTimeGlobal(s.Time)
+		prevNumEdicts := s.NumEdicts
 		if err := s.executeQCFunction(int(touch.Vars.Touch)); err != nil {
 			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touch.Vars.Touch, "err", err)
 		} else {
 			syncEdictFromQCVM(s.QCVM, touchNum, touch)
 			syncEdictFromQCVM(s.QCVM, entNum, ent)
+			s.syncMutatedPushersFromQCVM(pusherSnapshots)
+			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
 			linkState := "linked"

@@ -1,6 +1,11 @@
 package server
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/model"
+)
 
 func TestMoveAgainstBoxWorld(t *testing.T) {
 	s := newMovementTestServer()
@@ -40,5 +45,43 @@ func TestMoveThroughEmptySpace(t *testing.T) {
 
 	if trace.Fraction != 1 {
 		t.Fatalf("expected no collision (fraction==1), got %v", trace.Fraction)
+	}
+}
+
+func TestRecursiveHullCheckTracksInOpen(t *testing.T) {
+	hull := &model.Hull{
+		ClipNodes:     []model.MClipNode{{PlaneNum: 0, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}}},
+		Planes:        []model.MPlane{{Normal: [3]float32{1, 0, 0}, Type: 0}},
+		FirstClipNode: 0,
+		LastClipNode:  0,
+	}
+	trace := TraceResult{AllSolid: true}
+	if !recursiveHullCheck(hull, 0, 0, 1, [3]float32{1, 0, 0}, [3]float32{2, 0, 0}, &trace) {
+		t.Fatal("recursiveHullCheck returned false")
+	}
+	if !trace.InOpen {
+		t.Fatal("expected trace to record open-space traversal")
+	}
+	if trace.InWater {
+		t.Fatal("unexpected in-water flag for empty-space trace")
+	}
+}
+
+func TestRecursiveHullCheckTracksInWater(t *testing.T) {
+	hull := &model.Hull{
+		ClipNodes:     []model.MClipNode{{PlaneNum: 0, Children: [2]int{bsp.ContentsWater, bsp.ContentsSolid}}},
+		Planes:        []model.MPlane{{Normal: [3]float32{1, 0, 0}, Type: 0}},
+		FirstClipNode: 0,
+		LastClipNode:  0,
+	}
+	trace := TraceResult{AllSolid: true}
+	if !recursiveHullCheck(hull, 0, 0, 1, [3]float32{1, 0, 0}, [3]float32{2, 0, 0}, &trace) {
+		t.Fatal("recursiveHullCheck returned false")
+	}
+	if !trace.InWater {
+		t.Fatal("expected trace to record water traversal")
+	}
+	if trace.InOpen {
+		t.Fatal("unexpected in-open flag for water trace")
 	}
 }

@@ -426,6 +426,7 @@ func (s *Server) loadMapEntities(raw string) error {
 		// Push parsed entity fields to the QCVM so the spawn function
 		// can read them (origin, angles, target, etc.).
 		s.ensureQCVMEdictStorage()
+		clearQCVMEdictData(s.QCVM, entNum)
 		syncEdictToQCVM(s.QCVM, entNum, ent)
 
 		// Set QC globals and execute the spawn function.

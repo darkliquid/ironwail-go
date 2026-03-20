@@ -317,6 +317,52 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	}
 }
 
+func TestParseClientDataResetsWeaponFrameWhenBitsOmitted(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	first := bytes.NewBuffer(nil)
+	first.WriteByte(byte(inet.SVCClientData))
+	writeShort(first, int(inet.SU_WEAPONFRAME))
+	writeLong(first, 0)
+	first.WriteByte(6)
+	writeShort(first, 100)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0)
+	first.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(first.Bytes()); err != nil {
+		t.Fatalf("first ParseServerMessage() error = %v", err)
+	}
+	if got := c.WeaponFrame(); got != 6 {
+		t.Fatalf("weapon frame after first message = %d, want 6", got)
+	}
+
+	second := bytes.NewBuffer(nil)
+	second.WriteByte(byte(inet.SVCClientData))
+	writeShort(second, 0)
+	writeLong(second, 0)
+	writeShort(second, 100)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0)
+	second.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(second.Bytes()); err != nil {
+		t.Fatalf("second ParseServerMessage() error = %v", err)
+	}
+	if got := c.WeaponFrame(); got != 0 {
+		t.Fatalf("weapon frame after omitted bits = %d, want 0", got)
+	}
+}
+
 func TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)

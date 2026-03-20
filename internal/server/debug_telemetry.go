@@ -2,13 +2,12 @@ package server
 
 import (
 	"fmt"
+	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/qc"
+	"os"
 	"path"
 	"strconv"
 	"strings"
-
-	"github.com/ironwail/ironwail-go/internal/console"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
 const (
@@ -29,6 +28,9 @@ var (
 	debugTelemetrySummaryCVar     *cvar.CVar
 	debugTelemetryQCTraceCVar     *cvar.CVar
 	debugTelemetryQCVerbosityCVar *cvar.CVar
+	debugTelemetryEmit            = func(line string) {
+		fmt.Fprintln(os.Stderr, line)
+	}
 )
 
 // RegisterDebugTelemetryCVars registers the server-side debug telemetry control
@@ -182,9 +184,7 @@ type DebugTelemetry struct {
 }
 
 func NewDebugTelemetry() *DebugTelemetry {
-	t := NewDebugTelemetryWithConfig(readDebugTelemetryConfig, func(line string) {
-		console.Printf("%s\n", line)
-	})
+	t := NewDebugTelemetryWithConfig(readDebugTelemetryConfig, debugTelemetryEmit)
 	t.batchOutput = true
 	return t
 }

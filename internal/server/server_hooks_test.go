@@ -53,6 +53,35 @@ func TestServerHooksSpawnAndRemove(t *testing.T) {
 	}
 }
 
+func TestServerHooksSpawnClearsQCOnlyFieldsOnReusedEdict(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	reused := s.AllocEdict()
+	if reused == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(reused)
+	vm.SetEFloat(entNum, 110, 123)
+	s.FreeEdict(reused)
+
+	if fn := vm.Builtins[14]; fn != nil {
+		fn(vm)
+	} else {
+		t.Fatal("spawn builtin not registered")
+	}
+
+	if got := int(vm.GInt(qc.OFSReturn)); got != entNum {
+		t.Fatalf("spawn return = %d, want reused edict %d", got, entNum)
+	}
+	if got := vm.EFloat(entNum, 110); got != 0 {
+		t.Fatalf("QC-only field on reused spawned edict = %v, want 0", got)
+	}
+}
+
 func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
@@ -76,7 +105,9 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	vm.SetEVector(1, qc.EntFieldOrigin, [3]float32{100, 0, 0})
 	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("trigger"))
 	vm.SetEFloat(2, qc.EntFieldHealth, 100)
+	vm.SetEFloat(2, qc.EntFieldSolid, float32(SolidBBox))
 	vm.SetEVector(2, qc.EntFieldOrigin, [3]float32{10, 0, 0})
+	vm.SetEFloat(3, qc.EntFieldSolid, float32(SolidBBox))
 	vm.SetEVector(3, qc.EntFieldOrigin, [3]float32{40, 0, 0})
 
 	// find by string (canonical builtin 18)
@@ -116,8 +147,14 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	if fn := vm.Builtins[22]; fn != nil {
 		fn(vm)
 	}
-	if got := int(vm.GInt(qc.OFSReturn)); got != 2 {
-		t.Fatalf("findradius return = %d, want 2", got)
+	if got := int(vm.GInt(qc.OFSReturn)); got != 3 {
+		t.Fatalf("findradius return = %d, want 3", got)
+	}
+	if got := int(vm.EInt(3, qc.EntFieldChain)); got != 2 {
+		t.Fatalf("findradius chain head = %d, want 2", got)
+	}
+	if got := int(vm.EInt(2, qc.EntFieldChain)); got != 0 {
+		t.Fatalf("findradius chain tail = %d, want 0", got)
 	}
 
 	// setmodel
@@ -269,14 +306,30 @@ func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
 
-	// Ensure an entity exists at index 1
-	vm.NumEdicts = 2
-	vm.SetEVector(1, qc.EntFieldOrigin, [3]float32{0, 0, 0})
-	vm.SetGInt(qc.OFSSelf, 1)
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+
+	ent.Vars.Origin = [3]float32{0, 0, 24}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.Flags = float32(FlagOnGround)
+	s.LinkEdict(ent, false)
+	syncEdictToQCVM(vm, entNum, ent)
+	vm.SetGInt(qc.OFSSelf, int32(entNum))
 
 	// Walk forward 10 units at yaw=0
 	vm.SetGFloat(qc.OFSParm0, 0)
@@ -284,18 +337,170 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	if fn := vm.Builtins[32]; fn != nil {
 		fn(vm)
 	}
-	if got := vm.EVector(1, qc.EntFieldOrigin); got[0] == 0 && got[1] == 0 {
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[0] == 0 && got[1] == 0 {
 		t.Fatalf("walkmove did not change origin: %v", got)
 	}
 
-	// Drop to floor (simple implementation places mins.z on z=0)
-	vm.SetGFloat(qc.OFSParm0, 0)
+	ent.Vars.Origin = [3]float32{0, 0, 96}
+	ent.Vars.Flags = 0
+	ent.Vars.GroundEntity = 0
+	s.LinkEdict(ent, false)
+	syncEdictToQCVM(vm, entNum, ent)
 	if fn := vm.Builtins[34]; fn != nil {
 		fn(vm)
 	}
-	// Expect origin.z to equal -mins.z (mins default zero -> 0)
-	if got := vm.EVector(1, qc.EntFieldOrigin); got[2] != 0 {
-		t.Fatalf("droptofloor origin.z = %v, want 0", got[2])
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[2] < 23.99 || got[2] > 24.05 {
+		t.Fatalf("droptofloor origin.z = %v, want ~24", got[2])
+	}
+	if got := uint32(vm.EFloat(entNum, qc.EntFieldFlags)); got&FlagOnGround == 0 {
+		t.Fatalf("droptofloor flags = %#x, want onground set", got)
+	}
+	if got := vm.EInt(entNum, qc.EntFieldGroundEnt); got != 0 {
+		t.Fatalf("droptofloor groundentity = %d, want world 0", got)
+	}
+}
+
+func TestServerHooksWalkMoveSyncsFullEdictStateBackToQC(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+
+	ent.Vars.Flags = float32(FlagOnGround)
+	ent.Vars.Angles[1] = 10
+	ent.Vars.YawSpeed = 15
+	syncEdictToQCVM(vm, entNum, ent)
+
+	vm.SetGInt(qc.OFSSelf, int32(entNum))
+	vm.SetGFloat(qc.OFSParm0, 350)
+	vm.SetGFloat(qc.OFSParm1, 10)
+	if fn := vm.Builtins[32]; fn == nil {
+		t.Fatal("walkmove builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.EFloat(entNum, qc.EntFieldIdealYaw); got != 350 {
+		t.Fatalf("ideal_yaw = %v, want 350", got)
+	}
+	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
+		t.Fatalf("angles yaw = %v, want ~355 after changeyaw sync", got)
+	}
+}
+
+func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+
+	ent.Vars.Origin = [3]float32{0, 0, 0}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	syncEdictToQCVM(vm, entNum, ent)
+
+	vm.SetGInt(qc.OFSSelf, int32(entNum))
+	vm.SetGFloat(qc.OFSParm0, 0)
+	vm.SetGFloat(qc.OFSParm1, 10)
+	if fn := vm.Builtins[32]; fn == nil {
+		t.Fatal("walkmove builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got != [3]float32{0, 0, 0} {
+		t.Fatalf("walkmove changed origin without movement flags: %v", got)
+	}
+}
+
+func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_callback"), FirstStatement: 0},
+		{Name: vm.AllocString("outer_qc_func"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	if mover == nil || trigger == nil {
+		t.Fatal("failed to allocate edicts")
+	}
+	vm.NumEdicts = s.NumEdicts
+
+	moverNum := s.NumForEdict(mover)
+	mover.Vars.Origin = [3]float32{0, 0, 24}
+	mover.Vars.Mins = [3]float32{-16, -16, -24}
+	mover.Vars.Maxs = [3]float32{16, 16, 32}
+	mover.Vars.Solid = float32(SolidSlideBox)
+	mover.Vars.Flags = float32(FlagOnGround)
+
+	trigger.Vars.Origin = [3]float32{24, 0, 24}
+	trigger.Vars.Mins = [3]float32{-16, -16, -24}
+	trigger.Vars.Maxs = [3]float32{16, 16, 32}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+
+	s.LinkEdict(mover, false)
+	s.LinkEdict(trigger, false)
+	syncEdictToQCVM(vm, moverNum, mover)
+	syncEdictToQCVM(vm, s.NumForEdict(trigger), trigger)
+
+	vm.SetGInt(qc.OFSSelf, int32(moverNum))
+	vm.SetGInt(qc.OFSOther, 77)
+	vm.XFunction = &vm.Functions[2]
+	vm.XFunctionIndex = 2
+	vm.SetGFloat(qc.OFSParm0, 0)
+	vm.SetGFloat(qc.OFSParm1, 24)
+	if fn := vm.Builtins[32]; fn == nil {
+		t.Fatal("walkmove builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.GInt(qc.OFSSelf); got != int32(moverNum) {
+		t.Fatalf("self after nested walkmove = %d, want %d", got, moverNum)
+	}
+	if got := vm.GInt(qc.OFSOther); got != 77 {
+		t.Fatalf("other after nested walkmove = %d, want 77", got)
+	}
+	if vm.XFunction != &vm.Functions[2] || vm.XFunctionIndex != 2 {
+		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)
 	}
 }
 
@@ -482,6 +687,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	self.Vars.Origin = [3]float32{0, 0, 0}
 	self.Vars.ViewOfs = [3]float32{0, 0, 16}
 	self.Vars.AimEnt = int32(s.NumForEdict(target))
+	target.Vars.Health = 100
 	target.Vars.Origin = [3]float32{0, 100, 16}
 	target.Vars.Mins = [3]float32{-16, -16, -24}
 	target.Vars.Maxs = [3]float32{16, 16, 32}
@@ -530,6 +736,63 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	}
 	if got := vm.GFloat(qc.OFSParmStart + 1); got != 20 {
 		t.Fatalf("parm2 = %v, want 20", got)
+	}
+}
+
+func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+	s.Datagram = NewMessageBuffer(MaxDatagram)
+
+	self := s.AllocEdict()
+	target := s.AllocEdict()
+	self.Vars.Origin = [3]float32{-64, 0, 0}
+	self.Vars.ViewOfs = [3]float32{}
+	target.Vars.Origin = [3]float32{64, 0, 0}
+	target.Vars.ViewOfs = [3]float32{}
+	target.Vars.Health = 100
+
+	s.Static = &ServerStatic{
+		MaxClients: 2,
+		Clients: []*Client{
+			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
+			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
+		},
+	}
+	s.WorldTree = &bsp.Tree{
+		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+		Nodes: []bsp.TreeNode{{
+			PlaneNum: 0,
+			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 0}, {IsLeaf: true, Index: 1}},
+		}},
+		Leafs:      []bsp.TreeLeaf{{VisOfs: 0}, {VisOfs: 1}},
+		Visibility: []byte{0x01, 0x00, 0x01},
+	}
+
+	vm := newServerTestVM(s, 16)
+	vm.NumEdicts = s.NumEdicts
+	qc.RegisterBuiltins(vm)
+
+	s.Time = 0.2
+	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
+	if fn := vm.Builtins[17]; fn == nil {
+		t.Fatal("checkclient builtin not registered")
+	} else {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != 0 {
+		t.Fatalf("checkclient with self outside target PVS = %d, want 0", got)
+	}
+
+	self.Vars.Origin = [3]float32{64, 0, 0}
+	s.Time = 0.25
+	if fn := vm.Builtins[17]; fn == nil {
+		t.Fatal("checkclient builtin not registered")
+	} else {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
+		t.Fatalf("checkclient with self inside target PVS = %d, want %d", got, s.NumForEdict(target))
 	}
 }
 

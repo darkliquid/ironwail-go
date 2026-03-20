@@ -163,3 +163,214 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 		}
 	}
 }
+
+func TestTouchLinksSyncsThirdPartyPusherChangesBackFromQCVM(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.Areanodes = make([]AreaNode, AreaNodes)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	var doorNum int
+	const callbackBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		vm.SetEFloat(doorNum, qc.EntFieldNextThink, 0.5)
+		vm.SetEInt(doorNum, qc.EntFieldThink, 7)
+		vm.SetEFloat(doorNum, qc.EntFieldLTime, 0.25)
+		vm.SetEVector(doorNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
+		vm.SetEVector(doorNum, qc.EntFieldAbsMin, [3]float32{48, -16, -16})
+		vm.SetEVector(doorNum, qc.EntFieldAbsMax, [3]float32{80, 16, 16})
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_callback_mutates_door"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(callbackBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(callbackBuiltinOfs, -1)
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	door := s.AllocEdict()
+	if mover == nil || trigger == nil || door == nil {
+		t.Fatal("failed to allocate test edicts")
+	}
+
+	mover.Vars.Origin = [3]float32{}
+	mover.Vars.Mins = [3]float32{-16, -16, -16}
+	mover.Vars.Maxs = [3]float32{16, 16, 16}
+	mover.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(mover, false)
+
+	trigger.Vars.Origin = [3]float32{}
+	trigger.Vars.Mins = [3]float32{-8, -8, -8}
+	trigger.Vars.Maxs = [3]float32{8, 8, 8}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+	s.LinkEdict(trigger, false)
+
+	door.Vars.MoveType = float32(MoveTypePush)
+	door.Vars.Solid = float32(SolidBSP)
+	door.Vars.Mins = [3]float32{-16, -16, -16}
+	door.Vars.Maxs = [3]float32{16, 16, 16}
+	s.LinkEdict(door, false)
+	doorNum = s.NumForEdict(door)
+
+	s.touchLinks(mover)
+
+	if got := door.Vars.NextThink; got != 0.5 {
+		t.Fatalf("door nextthink = %v, want 0.5", got)
+	}
+	if got := door.Vars.Think; got != 7 {
+		t.Fatalf("door think = %v, want 7", got)
+	}
+	if got := door.Vars.LTime; got != 0.25 {
+		t.Fatalf("door ltime = %v, want 0.25", got)
+	}
+	if got := door.Vars.Origin; got != [3]float32{64, 0, 0} {
+		t.Fatalf("door origin = %v, want [64 0 0]", got)
+	}
+	if door.AreaPrev == nil || door.AreaNext == nil {
+		t.Fatalf("door unexpectedly unlinked after third-party QC sync: prev=%p next=%p", door.AreaPrev, door.AreaNext)
+	}
+}
+
+func TestTouchLinksSyncsOwnerPusherStateIntoQCBeforeCallback(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.Areanodes = make([]AreaNode, AreaNodes)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	const callbackBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		owner := vm.EInt(self, qc.EntFieldOwner)
+		if owner == 0 {
+			return
+		}
+		if got := vm.EFloat(int(owner), qc.EntFieldNextThink); got != 0.5 {
+			return
+		}
+		vm.SetEVector(int(owner), qc.EntFieldOrigin, [3]float32{128, 0, 0})
+		vm.SetEVector(int(owner), qc.EntFieldAbsMin, [3]float32{112, -16, -16})
+		vm.SetEVector(int(owner), qc.EntFieldAbsMax, [3]float32{144, 16, 16})
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_callback_reads_owner"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(callbackBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(callbackBuiltinOfs, -1)
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	door := s.AllocEdict()
+	if mover == nil || trigger == nil || door == nil {
+		t.Fatal("failed to allocate test edicts")
+	}
+
+	mover.Vars.Origin = [3]float32{}
+	mover.Vars.Mins = [3]float32{-16, -16, -16}
+	mover.Vars.Maxs = [3]float32{16, 16, 16}
+	mover.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(mover, false)
+
+	trigger.Vars.Origin = [3]float32{}
+	trigger.Vars.Mins = [3]float32{-8, -8, -8}
+	trigger.Vars.Maxs = [3]float32{8, 8, 8}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+	s.LinkEdict(trigger, false)
+
+	door.Vars.MoveType = float32(MoveTypePush)
+	door.Vars.Solid = float32(SolidBSP)
+	door.Vars.Mins = [3]float32{-16, -16, -16}
+	door.Vars.Maxs = [3]float32{16, 16, 16}
+	door.Vars.NextThink = 0.5
+	s.LinkEdict(door, false)
+
+	trigger.Vars.Owner = int32(s.NumForEdict(door))
+
+	s.touchLinks(mover)
+
+	if got := door.Vars.Origin; got != [3]float32{128, 0, 0} {
+		t.Fatalf("door origin = %v, want [128 0 0]", got)
+	}
+}
+
+func TestTouchLinksDoesNotClobberUnchangedPusherFromStaleQCVM(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.Areanodes = make([]AreaNode, AreaNodes)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("noop_touch"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{{Op: uint16(qc.OPDone)}}
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	door := s.AllocEdict()
+	if mover == nil || trigger == nil || door == nil {
+		t.Fatal("failed to allocate test edicts")
+	}
+
+	mover.Vars.Origin = [3]float32{}
+	mover.Vars.Mins = [3]float32{-16, -16, -16}
+	mover.Vars.Maxs = [3]float32{16, 16, 16}
+	mover.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(mover, false)
+
+	trigger.Vars.Origin = [3]float32{}
+	trigger.Vars.Mins = [3]float32{-8, -8, -8}
+	trigger.Vars.Maxs = [3]float32{8, 8, 8}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+	s.LinkEdict(trigger, false)
+
+	door.Vars.MoveType = float32(MoveTypePush)
+	door.Vars.Solid = float32(SolidBSP)
+	door.Vars.Mins = [3]float32{-16, -16, -16}
+	door.Vars.Maxs = [3]float32{16, 16, 16}
+	door.Vars.Origin = [3]float32{64, 0, 0}
+	door.Vars.LTime = 48.84
+	door.Vars.NextThink = 51.238
+	s.LinkEdict(door, false)
+
+	doorNum := s.NumForEdict(door)
+	vm.SetEVector(doorNum, qc.EntFieldOrigin, [3]float32{})
+	vm.SetEFloat(doorNum, qc.EntFieldLTime, 0.1)
+	vm.SetEFloat(doorNum, qc.EntFieldNextThink, 1.02)
+
+	s.touchLinks(mover)
+
+	if got := door.Vars.Origin; got != [3]float32{64, 0, 0} {
+		t.Fatalf("door origin clobbered from stale QC state: got %v", got)
+	}
+	if got := door.Vars.LTime; got != 48.84 {
+		t.Fatalf("door ltime clobbered from stale QC state: got %v", got)
+	}
+	if got := door.Vars.NextThink; got != 51.238 {
+		t.Fatalf("door nextthink clobbered from stale QC state: got %v", got)
+	}
+}

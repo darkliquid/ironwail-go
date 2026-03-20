@@ -813,6 +813,7 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 	}
 	p.Client.Items = uint32(items)
 
+	p.Client.Stats[statWeaponFrame] = 0
 	if bits&inet.SU_WEAPONFRAME != 0 {
 		v, ok := msg.ReadByte()
 		if !ok {

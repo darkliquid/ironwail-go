@@ -258,6 +258,74 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	}
 }
 
+func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSWorld), Name: vm.AllocString("world")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.FieldDefs = append(vm.FieldDefs, qc.DDef{
+		Type: uint16(qc.EvFloat),
+		Ofs:  110,
+		Name: vm.AllocString("attack_finished"),
+	})
+
+	const inspectBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		if got := vm.EFloat(self, 110); got != 0 {
+			vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidNot))
+			return
+		}
+		vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidTrigger))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 2},
+		{Name: vm.AllocString("trigger_test"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(inspectBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(inspectBuiltinOfs, -1)
+
+	reused := s.AllocEdict()
+	if reused == nil {
+		t.Fatal("failed to allocate reusable edict")
+	}
+	entNum := s.NumForEdict(reused)
+	vm.NumEdicts = s.NumEdicts
+	vm.SetEFloat(entNum, 110, 123)
+	s.FreeEdict(reused)
+
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+}`
+	if err := s.loadMapEntities(raw); err != nil {
+		t.Fatalf("loadMapEntities() error = %v", err)
+	}
+
+	spawned := s.EdictNum(entNum)
+	if spawned == nil || spawned.Vars == nil {
+		t.Fatal("spawned edict missing")
+	}
+	if got := spawned.Vars.Solid; got != float32(SolidTrigger) {
+		t.Fatalf("spawned solid = %v, want %v", got, float32(SolidTrigger))
+	}
+	if got := vm.EFloat(entNum, 110); got != 0 {
+		t.Fatalf("QC-only field attack_finished = %v, want 0 after spawn clear", got)
+	}
+}
+
 func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	s := NewServer()
 	s.Areanodes = make([]AreaNode, AreaNodes)

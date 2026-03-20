@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
@@ -12,6 +12,9 @@ import (
 const debugViewTelemetryCVarName = "cl_debug_view"
 
 var debugViewTelemetryCVar *cvar.CVar
+var debugViewTelemetryEmit = func(line string) {
+	fmt.Fprintln(os.Stderr, line)
+}
 
 type debugViewTelemetryState struct {
 	frame               uint64
@@ -124,8 +127,8 @@ func runtimeDebugViewLogf(kind, format string, args ...any) {
 	if g.Client != nil {
 		clientTime = g.Client.Time
 	}
-	console.Printf("[cldbg frame=%d time=%.3f kind=%s] %s\n",
-		runtimeDebugView.frame, clientTime, kind, fmt.Sprintf(format, args...))
+	debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] %s",
+		runtimeDebugView.frame, clientTime, kind, fmt.Sprintf(format, args...)))
 }
 
 func runtimeDebugViewLogRelinkPhase(phase string) {

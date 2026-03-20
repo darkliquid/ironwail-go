@@ -356,6 +356,11 @@ type TraceResult struct {
 	// world geometry (or nothing). When non-nil, the engine can fire touch
 	// callbacks on both the moving entity and the hit entity.
 	Entity *Edict
+
+	// InOpen / InWater mirror Quake trace_t flags used by QC traceline users
+	// such as monster attack checks.
+	InOpen  bool
+	InWater bool
 }
 
 // ClientState tracks the current state of a connected client in the server's

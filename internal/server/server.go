@@ -110,6 +110,10 @@ type Server struct {
 	Deathmatch bool
 
 	DebugTelemetry *DebugTelemetry
+
+	checkClientSlot int
+	checkClientTime float32
+	checkClientPVS  []byte
 }
 
 // ServerStatic holds state that persists across level changes.
@@ -188,6 +192,248 @@ func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	}
 	fieldOffsets := qcFieldOffsets(vm)
 	syncEntVarsFromQC(vm, entNum, ent.Vars, fieldOffsets)
+}
+
+func clearQCVMEdictData(vm *qc.VM, entNum int) {
+	if vm == nil {
+		return
+	}
+	data := vm.EdictData(entNum)
+	if data == nil {
+		return
+	}
+	clear(data)
+}
+
+func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	if startEntNum < 0 {
+		startEntNum = 0
+	}
+	limit := s.NumEdicts
+	if limit > len(s.Edicts) {
+		limit = len(s.Edicts)
+	}
+	for entNum := startEntNum; entNum < limit; entNum++ {
+		ent := s.Edicts[entNum]
+		if ent == nil || ent.Free {
+			continue
+		}
+		if ent.Vars == nil {
+			ent.Vars = &EntVars{}
+		}
+		syncEdictFromQCVM(s.QCVM, entNum, ent)
+		if entNum == 0 || int(ent.Vars.Solid) == int(SolidNot) {
+			continue
+		}
+		s.LinkEdict(ent, false)
+	}
+}
+
+func (s *Server) syncSchedulerFieldsFromQCVM() {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	limit := s.NumEdicts
+	if limit > len(s.Edicts) {
+		limit = len(s.Edicts)
+	}
+	for entNum := 0; entNum < limit; entNum++ {
+		ent := s.Edicts[entNum]
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if MoveType(ent.Vars.MoveType) == MoveTypePush {
+			continue
+		}
+		ent.Vars.Frame = s.QCVM.EFloat(entNum, qc.EntFieldFrame)
+		ent.Vars.Think = s.QCVM.EFunction(entNum, qc.EntFieldThink)
+		ent.Vars.NextThink = s.QCVM.EFloat(entNum, qc.EntFieldNextThink)
+	}
+}
+
+func (s *Server) syncPushersToQCVM() {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	limit := s.NumEdicts
+	if limit > len(s.Edicts) {
+		limit = len(s.Edicts)
+	}
+	for entNum := 0; entNum < limit; entNum++ {
+		ent := s.Edicts[entNum]
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if MoveType(ent.Vars.MoveType) != MoveTypePush {
+			continue
+		}
+		syncEdictToQCVM(s.QCVM, entNum, ent)
+	}
+}
+
+type pusherSnapshot struct {
+	entNum int
+	vars   EntVars
+}
+
+func (s *Server) capturePusherSnapshots() []pusherSnapshot {
+	if s == nil || s.QCVM == nil {
+		return nil
+	}
+	limit := s.NumEdicts
+	if limit > len(s.Edicts) {
+		limit = len(s.Edicts)
+	}
+	snapshots := make([]pusherSnapshot, 0, limit)
+	for entNum := 0; entNum < limit; entNum++ {
+		ent := s.Edicts[entNum]
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if MoveType(ent.Vars.MoveType) != MoveTypePush {
+			continue
+		}
+		snapshots = append(snapshots, pusherSnapshot{
+			entNum: entNum,
+			vars:   *ent.Vars,
+		})
+	}
+	return snapshots
+}
+
+func (s *Server) syncPushersFromQCVM() {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	limit := s.NumEdicts
+	if limit > len(s.Edicts) {
+		limit = len(s.Edicts)
+	}
+	for entNum := 0; entNum < limit; entNum++ {
+		ent := s.Edicts[entNum]
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if MoveType(ent.Vars.MoveType) != MoveTypePush {
+			continue
+		}
+		oldOrigin := ent.Vars.Origin
+		oldSolid := ent.Vars.Solid
+		oldMins := ent.Vars.Mins
+		oldMaxs := ent.Vars.Maxs
+		syncEdictFromQCVM(s.QCVM, entNum, ent)
+		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs {
+			s.LinkEdict(ent, false)
+		}
+	}
+}
+
+func (s *Server) syncMutatedPushersFromQCVM(snapshots []pusherSnapshot) {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	for _, snapshot := range snapshots {
+		if snapshot.entNum < 0 || snapshot.entNum >= s.NumEdicts || snapshot.entNum >= len(s.Edicts) {
+			continue
+		}
+		ent := s.Edicts[snapshot.entNum]
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		scratch := Edict{Vars: &EntVars{}}
+		syncEdictFromQCVM(s.QCVM, snapshot.entNum, &scratch)
+		if *scratch.Vars == snapshot.vars {
+			continue
+		}
+		oldOrigin := ent.Vars.Origin
+		oldSolid := ent.Vars.Solid
+		oldMins := ent.Vars.Mins
+		oldMaxs := ent.Vars.Maxs
+		*ent.Vars = *scratch.Vars
+		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs {
+			s.LinkEdict(ent, false)
+		}
+	}
+}
+
+func (s *Server) worldLeafIndex(leaf *bsp.TreeLeaf) int {
+	if s == nil || s.WorldTree == nil || leaf == nil {
+		return -1
+	}
+	for i := range s.WorldTree.Leafs {
+		if &s.WorldTree.Leafs[i] == leaf {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *Server) newCheckClient() int {
+	if s == nil || s.Static == nil || len(s.Static.Clients) == 0 {
+		s.checkClientPVS = nil
+		return 0
+	}
+	maxClients := s.GetMaxClients()
+	if maxClients <= 0 || maxClients > len(s.Static.Clients) {
+		maxClients = len(s.Static.Clients)
+	}
+	if maxClients == 0 {
+		s.checkClientPVS = nil
+		return 0
+	}
+	check := s.checkClientSlot
+	if check < 1 {
+		check = 1
+	}
+	if check > maxClients {
+		check = maxClients
+	}
+	i := 1
+	if check != maxClients {
+		i = check + 1
+	}
+	for {
+		if i == maxClients+1 {
+			i = 1
+		}
+		client := s.Static.Clients[i-1]
+		if i == check {
+			break
+		}
+		if client == nil || !client.Active || client.Edict == nil || client.Edict.Free {
+			i++
+			continue
+		}
+		if client.Edict.Vars.Health <= 0 {
+			i++
+			continue
+		}
+		if uint32(client.Edict.Vars.Flags)&FlagNoTarget != 0 {
+			i++
+			continue
+		}
+		break
+	}
+	s.checkClientSlot = i
+	s.checkClientPVS = nil
+	if i < 1 || i > maxClients {
+		return 0
+	}
+	client := s.Static.Clients[i-1]
+	if client == nil || client.Edict == nil || client.Edict.Free || client.Edict.Vars.Health <= 0 {
+		return 0
+	}
+	if s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 {
+		org := client.Edict.Vars.Origin
+		org = [3]float32{org[0] + client.Edict.Vars.ViewOfs[0], org[1] + client.Edict.Vars.ViewOfs[1], org[2] + client.Edict.Vars.ViewOfs[2]}
+		if leaf := s.WorldTree.PointInLeaf(org); leaf != nil {
+			s.checkClientPVS = append(s.checkClientPVS[:0], s.WorldTree.LeafPVS(leaf)...)
+		}
+	}
+	return s.NumForEdict(client.Edict)
 }
 
 // qcFieldOffsets builds a normalized field-name → VM offset table for entvars.
@@ -546,7 +792,8 @@ func NewServer() *Server {
 				Fraction:    trace.Fraction,
 				EndPos:      trace.EndPos,
 				PlaneNormal: trace.PlaneNormal,
-				InOpen:      s.PointContents(trace.EndPos) == bsp.ContentsEmpty,
+				InOpen:      trace.InOpen,
+				InWater:     trace.InWater,
 			}
 			if trace.Entity != nil {
 				res.EntNum = s.NumForEdict(trace.Entity)
@@ -597,32 +844,74 @@ func NewServer() *Server {
 				return 0
 			}
 			radSq := radius * radius
+			chain := 0
 			for entNum := 1; entNum < vm.NumEdicts; entNum++ {
+				if vm.EFloat(entNum, qc.EntFieldSolid) == float32(SolidNot) {
+					continue
+				}
 				entOrg := vm.EVector(entNum, qc.EntFieldOrigin)
-				dx := entOrg[0] - org[0]
-				dy := entOrg[1] - org[1]
-				dz := entOrg[2] - org[2]
+				mins := vm.EVector(entNum, qc.EntFieldMins)
+				maxs := vm.EVector(entNum, qc.EntFieldMaxs)
+				center := [3]float32{
+					entOrg[0] + 0.5*(mins[0]+maxs[0]),
+					entOrg[1] + 0.5*(mins[1]+maxs[1]),
+					entOrg[2] + 0.5*(mins[2]+maxs[2]),
+				}
+				dx := center[0] - org[0]
+				dy := center[1] - org[1]
+				dz := center[2] - org[2]
 				if dx*dx+dy*dy+dz*dz <= radSq {
-					return entNum
+					vm.SetEInt(entNum, qc.EntFieldChain, int32(chain))
+					if ent := s.EdictNum(entNum); ent != nil && ent.Vars != nil {
+						ent.Vars.Chain = int32(chain)
+					}
+					chain = entNum
 				}
 			}
-			return 0
+			return chain
 		},
 		CheckClient: func(vm *qc.VM) int {
 			if s.Static == nil {
 				return 0
 			}
 			self := int(vm.GInt(qc.OFSSelf))
-			for _, client := range s.Static.Clients {
-				if client == nil || !client.Active || client.Edict == nil || client.Edict.Free {
-					continue
+			if s.checkClientSlot == 0 || s.Time-s.checkClientTime >= 0.1 {
+				_ = s.newCheckClient()
+				s.checkClientTime = s.Time
+			}
+			slot := s.checkClientSlot
+			if slot <= 0 || slot > len(s.Static.Clients) {
+				return 0
+			}
+			client := s.Static.Clients[slot-1]
+			if client == nil || !client.Active || client.Edict == nil || client.Edict.Free || client.Edict.Vars.Health <= 0 {
+				return 0
+			}
+			entNum := s.NumForEdict(client.Edict)
+			if entNum <= 0 || entNum == self {
+				return 0
+			}
+			if s.WorldTree != nil && len(s.WorldTree.Nodes) > 0 && len(s.checkClientPVS) > 0 {
+				selfEnt := s.EdictNum(self)
+				if selfEnt == nil || selfEnt.Vars == nil {
+					return 0
 				}
-				entNum := s.NumForEdict(client.Edict)
-				if entNum > 0 && entNum != self {
-					return entNum
+				view := [3]float32{
+					selfEnt.Vars.Origin[0] + selfEnt.Vars.ViewOfs[0],
+					selfEnt.Vars.Origin[1] + selfEnt.Vars.ViewOfs[1],
+					selfEnt.Vars.Origin[2] + selfEnt.Vars.ViewOfs[2],
+				}
+				leaf := s.WorldTree.PointInLeaf(view)
+				leafIdx := s.worldLeafIndex(leaf)
+				if leafIdx < 0 {
+					return 0
+				}
+				byteIdx := leafIdx >> 3
+				if byteIdx >= len(s.checkClientPVS) || (s.checkClientPVS[byteIdx]&(1<<(uint(leafIdx)&7))) == 0 {
+					return 0
 				}
 			}
-			return 0
+			return entNum
 		},
 		NextEnt: func(vm *qc.VM, entNum int) int {
 			for next := entNum + 1; next < s.NumEdicts && next < vm.NumEdicts; next++ {
@@ -673,14 +962,30 @@ func NewServer() *Server {
 			if self <= 0 || self >= vm.NumEdicts {
 				return false
 			}
+			e := s.EdictNum(self)
+			if e == nil || e.Vars == nil || e.Free {
+				return false
+			}
+			flags := uint32(e.Vars.Flags)
+			if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
+				return false
+			}
+
+			oldSelf := vm.GInt(qc.OFSSelf)
+			oldOther := vm.GInt(qc.OFSOther)
+			oldXFunction := vm.XFunction
+			oldXFunctionIndex := vm.XFunctionIndex
+
 			// Prefer server-side movement helpers which perform traces
 			// and collision resolution. If the server has an Edict for
 			// the entity, ask it to step in the given direction.
-			if e := s.EdictNum(self); e != nil {
+			if e != nil {
 				ok := s.StepDirection(e, yaw, dist)
-				// Mirror server-side origin back into the VM fields so
-				// QuakeC sees the authoritative position.
-				vm.SetEVector(self, qc.EntFieldOrigin, e.Vars.Origin)
+				vm.SetGInt(qc.OFSSelf, oldSelf)
+				vm.SetGInt(qc.OFSOther, oldOther)
+				vm.XFunction = oldXFunction
+				vm.XFunctionIndex = oldXFunctionIndex
+				syncEdictToQCVM(vm, self, e)
 				return ok
 			}
 
@@ -703,17 +1008,21 @@ func NewServer() *Server {
 			if e := s.EdictNum(self); e != nil && e.Vars != nil {
 				start := e.Vars.Origin
 				end := start
-				end[2] -= 1024 // large drop to find floor
+				end[2] -= 256
 				trace := s.SV_Move(start, e.Vars.Mins, e.Vars.Maxs, end, MoveType(MoveNormal), e)
-				if trace.Fraction == 1 {
+				if trace.Fraction == 1 || trace.AllSolid {
 					return false
 				}
-				// Place entity on top of the surface found.
 				newOrg := trace.EndPos
-				vm.SetEVector(self, qc.EntFieldOrigin, newOrg)
 				e.Vars.Origin = newOrg
-				e.Vars.AbsMin = [3]float32{newOrg[0] + e.Vars.Mins[0], newOrg[1] + e.Vars.Mins[1], newOrg[2] + e.Vars.Mins[2]}
-				e.Vars.AbsMax = [3]float32{newOrg[0] + e.Vars.Maxs[0], newOrg[1] + e.Vars.Maxs[1], newOrg[2] + e.Vars.Maxs[2]}
+				e.Vars.Flags = float32(uint32(e.Vars.Flags) | FlagOnGround)
+				if trace.Entity != nil {
+					e.Vars.GroundEntity = int32(s.NumForEdict(trace.Entity))
+				} else {
+					e.Vars.GroundEntity = 0
+				}
+				s.LinkEdict(e, false)
+				syncEdictToQCVM(vm, self, e)
 				return true
 			}
 
@@ -1021,6 +1330,7 @@ func (s *Server) AllocEdict() *Edict {
 			*e = Edict{Vars: &EntVars{}}
 			s.NumEdicts = max(s.NumEdicts, i+1)
 			s.ensureQCVMEdictStorage()
+			clearQCVMEdictData(s.QCVM, i)
 			syncEdictToQCVM(s.QCVM, i, e)
 			return e
 		}
@@ -1034,6 +1344,7 @@ func (s *Server) AllocEdict() *Edict {
 	s.Edicts = append(s.Edicts, e)
 	s.NumEdicts = len(s.Edicts)
 	s.ensureQCVMEdictStorage()
+	clearQCVMEdictData(s.QCVM, s.NumEdicts-1)
 	syncEdictToQCVM(s.QCVM, s.NumEdicts-1, e)
 	return e
 }

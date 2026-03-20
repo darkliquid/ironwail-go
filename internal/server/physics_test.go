@@ -335,3 +335,358 @@ func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 		t.Fatalf("QC global time = %v, want 0.05", got)
 	}
 }
+
+func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidTrigger))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("test_think"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.Solid = float32(SolidNot)
+	ent.Vars.NextThink = 0.05
+	ent.Vars.Think = 1
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	if ok := s.RunThink(ent); !ok {
+		t.Fatal("RunThink unexpectedly returned false")
+	}
+	if got := ent.Vars.Solid; got != float32(SolidTrigger) {
+		t.Fatalf("entity solid = %v, want %v after QC think", got, float32(SolidTrigger))
+	}
+}
+
+func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	var targetNum int
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		vm.SetEFloat(targetNum, qc.EntFieldFrame, 7)
+		vm.SetEInt(targetNum, qc.EntFieldThink, 9)
+		vm.SetEFloat(targetNum, qc.EntFieldNextThink, 1.25)
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("test_think_mutates_other_scheduler"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.NextThink = 0.05
+	ent.Vars.Think = 1
+	target := &Edict{Vars: &EntVars{}}
+	s.Edicts = append(s.Edicts, ent, target)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+	targetNum = s.NumForEdict(target)
+
+	if ok := s.RunThink(ent); !ok {
+		t.Fatal("RunThink unexpectedly returned false")
+	}
+	if got := target.Vars.Frame; got != 7 {
+		t.Fatalf("target frame = %v, want 7", got)
+	}
+	if got := target.Vars.Think; got != 9 {
+		t.Fatalf("target think = %v, want 9", got)
+	}
+	if got := target.Vars.NextThink; got != 1.25 {
+		t.Fatalf("target nextthink = %v, want 1.25", got)
+	}
+}
+
+func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		other := int(vm.GInt(qc.OFSOther))
+		vm.SetEFloat(other, qc.EntFieldSolid, float32(SolidNot))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_mutates_other"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+
+	e1 := &Edict{Vars: &EntVars{}}
+	e1.Vars.Touch = 1
+	e1.Vars.Solid = float32(SolidTrigger)
+	e2 := &Edict{Vars: &EntVars{}}
+	e2.Vars.Solid = float32(SolidBSP)
+	s.Edicts = append(s.Edicts, e1, e2)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	s.Impact(e1, e2)
+
+	if got := e2.Vars.Solid; got != float32(SolidNot) {
+		t.Fatalf("other entity solid = %v, want %v after QC touch", got, float32(SolidNot))
+	}
+}
+
+func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		vm.SetEFloat(self, qc.EntFieldSolid, float32(SolidTrigger))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("pusher_think"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.MoveType = float32(MoveTypePush)
+	ent.Vars.LTime = 0
+	ent.Vars.NextThink = 0.05
+	ent.Vars.Think = 1
+	ent.Vars.Solid = float32(SolidNot)
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	entNum := s.NumForEdict(ent)
+	vm.SetEFloat(entNum, qc.EntFieldNextThink, 123)
+	vm.SetEInt(entNum, qc.EntFieldThink, 1)
+
+	s.PhysicsPusher(ent)
+
+	if got := ent.Vars.NextThink; got != 0 {
+		t.Fatalf("nextthink = %v, want 0 after pusher think", got)
+	}
+	if got := ent.Vars.Solid; got != float32(SolidTrigger) {
+		t.Fatalf("solid = %v, want %v after pusher think", got, float32(SolidTrigger))
+	}
+}
+
+func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	var targetNum int
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		vm.SetEVector(targetNum, qc.EntFieldVelocity, [3]float32{0, 100, 0})
+		vm.SetEFloat(targetNum, qc.EntFieldNextThink, 0.5)
+		vm.SetEInt(targetNum, qc.EntFieldThink, 7)
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("pusher_think_mutates_target"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+
+	e1 := &Edict{Vars: &EntVars{}}
+	e1.Vars.MoveType = float32(MoveTypePush)
+	e1.Vars.NextThink = 0.05
+	e1.Vars.Think = 1
+	target := &Edict{Vars: &EntVars{}}
+	target.Vars.MoveType = float32(MoveTypePush)
+	s.Edicts = append(s.Edicts, e1, target)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+	targetNum = s.NumForEdict(target)
+
+	s.PhysicsPusher(e1)
+
+	if got := target.Vars.Velocity; got != [3]float32{0, 100, 0} {
+		t.Fatalf("target velocity = %v, want [0 100 0]", got)
+	}
+	if got := target.Vars.NextThink; got != 0.5 {
+		t.Fatalf("target nextthink = %v, want 0.5", got)
+	}
+	if got := target.Vars.Think; got != 7 {
+		t.Fatalf("target think = %v, want 7", got)
+	}
+}
+
+func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
+	s := NewServer()
+	s.FrameTime = 0.1
+	s.ClearWorld()
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+	t.Cleanup(func() {
+		qc.RegisterServerHooks(nil)
+	})
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	var spawnedNum int
+	const spawnBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		if fn := vm.Builtins[14]; fn == nil {
+			t.Fatal("spawn builtin not registered")
+		} else {
+			fn(vm)
+		}
+		spawnedNum = int(vm.GInt(qc.OFSReturn))
+		vm.SetEFloat(spawnedNum, qc.EntFieldSolid, float32(SolidTrigger))
+		vm.SetEInt(spawnedNum, qc.EntFieldTouch, 99)
+		vm.SetEVector(spawnedNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
+		vm.SetEVector(spawnedNum, qc.EntFieldMins, [3]float32{-8, -8, -8})
+		vm.SetEVector(spawnedNum, qc.EntFieldMaxs, [3]float32{8, 8, 8})
+		vm.SetEVector(spawnedNum, qc.EntFieldSize, [3]float32{16, 16, 16})
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("pusher_think_spawns_trigger"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(spawnBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(spawnBuiltinOfs, -1)
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.MoveType = float32(MoveTypePush)
+	ent.Vars.NextThink = 0.05
+	ent.Vars.Think = 1
+	s.Edicts = append(s.Edicts, ent)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	s.PhysicsPusher(ent)
+
+	if spawnedNum <= 0 || spawnedNum >= s.NumEdicts {
+		t.Fatalf("spawned edict num = %d, want valid new edict", spawnedNum)
+	}
+	spawned := s.EdictNum(spawnedNum)
+	if spawned == nil || spawned.Vars == nil {
+		t.Fatal("spawned trigger missing")
+	}
+	if got := spawned.Vars.Solid; got != float32(SolidTrigger) {
+		t.Fatalf("spawned solid = %v, want %v", got, float32(SolidTrigger))
+	}
+	if got := spawned.Vars.Touch; got != 99 {
+		t.Fatalf("spawned touch = %v, want 99", got)
+	}
+	if spawned.AreaPrev == nil || spawned.AreaNext == nil {
+		t.Fatalf("spawned trigger was not linked: prev=%p next=%p", spawned.AreaPrev, spawned.AreaNext)
+	}
+}
+
+func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	const noopBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_noop"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(noopBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(noopBuiltinOfs, -1)
+
+	e1 := &Edict{Vars: &EntVars{}}
+	e1.Vars.Touch = 1
+	e1.Vars.Solid = float32(SolidTrigger)
+	e2 := &Edict{Vars: &EntVars{}}
+	e2.Vars.Solid = float32(SolidBSP)
+	pusher := &Edict{Vars: &EntVars{}}
+	pusher.Vars.MoveType = float32(MoveTypePush)
+	pusher.Vars.Origin = [3]float32{32, 0, 0}
+	pusher.Vars.LTime = 0.3
+	pusher.Vars.NextThink = 0.6
+	s.Edicts = append(s.Edicts, e1, e2, pusher)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	pusherNum := s.NumForEdict(pusher)
+	vm.SetEVector(pusherNum, qc.EntFieldOrigin, [3]float32{})
+	vm.SetEFloat(pusherNum, qc.EntFieldLTime, 0)
+	vm.SetEFloat(pusherNum, qc.EntFieldNextThink, 0)
+
+	s.Impact(e1, e2)
+
+	if got := pusher.Vars.Origin; got != [3]float32{32, 0, 0} {
+		t.Fatalf("pusher origin = %v, want [32 0 0]", got)
+	}
+	if got := pusher.Vars.LTime; got != 0.3 {
+		t.Fatalf("pusher ltime = %v, want 0.3", got)
+	}
+	if got := pusher.Vars.NextThink; got != 0.6 {
+		t.Fatalf("pusher nextthink = %v, want 0.6", got)
+	}
+}
