@@ -868,11 +868,14 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 		Nodes: []bsp.TreeNode{{
 			PlaneNum: 0,
 			Children: [2]bsp.TreeChild{
-				{IsLeaf: true, Index: 0},
-				{IsLeaf: true, Index: 0},
+				{IsLeaf: true, Index: 1},
+				{IsLeaf: true, Index: 1},
 			},
 		}},
-		Leafs: []bsp.TreeLeaf{{VisOfs: -1}},
+		Leafs: []bsp.TreeLeaf{
+			{Contents: bsp.ContentsSolid, VisOfs: -1},
+			{VisOfs: -1},
+		},
 	}
 
 	clientSlot := s.Static.Clients[0]

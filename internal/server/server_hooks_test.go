@@ -800,10 +800,15 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
 		Nodes: []bsp.TreeNode{{
 			PlaneNum: 0,
-			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 0}, {IsLeaf: true, Index: 1}},
+			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
 		}},
-		Leafs:      []bsp.TreeLeaf{{VisOfs: 0}, {VisOfs: 1}},
-		Visibility: []byte{0x01, 0x00, 0x01},
+		Leafs: []bsp.TreeLeaf{
+			{Contents: bsp.ContentsSolid, VisOfs: -1},
+			{Contents: 0, VisOfs: 0},
+			{Contents: 0, VisOfs: 1},
+		},
+		Visibility: []byte{0x01, 0x02},
+		Models:     []bsp.DModel{{VisLeafs: 2}},
 	}
 
 	vm := newServerTestVM(s, 16)
@@ -830,6 +835,55 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 	}
 	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
 		t.Fatalf("checkclient with self inside target PVS = %d, want %d", got, s.NumForEdict(target))
+	}
+}
+
+func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+	s.Datagram = NewMessageBuffer(MaxDatagram)
+
+	self := s.AllocEdict()
+	target := s.AllocEdict()
+	self.Vars.ViewOfs = [3]float32{}
+	target.Vars.ViewOfs = [3]float32{}
+	target.Vars.Health = 100
+
+	s.Static = &ServerStatic{
+		MaxClients: 2,
+		Clients: []*Client{
+			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
+			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
+		},
+	}
+	s.WorldTree = &bsp.Tree{
+		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+		Nodes: []bsp.TreeNode{{
+			PlaneNum: 0,
+			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 0}},
+		}},
+		Leafs:      []bsp.TreeLeaf{{Contents: bsp.ContentsSolid, VisOfs: -1}, {Contents: 0, VisOfs: 0}},
+		Visibility: []byte{0x01},
+		Models:     []bsp.DModel{{VisLeafs: 1}},
+	}
+
+	vm := newServerTestVM(s, 16)
+	vm.NumEdicts = s.NumEdicts
+	qc.RegisterBuiltins(vm)
+
+	// Both entities resolve to BSP leaf index 1, which must map to visleaf 0.
+	self.Vars.Origin = [3]float32{1, 0, 0}
+	target.Vars.Origin = [3]float32{1, 0, 0}
+
+	s.Time = 0.2
+	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
+	if fn := vm.Builtins[17]; fn == nil {
+		t.Fatal("checkclient builtin not registered")
+	} else {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
+		t.Fatalf("checkclient = %d, want %d (visleaf 0 should be visible)", got, s.NumForEdict(target))
 	}
 }
 

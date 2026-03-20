@@ -152,3 +152,30 @@ func TestLoadFromPak0(t *testing.T) {
 		t.Fatalf("first node plane index = %d, want within [0,%d)", nodes[0].PlaneNum, len(file.Planes))
 	}
 }
+
+func TestDecompressVisUsesVisLeafCount(t *testing.T) {
+	tree := &Tree{
+		Leafs:  make([]TreeLeaf, 5), // includes solid leaf 0
+		Models: []DModel{{VisLeafs: 4}},
+	}
+
+	out := tree.DecompressVis([]byte{0xFF})
+	if len(out) != 1 {
+		t.Fatalf("decompressed length = %d, want 1 byte for 4 visleafs", len(out))
+	}
+}
+
+func TestLeafPVSAllVisibleUsesVisLeafCount(t *testing.T) {
+	tree := &Tree{
+		Leafs:  make([]TreeLeaf, 5), // includes solid leaf 0
+		Models: []DModel{{VisLeafs: 4}},
+	}
+
+	pvs := tree.LeafPVS(nil)
+	if len(pvs) != 1 {
+		t.Fatalf("all-visible PVS length = %d, want 1 byte for 4 visleafs", len(pvs))
+	}
+	if pvs[0] != 0xFF {
+		t.Fatalf("all-visible PVS byte = 0x%02x, want 0xFF", pvs[0])
+	}
+}

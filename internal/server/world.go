@@ -770,10 +770,14 @@ func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
 		}
 		leaf := &s.WorldTree.Leafs[child.Index]
 		if leaf.Contents != bsp.ContentsSolid {
+			visLeafIndex := child.Index - 1
+			if visLeafIndex < 0 {
+				return
+			}
 			if ent.NumLeafs < MaxEntityLeafs {
-				// Quake leaf numbers are 1-based in the PVS bitmask, but
-				// we store the 0-based index here. We'll add 1 when checking PVS.
-				ent.LeafNums[ent.NumLeafs] = child.Index
+				// Quake server PVS uses visleaf numbering: BSP leaf index minus 1,
+				// skipping solid leaf 0 entirely.
+				ent.LeafNums[ent.NumLeafs] = visLeafIndex
 				ent.NumLeafs++
 			}
 		}

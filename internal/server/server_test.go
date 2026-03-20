@@ -858,6 +858,25 @@ func TestEdictInPVSMultipleLeafsOneVisible(t *testing.T) {
 	}
 }
 
+func TestEdictInPVSUsesVisLeafNumbering(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		NumLeafs: 1,
+	}
+	// Visleaf index 0 corresponds to BSP leaf index 1.
+	ent.LeafNums[0] = 0
+
+	pvs := []byte{0x01}
+	if !s.SV_EdictInPVS(ent, pvs) {
+		t.Fatal("expected visleaf 0 to be visible when bit 0 is set")
+	}
+}
+
 func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

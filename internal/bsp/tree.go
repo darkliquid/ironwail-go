@@ -755,8 +755,8 @@ func (t *Tree) loadModels(r *Reader) error {
 func (t *Tree) LeafPVS(leaf *TreeLeaf) []byte {
 	if leaf == nil || leaf.VisOfs < 0 || len(t.Visibility) == 0 {
 		// If no visibility info, everything is visible
-		numLeafs := len(t.Leafs)
-		res := make([]byte, (numLeafs+7)/8)
+		numVisLeafs := t.numVisLeafs()
+		res := make([]byte, (numVisLeafs+7)/8)
 		for i := range res {
 			res[i] = 0xFF
 		}
@@ -767,9 +767,9 @@ func (t *Tree) LeafPVS(leaf *TreeLeaf) []byte {
 }
 
 func (t *Tree) DecompressVis(in []byte) []byte {
-	numLeafs := len(t.Leafs)
-	out := make([]byte, (numLeafs+7)/8)
-	row := (numLeafs + 7) / 8
+	numVisLeafs := t.numVisLeafs()
+	out := make([]byte, (numVisLeafs+7)/8)
+	row := (numVisLeafs + 7) / 8
 
 	outPos := 0
 	inPos := 0
@@ -796,6 +796,19 @@ func (t *Tree) DecompressVis(in []byte) []byte {
 		}
 	}
 	return out
+}
+
+func (t *Tree) numVisLeafs() int {
+	if t == nil {
+		return 0
+	}
+	if len(t.Models) > 0 && t.Models[0].VisLeafs > 0 {
+		return int(t.Models[0].VisLeafs)
+	}
+	if len(t.Leafs) > 0 {
+		return len(t.Leafs) - 1
+	}
+	return 0
 }
 
 func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {

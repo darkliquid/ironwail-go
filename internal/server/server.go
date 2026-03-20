@@ -408,7 +408,7 @@ func (s *Server) worldLeafIndex(leaf *bsp.TreeLeaf) int {
 	}
 	for i := range s.WorldTree.Leafs {
 		if &s.WorldTree.Leafs[i] == leaf {
-			return i
+			return i - 1
 		}
 	}
 	return -1
