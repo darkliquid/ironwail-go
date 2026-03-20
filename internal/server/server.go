@@ -985,20 +985,57 @@ func NewServer() *Server {
 				return vm.GVector(qc.OFSGlobalVForward)
 			}
 			start := ent.Vars.Origin
-			start[2] += ent.Vars.ViewOfs[2]
-			targetNum := int(ent.Vars.AimEnt)
-			if targetNum == 0 {
-				targetNum = int(ent.Vars.Enemy)
+			start[2] += 20
+			bestDir := vm.GVector(qc.OFSGlobalVForward)
+			end := VecAdd(start, VecScale(bestDir, 2048))
+			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNormal), ent)
+			if trace.Entity != nil && trace.Entity.Vars != nil &&
+				TakeDamage(int(trace.Entity.Vars.TakeDamage)) == DamageAim &&
+				(!s.Coop || ent.Vars.Team <= 0 || ent.Vars.Team != trace.Entity.Vars.Team) {
+				return bestDir
 			}
-			if target := s.EdictNum(targetNum); target != nil && target.Vars != nil {
-				end := target.Vars.Origin
-				end[2] += 0.5 * (target.Vars.Mins[2] + target.Vars.Maxs[2])
-				dir := [3]float32{end[0] - start[0], end[1] - start[1], end[2] - start[2]}
-				if l := vm.VectorLength(dir); l > 0 {
-					return vm.VectorNormalize(dir)
+
+			bestDist := float32(0)
+			var bestEnt *Edict
+			for i := 1; i < s.NumEdicts && i < vm.NumEdicts; i++ {
+				check := s.EdictNum(i)
+				if check == nil || check.Free || check.Vars == nil || check == ent {
+					continue
+				}
+				if TakeDamage(int(check.Vars.TakeDamage)) != DamageAim {
+					continue
+				}
+				if s.Coop && ent.Vars.Team > 0 && ent.Vars.Team == check.Vars.Team {
+					continue
+				}
+				targetCenter := [3]float32{
+					check.Vars.Origin[0] + 0.5*(check.Vars.Mins[0]+check.Vars.Maxs[0]),
+					check.Vars.Origin[1] + 0.5*(check.Vars.Mins[1]+check.Vars.Maxs[1]),
+					check.Vars.Origin[2] + 0.5*(check.Vars.Mins[2]+check.Vars.Maxs[2]),
+				}
+				dir := VecSub(targetCenter, start)
+				if VecNormalize(&dir) == 0 {
+					continue
+				}
+				dist := VecDot(dir, bestDir)
+				if dist < bestDist {
+					continue
+				}
+				trace = s.SV_Move(start, [3]float32{}, [3]float32{}, targetCenter, MoveType(MoveNormal), ent)
+				if trace.Entity == check {
+					bestDist = dist
+					bestEnt = check
 				}
 			}
-			return vm.GVector(qc.OFSGlobalVForward)
+			if bestEnt == nil {
+				return bestDir
+			}
+			dir := VecSub(bestEnt.Vars.Origin, ent.Vars.Origin)
+			dist := VecDot(dir, bestDir)
+			end = VecScale(bestDir, dist)
+			end[2] = dir[2]
+			VecNormalize(&end)
+			return end
 		},
 		WalkMove: func(vm *qc.VM, yaw, dist float32) bool {
 			self := int(vm.GInt(qc.OFSSelf))

@@ -681,16 +681,24 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
 
 	self := s.AllocEdict()
 	target := s.AllocEdict()
 	self.Vars.Origin = [3]float32{0, 0, 0}
 	self.Vars.ViewOfs = [3]float32{0, 0, 16}
-	self.Vars.AimEnt = int32(s.NumForEdict(target))
 	target.Vars.Health = 100
-	target.Vars.Origin = [3]float32{0, 100, 16}
+	target.Vars.Origin = [3]float32{0, 100, 64}
 	target.Vars.Mins = [3]float32{-16, -16, -24}
 	target.Vars.Maxs = [3]float32{16, 16, 32}
+	target.Vars.Solid = float32(SolidSlideBox)
+	target.Vars.TakeDamage = float32(DamageAim)
+	s.LinkEdict(self, false)
+	s.LinkEdict(target, false)
 
 	s.Static = &ServerStatic{Clients: []*Client{
 		{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
@@ -702,6 +710,7 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	vm := newServerTestVM(s, 16)
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
+	vm.SetGVector(qc.OFSGlobalVForward, [3]float32{0, 1, 0})
 
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
 	if fn := vm.Builtins[17]; fn == nil {
@@ -721,8 +730,11 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 		fn(vm)
 	}
 	aim := vm.GVector(qc.OFSReturn)
-	if aim[1] <= 0.9 {
+	if aim[1] <= 0.8 {
 		t.Fatalf("aim vector = %v, want mostly +Y", aim)
+	}
+	if aim[2] <= 0 {
+		t.Fatalf("aim vector = %v, want positive z lift toward elevated target", aim)
 	}
 
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(target)))
