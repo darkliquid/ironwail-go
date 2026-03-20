@@ -30,7 +30,7 @@ const (
 
 	// Area grid depth (affects spatial partitioning granularity)
 	AreaDepth = 4
-	AreaNodes = 1 << AreaDepth
+	AreaNodes = 2 << AreaDepth
 )
 
 // moveClip holds state during a move/clipping operation.

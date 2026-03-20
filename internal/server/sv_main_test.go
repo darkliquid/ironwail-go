@@ -386,3 +386,44 @@ func TestClearWorldAllocatesAreaNodesWhenMissing(t *testing.T) {
 		t.Fatal("ClearWorld did not initialize trigger sentinel links")
 	}
 }
+
+func TestClearWorldBuildsFullAreaNodeTree(t *testing.T) {
+	s := NewServer()
+	s.ClearWorld()
+
+	expectedNodes := (2 << AreaDepth) - 1
+	if got := s.numAreaNodes; got != expectedNodes {
+		t.Fatalf("numAreaNodes = %d, want %d", got, expectedNodes)
+	}
+	if got := len(s.Areanodes); got != AreaNodes {
+		t.Fatalf("len(Areanodes) = %d, want %d", got, AreaNodes)
+	}
+
+	var visit func(node *AreaNode, depth int) int
+	visit = func(node *AreaNode, depth int) int {
+		if node == nil {
+			t.Fatalf("nil node at depth %d", depth)
+		}
+		if depth < AreaDepth {
+			if node.Axis == -1 {
+				t.Fatalf("internal node has leaf axis at depth %d", depth)
+			}
+			if node.Children[0] == nil || node.Children[1] == nil {
+				t.Fatalf("internal node missing child at depth %d", depth)
+			}
+			return 1 + visit(node.Children[0], depth+1) + visit(node.Children[1], depth+1)
+		}
+		if node.Axis != -1 {
+			t.Fatalf("leaf axis = %d, want -1 at depth %d", node.Axis, depth)
+		}
+		if node.Children[0] != nil || node.Children[1] != nil {
+			t.Fatalf("leaf has children at depth %d", depth)
+		}
+		return 1
+	}
+
+	gotNodes := visit(&s.Areanodes[0], 0)
+	if gotNodes != expectedNodes {
+		t.Fatalf("reachable area nodes = %d, want %d", gotNodes, expectedNodes)
+	}
+}

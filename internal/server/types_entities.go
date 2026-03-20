@@ -84,8 +84,9 @@ type Edict struct {
 	AreaNext *Edict
 
 	// Leaf visibility data for PVS (Potentially Visible Set) culling.
-	// NumLeafs is the count of BSP leaves this entity overlaps.
-	// LeafNums stores the leaf indices (up to MaxEntityLeafs).
+	// NumLeafs is the count of BSP visleafs this entity overlaps.
+	// LeafNums stores Quake visleaf indices (BSP leaf index minus 1,
+	// skipping solid leaf 0) up to MaxEntityLeafs.
 	// If the entity spans more leaves than MaxEntityLeafs, it is always
 	// considered visible (too large to cull precisely).
 	NumLeafs int
