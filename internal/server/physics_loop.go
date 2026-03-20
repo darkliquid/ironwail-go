@@ -57,7 +57,7 @@ func (s *Server) Physics() {
 		}
 
 		if s.QCVM != nil {
-			if forceRetouch := s.QCVM.GetGlobalInt("force_retouch"); forceRetouch != 0 {
+			if forceRetouch := s.QCVM.GetGlobalFloat("force_retouch"); forceRetouch != 0 {
 				s.LinkEdict(ent, true)
 			}
 		}
@@ -91,8 +91,12 @@ func (s *Server) Physics() {
 	}
 
 	if s.QCVM != nil {
-		if forceRetouch := s.QCVM.GetGlobalInt("force_retouch"); forceRetouch > 0 {
-			s.QCVM.SetGlobalInt("force_retouch", forceRetouch-1)
+		if forceRetouch := s.QCVM.GetGlobalFloat("force_retouch"); forceRetouch > 0 {
+			next := forceRetouch - 1
+			if next < 0 {
+				next = 0
+			}
+			s.QCVM.SetGlobal("force_retouch", next)
 		}
 	}
 

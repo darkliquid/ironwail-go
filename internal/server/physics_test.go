@@ -181,6 +181,82 @@ func TestPhysicsFrameOnSpawnedMap(t *testing.T) {
 	}
 }
 
+func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
+	s := NewServer()
+	s.Areanodes = make([]AreaNode, AreaNodes)
+	s.ClearWorld()
+
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = append(vm.GlobalDefs,
+		qc.DDef{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		qc.DDef{Type: uint16(qc.EvFloat), Ofs: 90, Name: vm.AllocString("force_retouch")},
+	)
+
+	triggerCalls := 0
+	const callbackBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		triggerCalls++
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_callback"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(callbackBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(callbackBuiltinOfs, -1)
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	if mover == nil || trigger == nil {
+		t.Fatal("failed to allocate edicts")
+	}
+
+	mover.Vars.Origin = [3]float32{}
+	mover.Vars.Mins = [3]float32{-16, -16, -16}
+	mover.Vars.Maxs = [3]float32{16, 16, 16}
+	mover.Vars.Solid = float32(SolidBBox)
+	mover.Vars.MoveType = float32(MoveTypeNone)
+	s.LinkEdict(mover, false)
+
+	trigger.Vars.Origin = [3]float32{}
+	trigger.Vars.Mins = [3]float32{-8, -8, -8}
+	trigger.Vars.Maxs = [3]float32{8, 8, 8}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+	trigger.Vars.MoveType = float32(MoveTypeNone)
+	s.LinkEdict(trigger, false)
+
+	vm.SetGlobal("force_retouch", float32(2))
+
+	s.Physics()
+	if got := vm.GetGlobalFloat("force_retouch"); got != 1 {
+		t.Fatalf("force_retouch after first frame = %v, want 1", got)
+	}
+	firstCalls := triggerCalls
+	if firstCalls == 0 {
+		t.Fatal("force_retouch frame 1 did not trigger callback")
+	}
+
+	s.Physics()
+	if got := vm.GetGlobalFloat("force_retouch"); got != 0 {
+		t.Fatalf("force_retouch after second frame = %v, want 0", got)
+	}
+	secondCalls := triggerCalls
+	if secondCalls <= firstCalls {
+		t.Fatalf("force_retouch frame 2 did not trigger additional callback: first=%d second=%d", firstCalls, secondCalls)
+	}
+
+	s.Physics()
+	if got := vm.GetGlobalFloat("force_retouch"); got != 0 {
+		t.Fatalf("force_retouch after third frame = %v, want 0", got)
+	}
+	if triggerCalls != secondCalls {
+		t.Fatalf("force_retouch kept triggering after countdown expired: before=%d after=%d", secondCalls, triggerCalls)
+	}
+}
+
 func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 	mkServer := func() (*Server, *Edict, *Edict) {
 		s := newPhysicsTestServer()
