@@ -66,8 +66,7 @@ func makevectors(vm *VM) {
 func vectoangles(vm *VM) {
 	dir := vm.GVector(OFSParm0)
 
-	// Calculate yaw from forward direction
-	yaw := math.Atan2(float64(dir[0]), float64(dir[1])) * 180.0 / math.Pi
+	yaw := float64(vectoyawValue(dir))
 
 	// Calculate pitch from up component and forward z
 	forwardLen := math.Sqrt(float64(dir[0]*dir[0] + dir[1]*dir[1]))
@@ -92,8 +91,18 @@ func vectoangles(vm *VM) {
 // QuakeC signature: float(vector vec) vectoyaw
 func vectoyaw(vm *VM) {
 	vec := vm.GVector(OFSParm0)
-	yaw := math.Atan2(float64(vec[0]), float64(vec[1])) * 180.0 / math.Pi
-	vm.SetGFloat(OFSReturn, float32(yaw))
+	vm.SetGFloat(OFSReturn, vectoyawValue(vec))
+}
+
+func vectoyawValue(vec [3]float32) float32 {
+	if vec[0] == 0 && vec[1] == 0 {
+		return 0
+	}
+	yaw := math.Atan2(float64(vec[1]), float64(vec[0])) * 180.0 / math.Pi
+	if yaw < 0 {
+		yaw += 360
+	}
+	return float32(yaw)
 }
 
 // vlen returns the length (magnitude) of a vector.

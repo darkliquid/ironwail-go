@@ -1,6 +1,7 @@
 package qc
 
 import (
+	"math"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
@@ -493,6 +494,44 @@ func TestMathCVarAndLocalCmdBuiltins(t *testing.T) {
 	cmdsys.Execute()
 	if !executed {
 		t.Fatal("localcmd did not enqueue command")
+	}
+}
+
+func TestVectoyawBuiltinMatchesQuakeYaw(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+
+	tests := []struct {
+		name string
+		vec  [3]float32
+		want float32
+	}{
+		{name: "zero", vec: [3]float32{0, 0, 0}, want: 0},
+		{name: "positive x", vec: [3]float32{1, 0, 0}, want: 0},
+		{name: "positive y", vec: [3]float32{0, 1, 0}, want: 90},
+		{name: "negative x", vec: [3]float32{-1, 0, 0}, want: 180},
+		{name: "negative y", vec: [3]float32{0, -1, 0}, want: 270},
+		{name: "diagonal", vec: [3]float32{1, 1, 0}, want: 45},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vm.SetGVector(OFSParm0, tc.vec)
+			vectoyaw(vm)
+			if got := vm.GFloat(OFSReturn); math.Abs(float64(got-tc.want)) > 0.001 {
+				t.Fatalf("vectoyaw(%v) = %v, want %v", tc.vec, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVectoanglesBuiltinUsesQuakeYawConvention(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+	vm.SetGVector(OFSParm0, [3]float32{0, 1, 0})
+
+	vectoangles(vm)
+
+	if got := vm.GVector(OFSReturn); math.Abs(float64(got[0])) > 0.001 || math.Abs(float64(got[1]-90)) > 0.001 || math.Abs(float64(got[2])) > 0.001 {
+		t.Fatalf("vectoangles yaw = %v, want [0 90 0]", got)
 	}
 }
 
