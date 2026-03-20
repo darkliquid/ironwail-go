@@ -188,6 +188,17 @@ func (s *Server) hullForEntity(ent *Edict, mins, maxs [3]float32, offset *[3]flo
 // POINT TESTING IN HULLS
 // ============================================================================
 
+func hullPlaneDistance(plane *model.MPlane, p [3]float32) float32 {
+	if plane.Type < 3 {
+		return p[plane.Type] - plane.Dist
+	}
+
+	return float32(float64(plane.Normal[0])*float64(p[0]) +
+		float64(plane.Normal[1])*float64(p[1]) +
+		float64(plane.Normal[2])*float64(p[2]) -
+		float64(plane.Dist))
+}
+
 // hullPointContents returns the contents at a point within a hull.
 // This recursively traverses the BSP tree to find which leaf the point is in.
 func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
@@ -208,17 +219,7 @@ func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
 
 		node := &hull.ClipNodes[num]
 		plane := &hull.Planes[node.PlaneNum]
-
-		var d float32
-		if plane.Type < 3 {
-			d = p[plane.Type] - plane.Dist
-		} else {
-			// Match C's DoublePrecisionDotProduct() for non-axial plane tests.
-			d = float32(float64(plane.Normal[0])*float64(p[0]) +
-				float64(plane.Normal[1])*float64(p[1]) +
-				float64(plane.Normal[2])*float64(p[2]) -
-				float64(plane.Dist))
-		}
+		d := hullPlaneDistance(plane, p)
 
 		if d < 0 {
 			num = node.Children[1]
@@ -284,17 +285,8 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 	// Find the point distances
 	node := &hull.ClipNodes[num]
 	plane := &hull.Planes[node.PlaneNum]
-
-	var t1, t2 float32
-	if plane.Type < 3 {
-		t1 = p1[plane.Type] - plane.Dist
-		t2 = p2[plane.Type] - plane.Dist
-	} else {
-		// Use double precision for non-axial planes to avoid clipping errors
-		// on rotated brushes. Matches C DoublePrecisionDotProduct().
-		t1 = float32(float64(plane.Normal[0])*float64(p1[0]) + float64(plane.Normal[1])*float64(p1[1]) + float64(plane.Normal[2])*float64(p1[2]) - float64(plane.Dist))
-		t2 = float32(float64(plane.Normal[0])*float64(p2[0]) + float64(plane.Normal[1])*float64(p2[1]) + float64(plane.Normal[2])*float64(p2[2]) - float64(plane.Dist))
-	}
+	t1 := hullPlaneDistance(plane, p1)
+	t2 := hullPlaneDistance(plane, p2)
 
 	// Both points on same side - recurse down that side
 	if t1 >= 0 && t2 >= 0 {

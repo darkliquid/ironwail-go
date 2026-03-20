@@ -99,3 +99,34 @@ func TestHullPointContentsUsesDoublePrecisionForNonAxialPlanes(t *testing.T) {
 		t.Fatalf("hullPointContents() = %d, want %d (double-precision non-axial classification)", got, bsp.ContentsSolid)
 	}
 }
+
+func TestRecursiveHullCheckKeepsNonAxialFarSideSolid(t *testing.T) {
+	point := [3]float32{-2785.728515625, -39929.87890625, -6582.81640625}
+	hull := &model.Hull{
+		ClipNodes: []model.MClipNode{
+			{PlaneNum: 0, Children: [2]int{bsp.ContentsEmpty, 1}},
+			{PlaneNum: 1, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}},
+		},
+		Planes: []model.MPlane{
+			{Normal: [3]float32{0, 1, 0}, Dist: point[1] - DistEpsilon, Type: 1},
+			{Normal: [3]float32{0.9193270206451416, 1.595353126525879, 0.7359357476234436}, Dist: -71107.78125, Type: 3},
+		},
+		FirstClipNode: 0,
+		LastClipNode:  1,
+	}
+	start := [3]float32{point[0], point[1] + 1, point[2]}
+	end := [3]float32{point[0], point[1] - 1, point[2]}
+	trace := TraceResult{Fraction: 1, AllSolid: true, EndPos: end}
+
+	recursiveHullCheck(hull, hull.FirstClipNode, 0, 1, start, end, &trace)
+
+	if trace.StartSolid {
+		t.Fatal("recursiveHullCheck reported startsolid after non-axial far side rounded to zero")
+	}
+	if trace.Fraction >= 1 {
+		t.Fatalf("trace fraction = %v, want collision before entering far side", trace.Fraction)
+	}
+	if trace.EndPos != point {
+		t.Fatalf("trace end = %v, want %v", trace.EndPos, point)
+	}
+}
