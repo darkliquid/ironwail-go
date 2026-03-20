@@ -431,3 +431,68 @@ func TestTouchLinksRestoresQCExecutionContextAfterCallback(t *testing.T) {
 		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)
 	}
 }
+
+func TestTouchLinksDeduplicatesTriggerCallbacksWithinPhysicsFrame(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.Areanodes = make([]AreaNode, AreaNodes)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	callbacks := 0
+	const callbackBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		callbacks++
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_callback_count"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(callbackBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(callbackBuiltinOfs, -1)
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	if mover == nil || trigger == nil {
+		t.Fatal("failed to allocate test edicts")
+	}
+
+	mover.Vars.Origin = [3]float32{}
+	mover.Vars.Mins = [3]float32{-16, -16, -16}
+	mover.Vars.Maxs = [3]float32{16, 16, 16}
+	mover.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(mover, false)
+
+	trigger.Vars.Origin = [3]float32{}
+	trigger.Vars.Mins = [3]float32{-8, -8, -8}
+	trigger.Vars.Maxs = [3]float32{8, 8, 8}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+	s.LinkEdict(trigger, false)
+
+	s.touchFrameActive = true
+	clear(s.touchFrameSeen)
+	s.touchLinks(mover)
+	s.touchLinks(mover)
+	s.touchFrameActive = false
+
+	if callbacks != 1 {
+		t.Fatalf("callbacks in same physics frame = %d, want 1", callbacks)
+	}
+
+	clear(s.touchFrameSeen)
+	s.touchFrameActive = true
+	s.touchLinks(mover)
+	s.touchFrameActive = false
+
+	if callbacks != 2 {
+		t.Fatalf("callbacks after next physics frame = %d, want 2", callbacks)
+	}
+}

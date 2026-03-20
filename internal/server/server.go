@@ -117,6 +117,9 @@ type Server struct {
 	checkClientTime float32
 	checkClientPVS  []byte
 
+	touchFrameActive bool
+	touchFrameSeen   map[uint64]struct{}
+
 	compatRNG *compatrand.RNG
 }
 
@@ -738,6 +741,7 @@ func NewServer() *Server {
 		EffectsMask:    defaultEffectsMask,
 		QCVM:           vm,
 		DebugTelemetry: NewDebugTelemetry(),
+		touchFrameSeen: make(map[uint64]struct{}),
 		compatRNG:      compatRNG,
 	}
 

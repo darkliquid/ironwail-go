@@ -8,6 +8,13 @@ import (
 )
 
 func (s *Server) Physics() {
+	s.touchFrameActive = true
+	clear(s.touchFrameSeen)
+	defer func() {
+		s.touchFrameActive = false
+		clear(s.touchFrameSeen)
+	}()
+
 	telemetryActive := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	if telemetryActive {
 		s.DebugTelemetry.BeginFrame(s.Time, s.FrameTime)
