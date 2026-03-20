@@ -320,7 +320,7 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		} else if d[2] == 90 {
 			tdir = 135
 		} else {
-			tdir = 215
+			tdir = 225
 		}
 
 		if tdir != turnaround && s.StepDirection(actor, tdir, dist) {

@@ -244,3 +244,28 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 		t.Fatalf("IdealYaw = %v, want 0", got)
 	}
 }
+
+func TestNewChaseDirUsesCanonicalSouthwestDiagonal(t *testing.T) {
+	s := newMovementTestServer()
+
+	actor := &Edict{Vars: &EntVars{}}
+	actor.Vars.Flags = float32(FlagFly)
+	actor.Vars.YawSpeed = 360
+
+	enemy := &Edict{Vars: &EntVars{}}
+	enemy.Vars.Origin = [3]float32{-64, -64, 0}
+
+	s.Edicts = append(s.Edicts, actor, enemy)
+	s.NumEdicts = len(s.Edicts)
+
+	s.NewChaseDir(actor, enemy, 16)
+
+	wantX := float32(-11.313708)
+	wantY := float32(-11.313708)
+	if got := actor.Vars.Origin; got[0] < wantX-0.01 || got[0] > wantX+0.01 || got[1] < wantY-0.01 || got[1] > wantY+0.01 {
+		t.Fatalf("origin = %v, want southwest 225-degree chase step", got)
+	}
+	if got := actor.Vars.IdealYaw; got != 225 {
+		t.Fatalf("IdealYaw = %v, want 225", got)
+	}
+}
