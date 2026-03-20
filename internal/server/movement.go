@@ -227,10 +227,6 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 		ent.Vars.Origin = oldorg
 		return false
 	}
-	if MoveType(ent.Vars.MoveType) == MoveTypeStep && flags&FlagPartialGround == 0 && !s.stepSupportOK(ent) {
-		ent.Vars.Origin = oldorg
-		return false
-	}
 
 	if flags&FlagPartialGround != 0 {
 		ent.Vars.Flags = float32(flags &^ FlagPartialGround)
@@ -245,20 +241,6 @@ func (s *Server) MoveStep(ent *Edict, move [3]float32, relink bool) bool {
 		s.LinkEdict(ent, true)
 	}
 	return true
-}
-
-func (s *Server) stepSupportOK(ent *Edict) bool {
-	if s == nil || ent == nil || ent.Vars == nil {
-		return false
-	}
-	start := ent.Vars.Origin
-	end := start
-	end[2] -= stepSize + 1
-	trace := s.Move(start, ent.Vars.Mins, ent.Vars.Maxs, end, MoveType(MoveNormal), ent)
-	if trace.AllSolid || trace.StartSolid || trace.Fraction == 1 {
-		return false
-	}
-	return trace.PlaneNormal[2] > 0.7
 }
 
 func (s *Server) StepDirection(ent *Edict, yaw, dist float32) bool {

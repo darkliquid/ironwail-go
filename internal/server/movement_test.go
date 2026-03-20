@@ -270,44 +270,60 @@ func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 	}
 }
 
-func TestMoveStepRejectsUnsupportedE1M1MonsterEdge(t *testing.T) {
-	pak0Path := testutil.SkipIfNoPak0(t)
-	baseDir := filepath.Dir(pak0Path)
-	if filepath.Base(baseDir) == "id1" {
-		baseDir = filepath.Dir(baseDir)
-	}
+func createSyntheticPlatformWorldModel() *model.Model {
+	m := &model.Model{}
 
-	vfs := fs.NewFileSystem()
-	if err := vfs.Init(baseDir, "id1"); err != nil {
-		t.Fatalf("init filesystem: %v", err)
+	var hull model.Hull
+	hull.Planes = []model.MPlane{
+		{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0},
+		{Normal: [3]float32{0, 0, 1}, Dist: 0, Type: 2},
 	}
-	defer vfs.Close()
+	hull.ClipNodes = []model.MClipNode{
+		{PlaneNum: 0, Children: [2]int{1, bsp.ContentsEmpty}},
+		{PlaneNum: 1, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}},
+	}
+	hull.FirstClipNode = 0
+	hull.LastClipNode = 1
+	hull.ClipMins = [3]float32{-512, -512, -512}
+	hull.ClipMaxs = [3]float32{512, 512, 512}
 
+	m.Hulls[0] = hull
+	m.Mins = [3]float32{-512, -512, -512}
+	m.Maxs = [3]float32{512, 512, 512}
+	m.ClipBox = true
+	m.ClipMins = m.Mins
+	m.ClipMaxs = m.Maxs
+
+	return m
+}
+
+func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	s := NewServer()
-	if err := s.Init(1); err != nil {
-		t.Fatalf("init server: %v", err)
+	s.WorldModel = createSyntheticPlatformWorldModel()
+	if s.Edicts != nil && len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
+		s.Edicts[0].Vars.Solid = float32(SolidBSP)
 	}
-	if err := s.SpawnServer("e1m1", vfs); err != nil {
-		t.Fatalf("spawn server: %v", err)
-	}
+	s.ClearWorld()
 
-	ent := s.EdictNum(101)
-	if ent == nil || ent.Vars == nil {
-		t.Fatal("e1m1 monster edict 101 missing")
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to allocate test edict")
 	}
-	if got := s.QCVM.GetString(ent.Vars.ClassName); got != "monster_army" {
-		t.Fatalf("edict 101 classname = %q, want monster_army", got)
-	}
-
-	start := [3]float32{1032.8, 2473.5, -308.0}
-	move := [3]float32{-10, 0, 0}
-	ent.Vars.Origin = start
-	ent.Vars.Flags = float32(FlagOnGround)
+	ent.Vars.Origin = [3]float32{32, 0, 24}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
 	ent.Vars.MoveType = float32(MoveTypeStep)
+	ent.Vars.Flags = float32(FlagOnGround)
 	s.LinkEdict(ent, false)
 
-	if s.MoveStep(ent, move, true) {
-		t.Fatalf("MoveStep unexpectedly accepted unsupported edge step: start=%v end=%v", start, ent.Vars.Origin)
+	if !s.CheckBottom(ent) {
+		t.Fatal("expected starting position to be fully supported")
+	}
+
+	start := ent.Vars.Origin
+	if s.MoveStep(ent, [3]float32{-20, 0, 0}, true) {
+		t.Fatalf("MoveStep unexpectedly accepted unsupported platform step: start=%v end=%v", start, ent.Vars.Origin)
 	}
 	if got := ent.Vars.Origin; got != start {
 		t.Fatalf("origin after rejected step = %v, want %v", got, start)
