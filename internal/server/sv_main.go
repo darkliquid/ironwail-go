@@ -423,10 +423,12 @@ func (s *Server) loadMapEntities(raw string) error {
 			continue
 		}
 
-		// Push parsed entity fields to the QCVM so the spawn function
-		// can read them (origin, angles, target, etc.).
+		// Push parsed Go-backed entity fields to the QCVM so the spawn function
+		// can read them (origin, angles, target, etc.). ED_ParseEdict already
+		// cleared reused VM storage and wrote any QC-only map fields directly into
+		// the VM, so do not clear here or those progs-defined fields would be lost
+		// before spawn.
 		s.ensureQCVMEdictStorage()
-		clearQCVMEdictData(s.QCVM, entNum)
 		syncEdictToQCVM(s.QCVM, entNum, ent)
 
 		// Set QC globals and execute the spawn function.

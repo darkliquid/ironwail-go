@@ -386,6 +386,11 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 		}
 		// Zero all fields (in Go, we just replace with new struct)
 		edict.Vars = &EntVars{}
+		// Match C Quake's "clear before parse" behavior for non-world edicts so
+		// reused VM slots don't leak QC-only fields into the next entity. Known
+		// fields will be mirrored back into QC before spawn; QC-defined fields
+		// parsed below are written directly into VM edict storage.
+		clearQCVMEdictData(em.vm, entNum)
 	}
 
 	// Find opening brace
@@ -488,7 +493,7 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 			continue
 		}
 
-		if err := em.parseEdictFieldValue(edict, finalKeyName, value); err != nil {
+		if err := em.parseEdictFieldValue(edict, entNum, finalKeyName, value); err != nil {
 			return "", fmt.Errorf("ED_ParseEdict: parse field %s: %w", finalKeyName, err)
 		}
 	}
@@ -524,17 +529,25 @@ func (em *EntityManager) ActiveCount() int {
 // matters for save/load, not for type dispatch. Returns false if no
 // matching field definition exists in the loaded progs.
 func (em *EntityManager) fieldType(keyName string) (qc.EType, bool) {
+	_, etype, ok := em.fieldDef(keyName)
+	return etype, ok
+}
+
+// fieldDef looks up a QC field definition by name and returns both its
+// offset in the VM edict data and its declared type. Matching is
+// case-insensitive and underscore-insensitive to mirror Quake's field lookup.
+func (em *EntityManager) fieldDef(keyName string) (int, qc.EType, bool) {
 	if em == nil || em.vm == nil {
-		return 0, false
+		return 0, 0, false
 	}
 	normalized := normalizeFieldName(keyName)
 	for _, def := range em.vm.FieldDefs {
 		if normalizeFieldName(em.vm.GetString(def.Name)) != normalized {
 			continue
 		}
-		return qc.EType(def.Type &^ qc.DefSaveGlobal), true
+		return int(def.Ofs), qc.EType(def.Type &^ qc.DefSaveGlobal), true
 	}
-	return 0, false
+	return 0, 0, false
 }
 
 // buildEntVarsFieldIndex uses reflection to iterate over every exported
@@ -644,7 +657,7 @@ func parseStringFallbackInt32(raw string) int32 {
 // is automatically recalculated as (Maxs - Mins) on each axis. This keeps
 // Size consistent whenever a bounding box corner changes, which is required
 // by the physics and collision systems.
-func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value string) error {
+func (em *EntityManager) parseEdictFieldValue(edict *Edict, entNum int, keyName, value string) error {
 	if edict == nil {
 		return fmt.Errorf("nil edict")
 	}
@@ -654,7 +667,7 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value strin
 
 	fieldIndex, ok := entVarsFieldIndex[normalizeFieldName(keyName)]
 	if !ok {
-		return nil
+		return em.parseQCVMEdictFieldValue(entNum, keyName, value)
 	}
 
 	rv := reflect.ValueOf(edict.Vars).Elem().Field(fieldIndex)
@@ -730,6 +743,50 @@ func (em *EntityManager) parseEdictFieldValue(edict *Edict, keyName, value strin
 		edict.Vars.Size[0] = edict.Vars.Maxs[0] - edict.Vars.Mins[0]
 		edict.Vars.Size[1] = edict.Vars.Maxs[1] - edict.Vars.Mins[1]
 		edict.Vars.Size[2] = edict.Vars.Maxs[2] - edict.Vars.Mins[2]
+	}
+
+	return nil
+}
+
+func (em *EntityManager) parseQCVMEdictFieldValue(entNum int, keyName, value string) error {
+	if em == nil || em.vm == nil {
+		return nil
+	}
+
+	fieldOfs, fieldType, ok := em.fieldDef(keyName)
+	if !ok {
+		return nil
+	}
+
+	switch fieldType {
+	case qc.EvString:
+		em.vm.SetEString(entNum, fieldOfs, em.vm.AllocString(value))
+	case qc.EvFloat:
+		f, err := parseFloat32(value)
+		if err != nil {
+			return err
+		}
+		em.vm.SetEFloat(entNum, fieldOfs, f)
+	case qc.EvVector:
+		vec, err := parseVec3(value)
+		if err != nil {
+			return err
+		}
+		em.vm.SetEVector(entNum, fieldOfs, vec)
+	case qc.EvField:
+		if resolvedOfs := em.vm.FindField(value); resolvedOfs >= 0 {
+			em.vm.SetEInt(entNum, fieldOfs, int32(resolvedOfs))
+		}
+	case qc.EvFunction:
+		if funcNum := em.vm.FindFunction(value); funcNum >= 0 {
+			em.vm.SetEInt(entNum, fieldOfs, int32(funcNum))
+		}
+	case qc.EvEntity, qc.EvPointer, qc.EvExtInteger:
+		i, err := parseInt32(value)
+		if err != nil {
+			return err
+		}
+		em.vm.SetEInt(entNum, fieldOfs, i)
 	}
 
 	return nil

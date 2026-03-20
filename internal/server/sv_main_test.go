@@ -258,6 +258,62 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	}
 }
 
+func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSWorld), Name: vm.AllocString("world")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.FieldDefs = append(vm.FieldDefs, qc.DDef{
+		Type: uint16(qc.EvFloat),
+		Ofs:  110,
+		Name: vm.AllocString("speed"),
+	})
+
+	const inspectBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		vm.SetEFloat(self, qc.EntFieldHealth, vm.EFloat(self, 110))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 2},
+		{Name: vm.AllocString("trigger_test"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(inspectBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(inspectBuiltinOfs, -1)
+
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+"speed" "321"
+}`
+	if err := s.loadMapEntities(raw); err != nil {
+		t.Fatalf("loadMapEntities() error = %v", err)
+	}
+
+	spawned := s.EdictNum(1)
+	if spawned == nil || spawned.Vars == nil {
+		t.Fatal("spawned edict missing")
+	}
+	if got := spawned.Vars.Health; got != 321 {
+		t.Fatalf("spawned health = %v, want 321 from QC-only speed field", got)
+	}
+	if got := vm.EFloat(1, 110); got != 321 {
+		t.Fatalf("QC-only speed field = %v, want 321 after spawn", got)
+	}
+}
+
 func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
