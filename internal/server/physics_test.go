@@ -427,6 +427,57 @@ func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 	}
 }
 
+func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	var targetNum int
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		vm.SetEFloat(targetNum, qc.EntFieldHealth, 12)
+		vm.SetEInt(targetNum, qc.EntFieldEnemy, 1)
+		vm.SetEFloat(targetNum, qc.EntFieldDeadFlag, 2)
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("test_think_mutates_other_combat_state"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.NextThink = 0.05
+	ent.Vars.Think = 1
+	target := &Edict{Vars: &EntVars{}}
+	target.Vars.Health = 100
+	s.Edicts = append(s.Edicts, ent, target)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+	targetNum = s.NumForEdict(target)
+
+	if ok := s.RunThink(ent); !ok {
+		t.Fatal("RunThink unexpectedly returned false")
+	}
+	if got := target.Vars.Health; got != 12 {
+		t.Fatalf("target health = %v, want 12", got)
+	}
+	if got := target.Vars.Enemy; got != 1 {
+		t.Fatalf("target enemy = %v, want 1", got)
+	}
+	if got := target.Vars.DeadFlag; got != 2 {
+		t.Fatalf("target deadflag = %v, want 2", got)
+	}
+}
+
 func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()

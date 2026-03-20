@@ -22,6 +22,7 @@
 package server
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -232,14 +233,20 @@ func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
 	}
 }
 
-func (s *Server) syncSchedulerFieldsFromQCVM() {
+type qcVMEdictSnapshot struct {
+	entNum int
+	data   []byte
+}
+
+func (s *Server) captureNonPusherQCVMEdictSnapshots() []qcVMEdictSnapshot {
 	if s == nil || s.QCVM == nil {
-		return
+		return nil
 	}
 	limit := s.NumEdicts
 	if limit > len(s.Edicts) {
 		limit = len(s.Edicts)
 	}
+	snapshots := make([]qcVMEdictSnapshot, 0, limit)
 	for entNum := 0; entNum < limit; entNum++ {
 		ent := s.Edicts[entNum]
 		if ent == nil || ent.Free || ent.Vars == nil {
@@ -248,9 +255,45 @@ func (s *Server) syncSchedulerFieldsFromQCVM() {
 		if MoveType(ent.Vars.MoveType) == MoveTypePush {
 			continue
 		}
-		ent.Vars.Frame = s.QCVM.EFloat(entNum, qc.EntFieldFrame)
-		ent.Vars.Think = s.QCVM.EFunction(entNum, qc.EntFieldThink)
-		ent.Vars.NextThink = s.QCVM.EFloat(entNum, qc.EntFieldNextThink)
+		data := s.QCVM.EdictData(entNum)
+		if data == nil {
+			continue
+		}
+		snapshots = append(snapshots, qcVMEdictSnapshot{
+			entNum: entNum,
+			data:   append([]byte(nil), data...),
+		})
+	}
+	return snapshots
+}
+
+func (s *Server) syncMutatedNonPushersFromQCVM(snapshots []qcVMEdictSnapshot) {
+	if s == nil || s.QCVM == nil {
+		return
+	}
+	for _, snapshot := range snapshots {
+		if snapshot.entNum < 0 || snapshot.entNum >= s.NumEdicts || snapshot.entNum >= len(s.Edicts) {
+			continue
+		}
+		ent := s.Edicts[snapshot.entNum]
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if MoveType(ent.Vars.MoveType) == MoveTypePush {
+			continue
+		}
+		current := s.QCVM.EdictData(snapshot.entNum)
+		if current == nil || bytes.Equal(current, snapshot.data) {
+			continue
+		}
+		oldOrigin := ent.Vars.Origin
+		oldSolid := ent.Vars.Solid
+		oldMins := ent.Vars.Mins
+		oldMaxs := ent.Vars.Maxs
+		syncEdictFromQCVM(s.QCVM, snapshot.entNum, ent)
+		if snapshot.entNum != 0 && (ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs) {
+			s.LinkEdict(ent, false)
+		}
 	}
 }
 

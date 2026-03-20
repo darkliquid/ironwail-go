@@ -10,11 +10,12 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	if s == nil || s.QCVM == nil {
 		return nil
 	}
+	snapshots := s.captureNonPusherQCVMEdictSnapshots()
 
 	if s.DebugTelemetry == nil || !s.DebugTelemetry.QCTraceVerbosityEnabled(1) {
 		err := s.QCVM.ExecuteFunction(funcIdx)
 		if err == nil {
-			s.syncSchedulerFieldsFromQCVM()
+			s.syncMutatedNonPushersFromQCVM(snapshots)
 		}
 		return err
 	}
@@ -33,7 +34,7 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
-		s.syncSchedulerFieldsFromQCVM()
+		s.syncMutatedNonPushersFromQCVM(snapshots)
 	}
 	return err
 }

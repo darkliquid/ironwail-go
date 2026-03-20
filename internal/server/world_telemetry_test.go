@@ -144,15 +144,15 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 	if got := trigger.Vars.Solid; got != float32(SolidNot) {
 		t.Fatalf("trigger solid = %v, want %v", got, float32(SolidNot))
 	}
-	if trigger.AreaPrev == nil {
-		t.Fatalf("trigger unexpectedly unlinked after direct QC solid mutation")
+	if trigger.AreaPrev != nil {
+		t.Fatalf("trigger should be unlinked after direct QC solid mutation")
 	}
 
 	joined := strings.Join(lines, "\n")
 	for _, want := range []string{
 		"touchlinks callback begin self=",
 		"touchlinks callback end self=",
-		"self_link=linked",
+		"self_link=unlinked",
 		"other_vel=(",
 		"other_punch=(",
 		"other_flags=",

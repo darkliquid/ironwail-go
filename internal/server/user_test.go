@@ -111,6 +111,57 @@ func TestSVClientThinkNoclip(t *testing.T) {
 	}
 }
 
+func TestRunClientQCThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
+	s := NewServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSFrameTime), Name: vm.AllocString("frametime")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSMsgEntity), Name: vm.AllocString("msg_entity")},
+	}
+
+	clientEnt := s.AllocEdict()
+	monster := s.AllocEdict()
+	if clientEnt == nil || monster == nil {
+		t.Fatal("failed to allocate edicts")
+	}
+	clientNum := s.NumForEdict(clientEnt)
+	monsterNum := s.NumForEdict(monster)
+
+	const mutateBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		vm.SetEFloat(monsterNum, qc.EntFieldHealth, 15)
+		vm.SetEInt(monsterNum, qc.EntFieldEnemy, int32(clientNum))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("player_postthink_test"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBuiltinOfs, -1)
+	vm.NumEdicts = s.NumEdicts
+
+	client := &Client{Edict: clientEnt}
+	monster.Vars.Health = 100
+	s.Time = 1
+	s.FrameTime = 0.1
+
+	s.runClientQCThink(client, "player_postthink_test")
+
+	if got := monster.Vars.Health; got != 15 {
+		t.Fatalf("monster health = %v, want 15", got)
+	}
+	if got := monster.Vars.Enemy; got != int32(clientNum) {
+		t.Fatalf("monster enemy = %v, want %d", got, clientNum)
+	}
+}
+
 func withUserCVars(t *testing.T, values map[string]string) {
 	t.Helper()
 	original := make(map[string]string, len(values))
