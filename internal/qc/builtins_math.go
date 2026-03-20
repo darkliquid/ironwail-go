@@ -6,6 +6,8 @@ package qc
 import (
 	"fmt"
 	"math"
+
+	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // ============================================================================
@@ -18,33 +20,15 @@ import (
 //
 // QuakeC signature: void(vector ang) makevectors
 func makevectors(vm *VM) {
-	angles := vm.GVector(OFSParm0) // Get input angles
-
-	// Calculate yaw (angles[1] in Quake, which is Y axis rotation)
-	yaw := float32(angles[1]) * float32(math.Pi) / 180.0
-
-	sinYaw := math.Sin(float64(yaw))
-	cosYaw := math.Cos(float64(yaw))
-	pitch := float32(angles[0]) * float32(math.Pi) / 180.0
-	sinPitch := math.Sin(float64(pitch))
-	cosPitch := math.Cos(float64(pitch))
-
-	// v_forward = direction entity is facing
-	forward := [3]float32{
-		float32(cosYaw * cosPitch),
-		float32(sinYaw * cosPitch),
-		float32(-sinPitch),
-	}
-
-	// v_right = strafe direction (perpendicular to forward)
-	right := [3]float32{
-		float32(-sinYaw),
-		float32(cosYaw),
-		0,
-	}
-
-	// v_up = always points up in world space
-	up := [3]float32{0, 0, 1}
+	angles := vm.GVector(OFSParm0)
+	forwardVec, rightVec, upVec := qtypes.AngleVectors(qtypes.Vec3{
+		X: angles[0],
+		Y: angles[1],
+		Z: angles[2],
+	})
+	forward := [3]float32{forwardVec.X, forwardVec.Y, forwardVec.Z}
+	right := [3]float32{rightVec.X, rightVec.Y, rightVec.Z}
+	up := [3]float32{upVec.X, upVec.Y, upVec.Z}
 
 	vm.SetGVector(OFSGlobalVForward, forward)
 	vm.SetGVector(OFSGlobalVRight, right)
@@ -118,27 +102,20 @@ func vlen(vm *VM) {
 	vm.SetGFloat(OFSReturn, length)
 }
 
-// normalize normalizes a vector to unit length and returns the original length.
+// normalize normalizes a vector to unit length.
 //
-// QuakeC signature: float(vector vec) normalize
-
-// normalize normalizes a vector to unit length and returns the original length.
-//
-// QuakeC signature: float(vector vec) normalize
+// QuakeC signature: vector(vector vec) normalize
 func normalize(vm *VM) {
 	vec := vm.GVector(OFSParm0)
 	length := vm.VectorLength(vec)
 
 	if length == 0 {
 		vm.SetGVector(OFSReturn, [3]float32{0, 0, 0})
-		vm.SetGFloat(OFSReturn, 0)
 		return
 	}
 
-	// Normalize and return original length
 	normalized := vm.VectorNormalize(vec)
 	vm.SetGVector(OFSReturn, normalized)
-	vm.SetGFloat(OFSReturn, length)
 }
 
 // random returns a random float in the range [0, 1].

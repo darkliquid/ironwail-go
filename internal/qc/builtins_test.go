@@ -6,6 +6,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func newBuiltinsTestVM(maxEdicts int) *VM {
@@ -532,6 +533,74 @@ func TestVectoanglesBuiltinUsesQuakeYawConvention(t *testing.T) {
 
 	if got := vm.GVector(OFSReturn); math.Abs(float64(got[0])) > 0.001 || math.Abs(float64(got[1]-90)) > 0.001 || math.Abs(float64(got[2])) > 0.001 {
 		t.Fatalf("vectoangles yaw = %v, want [0 90 0]", got)
+	}
+}
+
+func TestMakevectorsMatchesQuakeAngleVectors(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+
+	tests := []struct {
+		name   string
+		angles [3]float32
+	}{
+		{name: "yaw ninety", angles: [3]float32{0, 90, 0}},
+		{name: "pitch yaw", angles: [3]float32{30, 45, 0}},
+		{name: "pitch yaw roll", angles: [3]float32{10, 20, 30}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vm.SetGVector(OFSParm0, tc.angles)
+			makevectors(vm)
+
+			wantForward, wantRight, wantUp := qtypes.AngleVectors(qtypes.Vec3{
+				X: tc.angles[0],
+				Y: tc.angles[1],
+				Z: tc.angles[2],
+			})
+
+			assertVecNear := func(name string, got [3]float32, want qtypes.Vec3) {
+				if math.Abs(float64(got[0]-want.X)) > 0.001 || math.Abs(float64(got[1]-want.Y)) > 0.001 || math.Abs(float64(got[2]-want.Z)) > 0.001 {
+					t.Fatalf("%s = %v, want [%v %v %v]", name, got, want.X, want.Y, want.Z)
+				}
+			}
+
+			assertVecNear("v_forward", vm.GVector(OFSGlobalVForward), wantForward)
+			assertVecNear("v_right", vm.GVector(OFSGlobalVRight), wantRight)
+			assertVecNear("v_up", vm.GVector(OFSGlobalVUp), wantUp)
+
+			if tc.name == "pitch yaw roll" {
+				if got := vm.GVector(OFSGlobalVUp); math.Abs(float64(got[0])) < 0.001 && math.Abs(float64(got[1])) < 0.001 && math.Abs(float64(got[2]-1)) < 0.001 {
+					t.Fatalf("v_up unexpectedly stayed world-up for rolled angles: %v", got)
+				}
+				if got := vm.GVector(OFSGlobalVRight); math.Abs(float64(got[2])) < 0.001 {
+					t.Fatalf("v_right z = %v, want non-zero for rolled angles", got[2])
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeBuiltinReturnsUnitVector(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+	vm.SetGVector(OFSParm0, [3]float32{3, 4, 0})
+
+	normalize(vm)
+
+	got := vm.GVector(OFSReturn)
+	if math.Abs(float64(got[0]-0.6)) > 0.001 || math.Abs(float64(got[1]-0.8)) > 0.001 || math.Abs(float64(got[2])) > 0.001 {
+		t.Fatalf("normalize return = %v, want [0.6 0.8 0]", got)
+	}
+}
+
+func TestNormalizeBuiltinZeroVector(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+	vm.SetGVector(OFSParm0, [3]float32{0, 0, 0})
+
+	normalize(vm)
+
+	if got := vm.GVector(OFSReturn); got != [3]float32{} {
+		t.Fatalf("normalize zero return = %v, want zero vector", got)
 	}
 }
 
