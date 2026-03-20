@@ -5,19 +5,22 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
 func newMovementTestServer() *Server {
-	return &Server{
+	s := &Server{
 		Gravity:     800,
 		MaxVelocity: 2000,
 		FrameTime:   0.1,
 		Edicts:      []*Edict{{Vars: &EntVars{}}},
 		NumEdicts:   1,
 	}
+	s.SetCompatRNG(compatrand.New())
+	return s
 }
 
 func TestChangeYaw(t *testing.T) {
@@ -207,5 +210,37 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 	}
 	if ent.Vars.Origin != before {
 		t.Fatalf("MoveStep with zero move changed origin: before=%v after=%v", before, ent.Vars.Origin)
+	}
+}
+
+func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
+	s := newMovementTestServer()
+
+	goal := &Edict{Vars: &EntVars{}}
+	goal.Vars.Origin = [3]float32{64, 0, 0}
+	goal.Vars.AbsMin = [3]float32{64, 0, 0}
+	goal.Vars.AbsMax = [3]float32{64, 0, 0}
+
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.Flags = float32(FlagFly)
+	ent.Vars.IdealYaw = 90
+	ent.Vars.Angles[1] = 90
+	ent.Vars.YawSpeed = 360
+	ent.Vars.GoalEntity = 1
+
+	s.Edicts = append(s.Edicts, goal, ent)
+	s.NumEdicts = len(s.Edicts)
+
+	s.compatRand()
+	s.compatRand()
+
+	if !s.MoveToGoal(ent, 16) {
+		t.Fatal("MoveToGoal returned false")
+	}
+	if got := ent.Vars.Origin; got != [3]float32{16, 0, 0} {
+		t.Fatalf("origin = %v, want eastward chase step", got)
+	}
+	if got := ent.Vars.IdealYaw; got != 0 {
+		t.Fatalf("IdealYaw = %v, want 0", got)
 	}
 }

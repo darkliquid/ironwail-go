@@ -73,6 +73,10 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		return nil
 	}
 
+	if h.compatRNG != nil {
+		h.compatRNG.Int()
+	}
+
 	h.advanceTime(dt)
 
 	if cb != nil {

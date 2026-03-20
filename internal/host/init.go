@@ -13,6 +13,7 @@ import (
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/input"
@@ -61,6 +62,10 @@ type serverDatagramSource interface {
 type serverCommandSink interface {
 	SubmitLoopbackCmd(clientNum int, viewAngles [3]float32, forward, side, up float32, buttons, impulse int, sentTime float64) error
 	SubmitLoopbackStringCommand(clientNum int, cmd string) error
+}
+
+type compatRNGSetter interface {
+	SetCompatRNG(rng *compatrand.RNG)
 }
 
 type localLoopbackClient struct {
@@ -412,6 +417,9 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 
 	if subs.Server != nil {
+		if setter, ok := subs.Server.(compatRNGSetter); ok {
+			setter.SetCompatRNG(h.compatRNG)
+		}
 		if subs.Client == nil {
 			subs.Client = newLocalLoopbackClient()
 		}

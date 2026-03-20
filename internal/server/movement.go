@@ -2,7 +2,6 @@ package server
 
 import (
 	"math"
-	"math/rand"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -329,7 +328,7 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		}
 	}
 
-	if ((rand.Int()&3)&1) != 0 || int(math.Abs(float64(deltay))) > int(math.Abs(float64(deltax))) {
+	if ((s.compatRand()&3)&1) != 0 || int(math.Abs(float64(deltay))) > int(math.Abs(float64(deltax))) {
 		d[1], d[2] = d[2], d[1]
 	}
 
@@ -344,7 +343,7 @@ func (s *Server) NewChaseDir(actor, enemy *Edict, dist float32) {
 		return
 	}
 
-	if rand.Int()&1 != 0 {
+	if s.compatRand()&1 != 0 {
 		for tdir := float32(0); tdir <= 315; tdir += 45 {
 			if tdir != turnaround && s.StepDirection(actor, tdir, dist) {
 				return
@@ -384,11 +383,18 @@ func (s *Server) MoveToGoal(ent *Edict, dist float32) bool {
 		return true
 	}
 
-	if (rand.Int()&3) == 1 || !s.StepDirection(ent, ent.Vars.IdealYaw, dist) {
+	if (s.compatRand()&3) == 1 || !s.StepDirection(ent, ent.Vars.IdealYaw, dist) {
 		if goal != nil {
 			s.NewChaseDir(ent, goal, dist)
 		}
 	}
 
 	return true
+}
+
+func (s *Server) compatRand() int32 {
+	if s.compatRNG == nil {
+		s.SetCompatRNG(nil)
+	}
+	return s.compatRNG.Int()
 }

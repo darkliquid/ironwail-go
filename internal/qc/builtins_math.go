@@ -6,7 +6,6 @@ package qc
 import (
 	"fmt"
 	"math"
-	"math/rand"
 )
 
 // ============================================================================
@@ -145,7 +144,7 @@ func normalize(vm *VM) {
 // QuakeC signature: float() random
 func random(vm *VM) {
 	// Match C's 15-bit quantization: rand() & 0x7fff
-	r := rand.Intn(0x8000) // [0, 32767]
+	r := vm.compatRNG.Int() & 0x7fff
 	// Default: gameplayfix_random=1 formula avoids exact 0.0 and 1.0
 	num := (float32(r) + 0.5) * (1.0 / 0x8000)
 	vm.SetGFloat(OFSReturn, num)

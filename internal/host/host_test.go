@@ -199,6 +199,23 @@ func TestHostFrame(t *testing.T) {
 	}
 }
 
+func TestHostFrameAdvancesCompatRNGOnce(t *testing.T) {
+	h := NewHost()
+
+	if got := h.compatRNG.Int(); got != 1804289383 {
+		t.Fatalf("first compat rand = %d, want 1804289383", got)
+	}
+
+	h.compatRNG.Seed(1)
+	if err := h.Frame(0.016, nil); err != nil {
+		t.Fatalf("Frame failed: %v", err)
+	}
+
+	if got := h.compatRNG.Int(); got != 846930886 {
+		t.Fatalf("post-frame compat rand = %d, want 846930886", got)
+	}
+}
+
 func TestHostCommands(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{

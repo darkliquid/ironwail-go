@@ -43,7 +43,11 @@
 // VM instance. Use ExecuteProgram for synchronous execution.
 package qc
 
-import "math"
+import (
+	"math"
+
+	"github.com/ironwail/ironwail-go/internal/compatrand"
+)
 
 // ProgHeaderCRC is the expected CRC checksum for the original Quake progs.dat.
 // Custom mods may have different CRCs; this is used for validation.
@@ -550,6 +554,8 @@ type VM struct {
 	// GlobalVars is a typed view of the globals.
 	// Points into Globals at the correct offset.
 	GlobalVars *GlobalVars
+
+	compatRNG *compatrand.RNG
 }
 
 // TraceCallEvent describes a QuakeC function-oriented trace event.
@@ -569,7 +575,16 @@ func NewVM() *VM {
 		LocalStack:     make([]int32, LocalStackSize),
 		StringTable:    make(map[int32]string),
 		XFunctionIndex: -1,
+		compatRNG:      compatrand.New(),
 	}
+}
+
+func (vm *VM) SetCompatRNG(rng *compatrand.RNG) {
+	if rng == nil {
+		vm.compatRNG = compatrand.New()
+		return
+	}
+	vm.compatRNG = rng
 }
 
 // GFloat returns a float global value by offset.

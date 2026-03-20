@@ -686,3 +686,20 @@ func TestRandomBuiltinDistribution(t *testing.T) {
 		}
 	}
 }
+
+func TestRandomBuiltinMatchesCompatSequence(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+
+	want := []float32{
+		0.54222107,
+		0.27949524,
+		0.1907196,
+	}
+
+	for i, wantValue := range want {
+		random(vm)
+		if got := vm.GFloat(OFSReturn); got != wantValue {
+			t.Fatalf("random value %d = %v, want %v", i, got, wantValue)
+		}
+	}
+}

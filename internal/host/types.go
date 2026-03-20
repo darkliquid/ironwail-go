@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/menu"
 )
 
@@ -88,6 +89,8 @@ type Host struct {
 	versionMajor int
 	versionMinor int
 	versionPatch int
+
+	compatRNG *compatrand.RNG
 }
 
 func NewHost() *Host {
@@ -97,6 +100,7 @@ func NewHost() *Host {
 		maxClients:   1,
 		currentSkill: 1,
 		demoNum:      -1, // disabled until startdemos is called
+		compatRNG:    compatrand.New(),
 	}
 }
 

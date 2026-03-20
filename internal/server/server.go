@@ -30,6 +30,7 @@ import (
 	"strconv"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -115,6 +116,8 @@ type Server struct {
 	checkClientSlot int
 	checkClientTime float32
 	checkClientPVS  []byte
+
+	compatRNG *compatrand.RNG
 }
 
 // ServerStatic holds state that persists across level changes.
@@ -718,6 +721,10 @@ func (s *Server) setQCTimeGlobal(time float32) {
 
 // NewServer creates a new server instance.
 func NewServer() *Server {
+	compatRNG := compatrand.New()
+	vm := qc.NewVM()
+	vm.SetCompatRNG(compatRNG)
+
 	s := &Server{
 		Gravity:        800,
 		MaxVelocity:    2000,
@@ -729,8 +736,9 @@ func NewServer() *Server {
 		QCFieldScale:   -1,
 		QCFieldGravity: -1,
 		EffectsMask:    defaultEffectsMask,
-		QCVM:           qc.NewVM(),
+		QCVM:           vm,
 		DebugTelemetry: NewDebugTelemetry(),
+		compatRNG:      compatRNG,
 	}
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
@@ -1413,6 +1421,16 @@ func NewServer() *Server {
 		},
 	}))
 	return s
+}
+
+func (s *Server) SetCompatRNG(rng *compatrand.RNG) {
+	if rng == nil {
+		rng = compatrand.New()
+	}
+	s.compatRNG = rng
+	if s.QCVM != nil {
+		s.QCVM.SetCompatRNG(rng)
+	}
 }
 
 // AllocEdict allocates a new entity.
