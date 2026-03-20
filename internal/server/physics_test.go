@@ -519,6 +519,52 @@ func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 	}
 }
 
+func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_context_test"), FirstStatement: 0},
+		{Name: vm.AllocString("outer_qc_func"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	e1 := &Edict{Vars: &EntVars{}}
+	e1.Vars.Touch = 1
+	e1.Vars.Solid = float32(SolidTrigger)
+	e2 := &Edict{Vars: &EntVars{}}
+	e2.Vars.Solid = float32(SolidBSP)
+	s.Edicts = append(s.Edicts, e1, e2)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	vm.SetGInt(qc.OFSSelf, 77)
+	vm.SetGInt(qc.OFSOther, 88)
+	vm.XFunction = &vm.Functions[2]
+	vm.XFunctionIndex = 2
+
+	s.Impact(e1, e2)
+
+	if got := vm.GInt(qc.OFSSelf); got != 77 {
+		t.Fatalf("self after Impact = %d, want 77", got)
+	}
+	if got := vm.GInt(qc.OFSOther); got != 88 {
+		t.Fatalf("other after Impact = %d, want 88", got)
+	}
+	if vm.XFunction != &vm.Functions[2] || vm.XFunctionIndex != 2 {
+		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)
+	}
+}
+
 func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()

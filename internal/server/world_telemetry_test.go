@@ -374,3 +374,60 @@ func TestTouchLinksDoesNotClobberUnchangedPusherFromStaleQCVM(t *testing.T) {
 		t.Fatalf("door nextthink clobbered from stale QC state: got %v", got)
 	}
 }
+
+func TestTouchLinksRestoresQCExecutionContextAfterCallback(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.Areanodes = make([]AreaNode, AreaNodes)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("touch_context_test"), FirstStatement: 0},
+		{Name: vm.AllocString("outer_qc_func"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	mover := s.AllocEdict()
+	trigger := s.AllocEdict()
+	if mover == nil || trigger == nil {
+		t.Fatal("failed to allocate test edicts")
+	}
+
+	mover.Vars.Origin = [3]float32{}
+	mover.Vars.Mins = [3]float32{-16, -16, -16}
+	mover.Vars.Maxs = [3]float32{16, 16, 16}
+	mover.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(mover, false)
+
+	trigger.Vars.Origin = [3]float32{}
+	trigger.Vars.Mins = [3]float32{-8, -8, -8}
+	trigger.Vars.Maxs = [3]float32{8, 8, 8}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 1
+	s.LinkEdict(trigger, false)
+
+	vm.SetGInt(qc.OFSSelf, 77)
+	vm.SetGInt(qc.OFSOther, 88)
+	vm.XFunction = &vm.Functions[2]
+	vm.XFunctionIndex = 2
+
+	s.touchLinks(mover)
+
+	if got := vm.GInt(qc.OFSSelf); got != 77 {
+		t.Fatalf("self after touchLinks = %d, want 77", got)
+	}
+	if got := vm.GInt(qc.OFSOther); got != 88 {
+		t.Fatalf("other after touchLinks = %d, want 88", got)
+	}
+	if vm.XFunction != &vm.Functions[2] || vm.XFunctionIndex != 2 {
+		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)
+	}
+}
