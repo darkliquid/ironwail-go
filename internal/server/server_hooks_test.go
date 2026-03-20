@@ -239,7 +239,8 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 		t.Fatal("failed to alloc edict")
 	}
 	vm.NumEdicts = s.NumEdicts
-	ent.Vars.Origin = [3]float32{64, 32, 16}
+	syncEdictToQCVM(vm, s.NumForEdict(ent), ent)
+	vm.SetEVector(s.NumForEdict(ent), qc.EntFieldOrigin, [3]float32{64, 32, 16})
 	s.ClearWorld()
 
 	s.ModelName = "maps/test.bsp"
@@ -301,6 +302,127 @@ func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 	vm.SetGInt(qc.OFSParm0, 1)
 	vm.SetGString(qc.OFSParm1, "progs/missing.mdl")
 	vm.Builtins[3](vm)
+}
+
+func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to alloc edict")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+	s.ClearWorld()
+
+	ent.Vars.Origin = [3]float32{0, 0, 0}
+	ent.Vars.Mins = [3]float32{-1, -1, -1}
+	ent.Vars.Maxs = [3]float32{1, 1, 1}
+	syncEdictToQCVM(vm, entNum, ent)
+
+	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -8, -4})
+	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 8, 12})
+	vm.SetGInt(qc.OFSParm0, int32(entNum))
+	vm.SetGVector(qc.OFSParm1, [3]float32{100, 50, 25})
+	if fn := vm.Builtins[2]; fn == nil {
+		t.Fatal("setorigin builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := ent.Vars.AbsMin; got != [3]float32{83, 41, 20} {
+		t.Fatalf("server absmin = %v, want bounds from QC mins with link expansion", got)
+	}
+	if got := ent.Vars.AbsMax; got != [3]float32{117, 59, 38} {
+		t.Fatalf("server absmax = %v, want bounds from QC maxs with link expansion", got)
+	}
+}
+
+func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to alloc edict")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+	s.ClearWorld()
+
+	ent.Vars.Origin = [3]float32{0, 0, 0}
+	ent.Vars.Mins = [3]float32{-1, -1, -1}
+	ent.Vars.Maxs = [3]float32{1, 1, 1}
+	syncEdictToQCVM(vm, entNum, ent)
+
+	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{200, 20, 8})
+	vm.SetGInt(qc.OFSParm0, int32(entNum))
+	vm.SetGVector(qc.OFSParm1, [3]float32{-16, -16, -24})
+	vm.SetGVector(qc.OFSParm2, [3]float32{16, 16, 32})
+	if fn := vm.Builtins[4]; fn == nil {
+		t.Fatal("setsize builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := ent.Vars.AbsMin; got != [3]float32{183, 3, -17} {
+		t.Fatalf("server absmin = %v, want bounds from QC origin with link expansion", got)
+	}
+	if got := ent.Vars.AbsMax; got != [3]float32{217, 37, 41} {
+		t.Fatalf("server absmax = %v, want bounds from QC origin with link expansion", got)
+	}
+}
+
+func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to alloc edict")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+	s.ClearWorld()
+
+	ent.Vars.Origin = [3]float32{0, 0, 0}
+	syncEdictToQCVM(vm, entNum, ent)
+	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{64, 32, 16})
+
+	s.ModelName = "maps/test.bsp"
+	s.ModelPrecache = make([]string, MaxModels)
+	s.ModelPrecache[1] = s.ModelName
+	s.ModelPrecache[2] = "*1"
+	s.WorldTree = &bsp.Tree{Models: []bsp.DModel{
+		{BoundsMin: [3]float32{-256, -256, -128}, BoundsMax: [3]float32{256, 256, 128}},
+		{BoundsMin: [3]float32{-16, -24, -32}, BoundsMax: [3]float32{48, 56, 72}},
+	}}
+	s.WorldModel = worldModelFromBSPTree(s.ModelName, s.WorldTree)
+
+	vm.SetGInt(qc.OFSParm0, int32(entNum))
+	vm.SetGString(qc.OFSParm1, "*1")
+	if fn := vm.Builtins[3]; fn == nil {
+		t.Fatal("setmodel builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.EVector(entNum, qc.EntFieldAbsMin); got != [3]float32{47, 7, -17} {
+		t.Fatalf("absmin = %v, want bounds linked from QC-pending origin", got)
+	}
+	if got := vm.EVector(entNum, qc.EntFieldAbsMax); got != [3]float32{113, 89, 89} {
+		t.Fatalf("absmax = %v, want bounds linked from QC-pending origin", got)
+	}
 }
 
 func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
