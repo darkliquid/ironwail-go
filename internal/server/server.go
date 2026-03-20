@@ -1115,6 +1115,7 @@ func NewServer() *Server {
 			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{org[0] + mins[0], org[1] + mins[1], org[2] + mins[2]})
 			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{org[0] + maxs[0], org[1] + maxs[1], org[2] + maxs[2]})
 			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
+				syncEdictFromQCVM(vm, entNum, e)
 				e.Vars.Origin = org
 				e.Vars.AbsMin = [3]float32{org[0] + e.Vars.Mins[0], org[1] + e.Vars.Mins[1], org[2] + e.Vars.Mins[2]}
 				e.Vars.AbsMax = [3]float32{org[0] + e.Vars.Maxs[0], org[1] + e.Vars.Maxs[1], org[2] + e.Vars.Maxs[2]}
@@ -1130,6 +1131,7 @@ func NewServer() *Server {
 			vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{origin[0] + mins[0], origin[1] + mins[1], origin[2] + mins[2]})
 			vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{origin[0] + maxs[0], origin[1] + maxs[1], origin[2] + maxs[2]})
 			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
+				syncEdictFromQCVM(vm, entNum, e)
 				e.Vars.Mins = mins
 				e.Vars.Maxs = maxs
 				e.Vars.Size = size
@@ -1158,6 +1160,7 @@ func NewServer() *Server {
 			vm.SetEFloat(entNum, qc.EntFieldModelIndex, float32(modelIndex))
 
 			if e := s.EdictNum(entNum); e != nil && e.Vars != nil {
+				syncEdictFromQCVM(vm, entNum, e)
 				e.Vars.Model = modelString
 				e.Vars.ModelIndex = float32(modelIndex)
 				if mins, maxs, ok := s.modelBounds(modelName); ok {
