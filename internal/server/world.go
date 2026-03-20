@@ -660,12 +660,8 @@ func (s *Server) touchLinks(ent *Edict) {
 			"touchlinks candidates=%d mover_classname=%q", len(touches), moverClassName)
 	}
 
-	oldSelf := s.QCVM.GetGlobalInt("self")
-	oldOther := s.QCVM.GetGlobalInt("other")
-	defer func() {
-		s.QCVM.SetGlobalInt("self", oldSelf)
-		s.QCVM.SetGlobalInt("other", oldOther)
-	}()
+	ctx := captureQCExecutionContext(s.QCVM)
+	defer restoreQCExecutionContext(s.QCVM, ctx)
 
 	for _, touch := range touches {
 		touchNum := s.NumForEdict(touch)

@@ -68,8 +68,8 @@ func (s *Server) RunThink(ent *Edict) bool {
 
 // Impact runs touch functions for two entities that have collided.
 func (s *Server) Impact(e1, e2 *Edict) {
-	oldSelf := s.QCVM.GetGlobalInt("self")
-	oldOther := s.QCVM.GetGlobalInt("other")
+	ctx := captureQCExecutionContext(s.QCVM)
+	defer restoreQCExecutionContext(s.QCVM, ctx)
 	e1Num := s.NumForEdict(e1)
 	e2Num := s.NumForEdict(e2)
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
@@ -118,8 +118,6 @@ func (s *Server) Impact(e1, e2 *Edict) {
 		}
 	}
 
-	s.QCVM.SetGlobalInt("self", oldSelf)
-	s.QCVM.SetGlobalInt("other", oldOther)
 }
 
 // ClipVelocity slides off an impacting surface.
@@ -446,6 +444,7 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 		if pusher.Vars.Blocked != 0 && s.QCVM != nil {
 			pusherNum := s.NumForEdict(pusher)
 			checkNum := s.NumForEdict(check)
+			ctx := captureQCExecutionContext(s.QCVM)
 			telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
@@ -454,6 +453,7 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			s.QCVM.SetGlobal("self", pusherNum)
 			s.QCVM.SetGlobal("other", checkNum)
 			_ = s.executeQCFunction(int(pusher.Vars.Blocked))
+			restoreQCExecutionContext(s.QCVM, ctx)
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
 					"pushmove blocked callback done by=%d callback=%d", checkNum, pusher.Vars.Blocked)

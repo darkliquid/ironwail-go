@@ -6,6 +6,48 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
+type qcExecutionContext struct {
+	self           int32
+	other          int32
+	xFunction      *qc.DFunction
+	xFunctionIndex int32
+}
+
+func captureQCExecutionContext(vm *qc.VM) qcExecutionContext {
+	if vm == nil {
+		return qcExecutionContext{}
+	}
+	hasGlobals := len(vm.Globals) > qc.OFSOther
+	return qcExecutionContext{
+		self: func() int32 {
+			if hasGlobals {
+				return vm.GInt(qc.OFSSelf)
+			}
+			return 0
+		}(),
+		other: func() int32 {
+			if hasGlobals {
+				return vm.GInt(qc.OFSOther)
+			}
+			return 0
+		}(),
+		xFunction:      vm.XFunction,
+		xFunctionIndex: vm.XFunctionIndex,
+	}
+}
+
+func restoreQCExecutionContext(vm *qc.VM, ctx qcExecutionContext) {
+	if vm == nil {
+		return
+	}
+	if len(vm.Globals) > qc.OFSOther {
+		vm.SetGInt(qc.OFSSelf, ctx.self)
+		vm.SetGInt(qc.OFSOther, ctx.other)
+	}
+	vm.XFunction = ctx.xFunction
+	vm.XFunctionIndex = ctx.xFunctionIndex
+}
+
 func (s *Server) executeQCFunction(funcIdx int) error {
 	if s == nil || s.QCVM == nil {
 		return nil
