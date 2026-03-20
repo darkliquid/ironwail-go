@@ -9,8 +9,11 @@ import (
 type qcExecutionContext struct {
 	self           int32
 	other          int32
+	depth          int
+	localUsed      int
 	xFunction      *qc.DFunction
 	xFunctionIndex int32
+	xStatement     int
 }
 
 func captureQCExecutionContext(vm *qc.VM) qcExecutionContext {
@@ -31,8 +34,11 @@ func captureQCExecutionContext(vm *qc.VM) qcExecutionContext {
 			}
 			return 0
 		}(),
+		depth:          vm.Depth,
+		localUsed:      vm.LocalUsed,
 		xFunction:      vm.XFunction,
 		xFunctionIndex: vm.XFunctionIndex,
+		xStatement:     vm.XStatement,
 	}
 }
 
@@ -44,20 +50,35 @@ func restoreQCExecutionContext(vm *qc.VM, ctx qcExecutionContext) {
 		vm.SetGInt(qc.OFSSelf, ctx.self)
 		vm.SetGInt(qc.OFSOther, ctx.other)
 	}
+	for vm.Depth > ctx.depth {
+		if err := vm.LeaveFunction(); err != nil {
+			break
+		}
+	}
+	if vm.Depth != ctx.depth {
+		vm.Depth = ctx.depth
+	}
+	if vm.LocalUsed != ctx.localUsed {
+		vm.LocalUsed = ctx.localUsed
+	}
 	vm.XFunction = ctx.xFunction
 	vm.XFunctionIndex = ctx.xFunctionIndex
+	vm.XStatement = ctx.xStatement
 }
 
 func (s *Server) executeQCFunction(funcIdx int) error {
 	if s == nil || s.QCVM == nil {
 		return nil
 	}
+	ctx := captureQCExecutionContext(s.QCVM)
 	snapshots := s.captureNonPusherQCVMEdictSnapshots()
 
 	if s.DebugTelemetry == nil || !s.DebugTelemetry.QCTraceVerbosityEnabled(1) {
 		err := s.QCVM.ExecuteFunction(funcIdx)
 		if err == nil {
 			s.syncMutatedNonPushersFromQCVM(snapshots)
+		} else {
+			restoreQCExecutionContext(s.QCVM, ctx)
 		}
 		return err
 	}
@@ -77,6 +98,8 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
 		s.syncMutatedNonPushersFromQCVM(snapshots)
+	} else {
+		restoreQCExecutionContext(vm, ctx)
 	}
 	return err
 }

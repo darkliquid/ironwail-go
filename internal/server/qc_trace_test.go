@@ -126,3 +126,54 @@ func TestExecuteQCFunctionBuiltinTracingHonorsVerbosity(t *testing.T) {
 		t.Fatalf("missing function enter/leave events:\n%s", joined)
 	}
 }
+
+func TestExecuteQCFunctionRestoresVMStateAfterError(t *testing.T) {
+	s := NewServer()
+	vm := s.QCVM
+	vm.Globals = make([]float32, 128)
+
+	self := s.AllocEdict()
+	selfNum := int32(s.NumForEdict(self))
+
+	const (
+		badFuncNum  = 1
+		goodFuncNum = 2
+		fieldOfs    = 16
+		ptrOfs      = 17
+	)
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("bad_touch"), FirstStatement: 0},
+		{Name: vm.AllocString("good_touch"), FirstStatement: 2},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPAddress), A: uint16(qc.OFSNull), B: uint16(fieldOfs), C: uint16(ptrOfs)},
+		{Op: uint16(qc.OPDone), A: 0},
+		{Op: uint16(qc.OPDone), A: 0},
+	}
+	vm.SetGInt(fieldOfs, qc.EntFieldHealth)
+	vm.SetGInt(qc.OFSSelf, selfNum)
+
+	if err := s.executeQCFunction(badFuncNum); err == nil {
+		t.Fatal("bad QC function unexpectedly succeeded")
+	}
+	if vm.Depth != 0 {
+		t.Fatalf("Depth after error = %d, want 0", vm.Depth)
+	}
+	if vm.LocalUsed != 0 {
+		t.Fatalf("LocalUsed after error = %d, want 0", vm.LocalUsed)
+	}
+	if vm.XFunction != nil {
+		t.Fatalf("XFunction after error = %#v, want nil", vm.XFunction)
+	}
+	if vm.XFunctionIndex != -1 {
+		t.Fatalf("XFunctionIndex after error = %d, want -1", vm.XFunctionIndex)
+	}
+	if got := vm.GInt(qc.OFSSelf); got != selfNum {
+		t.Fatalf("self after error = %d, want %d", got, selfNum)
+	}
+
+	if err := s.executeQCFunction(goodFuncNum); err != nil {
+		t.Fatalf("good QC function failed after prior error: %v", err)
+	}
+}
