@@ -269,3 +269,47 @@ func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 		t.Fatalf("IdealYaw = %v, want 215", got)
 	}
 }
+
+func TestMoveStepRejectsUnsupportedE1M1MonsterEdge(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	if err := s.SpawnServer("e1m1", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+
+	ent := s.EdictNum(101)
+	if ent == nil || ent.Vars == nil {
+		t.Fatal("e1m1 monster edict 101 missing")
+	}
+	if got := s.QCVM.GetString(ent.Vars.ClassName); got != "monster_army" {
+		t.Fatalf("edict 101 classname = %q, want monster_army", got)
+	}
+
+	start := [3]float32{1032.8, 2473.5, -308.0}
+	move := [3]float32{-10, 0, 0}
+	ent.Vars.Origin = start
+	ent.Vars.Flags = float32(FlagOnGround)
+	ent.Vars.MoveType = float32(MoveTypeStep)
+	s.LinkEdict(ent, false)
+
+	if s.MoveStep(ent, move, true) {
+		t.Fatalf("MoveStep unexpectedly accepted unsupported edge step: start=%v end=%v", start, ent.Vars.Origin)
+	}
+	if got := ent.Vars.Origin; got != start {
+		t.Fatalf("origin after rejected step = %v, want %v", got, start)
+	}
+}
