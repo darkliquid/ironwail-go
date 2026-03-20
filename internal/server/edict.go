@@ -73,6 +73,7 @@ var entVarsFieldIndex = buildEntVarsFieldIndex()
 // this set are parsed as numeric integers (or hashed via FNV fallback).
 var stringEntFieldNames = map[string]struct{}{
 	"classname":   {},
+	"map":         {},
 	"message":     {},
 	"model":       {},
 	"netname":     {},

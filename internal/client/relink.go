@@ -33,7 +33,8 @@ func entityNeedsHardReset(state inet.EntityState) bool {
 // and before any entity collection for rendering. It modifies entity Origin
 // and Angles in-place so the existing collection functions see lerped positions.
 //
-// Entities not updated in the last server message are removed from the map.
+// Entities not updated in the last server message keep their last known render
+// state until the server explicitly retires them with ModelIndex=0.
 func (c *Client) RelinkEntities() {
 	if c == nil {
 		return
@@ -57,13 +58,10 @@ func (c *Client) RelinkEntities() {
 	localViewEntity := c.ViewEntity
 
 	for entNum, state := range c.Entities {
-		// If this entity was not updated in the latest server message, skip it.
-		// Mirrors C: if (ent->msgtime != cl.mtime[0]) { ent->model = NULL; ent->lerpflags |= LERP_RESETMOVE|LERP_RESETANIM; continue; }
-		// C keeps the entity slot alive in a fixed array; we keep it in the map
-		// with a zero model so the next entity update still has a stable slot while
-		// render/view consumers stop treating stale state as current.
+		// If this entity was not updated in the latest server message, stop
+		// interpolating it but preserve its last known render state until an
+		// explicit zero-model retire arrives from the server.
 		if state.MsgTime != c.MTime[0] {
-			state.ModelIndex = 0
 			state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
 			c.Entities[entNum] = state
 			continue

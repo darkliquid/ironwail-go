@@ -141,7 +141,7 @@ func (s *Server) ConnectClient(clientNum int) {
 		clear(client.EntityStates)
 	}
 
-	if s.LoadGame {
+	if s.LoadGame || s.PreserveSpawnParms {
 	} else {
 		if s.QCVM != nil {
 			if setNewParms := s.QCVM.FindFunction("SetNewParms"); setNewParms >= 0 {

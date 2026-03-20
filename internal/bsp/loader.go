@@ -214,10 +214,13 @@ func (f *File) loadNodes(r *Reader) error {
 			f.Nodes = nodes
 		}
 	} else {
-		count := int(lump.FileLength) / 16 // DSNode is 16 bytes
+		if len(data)%24 != 0 {
+			return fmt.Errorf("load nodes: funny lump size %d", len(data))
+		}
+		count := int(lump.FileLength) / 24 // DSNode is 24 bytes
 		nodes := make([]DSNode, count)
 		for i := 0; i < count; i++ {
-			offset := i * 16
+			offset := i * 24
 			nodes[i] = DSNode{
 				PlaneNum: int32(binary.LittleEndian.Uint32(data[offset:])),
 				Children: [2]int16{
@@ -234,6 +237,8 @@ func (f *File) loadNodes(r *Reader) error {
 					int16(binary.LittleEndian.Uint16(data[offset+16:])),
 					int16(binary.LittleEndian.Uint16(data[offset+18:])),
 				},
+				FirstFace: binary.LittleEndian.Uint16(data[offset+20:]),
+				NumFaces:  binary.LittleEndian.Uint16(data[offset+22:]),
 			}
 		}
 		f.Nodes = nodes

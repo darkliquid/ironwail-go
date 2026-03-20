@@ -39,8 +39,14 @@ func (s *Server) IsPaused() bool {
 	return s.Paused
 }
 
-// SetLoadGame sets the LoadGame flag, which controls whether ConnectClient
-// skips SetNewParms (preserving spawn parms across level changes).
+// SetLoadGame sets the LoadGame flag, which preserves full client edict state
+// during savegame restore signon.
 func (s *Server) SetLoadGame(v bool) {
 	s.LoadGame = v
+}
+
+// SetPreserveSpawnParms keeps client spawn parms across reconnect while still
+// allowing normal player spawn placement in the next map.
+func (s *Server) SetPreserveSpawnParms(v bool) {
+	s.PreserveSpawnParms = v
 }

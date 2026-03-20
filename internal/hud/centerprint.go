@@ -78,7 +78,7 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	if message == "" {
 		return
 	}
-	cp.drawTextBlock(rc, message, screenWidth, screenHeight/3, true)
+	cp.drawTextBlock(rc, message, screenWidth, screenHeight/3, false)
 }
 
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).

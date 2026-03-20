@@ -119,3 +119,36 @@ func TestLoadTreeFromPak0(t *testing.T) {
 		t.Fatalf("world model face range [%d:%d] out of bounds %d", world.FirstFace, world.FirstFace+world.NumFaces, len(tree.Faces))
 	}
 }
+
+func TestLoadFromPak0(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	err := vfs.Init(baseDir, "id1")
+	testutil.AssertNoError(t, err)
+	defer vfs.Close()
+
+	data, err := vfs.LoadFile("maps/e1m1.bsp")
+	testutil.AssertNoError(t, err)
+
+	file, err := Load(bytes.NewReader(data))
+	testutil.AssertNoError(t, err)
+
+	nodes, ok := file.Nodes.([]DSNode)
+	if !ok {
+		t.Fatalf("nodes type = %T, want []DSNode", file.Nodes)
+	}
+	if len(nodes) == 0 {
+		t.Fatal("nodes not loaded")
+	}
+	if nodes[0].NumFaces == 0 {
+		t.Fatal("first node NumFaces = 0, want > 0")
+	}
+	if int(nodes[0].PlaneNum) >= len(file.Planes) || nodes[0].PlaneNum < 0 {
+		t.Fatalf("first node plane index = %d, want within [0,%d)", nodes[0].PlaneNum, len(file.Planes))
+	}
+}

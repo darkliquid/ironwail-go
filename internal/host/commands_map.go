@@ -110,26 +110,26 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 	h.stopSessionSounds(subs)
 	subs.Server.SaveSpawnParms()
 
-	// Set LoadGame so ConnectClient preserves spawn parms (skips SetNewParms).
-	// Mirrors C Ironwail: SV_SpawnServer sends reconnect to connected clients,
-	// and SV_Spawn_f restores saved spawn parms from host_client->spawn_parms.
-	subs.Server.SetLoadGame(true)
+	// Preserve spawn parms across the reconnect, but still let the destination
+	// map run normal player spawn placement instead of treating this like a
+	// savegame restore.
+	subs.Server.SetPreserveSpawnParms(true)
 
 	if fsInstance, ok := subs.Files.(*fs.FileSystem); ok {
 		if err := subs.Server.SpawnServer(level, fsInstance); err != nil {
-			subs.Server.SetLoadGame(false)
+			subs.Server.SetPreserveSpawnParms(false)
 			h.Error(fmt.Sprintf("failed to change level to %s: %v", level, err), subs)
 			return
 		}
 	} else {
-		subs.Server.SetLoadGame(false)
+		subs.Server.SetPreserveSpawnParms(false)
 		return
 	}
 
 	if err := h.startLocalServerSession(subs, nil); err != nil {
-		subs.Server.SetLoadGame(false)
+		subs.Server.SetPreserveSpawnParms(false)
 		h.Error(fmt.Sprintf("failed to start session for %s: %v", level, err), subs)
 		return
 	}
-	subs.Server.SetLoadGame(false)
+	subs.Server.SetPreserveSpawnParms(false)
 }

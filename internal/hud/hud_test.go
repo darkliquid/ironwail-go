@@ -225,8 +225,8 @@ func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
 	})
 	active := &mockRenderContext{}
 	h.Draw(active)
-	if len(active.fills) <= 2 {
-		t.Fatalf("expected centerprint box fills while active, got %d fills", len(active.fills))
+	if len(active.fills) != 2 {
+		t.Fatalf("expected only status bar fills for active centerprint, got %d fills", len(active.fills))
 	}
 
 	h.SetState(State{

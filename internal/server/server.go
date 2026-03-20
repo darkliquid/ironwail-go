@@ -37,9 +37,10 @@ import (
 
 // Server holds the state for the current running game.
 type Server struct {
-	Active   bool
-	Paused   bool
-	LoadGame bool
+	Active             bool
+	Paused             bool
+	LoadGame           bool
+	PreserveSpawnParms bool
 
 	State ServerState
 

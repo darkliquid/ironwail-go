@@ -30,6 +30,7 @@ func (m *mockServer) Shutdown()                                            { m.a
 func (m *mockServer) IsActive() bool                                       { return m.active }
 func (m *mockServer) IsPaused() bool                                       { return m.paused }
 func (m *mockServer) SetLoadGame(v bool)                                   {}
+func (m *mockServer) SetPreserveSpawnParms(v bool)                         {}
 func (m *mockServer) SpawnServer(mapName string, vfs *fs.FileSystem) error { return nil }
 func (m *mockServer) ConnectClient(clientNum int)                          {}
 func (m *mockServer) KillClient(clientNum int) bool                        { return false }

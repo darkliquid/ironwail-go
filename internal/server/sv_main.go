@@ -95,6 +95,7 @@ func (s *Server) Init(maxClients int) error {
 	s.Active = false
 	s.Paused = false
 	s.LoadGame = false
+	s.PreserveSpawnParms = false
 	s.State = ServerStateLoading
 	s.Name = ""
 	s.ModelName = ""

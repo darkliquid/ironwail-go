@@ -65,6 +65,7 @@ type Game struct {
 	StaticSoundKey   string
 	MusicTrackKey    string
 	SkyboxNameKey    string
+	WorldUploadKey   string
 	ShowScores       bool
 	ModDir           string
 
@@ -131,6 +132,16 @@ func startupMapArg(args []string) string {
 		return args[0]
 	}
 	return ""
+}
+
+func shouldUploadRuntimeWorld(uploadedKey, targetKey string, hasWorldData bool) bool {
+	if targetKey == "" {
+		return false
+	}
+	if !hasWorldData {
+		return true
+	}
+	return uploadedKey != targetKey
 }
 
 // wireCSQCDrawHooks connects CSQC drawing builtins to a RenderContext.
@@ -330,9 +341,12 @@ func main() {
 			syncRuntimeVisualEffects(dt, transientEvents)
 		})
 		g.Renderer.OnDraw(func(dc renderer.RenderContext) {
-			if g.Renderer != nil && g.Server != nil && g.Server.WorldTree != nil && !g.Renderer.HasWorldData() {
+			if g.Renderer != nil && g.Server != nil && g.Server.WorldTree != nil &&
+				shouldUploadRuntimeWorld(g.WorldUploadKey, g.Server.ModelName, g.Renderer.HasWorldData()) {
 				if err := g.Renderer.UploadWorld(g.Server.WorldTree); err != nil {
 					slog.Warn("deferred world upload failed", "error", err)
+				} else {
+					g.WorldUploadKey = g.Server.ModelName
 				}
 			}
 

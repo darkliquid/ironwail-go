@@ -330,6 +330,7 @@ type Server interface {
 	IsActive() bool
 	IsPaused() bool
 	SetLoadGame(v bool)
+	SetPreserveSpawnParms(v bool)
 }
 
 type Client interface {

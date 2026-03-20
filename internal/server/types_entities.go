@@ -523,6 +523,11 @@ type EntVars struct {
 	// the client as a center-print message.
 	Message int32
 
+	// Map — QC string table index for a trigger_changelevel destination map.
+	// Start-map skill/episode exit triggers rely on this field being populated
+	// from the BSP entity lump so QuakeC can issue the correct changelevel.
+	Map int32
+
 	// Sounds — numeric sound selection for this entity. Map editors use this
 	// field to choose between preset sound sets (e.g., a door can have
 	// different open/close sound styles based on this value).

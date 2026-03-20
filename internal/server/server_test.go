@@ -172,18 +172,28 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 	}
 
 	foundStart := false
+	foundChangeLevel := false
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
 		ent := s.EdictNum(entNum)
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		if s.GetString(ent.Vars.ClassName) == "info_player_start" {
+		className := s.GetString(ent.Vars.ClassName)
+		if className == "info_player_start" {
 			foundStart = true
-			break
+		}
+		if className == "trigger_changelevel" {
+			foundChangeLevel = true
+			if got := s.GetString(ent.Vars.Map); got == "" {
+				t.Fatalf("trigger_changelevel %d missing map key after entity parse", entNum)
+			}
 		}
 	}
 	if !foundStart {
 		t.Fatal("info_player_start entity was not loaded from the map entity lump")
+	}
+	if !foundChangeLevel {
+		t.Fatal("trigger_changelevel entity was not loaded from the map entity lump")
 	}
 }
 
@@ -440,6 +450,55 @@ func TestSubmitLoopbackStringCommandLoadGamePreservesPlayerState(t *testing.T) {
 	}
 	if client.SendSignon != SignonNone {
 		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonNone)
+	}
+}
+
+func TestSubmitLoopbackStringCommandPreserveSpawnParmsRespawnsPlayer(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.QCVM = qc.NewVM()
+	s.PreserveSpawnParms = true
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Name = "Player"
+	client.Color = 3
+	client.Edict.Vars.Origin = [3]float32{128, 64, 32}
+	client.SpawnParms[0] = 42
+
+	spawn := s.AllocEdict()
+	if spawn == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	if spawn.Vars == nil {
+		spawn.Vars = &EntVars{}
+	}
+	spawn.Vars.ClassName = s.QCVM.AllocString("info_player_start")
+	spawn.Vars.Origin = [3]float32{480, -320, 64}
+	spawn.Vars.Angles = [3]float32{0, 90, 0}
+
+	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
+		t.Fatalf("SubmitLoopbackStringCommand(prespawn): %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "spawn"); err != nil {
+		t.Fatalf("SubmitLoopbackStringCommand(spawn): %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "begin"); err != nil {
+		t.Fatalf("SubmitLoopbackStringCommand(begin): %v", err)
+	}
+
+	if got := client.Edict.Vars.Origin; got != spawn.Vars.Origin {
+		t.Fatalf("player origin = %v, want respawn at %v", got, spawn.Vars.Origin)
+	}
+	if got := client.Edict.Vars.Angles; got != spawn.Vars.Angles {
+		t.Fatalf("player angles = %v, want %v", got, spawn.Vars.Angles)
+	}
+	if got := client.Edict.Vars.MoveType; got != float32(MoveTypeWalk) {
+		t.Fatalf("player movetype = %v, want %v", got, float32(MoveTypeWalk))
+	}
+	if client.SpawnParms[0] != 42 {
+		t.Fatalf("spawn parms changed unexpectedly: got %v, want 42", client.SpawnParms[0])
 	}
 }
 

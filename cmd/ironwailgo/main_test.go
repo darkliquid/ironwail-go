@@ -106,6 +106,7 @@ func (s *demoPlaybackNoopServer) GetMapName() string                       { ret
 func (s *demoPlaybackNoopServer) IsActive() bool                           { return false }
 func (s *demoPlaybackNoopServer) IsPaused() bool                           { return false }
 func (s *demoPlaybackNoopServer) SetLoadGame(bool)                         {}
+func (s *demoPlaybackNoopServer) SetPreserveSpawnParms(bool)               {}
 
 type demoPlaybackConsole struct{}
 
@@ -196,6 +197,52 @@ func TestStartupMapArg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := startupMapArg(tc.args); got != tc.want {
 				t.Fatalf("startupMapArg(%v) = %q, want %q", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestShouldUploadRuntimeWorld(t *testing.T) {
+	tests := []struct {
+		name         string
+		uploadedKey  string
+		targetKey    string
+		hasWorldData bool
+		want         bool
+	}{
+		{
+			name:         "missing target map skips upload",
+			uploadedKey:  "maps/start.bsp",
+			targetKey:    "",
+			hasWorldData: true,
+			want:         false,
+		},
+		{
+			name:         "initial upload without world data",
+			targetKey:    "maps/start.bsp",
+			hasWorldData: false,
+			want:         true,
+		},
+		{
+			name:         "same uploaded map reuses world data",
+			uploadedKey:  "maps/start.bsp",
+			targetKey:    "maps/start.bsp",
+			hasWorldData: true,
+			want:         false,
+		},
+		{
+			name:         "map change forces reupload",
+			uploadedKey:  "maps/start.bsp",
+			targetKey:    "maps/e1m1.bsp",
+			hasWorldData: true,
+			want:         true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldUploadRuntimeWorld(tc.uploadedKey, tc.targetKey, tc.hasWorldData); got != tc.want {
+				t.Fatalf("shouldUploadRuntimeWorld(%q, %q, %v) = %v, want %v", tc.uploadedKey, tc.targetKey, tc.hasWorldData, got, tc.want)
 			}
 		})
 	}
