@@ -85,3 +85,17 @@ func TestRecursiveHullCheckTracksInWater(t *testing.T) {
 		t.Fatal("unexpected in-open flag for water trace")
 	}
 }
+
+func TestHullPointContentsUsesDoublePrecisionForNonAxialPlanes(t *testing.T) {
+	hull := &model.Hull{
+		ClipNodes:     []model.MClipNode{{PlaneNum: 0, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}}},
+		Planes:        []model.MPlane{{Normal: [3]float32{0.9193270206451416, 1.595353126525879, 0.7359357476234436}, Dist: -71107.78125, Type: 3}},
+		FirstClipNode: 0,
+		LastClipNode:  0,
+	}
+	point := [3]float32{-2785.728515625, -39929.87890625, -6582.81640625}
+
+	if got := hullPointContents(hull, 0, point); got != bsp.ContentsSolid {
+		t.Fatalf("hullPointContents() = %d, want %d (double-precision non-axial classification)", got, bsp.ContentsSolid)
+	}
+}

@@ -213,7 +213,11 @@ func hullPointContents(hull *model.Hull, num int, p [3]float32) int {
 		if plane.Type < 3 {
 			d = p[plane.Type] - plane.Dist
 		} else {
-			d = plane.Normal[0]*p[0] + plane.Normal[1]*p[1] + plane.Normal[2]*p[2] - plane.Dist
+			// Match C's DoublePrecisionDotProduct() for non-axial plane tests.
+			d = float32(float64(plane.Normal[0])*float64(p[0]) +
+				float64(plane.Normal[1])*float64(p[1]) +
+				float64(plane.Normal[2])*float64(p[2]) -
+				float64(plane.Dist))
 		}
 
 		if d < 0 {
