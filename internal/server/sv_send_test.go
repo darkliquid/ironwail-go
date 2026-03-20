@@ -18,17 +18,17 @@ func TestEncodeAlpha(t *testing.T) {
 		in   float32
 		want byte
 	}{
-		{name: "zero", in: 0.0, want: 1},
+		{name: "zero", in: 0.0, want: inet.ENTALPHA_DEFAULT},
 		{name: "half", in: 0.5, want: 128},
-		{name: "one", in: 1.0, want: 255},
+		{name: "one", in: 1.0, want: inet.ENTALPHA_ONE},
 	}
 
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := encodeAlpha(tc.in); got != tc.want {
-				t.Fatalf("encodeAlpha(%v) = %d, want %d", tc.in, got, tc.want)
+			if got := inet.ENTALPHA_ENCODE(tc.in); got != tc.want {
+				t.Fatalf("ENTALPHA_ENCODE(%v) = %d, want %d", tc.in, got, tc.want)
 			}
 		})
 	}
@@ -770,7 +770,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	t.Parallel()
 
 	vm := newTestQCVM()
-	vm.SetEFloat(1, 0, 1.0) // alpha -> encodeAlpha(1.0) == ENTALPHA_ZERO (255)
+	vm.SetEFloat(1, 0, 0.001) // tiny positive alpha rounds to ENTALPHA_ZERO
 
 	ent := &Edict{
 		Vars: &EntVars{},
@@ -796,6 +796,72 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	}
 	if _, ok := client.EntityStates[1]; ok {
 		t.Fatal("ENTALPHA_ZERO entity should not be tracked in client.EntityStates")
+	}
+}
+
+func TestWriteEntitiesToClient_RetiresBaselineOnlyEntity(t *testing.T) {
+	t.Parallel()
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
+	}
+	client := &Client{}
+	s := &Server{
+		Static:    &ServerStatic{MaxClients: 1},
+		Edicts:    []*Edict{{}, ent},
+		NumEdicts: 2,
+	}
+
+	s.seedClientEntityStatesFromBaselines(client)
+	if _, ok := client.EntityStates[1]; !ok {
+		t.Fatal("expected baseline entity state to be seeded for retire tracking")
+	}
+
+	ent.Free = true
+	msg := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, msg)
+
+	if got := msg.Len(); got == 0 {
+		t.Fatal("writeEntitiesToClient wrote no retire update for baseline-only entity")
+	}
+	if state, ok := client.EntityStates[1]; !ok {
+		t.Fatal("baseline-only entity should stay tracked for sticky retire updates")
+	} else if state.ModelIndex != 0 {
+		t.Fatalf("sticky retire tracked ModelIndex=%d, want 0", state.ModelIndex)
+	}
+}
+
+func TestWriteEntitiesToClient_RepeatsRetireUntilOverwritten(t *testing.T) {
+	t.Parallel()
+
+	ent := &Edict{
+		Vars:     &EntVars{},
+		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
+	}
+	client := &Client{}
+	s := &Server{
+		Static:    &ServerStatic{MaxClients: 1},
+		Edicts:    []*Edict{{}, ent},
+		NumEdicts: 2,
+	}
+
+	s.seedClientEntityStatesFromBaselines(client)
+	ent.Free = true
+
+	first := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, first)
+	if got := first.Len(); got == 0 {
+		t.Fatal("first retire update was empty")
+	}
+
+	second := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, second)
+	if got := second.Len(); got == 0 {
+		t.Fatal("second retire update was empty; want sticky re-send")
+	}
+	if state := client.EntityStates[1]; state.ModelIndex != 0 {
+		t.Fatalf("sticky retire ModelIndex=%d, want 0", state.ModelIndex)
 	}
 }
 

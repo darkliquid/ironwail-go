@@ -146,7 +146,10 @@ func (s *Server) Shutdown() {
 	s.Active = false
 	s.Paused = false
 	s.State = ServerStateLoading
+	s.Name = ""
+	s.ModelName = ""
 	s.WorldModel = nil
+	s.WorldTree = nil
 	s.Edicts = nil
 	s.NumEdicts = 0
 	s.Static = nil

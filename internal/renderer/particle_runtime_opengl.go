@@ -4,8 +4,14 @@
 
 package renderer
 
+/*
+#include <stdlib.h>
+*/
+import "C"
+
 import (
 	"fmt"
+	"runtime"
 	"unsafe"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
@@ -58,6 +64,22 @@ const (
 	particlePassTranslucent
 )
 
+const particleBatchCapacity = 512
+
+func uploadParticleBatch(target uint32, batch []ParticleVertex, byteSize int, usage uint32) {
+	if len(batch) == 0 || byteSize == 0 {
+		return
+	}
+
+	src := unsafe.Slice((*byte)(particleVertexPtr(batch)), byteSize)
+	cbuf := C.CBytes(src)
+	defer C.free(cbuf)
+
+	gl.BufferSubData(target, 0, byteSize, cbuf)
+	runtime.KeepAlive(batch)
+	runtime.KeepAlive(usage)
+}
+
 // buildParticlePaletteRGBA converts indexed particle colors into RGBA lookup data suitable for GPU-side tinting.
 func buildParticlePaletteRGBA(palette []byte) [256][4]byte {
 	var p [256][4]byte
@@ -108,7 +130,7 @@ func (r *Renderer) ensureParticleBuffersLocked() {
 
 	gl.BindVertexArray(r.particleVAO)
 	gl.BindBuffer(gl.ARRAY_BUFFER, r.particleVBO)
-	gl.BufferData(gl.ARRAY_BUFFER, 4, nil, gl.DYNAMIC_DRAW)
+	gl.BufferData(gl.ARRAY_BUFFER, particleBatchCapacity*int(unsafe.Sizeof(ParticleVertex{})), nil, gl.DYNAMIC_DRAW)
 
 	stride := int32(unsafe.Sizeof(ParticleVertex{}))
 	gl.EnableVertexAttribArray(0)
@@ -179,16 +201,15 @@ func (r *Renderer) renderParticles(ps *ParticleSystem, palette []byte, pass part
 	gl.Uniform1f(pointScaleUniform, pointScale)
 	// Upload and draw in fixed-size batches to match C Ironwail's partverts[] behavior.
 	// C flushes at MAX_PARTVERTS (512) and again at end-of-frame.
-	const maxPartVerts = 512
 	gl.BindVertexArray(vao)
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
 	vertSize := int(unsafe.Sizeof(ParticleVertex{}))
 	for len(drawVertices) > 0 {
 		batch := drawVertices
-		if len(batch) > maxPartVerts {
-			batch = drawVertices[:maxPartVerts]
+		if len(batch) > particleBatchCapacity {
+			batch = drawVertices[:particleBatchCapacity]
 		}
-		gl.BufferData(gl.ARRAY_BUFFER, len(batch)*vertSize, gl.Ptr(batch), gl.DYNAMIC_DRAW)
+		uploadParticleBatch(gl.ARRAY_BUFFER, batch, len(batch)*vertSize, gl.DYNAMIC_DRAW)
 		gl.DrawArrays(gl.POINTS, 0, int32(len(batch)))
 		drawVertices = drawVertices[len(batch):]
 	}

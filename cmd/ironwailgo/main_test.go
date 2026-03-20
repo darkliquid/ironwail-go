@@ -1700,6 +1700,7 @@ func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T
 func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	originalHost := g.Host
 	originalSubs := g.Subs
+	originalClient := g.Client
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
@@ -1707,6 +1708,7 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	t.Cleanup(func() {
 		g.Host = originalHost
 		g.Subs = originalSubs
+		g.Client = originalClient
 		_ = os.Chdir(cwd)
 	})
 
@@ -1740,6 +1742,10 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	if demo == nil || !demo.Playback {
 		t.Fatal("expected active demo playback")
 	}
+	clientState := host.LoopbackClientState(g.Subs)
+	if clientState == nil || !clientState.DemoPlayback || clientState.TimeDemoActive {
+		t.Fatalf("demo flags at start = %#v, want demo playback true and timedemo false", clientState)
+	}
 
 	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
 		t.Fatalf("Host.Frame first: %v", err)
@@ -1753,6 +1759,78 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 	}
 	if demo.FrameIndex != 2 {
 		t.Fatalf("frame index after second host frame = %d, want 2", demo.FrameIndex)
+	}
+
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame eof: %v", err)
+	}
+	if demo.Playback {
+		t.Fatal("expected demo playback to stop at EOF")
+	}
+	if clientState.DemoPlayback || clientState.TimeDemoActive {
+		t.Fatalf("demo flags after EOF = demo:%v timedemo:%v, want both false", clientState.DemoPlayback, clientState.TimeDemoActive)
+	}
+}
+
+func TestDemoPlaybackEOFQueuesNextPlaylistDemo(t *testing.T) {
+	originalHost := g.Host
+	originalSubs := g.Subs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Subs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("playlist_step", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame: %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	cmdBuf := &demoPlaybackCommandBuffer{}
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{
+		Server:   &demoPlaybackNoopServer{},
+		Console:  &demoPlaybackConsole{},
+		Commands: cmdBuf,
+	}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	g.Host.SetDemoList([]string{"demo2"})
+	g.Host.SetDemoNum(0)
+	g.Host.CmdPlaydemo("playlist_step", g.Subs)
+
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame first: %v", err)
+	}
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame eof: %v", err)
+	}
+
+	demo := g.Host.DemoState()
+	if demo == nil {
+		t.Fatal("expected demo state")
+	}
+	if demo.Playback {
+		t.Fatal("expected playback to stop before queued playlist advance")
+	}
+	if len(cmdBuf.added) == 0 || cmdBuf.added[len(cmdBuf.added)-1] != "demos\n" {
+		t.Fatalf("queued commands = %q, want trailing demos command", cmdBuf.added)
 	}
 }
 
@@ -1895,6 +1973,7 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 	originalHost := g.Host
 	originalSubs := g.Subs
+	originalClient := g.Client
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
@@ -1902,6 +1981,7 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 	t.Cleanup(func() {
 		g.Host = originalHost
 		g.Subs = originalSubs
+		g.Client = originalClient
 		_ = os.Chdir(cwd)
 	})
 
@@ -1945,6 +2025,9 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 	if clientState == nil {
 		t.Fatal("expected loopback client state")
 	}
+	if !clientState.DemoPlayback || !clientState.TimeDemoActive {
+		t.Fatalf("timedemo flags at start = demo:%v timedemo:%v, want both true", clientState.DemoPlayback, clientState.TimeDemoActive)
+	}
 	clientState.State = cl.StateActive
 	clientState.Signon = cl.Signons
 
@@ -1961,6 +2044,148 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 	}
 	if demo.FrameIndex != 2 {
 		t.Fatalf("frame index after timedemo frames = %d, want 2", demo.FrameIndex)
+	}
+
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame eof: %v", err)
+	}
+	if demo.Playback {
+		t.Fatal("expected timedemo playback to stop at EOF")
+	}
+	if clientState.DemoPlayback || clientState.TimeDemoActive {
+		t.Fatalf("timedemo flags after EOF = demo:%v timedemo:%v, want both false", clientState.DemoPlayback, clientState.TimeDemoActive)
+	}
+}
+
+type demoBootstrapTestFS struct{}
+
+func (demoBootstrapTestFS) Init(baseDir, gameDir string) error { return nil }
+func (demoBootstrapTestFS) Close()                             {}
+func (demoBootstrapTestFS) LoadFile(filename string) ([]byte, error) {
+	return nil, fmt.Errorf("unexpected LoadFile(%q)", filename)
+}
+func (demoBootstrapTestFS) LoadFirstAvailable([]string) (string, []byte, error) {
+	return "", nil, fmt.Errorf("not implemented")
+}
+func (demoBootstrapTestFS) FileExists(string) bool { return false }
+
+func TestDemoPlaybackBootstrapsWorldAfterServerInfo(t *testing.T) {
+	originalHost := g.Host
+	originalSubs := g.Subs
+	originalServer := g.Server
+	originalClient := g.Client
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalGrabbed := g.MouseGrabbed
+	originalLoader := loadDemoWorldTree
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Subs = originalSubs
+		g.Server = originalServer
+		g.Client = originalClient
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.MouseGrabbed = originalGrabbed
+		loadDemoWorldTree = originalLoader
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	serverInfoMsg := bytes.NewBuffer(nil)
+	serverInfoMsg.WriteByte(byte(inet.SVCServerInfo))
+	if err := binary.Write(serverInfoMsg, binary.LittleEndian, int32(inet.PROTOCOL_FITZQUAKE)); err != nil {
+		t.Fatalf("binary.Write(protocol): %v", err)
+	}
+	serverInfoMsg.WriteByte(1)
+	serverInfoMsg.WriteByte(0)
+	serverInfoMsg.WriteString("Demo Test")
+	serverInfoMsg.WriteByte(0)
+	serverInfoMsg.WriteString("maps/start.bsp")
+	serverInfoMsg.WriteByte(0)
+	serverInfoMsg.WriteByte(0)
+	serverInfoMsg.WriteByte(0)
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("demo_bootstrap", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	if err := recorder.WriteDemoFrame(serverInfoMsg.Bytes(), [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame: %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCSignOnNum), 0x02}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame(signon2): %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCSignOnNum), 0x03}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame(signon3): %v", err)
+	}
+	if err := recorder.WriteDemoFrame([]byte{byte(inet.SVCTime), 0, 0, 0, 0}, [3]float32{}); err != nil {
+		t.Fatalf("WriteDemoFrame(time): %v", err)
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	wantTree := &bsp.Tree{Models: []bsp.DModel{{}}}
+	var loadedModel string
+	loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
+		loadedModel = worldModel
+		return wantTree, nil
+	}
+
+	g.Host = host.NewHost()
+	g.Server = &server.Server{}
+	g.Subs = &host.Subsystems{
+		Server:  &demoPlaybackNoopServer{},
+		Console: &demoPlaybackConsole{},
+		Files:   demoBootstrapTestFS{},
+	}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.MouseGrabbed = false
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnMenuChar = handleMenuCharEvent
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.OnChar = handleGameCharEvent
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+	g.Menu.ShowMenu()
+	syncGameplayInputMode()
+	g.Host.CmdPlaydemo("demo_bootstrap", g.Subs)
+
+	for i := 0; i < 4; i++ {
+		if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+			t.Fatalf("Host.Frame(%d): %v", i, err)
+		}
+	}
+	if loadedModel != "maps/start.bsp" {
+		t.Fatalf("loaded model = %q, want maps/start.bsp", loadedModel)
+	}
+	if g.Server.ModelName != "maps/start.bsp" {
+		t.Fatalf("server model name = %q, want maps/start.bsp", g.Server.ModelName)
+	}
+	if g.Server.WorldTree != wantTree {
+		t.Fatalf("server world tree = %p, want %p", g.Server.WorldTree, wantTree)
+	}
+	clientState := host.LoopbackClientState(g.Subs)
+	if clientState == nil || clientState.State != cl.StateActive || clientState.Signon != cl.Signons {
+		t.Fatalf("client state/signon = %#v, want active/%d", clientState, cl.Signons)
+	}
+	if g.Menu.IsActive() {
+		t.Fatal("expected startup menu to hide once demo playback became active")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after demo startup = %v, want game", got)
 	}
 }
 
@@ -2796,6 +3021,106 @@ func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
 	}
 	if sources[1].Origin != [3]float32{10, 11, 12} || sources[1].Effects != inet.EF_DIMLIGHT {
 		t.Fatalf("second effect source = %#v, want static alias dim-light source", sources[1])
+	}
+}
+
+func TestCollectAliasEntitiesSkipsStaleDynamicEntities(t *testing.T) {
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalCache := g.AliasModelCache
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.AliasModelCache = originalCache
+	})
+
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{1.1, 1.0}
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, MsgTime: 1.0},
+	}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1},
+		},
+	}
+
+	entities := collectAliasEntities()
+	if got := len(entities); got != 0 {
+		t.Fatalf("collectAliasEntities len = %d, want 0 for stale alias entity", got)
+	}
+}
+
+func TestCollectSpriteEntitiesSkipsStaleDynamicEntities(t *testing.T) {
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalCache := g.SpriteModelCache
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.SpriteModelCache = originalCache
+	})
+
+	testFS := &runtimeMusicTestFS{
+		files: map[string][]byte{
+			"progs/flame.spr": testRuntimeSprite(t, 1, 1),
+		},
+	}
+	g.Subs = &host.Subsystems{Files: testFS}
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{1.1, 1.0}
+	g.Client.ModelPrecache = []string{"progs/flame.spr"}
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, MsgTime: 1.0},
+	}
+
+	entities := collectSpriteEntities()
+	if got := len(entities); got != 0 {
+		t.Fatalf("collectSpriteEntities len = %d, want 0 for stale sprite entity", got)
+	}
+}
+
+func TestCollectEntityEffectSourcesSkipsStaleDynamicEntities(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{1.1, 1.0}
+	g.Client.ModelPrecache = []string{"progs/player.mdl"}
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, MsgTime: 1.0, Origin: [3]float32{1, 2, 3}, Effects: inet.EF_MUZZLEFLASH},
+	}
+
+	sources := collectEntityEffectSources()
+	if got := len(sources); got != 0 {
+		t.Fatalf("collectEntityEffectSources len = %d, want 0 for stale dynamic effect source", got)
+	}
+}
+
+func TestCollectBrushEntitiesKeepsStaleBrushSubmodels(t *testing.T) {
+	originalClient := g.Client
+	originalServer := g.Server
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Server = originalServer
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{1.1, 1.0}
+	g.Client.ModelPrecache = []string{"maps/start.bsp", "*1"}
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 2, MsgTime: 1.0, Origin: [3]float32{1, 2, 3}},
+	}
+	g.Server = &server.Server{WorldTree: &bsp.Tree{Models: []bsp.DModel{{}, {}}}}
+
+	brushEntities := collectBrushEntities()
+	if got := len(brushEntities); got != 1 {
+		t.Fatalf("collectBrushEntities len = %d, want 1 for stale brush submodel", got)
 	}
 }
 

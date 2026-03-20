@@ -293,6 +293,7 @@ func (h *Host) disconnectCurrentSession(subs *Subsystems, stopServer bool) {
 		loopbackClient.ClearState()
 		loopbackClient.State = cl.StateDisconnected
 	}
+	setLoopbackDemoFlags(subs, false, false)
 
 	h.signOns = 0
 	h.clientState = caDisconnected

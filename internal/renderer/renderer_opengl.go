@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -482,6 +483,9 @@ type Renderer struct {
 	window *glfw.Window
 	config Config
 
+	framebufferWidth  atomic.Int32
+	framebufferHeight atomic.Int32
+
 	textureCache  map[glCacheKey]*glCachedTexture
 	colorTextures [256]uint32
 	palette       []byte
@@ -738,6 +742,8 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		lightStyleValues:        defaultLightStyleValues(),
 		lightPool:               NewGLLightPool(512),
 	}
+	r.framebufferWidth.Store(int32(cfg.Width))
+	r.framebufferHeight.Store(int32(cfg.Height))
 	r.initScrapAtlas()
 
 	slog.Info("OpenGL renderer created",
@@ -780,11 +786,22 @@ func (r *Renderer) Input() interface{} {
 	return nil
 }
 
-// Size returns the current framebuffer size in pixels.
-// Uses GetFramebufferSize rather than GetSize so that coordinates
-// match the actual OpenGL viewport on HiDPI/Wayland displays.
+// Size returns the cached framebuffer size in pixels.
+// The render loop refreshes this once per frame from GLFW so hot callback paths
+// don't repeatedly query window attributes from X11/GLFW.
 func (r *Renderer) Size() (width, height int) {
-	return r.window.GetFramebufferSize()
+	if r == nil {
+		return 0, 0
+	}
+	width = int(r.framebufferWidth.Load())
+	height = int(r.framebufferHeight.Load())
+	if width <= 0 {
+		width = r.config.Width
+	}
+	if height <= 0 {
+		height = r.config.Height
+	}
+	return width, height
 }
 
 // CaptureScreenshot reads the current OpenGL framebuffer and saves it as a PNG.
@@ -959,6 +976,8 @@ func (r *Renderer) Run() error {
 		// HiDPI/Wayland displays; GetFramebufferSize() always returns the
 		// actual framebuffer pixel dimensions that OpenGL expects.
 		width, height := r.window.GetFramebufferSize()
+		r.framebufferWidth.Store(int32(width))
+		r.framebufferHeight.Store(int32(height))
 		gl.Viewport(0, 0, int32(width), int32(height))
 
 		r.mu.RLock()

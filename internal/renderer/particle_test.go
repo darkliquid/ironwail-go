@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+	"unsafe"
 )
 
 func TestParticleSystemCapacityAndAlloc(t *testing.T) {
@@ -207,5 +208,25 @@ func TestBuildParticleVertices(t *testing.T) {
 	verts = BuildParticleVertices([]Particle{{Org: [3]float32{1, 2, 3}, Color: 3}}, palette, true)
 	if verts[0].Color != [4]byte{255, 255, 255, 255} {
 		t.Fatalf("showtris color = %v, want white", verts[0].Color)
+	}
+}
+
+func TestParticleVertexPtr(t *testing.T) {
+	if ptr := particleVertexPtr(nil); ptr != nil {
+		t.Fatalf("particleVertexPtr(nil) = %v, want nil", ptr)
+	}
+
+	verts := []ParticleVertex{{Pos: [3]float32{1, 2, 3}, Color: [4]byte{4, 5, 6, 7}}}
+	if ptr := particleVertexPtr(verts); ptr != unsafe.Pointer(&verts[0]) {
+		t.Fatalf("particleVertexPtr returned %v, want %v", ptr, unsafe.Pointer(&verts[0]))
+	}
+}
+
+func TestParticleVertexLayout(t *testing.T) {
+	if got := unsafe.Sizeof(ParticleVertex{}); got != 16 {
+		t.Fatalf("unsafe.Sizeof(ParticleVertex{}) = %d, want 16", got)
+	}
+	if got := unsafe.Offsetof(ParticleVertex{}.Color); got != 12 {
+		t.Fatalf("unsafe.Offsetof(ParticleVertex{}.Color) = %d, want 12", got)
 	}
 }

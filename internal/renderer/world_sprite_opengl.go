@@ -192,14 +192,16 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 		return
 	}
 
-	// Generate quad indices
-	indices := generateSpriteQuadIndices()
+	triangleVertices := expandSpriteQuadVertices(vertices)
+	if len(triangleVertices) == 0 {
+		return
+	}
 
 	// Ensure scratch VAO/VBO for transient geometry
 	r.ensureAliasScratchLocked()
 
 	// Upload vertices to scratch VBO
-	vertexData := flattenWorldVertices(vertices)
+	vertexData := flattenWorldVertices(triangleVertices)
 	gl.BindBuffer(gl.ARRAY_BUFFER, r.aliasScratchVBO)
 	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
 
@@ -212,6 +214,21 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 	// Bind vertex array
 	gl.BindVertexArray(r.aliasScratchVAO)
 
-	// Draw sprite quad (2 triangles = 6 indices)
-	gl.DrawElements(gl.TRIANGLES, int32(len(indices)), gl.UNSIGNED_INT, gl.PtrOffset(0))
+	// Draw sprite quad as 2 triangles using expanded transient vertices.
+	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(triangleVertices)))
+}
+
+func expandSpriteQuadVertices(vertices []WorldVertex) []WorldVertex {
+	if len(vertices) < 4 {
+		return nil
+	}
+	indices := generateSpriteQuadIndices()
+	out := make([]WorldVertex, 0, len(indices))
+	for _, idx := range indices {
+		if int(idx) >= len(vertices) {
+			return nil
+		}
+		out = append(out, vertices[idx])
+	}
+	return out
 }

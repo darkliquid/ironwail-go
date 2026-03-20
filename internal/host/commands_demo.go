@@ -10,6 +10,13 @@ import (
 	cl "github.com/ironwail/ironwail-go/internal/client"
 )
 
+func setLoopbackDemoFlags(subs *Subsystems, demoPlayback, timeDemo bool) {
+	if clientState := LoopbackClientState(subs); clientState != nil {
+		clientState.DemoPlayback = demoPlayback
+		clientState.TimeDemoActive = timeDemo
+	}
+}
+
 func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
 		return
@@ -160,6 +167,7 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 		clientState.ClearState()
 		clientState.State = cl.StateDisconnected
 	}
+	setLoopbackDemoFlags(subs, true, false)
 }
 
 func (h *Host) CmdStopdemo(subs *Subsystems) {
@@ -180,6 +188,7 @@ func (h *Host) CmdStopdemo(subs *Subsystems) {
 	subs.Console.Print("Demo playback stopped.\n")
 	h.clientState = caDisconnected
 	h.SetDemoNum(-1)
+	setLoopbackDemoFlags(subs, false, false)
 }
 
 // MaxDemos is the maximum number of demos in a startdemos playlist.
@@ -249,6 +258,7 @@ func (h *Host) CmdTimedemo(filename string, subs *Subsystems) {
 		return
 	}
 	h.demoState.EnableTimeDemo()
+	setLoopbackDemoFlags(subs, true, true)
 	subs.Console.Print(fmt.Sprintf("Timing demo %s\n", h.demoState.Filename))
 }
 

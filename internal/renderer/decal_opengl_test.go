@@ -74,11 +74,11 @@ func TestBuildDecalTriangleVerticesCount(t *testing.T) {
 	}
 
 	verts := buildDecalTriangleVertices(mark)
-	if len(verts) != 6*10 {
-		t.Fatalf("vertex float count = %d, want %d", len(verts), 6*10)
+	if len(verts) != 6*decalFloatsPerVertex {
+		t.Fatalf("vertex float count = %d, want %d", len(verts), 6*decalFloatsPerVertex)
 	}
 
-	for i := 8; i < len(verts); i += 10 {
+	for i := 8; i < len(verts); i += decalFloatsPerVertex {
 		if math.Abs(float64(verts[i]-0.8)) > 1e-6 {
 			t.Fatalf("vertex alpha = %v, want 0.8", verts[i])
 		}
@@ -96,13 +96,31 @@ func TestBuildDecalTriangleVerticesIncludesVariant(t *testing.T) {
 	}
 
 	verts := buildDecalTriangleVertices(mark)
-	if len(verts) != 6*10 {
-		t.Fatalf("vertex float count = %d, want %d", len(verts), 6*10)
+	if len(verts) != 6*decalFloatsPerVertex {
+		t.Fatalf("vertex float count = %d, want %d", len(verts), 6*decalFloatsPerVertex)
 	}
-	for i := 9; i < len(verts); i += 10 {
+	for i := 9; i < len(verts); i += decalFloatsPerVertex {
 		if verts[i] != float32(DecalVariantScorch) {
 			t.Fatalf("vertex variant = %v, want %v", verts[i], float32(DecalVariantScorch))
 		}
+	}
+}
+
+func TestDecalTriangleVertexCountMatchesDrawStride(t *testing.T) {
+	mark := DecalMarkEntity{
+		Origin: [3]float32{0, 0, 0},
+		Normal: [3]float32{0, 0, 1},
+		Size:   8,
+		Alpha:  1,
+		Color:  [3]float32{1, 1, 1},
+	}
+
+	verts := buildDecalTriangleVertices(mark)
+	if got := len(verts) / decalFloatsPerVertex; got != 6 {
+		t.Fatalf("draw vertex count = %d, want 6", got)
+	}
+	if len(verts)%decalFloatsPerVertex != 0 {
+		t.Fatalf("vertex float count = %d not divisible by stride %d", len(verts), decalFloatsPerVertex)
 	}
 }
 

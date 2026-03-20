@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"image/png"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/host"
@@ -23,6 +25,14 @@ import (
 type gameCallbacks struct{}
 
 var runtimeProcessClientPhase string
+
+var loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
+	data, err := files.LoadFile(worldModel)
+	if err != nil {
+		return nil, err
+	}
+	return bsp.LoadTree(bytes.NewReader(data))
+}
 
 func (gameCallbacks) SetProcessClientPhase(phase string) {
 	runtimeProcessClientPhase = phase
@@ -64,7 +74,11 @@ func (gameCallbacks) ProcessClient() {
 			return
 		}
 		clientState := host.ActiveClientState(g.Subs)
+		prevState := cl.StateDisconnected
+		prevSignon := 0
 		if clientState != nil {
+			prevState = clientState.State
+			prevSignon = clientState.Signon
 			clientState.AdvanceTime(demo, g.Host.FrameTime())
 			if !shouldReadNextDemoMessage(clientState, demo) {
 				return
@@ -81,27 +95,17 @@ func (gameCallbacks) ProcessClient() {
 				}
 				// Demo ended, check if we should loop to next demo
 				_ = demo.StopPlayback()
+				clearRuntimeDemoFlags()
 				g.Host.SetClientState(0) // caDisconnected
 
-				// Demo loop: play next demo if demo loop is active
+				// Queue the next attract-mode demo for the next frame instead of
+				// starting it inline during EOF teardown. This keeps playback
+				// teardown/bootstrap from mutating render state mid-frame.
 				if g.Host.DemoNum() >= 0 && len(g.Host.DemoList()) > 0 {
-					demoNum := g.Host.DemoNum()
-					demos := g.Host.DemoList()
-
-					// Wrap around to start
-					if demoNum >= len(demos) {
-						demoNum = 0
-						g.Host.SetDemoNum(demoNum)
-					}
-
-					if demoNum < len(demos) && demos[demoNum] != "" {
-						// Play the next demo
-						g.Host.CmdPlaydemo(demos[demoNum], g.Subs)
-						// Advance for next time
-						g.Host.SetDemoNum(demoNum + 1)
+					if g.Subs != nil && g.Subs.Commands != nil {
+						g.Subs.Commands.AddText("demos\n")
 					} else {
-						// No more demos
-						g.Host.SetDemoNum(-1)
+						cmdsys.AddText("demos\n")
 					}
 				}
 				return
@@ -109,6 +113,7 @@ func (gameCallbacks) ProcessClient() {
 			// Other errors - stop playback
 			slog.Warn("demo playback error", "error", err)
 			_ = demo.StopPlayback()
+			clearRuntimeDemoFlags()
 			g.Host.SetClientState(0) // caDisconnected
 			return
 		}
@@ -122,8 +127,14 @@ func (gameCallbacks) ProcessClient() {
 			parser := cl.NewParser(clientState)
 			if err := parser.ParseServerMessage(msgData); err != nil {
 				slog.Warn("failed to parse demo message", "error", err)
+			} else {
+				bootstrapDemoPlaybackWorld(clientState)
 			}
 			host.DispatchLoopbackStuffText(g.Subs)
+			syncHostClientState()
+			if clientState.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
+				applyStartupGameplayInputMode()
+			}
 
 		}
 
@@ -167,6 +178,35 @@ func syncHostClientState() {
 	if g.Client != nil {
 		g.Host.SetSignOns(g.Client.Signon)
 	}
+}
+
+func clearRuntimeDemoFlags() {
+	if clientState := host.LoopbackClientState(g.Subs); clientState != nil {
+		clientState.DemoPlayback = false
+		clientState.TimeDemoActive = false
+	}
+}
+
+func bootstrapDemoPlaybackWorld(clientState *cl.Client) {
+	if clientState == nil || g.Host == nil || g.Server == nil || g.Subs == nil || g.Subs.Files == nil {
+		return
+	}
+	demo := g.Host.DemoState()
+	if demo == nil || !demo.Playback || len(clientState.ModelPrecache) == 0 {
+		return
+	}
+	worldModel := clientState.ModelPrecache[0]
+	if worldModel == "" || (g.Server.WorldTree != nil && g.Server.ModelName == worldModel) {
+		return
+	}
+	tree, err := loadDemoWorldTree(g.Subs.Files, worldModel)
+	if err != nil {
+		slog.Debug("demo world load skipped", "model", worldModel, "error", err)
+		return
+	}
+	g.Server.ModelName = worldModel
+	g.Server.WorldTree = tree
+	g.WorldUploadKey = ""
 }
 
 func syncAudioViewEntity() {

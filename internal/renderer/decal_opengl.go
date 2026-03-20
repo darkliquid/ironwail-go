@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	decalFloatsPerVertex = 10
+
 	decalVertexShaderGL = `#version 410 core
 layout(location = 0) in vec3 aPosition;
 layout(location = 1) in vec2 aTexCoord;
@@ -254,7 +256,7 @@ func (r *Renderer) renderDecalMarks(marks []DecalMarkEntity) {
 		}
 		gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
 		gl.BufferData(gl.ARRAY_BUFFER, len(verts)*4, gl.Ptr(verts), gl.DYNAMIC_DRAW)
-		gl.DrawArrays(gl.TRIANGLES, 0, int32(len(verts)/9))
+		gl.DrawArrays(gl.TRIANGLES, 0, int32(len(verts)/decalFloatsPerVertex))
 	}
 
 	gl.BindVertexArray(0)
@@ -312,7 +314,7 @@ func buildDecalTriangleVertices(mark DecalMarkEntity) []float32 {
 	uv := [4][2]float32{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
 	indices := [6]int{0, 1, 2, 0, 2, 3}
 
-	out := make([]float32, 0, 6*10)
+	out := make([]float32, 0, 6*decalFloatsPerVertex)
 	for _, idx := range indices {
 		corner := corners[idx]
 		coord := uv[idx]

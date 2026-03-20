@@ -332,6 +332,34 @@ func TestGenerateSpriteQuadIndices(t *testing.T) {
 	}
 }
 
+func TestExpandSpriteQuadVertices(t *testing.T) {
+	vertices := []WorldVertex{
+		{Position: [3]float32{0, 0, 0}},
+		{Position: [3]float32{1, 0, 0}},
+		{Position: [3]float32{1, 1, 0}},
+		{Position: [3]float32{0, 1, 0}},
+	}
+
+	got := expandSpriteQuadVertices(vertices)
+	if len(got) != 6 {
+		t.Fatalf("expanded vertex count = %d, want 6", len(got))
+	}
+
+	want := [][3]float32{
+		{0, 0, 0},
+		{1, 0, 0},
+		{1, 1, 0},
+		{0, 0, 0},
+		{1, 1, 0},
+		{0, 1, 0},
+	}
+	for i := range want {
+		if got[i].Position != want[i] {
+			t.Fatalf("expanded vertex %d = %v, want %v", i, got[i].Position, want[i])
+		}
+	}
+}
+
 // TestBillboardMatrix tests billboard transformation matrix generation.
 func TestBillboardMatrix(t *testing.T) {
 	origin := [3]float32{10, 20, 30}

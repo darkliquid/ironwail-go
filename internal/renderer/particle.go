@@ -1,5 +1,7 @@
 package renderer
 
+import "unsafe"
+
 import (
 	"math"
 	"math/rand"
@@ -223,6 +225,13 @@ type Particle struct {
 type ParticleVertex struct {
 	Pos   [3]float32
 	Color [4]byte
+}
+
+func particleVertexPtr(vertices []ParticleVertex) unsafe.Pointer {
+	if len(vertices) == 0 {
+		return nil
+	}
+	return unsafe.Pointer(&vertices[0])
 }
 
 type ParticleSystem struct {

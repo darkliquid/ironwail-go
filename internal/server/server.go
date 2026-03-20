@@ -207,6 +207,9 @@ func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	}
 	fieldOffsets := qcFieldOffsets(vm)
 	syncEntVarsFromQC(vm, entNum, ent.Vars, fieldOffsets)
+	if ent.Vars.Model == 0 || vm.GetString(ent.Vars.Model) == "" {
+		ent.Vars.ModelIndex = 0
+	}
 }
 
 func clearQCVMEdictData(vm *qc.VM, entNum int) {
@@ -304,8 +307,10 @@ func (s *Server) syncMutatedNonPushersFromQCVM(snapshots []qcVMEdictSnapshot) {
 		oldSolid := ent.Vars.Solid
 		oldMins := ent.Vars.Mins
 		oldMaxs := ent.Vars.Maxs
+		oldModel := ent.Vars.Model
+		oldModelIndex := ent.Vars.ModelIndex
 		syncEdictFromQCVM(s.QCVM, snapshot.entNum, ent)
-		if snapshot.entNum != 0 && (ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs) {
+		if snapshot.entNum != 0 && (ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs || ent.Vars.Model != oldModel || ent.Vars.ModelIndex != oldModelIndex) {
 			s.LinkEdict(ent, false)
 		}
 	}
@@ -381,8 +386,10 @@ func (s *Server) syncPushersFromQCVM() {
 		oldSolid := ent.Vars.Solid
 		oldMins := ent.Vars.Mins
 		oldMaxs := ent.Vars.Maxs
+		oldModel := ent.Vars.Model
+		oldModelIndex := ent.Vars.ModelIndex
 		syncEdictFromQCVM(s.QCVM, entNum, ent)
-		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs {
+		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs || ent.Vars.Model != oldModel || ent.Vars.ModelIndex != oldModelIndex {
 			s.LinkEdict(ent, false)
 		}
 	}
@@ -409,8 +416,10 @@ func (s *Server) syncMutatedPushersFromQCVM(snapshots []pusherSnapshot) {
 		oldSolid := ent.Vars.Solid
 		oldMins := ent.Vars.Mins
 		oldMaxs := ent.Vars.Maxs
+		oldModel := ent.Vars.Model
+		oldModelIndex := ent.Vars.ModelIndex
 		*ent.Vars = *scratch.Vars
-		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs {
+		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs || ent.Vars.Model != oldModel || ent.Vars.ModelIndex != oldModelIndex {
 			s.LinkEdict(ent, false)
 		}
 	}
@@ -1480,9 +1489,22 @@ func (s *Server) AllocEdict() *Edict {
 
 // FreeEdict marks an entity as free.
 func (s *Server) FreeEdict(e *Edict) {
+	if e == nil {
+		return
+	}
 	UnlinkEdict(e)
+	e.Vars = &EntVars{}
+	e.Alpha = inet.ENTALPHA_DEFAULT
+	e.Scale = inet.ENTSCALE_DEFAULT
 	e.Free = true
 	e.FreeTime = s.Time
+	if s.QCVM != nil {
+		entNum := s.NumForEdict(e)
+		if entNum >= 0 && entNum < s.QCVM.NumEdicts {
+			clearQCVMEdictData(s.QCVM, entNum)
+			syncEdictToQCVM(s.QCVM, entNum, e)
+		}
+	}
 }
 
 // EdictNum returns the entity at the given index.

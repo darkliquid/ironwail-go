@@ -97,6 +97,22 @@ func TestParseServerMessageAcknowledgesCommandOnServerTime(t *testing.T) {
 	}
 }
 
+func TestParseServerMessageAcceptsNaturalEndOfBuffer(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Signon = Signons
+	p := NewParser(c)
+
+	msg := append([]byte(nil), firstServerUpdateMsg[:len(firstServerUpdateMsg)-1]...)
+	if err := p.ParseServerMessage(msg); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if got := c.MTime[0]; got != 0 {
+		t.Fatalf("server time = %v, want 0", got)
+	}
+}
+
 func TestParseServerInfoRMQReadsProtocolFlags(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -968,6 +984,14 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if state, ok := c.Entities[s.NumForEdict(ent)]; ok {
 		if state.ModelIndex != 0 {
 			t.Fatalf("retired entity %d has ModelIndex=%d, want 0", s.NumForEdict(ent), state.ModelIndex)
+		}
+		c.RelinkEntities()
+		state = c.Entities[s.NumForEdict(ent)]
+		if state.ModelIndex != 0 {
+			t.Fatalf("retired entity %d changed ModelIndex=%d after relink, want 0", s.NumForEdict(ent), state.ModelIndex)
+		}
+		if state.Origin != [3]float32{10, 20, 30} {
+			t.Fatalf("retired entity %d origin = %v, want preserved last render origin", s.NumForEdict(ent), state.Origin)
 		}
 	} else {
 		t.Fatalf("entity %d should still be in map (with ModelIndex==0) after retire, but was deleted", s.NumForEdict(ent))

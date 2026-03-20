@@ -9,6 +9,8 @@
 //   - PROTOCOL_RMQ (999): RMQ protocol
 package net
 
+import "math"
+
 // Protocol versions
 const (
 	PROTOCOL_NETQUAKE  = 15  // Standard Quake protocol
@@ -232,13 +234,13 @@ func ENTALPHA_ENCODE(a float32) byte {
 	if a == 0 {
 		return ENTALPHA_DEFAULT
 	}
-	clamped := a
-	if clamped < 0 {
-		clamped = 0
-	} else if clamped > 1 {
-		clamped = 1
+	wire := a*254.0 + 1.0
+	if wire < float32(ENTALPHA_ZERO) {
+		wire = float32(ENTALPHA_ZERO)
+	} else if wire > float32(ENTALPHA_ONE) {
+		wire = float32(ENTALPHA_ONE)
 	}
-	return byte(clamped*254.0 + 0.5)
+	return byte(math.Round(float64(wire)))
 }
 
 // ENTALPHA_DECODE converts byte alpha back to float for rendering

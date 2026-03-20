@@ -363,6 +363,10 @@ func syncRuntimeMusic() {
 	}, func(candidates []string) (string, []byte, error) {
 		return g.Subs.Files.LoadFirstAvailable(candidates)
 	}); err != nil {
+		if strings.Contains(err.Error(), "none of the files were found: music/track") {
+			slog.Debug("cd track not available", "track", track, "loop", loopTrack)
+			return
+		}
 		slog.Warn("failed to play cd track", "track", track, "loop", loopTrack, "error", err)
 	}
 }

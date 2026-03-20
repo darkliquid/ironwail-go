@@ -63,7 +63,8 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 		cmdStart := msg.ReadCount
 		cmd, ok := msg.ReadByte()
 		if !ok {
-			return fmt.Errorf("unexpected end of message")
+			p.Client.FinishDemoFrame()
+			return nil
 		}
 		if cmd == 0xFF {
 			p.Client.FinishDemoFrame()
@@ -1510,10 +1511,13 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	state.Alpha = decode.Alpha
 	state.Scale = decode.Scale
 	if state.ModelIndex == 0 {
-		// Server sent ModelIndex=0 → entity is invisible (equivalent to C's
-		// ent->model = NULL). Keep the slot in the map so delta decoding on
-		// the next entity update starts from a valid state, matching C Quake's
-		// fixed-size entity array where slots are never freed.
+		// Server sent ModelIndex=0 → explicit retire (equivalent to C's
+		// ent->model = NULL). Keep the slot in the map so later deltas still
+		// have a valid base state, but stamp it as updated this frame so relink
+		// doesn't preserve the stale live render model.
+		state.MsgTime = p.Client.MTime[0]
+		state.ForceLink = false
+		state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
 		p.Client.Entities[entNum] = state
 		return nil
 	}

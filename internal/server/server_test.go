@@ -802,6 +802,33 @@ func TestEdictInPVSNotVisible(t *testing.T) {
 	}
 }
 
+func TestSyncEdictFromQCVM_EmptyModelClearsStaleModelIndex(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 4)
+	s.QCVM = vm
+
+	ent := &Edict{Vars: &EntVars{}}
+	s.Edicts = []*Edict{{Vars: &EntVars{}}, ent}
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	ent.Vars.Model = vm.AllocString("progs/test.mdl")
+	ent.Vars.ModelIndex = 7
+	syncEdictToQCVM(vm, 1, ent)
+
+	vm.SetEInt(1, qc.EntFieldModel, 0)
+	vm.SetEFloat(1, qc.EntFieldModelIndex, 7)
+
+	syncEdictFromQCVM(vm, 1, ent)
+
+	if got := ent.Vars.Model; got != 0 {
+		t.Fatalf("Model = %d, want 0 after QC raw clear", got)
+	}
+	if got := ent.Vars.ModelIndex; got != 0 {
+		t.Fatalf("ModelIndex = %v, want 0 after QC raw clear", got)
+	}
+}
+
 func TestEdictInPVSNoLeafs(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

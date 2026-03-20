@@ -58,6 +58,13 @@ func (c *Client) RelinkEntities() {
 	localViewEntity := c.ViewEntity
 
 	for entNum, state := range c.Entities {
+		if state.ModelIndex == 0 {
+			state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
+			state.ForceLink = false
+			c.Entities[entNum] = state
+			continue
+		}
+
 		// If this entity was not updated in the latest server message, stop
 		// interpolating it but preserve its last known render state until an
 		// explicit zero-model retire arrives from the server.
@@ -103,8 +110,9 @@ func (c *Client) RelinkEntities() {
 		}
 
 		// Apply EF_ROTATE: spinning bonus items
-		if c.ModelFlagsFunc != nil && int(state.ModelIndex) < len(c.ModelPrecache) {
-			modelName := c.ModelPrecache[int(state.ModelIndex)]
+		precacheIndex := int(state.ModelIndex) - 1
+		if c.ModelFlagsFunc != nil && precacheIndex >= 0 && precacheIndex < len(c.ModelPrecache) {
+			modelName := c.ModelPrecache[precacheIndex]
 			if modelName != "" {
 				flags := c.ModelFlagsFunc(modelName)
 				if flags&model.EFRotate != 0 {
@@ -125,8 +133,8 @@ func (c *Client) RelinkEntities() {
 		//   else if (model->flags & EF_ZOMGIB) R_RocketTrail(old, new, 4);
 		//   etc.
 		// After trail emission, TrailOrigin is updated to the current position.
-		if c.ModelFlagsFunc != nil && int(state.ModelIndex) < len(c.ModelPrecache) {
-			modelName := c.ModelPrecache[int(state.ModelIndex)]
+		if c.ModelFlagsFunc != nil && precacheIndex >= 0 && precacheIndex < len(c.ModelPrecache) {
+			modelName := c.ModelPrecache[precacheIndex]
 			if modelName != "" {
 				flags := c.ModelFlagsFunc(modelName)
 				trailType := -1

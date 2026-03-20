@@ -6,6 +6,7 @@ import (
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
@@ -26,6 +27,7 @@ type debugViewTelemetryState struct {
 	haveViewModelOrigin bool
 	viewModelFrame      uint64
 	originSelect        runtimeOriginSelectTelemetry
+	entityCollection    map[string]string
 }
 
 var runtimeDebugView debugViewTelemetryState
@@ -129,6 +131,33 @@ func runtimeDebugViewLogf(kind, format string, args ...any) {
 	}
 	debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] %s",
 		runtimeDebugView.frame, clientTime, kind, fmt.Sprintf(format, args...)))
+}
+
+func runtimeDebugViewLogEntityCollection(collector string, entNum int, state inet.EntityState, modelName, status string) {
+	if !runtimeDebugViewEnabled(2) {
+		return
+	}
+	if runtimeDebugView.entityCollection == nil {
+		runtimeDebugView.entityCollection = make(map[string]string)
+	}
+	key := fmt.Sprintf("%s:%d", collector, entNum)
+	summary := fmt.Sprintf("%s|%s|%d", status, modelName, state.ModelIndex)
+	if runtimeDebugView.entityCollection[key] == summary {
+		return
+	}
+	runtimeDebugView.entityCollection[key] = summary
+	runtimeDebugViewLogf(
+		"entity",
+		"collector=%s ent=%d status=%s model=%q modelindex=%d msgtime=%.3f curtime=%.3f origin=%s",
+		collector,
+		entNum,
+		status,
+		modelName,
+		state.ModelIndex,
+		state.MsgTime,
+		g.Client.MTime[0],
+		debugVec3(state.Origin),
+	)
 }
 
 func runtimeDebugViewLogRelinkPhase(phase string) {

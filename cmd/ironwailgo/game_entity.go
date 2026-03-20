@@ -15,6 +15,21 @@ import (
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
+func clientEntityStateIsCurrent(state inet.EntityState) bool {
+	return g.Client != nil && state.MsgTime == g.Client.MTime[0]
+}
+
+func clientEntityModelName(state inet.EntityState) string {
+	if g.Client == nil || state.ModelIndex == 0 {
+		return ""
+	}
+	precacheIndex := int(state.ModelIndex) - 1
+	if precacheIndex < 0 || precacheIndex >= len(g.Client.ModelPrecache) {
+		return ""
+	}
+	return g.Client.ModelPrecache[precacheIndex]
+}
+
 func collectBrushEntities() []renderer.BrushEntity {
 	if g.Client == nil || g.Server == nil || g.Server.WorldTree == nil || len(g.Server.WorldTree.Models) <= 1 {
 		return nil
@@ -52,6 +67,11 @@ func collectBrushEntities() []renderer.BrushEntity {
 			continue
 		}
 		if brushEntity, ok := resolve(state); ok {
+			status := "draw"
+			if !clientEntityStateIsCurrent(state) {
+				status = "stale_preserve"
+			}
+			runtimeDebugViewLogEntityCollection("brush", entityNum, state, clientEntityModelName(state), status)
 			brushEntities = append(brushEntities, brushEntity)
 		}
 	}
@@ -177,8 +197,22 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		if entityNum == g.Client.ViewEntity {
 			continue
 		}
+		modelName := clientEntityModelName(state)
+		if state.ModelIndex == 0 {
+			runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "zero_model")
+			continue
+		}
+		if !clientEntityStateIsCurrent(state) {
+			if modelName != "" && !strings.HasPrefix(modelName, "*") && strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
+				runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "stale_skip")
+			}
+			continue
+		}
 		if aliasEntity, ok := resolve(state); ok {
+			runtimeDebugViewLogEntityCollection("alias", entityNum, state, aliasEntity.ModelID, "draw")
 			aliasEntities = append(aliasEntities, aliasEntity)
+		} else if modelName != "" && !strings.HasPrefix(modelName, "*") && strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
+			runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "resolve_skip")
 		}
 	}
 	for _, state := range g.Client.StaticEntities {
@@ -216,9 +250,23 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 
 	sources := make([]renderer.EntityEffectSource, 0, len(g.Client.Entities)+len(g.Client.StaticEntities))
 	for entNum, state := range g.Client.Entities {
+		modelName := clientEntityModelName(state)
+		if state.ModelIndex == 0 {
+			runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "zero_model")
+			continue
+		}
+		if !clientEntityStateIsCurrent(state) {
+			if modelName != "" && !strings.HasPrefix(modelName, "*") && strings.HasSuffix(strings.ToLower(modelName), ".mdl") && state.Effects != 0 {
+				runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "stale_skip")
+			}
+			continue
+		}
 		if source, ok := resolve(state); ok {
 			source.EntityNum = entNum
+			runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "draw")
 			sources = append(sources, source)
+		} else if modelName != "" && state.Effects != 0 {
+			runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "resolve_skip")
 		}
 	}
 	for _, state := range g.Client.StaticEntities {
@@ -273,8 +321,22 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 		if entityNum == g.Client.ViewEntity {
 			continue
 		}
+		modelName := clientEntityModelName(state)
+		if state.ModelIndex == 0 {
+			runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "zero_model")
+			continue
+		}
+		if !clientEntityStateIsCurrent(state) {
+			if modelName != "" && strings.HasSuffix(strings.ToLower(modelName), ".spr") {
+				runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "stale_skip")
+			}
+			continue
+		}
 		if spriteEntity, ok := resolve(state); ok {
+			runtimeDebugViewLogEntityCollection("sprite", entityNum, state, spriteEntity.ModelID, "draw")
 			spriteEntities = append(spriteEntities, spriteEntity)
+		} else if modelName != "" && strings.HasSuffix(strings.ToLower(modelName), ".spr") {
+			runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "resolve_skip")
 		}
 	}
 	for _, state := range g.Client.StaticEntities {

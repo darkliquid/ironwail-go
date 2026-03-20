@@ -1266,6 +1266,9 @@ func TestCmdTimedemoEnablesTimeDemoPlayback(t *testing.T) {
 	if !h.demoState.TimeDemo {
 		t.Fatal("expected timedemo mode to be active")
 	}
+	if clientState := LoopbackClientState(subs); clientState == nil || !clientState.DemoPlayback || !clientState.TimeDemoActive {
+		t.Fatalf("loopback demo flags = %#v, want demo playback and timedemo active", clientState)
+	}
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Timing demo") {
 		t.Fatalf("console output = %q, want timedemo banner", got)
 	}
@@ -2251,7 +2254,10 @@ func TestCmdDemosDisabledPrintsMessage(t *testing.T) {
 func TestCmdStopdemoResetsDemoNum(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}
-	subs := &Subsystems{Console: console}
+	client := newLocalLoopbackClient()
+	client.inner.DemoPlayback = true
+	client.inner.TimeDemoActive = true
+	subs := &Subsystems{Console: console, Client: client}
 
 	h.demoState = &cl.DemoState{Playback: true}
 	h.SetDemoNum(2)
@@ -2259,6 +2265,9 @@ func TestCmdStopdemoResetsDemoNum(t *testing.T) {
 
 	if got := h.DemoNum(); got != -1 {
 		t.Fatalf("DemoNum = %d, want -1 after stopdemo", got)
+	}
+	if client.inner.DemoPlayback || client.inner.TimeDemoActive {
+		t.Fatalf("loopback demo flags = demo:%v timedemo:%v, want both false", client.inner.DemoPlayback, client.inner.TimeDemoActive)
 	}
 }
 

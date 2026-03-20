@@ -173,7 +173,7 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 			ForceLink:   false,
 		},
 	}
-	c.ModelPrecache = []string{"", "progs/missile.mdl", "progs/grenade.mdl", "progs/player.mdl"}
+	c.ModelPrecache = []string{"progs/missile.mdl", "progs/grenade.mdl", "progs/player.mdl"}
 	c.ModelFlagsFunc = func(name string) int {
 		switch name {
 		case "progs/missile.mdl":
@@ -224,6 +224,44 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 	}
 }
 
+func TestRelinkEntities_TrailEventsUseModelIndexMinusOne(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{1.0, 0.9}
+	c.Time = 1.0
+
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex:  1,
+			MsgTime:     1.0,
+			MsgOrigins:  [2][3]float32{{100, 200, 300}, {100, 200, 300}},
+			TrailOrigin: [3]float32{90, 190, 290},
+		},
+		2: {
+			ModelIndex:  2,
+			MsgTime:     1.0,
+			MsgOrigins:  [2][3]float32{{50, 60, 70}, {50, 60, 70}},
+			TrailOrigin: [3]float32{40, 50, 60},
+		},
+	}
+	c.ModelPrecache = []string{"progs/missile.mdl", "progs/grenade.mdl"}
+	c.ModelFlagsFunc = func(name string) int {
+		switch name {
+		case "progs/missile.mdl":
+			return model.EFRocket
+		case "progs/grenade.mdl":
+			return model.EFGrenade
+		default:
+			return 0
+		}
+	}
+
+	c.RelinkEntities()
+
+	if len(c.TrailEvents) != 2 {
+		t.Fatalf("TrailEvents count = %d, want 2", len(c.TrailEvents))
+	}
+}
+
 func TestRelinkEntities_StaleEntityPreservesModelAndResetsLerp(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
@@ -248,5 +286,36 @@ func TestRelinkEntities_StaleEntityPreservesModelAndResetsLerp(t *testing.T) {
 	}
 	if ent.LerpFlags&inet.LerpResetAnim == 0 {
 		t.Fatal("expected stale entity to set LerpResetAnim")
+	}
+}
+
+func TestRelinkEntities_ExplicitRetireKeepsZeroModel(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{1.0, 0.9}
+	c.Time = 1.0
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 0,
+			MsgTime:    1.0,
+			LerpFlags:  0,
+			Origin:     [3]float32{10, 20, 30},
+			ForceLink:  true,
+		},
+	}
+
+	c.RelinkEntities()
+
+	ent := c.Entities[1]
+	if ent.ModelIndex != 0 {
+		t.Fatalf("ModelIndex = %v, want explicit retire to stay zero", ent.ModelIndex)
+	}
+	if ent.ForceLink {
+		t.Fatal("expected explicit retire to clear ForceLink")
+	}
+	if ent.LerpFlags&inet.LerpResetMove == 0 {
+		t.Fatal("expected explicit retire to set LerpResetMove")
+	}
+	if ent.LerpFlags&inet.LerpResetAnim == 0 {
+		t.Fatal("expected explicit retire to set LerpResetAnim")
 	}
 }

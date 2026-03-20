@@ -8,8 +8,6 @@ import (
 )
 
 const (
-	ENTALPHA_DEFAULT   = 0
-	ENTALPHA_ZERO      = 255
 	defaultEffectsMask = 0xff
 )
 
@@ -465,25 +463,6 @@ func (s *Server) FindModel(name string) int {
 	return 0
 }
 
-// encodeAlpha converts a QC alpha float to the byte encoding used on the wire.
-// Matches C's ENTALPHA_ENCODE: (byte)(CLAMP(0, a, 1) * 254 + 1).
-func encodeAlpha(a float32) byte {
-	if a < 0 {
-		a = 0
-	}
-	if a > 1 {
-		a = 1
-	}
-	v := a*254.0 + 1.0
-	if v < 1 {
-		v = 1
-	}
-	if v > 255 {
-		v = 255
-	}
-	return byte(v)
-}
-
 // encodeScale converts a QC scale float to byte encoding.
 // Matches C's ENTSCALE_ENCODE: (byte)(CLAMP(0, s, 15.9375) * 16).
 func encodeScale(a float32) byte {
@@ -506,9 +485,9 @@ func (s *Server) entityStateForClient(entNum int, ent *Edict) (EntityState, bool
 	// Field offsets are cached on server init to avoid per-frame string lookups.
 	if s.QCVM != nil {
 		if s.QCFieldAlpha >= 0 {
-			ent.Alpha = encodeAlpha(s.QCVM.EFloat(entNum, s.QCFieldAlpha))
+			ent.Alpha = inet.ENTALPHA_ENCODE(s.QCVM.EFloat(entNum, s.QCFieldAlpha))
 		} else {
-			ent.Alpha = ENTALPHA_DEFAULT
+			ent.Alpha = inet.ENTALPHA_DEFAULT
 		}
 		if s.QCFieldScale >= 0 {
 			ent.Scale = encodeScale(s.QCVM.EFloat(entNum, s.QCFieldScale))
@@ -729,7 +708,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 		if !ok {
 			continue
 		}
-		if state.Alpha == ENTALPHA_ZERO {
+		if state.Alpha == inet.ENTALPHA_ZERO && state.Effects == 0 {
 			continue
 		}
 
@@ -763,7 +742,7 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 			baseline = s.Edicts[entNum].Baseline
 		}
 		if s.writeEntityUpdate(msg, entNum, zero, baseline, true, 0, 0, false) {
-			delete(client.EntityStates, entNum)
+			client.EntityStates[entNum] = zero
 		}
 	}
 }
