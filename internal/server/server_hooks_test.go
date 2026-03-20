@@ -530,6 +530,7 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 32})
 	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, -32})
 	vm.SetGFloat(qc.OFSParm2, 0)
+	vm.SetGInt(qc.OFSParm3, 0)
 	if fn := vm.Builtins[16]; fn == nil {
 		t.Fatal("traceline builtin not registered")
 	} else {
@@ -540,6 +541,30 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	}
 	if got := vm.GVector(qc.OFSTraceEndPos); got[2] > DistEpsilon || got[2] < -DistEpsilon {
 		t.Fatalf("trace_endpos.z = %v, want approximately 0", got[2])
+	}
+	if got := vm.GFloat(qc.OFSTracePlaneDist); got != 0 {
+		t.Fatalf("trace_plane_dist = %v, want 0 for synthetic floor plane", got)
+	}
+
+	other := s.AllocEdict()
+	other.Vars.Origin = [3]float32{0, 0, 24}
+	other.Vars.Mins = [3]float32{-16, -16, -24}
+	other.Vars.Maxs = [3]float32{16, 16, 32}
+	other.Vars.Solid = float32(SolidSlideBox)
+	s.LinkEdict(other, false)
+	vm.NumEdicts = s.NumEdicts
+
+	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 48})
+	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, 0})
+	vm.SetGFloat(qc.OFSParm2, 0)
+	vm.SetGInt(qc.OFSParm3, int32(s.NumForEdict(other)))
+	if fn := vm.Builtins[16]; fn == nil {
+		t.Fatal("traceline builtin not registered")
+	} else {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSTraceEnt)); got != 0 {
+		t.Fatalf("trace_ent with explicit pass entity = %d, want world 0", got)
 	}
 
 	// checkbottom: entity resting on the synthetic plane should be supported.

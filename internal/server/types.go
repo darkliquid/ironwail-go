@@ -352,6 +352,10 @@ type TraceResult struct {
 	//   - Dot(velocity, PlaneNormal) gives the impact speed for bounce/damage.
 	PlaneNormal [3]float32
 
+	// PlaneDist — signed plane distance for the impact surface. QC traceline
+	// exposes this as trace_plane_dist.
+	PlaneDist float32
+
 	// Entity — pointer to the edict that was hit, or nil if the trace hit
 	// world geometry (or nothing). When non-nil, the engine can fire touch
 	// callbacks on both the moving entity and the hit entity.

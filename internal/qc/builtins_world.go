@@ -9,12 +9,12 @@ import (
 
 // traceline performs a line trace and stores the result in the trace globals.
 //
-// QuakeC signature: float(vector start, vector end, float nomonsters) traceline
+// QuakeC signature: float(vector start, vector end, float nomonsters, entity passent) traceline
 func traceline(vm *VM) {
 	start := vm.GVector(OFSParm0)
 	end := vm.GVector(OFSParm1)
 	noMonsters := vm.GFloat(OFSParm2) != 0
-	passEnt := int(vm.GInt(OFSSelf))
+	passEnt := int(vm.GInt(OFSParm3))
 
 	trace := BuiltinTraceResult{Fraction: 1, EndPos: end, EntNum: 0, InOpen: true}
 	if serverBuiltinHooks.Traceline != nil {

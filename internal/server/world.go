@@ -342,10 +342,10 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 	// The other side of the node is solid, this is the impact point
 	if side == 0 {
 		trace.PlaneNormal = plane.Normal
-		// trace.plane.dist = plane.dist
+		trace.PlaneDist = plane.Dist
 	} else {
 		trace.PlaneNormal = [3]float32{-plane.Normal[0], -plane.Normal[1], -plane.Normal[2]}
-		// trace.plane.dist = -plane.dist
+		trace.PlaneDist = -plane.Dist
 	}
 
 	// Back up until we're outside the solid

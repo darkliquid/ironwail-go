@@ -835,6 +835,7 @@ func NewServer() *Server {
 				Fraction:    trace.Fraction,
 				EndPos:      trace.EndPos,
 				PlaneNormal: trace.PlaneNormal,
+				PlaneDist:   trace.PlaneDist,
 				InOpen:      trace.InOpen,
 				InWater:     trace.InWater,
 			}
