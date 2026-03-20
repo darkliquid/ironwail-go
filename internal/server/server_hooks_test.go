@@ -360,9 +360,14 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	}
 }
 
-func TestServerHooksWalkMoveSyncsFullEdictStateBackToQC(t *testing.T) {
+func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -374,13 +379,20 @@ func TestServerHooksWalkMoveSyncsFullEdictStateBackToQC(t *testing.T) {
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
 
-	ent.Vars.Flags = float32(FlagOnGround)
-	ent.Vars.Angles[1] = 10
-	ent.Vars.YawSpeed = 15
+	ent.Vars.Origin = [3]float32{0, 0, 24}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.Angles[1] = 45
+	ent.Vars.IdealYaw = 123
 	syncEdictToQCVM(vm, entNum, ent)
+	vm.SetEFloat(entNum, qc.EntFieldFlags, float32(FlagOnGround))
+	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 33, 0})
+	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 77)
+	s.LinkEdict(ent, false)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
-	vm.SetGFloat(qc.OFSParm0, 350)
+	vm.SetGFloat(qc.OFSParm0, 0)
 	vm.SetGFloat(qc.OFSParm1, 10)
 	if fn := vm.Builtins[32]; fn == nil {
 		t.Fatal("walkmove builtin not registered")
@@ -388,11 +400,55 @@ func TestServerHooksWalkMoveSyncsFullEdictStateBackToQC(t *testing.T) {
 		fn(vm)
 	}
 
-	if got := vm.EFloat(entNum, qc.EntFieldIdealYaw); got != 350 {
-		t.Fatalf("ideal_yaw = %v, want 350", got)
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[0] <= 0 {
+		t.Fatalf("walkmove did not use QC-only onground flag: origin=%v", got)
 	}
-	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
-		t.Fatalf("angles yaw = %v, want ~355 after changeyaw sync", got)
+	if got := vm.EFloat(entNum, qc.EntFieldIdealYaw); got != 77 {
+		t.Fatalf("ideal_yaw = %v, want QC-only value 77", got)
+	}
+	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] != 33 {
+		t.Fatalf("angles yaw = %v, want QC-only value 33 without StepDirection yaw mutation", got[1])
+	}
+}
+
+func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+
+	ent.Vars.Origin = [3]float32{0, 0, 96}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	s.LinkEdict(ent, false)
+	syncEdictToQCVM(vm, entNum, ent)
+
+	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -16, -8})
+	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 16, 8})
+	vm.SetGInt(qc.OFSSelf, int32(entNum))
+
+	if fn := vm.Builtins[34]; fn == nil {
+		t.Fatal("droptofloor builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.EVector(entNum, qc.EntFieldOrigin); got[2] < 7.99 || got[2] > 8.05 {
+		t.Fatalf("droptofloor origin.z = %v, want ~8 from QC-only mins", got[2])
 	}
 }
 
@@ -976,7 +1032,58 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	}
 }
 
-func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
+func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	s.WorldModel = CreateSyntheticWorldModel()
+	if world := s.EdictNum(0); world != nil && world.Vars != nil {
+		world.Vars.Solid = float32(SolidBSP)
+	}
+	s.ClearWorld()
+
+	self := s.AllocEdict()
+	goal := s.AllocEdict()
+	self.Vars.Origin = [3]float32{0, 0, 16}
+	self.Vars.Mins = [3]float32{-1, -1, 0}
+	self.Vars.Maxs = [3]float32{1, 1, 56}
+	self.Vars.Solid = float32(SolidBSP)
+	self.Vars.Flags = 0
+	self.Vars.IdealYaw = 0
+	self.Vars.YawSpeed = 360
+	goal.Vars.Origin = [3]float32{64, 0, 16}
+	goal.Vars.Mins = [3]float32{-1, -1, 0}
+	goal.Vars.Maxs = [3]float32{1, 1, 56}
+	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
+
+	s.LinkEdict(self, false)
+	s.LinkEdict(goal, false)
+
+	vm := newServerTestVM(s, 16)
+	vm.NumEdicts = s.NumEdicts
+	qc.RegisterBuiltins(vm)
+
+	selfNum := s.NumForEdict(self)
+	vm.SetGInt(qc.OFSSelf, int32(selfNum))
+	syncEdictToQCVM(vm, selfNum, self)
+	syncEdictToQCVM(vm, s.NumForEdict(goal), goal)
+
+	vm.SetEFloat(selfNum, qc.EntFieldFlags, float32(FlagOnGround))
+	vm.SetGFloat(qc.OFSParm0, 16)
+	if fn := vm.Builtins[67]; fn == nil {
+		t.Fatal("movetogoal builtin not registered")
+	} else {
+		fn(vm)
+	}
+	if got := self.Vars.Origin[0]; got <= 0 {
+		t.Fatalf("movetogoal did not use QC-only movement flags: origin=%v", self.Vars.Origin)
+	}
+	if got := vm.EVector(selfNum, qc.EntFieldOrigin); got != self.Vars.Origin {
+		t.Fatalf("vm origin not synchronized after movetogoal: got=%v want=%v", got, self.Vars.Origin)
+	}
+}
+
+func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
 
@@ -995,7 +1102,7 @@ func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
 	self.Vars.Flags = float32(FlagOnGround)
 	self.Vars.IdealYaw = 0
 	self.Vars.YawSpeed = 360
-	goal.Vars.Origin = [3]float32{64, 0, 16}
+	goal.Vars.Origin = [3]float32{-64, 0, 16}
 	goal.Vars.Mins = [3]float32{-1, -1, 0}
 	goal.Vars.Maxs = [3]float32{1, 1, 56}
 	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
@@ -1008,43 +1115,56 @@ func TestServerHooksMoveToGoalAndChangeYaw(t *testing.T) {
 	qc.RegisterBuiltins(vm)
 
 	selfNum := s.NumForEdict(self)
+	goalNum := s.NumForEdict(goal)
 	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	vm.SetEVector(selfNum, qc.EntFieldOrigin, self.Vars.Origin)
-	vm.SetEVector(selfNum, qc.EntFieldAngles, self.Vars.Angles)
-	vm.SetEVector(selfNum, qc.EntFieldAbsMin, self.Vars.AbsMin)
-	vm.SetEVector(selfNum, qc.EntFieldAbsMax, self.Vars.AbsMax)
-	vm.SetEFloat(selfNum, qc.EntFieldFlags, self.Vars.Flags)
-	vm.SetEInt(selfNum, qc.EntFieldGoalEntity, self.Vars.GoalEntity)
+	syncEdictToQCVM(vm, selfNum, self)
+	syncEdictToQCVM(vm, goalNum, goal)
+	vm.SetEVector(goalNum, qc.EntFieldOrigin, [3]float32{64, 0, 16})
 
-	vm.SetGFloat(qc.OFSParm0, 16)
 	if fn := vm.Builtins[67]; fn == nil {
 		t.Fatal("movetogoal builtin not registered")
 	} else {
 		fn(vm)
 	}
-	if self.Vars.Origin[0] <= 0 {
-		t.Fatalf("movetogoal did not move entity forward: origin=%v", self.Vars.Origin)
-	}
-	if got := vm.EVector(selfNum, qc.EntFieldOrigin); got != self.Vars.Origin {
-		t.Fatalf("vm origin not synchronized after movetogoal: got=%v want=%v", got, self.Vars.Origin)
-	}
 
-	self.Vars.Angles[1] = 10
-	self.Vars.IdealYaw = 350
-	self.Vars.YawSpeed = 15
-	vm.SetEVector(selfNum, qc.EntFieldAngles, self.Vars.Angles)
-	vm.SetEFloat(selfNum, qc.EntFieldIdealYaw, self.Vars.IdealYaw)
+	if got := goal.Vars.Origin; got != [3]float32{64, 0, 16} {
+		t.Fatalf("movetogoal did not import QC-only goal edict origin: %v", got)
+	}
+}
 
+func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 16)
+	qc.RegisterBuiltins(vm)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+
+	ent.Vars.Angles[1] = 10
+	ent.Vars.IdealYaw = 20
+	ent.Vars.YawSpeed = 1
+	syncEdictToQCVM(vm, entNum, ent)
+
+	vm.SetGInt(qc.OFSSelf, int32(entNum))
+	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 10, 0})
+	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 350)
+	vm.SetEFloat(entNum, qc.EntFieldYawSpeed, 15)
 	if fn := vm.Builtins[49]; fn == nil {
 		t.Fatal("changeyaw builtin not registered")
 	} else {
 		fn(vm)
 	}
 	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := self.Vars.Angles[1]; got < 354.99 || got > 355.01 {
+	if got := ent.Vars.Angles[1]; got < 354.99 || got > 355.01 {
 		t.Fatalf("changeyaw yaw = %v, want ~355", got)
 	}
-	if got := vm.EVector(selfNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
+	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
 		t.Fatalf("vm yaw not synchronized after changeyaw: got=%v", got[1])
 	}
 }

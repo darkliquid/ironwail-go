@@ -1047,6 +1047,7 @@ func NewServer() *Server {
 			if e == nil || e.Vars == nil || e.Free {
 				return false
 			}
+			syncEdictFromQCVM(vm, self, e)
 			flags := uint32(e.Vars.Flags)
 			if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
 				return false
@@ -1057,27 +1058,19 @@ func NewServer() *Server {
 			oldXFunction := vm.XFunction
 			oldXFunctionIndex := vm.XFunctionIndex
 
-			// Prefer server-side movement helpers which perform traces
-			// and collision resolution. If the server has an Edict for
-			// the entity, ask it to step in the given direction.
-			if e != nil {
-				ok := s.StepDirection(e, yaw, dist)
-				vm.SetGInt(qc.OFSSelf, oldSelf)
-				vm.SetGInt(qc.OFSOther, oldOther)
-				vm.XFunction = oldXFunction
-				vm.XFunctionIndex = oldXFunctionIndex
-				syncEdictToQCVM(vm, self, e)
-				return ok
-			}
-
-			// Fallback: use a simple translation (should be rare).
 			rad := float64(yaw) * math.Pi / 180.0
-			dx := dist * float32(math.Cos(rad))
-			dy := dist * float32(math.Sin(rad))
-			org := vm.EVector(self, qc.EntFieldOrigin)
-			newOrg := [3]float32{org[0] + dx, org[1] + dy, org[2]}
-			vm.SetEVector(self, qc.EntFieldOrigin, newOrg)
-			return true
+			move := [3]float32{
+				dist * float32(math.Cos(rad)),
+				dist * float32(math.Sin(rad)),
+				0,
+			}
+			ok := s.MoveStep(e, move, true)
+			vm.SetGInt(qc.OFSSelf, oldSelf)
+			vm.SetGInt(qc.OFSOther, oldOther)
+			vm.XFunction = oldXFunction
+			vm.XFunctionIndex = oldXFunctionIndex
+			syncEdictToQCVM(vm, self, e)
+			return ok
 		},
 		DropToFloor: func(vm *qc.VM) bool {
 			self := int(vm.GInt(qc.OFSSelf))
@@ -1087,6 +1080,7 @@ func NewServer() *Server {
 			// If the server has an Edict, run a downward trace using the
 			// server Move helpers to land on the floor properly.
 			if e := s.EdictNum(self); e != nil && e.Vars != nil {
+				syncEdictFromQCVM(vm, self, e)
 				start := e.Vars.Origin
 				end := start
 				end[2] -= 256
@@ -1387,6 +1381,12 @@ func NewServer() *Server {
 			if ent == nil || ent.Vars == nil || ent.Free {
 				return
 			}
+			syncEdictFromQCVM(vm, entNum, ent)
+			if goalNum := int(ent.Vars.GoalEntity); goalNum > 0 {
+				if goal := s.EdictNum(goalNum); goal != nil && goal.Vars != nil && !goal.Free {
+					syncEdictFromQCVM(vm, goalNum, goal)
+				}
+			}
 			oldSelf := vm.GInt(qc.OFSSelf)
 			oldOther := vm.GInt(qc.OFSOther)
 			oldXFunction := vm.XFunction
@@ -1404,6 +1404,7 @@ func NewServer() *Server {
 			if ent == nil || ent.Vars == nil || ent.Free {
 				return
 			}
+			syncEdictFromQCVM(vm, entNum, ent)
 			s.changeYaw(ent)
 			syncEdictToQCVM(vm, entNum, ent)
 		},
