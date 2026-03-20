@@ -914,6 +914,8 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
 	vm.SetGVector(qc.OFSGlobalVForward, [3]float32{0, 1, 0})
+	syncEdictToQCVM(vm, s.NumForEdict(self), self)
+	syncEdictToQCVM(vm, s.NumForEdict(target), target)
 
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
 	if fn := vm.Builtins[17]; fn == nil {
@@ -992,6 +994,8 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 	vm := newServerTestVM(s, 16)
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
+	syncEdictToQCVM(vm, s.NumForEdict(self), self)
+	syncEdictToQCVM(vm, s.NumForEdict(target), target)
 
 	s.Time = 0.2
 	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
@@ -1005,6 +1009,7 @@ func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
 	}
 
 	self.Vars.Origin = [3]float32{64, 0, 0}
+	syncEdictToQCVM(vm, s.NumForEdict(self), self)
 	s.Time = 0.25
 	if fn := vm.Builtins[17]; fn == nil {
 		t.Fatal("checkclient builtin not registered")
@@ -1048,6 +1053,8 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 	vm := newServerTestVM(s, 16)
 	vm.NumEdicts = s.NumEdicts
 	qc.RegisterBuiltins(vm)
+	syncEdictToQCVM(vm, s.NumForEdict(self), self)
+	syncEdictToQCVM(vm, s.NumForEdict(target), target)
 
 	// Both entities resolve to BSP leaf index 1, which must map to visleaf 0.
 	self.Vars.Origin = [3]float32{1, 0, 0}
@@ -1062,6 +1069,66 @@ func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
 	}
 	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
 		t.Fatalf("checkclient = %d, want %d (visleaf 0 should be visible)", got, s.NumForEdict(target))
+	}
+}
+
+func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+	s.Datagram = NewMessageBuffer(MaxDatagram)
+
+	self := s.AllocEdict()
+	target := s.AllocEdict()
+	self.Vars.Origin = [3]float32{-64, 0, 0}
+	self.Vars.ViewOfs = [3]float32{}
+	target.Vars.Origin = [3]float32{64, 0, 0}
+	target.Vars.ViewOfs = [3]float32{}
+	target.Vars.Health = 100
+
+	s.Static = &ServerStatic{
+		MaxClients: 2,
+		Clients: []*Client{
+			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
+			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
+		},
+	}
+	s.WorldTree = &bsp.Tree{
+		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+		Nodes: []bsp.TreeNode{{
+			PlaneNum: 0,
+			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
+		}},
+		Leafs: []bsp.TreeLeaf{
+			{Contents: bsp.ContentsSolid, VisOfs: -1},
+			{Contents: 0, VisOfs: 0},
+			{Contents: 0, VisOfs: 1},
+		},
+		Visibility: []byte{0x01, 0x02},
+		Models:     []bsp.DModel{{VisLeafs: 2}},
+	}
+
+	vm := newServerTestVM(s, 16)
+	vm.NumEdicts = s.NumEdicts
+	qc.RegisterBuiltins(vm)
+
+	selfNum := s.NumForEdict(self)
+	targetNum := s.NumForEdict(target)
+	syncEdictToQCVM(vm, selfNum, self)
+	syncEdictToQCVM(vm, targetNum, target)
+	vm.SetEVector(selfNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
+
+	s.Time = 0.2
+	vm.SetGInt(qc.OFSSelf, int32(selfNum))
+	if fn := vm.Builtins[17]; fn == nil {
+		t.Fatal("checkclient builtin not registered")
+	} else {
+		fn(vm)
+	}
+	if got := int(vm.GInt(qc.OFSReturn)); got != targetNum {
+		t.Fatalf("checkclient with QC-only self origin = %d, want %d", got, targetNum)
+	}
+	if got := self.Vars.Origin; got != [3]float32{64, 0, 0} {
+		t.Fatalf("server self origin not synchronized from QC state: got %v", got)
 	}
 }
 

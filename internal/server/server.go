@@ -931,6 +931,11 @@ func NewServer() *Server {
 				return 0
 			}
 			self := int(vm.GInt(qc.OFSSelf))
+			if self > 0 && self < vm.NumEdicts {
+				if selfEnt := s.EdictNum(self); selfEnt != nil && selfEnt.Vars != nil && !selfEnt.Free {
+					syncEdictFromQCVM(vm, self, selfEnt)
+				}
+			}
 			if s.checkClientSlot == 0 || s.Time-s.checkClientTime >= 0.1 {
 				_ = s.newCheckClient()
 				s.checkClientTime = s.Time
