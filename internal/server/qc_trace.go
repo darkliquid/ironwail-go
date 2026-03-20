@@ -70,20 +70,25 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	if s == nil || s.QCVM == nil {
 		return nil
 	}
-	ctx := captureQCExecutionContext(s.QCVM)
+	vm := s.QCVM
+	ctx := captureQCExecutionContext(vm)
 	snapshots := s.captureNonPusherQCVMEdictSnapshots()
 
+	restoreContext := true
+	defer func() {
+		if restoreContext {
+			restoreQCExecutionContext(vm, ctx)
+		}
+	}()
+
 	if s.DebugTelemetry == nil || !s.DebugTelemetry.QCTraceVerbosityEnabled(1) {
-		err := s.QCVM.ExecuteFunction(funcIdx)
+		err := vm.ExecuteFunction(funcIdx)
 		if err == nil {
 			s.syncMutatedNonPushersFromQCVM(snapshots)
-		} else {
-			restoreQCExecutionContext(s.QCVM, ctx)
 		}
 		return err
 	}
 
-	vm := s.QCVM
 	previousTraceCallFunc := vm.TraceCallFunc
 	vm.TraceCallFunc = func(vm *qc.VM, event qc.TraceCallEvent) {
 		if previousTraceCallFunc != nil {
@@ -98,8 +103,6 @@ func (s *Server) executeQCFunction(funcIdx int) error {
 	err := vm.ExecuteFunction(funcIdx)
 	if err == nil {
 		s.syncMutatedNonPushersFromQCVM(snapshots)
-	} else {
-		restoreQCExecutionContext(vm, ctx)
 	}
 	return err
 }
