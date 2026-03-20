@@ -245,7 +245,7 @@ func TestMoveToGoalRandomBranchUsesSharedCompatRNG(t *testing.T) {
 	}
 }
 
-func TestNewChaseDirUsesCanonicalSouthwestDiagonal(t *testing.T) {
+func TestNewChaseDirUsesCanonicalQuakeSouthwestBias(t *testing.T) {
 	s := newMovementTestServer()
 
 	actor := &Edict{Vars: &EntVars{}}
@@ -260,12 +260,12 @@ func TestNewChaseDirUsesCanonicalSouthwestDiagonal(t *testing.T) {
 
 	s.NewChaseDir(actor, enemy, 16)
 
-	wantX := float32(-11.313708)
-	wantY := float32(-11.313708)
+	wantX := float32(-13.10643)
+	wantY := float32(-9.177243)
 	if got := actor.Vars.Origin; got[0] < wantX-0.01 || got[0] > wantX+0.01 || got[1] < wantY-0.01 || got[1] > wantY+0.01 {
-		t.Fatalf("origin = %v, want southwest 225-degree chase step", got)
+		t.Fatalf("origin = %v, want canonical 215-degree chase step", got)
 	}
-	if got := actor.Vars.IdealYaw; got != 225 {
-		t.Fatalf("IdealYaw = %v, want 225", got)
+	if got := actor.Vars.IdealYaw; got != 215 {
+		t.Fatalf("IdealYaw = %v, want 215", got)
 	}
 }
