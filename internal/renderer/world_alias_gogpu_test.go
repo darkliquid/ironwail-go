@@ -44,7 +44,7 @@ func TestBuildAliasVerticesInterpolatedAppliesYawRotation(t *testing.T) {
 	}
 }
 
-func TestResolveAliasSkinSlotUsesGroupedSkinTiming(t *testing.T) {
+func TestResolveAliasSkinSlotUsesGroupedSkinTimingGoGPU(t *testing.T) {
 	hdr := &model.AliasHeader{
 		Skins: make([][]byte, 4),
 		SkinDescs: []model.AliasSkinDesc{

@@ -1210,6 +1210,35 @@ func projectWorldPointToScreen(pos [3]float32, vp types.Mat4, screenW, screenH i
 	return int(screenX), int(screenY), true
 }
 
+type projectedParticleMarker struct {
+	x     int
+	y     int
+	color byte
+}
+
+func projectParticleMarkers(particles []Particle, verts []ParticleVertex, vp types.Mat4, screenW, screenH int) []projectedParticleMarker {
+	if len(particles) == 0 || len(verts) == 0 {
+		return nil
+	}
+	count := len(particles)
+	if len(verts) < count {
+		count = len(verts)
+	}
+	markers := make([]projectedParticleMarker, 0, count)
+	for i := 0; i < count; i++ {
+		x, y, ok := projectWorldPointToScreen(verts[i].Pos, vp, screenW, screenH)
+		if !ok {
+			continue
+		}
+		markers = append(markers, projectedParticleMarker{
+			x:     x,
+			y:     y,
+			color: particles[i].Color,
+		})
+	}
+	return markers
+}
+
 // renderParticles draws the particle system.
 func (dc *DrawContext) renderParticles(state *RenderFrameState) {
 	if state.Particles == nil || state.Particles.ActiveCount() == 0 {
@@ -1223,19 +1252,17 @@ func (dc *DrawContext) renderParticles(state *RenderFrameState) {
 	palette := buildParticlePalette(state.Palette)
 	verts := BuildParticleVertices(particles, palette, false) // false = not showtris mode
 
+	screenW, screenH := dc.renderer.Size()
+	markers := projectParticleMarkers(particles, verts, dc.renderer.viewMatrices.VP, screenW, screenH)
+	if len(markers) == 0 {
+		return
+	}
+
 	// Draw each particle as a small colored quad
 	// This is a simplified implementation - a proper implementation would use
 	// instanced rendering or a point sprite shader
-	for i, v := range verts {
-		if i >= len(particles) {
-			break
-		}
-		// Draw particle as a small quad
-		size := float32(4.0) // Particle size in pixels
-		x := int(v.Pos[0])
-		y := int(v.Pos[1])
-		color := particles[i].Color
-		dc.DrawFill(x-int(size/2), y-int(size/2), int(size), int(size), color)
+	for _, marker := range markers {
+		dc.DrawFill(marker.x-2, marker.y-2, 4, 4, marker.color)
 	}
 }
 

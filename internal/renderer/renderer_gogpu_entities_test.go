@@ -40,3 +40,26 @@ func TestProjectWorldPointToScreenRejectsNonPositiveW(t *testing.T) {
 		t.Fatal("projectWorldPointToScreen accepted point with non-positive clip W")
 	}
 }
+
+func TestProjectParticleMarkersSkipsNonVisibleParticles(t *testing.T) {
+	vp := types.IdentityMatrix()
+	particles := []Particle{
+		{Org: [3]float32{0, 0, 0}, Color: 5},
+		{Org: [3]float32{2, 0, 0}, Color: 9},
+	}
+	verts := []ParticleVertex{
+		{Pos: [3]float32{0, 0, 0}},
+		{Pos: [3]float32{2, 0, 0}},
+	}
+
+	markers := projectParticleMarkers(particles, verts, vp, 801, 601)
+	if len(markers) != 1 {
+		t.Fatalf("marker count = %d, want 1", len(markers))
+	}
+	if markers[0].x != 400 || markers[0].y != 300 {
+		t.Fatalf("marker position = (%d,%d), want (400,300)", markers[0].x, markers[0].y)
+	}
+	if markers[0].color != 5 {
+		t.Fatalf("marker color = %d, want 5", markers[0].color)
+	}
+}
