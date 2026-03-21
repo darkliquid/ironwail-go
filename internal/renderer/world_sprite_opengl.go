@@ -196,12 +196,13 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 	if len(triangleVertices) == 0 {
 		return
 	}
+	worldVertices := spriteQuadVerticesToWorldVertices(triangleVertices)
 
 	// Ensure scratch VAO/VBO for transient geometry
 	r.ensureAliasScratchLocked()
 
 	// Upload vertices to scratch VBO
-	vertexData := flattenWorldVertices(triangleVertices)
+	vertexData := flattenWorldVertices(worldVertices)
 	gl.BindBuffer(gl.ARRAY_BUFFER, r.aliasScratchVBO)
 	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
 
@@ -215,20 +216,18 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 	gl.BindVertexArray(r.aliasScratchVAO)
 
 	// Draw sprite quad as 2 triangles using expanded transient vertices.
-	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(triangleVertices)))
+	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(worldVertices)))
 }
 
-func expandSpriteQuadVertices(vertices []WorldVertex) []WorldVertex {
-	if len(vertices) < 4 {
-		return nil
-	}
-	indices := generateSpriteQuadIndices()
-	out := make([]WorldVertex, 0, len(indices))
-	for _, idx := range indices {
-		if int(idx) >= len(vertices) {
-			return nil
+func spriteQuadVerticesToWorldVertices(vertices []spriteQuadVertex) []WorldVertex {
+	out := make([]WorldVertex, len(vertices))
+	for i, vertex := range vertices {
+		out[i] = WorldVertex{
+			Position:      vertex.Position,
+			TexCoord:      vertex.TexCoord,
+			LightmapCoord: [2]float32{},
+			Normal:        [3]float32{0, 0, 1},
 		}
-		out = append(out, vertices[idx])
 	}
 	return out
 }

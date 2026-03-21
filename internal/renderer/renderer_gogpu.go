@@ -393,6 +393,7 @@ type Renderer struct {
 
 	// Alias-model resources for the gogpu backend.
 	aliasModels                 map[string]*gpuAliasModel
+	spriteModels                map[string]*gpuSpriteModel
 	aliasEntityStates           map[int]*AliasEntity
 	viewModelAliasState         *AliasEntity
 	aliasScratchBuffer          hal.Buffer
@@ -406,6 +407,9 @@ type Renderer struct {
 	aliasUniformBindGroupLayout hal.BindGroupLayout
 	aliasTextureBindGroupLayout hal.BindGroupLayout
 	aliasSampler                hal.Sampler
+	spritePipeline              hal.RenderPipeline
+	spriteVertexShader          hal.ShaderModule
+	spriteFragmentShader        hal.ShaderModule
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -460,6 +464,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		config:            cfg,
 		textureCache:      make(map[cacheKey]*cachedTexture),
 		aliasModels:       make(map[string]*gpuAliasModel),
+		spriteModels:      make(map[string]*gpuSpriteModel),
 		aliasEntityStates: make(map[int]*AliasEntity),
 	}
 
@@ -488,6 +493,7 @@ func (r *Renderer) SetPalette(palette []byte) {
 		r.colorTextures[i] = nil
 	}
 	r.clearAliasModelsLocked()
+	r.clearSpriteModelsLocked()
 }
 
 func (r *Renderer) getOrCreateTexture(ctx *gogpu.Context, pic *image.QPic) *gogpu.Texture {
@@ -748,6 +754,7 @@ func (r *Renderer) Shutdown() {
 	slog.Debug("Renderer shutting down")
 	r.mu.Lock()
 	r.destroyAliasResourcesLocked()
+	r.destroySpriteResourcesLocked()
 	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
@@ -1119,14 +1126,15 @@ func (dc *DrawContext) renderWorld(state *RenderFrameState) {
 // Note: ensureWorldRenderTarget removed - we now render directly to the surface view
 // provided by gogpu via dc.ctx.SurfaceView() for zero-copy rendering.
 
-// renderEntities draws runtime entities. Alias models use the HAL-backed 3D
-// path, while sprite and decal entities still fall back to projected markers.
+// renderEntities draws runtime entities. Alias models and sprites use HAL-backed
+// paths, while decal entities still fall back to projected markers.
 func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
 
 	dc.renderAliasEntitiesHAL(state.AliasEntities)
+	dc.renderSpriteEntitiesHAL(state.SpriteEntities)
 
 	screenW, screenH := dc.renderer.Size()
 	if screenW <= 0 || screenH <= 0 {
@@ -1135,9 +1143,6 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 
-	for _, entity := range state.SpriteEntities {
-		dc.drawProjectedEntityMarker(entity.Origin, vpMatrix, screenW, screenH, 6, 220)
-	}
 	for _, mark := range state.DecalMarks {
 		dc.drawProjectedEntityMarker(mark.Origin, vpMatrix, screenW, screenH, 2, 180)
 	}
