@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -33,6 +34,16 @@ var (
 
 func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) {
 	h := NewHost()
+	registerHostCVars()
+	oldName := cvar.StringValue(clientNameCVar)
+	oldColor := cvar.IntValue(clientColorCVar)
+	cvar.Set(clientNameCVar, "Ranger")
+	cvar.SetInt(clientColorCVar, 0x23)
+	t.Cleanup(func() {
+		cvar.Set(clientNameCVar, oldName)
+		cvar.SetInt(clientColorCVar, oldColor)
+	})
+
 	console := &mockConsole{}
 	subs := &Subsystems{
 		Console: console,
@@ -81,9 +92,14 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 		if err := subs.Client.SendCommand(); err != nil {
 			t.Fatalf("SendCommand failed: %v", err)
 		}
-		msgType, payload := inet.GetMessage(serverSocket)
-		if msgType == 2 && len(payload) > 1 && payload[0] == byte(inet.CLCStringCmd) {
-			gotSignonCommands = append(gotSignonCommands, strings.TrimSuffix(string(payload[1:]), "\x00"))
+		for {
+			msgType, payload := inet.GetMessage(serverSocket)
+			if msgType == 0 {
+				break
+			}
+			if msgType == 2 && len(payload) > 1 && payload[0] == byte(inet.CLCStringCmd) {
+				gotSignonCommands = append(gotSignonCommands, strings.TrimSuffix(string(payload[1:]), "\x00"))
+			}
 		}
 	}
 
@@ -92,7 +108,7 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 	runFrame(testRemoteServerSignOnMsg3)
 	runFrame(testRemoteFirstServerUpdate)
 
-	if want := []string{"prespawn", "spawn", "begin"}; !reflect.DeepEqual(gotSignonCommands, want) {
+	if want := []string{"prespawn", "name \"Ranger\"", "color 2 3", "spawn", "begin"}; !reflect.DeepEqual(gotSignonCommands, want) {
 		t.Fatalf("signon command sequence = %v, want %v", gotSignonCommands, want)
 	}
 	if got := h.ClientState(); got != caActive {

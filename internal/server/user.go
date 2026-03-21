@@ -550,13 +550,10 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 		s.SV_ClientPrintf(client, "player %s not found\n", targetName)
 		return true
 	case "name":
-		if len(args) < 2 {
+		newName := parseClientNameCommand(cmd)
+		if newName == "" {
 			s.SV_ClientPrintf(client, "name is %s\n", client.Name)
 			return true
-		}
-		newName := args[1]
-		if len(newName) > 15 {
-			newName = newName[:15]
 		}
 		oldName := client.Name
 		s.SV_BroadcastPrintf("%s changed name to %s\n", oldName, newName)
@@ -570,11 +567,11 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 		}
 		return true
 	case "color":
-		if len(args) < 2 {
+		if clientStringCommandArgs(cmd) == "" {
 			s.SV_ClientPrintf(client, "color is %d\n", client.Color)
 			return true
 		}
-		color, _ := strconv.Atoi(args[1])
+		color := parseClientColorCommand(cmd)
 		if clientNum := s.clientIndex(client); clientNum >= 0 {
 			s.SetClientColor(clientNum, color)
 		} else {
@@ -600,6 +597,53 @@ func (s *Server) SV_ExecuteUserCommand(client *Client, cmd string) bool {
 	return false
 }
 
+func clientStringCommandVerb(cmd string) string {
+	fields := strings.Fields(strings.TrimSpace(cmd))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.ToLower(fields[0])
+}
+
+func clientStringCommandArgs(cmd string) string {
+	trimmed := strings.TrimSpace(cmd)
+	verb := clientStringCommandVerb(trimmed)
+	if verb == "" {
+		return ""
+	}
+	args := strings.TrimSpace(trimmed[len(verb):])
+	return args
+}
+
+func parseClientNameCommand(cmd string) string {
+	value := clientStringCommandArgs(cmd)
+	if value == "" {
+		return ""
+	}
+	if unquoted, err := strconv.Unquote(value); err == nil {
+		value = unquoted
+	}
+	if len(value) > 15 {
+		value = value[:15]
+	}
+	return value
+}
+
+func parseClientColorCommand(cmd string) int {
+	args := strings.Fields(clientStringCommandArgs(cmd))
+	if len(args) == 0 {
+		return 0
+	}
+	top, _ := strconv.Atoi(args[0])
+	if len(args) == 1 {
+		return top
+	}
+	bottom, _ := strconv.Atoi(args[1])
+	top &= 15
+	bottom &= 15
+	return top*16 + bottom
+}
+
 func (s *Server) ExecuteClientString(client *Client, cmd string) bool {
 	return s.executeClientStringCommand(client, cmd) == nil
 }
@@ -612,8 +656,7 @@ func (s *Server) executeClientStringCommand(client *Client, cmd string) error {
 }
 
 func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
-	cmd = strings.ToLower(strings.TrimSpace(cmd))
-	switch cmd {
+	switch clientStringCommandVerb(cmd) {
 	case "prespawn":
 		if client.SendSignon != SignonFlush {
 			return fmt.Errorf("prespawn out of order")

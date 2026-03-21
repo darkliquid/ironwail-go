@@ -5,8 +5,10 @@ package host
 
 import (
 	"fmt"
+	"strconv"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -120,12 +122,14 @@ func (c *remoteDatagramClient) SendCommand() error {
 	}
 	if c.inner.Signon >= 1 && c.inner.Signon < cl.Signons {
 		if c.inner.Signon != c.lastSignonReply {
-			command, ok := signonReplyCommand(c.inner.Signon)
+			commands, ok := signonReplyCommands(c.inner.Signon)
 			if !ok {
 				return fmt.Errorf("unsupported signon stage %d", c.inner.Signon)
 			}
-			if err := c.SendSignonCommand(command); err != nil {
-				return err
+			for _, command := range commands {
+				if err := c.SendSignonCommand(command); err != nil {
+					return err
+				}
 			}
 			c.lastSignonReply = c.inner.Signon
 		}
@@ -142,16 +146,23 @@ func (c *remoteDatagramClient) SendCommand() error {
 	})
 }
 
-func signonReplyCommand(signon int) (string, bool) {
+func signonReplyCommands(signon int) ([]string, bool) {
 	switch signon {
 	case 1:
-		return "prespawn", true
+		return []string{"prespawn"}, true
 	case 2:
-		return "spawn", true
+		color := cvar.IntValue(clientColorCVar)
+		top := (color >> 4) & 15
+		bottom := color & 15
+		return []string{
+			"name " + strconv.Quote(cvar.StringValue(clientNameCVar)),
+			fmt.Sprintf("color %d %d", top, bottom),
+			"spawn",
+		}, true
 	case 3:
-		return "begin", true
+		return []string{"begin"}, true
 	default:
-		return "", false
+		return nil, false
 	}
 }
 

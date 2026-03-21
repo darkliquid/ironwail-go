@@ -595,6 +595,66 @@ func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
 	}
 }
 
+func TestSpawnCommandAcceptsTrailingArgs(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+
+	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
+		t.Fatalf("prespawn: %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "spawn 11 22 33"); err != nil {
+		t.Fatalf("spawn with args: %v", err)
+	}
+
+	if client.SendSignon != SignonNone {
+		t.Fatalf("SendSignon after spawn with args = %v, want %v", client.SendSignon, SignonNone)
+	}
+	if got := client.Message.Data[client.Message.Len()-1]; got != 3 {
+		t.Fatalf("final spawn signon = %d, want 3", got)
+	}
+}
+
+func TestClientNameCommandAcceptsQuotedNames(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Active = true
+
+	if !s.ExecuteClientString(client, `name "Major Player"`) {
+		t.Fatal("ExecuteClientString(name quoted) = false, want true")
+	}
+	if got := client.Name; got != "Major Player" {
+		t.Fatalf("client name = %q, want %q", got, "Major Player")
+	}
+}
+
+func TestClientColorCommandAcceptsTopAndBottom(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Active = true
+
+	if !s.ExecuteClientString(client, "color 2 3") {
+		t.Fatal("ExecuteClientString(color top bottom) = false, want true")
+	}
+	if got := client.Color; got != 0x23 {
+		t.Fatalf("client color = 0x%02x, want 0x23", got)
+	}
+}
+
 func TestKickClientDropsTargetAndWritesReason(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(2); err != nil {
