@@ -28,16 +28,25 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	if subs.Server.GetMaxClients() != 1 {
 		return
 	}
+	if !cvar.BoolValue("sv_autosave") {
+		return
+	}
+	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
+		return
+	}
+	if player := subs.Server.EdictNum(1); player != nil && player.Vars != nil && player.Vars.Health <= 0 {
+		return
+	}
 
-	intervalMinutes := cvar.FloatValue("host_autosave")
-	if intervalMinutes <= 0 {
+	intervalSeconds := cvar.FloatValue("sv_autosave_interval")
+	if intervalSeconds <= 0 {
 		return
 	}
 	if h.realtime < h.nextAutosave {
 		return
 	}
 
-	h.nextAutosave = h.realtime + intervalMinutes*60
+	h.nextAutosave = h.realtime + intervalSeconds
 	console.Printf("Autosaving...\n")
 	subs.Commands.AddText(fmt.Sprintf("save \"autosave/%s\" 0\n", subs.Server.GetMapName()))
 }

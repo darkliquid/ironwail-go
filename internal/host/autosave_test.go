@@ -8,6 +8,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
 type autosaveCommandBuffer struct {
@@ -24,24 +25,35 @@ func (b *autosaveCommandBuffer) Shutdown()                                     {
 type autosaveTestServer struct {
 	mockServer
 	maxClients int
+	edict      *server.Edict
 }
 
 func (s *autosaveTestServer) GetMaxClients() int {
 	return s.maxClients
 }
 
+func (s *autosaveTestServer) EdictNum(n int) *server.Edict {
+	if s.edict != nil && n == 1 {
+		return s.edict
+	}
+	return s.mockServer.EdictNum(n)
+}
+
 func setHostAutosaveForTest(t *testing.T, value string) {
 	t.Helper()
 	hostCVarsOnce.Do(registerHostCVars)
-	previous := cvar.StringValue("host_autosave")
-	cvar.Set("host_autosave", value)
+	previousEnabled := cvar.StringValue("sv_autosave")
+	previousInterval := cvar.StringValue("sv_autosave_interval")
+	cvar.Set("sv_autosave", "1")
+	cvar.Set("sv_autosave_interval", value)
 	t.Cleanup(func() {
-		cvar.Set("host_autosave", previous)
+		cvar.Set("sv_autosave", previousEnabled)
+		cvar.Set("sv_autosave_interval", previousInterval)
 	})
 }
 
 func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
-	setHostAutosaveForTest(t, "0.1") // 6 seconds
+	setHostAutosaveForTest(t, "6")
 
 	h := NewHost()
 	h.serverActive = true
@@ -52,6 +64,7 @@ func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
 	server := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
+		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
 	}
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: server, Commands: commands}
@@ -75,7 +88,7 @@ func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedInMultiplayer(t *testing.T) {
-	setHostAutosaveForTest(t, "0.1")
+	setHostAutosaveForTest(t, "6")
 
 	h := NewHost()
 	h.serverActive = true
@@ -86,6 +99,7 @@ func TestCheckAutosaveSkippedInMultiplayer(t *testing.T) {
 	server := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 2,
+		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
 	}
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: server, Commands: commands}
@@ -97,7 +111,12 @@ func TestCheckAutosaveSkippedInMultiplayer(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedWhenDisabled(t *testing.T) {
-	setHostAutosaveForTest(t, "0")
+	setHostAutosaveForTest(t, "30")
+	previous := cvar.StringValue("sv_autosave")
+	cvar.Set("sv_autosave", "0")
+	t.Cleanup(func() {
+		cvar.Set("sv_autosave", previous)
+	})
 
 	h := NewHost()
 	h.serverActive = true
@@ -108,6 +127,7 @@ func TestCheckAutosaveSkippedWhenDisabled(t *testing.T) {
 	server := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
+		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
 	}
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: server, Commands: commands}
@@ -115,5 +135,53 @@ func TestCheckAutosaveSkippedWhenDisabled(t *testing.T) {
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
 		t.Fatalf("disabled autosave queued %d commands, want 0", got)
+	}
+}
+
+func TestCheckAutosaveSkippedDuringIntermission(t *testing.T) {
+	setHostAutosaveForTest(t, "6")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+	h.realtime = 100
+
+	server := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
+	}
+	client := newLocalLoopbackClient()
+	client.inner.Intermission = 1
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: server, Client: client, Commands: commands}
+
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("intermission autosave queued %d commands, want 0", got)
+	}
+}
+
+func TestCheckAutosaveSkippedForDeadPlayer(t *testing.T) {
+	setHostAutosaveForTest(t, "6")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+	h.realtime = 100
+
+	server := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict:      &server.Edict{Vars: &server.EntVars{Health: 0}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: server, Commands: commands}
+
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("dead-player autosave queued %d commands, want 0", got)
 	}
 }

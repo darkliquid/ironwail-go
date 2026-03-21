@@ -175,6 +175,16 @@ func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
 	}
 }
 
+func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
+	registerHostCVars()
+
+	for _, name := range []string{"sv_autosave", "sv_autosave_interval"} {
+		if cv := cvar.Get(name); cv == nil {
+			t.Fatalf("cvar %q not registered", name)
+		}
+	}
+}
+
 func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
 	srv := &mockServer{active: true}
 	subs := &Subsystems{Server: srv}
