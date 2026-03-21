@@ -521,7 +521,7 @@ func (h *Host) loadSave(name string, subs *Subsystems) error {
 	srv.LoadGame = true
 	defer func() { srv.LoadGame = false }()
 	if err := subs.Server.SpawnServer(save.Server.MapName, fsInstance); err != nil {
-		return err
+		return fmt.Errorf("Couldn't load map")
 	}
 	if err := h.startLocalServerSession(subs, func() error {
 		if err := srv.RestoreSaveGameState(save.Server); err != nil {
