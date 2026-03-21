@@ -73,8 +73,11 @@ func TestLoadAliasModelFromPak0(t *testing.T) {
 			if a.NumPoses < a.NumFrames {
 				t.Fatalf("pose count = %d, expected at least %d", a.NumPoses, a.NumFrames)
 			}
-			if len(a.Skins) != a.NumSkins {
-				t.Fatalf("skin payload count = %d, want %d", len(a.Skins), a.NumSkins)
+			if len(a.SkinDescs) != a.NumSkins {
+				t.Fatalf("logical skin count = %d, want %d", len(a.SkinDescs), a.NumSkins)
+			}
+			if len(a.Skins) < a.NumSkins {
+				t.Fatalf("flattened skin payload count = %d, want at least %d", len(a.Skins), a.NumSkins)
 			}
 			if len(a.STVerts) != a.NumVerts {
 				t.Fatalf("st vert count = %d, want %d", len(a.STVerts), a.NumVerts)
@@ -98,6 +101,70 @@ func TestLoadAliasModelFromPak0(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLoadAliasModelPreservesGroupedSkinFrames(t *testing.T) {
+	var data bytes.Buffer
+	write := func(value interface{}) {
+		if err := binary.Write(&data, binary.LittleEndian, value); err != nil {
+			t.Fatalf("binary.Write(%T): %v", value, err)
+		}
+	}
+
+	write(MDLHeader{
+		Ident:      MDLIdent,
+		Version:    MDLVersion,
+		NumSkins:   1,
+		SkinWidth:  1,
+		SkinHeight: 1,
+		NumVerts:   3,
+		NumTris:    1,
+		NumFrames:  1,
+	})
+	write(DAliasSkinType{Type: int32(AliasSkinGroup)})
+	write(DAliasSkinGroup{NumSkins: 2})
+	write(DAliasSkinInterval{Interval: 0.2})
+	write(DAliasSkinInterval{Interval: 0.4})
+	if err := data.WriteByte(7); err != nil {
+		t.Fatalf("WriteByte(group skin 0): %v", err)
+	}
+	if err := data.WriteByte(9); err != nil {
+		t.Fatalf("WriteByte(group skin 1): %v", err)
+	}
+	write([3]STVert{})
+	write(DTriangle{FacesFront: MDLFacesFront, VertIndex: [3]int32{0, 1, 2}})
+	write(DAliasFrameType{Type: int32(AliasSingle)})
+	write(DAliasFrame{})
+	write([3]TriVertX{{V: [3]byte{0, 0, 0}}, {V: [3]byte{1, 0, 0}}, {V: [3]byte{0, 1, 0}}})
+
+	m, err := LoadAliasModel(bytes.NewReader(data.Bytes()))
+	testutil.AssertNoError(t, err)
+	a := m.AliasHeader
+	if a == nil {
+		t.Fatal("alias header is nil")
+	}
+	if got := len(a.SkinDescs); got != 1 {
+		t.Fatalf("skin desc count = %d, want 1", got)
+	}
+	if got := len(a.Skins); got != 2 {
+		t.Fatalf("flattened skin count = %d, want 2", got)
+	}
+	desc := a.SkinDescs[0]
+	if desc.FirstFrame != 0 || desc.NumFrames != 2 {
+		t.Fatalf("skin desc = %+v, want first=0 frames=2", desc)
+	}
+	if len(desc.Intervals) != 2 || desc.Intervals[0] != 0.2 || desc.Intervals[1] != 0.4 {
+		t.Fatalf("skin intervals = %v, want [0.2 0.4]", desc.Intervals)
+	}
+	if got := a.ResolveSkinFrame(0, 0.1); got != 0 {
+		t.Fatalf("ResolveSkinFrame(0, 0.1) = %d, want 0", got)
+	}
+	if got := a.ResolveSkinFrame(0, 0.25); got != 1 {
+		t.Fatalf("ResolveSkinFrame(0, 0.25) = %d, want 1", got)
+	}
+	if got := a.ResolveSkinFrame(0, 0.45); got != 0 {
+		t.Fatalf("ResolveSkinFrame(0, 0.45) = %d, want 0", got)
 	}
 }
 

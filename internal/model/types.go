@@ -1,6 +1,10 @@
 package model
 
-import "github.com/ironwail/ironwail-go/internal/bsp"
+import (
+	"math"
+
+	"github.com/ironwail/ironwail-go/internal/bsp"
+)
 
 // ModelType represents the type of a loaded model.
 type ModelType int
@@ -235,6 +239,14 @@ type AliasFrameDesc struct {
 	Name      [16]byte
 }
 
+// AliasSkinDesc describes a logical alias skin entry and the flat skin-frame
+// range it owns inside AliasHeader.Skins.
+type AliasSkinDesc struct {
+	FirstFrame int
+	NumFrames  int
+	Intervals  []float32
+}
+
 // AliasHeader represents an in-memory alias model header.
 type AliasHeader struct {
 	Ident          int
@@ -256,10 +268,69 @@ type AliasHeader struct {
 	NumPoses       int
 	PoseVertType   int // PV_QUAKE1, PV_IQM, PV_MD3
 	Skins          [][]byte
+	SkinDescs      []AliasSkinDesc
 	STVerts        []STVert
 	Triangles      []DTriangle
 	Poses          [][]TriVertX
 	Frames         []AliasFrameDesc
+}
+
+// ResolveSkinFrame maps a logical skin selection and time value to a concrete
+// flattened skin-frame index inside Skins.
+func (a *AliasHeader) ResolveSkinFrame(skinNum int, timeSeconds float64) int {
+	if a == nil || len(a.Skins) == 0 {
+		return 0
+	}
+
+	descCount := len(a.SkinDescs)
+	if descCount == 0 {
+		if skinNum < 0 {
+			skinNum = 0
+		}
+		return skinNum % len(a.Skins)
+	}
+	if skinNum < 0 {
+		skinNum = 0
+	}
+	skinNum %= descCount
+	desc := a.SkinDescs[skinNum]
+	if desc.NumFrames <= 1 {
+		return clampAliasSkinFrame(desc.FirstFrame, len(a.Skins))
+	}
+	if len(desc.Intervals) >= desc.NumFrames {
+		fullInterval := float64(desc.Intervals[desc.NumFrames-1])
+		if fullInterval > 0 {
+			target := math.Mod(timeSeconds, fullInterval)
+			if target < 0 {
+				target += fullInterval
+			}
+			for i, interval := range desc.Intervals[:desc.NumFrames] {
+				if float64(interval) > target {
+					return clampAliasSkinFrame(desc.FirstFrame+i, len(a.Skins))
+				}
+			}
+			return clampAliasSkinFrame(desc.FirstFrame+desc.NumFrames-1, len(a.Skins))
+		}
+	}
+
+	frame := desc.FirstFrame + int(timeSeconds*10)%desc.NumFrames
+	if frame < desc.FirstFrame {
+		frame = desc.FirstFrame
+	}
+	return clampAliasSkinFrame(frame, len(a.Skins))
+}
+
+func clampAliasSkinFrame(index, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	if index < 0 {
+		return 0
+	}
+	if index >= count {
+		return count - 1
+	}
+	return index
 }
 
 // Model represents a loaded Quake model (brush, alias, or sprite).

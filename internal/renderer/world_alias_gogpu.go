@@ -602,11 +602,7 @@ func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, enti
 
 	skin := &alias.skins[0]
 	if len(alias.skins) > 0 {
-		skinIndex := entity.SkinNum
-		if skinIndex < 0 {
-			skinIndex = 0
-		}
-		skin = &alias.skins[skinIndex%len(alias.skins)]
+		skin = &alias.skins[resolveAliasSkinSlot(entity.Model.AliasHeader, entity.SkinNum, entity.TimeSeconds, len(alias.skins))]
 	}
 
 	alpha, visible := visibleEntityAlpha(entity.Alpha)

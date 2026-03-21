@@ -257,11 +257,7 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 
 	skin := r.worldFallbackTexture
 	if len(alias.skins) > 0 {
-		skinIndex := entity.SkinNum
-		if skinIndex < 0 {
-			skinIndex = 0
-		}
-		skin = alias.skins[skinIndex%len(alias.skins)]
+		skin = alias.skins[resolveAliasSkinSlot(entity.Model.AliasHeader, entity.SkinNum, entity.TimeSeconds, len(alias.skins))]
 		if skin == 0 {
 			skin = r.worldFallbackTexture
 		}

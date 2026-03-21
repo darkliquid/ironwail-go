@@ -45,7 +45,7 @@ func LoadAliasModel(r io.ReadSeeker) (*Model, error) {
 		return nil, fmt.Errorf("invalid number of frames: %d", numFrames)
 	}
 
-	skins, err := readAliasSkins(r, numSkins, int(header.SkinWidth), int(header.SkinHeight))
+	skins, skinDescs, err := readAliasSkins(r, numSkins, int(header.SkinWidth), int(header.SkinHeight))
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +83,7 @@ func LoadAliasModel(r io.ReadSeeker) (*Model, error) {
 		NumPoses:       numPoses,
 		PoseVertType:   0,
 		Skins:          skins,
+		SkinDescs:      skinDescs,
 		STVerts:        stVerts,
 		Triangles:      triangles,
 		Poses:          poses,
@@ -181,59 +182,66 @@ func skipAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) error 
 	return nil
 }
 
-func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]byte, error) {
+func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]byte, []AliasSkinDesc, error) {
 	skinSize := skinWidth * skinHeight
 	if skinSize < 0 {
-		return nil, fmt.Errorf("invalid skin dimensions: %dx%d", skinWidth, skinHeight)
+		return nil, nil, fmt.Errorf("invalid skin dimensions: %dx%d", skinWidth, skinHeight)
 	}
 
 	skins := make([][]byte, 0, numSkins)
+	skinDescs := make([]AliasSkinDesc, 0, numSkins)
 	for i := 0; i < numSkins; i++ {
 		var skinType DAliasSkinType
 		if err := binary.Read(r, binary.LittleEndian, &skinType); err != nil {
-			return nil, fmt.Errorf("failed to read skin type %d: %w", i, err)
+			return nil, nil, fmt.Errorf("failed to read skin type %d: %w", i, err)
 		}
 
 		switch AliasSkinType(skinType.Type) {
 		case AliasSkinSingle:
 			skin, err := readAliasSkinPixels(r, skinSize)
 			if err != nil {
-				return nil, fmt.Errorf("failed to read single skin %d: %w", i, err)
+				return nil, nil, fmt.Errorf("failed to read single skin %d: %w", i, err)
 			}
+			firstFrame := len(skins)
 			skins = append(skins, skin)
+			skinDescs = append(skinDescs, AliasSkinDesc{FirstFrame: firstFrame, NumFrames: 1})
 		case AliasSkinGroup:
 			var group DAliasSkinGroup
 			if err := binary.Read(r, binary.LittleEndian, &group); err != nil {
-				return nil, fmt.Errorf("failed to read skin group %d: %w", i, err)
+				return nil, nil, fmt.Errorf("failed to read skin group %d: %w", i, err)
 			}
 
 			n := int(group.NumSkins)
 			if n < 1 {
-				return nil, fmt.Errorf("invalid number of grouped skins for skin %d: %d", i, n)
+				return nil, nil, fmt.Errorf("invalid number of grouped skins for skin %d: %d", i, n)
 			}
 
 			intervals := make([]DAliasSkinInterval, n)
 			if err := binary.Read(r, binary.LittleEndian, &intervals); err != nil {
-				return nil, fmt.Errorf("failed to read skin group intervals %d: %w", i, err)
+				return nil, nil, fmt.Errorf("failed to read skin group intervals %d: %w", i, err)
 			}
 
-			var firstSkin []byte
+			firstFrame := len(skins)
+			skinIntervals := make([]float32, n)
 			for skinIndex := 0; skinIndex < n; skinIndex++ {
 				skin, err := readAliasSkinPixels(r, skinSize)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read grouped skin %d:%d: %w", i, skinIndex, err)
+					return nil, nil, fmt.Errorf("failed to read grouped skin %d:%d: %w", i, skinIndex, err)
 				}
-				if skinIndex == 0 {
-					firstSkin = skin
-				}
+				skins = append(skins, skin)
+				skinIntervals[skinIndex] = intervals[skinIndex].Interval
 			}
-			skins = append(skins, firstSkin)
+			skinDescs = append(skinDescs, AliasSkinDesc{
+				FirstFrame: firstFrame,
+				NumFrames:  n,
+				Intervals:  skinIntervals,
+			})
 		default:
-			return nil, fmt.Errorf("invalid skin type %d for skin %d", skinType.Type, i)
+			return nil, nil, fmt.Errorf("invalid skin type %d for skin %d", skinType.Type, i)
 		}
 	}
 
-	return skins, nil
+	return skins, skinDescs, nil
 }
 
 func readAliasSkinPixels(r io.Reader, skinSize int) ([]byte, error) {
