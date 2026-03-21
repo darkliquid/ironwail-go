@@ -949,6 +949,9 @@ func TestHUDDrawUsesParityCanvases(t *testing.T) {
 	if len(classic.canvasSwitch) == 0 || classic.canvasSwitch[0] != renderer.CanvasSbar {
 		t.Fatalf("classic HUD first canvas = %v, want %v", classic.canvasSwitch, renderer.CanvasSbar)
 	}
+	if len(classic.canvasSwitch) < 2 || classic.canvasSwitch[len(classic.canvasSwitch)-2] != renderer.CanvasCrosshair {
+		t.Fatalf("classic HUD canvas switches = %v, want penultimate %v", classic.canvasSwitch, renderer.CanvasCrosshair)
+	}
 	if classic.canvas.Type != renderer.CanvasDefault {
 		t.Fatalf("final classic canvas = %v, want %v", classic.canvas.Type, renderer.CanvasDefault)
 	}
@@ -963,6 +966,9 @@ func TestHUDDrawUsesParityCanvases(t *testing.T) {
 	h.Draw(compact)
 	if len(compact.canvasSwitch) == 0 || compact.canvasSwitch[0] != renderer.CanvasSbar2 {
 		t.Fatalf("compact HUD first canvas = %v, want %v", compact.canvasSwitch, renderer.CanvasSbar2)
+	}
+	if len(compact.canvasSwitch) < 2 || compact.canvasSwitch[len(compact.canvasSwitch)-2] != renderer.CanvasCrosshair {
+		t.Fatalf("compact HUD canvas switches = %v, want penultimate %v", compact.canvasSwitch, renderer.CanvasCrosshair)
 	}
 	if compact.canvas.Type != renderer.CanvasDefault {
 		t.Fatalf("final compact canvas = %v, want %v", compact.canvas.Type, renderer.CanvasDefault)

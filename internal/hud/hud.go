@@ -149,8 +149,9 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 			h.status.Draw(rc, h.state, width, height)
 		}
 	}
-	rc.SetCanvas(renderer.CanvasDefault)
+	rc.SetCanvas(renderer.CanvasCrosshair)
 	h.crosshair.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+	rc.SetCanvas(renderer.CanvasDefault)
 	h.centerprint.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 }
 
@@ -187,8 +188,14 @@ func setHUDCanvasParams(rc renderer.RenderContext, style HUDStyle, state State, 
 		SbarScale:      sbarScale,
 		MenuScale:      menuScale,
 		CrosshairScale: crosshairScale,
-		GameType:       state.GameType,
-		HudStyle:       int(style),
+		VRect: renderer.ViewRect{
+			X:      0,
+			Y:      0,
+			Width:  screenWidth,
+			Height: screenHeight,
+		},
+		GameType: state.GameType,
+		HudStyle: int(style),
 	})
 }
 

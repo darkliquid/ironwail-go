@@ -39,8 +39,8 @@ func TestCrosshairDrawCenteredWhenEnabled(t *testing.T) {
 		t.Fatalf("Draw drew %d characters, want 1", len(rc.characters))
 	}
 	got := rc.characters[0]
-	if got.x != 316 || got.y != 236 || got.num != int('+') {
-		t.Fatalf("Draw position/char = (%d,%d,%d), want (316,236,%d)", got.x, got.y, got.num, int('+'))
+	if got.x != -4 || got.y != -4 || got.num != int('+') {
+		t.Fatalf("Draw position/char = (%d,%d,%d), want (-4,-4,%d)", got.x, got.y, got.num, int('+'))
 	}
 }
 
