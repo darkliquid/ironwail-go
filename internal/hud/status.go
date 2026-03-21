@@ -187,17 +187,30 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 		return
 	}
 
+	viewSize := currentViewSize()
+	showInventory := viewSize < 110
+	showStatusBar := viewSize < 120
+
+	if !showStatusBar {
+		if state.GameType == 1 && state.MaxClients > 1 {
+			sb.drawMiniScoreboard(rc, state, sbarX, sbarY)
+		}
+		return
+	}
+
 	if sb.sbarPic != nil {
 		rc.DrawPic(sbarX, sbarY, sb.sbarPic)
 	} else {
 		rc.DrawFill(sbarX, sbarY, sbarWidth, sbarHeight, 4)
 	}
-	if sb.ibarPic != nil {
-		rc.DrawPic(sbarX, inventoryY, sb.inventoryBarPic(state))
-	} else {
-		rc.DrawFill(sbarX, inventoryY, sbarWidth, inventoryHeight, 4)
+	if showInventory {
+		if sb.ibarPic != nil {
+			rc.DrawPic(sbarX, inventoryY, sb.inventoryBarPic(state))
+		} else {
+			rc.DrawFill(sbarX, inventoryY, sbarWidth, inventoryHeight, 4)
+		}
+		sb.drawInventory(rc, sbarX, inventoryY, state)
 	}
-	sb.drawInventory(rc, sbarX, inventoryY, state)
 
 	if pic := sb.armorPic(state.Items); pic != nil {
 		rc.DrawPic(sbarX, sbarY, pic)

@@ -130,9 +130,11 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 	if h.state.Intermission == 0 {
 		switch h.Style() {
 		case HUDStyleCompact:
-			rc.SetCanvas(renderer.CanvasSbar2)
-			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
-			h.compact.Draw(rc, h.state, width, height)
+			if currentViewSize() < 120 {
+				rc.SetCanvas(renderer.CanvasSbar2)
+				width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
+				h.compact.Draw(rc, h.state, width, height)
+			}
 		default: // HUDStyleClassic
 			rc.SetCanvas(renderer.CanvasSbar)
 			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
@@ -155,6 +157,13 @@ func canvasDimensions(rc renderer.RenderContext, fallbackWidth, fallbackHeight i
 		height = fallbackHeight
 	}
 	return width, height
+}
+
+func currentViewSize() float64 {
+	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float > 0 {
+		return cv.Float
+	}
+	return 100
 }
 
 // UpdateCrosshair updates the crosshair glyph from the crosshair cvar value.

@@ -20,6 +20,14 @@ func registerCenterprintTestCvars() {
 	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
 }
 
+func setTestViewSize(t *testing.T, value string) {
+	t.Helper()
+	cvar.Set("scr_viewsize", value)
+	t.Cleanup(func() {
+		cvar.Set("scr_viewsize", "100")
+	})
+}
+
 // mockRenderContext is a test double for renderer.RenderContext
 type mockRenderContext struct {
 	characters []struct{ x, y, num int }
@@ -146,6 +154,7 @@ func TestDrawString(t *testing.T) {
 func TestStatusBarDraw(t *testing.T) {
 	sb := NewStatusBar(nil)
 	mock := &mockRenderContext{}
+	setTestViewSize(t, "100")
 
 	// Draw with typical values
 	sb.Draw(mock, State{Health: 100, Armor: 50, Ammo: 30}, 1280, 720)
@@ -158,6 +167,51 @@ func TestStatusBarDraw(t *testing.T) {
 	// Should have drawn some rectangles (bars or background)
 	if len(mock.fills) == 0 {
 		t.Error("StatusBar.Draw() drew no rectangles")
+	}
+}
+
+func TestStatusBarDrawHidesInventoryAtLargeViewsize(t *testing.T) {
+	sb := NewStatusBar(nil)
+	mock := &mockRenderContext{}
+	setTestViewSize(t, "110")
+
+	sb.Draw(mock, State{Health: 100}, 320, 48)
+
+	if len(mock.fills) != 1 {
+		t.Fatalf("fills = %d, want 1 status-bar fill without inventory strip", len(mock.fills))
+	}
+	if mock.fills[0].y != 24 {
+		t.Fatalf("status-bar fill y = %d, want 24", mock.fills[0].y)
+	}
+}
+
+func TestStatusBarDrawHidesMainBarAtHugeViewsize(t *testing.T) {
+	sb := NewStatusBar(nil)
+	mock := &mockRenderContext{}
+	setTestViewSize(t, "120")
+
+	sb.Draw(mock, State{Health: 100}, 320, 48)
+
+	if len(mock.fills) != 0 || len(mock.pics) != 0 || len(mock.characters) != 0 {
+		t.Fatalf("expected no classic HUD output at scr_viewsize 120, got fills=%d pics=%d chars=%d", len(mock.fills), len(mock.pics), len(mock.characters))
+	}
+}
+
+func TestStatusBarScoreboardOverridesHugeViewsize(t *testing.T) {
+	sb := NewStatusBar(nil)
+	mock := &mockRenderContext{}
+	setTestViewSize(t, "120")
+
+	sb.Draw(mock, State{
+		Health:     100,
+		GameType:   1,
+		MaxClients: 2,
+		ShowScores: true,
+		Scoreboard: []ScoreEntry{{Name: "p1", Frags: 5}},
+	}, 320, 48)
+
+	if len(mock.characters) == 0 && len(mock.fills) == 0 && len(mock.pics) == 0 {
+		t.Fatal("scoreboard overlay should still draw at scr_viewsize 120")
 	}
 }
 
@@ -841,6 +895,7 @@ func TestHUDDrawUsesParityCanvases(t *testing.T) {
 	h := NewHUD(nil)
 	h.SetScreenSize(640, 480)
 	h.SetState(State{Health: 100})
+	setTestViewSize(t, "100")
 
 	classic := &mockRenderContext{
 		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 320, Bottom: 48},
@@ -870,5 +925,22 @@ func TestHUDDrawUsesParityCanvases(t *testing.T) {
 	}
 	if len(compact.characters) == 0 {
 		t.Fatal("compact HUD drew nothing")
+	}
+}
+
+func TestCompactHUDHidesAtHugeViewsize(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(640, 480)
+	h.SetState(State{Health: 100, ActiveWeapon: 2, Shells: 10})
+
+	rc := &mockRenderContext{
+		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 400, Bottom: 225},
+	}
+	cvar.Set("hud_style", "1")
+	setTestViewSize(t, "120")
+	h.Draw(rc)
+
+	if len(rc.characters) != 0 || len(rc.fills) != 0 || len(rc.pics) != 0 {
+		t.Fatalf("compact HUD should hide at scr_viewsize 120, got chars=%d fills=%d pics=%d", len(rc.characters), len(rc.fills), len(rc.pics))
 	}
 }
