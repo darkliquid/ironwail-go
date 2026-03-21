@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"testing"
+
+	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
 func TestAddSignonBuffer(t *testing.T) {
@@ -233,5 +236,59 @@ func TestMultipleBufferFill(t *testing.T) {
 	expectedLen := len(chunk) * 3
 	if client.Message.Len() != expectedLen {
 		t.Fatalf("client message len = %d, want %d", client.Message.Len(), expectedLen)
+	}
+}
+
+func TestGetClientLoopbackMessageStagesOversizedSignonBuffers(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Loopback = true
+	client.SendSignon = SignonPrespawn
+	client.SignonIdx = 0
+	client.Message.Clear()
+
+	first := NewMessageBuffer(MaxDatagram)
+	first.Write(bytes.Repeat([]byte{byte(inet.SVCNop)}, MaxDatagram-1))
+	second := NewMessageBuffer(MaxDatagram)
+	second.WriteByte(byte(inet.SVCNop))
+	second.WriteByte(byte(inet.SVCNop))
+	s.SignonBuffers = []*MessageBuffer{first, second}
+
+	data := s.GetClientLoopbackMessage(0)
+	if len(data) != MaxDatagram {
+		t.Fatalf("first loopback message len = %d, want %d", len(data), MaxDatagram)
+	}
+	if client.SendSignon != SignonPrespawn {
+		t.Fatalf("SendSignon after first chunk = %v, want %v", client.SendSignon, SignonPrespawn)
+	}
+	if client.SignonIdx != 1 {
+		t.Fatalf("SignonIdx after first chunk = %d, want 1", client.SignonIdx)
+	}
+
+	data = s.GetClientLoopbackMessage(0)
+	if len(data) != 5 {
+		t.Fatalf("second loopback message len = %d, want 5", len(data))
+	}
+	if got := data[0]; got != byte(inet.SVCNop) {
+		t.Fatalf("second loopback first byte = %d, want SVCNop", got)
+	}
+	if got := data[1]; got != byte(inet.SVCNop) {
+		t.Fatalf("second loopback second byte = %d, want SVCNop", got)
+	}
+	if got := data[2]; got != byte(inet.SVCSignOnNum) {
+		t.Fatalf("second loopback third byte = %d, want SVCSignOnNum", got)
+	}
+	if got := data[3]; got != 2 {
+		t.Fatalf("second loopback signon = %d, want 2", got)
+	}
+	if got := data[4]; got != 0xff {
+		t.Fatalf("second loopback terminator = %#x, want 0xff", got)
+	}
+	if client.SendSignon != SignonSignonBufs {
+		t.Fatalf("SendSignon after final chunk = %v, want %v", client.SendSignon, SignonSignonBufs)
 	}
 }

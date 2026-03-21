@@ -661,13 +661,6 @@ func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
 		if client.SendSignon != SignonFlush {
 			return fmt.Errorf("prespawn out of order")
 		}
-		if client.Loopback {
-			s.SendSignonBuffers(client)
-			client.Message.WriteByte(byte(inet.SVCSignOnNum))
-			client.Message.WriteByte(2)
-			client.SendSignon = SignonSignonBufs
-			return nil
-		}
 		client.SignonIdx = 0
 		client.SendSignon = SignonPrespawn
 	case "spawn":
@@ -960,6 +953,9 @@ func (s *Server) SubmitLoopbackStringCommand(clientNum int, cmd string) error {
 	}
 	if client.Message == nil {
 		client.Message = NewMessageBuffer(MaxDatagram)
+	}
+	if client.SendSignon == SignonPrespawn {
+		s.queuePendingSignon(client)
 	}
 
 	return nil

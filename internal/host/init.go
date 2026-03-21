@@ -259,14 +259,25 @@ func (c *localLoopbackClient) LocalSignonReply(command string) error {
 	if c == nil || c.inner == nil || c.cmd == nil || c.srv == nil || c.parser == nil {
 		return fmt.Errorf("loopback client not initialized")
 	}
+	wantSignon := c.inner.Signon + 1
 	if err := c.cmd.SubmitLoopbackStringCommand(0, command); err != nil {
 		return err
 	}
-	data := c.srv.GetClientLoopbackMessage(0)
-	if len(data) == 0 {
-		return fmt.Errorf("no loopback reply for %q", command)
+	for {
+		data := c.srv.GetClientLoopbackMessage(0)
+		if len(data) == 0 {
+			if c.inner.Signon >= wantSignon {
+				return nil
+			}
+			return fmt.Errorf("no loopback reply for %q", command)
+		}
+		if err := c.parser.ParseServerMessage(data); err != nil {
+			return err
+		}
+		if c.inner.Signon >= wantSignon {
+			return nil
+		}
 	}
-	return c.parser.ParseServerMessage(data)
 }
 
 func (c *localLoopbackClient) LocalSignon() int {

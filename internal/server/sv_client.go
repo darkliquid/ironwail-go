@@ -468,6 +468,10 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 	msg.Data = make([]byte, MaxDatagram)
 	msg.MaxSize = MaxDatagram
 
+	if client.Active && !client.Spawned {
+		s.queuePendingSignon(client)
+	}
+
 	if client.Message != nil && client.Message.Len() > 0 {
 		msg.Write(client.Message.Data[:client.Message.Len()])
 		client.Message.Clear()

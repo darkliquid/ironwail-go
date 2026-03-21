@@ -1,6 +1,7 @@
 package host
 
 import (
+	"bytes"
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -156,6 +157,34 @@ func TestLocalLoopbackClientRealSignonFlow(t *testing.T) {
 	}
 	if !s.Static.Clients[0].Spawned {
 		t.Fatal("server client not marked spawned after begin")
+	}
+}
+
+func TestLocalLoopbackClientPrespawnDrainsChunkedSignonBuffers(t *testing.T) {
+	s := server.NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.ConnectClient(0)
+	first := server.NewMessageBuffer(server.MaxDatagram)
+	first.Write(bytes.Repeat([]byte{byte(inet.SVCNop)}, server.MaxDatagram-1))
+	second := server.NewMessageBuffer(server.MaxDatagram)
+	second.WriteByte(byte(inet.SVCNop))
+	second.WriteByte(byte(inet.SVCNop))
+	s.SignonBuffers = []*server.MessageBuffer{first, second}
+
+	lc := newLocalLoopbackClient()
+	lc.srv = s
+	lc.cmd = s
+
+	if err := lc.LocalServerInfo(); err != nil {
+		t.Fatalf("LocalServerInfo: %v", err)
+	}
+	if err := lc.LocalSignonReply("prespawn"); err != nil {
+		t.Fatalf("LocalSignonReply(prespawn): %v", err)
+	}
+	if got := lc.inner.Signon; got != 2 {
+		t.Fatalf("signon after chunked prespawn = %d, want 2", got)
 	}
 }
 
