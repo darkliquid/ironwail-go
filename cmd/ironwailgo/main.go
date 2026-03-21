@@ -748,6 +748,9 @@ func main() {
 							updateHUDFromServer()
 							g.HUD.Draw(overlay)
 						}
+						if runtimePauseActive() {
+							drawPauseOverlay(overlay, g.Draw)
+						}
 
 						if consoleVisible || runtimeConsoleAnimating() {
 							drawRuntimeConsole(overlay, w, h, true, false)
@@ -782,6 +785,8 @@ func main() {
 			}
 			if g.Menu != nil && g.Menu.IsActive() {
 				drawRuntimeMenu(dc, w, h, g.Menu.M_Draw)
+			} else if !conForcedup && runtimePauseActive() {
+				drawPauseOverlay(dc, g.Draw)
 			}
 		})
 
@@ -869,6 +874,27 @@ func drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
 	}
 	rc.SetCanvas(renderer.CanvasDefault)
 	rc.DrawFillAlpha(0, 0, w, h, 0, 0.5)
+}
+
+func runtimePauseActive() bool {
+	if g.Host != nil {
+		if demo := g.Host.DemoState(); demo != nil && demo.Playback && demo.Paused {
+			return true
+		}
+		if g.Host.ServerPaused() {
+			return true
+		}
+	}
+	return g.Client != nil && g.Client.Paused
+}
+
+func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
+	if dc == nil || pics == nil {
+		return
+	}
+	if pause := pics.GetPic("gfx/pause.lmp"); pause != nil {
+		dc.DrawMenuPic((320-int(pause.Width))/2, (240-48-int(pause.Height))/2, pause)
+	}
 }
 
 func drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer.RenderContext)) {

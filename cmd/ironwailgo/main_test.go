@@ -756,6 +756,68 @@ func TestDrawLoadingPlaqueNoopWithoutPics(t *testing.T) {
 	}
 }
 
+func TestDrawPauseOverlayDrawsCenteredPausePic(t *testing.T) {
+	pause := &qimage.QPic{Width: 128, Height: 24}
+	pics := &loadingPlaqueTestPics{
+		pics: map[string]*qimage.QPic{
+			"gfx/pause.lmp": pause,
+		},
+	}
+	dc := &loadingPlaqueDrawContext{}
+
+	drawPauseOverlay(dc, pics)
+
+	if len(dc.pics) != 0 {
+		t.Fatalf("screen-space draw call count = %d, want 0", len(dc.pics))
+	}
+	if len(dc.menuPics) != 1 {
+		t.Fatalf("menu draw call count = %d, want 1", len(dc.menuPics))
+	}
+	if dc.menuPics[0].x != 96 || dc.menuPics[0].y != 84 || dc.menuPics[0].pic != pause {
+		t.Fatalf("pause draw = %+v, want x=96 y=84 pause", dc.menuPics[0])
+	}
+}
+
+func TestDrawPauseOverlayNoopWithoutPics(t *testing.T) {
+	dc := &loadingPlaqueDrawContext{}
+	drawPauseOverlay(dc, nil)
+	if len(dc.pics) != 0 || len(dc.menuPics) != 0 {
+		t.Fatalf("draw call counts = (%d screen, %d menu), want 0", len(dc.pics), len(dc.menuPics))
+	}
+}
+
+func TestRuntimePauseActiveTracksServerClientAndDemoPause(t *testing.T) {
+	originalHost := g.Host
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Client = originalClient
+	})
+
+	g.Host = host.NewHost()
+	g.Client = cl.NewClient()
+	if runtimePauseActive() {
+		t.Fatal("runtimePauseActive() = true, want false")
+	}
+
+	g.Host.SetServerPaused(true)
+	if !runtimePauseActive() {
+		t.Fatal("runtimePauseActive() = false with paused server, want true")
+	}
+
+	g.Host.SetServerPaused(false)
+	g.Client.Paused = true
+	if !runtimePauseActive() {
+		t.Fatal("runtimePauseActive() = false with paused client, want true")
+	}
+
+	g.Client.Paused = false
+	g.Host.SetDemoState(&cl.DemoState{Playback: true, Paused: true})
+	if !runtimePauseActive() {
+		t.Fatal("runtimePauseActive() = false with paused demo playback, want true")
+	}
+}
+
 func TestBuildCSQCDrawHooksUsesNamedPicsAndScales(t *testing.T) {
 	originalDraw := g.Draw
 	t.Cleanup(func() {
