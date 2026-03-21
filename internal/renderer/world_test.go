@@ -197,8 +197,9 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 	if face.LightmapIndex != 0 {
 		t.Fatalf("LightmapIndex = %d, want 0 (present sentinel)", face.LightmapIndex)
 	}
-	if face.Flags != (bsp.TexSpecial | bsp.TexMissing) {
-		t.Fatalf("Flags = %#x, want %#x", face.Flags, bsp.TexSpecial|bsp.TexMissing)
+	wantFlags := deriveWorldFaceFlags(classifyWorldTextureName(""), bsp.TexSpecial|bsp.TexMissing)
+	if face.Flags != wantFlags {
+		t.Fatalf("Flags = %#x, want %#x", face.Flags, wantFlags)
 	}
 
 	if geom.Vertices[1].TexCoord != ([2]float32{16, 0}) {

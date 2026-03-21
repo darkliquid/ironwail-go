@@ -129,6 +129,7 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 		Faces:    make([]WorldFace, 0, 256),
 		Tree:     tree,
 	}
+	textureMeta := parseWorldTextureMeta(tree)
 
 	// Process all faces in the world model
 	numFaces := int(worldModel.NumFaces)
@@ -153,7 +154,7 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 			NumIndices:    0, // Will be computed during triangulation
 			TextureIndex:  worldFaceTextureIndex(tree, face),
 			LightmapIndex: worldFaceLightmapIndex(face),
-			Flags:         worldFaceFlags(tree, face),
+			Flags:         worldFaceFlags(textureMeta, tree, face),
 		}
 
 		// Extract vertices for this face
@@ -318,12 +319,16 @@ func worldFaceLightmapIndex(face *bsp.TreeFace) int32 {
 }
 
 // worldFaceFlags exposes per-face material/render flags (sky, liquid, turbulent, etc.) that drive pass routing and shader behavior.
-func worldFaceFlags(tree *bsp.Tree, face *bsp.TreeFace) int32 {
+func worldFaceFlags(textureMeta []worldTextureMeta, tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	texInfo := worldFaceTexInfo(tree, face)
 	if texInfo == nil {
 		return 0
 	}
-	return texInfo.Flags
+	textureType := classifyWorldTextureName("")
+	if int(texInfo.Miptex) >= 0 && int(texInfo.Miptex) < len(textureMeta) {
+		textureType = textureMeta[texInfo.Miptex].Type
+	}
+	return deriveWorldFaceFlags(textureType, texInfo.Flags)
 }
 
 // worldTextureDimensions fetches source texture dimensions for texel-density and UV conversion computations.
