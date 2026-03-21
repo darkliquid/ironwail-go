@@ -342,6 +342,7 @@ type Server interface {
 	GetMapName() string
 	IsActive() bool
 	IsPaused() bool
+	RestoreTextSaveGameState(state *server.TextSaveGameState) error
 	SetLoadGame(v bool)
 	SetPreserveSpawnParms(v bool)
 }

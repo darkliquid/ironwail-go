@@ -106,8 +106,11 @@ func (s *demoPlaybackNoopServer) EdictNum(int) *server.Edict               { ret
 func (s *demoPlaybackNoopServer) GetMapName() string                       { return "" }
 func (s *demoPlaybackNoopServer) IsActive() bool                           { return false }
 func (s *demoPlaybackNoopServer) IsPaused() bool                           { return false }
-func (s *demoPlaybackNoopServer) SetLoadGame(bool)                         {}
-func (s *demoPlaybackNoopServer) SetPreserveSpawnParms(bool)               {}
+func (s *demoPlaybackNoopServer) RestoreTextSaveGameState(*server.TextSaveGameState) error {
+	return nil
+}
+func (s *demoPlaybackNoopServer) SetLoadGame(bool)           {}
+func (s *demoPlaybackNoopServer) SetPreserveSpawnParms(bool) {}
 
 type demoPlaybackConsole struct{}
 

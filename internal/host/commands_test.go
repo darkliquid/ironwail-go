@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -2465,11 +2466,11 @@ func TestCmdLoadArgsKEXReportsUnsupportedTextFormat(t *testing.T) {
 
 	h.CmdLoadArgs([]string{"slot1", "kex"}, subs)
 
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: KEX savegame format is not supported yet.") {
-		t.Fatalf("console output = %q, want explicit unsupported kex format error", got)
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: couldn't parse text savegame: savegame map is empty") {
+		t.Fatalf("console output = %q, want explicit text save parse error", got)
 	}
 	if h.LoadingPlaqueActive(0) {
-		t.Fatal("loading plaque should stay inactive when text-format parsing is not implemented")
+		t.Fatal("loading plaque should stay inactive when text save parsing fails")
 	}
 }
 
@@ -2620,12 +2621,121 @@ func TestCmdLoadAutoDetectsInstallRootKEXTextSave(t *testing.T) {
 
 	h.CmdLoad("slot1", subs)
 
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: KEX savegame format is not supported yet.") {
-		t.Fatalf("console output = %q, want auto-detected unsupported kex format error", got)
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: couldn't parse text savegame: savegame map is empty") {
+		t.Fatalf("console output = %q, want auto-detected text save parse error", got)
 	}
 	if h.LoadingPlaqueActive(0) {
-		t.Fatal("loading plaque should stay inactive when auto-detected install-root kex format is unsupported")
+		t.Fatal("loading plaque should stay inactive when auto-detected install-root text parsing fails")
 	}
+}
+
+func TestCmdLoadArgsKEXRejectsCrossModSave(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "slot1.sav"), []byte(buildKEXTextSave(kexTextSaveFixture{
+		gameDir: "hipnotic",
+		mapName: "start",
+		skill:   2,
+		time:    1,
+		worldFields: map[string]string{
+			"classname": "worldspawn",
+		},
+		playerFields: map[string]string{
+			"classname": "player",
+		},
+	})), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "id1", UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoadArgs([]string{"slot1", "kex"}, subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: KEX savegame targets game hipnotic, but the active game is id1") {
+		t.Fatalf("console output = %q, want cross-mod rejection", got)
+	}
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive on cross-mod kex rejection")
+	}
+}
+
+type kexTextSaveFixture struct {
+	gameDir      string
+	mapName      string
+	skill        int
+	time         float32
+	spawnParms   [server.NumSpawnParms]float32
+	lightStyles  map[int]string
+	worldFields  map[string]string
+	playerFields map[string]string
+}
+
+func buildKEXTextSave(f kexTextSaveFixture) string {
+	if f.gameDir == "" {
+		f.gameDir = "id1"
+	}
+	if f.mapName == "" {
+		f.mapName = "start"
+	}
+	if f.time == 0 {
+		f.time = 1
+	}
+
+	var b strings.Builder
+	b.WriteString(strconv.Itoa(server.SaveGameVersionKEX))
+	b.WriteString("\n")
+	b.WriteString(f.gameDir)
+	b.WriteString("\n")
+	b.WriteString("generated\n")
+	for _, parm := range f.spawnParms {
+		b.WriteString(strconv.FormatFloat(float64(parm), 'f', -1, 32))
+		b.WriteString("\n")
+	}
+	b.WriteString(strconv.FormatFloat(float64(f.skill), 'f', 1, 32))
+	b.WriteString("\n")
+	b.WriteString(f.mapName)
+	b.WriteString("\n")
+	b.WriteString(strconv.FormatFloat(float64(f.time), 'f', -1, 32))
+	b.WriteString("\n")
+	for i := 0; i < 64; i++ {
+		if f.lightStyles != nil {
+			if style, ok := f.lightStyles[i]; ok {
+				b.WriteString(style)
+			}
+		}
+		b.WriteString("\n")
+	}
+	writeTextSaveEntity(&b, nil)
+	writeTextSaveEntity(&b, f.worldFields)
+	writeTextSaveEntity(&b, f.playerFields)
+	return b.String()
+}
+
+func writeTextSaveEntity(b *strings.Builder, fields map[string]string) {
+	b.WriteString("{\n")
+	for key, value := range fields {
+		b.WriteString(fmt.Sprintf("\"%s\" \"%s\"\n", key, value))
+	}
+	b.WriteString("}\n")
 }
 
 func TestCmdReconnectClearsSignonsWithoutLocalServer(t *testing.T) {

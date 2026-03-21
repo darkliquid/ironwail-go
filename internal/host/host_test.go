@@ -45,6 +45,9 @@ func (m *mockServer) SetClientColor(clientNum int, color int)              {}
 func (m *mockServer) GetClientPing(clientNum int) float32                  { return 0 }
 func (m *mockServer) EdictNum(n int) *server.Edict                         { return &server.Edict{Vars: &server.EntVars{}} }
 func (m *mockServer) GetMapName() string                                   { return "start" }
+func (m *mockServer) RestoreTextSaveGameState(state *server.TextSaveGameState) error {
+	return nil
+}
 
 type mockClient struct {
 	state ClientState

@@ -201,6 +201,177 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+	baseDir := t.TempDir()
+	if err := os.Symlink(filepath.Join(quakeDir, "id1"), filepath.Join(baseDir, "id1")); err != nil {
+		t.Fatalf("Symlink(id1): %v", err)
+	}
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    baseDir,
+		GameDir:    "id1",
+		UserDir:    t.TempDir(),
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+
+	player := srv.Static.Clients[0].Edict
+	player.Vars.Health = 61
+	player.Vars.Origin = [3]float32{320, 144, 40}
+	player.Vars.ViewOfs = [3]float32{0, 0, 22}
+	player.Vars.VAngle = [3]float32{0, 90, 0}
+	player.Vars.Angles = [3]float32{0, 90, 0}
+	player.Vars.CurrentAmmo = 12
+	player.Vars.AmmoShells = 25
+	player.Vars.AmmoNails = 50
+	player.Vars.AmmoRockets = 8
+	player.Vars.AmmoCells = 31
+	player.Vars.Weapon = 8
+	player.Vars.Items = 0x0001 | 0x0002 | 0x0040
+	player.Vars.ArmorType = 0.6
+	player.Vars.ArmorValue = 95
+	player.Vars.MoveType = float32(server.MoveTypeWalk)
+	player.Vars.Solid = float32(server.SolidSlideBox)
+	player.Vars.TakeDamage = 1
+	player.Vars.Colormap = 1
+	player.Vars.Team = 1
+	player.Vars.Mins = [3]float32{-16, -16, -24}
+	player.Vars.Maxs = [3]float32{16, 16, 32}
+	player.Vars.Size = [3]float32{32, 32, 56}
+	srv.Static.Clients[0].SpawnParms[0] = 100
+	srv.Static.Clients[0].SpawnParms[1] = 250
+	srv.LightStyles[3] = "az"
+	h.SetCurrentSkill(3)
+	cvar.SetInt("skill", 3)
+
+	savePath := filepath.Join(baseDir, "roundtrip.sav")
+	saveData := buildKEXTextSave(kexTextSaveFixture{
+		gameDir:    "id1",
+		mapName:    "start",
+		skill:      3,
+		time:       srv.Time,
+		spawnParms: srv.Static.Clients[0].SpawnParms,
+		lightStyles: map[int]string{
+			3: "az",
+		},
+		worldFields: map[string]string{
+			"classname": "worldspawn",
+		},
+		playerFields: map[string]string{
+			"classname":    "player",
+			"origin":       "320 144 40",
+			"health":       "61",
+			"view_ofs":     "0 0 22",
+			"angles":       "0 90 0",
+			"v_angle":      "0 90 0",
+			"currentammo":  "12",
+			"ammo_shells":  "25",
+			"ammo_nails":   "50",
+			"ammo_rockets": "8",
+			"ammo_cells":   "31",
+			"weapon":       "8",
+			"items":        "67",
+			"armortype":    "0.6",
+			"armorvalue":   "95",
+			"movetype":     "3",
+			"solid":        "3",
+			"takedamage":   "1",
+			"colormap":     "1",
+			"team":         "1",
+			"mins":         "-16 -16 -24",
+			"maxs":         "16 16 32",
+			"size":         "32 32 56",
+		},
+	})
+	if err := os.WriteFile(savePath, []byte(saveData), 0o644); err != nil {
+		t.Fatalf("WriteFile(kex save): %v", err)
+	}
+
+	player.Vars.Health = 12
+	player.Vars.Origin = [3]float32{}
+	player.Vars.CurrentAmmo = 1
+	player.Vars.AmmoShells = 1
+	player.Vars.AmmoNails = 1
+	player.Vars.AmmoRockets = 1
+	player.Vars.AmmoCells = 1
+	player.Vars.Weapon = 1
+	player.Vars.Items = 0
+	player.Vars.ArmorType = 0
+	player.Vars.ArmorValue = 0
+	srv.LightStyles[3] = "m"
+	h.SetCurrentSkill(0)
+	cvar.SetInt("skill", 0)
+
+	h.CmdLoadArgs([]string{"roundtrip", "kex"}, subs)
+
+	if got := h.ClientState(); got != caActive {
+		t.Fatalf("ClientState = %v, want %v", got, caActive)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+		t.Fatalf("loaded player health = %v, want 61", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+		t.Fatalf("loaded player origin = %v, want restored origin", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.CurrentAmmo; got != 12 {
+		t.Fatalf("loaded current ammo = %v, want 12", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoShells; got != 25 {
+		t.Fatalf("loaded shells = %v, want 25", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoNails; got != 50 {
+		t.Fatalf("loaded nails = %v, want 50", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoRockets; got != 8 {
+		t.Fatalf("loaded rockets = %v, want 8", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.AmmoCells; got != 31 {
+		t.Fatalf("loaded cells = %v, want 31", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Weapon; got != 8 {
+		t.Fatalf("loaded weapon = %v, want 8", got)
+	}
+	clientState := LoopbackClientState(subs)
+	if clientState == nil {
+		t.Fatal("loopback client state missing after kex load")
+	}
+	if got := clientState.LightStyles[3].Map; got != "az" {
+		t.Fatalf("loaded lightstyle = %q, want %q", got, "az")
+	}
+	if got := h.CurrentSkill(); got != 3 {
+		t.Fatalf("loaded host skill = %d, want 3", got)
+	}
+	if got := cvar.IntValue("skill"); got != 3 {
+		t.Fatalf("loaded skill cvar = %d, want 3", got)
+	}
+}
+
 func TestCmdSaveArgsSkipNotifySuppressesSaveMessage(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 

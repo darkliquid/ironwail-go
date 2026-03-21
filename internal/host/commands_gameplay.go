@@ -25,6 +25,33 @@ type loadSaveOptions struct {
 	kexOnly bool
 }
 
+type decodedHostSaveFile struct {
+	native *hostSaveFile
+	text   *server.TextSaveGameState
+}
+
+func (d decodedHostSaveFile) mapName() string {
+	switch {
+	case d.native != nil && d.native.Server != nil:
+		return d.native.Server.MapName
+	case d.text != nil:
+		return d.text.MapName
+	default:
+		return ""
+	}
+}
+
+func (d decodedHostSaveFile) skill() int {
+	switch {
+	case d.native != nil:
+		return d.native.Skill
+	case d.text != nil:
+		return d.text.Skill
+	default:
+		return 0
+	}
+}
+
 func (h *Host) CmdSkill(skill int) {
 	if skill < 0 {
 		skill = 0
@@ -485,8 +512,22 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 		h.invalidateLastSave(name)
 		return err
 	}
-	if save.Server == nil {
+	if save.native == nil && save.text == nil {
+		return fmt.Errorf("savegame is empty")
+	}
+	if save.native != nil && save.native.Server == nil {
 		return fmt.Errorf("savegame is missing server state")
+	}
+	if save.text != nil {
+		activeGameDir := strings.TrimSpace(h.gameDir)
+		if activeGameDir == "" {
+			activeGameDir = "id1"
+		}
+		targetGameDir := strings.TrimSpace(save.text.GameDir)
+		if targetGameDir != "" && !strings.EqualFold(targetGameDir, activeGameDir) {
+			h.invalidateLastSave(name)
+			return fmt.Errorf("ERROR: KEX savegame targets game %s, but the active game is %s", targetGameDir, activeGameDir)
+		}
 	}
 	if subs.Server == nil {
 		return fmt.Errorf("server is not initialized")
@@ -522,15 +563,21 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	}
 	srv.LoadGame = true
 	defer func() { srv.LoadGame = false }()
-	if err := subs.Server.SpawnServer(save.Server.MapName, fsInstance); err != nil {
+	if err := subs.Server.SpawnServer(save.mapName(), fsInstance); err != nil {
 		return fmt.Errorf("Couldn't load map")
 	}
 	if err := h.startLocalServerSession(subs, func() error {
-		if err := srv.RestoreSaveGameState(save.Server); err != nil {
-			return err
+		if save.native != nil {
+			if err := srv.RestoreSaveGameState(save.native.Server); err != nil {
+				return err
+			}
+		} else if save.text != nil {
+			if err := srv.RestoreTextSaveGameState(save.text); err != nil {
+				return err
+			}
 		}
-		h.currentSkill = save.Skill
-		cvar.SetInt("skill", save.Skill)
+		h.currentSkill = save.skill()
+		cvar.SetInt("skill", save.skill())
 		return nil
 	}); err != nil {
 		return err
@@ -727,41 +774,49 @@ func (h *Host) effectiveLoadSaveOptions(name, foundPath string, options loadSave
 	return options
 }
 
-func decodeHostSaveFile(data []byte, options loadSaveOptions) (hostSaveFile, error) {
-	var save hostSaveFile
+func decodeHostSaveFile(data []byte, options loadSaveOptions) (decodedHostSaveFile, error) {
+	var (
+		save    hostSaveFile
+		decoded decodedHostSaveFile
+	)
 
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 {
-		return save, fmt.Errorf("savegame is empty")
+		return decoded, fmt.Errorf("savegame is empty")
 	}
 
 	expectedVersion := expectedSaveVersion(options)
 	if trimmed[0] == '{' {
 		if err := json.Unmarshal(trimmed, &save); err != nil {
-			return save, err
+			return decoded, err
 		}
 		if save.Version != expectedVersion {
-			return save, fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, expectedVersion)
+			return decoded, fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, expectedVersion)
 		}
-		return save, nil
+		decoded.native = &save
+		return decoded, nil
 	}
 
 	if version, ok := sniffTextSaveVersion(trimmed); ok {
 		if version != expectedVersion {
-			return save, fmt.Errorf("ERROR: Savegame is version %d, not %d", version, expectedVersion)
+			return decoded, fmt.Errorf("ERROR: Savegame is version %d, not %d", version, expectedVersion)
 		}
-		if version == server.SaveGameVersionKEX {
-			return save, fmt.Errorf("ERROR: KEX savegame format is not supported yet.")
+		parsed, err := server.ParseTextSaveGame(trimmed)
+		if err != nil {
+			return decoded, fmt.Errorf("ERROR: couldn't parse text savegame: %w", err)
 		}
+		decoded.text = parsed
+		return decoded, nil
 	}
 
 	if err := json.Unmarshal(trimmed, &save); err != nil {
-		return save, err
+		return decoded, err
 	}
 	if save.Version != expectedVersion {
-		return save, fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, expectedVersion)
+		return decoded, fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, expectedVersion)
 	}
-	return save, nil
+	decoded.native = &save
+	return decoded, nil
 }
 
 func sniffTextSaveVersion(data []byte) (int, bool) {
