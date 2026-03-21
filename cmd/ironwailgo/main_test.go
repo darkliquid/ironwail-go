@@ -339,6 +339,7 @@ func registerConsoleCanvasTestCvars() {
 	cvar.Register("vid_height", "720", cvar.FlagArchive, "test vid height")
 	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "test console width")
 	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "test console scale")
+	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "test console slide speed")
 }
 
 type mouseDeltaBackend struct {
@@ -459,6 +460,7 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	}, palette)
 
 	dc := &consoleOverlayDrawContext{}
+	g.ConsoleSlideFraction = 0.5
 	drawRuntimeConsole(dc, 1864, 1428, true, false)
 
 	if got := dc.Canvas().Type; got != renderer.CanvasConsole {
@@ -477,6 +479,9 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	if params.ConWidth != 640 || params.ConHeight != 360 {
 		t.Fatalf("console params = %.0fx%.0f, want 640x360", params.ConWidth, params.ConHeight)
 	}
+	if math.Abs(float64(params.ConSlideFraction-0.5)) > 0.0001 {
+		t.Fatalf("console slide fraction = %.2f, want 0.50", params.ConSlideFraction)
+	}
 	if len(dc.pics) != 1 {
 		t.Fatalf("background pic draws = %d, want 1", len(dc.pics))
 	}
@@ -494,6 +499,32 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	}
 	if len(dc.chars) == 0 {
 		t.Fatal("expected console text to be drawn")
+	}
+}
+
+func TestUpdateRuntimeConsoleSlide(t *testing.T) {
+	registerConsoleCanvasTestCvars()
+	originalFraction := g.ConsoleSlideFraction
+	t.Cleanup(func() {
+		g.ConsoleSlideFraction = originalFraction
+	})
+
+	cvar.Set("scr_conspeed", "300")
+
+	g.ConsoleSlideFraction = 0
+	updateRuntimeConsoleSlide(0.25, true, false)
+	if got := g.ConsoleSlideFraction; math.Abs(float64(got-0.25)) > 0.0001 {
+		t.Fatalf("open slide fraction = %.2f, want 0.25", got)
+	}
+
+	updateRuntimeConsoleSlide(0.25, false, false)
+	if got := g.ConsoleSlideFraction; math.Abs(float64(got-0.0)) > 0.0001 {
+		t.Fatalf("close slide fraction = %.2f, want 0.00", got)
+	}
+
+	updateRuntimeConsoleSlide(0.25, false, true)
+	if got := g.ConsoleSlideFraction; math.Abs(float64(got-1.0)) > 0.0001 {
+		t.Fatalf("forced slide fraction = %.2f, want 1.00", got)
 	}
 }
 

@@ -80,6 +80,8 @@ type Game struct {
 	// Scope zoom state, updated each frame via renderer.UpdateZoom.
 	Zoom    float32
 	ZoomDir float32
+
+	ConsoleSlideFraction float32
 }
 
 var g Game
@@ -173,7 +175,7 @@ func runtimeConsoleDimensions(guiW, guiH int) (int, int) {
 	return conWidth, conHeight
 }
 
-func runtimeConsoleCanvasParams(framebufferW, framebufferH int) renderer.CanvasTransformParams {
+func runtimeConsoleCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
 	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
 	conW, conH := runtimeConsoleDimensions(guiW, guiH)
 	return renderer.CanvasTransformParams{
@@ -183,7 +185,7 @@ func runtimeConsoleCanvasParams(framebufferW, framebufferH int) renderer.CanvasT
 		GLHeight:         float32(framebufferH),
 		ConWidth:         float32(conW),
 		ConHeight:        float32(conH),
-		ConSlideFraction: 1,
+		ConSlideFraction: slideFraction,
 	}
 }
 
@@ -195,7 +197,11 @@ func runtimeConsoleBackgroundPic() *qimage.QPic {
 }
 
 func drawRuntimeConsole(overlay renderer.RenderContext, framebufferW, framebufferH int, full, forcedup bool) {
-	params := runtimeConsoleCanvasParams(framebufferW, framebufferH)
+	slideFraction := clampUnitFloat32(g.ConsoleSlideFraction)
+	if forcedup {
+		slideFraction = 1
+	}
+	params := runtimeConsoleCanvasParams(framebufferW, framebufferH, slideFraction)
 	if setter, ok := overlay.(canvasParamSetter); ok {
 		setter.SetCanvasParams(params)
 	}
@@ -205,6 +211,39 @@ func drawRuntimeConsole(overlay renderer.RenderContext, framebufferW, framebuffe
 		background = runtimeConsoleBackgroundPic()
 	}
 	console.Draw(overlay, int(params.ConWidth), int(params.ConHeight), full, background, forcedup)
+}
+
+func updateRuntimeConsoleSlide(dt float64, consoleVisible, forcedup bool) {
+	if forcedup {
+		g.ConsoleSlideFraction = 1
+		return
+	}
+
+	target := float32(0)
+	if consoleVisible {
+		target = 1
+	}
+	if dt <= 0 {
+		g.ConsoleSlideFraction = target
+		return
+	}
+
+	speed := float32(cvar.FloatValue("scr_conspeed"))
+	if speed <= 0 {
+		speed = 1e6
+	}
+	step := speed * float32(dt) / 300
+	current := clampUnitFloat32(g.ConsoleSlideFraction)
+	if current < target {
+		current = min(current+step, target)
+	} else if current > target {
+		current = max(current-step, target)
+	}
+	g.ConsoleSlideFraction = clampUnitFloat32(current)
+}
+
+func runtimeConsoleAnimating() bool {
+	return g.ConsoleSlideFraction > 0
 }
 
 func startupMapArg(args []string) string {
@@ -595,6 +634,9 @@ func main() {
 				applyMenuMouseMove()
 				applyGameplayMouseLook()
 			}
+			consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
+			conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
+			updateRuntimeConsoleSlide(dt, consoleVisible, conForcedup)
 
 			transientEvents := runRuntimeFrame(dt, cb)
 			if g.Host != nil && g.Host.IsAborted() {
@@ -706,14 +748,18 @@ func main() {
 							g.HUD.Draw(overlay)
 						}
 
-						if consoleVisible {
+						if consoleVisible || runtimeConsoleAnimating() {
 							drawRuntimeConsole(overlay, w, h, true, false)
-							return
+							if consoleVisible {
+								return
+							}
 						}
 
-						drawRuntimeConsole(overlay, w, h, false, false)
+						if !runtimeConsoleAnimating() {
+							drawRuntimeConsole(overlay, w, h, false, false)
+						}
 
-						if g.Input != nil && g.Input.GetKeyDest() == input.KeyMessage {
+						if g.Input != nil && g.Input.GetKeyDest() == input.KeyMessage && !runtimeConsoleAnimating() {
 							drawChatInput(overlay, w, h)
 						}
 					}

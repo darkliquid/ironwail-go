@@ -114,6 +114,7 @@ func initGameHost() error {
 	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
 	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "Console virtual width (0 = auto)")
 	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "Console scale factor")
+	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "Console slide speed")
 	crosshair := cvar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
 	crosshair.Callback = func(cv *cvar.CVar) {
 		if g.HUD != nil {
