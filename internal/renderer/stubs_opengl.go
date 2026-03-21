@@ -234,6 +234,11 @@ func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 // DrawFill delegates to the GL draw context for solid-color rectangle fills.
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) { dc.gldc.DrawFill(x, y, w, h, color) }
 
+// DrawFillAlpha delegates to the GL draw context for alpha-modulated solid-color rectangle fills.
+func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	dc.gldc.DrawFillAlpha(x, y, w, h, color, alpha)
+}
+
 // DrawCharacter delegates to the GL draw context for console character rendering.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) { dc.gldc.DrawCharacter(x, y, num) }
 

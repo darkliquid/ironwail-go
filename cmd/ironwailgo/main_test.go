@@ -159,6 +159,8 @@ func (dc *loadingPlaqueDrawContext) DrawTriangle(r, g, b, a float32)     {}
 func (dc *loadingPlaqueDrawContext) SurfaceView() interface{}            { return nil }
 func (dc *loadingPlaqueDrawContext) Gamma() float32                      { return 1 }
 func (dc *loadingPlaqueDrawContext) DrawFill(x, y, w, h int, color byte) {}
+func (dc *loadingPlaqueDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+}
 func (dc *loadingPlaqueDrawContext) DrawCharacter(x, y int, num int)     {}
 func (dc *loadingPlaqueDrawContext) DrawMenuCharacter(x, y int, num int) {}
 func (dc *loadingPlaqueDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
@@ -178,6 +180,7 @@ type csqcDrawFillCall struct {
 	w     int
 	h     int
 	color byte
+	alpha float32
 }
 
 type csqcDrawTestContext struct {
@@ -199,7 +202,10 @@ func (dc *csqcDrawTestContext) DrawPic(x, y int, pic *qimage.QPic) {
 	dc.pics = append(dc.pics, loadingPlaqueDrawCall{x: x, y: y, pic: pic})
 }
 func (dc *csqcDrawTestContext) DrawFill(x, y, w, h int, color byte) {
-	dc.fills = append(dc.fills, csqcDrawFillCall{x: x, y: y, w: w, h: h, color: color})
+	dc.fills = append(dc.fills, csqcDrawFillCall{x: x, y: y, w: w, h: h, color: color, alpha: 1})
+}
+func (dc *csqcDrawTestContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	dc.fills = append(dc.fills, csqcDrawFillCall{x: x, y: y, w: w, h: h, color: color, alpha: alpha})
 }
 func (dc *csqcDrawTestContext) SetCanvas(ct renderer.CanvasType) {
 	dc.canvas.Type = ct
@@ -298,6 +304,7 @@ type consoleOverlayDrawContext struct {
 	fills []struct {
 		x, y, w, h int
 		color      byte
+		alpha      float32
 	}
 	chars []struct {
 		x, y, num int
@@ -319,7 +326,15 @@ func (dc *consoleOverlayDrawContext) DrawFill(x, y, w, h int, color byte) {
 	dc.fills = append(dc.fills, struct {
 		x, y, w, h int
 		color      byte
-	}{x, y, w, h, color})
+		alpha      float32
+	}{x, y, w, h, color, 1})
+}
+func (dc *consoleOverlayDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	dc.fills = append(dc.fills, struct {
+		x, y, w, h int
+		color      byte
+		alpha      float32
+	}{x, y, w, h, color, alpha})
 }
 func (dc *consoleOverlayDrawContext) DrawCharacter(x, y int, num int) {
 	dc.chars = append(dc.chars, struct {
@@ -335,26 +350,16 @@ func (dc *consoleOverlayDrawContext) SetCanvasParams(p renderer.CanvasTransformP
 	dc.canvasParams = append(dc.canvasParams, p)
 }
 
-func TestDrawMenuBackdropUsesStripedFillPattern(t *testing.T) {
+func TestDrawMenuBackdropUsesAlphaFill(t *testing.T) {
 	dc := &consoleOverlayDrawContext{}
 
 	drawMenuBackdrop(dc, 8, 10)
 
-	want := []struct {
-		y int
-		h int
-	}{
-		{0, 2},
-		{4, 2},
-		{8, 2},
+	if len(dc.fills) != 1 {
+		t.Fatalf("fill count = %d, want 1", len(dc.fills))
 	}
-	if len(dc.fills) != len(want) {
-		t.Fatalf("fill count = %d, want %d", len(dc.fills), len(want))
-	}
-	for i, got := range dc.fills {
-		if got.x != 0 || got.w != 8 || got.y != want[i].y || got.h != want[i].h || got.color != 0 {
-			t.Fatalf("fill %d = %+v, want x=0 w=8 y=%d h=%d color=0", i, got, want[i].y, want[i].h)
-		}
+	if got := dc.fills[0]; got.x != 0 || got.y != 0 || got.w != 8 || got.h != 10 || got.color != 0 || math.Abs(float64(got.alpha)-0.5) > 0.0001 {
+		t.Fatalf("fill = %+v, want x=0 y=0 w=8 h=10 color=0 alpha=0.5", got)
 	}
 	if dc.canvas.Type != renderer.CanvasDefault {
 		t.Fatalf("backdrop canvas = %v, want %v", dc.canvas.Type, renderer.CanvasDefault)

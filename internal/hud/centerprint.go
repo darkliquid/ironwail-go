@@ -293,22 +293,11 @@ func drawCenterprintFill(rc renderer.RenderContext, x, y, w, h int, color byte, 
 	if rc == nil || w <= 0 || h <= 0 || alpha <= 0 {
 		return
 	}
-	switch {
-	case alpha >= 0.875:
+	if alpha >= 1 {
 		rc.DrawFill(x, y, w, h, color)
-	case alpha >= 0.625:
-		for row := 0; row < h; row += 4 {
-			rc.DrawFill(x, y+row, w, min(3, h-row), color)
-		}
-	case alpha >= 0.375:
-		for row := 0; row < h; row += 4 {
-			rc.DrawFill(x, y+row, w, min(2, h-row), color)
-		}
-	default:
-		for row := 0; row < h; row += 4 {
-			rc.DrawFill(x, y+row, w, 1, color)
-		}
+		return
 	}
+	rc.DrawFillAlpha(x, y, w, h, color, float32(alpha))
 }
 
 func drawCenterprintLine(rc renderer.RenderContext, x, y int, text string, lineIndex int, alpha float64) {

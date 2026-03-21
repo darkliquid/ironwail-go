@@ -43,6 +43,11 @@ type mockRenderContext struct {
 		x, y, w, h int
 		color      byte
 	}
+	alphaFills []struct {
+		x, y, w, h int
+		color      byte
+		alpha      float32
+	}
 	canvas       renderer.CanvasState
 	canvasSwitch []renderer.CanvasType
 	canvasParams renderer.CanvasTransformParams
@@ -69,6 +74,13 @@ func (m *mockRenderContext) DrawFill(x, y, w, h int, color byte) {
 		x, y, w, h int
 		color      byte
 	}{x, y, w, h, color})
+}
+func (m *mockRenderContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	m.alphaFills = append(m.alphaFills, struct {
+		x, y, w, h int
+		color      byte
+		alpha      float32
+	}{x, y, w, h, color, alpha})
 }
 func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
@@ -417,8 +429,11 @@ func TestHUDCenterprintFadeTailStipplesDuringLateFade(t *testing.T) {
 	if got := charactersToString(fading.characters); got == "" || got == "message" {
 		t.Fatalf("late fade text = %q, want partial but non-empty", got)
 	}
-	if len(fading.fills) <= 1 {
-		t.Fatalf("late fade background fills = %d, want stippled multi-fill backdrop", len(fading.fills))
+	if len(fading.alphaFills) != 1 {
+		t.Fatalf("late fade alpha background fills = %d, want 1", len(fading.alphaFills))
+	}
+	if got := fading.alphaFills[0]; got.color != 0 || math.Abs(float64(got.alpha)-0.5) > 0.0001 {
+		t.Fatalf("late fade alpha background fill = %+v, want color=0 alpha=0.5", got)
 	}
 }
 

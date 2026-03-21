@@ -31,6 +31,8 @@ func (dc *stubDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {}
 
 func (dc *stubDrawContext) DrawFill(x, y, w, h int, color byte) {}
 
+func (dc *stubDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {}
+
 func (dc *stubDrawContext) DrawCharacter(x, y int, num int) {}
 
 func (dc *stubDrawContext) DrawMenuCharacter(x, y int, num int) {}
@@ -115,6 +117,9 @@ func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 }
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
 	dc.stubContext().DrawFill(x, y, w, h, color)
+}
+func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	dc.stubContext().DrawFillAlpha(x, y, w, h, color, alpha)
 }
 func (dc *DrawContext) DrawCharacter(x, y int, num int) { dc.stubContext().DrawCharacter(x, y, num) }
 func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {

@@ -868,12 +868,7 @@ func drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
 		return
 	}
 	rc.SetCanvas(renderer.CanvasDefault)
-
-	// Approximate Quake's menu fade pass with deterministic black scanlines
-	// until the 2D renderer grows a backend-consistent alpha overlay primitive.
-	for y := 0; y < h; y += 4 {
-		rc.DrawFill(0, y, w, min(2, h-y), 0)
-	}
+	rc.DrawFillAlpha(0, 0, w, h, 0, 0.5)
 }
 
 func drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer.RenderContext)) {

@@ -46,6 +46,9 @@ func (m *mockRenderContext) DrawFill(x, y, w, h int, color byte) {
 		color      byte
 	}{x, y, w, h, color})
 }
+func (m *mockRenderContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	m.DrawFill(x, y, w, h, color)
+}
 func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
 }

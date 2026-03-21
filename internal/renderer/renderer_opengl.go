@@ -25,8 +25,8 @@ import (
 // 2D rendering shaders
 const (
 	vertexShader2D = `#version 410 core
-in vec2 aPosition;
-in vec2 aTexCoord;
+layout(location = 0) in vec2 aPosition;
+layout(location = 1) in vec2 aTexCoord;
 out vec2 vTexCoord;
 uniform vec2 uCanvasScale;
 uniform vec2 uCanvasOffset;
@@ -50,7 +50,7 @@ void main() {
 }`
 
 	vertexShaderSolid = `#version 410 core
-in vec2 aPosition;
+layout(location = 0) in vec2 aPosition;
 uniform vec2 uCanvasScale;
 uniform vec2 uCanvasOffset;
 uniform vec4 uColor;
@@ -217,15 +217,10 @@ func (dc *glDrawContext) init2DRenderer() error {
 	gl.BindVertexArray(dc.vao2D)
 	gl.BindBuffer(gl.ARRAY_BUFFER, dc.vbo2D)
 
-	// Position attribute (x, y)
-	posAttr := gl.GetAttribLocation(dc.shader2D, gl.Str("aPosition\x00"))
-	gl.EnableVertexAttribArray(uint32(posAttr))
-	gl.VertexAttribPointerWithOffset(uint32(posAttr), 2, gl.FLOAT, false, 16, uintptr(0))
-
-	// TexCoord attribute (u, v)
-	texAttr := gl.GetAttribLocation(dc.shader2D, gl.Str("aTexCoord\x00"))
-	gl.EnableVertexAttribArray(uint32(texAttr))
-	gl.VertexAttribPointerWithOffset(uint32(texAttr), 2, gl.FLOAT, false, 16, 8)
+	gl.EnableVertexAttribArray(0)
+	gl.VertexAttribPointerWithOffset(0, 2, gl.FLOAT, false, 16, uintptr(0))
+	gl.EnableVertexAttribArray(1)
+	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, 16, 8)
 
 	gl.BindVertexArray(0)
 
@@ -356,6 +351,14 @@ func (dc *glDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 
 // DrawFill fills a rectangle with a Quake palette color.
 func (dc *glDrawContext) DrawFill(x, y, w, h int, color byte) {
+	dc.DrawFillAlpha(x, y, w, h, color, 1)
+}
+
+// DrawFillAlpha fills a rectangle with a Quake palette color and explicit alpha.
+func (dc *glDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	if w <= 0 || h <= 0 || alpha <= 0 {
+		return
+	}
 	if err := dc.init2DRenderer(); err != nil {
 		slog.Error("Failed to init 2D renderer", "error", err)
 		return
@@ -363,9 +366,15 @@ func (dc *glDrawContext) DrawFill(x, y, w, h int, color byte) {
 	if dc.renderer == nil {
 		return
 	}
+	if alpha > 1 {
+		alpha = 1
+	}
 
-	tex := dc.renderer.getOrCreateColorTexture(dc, color)
-	if tex == 0 {
+	r, g, b := GetPaletteColor(color, dc.renderer.palette)
+	if IsTransparentIndex(color) {
+		alpha = 0
+	}
+	if alpha <= 0 {
 		return
 	}
 
@@ -375,7 +384,12 @@ func (dc *glDrawContext) DrawFill(x, y, w, h int, color byte) {
 		{float32(x), float32(y + h), 0.0, 1.0},
 		{float32(x + w), float32(y + h), 1.0, 1.0},
 	}
-	dc.render2DQuad(vertices, tex, dc.shader2D)
+	dc.render2DSolidQuad(vertices, [4]float32{
+		float32(r) / 255,
+		float32(g) / 255,
+		float32(b) / 255,
+		alpha,
+	})
 }
 
 // DrawCharacter renders a single character from font.
@@ -472,6 +486,39 @@ func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program
 	gl.Uniform1i(texLoc, 0)
 
 	// Draw quad
+	gl.BindVertexArray(dc.vao2D)
+	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+	gl.BindVertexArray(0)
+}
+
+func (dc *glDrawContext) render2DSolidQuad(vertices []quadVertex, color [4]float32) {
+	gl.UseProgram(dc.shaderSolid)
+
+	t := dc.canvas.Transform
+	if dc.canvas.Type == CanvasNone {
+		w := float32(dc.viewport.width)
+		h := float32(dc.viewport.height)
+		if w <= 0 {
+			w = 1
+		}
+		if h <= 0 {
+			h = 1
+		}
+		t = DrawTransform{
+			Scale:  [2]float32{2.0 / w, -2.0 / h},
+			Offset: [2]float32{-1.0, 1.0},
+		}
+	}
+
+	scaleLoc := gl.GetUniformLocation(dc.shaderSolid, gl.Str("uCanvasScale\x00"))
+	gl.Uniform2f(scaleLoc, t.Scale[0], t.Scale[1])
+	offsetLoc := gl.GetUniformLocation(dc.shaderSolid, gl.Str("uCanvasOffset\x00"))
+	gl.Uniform2f(offsetLoc, t.Offset[0], t.Offset[1])
+	colorLoc := gl.GetUniformLocation(dc.shaderSolid, gl.Str("uColor\x00"))
+	gl.Uniform4f(colorLoc, color[0], color[1], color[2], color[3])
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, dc.vbo2D)
+	gl.BufferData(gl.ARRAY_BUFFER, len(vertices)*int(unsafe.Sizeof(quadVertex{})), unsafe.Pointer(&vertices[0]), gl.STATIC_DRAW)
 	gl.BindVertexArray(dc.vao2D)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)

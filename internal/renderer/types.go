@@ -66,6 +66,9 @@ type RenderContext interface {
 	// DrawFill fills a rectangle with a Quake palette color.
 	DrawFill(x, y, w, h int, color byte)
 
+	// DrawFillAlpha fills a rectangle with a Quake palette color and explicit alpha.
+	DrawFillAlpha(x, y, w, h int, color byte, alpha float32)
+
 	// DrawCharacter renders a single character from the font.
 	DrawCharacter(x, y int, num int)
 

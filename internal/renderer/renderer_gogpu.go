@@ -172,12 +172,29 @@ func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 
 // DrawFill fills a rectangle with a Quake palette color.
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
+	dc.DrawFillAlpha(x, y, w, h, color, 1)
+}
+
+// DrawFillAlpha fills a rectangle with a Quake palette color and explicit alpha.
+func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+	if w <= 0 || h <= 0 || alpha <= 0 {
+		return
+	}
 	tex := dc.renderer.getOrCreateColorTexture(dc.ctx, color)
 	if tex == nil {
 		return
 	}
 
-	err := dc.ctx.DrawTextureScaled(tex, float32(x), float32(y), float32(w), float32(h))
+	if alpha >= 1 {
+		alpha = 1
+	}
+	err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      float32(x),
+		Y:      float32(y),
+		Width:  float32(w),
+		Height: float32(h),
+		Alpha:  alpha,
+	})
 	if err != nil {
 		slog.Error("Failed to draw color texture", "error", err)
 	}

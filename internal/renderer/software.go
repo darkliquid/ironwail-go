@@ -126,11 +126,22 @@ func (s *SoftwareRenderer) drawPicRect(rect picRect, pic *qimage.QPic) {
 
 // DrawFill fills a rectangle with a Quake palette colour.
 func (s *SoftwareRenderer) DrawFill(x, y, w, h int, palIdx byte) {
+	s.DrawFillAlpha(x, y, w, h, palIdx, 1)
+}
+
+// DrawFillAlpha fills a rectangle with a Quake palette colour and explicit alpha.
+func (s *SoftwareRenderer) DrawFillAlpha(x, y, w, h int, palIdx byte, alpha float32) {
+	if alpha <= 0 {
+		return
+	}
 	if IsTransparentIndex(palIdx) {
 		return
 	}
+	if alpha > 1 {
+		alpha = 1
+	}
 	pr, pg, pb := GetPaletteColor(palIdx, s.palette)
-	c := color.RGBA{pr, pg, pb, 255}
+	c := color.RGBA{pr, pg, pb, uint8(alpha * 255)}
 	for dy := 0; dy < h; dy++ {
 		sy := y + dy
 		if sy < 0 || sy >= s.height {
@@ -141,7 +152,18 @@ func (s *SoftwareRenderer) DrawFill(x, y, w, h int, palIdx byte) {
 			if sx < 0 || sx >= s.width {
 				continue
 			}
-			s.img.SetRGBA(sx, sy, c)
+			if alpha >= 1 {
+				s.img.SetRGBA(sx, sy, c)
+				continue
+			}
+			dst := s.img.RGBAAt(sx, sy)
+			inv := 1 - alpha
+			s.img.SetRGBA(sx, sy, color.RGBA{
+				R: uint8(float32(c.R)*alpha + float32(dst.R)*inv),
+				G: uint8(float32(c.G)*alpha + float32(dst.G)*inv),
+				B: uint8(float32(c.B)*alpha + float32(dst.B)*inv),
+				A: uint8(float32(c.A) + float32(dst.A)*inv),
+			})
 		}
 	}
 }
