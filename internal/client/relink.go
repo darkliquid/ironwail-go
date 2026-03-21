@@ -41,8 +41,9 @@ func resetEntityTrail(state *inet.EntityState) {
 // and before any entity collection for rendering. It modifies entity Origin
 // and Angles in-place so the existing collection functions see lerped positions.
 //
-// Entities not updated in the last server message keep their last known render
-// state until the server explicitly retires them with ModelIndex=0.
+// Entities not updated in the last server message are dropped from the current
+// render set until the server sends them again, matching C Quake's
+// CL_RelinkEntities stale-entity behavior.
 func (c *Client) RelinkEntities() {
 	if c == nil {
 		return
@@ -73,11 +74,12 @@ func (c *Client) RelinkEntities() {
 			continue
 		}
 
-		// If this entity was not updated in the latest server message, stop
-		// interpolating it but preserve its last known render state until an
-		// explicit zero-model retire arrives from the server.
+		// If this entity was not updated in the latest server message, drop it
+		// from the live render set until a later packet reintroduces it.
 		if state.MsgTime != c.MTime[0] {
+			state.ModelIndex = 0
 			state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
+			state.ForceLink = false
 			c.Entities[entNum] = state
 			continue
 		}

@@ -47,6 +47,7 @@ type DemoState struct {
 	playbackHostFrame int
 	timedemoStart     time.Time
 	timedemoFrames    int
+	timedemoArmed     bool
 	rewindBackstop    bool
 }
 
@@ -484,6 +485,7 @@ func (d *DemoState) startPlaybackInternal(filename string, source io.ReadSeeker,
 	d.TimeDemo = false
 	d.timedemoStart = time.Time{}
 	d.timedemoFrames = 0
+	d.timedemoArmed = false
 	d.playbackHostFrame = -1
 	d.rewindBackstop = false
 
@@ -531,6 +533,7 @@ func (d *DemoState) StopPlayback() error {
 	d.TimeDemo = false
 	d.timedemoStart = time.Time{}
 	d.timedemoFrames = 0
+	d.timedemoArmed = false
 	d.playbackHostFrame = -1
 	d.rewindBackstop = false
 	d.rewindBackstop = false
@@ -543,13 +546,18 @@ func (d *DemoState) EnableTimeDemo() {
 		return
 	}
 	d.TimeDemo = true
-	d.timedemoStart = time.Now()
+	d.timedemoStart = time.Time{}
 	d.timedemoFrames = 0
+	d.timedemoArmed = true
 	d.playbackHostFrame = -1
 }
 
 func (d *DemoState) NotePlaybackFrame() {
 	if d == nil || !d.TimeDemo {
+		return
+	}
+	if d.timedemoArmed {
+		d.timedemoArmed = false
 		return
 	}
 	if d.timedemoStart.IsZero() {

@@ -3835,7 +3835,7 @@ func TestCollectEntityEffectSourcesSkipsStaleDynamicEntities(t *testing.T) {
 	}
 }
 
-func TestCollectBrushEntitiesKeepsStaleBrushSubmodels(t *testing.T) {
+func TestCollectBrushEntitiesSkipsStaleBrushSubmodels(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	t.Cleanup(func() {
@@ -3852,8 +3852,8 @@ func TestCollectBrushEntitiesKeepsStaleBrushSubmodels(t *testing.T) {
 	g.Server = &server.Server{WorldTree: &bsp.Tree{Models: []bsp.DModel{{}, {}}}}
 
 	brushEntities := collectBrushEntities()
-	if got := len(brushEntities); got != 1 {
-		t.Fatalf("collectBrushEntities len = %d, want 1 for stale brush submodel", got)
+	if got := len(brushEntities); got != 0 {
+		t.Fatalf("collectBrushEntities len = %d, want 0 for stale brush submodel", got)
 	}
 }
 

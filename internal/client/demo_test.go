@@ -733,6 +733,27 @@ func TestDemoUpdatePlaybackSpeedSupportsTemporaryRewind(t *testing.T) {
 	}
 }
 
+func TestTimeDemoStartsCountingOnSecondPlaybackFrame(t *testing.T) {
+	demo := NewDemoState()
+	demo.EnableTimeDemo()
+
+	demo.NotePlaybackFrame()
+	if got := demo.timedemoFrames; got != 0 {
+		t.Fatalf("timedemo frames after first playback frame = %d, want 0", got)
+	}
+	if !demo.timedemoStart.IsZero() {
+		t.Fatal("timedemo start should remain unset on the first playback frame")
+	}
+
+	demo.NotePlaybackFrame()
+	if got := demo.timedemoFrames; got != 1 {
+		t.Fatalf("timedemo frames after second playback frame = %d, want 1", got)
+	}
+	if demo.timedemoStart.IsZero() {
+		t.Fatal("timedemo start should be set on the second playback frame")
+	}
+}
+
 func TestDemoFrameForTime(t *testing.T) {
 	defer os.RemoveAll("demos")
 

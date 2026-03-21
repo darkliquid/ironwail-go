@@ -66,13 +66,22 @@ func collectBrushEntities() []renderer.BrushEntity {
 		if entityNum == g.Client.ViewEntity {
 			continue
 		}
-		if brushEntity, ok := resolve(state); ok {
-			status := "draw"
-			if !clientEntityStateIsCurrent(state) {
-				status = "stale_preserve"
+		modelName := clientEntityModelName(state)
+		if state.ModelIndex == 0 {
+			runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "zero_model")
+			continue
+		}
+		if !clientEntityStateIsCurrent(state) {
+			if modelName != "" && strings.HasPrefix(modelName, "*") {
+				runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "stale_skip")
 			}
-			runtimeDebugViewLogEntityCollection("brush", entityNum, state, clientEntityModelName(state), status)
+			continue
+		}
+		if brushEntity, ok := resolve(state); ok {
+			runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "draw")
 			brushEntities = append(brushEntities, brushEntity)
+		} else if modelName != "" && strings.HasPrefix(modelName, "*") {
+			runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "resolve_skip")
 		}
 	}
 	for _, state := range g.Client.StaticEntities {

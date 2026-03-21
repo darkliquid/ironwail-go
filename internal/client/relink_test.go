@@ -311,7 +311,7 @@ func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
 	}
 }
 
-func TestRelinkEntities_StaleEntityPreservesModelAndResetsLerp(t *testing.T) {
+func TestRelinkEntities_StaleEntityClearsModelAndResetsLerp(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
 	c.Time = 1.0
@@ -327,8 +327,8 @@ func TestRelinkEntities_StaleEntityPreservesModelAndResetsLerp(t *testing.T) {
 	c.RelinkEntities()
 
 	ent := c.Entities[1]
-	if ent.ModelIndex != 2 {
-		t.Fatalf("ModelIndex = %v, want stale entity to preserve its render model", ent.ModelIndex)
+	if ent.ModelIndex != 0 {
+		t.Fatalf("ModelIndex = %v, want stale entity to clear its render model", ent.ModelIndex)
 	}
 	if ent.LerpFlags&inet.LerpResetMove == 0 {
 		t.Fatal("expected stale entity to set LerpResetMove")
