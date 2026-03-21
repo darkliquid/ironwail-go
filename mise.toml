@@ -108,6 +108,42 @@ fi
 description = "Run all smoke tests"
 depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]
 
+[tasks.ralph-analyze-log]
+description = "Analyze a telemetry log into Ralph task records"
+run = """
+mkdir -p .ralph
+go run ./tools/ralph analyze-log \
+  --log "${RALPH_LOG:-test.log}" \
+  --summary "${RALPH_SUMMARY:-.ralph/manual-summary.json}" \
+  --tasks "${RALPH_TASKS:-.ralph/manual-task-records.json}" \
+  --state "${RALPH_STATE:-.ralph/state.json}" \
+  --beads-sync "${RALPH_BEADS_SYNC:-.ralph/manual-beads-sync.json}" \
+  $(if [ "${RALPH_APPLY_BEADS:-0}" = "1" ]; then printf '%s' '--apply-beads'; fi) \
+  --beads-binary "${RALPH_BEADS_BIN:-bd}"
+"""
+
+[tasks.ralph-build-prompt]
+description = "Build a Copilot prompt from Ralph summary/task artifacts"
+run = """
+mkdir -p .ralph
+go run ./tools/ralph build-prompt \
+  --summary "${RALPH_SUMMARY:-.ralph/latest-summary.json}" \
+  --tasks "${RALPH_TASKS:-.ralph/latest-task-records.json}" \
+  --log "${RALPH_LOG:-.ralph/latest.log}" \
+  --output "${RALPH_PROMPT_PATH:-.ralph/latest-copilot-prompt.txt}" \
+  --max-tasks "${RALPH_COPILOT_MAX_TASKS:-5}"
+"""
+
+[tasks.ralph-loop-once]
+description = "Run one telemetry/analyze/fix Ralph iteration"
+depends = ["build-cgo"]
+run = "go run ./tools/ralph loop once"
+
+[tasks.ralph-loop]
+description = "Continuously run the telemetry-driven Ralph parity/fix loop"
+depends = ["build-cgo"]
+run = "go run ./tools/ralph loop continuous"
+
 [tasks.test]
 description = "Run Go tests"
 run = "go test ./..."
@@ -148,21 +184,21 @@ run = "./ironwailgo-cgo -basedir ${QUAKE_DIR}"
 
 [tasks.parity-ref]
 description = "Capture reference screenshots from C Ironwail"
-run = "./scripts/parity_screenshots.sh reference"
+run = "go run ./tools/parity_screenshots reference"
 
 [tasks.parity-go]
 description = "Capture screenshots from Go port"
 depends = ["build-gogpu"]
-run = "./scripts/parity_screenshots.sh go"
+run = "go run ./tools/parity_screenshots go"
 
 [tasks.parity-compare]
 description = "Compare reference vs Go screenshots"
-run = "./scripts/parity_screenshots.sh compare"
+run = "go run ./tools/parity_screenshots compare"
 
 [tasks.parity-all]
 description = "Capture both and compare parity screenshots"
 depends = ["build-gogpu"]
-run = "./scripts/parity_screenshots.sh both"
+run = "go run ./tools/parity_screenshots both"
 
 [tasks.go-generate]
 hide = true

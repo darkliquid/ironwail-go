@@ -53,6 +53,69 @@ The canonical parity/build path is the CGO/OpenGL runtime:
 The gogpu tasks remain available for secondary-backend work, but they are no
 longer the primary parity gate.
 
+### Continuous Ralph loop
+
+For telemetry-driven parity/debug work, the repo now includes a `mise`-driven
+Ralph loop built around the canonical CGO/OpenGL repro path:
+
+- `mise run ralph-loop-once`
+- `mise run ralph-loop`
+- `mise run ralph-analyze-log`
+
+`ralph-loop-once` builds the CGO binary, runs it with full telemetry enabled,
+captures the log under `.ralph/`, analyzes the output, builds a Copilot prompt
+from the task records, and then invokes `copilot -p ...` to work the generated
+issues once. Ralph now lives in a single Go package under `tools/ralph`, with
+the subcommands calling shared Go code directly instead of spawning nested
+`go run` wrappers.
+
+Ralph subcommands:
+
+- `go run ./tools/ralph analyze-log ...`
+- `go run ./tools/ralph build-prompt ...`
+- `go run ./tools/ralph loop once`
+- `go run ./tools/ralph loop continuous`
+
+Add `--verbose` before the subcommand, or set `RALPH_VERBOSE=1`, to have Ralph
+print what it is doing, including loop configuration, detected issue groups,
+generated task IDs/titles, prompt selection, and beads sync actions.
+
+Artifacts emitted under `.ralph/` include:
+
+- `.ralph/latest-summary.json` — run summary and severity counts
+- `.ralph/latest-task-records.json` — actionable Ralph task records
+- `.ralph/latest-copilot-prompt.txt` — generated non-interactive Copilot prompt
+- `.ralph/latest-beads-sync.json` — direct beads create/update results when task
+  syncing is enabled
+- `.ralph/state.json` — issue persistence/stall tracking across iterations
+
+`ralph-loop` repeats that cycle continuously until interrupted or until no
+actionable issues remain. Persistent issue fingerprints automatically emit
+telemetry-design task records after the configured stall threshold so the loop
+can escalate to “add narrower telemetry” instead of spinning on the same log.
+Each iteration also writes a timestamped Copilot transcript under
+`.ralph/runs/*.copilot.log`.
+
+Useful environment variables:
+
+- `QUAKE_DIR` — required Quake basedir
+- `RALPH_TIMEOUT` — max runtime per engine launch (default `30`)
+- `RALPH_MAX_ITERATIONS` — stop after N iterations (`0` = continuous)
+- `RALPH_SLEEP` — delay between continuous iterations
+- `RALPH_ENGINE_ARGS` — extra engine args appended after the default telemetry
+  flags
+- `RALPH_INVOKE_COPILOT` — set to `0` to disable the automatic Copilot fixing
+  step
+- `RALPH_COPILOT_BIN` — Copilot CLI binary name/path (default `copilot`)
+- `RALPH_COPILOT_MODEL` — Copilot model for loop fixes (default `gpt-5.4`)
+- `RALPH_COPILOT_MAX_TASKS` — max task records to include in each generated
+  Copilot prompt
+- `RALPH_COPILOT_ARGS` — extra arguments appended to the Copilot CLI invocation
+- `RALPH_VERBOSE=1` — enable verbose Ralph logging without passing `--verbose`
+- `RALPH_APPLY_BEADS=1` — create/update Ralph task records directly through the
+  `bd` CLI during analysis
+- `RALPH_BEADS_BIN` — beads CLI binary name/path (default `bd`)
+
 ## Debug Telemetry
 
 The server now exposes an opt-in debug telemetry mode for following trigger,
