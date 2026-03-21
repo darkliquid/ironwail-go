@@ -473,13 +473,14 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
 		cvar.Set("nomonsters", "0")
 	}
-	_, data, err := h.readSaveFile(name, options)
+	path, data, err := h.readSaveFile(name, options)
 	if err != nil {
 		h.invalidateLastSave(name)
 		return err
 	}
 	subs.Console.Print(fmt.Sprintf("Loading game from %s...\n", displayName))
-	save, err := decodeHostSaveFile(data, options)
+	effectiveOptions := h.effectiveLoadSaveOptions(name, path, options)
+	save, err := decodeHostSaveFile(data, effectiveOptions)
 	if err != nil {
 		h.invalidateLastSave(name)
 		return err
@@ -709,6 +710,21 @@ func expectedSaveVersion(options loadSaveOptions) int {
 		return server.SaveGameVersionKEX
 	}
 	return server.SaveGameVersion
+}
+
+func (h *Host) effectiveLoadSaveOptions(name, foundPath string, options loadSaveOptions) loadSaveOptions {
+	if options.kexOnly || foundPath == "" || h.baseDir == "" {
+		return options
+	}
+	relName, err := normalizeSaveName(name)
+	if err != nil {
+		return options
+	}
+	installRootPath := filepath.Join(h.baseDir, filepath.FromSlash(relName)+".sav")
+	if filepath.Clean(foundPath) == filepath.Clean(installRootPath) {
+		options.kexOnly = true
+	}
+	return options
 }
 
 func decodeHostSaveFile(data []byte, options loadSaveOptions) (hostSaveFile, error) {

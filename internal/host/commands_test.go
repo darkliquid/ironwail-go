@@ -2533,7 +2533,7 @@ func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
 	}
 }
 
-func TestCmdLoadFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMissing(t *testing.T) {
+func TestCmdLoadTreatsLegacyInstallRootSaveAsKEXWhenUserAndBaseGameSaveMissing(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()
 	for _, dir := range []string{"id1", "hipnotic"} {
@@ -2579,17 +2579,52 @@ func TestCmdLoadFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMissing(t
 
 	h.CmdLoad("slot1", subs)
 
-	if len(audio.calls) != 1 {
-		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: Savegame is version 1, not 6") {
+		t.Fatalf("console output = %q, want install-root kex version mismatch", got)
 	}
-	if !audio.calls[0] {
-		t.Fatal("StopAllSounds clear flag = false, want true")
+	if len(audio.calls) != 0 {
+		t.Fatalf("StopAllSounds calls = %d, want 0 for early install-root kex rejection", len(audio.calls))
 	}
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Couldn't load map") {
-		t.Fatalf("console output = %q, want load failure text", got)
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive on early install-root kex rejection")
 	}
-	if !h.LoadingPlaqueActive(0) {
-		t.Fatal("loading plaque should be active after install-root save fallback")
+}
+
+func TestCmdLoadAutoDetectsInstallRootKEXTextSave(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "slot1.sav"), []byte("6\nid1\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("slot1", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: KEX savegame format is not supported yet.") {
+		t.Fatalf("console output = %q, want auto-detected unsupported kex format error", got)
+	}
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive when auto-detected install-root kex format is unsupported")
 	}
 }
 
