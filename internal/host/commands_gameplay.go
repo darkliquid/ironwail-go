@@ -460,13 +460,13 @@ func (h *Host) loadSave(name string, subs *Subsystems) error {
 	if subs == nil || subs.Console == nil {
 		return nil
 	}
-	if cvar.BoolValue("nomonsters") {
-		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
-		cvar.Set("nomonsters", "0")
-	}
 	displayName, err := saveDisplayName(name)
 	if err != nil {
 		return err
+	}
+	if cvar.BoolValue("nomonsters") {
+		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
+		cvar.Set("nomonsters", "0")
 	}
 	_, data, err := h.readSaveFile(name)
 	if err != nil {
@@ -572,16 +572,6 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 	if subs == nil || subs.Console == nil {
 		return
 	}
-	path, err := h.saveFilePath(name)
-	if err != nil {
-		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
-		return
-	}
-	displayName, err := saveDisplayName(name)
-	if err != nil {
-		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
-		return
-	}
 	if subs.Server == nil || !h.serverActive || !subs.Server.IsActive() {
 		subs.Console.Print("Not playing a local game.\n")
 		return
@@ -613,6 +603,16 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 				return
 			}
 		}
+	}
+	path, err := h.saveFilePath(name)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+	displayName, err := saveDisplayName(name)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
 	}
 	state, err := srv.CaptureSaveGameState()
 	if err != nil {

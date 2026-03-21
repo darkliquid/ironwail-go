@@ -830,27 +830,47 @@ func TestStuffCmds(t *testing.T) {
 
 func TestCmdSaveRejectsInvalidName(t *testing.T) {
 	h := NewHost()
-	subs := &mockSubsystems{
-		server:  &mockServer{active: true},
-		client:  &mockClient{},
-		console: &mockConsole{},
+	console := &mockConsole{}
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  newLocalLoopbackClient(),
+		Console: console,
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
 
-	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 	h.SetServerActive(true)
+	srv.Active = true
 
-	h.CmdSave("../bad", &subs.Subsystems)
+	h.CmdSave("../bad", subs)
 
-	if len(subs.console.messages) == 0 {
+	if len(console.messages) == 0 {
 		t.Fatal("expected console output")
 	}
-	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "Relative pathnames are not allowed.") {
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Relative pathnames are not allowed.") {
 		t.Fatalf("console output = %q, want relative-path rejection", got)
+	}
+}
+
+func TestCmdSaveChecksLocalGameBeforeRelativePathValidation(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdSave("../bad", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Not playing a local game.") {
+		t.Fatalf("console output = %q, want local-game rejection before path validation", got)
 	}
 }
 
@@ -876,6 +896,37 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "Relative pathnames are not allowed.") {
 		t.Fatalf("console output = %q, want relative-path rejection", got)
+	}
+}
+
+func TestCmdLoadChecksRelativePathBeforeDisablingNoMonsters(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	previous := cvar.StringValue("nomonsters")
+	cvar.Set("nomonsters", "1")
+	t.Cleanup(func() {
+		cvar.Set("nomonsters", previous)
+	})
+
+	h.CmdLoad("../bad", &subs.Subsystems)
+
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "Relative pathnames are not allowed.") {
+		t.Fatalf("console output = %q, want relative-path rejection", got)
+	}
+	if got := cvar.StringValue("nomonsters"); got != "1" {
+		t.Fatalf("nomonsters after invalid path load = %q, want unchanged 1", got)
 	}
 }
 
