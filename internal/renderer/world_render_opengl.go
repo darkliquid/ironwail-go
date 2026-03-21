@@ -7,6 +7,7 @@ package renderer
 import (
 	"fmt"
 	"github.com/go-gl/gl/v4.6-core/gl"
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
@@ -175,9 +176,11 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	worldHasLitWater := r.worldHasLitWater
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
-	faces := []WorldFace(nil)
+	allFaces := []WorldFace(nil)
+	leafFaces := [][]int(nil)
 	if r.worldData != nil && r.worldData.Geometry != nil {
-		faces = append(faces, r.worldData.Geometry.Faces...)
+		allFaces = append(allFaces, r.worldData.Geometry.Faces...)
+		leafFaces = r.worldData.Geometry.LeafFaces
 	}
 	worldTextures := make(map[int32]uint32, len(r.worldTextures))
 	for k, v := range r.worldTextures {
@@ -203,6 +206,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	if program == 0 || skyProgram == 0 || skyCubemapProgram == 0 || skyExternalFaceProgram == 0 || vao == 0 || indexCount <= 0 {
 		return
 	}
+	faces := selectVisibleWorldFaces(worldTree, allFaces, leafFaces, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z})
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(liquidAlphaOverrides, worldTree)
 	skyFogFactor := resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), skyFogOverride, fogDensity)
@@ -831,4 +835,55 @@ func worldFacesHaveLitWater(faces []WorldFace) bool {
 		}
 	}
 	return false
+}
+
+func selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin [3]float32) []WorldFace {
+	if len(allFaces) == 0 {
+		return nil
+	}
+	if tree == nil || len(tree.Leafs) <= 1 || len(leafFaces) == 0 {
+		return allFaces
+	}
+
+	cameraLeaf := tree.PointInLeaf(cameraOrigin)
+	if cameraLeaf == nil {
+		return allFaces
+	}
+	cameraLeafIndex := -1
+	for i := range tree.Leafs {
+		if &tree.Leafs[i] == cameraLeaf {
+			cameraLeafIndex = i
+			break
+		}
+	}
+	pvs := tree.LeafPVS(cameraLeaf)
+	if len(pvs) == 0 {
+		return allFaces
+	}
+
+	visible := make([]bool, len(allFaces))
+	visibleCount := 0
+	for leafIndex := 1; leafIndex < len(tree.Leafs) && leafIndex < len(leafFaces); leafIndex++ {
+		if leafIndex != cameraLeafIndex && !leafVisibleInMask(pvs, leafIndex-1) {
+			continue
+		}
+		for _, faceIndex := range leafFaces[leafIndex] {
+			if faceIndex < 0 || faceIndex >= len(allFaces) || visible[faceIndex] {
+				continue
+			}
+			visible[faceIndex] = true
+			visibleCount++
+		}
+	}
+
+	if visibleCount == 0 {
+		return allFaces
+	}
+	faces := make([]WorldFace, 0, visibleCount)
+	for faceIndex, ok := range visible {
+		if ok {
+			faces = append(faces, allFaces[faceIndex])
+		}
+	}
+	return faces
 }

@@ -393,6 +393,8 @@ type Renderer struct {
 
 	// Alias-model resources for the gogpu backend.
 	aliasModels                 map[string]*gpuAliasModel
+	aliasEntityStates           map[int]*AliasEntity
+	viewModelAliasState         *AliasEntity
 	aliasScratchBuffer          hal.Buffer
 	aliasScratchBufferSize      uint64
 	aliasPipeline               hal.RenderPipeline
@@ -454,10 +456,11 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	app := gogpu.NewApp(gpuCfg)
 
 	r := &Renderer{
-		app:          app,
-		config:       cfg,
-		textureCache: make(map[cacheKey]*cachedTexture),
-		aliasModels:  make(map[string]*gpuAliasModel),
+		app:               app,
+		config:            cfg,
+		textureCache:      make(map[cacheKey]*cachedTexture),
+		aliasModels:       make(map[string]*gpuAliasModel),
+		aliasEntityStates: make(map[int]*AliasEntity),
 	}
 
 	slog.Info("Renderer created",

@@ -1354,6 +1354,9 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		state.ForceLink = current.ForceLink
 		state.LerpFlags = current.LerpFlags
 		state.TrailOrigin = current.TrailOrigin
+		state.SpriteSyncBase = current.SpriteSyncBase
+		state.SpriteSyncFrame = current.SpriteSyncFrame
+		state.SpriteSyncModelIndex = current.SpriteSyncModelIndex
 		state.Origin = current.Origin
 		state.Angles = current.Angles
 	}
@@ -1541,7 +1544,6 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	// U_STEP indicates a monster step-move entity; position should not be lerped.
 	if bits&inet.U_STEP != 0 {
 		state.LerpFlags |= inet.LerpMoveStep
-		forceLink = true
 	} else {
 		state.LerpFlags &^= inet.LerpMoveStep
 	}

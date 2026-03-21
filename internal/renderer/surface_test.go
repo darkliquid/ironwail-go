@@ -3,6 +3,8 @@ package renderer
 import (
 	"errors"
 	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/model"
 )
 
 func TestTextureAnimation(t *testing.T) {
@@ -225,6 +227,110 @@ func TestSetupAliasFrameAndTransform(t *testing.T) {
 	}
 	if angles[1] < 44.99 || angles[1] > 45.01 {
 		t.Fatalf("angles.y = %f, want ~45", angles[1])
+	}
+}
+
+func TestRendererAliasStateInterpolatesFrameAndTransformAcrossUpdates(t *testing.T) {
+	r := &Renderer{}
+	hdr := &model.AliasHeader{
+		NumFrames: 2,
+		Frames: []model.AliasFrameDesc{
+			{FirstPose: 0, NumPoses: 1, Interval: 0.1},
+			{FirstPose: 1, NumPoses: 1, Interval: 0.1},
+		},
+	}
+
+	first := r.ensureAliasStateLocked(AliasModelEntity{
+		ModelID:     "progs/ogre.mdl",
+		EntityKey:   7,
+		Frame:       0,
+		TimeSeconds: 1.0,
+		Origin:      [3]float32{0, 0, 0},
+		Angles:      [3]float32{0, 0, 0},
+	})
+	lerp, err := SetupAliasFrame(first, aliasHeaderFromModel(hdr), 1.0, true, false, 1)
+	if err != nil {
+		t.Fatalf("SetupAliasFrame(first) error: %v", err)
+	}
+	if lerp.Pose1 != 0 || lerp.Pose2 != 0 || lerp.Blend != 1 {
+		t.Fatalf("first lerp = %#v, want pose snap to 0", lerp)
+	}
+	origin, angles := SetupEntityTransform(first, 1.0, true, false, false, false, 1)
+	if origin != [3]float32{} || angles != [3]float32{} {
+		t.Fatalf("first transform = (%v,%v), want origin/angles at zero", origin, angles)
+	}
+
+	second := r.ensureAliasStateLocked(AliasModelEntity{
+		ModelID:     "progs/ogre.mdl",
+		EntityKey:   7,
+		Frame:       1,
+		TimeSeconds: 1.05,
+		LerpFlags:   LerpMoveStep,
+		Origin:      [3]float32{10, 0, 0},
+		Angles:      [3]float32{0, 90, 0},
+	})
+	lerp, err = SetupAliasFrame(second, aliasHeaderFromModel(hdr), 1.05, true, false, 1)
+	if err != nil {
+		t.Fatalf("SetupAliasFrame(second) error: %v", err)
+	}
+	if lerp.Pose1 != 0 || lerp.Pose2 != 1 {
+		t.Fatalf("second poses = (%d,%d), want (0,1)", lerp.Pose1, lerp.Pose2)
+	}
+	if lerp.Blend != 0 {
+		t.Fatalf("second blend = %f, want 0 on frame change", lerp.Blend)
+	}
+	origin, angles = SetupEntityTransform(second, 1.05, true, false, false, false, 1)
+	if origin != [3]float32{} || angles != [3]float32{} {
+		t.Fatalf("second transform = (%v,%v), want interpolation start", origin, angles)
+	}
+
+	third := r.ensureAliasStateLocked(AliasModelEntity{
+		ModelID:     "progs/ogre.mdl",
+		EntityKey:   7,
+		Frame:       1,
+		TimeSeconds: 1.10,
+		LerpFlags:   LerpMoveStep,
+		Origin:      [3]float32{10, 0, 0},
+		Angles:      [3]float32{0, 90, 0},
+	})
+	lerp, err = SetupAliasFrame(third, aliasHeaderFromModel(hdr), 1.10, true, false, 1)
+	if err != nil {
+		t.Fatalf("SetupAliasFrame(third) error: %v", err)
+	}
+	if lerp.Pose1 != 0 || lerp.Pose2 != 1 {
+		t.Fatalf("third poses = (%d,%d), want (0,1)", lerp.Pose1, lerp.Pose2)
+	}
+	if lerp.Blend < 0.49 || lerp.Blend > 0.51 {
+		t.Fatalf("third blend = %f, want ~0.5", lerp.Blend)
+	}
+	origin, angles = SetupEntityTransform(third, 1.10, true, false, false, false, 1)
+	if origin[0] < 4.99 || origin[0] > 5.01 {
+		t.Fatalf("origin.x = %f, want ~5", origin[0])
+	}
+	if angles[1] < 44.99 || angles[1] > 45.01 {
+		t.Fatalf("angles.y = %f, want ~45", angles[1])
+	}
+}
+
+func TestRendererPruneAliasStatesDropsRetiredWorldEntities(t *testing.T) {
+	r := &Renderer{
+		aliasEntityStates: map[int]*AliasEntity{
+			1: {ModelID: "progs/ogre.mdl"},
+			2: {ModelID: "progs/knight.mdl"},
+		},
+		viewModelAliasState: &AliasEntity{ModelID: "progs/v_axe.mdl"},
+	}
+
+	r.pruneAliasStatesLocked([]AliasModelEntity{{EntityKey: 2}})
+
+	if _, ok := r.aliasEntityStates[1]; ok {
+		t.Fatal("expected retired world alias state to be pruned")
+	}
+	if _, ok := r.aliasEntityStates[2]; !ok {
+		t.Fatal("expected active world alias state to be preserved")
+	}
+	if r.viewModelAliasState == nil {
+		t.Fatal("expected viewmodel alias state to remain untouched")
 	}
 }
 

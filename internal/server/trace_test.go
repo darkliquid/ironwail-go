@@ -130,3 +130,55 @@ func TestRecursiveHullCheckKeepsNonAxialFarSideSolid(t *testing.T) {
 		t.Fatalf("trace end = %v, want %v", trace.EndPos, point)
 	}
 }
+
+func TestRecursiveHullCheckUsesFarSideMidpointForNestedSolid(t *testing.T) {
+	hull := &model.Hull{
+		ClipNodes: []model.MClipNode{
+			{PlaneNum: 0, Children: [2]int{bsp.ContentsSolid, 3}},
+			{PlaneNum: 1, Children: [2]int{bsp.ContentsEmpty, 2}},
+			{PlaneNum: 2, Children: [2]int{4, bsp.ContentsEmpty}},
+			{PlaneNum: 3, Children: [2]int{4, bsp.ContentsEmpty}},
+			{PlaneNum: 4, Children: [2]int{5, bsp.ContentsSolid}},
+			{PlaneNum: 5, Children: [2]int{bsp.ContentsEmpty, bsp.ContentsSolid}},
+		},
+		Planes: []model.MPlane{
+			{Normal: [3]float32{0, 0, 1}, Dist: -1.8989416, Type: 2},
+			{Normal: [3]float32{0, 0, 1}, Dist: -2.3453076, Type: 2},
+			{Normal: [3]float32{0.70710677, 0, 0.70710677}, Dist: 2.5941012, Type: 3},
+			{Normal: [3]float32{1, 0, 0}, Dist: -1.5072697, Type: 0},
+			{Normal: [3]float32{0.70710677, 0, -0.70710677}, Dist: 2.7501428, Type: 3},
+			{Normal: [3]float32{0.4472136, 0, 0.8944272}, Dist: -1.713885, Type: 3},
+		},
+		FirstClipNode: 0,
+		LastClipNode:  5,
+	}
+	start := [3]float32{2, 0, 3}
+	end := [3]float32{2, 0, -3}
+
+	sawOpen := false
+	for i := 0; i <= 256; i++ {
+		frac := float32(i) / 256
+		point := [3]float32{
+			start[0] + (end[0]-start[0])*frac,
+			start[1] + (end[1]-start[1])*frac,
+			start[2] + (end[2]-start[2])*frac,
+		}
+		if got := hullPointContents(hull, hull.FirstClipNode, point); got != bsp.ContentsSolid {
+			sawOpen = true
+			break
+		}
+	}
+	if !sawOpen {
+		t.Fatal("test hull never transitions out of solid along the sample ray")
+	}
+
+	trace := TraceResult{Fraction: 1, AllSolid: true, EndPos: end}
+	recursiveHullCheck(hull, hull.FirstClipNode, 0, 1, start, end, &trace)
+
+	if trace.AllSolid {
+		t.Fatal("recursiveHullCheck left trace allsolid despite open space on the ray")
+	}
+	if trace.Fraction >= 1 {
+		t.Fatalf("trace fraction = %v, want collision before the end point", trace.Fraction)
+	}
+}

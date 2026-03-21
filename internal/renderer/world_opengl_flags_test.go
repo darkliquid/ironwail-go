@@ -624,6 +624,93 @@ func TestBucketWorldFaces_SkyWithOpaque(t *testing.T) {
 	}
 }
 
+func TestBuildWorldLeafFaceLookup_MapsMarkSurfacesToBuiltFaces(t *testing.T) {
+	tree := &bsp.Tree{
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{FirstMarkSurface: 0, NumMarkSurfaces: 2},
+			{FirstMarkSurface: 2, NumMarkSurfaces: 2},
+		},
+		MarkSurfaces: []int{
+			2, // maps to built face 0
+			5, // not built
+			2, // duplicate should dedupe
+			3, // maps to built face 1
+		},
+	}
+	faceLookup := map[int]int{
+		2: 0,
+		3: 1,
+	}
+
+	leafFaces := buildWorldLeafFaceLookup(tree, faceLookup)
+	if len(leafFaces) != len(tree.Leafs) {
+		t.Fatalf("leafFaces len = %d, want %d", len(leafFaces), len(tree.Leafs))
+	}
+	if len(leafFaces[1]) != 1 || leafFaces[1][0] != 0 {
+		t.Fatalf("leafFaces[1] = %v, want [0]", leafFaces[1])
+	}
+	if len(leafFaces[2]) != 2 || leafFaces[2][0] != 0 || leafFaces[2][1] != 1 {
+		t.Fatalf("leafFaces[2] = %v, want [0 1]", leafFaces[2])
+	}
+}
+
+func TestSelectVisibleWorldFaces_UsesLeafPVS(t *testing.T) {
+	tree := &bsp.Tree{
+		Models: []bsp.DModel{{VisLeafs: 3}},
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{Contents: bsp.ContentsEmpty, VisOfs: 0},
+			{Contents: bsp.ContentsEmpty, VisOfs: 1},
+			{Contents: bsp.ContentsEmpty, VisOfs: 2},
+		},
+		Visibility: []byte{
+			0x03, // leaf 1 sees leaves 1 and 2
+			0x06, // leaf 2 sees leaves 2 and 3
+			0x04, // leaf 3 sees leaf 3
+		},
+		Nodes: []bsp.TreeNode{
+			{
+				PlaneNum: 0,
+				Children: [2]bsp.TreeChild{
+					{IsLeaf: true, Index: 1},
+					{IsLeaf: true, Index: 2},
+				},
+			},
+		},
+		Planes: []bsp.DPlane{
+			{Type: bsp.PlaneX, Dist: 0},
+		},
+	}
+	allFaces := []WorldFace{
+		{FirstIndex: 0, NumIndices: 3}, // leaf 1
+		{FirstIndex: 3, NumIndices: 3}, // leaf 2
+		{FirstIndex: 6, NumIndices: 3}, // leaf 3
+	}
+	leafFaces := [][]int{
+		nil,
+		{0},
+		{1},
+		{2},
+	}
+
+	visible := selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{1, 0, 0})
+	if len(visible) != 2 {
+		t.Fatalf("visible len = %d, want 2", len(visible))
+	}
+	if visible[0].FirstIndex != 0 || visible[1].FirstIndex != 3 {
+		t.Fatalf("visible faces = %+v, want first two faces", visible)
+	}
+
+	visible = selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{-1, 0, 0})
+	if len(visible) != 2 {
+		t.Fatalf("visible len from leaf2 = %d, want 2", len(visible))
+	}
+	if visible[0].FirstIndex != 3 || visible[1].FirstIndex != 6 {
+		t.Fatalf("visible faces from leaf2 = %+v, want faces 1 and 2", visible)
+	}
+}
+
 func TestBucketWorldFaces_EmptySkyBucket(t *testing.T) {
 	faces := []WorldFace{
 		{

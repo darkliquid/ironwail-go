@@ -32,15 +32,24 @@ type EntityEffectSource struct {
 
 // AliasModelEntity describes an MDL instance to render.
 type AliasModelEntity struct {
-	ModelID   string
-	Model     *model.Model
-	Frame     int
-	SkinNum   int
-	FrameTime float64 // Time within current frame for animation interpolation (in seconds)
-	Origin    [3]float32
-	Angles    [3]float32
-	Alpha     float32
-	Scale     float32
+	ModelID     string
+	Model       *model.Model
+	EntityKey   int
+	Frame       int
+	SkinNum     int
+	FrameTime   float64 // Legacy per-frame animation time; world alias rendering uses TimeSeconds.
+	TimeSeconds float64 // Absolute client/render time for persistent alias interpolation.
+	LerpFlags   int
+	Origin      [3]float32
+	Angles      [3]float32
+	Alpha       float32
+	Scale       float32
+}
+
+const AliasViewModelEntityKey = -1
+
+func AliasStaticEntityKey(index int) int {
+	return -2 - index
 }
 
 // SpriteEntity describes a sprite (billboard) instance to render.

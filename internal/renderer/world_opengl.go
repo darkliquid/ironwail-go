@@ -30,6 +30,7 @@ type WorldGeometry struct {
 	Vertices    []WorldVertex
 	Indices     []uint32
 	Faces       []WorldFace
+	LeafFaces   [][]int
 	Lightmaps   []WorldLightmapPage
 	HasLitWater bool
 	Tree        *bsp.Tree
@@ -120,8 +121,8 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 	lightmapPages := make([]WorldLightmapPage, 0, 4)
 
 	textureMeta := parseWorldTextureMeta(tree)
-
 	numFaces := int(worldModel.NumFaces)
+	faceLookup := make(map[int]int, numFaces)
 	firstFace := int(worldModel.FirstFace)
 	for faceIdx := 0; faceIdx < numFaces; faceIdx++ {
 		globalFaceIdx := firstFace + faceIdx
@@ -175,10 +176,41 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			geom.HasLitWater = true
 		}
 		geom.Faces = append(geom.Faces, faceData)
+		faceLookup[globalFaceIdx] = len(geom.Faces) - 1
 	}
+	geom.LeafFaces = buildWorldLeafFaceLookup(tree, faceLookup)
 	geom.Lightmaps = lightmapPages
 
 	return geom, nil
+}
+
+func buildWorldLeafFaceLookup(tree *bsp.Tree, faceLookup map[int]int) [][]int {
+	if tree == nil || len(tree.Leafs) == 0 || len(tree.MarkSurfaces) == 0 || len(faceLookup) == 0 {
+		return nil
+	}
+	leafFaces := make([][]int, len(tree.Leafs))
+	for leafIndex, leaf := range tree.Leafs {
+		start := int(leaf.FirstMarkSurface)
+		count := int(leaf.NumMarkSurfaces)
+		if start < 0 || count <= 0 || start >= len(tree.MarkSurfaces) {
+			continue
+		}
+		end := min(start+count, len(tree.MarkSurfaces))
+		seen := make(map[int]struct{}, end-start)
+		for i := start; i < end; i++ {
+			faceIndex := tree.MarkSurfaces[i]
+			builtFaceIndex, ok := faceLookup[faceIndex]
+			if !ok {
+				continue
+			}
+			if _, exists := seen[builtFaceIndex]; exists {
+				continue
+			}
+			leafFaces[leafIndex] = append(leafFaces[leafIndex], builtFaceIndex)
+			seen[builtFaceIndex] = struct{}{}
+		}
+	}
+	return leafFaces
 }
 
 // parseWorldTextureMeta parses the BSP miptex lump to extract texture names and dimensions.

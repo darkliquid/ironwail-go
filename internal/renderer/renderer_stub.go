@@ -158,6 +158,9 @@ type Renderer struct {
 
 	config Config
 
+	aliasEntityStates   map[int]*AliasEntity
+	viewModelAliasState *AliasEntity
+
 	drawCallback   func(RenderContext)
 	updateCallback func(dt float64)
 	closeCallback  func()

@@ -576,7 +576,21 @@ func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, enti
 	if frame < 0 || frame >= len(hdr.Frames) {
 		frame = 0
 	}
-	interpData := setupAliasFrameInterpolation(frame, hdr.Frames, entity.FrameTime, true, hdr.Flags)
+	state := r.ensureAliasStateLocked(entity)
+	state.Frame = frame
+	interpData, err := SetupAliasFrame(state, aliasHeaderFromModel(hdr), entity.TimeSeconds, true, false, 1)
+	if err != nil {
+		return nil
+	}
+	interpData.Origin, interpData.Angles = SetupEntityTransform(
+		state,
+		entity.TimeSeconds,
+		true,
+		entity.EntityKey == AliasViewModelEntityKey,
+		false,
+		false,
+		1,
+	)
 	pose1 := interpData.Pose1
 	pose2 := interpData.Pose2
 	if pose1 < 0 || pose1 >= len(alias.poses) {
@@ -607,8 +621,8 @@ func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, enti
 		pose2:  pose2,
 		blend:  interpData.Blend,
 		skin:   skin,
-		origin: entity.Origin,
-		angles: entity.Angles,
+		origin: interpData.Origin,
+		angles: interpData.Angles,
 		alpha:  alpha,
 		scale:  entity.Scale,
 		full:   fullAngles,
@@ -647,6 +661,9 @@ func (dc *DrawContext) collectAliasDraws(entities []AliasModelEntity, fullAngles
 	r := dc.renderer
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if !fullAngles {
+		r.pruneAliasStatesLocked(entities)
+	}
 	if err := r.ensureAliasResourcesLocked(device); err != nil {
 		slog.Warn("failed to initialize alias resources", "error", err)
 		return nil

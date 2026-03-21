@@ -289,6 +289,45 @@ func TestRelinkEntities_StaleEntityPreservesModelAndResetsLerp(t *testing.T) {
 	}
 }
 
+func TestRelinkEntities_StepMoveSnapsRenderStateWithoutTeleportReset(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{1.0, 0.9}
+	c.Time = 0.95
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 1,
+			MsgTime:    1.0,
+			MsgOrigins: [2][3]float32{
+				{24, 20, 30},
+				{10, 20, 30},
+			},
+			MsgAngles: [2][3]float32{
+				{0, 45, 0},
+				{0, 30, 0},
+			},
+			Origin:    [3]float32{10, 20, 30},
+			Angles:    [3]float32{0, 30, 0},
+			LerpFlags: inet.LerpMoveStep,
+		},
+	}
+
+	c.RelinkEntities()
+
+	ent := c.Entities[1]
+	if ent.Origin != [3]float32{24, 20, 30} {
+		t.Fatalf("Origin = %v, want step-move entity snapped to latest network origin", ent.Origin)
+	}
+	if ent.Angles != [3]float32{0, 45, 0} {
+		t.Fatalf("Angles = %v, want step-move entity snapped to latest network angles", ent.Angles)
+	}
+	if ent.LerpFlags&inet.LerpMoveStep == 0 {
+		t.Fatal("expected LerpMoveStep to remain set for renderer-side interpolation")
+	}
+	if ent.LerpFlags&inet.LerpResetMove != 0 {
+		t.Fatal("expected ordinary step-move update not to set teleport reset")
+	}
+}
+
 func TestRelinkEntities_ExplicitRetireKeepsZeroModel(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}

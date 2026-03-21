@@ -230,29 +230,22 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 		frame = 0
 	}
 
-	// Convert model.AliasFrameDesc to our internal AliasFrameDesc
-	frameDescs := make([]AliasFrameDesc, len(hdr.Frames))
-	for i, f := range hdr.Frames {
-		frameDescs[i] = AliasFrameDesc{
-			FirstPose: f.FirstPose,
-			NumPoses:  f.NumPoses,
-			Interval:  f.Interval,
-			BBoxMin:   f.BBoxMin,
-			BBoxMax:   f.BBoxMax,
-			Frame:     f.Frame,
-			Name:      f.Name,
-		}
+	state := r.ensureAliasStateLocked(entity)
+	state.Frame = frame
+	interpData, err := SetupAliasFrame(state, aliasHeaderFromModel(hdr), entity.TimeSeconds, true, false, 1)
+	if err != nil {
+		return nil
 	}
+	interpData.Origin, interpData.Angles = SetupEntityTransform(
+		state,
+		entity.TimeSeconds,
+		true,
+		entity.EntityKey == AliasViewModelEntityKey,
+		false,
+		false,
+		1,
+	)
 
-	// Get animation time from entity state
-	// FrameTime is accumulated by the game logic and indicates how far into
-	// the current animation frame we are
-	currentTime := entity.FrameTime
-
-	// Setup frame interpolation
-	interpData := setupAliasFrameInterpolation(frame, frameDescs, currentTime, true, hdr.Flags)
-
-	// Validate poses
 	pose1 := interpData.Pose1
 	pose2 := interpData.Pose2
 	if pose1 < 0 || pose1 >= len(alias.poses) {
@@ -286,8 +279,8 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 		pose2:  pose2,
 		blend:  interpData.Blend,
 		skin:   skin,
-		origin: entity.Origin,
-		angles: entity.Angles,
+		origin: interpData.Origin,
+		angles: interpData.Angles,
 		alpha:  alpha,
 		scale:  entity.Scale,
 		full:   fullAngles,
@@ -383,11 +376,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 
 // renderAliasEntities renders all alias model entities by building draw commands and dispatching them to renderAliasDraws.
 func (r *Renderer) renderAliasEntities(entities []AliasModelEntity) {
-	if len(entities) == 0 {
-		return
-	}
-
 	r.mu.Lock()
+	r.pruneAliasStatesLocked(entities)
 	draws := make([]glAliasDraw, 0, len(entities))
 	for _, entity := range entities {
 		if draw := r.buildAliasDrawLocked(entity, false); draw != nil {

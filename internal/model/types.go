@@ -220,6 +220,7 @@ type MSprite struct {
 	MaxWidth  int
 	MaxHeight int
 	NumFrames int
+	SyncType  SyncType
 	Frames    []MSpriteFrameDesc
 }
 

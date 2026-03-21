@@ -578,6 +578,8 @@ type Renderer struct {
 	worldFogDensity                     float32
 	brushModels                         map[int]*glWorldMesh
 	aliasModels                         map[string]*glAliasModel
+	aliasEntityStates                   map[int]*AliasEntity
+	viewModelAliasState                 *AliasEntity
 	spriteModels                        map[string]*glSpriteModel
 	aliasShadowTexture                  uint32
 	aliasScratchVAO                     uint32
@@ -738,6 +740,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		worldSkyAlphaTextures:   make(map[int32]uint32),
 		brushModels:             make(map[int]*glWorldMesh),
 		aliasModels:             make(map[string]*glAliasModel),
+		aliasEntityStates:       make(map[int]*AliasEntity),
 		spriteModels:            make(map[string]*glSpriteModel),
 		lightStyleValues:        defaultLightStyleValues(),
 		lightPool:               NewGLLightPool(512),

@@ -123,6 +123,7 @@ go run ./tools/ralph analyze-log \
 """
 
 [tasks.ralph-build-prompt]
+interactive = true
 description = "Build a Copilot prompt from Ralph summary/task artifacts"
 run = """
 mkdir -p .ralph
@@ -135,11 +136,13 @@ go run ./tools/ralph build-prompt \
 """
 
 [tasks.ralph-loop-once]
+interactive = true
 description = "Run one telemetry/analyze/fix Ralph iteration"
 depends = ["build-cgo"]
 run = "go run ./tools/ralph loop once"
 
 [tasks.ralph-loop]
+interactive = true
 description = "Continuously run the telemetry-driven Ralph parity/fix loop"
 depends = ["build-cgo"]
 run = "go run ./tools/ralph loop continuous"

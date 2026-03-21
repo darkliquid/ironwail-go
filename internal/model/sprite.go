@@ -74,6 +74,7 @@ func LoadSprite(r io.Reader) (*MSprite, error) {
 		MaxWidth:  int(header.Width),
 		MaxHeight: int(header.Height),
 		NumFrames: int(header.NumFrames),
+		SyncType:  SyncType(header.SyncType),
 		Frames:    make([]MSpriteFrameDesc, int(header.NumFrames)),
 	}
 

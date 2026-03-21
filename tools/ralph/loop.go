@@ -221,8 +221,13 @@ func runCmdToFile(cmd *exec.Cmd, logPath string) int {
 		return 1
 	}
 	defer f.Close()
+
 	cmd.Stdout = f
 	cmd.Stderr = f
+	if ralphVerbose {
+		cmd.Stdout = io.MultiWriter(os.Stdout, f)
+		cmd.Stderr = io.MultiWriter(os.Stderr, f)
+	}
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitCode := exitErr.ExitCode(); exitCode >= 0 {

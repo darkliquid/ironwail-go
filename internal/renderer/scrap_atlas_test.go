@@ -13,17 +13,17 @@ func TestScrapAtlasAllocBasicAndUV(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Alloc(8,4) returned error: %v", err)
 	}
-	if entry.PageIndex != 0 || entry.X != 0 || entry.Y != 0 || entry.Width != 8 || entry.Height != 4 {
-		t.Fatalf("entry = %+v, want page=0 pos=(0,0) size=8x4", entry)
+	if entry.PageIndex != 0 || entry.X != 1 || entry.Y != 1 || entry.Width != 8 || entry.Height != 4 {
+		t.Fatalf("entry = %+v, want page=0 pos=(1,1) size=8x4", entry)
 	}
 
-	assertFloat32Equal(t, entry.UV.U0, 0.0)
-	assertFloat32Equal(t, entry.UV.V0, 0.0)
-	assertFloat32Equal(t, entry.UV.U1, 8.0/16.0)
-	assertFloat32Equal(t, entry.UV.V1, 4.0/16.0)
+	assertFloat32Equal(t, entry.UV.U0, 1.0/16.0)
+	assertFloat32Equal(t, entry.UV.V0, 1.0/16.0)
+	assertFloat32Equal(t, entry.UV.U1, 9.0/16.0)
+	assertFloat32Equal(t, entry.UV.V1, 5.0/16.0)
 }
 
-func TestScrapAtlasUploadCopiesPixels(t *testing.T) {
+func TestScrapAtlasUploadReplicatesBorder(t *testing.T) {
 	atlas := NewScrapAtlas(4, 4)
 
 	entry, err := atlas.Alloc(2, 2)
@@ -47,20 +47,24 @@ func TestScrapAtlasUploadCopiesPixels(t *testing.T) {
 		t.Fatal("expected page 0 to be dirty after upload")
 	}
 
-	stride := page.Width * 4
-	row0Start := entry.Y*stride + entry.X*4
-	row1Start := (entry.Y+1)*stride + entry.X*4
-
-	if got := page.Pixels[row0Start : row0Start+8]; !reflect.DeepEqual(got, rgba[0:8]) {
-		t.Fatalf("row0 pixels = %v, want %v", got, rgba[0:8])
+	wantPixels := [][][]byte{
+		{{1, 2, 3, 4}, {1, 2, 3, 4}, {5, 6, 7, 8}, {5, 6, 7, 8}},
+		{{1, 2, 3, 4}, {1, 2, 3, 4}, {5, 6, 7, 8}, {5, 6, 7, 8}},
+		{{9, 10, 11, 12}, {9, 10, 11, 12}, {13, 14, 15, 16}, {13, 14, 15, 16}},
+		{{9, 10, 11, 12}, {9, 10, 11, 12}, {13, 14, 15, 16}, {13, 14, 15, 16}},
 	}
-	if got := page.Pixels[row1Start : row1Start+8]; !reflect.DeepEqual(got, rgba[8:16]) {
-		t.Fatalf("row1 pixels = %v, want %v", got, rgba[8:16])
+
+	for y, row := range wantPixels {
+		for x, want := range row {
+			if got := pixelRGBA(page.Pixels, page.Width, x, y); !reflect.DeepEqual(got, want) {
+				t.Fatalf("pixel (%d,%d) = %v, want %v", x, y, got, want)
+			}
+		}
 	}
 }
 
 func TestScrapAtlasAutoPageGrowth(t *testing.T) {
-	atlas := NewScrapAtlas(4, 4)
+	atlas := NewScrapAtlas(6, 6)
 
 	first, err := atlas.Alloc(4, 4)
 	if err != nil {
@@ -83,7 +87,7 @@ func TestScrapAtlasAutoPageGrowth(t *testing.T) {
 }
 
 func TestScrapAtlasMultipleAllocationsAcrossPages(t *testing.T) {
-	atlas := NewScrapAtlas(4, 4)
+	atlas := NewScrapAtlas(8, 8)
 
 	entries := make([]*ScrapEntry, 0, 5)
 	for i := 0; i < 5; i++ {
@@ -120,7 +124,7 @@ func TestScrapAtlasMaxItemSizeRejection(t *testing.T) {
 }
 
 func TestScrapAtlasDirtyPagesAndClearDirty(t *testing.T) {
-	atlas := NewScrapAtlas(4, 4)
+	atlas := NewScrapAtlas(6, 6)
 
 	e1, err := atlas.Alloc(4, 4)
 	if err != nil {
@@ -197,8 +201,8 @@ func TestScrapAtlasUVNormalization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("alloc error: %v", err)
 	}
-	if entry.X != 0 || entry.Y != 0 {
-		t.Fatalf("expected first alloc at origin, got (%d,%d)", entry.X, entry.Y)
+	if entry.X != 1 || entry.Y != 1 {
+		t.Fatalf("expected first alloc at inner origin, got (%d,%d)", entry.X, entry.Y)
 	}
 
 	assertFloat32Equal(t, entry.UV.U0, float32(entry.X)/16.0)
@@ -212,4 +216,9 @@ func assertFloat32Equal(t *testing.T, got, want float32) {
 	if math.Abs(float64(got-want)) > 1e-6 {
 		t.Fatalf("float mismatch: got %f want %f", got, want)
 	}
+}
+
+func pixelRGBA(pixels []byte, width, x, y int) []byte {
+	start := (y*width + x) * 4
+	return append([]byte(nil), pixels[start:start+4]...)
 }

@@ -1,14 +1,11 @@
 package server
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/compatrand"
-	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
-	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
 func newMovementTestServer() *Server {
@@ -125,59 +122,16 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 }
 
 func findWalkablePoint(s *Server) ([3]float32, bool) {
-	mins, maxs, ok := s.modelBounds(s.ModelName)
-	if !ok {
-		return [3]float32{}, false
-	}
-
-	for xi := 1; xi < 15; xi++ {
-		x := mins[0] + (maxs[0]-mins[0])*(float32(xi)/16)
-		for yi := 1; yi < 15; yi++ {
-			y := mins[1] + (maxs[1]-mins[1])*(float32(yi)/16)
-			start := [3]float32{x, y, maxs[2] - 8}
-			if s.PointContents(start) == bsp.ContentsSolid {
-				continue
-			}
-			end := [3]float32{x, y, mins[2] - 256}
-			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNoMonsters), nil)
-			if trace.Fraction == 1 || trace.AllSolid {
-				continue
-			}
-			pos := trace.EndPos
-			pos[2] += 24
-			if s.PointContents(pos) == bsp.ContentsEmpty {
-				return pos, true
-			}
-		}
-	}
-
-	return [3]float32{}, false
+	pos, ok, _ := findWalkablePointWithDiagnostics(s)
+	return pos, ok
 }
 
 func TestMovementOnSpawnedMap(t *testing.T) {
-	pak0Path := testutil.SkipIfNoPak0(t)
-	baseDir := filepath.Dir(pak0Path)
-	if filepath.Base(baseDir) == "id1" {
-		baseDir = filepath.Dir(baseDir)
-	}
+	s := newStartMapDiagnosticsServer(t)
 
-	vfs := fs.NewFileSystem()
-	if err := vfs.Init(baseDir, "id1"); err != nil {
-		t.Fatalf("init filesystem: %v", err)
-	}
-	defer vfs.Close()
-
-	s := NewServer()
-	if err := s.Init(1); err != nil {
-		t.Fatalf("init server: %v", err)
-	}
-	if err := s.SpawnServer("start", vfs); err != nil {
-		t.Fatalf("spawn server: %v", err)
-	}
-
-	pos, ok := findWalkablePoint(s)
+	pos, ok, diag := findWalkablePointWithDiagnostics(s)
 	if !ok {
-		t.Skip("no walkable point found on start map")
+		t.Skipf("no walkable point found on start map; %s", diag.String())
 	}
 
 	ent := &Edict{Vars: &EntVars{}}
@@ -192,7 +146,7 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 	s.LinkEdict(ent, false)
 
 	if blocker := s.SV_TestEntityPosition(ent); blocker != nil {
-		t.Fatalf("SV_TestEntityPosition found blocker at valid position")
+		t.Fatalf("SV_TestEntityPosition found blocker at valid position; %s", diag.String())
 	}
 
 	h, _ := s.SV_HullForEntity(ent, ent.Vars.Mins, ent.Vars.Maxs)
@@ -201,12 +155,12 @@ func TestMovementOnSpawnedMap(t *testing.T) {
 	}
 
 	if !s.CheckBottom(ent) {
-		t.Skip("sampled position does not satisfy CheckBottom")
+		t.Skipf("sampled position does not satisfy CheckBottom; %s", diag.String())
 	}
 
 	before := ent.Vars.Origin
 	if !s.MoveStep(ent, [3]float32{}, true) {
-		t.Fatalf("MoveStep failed on stationary grounded entity")
+		t.Fatalf("MoveStep failed on stationary grounded entity; %s", diag.String())
 	}
 	if ent.Vars.Origin != before {
 		t.Fatalf("MoveStep with zero move changed origin: before=%v after=%v", before, ent.Vars.Origin)

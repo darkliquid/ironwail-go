@@ -5,6 +5,7 @@ import "fmt"
 const (
 	defaultScrapMaxItemW = 128
 	defaultScrapMaxItemH = 128
+	scrapBorderPixels    = 1
 )
 
 // ScrapUVRect holds normalized UV coordinates for a scrap entry
@@ -78,10 +79,12 @@ func (a *ScrapAtlas) SetMaxItemSize(w, h int) {
 	}
 }
 
-// Alloc reserves a w×h region in one of the atlas pages.
+// Alloc reserves a w×h logical region in one of the atlas pages.
 //
 // Allocation is first-fit across existing pages. If all existing pages are
-// full, a new page is created and allocation is retried there.
+// full, a new page is created and allocation is retried there. Each entry
+// reserves a 1-pixel border on all sides so uploads can replicate edge texels
+// and match Quake's scrap clamping behavior without changing the returned UVs.
 func (a *ScrapAtlas) Alloc(w, h int) (*ScrapEntry, error) {
 	if a == nil {
 		return nil, fmt.Errorf("scrap atlas is nil")
@@ -92,37 +95,39 @@ func (a *ScrapAtlas) Alloc(w, h int) (*ScrapEntry, error) {
 	if w > a.maxItemW || h > a.maxItemH {
 		return nil, fmt.Errorf("scrap item too large %dx%d, max is %dx%d", w, h, a.maxItemW, a.maxItemH)
 	}
-	if w > a.pageWidth || h > a.pageHeight {
+	paddedW := w + scrapBorderPixels*2
+	paddedH := h + scrapBorderPixels*2
+	if paddedW > a.pageWidth || paddedH > a.pageHeight {
 		return nil, fmt.Errorf("scrap item %dx%d exceeds page size %dx%d", w, h, a.pageWidth, a.pageHeight)
 	}
 
 	for pageIndex, page := range a.pages {
-		x, y, ok := page.Allocator.Alloc(w, h)
+		x, y, ok := page.Allocator.Alloc(paddedW, paddedH)
 		if ok {
 			return &ScrapEntry{
 				PageIndex: pageIndex,
-				X:         x,
-				Y:         y,
+				X:         x + scrapBorderPixels,
+				Y:         y + scrapBorderPixels,
 				Width:     w,
 				Height:    h,
-				UV:        makeScrapUVRect(x, y, w, h, a.pageWidth, a.pageHeight),
+				UV:        makeScrapUVRect(x+scrapBorderPixels, y+scrapBorderPixels, w, h, a.pageWidth, a.pageHeight),
 			}, nil
 		}
 	}
 
 	page := a.addPage()
-	x, y, ok := page.Allocator.Alloc(w, h)
+	x, y, ok := page.Allocator.Alloc(paddedW, paddedH)
 	if !ok {
 		return nil, fmt.Errorf("alloc %dx%d failed in new scrap page %dx%d", w, h, a.pageWidth, a.pageHeight)
 	}
 
 	return &ScrapEntry{
 		PageIndex: len(a.pages) - 1,
-		X:         x,
-		Y:         y,
+		X:         x + scrapBorderPixels,
+		Y:         y + scrapBorderPixels,
 		Width:     w,
 		Height:    h,
-		UV:        makeScrapUVRect(x, y, w, h, a.pageWidth, a.pageHeight),
+		UV:        makeScrapUVRect(x+scrapBorderPixels, y+scrapBorderPixels, w, h, a.pageWidth, a.pageHeight),
 	}, nil
 }
 
@@ -144,15 +149,26 @@ func (a *ScrapAtlas) Upload(entry *ScrapEntry, rgba []byte) {
 	}
 
 	page := a.pages[entry.PageIndex]
-	if entry.X < 0 || entry.Y < 0 || entry.X+entry.Width > page.Width || entry.Y+entry.Height > page.Height {
+	if entry.X-scrapBorderPixels < 0 || entry.Y-scrapBorderPixels < 0 || entry.X+entry.Width+scrapBorderPixels > page.Width || entry.Y+entry.Height+scrapBorderPixels > page.Height {
 		return
 	}
 
 	stride := page.Width * 4
-	for row := 0; row < entry.Height; row++ {
-		srcStart := row * entry.Width * 4
-		dstStart := (entry.Y+row)*stride + entry.X*4
-		copy(page.Pixels[dstStart:dstStart+entry.Width*4], rgba[srcStart:srcStart+entry.Width*4])
+	for row := -scrapBorderPixels; row < entry.Height+scrapBorderPixels; row++ {
+		srcRow := row
+		if srcRow < 0 {
+			srcRow = 0
+		} else if srcRow >= entry.Height {
+			srcRow = entry.Height - 1
+		}
+
+		srcStart := srcRow * entry.Width * 4
+		srcRowPixels := rgba[srcStart : srcStart+entry.Width*4]
+		dstStart := (entry.Y+row)*stride + (entry.X-scrapBorderPixels)*4
+
+		copy(page.Pixels[dstStart:dstStart+4], srcRowPixels[:4])
+		copy(page.Pixels[dstStart+4:dstStart+4+entry.Width*4], srcRowPixels)
+		copy(page.Pixels[dstStart+4+entry.Width*4:dstStart+8+entry.Width*4], srcRowPixels[len(srcRowPixels)-4:])
 	}
 	page.Dirty = true
 }

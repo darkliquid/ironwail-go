@@ -494,6 +494,58 @@ func TestParseEntityUpdateUsesBaselineForOmittedPartialDeltaFields(t *testing.T)
 	}
 }
 
+func TestParseEntityUpdatePreservesSpriteRuntimeStateAcrossCarryForward(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Origin:     [3]float32{1, 2, 3},
+		Angles:     [3]float32{11, 22, 33},
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex:           1,
+		Frame:                4,
+		SpriteSyncBase:       0.75,
+		SpriteSyncFrame:      4,
+		SpriteSyncModelIndex: 1,
+		Origin:               [3]float32{999, 999, 999},
+		Angles:               [3]float32{90, 0, 0},
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{5, 6, 7},
+			{8, 9, 10},
+		},
+		MsgTime: 1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_ANGLE2))
+	msg.WriteByte(1)
+	writeAngle(msg, 45)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if got := ent.SpriteSyncBase; got != 0.75 {
+		t.Fatalf("SpriteSyncBase = %v, want 0.75", got)
+	}
+	if got := ent.SpriteSyncFrame; got != 4 {
+		t.Fatalf("SpriteSyncFrame = %d, want 4", got)
+	}
+	if got := ent.SpriteSyncModelIndex; got != 1 {
+		t.Fatalf("SpriteSyncModelIndex = %d, want 1", got)
+	}
+}
+
 func TestParseEntityUpdateKeepsLiveOriginUntilRelink(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{2.0, 1.9}
@@ -788,7 +840,7 @@ func TestParseEntityUpdateNetQuakeResetsAlphaAndScaleToBaselineWhenTransAbsent(t
 	}
 }
 
-func TestParseEntityUpdateStepMoveForceLinks(t *testing.T) {
+func TestParseEntityUpdateStepMovePreservesHistoryWithoutForceLink(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{2.0, 1.9}
 	c.EntityBaselines[1] = inet.EntityState{
@@ -823,17 +875,20 @@ func TestParseEntityUpdateStepMoveForceLinks(t *testing.T) {
 	}
 
 	ent := c.Entities[1]
-	if !ent.ForceLink {
-		t.Fatal("ForceLink = false, want true for U_STEP updates")
+	if ent.ForceLink {
+		t.Fatal("ForceLink = true, want false for ordinary U_STEP updates with a fresh previous frame")
 	}
 	if ent.LerpFlags&inet.LerpMoveStep == 0 {
 		t.Fatal("LerpFlags missing LerpMoveStep for U_STEP update")
 	}
-	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
-		t.Fatalf("MsgOrigins[1] = %v, want snapped previous origin %v", got, ent.MsgOrigins[0])
+	if got := ent.MsgOrigins[0]; got != [3]float32{24, 0, 0} {
+		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [24 0 0]", got)
 	}
-	if got := ent.Origin; got != ent.MsgOrigins[0] {
-		t.Fatalf("Origin = %v, want snapped origin %v", got, ent.MsgOrigins[0])
+	if got := ent.MsgOrigins[1]; got != [3]float32{10, 20, 30} {
+		t.Fatalf("MsgOrigins[1] = %v, want preserved previous origin [10 20 30]", got)
+	}
+	if got := ent.Origin; got != [3]float32{10, 20, 30} {
+		t.Fatalf("Origin = %v, want live origin preserved until relink", got)
 	}
 }
 

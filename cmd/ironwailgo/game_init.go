@@ -215,21 +215,39 @@ func initGameRenderer() error {
 }
 
 func preferWaylandForGoGPU() {
-	if runtime.GOOS != "linux" {
+	if !shouldWarnAboutGoGPUX11Keyboard(runtime.GOOS, os.Getenv("IW_INPUT_BACKEND"), os.Getenv("WAYLAND_DISPLAY"), os.Getenv("DISPLAY")) {
 		return
 	}
 
-	if strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
-		return
-	}
+	sdl3Available := input.NewSDL3Backend(nil) != nil
+	slog.Info(
+		"Using X11 backend; gogpu falls back to polling-based keyboard input",
+		"display_server", "x11",
+		"keyboard_input_mode", "polling",
+		"preferred_keyboard_input_mode", "event-driven",
+		"sdl3_input_available", sdl3Available,
+		"hint", gogpuX11KeyboardHint(sdl3Available),
+	)
+}
 
-	if os.Getenv("WAYLAND_DISPLAY") != "" {
-		return
+func shouldWarnAboutGoGPUX11Keyboard(goos, requestedInputBackend, waylandDisplay, x11Display string) bool {
+	if goos != "linux" {
+		return false
 	}
+	if strings.EqualFold(requestedInputBackend, "sdl3") {
+		return false
+	}
+	if waylandDisplay != "" {
+		return false
+	}
+	return x11Display != ""
+}
 
-	if os.Getenv("DISPLAY") != "" {
-		slog.Warn("Using X11 backend; gogpu X11 keyboard events are currently not implemented")
+func gogpuX11KeyboardHint(sdl3Available bool) string {
+	if sdl3Available {
+		return "set IW_INPUT_BACKEND=sdl3 for event-driven keyboard input on X11"
 	}
+	return "rebuild with `mise run build-gogpu-sdl3` or run under Wayland for event-driven keyboard input"
 }
 
 func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []string) error {

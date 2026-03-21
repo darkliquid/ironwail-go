@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"encoding/binary"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -177,5 +178,37 @@ func TestLoadSpriteFromPak0(t *testing.T) {
 		default:
 			t.Fatalf("frame %d has invalid frame type %d", i, frameDesc.Type)
 		}
+	}
+}
+
+func TestLoadSpriteRetainsSyncType(t *testing.T) {
+	var data bytes.Buffer
+	write := func(value interface{}) {
+		if err := binary.Write(&data, binary.LittleEndian, value); err != nil {
+			t.Fatalf("binary.Write(%T): %v", value, err)
+		}
+	}
+
+	write(int32(IDSpriteHeader))
+	write(int32(SpriteVersion))
+	write(int32(0))
+	write(float32(1))
+	write(int32(1))
+	write(int32(1))
+	write(int32(1))
+	write(float32(0))
+	write(int32(STRand))
+	write(int32(SpriteFrameSingle))
+	write([2]int32{0, 0})
+	write(int32(1))
+	write(int32(1))
+	if err := data.WriteByte(7); err != nil {
+		t.Fatalf("WriteByte(pixel): %v", err)
+	}
+
+	sprite, err := LoadSprite(bytes.NewReader(data.Bytes()))
+	testutil.AssertNoError(t, err)
+	if got := sprite.SyncType; got != STRand {
+		t.Fatalf("sprite SyncType = %v, want %v", got, STRand)
 	}
 }

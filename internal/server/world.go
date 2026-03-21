@@ -296,12 +296,20 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 		return recursiveHullCheck(hull, node.Children[1], p1f, p2f, p1, p2, trace)
 	}
 
-	// Put the crosspoint DIST_EPSILON pixels on the near side
-	var frac float32
+	// Put the crosspoint DIST_EPSILON pixels on the near side and keep a
+	// companion point on the far side. The far-side midpoint is required for
+	// checking whether the opposite child is immediately solid; reusing the
+	// near-side point can miss nested solids in thin BSP slivers.
+	var frac, frac2 float32
 	if t1 < 0 {
 		frac = (t1 + DistEpsilon) / (t1 - t2)
-	} else {
+		frac2 = (t1 - DistEpsilon) / (t1 - t2)
+	} else if t1 > 0 {
 		frac = (t1 - DistEpsilon) / (t1 - t2)
+		frac2 = (t1 + DistEpsilon) / (t1 - t2)
+	} else {
+		frac = 0
+		frac2 = 0
 	}
 	if frac < 0 {
 		frac = 0
@@ -309,11 +317,22 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 	if frac > 1 {
 		frac = 1
 	}
+	if frac2 < 0 {
+		frac2 = 0
+	}
+	if frac2 > 1 {
+		frac2 = 1
+	}
 
 	midf := p1f + (p2f-p1f)*frac
 	var mid [3]float32
 	for i := 0; i < 3; i++ {
 		mid[i] = p1[i] + frac*(p2[i]-p1[i])
+	}
+	midf2 := p1f + (p2f-p1f)*frac2
+	var mid2 [3]float32
+	for i := 0; i < 3; i++ {
+		mid2[i] = p1[i] + frac2*(p2[i]-p1[i])
 	}
 
 	side := 0
@@ -327,8 +346,8 @@ func recursiveHullCheck(hull *model.Hull, num int, p1f, p2f float32, p1, p2 [3]f
 	}
 
 	// Go past the node if the other side isn't solid
-	if hullPointContents(hull, node.Children[side^1], mid) != bsp.ContentsSolid {
-		return recursiveHullCheck(hull, node.Children[side^1], midf, p2f, mid, p2, trace)
+	if hullPointContents(hull, node.Children[side^1], mid2) != bsp.ContentsSolid {
+		return recursiveHullCheck(hull, node.Children[side^1], midf2, p2f, mid2, p2, trace)
 	}
 
 	if trace.AllSolid {

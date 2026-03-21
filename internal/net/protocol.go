@@ -338,6 +338,11 @@ type EntityState struct {
 	// previous frame so trail particle emitters (RocketTrail, etc.) know
 	// where each trail segment starts.
 	TrailOrigin [3]float32
+
+	// Sprite runtime animation state mirrors C's entity_t syncbase behavior.
+	SpriteSyncBase       float32
+	SpriteSyncFrame      uint16
+	SpriteSyncModelIndex uint16
 }
 
 // UserCmd represents client input commands sent to server.

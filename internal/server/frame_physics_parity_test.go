@@ -1,13 +1,10 @@
 package server
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
-	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
 func newSyntheticClientServer(t *testing.T) (*Server, *Client, *Edict) {
@@ -136,25 +133,7 @@ func TestPhysicsWalkSkipsGravityUnderwater(t *testing.T) {
 }
 
 func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
-	pak0Path := testutil.SkipIfNoPak0(t)
-	baseDir := filepath.Dir(pak0Path)
-	if filepath.Base(baseDir) == "id1" {
-		baseDir = filepath.Dir(baseDir)
-	}
-
-	vfs := fs.NewFileSystem()
-	if err := vfs.Init(baseDir, "id1"); err != nil {
-		t.Fatalf("init filesystem: %v", err)
-	}
-	defer vfs.Close()
-
-	s := NewServer()
-	if err := s.Init(1); err != nil {
-		t.Fatalf("init server: %v", err)
-	}
-	if err := s.SpawnServer("start", vfs); err != nil {
-		t.Fatalf("spawn server: %v", err)
-	}
+	s := newStartMapDiagnosticsServer(t)
 
 	s.ConnectClient(0)
 	client := s.Static.Clients[0]
@@ -169,9 +148,9 @@ func TestPhysicsWalkCollidesWithWorldSolid(t *testing.T) {
 	ent.Vars.Maxs = [3]float32{16, 16, 32}
 	ent.Vars.Size = [3]float32{32, 32, 56}
 
-	pos, ok := findWalkablePointForUserTest(s)
+	pos, ok, diag := findWalkablePointWithDiagnostics(s)
 	if !ok {
-		t.Skip("no walkable point found on start map")
+		t.Skipf("no walkable point found on start map; %s", diag.String())
 	}
 
 	directions := [][3]float32{
