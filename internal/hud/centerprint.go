@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -18,6 +19,13 @@ import (
 // At 8 characters per second, the text gradually appears as if being typed,
 // creating the dramatic storytelling effect between Quake episodes.
 const finaleRevealCharsPerSecond = 8.0
+
+const (
+	centerPrintBackgroundCVar = "scr_centerprintbg"
+	centerPrintDefaultHold    = 2.0
+	notifyFadeCVar            = "con_notifyfade"
+	notifyFadeTimeCVar        = "con_notifyfadetime"
+)
 
 // Centerprint displays centered text messages on the screen.
 // These are typically used for level completion, key pickups, and important game events.
@@ -78,7 +86,7 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	if message == "" {
 		return
 	}
-	cp.drawTextBlock(rc, message, screenWidth, screenHeight/3, false)
+	cp.drawTextBlock(rc, message, screenWidth, centerprintY(screenHeight, message), centerprintBackgroundMode())
 }
 
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).
@@ -94,7 +102,7 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 	}
 
 	if state.LevelName != "" {
-		cp.drawTextBlock(rc, state.LevelName, screenWidth, 80, false)
+		cp.drawTextBlock(rc, state.LevelName, screenWidth, 80, 0)
 	}
 
 	const rowX = 72
@@ -121,7 +129,7 @@ func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State,
 	if text == "" {
 		return
 	}
-	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, false)
+	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, 0)
 }
 
 // revealedFinaleText returns the portion of the center text that should be
@@ -163,10 +171,9 @@ func limitCenterTextVisibleChars(text string, visibleChars int) string {
 }
 
 // drawTextBlock renders a multi-line text message centered on the screen at
-// the given Y position. If boxed is true, a dark background rectangle with
-// a thin white border is drawn behind the text for readability (used for
-// in-game centerprint messages but not for intermission/finale text).
-func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, boxed bool) {
+// the given Y position. For regular in-game centerprints it can also draw one
+// of the canonical background styles selected via scr_centerprintbg.
+func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, backgroundMode int) {
 	lines := strings.Split(strings.ReplaceAll(message, "\r\n", "\n"), "\n")
 	maxChars := 0
 	for _, line := range lines {
@@ -177,17 +184,7 @@ func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, 
 	if maxChars == 0 {
 		return
 	}
-	if boxed {
-		boxWidth := (maxChars + 2) * 8
-		boxHeight := len(lines)*8 + 8
-		boxX := (screenWidth - boxWidth) / 2
-		boxY := y - 4
-		rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
-		rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
-		rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
-		rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
-		rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
-	}
+	drawCenterprintBackground(rc, screenWidth, y, len(lines), maxChars, backgroundMode)
 	for i, line := range lines {
 		x := (screenWidth - len(line)*8) / 2
 		DrawString(rc, x, y+i*8, line)
@@ -206,8 +203,9 @@ func (cp *Centerprint) activeCenterText(state State) string {
 		}
 		hold := state.CenterPrintHold
 		if hold <= 0 {
-			hold = 2
+			hold = centerPrintDefaultHold
 		}
+		hold += centerprintFadeTail()
 		if state.Time-state.CenterPrintAt <= hold {
 			return state.CenterPrint
 		}
@@ -226,4 +224,52 @@ func formatIntermissionTime(seconds float64) string {
 		total = 0
 	}
 	return fmt.Sprintf("%d:%02d", total/60, total%60)
+}
+
+func centerprintBackgroundMode() int {
+	return max(0, min(3, cvar.IntValue(centerPrintBackgroundCVar)))
+}
+
+func centerprintFadeTail() float64 {
+	if cvar.FloatValue(notifyFadeCVar) <= 0 {
+		return 0
+	}
+	return max(0, cvar.FloatValue(notifyFadeCVar)*cvar.FloatValue(notifyFadeTimeCVar))
+}
+
+func centerprintY(screenHeight int, message string) int {
+	lineCount := 1
+	for _, r := range message {
+		if r == '\n' {
+			lineCount++
+		}
+	}
+	if lineCount <= 4 {
+		return int(float64(screenHeight) * 0.35)
+	}
+	return 48 * screenHeight / 200
+}
+
+func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines, maxChars, mode int) {
+	if rc == nil || lines <= 0 || maxChars <= 0 || mode <= 0 {
+		return
+	}
+
+	boxWidth := (maxChars + 2) * 8
+	boxHeight := lines*8 + 8
+	boxX := (screenWidth - boxWidth) / 2
+	boxY := y - 4
+
+	switch mode {
+	case 1:
+		rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
+		rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
+		rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
+		rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
+		rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
+	case 2:
+		rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
+	case 3:
+		rc.DrawFill(0, boxY, screenWidth, boxHeight, 0)
+	}
 }

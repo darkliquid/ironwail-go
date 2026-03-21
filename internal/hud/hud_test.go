@@ -4,6 +4,7 @@
 package hud
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -12,6 +13,12 @@ import (
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
+
+func registerCenterprintTestCvars() {
+	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
+	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test centerprint fade enable")
+	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
+}
 
 // mockRenderContext is a test double for renderer.RenderContext
 type mockRenderContext struct {
@@ -279,6 +286,9 @@ func TestHUDDraw(t *testing.T) {
 }
 
 func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_centerprintbg", "2")
+	cvar.Set("con_notifyfade", "0")
 	h := NewHUD(nil)
 	h.SetScreenSize(320, 200)
 	h.SetState(State{
@@ -288,8 +298,8 @@ func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
 	})
 	active := &mockRenderContext{}
 	h.Draw(active)
-	if len(active.fills) != 2 {
-		t.Fatalf("expected only status bar fills for active centerprint, got %d fills", len(active.fills))
+	if len(active.fills) <= 2 {
+		t.Fatalf("expected centerprint background fills in addition to status bar, got %d fills", len(active.fills))
 	}
 
 	h.SetState(State{
@@ -301,6 +311,34 @@ func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
 	h.Draw(expired)
 	if len(expired.fills) != 2 {
 		t.Fatalf("expected only status bar fills after centerprint expiry, got %d", len(expired.fills))
+	}
+}
+
+func TestHUDCenterprintFadeTailExtendsLifetime(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_centerprintbg", "0")
+	cvar.Set("con_notifyfade", "1")
+	cvar.Set("con_notifyfadetime", "0.5")
+
+	cp := NewCenterprint(nil)
+	active := &mockRenderContext{}
+	cp.Draw(active, State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          12.25,
+	}, 320, 200)
+	if got := charactersToString(active.characters); got != "message" {
+		t.Fatalf("centerprint during fade tail = %q, want %q", got, "message")
+	}
+
+	expired := &mockRenderContext{}
+	cp.Draw(expired, State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          12.6,
+	}, 320, 200)
+	if got := charactersToString(expired.characters); got != "" {
+		t.Fatalf("centerprint after fade tail = %q, want empty", got)
 	}
 }
 
@@ -430,6 +468,42 @@ func TestHUDCutsceneOverlayUsesTimedReveal(t *testing.T) {
 	h.Draw(mock)
 	if got := charactersToString(mock.characters); got != "AB" {
 		t.Fatalf("cutscene reveal = %q, want AB", got)
+	}
+}
+
+func TestCenterprintBackgroundModeThreeUsesFullWidthStrip(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_centerprintbg", "3")
+
+	cp := NewCenterprint(nil)
+	mock := &mockRenderContext{}
+	cp.Draw(mock, State{
+		CenterPrint:   "HELLO",
+		CenterPrintAt: 1,
+		Time:          1.1,
+	}, 320, 200)
+
+	if len(mock.fills) != 1 {
+		t.Fatalf("fill count = %d, want 1", len(mock.fills))
+	}
+	if got := mock.fills[0]; got.x != 0 || got.w != 320 {
+		t.Fatalf("strip fill = %+v, want full-width strip", got)
+	}
+}
+
+func TestCenterprintYMatchesCanonicalBranches(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("con_notifyfade", "1")
+	cvar.Set("con_notifyfadetime", "0.5")
+
+	if got := centerprintY(200, "one\ntwo"); got != 70 {
+		t.Fatalf("short centerprint y = %d, want 70", got)
+	}
+	if got := centerprintY(200, "1\n2\n3\n4\n5"); got != 48 {
+		t.Fatalf("long centerprint y = %d, want 48", got)
+	}
+	if got := centerprintFadeTail(); math.Abs(got-0.5) > 0.0001 {
+		t.Fatalf("centerprint fade tail = %.2f, want 0.50", got)
 	}
 }
 
