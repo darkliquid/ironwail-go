@@ -15,6 +15,8 @@ import (
 	"github.com/ironwail/ironwail-go/internal/input"
 )
 
+var vidRestartFunc = restartVideo
+
 func registerGameplayBindCommands() {
 	cmdsys.AddCommand("bind", cmdBind, "Bind a key to a command")
 	cmdsys.AddCommand("unbind", cmdUnbind, "Remove a key binding")
@@ -23,6 +25,11 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
+	cmdsys.AddCommand("vid_restart", func(args []string) {
+		if err := vidRestartFunc(); err != nil {
+			console.Printf("vid_restart failed: %v\n", err)
+		}
+	}, "Restart the video system")
 	cmdsys.AddCommand("messagemode", cmdMessagemode, "Input a message to say")
 	cmdsys.AddCommand("messagemode2", cmdMessagemode2, "Input a message to say_team")
 	cmdsys.AddCommand("+showscores", cmdShowScores, "Show multiplayer scoreboard while held")
@@ -101,6 +108,33 @@ func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bo
 		return
 	}
 	g.Client.KeyUp(button, key)
+}
+
+func restartVideo() error {
+	if g.Renderer == nil {
+		return nil
+	}
+
+	if g.Input != nil {
+		if backend := g.Input.Backend(); backend != nil {
+			backend.Shutdown()
+		}
+	}
+	g.Renderer.Shutdown()
+
+	if err := initGameRenderer(); err != nil {
+		return err
+	}
+
+	if g.Input != nil {
+		if backend := g.Renderer.InputBackendForSystem(g.Input); backend != nil {
+			if err := g.Input.SetBackend(backend); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func applyDefaultGameplayBindings() {

@@ -59,9 +59,39 @@ func TestHostCmdExecRunsUserConfig(t *testing.T) {
 	}, "")
 	defer cmdsys.RemoveCommand("test_exec_cmd")
 
-	h.CmdExec("autoexec.cfg", &Subsystems{Commands: globalTestCommandBuffer{}})
+	h.CmdExec([]string{"autoexec.cfg"}, &Subsystems{Commands: globalTestCommandBuffer{}})
 	if executed != "loaded" {
 		t.Fatalf("exec command payload = %q, want %q", executed, "loaded")
+	}
+}
+
+func TestHostCmdExecConfigAliasUsesCanonicalConfigName(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	h.SetUserDir(userDir)
+
+	if err := os.WriteFile(filepath.Join(userDir, configFileName), []byte("test_exec_alias canonical\n"), 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", configFileName, err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, legacyConfigName), []byte("test_exec_alias legacy\n"), 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", legacyConfigName, err)
+	}
+
+	var executed string
+	cmdsys.AddCommand("test_exec_alias", func(args []string) {
+		executed = strings.Join(args, " ")
+	}, "")
+	defer cmdsys.RemoveCommand("test_exec_alias")
+
+	h.CmdExec([]string{legacyConfigName}, &Subsystems{Commands: globalTestCommandBuffer{}})
+	if executed != "canonical" {
+		t.Fatalf("exec config alias payload = %q, want %q", executed, "canonical")
+	}
+
+	executed = ""
+	h.CmdExec([]string{legacyConfigName, "pls"}, &Subsystems{Commands: globalTestCommandBuffer{}})
+	if executed != "legacy" {
+		t.Fatalf("exec literal config payload = %q, want %q", executed, "legacy")
 	}
 }
 
@@ -88,9 +118,9 @@ func TestHostWriteConfigIncludesBindings(t *testing.T) {
 		t.Fatalf("WriteConfig failed: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(userDir, "config.cfg"))
+	data, err := os.ReadFile(filepath.Join(userDir, configFileName))
 	if err != nil {
-		t.Fatalf("ReadFile(config.cfg): %v", err)
+		t.Fatalf("ReadFile(%s): %v", configFileName, err)
 	}
 	text := string(data)
 	for _, want := range []string{
@@ -98,9 +128,10 @@ func TestHostWriteConfigIncludesBindings(t *testing.T) {
 		`bind F10 "+attack"`,
 		`test_host_config_write_a "alpha"`,
 		`test_host_config_write_b "beta"`,
+		`vid_restart`,
 	} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("config.cfg missing %q in:\n%s", want, text)
+			t.Fatalf("%s missing %q in:\n%s", configFileName, want, text)
 		}
 	}
 	if strings.Index(text, `bind w "+forward"`) > strings.Index(text, `test_host_config_write_a "alpha"`) {
@@ -108,6 +139,9 @@ func TestHostWriteConfigIncludesBindings(t *testing.T) {
 	}
 	if strings.Index(text, `test_host_config_write_a "alpha"`) > strings.Index(text, `test_host_config_write_b "beta"`) {
 		t.Fatalf("expected archived cvars to be written deterministically in:\n%s", text)
+	}
+	if strings.Index(text, `test_host_config_write_b "beta"`) > strings.Index(text, `vid_restart`) {
+		t.Fatalf("expected vid_restart after archived cvars in:\n%s", text)
 	}
 }
 
@@ -128,22 +162,29 @@ func TestHostWriteConfigAppendsHeldMLookState(t *testing.T) {
 		t.Fatalf("WriteConfig failed: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(userDir, "config.cfg"))
+	data, err := os.ReadFile(filepath.Join(userDir, configFileName))
 	if err != nil {
-		t.Fatalf("ReadFile(config.cfg): %v", err)
+		t.Fatalf("ReadFile(%s): %v", configFileName, err)
 	}
 	text := string(data)
 
 	archived := `test_host_config_mlook_archived "value"`
+	vidRestart := `vid_restart`
 	mlook := `+mlook`
 	if !strings.Contains(text, archived) {
-		t.Fatalf("config.cfg missing %q in:\n%s", archived, text)
+		t.Fatalf("%s missing %q in:\n%s", configFileName, archived, text)
+	}
+	if !strings.Contains(text, vidRestart) {
+		t.Fatalf("%s missing %q in:\n%s", configFileName, vidRestart, text)
 	}
 	if !strings.Contains(text, mlook) {
-		t.Fatalf("config.cfg missing %q in:\n%s", mlook, text)
+		t.Fatalf("%s missing %q in:\n%s", configFileName, mlook, text)
 	}
-	if strings.Index(text, archived) > strings.Index(text, mlook) {
-		t.Fatalf("expected +mlook after archived cvars in:\n%s", text)
+	if strings.Index(text, archived) > strings.Index(text, vidRestart) {
+		t.Fatalf("expected vid_restart after archived cvars in:\n%s", text)
+	}
+	if strings.Index(text, vidRestart) > strings.Index(text, mlook) {
+		t.Fatalf("expected +mlook after vid_restart in:\n%s", text)
 	}
 }
 
@@ -171,5 +212,22 @@ func TestHostConfigArchivedCVarRoundTrip(t *testing.T) {
 
 	if got := cvar.StringValue(cv.Name); got != "1337" {
 		t.Fatalf("archived cvar after config load = %q, want %q", got, "1337")
+	}
+}
+
+func TestHostWriteConfigNamedAddsCfgExtension(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	subs := &Subsystems{}
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: userDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	if err := h.WriteConfigNamed("custom", subs); err != nil {
+		t.Fatalf("WriteConfigNamed failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(userDir, "custom.cfg")); err != nil {
+		t.Fatalf("Stat(custom.cfg): %v", err)
 	}
 }

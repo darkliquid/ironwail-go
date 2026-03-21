@@ -29,6 +29,8 @@ const (
 	clientNameCVar     = "_cl_name"
 	clientColorCVar    = "_cl_color"
 	serverHostnameCVar = "hostname"
+	configFileName     = "ironwail.cfg"
+	legacyConfigName   = "config.cfg"
 
 	defaultClientName     = "player"
 	defaultServerHostname = "UNNAMED"
@@ -474,12 +476,12 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	//                  → stuffcmds → startdemos demo1 demo2 demo3
 	//
 	// If quake.rc isn't available (e.g. no PAK files in test environments),
-	// fall back to directly loading config.cfg from userDir.
+	// fall back to directly loading the user config from userDir.
 	if subs.Files != nil && subs.Files.FileExists("quake.rc") {
 		executeConfigText(subs, "exec quake.rc\n")
 	} else {
 		if err := h.execUserConfig(subs); err != nil && subs.Console != nil {
-			subs.Console.Print(fmt.Sprintf("Warning: couldn't exec config.cfg: %v\n", err))
+			subs.Console.Print(fmt.Sprintf("Warning: couldn't exec %s: %v\n", configFileName, err))
 		}
 	}
 
@@ -506,15 +508,17 @@ func executeConfigText(subs *Subsystems, text string) {
 }
 
 func (h *Host) execUserConfig(subs *Subsystems) error {
-	configPath := filepath.Join(h.userDir, "config.cfg")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
+	for _, name := range []string{configFileName, legacyConfigName} {
+		configPath := filepath.Join(h.userDir, name)
+		data, err := os.ReadFile(configPath)
+		if err == nil {
+			executeConfigText(subs, string(data))
 			return nil
 		}
-		return err
+		if !os.IsNotExist(err) {
+			return err
+		}
 	}
-	executeConfigText(subs, string(data))
 	return nil
 }
 
@@ -549,6 +553,10 @@ func (h *Host) Shutdown(subs *Subsystems) {
 }
 
 func (h *Host) WriteConfig(subs *Subsystems) error {
+	return h.WriteConfigNamed("", subs)
+}
+
+func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 	if !h.initialized {
 		return nil
 	}
@@ -556,7 +564,15 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 		subs = h.Subs
 	}
 
-	configPath := filepath.Join(h.userDir, "config.cfg")
+	configName := name
+	if configName == "" {
+		configName = configFileName
+	}
+	if filepath.Ext(configName) == "" {
+		configName += ".cfg"
+	}
+
+	configPath := filepath.Join(h.userDir, configName)
 	f, err := os.Create(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
@@ -590,6 +606,9 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 	}
 	for _, line := range archivedVars {
 		fmt.Fprintf(f, "%s\n", line)
+	}
+	if _, err := fmt.Fprintln(f, "vid_restart"); err != nil {
+		return fmt.Errorf("failed to write vid_restart state: %w", err)
 	}
 
 	if clientState := ActiveClientState(subs); clientState != nil && (clientState.InputMLook.State&1) != 0 {

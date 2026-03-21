@@ -4286,7 +4286,7 @@ func TestHostInitLoadsBindingOverridesFromConfig(t *testing.T) {
 	applyDefaultGameplayBindings()
 
 	userDir := t.TempDir()
-	configPath := filepath.Join(userDir, "config.cfg")
+	configPath := filepath.Join(userDir, "ironwail.cfg")
 	if err := os.WriteFile(configPath, []byte("bind w +back\nbind F10 +attack\n"), 0644); err != nil {
 		t.Fatalf("WriteFile(%q): %v", configPath, err)
 	}
@@ -4349,6 +4349,27 @@ func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
 
 	if got := g.Input.GetBinding(int('t')); got != want {
 		t.Fatalf("binding after reload = %q, want %q", got, want)
+	}
+}
+
+func TestVidRestartCommandInvokesRestartHook(t *testing.T) {
+	registerGameplayBindCommands()
+
+	originalRestart := vidRestartFunc
+	t.Cleanup(func() {
+		vidRestartFunc = originalRestart
+	})
+
+	calls := 0
+	vidRestartFunc = func() error {
+		calls++
+		return nil
+	}
+
+	cmdsys.ExecuteText("vid_restart")
+
+	if calls != 1 {
+		t.Fatalf("vid_restart call count = %d, want 1", calls)
 	}
 }
 

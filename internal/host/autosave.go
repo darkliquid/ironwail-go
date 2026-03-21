@@ -4,6 +4,8 @@
 package host
 
 import (
+	"fmt"
+
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
@@ -37,5 +39,5 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 
 	h.nextAutosave = h.realtime + intervalMinutes*60
 	console.Printf("Autosaving...\n")
-	subs.Commands.AddText("save auto\n")
+	subs.Commands.AddText(fmt.Sprintf("save \"autosave/%s\" 0\n", subs.Server.GetMapName()))
 }

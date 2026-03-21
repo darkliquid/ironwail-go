@@ -5,10 +5,11 @@ package host
 
 import (
 	"fmt"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 )
 
 func (h *Host) CmdQuit() {
@@ -66,16 +67,27 @@ func (h *Host) CmdStuffCmds(subs *Subsystems) {
 	}
 }
 
-func (h *Host) CmdExec(filename string, subs *Subsystems) {
+func (h *Host) CmdExec(args []string, subs *Subsystems) {
 	if subs == nil {
 		subs = h.Subs
 	}
 
+	if len(args) == 0 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: exec <filename>\n")
+		}
+		return
+	}
+
+	filename := args[0]
 	if filename == "" {
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print("usage: exec <filename>\n")
 		}
 		return
+	}
+	if len(args) == 1 && strings.EqualFold(filename, legacyConfigName) && h.configFileExists(configFileName, subs) {
+		filename = configFileName
 	}
 
 	var (
@@ -116,6 +128,19 @@ func (h *Host) CmdExec(filename string, subs *Subsystems) {
 	if subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("couldn't exec %s\n", filename))
 	}
+}
+
+func (h *Host) configFileExists(filename string, subs *Subsystems) bool {
+	switch {
+	case filepath.IsAbs(filename):
+		_, err := os.Stat(filename)
+		return err == nil
+	case h.userDir != "":
+		if _, err := os.Stat(filepath.Join(h.userDir, filename)); err == nil {
+			return true
+		}
+	}
+	return subs != nil && subs.Files != nil && subs.Files.FileExists(filename)
 }
 
 func (h *Host) CmdEcho(args []string, subs *Subsystems) {

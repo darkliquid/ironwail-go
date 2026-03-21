@@ -297,13 +297,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		h.CmdMenuQuit()
 	}, "Show the quit confirmation")
 	cmdsys.AddCommand("exec", func(args []string) {
-		if len(args) > 0 {
-			h.CmdExec(args[0], subs)
-			return
-		}
-		if subs != nil && subs.Console != nil {
-			subs.Console.Print("usage: exec <filename>\n")
-		}
+		h.CmdExec(args, subs)
 	}, "Execute a script file")
 	cmdsys.AddCommand("stuffcmds", func(args []string) {
 		h.CmdStuffCmds(subs)
@@ -329,11 +323,15 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("unaliasall", func(args []string) {
 		h.CmdUnaliasAll()
 	}, "Delete all command aliases")
-	cmdsys.AddCommand("saveconfig", func(args []string) {
-		if err := h.WriteConfig(subs); err != nil && subs != nil && subs.Console != nil {
-			subs.Console.Print(fmt.Sprintf("saveconfig failed: %v\n", err))
+	cmdsys.AddCommand("writeconfig", func(args []string) {
+		name := ""
+		if len(args) > 0 {
+			name = args[0]
 		}
-	}, "Write config.cfg")
+		if err := h.WriteConfigNamed(name, subs); err != nil && subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("writeconfig failed: %v\n", err))
+		}
+	}, "Write ironwail.cfg or a named config file")
 }
 
 func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() error) (err error) {

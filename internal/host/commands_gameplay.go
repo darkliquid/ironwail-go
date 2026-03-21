@@ -6,6 +6,7 @@ package host
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -13,6 +14,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -592,17 +594,34 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 }
 
 func (h *Host) saveFilePath(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "", fmt.Errorf("save name is required")
-	}
-	if !saveNamePattern.MatchString(name) || filepath.Base(name) != name {
-		return "", fmt.Errorf("invalid save name %q", name)
+	relName, err := normalizeSaveName(name)
+	if err != nil {
+		return "", err
 	}
 	if h.userDir == "" {
 		return "", fmt.Errorf("user directory is not initialized")
 	}
-	return filepath.Join(h.userDir, "saves", name+".sav"), nil
+	return filepath.Join(h.userDir, "saves", filepath.FromSlash(relName)+".sav"), nil
+}
+
+func normalizeSaveName(name string) (string, error) {
+	name = strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
+	if name == "" {
+		return "", fmt.Errorf("save name is required")
+	}
+	if strings.Contains(name, "..") {
+		return "", fmt.Errorf("invalid save name %q", name)
+	}
+	clean := strings.TrimPrefix(path.Clean(name), "./")
+	if clean == "." || clean == "" || strings.HasPrefix(clean, "/") {
+		return "", fmt.Errorf("invalid save name %q", name)
+	}
+	for _, segment := range strings.Split(clean, "/") {
+		if !saveNamePattern.MatchString(segment) {
+			return "", fmt.Errorf("invalid save name %q", name)
+		}
+	}
+	return clean, nil
 }
 
 func (h *Host) readSaveFile(name string) (string, []byte, error) {
@@ -635,7 +654,11 @@ func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
 		return searchPaths, nil
 	}
 
-	legacyName := name + ".sav"
+	relName, err := normalizeSaveName(name)
+	if err != nil {
+		return nil, err
+	}
+	legacyName := filepath.FromSlash(relName) + ".sav"
 	// 2. Active game directory
 	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" {
 		searchPaths = append(searchPaths, filepath.Join(h.baseDir, gameDir, legacyName))

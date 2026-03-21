@@ -765,6 +765,24 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 }
 
+func TestSaveFilePathAllowsCanonicalAutosaveSubdir(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	path, err := h.saveFilePath("autosave/start")
+	if err != nil {
+		t.Fatalf("saveFilePath returned error: %v", err)
+	}
+
+	want := filepath.Join(userDir, "saves", "autosave", "start.sav")
+	if path != want {
+		t.Fatalf("saveFilePath = %q, want %q", path, want)
+	}
+}
+
 func TestListSaveSlotsUsesSavedMapNameAndUnusedPlaceholder(t *testing.T) {
 	h := NewHost()
 	userDir := t.TempDir()

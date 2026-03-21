@@ -57,8 +57,8 @@ func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
 	subs := &Subsystems{Server: server, Commands: commands}
 
 	h.checkAutosave(subs)
-	if len(commands.added) != 1 || commands.added[0] != "save auto\n" {
-		t.Fatalf("first autosave command = %v, want [save auto\\n]", commands.added)
+	if len(commands.added) != 1 || commands.added[0] != "save \"autosave/start\" 0\n" {
+		t.Fatalf("first autosave command = %v, want [save \"autosave/start\" 0\\n]", commands.added)
 	}
 
 	h.realtime = 105
