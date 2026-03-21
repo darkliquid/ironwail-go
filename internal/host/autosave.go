@@ -53,10 +53,10 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	if intervalSeconds <= 0 {
 		return
 	}
-	now := h.realtime
+	now, frameDelta := h.autosaveClock(subs)
 	health := float64(player.Vars.Health)
 	if h.clientState == caActive {
-		h.updateAutosaveSecretState(subs)
+		h.updateAutosaveSecretState(subs, frameDelta)
 	}
 
 	if h.autosave.prevHealth == 0 {
@@ -74,7 +74,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 
 	flags := uint32(player.Vars.Flags)
 	if server.MoveType(player.Vars.MoveType) == server.MoveTypeNoClip || flags&(server.FlagGodMode|server.FlagNoTarget) != 0 {
-		h.autosave.cheatTime += h.frameTime
+		h.autosave.cheatTime += frameDelta
 		return
 	}
 	if now-h.autosave.hurtTime < 3 {
@@ -117,7 +117,19 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	subs.Commands.AddText(fmt.Sprintf("save \"autosave/%s\" 0\n", subs.Server.GetMapName()))
 }
 
-func (h *Host) updateAutosaveSecretState(subs *Subsystems) {
+func (h *Host) autosaveClock(subs *Subsystems) (now, frameDelta float64) {
+	now = h.realtime
+	frameDelta = h.frameTime
+	if srv, ok := subs.Server.(*server.Server); ok {
+		now = float64(srv.Time)
+		if srv.FrameTime > 0 {
+			frameDelta = float64(srv.FrameTime)
+		}
+	}
+	return now, frameDelta
+}
+
+func (h *Host) updateAutosaveSecretState(subs *Subsystems, frameDelta float64) {
 	srv, ok := subs.Server.(*server.Server)
 	if !ok || srv.QCVM == nil || srv.QCVM.GlobalVars == nil {
 		return
@@ -128,7 +140,7 @@ func (h *Host) updateAutosaveSecretState(subs *Subsystems) {
 		h.autosave.secretBoost = 1
 		return
 	}
-	h.autosave.secretBoost = math.Max(0, h.autosave.secretBoost-h.frameTime/1.5)
+	h.autosave.secretBoost = math.Max(0, h.autosave.secretBoost-frameDelta/1.5)
 }
 
 func isHazardWater(waterType float32) bool {
