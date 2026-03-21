@@ -1272,10 +1272,12 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	for _, phase := range plan.phases {
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
-			dc.renderBrushEntityMarkers(plan.opaqueBrush)
+			dc.renderBrushEntityMarkers(plan.opaqueBrush, true)
 		case gogpuEntityPhaseOpaqueAlias:
 			dc.renderAliasShadowsHAL(plan.opaqueAlias)
 			dc.renderAliasEntitiesHAL(plan.opaqueAlias)
+		case gogpuEntityPhaseTranslucentBrush:
+			dc.renderBrushEntityMarkers(plan.translucentBrush, false)
 		case gogpuEntityPhaseDecals:
 			dc.renderDecalMarksHAL(state.DecalMarks)
 		case gogpuEntityPhaseTranslucentAlias:
@@ -1334,6 +1336,7 @@ type projectedParticleMarker struct {
 	y     int
 	color byte
 	size  int
+	alpha float32
 }
 
 func projectParticleMarkers(particles []Particle, verts []ParticleVertex, vp types.Mat4, screenW, screenH int) []projectedParticleMarker {
@@ -1355,6 +1358,7 @@ func projectParticleMarkers(particles []Particle, verts []ParticleVertex, vp typ
 			y:     y,
 			color: particles[i].Color,
 			size:  4,
+			alpha: 1,
 		})
 	}
 	return markers
@@ -1420,13 +1424,14 @@ func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, sc
 				y:     y,
 				color: gogpuBrushMarkerColor,
 				size:  gogpuBrushMarkerSize,
+				alpha: clamp01(entity.Alpha),
 			})
 		}
 	}
 	return markers
 }
 
-func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity) {
+func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity, opaque bool) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -1437,7 +1442,15 @@ func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity) {
 		if size < 1 {
 			size = 1
 		}
-		dc.DrawFill(marker.x-size/2, marker.y-size/2, size, size, marker.color)
+		x := marker.x - size/2
+		y := marker.y - size/2
+		if opaque || marker.alpha >= 1 {
+			dc.DrawFill(x, y, size, size, marker.color)
+			continue
+		}
+		if marker.alpha > 0 {
+			dc.DrawFillAlpha(x, y, size, size, marker.color, marker.alpha)
+		}
 	}
 }
 
@@ -1468,7 +1481,13 @@ func (dc *DrawContext) renderParticles(state *RenderFrameState) {
 		if size < 1 {
 			size = 1
 		}
-		dc.DrawFill(marker.x-size/2, marker.y-size/2, size, size, marker.color)
+		if marker.alpha >= 1 {
+			dc.DrawFill(marker.x-size/2, marker.y-size/2, size, size, marker.color)
+			continue
+		}
+		if marker.alpha > 0 {
+			dc.DrawFillAlpha(marker.x-size/2, marker.y-size/2, size, size, marker.color, marker.alpha)
+		}
 	}
 }
 

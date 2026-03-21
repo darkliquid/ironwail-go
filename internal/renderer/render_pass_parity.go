@@ -144,6 +144,7 @@ type gogpuEntityPhase int
 const (
 	gogpuEntityPhaseOpaqueBrush gogpuEntityPhase = iota
 	gogpuEntityPhaseOpaqueAlias
+	gogpuEntityPhaseTranslucentBrush
 	gogpuEntityPhaseDecals
 	gogpuEntityPhaseTranslucentAlias
 	gogpuEntityPhaseSprites
@@ -151,6 +152,7 @@ const (
 
 type gogpuEntityDrawPlan struct {
 	opaqueBrush      []BrushEntity
+	translucentBrush []BrushEntity
 	opaqueAlias      []AliasModelEntity
 	translucentAlias []AliasModelEntity
 	phases           []gogpuEntityPhase
@@ -160,14 +162,17 @@ type gogpuEntityDrawPlan struct {
 // current OpenGL ordering without pulling world-pass or translucency-block mechanics
 // into the secondary backend.
 func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity) gogpuEntityDrawPlan {
-	opaqueBrush, _ := splitBrushEntitiesByAlpha(brushEntities)
+	opaqueBrush, translucentBrush := splitBrushEntitiesByAlpha(brushEntities)
 	opaqueAlias, translucentAlias := splitAliasEntitiesByAlpha(aliasEntities)
-	phases := make([]gogpuEntityPhase, 0, 5)
+	phases := make([]gogpuEntityPhase, 0, 6)
 	if len(opaqueBrush) > 0 {
 		phases = append(phases, gogpuEntityPhaseOpaqueBrush)
 	}
 	if len(opaqueAlias) > 0 {
 		phases = append(phases, gogpuEntityPhaseOpaqueAlias)
+	}
+	if len(translucentBrush) > 0 {
+		phases = append(phases, gogpuEntityPhaseTranslucentBrush)
 	}
 	if len(decalMarks) > 0 {
 		phases = append(phases, gogpuEntityPhaseDecals)
@@ -180,6 +185,7 @@ func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []Alias
 	}
 	return gogpuEntityDrawPlan{
 		opaqueBrush:      opaqueBrush,
+		translucentBrush: translucentBrush,
 		opaqueAlias:      opaqueAlias,
 		translucentAlias: translucentAlias,
 		phases:           phases,
