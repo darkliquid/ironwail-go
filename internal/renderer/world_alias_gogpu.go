@@ -170,6 +170,24 @@ func (r *Renderer) clearAliasModelsLocked() {
 
 func (r *Renderer) destroyAliasResourcesLocked() {
 	r.clearAliasModelsLocked()
+	if r.aliasShadowSkin != nil {
+		if r.aliasShadowSkin.bindGroup != nil {
+			r.aliasShadowSkin.bindGroup.Destroy()
+		}
+		if r.aliasShadowSkin.fullbrightView != nil {
+			r.aliasShadowSkin.fullbrightView.Destroy()
+		}
+		if r.aliasShadowSkin.fullbrightTexture != nil {
+			r.aliasShadowSkin.fullbrightTexture.Destroy()
+		}
+		if r.aliasShadowSkin.view != nil {
+			r.aliasShadowSkin.view.Destroy()
+		}
+		if r.aliasShadowSkin.texture != nil {
+			r.aliasShadowSkin.texture.Destroy()
+		}
+		r.aliasShadowSkin = nil
+	}
 	if r.aliasScratchBuffer != nil {
 		r.aliasScratchBuffer.Destroy()
 		r.aliasScratchBuffer = nil

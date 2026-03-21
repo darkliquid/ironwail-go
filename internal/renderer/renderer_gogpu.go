@@ -396,6 +396,7 @@ type Renderer struct {
 	spriteModels                map[string]*gpuSpriteModel
 	aliasEntityStates           map[int]*AliasEntity
 	viewModelAliasState         *AliasEntity
+	aliasShadowSkin             *gpuAliasSkin
 	aliasScratchBuffer          hal.Buffer
 	aliasScratchBufferSize      uint64
 	aliasPipeline               hal.RenderPipeline
@@ -1156,6 +1157,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		return
 	}
 
+	dc.renderAliasShadowsHAL(state.AliasEntities)
 	dc.renderAliasEntitiesHAL(state.AliasEntities)
 	dc.renderSpriteEntitiesHAL(state.SpriteEntities)
 	dc.renderDecalMarksHAL(state.DecalMarks)
