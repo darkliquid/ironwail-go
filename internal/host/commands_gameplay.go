@@ -630,11 +630,11 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		subs.Console.Print("ERROR: couldn't open.\n")
 		return
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
-		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		subs.Console.Print("ERROR: couldn't open.\n")
 		return
 	}
 	h.setLastSave(name)

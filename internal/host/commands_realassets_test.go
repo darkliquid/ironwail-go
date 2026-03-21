@@ -294,6 +294,60 @@ func TestCmdSaveNestedPathPrintsRelativeSaveName(t *testing.T) {
 	}
 }
 
+func TestCmdSaveBlockedPathPrintsCouldNotOpen(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	console := &mockConsole{}
+	userDir := t.TempDir()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: console,
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		UserDir:    userDir,
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+
+	savesPath := filepath.Join(userDir, "saves")
+	if err := os.RemoveAll(savesPath); err != nil {
+		t.Fatalf("RemoveAll(%q): %v", savesPath, err)
+	}
+	if err := os.WriteFile(savesPath, []byte("blocked"), 0o644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", savesPath, err)
+	}
+	console.Clear()
+
+	h.CmdSave("slot1", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: couldn't open.") {
+		t.Fatalf("console output = %q, want couldn't-open error", got)
+	}
+}
+
 func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 
