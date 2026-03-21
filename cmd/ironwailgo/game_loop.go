@@ -39,9 +39,7 @@ func (gameCallbacks) SetProcessClientPhase(phase string) {
 }
 
 func (gameCallbacks) GetEvents() {
-	if g.Input != nil {
-		g.Input.PollEvents()
-	}
+	pollRuntimeInputEvents()
 	if g.Subs != nil && g.Subs.Client != nil && g.Host != nil {
 		_ = g.Subs.Client.Frame(g.Host.FrameTime())
 	}

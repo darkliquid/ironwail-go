@@ -261,6 +261,50 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	}
 }
 
+func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
+	Init()
+	netHostPort = 26006
+	Listen(true)
+
+	done := make(chan *Socket, 1)
+	go func() {
+		done <- Connect("127.0.0.1:26006")
+	}()
+
+	var serverSock *Socket
+	deadline := time.Now().Add(2 * time.Second)
+	for serverSock == nil && time.Now().Before(deadline) {
+		serverSock = CheckNewConnections()
+		if serverSock == nil {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	clientSock := <-done
+	if clientSock == nil || serverSock == nil {
+		t.Fatal("failed to establish UDP connection before shutdown")
+	}
+	defer Close(clientSock)
+
+	Shutdown()
+
+	if acceptSocket != nil {
+		t.Fatal("Shutdown left accept socket open")
+	}
+	if listening {
+		t.Fatal("Shutdown left listener active")
+	}
+	if len(acceptedServerSockets) != 0 {
+		t.Fatalf("Shutdown left %d accepted sockets tracked", len(acceptedServerSockets))
+	}
+	if clientSock.udpConn == nil {
+		t.Fatal("Shutdown should not close independent client sockets")
+	}
+	if serverSock.udpConn != nil {
+		t.Fatal("Shutdown left accepted server socket open")
+	}
+}
+
 func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 	Init()
 	netHostPort = 26004

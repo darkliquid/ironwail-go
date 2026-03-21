@@ -179,7 +179,13 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 		debugTelemetryEnableCVar = oldEnable
 	})
 
-	raw := 
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+"origin" "128 0 0"
+}`
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -269,7 +275,13 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	}
 	s.FreeEdict(reused)
 
-	raw := 
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+"origin" "128 0 0"
+}`
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -328,7 +340,13 @@ func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
 	}
 	vm.SetGInt(inspectBuiltinOfs, -1)
 
-	raw := 
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+"speed" "321"
+}`
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -394,7 +412,12 @@ func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 	vm.SetEFloat(entNum, 110, 123)
 	s.FreeEdict(reused)
 
-	raw := 
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+}`
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}

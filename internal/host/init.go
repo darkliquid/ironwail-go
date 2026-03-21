@@ -530,14 +530,10 @@ func (h *Host) Shutdown(subs *Subsystems) {
 		return
 	}
 
-	h.initialized = false
+	if subs == nil {
+		subs = h.Subs
+	}
 
-	if subs.Renderer != nil {
-		subs.Renderer.Shutdown()
-	}
-	if subs.Audio != nil {
-		subs.Audio.Shutdown()
-	}
 	if subs.Client != nil {
 		subs.Client.Shutdown()
 	}
@@ -550,9 +546,20 @@ func (h *Host) Shutdown(subs *Subsystems) {
 	if subs.Commands != nil {
 		subs.Commands.Shutdown()
 	}
+	if subs.Audio != nil {
+		subs.Audio.Shutdown()
+	}
+	if subs.Input != nil {
+		subs.Input.Shutdown()
+	}
+	if subs.Renderer != nil {
+		subs.Renderer.Shutdown()
+	}
 	if subs.Files != nil {
 		subs.Files.Close()
 	}
+
+	h.initialized = false
 }
 
 func (h *Host) WriteConfig(subs *Subsystems) error {

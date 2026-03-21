@@ -4,11 +4,14 @@
 package host
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
@@ -70,6 +73,131 @@ func (m *mockConsole) Print(msg string)           { m.messages = append(m.messag
 func (m *mockConsole) Clear()                     { m.messages = nil }
 func (m *mockConsole) Dump(filename string) error { return nil }
 func (m *mockConsole) Shutdown()                  {}
+
+type shutdownRecorder struct {
+	order []string
+}
+
+func (r *shutdownRecorder) record(name string) {
+	r.order = append(r.order, name)
+}
+
+type shutdownTrackingFilesystem struct{ recorder *shutdownRecorder }
+
+func (f *shutdownTrackingFilesystem) Init(baseDir, gameDir string) error { return nil }
+func (f *shutdownTrackingFilesystem) Close()                             { f.recorder.record("files") }
+func (f *shutdownTrackingFilesystem) LoadFile(filename string) ([]byte, error) {
+	return nil, nil
+}
+func (f *shutdownTrackingFilesystem) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	return "", nil, nil
+}
+func (f *shutdownTrackingFilesystem) FileExists(filename string) bool { return false }
+
+type shutdownTrackingCommands struct{ recorder *shutdownRecorder }
+
+func (c *shutdownTrackingCommands) Init()                                         {}
+func (c *shutdownTrackingCommands) Execute()                                      {}
+func (c *shutdownTrackingCommands) ExecuteWithSource(source cmdsys.CommandSource) {}
+func (c *shutdownTrackingCommands) AddText(text string)                           {}
+func (c *shutdownTrackingCommands) InsertText(text string)                        {}
+func (c *shutdownTrackingCommands) Shutdown()                                     { c.recorder.record("commands") }
+
+type shutdownTrackingConsole struct{ recorder *shutdownRecorder }
+
+func (c *shutdownTrackingConsole) Init() error       { return nil }
+func (c *shutdownTrackingConsole) Print(string)      {}
+func (c *shutdownTrackingConsole) Clear()            {}
+func (c *shutdownTrackingConsole) Dump(string) error { return nil }
+func (c *shutdownTrackingConsole) Shutdown()         { c.recorder.record("console") }
+
+type shutdownTrackingServer struct{ recorder *shutdownRecorder }
+
+func (s *shutdownTrackingServer) Init(int) error                           { return nil }
+func (s *shutdownTrackingServer) SpawnServer(string, *fs.FileSystem) error { return nil }
+func (s *shutdownTrackingServer) ConnectClient(int)                        {}
+func (s *shutdownTrackingServer) KillClient(int) bool                      { return false }
+func (s *shutdownTrackingServer) KickClient(int, string, string) bool      { return false }
+func (s *shutdownTrackingServer) Frame(float64) error                      { return nil }
+func (s *shutdownTrackingServer) Shutdown()                                { s.recorder.record("server") }
+func (s *shutdownTrackingServer) SaveSpawnParms()                          {}
+func (s *shutdownTrackingServer) GetMaxClients() int                       { return 1 }
+func (s *shutdownTrackingServer) IsClientActive(int) bool                  { return false }
+func (s *shutdownTrackingServer) GetClientName(int) string                 { return "" }
+func (s *shutdownTrackingServer) SetClientName(int, string)                {}
+func (s *shutdownTrackingServer) GetClientColor(int) int                   { return 0 }
+func (s *shutdownTrackingServer) SetClientColor(int, int)                  {}
+func (s *shutdownTrackingServer) GetClientPing(int) float32                { return 0 }
+func (s *shutdownTrackingServer) EdictNum(int) *server.Edict               { return nil }
+func (s *shutdownTrackingServer) GetMapName() string                       { return "" }
+func (s *shutdownTrackingServer) IsActive() bool                           { return false }
+func (s *shutdownTrackingServer) IsPaused() bool                           { return false }
+func (s *shutdownTrackingServer) RestoreTextSaveGameState(*server.TextSaveGameState) error {
+	return nil
+}
+func (s *shutdownTrackingServer) SetLoadGame(bool)           {}
+func (s *shutdownTrackingServer) SetPreserveSpawnParms(bool) {}
+
+type shutdownTrackingClient struct{ recorder *shutdownRecorder }
+
+func (c *shutdownTrackingClient) Init() error                { return nil }
+func (c *shutdownTrackingClient) Frame(float64) error        { return nil }
+func (c *shutdownTrackingClient) Shutdown()                  { c.recorder.record("client") }
+func (c *shutdownTrackingClient) State() ClientState         { return caDisconnected }
+func (c *shutdownTrackingClient) ReadFromServer() error      { return nil }
+func (c *shutdownTrackingClient) SendCommand() error         { return nil }
+func (c *shutdownTrackingClient) SendStringCmd(string) error { return nil }
+
+type shutdownTrackingAudio struct{ recorder *shutdownRecorder }
+
+func (a *shutdownTrackingAudio) Init() error { return nil }
+func (a *shutdownTrackingAudio) Update(origin, velocity, forward, right, up [3]float32) {
+}
+func (a *shutdownTrackingAudio) StopAllSounds(clear bool) {}
+func (a *shutdownTrackingAudio) SoundInfo() string        { return "" }
+func (a *shutdownTrackingAudio) SoundList() string        { return "" }
+func (a *shutdownTrackingAudio) PlayLocalSound(string, func() ([]byte, error), float32) error {
+	return nil
+}
+func (a *shutdownTrackingAudio) PlayMusic(string, func(string) ([]byte, error), func([]string) (string, []byte, error)) error {
+	return nil
+}
+func (a *shutdownTrackingAudio) PauseMusic()       {}
+func (a *shutdownTrackingAudio) ResumeMusic()      {}
+func (a *shutdownTrackingAudio) SetMusicLoop(bool) {}
+func (a *shutdownTrackingAudio) ToggleMusicLoop() bool {
+	return false
+}
+func (a *shutdownTrackingAudio) MusicLooping() bool   { return false }
+func (a *shutdownTrackingAudio) CurrentMusic() string { return "" }
+func (a *shutdownTrackingAudio) JumpMusic(int) bool   { return false }
+func (a *shutdownTrackingAudio) StopMusic()           {}
+func (a *shutdownTrackingAudio) Shutdown()            { a.recorder.record("audio") }
+
+type shutdownTrackingRenderer struct{ recorder *shutdownRecorder }
+
+func (r *shutdownTrackingRenderer) Init() error   { return nil }
+func (r *shutdownTrackingRenderer) UpdateScreen() {}
+func (r *shutdownTrackingRenderer) Shutdown()     { r.recorder.record("renderer") }
+
+type shutdownTrackingInputBackend struct{ recorder *shutdownRecorder }
+
+func (b *shutdownTrackingInputBackend) Init() error                   { return nil }
+func (b *shutdownTrackingInputBackend) Shutdown()                     { b.recorder.record("input") }
+func (b *shutdownTrackingInputBackend) PollEvents() bool              { return true }
+func (b *shutdownTrackingInputBackend) GetMouseDelta() (int32, int32) { return 0, 0 }
+func (b *shutdownTrackingInputBackend) GetModifierState() input.ModifierState {
+	return input.ModifierState{}
+}
+func (b *shutdownTrackingInputBackend) SetTextMode(input.TextMode)     {}
+func (b *shutdownTrackingInputBackend) SetCursorMode(input.CursorMode) {}
+func (b *shutdownTrackingInputBackend) ShowKeyboard(bool)              {}
+func (b *shutdownTrackingInputBackend) GetGamepadState(int) input.GamepadState {
+	return input.GamepadState{}
+}
+func (b *shutdownTrackingInputBackend) IsGamepadConnected(int) bool { return false }
+func (b *shutdownTrackingInputBackend) SetMouseGrab(bool)           {}
+func (b *shutdownTrackingInputBackend) SetWindow(interface{})       {}
 
 type mockCallbacks struct {
 	serverCalled bool
@@ -205,6 +333,31 @@ func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
 		if cv := cvar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)
 		}
+	}
+}
+
+func TestHostShutdownOrdersSubsystemTearDownAndClearsInitialized(t *testing.T) {
+	recorder := &shutdownRecorder{}
+	h := &Host{initialized: true}
+	subs := &Subsystems{
+		Files:    &shutdownTrackingFilesystem{recorder: recorder},
+		Commands: &shutdownTrackingCommands{recorder: recorder},
+		Console:  &shutdownTrackingConsole{recorder: recorder},
+		Server:   &shutdownTrackingServer{recorder: recorder},
+		Client:   &shutdownTrackingClient{recorder: recorder},
+		Input:    input.NewSystem(&shutdownTrackingInputBackend{recorder: recorder}),
+		Audio:    &shutdownTrackingAudio{recorder: recorder},
+		Renderer: &shutdownTrackingRenderer{recorder: recorder},
+	}
+
+	h.Shutdown(subs)
+
+	want := []string{"client", "server", "console", "commands", "audio", "input", "renderer", "files"}
+	if !reflect.DeepEqual(recorder.order, want) {
+		t.Fatalf("shutdown order = %v, want %v", recorder.order, want)
+	}
+	if h.initialized {
+		t.Fatal("Host.Shutdown left host initialized")
 	}
 }
 

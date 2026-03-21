@@ -35,7 +35,7 @@ func (globalConsoleAdapter) Init() error                { return nil }
 func (globalConsoleAdapter) Print(msg string)           { console.Printf("%s", msg) }
 func (globalConsoleAdapter) Clear()                     { console.Clear() }
 func (globalConsoleAdapter) Dump(filename string) error { return nil }
-func (globalConsoleAdapter) Shutdown()                  {}
+func (globalConsoleAdapter) Shutdown()                  { console.Close() }
 
 func initGameHost() error {
 	fmt.Printf("Detected %d CPUs.\n", runtime.NumCPU())
@@ -388,6 +388,9 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 		Server:   g.Server,
 		Input:    g.Input,
 		Audio:    audioAdapter,
+	}
+	if g.Renderer != nil {
+		g.Subs.Renderer = renderer.NewRendererAdapter(g.Renderer)
 	}
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
 	host.SetupLoopbackClientServer(g.Subs, g.Server)

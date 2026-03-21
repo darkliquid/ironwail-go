@@ -275,6 +275,10 @@ func (h *Host) CmdDisconnect(subs *Subsystems) {
 	}
 }
 
+func (h *Host) PrepareForShutdown(subs *Subsystems) {
+	h.disconnectCurrentSession(subs, true)
+}
+
 func (h *Host) disconnectCurrentSession(subs *Subsystems, stopServer bool) {
 	if subs == nil {
 		subs = h.Subs

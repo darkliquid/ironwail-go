@@ -56,7 +56,20 @@ func Init() error {
 // held by active drivers. Called during engine exit. Corresponds to
 // NET_Shutdown() in net_main.c.
 func Shutdown() {
-	// Shutdown drivers
+	Listen(false)
+	for _, sock := range acceptedServerSockets {
+		if sock == nil || sock.udpConn == nil {
+			continue
+		}
+		UDPCloseSocket(sock.udpConn)
+		sock.udpConn = nil
+	}
+	acceptedServerSockets = nil
+	if loopback != nil {
+		loopback.Shutdown()
+		loopback = nil
+	}
+	serverInfoProvider = nil
 }
 
 // Connect establishes a network connection to the given host. If the host

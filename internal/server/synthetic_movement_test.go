@@ -4,21 +4,21 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/model"
 )
 
 // TestRecursiveHullCheckTransitionsFromSolidToOpen tests the recursive hull collision check algorithm with synthetic data.
 // It verifying the correctness of the core BSP collision logic by ensuring it correctly identifies transitions from solid to open space.
 // Where in C: SV_RecursiveHullCheck in sv_phys.c
 func TestRecursiveHullCheckTransitionsFromSolidToOpen(t *testing.T) {
-	hull := &bsp.Hull{
+	hull := &model.Hull{
 		FirstClipNode: 0,
-		ClipNodes: []bsp.DSClipNode{
-			{PlaneNum: 0, Children: [2]bsp.HullChild{{Index: 1}, {Index: bsp.ContentsSolid, IsLeaf: true}}},
-			{PlaneNum: 1, Children: [2]bsp.HullChild{{Index: bsp.ContentsEmpty, IsLeaf: true}, {Index: bsp.ContentsSolid, IsLeaf: true}}},
+		LastClipNode:  0,
+		ClipNodes: []model.MClipNode{
+			{PlaneNum: 0, Children: [2]int{bsp.ContentsSolid, bsp.ContentsEmpty}},
 		},
-		Planes: []bsp.DSPlane{
-			{Normal: [3]float32{0, 0, 1}, Dist: 1},  // z = 1
-			{Normal: [3]float32{0, 0, 1}, Dist: -1}, // z = -1
+		Planes: []model.MPlane{
+			{Normal: [3]float32{0, 0, 1}, Dist: 1, Type: 2}, // z = 1
 		},
 	}
 
@@ -48,7 +48,10 @@ func TestRecursiveHullCheckTransitionsFromSolidToOpen(t *testing.T) {
 	if trace.AllSolid {
 		t.Fatal("recursiveHullCheck left trace allsolid despite open space on the ray")
 	}
-	if trace.Fraction >= 1 {
-		t.Fatalf("trace fraction = %v, want collision before the end point", trace.Fraction)
+	if !trace.StartSolid {
+		t.Fatal("recursiveHullCheck should mark trace startsolid when the ray begins in solid")
+	}
+	if trace.Fraction != 1 {
+		t.Fatalf("trace fraction = %v, want 1 when the ray exits solid without a later impact", trace.Fraction)
 	}
 }

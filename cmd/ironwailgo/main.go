@@ -548,14 +548,7 @@ func main() {
 		}
 	}
 	cvar.SetBool("dedicated", dedicated)
-	defer func() {
-		if g.Host == nil {
-			return
-		}
-		if err := g.Host.WriteConfig(g.Subs); err != nil {
-			log.Printf("Failed to write config: %v", err)
-		}
-	}()
+	defer shutdownEngine()
 
 	// Deterministic startup logs after successful initialization
 	slog.Info("FS mounted")
@@ -587,8 +580,8 @@ func main() {
 		screenshotCaptured := false
 		// Set up renderer callbacks
 		g.Renderer.OnUpdate(func(dt float64) {
+			pollRuntimeInputEvents()
 			if g.Input != nil {
-				_ = g.Input.PollEvents()
 				syncGameplayInputMode()
 				applyMenuMouseMove()
 				applyGameplayMouseLook()
@@ -749,7 +742,7 @@ func main() {
 		slog.Info("frame loop started")
 		runErr := g.Renderer.Run()
 		if runErr != nil {
-			g.Renderer.Shutdown()
+			releaseRuntimeRenderer()
 			if isRendererError(runErr) {
 				fmt.Println("WARNING: Render loop failed. Falling back to headless mode.")
 				fmt.Printf("Error: %v\n", runErr)
@@ -758,9 +751,6 @@ func main() {
 			} else {
 				log.Fatal("Render loop failed:", runErr)
 			}
-		} else {
-			// Cleanup
-			g.Renderer.Shutdown()
 		}
 
 		if screenshotMode {
@@ -787,14 +777,6 @@ func main() {
 		}
 	}
 
-	if g.CSQC != nil && g.CSQC.IsLoaded() {
-		if err := g.CSQC.CallShutdown(); err != nil {
-			slog.Error("CSQC_Shutdown failed", "error", err)
-		}
-		g.CSQC.Unload()
-	}
-
-	slog.Info("Engine shutdown complete")
 }
 
 func runtimeViewModelVisible() bool {
