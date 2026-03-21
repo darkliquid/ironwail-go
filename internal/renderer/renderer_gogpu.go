@@ -410,6 +410,16 @@ type Renderer struct {
 	spritePipeline              hal.RenderPipeline
 	spriteVertexShader          hal.ShaderModule
 	spriteFragmentShader        hal.ShaderModule
+	decalPipeline               hal.RenderPipeline
+	decalPipelineLayout         hal.PipelineLayout
+	decalVertexShader           hal.ShaderModule
+	decalFragmentShader         hal.ShaderModule
+	decalUniformBuffer          hal.Buffer
+	decalUniformBindGroup       hal.BindGroup
+	decalUniformLayout          hal.BindGroupLayout
+	decalAtlasTextureHAL        hal.Texture
+	decalAtlasView              hal.TextureView
+	decalBindGroup              hal.BindGroup
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -755,6 +765,7 @@ func (r *Renderer) Shutdown() {
 	r.mu.Lock()
 	r.destroyAliasResourcesLocked()
 	r.destroySpriteResourcesLocked()
+	r.destroyDecalResourcesLocked()
 	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
@@ -1126,8 +1137,8 @@ func (dc *DrawContext) renderWorld(state *RenderFrameState) {
 // Note: ensureWorldRenderTarget removed - we now render directly to the surface view
 // provided by gogpu via dc.ctx.SurfaceView() for zero-copy rendering.
 
-// renderEntities draws runtime entities. Alias models and sprites use HAL-backed
-// paths, while decal entities still fall back to projected markers.
+// renderEntities draws runtime entities. Alias models, sprites, and decals use
+// HAL-backed paths.
 func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
@@ -1135,17 +1146,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 
 	dc.renderAliasEntitiesHAL(state.AliasEntities)
 	dc.renderSpriteEntitiesHAL(state.SpriteEntities)
-
-	screenW, screenH := dc.renderer.Size()
-	if screenW <= 0 || screenH <= 0 {
-		return
-	}
-
-	vpMatrix := dc.renderer.GetViewProjectionMatrix()
-
-	for _, mark := range state.DecalMarks {
-		dc.drawProjectedEntityMarker(mark.Origin, vpMatrix, screenW, screenH, 2, 180)
-	}
+	dc.renderDecalMarksHAL(state.DecalMarks)
 }
 
 func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp types.Mat4, screenW, screenH, size int, color byte) {
