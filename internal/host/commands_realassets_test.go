@@ -249,6 +249,128 @@ func TestCmdSaveArgsSkipNotifySuppressesSaveMessage(t *testing.T) {
 	}
 }
 
+func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		UserDir:    t.TempDir(),
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+
+	previousAutoload := cvar.StringValue("sv_autoload")
+	cvar.Set("sv_autoload", "2")
+	t.Cleanup(func() {
+		cvar.Set("sv_autoload", previousAutoload)
+	})
+
+	player := srv.Static.Clients[0].Edict
+	player.Vars.Health = 61
+	player.Vars.Origin = [3]float32{320, 144, 40}
+
+	h.CmdSave("autoload_restart", subs)
+
+	player.Vars.Health = 0
+	player.Vars.Origin = [3]float32{0, 0, 0}
+
+	h.CmdRestart(subs)
+
+	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+		t.Fatalf("autoloaded restart health = %v, want 61", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+		t.Fatalf("autoloaded restart origin = %v, want restored origin", got)
+	}
+}
+
+func TestCmdChangelevelSameMapAutoloadsLastSaveWhenConfigured(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		UserDir:    t.TempDir(),
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+
+	previousAutoload := cvar.StringValue("sv_autoload")
+	cvar.Set("sv_autoload", "3")
+	t.Cleanup(func() {
+		cvar.Set("sv_autoload", previousAutoload)
+	})
+
+	player := srv.Static.Clients[0].Edict
+	player.Vars.Health = 61
+	player.Vars.Origin = [3]float32{320, 144, 40}
+
+	h.CmdSave("autoload_changelevel", subs)
+
+	player.Vars.Health = 12
+	player.Vars.Origin = [3]float32{0, 0, 0}
+
+	h.CmdChangelevel("start", subs)
+
+	if got := srv.Static.Clients[0].Edict.Vars.Health; got != 61 {
+		t.Fatalf("autoloaded same-map changelevel health = %v, want 61", got)
+	}
+	if got := srv.Static.Clients[0].Edict.Vars.Origin; got != ([3]float32{320, 144, 40}) {
+		t.Fatalf("autoloaded same-map changelevel origin = %v, want restored origin", got)
+	}
+}
+
 func TestCmdReconnectRealAssetsRestartsLocalSignon(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 

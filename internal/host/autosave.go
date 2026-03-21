@@ -17,6 +17,10 @@ func (h *Host) resetAutosaveState() {
 	h.autosave = autosaveState{}
 }
 
+func (h *Host) resetSaveTracking() {
+	h.lastSave = ""
+}
+
 // checkAutosave mirrors Host_CheckAutosave closely enough to preserve the
 // gameplay-facing heuristics around when autosaves are considered safe.
 func (h *Host) checkAutosave(subs *Subsystems) {

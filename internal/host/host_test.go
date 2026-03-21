@@ -178,7 +178,7 @@ func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
 func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
 	registerHostCVars()
 
-	for _, name := range []string{"sv_autosave", "sv_autosave_interval"} {
+	for _, name := range []string{"sv_autosave", "sv_autosave_interval", "sv_autoload"} {
 		if cv := cvar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)
 		}

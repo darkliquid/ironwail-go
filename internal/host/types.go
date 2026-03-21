@@ -59,10 +59,11 @@ type Host struct {
 	maxFPS    float64
 	framerate float64
 
-	args    []string
-	baseDir string
-	gameDir string
-	userDir string
+	args     []string
+	baseDir  string
+	gameDir  string
+	userDir  string
+	lastSave string
 
 	aborted     bool
 	abortReason string

@@ -5,6 +5,7 @@ package host
 
 import (
 	"fmt"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 )
 
@@ -99,11 +100,17 @@ func (h *Host) CmdRestart(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
+	if h.autoLoadLastSave(subs, false) {
+		return
+	}
 	h.CmdMap(subs.Server.GetMapName(), subs)
 }
 
 func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
+		return
+	}
+	if level == subs.Server.GetMapName() && h.autoLoadLastSave(subs, false) {
 		return
 	}
 
@@ -132,4 +139,36 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 		return
 	}
 	subs.Server.SetPreserveSpawnParms(false)
+}
+
+func (h *Host) autoLoadLastSave(subs *Subsystems, force bool) bool {
+	if subs == nil || subs.Server == nil || subs.Console == nil {
+		return false
+	}
+	if subs.Server.GetMaxClients() != 1 || h.lastSave == "" {
+		return false
+	}
+	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
+		return false
+	}
+	mode := cvar.FloatValue("sv_autoload")
+	if mode <= 0 {
+		return false
+	}
+	if !force {
+		if mode < 2 {
+			return false
+		}
+		player := subs.Server.EdictNum(1)
+		if mode < 3 && player != nil && player.Vars != nil && player.Vars.Health > 0 {
+			return false
+		}
+	}
+	subs.Console.Print("Autoloading...\n")
+	if err := h.loadSave(h.lastSave, subs); err != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		subs.Console.Print("Autoload failed!\n")
+		return false
+	}
+	return true
 }

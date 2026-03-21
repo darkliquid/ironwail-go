@@ -451,8 +451,14 @@ func (h *Host) CmdPing(subs *Subsystems) {
 }
 
 func (h *Host) CmdLoad(name string, subs *Subsystems) {
+	if err := h.loadSave(name, subs); err != nil && subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+	}
+}
+
+func (h *Host) loadSave(name string, subs *Subsystems) error {
 	if subs == nil || subs.Console == nil {
-		return
+		return nil
 	}
 	if cvar.BoolValue("nomonsters") {
 		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
@@ -460,40 +466,35 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 	}
 	path, data, err := h.readSaveFile(name)
 	if err != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
-		return
+		h.invalidateLastSave(name)
+		return err
 	}
 	subs.Console.Print(fmt.Sprintf("Loading game from %s...\n", filepath.Base(path)))
 	var save hostSaveFile
 	if err := json.Unmarshal(data, &save); err != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
-		return
+		h.invalidateLastSave(name)
+		return err
 	}
 	if save.Version != server.SaveGameVersion {
-		subs.Console.Print(fmt.Sprintf("load failed: savegame version %d does not match %d\n", save.Version, server.SaveGameVersion))
-		return
+		h.invalidateLastSave(name)
+		return fmt.Errorf("savegame version %d does not match %d", save.Version, server.SaveGameVersion)
 	}
 	if save.Server == nil {
-		subs.Console.Print("load failed: savegame is missing server state\n")
-		return
+		return fmt.Errorf("savegame is missing server state")
 	}
 	if subs.Server == nil {
-		subs.Console.Print("load failed: server is not initialized\n")
-		return
+		return fmt.Errorf("server is not initialized")
 	}
 	if subs.Server.GetMaxClients() != 1 {
-		subs.Console.Print("load failed: savegames require single-player mode\n")
-		return
+		return fmt.Errorf("savegames require single-player mode")
 	}
 	srv, ok := subs.Server.(*server.Server)
 	if !ok {
-		subs.Console.Print("load failed: savegames require the built-in server\n")
-		return
+		return fmt.Errorf("savegames require the built-in server")
 	}
 	fsInstance, ok := subs.Files.(*fs.FileSystem)
 	if !ok {
-		subs.Console.Print("load failed: filesystem implementation is missing\n")
-		return
+		return fmt.Errorf("filesystem implementation is missing")
 	}
 
 	h.BeginLoadingTransitionPlaque(0)
@@ -511,14 +512,12 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 	h.signOns = 0
 
 	if err := subs.Server.Init(h.maxClients); err != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
-		return
+		return err
 	}
 	srv.LoadGame = true
 	defer func() { srv.LoadGame = false }()
 	if err := subs.Server.SpawnServer(save.Server.MapName, fsInstance); err != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
-		return
+		return err
 	}
 	if err := h.startLocalServerSession(subs, func() error {
 		if err := srv.RestoreSaveGameState(save.Server); err != nil {
@@ -528,10 +527,10 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		cvar.SetInt("skill", save.Skill)
 		return nil
 	}); err != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
-		return
+		return err
 	}
-
+	h.setLastSave(name)
+	return nil
 }
 
 func (h *Host) CmdLoadArgs(args []string, subs *Subsystems) {
@@ -629,9 +628,26 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
 		return
 	}
+	h.setLastSave(name)
 
 	if !skipNotify {
 		subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", filepath.Base(path)))
+	}
+}
+
+func (h *Host) setLastSave(name string) {
+	if relName, err := normalizeSaveName(name); err == nil {
+		h.lastSave = relName
+	}
+}
+
+func (h *Host) invalidateLastSave(name string) {
+	relName, err := normalizeSaveName(name)
+	if err != nil {
+		return
+	}
+	if relName == h.lastSave {
+		h.lastSave = ""
 	}
 }
 
