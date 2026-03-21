@@ -452,7 +452,7 @@ func (h *Host) CmdPing(subs *Subsystems) {
 
 func (h *Host) CmdLoad(name string, subs *Subsystems) {
 	if err := h.loadSave(name, subs); err != nil && subs != nil && subs.Console != nil {
-		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
+		subs.Console.Print(err.Error() + "\n")
 	}
 }
 
@@ -481,7 +481,7 @@ func (h *Host) loadSave(name string, subs *Subsystems) error {
 	}
 	if save.Version != server.SaveGameVersion {
 		h.invalidateLastSave(name)
-		return fmt.Errorf("savegame version %d does not match %d", save.Version, server.SaveGameVersion)
+		return fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, server.SaveGameVersion)
 	}
 	if save.Server == nil {
 		return fmt.Errorf("savegame is missing server state")
@@ -715,11 +715,11 @@ func (h *Host) readSaveFile(name string) (string, []byte, error) {
 			return path, data, nil
 		}
 		if !os.IsNotExist(err) {
-			return "", nil, err
+			return "", nil, fmt.Errorf("ERROR: couldn't open.")
 		}
 	}
 
-	return "", nil, fmt.Errorf("%s not found", displayName)
+	return "", nil, fmt.Errorf("ERROR: %s not found.", displayName)
 }
 
 func (h *Host) saveFileSearchPaths(name string) ([]string, error) {

@@ -481,7 +481,7 @@ func TestCmdRestartPromptAutoloadConfirmLoadsLastSave(t *testing.T) {
 	if mgr.IsActive() {
 		t.Fatal("menu should hide after confirming autoload prompt")
 	}
-	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "load failed: slot1.sav not found") {
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "ERROR: slot1.sav not found.") {
 		t.Fatalf("console output = %q, want prompted load failure", got)
 	}
 	if h.lastSave != "" {
@@ -899,7 +899,7 @@ func TestCmdLoadMissingNestedSaveIncludesRelativePath(t *testing.T) {
 	if len(subs.console.messages) == 0 {
 		t.Fatal("expected console output")
 	}
-	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "autosave/start.sav not found") {
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "ERROR: autosave/start.sav not found.") {
 		t.Fatalf("console output = %q, want nested save path in not-found error", got)
 	}
 }
@@ -2151,7 +2151,7 @@ func TestCmdLoadStopsAllSoundsDuringSessionTransition(t *testing.T) {
 	if !audio.calls[0] {
 		t.Fatal("StopAllSounds clear flag = false, want true")
 	}
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load map \"maps/missingmap.bsp\": file not found: maps/missingmap.bsp") {
 		t.Fatalf("console output = %q, want load failure text", got)
 	}
 	if !h.LoadingPlaqueActive(0) {
@@ -2265,7 +2265,7 @@ func TestCmdLoadRejectsMismatchedSaveVersion(t *testing.T) {
 
 	h.CmdLoad("slot1", subs)
 
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed: savegame version") {
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: Savegame is version") {
 		t.Fatalf("console output = %q, want version mismatch", got)
 	}
 	if len(audio.calls) != 0 {
@@ -2328,7 +2328,7 @@ func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
 	if !audio.calls[0] {
 		t.Fatal("StopAllSounds clear flag = false, want true")
 	}
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load map \"maps/missingmap.bsp\": file not found: maps/missingmap.bsp") {
 		t.Fatalf("console output = %q, want load failure text", got)
 	}
 	if !h.LoadingPlaqueActive(0) {
@@ -2388,7 +2388,7 @@ func TestCmdLoadFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMissing(t
 	if !audio.calls[0] {
 		t.Fatal("StopAllSounds clear flag = false, want true")
 	}
-	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed:") {
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load map \"maps/missingmap.bsp\": file not found: maps/missingmap.bsp") {
 		t.Fatalf("console output = %q, want load failure text", got)
 	}
 	if !h.LoadingPlaqueActive(0) {
