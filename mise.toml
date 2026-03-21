@@ -114,10 +114,10 @@ run = """
 mkdir -p .ralph
 go run ./tools/ralph analyze-log \
   --log "${RALPH_LOG:-test.log}" \
-  --summary "${RALPH_SUMMARY:-.ralph/manual-summary.json}" \
-  --tasks "${RALPH_TASKS:-.ralph/manual-task-records.json}" \
+  --summary "${RALPH_SUMMARY:-.ralph/latest-summary.json}" \
+  --tasks "${RALPH_TASKS:-.ralph/latest-task-records.json}" \
   --state "${RALPH_STATE:-.ralph/state.json}" \
-  --beads-sync "${RALPH_BEADS_SYNC:-.ralph/manual-beads-sync.json}" \
+  --beads-sync "${RALPH_BEADS_SYNC:-.ralph/latest-beads-sync.json}" \
   $(if [ "${RALPH_APPLY_BEADS:-0}" = "1" ]; then printf '%s' '--apply-beads'; fi) \
   --beads-binary "${RALPH_BEADS_BIN:-bd}"
 """

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,6 +18,9 @@ func runLoop(args []string) int {
 	fs.SetOutput(os.Stderr)
 	verbose := fs.Bool("verbose", ralphVerbose, "Enable verbose Ralph logging.")
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	ralphVerbose = *verbose
@@ -93,8 +97,12 @@ func runLoop(args []string) int {
 		verbosef("engine command=%s -basedir %s %s", engineBin, quakeDir, strings.Join(append(defaultArgs, engineExtraArgs...), " "))
 
 		engineStatus := runEngine(engineBin, quakeDir, runLog, timeoutSeconds, append(defaultArgs, engineExtraArgs...)...)
-		_ = copyFile(runLog, latestLog)
+		if err := copyFile(runLog, latestLog); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			return 1
+		}
 		fmt.Printf("engine exit: %d\n", engineStatus)
+		engineFailed := engineStatus != 0 && engineStatus != 124
 
 		analysisArgs := []string{
 			"--log", runLog,
@@ -117,6 +125,10 @@ func runLoop(args []string) int {
 			return analysisStatus
 		}
 		if analysisStatus == 0 {
+			if engineFailed {
+				fmt.Fprintf(os.Stderr, "Ralph loop: engine exited unexpectedly with status %d and produced no actionable findings\n", engineStatus)
+				return engineStatus
+			}
 			fmt.Println("Ralph loop: no actionable issues detected.")
 			return 0
 		}
@@ -227,7 +239,7 @@ func runCmdToFile(cmd *exec.Cmd, logPath string) int {
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
-		return nil
+		return fmt.Errorf("open %s: %w", src, err)
 	}
 	defer in.Close()
 

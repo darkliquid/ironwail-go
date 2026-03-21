@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +21,9 @@ func runBuildPrompt(args []string) int {
 	verbose := fs.Bool("verbose", ralphVerbose, "Enable verbose Ralph logging.")
 
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	ralphVerbose = *verbose
@@ -37,8 +41,16 @@ func runBuildPrompt(args []string) int {
 		}
 	}
 
-	summary := loadSummary(*summaryPath)
-	tasks := loadTasks(*tasksPath)
+	summary, err := loadSummary(*summaryPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
+	tasks, err := loadTasks(*tasksPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
 	verbosef("building prompt from summary=%s tasks=%s log=%s", *summaryPath, *tasksPath, *logPath)
 	if *maxTasks >= 0 && len(tasks) > *maxTasks {
 		verbosef("truncating task list from %d to %d entries", len(tasks), *maxTasks)
@@ -121,24 +133,28 @@ func runBuildPrompt(args []string) int {
 	return 0
 }
 
-func loadSummary(path string) summaryFile {
+func loadSummary(path string) (summaryFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return summaryFile{}
+		return summaryFile{}, fmt.Errorf("read %s: %w", path, err)
 	}
 	var summary summaryFile
-	_ = json.Unmarshal(data, &summary)
-	return summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		return summaryFile{}, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return summary, nil
 }
 
-func loadTasks(path string) []taskRecord {
+func loadTasks(path string) ([]taskRecord, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	var tasks []taskRecord
-	_ = json.Unmarshal(data, &tasks)
-	return tasks
+	if err := json.Unmarshal(data, &tasks); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return tasks, nil
 }
 
 func fallback(value, fallback string) string {

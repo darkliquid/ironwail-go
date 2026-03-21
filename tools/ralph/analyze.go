@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,13 +18,16 @@ var (
 		regexp.MustCompile(`(?i)^\[svdbg\b`),
 		regexp.MustCompile(`(?i)^(INFO|DEBUG)\b`),
 		regexp.MustCompile(`(?i)^\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}\s+INFO\b`),
+		regexp.MustCompile(`(?i)^Ralph summary:`),
+		regexp.MustCompile(`(?i)^No actionable warnings/errors/issues found\.$`),
+		regexp.MustCompile(`(?i)\b(?:error|failure|warning|issue)s?[_-]?count\b`),
 	}
 	matchers = []struct {
 		severity string
 		pattern  *regexp.Regexp
 	}{
 		{"error", regexp.MustCompile(`(?i)\bpanic:|fatal error:|segmentation fault|assert|unexpected .*fail|crash|stack trace\b`)},
-		{"error", regexp.MustCompile(`(?i)\berror\b|failed\b|failure\b`)},
+		{"error", regexp.MustCompile(`(?i)\b(?:failed to|failure:|(?:build|command|copy|create|decode|encode|exec|initialize|invoke|load|open|parse|read|request|run|send|start|stop|sync|test|write)\s+failed)\b|\berror\b(?:\s*:|\s+(?:loading|opening|reading|writing|running|creating|copying|decoding|encoding|parsing|syncing|applying|invoking|initializing|starting|stopping|sending|receiving)\b)`)},
 		{"warning", regexp.MustCompile(`(?i)\bwarn(?:ing)?\b`)},
 		{"issue", regexp.MustCompile(`(?i)\bTODO\b|\bFIXME\b|\bparity\b`)},
 	}
@@ -101,6 +105,9 @@ func runAnalyzeLog(args []string) int {
 	stallThreshold := fs.Int("stall-threshold", 3, "Iterations before emitting telemetry-design tasks.")
 
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	ralphVerbose = *verbose
@@ -127,12 +134,20 @@ func runAnalyzeLog(args []string) int {
 		return 1
 	}
 
-	lines := readLines(*logPath)
+	lines, err := readLines(*logPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
 	issues, severityCounts := summarizeLog(lines)
 	verbosef("analyzing log=%s lines=%d iteration=%d", *logPath, len(lines), *iteration)
 	verbosef("detected issue_groups=%d severity_counts=%v", len(issues), severityCounts)
 
-	state := loadState(*statePath)
+	state, err := loadState(*statePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
 	if state.Issues == nil {
 		state.Issues = map[string]*issueState{}
 	}
@@ -222,10 +237,7 @@ func runAnalyzeLog(args []string) int {
 		return 1
 	}
 
-	var (
-		syncRecords []beadsSyncRecord
-		err         error
-	)
+	var syncRecords []beadsSyncRecord
 	if *applyBeads {
 		syncRecords, err = syncBeads(tasks, *beadsBinary)
 		if err != nil {
@@ -378,29 +390,32 @@ func safeID(text, prefix string) string {
 	return prefix + "-" + body
 }
 
-func loadState(path string) stateFile {
+func loadState(path string) (stateFile, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return stateFile{Issues: map[string]*issueState{}}
+		if errors.Is(err, os.ErrNotExist) {
+			return stateFile{Issues: map[string]*issueState{}}, nil
+		}
+		return stateFile{}, fmt.Errorf("read %s: %w", path, err)
 	}
 	var state stateFile
 	if err := json.Unmarshal(data, &state); err != nil {
-		return stateFile{Issues: map[string]*issueState{}}
+		return stateFile{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	return state
+	return state, nil
 }
 
-func readLines(path string) []string {
+func readLines(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	text := strings.ReplaceAll(string(data), "\r\n", "\n")
 	text = strings.TrimRight(text, "\n")
 	if text == "" {
-		return nil
+		return nil, nil
 	}
-	return strings.Split(text, "\n")
+	return strings.Split(text, "\n"), nil
 }
 
 func syncBeads(tasks []taskRecord, beadsBinary string) ([]beadsSyncRecord, error) {
