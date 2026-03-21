@@ -106,7 +106,7 @@ fi
 
 [tasks.smoke-all]
 description = "Run all smoke tests"
-depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]
+depends = ["smoke-menu", "smoke-headless", "smoke-map-start", "smoke-cgo-map-start"]
 
 [tasks.ralph-analyze-log]
 description = "Analyze a telemetry log into Ralph task records"
@@ -190,17 +190,17 @@ description = "Capture reference screenshots from C Ironwail"
 run = "go run ./tools/parity_screenshots reference"
 
 [tasks.parity-go]
-description = "Capture screenshots from Go port"
-depends = ["build-gogpu"]
+description = "Capture screenshots from the CGO/OpenGL Go parity build"
+depends = ["build-cgo"]
 run = "go run ./tools/parity_screenshots go"
 
 [tasks.parity-compare]
-description = "Compare reference vs Go screenshots"
+description = "Compare reference vs Go screenshots and fail on diffs/missing captures"
 run = "go run ./tools/parity_screenshots compare"
 
 [tasks.parity-all]
-description = "Capture both and compare parity screenshots"
-depends = ["build-gogpu"]
+description = "Capture reference + CGO/OpenGL Go screenshots and compare them"
+depends = ["build-cgo"]
 run = "go run ./tools/parity_screenshots both"
 
 [tasks.go-generate]

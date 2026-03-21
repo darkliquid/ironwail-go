@@ -24,10 +24,11 @@ type BrushEntity struct {
 
 // EntityEffectSource describes a runtime entity whose effect flags drive transient visuals.
 type EntityEffectSource struct {
-	Origin    [3]float32
-	Angles    [3]float32
-	Effects   int
-	EntityNum int // Entity index — used as EntityKey for per-entity dlight slot reuse
+	Origin     [3]float32
+	Angles     [3]float32
+	Effects    int
+	ModelFlags int
+	EntityNum  int // Entity index — used as EntityKey for per-entity dlight slot reuse
 }
 
 // AliasModelEntity describes an MDL instance to render.
@@ -40,6 +41,7 @@ type AliasModelEntity struct {
 	FrameTime   float64 // Legacy per-frame animation time; world alias rendering uses TimeSeconds.
 	TimeSeconds float64 // Absolute client/render time for persistent alias interpolation.
 	LerpFlags   int
+	LerpFinish  float64
 	Origin      [3]float32
 	Angles      [3]float32
 	Alpha       float32

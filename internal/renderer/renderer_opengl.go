@@ -821,12 +821,16 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 	pixels := make([]byte, width*height*4)
 	gl.ReadPixels(0, 0, int32(width), int32(height), gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(&pixels[0]))
 
-	img := stdimage.NewRGBA(stdimage.Rect(0, 0, width, height))
+	img := stdimage.NewNRGBA(stdimage.Rect(0, 0, width, height))
 	rowBytes := width * 4
 	for y := 0; y < height; y++ {
 		src := (height - 1 - y) * rowBytes
 		dst := y * img.Stride
-		copy(img.Pix[dst:dst+rowBytes], pixels[src:src+rowBytes])
+		row := img.Pix[dst : dst+rowBytes]
+		copy(row, pixels[src:src+rowBytes])
+		for x := 3; x < rowBytes; x += 4 {
+			row[x] = 0xff
+		}
 	}
 
 	f, err := os.Create(filename)

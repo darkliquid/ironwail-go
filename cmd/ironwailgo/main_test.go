@@ -1300,7 +1300,7 @@ func TestRuntimeViewStateKeepsViewModelAlignedWithAuthoritativeOrigin(t *testing
 	}
 }
 
-func TestRuntimeViewStateIgnoresBobInFirstPersonPath(t *testing.T) {
+func TestRuntimeViewStateAppliesCanonicalBobInFirstPersonPath(t *testing.T) {
 	originalClient := g.Client
 	originalViewCalc := globalViewCalc
 	t.Cleanup(func() {
@@ -1320,11 +1320,12 @@ func TestRuntimeViewStateIgnoresBobInFirstPersonPath(t *testing.T) {
 
 	if bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity()); bob == 0 {
 		t.Fatal("test setup produced zero bob, want non-zero bob input")
-	}
-
-	origin, _ := runtimeViewState()
-	if want := [3]float32{100, 200, 322}; origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want bob-free eye origin %v", origin, want)
+	} else {
+		origin, _ := runtimeViewState()
+		want := [3]float32{100, 200, 322 + bob}
+		if origin != want {
+			t.Fatalf("runtimeViewState origin = %v, want bobbed eye origin %v", origin, want)
+		}
 	}
 }
 
@@ -1394,7 +1395,7 @@ func TestRuntimeViewStateSmoothsUpwardStepAndKeepsViewModelAligned(t *testing.T)
 	}
 }
 
-func TestCollectViewModelEntityStaysAlignedWhenBobInputPresent(t *testing.T) {
+func TestCollectViewModelEntityAppliesCanonicalBobWhenPresent(t *testing.T) {
 	originalClient := g.Client
 	originalMenu := g.Menu
 	originalSubs := g.Subs
@@ -1437,22 +1438,78 @@ func TestCollectViewModelEntityStaysAlignedWhenBobInputPresent(t *testing.T) {
 
 	if bob := viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity()); bob == 0 {
 		t.Fatal("test setup produced zero bob, want non-zero bob input")
-	}
+	} else {
+		viewOrigin, _ := runtimeViewState()
+		if want := [3]float32{100, 200, 322 + bob}; viewOrigin != want {
+			t.Fatalf("runtimeViewState origin = %v, want bobbed eye origin %v", viewOrigin, want)
+		}
+		if got := runtimeWeaponBaseOrigin(); got != [3]float32{100, 200, 322} {
+			t.Fatalf("runtimeWeaponBaseOrigin() = %v, want bob-free weapon base origin [100 200 322]", got)
+		}
 
-	viewOrigin, _ := runtimeViewState()
-	if want := [3]float32{100, 200, 322}; viewOrigin != want {
-		t.Fatalf("runtimeViewState origin = %v, want bob-free eye origin %v", viewOrigin, want)
+		entity := collectViewModelEntity()
+		if entity == nil {
+			t.Fatal("collectViewModelEntity() = nil, want entity")
+		}
+		wantOrigin := [3]float32{100 + bob*0.4, 200, 322 + bob}
+		if entity.Origin != wantOrigin {
+			t.Fatalf("viewmodel origin = %v, want bobbed weapon origin %v", entity.Origin, wantOrigin)
+		}
 	}
-	if got := runtimeWeaponBaseOrigin(); got != viewOrigin {
-		t.Fatalf("runtimeWeaponBaseOrigin() = %v, want bob-free eye origin %v", got, viewOrigin)
+}
+
+func TestCollectViewModelEntityIgnoresCameraPunchAngles(t *testing.T) {
+	originalClient := g.Client
+	originalMenu := g.Menu
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalViewCalc := globalViewCalc
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Menu = originalMenu
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		globalViewCalc = originalViewCalc
+	})
+
+	ensureViewCalcCvars()
+	cvar.Set("r_drawentities", "1")
+	cvar.Set("r_drawviewmodel", "1")
+	cvar.Set("cl_bob", "0")
+	cvar.Set("cl_bobcycle", "0")
+	cvar.Set("v_idlescale", "0")
+	cvar.Set("r_viewmodel_quake", "0")
+	cvar.Set("v_gunkick", "1")
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.PunchAngle = [3]float32{5, 7, 0}
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Stats[inet.StatWeaponFrame] = 0
+	g.Menu = menu.NewManager(nil, nil)
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1, Poses: [][]model.TriVertX{{}}},
+		},
 	}
 
 	entity := collectViewModelEntity()
 	if entity == nil {
 		t.Fatal("collectViewModelEntity() = nil, want entity")
 	}
-	if entity.Origin != viewOrigin {
-		t.Fatalf("viewmodel origin = %v, want aligned bob-free eye origin %v", entity.Origin, viewOrigin)
+	if got := entity.Angles[0]; got != -10 {
+		t.Fatalf("viewmodel pitch = %v, want -10 without camera punch", got)
+	}
+	if got := entity.Angles[1]; got != 20 {
+		t.Fatalf("viewmodel yaw = %v, want 20 without camera punch", got)
 	}
 }
 
@@ -1654,10 +1711,13 @@ func TestRuntimeViewStateUsesDemoViewAnglesWithoutDoubleInterpolation(t *testing
 
 func TestRuntimeCameraStateInterpolatesPunchAngles(t *testing.T) {
 	originalClient := g.Client
+	originalKick := cvar.StringValue("v_gunkick")
 	t.Cleanup(func() {
 		g.Client = originalClient
+		cvar.Set("v_gunkick", originalKick)
 	})
 
+	cvar.Set("v_gunkick", "2")
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 100 // Alive player
 	g.Client.Intermission = 0
@@ -2050,14 +2110,14 @@ func TestCollectViewModelEntityAppliesPunchAndDamageKickAngles(t *testing.T) {
 	if entity == nil {
 		t.Fatal("collectViewModelEntity() = nil, want entity")
 	}
-	if entity.Angles[0] != -17 {
-		t.Fatalf("viewmodel pitch = %v, want -17", entity.Angles[0])
+	if entity.Angles[0] != -12 {
+		t.Fatalf("viewmodel pitch = %v, want -12", entity.Angles[0])
 	}
-	if entity.Angles[1] != 37 {
-		t.Fatalf("viewmodel yaw = %v, want 37", entity.Angles[1])
+	if entity.Angles[1] != 34 {
+		t.Fatalf("viewmodel yaw = %v, want 34", entity.Angles[1])
 	}
-	if entity.Angles[2] != 8 {
-		t.Fatalf("viewmodel roll = %v, want 8", entity.Angles[2])
+	if entity.Angles[2] != 0 {
+		t.Fatalf("viewmodel roll = %v, want 0", entity.Angles[2])
 	}
 }
 
@@ -2263,6 +2323,88 @@ func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
 	}
 	if demo.FrameIndex != 0 {
 		t.Fatalf("frame index while paused = %d, want 0", demo.FrameIndex)
+	}
+}
+
+func TestDemoPlaybackNegativeSpeedRewindsOneFrame(t *testing.T) {
+	originalHost := g.Host
+	originalSubs := g.Subs
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Subs = originalSubs
+		_ = os.Chdir(cwd)
+	})
+
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("rewind_step", 0); err != nil {
+		t.Fatalf("StartDemoRecording: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d: %v", i, err)
+		}
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording: %v", err)
+	}
+
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
+	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	g.Host.CmdPlaydemo("rewind_step", g.Subs)
+
+	demo := g.Host.DemoState()
+	if demo == nil || !demo.Playback {
+		t.Fatal("expected active demo playback")
+	}
+	demo.EnableTimeDemo()
+
+	clientState := host.LoopbackClientState(g.Subs)
+	if clientState == nil {
+		t.Fatal("expected loopback client state")
+	}
+	clientState.State = cl.StateActive
+	clientState.Signon = cl.Signons
+
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame first: %v", err)
+	}
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame second: %v", err)
+	}
+	if got := demo.FrameIndex; got != 2 {
+		t.Fatalf("frame index before rewind = %d, want 2", got)
+	}
+
+	demo.SetSpeed(-1)
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame rewind: %v", err)
+	}
+	if got := demo.FrameIndex; got != 1 {
+		t.Fatalf("frame index after rewind = %d, want 1", got)
+	}
+	clientState.State = cl.StateActive
+	clientState.Signon = cl.Signons
+
+	if err := g.Host.Frame(0.016, gameCallbacks{}); err != nil {
+		t.Fatalf("Host.Frame backstop: %v", err)
+	}
+	if got := demo.FrameIndex; got != 1 {
+		t.Fatalf("frame index at rewind backstop = %d, want 1", got)
+	}
+	if !demo.RewindBackstop() {
+		t.Fatal("expected rewind backstop after rewinding to the first frame")
 	}
 }
 
@@ -3013,6 +3155,45 @@ func TestSyncRuntimeVisualEffectsResetsEffectsWhenClientInactive(t *testing.T) {
 	}
 	if len(g.Client.TempEntities) != 0 {
 		t.Fatalf("inactive client should consume queued temp entities")
+	}
+}
+
+func TestCollectAliasEntitiesIncludesBeamSegments(t *testing.T) {
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalAliasCache := g.AliasModelCache
+	originalRuntimeBeams := g.RuntimeBeams
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.AliasModelCache = originalAliasCache
+		g.RuntimeBeams = originalRuntimeBeams
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.Time = 1
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/bolt.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1, Poses: [][]model.TriVertX{{}}},
+		},
+	}
+	g.RuntimeBeams = []cl.BeamSegment{{
+		Model:  "progs/bolt.mdl",
+		Origin: [3]float32{1, 2, 3},
+		Angles: [3]float32{4, 5, 6},
+	}}
+
+	entities := collectAliasEntities()
+	if len(entities) != 1 {
+		t.Fatalf("collectAliasEntities() len = %d, want 1", len(entities))
+	}
+	if got := entities[0].ModelID; got != "progs/bolt.mdl" {
+		t.Fatalf("beam model = %q, want progs/bolt.mdl", got)
+	}
+	if got := entities[0].Origin; got != [3]float32{1, 2, 3} {
+		t.Fatalf("beam origin = %v, want [1 2 3]", got)
 	}
 }
 
@@ -3878,6 +4059,74 @@ func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 	}
 }
 
+func TestGameplayDemoControlsInterceptBindingsAndUpdateSpeed(t *testing.T) {
+	originalInput := g.Input
+	originalHost := g.Host
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Host = originalHost
+		g.Client = originalClient
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Host = host.NewHost()
+	g.Host.SetDemoState(&cl.DemoState{Playback: true, Speed: 1, BaseSpeed: 1})
+	g.Client = cl.NewClient()
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	demo := g.Host.DemoState()
+	if demo == nil {
+		t.Fatal("expected demo state")
+	}
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KSpace, Down: false})
+	if !demo.Paused || demo.Speed != 0 {
+		t.Fatalf("space should pause demo, paused=%v speed=%f", demo.Paused, demo.Speed)
+	}
+	if g.Client.InputJump.State != 0 {
+		t.Fatalf("space during demo playback should not trigger +jump, got state %d", g.Client.InputJump.State)
+	}
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KUpArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KUpArrow, Down: false})
+	if demo.Paused {
+		t.Fatal("up arrow should resume demo playback")
+	}
+	if demo.BaseSpeed != 1 || demo.Speed != 1 {
+		t.Fatalf("resume speed = base:%f speed:%f, want 1/1", demo.BaseSpeed, demo.Speed)
+	}
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KUpArrow, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KUpArrow, Down: false})
+	if demo.BaseSpeed != 2 || demo.Speed != 2 {
+		t.Fatalf("accelerated speed = base:%f speed:%f, want 2/2", demo.BaseSpeed, demo.Speed)
+	}
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KShift, Down: true})
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KLeftArrow, Down: true})
+	if demo.Speed != -2.5 {
+		t.Fatalf("held left+shift speed = %f, want -2.5", demo.Speed)
+	}
+	if g.Client.InputLeft.State != 0 {
+		t.Fatalf("left arrow during demo playback should not trigger +left, got state %d", g.Client.InputLeft.State)
+	}
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KLeftArrow, Down: false})
+	if demo.Speed != 0.5 {
+		t.Fatalf("speed after releasing left with shift held = %f, want 0.5", demo.Speed)
+	}
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KShift, Down: false})
+	if demo.Speed != 2 {
+		t.Fatalf("speed after releasing shift = %f, want 2", demo.Speed)
+	}
+}
+
 func TestSyncGameplayInputModeClearsHeldScoreboardOutsideGameInput(t *testing.T) {
 	originalInput := g.Input
 	originalMenu := g.Menu
@@ -4197,12 +4446,19 @@ func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
 	if got := g.Client.ViewAngles[0]; got != 0 {
 		t.Fatalf("pitch should stay unchanged when freelook is off and +mlook inactive, got %.2f", got)
 	}
+	if got := g.Client.MouseForwardMove; math.Abs(float64(got-(-50))) > 0.0001 {
+		t.Fatalf("forward move with freelook off = %.2f, want -50.00", got)
+	}
 
 	g.Client.InputMLook.State = 1
+	g.Client.MouseForwardMove = 0
 	backend.dy = 5
 	applyGameplayMouseLook()
 	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-1.0)) > 0.0001 {
 		t.Fatalf("pitch with +mlook held = %.2f, want 1.00", got)
+	}
+	if got := g.Client.MouseForwardMove; got != 0 {
+		t.Fatalf("forward move with +mlook held = %.2f, want 0", got)
 	}
 
 	g.Client.ViewAngles = [3]float32{}
@@ -4213,6 +4469,21 @@ func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
 	applyGameplayMouseLook()
 	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-(-1.0))) > 0.0001 {
 		t.Fatalf("pitch with inverted mouse = %.2f, want -1.00", got)
+	}
+
+	g.Client.ViewAngles = [3]float32{}
+	cvar.Set("m_pitch", "0.02")
+	cvar.Set("freelook", "0")
+	cvar.Set("lookstrafe", "1")
+	g.Client.InputMLook.State = 1
+	backend.dx = 2
+	backend.dy = 0
+	applyGameplayMouseLook()
+	if got := g.Client.ViewAngles[1]; got != 0 {
+		t.Fatalf("yaw with lookstrafe active = %.2f, want 0", got)
+	}
+	if got := g.Client.MouseSideMove; math.Abs(float64(got-16)) > 0.0001 {
+		t.Fatalf("side move with lookstrafe active = %.2f, want 16.00", got)
 	}
 }
 

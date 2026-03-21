@@ -769,9 +769,16 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 	}
 	p.Client.ViewHeight = viewHeight
 	if bits&inet.SU_IDEALPITCH != 0 {
-		if _, err := readChar(msg, "svc_clientdata: missing idealpitch"); err != nil {
+		idealPitch, err := readChar(msg, "svc_clientdata: missing idealpitch")
+		if err != nil {
 			return err
 		}
+		p.Client.IdealPitch = float32(idealPitch)
+	} else {
+		p.Client.IdealPitch = 0
+	}
+	if p.Client.Signon < Signons {
+		p.Client.StopPitchDrift()
 	}
 
 	punch := [3]float32{}
@@ -1359,6 +1366,7 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		state.SpriteSyncModelIndex = current.SpriteSyncModelIndex
 		state.Origin = current.Origin
 		state.Angles = current.Angles
+		state.LerpFinish = current.LerpFinish
 	}
 	rawOrigin := decode.Origin
 	rawAngles := decode.Angles
@@ -1477,9 +1485,14 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 			decode.ModelIndex = (decode.ModelIndex & 0x00ff) | (uint16(v) << 8)
 		}
 		if bits&inet.U_LERPFINISH != 0 {
-			if _, ok := msg.ReadByte(); !ok {
+			v, ok := msg.ReadByte()
+			if !ok {
 				return fmt.Errorf("entity update: missing lerpfinish")
 			}
+			state.LerpFinish = p.Client.MTime[0] + float64(v)/255.0
+			state.LerpFlags |= inet.LerpFinish
+		} else {
+			state.LerpFlags &^= inet.LerpFinish
 		}
 	} else {
 		// PROTOCOL_NETQUAKE: bit 15 is Nehahra's U_TRANS, not U_EXTEND1.
@@ -1521,6 +1534,7 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		state.MsgTime = p.Client.MTime[0]
 		state.ForceLink = false
 		state.LerpFlags |= inet.LerpResetMove | inet.LerpResetAnim
+		state.LerpFlags &^= inet.LerpFinish
 		p.Client.Entities[entNum] = state
 		return nil
 	}

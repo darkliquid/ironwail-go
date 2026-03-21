@@ -510,6 +510,10 @@ type VM struct {
 	// ArgC is the argument count for the current call.
 	ArgC int
 
+	// BuiltinError aborts the current VM execution when set by a builtin.
+	// callFunction consumes and returns it as a normal ExecuteProgram error.
+	BuiltinError error
+
 	// Trace enables execution tracing for debugging.
 	Trace bool
 
@@ -556,6 +560,22 @@ type VM struct {
 	GlobalVars *GlobalVars
 
 	compatRNG *compatrand.RNG
+}
+
+func (vm *VM) SetBuiltinError(err error) {
+	if vm == nil || err == nil {
+		return
+	}
+	vm.BuiltinError = err
+}
+
+func (vm *VM) consumeBuiltinError() error {
+	if vm == nil {
+		return nil
+	}
+	err := vm.BuiltinError
+	vm.BuiltinError = nil
+	return err
 }
 
 // TraceCallEvent describes a QuakeC function-oriented trace event.

@@ -67,8 +67,9 @@ func TestSendServerInfoRMQIncludesProtocolFlags(t *testing.T) {
 	}
 
 	flags := int32(binary.LittleEndian.Uint32(data[idx+5 : idx+9]))
-	if flags != int32(s.ProtocolFlags()) {
-		t.Fatalf("protocol flags = %d, want %d", flags, s.ProtocolFlags())
+	wantFlags := int32(ProtocolFlagInt32Coord | ProtocolFlagShortAngle)
+	if flags != wantFlags {
+		t.Fatalf("protocol flags = %d, want %d", flags, wantFlags)
 	}
 	if got := data[idx+9]; got != byte(s.Static.MaxClients) {
 		t.Fatalf("byte after protocolflags = %d, want maxclients %d", got, s.Static.MaxClients)

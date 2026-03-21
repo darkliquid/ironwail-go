@@ -49,9 +49,23 @@ The canonical parity/build path is the CGO/OpenGL runtime:
 - `mise run build-cgo`
 - `mise run smoke-map-start`
 - `mise run smoke-cgo-map-start`
+- `mise run parity-ref`
+- `mise run parity-go`
+- `mise run parity-compare`
 
 The gogpu tasks remain available for secondary-backend work, but they are no
 longer the primary parity gate.
+
+The parity screenshot harness now targets the CGO/OpenGL path by default and
+acts like a real gate:
+
+- `mise run parity-ref` captures deterministic reference screenshots from C
+  Ironwail into `testdata/parity/reference/`
+- `mise run parity-go` captures the matching Go CGO/OpenGL screenshots into
+  `testdata/parity/go/`
+- `mise run parity-compare` writes visual diffs to `testdata/parity/diff/` and
+  exits nonzero if captures are missing or if any scene exceeds the configured
+  mismatch threshold
 
 ### Continuous Ralph loop
 

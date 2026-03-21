@@ -20,6 +20,7 @@ type MessageBuffer struct {
 	Data       []byte        // Raw message data
 	ReadPos    int           // Current read position
 	writePos   int           // Current write position
+	MaxSize    int           // Optional write limit; defaults to len(Data) when zero
 	BadRead    bool          // Set if a read operation failed (past end of buffer)
 	Overflowed bool          // Set if a write operation exceeded buffer capacity
 	ProtoFlags ProtocolFlags // Protocol flags controlling coord/angle precision
@@ -28,7 +29,8 @@ type MessageBuffer struct {
 // NewMessageBuffer creates a new message buffer with the given capacity.
 func NewMessageBuffer(size int) *MessageBuffer {
 	return &MessageBuffer{
-		Data: make([]byte, size),
+		Data:    make([]byte, size),
+		MaxSize: size,
 	}
 }
 
@@ -45,6 +47,16 @@ func (m *MessageBuffer) Clear() {
 	m.Overflowed = false
 }
 
+func (m *MessageBuffer) limit() int {
+	if m == nil {
+		return 0
+	}
+	if m.MaxSize > 0 && m.MaxSize <= len(m.Data) {
+		return m.MaxSize
+	}
+	return len(m.Data)
+}
+
 // ============================================================================
 // WRITE METHODS (Server → Client)
 // ============================================================================
@@ -54,7 +66,7 @@ func (m *MessageBuffer) WriteByte(b byte) {
 	if m == nil {
 		return
 	}
-	if m.writePos >= len(m.Data) {
+	if m.writePos >= m.limit() {
 		m.Overflowed = true
 		return
 	}
@@ -72,7 +84,7 @@ func (m *MessageBuffer) WriteShort(s int16) {
 	if m == nil {
 		return
 	}
-	if m.writePos+2 > len(m.Data) {
+	if m.writePos+2 > m.limit() {
 		m.Overflowed = true
 		return
 	}
@@ -85,7 +97,7 @@ func (m *MessageBuffer) WriteLong(l int32) {
 	if m == nil {
 		return
 	}
-	if m.writePos+4 > len(m.Data) {
+	if m.writePos+4 > m.limit() {
 		m.Overflowed = true
 		return
 	}
@@ -98,7 +110,7 @@ func (m *MessageBuffer) WriteFloat(f float32) {
 	if m == nil {
 		return
 	}
-	if m.writePos+4 > len(m.Data) {
+	if m.writePos+4 > m.limit() {
 		m.Overflowed = true
 		return
 	}
@@ -169,11 +181,11 @@ func (m *MessageBuffer) WriteString(s string) {
 	if m == nil {
 		return
 	}
-	for i := 0; i < len(s) && m.writePos < len(m.Data); i++ {
+	for i := 0; i < len(s) && m.writePos < m.limit(); i++ {
 		m.Data[m.writePos] = s[i]
 		m.writePos++
 	}
-	if m.writePos >= len(m.Data) {
+	if m.writePos >= m.limit() {
 		m.Overflowed = true
 		return
 	}
@@ -187,7 +199,7 @@ func (m *MessageBuffer) Write(data []byte) {
 		return
 	}
 	for _, b := range data {
-		if m.writePos >= len(m.Data) {
+		if m.writePos >= m.limit() {
 			m.Overflowed = true
 			break
 		}

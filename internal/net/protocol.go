@@ -312,6 +312,7 @@ const (
 	LerpResetMove uint8 = 1 << 0 // Reset position lerp (e.g. teleport or stale slot)
 	LerpResetAnim uint8 = 1 << 1 // Reset animation lerp (e.g. after muzzle flash)
 	LerpMoveStep  uint8 = 1 << 2 // Monster step-move: don't lerp position (U_STEP)
+	LerpFinish    uint8 = 1 << 3 // Server-directed lerp completion time (U_LERPFINISH)
 )
 
 // EntityState represents entity baseline state sent to clients.
@@ -333,11 +334,13 @@ type EntityState struct {
 	MsgTime    float64       // Server time when this entity was last updated
 	ForceLink  bool          // Jump to MsgOrigins[0] without lerping (new or teleported)
 	LerpFlags  uint8         // LERP_* bits controlling interpolation behavior
+	LerpFinish float64       // Absolute finish time for RMQ/Fitz lerpfinish-directed interpolation
 
 	// Trail state: TrailOrigin tracks the entity's position from the
 	// previous frame so trail particle emitters (RocketTrail, etc.) know
 	// where each trail segment starts.
 	TrailOrigin [3]float32
+	TrailDelay  float64
 
 	// Sprite runtime animation state mirrors C's entity_t syncbase behavior.
 	SpriteSyncBase       float32

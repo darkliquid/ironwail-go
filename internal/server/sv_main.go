@@ -111,6 +111,7 @@ func (s *Server) Init(maxClients int) error {
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.SoundPrecache = make([]string, MaxSounds)
 	s.ModelPrecache = make([]string, MaxModels)
+	s.modelCache = make(map[string]cachedModelInfo)
 	s.StaticEntities = nil
 	s.StaticSounds = nil
 	resetLightStyles(&s.LightStyles)
@@ -155,6 +156,8 @@ func (s *Server) Shutdown() {
 	s.Static = nil
 	s.SoundPrecache = nil
 	s.ModelPrecache = nil
+	s.modelCache = nil
+	s.FileSystem = nil
 	s.StaticEntities = nil
 	s.StaticSounds = nil
 	s.SignonBuffers = nil
@@ -177,10 +180,16 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 		return errors.New("map name is empty")
 	}
 
+	if s.Active {
+		s.SendReconnect()
+	}
+
 	s.Active = false
 	s.Paused = false
 	s.State = ServerStateLoading
 	s.Time = 1
+	s.FileSystem = vfs
+	s.modelCache = make(map[string]cachedModelInfo)
 	if s.Static != nil {
 		s.Static.ChangeLevelIssued = false
 	}
@@ -287,14 +296,17 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 
 	s.LinkEdict(world, false)
 
+	s.Active = true
+	s.State = ServerStateActive
+	s.FrameTime = 0.1
+	s.Physics()
+	s.Physics()
+
 	// Populate signon buffers with static entities and ambient sounds.
 	// These are shared across all connecting clients.
 	if err := s.buildSignonBuffers(); err != nil {
 		return fmt.Errorf("build signon buffers: %w", err)
 	}
-
-	s.Active = true
-	s.State = ServerStateActive
 
 	slog.Info("server spawned map start", "map", mapName)
 
@@ -681,7 +693,74 @@ func (s *Server) modelBounds(modelName string) (mins, maxs [3]float32, ok bool) 
 		}
 	}
 
+	if info, exists := s.modelCache[modelName]; exists && info.known {
+		return info.mins, info.maxs, true
+	}
+
 	return mins, maxs, false
+}
+
+type cachedModelInfo struct {
+	mins  [3]float32
+	maxs  [3]float32
+	known bool
+}
+
+func spriteBounds(sprite *model.MSprite) ([3]float32, [3]float32) {
+	halfWidth := float32(sprite.MaxWidth) * 0.5
+	halfHeight := float32(sprite.MaxHeight) * 0.5
+	return [3]float32{-halfWidth, -halfWidth, -halfHeight}, [3]float32{halfWidth, halfWidth, halfHeight}
+}
+
+func (s *Server) cacheModelInfo(modelName string) (cachedModelInfo, error) {
+	if modelName == "" || (len(modelName) > 0 && modelName[0] == '*') {
+		return cachedModelInfo{known: true}, nil
+	}
+	if info, ok := s.modelCache[modelName]; ok {
+		return info, nil
+	}
+	if s.FileSystem == nil {
+		return cachedModelInfo{}, fmt.Errorf("filesystem unavailable while loading %q", modelName)
+	}
+	data, err := s.FileSystem.LoadFile(modelName)
+	if err != nil {
+		return cachedModelInfo{}, err
+	}
+
+	var info cachedModelInfo
+	switch filepath.Ext(modelName) {
+	case ".mdl":
+		m, err := model.LoadAliasModel(bytes.NewReader(data))
+		if err != nil {
+			return cachedModelInfo{}, err
+		}
+		info = cachedModelInfo{mins: m.Mins, maxs: m.Maxs, known: true}
+	case ".spr":
+		sprite, err := model.LoadSprite(bytes.NewReader(data))
+		if err != nil {
+			return cachedModelInfo{}, err
+		}
+		info.mins, info.maxs = spriteBounds(sprite)
+		info.known = true
+	case ".bsp":
+		tree, err := bsp.LoadTree(bytes.NewReader(data))
+		if err != nil {
+			return cachedModelInfo{}, err
+		}
+		if len(tree.Models) > 0 {
+			info = cachedModelInfo{mins: tree.Models[0].BoundsMin, maxs: tree.Models[0].BoundsMax, known: true}
+		} else {
+			info = cachedModelInfo{known: true}
+		}
+	default:
+		return cachedModelInfo{}, fmt.Errorf("unsupported model type %q", modelName)
+	}
+
+	if s.modelCache == nil {
+		s.modelCache = make(map[string]cachedModelInfo)
+	}
+	s.modelCache[modelName] = info
+	return info, nil
 }
 
 // ProtocolFlags control coordinate/angle precision in network messages.
@@ -702,5 +781,8 @@ const (
 // For FitzQuake protocol (666), protocolflags is 0 (default 16-bit coords, 8-bit angles).
 // Protocol flags are only meaningful for RMQ protocol (999).
 func (s *Server) ProtocolFlags() ProtocolFlags {
+	if s != nil && s.Protocol == ProtocolRMQ {
+		return ProtocolFlagInt32Coord | ProtocolFlagShortAngle
+	}
 	return 0
 }

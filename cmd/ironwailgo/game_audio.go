@@ -61,6 +61,15 @@ func resolveRuntimeSFX(soundIndex int) *audio.SFX {
 	return sfx
 }
 
+func resolveNamedRuntimeSFX(soundName string) *audio.SFX {
+	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || soundName == "" {
+		return nil
+	}
+	return g.Audio.PrecacheSound(soundName, func() ([]byte, error) {
+		return g.Subs.Files.LoadFile("sound/" + soundName)
+	})
+}
+
 func resolveMenuSFX(name string) *audio.SFX {
 	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || name == "" {
 		return nil
@@ -382,6 +391,9 @@ func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.Transie
 	}
 	for _, soundEvent := range soundEvents {
 		sfx := resolveRuntimeSFX(soundEvent.SoundIndex)
+		if soundEvent.SoundName != "" {
+			sfx = resolveNamedRuntimeSFX(soundEvent.SoundName)
+		}
 		if sfx == nil {
 			continue
 		}

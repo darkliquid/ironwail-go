@@ -51,6 +51,7 @@ func seedAliasState(state *AliasEntity, entity AliasModelEntity, created bool) *
 	preserved := state.LerpFlags & (LerpResetAnim2 | LerpFinish)
 	state.Frame = entity.Frame
 	state.LerpFlags = preserved | flags
+	state.LerpFinish = entity.LerpFinish
 	state.Origin = entity.Origin
 	state.Angles = entity.Angles
 	state.ModelID = entity.ModelID

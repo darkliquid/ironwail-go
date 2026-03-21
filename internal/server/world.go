@@ -813,28 +813,11 @@ func (s *Server) findTouchedLeafs(ent *Edict, child bsp.TreeChild) {
 
 	node := &s.WorldTree.Nodes[child.Index]
 	plane := &s.WorldTree.Planes[node.PlaneNum]
-
-	var sides int
-	if plane.Type < 3 {
-		if ent.Vars.AbsMin[plane.Type] > plane.Dist {
-			sides = 1
-		} else if ent.Vars.AbsMax[plane.Type] < plane.Dist {
-			sides = 2
-		} else {
-			sides = 3
-		}
-	} else {
-		d1 := VecDot(ent.Vars.AbsMin, plane.Normal) - plane.Dist
-		d2 := VecDot(ent.Vars.AbsMax, plane.Normal) - plane.Dist
-		// This is a rough approximation for non-axial planes
-		if d1 > 0 && d2 > 0 {
-			sides = 1
-		} else if d1 < 0 && d2 < 0 {
-			sides = 2
-		} else {
-			sides = 3
-		}
-	}
+	sides := boxOnPlaneSide(ent.Vars.AbsMin, ent.Vars.AbsMax, &model.MPlane{
+		Normal: plane.Normal,
+		Dist:   plane.Dist,
+		Type:   uint8(plane.Type),
+	})
 
 	if sides&1 != 0 {
 		s.findTouchedLeafs(ent, node.Children[0])
@@ -1018,11 +1001,11 @@ func boxOnPlaneSide(mins, maxs [3]float32, plane *model.MPlane) int {
 	var corners [2][3]float32
 	for i := 0; i < 3; i++ {
 		if plane.Normal[i] < 0 {
-			corners[0][i] = maxs[i]
-			corners[1][i] = mins[i]
-		} else {
 			corners[0][i] = mins[i]
 			corners[1][i] = maxs[i]
+		} else {
+			corners[0][i] = maxs[i]
+			corners[1][i] = mins[i]
 		}
 	}
 

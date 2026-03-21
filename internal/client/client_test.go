@@ -892,6 +892,44 @@ func TestParseEntityUpdateStepMovePreservesHistoryWithoutForceLink(t *testing.T)
 	}
 }
 
+func TestParseEntityUpdateCarriesLerpFinish(t *testing.T) {
+	c := NewClient()
+	c.Protocol = inet.PROTOCOL_FITZQUAKE
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 1,
+		MsgOrigins: [2][3]float32{{10, 20, 30}, {1, 2, 3}},
+		MsgAngles:  [2][3]float32{{0, 45, 0}, {0, 30, 0}},
+		MsgTime:    1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_MOREBITS))
+	msg.WriteByte(byte(inet.U_EXTEND1 >> 8))
+	msg.WriteByte(byte(inet.U_LERPFINISH >> 16))
+	msg.WriteByte(1)
+	msg.WriteByte(0x80)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if ent.LerpFlags&inet.LerpFinish == 0 {
+		t.Fatal("LerpFlags missing LerpFinish")
+	}
+	if want := c.MTime[0] + float64(0x80)/255.0; ent.LerpFinish != want {
+		t.Fatalf("LerpFinish = %v, want %v", ent.LerpFinish, want)
+	}
+}
+
 func TestHUDAccessorsExposeParsedStats(t *testing.T) {
 	c := NewClient()
 	c.Stats[inet.StatHealth] = 81

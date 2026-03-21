@@ -9,6 +9,7 @@ import (
 
 const (
 	defaultEffectsMask = 0xff
+	statNonClient      = 11
 )
 
 func (s *Server) effectsMask() int {
@@ -712,14 +713,8 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 			continue
 		}
 
-		// PVS culling
-		// Always send client's own entity, other players, and entities with NoPVS flag if it existed
-		// In Quake, we usually always send players.
-		isPlayer := entNum <= s.Static.MaxClients
-		if !isPlayer && ent != client.Edict {
-			if !s.SV_VisibleToClient(ent, client) {
-				continue
-			}
+		if ent != client.Edict && !s.SV_VisibleToClient(ent, client) {
+			continue
 		}
 
 		current[entNum] = state
@@ -747,8 +742,10 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	}
 }
 
-// SV_WriteStats compares stat cache and emits reliable SVCUpdateStat messages for changed HUD values.
-func (s *Server) SV_WriteStats(client *Client, msg *MessageBuffer) {
+func (s *Server) updateClientStats(client *Client) {
+	if client == nil {
+		return
+	}
 	ent := client.Edict
 	if ent != nil {
 		client.Stats[inet.StatHealth] = int32(ent.Vars.Health)
@@ -762,15 +759,37 @@ func (s *Server) SV_WriteStats(client *Client, msg *MessageBuffer) {
 		client.Stats[inet.StatCells] = int32(ent.Vars.AmmoCells)
 		client.Stats[inet.StatActiveWeapon] = int32(ent.Vars.Weapon)
 	}
+}
 
-	for i := 0; i < 32; i++ {
+// SV_WriteStats compares stat cache and emits reliable SVCUpdateStat messages for changed non-client HUD values.
+func (s *Server) SV_WriteStats(client *Client) {
+	if client == nil || client.Message == nil {
+		return
+	}
+
+	s.updateClientStats(client)
+
+	for i := statNonClient; i < len(client.Stats); i++ {
 		if client.Stats[i] != client.OldStats[i] {
-			msg.WriteByte(byte(inet.SVCUpdateStat))
-			msg.WriteByte(byte(i))
-			msg.WriteLong(client.Stats[i])
+			client.Message.WriteByte(byte(inet.SVCUpdateStat))
+			client.Message.WriteByte(byte(i))
+			client.Message.WriteLong(client.Stats[i])
 			client.OldStats[i] = client.Stats[i]
 		}
 	}
+}
+
+func (s *Server) writeUnderwaterOverride(client *Client) {
+	if client == nil || client.Message == nil || client.Edict == nil || !client.Edict.SendForceWater {
+		return
+	}
+	client.Edict.SendForceWater = false
+	client.Message.WriteByte(byte(inet.SVCStuffText))
+	if client.Edict.ForceWater {
+		client.Message.WriteString("//v_water 1\n")
+		return
+	}
+	client.Message.WriteString("//v_water 0\n")
 }
 
 // buildClientDatagram assembles one full per-frame packet: time, clientdata, stats, entities, events.
@@ -781,14 +800,17 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	// Build PVS for this client
 	client.FatPVS = nil
 	if client.Edict != nil {
-		s.SV_AddToFatPVS(client.Edict.Vars.Origin, client)
+		org := client.Edict.Vars.Origin
+		org[0] += client.Edict.Vars.ViewOfs[0]
+		org[1] += client.Edict.Vars.ViewOfs[1]
+		org[2] += client.Edict.Vars.ViewOfs[2]
+		s.SV_AddToFatPVS(org, client)
 	}
 
 	s.WriteClientDataToMessage(client.Edict, msg)
-	s.SV_WriteStats(client, msg)
 	s.writeEntitiesToClient(client, msg)
 
-	if s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < MaxDatagram {
+	if s.Datagram != nil && s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < msg.limit() {
 		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
 	}
 	msg.WriteByte(0xff)
@@ -844,7 +866,13 @@ func (s *Server) sv_AddToFatPVSRecursive(org [3]float32, child bsp.TreeChild, cl
 
 // SV_VisibleToClient checks whether any entity leaf intersects the client's precomputed FatPVS.
 func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
-	if client.FatPVS == nil || ent.NumLeafs == 0 {
+	if ent == nil || client.FatPVS == nil {
+		return false
+	}
+	if ent.NumLeafs >= MaxEntityLeafs {
+		return true
+	}
+	if ent.NumLeafs == 0 {
 		return false
 	}
 
@@ -868,7 +896,13 @@ func (s *Server) SV_VisibleToClient(ent *Edict, client *Client) bool {
 // SV_EdictInPVS checks whether any of the edict's leaf numbers are visible
 // in the given PVS byte array. Returns true if any leaf is set.
 func (s *Server) SV_EdictInPVS(test *Edict, pvs []byte) bool {
-	if test == nil || len(pvs) == 0 || test.NumLeafs == 0 {
+	if test == nil || len(pvs) == 0 {
+		return false
+	}
+	if test.NumLeafs >= MaxEntityLeafs {
+		return true
+	}
+	if test.NumLeafs == 0 {
 		return false
 	}
 	for i := 0; i < test.NumLeafs; i++ {

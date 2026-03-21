@@ -70,6 +70,7 @@ func (gameCallbacks) ProcessClient() {
 	// Handle demo playback
 	if g.Host != nil && g.Host.DemoState() != nil && g.Host.DemoState().Playback {
 		demo := g.Host.DemoState()
+		refreshDemoPlaybackSpeed()
 		if !demo.ShouldReadFrame(g.Host.FrameCount()) {
 			return
 		}
@@ -83,6 +84,26 @@ func (gameCallbacks) ProcessClient() {
 			if !shouldReadNextDemoMessage(clientState, demo) {
 				return
 			}
+		}
+
+		if demo.Speed < 0 && clientState != nil && clientState.Signon >= cl.Signons {
+			if demo.FrameIndex <= 1 {
+				demo.SetRewindBackstop(true)
+				return
+			}
+			if err := g.Host.SeekDemoFrame(demo.FrameIndex-1, g.Subs); err != nil {
+				slog.Warn("demo rewind error", "error", err)
+				_ = demo.StopPlayback()
+				clearRuntimeDemoFlags()
+				g.Host.SetClientState(0) // caDisconnected
+				return
+			}
+			bootstrapDemoPlaybackWorld(clientState)
+			syncHostClientState()
+			if clientState.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
+				applyStartupGameplayInputMode()
+			}
+			return
 		}
 
 		// Try to read next demo frame

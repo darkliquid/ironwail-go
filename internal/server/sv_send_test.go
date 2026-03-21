@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -213,6 +214,132 @@ func TestWriteEntityUpdate_FieldOrderMatchesCProtocol(t *testing.T) {
 
 	if !bytes.Equal(payload, want.Data[:want.Len()]) {
 		t.Fatalf("payload order mismatch:\n got: %v\nwant: %v", payload, want.Data[:want.Len()])
+	}
+}
+
+func TestBuildClientDatagramUsesEyePositionForFatPVS(t *testing.T) {
+	s := &Server{
+		Datagram: NewMessageBuffer(MaxDatagram),
+		WorldTree: &bsp.Tree{
+			Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
+			Nodes: []bsp.TreeNode{{
+				PlaneNum: 0,
+				Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
+			}},
+			Leafs: []bsp.TreeLeaf{
+				{Contents: bsp.ContentsSolid, VisOfs: -1},
+				{Contents: 0, VisOfs: 0},
+				{Contents: 0, VisOfs: 1},
+			},
+			Visibility: []byte{0x01, 0x02},
+			Models:     []bsp.DModel{{VisLeafs: 2}},
+		},
+	}
+	client := &Client{Edict: &Edict{Vars: &EntVars{
+		Origin:  [3]float32{-64, 0, 0},
+		ViewOfs: [3]float32{128, 0, 0},
+	}}}
+	msg := NewMessageBuffer(128)
+
+	s.buildClientDatagram(client, msg)
+
+	if len(client.FatPVS) == 0 || client.FatPVS[0] != 0x01 {
+		t.Fatalf("FatPVS = %v, want visibility from eye position leaf", client.FatPVS)
+	}
+}
+
+func TestUpdateToReliableMessagesQueuesNonClientStatsAndUnderwaterOverride(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Message.Clear()
+	client.Stats[inet.StatSecrets] = 7
+	client.Edict.ForceWater = true
+	client.Edict.SendForceWater = true
+
+	s.UpdateToReliableMessages()
+
+	data := client.Message.Data[:client.Message.Len()]
+	if !bytes.Contains(data, []byte{byte(inet.SVCUpdateStat), byte(inet.StatSecrets)}) {
+		t.Fatalf("reliable message missing StatSecrets update: %v", data)
+	}
+	if !bytes.Contains(data, []byte("//v_water 1\n")) {
+		t.Fatalf("reliable message missing underwater override: %q", string(data))
+	}
+	if client.Edict.SendForceWater {
+		t.Fatal("SendForceWater should be cleared after reliable override write")
+	}
+}
+
+func TestBuildClientDatagramOmitsReliableStatUpdates(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	client := s.Static.Clients[0]
+	client.Spawned = true
+	client.Stats[inet.StatSecrets] = 7
+
+	msg := NewMessageBuffer(MaxDatagram)
+	s.buildClientDatagram(client, msg)
+
+	data := msg.Data[:msg.Len()]
+	if bytes.Contains(data, []byte{byte(inet.SVCUpdateStat), byte(inet.StatSecrets)}) {
+		t.Fatalf("client datagram unexpectedly contains reliable stat update: %v", data)
+	}
+}
+
+func TestWriteEntitiesToClientCullOtherPlayersByPVS(t *testing.T) {
+	s := &Server{
+		Datagram:      NewMessageBuffer(MaxDatagram),
+		Static:        &ServerStatic{MaxClients: 2},
+		ModelPrecache: []string{"", "progs/player.mdl"},
+		NumEdicts:     3,
+		Edicts: []*Edict{
+			{Vars: &EntVars{}},
+			{Vars: &EntVars{Origin: [3]float32{0, 0, 0}, ModelIndex: 1}},
+			{Vars: &EntVars{Origin: [3]float32{64, 0, 0}, ModelIndex: 1}},
+		},
+	}
+	s.Static.Clients = []*Client{{Edict: s.Edicts[1], FatPVS: []byte{0x01}, EntityStates: map[int]EntityState{}}}
+	s.Edicts[2].NumLeafs = 1
+	s.Edicts[2].LeafNums[0] = 1
+	msg := NewMessageBuffer(256)
+
+	s.writeEntitiesToClient(s.Static.Clients[0], msg)
+
+	if _, ok := s.Static.Clients[0].EntityStates[2]; ok {
+		t.Fatalf("other player outside PVS was still transmitted")
+	}
+}
+
+func TestBuildClientDatagramSkipsDatagramWhenRemoteMTUWouldOverflow(t *testing.T) {
+	s := &Server{Datagram: NewMessageBuffer(MaxDatagram)}
+	client := &Client{Edict: &Edict{Vars: &EntVars{}}}
+	base := NewMessageBuffer(MaxDatagram)
+	base.MaxSize = DatagramMTU
+	s.buildClientDatagram(client, base)
+	baseLen := base.Len()
+	if baseLen == 0 {
+		t.Fatal("expected base datagram payload")
+	}
+
+	s.Datagram = NewMessageBuffer(MaxDatagram)
+	for i := 0; i < DatagramMTU-baseLen; i++ {
+		s.Datagram.WriteByte(0x42)
+	}
+
+	msg := NewMessageBuffer(MaxDatagram)
+	msg.MaxSize = DatagramMTU
+	s.buildClientDatagram(client, msg)
+
+	if got := msg.Len(); got != baseLen {
+		t.Fatalf("remote datagram len = %d, want %d (base payload only)", got, baseLen)
 	}
 }
 

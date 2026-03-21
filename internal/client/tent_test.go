@@ -91,6 +91,32 @@ func TestUpdateTempEntitiesGeneratesBeamSegments(t *testing.T) {
 	}
 }
 
+func TestParseTempEntitySpikeAppendsCanonicalImpactSound(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCTempEntity))
+	msg.WriteByte(byte(inet.TE_SPIKE))
+	writeCoord(msg, 1)
+	writeCoord(msg, 2)
+	writeCoord(msg, 3)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+	if got := len(c.SoundEvents); got != 1 {
+		t.Fatalf("SoundEvents len = %d, want 1", got)
+	}
+	sound := c.SoundEvents[0].SoundName
+	switch sound {
+	case "weapons/tink1.wav", "weapons/ric1.wav", "weapons/ric2.wav", "weapons/ric3.wav":
+	default:
+		t.Fatalf("SoundName = %q, want canonical spike impact sound", sound)
+	}
+}
+
 func findBeamByEntity(c *Client, entity int) (beamState, bool) {
 	for i := range c.beams {
 		if c.beams[i].entity == entity && c.beams[i].model != "" {

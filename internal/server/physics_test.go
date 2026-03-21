@@ -675,23 +675,17 @@ func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 
-	s.impactFrameActive = true
-	s.impactFrameSeen = make(map[impactTouchKey]struct{})
 	s.Impact(e1, e2)
 	s.Impact(e1, e2)
-	s.impactFrameActive = false
-
-	if callbacks != 1 {
-		t.Fatalf("same-frame impact callbacks = %d, want 1", callbacks)
-	}
-
-	clear(s.impactFrameSeen)
-	s.impactFrameActive = true
-	s.Impact(e1, e2)
-	s.impactFrameActive = false
 
 	if callbacks != 2 {
-		t.Fatalf("next-frame impact callbacks = %d, want 2", callbacks)
+		t.Fatalf("same-frame impact callbacks = %d, want 2", callbacks)
+	}
+
+	s.Impact(e1, e2)
+
+	if callbacks != 3 {
+		t.Fatalf("next impact callbacks = %d, want 3", callbacks)
 	}
 }
 

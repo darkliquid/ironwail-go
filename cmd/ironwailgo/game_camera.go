@@ -52,10 +52,10 @@ func runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
 }
 
 func runtimeFirstPersonBobOffset() float32 {
-	// Isolation fix: keep the active first-person camera/viewmodel path anchored
-	// to the smoothed eye origin while we verify whether bob is the remaining
-	// source of visible Z pops.
-	return 0
+	if g.Client == nil {
+		return 0
+	}
+	return viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity())
 }
 
 func runtimeViewState() (origin, angles [3]float32) {

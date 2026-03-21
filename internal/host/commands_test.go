@@ -2425,10 +2425,21 @@ func TestCmdDemoSpeedSetsMultiplier(t *testing.T) {
 	if got := h.demoState.Speed; got != 2.5 {
 		t.Fatalf("Speed = %f, want 2.5", got)
 	}
+	if got := h.demoState.BaseSpeed; got != 2.5 {
+		t.Fatalf("BaseSpeed = %f, want 2.5", got)
+	}
+
+	h.CmdDemoSpeed(-1.5, subs)
+	if got := h.demoState.Speed; got != -1.5 {
+		t.Fatalf("Speed after rewind command = %f, want -1.5", got)
+	}
+	if got := h.demoState.BaseSpeed; got != -1.5 {
+		t.Fatalf("BaseSpeed after rewind command = %f, want -1.5", got)
+	}
 
 	output := strings.Join(console.messages, "")
-	if !strings.Contains(output, "2.50") {
-		t.Fatalf("console output = %q, expected speed confirmation", output)
+	if !strings.Contains(output, "2.50") || !strings.Contains(output, "-1.50") {
+		t.Fatalf("console output = %q, expected speed confirmations", output)
 	}
 }
 

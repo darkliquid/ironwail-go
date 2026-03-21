@@ -1,11 +1,18 @@
 package server
 
 import (
+	"bytes"
+	"encoding/binary"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
 // newServerTestVM prepares the server's VM for tests with reasonable defaults.
@@ -293,15 +300,12 @@ func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 	_ = s.AllocEdict()
 	vm.NumEdicts = s.NumEdicts
 
-	defer func() {
-		if recover() == nil {
-			t.Fatal("setmodel did not panic for non-precached model")
-		}
-	}()
-
 	vm.SetGInt(qc.OFSParm0, 1)
 	vm.SetGString(qc.OFSParm1, "progs/missing.mdl")
 	vm.Builtins[3](vm)
+	if vm.BuiltinError == nil {
+		t.Fatal("setmodel did not raise runtime error for non-precached model")
+	}
 }
 
 func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
@@ -687,6 +691,17 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	defer qc.RegisterServerHooks(nil)
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	s.Static = &ServerStatic{Clients: []*Client{{Active: true, Message: NewMessageBuffer(MaxDatagram)}}}
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+	s.FileSystem = fileSys
 
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil && world.Vars != nil {
@@ -878,6 +893,31 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if s.Datagram.Len() <= datagramBefore {
 		t.Fatalf("WriteByte builtin did not write to MSG_BROADCAST datagram")
 	}
+
+	// MSG_ALL should use reliable client messages for every connected client.
+	client0Before := s.Static.Clients[0].Message.Len()
+	client1 := &Client{Active: true, Message: NewMessageBuffer(MaxDatagram)}
+	s.Static.Clients = append(s.Static.Clients, client1)
+	vm.SetGFloat(qc.OFSParm0, 2)
+	vm.SetGFloat(qc.OFSParm1, 9)
+	vm.Builtins[52](vm)
+	if s.Static.Clients[0].Message.Len() <= client0Before || client1.Message.Len() == 0 {
+		t.Fatalf("WriteByte builtin did not write to MSG_ALL reliable buffers")
+	}
+
+	// MSG_INIT should use the signon buffer, not client reliable messages.
+	s.Signon = NewMessageBuffer(SignonSize)
+	signonBefore := s.Signon.Len()
+	client0Before = s.Static.Clients[0].Message.Len()
+	vm.SetGFloat(qc.OFSParm0, 3)
+	vm.SetGFloat(qc.OFSParm1, 11)
+	vm.Builtins[52](vm)
+	if s.Signon.Len() <= signonBefore {
+		t.Fatalf("WriteByte builtin did not write to MSG_INIT signon")
+	}
+	if s.Static.Clients[0].Message.Len() != client0Before {
+		t.Fatalf("MSG_INIT unexpectedly wrote to client reliable buffer")
+	}
 }
 
 func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
@@ -940,6 +980,48 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	}
 	if aim[2] <= 0 {
 		t.Fatalf("aim vector = %v, want positive z lift toward elevated target", aim)
+	}
+
+	cvar.Set("sv_aim", "0.99")
+	cvar.Set("teamplay", "0")
+	t.Cleanup(func() {
+		cvar.Set("sv_aim", "0.93")
+		cvar.Set("teamplay", "0")
+	})
+	target.Vars.Origin = [3]float32{40, 100, 64}
+	s.LinkEdict(target, false)
+	syncEdictToQCVM(vm, s.NumForEdict(target), target)
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
+	vm.SetGFloat(qc.OFSParm1, 0)
+	vm.Builtins[44](vm)
+	aim = vm.GVector(qc.OFSReturn)
+	if aim != [3]float32{0, 1, 0} {
+		t.Fatalf("high sv_aim should keep forward aim, got %v", aim)
+	}
+
+	cvar.Set("sv_aim", "0.5")
+	cvar.Set("teamplay", "1")
+	teammate := s.AllocEdict()
+	teammate.Vars.Health = 100
+	teammate.Vars.Origin = [3]float32{10, 100, 24}
+	teammate.Vars.Mins = [3]float32{-16, -16, -24}
+	teammate.Vars.Maxs = [3]float32{16, 16, 32}
+	teammate.Vars.Solid = float32(SolidSlideBox)
+	teammate.Vars.TakeDamage = float32(DamageAim)
+	teammate.Vars.Team = 1
+	self.Vars.Team = 1
+	target.Vars.Team = 2
+	s.LinkEdict(teammate, false)
+	s.LinkEdict(target, false)
+	vm.NumEdicts = s.NumEdicts
+	syncEdictToQCVM(vm, s.NumForEdict(teammate), teammate)
+	syncEdictToQCVM(vm, s.NumForEdict(target), target)
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
+	vm.SetGFloat(qc.OFSParm1, 0)
+	vm.Builtins[44](vm)
+	aim = vm.GVector(qc.OFSReturn)
+	if aim[1] <= 0.8 || aim[2] <= 0 {
+		t.Fatalf("teamplay/sv_aim filtered aim = %v, want elevated enemy aim", aim)
 	}
 
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(target)))
@@ -1174,6 +1256,34 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 		t.Fatalf("makestatic did not write to client message")
 	}
 
+	invisible := s.AllocEdict()
+	invisible.Alpha = inet.ENTALPHA_ZERO
+	vm.NumEdicts = s.NumEdicts
+	before = clientMsg.Len()
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(invisible)))
+	vm.Builtins[69](vm)
+	if got := len(s.StaticEntities); got != 1 {
+		t.Fatalf("invisible makestatic changed static entity count to %d, want 1", got)
+	}
+	if clientMsg.Len() != before {
+		t.Fatalf("invisible makestatic wrote unexpected client message")
+	}
+
+	s.Protocol = ProtocolNetQuake
+	unsupported := s.AllocEdict()
+	unsupported.Vars.ModelIndex = 300
+	unsupported.Vars.Frame = 2
+	vm.NumEdicts = s.NumEdicts
+	before = clientMsg.Len()
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(unsupported)))
+	vm.Builtins[69](vm)
+	if got := len(s.StaticEntities); got != 1 {
+		t.Fatalf("unsupported netquake makestatic changed static entity count to %d, want 1", got)
+	}
+	if clientMsg.Len() != before {
+		t.Fatalf("unsupported netquake makestatic wrote unexpected client message")
+	}
+
 	before = clientMsg.Len()
 	vm.SetGVector(qc.OFSParm0, [3]float32{4, 5, 6})
 	vm.SetGString(qc.OFSParm1, "ambience/drip.wav")
@@ -1218,6 +1328,105 @@ func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
 	}
 	if !foundAmbient {
 		t.Fatalf("SendServerInfo missing spawnstaticsound message")
+	}
+}
+
+func writeTestSprite(t *testing.T, path string, width, height int32) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir sprite dir: %v", err)
+	}
+	var buf bytes.Buffer
+	write := func(v any) {
+		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
+			t.Fatalf("write sprite data: %v", err)
+		}
+	}
+	write(int32(0x50534449))
+	write(int32(1))
+	write(int32(0))
+	write(float32(0))
+	write(width)
+	write(height)
+	write(int32(1))
+	write(float32(0))
+	write(int32(0))
+	write(int32(0))
+	write(int32(0))
+	write(int32(0))
+	write(width)
+	write(height)
+	pixels := make([]byte, int(width*height))
+	if _, err := buf.Write(pixels); err != nil {
+		t.Fatalf("write sprite pixels: %v", err)
+	}
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write sprite file: %v", err)
+	}
+}
+
+func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+	ent := s.AllocEdict()
+	vm.NumEdicts = s.NumEdicts
+	entNum := s.NumForEdict(ent)
+
+	vm.SetGString(qc.OFSParm0, "")
+	vm.Builtins[19](vm)
+	if vm.BuiltinError == nil {
+		t.Fatal("precache_sound empty string did not raise runtime error")
+	}
+	vm.BuiltinError = nil
+
+	s.State = ServerStateActive
+	vm.SetGString(qc.OFSParm0, "misc/menu1.wav")
+	vm.Builtins[19](vm)
+	if vm.BuiltinError == nil {
+		t.Fatal("precache_sound outside spawn did not raise runtime error")
+	}
+	vm.BuiltinError = nil
+
+	tmpDir := t.TempDir()
+	writeTestSprite(t, filepath.Join(tmpDir, "id1", "progs", "test.spr"), 8, 6)
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(tmpDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	s.FileSystem = fileSys
+	s.State = ServerStateLoading
+	vm.SetGString(qc.OFSParm0, "progs/test.spr")
+	vm.Builtins[20](vm)
+	if vm.BuiltinError != nil {
+		t.Fatalf("precache_model runtime error = %v", vm.BuiltinError)
+	}
+	if got := s.FindModel("progs/test.spr"); got == 0 {
+		t.Fatal("precache_model did not register sprite model")
+	}
+
+	vm.SetGInt(qc.OFSParm0, int32(entNum))
+	vm.SetGString(qc.OFSParm1, "progs/test.spr")
+	vm.Builtins[3](vm)
+	if got := vm.EVector(entNum, qc.EntFieldMins); got != [3]float32{-4, -4, -3} {
+		t.Fatalf("sprite mins = %v", got)
+	}
+	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{4, 4, 3} {
+		t.Fatalf("sprite maxs = %v", got)
+	}
+
+	s.SoundPrecache = make([]string, MaxSounds)
+	for i := 1; i < len(s.SoundPrecache); i++ {
+		s.SoundPrecache[i] = "filled"
+	}
+	vm.SetGString(qc.OFSParm0, "misc/overflow.wav")
+	vm.Builtins[19](vm)
+	if vm.BuiltinError == nil {
+		t.Fatal("precache_sound overflow did not raise runtime error")
 	}
 }
 

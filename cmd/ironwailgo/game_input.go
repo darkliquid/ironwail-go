@@ -41,6 +41,9 @@ func handleGameKeyEvent(event input.KeyEvent) {
 			return
 		}
 	}
+	if handleDemoPlaybackKeyEvent(event) {
+		return
+	}
 
 	binding := strings.TrimSpace(g.Input.GetBinding(event.Key))
 	if binding == "" {
@@ -71,6 +74,70 @@ func handleGameKeyEvent(event input.KeyEvent) {
 
 func isDemoPlaybackActive() bool {
 	return g.Host != nil && g.Host.DemoState() != nil && g.Host.DemoState().Playback
+}
+
+func currentDemoPlaybackState() *cl.DemoState {
+	if g.Host == nil {
+		return nil
+	}
+	demo := g.Host.DemoState()
+	if demo == nil || !demo.Playback {
+		return nil
+	}
+	return demo
+}
+
+func handleDemoPlaybackKeyEvent(event input.KeyEvent) bool {
+	if g.Input == nil || g.Input.GetKeyDest() != input.KeyGame {
+		return false
+	}
+	demo := currentDemoPlaybackState()
+	if demo == nil {
+		return false
+	}
+
+	switch event.Key {
+	case input.KSpace, input.KYButton:
+		if event.Down {
+			demo.TogglePause()
+			refreshDemoPlaybackSpeed()
+		}
+		return true
+
+	case input.KUpArrow, input.KDpadUp:
+		if event.Down {
+			demo.IncreaseBaseSpeed()
+			refreshDemoPlaybackSpeed()
+		}
+		return true
+
+	case input.KDownArrow, input.KDpadDown:
+		if event.Down {
+			demo.DecreaseBaseSpeed()
+			refreshDemoPlaybackSpeed()
+		}
+		return true
+
+	case input.KLeftArrow, input.KRightArrow, input.KDpadLeft, input.KDpadRight, input.KShift, input.KCtrl:
+		refreshDemoPlaybackSpeed()
+		return true
+	}
+
+	return false
+}
+
+func refreshDemoPlaybackSpeed() {
+	if g.Input == nil {
+		return
+	}
+	demo := currentDemoPlaybackState()
+	if demo == nil {
+		return
+	}
+	leftHeld := g.Input.IsKeyDown(input.KLeftArrow) || g.Input.IsKeyDown(input.KDpadLeft)
+	rightHeld := g.Input.IsKeyDown(input.KRightArrow) || g.Input.IsKeyDown(input.KDpadRight)
+	slowHeld := g.Input.IsKeyDown(input.KShift) || g.Input.IsKeyDown(input.KCtrl)
+	demo.UpdatePlaybackSpeed(g.Input.GetKeyDest() == input.KeyGame, leftHeld, rightHeld, slowHeld)
 }
 
 func handleMenuKeyEvent(event input.KeyEvent) {
@@ -233,6 +300,9 @@ func applyGameplayMouseLook() {
 		return
 	}
 	if g.Input.GetKeyDest() != input.KeyGame {
+		g.Client.MouseSideMove = 0
+		g.Client.MouseForwardMove = 0
+		g.Client.MouseUpMove = 0
 		g.Input.ClearState()
 		return
 	}
@@ -250,18 +320,44 @@ func applyGameplayMouseLook() {
 	if pitchScale == 0 {
 		pitchScale = 0.12
 	}
-	mouseLook := g.Client.FreeLook || g.Client.InputMLook.State&1 != 0
-	if state.MouseDX != 0 {
-		g.Client.ViewAngles[1] -= float32(state.MouseDX) * yawScale
+	sideScale := sensitivity * float32(cvar.FloatValue("m_side"))
+	if sideScale == 0 {
+		sideScale = 0.8
 	}
-	if state.MouseDY != 0 && mouseLook {
-		g.Client.ViewAngles[0] += float32(state.MouseDY) * pitchScale
-		if g.Client.ViewAngles[0] > g.Client.MaxPitch {
-			g.Client.ViewAngles[0] = g.Client.MaxPitch
+	forwardScale := sensitivity * float32(cvar.FloatValue("m_forward"))
+	if forwardScale == 0 {
+		forwardScale = 1
+	}
+	mouseLook := g.Client.FreeLook || g.Client.InputMLook.State&1 != 0
+	lookStrafe := cvar.BoolValue("lookstrafe")
+	g.Client.MouseSideMove = 0
+	g.Client.MouseForwardMove = 0
+	g.Client.MouseUpMove = 0
+	if state.MouseDX != 0 {
+		if g.Client.InputStrafe.State&1 != 0 || (lookStrafe && mouseLook) {
+			g.Client.MouseSideMove += float32(state.MouseDX) * sideScale
+		} else {
+			g.Client.ViewAngles[1] -= float32(state.MouseDX) * yawScale
 		}
-		if g.Client.ViewAngles[0] < g.Client.MinPitch {
-			g.Client.ViewAngles[0] = g.Client.MinPitch
+	}
+	if mouseLook && (state.MouseDX != 0 || state.MouseDY != 0) {
+		g.Client.StopPitchDrift()
+	}
+	if state.MouseDY != 0 {
+		if mouseLook && g.Client.InputStrafe.State&1 == 0 {
+			g.Client.ViewAngles[0] += float32(state.MouseDY) * pitchScale
+			if g.Client.ViewAngles[0] > g.Client.MaxPitch {
+				g.Client.ViewAngles[0] = g.Client.MaxPitch
+			}
+			if g.Client.ViewAngles[0] < g.Client.MinPitch {
+				g.Client.ViewAngles[0] = g.Client.MinPitch
+			}
+		} else {
+			g.Client.MouseForwardMove -= float32(state.MouseDY) * forwardScale
 		}
+	}
+	if !mouseLook && g.Client.LookSpring {
+		g.Client.StartPitchDrift()
 	}
 	g.Input.ClearState()
 }

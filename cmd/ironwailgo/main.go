@@ -50,6 +50,7 @@ type Game struct {
 
 	ParticleRNG  *rand.Rand
 	ParticleTime float32
+	RuntimeBeams []cl.BeamSegment
 
 	Menu  *menu.Manager
 	Input *input.System

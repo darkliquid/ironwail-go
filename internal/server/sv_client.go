@@ -418,6 +418,10 @@ func (s *Server) writeSpawnStaticSoundToSignon(snd StaticSound) error {
 func (s *Server) SendClientDatagram(client *Client) bool {
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
+	msg.MaxSize = MaxDatagram
+	if client != nil && client.NetConnection != nil && client.NetConnection.Address() != "LOCAL" {
+		msg.MaxSize = DatagramMTU
+	}
 	s.buildClientDatagram(client, &msg)
 	if client == nil || client.NetConnection == nil || msg.Len() == 0 {
 		return true
@@ -442,6 +446,7 @@ func (s *Server) GetClientDatagram(clientNum int) []byte {
 	}
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
+	msg.MaxSize = MaxDatagram
 	s.buildClientDatagram(client, &msg)
 
 	result := make([]byte, msg.Len())
@@ -461,6 +466,7 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 
 	var msg MessageBuffer
 	msg.Data = make([]byte, MaxDatagram)
+	msg.MaxSize = MaxDatagram
 
 	if client.Message != nil && client.Message.Len() > 0 {
 		msg.Write(client.Message.Data[:client.Message.Len()])
@@ -470,6 +476,7 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 	if client.Active && client.Spawned {
 		var frame MessageBuffer
 		frame.Data = make([]byte, MaxDatagram)
+		frame.MaxSize = MaxDatagram
 		s.buildClientDatagram(client, &frame)
 		msg.Write(frame.Data[:frame.Len()])
 	} else if msg.Len() > 0 {
@@ -613,6 +620,14 @@ func (s *Server) UpdateToReliableMessages() {
 
 		changedClient.OldFrags = currentFrags
 	}
+
+	for _, client := range s.Static.Clients {
+		if client == nil || !client.Active {
+			continue
+		}
+		s.SV_WriteStats(client)
+		s.writeUnderwaterOverride(client)
+	}
 }
 
 // CleanupEnts clears one-frame transient effect bits (e.g. muzzleflash) after packets are built.
@@ -659,10 +674,16 @@ func (s *Server) CreateBaseline() {
 
 // SendReconnect writes a reconnect command broadcast used during map/server transitions.
 func (s *Server) SendReconnect() {
-	var msg MessageBuffer
-	msg.Data = make([]byte, 128)
-	msg.WriteByte(byte(inet.SVCStuffText))
-	msg.WriteString("reconnect\n")
+	if s == nil || s.Static == nil {
+		return
+	}
+	for _, client := range s.Static.Clients {
+		if client == nil || !client.Active || client.Message == nil {
+			continue
+		}
+		client.Message.WriteByte(byte(inet.SVCStuffText))
+		client.Message.WriteString("reconnect\n")
+	}
 }
 
 // SaveSpawnParms runs SetChangeParms QC to persist per-client parms across level transitions.

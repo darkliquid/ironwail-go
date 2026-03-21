@@ -69,7 +69,8 @@ lighting are captured at a single consistent instant.
 3. Navigate to the scene location described in the matrix.
 4. Freeze time: `host_framerate 0.0001`
 5. Take screenshot: `screenshot`
-6. Screenshots land in `<basedir>/id1/` as `.tga` files.
+6. Screenshots land in `<basedir>/id1/screenshots/` by default in current
+   Ironwail builds.
 
 ### Capturing from Go
 
@@ -88,8 +89,14 @@ Examples:
 - `e1m3_entity_models_c.tga`
 - `e1m3_entity_models_go.tga`
 
-Store all captures in a local (untracked) directory such as `parity_shots/`.
-Do **not** commit screenshot files to the repository.
+The automated harness in this repo normalizes captures into:
+
+- `testdata/parity/reference/`
+- `testdata/parity/go/`
+- `testdata/parity/diff/`
+
+These are working artifacts for local parity investigation; do **not** treat
+them as canonical golden images to commit casually.
 
 ### Reproducing Camera Position
 
@@ -205,7 +212,20 @@ prerequisite for any scene matrix run.
 | `mise run smoke-headless` | Headless mode operation from the CGO parity build (no window, no renderer) |
 | `mise run smoke-map-start` | CGO/OpenGL map spawn lifecycle: renderer init plus `"map spawn started"` → `"map spawn finished"` |
 | `mise run smoke-cgo-map-start` | Full CGO/OpenGL pipeline with explicit headless-fallback guards through map spawn |
-| `mise run smoke-all` | Runs all of the above in sequence |
+| `mise run smoke-all` | Runs all of the above in sequence, including `smoke-cgo-map-start` |
+
+### Current Harness Commands
+
+Use this repo-local harness sequence for parity work on the canonical
+OpenGL/CGO path:
+
+1. `mise run smoke-all`
+2. `mise run parity-ref`
+3. `mise run parity-go`
+4. `PARITY_COMPARE_TOLERANCE=0 PARITY_MAX_MISMATCH_PERCENT=0 mise run parity-compare`
+
+`parity-compare` is expected to exit nonzero on missing captures or on any
+scene that exceeds the configured mismatch threshold.
 
 ### Deterministic Markers
 

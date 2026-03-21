@@ -47,6 +47,7 @@ type DemoState struct {
 	playbackHostFrame int
 	timedemoStart     time.Time
 	timedemoFrames    int
+	rewindBackstop    bool
 }
 
 // NewDemoState creates a new demo state with default values
@@ -484,6 +485,7 @@ func (d *DemoState) startPlaybackInternal(filename string, source io.ReadSeeker,
 	d.timedemoStart = time.Time{}
 	d.timedemoFrames = 0
 	d.playbackHostFrame = -1
+	d.rewindBackstop = false
 
 	firstFrameOffset, err := d.currentReadOffset()
 	if err != nil {
@@ -523,12 +525,15 @@ func (d *DemoState) StopPlayback() error {
 	d.Playback = false
 	d.Paused = false
 	d.Speed = 1.0
+	d.BaseSpeed = 1.0
 	d.Frames = nil
 	d.FrameIndex = 0
 	d.TimeDemo = false
 	d.timedemoStart = time.Time{}
 	d.timedemoFrames = 0
 	d.playbackHostFrame = -1
+	d.rewindBackstop = false
+	d.rewindBackstop = false
 
 	return err
 }
@@ -679,16 +684,112 @@ func (d *DemoState) TogglePause() bool {
 	return d.Paused
 }
 
-// SetSpeed sets the demo playback speed multiplier.
-// Values <= 0 are clamped to a small positive value.
+// SetSpeed sets the durable demo playback speed.
 func (d *DemoState) SetSpeed(speed float32) {
 	if d == nil {
 		return
 	}
-	if speed <= 0 {
-		speed = 0.01
+	if speed == 0 {
+		d.Speed = 0
+		d.Paused = true
+		return
 	}
+	d.BaseSpeed = speed
 	d.Speed = speed
+	d.Paused = false
+	if speed > 0 {
+		d.rewindBackstop = false
+	}
+}
+
+func (d *DemoState) IncreaseBaseSpeed() {
+	if d == nil {
+		return
+	}
+	if !d.Paused {
+		base := float32(math.Abs(float64(d.BaseSpeed))) * 2
+		if base < 0.25 {
+			base = 0.25
+		}
+		if base > 8 {
+			base = 8
+		}
+		d.BaseSpeed = copyDemoSpeedSign(d.BaseSpeed, base)
+	}
+	d.Paused = false
+}
+
+func (d *DemoState) DecreaseBaseSpeed() {
+	if d == nil {
+		return
+	}
+	base := float32(math.Abs(float64(d.BaseSpeed))) * 0.5
+	if base < 0.25 {
+		base = 0.25
+		d.Paused = true
+	}
+	d.BaseSpeed = copyDemoSpeedSign(d.BaseSpeed, base)
+}
+
+func (d *DemoState) UpdatePlaybackSpeed(gameplayKeysActive, leftHeld, rightHeld, slowHeld bool) {
+	if d == nil {
+		return
+	}
+
+	if !gameplayKeysActive {
+		if d.Paused {
+			d.Speed = 0
+		} else {
+			d.Speed = d.BaseSpeed
+		}
+	} else {
+		adjust := 0
+		if rightHeld {
+			adjust++
+		}
+		if leftHeld {
+			adjust--
+		}
+		if adjust != 0 {
+			speed := float32(adjust) * 5
+			if base := float32(math.Abs(float64(d.BaseSpeed))); base != 0 {
+				speed *= base
+			}
+			d.Speed = speed
+		} else if d.Paused {
+			d.Speed = 0
+		} else {
+			d.Speed = d.BaseSpeed
+		}
+		if slowHeld {
+			d.Speed *= 0.25
+		}
+	}
+
+	if d.Speed > 0 {
+		d.rewindBackstop = false
+	}
+}
+
+func (d *DemoState) RewindBackstop() bool {
+	if d == nil {
+		return false
+	}
+	return d.rewindBackstop
+}
+
+func (d *DemoState) SetRewindBackstop(backstop bool) {
+	if d == nil {
+		return
+	}
+	d.rewindBackstop = backstop
+}
+
+func copyDemoSpeedSign(current, magnitude float32) float32 {
+	if current < 0 {
+		return -magnitude
+	}
+	return magnitude
 }
 
 // FrameForTime returns the frame index closest to the given time in seconds,
@@ -775,6 +876,9 @@ func (c *Client) AdvanceTime(demo *DemoState, frametime float64) {
 			speed = 0
 		}
 		c.Time += speed * frametime
+		if demo.RewindBackstop() {
+			c.Time = c.MTime[0]
+		}
 		return
 	}
 	c.Time += frametime
@@ -794,7 +898,9 @@ func (c *Client) StopPlayback(demo *DemoState) {
 	demo.Playback = false
 	demo.Paused = false
 	demo.Speed = 1
+	demo.BaseSpeed = 1
 	demo.Frames = nil
 	demo.FrameIndex = 0
+	demo.rewindBackstop = false
 	c.State = StateDisconnected
 }

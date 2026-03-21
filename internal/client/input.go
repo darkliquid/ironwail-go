@@ -4,6 +4,83 @@ import "math"
 
 import "github.com/ironwail/ironwail-go/pkg/types"
 
+const (
+	defaultCenterMove  = 0.15
+	defaultCenterSpeed = 500.0
+)
+
+func (c *Client) StartPitchDrift() {
+	if c == nil {
+		return
+	}
+	if c.LastStop == c.Time {
+		return
+	}
+	if c.NoDrift || c.PitchVel == 0 {
+		c.PitchVel = defaultCenterSpeed
+		c.NoDrift = false
+		c.DriftMove = 0
+	}
+}
+
+func (c *Client) StopPitchDrift() {
+	if c == nil {
+		return
+	}
+	c.LastStop = c.Time
+	c.NoDrift = true
+	c.PitchVel = 0
+}
+
+func (c *Client) DriftPitch(frametime float32, forwardMove float32) {
+	if c == nil || !c.OnGround || c.DemoPlayback {
+		c.DriftMove = 0
+		c.PitchVel = 0
+		return
+	}
+
+	if c.NoDrift {
+		if absf(forwardMove) < c.ForwardSpeed {
+			c.DriftMove = 0
+		} else {
+			c.DriftMove += frametime
+		}
+		if c.DriftMove > defaultCenterMove && c.LookSpring {
+			c.StartPitchDrift()
+		}
+		return
+	}
+
+	delta := c.IdealPitch - c.ViewAngles[0]
+	if delta == 0 {
+		c.PitchVel = 0
+		return
+	}
+
+	move := frametime * c.PitchVel
+	c.PitchVel += frametime * defaultCenterSpeed
+	if delta > 0 {
+		if move > delta {
+			c.PitchVel = 0
+			move = delta
+		}
+		c.ViewAngles[0] += move
+	} else {
+		if move > -delta {
+			c.PitchVel = 0
+			move = -delta
+		}
+		c.ViewAngles[0] -= move
+	}
+}
+
+func absf(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 func (c *Client) KeyDown(b *KButton, key int) {
 	if key == b.Down[0] || key == b.Down[1] {
 		return
@@ -95,12 +172,20 @@ func (c *Client) AdjustAngles(frametime float32) {
 	}
 
 	if c.InputKLook.State&1 != 0 {
-		c.ViewAngles[0] -= speed * c.PitchSpeed * c.KeyState(&c.InputForward)
-		c.ViewAngles[0] += speed * c.PitchSpeed * c.KeyState(&c.InputBack)
+		forward := c.KeyState(&c.InputForward)
+		back := c.KeyState(&c.InputBack)
+		if forward != 0 || back != 0 {
+			c.StopPitchDrift()
+		}
+		c.ViewAngles[0] -= speed * c.PitchSpeed * forward
+		c.ViewAngles[0] += speed * c.PitchSpeed * back
 	}
 
 	up := c.KeyState(&c.InputLookUp)
 	down := c.KeyState(&c.InputLookDown)
+	if up != 0 || down != 0 {
+		c.StopPitchDrift()
+	}
 	c.ViewAngles[0] -= speed * c.PitchSpeed * up
 	c.ViewAngles[0] += speed * c.PitchSpeed * down
 
@@ -130,6 +215,9 @@ func (c *Client) BaseMove(cmd *UserCmd) {
 	cmd.Side -= c.SideSpeed * c.KeyState(&c.InputMoveLeft)
 	cmd.Up += c.UpSpeed * c.KeyState(&c.InputUp)
 	cmd.Up -= c.UpSpeed * c.KeyState(&c.InputDown)
+	cmd.Side += c.MouseSideMove
+	cmd.Forward += c.MouseForwardMove
+	cmd.Up += c.MouseUpMove
 
 	if c.InputKLook.State&1 == 0 {
 		cmd.Forward += c.ForwardSpeed * c.KeyState(&c.InputForward)
@@ -148,7 +236,11 @@ func (c *Client) AccumulateCmd(frametime float32) {
 	c.MViewAngles[1] = c.MViewAngles[0]
 	c.MViewAngles[0] = c.ViewAngles
 	c.BaseMove(&c.PendingCmd)
+	c.DriftPitch(frametime, c.PendingCmd.Forward)
 	c.PendingCmd.ViewAngles = c.ViewAngles
+	c.MouseSideMove = 0
+	c.MouseForwardMove = 0
+	c.MouseUpMove = 0
 
 	c.PendingCmd.Buttons = 0
 	if c.InputAttack.State&3 != 0 {

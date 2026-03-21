@@ -113,9 +113,9 @@ type Edict struct {
 	OldThinkTime   float32
 
 	// FreeTime records when this edict was freed (set to server time when
-	// Free becomes true). The slot is not reused until at least 2 seconds
-	// have elapsed, preventing "ghost" entity references on clients that
-	// haven't yet received the removal message.
+	// Free becomes true). During the first two seconds of server time free
+	// slots may be reused immediately; afterwards they wait 0.5 seconds to
+	// avoid client-side interpolation/trail glitches from rapid reuse.
 	FreeTime float32
 
 	// Vars points to the QuakeC-visible entity fields. This is the bridge

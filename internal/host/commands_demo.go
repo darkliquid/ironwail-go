@@ -274,7 +274,7 @@ func (h *Host) CmdDemoSeek(frame int, subs *Subsystems) {
 		subs.Console.Print(fmt.Sprintf("Frame %d out of range (0-%d).\n", frame, len(h.demoState.Frames)))
 		return
 	}
-	if err := h.seekDemoFrame(frame, subs); err != nil {
+	if err := h.SeekDemoFrame(frame, subs); err != nil {
 		subs.Console.Print(fmt.Sprintf("Failed to seek demo: %v\n", err))
 		return
 	}
@@ -332,6 +332,10 @@ func (h *Host) seekDemoFrame(frame int, subs *Subsystems) error {
 	return nil
 }
 
+func (h *Host) SeekDemoFrame(frame int, subs *Subsystems) error {
+	return h.seekDemoFrame(frame, subs)
+}
+
 func (h *Host) CmdDemoGoto(seconds float64, subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
 		return
@@ -344,7 +348,7 @@ func (h *Host) CmdDemoGoto(seconds float64, subs *Subsystems) {
 		seconds = 0
 	}
 	frame := h.demoState.FrameForTime(seconds)
-	if err := h.seekDemoFrame(frame, subs); err != nil {
+	if err := h.SeekDemoFrame(frame, subs); err != nil {
 		subs.Console.Print(fmt.Sprintf("Failed to seek demo: %v\n", err))
 		return
 	}

@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"math"
+	"math/rand"
 
 	"github.com/ironwail/ironwail-go/internal/common"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -115,10 +116,45 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 	}
 
 	p.Client.TempEntities = append(p.Client.TempEntities, event)
+	appendTempEntitySound(p.Client, event)
 	if isBeamType(event.Type) {
 		p.Client.storeBeam(event)
 	}
 	return nil
+}
+
+func appendTempEntitySound(c *Client, event TempEntityEvent) {
+	if c == nil {
+		return
+	}
+	soundName := tempEntitySoundName(event.Type)
+	if soundName == "" {
+		return
+	}
+	c.SoundEvents = append(c.SoundEvents, SoundEvent{
+		Origin:      event.Origin,
+		SoundName:   soundName,
+		Volume:      255,
+		Attenuation: 1,
+	})
+}
+
+func tempEntitySoundName(typ byte) string {
+	switch typ {
+	case inet.TE_WIZSPIKE:
+		return "wizard/hit.wav"
+	case inet.TE_KNIGHTSPIKE:
+		return "hknight/hit.wav"
+	case inet.TE_TAREXPLOSION:
+		return "weapons/r_exp3.wav"
+	case inet.TE_SPIKE, inet.TE_SUPERSPIKE:
+		if rand.Intn(5) != 0 {
+			return "weapons/tink1.wav"
+		}
+		return fmt.Sprintf("weapons/ric%d.wav", rand.Intn(3)+1)
+	default:
+		return ""
+	}
 }
 
 func (c *Client) storeBeam(event TempEntityEvent) {

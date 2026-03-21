@@ -26,6 +26,9 @@ func shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool 
 	if clientState == nil || demo == nil {
 		return true
 	}
+	if demo.RewindBackstop() {
+		return false
+	}
 	if demo.TimeDemo {
 		return true
 	}
@@ -73,6 +76,7 @@ func resetRuntimeVisualState() {
 		g.DecalMarks = nil
 		g.ParticleRNG = nil
 		g.ParticleTime = 0
+		g.RuntimeBeams = nil
 		g.SkyboxNameKey = ""
 		return
 	}
@@ -81,6 +85,7 @@ func resetRuntimeVisualState() {
 	g.DecalMarks = renderer.NewDecalMarkSystem()
 	g.ParticleRNG = rand.New(rand.NewSource(1))
 	g.ParticleTime = 0
+	g.RuntimeBeams = nil
 	g.SkyboxNameKey = ""
 }
 
@@ -90,6 +95,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	}
 
 	if g.Client == nil || g.Client.State != cl.StateActive {
+		g.RuntimeBeams = nil
 		if g.Renderer != nil {
 			g.Renderer.ClearDynamicLights()
 		}
@@ -148,6 +154,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
+	g.RuntimeBeams = transientEvents.BeamSegments
 
 	// Trail events are emitted by RelinkEntities based on model flags,
 	// so collect them from the Client after relinking (not from TransientEvents).

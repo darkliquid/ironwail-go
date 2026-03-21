@@ -77,6 +77,40 @@ func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 	}
 }
 
+func TestSpawnServerRunsTwoSettlePhysicsFramesBeforeSignon(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	progsData, err := vfs.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("load progs.dat: %v", err)
+	}
+	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(s.QCVM)
+
+	if err := s.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+	if got := s.Time; got < 1.19 || got > 1.21 {
+		t.Fatalf("server time after spawn = %v, want ~1.2 after two settle frames", got)
+	}
+}
+
 func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
@@ -420,6 +454,33 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	}
 	if reused.AreaPrev != nil || reused.AreaNext != nil {
 		t.Fatalf("reused edict still has area links: prev=%p next=%p", reused.AreaPrev, reused.AreaNext)
+	}
+}
+
+func TestAllocEdictHonorsReuseCooldownAfterInitialServerWarmup(t *testing.T) {
+	s := NewServer()
+	s.Time = 3
+
+	e := s.AllocEdict()
+	if e == nil {
+		t.Fatal("failed to alloc edict")
+	}
+
+	s.FreeEdict(e)
+	s.Time = 3.25
+
+	notYetReused := s.AllocEdict()
+	if notYetReused == nil {
+		t.Fatal("failed to alloc replacement edict")
+	}
+	if notYetReused == e {
+		t.Fatal("freed edict reused before 0.5 second cooldown elapsed")
+	}
+
+	s.Time = 3.6
+	reused := s.AllocEdict()
+	if reused != e {
+		t.Fatalf("AllocEdict reused %p, want cooled-down edict %p", reused, e)
 	}
 }
 

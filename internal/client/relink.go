@@ -26,6 +26,14 @@ func entityNeedsHardReset(state inet.EntityState) bool {
 	return false
 }
 
+func resetEntityTrail(state *inet.EntityState) {
+	if state == nil {
+		return
+	}
+	state.TrailDelay = 1.0 / 72.0
+	state.TrailOrigin = state.Origin
+}
+
 // RelinkEntities interpolates all entity positions and angles between their
 // double-buffered network origins, matching C's CL_RelinkEntities behavior.
 //
@@ -108,6 +116,9 @@ func (c *Client) RelinkEntities() {
 		} else {
 			state.LerpFlags &^= inet.LerpResetMove
 		}
+		if teleported || state.LerpFlags&inet.LerpResetMove != 0 {
+			resetEntityTrail(&state)
+		}
 
 		// Apply EF_ROTATE: spinning bonus items
 		precacheIndex := int(state.ModelIndex) - 1
@@ -155,15 +166,23 @@ func (c *Client) RelinkEntities() {
 					trailType = 1 // grenade smoke trail
 				}
 				if trailType >= 0 {
-					c.TrailEvents = append(c.TrailEvents, TrailEvent{
-						Start: state.TrailOrigin,
-						End:   state.Origin,
-						Type:  trailType,
-					})
+					state.TrailDelay -= c.Time - c.OldTime
+					if state.TrailDelay <= 0 {
+						c.TrailEvents = append(c.TrailEvents, TrailEvent{
+							Start: state.TrailOrigin,
+							End:   state.Origin,
+							Type:  trailType,
+						})
+						resetEntityTrail(&state)
+					}
+				} else {
+					resetEntityTrail(&state)
 				}
 			}
 		}
-		state.TrailOrigin = state.Origin
+		if state.TrailOrigin == [3]float32{} && state.TrailDelay == 0 {
+			resetEntityTrail(&state)
+		}
 
 		c.Entities[entNum] = state
 	}

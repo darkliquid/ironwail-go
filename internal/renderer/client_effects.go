@@ -5,6 +5,7 @@ import (
 	"math/rand"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
@@ -50,12 +51,6 @@ func EmitClientEffects(ps *ParticleSystem, particleEvents []cl.ParticleEvent, tr
 			ps.TeleportSplash(event.Origin, rng, timeNow)
 		case inet.TE_EXPLOSION2:
 			ps.ParticleExplosion2(event.Origin, event.ColorStart, event.ColorLength, rng, timeNow)
-		case inet.TE_LIGHTNING1:
-			ps.RocketTrail(event.Start, event.End, 5, rng, timeNow)
-		case inet.TE_LIGHTNING2:
-			ps.RocketTrail(event.Start, event.End, 6, rng, timeNow)
-		case inet.TE_LIGHTNING3, inet.TE_BEAM:
-			ps.RocketTrail(event.Start, event.End, 3, rng, timeNow)
 		}
 	}
 }
@@ -136,38 +131,6 @@ func EmitDynamicLights(spawn func(DynamicLight) bool, tempEntities []cl.TempEnti
 
 	for _, event := range tempEntities {
 		switch event.Type {
-		case inet.TE_GUNSHOT, inet.TE_SPIKE:
-			spawn(DynamicLight{
-				Position:   event.Origin,
-				Radius:     80,
-				Color:      [3]float32{1.0, 0.85, 0.65},
-				Brightness: 0.7,
-				Lifetime:   0.08,
-			})
-		case inet.TE_SUPERSPIKE:
-			spawn(DynamicLight{
-				Position:   event.Origin,
-				Radius:     96,
-				Color:      [3]float32{1.0, 0.85, 0.65},
-				Brightness: 0.85,
-				Lifetime:   0.1,
-			})
-		case inet.TE_WIZSPIKE:
-			spawn(DynamicLight{
-				Position:   event.Origin,
-				Radius:     110,
-				Color:      [3]float32{0.35, 0.45, 1.0},
-				Brightness: 0.9,
-				Lifetime:   0.12,
-			})
-		case inet.TE_KNIGHTSPIKE:
-			spawn(DynamicLight{
-				Position:   event.Origin,
-				Radius:     110,
-				Color:      [3]float32{0.7, 0.35, 1.0},
-				Brightness: 0.9,
-				Lifetime:   0.12,
-			})
 		case inet.TE_EXPLOSION, inet.TE_EXPLOSION2:
 			spawn(DynamicLight{
 				Position:   event.Origin,
@@ -175,30 +138,6 @@ func EmitDynamicLights(spawn func(DynamicLight) bool, tempEntities []cl.TempEnti
 				Color:      [3]float32{1.0, 0.55, 0.2},
 				Brightness: 1.8,
 				Lifetime:   0.55,
-			})
-		case inet.TE_TAREXPLOSION:
-			spawn(DynamicLight{
-				Position:   event.Origin,
-				Radius:     280,
-				Color:      [3]float32{0.5, 0.25, 0.85},
-				Brightness: 1.5,
-				Lifetime:   0.5,
-			})
-		case inet.TE_TELEPORT:
-			spawn(DynamicLight{
-				Position:   event.Origin,
-				Radius:     220,
-				Color:      [3]float32{0.45, 0.55, 1.0},
-				Brightness: 1.2,
-				Lifetime:   0.35,
-			})
-		case inet.TE_LIGHTNING1, inet.TE_LIGHTNING2, inet.TE_LIGHTNING3, inet.TE_BEAM:
-			spawn(DynamicLight{
-				Position:   midpoint3(event.Start, event.End),
-				Radius:     160,
-				Color:      [3]float32{0.55, 0.7, 1.0},
-				Brightness: 1.1,
-				Lifetime:   0.1,
 			})
 		}
 	}
@@ -259,6 +198,16 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				EntityKey:  key,
 			})
 		}
+		if entity.ModelFlags&model.EFRocket != 0 {
+			spawn(DynamicLight{
+				Position:   entity.Origin,
+				Radius:     200,
+				Color:      [3]float32{0.9, 0.6, 0.3},
+				Brightness: 1.0,
+				Lifetime:   0.001,
+				EntityKey:  key,
+			})
+		}
 		if entity.Effects&inet.EF_QUADLIGHT != 0 {
 			spawn(DynamicLight{
 				Position:   base,
@@ -289,15 +238,6 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				EntityKey:  key,
 			})
 		}
-	}
-}
-
-// midpoint3 computes the center between two 3D points for effect placement heuristics.
-func midpoint3(a, b [3]float32) [3]float32 {
-	return [3]float32{
-		(a[0] + b[0]) * 0.5,
-		(a[1] + b[1]) * 0.5,
-		(a[2] + b[2]) * 0.5,
 	}
 }
 

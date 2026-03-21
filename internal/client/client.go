@@ -86,6 +86,7 @@ type SoundEvent struct {
 	Channel     int
 	Origin      [3]float32
 	SoundIndex  int
+	SoundName   string
 	Volume      int
 	Attenuation float32
 	Local       bool
@@ -140,6 +141,11 @@ type Client struct {
 	MVelocity   [2][3]float32
 	Velocity    [3]float32
 	ViewHeight  float32
+	IdealPitch  float32
+	DriftMove   float32
+	PitchVel    float32
+	LastStop    float64
+	NoDrift     bool
 
 	FixAngle bool
 
@@ -243,23 +249,26 @@ type Client struct {
 	MinPitch   float32
 	WheelPitch float32
 
-	InputForward   KButton
-	InputBack      KButton
-	InputLeft      KButton
-	InputRight     KButton
-	InputUp        KButton
-	InputDown      KButton
-	InputLookUp    KButton
-	InputLookDown  KButton
-	InputMoveLeft  KButton
-	InputMoveRight KButton
-	InputStrafe    KButton
-	InputSpeed     KButton
-	InputUse       KButton
-	InputJump      KButton
-	InputAttack    KButton
-	InputKLook     KButton
-	InputMLook     KButton
+	InputForward     KButton
+	InputBack        KButton
+	InputLeft        KButton
+	InputRight       KButton
+	InputUp          KButton
+	InputDown        KButton
+	InputLookUp      KButton
+	InputLookDown    KButton
+	InputMoveLeft    KButton
+	InputMoveRight   KButton
+	InputStrafe      KButton
+	InputSpeed       KButton
+	InputUse         KButton
+	InputJump        KButton
+	InputAttack      KButton
+	InputKLook       KButton
+	InputMLook       KButton
+	MouseSideMove    float32
+	MouseForwardMove float32
+	MouseUpMove      float32
 
 	LightStyles [64]LightStyle
 
@@ -334,6 +343,11 @@ func (c *Client) ClearState() {
 	c.PunchAngles = [2][3]float32{}
 	c.PunchTime = 0
 	c.ViewHeight = inet.DEFAULT_VIEWHEIGHT
+	c.IdealPitch = 0
+	c.DriftMove = 0
+	c.PitchVel = 0
+	c.LastStop = 0
+	c.NoDrift = false
 	c.ViewEntity = 0
 	c.CDTrack = 0
 	c.LoopTrack = 0
@@ -354,6 +368,9 @@ func (c *Client) ClearState() {
 	c.Cmd = UserCmd{}
 	c.ViewAngles = [3]float32{}
 	c.MViewAngles = [2][3]float32{}
+	c.MouseSideMove = 0
+	c.MouseForwardMove = 0
+	c.MouseUpMove = 0
 	c.Stats = [32]int{}
 	c.StatsF = [32]float32{}
 	c.Items = 0

@@ -180,6 +180,10 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
 			frame = 0
 		}
+		lerpFlags := int(state.LerpFlags &^ inet.LerpFinish)
+		if state.LerpFlags&inet.LerpFinish != 0 {
+			lerpFlags |= renderer.LerpFinish
+		}
 
 		return renderer.AliasModelEntity{
 			ModelID:     modelName,
@@ -188,7 +192,8 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			Frame:       frame,
 			SkinNum:     int(state.Skin),
 			TimeSeconds: g.Client.Time,
-			LerpFlags:   int(state.LerpFlags),
+			LerpFlags:   lerpFlags,
+			LerpFinish:  state.LerpFinish,
 			Origin:      state.Origin,
 			Angles:      state.Angles,
 			Alpha:       entityStateAlpha(state),
@@ -224,6 +229,24 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			aliasEntities = append(aliasEntities, aliasEntity)
 		}
 	}
+	for i, beam := range g.RuntimeBeams {
+		mdl, _ := loadAliasModel(beam.Model)
+		if mdl == nil || mdl.Type != model.ModAlias || mdl.AliasHeader == nil || len(mdl.AliasHeader.Poses) == 0 {
+			continue
+		}
+		aliasEntities = append(aliasEntities, renderer.AliasModelEntity{
+			ModelID:     beam.Model,
+			Model:       mdl,
+			EntityKey:   -(100000 + i),
+			Frame:       0,
+			TimeSeconds: g.Client.Time,
+			LerpFlags:   renderer.LerpResetMove | renderer.LerpResetAnim,
+			Origin:      beam.Origin,
+			Angles:      beam.Angles,
+			Alpha:       1,
+			Scale:       1,
+		})
+	}
 
 	return aliasEntities
 }
@@ -245,10 +268,15 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 		if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
 			return renderer.EntityEffectSource{}, false
 		}
+		modelFlags := 0
+		if g.Client.ModelFlagsFunc != nil {
+			modelFlags = g.Client.ModelFlagsFunc(modelName)
+		}
 		return renderer.EntityEffectSource{
-			Origin:  state.Origin,
-			Angles:  state.Angles,
-			Effects: state.Effects,
+			Origin:     state.Origin,
+			Angles:     state.Angles,
+			Effects:    state.Effects,
+			ModelFlags: modelFlags,
 		}, true
 	}
 
@@ -603,22 +631,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	// The camera origin already has bob applied — using it would double-bob.
 	origin := runtimeWeaponBaseOrigin()
 	viewAngles := runtimeInterpolatedViewAngles()
-	punch := runtimeGunKickAngles()
-	viewAngles[0] += punch[0]
-	viewAngles[1] += punch[1]
-	viewAngles[2] += punch[2]
-	if globalViewCalc.dmgTime > 0 {
-		kickTime := float32(0)
-		if cv := cvar.Get("v_kicktime"); cv != nil {
-			kickTime = float32(cv.Float)
-		}
-		if kickTime > 0 {
-			viewAngles[2] += globalViewCalc.dmgTime / kickTime * globalViewCalc.dmgRoll
-			viewAngles[0] += globalViewCalc.dmgTime / kickTime * globalViewCalc.dmgPitch
-		}
-	}
-
-	// CalcGunAngle: rate-limited drift + idle sway on the weapon model.
+	// CalcGunAngle runs before camera gunkick/punch is applied in canonical C.
 	frameTime := 0.0
 	if g.Host != nil {
 		frameTime = g.Host.FrameTime()
@@ -649,10 +662,15 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		Frame:       frame,
 		SkinNum:     0,
 		TimeSeconds: g.Client.Time,
+		LerpFinish:  0,
 		Origin:      origin,
 		Angles:      angles,
 		Alpha:       alpha,
 		Scale:       1,
+	}
+	if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok && state.LerpFlags&inet.LerpFinish != 0 {
+		entity.LerpFlags = renderer.LerpFinish
+		entity.LerpFinish = state.LerpFinish
 	}
 	runtimeDebugViewLogViewModel(entity)
 	return entity

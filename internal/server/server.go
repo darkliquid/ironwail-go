@@ -33,6 +33,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
@@ -91,6 +92,7 @@ type Server struct {
 	StaticEntities []EntityState
 	StaticSounds   []StaticSound
 	LightStyles    [64]string
+	FileSystem     *fs.FileSystem
 
 	// Protocol version (15=NetQuake, 666=FitzQuake, 999=RMQ)
 	Protocol int
@@ -123,6 +125,8 @@ type Server struct {
 	impactFrameSeen   map[impactTouchKey]struct{}
 
 	compatRNG *compatrand.RNG
+
+	modelCache map[string]cachedModelInfo
 }
 
 type impactTouchKey struct {
@@ -775,27 +779,6 @@ func NewServer() *Server {
 	// server-side implementations. This is intentionally conservative
 	// — more sophisticated behaviors (walkmove, findradius, etc.) will
 	// be implemented incrementally during the port.
-	ensurePrecache := func(cache *[]string, value string) {
-		if value == "" {
-			return
-		}
-		if len(*cache) == 0 {
-			*cache = make([]string, 2)
-			(*cache)[0] = ""
-		}
-		for _, existing := range *cache {
-			if existing == value {
-				return
-			}
-		}
-		for i := 1; i < len(*cache); i++ {
-			if (*cache)[i] == "" {
-				(*cache)[i] = value
-				return
-			}
-		}
-		*cache = append(*cache, value)
-	}
 	clientForEntNum := func(entNum int) *Client {
 		if s.Static == nil {
 			return nil
@@ -825,7 +808,7 @@ func NewServer() *Server {
 			if client := clientForEntNum(int(vm.GInt(msgEntityOfs))); client != nil && client.Message != nil {
 				return []*MessageBuffer{client.Message}
 			}
-		case 2, 3:
+		case 2:
 			if s.Static == nil {
 				return nil
 			}
@@ -836,6 +819,10 @@ func NewServer() *Server {
 				}
 			}
 			return buffers
+		case 3:
+			if s.Signon != nil {
+				return []*MessageBuffer{s.Signon}
+			}
 		}
 		return nil
 	}
@@ -1025,13 +1012,14 @@ func NewServer() *Server {
 			bestDir := vm.GVector(qc.OFSGlobalVForward)
 			end := VecAdd(start, VecScale(bestDir, 2048))
 			trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNormal), ent)
+			teamplay := cvar.FloatValue("teamplay") != 0
 			if trace.Entity != nil && trace.Entity.Vars != nil &&
 				TakeDamage(int(trace.Entity.Vars.TakeDamage)) == DamageAim &&
-				(!s.Coop || ent.Vars.Team <= 0 || ent.Vars.Team != trace.Entity.Vars.Team) {
+				(!teamplay || ent.Vars.Team <= 0 || ent.Vars.Team != trace.Entity.Vars.Team) {
 				return bestDir
 			}
 
-			bestDist := float32(0)
+			bestDist := float32(cvar.FloatValue("sv_aim"))
 			var bestEnt *Edict
 			for i := 1; i < s.NumEdicts && i < vm.NumEdicts; i++ {
 				check := s.EdictNum(i)
@@ -1041,7 +1029,7 @@ func NewServer() *Server {
 				if TakeDamage(int(check.Vars.TakeDamage)) != DamageAim {
 					continue
 				}
-				if s.Coop && ent.Vars.Team > 0 && ent.Vars.Team == check.Vars.Team {
+				if teamplay && ent.Vars.Team > 0 && ent.Vars.Team == check.Vars.Team {
 					continue
 				}
 				targetCenter := [3]float32{
@@ -1182,7 +1170,8 @@ func NewServer() *Server {
 			if modelName != "" {
 				modelIndex = s.FindModel(modelName)
 				if modelIndex == 0 {
-					panic("no precache: " + modelName)
+					s.raiseQCRuntimeError(vm, "no precache: %s", modelName)
+					return
 				}
 			}
 
@@ -1226,10 +1215,14 @@ func NewServer() *Server {
 			}
 		},
 		PrecacheSound: func(vm *qc.VM, sample string) {
-			ensurePrecache(&s.SoundPrecache, sample)
+			if err := s.precacheSound(sample); err != nil {
+				s.raiseQCRuntimeError(vm, "%v", err)
+			}
 		},
 		PrecacheModel: func(vm *qc.VM, modelName string) {
-			ensurePrecache(&s.ModelPrecache, modelName)
+			if err := s.precacheModel(modelName); err != nil {
+				s.raiseQCRuntimeError(vm, "%v", err)
+			}
 		},
 		BroadcastPrint: func(vm *qc.VM, msg string) {
 			console.Printf("%s", msg)
@@ -1380,6 +1373,16 @@ func NewServer() *Server {
 			if state.Scale == 0 {
 				state.Scale = 16
 			}
+			if state.Alpha == inet.ENTALPHA_ZERO {
+				UnlinkEdict(ent)
+				s.FreeEdict(ent)
+				return
+			}
+			if s.Protocol == ProtocolNetQuake && (state.ModelIndex > 255 || state.Frame > 255) {
+				UnlinkEdict(ent)
+				s.FreeEdict(ent)
+				return
+			}
 			s.StaticEntities = append(s.StaticEntities, state)
 			if s.Static != nil {
 				for _, client := range s.Static.Clients {
@@ -1450,6 +1453,63 @@ func NewServer() *Server {
 	return s
 }
 
+func (s *Server) raiseQCRuntimeError(vm *qc.VM, format string, args ...any) {
+	if vm == nil {
+		return
+	}
+	vm.SetBuiltinError(fmt.Errorf(format, args...))
+}
+
+func (s *Server) ensureSpawnPrecache(kind, value string) error {
+	if value == "" {
+		return fmt.Errorf("%s: empty string", kind)
+	}
+	if s.State != ServerStateLoading {
+		return fmt.Errorf("%s: precache can only be done in spawn functions", kind)
+	}
+	return nil
+}
+
+func insertPrecache(cache []string, value string) (int, error) {
+	for i := 1; i < len(cache); i++ {
+		if cache[i] == value {
+			return i, nil
+		}
+	}
+	for i := 1; i < len(cache); i++ {
+		if cache[i] == "" {
+			cache[i] = value
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("precache overflow for %q", value)
+}
+
+func (s *Server) precacheSound(sample string) error {
+	if err := s.ensureSpawnPrecache("PF_precache_sound", sample); err != nil {
+		return err
+	}
+	if len(s.SoundPrecache) == 0 {
+		s.SoundPrecache = make([]string, MaxSounds)
+	}
+	_, err := insertPrecache(s.SoundPrecache, sample)
+	return err
+}
+
+func (s *Server) precacheModel(modelName string) error {
+	if err := s.ensureSpawnPrecache("PF_precache_model", modelName); err != nil {
+		return err
+	}
+	if len(s.ModelPrecache) == 0 {
+		s.ModelPrecache = make([]string, MaxModels)
+	}
+	if _, err := s.cacheModelInfo(modelName); err != nil {
+		return fmt.Errorf("PF_precache_model: %w", err)
+	}
+	_, err := insertPrecache(s.ModelPrecache, modelName)
+	return err
+}
+
 func (s *Server) SetCompatRNG(rng *compatrand.RNG) {
 	if rng == nil {
 		rng = compatrand.New()
@@ -1463,7 +1523,7 @@ func (s *Server) SetCompatRNG(rng *compatrand.RNG) {
 // AllocEdict allocates a new entity.
 func (s *Server) AllocEdict() *Edict {
 	for i, e := range s.Edicts {
-		if e.Free {
+		if e.Free && (e.FreeTime < 2 || s.Time-e.FreeTime > 0.5) {
 			UnlinkEdict(e)
 			*e = Edict{Vars: &EntVars{}}
 			s.NumEdicts = max(s.NumEdicts, i+1)

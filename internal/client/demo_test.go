@@ -687,16 +687,49 @@ func TestDemoSetSpeed(t *testing.T) {
 	if demo.Speed != 0.5 {
 		t.Fatalf("Speed = %f, want 0.5", demo.Speed)
 	}
+	if demo.BaseSpeed != 0.5 {
+		t.Fatalf("BaseSpeed = %f, want 0.5", demo.BaseSpeed)
+	}
 
-	// Negative/zero clamped to 0.01
 	demo.SetSpeed(0)
-	if demo.Speed != 0.01 {
-		t.Fatalf("Speed = %f, want 0.01 after setting 0", demo.Speed)
+	if demo.Speed != 0 {
+		t.Fatalf("Speed = %f, want 0 after setting 0", demo.Speed)
+	}
+	if !demo.Paused {
+		t.Fatal("SetSpeed(0) should pause playback")
 	}
 
 	demo.SetSpeed(-5)
-	if demo.Speed != 0.01 {
-		t.Fatalf("Speed = %f, want 0.01 after setting -5", demo.Speed)
+	if demo.Speed != -5 {
+		t.Fatalf("Speed = %f, want -5 after setting -5", demo.Speed)
+	}
+	if demo.BaseSpeed != -5 {
+		t.Fatalf("BaseSpeed = %f, want -5 after setting -5", demo.BaseSpeed)
+	}
+	if demo.Paused {
+		t.Fatal("SetSpeed(-5) should resume playback")
+	}
+}
+
+func TestDemoUpdatePlaybackSpeedSupportsTemporaryRewind(t *testing.T) {
+	demo := NewDemoState()
+	demo.UpdatePlaybackSpeed(true, true, false, false)
+	if demo.Speed != -5 {
+		t.Fatalf("rewind speed = %f, want -5", demo.Speed)
+	}
+
+	demo.UpdatePlaybackSpeed(true, true, false, true)
+	if demo.Speed != -1.25 {
+		t.Fatalf("slow rewind speed = %f, want -1.25", demo.Speed)
+	}
+
+	demo.SetRewindBackstop(true)
+	demo.UpdatePlaybackSpeed(true, false, true, false)
+	if demo.Speed != 5 {
+		t.Fatalf("forward speed = %f, want 5", demo.Speed)
+	}
+	if demo.RewindBackstop() {
+		t.Fatal("positive playback should clear rewind backstop")
 	}
 }
 

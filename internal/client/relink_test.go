@@ -262,6 +262,55 @@ func TestRelinkEntities_TrailEventsUseModelIndexMinusOne(t *testing.T) {
 	}
 }
 
+func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{1.0, 0.9}
+	c.OldTime = 0.99
+	c.Time = 1.0
+	c.Entities = map[int]inet.EntityState{
+		1: {
+			ModelIndex: 1,
+			MsgTime:    1.0,
+			MsgOrigins: [2][3]float32{{10, 0, 0}, {0, 0, 0}},
+			MsgAngles:  [2][3]float32{},
+			ForceLink:  true,
+		},
+	}
+	c.ModelPrecache = []string{"progs/missile.mdl"}
+	c.ModelFlagsFunc = func(name string) int { return model.EFRocket }
+
+	c.RelinkEntities()
+	if got := len(c.TrailEvents); got != 0 {
+		t.Fatalf("first relink trail count = %d, want 0 after reset", got)
+	}
+
+	c.TrailEvents = nil
+	c.OldTime = 1.0
+	c.Time = 1.002
+	ent := c.Entities[1]
+	ent.MsgTime = 1.002
+	ent.MsgOrigins = [2][3]float32{{20, 0, 0}, {10, 0, 0}}
+	c.Entities[1] = ent
+	c.MTime = [2]float64{1.002, 1.0}
+	c.RelinkEntities()
+	if got := len(c.TrailEvents); got != 0 {
+		t.Fatalf("second relink trail count = %d, want 0 while traildelay active", got)
+	}
+
+	c.TrailEvents = nil
+	c.OldTime = 1.002
+	c.Time = 1.03
+	ent = c.Entities[1]
+	ent.MsgTime = 1.03
+	ent.MsgOrigins = [2][3]float32{{30, 0, 0}, {20, 0, 0}}
+	c.Entities[1] = ent
+	c.MTime = [2]float64{1.03, 1.002}
+	c.RelinkEntities()
+	if got := len(c.TrailEvents); got != 1 {
+		t.Fatalf("third relink trail count = %d, want 1 after traildelay expiry", got)
+	}
+}
+
 func TestRelinkEntities_StaleEntityPreservesModelAndResetsLerp(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}

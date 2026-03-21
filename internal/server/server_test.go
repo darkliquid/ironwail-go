@@ -321,6 +321,40 @@ func TestConnectClientClearsStaleReliableBuffer(t *testing.T) {
 	}
 }
 
+func TestSpawnServerActiveQueuesReconnectForConnectedClients(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	if err := s.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("first spawn server: %v", err)
+	}
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Message.Clear()
+
+	if err := s.SpawnServer("start", vfs); err != nil {
+		t.Fatalf("second spawn server: %v", err)
+	}
+
+	if !bytes.Contains(client.Message.Data[:client.Message.Len()], []byte("reconnect\n")) {
+		t.Fatalf("client reliable buffer missing reconnect command: %q", string(client.Message.Data[:client.Message.Len()]))
+	}
+}
+
 func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -915,8 +949,8 @@ func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 		NumLeafs: MaxEntityLeafs,
 	}
 
-	if s.SV_EdictInPVS(ent, make([]byte, 1)) {
-		t.Error("expected edict touching max leafs with no visible bits to be culled")
+	if !s.SV_EdictInPVS(ent, make([]byte, 1)) {
+		t.Error("expected edict touching max leafs to be treated as always visible")
 	}
 }
 

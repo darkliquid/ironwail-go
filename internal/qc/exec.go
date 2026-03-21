@@ -454,7 +454,7 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 		vm.ArgC = argc
 		vm.traceCall("builtin", vm.Depth+1, int32(fnum))
 		vm.Builtins[builtin](vm)
-		return nil
+		return vm.consumeBuiltinError()
 	}
 	if fnum >= len(vm.Functions) {
 		return fmt.Errorf("invalid function number: %d", fnum)
@@ -469,7 +469,7 @@ func (vm *VM) callFunction(fnum int, argc int) error {
 		vm.ArgC = argc
 		vm.traceCall("builtin", vm.Depth+1, int32(fnum))
 		vm.Builtins[builtin](vm)
-		return nil
+		return vm.consumeBuiltinError()
 	}
 
 	if err := vm.EnterFunction(int32(fnum), f); err != nil {
