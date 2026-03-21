@@ -49,6 +49,12 @@ func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 // It ensures the console correctly displays logged text lines, the command prompt (]), and the current input line.
 // Where in C: Con_DrawConsole in console.c
 func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
+	originalNow := consoleNow
+	consoleNow = func() time.Time { return time.Unix(0, 0) }
+	t.Cleanup(func() {
+		consoleNow = originalNow
+	})
+
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -72,8 +78,45 @@ func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
 	if !containsRowSubstring(linesByY, "line2") {
 		t.Fatalf("console draw did not include line2, rows: %#v", linesByY)
 	}
-	if got := strings.TrimSpace(linesByY[32]); got != "]sv" {
-		t.Fatalf("prompt row = %q, want %q", got, "]sv")
+	if got := linesByY[32]; !strings.HasPrefix(got, "]sv") {
+		t.Fatalf("prompt row = %q, want prefix %q", got, "]sv")
+	}
+}
+
+func TestConsoleDrawRendersBlinkCursorAndClipsPrompt(t *testing.T) {
+	originalNow := consoleNow
+	consoleNow = func() time.Time { return time.Unix(0, int64(time.Second/4)) }
+	t.Cleanup(func() {
+		consoleNow = originalNow
+	})
+
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	c.SetInputLine("longcommand")
+
+	mock := &mockRenderContext{}
+	c.Draw(mock, 80, 80, true, nil)
+
+	var row []struct{ x, y, num int }
+	for _, ch := range mock.characters {
+		if ch.y == 32 {
+			row = append(row, ch)
+		}
+	}
+	if len(row) == 0 {
+		t.Fatal("expected prompt row characters")
+	}
+	last := row[len(row)-1]
+	if last.x != 64 || last.num != 11 {
+		t.Fatalf("cursor draw = (%d,%d), want (%d,%d)", last.x, last.num, 64, 11)
+	}
+	if got := string(rune(row[0].num)); got != "]" {
+		t.Fatalf("prompt prefix = %q, want %q", got, "]")
+	}
+	if got := string(rune(row[1].num)) + string(rune(row[2].num)); got != "om" {
+		t.Fatalf("clipped tail = %q, want %q", got, "om")
 	}
 }
 

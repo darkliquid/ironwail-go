@@ -74,7 +74,11 @@ const (
 	// consoleMinDrawHeight prevents the console from being drawn too small
 	// to be readable — at least 4 rows of text.
 	consoleMinDrawHeight = consoleCharHeight * 4
+
+	consoleCursorBlinkHz = 4
 )
+
+var consoleNow = time.Now
 
 // Draw is the package-level entry point that renders the global console.
 // It delegates to the singleton globalConsole. When full is true, the
@@ -168,7 +172,9 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 	}
 
 	prompt := append([]rune{']'}, inputLine...)
-	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, clipPrompt(prompt, charsWide-2))
+	visiblePrompt := clipPrompt(prompt, max(1, charsWide-3))
+	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, visiblePrompt)
+	drawBlinkCursor(rc, consoleCharWidth+len(visiblePrompt)*consoleCharWidth, consoleHeight-consoleCharHeight, consoleNow())
 }
 
 func scaledBackgroundPic(pic *qimage.QPic, width, height int) *qimage.QPic {
@@ -338,6 +344,18 @@ func clipPrompt(prompt []rune, maxChars int) []rune {
 	clipped = append(clipped, ']')
 	clipped = append(clipped, prompt[len(prompt)-(maxChars-1):]...)
 	return clipped
+}
+
+func drawBlinkCursor(rc DrawContext, x, y int, now time.Time) {
+	if rc == nil {
+		return
+	}
+	rc.DrawCharacter(x, y, consoleCursorGlyph(now))
+}
+
+func consoleCursorGlyph(now time.Time) int {
+	frame := (now.UnixNano() / int64(time.Second/consoleCursorBlinkHz)) & 1
+	return 10 + int(frame)
 }
 
 // max returns the larger of two ints. This is a local helper because Go

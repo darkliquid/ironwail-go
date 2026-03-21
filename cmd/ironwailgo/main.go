@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -85,6 +86,7 @@ type Game struct {
 }
 
 var g Game
+var runtimeNow = time.Now
 
 type canvasParamSetter interface {
 	SetCanvasParams(renderer.CanvasTransformParams)
@@ -867,7 +869,7 @@ func drawChatInput(rc renderer.RenderContext, w, h int) {
 	if chatTeam {
 		prompt = "say_team: "
 	}
-	fullText := prompt + chatBuffer + "_"
+	fullText := clippedChatInput(prompt, chatBuffer, max(1, w/8-2))
 
 	// Draw at roughly 1/3 down the screen or near top, standard Quake is just below notify lines?
 	// Actually Quake draws it at specific Y.
@@ -884,4 +886,28 @@ func drawChatInput(rc renderer.RenderContext, w, h int) {
 		rc.DrawCharacter(currentX, y, int(char))
 		currentX += charSize
 	}
+	rc.DrawCharacter(currentX, y, runtimeCursorGlyph(runtimeNow()))
+}
+
+func clippedChatInput(prompt, message string, maxChars int) string {
+	if maxChars <= 1 {
+		return prompt[:min(len(prompt), 1)]
+	}
+	visiblePrompt := prompt
+	if len(visiblePrompt) > maxChars-1 {
+		visiblePrompt = visiblePrompt[:maxChars-1]
+	}
+	remaining := maxChars - len(visiblePrompt) - 1
+	if remaining <= 0 {
+		return visiblePrompt
+	}
+	if len(message) > remaining {
+		message = message[len(message)-remaining:]
+	}
+	return visiblePrompt + message
+}
+
+func runtimeCursorGlyph(now time.Time) int {
+	frame := (now.UnixNano() / int64(time.Second/4)) & 1
+	return 10 + int(frame)
 }

@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
 	"github.com/ironwail/ironwail-go/internal/bsp"
@@ -525,6 +526,38 @@ func TestUpdateRuntimeConsoleSlide(t *testing.T) {
 	updateRuntimeConsoleSlide(0.25, false, true)
 	if got := g.ConsoleSlideFraction; math.Abs(float64(got-1.0)) > 0.0001 {
 		t.Fatalf("forced slide fraction = %.2f, want 1.00", got)
+	}
+}
+
+func TestDrawChatInputClipsAndDrawsBlinkCursor(t *testing.T) {
+	originalNow := runtimeNow
+	originalChatBuffer := chatBuffer
+	originalChatTeam := chatTeam
+	t.Cleanup(func() {
+		runtimeNow = originalNow
+		chatBuffer = originalChatBuffer
+		chatTeam = originalChatTeam
+	})
+	runtimeNow = func() time.Time { return time.Unix(0, int64(time.Second/4)) }
+	chatBuffer = "abcdef"
+	chatTeam = false
+
+	dc := &consoleOverlayDrawContext{}
+	drawChatInput(dc, 80, 200)
+
+	if len(dc.chars) != 8 {
+		t.Fatalf("chat draw count = %d, want 8", len(dc.chars))
+	}
+	var text strings.Builder
+	for i := 0; i < len(dc.chars)-1; i++ {
+		text.WriteRune(rune(dc.chars[i].num))
+	}
+	if got := text.String(); got != "say: ef" {
+		t.Fatalf("chat visible text = %q, want %q", got, "say: ef")
+	}
+	last := dc.chars[len(dc.chars)-1]
+	if last.x != 64 || last.y != 64 || last.num != 11 {
+		t.Fatalf("chat cursor = (%d,%d,%d), want (64,64,11)", last.x, last.y, last.num)
 	}
 }
 
