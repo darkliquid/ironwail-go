@@ -79,7 +79,8 @@ type DrawContext struct {
 	renderer *Renderer
 
 	// Canvas coordinate system state.
-	canvas CanvasState
+	canvas       CanvasState
+	canvasParams CanvasTransformParams
 }
 
 var halOnlyFrameConsumed atomic.Bool
@@ -124,12 +125,47 @@ func (dc *DrawContext) Gamma() float32 {
 
 // SetCanvas switches the active 2D canvas coordinate system.
 func (dc *DrawContext) SetCanvas(ct CanvasType) {
-	dc.canvas.Type = ct
+	if dc == nil {
+		return
+	}
+	params := dc.canvasParams
+	if dc.renderer != nil {
+		screenW, screenH := dc.renderer.Size()
+		if params.GUIWidth <= 0 {
+			params.GUIWidth = float32(screenW)
+		}
+		if params.GUIHeight <= 0 {
+			params.GUIHeight = float32(screenH)
+		}
+		if params.GLWidth <= 0 {
+			params.GLWidth = float32(screenW)
+		}
+		if params.GLHeight <= 0 {
+			params.GLHeight = float32(screenH)
+		}
+	}
+	if params.ConWidth <= 0 {
+		params.ConWidth = params.GUIWidth
+	}
+	if params.ConHeight <= 0 {
+		params.ConHeight = params.GUIHeight
+	}
+	if params.GUIWidth <= 0 || params.GUIHeight <= 0 || params.GLWidth <= 0 || params.GLHeight <= 0 {
+		dc.canvas.Type = ct
+		return
+	}
+	SetCanvas(&dc.canvas, ct, params)
 }
 
 // Canvas returns the current canvas state.
 func (dc *DrawContext) Canvas() CanvasState {
 	return dc.canvas
+}
+
+// SetCanvasParams updates the per-frame canvas transform parameters.
+func (dc *DrawContext) SetCanvasParams(p CanvasTransformParams) {
+	dc.canvasParams = p
+	dc.canvas.Type = CanvasNone
 }
 
 // 2D Drawing API implementation
@@ -145,7 +181,7 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	rect := screenPicRect(x, y, pic)
+	rect := dc.screenPicRect(x, y, int(pic.Width), int(pic.Height))
 	err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
 	if err != nil {
 		slog.Error("Failed to draw texture", "error", err)
@@ -189,11 +225,12 @@ func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) 
 	if alpha >= 1 {
 		alpha = 1
 	}
+	rect := dc.screenPicRect(x, y, w, h)
 	err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
-		X:      float32(x),
-		Y:      float32(y),
-		Width:  float32(w),
-		Height: float32(h),
+		X:      rect.x,
+		Y:      rect.y,
+		Width:  rect.w,
+		Height: rect.h,
 		Alpha:  alpha,
 	})
 	if err != nil {
@@ -215,7 +252,8 @@ func (dc *DrawContext) DrawCharacter(x, y int, num int) {
 	if tex == nil {
 		return
 	}
-	if err := dc.ctx.DrawTextureScaled(tex, float32(x), float32(y), 8, 8); err != nil {
+	rect := dc.screenPicRect(x, y, 8, 8)
+	if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
 		slog.Error("DrawCharacter: draw failed", "num", num, "error", err)
 	}
 }
@@ -256,6 +294,59 @@ func (r *Renderer) SetConchars(data []byte) {
 	}
 	r.concharsData = data
 	r.charCache = [256]*image.QPic{}
+}
+
+type pixelRect struct {
+	x float32
+	y float32
+	w float32
+	h float32
+}
+
+func (dc *DrawContext) screenPicRect(x, y, w, h int) pixelRect {
+	screenX, screenY, screenW, screenH := dc.canvasRectToScreen(x, y, w, h)
+	return pixelRect{
+		x: float32(screenX),
+		y: float32(screenY),
+		w: float32(screenW),
+		h: float32(screenH),
+	}
+}
+
+func (dc *DrawContext) canvasRectToScreen(x, y, w, h int) (screenX, screenY, screenW, screenH int) {
+	if dc == nil || w <= 0 || h <= 0 || dc.canvas.Type == CanvasNone {
+		return x, y, w, h
+	}
+	params := dc.canvasParams
+	if dc.renderer != nil {
+		rendererW, rendererH := dc.renderer.Size()
+		if params.GUIWidth <= 0 {
+			params.GUIWidth = float32(rendererW)
+		}
+		if params.GUIHeight <= 0 {
+			params.GUIHeight = float32(rendererH)
+		}
+	}
+	if params.GUIWidth <= 0 || params.GUIHeight <= 0 {
+		return x, y, w, h
+	}
+	left, top := transformCanvasPointToScreen(dc.canvas.Transform, params.GUIWidth, params.GUIHeight, float32(x), float32(y))
+	right, bottom := transformCanvasPointToScreen(dc.canvas.Transform, params.GUIWidth, params.GUIHeight, float32(x+w), float32(y+h))
+	if left > right {
+		left, right = right, left
+	}
+	if top > bottom {
+		top, bottom = bottom, top
+	}
+	return int(left), int(top), int(right - left), int(bottom - top)
+}
+
+func transformCanvasPointToScreen(transform DrawTransform, screenW, screenH, x, y float32) (screenX, screenY float32) {
+	ndcX := x*transform.Scale[0] + transform.Offset[0]
+	ndcY := y*transform.Scale[1] + transform.Offset[1]
+	screenX = (ndcX + 1) * 0.5 * screenW
+	screenY = (1 - (ndcY+1)*0.5) * screenH
+	return screenX, screenY
 }
 
 // getCharPic returns (or lazily creates) an 8×8 QPic for character num extracted
