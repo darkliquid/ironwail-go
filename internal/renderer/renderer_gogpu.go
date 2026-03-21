@@ -420,6 +420,13 @@ type Renderer struct {
 	decalAtlasTextureHAL        hal.Texture
 	decalAtlasView              hal.TextureView
 	decalBindGroup              hal.BindGroup
+	polyBlendPipeline           hal.RenderPipeline
+	polyBlendPipelineLayout     hal.PipelineLayout
+	polyBlendVertexShader       hal.ShaderModule
+	polyBlendFragmentShader     hal.ShaderModule
+	polyBlendUniformBuffer      hal.Buffer
+	polyBlendBindGroupLayout    hal.BindGroupLayout
+	polyBlendBindGroup          hal.BindGroup
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -766,6 +773,7 @@ func (r *Renderer) Shutdown() {
 	r.destroyAliasResourcesLocked()
 	r.destroySpriteResourcesLocked()
 	r.destroyDecalResourcesLocked()
+	r.destroyPolyBlendResourcesLocked()
 	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
@@ -837,8 +845,8 @@ type RenderFrameState struct {
 	WaterWarpTime   float32
 	ForceUnderwater bool
 
-	// VBlend: see stubs_opengl.go for semantics.
-	// Parsed by the authoritative OpenGL path only; gogpu ignores this field.
+	// VBlend is the composite RGBA screen tint from client color shifts.
+	// Applied after the 3D scene and entity passes, before the 2D overlay.
 	VBlend [4]float32
 }
 
@@ -903,6 +911,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 
 	if state.DrawEntities && state.ViewModel != nil {
 		dc.renderViewModelHAL(*state.ViewModel)
+	}
+
+	if state.VBlend[3] > 0 {
+		dc.renderPolyBlendHAL(state.VBlend)
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
