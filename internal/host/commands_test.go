@@ -16,6 +16,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/menu"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -409,6 +410,119 @@ func TestCmdRestart(t *testing.T) {
 	h.SetServerActive(true)
 
 	h.CmdRestart(&subs.Subsystems)
+}
+
+func TestCmdRestartPromptAutoloadShowsConfirmationMenu(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{active: true},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	h.SetServerActive(true)
+	h.lastSave = "slot1"
+	mgr := menu.NewManager(nil, nil)
+	h.SetMenu(mgr)
+
+	previousAutoload := cvar.StringValue("sv_autoload")
+	cvar.Set("sv_autoload", "1")
+	t.Cleanup(func() {
+		cvar.Set("sv_autoload", previousAutoload)
+	})
+
+	h.CmdRestart(&subs.Subsystems)
+
+	if !mgr.IsActive() {
+		t.Fatal("menu should be active for prompt autoload")
+	}
+	if got := mgr.GetState(); got != menu.MenuQuit {
+		t.Fatalf("menu state = %v, want %v", got, menu.MenuQuit)
+	}
+	if got := strings.Join(subs.console.messages, ""); strings.Contains(got, "Autoloading...") {
+		t.Fatalf("console output = %q, want no immediate autoload", got)
+	}
+}
+
+func TestCmdRestartPromptAutoloadConfirmLoadsLastSave(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{active: true},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	h.SetServerActive(true)
+	h.lastSave = "slot1"
+	mgr := menu.NewManager(nil, nil)
+	h.SetMenu(mgr)
+
+	previousAutoload := cvar.StringValue("sv_autoload")
+	cvar.Set("sv_autoload", "1")
+	t.Cleanup(func() {
+		cvar.Set("sv_autoload", previousAutoload)
+	})
+
+	h.CmdRestart(&subs.Subsystems)
+	mgr.M_Key('y')
+
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after confirming autoload prompt")
+	}
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "load failed: slot1.sav not found") {
+		t.Fatalf("console output = %q, want prompted load failure", got)
+	}
+	if h.lastSave != "" {
+		t.Fatalf("lastSave = %q, want cleared after missing prompted load", h.lastSave)
+	}
+}
+
+func TestCmdRestartPromptAutoloadDeclineClearsLastSave(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{active: true},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	h.SetServerActive(true)
+	h.lastSave = "slot1"
+	mgr := menu.NewManager(nil, nil)
+	h.SetMenu(mgr)
+
+	previousAutoload := cvar.StringValue("sv_autoload")
+	cvar.Set("sv_autoload", "1")
+	t.Cleanup(func() {
+		cvar.Set("sv_autoload", previousAutoload)
+	})
+
+	h.CmdRestart(&subs.Subsystems)
+	mgr.M_Key('n')
+
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after declining autoload prompt")
+	}
+	if h.lastSave != "" {
+		t.Fatalf("lastSave = %q, want cleared after declining prompt", h.lastSave)
+	}
 }
 
 func TestCmdKill(t *testing.T) {

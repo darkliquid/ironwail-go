@@ -857,9 +857,7 @@ func (h *Host) CmdMenuQuit() {
 	if h.menu == nil {
 		return
 	}
-	// Switch to quit state
-	h.menu.ShowMenu()
-	// Note: The menu system handles quit confirmation internally
+	h.menu.ShowQuitPrompt()
 }
 
 // Demo commands

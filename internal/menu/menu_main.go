@@ -58,8 +58,7 @@ func (m *Manager) mainSelect() {
 		m.state = MenuHelp
 		m.helpPage = 0
 	case mainQuit:
-		m.quitPrevState = MenuMain
-		m.state = MenuQuit
+		m.ShowQuitPrompt()
 	}
 }
 
@@ -212,12 +211,26 @@ func (m *Manager) quitKey(key int) {
 	switch key {
 	case input.KEnter, input.KSpace, input.KMouse1, 'y', 'Y':
 		m.playMenuSound(menuSoundSelect)
-		m.queueCommand("quit\n")
+		onConfirm := m.onConfirm
 		m.HideMenu()
+		if onConfirm == nil {
+			m.queueCommand("quit\n")
+		} else {
+			onConfirm()
+		}
 	case input.KEscape, input.KBackspace, input.KMouse2, 'n', 'N':
 		m.playMenuSound(menuSoundCancel)
-		// Cancel - return to main menu
-		m.state = m.quitPrevState
+		onCancel := m.onCancel
+		cancelState := m.quitPrevState
+		m.clearConfirmationPrompt()
+		if cancelState == MenuNone {
+			m.HideMenu()
+		} else {
+			m.state = cancelState
+		}
+		if onCancel != nil {
+			onCancel()
+		}
 	}
 }
 
@@ -476,9 +489,17 @@ func (m *Manager) drawHelp(dc renderer.RenderContext) {
 // drawQuit renders the quit confirmation screen.
 func (m *Manager) drawQuit(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "")
-	m.drawText(dc, 56, 64, "ARE YOU SURE YOU WANT TO QUIT?", true)
-	m.drawText(dc, 56, 88, "PRESS Y OR ENTER TO QUIT", true)
-	m.drawText(dc, 56, 104, "PRESS N OR ESC TO CANCEL", true)
+	lines := m.confirmLines
+	if lines[0] == "" && lines[1] == "" && lines[2] == "" {
+		lines = [3]string{
+			"ARE YOU SURE YOU WANT TO QUIT?",
+			"PRESS Y OR ENTER TO QUIT",
+			"PRESS N OR ESC TO CANCEL",
+		}
+	}
+	m.drawText(dc, 56, 64, lines[0], true)
+	m.drawText(dc, 56, 88, lines[1], true)
+	m.drawText(dc, 56, 104, lines[2], true)
 }
 
 // drawSetup renders the Player Setup menu with editable hostname and name

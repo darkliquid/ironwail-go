@@ -270,6 +270,40 @@ func TestQuitMenu(t *testing.T) {
 	}
 }
 
+func TestShowConfirmationPromptCancelHidesMenuAndRunsCallback(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	confirmed := false
+	cancelled := false
+	mgr.ShowConfirmationPrompt([]string{
+		"LOAD LAST SAVE? (Y/N)",
+		"PRESS Y OR ENTER TO LOAD",
+		"PRESS N OR ESC TO CONTINUE",
+	}, func() {
+		confirmed = true
+	}, func() {
+		cancelled = true
+	}, MenuNone)
+
+	mgr.M_Key('n')
+
+	if confirmed {
+		t.Fatal("confirm callback ran on cancel")
+	}
+	if !cancelled {
+		t.Fatal("cancel callback did not run")
+	}
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after cancel when returning to game")
+	}
+	if got := mgr.GetState(); got != MenuNone {
+		t.Fatalf("state = %v, want %v", got, MenuNone)
+	}
+}
+
 func TestMainMenuSelections(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}

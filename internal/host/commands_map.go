@@ -100,7 +100,9 @@ func (h *Host) CmdRestart(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
-	if h.autoLoadLastSave(subs, false) {
+	if h.autoLoadLastSave(subs, false, func() {
+		h.CmdRestart(subs)
+	}) {
 		return
 	}
 	h.CmdMap(subs.Server.GetMapName(), subs)
@@ -110,7 +112,9 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
-	if level == subs.Server.GetMapName() && h.autoLoadLastSave(subs, false) {
+	if level == subs.Server.GetMapName() && h.autoLoadLastSave(subs, false, func() {
+		h.CmdChangelevel(level, subs)
+	}) {
 		return
 	}
 
@@ -141,7 +145,7 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 	subs.Server.SetPreserveSpawnParms(false)
 }
 
-func (h *Host) autoLoadLastSave(subs *Subsystems, force bool) bool {
+func (h *Host) autoLoadLastSave(subs *Subsystems, force bool, onDecline func()) bool {
 	if subs == nil || subs.Server == nil || subs.Console == nil {
 		return false
 	}
@@ -157,7 +161,25 @@ func (h *Host) autoLoadLastSave(subs *Subsystems, force bool) bool {
 	}
 	if !force {
 		if mode < 2 {
-			return false
+			if h.menu == nil {
+				return false
+			}
+			saveName := h.lastSave
+			h.menu.ShowConfirmationPrompt([]string{
+				"LOAD LAST SAVE? (Y/N)",
+				"PRESS Y OR ENTER TO LOAD",
+				"PRESS N OR ESC TO CONTINUE",
+			}, func() {
+				h.CmdLoad(saveName, subs)
+			}, func() {
+				if h.lastSave == saveName {
+					h.lastSave = ""
+				}
+				if onDecline != nil {
+					onDecline()
+				}
+			}, 0)
+			return true
 		}
 		player := subs.Server.EdictNum(1)
 		if mode < 3 && player != nil && player.Vars != nil && player.Vars.Health > 0 {

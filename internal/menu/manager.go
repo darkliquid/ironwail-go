@@ -278,6 +278,9 @@ type Manager struct {
 	hostMapName        string
 
 	quitPrevState MenuState
+	confirmLines  [3]string
+	onConfirm     func()
+	onCancel      func()
 
 	// modsCursor is the current selection in the mods menu.
 	modsCursor int
@@ -427,13 +430,49 @@ func (m *Manager) ShowMenu() {
 	}
 }
 
+// ShowConfirmationPrompt displays a yes/no confirmation screen.
+// Confirm hides the menu and runs onConfirm. Cancel either returns to cancelState
+// or hides the menu when cancelState is MenuNone, then runs onCancel.
+func (m *Manager) ShowConfirmationPrompt(lines []string, onConfirm, onCancel func(), cancelState MenuState) {
+	m.active = true
+	m.state = MenuQuit
+	m.quitPrevState = cancelState
+	m.onConfirm = onConfirm
+	m.onCancel = onCancel
+	m.confirmLines = [3]string{}
+	for i := 0; i < len(lines) && i < len(m.confirmLines); i++ {
+		m.confirmLines[i] = lines[i]
+	}
+	if m.inputSystem != nil {
+		m.inputSystem.SetKeyDest(input.KeyMenu)
+	}
+}
+
+// ShowQuitPrompt displays the standard quit confirmation prompt.
+func (m *Manager) ShowQuitPrompt() {
+	m.ShowConfirmationPrompt([]string{
+		"ARE YOU SURE YOU WANT TO QUIT?",
+		"PRESS Y OR ENTER TO QUIT",
+		"PRESS N OR ESC TO CANCEL",
+	}, func() {
+		m.queueCommand("quit\n")
+	}, nil, MenuMain)
+}
+
 // HideMenu hides the menu and returns to the game.
 func (m *Manager) HideMenu() {
 	m.active = false
 	m.state = MenuNone
+	m.clearConfirmationPrompt()
 	if m.inputSystem != nil {
 		m.inputSystem.SetKeyDest(input.KeyGame)
 	}
+}
+
+func (m *Manager) clearConfirmationPrompt() {
+	m.confirmLines = [3]string{}
+	m.onConfirm = nil
+	m.onCancel = nil
 }
 
 // RequestQuit requests the host to quit.
