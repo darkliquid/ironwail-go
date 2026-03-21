@@ -81,6 +81,10 @@ type Game struct {
 
 var g Game
 
+type canvasParamSetter interface {
+	SetCanvasParams(renderer.CanvasTransformParams)
+}
+
 type defaultBinding struct {
 	key     int
 	command string
@@ -123,6 +127,79 @@ func (globalCommandBuffer) InsertText(text string) {
 	cmdsys.InsertText(text)
 }
 func (globalCommandBuffer) Shutdown() {}
+
+func runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
+	guiW := cvar.IntValue("vid_width")
+	guiH := cvar.IntValue("vid_height")
+	if guiW <= 0 {
+		guiW = framebufferW
+	}
+	if guiH <= 0 {
+		guiH = framebufferH
+	}
+	return guiW, guiH
+}
+
+func runtimeConsoleDimensions(guiW, guiH int) (int, int) {
+	if guiW <= 0 || guiH <= 0 {
+		return 0, 0
+	}
+	conWidth := guiW
+	if override := cvar.FloatValue("scr_conwidth"); override > 0 {
+		conWidth = int(override)
+	} else if scale := cvar.FloatValue("scr_conscale"); scale > 0 {
+		conWidth = int(float64(guiW) / scale)
+	}
+	if conWidth < 320 {
+		conWidth = 320
+	}
+	if conWidth > guiW {
+		conWidth = guiW
+	}
+	conWidth &^= 7
+	if conWidth <= 0 {
+		conWidth = guiW
+	}
+	conHeight := conWidth * guiH / guiW
+	if conHeight <= 0 {
+		conHeight = guiH
+	}
+	return conWidth, conHeight
+}
+
+func runtimeConsoleCanvasParams(framebufferW, framebufferH int) renderer.CanvasTransformParams {
+	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
+	conW, conH := runtimeConsoleDimensions(guiW, guiH)
+	return renderer.CanvasTransformParams{
+		GUIWidth:         float32(guiW),
+		GUIHeight:        float32(guiH),
+		GLWidth:          float32(framebufferW),
+		GLHeight:         float32(framebufferH),
+		ConWidth:         float32(conW),
+		ConHeight:        float32(conH),
+		ConSlideFraction: 1,
+	}
+}
+
+func runtimeConsoleBackgroundPic() *qimage.QPic {
+	if g.Draw == nil {
+		return nil
+	}
+	return g.Draw.GetPic("gfx/conback.lmp")
+}
+
+func drawRuntimeConsole(overlay renderer.RenderContext, framebufferW, framebufferH int, full, forcedup bool) {
+	params := runtimeConsoleCanvasParams(framebufferW, framebufferH)
+	if setter, ok := overlay.(canvasParamSetter); ok {
+		setter.SetCanvasParams(params)
+	}
+	overlay.SetCanvas(renderer.CanvasConsole)
+	var background *qimage.QPic
+	if full {
+		background = runtimeConsoleBackgroundPic()
+	}
+	console.Draw(overlay, int(params.ConWidth), int(params.ConHeight), full, background, forcedup)
+}
 
 func startupMapArg(args []string) string {
 	for i := 0; i < len(args); i++ {
@@ -421,8 +498,16 @@ func main() {
 	headlessFlag := flag.Bool("headless", false, "Run without rendering")
 	dedicatedFlag := flag.Bool("dedicated", false, "Run as dedicated server")
 	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
+	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
+	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
 	logLevel := flag.String("loglvl", "INFO", "logging level (INFO, WARN, ERROR, DEBUG)")
 	flag.Parse()
+	if *widthFlag > 0 {
+		startupVidWidth = *widthFlag
+	}
+	if *heightFlag > 0 {
+		startupVidHeight = *heightFlag
+	}
 
 	switch strings.ToUpper(*logLevel) {
 	case "WARN":
@@ -489,22 +574,13 @@ func main() {
 		}
 	}
 
-	// Screenshot mode: render single frame and save to PNG
-	if *screenshotFlag != "" {
-		// Flush pending console commands (e.g. +setpos, +noclip from command line)
-		// so camera positioning takes effect before the screenshot.
-		cmdsys.Execute()
-		if g.Host != nil && g.Server != nil {
-			_ = g.Server.Frame(0.05) // run one physics frame to apply position changes
-		}
-		if err := captureScreenshot(*screenshotFlag, *baseDir, *gameDir); err != nil {
-			log.Fatal("Screenshot failed:", err)
-		}
-		return
-	}
+	screenshotPath := strings.TrimSpace(*screenshotFlag)
+	screenshotMode := screenshotPath != ""
 
 	if !headless {
 		cb := gameCallbacks{}
+		var screenshotErr error
+		screenshotCaptured := false
 		// Set up renderer callbacks
 		g.Renderer.OnUpdate(func(dt float64) {
 			if g.Input != nil {
@@ -535,6 +611,16 @@ func main() {
 			syncRuntimeVisualEffects(dt, transientEvents)
 		})
 		g.Renderer.OnDraw(func(dc renderer.RenderContext) {
+			if screenshotMode && !screenshotCaptured {
+				defer func() {
+					screenshotCaptured = true
+					screenshotErr = captureScreenshot(screenshotPath, *baseDir, *gameDir)
+					if g.Renderer != nil {
+						g.Renderer.Stop()
+					}
+				}()
+			}
+
 			if g.Renderer != nil && g.Server != nil && g.Server.WorldTree != nil &&
 				shouldUploadRuntimeWorld(g.WorldUploadKey, g.Server.ModelName, g.Renderer.HasWorldData()) {
 				if err := g.Renderer.UploadWorld(g.Server.WorldTree); err != nil {
@@ -568,16 +654,14 @@ func main() {
 						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu when DrawMenuPic is canvas-aware
 						drawLoadingPlaque(overlay, g.Draw)
 						if consoleVisible {
-							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
-							console.Draw(overlay, w, h, true)
+							drawRuntimeConsole(overlay, w, h, true, false)
 						}
 						return
 					}
 
 					// When disconnected, draw full console as background (full screen)
 					if conForcedup {
-						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
-						console.Draw(overlay, w, h, true, true)
+						drawRuntimeConsole(overlay, w, h, true, true)
 					}
 
 					// Menu draws on top of console
@@ -617,13 +701,11 @@ func main() {
 						}
 
 						if consoleVisible {
-							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole
-							console.Draw(overlay, w, h, true)
+							drawRuntimeConsole(overlay, w, h, true, false)
 							return
 						}
 
-						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasConsole for notify lines
-						console.Draw(overlay, w, h, false)
+						drawRuntimeConsole(overlay, w, h, false, false)
 
 						if g.Input != nil && g.Input.GetKeyDest() == input.KeyMessage {
 							drawChatInput(overlay, w, h)
@@ -650,6 +732,15 @@ func main() {
 			}
 		})
 
+		if screenshotMode {
+			// Flush pending console commands (e.g. +setpos, +noclip from command line)
+			// so camera positioning takes effect before the first rendered frame.
+			cmdsys.Execute()
+			if g.Host != nil && g.Server != nil {
+				_ = g.Server.Frame(0.05) // run one physics frame to apply position changes
+			}
+		}
+
 		// Start the main loop (blocking)
 		slog.Info("frame loop started")
 		runErr := g.Renderer.Run()
@@ -667,6 +758,20 @@ func main() {
 			// Cleanup
 			g.Renderer.Shutdown()
 		}
+
+		if screenshotMode {
+			if screenshotErr != nil {
+				log.Fatal("Screenshot failed:", screenshotErr)
+			}
+			return
+		}
+	}
+
+	if screenshotMode {
+		if err := captureScreenshot(screenshotPath, *baseDir, *gameDir); err != nil {
+			log.Fatal("Screenshot failed:", err)
+		}
+		return
 	}
 
 	if headless {

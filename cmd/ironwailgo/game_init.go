@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
@@ -25,6 +26,11 @@ import (
 
 type globalConsoleAdapter struct{}
 
+var (
+	startupVidWidth  = 1280
+	startupVidHeight = 720
+)
+
 func (globalConsoleAdapter) Init() error                { return nil }
 func (globalConsoleAdapter) Print(msg string)           { console.Printf("%s", msg) }
 func (globalConsoleAdapter) Clear()                     { console.Clear() }
@@ -43,8 +49,8 @@ func initGameHost() error {
 	})
 
 	// Initialize cvars for video, sound, gameplay
-	cvar.Register("vid_width", "1280", cvar.FlagArchive, "Video width")
-	cvar.Register("vid_height", "720", cvar.FlagArchive, "Video height")
+	cvar.Register("vid_width", strconv.Itoa(startupVidWidth), cvar.FlagArchive, "Video width")
+	cvar.Register("vid_height", strconv.Itoa(startupVidHeight), cvar.FlagArchive, "Video height")
 	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode (0=windowed, 1=fullscreen)")
 	cvar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
 	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
@@ -106,6 +112,8 @@ func initGameHost() error {
 	// scr_viewsize: screen view size percentage (100 = full), used by
 	// r_viewmodel_quake fudge.
 	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
+	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "Console virtual width (0 = auto)")
+	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "Console scale factor")
 	crosshair := cvar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
 	crosshair.Callback = func(cv *cvar.CVar) {
 		if g.HUD != nil {

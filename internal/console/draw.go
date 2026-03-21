@@ -22,7 +22,10 @@ package console
 
 import (
 	"strings"
+	"sync"
 	"time"
+
+	qimage "github.com/ironwail/ironwail-go/internal/image"
 )
 
 // DrawContext is the rendering abstraction that decouples console drawing from
@@ -37,6 +40,17 @@ import (
 type DrawContext interface {
 	DrawFill(x, y, w, h int, color byte)
 	DrawCharacter(x, y int, num int)
+	DrawPic(x, y int, pic *qimage.QPic)
+}
+
+type scaledPicKey struct {
+	src           *qimage.QPic
+	width, height uint32
+}
+
+var scaledPicCache struct {
+	mu   sync.Mutex
+	pics map[scaledPicKey]*qimage.QPic
 }
 
 // Drawing constants for the console overlay.
@@ -67,9 +81,9 @@ const (
 // entire drop-down console overlay is drawn; when false, only the compact
 // notify lines are rendered over the game view. When forcedup is true,
 // the console fills the entire screen (used before a map is loaded).
-func Draw(rc DrawContext, screenWidth, screenHeight int, full bool, forcedup ...bool) {
+func Draw(rc DrawContext, screenWidth, screenHeight int, full bool, background *qimage.QPic, forcedup ...bool) {
 	forced := len(forcedup) > 0 && forcedup[0]
-	globalConsole.Draw(rc, screenWidth, screenHeight, full, forced)
+	globalConsole.Draw(rc, screenWidth, screenHeight, full, background, forced)
 }
 
 // Draw renders either the full console overlay (when full == true) or just the
@@ -79,7 +93,7 @@ func Draw(rc DrawContext, screenWidth, screenHeight int, full bool, forcedup ...
 //
 // Safety checks ensure we never attempt to draw with invalid dimensions or
 // nil contexts.
-func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool, forcedup ...bool) {
+func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool, background *qimage.QPic, forcedup ...bool) {
 	if c == nil || rc == nil || screenWidth < consoleCharWidth || screenHeight < consoleCharHeight {
 		return
 	}
@@ -92,7 +106,7 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool,
 
 	if full {
 		forced := len(forcedup) > 0 && forcedup[0]
-		c.drawFull(rc, screenWidth, screenHeight, charsWide, forced)
+		c.drawFull(rc, screenWidth, screenHeight, charsWide, background, forced)
 		return
 	}
 	c.drawNotify(rc, charsWide)
@@ -112,7 +126,7 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool,
 // fill is drawn behind the text for readability. Lines are fetched from the
 // ring buffer under the read lock, copied out, then drawn after releasing the
 // lock to minimise lock contention with the printing goroutine.
-func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide int, forcedup bool) {
+func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide int, background *qimage.QPic, forcedup bool) {
 	consoleHeight := screenHeight / 2
 	if forcedup || consoleHeight < consoleMinDrawHeight {
 		consoleHeight = screenHeight
@@ -121,7 +135,11 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 		return
 	}
 
-	rc.DrawFill(0, 0, screenWidth, consoleHeight, 0)
+	if pic := scaledBackgroundPic(background, screenWidth, consoleHeight); pic != nil {
+		rc.DrawPic(0, 0, pic)
+	} else {
+		rc.DrawFill(0, 0, screenWidth, consoleHeight, 0)
+	}
 
 	c.mu.RLock()
 	current := c.current
@@ -151,6 +169,58 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 
 	prompt := append([]rune{']'}, inputLine...)
 	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, clipPrompt(prompt, charsWide-2))
+}
+
+func scaledBackgroundPic(pic *qimage.QPic, width, height int) *qimage.QPic {
+	if pic == nil || width <= 0 || height <= 0 {
+		return nil
+	}
+	key := scaledPicKey{src: pic, width: uint32(width), height: uint32(height)}
+	scaledPicCache.mu.Lock()
+	defer scaledPicCache.mu.Unlock()
+	if scaledPicCache.pics == nil {
+		scaledPicCache.pics = make(map[scaledPicKey]*qimage.QPic)
+	}
+	if cached := scaledPicCache.pics[key]; cached != nil {
+		return cached
+	}
+	scaled := scaleQPicNearest(pic, width, height)
+	if scaled == nil {
+		return nil
+	}
+	scaledPicCache.pics[key] = scaled
+	return scaled
+}
+
+func scaleQPicNearest(pic *qimage.QPic, width, height int) *qimage.QPic {
+	if pic == nil || width <= 0 || height <= 0 || pic.Width == 0 || pic.Height == 0 {
+		return nil
+	}
+	if int(pic.Width) == width && int(pic.Height) == height {
+		return pic
+	}
+
+	srcW := int(pic.Width)
+	srcH := int(pic.Height)
+	if len(pic.Pixels) < srcW*srcH {
+		return nil
+	}
+
+	scaled := &qimage.QPic{
+		Width:  uint32(width),
+		Height: uint32(height),
+		Pixels: make([]byte, width*height),
+	}
+	for y := range height {
+		srcY := y * srcH / height
+		rowOffset := y * width
+		srcRowOffset := srcY * srcW
+		for x := range width {
+			srcX := x * srcW / width
+			scaled.Pixels[rowOffset+x] = pic.Pixels[srcRowOffset+srcX]
+		}
+	}
+	return scaled
 }
 
 // drawNotify renders only the most recent lines that were printed within the

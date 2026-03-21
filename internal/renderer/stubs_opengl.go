@@ -248,6 +248,9 @@ func (dc *DrawContext) SetCanvas(ct CanvasType) { dc.gldc.SetCanvas(ct) }
 // Canvas returns the current canvas state.
 func (dc *DrawContext) Canvas() CanvasState { return dc.gldc.Canvas() }
 
+// SetCanvasParams forwards per-frame canvas metrics to the underlying GL context.
+func (dc *DrawContext) SetCanvasParams(p CanvasTransformParams) { dc.gldc.SetCanvasParams(p) }
+
 // DefaultRenderFrameState returns a sensible default RenderFrameState.
 func DefaultRenderFrameState() *RenderFrameState {
 	return &RenderFrameState{

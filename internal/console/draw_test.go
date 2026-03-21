@@ -10,17 +10,26 @@ import (
 
 type mockRenderContext struct {
 	characters []struct{ x, y, num int }
-	fills      []struct {
+	pics       []struct {
+		x, y int
+		pic  *image.QPic
+	}
+	fills []struct {
 		x, y, w, h int
 		color      byte
 	}
 }
 
-func (m *mockRenderContext) Clear(r, g, b, a float32)          {}
-func (m *mockRenderContext) DrawTriangle(r, g, b, a float32)   {}
-func (m *mockRenderContext) SurfaceView() interface{}          { return nil }
-func (m *mockRenderContext) Gamma() float32                    { return 1 }
-func (m *mockRenderContext) DrawPic(x, y int, pic *image.QPic) {}
+func (m *mockRenderContext) Clear(r, g, b, a float32)        {}
+func (m *mockRenderContext) DrawTriangle(r, g, b, a float32) {}
+func (m *mockRenderContext) SurfaceView() interface{}        { return nil }
+func (m *mockRenderContext) Gamma() float32                  { return 1 }
+func (m *mockRenderContext) DrawPic(x, y int, pic *image.QPic) {
+	m.pics = append(m.pics, struct {
+		x, y int
+		pic  *image.QPic
+	}{x, y, pic})
+}
 func (m *mockRenderContext) DrawMenuPic(x, y int, pic *image.QPic) {
 }
 func (m *mockRenderContext) DrawFill(x, y, w, h int, color byte) {
@@ -47,7 +56,7 @@ func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
 	c.AppendInputRune('v')
 
 	mock := &mockRenderContext{}
-	c.Draw(mock, 80, 80, true)
+	c.Draw(mock, 80, 80, true, nil)
 
 	if len(mock.fills) == 0 {
 		t.Fatalf("Draw() did not draw console background")
@@ -76,7 +85,7 @@ func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
 	c.notifyTimes[c.current%NumNotifyTimes] = time.Now()
 
 	mock := &mockRenderContext{}
-	c.Draw(mock, 80, 40, false)
+	c.Draw(mock, 80, 40, false, nil)
 
 	linesByY := charactersByRow(mock.characters)
 	if containsRowSubstring(linesByY, "old") {
@@ -84,6 +93,39 @@ func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
 	}
 	if !containsRowSubstring(linesByY, "new") {
 		t.Fatalf("notify draw did not include fresh line, rows: %#v", linesByY)
+	}
+}
+
+func TestConsoleDrawUsesBackgroundPicWhenProvided(t *testing.T) {
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	c.Printf("hello")
+	bg := &image.QPic{Width: 320, Height: 200, Pixels: make([]byte, 320*200)}
+	mock := &mockRenderContext{}
+	c.Draw(mock, 640, 480, true, bg)
+
+	if len(mock.pics) != 1 {
+		t.Fatalf("Draw() background pics = %d, want 1", len(mock.pics))
+	}
+	if got := mock.pics[0].pic.Width; got != 640 {
+		t.Fatalf("background width = %d, want 640", got)
+	}
+	if got := mock.pics[0].pic.Height; got != 240 {
+		t.Fatalf("background height = %d, want 240", got)
+	}
+	if got := len(mock.pics[0].pic.Pixels); got != 640*240 {
+		t.Fatalf("background pixel count = %d, want %d", got, 640*240)
+	}
+	if len(mock.fills) != 0 {
+		t.Fatalf("Draw() should prefer background pic over solid fill, got %d fills", len(mock.fills))
+	}
+
+	linesByY := charactersByRow(mock.characters)
+	if !containsRowSubstring(linesByY, "hello") {
+		t.Fatalf("console draw did not include text, rows: %#v", linesByY)
 	}
 }
 

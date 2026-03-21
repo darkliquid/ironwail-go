@@ -282,6 +282,60 @@ func newTestDrawManager(t *testing.T, pics map[string]*qimage.QPic, palette []by
 	return mgr
 }
 
+type consoleOverlayDrawContext struct {
+	canvas       renderer.CanvasState
+	canvasParams []renderer.CanvasTransformParams
+	pics         []struct {
+		x, y int
+		pic  *qimage.QPic
+	}
+	fills []struct {
+		x, y, w, h int
+		color      byte
+	}
+	chars []struct {
+		x, y, num int
+	}
+}
+
+func (dc *consoleOverlayDrawContext) Clear(r, g, b, a float32)        {}
+func (dc *consoleOverlayDrawContext) DrawTriangle(r, g, b, a float32) {}
+func (dc *consoleOverlayDrawContext) SurfaceView() interface{}        { return nil }
+func (dc *consoleOverlayDrawContext) Gamma() float32                  { return 1 }
+func (dc *consoleOverlayDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
+	dc.pics = append(dc.pics, struct {
+		x, y int
+		pic  *qimage.QPic
+	}{x, y, pic})
+}
+func (dc *consoleOverlayDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {}
+func (dc *consoleOverlayDrawContext) DrawFill(x, y, w, h int, color byte) {
+	dc.fills = append(dc.fills, struct {
+		x, y, w, h int
+		color      byte
+	}{x, y, w, h, color})
+}
+func (dc *consoleOverlayDrawContext) DrawCharacter(x, y int, num int) {
+	dc.chars = append(dc.chars, struct {
+		x, y, num int
+	}{x, y, num})
+}
+func (dc *consoleOverlayDrawContext) DrawMenuCharacter(x, y int, num int) {
+	dc.DrawCharacter(x, y, num)
+}
+func (dc *consoleOverlayDrawContext) SetCanvas(ct renderer.CanvasType) { dc.canvas.Type = ct }
+func (dc *consoleOverlayDrawContext) Canvas() renderer.CanvasState     { return dc.canvas }
+func (dc *consoleOverlayDrawContext) SetCanvasParams(p renderer.CanvasTransformParams) {
+	dc.canvasParams = append(dc.canvasParams, p)
+}
+
+func registerConsoleCanvasTestCvars() {
+	cvar.Register("vid_width", "1280", cvar.FlagArchive, "test vid width")
+	cvar.Register("vid_height", "720", cvar.FlagArchive, "test vid height")
+	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "test console width")
+	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "test console scale")
+}
+
 type mouseDeltaBackend struct {
 	dx int32
 	dy int32
@@ -316,6 +370,88 @@ func TestStartupMapArg(t *testing.T) {
 				t.Fatalf("startupMapArg(%v) = %q, want %q", tc.args, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRuntimeConsoleDimensionsMatchCReferenceSizing(t *testing.T) {
+	registerConsoleCanvasTestCvars()
+	cvar.Set("scr_conwidth", "0")
+	cvar.Set("scr_conscale", "2")
+
+	if gotW, gotH := runtimeConsoleDimensions(1280, 720); gotW != 640 || gotH != 360 {
+		t.Fatalf("runtimeConsoleDimensions = %dx%d, want 640x360", gotW, gotH)
+	}
+
+	cvar.Set("scr_conwidth", "200")
+	cvar.Set("scr_conscale", "1")
+	if gotW, gotH := runtimeConsoleDimensions(1280, 720); gotW != 320 || gotH != 180 {
+		t.Fatalf("runtimeConsoleDimensions clamp = %dx%d, want 320x180", gotW, gotH)
+	}
+}
+
+func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
+	originalDraw := g.Draw
+	t.Cleanup(func() {
+		g.Draw = originalDraw
+	})
+
+	registerConsoleCanvasTestCvars()
+	cvar.Set("vid_width", "1280")
+	cvar.Set("vid_height", "720")
+	cvar.Set("scr_conwidth", "0")
+	cvar.Set("scr_conscale", "2")
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+	console.Printf("console line")
+
+	palette := make([]byte, 768)
+	g.Draw = newTestDrawManager(t, map[string]*qimage.QPic{
+		"conback": {
+			Width:  320,
+			Height: 200,
+			Pixels: make([]byte, 320*200),
+		},
+	}, palette)
+
+	dc := &consoleOverlayDrawContext{}
+	drawRuntimeConsole(dc, 1864, 1428, true, false)
+
+	if got := dc.Canvas().Type; got != renderer.CanvasConsole {
+		t.Fatalf("console canvas = %v, want %v", got, renderer.CanvasConsole)
+	}
+	if len(dc.canvasParams) != 1 {
+		t.Fatalf("canvas params count = %d, want 1", len(dc.canvasParams))
+	}
+	params := dc.canvasParams[0]
+	if params.GUIWidth != 1280 || params.GUIHeight != 720 {
+		t.Fatalf("GUI params = %.0fx%.0f, want 1280x720", params.GUIWidth, params.GUIHeight)
+	}
+	if params.GLWidth != 1864 || params.GLHeight != 1428 {
+		t.Fatalf("GL params = %.0fx%.0f, want 1864x1428", params.GLWidth, params.GLHeight)
+	}
+	if params.ConWidth != 640 || params.ConHeight != 360 {
+		t.Fatalf("console params = %.0fx%.0f, want 640x360", params.ConWidth, params.ConHeight)
+	}
+	if len(dc.pics) != 1 {
+		t.Fatalf("background pic draws = %d, want 1", len(dc.pics))
+	}
+	if got := dc.pics[0].pic.Width; got != 640 {
+		t.Fatalf("background width = %d, want 640", got)
+	}
+	if got := dc.pics[0].pic.Height; got != 180 {
+		t.Fatalf("background height = %d, want 180", got)
+	}
+	if got := len(dc.pics[0].pic.Pixels); got != 640*180 {
+		t.Fatalf("background pixel count = %d, want %d", got, 640*180)
+	}
+	if len(dc.fills) != 0 {
+		t.Fatalf("unexpected solid fills when conback is present: %d", len(dc.fills))
+	}
+	if len(dc.chars) == 0 {
+		t.Fatal("expected console text to be drawn")
 	}
 }
 
