@@ -6,6 +6,7 @@ package host
 import (
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
@@ -13,11 +14,12 @@ type autosaveCommandBuffer struct {
 	added []string
 }
 
-func (b *autosaveCommandBuffer) Init()                  {}
-func (b *autosaveCommandBuffer) Execute()               {}
-func (b *autosaveCommandBuffer) AddText(text string)    { b.added = append(b.added, text) }
-func (b *autosaveCommandBuffer) InsertText(text string) {}
-func (b *autosaveCommandBuffer) Shutdown()              {}
+func (b *autosaveCommandBuffer) Init()                                         {}
+func (b *autosaveCommandBuffer) Execute()                                      {}
+func (b *autosaveCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {}
+func (b *autosaveCommandBuffer) AddText(text string)                           { b.added = append(b.added, text) }
+func (b *autosaveCommandBuffer) InsertText(text string)                        {}
+func (b *autosaveCommandBuffer) Shutdown()                                     {}
 
 type autosaveTestServer struct {
 	mockServer

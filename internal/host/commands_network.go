@@ -13,6 +13,9 @@ import (
 )
 
 func (h *Host) CmdStatus(subs *Subsystems) {
+	if h.forwardClientCommand("status", nil, subs) {
+		return
+	}
 	if subs.Console == nil {
 		return
 	}
@@ -81,6 +84,9 @@ func (h *Host) CmdBan(args []string, subs *Subsystems) {
 }
 
 func (h *Host) CmdKick(args []string, subs *Subsystems) {
+	if h.forwardClientCommand("kick", args, subs) {
+		return
+	}
 	if !h.serverActive || subs == nil || subs.Server == nil || len(args) == 0 {
 		return
 	}
@@ -351,6 +357,9 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 
 func (h *Host) CmdName(name string, subs *Subsystems) {
 	cvar.Set(clientNameCVar, name)
+	if h.forwardClientCommand("name", []string{name}, subs) {
+		return
+	}
 	if subs.Server != nil {
 		subs.Server.SetClientName(0, name)
 	}
@@ -372,6 +381,9 @@ func (h *Host) CmdColor(args []string, subs *Subsystems) {
 	bottom = clampClientColor(bottom)
 	color := top*16 + bottom
 	cvar.SetInt(clientColorCVar, color)
+	if h.forwardClientCommand("color", args, subs) {
+		return
+	}
 	if subs.Server != nil {
 		subs.Server.SetClientColor(0, color)
 	}

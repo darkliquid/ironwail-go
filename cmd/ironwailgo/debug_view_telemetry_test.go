@@ -82,7 +82,7 @@ func TestRuntimePlayerOriginTelemetryRejectsTeleportPrediction(t *testing.T) {
 	}
 }
 
-func TestRuntimePlayerOriginTelemetryFallsBackToPredictionWithoutAuthoritativeOrigin(t *testing.T) {
+func TestRuntimePlayerOriginTelemetryRejectsMissingAuthoritativeOriginEvenWithFreshPrediction(t *testing.T) {
 	originalClient := g.Client
 	originalDebugView := runtimeDebugView
 	originalViewCalc := globalViewCalc
@@ -98,14 +98,11 @@ func TestRuntimePlayerOriginTelemetryFallsBackToPredictionWithoutAuthoritativeOr
 	markCurrentPredictionFresh(g.Client)
 
 	origin, ok := runtimePlayerOrigin()
-	if !ok {
-		t.Fatal("runtimePlayerOrigin() reported no origin")
+	if ok {
+		t.Fatalf("runtimePlayerOrigin() = %v, want no origin without authoritative entity", origin)
 	}
-	if origin != g.Client.PredictedOrigin {
-		t.Fatalf("runtimePlayerOrigin() = %v, want predicted fallback %v", origin, g.Client.PredictedOrigin)
-	}
-	if runtimeDebugView.originSelect.Source != runtimeOriginSourcePredictedFallback {
-		t.Fatalf("origin source = %s, want %s", runtimeDebugView.originSelect.Source, runtimeOriginSourcePredictedFallback)
+	if runtimeDebugView.originSelect.Source != runtimeOriginSourceNone {
+		t.Fatalf("origin source = %s, want %s", runtimeDebugView.originSelect.Source, runtimeOriginSourceNone)
 	}
 	if runtimeDebugView.originSelect.RejectReason != runtimeOriginRejectMissingAuth {
 		t.Fatalf("origin reject reason = %s, want %s", runtimeDebugView.originSelect.RejectReason, runtimeOriginRejectMissingAuth)

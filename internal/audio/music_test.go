@@ -198,9 +198,59 @@ func TestPlayCDTrackUsesResolverSelection(t *testing.T) {
 	}
 }
 
+func TestPlayMusicResolvesExtensionlessNameViaResolver(t *testing.T) {
+	sys := newTestMusicSystem()
+	oggData := testMusicOGG(t, 44100, 2, 2, 64)
+
+	var gotCandidates []string
+	if err := sys.PlayMusic("track02", nil, func(candidates []string) (string, []byte, error) {
+		gotCandidates = append([]string(nil), candidates...)
+		return "music/track02.ogg", oggData, nil
+	}); err != nil {
+		t.Fatalf("PlayMusic failed: %v", err)
+	}
+
+	if len(gotCandidates) != 9 {
+		t.Fatalf("resolver candidate count = %d, want 9", len(gotCandidates))
+	}
+	if got := gotCandidates[0]; got != "music/track02.ogg" {
+		t.Fatalf("first candidate = %q, want music/track02.ogg", got)
+	}
+	if got := sys.CurrentMusic(); got != "music/track02.ogg" {
+		t.Fatalf("CurrentMusic = %q, want music/track02.ogg", got)
+	}
+}
+
+func TestPauseMusicStopsQueueingUntilResume(t *testing.T) {
+	sys := newTestMusicSystem()
+	trackData := testMusicWAV(t, 44100, 2, 2, 64)
+
+	if err := sys.PlayMusic("track02.wav", func(name string) ([]byte, error) {
+		if name != "music/track02.wav" {
+			return nil, fmt.Errorf("unexpected path %q", name)
+		}
+		return trackData, nil
+	}); err != nil {
+		t.Fatalf("PlayMusic failed: %v", err)
+	}
+
+	sys.PauseMusic()
+	sys.updateMusic(32)
+	if got := sys.rawSamples.End; got != 0 {
+		t.Fatalf("rawSamples.End while paused = %d, want 0", got)
+	}
+
+	sys.ResumeMusic()
+	sys.updateMusic(32)
+	if got := sys.rawSamples.End; got < 32 {
+		t.Fatalf("rawSamples.End after resume = %d, want at least 32", got)
+	}
+}
+
 func newTestMusicSystem() *System {
 	return &System{
-		started: true,
+		started:   true,
+		musicLoop: true,
 		dma: &DMAInfo{
 			Channels:   2,
 			Samples:    4096,

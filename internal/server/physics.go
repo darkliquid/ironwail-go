@@ -535,10 +535,14 @@ func (s *Server) PhysicsPusher(ent *Edict) {
 func (s *Server) PhysicsStep(ent *Edict) {
 	flags := uint32(ent.Vars.Flags)
 	if flags&(FlagOnGround|FlagFly|FlagSwim) == 0 {
+		hitSound := ent.Vars.Velocity[2] < -0.1*s.Gravity
 		s.AddGravity(ent)
 		s.CheckVelocity(ent)
 		s.FlyMove(ent, s.FrameTime, nil)
 		s.LinkEdict(ent, true)
+		if uint32(ent.Vars.Flags)&FlagOnGround != 0 && hitSound {
+			s.StartSound(ent, 0, "demon/dland2.wav", 255, 1)
+		}
 	}
 
 	s.RunThink(ent)
@@ -636,6 +640,10 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 
 	if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
 		return // gibbed by a trigger
+	}
+
+	if cvar.BoolValue("sv_nostep") {
+		return
 	}
 
 	if uint32(ent.Vars.Flags)&FlagWaterJump != 0 {

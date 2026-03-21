@@ -159,16 +159,126 @@ func (c *remoteReconnectStateClient) ClientState() *cl.Client {
 	return c.clientState
 }
 
+type forwardingTrackingClient struct {
+	state    ClientState
+	commands []string
+}
+
+func (c *forwardingTrackingClient) Init() error                   { return nil }
+func (c *forwardingTrackingClient) Frame(frameTime float64) error { return nil }
+func (c *forwardingTrackingClient) Shutdown()                     {}
+func (c *forwardingTrackingClient) State() ClientState            { return c.state }
+func (c *forwardingTrackingClient) ReadFromServer() error         { return nil }
+func (c *forwardingTrackingClient) SendCommand() error            { return nil }
+func (c *forwardingTrackingClient) SendStringCmd(cmd string) error {
+	c.commands = append(c.commands, cmd)
+	return nil
+}
+
 type stopAllTrackingAudio struct {
-	calls []bool
+	calls        []bool
+	loop         bool
+	currentMusic string
 }
 
 func (a *stopAllTrackingAudio) Init() error                                            { return nil }
 func (a *stopAllTrackingAudio) Update(origin, velocity, forward, right, up [3]float32) {}
 func (a *stopAllTrackingAudio) Shutdown()                                              {}
 func (a *stopAllTrackingAudio) SoundInfo() string                                      { return "" }
+func (a *stopAllTrackingAudio) SoundList() string                                      { return "" }
+func (a *stopAllTrackingAudio) PlayLocalSound(name string, loader func() ([]byte, error), vol float32) error {
+	return nil
+}
+func (a *stopAllTrackingAudio) PlayMusic(filename string, loader func(string) ([]byte, error), resolver func([]string) (string, []byte, error)) error {
+	a.currentMusic = filename
+	return nil
+}
+func (a *stopAllTrackingAudio) PauseMusic()            {}
+func (a *stopAllTrackingAudio) ResumeMusic()           {}
+func (a *stopAllTrackingAudio) SetMusicLoop(loop bool) { a.loop = loop }
+func (a *stopAllTrackingAudio) ToggleMusicLoop() bool {
+	a.loop = !a.loop
+	return a.loop
+}
+func (a *stopAllTrackingAudio) MusicLooping() bool       { return a.loop }
+func (a *stopAllTrackingAudio) CurrentMusic() string     { return a.currentMusic }
+func (a *stopAllTrackingAudio) JumpMusic(order int) bool { return false }
+func (a *stopAllTrackingAudio) StopMusic()               { a.currentMusic = "" }
 func (a *stopAllTrackingAudio) StopAllSounds(clear bool) {
 	a.calls = append(a.calls, clear)
+}
+
+type audioCommandRecord struct {
+	name string
+	vol  float32
+	data []byte
+}
+
+type audioCommandTracking struct {
+	stopAllTrackingAudio
+	soundInfo      string
+	soundList      string
+	playedSounds   []audioCommandRecord
+	playedMusic    []string
+	pauseCalls     int
+	resumeCalls    int
+	stopMusicCalls int
+	jumpOrders     []int
+}
+
+func (a *audioCommandTracking) SoundInfo() string { return a.soundInfo }
+func (a *audioCommandTracking) SoundList() string { return a.soundList }
+func (a *audioCommandTracking) PlayLocalSound(name string, loader func() ([]byte, error), vol float32) error {
+	data, err := loader()
+	if err != nil {
+		return err
+	}
+	a.playedSounds = append(a.playedSounds, audioCommandRecord{name: name, vol: vol, data: data})
+	return nil
+}
+func (a *audioCommandTracking) PlayMusic(filename string, loader func(string) ([]byte, error), resolver func([]string) (string, []byte, error)) error {
+	a.playedMusic = append(a.playedMusic, filename)
+	a.currentMusic = "music/" + filename + ".ogg"
+	return nil
+}
+func (a *audioCommandTracking) PauseMusic()  { a.pauseCalls++ }
+func (a *audioCommandTracking) ResumeMusic() { a.resumeCalls++ }
+func (a *audioCommandTracking) JumpMusic(order int) bool {
+	a.jumpOrders = append(a.jumpOrders, order)
+	return true
+}
+func (a *audioCommandTracking) StopMusic() {
+	a.stopMusicCalls++
+	a.currentMusic = ""
+}
+
+type audioCommandFiles struct {
+	loaded map[string][]byte
+	calls  []string
+}
+
+func (f *audioCommandFiles) Init(baseDir, gameDir string) error { return nil }
+func (f *audioCommandFiles) Close()                             {}
+func (f *audioCommandFiles) LoadFile(filename string) ([]byte, error) {
+	f.calls = append(f.calls, filename)
+	data, ok := f.loaded[filename]
+	if !ok {
+		return nil, fmt.Errorf("missing file %s", filename)
+	}
+	return data, nil
+}
+func (f *audioCommandFiles) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	for _, filename := range filenames {
+		if data, ok := f.loaded[filename]; ok {
+			f.calls = append(f.calls, filename)
+			return filename, data, nil
+		}
+	}
+	return "", nil, fmt.Errorf("missing files")
+}
+func (f *audioCommandFiles) FileExists(filename string) bool {
+	_, ok := f.loaded[filename]
+	return ok
 }
 
 type kickRecord struct {
@@ -203,9 +313,10 @@ type insertTrackingCommandBuffer struct {
 	inserted []string
 }
 
-func (b *insertTrackingCommandBuffer) Init()               {}
-func (b *insertTrackingCommandBuffer) Execute()            {}
-func (b *insertTrackingCommandBuffer) AddText(text string) {}
+func (b *insertTrackingCommandBuffer) Init()                                         {}
+func (b *insertTrackingCommandBuffer) Execute()                                      {}
+func (b *insertTrackingCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {}
+func (b *insertTrackingCommandBuffer) AddText(text string)                           {}
 func (b *insertTrackingCommandBuffer) InsertText(text string) {
 	b.inserted = append(b.inserted, text)
 }
@@ -2488,6 +2599,165 @@ func TestCmdDemoSpeedNotPlayingBack(t *testing.T) {
 	output := strings.Join(console.messages, "")
 	if !strings.Contains(output, "Not playing back") {
 		t.Fatalf("console output = %q, expected not-playing message", output)
+	}
+}
+
+func TestCmdPlayAppendsWAVAndLoadsFromSoundDir(t *testing.T) {
+	h := NewHost()
+	audio := &audioCommandTracking{}
+	files := &audioCommandFiles{loaded: map[string][]byte{
+		"sound/misc/menu1.wav": []byte("menu1"),
+	}}
+	subs := &Subsystems{
+		Audio: audio,
+		Files: files,
+	}
+
+	h.CmdPlay([]string{"misc/menu1"}, subs)
+
+	if len(audio.playedSounds) != 1 {
+		t.Fatalf("played sound count = %d, want 1", len(audio.playedSounds))
+	}
+	if got := audio.playedSounds[0].name; got != "misc/menu1.wav" {
+		t.Fatalf("played sound name = %q, want misc/menu1.wav", got)
+	}
+	if got := string(audio.playedSounds[0].data); got != "menu1" {
+		t.Fatalf("loaded data = %q, want menu1", got)
+	}
+	if got := files.calls; !reflect.DeepEqual(got, []string{"sound/misc/menu1.wav"}) {
+		t.Fatalf("LoadFile calls = %v, want [sound/misc/menu1.wav]", got)
+	}
+}
+
+func TestCmdPlayVolUsesExplicitVolumes(t *testing.T) {
+	h := NewHost()
+	audio := &audioCommandTracking{}
+	files := &audioCommandFiles{loaded: map[string][]byte{
+		"sound/misc/menu1.wav": []byte("one"),
+		"sound/misc/menu2.wav": []byte("two"),
+	}}
+	subs := &Subsystems{
+		Audio:   audio,
+		Files:   files,
+		Console: &mockConsole{},
+	}
+
+	h.CmdPlayVol([]string{"misc/menu1", "0.25", "misc/menu2.wav", "0.5"}, subs)
+
+	if len(audio.playedSounds) != 2 {
+		t.Fatalf("played sound count = %d, want 2", len(audio.playedSounds))
+	}
+	if got := audio.playedSounds[0].vol; got != 0.25 {
+		t.Fatalf("first volume = %v, want 0.25", got)
+	}
+	if got := audio.playedSounds[1].name; got != "misc/menu2.wav" {
+		t.Fatalf("second sound name = %q, want misc/menu2.wav", got)
+	}
+	if got := audio.playedSounds[1].vol; got != 0.5 {
+		t.Fatalf("second volume = %v, want 0.5", got)
+	}
+}
+
+func TestCmdSoundlistPrintsAudioListing(t *testing.T) {
+	h := NewHost()
+	audio := &audioCommandTracking{soundList: "L(16b)    128 : misc/menu1.wav\n1 sounds, 128 bytes\n"}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Audio:   audio,
+		Console: console,
+	}
+
+	h.CmdSoundlist(subs)
+
+	if got := strings.Join(console.messages, ""); got != audio.soundList {
+		t.Fatalf("console output = %q, want %q", got, audio.soundList)
+	}
+}
+
+func TestCmdMusicWithoutArgsReportsCurrentTrack(t *testing.T) {
+	h := NewHost()
+	audio := &audioCommandTracking{}
+	audio.currentMusic = "music/track02.ogg"
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Audio:   audio,
+		Console: console,
+	}
+
+	h.CmdMusic(nil, subs)
+
+	if got := strings.Join(console.messages, ""); got != "Playing track02, use 'music <musicfile>' to change\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
+func TestCmdMusicLoopToggleMatchesCanonicalMessages(t *testing.T) {
+	h := NewHost()
+	audio := &audioCommandTracking{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Audio:   audio,
+		Console: console,
+	}
+
+	h.CmdMusicLoop([]string{"toggle"}, subs)
+	if got := strings.Join(console.messages, ""); got != "Music will be looped\n" {
+		t.Fatalf("toggle output = %q, want looped message", got)
+	}
+
+	console.Clear()
+	h.CmdMusicLoop([]string{"off"}, subs)
+	if got := strings.Join(console.messages, ""); got != "Music will not be looped\n" {
+		t.Fatalf("off output = %q, want not-looped message", got)
+	}
+}
+
+func TestCmdMusicJumpPrintsUsageOnInvalidArgs(t *testing.T) {
+	h := NewHost()
+	audio := &audioCommandTracking{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Audio:   audio,
+		Console: console,
+	}
+
+	h.CmdMusicJump(nil, subs)
+
+	if got := strings.Join(console.messages, ""); got != "music_jump <ordernum>\n" {
+		t.Fatalf("console output = %q, want usage", got)
+	}
+}
+
+func TestCmdStatusForwardsToRemoteServerWhenNoLocalServer(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdStatus(subs)
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"status"}) {
+		t.Fatalf("forwarded commands = %v, want [status]", got)
+	}
+}
+
+func TestCmdNameUpdatesCVarAndForwardsWhenRemoteConnected(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caConnected}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdName("Ranger", subs)
+
+	if got := cvar.StringValue(clientNameCVar); got != "Ranger" {
+		t.Fatalf("%s = %q, want Ranger", clientNameCVar, got)
+	}
+	if got := client.commands; !reflect.DeepEqual(got, []string{"name Ranger"}) {
+		t.Fatalf("forwarded commands = %v, want [name Ranger]", got)
 	}
 }
 

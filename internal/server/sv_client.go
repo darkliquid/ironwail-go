@@ -668,6 +668,9 @@ func (s *Server) CreateBaseline() {
 			ent.Baseline.ModelIndex = s.FindModel(s.GetString(int32(ent.Vars.Model)))
 			ent.Baseline.Alpha = ent.Alpha
 			ent.Baseline.Scale = 16
+			if s.Protocol == ProtocolRMQ && s.QCVM != nil && s.QCFieldScale >= 0 {
+				ent.Baseline.Scale = encodeScale(s.QCVM.EFloat(entNum, s.QCFieldScale))
+			}
 		}
 	}
 }

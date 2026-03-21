@@ -122,11 +122,12 @@ type demoPlaybackCommandBuffer struct {
 	executes int
 }
 
-func (c *demoPlaybackCommandBuffer) Init()               {}
-func (c *demoPlaybackCommandBuffer) Execute()            { c.executes++ }
-func (c *demoPlaybackCommandBuffer) AddText(text string) { c.added = append(c.added, text) }
-func (c *demoPlaybackCommandBuffer) InsertText(string)   {}
-func (c *demoPlaybackCommandBuffer) Shutdown()           {}
+func (c *demoPlaybackCommandBuffer) Init()                                         {}
+func (c *demoPlaybackCommandBuffer) Execute()                                      { c.executes++ }
+func (c *demoPlaybackCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) { c.executes++ }
+func (c *demoPlaybackCommandBuffer) AddText(text string)                           { c.added = append(c.added, text) }
+func (c *demoPlaybackCommandBuffer) InsertText(string)                             {}
+func (c *demoPlaybackCommandBuffer) Shutdown()                                     {}
 
 type loadingPlaqueTestPics struct {
 	pics map[string]*qimage.QPic
@@ -978,7 +979,7 @@ func TestRuntimeViewStatePrefersAuthoritativeViewEntityOrigin(t *testing.T) {
 	}
 }
 
-func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
+func TestRuntimeViewStateDoesNotFallBackToPredictedOrigin(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -999,15 +1000,15 @@ func TestRuntimeViewStateFallsBackToPredictedOrigin(t *testing.T) {
 	markCurrentPredictionFresh(g.Client)
 
 	origin, angles := runtimeViewState()
-	if want := [3]float32{128, 64, 50}; origin != want {
+	if want := [3]float32{0, 0, 128}; origin != want {
 		t.Fatalf("runtimeViewState origin = %v, want %v", origin, want)
 	}
-	if angles != g.Client.ViewAngles {
-		t.Fatalf("runtimeViewState angles = %v, want %v", angles, g.Client.ViewAngles)
+	if angles != [3]float32{} {
+		t.Fatalf("runtimeViewState angles = %v, want zero fallback angles", angles)
 	}
 }
 
-func TestRuntimeViewStateFallsBackToPredictedOriginWhenAuthoritativeEntityStale(t *testing.T) {
+func TestRuntimeViewStateUsesStaleAuthoritativeEntityInsteadOfPredictedFallback(t *testing.T) {
 	originalClient := g.Client
 	originalServer := g.Server
 	originalRenderer := g.Renderer
@@ -1035,8 +1036,8 @@ func TestRuntimeViewStateFallsBackToPredictedOriginWhenAuthoritativeEntityStale(
 	markCurrentPredictionFresh(g.Client)
 
 	origin, angles := runtimeViewState()
-	if want := [3]float32{128, 64, 50}; origin != want {
-		t.Fatalf("runtimeViewState origin = %v, want predicted fallback %v", origin, want)
+	if want := [3]float32{10, 20, 48}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want stale authoritative origin %v", origin, want)
 	}
 	if angles != g.Client.ViewAngles {
 		t.Fatalf("runtimeViewState angles = %v, want %v", angles, g.Client.ViewAngles)
@@ -1645,6 +1646,8 @@ func TestRuntimeViewStateUsesLiveViewAnglesWithoutInterpolation(t *testing.T) {
 	})
 
 	g.Client = cl.NewClient()
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{32, 64, 96}}
 	g.Client.ViewHeight = 22
 	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
 	g.Client.ViewAngles = [3]float32{45, 135, 225}
@@ -1668,6 +1671,8 @@ func TestRuntimeViewStateUsesForcedAnglesWithoutInterpolation(t *testing.T) {
 	})
 
 	g.Client = cl.NewClient()
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{32, 64, 96}}
 	g.Client.ViewHeight = 22
 	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
 	g.Client.ViewAngles = [3]float32{45, 135, 225}
@@ -1692,6 +1697,8 @@ func TestRuntimeViewStateUsesDemoViewAnglesWithoutDoubleInterpolation(t *testing
 	})
 
 	g.Client = cl.NewClient()
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{32, 64, 96}}
 	g.Client.ViewHeight = 22
 	g.Client.PredictedOrigin = [3]float32{32, 64, 96}
 	g.Client.ViewAngles = [3]float32{5, 10, 15}
@@ -1883,6 +1890,8 @@ func TestCollectViewModelEntityAnchorsToEyeOrigin(t *testing.T) {
 	cvar.Set("r_viewmodel_quake", "0")
 
 	g.Client = cl.NewClient()
+	g.Client.ViewEntity = 1
+	g.Client.Entities[1] = inet.EntityState{Origin: [3]float32{100, 200, 300}}
 	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
 	g.Client.Stats[inet.StatHealth] = 100
 	g.Client.Stats[inet.StatWeapon] = 1

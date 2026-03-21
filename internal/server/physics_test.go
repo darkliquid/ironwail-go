@@ -1,12 +1,14 @@
 package server
 
 import (
+	"encoding/binary"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
@@ -150,6 +152,102 @@ func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 
 	if ent.Vars.Velocity[2] != 42 {
 		t.Fatalf("z velocity changed: %v", ent.Vars.Velocity[2])
+	}
+}
+
+func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.WorldModel = CreateSyntheticWorldModel()
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+	s.SoundPrecache[1] = "demon/dland2.wav"
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to allocate step entity")
+	}
+	ent.Vars.MoveType = float32(MoveTypeStep)
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Origin = [3]float32{0, 0, 32}
+	ent.Vars.Velocity = [3]float32{0, 0, -120}
+	s.LinkEdict(ent, false)
+
+	s.PhysicsStep(ent)
+
+	data := s.Datagram.Data[:s.Datagram.Len()]
+	if len(data) < 5 {
+		t.Fatalf("landing sound datagram too short: %d", len(data))
+	}
+	if got := data[0]; got != byte(inet.SVCSound) {
+		t.Fatalf("svc = %d, want %d", got, inet.SVCSound)
+	}
+	if got := data[1]; got != 0 {
+		t.Fatalf("field mask = %d, want 0", got)
+	}
+	if got := int(binary.LittleEndian.Uint16(data[2:4])) >> 3; got != s.NumForEdict(ent) {
+		t.Fatalf("entity num = %d, want %d", got, s.NumForEdict(ent))
+	}
+	if got := data[4]; got != 1 {
+		t.Fatalf("sound index = %d, want 1", got)
+	}
+}
+
+func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
+	newMover := func(s *Server) *Edict {
+		ent := s.AllocEdict()
+		if ent == nil {
+			t.Fatal("failed to allocate mover")
+		}
+		ent.Vars.MoveType = float32(MoveTypeWalk)
+		ent.Vars.Solid = float32(SolidSlideBox)
+		ent.Vars.Flags = float32(FlagOnGround)
+		ent.Vars.Mins = [3]float32{-16, -16, -24}
+		ent.Vars.Maxs = [3]float32{16, 16, 32}
+		ent.Vars.Origin = [3]float32{0, 0, 24}
+		ent.Vars.Velocity = [3]float32{100, 0, 0}
+		s.LinkEdict(ent, false)
+		return ent
+	}
+	newObstacle := func(s *Server) {
+		obstacle := s.AllocEdict()
+		if obstacle == nil {
+			t.Fatal("failed to allocate obstacle")
+		}
+		obstacle.Vars.Solid = float32(SolidBBox)
+		obstacle.Vars.Origin = [3]float32{32, 0, 8}
+		obstacle.Vars.Mins = [3]float32{-8, -32, -8}
+		obstacle.Vars.Maxs = [3]float32{8, 32, 8}
+		s.LinkEdict(obstacle, false)
+	}
+	newServerWithStep := func() *Server {
+		s := NewServer()
+		if err := s.Init(1); err != nil {
+			t.Fatalf("init server: %v", err)
+		}
+		s.WorldModel = CreateSyntheticWorldModel()
+		s.Edicts[0].Vars.Solid = float32(SolidBSP)
+		s.ClearWorld()
+		newObstacle(s)
+		return s
+	}
+
+	withPhysicsCVars(t, map[string]string{"sv_nostep": "0"})
+	withStep := newServerWithStep()
+	stepMover := newMover(withStep)
+	withStep.SV_WalkMove(stepMover)
+
+	withPhysicsCVars(t, map[string]string{"sv_nostep": "1"})
+	noStep := newServerWithStep()
+	noStepMover := newMover(noStep)
+	noStep.SV_WalkMove(noStepMover)
+
+	if !(stepMover.Vars.Origin[0] > noStepMover.Vars.Origin[0]+0.5) {
+		t.Fatalf("sv_nostep did not suppress step retry: stepped=%v nostep=%v", stepMover.Vars.Origin, noStepMover.Vars.Origin)
 	}
 }
 

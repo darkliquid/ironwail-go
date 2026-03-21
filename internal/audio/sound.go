@@ -5,6 +5,7 @@ package audio
 
 import (
 	"fmt"
+	"strings"
 )
 
 const (
@@ -25,6 +26,7 @@ type System struct {
 	rawSamples RawSamplesBuffer
 	backend    Backend
 	music      *musicState
+	musicLoop  bool
 
 	listener    ListenerState
 	viewEntity  int
@@ -43,7 +45,8 @@ type System struct {
 
 func NewSystem() *System {
 	return &System{
-		mixAhead: 0.1,
+		mixAhead:  0.1,
+		musicLoop: true,
 	}
 }
 
@@ -494,6 +497,31 @@ func (s *System) SoundInfo() string {
 
 	return fmt.Sprintf("%d active channels\n%d precached sounds\n%.1f MB sound memory\n",
 		active, cached, float32(memory)/(1024*1024))
+}
+
+func (s *System) SoundList() string {
+	if !s.initialized || s.cache == nil {
+		return "0 sounds, 0 bytes\n"
+	}
+
+	var builder strings.Builder
+	total := 0
+	for i := 0; i < s.cache.numSounds; i++ {
+		sfx := s.cache.sounds[i]
+		if sfx == nil || sfx.Cache == nil {
+			continue
+		}
+		size := sfx.Cache.Length * sfx.Cache.Width * (sfx.Cache.Stereo + 1)
+		total += size
+		if sfx.Cache.LoopStart >= 0 {
+			builder.WriteString("L")
+		} else {
+			builder.WriteString(" ")
+		}
+		builder.WriteString(fmt.Sprintf("(%2db) %6d : %s\n", sfx.Cache.Width*8, size, sfx.Name))
+	}
+	builder.WriteString(fmt.Sprintf("%d sounds, %d bytes\n", s.cache.numSounds, total))
+	return builder.String()
 }
 
 func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLevels [NumAmbients]uint8, underwaterIntensity float32) {

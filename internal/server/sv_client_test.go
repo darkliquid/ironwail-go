@@ -120,6 +120,49 @@ func TestBuildSignonBuffers_WritesSpawnBaselines(t *testing.T) {
 	}
 }
 
+func TestCreateBaselineRMQUsesQCScaleAndWritesSpawnBaseline2(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	s.Protocol = ProtocolRMQ
+	s.QCVM = newTestQCVM()
+	s.QCFieldScale = 0
+	s.ModelPrecache = []string{"", "progs/ogre.mdl", "progs/player.mdl"}
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	entNum := s.NumForEdict(ent)
+	ent.Vars.ModelIndex = 1
+	s.QCVM.SetEFloat(entNum, s.QCFieldScale, 2.0)
+
+	s.CreateBaseline()
+
+	if got := ent.Baseline.Scale; got != 32 {
+		t.Fatalf("baseline scale = %d, want 32", got)
+	}
+
+	if err := s.AddSignonBuffer(); err != nil {
+		t.Fatalf("AddSignonBuffer() error = %v", err)
+	}
+	if err := s.writeSpawnBaselineToSignon(entNum, ent.Baseline); err != nil {
+		t.Fatalf("writeSpawnBaselineToSignon() error = %v", err)
+	}
+
+	data := s.Signon.Data[:s.Signon.Len()]
+	if len(data) == 0 {
+		t.Fatal("expected signon data")
+	}
+	if got := data[0]; got != byte(inet.SVCSpawnBaseline2) {
+		t.Fatalf("signon command = %d, want %d", got, inet.SVCSpawnBaseline2)
+	}
+	if got := data[len(data)-1]; got != 32 {
+		t.Fatalf("encoded baseline scale byte = %d, want 32", got)
+	}
+}
+
 func TestWriteSpawnStaticToSignon_MatchesDirectSpawnStaticEncoding(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
 	ent := EntityState{

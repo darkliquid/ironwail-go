@@ -214,12 +214,15 @@ func TestExecuteTextWithSourceSetsSourceForHandler(t *testing.T) {
 	c := NewCmdSystem()
 
 	var seen []CommandSource
-	c.AddCommand("capture", func(args []string) {
+	c.AddClientCommand("capture", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+	c.AddServerCommand("servercapture", func(args []string) {
 		seen = append(seen, c.Source())
 	}, "")
 
 	c.ExecuteTextWithSource("capture", SrcClient)
-	c.ExecuteTextWithSource("capture", SrcServer)
+	c.ExecuteTextWithSource("servercapture", SrcServer)
 
 	want := []CommandSource{SrcClient, SrcServer}
 	if !reflect.DeepEqual(seen, want) {
@@ -234,7 +237,7 @@ func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
 	c := NewCmdSystem()
 
 	var seen CommandSource
-	c.AddCommand("capture", func(args []string) {
+	c.AddClientCommand("capture", func(args []string) {
 		seen = c.Source()
 	}, "")
 
@@ -292,5 +295,58 @@ func TestForwardFuncNotCalledForKnownCommands(t *testing.T) {
 	cs.ExecuteText("known arg1")
 	if called {
 		t.Fatal("ForwardFunc should not be called for known commands")
+	}
+}
+
+func TestClientSourceOnlyExecutesClientCommands(t *testing.T) {
+	c := NewCmdSystem()
+	executed := false
+	c.AddCommand("localonly", func(args []string) {
+		executed = true
+	}, "")
+
+	c.ExecuteTextWithSource("localonly", SrcClient)
+
+	if executed {
+		t.Fatal("src_client should not execute regular console commands")
+	}
+}
+
+func TestServerSourceOnlyExecutesServerCommands(t *testing.T) {
+	c := NewCmdSystem()
+	executed := false
+	c.AddClientCommand("clientonly", func(args []string) {
+		executed = true
+	}, "")
+
+	c.ExecuteTextWithSource("clientonly", SrcServer)
+
+	if executed {
+		t.Fatal("src_server should not execute client commands")
+	}
+}
+
+func TestUnknownClientSourceDoesNotExpandAliasOrForward(t *testing.T) {
+	c := NewCmdSystem()
+	c.AddAlias("boom", "echo no")
+
+	expanded := false
+	c.AddCommand("echo", func(args []string) {
+		expanded = true
+	}, "")
+	defer c.RemoveCommand("echo")
+
+	forwarded := false
+	c.ForwardFunc = func(line string) {
+		forwarded = true
+	}
+
+	c.ExecuteTextWithSource("boom", SrcClient)
+
+	if expanded {
+		t.Fatal("src_client should not expand aliases")
+	}
+	if forwarded {
+		t.Fatal("src_client should not forward unknown commands")
 	}
 }

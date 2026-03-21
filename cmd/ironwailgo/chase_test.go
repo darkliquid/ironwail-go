@@ -61,3 +61,39 @@ func TestChaseUpdateClipsToTraceEndPosition(t *testing.T) {
 		t.Fatalf("chaseUpdate clipped origin = %v, want {-40 0 4}", cameraOrigin)
 	}
 }
+
+func TestChaseUpdateUsesCanonicalCrosshairTraceDistance(t *testing.T) {
+	origin := [3]float32{0, 0, 0}
+	angles := [3]float32{0, 0, 0}
+	traceCalls := 0
+
+	traceFn := func(start, end [3]float32) [3]float32 {
+		traceCalls++
+		if traceCalls == 2 {
+			if !nearlyEqual(end[0], chaseCrosshairTraceDistance, 0.001) || !nearlyEqual(end[1], 0, 0.001) || !nearlyEqual(end[2], 0, 0.001) {
+				t.Fatalf("crosshair trace end = %v, want {%v 0 0}", end, chaseCrosshairTraceDistance)
+			}
+		}
+		return end
+	}
+
+	chaseUpdate(origin, angles, 100, 16, 0, traceFn)
+
+	if traceCalls != 2 {
+		t.Fatalf("trace call count = %d, want 2", traceCalls)
+	}
+}
+
+func TestChaseUpdatePreservesYawForVerticalLookDir(t *testing.T) {
+	origin := [3]float32{0, 0, 0}
+	angles := [3]float32{-90, 123, 0}
+
+	_, cameraAngles := chaseUpdate(origin, angles, 0, 16, 0, nil)
+
+	if !nearlyEqual(cameraAngles[0], -90, 0.001) {
+		t.Fatalf("chaseUpdate pitch = %v, want -90", cameraAngles[0])
+	}
+	if !nearlyEqual(cameraAngles[1], 123, 0.001) {
+		t.Fatalf("chaseUpdate yaw = %v, want preserved yaw 123", cameraAngles[1])
+	}
+}

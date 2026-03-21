@@ -167,15 +167,6 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		runtimeDebugViewRecordOriginSelect(telemetry)
 		return [3]float32{}, false
 	}
-	clientOrigin := g.Client.PredictedOrigin
-	if clientOrigin[0] != 0 || clientOrigin[1] != 0 || clientOrigin[2] != 0 {
-		telemetry.Source = runtimeOriginSourcePredictedFallback
-		telemetry.RejectReason = runtimeOriginRejectMissingAuth
-		telemetry.FinalBaseOrigin = clientOrigin
-		runtimeDebugViewRecordOriginSelect(telemetry)
-		return clientOrigin, true
-	}
-
 	telemetry.RejectReason = runtimeOriginRejectMissingAuth
 	runtimeDebugViewRecordOriginSelect(telemetry)
 	return [3]float32{}, false
@@ -289,18 +280,12 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 
 	if g.Client.ViewEntity != 0 {
 		if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
-			if g.Client.MTime[0] != 0 && state.MsgTime != g.Client.MTime[0] {
-				return [3]float32{}, false
-			}
 			return state.Origin, true
 		}
 	}
 
 	if g.Client.ViewEntity == 0 {
 		if state, ok := g.Client.Entities[0]; ok {
-			if g.Client.MTime[0] != 0 && state.MsgTime != g.Client.MTime[0] {
-				return [3]float32{}, false
-			}
 			return state.Origin, true
 		}
 	}

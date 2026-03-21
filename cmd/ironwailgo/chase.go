@@ -2,7 +2,7 @@ package main
 
 import "math"
 
-const chaseCrosshairTraceDistance = 4096.0
+const chaseCrosshairTraceDistance = float32(1 << 20)
 
 type chaseTraceFunc func(start, end [3]float32) [3]float32
 
@@ -35,7 +35,11 @@ func chaseUpdate(origin, angles [3]float32, chaseBack, chaseUp, chaseRight float
 		crosshair[2] - ideal[2],
 	}
 
-	return ideal, vectorAngles(lookDir)
+	cameraAngles := vectorAngles(lookDir)
+	if cameraAngles[0] == 90 || cameraAngles[0] == -90 {
+		cameraAngles[1] = angles[1]
+	}
+	return ideal, cameraAngles
 }
 
 // vectorAngles mirrors Quake's VectorAngles behavior from mathlib.c.

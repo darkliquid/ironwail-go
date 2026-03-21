@@ -14,8 +14,11 @@ import (
 
 type globalTestCommandBuffer struct{}
 
-func (globalTestCommandBuffer) Init()               {}
-func (globalTestCommandBuffer) Execute()            { cmdsys.Execute() }
+func (globalTestCommandBuffer) Init()    {}
+func (globalTestCommandBuffer) Execute() { cmdsys.Execute() }
+func (globalTestCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
+	cmdsys.ExecuteWithSource(source)
+}
 func (globalTestCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
 func (globalTestCommandBuffer) InsertText(text string) {
 	cmdsys.InsertText(text)

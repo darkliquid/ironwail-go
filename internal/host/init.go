@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ironwail/ironwail-go/internal/audio"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/compatrand"
@@ -41,6 +42,7 @@ func registerHostCVars() {
 	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
 	cvar.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
 	cvar.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
+	cvar.Register("sv_nostep", "0", cvar.FlagServerInfo, "Disable stair-step movement retries when enabled")
 	cvar.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
 	cvar.Register("timelimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match time limit in minutes")
 	cvar.Register("teamplay", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Teamplay rules")
@@ -50,6 +52,7 @@ func registerHostCVars() {
 	cvar.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
 	cvar.Register("host_autosave", "5", cvar.FlagArchive, "Autosave interval in minutes (<=0 disables)")
 	cvar.Register("sv_gameplayfix_elevators", "2", cvar.FlagArchive, "Nudge entities on elevators to prevent crushing (0=off, 1=clients, 2=all)")
+	audio.RegisterCVars()
 	server.RegisterDebugTelemetryCVars()
 }
 
@@ -231,7 +234,7 @@ func DispatchLoopbackStuffText(subs *Subsystems) {
 			subs.Commands.AddText(text)
 		}
 	}
-	subs.Commands.Execute()
+	subs.Commands.ExecuteWithSource(cmdsys.SrcServer)
 }
 
 func (c *localLoopbackClient) LocalServerInfo() error {
@@ -301,6 +304,7 @@ type Filesystem interface {
 type CommandBuffer interface {
 	Init()
 	Execute()
+	ExecuteWithSource(source cmdsys.CommandSource)
 	AddText(text string)
 	InsertText(text string)
 	Shutdown()
@@ -353,6 +357,17 @@ type Audio interface {
 	Update(origin, velocity, forward, right, up [3]float32)
 	StopAllSounds(clear bool)
 	SoundInfo() string
+	SoundList() string
+	PlayLocalSound(name string, loader func() ([]byte, error), vol float32) error
+	PlayMusic(filename string, loader func(string) ([]byte, error), resolver func([]string) (string, []byte, error)) error
+	PauseMusic()
+	ResumeMusic()
+	SetMusicLoop(loop bool)
+	ToggleMusicLoop() bool
+	MusicLooping() bool
+	CurrentMusic() string
+	JumpMusic(order int) bool
+	StopMusic()
 	Shutdown()
 }
 

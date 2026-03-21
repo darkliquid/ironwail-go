@@ -10,8 +10,8 @@ import (
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/server"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
-	"math/rand"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,13 +28,19 @@ func (h *Host) CmdSkill(skill int) {
 	h.currentSkill = skill
 }
 
-func (h *Host) CmdPause() {
+func (h *Host) CmdPause(subs *Subsystems) {
+	if h.forwardClientCommand("pause", nil, subs) {
+		return
+	}
 	if h.serverActive && h.maxClients == 1 {
 		h.serverPaused = !h.serverPaused
 	}
 }
 
 func (h *Host) CmdGod(subs *Subsystems) {
+	if h.forwardClientCommand("god", nil, subs) {
+		return
+	}
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
@@ -52,6 +58,9 @@ func (h *Host) CmdGod(subs *Subsystems) {
 	}
 }
 func (h *Host) CmdNoClip(subs *Subsystems) {
+	if h.forwardClientCommand("noclip", nil, subs) {
+		return
+	}
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
@@ -72,6 +81,9 @@ func (h *Host) CmdNoClip(subs *Subsystems) {
 	}
 }
 func (h *Host) CmdFly(subs *Subsystems) {
+	if h.forwardClientCommand("fly", nil, subs) {
+		return
+	}
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
@@ -92,6 +104,9 @@ func (h *Host) CmdFly(subs *Subsystems) {
 	}
 }
 func (h *Host) CmdNotarget(subs *Subsystems) {
+	if h.forwardClientCommand("notarget", nil, subs) {
+		return
+	}
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
@@ -297,6 +312,9 @@ func (h *Host) CmdViewpos(subs *Subsystems) {
 }
 
 func (h *Host) CmdSetPos(args []string, subs *Subsystems) {
+	if h.forwardClientCommand("setpos", args, subs) {
+		return
+	}
 	if !h.serverActive || subs == nil || subs.Server == nil {
 		return
 	}
@@ -384,6 +402,9 @@ func (h *Host) CmdPrEnts(subs *Subsystems) {
 }
 
 func (h *Host) CmdKill(subs *Subsystems) {
+	if h.forwardClientCommand("kill", nil, subs) {
+		return
+	}
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
@@ -409,6 +430,9 @@ func (h *Host) CmdPreSpawn(subs *Subsystems) {
 }
 
 func (h *Host) CmdPing(subs *Subsystems) {
+	if h.forwardClientCommand("ping", nil, subs) {
+		return
+	}
 	if subs.Server == nil || subs.Console == nil {
 		return
 	}
@@ -668,6 +692,9 @@ func (h *Host) ListSaveSlots(count int) []SaveSlotInfo {
 }
 
 func (h *Host) CmdGive(item, value string, subs *Subsystems) {
+	if h.forwardClientCommand("give", []string{item, value}, subs) {
+		return
+	}
 	if !h.serverActive || subs.Server == nil || subs.Console == nil {
 		return
 	}

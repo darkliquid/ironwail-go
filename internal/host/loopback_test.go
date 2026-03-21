@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -161,10 +162,15 @@ func TestLocalLoopbackClientRealSignonFlow(t *testing.T) {
 type mockCommandBuffer struct {
 	added    []string
 	executes int
+	source   cmdsys.CommandSource
 }
 
-func (m *mockCommandBuffer) Init()                  {}
-func (m *mockCommandBuffer) Execute()               { m.executes++ }
+func (m *mockCommandBuffer) Init()    {}
+func (m *mockCommandBuffer) Execute() { m.executes++ }
+func (m *mockCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
+	m.executes++
+	m.source = source
+}
 func (m *mockCommandBuffer) AddText(text string)    { m.added = append(m.added, text) }
 func (m *mockCommandBuffer) InsertText(text string) {}
 func (m *mockCommandBuffer) Shutdown()              {}
@@ -181,6 +187,9 @@ func TestDispatchLoopbackStuffTextFlushesCompleteLines(t *testing.T) {
 	}
 	if cmd.executes != 1 {
 		t.Fatalf("executes = %d, want 1", cmd.executes)
+	}
+	if cmd.source != cmdsys.SrcServer {
+		t.Fatalf("command source = %v, want %v", cmd.source, cmdsys.SrcServer)
 	}
 	if got := lc.inner.StuffCmdBuf; got != "recon" {
 		t.Fatalf("StuffCmdBuf remainder = %q, want %q", got, "recon")

@@ -4,6 +4,7 @@
 package audio
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -11,11 +12,12 @@ import (
 
 // AudioAdapter wraps audio.System to implement host.Audio interface
 type AudioAdapter struct {
-	sys *System
+	sys              *System
+	consoleSoundHash int
 }
 
 func NewAudioAdapter(sys *System) *AudioAdapter {
-	return &AudioAdapter{sys: sys}
+	return &AudioAdapter{sys: sys, consoleSoundHash: 345}
 }
 
 func (a *AudioAdapter) Init() error {
@@ -82,6 +84,13 @@ func (a *AudioAdapter) SoundInfo() string {
 		return "sound system not available\n"
 	}
 	return a.sys.SoundInfo()
+}
+
+func (a *AudioAdapter) SoundList() string {
+	if a == nil || a.sys == nil {
+		return "0 sounds, 0 bytes\n"
+	}
+	return a.sys.SoundList()
 }
 
 func (a *AudioAdapter) Shutdown() {
@@ -151,6 +160,75 @@ func (a *AudioAdapter) StopMusic() {
 		return
 	}
 	a.sys.StopMusic()
+}
+
+func (a *AudioAdapter) PauseMusic() {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.PauseMusic()
+}
+
+func (a *AudioAdapter) ResumeMusic() {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.ResumeMusic()
+}
+
+func (a *AudioAdapter) SetMusicLoop(loop bool) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.SetMusicLoop(loop)
+}
+
+func (a *AudioAdapter) ToggleMusicLoop() bool {
+	if a == nil || a.sys == nil {
+		return false
+	}
+	return a.sys.ToggleMusicLoop()
+}
+
+func (a *AudioAdapter) MusicLooping() bool {
+	if a == nil || a.sys == nil {
+		return false
+	}
+	return a.sys.MusicLooping()
+}
+
+func (a *AudioAdapter) CurrentMusic() string {
+	if a == nil || a.sys == nil {
+		return ""
+	}
+	return a.sys.CurrentMusic()
+}
+
+func (a *AudioAdapter) JumpMusic(order int) bool {
+	if a == nil || a.sys == nil {
+		return false
+	}
+	return a.sys.JumpMusic(order)
+}
+
+func (a *AudioAdapter) PlayLocalSound(name string, loader func() ([]byte, error), vol float32) error {
+	if a == nil || a.sys == nil {
+		return fmt.Errorf("sound system not available")
+	}
+	sfx := a.sys.PrecacheSound(name, loader)
+	if sfx == nil || sfx.Cache == nil {
+		return fmt.Errorf("failed to load sound %q", name)
+	}
+	a.sys.StartSound(a.consoleSoundHash, 0, sfx, a.sys.listener.Origin, a.sys.listener.Velocity, vol, 1.0)
+	a.consoleSoundHash++
+	return nil
+}
+
+func (a *AudioAdapter) PlayMusic(filename string, loader func(string) ([]byte, error), resolver func([]string) (string, []byte, error)) error {
+	if a == nil || a.sys == nil {
+		return fmt.Errorf("music system not available")
+	}
+	return a.sys.PlayMusic(filename, loader, resolver)
 }
 
 func (a *AudioAdapter) SetVolume(vol float64) {

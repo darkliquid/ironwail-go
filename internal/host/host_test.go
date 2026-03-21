@@ -149,6 +149,32 @@ func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 	}
 }
 
+func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
+	registerHostCVars()
+
+	for _, name := range []string{
+		"volume",
+		"bgmvolume",
+		"ambient_level",
+		"ambient_fade",
+		"sndspeed",
+		"snd_mixspeed",
+		"snd_filterquality",
+		"snd_waterfx",
+		"nosound",
+		"precache",
+		"loadas8bit",
+		"snd_noextraupdate",
+		"snd_show",
+		"_snd_mixahead",
+		"bgm_extmusic",
+	} {
+		if cv := cvar.Get(name); cv == nil {
+			t.Fatalf("cvar %q not registered", name)
+		}
+	}
+}
+
 func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
 	srv := &mockServer{active: true}
 	subs := &Subsystems{Server: srv}
@@ -235,7 +261,7 @@ func TestHostCommands(t *testing.T) {
 	}
 
 	h.SetServerActive(true)
-	h.CmdPause()
+	h.CmdPause(&subs.Subsystems)
 	if !h.ServerPaused() {
 		t.Errorf("Expected server paused")
 	}

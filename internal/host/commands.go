@@ -66,24 +66,24 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdSkill(skill)
 		}
 	}, "Set game skill level (0-3)")
-	cmdsys.AddCommand("pause", func(args []string) { h.CmdPause() }, "Pause game")
-	cmdsys.AddCommand("status", func(args []string) { h.CmdStatus(subs) }, "Show server status")
+	cmdsys.AddClientCommand("pause", func(args []string) { h.CmdPause(subs) }, "Pause game")
+	cmdsys.AddClientCommand("status", func(args []string) { h.CmdStatus(subs) }, "Show server status")
 	cmdsys.AddCommand("mapname", func(args []string) { h.CmdMapname(subs) }, "Show current map name")
-	cmdsys.AddCommand("god", func(args []string) { h.CmdGod(subs) }, "Toggle god mode")
-	cmdsys.AddCommand("noclip", func(args []string) { h.CmdNoClip(subs) }, "Toggle noclip mode")
-	cmdsys.AddCommand("fly", func(args []string) { h.CmdFly(subs) }, "Toggle fly mode")
-	cmdsys.AddCommand("notarget", func(args []string) { h.CmdNotarget(subs) }, "Toggle notarget mode")
-	cmdsys.AddCommand("say", func(args []string) {
+	cmdsys.AddClientCommand("god", func(args []string) { h.CmdGod(subs) }, "Toggle god mode")
+	cmdsys.AddClientCommand("noclip", func(args []string) { h.CmdNoClip(subs) }, "Toggle noclip mode")
+	cmdsys.AddClientCommand("fly", func(args []string) { h.CmdFly(subs) }, "Toggle fly mode")
+	cmdsys.AddClientCommand("notarget", func(args []string) { h.CmdNotarget(subs) }, "Toggle notarget mode")
+	cmdsys.AddClientCommand("say", func(args []string) {
 		if len(args) > 0 {
 			h.CmdSay(strings.Join(args, " "), subs)
 		}
 	}, "Send a message to all players")
-	cmdsys.AddCommand("say_team", func(args []string) {
+	cmdsys.AddClientCommand("say_team", func(args []string) {
 		if len(args) > 0 {
 			h.CmdSayTeam(strings.Join(args, " "), subs)
 		}
 	}, "Send a message to your team")
-	cmdsys.AddCommand("tell", func(args []string) {
+	cmdsys.AddClientCommand("tell", func(args []string) {
 		if len(args) > 1 {
 			h.CmdTell(args, subs)
 		}
@@ -103,34 +103,52 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
 	cmdsys.AddCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
 	cmdsys.AddCommand("slist", func(args []string) { h.CmdSlist(subs) }, "Search for LAN servers")
-	cmdsys.AddCommand("name", func(args []string) {
+	cmdsys.AddClientCommand("name", func(args []string) {
 		if len(args) > 0 {
 			h.CmdName(args[0], subs)
 		}
 	}, "Set player name")
-	cmdsys.AddCommand("color", func(args []string) {
+	cmdsys.AddClientCommand("color", func(args []string) {
 		if len(args) > 0 {
 			h.CmdColor(args, subs)
 		}
 	}, "Set player color")
-	cmdsys.AddCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
-	cmdsys.AddCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into game")
-	cmdsys.AddCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin game")
-	cmdsys.AddCommand("prespawn", func(args []string) { h.CmdPreSpawn(subs) }, "Pre-spawn handshake")
-	cmdsys.AddCommand("kick", func(args []string) {
+	cmdsys.AddClientCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
+	cmdsys.AddClientCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into game")
+	cmdsys.AddClientCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin game")
+	cmdsys.AddClientCommand("prespawn", func(args []string) { h.CmdPreSpawn(subs) }, "Pre-spawn handshake")
+	cmdsys.AddClientCommand("kick", func(args []string) {
 		h.CmdKick(args, subs)
 	}, "Kick a player from the server")
 	cmdsys.AddCommand("ban", func(args []string) {
 		h.CmdBan(args, subs)
 	}, "Ban a player from the server")
 	cmdsys.AddCommand("tracepos", func(args []string) { h.CmdTracepos(subs) }, "Trace from view origin to find surface/edict info")
+	cmdsys.AddCommand("play", func(args []string) {
+		if len(args) > 0 {
+			h.CmdPlay(args, subs)
+		}
+	}, "Play one or more local sounds")
+	cmdsys.AddCommand("playvol", func(args []string) {
+		if len(args) > 1 {
+			h.CmdPlayVol(args, subs)
+		}
+	}, "Play one or more local sounds with explicit volumes")
+	cmdsys.AddCommand("stopsound", func(args []string) { h.CmdStopsound(subs) }, "Stop all active sounds")
+	cmdsys.AddCommand("soundlist", func(args []string) { h.CmdSoundlist(subs) }, "List precached sounds")
 	cmdsys.AddCommand("soundinfo", func(args []string) { h.CmdSoundinfo(subs) }, "Show audio system statistics")
+	cmdsys.AddCommand("music", func(args []string) { h.CmdMusic(args, subs) }, "Play or inspect background music")
+	cmdsys.AddCommand("music_pause", func(args []string) { h.CmdMusicPause(subs) }, "Pause background music")
+	cmdsys.AddCommand("music_resume", func(args []string) { h.CmdMusicResume(subs) }, "Resume background music")
+	cmdsys.AddCommand("music_loop", func(args []string) { h.CmdMusicLoop(args, subs) }, "Toggle or set background music looping")
+	cmdsys.AddCommand("music_stop", func(args []string) { h.CmdMusicStop(subs) }, "Stop background music")
+	cmdsys.AddCommand("music_jump", func(args []string) { h.CmdMusicJump(args, subs) }, "Jump to a module order in the active music track")
 	cmdsys.AddCommand("particle_texture", func(args []string) {
 		if len(args) > 0 {
 			h.CmdParticleTexture(args[0], subs)
 		}
 	}, "Change particle rendering style (1=soft, 2=pixel)")
-	cmdsys.AddCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
+	cmdsys.AddClientCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
 	cmdsys.AddCommand("load", func(args []string) {
 		if len(args) > 0 {
 			h.CmdLoad(args[0], subs)
@@ -141,7 +159,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdSave(args[0], subs)
 		}
 	}, "Save current game")
-	cmdsys.AddCommand("give", func(args []string) {
+	cmdsys.AddClientCommand("give", func(args []string) {
 		if len(args) > 1 {
 			h.CmdGive(args[0], args[1], subs)
 		}

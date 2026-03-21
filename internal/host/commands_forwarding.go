@@ -1,0 +1,35 @@
+// Copyright (C) 2024 Ironwail Go Port Authors
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+package host
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
+)
+
+func (h *Host) forwardClientCommand(command string, args []string, subs *Subsystems) bool {
+	if cmdsys.Source() != cmdsys.SrcCommand {
+		return false
+	}
+	if h.serverActive || (subs != nil && subs.Server != nil) {
+		return false
+	}
+	if h.demoState != nil && h.demoState.Playback {
+		return true
+	}
+	if subs == nil || subs.Client == nil || subs.Client.State() == caDisconnected {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("Can't \"%s\", not connected\n", command))
+		}
+		return true
+	}
+	line := command
+	if len(args) > 0 {
+		line += " " + strings.Join(args, " ")
+	}
+	_ = subs.Client.SendStringCmd(line)
+	return true
+}

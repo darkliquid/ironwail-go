@@ -63,6 +63,7 @@ type Command struct {
 	Name        string      // Canonical lowercase name used for console lookup.
 	Description string      // Human-readable help text shown by "cmdlist" or tab-completion.
 	Func        CommandFunc // Callback invoked when this command is executed.
+	SourceType  CommandSource
 }
 
 // CmdSystem is the central command execution engine, analogous to the global
@@ -128,6 +129,10 @@ func (c *CmdSystem) Init() {
 //
 // This is the Go equivalent of Quake's Cmd_AddCommand() in cmd.c.
 func (c *CmdSystem) AddCommand(name string, fn CommandFunc, desc string) {
+	c.AddCommandForSource(name, fn, desc, SrcCommand)
+}
+
+func (c *CmdSystem) AddCommandForSource(name string, fn CommandFunc, desc string, sourceType CommandSource) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -140,7 +145,16 @@ func (c *CmdSystem) AddCommand(name string, fn CommandFunc, desc string) {
 		Name:        name,
 		Func:        fn,
 		Description: desc,
+		SourceType:  sourceType,
 	}
+}
+
+func (c *CmdSystem) AddClientCommand(name string, fn CommandFunc, desc string) {
+	c.AddCommandForSource(name, fn, desc, SrcClient)
+}
+
+func (c *CmdSystem) AddServerCommand(name string, fn CommandFunc, desc string) {
+	c.AddCommandForSource(name, fn, desc, SrcServer)
 }
 
 // RemoveCommand unregisters a console command by name. This is used when a
@@ -397,7 +411,26 @@ func (c *CmdSystem) executeLine(line string, expanding map[string]struct{}) {
 	c.mu.RUnlock()
 
 	if exists && cmd.Func != nil {
+		switch c.Source() {
+		case SrcClient:
+			if cmd.SourceType != SrcClient {
+				return
+			}
+		case SrcCommand:
+			if cmd.SourceType == SrcServer {
+				goto fallback
+			}
+		case SrcServer:
+			if cmd.SourceType != SrcServer {
+				return
+			}
+		}
 		cmd.Func(args[1:])
+		return
+	}
+
+fallback:
+	if c.Source() != SrcCommand {
 		return
 	}
 
@@ -623,6 +656,14 @@ done:
 // See [CmdSystem.AddCommand] for details.
 func AddCommand(name string, fn CommandFunc, desc string) {
 	globalCmd.AddCommand(name, fn, desc)
+}
+
+func AddClientCommand(name string, fn CommandFunc, desc string) {
+	globalCmd.AddClientCommand(name, fn, desc)
+}
+
+func AddServerCommand(name string, fn CommandFunc, desc string) {
+	globalCmd.AddServerCommand(name, fn, desc)
 }
 
 // RemoveCommand unregisters a command from the global command system.
