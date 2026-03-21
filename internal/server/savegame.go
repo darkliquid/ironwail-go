@@ -22,11 +22,15 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
-// SaveGameVersion is the format version stamp embedded in every save file.
-// On load, the version is checked to detect (and reject) saves created by
-// incompatible engine revisions. Increment this whenever the SaveGameState
-// layout changes in a way that would break deserialization of older saves.
-const SaveGameVersion = 1
+// Save game format version stamps embedded in save files.
+//
+// SaveGameVersion identifies Ironwail-Go's current JSON/native format.
+// SaveGameVersionKEX matches the Quake rerelease text save header version used
+// by canonical Ironwail when loading explicit `load <savename> kex` saves.
+const (
+	SaveGameVersion    = 1
+	SaveGameVersionKEX = 6
+)
 
 // SaveGameState captures everything needed to fully restore a game session.
 // It is a self-contained, portable snapshot of the entire server at one

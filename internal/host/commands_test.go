@@ -2327,6 +2327,152 @@ func TestCmdLoadRejectsMismatchedSaveVersion(t *testing.T) {
 	}
 }
 
+func TestCmdLoadArgsKEXRejectsNativeVersionAtInstallRoot(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "start",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	audio := &stopAllTrackingAudio{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+		Audio:   audio,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoadArgs([]string{"slot1", "kex"}, subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: Savegame is version 1, not 6") {
+		t.Fatalf("console output = %q, want explicit kex version mismatch", got)
+	}
+	if len(audio.calls) != 0 {
+		t.Fatalf("StopAllSounds calls = %d, want 0 for early kex version rejection", len(audio.calls))
+	}
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive on early kex version rejection")
+	}
+}
+
+func TestCmdLoadArgsKEXSearchesInstallRootOnly(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "saves"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "start",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "saves", "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoadArgs([]string{"slot1", "kex"}, subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: slot1.sav not found.") {
+		t.Fatalf("console output = %q, want install-root-only not found", got)
+	}
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive when explicit kex save is missing")
+	}
+}
+
+func TestCmdLoadArgsKEXReportsUnsupportedTextFormat(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "slot1.sav"), []byte("6\nid1\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoadArgs([]string{"slot1", "kex"}, subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "ERROR: KEX savegame format is not supported yet.") {
+		t.Fatalf("console output = %q, want explicit unsupported kex format error", got)
+	}
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive when text-format parsing is not implemented")
+	}
+}
+
 func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()

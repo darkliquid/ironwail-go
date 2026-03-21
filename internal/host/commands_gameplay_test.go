@@ -47,7 +47,7 @@ func TestSaveFileSearchPaths(t *testing.T) {
 			// Mock saving logic requires some fields but saveFileSearchPaths is pureish
 			// (only reads config fields)
 
-			paths, err := h.saveFileSearchPaths("s0")
+			paths, err := h.saveFileSearchPaths("s0", loadSaveOptions{})
 			if err != nil {
 				t.Fatalf("saveFileSearchPaths failed: %v", err)
 			}

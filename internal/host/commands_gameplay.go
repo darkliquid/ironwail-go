@@ -4,6 +4,7 @@
 package host
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -19,6 +20,10 @@ import (
 	"strconv"
 	"strings"
 )
+
+type loadSaveOptions struct {
+	kexOnly bool
+}
 
 func (h *Host) CmdSkill(skill int) {
 	if skill < 0 {
@@ -451,12 +456,12 @@ func (h *Host) CmdPing(subs *Subsystems) {
 }
 
 func (h *Host) CmdLoad(name string, subs *Subsystems) {
-	if err := h.loadSave(name, subs); err != nil && subs != nil && subs.Console != nil {
+	if err := h.loadSave(name, loadSaveOptions{}, subs); err != nil && subs != nil && subs.Console != nil {
 		subs.Console.Print(err.Error() + "\n")
 	}
 }
 
-func (h *Host) loadSave(name string, subs *Subsystems) error {
+func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) error {
 	if subs == nil || subs.Console == nil {
 		return nil
 	}
@@ -468,20 +473,16 @@ func (h *Host) loadSave(name string, subs *Subsystems) error {
 		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
 		cvar.Set("nomonsters", "0")
 	}
-	_, data, err := h.readSaveFile(name)
+	_, data, err := h.readSaveFile(name, options)
 	if err != nil {
 		h.invalidateLastSave(name)
 		return err
 	}
 	subs.Console.Print(fmt.Sprintf("Loading game from %s...\n", displayName))
-	var save hostSaveFile
-	if err := json.Unmarshal(data, &save); err != nil {
+	save, err := decodeHostSaveFile(data, options)
+	if err != nil {
 		h.invalidateLastSave(name)
 		return err
-	}
-	if save.Version != server.SaveGameVersion {
-		h.invalidateLastSave(name)
-		return fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, server.SaveGameVersion)
 	}
 	if save.Server == nil {
 		return fmt.Errorf("savegame is missing server state")
@@ -545,7 +546,11 @@ func (h *Host) CmdLoadArgs(args []string, subs *Subsystems) {
 		subs.Console.Print("load <savename> : load a game\n")
 		return
 	}
-	h.CmdLoad(args[0], subs)
+	if err := h.loadSave(args[0], loadSaveOptions{
+		kexOnly: len(args) >= 2 && strings.EqualFold(strings.TrimSpace(args[1]), "kex"),
+	}, subs); err != nil {
+		subs.Console.Print(err.Error() + "\n")
+	}
 }
 
 func (h *Host) CmdSave(name string, subs *Subsystems) {
@@ -699,8 +704,68 @@ func normalizeSaveName(name string) (string, error) {
 	return clean, nil
 }
 
-func (h *Host) readSaveFile(name string) (string, []byte, error) {
-	searchPaths, err := h.saveFileSearchPaths(name)
+func expectedSaveVersion(options loadSaveOptions) int {
+	if options.kexOnly {
+		return server.SaveGameVersionKEX
+	}
+	return server.SaveGameVersion
+}
+
+func decodeHostSaveFile(data []byte, options loadSaveOptions) (hostSaveFile, error) {
+	var save hostSaveFile
+
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 {
+		return save, fmt.Errorf("savegame is empty")
+	}
+
+	expectedVersion := expectedSaveVersion(options)
+	if trimmed[0] == '{' {
+		if err := json.Unmarshal(trimmed, &save); err != nil {
+			return save, err
+		}
+		if save.Version != expectedVersion {
+			return save, fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, expectedVersion)
+		}
+		return save, nil
+	}
+
+	if version, ok := sniffTextSaveVersion(trimmed); ok {
+		if version != expectedVersion {
+			return save, fmt.Errorf("ERROR: Savegame is version %d, not %d", version, expectedVersion)
+		}
+		if version == server.SaveGameVersionKEX {
+			return save, fmt.Errorf("ERROR: KEX savegame format is not supported yet.")
+		}
+	}
+
+	if err := json.Unmarshal(trimmed, &save); err != nil {
+		return save, err
+	}
+	if save.Version != expectedVersion {
+		return save, fmt.Errorf("ERROR: Savegame is version %d, not %d", save.Version, expectedVersion)
+	}
+	return save, nil
+}
+
+func sniffTextSaveVersion(data []byte) (int, bool) {
+	line := data
+	if newline := bytes.IndexByte(line, '\n'); newline >= 0 {
+		line = line[:newline]
+	}
+	line = bytes.TrimSpace(bytes.TrimSuffix(line, []byte{'\r'}))
+	if len(line) == 0 {
+		return 0, false
+	}
+	version, err := strconv.Atoi(string(line))
+	if err != nil {
+		return 0, false
+	}
+	return version, true
+}
+
+func (h *Host) readSaveFile(name string, options loadSaveOptions) (string, []byte, error) {
+	searchPaths, err := h.saveFileSearchPaths(name, options)
 	if err != nil {
 		return "", nil, err
 	}
@@ -722,15 +787,10 @@ func (h *Host) readSaveFile(name string) (string, []byte, error) {
 	return "", nil, fmt.Errorf("ERROR: %s not found.", displayName)
 }
 
-func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
+func (h *Host) saveFileSearchPaths(name string, options loadSaveOptions) ([]string, error) {
 	userPath, err := h.saveFilePath(name)
 	if err != nil {
 		return nil, err
-	}
-
-	searchPaths := []string{userPath}
-	if h.baseDir == "" {
-		return searchPaths, nil
 	}
 
 	relName, err := normalizeSaveName(name)
@@ -738,6 +798,18 @@ func (h *Host) saveFileSearchPaths(name string) ([]string, error) {
 		return nil, err
 	}
 	legacyName := filepath.FromSlash(relName) + ".sav"
+	if options.kexOnly {
+		if h.baseDir == "" {
+			return nil, nil
+		}
+		return []string{filepath.Join(h.baseDir, legacyName)}, nil
+	}
+
+	searchPaths := []string{userPath}
+	if h.baseDir == "" {
+		return searchPaths, nil
+	}
+
 	// 2. Active game directory
 	if gameDir := strings.TrimSpace(h.gameDir); gameDir != "" {
 		searchPaths = append(searchPaths, filepath.Join(h.baseDir, gameDir, legacyName))
@@ -769,7 +841,7 @@ func (h *Host) ListSaveSlots(count int) []SaveSlotInfo {
 			DisplayName: unusedSaveSlotDisplay,
 		}
 
-		_, data, err := h.readSaveFile(slotName)
+		_, data, err := h.readSaveFile(slotName, loadSaveOptions{})
 		if err != nil {
 			slots = append(slots, slot)
 			continue

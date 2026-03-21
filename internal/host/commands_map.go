@@ -187,7 +187,7 @@ func (h *Host) autoLoadLastSave(subs *Subsystems, force bool, onDecline func()) 
 		}
 	}
 	subs.Console.Print("Autoloading...\n")
-	if err := h.loadSave(h.lastSave, subs); err != nil {
+	if err := h.loadSave(h.lastSave, loadSaveOptions{}, subs); err != nil {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
 		subs.Console.Print("Autoload failed!\n")
 		return false
