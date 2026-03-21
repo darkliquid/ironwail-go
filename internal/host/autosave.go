@@ -5,13 +5,15 @@ package host
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/server"
 )
 
-// checkAutosave mirrors Quake's Host_CheckAutosave behavior by periodically
-// queuing "save auto" while in an active single-player game.
+// checkAutosave mirrors the simpler Host_CheckAutosave gates that decide
+// whether single-player autosave is even eligible this frame.
 func (h *Host) checkAutosave(subs *Subsystems) {
 	if h == nil || subs == nil || subs.Server == nil || subs.Commands == nil {
 		return
@@ -34,8 +36,21 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
 		return
 	}
-	if player := subs.Server.EdictNum(1); player != nil && player.Vars != nil && player.Vars.Health <= 0 {
-		return
+	if player := subs.Server.EdictNum(1); player != nil && player.Vars != nil {
+		if player.Vars.Health <= 0 {
+			return
+		}
+		if server.MoveType(player.Vars.MoveType) == server.MoveTypeNone {
+			return
+		}
+		speed := math.Sqrt(
+			float64(player.Vars.Velocity[0]*player.Vars.Velocity[0] +
+				player.Vars.Velocity[1]*player.Vars.Velocity[1] +
+				player.Vars.Velocity[2]*player.Vars.Velocity[2]),
+		)
+		if speed > 100 {
+			return
+		}
 	}
 
 	intervalSeconds := cvar.FloatValue("sv_autosave_interval")

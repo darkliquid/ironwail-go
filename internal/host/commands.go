@@ -155,9 +155,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 	}, "Load a saved game")
 	cmdsys.AddCommand("save", func(args []string) {
-		if len(args) > 0 {
-			h.CmdSave(args[0], subs)
-		}
+		h.CmdSaveArgs(args, subs)
 	}, "Save current game")
 	cmdsys.AddClientCommand("give", func(args []string) {
 		if len(args) > 1 {

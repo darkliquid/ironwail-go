@@ -521,6 +521,7 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 			return err
 		}
 		h.currentSkill = save.Skill
+		cvar.SetInt("skill", save.Skill)
 		return nil
 	}); err != nil {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
@@ -530,6 +531,23 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 }
 
 func (h *Host) CmdSave(name string, subs *Subsystems) {
+	h.cmdSave(name, subs, false)
+}
+
+func (h *Host) CmdSaveArgs(args []string, subs *Subsystems) {
+	if len(args) == 0 {
+		return
+	}
+	skipNotify := len(args) >= 2 && isFalseySaveNotifyArg(args[1])
+	h.cmdSave(args[0], subs, skipNotify)
+}
+
+func isFalseySaveNotifyArg(arg string) bool {
+	value, err := strconv.ParseFloat(strings.TrimSpace(arg), 64)
+	return err == nil && value == 0
+}
+
+func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 	if subs == nil || subs.Console == nil {
 		return
 	}
@@ -594,7 +612,9 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 		return
 	}
 
-	subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", filepath.Base(path)))
+	if !skipNotify {
+		subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", filepath.Base(path)))
+	}
 }
 
 func (h *Host) saveFilePath(name string) (string, error) {

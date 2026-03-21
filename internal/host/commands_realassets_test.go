@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -120,6 +122,8 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player.Vars.ArmorType = 0.6
 	player.Vars.ArmorValue = 95
 	srv.LightStyles[3] = "az"
+	h.SetCurrentSkill(3)
+	cvar.SetInt("skill", 3)
 
 	h.CmdSave("roundtrip", subs)
 
@@ -138,6 +142,8 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player.Vars.Items = 0
 	player.Vars.ArmorType = 0
 	player.Vars.ArmorValue = 0
+	h.SetCurrentSkill(0)
+	cvar.SetInt("skill", 0)
 
 	h.CmdLoad("roundtrip", subs)
 
@@ -186,6 +192,60 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	}
 	if got := clientState.LightStyles[3].Map; got != "az" {
 		t.Fatalf("loaded lightstyle = %q, want %q", got, "az")
+	}
+	if got := h.CurrentSkill(); got != 3 {
+		t.Fatalf("loaded host skill = %d, want 3", got)
+	}
+	if got := cvar.IntValue("skill"); got != 3 {
+		t.Fatalf("loaded skill cvar = %d, want 3", got)
+	}
+}
+
+func TestCmdSaveArgsSkipNotifySuppressesSaveMessage(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: console,
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		UserDir:    t.TempDir(),
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+	console.Clear()
+
+	h.CmdSaveArgs([]string{"autosave/start", "0"}, subs)
+
+	if _, err := os.Stat(filepath.Join(h.UserDir(), "saves", "autosave", "start.sav")); err != nil {
+		t.Fatalf("saved file missing: %v", err)
+	}
+	if got := strings.Join(console.messages, ""); strings.Contains(got, "Saving game to") {
+		t.Fatalf("console output = %q, want no save notification", got)
 	}
 }
 

@@ -64,7 +64,10 @@ func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
 	server := &autosaveTestServer{
 		mockServer: mockServer{active: true},
 		maxClients: 1,
-		edict:      &server.Edict{Vars: &server.EntVars{Health: 100}},
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:   100,
+			MoveType: float32(server.MoveTypeWalk),
+		}},
 	}
 	commands := &autosaveCommandBuffer{}
 	subs := &Subsystems{Server: server, Commands: commands}
@@ -183,5 +186,58 @@ func TestCheckAutosaveSkippedForDeadPlayer(t *testing.T) {
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
 		t.Fatalf("dead-player autosave queued %d commands, want 0", got)
+	}
+}
+
+func TestCheckAutosaveSkippedForMoveTypeNonePlayer(t *testing.T) {
+	setHostAutosaveForTest(t, "6")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+	h.realtime = 100
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:   100,
+			MoveType: float32(server.MoveTypeNone),
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("movetype-none autosave queued %d commands, want 0", got)
+	}
+}
+
+func TestCheckAutosaveSkippedForFastPlayer(t *testing.T) {
+	setHostAutosaveForTest(t, "6")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+	h.realtime = 100
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:   100,
+			MoveType: float32(server.MoveTypeWalk),
+			Velocity: [3]float32{101, 0, 0},
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("fast-player autosave queued %d commands, want 0", got)
 	}
 }
