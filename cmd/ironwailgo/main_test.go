@@ -5129,6 +5129,53 @@ func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
 	}
 }
 
+func TestRuntimeWaterwarpStateUsesRealtimeForForcedPreview(t *testing.T) {
+	originalHost := g.Host
+	originalMenu := g.Menu
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Menu = originalMenu
+		g.Client = originalClient
+	})
+
+	if cvar.Get(renderer.CvarRWaterwarp) == nil {
+		cvar.Register(renderer.CvarRWaterwarp, "0", 0, "Underwater warp test")
+	}
+	cvar.Set(renderer.CvarRWaterwarp, "2")
+	t.Cleanup(func() {
+		cvar.Set(renderer.CvarRWaterwarp, "0")
+	})
+
+	g.Host = host.NewHost()
+	g.Client = cl.NewClient()
+	g.Client.Time = 12.5
+	g.Menu = menu.NewManager(nil, input.NewSystem(nil))
+	g.Menu.ShowMenu()
+	g.Menu.M_Key(input.KDownArrow)
+	g.Menu.M_Key(input.KDownArrow)
+	g.Menu.M_Key(input.KEnter)
+	g.Menu.M_Key(input.KDownArrow)
+	g.Menu.M_Key(input.KEnter)
+	for i := 0; i < 6; i++ {
+		g.Menu.M_Key(input.KDownArrow)
+	}
+	if !g.Menu.ForcedUnderwater() {
+		t.Fatal("expected WATERWARP menu preview to force underwater mode")
+	}
+
+	waterWarp, waterwarpFOV, warpTime := runtimeWaterwarpState()
+	if waterWarp {
+		t.Fatalf("waterWarp = true, want false for r_waterwarp=2")
+	}
+	if !waterwarpFOV {
+		t.Fatalf("waterwarpFOV = false, want true for r_waterwarp=2")
+	}
+	if warpTime != 0 {
+		t.Fatalf("warpTime = %v, want host realtime 0 instead of client time %v", warpTime, g.Client.Time)
+	}
+}
+
 func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
 	originalAudio := g.Audio
 	originalClient := g.Client

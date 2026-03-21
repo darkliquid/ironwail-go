@@ -158,11 +158,10 @@ func runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
 		return false, false, 0
 	}
 
-	// Time: use realtime for forced preview so it animates even while game is paused.
-	// In Go we use cl.time for both (no separate realtime equivalent exposed here).
-	// This is a minor divergence; note it for doc purposes.
 	var t float32
-	if g.Client != nil {
+	if forced && g.Host != nil {
+		t = float32(g.Host.RealTime())
+	} else if g.Client != nil {
 		t = float32(g.Client.Time)
 	}
 
