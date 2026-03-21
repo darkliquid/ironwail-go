@@ -15,12 +15,13 @@ import (
 // SoftwareRenderer implements RenderContext using a CPU-side image buffer.
 // It is used for headless screenshot capture without requiring a GPU.
 type SoftwareRenderer struct {
-	img     *stdimage.RGBA
-	width   int
-	height  int
-	gamma   float32
-	palette []byte
-	canvas  CanvasState
+	img          *stdimage.RGBA
+	width        int
+	height       int
+	gamma        float32
+	palette      []byte
+	canvas       CanvasState
+	canvasParams CanvasTransformParams
 }
 
 // NewSoftwareRenderer creates a SoftwareRenderer for an image of the given dimensions.
@@ -70,10 +71,44 @@ func (s *SoftwareRenderer) SurfaceView() interface{} { return nil }
 func (s *SoftwareRenderer) Gamma() float32 { return s.gamma }
 
 // SetCanvas switches the active 2D canvas coordinate system.
-func (s *SoftwareRenderer) SetCanvas(ct CanvasType) { s.canvas.Type = ct }
+func (s *SoftwareRenderer) SetCanvas(ct CanvasType) {
+	if s == nil {
+		return
+	}
+	params := s.canvasParams
+	if params.GUIWidth <= 0 {
+		params.GUIWidth = float32(s.width)
+	}
+	if params.GUIHeight <= 0 {
+		params.GUIHeight = float32(s.height)
+	}
+	if params.GLWidth <= 0 {
+		params.GLWidth = float32(s.width)
+	}
+	if params.GLHeight <= 0 {
+		params.GLHeight = float32(s.height)
+	}
+	if params.ConWidth <= 0 {
+		params.ConWidth = params.GUIWidth
+	}
+	if params.ConHeight <= 0 {
+		params.ConHeight = params.GUIHeight
+	}
+	if params.GUIWidth <= 0 || params.GUIHeight <= 0 || params.GLWidth <= 0 || params.GLHeight <= 0 {
+		s.canvas.Type = ct
+		return
+	}
+	SetCanvas(&s.canvas, ct, params)
+}
 
 // Canvas returns the current canvas state.
 func (s *SoftwareRenderer) Canvas() CanvasState { return s.canvas }
+
+// SetCanvasParams updates the per-frame canvas transform parameters.
+func (s *SoftwareRenderer) SetCanvasParams(p CanvasTransformParams) {
+	s.canvasParams = p
+	s.canvas.Type = CanvasNone
+}
 
 // DrawPic blits a QPic image at a screen-space position using the stored palette.
 func (s *SoftwareRenderer) DrawPic(x, y int, pic *qimage.QPic) {
@@ -82,7 +117,10 @@ func (s *SoftwareRenderer) DrawPic(x, y int, pic *qimage.QPic) {
 
 // DrawMenuPic blits a QPic image in 320x200 menu-space coordinates.
 func (s *SoftwareRenderer) DrawMenuPic(x, y int, pic *qimage.QPic) {
-	s.drawPicRect(menuPicRect(s.width, s.height, x, y, pic), pic)
+	if pic == nil {
+		return
+	}
+	s.drawPicRect(s.screenPicRect(x, y, int(pic.Width), int(pic.Height)), pic)
 }
 
 func (s *SoftwareRenderer) drawPicRect(rect picRect, pic *qimage.QPic) {
@@ -180,14 +218,54 @@ func (s *SoftwareRenderer) DrawCharacterAlpha(x, y int, num int, alpha float32) 
 
 // DrawMenuCharacter renders a single character in menu-space coordinates.
 func (s *SoftwareRenderer) DrawMenuCharacter(x, y int, num int) {
-	scale, xOff, yOff := menuScale(s.width, s.height)
-	menuX := int(float32(x)*scale + xOff)
-	menuY := int(float32(y)*scale + yOff)
-	menuSize := int(8 * scale)
-	if menuSize <= 0 {
+	screenX, screenY, screenW, screenH := s.canvasRectToScreen(x, y, 8, 8)
+	if screenW <= 0 || screenH <= 0 {
 		return
 	}
-	s.DrawFill(menuX, menuY, menuSize, menuSize, byte(num%255))
+	s.DrawFill(screenX, screenY, screenW, screenH, byte(num%255))
+}
+
+func (s *SoftwareRenderer) screenPicRect(x, y, w, h int) picRect {
+	screenX, screenY, screenW, screenH := s.canvasRectToScreen(x, y, w, h)
+	return picRect{
+		x: float32(screenX),
+		y: float32(screenY),
+		w: float32(screenW),
+		h: float32(screenH),
+	}
+}
+
+func (s *SoftwareRenderer) canvasRectToScreen(x, y, w, h int) (screenX, screenY, screenW, screenH int) {
+	if s == nil || w <= 0 || h <= 0 || s.canvas.Type == CanvasNone {
+		return x, y, w, h
+	}
+	params := s.canvasParams
+	if params.GUIWidth <= 0 {
+		params.GUIWidth = float32(s.width)
+	}
+	if params.GUIHeight <= 0 {
+		params.GUIHeight = float32(s.height)
+	}
+	if params.GUIWidth <= 0 || params.GUIHeight <= 0 {
+		return x, y, w, h
+	}
+	left, top := transformCanvasPointToSoftwareScreen(s.canvas.Transform, params.GUIWidth, params.GUIHeight, float32(x), float32(y))
+	right, bottom := transformCanvasPointToSoftwareScreen(s.canvas.Transform, params.GUIWidth, params.GUIHeight, float32(x+w), float32(y+h))
+	if left > right {
+		left, right = right, left
+	}
+	if top > bottom {
+		top, bottom = bottom, top
+	}
+	return int(left), int(top), int(right - left), int(bottom - top)
+}
+
+func transformCanvasPointToSoftwareScreen(transform DrawTransform, screenW, screenH, x, y float32) (screenX, screenY float32) {
+	ndcX := x*transform.Scale[0] + transform.Offset[0]
+	ndcY := y*transform.Scale[1] + transform.Offset[1]
+	screenX = (ndcX + 1) * 0.5 * screenW
+	screenY = (1 - (ndcY+1)*0.5) * screenH
+	return screenX, screenY
 }
 
 // DrawBSPWorld renders the BSP world geometry as a flat-shaded top-down orthographic

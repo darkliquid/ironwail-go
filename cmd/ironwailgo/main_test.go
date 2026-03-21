@@ -375,6 +375,9 @@ func TestDrawRuntimeMenuDrawsBackdropBeforeMenu(t *testing.T) {
 		if len(dc.fills) == 0 {
 			t.Fatal("expected backdrop fills before menu draw")
 		}
+		if rc.Canvas().Type != renderer.CanvasMenu {
+			t.Fatalf("menu canvas = %v, want %v", rc.Canvas().Type, renderer.CanvasMenu)
+		}
 		rc.DrawCharacter(24, 32, 'M')
 	})
 

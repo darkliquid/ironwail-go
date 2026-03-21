@@ -199,8 +199,7 @@ func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	screenW, screenH := dc.renderer.Size()
-	rect := menuPicRect(screenW, screenH, x, y, pic)
+	rect := dc.screenPicRect(x, y, int(pic.Width), int(pic.Height))
 	err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
 	if err != nil {
 		slog.Error("Failed to draw texture", "error", err)
@@ -291,15 +290,8 @@ func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
 	if tex == nil {
 		return
 	}
-	screenW, screenH := dc.renderer.Size()
-	scale, xOff, yOff := menuScale(screenW, screenH)
-	if err := dc.ctx.DrawTextureScaled(
-		tex,
-		float32(x)*scale+xOff,
-		float32(y)*scale+yOff,
-		8*scale,
-		8*scale,
-	); err != nil {
+	rect := dc.screenPicRect(x, y, 8, 8)
+	if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
 		slog.Error("DrawMenuCharacter: draw failed", "num", num, "error", err)
 	}
 }

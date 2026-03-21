@@ -338,12 +338,11 @@ func (dc *glDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 		return
 	}
 
-	rect := menuPicRect(dc.viewport.width, dc.viewport.height, x, y, pic)
 	vertices := []quadVertex{
-		{rect.x, rect.y, tex.u0, tex.v0},                   // Top-left
-		{rect.x + rect.w, rect.y, tex.u1, tex.v0},          // Top-right
-		{rect.x, rect.y + rect.h, tex.u0, tex.v1},          // Bottom-left
-		{rect.x + rect.w, rect.y + rect.h, tex.u1, tex.v1}, // Bottom-right
+		{float32(x), float32(y), tex.u0, tex.v0},
+		{float32(x + int(pic.Width)), float32(y), tex.u1, tex.v0},
+		{float32(x), float32(y + int(pic.Height)), tex.u0, tex.v1},
+		{float32(x + int(pic.Width)), float32(y + int(pic.Height)), tex.u1, tex.v1},
 	}
 
 	// Render quad as triangle strip
@@ -441,15 +440,11 @@ func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
 	if tex.texture == 0 {
 		return
 	}
-	scale, xOff, yOff := menuScale(dc.viewport.width, dc.viewport.height)
-	xPos := float32(x)*scale + xOff
-	yPos := float32(y)*scale + yOff
-	charSize := float32(8) * scale
 	vertices := []quadVertex{
-		{xPos, yPos, tex.u0, tex.v0},
-		{xPos + charSize, yPos, tex.u1, tex.v0},
-		{xPos, yPos + charSize, tex.u0, tex.v1},
-		{xPos + charSize, yPos + charSize, tex.u1, tex.v1},
+		{float32(x), float32(y), tex.u0, tex.v0},
+		{float32(x + 8), float32(y), tex.u1, tex.v0},
+		{float32(x), float32(y + 8), tex.u0, tex.v1},
+		{float32(x + 8), float32(y + 8), tex.u1, tex.v1},
 	}
 	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
 }

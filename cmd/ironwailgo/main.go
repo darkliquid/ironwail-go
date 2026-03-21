@@ -701,7 +701,7 @@ func main() {
 
 					if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
 						// Loading plaque uses menu-space coordinates.
-						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu when DrawMenuPic is canvas-aware
+						overlay.SetCanvas(renderer.CanvasMenu)
 						drawLoadingPlaque(overlay, g.Draw)
 						if consoleVisible {
 							drawRuntimeConsole(overlay, w, h, true, false)
@@ -892,6 +892,7 @@ func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
 	if dc == nil || pics == nil {
 		return
 	}
+	dc.SetCanvas(renderer.CanvasMenu)
 	if pause := pics.GetPic("gfx/pause.lmp"); pause != nil {
 		dc.DrawMenuPic((320-int(pause.Width))/2, (240-48-int(pause.Height))/2, pause)
 	}
@@ -902,7 +903,7 @@ func drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer
 		return
 	}
 	drawMenuBackdrop(rc, w, h)
-	rc.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu
+	rc.SetCanvas(renderer.CanvasMenu)
 	drawMenu(rc)
 }
 

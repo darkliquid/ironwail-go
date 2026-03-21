@@ -372,6 +372,7 @@ func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 	if pics == nil {
 		return
 	}
+	dc.SetCanvas(renderer.CanvasMenu)
 
 	if plaque := pics.GetPic("gfx/qplaque.lmp"); plaque != nil {
 		dc.DrawMenuPic(16, 4, plaque)

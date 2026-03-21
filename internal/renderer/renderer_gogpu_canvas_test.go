@@ -32,3 +32,22 @@ func TestGoGPUCanvasRectToScreenFallsBackWithoutCanvasTransform(t *testing.T) {
 		t.Fatalf("canvasRectToScreen(raw) = (%d,%d %dx%d), want (12,34 56x78)", x, y, w, h)
 	}
 }
+
+func TestGoGPUCanvasRectToScreenUsesMenuCanvasTransform(t *testing.T) {
+	dc := &DrawContext{}
+	dc.SetCanvasParams(CanvasTransformParams{
+		GUIWidth:  1280,
+		GUIHeight: 720,
+		GLWidth:   1280,
+		GLHeight:  720,
+		ConWidth:  1280,
+		ConHeight: 720,
+		MenuScale: 1,
+	})
+	dc.SetCanvas(CanvasMenu)
+
+	x, y, w, h := dc.canvasRectToScreen(16, 4, 320, 20)
+	if x != 496 || y != 263 || w != 319 || h != 19 {
+		t.Fatalf("canvasRectToScreen(MENU) = (%d,%d %dx%d), want (496,263 319x19)", x, y, w, h)
+	}
+}
