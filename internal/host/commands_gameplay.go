@@ -464,12 +464,16 @@ func (h *Host) loadSave(name string, subs *Subsystems) error {
 		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
 		cvar.Set("nomonsters", "0")
 	}
-	path, data, err := h.readSaveFile(name)
+	displayName, err := saveDisplayName(name)
+	if err != nil {
+		return err
+	}
+	_, data, err := h.readSaveFile(name)
 	if err != nil {
 		h.invalidateLastSave(name)
 		return err
 	}
-	subs.Console.Print(fmt.Sprintf("Loading game from %s...\n", filepath.Base(path)))
+	subs.Console.Print(fmt.Sprintf("Loading game from %s...\n", displayName))
 	var save hostSaveFile
 	if err := json.Unmarshal(data, &save); err != nil {
 		h.invalidateLastSave(name)
@@ -573,6 +577,11 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
 		return
 	}
+	displayName, err := saveDisplayName(name)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
 	if subs.Server == nil || !h.serverActive || !subs.Server.IsActive() {
 		subs.Console.Print("Not playing a local game.\n")
 		return
@@ -631,7 +640,7 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 	h.setLastSave(name)
 
 	if !skipNotify {
-		subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", filepath.Base(path)))
+		subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", displayName))
 	}
 }
 
@@ -662,6 +671,14 @@ func (h *Host) saveFilePath(name string) (string, error) {
 	return filepath.Join(h.userDir, "saves", filepath.FromSlash(relName)+".sav"), nil
 }
 
+func saveDisplayName(name string) (string, error) {
+	relName, err := normalizeSaveName(name)
+	if err != nil {
+		return "", err
+	}
+	return relName + ".sav", nil
+}
+
 func normalizeSaveName(name string) (string, error) {
 	name = strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
 	if name == "" {
@@ -687,6 +704,10 @@ func (h *Host) readSaveFile(name string) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	displayName, err := saveDisplayName(name)
+	if err != nil {
+		return "", nil, err
+	}
 
 	for _, path := range searchPaths {
 		data, err := os.ReadFile(path)
@@ -698,7 +719,7 @@ func (h *Host) readSaveFile(name string) (string, []byte, error) {
 		}
 	}
 
-	return "", nil, fmt.Errorf("%s not found", filepath.Base(searchPaths[0]))
+	return "", nil, fmt.Errorf("%s not found", displayName)
 }
 
 func (h *Host) saveFileSearchPaths(name string) ([]string, error) {

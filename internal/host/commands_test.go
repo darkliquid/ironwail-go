@@ -765,6 +765,31 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 }
 
+func TestCmdLoadMissingNestedSaveIncludesRelativePath(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("autosave/start", &subs.Subsystems)
+
+	if len(subs.console.messages) == 0 {
+		t.Fatal("expected console output")
+	}
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "autosave/start.sav not found") {
+		t.Fatalf("console output = %q, want nested save path in not-found error", got)
+	}
+}
+
 func TestCmdSaveRejectsWhenNotPlayingLocalGame(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}

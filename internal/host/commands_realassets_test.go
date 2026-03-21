@@ -249,6 +249,51 @@ func TestCmdSaveArgsSkipNotifySuppressesSaveMessage(t *testing.T) {
 	}
 }
 
+func TestCmdSaveNestedPathPrintsRelativeSaveName(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: console,
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		UserDir:    t.TempDir(),
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start): %v", err)
+	}
+	console.Clear()
+
+	h.CmdSave("autosave/start", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Saving game to autosave/start.sav...") {
+		t.Fatalf("console output = %q, want nested relative save name", got)
+	}
+}
+
 func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 
