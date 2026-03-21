@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	qimage "github.com/ironwail/ironwail-go/internal/image"
 )
 
@@ -67,9 +68,9 @@ const (
 	// consoleCharHeight is the height in pixels of a single character cell.
 	consoleCharHeight = 8
 
-	// consoleNotifyTTL is how long a notify line remains visible on screen
-	// before it fades. Classic Quake used 3 seconds.
-	consoleNotifyTTL = 3 * time.Second
+	// consoleNotifyDefaultTTL is the fallback notify lifetime when con_notifytime
+	// is unset or invalid. Classic Quake defaults to 3 seconds.
+	consoleNotifyDefaultTTL = 3 * time.Second
 
 	// consoleMinDrawHeight prevents the console from being drawn too small
 	// to be readable — at least 4 rows of text.
@@ -246,7 +247,7 @@ func (c *Console) drawNotify(rc DrawContext, charsWide int) {
 			continue
 		}
 		ts := notifyTimes[line%NumNotifyTimes]
-		if ts.IsZero() || now.Sub(ts) > consoleNotifyTTL {
+		if ts.IsZero() || now.Sub(ts) > consoleNotifyTTL() {
 			continue
 		}
 		lines = append(lines, c.lineBytesLocked(line))
@@ -356,6 +357,14 @@ func drawBlinkCursor(rc DrawContext, x, y int, now time.Time) {
 func consoleCursorGlyph(now time.Time) int {
 	frame := (now.UnixNano() / int64(time.Second/consoleCursorBlinkHz)) & 1
 	return 10 + int(frame)
+}
+
+func consoleNotifyTTL() time.Duration {
+	secs := cvar.FloatValue("con_notifytime")
+	if secs <= 0 {
+		return consoleNotifyDefaultTTL
+	}
+	return time.Duration(secs * float64(time.Second))
 }
 
 // max returns the larger of two ints. This is a local helper because Go

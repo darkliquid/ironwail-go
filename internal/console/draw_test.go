@@ -5,8 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 )
+
+func registerConsoleNotifyTestCvars() {
+	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "test console notify lifetime")
+}
 
 type mockRenderContext struct {
 	characters []struct{ x, y, num int }
@@ -124,13 +129,15 @@ func TestConsoleDrawRendersBlinkCursorAndClipsPrompt(t *testing.T) {
 // It ensures that messages shown at the top of the screen during gameplay expire and disappear after a set time.
 // Where in C: Con_DrawNotify and con_notifylines in console.c
 func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
+	registerConsoleNotifyTestCvars()
+	cvar.Set("con_notifytime", "3")
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
 	c.Printf("old\nnew")
-	c.notifyTimes[(c.current-1)%NumNotifyTimes] = time.Now().Add(-consoleNotifyTTL - time.Second)
+	c.notifyTimes[(c.current-1)%NumNotifyTimes] = time.Now().Add(-consoleNotifyTTL() - time.Second)
 	c.notifyTimes[c.current%NumNotifyTimes] = time.Now()
 
 	mock := &mockRenderContext{}
@@ -142,6 +149,27 @@ func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
 	}
 	if !containsRowSubstring(linesByY, "new") {
 		t.Fatalf("notify draw did not include fresh line, rows: %#v", linesByY)
+	}
+}
+
+func TestConsoleDrawNotifyUsesCVarLifetime(t *testing.T) {
+	registerConsoleNotifyTestCvars()
+	cvar.Set("con_notifytime", "1")
+
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	c.Printf("linger")
+	c.notifyTimes[c.current%NumNotifyTimes] = time.Now().Add(-1500 * time.Millisecond)
+
+	mock := &mockRenderContext{}
+	c.Draw(mock, 80, 40, false, nil)
+
+	linesByY := charactersByRow(mock.characters)
+	if containsRowSubstring(linesByY, "linger") {
+		t.Fatalf("notify draw should respect con_notifytime, rows: %#v", linesByY)
 	}
 }
 
