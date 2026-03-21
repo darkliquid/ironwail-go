@@ -241,6 +241,69 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	}
 }
 
+// DrawQuakeWorld renders the QuakeWorld-style status bar layout: shared
+// health/armor/ammo numerals on the main status canvas, plus the right-side
+// weapon/ammo strip and deathmatch frag strip on the dedicated QW inventory
+// canvas.
+func (sb *StatusBar) DrawQuakeWorld(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
+	if rc == nil {
+		return
+	}
+
+	const sbarWidth = 320
+	const sbarHeight = 24
+
+	sbarX := (screenWidth - sbarWidth) / 2
+	sbarY := screenHeight - sbarHeight
+	sb.trackPickups(state)
+
+	if state.GameType == 1 && state.MaxClients > 1 && (state.ShowScores || state.Health <= 0) {
+		sb.drawScoreboard(rc, state, sbarX, sbarY)
+		return
+	}
+
+	viewSize := currentViewSize()
+	if viewSize < 120 {
+		rc.SetCanvas(renderer.CanvasSbarQWInv)
+		sb.drawInventoryQW(rc, state)
+		rc.SetCanvas(renderer.CanvasSbar)
+	}
+	if state.GameType == 1 && state.MaxClients > 1 && viewSize < 110 {
+		rc.SetCanvas(renderer.CanvasSbarQWInv)
+		sb.drawFragsQW(rc, state)
+		rc.SetCanvas(renderer.CanvasSbar)
+	}
+	if viewSize >= 120 {
+		return
+	}
+
+	if state.ModHipnotic {
+		if state.Items&cl.ItemKey1 != 0 && sb.itemPics[0] != nil {
+			rc.DrawPic(sbarX+209, sbarY+3, sb.itemPics[0])
+		}
+		if state.Items&cl.ItemKey2 != 0 && sb.itemPics[1] != nil {
+			rc.DrawPic(sbarX+209, sbarY+12, sb.itemPics[1])
+		}
+	}
+
+	if pic := sb.armorPic(state.Items); pic != nil {
+		rc.DrawPic(sbarX, sbarY, pic)
+	}
+	sb.drawBigNum(rc, sbarX+24, sbarY, armorValue(state), 3, armorValue(state) <= 25)
+
+	if pic := sb.facePic(state); pic != nil {
+		rc.DrawPic(sbarX+112, sbarY, pic)
+	}
+	sb.drawBigNum(rc, sbarX+136, sbarY, state.Health, 3, state.Health <= 25)
+
+	if pic := sb.ammoPic(state); pic != nil {
+		rc.DrawPic(sbarX+224, sbarY, pic)
+	}
+	sb.drawBigNum(rc, sbarX+248, sbarY, state.Ammo, 3, state.Ammo <= 10)
+
+	sb.drawQWMainItems(rc, sbarX, sbarY, state)
+}
+
 // drawInventory renders the inventory strip that sits above the main status
 // bar. It shows owned weapons (with flash animation on pickup), ammo counts
 // for all four ammo types, powerup/item icons (keys, quad, etc.), and sigils.
@@ -324,6 +387,80 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 			if pic := sb.sigilPics[i]; pic != nil {
 				rc.DrawPic(x+288+i*8, y+8, pic)
 			}
+		}
+	}
+}
+
+func (sb *StatusBar) drawInventoryQW(rc renderer.RenderContext, state State) {
+	weaponBits := []uint32{
+		cl.ItemShotgun,
+		cl.ItemSuperShotgun,
+		cl.ItemNailgun,
+		cl.ItemSuperNailgun,
+		cl.ItemGrenadeLauncher,
+		cl.ItemRocketLauncher,
+		cl.ItemLightning,
+	}
+	for i, bit := range weaponBits {
+		if state.Items&bit == 0 {
+			continue
+		}
+		flashOn := sb.weaponFlashIndex(state, bit, state.ActiveWeapon == int(bit))
+		if pic := sb.weaponPic(i, flashOn); pic != nil {
+			rc.DrawPic(24, -181+i*16, pic)
+		}
+	}
+
+	ammoCounts := []int{state.Shells, state.Nails, state.Rockets, state.Cells}
+	for i, count := range ammoCounts {
+		DrawNumber(rc, 34, -45+i*11, count, 3)
+	}
+
+	sigilBits := []uint32{cl.ItemSigil1, cl.ItemSigil2, cl.ItemSigil3, cl.ItemSigil4}
+	for i, bit := range sigilBits {
+		if state.ModRogue || state.Items&bit == 0 {
+			continue
+		}
+		if pic := sb.sigilPics[i]; pic != nil {
+			rc.DrawPic(16+i*8, 8, pic)
+		}
+	}
+}
+
+func (sb *StatusBar) drawQWMainItems(rc renderer.RenderContext, x, y int, state State) {
+	itemBits := []uint32{
+		cl.ItemKey1,
+		cl.ItemKey2,
+		cl.ItemInvisibility,
+		cl.ItemInvulnerability,
+		cl.ItemSuit,
+		cl.ItemQuad,
+	}
+	for i, bit := range itemBits {
+		if state.ModHipnotic && i < 2 {
+			continue
+		}
+		if state.Items&bit == 0 || sb.itemPics[i] == nil {
+			continue
+		}
+		rc.DrawPic(x+192+i*16, y-16, sb.itemPics[i])
+	}
+	if state.ModHipnotic {
+		hipItemBits := []uint32{1 << hipWetsuitBit, 1 << hipEmpathyBit}
+		for i, bit := range hipItemBits {
+			if state.Items&bit == 0 || sb.hipItemPics[i] == nil {
+				continue
+			}
+			rc.DrawPic(x+288+i*16, y-16, sb.hipItemPics[i])
+		}
+	}
+	if state.ModRogue {
+		rogueBits := []uint32{rogueShield, rogueAntiGrav}
+		for i, bit := range rogueBits {
+			if state.Items&bit == 0 || sb.rogueItems[i] == nil {
+				continue
+			}
+			rc.DrawPic(x+288+i*16, y-16, sb.rogueItems[i])
 		}
 	}
 }
@@ -700,6 +837,26 @@ func (sb *StatusBar) drawMiniScoreboard(rc renderer.RenderContext, state State, 
 		if row.IsCurrent {
 			rc.DrawCharacter(x+6, sbarY, 16)
 			rc.DrawCharacter(x+32, sbarY, 17)
+		}
+		x += 32
+	}
+}
+
+func (sb *StatusBar) drawFragsQW(rc renderer.RenderContext, state State) {
+	rows := sortedScoreboard(state.Scoreboard)
+	if len(rows) > 4 {
+		rows = rows[:4]
+	}
+	x := -88 + (4-len(rows))*32
+	for _, row := range rows {
+		top := colorForMap(int(row.Colors & 0xf0))
+		bottom := colorForMap(int((row.Colors & 0x0f) << 4))
+		rc.DrawFill(x+10, 0, 28, 4, top)
+		rc.DrawFill(x+10, 4, 28, 3, bottom)
+		DrawNumber(rc, x+28, -25, row.Frags, 3)
+		if row.IsCurrent {
+			rc.DrawCharacter(x+6, -25, 16)
+			rc.DrawCharacter(x+32, -25, 17)
 		}
 		x += 32
 	}

@@ -45,6 +45,7 @@ type mockRenderContext struct {
 	}
 	canvas       renderer.CanvasState
 	canvasSwitch []renderer.CanvasType
+	canvasParams renderer.CanvasTransformParams
 }
 
 func (m *mockRenderContext) Clear(r, g, b, a float32)        {}
@@ -80,6 +81,9 @@ func (m *mockRenderContext) SetCanvas(ct renderer.CanvasType) {
 	m.canvasSwitch = append(m.canvasSwitch, ct)
 }
 func (m *mockRenderContext) Canvas() renderer.CanvasState { return m.canvas }
+func (m *mockRenderContext) SetCanvasParams(p renderer.CanvasTransformParams) {
+	m.canvasParams = p
+}
 
 func TestDrawNumber(t *testing.T) {
 	tests := []struct {
@@ -950,6 +954,77 @@ func TestHUDDrawUsesParityCanvases(t *testing.T) {
 	}
 	if len(compact.characters) == 0 {
 		t.Fatal("compact HUD drew nothing")
+	}
+
+	quakeWorld := &mockRenderContext{
+		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 320, Bottom: 48},
+	}
+	cvar.Set("hud_style", "2")
+	h.SetState(State{
+		Health:       100,
+		Armor:        50,
+		Ammo:         30,
+		Shells:       20,
+		Nails:        40,
+		Rockets:      10,
+		Cells:        5,
+		Items:        cl.ItemShotgun | cl.ItemQuad,
+		ActiveWeapon: int(cl.ItemShotgun),
+		GameType:     1,
+		MaxClients:   2,
+		Scoreboard: []ScoreEntry{
+			{Name: "alpha", Frags: 2, Colors: 0x1f},
+			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
+		},
+	})
+	h.Draw(quakeWorld)
+	if len(quakeWorld.canvasSwitch) < 4 {
+		t.Fatalf("quakeworld HUD canvas switches = %v, want QW inventory/frag canvases", quakeWorld.canvasSwitch)
+	}
+	if quakeWorld.canvasSwitch[0] != renderer.CanvasSbar {
+		t.Fatalf("quakeworld HUD first canvas = %v, want %v", quakeWorld.canvasSwitch, renderer.CanvasSbar)
+	}
+	var sawQWInv bool
+	for _, ct := range quakeWorld.canvasSwitch {
+		if ct == renderer.CanvasSbarQWInv {
+			sawQWInv = true
+			break
+		}
+	}
+	if !sawQWInv {
+		t.Fatalf("quakeworld HUD never switched to %v: %v", renderer.CanvasSbarQWInv, quakeWorld.canvasSwitch)
+	}
+	if quakeWorld.canvasParams.HudStyle != int(HUDStyleQuakeWorld) {
+		t.Fatalf("quakeworld HUD canvas params style = %d, want %d", quakeWorld.canvasParams.HudStyle, HUDStyleQuakeWorld)
+	}
+	if quakeWorld.canvasParams.GameType != 1 {
+		t.Fatalf("quakeworld HUD canvas params gametype = %d, want 1", quakeWorld.canvasParams.GameType)
+	}
+}
+
+func TestQuakeWorldHUDHidesFragStripAtLargeViewsize(t *testing.T) {
+	sb := NewStatusBar(nil)
+	mock := &mockRenderContext{}
+	setTestViewSize(t, "115")
+	sb.DrawQuakeWorld(mock, State{
+		Health:       100,
+		Armor:        50,
+		Ammo:         30,
+		Shells:       20,
+		Items:        cl.ItemShotgun,
+		ActiveWeapon: int(cl.ItemShotgun),
+		GameType:     1,
+		MaxClients:   2,
+		Scoreboard: []ScoreEntry{
+			{Name: "alpha", Frags: 2, Colors: 0x1f},
+			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
+		},
+	}, 320, 200)
+
+	for _, f := range mock.fills {
+		if f.y == 0 || f.y == 4 {
+			t.Fatalf("unexpected QW frag-strip fill at scr_viewsize 115: %+v", f)
+		}
 	}
 }
 

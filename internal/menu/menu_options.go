@@ -259,8 +259,7 @@ func (m *Manager) adjustVideoSetting(delta int) {
 		next := (cvar.IntValue("r_waterwarp") + delta + 3) % 3
 		cvar.SetInt("r_waterwarp", next)
 	case videoItemHUDStyle:
-		// Cycle through 0=classic, 1=compact.
-		next := (cvar.IntValue("hud_style") + delta + 2) % 2
+		next := (cvar.IntValue("hud_style") + delta + 3) % 3
 		cvar.SetInt("hud_style", next)
 	}
 }
@@ -415,12 +414,16 @@ func waterwarpLabel(v int) string {
 }
 
 // hudStyleLabel returns a human-readable label for the hud_style cvar value:
-// 0 → "CLASSIC" (full status bar), 1 → "COMPACT" (corner overlay).
+// 0 → "CLASSIC", 1 → "COMPACT", 2 → "QUAKEWORLD".
 func hudStyleLabel(v int) string {
-	if v == 1 {
+	switch v {
+	case 1:
 		return "COMPACT"
+	case 2:
+		return "QUAKEWORLD"
+	default:
+		return "CLASSIC"
 	}
-	return "CLASSIC"
 }
 
 // drawVideo renders the Video settings menu showing resolution, fullscreen,

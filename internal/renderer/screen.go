@@ -7,7 +7,8 @@ import (
 
 const (
 	HUDClassic    = 0
-	HUDQuakeWorld = 1
+	HUDCompact    = 1
+	HUDQuakeWorld = 2
 	HUDCount      = 3
 
 	// GameDeathmatch is the gametype value for deathmatch mode, used by

@@ -22,11 +22,15 @@ const (
 	// HUDStyleCompact is a minimal corner-overlay inspired by the Q64 layout
 	// and the alternate HUD styles advertised in Ironwail's README.
 	HUDStyleCompact HUDStyle = 1
+	// HUDStyleQuakeWorld mirrors Ironwail's QuakeWorld status-bar layout, with
+	// the main strip on the left and inventory/frag widgets on the right.
+	HUDStyleQuakeWorld HUDStyle = 2
 )
 
 // hudStyleCVar is the console variable name that selects between the classic
-// full-width status bar (0) and the compact corner overlay (1). The value is
-// read each frame via cvar.IntValue so changes take effect immediately.
+// full-width status bar (0), compact corner overlay (1), and QuakeWorld (2)
+// HUD layouts. The value is read each frame via cvar.IntValue so changes take
+// effect immediately.
 const hudStyleCVar = "hud_style"
 
 // HUD manages the heads-up display rendering.
@@ -88,9 +92,7 @@ type ScoreEntry struct {
 
 // NewHUD creates a new HUD instance.
 func NewHUD(dm *draw.Manager) *HUD {
-	// Register hud_style cvar if not already present.
-	// 0 = classic status bar, 1 = compact corner overlay (Q64-inspired).
-	cvar.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=compact Q64-style overlay")
+	cvar.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=compact Q64-style overlay, 2=QuakeWorld status bar")
 	return &HUD{
 		drawManager: dm,
 		status:      NewStatusBar(dm),
@@ -127,6 +129,8 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 		return
 	}
 
+	setHUDCanvasParams(rc, h.Style(), h.state, h.screenWidth, h.screenHeight)
+
 	if h.state.Intermission == 0 {
 		switch h.Style() {
 		case HUDStyleCompact:
@@ -135,6 +139,10 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 				width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
 				h.compact.Draw(rc, h.state, width, height)
 			}
+		case HUDStyleQuakeWorld:
+			rc.SetCanvas(renderer.CanvasSbar)
+			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
+			h.status.DrawQuakeWorld(rc, h.state, width, height)
 		default: // HUDStyleClassic
 			rc.SetCanvas(renderer.CanvasSbar)
 			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
@@ -144,6 +152,44 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 	rc.SetCanvas(renderer.CanvasDefault)
 	h.crosshair.Draw(rc, h.state, h.screenWidth, h.screenHeight)
 	h.centerprint.Draw(rc, h.state, h.screenWidth, h.screenHeight)
+}
+
+type canvasParamSetter interface {
+	SetCanvasParams(renderer.CanvasTransformParams)
+}
+
+func setHUDCanvasParams(rc renderer.RenderContext, style HUDStyle, state State, screenWidth, screenHeight int) {
+	setter, ok := rc.(canvasParamSetter)
+	if !ok || screenWidth <= 0 || screenHeight <= 0 {
+		return
+	}
+
+	sbarScale := float32(cvar.FloatValue("scr_sbarscale"))
+	if sbarScale <= 0 {
+		sbarScale = 1
+	}
+	menuScale := float32(cvar.FloatValue("scr_menuscale"))
+	if menuScale <= 0 {
+		menuScale = 1
+	}
+	crosshairScale := float32(cvar.FloatValue("scr_crosshairscale"))
+	if crosshairScale <= 0 {
+		crosshairScale = 1
+	}
+
+	setter.SetCanvasParams(renderer.CanvasTransformParams{
+		GUIWidth:       float32(screenWidth),
+		GUIHeight:      float32(screenHeight),
+		GLWidth:        float32(screenWidth),
+		GLHeight:       float32(screenHeight),
+		ConWidth:       float32(screenWidth),
+		ConHeight:      float32(screenHeight),
+		SbarScale:      sbarScale,
+		MenuScale:      menuScale,
+		CrosshairScale: crosshairScale,
+		GameType:       state.GameType,
+		HudStyle:       int(style),
+	})
 }
 
 func canvasDimensions(rc renderer.RenderContext, fallbackWidth, fallbackHeight int) (int, int) {

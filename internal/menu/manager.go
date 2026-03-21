@@ -165,7 +165,7 @@ const (
 	videoItemGamma
 	videoItemViewModel
 	videoItemWaterwarp // r_waterwarp: mirrors C Ironwail options-menu OPT_WATERWARP preview
-	videoItemHUDStyle  // hud_style: selects classic vs compact HUD
+	videoItemHUDStyle  // hud_style: selects classic, compact, or QuakeWorld HUD
 	videoItemBack
 )
 

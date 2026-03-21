@@ -1648,8 +1648,14 @@ func TestHUDStyleLabelCompact(t *testing.T) {
 	}
 }
 
+func TestHUDStyleLabelQuakeWorld(t *testing.T) {
+	if got := hudStyleLabel(2); got != "QUAKEWORLD" {
+		t.Fatalf("expected QUAKEWORLD, got %q", got)
+	}
+}
+
 // TestVideoMenuHUDStyleCyclesCorrectly verifies that adjustVideoSetting cycles
-// hud_style through 0→1→0 when pressing right.
+// hud_style through 0→1→2→0 when pressing right.
 func TestVideoMenuHUDStyleCyclesCorrectly(t *testing.T) {
 	mgr := NewManager(nil, nil)
 	mgr.state = MenuVideo
@@ -1663,10 +1669,16 @@ func TestVideoMenuHUDStyleCyclesCorrectly(t *testing.T) {
 		t.Fatalf("after right from 0: hud_style = %d, want 1", got)
 	}
 
-	// Right: 1 → 0 (wraps).
+	// Right: 1 → 2.
+	mgr.adjustVideoSetting(1)
+	if got := cvar.IntValue("hud_style"); got != 2 {
+		t.Fatalf("after right from 1: hud_style = %d, want 2", got)
+	}
+
+	// Right: 2 → 0 (wraps).
 	mgr.adjustVideoSetting(1)
 	if got := cvar.IntValue("hud_style"); got != 0 {
-		t.Fatalf("after right from 1 (wrap): hud_style = %d, want 0", got)
+		t.Fatalf("after right from 2 (wrap): hud_style = %d, want 0", got)
 	}
 }
 
