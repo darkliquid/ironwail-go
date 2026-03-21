@@ -478,7 +478,7 @@ func TestHUDIntermissionOverlaySuppressesStatusBar(t *testing.T) {
 	}
 }
 
-func TestCenterprintIntermissionUsesScreenSpacePicCoordinates(t *testing.T) {
+func TestCenterprintIntermissionUsesMenuSpaceOverlayCoordinates(t *testing.T) {
 	complete := &image.QPic{Width: 100, Height: 20}
 	inter := &image.QPic{Width: 64, Height: 24}
 	cp := &Centerprint{
@@ -488,16 +488,16 @@ func TestCenterprintIntermissionUsesScreenSpacePicCoordinates(t *testing.T) {
 	mock := &mockRenderContext{}
 	cp.Draw(mock, State{Intermission: 1}, 1280, 720)
 
-	if len(mock.menuPics) != 0 {
-		t.Fatalf("expected centerprint to avoid menu-space pic draws, got %d", len(mock.menuPics))
+	if len(mock.pics) != 2 {
+		t.Fatalf("screen-space pic draw count = %d, want 2 menu-space-aware pic draws", len(mock.pics))
 	}
 
 	want := []struct {
 		x, y int
 		pic  *image.QPic
 	}{
-		{x: 590, y: 24, pic: complete},
-		{x: 608, y: 56, pic: inter},
+		{x: 110, y: 8, pic: complete},
+		{x: 128, y: 56, pic: inter},
 	}
 	if len(mock.pics) < len(want) {
 		t.Fatalf("pic draw count = %d, want at least %d", len(mock.pics), len(want))
@@ -507,6 +507,9 @@ func TestCenterprintIntermissionUsesScreenSpacePicCoordinates(t *testing.T) {
 		if got.x != expected.x || got.y != expected.y || got.pic != expected.pic {
 			t.Fatalf("pic draw %d = %+v, want %+v", i, got, expected)
 		}
+	}
+	if len(mock.canvasSwitch) == 0 || mock.canvasSwitch[0] != renderer.CanvasMenu {
+		t.Fatalf("canvas switches = %v, want first switch to CanvasMenu", mock.canvasSwitch)
 	}
 }
 

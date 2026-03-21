@@ -75,10 +75,16 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 
 	switch state.Intermission {
 	case 1:
-		cp.drawIntermissionOverlay(rc, state, screenWidth)
+		prevCanvas := rc.Canvas().Type
+		rc.SetCanvas(renderer.CanvasMenu)
+		defer rc.SetCanvas(prevCanvas)
+		cp.drawIntermissionOverlay(rc, state)
 		return
 	case 2, 3:
-		cp.drawFinaleOverlay(rc, state, screenWidth, screenHeight)
+		prevCanvas := rc.Canvas().Type
+		rc.SetCanvas(renderer.CanvasMenu)
+		defer rc.SetCanvas(prevCanvas)
+		cp.drawFinaleOverlay(rc, state)
 		return
 	}
 
@@ -92,45 +98,44 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).
 // It shows the "COMPLETE" and inter-level graphics, the level name, and the
 // three completion statistics: time, secrets found, and monsters killed.
-func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state State, screenWidth int) {
-	baseX := (screenWidth - 320) / 2
+func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state State) {
 	if cp.completePic != nil {
-		rc.DrawPic(baseX+(320-int(cp.completePic.Width))/2, 24, cp.completePic)
+		rc.DrawPic((320-int(cp.completePic.Width))/2, 8, cp.completePic)
 	}
 	if cp.interPic != nil {
-		rc.DrawPic(baseX+(320-int(cp.interPic.Width))/2, 56, cp.interPic)
+		rc.DrawPic((320-int(cp.interPic.Width))/2, 56, cp.interPic)
 	}
 
 	if state.LevelName != "" {
-		cp.drawTextBlock(rc, state.LevelName, screenWidth, 80, 0, 1)
+		cp.drawTextBlock(rc, state.LevelName, 320, 36, 0, 1)
 	}
 
 	const rowX = 72
 	const rowValueX = 184
-	rowY := 128
-	DrawString(rc, baseX+rowX, rowY, "time")
-	DrawString(rc, baseX+rowValueX, rowY, formatIntermissionTime(state.CompletedTime))
-	rowY += 16
-	DrawString(rc, baseX+rowX, rowY, "secrets")
-	DrawString(rc, baseX+rowValueX, rowY, fmt.Sprintf("%d/%d", state.Secrets, state.TotalSecrets))
-	rowY += 16
-	DrawString(rc, baseX+rowX, rowY, "monsters")
-	DrawString(rc, baseX+rowValueX, rowY, fmt.Sprintf("%d/%d", state.Monsters, state.TotalMonsters))
+	rowY := 64
+	DrawString(rc, rowX, rowY, "time")
+	DrawString(rc, rowValueX, rowY, formatIntermissionTime(state.CompletedTime))
+	rowY += 40
+	DrawString(rc, rowX, rowY, "secrets")
+	DrawString(rc, rowValueX, rowY, fmt.Sprintf("%d/%d", state.Secrets, state.TotalSecrets))
+	rowY += 40
+	DrawString(rc, rowX, rowY, "monsters")
+	DrawString(rc, rowValueX, rowY, fmt.Sprintf("%d/%d", state.Monsters, state.TotalMonsters))
 }
 
 // drawFinaleOverlay renders the end-of-episode text crawl (Intermission 2/3).
 // It displays the "FINALE" header graphic and progressively reveals the story
 // text using a typewriter effect controlled by finaleRevealCharsPerSecond.
-func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
+func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State) {
 	if cp.finalePic != nil {
-		rc.DrawPic((screenWidth-int(cp.finalePic.Width))/2, 16, cp.finalePic)
+		rc.DrawPic((320-int(cp.finalePic.Width))/2, 16, cp.finalePic)
 	}
 	message, _ := cp.activeCenterText(state)
 	text := cp.revealedFinaleText(state, message)
 	if text == "" {
 		return
 	}
-	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, 0, 1)
+	cp.drawTextBlock(rc, text, 320, centerprintY(200, text), 0, 1)
 }
 
 // revealedFinaleText returns the portion of the center text that should be
