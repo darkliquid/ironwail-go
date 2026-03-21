@@ -1932,6 +1932,65 @@ func TestCmdLoadStopsAllSoundsDuringSessionTransition(t *testing.T) {
 	}
 }
 
+func TestCmdLoadDisablesNoMonstersAutomatically(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "missingmap",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "saves"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "saves", "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	previous := cvar.StringValue("nomonsters")
+	cvar.Set("nomonsters", "1")
+	t.Cleanup(func() {
+		cvar.Set("nomonsters", previous)
+	})
+
+	h.CmdLoad("slot1", subs)
+
+	if got := cvar.StringValue("nomonsters"); got != "0" {
+		t.Fatalf("nomonsters after load = %q, want 0", got)
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Warning: \"nomonsters\" disabled automatically.") {
+		t.Fatalf("console output = %q, want nomonsters warning", got)
+	}
+}
+
 func TestCmdLoadFallsBackToBaseGameSaveWhenUserSaveMissing(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()

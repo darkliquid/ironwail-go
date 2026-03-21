@@ -454,6 +454,10 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
 		return
 	}
+	if cvar.BoolValue("nomonsters") {
+		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
+		cvar.Set("nomonsters", "0")
+	}
 	path, data, err := h.readSaveFile(name)
 	if err != nil {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
