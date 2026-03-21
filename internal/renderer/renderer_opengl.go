@@ -44,9 +44,10 @@ void main() {
 in vec2 vTexCoord;
 out vec4 fragColor;
 uniform sampler2D uTexture;
+uniform vec4 uColor;
 
 void main() {
-	fragColor = texture(uTexture, vTexCoord);
+	fragColor = texture(uTexture, vTexCoord) * uColor;
 }`
 
 	vertexShaderSolid = `#version 410 core
@@ -394,11 +395,16 @@ func (dc *glDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32
 
 // DrawCharacter renders a single character from font.
 func (dc *glDrawContext) DrawCharacter(x, y int, num int) {
+	dc.DrawCharacterAlpha(x, y, num, 1)
+}
+
+// DrawCharacterAlpha renders a single character from font with explicit alpha.
+func (dc *glDrawContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
 	if err := dc.init2DRenderer(); err != nil {
 		slog.Error("Failed to init 2D renderer", "error", err)
 		return
 	}
-	if dc.renderer == nil || num < 0 || num > 255 {
+	if dc.renderer == nil || num < 0 || num > 255 || alpha <= 0 {
 		return
 	}
 	pic := dc.renderer.getCharPic(num)
@@ -415,7 +421,7 @@ func (dc *glDrawContext) DrawCharacter(x, y int, num int) {
 		{float32(x), float32(y + 8), tex.u0, tex.v1},
 		{float32(x + 8), float32(y + 8), tex.u1, tex.v1},
 	}
-	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
+	dc.render2DQuadTinted(vertices, tex.texture, dc.shader2D, [4]float32{1, 1, 1, minf(alpha, 1)})
 }
 
 // DrawMenuCharacter renders a single character from font in 320x200 menu space.
@@ -450,6 +456,10 @@ func (dc *glDrawContext) DrawMenuCharacter(x, y int, num int) {
 
 // render2DQuad performs its step in the primary OpenGL backend that orchestrates Quake's frame passes and GL state transitions; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program uint32) {
+	dc.render2DQuadTinted(vertices, tex, program, [4]float32{1, 1, 1, 1})
+}
+
+func (dc *glDrawContext) render2DQuadTinted(vertices []quadVertex, tex uint32, program uint32, tint [4]float32) {
 	gl.UseProgram(program)
 
 	// Use the active canvas transform, or compute a default from viewport.
@@ -474,6 +484,10 @@ func (dc *glDrawContext) render2DQuad(vertices []quadVertex, tex uint32, program
 	gl.Uniform2f(scaleLoc, t.Scale[0], t.Scale[1])
 	offsetLoc := gl.GetUniformLocation(program, gl.Str("uCanvasOffset\x00"))
 	gl.Uniform2f(offsetLoc, t.Offset[0], t.Offset[1])
+	colorLoc := gl.GetUniformLocation(program, gl.Str("uColor\x00"))
+	if colorLoc >= 0 {
+		gl.Uniform4f(colorLoc, tint[0], tint[1], tint[2], tint[3])
+	}
 
 	// Upload vertices
 	gl.BindBuffer(gl.ARRAY_BUFFER, dc.vbo2D)

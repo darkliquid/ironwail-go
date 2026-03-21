@@ -170,7 +170,12 @@ func (s *SoftwareRenderer) DrawFillAlpha(x, y, w, h int, palIdx byte, alpha floa
 
 // DrawCharacter renders a single character as a small coloured box (placeholder).
 func (s *SoftwareRenderer) DrawCharacter(x, y int, num int) {
-	s.DrawFill(x, y, 8, 8, byte(num%255))
+	s.DrawCharacterAlpha(x, y, num, 1)
+}
+
+// DrawCharacterAlpha renders a single character as a small coloured box (placeholder).
+func (s *SoftwareRenderer) DrawCharacterAlpha(x, y int, num int, alpha float32) {
+	s.DrawFillAlpha(x, y, 8, 8, byte(num%255), alpha)
 }
 
 // DrawMenuCharacter renders a single character in menu-space coordinates.

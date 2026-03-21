@@ -241,7 +241,15 @@ func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) 
 // DrawCharacter renders a single 8×8 character from the conchars font.
 // Falls back to a coloured square if conchars is not loaded.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) {
+	dc.DrawCharacterAlpha(x, y, num, 1)
+}
+
+// DrawCharacterAlpha renders a single 8×8 character from the conchars font with explicit alpha.
+func (dc *DrawContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
 	if num < 0 || num > 255 {
+		return
+	}
+	if alpha <= 0 {
 		return
 	}
 	pic := dc.renderer.getCharPic(num)
@@ -253,8 +261,20 @@ func (dc *DrawContext) DrawCharacter(x, y int, num int) {
 		return
 	}
 	rect := dc.screenPicRect(x, y, 8, 8)
-	if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
-		slog.Error("DrawCharacter: draw failed", "num", num, "error", err)
+	if alpha >= 1 {
+		if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
+			slog.Error("DrawCharacter: draw failed", "num", num, "error", err)
+		}
+		return
+	}
+	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      rect.x,
+		Y:      rect.y,
+		Width:  rect.w,
+		Height: rect.h,
+		Alpha:  alpha,
+	}); err != nil {
+		slog.Error("DrawCharacterAlpha: draw failed", "num", num, "alpha", alpha, "error", err)
 	}
 }
 

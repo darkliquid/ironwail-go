@@ -242,6 +242,11 @@ func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) 
 // DrawCharacter delegates to the GL draw context for console character rendering.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) { dc.gldc.DrawCharacter(x, y, num) }
 
+// DrawCharacterAlpha delegates to the GL draw context for alpha-modulated console character rendering.
+func (dc *DrawContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
+	dc.gldc.DrawCharacterAlpha(x, y, num, alpha)
+}
+
 // DrawMenuCharacter delegates to the GL draw context for menu-space character rendering.
 func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.gldc.DrawMenuCharacter(x, y, num)

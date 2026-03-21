@@ -304,6 +304,15 @@ func drawCenterprintLine(rc renderer.RenderContext, x, y int, text string, lineI
 	if rc == nil || alpha <= 0 {
 		return
 	}
+	type characterAlphaDrawer interface {
+		DrawCharacterAlpha(x, y int, num int, alpha float32)
+	}
+	if alphaDrawer, ok := rc.(characterAlphaDrawer); ok {
+		for i, ch := range text {
+			alphaDrawer.DrawCharacterAlpha(x+i*8, y, int(ch), float32(alpha))
+		}
+		return
+	}
 	for i, ch := range text {
 		if shouldDrawCenterprintChar(lineIndex, i, alpha) {
 			rc.DrawCharacter(x+i*8, y, int(ch))

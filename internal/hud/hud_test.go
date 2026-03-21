@@ -30,8 +30,12 @@ func setTestViewSize(t *testing.T, value string) {
 
 // mockRenderContext is a test double for renderer.RenderContext
 type mockRenderContext struct {
-	characters []struct{ x, y, num int }
-	pics       []struct {
+	characters      []struct{ x, y, num int }
+	alphaCharacters []struct {
+		x, y, num int
+		alpha     float32
+	}
+	pics []struct {
 		x, y int
 		pic  *image.QPic
 	}
@@ -83,6 +87,13 @@ func (m *mockRenderContext) DrawFillAlpha(x, y, w, h int, color byte, alpha floa
 	}{x, y, w, h, color, alpha})
 }
 func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
+	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
+}
+func (m *mockRenderContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
+	m.alphaCharacters = append(m.alphaCharacters, struct {
+		x, y, num int
+		alpha     float32
+	}{x, y, num, alpha})
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
 }
 func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
@@ -412,7 +423,7 @@ func TestHUDCenterprintFadeTailExtendsLifetime(t *testing.T) {
 	}
 }
 
-func TestHUDCenterprintFadeTailStipplesDuringLateFade(t *testing.T) {
+func TestHUDCenterprintFadeTailUsesCharacterAlphaDuringLateFade(t *testing.T) {
 	registerCenterprintTestCvars()
 	cvar.Set("scr_centerprintbg", "2")
 	cvar.Set("con_notifyfade", "1")
@@ -426,8 +437,16 @@ func TestHUDCenterprintFadeTailStipplesDuringLateFade(t *testing.T) {
 		Time:          12.25,
 	}, 320, 200)
 
-	if got := charactersToString(fading.characters); got == "" || got == "message" {
-		t.Fatalf("late fade text = %q, want partial but non-empty", got)
+	if got := charactersToString(fading.characters); got != "message" {
+		t.Fatalf("late fade text = %q, want full message", got)
+	}
+	if len(fading.alphaCharacters) != len("message") {
+		t.Fatalf("late fade alpha characters = %d, want %d", len(fading.alphaCharacters), len("message"))
+	}
+	for _, ch := range fading.alphaCharacters {
+		if math.Abs(float64(ch.alpha)-0.5) > 0.0001 {
+			t.Fatalf("late fade alpha character = %+v, want alpha=0.5", ch)
+		}
 	}
 	if len(fading.alphaFills) != 1 {
 		t.Fatalf("late fade alpha background fills = %d, want 1", len(fading.alphaFills))
