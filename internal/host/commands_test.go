@@ -735,8 +735,8 @@ func TestCmdSaveRejectsInvalidName(t *testing.T) {
 	if len(subs.console.messages) == 0 {
 		t.Fatal("expected console output")
 	}
-	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "invalid save name") {
-		t.Fatalf("console output = %q, want invalid save name", got)
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "Relative pathnames are not allowed.") {
+		t.Fatalf("console output = %q, want relative-path rejection", got)
 	}
 }
 
@@ -760,8 +760,52 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	if len(subs.console.messages) == 0 {
 		t.Fatal("expected console output")
 	}
-	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "invalid save name") {
-		t.Fatalf("console output = %q, want invalid save name", got)
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "Relative pathnames are not allowed.") {
+		t.Fatalf("console output = %q, want relative-path rejection", got)
+	}
+}
+
+func TestCmdSaveRejectsWhenNotPlayingLocalGame(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: console,
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdSave("slot1", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Not playing a local game.") {
+		t.Fatalf("console output = %q, want local-game rejection", got)
+	}
+}
+
+func TestCmdSaveRejectsMultiplayerGames(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir(), MaxClients: 2}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.SetServerActive(true)
+	srv.Active = true
+
+	h.CmdSave("slot1", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Can't save multiplayer games.") {
+		t.Fatalf("console output = %q, want multiplayer rejection", got)
 	}
 }
 

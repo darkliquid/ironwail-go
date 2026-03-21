@@ -574,11 +574,11 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		return
 	}
 	if subs.Server == nil || !h.serverActive || !subs.Server.IsActive() {
-		subs.Console.Print("save failed: no active game\n")
+		subs.Console.Print("Not playing a local game.\n")
 		return
 	}
 	if subs.Server.GetMaxClients() != 1 {
-		subs.Console.Print("save failed: savegames require single-player mode\n")
+		subs.Console.Print("Can't save multiplayer games.\n")
 		return
 	}
 	srv, ok := subs.Server.(*server.Server)
@@ -668,7 +668,7 @@ func normalizeSaveName(name string) (string, error) {
 		return "", fmt.Errorf("save name is required")
 	}
 	if strings.Contains(name, "..") {
-		return "", fmt.Errorf("invalid save name %q", name)
+		return "", fmt.Errorf("Relative pathnames are not allowed.")
 	}
 	clean := strings.TrimPrefix(path.Clean(name), "./")
 	if clean == "." || clean == "" || strings.HasPrefix(clean, "/") {
