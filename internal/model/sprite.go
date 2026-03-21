@@ -141,6 +141,7 @@ func loadSpriteFrame(r io.Reader) (*MSpriteFrame, error) {
 		Right:  float32(width + originX),
 		SMax:   float32(width) / float32(padConditional(width)),
 		TMax:   float32(height) / float32(padConditional(height)),
+		Pixels: pixels,
 	}, nil
 }
 

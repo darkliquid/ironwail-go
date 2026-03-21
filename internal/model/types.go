@@ -203,6 +203,7 @@ type MSpriteFrame struct {
 	Width, Height         int
 	Up, Down, Left, Right float32
 	SMax, TMax            float32 // Image might be padded
+	Pixels                []byte
 }
 
 // MSpriteGroup represents a group of animated sprite frames.

@@ -226,6 +226,9 @@ func TestLoadSpriteFromPak0(t *testing.T) {
 			if frame.Width <= 0 || frame.Height <= 0 {
 				t.Fatalf("frame %d has invalid dimensions: %dx%d", i, frame.Width, frame.Height)
 			}
+			if got, want := len(frame.Pixels), frame.Width*frame.Height; got != want {
+				t.Fatalf("frame %d pixel count = %d, want %d", i, got, want)
+			}
 		case SpriteFrameGroup, SpriteFrameAngled:
 			group, ok := frameDesc.FramePtr.(*MSpriteGroup)
 			if !ok || group == nil {
@@ -246,6 +249,9 @@ func TestLoadSpriteFromPak0(t *testing.T) {
 				}
 				if group.Frames[j] == nil {
 					t.Fatalf("group %d frame %d is nil", i, j)
+				}
+				if got, want := len(group.Frames[j].Pixels), group.Frames[j].Width*group.Frames[j].Height; got != want {
+					t.Fatalf("group %d frame %d pixel count = %d, want %d", i, j, got, want)
 				}
 			}
 		default:
