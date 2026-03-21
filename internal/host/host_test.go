@@ -336,6 +336,26 @@ func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
 	}
 }
 
+func TestHostInitDedicatedSkipsImplicitLocalClient(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", Dedicated: true, MaxClients: 8}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	if subs.Subsystems.Client != nil {
+		t.Fatalf("dedicated Host.Init created client %T, want nil", subs.Subsystems.Client)
+	}
+	if got := h.MaxClients(); got != 8 {
+		t.Fatalf("MaxClients = %d, want 8", got)
+	}
+}
+
 func TestHostShutdownOrdersSubsystemTearDownAndClearsInitialized(t *testing.T) {
 	recorder := &shutdownRecorder{}
 	h := &Host{initialized: true}

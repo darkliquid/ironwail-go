@@ -278,6 +278,7 @@ func (c *localLoopbackClient) LocalSignon() int {
 
 type InitParams struct {
 	BaseDir      string
+	Dedicated    bool
 	GameDir      string
 	UserDir      string
 	Args         []string
@@ -387,6 +388,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	hostCVarsOnce.Do(registerHostCVars)
 
 	h.baseDir = params.BaseDir
+	h.dedicated = params.Dedicated
 	h.gameDir = params.GameDir
 	h.userDir = params.UserDir
 	h.args = params.Args
@@ -396,6 +398,16 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	h.versionPatch = params.VersionPatch
 	if h.maxClients < 1 {
 		h.maxClients = 1
+	}
+	if h.maxClients > MaxScoreboard {
+		h.maxClients = MaxScoreboard
+	}
+
+	cvar.SetBool("dedicated", h.dedicated)
+	if h.maxClients > 1 {
+		cvar.SetInt("deathmatch", 1)
+	} else {
+		cvar.SetInt("deathmatch", 0)
 	}
 
 	if h.baseDir == "" {
@@ -438,7 +450,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		if setter, ok := subs.Server.(compatRNGSetter); ok {
 			setter.SetCompatRNG(h.compatRNG)
 		}
-		if subs.Client == nil {
+		if subs.Client == nil && !h.dedicated {
 			subs.Client = newLocalLoopbackClient()
 		}
 		if err := subs.Server.Init(h.maxClients); err != nil {

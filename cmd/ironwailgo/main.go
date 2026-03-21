@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
+	"os"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
@@ -21,6 +22,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/input"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/model"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -496,16 +498,21 @@ func main() {
 	fmt.Println("A Go port of Ironwail Quake engine")
 	fmt.Println()
 
+	startupOpts, err := parseStartupOptions(os.Args[1:])
+	if err != nil {
+		log.Fatal(err)
+	}
+	inet.SetHostPort(startupOpts.Port)
+
 	// Check if a map argument was provided
-	baseDir := flag.String("basedir", ".", "Base Quake directory containing id1")
-	gameDir := flag.String("game", "id1", "Game directory (e.g. id1, hipnotic)")
 	headlessFlag := flag.Bool("headless", false, "Run without rendering")
-	dedicatedFlag := flag.Bool("dedicated", false, "Run as dedicated server")
 	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
 	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
 	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
 	logLevel := flag.String("loglvl", "INFO", "logging level (INFO, WARN, ERROR, DEBUG)")
-	flag.Parse()
+	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
+		log.Fatal(err)
+	}
 	if *widthFlag > 0 {
 		startupVidWidth = *widthFlag
 	}
@@ -527,11 +534,14 @@ func main() {
 	// Parse Quake-style +command arguments (e.g. +map start)
 	args := flag.Args()
 	mapArg := startupMapArg(args)
+	if startupOpts.Dedicated && mapArg == "" {
+		mapArg = "start"
+	}
 
 	// Try to initialize with renderer, fall back to headless if it fails
-	dedicated := *dedicatedFlag
+	dedicated := startupOpts.Dedicated
 	headless := *headlessFlag || dedicated
-	initErr := initSubsystems(headless, dedicated, *baseDir, *gameDir, args)
+	initErr := initSubsystems(headless, dedicated, startupOpts.MaxClients, startupOpts.BaseDir, startupOpts.GameDir, args)
 	if initErr != nil && !headless {
 		// Check if error is related to renderer initialization
 		if isRendererError(initErr) {
@@ -540,14 +550,13 @@ func main() {
 			fmt.Println("Continuing with game loop (no rendering)...")
 			headless = true
 			// Re-initialize without renderer
-			if err := initSubsystems(true, false, *baseDir, *gameDir, args); err != nil {
+			if err := initSubsystems(true, false, startupOpts.MaxClients, startupOpts.BaseDir, startupOpts.GameDir, args); err != nil {
 				log.Fatal("Initialization failed:", err)
 			}
 		} else {
 			log.Fatal("Initialization failed:", initErr)
 		}
 	}
-	cvar.SetBool("dedicated", dedicated)
 	defer shutdownEngine()
 
 	// Deterministic startup logs after successful initialization
@@ -611,7 +620,7 @@ func main() {
 			if screenshotMode && !screenshotCaptured {
 				defer func() {
 					screenshotCaptured = true
-					screenshotErr = captureScreenshot(screenshotPath, *baseDir, *gameDir)
+					screenshotErr = captureScreenshot(screenshotPath, startupOpts.BaseDir, startupOpts.GameDir)
 					if g.Renderer != nil {
 						g.Renderer.Stop()
 					}
@@ -762,7 +771,7 @@ func main() {
 	}
 
 	if screenshotMode {
-		if err := captureScreenshot(screenshotPath, *baseDir, *gameDir); err != nil {
+		if err := captureScreenshot(screenshotPath, startupOpts.BaseDir, startupOpts.GameDir); err != nil {
 			log.Fatal("Screenshot failed:", err)
 		}
 		return

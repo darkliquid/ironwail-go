@@ -63,6 +63,19 @@ func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
 		return fmt.Errorf("filesystem implementation is missing")
 	}
 
+	h.resetAutosaveState()
+	h.serverActive = true
+	h.clientState = caDisconnected
+	h.signOns = 0
+	if h.dedicated {
+		if subs.Client != nil {
+			subs.Client.Shutdown()
+			subs.Client = nil
+		}
+		h.updateServerBrowserNetworking(subs)
+		return nil
+	}
+
 	return h.startLocalServerSession(subs, nil)
 }
 

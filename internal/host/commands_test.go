@@ -43,8 +43,14 @@ func (s *disconnectTrackingServer) Shutdown() {
 
 type sessionStartTrackingServer struct {
 	mockServer
-	connectCalls  int
-	shutdownCalls int
+	initMaxClients int
+	connectCalls   int
+	shutdownCalls  int
+}
+
+func (s *sessionStartTrackingServer) Init(maxClients int) error {
+	s.initMaxClients = maxClients
+	return s.mockServer.Init(maxClients)
 }
 
 func (s *sessionStartTrackingServer) ConnectClient(clientNum int) {
@@ -2147,6 +2153,47 @@ func TestStartLocalServerSessionRollsBackOnAfterConnectFailure(t *testing.T) {
 	}
 	if got := h.SignOns(); got != 0 {
 		t.Fatalf("host signons = %d, want 0 after rollback", got)
+	}
+}
+
+func TestCmdMapDedicatedStartsServerWithoutLocalSession(t *testing.T) {
+	registerHostCVars()
+	oldDedicated := cvar.BoolValue("dedicated")
+	t.Cleanup(func() {
+		cvar.SetBool("dedicated", oldDedicated)
+	})
+
+	h := NewHost()
+	h.dedicated = true
+	h.maxClients = 8
+	srv := &sessionStartTrackingServer{}
+	subs := &Subsystems{
+		Files:   &fs.FileSystem{},
+		Server:  srv,
+		Client:  &remoteSignonTestClient{state: caConnected},
+		Console: &mockConsole{},
+	}
+
+	if err := h.CmdMap("start", subs); err != nil {
+		t.Fatalf("CmdMap(start) failed: %v", err)
+	}
+	if srv.initMaxClients != 8 {
+		t.Fatalf("server Init maxClients = %d, want 8", srv.initMaxClients)
+	}
+	if srv.connectCalls != 0 {
+		t.Fatalf("ConnectClient calls = %d, want 0 for dedicated startup", srv.connectCalls)
+	}
+	if !h.ServerActive() {
+		t.Fatal("serverActive = false, want true")
+	}
+	if got := h.ClientState(); got != caDisconnected {
+		t.Fatalf("client state = %v, want %v", got, caDisconnected)
+	}
+	if got := h.SignOns(); got != 0 {
+		t.Fatalf("host signons = %d, want 0", got)
+	}
+	if subs.Client != nil {
+		t.Fatalf("client = %T, want nil after dedicated map start", subs.Client)
 	}
 }
 

@@ -258,7 +258,7 @@ func gogpuX11KeyboardHint(sdl3Available bool) string {
 	return "rebuild with `mise run build-gogpu-sdl3` or run under Wayland for event-driven keyboard input"
 }
 
-func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []string) error {
+func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string) error {
 	g.ModDir = strings.ToLower(strings.TrimSpace(gamedir))
 	g.Input = nil
 	g.Draw = nil
@@ -407,7 +407,9 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 		g.Subs.Renderer = renderer.NewRendererAdapter(g.Renderer)
 	}
 	// Wire the loopback client to the server so server→client messages are parsed (M3).
-	host.SetupLoopbackClientServer(g.Subs, g.Server)
+	if !dedicated {
+		host.SetupLoopbackClientServer(g.Subs, g.Server)
+	}
 	registerGameplayBindCommands()
 	registerConsoleCompletionProviders()
 	applyDefaultGameplayBindings()
@@ -417,7 +419,8 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 		GameDir:      gamedir,
 		UserDir:      "",
 		Args:         append([]string(nil), args...),
-		MaxClients:   1,
+		MaxClients:   maxClients,
+		Dedicated:    dedicated,
 		VersionMajor: VersionMajor,
 		VersionMinor: VersionMinor,
 		VersionPatch: VersionPatch,

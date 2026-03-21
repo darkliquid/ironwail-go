@@ -42,6 +42,12 @@ func NetTime() float64 {
 	return time.Since(startTime).Seconds()
 }
 
+func SetHostPort(port int) {
+	if port > 0 {
+		netHostPort = port
+	}
+}
+
 // Init initializes the networking subsystem by bringing up all available
 // transport drivers. Currently this means UDP only; the loopback driver
 // requires no initialization as it is created on demand. This corresponds
