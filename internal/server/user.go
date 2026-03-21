@@ -773,9 +773,13 @@ func (s *Server) writeSpawnSetAngle(client *Client, msg *MessageBuffer) {
 	}
 	msg.WriteByte(byte(inet.SVCSetAngle))
 	flags := uint32(s.ProtocolFlags())
-	msg.WriteAngle(client.Edict.Vars.VAngle[0], flags)
-	msg.WriteAngle(client.Edict.Vars.VAngle[1], flags)
-	msg.WriteAngle(client.Edict.Vars.VAngle[2], flags)
+	angles := client.Edict.Vars.Angles
+	if s.LoadGame {
+		angles = client.Edict.Vars.VAngle
+	}
+	msg.WriteAngle(angles[0], flags)
+	msg.WriteAngle(angles[1], flags)
+	msg.WriteAngle(0, flags)
 }
 
 func (s *Server) findLocalSpawnPoint() *Edict {

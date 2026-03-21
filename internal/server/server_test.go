@@ -595,6 +595,54 @@ func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
 	}
 }
 
+func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
+	s := &Server{Protocol: ProtocolFitzQuake}
+	client := &Client{Edict: &Edict{Vars: &EntVars{}}}
+	client.Edict.Vars.Angles = [3]float32{10, 20, 30}
+	client.Edict.Vars.VAngle = [3]float32{90, 180, 270}
+
+	msg := NewMessageBuffer(16)
+	s.writeSpawnSetAngle(client, msg)
+
+	data := msg.Data[:msg.Len()]
+	if got, want := data[0], byte(inet.SVCSetAngle); got != want {
+		t.Fatalf("message[0] = %d, want %d", got, want)
+	}
+
+	want := NewMessageBuffer(16)
+	flags := uint32(s.ProtocolFlags())
+	want.WriteAngle(10, flags)
+	want.WriteAngle(20, flags)
+	want.WriteAngle(0, flags)
+	if got := data[1:4]; !bytes.Equal(got, want.Data[:want.Len()]) {
+		t.Fatalf("fresh-spawn setangle payload = %v, want %v", got, want.Data[:want.Len()])
+	}
+}
+
+func TestWriteSpawnSetAngleUsesViewAnglesForLoadGame(t *testing.T) {
+	s := &Server{Protocol: ProtocolFitzQuake, LoadGame: true}
+	client := &Client{Edict: &Edict{Vars: &EntVars{}}}
+	client.Edict.Vars.Angles = [3]float32{10, 20, 30}
+	client.Edict.Vars.VAngle = [3]float32{90, 180, 270}
+
+	msg := NewMessageBuffer(16)
+	s.writeSpawnSetAngle(client, msg)
+
+	data := msg.Data[:msg.Len()]
+	if got, want := data[0], byte(inet.SVCSetAngle); got != want {
+		t.Fatalf("message[0] = %d, want %d", got, want)
+	}
+
+	want := NewMessageBuffer(16)
+	flags := uint32(s.ProtocolFlags())
+	want.WriteAngle(90, flags)
+	want.WriteAngle(180, flags)
+	want.WriteAngle(0, flags)
+	if got := data[1:4]; !bytes.Equal(got, want.Data[:want.Len()]) {
+		t.Fatalf("loadgame setangle payload = %v, want %v", got, want.Data[:want.Len()])
+	}
+}
+
 func TestSpawnCommandAcceptsTrailingArgs(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {
