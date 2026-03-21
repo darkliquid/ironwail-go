@@ -33,6 +33,7 @@ type StatusBar struct {
 	hipWeapons  [7][5]*image.QPic
 	rogueInvBar [2]*image.QPic
 	rogueWeps   [5]*image.QPic
+	numPics     [2][11]*image.QPic
 	facePics    [5][2]*image.QPic
 	faceInvis   *image.QPic
 	faceInvuln  *image.QPic
@@ -148,6 +149,12 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 			dm.GetPic("r_multirock"),
 			dm.GetPic("r_plasma"),
 		}
+		for i := range 10 {
+			sb.numPics[0][i] = dm.GetPic("num_" + string('0'+rune(i)))
+			sb.numPics[1][i] = dm.GetPic("anum_" + string('0'+rune(i)))
+		}
+		sb.numPics[0][10] = dm.GetPic("num_minus")
+		sb.numPics[1][10] = dm.GetPic("anum_minus")
 		hipNames := [...]string{"laser", "mjolnir", "gren_prox", "prox_gren", "prox"}
 		for i, name := range hipNames {
 			sb.hipWeapons[0][i] = dm.GetPic("inv_" + name)
@@ -308,12 +315,76 @@ func (sb *StatusBar) drawInventory(rc renderer.RenderContext, x, y int, state St
 	}
 }
 
-// drawBigNum draws a numeric value using 8×24 "big number" character glyphs,
-// right-aligned within the given digit count. The alt parameter was originally
-// used for the red-flash low-value warning but is currently unused; the base
-// DrawNumber helper handles all rendering.
+// drawBigNum draws the classic status-bar numerals, right-aligned within the
+// given digit count. It uses the alternate ("anum_*") set for low-value
+// warnings, falling back to character glyphs if the numeral pics are missing.
 func (sb *StatusBar) drawBigNum(rc renderer.RenderContext, x, y, value, digits int, alt bool) {
-	DrawNumber(rc, x+digits*8, y, value, digits)
+	if rc == nil {
+		return
+	}
+
+	value = min(value, 999)
+	str := formatSbarNumber(value)
+	if len(str) > digits {
+		str = str[len(str)-digits:]
+	}
+	if len(str) < digits {
+		x += (digits - len(str)) * 24
+	}
+
+	color := 0
+	if alt {
+		color = 1
+	}
+	if !sb.hasBigNumPics(color, str) {
+		DrawNumber(rc, x+digits*8, y, value, digits)
+		return
+	}
+
+	for _, ch := range str {
+		frame := int(ch - '0')
+		if ch == '-' {
+			frame = 10
+		}
+		rc.DrawPic(x, y, sb.numPics[color][frame])
+		x += 24
+	}
+}
+
+func formatSbarNumber(value int) string {
+	if value == 0 {
+		return "0"
+	}
+	if value < 0 {
+		value = -value
+		return "-" + formatSbarNumber(value)
+	}
+
+	digits := make([]byte, 0, 4)
+	for value > 0 {
+		digits = append(digits, byte('0'+value%10))
+		value /= 10
+	}
+	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
+		digits[i], digits[j] = digits[j], digits[i]
+	}
+	return string(digits)
+}
+
+func (sb *StatusBar) hasBigNumPics(color int, str string) bool {
+	if color < 0 || color >= len(sb.numPics) {
+		return false
+	}
+	for _, ch := range str {
+		frame := int(ch - '0')
+		if ch == '-' {
+			frame = 10
+		}
+		if frame < 0 || frame >= len(sb.numPics[color]) || sb.numPics[color][frame] == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // facePic selects the appropriate face graphic for the current player state.

@@ -201,6 +201,69 @@ func TestStatusBarDrawUsesScreenSpacePicCoordinates(t *testing.T) {
 	}
 }
 
+func TestStatusBarDrawBigNumUsesClassicPics(t *testing.T) {
+	alt2 := &image.QPic{Width: 24, Height: 24}
+	alt5 := &image.QPic{Width: 24, Height: 24}
+	alt7 := &image.QPic{Width: 24, Height: 24}
+	alt0 := &image.QPic{Width: 24, Height: 24}
+	base9 := &image.QPic{Width: 24, Height: 24}
+	sb := &StatusBar{}
+	sb.numPics[0][9] = base9
+	sb.numPics[1][0] = alt0
+	sb.numPics[1][2] = alt2
+	sb.numPics[1][5] = alt5
+	sb.numPics[1][7] = alt7
+
+	mock := &mockRenderContext{}
+	sb.drawBigNum(mock, 24, 0, 25, 3, true)
+	sb.drawBigNum(mock, 136, 0, 70, 3, true)
+	sb.drawBigNum(mock, 248, 0, 1007, 3, false)
+
+	if len(mock.characters) != 0 {
+		t.Fatalf("expected classic pics, got %d character draws", len(mock.characters))
+	}
+	if len(mock.pics) != 7 {
+		t.Fatalf("pic draw count = %d, want 7", len(mock.pics))
+	}
+
+	want := []struct {
+		x   int
+		pic *image.QPic
+	}{
+		{48, alt2},
+		{72, alt5},
+		{160, alt7},
+		{184, alt0},
+		{248, base9},
+		{272, base9},
+		{296, base9},
+	}
+	for i, expected := range want {
+		got := mock.pics[i]
+		if got.x != expected.x || got.y != 0 || got.pic != expected.pic {
+			t.Fatalf("pic draw %d = %+v, want x=%d y=0 pic=%p", i, got, expected.x, expected.pic)
+		}
+	}
+}
+
+func TestStatusBarDrawBigNumFallsBackWithoutPics(t *testing.T) {
+	sb := &StatusBar{}
+	mock := &mockRenderContext{}
+
+	sb.drawBigNum(mock, 24, 0, 25, 3, true)
+
+	if len(mock.pics) != 0 {
+		t.Fatalf("expected no pic draws without numeral assets, got %d", len(mock.pics))
+	}
+	drawn := ""
+	for _, ch := range mock.characters {
+		drawn += string(rune(ch.num))
+	}
+	if drawn != "25" {
+		t.Fatalf("fallback characters = %q, want %q", drawn, "25")
+	}
+}
+
 func TestHUDDraw(t *testing.T) {
 	hud := NewHUD(nil)
 	mock := &mockRenderContext{}
