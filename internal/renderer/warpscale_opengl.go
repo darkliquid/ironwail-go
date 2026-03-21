@@ -6,10 +6,8 @@ package renderer
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 // Underwater screen-space warp (r_waterwarp == 1) implementation.
@@ -201,39 +199,4 @@ func (r *Renderer) applyWarpScaleEffect(warpActive bool, time float32, w, h int)
 	gl.DepthMask(true)
 	gl.Enable(gl.BLEND)
 	gl.Enable(gl.CULL_FACE)
-}
-
-// readWaterwarpCvar returns the current r_waterwarp value (0, 1, or >1).
-func readWaterwarpCvar() float32 {
-	cv := cvar.Get(CvarRWaterwarp)
-	if cv == nil {
-		return 0
-	}
-	return cv.Float32()
-}
-
-// WaterwarpFOV reports whether the FOV-oscillation underwater warp is active
-// (r_waterwarp > 1 and the given underwater flag is true).
-func WaterwarpFOV(underwaterOrForced bool) bool {
-	return underwaterOrForced && readWaterwarpCvar() > 1.0
-}
-
-// WaterwarpFOVScale computes the horizontal FOV scale factor for r_waterwarp > 1.
-// Returns a multiplier to apply to tan(fov/2) — matches C formula:
-//
-//	r_fovx = atan(tan(fov_x/2) * scale) * 2 / DEG2RAD
-//	scale  = 0.97 + sin(t * 1.5) * 0.03
-//
-// The resulting modified FOV is: 2 * atan(scale * tan(baseFOV/2)).
-func WaterwarpFOVScale(t float32) float32 {
-	return float32(0.97 + math.Sin(float64(t)*1.5)*0.03)
-}
-
-// ApplyWaterwarpFOV returns the FOV (in degrees) after applying the r_waterwarp > 1
-// sinusoidal modulation. baseFOV is the unmodified FOV in degrees; t is cl.time.
-// Mirrors C Ironwail R_SetupView r_waterwarp > 1 branch.
-func ApplyWaterwarpFOV(baseFOV, t float32) float32 {
-	scale := WaterwarpFOVScale(t)
-	halfTan := float32(math.Tan(float64(baseFOV) * math.Pi / 360.0))
-	return float32(math.Atan(float64(halfTan)*float64(scale))) * 360.0 / math.Pi
 }

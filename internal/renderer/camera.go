@@ -31,9 +31,8 @@ type CameraState struct {
 	// Time is the current game time, used for animation (view bob, etc).
 	Time float32
 
-	// WaterwarpFOV enables sinusoidal FOV oscillation for r_waterwarp > 1 mode.
-	// Used only by the authoritative OpenGL path; gogpu ignores this field.
-	// See camera_opengl.go UpdateCamera for the implementation.
+	// WaterwarpFOV enables sinusoidal FOV oscillation for the r_waterwarp > 1 mode.
+	// Both backends apply it through the shared projection FOV helper.
 	WaterwarpFOV bool
 }
 

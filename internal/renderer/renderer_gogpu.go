@@ -1296,7 +1296,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 		}
 	}
 
-	r.viewMatrices.Projection = ComputeProjectionMatrix(camera.FOV, aspect, nearPlane, farPlane)
+	r.viewMatrices.Projection = ComputeProjectionMatrix(projectionFOVForCamera(camera), aspect, nearPlane, farPlane)
 
 	// Log individual matrices before multiplication
 	slog.Info("Camera matrices computed",

@@ -76,12 +76,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 		aspect = float32(w) / float32(h)
 	}
 
-	fov := camera.FOV
-	if camera.WaterwarpFOV {
-		fov = ApplyWaterwarpFOV(fov, camera.Time)
-	}
-
-	r.viewMatrices.Projection = ComputeProjectionMatrix(fov, aspect, nearPlane, farPlane)
+	r.viewMatrices.Projection = ComputeProjectionMatrix(projectionFOVForCamera(camera), aspect, nearPlane, farPlane)
 	r.viewMatrices.VP = r.viewMatrices.Projection.Mul(r.viewMatrices.View)
 }
 
