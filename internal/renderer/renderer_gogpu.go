@@ -57,6 +57,7 @@ import (
 	"github.com/gogpu/gogpu/gmath" // retained only for gogpu API boundary (Color type)
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/wgpu/hal"
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
@@ -409,6 +410,7 @@ type Renderer struct {
 	worldRenderTextureGogpu *gogpu.Texture // gogpu-wrapped version for compositing
 
 	// Alias-model resources for the gogpu backend.
+	brushModelGeometry          map[int]*WorldGeometry
 	aliasModels                 map[string]*gpuAliasModel
 	spriteModels                map[string]*gpuSpriteModel
 	aliasEntityStates           map[int]*AliasEntity
@@ -495,12 +497,13 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	app := gogpu.NewApp(gpuCfg)
 
 	r := &Renderer{
-		app:               app,
-		config:            cfg,
-		textureCache:      make(map[cacheKey]*cachedTexture),
-		aliasModels:       make(map[string]*gpuAliasModel),
-		spriteModels:      make(map[string]*gpuSpriteModel),
-		aliasEntityStates: make(map[int]*AliasEntity),
+		app:                app,
+		config:             cfg,
+		textureCache:       make(map[cacheKey]*cachedTexture),
+		brushModelGeometry: make(map[int]*WorldGeometry),
+		aliasModels:        make(map[string]*gpuAliasModel),
+		spriteModels:       make(map[string]*gpuSpriteModel),
+		aliasEntityStates:  make(map[int]*AliasEntity),
 	}
 
 	slog.Info("Renderer created",
@@ -788,6 +791,7 @@ func (r *Renderer) Stop() {
 func (r *Renderer) Shutdown() {
 	slog.Debug("Renderer shutting down")
 	r.mu.Lock()
+	r.brushModelGeometry = nil
 	r.destroyAliasResourcesLocked()
 	r.destroySpriteResourcesLocked()
 	r.destroyDecalResourcesLocked()
@@ -1173,9 +1177,11 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
-	plan := planGoGPUEntityDrawOrder(state.AliasEntities, state.SpriteEntities, state.DecalMarks)
+	plan := planGoGPUEntityDrawOrder(state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks)
 	for _, phase := range plan.phases {
 		switch phase {
+		case gogpuEntityPhaseOpaqueBrush:
+			dc.renderBrushEntityMarkers(plan.opaqueBrush)
 		case gogpuEntityPhaseOpaqueAlias:
 			dc.renderAliasShadowsHAL(plan.opaqueAlias)
 			dc.renderAliasEntitiesHAL(plan.opaqueAlias)
@@ -1188,6 +1194,11 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		}
 	}
 }
+
+const (
+	gogpuBrushMarkerColor = byte(250)
+	gogpuBrushMarkerSize  = 2
+)
 
 func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp types.Mat4, screenW, screenH, size int, color byte) {
 	x, y, ok := projectWorldPointToScreen(pos, vp, screenW, screenH)
@@ -1231,6 +1242,7 @@ type projectedParticleMarker struct {
 	x     int
 	y     int
 	color byte
+	size  int
 }
 
 func projectParticleMarkers(particles []Particle, verts []ParticleVertex, vp types.Mat4, screenW, screenH int) []projectedParticleMarker {
@@ -1251,9 +1263,91 @@ func projectParticleMarkers(particles []Particle, verts []ParticleVertex, vp typ
 			x:     x,
 			y:     y,
 			color: particles[i].Color,
+			size:  4,
 		})
 	}
 	return markers
+}
+
+func (r *Renderer) ensureBrushModelGeometry(submodelIndex int) *WorldGeometry {
+	if submodelIndex <= 0 {
+		return nil
+	}
+	r.mu.RLock()
+	if geom := r.brushModelGeometry[submodelIndex]; geom != nil {
+		r.mu.RUnlock()
+		return geom
+	}
+	tree := (*bsp.Tree)(nil)
+	if r.worldData != nil && r.worldData.Geometry != nil {
+		tree = r.worldData.Geometry.Tree
+	}
+	r.mu.RUnlock()
+	if tree == nil {
+		return nil
+	}
+	geom, err := BuildModelGeometry(tree, submodelIndex)
+	if err != nil {
+		slog.Debug("GoGPU brush model build skipped", "submodel", submodelIndex, "error", err)
+		return nil
+	}
+	if geom == nil || len(geom.Vertices) == 0 {
+		return nil
+	}
+	r.mu.Lock()
+	if r.brushModelGeometry == nil {
+		r.brushModelGeometry = make(map[int]*WorldGeometry)
+	}
+	if existing := r.brushModelGeometry[submodelIndex]; existing != nil {
+		r.mu.Unlock()
+		return existing
+	}
+	r.brushModelGeometry[submodelIndex] = geom
+	r.mu.Unlock()
+	return geom
+}
+
+func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, screenW, screenH int) []projectedParticleMarker {
+	if len(entities) == 0 || screenW <= 0 || screenH <= 0 {
+		return nil
+	}
+	markers := make([]projectedParticleMarker, 0, len(entities)*8)
+	for _, entity := range entities {
+		geom := r.ensureBrushModelGeometry(entity.SubmodelIndex)
+		if geom == nil || len(geom.Vertices) == 0 {
+			continue
+		}
+		rotation := buildBrushRotationMatrix(entity.Angles)
+		for _, vertex := range geom.Vertices {
+			worldPos := transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
+			x, y, ok := projectWorldPointToScreen(worldPos, vp, screenW, screenH)
+			if !ok {
+				continue
+			}
+			markers = append(markers, projectedParticleMarker{
+				x:     x,
+				y:     y,
+				color: gogpuBrushMarkerColor,
+				size:  gogpuBrushMarkerSize,
+			})
+		}
+	}
+	return markers
+}
+
+func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity) {
+	if dc == nil || dc.renderer == nil || len(entities) == 0 {
+		return
+	}
+	screenW, screenH := dc.renderer.Size()
+	markers := dc.renderer.projectBrushMarkers(entities, dc.renderer.viewMatrices.VP, screenW, screenH)
+	for _, marker := range markers {
+		size := marker.size
+		if size < 1 {
+			size = 1
+		}
+		dc.DrawFill(marker.x-size/2, marker.y-size/2, size, size, marker.color)
+	}
 }
 
 // renderParticles draws the particle system.
@@ -1279,7 +1373,11 @@ func (dc *DrawContext) renderParticles(state *RenderFrameState) {
 	// This is a simplified implementation - a proper implementation would use
 	// instanced rendering or a point sprite shader
 	for _, marker := range markers {
-		dc.DrawFill(marker.x-2, marker.y-2, 4, 4, marker.color)
+		size := marker.size
+		if size < 1 {
+			size = 1
+		}
+		dc.DrawFill(marker.x-size/2, marker.y-size/2, size, size, marker.color)
 	}
 }
 

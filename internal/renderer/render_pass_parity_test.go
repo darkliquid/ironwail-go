@@ -254,6 +254,11 @@ func TestShouldRunLateTranslucencyBlock(t *testing.T) {
 }
 
 func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
+	brushEntities := []BrushEntity{
+		{SubmodelIndex: 1, Alpha: 0},
+		{SubmodelIndex: 2, Alpha: 0.5},
+		{SubmodelIndex: 3, Alpha: 1},
+	}
 	aliasEntities := []AliasModelEntity{
 		{ModelID: "hidden", Alpha: 0},
 		{ModelID: "ghost", Alpha: 0.5},
@@ -262,7 +267,10 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	spriteEntities := []SpriteEntity{{ModelID: "flame"}}
 	decalMarks := []DecalMarkEntity{{Size: 16}}
 
-	plan := planGoGPUEntityDrawOrder(aliasEntities, spriteEntities, decalMarks)
+	plan := planGoGPUEntityDrawOrder(brushEntities, aliasEntities, spriteEntities, decalMarks)
+	if len(plan.opaqueBrush) != 1 || plan.opaqueBrush[0].SubmodelIndex != 3 {
+		t.Fatalf("opaqueBrush = %#v, want only submodel 3", plan.opaqueBrush)
+	}
 	if len(plan.opaqueAlias) != 1 || plan.opaqueAlias[0].ModelID != "ogre" {
 		t.Fatalf("opaqueAlias = %#v, want only ogre", plan.opaqueAlias)
 	}
@@ -270,6 +278,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 		t.Fatalf("translucentAlias = %#v, want only ghost", plan.translucentAlias)
 	}
 	want := []gogpuEntityPhase{
+		gogpuEntityPhaseOpaqueBrush,
 		gogpuEntityPhaseOpaqueAlias,
 		gogpuEntityPhaseDecals,
 		gogpuEntityPhaseTranslucentAlias,

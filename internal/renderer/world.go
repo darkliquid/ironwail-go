@@ -113,6 +113,11 @@ type WorldRenderData struct {
 // For MVP implementation, this processes ALL faces without culling.
 // Future optimization: PVS culling, frustum culling, face sorting.
 func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
+	return BuildModelGeometry(tree, 0)
+}
+
+// BuildModelGeometry extracts renderable geometry for a specific BSP model index.
+func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) {
 	if tree == nil {
 		return nil, fmt.Errorf("nil BSP tree")
 	}
@@ -120,8 +125,11 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 	if len(tree.Models) == 0 {
 		return nil, fmt.Errorf("BSP has no models")
 	}
+	if modelIndex < 0 || modelIndex >= len(tree.Models) {
+		return nil, fmt.Errorf("model index %d out of range", modelIndex)
+	}
 
-	worldModel := tree.Models[0]
+	worldModel := tree.Models[modelIndex]
 
 	geom := &WorldGeometry{
 		Vertices: make([]WorldVertex, 0, 4096),
@@ -131,7 +139,7 @@ func BuildWorldGeometry(tree *bsp.Tree) (*WorldGeometry, error) {
 	}
 	textureMeta := parseWorldTextureMeta(tree)
 
-	// Process all faces in the world model
+	// Process all faces in the selected model.
 	numFaces := int(worldModel.NumFaces)
 	firstFace := int(worldModel.FirstFace)
 
@@ -836,6 +844,9 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if tree == nil {
 		return fmt.Errorf("nil BSP tree")
 	}
+	r.mu.Lock()
+	r.brushModelGeometry = make(map[int]*WorldGeometry)
+	r.mu.Unlock()
 
 	slog.Info("Uploading world geometry to GPU")
 
@@ -1316,6 +1327,7 @@ func (r *Renderer) ClearWorld() {
 		r.whiteTextureView = nil
 		r.worldDepthTexture = nil
 		r.worldDepthTextureView = nil
+		r.brushModelGeometry = make(map[int]*WorldGeometry)
 
 		slog.Debug("World geometry cleared")
 	}

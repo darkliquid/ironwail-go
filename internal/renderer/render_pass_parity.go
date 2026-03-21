@@ -142,13 +142,15 @@ func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 type gogpuEntityPhase int
 
 const (
-	gogpuEntityPhaseOpaqueAlias gogpuEntityPhase = iota
+	gogpuEntityPhaseOpaqueBrush gogpuEntityPhase = iota
+	gogpuEntityPhaseOpaqueAlias
 	gogpuEntityPhaseDecals
 	gogpuEntityPhaseTranslucentAlias
 	gogpuEntityPhaseSprites
 )
 
 type gogpuEntityDrawPlan struct {
+	opaqueBrush      []BrushEntity
 	opaqueAlias      []AliasModelEntity
 	translucentAlias []AliasModelEntity
 	phases           []gogpuEntityPhase
@@ -157,9 +159,13 @@ type gogpuEntityDrawPlan struct {
 // planGoGPUEntityDrawOrder keeps the GoGPU entity pass sequencing aligned with the
 // current OpenGL ordering without pulling world-pass or translucency-block mechanics
 // into the secondary backend.
-func planGoGPUEntityDrawOrder(aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity) gogpuEntityDrawPlan {
+func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity) gogpuEntityDrawPlan {
+	opaqueBrush, _ := splitBrushEntitiesByAlpha(brushEntities)
 	opaqueAlias, translucentAlias := splitAliasEntitiesByAlpha(aliasEntities)
-	phases := make([]gogpuEntityPhase, 0, 4)
+	phases := make([]gogpuEntityPhase, 0, 5)
+	if len(opaqueBrush) > 0 {
+		phases = append(phases, gogpuEntityPhaseOpaqueBrush)
+	}
 	if len(opaqueAlias) > 0 {
 		phases = append(phases, gogpuEntityPhaseOpaqueAlias)
 	}
@@ -173,6 +179,7 @@ func planGoGPUEntityDrawOrder(aliasEntities []AliasModelEntity, spriteEntities [
 		phases = append(phases, gogpuEntityPhaseSprites)
 	}
 	return gogpuEntityDrawPlan{
+		opaqueBrush:      opaqueBrush,
 		opaqueAlias:      opaqueAlias,
 		translucentAlias: translucentAlias,
 		phases:           phases,
