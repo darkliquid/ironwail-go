@@ -3,6 +3,10 @@ package main
 import (
 	"image"
 	"image/color"
+	"image/png"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -73,4 +77,104 @@ func TestCompareImagesHonorsTolerance(t *testing.T) {
 	if metrics.MismatchPixels != 0 {
 		t.Fatalf("MismatchPixels = %d, want 0 with tolerance", metrics.MismatchPixels)
 	}
+}
+
+func TestMoveFirstMatchFindsScreenshotInDirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "start_spawn.png")
+	dst := filepath.Join(dir, "normalized", "start_spawn.png")
+
+	img := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	img.SetNRGBA(0, 0, color.NRGBA{R: 1, G: 2, B: 3, A: 255})
+	f, err := os.Create(src)
+	if err != nil {
+		t.Fatalf("create source image: %v", err)
+	}
+	if err := png.Encode(f, img); err != nil {
+		f.Close()
+		t.Fatalf("encode source image: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close source image: %v", err)
+	}
+
+	if err := moveFirstMatch(dir, "start_spawn", dst); err != nil {
+		t.Fatalf("moveFirstMatch returned error: %v", err)
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Fatalf("destination image missing: %v", err)
+	}
+	if _, err := os.Stat(src); !os.IsNotExist(err) {
+		t.Fatalf("source image still exists or unexpected error: %v", err)
+	}
+}
+
+func TestMoveFirstMatchFailsWhenScreenshotMissing(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	err := moveFirstMatch(dir, "missing_view", filepath.Join(dir, "out.png"))
+	if err == nil {
+		t.Fatal("moveFirstMatch returned nil error, want failure")
+	}
+}
+
+func TestGenReferenceCfgClosesConsoleBeforeScreenshot(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cfgPath := genReferenceCfg(dir, viewpoint{
+		ID:     "start_spawn",
+		Map:    "start",
+		Pos:    [3]float64{480, 64, 88},
+		Angles: [3]float64{0, 90, 0},
+	})
+	t.Cleanup(func() { _ = os.Remove(cfgPath) })
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read cfg: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "scr_conspeed 999999") {
+		t.Fatalf("cfg missing fast console close setting:\n%s", text)
+	}
+	if !strings.Contains(text, "\ntoggleconsole\n") {
+		t.Fatalf("cfg missing toggleconsole command:\n%s", text)
+	}
+	if !strings.Contains(text, "\nhost_framerate 0.0001\n") {
+		t.Fatalf("cfg missing freeze-time command:\n%s", text)
+	}
+	if !strings.Contains(text, "cl_screenshotname screenshots/start_spawn") {
+		t.Fatalf("cfg missing deterministic screenshot name:\n%s", text)
+	}
+
+	toggleIdx := strings.Index(text, "\ntoggleconsole\n")
+	setposIdx := strings.Index(text, "\nsetpos ")
+	freezeIdx := strings.Index(text, "\nhost_framerate 0.0001\n")
+	shotIdx := strings.Index(text, "\nscreenshot png\n")
+	if toggleIdx == -1 || setposIdx == -1 || freezeIdx == -1 || shotIdx == -1 {
+		t.Fatalf("cfg missing expected command ordering markers:\n%s", text)
+	}
+	if !(toggleIdx < freezeIdx && freezeIdx < setposIdx && setposIdx < shotIdx) {
+		t.Fatalf("expected toggleconsole -> host_framerate -> setpos -> screenshot ordering:\n%s", text)
+	}
+	if waits := countWaitLines(text[:toggleIdx]); waits < 40 {
+		t.Fatalf("expected substantial startup waits before toggleconsole, found %d:\n%s", waits, text)
+	}
+	if waits := countWaitLines(text[toggleIdx:freezeIdx]); waits < 10 {
+		t.Fatalf("expected console-close waits before freeze/setpos, found %d:\n%s", waits, text)
+	}
+}
+
+func countWaitLines(text string) int {
+	count := 0
+	for _, line := range strings.Split(text, "\n") {
+		if strings.TrimSpace(line) == "wait" {
+			count++
+		}
+	}
+	return count
 }

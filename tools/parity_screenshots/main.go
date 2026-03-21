@@ -90,6 +90,8 @@ func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []vie
 		die("C Ironwail binary not found: %s", ironwailBin)
 	}
 	mustMkdir(refDir)
+	screenshotDir := filepath.Join(quakeBaseDir, "id1", "screenshots")
+	mustMkdir(screenshotDir)
 
 	fmt.Println("=== Capturing reference screenshots from C Ironwail ===")
 	fmt.Println("Binary:", ironwailBin)
@@ -98,6 +100,7 @@ func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []vie
 
 	for _, vp := range viewpoints {
 		fmt.Printf("  [REF] %s: %s\n", vp.ID, vp.Description)
+		clearScreenshotMatches(screenshotDir, vp.ID)
 		cfgFile := genReferenceCfg(filepath.Join(quakeBaseDir, "id1"), vp)
 		args := []string{
 			"-basedir", quakeBaseDir,
@@ -109,7 +112,9 @@ func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []vie
 			fmt.Printf("    WARNING: C Ironwail exited with error for %s\n", vp.ID)
 		}
 		_ = os.Remove(cfgFile)
-		moveFirstMatch(filepath.Join(quakeBaseDir, "id1"), vp.ID, filepath.Join(refDir, vp.ID+".png"))
+		if err := moveFirstMatch(screenshotDir, vp.ID, filepath.Join(refDir, vp.ID+".png")); err != nil {
+			die("capture reference %s: %v", vp.ID, err)
+		}
 	}
 
 	fmt.Println()
@@ -242,30 +247,33 @@ func genReferenceCfg(dir string, vp viewpoint) string {
 		die("create temp cfg: %v", err)
 	}
 	defer f.Close()
+	preToggleWaits := waitLines(45)
+	postToggleWaits := waitLines(12)
+	preShotWaits := waitLines(4)
 	content := fmt.Sprintf(`// Auto-generated parity screenshot config
 scr_viewsize 100
 r_drawviewmodel 1
 fov 90
 gamma 1
-wait
-wait
-wait
-wait
-wait
+scr_conspeed 999999
+cl_screenshotname screenshots/%s
+%s
+toggleconsole
+%s
+host_framerate 0.0001
 setpos %s %s %s %s %s %s
-wait
-wait
-screenshot %s
+%s
+screenshot png
 wait
 quit
-`, fmtFloat(vp.Pos[0]), fmtFloat(vp.Pos[1]), fmtFloat(vp.Pos[2]), fmtFloat(vp.Angles[0]), fmtFloat(vp.Angles[1]), fmtFloat(vp.Angles[2]), vp.ID)
+`, vp.ID, preToggleWaits, postToggleWaits, fmtFloat(vp.Pos[0]), fmtFloat(vp.Pos[1]), fmtFloat(vp.Pos[2]), fmtFloat(vp.Angles[0]), fmtFloat(vp.Angles[1]), fmtFloat(vp.Angles[2]), preShotWaits)
 	if _, err := io.WriteString(f, content); err != nil {
 		die("write cfg: %v", err)
 	}
 	return f.Name()
 }
 
-func moveFirstMatch(dir, id, dst string) {
+func moveFirstMatch(dir, id, dst string) error {
 	patterns := []string{
 		filepath.Join(dir, id+"*.png"),
 		filepath.Join(dir, id+"*.tga"),
@@ -274,12 +282,37 @@ func moveFirstMatch(dir, id, dst string) {
 		matches, _ := filepath.Glob(pattern)
 		for _, match := range matches {
 			if err := normalizeCaptureToPNG(match, dst); err != nil {
-				die("normalize %s -> %s: %v", match, dst, err)
+				return fmt.Errorf("normalize %s -> %s: %w", match, dst, err)
 			}
 			_ = os.Remove(match)
-			return
+			return nil
 		}
 	}
+	return fmt.Errorf("no screenshot matching %q found in %s", id, dir)
+}
+
+func clearScreenshotMatches(dir, id string) {
+	patterns := []string{
+		filepath.Join(dir, id+"*.png"),
+		filepath.Join(dir, id+"*.tga"),
+	}
+	for _, pattern := range patterns {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			_ = os.Remove(match)
+		}
+	}
+}
+
+func waitLines(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i := 0; i < count; i++ {
+		b.WriteString("wait\n")
+	}
+	return b.String()
 }
 
 func runWithTimeout(timeout time.Duration, name string, args ...string) int {
