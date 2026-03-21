@@ -469,6 +469,10 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 		subs.Console.Print(fmt.Sprintf("load failed: %v\n", err))
 		return
 	}
+	if save.Version != server.SaveGameVersion {
+		subs.Console.Print(fmt.Sprintf("load failed: savegame version %d does not match %d\n", save.Version, server.SaveGameVersion))
+		return
+	}
 	if save.Server == nil {
 		subs.Console.Print("load failed: savegame is missing server state\n")
 		return
@@ -530,12 +534,26 @@ func (h *Host) CmdLoad(name string, subs *Subsystems) {
 
 }
 
+func (h *Host) CmdLoadArgs(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	if len(args) == 0 {
+		subs.Console.Print("load <savename> : load a game\n")
+		return
+	}
+	h.CmdLoad(args[0], subs)
+}
+
 func (h *Host) CmdSave(name string, subs *Subsystems) {
 	h.cmdSave(name, subs, false)
 }
 
 func (h *Host) CmdSaveArgs(args []string, subs *Subsystems) {
 	if len(args) == 0 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("save <savename> : save a game\n")
+		}
 		return
 	}
 	skipNotify := len(args) >= 2 && isFalseySaveNotifyArg(args[1])

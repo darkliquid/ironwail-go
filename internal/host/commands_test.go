@@ -765,6 +765,50 @@ func TestCmdLoadRejectsInvalidName(t *testing.T) {
 	}
 }
 
+func TestCmdSaveArgsPrintsUsageWithoutName(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdSaveArgs(nil, &subs.Subsystems)
+
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "save <savename> : save a game") {
+		t.Fatalf("console output = %q, want save usage", got)
+	}
+}
+
+func TestCmdLoadArgsPrintsUsageWithoutName(t *testing.T) {
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoadArgs(nil, &subs.Subsystems)
+
+	if got := strings.Join(subs.console.messages, ""); !strings.Contains(got, "load <savename> : load a game") {
+		t.Fatalf("console output = %q, want load usage", got)
+	}
+}
+
 func TestSaveFilePathAllowsCanonicalAutosaveSubdir(t *testing.T) {
 	h := NewHost()
 	userDir := t.TempDir()
@@ -1988,6 +2032,64 @@ func TestCmdLoadDisablesNoMonstersAutomatically(t *testing.T) {
 	}
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Warning: \"nomonsters\" disabled automatically.") {
 		t.Fatalf("console output = %q, want nomonsters warning", got)
+	}
+}
+
+func TestCmdLoadRejectsMismatchedSaveVersion(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+
+	saveData, err := json.Marshal(hostSaveFile{
+		Version: server.SaveGameVersion + 1,
+		Skill:   1,
+		Server: &server.SaveGameState{
+			Version: server.SaveGameVersion,
+			MapName: "start",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(userDir, "saves"), 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "saves", "slot1.sav"), saveData, 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("filesystem Init failed: %v", err)
+	}
+	defer fileSys.Close()
+
+	h := NewHost()
+	audio := &stopAllTrackingAudio{}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Files:   fileSys,
+		Server:  server.NewServer(),
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+		Audio:   audio,
+	}
+	if err := h.Init(&InitParams{BaseDir: baseDir, UserDir: userDir, MaxClients: 1}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdLoad("slot1", subs)
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "load failed: savegame version") {
+		t.Fatalf("console output = %q, want version mismatch", got)
+	}
+	if len(audio.calls) != 0 {
+		t.Fatalf("StopAllSounds calls = %d, want 0 for early version rejection", len(audio.calls))
+	}
+	if h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should stay inactive on early version rejection")
 	}
 }
 

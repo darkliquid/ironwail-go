@@ -150,9 +150,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	}, "Change particle rendering style (1=soft, 2=pixel)")
 	cmdsys.AddClientCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
 	cmdsys.AddCommand("load", func(args []string) {
-		if len(args) > 0 {
-			h.CmdLoad(args[0], subs)
-		}
+		h.CmdLoadArgs(args, subs)
 	}, "Load a saved game")
 	cmdsys.AddCommand("save", func(args []string) {
 		h.CmdSaveArgs(args, subs)
