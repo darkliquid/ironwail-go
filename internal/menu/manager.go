@@ -294,6 +294,10 @@ type Manager struct {
 	// mouseAccumY accumulates mouse Y movement (in menu-space pixels) to drive
 	// cursor selection. Mirrors C Ironwail M_Mousemove() scroll semantics.
 	mouseAccumY float32
+	// ignoreMouseFrame suppresses one absolute-position update after the menu is
+	// shown so the first ungrabbed mouse sample does not immediately jump the
+	// hovered selection.
+	ignoreMouseFrame bool
 
 	// Cached main menu sub-pics (computed once, reused).
 	mainMenuTop    *image.QPic // Top portion of mainmenu.lmp (rows 0-59)
@@ -407,6 +411,7 @@ func (m *Manager) ToggleMenu() {
 		// Open the menu
 		m.playMenuSound(menuSoundSelect)
 		m.active = true
+		m.ignoreMouseFrame = true
 		m.state = MenuMain
 		m.mainCursor = 0
 		m.refreshModsList()
@@ -420,6 +425,7 @@ func (m *Manager) ToggleMenu() {
 // ShowMenu shows the menu, defaulting to main menu.
 func (m *Manager) ShowMenu() {
 	m.active = true
+	m.ignoreMouseFrame = true
 	if m.state == MenuNone {
 		m.state = MenuMain
 		m.mainCursor = 0
@@ -435,6 +441,7 @@ func (m *Manager) ShowMenu() {
 // or hides the menu when cancelState is MenuNone, then runs onCancel.
 func (m *Manager) ShowConfirmationPrompt(lines []string, onConfirm, onCancel func(), cancelState MenuState) {
 	m.active = true
+	m.ignoreMouseFrame = true
 	m.state = MenuQuit
 	m.quitPrevState = cancelState
 	m.onConfirm = onConfirm
@@ -462,6 +469,7 @@ func (m *Manager) ShowQuitPrompt() {
 // HideMenu hides the menu and returns to the game.
 func (m *Manager) HideMenu() {
 	m.active = false
+	m.ignoreMouseFrame = false
 	m.state = MenuNone
 	m.clearConfirmationPrompt()
 	if m.inputSystem != nil {
@@ -508,6 +516,13 @@ func (m *Manager) ForcedUnderwater() bool {
 // GetState returns the current menu state.
 func (m *Manager) GetState() MenuState {
 	return m.state
+}
+
+func (m *Manager) MainCursor() int {
+	if m == nil {
+		return 0
+	}
+	return m.mainCursor
 }
 
 // M_Key handles keyboard input for the menu.
@@ -622,6 +637,157 @@ func (m *Manager) M_Mousemove(dx, dy int) {
 		m.mouseAccumY += menuItemPx
 		m.moveCursorUp()
 	}
+}
+
+// M_MousemoveAbsolute updates the active menu cursor from an absolute mouse
+// position already converted into 320x200 menu-space coordinates.
+func (m *Manager) M_MousemoveAbsolute(x, y int) {
+	if !m.active {
+		return
+	}
+	if m.ignoreMouseFrame {
+		m.ignoreMouseFrame = false
+		return
+	}
+	cursor, ok := m.menuCursorForPoint(x, y)
+	if !ok {
+		return
+	}
+	m.setMenuCursor(cursor)
+}
+
+func (m *Manager) setMenuCursor(cursor int) {
+	changed := false
+	switch m.state {
+	case MenuMain:
+		changed = m.mainCursor != cursor
+		m.mainCursor = cursor
+	case MenuSinglePlayer:
+		changed = m.singlePlayerCursor != cursor
+		m.singlePlayerCursor = cursor
+	case MenuLoad:
+		changed = m.loadCursor != cursor
+		m.loadCursor = cursor
+	case MenuSave:
+		changed = m.saveCursor != cursor
+		m.saveCursor = cursor
+	case MenuMultiPlayer:
+		changed = m.multiPlayerCursor != cursor
+		m.multiPlayerCursor = cursor
+	case MenuOptions:
+		changed = m.optionsCursor != cursor
+		m.optionsCursor = cursor
+	case MenuControls:
+		changed = m.controlsCursor != cursor
+		m.controlsCursor = cursor
+	case MenuVideo:
+		changed = m.videoCursor != cursor
+		m.videoCursor = cursor
+	case MenuAudio:
+		changed = m.audioCursor != cursor
+		m.audioCursor = cursor
+	case MenuSetup:
+		changed = m.setupCursor != cursor
+		m.setupCursor = cursor
+	case MenuJoinGame:
+		changed = m.joinGameCursor != cursor
+		m.joinGameCursor = cursor
+	case MenuHostGame:
+		changed = m.hostGameCursor != cursor
+		m.hostGameCursor = cursor
+	case MenuMods:
+		changed = m.modsCursor != cursor
+		m.modsCursor = cursor
+	default:
+		return
+	}
+	if changed {
+		m.playMenuSound(menuSoundNavigate)
+	}
+}
+
+func (m *Manager) menuCursorForPoint(x, y int) (int, bool) {
+	_ = x
+	switch m.state {
+	case MenuMain:
+		visible := []int{mainSinglePlayer, mainMultiPlayer, mainOptions, mainHelp, mainQuit}
+		if len(m.modsList) > 0 {
+			visible = []int{mainSinglePlayer, mainMultiPlayer, mainOptions, mainMods, mainHelp, mainQuit}
+		}
+		slot, ok := hitTestStride(y, 32, 20, len(visible))
+		if !ok {
+			return 0, false
+		}
+		return visible[slot], true
+	case MenuSinglePlayer:
+		return hitTestStride(y, 32, 20, singlePlayerItems)
+	case MenuLoad:
+		return hitTestStride(y, 32, 8, maxSaveGames)
+	case MenuSave:
+		return hitTestStride(y, 32, 8, maxSaveGames)
+	case MenuMultiPlayer:
+		return hitTestStride(y, 32, 20, multiPlayerItems)
+	case MenuOptions:
+		return hitTestTable(y, []int{32, 52, 72, 92, 112}, 8)
+	case MenuControls:
+		rows := make([]int, controlsItems)
+		for i := 0; i < controlsItems; i++ {
+			rows[i] = controlRowY(i)
+		}
+		return hitTestTable(y, rows, 8)
+	case MenuVideo:
+		return hitTestTable(y, []int{32, 48, 64, 80, 96, 112, 128, 144, 168}, 8)
+	case MenuAudio:
+		return hitTestTable(y, []int{56, 88}, 8)
+	case MenuSetup:
+		return hitTestTable(y, []int{40, 56, 80, 104, 140}, 8)
+	case MenuJoinGame:
+		if cursor, ok := hitTestTable(y, []int{48, 72, 96, 120}, 8); ok {
+			return cursor, true
+		}
+		serverRows := min(len(m.serverResults), joinGameVisibleResults)
+		if slot, ok := hitTestStride(y, 152, 8, serverRows); ok {
+			return joinGameBaseItems + slot, true
+		}
+		return 0, false
+	case MenuHostGame:
+		return hitTestTable(y, []int{32, 48, 64, 80, 96, 112, 128, 152, 176}, 8)
+	case MenuMods:
+		if len(m.modsList) == 0 {
+			if y >= 136 && y < 144 {
+				return 0, true
+			}
+			return 0, false
+		}
+		rows := make([]int, 0, len(m.modsList)+1)
+		for i := range m.modsList {
+			rows = append(rows, 32+i*8)
+		}
+		rows = append(rows, 32+len(m.modsList)*8+8)
+		return hitTestTable(y, rows, 8)
+	default:
+		return 0, false
+	}
+}
+
+func hitTestStride(y, startY, itemHeight, numItems int) (int, bool) {
+	if numItems <= 0 || y < startY {
+		return 0, false
+	}
+	slot := (y - startY) / itemHeight
+	if slot < 0 || slot >= numItems {
+		return 0, false
+	}
+	return slot, true
+}
+
+func hitTestTable(y int, rows []int, height int) (int, bool) {
+	for i, rowY := range rows {
+		if y >= rowY && y < rowY+height {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // moveCursorDown moves the active menu cursor down one step.

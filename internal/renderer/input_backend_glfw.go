@@ -210,6 +210,12 @@ func (b *glfwInputBackend) cursorPosCallback(_ *glfw.Window, x, y float64) {
 	b.hasLastPos = true
 }
 
+func (b *glfwInputBackend) GetMousePosition() (x, y int32, valid bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return int32(b.lastX), int32(b.lastY), b.hasLastPos
+}
+
 // mapGLFWKey maps a GLFW key to a Quake engine key code. Returns -1 if unmapped.
 func mapGLFWKey(k glfw.Key) int {
 	switch k {

@@ -29,10 +29,13 @@ type textModeBackend struct {
 	lastMode TextMode
 }
 
-func (b *textModeBackend) Init() error                             { return nil }
-func (b *textModeBackend) Shutdown()                               {}
-func (b *textModeBackend) PollEvents() bool                        { return true }
-func (b *textModeBackend) GetMouseDelta() (dx, dy int32)           { return 0, 0 }
+func (b *textModeBackend) Init() error                   { return nil }
+func (b *textModeBackend) Shutdown()                     {}
+func (b *textModeBackend) PollEvents() bool              { return true }
+func (b *textModeBackend) GetMouseDelta() (dx, dy int32) { return 0, 0 }
+func (b *textModeBackend) GetMousePosition() (x, y int32, valid bool) {
+	return 0, 0, false
+}
 func (b *textModeBackend) GetModifierState() ModifierState         { return ModifierState{} }
 func (b *textModeBackend) SetTextMode(mode TextMode)               { b.lastMode = mode }
 func (b *textModeBackend) SetCursorMode(mode CursorMode)           {}

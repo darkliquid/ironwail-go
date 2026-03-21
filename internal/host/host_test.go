@@ -186,6 +186,9 @@ func (b *shutdownTrackingInputBackend) Init() error                   { return n
 func (b *shutdownTrackingInputBackend) Shutdown()                     { b.recorder.record("input") }
 func (b *shutdownTrackingInputBackend) PollEvents() bool              { return true }
 func (b *shutdownTrackingInputBackend) GetMouseDelta() (int32, int32) { return 0, 0 }
+func (b *shutdownTrackingInputBackend) GetMousePosition() (int32, int32, bool) {
+	return 0, 0, false
+}
 func (b *shutdownTrackingInputBackend) GetModifierState() input.ModifierState {
 	return input.ModifierState{}
 }

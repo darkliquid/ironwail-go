@@ -390,14 +390,20 @@ func registerConsoleCanvasTestCvars() {
 }
 
 type mouseDeltaBackend struct {
-	dx int32
-	dy int32
+	dx         int32
+	dy         int32
+	x          int32
+	y          int32
+	mouseValid bool
 }
 
-func (b *mouseDeltaBackend) Init() error                            { return nil }
-func (b *mouseDeltaBackend) Shutdown()                              {}
-func (b *mouseDeltaBackend) PollEvents() bool                       { return true }
-func (b *mouseDeltaBackend) GetMouseDelta() (dx, dy int32)          { return b.dx, b.dy }
+func (b *mouseDeltaBackend) Init() error                   { return nil }
+func (b *mouseDeltaBackend) Shutdown()                     {}
+func (b *mouseDeltaBackend) PollEvents() bool              { return true }
+func (b *mouseDeltaBackend) GetMouseDelta() (dx, dy int32) { return b.dx, b.dy }
+func (b *mouseDeltaBackend) GetMousePosition() (x, y int32, valid bool) {
+	return b.x, b.y, b.mouseValid
+}
 func (b *mouseDeltaBackend) GetModifierState() input.ModifierState  { return input.ModifierState{} }
 func (b *mouseDeltaBackend) SetTextMode(input.TextMode)             {}
 func (b *mouseDeltaBackend) SetCursorMode(input.CursorMode)         {}
@@ -4694,6 +4700,51 @@ func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
 	}
 	if got := g.Client.MouseSideMove; math.Abs(float64(got-16)) > 0.0001 {
 		t.Fatalf("side move with lookstrafe active = %.2f, want 16.00", got)
+	}
+}
+
+func TestApplyMenuMouseMoveUsesAbsolutePosition(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+	})
+
+	backend := &mouseDeltaBackend{x: 160, y: 72, mouseValid: true}
+	g.Input = input.NewSystem(backend)
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+
+	applyMenuMouseMove()
+	if got := g.Menu.MainCursor(); got != 0 {
+		t.Fatalf("first absolute menu sample should be ignored, got %d", got)
+	}
+
+	applyMenuMouseMove()
+	if got := g.Menu.MainCursor(); got != 2 {
+		t.Fatalf("main cursor after absolute menu move = %d, want 2", got)
+	}
+}
+
+func TestApplyMenuMouseMoveFallsBackToDeltasWhenAbsoluteInvalid(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+	})
+
+	backend := &mouseDeltaBackend{dy: 8}
+	g.Input = input.NewSystem(backend)
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu.ShowMenu()
+
+	applyMenuMouseMove()
+	if got := g.Menu.MainCursor(); got != 1 {
+		t.Fatalf("main cursor after delta fallback = %d, want 1", got)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -290,9 +291,41 @@ func applyMenuMouseMove() {
 		return
 	}
 	state := g.Input.GetState()
+	if state.MouseValid {
+		if mx, my, ok := screenToMenuCoords(int(state.MouseX), int(state.MouseY)); ok {
+			g.Menu.M_MousemoveAbsolute(mx, my)
+			return
+		}
+	}
 	if state.MouseDX != 0 || state.MouseDY != 0 {
 		g.Menu.M_Mousemove(int(state.MouseDX), int(state.MouseDY))
 	}
+}
+
+func screenToMenuCoords(screenX, screenY int) (menuX, menuY int, ok bool) {
+	screenW, screenH := 320, 200
+	if g.Renderer != nil {
+		if w, h := g.Renderer.Size(); w > 0 && h > 0 {
+			screenW, screenH = w, h
+		}
+	}
+	sx := float32(screenW) / 320.0
+	sy := float32(screenH) / 200.0
+	scale := sx
+	if sy < scale {
+		scale = sy
+	}
+	if scale <= 0 {
+		return 0, 0, false
+	}
+	xOff := (float32(screenW) - 320.0*scale) * 0.5
+	yOff := (float32(screenH) - 200.0*scale) * 0.5
+	menuXF := (float32(screenX) - xOff) / scale
+	menuYF := (float32(screenY) - yOff) / scale
+	if menuXF < 0 || menuXF >= 320 || menuYF < 0 || menuYF >= 200 {
+		return 0, 0, false
+	}
+	return int(math.Floor(float64(menuXF))), int(math.Floor(float64(menuYF))), true
 }
 
 func applyGameplayMouseLook() {

@@ -22,6 +22,10 @@ func (m *mockInputBackend) GetMouseDelta() (dx, dy int32) {
 	return 0, 0
 }
 
+func (m *mockInputBackend) GetMousePosition() (x, y int32, valid bool) {
+	return 0, 0, false
+}
+
 func (m *mockInputBackend) GetModifierState() input.ModifierState {
 	return input.ModifierState{}
 }

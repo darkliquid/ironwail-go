@@ -270,6 +270,12 @@ func (b *gogpuInputBackend) GetMouseDelta() (dx, dy int32) {
 	return dx, dy
 }
 
+func (b *gogpuInputBackend) GetMousePosition() (x, y int32, valid bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return int32(b.lastMouseX), int32(b.lastMouseY), b.hasMousePos
+}
+
 // GetModifierState reports keyboard modifier keys for UI shortcuts and contextual input behavior.
 func (b *gogpuInputBackend) GetModifierState() iinput.ModifierState {
 	b.mu.Lock()

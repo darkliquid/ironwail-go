@@ -183,6 +183,9 @@ type sdl3Backend struct {
 	controllers []*sdl.Gamepad
 	window      *sdl.Window
 	mx, my      int32
+	mouseX      int32
+	mouseY      int32
+	hasMousePos bool
 	modifiers   ModifierState
 
 	altModifierPressed bool
@@ -332,6 +335,9 @@ func (b *sdl3Backend) PollEvents() bool {
 			me := event.MouseMotionEvent()
 			b.mx += int32(me.Xrel)
 			b.my += int32(me.Yrel)
+			b.mouseX = int32(me.X)
+			b.mouseY = int32(me.Y)
+			b.hasMousePos = true
 		case sdl.EVENT_MOUSE_BUTTON_DOWN, sdl.EVENT_MOUSE_BUTTON_UP:
 			mbe := event.MouseButtonEvent()
 			down := mbe.Down
@@ -457,6 +463,10 @@ func (b *sdl3Backend) GetMouseDelta() (int32, int32) {
 	dx, dy := b.mx, b.my
 	b.mx, b.my = 0, 0
 	return dx, dy
+}
+
+func (b *sdl3Backend) GetMousePosition() (x, y int32, valid bool) {
+	return b.mouseX, b.mouseY, b.hasMousePos
 }
 
 // GetModifierState returns the cached modifier key state that was last updated

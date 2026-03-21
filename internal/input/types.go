@@ -384,6 +384,8 @@ type GamepadState struct {
 type InputState struct {
 	// Mouse movement accumulated since last frame
 	MouseDX, MouseDY int32
+	MouseX, MouseY   int32
+	MouseValid       bool
 
 	// Key states (true = down)
 	Keys [NumKeycodes]bool
@@ -440,6 +442,9 @@ type Backend interface {
 
 	// Get accumulated mouse movement and reset counters
 	GetMouseDelta() (dx, dy int32)
+
+	// Get the last known absolute mouse position in window coordinates.
+	GetMousePosition() (x, y int32, valid bool)
 
 	// Get current modifier key state
 	GetModifierState() ModifierState
@@ -569,8 +574,10 @@ func (s *System) GetState() *InputState {
 	// Get mouse delta
 	if s.backend != nil {
 		s.state.MouseDX, s.state.MouseDY = s.backend.GetMouseDelta()
+		s.state.MouseX, s.state.MouseY, s.state.MouseValid = s.backend.GetMousePosition()
 	} else {
 		s.state.MouseDX, s.state.MouseDY = 0, 0
+		s.state.MouseX, s.state.MouseY, s.state.MouseValid = 0, 0, false
 	}
 	return &s.state
 }

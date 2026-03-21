@@ -1632,6 +1632,94 @@ func TestKeyPressResetMouseAccum(t *testing.T) {
 	}
 }
 
+func TestMousemoveAbsoluteIgnoresFirstFrameAfterShow(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.ShowMenu()
+
+	mgr.M_MousemoveAbsolute(0, 72)
+	if mgr.mainCursor != mainSinglePlayer {
+		t.Fatalf("first absolute sample should be ignored, got %d", mgr.mainCursor)
+	}
+
+	mgr.M_MousemoveAbsolute(0, 72)
+	if mgr.mainCursor != mainOptions {
+		t.Fatalf("second absolute sample = %d, want %d", mgr.mainCursor, mainOptions)
+	}
+}
+
+func TestMousemoveAbsoluteSelectsSinglePlayerRows(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.active = true
+	mgr.state = MenuSinglePlayer
+
+	mgr.M_MousemoveAbsolute(0, 72)
+	if mgr.singlePlayerCursor != 2 {
+		t.Fatalf("single-player cursor = %d, want %d", mgr.singlePlayerCursor, 2)
+	}
+}
+
+func TestMousemoveAbsoluteSelectsSetupRows(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.active = true
+	mgr.state = MenuSetup
+
+	mgr.M_MousemoveAbsolute(0, 104)
+	if mgr.setupCursor != setupItemBottomColor {
+		t.Fatalf("setup cursor = %d, want %d", mgr.setupCursor, setupItemBottomColor)
+	}
+}
+
+func TestMousemoveAbsoluteSelectsControlsRows(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.active = true
+	mgr.state = MenuControls
+
+	target := controlItemTurnLeft
+	mgr.M_MousemoveAbsolute(0, controlRowY(target))
+	if mgr.controlsCursor != target {
+		t.Fatalf("controls cursor = %d, want %d", mgr.controlsCursor, target)
+	}
+}
+
+func TestMousemoveAbsoluteSelectsJoinGameServerRows(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.active = true
+	mgr.state = MenuJoinGame
+	mgr.serverResults = []inet.HostCacheEntry{
+		{Name: "one"},
+		{Name: "two"},
+		{Name: "three"},
+	}
+
+	mgr.M_MousemoveAbsolute(0, 160)
+	if mgr.joinGameCursor != joinGameBaseItems+1 {
+		t.Fatalf("join-game cursor = %d, want %d", mgr.joinGameCursor, joinGameBaseItems+1)
+	}
+}
+
+func TestMousemoveAbsoluteSelectsHostGameRows(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.active = true
+	mgr.state = MenuHostGame
+
+	mgr.M_MousemoveAbsolute(0, 176)
+	if mgr.hostGameCursor != hostGameItemBack {
+		t.Fatalf("host-game cursor = %d, want %d", mgr.hostGameCursor, hostGameItemBack)
+	}
+}
+
 // ---- HUD style tests ----
 
 // TestHUDStyleLabelClassic verifies that hudStyleLabel returns "CLASSIC" for 0.
