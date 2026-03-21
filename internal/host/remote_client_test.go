@@ -129,6 +129,44 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 	}
 }
 
+func TestRemoteClientSendCommandIncludesSpawnArgsInStageTwoReply(t *testing.T) {
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init failed: %v", err)
+	}
+	clientSocket := loop.Connect()
+	serverSocket := loop.CheckNewConnections()
+	if serverSocket == nil {
+		t.Fatal("server socket missing after loopback connect")
+	}
+
+	rc := newRemoteDatagramClient(clientSocket)
+	rc.spawnArgs = "coop 1"
+	if err := rc.Init(); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	rc.inner.Signon = 2
+
+	if err := rc.SendCommand(); err != nil {
+		t.Fatalf("SendCommand failed: %v", err)
+	}
+
+	var got []string
+	for {
+		msgType, payload := inet.GetMessage(serverSocket)
+		if msgType == 0 {
+			break
+		}
+		if msgType == 2 && len(payload) > 1 && payload[0] == byte(inet.CLCStringCmd) {
+			got = append(got, strings.TrimSuffix(string(payload[1:]), "\x00"))
+		}
+	}
+
+	if want := []string{"name \"player\"", "color 0 0", "spawn coop 1"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("stage-two signon commands = %v, want %v", got, want)
+	}
+}
+
 func TestRemoteDatagramClientResetConnectionStateClearsClient(t *testing.T) {
 	rc := newRemoteDatagramClient(nil)
 	rc.inner.State = cl.StateActive

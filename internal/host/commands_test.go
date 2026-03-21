@@ -89,7 +89,7 @@ func (c *reconnectHandshakeClient) LocalServerInfo() error {
 func (c *reconnectHandshakeClient) LocalSignonReply(command string) error {
 	c.signonReplies = append(c.signonReplies, command)
 
-	switch command {
+	switch strings.Fields(command)[0] {
 	case "prespawn":
 		if c.signon != 0 {
 			return fmt.Errorf("prespawn requires signon 0, got %d", c.signon)
@@ -2089,6 +2089,26 @@ func TestCmdMapStopsAllSoundsBeforeStartingSession(t *testing.T) {
 	}
 }
 
+func TestCmdMapWithSpawnArgsCarriesSpawnCommandIntoLocalHandshake(t *testing.T) {
+	h := NewHost()
+	srv := &reconnectTrackingServer{}
+	client := &reconnectHandshakeClient{}
+	subs := &Subsystems{
+		Files:   &fs.FileSystem{},
+		Server:  srv,
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	if err := h.CmdMapWithSpawnArgs("start", []string{"coop", "1"}, subs); err != nil {
+		t.Fatalf("CmdMapWithSpawnArgs(start) failed: %v", err)
+	}
+
+	if want := []string{"prespawn", "spawn coop 1", "begin"}; !reflect.DeepEqual(client.signonReplies, want) {
+		t.Fatalf("signon replies = %v, want %v", client.signonReplies, want)
+	}
+}
+
 func TestCmdMapShutsDownRemoteClientBeforeReplacingWithLocalClient(t *testing.T) {
 	h := NewHost()
 	srv := &sessionStartTrackingServer{}
@@ -2912,6 +2932,24 @@ func TestCmdPreSpawnForRemoteClientSendsSignonCommand(t *testing.T) {
 
 	if want := []string{"prespawn", "spawn", "begin"}; !reflect.DeepEqual(client.signonCommands, want) {
 		t.Fatalf("remote signon commands = %v, want %v", client.signonCommands, want)
+	}
+}
+
+func TestCmdSpawnForRemoteClientIncludesSpawnArgs(t *testing.T) {
+	h := NewHost()
+	h.SetClientState(caConnected)
+	h.spawnArgs = "coop 1"
+
+	client := &remoteSignonTestClient{state: caConnected}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdSpawn(subs)
+
+	if want := []string{"spawn coop 1"}; !reflect.DeepEqual(client.signonCommands, want) {
+		t.Fatalf("remote spawn commands = %v, want %v", client.signonCommands, want)
 	}
 }
 

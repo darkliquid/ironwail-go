@@ -6,6 +6,7 @@ package host
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -26,6 +27,7 @@ type remoteDatagramClient struct {
 	socket *inet.Socket
 
 	lastSignonReply int
+	spawnArgs       string
 }
 
 func newRemoteDatagramClient(socket *inet.Socket) *remoteDatagramClient {
@@ -122,7 +124,7 @@ func (c *remoteDatagramClient) SendCommand() error {
 	}
 	if c.inner.Signon >= 1 && c.inner.Signon < cl.Signons {
 		if c.inner.Signon != c.lastSignonReply {
-			commands, ok := signonReplyCommands(c.inner.Signon)
+			commands, ok := signonReplyCommands(c.inner.Signon, c.spawnArgs)
 			if !ok {
 				return fmt.Errorf("unsupported signon stage %d", c.inner.Signon)
 			}
@@ -146,7 +148,7 @@ func (c *remoteDatagramClient) SendCommand() error {
 	})
 }
 
-func signonReplyCommands(signon int) ([]string, bool) {
+func signonReplyCommands(signon int, spawnArgs string) ([]string, bool) {
 	switch signon {
 	case 1:
 		return []string{"prespawn"}, true
@@ -157,13 +159,21 @@ func signonReplyCommands(signon int) ([]string, bool) {
 		return []string{
 			"name " + strconv.Quote(cvar.StringValue(clientNameCVar)),
 			fmt.Sprintf("color %d %d", top, bottom),
-			"spawn",
+			spawnSignonCommand(spawnArgs),
 		}, true
 	case 3:
 		return []string{"begin"}, true
 	default:
 		return nil, false
 	}
+}
+
+func spawnSignonCommand(spawnArgs string) string {
+	spawnArgs = strings.TrimSpace(spawnArgs)
+	if spawnArgs == "" {
+		return "spawn"
+	}
+	return "spawn " + spawnArgs
 }
 
 func (c *remoteDatagramClient) SendSignonCommand(command string) error {

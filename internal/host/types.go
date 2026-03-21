@@ -65,6 +65,7 @@ type Host struct {
 	gameDir   string
 	userDir   string
 	lastSave  string
+	spawnArgs string
 
 	aborted     bool
 	abortReason string

@@ -56,7 +56,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	cmdsys.AddCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
 	cmdsys.AddCommand("map", func(args []string) {
 		if len(args) > 0 {
-			h.CmdMap(args[0], subs)
+			h.CmdMapWithSpawnArgs(args[0], args[1:], subs)
 		}
 	}, "Start a new map")
 	cmdsys.AddCommand("skill", func(args []string) {

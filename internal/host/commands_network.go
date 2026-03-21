@@ -419,7 +419,7 @@ func (h *Host) runHandshakeStep(step string, subs *Subsystems) error {
 	if !ok {
 		return fmt.Errorf("client does not support %s handshake", step)
 	}
-	if err := remoteClient.SendSignonCommand(step); err != nil {
+	if err := remoteClient.SendSignonCommand(h.signonCommand(step)); err != nil {
 		return fmt.Errorf("%s handshake failed: %w", step, err)
 	}
 	if state := ActiveClientState(subs); state != nil {
@@ -436,6 +436,9 @@ func (h *Host) startRemoteSession(address string, subs *Subsystems) error {
 	remoteClient, err := remoteClientFactory(address)
 	if err != nil {
 		return err
+	}
+	if remoteDatagram, ok := remoteClient.(*remoteDatagramClient); ok {
+		remoteDatagram.spawnArgs = h.spawnArgs
 	}
 	subs.Client = remoteClient
 	h.serverActive = false

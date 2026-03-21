@@ -951,7 +951,7 @@ func (c *Client) HandleSignonReply(command string) error {
 		return fmt.Errorf("%s requires connected state, got %s", command, c.State)
 	}
 
-	switch command {
+	switch signonReplyVerb(command) {
 	case "prespawn":
 		if c.Signon != 0 {
 			return fmt.Errorf("prespawn requires signon 0, got %d", c.Signon)
@@ -973,6 +973,14 @@ func (c *Client) HandleSignonReply(command string) error {
 	}
 
 	return nil
+}
+
+func signonReplyVerb(command string) string {
+	fields := strings.Fields(strings.TrimSpace(command))
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }
 
 func parseMapNameFromWorldModel(worldModel string) string {

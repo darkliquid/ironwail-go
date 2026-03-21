@@ -7,9 +7,15 @@ import (
 	"fmt"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"strings"
 )
 
 func (h *Host) CmdMap(mapName string, subs *Subsystems) error {
+	return h.CmdMapWithSpawnArgs(mapName, nil, subs)
+}
+
+func (h *Host) CmdMapWithSpawnArgs(mapName string, spawnArgs []string, subs *Subsystems) error {
+	h.spawnArgs = formatSpawnArgs(spawnArgs)
 	if subs == nil {
 		subs = h.Subs
 	}
@@ -87,12 +93,26 @@ func (h *Host) runLocalHandshakeStep(step string, subs *Subsystems) error {
 	if !ok {
 		return fmt.Errorf("client does not support %s handshake", step)
 	}
-	if err := handshake.LocalSignonReply(step); err != nil {
+	if err := handshake.LocalSignonReply(h.signonCommand(step)); err != nil {
 		return fmt.Errorf("%s handshake failed: %w", step, err)
 	}
 	h.signOns = handshake.LocalSignon()
 	h.clientState = handshake.State()
 	return nil
+}
+
+func (h *Host) signonCommand(step string) string {
+	if strings.EqualFold(strings.TrimSpace(step), "spawn") && h.spawnArgs != "" {
+		return "spawn " + h.spawnArgs
+	}
+	return step
+}
+
+func formatSpawnArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(strings.Join(args, " "))
 }
 
 func (h *Host) CmdMapname(subs *Subsystems) {

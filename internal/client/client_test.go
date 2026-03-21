@@ -2256,6 +2256,19 @@ func TestSendStringCmdEncodesOpcodeAndPayload(t *testing.T) {
 	}
 }
 
+func TestHandleSignonReplyAcceptsSpawnArgs(t *testing.T) {
+	c := NewClient()
+	c.setState(StateConnected)
+	c.Signon = 1
+
+	if err := c.HandleSignonReply("spawn coop 1"); err != nil {
+		t.Fatalf("HandleSignonReply with spawn args failed: %v", err)
+	}
+	if c.Signon != 2 {
+		t.Fatalf("signon = %d, want 2", c.Signon)
+	}
+}
+
 func TestSendMovePacking(t *testing.T) {
 	c := NewClient()
 	c.Protocol = inet.PROTOCOL_NETQUAKE
