@@ -231,3 +231,44 @@ func TestHostWriteConfigNamedAddsCfgExtension(t *testing.T) {
 		t.Fatalf("Stat(custom.cfg): %v", err)
 	}
 }
+
+func TestLoadArchivedCvarsPrefersCanonicalConfigAndOnlyAppliesWhitelist(t *testing.T) {
+	userDir := t.TempDir()
+	width := cvar.Register("test_startup_vid_width", "640", cvar.FlagArchive, "")
+	height := cvar.Register("test_startup_vid_height", "480", cvar.FlagArchive, "")
+	unrelated := cvar.Register("test_startup_unrelated", "keep", cvar.FlagArchive, "")
+
+	cvar.Set(width.Name, "640")
+	cvar.Set(height.Name, "480")
+	cvar.Set(unrelated.Name, "keep")
+
+	if err := os.WriteFile(filepath.Join(userDir, configFileName), []byte(strings.Join([]string{
+		`test_startup_vid_width "1280"`,
+		`test_startup_vid_height "720"`,
+		`bind w "+forward"`,
+		`test_startup_unrelated "changed"`,
+		`vid_restart`,
+	}, "\n")), 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", configFileName, err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, legacyConfigName), []byte(strings.Join([]string{
+		`test_startup_vid_width "320"`,
+		`test_startup_vid_height "200"`,
+	}, "\n")), 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", legacyConfigName, err)
+	}
+
+	if err := LoadArchivedCvars(userDir, []string{width.Name, height.Name}); err != nil {
+		t.Fatalf("LoadArchivedCvars failed: %v", err)
+	}
+
+	if got := cvar.StringValue(width.Name); got != "1280" {
+		t.Fatalf("%s = %q, want %q", width.Name, got, "1280")
+	}
+	if got := cvar.StringValue(height.Name); got != "720" {
+		t.Fatalf("%s = %q, want %q", height.Name, got, "720")
+	}
+	if got := cvar.StringValue(unrelated.Name); got != "keep" {
+		t.Fatalf("%s = %q, want unchanged %q", unrelated.Name, got, "keep")
+	}
+}

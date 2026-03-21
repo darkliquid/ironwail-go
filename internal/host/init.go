@@ -4,6 +4,7 @@
 package host
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -405,14 +406,11 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		h.baseDir = dir
 	}
 
-	if h.userDir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			h.userDir = h.baseDir
-		} else {
-			h.userDir = filepath.Join(homeDir, ".ironwail")
-		}
+	resolvedUserDir, err := ResolveUserDir(h.baseDir, h.userDir)
+	if err != nil {
+		return err
 	}
+	h.userDir = resolvedUserDir
 
 	if err := os.MkdirAll(h.userDir, 0755); err != nil {
 		return fmt.Errorf("failed to create user directory: %w", err)
@@ -494,6 +492,67 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	h.oldrealtime = h.realtime
 	h.frameCount = 0
 
+	return nil
+}
+
+func ResolveUserDir(baseDir, userDir string) (string, error) {
+	if userDir != "" {
+		return userDir, nil
+	}
+	if baseDir == "" {
+		dir, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get working directory: %w", err)
+		}
+		baseDir = dir
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return baseDir, nil
+	}
+	return filepath.Join(homeDir, ".ironwail"), nil
+}
+
+func LoadArchivedCvars(userDir string, names []string) error {
+	if userDir == "" || len(names) == 0 {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		allowed[name] = struct{}{}
+	}
+	for _, name := range []string{configFileName, legacyConfigName} {
+		configPath := filepath.Join(userDir, name)
+		f, err := os.Open(configPath)
+		if err == nil {
+			defer f.Close()
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" {
+					continue
+				}
+				fields := strings.Fields(line)
+				if len(fields) < 2 {
+					continue
+				}
+				cvarName := fields[0]
+				if _, ok := allowed[cvarName]; !ok {
+					continue
+				}
+				value := strings.TrimSpace(line[len(cvarName):])
+				unquoted, err := strconv.Unquote(value)
+				if err != nil {
+					continue
+				}
+				cvar.Set(cvarName, unquoted)
+			}
+			return scanner.Err()
+		}
+		if !os.IsNotExist(err) {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -319,6 +319,20 @@ func initSubsystems(headless, dedicated bool, basedir, gamedir string, args []st
 	g.Server.QCVM = g.QC
 
 	if !headless {
+		startupUserDir, err := host.ResolveUserDir(basedir, "")
+		if err != nil {
+			return err
+		}
+		if err := host.LoadArchivedCvars(startupUserDir, []string{
+			"vid_width",
+			"vid_height",
+			"vid_fullscreen",
+			"vid_vsync",
+			"host_maxfps",
+			"r_gamma",
+		}); err != nil {
+			return fmt.Errorf("failed to load startup video cvars: %w", err)
+		}
 		if err := initGameRenderer(); err != nil {
 			return err
 		}
