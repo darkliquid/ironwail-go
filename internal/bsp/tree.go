@@ -54,6 +54,7 @@ type Tree struct {
 	Visibility  []byte
 	TextureData []byte
 	Lighting    []byte
+	LightingRGB bool
 
 	Planes    []DPlane
 	Vertexes  []DVertex

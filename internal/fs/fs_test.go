@@ -269,6 +269,76 @@ func TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder(t *testing.T) {
 	}
 }
 
+func TestLoadMapBSPAndLitIgnoresLowerPriorityLit(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1", "maps")
+	modDir := filepath.Join(baseDir, "hipnotic", "maps")
+	if err := os.MkdirAll(id1Dir, 0o755); err != nil {
+		t.Fatalf("failed to create id1 maps dir: %v", err)
+	}
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatalf("failed to create mod maps dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(id1Dir, "start.lit"), []byte("base-lit"), 0o644); err != nil {
+		t.Fatalf("failed to write id1 lit: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "start.bsp"), []byte("mod-bsp"), 0o644); err != nil {
+		t.Fatalf("failed to write mod bsp: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("failed to init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	bspData, litData, err := fileSys.LoadMapBSPAndLit("maps/start.bsp")
+	if err != nil {
+		t.Fatalf("LoadMapBSPAndLit failed: %v", err)
+	}
+	if got := string(bspData); got != "mod-bsp" {
+		t.Fatalf("bsp data = %q, want %q", got, "mod-bsp")
+	}
+	if litData != nil {
+		t.Fatalf("expected lower-priority .lit to be ignored, got %q", litData)
+	}
+}
+
+func TestLoadMapBSPAndLitAcceptsHigherPriorityLit(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1", "maps")
+	modDir := filepath.Join(baseDir, "hipnotic", "maps")
+	if err := os.MkdirAll(id1Dir, 0o755); err != nil {
+		t.Fatalf("failed to create id1 maps dir: %v", err)
+	}
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatalf("failed to create mod maps dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(id1Dir, "start.bsp"), []byte("id1-bsp"), 0o644); err != nil {
+		t.Fatalf("failed to write id1 bsp: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "start.lit"), []byte("mod-lit"), 0o644); err != nil {
+		t.Fatalf("failed to write mod lit: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("failed to init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	bspData, litData, err := fileSys.LoadMapBSPAndLit("maps/start.bsp")
+	if err != nil {
+		t.Fatalf("LoadMapBSPAndLit failed: %v", err)
+	}
+	if got := string(bspData); got != "id1-bsp" {
+		t.Fatalf("bsp data = %q, want %q", got, "id1-bsp")
+	}
+	if got := string(litData); got != "mod-lit" {
+		t.Fatalf("lit data = %q, want %q", got, "mod-lit")
+	}
+}
+
 // TestEnginePakLoadedWhenPresent verifies that ironwail.pak is automatically
 // loaded from the application root if it exists.
 // Why: Ironwail uses a dedicated PAK for engine-level assets (icons, shaders,

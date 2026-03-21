@@ -16,6 +16,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
 	qimage "github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -27,11 +28,36 @@ type gameCallbacks struct{}
 var runtimeProcessClientPhase string
 
 var loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
-	data, err := files.LoadFile(worldModel)
+	data, litData, err := loadWorldModelAndLit(files, worldModel)
 	if err != nil {
 		return nil, err
 	}
-	return bsp.LoadTree(bytes.NewReader(data))
+	tree, err := bsp.LoadTree(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	if err := bsp.ApplyLitFile(tree, litData); err != nil {
+		slog.Warn("ignoring invalid .lit sidecar", "map", worldModel, "error", err)
+	}
+	return tree, nil
+}
+
+type litWorldLoader interface {
+	LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error)
+}
+
+func loadWorldModelAndLit(files host.Filesystem, worldModel string) ([]byte, []byte, error) {
+	if loader, ok := files.(litWorldLoader); ok {
+		return loader.LoadMapBSPAndLit(worldModel)
+	}
+	if fsys, ok := files.(*fs.FileSystem); ok {
+		return fsys.LoadMapBSPAndLit(worldModel)
+	}
+	data, err := files.LoadFile(worldModel)
+	if err != nil {
+		return nil, nil, err
+	}
+	return data, nil, nil
 }
 
 func (gameCallbacks) SetProcessClientPhase(phase string) {

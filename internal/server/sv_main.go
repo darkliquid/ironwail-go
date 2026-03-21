@@ -198,7 +198,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.Name = filepath.Base(mapName)
 	s.ModelName = fmt.Sprintf("maps/%s.bsp", s.Name)
 
-	bspData, err := vfs.LoadFile(s.ModelName)
+	bspData, litData, err := vfs.LoadMapBSPAndLit(s.ModelName)
 	if err != nil {
 		return fmt.Errorf("load map %q: %w", s.ModelName, err)
 	}
@@ -206,6 +206,9 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	tree, err := bsp.LoadTree(bytes.NewReader(bspData))
 	if err != nil {
 		return fmt.Errorf("parse map %q: %w", s.ModelName, err)
+	}
+	if err := bsp.ApplyLitFile(tree, litData); err != nil {
+		slog.Warn("ignoring invalid .lit sidecar", "map", s.ModelName, "error", err)
 	}
 	bspFile, err := bsp.Load(bytes.NewReader(bspData))
 	if err != nil {

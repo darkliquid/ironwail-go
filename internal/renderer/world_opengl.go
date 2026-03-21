@@ -481,62 +481,10 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bs
 		styleCount = 1
 	}
 
-	// Heuristic to detect if the BSP has 24-bit (colored) or 8-bit (monochrome) lightmaps.
-	// Standard Quake BSPs are 8-bit. Some engines/tools bake 24-bit lighting into the BSP.
-	// We assume 8-bit unless we are sure it's 24-bit.
-	// A simple check is: if the requested range for 24-bit exceeds the buffer, it's definitely not 24-bit (or the map is broken).
-	// But valid 8-bit maps might be small enough that a *single* face's 24-bit read fits, but eventually it will fail.
-	// The caller (BuildModelGeometry) doesn't pass a global flag, so we detect locally.
-	// However, local detection is risky.
-	// Better approach: Check if the buffer length is exactly 3x what we expect for 8-bit?
-	// No, we can't easily know total expected 8-bit size without summing all faces.
-	//
-	// Fallback strategy: Try to read as 24-bit. If it goes out of bounds, fallback to 8-bit.
-	// Issue: Use of 24-bit on 8-bit data produces "garbage colors" but might not go out of bounds for early faces.
-	//
-	// Correct Strategy: We really should know the format.
-	// Since we don't support loading external .lit files yet, and standard BSPs are 8-bit,
-	// we default to 8-bit. We only use 24-bit if the user explicitly provided a colored BSP (uncommon).
-	// To be safe and support both, we can try to guess based on total buffer size vs max offset.
-	// But for now, let's implement the 8-bit expansion because that fixes the reported regression.
-	// We'll optimistically assume 24-bit ONLY if the buffer is large enough for this face AND
-	// we have some other evidence?
-	//
-	// Actually, let's just default to 8-bit for now as that's the standard.
-	// TODO: Add proper colored lighting detection (e.g. check for .lit file or BSP format version).
-
 	sampleSize8 := smax * tmax * styleCount
-	sampleSizeRGB := sampleSize8 * 3
-
-	var samples []byte
-
-	// Try to read as RGB first IF we think it might be RGB? No, that causes the bug.
-	// Read as 8-bit.
-
-	if int(face.LightOfs) < 0 {
+	samples := expandLightmapSamples(tree.Lighting, tree.LightingRGB, int(face.LightOfs), sampleSize8)
+	if samples == nil {
 		return nil, nil
-	}
-
-	// Check if it fits as 8-bit
-	if int(face.LightOfs)+sampleSize8 > len(tree.Lighting) {
-		return nil, nil // Corrupt or missing data
-	}
-
-	// Should we use RGB?
-	// Only if we are sure. For now, assuming 8-bit fixes the bug.
-	// If the user HAS a colored BSP, this will render it in grayscale (reading only the first 1/3rd).
-	// But "strange colors" implies we are currently reading 8-bit as RGB.
-	// So we MUST switch to 8-bit reading.
-
-	// Read 8-bit data
-	rawSamples := tree.Lighting[face.LightOfs : int(face.LightOfs)+sampleSize8]
-
-	// Expand to RGB
-	samples = make([]byte, sampleSizeRGB)
-	for i, val := range rawSamples {
-		samples[i*3] = val
-		samples[i*3+1] = val
-		samples[i*3+2] = val
 	}
 
 	(*pages)[texNum].Surfaces = append((*pages)[texNum].Surfaces, WorldLightmapSurface{

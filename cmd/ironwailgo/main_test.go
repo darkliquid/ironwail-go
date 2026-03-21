@@ -2753,6 +2753,35 @@ func (demoBootstrapTestFS) LoadFirstAvailable([]string) (string, []byte, error) 
 }
 func (demoBootstrapTestFS) FileExists(string) bool { return false }
 
+type demoBootstrapLitFS struct {
+	demoBootstrapTestFS
+	worldData []byte
+	litData   []byte
+}
+
+func (f demoBootstrapLitFS) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error) {
+	if worldModel != "maps/start.bsp" {
+		return nil, nil, fmt.Errorf("unexpected world model %q", worldModel)
+	}
+	return f.worldData, f.litData, nil
+}
+
+func TestLoadWorldModelAndLitUsesOptionalLoader(t *testing.T) {
+	world, lit, err := loadWorldModelAndLit(demoBootstrapLitFS{
+		worldData: []byte("bsp"),
+		litData:   []byte("lit"),
+	}, "maps/start.bsp")
+	if err != nil {
+		t.Fatalf("loadWorldModelAndLit error: %v", err)
+	}
+	if got := string(world); got != "bsp" {
+		t.Fatalf("world data = %q, want %q", got, "bsp")
+	}
+	if got := string(lit); got != "lit" {
+		t.Fatalf("lit data = %q, want %q", got, "lit")
+	}
+}
+
 func TestDemoPlaybackBootstrapsWorldAfterServerInfo(t *testing.T) {
 	originalHost := g.Host
 	originalSubs := g.Subs

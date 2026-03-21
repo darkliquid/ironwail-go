@@ -112,6 +112,7 @@ type SearchResult struct {
 	Pack     *Pack
 	FilePos  int32
 	FileLen  int32
+	Priority int
 }
 
 // searchPath is a single entry in the VFS search stack.
@@ -200,7 +201,7 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 	}
 
 	lookupName := canonicalPackLookup(sanitizedName)
-	for _, searchPath := range fs.lookupPaths {
+	for priority, searchPath := range fs.lookupPaths {
 		if searchPath.pack == nil {
 			fullPath := filepath.Join(searchPath.root, filepath.FromSlash(sanitizedName))
 
@@ -214,6 +215,7 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 					Name:     sanitizedName,
 					SourceFS: searchPath.fs,
 					IsPack:   false,
+					Priority: priority,
 				}, nil
 			}
 			continue
@@ -222,12 +224,13 @@ func (fs *FileSystem) FindFile(filename string) (*SearchResult, error) {
 		for _, pf := range searchPath.pack.Files {
 			if pf.Lookup == lookupName {
 				return &SearchResult{
-					Path:    searchPath.pack.Filename,
-					Name:    sanitizedName,
-					IsPack:  true,
-					Pack:    searchPath.pack,
-					FilePos: pf.FilePos,
-					FileLen: pf.FileLen,
+					Path:     searchPath.pack.Filename,
+					Name:     sanitizedName,
+					IsPack:   true,
+					Pack:     searchPath.pack,
+					FilePos:  pf.FilePos,
+					FileLen:  pf.FileLen,
+					Priority: priority,
 				}, nil
 			}
 		}
@@ -244,12 +247,7 @@ func (fs *FileSystem) LoadFile(filename string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if result.IsPack {
-		return fs.loadFromPack(result)
-	}
-
-	return iofs.ReadFile(result.SourceFS, result.Name)
+	return fs.loadSearchResult(result)
 }
 
 // FindFirstAvailable attempts to locate the first file that exists from a
@@ -283,7 +281,7 @@ func (fs *FileSystem) FindFirstAvailable(filenames []string) (*SearchResult, err
 		})
 	}
 
-	for _, searchPath := range fs.lookupPaths {
+	for priority, searchPath := range fs.lookupPaths {
 		if searchPath.pack == nil {
 			for _, candidate := range candidates {
 				fullPath := filepath.Join(searchPath.root, filepath.FromSlash(candidate.name))
@@ -296,6 +294,7 @@ func (fs *FileSystem) FindFirstAvailable(filenames []string) (*SearchResult, err
 						Name:     candidate.name,
 						SourceFS: searchPath.fs,
 						IsPack:   false,
+						Priority: priority,
 					}, nil
 				}
 			}
@@ -306,12 +305,13 @@ func (fs *FileSystem) FindFirstAvailable(filenames []string) (*SearchResult, err
 			for _, pf := range searchPath.pack.Files {
 				if pf.Lookup == candidate.lookup {
 					return &SearchResult{
-						Path:    searchPath.pack.Filename,
-						Name:    candidate.name,
-						IsPack:  true,
-						Pack:    searchPath.pack,
-						FilePos: pf.FilePos,
-						FileLen: pf.FileLen,
+						Path:     searchPath.pack.Filename,
+						Name:     candidate.name,
+						IsPack:   true,
+						Pack:     searchPath.pack,
+						FilePos:  pf.FilePos,
+						FileLen:  pf.FileLen,
+						Priority: priority,
 					}, nil
 				}
 			}
@@ -330,20 +330,36 @@ func (fs *FileSystem) LoadFirstAvailable(filenames []string) (string, []byte, er
 	if err != nil {
 		return "", nil, err
 	}
-
-	if result.IsPack {
-		data, err := fs.loadFromPack(result)
-		if err != nil {
-			return "", nil, err
-		}
-		return result.Name, data, nil
-	}
-
-	data, err := iofs.ReadFile(result.SourceFS, result.Name)
+	data, err := fs.loadSearchResult(result)
 	if err != nil {
 		return "", nil, err
 	}
 	return result.Name, data, nil
+}
+
+// LoadMapBSPAndLit loads a BSP plus an eligible .lit sidecar from the same or
+// a higher-priority search path. Lower-priority .lit files are ignored so mods
+// cannot accidentally recolor a map loaded from a newer override path.
+func (fs *FileSystem) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error) {
+	bspResult, err := fs.FindFile(worldModel)
+	if err != nil {
+		return nil, nil, err
+	}
+	bspData, err := fs.loadSearchResult(bspResult)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	litName := strings.TrimSuffix(worldModel, filepath.Ext(worldModel)) + ".lit"
+	litResult, err := fs.FindFile(litName)
+	if err != nil || litResult == nil || litResult.Priority > bspResult.Priority {
+		return bspData, nil, nil
+	}
+	litData, err := fs.loadSearchResult(litResult)
+	if err != nil {
+		return nil, nil, err
+	}
+	return bspData, litData, nil
 }
 
 // loadFromPack reads a file's raw bytes from an open PAK archive. It seeks to
@@ -360,6 +376,13 @@ func (fs *FileSystem) loadFromPack(result *SearchResult) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func (fs *FileSystem) loadSearchResult(result *SearchResult) ([]byte, error) {
+	if result.IsPack {
+		return fs.loadFromPack(result)
+	}
+	return iofs.ReadFile(result.SourceFS, result.Name)
 }
 
 // FileExists returns true if the named file can be found anywhere in the VFS
