@@ -379,7 +379,7 @@ func TestHUDCenterprintFadeTailExtendsLifetime(t *testing.T) {
 	cp.Draw(active, State{
 		CenterPrint:   "message",
 		CenterPrintAt: 10,
-		Time:          12.25,
+		Time:          12.05,
 	}, 320, 200)
 	if got := charactersToString(active.characters); got != "message" {
 		t.Fatalf("centerprint during fade tail = %q, want %q", got, "message")
@@ -393,6 +393,28 @@ func TestHUDCenterprintFadeTailExtendsLifetime(t *testing.T) {
 	}, 320, 200)
 	if got := charactersToString(expired.characters); got != "" {
 		t.Fatalf("centerprint after fade tail = %q, want empty", got)
+	}
+}
+
+func TestHUDCenterprintFadeTailStipplesDuringLateFade(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_centerprintbg", "2")
+	cvar.Set("con_notifyfade", "1")
+	cvar.Set("con_notifyfadetime", "0.5")
+
+	cp := NewCenterprint(nil)
+	fading := &mockRenderContext{}
+	cp.Draw(fading, State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          12.25,
+	}, 320, 200)
+
+	if got := charactersToString(fading.characters); got == "" || got == "message" {
+		t.Fatalf("late fade text = %q, want partial but non-empty", got)
+	}
+	if len(fading.fills) <= 1 {
+		t.Fatalf("late fade background fills = %d, want stippled multi-fill backdrop", len(fading.fills))
 	}
 }
 
@@ -558,6 +580,9 @@ func TestCenterprintYMatchesCanonicalBranches(t *testing.T) {
 	}
 	if got := centerprintFadeTail(); math.Abs(got-0.5) > 0.0001 {
 		t.Fatalf("centerprint fade tail = %.2f, want 0.50", got)
+	}
+	if got := centerprintVisualAlpha(State{CenterPrintAt: 10, Time: 12.25}); math.Abs(got-0.5) > 0.0001 {
+		t.Fatalf("centerprint visual alpha = %.2f, want 0.50", got)
 	}
 }
 

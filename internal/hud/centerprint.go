@@ -82,11 +82,11 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 		return
 	}
 
-	message := cp.activeCenterText(state)
+	message, alpha := cp.activeCenterText(state)
 	if message == "" {
 		return
 	}
-	cp.drawTextBlock(rc, message, screenWidth, centerprintY(screenHeight, message), centerprintBackgroundMode())
+	cp.drawTextBlock(rc, message, screenWidth, centerprintY(screenHeight, message), centerprintBackgroundMode(), alpha)
 }
 
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).
@@ -102,7 +102,7 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 	}
 
 	if state.LevelName != "" {
-		cp.drawTextBlock(rc, state.LevelName, screenWidth, 80, 0)
+		cp.drawTextBlock(rc, state.LevelName, screenWidth, 80, 0, 1)
 	}
 
 	const rowX = 72
@@ -125,11 +125,12 @@ func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State,
 	if cp.finalePic != nil {
 		rc.DrawPic((screenWidth-int(cp.finalePic.Width))/2, 16, cp.finalePic)
 	}
-	text := cp.revealedFinaleText(state, cp.activeCenterText(state))
+	message, _ := cp.activeCenterText(state)
+	text := cp.revealedFinaleText(state, message)
 	if text == "" {
 		return
 	}
-	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, 0)
+	cp.drawTextBlock(rc, text, screenWidth, screenHeight/3, 0, 1)
 }
 
 // revealedFinaleText returns the portion of the center text that should be
@@ -173,7 +174,7 @@ func limitCenterTextVisibleChars(text string, visibleChars int) string {
 // drawTextBlock renders a multi-line text message centered on the screen at
 // the given Y position. For regular in-game centerprints it can also draw one
 // of the canonical background styles selected via scr_centerprintbg.
-func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, backgroundMode int) {
+func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, screenWidth, y int, backgroundMode int, alpha float64) {
 	lines := strings.Split(strings.ReplaceAll(message, "\r\n", "\n"), "\n")
 	maxChars := 0
 	for _, line := range lines {
@@ -184,10 +185,10 @@ func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, 
 	if maxChars == 0 {
 		return
 	}
-	drawCenterprintBackground(rc, screenWidth, y, len(lines), maxChars, backgroundMode)
+	drawCenterprintBackground(rc, screenWidth, y, len(lines), maxChars, backgroundMode, alpha)
 	for i, line := range lines {
 		x := (screenWidth - len(line)*8) / 2
-		DrawString(rc, x, y+i*8, line)
+		drawCenterprintLine(rc, x, y+i*8, line, i, alpha)
 	}
 }
 
@@ -196,24 +197,19 @@ func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, 
 // hold-time expiry), then falls back to any manually set message. During
 // finale sequences (Intermission 2/3) the CenterPrint text is always shown
 // regardless of hold time.
-func (cp *Centerprint) activeCenterText(state State) string {
+func (cp *Centerprint) activeCenterText(state State) (string, float64) {
 	if state.CenterPrint != "" {
 		if state.Intermission == 2 || state.Intermission == 3 {
-			return state.CenterPrint
+			return state.CenterPrint, 1
 		}
-		hold := state.CenterPrintHold
-		if hold <= 0 {
-			hold = centerPrintDefaultHold
-		}
-		hold += centerprintFadeTail()
-		if state.Time-state.CenterPrintAt <= hold {
-			return state.CenterPrint
+		if alpha := centerprintVisualAlpha(state); alpha > 0 {
+			return state.CenterPrint, alpha
 		}
 	}
 	if cp.IsActive() {
-		return cp.manualMessage
+		return cp.manualMessage, 1
 	}
-	return ""
+	return "", 0
 }
 
 // formatIntermissionTime converts a floating-point seconds value to a "M:SS"
@@ -237,6 +233,25 @@ func centerprintFadeTail() float64 {
 	return max(0, cvar.FloatValue(notifyFadeCVar)*cvar.FloatValue(notifyFadeTimeCVar))
 }
 
+func centerprintVisualAlpha(state State) float64 {
+	hold := state.CenterPrintHold
+	if hold <= 0 {
+		hold = centerPrintDefaultHold
+	}
+	elapsed := state.Time - state.CenterPrintAt
+	if elapsed <= hold {
+		return 1
+	}
+	fade := centerprintFadeTail()
+	if fade <= 0 {
+		return 0
+	}
+	if elapsed > hold+fade {
+		return 0
+	}
+	return max(0, min(1, (hold+fade-elapsed)/fade))
+}
+
 func centerprintY(screenHeight int, message string) int {
 	lineCount := 1
 	for _, r := range message {
@@ -250,7 +265,7 @@ func centerprintY(screenHeight int, message string) int {
 	return 48 * screenHeight / 200
 }
 
-func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines, maxChars, mode int) {
+func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines, maxChars, mode int, alpha float64) {
 	if rc == nil || lines <= 0 || maxChars <= 0 || mode <= 0 {
 		return
 	}
@@ -262,14 +277,60 @@ func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines,
 
 	switch mode {
 	case 1:
-		rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
+		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, alpha)
 		rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
 		rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
 		rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
 		rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
 	case 2:
-		rc.DrawFill(boxX, boxY, boxWidth, boxHeight, 0)
+		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, alpha)
 	case 3:
-		rc.DrawFill(0, boxY, screenWidth, boxHeight, 0)
+		drawCenterprintFill(rc, 0, boxY, screenWidth, boxHeight, 0, alpha)
+	}
+}
+
+func drawCenterprintFill(rc renderer.RenderContext, x, y, w, h int, color byte, alpha float64) {
+	if rc == nil || w <= 0 || h <= 0 || alpha <= 0 {
+		return
+	}
+	switch {
+	case alpha >= 0.875:
+		rc.DrawFill(x, y, w, h, color)
+	case alpha >= 0.625:
+		for row := 0; row < h; row += 4 {
+			rc.DrawFill(x, y+row, w, min(3, h-row), color)
+		}
+	case alpha >= 0.375:
+		for row := 0; row < h; row += 4 {
+			rc.DrawFill(x, y+row, w, min(2, h-row), color)
+		}
+	default:
+		for row := 0; row < h; row += 4 {
+			rc.DrawFill(x, y+row, w, 1, color)
+		}
+	}
+}
+
+func drawCenterprintLine(rc renderer.RenderContext, x, y int, text string, lineIndex int, alpha float64) {
+	if rc == nil || alpha <= 0 {
+		return
+	}
+	for i, ch := range text {
+		if shouldDrawCenterprintChar(lineIndex, i, alpha) {
+			rc.DrawCharacter(x+i*8, y, int(ch))
+		}
+	}
+}
+
+func shouldDrawCenterprintChar(lineIndex, charIndex int, alpha float64) bool {
+	switch {
+	case alpha >= 0.875:
+		return true
+	case alpha >= 0.625:
+		return (lineIndex+charIndex)%4 != 0
+	case alpha >= 0.375:
+		return (lineIndex+charIndex)%2 == 0
+	default:
+		return (lineIndex+charIndex)%4 == 0
 	}
 }
