@@ -335,6 +335,52 @@ func (dc *consoleOverlayDrawContext) SetCanvasParams(p renderer.CanvasTransformP
 	dc.canvasParams = append(dc.canvasParams, p)
 }
 
+func TestDrawMenuBackdropUsesStripedFillPattern(t *testing.T) {
+	dc := &consoleOverlayDrawContext{}
+
+	drawMenuBackdrop(dc, 8, 10)
+
+	want := []struct {
+		y int
+		h int
+	}{
+		{0, 2},
+		{4, 2},
+		{8, 2},
+	}
+	if len(dc.fills) != len(want) {
+		t.Fatalf("fill count = %d, want %d", len(dc.fills), len(want))
+	}
+	for i, got := range dc.fills {
+		if got.x != 0 || got.w != 8 || got.y != want[i].y || got.h != want[i].h || got.color != 0 {
+			t.Fatalf("fill %d = %+v, want x=0 w=8 y=%d h=%d color=0", i, got, want[i].y, want[i].h)
+		}
+	}
+	if dc.canvas.Type != renderer.CanvasDefault {
+		t.Fatalf("backdrop canvas = %v, want %v", dc.canvas.Type, renderer.CanvasDefault)
+	}
+}
+
+func TestDrawRuntimeMenuDrawsBackdropBeforeMenu(t *testing.T) {
+	dc := &consoleOverlayDrawContext{}
+	menuDrawCalled := false
+
+	drawRuntimeMenu(dc, 16, 12, func(rc renderer.RenderContext) {
+		menuDrawCalled = true
+		if len(dc.fills) == 0 {
+			t.Fatal("expected backdrop fills before menu draw")
+		}
+		rc.DrawCharacter(24, 32, 'M')
+	})
+
+	if !menuDrawCalled {
+		t.Fatal("menu draw callback was not invoked")
+	}
+	if len(dc.chars) != 1 || dc.chars[0].num != 'M' {
+		t.Fatalf("menu draw chars = %+v, want one 'M'", dc.chars)
+	}
+}
+
 func registerConsoleCanvasTestCvars() {
 	cvar.Register("vid_width", "1280", cvar.FlagArchive, "test vid width")
 	cvar.Register("vid_height", "720", cvar.FlagArchive, "test vid height")

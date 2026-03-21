@@ -716,8 +716,7 @@ func main() {
 
 					// Menu draws on top of console
 					if g.Menu != nil && g.Menu.IsActive() {
-						overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu
-						g.Menu.M_Draw(overlay)
+						drawRuntimeMenu(overlay, w, h, g.Menu.M_Draw)
 						return
 					}
 
@@ -771,6 +770,7 @@ func main() {
 
 			dc.Clear(0, 0, 0, 1)
 			dc.SetCanvas(renderer.CanvasDefault)
+			w, h := g.Renderer.Size()
 			if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
 				drawLoadingPlaque(dc, g.Draw)
 				return
@@ -781,8 +781,7 @@ func main() {
 				// In gogpu path we just show menu over black
 			}
 			if g.Menu != nil && g.Menu.IsActive() {
-				dc.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu
-				g.Menu.M_Draw(dc)
+				drawRuntimeMenu(dc, w, h, g.Menu.M_Draw)
 			}
 		})
 
@@ -862,6 +861,28 @@ func runtimeViewModelVisible() bool {
 		return false
 	}
 	return g.Client.Items&cl.ItemInvisibility == 0
+}
+
+func drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
+	if rc == nil || w <= 0 || h <= 0 {
+		return
+	}
+	rc.SetCanvas(renderer.CanvasDefault)
+
+	// Approximate Quake's menu fade pass with deterministic black scanlines
+	// until the 2D renderer grows a backend-consistent alpha overlay primitive.
+	for y := 0; y < h; y += 4 {
+		rc.DrawFill(0, y, w, min(2, h-y), 0)
+	}
+}
+
+func drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer.RenderContext)) {
+	if rc == nil || drawMenu == nil {
+		return
+	}
+	drawMenuBackdrop(rc, w, h)
+	rc.SetCanvas(renderer.CanvasDefault) // TODO: CanvasMenu
+	drawMenu(rc)
 }
 
 func drawChatInput(rc renderer.RenderContext, w, h int) {
