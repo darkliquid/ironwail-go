@@ -11,6 +11,9 @@ import (
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
+// TestLoadAliasModelFromPak0 tests the loading of Quake Alias Models (.mdl).
+// It ensures player, monster, and item models are parsed correctly, including skins, triangles, and animation frames.
+// Where in C: Mod_LoadAliasModel in model.c
 func TestLoadAliasModelFromPak0(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -98,6 +101,9 @@ func TestLoadAliasModelFromPak0(t *testing.T) {
 	}
 }
 
+// TestLoadSpriteFromPak0 tests the loading of Sprite models (.spr).
+// It ensures effects like explosions and fire are parsed correctly.
+// Where in C: Mod_LoadSpriteModel in model.c
 func TestLoadSpriteFromPak0(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -181,6 +187,9 @@ func TestLoadSpriteFromPak0(t *testing.T) {
 	}
 }
 
+// TestLoadSpriteRetainsSyncType tests sprite synchronization flags.
+// It ensures sprites correctly follow their defined animation sync type (e.g., random start frame).
+// Where in C: Mod_LoadSpriteModel in model.c
 func TestLoadSpriteRetainsSyncType(t *testing.T) {
 	var data bytes.Buffer
 	write := func(value interface{}) {

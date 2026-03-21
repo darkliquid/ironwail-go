@@ -9,6 +9,9 @@ import (
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
+// TestLoadTreeFromPak0 tests the loading of a complete BSP tree from a PAK file.
+// It ensures the engine can correctly parse all BSP lumps (planes, nodes, leafs, faces, textures, etc.) from real game assets.
+// Where in C: Mod_LoadBSP in model.c
 func TestLoadTreeFromPak0(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -120,6 +123,9 @@ func TestLoadTreeFromPak0(t *testing.T) {
 	}
 }
 
+// TestLoadFromPak0 tests the low-level BSP file loader.
+// It verifies the basic structure and header parsing of the BSP format.
+// Where in C: Mod_LoadBSP in model.c
 func TestLoadFromPak0(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -153,6 +159,9 @@ func TestLoadFromPak0(t *testing.T) {
 	}
 }
 
+// TestDecompressVisUsesVisLeafCount tests the VIS decompression logic.
+// It ensures the engine can correctly decompress the Potentially Visible Set (PVS) data for a given leaf count.
+// Where in C: Mod_DecompressVis in model.c
 func TestDecompressVisUsesVisLeafCount(t *testing.T) {
 	tree := &Tree{
 		Leafs:  make([]TreeLeaf, 5), // includes solid leaf 0
@@ -165,6 +174,9 @@ func TestDecompressVisUsesVisLeafCount(t *testing.T) {
 	}
 }
 
+// TestLeafPVSAllVisibleUsesVisLeafCount tests the fallback PVS when no VIS data is available.
+// It ensures the engine correctly handles maps without precomputed visibility by making everything visible.
+// Where in C: Mod_LeafPVS in model.c
 func TestLeafPVSAllVisibleUsesVisLeafCount(t *testing.T) {
 	tree := &Tree{
 		Leafs:  make([]TreeLeaf, 5), // includes solid leaf 0

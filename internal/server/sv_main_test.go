@@ -24,6 +24,9 @@ func withSkillCVar(t *testing.T, value string) {
 	})
 }
 
+// TestSpawnServerSyncsRoundedClampedSkillToQCVM tests skill level synchronization with QuakeC.
+// It ensuring that the skill cvar is correctly clamped and rounded before being passed to the QuakeC world spawn.
+// Where in C: SV_SpawnServer in sv_main.c
 func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -77,6 +80,9 @@ func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 	}
 }
 
+// TestSpawnServerRunsTwoSettlePhysicsFramesBeforeSignon tests the \"warmup\" period after server spawn.
+// It replicating the engine's behavior of running a few physics frames to allow entities to settle before accepting clients.
+// Where in C: SV_SpawnServer in sv_main.c
 func TestSpawnServerRunsTwoSettlePhysicsFramesBeforeSignon(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -111,6 +117,9 @@ func TestSpawnServerRunsTwoSettlePhysicsFramesBeforeSignon(t *testing.T) {
 	}
 }
 
+// TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn tests entity relinking after spawning.
+// It ensuring that entities (especially triggers) are correctly linked into the world's area nodes after their QuakeC spawn function has run.
+// Where in C: ED_LoadFromFile and ED_NewEntry in sv_main.c / pr_edict.c
 func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
@@ -170,13 +179,7 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 		debugTelemetryEnableCVar = oldEnable
 	})
 
-	raw := `{
-"classname" "worldspawn"
-}
-{
-"classname" "trigger_test"
-"origin" "128 0 0"
-}`
+	raw := 
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -217,6 +220,9 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerAfterQCSpawn(t *testing.T) {
 	}
 }
 
+// TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict tests entity reuse logic during map load.
+// It verifying that when the server reuses a freed edict for a new entity, it is correctly unlinked from its old position and relinked into the new one.
+// Where in C: ED_NewEntry in pr_edict.c
 func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
@@ -263,13 +269,7 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	}
 	s.FreeEdict(reused)
 
-	raw := `{
-"classname" "worldspawn"
-}
-{
-"classname" "trigger_test"
-"origin" "128 0 0"
-}`
+	raw := 
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -292,6 +292,9 @@ func TestLoadMapEntitiesRelinksSpawnedTriggerWhenReusingFreedEdict(t *testing.T)
 	}
 }
 
+// TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn tests persistence of QuakeC-only fields during entity loading.
+// It ensuring that fields defined only in progs.dat (and not known to the engine) are correctly populated from the map's entity string.
+// Where in C: ED_ParseEdict in pr_edict.c
 func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
@@ -325,13 +328,7 @@ func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
 	}
 	vm.SetGInt(inspectBuiltinOfs, -1)
 
-	raw := `{
-"classname" "worldspawn"
-}
-{
-"classname" "trigger_test"
-"speed" "321"
-}`
+	raw := 
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -348,6 +345,9 @@ func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
 	}
 }
 
+// TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn tests clearing of QuakeC-only fields for reused edicts.
+// It preventing state leakage between entities when an edict is reused.
+// Where in C: ED_NewEntry in pr_edict.c
 func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 	s := NewServer()
 	vm := newServerTestVM(s, 8)
@@ -394,12 +394,7 @@ func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 	vm.SetEFloat(entNum, 110, 123)
 	s.FreeEdict(reused)
 
-	raw := `{
-"classname" "worldspawn"
-}
-{
-"classname" "trigger_test"
-}`
+	raw := 
 	if err := s.loadMapEntities(raw); err != nil {
 		t.Fatalf("loadMapEntities() error = %v", err)
 	}
@@ -416,6 +411,9 @@ func TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn(t *testing.T) {
 	}
 }
 
+// TestAllocEdictUnlinksReusedFreedEdictBeforeReset tests edict allocation safety.
+// It ensuring that an edict is completely removed from all engine systems (like area nodes) before it is reset and returned for reuse.
+// Where in C: ED_Alloc in pr_edict.c
 func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	s := NewServer()
 	s.Areanodes = make([]AreaNode, AreaNodes)
@@ -457,6 +455,9 @@ func TestAllocEdictUnlinksReusedFreedEdictBeforeReset(t *testing.T) {
 	}
 }
 
+// TestAllocEdictHonorsReuseCooldownAfterInitialServerWarmup tests the edict reuse cooldown.
+// It replicating the engine's 0.5s delay before reusing a freed edict, which prevents network protocol errors from stale entity IDs.
+// Where in C: ED_Alloc in pr_edict.c
 func TestAllocEdictHonorsReuseCooldownAfterInitialServerWarmup(t *testing.T) {
 	s := NewServer()
 	s.Time = 3
@@ -484,6 +485,9 @@ func TestAllocEdictHonorsReuseCooldownAfterInitialServerWarmup(t *testing.T) {
 	}
 }
 
+// TestClearWorldAllocatesAreaNodesWhenMissing tests area node initialization.
+// It ensuring the spatial partitioning system is correctly set up for the current world model.
+// Where in C: SV_ClearWorld in sv_phys.c
 func TestClearWorldAllocatesAreaNodesWhenMissing(t *testing.T) {
 	s := NewServer()
 	if len(s.Areanodes) != 0 {
@@ -504,6 +508,9 @@ func TestClearWorldAllocatesAreaNodesWhenMissing(t *testing.T) {
 	}
 }
 
+// TestClearWorldBuildsFullAreaNodeTree tests the structure of the area node tree.
+// It verifying that the spatial partitioning tree has the correct depth and leaf structure for efficient collision queries.
+// Where in C: SV_CreateAreaNode in sv_phys.c
 func TestClearWorldBuildsFullAreaNodeTree(t *testing.T) {
 	s := NewServer()
 	s.ClearWorld()

@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// TestPlayCDTrackStreamsAndLoopsCurrentTrack tests CD music streaming and looping.
+// It replicating the original Quake's ability to play and loop background music tracks.
+// Where in C: CDAudio_Play and CDAudio_Update in cd_sdl.c (or similar)
 func TestPlayCDTrackStreamsAndLoopsCurrentTrack(t *testing.T) {
 	sys := newTestMusicSystem()
 	trackData := testMusicWAV(t, 44100, 2, 2, 64)
@@ -40,6 +43,9 @@ func TestPlayCDTrackStreamsAndLoopsCurrentTrack(t *testing.T) {
 	}
 }
 
+// TestLoadWAVParsesStandardPCMHeaders tests WAV file loading.
+// It supporting standard uncompressed audio for sounds and music.
+// Where in C: S_LoadSound in snd_dma.c
 func TestLoadWAVParsesStandardPCMHeaders(t *testing.T) {
 	mono := testMusicWAV(t, 22050, 1, 2, 16)
 	sampleData, info, err := LoadWAV("sound/test.wav", mono)
@@ -66,6 +72,9 @@ func TestLoadWAVParsesStandardPCMHeaders(t *testing.T) {
 	}
 }
 
+// TestPlayCDTrackTransitionsToLoopTrack tests the transition between a \"start\" track and a \"loop\" track.
+// It supporting advanced music logic where a track has an intro followed by a repeating section.
+// Where in C: N/A (Common engine extension for digital music)
 func TestPlayCDTrackTransitionsToLoopTrack(t *testing.T) {
 	sys := newTestMusicSystem()
 	track2 := testMusicWAV(t, 44100, 2, 2, 64)
@@ -94,6 +103,9 @@ func TestPlayCDTrackTransitionsToLoopTrack(t *testing.T) {
 	}
 }
 
+// TestStopMusicClearsQueuedSamples tests music stoppage.
+// It ensuring all audio buffers are cleared when music is stopped to prevent \"hanging\" notes or sounds.
+// Where in C: S_StopAllSounds or similar in snd_dma.c
 func TestStopMusicClearsQueuedSamples(t *testing.T) {
 	sys := newTestMusicSystem()
 	trackData := testMusicWAV(t, 44100, 1, 2, 32)
@@ -116,6 +128,9 @@ func TestStopMusicClearsQueuedSamples(t *testing.T) {
 	}
 }
 
+// TestPlayCDTrackLoadsOGGWhenWAVMissing tests OGG music support.
+// It providing modern compressed audio support for background music, a key Ironwail feature.
+// Where in C: Ironwail's OGG loader in snd_ogg.c
 func TestPlayCDTrackLoadsOGGWhenWAVMissing(t *testing.T) {
 	sys := newTestMusicSystem()
 	oggData := testMusicOGG(t, 44100, 2, 2, 64)
@@ -154,6 +169,9 @@ func TestPlayCDTrackLoadsOGGWhenWAVMissing(t *testing.T) {
 	}
 }
 
+// TestPlayCDTrackUsesResolverSelection tests the music file resolution logic.
+// It ensuring the engine searches for music in the correct priority order (OGG -> Opus -> MP3 -> etc.).
+// Where in C: Ironwail's S_FindMusic or similar.
 func TestPlayCDTrackUsesResolverSelection(t *testing.T) {
 	sys := newTestMusicSystem()
 	oggData := testMusicOGG(t, 44100, 2, 2, 64)
@@ -198,6 +216,9 @@ func TestPlayCDTrackUsesResolverSelection(t *testing.T) {
 	}
 }
 
+// TestPlayMusicResolvesExtensionlessNameViaResolver tests music resolution without explicit extensions.
+// It allowing flexible music filenames in QuakeC and console commands.
+// Where in C: Ironwail's music resolution logic.
 func TestPlayMusicResolvesExtensionlessNameViaResolver(t *testing.T) {
 	sys := newTestMusicSystem()
 	oggData := testMusicOGG(t, 44100, 2, 2, 64)
@@ -221,6 +242,9 @@ func TestPlayMusicResolvesExtensionlessNameViaResolver(t *testing.T) {
 	}
 }
 
+// TestPauseMusicStopsQueueingUntilResume tests music pausing and resuming.
+// It correctly handling game pauses by stopping music playback and resuming from the same point.
+// Where in C: S_PauseSound in snd_dma.c
 func TestPauseMusicStopsQueueingUntilResume(t *testing.T) {
 	sys := newTestMusicSystem()
 	trackData := testMusicWAV(t, 44100, 2, 2, 64)

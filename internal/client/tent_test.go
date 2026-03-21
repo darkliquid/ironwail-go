@@ -1,3 +1,7 @@
+// What: Temporary entity (TE_*) parsing and state tests.
+// Why: Validates the creation and management of short-lived effects like beams.
+// Where in C: cl_tent.c
+
 package client
 
 import (
@@ -7,6 +11,9 @@ import (
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
+// TestParseTempEntityBeamStoresBeamState verifies that lightning beams are correctly parsed and stored in the client state.
+// Why: Lightning beams must be tracked by entity ID to allow the server to update or terminate them.
+// Where in C: cl_tent.c, CL_ParseTEnt.
 func TestParseTempEntityBeamStoresBeamState(t *testing.T) {
 	c := NewClient()
 	c.Time = 5
@@ -46,6 +53,9 @@ func TestParseTempEntityBeamStoresBeamState(t *testing.T) {
 	}
 }
 
+// TestUpdateTempEntitiesSkipsExpiredBeams ensures that beams whose duration has elapsed are not processed for rendering.
+// Why: Temporary entities are short-lived and must be automatically cleaned up to avoid visual clutter and memory leaks.
+// Where in C: cl_tent.c, CL_UpdateTEnts.
 func TestUpdateTempEntitiesSkipsExpiredBeams(t *testing.T) {
 	c := NewClient()
 	c.Time = 10
@@ -64,6 +74,9 @@ func TestUpdateTempEntitiesSkipsExpiredBeams(t *testing.T) {
 	}
 }
 
+// TestUpdateTempEntitiesGeneratesBeamSegments verifies that long beams are subdivided into multiple segments for rendering.
+// Why: Quake renders lightning beams as a series of 30-unit segments to allow for slight jitter and proper clipping.
+// Where in C: cl_tent.c, CL_UpdateTEnts.
 func TestUpdateTempEntitiesGeneratesBeamSegments(t *testing.T) {
 	c := NewClient()
 	c.Time = 1
@@ -91,6 +104,9 @@ func TestUpdateTempEntitiesGeneratesBeamSegments(t *testing.T) {
 	}
 }
 
+// TestParseTempEntitySpikeAppendsCanonicalImpactSound ensures that spike impacts trigger the appropriate sound effects.
+// Why: Audio feedback for projectile impacts is essential for game feel and situational awareness.
+// Where in C: cl_tent.c, CL_ParseTEnt.
 func TestParseTempEntitySpikeAppendsCanonicalImpactSound(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)

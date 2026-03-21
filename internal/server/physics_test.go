@@ -43,6 +43,9 @@ func withPhysicsCVars(t *testing.T, values map[string]string) {
 	})
 }
 
+// TestClipVelocity tests the velocity clipping function.
+// It ensures that entities correctly slide along surfaces instead of stopping or penetrating them when they collide at an angle.
+// Where in C: SV_ClipVelocity in sv_phys.c
 func TestClipVelocity(t *testing.T) {
 	in := [3]float32{100, 0.05, -5}
 	normal := [3]float32{0, 0, 1}
@@ -53,6 +56,9 @@ func TestClipVelocity(t *testing.T) {
 	}
 }
 
+// TestPhysicsNoClipMovesOriginAndAngles tests the \"noclip\" physics state.
+// It verifying that entities in noclip mode move freely according to their velocity and angular velocity without any collision checks.
+// Where in C: SV_Physics_Noclip in sv_phys.c
 func TestPhysicsNoClipMovesOriginAndAngles(t *testing.T) {
 	s := newPhysicsTestServer()
 	ent := &Edict{Vars: &EntVars{}}
@@ -71,6 +77,9 @@ func TestPhysicsNoClipMovesOriginAndAngles(t *testing.T) {
 	}
 }
 
+// TestPhysicsPusherAdvancesLocalTimeWhenIdle tests the pusher (brush model) physics.
+// It ensuring that moving platforms and doors advance their local time correctly, which is critical for their animation and movement logic.
+// Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherAdvancesLocalTimeWhenIdle(t *testing.T) {
 	s := newPhysicsTestServer()
 	ent := &Edict{Vars: &EntVars{}}
@@ -84,6 +93,9 @@ func TestPhysicsPusherAdvancesLocalTimeWhenIdle(t *testing.T) {
 	}
 }
 
+// TestPhysicsTossOnGroundDoesNotMove tests the \"toss\" physics for items on the ground.
+// It ensuring that items (like dropped weapons or health packs) remain stationary once they've landed on the floor.
+// Where in C: SV_Physics_Toss in sv_phys.c
 func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
 	s := newPhysicsTestServer()
 	ent := &Edict{Vars: &EntVars{}}
@@ -98,6 +110,9 @@ func TestPhysicsTossOnGroundDoesNotMove(t *testing.T) {
 	}
 }
 
+// TestFlyMoveDoesNotGroundOnNonBSPFloor tests FlyMove collision behavior with different entity types.
+// It verifying that entities only \"land\" (set onground flag) on BSP world geometry, not on simple trigger boxes or other non-solid entities.
+// Where in C: SV_FlyMove in sv_phys.c
 func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.1
@@ -142,6 +157,9 @@ func TestFlyMoveDoesNotGroundOnNonBSPFloor(t *testing.T) {
 	}
 }
 
+// TestPhysicsStepOnGroundSkipsFreefall tests step physics for grounded entities.
+// It ensuring that entities already on the ground don't erroneously apply gravity or vertical movement intended for freefall.
+// Where in C: SV_Physics_Step in sv_phys.c
 func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 	s := newPhysicsTestServer()
 	ent := &Edict{Vars: &EntVars{}}
@@ -155,6 +173,9 @@ func TestPhysicsStepOnGroundSkipsFreefall(t *testing.T) {
 	}
 }
 
+// TestPhysicsStepHardLandingStartsCanonicalSound tests landing sound triggers in the physics engine.
+// It verifying that falling from a height correctly triggers the \"landing\" sound (demon/dland2.wav) via the network protocol.
+// Where in C: SV_Physics_Step in sv_phys.c
 func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {
@@ -197,6 +218,9 @@ func TestPhysicsStepHardLandingStartsCanonicalSound(t *testing.T) {
 	}
 }
 
+// TestSVWalkMoveHonorsSvNoStep tests the sv_nostep cvar.
+// It allowing the server to disable the \"step up\" behavior for entities, which can be useful for debugging or specific gameplay modes.
+// Where in C: SV_WalkMove in sv_phys.c
 func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	newMover := func(s *Server) *Edict {
 		ent := s.AllocEdict()
@@ -251,6 +275,9 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	}
 }
 
+// TestPhysicsFrameOnSpawnedMap tests a full physics frame on a real map.
+// It ensuring that the basic server time and physics update loop works correctly when a map is loaded.
+// Where in C: SV_Physics in sv_phys.c
 func TestPhysicsFrameOnSpawnedMap(t *testing.T) {
 	pak0Path := testutil.SkipIfNoPak0(t)
 	baseDir := filepath.Dir(pak0Path)
@@ -279,6 +306,9 @@ func TestPhysicsFrameOnSpawnedMap(t *testing.T) {
 	}
 }
 
+// TestPhysicsForceRetouchUsesFloatCountdown tests the force_retouch mechanism.
+// It ensuring that the engine correctly forces entities to re-check for trigger contacts for a few frames after certain events (like teleportation).
+// Where in C: SV_Physics in sv_phys.c
 func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 	s := NewServer()
 	s.Areanodes = make([]AreaNode, AreaNodes)
@@ -355,6 +385,9 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 	}
 }
 
+// TestPhysicsFreezeNonClientsCVar tests the sv_freezenonclients cvar.
+// It allowing the server to pause non-player entities (monsters, etc.) for performance or debugging.
+// Where in C: SV_Physics in sv_phys.c
 func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 	mkServer := func() (*Server, *Edict, *Edict) {
 		s := newPhysicsTestServer()
@@ -399,6 +432,9 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 	})
 }
 
+// TestPhysicsTelemetryFrameHooks tests physics telemetry.
+// It providing detailed performance and event logging for the physics engine.
+// Where in C: N/A (Modern engine extension)
 func TestPhysicsTelemetryFrameHooks(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -441,6 +477,9 @@ func TestPhysicsTelemetryFrameHooks(t *testing.T) {
 	}
 }
 
+// TestRunThinkTelemetry tests telemetry for entity \"think\" functions.
+// It monitoring the execution time and frequency of entity logic.
+// Where in C: N/A
 func TestRunThinkTelemetry(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -479,6 +518,9 @@ func TestRunThinkTelemetry(t *testing.T) {
 	}
 }
 
+// TestRunThinkPublishesQCTimeGlobal tests QuakeC global time synchronization.
+// It ensuring that QuakeC scripts see the correct server time when their think functions are called.
+// Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -510,6 +552,9 @@ func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 	}
 }
 
+// TestRunThinkSyncsEdictStateBackFromQCVM tests entity state synchronization from QuakeC back to the engine.
+// It allowing QuakeC to modify entity properties (like solid) and ensuring the engine's physics/collision state reflects those changes.
+// Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -551,6 +596,9 @@ func TestRunThinkSyncsEdictStateBackFromQCVM(t *testing.T) {
 	}
 }
 
+// TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM tests cross-entity state synchronization.
+// It ensuring that when one entity's think function modifies another entity's scheduling fields (like nextthink), the changes are correctly captured.
+// Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -601,6 +649,9 @@ func TestRunThinkSyncsThirdPartySchedulerFieldsFromQCVM(t *testing.T) {
 	}
 }
 
+// TestRunThinkSyncsThirdPartyCombatStateFromQCVM tests cross-entity combat state synchronization.
+// It verifying that combat-related changes (health, enemy targets) made in QuakeC are reflected in the engine's entity state.
+// Where in C: SV_RunThink in sv_phys.c
 func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -652,6 +703,9 @@ func TestRunThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	}
 }
 
+// TestImpactSyncsMutatedTouchStateBackFromQCVM tests entity state synchronization after a \"touch\" event.
+// It allowing QuakeC touch functions to modify entity states (e.g., picking up an item) and ensuring the engine is updated.
+// Where in C: SV_Impact in sv_phys.c
 func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -693,6 +747,9 @@ func TestImpactSyncsMutatedTouchStateBackFromQCVM(t *testing.T) {
 	}
 }
 
+// TestImpactRestoresQCExecutionContextAfterTouch tests QuakeC VM state restoration.
+// It ensuring that a touch callback (which might be triggered during another QuakeC function) correctly restores the VM state after execution.
+// Where in C: SV_Impact in sv_phys.c
 func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -739,6 +796,9 @@ func TestImpactRestoresQCExecutionContextAfterTouch(t *testing.T) {
 	}
 }
 
+// TestImpactDeduplicatesSameFrameTouchCallbacks tests touch callback deduplication.
+// It preventing an entity from triggering multiple touch events in the same physics frame, which can cause logic errors (e.g., picking up an item twice).
+// Where in C: SV_Impact in sv_phys.c
 func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -787,6 +847,9 @@ func TestImpactDeduplicatesSameFrameTouchCallbacks(t *testing.T) {
 	}
 }
 
+// TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink tests state synchronization for pusher entities before their think function.
+// It ensuring that moving platforms have their latest position and state available to QuakeC.
+// Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -836,6 +899,9 @@ func TestPhysicsPusherSyncsCurrentStateIntoQCBeforeThink(t *testing.T) {
 	}
 }
 
+// TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM tests pusher state synchronization from QuakeC.
+// It allowing QuakeC to control moving platforms and doors by modifying their velocity and think times.
+// Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()
@@ -887,6 +953,9 @@ func TestPhysicsPusherSyncsThirdPartyPusherStateBackFromQCVM(t *testing.T) {
 	}
 }
 
+// TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM tests entity spawning during pusher execution.
+// It ensuring that triggers or other entities spawned by a moving platform are correctly integrated into the physics world immediately.
+// Where in C: SV_Physics_Pusher in sv_phys.c
 func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.1
@@ -956,6 +1025,9 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 	}
 }
 
+// TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM tests pusher state protection during touch events.
+// It ensuring that a touch event (which uses the QuakeC VM) doesn't accidentally overwrite the state of unrelated moving platforms with stale data.
+// Where in C: SV_Impact in sv_phys.c
 func TestImpactDoesNotClobberExistingPusherStateFromStaleQCVM(t *testing.T) {
 	s := newPhysicsTestServer()
 	s.QCVM = qc.NewVM()

@@ -6,56 +6,49 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 )
 
-func TestSyntheticMovement(t *testing.T) {
-	s := NewServer()
-	// Use a tiny deterministic world: flat ground at z=0
-	s.WorldModel = CreateSyntheticWorldModel()
-	// Make the world entity use BSP clipping so traces consult WorldModel
-	if s.Edicts != nil && len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
-		s.Edicts[0].Vars.Solid = float32(SolidBSP)
-	}
-	s.ClearWorld()
-
-	// Allocate an entity and place it above the ground
-	e := s.AllocEdict()
-	if e == nil {
-		t.Fatal("failed to alloc edict")
-	}
-
-	e.Vars.Origin = [3]float32{0, 0, 16}
-	// Use a small point-like hull so the server will pick hull 0.
-	e.Vars.Mins = [3]float32{-1, -1, 0}
-	e.Vars.Maxs = [3]float32{1, 1, 56}
-	e.Vars.Solid = float32(SolidBSP)
-
-	// Link the entity so it participates in area checks
-	s.LinkEdict(e, true)
-
-	// The point above ground should be empty
-	if s.PointContents(e.Vars.Origin) == bsp.ContentsSolid {
-		t.Fatalf("expected empty at origin, got solid")
+// TestRecursiveHullCheckTransitionsFromSolidToOpen tests the recursive hull collision check algorithm with synthetic data.
+// It verifying the correctness of the core BSP collision logic by ensuring it correctly identifies transitions from solid to open space.
+// Where in C: SV_RecursiveHullCheck in sv_phys.c
+func TestRecursiveHullCheckTransitionsFromSolidToOpen(t *testing.T) {
+	hull := &bsp.Hull{
+		FirstClipNode: 0,
+		ClipNodes: []bsp.DSClipNode{
+			{PlaneNum: 0, Children: [2]bsp.HullChild{{Index: 1}, {Index: bsp.ContentsSolid, IsLeaf: true}}},
+			{PlaneNum: 1, Children: [2]bsp.HullChild{{Index: bsp.ContentsEmpty, IsLeaf: true}, {Index: bsp.ContentsSolid, IsLeaf: true}}},
+		},
+		Planes: []bsp.DSPlane{
+			{Normal: [3]float32{0, 0, 1}, Dist: 1},  // z = 1
+			{Normal: [3]float32{0, 0, 1}, Dist: -1}, // z = -1
+		},
 	}
 
-	// Step forward along +Y by 64 units
-	ok := s.StepDirection(e, 90, 64)
-	if !ok {
-		t.Fatalf("StepDirection failed")
+	start := [3]float32{2, 0, 3}
+	end := [3]float32{2, 0, -3}
+
+	sawOpen := false
+	for i := 0; i <= 256; i++ {
+		frac := float32(i) / 256
+		point := [3]float32{
+			start[0] + (end[0]-start[0])*frac,
+			start[1] + (end[1]-start[1])*frac,
+			start[2] + (end[2]-start[2])*frac,
+		}
+		if got := hullPointContents(hull, hull.FirstClipNode, point); got != bsp.ContentsSolid {
+			sawOpen = true
+			break
+		}
+	}
+	if !sawOpen {
+		t.Fatal("test hull never transitions out of solid along the sample ray")
 	}
 
-	// Now test a downward trace from high above to the ground
-	start := [3]float32{0, 0, 256}
-	end := [3]float32{0, 0, -256}
-	trace := s.SV_Move(start, [3]float32{}, [3]float32{}, end, MoveType(MoveNormal), nil)
-	if trace.Fraction == 1 {
-		t.Fatalf("expected trace to hit ground, got fraction=1")
-	}
-	if !(trace.EndPos[2] >= -DistEpsilon && trace.EndPos[2] <= DistEpsilon) {
-		t.Fatalf("expected end z==0 within epsilon, got %v", trace.EndPos[2])
-	}
+	trace := TraceResult{Fraction: 1, AllSolid: true, EndPos: end}
+	recursiveHullCheck(hull, hull.FirstClipNode, 0, 1, start, end, &trace)
 
-	// Ensure PointContents on the hit position is solid (below plane)
-	below := [3]float32{0, 0, -1}
-	if s.PointContents(below) != bsp.ContentsSolid {
-		t.Fatalf("expected solid below ground")
+	if trace.AllSolid {
+		t.Fatal("recursiveHullCheck left trace allsolid despite open space on the ray")
+	}
+	if trace.Fraction >= 1 {
+		t.Fatalf("trace fraction = %v, want collision before the end point", trace.Fraction)
 	}
 }

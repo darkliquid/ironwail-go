@@ -1,3 +1,7 @@
+// What: Entity position and angle interpolation tests.
+// Why: Ensures smooth rendering of entities between server updates.
+// Where in C: cl_main.c
+
 package client
 
 import (
@@ -8,6 +12,9 @@ import (
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
+// TestRelinkEntities_DemoViewAngleInterpolation verifies that view angles are interpolated during demo playback.
+// Why: Demos are recorded at a fixed framerate; interpolation ensures smooth camera movement regardless of playback FPS.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_DemoViewAngleInterpolation(t *testing.T) {
 	c := &Client{}
 	// Set up time so LerpPoint returns 0.5 (midway between frames).
@@ -33,6 +40,9 @@ func TestRelinkEntities_DemoViewAngleInterpolation(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_DemoViewAngleWraparound ensures that angle interpolation correctly handles the 360 to 0 degree transition.
+// Why: Preventing "spinning" glitches when the camera crosses the angular wrap point.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_DemoViewAngleWraparound(t *testing.T) {
 	c := &Client{}
 	c.MTime = [2]float64{1.0, 0.9}
@@ -53,6 +63,9 @@ func TestRelinkEntities_DemoViewAngleWraparound(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_NoDemoNoViewAngleChange verifies that view angles are NOT interpolated during normal gameplay.
+// Why: During live play, view angles are controlled by the player's mouse input, not server updates.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_NoDemoNoViewAngleChange(t *testing.T) {
 	c := &Client{}
 	c.MTime = [2]float64{1.0, 0.9}
@@ -73,6 +86,9 @@ func TestRelinkEntities_NoDemoNoViewAngleChange(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction verifies that teleporting the local player resets prediction state.
+// Why: Prediction must start from a fresh server-provided origin after a teleport to avoid "snapping" back to the pre-teleport position.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
@@ -145,6 +161,9 @@ func TestRelinkEntities_LocalTeleportPreservesResetAndSnapsPrediction(t *testing
 	}
 }
 
+// TestRelinkEntities_TrailEvents verifies that rocket and grenade trails are generated correctly.
+// Why: Trails provide essential visual tracking for fast-moving projectiles.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_TrailEvents(t *testing.T) {
 	c := &Client{}
 	c.MTime = [2]float64{1.0, 0.9}
@@ -224,6 +243,9 @@ func TestRelinkEntities_TrailEvents(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_TrailEventsUseModelIndexMinusOne ensures correct model mapping for trail effects.
+// Why: Quake uses 1-based indexing for models in the precache; internal logic often uses 0-based.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_TrailEventsUseModelIndexMinusOne(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
@@ -262,6 +284,9 @@ func TestRelinkEntities_TrailEventsUseModelIndexMinusOne(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_RocketTrailIsRateLimited verifies that trail particles are not spawned too frequently.
+// Why: Prevents particle "blooming" and performance degradation during slow-motion playback or high framerates.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
@@ -311,6 +336,9 @@ func TestRelinkEntities_RocketTrailIsRateLimited(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_StaleEntityClearsModelAndResetsLerp verifies that entities that stop receiving updates are removed from the scene.
+// Why: Prevents "ghost" entities from lingering after they should have been destroyed or moved out of range.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_StaleEntityClearsModelAndResetsLerp(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
@@ -338,6 +366,9 @@ func TestRelinkEntities_StaleEntityClearsModelAndResetsLerp(t *testing.T) {
 	}
 }
 
+// TestRelinkEntities_StepMoveSnapsRenderStateWithoutTeleportReset verifies that small movement steps (like stairs) snap to avoid visual jitter.
+// Why: Smoothly interpolating up stairs would cause the camera to "sink" into the steps.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_StepMoveSnapsRenderStateWithoutTeleportReset(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}
@@ -377,6 +408,9 @@ func TestRelinkEntities_StepMoveSnapsRenderStateWithoutTeleportReset(t *testing.
 	}
 }
 
+// TestRelinkEntities_ExplicitRetireKeepsZeroModel verifies that entities explicitly retired by the server are deactivated.
+// Why: Allows the server to precisely control the lifecycle of entities.
+// Where in C: cl_main.c, CL_RelinkEntities.
 func TestRelinkEntities_ExplicitRetireKeepsZeroModel(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{1.0, 0.9}

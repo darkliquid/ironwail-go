@@ -6,6 +6,9 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
+// TestPhysicsWalkJump tests walk/jump physics parity.
+// It ensuring that jumping behavior matches the original engine's movement model.
+// Where in C: SV_Physics_Client and QuakeC PlayerPreThink.
 func TestPhysicsWalkJump(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.01
@@ -27,6 +30,9 @@ func TestPhysicsWalkJump(t *testing.T) {
 	// But our PhysicsWalk doesn't seem to do anything with buttons if we aren't running QC.
 }
 
+// TestPhysicsWalkStepUp tests step-up behavior during walking.
+// It verifying that entities can correctly climb small steps and slopes without getting stuck.
+// Where in C: SV_WalkMove in sv_phys.c
 func TestPhysicsWalkStepUp(t *testing.T) {
 	s := NewServer()
 	s.FrameTime = 0.01

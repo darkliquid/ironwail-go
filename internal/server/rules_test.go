@@ -25,6 +25,9 @@ func withRuleCVars(t *testing.T, values map[string]string) {
 	})
 }
 
+// TestCheckRulesEndsMatchOnFraglimit tests the deathmatch fraglimit rule.
+// It ensuring the match correctly ends and advances to the next level when a player reaches the frag goal.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -48,6 +51,9 @@ func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
 	}
 }
 
+// TestCheckRulesEndsMatchOnTimelimit tests the deathmatch timelimit rule.
+// It ensuring the match ends when the allotted time has elapsed.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -68,6 +74,9 @@ func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
 	}
 }
 
+// TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress tests the player respawn logic in deathmatch.
+// It ensuring players can only respawn after the QuakeC logic marks them as ready and they've pressed a button.
+// Where in C: SV_Physics_Client in sv_phys.c (handling respawn state)
 func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -119,6 +128,9 @@ func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 	}
 }
 
+// TestCheckRulesNoTriggerInCoop tests that deathmatch rules are disabled in coop mode.
+// It preventing unexpected match ends during cooperative play.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNoTriggerInCoop(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "1",
@@ -143,6 +155,9 @@ func TestCheckRulesNoTriggerInCoop(t *testing.T) {
 	}
 }
 
+// TestCheckRulesNoTriggerWhenDisabled tests disabled match rules.
+// It ensuring that when limits are set to 0, the match continues indefinitely.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -167,6 +182,9 @@ func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
 	}
 }
 
+// TestCheckRulesFraglimitExactlyMet tests exact fraglimit match.
+// It verifying the boundary condition for match ending.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -190,6 +208,9 @@ func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
 	}
 }
 
+// TestCheckRulesFraglimitNotMetBelowThreshold tests below-fraglimit state.
+// It ensuring the match doesn't end early.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -213,6 +234,9 @@ func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
 	}
 }
 
+// TestCheckRulesTimelimitNotMetBelowThreshold tests below-timelimit state.
+// It ensuring the match doesn't end early.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -233,6 +257,9 @@ func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
 	}
 }
 
+// TestCheckRulesSkipsWhenChangeLevelAlreadyIssued tests rule checking idempotency.
+// It preventing redundant level change commands when a match end has already been triggered.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -256,6 +283,9 @@ func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
 	// No crash or panic means success; the guard clause prevented re-entry.
 }
 
+// TestCheckRulesFraglimitChecksAllClients tests that all clients are checked for the fraglimit.
+// It ensuring that *any* player reaching the limit triggers the match end.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -288,6 +318,9 @@ func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 	}
 }
 
+// TestCheckRulesNegativeFraglimitIgnored tests robustness against invalid fraglimit values.
+// It treating negative limits as disabled, matching canonical engine behavior.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -311,6 +344,9 @@ func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
 	}
 }
 
+// TestCheckRulesNegativeTimelimitIgnored tests robustness against invalid timelimit values.
+// It treating negative limits as disabled.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",
@@ -331,6 +367,9 @@ func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
 	}
 }
 
+// TestCheckRulesCoopOverridesDeathmatch tests the priority of the coop flag.
+// It ensuring cooperative mode takes precedence over deathmatch settings.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "1",
@@ -355,6 +394,9 @@ func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
 	}
 }
 
+// TestCheckRulesSkipsFreedEdicts tests that freed edicts don't affect rule checking.
+// It preventing crashes or incorrect results from disconnected players or removed entities.
+// Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesSkipsFreedEdicts(t *testing.T) {
 	withRuleCVars(t, map[string]string{
 		"coop":       "0",

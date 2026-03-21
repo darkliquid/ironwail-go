@@ -7,6 +7,9 @@ import (
 	"testing"
 )
 
+// TestDetectTrackerFormat tests tracker music format detection.
+// It correctly identifying MOD, S3M, XM, and IT files by extension.
+// Where in C: Ironwail's music loader extension.
 func TestDetectTrackerFormat(t *testing.T) {
 	tests := []struct {
 		filename string
@@ -33,6 +36,9 @@ func TestDetectTrackerFormat(t *testing.T) {
 	}
 }
 
+// TestDecodeMusicTrackerUnsupportedFormat tests error handling for unknown tracker formats.
+// It ensuring the engine fails gracefully when encountering unsupported music files.
+// Where in C: N/A
 func TestDecodeMusicTrackerUnsupportedFormat(t *testing.T) {
 	_, err := decodeMusicTracker("test.unknown", []byte{0x00})
 	if err == nil {
@@ -44,6 +50,9 @@ func TestDecodeMusicTrackerUnsupportedFormat(t *testing.T) {
 	}
 }
 
+// TestDecodeMusicTrackerInvalidData tests error handling for corrupted tracker files.
+// It preventing crashes from malformed music assets.
+// Where in C: N/A
 func TestDecodeMusicTrackerInvalidData(t *testing.T) {
 	// Invalid MOD data (too short)
 	_, err := decodeMusicTracker("test.mod", []byte{0x00, 0x01, 0x02})
@@ -52,6 +61,9 @@ func TestDecodeMusicTrackerInvalidData(t *testing.T) {
 	}
 }
 
+// TestTrackerFormatsRegisteredInMusicSystem tests registration of tracker extensions.
+// It ensuring tracker music is included in the engine's search logic.
+// Where in C: N/A
 func TestTrackerFormatsRegisteredInMusicSystem(t *testing.T) {
 	// Check that tracker formats are in the supported extensions list
 	trackerExts := []string{".mod", ".s3m", ".xm", ".it"}
@@ -69,6 +81,9 @@ func TestTrackerFormatsRegisteredInMusicSystem(t *testing.T) {
 	}
 }
 
+// TestDecodeMusicTrackDispatchesTrackerFormats tests the dispatcher for tracker music.
+// It correctly routing music loading requests to the tracker decoder based on file type.
+// Where in C: N/A
 func TestDecodeMusicTrackDispatchesTrackerFormats(t *testing.T) {
 	// Test that the dispatcher in decodeMusicTrack correctly routes tracker formats
 	// We expect all of these to fail (invalid data), but they should reach the tracker decoder
@@ -87,7 +102,7 @@ func TestDecodeMusicTrackDispatchesTrackerFormats(t *testing.T) {
 		if err == nil {
 			t.Errorf("decodeMusicTrack(%q) should fail with invalid data", tt.name)
 		}
-		// The error should come from the tracker loader, not "unsupported music file type"
+		// The error should come from the tracker loader, not \"unsupported music file type\"
 		if err != nil {
 			errStr := err.Error()
 			if errStr == "unsupported music file type for "+tt.name {

@@ -1,3 +1,7 @@
+// What: View shift (color tinting/flashing) tests.
+// Why: Verifies visual feedback for damage, powerups, and underwater effects.
+// Where in C: viewblend.go
+
 package client
 
 import (
@@ -5,7 +9,9 @@ import (
 	"testing"
 )
 
-// TestSetContentsColorLava verifies lava leaf gives orange-red tint at 150%.
+// TestSetContentsColorLava verifies that entering lava triggers the correct color shift.
+// Why: Lava should provide a strong orange-red tint to indicate the player is submerged in a hazardous liquid.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestSetContentsColorLava(t *testing.T) {
 	c := NewClient()
 	c.SetContentsColor(-5) // ContentsLava
@@ -17,7 +23,9 @@ func TestSetContentsColorLava(t *testing.T) {
 	}
 }
 
-// TestSetContentsColorSlime verifies slime leaf gives dark-green tint at 150%.
+// TestSetContentsColorSlime verifies that entering slime triggers the correct color shift.
+// Why: Slime should provide a green tint to indicate the player is submerged in toxic liquid.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestSetContentsColorSlime(t *testing.T) {
 	c := NewClient()
 	c.SetContentsColor(-4) // ContentsSlime
@@ -29,7 +37,9 @@ func TestSetContentsColorSlime(t *testing.T) {
 	}
 }
 
-// TestSetContentsColorWater verifies water leaf gives water tint at 128%.
+// TestSetContentsColorWater verifies that entering water triggers the correct color shift.
+// Why: Water should provide a blue tint to indicate the player is submerged.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestSetContentsColorWater(t *testing.T) {
 	c := NewClient()
 	c.SetContentsColor(-3) // ContentsWater
@@ -38,7 +48,9 @@ func TestSetContentsColorWater(t *testing.T) {
 	}
 }
 
-// TestSetContentsColorEmpty verifies empty/solid/sky gives zero-percent tint.
+// TestSetContentsColorEmpty verifies that clear contents do not trigger any color shift.
+// Why: Moving between air, solids, or sky should not result in any persistent screen tinting.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestSetContentsColorEmpty(t *testing.T) {
 	c := NewClient()
 	for _, contents := range []int32{-1, -2, -6} { // empty, solid, sky
@@ -49,7 +61,9 @@ func TestSetContentsColorEmpty(t *testing.T) {
 	}
 }
 
-// TestApplyDamage_BloodOnly verifies a pure-blood hit gives a red tint.
+// TestApplyDamage_BloodOnly verifies that taking health damage triggers a red screen flash.
+// Why: Visual feedback for taking damage is critical for gameplay.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestApplyDamage_BloodOnly(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 20
@@ -65,7 +79,9 @@ func TestApplyDamage_BloodOnly(t *testing.T) {
 	}
 }
 
-// TestApplyDamage_ArmorOnly verifies pure-armor hit uses the armor-tint color.
+// TestApplyDamage_ArmorOnly verifies that armor hits trigger a distinct color flash.
+// Why: Differentiating between health and armor damage helps the player assess their survival state.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestApplyDamage_ArmorOnly(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 0
@@ -77,7 +93,9 @@ func TestApplyDamage_ArmorOnly(t *testing.T) {
 	}
 }
 
-// TestApplyDamage_Accumulation verifies percent accumulates across multiple hits.
+// TestApplyDamage_Accumulation verifies that rapid successive hits increase the intensity of the damage flash.
+// Why: Cumulative damage should be reflected visually to stress the urgency of the situation.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestApplyDamage_Accumulation(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 20
@@ -89,7 +107,9 @@ func TestApplyDamage_Accumulation(t *testing.T) {
 	}
 }
 
-// TestApplyDamage_Cap verifies percent is clamped to 150.
+// TestApplyDamage_Cap verifies that the damage flash intensity is capped.
+// Why: Preventing the screen from becoming entirely opaque ensures the player can still see to react.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestApplyDamage_Cap(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 100
@@ -102,7 +122,9 @@ func TestApplyDamage_Cap(t *testing.T) {
 	}
 }
 
-// TestBonusFlash verifies the gold pickup flash color and percent.
+// TestBonusFlash verifies the golden flash when picking up items.
+// Why: Positive visual reinforcement for item collection enhances game feel.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestBonusFlash(t *testing.T) {
 	c := NewClient()
 	c.BonusFlash()
@@ -114,7 +136,9 @@ func TestBonusFlash(t *testing.T) {
 	}
 }
 
-// TestUpdateBlend_DecayDamage verifies damage percent decays over time.
+// TestUpdateBlend_DecayDamage verifies that the damage flash fades over time.
+// Why: Screen tints should be temporary to avoid obscuring vision indefinitely.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestUpdateBlend_DecayDamage(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 20
@@ -128,7 +152,9 @@ func TestUpdateBlend_DecayDamage(t *testing.T) {
 	}
 }
 
-// TestUpdateBlend_DecayBonus verifies bonus percent decays over time.
+// TestUpdateBlend_DecayBonus verifies that the item pickup flash fades over time.
+// Why: Visual feedback should be impactful but transient.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestUpdateBlend_DecayBonus(t *testing.T) {
 	c := NewClient()
 	c.BonusFlash() // percent = 50
@@ -139,7 +165,9 @@ func TestUpdateBlend_DecayBonus(t *testing.T) {
 	}
 }
 
-// TestUpdateBlend_PowerupQuad verifies quad damage sets blue tint.
+// TestUpdateBlend_PowerupQuad verifies the blue tint while Quad Damage is active.
+// Why: Players need a constant visual reminder of their powered-up state.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestUpdateBlend_PowerupQuad(t *testing.T) {
 	c := NewClient()
 	c.Items = uint32(ItemQuad)
@@ -149,7 +177,9 @@ func TestUpdateBlend_PowerupQuad(t *testing.T) {
 	}
 }
 
-// TestUpdateBlend_PowerupSuit verifies suit sets green tint.
+// TestUpdateBlend_PowerupSuit verifies the green tint while the Biohazard Suit is active.
+// Why: Indicates protection from environmental hazards.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestUpdateBlend_PowerupSuit(t *testing.T) {
 	c := NewClient()
 	c.Items = uint32(ItemSuit)
@@ -159,7 +189,9 @@ func TestUpdateBlend_PowerupSuit(t *testing.T) {
 	}
 }
 
-// TestCalcBlend_ZeroAlphaWhenNoShifts verifies no tint when all shifts are zero.
+// TestCalcBlend_ZeroAlphaWhenNoShifts verifies that no tint is applied when no shifts are active.
+// Why: The screen should remain clear during normal gameplay.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_ZeroAlphaWhenNoShifts(t *testing.T) {
 	c := NewClient()
 	blend := c.CalcBlend(100, [NumCShifts]float32{100, 100, 100, 100})
@@ -168,7 +200,9 @@ func TestCalcBlend_ZeroAlphaWhenNoShifts(t *testing.T) {
 	}
 }
 
-// TestCalcBlend_ZeroWhenGlobalPercentIsZero verifies gl_cshiftpercent=0 suppresses blend.
+// TestCalcBlend_ZeroWhenGlobalPercentIsZero verifies that the global blend scale can disable all tints.
+// Why: Provides user control over visual effects through console variables.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_ZeroWhenGlobalPercentIsZero(t *testing.T) {
 	c := NewClient()
 	c.BonusFlash()
@@ -178,7 +212,9 @@ func TestCalcBlend_ZeroWhenGlobalPercentIsZero(t *testing.T) {
 	}
 }
 
-// TestCalcBlend_DamageRedTint verifies a damage shift produces a red-ish result.
+// TestCalcBlend_DamageRedTint verifies that damage shifts result in a red-dominant color.
+// Why: Red is the universal indicator for danger and health loss.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_DamageRedTint(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 30
@@ -193,7 +229,9 @@ func TestCalcBlend_DamageRedTint(t *testing.T) {
 	}
 }
 
-// TestCalcBlend_AlphaIsClamped verifies the output alpha never exceeds 1.
+// TestCalcBlend_AlphaIsClamped verifies that the final composite alpha never exceeds 100%.
+// Why: Rendering systems expect normalized alpha values to avoid artifacts.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_AlphaIsClamped(t *testing.T) {
 	c := NewClient()
 	// Saturate all shifts
@@ -206,8 +244,9 @@ func TestCalcBlend_AlphaIsClamped(t *testing.T) {
 	}
 }
 
-// TestCalcBlend_IntermissionOnlyContents verifies during intermission only
-// the contents shift contributes.
+// TestCalcBlend_IntermissionOnlyContents verifies that only environmental tints apply during intermission.
+// Why: Prevents damage or pickup flashes from appearing when the game is paused or over.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_IntermissionOnlyContents(t *testing.T) {
 	c := NewClient()
 	c.Intermission = 1
@@ -235,7 +274,9 @@ func approxEqual(a, b, eps float32) bool {
 	return diff <= eps
 }
 
-// TestCalcBlend_CompositeMultipleShifts verifies two overlapping shifts composite correctly.
+// TestCalcBlend_CompositeMultipleShifts verifies that multiple active tints are correctly blended together.
+// Why: Ensures correct visuals when taking damage while submerged or powered up.
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_CompositeMultipleShifts(t *testing.T) {
 	c := NewClient()
 	// Set a water contents shift (percent=128, color=130,80,50)
@@ -259,7 +300,9 @@ func TestCalcBlend_CompositeMultipleShifts(t *testing.T) {
 	}
 }
 
-// TestCalcBlend_PerChannelPercent verifies per-channel gl_cshiftpercent_* scaling.
+// TestCalcBlend_PerChannelPercent verifies that individual tint types can be scaled independently.
+// Why: Supports fine-grained visual customization (e.g., disabling only damage flashes).
+// Where in C: cl_main.c, V_CalcBlend.
 func TestCalcBlend_PerChannelPercent(t *testing.T) {
 	c := NewClient()
 	c.DamageTaken = 50
@@ -276,7 +319,9 @@ func TestCalcBlend_PerChannelPercent(t *testing.T) {
 	}
 }
 
-// TestClearState_ResetsColorShifts verifies ClearState() zeroes out all CShifts.
+// TestClearState_ResetsColorShifts verifies that all screen tints are cleared when resetting client state.
+// Why: Ensures a clean slate when connecting to a new server or reloading.
+// Where in C: cl_main.c, CL_ClearState.
 func TestClearState_ResetsColorShifts(t *testing.T) {
 	c := NewClient()
 	c.BonusFlash()
@@ -291,6 +336,9 @@ func TestClearState_ResetsColorShifts(t *testing.T) {
 	}
 }
 
+// TestClearState_ResetsVelocityAndViewHistory verifies that movement and angle history are cleared.
+// Why: Prevents prediction or interpolation glitches when restarting state.
+// Where in C: cl_main.c, CL_ClearState.
 func TestClearState_ResetsVelocityAndViewHistory(t *testing.T) {
 	c := NewClient()
 	c.ViewAngles = [3]float32{10, 20, 30}

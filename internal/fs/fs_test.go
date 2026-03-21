@@ -12,6 +12,11 @@ import (
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
 
+// TestFilesystemLoadsPak verifies that the filesystem can correctly initialize
+// using a real Quake directory and load essential files like progs.dat and maps.
+// Why: To ensure the core VFS can interface with actual Quake data and that the
+// PAK loading logic is compatible with official assets.
+// Where in C: common.c, COM_InitFilesystem and COM_LoadFile.
 func TestFilesystemLoadsPak(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 
@@ -40,6 +45,12 @@ func TestFilesystemLoadsPak(t *testing.T) {
 	}
 }
 
+// TestFilesystemSearchPathMatchesQuakePrecedence verifies that the search path
+// correctly prioritizes files according to Quake's precedence rules:
+// (Mod Loose Files > Mod PAKs > Base Loose Files > Base PAKs).
+// Why: Correct override behavior is essential for mods to function without
+// modifying original game data.
+// Where in C: common.c, COM_AddGameDirectory and the ordering of the search path list.
 func TestFilesystemSearchPathMatchesQuakePrecedence(t *testing.T) {
 	baseDir := t.TempDir()
 	id1Dir := filepath.Join(baseDir, "id1")
@@ -96,6 +107,12 @@ func TestFilesystemSearchPathMatchesQuakePrecedence(t *testing.T) {
 	}
 }
 
+// TestPathTraversal ensures that the filesystem prevents access to files
+// outside of the authorized search paths.
+// Why: Security is paramount to prevent malicious maps or mods from reading
+// sensitive system files.
+// Where in C: Modern ports like Ironwail implement this in common.c via
+// path normalization and validation logic (e.g., COM_CheckSecurity).
 func TestPathTraversal(t *testing.T) {
 	baseDir := t.TempDir()
 	gameDir := filepath.Join(baseDir, "id1")
@@ -141,6 +158,11 @@ func TestPathTraversal(t *testing.T) {
 	}
 }
 
+// TestPakOverrideOrderIsNumeric verifies that PAK files within a single directory
+// are loaded in numeric order, with higher numbers taking precedence.
+// Why: This allows "patch" PAKs (like pak1.pak) to override original assets
+// in pak0.pak.
+// Where in C: common.c, COM_AddGameDirectory, which scans for pak%d.pak files.
 func TestPakOverrideOrderIsNumeric(t *testing.T) {
 	baseDir := t.TempDir()
 	gameDir := filepath.Join(baseDir, "id1")
@@ -173,6 +195,11 @@ func TestPakOverrideOrderIsNumeric(t *testing.T) {
 	}
 }
 
+// TestPackLookupIsCaseInsensitive verifies that file lookups within PAK files
+// are case-insensitive.
+// Why: Quake's original development environment (DOS/Windows) was case-insensitive,
+// and the engine preserves this behavior for cross-platform compatibility.
+// Where in C: common.c, COM_FindFile, which uses case-insensitive string comparisons.
 func TestPackLookupIsCaseInsensitive(t *testing.T) {
 	baseDir := t.TempDir()
 	gameDir := filepath.Join(baseDir, "id1")
@@ -199,6 +226,13 @@ func TestPackLookupIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+// TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder verifies that when
+// searching for one of multiple possible files, the search path precedence
+// (mod vs base) is checked before file extension priority.
+// Why: This ensures that a mod can provide an OGG replacement for a base game
+// WAV file and have it correctly selected.
+// Where in C: Ironwail-specific logic in common.c, though related to the
+// general COM_OpenFile loop.
 func TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder(t *testing.T) {
 	baseDir := t.TempDir()
 	id1Dir := filepath.Join(baseDir, "id1")
@@ -235,6 +269,11 @@ func TestLoadFirstAvailablePrefersSearchPathOverExtensionOrder(t *testing.T) {
 	}
 }
 
+// TestEnginePakLoadedWhenPresent verifies that ironwail.pak is automatically
+// loaded from the application root if it exists.
+// Why: Ironwail uses a dedicated PAK for engine-level assets (icons, shaders,
+// default configs) that should be available regardless of the active mod.
+// Where in C: Ironwail's common.c, COM_InitFilesystem.
 func TestEnginePakLoadedWhenPresent(t *testing.T) {
 	baseDir := t.TempDir()
 	id1Dir := filepath.Join(baseDir, "id1")
@@ -272,6 +311,11 @@ func TestEnginePakLoadedWhenPresent(t *testing.T) {
 	}
 }
 
+// TestEnginePakOptionalWhenMissing verifies that the engine still initializes
+// correctly even if ironwail.pak is missing.
+// Why: While ironwail.pak is recommended, the engine should remain functional
+// if only base game data is present.
+// Where in C: Ironwail's common.c, COM_InitFilesystem.
 func TestEnginePakOptionalWhenMissing(t *testing.T) {
 	baseDir := t.TempDir()
 	id1Dir := filepath.Join(baseDir, "id1")
@@ -299,6 +343,7 @@ func TestEnginePakOptionalWhenMissing(t *testing.T) {
 }
 
 func writeTestPak(t *testing.T, path string, files map[string][]byte) {
+
 	t.Helper()
 
 	var data bytes.Buffer

@@ -2,6 +2,9 @@ package input
 
 import "testing"
 
+// TestFunctionKeyStringRoundTrip tests the conversion between key codes and their string names.
+// It ensures that key bindings in the console and config files (e.g., bind F1 help) are correctly translated to internal key constants.
+// Where in C: Key_NameForNo and Key_StringToKeynum in keys.c
 func TestFunctionKeyStringRoundTrip(t *testing.T) {
 	for _, tc := range []struct {
 		key  int
@@ -39,6 +42,9 @@ func (b *textModeBackend) IsGamepadConnected(player int) bool      { return fals
 func (b *textModeBackend) SetMouseGrab(grabbed bool)               {}
 func (b *textModeBackend) SetWindow(win interface{})               {}
 
+// TestHandleCharEventRoutesToMenuCharCallback tests character input routing.
+// It ensures that text input is correctly sent to the active menu or console when they are open.
+// Where in C: Key_Event in keys.c
 func TestHandleCharEventRoutesToMenuCharCallback(t *testing.T) {
 	sys := NewSystem(nil)
 	sys.SetKeyDest(KeyMenu)
@@ -58,6 +64,9 @@ func TestHandleCharEventRoutesToMenuCharCallback(t *testing.T) {
 	}
 }
 
+// TestUpdateTextModeEnablesTextForMenu tests the transition to text input mode for menus.
+// It enabling OS-level text input features (like IME or repeated keys) when entering text in menus or the console.
+// Where in C: IN_SetTextMode or similar in in_sdl.c
 func TestUpdateTextModeEnablesTextForMenu(t *testing.T) {
 	backend := &textModeBackend{}
 	sys := NewSystem(backend)
@@ -73,6 +82,9 @@ func TestUpdateTextModeEnablesTextForMenu(t *testing.T) {
 	}
 }
 
+// TestHandleKeyEventFiltersAutorepeatOnlyInGame tests key repeat filtering.
+// It preventing accidental multi-presses during gameplay while allowing repeated characters in the console and menus.
+// Where in C: Key_Event in keys.c
 func TestHandleKeyEventFiltersAutorepeatOnlyInGame(t *testing.T) {
 	sys := NewSystem(nil)
 
@@ -105,6 +117,9 @@ func TestHandleKeyEventFiltersAutorepeatOnlyInGame(t *testing.T) {
 	}
 }
 
+// TestHandleKeyEventStopsGeneralDispatchWhenMenuChangesDest tests input focus management.
+// It ensuring that closing the menu (e.g., via Esc) correctly restores input focus to the game without double-processing the key.
+// Where in C: Key_Event in keys.c
 func TestHandleKeyEventStopsGeneralDispatchWhenMenuChangesDest(t *testing.T) {
 	sys := NewSystem(nil)
 	sys.SetKeyDest(KeyMenu)
@@ -132,6 +147,9 @@ func TestHandleKeyEventStopsGeneralDispatchWhenMenuChangesDest(t *testing.T) {
 	}
 }
 
+// TestHandleKeyEventIgnoresStrayKeyUp tests robust key state tracking.
+// It preventing logic errors from \"up\" events that don't have a corresponding \"down\" event, which can happen during focus changes.
+// Where in C: Key_Event in keys.c
 func TestHandleKeyEventIgnoresStrayKeyUp(t *testing.T) {
 	sys := NewSystem(nil)
 	sys.SetKeyDest(KeyGame)

@@ -12,6 +12,9 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
+// TestTransformKey tests gamepad key transformation.
+// It ensures that certain keys are correctly shifted when an "alt" modifier is pressed, allowing for expanded gamepad bindings.
+// Where in C: N/A (Modern engine extension)
 func TestTransformKey(t *testing.T) {
 	b := &sdl3Backend{}
 
@@ -32,6 +35,9 @@ func TestTransformKey(t *testing.T) {
 	}
 }
 
+// TestTransformKeyRangeMatchesOffset verifies the range of transformable gamepad keys.
+// It ensures that all keys between KLThumb and KTouchpad are correctly shifted by the defined offset.
+// Where in C: N/A
 func TestTransformKeyRangeMatchesOffset(t *testing.T) {
 	b := &sdl3Backend{altModifierPressed: true}
 	for key := KLThumb; key <= KTouchpad; key++ {
@@ -43,6 +49,9 @@ func TestTransformKeyRangeMatchesOffset(t *testing.T) {
 	}
 }
 
+// TestSDLButtonToKeyCoverage tests the mapping between SDL gamepad buttons and internal key codes.
+// It ensures that all standard SDL buttons have a corresponding internal representation.
+// Where in C: IN_SDL_Runtime_KeyEvent in in_sdl.c (modernized)
 func TestSDLButtonToKeyCoverage(t *testing.T) {
 	if got, want := len(sdlButtonToKey), int(sdl.GAMEPAD_BUTTON_COUNT); got != want {
 		t.Fatalf("mapping entries = %d, want %d", got, want)
@@ -68,6 +77,9 @@ func TestSDLButtonToKeyCoverage(t *testing.T) {
 	}
 }
 
+// TestApplyGyroMode tests different gyroscope operational modes.
+// It verifies that gyro input can be ignored, enabled/disabled by modifiers, or inverted.
+// Where in C: N/A (Modern engine extension)
 func TestApplyGyroMode(t *testing.T) {
 	b := &sdl3Backend{}
 	oldMode := gyroMode.String
@@ -103,6 +115,9 @@ func TestApplyGyroMode(t *testing.T) {
 	}
 }
 
+// TestFilterGyroValue tests gyroscope noise filtering.
+// It ensures that small gyro movements are filtered out while larger movements pass through.
+// Where in C: N/A
 func TestFilterGyroValue(t *testing.T) {
 	if got := filterGyroValue(1, 2); math.Abs(float64(got-0.5)) > 1e-6 {
 		t.Fatalf("filtered value = %f, want 0.5", got)
@@ -115,6 +130,9 @@ func TestFilterGyroValue(t *testing.T) {
 	}
 }
 
+// TestUpdateGyroAccumulatesDeltas tests gyroscope input integration.
+// It providing smooth motion-based aiming by correctly accumulating angular velocity over time.
+// Where in C: N/A (Modern engine extension)
 func TestUpdateGyroAccumulatesDeltas(t *testing.T) {
 	oldEnable := gyroEnable.String
 	oldMode := gyroMode.String
@@ -165,6 +183,9 @@ func TestUpdateGyroAccumulatesDeltas(t *testing.T) {
 	}
 }
 
+// TestApplyDeadzoneAndCurve tests stick deadzone and response curve logic.
+// It improving controller feel by filtering out stick drift and providing non-linear sensitivity.
+// Where in C: IN_Move or similar in in_sdl.c (extended)
 func TestApplyDeadzoneAndCurve(t *testing.T) {
 	if got := applyDeadzoneAndCurve(0.1, 0.2, 2.0); got != 0 {
 		t.Fatalf("deadzone expected 0, got %f", got)
@@ -180,6 +201,9 @@ func TestApplyDeadzoneAndCurve(t *testing.T) {
 	}
 }
 
+// TestApplyTriggerDeadzone tests trigger deadzone logic.
+// It ensuring triggers don't activate accidentally at low values.
+// Where in C: N/A (Modern engine extension)
 func TestApplyTriggerDeadzone(t *testing.T) {
 	if got := applyTriggerDeadzone(0.02, 0.05); got != 0 {
 		t.Fatalf("trigger below deadzone should be 0, got %f", got)

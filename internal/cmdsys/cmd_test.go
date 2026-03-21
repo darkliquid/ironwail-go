@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// TestParseCommandPreservesEscapedQuotesAndBackslashes tests command line tokenization with escape characters.
+// It ensures that complex command strings (like those in bind or alias) are parsed correctly.
+// Where in C: Cmd_TokenizeString in cmd.c
 func TestParseCommandPreservesEscapedQuotesAndBackslashes(t *testing.T) {
 	args := parseCommand(`bind t "say He said \"hello\" \\world\nnext\tline"`)
 	want := []string{"bind", "t", "say He said \"hello\" \\world\nnext\tline"}
@@ -13,6 +16,9 @@ func TestParseCommandPreservesEscapedQuotesAndBackslashes(t *testing.T) {
 	}
 }
 
+// TestCommandTakesPrecedenceOverAlias tests that built-in commands take precedence over aliases with the same name.
+// It maintains the standard command resolution order where engine commands cannot be overridden by user aliases.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestCommandTakesPrecedenceOverAlias(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -36,6 +42,9 @@ func TestCommandTakesPrecedenceOverAlias(t *testing.T) {
 	}
 }
 
+// TestAliasExecutesUnderlyingCommandText tests that an alias correctly expands to its defined command text.
+// It ensures basic alias functionality works as expected for user-defined shortcuts.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestAliasExecutesUnderlyingCommandText(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -53,6 +62,9 @@ func TestAliasExecutesUnderlyingCommandText(t *testing.T) {
 	}
 }
 
+// TestExecuteTextSplitsSemicolonSeparatedCommands tests that semicolons are correctly used as command separators.
+// It allows multiple commands to be executed from a single input line.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestExecuteTextSplitsSemicolonSeparatedCommands(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -72,6 +84,9 @@ func TestExecuteTextSplitsSemicolonSeparatedCommands(t *testing.T) {
 	}
 }
 
+// TestAliasExecutesSemicolonSeparatedCommandText tests that aliases containing multiple semicolon-separated commands are executed correctly.
+// It supports complex multi-command aliases.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestAliasExecutesSemicolonSeparatedCommandText(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -92,6 +107,9 @@ func TestAliasExecutesSemicolonSeparatedCommandText(t *testing.T) {
 	}
 }
 
+// TestRecursiveAliasStopsAtActiveExpansion tests recursion depth protection for aliases.
+// It prevents infinite loops and engine crashes from recursive alias definitions.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestRecursiveAliasStopsAtActiveExpansion(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -108,6 +126,9 @@ func TestRecursiveAliasStopsAtActiveExpansion(t *testing.T) {
 	}
 }
 
+// TestWaitCommandDefersRemainingCommands tests the wait command's ability to pause command execution.
+// It allows scripts to delay execution until the next frame/execution cycle.
+// Where in C: Cmd_ExecuteString and Cmd_Wait_f in cmd.c
 func TestWaitCommandDefersRemainingCommands(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -140,6 +161,9 @@ func TestWaitCommandDefersRemainingCommands(t *testing.T) {
 	}
 }
 
+// TestWaitCommandWithExistingBufferContent tests wait behavior when additional commands are added to the buffer.
+// It ensures command ordering is preserved when execution is deferred.
+// Where in C: Cbuf_AddText and Cbuf_Execute in cmd.c
 func TestWaitCommandWithExistingBufferContent(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -167,6 +191,9 @@ func TestWaitCommandWithExistingBufferContent(t *testing.T) {
 	}
 }
 
+// TestWaitCommandAtEnd tests wait at the end of a command string.
+// It ensures it doesn't cause issues when there are no more commands to defer.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestWaitCommandAtEnd(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -191,6 +218,9 @@ func TestWaitCommandAtEnd(t *testing.T) {
 	}
 }
 
+// TestCommandSourceDefaultsToSrcCommand tests the default command execution source.
+// It ensures that commands originate from the console/config by default.
+// Where in C: cmd_source global in cmd.c
 func TestCommandSourceDefaultsToSrcCommand(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -210,6 +240,9 @@ func TestCommandSourceDefaultsToSrcCommand(t *testing.T) {
 	}
 }
 
+// TestExecuteTextWithSourceSetsSourceForHandler tests that the command source is correctly passed to the command handler.
+// It allows handlers to distinguish between local, client, and server sources for security and logic.
+// Where in C: Cmd_ExecuteString and cmd_source in cmd.c
 func TestExecuteTextWithSourceSetsSourceForHandler(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -233,6 +266,9 @@ func TestExecuteTextWithSourceSetsSourceForHandler(t *testing.T) {
 	}
 }
 
+// TestExecuteWithSourceUsesProvidedSource tests ExecuteWithSource with buffered commands.
+// It ensures the source is correctly tracked through the command buffer.
+// Where in C: Cbuf_Execute and cmd_source in cmd.c
 func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
 	c := NewCmdSystem()
 
@@ -249,6 +285,9 @@ func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
 	}
 }
 
+// TestParseCommandStripsComments tests that comments (starting with //) are stripped from command lines.
+// It allows users to add comments to their config files without affecting execution.
+// Where in C: Cmd_TokenizeString in cmd.c
 func TestParseCommandStripsComments(t *testing.T) {
 	tests := []struct {
 		line string
@@ -273,6 +312,9 @@ func TestParseCommandStripsComments(t *testing.T) {
 	}
 }
 
+// TestForwardFuncCalledForUnknownCommands tests the command forwarding mechanism for unrecognized commands.
+// It allows the engine to pass unknown commands to other systems (like the server) for handling.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestForwardFuncCalledForUnknownCommands(t *testing.T) {
 	cs := NewCmdSystem()
 	var forwarded string
@@ -285,6 +327,9 @@ func TestForwardFuncCalledForUnknownCommands(t *testing.T) {
 	}
 }
 
+// TestForwardFuncNotCalledForKnownCommands tests that known commands are not forwarded.
+// It ensures local commands are handled correctly before attempting to forward.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestForwardFuncNotCalledForKnownCommands(t *testing.T) {
 	cs := NewCmdSystem()
 	called := false
@@ -298,6 +343,9 @@ func TestForwardFuncNotCalledForKnownCommands(t *testing.T) {
 	}
 }
 
+// TestClientSourceOnlyExecutesClientCommands tests source-based execution filtering for client commands.
+// It restricts certain commands to specific sources for security and protocol adherence.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestClientSourceOnlyExecutesClientCommands(t *testing.T) {
 	c := NewCmdSystem()
 	executed := false
@@ -312,6 +360,9 @@ func TestClientSourceOnlyExecutesClientCommands(t *testing.T) {
 	}
 }
 
+// TestServerSourceOnlyExecutesServerCommands tests source-based execution filtering for server commands.
+// It prevents clients from executing restricted server-side commands.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestServerSourceOnlyExecutesServerCommands(t *testing.T) {
 	c := NewCmdSystem()
 	executed := false
@@ -326,6 +377,9 @@ func TestServerSourceOnlyExecutesServerCommands(t *testing.T) {
 	}
 }
 
+// TestUnknownClientSourceDoesNotExpandAliasOrForward tests that unknown client sources have restricted capabilities.
+// It prevents unauthorized alias expansion or command forwarding from external sources.
+// Where in C: Cmd_ExecuteString in cmd.c
 func TestUnknownClientSourceDoesNotExpandAliasOrForward(t *testing.T) {
 	c := NewCmdSystem()
 	c.AddAlias("boom", "echo no")

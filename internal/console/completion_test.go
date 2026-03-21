@@ -2,12 +2,18 @@ package console
 
 import "testing"
 
+// TestExtractPartialSingleToken tests extraction of the current token for completion.
+// It providing the foundation for tab-completion by identifying what the user is currently typing.
+// Where in C: Con_CompleteCommand in console.c (or similar input handling)
 func TestExtractPartialSingleToken(t *testing.T) {
 	if got := extractPartial("tog"); got != "tog" {
 		t.Fatalf("extractPartial(%q) = %q, want %q", "tog", got, "tog")
 	}
 }
 
+// TestTabCompleterCompletesCurrentToken tests command tab-completion.
+// It providing a standard Quake UX where users can complete command names by pressing Tab.
+// Where in C: Con_CompleteCommand in console.c
 func TestTabCompleterCompletesCurrentToken(t *testing.T) {
 	tc := NewTabCompleter()
 	tc.SetCommandProvider(func(partial string) []string {
@@ -26,6 +32,9 @@ func TestTabCompleterCompletesCurrentToken(t *testing.T) {
 	}
 }
 
+// TestTabCompleterIncludesAliases tests that aliases are included in tab-completion.
+// It ensuring user-defined shortcuts are as discoverable as built-in commands.
+// Where in C: Con_CompleteCommand in console.c
 func TestTabCompleterIncludesAliases(t *testing.T) {
 	tc := NewTabCompleter()
 	tc.SetAliasProvider(func(partial string) []string {

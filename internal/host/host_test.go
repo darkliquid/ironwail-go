@@ -80,6 +80,10 @@ func (m *mockCallbacks) ProcessClient()                                    { m.c
 func (m *mockCallbacks) UpdateScreen()                                     {}
 func (m *mockCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {}
 
+// TestHostInit verifies that the host initializes correctly with mock subsystems.
+// Why: The Host is the central coordinator of the engine, and ensuring its
+// initialization logic is sound is critical for overall stability.
+// Where in C: host.c, Host_Init.
 func TestHostInit(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
@@ -105,6 +109,10 @@ func TestHostInit(t *testing.T) {
 	}
 }
 
+// TestHostInitRegistersDeathmatchRuleCVars verifies that the host correctly
+// registers core deathmatch rules (fraglimit, timelimit, teamplay) as serverinfo.
+// Why: These cvars are essential for multiplayer game rules and client-side HUD updates.
+// Where in C: host.c, Host_Init.
 func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
@@ -131,6 +139,10 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 	}
 }
 
+// TestRegisterHostCVarsIncludesDebugTelemetryCVars verifies that the host registers
+// its debug telemetry cvars for parity and troubleshooting.
+// Why: Enables engine-side event logging and QuakeC tracing for parity investigations.
+// Where in C: host.c, Host_Init (and Ironwail-specific extensions).
 func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 	registerHostCVars()
 
@@ -149,6 +161,10 @@ func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 	}
 }
 
+// TestRegisterHostCVarsIncludesAudioCVars verifies that the host registers
+// core audio configuration cvars.
+// Why: Allows the user to control volume, sampling rate, and other audio parameters.
+// Where in C: host.c, Host_Init and snd_dma.c.
 func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
 	registerHostCVars()
 
@@ -175,6 +191,10 @@ func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
 	}
 }
 
+// TestRegisterHostCVarsIncludesAutosaveCVars verifies that the host registers
+// cvars related to the autosave system.
+// Why: Provides user control over periodic game state persistence.
+// Where in C: host.c, Host_Init (Ironwail extension).
 func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
 	registerHostCVars()
 
@@ -185,10 +205,14 @@ func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
 	}
 }
 
+// TestMakeServerInfoProviderUsesLiveServerState verifies that the server info
+// provider correctly exposes current engine state (hostname, map, player counts).
+// Why: Used for server discovery and slist responses.
+// Where in C: host.c, SV_Serverinfo_f (and related server metadata logic).
 func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
 	srv := &mockServer{active: true}
 	subs := &Subsystems{Server: srv}
-	cvar.Set(serverHostnameCVar, "LAN Party")
+	cvar.Set("hostname", "LAN Party")
 
 	provider := makeServerInfoProvider(subs)
 	if provider == nil {
@@ -208,6 +232,9 @@ func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
 	}
 }
 
+// TestHostFrame verifies the core host frame loop triggers appropriate callbacks.
+// Why: Ensures the main engine loop orchestration is functional.
+// Where in C: host.c, Host_Frame.
 func TestHostFrame(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
@@ -235,6 +262,9 @@ func TestHostFrame(t *testing.T) {
 	}
 }
 
+// TestHostFrameAdvancesCompatRNGOnce verifies the compat-RNG is advanced each frame.
+// Why: Maintains parity with Quake's frame-based PRNG behavior.
+// Where in C: host.c, Host_Frame.
 func TestHostFrameAdvancesCompatRNGOnce(t *testing.T) {
 	h := NewHost()
 
@@ -252,6 +282,9 @@ func TestHostFrameAdvancesCompatRNGOnce(t *testing.T) {
 	}
 }
 
+// TestHostCommands verifies host-level commands like skill and pause.
+// Why: These commands control core engine state and game flow.
+// Where in C: host.c, Skill_f and Pause_f.
 func TestHostCommands(t *testing.T) {
 	h := NewHost()
 	subs := &mockSubsystems{
@@ -277,6 +310,9 @@ func TestHostCommands(t *testing.T) {
 	}
 }
 
+// TestLoadingPlaqueAutoExpires verifies that the loading plaque disappears after a minimum duration.
+// Why: Provides a consistent user experience during map transitions.
+// Where in C: host.c, SCR_UpdateScreen (handling loading state).
 func TestLoadingPlaqueAutoExpires(t *testing.T) {
 	h := NewHost()
 	h.BeginLoadingPlaque(100)
@@ -289,6 +325,10 @@ func TestLoadingPlaqueAutoExpires(t *testing.T) {
 	}
 }
 
+// TestLoadingTransitionPlaqueHoldsUntilSignonComplete verifies that the transition plaque
+// persists until the client has fully signed on.
+// Why: Ensures the loading screen doesn't flicker or disappear while data is still loading.
+// Where in C: host.c, SCR_UpdateScreen (handling loading state).
 func TestLoadingTransitionPlaqueHoldsUntilSignonComplete(t *testing.T) {
 	h := NewHost()
 	h.BeginLoadingTransitionPlaque(100)
@@ -307,6 +347,9 @@ func TestLoadingTransitionPlaqueHoldsUntilSignonComplete(t *testing.T) {
 	}
 }
 
+// TestLoadingTransitionPlaqueFailsafeTimeout verifies the failsafe timeout for the loading plaque.
+// Why: Prevents the engine from being permanently stuck on a loading screen if networking fails.
+// Where in C: host.c (Ironwail specific failsafe).
 func TestLoadingTransitionPlaqueFailsafeTimeout(t *testing.T) {
 	h := NewHost()
 	h.BeginLoadingTransitionPlaque(100)

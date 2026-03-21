@@ -1,3 +1,7 @@
+// What: Demo recording and playback tests.
+// Why: Verifies that gameplay sessions can be saved to and loaded from disk.
+// Where in C: cl_demo.c
+
 package client
 
 import (
@@ -9,6 +13,9 @@ import (
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
+// TestDemoRecordingOpenClose verifies that demo recording can be started and stopped correctly.
+// Why: Core functionality for saving gameplay sessions depends on reliable file lifecycle management.
+// Where in C: cl_demo.c, CL_BeginRecord_f, CL_Stop_f.
 func TestDemoRecordingOpenClose(t *testing.T) {
 	// Setup: ensure demos directory is clean
 	demoDir := "demos"
@@ -53,6 +60,9 @@ func TestDemoRecordingOpenClose(t *testing.T) {
 	}
 }
 
+// TestDemoRecordingAlreadyRecording ensures that starting a recording when one is already active returns an error.
+// Why: Prevents accidental overwriting of ongoing recordings or internal state corruption.
+// Where in C: cl_demo.c, CL_BeginRecord_f.
 func TestDemoRecordingAlreadyRecording(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -69,6 +79,9 @@ func TestDemoRecordingAlreadyRecording(t *testing.T) {
 	}
 }
 
+// TestDemoFrameRoundTrip verifies that individual demo frames (server messages and view angles) are correctly serialized and deserialized.
+// Why: Demos must preserve the exact state of server messages for accurate playback.
+// Where in C: cl_demo.c, CL_WriteDemoMessage, CL_ReadDemoMessage.
 func TestDemoFrameRoundTrip(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -143,6 +156,9 @@ func TestDemoFrameRoundTrip(t *testing.T) {
 	}
 }
 
+// TestDemoHeaderValidation ensures that demo files have the correct format and metadata (like CD track).
+// Why: Prevents the engine from attempting to play incompatible or corrupted demo files.
+// Where in C: cl_demo.c, CL_OpenDemo.
 func TestDemoHeaderValidation(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -203,6 +219,9 @@ func TestDemoHeaderValidation(t *testing.T) {
 	}
 }
 
+// TestDemoPlaybackSequence verifies that a series of recorded frames are played back in the correct order.
+// Why: Ensures temporal consistency during demo playback.
+// Where in C: cl_demo.c, CL_ReadDemoMessage.
 func TestDemoPlaybackSequence(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -256,6 +275,9 @@ func TestDemoPlaybackSequence(t *testing.T) {
 	}
 }
 
+// TestDemoSeekFrameReplaysFromOffset verifies that seeking to a specific frame correctly restarts playback from that point.
+// Why: Essential for user-friendly demo navigation such as fast-forwarding or rewinding.
+// Where in C: cl_demo.c.
 func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -300,6 +322,9 @@ func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
 	}
 }
 
+// TestDemoPlaybackIndexesFramesAtStart verifies that the demo system indexes all frames when a demo is opened.
+// Why: Large demo files require an index for efficient random-access seeking.
+// Where in C: cl_demo.c.
 func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -341,6 +366,9 @@ func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
 	}
 }
 
+// TestWriteDisconnectTrailerRoundTrip verifies that the end-of-demo disconnect marker is correctly written and read.
+// Why: Signals the playback system to stop when the recorded session ends.
+// Where in C: cl_demo.c, CL_Stop_f.
 func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -374,6 +402,9 @@ func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 	}
 }
 
+// TestWriteInitialStateSnapshotRoundTrip verifies that a comprehensive snapshot of the game state is recorded at the start.
+// Why: Allows a demo to be played back from the beginning by reconstructing the initial environment (models, sounds, player state).
+// Where in C: cl_demo.c, CL_BeginRecord_f.
 func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -504,6 +535,9 @@ func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
 	}
 }
 
+// TestDemoPlaybackNonExistentFile ensures that attempting to play a missing file results in an appropriate error.
+// Why: Prevents crashes and provides user feedback for missing resources.
+// Where in C: cl_demo.c, CL_OpenDemo.
 func TestDemoPlaybackNonExistentFile(t *testing.T) {
 	demo := NewDemoState()
 
@@ -513,6 +547,9 @@ func TestDemoPlaybackNonExistentFile(t *testing.T) {
 	}
 }
 
+// TestDemoCannotRecordDuringPlayback ensures that recording and playback are mutually exclusive operations.
+// Why: The demo system uses shared state that cannot handle both operations simultaneously.
+// Where in C: cl_demo.c, CL_BeginRecord_f.
 func TestDemoCannotRecordDuringPlayback(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -540,6 +577,9 @@ func TestDemoCannotRecordDuringPlayback(t *testing.T) {
 	}
 }
 
+// TestDemoEmptyFile ensures that empty or minimal demo files are handled gracefully without crashing.
+// Why: Robustness against failed recording attempts or truncated files.
+// Where in C: cl_demo.c, CL_OpenDemo.
 func TestDemoEmptyFile(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -574,6 +614,9 @@ func TestDemoEmptyFile(t *testing.T) {
 	}
 }
 
+// TestDemoFrameCount verifies the reported total number of frames in a demo.
+// Why: Used for progress bars, UI feedback, and seek limits.
+// Where in C: cl_demo.c.
 func TestDemoFrameCount(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -604,6 +647,9 @@ func TestDemoFrameCount(t *testing.T) {
 	}
 }
 
+// TestDemoProgress verifies the reported playback progress as a percentage.
+// Why: Essential for user interface feedback during playback.
+// Where in C: cl_demo.c.
 func TestDemoProgress(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -654,6 +700,9 @@ func TestDemoProgress(t *testing.T) {
 	}
 }
 
+// TestDemoTogglePause verifies that demo playback can be paused and resumed.
+// Why: Standard media control functionality for user convenience.
+// Where in C: cl_demo.c.
 func TestDemoTogglePause(t *testing.T) {
 	demo := NewDemoState()
 	if demo.Paused {
@@ -675,6 +724,9 @@ func TestDemoTogglePause(t *testing.T) {
 	}
 }
 
+// TestDemoSetSpeed verifies that the playback speed can be adjusted (e.g., slow-motion, fast-forward).
+// Why: Enhances analysis and viewing of recorded gameplay.
+// Where in C: cl_demo.c.
 func TestDemoSetSpeed(t *testing.T) {
 	demo := NewDemoState()
 
@@ -711,6 +763,9 @@ func TestDemoSetSpeed(t *testing.T) {
 	}
 }
 
+// TestDemoUpdatePlaybackSpeedSupportsTemporaryRewind verifies that speed adjustments can handle negative directions for rewinding.
+// Why: Advanced demo navigation features for finding specific moments.
+// Where in C: cl_demo.c.
 func TestDemoUpdatePlaybackSpeedSupportsTemporaryRewind(t *testing.T) {
 	demo := NewDemoState()
 	demo.UpdatePlaybackSpeed(true, true, false, false)
@@ -733,6 +788,9 @@ func TestDemoUpdatePlaybackSpeedSupportsTemporaryRewind(t *testing.T) {
 	}
 }
 
+// TestTimeDemoStartsCountingOnSecondPlaybackFrame verifies timedemo benchmarking logic.
+// Why: Accurate performance measurement requires skipping the initial loading/setup frame to measure sustained FPS.
+// Where in C: cl_demo.c, CL_ReadDemoMessage.
 func TestTimeDemoStartsCountingOnSecondPlaybackFrame(t *testing.T) {
 	demo := NewDemoState()
 	demo.EnableTimeDemo()
@@ -754,6 +812,9 @@ func TestTimeDemoStartsCountingOnSecondPlaybackFrame(t *testing.T) {
 	}
 }
 
+// TestDemoFrameForTime verifies the mapping between playback time (seconds) and frame index.
+// Why: Enables time-based navigation (e.g., \"seek to 2:30\").
+// Where in C: cl_demo.c.
 func TestDemoFrameForTime(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -799,6 +860,9 @@ func TestDemoFrameForTime(t *testing.T) {
 	}
 }
 
+// TestDemoTimeForFrame verifies the mapping between frame index and playback time (seconds).
+// Why: Used for displaying the current timestamp in the playback UI.
+// Where in C: cl_demo.c.
 func TestDemoTimeForFrame(t *testing.T) {
 	demo := NewDemoState()
 
@@ -817,6 +881,9 @@ func TestDemoTimeForFrame(t *testing.T) {
 	}
 }
 
+// TestDemoSeekToFrame0 verifies seeking to the very first frame of a demo.
+// Why: Common requirement to restart a demo from the beginning.
+// Where in C: cl_demo.c.
 func TestDemoSeekToFrame0(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -869,6 +936,9 @@ func TestDemoSeekToFrame0(t *testing.T) {
 	}
 }
 
+// TestDemoSeekPastEnd verifies that seeking past the last frame of a demo is handled gracefully as an error.
+// Why: Prevents the system from entering an undefined state or crashing.
+// Where in C: cl_demo.c.
 func TestDemoSeekPastEnd(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -906,6 +976,9 @@ func TestDemoSeekPastEnd(t *testing.T) {
 	}
 }
 
+// TestNilDemoStateConvenienceMethods ensures that calling progress and count methods on a nil demo state is safe.
+// Why: Prevents null pointer dereferences in common UI and state-checking code paths.
+// Where in C: cl_demo.c.
 func TestNilDemoStateConvenienceMethods(t *testing.T) {
 	var d *DemoState
 
@@ -924,6 +997,9 @@ func TestNilDemoStateConvenienceMethods(t *testing.T) {
 	d.SetSpeed(2.0) // Should not panic
 }
 
+// TestDemoRecordingNegativeTrack ensures that recording correctly handles and preserves negative CD track numbers.
+// Why: Some game modes or mods might use specific track indices for special music behavior.
+// Where in C: cl_demo.c.
 func TestDemoRecordingNegativeTrack(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -948,6 +1024,9 @@ func TestDemoRecordingNegativeTrack(t *testing.T) {
 	demo.StopPlayback()
 }
 
+// TestDemoRecordingMidLevelSnapshot verifies that a game state snapshot can be taken and recorded while a recording is already in progress.
+// Why: Supports features like 'demo_capture' where a mid-game state is needed for a new demo.
+// Where in C: cl_demo.c.
 func TestDemoRecordingMidLevelSnapshot(t *testing.T) {
 	defer os.RemoveAll("demos")
 
@@ -999,6 +1078,9 @@ func TestDemoRecordingMidLevelSnapshot(t *testing.T) {
 	demo.StopPlayback()
 }
 
+// TestDemoDisconnectDuringRecording ensures that a recording is closed cleanly when the client disconnects.
+// Why: Prevents data loss and ensures the recorded file is valid even if the session ends abruptly.
+// Where in C: cl_demo.c, CL_Disconnect.
 func TestDemoDisconnectDuringRecording(t *testing.T) {
 	defer os.RemoveAll("demos")
 

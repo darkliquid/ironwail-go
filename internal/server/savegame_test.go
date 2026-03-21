@@ -2,6 +2,9 @@ package server
 
 import "testing"
 
+// TestSaveGameStateRoundTripsLightStyles tests light style persistence in savegames.
+// It ensuring that custom light animations (e.g., flickering lights) are correctly restored when a game is loaded.
+// Where in C: SV_Savegame_f and SV_Loadgame_f in sv_main.c
 func TestSaveGameStateRoundTripsLightStyles(t *testing.T) {
 	srv := NewServer()
 	if err := srv.Init(1); err != nil {
@@ -37,6 +40,9 @@ func TestSaveGameStateRoundTripsLightStyles(t *testing.T) {
 	}
 }
 
+// TestSaveGameStateRoundTripsGameplayState tests full gameplay state persistence.
+// It ensuring that player health, inventory, position, and server-side client state are perfectly preserved across save/load cycles.
+// Where in C: SV_Savegame_f and SV_Loadgame_f in sv_main.c
 func TestSaveGameStateRoundTripsGameplayState(t *testing.T) {
 	srv := NewServer()
 	if err := srv.Init(1); err != nil {

@@ -6,6 +6,9 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
+// TestToggle tests the toggle console command.
+// It ensures that a cvar can be toggled between 0 and 1, which is a common Quake feature for boolean settings.
+// Where in C: CV_Toggle_f in cvar.c
 func TestToggle(t *testing.T) {
 	cvar.Register("test_toggle", "0", cvar.FlagNone, "test")
 	defer cvar.Set("test_toggle", "0")
@@ -20,6 +23,9 @@ func TestToggle(t *testing.T) {
 	}
 }
 
+// TestCycle tests the cycle console command.
+// It ensures that a cvar can be cycled through a list of values, allowing for sequential setting changes.
+// Where in C: CV_Cycle_f in cvar.c (common engine extension)
 func TestCycle(t *testing.T) {
 	cvar.Register("test_cycle", "a", cvar.FlagNone, "test")
 	defer cvar.Set("test_cycle", "a")
@@ -38,6 +44,9 @@ func TestCycle(t *testing.T) {
 	}
 }
 
+// TestInc tests the inc console command.
+// It ensures that a cvar can be incremented by a specific amount, useful for adjustments like volume or sensitivity.
+// Where in C: CV_Inc_f in cvar.c (common engine extension)
 func TestInc(t *testing.T) {
 	cvar.Register("test_inc", "5", cvar.FlagNone, "test")
 	defer cvar.Set("test_inc", "5")
@@ -56,6 +65,9 @@ func TestInc(t *testing.T) {
 	}
 }
 
+// TestReset tests the reset console command for a single cvar.
+// It ensures a cvar can be returned to its default value.
+// Where in C: CV_Reset_f in cvar.c
 func TestReset(t *testing.T) {
 	cvar.Register("test_reset", "42", cvar.FlagNone, "test")
 	cvar.Set("test_reset", "100")
@@ -67,6 +79,9 @@ func TestReset(t *testing.T) {
 	}
 }
 
+// TestResetAll tests the resetall console command.
+// It ensures all cvars can be reset to their default values simultaneously.
+// Where in C: CV_ResetAll_f in cvar.c
 func TestResetAll(t *testing.T) {
 	cvar.Register("test_ra1", "10", cvar.FlagNone, "test")
 	cvar.Register("test_ra2", "20", cvar.FlagNone, "test")
@@ -82,6 +97,9 @@ func TestResetAll(t *testing.T) {
 	}
 }
 
+// TestResetCfg tests the resetcfg console command.
+// It ensures only archived (config-stored) cvars are reset, preserving session-only settings.
+// Where in C: CV_ResetCfg_f in cvar.c
 func TestResetCfg(t *testing.T) {
 	cvar.Register("test_arc", "5", cvar.FlagArchive, "archived")
 	cvar.Register("test_noarc", "5", cvar.FlagNone, "not archived")

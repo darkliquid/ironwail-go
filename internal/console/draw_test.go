@@ -45,6 +45,9 @@ func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 	m.DrawCharacter(x, y, num)
 }
 
+// TestConsoleDrawRendersConsoleLinesAndPrompt tests the console's rendering logic.
+// It ensures the console correctly displays logged text lines, the command prompt (]), and the current input line.
+// Where in C: Con_DrawConsole in console.c
 func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {
@@ -74,6 +77,9 @@ func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
 	}
 }
 
+// TestConsoleDrawNotifyHonorsNotifyLifetime tests the "notify" (overlay) console display.
+// It ensures that messages shown at the top of the screen during gameplay expire and disappear after a set time.
+// Where in C: Con_DrawNotify and con_notifylines in console.c
 func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {
@@ -96,6 +102,9 @@ func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
 	}
 }
 
+// TestConsoleDrawUsesBackgroundPicWhenProvided tests the console background image rendering.
+// It allowing the engine to use a custom image (e.g., conback.lmp) for the console background instead of a solid color.
+// Where in C: Con_DrawConsole in console.c
 func TestConsoleDrawUsesBackgroundPicWhenProvided(t *testing.T) {
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {

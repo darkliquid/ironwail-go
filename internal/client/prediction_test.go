@@ -1,3 +1,7 @@
+// What: Movement prediction tests.
+// Why: Confirms player movement feels responsive by anticipating position updates.
+// Where in C: cl_main.c
+
 package client
 
 import (
@@ -6,6 +10,9 @@ import (
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
+// TestPredictPlayersInitialization verifies that the client correctly initializes its prediction state from server data.
+// Why: Reliable client-side prediction depends on the client and server starting from a common state.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersInitialization(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -29,6 +36,9 @@ func TestPredictPlayersInitialization(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersPrefersEntityOneWhenViewEntityUnset ensures that the local player's entity (usually index 1) is used for prediction by default.
+// Why: The client needs to know which entity represents the local player to perform self-prediction.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersPrefersEntityOneWhenViewEntityUnset(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -48,6 +58,9 @@ func TestPredictPlayersPrefersEntityOneWhenViewEntityUnset(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersForwardMovement verifies that the client correctly predicts movement in the direction the player is facing.
+// Why: Responsiveness depends on the client seeing its own movement immediately before the server confirms it.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersForwardMovement(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -86,6 +99,9 @@ func TestPredictPlayersForwardMovement(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersFriction verifies that ground friction is correctly applied during prediction.
+// Why: Friction is essential for stopping and controlled movement; it must match the server exactly to avoid drift.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersFriction(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -123,6 +139,9 @@ func TestPredictPlayersFriction(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersSpeedClamping ensures that predicted movement speed is capped at the server-enforced maximum.
+// Why: Prevents the client from predicting impossible movements that the server will later reject.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersSpeedClamping(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -157,6 +176,9 @@ func TestPredictPlayersSpeedClamping(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersAirborneNoGroundFriction verifies that friction is not applied when the player is in the air.
+// Why: Players should maintain their horizontal momentum while jumping, as per Quake physics.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersAirborneNoGroundFriction(t *testing.T) {
 	c := NewClient()
 	c.OnGround = false
@@ -170,6 +192,9 @@ func TestPredictPlayersAirborneNoGroundFriction(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersAirborneGravity verifies that gravity is correctly applied to airborne players during prediction.
+// Why: Gravity is a fundamental part of the movement physics that must be predicted for smooth jumping and falling.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersAirborneGravity(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -186,6 +211,9 @@ func TestPredictPlayersAirborneGravity(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersErrorCorrection verifies that the client smoothly corrects its position when it drifts from the server's state.
+// Why: Network jitter and floating-point differences cause small drifts; smoothing these out prevents jarring snaps.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersErrorCorrection(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -242,6 +270,9 @@ func TestPredictPlayersErrorCorrection(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersNoEntityDoesNotPanic ensures that the prediction logic handles cases where the player's entity is missing.
+// Why: Robustness against transient network states or server-side entity removal.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersNoEntityDoesNotPanic(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -252,6 +283,9 @@ func TestPredictPlayersNoEntityDoesNotPanic(t *testing.T) {
 	c.PredictPlayers(0.016)
 }
 
+// TestPredictPlayersInactiveStateDoesNothing ensures that prediction is disabled when the client is not in an active game state.
+// Why: Prevents unnecessary processing and potential state corruption during menu navigation or connection.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersInactiveStateDoesNothing(t *testing.T) {
 	c := NewClient()
 	c.State = StateDisconnected
@@ -268,6 +302,9 @@ func TestPredictPlayersInactiveStateDoesNothing(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersStrafeMovement verifies that sideway movement (strafing) is correctly predicted.
+// Why: Strafe-jumping and precise lateral control are core Quake mechanics that require accurate prediction.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersStrafeMovement(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -296,6 +333,9 @@ func TestPredictPlayersStrafeMovement(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersMultipleFrames verifies that prediction remains stable over multiple successive frames.
+// Why: Ensures that prediction errors do not compound rapidly over time.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersMultipleFrames(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -328,6 +368,9 @@ func TestPredictPlayersMultipleFrames(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersConsumesBufferedCommands verifies that the client replays all unacknowledged commands during prediction.
+// Why: Prediction must account for all inputs sent to the server that have not yet been reflected in a server update.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersConsumesBufferedCommands(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -348,6 +391,9 @@ func TestPredictPlayersConsumesBufferedCommands(t *testing.T) {
 	}
 }
 
+// TestConsumeCommandBufferHandlesNegativeSequence ensures that the command buffer correctly handles sequence number wrap-around.
+// Why: Protocol stability over long play sessions requires handling integer overflows gracefully.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestConsumeCommandBufferHandlesNegativeSequence(t *testing.T) {
 	c := NewClient()
 	c.CommandCount = 2
@@ -370,6 +416,9 @@ func TestConsumeCommandBufferHandlesNegativeSequence(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersRebasesFromServerOriginEachFrame verifies that each prediction starts from the latest authoritative server position.
+// Why: Prevents local prediction errors from accumulating; the server is the source of truth.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersRebasesFromServerOriginEachFrame(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -390,6 +439,9 @@ func TestPredictPlayersRebasesFromServerOriginEachFrame(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersPendingFallbackRebasesEachFrame verifies fallback behavior when no new server updates are available.
+// Why: Maintains movement responsiveness during brief periods of packet loss.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersPendingFallbackRebasesEachFrame(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -413,6 +465,9 @@ func TestPredictPlayersPendingFallbackRebasesEachFrame(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersRecordsCurrentFrameTelemetryAndValidity ensures that prediction results and diagnostic data are correctly recorded.
+// Why: Necessary for debugging prediction issues and providing feedback to the user/developer.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersRecordsCurrentFrameTelemetryAndValidity(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -480,6 +535,9 @@ func TestPredictPlayersRecordsCurrentFrameTelemetryAndValidity(t *testing.T) {
 	}
 }
 
+// TestPredictPlayersInvalidatesMissingEntityAndTelemetry ensures prediction is marked invalid if the local entity is missing.
+// Why: Informs other systems (like the renderer) that the current predicted state is unreliable.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictPlayersInvalidatesMissingEntityAndTelemetry(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -524,6 +582,9 @@ func TestPredictPlayersInvalidatesMissingEntityAndTelemetry(t *testing.T) {
 	}
 }
 
+// TestGetPredictedOriginReturnsCorrectValue verifies the accessor for the predicted position.
+// Why: Provides a clean interface for the renderer to retrieve the smooth predicted origin.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestGetPredictedOriginReturnsCorrectValue(t *testing.T) {
 	c := NewClient()
 	c.PredictedOrigin = [3]float32{10, 20, 30}
@@ -534,6 +595,9 @@ func TestGetPredictedOriginReturnsCorrectValue(t *testing.T) {
 	}
 }
 
+// TestGetPredictedVelocityReturnsCorrectValue verifies the accessor for the predicted velocity.
+// Why: Allows effects (like wind or movement-based particles) to use the predicted velocity.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestGetPredictedVelocityReturnsCorrectValue(t *testing.T) {
 	c := NewClient()
 	c.PredictedVelocity = [3]float32{100, 50, 25}
@@ -544,6 +608,9 @@ func TestGetPredictedVelocityReturnsCorrectValue(t *testing.T) {
 	}
 }
 
+// TestAngleVectorsQuake verifies the Quake-specific implementation of angle-to-vector conversion.
+// Why: Quake uses a specific coordinate system and rotation order that must be matched exactly for correct movement.
+// Where in C: mathlib.c, AngleVectors.
 func TestAngleVectorsQuake(t *testing.T) {
 	// Test forward vector (no rotation)
 	angles := [3]float32{0, 0, 0}
@@ -564,6 +631,9 @@ func TestAngleVectorsQuake(t *testing.T) {
 	}
 }
 
+// TestPredictionMovementAnglesMatchesServerSemantics ensures that client-side movement angles match the server's calculation.
+// Why: Differences in angle calculation would lead to incorrect movement directions and prediction drift.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictionMovementAnglesMatchesServerSemantics(t *testing.T) {
 	c := NewClient()
 	c.PunchAngle = [3]float32{6, -15, 4}
@@ -576,6 +646,9 @@ func TestPredictionMovementAnglesMatchesServerSemantics(t *testing.T) {
 	}
 }
 
+// TestPredictMovementUsesServerStylePitchForAcceleration verifies that pitch affects movement acceleration as it does on the server.
+// Why: Quake allows small amounts of vertical acceleration based on pitch in some movement modes (e.g., swimming).
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictMovementUsesServerStylePitchForAcceleration(t *testing.T) {
 	c := NewClient()
 	c.OnGround = false
@@ -600,6 +673,9 @@ func TestPredictMovementUsesServerStylePitchForAcceleration(t *testing.T) {
 	}
 }
 
+// TestPredictionMovementAnglesIncludeServerStyleRoll verifies that view roll is accounted for in movement direction.
+// Why: Ensures that side-to-side tilting (roll) doesn't break movement prediction.
+// Where in C: cl_main.c, CL_PredictMove.
 func TestPredictionMovementAnglesIncludeServerStyleRoll(t *testing.T) {
 	c := NewClient()
 	c.PredictedVelocity = [3]float32{0, 200, 0}
@@ -612,6 +688,9 @@ func TestPredictionMovementAnglesIncludeServerStyleRoll(t *testing.T) {
 	}
 }
 
+// TestAbsFloat32 verifies the absolute value helper for float32.
+// Why: Essential math utility for distance and error calculations.
+// Where in C: mathlib.c.
 func TestAbsFloat32(t *testing.T) {
 	if absFloat32(5.0) != 5.0 {
 		t.Error("absFloat32(5.0) should be 5.0")
@@ -624,6 +703,9 @@ func TestAbsFloat32(t *testing.T) {
 	}
 }
 
+// TestMaxFloat32 verifies the maximum value helper for float32.
+// Why: Essential math utility for clamping and bounds checking.
+// Where in C: mathlib.c.
 func TestMaxFloat32(t *testing.T) {
 	if maxFloat32(5.0, 3.0) != 5.0 {
 		t.Error("maxFloat32(5.0, 3.0) should be 5.0")
@@ -636,6 +718,9 @@ func TestMaxFloat32(t *testing.T) {
 	}
 }
 
+// TestSqrtFloat32 verifies the square root helper for float32.
+// Why: Essential math utility for calculating vector magnitudes and distances.
+// Where in C: mathlib.c.
 func TestSqrtFloat32(t *testing.T) {
 	result := sqrtFloat32(16.0)
 	if absFloat32(result-4.0) > 0.001 {

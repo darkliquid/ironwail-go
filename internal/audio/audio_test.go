@@ -8,6 +8,9 @@ import (
 	"testing"
 )
 
+// TestSpatialize tests 3D sound spatialization.
+// It correctly calculating stereo volumes based on the listener's position and orientation.
+// Where in C: SND_Spatialize in snd_dma.c
 func TestSpatialize(t *testing.T) {
 	sys := &System{}
 	sys.dma = &DMAInfo{Channels: 2}
@@ -43,6 +46,9 @@ func TestSpatialize(t *testing.T) {
 	}
 }
 
+// TestMixing tests the software audio mixer.
+// It verifying that multiple sound channels are correctly combined into the final output buffer.
+// Where in C: SND_PaintChannels in snd_mix.c
 func TestMixing(t *testing.T) {
 	mixer := NewMixer()
 	mixer.SetVolume(1.0)
@@ -99,6 +105,9 @@ func TestMixing(t *testing.T) {
 	}
 }
 
+// TestLooping tests looping sound playback.
+// It ensuring ambient sounds and looping effects repeat seamlessly.
+// Where in C: SND_PaintChannels in snd_mix.c
 func TestLooping(t *testing.T) {
 	mixer := NewMixer()
 	mixer.SetVolume(1.0)
@@ -145,6 +154,9 @@ func TestLooping(t *testing.T) {
 	}
 }
 
+// TestTransferPaintBuffer tests the transfer of mixed samples to the DMA buffer.
+// It converting internal high-precision samples to the target output format (e.g., 16-bit PCM).
+// Where in C: SND_TransferPaintBuffer in snd_mix.c
 func TestTransferPaintBuffer(t *testing.T) {
 	mixer := NewMixer()
 	dma := &DMAInfo{
@@ -167,6 +179,9 @@ func TestTransferPaintBuffer(t *testing.T) {
 	}
 }
 
+// TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache tests static sound allocation.
+// It managing ambient map sounds (torches, machinery) that persist regardless of distance.
+// Where in C: S_StartStaticSound in snd_dma.c
 func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T) {
 	sys := NewSystem()
 	sys.started = true
@@ -214,6 +229,9 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 	}
 }
 
+// TestClearStaticSoundsLeavesDynamicChannelsIntact tests clearing of static sounds.
+// It resetting map-based sounds when changing levels without affecting global or UI sounds.
+// Where in C: S_ClearStaticSounds in snd_dma.c
 func TestClearStaticSoundsLeavesDynamicChannelsIntact(t *testing.T) {
 	sys := NewSystem()
 	base := NumAmbients + MaxDynamicChannels
@@ -252,6 +270,9 @@ func TestClearStaticSoundsLeavesDynamicChannelsIntact(t *testing.T) {
 	}
 }
 
+// TestSetViewEntityRespatializesExistingChannels tests view-entity relative spatialization.
+// It ensuring sounds emitted by the player are always at full volume and centered.
+// Where in C: S_Update in snd_dma.c
 func TestSetViewEntityRespatializesExistingChannels(t *testing.T) {
 	sys := NewSystem()
 	sys.started = true
@@ -283,6 +304,9 @@ func TestSetViewEntityRespatializesExistingChannels(t *testing.T) {
 	}
 }
 
+// TestUpdateCombinesIdenticalStaticSounds tests static sound optimization.
+// It reducing mixer overhead by combining multiple instances of the same static sound at a location.
+// Where in C: S_Update in snd_dma.c
 func TestUpdateCombinesIdenticalStaticSounds(t *testing.T) {
 	sys := NewSystem()
 	sys.started = true
@@ -327,6 +351,9 @@ func TestUpdateCombinesIdenticalStaticSounds(t *testing.T) {
 	}
 }
 
+// TestUpdateAmbientSoundsFadesAndAppliesUnderwater tests ambient sound management and underwater effects.
+// It correctly fading ambient levels and applying low-pass filters when the player is submerged.
+// Where in C: S_UpdateAmbientSounds in snd_dma.c
 func TestUpdateAmbientSoundsFadesAndAppliesUnderwater(t *testing.T) {
 	sys := NewSystem()
 	sys.mixer = NewMixer()
@@ -354,6 +381,9 @@ func TestUpdateAmbientSoundsFadesAndAppliesUnderwater(t *testing.T) {
 	}
 }
 
+// TestUpdateAmbientSoundsClearsWithoutLeaf tests ambient sound clearing in \"empty\" space.
+// It ensuring ambient sounds stop when the player is outside the map or in a leaf with no ambient data.
+// Where in C: S_UpdateAmbientSounds in snd_dma.c
 func TestUpdateAmbientSoundsClearsWithoutLeaf(t *testing.T) {
 	sys := NewSystem()
 	sys.mixer = NewMixer()
@@ -426,6 +456,9 @@ func (b *positionBackend) GetPosition() int {
 	return pos
 }
 
+// TestUpdateSoundTimeMonotonicAcrossWraps tests sound timing logic across DMA buffer wraps.
+// It preventing audio glitches and sync issues by correctly tracking global sound time.
+// Where in C: S_Update in snd_dma.c
 func TestUpdateSoundTimeMonotonicAcrossWraps(t *testing.T) {
 	// Simulate a DMA buffer of 4096 samples that wraps around.
 	// Position sequence: 1024, 2048, 3072, 0 (wrap), 1024, 2048
@@ -461,6 +494,9 @@ func TestUpdateSoundTimeMonotonicAcrossWraps(t *testing.T) {
 	}
 }
 
+// TestUpdateDoesNotCallGetPositionWhileLocked tests thread-safety of the audio system.
+// It preventing deadlocks by ensuring backend position queries don't happen while the mixer lock is held.
+// Where in C: S_Update in snd_dma.c
 func TestUpdateDoesNotCallGetPositionWhileLocked(t *testing.T) {
 	backend := &lockOrderBackend{t: t}
 	sys := NewSystem()

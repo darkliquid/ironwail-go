@@ -1,3 +1,7 @@
+// What: Core client-side state machine and network message tests.
+// Why: Ensures connection handshake, sign-on progress, and state management work correctly.
+// Where in C: cl_main.c, cl_parse.c
+
 package client
 
 import (
@@ -36,6 +40,9 @@ var serverSignOnMsg2 = []byte{byte(inet.SVCSignOnNum), 0x02, 0xff}
 var serverSignOnMsg3 = []byte{byte(inet.SVCSignOnNum), 0x03, 0xff}
 var firstServerUpdateMsg = []byte{byte(inet.SVCTime), 0, 0, 0, 0, 0xff}
 
+// TestParseServerSignOnSequence verifies the standard sequence of sign-on messages from the server.
+// Why: Ensures the connection handshake and initial state synchronization (map, models, sounds) follow the Quake protocol.
+// Where in C: cl_parse.c, CL_ParseServerMessage.
 func TestParseServerSignOnSequence(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -81,6 +88,9 @@ func TestParseServerSignOnSequence(t *testing.T) {
 	}
 }
 
+// TestParseServerMessageAcknowledgesCommandOnServerTime verifies that receiving a time update from the server acknowledges outstanding client commands.
+// Why: Part of the network flow control to prevent the client from getting too far ahead of the server.
+// Where in C: cl_parse.c, CL_ParseServerMessage.
 func TestParseServerMessageAcknowledgesCommandOnServerTime(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -97,6 +107,9 @@ func TestParseServerMessageAcknowledgesCommandOnServerTime(t *testing.T) {
 	}
 }
 
+// TestParseServerMessageAcceptsNaturalEndOfBuffer ensures the parser correctly handles server messages that end exactly at the buffer boundary.
+// Why: Robustness against varied packet sizes and protocol edge cases.
+// Where in C: cl_parse.c, CL_ParseServerMessage.
 func TestParseServerMessageAcceptsNaturalEndOfBuffer(t *testing.T) {
 	c := NewClient()
 	c.State = StateActive
@@ -113,6 +126,9 @@ func TestParseServerMessageAcceptsNaturalEndOfBuffer(t *testing.T) {
 	}
 }
 
+// TestParseServerInfoRMQReadsProtocolFlags verifies that the client correctly parses extended protocol flags for RMQ servers.
+// Why: Compatibility with modern Quake engine extensions that support improved precision for coordinates and angles.
+// Where in C: cl_parse.c, CL_ParseServerInfo.
 func TestParseServerInfoRMQReadsProtocolFlags(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -144,6 +160,9 @@ func TestParseServerInfoRMQReadsProtocolFlags(t *testing.T) {
 	}
 }
 
+// TestParseClientDataEntityAndTempEntity verifies that SVC_ClientData and SVC_TempEntity messages correctly update local state.
+// Why: These messages provide essential updates for the local player's state (health, items, velocity) and transient effects.
+// Where in C: cl_parse.c, CL_ParseClientData, CL_ParseTEnt.
 func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	c := NewClient()
 	c.Time = 2.5
@@ -274,6 +293,9 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	}
 }
 
+// TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted ensures that view height and punch angles return to defaults if not present in a clientdata update.
+// Why: Quake's delta compression assumes that omitted fields should be reset to their canonical baseline values.
+// Where in C: cl_parse.c, CL_ParseClientData.
 func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	c := NewClient()
 	c.Time = 1.5
@@ -333,6 +355,9 @@ func TestParseClientDataResetsViewHeightAndPunchWhenBitsOmitted(t *testing.T) {
 	}
 }
 
+// TestParseClientDataResetsWeaponFrameWhenBitsOmitted ensures the local weapon animation frame resets if omitted from the update.
+// Why: Prevents weapon animations from getting stuck when no new frame data is sent.
+// Where in C: cl_parse.c, CL_ParseClientData.
 func TestParseClientDataResetsWeaponFrameWhenBitsOmitted(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -379,6 +404,9 @@ func TestParseClientDataResetsWeaponFrameWhenBitsOmitted(t *testing.T) {
 	}
 }
 
+// TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory verifies that velocity is correctly tracked and zeroed when bits are omitted.
+// Why: Precise velocity history is required for accurate client-side movement prediction.
+// Where in C: cl_parse.c, CL_ParseClientData.
 func TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
@@ -431,6 +459,9 @@ func TestParseClientDataZeroesMissingVelocityBitsAndAdvancesHistory(t *testing.T
 	}
 }
 
+// TestParseEntityUpdateUsesBaselineForOmittedPartialDeltaFields verifies that entity updates use baseline values for fields not present in a partial delta.
+// Why: Core part of Quake's network efficiency; only changed fields are sent, others are filled from a known baseline.
+// Where in C: cl_parse.c, CL_ParsePacketEntities.
 func TestParseEntityUpdateUsesBaselineForOmittedPartialDeltaFields(t *testing.T) {
 	c := NewClient()
 	c.MTime = [2]float64{2.0, 1.9}

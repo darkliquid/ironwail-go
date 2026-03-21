@@ -4,6 +4,9 @@ import (
 	"testing"
 )
 
+// TestCOM_CheckParm tests command line parameter checking.
+// It ensures the engine can correctly identify and locate command line flags (e.g., -game, -nosound).
+// Where in C: COM_CheckParm in common.c
 func TestCOM_CheckParm(t *testing.T) {
 	args := []string{"quake", "-game", "rogue", "-nosound"}
 	COM_InitArgv(args)
@@ -19,6 +22,9 @@ func TestCOM_CheckParm(t *testing.T) {
 	}
 }
 
+// TestCOM_Parse tests the common token parser.
+// It ensures that various formats (quoted strings, comments, blocks, symbols) are tokenized correctly for config and data parsing.
+// Where in C: COM_Parse in common.c
 func TestCOM_Parse(t *testing.T) {
 	data := "token1 token2 \"quoted token\" // comment\n token3 /* block\ncomment */ token4 { } ( ) ' :"
 
@@ -78,6 +84,9 @@ func TestCOM_Parse(t *testing.T) {
 	}
 }
 
+// TestPathUtils tests file path utility functions.
+// It ensures consistent handling of file extensions and base names across different platforms.
+// Where in C: COM_FileBase, COM_FileGetExtension, etc. in common.c
 func TestPathUtils(t *testing.T) {
 	path := "dir/subdir/file.ext"
 
@@ -102,6 +111,9 @@ func TestPathUtils(t *testing.T) {
 	}
 }
 
+// TestHash tests the string and block hashing functions.
+// It provides efficient data lookup and verification for internal caches and systems.
+// Where in C: COM_HashKey or similar in common.c
 func TestHash(t *testing.T) {
 	s := "hello world"
 	h1 := COM_HashString(s)
@@ -116,6 +128,9 @@ func TestHash(t *testing.T) {
 	}
 }
 
+// TestParseNewline tests newline-aware parsing.
+// It correctly handles data formats that rely on line-by-line structure.
+// Where in C: COM_Parse variants in common.c
 func TestParseNewline(t *testing.T) {
 	data := " 123\n 45.6\n token\n"
 	data, valInt := COM_ParseIntNewline(data)
@@ -132,6 +147,9 @@ func TestParseNewline(t *testing.T) {
 	}
 }
 
+// TestSizeBufWriteReadAngle tests 8-bit angle compression in size buffers.
+// It optimizes network bandwidth by compressing 360-degree angles into a single byte.
+// Where in C: MSG_WriteAngle and MSG_ReadAngle in common.c
 func TestSizeBufWriteReadAngle(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -183,6 +201,9 @@ func TestSizeBufWriteReadAngle(t *testing.T) {
 	}
 }
 
+// TestSizeBufWriteReadAngle16 tests 16-bit angle compression.
+// It provides higher precision for angles while still saving space compared to full floats.
+// Where in C: MSG_WriteAngle16 and MSG_ReadAngle16 in common.c
 func TestSizeBufWriteReadAngle16(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -233,6 +254,9 @@ func TestSizeBufWriteReadAngle16(t *testing.T) {
 	}
 }
 
+// TestSizeBufAnglePrecision compares precision between 8-bit and 16-bit angles.
+// It validates that 16-bit compression provides the expected accuracy improvement.
+// Where in C: common.c (logic validation)
 func TestSizeBufAnglePrecision(t *testing.T) {
 	// Verify that 16-bit angles have better precision than 8-bit
 	angle := float32(45.5)

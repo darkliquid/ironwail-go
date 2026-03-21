@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// TestSetCallbackCanReadUpdatedValue tests cvar change callbacks.
+// It ensures that systems relying on cvar changes are notified and can read the new value immediately.
+// Where in C: Cvar_Set and its callback mechanism in cvar.c
 func TestSetCallbackCanReadUpdatedValue(t *testing.T) {
 	sys := NewCVarSystem()
 	cv := sys.Register("test_callback", "0", FlagArchive, "callback test")
@@ -45,6 +48,9 @@ func TestSetCallbackCanReadUpdatedValue(t *testing.T) {
 	}
 }
 
+// TestFlagROM tests the CVAR_ROM flag.
+// It ensures that read-only cvars (like version strings) cannot be modified by the user.
+// Where in C: Cvar_Set in cvar.c (checking for CVAR_ROM)
 func TestFlagROM(t *testing.T) {
 	sys := NewCVarSystem()
 	cv := sys.Register("test_rom", "42", FlagROM, "read-only test")
@@ -64,6 +70,9 @@ func TestFlagROM(t *testing.T) {
 	}
 }
 
+// TestLockedCvarRejectsSet tests cvar locking.
+// It prevents changes to critical cvars during certain engine states (e.g., while connected to a server).
+// Where in C: Cvar_Set and lock/unlock logic in cvar.c
 func TestLockedCvarRejectsSet(t *testing.T) {
 	sys := NewCVarSystem()
 	sys.Register("test_lock", "10", FlagNone, "lockable cvar")
@@ -81,6 +90,9 @@ func TestLockedCvarRejectsSet(t *testing.T) {
 	}
 }
 
+// TestAutoCvarCallback tests the FlagAutoCvar mechanism.
+// It ensures that engine-side variables automatically synchronized with cvars trigger the correct update logic.
+// Where in C: Cvar_Set in cvar.c (handling CVAR_AUTO)
 func TestAutoCvarCallback(t *testing.T) {
 	sys := NewCVarSystem()
 	sys.Register("sv_gravity", "800", FlagAutoCvar, "gravity")

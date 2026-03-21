@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// TestAsyncMixer_DelegatesToInner tests the asynchronous mixer wrapper.
+// It offloading audio mixing to a separate thread/goroutine to improve engine performance.
+// Where in C: N/A (Go-specific optimization)
 func TestAsyncMixer_DelegatesToInner(t *testing.T) {
 	inner := &NullMixer{}
 	inner.SetSndSpeed(44100)
@@ -26,12 +29,18 @@ func TestAsyncMixer_DelegatesToInner(t *testing.T) {
 	}
 }
 
+// TestAsyncMixer_StopIdempotent tests safe shutdown of the async mixer.
+// It preventing crashes or hangs when stopping the audio system.
+// Where in C: N/A
 func TestAsyncMixer_StopIdempotent(t *testing.T) {
 	async := NewAsyncMixer(&NullMixer{})
 	async.Stop()
 	async.Stop() // should not panic
 }
 
+// TestAsyncMixer_MultipleRequests tests sequential mixing requests in the async mixer.
+// It ensuring the async worker correctly processes a stream of mixing tasks.
+// Where in C: N/A
 func TestAsyncMixer_MultipleRequests(t *testing.T) {
 	async := NewAsyncMixer(&NullMixer{})
 	defer async.Stop()
@@ -44,6 +53,9 @@ func TestAsyncMixer_MultipleRequests(t *testing.T) {
 	}
 }
 
+// TestAsyncMixer_RunsInDifferentGoroutine tests that the async mixer actually runs in a separate goroutine.
+// It verifying the performance isolation of the audio system.
+// Where in C: N/A
 func TestAsyncMixer_RunsInDifferentGoroutine(t *testing.T) {
 	mainGID := currentGID()
 	inner := &trackingMixer{started: make(chan struct{}, 1), release: make(chan struct{})}

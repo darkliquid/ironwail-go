@@ -2,6 +2,9 @@ package console
 
 import "testing"
 
+// TestConsoleInputHistory tests the console's input buffer and history management.
+// It ensures users can navigate through previous commands using up/down keys, matching standard Quake console behavior.
+// Where in C: Con_Init and related input handling in console.c
 func TestConsoleInputHistory(t *testing.T) {
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {
@@ -43,6 +46,9 @@ func TestConsoleInputHistory(t *testing.T) {
 	}
 }
 
+// TestConsoleBackspaceInput tests backspace functionality in the console.
+// It providing basic text editing capabilities in the console input line.
+// Where in C: Con_Key or similar in console.c
 func TestConsoleBackspaceInput(t *testing.T) {
 	c := NewConsole(DefaultTextSize)
 	if err := c.Init(DefaultLineWidth); err != nil {
