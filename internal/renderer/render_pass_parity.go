@@ -139,6 +139,46 @@ func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 	return inputs.hasTranslucentBrushEntities || inputs.hasTranslucentAliasEntities || inputs.hasSpriteEntities
 }
 
+type gogpuEntityPhase int
+
+const (
+	gogpuEntityPhaseOpaqueAlias gogpuEntityPhase = iota
+	gogpuEntityPhaseDecals
+	gogpuEntityPhaseTranslucentAlias
+	gogpuEntityPhaseSprites
+)
+
+type gogpuEntityDrawPlan struct {
+	opaqueAlias      []AliasModelEntity
+	translucentAlias []AliasModelEntity
+	phases           []gogpuEntityPhase
+}
+
+// planGoGPUEntityDrawOrder keeps the GoGPU entity pass sequencing aligned with the
+// current OpenGL ordering without pulling world-pass or translucency-block mechanics
+// into the secondary backend.
+func planGoGPUEntityDrawOrder(aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity) gogpuEntityDrawPlan {
+	opaqueAlias, translucentAlias := splitAliasEntitiesByAlpha(aliasEntities)
+	phases := make([]gogpuEntityPhase, 0, 4)
+	if len(opaqueAlias) > 0 {
+		phases = append(phases, gogpuEntityPhaseOpaqueAlias)
+	}
+	if len(decalMarks) > 0 {
+		phases = append(phases, gogpuEntityPhaseDecals)
+	}
+	if len(translucentAlias) > 0 {
+		phases = append(phases, gogpuEntityPhaseTranslucentAlias)
+	}
+	if len(spriteEntities) > 0 {
+		phases = append(phases, gogpuEntityPhaseSprites)
+	}
+	return gogpuEntityDrawPlan{
+		opaqueAlias:      opaqueAlias,
+		translucentAlias: translucentAlias,
+		phases:           phases,
+	}
+}
+
 // worldLiquidFaceTypeMask performs its step in this part of the renderer; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func worldLiquidFaceTypeMask(faces []WorldFace) int32 {
 	var mask int32

@@ -1156,11 +1156,20 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
-
-	dc.renderAliasShadowsHAL(state.AliasEntities)
-	dc.renderAliasEntitiesHAL(state.AliasEntities)
-	dc.renderSpriteEntitiesHAL(state.SpriteEntities)
-	dc.renderDecalMarksHAL(state.DecalMarks)
+	plan := planGoGPUEntityDrawOrder(state.AliasEntities, state.SpriteEntities, state.DecalMarks)
+	for _, phase := range plan.phases {
+		switch phase {
+		case gogpuEntityPhaseOpaqueAlias:
+			dc.renderAliasShadowsHAL(plan.opaqueAlias)
+			dc.renderAliasEntitiesHAL(plan.opaqueAlias)
+		case gogpuEntityPhaseDecals:
+			dc.renderDecalMarksHAL(state.DecalMarks)
+		case gogpuEntityPhaseTranslucentAlias:
+			dc.renderAliasEntitiesHAL(plan.translucentAlias)
+		case gogpuEntityPhaseSprites:
+			dc.renderSpriteEntitiesHAL(state.SpriteEntities)
+		}
+	}
 }
 
 func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp types.Mat4, screenW, screenH, size int, color byte) {

@@ -253,6 +253,38 @@ func TestShouldRunLateTranslucencyBlock(t *testing.T) {
 	}
 }
 
+func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
+	aliasEntities := []AliasModelEntity{
+		{ModelID: "hidden", Alpha: 0},
+		{ModelID: "ghost", Alpha: 0.5},
+		{ModelID: "ogre", Alpha: 1},
+	}
+	spriteEntities := []SpriteEntity{{ModelID: "flame"}}
+	decalMarks := []DecalMarkEntity{{Size: 16}}
+
+	plan := planGoGPUEntityDrawOrder(aliasEntities, spriteEntities, decalMarks)
+	if len(plan.opaqueAlias) != 1 || plan.opaqueAlias[0].ModelID != "ogre" {
+		t.Fatalf("opaqueAlias = %#v, want only ogre", plan.opaqueAlias)
+	}
+	if len(plan.translucentAlias) != 1 || plan.translucentAlias[0].ModelID != "ghost" {
+		t.Fatalf("translucentAlias = %#v, want only ghost", plan.translucentAlias)
+	}
+	want := []gogpuEntityPhase{
+		gogpuEntityPhaseOpaqueAlias,
+		gogpuEntityPhaseDecals,
+		gogpuEntityPhaseTranslucentAlias,
+		gogpuEntityPhaseSprites,
+	}
+	if len(plan.phases) != len(want) {
+		t.Fatalf("phase count = %d, want %d (%v)", len(plan.phases), len(want), plan.phases)
+	}
+	for i, phase := range want {
+		if plan.phases[i] != phase {
+			t.Fatalf("phase[%d] = %v, want %v (all=%v)", i, plan.phases[i], phase, plan.phases)
+		}
+	}
+}
+
 func TestWorldLiquidFaceTypeMask(t *testing.T) {
 	faces := []WorldFace{
 		{Flags: model.SurfDrawWater},                       // non-turbulent should not count
