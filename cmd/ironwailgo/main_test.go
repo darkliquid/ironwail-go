@@ -590,6 +590,10 @@ func TestDrawChatInputClipsAndDrawsBlinkCursor(t *testing.T) {
 		chatBuffer = originalChatBuffer
 		chatTeam = originalChatTeam
 	})
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
 	runtimeNow = func() time.Time { return time.Unix(0, int64(time.Second/4)) }
 	chatBuffer = "abcdef"
 	chatTeam = false
@@ -608,8 +612,36 @@ func TestDrawChatInputClipsAndDrawsBlinkCursor(t *testing.T) {
 		t.Fatalf("chat visible text = %q, want %q", got, "say: ef")
 	}
 	last := dc.chars[len(dc.chars)-1]
-	if last.x != 64 || last.y != 64 || last.num != 11 {
-		t.Fatalf("chat cursor = (%d,%d,%d), want (64,64,11)", last.x, last.y, last.num)
+	if last.x != 64 || last.y != 0 || last.num != 11 {
+		t.Fatalf("chat cursor = (%d,%d,%d), want (64,0,11)", last.x, last.y, last.num)
+	}
+}
+
+func TestDrawChatInputTracksNotifyRows(t *testing.T) {
+	originalNow := runtimeNow
+	originalChatBuffer := chatBuffer
+	originalChatTeam := chatTeam
+	t.Cleanup(func() {
+		runtimeNow = originalNow
+		chatBuffer = originalChatBuffer
+		chatTeam = originalChatTeam
+	})
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+	cvar.Set("con_notifytime", "3")
+
+	runtimeNow = func() time.Time { return time.Unix(0, int64(time.Second/4)) }
+	chatBuffer = "hi"
+	console.Printf("notify")
+
+	dc := &consoleOverlayDrawContext{}
+	drawChatInput(dc, 80, 200)
+
+	last := dc.chars[len(dc.chars)-1]
+	if last.y != 8 {
+		t.Fatalf("chat cursor y with one notify row = %d, want 8", last.y)
 	}
 }
 

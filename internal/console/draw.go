@@ -236,27 +236,37 @@ func scaleQPicNearest(pic *qimage.QPic, width, height int) *qimage.QPic {
 // can see kill messages, chat, and other transient information. Lines whose
 // timestamps have expired are silently skipped.
 func (c *Console) drawNotify(rc DrawContext, charsWide int) {
-	now := time.Now()
+	now := consoleNow()
+	centered := cvar.BoolValue("con_notifycenter")
 
 	c.mu.RLock()
 	current := c.current
 	notifyTimes := c.notifyTimes
-	lines := make([][]byte, 0, NumNotifyTimes)
+	type notifyLine struct {
+		text  []byte
+		alpha float64
+	}
+	lines := make([]notifyLine, 0, NumNotifyTimes)
 	for line := current - NumNotifyTimes + 1; line <= current; line++ {
 		if line < 0 {
 			continue
 		}
 		ts := notifyTimes[line%NumNotifyTimes]
-		if ts.IsZero() || now.Sub(ts) > consoleNotifyTTL() {
+		alpha := notifyAlpha(now, ts)
+		if alpha <= 0 {
 			continue
 		}
-		lines = append(lines, c.lineBytesLocked(line))
+		lines = append(lines, notifyLine{text: c.lineBytesLocked(line), alpha: alpha})
 	}
 	c.mu.RUnlock()
 
 	y := 0
-	for _, line := range lines {
-		drawByteText(rc, consoleCharWidth, y, line, charsWide-2)
+	for i, line := range lines {
+		if centered {
+			drawCenteredNotifyText(rc, charsWide, y+16, line.text, i, line.alpha)
+		} else {
+			drawByteTextAlpha(rc, consoleCharWidth, y, line.text, charsWide-2, i, line.alpha)
+		}
 		y += consoleCharHeight
 	}
 }
@@ -300,6 +310,10 @@ func (c *Console) lineBytesLocked(lineNum int) []byte {
 // outside the console area. This is used for scrollback lines, which are
 // stored as []byte in the ring buffer.
 func drawByteText(rc DrawContext, x, y int, text []byte, maxChars int) {
+	drawByteTextAlpha(rc, x, y, text, maxChars, 0, 1)
+}
+
+func drawByteTextAlpha(rc DrawContext, x, y int, text []byte, maxChars, lineIndex int, alpha float64) {
 	if rc == nil || maxChars == 0 {
 		return
 	}
@@ -307,7 +321,28 @@ func drawByteText(rc DrawContext, x, y int, text []byte, maxChars int) {
 		text = text[:maxChars]
 	}
 	for i, ch := range text {
-		rc.DrawCharacter(x+i*consoleCharWidth, y, int(ch))
+		if shouldDrawNotifyChar(lineIndex, i, alpha) {
+			rc.DrawCharacter(x+i*consoleCharWidth, y, int(ch))
+		}
+	}
+}
+
+func drawCenteredNotifyText(rc DrawContext, charsWide, y int, text []byte, lineIndex int, alpha float64) {
+	if rc == nil || charsWide <= 0 || alpha <= 0 {
+		return
+	}
+	trimmed := append([]byte(nil), text...)
+	for len(trimmed) > 0 && trimmed[len(trimmed)-1] == ' ' {
+		trimmed = trimmed[:len(trimmed)-1]
+	}
+	if len(trimmed) == 0 {
+		return
+	}
+	x := (charsWide - len(trimmed)) * consoleCharWidth / 2
+	for i, ch := range trimmed {
+		if shouldDrawNotifyChar(lineIndex, i, alpha) {
+			rc.DrawCharacter(x+i*consoleCharWidth, y, int(ch))
+		}
 	}
 }
 
@@ -365,6 +400,64 @@ func consoleNotifyTTL() time.Duration {
 		return consoleNotifyDefaultTTL
 	}
 	return time.Duration(secs * float64(time.Second))
+}
+
+func notifyFadeDuration() time.Duration {
+	if !cvar.BoolValue("con_notifyfade") {
+		return 0
+	}
+	secs := cvar.FloatValue("con_notifyfadetime")
+	if secs <= 0 {
+		return 0
+	}
+	return time.Duration(secs * float64(time.Second))
+}
+
+func notifyAlpha(now, ts time.Time) float64 {
+	if ts.IsZero() {
+		return 0
+	}
+	fade := notifyFadeDuration()
+	remaining := ts.Add(consoleNotifyTTL() + fade).Sub(now)
+	if remaining <= 0 {
+		return 0
+	}
+	if fade <= 0 || remaining >= fade {
+		return 1
+	}
+	return float64(remaining) / float64(fade)
+}
+
+func shouldDrawNotifyChar(lineIndex, charIndex int, alpha float64) bool {
+	switch {
+	case alpha >= 0.875:
+		return true
+	case alpha >= 0.625:
+		return (lineIndex+charIndex)%4 != 0
+	case alpha >= 0.375:
+		return (lineIndex+charIndex)%2 == 0
+	default:
+		return (lineIndex+charIndex)%4 == 0
+	}
+}
+
+func (c *Console) NotifyLineCountAt(now time.Time) int {
+	if c == nil {
+		return 0
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	count := 0
+	for line := c.current - NumNotifyTimes + 1; line <= c.current; line++ {
+		if line < 0 {
+			continue
+		}
+		if notifyAlpha(now, c.notifyTimes[line%NumNotifyTimes]) > 0 {
+			count++
+		}
+	}
+	return count
 }
 
 // max returns the larger of two ints. This is a local helper because Go

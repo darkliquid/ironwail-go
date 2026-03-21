@@ -11,6 +11,9 @@ import (
 
 func registerConsoleNotifyTestCvars() {
 	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "test console notify lifetime")
+	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "test console notify centering")
+	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test console notify fade enable")
+	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test console notify fade duration")
 }
 
 type mockRenderContext struct {
@@ -170,6 +173,69 @@ func TestConsoleDrawNotifyUsesCVarLifetime(t *testing.T) {
 	linesByY := charactersByRow(mock.characters)
 	if containsRowSubstring(linesByY, "linger") {
 		t.Fatalf("notify draw should respect con_notifytime, rows: %#v", linesByY)
+	}
+}
+
+func TestConsoleDrawNotifyCanCenterLines(t *testing.T) {
+	originalNow := consoleNow
+	consoleNow = func() time.Time { return time.Unix(10, 0) }
+	t.Cleanup(func() {
+		consoleNow = originalNow
+	})
+
+	registerConsoleNotifyTestCvars()
+	cvar.Set("con_notifycenter", "1")
+	t.Cleanup(func() {
+		cvar.Set("con_notifycenter", "0")
+	})
+
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	c.Printf("abc")
+	c.notifyTimes[c.current%NumNotifyTimes] = consoleNow()
+
+	mock := &mockRenderContext{}
+	c.Draw(mock, 80, 40, false, nil)
+
+	if len(mock.characters) != 3 {
+		t.Fatalf("centered notify chars = %d, want 3", len(mock.characters))
+	}
+	if first := mock.characters[0]; first.x != 28 || first.y != 16 {
+		t.Fatalf("first centered notify char = (%d,%d), want (28,16)", first.x, first.y)
+	}
+}
+
+func TestConsoleDrawNotifyFadeStipplesLateLines(t *testing.T) {
+	originalNow := consoleNow
+	consoleNow = func() time.Time { return time.Unix(10, 0) }
+	t.Cleanup(func() {
+		consoleNow = originalNow
+	})
+
+	registerConsoleNotifyTestCvars()
+	cvar.Set("con_notifyfade", "1")
+	cvar.Set("con_notifyfadetime", "1")
+	t.Cleanup(func() {
+		cvar.Set("con_notifyfade", "0")
+		cvar.Set("con_notifyfadetime", "0.5")
+	})
+
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	c.Printf("fading")
+	c.notifyTimes[c.current%NumNotifyTimes] = consoleNow().Add(-consoleNotifyTTL() - 750*time.Millisecond)
+
+	mock := &mockRenderContext{}
+	c.Draw(mock, 80, 40, false, nil)
+
+	if got := len(mock.characters); got == 0 || got >= len("fading") {
+		t.Fatalf("late notify char count = %d, want partial stipple between 1 and %d", got, len("fading")-1)
 	}
 }
 

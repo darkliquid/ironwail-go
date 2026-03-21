@@ -892,11 +892,7 @@ func drawChatInput(rc renderer.RenderContext, w, h int) {
 	}
 	fullText := clippedChatInput(prompt, chatBuffer, max(1, w/8-2))
 
-	// Draw at roughly 1/3 down the screen or near top, standard Quake is just below notify lines?
-	// Actually Quake draws it at specific Y.
-	// Let's draw it at Y=60 or similar, or center?
-	// Quake draws it around y=32 or so?
-	y := 64
+	y := console.NotifyLineCount() * 8
 	x := 8
 
 	// Green text

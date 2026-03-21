@@ -116,6 +116,7 @@ func initGameHost() error {
 	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "Console scale factor")
 	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "Console slide speed")
 	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "Notify line lifetime in seconds")
+	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "Centerprint background style (0=off, 1=text box, 2=panel, 3=strip)")
 	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
 	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "Centerprint fade-tail duration in seconds when con_notifyfade is enabled")

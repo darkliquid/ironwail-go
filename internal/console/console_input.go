@@ -182,6 +182,10 @@ func NextHistory() string {
 	return globalConsole.NextHistory()
 }
 
+func NotifyLineCount() int {
+	return globalConsole.NotifyLineCountAt(consoleNow())
+}
+
 // ---------------------------------------------------------------------------
 // Package-level convenience functions
 // ---------------------------------------------------------------------------
