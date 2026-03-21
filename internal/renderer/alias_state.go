@@ -56,6 +56,8 @@ func seedAliasState(state *AliasEntity, entity AliasModelEntity, created bool) *
 	state.Angles = entity.Angles
 	state.ModelID = entity.ModelID
 	state.SkinNum = entity.SkinNum
+	state.ColorMap = entity.ColorMap
+	state.IsPlayer = entity.IsPlayer
 	return state
 }
 

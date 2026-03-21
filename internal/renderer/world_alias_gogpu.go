@@ -21,17 +21,20 @@ type gpuAliasVertexRef struct {
 }
 
 type gpuAliasSkin struct {
-	texture   hal.Texture
-	view      hal.TextureView
-	bindGroup hal.BindGroup
+	texture           hal.Texture
+	view              hal.TextureView
+	fullbrightTexture hal.Texture
+	fullbrightView    hal.TextureView
+	bindGroup         hal.BindGroup
 }
 
 type gpuAliasModel struct {
-	modelID string
-	flags   int
-	skins   []gpuAliasSkin
-	poses   [][]model.TriVertX
-	refs    []gpuAliasVertexRef
+	modelID     string
+	flags       int
+	skins       []gpuAliasSkin
+	playerSkins map[uint32][]gpuAliasSkin
+	poses       [][]model.TriVertX
+	refs        []gpuAliasVertexRef
 }
 
 type gpuAliasDraw struct {
@@ -105,17 +108,21 @@ var skinSampler: sampler;
 @group(1) @binding(1)
 var skinTexture: texture_2d<f32>;
 
+@group(1) @binding(2)
+var fullbrightTexture: texture_2d<f32>;
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let sampled = textureSample(skinTexture, skinSampler, input.texCoord);
     if (sampled.a < 0.01) {
         discard;
     }
+    let fullbright = textureSample(fullbrightTexture, skinSampler, input.texCoord);
 
     let lightDir = normalize(vec3<f32>(0.35, -0.45, 0.82));
     let normal = normalize(input.normal);
     let diffuse = max(dot(normal, lightDir), 0.25);
-    return vec4<f32>(sampled.rgb * diffuse, sampled.a * uniforms.alpha);
+    return vec4<f32>(sampled.rgb * diffuse + fullbright.rgb, sampled.a * uniforms.alpha);
 }
 `
 
@@ -125,11 +132,36 @@ func (r *Renderer) clearAliasModelsLocked() {
 			if skin.bindGroup != nil {
 				skin.bindGroup.Destroy()
 			}
+			if skin.fullbrightView != nil {
+				skin.fullbrightView.Destroy()
+			}
+			if skin.fullbrightTexture != nil {
+				skin.fullbrightTexture.Destroy()
+			}
 			if skin.view != nil {
 				skin.view.Destroy()
 			}
 			if skin.texture != nil {
 				skin.texture.Destroy()
+			}
+		}
+		for _, variants := range cached.playerSkins {
+			for _, skin := range variants {
+				if skin.bindGroup != nil {
+					skin.bindGroup.Destroy()
+				}
+				if skin.fullbrightView != nil {
+					skin.fullbrightView.Destroy()
+				}
+				if skin.fullbrightTexture != nil {
+					skin.fullbrightTexture.Destroy()
+				}
+				if skin.view != nil {
+					skin.view.Destroy()
+				}
+				if skin.texture != nil {
+					skin.texture.Destroy()
+				}
 			}
 		}
 		delete(r.aliasModels, key)
@@ -229,6 +261,15 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 			},
 			{
 				Binding:    1,
+				Visibility: gputypes.ShaderStageFragment,
+				Texture: &gputypes.TextureBindingLayout{
+					SampleType:    gputypes.TextureSampleTypeFloat,
+					ViewDimension: gputypes.TextureViewDimension2D,
+					Multisampled:  false,
+				},
+			},
+			{
+				Binding:    2,
 				Visibility: gputypes.ShaderStageFragment,
 				Texture: &gputypes.TextureBindingLayout{
 					SampleType:    gputypes.TextureSampleTypeFloat,
@@ -497,11 +538,12 @@ func (r *Renderer) ensureAliasModelLocked(device hal.Device, queue hal.Queue, mo
 	}
 
 	alias := &gpuAliasModel{
-		modelID: modelID,
-		flags:   hdr.Flags,
-		skins:   skins,
-		poses:   hdr.Poses,
-		refs:    refs,
+		modelID:     modelID,
+		flags:       hdr.Flags,
+		skins:       skins,
+		playerSkins: make(map[uint32][]gpuAliasSkin),
+		poses:       hdr.Poses,
+		refs:        refs,
 	}
 	r.aliasModels[modelID] = alias
 	return alias
@@ -514,7 +556,7 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 	if len(pixels) != width*height {
 		pixels = make([]byte, width*height)
 	}
-	rgba := ConvertPaletteToRGBA(pixels, r.palette)
+	baseRGBA, fullbrightRGBA := aliasSkinVariantRGBA(pixels, r.palette, 0, false)
 	texture, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "Alias Skin Texture",
 		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
@@ -531,7 +573,7 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 		Texture:  texture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+	}, baseRGBA, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
 		texture.Destroy()
 		return gpuAliasSkin{}, fmt.Errorf("write texture: %w", err)
 	}
@@ -549,20 +591,100 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 		texture.Destroy()
 		return gpuAliasSkin{}, fmt.Errorf("create texture view: %w", err)
 	}
+	fullbrightTexture, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "Alias Fullbright Texture",
+		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        gputypes.TextureFormatRGBA8Unorm,
+		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
+	})
+	if err != nil {
+		view.Destroy()
+		texture.Destroy()
+		return gpuAliasSkin{}, fmt.Errorf("create fullbright texture: %w", err)
+	}
+	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+		Texture:  fullbrightTexture,
+		MipLevel: 0,
+		Aspect:   gputypes.TextureAspectAll,
+	}, fullbrightRGBA, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		fullbrightTexture.Destroy()
+		view.Destroy()
+		texture.Destroy()
+		return gpuAliasSkin{}, fmt.Errorf("write fullbright texture: %w", err)
+	}
+	fullbrightView, err := device.CreateTextureView(fullbrightTexture, &hal.TextureViewDescriptor{
+		Label:           "Alias Fullbright View",
+		Format:          gputypes.TextureFormatRGBA8Unorm,
+		Dimension:       gputypes.TextureViewDimension2D,
+		Aspect:          gputypes.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: 1,
+	})
+	if err != nil {
+		fullbrightTexture.Destroy()
+		view.Destroy()
+		texture.Destroy()
+		return gpuAliasSkin{}, fmt.Errorf("create fullbright texture view: %w", err)
+	}
 	bindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
 		Label:  "Alias Skin BG",
 		Layout: r.aliasTextureBindGroupLayout,
 		Entries: []gputypes.BindGroupEntry{
 			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: r.aliasSampler.NativeHandle()}},
 			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
+			{Binding: 2, Resource: gputypes.TextureViewBinding{TextureView: fullbrightView.NativeHandle()}},
 		},
 	})
 	if err != nil {
+		fullbrightView.Destroy()
+		fullbrightTexture.Destroy()
 		view.Destroy()
 		texture.Destroy()
 		return gpuAliasSkin{}, fmt.Errorf("create bind group: %w", err)
 	}
-	return gpuAliasSkin{texture: texture, view: view, bindGroup: bindGroup}, nil
+	return gpuAliasSkin{
+		texture:           texture,
+		view:              view,
+		fullbrightTexture: fullbrightTexture,
+		fullbrightView:    fullbrightView,
+		bindGroup:         bindGroup,
+	}, nil
+}
+
+func (r *Renderer) resolveAliasSkinLocked(device hal.Device, queue hal.Queue, alias *gpuAliasModel, entity AliasModelEntity, slot int) *gpuAliasSkin {
+	if alias == nil || slot < 0 {
+		return nil
+	}
+	if entity.IsPlayer {
+		if skins, ok := alias.playerSkins[entity.ColorMap]; ok && slot < len(skins) {
+			return &skins[slot]
+		}
+		hdr := entity.Model.AliasHeader
+		playerSkins := make([]gpuAliasSkin, len(hdr.Skins))
+		for i, skinPixels := range hdr.Skins {
+			topColor, bottomColor := splitPlayerColors(byte(entity.ColorMap))
+			translated := TranslatePlayerSkinPixels(skinPixels, topColor, bottomColor)
+			skin, err := r.createAliasSkinLocked(device, queue, hdr.SkinWidth, hdr.SkinHeight, translated)
+			if err != nil {
+				slog.Warn("failed to upload translated alias skin", "model", entity.ModelID, "colormap", entity.ColorMap, "error", err)
+				return nil
+			}
+			playerSkins[i] = skin
+		}
+		alias.playerSkins[entity.ColorMap] = playerSkins
+		if slot < len(playerSkins) {
+			return &playerSkins[slot]
+		}
+	}
+	if slot < len(alias.skins) {
+		return &alias.skins[slot]
+	}
+	return nil
 }
 
 func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, entity AliasModelEntity, fullAngles bool) *gpuAliasDraw {
@@ -600,9 +722,13 @@ func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, enti
 		pose2 = 0
 	}
 
-	skin := &alias.skins[0]
+	var skin *gpuAliasSkin
 	if len(alias.skins) > 0 {
-		skin = &alias.skins[resolveAliasSkinSlot(entity.Model.AliasHeader, entity.SkinNum, entity.TimeSeconds, len(alias.skins))]
+		slot := resolveAliasSkinSlot(entity.Model.AliasHeader, entity.SkinNum, entity.TimeSeconds, len(alias.skins))
+		skin = r.resolveAliasSkinLocked(device, queue, alias, entity, slot)
+	}
+	if skin == nil && len(alias.skins) > 0 {
+		skin = &alias.skins[0]
 	}
 
 	alpha, visible := visibleEntityAlpha(entity.Alpha)

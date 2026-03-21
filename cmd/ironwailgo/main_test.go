@@ -4014,6 +4014,44 @@ func TestCollectAliasEntitiesKeepsLiveDynamicInterpolationState(t *testing.T) {
 	}
 }
 
+func TestCollectAliasEntitiesThreadsPlayerColorMap(t *testing.T) {
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalCache := g.AliasModelCache
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.AliasModelCache = originalCache
+	})
+
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{2, 1}
+	g.Client.Time = 2
+	g.Client.ModelPrecache = []string{"progs/player.mdl"}
+	g.Client.PlayerColors[1] = 0x4f
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, MsgTime: 2, Colormap: 1},
+	}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/player.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1, Poses: [][]model.TriVertX{{}}},
+		},
+	}
+
+	entities := collectAliasEntities()
+	if len(entities) != 1 {
+		t.Fatalf("collectAliasEntities len = %d, want 1", len(entities))
+	}
+	if !entities[0].IsPlayer {
+		t.Fatal("collectAliasEntities IsPlayer = false, want true")
+	}
+	if entities[0].ColorMap != 0x4f {
+		t.Fatalf("collectAliasEntities ColorMap = %#x, want 0x4f", entities[0].ColorMap)
+	}
+}
+
 func TestCollectSpriteEntitiesSkipsStaleDynamicEntities(t *testing.T) {
 	originalClient := g.Client
 	originalSubs := g.Subs

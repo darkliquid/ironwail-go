@@ -793,6 +793,25 @@ func (r *Renderer) clearWorldLocked() {
 					gl.DeleteTextures(1, &tex)
 				}
 			}
+			for _, tex := range alias.fullbrightSkins {
+				if tex != 0 && tex != r.worldFallbackTexture {
+					gl.DeleteTextures(1, &tex)
+				}
+			}
+			for _, variants := range alias.playerSkins {
+				for _, tex := range variants {
+					if tex != 0 && tex != r.worldFallbackTexture {
+						gl.DeleteTextures(1, &tex)
+					}
+				}
+			}
+			for _, variants := range alias.playerFullbright {
+				for _, tex := range variants {
+					if tex != 0 && tex != r.worldFallbackTexture {
+						gl.DeleteTextures(1, &tex)
+					}
+				}
+			}
 		}
 		delete(r.aliasModels, modelID)
 	}

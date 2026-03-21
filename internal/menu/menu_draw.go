@@ -74,37 +74,11 @@ func translateSetupPlayerPic(pic *image.QPic, topColor, bottomColor int) *image.
 		return nil
 	}
 
-	translated := make([]byte, len(pic.Pixels))
-	copy(translated, pic.Pixels)
-
-	topStart := byte((topColor & 15) << 4)
-	bottomStart := byte((bottomColor & 15) << 4)
-
-	for i, pixel := range translated {
-		switch {
-		case pixel >= 16 && pixel < 32:
-			translated[i] = translatedPlayerColor(topStart, pixel-16)
-		case pixel >= 96 && pixel < 112:
-			translated[i] = translatedPlayerColor(bottomStart, pixel-96)
-		}
-	}
-
 	return &image.QPic{
 		Width:  pic.Width,
 		Height: pic.Height,
-		Pixels: translated,
+		Pixels: renderer.TranslatePlayerSkinPixels(pic.Pixels, topColor, bottomColor),
 	}
-}
-
-// translatedPlayerColor maps a palette offset within a 16-colour range to the
-// target colour row. For rows below 128 the offset is added directly; for rows
-// at 128+ the offset is reversed (15 - offset), producing the "bright to dark"
-// inversion used by Quake's darker colour rows.
-func translatedPlayerColor(start, offset byte) byte {
-	if start < 128 {
-		return start + offset
-	}
-	return start + (15 - offset)
 }
 
 // drawPlaqueAndTitle draws the standard Quake menu frame: the Quake plaque

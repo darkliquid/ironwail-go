@@ -18,25 +18,29 @@ type glAliasVertexRef struct {
 }
 
 type glAliasModel struct {
-	modelID string
-	flags   int
-	skins   []uint32
-	poses   [][]model.TriVertX
-	refs    []glAliasVertexRef
+	modelID          string
+	flags            int
+	skins            []uint32
+	fullbrightSkins  []uint32
+	playerSkins      map[uint32][]uint32
+	playerFullbright map[uint32][]uint32
+	poses            [][]model.TriVertX
+	refs             []glAliasVertexRef
 }
 
 type glAliasDraw struct {
-	alias  *glAliasModel
-	model  *model.Model
-	pose1  int     // First pose for interpolation
-	pose2  int     // Second pose for interpolation
-	blend  float32 // Blend factor between pose1 and pose2 (0 = pose1, 1 = pose2)
-	skin   uint32
-	origin [3]float32
-	angles [3]float32
-	alpha  float32
-	scale  float32
-	full   bool
+	alias          *glAliasModel
+	model          *model.Model
+	pose1          int     // First pose for interpolation
+	pose2          int     // Second pose for interpolation
+	blend          float32 // Blend factor between pose1 and pose2 (0 = pose1, 1 = pose2)
+	skin           uint32
+	fullbrightSkin uint32
+	origin         [3]float32
+	angles         [3]float32
+	alpha          float32
+	scale          float32
+	full           bool
 }
 
 // ensureAliasScratchLocked creates a scratch VAO/VBO for alias model rendering. Alias models re-upload interpolated vertex data each frame, so the buffer uses GL_DYNAMIC_DRAW.
@@ -81,20 +85,26 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 	}
 
 	r.ensureWorldFallbackTextureLocked()
-	r.ensureLightmapFallbackTextureLocked()
 	palette := append([]byte(nil), r.palette...)
 	skins := make([]uint32, 0, len(hdr.Skins))
+	fullbrightSkins := make([]uint32, 0, len(hdr.Skins))
 	for _, skin := range hdr.Skins {
 		if len(skin) != hdr.SkinWidth*hdr.SkinHeight {
 			skins = append(skins, r.worldFallbackTexture)
+			fullbrightSkins = append(fullbrightSkins, r.worldFallbackTexture)
 			continue
 		}
-		rgba := ConvertPaletteToRGBA(skin, palette)
+		rgba, fullbright := aliasSkinVariantRGBA(skin, palette, 0, false)
 		tex := uploadWorldTextureRGBA(hdr.SkinWidth, hdr.SkinHeight, rgba)
 		if tex == 0 {
 			tex = r.worldFallbackTexture
 		}
+		fullbrightTex := uploadWorldTextureRGBA(hdr.SkinWidth, hdr.SkinHeight, fullbright)
+		if fullbrightTex == 0 {
+			fullbrightTex = r.worldFallbackTexture
+		}
 		skins = append(skins, tex)
+		fullbrightSkins = append(fullbrightSkins, fullbrightTex)
 	}
 
 	refs := make([]glAliasVertexRef, 0, len(hdr.Triangles)*3)
@@ -120,14 +130,57 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 	}
 
 	alias := &glAliasModel{
-		modelID: modelID,
-		flags:   hdr.Flags,
-		skins:   skins,
-		poses:   hdr.Poses,
-		refs:    refs,
+		modelID:          modelID,
+		flags:            hdr.Flags,
+		skins:            skins,
+		fullbrightSkins:  fullbrightSkins,
+		playerSkins:      make(map[uint32][]uint32),
+		playerFullbright: make(map[uint32][]uint32),
+		poses:            hdr.Poses,
+		refs:             refs,
 	}
 	r.aliasModels[modelID] = alias
 	return alias
+}
+
+func uploadAliasSkinTextures(width, height int, baseRGBA, fullbrightRGBA []byte, fallback uint32) (uint32, uint32) {
+	base := uploadWorldTextureRGBA(width, height, baseRGBA)
+	if base == 0 {
+		base = fallback
+	}
+	fullbright := uploadWorldTextureRGBA(width, height, fullbrightRGBA)
+	if fullbright == 0 {
+		fullbright = fallback
+	}
+	return base, fullbright
+}
+
+func (r *Renderer) resolveAliasSkinTexturesLocked(alias *glAliasModel, entity AliasModelEntity, skinSlot int) (uint32, uint32) {
+	if alias == nil {
+		return r.worldFallbackTexture, r.worldFallbackTexture
+	}
+	if entity.IsPlayer {
+		if skins, ok := alias.playerSkins[entity.ColorMap]; ok && skinSlot >= 0 && skinSlot < len(skins) {
+			return skins[skinSlot], alias.playerFullbright[entity.ColorMap][skinSlot]
+		}
+		hdr := entity.Model.AliasHeader
+		palette := append([]byte(nil), r.palette...)
+		playerSkins := make([]uint32, len(hdr.Skins))
+		playerFullbright := make([]uint32, len(hdr.Skins))
+		for i, skinPixels := range hdr.Skins {
+			baseRGBA, fullbrightRGBA := aliasSkinVariantRGBA(skinPixels, palette, entity.ColorMap, true)
+			playerSkins[i], playerFullbright[i] = uploadAliasSkinTextures(hdr.SkinWidth, hdr.SkinHeight, baseRGBA, fullbrightRGBA, r.worldFallbackTexture)
+		}
+		alias.playerSkins[entity.ColorMap] = playerSkins
+		alias.playerFullbright[entity.ColorMap] = playerFullbright
+		if skinSlot >= 0 && skinSlot < len(playerSkins) {
+			return playerSkins[skinSlot], playerFullbright[skinSlot]
+		}
+	}
+	if skinSlot >= 0 && skinSlot < len(alias.skins) {
+		return alias.skins[skinSlot], alias.fullbrightSkins[skinSlot]
+	}
+	return r.worldFallbackTexture, r.worldFallbackTexture
 }
 
 // buildAliasVertices builds world-space vertices for a single alias model pose without interpolation. Used for shadow rendering and static pose display.
@@ -256,11 +309,10 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 	}
 
 	skin := r.worldFallbackTexture
+	fullbrightSkin := r.worldFallbackTexture
 	if len(alias.skins) > 0 {
-		skin = alias.skins[resolveAliasSkinSlot(entity.Model.AliasHeader, entity.SkinNum, entity.TimeSeconds, len(alias.skins))]
-		if skin == 0 {
-			skin = r.worldFallbackTexture
-		}
+		slot := resolveAliasSkinSlot(entity.Model.AliasHeader, entity.SkinNum, entity.TimeSeconds, len(alias.skins))
+		skin, fullbrightSkin = r.resolveAliasSkinTexturesLocked(alias, entity, slot)
 	}
 
 	alpha, visible := visibleEntityAlpha(entity.Alpha)
@@ -269,17 +321,18 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 	}
 
 	return &glAliasDraw{
-		alias:  alias,
-		model:  entity.Model,
-		pose1:  pose1,
-		pose2:  pose2,
-		blend:  interpData.Blend,
-		skin:   skin,
-		origin: interpData.Origin,
-		angles: interpData.Angles,
-		alpha:  alpha,
-		scale:  entity.Scale,
-		full:   fullAngles,
+		alias:          alias,
+		model:          entity.Model,
+		pose1:          pose1,
+		pose2:          pose2,
+		blend:          interpData.Blend,
+		skin:           skin,
+		fullbrightSkin: fullbrightSkin,
+		origin:         interpData.Origin,
+		angles:         interpData.Angles,
+		alpha:          alpha,
+		scale:          entity.Scale,
+		full:           fullAngles,
 	}
 }
 
@@ -296,6 +349,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	vpUniform := r.worldVPUniform
 	textureUniform := r.worldTextureUniform
 	lightmapUniform := r.worldLightmapUniform
+	fullbrightUniform := r.worldFullbrightUniform
+	hasFullbrightUniform := r.worldHasFullbrightUniform
 	dynamicLightUniform := r.worldDynamicLightUniform
 	modelOffsetUniform := r.worldModelOffsetUniform
 	modelRotationUniform := r.worldModelRotationUniform
@@ -329,6 +384,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.UniformMatrix4fv(vpUniform, 1, false, &vp[0])
 	gl.Uniform1i(textureUniform, 0)
 	gl.Uniform1i(lightmapUniform, 1)
+	gl.Uniform1i(fullbrightUniform, 2)
+	gl.Uniform1f(hasFullbrightUniform, 1)
 	gl.Uniform3f(dynamicLightUniform, 0, 0, 0)
 	gl.Uniform3f(modelOffsetUniform, 0, 0, 0)
 	gl.UniformMatrix4fv(modelRotationUniform, 1, false, &identityModelRotationMatrix[0])
@@ -341,6 +398,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.ActiveTexture(gl.TEXTURE1)
 	gl.BindTexture(gl.TEXTURE_2D, fallbackLightmap)
+	gl.ActiveTexture(gl.TEXTURE2)
+	gl.BindTexture(gl.TEXTURE_2D, r.worldFallbackTexture)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindVertexArray(scratchVAO)
 	gl.BindBuffer(gl.ARRAY_BUFFER, scratchVBO)
@@ -354,6 +413,9 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 		vertexData := flattenWorldVertices(vertices)
 		gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
 		gl.BindTexture(gl.TEXTURE_2D, draw.skin)
+		gl.ActiveTexture(gl.TEXTURE2)
+		gl.BindTexture(gl.TEXTURE_2D, draw.fullbrightSkin)
+		gl.ActiveTexture(gl.TEXTURE0)
 		gl.Uniform1f(alphaUniform, draw.alpha)
 		gl.DrawArrays(gl.TRIANGLES, 0, int32(len(vertices)))
 	}
@@ -361,6 +423,8 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 	gl.BindVertexArray(0)
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE2)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)

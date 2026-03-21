@@ -193,6 +193,16 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		if state.LerpFlags&inet.LerpFinish != 0 {
 			lerpFlags |= renderer.LerpFinish
 		}
+		isPlayer := state.Colormap > 0
+		var colorMap uint32
+		if isPlayer {
+			playerIndex := int(state.Colormap)
+			if packed, ok := g.Client.PlayerColors[playerIndex]; ok {
+				colorMap = uint32(packed)
+			} else {
+				isPlayer = false
+			}
+		}
 
 		return renderer.AliasModelEntity{
 			ModelID:     modelName,
@@ -200,6 +210,8 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			EntityKey:   entityKey,
 			Frame:       frame,
 			SkinNum:     int(state.Skin),
+			ColorMap:    colorMap,
+			IsPlayer:    isPlayer,
 			TimeSeconds: g.Client.Time,
 			LerpFlags:   lerpFlags,
 			LerpFinish:  state.LerpFinish,
