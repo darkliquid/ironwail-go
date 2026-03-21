@@ -387,6 +387,7 @@ func (h *Host) startLocalServerSession(subs *Subsystems, afterConnect func() err
 		return fmt.Errorf("client handshake implementation missing")
 	}
 
+	h.resetAutosaveState()
 	h.serverActive = true
 	h.updateServerBrowserNetworking(subs)
 	subs.Server.ConnectClient(0)

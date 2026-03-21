@@ -44,7 +44,6 @@ type Host struct {
 	oldrealtime  float64
 	frameTime    float64
 	rawFrameTime float64
-	nextAutosave float64
 	netInterval  float64
 	accumTime    float64
 
@@ -91,6 +90,18 @@ type Host struct {
 	versionPatch int
 
 	compatRNG *compatrand.RNG
+
+	autosave autosaveState
+}
+
+type autosaveState struct {
+	lastTime    float64
+	cheatTime   float64
+	hurtTime    float64
+	shootTime   float64
+	prevHealth  float64
+	prevSecrets float64
+	secretBoost float64
 }
 
 func NewHost() *Host {

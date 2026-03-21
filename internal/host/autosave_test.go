@@ -6,6 +6,7 @@ package host
 import (
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/server"
@@ -239,5 +240,202 @@ func TestCheckAutosaveSkippedForFastPlayer(t *testing.T) {
 	h.checkAutosave(subs)
 	if got := len(commands.added); got != 0 {
 		t.Fatalf("fast-player autosave queued %d commands, want 0", got)
+	}
+}
+
+func TestCheckAutosaveWaitsAfterRecentDamage(t *testing.T) {
+	setHostAutosaveForTest(t, "3")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:   100,
+			MoveType: float32(server.MoveTypeWalk),
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.realtime = 1
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("initial autosave queued %d commands before minimum elapsed time, want 0", got)
+	}
+
+	srv.edict.Vars.Health = 90
+	h.realtime = 2
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands immediately after damage, want 0", got)
+	}
+
+	h.realtime = 4
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands during hurt cooldown, want 0", got)
+	}
+
+	h.realtime = 6
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 1 {
+		t.Fatalf("autosave queued %d commands after hurt cooldown, want 1", got)
+	}
+}
+
+func TestCheckAutosaveWaitsAfterRecentShot(t *testing.T) {
+	setHostAutosaveForTest(t, "3")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:   100,
+			MoveType: float32(server.MoveTypeWalk),
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.realtime = 1
+	h.checkAutosave(subs)
+
+	srv.edict.Vars.Button0 = 1
+	h.realtime = 2
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands immediately after shot, want 0", got)
+	}
+
+	srv.edict.Vars.Button0 = 0
+	h.realtime = 4
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands during shot cooldown, want 0", got)
+	}
+
+	h.realtime = 6
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 1 {
+		t.Fatalf("autosave queued %d commands after shot cooldown, want 1", got)
+	}
+}
+
+func TestCheckAutosaveCheatTimeDoesNotAdvanceScore(t *testing.T) {
+	setHostAutosaveForTest(t, "30")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+	h.frameTime = 10
+	h.realtime = 30
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:   100,
+			MoveType: float32(server.MoveTypeNoClip),
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("noclip autosave queued %d commands, want 0", got)
+	}
+
+	srv.edict.Vars.MoveType = float32(server.MoveTypeWalk)
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands without enough non-cheat elapsed time, want 0", got)
+	}
+
+	h.realtime = 40
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 1 {
+		t.Fatalf("autosave queued %d commands after cheat-adjusted interval, want 1", got)
+	}
+}
+
+func TestCheckAutosaveTeleportBoostCanTriggerEarlySave(t *testing.T) {
+	setHostAutosaveForTest(t, "6")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+	h.realtime = 4
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:       100,
+			MoveType:     float32(server.MoveTypeWalk),
+			TeleportTime: 3.5,
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 1 {
+		t.Fatalf("teleport boost autosave queued %d commands, want 1", got)
+	}
+}
+
+func TestCheckAutosaveWaitsAfterHazardDamageAbove100Health(t *testing.T) {
+	setHostAutosaveForTest(t, "3")
+
+	h := NewHost()
+	h.serverActive = true
+	h.clientState = caActive
+	h.signOns = 1
+
+	srv := &autosaveTestServer{
+		mockServer: mockServer{active: true},
+		maxClients: 1,
+		edict: &server.Edict{Vars: &server.EntVars{
+			Health:    120,
+			MoveType:  float32(server.MoveTypeWalk),
+			WaterType: float32(bsp.ContentsLava),
+		}},
+	}
+	commands := &autosaveCommandBuffer{}
+	subs := &Subsystems{Server: srv, Commands: commands}
+
+	h.realtime = 1
+	h.checkAutosave(subs)
+
+	srv.edict.Vars.Health = 118
+	h.realtime = 2
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands immediately after hazard damage, want 0", got)
+	}
+
+	h.realtime = 4
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 0 {
+		t.Fatalf("autosave queued %d commands during hazard hurt cooldown, want 0", got)
+	}
+
+	h.realtime = 6
+	h.checkAutosave(subs)
+	if got := len(commands.added); got != 1 {
+		t.Fatalf("autosave queued %d commands after hazard hurt cooldown, want 1", got)
 	}
 }
