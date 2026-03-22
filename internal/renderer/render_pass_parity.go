@@ -139,6 +139,29 @@ func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 	return inputs.hasTranslucentBrushEntities || inputs.hasTranslucentAliasEntities || inputs.hasSpriteEntities
 }
 
+type gogpuSharedDepthStencilClearInputs struct {
+	drawWorld         bool
+	drawEntities      bool
+	hasAliasEntities  bool
+	hasSpriteEntities bool
+	hasDecalMarks     bool
+	hasViewModel      bool
+}
+
+// shouldClearGoGPUSharedDepthStencil performs its step in this part of the renderer; this helper exists to keep the no-world scene-pass behavior deterministic and aligned with the primary renderer.
+func shouldClearGoGPUSharedDepthStencil(inputs gogpuSharedDepthStencilClearInputs) bool {
+	if inputs.drawWorld {
+		return false
+	}
+	if inputs.hasDecalMarks {
+		return true
+	}
+	if !inputs.drawEntities {
+		return false
+	}
+	return inputs.hasAliasEntities || inputs.hasSpriteEntities || inputs.hasViewModel
+}
+
 type gogpuEntityPhase int
 
 const (

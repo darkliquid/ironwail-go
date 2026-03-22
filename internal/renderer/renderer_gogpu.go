@@ -1062,6 +1062,17 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
+	if shouldClearGoGPUSharedDepthStencil(gogpuSharedDepthStencilClearInputs{
+		drawWorld:         state.DrawWorld,
+		drawEntities:      state.DrawEntities,
+		hasAliasEntities:  len(state.AliasEntities) > 0,
+		hasSpriteEntities: len(state.SpriteEntities) > 0,
+		hasDecalMarks:     len(state.DecalMarks) > 0,
+		hasViewModel:      state.ViewModel != nil,
+	}) {
+		dc.clearGoGPUSharedDepthStencil()
+	}
+
 	// Phase 3: Draw entities, decals, and mode-placed particles.
 	if state.DrawEntities || len(state.DecalMarks) > 0 || (state.DrawParticles && state.Particles != nil) {
 		dc.renderEntities(state)

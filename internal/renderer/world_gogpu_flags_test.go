@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gogpu/gputypes"
+	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/model"
 )
@@ -65,5 +66,27 @@ func TestGoGPUWorldClearColorDebugOverride(t *testing.T) {
 	want := gputypes.Color{R: 0.0, G: 1.0, B: 0.0, A: 1.0}
 	if got != want {
 		t.Fatalf("gogpuWorldClearColor() with debug override = %#v, want %#v", got, want)
+	}
+}
+
+func TestGoGPUSharedDepthStencilClearAttachmentForView(t *testing.T) {
+	attachment := gogpuSharedDepthStencilClearAttachmentForView(hal.TextureView(&wgpuTextureViewStub{}))
+	if attachment == nil {
+		t.Fatal("gogpuSharedDepthStencilClearAttachmentForView() = nil")
+	}
+	if attachment.DepthLoadOp != gputypes.LoadOpClear {
+		t.Fatalf("DepthLoadOp = %v, want %v", attachment.DepthLoadOp, gputypes.LoadOpClear)
+	}
+	if attachment.DepthStoreOp != gputypes.StoreOpStore {
+		t.Fatalf("DepthStoreOp = %v, want %v", attachment.DepthStoreOp, gputypes.StoreOpStore)
+	}
+	if attachment.StencilLoadOp != gputypes.LoadOpClear {
+		t.Fatalf("StencilLoadOp = %v, want %v", attachment.StencilLoadOp, gputypes.LoadOpClear)
+	}
+	if attachment.StencilStoreOp != gputypes.StoreOpStore {
+		t.Fatalf("StencilStoreOp = %v, want %v", attachment.StencilStoreOp, gputypes.StoreOpStore)
+	}
+	if attachment.StencilReadOnly {
+		t.Fatal("StencilReadOnly = true, want false")
 	}
 }

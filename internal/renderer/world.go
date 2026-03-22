@@ -1221,6 +1221,54 @@ func gogpuWorldClearColor(clear [4]float32) gputypes.Color {
 	}
 }
 
+func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
+	if dc == nil || dc.renderer == nil {
+		return
+	}
+	device := dc.renderer.getHALDevice()
+	queue := dc.renderer.getHALQueue()
+	textureView := dc.currentHALRenderTargetView()
+	if device == nil || queue == nil || textureView == nil {
+		return
+	}
+
+	dc.renderer.mu.Lock()
+	depthView := dc.renderer.worldDepthTextureView
+	dc.renderer.mu.Unlock()
+	attachment := gogpuSharedDepthStencilClearAttachmentForView(depthView)
+	if attachment == nil {
+		return
+	}
+
+	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "GoGPU Shared Depth Clear Encoder"})
+	if err != nil {
+		slog.Warn("clearGoGPUSharedDepthStencil: failed to create encoder", "error", err)
+		return
+	}
+	if err := encoder.BeginEncoding("gogpu-shared-depth-clear"); err != nil {
+		slog.Warn("clearGoGPUSharedDepthStencil: failed to begin encoding", "error", err)
+		return
+	}
+	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+		Label: "GoGPU Shared Depth Clear Pass",
+		ColorAttachments: []hal.RenderPassColorAttachment{{
+			View:    textureView,
+			LoadOp:  gputypes.LoadOpLoad,
+			StoreOp: gputypes.StoreOpStore,
+		}},
+		DepthStencilAttachment: attachment,
+	})
+	renderPass.End()
+	cmdBuffer, err := encoder.EndEncoding()
+	if err != nil {
+		slog.Warn("clearGoGPUSharedDepthStencil: failed to finish encoding", "error", err)
+		return
+	}
+	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
+	}
+}
+
 // TransformVertex applies model-view-projection transformation to a vertex.
 // This is a helper for software rendering fallback.
 func TransformVertex(pos [3]float32, mvp types.Mat4) types.Vec4 {
@@ -1276,6 +1324,23 @@ func worldDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStenc
 		StencilStoreOp:    gputypes.StoreOpStore,
 		StencilClearValue: 0,
 		StencilReadOnly:   true,
+	}
+}
+
+func gogpuSharedDepthStencilClearAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+	if view == nil {
+		return nil
+	}
+	return &hal.RenderPassDepthStencilAttachment{
+		View:              view,
+		DepthLoadOp:       gputypes.LoadOpClear,
+		DepthStoreOp:      gputypes.StoreOpStore,
+		DepthClearValue:   1.0,
+		DepthReadOnly:     false,
+		StencilLoadOp:     gputypes.LoadOpClear,
+		StencilStoreOp:    gputypes.StoreOpStore,
+		StencilClearValue: 0,
+		StencilReadOnly:   false,
 	}
 }
 

@@ -269,6 +269,48 @@ func TestGoGPUOpaqueAliasPassSteps(t *testing.T) {
 	}
 }
 
+func TestShouldClearGoGPUSharedDepthStencil(t *testing.T) {
+	tests := []struct {
+		name   string
+		inputs gogpuSharedDepthStencilClearInputs
+		want   bool
+	}{
+		{
+			name:   "world draw skips extra clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: true, hasDecalMarks: true, drawEntities: true, hasAliasEntities: true, hasSpriteEntities: true, hasViewModel: true},
+			want:   false,
+		},
+		{
+			name:   "no world decals clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, hasDecalMarks: true},
+			want:   true,
+		},
+		{
+			name:   "no world entity passes clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: true, hasAliasEntities: true, hasSpriteEntities: true, hasViewModel: true},
+			want:   true,
+		},
+		{
+			name:   "no world brush markers do not clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: true},
+			want:   false,
+		},
+		{
+			name:   "draw entities false suppresses alias sprite viewmodel clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: false, hasAliasEntities: true, hasSpriteEntities: true, hasViewModel: true},
+			want:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldClearGoGPUSharedDepthStencil(tc.inputs); got != tc.want {
+				t.Fatalf("shouldClearGoGPUSharedDepthStencil() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestClassifyGoGPUParticlePhase(t *testing.T) {
 	tests := []struct {
 		name            string
