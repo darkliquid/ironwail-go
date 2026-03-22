@@ -269,6 +269,33 @@ func TestGoGPUOpaqueAliasPassSteps(t *testing.T) {
 	}
 }
 
+func TestClassifyGoGPUParticlePhase(t *testing.T) {
+	tests := []struct {
+		name            string
+		mode            int
+		activeParticles int
+		wantPhase       gogpuEntityPhase
+		wantOK          bool
+	}{
+		{name: "disabled", mode: 0, activeParticles: 4, wantOK: false},
+		{name: "no particles", mode: 1, activeParticles: 0, wantOK: false},
+		{name: "alpha mode late", mode: 1, activeParticles: 4, wantPhase: gogpuEntityPhaseTranslucentParticles, wantOK: true},
+		{name: "opaque mode early", mode: 2, activeParticles: 4, wantPhase: gogpuEntityPhaseOpaqueParticles, wantOK: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotPhase, gotOK := classifyGoGPUParticlePhase(tc.mode, tc.activeParticles)
+			if gotOK != tc.wantOK {
+				t.Fatalf("classifyGoGPUParticlePhase() ok = %v, want %v", gotOK, tc.wantOK)
+			}
+			if gotOK && gotPhase != tc.wantPhase {
+				t.Fatalf("classifyGoGPUParticlePhase() phase = %v, want %v", gotPhase, tc.wantPhase)
+			}
+		})
+	}
+}
+
 func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	brushEntities := []BrushEntity{
 		{SubmodelIndex: 1, Alpha: 0},
@@ -283,7 +310,8 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	spriteEntities := []SpriteEntity{{ModelID: "flame"}}
 	decalMarks := []DecalMarkEntity{{Size: 16}}
 
-	plan := planGoGPUEntityDrawOrder(brushEntities, aliasEntities, spriteEntities, decalMarks)
+	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(1, 4)
+	plan := planGoGPUEntityDrawOrder(brushEntities, aliasEntities, spriteEntities, decalMarks, particlePhase, hasParticlePhase)
 	if len(plan.opaqueBrush) != 1 || plan.opaqueBrush[0].SubmodelIndex != 3 {
 		t.Fatalf("opaqueBrush = %#v, want only submodel 3", plan.opaqueBrush)
 	}
@@ -303,6 +331,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 		gogpuEntityPhaseDecals,
 		gogpuEntityPhaseTranslucentAlias,
 		gogpuEntityPhaseSprites,
+		gogpuEntityPhaseTranslucentParticles,
 	}
 	if len(plan.phases) != len(want) {
 		t.Fatalf("phase count = %d, want %d (%v)", len(plan.phases), len(want), plan.phases)

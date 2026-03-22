@@ -144,10 +144,12 @@ type gogpuEntityPhase int
 const (
 	gogpuEntityPhaseOpaqueBrush gogpuEntityPhase = iota
 	gogpuEntityPhaseOpaqueAlias
+	gogpuEntityPhaseOpaqueParticles
 	gogpuEntityPhaseTranslucentBrush
 	gogpuEntityPhaseDecals
 	gogpuEntityPhaseTranslucentAlias
 	gogpuEntityPhaseSprites
+	gogpuEntityPhaseTranslucentParticles
 )
 
 type gogpuOpaqueAliasStep int
@@ -165,18 +167,33 @@ type gogpuEntityDrawPlan struct {
 	phases           []gogpuEntityPhase
 }
 
+// classifyGoGPUParticlePhase performs its step in this part of the renderer; this helper exists to keep the particle fallback scheduling deterministic and aligned with the primary renderer.
+func classifyGoGPUParticlePhase(mode, activeParticles int) (gogpuEntityPhase, bool) {
+	switch {
+	case ShouldDrawParticles(mode, false, false, activeParticles):
+		return gogpuEntityPhaseOpaqueParticles, true
+	case ShouldDrawParticles(mode, true, false, activeParticles):
+		return gogpuEntityPhaseTranslucentParticles, true
+	default:
+		return 0, false
+	}
+}
+
 // planGoGPUEntityDrawOrder keeps the GoGPU entity pass sequencing aligned with the
 // current OpenGL ordering without pulling world-pass or translucency-block mechanics
 // into the secondary backend.
-func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity) gogpuEntityDrawPlan {
+func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity, particlePhase gogpuEntityPhase, hasParticlePhase bool) gogpuEntityDrawPlan {
 	opaqueBrush, translucentBrush := splitBrushEntitiesByAlpha(brushEntities)
 	opaqueAlias, translucentAlias := splitAliasEntitiesByAlpha(aliasEntities)
-	phases := make([]gogpuEntityPhase, 0, 6)
+	phases := make([]gogpuEntityPhase, 0, 8)
 	if len(opaqueBrush) > 0 {
 		phases = append(phases, gogpuEntityPhaseOpaqueBrush)
 	}
 	if len(opaqueAlias) > 0 {
 		phases = append(phases, gogpuEntityPhaseOpaqueAlias)
+	}
+	if hasParticlePhase && particlePhase == gogpuEntityPhaseOpaqueParticles {
+		phases = append(phases, gogpuEntityPhaseOpaqueParticles)
 	}
 	if len(translucentBrush) > 0 {
 		phases = append(phases, gogpuEntityPhaseTranslucentBrush)
@@ -189,6 +206,9 @@ func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []Alias
 	}
 	if len(spriteEntities) > 0 {
 		phases = append(phases, gogpuEntityPhaseSprites)
+	}
+	if hasParticlePhase && particlePhase == gogpuEntityPhaseTranslucentParticles {
+		phases = append(phases, gogpuEntityPhaseTranslucentParticles)
 	}
 	return gogpuEntityDrawPlan{
 		opaqueBrush:      opaqueBrush,

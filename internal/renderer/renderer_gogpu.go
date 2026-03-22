@@ -1062,14 +1062,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
-	// Phase 3: Draw entities (baseline projected markers)
-	if state.DrawEntities {
+	// Phase 3: Draw entities and mode-placed particles.
+	if state.DrawEntities || (state.DrawParticles && state.Particles != nil) {
 		dc.renderEntities(state)
-	}
-
-	// Phase 4: Draw particles
-	if state.DrawParticles && state.Particles != nil {
-		dc.renderParticles(state)
 	}
 
 	if state.DrawEntities && state.ViewModel != nil {
@@ -1330,7 +1325,8 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
-	plan := planGoGPUEntityDrawOrder(state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks)
+	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
+	plan := planGoGPUEntityDrawOrder(state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
 	for _, phase := range plan.phases {
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
@@ -1344,6 +1340,10 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 					dc.renderAliasShadowsHAL(plan.opaqueAlias)
 				}
 			}
+		case gogpuEntityPhaseOpaqueParticles:
+			if state.DrawParticles && state.Particles != nil {
+				dc.renderParticles(state)
+			}
 		case gogpuEntityPhaseTranslucentBrush:
 			dc.renderBrushEntityMarkers(plan.translucentBrush, false)
 		case gogpuEntityPhaseDecals:
@@ -1352,6 +1352,10 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			dc.renderAliasEntitiesHAL(plan.translucentAlias)
 		case gogpuEntityPhaseSprites:
 			dc.renderSpriteEntitiesHAL(state.SpriteEntities)
+		case gogpuEntityPhaseTranslucentParticles:
+			if state.DrawParticles && state.Particles != nil {
+				dc.renderParticles(state)
+			}
 		}
 	}
 }
@@ -1609,6 +1613,13 @@ func readGoGPUParticleModeCvar() int {
 
 func shouldDrawGoGPUParticles(mode, activeParticles int) bool {
 	return ShouldDrawParticles(mode, false, false, activeParticles) || ShouldDrawParticles(mode, true, false, activeParticles)
+}
+
+func particleCount(ps *ParticleSystem) int {
+	if ps == nil {
+		return 0
+	}
+	return ps.ActiveCount()
 }
 
 // buildParticlePalette converts a 768-byte palette to the [256][4]byte format
