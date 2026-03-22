@@ -1062,8 +1062,8 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
-	// Phase 3: Draw entities and mode-placed particles.
-	if state.DrawEntities || (state.DrawParticles && state.Particles != nil) {
+	// Phase 3: Draw entities, decals, and mode-placed particles.
+	if state.DrawEntities || len(state.DecalMarks) > 0 || (state.DrawParticles && state.Particles != nil) {
 		dc.renderEntities(state)
 	}
 
@@ -1325,7 +1325,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		return
 	}
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
-	plan := planGoGPUEntityDrawOrder(state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
+	plan := planGoGPUEntityDrawOrder(state.DrawEntities, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
 	for _, phase := range plan.phases {
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:

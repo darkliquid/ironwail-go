@@ -311,7 +311,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	decalMarks := []DecalMarkEntity{{Size: 16}}
 
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(1, 4)
-	plan := planGoGPUEntityDrawOrder(brushEntities, aliasEntities, spriteEntities, decalMarks, particlePhase, hasParticlePhase)
+	plan := planGoGPUEntityDrawOrder(true, brushEntities, aliasEntities, spriteEntities, decalMarks, particlePhase, hasParticlePhase)
 	if len(plan.opaqueBrush) != 1 || plan.opaqueBrush[0].SubmodelIndex != 3 {
 		t.Fatalf("opaqueBrush = %#v, want only submodel 3", plan.opaqueBrush)
 	}
@@ -336,6 +336,51 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 		gogpuEntityPhaseTranslucentAlias,
 		gogpuEntityPhaseSprites,
 		gogpuEntityPhaseTranslucentParticles,
+	}
+	if len(plan.phases) != len(want) {
+		t.Fatalf("phase count = %d, want %d (%v)", len(plan.phases), len(want), plan.phases)
+	}
+	for i, phase := range want {
+		if plan.phases[i] != phase {
+			t.Fatalf("phase[%d] = %v, want %v (all=%v)", i, plan.phases[i], phase, plan.phases)
+		}
+	}
+}
+
+func TestPlanGoGPUEntityDrawOrderDrawEntitiesFalseOnlyDecalsRemain(t *testing.T) {
+	plan := planGoGPUEntityDrawOrder(false,
+		[]BrushEntity{{SubmodelIndex: 1, Alpha: 1}},
+		[]AliasModelEntity{{ModelID: "ogre", Alpha: 1}},
+		[]SpriteEntity{{ModelID: "flame"}},
+		[]DecalMarkEntity{{Size: 16}},
+		0,
+		false,
+	)
+	if len(plan.opaqueBrush) != 0 || len(plan.skyBrush) != 0 || len(plan.translucentBrush) != 0 {
+		t.Fatalf("brush buckets should be empty when DrawEntities=false: %#v", plan)
+	}
+	if len(plan.opaqueAlias) != 0 || len(plan.translucentAlias) != 0 {
+		t.Fatalf("alias buckets should be empty when DrawEntities=false: %#v", plan)
+	}
+	want := []gogpuEntityPhase{gogpuEntityPhaseDecals}
+	if len(plan.phases) != len(want) || plan.phases[0] != want[0] {
+		t.Fatalf("phases = %v, want %v", plan.phases, want)
+	}
+}
+
+func TestPlanGoGPUEntityDrawOrderDrawEntitiesFalseKeepsParticlePhase(t *testing.T) {
+	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(2, 4)
+	plan := planGoGPUEntityDrawOrder(false,
+		[]BrushEntity{{SubmodelIndex: 1, Alpha: 1}},
+		[]AliasModelEntity{{ModelID: "ogre", Alpha: 1}},
+		[]SpriteEntity{{ModelID: "flame"}},
+		[]DecalMarkEntity{{Size: 16}},
+		particlePhase,
+		hasParticlePhase,
+	)
+	want := []gogpuEntityPhase{
+		gogpuEntityPhaseOpaqueParticles,
+		gogpuEntityPhaseDecals,
 	}
 	if len(plan.phases) != len(want) {
 		t.Fatalf("phase count = %d, want %d (%v)", len(plan.phases), len(want), plan.phases)

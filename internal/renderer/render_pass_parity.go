@@ -196,10 +196,21 @@ func classifyGoGPUParticlePhase(mode, activeParticles int) (gogpuEntityPhase, bo
 // planGoGPUEntityDrawOrder keeps the GoGPU entity pass sequencing aligned with the
 // current OpenGL ordering without pulling world-pass or translucency-block mechanics
 // into the secondary backend.
-func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity, particlePhase gogpuEntityPhase, hasParticlePhase bool) gogpuEntityDrawPlan {
-	opaqueBrush, translucentBrush := splitBrushEntitiesByAlpha(brushEntities)
-	skyBrush := visibleSkyBrushEntities(brushEntities)
-	opaqueAlias, translucentAlias := splitAliasEntitiesByAlpha(aliasEntities)
+func planGoGPUEntityDrawOrder(drawEntities bool, brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity, particlePhase gogpuEntityPhase, hasParticlePhase bool) gogpuEntityDrawPlan {
+	var (
+		opaqueBrush      []BrushEntity
+		skyBrush         []BrushEntity
+		translucentBrush []BrushEntity
+		opaqueAlias      []AliasModelEntity
+		translucentAlias []AliasModelEntity
+	)
+	if drawEntities {
+		opaqueBrush, translucentBrush = splitBrushEntitiesByAlpha(brushEntities)
+		skyBrush = visibleSkyBrushEntities(brushEntities)
+		opaqueAlias, translucentAlias = splitAliasEntitiesByAlpha(aliasEntities)
+	} else {
+		spriteEntities = nil
+	}
 	phases := make([]gogpuEntityPhase, 0, 8)
 	if len(opaqueBrush) > 0 {
 		phases = append(phases, gogpuEntityPhaseOpaqueBrush)
