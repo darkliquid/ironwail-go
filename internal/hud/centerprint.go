@@ -16,6 +16,7 @@ import (
 
 const (
 	centerPrintBackgroundCVar = "scr_centerprintbg"
+	centerPrintTimeCVar       = "scr_centertime"
 	menuBGAlphaCVar           = "scr_menubgalpha"
 	printSpeedCVar            = "scr_printspeed"
 	centerPrintDefaultHold    = 2.0
@@ -242,9 +243,12 @@ func centerprintFadeTail() float64 {
 }
 
 func centerprintVisualAlpha(state State) float64 {
-	hold := state.CenterPrintHold
+	hold := currentCenterprintHold()
 	if hold <= 0 {
-		hold = centerPrintDefaultHold
+		return 0
+	}
+	if state.CenterPrintHold > 0 {
+		hold = state.CenterPrintHold
 	}
 	elapsed := state.Time - state.CenterPrintAt
 	if elapsed <= hold {
@@ -258,6 +262,13 @@ func centerprintVisualAlpha(state State) float64 {
 		return 0
 	}
 	return max(0, min(1, (hold+fade-elapsed)/fade))
+}
+
+func currentCenterprintHold() float64 {
+	if cv := cvar.Get(centerPrintTimeCVar); cv != nil {
+		return max(0, cv.Float)
+	}
+	return centerPrintDefaultHold
 }
 
 func centerprintY(screenHeight int, message string) int {

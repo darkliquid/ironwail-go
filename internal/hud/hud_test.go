@@ -15,6 +15,7 @@ import (
 )
 
 func registerCenterprintTestCvars() {
+	cvar.Register("scr_centertime", "2", 0, "test centerprint hold time")
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
 	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "test menu background alpha")
 	cvar.Register("scr_printspeed", "8", 0, "test centerprint reveal speed")
@@ -456,6 +457,37 @@ func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
 	h.Draw(expired)
 	if len(expired.fills) != 2 {
 		t.Fatalf("expected only status bar fills after centerprint expiry, got %d", len(expired.fills))
+	}
+}
+
+func TestHUDDrawCenterprintTimeoutUsesScrCenterTime(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_centerprintbg", "0")
+	cvar.Set("con_notifyfade", "0")
+	cvar.Set("scr_centertime", "3")
+	t.Cleanup(func() {
+		cvar.Set("scr_centertime", "2")
+	})
+
+	cp := NewCenterprint(nil)
+	active := &mockRenderContext{}
+	cp.Draw(active, State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          12.5,
+	}, 320, 200)
+	if got := charactersToString(active.characters); got != "message" {
+		t.Fatalf("centerprint before scr_centertime expiry = %q, want message", got)
+	}
+
+	expired := &mockRenderContext{}
+	cp.Draw(expired, State{
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          13.1,
+	}, 320, 200)
+	if got := charactersToString(expired.characters); got != "" {
+		t.Fatalf("centerprint after scr_centertime expiry = %q, want empty", got)
 	}
 }
 
