@@ -290,6 +290,10 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 		}
 	}
 
+	if g.Client.LastServerOrigin != [3]float32{} {
+		return g.Client.LastServerOrigin, true
+	}
+
 	return [3]float32{}, false
 }
 

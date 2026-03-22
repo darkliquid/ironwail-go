@@ -1934,6 +1934,36 @@ func TestRuntimeViewStateUsesAuthoritativeOriginWhenPredictionUnsafe(t *testing.
 	}
 }
 
+func TestRuntimeViewStateUsesLastServerOriginWhenViewEntityMissing(t *testing.T) {
+	originalClient := g.Client
+	originalServer := g.Server
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Renderer = originalRenderer
+	})
+
+	g.Server = nil
+	g.Renderer = nil
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ViewEntity = 1
+	g.Client.ViewHeight = 22
+	g.Client.ViewAngles = [3]float32{10, 20, 0}
+	g.Client.LastServerOrigin = [3]float32{430, 690, 2}
+	g.Client.PredictedOrigin = [3]float32{100, 200, 300}
+	markCurrentPredictionFresh(g.Client)
+
+	origin, angles := runtimeViewState()
+	if want := [3]float32{430, 690, 24}; origin != want {
+		t.Fatalf("runtimeViewState origin = %v, want last server origin %v", origin, want)
+	}
+	if angles != g.Client.ViewAngles {
+		t.Fatalf("runtimeViewState angles = %v, want %v", angles, g.Client.ViewAngles)
+	}
+}
+
 func TestRuntimeViewStateUsesTeleportSnappedOrigin(t *testing.T) {
 	originalClient := g.Client
 	originalViewCalc := globalViewCalc
