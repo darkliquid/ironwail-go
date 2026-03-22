@@ -528,6 +528,9 @@ type Renderer struct {
 	worldTextureSampler    hal.Sampler
 	worldTextures          map[int32]*gpuWorldTexture
 	whiteTextureBindGroup  hal.BindGroup
+	worldLightmapSampler   hal.Sampler
+	worldLightmapPages     []*gpuWorldTexture
+	whiteLightmapBindGroup hal.BindGroup
 
 	// 1x1 white texture for fallback
 	whiteTexture          hal.Texture

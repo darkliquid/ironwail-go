@@ -42,6 +42,9 @@ type WorldGeometry struct {
 	// Faces stores metadata for each BSP face
 	Faces []WorldFace
 
+	// Lightmaps stores allocated static lightmap atlas pages for faces with BSP lighting.
+	Lightmaps []WorldLightmapPage
+
 	// Tree is the original BSP tree (kept for PVS, collision, etc)
 	Tree *bsp.Tree
 }
@@ -112,6 +115,30 @@ type gpuWorldTexture struct {
 	bindGroup hal.BindGroup
 }
 
+type WorldLightmapSurface struct {
+	X       int
+	Y       int
+	Width   int
+	Height  int
+	Styles  [bsp.MaxLightmaps]uint8
+	Samples []byte
+	Dirty   bool
+}
+
+type WorldLightmapPage struct {
+	Width    int
+	Height   int
+	Surfaces []WorldLightmapSurface
+	Dirty    bool
+	rgba     []byte
+}
+
+type faceLightmapSurface struct {
+	pageIndex int
+}
+
+const worldLightmapPageSize = 1024
+
 // BuildWorldGeometry extracts renderable geometry from a BSP tree.
 // This converts the BSP's face/edge/vertex structure into a simple
 // vertex buffer + index buffer suitable for GPU rendering.
@@ -150,6 +177,11 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		Faces:    make([]WorldFace, 0, 256),
 		Tree:     tree,
 	}
+	lightmapAllocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
+	if err != nil {
+		return nil, fmt.Errorf("create lightmap allocator: %w", err)
+	}
+	lightmapPages := make([]WorldLightmapPage, 0, 4)
 	textureMeta := parseWorldTextureMeta(tree)
 
 	// Process all faces in the selected model.
@@ -174,12 +206,12 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			FirstIndex:    uint32(len(geom.Indices)),
 			NumIndices:    0, // Will be computed during triangulation
 			TextureIndex:  worldFaceTextureIndex(tree, face),
-			LightmapIndex: worldFaceLightmapIndex(face),
+			LightmapIndex: -1,
 			Flags:         worldFaceFlags(textureMeta, tree, face),
 		}
 
 		// Extract vertices for this face
-		faceVerts, err := extractFaceVertices(tree, face)
+		faceVerts, lightmapSurface, err := extractFaceVertices(tree, face, lightmapAllocator, &lightmapPages)
 		if err != nil {
 			slog.Warn("Failed to extract face vertices",
 				"faceIdx", globalFaceIdx,
@@ -190,6 +222,9 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		if len(faceVerts) < 3 {
 			// Skip degenerate faces
 			continue
+		}
+		if lightmapSurface != nil {
+			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
 		}
 
 		// Triangulate face using fan triangulation
@@ -217,19 +252,21 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		"faces", len(geom.Faces),
 		"triangles", len(geom.Indices)/3)
 
+	geom.Lightmaps = lightmapPages
 	return geom, nil
 }
 
 // extractFaceVertices extracts all vertices for a BSP face.
 // It follows the edge/surfedge indirection to get vertex positions,
 // then computes texture/lightmap coords and normals.
-func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, error) {
+func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *LightmapAllocator, pages *[]WorldLightmapPage) ([]WorldVertex, *faceLightmapSurface, error) {
 	numEdges := int(face.NumEdges)
 	if numEdges < 3 {
-		return nil, fmt.Errorf("face has < 3 edges")
+		return nil, nil, fmt.Errorf("face has < 3 edges")
 	}
 
 	vertices := make([]WorldVertex, 0, numEdges)
+	rawLightmapCoords := make([][2]float32, 0, numEdges)
 
 	// Get plane normal for this face
 	var normal [3]float32
@@ -264,7 +301,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 	for i := int32(0); i < face.NumEdges; i++ {
 		surfEdgeIdx := int(face.FirstEdge) + int(i)
 		if surfEdgeIdx >= len(tree.Surfedges) {
-			return nil, fmt.Errorf("surfedge index %d out of range", surfEdgeIdx)
+			return nil, nil, fmt.Errorf("surfedge index %d out of range", surfEdgeIdx)
 		}
 
 		surfEdge := tree.Surfedges[surfEdgeIdx]
@@ -273,19 +310,19 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 		var vertIdx uint32
 		if surfEdge >= 0 {
 			if int(surfEdge) >= len(tree.Edges) {
-				return nil, fmt.Errorf("edge index %d out of range", surfEdge)
+				return nil, nil, fmt.Errorf("edge index %d out of range", surfEdge)
 			}
 			vertIdx = tree.Edges[surfEdge].V[0]
 		} else {
 			edgeIdx := -surfEdge
 			if int(edgeIdx) >= len(tree.Edges) {
-				return nil, fmt.Errorf("edge index %d out of range", edgeIdx)
+				return nil, nil, fmt.Errorf("edge index %d out of range", edgeIdx)
 			}
 			vertIdx = tree.Edges[edgeIdx].V[1]
 		}
 
 		if int(vertIdx) >= len(tree.Vertexes) {
-			return nil, fmt.Errorf("vertex index %d out of range", vertIdx)
+			return nil, nil, fmt.Errorf("vertex index %d out of range", vertIdx)
 		}
 
 		position := tree.Vertexes[vertIdx].Point
@@ -296,7 +333,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 			u := position[0]*texInfo.Vecs[0][0] + position[1]*texInfo.Vecs[0][1] + position[2]*texInfo.Vecs[0][2] + texInfo.Vecs[0][3]
 			v := position[0]*texInfo.Vecs[1][0] + position[1]*texInfo.Vecs[1][1] + position[2]*texInfo.Vecs[1][2] + texInfo.Vecs[1][3]
 			texCoord = [2]float32{u / textureWidth, v / textureHeight}
-			lightmapCoord = [2]float32{u / 16.0, v / 16.0}
+			rawLightmapCoords = append(rawLightmapCoords, [2]float32{u, v})
 		}
 
 		vertices = append(vertices, WorldVertex{
@@ -307,7 +344,11 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace) ([]WorldVertex, err
 		})
 	}
 
-	return vertices, nil
+	lightmapSurface, err := assignFaceLightmap(vertices, rawLightmapCoords, face, tree, allocator, pages)
+	if err != nil {
+		return nil, nil, err
+	}
+	return vertices, lightmapSurface, nil
 }
 
 // worldFaceTexInfo resolves the texture-info record for a BSP face, which maps geometric vertices into texture/lightmap UV space.
@@ -467,15 +508,22 @@ var worldSampler: sampler;
 @group(1) @binding(1)
 var worldTexture: texture_2d<f32>;
 
+@group(2) @binding(0)
+var worldLightmapSampler: sampler;
+
+@group(2) @binding(1)
+var worldLightmap: texture_2d<f32>;
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
 	if (sampled.a < 0.5) {
 		discard;
 	}
+	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb, fog), sampled.a);
+	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb*lightmap, fog), sampled.a);
 }
 `
 
@@ -690,7 +738,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	// Create pipeline layout with the uniform bind group layout.
 	pipelineLayoutDesc := &hal.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout, textureLayout},
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
@@ -882,6 +930,20 @@ func (r *Renderer) createWorldTextureSampler(device hal.Device) (hal.Sampler, er
 	})
 }
 
+func (r *Renderer) createWorldLightmapSampler(device hal.Device) (hal.Sampler, error) {
+	return device.CreateSampler(&hal.SamplerDescriptor{
+		Label:        "World Lightmap Sampler",
+		AddressModeU: gputypes.AddressModeClampToEdge,
+		AddressModeV: gputypes.AddressModeClampToEdge,
+		AddressModeW: gputypes.AddressModeClampToEdge,
+		MagFilter:    gputypes.FilterModeLinear,
+		MinFilter:    gputypes.FilterModeLinear,
+		MipmapFilter: gputypes.FilterModeNearest,
+		LodMinClamp:  0,
+		LodMaxClamp:  0,
+	})
+}
+
 func (r *Renderer) createWorldTextureBindGroup(device hal.Device, sampler hal.Sampler, view hal.TextureView) (hal.BindGroup, error) {
 	if device == nil || sampler == nil || view == nil || r.textureBindGroupLayout == nil {
 		return nil, fmt.Errorf("missing world texture bind group resources")
@@ -977,6 +1039,226 @@ func (r *Renderer) uploadWorldDiffuseTextures(device hal.Device, queue hal.Queue
 		textures[int32(i)] = worldTexture
 	}
 	return textures
+}
+
+func (r *Renderer) createWorldLightmapPageTexture(device hal.Device, queue hal.Queue, sampler hal.Sampler, page *WorldLightmapPage, values [64]float32) (*gpuWorldTexture, error) {
+	if device == nil || queue == nil || sampler == nil || page == nil {
+		return nil, fmt.Errorf("invalid world lightmap upload inputs")
+	}
+	rgba := buildWorldLightmapPageRGBA(page, values)
+	if len(rgba) == 0 {
+		return nil, fmt.Errorf("empty world lightmap page")
+	}
+	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "World Lightmap Texture",
+		Size:          hal.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        gputypes.TextureFormatRGBA8Unorm,
+		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create world lightmap texture: %w", err)
+	}
+	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+		Texture:  texture,
+		MipLevel: 0,
+		Aspect:   gputypes.TextureAspectAll,
+	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(page.Width * 4), RowsPerImage: uint32(page.Height)}, &hal.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Destroy()
+		return nil, fmt.Errorf("write world lightmap texture: %w", err)
+	}
+	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+		Label:           "World Lightmap Texture View",
+		Format:          gputypes.TextureFormatRGBA8Unorm,
+		Dimension:       gputypes.TextureViewDimension2D,
+		Aspect:          gputypes.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: 1,
+	})
+	if err != nil {
+		texture.Destroy()
+		return nil, fmt.Errorf("create world lightmap view: %w", err)
+	}
+	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
+	if err != nil {
+		view.Destroy()
+		texture.Destroy()
+		return nil, fmt.Errorf("create world lightmap bind group: %w", err)
+	}
+	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
+}
+
+func (r *Renderer) uploadWorldLightmapPages(device hal.Device, queue hal.Queue, sampler hal.Sampler, pages []WorldLightmapPage, values [64]float32) []*gpuWorldTexture {
+	if device == nil || queue == nil || sampler == nil || len(pages) == 0 {
+		return nil
+	}
+	out := make([]*gpuWorldTexture, len(pages))
+	for i := range pages {
+		pageTexture, err := r.createWorldLightmapPageTexture(device, queue, sampler, &pages[i], values)
+		if err != nil {
+			slog.Warn("failed to upload world lightmap page", "page", i, "error", err)
+			continue
+		}
+		out[i] = pageTexture
+	}
+	return out
+}
+
+func defaultWorldLightStyleValues() [64]float32 {
+	var values [64]float32
+	values[0] = 1
+	return values
+}
+
+func worldLightstyleScale(values [64]float32, style uint8) float32 {
+	if int(style) >= len(values) {
+		return 0
+	}
+	return values[style]
+}
+
+func compositeWorldLightmapSurfaceRGBA(rgba []byte, pageWidth int, surface WorldLightmapSurface, values [64]float32) {
+	if surface.Width <= 0 || surface.Height <= 0 {
+		return
+	}
+	styleCount := 0
+	for _, style := range surface.Styles {
+		if style == 255 {
+			break
+		}
+		styleCount++
+	}
+	if styleCount == 0 {
+		styleCount = 1
+	}
+	faceSize := surface.Width * surface.Height * 3
+	if len(surface.Samples) < faceSize*styleCount {
+		return
+	}
+	for y := 0; y < surface.Height; y++ {
+		for x := 0; x < surface.Width; x++ {
+			sampleIndex := (y*surface.Width + x) * 3
+			var rSum, gSum, bSum float32
+			for styleIndex := 0; styleIndex < styleCount; styleIndex++ {
+				offset := styleIndex*faceSize + sampleIndex
+				scale := worldLightstyleScale(values, surface.Styles[styleIndex])
+				rSum += float32(surface.Samples[offset]) * scale
+				gSum += float32(surface.Samples[offset+1]) * scale
+				bSum += float32(surface.Samples[offset+2]) * scale
+			}
+			dst := ((surface.Y+y)*pageWidth + (surface.X + x)) * 4
+			rgba[dst] = byte(clamp01(rSum/255.0) * 255)
+			rgba[dst+1] = byte(clamp01(gSum/255.0) * 255)
+			rgba[dst+2] = byte(clamp01(bSum/255.0) * 255)
+			rgba[dst+3] = 255
+		}
+	}
+}
+
+func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []byte {
+	if page.Width <= 0 || page.Height <= 0 {
+		return nil
+	}
+	rgba := make([]byte, page.Width*page.Height*4)
+	for i := 0; i < len(rgba); i += 4 {
+		rgba[i] = 255
+		rgba[i+1] = 255
+		rgba[i+2] = 255
+		rgba[i+3] = 255
+	}
+	for _, surface := range page.Surfaces {
+		compositeWorldLightmapSurfaceRGBA(rgba, page.Width, surface, values)
+	}
+	page.rgba = rgba
+	return rgba
+}
+
+func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
+	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
+		return nil, nil
+	}
+
+	minU, maxU := rawCoords[0][0], rawCoords[0][0]
+	minV, maxV := rawCoords[0][1], rawCoords[0][1]
+	for i := 1; i < len(rawCoords); i++ {
+		if rawCoords[i][0] < minU {
+			minU = rawCoords[i][0]
+		}
+		if rawCoords[i][0] > maxU {
+			maxU = rawCoords[i][0]
+		}
+		if rawCoords[i][1] < minV {
+			minV = rawCoords[i][1]
+		}
+		if rawCoords[i][1] > maxV {
+			maxV = rawCoords[i][1]
+		}
+	}
+
+	textureMinU := float32(math.Floor(float64(minU/16.0))) * 16.0
+	textureMinV := float32(math.Floor(float64(minV/16.0))) * 16.0
+	extentU := int(math.Ceil(float64(maxU/16.0))*16.0 - float64(textureMinU))
+	extentV := int(math.Ceil(float64(maxV/16.0))*16.0 - float64(textureMinV))
+	if extentU < 0 {
+		extentU = 0
+	}
+	if extentV < 0 {
+		extentV = 0
+	}
+	smax := extentU/16 + 1
+	tmax := extentV/16 + 1
+	if smax <= 0 || tmax <= 0 {
+		return nil, nil
+	}
+
+	texNum, x, y, err := allocator.AllocBlock(smax, tmax)
+	if err != nil {
+		return nil, fmt.Errorf("alloc face lightmap: %w", err)
+	}
+	for len(*pages) <= texNum {
+		*pages = append(*pages, WorldLightmapPage{Width: worldLightmapPageSize, Height: worldLightmapPageSize})
+	}
+
+	styleCount := 0
+	for _, style := range face.Styles {
+		if style == 255 {
+			break
+		}
+		styleCount++
+	}
+	if styleCount == 0 {
+		styleCount = 1
+	}
+
+	sampleSize8 := smax * tmax * styleCount
+	samples := expandLightmapSamples(tree.Lighting, tree.LightingRGB, int(face.LightOfs), sampleSize8)
+	if samples == nil {
+		return nil, nil
+	}
+
+	(*pages)[texNum].Surfaces = append((*pages)[texNum].Surfaces, WorldLightmapSurface{
+		X:       x,
+		Y:       y,
+		Width:   smax,
+		Height:  tmax,
+		Styles:  face.Styles,
+		Samples: samples,
+	})
+
+	for i := range vertices {
+		lightS := (rawCoords[i][0]-textureMinU)/16.0 + float32(x) + 0.5
+		lightT := (rawCoords[i][1]-textureMinV)/16.0 + float32(y) + 0.5
+		vertices[i].LightmapCoord = [2]float32{
+			lightS / float32(worldLightmapPageSize),
+			lightT / float32(worldLightmapPageSize),
+		}
+	}
+
+	return &faceLightmapSurface{pageIndex: texNum}, nil
 }
 
 // Helper functions to convert Go types to byte slices
@@ -1158,6 +1440,21 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		}
 	}
 	worldTextures := r.uploadWorldDiffuseTextures(device, queue, worldTextureSampler, tree)
+	lightstyleValues := defaultWorldLightStyleValues()
+	var worldLightmapSampler hal.Sampler
+	var whiteLightmapBindGroup hal.BindGroup
+	if r.textureBindGroupLayout != nil {
+		worldLightmapSampler, err = r.createWorldLightmapSampler(device)
+		if err != nil {
+			slog.Warn("Failed to create world lightmap sampler", "error", err)
+		} else if whiteTextureView != nil {
+			whiteLightmapBindGroup, err = r.createWorldTextureBindGroup(device, worldLightmapSampler, whiteTextureView)
+			if err != nil {
+				slog.Warn("Failed to create white world lightmap bind group", "error", err)
+			}
+		}
+	}
+	worldLightmapPages := r.uploadWorldLightmapPages(device, queue, worldLightmapSampler, geom.Lightmaps, lightstyleValues)
 
 	// Create offscreen render target for world rendering
 	if err := r.createWorldRenderTarget(); err != nil {
@@ -1190,11 +1487,15 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldTextureSampler = worldTextureSampler
 	r.worldTextures = worldTextures
 	r.whiteTextureBindGroup = whiteTextureBindGroup
+	r.worldLightmapSampler = worldLightmapSampler
+	r.worldLightmapPages = worldLightmapPages
+	r.whiteLightmapBindGroup = whiteLightmapBindGroup
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthTextureView
 	renderData.VertexBufferUploaded = vertexBuffer != nil
 	renderData.IndexBufferUploaded = indexBuffer != nil
 	renderData.HasDiffuseTextures = len(worldTextures) > 0
+	renderData.HasLightmapTextures = len(worldLightmapPages) > 0
 	renderData.HasDepthBuffer = depthTextureView != nil
 	r.mu.Unlock()
 
@@ -1340,8 +1641,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
 
-	if dc.renderer.whiteTextureBindGroup == nil {
-		slog.Warn("renderWorldInternal: no world texture bind group available")
+	if dc.renderer.whiteTextureBindGroup == nil || dc.renderer.whiteLightmapBindGroup == nil {
+		slog.Warn("renderWorldInternal: no world texture/lightmap bind group available")
 		renderPass.End()
 		return
 	}
@@ -1355,7 +1656,14 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		if worldTexture := dc.renderer.worldTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 			textureBindGroup = worldTexture.bindGroup
 		}
+		lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
+		if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(dc.renderer.worldLightmapPages) {
+			if lightmapPage := dc.renderer.worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+				lightmapBindGroup = lightmapPage.bindGroup
+			}
+		}
 		renderPass.SetBindGroup(1, textureBindGroup, nil)
+		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
 		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		drawnIndices += face.NumIndices
 	}
@@ -1579,8 +1887,14 @@ func (r *Renderer) ClearWorld() {
 		if r.whiteTextureBindGroup != nil {
 			r.whiteTextureBindGroup.Destroy()
 		}
+		if r.whiteLightmapBindGroup != nil {
+			r.whiteLightmapBindGroup.Destroy()
+		}
 		if r.worldTextureSampler != nil {
 			r.worldTextureSampler.Destroy()
+		}
+		if r.worldLightmapSampler != nil {
+			r.worldLightmapSampler.Destroy()
 		}
 		for textureIndex, worldTexture := range r.worldTextures {
 			if worldTexture == nil {
@@ -1597,6 +1911,21 @@ func (r *Renderer) ClearWorld() {
 				worldTexture.texture.Destroy()
 			}
 			delete(r.worldTextures, textureIndex)
+		}
+		for index, worldLightmap := range r.worldLightmapPages {
+			if worldLightmap == nil {
+				continue
+			}
+			if worldLightmap.bindGroup != nil {
+				worldLightmap.bindGroup.Destroy()
+			}
+			if worldLightmap.view != nil {
+				worldLightmap.view.Destroy()
+			}
+			if worldLightmap.texture != nil {
+				worldLightmap.texture.Destroy()
+			}
+			r.worldLightmapPages[index] = nil
 		}
 		if r.whiteTexture != nil {
 			r.whiteTexture.Destroy()
@@ -1617,6 +1946,9 @@ func (r *Renderer) ClearWorld() {
 		r.worldTextureSampler = nil
 		r.worldTextures = nil
 		r.whiteTextureBindGroup = nil
+		r.worldLightmapSampler = nil
+		r.worldLightmapPages = nil
+		r.whiteLightmapBindGroup = nil
 		r.worldBindGroup = nil
 		r.whiteTexture = nil
 		r.whiteTextureView = nil

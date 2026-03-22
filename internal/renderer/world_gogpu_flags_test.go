@@ -144,7 +144,10 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 	fragmentChecks := []string{
 		"worldSampler",
 		"worldTexture",
+		"worldLightmapSampler",
+		"worldLightmap",
 		"textureSample(worldTexture, worldSampler, input.texCoord)",
+		"textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord)",
 		"if (sampled.a < 0.5)",
 		"discard;",
 		"cameraOrigin",
@@ -152,7 +155,7 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"fogColor",
 		"worldPos",
 		"exp2(",
-		"mix(uniforms.fogColor, sampled.rgb, fog)",
+		"mix(uniforms.fogColor, sampled.rgb*lightmap, fog)",
 	}
 	for _, check := range fragmentChecks {
 		if !strings.Contains(worldFragmentShaderWGSL, check) {

@@ -181,6 +181,7 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 		Planes: []bsp.DPlane{
 			{Normal: [3]float32{0, 0, 1}},
 		},
+		Lighting: append(make([]byte, 64), 128, 128, 128, 128),
 	}
 
 	geom, err := BuildWorldGeometry(tree)
@@ -195,7 +196,7 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 		t.Fatalf("TextureIndex = %d, want 3", face.TextureIndex)
 	}
 	if face.LightmapIndex != 0 {
-		t.Fatalf("LightmapIndex = %d, want 0 (present sentinel)", face.LightmapIndex)
+		t.Fatalf("LightmapIndex = %d, want 0", face.LightmapIndex)
 	}
 	wantFlags := deriveWorldFaceFlags(classifyWorldTextureName(""), bsp.TexSpecial|bsp.TexMissing)
 	if face.Flags != wantFlags {
@@ -205,8 +206,10 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 	if geom.Vertices[1].TexCoord != ([2]float32{16, 0}) {
 		t.Fatalf("TexCoord[1] = %v, want [16 0]", geom.Vertices[1].TexCoord)
 	}
-	if geom.Vertices[1].LightmapCoord != ([2]float32{1, 0}) {
-		t.Fatalf("LightmapCoord[1] = %v, want [1 0]", geom.Vertices[1].LightmapCoord)
+	wantLightmapCoord := [2]float32{1.5 / worldLightmapPageSize, 0.5 / worldLightmapPageSize}
+	gotLightmapCoord := geom.Vertices[1].LightmapCoord
+	if gotLightmapCoord[0] != wantLightmapCoord[0] || gotLightmapCoord[1] != wantLightmapCoord[1] {
+		t.Fatalf("LightmapCoord[1] = %v, want %v", gotLightmapCoord, wantLightmapCoord)
 	}
 }
 
@@ -510,7 +513,7 @@ func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 		NumEdges:  3,
 	}
 
-	vertsFront, err := extractFaceVertices(tree, faceFront)
+	vertsFront, _, err := extractFaceVertices(tree, faceFront, nil, nil)
 	if err != nil {
 		t.Fatalf("extractFaceVertices failed: %v", err)
 	}
@@ -529,7 +532,7 @@ func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 		NumEdges:  3,
 	}
 
-	vertsBack, err := extractFaceVertices(tree, faceBack)
+	vertsBack, _, err := extractFaceVertices(tree, faceBack, nil, nil)
 	if err != nil {
 		t.Fatalf("extractFaceVertices failed: %v", err)
 	}
