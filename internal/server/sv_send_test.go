@@ -532,9 +532,9 @@ func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
 		wantBit    uint32
 	}{
 		{
-			name:       "within tolerance no update",
+			name:       "within tolerance still emits visible baseline entity",
 			originX:    100.1,
-			wantUpdate: false,
+			wantUpdate: true,
 		},
 		{
 			name:       "beyond tolerance sets origin1",
@@ -555,10 +555,13 @@ func TestWriteEntityUpdate_OriginTolerance(t *testing.T) {
 			if gotUpdate != tc.wantUpdate {
 				t.Fatalf("writeEntityUpdate update=%v, want %v", gotUpdate, tc.wantUpdate)
 			}
-			if !tc.wantUpdate {
+			bits, _ := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+			if tc.wantBit == 0 {
+				if bits != 0 {
+					t.Fatalf("bits=%#x, want zero-delta visible entity header", bits)
+				}
 				return
 			}
-			bits, _ := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
 			if bits&tc.wantBit == 0 {
 				t.Fatalf("bits=%#x missing expected bit %#x", bits, tc.wantBit)
 			}
@@ -623,6 +626,56 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 	bits, _ := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
 	if bits&inet.U_ORIGIN1 == 0 {
 		t.Fatalf("bits=%#x missing U_ORIGIN1 baseline delta", bits)
+	}
+}
+
+func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T) {
+	t.Parallel()
+
+	ent := &Edict{
+		Vars: &EntVars{
+			Model:      1,
+			ModelIndex: 1,
+			Origin:     [3]float32{0, 0, 0},
+		},
+		NumLeafs: 1,
+	}
+	ent.LeafNums[0] = 0
+
+	client := &Client{
+		FatPVS:       []byte{0x01},
+		EntityStates: make(map[int]EntityState),
+	}
+	s := &Server{
+		Protocol:      ProtocolFitzQuake,
+		Static:        &ServerStatic{MaxClients: 0},
+		ModelPrecache: []string{"", "*1"},
+		Edicts:        []*Edict{{Vars: &EntVars{}}, ent},
+		NumEdicts:     2,
+	}
+	state, ok := s.entityStateForClient(1, ent)
+	if !ok {
+		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
+	}
+	ent.Baseline = state
+
+	msg := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, msg)
+	if msg.Len() == 0 {
+		t.Fatal("writeEntitiesToClient wrote no visible baseline-equal brush entity update")
+	}
+
+	bits, payload := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+	if bits != 0 {
+		t.Fatalf("bits=%#x, want zero-delta visible entity header", bits)
+	}
+	if len(payload) != 0 {
+		t.Fatalf("zero-delta visible entity wrote unexpected payload bytes: %v", payload)
+	}
+	if state, ok := client.EntityStates[1]; !ok {
+		t.Fatal("baseline-equal brush entity was not tracked for the client")
+	} else if state.ModelIndex != 1 {
+		t.Fatalf("tracked ModelIndex=%d, want 1", state.ModelIndex)
 	}
 }
 

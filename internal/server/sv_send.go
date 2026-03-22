@@ -611,9 +611,6 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, baseli
 		}
 	}
 
-	if bits == 0 {
-		return false
-	}
 	if bits&0x0000ff00 != 0 {
 		bits |= inet.U_MOREBITS
 	}
