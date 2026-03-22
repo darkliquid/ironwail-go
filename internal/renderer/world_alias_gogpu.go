@@ -827,9 +827,8 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	if device == nil || queue == nil {
 		return
 	}
-	surfaceViewAny := dc.ctx.SurfaceView()
-	textureView, ok := surfaceViewAny.(hal.TextureView)
-	if !ok || textureView == nil {
+	textureView := dc.currentHALRenderTargetView()
+	if textureView == nil {
 		return
 	}
 

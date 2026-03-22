@@ -576,24 +576,19 @@ func (r *Renderer) createWorldIndexBuffer(device hal.Device, queue hal.Queue, in
 	return buffer, uint32(len(indices)), nil
 }
 
-// createWorldRenderTarget creates an offscreen texture for world rendering.
-// This texture is used by HAL to render the 3D world, then composited to the screen by gogpu.
+// createWorldRenderTarget ensures the GoGPU world scene target exists for the current framebuffer size.
 func (r *Renderer) createWorldRenderTarget() error {
-	// Get window size
 	width, height := r.Size()
 	if width <= 0 || height <= 0 {
 		return fmt.Errorf("invalid window size: %dx%d", width, height)
 	}
-
-	// We'll create the texture through gogpu, which will allow us to use it with DrawTextureScaled
-	// First, we need the gogpu.Context from a draw callback, but we don't have it here
-	// So we'll defer texture creation until the first render frame
-	// For now, just log that we need to create it
-	slog.Info("World render target will be created on first render",
-		"width", width,
-		"height", height)
-
-	return nil
+	device := r.getHALDevice()
+	if device == nil {
+		return fmt.Errorf("nil HAL device")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ensureWorldRenderTargetLocked(device, width, height)
 }
 
 // createWorldPipeline creates the render pipeline for world rendering.
@@ -1089,21 +1084,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Use the current surface view for zero-copy rendering (per gogpu design)
 	// This allows HAL to render directly to the same surface that gogpu will composite onto
 	slog.Info("renderWorldInternal: getting surface view from gogpu context")
-	surfaceViewAny := dc.ctx.SurfaceView()
-	if surfaceViewAny == nil {
-		slog.Info("renderWorldInternal: Surface view not available, skipping world rendering")
+	textureView := dc.currentHALRenderTargetView()
+	if textureView == nil {
+		slog.Info("renderWorldInternal: Render target view not available, skipping world rendering")
 		return
 	}
-	slog.Info("renderWorldInternal: surface view acquired", "id", debugSurfaceViewID(surfaceViewAny), "queue_type", fmt.Sprintf("%T", queue))
-
-	// Get HAL texture view from the gogpu surface view
-	// The surface view is already a hal.TextureView - just need to type assert it
-	textureView, ok := surfaceViewAny.(hal.TextureView)
-	if !ok || textureView == nil {
-		slog.Info("renderWorldInternal: Texture view type assertion failed", "type", fmt.Sprintf("%T", surfaceViewAny))
-		return
-	}
-	slog.Info("renderWorldInternal: got surface texture view successfully", "view_type", fmt.Sprintf("%T", textureView))
+	slog.Info("renderWorldInternal: render target view acquired", "view_type", fmt.Sprintf("%T", textureView), "queue_type", fmt.Sprintf("%T", queue))
 
 	// Create render pass descriptor with color and depth attachments.
 	// Use LoadOpClear to handle the clear ourselves since we skip gogpu's Clear().

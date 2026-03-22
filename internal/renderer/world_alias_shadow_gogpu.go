@@ -91,9 +91,8 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	if device == nil || queue == nil {
 		return
 	}
-	surfaceViewAny := dc.ctx.SurfaceView()
-	textureView, ok := surfaceViewAny.(hal.TextureView)
-	if !ok || textureView == nil {
+	textureView := dc.currentHALRenderTargetView()
+	if textureView == nil {
 		return
 	}
 

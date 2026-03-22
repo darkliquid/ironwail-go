@@ -79,8 +79,10 @@ type DrawContext struct {
 	renderer *Renderer
 
 	// Canvas coordinate system state.
-	canvas       CanvasState
-	canvasParams CanvasTransformParams
+	canvas            CanvasState
+	canvasParams      CanvasTransformParams
+	sceneRenderActive bool
+	sceneRenderTarget hal.TextureView
 }
 
 var halOnlyFrameConsumed atomic.Bool
@@ -508,9 +510,18 @@ type Renderer struct {
 	worldDepthTextureView hal.TextureView
 
 	// Offscreen render target for world rendering
-	worldRenderTexture      hal.Texture
-	worldRenderTextureView  hal.TextureView
-	worldRenderTextureGogpu *gogpu.Texture // gogpu-wrapped version for compositing
+	worldRenderTexture            hal.Texture
+	worldRenderTextureView        hal.TextureView
+	worldRenderTextureGogpu       *gogpu.Texture // gogpu-wrapped version for compositing
+	worldRenderWidth              int
+	worldRenderHeight             int
+	sceneCompositePipeline        hal.RenderPipeline
+	sceneCompositePipelineLayout  hal.PipelineLayout
+	sceneCompositeVertexShader    hal.ShaderModule
+	sceneCompositeFragmentShader  hal.ShaderModule
+	sceneCompositeBindGroupLayout hal.BindGroupLayout
+	sceneCompositeSampler         hal.Sampler
+	sceneCompositeBindGroup       hal.BindGroup
 
 	// Alias-model resources for the gogpu backend.
 	brushModelGeometry          map[int]*WorldGeometry
@@ -899,6 +910,8 @@ func (r *Renderer) Shutdown() {
 	r.destroySpriteResourcesLocked()
 	r.destroyDecalResourcesLocked()
 	r.destroyPolyBlendResourcesLocked()
+	r.destroyWorldRenderTargetLocked()
+	r.destroySceneCompositeResourcesLocked()
 	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
@@ -998,6 +1011,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if !state.DrawWorld {
 		dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
 	}
+	sceneTargetActive := state.DrawWorld && state.WaterWarp && dc.enableSceneRenderTarget()
 
 	// Phase 2: Draw 3D world directly to surface view (zero-copy)
 	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.
@@ -1006,12 +1020,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		slog.Info("RenderFrame: rendering world to surface")
 		dc.renderWorld(state)
 		slog.Info("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
-		if dc.markGoGPUFrameContentForOverlay() {
+		if !sceneTargetActive && dc.markGoGPUFrameContentForOverlay() {
 			slog.Info("RenderFrame: marked gogpu frame as pre-populated (HAL world rendered)")
 			if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
 				slog.Info("RenderFrame: gogpu frame state (after mark)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 			}
-		} else {
+		} else if !sceneTargetActive {
 			slog.Warn("RenderFrame: unable to mark gogpu frame state; first 2D draw may clear world")
 		}
 	}
@@ -1040,6 +1054,18 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 
 	if state.VBlend[3] > 0 {
 		dc.renderPolyBlendHAL(state.VBlend)
+	}
+	if sceneTargetActive {
+		if dc.compositeSceneRenderTarget(state.ClearColor) {
+			if dc.markGoGPUFrameContentForOverlay() {
+				slog.Info("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
+			} else {
+				slog.Warn("RenderFrame: unable to mark gogpu frame state after scene composite")
+			}
+		} else {
+			slog.Warn("RenderFrame: failed to composite scene render target")
+		}
+		dc.disableSceneRenderTarget()
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
