@@ -146,11 +146,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 
 	// Update scope zoom transition after relink, matching C CL_RelinkEntities
 	// calling SCR_UpdateZoom() post-velocity interpolation.
-	zoomSpeed := float32(8)
-	if cv := cvar.Get("scr_zoomspeed"); cv != nil {
-		zoomSpeed = cv.Float32()
-	}
-	g.Zoom, g.ZoomDir, _ = renderer.UpdateZoom(g.Zoom, g.ZoomDir, zoomSpeed, float32(g.ParticleTime-float32(dt)), g.ParticleTime)
+	g.Zoom, g.ZoomDir, _ = renderer.UpdateZoom(g.Zoom, g.ZoomDir, currentZoomSpeed(), float32(g.ParticleTime-float32(dt)), g.ParticleTime)
 
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
@@ -180,6 +176,13 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 		g.DecalMarks.Run(g.ParticleTime)
 		renderer.EmitDecalMarks(g.DecalMarks, tempEntities, g.ParticleRNG, g.ParticleTime)
 	}
+}
+
+func currentZoomSpeed() float32 {
+	if cv := cvar.Get("zoom_speed"); cv != nil {
+		return cv.Float32()
+	}
+	return 8
 }
 
 func syncRuntimeSkybox() {

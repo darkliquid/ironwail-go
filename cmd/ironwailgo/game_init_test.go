@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 func TestShouldWarnAboutGoGPUX11Keyboard(t *testing.T) {
 	t.Parallel()
@@ -65,5 +69,20 @@ func TestGoGPUX11KeyboardHint(t *testing.T) {
 
 	if got := gogpuX11KeyboardHint(false); got != "rebuild with `mise run build-gogpu-sdl3` or run under Wayland for event-driven keyboard input" {
 		t.Fatalf("gogpuX11KeyboardHint(false) = %q", got)
+	}
+}
+
+func TestCurrentZoomSpeedUsesCanonicalZoomSpeedCVar(t *testing.T) {
+	if cvar.Get("zoom_speed") == nil {
+		cvar.Register("zoom_speed", "8", cvar.FlagArchive, "")
+	}
+
+	cvar.Set("zoom_speed", "12")
+	t.Cleanup(func() {
+		cvar.Set("zoom_speed", "8")
+	})
+
+	if got := currentZoomSpeed(); got != 12 {
+		t.Fatalf("currentZoomSpeed() = %v, want 12", got)
 	}
 }

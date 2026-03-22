@@ -128,6 +128,7 @@ func initGameHost() error {
 	cvar.Register("scr_clock", "0", cvar.FlagArchive, "Show level clock in the corner")
 	cvar.Register("scr_centertime", "2", 0, "Regular centerprint hold time in seconds")
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "Centerprint background style (0=off, 1=text box, 2=panel, 3=strip)")
+	cvar.Register("zoom_speed", "8", cvar.FlagArchive, "Zoom transition speed")
 	cvar.Register("scr_printspeed", "8", 0, "Finale/cutscene centerprint reveal speed in characters per second")
 	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "Menu background fade alpha")
 	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
