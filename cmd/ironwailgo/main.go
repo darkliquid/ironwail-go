@@ -85,6 +85,8 @@ type Game struct {
 	ConsoleSlideFraction float32
 	FPSOverlay           runtimeFPSOverlay
 	SpeedOverlay         runtimeSpeedOverlay
+	TurtleOverlayCount   int
+	LastServerMessageAt  float64
 }
 
 var g Game
@@ -112,19 +114,26 @@ type runtimeSpeedOverlay struct {
 }
 
 type runtimeTelemetryState struct {
-	RealTime      float64
-	FrameCount    int
-	ViewSize      float32
-	HUDStyle      int
-	ShowFPS       float32
-	ShowClock     int
-	ShowSpeed     bool
-	ShowSpeedOfs  float32
-	ClientTime    float64
-	Intermission  int
-	InCutscene    bool
-	Velocity      [3]float32
-	ConsoleForced bool
+	RealTime        float64
+	FrameCount      int
+	FrameTime       float64
+	ViewSize        float32
+	HUDStyle        int
+	ShowFPS         float32
+	ShowClock       int
+	ShowSpeed       bool
+	ShowTurtle      bool
+	ShowSpeedOfs    float32
+	ClientTime      float64
+	Intermission    int
+	InCutscene      bool
+	DemoPlayback    bool
+	ClientActive    bool
+	Velocity        [3]float32
+	ConsoleForced   bool
+	LastServerMsgAt float64
+	SavingActive    bool
+	ViewRect        renderer.ViewRect
 }
 
 type runtimeSpriteModel struct {
@@ -747,7 +756,10 @@ func main() {
 					// Menu draws on top of console
 					if g.Menu != nil && g.Menu.IsActive() {
 						drawRuntimeMenu(overlay, w, h, g.Menu.M_Draw)
-						drawRuntimeFPS(overlay, buildRuntimeTelemetryState(conForcedup), &g.FPSOverlay)
+						telemetryState := buildRuntimeTelemetryState(conForcedup)
+						telemetryState.ViewRect = runtimeOverlayViewRect(w, h, false)
+						drawRuntimeFPS(overlay, telemetryState, &g.FPSOverlay)
+						drawRuntimeSavingIndicator(overlay, g.Draw, telemetryState)
 						return
 					}
 
@@ -773,6 +785,7 @@ func main() {
 								}
 							}
 						}
+						telemetryState.ViewRect = runtimeOverlayViewRect(w, h, csqcActive)
 
 						if !csqcActive && g.HUD != nil {
 							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasSbar
@@ -782,6 +795,8 @@ func main() {
 						}
 						drawRuntimeClock(overlay, telemetryState)
 						drawRuntimeSpeed(overlay, telemetryState, &g.SpeedOverlay)
+						drawRuntimeNet(overlay, g.Draw, telemetryState)
+						drawRuntimeTurtle(overlay, g.Draw, telemetryState, &g.TurtleOverlayCount)
 						if runtimePauseActive() {
 							drawPauseOverlay(overlay, g.Draw)
 						}
@@ -801,7 +816,10 @@ func main() {
 							drawChatInput(overlay, w, h)
 						}
 					}
-					drawRuntimeFPS(overlay, buildRuntimeTelemetryState(conForcedup), &g.FPSOverlay)
+					telemetryState := buildRuntimeTelemetryState(conForcedup)
+					telemetryState.ViewRect = runtimeOverlayViewRect(w, h, false)
+					drawRuntimeFPS(overlay, telemetryState, &g.FPSOverlay)
+					drawRuntimeSavingIndicator(overlay, g.Draw, telemetryState)
 				})
 				return
 			}
@@ -925,25 +943,76 @@ func runtimePauseActive() bool {
 
 func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 	state := runtimeTelemetryState{
-		ViewSize:      float32(cvar.FloatValue("scr_viewsize")),
-		HUDStyle:      cvar.IntValue("hud_style"),
-		ShowFPS:       float32(cvar.FloatValue("scr_showfps")),
-		ShowClock:     cvar.IntValue("scr_clock"),
-		ShowSpeed:     cvar.BoolValue("scr_showspeed"),
-		ShowSpeedOfs:  float32(cvar.FloatValue("scr_showspeed_ofs")),
-		ConsoleForced: conForcedup,
+		ViewSize:        float32(cvar.FloatValue("scr_viewsize")),
+		HUDStyle:        cvar.IntValue("hud_style"),
+		ShowFPS:         float32(cvar.FloatValue("scr_showfps")),
+		ShowClock:       cvar.IntValue("scr_clock"),
+		ShowSpeed:       cvar.BoolValue("scr_showspeed"),
+		ShowTurtle:      cvar.BoolValue("scr_showturtle"),
+		ShowSpeedOfs:    float32(cvar.FloatValue("scr_showspeed_ofs")),
+		ConsoleForced:   conForcedup,
+		LastServerMsgAt: g.LastServerMessageAt,
 	}
 	if g.Host != nil {
 		state.RealTime = g.Host.RealTime()
 		state.FrameCount = g.Host.FrameCount()
+		state.FrameTime = g.Host.FrameTime()
+		state.SavingActive = g.Host.SavingIndicatorActive(state.RealTime)
+		if demo := g.Host.DemoState(); demo != nil {
+			state.DemoPlayback = demo.Playback
+		}
 	}
 	if g.Client != nil {
 		state.ClientTime = g.Client.Time
 		state.Intermission = g.Client.Intermission
 		state.InCutscene = g.Client.InCutscene()
 		state.Velocity = g.Client.Velocity
+		state.ClientActive = g.Client.State == cl.StateActive
 	}
 	return state
+}
+
+func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) renderer.ViewRect {
+	vidW := cvar.IntValue("vid_width")
+	if vidW <= 0 {
+		vidW = framebufferW
+	}
+	vidH := cvar.IntValue("vid_height")
+	if vidH <= 0 {
+		vidH = framebufferH
+	}
+	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
+	conW, conH := runtimeConsoleDimensions(guiW, guiH)
+	fov := float32(90)
+	if cv := cvar.Get("fov"); cv != nil && cv.Float32() > 0 {
+		fov = cv.Float32()
+	}
+	ref, err := renderer.CalcRefdef(renderer.ScreenMetrics{
+		GLWidth:        framebufferW,
+		GLHeight:       framebufferH,
+		VidWidth:       vidW,
+		VidHeight:      vidH,
+		GUIWidth:       guiW,
+		GUIHeight:      guiH,
+		ConWidth:       conW,
+		ConHeight:      conH,
+		ViewSize:       float32(cvar.FloatValue("scr_viewsize")),
+		FOV:            fov,
+		FOVAdapt:       true,
+		ZoomFOV:        30,
+		Zoom:           g.Zoom,
+		SbarScale:      float32(cvar.FloatValue("scr_sbarscale")),
+		SbarAlpha:      1,
+		MenuScale:      float32(cvar.FloatValue("scr_menuscale")),
+		CrosshairScale: float32(cvar.FloatValue("scr_crosshairscale")),
+		Intermission:   g.Client != nil && g.Client.Intermission != 0,
+		HudStyle:       cvar.IntValue("hud_style"),
+		CSQCDrawHud:    csqcDrawHUD,
+	})
+	if err != nil {
+		return renderer.ViewRect{X: 0, Y: 0, Width: framebufferW, Height: framebufferH}
+	}
+	return ref.VRect
 }
 
 func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
@@ -1049,6 +1118,61 @@ func drawRuntimeSpeed(rc renderer.RenderContext, state runtimeTelemetryState, ov
 		overlay.displaySpeed = overlay.maxSpeed
 		overlay.maxSpeed = 0
 	}
+}
+
+func drawRuntimeTurtle(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState, count *int) {
+	if rc == nil || pics == nil || count == nil || !state.ShowTurtle {
+		return
+	}
+	if state.FrameTime < 0.1 {
+		*count = 0
+		return
+	}
+	*count++
+	if *count < 3 {
+		return
+	}
+	if turtle := pics.GetPic("turtle"); turtle != nil {
+		rc.SetCanvas(renderer.CanvasDefault)
+		rc.DrawPic(state.ViewRect.X, state.ViewRect.Y, turtle)
+	}
+}
+
+func drawRuntimeNet(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState) {
+	if rc == nil || pics == nil || !state.ClientActive || state.DemoPlayback {
+		return
+	}
+	if state.RealTime-state.LastServerMsgAt < 0.3 {
+		return
+	}
+	if netPic := pics.GetPic("net"); netPic != nil {
+		rc.SetCanvas(renderer.CanvasDefault)
+		rc.DrawPic(state.ViewRect.X+64, state.ViewRect.Y, netPic)
+	}
+}
+
+func drawRuntimeSavingIndicator(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState) {
+	if rc == nil || pics == nil || !state.SavingActive {
+		return
+	}
+	disc := pics.GetPic("disc")
+	if disc == nil {
+		return
+	}
+	y := 8
+	if state.HUDStyle != renderer.HUDClassic && state.ViewSize < 130 {
+		if state.ShowClock == 1 {
+			y += 8
+		}
+		if state.ShowFPS != 0 {
+			y += 8
+		}
+		if y != 8 {
+			y += 8
+		}
+	}
+	rc.SetCanvas(renderer.CanvasTopRight)
+	rc.DrawPic(320-16-int(disc.Width), y, disc)
 }
 
 func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {

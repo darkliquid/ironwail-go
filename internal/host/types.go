@@ -82,6 +82,7 @@ type Host struct {
 	loadingPlaqueUntil  float64
 	loadingPlaqueHeld   bool
 	loadingPlaqueHoldTo float64
+	savingIconUntil     float64
 
 	// Demo loop state (for startup demos like demo1, demo2, demo3)
 	demoList []string
@@ -337,6 +338,41 @@ func (h *Host) LoadingPlaqueActive(now float64) bool {
 	}
 	h.loadingPlaqueActive = false
 	h.loadingPlaqueUntil = 0
+	return false
+}
+
+const savingIconMinDuration = 0.2
+
+func (h *Host) BeginSavingIndicator(now float64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if now <= 0 {
+		now = h.realtime
+		if now <= 0 {
+			now = currentTime()
+		}
+	}
+	h.savingIconUntil = now + savingIconMinDuration
+}
+
+func (h *Host) SavingIndicatorActive(now float64) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.savingIconUntil <= 0 {
+		return false
+	}
+	if now <= 0 {
+		now = h.realtime
+		if now <= 0 {
+			now = currentTime()
+		}
+	}
+	if now <= h.savingIconUntil {
+		return true
+	}
+	h.savingIconUntil = 0
 	return false
 }
 

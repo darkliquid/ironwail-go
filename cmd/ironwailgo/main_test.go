@@ -360,13 +360,26 @@ type telemetryOverlayCharCall struct {
 type telemetryOverlayDrawContext struct {
 	canvas renderer.CanvasState
 	chars  []telemetryOverlayCharCall
+	pics   []struct {
+		canvas renderer.CanvasType
+		x      int
+		y      int
+		pic    *qimage.QPic
+	}
 }
 
-func (dc *telemetryOverlayDrawContext) Clear(r, g, b, a float32)           {}
-func (dc *telemetryOverlayDrawContext) DrawTriangle(r, g, b, a float32)    {}
-func (dc *telemetryOverlayDrawContext) SurfaceView() interface{}           { return nil }
-func (dc *telemetryOverlayDrawContext) Gamma() float32                     { return 1 }
-func (dc *telemetryOverlayDrawContext) DrawPic(x, y int, pic *qimage.QPic) {}
+func (dc *telemetryOverlayDrawContext) Clear(r, g, b, a float32)        {}
+func (dc *telemetryOverlayDrawContext) DrawTriangle(r, g, b, a float32) {}
+func (dc *telemetryOverlayDrawContext) SurfaceView() interface{}        { return nil }
+func (dc *telemetryOverlayDrawContext) Gamma() float32                  { return 1 }
+func (dc *telemetryOverlayDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
+	dc.pics = append(dc.pics, struct {
+		canvas renderer.CanvasType
+		x      int
+		y      int
+		pic    *qimage.QPic
+	}{canvas: dc.canvas.Type, x: x, y: y, pic: pic})
+}
 func (dc *telemetryOverlayDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
 }
 func (dc *telemetryOverlayDrawContext) DrawFill(x, y, w, h int, color byte) {}
@@ -909,6 +922,77 @@ func TestDrawRuntimeSpeedUsesCrosshairCanvas(t *testing.T) {
 	}
 	if got := dc.chars[0]; got.canvas != renderer.CanvasCrosshair || got.x != -12 || got.y != 14 || got.num != '5' {
 		t.Fatalf("speed first char = %+v, want crosshair at -12,14 with '5'", got)
+	}
+}
+
+type overlayTestPics struct {
+	pics map[string]*qimage.QPic
+}
+
+func (p overlayTestPics) GetPic(name string) *qimage.QPic {
+	return p.pics[name]
+}
+
+func TestDrawRuntimeTurtleUsesViewportOriginAfterThreeSlowFrames(t *testing.T) {
+	dc := &telemetryOverlayDrawContext{}
+	pics := overlayTestPics{pics: map[string]*qimage.QPic{"turtle": {Width: 16, Height: 16}}}
+	state := runtimeTelemetryState{
+		ShowTurtle: true,
+		FrameTime:  0.1,
+		ViewRect:   renderer.ViewRect{X: 12, Y: 34, Width: 200, Height: 100},
+	}
+	count := 0
+
+	drawRuntimeTurtle(dc, pics, state, &count)
+	drawRuntimeTurtle(dc, pics, state, &count)
+	drawRuntimeTurtle(dc, pics, state, &count)
+
+	if len(dc.pics) != 1 {
+		t.Fatalf("pic count = %d, want 1", len(dc.pics))
+	}
+	if got := dc.pics[0]; got.canvas != renderer.CanvasDefault || got.x != 12 || got.y != 34 {
+		t.Fatalf("turtle draw = %+v, want default canvas at 12,34", got)
+	}
+}
+
+func TestDrawRuntimeNetUsesViewportOffsetAfterLag(t *testing.T) {
+	dc := &telemetryOverlayDrawContext{}
+	pics := overlayTestPics{pics: map[string]*qimage.QPic{"net": {Width: 16, Height: 16}}}
+	state := runtimeTelemetryState{
+		RealTime:        10,
+		LastServerMsgAt: 9.6,
+		ClientActive:    true,
+		ViewRect:        renderer.ViewRect{X: 20, Y: 40, Width: 200, Height: 100},
+	}
+
+	drawRuntimeNet(dc, pics, state)
+
+	if len(dc.pics) != 1 {
+		t.Fatalf("pic count = %d, want 1", len(dc.pics))
+	}
+	if got := dc.pics[0]; got.canvas != renderer.CanvasDefault || got.x != 84 || got.y != 40 {
+		t.Fatalf("net draw = %+v, want default canvas at 84,40", got)
+	}
+}
+
+func TestDrawRuntimeSavingIndicatorUsesTopRightOffset(t *testing.T) {
+	dc := &telemetryOverlayDrawContext{}
+	pics := overlayTestPics{pics: map[string]*qimage.QPic{"disc": {Width: 24, Height: 24}}}
+	state := runtimeTelemetryState{
+		SavingActive: true,
+		HUDStyle:     renderer.HUDCompact,
+		ViewSize:     100,
+		ShowClock:    1,
+		ShowFPS:      1,
+	}
+
+	drawRuntimeSavingIndicator(dc, pics, state)
+
+	if len(dc.pics) != 1 {
+		t.Fatalf("pic count = %d, want 1", len(dc.pics))
+	}
+	if got := dc.pics[0]; got.canvas != renderer.CanvasTopRight || got.x != 280 || got.y != 32 {
+		t.Fatalf("saving draw = %+v, want top-right canvas at 280,32", got)
 	}
 }
 

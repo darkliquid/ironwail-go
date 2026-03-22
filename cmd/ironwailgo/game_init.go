@@ -118,6 +118,7 @@ func initGameHost() error {
 	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "Notify line lifetime in seconds")
 	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
 	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter in the corner (negative values show frame time in ms)")
+	cvar.Register("scr_showturtle", "0", cvar.FlagArchive, "Show the turtle icon when frame time is very slow")
 	cvar.Register("scr_showspeed", "0", cvar.FlagArchive, "Show horizontal player speed near the crosshair")
 	cvar.Register("scr_showspeed_ofs", "0", cvar.FlagArchive, "Vertical offset for the speed readout")
 	cvar.Register("scr_clock", "0", cvar.FlagArchive, "Show level clock in the corner")

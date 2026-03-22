@@ -691,6 +691,7 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		return
 	}
 	h.setLastSave(name)
+	h.BeginSavingIndicator(0)
 
 	if !skipNotify {
 		subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", displayName))

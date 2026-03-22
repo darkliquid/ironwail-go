@@ -26,8 +26,9 @@ type remoteDatagramClient struct {
 	parser *cl.Parser
 	socket *inet.Socket
 
-	lastSignonReply int
-	spawnArgs       string
+	lastSignonReply   int
+	spawnArgs         string
+	lastServerMessage []byte
 }
 
 func newRemoteDatagramClient(socket *inet.Socket) *remoteDatagramClient {
@@ -51,6 +52,7 @@ func (c *remoteDatagramClient) Init() error {
 	}
 	c.inner.ClearState()
 	c.lastSignonReply = 0
+	c.lastServerMessage = nil
 	return nil
 }
 
@@ -75,6 +77,7 @@ func (c *remoteDatagramClient) Shutdown() {
 		c.inner.State = cl.StateDisconnected
 	}
 	c.lastSignonReply = 0
+	c.lastServerMessage = nil
 }
 
 func (c *remoteDatagramClient) State() ClientState {
@@ -103,6 +106,7 @@ func (c *remoteDatagramClient) ReadFromServer() error {
 		if len(data) == 0 {
 			continue
 		}
+		c.lastServerMessage = append(c.lastServerMessage[:0], data...)
 		if msgType == 3 {
 			// Control message (disconnect, etc.)
 			if len(data) > 0 && data[0] == 0x82 { // CCRepReject used as disconnect
@@ -116,6 +120,13 @@ func (c *remoteDatagramClient) ReadFromServer() error {
 		}
 	}
 	return nil
+}
+
+func (c *remoteDatagramClient) LastServerMessage() []byte {
+	if len(c.lastServerMessage) == 0 {
+		return nil
+	}
+	return append([]byte(nil), c.lastServerMessage...)
 }
 
 func (c *remoteDatagramClient) SendCommand() error {

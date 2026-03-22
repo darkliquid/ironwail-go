@@ -27,6 +27,10 @@ type gameCallbacks struct{}
 
 var runtimeProcessClientPhase string
 
+type runtimeLastServerMessageProvider interface {
+	LastServerMessage() []byte
+}
+
 var loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
 	data, litData, err := loadWorldModelAndLit(files, worldModel)
 	if err != nil {
@@ -193,16 +197,32 @@ func (gameCallbacks) ProcessClient() {
 		_ = g.Subs.Client.SendCommand()
 	case "read":
 		_ = g.Subs.Client.ReadFromServer()
+		noteRuntimeServerMessage()
 		syncHostClientState()
 		recordRuntimeDemoFrame()
 		host.DispatchLoopbackStuffText(g.Subs)
 	default:
 		_ = g.Subs.Client.ReadFromServer()
+		noteRuntimeServerMessage()
 		syncHostClientState()
 		recordRuntimeDemoFrame()
 		host.DispatchLoopbackStuffText(g.Subs)
 		_ = g.Subs.Client.SendCommand()
 	}
+}
+
+func noteRuntimeServerMessage() {
+	if g.Subs == nil || g.Subs.Client == nil || g.Host == nil {
+		return
+	}
+	provider, ok := g.Subs.Client.(runtimeLastServerMessageProvider)
+	if !ok {
+		return
+	}
+	if len(provider.LastServerMessage()) == 0 {
+		return
+	}
+	g.LastServerMessageAt = g.Host.RealTime()
 }
 
 func (gameCallbacks) UpdateScreen() {}
