@@ -350,6 +350,46 @@ func (dc *consoleOverlayDrawContext) SetCanvasParams(p renderer.CanvasTransformP
 	dc.canvasParams = append(dc.canvasParams, p)
 }
 
+type telemetryOverlayCharCall struct {
+	canvas renderer.CanvasType
+	x      int
+	y      int
+	num    int
+}
+
+type telemetryOverlayDrawContext struct {
+	canvas renderer.CanvasState
+	chars  []telemetryOverlayCharCall
+}
+
+func (dc *telemetryOverlayDrawContext) Clear(r, g, b, a float32)           {}
+func (dc *telemetryOverlayDrawContext) DrawTriangle(r, g, b, a float32)    {}
+func (dc *telemetryOverlayDrawContext) SurfaceView() interface{}           { return nil }
+func (dc *telemetryOverlayDrawContext) Gamma() float32                     { return 1 }
+func (dc *telemetryOverlayDrawContext) DrawPic(x, y int, pic *qimage.QPic) {}
+func (dc *telemetryOverlayDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
+}
+func (dc *telemetryOverlayDrawContext) DrawFill(x, y, w, h int, color byte) {}
+func (dc *telemetryOverlayDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
+}
+func (dc *telemetryOverlayDrawContext) DrawCharacter(x, y int, num int) {
+	dc.chars = append(dc.chars, telemetryOverlayCharCall{canvas: dc.canvas.Type, x: x, y: y, num: num})
+}
+func (dc *telemetryOverlayDrawContext) DrawMenuCharacter(x, y int, num int) {
+	dc.DrawCharacter(x, y, num)
+}
+func (dc *telemetryOverlayDrawContext) SetCanvas(ct renderer.CanvasType) {
+	dc.canvas.Type = ct
+	if ct == renderer.CanvasCrosshair {
+		dc.canvas.Top = -100
+		dc.canvas.Bottom = 100
+	} else {
+		dc.canvas.Top = 0
+		dc.canvas.Bottom = 0
+	}
+}
+func (dc *telemetryOverlayDrawContext) Canvas() renderer.CanvasState { return dc.canvas }
+
 func TestDrawMenuBackdropUsesAlphaFill(t *testing.T) {
 	dc := &consoleOverlayDrawContext{}
 
@@ -818,6 +858,57 @@ func TestRuntimePauseActiveTracksServerClientAndDemoPause(t *testing.T) {
 	g.Host.SetDemoState(&cl.DemoState{Playback: true, Paused: true})
 	if !runtimePauseActive() {
 		t.Fatal("runtimePauseActive() = false with paused demo playback, want true")
+	}
+}
+
+func TestDrawRuntimeClockAndFPSUseBottomRightCanvasForClassicHUD(t *testing.T) {
+	dc := &telemetryOverlayDrawContext{}
+	state := runtimeTelemetryState{
+		RealTime:   1,
+		FrameCount: 100,
+		ViewSize:   100,
+		HUDStyle:   renderer.HUDClassic,
+		ShowFPS:    1,
+		ShowClock:  1,
+		ClientTime: 125,
+	}
+	fps := &runtimeFPSOverlay{}
+
+	drawRuntimeClock(dc, state)
+	drawRuntimeFPS(dc, state, fps)
+
+	if len(dc.chars) != len("2:05")+len(" 100 fps") {
+		t.Fatalf("char count = %d, want %d", len(dc.chars), len("2:05")+len(" 100 fps"))
+	}
+	if got := dc.chars[0]; got.canvas != renderer.CanvasBottomRight || got.x != 288 || got.y != 192 || got.num != '2' {
+		t.Fatalf("clock first char = %+v, want bottom-right at 288,192 with '2'", got)
+	}
+	if got := dc.chars[len("2:05")]; got.canvas != renderer.CanvasBottomRight || got.x != 256 || got.y != 184 {
+		t.Fatalf("fps first char = %+v, want bottom-right at 256,184", got)
+	}
+}
+
+func TestDrawRuntimeSpeedUsesCrosshairCanvas(t *testing.T) {
+	dc := &telemetryOverlayDrawContext{}
+	state := runtimeTelemetryState{
+		RealTime:     0.05,
+		ViewSize:     100,
+		ShowSpeed:    true,
+		ShowSpeedOfs: 10,
+		Velocity:     [3]float32{300, 400, 200},
+	}
+	speed := &runtimeSpeedOverlay{}
+
+	drawRuntimeSpeed(dc, state, speed)
+	state.RealTime = 0.10
+	state.Velocity = [3]float32{}
+	drawRuntimeSpeed(dc, state, speed)
+
+	if len(dc.chars) != len("500") {
+		t.Fatalf("char count = %d, want %d", len(dc.chars), len("500"))
+	}
+	if got := dc.chars[0]; got.canvas != renderer.CanvasCrosshair || got.x != -12 || got.y != 14 || got.num != '5' {
+		t.Fatalf("speed first char = %+v, want crosshair at -12,14 with '5'", got)
 	}
 }
 

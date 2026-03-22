@@ -83,6 +83,8 @@ type Game struct {
 	ZoomDir float32
 
 	ConsoleSlideFraction float32
+	FPSOverlay           runtimeFPSOverlay
+	SpeedOverlay         runtimeSpeedOverlay
 }
 
 var g Game
@@ -95,6 +97,34 @@ type canvasParamSetter interface {
 type defaultBinding struct {
 	key     int
 	command string
+}
+
+type runtimeFPSOverlay struct {
+	oldTime       float64
+	lastFPS       float64
+	oldFrameCount int
+}
+
+type runtimeSpeedOverlay struct {
+	maxSpeed     float32
+	displaySpeed float32
+	lastRealTime float64
+}
+
+type runtimeTelemetryState struct {
+	RealTime      float64
+	FrameCount    int
+	ViewSize      float32
+	HUDStyle      int
+	ShowFPS       float32
+	ShowClock     int
+	ShowSpeed     bool
+	ShowSpeedOfs  float32
+	ClientTime    float64
+	Intermission  int
+	InCutscene    bool
+	Velocity      [3]float32
+	ConsoleForced bool
 }
 
 type runtimeSpriteModel struct {
@@ -717,10 +747,12 @@ func main() {
 					// Menu draws on top of console
 					if g.Menu != nil && g.Menu.IsActive() {
 						drawRuntimeMenu(overlay, w, h, g.Menu.M_Draw)
+						drawRuntimeFPS(overlay, buildRuntimeTelemetryState(conForcedup), &g.FPSOverlay)
 						return
 					}
 
 					if !conForcedup {
+						telemetryState := buildRuntimeTelemetryState(conForcedup)
 						csqcActive := false
 						if g.CSQC != nil && g.CSQC.IsLoaded() {
 							csqcActive = true
@@ -748,6 +780,8 @@ func main() {
 							updateHUDFromServer()
 							g.HUD.Draw(overlay)
 						}
+						drawRuntimeClock(overlay, telemetryState)
+						drawRuntimeSpeed(overlay, telemetryState, &g.SpeedOverlay)
 						if runtimePauseActive() {
 							drawPauseOverlay(overlay, g.Draw)
 						}
@@ -767,6 +801,7 @@ func main() {
 							drawChatInput(overlay, w, h)
 						}
 					}
+					drawRuntimeFPS(overlay, buildRuntimeTelemetryState(conForcedup), &g.FPSOverlay)
 				})
 				return
 			}
@@ -886,6 +921,134 @@ func runtimePauseActive() bool {
 		}
 	}
 	return g.Client != nil && g.Client.Paused
+}
+
+func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
+	state := runtimeTelemetryState{
+		ViewSize:      float32(cvar.FloatValue("scr_viewsize")),
+		HUDStyle:      cvar.IntValue("hud_style"),
+		ShowFPS:       float32(cvar.FloatValue("scr_showfps")),
+		ShowClock:     cvar.IntValue("scr_clock"),
+		ShowSpeed:     cvar.BoolValue("scr_showspeed"),
+		ShowSpeedOfs:  float32(cvar.FloatValue("scr_showspeed_ofs")),
+		ConsoleForced: conForcedup,
+	}
+	if g.Host != nil {
+		state.RealTime = g.Host.RealTime()
+		state.FrameCount = g.Host.FrameCount()
+	}
+	if g.Client != nil {
+		state.ClientTime = g.Client.Time
+		state.Intermission = g.Client.Intermission
+		state.InCutscene = g.Client.InCutscene()
+		state.Velocity = g.Client.Velocity
+	}
+	return state
+}
+
+func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
+	for _, ch := range text {
+		rc.DrawCharacter(x, y, int(ch))
+		x += 8
+	}
+}
+
+func drawRuntimeClock(rc renderer.RenderContext, state runtimeTelemetryState) {
+	if rc == nil || state.ShowClock != 1 || state.ViewSize >= 130 {
+		return
+	}
+	minutes := int(state.ClientTime) / 60
+	seconds := int(state.ClientTime) % 60
+	text := fmt.Sprintf("%d:%02d", minutes, seconds)
+	if state.HUDStyle == renderer.HUDClassic {
+		rc.SetCanvas(renderer.CanvasBottomRight)
+		drawRuntimeString(rc, 320-len(text)*8, 200-8, text)
+		return
+	}
+	rc.SetCanvas(renderer.CanvasTopRight)
+	drawRuntimeString(rc, 320-16-len(text)*8, 8, text)
+}
+
+func drawRuntimeFPS(rc renderer.RenderContext, state runtimeTelemetryState, overlay *runtimeFPSOverlay) {
+	if rc == nil || overlay == nil {
+		return
+	}
+	if state.ConsoleForced {
+		overlay.oldTime = state.RealTime
+		overlay.oldFrameCount = state.FrameCount
+		overlay.lastFPS = 0
+		return
+	}
+	elapsed := state.RealTime - overlay.oldTime
+	frames := state.FrameCount - overlay.oldFrameCount
+	if elapsed < 0 || frames < 0 {
+		overlay.oldTime = state.RealTime
+		overlay.oldFrameCount = state.FrameCount
+		return
+	}
+	if elapsed > 0.75 {
+		overlay.lastFPS = float64(frames) / elapsed
+		overlay.oldTime = state.RealTime
+		overlay.oldFrameCount = state.FrameCount
+	}
+	if state.ShowFPS == 0 || state.ViewSize >= 130 || overlay.lastFPS == 0 {
+		return
+	}
+	text := fmt.Sprintf("%4.0f fps", overlay.lastFPS)
+	if state.ShowFPS < 0 {
+		text = fmt.Sprintf("%.2f ms", 1000.0/overlay.lastFPS)
+	}
+	if state.HUDStyle == renderer.HUDClassic {
+		y := 200 - 8
+		if state.ShowClock == 1 {
+			y -= 8
+		}
+		rc.SetCanvas(renderer.CanvasBottomRight)
+		drawRuntimeString(rc, 320-len(text)*8, y, text)
+		return
+	}
+	y := 8
+	if state.ShowClock == 1 {
+		y += 8
+	}
+	rc.SetCanvas(renderer.CanvasTopRight)
+	drawRuntimeString(rc, 320-16-len(text)*8, y, text)
+}
+
+func drawRuntimeSpeed(rc renderer.RenderContext, state runtimeTelemetryState, overlay *runtimeSpeedOverlay) {
+	if rc == nil || overlay == nil {
+		return
+	}
+	if overlay.lastRealTime == 0 && overlay.displaySpeed == 0 && overlay.maxSpeed == 0 {
+		overlay.displaySpeed = -1
+	}
+	if overlay.lastRealTime > state.RealTime {
+		overlay.lastRealTime = 0
+		overlay.displaySpeed = -1
+		overlay.maxSpeed = 0
+	}
+	speed := float32(math.Sqrt(float64(state.Velocity[0]*state.Velocity[0] + state.Velocity[1]*state.Velocity[1])))
+	if speed > overlay.maxSpeed {
+		overlay.maxSpeed = speed
+	}
+	if state.ShowSpeed && overlay.displaySpeed >= 0 && state.Intermission == 0 && !state.InCutscene && state.ViewSize < 130 {
+		text := fmt.Sprintf("%d", int(overlay.displaySpeed))
+		rc.SetCanvas(renderer.CanvasCrosshair)
+		canvas := rc.Canvas()
+		top := canvas.Top
+		bottom := canvas.Bottom
+		if top == 0 && bottom == 0 {
+			top = -100
+			bottom = 100
+		}
+		y := min(max(top, 4+state.ShowSpeedOfs), bottom-8)
+		drawRuntimeString(rc, -(len(text) * 4), int(y), text)
+	}
+	if state.RealTime-overlay.lastRealTime >= 0.05 {
+		overlay.lastRealTime = state.RealTime
+		overlay.displaySpeed = overlay.maxSpeed
+		overlay.maxSpeed = 0
+	}
 }
 
 func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
