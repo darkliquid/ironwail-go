@@ -668,11 +668,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	}
 
 	// r_viewmodel_quake origin fudge.
-	scrViewSize := 100.0
-	if cv := cvar.Get("scr_viewsize"); cv != nil {
-		scrViewSize = cv.Float
-	}
-	origin = viewApplyViewmodelQuakeFudge(origin, scrViewSize)
+	origin = viewApplyViewmodelQuakeFudge(origin, currentRuntimeViewSize())
 
 	alpha := inet.ENTALPHA_DECODE(g.Client.ViewEntAlpha)
 

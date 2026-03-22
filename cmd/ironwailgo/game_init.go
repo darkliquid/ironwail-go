@@ -136,9 +136,9 @@ func initGameHost() error {
 	cvar.Register("chase_back", "100", cvar.FlagArchive, "Chase camera distance behind player")
 	cvar.Register("chase_up", "16", cvar.FlagArchive, "Chase camera height above player")
 	cvar.Register("chase_right", "0", cvar.FlagArchive, "Chase camera right offset")
-	// scr_viewsize: screen view size percentage (100 = full), used by
-	// r_viewmodel_quake fudge.
-	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "Screen view size percentage")
+	// viewsize: screen view size percentage (100 = full), used by
+	// r_viewmodel_quake fudge. Keep scr_viewsize as a legacy alias.
+	registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "Screen view size percentage")
 	cvar.Register("scr_sbarscale", "1", cvar.FlagArchive, "Status bar scale multiplier")
 	cvar.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "Status bar background alpha")
 	cvar.Register("scr_menuscale", "1", cvar.FlagArchive, "Menu scale multiplier")

@@ -926,7 +926,7 @@ func runtimeViewModelVisible() bool {
 	if cvar.BoolValue("chase_active") {
 		return false
 	}
-	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float >= 130 {
+	if currentRuntimeViewSize() >= 130 {
 		return false
 	}
 	if g.Client.Health() <= 0 {
@@ -964,7 +964,7 @@ func runtimePauseActive() bool {
 
 func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 	state := runtimeTelemetryState{
-		ViewSize:        float32(cvar.FloatValue("scr_viewsize")),
+		ViewSize:        float32(currentRuntimeViewSize()),
 		HUDStyle:        cvar.IntValue("hud_style"),
 		ShowFPS:         float32(cvar.FloatValue("scr_showfps")),
 		ShowClock:       cvar.IntValue("scr_clock"),
@@ -1018,7 +1018,7 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		GUIHeight:      guiH,
 		ConWidth:       conW,
 		ConHeight:      conH,
-		ViewSize:       float32(cvar.FloatValue("scr_viewsize")),
+		ViewSize:       float32(currentRuntimeViewSize()),
 		FOV:            currentRuntimeFOV(),
 		FOVAdapt:       currentRuntimeFOVAdapt(),
 		ZoomFOV:        currentRuntimeZoomFOV(),
@@ -1053,6 +1053,16 @@ func currentRuntimeFOV() float32 {
 		return cv.Float32()
 	}
 	return 90
+}
+
+func currentRuntimeViewSize() float64 {
+	if cv := cvar.Get("viewsize"); cv != nil && cv.Float > 0 {
+		return cv.Float
+	}
+	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float > 0 {
+		return cv.Float
+	}
+	return 100
 }
 
 func currentRuntimeZoomFOV() float32 {

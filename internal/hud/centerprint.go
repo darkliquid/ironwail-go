@@ -302,7 +302,7 @@ func centerprintY(screenHeight int, message string) int {
 
 func regularCenterprintY(screenHeight int, message string) int {
 	y := centerprintY(screenHeight, message)
-	if cvar.IntValue("crosshair") != 0 && cvar.FloatValue("scr_viewsize") < 130 {
+	if cvar.IntValue("crosshair") != 0 && currentViewSize() < 130 {
 		y -= 8
 	}
 	return y

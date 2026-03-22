@@ -215,6 +215,9 @@ func canvasDimensions(rc renderer.RenderContext, fallbackWidth, fallbackHeight i
 }
 
 func currentViewSize() float64 {
+	if cv := cvar.Get("viewsize"); cv != nil && cv.Float > 0 {
+		return cv.Float
+	}
 	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float > 0 {
 		return cv.Float
 	}

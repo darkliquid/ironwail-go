@@ -102,6 +102,24 @@ func TestCurrentRuntimeFOVUsesCanonicalFOVCVar(t *testing.T) {
 	}
 }
 
+func TestCurrentRuntimeViewSizeUsesCanonicalViewsizeCVar(t *testing.T) {
+	registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "")
+
+	cvar.Set("scr_viewsize", "100")
+	cvar.Set("viewsize", "130")
+	t.Cleanup(func() {
+		cvar.Set("viewsize", "100")
+		cvar.Set("scr_viewsize", "100")
+	})
+
+	if got := currentRuntimeViewSize(); got != 130 {
+		t.Fatalf("currentRuntimeViewSize() = %v, want 130", got)
+	}
+	if got := cvar.FloatValue("scr_viewsize"); got != 130 {
+		t.Fatalf("legacy scr_viewsize alias = %v, want 130", got)
+	}
+}
+
 func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
 	if cvar.Get("zoom_fov") == nil {
 		cvar.Register("zoom_fov", "30", cvar.FlagArchive, "")
