@@ -521,6 +521,7 @@ type Renderer struct {
 	sceneCompositeFragmentShader  hal.ShaderModule
 	sceneCompositeBindGroupLayout hal.BindGroupLayout
 	sceneCompositeSampler         hal.Sampler
+	sceneCompositeUniformBuffer   hal.Buffer
 	sceneCompositeBindGroup       hal.BindGroup
 
 	// Alias-model resources for the gogpu backend.
@@ -1056,7 +1057,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		dc.renderPolyBlendHAL(state.VBlend)
 	}
 	if sceneTargetActive {
-		if dc.compositeSceneRenderTarget(state.ClearColor) {
+		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
 			if dc.markGoGPUFrameContentForOverlay() {
 				slog.Info("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
 			} else {

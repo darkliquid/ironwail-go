@@ -4,11 +4,15 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 )
+
+const sceneCompositeUniformBufferSize = 16
 
 const sceneCompositeVertexShaderWGSL = `
 struct VertexOutput {
@@ -37,6 +41,10 @@ fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
 `
 
 const sceneCompositeFragmentShaderWGSL = `
+struct SceneCompositeUniforms {
+    uvScaleWarpTime: vec4<f32>,
+}
+
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -48,9 +56,27 @@ var sceneSampler: sampler;
 @group(0) @binding(1)
 var sceneTexture: texture_2d<f32>;
 
+@group(0) @binding(2)
+var<uniform> uniforms: SceneCompositeUniforms;
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(sceneTexture, sceneSampler, input.uv);
+    var uv = input.uv;
+    let uvScale = uniforms.uvScaleWarpTime.xy;
+    let warpAmp = uniforms.uvScaleWarpTime.z;
+    let time = uniforms.uvScaleWarpTime.w;
+
+    if (warpAmp > 0.0) {
+        let textureSizeVec = vec2<f32>(textureDimensions(sceneTexture));
+        let ddx = dpdx(uv.x) * textureSizeVec.x;
+        let ddy = dpdy(uv.y) * textureSizeVec.y;
+        let aspect = abs(ddy) / max(abs(ddx), 0.0001);
+        let amp = vec2<f32>(warpAmp, warpAmp * aspect);
+        uv = amp + uv * (1.0 - 2.0 * amp);
+        uv += amp * sin(vec2<f32>(uv.y / max(aspect, 0.0001), uv.x) * (3.14159265 * 8.0) + time);
+    }
+
+    return textureSample(sceneTexture, sceneSampler, uv * uvScale);
 }
 `
 
@@ -68,6 +94,10 @@ func (r *Renderer) destroySceneCompositeResourcesLocked() {
 	if r.sceneCompositeBindGroup != nil {
 		r.sceneCompositeBindGroup.Destroy()
 		r.sceneCompositeBindGroup = nil
+	}
+	if r.sceneCompositeUniformBuffer != nil {
+		r.sceneCompositeUniformBuffer.Destroy()
+		r.sceneCompositeUniformBuffer = nil
 	}
 	if r.sceneCompositeSampler != nil {
 		r.sceneCompositeSampler.Destroy()
@@ -116,7 +146,7 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
-	if r.sceneCompositePipeline != nil && r.sceneCompositeBindGroupLayout != nil && r.sceneCompositeSampler != nil {
+	if r.sceneCompositePipeline != nil && r.sceneCompositeBindGroupLayout != nil && r.sceneCompositeSampler != nil && r.sceneCompositeUniformBuffer != nil {
 		return nil
 	}
 
@@ -147,6 +177,15 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 					SampleType:    gputypes.TextureSampleTypeFloat,
 					ViewDimension: gputypes.TextureViewDimension2D,
 					Multisampled:  false,
+				},
+			},
+			{
+				Binding:    2,
+				Visibility: gputypes.ShaderStageFragment,
+				Buffer: &gputypes.BufferBindingLayout{
+					Type:             gputypes.BufferBindingTypeUniform,
+					HasDynamicOffset: false,
+					MinBindingSize:   sceneCompositeUniformBufferSize,
 				},
 			},
 		},
@@ -187,6 +226,21 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 		return fmt.Errorf("create scene composite sampler: %w", err)
 	}
 
+	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+		Label:            "Scene Composite Uniform Buffer",
+		Size:             sceneCompositeUniformBufferSize,
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		sampler.Destroy()
+		pipelineLayout.Destroy()
+		bindGroupLayout.Destroy()
+		vertexShader.Destroy()
+		fragmentShader.Destroy()
+		return fmt.Errorf("create scene composite uniform buffer: %w", err)
+	}
+
 	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
 		Label:  "Scene Composite Pipeline",
 		Layout: pipelineLayout,
@@ -210,6 +264,7 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 		},
 	})
 	if err != nil {
+		uniformBuffer.Destroy()
 		sampler.Destroy()
 		pipelineLayout.Destroy()
 		bindGroupLayout.Destroy()
@@ -223,6 +278,7 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 	r.sceneCompositeBindGroupLayout = bindGroupLayout
 	r.sceneCompositePipelineLayout = pipelineLayout
 	r.sceneCompositeSampler = sampler
+	r.sceneCompositeUniformBuffer = uniformBuffer
 	r.sceneCompositePipeline = pipeline
 	return nil
 }
@@ -283,6 +339,14 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device hal.Device, width, heigh
 		Entries: []gputypes.BindGroupEntry{
 			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: r.sceneCompositeSampler.NativeHandle()}},
 			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
+			{
+				Binding: 2,
+				Resource: gputypes.BufferBinding{
+					Buffer: r.sceneCompositeUniformBuffer.NativeHandle(),
+					Offset: 0,
+					Size:   sceneCompositeUniformBufferSize,
+				},
+			},
 		},
 	})
 	if err != nil {
@@ -356,7 +420,7 @@ func (dc *DrawContext) disableSceneRenderTarget() {
 	dc.sceneRenderTarget = nil
 }
 
-func (dc *DrawContext) compositeSceneRenderTarget(clearColor [4]float32) bool {
+func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime float32, clearColor [4]float32) bool {
 	if dc == nil || dc.renderer == nil || dc.sceneRenderTarget == nil {
 		return false
 	}
@@ -374,8 +438,9 @@ func (dc *DrawContext) compositeSceneRenderTarget(clearColor [4]float32) bool {
 	r.mu.RLock()
 	pipeline := r.sceneCompositePipeline
 	bindGroup := r.sceneCompositeBindGroup
+	uniformBuffer := r.sceneCompositeUniformBuffer
 	r.mu.RUnlock()
-	if pipeline == nil || bindGroup == nil {
+	if pipeline == nil || bindGroup == nil || uniformBuffer == nil {
 		return false
 	}
 
@@ -403,6 +468,9 @@ func (dc *DrawContext) compositeSceneRenderTarget(clearColor [4]float32) bool {
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
+	if err := queue.WriteBuffer(uniformBuffer, 0, sceneCompositeUniformBytes(warpActive, warpTime)); err != nil {
+		return false
+	}
 	renderPass.Draw(3, 1, 0, 0)
 	renderPass.End()
 
@@ -414,4 +482,17 @@ func (dc *DrawContext) compositeSceneRenderTarget(clearColor [4]float32) bool {
 		return false
 	}
 	return true
+}
+
+func sceneCompositeUniformBytes(warpActive bool, warpTime float32) []byte {
+	buf := make([]byte, sceneCompositeUniformBufferSize)
+	warpAmp := float32(0)
+	if warpActive {
+		warpAmp = 1.0 / 256.0
+	}
+	values := [4]float32{1, 1, warpAmp, warpTime}
+	for i, v := range values {
+		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(v))
+	}
+	return buf
 }
