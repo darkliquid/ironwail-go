@@ -1547,10 +1547,14 @@ func shouldDrawGoGPUOpaqueWorldFace(face WorldFace) bool {
 	if face.NumIndices == 0 {
 		return false
 	}
-	if face.Flags&(model.SurfDrawSky|model.SurfDrawTurb) != 0 {
+	if face.Flags&(model.SurfDrawSky|model.SurfDrawTurb|model.SurfDrawFence) != 0 {
 		return false
 	}
 	return true
+}
+
+func shouldDrawGoGPUAlphaTestWorldFace(face WorldFace) bool {
+	return face.NumIndices > 0 && worldFacePass(face.Flags, 1) == worldPassAlphaTest
 }
 
 func shouldDrawGoGPUSkyWorldFace(face WorldFace) bool {
@@ -2834,6 +2838,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	renderPass.SetPipeline(dc.renderer.worldPipeline)
 	drawnIndices := uint32(0)
+	alphaTestDrawnIndices := uint32(0)
 	liquidDrawnIndices := uint32(0)
 	for _, face := range worldData.Geometry.Faces {
 		if !shouldDrawGoGPUOpaqueWorldFace(face) {
@@ -2867,6 +2872,39 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		drawnIndices += face.NumIndices
+	}
+	for _, face := range worldData.Geometry.Faces {
+		if !shouldDrawGoGPUAlphaTestWorldFace(face) {
+			continue
+		}
+		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
+		if !writeWorldUniform(1, dynamicLight, 0) {
+			slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
+			renderPass.End()
+			return
+		}
+		textureBindGroup := dc.renderer.whiteTextureBindGroup
+		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+			textureBindGroup = worldTexture.bindGroup
+		}
+		lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
+		if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(dc.renderer.worldLightmapPages) {
+			if lightmapPage := dc.renderer.worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+				lightmapBindGroup = lightmapPage.bindGroup
+			}
+		}
+		fullbrightBindGroup := dc.renderer.transparentBindGroup
+		if fullbrightBindGroup == nil {
+			fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+		}
+		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+			fullbrightBindGroup = worldTexture.bindGroup
+		}
+		renderPass.SetBindGroup(1, textureBindGroup, nil)
+		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
+		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		alphaTestDrawnIndices += face.NumIndices
 	}
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
@@ -2909,6 +2947,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	if skyDrawnIndices > 0 {
 		slog.Info("GoGPU world sky rendered", "indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
+	}
+	if alphaTestDrawnIndices > 0 {
+		slog.Info("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3)
 	}
 	if liquidDrawnIndices > 0 {
 		slog.Info("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)

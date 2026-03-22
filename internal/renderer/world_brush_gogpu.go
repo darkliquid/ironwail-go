@@ -28,6 +28,10 @@ func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
 	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUOpaqueWorldFace(face)
 }
 
+func shouldDrawGoGPUAlphaTestBrushFace(face WorldFace, entityAlpha float32) bool {
+	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUAlphaTestWorldFace(face)
+}
+
 func shouldDrawGoGPUSkyBrushFace(face WorldFace, entityAlpha float32) bool {
 	return clamp01(entityAlpha) > 0 && shouldDrawGoGPUSkyWorldFace(face)
 }
@@ -104,6 +108,10 @@ func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeF
 
 func buildGoGPUOpaqueBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
 	return buildGoGPUBrushEntityDraw(entity, geom, shouldDrawGoGPUOpaqueBrushFace)
+}
+
+func buildGoGPUAlphaTestBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
+	return buildGoGPUBrushEntityDraw(entity, geom, shouldDrawGoGPUAlphaTestBrushFace)
 }
 
 func buildGoGPUSkyBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
@@ -307,10 +315,14 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 
-	draws := make([]gogpuOpaqueBrushEntityDraw, 0, len(entities))
+	draws := make([]gogpuOpaqueBrushEntityDraw, 0, len(entities)*2)
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
 		if draw := buildGoGPUOpaqueBrushEntityDraw(entity, geom); draw != nil {
+			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
+			draws = append(draws, *draw)
+		}
+		if draw := buildGoGPUAlphaTestBrushEntityDraw(entity, geom); draw != nil {
 			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 			draws = append(draws, *draw)
 		}

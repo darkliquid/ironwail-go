@@ -332,12 +332,27 @@ func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
 		{name: "empty", face: WorldFace{}, want: false},
 		{name: "sky", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, want: false},
 		{name: "turbulent", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb}, want: false},
-		{name: "fence", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, want: true},
+		{name: "fence", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, want: false},
 	}
 	for _, tc := range tests {
 		if got := shouldDrawGoGPUOpaqueWorldFace(tc.face); got != tc.want {
 			t.Fatalf("%s: shouldDrawGoGPUOpaqueWorldFace(%#v) = %v, want %v", tc.name, tc.face, got, tc.want)
 		}
+	}
+}
+
+func TestShouldDrawGoGPUAlphaTestWorldFace(t *testing.T) {
+	if !shouldDrawGoGPUAlphaTestWorldFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}) {
+		t.Fatal("fence world face should draw in alpha-test pass")
+	}
+	if shouldDrawGoGPUAlphaTestWorldFace(WorldFace{NumIndices: 3}) {
+		t.Fatal("opaque world face should not draw in alpha-test pass")
+	}
+	if shouldDrawGoGPUAlphaTestWorldFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}) {
+		t.Fatal("sky world face should not draw in alpha-test pass")
+	}
+	if shouldDrawGoGPUAlphaTestWorldFace(WorldFace{}) {
+		t.Fatal("empty world face should not draw in alpha-test pass")
 	}
 }
 
@@ -422,6 +437,21 @@ func TestShouldDrawGoGPUOpaqueBrushFace(t *testing.T) {
 	if shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3}, 0.5) {
 		t.Fatal("translucent brush entity should not draw in opaque pass")
 	}
+	if shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, 1) {
+		t.Fatal("alpha-test brush face should not draw in opaque pass")
+	}
+}
+
+func TestShouldDrawGoGPUAlphaTestBrushFace(t *testing.T) {
+	if !shouldDrawGoGPUAlphaTestBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, 1) {
+		t.Fatal("alpha-test brush face should draw")
+	}
+	if shouldDrawGoGPUAlphaTestBrushFace(WorldFace{NumIndices: 3}, 1) {
+		t.Fatal("opaque brush face should not draw in alpha-test pass")
+	}
+	if shouldDrawGoGPUAlphaTestBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, 0.5) {
+		t.Fatal("translucent brush entity should not draw in opaque alpha-test pass")
+	}
 }
 
 func TestBuildGoGPUOpaqueBrushEntityDrawTransformsVerticesAndKeepsOpaqueFaces(t *testing.T) {
@@ -434,7 +464,7 @@ func TestBuildGoGPUOpaqueBrushEntityDrawTransformsVerticesAndKeepsOpaqueFaces(t 
 		Indices: []uint32{0, 1, 2, 0, 2, 1},
 		Faces: []WorldFace{
 			{FirstIndex: 0, NumIndices: 3, TextureIndex: 4, LightmapIndex: 2},
-			{FirstIndex: 3, NumIndices: 3, TextureIndex: 7, LightmapIndex: 1, Flags: model.SurfDrawSky},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 7, LightmapIndex: 1, Flags: model.SurfDrawFence},
 		},
 	}
 	entity := BrushEntity{
@@ -463,6 +493,34 @@ func TestBuildGoGPUOpaqueBrushEntityDrawTransformsVerticesAndKeepsOpaqueFaces(t 
 	}
 	if len(draw.centers) != 1 || draw.centers[0] != [3]float32{10, 20, 30} {
 		t.Fatalf("face centers = %v, want [[10 20 30]]", draw.centers)
+	}
+}
+
+func TestBuildGoGPUAlphaTestBrushEntityDrawKeepsOnlyCutoutFaces(t *testing.T) {
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{1, 0, 0}},
+			{Position: [3]float32{0, 1, 0}},
+		},
+		Indices: []uint32{0, 1, 2, 0, 2, 1},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 4, LightmapIndex: 2},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 7, LightmapIndex: 1, Flags: model.SurfDrawFence},
+		},
+	}
+	draw := buildGoGPUAlphaTestBrushEntityDraw(BrushEntity{Alpha: 1, Scale: 1}, geom)
+	if draw == nil {
+		t.Fatal("buildGoGPUAlphaTestBrushEntityDraw() = nil")
+	}
+	if len(draw.faces) != 1 {
+		t.Fatalf("len(draw.faces) = %d, want 1", len(draw.faces))
+	}
+	if len(draw.indices) != 3 {
+		t.Fatalf("len(draw.indices) = %d, want 3", len(draw.indices))
+	}
+	if draw.faces[0].TextureIndex != 7 || draw.faces[0].Flags&model.SurfDrawFence == 0 {
+		t.Fatalf("alpha-test face metadata = %+v, want fence texture 7", draw.faces[0])
 	}
 }
 
