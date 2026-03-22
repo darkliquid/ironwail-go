@@ -104,8 +104,9 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 	cameraOrigin := [3]float32{1, 2, 3}
 	fogColor := [3]float32{0.2, 0.4, 0.6}
 	fogDensity := float32(0.75)
+	timeValue := float32(12.5)
 
-	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity)
+	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity, timeValue)
 	if len(data) != worldUniformBufferSize {
 		t.Fatalf("len(worldSceneUniformBytes()) = %d, want %d", len(data), worldUniformBufferSize)
 	}
@@ -125,6 +126,10 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 		if !almostEqualWorldFloat32(got, want, 1e-6) {
 			t.Fatalf("fogColor[%d] = %v, want %v", i, got, want)
 		}
+	}
+	gotTime := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96]))
+	if !almostEqualWorldFloat32(gotTime, timeValue, 1e-6) {
+		t.Fatalf("time = %v, want %v", gotTime, timeValue)
 	}
 }
 
@@ -162,6 +167,21 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 			t.Fatalf("world fragment shader missing %q", check)
 		}
 	}
+
+	skyChecks := []string{
+		"skySolidTexture",
+		"skyAlphaTexture",
+		"uniforms.time / 16.0",
+		"uniforms.time / 8.0",
+		"189.0 / 64.0",
+		"mix(result.rgb, layer.rgb, layer.a)",
+		"mix(result.rgb, uniforms.fogColor, uniforms.fogDensity)",
+	}
+	for _, check := range skyChecks {
+		if !strings.Contains(worldSkyFragmentShaderWGSL, check) {
+			t.Fatalf("world sky fragment shader missing %q", check)
+		}
+	}
 }
 
 func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
@@ -180,6 +200,45 @@ func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
 		if got := shouldDrawGoGPUOpaqueWorldFace(tc.face); got != tc.want {
 			t.Fatalf("%s: shouldDrawGoGPUOpaqueWorldFace(%#v) = %v, want %v", tc.name, tc.face, got, tc.want)
 		}
+	}
+}
+
+func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
+	if !shouldDrawGoGPUSkyWorldFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}) {
+		t.Fatal("sky face should draw in sky pass")
+	}
+	if shouldDrawGoGPUSkyWorldFace(WorldFace{NumIndices: 3}) {
+		t.Fatal("non-sky face should not draw in sky pass")
+	}
+	if shouldDrawGoGPUSkyWorldFace(WorldFace{Flags: model.SurfDrawSky}) {
+		t.Fatal("empty sky face should not draw in sky pass")
+	}
+}
+
+func TestExtractEmbeddedSkyLayersClassic(t *testing.T) {
+	palette := make([]byte, 256*3)
+	palette[3] = 255
+	palette[6] = 64
+	palette[7] = 128
+	pixels := []byte{
+		1, 0, 2, 2,
+		1, 255, 2, 2,
+	}
+	solid, alpha, width, height, ok := extractEmbeddedSkyLayers(pixels, 4, 2, palette, false)
+	if !ok {
+		t.Fatal("extractEmbeddedSkyLayers() = not ok")
+	}
+	if width != 2 || height != 2 {
+		t.Fatalf("layer size = %dx%d, want 2x2", width, height)
+	}
+	if got := solid[0]; got != 64 {
+		t.Fatalf("solid first pixel red = %d, want 64", got)
+	}
+	if got := alpha[3]; got != 255 {
+		t.Fatalf("alpha first pixel alpha = %d, want 255", got)
+	}
+	if got := alpha[7]; got != 0 {
+		t.Fatalf("transparent sky pixel alpha = %d, want 0", got)
 	}
 }
 
