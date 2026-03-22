@@ -145,6 +145,8 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"worldSampler",
 		"worldTexture",
 		"textureSample(worldTexture, worldSampler, input.texCoord)",
+		"if (sampled.a < 0.5)",
+		"discard;",
 		"cameraOrigin",
 		"fogDensity",
 		"fogColor",
@@ -169,7 +171,7 @@ func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
 		{name: "empty", face: WorldFace{}, want: false},
 		{name: "sky", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, want: false},
 		{name: "turbulent", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb}, want: false},
-		{name: "fence", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, want: false},
+		{name: "fence", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, want: true},
 	}
 	for _, tc := range tests {
 		if got := shouldDrawGoGPUOpaqueWorldFace(tc.face); got != tc.want {

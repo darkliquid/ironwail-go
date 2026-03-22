@@ -470,6 +470,9 @@ var worldTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
+	if (sampled.a < 0.5) {
+		discard;
+	}
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
 	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb, fog), sampled.a);
@@ -859,7 +862,7 @@ func shouldDrawGoGPUOpaqueWorldFace(face WorldFace) bool {
 	if face.NumIndices == 0 {
 		return false
 	}
-	if face.Flags&(model.SurfDrawSky|model.SurfDrawTurb|model.SurfDrawFence) != 0 {
+	if face.Flags&(model.SurfDrawSky|model.SurfDrawTurb) != 0 {
 		return false
 	}
 	return true
