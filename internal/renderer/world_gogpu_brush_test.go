@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -54,6 +55,10 @@ func TestProjectBrushMarkersProjectsOpaqueVertices(t *testing.T) {
 			{Position: [3]float32{0, 0, 0}},
 			{Position: [3]float32{0.5, 0.5, 0}},
 		},
+		Indices: []uint32{0, 1},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 2},
+		},
 	}
 	renderer := &Renderer{
 		brushModelGeometry: map[int]*WorldGeometry{1: geom},
@@ -65,7 +70,7 @@ func TestProjectBrushMarkersProjectsOpaqueVertices(t *testing.T) {
 		0, 1, 0, 0,
 		0, 0, 1, 0,
 		0, 0, 0, 1,
-	}, 101, 101)
+	}, 101, 101, true)
 
 	if len(markers) != 2 {
 		t.Fatalf("marker count = %d, want 2", len(markers))
@@ -75,5 +80,46 @@ func TestProjectBrushMarkersProjectsOpaqueVertices(t *testing.T) {
 	}
 	if markers[0].x != 50 || markers[0].y != 50 {
 		t.Fatalf("first marker screen pos = (%d,%d), want (50,50)", markers[0].x, markers[0].y)
+	}
+}
+
+func TestProjectBrushMarkersRespectsFacePasses(t *testing.T) {
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{0.25, 0, 0}},
+			{Position: [3]float32{0.5, 0, 0}},
+		},
+		Indices: []uint32{0, 1, 1, 2, 2, 0},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 2, Flags: 0},
+			{FirstIndex: 2, NumIndices: 2, Flags: model.SurfDrawSky},
+			{FirstIndex: 4, NumIndices: 2, Flags: model.SurfDrawWater},
+		},
+	}
+	renderer := &Renderer{
+		brushModelGeometry: map[int]*WorldGeometry{1: geom},
+	}
+	entities := []BrushEntity{{SubmodelIndex: 1, Origin: [3]float32{}, Angles: [3]float32{}, Scale: 1, Alpha: 1}}
+	vp := types.Mat4{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1,
+	}
+
+	opaqueMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, true)
+	if len(opaqueMarkers) != 2 {
+		t.Fatalf("opaque marker count = %d, want 2 from opaque non-sky face only", len(opaqueMarkers))
+	}
+
+	translucentMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, false)
+	if len(translucentMarkers) != 2 {
+		t.Fatalf("translucent marker count = %d, want 2 from liquid face only", len(translucentMarkers))
+	}
+	for _, marker := range translucentMarkers {
+		if marker.alpha != 1 {
+			t.Fatalf("translucent marker alpha = %v, want 1", marker.alpha)
+		}
 	}
 }

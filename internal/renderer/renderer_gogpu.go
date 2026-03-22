@@ -59,6 +59,7 @@ import (
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -1462,30 +1463,67 @@ func (r *Renderer) ensureBrushModelGeometry(submodelIndex int) *WorldGeometry {
 	return geom
 }
 
-func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, screenW, screenH int) []projectedParticleMarker {
+func brushMarkerMatchesPhase(face WorldFace, entityAlpha float32, opaque bool) bool {
+	switch {
+	case face.Flags&model.SurfDrawSky != 0:
+		return false
+	case face.Flags&model.SurfDrawFence != 0:
+		return opaque
+	case face.Flags&(model.SurfDrawLava|model.SurfDrawSlime|model.SurfDrawTele|model.SurfDrawWater) != 0:
+		return !opaque
+	case entityAlpha < 1:
+		return !opaque
+	default:
+		return opaque
+	}
+}
+
+func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, screenW, screenH int, opaque bool) []projectedParticleMarker {
 	if len(entities) == 0 || screenW <= 0 || screenH <= 0 {
 		return nil
 	}
 	markers := make([]projectedParticleMarker, 0, len(entities)*8)
 	for _, entity := range entities {
 		geom := r.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if geom == nil || len(geom.Vertices) == 0 {
+		if geom == nil || len(geom.Vertices) == 0 || len(geom.Faces) == 0 || len(geom.Indices) == 0 {
 			continue
 		}
 		rotation := buildBrushRotationMatrix(entity.Angles)
-		for _, vertex := range geom.Vertices {
-			worldPos := transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
-			x, y, ok := projectWorldPointToScreen(worldPos, vp, screenW, screenH)
-			if !ok {
+		seen := make(map[uint32]struct{})
+		for _, face := range geom.Faces {
+			if !brushMarkerMatchesPhase(face, entity.Alpha, opaque) {
 				continue
 			}
-			markers = append(markers, projectedParticleMarker{
-				x:     x,
-				y:     y,
-				color: gogpuBrushMarkerColor,
-				size:  gogpuBrushMarkerSize,
-				alpha: clamp01(entity.Alpha),
-			})
+			first := int(face.FirstIndex)
+			last := first + int(face.NumIndices)
+			if first < 0 {
+				first = 0
+			}
+			if last > len(geom.Indices) {
+				last = len(geom.Indices)
+			}
+			for _, vertexIndex := range geom.Indices[first:last] {
+				if _, ok := seen[vertexIndex]; ok {
+					continue
+				}
+				seen[vertexIndex] = struct{}{}
+				if int(vertexIndex) >= len(geom.Vertices) {
+					continue
+				}
+				vertex := geom.Vertices[vertexIndex]
+				worldPos := transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
+				x, y, ok := projectWorldPointToScreen(worldPos, vp, screenW, screenH)
+				if !ok {
+					continue
+				}
+				markers = append(markers, projectedParticleMarker{
+					x:     x,
+					y:     y,
+					color: gogpuBrushMarkerColor,
+					size:  gogpuBrushMarkerSize,
+					alpha: clamp01(entity.Alpha),
+				})
+			}
 		}
 	}
 	return markers
@@ -1496,7 +1534,7 @@ func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity, opaque b
 		return
 	}
 	screenW, screenH := dc.renderer.Size()
-	markers := dc.renderer.projectBrushMarkers(entities, dc.renderer.viewMatrices.VP, screenW, screenH)
+	markers := dc.renderer.projectBrushMarkers(entities, dc.renderer.viewMatrices.VP, screenW, screenH, opaque)
 	for _, marker := range markers {
 		size := marker.size
 		if size < 1 {
