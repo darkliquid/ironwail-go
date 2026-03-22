@@ -92,7 +92,7 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	if message == "" {
 		return
 	}
-	cp.drawTextBlock(rc, message, screenWidth, centerprintY(screenHeight, message), centerprintBackgroundMode(), alpha)
+	cp.drawTextBlock(rc, message, screenWidth, regularCenterprintY(screenHeight, message), centerprintBackgroundMode(), alpha)
 }
 
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).
@@ -268,6 +268,14 @@ func centerprintY(screenHeight int, message string) int {
 		return int(float64(screenHeight) * 0.35)
 	}
 	return 48 * screenHeight / 200
+}
+
+func regularCenterprintY(screenHeight int, message string) int {
+	y := centerprintY(screenHeight, message)
+	if cvar.IntValue("crosshair") != 0 && cvar.FloatValue("scr_viewsize") < 130 {
+		y -= 8
+	}
+	return y
 }
 
 func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines, maxChars, mode int, alpha float64) {

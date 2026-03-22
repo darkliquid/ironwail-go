@@ -18,6 +18,8 @@ func registerCenterprintTestCvars() {
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
 	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test centerprint fade enable")
 	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
+	cvar.Register("crosshair", "0", cvar.FlagArchive, "test crosshair")
+	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "test viewsize")
 }
 
 func setTestViewSize(t *testing.T, value string) {
@@ -684,6 +686,24 @@ func TestCenterprintYMatchesCanonicalBranches(t *testing.T) {
 	}
 	if got := centerprintVisualAlpha(State{CenterPrintAt: 10, Time: 12.25}); math.Abs(got-0.5) > 0.0001 {
 		t.Fatalf("centerprint visual alpha = %.2f, want 0.50", got)
+	}
+}
+
+func TestRegularCenterprintYShiftsUpWhenCrosshairVisible(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("crosshair", "1")
+	t.Cleanup(func() {
+		cvar.Set("crosshair", "0")
+	})
+
+	setTestViewSize(t, "100")
+	if got := regularCenterprintY(200, "one\ntwo"); got != 62 {
+		t.Fatalf("regular centerprint y with crosshair = %d, want 62", got)
+	}
+
+	setTestViewSize(t, "130")
+	if got := regularCenterprintY(200, "one\ntwo"); got != 70 {
+		t.Fatalf("regular centerprint y at viewsize 130 = %d, want 70", got)
 	}
 }
 
