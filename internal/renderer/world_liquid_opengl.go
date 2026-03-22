@@ -1,7 +1,3 @@
-//go:build (opengl || cgo) && !gogpu
-// +build opengl cgo
-// +build !gogpu
-
 package renderer
 
 import (

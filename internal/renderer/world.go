@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"os"
+	"sort"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
@@ -25,9 +26,11 @@ type WorldUniforms struct {
 	FogDensity     float32
 	FogColor       [3]float32
 	Time           float32
+	Alpha          float32
+	_Pad           [2]float32
 }
 
-const worldUniformBufferSize = 96
+const worldUniformBufferSize = 112
 
 // WorldGeometry holds preprocessed BSP world data ready for GPU upload.
 // This structure bridges the gap between BSP file format and GPU rendering.
@@ -81,6 +84,9 @@ type WorldFace struct {
 
 	// Flags control rendering behavior (sky, water, transparent, etc)
 	Flags int32
+
+	// Center stores the approximate face center for draw-order decisions.
+	Center [3]float32
 }
 
 const worldDepthTextureFormat = gputypes.TextureFormatDepth24Plus
@@ -107,6 +113,12 @@ type WorldRenderData struct {
 	TotalVertices int
 	TotalIndices  int
 	TotalFaces    int
+}
+
+type gogpuTranslucentLiquidFaceDraw struct {
+	face       WorldFace
+	alpha      float32
+	distanceSq float32
 }
 
 type gpuWorldTexture struct {
@@ -226,6 +238,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		if lightmapSurface != nil {
 			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
 		}
+		faceData.Center = worldFaceCenter(faceVerts)
 
 		// Triangulate face using fan triangulation
 		// Face with N vertices becomes (N-2) triangles
@@ -431,6 +444,23 @@ func worldTextureDimensions(tree *bsp.Tree, texInfo *bsp.Texinfo) (float32, floa
 	return textureWidth, textureHeight
 }
 
+func worldFaceCenter(vertices []WorldVertex) [3]float32 {
+	if len(vertices) == 0 {
+		return [3]float32{}
+	}
+	var center [3]float32
+	for _, vertex := range vertices {
+		center[0] += vertex.Position[0]
+		center[1] += vertex.Position[1]
+		center[2] += vertex.Position[2]
+	}
+	scale := 1 / float32(len(vertices))
+	center[0] *= scale
+	center[1] *= scale
+	center[2] *= scale
+	return center
+}
+
 // worldVertexShaderWGSL is the WGSL source for world vertex shader
 const worldVertexShaderWGSL = `
 struct VertexInput {
@@ -446,6 +476,8 @@ struct Uniforms {
     fogDensity: f32,
     fogColor: vec3<f32>,
     time: f32,
+    alpha: f32,
+    _pad1: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -488,6 +520,8 @@ struct Uniforms {
     fogDensity: f32,
     fogColor: vec3<f32>,
     time: f32,
+    alpha: f32,
+    _pad1: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -530,7 +564,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb*lightmap+fullbright.rgb*fullbright.a, fog), sampled.a);
+	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb*lightmap+fullbright.rgb*fullbright.a, fog), sampled.a * uniforms.alpha);
 }
 `
 
@@ -548,6 +582,8 @@ struct Uniforms {
     fogDensity: f32,
     fogColor: vec3<f32>,
     time: f32,
+    alpha: f32,
+    _pad1: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -579,6 +615,8 @@ struct Uniforms {
     fogDensity: f32,
     fogColor: vec3<f32>,
     time: f32,
+    alpha: f32,
+    _pad1: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -612,7 +650,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, uv);
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    return vec4<f32>(mix(uniforms.fogColor, sampled.rgb+fullbright.rgb*fullbright.a, fog), sampled.a);
+    return vec4<f32>(mix(uniforms.fogColor, sampled.rgb+fullbright.rgb*fullbright.a, fog), sampled.a * uniforms.alpha);
 }
 `
 
@@ -623,6 +661,8 @@ struct Uniforms {
     fogDensity: f32,
     fogColor: vec3<f32>,
     time: f32,
+    alpha: f32,
+    _pad1: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -1080,6 +1120,63 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 	})
 }
 
+func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
+	vertexBufferLayout := gputypes.VertexBufferLayout{
+		ArrayStride: 44,
+		StepMode:    gputypes.VertexStepModeVertex,
+		Attributes: []gputypes.VertexAttribute{
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+		},
+	}
+	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
+	if r.app != nil {
+		if provider := r.app.DeviceProvider(); provider != nil {
+			surfaceFormat = provider.SurfaceFormat()
+		}
+	}
+	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  "World Translucent Turbulent Render Pipeline",
+		Layout: layout,
+		Vertex: hal.VertexState{
+			Module:     vertexShader,
+			EntryPoint: "vs_main",
+			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: &hal.DepthStencilState{
+			Format:            worldDepthTextureFormat,
+			DepthWriteEnabled: false,
+			DepthCompare:      gputypes.CompareFunctionLessEqual,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
+		},
+		Multisample: gputypes.MultisampleState{
+			Count:                  1,
+			Mask:                   0xFFFFFFFF,
+			AlphaToCoverageEnabled: false,
+		},
+		Fragment: &hal.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets: []gputypes.ColorTargetState{{
+				Format: surfaceFormat,
+				Blend: &gputypes.BlendState{
+					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorSrcAlpha, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
+					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
+				},
+				WriteMask: gputypes.ColorWriteMaskAll,
+			}},
+		},
+	})
+}
+
 // createWorldWhiteTexture creates a simple 1x1 white texture for fallback.
 // Used when actual textures are not yet available for rendering.
 func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (hal.Texture, hal.TextureView, error) {
@@ -1214,8 +1311,12 @@ func shouldDrawGoGPUSkyWorldFace(face WorldFace) bool {
 	return face.NumIndices > 0 && face.Flags&model.SurfDrawSky != 0
 }
 
-func shouldDrawGoGPUOpaqueLiquidFace(face WorldFace) bool {
-	return face.NumIndices > 0 && face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0
+func shouldDrawGoGPUOpaqueLiquidFace(face WorldFace, liquidAlpha worldLiquidAlphaSettings) bool {
+	return face.NumIndices > 0 && worldFaceIsLiquid(face.Flags) && worldFacePass(face.Flags, worldFaceAlpha(face.Flags, liquidAlpha)) == worldPassOpaque
+}
+
+func shouldDrawGoGPUTranslucentLiquidFace(face WorldFace, liquidAlpha worldLiquidAlphaSettings) bool {
+	return face.NumIndices > 0 && worldFaceIsLiquid(face.Flags) && worldFacePass(face.Flags, worldFaceAlpha(face.Flags, liquidAlpha)) == worldPassTranslucent
 }
 
 func (r *Renderer) createWorldTextureSampler(device hal.Device) (hal.Sampler, error) {
@@ -1927,6 +2028,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	var pipelineLayout hal.PipelineLayout
 	var skyPipeline hal.RenderPipeline
 	var turbulentPipeline hal.RenderPipeline
+	var translucentTurbulentPipeline hal.RenderPipeline
 	if vertexShader != nil && fragmentShader != nil {
 		var err2 error
 		pipeline, pipelineLayout, err2 = r.createWorldPipeline(device, vertexShader, fragmentShader)
@@ -1946,6 +2048,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		if err != nil {
 			slog.Warn("Failed to create world turbulent pipeline", "error", err)
 			turbulentPipeline = nil
+		}
+		translucentTurbulentPipeline, err = r.createWorldTranslucentTurbulentPipeline(device, vertexShader, turbulentFragmentShader, pipelineLayout)
+		if err != nil {
+			slog.Warn("Failed to create world translucent turbulent pipeline", "error", err)
+			translucentTurbulentPipeline = nil
 		}
 	}
 
@@ -2070,6 +2177,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldIndexCount = indexCount
 	r.worldPipeline = pipeline
 	r.worldTurbulentPipeline = turbulentPipeline
+	r.worldTranslucentTurbulentPipeline = translucentTurbulentPipeline
 	r.worldSkyPipeline = skyPipeline
 	r.worldPipelineLayout = pipelineLayout
 	r.worldShader = vertexShader
@@ -2214,7 +2322,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	camera := dc.renderer.cameraState
-	uniformBytes := worldSceneUniformBytes(vpMatrix, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}, state.FogColor, state.FogDensity, camera.Time)
+	uniformBytes := worldSceneUniformBytes(vpMatrix, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}, state.FogColor, state.FogDensity, camera.Time, 1)
 	slog.Info("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Info("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
@@ -2247,6 +2355,22 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	timeSeconds := float64(camera.Time)
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	currentAlpha := float32(1)
+	writeWorldAlpha := func(alpha float32) bool {
+		if currentAlpha == alpha {
+			return true
+		}
+		currentAlpha = alpha
+		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, worldSceneUniformBytes(
+			vpMatrix,
+			[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+			state.FogColor,
+			state.FogDensity,
+			camera.Time,
+			alpha,
+		)) == nil
+	}
 
 	skyDrawnIndices := uint32(0)
 	if dc.renderer.worldSkyPipeline != nil {
@@ -2306,7 +2430,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
 		for _, face := range worldData.Geometry.Faces {
-			if !shouldDrawGoGPUOpaqueLiquidFace(face) {
+			if !shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
 				continue
 			}
 			textureBindGroup := dc.renderer.whiteTextureBindGroup
@@ -2321,9 +2445,56 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				fullbrightBindGroup = worldTexture.bindGroup
 			}
 			renderPass.SetBindGroup(1, textureBindGroup, nil)
+			renderPass.SetBindGroup(2, dc.renderer.whiteLightmapBindGroup, nil)
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			liquidDrawnIndices += face.NumIndices
+		}
+	}
+	translucentLiquidDrawnIndices := uint32(0)
+	if dc.renderer.worldTranslucentTurbulentPipeline != nil && hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
+		translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, 8)
+		for _, face := range worldData.Geometry.Faces {
+			if !shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
+				continue
+			}
+			translucentFaces = append(translucentFaces, gogpuTranslucentLiquidFaceDraw{
+				face:       face,
+				alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
+				distanceSq: worldFaceDistanceSq(face.Center, camera),
+			})
+		}
+		sort.SliceStable(translucentFaces, func(i, j int) bool {
+			return translucentFaces[i].distanceSq > translucentFaces[j].distanceSq
+		})
+		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
+		for _, draw := range translucentFaces {
+			if !writeWorldAlpha(draw.alpha) {
+				slog.Error("renderWorldInternal: Failed to update translucent liquid alpha uniform")
+				renderPass.End()
+				return
+			}
+			textureBindGroup := dc.renderer.whiteTextureBindGroup
+			if worldTexture := gogpuWorldTextureForFace(draw.face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+				textureBindGroup = worldTexture.bindGroup
+			}
+			fullbrightBindGroup := dc.renderer.transparentBindGroup
+			if fullbrightBindGroup == nil {
+				fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+			}
+			if worldTexture := gogpuWorldTextureForFace(draw.face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+				fullbrightBindGroup = worldTexture.bindGroup
+			}
+			renderPass.SetBindGroup(1, textureBindGroup, nil)
+			renderPass.SetBindGroup(2, dc.renderer.whiteLightmapBindGroup, nil)
+			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+			renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
+			translucentLiquidDrawnIndices += draw.face.NumIndices
+		}
+		if !writeWorldAlpha(1) {
+			slog.Error("renderWorldInternal: Failed to restore world alpha uniform")
+			renderPass.End()
+			return
 		}
 	}
 	if drawnIndices > 0 {
@@ -2339,6 +2510,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	if liquidDrawnIndices > 0 {
 		slog.Info("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
+	}
+	if translucentLiquidDrawnIndices > 0 {
+		slog.Info("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
 	}
 
 	// End render pass
@@ -2378,7 +2552,7 @@ func matrixToBytes(m types.Mat4) []byte {
 	return b[:]
 }
 
-func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32) []byte {
+func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32) []byte {
 	data := make([]byte, worldUniformBufferSize)
 	matrixBytes := matrixToBytes(vp)
 	copy(data[:64], matrixBytes)
@@ -2386,6 +2560,7 @@ func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]
 	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
 	putFloat32s(data[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(time))
+	binary.LittleEndian.PutUint32(data[96:100], math.Float32bits(alpha))
 	return data
 }
 
@@ -2547,6 +2722,9 @@ func (r *Renderer) ClearWorld() {
 		if r.worldTurbulentPipeline != nil {
 			r.worldTurbulentPipeline.Destroy()
 		}
+		if r.worldTranslucentTurbulentPipeline != nil {
+			r.worldTranslucentTurbulentPipeline.Destroy()
+		}
 		if r.worldPipeline != nil {
 			r.worldPipeline.Destroy()
 		}
@@ -2674,6 +2852,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldIndexBuffer = nil
 		r.worldPipeline = nil
 		r.worldTurbulentPipeline = nil
+		r.worldTranslucentTurbulentPipeline = nil
 		r.worldSkyPipeline = nil
 		r.worldPipelineLayout = nil
 		r.worldShader = nil

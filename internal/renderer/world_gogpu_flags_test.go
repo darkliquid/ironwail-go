@@ -105,8 +105,9 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 	fogColor := [3]float32{0.2, 0.4, 0.6}
 	fogDensity := float32(0.75)
 	timeValue := float32(12.5)
+	alphaValue := float32(0.35)
 
-	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity, timeValue)
+	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity, timeValue, alphaValue)
 	if len(data) != worldUniformBufferSize {
 		t.Fatalf("len(worldSceneUniformBytes()) = %d, want %d", len(data), worldUniformBufferSize)
 	}
@@ -131,6 +132,10 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 	if !almostEqualWorldFloat32(gotTime, timeValue, 1e-6) {
 		t.Fatalf("time = %v, want %v", gotTime, timeValue)
 	}
+	gotAlpha := math.Float32frombits(binary.LittleEndian.Uint32(data[96:100]))
+	if !almostEqualWorldFloat32(gotAlpha, alphaValue, 1e-6) {
+		t.Fatalf("alpha = %v, want %v", gotAlpha, alphaValue)
+	}
 }
 
 func TestWorldShadersIncludeFogMix(t *testing.T) {
@@ -139,6 +144,7 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"fogDensity",
 		"fogColor",
 		"worldPos",
+		"alpha: f32",
 	}
 	for _, check := range vertexChecks {
 		if !strings.Contains(worldVertexShaderWGSL, check) {
@@ -165,6 +171,7 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"exp2(",
 		"sampled.rgb*lightmap+fullbright.rgb*fullbright.a",
 		"mix(uniforms.fogColor, sampled.rgb*lightmap+fullbright.rgb*fullbright.a, fog)",
+		"sampled.a * uniforms.alpha",
 	}
 	for _, check := range fragmentChecks {
 		if !strings.Contains(worldFragmentShaderWGSL, check) {
@@ -192,6 +199,7 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"uniforms.time",
 		"worldFullbrightTexture",
 		"sampled.rgb+fullbright.rgb*fullbright.a",
+		"sampled.a * uniforms.alpha",
 	}
 	for _, check := range turbChecks {
 		if !strings.Contains(worldTurbulentFragmentShaderWGSL, check) {
@@ -232,14 +240,25 @@ func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
 }
 
 func TestShouldDrawGoGPUOpaqueLiquidFace(t *testing.T) {
-	if !shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}) {
+	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
+	if !shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, alpha) {
 		t.Fatal("opaque liquid face should draw in turbulent pass")
 	}
-	if shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky | model.SurfDrawTurb}) {
+	if shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky | model.SurfDrawTurb}, alpha) {
 		t.Fatal("sky face should not draw in turbulent pass")
 	}
-	if shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3}) {
+	if shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3}, alpha) {
 		t.Fatal("non-liquid face should not draw in turbulent pass")
+	}
+}
+
+func TestShouldDrawGoGPUTranslucentLiquidFace(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+	if !shouldDrawGoGPUTranslucentLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, alpha) {
+		t.Fatal("translucent liquid face should draw in translucent turbulent pass")
+	}
+	if shouldDrawGoGPUTranslucentLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawLava}, alpha) {
+		t.Fatal("opaque liquid face should not draw in translucent turbulent pass")
 	}
 }
 

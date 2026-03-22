@@ -14,15 +14,6 @@ import (
 	"unsafe"
 )
 
-type worldRenderPass int
-
-const (
-	worldPassSky worldRenderPass = iota
-	worldPassOpaque
-	worldPassAlphaTest
-	worldPassTranslucent
-)
-
 type worldDrawCall struct {
 	face              WorldFace
 	texture           uint32
@@ -662,58 +653,6 @@ func worldLightmapForFace(face WorldFace, lightmaps []uint32, fallbackLightmap u
 		return lightmaps[face.LightmapIndex]
 	}
 	return fallbackLightmap
-}
-
-// worldFaceAlpha determines the alpha value for a face based on its liquid type flags and current r_*alpha cvar settings.
-func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
-	if flags&model.SurfDrawTurb == 0 {
-		return 1
-	}
-	if flags&model.SurfDrawLava != 0 {
-		return liquidAlpha.lava
-	}
-	if flags&model.SurfDrawSlime != 0 {
-		return liquidAlpha.slime
-	}
-	if flags&model.SurfDrawTele != 0 {
-		return liquidAlpha.tele
-	}
-	if flags&model.SurfDrawWater != 0 {
-		return liquidAlpha.water
-	}
-	return 1
-}
-
-// worldFaceUsesTurb returns true if a face uses turbulent warp animation, applied to liquid surfaces like water and lava.
-func worldFaceUsesTurb(flags int32) bool {
-	return flags&model.SurfDrawTurb != 0 && flags&model.SurfDrawSky == 0
-}
-
-// worldFaceIsLiquid returns true if a face is any liquid type (water, lava, slime, or teleporter).
-func worldFaceIsLiquid(flags int32) bool {
-	return flags&(model.SurfDrawLava|model.SurfDrawSlime|model.SurfDrawTele|model.SurfDrawWater) != 0
-}
-
-// worldFacePass determines which render pass a face belongs to (opaque, translucent, sky, etc.) based on its flags and alpha value.
-func worldFacePass(flags int32, alpha float32) worldRenderPass {
-	switch {
-	case flags&model.SurfDrawSky != 0:
-		return worldPassSky
-	case flags&model.SurfDrawFence != 0:
-		return worldPassAlphaTest
-	case alpha < 1:
-		return worldPassTranslucent
-	default:
-		return worldPassOpaque
-	}
-}
-
-// worldFaceDistanceSq computes the squared distance from a face center to the camera for translucent face depth sorting.
-func worldFaceDistanceSq(center [3]float32, camera CameraState) float32 {
-	dx := center[0] - camera.Origin.X
-	dy := center[1] - camera.Origin.Y
-	dz := center[2] - camera.Origin.Z
-	return dx*dx + dy*dy + dz*dz
 }
 
 // renderWorldDrawCalls issues GL draw calls for bucketed world faces. Each call binds its diffuse + lightmap + fullbright textures and draws the face's index range from the VAO.
