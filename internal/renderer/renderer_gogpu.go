@@ -518,6 +518,7 @@ type Renderer struct {
 	worldIndexBuffer                  hal.Buffer
 	worldIndexCount                   uint32
 	worldPipeline                     hal.RenderPipeline
+	worldTranslucentPipeline          hal.RenderPipeline
 	worldTurbulentPipeline            hal.RenderPipeline
 	worldTranslucentTurbulentPipeline hal.RenderPipeline
 	worldSkyPipeline                  hal.RenderPipeline
@@ -1392,7 +1393,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		case gogpuEntityPhaseTranslucentLiquidBrush:
 			dc.renderTranslucentLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentBrush:
-			dc.renderBrushEntityMarkers(plan.translucentBrush, false, false)
+			dc.renderTranslucentBrushEntitiesHAL(plan.translucentBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseDecals:
 			dc.renderDecalMarksHAL(state.DecalMarks)
 		case gogpuEntityPhaseTranslucentAlias:

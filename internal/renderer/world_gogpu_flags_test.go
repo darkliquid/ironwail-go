@@ -388,6 +388,25 @@ func TestShouldDrawGoGPUTranslucentLiquidBrushFace(t *testing.T) {
 	}
 }
 
+func TestShouldDrawGoGPUTranslucentBrushEntityFace(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+	if !shouldDrawGoGPUTranslucentBrushEntityFace(WorldFace{NumIndices: 3}, 0.5, alpha) {
+		t.Fatal("translucent non-liquid brush face should draw")
+	}
+	if !shouldDrawGoGPUTranslucentBrushEntityFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, 0.5, alpha) {
+		t.Fatal("translucent liquid brush face should draw")
+	}
+	if !shouldDrawGoGPUTranslucentBrushEntityFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, 0.5, alpha) {
+		t.Fatal("alpha-test translucent brush face should draw")
+	}
+	if shouldDrawGoGPUTranslucentBrushEntityFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, 0.5, alpha) {
+		t.Fatal("sky translucent brush face should not draw here")
+	}
+	if shouldDrawGoGPUTranslucentBrushEntityFace(WorldFace{NumIndices: 3}, 1, alpha) {
+		t.Fatal("opaque brush entity should not use translucent brush pass")
+	}
+}
+
 func TestBuildGoGPUOpaqueLiquidBrushEntityDrawKeepsOnlyOpaqueLiquidFaces(t *testing.T) {
 	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 0.5, tele: 1}
 	geom := &WorldGeometry{
@@ -440,6 +459,36 @@ func TestBuildGoGPUTranslucentLiquidBrushEntityDrawKeepsOnlyTranslucentLiquidFac
 	}
 	if !almostEqualWorldFloat32(draw.faces[0].alpha, 0.5, 1e-6) {
 		t.Fatalf("translucent liquid face alpha = %v, want 0.5", draw.faces[0].alpha)
+	}
+}
+
+func TestBuildGoGPUTranslucentBrushEntityDrawBucketsFaces(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{1, 0, 0}},
+			{Position: [3]float32{0, 1, 0}},
+		},
+		Indices: []uint32{0, 1, 2, 0, 2, 1, 0, 1, 2},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 31, LightmapIndex: 2},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 32, Flags: model.SurfDrawTurb | model.SurfDrawWater, Center: [3]float32{0, 0, 4}},
+			{FirstIndex: 6, NumIndices: 3, TextureIndex: 33, Flags: model.SurfDrawFence},
+		},
+	}
+	draw := buildGoGPUTranslucentBrushEntityDraw(BrushEntity{Alpha: 0.5, Scale: 1}, geom, alpha, CameraState{})
+	if draw == nil {
+		t.Fatal("buildGoGPUTranslucentBrushEntityDraw() = nil")
+	}
+	if len(draw.translucentFaces) != 1 || draw.translucentFaces[0].face.TextureIndex != 31 {
+		t.Fatalf("translucentFaces = %+v, want texture 31", draw.translucentFaces)
+	}
+	if len(draw.liquidFaces) != 1 || draw.liquidFaces[0].face.TextureIndex != 32 {
+		t.Fatalf("liquidFaces = %+v, want texture 32", draw.liquidFaces)
+	}
+	if len(draw.alphaTestFaces) != 1 || draw.alphaTestFaces[0].TextureIndex != 33 {
+		t.Fatalf("alphaTestFaces = %+v, want texture 33", draw.alphaTestFaces)
 	}
 }
 

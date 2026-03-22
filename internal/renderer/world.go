@@ -1241,6 +1241,63 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 	})
 }
 
+func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
+	vertexBufferLayout := gputypes.VertexBufferLayout{
+		ArrayStride: 44,
+		StepMode:    gputypes.VertexStepModeVertex,
+		Attributes: []gputypes.VertexAttribute{
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+		},
+	}
+	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
+	if r.app != nil {
+		if provider := r.app.DeviceProvider(); provider != nil {
+			surfaceFormat = provider.SurfaceFormat()
+		}
+	}
+	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  "World Translucent Render Pipeline",
+		Layout: layout,
+		Vertex: hal.VertexState{
+			Module:     vertexShader,
+			EntryPoint: "vs_main",
+			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: &hal.DepthStencilState{
+			Format:            worldDepthTextureFormat,
+			DepthWriteEnabled: false,
+			DepthCompare:      gputypes.CompareFunctionLessEqual,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
+		},
+		Multisample: gputypes.MultisampleState{
+			Count:                  1,
+			Mask:                   0xFFFFFFFF,
+			AlphaToCoverageEnabled: false,
+		},
+		Fragment: &hal.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets: []gputypes.ColorTargetState{{
+				Format: surfaceFormat,
+				Blend: &gputypes.BlendState{
+					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorSrcAlpha, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
+					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd},
+				},
+				WriteMask: gputypes.ColorWriteMaskAll,
+			}},
+		},
+	})
+}
+
 func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
 	vertexBufferLayout := gputypes.VertexBufferLayout{
 		ArrayStride: 44,
@@ -2260,6 +2317,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	var externalSkyPipeline hal.RenderPipeline
 	var externalSkyPipelineLayout hal.PipelineLayout
 	var externalSkyBindGroupLayout hal.BindGroupLayout
+	var translucentPipeline hal.RenderPipeline
 	var turbulentPipeline hal.RenderPipeline
 	var translucentTurbulentPipeline hal.RenderPipeline
 	if vertexShader != nil && fragmentShader != nil {
@@ -2283,6 +2341,13 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			externalSkyPipeline = nil
 			externalSkyPipelineLayout = nil
 			externalSkyBindGroupLayout = nil
+		}
+	}
+	if pipelineLayout != nil && vertexShader != nil && fragmentShader != nil {
+		translucentPipeline, err = r.createWorldTranslucentPipeline(device, vertexShader, fragmentShader, pipelineLayout)
+		if err != nil {
+			slog.Warn("Failed to create world translucent pipeline", "error", err)
+			translucentPipeline = nil
 		}
 	}
 	if pipelineLayout != nil && vertexShader != nil && turbulentFragmentShader != nil {
@@ -2418,6 +2483,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldIndexBuffer = indexBuffer
 	r.worldIndexCount = indexCount
 	r.worldPipeline = pipeline
+	r.worldTranslucentPipeline = translucentPipeline
 	r.worldTurbulentPipeline = turbulentPipeline
 	r.worldTranslucentTurbulentPipeline = translucentTurbulentPipeline
 	r.worldSkyPipeline = skyPipeline
@@ -2983,6 +3049,9 @@ func (r *Renderer) ClearWorld() {
 		if r.worldTurbulentPipeline != nil {
 			r.worldTurbulentPipeline.Destroy()
 		}
+		if r.worldTranslucentPipeline != nil {
+			r.worldTranslucentPipeline.Destroy()
+		}
 		if r.worldTranslucentTurbulentPipeline != nil {
 			r.worldTranslucentTurbulentPipeline.Destroy()
 		}
@@ -3119,6 +3188,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldVertexBuffer = nil
 		r.worldIndexBuffer = nil
 		r.worldPipeline = nil
+		r.worldTranslucentPipeline = nil
 		r.worldTurbulentPipeline = nil
 		r.worldTranslucentTurbulentPipeline = nil
 		r.worldSkyPipeline = nil
