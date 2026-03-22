@@ -297,13 +297,13 @@ func TestShouldClearGoGPUSharedDepthStencil(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "no world brush markers do not clear",
-			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: true},
-			want:   false,
+			name:   "no world brush entities clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: true, hasBrushEntities: true},
+			want:   true,
 		},
 		{
 			name:   "draw entities false suppresses alias sprite viewmodel clear",
-			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: false, hasAliasEntities: true, hasSpriteEntities: true, hasViewModel: true},
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: false, hasBrushEntities: true, hasAliasEntities: true, hasSpriteEntities: true, hasViewModel: true},
 			want:   false,
 		},
 	}

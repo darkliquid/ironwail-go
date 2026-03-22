@@ -142,6 +142,7 @@ func shouldRunLateTranslucencyBlock(inputs lateTranslucencyBlockInputs) bool {
 type gogpuSharedDepthStencilClearInputs struct {
 	drawWorld         bool
 	drawEntities      bool
+	hasBrushEntities  bool
 	hasAliasEntities  bool
 	hasSpriteEntities bool
 	hasParticles      bool
@@ -163,7 +164,7 @@ func shouldClearGoGPUSharedDepthStencil(inputs gogpuSharedDepthStencilClearInput
 	if !inputs.drawEntities {
 		return false
 	}
-	return inputs.hasAliasEntities || inputs.hasSpriteEntities || inputs.hasViewModel
+	return inputs.hasBrushEntities || inputs.hasAliasEntities || inputs.hasSpriteEntities || inputs.hasViewModel
 }
 
 type gogpuEntityPhase int

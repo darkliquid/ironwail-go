@@ -1130,6 +1130,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if shouldClearGoGPUSharedDepthStencil(gogpuSharedDepthStencilClearInputs{
 		drawWorld:         state.DrawWorld,
 		drawEntities:      state.DrawEntities,
+		hasBrushEntities:  len(state.BrushEntities) > 0,
 		hasAliasEntities:  len(state.AliasEntities) > 0,
 		hasSpriteEntities: len(state.SpriteEntities) > 0,
 		hasParticles:      state.DrawParticles && particleCount(state.Particles) > 0,
