@@ -144,6 +144,7 @@ type gogpuSharedDepthStencilClearInputs struct {
 	drawEntities      bool
 	hasAliasEntities  bool
 	hasSpriteEntities bool
+	hasParticles      bool
 	hasDecalMarks     bool
 	hasViewModel      bool
 }
@@ -154,6 +155,9 @@ func shouldClearGoGPUSharedDepthStencil(inputs gogpuSharedDepthStencilClearInput
 		return false
 	}
 	if inputs.hasDecalMarks {
+		return true
+	}
+	if inputs.hasParticles {
 		return true
 	}
 	if !inputs.drawEntities {

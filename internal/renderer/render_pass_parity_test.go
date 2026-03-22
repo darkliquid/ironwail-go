@@ -286,6 +286,11 @@ func TestShouldClearGoGPUSharedDepthStencil(t *testing.T) {
 			want:   true,
 		},
 		{
+			name:   "no world particles clear",
+			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, hasParticles: true},
+			want:   true,
+		},
+		{
 			name:   "no world entity passes clear",
 			inputs: gogpuSharedDepthStencilClearInputs{drawWorld: false, drawEntities: true, hasAliasEntities: true, hasSpriteEntities: true, hasViewModel: true},
 			want:   true,

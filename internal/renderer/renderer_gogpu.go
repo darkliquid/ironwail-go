@@ -1130,6 +1130,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		drawEntities:      state.DrawEntities,
 		hasAliasEntities:  len(state.AliasEntities) > 0,
 		hasSpriteEntities: len(state.SpriteEntities) > 0,
+		hasParticles:      state.DrawParticles && particleCount(state.Particles) > 0,
 		hasDecalMarks:     len(state.DecalMarks) > 0,
 		hasViewModel:      state.ViewModel != nil,
 	}) {
