@@ -175,6 +175,45 @@ func TestGoGPUWorldUniformInputsUseCameraTimeAndRawFogDensity(t *testing.T) {
 	}
 }
 
+func TestParseWorldspawnSkyFogOverride(t *testing.T) {
+	entities := []byte(`
+{
+"classname" "worldspawn"
+"skyfog" "0.8"
+}
+`)
+	override := parseWorldspawnSkyFogOverride(entities)
+	if !override.hasValue || override.value != 0.8 {
+		t.Fatalf("skyfog override = (%v, %v), want (true, 0.8)", override.hasValue, override.value)
+	}
+}
+
+func TestResolveWorldSkyFogMix(t *testing.T) {
+	if got := resolveWorldSkyFogMix(0.5, worldSkyFogOverride{}, 0.2); got != 0.5 {
+		t.Fatalf("resolveWorldSkyFogMix(default) = %v, want 0.5", got)
+	}
+	if got := resolveWorldSkyFogMix(2, worldSkyFogOverride{}, 0.2); got != 1 {
+		t.Fatalf("resolveWorldSkyFogMix(clamp cvar) = %v, want 1", got)
+	}
+	override := worldSkyFogOverride{hasValue: true, value: 0.8}
+	if got := resolveWorldSkyFogMix(0.1, override, 0.2); got != 0.8 {
+		t.Fatalf("resolveWorldSkyFogMix(override) = %v, want 0.8", got)
+	}
+	if got := resolveWorldSkyFogMix(0.5, override, 0); got != 0 {
+		t.Fatalf("resolveWorldSkyFogMix(no general fog) = %v, want 0", got)
+	}
+}
+
+func TestGoGPUWorldSkyFogDensityUsesWorldspawnOverride(t *testing.T) {
+	entities := []byte(`{"classname" "worldspawn" "skyfog" "0.8"}`)
+	if got := gogpuWorldSkyFogDensity(entities, 0.2); got != 0.8 {
+		t.Fatalf("gogpuWorldSkyFogDensity(override) = %v, want 0.8", got)
+	}
+	if got := gogpuWorldSkyFogDensity(entities, 0); got != 0 {
+		t.Fatalf("gogpuWorldSkyFogDensity(no general fog) = %v, want 0", got)
+	}
+}
+
 func TestWorldShadersIncludeFogMix(t *testing.T) {
 	vertexChecks := []string{
 		"cameraOrigin",

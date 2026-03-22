@@ -9,7 +9,6 @@ import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"log/slog"
-	"strings"
 	"unsafe"
 )
 
@@ -215,11 +214,6 @@ void main() {
 	fragColor = result;
 }`
 )
-
-type worldSkyFogOverride struct {
-	hasValue bool
-	value    float32
-}
 
 // ensureWorldSkyPrograms lazily compiles all three sky shader variants: embedded two-layer scrolling sky, cubemap sky (GL_TEXTURE_CUBE_MAP for external skybox), and individual-face sky (fallback for non-uniform face sizes).
 func (r *Renderer) ensureWorldSkyPrograms() error {
@@ -519,47 +513,6 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 	r.worldSkyExternalFaceTextures = faceTextures
 	r.worldSkyExternalMode = externalSkyboxRenderFaces
 	r.worldSkyExternalName = normalized
-}
-
-// parseWorldspawnSkyFogOverride parses the worldspawn entity for sky fog override values.
-func parseWorldspawnSkyFogOverride(entities []byte) worldSkyFogOverride {
-	if len(entities) == 0 {
-		return worldSkyFogOverride{}
-	}
-
-	entity, ok := firstEntityLumpObject(string(entities))
-	if !ok {
-		return worldSkyFogOverride{}
-	}
-
-	fields := parseEntityFields(entity)
-	if !strings.EqualFold(fields["classname"], "worldspawn") {
-		return worldSkyFogOverride{}
-	}
-
-	value, ok := parseEntityAlphaField(fields, "skyfog")
-	if !ok {
-		return worldSkyFogOverride{}
-	}
-
-	return worldSkyFogOverride{hasValue: true, value: value}
-}
-
-// readWorldSkyFogCvar reads the r_skyfog cvar value with a fallback default.
-func readWorldSkyFogCvar(fallback float32) float32 {
-	return readWorldAlphaCvar(CvarRSkyFog, fallback)
-}
-
-// resolveWorldSkyFogMix resolves the final sky fog mix factor from the cvar value, worldspawn override, and fog density.
-func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogDensity float32) float32 {
-	if fogDensity <= 0 {
-		return 0
-	}
-	skyFog := clamp01(cvarValue)
-	if override.hasValue {
-		skyFog = clamp01(override.value)
-	}
-	return skyFog
 }
 
 type skyPassState struct {

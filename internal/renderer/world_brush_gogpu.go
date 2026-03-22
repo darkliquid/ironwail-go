@@ -487,6 +487,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 
 	r := dc.renderer
 	r.mu.RLock()
+	var treeEntities []byte
 	skyPipeline := r.worldSkyPipeline
 	externalSkyPipeline := r.worldSkyExternalPipeline
 	uniformBuffer := r.uniformBuffer
@@ -505,6 +506,9 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	externalSkyBindGroup := r.worldSkyExternalBindGroup
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
+	if r.worldData != nil && r.worldData.Geometry != nil && r.worldData.Geometry.Tree != nil {
+		treeEntities = r.worldData.Geometry.Tree.Entities
+	}
 	r.mu.RUnlock()
 	if uniformBuffer == nil || uniformBindGroup == nil {
 		return
@@ -516,6 +520,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if !useExternalSky && (skyPipeline == nil || whiteTextureBindGroup == nil) {
 		return
 	}
+	skyFogDensity := gogpuWorldSkyFogDensity(treeEntities, fogDensity)
 
 	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Sky Render Encoder"})
 	if err != nil {
@@ -578,7 +583,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, [3]float32{}, 0)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, 1, [3]float32{}, 0)); err != nil {
 			slog.Warn("failed to update brush sky uniform buffer", "error", err)
 			continue
 		}

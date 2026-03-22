@@ -2748,6 +2748,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	timeSeconds := float64(camera.Time)
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	var activeDynamicLights []DynamicLight
 	dc.renderer.mu.RLock()
 	if dc.renderer.lightPool != nil {
@@ -2755,27 +2756,37 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	dc.renderer.mu.RUnlock()
 	currentAlpha := float32(1)
-	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
-		if currentAlpha == alpha && currentDynamicLight == dynamicLight && currentLitWater == litWater {
+	currentFogDensity := fogDensity
+	writeWorldUniformWithFog := func(alpha float32, dynamicLight [3]float32, litWater float32, activeFogDensity float32) bool {
+		if currentAlpha == alpha && currentDynamicLight == dynamicLight && currentLitWater == litWater && currentFogDensity == activeFogDensity {
 			return true
 		}
 		currentAlpha = alpha
 		currentDynamicLight = dynamicLight
 		currentLitWater = litWater
+		currentFogDensity = activeFogDensity
 		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, worldSceneUniformBytes(
 			vpMatrix,
 			cameraOrigin,
 			state.FogColor,
-			fogDensity,
+			activeFogDensity,
 			timeValue,
 			alpha,
 			dynamicLight,
 			litWater,
 		)) == nil
 	}
+	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
+		return writeWorldUniformWithFog(alpha, dynamicLight, litWater, fogDensity)
+	}
 
 	skyDrawnIndices := uint32(0)
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
+		if !writeWorldUniformWithFog(1, [3]float32{}, 0, skyFogDensity) {
+			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
+			renderPass.End()
+			return
+		}
 		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
 		renderPass.SetBindGroup(1, dc.renderer.worldSkyExternalBindGroup, nil)
 		for _, face := range worldData.Geometry.Faces {
@@ -2786,6 +2797,11 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			skyDrawnIndices += face.NumIndices
 		}
 	} else if dc.renderer.worldSkyPipeline != nil {
+		if !writeWorldUniformWithFog(1, [3]float32{}, 0, skyFogDensity) {
+			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
+			renderPass.End()
+			return
+		}
 		renderPass.SetPipeline(dc.renderer.worldSkyPipeline)
 		for _, face := range worldData.Geometry.Faces {
 			if !shouldDrawGoGPUSkyWorldFace(face) {
@@ -2807,6 +2823,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
 		}
+	}
+
+	if !writeWorldUniform(1, [3]float32{}, 0) {
+		slog.Error("renderWorldInternal: Failed to restore world fog uniform after sky pass")
+		renderPass.End()
+		return
 	}
 
 	renderPass.SetPipeline(dc.renderer.worldPipeline)
