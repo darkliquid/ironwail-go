@@ -4,6 +4,8 @@
 package renderer
 
 import (
+	"encoding/binary"
+	"math"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/pkg/types"
@@ -76,5 +78,54 @@ func TestShouldDrawGoGPUParticlesHonorsParticleMode(t *testing.T) {
 	}
 	if shouldDrawGoGPUParticles(1, 0) {
 		t.Fatal("zero active particles should disable gogpu particle fallback")
+	}
+}
+
+func TestParticleVerticesForGoGPUPassUsesParticleMode(t *testing.T) {
+	vertices := []ParticleVertex{
+		{Color: [4]byte{255, 255, 255, 255}},
+		{Color: [4]byte{10, 20, 30, 255}},
+	}
+
+	drawn := particleVerticesForGoGPUPass(vertices, 1, true)
+	if len(drawn) != len(vertices) {
+		t.Fatalf("mode 1 alpha drew %d vertices, want %d", len(drawn), len(vertices))
+	}
+	if particleVerticesForGoGPUPass(vertices, 1, false) != nil {
+		t.Fatal("mode 1 opaque should be skipped")
+	}
+
+	drawn = particleVerticesForGoGPUPass(vertices, 2, false)
+	if len(drawn) != len(vertices) {
+		t.Fatalf("mode 2 opaque drew %d vertices, want %d", len(drawn), len(vertices))
+	}
+	if particleVerticesForGoGPUPass(vertices, 2, true) != nil {
+		t.Fatal("mode 2 alpha should be skipped")
+	}
+}
+
+func TestParticleUniformBytes(t *testing.T) {
+	vp := types.IdentityMatrix()
+	projScale := [2]float32{1.5, -2.25}
+	uvScale := float32(0.25)
+	cameraOrigin := [3]float32{4, 5, 6}
+	fogColor := [3]float32{0.1, 0.2, 0.3}
+	fogDensity := float32(0.75)
+
+	data := particleUniformBytes(vp, projScale, uvScale, cameraOrigin, fogColor, fogDensity)
+	if len(data) != particleUniformBufferSize {
+		t.Fatalf("len(particleUniformBytes()) = %d, want %d", len(data), particleUniformBufferSize)
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[64:68])); got != projScale[0] {
+		t.Fatalf("projScale.x = %v, want %v", got, projScale[0])
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[68:72])); got != projScale[1] {
+		t.Fatalf("projScale.y = %v, want %v", got, projScale[1])
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[72:76])); got != uvScale {
+		t.Fatalf("uvScale = %v, want %v", got, uvScale)
+	}
+	if got := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96])); got != worldFogUniformDensity(fogDensity) {
+		t.Fatalf("fogDensity = %v, want %v", got, worldFogUniformDensity(fogDensity))
 	}
 }

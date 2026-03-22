@@ -577,46 +577,54 @@ type Renderer struct {
 	sceneCompositeBindGroup       hal.BindGroup
 
 	// Alias-model resources for the gogpu backend.
-	brushModelGeometry          map[int]*WorldGeometry
-	brushModelLightmaps         map[int][]*gpuWorldTexture
-	aliasModels                 map[string]*gpuAliasModel
-	spriteModels                map[string]*gpuSpriteModel
-	aliasEntityStates           map[int]*AliasEntity
-	viewModelAliasState         *AliasEntity
-	aliasShadowSkin             *gpuAliasSkin
-	aliasScratchBuffer          hal.Buffer
-	aliasScratchBufferSize      uint64
-	aliasPipeline               hal.RenderPipeline
-	aliasPipelineLayout         hal.PipelineLayout
-	aliasVertexShader           hal.ShaderModule
-	aliasFragmentShader         hal.ShaderModule
-	aliasUniformBuffer          hal.Buffer
-	aliasUniformBindGroup       hal.BindGroup
-	aliasUniformBindGroupLayout hal.BindGroupLayout
-	aliasTextureBindGroupLayout hal.BindGroupLayout
-	aliasSampler                hal.Sampler
-	spriteUniformBuffer         hal.Buffer
-	spriteUniformBindGroup      hal.BindGroup
-	spritePipeline              hal.RenderPipeline
-	spriteVertexShader          hal.ShaderModule
-	spriteFragmentShader        hal.ShaderModule
-	decalPipeline               hal.RenderPipeline
-	decalPipelineLayout         hal.PipelineLayout
-	decalVertexShader           hal.ShaderModule
-	decalFragmentShader         hal.ShaderModule
-	decalUniformBuffer          hal.Buffer
-	decalUniformBindGroup       hal.BindGroup
-	decalUniformLayout          hal.BindGroupLayout
-	decalAtlasTextureHAL        hal.Texture
-	decalAtlasView              hal.TextureView
-	decalBindGroup              hal.BindGroup
-	polyBlendPipeline           hal.RenderPipeline
-	polyBlendPipelineLayout     hal.PipelineLayout
-	polyBlendVertexShader       hal.ShaderModule
-	polyBlendFragmentShader     hal.ShaderModule
-	polyBlendUniformBuffer      hal.Buffer
-	polyBlendBindGroupLayout    hal.BindGroupLayout
-	polyBlendBindGroup          hal.BindGroup
+	brushModelGeometry             map[int]*WorldGeometry
+	brushModelLightmaps            map[int][]*gpuWorldTexture
+	aliasModels                    map[string]*gpuAliasModel
+	spriteModels                   map[string]*gpuSpriteModel
+	aliasEntityStates              map[int]*AliasEntity
+	viewModelAliasState            *AliasEntity
+	aliasShadowSkin                *gpuAliasSkin
+	aliasScratchBuffer             hal.Buffer
+	aliasScratchBufferSize         uint64
+	aliasPipeline                  hal.RenderPipeline
+	aliasPipelineLayout            hal.PipelineLayout
+	aliasVertexShader              hal.ShaderModule
+	aliasFragmentShader            hal.ShaderModule
+	aliasUniformBuffer             hal.Buffer
+	aliasUniformBindGroup          hal.BindGroup
+	aliasUniformBindGroupLayout    hal.BindGroupLayout
+	aliasTextureBindGroupLayout    hal.BindGroupLayout
+	aliasSampler                   hal.Sampler
+	spriteUniformBuffer            hal.Buffer
+	spriteUniformBindGroup         hal.BindGroup
+	spritePipeline                 hal.RenderPipeline
+	spriteVertexShader             hal.ShaderModule
+	spriteFragmentShader           hal.ShaderModule
+	particleOpaquePipeline         hal.RenderPipeline
+	particleTranslucentPipeline    hal.RenderPipeline
+	particlePipelineLayout         hal.PipelineLayout
+	particleVertexShader           hal.ShaderModule
+	particleFragmentShader         hal.ShaderModule
+	particleUniformBuffer          hal.Buffer
+	particleUniformBindGroup       hal.BindGroup
+	particleUniformBindGroupLayout hal.BindGroupLayout
+	decalPipeline                  hal.RenderPipeline
+	decalPipelineLayout            hal.PipelineLayout
+	decalVertexShader              hal.ShaderModule
+	decalFragmentShader            hal.ShaderModule
+	decalUniformBuffer             hal.Buffer
+	decalUniformBindGroup          hal.BindGroup
+	decalUniformLayout             hal.BindGroupLayout
+	decalAtlasTextureHAL           hal.Texture
+	decalAtlasView                 hal.TextureView
+	decalBindGroup                 hal.BindGroup
+	polyBlendPipeline              hal.RenderPipeline
+	polyBlendPipelineLayout        hal.PipelineLayout
+	polyBlendVertexShader          hal.ShaderModule
+	polyBlendFragmentShader        hal.ShaderModule
+	polyBlendUniformBuffer         hal.Buffer
+	polyBlendBindGroupLayout       hal.BindGroupLayout
+	polyBlendBindGroup             hal.BindGroup
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -965,6 +973,7 @@ func (r *Renderer) Shutdown() {
 	r.brushModelGeometry = nil
 	r.destroyAliasResourcesLocked()
 	r.destroySpriteResourcesLocked()
+	r.destroyParticleResourcesLocked()
 	r.destroyDecalResourcesLocked()
 	r.destroyPolyBlendResourcesLocked()
 	r.destroyWorldRenderTargetLocked()
@@ -1386,7 +1395,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			}
 		case gogpuEntityPhaseOpaqueParticles:
 			if state.DrawParticles && state.Particles != nil {
-				dc.renderParticles(state)
+				dc.renderParticlesHAL(state, false)
 			}
 		case gogpuEntityPhaseSkyBrush:
 			dc.renderSkyBrushEntitiesHAL(plan.skyBrush, state.FogColor, state.FogDensity)
@@ -1404,7 +1413,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentParticles:
 			if state.DrawParticles && state.Particles != nil {
-				dc.renderParticles(state)
+				dc.renderParticlesHAL(state, true)
 			}
 		}
 	}
@@ -1655,46 +1664,6 @@ func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity, opaque, 
 		}
 		if marker.alpha > 0 {
 			dc.DrawFillAlpha(x, y, size, size, marker.color, marker.alpha)
-		}
-	}
-}
-
-// renderParticles draws the particle system.
-func (dc *DrawContext) renderParticles(state *RenderFrameState) {
-	if state.Particles == nil || state.Particles.ActiveCount() == 0 {
-		return
-	}
-	if !shouldDrawGoGPUParticles(readGoGPUParticleModeCvar(), state.Particles.ActiveCount()) {
-		return
-	}
-
-	// Get active particles
-	particles := state.Particles.ActiveParticles()
-
-	// Build particle vertices
-	palette := buildParticlePalette(state.Palette)
-	verts := BuildParticleVertices(particles, palette, false) // false = not showtris mode
-
-	screenW, screenH := dc.renderer.Size()
-	markers := projectParticleMarkers(particles, verts, dc.renderer.viewMatrices.VP, screenW, screenH)
-	if len(markers) == 0 {
-		return
-	}
-
-	// Draw each particle as a small colored quad
-	// This is a simplified implementation - a proper implementation would use
-	// instanced rendering or a point sprite shader
-	for _, marker := range markers {
-		size := marker.size
-		if size < 1 {
-			size = 1
-		}
-		if marker.alpha >= 1 {
-			dc.DrawFill(marker.x-size/2, marker.y-size/2, size, size, marker.color)
-			continue
-		}
-		if marker.alpha > 0 {
-			dc.DrawFillAlpha(marker.x-size/2, marker.y-size/2, size, size, marker.color, marker.alpha)
 		}
 	}
 }
