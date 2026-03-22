@@ -836,6 +836,38 @@ func TestCenterprintYMatchesCanonicalBranches(t *testing.T) {
 	}
 }
 
+func TestStatusBarDrawQuakeWorldAmmoBackgroundsUseAlpha(t *testing.T) {
+	setTestSbarAlpha(t, "0.5")
+	row0 := &image.QPic{Width: 42, Height: 11}
+	row1 := &image.QPic{Width: 42, Height: 11}
+	row2 := &image.QPic{Width: 42, Height: 11}
+	row3 := &image.QPic{Width: 42, Height: 11}
+	sb := &StatusBar{
+		qwAmmoBG: [4]*image.QPic{row0, row1, row2, row3},
+	}
+
+	mock := &mockRenderContext{}
+	sb.DrawQuakeWorld(mock, State{
+		Shells:       10,
+		Nails:        20,
+		Rockets:      30,
+		Cells:        40,
+		GameType:     0,
+		MaxClients:   1,
+		ActiveWeapon: int(cl.ItemShotgun),
+	}, 320, 200)
+
+	if len(mock.alphaPics) != 4 {
+		t.Fatalf("quakeworld ammo bg alpha pics = %d, want 4", len(mock.alphaPics))
+	}
+	for i, got := range mock.alphaPics {
+		wantY := -45 + i*11
+		if got.x != 6 || got.y != wantY || math.Abs(float64(got.alpha)-0.5) > 0.0001 {
+			t.Fatalf("quakeworld ammo bg %d = %+v, want x=6 y=%d alpha=0.5", i, got, wantY)
+		}
+	}
+}
+
 func TestRegularCenterprintYShiftsUpWhenCrosshairVisible(t *testing.T) {
 	registerCenterprintTestCvars()
 	cvar.Set("crosshair", "1")

@@ -40,6 +40,8 @@ type StatusBar struct {
 	faceInvuln  *image.QPic
 	faceBoth    *image.QPic
 	faceQuad    *image.QPic
+	qwAmmoBG    [4]*image.QPic
+	rogueAmmoBG [4]*image.QPic
 	lastItems   uint32
 	pickupTimes [32]float64
 	pickupKnown uint32
@@ -146,6 +148,20 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 		sb.rogueInvBar = [2]*image.QPic{
 			dm.GetPic("r_invbar1"),
 			dm.GetPic("r_invbar2"),
+		}
+		if sb.ibarPic != nil {
+			for i := range sb.qwAmmoBG {
+				sb.qwAmmoBG[i] = sb.ibarPic.SubPic(3+i*48, 0, 42, 11)
+			}
+		}
+		for _, pic := range sb.rogueInvBar {
+			if pic == nil {
+				continue
+			}
+			for i := range sb.rogueAmmoBG {
+				sb.rogueAmmoBG[i] = pic.SubPic(1+i*48, 0, 44, 11)
+			}
+			break
 		}
 		sb.rogueWeps = [5]*image.QPic{
 			dm.GetPic("r_lava"),
@@ -417,8 +433,13 @@ func (sb *StatusBar) drawInventoryQW(rc renderer.RenderContext, state State) {
 		}
 	}
 
+	ammoBGs := sb.qwAmmoBackgrounds(state)
+	alpha := currentSbarAlpha()
 	ammoCounts := []int{state.Shells, state.Nails, state.Rockets, state.Cells}
 	for i, count := range ammoCounts {
+		if i < len(ammoBGs) {
+			sb.drawPicAlpha(rc, 6, -45+i*11, ammoBGs[i], alpha)
+		}
 		DrawNumber(rc, 34, -45+i*11, count, 3)
 	}
 
@@ -647,6 +668,13 @@ func (sb *StatusBar) inventoryBarPic(state State) *image.QPic {
 		}
 	}
 	return sb.ibarPic
+}
+
+func (sb *StatusBar) qwAmmoBackgrounds(state State) [4]*image.QPic {
+	if state.ModRogue {
+		return sb.rogueAmmoBG
+	}
+	return sb.qwAmmoBG
 }
 
 // weaponPic returns the weapon icon graphic for the given slot and flash frame.
