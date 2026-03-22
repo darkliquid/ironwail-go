@@ -6,6 +6,7 @@ package renderer
 import (
 	"encoding/binary"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -261,6 +262,50 @@ func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
 		if got := shouldDrawGoGPUOpaqueWorldFace(tc.face); got != tc.want {
 			t.Fatalf("%s: shouldDrawGoGPUOpaqueWorldFace(%#v) = %v, want %v", tc.name, tc.face, got, tc.want)
 		}
+	}
+}
+
+func TestSortGoGPUTranslucentLiquidFacesHonorsAlphaMode(t *testing.T) {
+	faces := []gogpuTranslucentLiquidFaceDraw{
+		{distanceSq: 1, face: WorldFace{TextureIndex: 1}},
+		{distanceSq: 9, face: WorldFace{TextureIndex: 2}},
+		{distanceSq: 4, face: WorldFace{TextureIndex: 3}},
+	}
+	sortGoGPUTranslucentLiquidFaces(AlphaModeSorted, faces)
+	if got := []int32{faces[0].face.TextureIndex, faces[1].face.TextureIndex, faces[2].face.TextureIndex}; !reflect.DeepEqual(got, []int32{2, 3, 1}) {
+		t.Fatalf("sorted liquid face order = %v, want [2 3 1]", got)
+	}
+
+	faces = []gogpuTranslucentLiquidFaceDraw{
+		{distanceSq: 1, face: WorldFace{TextureIndex: 1}},
+		{distanceSq: 9, face: WorldFace{TextureIndex: 2}},
+		{distanceSq: 4, face: WorldFace{TextureIndex: 3}},
+	}
+	sortGoGPUTranslucentLiquidFaces(AlphaModeOIT, faces)
+	if got := []int32{faces[0].face.TextureIndex, faces[1].face.TextureIndex, faces[2].face.TextureIndex}; !reflect.DeepEqual(got, []int32{1, 2, 3}) {
+		t.Fatalf("oit liquid face order = %v, want [1 2 3]", got)
+	}
+}
+
+func TestSortGoGPUTranslucentBrushFaceRendersHonorsAlphaMode(t *testing.T) {
+	renders := []gogpuTranslucentBrushFaceRender{
+		{face: gogpuTranslucentLiquidFaceDraw{distanceSq: 1, face: WorldFace{TextureIndex: 1}}},
+		{face: gogpuTranslucentLiquidFaceDraw{distanceSq: 9, face: WorldFace{TextureIndex: 2}}},
+		{face: gogpuTranslucentLiquidFaceDraw{distanceSq: 4, face: WorldFace{TextureIndex: 3}}},
+	}
+	sortGoGPUTranslucentBrushFaceRenders(AlphaModeSorted, renders)
+	if got := []int32{renders[0].face.face.TextureIndex, renders[1].face.face.TextureIndex, renders[2].face.face.TextureIndex}; !reflect.DeepEqual(got, []int32{2, 3, 1}) {
+		t.Fatalf("sorted brush face order = %v, want [2 3 1]", got)
+	}
+
+	renders = []gogpuTranslucentBrushFaceRender{
+		{face: gogpuTranslucentLiquidFaceDraw{distanceSq: 1, face: WorldFace{TextureIndex: 1}}},
+		{face: gogpuTranslucentLiquidFaceDraw{distanceSq: 9, face: WorldFace{TextureIndex: 2}}},
+		{face: gogpuTranslucentLiquidFaceDraw{distanceSq: 4, face: WorldFace{TextureIndex: 3}}},
+	}
+	sortGoGPUTranslucentBrushFaceRenders(AlphaModeOIT, renders)
+	if got := []int32{renders[0].face.face.TextureIndex, renders[1].face.face.TextureIndex, renders[2].face.face.TextureIndex}; !reflect.DeepEqual(got, []int32{1, 2, 3}) {
+		t.Fatalf("oit brush face order = %v, want [1 2 3]", got)
 	}
 }
 

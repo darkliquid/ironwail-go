@@ -183,6 +183,15 @@ func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTex
 	return bindGroup, 0
 }
 
+func sortGoGPUTranslucentLiquidFaces(mode AlphaMode, faces []gogpuTranslucentLiquidFaceDraw) {
+	if !shouldSortTranslucentCalls(mode) {
+		return
+	}
+	sort.SliceStable(faces, func(i, j int) bool {
+		return faces[i].distanceSq > faces[j].distanceSq
+	})
+}
+
 const worldLightmapPageSize = 1024
 
 // BuildWorldGeometry extracts renderable geometry from a BSP tree.
@@ -2874,9 +2883,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				distanceSq: worldFaceDistanceSq(face.Center, camera),
 			})
 		}
-		sort.SliceStable(translucentFaces, func(i, j int) bool {
-			return translucentFaces[i].distanceSq > translucentFaces[j].distanceSq
-		})
+		sortGoGPUTranslucentLiquidFaces(GetAlphaMode(), translucentFaces)
 		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
 		for _, draw := range translucentFaces {
 			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)

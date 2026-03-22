@@ -797,6 +797,15 @@ type gogpuTranslucentLiquidBrushFaceRender struct {
 	lightmaps  []*gpuWorldTexture
 }
 
+func sortGoGPUTranslucentLiquidBrushFaceRenders(mode AlphaMode, renders []gogpuTranslucentLiquidBrushFaceRender) {
+	if !shouldSortTranslucentCalls(mode) {
+		return
+	}
+	sort.SliceStable(renders, func(i, j int) bool {
+		return renders[i].face.distanceSq > renders[j].face.distanceSq
+	})
+}
+
 func (dc *DrawContext) renderTranslucentLiquidBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
@@ -935,9 +944,7 @@ func (dc *DrawContext) renderTranslucentLiquidBrushEntitiesHAL(entities []BrushE
 			})
 		}
 	}
-	sort.SliceStable(faceRenders, func(i, j int) bool {
-		return faceRenders[i].face.distanceSq > faceRenders[j].face.distanceSq
-	})
+	sortGoGPUTranslucentLiquidBrushFaceRenders(GetAlphaMode(), faceRenders)
 	for _, draw := range faceRenders {
 		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
 		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, whiteLightmapBindGroup)
@@ -983,6 +990,15 @@ type gogpuTranslucentBrushFaceRender struct {
 	liquid     bool
 	center     [3]float32
 	lightmaps  []*gpuWorldTexture
+}
+
+func sortGoGPUTranslucentBrushFaceRenders(mode AlphaMode, renders []gogpuTranslucentBrushFaceRender) {
+	if !shouldSortTranslucentCalls(mode) {
+		return
+	}
+	sort.SliceStable(renders, func(i, j int) bool {
+		return renders[i].face.distanceSq > renders[j].face.distanceSq
+	})
 }
 
 func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
@@ -1180,9 +1196,7 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
 	}
 
-	sort.SliceStable(translucentRenders, func(i, j int) bool {
-		return translucentRenders[i].face.distanceSq > translucentRenders[j].face.distanceSq
-	})
+	sortGoGPUTranslucentBrushFaceRenders(GetAlphaMode(), translucentRenders)
 	for _, draw := range translucentRenders {
 		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
 		litWater := float32(0)
