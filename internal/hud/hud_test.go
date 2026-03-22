@@ -868,6 +868,53 @@ func TestStatusBarDrawQuakeWorldAmmoBackgroundsUseAlpha(t *testing.T) {
 	}
 }
 
+func TestStatusBarDrawQuakeWorldSigilBackgroundOnlyWhenNeeded(t *testing.T) {
+	sigilBG := &image.QPic{Width: 32, Height: 16}
+	sb := &StatusBar{
+		qwSigilBG: sigilBG,
+		sigilPics: [4]*image.QPic{
+			&image.QPic{Width: 8, Height: 16},
+			&image.QPic{Width: 8, Height: 16},
+			&image.QPic{Width: 8, Height: 16},
+			&image.QPic{Width: 8, Height: 16},
+		},
+	}
+
+	withSigil := &mockRenderContext{}
+	sb.DrawQuakeWorld(withSigil, State{
+		GameType:     0,
+		MaxClients:   1,
+		ActiveWeapon: int(cl.ItemShotgun),
+		Items:        cl.ItemSigil1,
+	}, 320, 200)
+
+	foundBG := false
+	for _, draw := range withSigil.pics {
+		if draw.pic == sigilBG {
+			foundBG = true
+			if draw.x != 16 || draw.y != 8 {
+				t.Fatalf("quakeworld sigil bg draw = (%d,%d), want (16,8)", draw.x, draw.y)
+			}
+		}
+	}
+	if !foundBG {
+		t.Fatalf("expected quakeworld sigil background draw when sigil is owned")
+	}
+
+	withoutSigil := &mockRenderContext{}
+	sb.DrawQuakeWorld(withoutSigil, State{
+		GameType:     0,
+		MaxClients:   1,
+		ActiveWeapon: int(cl.ItemShotgun),
+	}, 320, 200)
+
+	for _, draw := range withoutSigil.pics {
+		if draw.pic == sigilBG {
+			t.Fatalf("unexpected quakeworld sigil background draw without sigils")
+		}
+	}
+}
+
 func TestRegularCenterprintYShiftsUpWhenCrosshairVisible(t *testing.T) {
 	registerCenterprintTestCvars()
 	cvar.Set("crosshair", "1")

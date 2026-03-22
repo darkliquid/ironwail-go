@@ -41,6 +41,7 @@ type StatusBar struct {
 	faceBoth    *image.QPic
 	faceQuad    *image.QPic
 	qwAmmoBG    [4]*image.QPic
+	qwSigilBG   *image.QPic
 	rogueAmmoBG [4]*image.QPic
 	lastItems   uint32
 	pickupTimes [32]float64
@@ -156,6 +157,7 @@ func NewStatusBar(dm *draw.Manager) *StatusBar {
 			for i := range sb.qwAmmoBG {
 				sb.qwAmmoBG[i] = sb.ibarPic.SubPic(3+i*48, 0, 42, 11)
 			}
+			sb.qwSigilBG = sb.ibarPic.SubPic(288, 8, 32, 16)
 		}
 		for _, pic := range sb.rogueInvBar {
 			if pic == nil {
@@ -447,6 +449,16 @@ func (sb *StatusBar) drawInventoryQW(rc renderer.RenderContext, state State) {
 	}
 
 	sigilBits := []uint32{cl.ItemSigil1, cl.ItemSigil2, cl.ItemSigil3, cl.ItemSigil4}
+	hasSigil := false
+	for _, bit := range sigilBits {
+		if state.Items&bit != 0 {
+			hasSigil = true
+			break
+		}
+	}
+	if hasSigil && sb.qwSigilBG != nil {
+		rc.DrawPic(16, 8, sb.qwSigilBG)
+	}
 	for i, bit := range sigilBits {
 		if state.ModRogue || state.Items&bit == 0 {
 			continue
