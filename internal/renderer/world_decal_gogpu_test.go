@@ -4,6 +4,7 @@
 package renderer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gogpu/gputypes"
@@ -88,5 +89,20 @@ func TestDecalDepthAttachmentForViewAllowsStencilWrites(t *testing.T) {
 func TestDecalDepthAttachmentForViewNilView(t *testing.T) {
 	if got := decalDepthAttachmentForView(nil); got != nil {
 		t.Fatalf("decalDepthAttachmentForView(nil) = %#v, want nil", got)
+	}
+}
+
+func TestDecalFragmentShaderIncludesEdgeFadeParity(t *testing.T) {
+	checks := []string{
+		"let p = input.texCoord * 2.0 - vec2<f32>(1.0, 1.0);",
+		"let d2 = dot(p, p);",
+		"if (d2 > 1.0)",
+		"let edge = smoothstep(1.0, 0.7, d2);",
+		"input.color.a * edge * sampled.a",
+	}
+	for _, check := range checks {
+		if !strings.Contains(decalFragmentShaderWGSL, check) {
+			t.Fatalf("decal fragment shader missing %q", check)
+		}
 	}
 }

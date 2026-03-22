@@ -69,11 +69,17 @@ var unusedTexture: texture_2d<f32>;
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    let sampled = textureSample(decalTexture, decalSampler, input.texCoord);
-    if (sampled.a < 0.01) {
-        discard;
-    }
-    return vec4<f32>(input.color.rgb * sampled.rgb, input.color.a * sampled.a);
+     let sampled = textureSample(decalTexture, decalSampler, input.texCoord);
+     if (sampled.a < 0.01) {
+         discard;
+     }
+     let p = input.texCoord * 2.0 - vec2<f32>(1.0, 1.0);
+     let d2 = dot(p, p);
+     if (d2 > 1.0) {
+         discard;
+     }
+     let edge = smoothstep(1.0, 0.7, d2);
+     return vec4<f32>(input.color.rgb * sampled.rgb, input.color.a * edge * sampled.a);
 }
 `
 
