@@ -151,6 +151,30 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 	}
 }
 
+func TestGoGPUWorldUniformInputsUseCameraTimeAndRawFogDensity(t *testing.T) {
+	state := &RenderFrameState{
+		FogDensity:    0.75,
+		WaterWarpTime: 99,
+	}
+	camera := CameraState{}
+	camera.Origin = types.Vec3{X: 1, Y: 2, Z: 3}
+	camera.Time = 12.5
+
+	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
+	if cameraOrigin != [3]float32{1, 2, 3} {
+		t.Fatalf("cameraOrigin = %#v, want [3]float32{1, 2, 3}", cameraOrigin)
+	}
+	if !almostEqualWorldFloat32(fogDensity, state.FogDensity, 1e-6) {
+		t.Fatalf("fogDensity = %v, want %v", fogDensity, state.FogDensity)
+	}
+	if !almostEqualWorldFloat32(timeValue, camera.Time, 1e-6) {
+		t.Fatalf("timeValue = %v, want %v", timeValue, camera.Time)
+	}
+	if almostEqualWorldFloat32(timeValue, state.WaterWarpTime, 1e-6) {
+		t.Fatalf("timeValue = %v unexpectedly matched WaterWarpTime %v", timeValue, state.WaterWarpTime)
+	}
+}
+
 func TestWorldShadersIncludeFogMix(t *testing.T) {
 	vertexChecks := []string{
 		"cameraOrigin",

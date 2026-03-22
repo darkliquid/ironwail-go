@@ -2711,10 +2711,10 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	camera := dc.renderer.cameraState
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
 	var currentDynamicLight [3]float32
 	currentLitWater := float32(0)
-	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, state.FogDensity, camera.Time, 1, currentDynamicLight, currentLitWater)
+	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
 	slog.Info("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Info("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
@@ -2766,8 +2766,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			vpMatrix,
 			cameraOrigin,
 			state.FogColor,
-			state.FogDensity,
-			camera.Time,
+			fogDensity,
+			timeValue,
 			alpha,
 			dynamicLight,
 			litWater,
@@ -2942,6 +2942,11 @@ func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]
 	return data
 }
 
+func gogpuWorldUniformInputs(state *RenderFrameState, camera CameraState) ([3]float32, float32, float32) {
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	return cameraOrigin, state.FogDensity, camera.Time
+}
+
 func gogpuWorldClearColor(clear [4]float32) gputypes.Color {
 	if os.Getenv("IRONWAIL_DEBUG_WORLD_CLEAR_GREEN") == "1" {
 		return gputypes.Color{R: 0.0, G: 1.0, B: 0.0, A: 1.0}
@@ -3105,13 +3110,11 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	renderPass.SetVertexBuffer(0, vertexBuffer, 0)
 	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
 
-	timeSeconds := state.WaterWarpTime
-	fogDensity := state.FogDensity * 0.6931471805599453 / 64.0
 	cameraState := dc.renderer.cameraState
-	camera := [3]float32{cameraState.Origin.X, cameraState.Origin.Y, cameraState.Origin.Z}
+	camera, fogDensity, timeValue := gogpuWorldUniformInputs(state, cameraState)
 	vp := dc.renderer.GetViewProjectionMatrix()
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
-		uniformData := worldSceneUniformBytes(vp, camera, state.FogColor, fogDensity, timeSeconds, alpha, dynamicLight, litWater)
+		uniformData := worldSceneUniformBytes(vp, camera, state.FogColor, fogDensity, timeValue, alpha, dynamicLight, litWater)
 		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData); err != nil {
 			slog.Error("renderWorldTranslucentLiquidsHAL: failed to update world uniform", "error", err)
 			return false
@@ -3143,14 +3146,14 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 			return
 		}
 		textureBindGroup := whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face, worldTextures, worldTextureAnimations, nil, 0, float64(timeSeconds)); worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(draw.face, worldTextures, worldTextureAnimations, nil, 0, float64(timeValue)); worldTexture != nil && worldTexture.bindGroup != nil {
 			textureBindGroup = worldTexture.bindGroup
 		}
 		fullbrightBindGroup := transparentBindGroup
 		if fullbrightBindGroup == nil {
 			fullbrightBindGroup = whiteTextureBindGroup
 		}
-		if worldTexture := gogpuWorldTextureForFace(draw.face, worldFullbrightTextures, worldTextureAnimations, nil, 0, float64(timeSeconds)); worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(draw.face, worldFullbrightTextures, worldTextureAnimations, nil, 0, float64(timeValue)); worldTexture != nil && worldTexture.bindGroup != nil {
 			fullbrightBindGroup = worldTexture.bindGroup
 		}
 		renderPass.SetBindGroup(1, textureBindGroup, nil)
