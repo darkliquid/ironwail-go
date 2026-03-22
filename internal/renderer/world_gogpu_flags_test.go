@@ -142,16 +142,38 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 	}
 
 	fragmentChecks := []string{
+		"worldSampler",
+		"worldTexture",
+		"textureSample(worldTexture, worldSampler, input.texCoord)",
 		"cameraOrigin",
 		"fogDensity",
 		"fogColor",
 		"worldPos",
 		"exp2(",
-		"mix(uniforms.fogColor, debugColor, fog)",
+		"mix(uniforms.fogColor, sampled.rgb, fog)",
 	}
 	for _, check := range fragmentChecks {
 		if !strings.Contains(worldFragmentShaderWGSL, check) {
 			t.Fatalf("world fragment shader missing %q", check)
+		}
+	}
+}
+
+func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
+	tests := []struct {
+		name string
+		face WorldFace
+		want bool
+	}{
+		{name: "opaque", face: WorldFace{NumIndices: 3}, want: true},
+		{name: "empty", face: WorldFace{}, want: false},
+		{name: "sky", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, want: false},
+		{name: "turbulent", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb}, want: false},
+		{name: "fence", face: WorldFace{NumIndices: 3, Flags: model.SurfDrawFence}, want: false},
+	}
+	for _, tc := range tests {
+		if got := shouldDrawGoGPUOpaqueWorldFace(tc.face); got != tc.want {
+			t.Fatalf("%s: shouldDrawGoGPUOpaqueWorldFace(%#v) = %v, want %v", tc.name, tc.face, got, tc.want)
 		}
 	}
 }

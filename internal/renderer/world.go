@@ -14,6 +14,7 @@ import (
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -103,6 +104,12 @@ type WorldRenderData struct {
 	TotalVertices int
 	TotalIndices  int
 	TotalFaces    int
+}
+
+type gpuWorldTexture struct {
+	texture   hal.Texture
+	view      hal.TextureView
+	bindGroup hal.BindGroup
 }
 
 // BuildWorldGeometry extracts renderable geometry from a BSP tree.
@@ -454,35 +461,18 @@ struct VertexOutput {
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 
+@group(1) @binding(0)
+var worldSampler: sampler;
+
+@group(1) @binding(1)
+var worldTexture: texture_2d<f32>;
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-	// DIAGNOSTIC: Output bright green to verify geometry is being rasterized
-	// If geometry is invisible, this means:
-	// 1. Vertices are off-screen (outside clip space)
-	// 2. Geometry is culled by backface culling
-	// 3. Something else is wrong with the render pass
-	var debugColor = vec3<f32>(0.0, 1.0, 0.0); // Bright green
-	
-	// Check for obviously invalid data that would indicate problems
-	let normalLen = length(input.normal);
-	if (normalLen < 0.01) {
-		debugColor = vec3<f32>(1.0, 0.0, 0.0); // Red for zero normals
-	}
-	
-	let posLen = length(input.worldPos);
-	if (posLen > 10000.0) {
-		debugColor = vec3<f32>(0.0, 0.0, 1.0); // Blue for huge positions
-	}
-	
-	// If clip position Z is outside [near, far], it would be clipped
-	let clipZ = input.clipPos.z / input.clipPos.w;
-	if (clipZ < 0.0 || clipZ > 1.0) {
-		debugColor = vec3<f32>(1.0, 1.0, 0.0); // Yellow for out-of-depth
-	}
-
+	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, debugColor, fog), 1.0);
+	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb, fog), sampled.a);
 }
 `
 
@@ -655,7 +645,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
 				Binding:    0,
-				Visibility: gputypes.ShaderStageVertex,
+				Visibility: gputypes.ShaderStageVertex | gputypes.ShaderStageFragment,
 				Buffer: &gputypes.BufferBindingLayout{
 					Type:             gputypes.BufferBindingTypeUniform,
 					HasDynamicOffset: false,
@@ -668,20 +658,48 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		return nil, nil, fmt.Errorf("create uniform bind group layout: %w", err)
 	}
 
+	textureLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+		Label: "World Texture BGL",
+		Entries: []gputypes.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: gputypes.ShaderStageFragment,
+				Sampler: &gputypes.SamplerBindingLayout{
+					Type: gputypes.SamplerBindingTypeFiltering,
+				},
+			},
+			{
+				Binding:    1,
+				Visibility: gputypes.ShaderStageFragment,
+				Texture: &gputypes.TextureBindingLayout{
+					SampleType:    gputypes.TextureSampleTypeFloat,
+					ViewDimension: gputypes.TextureViewDimension2D,
+					Multisampled:  false,
+				},
+			},
+		},
+	})
+	if err != nil {
+		uniformLayout.Destroy()
+		return nil, nil, fmt.Errorf("create texture bind group layout: %w", err)
+	}
+
 	// Create pipeline layout with the uniform bind group layout.
 	pipelineLayoutDesc := &hal.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout},
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
 	if err != nil {
+		textureLayout.Destroy()
 		uniformLayout.Destroy()
 		return nil, nil, fmt.Errorf("create pipeline layout: %w", err)
 	}
 
 	r.mu.Lock()
 	r.uniformBindGroupLayout = uniformLayout
+	r.textureBindGroupLayout = textureLayout
 	r.mu.Unlock()
 
 	// Define primitive state.
@@ -757,6 +775,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	// Create the render pipeline
 	pipeline, err := device.CreateRenderPipeline(pipelineDesc)
 	if err != nil {
+		textureLayout.Destroy()
 		uniformLayout.Destroy()
 		pipelineLayout.Destroy()
 		return nil, nil, fmt.Errorf("create render pipeline: %w", err)
@@ -834,6 +853,127 @@ func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (
 
 	slog.Debug("World white texture created")
 	return texture, textureView, nil
+}
+
+func shouldDrawGoGPUOpaqueWorldFace(face WorldFace) bool {
+	if face.NumIndices == 0 {
+		return false
+	}
+	if face.Flags&(model.SurfDrawSky|model.SurfDrawTurb|model.SurfDrawFence) != 0 {
+		return false
+	}
+	return true
+}
+
+func (r *Renderer) createWorldTextureSampler(device hal.Device) (hal.Sampler, error) {
+	return device.CreateSampler(&hal.SamplerDescriptor{
+		Label:        "World Texture Sampler",
+		AddressModeU: gputypes.AddressModeRepeat,
+		AddressModeV: gputypes.AddressModeRepeat,
+		AddressModeW: gputypes.AddressModeRepeat,
+		MagFilter:    gputypes.FilterModeNearest,
+		MinFilter:    gputypes.FilterModeNearest,
+		MipmapFilter: gputypes.FilterModeNearest,
+		LodMinClamp:  0,
+		LodMaxClamp:  0,
+	})
+}
+
+func (r *Renderer) createWorldTextureBindGroup(device hal.Device, sampler hal.Sampler, view hal.TextureView) (hal.BindGroup, error) {
+	if device == nil || sampler == nil || view == nil || r.textureBindGroupLayout == nil {
+		return nil, fmt.Errorf("missing world texture bind group resources")
+	}
+	return device.CreateBindGroup(&hal.BindGroupDescriptor{
+		Label:  "World Texture BG",
+		Layout: r.textureBindGroupLayout,
+		Entries: []gputypes.BindGroupEntry{
+			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: sampler.NativeHandle()}},
+			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
+		},
+	})
+}
+
+func (r *Renderer) createWorldDiffuseTexture(device hal.Device, queue hal.Queue, sampler hal.Sampler, miptex *image.MipTex) (*gpuWorldTexture, error) {
+	if device == nil || queue == nil || sampler == nil || miptex == nil {
+		return nil, fmt.Errorf("invalid world texture upload inputs")
+	}
+	pixels, width, height, err := miptex.MipLevel(0)
+	if err != nil {
+		return nil, fmt.Errorf("read mip level: %w", err)
+	}
+	if width <= 0 || height <= 0 {
+		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
+	}
+	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "World Diffuse Texture",
+		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension2D,
+		Format:        gputypes.TextureFormatRGBA8Unorm,
+		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create world texture: %w", err)
+	}
+	rgba := ConvertPaletteToRGBA(pixels, r.palette)
+	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+		Texture:  texture,
+		MipLevel: 0,
+		Aspect:   gputypes.TextureAspectAll,
+	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Destroy()
+		return nil, fmt.Errorf("write world texture: %w", err)
+	}
+	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+		Label:           "World Diffuse Texture View",
+		Format:          gputypes.TextureFormatRGBA8Unorm,
+		Dimension:       gputypes.TextureViewDimension2D,
+		Aspect:          gputypes.TextureAspectAll,
+		BaseMipLevel:    0,
+		MipLevelCount:   1,
+		BaseArrayLayer:  0,
+		ArrayLayerCount: 1,
+	})
+	if err != nil {
+		texture.Destroy()
+		return nil, fmt.Errorf("create world texture view: %w", err)
+	}
+	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
+	if err != nil {
+		view.Destroy()
+		texture.Destroy()
+		return nil, fmt.Errorf("create world texture bind group: %w", err)
+	}
+	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
+}
+
+func (r *Renderer) uploadWorldDiffuseTextures(device hal.Device, queue hal.Queue, sampler hal.Sampler, tree *bsp.Tree) map[int32]*gpuWorldTexture {
+	if tree == nil || device == nil || queue == nil || sampler == nil || len(tree.TextureData) < 4 {
+		return nil
+	}
+	textureCount := int(binary.LittleEndian.Uint32(tree.TextureData[:4]))
+	if textureCount <= 0 || len(tree.TextureData) < 4+textureCount*4 {
+		return nil
+	}
+	textures := make(map[int32]*gpuWorldTexture, textureCount)
+	for i := 0; i < textureCount; i++ {
+		offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[4+i*4:])))
+		if offset <= 0 || offset >= len(tree.TextureData) {
+			continue
+		}
+		miptex, err := image.ParseMipTex(tree.TextureData[offset:])
+		if err != nil {
+			continue
+		}
+		worldTexture, err := r.createWorldDiffuseTexture(device, queue, sampler, miptex)
+		if err != nil {
+			slog.Warn("failed to upload world diffuse texture", "texture", miptex.Name, "error", err)
+			continue
+		}
+		textures[int32(i)] = worldTexture
+	}
+	return textures
 }
 
 // Helper functions to convert Go types to byte slices
@@ -1001,6 +1141,20 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		slog.Warn("Failed to create white texture", "error", err)
 		// Don't fail completely, will use fallback rendering
 	}
+	var worldTextureSampler hal.Sampler
+	var whiteTextureBindGroup hal.BindGroup
+	if r.textureBindGroupLayout != nil {
+		worldTextureSampler, err = r.createWorldTextureSampler(device)
+		if err != nil {
+			slog.Warn("Failed to create world texture sampler", "error", err)
+		} else if whiteTextureView != nil {
+			whiteTextureBindGroup, err = r.createWorldTextureBindGroup(device, worldTextureSampler, whiteTextureView)
+			if err != nil {
+				slog.Warn("Failed to create white world texture bind group", "error", err)
+			}
+		}
+	}
+	worldTextures := r.uploadWorldDiffuseTextures(device, queue, worldTextureSampler, tree)
 
 	// Create offscreen render target for world rendering
 	if err := r.createWorldRenderTarget(); err != nil {
@@ -1030,10 +1184,14 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.uniformBuffer = uniformBuffer
 	r.whiteTexture = whiteTexture
 	r.whiteTextureView = whiteTextureView
+	r.worldTextureSampler = worldTextureSampler
+	r.worldTextures = worldTextures
+	r.whiteTextureBindGroup = whiteTextureBindGroup
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthTextureView
 	renderData.VertexBufferUploaded = vertexBuffer != nil
 	renderData.IndexBufferUploaded = indexBuffer != nil
+	renderData.HasDiffuseTextures = len(worldTextures) > 0
 	renderData.HasDepthBuffer = depthTextureView != nil
 	r.mu.Unlock()
 
@@ -1179,20 +1337,32 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
 
-	// Draw all indices
-	indexCount := dc.renderer.worldIndexCount
-	if indexCount > 0 {
-		// DrawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)
-		slog.Info("renderWorldInternal: calling DrawIndexed", "indexCount", indexCount, "instances", 1)
-		renderPass.DrawIndexed(indexCount, 1, 0, 0, 0)
-		slog.Info("renderWorldInternal: DrawIndexed completed")
+	if dc.renderer.whiteTextureBindGroup == nil {
+		slog.Warn("renderWorldInternal: no world texture bind group available")
+		renderPass.End()
+		return
+	}
 
+	drawnIndices := uint32(0)
+	for _, face := range worldData.Geometry.Faces {
+		if !shouldDrawGoGPUOpaqueWorldFace(face) {
+			continue
+		}
+		textureBindGroup := dc.renderer.whiteTextureBindGroup
+		if worldTexture := dc.renderer.worldTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+			textureBindGroup = worldTexture.bindGroup
+		}
+		renderPass.SetBindGroup(1, textureBindGroup, nil)
+		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		drawnIndices += face.NumIndices
+	}
+	if drawnIndices > 0 {
 		slog.Info("World rendered",
-			"indices", indexCount,
-			"triangles", indexCount/3,
+			"indices", drawnIndices,
+			"triangles", drawnIndices/3,
 			"vertices", worldData.TotalVertices)
 	} else {
-		slog.Info("renderWorldInternal: No world indices to render, indexCount=0")
+		slog.Info("renderWorldInternal: No opaque world faces selected for textured draw")
 	}
 
 	// End render pass
@@ -1400,6 +1570,31 @@ func (r *Renderer) ClearWorld() {
 		if r.uniformBindGroupLayout != nil {
 			r.uniformBindGroupLayout.Destroy()
 		}
+		if r.textureBindGroupLayout != nil {
+			r.textureBindGroupLayout.Destroy()
+		}
+		if r.whiteTextureBindGroup != nil {
+			r.whiteTextureBindGroup.Destroy()
+		}
+		if r.worldTextureSampler != nil {
+			r.worldTextureSampler.Destroy()
+		}
+		for textureIndex, worldTexture := range r.worldTextures {
+			if worldTexture == nil {
+				delete(r.worldTextures, textureIndex)
+				continue
+			}
+			if worldTexture.bindGroup != nil {
+				worldTexture.bindGroup.Destroy()
+			}
+			if worldTexture.view != nil {
+				worldTexture.view.Destroy()
+			}
+			if worldTexture.texture != nil {
+				worldTexture.texture.Destroy()
+			}
+			delete(r.worldTextures, textureIndex)
+		}
 		if r.whiteTexture != nil {
 			r.whiteTexture.Destroy()
 		}
@@ -1415,6 +1610,10 @@ func (r *Renderer) ClearWorld() {
 		r.uniformBuffer = nil
 		r.uniformBindGroup = nil
 		r.uniformBindGroupLayout = nil
+		r.textureBindGroupLayout = nil
+		r.worldTextureSampler = nil
+		r.worldTextures = nil
+		r.whiteTextureBindGroup = nil
 		r.worldBindGroup = nil
 		r.whiteTexture = nil
 		r.whiteTextureView = nil

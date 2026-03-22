@@ -525,6 +525,9 @@ type Renderer struct {
 	uniformBindGroup       hal.BindGroup
 	uniformBindGroupLayout hal.BindGroupLayout
 	textureBindGroupLayout hal.BindGroupLayout
+	worldTextureSampler    hal.Sampler
+	worldTextures          map[int32]*gpuWorldTexture
+	whiteTextureBindGroup  hal.BindGroup
 
 	// 1x1 white texture for fallback
 	whiteTexture          hal.Texture
