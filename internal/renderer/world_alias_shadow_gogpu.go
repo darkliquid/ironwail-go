@@ -116,7 +116,6 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	uniformBindGroup := r.aliasUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
-	camera := r.cameraState
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return
@@ -152,12 +151,11 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
 
 	vpMatrix := r.GetViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	for _, draw := range draws {
 		if len(draw.vertices) == 0 {
 			continue
 		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, aliasSceneUniformBytes(vpMatrix, cameraOrigin, aliasShadowAlpha, fogColor, fogDensity)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, aliasShadowUniformBytes(vpMatrix, aliasShadowAlpha)); err != nil {
 			slog.Warn("failed to update alias shadow uniform buffer", "error", err)
 			continue
 		}

@@ -125,6 +125,39 @@ func TestAliasFragmentShaderIncludesFogMix(t *testing.T) {
 	}
 }
 
+func TestAliasShadowUniformBytesDisablesFog(t *testing.T) {
+	vp := types.Mat4{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1,
+	}
+	alpha := float32(0.5)
+
+	data := aliasShadowUniformBytes(vp, alpha)
+	if len(data) != aliasSceneUniformBufferSize {
+		t.Fatalf("len(aliasShadowUniformBytes()) = %d, want %d", len(data), aliasSceneUniformBufferSize)
+	}
+	gotFogDensity := math.Float32frombits(binary.LittleEndian.Uint32(data[76:80]))
+	if gotFogDensity != 0 {
+		t.Fatalf("shadow fog density = %v, want 0", gotFogDensity)
+	}
+	for i := 0; i < 3; i++ {
+		gotOrigin := math.Float32frombits(binary.LittleEndian.Uint32(data[64+i*4 : 68+i*4]))
+		if gotOrigin != 0 {
+			t.Fatalf("cameraOrigin[%d] = %v, want 0", i, gotOrigin)
+		}
+		gotFogColor := math.Float32frombits(binary.LittleEndian.Uint32(data[80+i*4 : 84+i*4]))
+		if gotFogColor != 0 {
+			t.Fatalf("fogColor[%d] = %v, want 0", i, gotFogColor)
+		}
+	}
+	gotAlpha := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96]))
+	if !almostEqualAliasFloat32(gotAlpha, alpha, 1e-6) {
+		t.Fatalf("alpha = %v, want %v", gotAlpha, alpha)
+	}
+}
+
 func almostEqualAliasFloat32(a, b, epsilon float32) bool {
 	return float32(math.Abs(float64(a-b))) <= epsilon
 }

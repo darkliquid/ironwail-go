@@ -973,6 +973,10 @@ func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float3
 	return data
 }
 
+func aliasShadowUniformBytes(vp types.Mat4, alpha float32) []byte {
+	return aliasSceneUniformBytes(vp, [3]float32{}, alpha, [3]float32{}, 0)
+}
+
 func aliasVertexBytes(vertices []WorldVertex) []byte {
 	data := make([]byte, len(vertices)*44)
 	for i, v := range vertices {
