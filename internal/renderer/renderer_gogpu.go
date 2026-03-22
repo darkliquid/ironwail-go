@@ -58,6 +58,7 @@ import (
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
@@ -1557,6 +1558,9 @@ func (dc *DrawContext) renderParticles(state *RenderFrameState) {
 	if state.Particles == nil || state.Particles.ActiveCount() == 0 {
 		return
 	}
+	if !shouldDrawGoGPUParticles(readGoGPUParticleModeCvar(), state.Particles.ActiveCount()) {
+		return
+	}
 
 	// Get active particles
 	particles := state.Particles.ActiveParticles()
@@ -1587,6 +1591,18 @@ func (dc *DrawContext) renderParticles(state *RenderFrameState) {
 			dc.DrawFillAlpha(marker.x-size/2, marker.y-size/2, size, size, marker.color, marker.alpha)
 		}
 	}
+}
+
+func readGoGPUParticleModeCvar() int {
+	cv := cvar.Get(CvarRParticles)
+	if cv == nil {
+		return 1
+	}
+	return cv.Int
+}
+
+func shouldDrawGoGPUParticles(mode, activeParticles int) bool {
+	return ShouldDrawParticles(mode, false, false, activeParticles) || ShouldDrawParticles(mode, true, false, activeParticles)
 }
 
 // buildParticlePalette converts a 768-byte palette to the [256][4]byte format

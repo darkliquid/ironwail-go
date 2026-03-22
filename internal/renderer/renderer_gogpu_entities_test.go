@@ -63,3 +63,18 @@ func TestProjectParticleMarkersSkipsNonVisibleParticles(t *testing.T) {
 		t.Fatalf("marker color = %d, want 5", markers[0].color)
 	}
 }
+
+func TestShouldDrawGoGPUParticlesHonorsParticleMode(t *testing.T) {
+	if shouldDrawGoGPUParticles(0, 4) {
+		t.Fatal("mode 0 should disable gogpu particle fallback")
+	}
+	if !shouldDrawGoGPUParticles(1, 4) {
+		t.Fatal("mode 1 should allow gogpu particle fallback")
+	}
+	if !shouldDrawGoGPUParticles(2, 4) {
+		t.Fatal("mode 2 should allow gogpu particle fallback")
+	}
+	if shouldDrawGoGPUParticles(1, 0) {
+		t.Fatal("zero active particles should disable gogpu particle fallback")
+	}
+}
