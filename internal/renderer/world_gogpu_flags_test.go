@@ -186,6 +186,18 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 			t.Fatalf("world sky fragment shader missing %q", check)
 		}
 	}
+
+	turbChecks := []string{
+		"input.texCoord * 2.0 + 0.125 * sin",
+		"uniforms.time",
+		"worldFullbrightTexture",
+		"sampled.rgb+fullbright.rgb*fullbright.a",
+	}
+	for _, check := range turbChecks {
+		if !strings.Contains(worldTurbulentFragmentShaderWGSL, check) {
+			t.Fatalf("world turbulent fragment shader missing %q", check)
+		}
+	}
 }
 
 func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
@@ -216,6 +228,18 @@ func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
 	}
 	if shouldDrawGoGPUSkyWorldFace(WorldFace{Flags: model.SurfDrawSky}) {
 		t.Fatal("empty sky face should not draw in sky pass")
+	}
+}
+
+func TestShouldDrawGoGPUOpaqueLiquidFace(t *testing.T) {
+	if !shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}) {
+		t.Fatal("opaque liquid face should draw in turbulent pass")
+	}
+	if shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky | model.SurfDrawTurb}) {
+		t.Fatal("sky face should not draw in turbulent pass")
+	}
+	if shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3}) {
+		t.Fatal("non-liquid face should not draw in turbulent pass")
 	}
 }
 

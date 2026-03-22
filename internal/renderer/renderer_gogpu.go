@@ -518,6 +518,7 @@ type Renderer struct {
 	worldIndexBuffer        hal.Buffer
 	worldIndexCount         uint32
 	worldPipeline           hal.RenderPipeline
+	worldTurbulentPipeline  hal.RenderPipeline
 	worldSkyPipeline        hal.RenderPipeline
 	worldPipelineLayout     hal.PipelineLayout
 	worldBindGroup          hal.BindGroup
