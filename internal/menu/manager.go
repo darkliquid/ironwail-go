@@ -932,6 +932,13 @@ func controlRowY(index int) int {
 	return 24 + index*8
 }
 
+// videoRowY converts a Video-menu item index to a compact Y coordinate.
+// The tighter 14px spacing leaves room for a few more bounded option slices
+// without changing menu behavior beyond layout.
+func videoRowY(index int) int {
+	return 28 + index*14
+}
+
 // clampFloat restricts value to the closed interval [min, max].
 func clampFloat(value, min, max float64) float64 {
 	if value < min {

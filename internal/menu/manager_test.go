@@ -1781,6 +1781,30 @@ func TestVideoMenuHUDStyleCyclesCorrectly(t *testing.T) {
 	}
 }
 
+func TestDrawVideoUsesCompactRowSpacing(t *testing.T) {
+	cvar.Register("vid_width", "1280", cvar.FlagArchive, "")
+	cvar.Register("vid_height", "720", cvar.FlagArchive, "")
+	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "")
+	cvar.Register("vid_vsync", "0", cvar.FlagArchive, "")
+	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "")
+	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "")
+	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "")
+	cvar.Register("r_waterwarp", "0", cvar.FlagArchive, "")
+	cvar.Register("hud_style", "0", cvar.FlagArchive, "")
+	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "")
+
+	mgr := NewManager(nil, nil)
+	rc := &mockMenuRenderContext{}
+	mgr.drawVideo(rc)
+
+	if got := renderedMenuLine(rc, videoRowY(videoItemBack)); got != "BACK" {
+		t.Fatalf("back row text = %q, want BACK at y=%d", got, videoRowY(videoItemBack))
+	}
+	if got := renderedMenuLine(rc, 192); got != "VIDEO CHANGES ARE SAVED TO CONFIG" {
+		t.Fatalf("footer text = %q, want video footer at y=192", got)
+	}
+}
+
 // TestModsMenuCurrentModLabel verifies that the current mod is marked with an
 // asterisk in the mods menu draw output.
 func TestModsMenuCurrentModLabel(t *testing.T) {
