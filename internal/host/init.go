@@ -230,16 +230,24 @@ func ActiveClientState(subs *Subsystems) *cl.Client {
 	return provider.ClientState()
 }
 
+type commandTextExecutorWithSource interface {
+	ExecuteTextWithSource(text string, source cmdsys.CommandSource)
+}
+
 func DispatchLoopbackStuffText(subs *Subsystems) {
 	if subs == nil || subs.Commands == nil {
 		return
 	}
 	if c := ActiveClientState(subs); c != nil {
 		if text := c.ConsumeStuffCommands(); text != "" {
+			if execer, ok := subs.Commands.(commandTextExecutorWithSource); ok {
+				execer.ExecuteTextWithSource(text, cmdsys.SrcServer)
+				return
+			}
 			subs.Commands.AddText(text)
+			subs.Commands.ExecuteWithSource(cmdsys.SrcServer)
 		}
 	}
-	subs.Commands.ExecuteWithSource(cmdsys.SrcServer)
 }
 
 func (c *localLoopbackClient) LocalServerInfo() error {

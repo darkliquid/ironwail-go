@@ -2,6 +2,8 @@ package host
 
 import (
 	"bytes"
+	"fmt"
+	"reflect"
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -189,15 +191,20 @@ func TestLocalLoopbackClientPrespawnDrainsChunkedSignonBuffers(t *testing.T) {
 }
 
 type mockCommandBuffer struct {
-	added    []string
-	executes int
-	source   cmdsys.CommandSource
+	added        []string
+	executedText []string
+	executes     int
+	source       cmdsys.CommandSource
 }
 
 func (m *mockCommandBuffer) Init()    {}
 func (m *mockCommandBuffer) Execute() { m.executes++ }
 func (m *mockCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
 	m.executes++
+	m.source = source
+}
+func (m *mockCommandBuffer) ExecuteTextWithSource(text string, source cmdsys.CommandSource) {
+	m.executedText = append(m.executedText, text)
 	m.source = source
 }
 func (m *mockCommandBuffer) AddText(text string)    { m.added = append(m.added, text) }
@@ -211,11 +218,11 @@ func TestDispatchLoopbackStuffTextFlushesCompleteLines(t *testing.T) {
 	subs := &Subsystems{Client: lc, Commands: cmd}
 
 	DispatchLoopbackStuffText(subs)
-	if len(cmd.added) != 1 || cmd.added[0] != "bf\n" {
-		t.Fatalf("added commands = %v, want [bf\\n]", cmd.added)
+	if len(cmd.executedText) != 1 || cmd.executedText[0] != "bf\n" {
+		t.Fatalf("executed text = %v, want [bf\\n]", cmd.executedText)
 	}
-	if cmd.executes != 1 {
-		t.Fatalf("executes = %d, want 1", cmd.executes)
+	if cmd.executes != 0 {
+		t.Fatalf("executes = %d, want 0", cmd.executes)
 	}
 	if cmd.source != cmdsys.SrcServer {
 		t.Fatalf("command source = %v, want %v", cmd.source, cmdsys.SrcServer)
@@ -226,10 +233,56 @@ func TestDispatchLoopbackStuffTextFlushesCompleteLines(t *testing.T) {
 
 	lc.inner.StuffCmdBuf += "nect\n"
 	DispatchLoopbackStuffText(subs)
-	if len(cmd.added) != 2 || cmd.added[1] != "reconnect\n" {
-		t.Fatalf("added commands after second flush = %v", cmd.added)
+	if len(cmd.executedText) != 2 || cmd.executedText[1] != "reconnect\n" {
+		t.Fatalf("executed text after second flush = %v", cmd.executedText)
 	}
-	if cmd.executes != 2 {
-		t.Fatalf("executes after second flush = %d, want 2", cmd.executes)
+}
+
+type globalExecuteTextCommandBuffer struct{}
+
+func (globalExecuteTextCommandBuffer) Init()                                         {}
+func (globalExecuteTextCommandBuffer) Execute()                                      { cmdsys.Execute() }
+func (globalExecuteTextCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) { cmdsys.ExecuteWithSource(source) }
+func (globalExecuteTextCommandBuffer) ExecuteTextWithSource(text string, source cmdsys.CommandSource) {
+	cmdsys.ExecuteTextWithSource(text, source)
+}
+func (globalExecuteTextCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
+func (globalExecuteTextCommandBuffer) InsertText(text string) {
+	cmdsys.InsertText(text)
+}
+func (globalExecuteTextCommandBuffer) Shutdown() {}
+
+func TestDispatchLoopbackStuffTextDoesNotDrainLocalCommandBufferAsServer(t *testing.T) {
+	cmdsys.Execute()
+	cmdsys.RemoveCommand("test_loopback_localcapture")
+	cmdsys.RemoveCommand("test_loopback_servercapture")
+	t.Cleanup(func() {
+		cmdsys.RemoveCommand("test_loopback_localcapture")
+		cmdsys.RemoveCommand("test_loopback_servercapture")
+		cmdsys.Execute()
+	})
+
+	var seen []string
+	cmdsys.AddCommand("test_loopback_localcapture", func(args []string) {
+		seen = append(seen, fmt.Sprintf("local:%v", cmdsys.Source()))
+	}, "")
+	cmdsys.AddServerCommand("test_loopback_servercapture", func(args []string) {
+		seen = append(seen, fmt.Sprintf("server:%v", cmdsys.Source()))
+	}, "")
+
+	cmdsys.AddText("test_loopback_localcapture\n")
+
+	lc := newLocalLoopbackClient()
+	lc.inner.StuffCmdBuf = "test_loopback_servercapture\n"
+	subs := &Subsystems{Client: lc, Commands: globalExecuteTextCommandBuffer{}}
+
+	DispatchLoopbackStuffText(subs)
+	if got, want := seen, []string{"server:2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("seen after stufftext dispatch = %v, want %v", got, want)
+	}
+
+	cmdsys.Execute()
+	if got, want := seen, []string{"server:2", "local:0"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("seen after draining local buffer = %v, want %v", got, want)
 	}
 }

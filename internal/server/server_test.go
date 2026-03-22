@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -1004,6 +1005,78 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
 	if client.Edict.Vars.Health <= 0 {
 		t.Fatalf("player health = %v, want > 0 after PutClientInServer", client.Edict.Vars.Health)
+	}
+}
+
+func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
+	s := newStartMapDiagnosticsServer(t)
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	if err := s.runClientSpawnQC(client); err != nil {
+		t.Fatalf("runClientSpawnQC: %v", err)
+	}
+	client.Spawned = true
+
+	player := client.Edict
+	if player == nil || player.Vars == nil {
+		t.Fatal("client missing spawned edict")
+	}
+	if got := s.GetString(player.Vars.ClassName); got != "player" {
+		t.Fatalf("spawned player classname = %q, want %q", got, "player")
+	}
+
+	var trigger *Edict
+	var wantLevel string
+	for entNum := 1; entNum < s.NumEdicts; entNum++ {
+		ent := s.EdictNum(entNum)
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if s.GetString(ent.Vars.ClassName) != "trigger_changelevel" {
+			continue
+		}
+		trigger = ent
+		wantLevel = s.GetString(ent.Vars.Map)
+		break
+	}
+	if trigger == nil {
+		t.Fatal("no trigger_changelevel found on start")
+	}
+	if wantLevel == "" {
+		t.Fatal("trigger_changelevel missing destination map")
+	}
+
+	cmdsys.RemoveCommand("changelevel")
+	defer cmdsys.RemoveCommand("changelevel")
+
+	var gotLevels []string
+	cmdsys.AddCommand("changelevel", func(args []string) {
+		if len(args) > 0 {
+			gotLevels = append(gotLevels, args[0])
+			return
+		}
+		gotLevels = append(gotLevels, "")
+	}, "")
+	cmdsys.Execute()
+	gotLevels = nil
+
+	player.Vars.Origin = [3]float32{
+		(trigger.Vars.AbsMin[0] + trigger.Vars.AbsMax[0]) * 0.5,
+		(trigger.Vars.AbsMin[1] + trigger.Vars.AbsMax[1]) * 0.5,
+		trigger.Vars.AbsMin[2] - player.Vars.Mins[2] + 1,
+	}
+	player.Vars.Velocity = [3]float32{}
+	player.Vars.Flags = float32(uint32(player.Vars.Flags) | uint32(FlagOnGround))
+	s.LinkEdict(player, false)
+	s.touchLinks(player)
+	cmdsys.Execute()
+
+	if len(gotLevels) != 1 {
+		t.Fatalf("changelevel executions = %v, want [%q]", gotLevels, wantLevel)
+	}
+	if gotLevels[0] != wantLevel {
+		t.Fatalf("changelevel target = %q, want %q", gotLevels[0], wantLevel)
 	}
 }
 

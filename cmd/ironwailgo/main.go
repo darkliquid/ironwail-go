@@ -192,6 +192,9 @@ func (globalCommandBuffer) Execute() { cmdsys.Execute() }
 func (globalCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
 	cmdsys.ExecuteWithSource(source)
 }
+func (globalCommandBuffer) ExecuteTextWithSource(text string, source cmdsys.CommandSource) {
+	cmdsys.ExecuteTextWithSource(text, source)
+}
 func (globalCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
 func (globalCommandBuffer) InsertText(text string) {
 	cmdsys.InsertText(text)
