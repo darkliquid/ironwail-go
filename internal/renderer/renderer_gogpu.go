@@ -588,6 +588,7 @@ type Renderer struct {
 	aliasScratchBuffer             hal.Buffer
 	aliasScratchBufferSize         uint64
 	aliasPipeline                  hal.RenderPipeline
+	aliasShadowPipeline            hal.RenderPipeline
 	aliasPipelineLayout            hal.PipelineLayout
 	aliasVertexShader              hal.ShaderModule
 	aliasFragmentShader            hal.ShaderModule

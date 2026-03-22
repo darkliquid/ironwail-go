@@ -146,31 +146,37 @@ func TestAliasFragmentShaderAvoidsDirectionalDiffuseHack(t *testing.T) {
 	}
 }
 
-func TestAliasShadowUniformBytesDisablesFog(t *testing.T) {
+func TestAliasShadowUniformBytesEncodesFog(t *testing.T) {
 	vp := types.Mat4{
 		1, 0, 0, 0,
 		0, 1, 0, 0,
 		0, 0, 1, 0,
 		0, 0, 0, 1,
 	}
+	cameraOrigin := [3]float32{4, 5, 6}
+	fogColor := [3]float32{0.2, 0.3, 0.4}
+	fogDensity := float32(0.75)
 	alpha := float32(0.5)
 
-	data := aliasShadowUniformBytes(vp, alpha)
+	data := aliasShadowUniformBytes(vp, cameraOrigin, alpha, fogColor, fogDensity)
 	if len(data) != aliasSceneUniformBufferSize {
 		t.Fatalf("len(aliasShadowUniformBytes()) = %d, want %d", len(data), aliasSceneUniformBufferSize)
 	}
 	gotFogDensity := math.Float32frombits(binary.LittleEndian.Uint32(data[76:80]))
-	if gotFogDensity != 0 {
-		t.Fatalf("shadow fog density = %v, want 0", gotFogDensity)
+	wantFogDensity := worldFogUniformDensity(fogDensity)
+	if !almostEqualAliasFloat32(gotFogDensity, wantFogDensity, 1e-6) {
+		t.Fatalf("shadow fog density = %v, want %v", gotFogDensity, wantFogDensity)
 	}
-	for i := 0; i < 3; i++ {
+	for i, want := range cameraOrigin {
 		gotOrigin := math.Float32frombits(binary.LittleEndian.Uint32(data[64+i*4 : 68+i*4]))
-		if gotOrigin != 0 {
-			t.Fatalf("cameraOrigin[%d] = %v, want 0", i, gotOrigin)
+		if !almostEqualAliasFloat32(gotOrigin, want, 1e-6) {
+			t.Fatalf("cameraOrigin[%d] = %v, want %v", i, gotOrigin, want)
 		}
+	}
+	for i, want := range fogColor {
 		gotFogColor := math.Float32frombits(binary.LittleEndian.Uint32(data[80+i*4 : 84+i*4]))
-		if gotFogColor != 0 {
-			t.Fatalf("fogColor[%d] = %v, want 0", i, gotFogColor)
+		if !almostEqualAliasFloat32(gotFogColor, want, 1e-6) {
+			t.Fatalf("fogColor[%d] = %v, want %v", i, gotFogColor, want)
 		}
 	}
 	gotAlpha := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96]))

@@ -217,6 +217,10 @@ func (r *Renderer) destroyAliasResourcesLocked() {
 		r.aliasPipeline.Destroy()
 		r.aliasPipeline = nil
 	}
+	if r.aliasShadowPipeline != nil {
+		r.aliasShadowPipeline.Destroy()
+		r.aliasShadowPipeline = nil
+	}
 	if r.aliasPipelineLayout != nil {
 		r.aliasPipelineLayout.Destroy()
 		r.aliasPipelineLayout = nil
@@ -244,7 +248,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
-	if r.aliasPipeline != nil && r.aliasUniformBuffer != nil && r.aliasUniformBindGroup != nil && r.aliasSampler != nil {
+	if r.aliasPipeline != nil && r.aliasShadowPipeline != nil && r.aliasUniformBuffer != nil && r.aliasUniformBindGroup != nil && r.aliasSampler != nil {
 		return nil
 	}
 
@@ -391,9 +395,49 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 		}
 	}
 
-	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
-		Label:  "Alias Render Pipeline",
-		Layout: pipelineLayout,
+	pipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Render Pipeline", true)
+	if err != nil {
+		sampler.Destroy()
+		uniformBindGroup.Destroy()
+		uniformBuffer.Destroy()
+		pipelineLayout.Destroy()
+		uniformLayout.Destroy()
+		textureLayout.Destroy()
+		vertexShader.Destroy()
+		fragmentShader.Destroy()
+		return fmt.Errorf("create alias pipeline: %w", err)
+	}
+	shadowPipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Shadow Render Pipeline", false)
+	if err != nil {
+		pipeline.Destroy()
+		sampler.Destroy()
+		uniformBindGroup.Destroy()
+		uniformBuffer.Destroy()
+		pipelineLayout.Destroy()
+		uniformLayout.Destroy()
+		textureLayout.Destroy()
+		vertexShader.Destroy()
+		fragmentShader.Destroy()
+		return fmt.Errorf("create alias shadow pipeline: %w", err)
+	}
+
+	r.aliasVertexShader = vertexShader
+	r.aliasFragmentShader = fragmentShader
+	r.aliasUniformBindGroupLayout = uniformLayout
+	r.aliasTextureBindGroupLayout = textureLayout
+	r.aliasPipelineLayout = pipelineLayout
+	r.aliasUniformBuffer = uniformBuffer
+	r.aliasUniformBindGroup = uniformBindGroup
+	r.aliasSampler = sampler
+	r.aliasPipeline = pipeline
+	r.aliasShadowPipeline = shadowPipeline
+	return nil
+}
+
+func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout, surfaceFormat gputypes.TextureFormat, label string, depthWrite bool) (hal.RenderPipeline, error) {
+	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  label,
+		Layout: layout,
 		Vertex: hal.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
@@ -415,7 +459,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 		},
 		DepthStencil: &hal.DepthStencilState{
 			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: true,
+			DepthWriteEnabled: depthWrite,
 			DepthCompare:      gputypes.CompareFunctionLessEqual,
 			StencilReadMask:   0xFFFFFFFF,
 			StencilWriteMask:  0xFFFFFFFF,
@@ -442,28 +486,6 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 			}},
 		},
 	})
-	if err != nil {
-		sampler.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
-		return fmt.Errorf("create alias pipeline: %w", err)
-	}
-
-	r.aliasVertexShader = vertexShader
-	r.aliasFragmentShader = fragmentShader
-	r.aliasUniformBindGroupLayout = uniformLayout
-	r.aliasTextureBindGroupLayout = textureLayout
-	r.aliasPipelineLayout = pipelineLayout
-	r.aliasUniformBuffer = uniformBuffer
-	r.aliasUniformBindGroup = uniformBindGroup
-	r.aliasSampler = sampler
-	r.aliasPipeline = pipeline
-	return nil
 }
 
 func (r *Renderer) ensureAliasScratchBufferLocked(device hal.Device, size uint64) error {
@@ -969,8 +991,8 @@ func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float3
 	return data
 }
 
-func aliasShadowUniformBytes(vp types.Mat4, alpha float32) []byte {
-	return aliasSceneUniformBytes(vp, [3]float32{}, alpha, [3]float32{}, 0)
+func aliasShadowUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+	return aliasSceneUniformBytes(vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 
 func aliasVertexBytes(vertices []WorldVertex) []byte {
