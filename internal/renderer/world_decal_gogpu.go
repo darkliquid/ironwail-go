@@ -231,14 +231,8 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: false,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
-		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		DepthStencil: decalDepthStencilState(),
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &hal.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
@@ -417,7 +411,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
 		}},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+		DepthStencilAttachment: decalDepthAttachmentForView(depthView),
 	})
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
@@ -455,6 +449,44 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	}
 	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
 		slog.Warn("failed to submit decal commands", "error", err)
+	}
+}
+
+func decalDepthStencilState() *hal.DepthStencilState {
+	stencilFace := hal.StencilFaceState{
+		Compare:     gputypes.CompareFunctionEqual,
+		FailOp:      hal.StencilOperationKeep,
+		DepthFailOp: hal.StencilOperationKeep,
+		PassOp:      hal.StencilOperationIncrementClamp,
+	}
+	return &hal.DepthStencilState{
+		Format:              worldDepthTextureFormat,
+		DepthWriteEnabled:   false,
+		DepthCompare:        gputypes.CompareFunctionLessEqual,
+		StencilFront:        stencilFace,
+		StencilBack:         stencilFace,
+		StencilReadMask:     0xFFFFFFFF,
+		StencilWriteMask:    0xFFFFFFFF,
+		DepthBias:           -1,
+		DepthBiasSlopeScale: -2,
+		DepthBiasClamp:      0,
+	}
+}
+
+func decalDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+	if view == nil {
+		return nil
+	}
+	return &hal.RenderPassDepthStencilAttachment{
+		View:              view,
+		DepthLoadOp:       gputypes.LoadOpLoad,
+		DepthStoreOp:      gputypes.StoreOpStore,
+		DepthClearValue:   1.0,
+		DepthReadOnly:     false,
+		StencilLoadOp:     gputypes.LoadOpLoad,
+		StencilStoreOp:    gputypes.StoreOpStore,
+		StencilClearValue: 0,
+		StencilReadOnly:   false,
 	}
 }
 
