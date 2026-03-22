@@ -107,8 +107,9 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 	timeValue := float32(12.5)
 	alphaValue := float32(0.35)
 	dynamicLight := [3]float32{0.7, 0.5, 0.3}
+	litWater := float32(1)
 
-	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity, timeValue, alphaValue, dynamicLight)
+	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity, timeValue, alphaValue, dynamicLight, litWater)
 	if len(data) != worldUniformBufferSize {
 		t.Fatalf("len(worldSceneUniformBytes()) = %d, want %d", len(data), worldUniformBufferSize)
 	}
@@ -142,6 +143,10 @@ func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 		if !almostEqualWorldFloat32(got, want, 1e-6) {
 			t.Fatalf("dynamicLight[%d] = %v, want %v", i, got, want)
 		}
+	}
+	gotLitWater := math.Float32frombits(binary.LittleEndian.Uint32(data[124:128]))
+	if !almostEqualWorldFloat32(gotLitWater, litWater, 1e-6) {
+		t.Fatalf("litWater = %v, want %v", gotLitWater, litWater)
 	}
 }
 
@@ -224,8 +229,13 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 	turbChecks := []string{
 		"input.texCoord * 2.0 + 0.125 * sin",
 		"uniforms.time",
+		"worldLightmapSampler",
+		"worldLightmap",
 		"worldFullbrightTexture",
-		"sampled.rgb+fullbright.rgb*fullbright.a",
+		"uniforms.litWater > 0.5",
+		"vec3<f32>(0.5)",
+		"textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb",
+		"sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a",
 		"sampled.a * uniforms.alpha",
 	}
 	for _, check := range turbChecks {

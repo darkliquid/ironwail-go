@@ -14,6 +14,7 @@ import (
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
@@ -27,7 +28,9 @@ type WorldUniforms struct {
 	FogColor       [3]float32
 	Time           float32
 	Alpha          float32
-	_Pad           [2]float32
+	_Pad0          [3]float32
+	DynamicLight   [3]float32
+	LitWater       float32
 }
 
 const worldUniformBufferSize = 128
@@ -148,6 +151,36 @@ type WorldLightmapPage struct {
 
 type faceLightmapSurface struct {
 	pageIndex int
+}
+
+func worldFaceHasLitWater(textureFlags int32, lightmapSurface *faceLightmapSurface) bool {
+	return textureFlags&model.SurfDrawTurb != 0 &&
+		textureFlags&model.SurfDrawSky == 0 &&
+		lightmapSurface != nil
+}
+
+func worldLitWaterCvarEnabled() bool {
+	cv := cvar.Get(CvarRLitWater)
+	if cv == nil {
+		return true
+	}
+	return cv.Int != 0
+}
+
+func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback hal.BindGroup) (hal.BindGroup, float32) {
+	bindGroup := fallback
+	if face.LightmapIndex < 0 || int(face.LightmapIndex) >= len(lightmaps) {
+		return bindGroup, 0
+	}
+	lightmapPage := lightmaps[face.LightmapIndex]
+	if lightmapPage == nil || lightmapPage.bindGroup == nil {
+		return bindGroup, 0
+	}
+	bindGroup = lightmapPage.bindGroup
+	if worldLitWaterCvarEnabled() && worldFaceHasLitWater(face.Flags, &faceLightmapSurface{pageIndex: int(face.LightmapIndex)}) {
+		return bindGroup, 1
+	}
+	return bindGroup, 0
 }
 
 const worldLightmapPageSize = 1024
@@ -479,7 +512,7 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     dynamicLight: vec3<f32>,
-    _pad1: f32,
+    litWater: f32,
 }
 
 struct VertexOutput {
@@ -524,7 +557,7 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     dynamicLight: vec3<f32>,
-    _pad1: f32,
+    litWater: f32,
 }
 
 struct VertexOutput {
@@ -588,7 +621,7 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     dynamicLight: vec3<f32>,
-    _pad1: f32,
+    litWater: f32,
 }
 
 struct VertexOutput {
@@ -622,7 +655,7 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     dynamicLight: vec3<f32>,
-    _pad1: f32,
+    litWater: f32,
 }
 
 struct VertexOutput {
@@ -643,6 +676,12 @@ var worldSampler: sampler;
 @group(1) @binding(1)
 var worldTexture: texture_2d<f32>;
 
+@group(2) @binding(0)
+var worldLightmapSampler: sampler;
+
+@group(2) @binding(1)
+var worldLightmap: texture_2d<f32>;
+
 @group(3) @binding(0)
 var worldFullbrightSampler: sampler;
 
@@ -654,9 +693,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time));
     let sampled = textureSample(worldTexture, worldSampler, uv);
     let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, uv);
+    var lightmap = vec3<f32>(0.5);
+    if (uniforms.litWater > 0.5) {
+        lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
+    }
+    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    return vec4<f32>(mix(uniforms.fogColor, sampled.rgb+fullbright.rgb*fullbright.a, fog), sampled.a * uniforms.alpha);
+    return vec4<f32>(mix(uniforms.fogColor, lit, fog), sampled.a * uniforms.alpha);
 }
 `
 
@@ -669,7 +713,7 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     dynamicLight: vec3<f32>,
-    _pad1: f32,
+    litWater: f32,
 }
 
 struct VertexOutput {
@@ -713,7 +757,7 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     dynamicLight: vec3<f32>,
-    _pad1: f32,
+    litWater: f32,
 }
 
 struct VertexOutput {
@@ -2653,7 +2697,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	camera := dc.renderer.cameraState
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	var currentDynamicLight [3]float32
-	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, state.FogDensity, camera.Time, 1, currentDynamicLight)
+	currentLitWater := float32(0)
+	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, state.FogDensity, camera.Time, 1, currentDynamicLight, currentLitWater)
 	slog.Info("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Info("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
@@ -2694,12 +2739,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	dc.renderer.mu.RUnlock()
 	currentAlpha := float32(1)
-	writeWorldUniform := func(alpha float32, dynamicLight [3]float32) bool {
-		if currentAlpha == alpha && currentDynamicLight == dynamicLight {
+	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
+		if currentAlpha == alpha && currentDynamicLight == dynamicLight && currentLitWater == litWater {
 			return true
 		}
 		currentAlpha = alpha
 		currentDynamicLight = dynamicLight
+		currentLitWater = litWater
 		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, worldSceneUniformBytes(
 			vpMatrix,
 			cameraOrigin,
@@ -2708,6 +2754,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			camera.Time,
 			alpha,
 			dynamicLight,
+			litWater,
 		)) == nil
 	}
 
@@ -2754,7 +2801,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			continue
 		}
 		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
-		if !writeWorldUniform(1, dynamicLight) {
+		if !writeWorldUniform(1, dynamicLight, 0) {
 			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
 			renderPass.End()
 			return
@@ -2792,6 +2839,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 				textureBindGroup = worldTexture.bindGroup
 			}
+			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)
+			dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
+			if !writeWorldUniform(1, dynamicLight, litWater) {
+				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
+				renderPass.End()
+				return
+			}
 			fullbrightBindGroup := dc.renderer.transparentBindGroup
 			if fullbrightBindGroup == nil {
 				fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
@@ -2800,7 +2854,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				fullbrightBindGroup = worldTexture.bindGroup
 			}
 			renderPass.SetBindGroup(1, textureBindGroup, nil)
-			renderPass.SetBindGroup(2, dc.renderer.whiteLightmapBindGroup, nil)
+			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			liquidDrawnIndices += face.NumIndices
@@ -2816,6 +2870,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			translucentFaces = append(translucentFaces, gogpuTranslucentLiquidFaceDraw{
 				face:       face,
 				alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
+				center:     face.Center,
 				distanceSq: worldFaceDistanceSq(face.Center, camera),
 			})
 		}
@@ -2824,7 +2879,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		})
 		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
 		for _, draw := range translucentFaces {
-			if !writeWorldUniform(draw.alpha, [3]float32{}) {
+			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)
+			dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
+			if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
 				slog.Error("renderWorldInternal: Failed to update translucent liquid alpha uniform")
 				renderPass.End()
 				return
@@ -2841,12 +2898,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				fullbrightBindGroup = worldTexture.bindGroup
 			}
 			renderPass.SetBindGroup(1, textureBindGroup, nil)
-			renderPass.SetBindGroup(2, dc.renderer.whiteLightmapBindGroup, nil)
+			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
 			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 			renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
 			translucentLiquidDrawnIndices += draw.face.NumIndices
 		}
-		if !writeWorldUniform(1, [3]float32{}) {
+		if !writeWorldUniform(1, [3]float32{}, 0) {
 			slog.Error("renderWorldInternal: Failed to restore world alpha uniform")
 			renderPass.End()
 			return
@@ -2907,7 +2964,7 @@ func matrixToBytes(m types.Mat4) []byte {
 	return b[:]
 }
 
-func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32) []byte {
+func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) []byte {
 	data := make([]byte, worldUniformBufferSize)
 	matrixBytes := matrixToBytes(vp)
 	copy(data[:64], matrixBytes)
@@ -2917,6 +2974,7 @@ func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(time))
 	binary.LittleEndian.PutUint32(data[96:100], math.Float32bits(alpha))
 	putFloat32s(data[112:124], dynamicLight[:])
+	binary.LittleEndian.PutUint32(data[124:128], math.Float32bits(litWater))
 	return data
 }
 
