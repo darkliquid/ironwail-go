@@ -125,6 +125,27 @@ func TestAliasFragmentShaderIncludesFogMix(t *testing.T) {
 	}
 }
 
+func TestAliasFragmentShaderAvoidsDirectionalDiffuseHack(t *testing.T) {
+	disallowed := []string{
+		"lightDir",
+		"dot(normal, lightDir)",
+		"sampled.rgb * diffuse",
+	}
+	for _, check := range disallowed {
+		if strings.Contains(aliasFragmentShaderWGSL, check) {
+			t.Fatalf("alias fragment shader still contains %q", check)
+		}
+	}
+	required := []string{
+		"let lit = sampled.rgb + fullbright.rgb * fullbright.a;",
+	}
+	for _, check := range required {
+		if !strings.Contains(aliasFragmentShaderWGSL, check) {
+			t.Fatalf("alias fragment shader missing %q", check)
+		}
+	}
+}
+
 func TestAliasShadowUniformBytesDisablesFog(t *testing.T) {
 	vp := types.Mat4{
 		1, 0, 0, 0,

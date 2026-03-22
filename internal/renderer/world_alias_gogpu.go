@@ -128,11 +128,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
     let fullbright = textureSample(fullbrightTexture, skinSampler, input.texCoord);
-
-    let lightDir = normalize(vec3<f32>(0.35, -0.45, 0.82));
-    let normal = normalize(input.normal);
-    let diffuse = max(dot(normal, lightDir), 0.25);
-    let lit = sampled.rgb * diffuse + fullbright.rgb;
+    let lit = sampled.rgb + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPosition - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
     return vec4<f32>(mix(uniforms.fogColor, lit, fog), sampled.a * uniforms.alpha);
