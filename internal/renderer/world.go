@@ -1093,10 +1093,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Create render pass descriptor with color and depth attachments.
 	// Use LoadOpClear to handle the clear ourselves since we skip gogpu's Clear().
-	clearColor := gputypes.Color{R: 0.0, G: 0.0, B: 0.0, A: 1.0}
-	if os.Getenv("IRONWAIL_DEBUG_WORLD_CLEAR_GREEN") == "1" {
-		clearColor = gputypes.Color{R: 0.0, G: 1.0, B: 0.0, A: 1.0}
-	}
+	clearColor := gogpuWorldClearColor(state.ClearColor)
 	slog.Info("renderWorldInternal: creating render pass descriptor")
 	renderPassDesc := &hal.RenderPassDescriptor{
 		Label: "World Render Pass",
@@ -1210,6 +1207,18 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 func matrixToBytes(m types.Mat4) []byte {
 	b := types.Mat4ToBytes(m)
 	return b[:]
+}
+
+func gogpuWorldClearColor(clear [4]float32) gputypes.Color {
+	if os.Getenv("IRONWAIL_DEBUG_WORLD_CLEAR_GREEN") == "1" {
+		return gputypes.Color{R: 0.0, G: 1.0, B: 0.0, A: 1.0}
+	}
+	return gputypes.Color{
+		R: float64(clear[0]),
+		G: float64(clear[1]),
+		B: float64(clear[2]),
+		A: float64(clear[3]),
+	}
 }
 
 // TransformVertex applies model-view-projection transformation to a vertex.

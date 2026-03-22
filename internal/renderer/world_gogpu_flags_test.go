@@ -4,8 +4,10 @@
 package renderer
 
 import (
+	"math"
 	"testing"
 
+	"github.com/gogpu/gputypes"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/model"
 )
@@ -43,5 +45,25 @@ func TestDeriveWorldFaceFlagsGoGPU(t *testing.T) {
 	}
 	if got := deriveWorldFaceFlags(model.TexTypeDefault, bsp.TexMissing); got&model.SurfNoTexture == 0 {
 		t.Fatalf("missing-texture flags = %#x, want no-texture bit", got)
+	}
+}
+
+func TestGoGPUWorldClearColorUsesStateColor(t *testing.T) {
+	t.Setenv("IRONWAIL_DEBUG_WORLD_CLEAR_GREEN", "")
+
+	got := gogpuWorldClearColor([4]float32{0.1, 0.2, 0.3, 0.4})
+	want := gputypes.Color{R: 0.1, G: 0.2, B: 0.3, A: 0.4}
+	if math.Abs(got.R-want.R) > 1e-6 || math.Abs(got.G-want.G) > 1e-6 || math.Abs(got.B-want.B) > 1e-6 || math.Abs(got.A-want.A) > 1e-6 {
+		t.Fatalf("gogpuWorldClearColor() = %#v, want %#v", got, want)
+	}
+}
+
+func TestGoGPUWorldClearColorDebugOverride(t *testing.T) {
+	t.Setenv("IRONWAIL_DEBUG_WORLD_CLEAR_GREEN", "1")
+
+	got := gogpuWorldClearColor([4]float32{0.1, 0.2, 0.3, 0.4})
+	want := gputypes.Color{R: 0.0, G: 1.0, B: 0.0, A: 1.0}
+	if got != want {
+		t.Fatalf("gogpuWorldClearColor() with debug override = %#v, want %#v", got, want)
 	}
 }
