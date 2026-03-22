@@ -514,6 +514,12 @@ var worldLightmapSampler: sampler;
 @group(2) @binding(1)
 var worldLightmap: texture_2d<f32>;
 
+@group(3) @binding(0)
+var worldFullbrightSampler: sampler;
+
+@group(3) @binding(1)
+var worldFullbrightTexture: texture_2d<f32>;
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
@@ -521,9 +527,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 		discard;
 	}
 	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
+	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb*lightmap, fog), sampled.a);
+	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb*lightmap+fullbright.rgb*fullbright.a, fog), sampled.a);
 }
 `
 
@@ -817,7 +824,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	// Create pipeline layout with the uniform bind group layout.
 	pipelineLayoutDesc := &hal.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout, textureLayout},
+		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout, textureLayout, textureLayout},
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
@@ -1163,15 +1170,17 @@ func (r *Renderer) createWorldDiffuseTexture(device hal.Device, queue hal.Queue,
 	return r.createWorldTextureFromRGBA(device, queue, sampler, "World Diffuse Texture", rgba, width, height)
 }
 
-func (r *Renderer) uploadWorldDiffuseTextures(device hal.Device, queue hal.Queue, sampler hal.Sampler, tree *bsp.Tree) map[int32]*gpuWorldTexture {
+func (r *Renderer) uploadWorldMaterialTextures(device hal.Device, queue hal.Queue, sampler hal.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
 	if tree == nil || device == nil || queue == nil || sampler == nil || len(tree.TextureData) < 4 {
-		return nil
+		return nil, nil, nil
 	}
 	textureCount := int(binary.LittleEndian.Uint32(tree.TextureData[:4]))
 	if textureCount <= 0 || len(tree.TextureData) < 4+textureCount*4 {
-		return nil
+		return nil, nil, nil
 	}
 	textures := make(map[int32]*gpuWorldTexture, textureCount)
+	fullbright := make(map[int32]*gpuWorldTexture)
+	textureNames := make([]string, textureCount)
 	for i := 0; i < textureCount; i++ {
 		offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[4+i*4:])))
 		if offset <= 0 || offset >= len(tree.TextureData) {
@@ -1181,14 +1190,33 @@ func (r *Renderer) uploadWorldDiffuseTextures(device hal.Device, queue hal.Queue
 		if err != nil {
 			continue
 		}
+		textureNames[i] = miptex.Name
 		worldTexture, err := r.createWorldDiffuseTexture(device, queue, sampler, miptex)
 		if err != nil {
 			slog.Warn("failed to upload world diffuse texture", "texture", miptex.Name, "error", err)
 			continue
 		}
 		textures[int32(i)] = worldTexture
+		pixels, width, height, err := miptex.MipLevel(0)
+		if err != nil || width <= 0 || height <= 0 {
+			continue
+		}
+		fullbrightRGBA, hasFullbright := ConvertPaletteToFullbrightRGBA(pixels, r.palette)
+		if !hasFullbright {
+			continue
+		}
+		fullbrightTexture, err := r.createWorldTextureFromRGBA(device, queue, sampler, "World Fullbright Texture", fullbrightRGBA, width, height)
+		if err != nil {
+			slog.Warn("failed to upload world fullbright texture", "texture", miptex.Name, "error", err)
+			continue
+		}
+		fullbright[int32(i)] = fullbrightTexture
 	}
-	return textures
+	animations, err := BuildTextureAnimations(textureNames)
+	if err != nil {
+		slog.Warn("failed to build world texture animations", "error", err)
+	}
+	return textures, fullbright, animations
 }
 
 func shouldSplitAsQuake64Sky(treeVersion int32, width, height int) bool {
@@ -1320,6 +1348,23 @@ func (r *Renderer) uploadWorldEmbeddedSkyTextures(device hal.Device, queue hal.Q
 		alpha[int32(i)] = alphaTexture
 	}
 	return solid, alpha
+}
+
+func gogpuWorldTextureForFace(face WorldFace, textures map[int32]*gpuWorldTexture, textureAnimations []*SurfaceTexture, fallback *gpuWorldTexture, frame int, timeSeconds float64) *gpuWorldTexture {
+	textureIndex := face.TextureIndex
+	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
+		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
+			textureIndex = animated.TextureIndex
+		}
+	}
+	worldTexture := textures[textureIndex]
+	if worldTexture == nil && textureIndex != face.TextureIndex {
+		worldTexture = textures[face.TextureIndex]
+	}
+	if worldTexture == nil {
+		return fallback
+	}
+	return worldTexture
 }
 
 func (r *Renderer) createWorldLightmapPageTexture(device hal.Device, queue hal.Queue, sampler hal.Sampler, page *WorldLightmapPage, values [64]float32) (*gpuWorldTexture, error) {
@@ -1865,7 +1910,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			}
 		}
 	}
-	worldTextures := r.uploadWorldDiffuseTextures(device, queue, worldTextureSampler, tree)
+	worldTextures, worldFullbrightTextures, worldTextureAnimations := r.uploadWorldMaterialTextures(device, queue, worldTextureSampler, tree)
 	worldSkySolidTextures, worldSkyAlphaTextures := r.uploadWorldEmbeddedSkyTextures(device, queue, worldTextureSampler, tree)
 	lightstyleValues := defaultWorldLightStyleValues()
 	var worldLightmapSampler hal.Sampler
@@ -1914,8 +1959,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.whiteTextureView = whiteTextureView
 	r.worldTextureSampler = worldTextureSampler
 	r.worldTextures = worldTextures
+	r.worldFullbrightTextures = worldFullbrightTextures
 	r.worldSkySolidTextures = worldSkySolidTextures
 	r.worldSkyAlphaTextures = worldSkyAlphaTextures
+	r.worldTextureAnimations = worldTextureAnimations
 	r.whiteTextureBindGroup = whiteTextureBindGroup
 	r.transparentTexture = transparentTexture
 	r.transparentTextureView = transparentTextureView
@@ -2080,6 +2127,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.End()
 		return
 	}
+	timeSeconds := float64(camera.Time)
 
 	skyDrawnIndices := uint32(0)
 	if dc.renderer.worldSkyPipeline != nil {
@@ -2113,7 +2161,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			continue
 		}
 		textureBindGroup := dc.renderer.whiteTextureBindGroup
-		if worldTexture := dc.renderer.worldTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 			textureBindGroup = worldTexture.bindGroup
 		}
 		lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
@@ -2122,8 +2170,16 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				lightmapBindGroup = lightmapPage.bindGroup
 			}
 		}
+		fullbrightBindGroup := dc.renderer.transparentBindGroup
+		if fullbrightBindGroup == nil {
+			fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+		}
+		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+			fullbrightBindGroup = worldTexture.bindGroup
+		}
 		renderPass.SetBindGroup(1, textureBindGroup, nil)
 		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
+		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		drawnIndices += face.NumIndices
 	}
@@ -2417,6 +2473,22 @@ func (r *Renderer) ClearWorld() {
 			}
 			delete(r.worldSkyAlphaTextures, textureIndex)
 		}
+		for textureIndex, worldTexture := range r.worldFullbrightTextures {
+			if worldTexture == nil {
+				delete(r.worldFullbrightTextures, textureIndex)
+				continue
+			}
+			if worldTexture.bindGroup != nil {
+				worldTexture.bindGroup.Destroy()
+			}
+			if worldTexture.view != nil {
+				worldTexture.view.Destroy()
+			}
+			if worldTexture.texture != nil {
+				worldTexture.texture.Destroy()
+			}
+			delete(r.worldFullbrightTextures, textureIndex)
+		}
 		for index, worldLightmap := range r.worldLightmapPages {
 			if worldLightmap == nil {
 				continue
@@ -2461,8 +2533,10 @@ func (r *Renderer) ClearWorld() {
 		r.textureBindGroupLayout = nil
 		r.worldTextureSampler = nil
 		r.worldTextures = nil
+		r.worldFullbrightTextures = nil
 		r.worldSkySolidTextures = nil
 		r.worldSkyAlphaTextures = nil
+		r.worldTextureAnimations = nil
 		r.whiteTextureBindGroup = nil
 		r.transparentTexture = nil
 		r.transparentTextureView = nil

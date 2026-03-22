@@ -151,8 +151,11 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"worldTexture",
 		"worldLightmapSampler",
 		"worldLightmap",
+		"worldFullbrightSampler",
+		"worldFullbrightTexture",
 		"textureSample(worldTexture, worldSampler, input.texCoord)",
 		"textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord)",
+		"textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord)",
 		"if (sampled.a < 0.5)",
 		"discard;",
 		"cameraOrigin",
@@ -160,7 +163,8 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		"fogColor",
 		"worldPos",
 		"exp2(",
-		"mix(uniforms.fogColor, sampled.rgb*lightmap, fog)",
+		"sampled.rgb*lightmap+fullbright.rgb*fullbright.a",
+		"mix(uniforms.fogColor, sampled.rgb*lightmap+fullbright.rgb*fullbright.a, fog)",
 	}
 	for _, check := range fragmentChecks {
 		if !strings.Contains(worldFragmentShaderWGSL, check) {
@@ -212,6 +216,26 @@ func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
 	}
 	if shouldDrawGoGPUSkyWorldFace(WorldFace{Flags: model.SurfDrawSky}) {
 		t.Fatal("empty sky face should not draw in sky pass")
+	}
+}
+
+func TestGoGPUWorldTextureForFace(t *testing.T) {
+	fallback := &gpuWorldTexture{}
+	base := &gpuWorldTexture{}
+	animated := &gpuWorldTexture{}
+	textures := map[int32]*gpuWorldTexture{1: base, 2: animated}
+	animations := []*SurfaceTexture{
+		nil,
+		{TextureIndex: 1, AnimTotal: 4, AnimMin: 0, AnimMax: 2, AnimNext: &SurfaceTexture{TextureIndex: 2, AnimTotal: 4, AnimMin: 2, AnimMax: 4}},
+		nil,
+	}
+	animations[1].AnimNext.AnimNext = animations[1]
+	got := gogpuWorldTextureForFace(WorldFace{TextureIndex: 1}, textures, animations, fallback, 0, 0.3)
+	if got != animated {
+		t.Fatalf("animated world texture = %p, want %p", got, animated)
+	}
+	if got := gogpuWorldTextureForFace(WorldFace{TextureIndex: 99}, textures, animations, fallback, 0, 0); got != fallback {
+		t.Fatalf("fallback world texture = %p, want %p", got, fallback)
 	}
 }
 

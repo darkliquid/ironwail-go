@@ -514,30 +514,32 @@ type Renderer struct {
 	worldData *WorldRenderData
 
 	// GPU resources for world rendering
-	worldVertexBuffer      hal.Buffer
-	worldIndexBuffer       hal.Buffer
-	worldIndexCount        uint32
-	worldPipeline          hal.RenderPipeline
-	worldSkyPipeline       hal.RenderPipeline
-	worldPipelineLayout    hal.PipelineLayout
-	worldBindGroup         hal.BindGroup
-	worldShader            hal.ShaderModule
-	uniformBuffer          hal.Buffer
-	uniformBindGroup       hal.BindGroup
-	uniformBindGroupLayout hal.BindGroupLayout
-	textureBindGroupLayout hal.BindGroupLayout
-	worldTextureSampler    hal.Sampler
-	worldTextures          map[int32]*gpuWorldTexture
-	worldSkySolidTextures  map[int32]*gpuWorldTexture
-	worldSkyAlphaTextures  map[int32]*gpuWorldTexture
-	whiteTextureBindGroup  hal.BindGroup
-	transparentTexture     hal.Texture
-	transparentTextureView hal.TextureView
-	transparentBindGroup   hal.BindGroup
-	worldLightmapSampler   hal.Sampler
-	worldLightmapPages     []*gpuWorldTexture
-	whiteLightmapBindGroup hal.BindGroup
-	worldLightStyleValues  [64]float32
+	worldVertexBuffer       hal.Buffer
+	worldIndexBuffer        hal.Buffer
+	worldIndexCount         uint32
+	worldPipeline           hal.RenderPipeline
+	worldSkyPipeline        hal.RenderPipeline
+	worldPipelineLayout     hal.PipelineLayout
+	worldBindGroup          hal.BindGroup
+	worldShader             hal.ShaderModule
+	uniformBuffer           hal.Buffer
+	uniformBindGroup        hal.BindGroup
+	uniformBindGroupLayout  hal.BindGroupLayout
+	textureBindGroupLayout  hal.BindGroupLayout
+	worldTextureSampler     hal.Sampler
+	worldTextures           map[int32]*gpuWorldTexture
+	worldFullbrightTextures map[int32]*gpuWorldTexture
+	worldSkySolidTextures   map[int32]*gpuWorldTexture
+	worldSkyAlphaTextures   map[int32]*gpuWorldTexture
+	worldTextureAnimations  []*SurfaceTexture
+	whiteTextureBindGroup   hal.BindGroup
+	transparentTexture      hal.Texture
+	transparentTextureView  hal.TextureView
+	transparentBindGroup    hal.BindGroup
+	worldLightmapSampler    hal.Sampler
+	worldLightmapPages      []*gpuWorldTexture
+	whiteLightmapBindGroup  hal.BindGroup
+	worldLightStyleValues   [64]float32
 
 	// 1x1 white texture for fallback
 	whiteTexture          hal.Texture
