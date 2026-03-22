@@ -471,6 +471,9 @@ func registerConsoleCanvasTestCvars() {
 	cvar.Register("vid_height", "720", cvar.FlagArchive, "test vid height")
 	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "test console width")
 	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "test console scale")
+	cvar.Register("scr_menuscale", "1", cvar.FlagArchive, "test menu scale")
+	cvar.Register("scr_sbarscale", "1", cvar.FlagArchive, "test sbar scale")
+	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "test crosshair scale")
 	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "test console slide speed")
 }
 
@@ -4704,6 +4707,49 @@ func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 	cmdsys.ExecuteText("unbindall")
 	if got := g.Input.GetBinding(input.KMWheelUp); got != "" {
 		t.Fatalf("unbindall did not clear MWHEELUP binding, got %q", got)
+	}
+}
+
+func TestScrAutoScaleUsesRendererSize(t *testing.T) {
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	cvar.SetInt("vid_width", 640)
+	cvar.SetInt("vid_height", 480)
+	registerGameplayBindCommands()
+
+	cmdsys.ExecuteText("scr_autoscale")
+
+	for _, name := range []string{"scr_conscale", "scr_menuscale", "scr_sbarscale", "scr_crosshairscale"} {
+		if got := cvar.FloatValue(name); math.Abs(got-2.25) > 0.0001 {
+			t.Fatalf("%s = %v, want 2.25", name, got)
+		}
+	}
+}
+
+func TestScrAutoScaleFallsBackToVideoCvars(t *testing.T) {
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = nil
+	cvar.SetInt("vid_width", 800)
+	cvar.SetInt("vid_height", 600)
+	registerGameplayBindCommands()
+
+	cmdsys.ExecuteText("scr_autoscale")
+
+	for _, name := range []string{"scr_conscale", "scr_menuscale", "scr_sbarscale", "scr_crosshairscale"} {
+		if got := cvar.FloatValue(name); math.Abs(got-1.25) > 0.0001 {
+			t.Fatalf("%s = %v, want 1.25", name, got)
+		}
 	}
 }
 

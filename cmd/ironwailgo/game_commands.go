@@ -22,6 +22,7 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("unbind", cmdUnbind, "Remove a key binding")
 	cmdsys.AddCommand("unbindall", cmdUnbindAll, "Remove all key bindings")
 	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
+	cmdsys.AddCommand("scr_autoscale", cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
@@ -108,6 +109,36 @@ func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bo
 		return
 	}
 	g.Client.KeyUp(button, key)
+}
+
+func currentAutoScaleFactor() float64 {
+	width, height := 0, 0
+	if g.Renderer != nil {
+		width, height = g.Renderer.Size()
+	}
+	if width <= 0 {
+		width = cvar.IntValue("vid_width")
+	}
+	if height <= 0 {
+		height = cvar.IntValue("vid_height")
+	}
+	scaleW := float64(width) / 640.0
+	scaleH := float64(height) / 480.0
+	scale := scaleW
+	if scaleH < scale {
+		scale = scaleH
+	}
+	if scale < 1 {
+		return 1
+	}
+	return scale
+}
+
+func cmdScreenAutoScale(_ []string) {
+	scale := currentAutoScaleFactor()
+	for _, name := range []string{"scr_conscale", "scr_menuscale", "scr_sbarscale", "scr_crosshairscale"} {
+		cvar.SetFloat(name, scale)
+	}
 }
 
 func restartVideo() error {
