@@ -1042,6 +1042,91 @@ func TestDrawRuntimeSavingIndicatorUsesTopRightOffset(t *testing.T) {
 	}
 }
 
+func TestDrawRuntimeDemoControlsUsesSbarCanvas(t *testing.T) {
+	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
+	dc := &telemetryOverlayDrawContext{}
+	state := runtimeTelemetryState{
+		DemoPlayback:   true,
+		DemoSpeed:      1,
+		DemoBaseSpeed:  1,
+		DemoProgress:   0.5,
+		DemoName:       "demo1",
+		DemoBarTimeout: 1,
+		ClientTime:     125,
+		FrameTime:      0.1,
+	}
+	overlay := &runtimeDemoOverlay{}
+
+	drawRuntimeDemoControls(dc, nil, state, overlay)
+
+	if len(dc.chars) == 0 {
+		t.Fatal("expected demo control characters")
+	}
+	if got := dc.chars[0]; got.canvas != renderer.CanvasSbar || got.x != 8 || got.y != -20 || got.num != '>' {
+		t.Fatalf("first demo control char = %+v, want sbar canvas at 8,-20 with '>'", got)
+	}
+	foundCursor := false
+	for _, ch := range dc.chars {
+		if ch.canvas == renderer.CanvasSbar && ch.num == 131 {
+			foundCursor = true
+			break
+		}
+	}
+	if !foundCursor {
+		t.Fatal("expected demo seek cursor character")
+	}
+}
+
+func TestDrawRuntimeDemoControlsTimeoutHidesOverlay(t *testing.T) {
+	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
+	state := runtimeTelemetryState{
+		DemoPlayback:   true,
+		DemoSpeed:      1,
+		DemoBaseSpeed:  1,
+		DemoProgress:   0.25,
+		DemoName:       "demo1",
+		DemoBarTimeout: 1,
+		ClientTime:     10,
+		FrameTime:      0.1,
+	}
+	overlay := &runtimeDemoOverlay{}
+	drawRuntimeDemoControls(&telemetryOverlayDrawContext{}, nil, state, overlay)
+
+	dc := &telemetryOverlayDrawContext{}
+	state.FrameTime = 1.1
+	drawRuntimeDemoControls(dc, nil, state, overlay)
+
+	if len(dc.chars) != 0 || len(dc.pics) != 0 {
+		t.Fatalf("expected timed-out demo overlay to draw nothing, got chars=%d pics=%d", len(dc.chars), len(dc.pics))
+	}
+}
+
+func TestDrawRuntimeDemoControlsUsesMenuCanvasDuringIntermission(t *testing.T) {
+	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
+	dc := &telemetryOverlayDrawContext{}
+	state := runtimeTelemetryState{
+		DemoPlayback:   true,
+		DemoSpeed:      0,
+		DemoBaseSpeed:  1,
+		DemoProgress:   0.5,
+		DemoName:       "demo1",
+		DemoBarTimeout: 1,
+		ClientTime:     5,
+		FrameTime:      0.1,
+		Intermission:   1,
+	}
+	overlay := &runtimeDemoOverlay{}
+
+	drawRuntimeDemoControls(dc, nil, state, overlay)
+
+	if len(dc.chars) == 0 {
+		t.Fatal("expected intermission demo control characters")
+	}
+	if got := dc.chars[0]; got.canvas != renderer.CanvasMenu || got.y != 25 || got.num != 'I' {
+		t.Fatalf("first intermission demo control char = %+v, want menu canvas at y=25 with 'I'", got)
+	}
+}
+
 func TestBuildCSQCDrawHooksUsesNamedPicsAndScales(t *testing.T) {
 	originalDraw := g.Draw
 	t.Cleanup(func() {

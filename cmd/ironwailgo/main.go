@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -85,6 +86,7 @@ type Game struct {
 	ConsoleSlideFraction float32
 	FPSOverlay           runtimeFPSOverlay
 	SpeedOverlay         runtimeSpeedOverlay
+	DemoOverlay          runtimeDemoOverlay
 	TurtleOverlayCount   int
 	LastServerMessageAt  float64
 }
@@ -113,6 +115,12 @@ type runtimeSpeedOverlay struct {
 	lastRealTime float64
 }
 
+type runtimeDemoOverlay struct {
+	prevSpeed     float32
+	prevBaseSpeed float32
+	showTime      float64
+}
+
 type runtimeTelemetryState struct {
 	RealTime        float64
 	FrameCount      int
@@ -128,6 +136,11 @@ type runtimeTelemetryState struct {
 	Intermission    int
 	InCutscene      bool
 	DemoPlayback    bool
+	DemoSpeed       float32
+	DemoBaseSpeed   float32
+	DemoProgress    float64
+	DemoName        string
+	DemoBarTimeout  float32
 	ClientActive    bool
 	Velocity        [3]float32
 	ConsoleForced   bool
@@ -794,6 +807,7 @@ func main() {
 							g.HUD.Draw(overlay)
 						}
 						drawRuntimeClock(overlay, telemetryState)
+						drawRuntimeDemoControls(overlay, g.Draw, telemetryState, &g.DemoOverlay)
 						drawRuntimeSpeed(overlay, telemetryState, &g.SpeedOverlay)
 						drawRuntimeNet(overlay, g.Draw, telemetryState)
 						drawRuntimeTurtle(overlay, g.Draw, telemetryState, &g.TurtleOverlayCount)
@@ -957,6 +971,7 @@ func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 		ShowSpeed:       cvar.BoolValue("scr_showspeed"),
 		ShowTurtle:      cvar.BoolValue("scr_showturtle"),
 		ShowSpeedOfs:    float32(cvar.FloatValue("scr_showspeed_ofs")),
+		DemoBarTimeout:  float32(cvar.FloatValue("scr_demobar_timeout")),
 		ConsoleForced:   conForcedup,
 		LastServerMsgAt: g.LastServerMessageAt,
 	}
@@ -967,6 +982,10 @@ func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 		state.SavingActive = g.Host.SavingIndicatorActive(state.RealTime)
 		if demo := g.Host.DemoState(); demo != nil {
 			state.DemoPlayback = demo.Playback
+			state.DemoSpeed = demo.Speed
+			state.DemoBaseSpeed = demo.BaseSpeed
+			state.DemoProgress = demo.Progress()
+			state.DemoName = runtimeDemoName(demo.Filename)
 		}
 	}
 	if g.Client != nil {
@@ -1136,6 +1155,180 @@ func drawRuntimeSpeed(rc renderer.RenderContext, state runtimeTelemetryState, ov
 		overlay.displaySpeed = overlay.maxSpeed
 		overlay.maxSpeed = 0
 	}
+}
+
+type picAlphaRenderContext interface {
+	DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32)
+}
+
+func drawRuntimePicAlpha(rc renderer.RenderContext, x, y int, pic *qimage.QPic, alpha float32) {
+	if rc == nil || pic == nil || alpha <= 0 {
+		return
+	}
+	if picAlpha, ok := rc.(picAlphaRenderContext); ok {
+		picAlpha.DrawPicAlpha(x, y, pic, alpha)
+		return
+	}
+	rc.DrawPic(x, y, pic)
+}
+
+func drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvider, x, y, width, lines int, alpha float32) {
+	if rc == nil || pics == nil || alpha <= 0 {
+		return
+	}
+	cx := x
+	cy := y
+
+	if pic := pics.GetPic("gfx/box_tl.lmp"); pic != nil {
+		drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+	}
+	if pic := pics.GetPic("gfx/box_ml.lmp"); pic != nil {
+		for n := 0; n < lines; n++ {
+			cy += 8
+			drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+		}
+	}
+	if pic := pics.GetPic("gfx/box_bl.lmp"); pic != nil {
+		drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
+	}
+
+	cx += 8
+	for remaining := width; remaining > 0; remaining -= 2 {
+		cy = y
+		if pic := pics.GetPic("gfx/box_tm.lmp"); pic != nil {
+			drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+		}
+		for n := 0; n < lines; n++ {
+			cy += 8
+			name := "gfx/box_mm.lmp"
+			if n == 1 {
+				name = "gfx/box_mm2.lmp"
+			}
+			if pic := pics.GetPic(name); pic != nil {
+				drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+			}
+		}
+		if pic := pics.GetPic("gfx/box_bm.lmp"); pic != nil {
+			drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
+		}
+		cx += 16
+	}
+
+	cy = y
+	if pic := pics.GetPic("gfx/box_tr.lmp"); pic != nil {
+		drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+	}
+	if pic := pics.GetPic("gfx/box_mr.lmp"); pic != nil {
+		for n := 0; n < lines; n++ {
+			cy += 8
+			drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+		}
+	}
+	if pic := pics.GetPic("gfx/box_br.lmp"); pic != nil {
+		drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
+	}
+}
+
+func runtimeDemoName(name string) string {
+	base := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
+	if len(base) > 30 {
+		base = base[:30]
+	}
+	return base
+}
+
+func formatRuntimeDemoBaseSpeed(speed float32) string {
+	if speed == 0 {
+		return ""
+	}
+	absSpeed := math.Abs(float64(speed))
+	if absSpeed >= 1 {
+		return fmt.Sprintf("%gx", absSpeed)
+	}
+	return fmt.Sprintf("1/%gx", 1/absSpeed)
+}
+
+func drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState, overlay *runtimeDemoOverlay) {
+	if rc == nil || overlay == nil || !state.DemoPlayback || state.DemoBarTimeout < 0 {
+		if overlay != nil {
+			overlay.showTime = 0
+		}
+		return
+	}
+	if state.DemoSpeed != overlay.prevSpeed ||
+		state.DemoBaseSpeed != overlay.prevBaseSpeed ||
+		math.Abs(float64(state.DemoSpeed)) > math.Abs(float64(state.DemoBaseSpeed)) ||
+		state.DemoBarTimeout == 0 {
+		overlay.prevSpeed = state.DemoSpeed
+		overlay.prevBaseSpeed = state.DemoBaseSpeed
+		overlay.showTime = 1
+		if state.DemoBarTimeout > 0 {
+			overlay.showTime = float64(state.DemoBarTimeout)
+		}
+	} else {
+		overlay.showTime -= state.FrameTime
+		if overlay.showTime < 0 {
+			overlay.showTime = 0
+			return
+		}
+	}
+
+	const timebarChars = 38
+	x := 160 - timebarChars/2*8
+	y := -20
+	rc.SetCanvas(renderer.CanvasSbar)
+	if state.Intermission != 0 {
+		rc.SetCanvas(renderer.CanvasMenu)
+		y = 25
+	}
+
+	alpha := currentSbarAlpha()
+	drawRuntimeTextBoxAlpha(rc, pics, x-8, y-8, timebarChars, 1, alpha)
+
+	status := ">"
+	if state.DemoSpeed == 0 {
+		status = "II"
+	} else if math.Abs(float64(state.DemoSpeed)) > 1 {
+		status = ">>"
+	}
+	if state.DemoSpeed < 0 {
+		status = strings.Repeat("<", len(status))
+	}
+	drawRuntimeString(rc, x, y, status)
+
+	if base := formatRuntimeDemoBaseSpeed(state.DemoBaseSpeed); base != "" {
+		drawRuntimeString(rc, x+(timebarChars-len(base))*8, y, base)
+	}
+	if state.DemoName != "" {
+		drawRuntimeString(rc, 160-len(state.DemoName)*4, y, state.DemoName)
+	}
+
+	barY := y - 8
+	rc.DrawCharacter(x-8, barY, 128)
+	for i := 0; i < timebarChars; i++ {
+		rc.DrawCharacter(x+i*8, barY, 129)
+	}
+	rc.DrawCharacter(x+timebarChars*8, barY, 130)
+
+	progress := state.DemoProgress
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 1 {
+		progress = 1
+	}
+	cursorX := x + int(float64((timebarChars-1)*8)*progress)
+	rc.DrawCharacter(cursorX, barY, 131)
+
+	seconds := int(state.ClientTime)
+	timeText := fmt.Sprintf("%d:%02d", seconds/60, seconds%60)
+	timeX := cursorX
+	if colon := strings.IndexByte(timeText, ':'); colon >= 0 {
+		timeX -= colon * 8
+	}
+	timeY := barY - 11
+	drawRuntimeTextBoxAlpha(rc, pics, timeX-8-(len(timeText)&1)*4, timeY-8, len(timeText)+(len(timeText)&1), 1, alpha)
+	drawRuntimeString(rc, timeX, timeY, timeText)
 }
 
 func drawRuntimeTurtle(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState, count *int) {
