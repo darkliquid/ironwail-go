@@ -1009,10 +1009,6 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 	}
 	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
 	conW, conH := runtimeConsoleDimensions(guiW, guiH)
-	fov := float32(90)
-	if cv := cvar.Get("fov"); cv != nil && cv.Float32() > 0 {
-		fov = cv.Float32()
-	}
 	ref, err := renderer.CalcRefdef(renderer.ScreenMetrics{
 		GLWidth:        framebufferW,
 		GLHeight:       framebufferH,
@@ -1023,7 +1019,7 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		ConWidth:       conW,
 		ConHeight:      conH,
 		ViewSize:       float32(cvar.FloatValue("scr_viewsize")),
-		FOV:            fov,
+		FOV:            currentRuntimeFOV(),
 		FOVAdapt:       true,
 		ZoomFOV:        30,
 		Zoom:           g.Zoom,
@@ -1050,6 +1046,13 @@ func currentSbarAlpha() float32 {
 		return 1
 	}
 	return alpha
+}
+
+func currentRuntimeFOV() float32 {
+	if cv := cvar.Get("fov"); cv != nil && cv.Float32() > 0 {
+		return cv.Float32()
+	}
+	return 90
 }
 
 func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
