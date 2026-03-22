@@ -68,6 +68,7 @@ type State struct {
 	ShowScores   bool
 	Scoreboard   []ScoreEntry
 
+	Paused          bool
 	InCutscene      bool
 	Intermission    int
 	CompletedTime   float64

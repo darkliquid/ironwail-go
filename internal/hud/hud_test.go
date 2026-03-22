@@ -491,6 +491,34 @@ func TestHUDDrawCenterprintTimeoutUsesScrCenterTime(t *testing.T) {
 	}
 }
 
+func TestHUDRegularCenterprintSuppressesWhilePaused(t *testing.T) {
+	registerCenterprintTestCvars()
+	cp := NewCenterprint(nil)
+
+	mock := &mockRenderContext{}
+	cp.Draw(mock, State{
+		Paused:        true,
+		CenterPrint:   "message",
+		CenterPrintAt: 10,
+		Time:          10.5,
+	}, 320, 200)
+	if got := charactersToString(mock.characters); got != "" {
+		t.Fatalf("paused centerprint = %q, want empty", got)
+	}
+
+	finale := &mockRenderContext{}
+	cp.Draw(finale, State{
+		Paused:        true,
+		Intermission:  2,
+		CenterPrint:   "AB",
+		CenterPrintAt: 10,
+		Time:          11,
+	}, 320, 200)
+	if got := charactersToString(finale.characters); got != "AB" {
+		t.Fatalf("paused finale centerprint = %q, want AB", got)
+	}
+}
+
 func TestHUDCenterprintFadeTailExtendsLifetime(t *testing.T) {
 	registerCenterprintTestCvars()
 	cvar.Set("scr_centerprintbg", "0")

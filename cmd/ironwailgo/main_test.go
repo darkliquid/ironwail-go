@@ -4583,6 +4583,7 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	g.Client.Time = 124
 	g.Client.CenterPrint = "The End"
 	g.Client.CenterPrintAt = 120
+	g.Client.Paused = true
 	g.Client.LevelName = "Unit Test Map"
 	g.ShowScores = true
 
@@ -4606,6 +4607,9 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	}
 	if got.CenterPrint != "The End" || got.CenterPrintAt != 120 || got.LevelName != "Unit Test Map" {
 		t.Fatalf("hud center/intermission text state = %#v", got)
+	}
+	if !got.Paused {
+		t.Fatalf("hud paused state = %#v, want Paused=true", got)
 	}
 	if got.Secrets != 3 || got.TotalSecrets != 9 || got.Monsters != 12 || got.TotalMonsters != 66 {
 		t.Fatalf("hud intermission stats = %#v", got)

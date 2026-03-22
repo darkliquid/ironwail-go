@@ -211,6 +211,9 @@ func (cp *Centerprint) activeCenterText(state State) (string, float64) {
 		if state.Intermission == 2 || state.Intermission == 3 {
 			return state.CenterPrint, 1
 		}
+		if state.Paused {
+			return "", 0
+		}
 		if alpha := centerprintVisualAlpha(state); alpha > 0 {
 			return state.CenterPrint, alpha
 		}
