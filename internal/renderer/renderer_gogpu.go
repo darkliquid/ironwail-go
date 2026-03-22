@@ -459,9 +459,9 @@ type cachedTexture struct {
 //
 // Thread Safety:
 //
-//	Renderer is thread-safe for configuration changes via SetConfig,
-//	but rendering callbacks (OnDraw, OnUpdate) are always called
-//	from the render thread.
+//	Renderer is thread-safe for configuration changes via SetConfig.
+//	OnUpdate runs on gogpu's main-thread event loop, while OnDraw and OnClose
+//	run on gogpu's dedicated locked render thread.
 //
 // Lifecycle:
 //
@@ -1077,10 +1077,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Phase 1: Clear screen
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
-	if !state.DrawWorld {
+	sceneTargetActive := shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
+	if !state.DrawWorld && !sceneTargetActive {
 		dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+	} else if sceneTargetActive && !state.DrawWorld {
+		dc.clearCurrentHALRenderTarget(state.ClearColor)
 	}
-	sceneTargetActive := state.DrawWorld && state.WaterWarp && dc.enableSceneRenderTarget()
 
 	// Phase 2: Draw 3D world directly to surface view (zero-copy)
 	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.

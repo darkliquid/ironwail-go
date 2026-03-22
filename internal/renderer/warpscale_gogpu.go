@@ -384,6 +384,53 @@ func (dc *DrawContext) currentHALRenderTargetView() hal.TextureView {
 	return dc.surfaceHALTextureView()
 }
 
+func shouldUseSceneRenderTarget(state *RenderFrameState) bool {
+	if state == nil || !state.WaterWarp {
+		return false
+	}
+	if state.DrawWorld || state.DrawEntities || len(state.DecalMarks) > 0 || state.ViewModel != nil {
+		return true
+	}
+	return state.DrawParticles && state.Particles != nil
+}
+
+func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {
+	if dc == nil || dc.renderer == nil {
+		return
+	}
+	device := dc.renderer.getHALDevice()
+	queue := dc.renderer.getHALQueue()
+	textureView := dc.currentHALRenderTargetView()
+	if device == nil || queue == nil || textureView == nil {
+		return
+	}
+
+	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Scene Target Clear Encoder"})
+	if err != nil {
+		return
+	}
+	if err := encoder.BeginEncoding("scene-target-clear"); err != nil {
+		return
+	}
+
+	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+		Label: "Scene Target Clear Pass",
+		ColorAttachments: []hal.RenderPassColorAttachment{{
+			View:       textureView,
+			LoadOp:     gputypes.LoadOpClear,
+			StoreOp:    gputypes.StoreOpStore,
+			ClearValue: gputypes.Color{R: float64(clearColor[0]), G: float64(clearColor[1]), B: float64(clearColor[2]), A: float64(clearColor[3])},
+		}},
+	})
+	renderPass.End()
+
+	cmdBuffer, err := encoder.EndEncoding()
+	if err != nil {
+		return
+	}
+	_ = queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0)
+}
+
 func (dc *DrawContext) enableSceneRenderTarget() bool {
 	if dc == nil || dc.renderer == nil {
 		return false

@@ -21,6 +21,9 @@ func TestDecalDepthStencilStateMatchesOpenGLParity(t *testing.T) {
 	if state == nil {
 		t.Fatal("decalDepthStencilState() = nil")
 	}
+	if worldDepthTextureFormat != gputypes.TextureFormatDepth24PlusStencil8 {
+		t.Fatalf("worldDepthTextureFormat = %v, want stencil-capable %v", worldDepthTextureFormat, gputypes.TextureFormatDepth24PlusStencil8)
+	}
 	if state.Format != worldDepthTextureFormat {
 		t.Fatalf("Format = %v, want %v", state.Format, worldDepthTextureFormat)
 	}

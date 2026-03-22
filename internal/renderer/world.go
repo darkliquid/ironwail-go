@@ -92,7 +92,7 @@ type WorldFace struct {
 	Center [3]float32
 }
 
-const worldDepthTextureFormat = gputypes.TextureFormatDepth24Plus
+const worldDepthTextureFormat = gputypes.TextureFormatDepth24PlusStencil8
 
 // WorldRenderData holds GPU-side resources for world rendering.
 // This is what gets uploaded to the GPU and used during rendering.
@@ -3097,7 +3097,7 @@ func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int)
 		Label:           "World Depth Texture View",
 		Format:          worldDepthTextureFormat,
 		Dimension:       gputypes.TextureViewDimension2D,
-		Aspect:          gputypes.TextureAspectDepthOnly,
+		Aspect:          gputypes.TextureAspectAll,
 		BaseMipLevel:    0,
 		MipLevelCount:   1,
 		BaseArrayLayer:  0,

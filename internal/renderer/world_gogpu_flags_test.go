@@ -74,6 +74,9 @@ func TestGoGPUWorldClearColorDebugOverride(t *testing.T) {
 }
 
 func TestGoGPUSharedDepthStencilClearAttachmentForView(t *testing.T) {
+	if worldDepthTextureFormat != gputypes.TextureFormatDepth24PlusStencil8 {
+		t.Fatalf("worldDepthTextureFormat = %v, want stencil-capable %v", worldDepthTextureFormat, gputypes.TextureFormatDepth24PlusStencil8)
+	}
 	attachment := gogpuSharedDepthStencilClearAttachmentForView(hal.TextureView(&wgpuTextureViewStub{}))
 	if attachment == nil {
 		t.Fatal("gogpuSharedDepthStencilClearAttachmentForView() = nil")

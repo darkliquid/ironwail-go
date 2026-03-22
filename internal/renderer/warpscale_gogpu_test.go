@@ -34,3 +34,73 @@ func TestSceneCompositeUniformBytes(t *testing.T) {
 		t.Fatalf("warp amp without warp = %v, want 0", values[2])
 	}
 }
+
+func TestShouldUseSceneRenderTarget(t *testing.T) {
+	tests := []struct {
+		name  string
+		state *RenderFrameState
+		want  bool
+	}{
+		{
+			name:  "nil state",
+			state: nil,
+			want:  false,
+		},
+		{
+			name: "waterwarp disabled",
+			state: &RenderFrameState{
+				DrawWorld: true,
+			},
+			want: false,
+		},
+		{
+			name: "world scene enables target",
+			state: &RenderFrameState{
+				WaterWarp: true,
+				DrawWorld: true,
+			},
+			want: true,
+		},
+		{
+			name: "entity only scene enables target",
+			state: &RenderFrameState{
+				WaterWarp:    true,
+				DrawEntities: true,
+			},
+			want: true,
+		},
+		{
+			name: "particles only scene enables target",
+			state: &RenderFrameState{
+				WaterWarp:     true,
+				DrawParticles: true,
+				Particles:     &ParticleSystem{},
+			},
+			want: true,
+		},
+		{
+			name: "empty particle flag does not enable target",
+			state: &RenderFrameState{
+				WaterWarp:     true,
+				DrawParticles: true,
+			},
+			want: false,
+		},
+		{
+			name: "decal only scene enables target",
+			state: &RenderFrameState{
+				WaterWarp:  true,
+				DecalMarks: []DecalMarkEntity{{}},
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldUseSceneRenderTarget(tt.state); got != tt.want {
+				t.Fatalf("shouldUseSceneRenderTarget() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
