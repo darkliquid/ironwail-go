@@ -169,20 +169,16 @@ type gogpuEntityDrawPlan struct {
 	phases           []gogpuEntityPhase
 }
 
-// splitBrushEntitiesBySkyPresence performs its step in this part of the renderer; this helper exists to keep fallback brush sub-phases deterministic without widening into full geometry bucketing.
-func splitBrushEntitiesBySkyPresence(entities []BrushEntity) (nonSky, sky []BrushEntity) {
+// visibleSkyBrushEntities performs its step in this part of the renderer; this helper exists to keep the fallback sky phase aligned with the primary renderer without widening into full geometry bucketing.
+func visibleSkyBrushEntities(entities []BrushEntity) []BrushEntity {
+	var sky []BrushEntity
 	for _, entity := range entities {
 		if entity.Alpha <= 0 {
 			continue
 		}
-		if entity.Alpha < 1 {
-			nonSky = append(nonSky, entity)
-			continue
-		}
 		sky = append(sky, entity)
-		nonSky = append(nonSky, entity)
 	}
-	return nonSky, sky
+	return sky
 }
 
 // classifyGoGPUParticlePhase performs its step in this part of the renderer; this helper exists to keep the particle fallback scheduling deterministic and aligned with the primary renderer.
@@ -202,7 +198,7 @@ func classifyGoGPUParticlePhase(mode, activeParticles int) (gogpuEntityPhase, bo
 // into the secondary backend.
 func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity, particlePhase gogpuEntityPhase, hasParticlePhase bool) gogpuEntityDrawPlan {
 	opaqueBrush, translucentBrush := splitBrushEntitiesByAlpha(brushEntities)
-	opaqueBrush, skyBrush := splitBrushEntitiesBySkyPresence(opaqueBrush)
+	skyBrush := visibleSkyBrushEntities(brushEntities)
 	opaqueAlias, translucentAlias := splitAliasEntitiesByAlpha(aliasEntities)
 	phases := make([]gogpuEntityPhase, 0, 8)
 	if len(opaqueBrush) > 0 {

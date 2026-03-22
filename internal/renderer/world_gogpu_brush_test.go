@@ -129,18 +129,15 @@ func TestProjectBrushMarkersRespectsFacePasses(t *testing.T) {
 	}
 }
 
-func TestSplitBrushEntitiesBySkyPresence(t *testing.T) {
+func TestVisibleSkyBrushEntities(t *testing.T) {
 	entities := []BrushEntity{
 		{SubmodelIndex: 1, Alpha: 1},
 		{SubmodelIndex: 2, Alpha: 0.5},
 		{SubmodelIndex: 3, Alpha: 0},
 	}
 
-	nonSky, sky := splitBrushEntitiesBySkyPresence(entities)
-	if len(nonSky) != 2 {
-		t.Fatalf("nonSky count = %d, want 2", len(nonSky))
-	}
-	if len(sky) != 1 || sky[0].SubmodelIndex != 1 {
-		t.Fatalf("sky = %#v, want only opaque brush entity", sky)
+	sky := visibleSkyBrushEntities(entities)
+	if len(sky) != 2 || sky[0].SubmodelIndex != 1 || sky[1].SubmodelIndex != 2 {
+		t.Fatalf("sky = %#v, want all visible brush entities", sky)
 	}
 }
