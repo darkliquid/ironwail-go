@@ -14,14 +14,9 @@ import (
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
-// finaleRevealCharsPerSecond controls the typewriter-style text reveal speed
-// during the end-of-episode finale sequences (Intermission types 2 and 3).
-// At 8 characters per second, the text gradually appears as if being typed,
-// creating the dramatic storytelling effect between Quake episodes.
-const finaleRevealCharsPerSecond = 8.0
-
 const (
 	centerPrintBackgroundCVar = "scr_centerprintbg"
+	printSpeedCVar            = "scr_printspeed"
 	centerPrintDefaultHold    = 2.0
 	notifyFadeCVar            = "con_notifyfade"
 	notifyFadeTimeCVar        = "con_notifyfadetime"
@@ -125,7 +120,7 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 
 // drawFinaleOverlay renders the end-of-episode text crawl (Intermission 2/3).
 // It displays the "FINALE" header graphic and progressively reveals the story
-// text using a typewriter effect controlled by finaleRevealCharsPerSecond.
+// text using a typewriter effect controlled by scr_printspeed.
 func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State) {
 	if cp.finalePic != nil {
 		rc.DrawPic((320-int(cp.finalePic.Width))/2, 16, cp.finalePic)
@@ -140,19 +135,26 @@ func (cp *Centerprint) drawFinaleOverlay(rc renderer.RenderContext, state State)
 
 // revealedFinaleText returns the portion of the center text that should be
 // visible during a finale sequence. The number of visible characters increases
-// over time at finaleRevealCharsPerSecond, creating the typewriter effect.
+// over time at scr_printspeed, creating the typewriter effect.
 // For non-finale intermissions, the full text is returned immediately.
 func (cp *Centerprint) revealedFinaleText(state State, text string) string {
 	if text == "" || (state.Intermission != 2 && state.Intermission != 3) {
 		return text
 	}
 
-	visibleChars := int((state.Time - state.CenterPrintAt) * finaleRevealCharsPerSecond)
+	visibleChars := int((state.Time - state.CenterPrintAt) * finaleRevealCharsPerSecond())
 	if visibleChars <= 0 {
 		return ""
 	}
 
 	return limitCenterTextVisibleChars(text, visibleChars)
+}
+
+func finaleRevealCharsPerSecond() float64 {
+	if cv := cvar.Get(printSpeedCVar); cv != nil {
+		return cv.Float
+	}
+	return 8
 }
 
 // limitCenterTextVisibleChars truncates text to at most visibleChars printable

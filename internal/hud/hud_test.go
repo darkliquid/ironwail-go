@@ -16,6 +16,7 @@ import (
 
 func registerCenterprintTestCvars() {
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
+	cvar.Register("scr_printspeed", "8", 0, "test centerprint reveal speed")
 	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test centerprint fade enable")
 	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
 	cvar.Register("crosshair", "0", cvar.FlagArchive, "test crosshair")
@@ -635,6 +636,7 @@ func TestHUDFinaleOverlayRevealsCenterTextOverTime(t *testing.T) {
 }
 
 func TestHUDCutsceneOverlayUsesTimedReveal(t *testing.T) {
+	registerCenterprintTestCvars()
 	h := NewHUD(nil)
 	h.SetScreenSize(320, 200)
 	h.SetState(State{
@@ -647,6 +649,29 @@ func TestHUDCutsceneOverlayUsesTimedReveal(t *testing.T) {
 	h.Draw(mock)
 	if got := charactersToString(mock.characters); got != "AB" {
 		t.Fatalf("cutscene reveal = %q, want AB", got)
+	}
+}
+
+func TestHUDFinaleOverlayUsesScrPrintSpeed(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_printspeed", "4")
+	t.Cleanup(func() {
+		cvar.Set("scr_printspeed", "8")
+	})
+
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.SetState(State{
+		Intermission:  2,
+		CenterPrint:   "ABCD",
+		CenterPrintAt: 1,
+		Time:          1.26,
+	})
+
+	mock := &mockRenderContext{}
+	h.Draw(mock)
+	if got := charactersToString(mock.characters); got != "A" {
+		t.Fatalf("finale reveal with scr_printspeed=4 = %q, want A", got)
 	}
 }
 
