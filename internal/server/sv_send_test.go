@@ -679,6 +679,66 @@ func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T
 	}
 }
 
+func TestWriteEntitiesToClient_PrioritizesCloserVisibleEntitiesWhenPacketBudgetTight(t *testing.T) {
+	t.Parallel()
+
+	far := &Edict{
+		Vars: &EntVars{
+			ModelIndex: 5,
+			Origin:     [3]float32{1000, 0, 0},
+			AbsMin:     [3]float32{999, -1, -1},
+			AbsMax:     [3]float32{1001, 1, 1},
+		},
+		NumLeafs: 1,
+	}
+	far.LeafNums[0] = 0
+	far.Baseline = EntityState{ModelIndex: 5, Origin: far.Vars.Origin, Scale: inet.ENTSCALE_DEFAULT}
+
+	near := &Edict{
+		Vars: &EntVars{
+			ModelIndex: 6,
+			Origin:     [3]float32{10, 0, 0},
+			AbsMin:     [3]float32{9, -1, -1},
+			AbsMax:     [3]float32{11, 1, 1},
+		},
+		NumLeafs: 1,
+	}
+	near.LeafNums[0] = 0
+	near.Baseline = EntityState{ModelIndex: 6, Origin: near.Vars.Origin, Scale: inet.ENTSCALE_DEFAULT}
+
+	client := &Client{
+		Edict:        &Edict{Vars: &EntVars{VAngle: [3]float32{}, Origin: [3]float32{}, ViewOfs: [3]float32{}}},
+		FatPVS:       []byte{0x01},
+		EntityStates: make(map[int]EntityState),
+	}
+	s := &Server{
+		Protocol:      ProtocolFitzQuake,
+		Static:        &ServerStatic{MaxClients: 1},
+		Edicts:        []*Edict{{Vars: &EntVars{}}, nil, far, near},
+		NumEdicts:     4,
+		ModelPrecache: []string{"", "progs/player.mdl", "unused", "unused", "unused", "progs/far.mdl", "progs/near.mdl"},
+	}
+
+	msg := NewMessageBuffer(41)
+	s.writeEntitiesToClient(client, msg)
+
+	if msg.Overflowed {
+		t.Fatal("writeEntitiesToClient overflowed instead of stopping before packet budget was exhausted")
+	}
+	if got := msg.Len(); got != 2 {
+		t.Fatalf("writeEntitiesToClient wrote %d bytes, want exactly one minimal entity update", got)
+	}
+	if got := msg.Data[1]; got != 3 {
+		t.Fatalf("first transmitted entnum = %d, want nearer entity 3 before farther entity 2", got)
+	}
+	if _, ok := client.EntityStates[3]; !ok {
+		t.Fatal("nearer entity was not tracked after transmission")
+	}
+	if _, ok := client.EntityStates[2]; ok {
+		t.Fatal("farther entity should not have been transmitted once the packet budget was exhausted")
+	}
+}
+
 func TestWriteClientDataToMessage_NetQuakeOmitsExtensions(t *testing.T) {
 	t.Parallel()
 

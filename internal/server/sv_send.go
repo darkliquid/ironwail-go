@@ -2,6 +2,7 @@ package server
 
 import (
 	"math"
+	"sort"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -537,6 +538,67 @@ func encodeLerpFinish(nextThink, time float32) (byte, bool) {
 	return byte(delta*255.0 + 0.5), true
 }
 
+type entitySendCandidate struct {
+	entNum        int
+	ent           *Edict
+	state         EntityState
+	moveType      float32
+	lerpFinish    byte
+	hasLerpFinish bool
+	sortKey       int
+}
+
+func entitySendSortBasis(client *Client) (origin, forward [3]float32, ok bool) {
+	if client == nil || client.Edict == nil || client.Edict.Vars == nil {
+		return origin, forward, false
+	}
+	origin = client.Edict.Vars.Origin
+	origin[0] += client.Edict.Vars.ViewOfs[0]
+	origin[1] += client.Edict.Vars.ViewOfs[1]
+	origin[2] += client.Edict.Vars.ViewOfs[2]
+	var right, up [3]float32
+	AngleVectors(client.Edict.Vars.VAngle, &forward, &right, &up)
+	return origin, forward, true
+}
+
+func entitySendSortKey(ent *Edict, origin, forward [3]float32) int {
+	if ent == nil || ent.Vars == nil {
+		return 0
+	}
+
+	distSq := float32(0)
+	sizeSq := float32(0)
+	for i := 0; i < 3; i++ {
+		clamped := origin[i]
+		if clamped < ent.Vars.AbsMin[i] {
+			clamped = ent.Vars.AbsMin[i]
+		} else if clamped > ent.Vars.AbsMax[i] {
+			clamped = ent.Vars.AbsMax[i]
+		}
+		delta := clamped - origin[i]
+		distSq += delta * delta
+		size := ent.Vars.AbsMax[i] - ent.Vars.AbsMin[i]
+		sizeSq += size * size
+	}
+	if sizeSq < 1 {
+		sizeSq = 1
+	}
+	dist := int(math.Min(255, 8*math.Sqrt(math.Sqrt(float64(distSq/sizeSq)))))
+
+	forwardDist := float32(0)
+	for i := 0; i < 3; i++ {
+		edge := ent.Vars.AbsMax[i]
+		if forward[i] < 0 {
+			edge = ent.Vars.AbsMin[i]
+		}
+		forwardDist += (edge - origin[i]) * forward[i]
+	}
+	if forwardDist < 0 {
+		dist |= 128
+	}
+	return dist
+}
+
 // writeEntityUpdate performs Quake's bitflag delta encoding between baseline and current entity states.
 func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, baseline EntityState, force bool, moveType float32, lerpFinish byte, hasLerpFinish bool) bool {
 	flags := uint32(s.ProtocolFlags())
@@ -698,8 +760,9 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 	if client.EntityStates == nil {
 		client.EntityStates = make(map[int]EntityState)
 	}
+	sortOrigin, sortForward, haveSortBasis := entitySendSortBasis(client)
+	candidates := make([]entitySendCandidate, 0, s.NumEdicts)
 
-	current := make(map[int]EntityState)
 	for entNum := 1; entNum < s.NumEdicts; entNum++ {
 		ent := s.Edicts[entNum]
 		state, ok := s.entityStateForClient(entNum, ent)
@@ -714,28 +777,40 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 			continue
 		}
 
-		current[entNum] = state
-		baseline := ent.Baseline
 		lerpFinish, hasLerpFinish := encodeLerpFinish(ent.Vars.NextThink, s.Time)
-		if !s.writeEntityUpdate(msg, entNum, state, baseline, false, ent.Vars.MoveType, lerpFinish, hasLerpFinish) {
-			continue
+		candidate := entitySendCandidate{
+			entNum:        entNum,
+			ent:           ent,
+			state:         state,
+			moveType:      ent.Vars.MoveType,
+			lerpFinish:    lerpFinish,
+			hasLerpFinish: hasLerpFinish,
 		}
-		client.EntityStates[entNum] = state
+		if ent == client.Edict {
+			candidate.sortKey = -1
+		} else if haveSortBasis {
+			candidate.sortKey = entitySendSortKey(ent, sortOrigin, sortForward)
+		} else {
+			candidate.sortKey = entNum
+		}
+		candidates = append(candidates, candidate)
 	}
 
-	for entNum, prev := range client.EntityStates {
-		if _, ok := current[entNum]; ok {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].sortKey != candidates[j].sortKey {
+			return candidates[i].sortKey < candidates[j].sortKey
+		}
+		return candidates[i].entNum < candidates[j].entNum
+	})
+
+	for _, candidate := range candidates {
+		if msg.Len()+40 > msg.limit() {
+			break
+		}
+		if !s.writeEntityUpdate(msg, candidate.entNum, candidate.state, candidate.ent.Baseline, false, candidate.moveType, candidate.lerpFinish, candidate.hasLerpFinish) {
 			continue
 		}
-		zero := prev
-		zero.ModelIndex = 0
-		baseline := EntityState{}
-		if entNum >= 0 && entNum < len(s.Edicts) && s.Edicts[entNum] != nil {
-			baseline = s.Edicts[entNum].Baseline
-		}
-		if s.writeEntityUpdate(msg, entNum, zero, baseline, true, 0, 0, false) {
-			client.EntityStates[entNum] = zero
-		}
+		client.EntityStates[candidate.entNum] = candidate.state
 	}
 }
 

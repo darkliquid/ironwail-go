@@ -1192,8 +1192,13 @@ func NewServer() *Server {
 					e.Vars.Mins = mins
 					e.Vars.Maxs = maxs
 				} else {
-					e.Vars.Mins = [3]float32{}
-					e.Vars.Maxs = [3]float32{}
+					if info, err := s.cacheModelInfo(modelName); err == nil && info.known {
+						e.Vars.Mins = info.mins
+						e.Vars.Maxs = info.maxs
+					} else {
+						e.Vars.Mins = [3]float32{}
+						e.Vars.Maxs = [3]float32{}
+					}
 				}
 				e.Vars.Size = [3]float32{
 					e.Vars.Maxs[0] - e.Vars.Mins[0],

@@ -10,6 +10,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
@@ -1381,6 +1382,43 @@ func writeTestSprite(t *testing.T, path string, width, height int32) {
 	}
 }
 
+func writeTestAliasModel(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir alias dir: %v", err)
+	}
+	var buf bytes.Buffer
+	write := func(v any) {
+		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
+			t.Fatalf("write alias data: %v", err)
+		}
+	}
+	write(model.MDLHeader{
+		Ident:       model.MDLIdent,
+		Version:     model.MDLVersion,
+		Scale:       [3]float32{2, 3, 4},
+		ScaleOrigin: [3]float32{-1, -2, -3},
+		NumSkins:    1,
+		SkinWidth:   1,
+		SkinHeight:  1,
+		NumVerts:    3,
+		NumTris:     1,
+		NumFrames:   1,
+	})
+	write(model.DAliasSkinType{Type: int32(model.AliasSkinSingle)})
+	if err := buf.WriteByte(7); err != nil {
+		t.Fatalf("write alias skin: %v", err)
+	}
+	write([3]model.STVert{})
+	write(model.DTriangle{FacesFront: model.MDLFacesFront, VertIndex: [3]int32{0, 1, 2}})
+	write(model.DAliasFrameType{Type: int32(model.AliasSingle)})
+	write(model.DAliasFrame{})
+	write([3]model.TriVertX{{V: [3]byte{0, 0, 0}}, {V: [3]byte{2, 0, 0}}, {V: [3]byte{0, 3, 1}}})
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write alias file: %v", err)
+	}
+}
+
 func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
@@ -1408,6 +1446,7 @@ func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	writeTestSprite(t, filepath.Join(tmpDir, "id1", "progs", "test.spr"), 8, 6)
+	writeTestAliasModel(t, filepath.Join(tmpDir, "id1", "progs", "test.mdl"))
 	fileSys := fs.NewFileSystem()
 	if err := fileSys.Init(tmpDir, "id1"); err != nil {
 		t.Fatalf("init filesystem: %v", err)
@@ -1433,6 +1472,21 @@ func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
 	}
 	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{4, 4, 3} {
 		t.Fatalf("sprite maxs = %v", got)
+	}
+
+	s.ModelPrecache = make([]string, MaxModels)
+	s.ModelPrecache[1] = "progs/test.mdl"
+	vm.SetGInt(qc.OFSParm0, int32(entNum))
+	vm.SetGString(qc.OFSParm1, "progs/test.mdl")
+	vm.Builtins[3](vm)
+	if vm.BuiltinError != nil {
+		t.Fatalf("setmodel alias runtime error = %v", vm.BuiltinError)
+	}
+	if got := vm.EVector(entNum, qc.EntFieldMins); got != [3]float32{-1, -2, -3} {
+		t.Fatalf("alias mins = %v", got)
+	}
+	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{3, 7, 1} {
+		t.Fatalf("alias maxs = %v", got)
 	}
 
 	s.SoundPrecache = make([]string, MaxSounds)
