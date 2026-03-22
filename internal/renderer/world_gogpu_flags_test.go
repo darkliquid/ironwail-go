@@ -362,6 +362,45 @@ func TestShouldDrawGoGPUOpaqueLiquidFace(t *testing.T) {
 	}
 }
 
+func TestShouldDrawGoGPUOpaqueLiquidBrushFace(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
+	if !shouldDrawGoGPUOpaqueLiquidBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, 1, alpha) {
+		t.Fatal("opaque liquid brush face should draw")
+	}
+	if shouldDrawGoGPUOpaqueLiquidBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, 0.5, alpha) {
+		t.Fatal("translucent brush entity should not draw in opaque liquid pass")
+	}
+	if shouldDrawGoGPUOpaqueLiquidBrushFace(WorldFace{NumIndices: 3}, 1, alpha) {
+		t.Fatal("non-liquid brush face should not draw in opaque liquid pass")
+	}
+}
+
+func TestBuildGoGPUOpaqueLiquidBrushEntityDrawKeepsOnlyOpaqueLiquidFaces(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 0.5, tele: 1}
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{1, 0, 0}},
+			{Position: [3]float32{0, 1, 0}},
+		},
+		Indices: []uint32{0, 1, 2, 0, 2, 1},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 11, Flags: model.SurfDrawTurb | model.SurfDrawWater},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 12, Flags: model.SurfDrawTurb | model.SurfDrawSlime},
+		},
+	}
+	draw := buildGoGPUOpaqueLiquidBrushEntityDraw(BrushEntity{Alpha: 1, Scale: 1}, geom, alpha)
+	if draw == nil {
+		t.Fatal("buildGoGPUOpaqueLiquidBrushEntityDraw() = nil")
+	}
+	if len(draw.faces) != 1 {
+		t.Fatalf("len(draw.faces) = %d, want 1", len(draw.faces))
+	}
+	if draw.faces[0].TextureIndex != 11 {
+		t.Fatalf("opaque liquid face metadata = %+v, want texture 11", draw.faces[0])
+	}
+}
+
 func TestShouldDrawGoGPUTranslucentLiquidFace(t *testing.T) {
 	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
 	if !shouldDrawGoGPUTranslucentLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, alpha) {

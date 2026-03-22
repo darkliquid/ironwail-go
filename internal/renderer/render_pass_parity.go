@@ -169,6 +169,7 @@ const (
 	gogpuEntityPhaseOpaqueAlias
 	gogpuEntityPhaseOpaqueParticles
 	gogpuEntityPhaseSkyBrush
+	gogpuEntityPhaseOpaqueLiquidBrush
 	gogpuEntityPhaseTranslucentBrush
 	gogpuEntityPhaseDecals
 	gogpuEntityPhaseTranslucentAlias
@@ -246,6 +247,9 @@ func planGoGPUEntityDrawOrder(drawEntities bool, brushEntities []BrushEntity, al
 	}
 	if len(skyBrush) > 0 {
 		phases = append(phases, gogpuEntityPhaseSkyBrush)
+	}
+	if len(opaqueBrush) > 0 {
+		phases = append(phases, gogpuEntityPhaseOpaqueLiquidBrush)
 	}
 	if len(translucentBrush) > 0 {
 		phases = append(phases, gogpuEntityPhaseTranslucentBrush)
