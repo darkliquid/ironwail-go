@@ -671,6 +671,7 @@ func TestVideoMenuAdjustmentsWriteCvars(t *testing.T) {
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter")
+	cvar.Register("scr_showspeed", "0", cvar.FlagArchive, "Show speed overlay")
 	cvar.Set("vid_width", "1280")
 	cvar.Set("vid_height", "720")
 	cvar.Set("vid_fullscreen", "0")
@@ -678,6 +679,7 @@ func TestVideoMenuAdjustmentsWriteCvars(t *testing.T) {
 	cvar.Set("r_gamma", "1.0")
 	cvar.Set("r_drawviewmodel", "1")
 	cvar.Set("scr_showfps", "0")
+	cvar.Set("scr_showspeed", "0")
 
 	mgr.state = MenuVideo
 	mgr.videoCursor = videoItemResolution
@@ -714,6 +716,12 @@ func TestVideoMenuAdjustmentsWriteCvars(t *testing.T) {
 	mgr.M_Key(input.KEnter)
 	if !cvar.BoolValue("scr_showfps") {
 		t.Fatal("showfps toggle did not update cvar")
+	}
+
+	mgr.videoCursor = videoItemShowSpeed
+	mgr.M_Key(input.KEnter)
+	if !cvar.BoolValue("scr_showspeed") {
+		t.Fatal("showspeed toggle did not update cvar")
 	}
 
 	mgr.videoCursor = videoItemBack

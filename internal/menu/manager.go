@@ -70,7 +70,7 @@ const (
 	hostGameItems     = 9
 	optionsItems      = 5
 	controlsItems     = 17
-	videoItems        = 10 // added videoItemHUDStyle and scr_showfps toggle
+	videoItems        = 11 // added HUD-style plus telemetry toggles
 	audioItems        = 2
 
 	maxSaveGames = 12
@@ -167,6 +167,7 @@ const (
 	videoItemWaterwarp // r_waterwarp: mirrors C Ironwail options-menu OPT_WATERWARP preview
 	videoItemHUDStyle  // hud_style: selects classic, compact, or QuakeWorld HUD
 	videoItemShowFPS   // scr_showfps: toggles the runtime FPS counter
+	videoItemShowSpeed // scr_showspeed: toggles the runtime speed overlay
 	videoItemBack
 )
 

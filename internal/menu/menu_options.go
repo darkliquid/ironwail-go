@@ -229,7 +229,8 @@ func (m *Manager) audioKey(key int) {
 
 // adjustVideoSetting modifies the video cvar at the current cursor position
 // by the given delta. Each item maps to a specific cvar: resolution cycles
-// through videoResolutions, fullscreen/vsync/viewmodel/showfps are toggles,
+// through videoResolutions, fullscreen/vsync/viewmodel/showfps/showspeed are
+// toggles,
 // maxFPS cycles through maxFPSValues, gamma is a float slider, waterwarp
 // cycles 0/1/2, and hud_style cycles 0/1/2.
 func (m *Manager) adjustVideoSetting(delta int) {
@@ -263,6 +264,8 @@ func (m *Manager) adjustVideoSetting(delta int) {
 		cvar.SetInt("hud_style", next)
 	case videoItemShowFPS:
 		cvar.SetBool("scr_showfps", cvar.FloatValue("scr_showfps") == 0)
+	case videoItemShowSpeed:
+		cvar.SetBool("scr_showspeed", !cvar.BoolValue("scr_showspeed"))
 	}
 }
 
@@ -429,9 +432,9 @@ func hudStyleLabel(v int) string {
 }
 
 // drawVideo renders the Video settings menu showing resolution, fullscreen,
-// vsync, max FPS, gamma, viewmodel, waterwarp, HUD style, an FPS counter
-// toggle, and a Back item. Each row displays the label on the left and the
-// current cvar value on the right.
+// vsync, max FPS, gamma, viewmodel, waterwarp, HUD style, FPS/speed toggles,
+// and a Back item. Each row displays the label on the left and the current
+// cvar value on the right.
 func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -454,6 +457,8 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 184, videoRowY(videoItemHUDStyle), hudStyleLabel(cvar.IntValue("hud_style")), true)
 	m.drawText(dc, 56, videoRowY(videoItemShowFPS), "SHOW FPS", true)
 	m.drawText(dc, 184, videoRowY(videoItemShowFPS), boolLabel(cvar.FloatValue("scr_showfps") != 0), true)
+	m.drawText(dc, 56, videoRowY(videoItemShowSpeed), "SHOW SPEED", true)
+	m.drawText(dc, 184, videoRowY(videoItemShowSpeed), boolLabel(cvar.BoolValue("scr_showspeed")), true)
 	m.drawText(dc, 56, videoRowY(videoItemBack), "BACK", true)
 
 	m.drawArrowCursor(dc, 40, videoRowY(m.videoCursor))
