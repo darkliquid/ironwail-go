@@ -76,6 +76,9 @@ const (
 	rogueMultiRockets     = 1 << 28
 	rogueShield           = 1 << 29
 	rogueAntiGrav         = 1 << 30
+	rogueArmor1           = 1 << 23
+	rogueArmor2           = 1 << 24
+	rogueArmor3           = 1 << 25
 )
 
 // NewStatusBar creates a new status bar renderer.
@@ -234,7 +237,7 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 		sb.drawInventory(rc, sbarX, inventoryY, state)
 	}
 
-	if pic := sb.armorPic(state.Items); pic != nil {
+	if pic := sb.armorPic(state); pic != nil {
 		rc.DrawPic(sbarX, sbarY, pic)
 	}
 	sb.drawBigNum(rc, sbarX+24, sbarY, armorValue(state), 3, armorValue(state) <= 25)
@@ -308,7 +311,7 @@ func (sb *StatusBar) DrawQuakeWorld(rc renderer.RenderContext, state State, scre
 		}
 	}
 
-	if pic := sb.armorPic(state.Items); pic != nil {
+	if pic := sb.armorPic(state); pic != nil {
 		rc.DrawPic(sbarX, sbarY, pic)
 	}
 	sb.drawBigNum(rc, sbarX+24, sbarY, armorValue(state), 3, armorValue(state) <= 25)
@@ -599,9 +602,22 @@ func (sb *StatusBar) facePic(state State) *image.QPic {
 // armorPic returns the correct armor icon for the player's current armor type
 // (green/yellow/red), or the pentagram disc if invulnerability is active.
 // Returns nil if no armor is equipped.
-func (sb *StatusBar) armorPic(items uint32) *image.QPic {
+func (sb *StatusBar) armorPic(state State) *image.QPic {
+	items := state.Items
 	if items&cl.ItemInvulnerability != 0 && sb.discPic != nil {
 		return sb.discPic
+	}
+	if state.ModRogue {
+		switch {
+		case items&rogueArmor3 != 0:
+			return sb.armorPics[2]
+		case items&rogueArmor2 != 0:
+			return sb.armorPics[1]
+		case items&rogueArmor1 != 0:
+			return sb.armorPics[0]
+		default:
+			return nil
+		}
 	}
 	switch {
 	case items&cl.ItemArmor3 != 0:

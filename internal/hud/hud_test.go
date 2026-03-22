@@ -998,6 +998,37 @@ func TestStatusBarRogueItemsReplaceSigils(t *testing.T) {
 	}
 }
 
+func TestStatusBarRogueArmorUsesRogueArmorBits(t *testing.T) {
+	greenArmor := &image.QPic{Width: 24, Height: 24}
+	yellowArmor := &image.QPic{Width: 24, Height: 24}
+	redArmor := &image.QPic{Width: 24, Height: 24}
+	sb := &StatusBar{
+		sbarPic:   &image.QPic{Width: 320, Height: 24},
+		ibarPic:   &image.QPic{Width: 320, Height: 24},
+		armorPics: [3]*image.QPic{greenArmor, yellowArmor, redArmor},
+	}
+	mock := &mockRenderContext{}
+
+	sb.Draw(mock, State{
+		Health:   100,
+		Armor:    150,
+		Ammo:     20,
+		ModRogue: true,
+		Items:    rogueArmor2 | cl.ItemShells,
+	}, 320, 200)
+
+	var sawYellow bool
+	for _, draw := range mock.pics {
+		if draw.pic == yellowArmor {
+			sawYellow = true
+			break
+		}
+	}
+	if !sawYellow {
+		t.Fatal("expected rogue armor bits to select the matching armor icon")
+	}
+}
+
 func TestStatusBarWeaponPickupFlashTiming(t *testing.T) {
 	active := &image.QPic{Width: 24, Height: 16}
 	owned := &image.QPic{Width: 24, Height: 16}
