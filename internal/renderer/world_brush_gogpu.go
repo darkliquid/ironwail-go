@@ -944,7 +944,7 @@ func (dc *DrawContext) renderTranslucentLiquidBrushEntitiesHAL(entities []BrushE
 			})
 		}
 	}
-	sortGoGPUTranslucentLiquidBrushFaceRenders(GetAlphaMode(), faceRenders)
+	sortGoGPUTranslucentLiquidBrushFaceRenders(effectiveGoGPUAlphaMode(GetAlphaMode()), faceRenders)
 	for _, draw := range faceRenders {
 		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
 		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, whiteLightmapBindGroup)
@@ -1196,7 +1196,7 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
 	}
 
-	sortGoGPUTranslucentBrushFaceRenders(GetAlphaMode(), translucentRenders)
+	sortGoGPUTranslucentBrushFaceRenders(effectiveGoGPUAlphaMode(GetAlphaMode()), translucentRenders)
 	for _, draw := range translucentRenders {
 		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
 		litWater := float32(0)

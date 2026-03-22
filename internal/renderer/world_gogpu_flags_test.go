@@ -309,6 +309,18 @@ func TestSortGoGPUTranslucentBrushFaceRendersHonorsAlphaMode(t *testing.T) {
 	}
 }
 
+func TestEffectiveGoGPUAlphaModeFallsBackFromOITToSorted(t *testing.T) {
+	if got := effectiveGoGPUAlphaMode(AlphaModeBasic); got != AlphaModeBasic {
+		t.Fatalf("effectiveGoGPUAlphaMode(Basic) = %v, want %v", got, AlphaModeBasic)
+	}
+	if got := effectiveGoGPUAlphaMode(AlphaModeSorted); got != AlphaModeSorted {
+		t.Fatalf("effectiveGoGPUAlphaMode(Sorted) = %v, want %v", got, AlphaModeSorted)
+	}
+	if got := effectiveGoGPUAlphaMode(AlphaModeOIT); got != AlphaModeSorted {
+		t.Fatalf("effectiveGoGPUAlphaMode(OIT) = %v, want %v", got, AlphaModeSorted)
+	}
+}
+
 func TestShouldDrawGoGPUOpaqueBrushFace(t *testing.T) {
 	if !shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3}, 1) {
 		t.Fatal("opaque brush face should draw")

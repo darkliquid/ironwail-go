@@ -192,6 +192,13 @@ func sortGoGPUTranslucentLiquidFaces(mode AlphaMode, faces []gogpuTranslucentLiq
 	})
 }
 
+func effectiveGoGPUAlphaMode(mode AlphaMode) AlphaMode {
+	if mode == AlphaModeOIT {
+		return AlphaModeSorted
+	}
+	return mode
+}
+
 const worldLightmapPageSize = 1024
 
 // BuildWorldGeometry extracts renderable geometry from a BSP tree.
@@ -2883,7 +2890,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				distanceSq: worldFaceDistanceSq(face.Center, camera),
 			})
 		}
-		sortGoGPUTranslucentLiquidFaces(GetAlphaMode(), translucentFaces)
+		sortGoGPUTranslucentLiquidFaces(effectiveGoGPUAlphaMode(GetAlphaMode()), translucentFaces)
 		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
 		for _, draw := range translucentFaces {
 			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)
