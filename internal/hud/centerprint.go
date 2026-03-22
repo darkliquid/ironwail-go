@@ -31,6 +31,7 @@ type Centerprint struct {
 	completePic *image.QPic
 	interPic    *image.QPic
 	finalePic   *image.QPic
+	boxPics     map[string]*image.QPic
 
 	manualMessage string
 	manualExpiry  time.Time
@@ -43,6 +44,18 @@ func NewCenterprint(dm *draw.Manager) *Centerprint {
 		cp.completePic = dm.GetPic("gfx/complete.lmp")
 		cp.interPic = dm.GetPic("gfx/inter.lmp")
 		cp.finalePic = dm.GetPic("gfx/finale.lmp")
+		cp.boxPics = map[string]*image.QPic{
+			"gfx/box_tl.lmp":  dm.GetPic("gfx/box_tl.lmp"),
+			"gfx/box_ml.lmp":  dm.GetPic("gfx/box_ml.lmp"),
+			"gfx/box_bl.lmp":  dm.GetPic("gfx/box_bl.lmp"),
+			"gfx/box_tm.lmp":  dm.GetPic("gfx/box_tm.lmp"),
+			"gfx/box_mm.lmp":  dm.GetPic("gfx/box_mm.lmp"),
+			"gfx/box_mm2.lmp": dm.GetPic("gfx/box_mm2.lmp"),
+			"gfx/box_bm.lmp":  dm.GetPic("gfx/box_bm.lmp"),
+			"gfx/box_tr.lmp":  dm.GetPic("gfx/box_tr.lmp"),
+			"gfx/box_mr.lmp":  dm.GetPic("gfx/box_mr.lmp"),
+			"gfx/box_br.lmp":  dm.GetPic("gfx/box_br.lmp"),
+		}
 	}
 	return cp
 }
@@ -194,7 +207,7 @@ func (cp *Centerprint) drawTextBlock(rc renderer.RenderContext, message string, 
 	if maxChars == 0 {
 		return
 	}
-	drawCenterprintBackground(rc, screenWidth, y, len(lines), maxChars, backgroundMode, alpha)
+	cp.drawCenterprintBackground(rc, screenWidth, y, len(lines), maxChars, backgroundMode, alpha)
 	for i, line := range lines {
 		x := (screenWidth - len(line)*8) / 2
 		drawCenterprintLine(rc, x, y+i*8, line, i, alpha)
@@ -295,7 +308,7 @@ func regularCenterprintY(screenHeight int, message string) int {
 	return y
 }
 
-func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines, maxChars, mode int, alpha float64) {
+func (cp *Centerprint) drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines, maxChars, mode int, alpha float64) {
 	if rc == nil || lines <= 0 || maxChars <= 0 || mode <= 0 {
 		return
 	}
@@ -308,16 +321,79 @@ func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines,
 
 	switch mode {
 	case 1:
-		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, fillAlpha)
-		rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
-		rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
-		rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
-		rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
+		if cp == nil || !cp.drawCenterprintTextBox(rc, (screenWidth-((maxChars+3)&^1)*8)/2-8, y-12, (maxChars+3)&^1, lines+1, fillAlpha) {
+			drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, fillAlpha)
+			rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
+			rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
+			rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
+			rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
+		}
 	case 2:
 		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, fillAlpha)
 	case 3:
 		drawCenterprintFill(rc, 0, boxY, screenWidth, boxHeight, 0, fillAlpha)
 	}
+}
+
+func (cp *Centerprint) drawCenterprintTextBox(rc renderer.RenderContext, x, y, width, lines int, alpha float64) bool {
+	if rc == nil || alpha <= 0 || cp == nil || cp.boxPics == nil || cp.boxPics["gfx/box_tl.lmp"] == nil {
+		return false
+	}
+
+	cx := x
+	cy := y
+
+	cp.drawCenterprintPicAlpha(rc, cx, cy, cp.boxPics["gfx/box_tl.lmp"], alpha)
+	if pic := cp.boxPics["gfx/box_ml.lmp"]; pic != nil {
+		for n := 0; n < lines; n++ {
+			cy += 8
+			cp.drawCenterprintPicAlpha(rc, cx, cy, pic, alpha)
+		}
+	}
+	cp.drawCenterprintPicAlpha(rc, cx, cy+8, cp.boxPics["gfx/box_bl.lmp"], alpha)
+
+	cx += 8
+	for remaining := width; remaining > 0; remaining -= 2 {
+		cy = y
+		cp.drawCenterprintPicAlpha(rc, cx, cy, cp.boxPics["gfx/box_tm.lmp"], alpha)
+		for n := 0; n < lines; n++ {
+			cy += 8
+			name := "gfx/box_mm.lmp"
+			if n == 1 {
+				name = "gfx/box_mm2.lmp"
+			}
+			cp.drawCenterprintPicAlpha(rc, cx, cy, cp.boxPics[name], alpha)
+		}
+		cp.drawCenterprintPicAlpha(rc, cx, cy+8, cp.boxPics["gfx/box_bm.lmp"], alpha)
+		cx += 16
+	}
+
+	cy = y
+	cp.drawCenterprintPicAlpha(rc, cx, cy, cp.boxPics["gfx/box_tr.lmp"], alpha)
+	if pic := cp.boxPics["gfx/box_mr.lmp"]; pic != nil {
+		for n := 0; n < lines; n++ {
+			cy += 8
+			cp.drawCenterprintPicAlpha(rc, cx, cy, pic, alpha)
+		}
+	}
+	cp.drawCenterprintPicAlpha(rc, cx, cy+8, cp.boxPics["gfx/box_br.lmp"], alpha)
+	return true
+}
+
+func (cp *Centerprint) drawCenterprintPicAlpha(rc renderer.RenderContext, x, y int, pic *image.QPic, alpha float64) {
+	if rc == nil || pic == nil || alpha <= 0 {
+		return
+	}
+	type picAlphaDrawer interface {
+		DrawPicAlpha(x, y int, pic *image.QPic, alpha float32)
+	}
+	if alpha < 1 {
+		if alphaDrawer, ok := rc.(picAlphaDrawer); ok {
+			alphaDrawer.DrawPicAlpha(x, y, pic, float32(alpha))
+			return
+		}
+	}
+	rc.DrawPic(x, y, pic)
 }
 
 func centerprintBackgroundAlpha(alpha float64) float64 {

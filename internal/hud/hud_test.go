@@ -779,6 +779,44 @@ func TestCenterprintBackgroundAlphaUsesMenuBGAlpha(t *testing.T) {
 	}
 }
 
+func TestCenterprintBackgroundModeOneUsesTextboxArt(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_centerprintbg", "1")
+	cvar.Set("scr_menubgalpha", "0.25")
+
+	box := &image.QPic{Width: 8, Height: 8}
+	cp := &Centerprint{
+		boxPics: map[string]*image.QPic{
+			"gfx/box_tl.lmp":  box,
+			"gfx/box_ml.lmp":  box,
+			"gfx/box_bl.lmp":  box,
+			"gfx/box_tm.lmp":  box,
+			"gfx/box_mm.lmp":  box,
+			"gfx/box_mm2.lmp": box,
+			"gfx/box_bm.lmp":  box,
+			"gfx/box_tr.lmp":  box,
+			"gfx/box_mr.lmp":  box,
+			"gfx/box_br.lmp":  box,
+		},
+	}
+	mock := &mockRenderContext{}
+	cp.Draw(mock, State{
+		CenterPrint:   "HELLO",
+		CenterPrintAt: 1,
+		Time:          1.5,
+	}, 320, 200)
+
+	if len(mock.fills) != 0 || len(mock.alphaFills) != 0 {
+		t.Fatalf("mode 1 fallback fills = %d alphaFills = %d, want 0", len(mock.fills), len(mock.alphaFills))
+	}
+	if len(mock.alphaPics) != 24 {
+		t.Fatalf("mode 1 alpha pic count = %d, want 24", len(mock.alphaPics))
+	}
+	if got := mock.alphaPics[0]; got.x != 120 || got.y != 58 || got.pic != box || math.Abs(float64(got.alpha)-0.25) > 0.0001 {
+		t.Fatalf("mode 1 first alpha pic = %+v, want x=120 y=58 alpha=0.25", got)
+	}
+}
+
 func TestCenterprintYMatchesCanonicalBranches(t *testing.T) {
 	registerCenterprintTestCvars()
 	cvar.Set("con_notifyfade", "1")
