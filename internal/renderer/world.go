@@ -2876,53 +2876,6 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			liquidDrawnIndices += face.NumIndices
 		}
 	}
-	translucentLiquidDrawnIndices := uint32(0)
-	if dc.renderer.worldTranslucentTurbulentPipeline != nil && hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
-		translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, 8)
-		for _, face := range worldData.Geometry.Faces {
-			if !shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
-				continue
-			}
-			translucentFaces = append(translucentFaces, gogpuTranslucentLiquidFaceDraw{
-				face:       face,
-				alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
-				center:     face.Center,
-				distanceSq: worldFaceDistanceSq(face.Center, camera),
-			})
-		}
-		sortGoGPUTranslucentLiquidFaces(effectiveGoGPUAlphaMode(GetAlphaMode()), translucentFaces)
-		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
-		for _, draw := range translucentFaces {
-			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)
-			dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
-			if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
-				slog.Error("renderWorldInternal: Failed to update translucent liquid alpha uniform")
-				renderPass.End()
-				return
-			}
-			textureBindGroup := dc.renderer.whiteTextureBindGroup
-			if worldTexture := gogpuWorldTextureForFace(draw.face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-				textureBindGroup = worldTexture.bindGroup
-			}
-			fullbrightBindGroup := dc.renderer.transparentBindGroup
-			if fullbrightBindGroup == nil {
-				fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
-			}
-			if worldTexture := gogpuWorldTextureForFace(draw.face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-				fullbrightBindGroup = worldTexture.bindGroup
-			}
-			renderPass.SetBindGroup(1, textureBindGroup, nil)
-			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-			renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
-			translucentLiquidDrawnIndices += draw.face.NumIndices
-		}
-		if !writeWorldUniform(1, [3]float32{}, 0) {
-			slog.Error("renderWorldInternal: Failed to restore world alpha uniform")
-			renderPass.End()
-			return
-		}
-	}
 	if drawnIndices > 0 {
 		slog.Info("World rendered",
 			"indices", drawnIndices,
@@ -2936,9 +2889,6 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	if liquidDrawnIndices > 0 {
 		slog.Info("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
-	}
-	if translucentLiquidDrawnIndices > 0 {
-		slog.Info("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
 	}
 
 	// End render pass
@@ -3090,6 +3040,155 @@ func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int)
 	}
 
 	return texture, view, nil
+}
+
+func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState) {
+	if dc == nil || dc.renderer == nil || state == nil {
+		return
+	}
+	device := dc.renderer.getHALDevice()
+	queue := dc.renderer.getHALQueue()
+	if device == nil || queue == nil {
+		return
+	}
+
+	dc.renderer.mu.RLock()
+	worldData := dc.renderer.worldData
+	textureView := dc.currentHALRenderTargetView()
+	depthView := dc.renderer.worldDepthTextureView
+	uniformBuffer := dc.renderer.uniformBuffer
+	uniformBindGroup := dc.renderer.uniformBindGroup
+	translucentPipeline := dc.renderer.worldTranslucentTurbulentPipeline
+	vertexBuffer := dc.renderer.worldVertexBuffer
+	indexBuffer := dc.renderer.worldIndexBuffer
+	worldTextures := dc.renderer.worldTextures
+	worldFullbrightTextures := dc.renderer.worldFullbrightTextures
+	worldTextureAnimations := dc.renderer.worldTextureAnimations
+	worldLightmapPages := dc.renderer.worldLightmapPages
+	whiteTextureBindGroup := dc.renderer.whiteTextureBindGroup
+	transparentBindGroup := dc.renderer.transparentBindGroup
+	whiteLightmapBindGroup := dc.renderer.whiteLightmapBindGroup
+	var activeDynamicLights []DynamicLight
+	if dc.renderer.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, dc.renderer.lightPool.ActiveLights()...)
+	}
+	dc.renderer.mu.RUnlock()
+
+	if worldData == nil || textureView == nil || uniformBuffer == nil || uniformBindGroup == nil || translucentPipeline == nil || vertexBuffer == nil || indexBuffer == nil {
+		return
+	}
+
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	if !hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
+		return
+	}
+
+	renderPassDescriptor := &hal.RenderPassDescriptor{
+		ColorAttachments: []hal.RenderPassColorAttachment{{
+			View:       textureView,
+			LoadOp:     gputypes.LoadOpLoad,
+			StoreOp:    gputypes.StoreOpStore,
+			ClearValue: gputypes.Color{},
+		}},
+		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+	}
+	encoder, err := device.CreateCommandEncoder(nil)
+	if err != nil {
+		slog.Error("renderWorldTranslucentLiquidsHAL: failed to create command encoder", "error", err)
+		return
+	}
+	renderPass := encoder.BeginRenderPass(renderPassDescriptor)
+	w, h := dc.renderer.Size()
+	renderPass.SetViewport(0, 0, float32(w), float32(h), 0, 1)
+	renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
+	renderPass.SetPipeline(translucentPipeline)
+	renderPass.SetVertexBuffer(0, vertexBuffer, 0)
+	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
+
+	timeSeconds := state.WaterWarpTime
+	fogDensity := state.FogDensity * 0.6931471805599453 / 64.0
+	cameraState := dc.renderer.cameraState
+	camera := [3]float32{cameraState.Origin.X, cameraState.Origin.Y, cameraState.Origin.Z}
+	vp := dc.renderer.GetViewProjectionMatrix()
+	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
+		uniformData := worldSceneUniformBytes(vp, camera, state.FogColor, fogDensity, timeSeconds, alpha, dynamicLight, litWater)
+		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData); err != nil {
+			slog.Error("renderWorldTranslucentLiquidsHAL: failed to update world uniform", "error", err)
+			return false
+		}
+		renderPass.SetBindGroup(0, uniformBindGroup, nil)
+		return true
+	}
+
+	translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, 8)
+	for _, face := range worldData.Geometry.Faces {
+		if !shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
+			continue
+		}
+		translucentFaces = append(translucentFaces, gogpuTranslucentLiquidFaceDraw{
+			face:       face,
+			alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
+			center:     face.Center,
+			distanceSq: worldFaceDistanceSq(face.Center, cameraState),
+		})
+	}
+	sortGoGPUTranslucentLiquidFaces(effectiveGoGPUAlphaMode(GetAlphaMode()), translucentFaces)
+
+	translucentLiquidDrawnIndices := uint32(0)
+	for _, draw := range translucentFaces {
+		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup)
+		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
+		if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
+			renderPass.End()
+			return
+		}
+		textureBindGroup := whiteTextureBindGroup
+		if worldTexture := gogpuWorldTextureForFace(draw.face, worldTextures, worldTextureAnimations, nil, 0, float64(timeSeconds)); worldTexture != nil && worldTexture.bindGroup != nil {
+			textureBindGroup = worldTexture.bindGroup
+		}
+		fullbrightBindGroup := transparentBindGroup
+		if fullbrightBindGroup == nil {
+			fullbrightBindGroup = whiteTextureBindGroup
+		}
+		if worldTexture := gogpuWorldTextureForFace(draw.face, worldFullbrightTextures, worldTextureAnimations, nil, 0, float64(timeSeconds)); worldTexture != nil && worldTexture.bindGroup != nil {
+			fullbrightBindGroup = worldTexture.bindGroup
+		}
+		renderPass.SetBindGroup(1, textureBindGroup, nil)
+		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
+		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+		renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
+		translucentLiquidDrawnIndices += draw.face.NumIndices
+	}
+
+	renderPass.End()
+	cmdBuffer, err := encoder.EndEncoding()
+	if err != nil {
+		slog.Error("renderWorldTranslucentLiquidsHAL: failed to finish encoding", "error", err)
+		return
+	}
+	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+		slog.Error("renderWorldTranslucentLiquidsHAL: failed to submit render commands", "error", err)
+		return
+	}
+	if translucentLiquidDrawnIndices > 0 {
+		slog.Info("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
+	}
+}
+
+func (r *Renderer) hasTranslucentWorldLiquidFacesGoGPU() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	worldData := r.worldData
+	r.mu.RUnlock()
+	if worldData == nil {
+		return false
+	}
+	return hasTranslucentWorldLiquidFaceType(
+		worldLiquidFaceTypeMask(worldData.Geometry.Faces),
+		worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree),
+	)
 }
 
 // worldDepthAttachmentForView picks the correct depth target for the current view configuration and pass sequence.

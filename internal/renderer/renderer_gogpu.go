@@ -1108,6 +1108,23 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 
+	var translucentBrushEntities []BrushEntity
+	var translucentAliasEntities []AliasModelEntity
+	if state.DrawEntities {
+		_, translucentBrushEntities = splitBrushEntitiesByAlpha(state.BrushEntities)
+		_, translucentAliasEntities = splitAliasEntitiesByAlpha(state.AliasEntities)
+	}
+	lateTranslucency := shouldRunLateTranslucencyBlock(lateTranslucencyBlockInputs{
+		drawWorld:                   state.DrawWorld,
+		hasTranslucentWorld:         state.DrawWorld && dc.renderer != nil && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU(),
+		drawEntities:                state.DrawEntities,
+		hasSpriteEntities:           len(state.SpriteEntities) > 0,
+		drawParticles:               state.DrawParticles,
+		hasDecalMarks:               len(state.DecalMarks) > 0,
+		hasTranslucentBrushEntities: len(translucentBrushEntities) > 0,
+		hasTranslucentAliasEntities: len(translucentAliasEntities) > 0,
+	})
+
 	if shouldClearGoGPUSharedDepthStencil(gogpuSharedDepthStencilClearInputs{
 		drawWorld:         state.DrawWorld,
 		drawEntities:      state.DrawEntities,
@@ -1120,7 +1137,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	// Phase 3: Draw entities, decals, and mode-placed particles.
-	if state.DrawEntities || len(state.DecalMarks) > 0 || (state.DrawParticles && state.Particles != nil) {
+	if lateTranslucency || state.DrawEntities || len(state.DecalMarks) > 0 || (state.DrawParticles && state.Particles != nil) {
 		dc.renderEntities(state)
 	}
 
@@ -1380,6 +1397,9 @@ func (dc *DrawContext) renderWorld(state *RenderFrameState) {
 func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
+	}
+	if state.DrawWorld && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU() {
+		dc.renderWorldTranslucentLiquidsHAL(state)
 	}
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
 	plan := planGoGPUEntityDrawOrder(state.DrawEntities, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
