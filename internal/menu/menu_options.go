@@ -229,9 +229,9 @@ func (m *Manager) audioKey(key int) {
 
 // adjustVideoSetting modifies the video cvar at the current cursor position
 // by the given delta. Each item maps to a specific cvar: resolution cycles
-// through videoResolutions, fullscreen/vsync/viewmodel are toggles, maxFPS
-// cycles through maxFPSValues, gamma is a float slider, waterwarp cycles
-// 0/1/2, and hud_style cycles 0/1.
+// through videoResolutions, fullscreen/vsync/viewmodel/showfps are toggles,
+// maxFPS cycles through maxFPSValues, gamma is a float slider, waterwarp
+// cycles 0/1/2, and hud_style cycles 0/1/2.
 func (m *Manager) adjustVideoSetting(delta int) {
 	switch m.videoCursor {
 	case videoItemResolution:
@@ -261,6 +261,8 @@ func (m *Manager) adjustVideoSetting(delta int) {
 	case videoItemHUDStyle:
 		next := (cvar.IntValue("hud_style") + delta + 3) % 3
 		cvar.SetInt("hud_style", next)
+	case videoItemShowFPS:
+		cvar.SetBool("scr_showfps", cvar.FloatValue("scr_showfps") == 0)
 	}
 }
 
@@ -427,8 +429,9 @@ func hudStyleLabel(v int) string {
 }
 
 // drawVideo renders the Video settings menu showing resolution, fullscreen,
-// vsync, max FPS, gamma, viewmodel, waterwarp, HUD style, and a Back item.
-// Each row displays the label on the left and the current cvar value on the right.
+// vsync, max FPS, gamma, viewmodel, waterwarp, HUD style, an FPS counter
+// toggle, and a Back item. Each row displays the label on the left and the
+// current cvar value on the right.
 func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
@@ -449,7 +452,9 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 184, 128, waterwarpLabel(cvar.IntValue("r_waterwarp")), true)
 	m.drawText(dc, 56, 144, "HUD STYLE", true)
 	m.drawText(dc, 184, 144, hudStyleLabel(cvar.IntValue("hud_style")), true)
-	m.drawText(dc, 56, 168, "BACK", true)
+	m.drawText(dc, 56, 160, "SHOW FPS", true)
+	m.drawText(dc, 184, 160, boolLabel(cvar.FloatValue("scr_showfps") != 0), true)
+	m.drawText(dc, 56, 176, "BACK", true)
 
 	m.drawArrowCursor(dc, 40, 32+m.videoCursor*16)
 	m.drawText(dc, 40, 180, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
