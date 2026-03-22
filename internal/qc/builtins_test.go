@@ -20,6 +20,33 @@ func newBuiltinsTestVM(maxEdicts int) *VM {
 	return vm
 }
 
+func TestLocalizedTextMessageDecodesEscapedControlCharacters(t *testing.T) {
+	got := localizedTextMessage(`line1\nline2\t\"quoted\"\\tail`)
+	want := "line1\nline2\t\"quoted\"\\tail"
+	if got != want {
+		t.Fatalf("localizedTextMessage() = %q, want %q", got, want)
+	}
+}
+
+func TestWriteStringBuiltinDecodesEscapedNewlines(t *testing.T) {
+	vm := newBuiltinsTestVM(8)
+	var got string
+	SetServerBuiltinHooks(ServerBuiltinHooks{
+		WriteString: func(vm *VM, dest int, value string) {
+			got = value
+		},
+	})
+	defer SetServerBuiltinHooks(ServerBuiltinHooks{})
+
+	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGString(OFSParm1, `line1\nline2`)
+	writeStringBuiltin(vm)
+
+	if got != "line1\nline2" {
+		t.Fatalf("WriteString decoded value = %q, want real newline payload", got)
+	}
+}
+
 func TestSpawnAllocatesEntity(t *testing.T) {
 	SetServerBuiltinHooks(ServerBuiltinHooks{})
 	vm := newBuiltinsTestVM(8)

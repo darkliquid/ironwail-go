@@ -18,6 +18,7 @@ const (
 	centerPrintBackgroundCVar = "scr_centerprintbg"
 	centerPrintTimeCVar       = "scr_centertime"
 	menuBGAlphaCVar           = "scr_menubgalpha"
+	centerPrintPanelColor     = 4
 	printSpeedCVar            = "scr_printspeed"
 	centerPrintDefaultHold    = 2.0
 	notifyFadeCVar            = "con_notifyfade"
@@ -329,9 +330,9 @@ func (cp *Centerprint) drawCenterprintBackground(rc renderer.RenderContext, scre
 			rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
 		}
 	case 2:
-		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, fillAlpha)
+		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, centerPrintPanelColor, fillAlpha)
 	case 3:
-		drawCenterprintFill(rc, 0, boxY, screenWidth, boxHeight, 0, fillAlpha)
+		drawCenterprintFill(rc, 0, boxY, screenWidth, boxHeight, centerPrintPanelColor, fillAlpha)
 	}
 }
 

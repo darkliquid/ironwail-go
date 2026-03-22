@@ -206,7 +206,7 @@ func changeyaw(vm *VM) {
 // centerprint prints a centered message, currently falling back to console output.
 func centerprint(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	msg := vm.GString(OFSParm1)
+	msg := localizedTextMessage(vm.GString(OFSParm1))
 	if serverBuiltinHooks.CenterPrint != nil {
 		serverBuiltinHooks.CenterPrint(vm, entNum, msg)
 		return

@@ -856,6 +856,22 @@ func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
 	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCCenterPrint) {
 		t.Fatalf("centerprint opcode = %d, want %d", got, inet.SVCCenterPrint)
 	}
+	msg := s.Static.Clients[0].Message.Data[clientBefore+1 : s.Static.Clients[0].Message.Len()-1]
+	if got := string(msg); got != "centered" {
+		t.Fatalf("centerprint message = %q, want %q", got, "centered")
+	}
+
+	clientBefore = s.Static.Clients[0].Message.Len()
+	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
+	vm.SetGString(qc.OFSParm1, `line1\nline2`)
+	vm.Builtins[73](vm)
+	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCCenterPrint) {
+		t.Fatalf("escaped centerprint opcode = %d, want %d", got, inet.SVCCenterPrint)
+	}
+	msg = s.Static.Clients[0].Message.Data[clientBefore+1 : s.Static.Clients[0].Message.Len()-1]
+	if got := string(msg); got != "line1\nline2" {
+		t.Fatalf("escaped centerprint message = %q, want real newline payload", got)
+	}
 
 	clientBefore = s.Static.Clients[0].Message.Len()
 	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))

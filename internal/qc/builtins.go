@@ -5,6 +5,7 @@ package qc
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -318,7 +319,7 @@ func writeAngleBuiltin(vm *VM) {
 
 func writeStringBuiltin(vm *VM) {
 	if serverBuiltinHooks.WriteString != nil {
-		serverBuiltinHooks.WriteString(vm, int(vm.GFloat(OFSParm0)), vm.GString(OFSParm1))
+		serverBuiltinHooks.WriteString(vm, int(vm.GFloat(OFSParm0)), localizedTextMessage(vm.GString(OFSParm1)))
 	}
 }
 
@@ -388,7 +389,7 @@ func stuffcmd(vm *VM) {
 
 // bprint prints a broadcast message.
 func bprint(vm *VM) {
-	msg := vm.GString(OFSParm0)
+	msg := localizedTextMessage(vm.GString(OFSParm0))
 	if serverBuiltinHooks.BroadcastPrint != nil {
 		serverBuiltinHooks.BroadcastPrint(vm, msg)
 		return
@@ -399,7 +400,7 @@ func bprint(vm *VM) {
 // sprint prints a message intended for one client.
 func sprint(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	msg := vm.GString(OFSParm1)
+	msg := localizedTextMessage(vm.GString(OFSParm1))
 	if serverBuiltinHooks.ClientPrint != nil {
 		serverBuiltinHooks.ClientPrint(vm, entNum, msg)
 		return
@@ -409,12 +410,44 @@ func sprint(vm *VM) {
 
 // dprint prints a developer/debug message.
 func dprint(vm *VM) {
-	msg := vm.GString(OFSParm0)
+	msg := localizedTextMessage(vm.GString(OFSParm0))
 	if serverBuiltinHooks.DebugPrint != nil {
 		serverBuiltinHooks.DebugPrint(vm, msg)
 		return
 	}
 	console.Printf("%s", msg)
+}
+
+func localizedTextMessage(s string) string {
+	if !strings.ContainsRune(s, '\\') {
+		return s
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != '\\' || i+1 >= len(s) {
+			b.WriteByte(s[i])
+			continue
+		}
+		i++
+		switch s[i] {
+		case 'n':
+			b.WriteByte('\n')
+		case 'r':
+			b.WriteByte('\r')
+		case 't':
+			b.WriteByte('\t')
+		case '\\':
+			b.WriteByte('\\')
+		case '"':
+			b.WriteByte('"')
+		default:
+			b.WriteByte('\\')
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
 func eprint(vm *VM) {

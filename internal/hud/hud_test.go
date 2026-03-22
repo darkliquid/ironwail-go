@@ -575,8 +575,8 @@ func TestHUDCenterprintFadeTailUsesCharacterAlphaDuringLateFade(t *testing.T) {
 	if len(fading.alphaFills) != 1 {
 		t.Fatalf("late fade alpha background fills = %d, want 1", len(fading.alphaFills))
 	}
-	if got := fading.alphaFills[0]; got.color != 0 || math.Abs(float64(got.alpha)-0.35) > 0.0001 {
-		t.Fatalf("late fade alpha background fill = %+v, want color=0 alpha=0.35", got)
+	if got := fading.alphaFills[0]; got.color != centerPrintPanelColor || math.Abs(float64(got.alpha)-0.35) > 0.0001 {
+		t.Fatalf("late fade alpha background fill = %+v, want color=%d alpha=0.35", got, centerPrintPanelColor)
 	}
 }
 
@@ -754,6 +754,9 @@ func TestCenterprintBackgroundModeThreeUsesFullWidthStrip(t *testing.T) {
 	if got := mock.fills[0]; got.x != 0 || got.w != 320 {
 		t.Fatalf("strip fill = %+v, want full-width strip", got)
 	}
+	if got := mock.fills[0].color; got != centerPrintPanelColor {
+		t.Fatalf("strip fill color = %d, want %d", got, centerPrintPanelColor)
+	}
 }
 
 func TestCenterprintBackgroundAlphaUsesMenuBGAlpha(t *testing.T) {
@@ -776,6 +779,9 @@ func TestCenterprintBackgroundAlphaUsesMenuBGAlpha(t *testing.T) {
 	}
 	if got := mock.alphaFills[0]; math.Abs(float64(got.alpha)-0.25) > 0.0001 {
 		t.Fatalf("alpha fill = %+v, want alpha=0.25", got)
+	}
+	if got := mock.alphaFills[0].color; got != centerPrintPanelColor {
+		t.Fatalf("alpha fill color = %d, want %d", got, centerPrintPanelColor)
 	}
 }
 
