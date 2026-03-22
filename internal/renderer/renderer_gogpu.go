@@ -577,6 +577,7 @@ type Renderer struct {
 	sceneCompositeBindGroup       hal.BindGroup
 
 	// Alias-model resources for the gogpu backend.
+	lightPool                      *glLightPool
 	brushModelGeometry             map[int]*WorldGeometry
 	brushModelLightmaps            map[int][]*gpuWorldTexture
 	aliasModels                    map[string]*gpuAliasModel
@@ -678,6 +679,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		app:                 app,
 		config:              cfg,
 		textureCache:        make(map[cacheKey]*cachedTexture),
+		lightPool:           NewGLLightPool(512),
 		brushModelGeometry:  make(map[int]*WorldGeometry),
 		brushModelLightmaps: make(map[int][]*gpuWorldTexture),
 		aliasModels:         make(map[string]*gpuAliasModel),
@@ -1813,16 +1815,38 @@ func (r *Renderer) HasWorldData() bool {
 }
 
 func (r *Renderer) SpawnDynamicLight(light DynamicLight) bool {
-	return false
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool == nil {
+		return false
+	}
+	return r.lightPool.SpawnLight(light)
 }
 
 func (r *Renderer) SpawnKeyedDynamicLight(light DynamicLight) bool {
-	return false
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool == nil {
+		return false
+	}
+	return r.lightPool.SpawnOrReplaceKeyed(light)
 }
 
-func (r *Renderer) UpdateLights(deltaTime float32) {}
+func (r *Renderer) UpdateLights(deltaTime float32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool != nil {
+		r.lightPool.UpdateAndFilter(deltaTime)
+	}
+}
 
-func (r *Renderer) ClearDynamicLights() {}
+func (r *Renderer) ClearDynamicLights() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lightPool != nil {
+		r.lightPool.Clear()
+	}
+}
 
 func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {
 	normalized := normalizeSkyboxBaseName(name)

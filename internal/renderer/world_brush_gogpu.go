@@ -392,7 +392,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, [3]float32{})); err != nil {
 			slog.Warn("failed to update brush uniform buffer", "error", err)
 			continue
 		}
@@ -558,7 +558,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, [3]float32{})); err != nil {
 			slog.Warn("failed to update brush sky uniform buffer", "error", err)
 			continue
 		}
@@ -720,7 +720,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, [3]float32{})); err != nil {
 			slog.Warn("failed to update brush liquid uniform buffer", "error", err)
 			continue
 		}
@@ -895,7 +895,7 @@ func (dc *DrawContext) renderTranslucentLiquidBrushEntitiesHAL(entities []BrushE
 		return faceRenders[i].face.distanceSq > faceRenders[j].face.distanceSq
 	})
 	for _, draw := range faceRenders {
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, [3]float32{})); err != nil {
 			slog.Warn("failed to update translucent brush liquid uniform buffer", "error", err)
 			continue
 		}
@@ -1092,7 +1092,7 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 	}
 	renderPass.SetPipeline(alphaTestPipeline)
 	for _, draw := range alphaTestRenders {
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, [3]float32{})); err != nil {
 			slog.Warn("failed to update translucent brush alpha-test uniform buffer", "error", err)
 			continue
 		}
@@ -1126,7 +1126,7 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 		return translucentRenders[i].face.distanceSq > translucentRenders[j].face.distanceSq
 	})
 	for _, draw := range translucentRenders {
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, [3]float32{})); err != nil {
 			slog.Warn("failed to update translucent brush uniform buffer", "error", err)
 			continue
 		}

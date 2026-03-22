@@ -30,7 +30,7 @@ type WorldUniforms struct {
 	_Pad           [2]float32
 }
 
-const worldUniformBufferSize = 112
+const worldUniformBufferSize = 128
 
 // WorldGeometry holds preprocessed BSP world data ready for GPU upload.
 // This structure bridges the gap between BSP file format and GPU rendering.
@@ -477,7 +477,8 @@ struct Uniforms {
     fogColor: vec3<f32>,
     time: f32,
     alpha: f32,
-    _pad1: vec3<f32>,
+    dynamicLight: vec3<f32>,
+    _pad1: f32,
 }
 
 struct VertexOutput {
@@ -521,7 +522,8 @@ struct Uniforms {
     fogColor: vec3<f32>,
     time: f32,
     alpha: f32,
-    _pad1: vec3<f32>,
+    dynamicLight: vec3<f32>,
+    _pad1: f32,
 }
 
 struct VertexOutput {
@@ -562,9 +564,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	}
 	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
+	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, sampled.rgb*lightmap+fullbright.rgb*fullbright.a, fog), sampled.a * uniforms.alpha);
+	return vec4<f32>(mix(uniforms.fogColor, lit, fog), sampled.a * uniforms.alpha);
 }
 `
 
@@ -583,7 +586,8 @@ struct Uniforms {
     fogColor: vec3<f32>,
     time: f32,
     alpha: f32,
-    _pad1: vec3<f32>,
+    dynamicLight: vec3<f32>,
+    _pad1: f32,
 }
 
 struct VertexOutput {
@@ -616,7 +620,8 @@ struct Uniforms {
     fogColor: vec3<f32>,
     time: f32,
     alpha: f32,
-    _pad1: vec3<f32>,
+    dynamicLight: vec3<f32>,
+    _pad1: f32,
 }
 
 struct VertexOutput {
@@ -662,7 +667,8 @@ struct Uniforms {
     fogColor: vec3<f32>,
     time: f32,
     alpha: f32,
-    _pad1: vec3<f32>,
+    dynamicLight: vec3<f32>,
+    _pad1: f32,
 }
 
 struct VertexOutput {
@@ -705,7 +711,8 @@ struct Uniforms {
     fogColor: vec3<f32>,
     time: f32,
     alpha: f32,
-    _pad1: vec3<f32>,
+    dynamicLight: vec3<f32>,
+    _pad1: f32,
 }
 
 struct VertexOutput {
@@ -2643,7 +2650,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	camera := dc.renderer.cameraState
-	uniformBytes := worldSceneUniformBytes(vpMatrix, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}, state.FogColor, state.FogDensity, camera.Time, 1)
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	var currentDynamicLight [3]float32
+	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, state.FogDensity, camera.Time, 1, currentDynamicLight)
 	slog.Info("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Info("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
@@ -2677,19 +2686,27 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	timeSeconds := float64(camera.Time)
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	var activeDynamicLights []DynamicLight
+	dc.renderer.mu.RLock()
+	if dc.renderer.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, dc.renderer.lightPool.ActiveLights()...)
+	}
+	dc.renderer.mu.RUnlock()
 	currentAlpha := float32(1)
-	writeWorldAlpha := func(alpha float32) bool {
-		if currentAlpha == alpha {
+	writeWorldUniform := func(alpha float32, dynamicLight [3]float32) bool {
+		if currentAlpha == alpha && currentDynamicLight == dynamicLight {
 			return true
 		}
 		currentAlpha = alpha
+		currentDynamicLight = dynamicLight
 		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, worldSceneUniformBytes(
 			vpMatrix,
-			[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+			cameraOrigin,
 			state.FogColor,
 			state.FogDensity,
 			camera.Time,
 			alpha,
+			dynamicLight,
 		)) == nil
 	}
 
@@ -2734,6 +2751,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	for _, face := range worldData.Geometry.Faces {
 		if !shouldDrawGoGPUOpaqueWorldFace(face) {
 			continue
+		}
+		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
+		if !writeWorldUniform(1, dynamicLight) {
+			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
+			renderPass.End()
+			return
 		}
 		textureBindGroup := dc.renderer.whiteTextureBindGroup
 		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
@@ -2800,7 +2823,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		})
 		renderPass.SetPipeline(dc.renderer.worldTranslucentTurbulentPipeline)
 		for _, draw := range translucentFaces {
-			if !writeWorldAlpha(draw.alpha) {
+			if !writeWorldUniform(draw.alpha, [3]float32{}) {
 				slog.Error("renderWorldInternal: Failed to update translucent liquid alpha uniform")
 				renderPass.End()
 				return
@@ -2822,7 +2845,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
 			translucentLiquidDrawnIndices += draw.face.NumIndices
 		}
-		if !writeWorldAlpha(1) {
+		if !writeWorldUniform(1, [3]float32{}) {
 			slog.Error("renderWorldInternal: Failed to restore world alpha uniform")
 			renderPass.End()
 			return
@@ -2883,7 +2906,7 @@ func matrixToBytes(m types.Mat4) []byte {
 	return b[:]
 }
 
-func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32) []byte {
+func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32) []byte {
 	data := make([]byte, worldUniformBufferSize)
 	matrixBytes := matrixToBytes(vp)
 	copy(data[:64], matrixBytes)
@@ -2892,6 +2915,7 @@ func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]
 	putFloat32s(data[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(time))
 	binary.LittleEndian.PutUint32(data[96:100], math.Float32bits(alpha))
+	putFloat32s(data[112:124], dynamicLight[:])
 	return data
 }
 

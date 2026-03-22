@@ -1,6 +1,3 @@
-//go:build opengl || cgo
-// +build opengl cgo
-
 package renderer
 
 import "math"
@@ -119,34 +116,18 @@ func evalLightContribution(light *DynamicLight, point [3]float32) [3]float32 {
 // at a specific point in world space.
 // The result is clamped to reasonable bounds to prevent overexposure.
 func (pool *glLightPool) EvaluateLightsAtPoint(point [3]float32) [3]float32 {
+	return evaluateDynamicLightsAtPoint(pool.lights, point)
+}
+
+func evaluateDynamicLightsAtPoint(lights []DynamicLight, point [3]float32) [3]float32 {
 	result := [3]float32{0, 0, 0}
-	for i := range pool.lights {
-		contrib := evalLightContribution(&pool.lights[i], point)
+	for i := range lights {
+		contrib := evalLightContribution(&lights[i], point)
 		result[0] += contrib[0]
 		result[1] += contrib[1]
 		result[2] += contrib[2]
 	}
 	return result
-}
-
-// AccumLightsPerFace pre-computes light contributions for all world faces.
-// This is called once per frame before rendering to compute the lighting contribution
-// for each face's center point.
-type FaceLightAccum struct {
-	FaceIndex int
-	Light     [3]float32
-}
-
-// AccumLightsPerFace computes light contributions for a list of world faces.
-// Returns a slice with one entry per input face, containing the summed light contribution
-// at that face's center.
-func (pool *glLightPool) AccumLightsPerFace(faces []WorldFace) []FaceLightAccum {
-	accum := make([]FaceLightAccum, len(faces))
-	for i := range faces {
-		accum[i].FaceIndex = i
-		accum[i].Light = pool.EvaluateLightsAtPoint(faces[i].Center)
-	}
-	return accum
 }
 
 // LightContribType specifies how light contributions are applied to face colors

@@ -1,6 +1,3 @@
-//go:build opengl || cgo
-// +build opengl cgo
-
 package renderer
 
 import (
@@ -356,52 +353,29 @@ func TestAccumLightsPerFace(t *testing.T) {
 	}
 	pool.SpawnLight(light)
 
-	faces := []WorldFace{
-		{
-			FirstIndex:    0,
-			NumIndices:    6,
-			TextureIndex:  0,
-			LightmapIndex: 0,
-			Flags:         0,
-			Center:        [3]float32{0, 0, 0}, // At light center
-		},
-		{
-			FirstIndex:    6,
-			NumIndices:    6,
-			TextureIndex:  0,
-			LightmapIndex: 0,
-			Flags:         0,
-			Center:        [3]float32{50, 0, 0}, // 50 units away
-		},
-		{
-			FirstIndex:    12,
-			NumIndices:    6,
-			TextureIndex:  0,
-			LightmapIndex: 0,
-			Flags:         0,
-			Center:        [3]float32{200, 0, 0}, // Outside light radius
-		},
+	centers := [][3]float32{
+		{0, 0, 0},
+		{50, 0, 0},
+		{200, 0, 0},
 	}
-
-	accum := pool.AccumLightsPerFace(faces)
-
-	if len(accum) != 3 {
-		t.Errorf("expected 3 accum entries, got %d", len(accum))
+	accum := make([][3]float32, len(centers))
+	for i, center := range centers {
+		accum[i] = evaluateDynamicLightsAtPoint(pool.ActiveLights(), center)
 	}
 
 	// Face 0 should have brightness 1.0 (at center)
-	if accum[0].Light[0] != 1.0 {
-		t.Errorf("expected brightness 1.0 for face at light center, got %f", accum[0].Light[0])
+	if accum[0][0] != 1.0 {
+		t.Errorf("expected brightness 1.0 for face at light center, got %f", accum[0][0])
 	}
 
 	// Face 1 should have brightness 0.5 (halfway)
-	if math.Abs(float64(accum[1].Light[0]-0.5)) > 1e-6 {
-		t.Errorf("expected brightness 0.5 for face at 50 units, got %f", accum[1].Light[0])
+	if math.Abs(float64(accum[1][0]-0.5)) > 1e-6 {
+		t.Errorf("expected brightness 0.5 for face at 50 units, got %f", accum[1][0])
 	}
 
 	// Face 2 should have brightness 0 (outside radius)
-	if accum[2].Light[0] != 0 || accum[2].Light[1] != 0 || accum[2].Light[2] != 0 {
-		t.Errorf("expected brightness 0 for face outside radius, got %v", accum[2].Light)
+	if accum[2][0] != 0 || accum[2][1] != 0 || accum[2][2] != 0 {
+		t.Errorf("expected brightness 0 for face outside radius, got %v", accum[2])
 	}
 }
 
@@ -537,7 +511,7 @@ func BenchmarkEvaluateLightsAtPoint(b *testing.B) {
 	}
 }
 
-func BenchmarkAccumLightsPerFace(b *testing.B) {
+func BenchmarkEvaluateDynamicLightsAtManyPoints(b *testing.B) {
 	pool := NewGLLightPool(64)
 
 	// Add 64 lights
@@ -553,16 +527,16 @@ func BenchmarkAccumLightsPerFace(b *testing.B) {
 		pool.SpawnLight(light)
 	}
 
-	// Create 256 faces
-	faces := make([]WorldFace, 256)
+	// Create 256 sample centers.
+	centers := make([][3]float32, 256)
 	for i := 0; i < 256; i++ {
-		faces[i] = WorldFace{
-			Center: [3]float32{float32(i*5) - 500, 0, 0},
-		}
+		centers[i] = [3]float32{float32(i*5) - 500, 0, 0}
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = pool.AccumLightsPerFace(faces)
+		for _, center := range centers {
+			_ = evaluateDynamicLightsAtPoint(pool.ActiveLights(), center)
+		}
 	}
 }
