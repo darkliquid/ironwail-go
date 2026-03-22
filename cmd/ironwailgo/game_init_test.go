@@ -101,3 +101,18 @@ func TestCurrentRuntimeFOVUsesCanonicalFOVCVar(t *testing.T) {
 		t.Fatalf("currentRuntimeFOV() = %v, want 110", got)
 	}
 }
+
+func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
+	if cvar.Get("zoom_fov") == nil {
+		cvar.Register("zoom_fov", "30", cvar.FlagArchive, "")
+	}
+
+	cvar.Set("zoom_fov", "55")
+	t.Cleanup(func() {
+		cvar.Set("zoom_fov", "30")
+	})
+
+	if got := currentRuntimeZoomFOV(); got != 55 {
+		t.Fatalf("currentRuntimeZoomFOV() = %v, want 55", got)
+	}
+}

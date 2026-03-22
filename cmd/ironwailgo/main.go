@@ -1021,7 +1021,7 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		ViewSize:       float32(cvar.FloatValue("scr_viewsize")),
 		FOV:            currentRuntimeFOV(),
 		FOVAdapt:       true,
-		ZoomFOV:        30,
+		ZoomFOV:        currentRuntimeZoomFOV(),
 		Zoom:           g.Zoom,
 		SbarScale:      float32(cvar.FloatValue("scr_sbarscale")),
 		SbarAlpha:      currentSbarAlpha(),
@@ -1053,6 +1053,13 @@ func currentRuntimeFOV() float32 {
 		return cv.Float32()
 	}
 	return 90
+}
+
+func currentRuntimeZoomFOV() float32 {
+	if cv := cvar.Get("zoom_fov"); cv != nil && cv.Float32() > 0 {
+		return cv.Float32()
+	}
+	return 30
 }
 
 func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
