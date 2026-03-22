@@ -112,6 +112,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 func (dc *DrawContext) Clear(r, g, b, a float32)          { dc.stubContext().Clear(r, g, b, a) }
 func (dc *DrawContext) DrawTriangle(r, g, b, a float32)   { dc.stubContext().DrawTriangle(r, g, b, a) }
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.stubContext().DrawPic(x, y, pic) }
+func (dc *DrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
+	if alpha <= 0 {
+		return
+	}
+	dc.stubContext().DrawPic(x, y, pic)
+}
 func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 	dc.stubContext().DrawMenuPic(x, y, pic)
 }

@@ -112,6 +112,30 @@ func TestCalcRefdef(t *testing.T) {
 	if math.Abs(float64(zoomed.BaseFOV-30)) > 1e-5 {
 		t.Fatalf("zoomed base fov = %f, want 30", zoomed.BaseFOV)
 	}
+
+	alphaRef, err := CalcRefdef(ScreenMetrics{
+		GLWidth:      1920,
+		GLHeight:     1080,
+		VidWidth:     1920,
+		VidHeight:    1080,
+		GUIHeight:    1080,
+		ViewSize:     100,
+		FOV:          90,
+		FOVAdapt:     true,
+		ZoomFOV:      30,
+		Zoom:         0,
+		SbarScale:    1,
+		SbarAlpha:    0.75,
+		HudStyle:     HUDClassic,
+		CSQCDrawHud:  false,
+		Intermission: false,
+	})
+	if err != nil {
+		t.Fatalf("CalcRefdef alpha error: %v", err)
+	}
+	if alphaRef.SBLines != 0 {
+		t.Fatalf("alpha sbar lines = %d, want 0 when scr_sbaralpha < 1", alphaRef.SBLines)
+	}
 }
 
 func TestComputeTileClear(t *testing.T) {

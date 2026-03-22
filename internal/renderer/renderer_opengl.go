@@ -298,11 +298,16 @@ func (dc *glDrawContext) uploadQPicTexture(pic *image.QPic, rgba []byte) uint32 
 
 // DrawPic renders a QPic image at the specified screen-space position.
 func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
+	dc.DrawPicAlpha(x, y, pic, 1)
+}
+
+// DrawPicAlpha renders a QPic image at the specified screen-space position with explicit alpha.
+func (dc *glDrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
 	if err := dc.init2DRenderer(); err != nil {
 		slog.Error("Failed to init 2D renderer", "error", err)
 		return
 	}
-	if pic == nil || dc.renderer == nil {
+	if pic == nil || dc.renderer == nil || alpha <= 0 {
 		return
 	}
 
@@ -320,7 +325,7 @@ func (dc *glDrawContext) DrawPic(x, y int, pic *image.QPic) {
 	}
 
 	// Render quad as triangle strip
-	dc.render2DQuad(vertices, tex.texture, dc.shader2D)
+	dc.render2DQuadTinted(vertices, tex.texture, dc.shader2D, [4]float32{1, 1, 1, minf(alpha, 1)})
 }
 
 // DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.

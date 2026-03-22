@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/renderer"
@@ -42,6 +43,10 @@ type StatusBar struct {
 	lastItems   uint32
 	pickupTimes [32]float64
 	pickupKnown uint32
+}
+
+type picAlphaContext interface {
+	DrawPicAlpha(x, y int, pic *image.QPic, alpha float32)
 }
 
 // Bit indices and bitmask constants for Hipnotic (Scourge of Armagon) and
@@ -190,6 +195,7 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	viewSize := currentViewSize()
 	showInventory := viewSize < 110
 	showStatusBar := viewSize < 120
+	sbarAlpha := currentSbarAlpha()
 
 	if !showStatusBar {
 		if state.GameType == 1 && state.MaxClients > 1 {
@@ -199,15 +205,15 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 	}
 
 	if sb.sbarPic != nil {
-		rc.DrawPic(sbarX, sbarY, sb.sbarPic)
+		sb.drawPicAlpha(rc, sbarX, sbarY, sb.sbarPic, sbarAlpha)
 	} else {
-		rc.DrawFill(sbarX, sbarY, sbarWidth, sbarHeight, 4)
+		rc.DrawFillAlpha(sbarX, sbarY, sbarWidth, sbarHeight, 4, sbarAlpha)
 	}
 	if showInventory {
 		if sb.ibarPic != nil {
-			rc.DrawPic(sbarX, inventoryY, sb.inventoryBarPic(state))
+			sb.drawPicAlpha(rc, sbarX, inventoryY, sb.inventoryBarPic(state), sbarAlpha)
 		} else {
-			rc.DrawFill(sbarX, inventoryY, sbarWidth, inventoryHeight, 4)
+			rc.DrawFillAlpha(sbarX, inventoryY, sbarWidth, inventoryHeight, 4, sbarAlpha)
 		}
 		sb.drawInventory(rc, sbarX, inventoryY, state)
 	}
@@ -792,10 +798,11 @@ func armorValue(state State) int {
 // sorted by frags descending.
 func (sb *StatusBar) drawScoreboard(rc renderer.RenderContext, state State, sbarX, sbarY int) {
 	const scorebarHeight = 24
+	sbarAlpha := currentSbarAlpha()
 	if sb.scorebarPic != nil {
-		rc.DrawPic(sbarX, sbarY, sb.scorebarPic)
+		sb.drawPicAlpha(rc, sbarX, sbarY, sb.scorebarPic, sbarAlpha)
 	} else {
-		rc.DrawFill(sbarX, sbarY, 320, scorebarHeight, 4)
+		rc.DrawFillAlpha(sbarX, sbarY, 320, scorebarHeight, 4, sbarAlpha)
 	}
 
 	if sb.rankingPic != nil {
@@ -817,6 +824,28 @@ func (sb *StatusBar) drawScoreboard(rc renderer.RenderContext, state State, sbar
 		DrawString(rc, rowX+64, y, row.Name)
 		y += 10
 	}
+}
+
+func (sb *StatusBar) drawPicAlpha(rc renderer.RenderContext, x, y int, pic *image.QPic, alpha float32) {
+	if pic == nil || alpha <= 0 {
+		return
+	}
+	if picAlpha, ok := rc.(picAlphaContext); ok {
+		picAlpha.DrawPicAlpha(x, y, pic, alpha)
+		return
+	}
+	rc.DrawPic(x, y, pic)
+}
+
+func currentSbarAlpha() float32 {
+	alpha := float32(cvar.FloatValue("scr_sbaralpha"))
+	if alpha <= 0 {
+		return 0
+	}
+	if alpha > 1 {
+		return 1
+	}
+	return alpha
 }
 
 // drawMiniScoreboard renders a compact 4-player scoreboard strip overlaid on

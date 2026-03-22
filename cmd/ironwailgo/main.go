@@ -1002,7 +1002,7 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		ZoomFOV:        30,
 		Zoom:           g.Zoom,
 		SbarScale:      float32(cvar.FloatValue("scr_sbarscale")),
-		SbarAlpha:      1,
+		SbarAlpha:      currentSbarAlpha(),
 		MenuScale:      float32(cvar.FloatValue("scr_menuscale")),
 		CrosshairScale: float32(cvar.FloatValue("scr_crosshairscale")),
 		Intermission:   g.Client != nil && g.Client.Intermission != 0,
@@ -1013,6 +1013,17 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		return renderer.ViewRect{X: 0, Y: 0, Width: framebufferW, Height: framebufferH}
 	}
 	return ref.VRect
+}
+
+func currentSbarAlpha() float32 {
+	alpha := float32(cvar.FloatValue("scr_sbaralpha"))
+	if alpha <= 0 {
+		return 0
+	}
+	if alpha > 1 {
+		return 1
+	}
+	return alpha
 }
 
 func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {

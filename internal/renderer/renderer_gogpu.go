@@ -174,7 +174,15 @@ func (dc *DrawContext) SetCanvasParams(p CanvasTransformParams) {
 
 // DrawPic renders a QPic image at the specified screen-space position.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
+	dc.DrawPicAlpha(x, y, pic, 1)
+}
+
+// DrawPicAlpha renders a QPic image at a screen-space position with explicit alpha.
+func (dc *DrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
 	if pic == nil {
+		return
+	}
+	if alpha <= 0 {
 		return
 	}
 
@@ -184,7 +192,20 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 	}
 
 	rect := dc.screenPicRect(x, y, int(pic.Width), int(pic.Height))
-	err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
+	if alpha >= 1 {
+		err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
+		if err != nil {
+			slog.Error("Failed to draw texture", "error", err)
+		}
+		return
+	}
+	err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      rect.x,
+		Y:      rect.y,
+		Width:  rect.w,
+		Height: rect.h,
+		Alpha:  alpha,
+	})
 	if err != nil {
 		slog.Error("Failed to draw texture", "error", err)
 	}

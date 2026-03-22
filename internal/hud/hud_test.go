@@ -28,6 +28,15 @@ func setTestViewSize(t *testing.T, value string) {
 	})
 }
 
+func setTestSbarAlpha(t *testing.T, value string) {
+	t.Helper()
+	cvar.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "")
+	cvar.Set("scr_sbaralpha", value)
+	t.Cleanup(func() {
+		cvar.Set("scr_sbaralpha", "0.75")
+	})
+}
+
 // mockRenderContext is a test double for renderer.RenderContext
 type mockRenderContext struct {
 	characters      []struct{ x, y, num int }
@@ -38,6 +47,11 @@ type mockRenderContext struct {
 	pics []struct {
 		x, y int
 		pic  *image.QPic
+	}
+	alphaPics []struct {
+		x, y  int
+		pic   *image.QPic
+		alpha float32
 	}
 	menuPics []struct {
 		x, y int
@@ -67,6 +81,14 @@ func (m *mockRenderContext) DrawPic(x, y int, pic *image.QPic) {
 		pic  *image.QPic
 	}{x, y, pic})
 }
+func (m *mockRenderContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
+	m.alphaPics = append(m.alphaPics, struct {
+		x, y  int
+		pic   *image.QPic
+		alpha float32
+	}{x, y, pic, alpha})
+	m.DrawPic(x, y, pic)
+}
 func (m *mockRenderContext) DrawMenuPic(x, y int, pic *image.QPic) {
 	m.menuPics = append(m.menuPics, struct {
 		x, y int
@@ -85,6 +107,7 @@ func (m *mockRenderContext) DrawFillAlpha(x, y, w, h int, color byte, alpha floa
 		color      byte
 		alpha      float32
 	}{x, y, w, h, color, alpha})
+	m.DrawFill(x, y, w, h, color)
 }
 func (m *mockRenderContext) DrawCharacter(x, y int, num int) {
 	m.characters = append(m.characters, struct{ x, y, num int }{x, y, num})
@@ -243,6 +266,7 @@ func TestStatusBarScoreboardOverridesHugeViewsize(t *testing.T) {
 }
 
 func TestStatusBarDrawUsesScreenSpacePicCoordinates(t *testing.T) {
+	setTestSbarAlpha(t, "1")
 	sbar := &image.QPic{Width: 320, Height: 24}
 	ibar := &image.QPic{Width: 320, Height: 24}
 	armor := &image.QPic{Width: 24, Height: 24}
@@ -286,6 +310,42 @@ func TestStatusBarDrawUsesScreenSpacePicCoordinates(t *testing.T) {
 		if got.x != expected.x || got.y != expected.y || got.pic != expected.pic {
 			t.Fatalf("pic draw %d = %+v, want %+v", i, got, expected)
 		}
+	}
+}
+
+func TestStatusBarDrawUsesAlphaPicsForBarBackgrounds(t *testing.T) {
+	setTestSbarAlpha(t, "0.75")
+	sbar := &image.QPic{Width: 320, Height: 24}
+	ibar := &image.QPic{Width: 320, Height: 24}
+	sb := &StatusBar{sbarPic: sbar, ibarPic: ibar}
+	mock := &mockRenderContext{}
+
+	sb.Draw(mock, State{Health: 100}, 320, 48)
+
+	if len(mock.alphaPics) != 2 {
+		t.Fatalf("alpha pic count = %d, want 2", len(mock.alphaPics))
+	}
+	if got := mock.alphaPics[0]; got.x != 0 || got.y != 24 || got.pic != sbar || math.Abs(float64(got.alpha-0.75)) > 0.0001 {
+		t.Fatalf("sbar alpha pic = %+v, want x=0 y=24 alpha=0.75", got)
+	}
+	if got := mock.alphaPics[1]; got.x != 0 || got.y != 0 || got.pic != ibar || math.Abs(float64(got.alpha-0.75)) > 0.0001 {
+		t.Fatalf("ibar alpha pic = %+v, want x=0 y=0 alpha=0.75", got)
+	}
+}
+
+func TestStatusBarScoreboardUsesAlphaBackground(t *testing.T) {
+	setTestSbarAlpha(t, "0.5")
+	scorebar := &image.QPic{Width: 320, Height: 24}
+	sb := &StatusBar{scorebarPic: scorebar}
+	mock := &mockRenderContext{}
+
+	sb.drawScoreboard(mock, State{Scoreboard: []ScoreEntry{{Name: "p1", Frags: 1}}}, 0, 24)
+
+	if len(mock.alphaPics) == 0 {
+		t.Fatal("expected alpha scorebar background draw")
+	}
+	if got := mock.alphaPics[0]; got.pic != scorebar || math.Abs(float64(got.alpha-0.5)) > 0.0001 {
+		t.Fatalf("scorebar alpha pic = %+v, want alpha=0.5", got)
 	}
 }
 

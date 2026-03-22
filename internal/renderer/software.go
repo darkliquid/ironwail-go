@@ -112,7 +112,12 @@ func (s *SoftwareRenderer) SetCanvasParams(p CanvasTransformParams) {
 
 // DrawPic blits a QPic image at a screen-space position using the stored palette.
 func (s *SoftwareRenderer) DrawPic(x, y int, pic *qimage.QPic) {
-	s.drawPicRect(screenPicRect(x, y, pic), pic)
+	s.DrawPicAlpha(x, y, pic, 1)
+}
+
+// DrawPicAlpha blits a QPic image at a screen-space position with explicit alpha.
+func (s *SoftwareRenderer) DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32) {
+	s.drawPicRectAlpha(screenPicRect(x, y, pic), pic, alpha)
 }
 
 // DrawMenuPic blits a QPic image in 320x200 menu-space coordinates.
@@ -120,12 +125,22 @@ func (s *SoftwareRenderer) DrawMenuPic(x, y int, pic *qimage.QPic) {
 	if pic == nil {
 		return
 	}
-	s.drawPicRect(s.screenPicRect(x, y, int(pic.Width), int(pic.Height)), pic)
+	s.drawPicRectAlpha(s.screenPicRect(x, y, int(pic.Width), int(pic.Height)), pic, 1)
 }
 
 func (s *SoftwareRenderer) drawPicRect(rect picRect, pic *qimage.QPic) {
+	s.drawPicRectAlpha(rect, pic, 1)
+}
+
+func (s *SoftwareRenderer) drawPicRectAlpha(rect picRect, pic *qimage.QPic, alpha float32) {
 	if pic == nil || len(pic.Pixels) == 0 {
 		return
+	}
+	if alpha <= 0 {
+		return
+	}
+	if alpha > 1 {
+		alpha = 1
 	}
 	rgba := ConvertPaletteToRGBA(pic.Pixels, s.palette)
 	srcW, srcH := int(pic.Width), int(pic.Height)
@@ -154,10 +169,23 @@ func (s *SoftwareRenderer) drawPicRect(rect picRect, pic *qimage.QPic) {
 			if off+3 >= len(rgba) {
 				continue
 			}
-			if rgba[off+3] == 0 {
+			srcAlpha := float32(rgba[off+3]) / 255 * alpha
+			if srcAlpha <= 0 {
 				continue // transparent
 			}
-			s.img.SetRGBA(sx, sy, color.RGBA{rgba[off], rgba[off+1], rgba[off+2], rgba[off+3]})
+			src := color.RGBA{rgba[off], rgba[off+1], rgba[off+2], uint8(srcAlpha * 255)}
+			if alpha >= 1 && src.A == 255 {
+				s.img.SetRGBA(sx, sy, src)
+				continue
+			}
+			dst := s.img.RGBAAt(sx, sy)
+			inv := 1 - srcAlpha
+			s.img.SetRGBA(sx, sy, color.RGBA{
+				R: uint8(float32(src.R)*srcAlpha + float32(dst.R)*inv),
+				G: uint8(float32(src.G)*srcAlpha + float32(dst.G)*inv),
+				B: uint8(float32(src.B)*srcAlpha + float32(dst.B)*inv),
+				A: uint8(float32(src.A) + float32(dst.A)*inv),
+			})
 		}
 	}
 }

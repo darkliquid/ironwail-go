@@ -226,6 +226,11 @@ func (dc *DrawContext) Gamma() float32 { return dc.gldc.Gamma() }
 // DrawPic delegates to the GL draw context for 2D image rendering.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.gldc.DrawPic(x, y, pic) }
 
+// DrawPicAlpha delegates to the GL draw context for alpha-modulated 2D image rendering.
+func (dc *DrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
+	dc.gldc.DrawPicAlpha(x, y, pic, alpha)
+}
+
 // DrawMenuPic delegates to the GL draw context for menu-space image rendering.
 func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
 	dc.gldc.DrawMenuPic(x, y, pic)
