@@ -4,12 +4,15 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 type gpuSpriteFrame struct {
@@ -47,13 +50,16 @@ struct VertexInput {
 
 struct SpriteUniforms {
     viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
     alpha: f32,
-    _pad0: vec3<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
+    @location(1) worldPosition: vec3<f32>,
 }
 
 @group(0) @binding(0)
@@ -64,6 +70,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
     output.texCoord = input.texCoord;
+    output.worldPosition = input.position;
     return output;
 }
 `
@@ -71,13 +78,16 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 const spriteFragmentShaderWGSL = `
 struct SpriteUniforms {
     viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
     alpha: f32,
-    _pad0: vec3<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
+    @location(1) worldPosition: vec3<f32>,
 }
 
 @group(0) @binding(0)
@@ -98,9 +108,14 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     if (sampled.a < 0.01) {
         discard;
     }
-    return vec4<f32>(sampled.rgb, sampled.a * uniforms.alpha);
+    let fogPosition = input.worldPosition - uniforms.cameraOrigin;
+    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
+    let fogged = mix(uniforms.fogColor, sampled.rgb, fog);
+    return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
+
+const spriteUniformBufferSize = 96
 
 func (r *Renderer) clearSpriteModelsLocked() {
 	for key, cached := range r.spriteModels {
@@ -121,6 +136,14 @@ func (r *Renderer) clearSpriteModelsLocked() {
 
 func (r *Renderer) destroySpriteResourcesLocked() {
 	r.clearSpriteModelsLocked()
+	if r.spriteUniformBuffer != nil {
+		r.spriteUniformBuffer.Destroy()
+		r.spriteUniformBuffer = nil
+	}
+	if r.spriteUniformBindGroup != nil {
+		r.spriteUniformBindGroup.Destroy()
+		r.spriteUniformBindGroup = nil
+	}
 	if r.spritePipeline != nil {
 		r.spritePipeline.Destroy()
 		r.spritePipeline = nil
@@ -142,17 +165,47 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 	if err := r.ensureAliasResourcesLocked(device); err != nil {
 		return err
 	}
-	if r.spritePipeline != nil {
+	if r.spritePipeline != nil && r.spriteUniformBuffer != nil && r.spriteUniformBindGroup != nil {
 		return nil
+	}
+
+	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+		Label:            "Sprite Uniform Buffer",
+		Size:             spriteUniformBufferSize,
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create sprite uniform buffer: %w", err)
+	}
+	uniformBindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+		Label:  "Sprite Uniform BG",
+		Layout: r.aliasUniformBindGroupLayout,
+		Entries: []gputypes.BindGroupEntry{{
+			Binding: 0,
+			Resource: gputypes.BufferBinding{
+				Buffer: uniformBuffer.NativeHandle(),
+				Offset: 0,
+				Size:   spriteUniformBufferSize,
+			},
+		}},
+	})
+	if err != nil {
+		uniformBuffer.Destroy()
+		return fmt.Errorf("create sprite uniform bind group: %w", err)
 	}
 
 	vertexShader, err := createWorldShaderModule(device, spriteVertexShaderWGSL, "Sprite Vertex Shader")
 	if err != nil {
+		uniformBindGroup.Destroy()
+		uniformBuffer.Destroy()
 		return fmt.Errorf("create sprite vertex shader: %w", err)
 	}
 	fragmentShader, err := createWorldShaderModule(device, spriteFragmentShaderWGSL, "Sprite Fragment Shader")
 	if err != nil {
 		vertexShader.Destroy()
+		uniformBindGroup.Destroy()
+		uniformBuffer.Destroy()
 		return fmt.Errorf("create sprite fragment shader: %w", err)
 	}
 
@@ -217,9 +270,13 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 	if err != nil {
 		vertexShader.Destroy()
 		fragmentShader.Destroy()
+		uniformBindGroup.Destroy()
+		uniformBuffer.Destroy()
 		return fmt.Errorf("create sprite pipeline: %w", err)
 	}
 
+	r.spriteUniformBuffer = uniformBuffer
+	r.spriteUniformBindGroup = uniformBindGroup
 	r.spriteVertexShader = vertexShader
 	r.spriteFragmentShader = fragmentShader
 	r.spritePipeline = pipeline
@@ -385,7 +442,7 @@ func (dc *DrawContext) collectSpriteDraws(entities []SpriteEntity) []gpuSpriteDr
 	return draws
 }
 
-func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity) {
+func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity, fogColor [3]float32, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -393,10 +450,10 @@ func (dc *DrawContext) renderSpriteEntitiesHAL(entities []SpriteEntity) {
 	if len(draws) == 0 {
 		return
 	}
-	dc.renderSpriteDrawsHAL(draws)
+	dc.renderSpriteDrawsHAL(draws, fogColor, fogDensity)
 }
 
-func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw) {
+func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]float32, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(draws) == 0 {
 		return
 	}
@@ -419,8 +476,8 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw) {
 		return
 	}
 	pipeline := r.spritePipeline
-	uniformBuffer := r.aliasUniformBuffer
-	uniformBindGroup := r.aliasUniformBindGroup
+	uniformBuffer := r.spriteUniformBuffer
+	uniformBindGroup := r.spriteUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
@@ -481,7 +538,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw) {
 			continue
 		}
 		worldVertices := spriteQuadVerticesToWorldVerticesHAL(triangleVertices)
-		if err := queue.WriteBuffer(uniformBuffer, 0, aliasUniformBytes(vpMatrix, draw.alpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, spriteUniformBytes(vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)); err != nil {
 			slog.Warn("failed to update sprite uniform buffer", "error", err)
 			continue
 		}
@@ -515,4 +572,15 @@ func spriteQuadVerticesToWorldVerticesHAL(vertices []spriteQuadVertex) []WorldVe
 		}
 	}
 	return out
+}
+
+func spriteUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+	data := make([]byte, spriteUniformBufferSize)
+	matrixBytes := matrixToBytes(vp)
+	copy(data[:64], matrixBytes)
+	putFloat32s(data[64:76], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	putFloat32s(data[80:92], fogColor[:])
+	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
+	return data
 }

@@ -208,17 +208,6 @@ func defaultLightStyleValues() [64]float32 {
 	return values
 }
 
-// worldFogUniformDensity converts the fog density cvar value to the uniform value used in the shader's exponential fog formula.
-func worldFogUniformDensity(density float32) float32 {
-	const (
-		expAdjustment       = 1.20112241
-		sphericalCorrection = 0.85
-		densityScale        = expAdjustment * sphericalCorrection / 64.0
-	)
-	density = clamp01(density) * densityScale
-	return density * density
-}
-
 // uploadWorldTexturesLocked uploads all world textures to the GPU: converts from palette to RGBA, extracts fullbright masks (palette indices 224-254 glow in the dark), splits sky textures into layers, and uploads to GL textures. Called once per map load.
 func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 	r.worldTextures = make(map[int32]uint32)

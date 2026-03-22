@@ -565,6 +565,8 @@ type Renderer struct {
 	aliasUniformBindGroupLayout hal.BindGroupLayout
 	aliasTextureBindGroupLayout hal.BindGroupLayout
 	aliasSampler                hal.Sampler
+	spriteUniformBuffer         hal.Buffer
+	spriteUniformBindGroup      hal.BindGroup
 	spritePipeline              hal.RenderPipeline
 	spriteVertexShader          hal.ShaderModule
 	spriteFragmentShader        hal.ShaderModule
@@ -1363,7 +1365,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		case gogpuEntityPhaseTranslucentAlias:
 			dc.renderAliasEntitiesHAL(plan.translucentAlias)
 		case gogpuEntityPhaseSprites:
-			dc.renderSpriteEntitiesHAL(state.SpriteEntities)
+			dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentParticles:
 			if state.DrawParticles && state.Particles != nil {
 				dc.renderParticles(state)
