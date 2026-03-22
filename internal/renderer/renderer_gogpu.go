@@ -1402,7 +1402,26 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	hasTranslucentWorld := state.DrawWorld && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU()
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
 	plan := planGoGPUEntityDrawOrder(state.DrawEntities, hasTranslucentWorld, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
+	var pendingTranslucentRenders []gogpuTranslucentBrushFaceRender
+	var pendingTransientBuffers []hal.Buffer
+	flushPendingTranslucency := func() {
+		if len(pendingTranslucentRenders) == 0 {
+			destroyGoGPUTransientBuffers(pendingTransientBuffers)
+			pendingTransientBuffers = nil
+			return
+		}
+		sortGoGPUTranslucentBrushFaceRenders(effectiveGoGPUAlphaMode(GetAlphaMode()), pendingTranslucentRenders)
+		dc.renderGoGPUSortedTranslucentFaceRendersHAL(pendingTranslucentRenders, state.FogColor, state.FogDensity)
+		destroyGoGPUTransientBuffers(pendingTransientBuffers)
+		pendingTranslucentRenders = nil
+		pendingTransientBuffers = nil
+	}
 	for _, phase := range plan.phases {
+		switch phase {
+		case gogpuEntityPhaseTranslucentWorldLiquid, gogpuEntityPhaseTranslucentLiquidBrush, gogpuEntityPhaseTranslucentBrush:
+		default:
+			flushPendingTranslucency()
+		}
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
 			dc.renderOpaqueBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
@@ -1424,11 +1443,16 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		case gogpuEntityPhaseOpaqueLiquidBrush:
 			dc.renderOpaqueLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentWorldLiquid:
-			dc.renderWorldTranslucentLiquidsHAL(state)
+			pendingTranslucentRenders = append(pendingTranslucentRenders, dc.collectGoGPUWorldTranslucentLiquidFaceRenders()...)
 		case gogpuEntityPhaseTranslucentLiquidBrush:
-			dc.renderTranslucentLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+			renders, buffers := dc.collectGoGPUTranslucentLiquidBrushFaceRenders(plan.opaqueBrush)
+			pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
+			pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
 		case gogpuEntityPhaseTranslucentBrush:
-			dc.renderTranslucentBrushEntitiesHAL(plan.translucentBrush, state.FogColor, state.FogDensity)
+			alphaTestRenders, renders, buffers := dc.collectGoGPUTranslucentBrushEntityFaceRenders(plan.translucentBrush)
+			dc.renderGoGPUAlphaTestBrushFaceRendersHAL(alphaTestRenders, state.FogColor, state.FogDensity)
+			pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
+			pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
 		case gogpuEntityPhaseDecals:
 			dc.renderDecalMarksHAL(state.DecalMarks)
 		case gogpuEntityPhaseTranslucentAlias:
@@ -1441,6 +1465,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			}
 		}
 	}
+	flushPendingTranslucency()
 }
 
 const (

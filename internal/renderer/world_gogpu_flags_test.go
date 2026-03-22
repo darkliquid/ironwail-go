@@ -333,6 +333,18 @@ func TestSortGoGPUTranslucentBrushFaceRendersHonorsAlphaMode(t *testing.T) {
 	}
 }
 
+func TestSortGoGPUTranslucentBrushFaceRendersCrossSortsWorldAndBrushFaces(t *testing.T) {
+	renders := []gogpuTranslucentBrushFaceRender{
+		{liquid: true, face: gogpuTranslucentLiquidFaceDraw{distanceSq: 4, face: WorldFace{TextureIndex: 1}}},
+		{liquid: false, face: gogpuTranslucentLiquidFaceDraw{distanceSq: 9, face: WorldFace{TextureIndex: 2}}},
+		{liquid: true, face: gogpuTranslucentLiquidFaceDraw{distanceSq: 1, face: WorldFace{TextureIndex: 3}}},
+	}
+	sortGoGPUTranslucentBrushFaceRenders(AlphaModeSorted, renders)
+	if got := []int32{renders[0].face.face.TextureIndex, renders[1].face.face.TextureIndex, renders[2].face.face.TextureIndex}; !reflect.DeepEqual(got, []int32{2, 1, 3}) {
+		t.Fatalf("mixed translucent face order = %v, want [2 1 3]", got)
+	}
+}
+
 func TestEffectiveGoGPUAlphaModeFallsBackFromOITToSorted(t *testing.T) {
 	if got := effectiveGoGPUAlphaMode(AlphaModeBasic); got != AlphaModeBasic {
 		t.Fatalf("effectiveGoGPUAlphaMode(Basic) = %v, want %v", got, AlphaModeBasic)
