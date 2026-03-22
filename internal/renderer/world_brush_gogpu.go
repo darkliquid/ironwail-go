@@ -502,6 +502,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	for k, v := range r.worldSkyAlphaTextures {
 		worldSkyAlphaTextures[k] = v
 	}
+	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	externalSkyMode := r.worldSkyExternalMode
 	externalSkyBindGroup := r.worldSkyExternalBindGroup
 	depthView := r.worldDepthTextureView
@@ -594,12 +595,13 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 				renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 				continue
 			}
+			textureIndex := resolveWorldSkyTextureIndex(face, worldTextureAnimations, 0, float64(camera.Time))
 			solidBindGroup := whiteTextureBindGroup
-			if worldTexture := worldSkySolidTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+			if worldTexture := worldSkySolidTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				solidBindGroup = worldTexture.bindGroup
 			}
 			alphaBindGroup := transparentBindGroup
-			if worldTexture := worldSkyAlphaTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+			if worldTexture := worldSkyAlphaTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				alphaBindGroup = worldTexture.bindGroup
 			}
 			renderPass.SetBindGroup(1, solidBindGroup, nil)

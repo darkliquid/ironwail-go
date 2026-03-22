@@ -2807,15 +2807,16 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			if !shouldDrawGoGPUSkyWorldFace(face) {
 				continue
 			}
+			textureIndex := resolveWorldSkyTextureIndex(face, dc.renderer.worldTextureAnimations, 0, timeSeconds)
 			solidBindGroup := dc.renderer.whiteTextureBindGroup
-			if worldTexture := dc.renderer.worldSkySolidTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+			if worldTexture := dc.renderer.worldSkySolidTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				solidBindGroup = worldTexture.bindGroup
 			}
 			alphaBindGroup := dc.renderer.transparentBindGroup
 			if alphaBindGroup == nil {
 				alphaBindGroup = dc.renderer.whiteTextureBindGroup
 			}
-			if worldTexture := dc.renderer.worldSkyAlphaTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+			if worldTexture := dc.renderer.worldSkyAlphaTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				alphaBindGroup = worldTexture.bindGroup
 			}
 			renderPass.SetBindGroup(1, solidBindGroup, nil)

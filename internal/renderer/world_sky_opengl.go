@@ -571,12 +571,7 @@ type skyPassState struct {
 
 // worldSkyTexturesForFace resolves the solid and alpha sky layer texture handles for a sky face, with animation support.
 func worldSkyTexturesForFace(face WorldFace, solidTextures, alphaTextures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackSolid, fallbackAlpha uint32, frame int, timeSeconds float64) (solid, alpha uint32) {
-	textureIndex := face.TextureIndex
-	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
-		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
-			textureIndex = animated.TextureIndex
-		}
-	}
+	textureIndex := resolveWorldSkyTextureIndex(face, textureAnimations, frame, timeSeconds)
 
 	solid = solidTextures[textureIndex]
 	alpha = alphaTextures[textureIndex]

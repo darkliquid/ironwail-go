@@ -214,6 +214,19 @@ func TestGoGPUWorldSkyFogDensityUsesWorldspawnOverride(t *testing.T) {
 	}
 }
 
+func TestResolveWorldSkyTextureIndexUsesAnimation(t *testing.T) {
+	animations, err := BuildTextureAnimations([]string{"+0sky", "+1sky"})
+	if err != nil {
+		t.Fatalf("BuildTextureAnimations error: %v", err)
+	}
+	if got := resolveWorldSkyTextureIndex(WorldFace{TextureIndex: 0}, animations, 0, 0.2); got != 1 {
+		t.Fatalf("resolveWorldSkyTextureIndex(animated) = %d, want 1", got)
+	}
+	if got := resolveWorldSkyTextureIndex(WorldFace{TextureIndex: 5}, animations, 0, 0); got != 5 {
+		t.Fatalf("resolveWorldSkyTextureIndex(fallback) = %d, want 5", got)
+	}
+}
+
 func TestWorldShadersIncludeFogMix(t *testing.T) {
 	vertexChecks := []string{
 		"cameraOrigin",

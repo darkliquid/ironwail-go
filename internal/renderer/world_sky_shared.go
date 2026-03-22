@@ -51,3 +51,13 @@ func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogD
 func gogpuWorldSkyFogDensity(worldEntities []byte, fogDensity float32) float32 {
 	return resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), parseWorldspawnSkyFogOverride(worldEntities), fogDensity)
 }
+
+func resolveWorldSkyTextureIndex(face WorldFace, textureAnimations []*SurfaceTexture, frame int, timeSeconds float64) int32 {
+	textureIndex := face.TextureIndex
+	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
+		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
+			textureIndex = animated.TextureIndex
+		}
+	}
+	return textureIndex
+}
