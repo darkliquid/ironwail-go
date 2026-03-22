@@ -193,6 +193,7 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 		for _, face := range draw.faces {
 			renders = append(renders, gogpuTranslucentBrushFaceRender{
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
+				frame:      draw.frame,
 				face:       face,
 				liquid:     true,
 				lightmaps:  draw.lightmaps,
@@ -274,6 +275,7 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 			}
 			alphaTestRenders = append(alphaTestRenders, gogpuTranslucentBrushFaceRender{
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
+				frame:      draw.frame,
 				face: gogpuTranslucentLiquidFaceDraw{
 					face:  face,
 					alpha: 1,
@@ -285,6 +287,7 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 		for _, face := range draw.translucentFaces {
 			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
+				frame:      draw.frame,
 				face:       face,
 				lightmaps:  draw.lightmaps,
 			})
@@ -292,6 +295,7 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 		for _, face := range draw.liquidFaces {
 			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
+				frame:      draw.frame,
 				face:       face,
 				liquid:     true,
 				lightmaps:  draw.lightmaps,
@@ -347,7 +351,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
 		textureBindGroup := res.whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 			textureBindGroup = worldTexture.bindGroup
 		}
 		lightmapBindGroup := res.whiteLightmapBindGroup
@@ -361,7 +365,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 			}
 		}
 		fullbrightBindGroup := res.transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 			fullbrightBindGroup = worldTexture.bindGroup
 		}
 		renderPass.SetBindGroup(1, textureBindGroup, nil)
@@ -448,11 +452,11 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
 		textureBindGroup := res.whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 			textureBindGroup = worldTexture.bindGroup
 		}
 		fullbrightBindGroup := res.transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 			fullbrightBindGroup = worldTexture.bindGroup
 		}
 		renderPass.SetBindGroup(1, textureBindGroup, nil)

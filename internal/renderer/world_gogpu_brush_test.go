@@ -141,3 +141,63 @@ func TestVisibleSkyBrushEntities(t *testing.T) {
 		t.Fatalf("sky = %#v, want all visible brush entities", sky)
 	}
 }
+
+func testGoGPUBrushFrameGeometry() *WorldGeometry {
+	return &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{1, 0, 0}},
+			{Position: [3]float32{0, 1, 0}},
+		},
+		Indices: []uint32{0, 1, 2},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 5, Flags: 0},
+		},
+	}
+}
+
+func TestBuildGoGPUOpaqueBrushEntityDrawPreservesFrame(t *testing.T) {
+	draw := buildGoGPUOpaqueBrushEntityDraw(BrushEntity{Frame: 7, Alpha: 1, Scale: 1}, testGoGPUBrushFrameGeometry())
+	if draw == nil {
+		t.Fatal("buildGoGPUOpaqueBrushEntityDraw() = nil")
+	}
+	if draw.frame != 7 {
+		t.Fatalf("draw.frame = %d, want 7", draw.frame)
+	}
+}
+
+func TestBuildGoGPUSkyBrushEntityDrawPreservesFrame(t *testing.T) {
+	geom := testGoGPUBrushFrameGeometry()
+	geom.Faces[0].Flags = model.SurfDrawSky
+	draw := buildGoGPUSkyBrushEntityDraw(BrushEntity{Frame: 3, Alpha: 1, Scale: 1}, geom)
+	if draw == nil {
+		t.Fatal("buildGoGPUSkyBrushEntityDraw() = nil")
+	}
+	if draw.frame != 3 {
+		t.Fatalf("draw.frame = %d, want 3", draw.frame)
+	}
+}
+
+func TestBuildGoGPUTranslucentLiquidBrushEntityDrawPreservesFrame(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+	geom := testGoGPUBrushFrameGeometry()
+	geom.Faces[0].Flags = model.SurfDrawTurb | model.SurfDrawWater
+	draw := buildGoGPUTranslucentLiquidBrushEntityDraw(BrushEntity{Frame: 5, Alpha: 1, Scale: 1}, geom, alpha, CameraState{})
+	if draw == nil {
+		t.Fatal("buildGoGPUTranslucentLiquidBrushEntityDraw() = nil")
+	}
+	if draw.frame != 5 {
+		t.Fatalf("draw.frame = %d, want 5", draw.frame)
+	}
+}
+
+func TestBuildGoGPUTranslucentBrushEntityDrawPreservesFrame(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
+	draw := buildGoGPUTranslucentBrushEntityDraw(BrushEntity{Frame: 9, Alpha: 0.5, Scale: 1}, testGoGPUBrushFrameGeometry(), alpha, CameraState{})
+	if draw == nil {
+		t.Fatal("buildGoGPUTranslucentBrushEntityDraw() = nil")
+	}
+	if draw.frame != 9 {
+		t.Fatalf("draw.frame = %d, want 9", draw.frame)
+	}
+}
