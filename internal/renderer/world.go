@@ -1108,6 +1108,53 @@ func (r *Renderer) uploadWorldLightmapPages(device hal.Device, queue hal.Queue, 
 	return out
 }
 
+func (r *Renderer) updateUploadedWorldLightmapsLocked(queue hal.Queue, pages []WorldLightmapPage, values [64]float32) {
+	if queue == nil || len(pages) == 0 || len(r.worldLightmapPages) == 0 {
+		return
+	}
+	count := len(r.worldLightmapPages)
+	if len(pages) < count {
+		count = len(pages)
+	}
+	for i := 0; i < count; i++ {
+		if !pages[i].Dirty || r.worldLightmapPages[i] == nil || r.worldLightmapPages[i].texture == nil {
+			continue
+		}
+		rgba := pages[i].rgba
+		if len(rgba) == 0 {
+			rgba = buildWorldLightmapPageRGBA(&pages[i], values)
+		} else {
+			recompositeDirtySurfaces(rgba, pages[i], values)
+		}
+		if len(rgba) == 0 {
+			continue
+		}
+		if err := queue.WriteTexture(&hal.ImageCopyTexture{
+			Texture:  r.worldLightmapPages[i].texture,
+			MipLevel: 0,
+			Aspect:   gputypes.TextureAspectAll,
+		}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(pages[i].Width * 4), RowsPerImage: uint32(pages[i].Height)}, &hal.Extent3D{Width: uint32(pages[i].Width), Height: uint32(pages[i].Height), DepthOrArrayLayers: 1}); err != nil {
+			slog.Warn("failed to update world lightmap page", "page", i, "error", err)
+		}
+	}
+	clearDirtyFlags(pages)
+}
+
+func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
+	queue := r.getHALQueue()
+	if queue == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	changed := lightStylesChanged(r.worldLightStyleValues, values)
+	if r.worldData != nil && r.worldData.Geometry != nil {
+		markDirtyLightmapPages(r.worldData.Geometry.Lightmaps, changed)
+		r.updateUploadedWorldLightmapsLocked(queue, r.worldData.Geometry.Lightmaps, values)
+	}
+	r.worldLightStyleValues = values
+}
+
 func defaultWorldLightStyleValues() [64]float32 {
 	var values [64]float32
 	values[0] = 1
@@ -1175,6 +1222,62 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	}
 	page.rgba = rgba
 	return rgba
+}
+
+func lightStylesChanged(old, new_ [64]float32) [64]bool {
+	var changed [64]bool
+	for i := range old {
+		if old[i] != new_[i] {
+			changed[i] = true
+		}
+	}
+	return changed
+}
+
+func markDirtyLightmapPages(pages []WorldLightmapPage, changed [64]bool) {
+	for i := range pages {
+		pageDirty := false
+		for j := range pages[i].Surfaces {
+			surf := &pages[i].Surfaces[j]
+			for _, style := range surf.Styles {
+				if style == 255 {
+					break
+				}
+				if style < 64 && changed[style] {
+					surf.Dirty = true
+					pageDirty = true
+					break
+				}
+			}
+		}
+		if pageDirty {
+			pages[i].Dirty = true
+		}
+	}
+}
+
+func clearDirtyFlags(pages []WorldLightmapPage) {
+	for i := range pages {
+		if !pages[i].Dirty {
+			continue
+		}
+		for j := range pages[i].Surfaces {
+			pages[i].Surfaces[j].Dirty = false
+		}
+		pages[i].Dirty = false
+	}
+}
+
+func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [64]float32) bool {
+	recomposited := false
+	for _, surface := range page.Surfaces {
+		if !surface.Dirty {
+			continue
+		}
+		compositeWorldLightmapSurfaceRGBA(rgba, page.Width, surface, values)
+		recomposited = true
+	}
+	return recomposited
 }
 
 func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
@@ -1490,6 +1593,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldLightmapSampler = worldLightmapSampler
 	r.worldLightmapPages = worldLightmapPages
 	r.whiteLightmapBindGroup = whiteLightmapBindGroup
+	r.worldLightStyleValues = lightstyleValues
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthTextureView
 	renderData.VertexBufferUploaded = vertexBuffer != nil

@@ -183,6 +183,86 @@ func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
 	}
 }
 
+func TestGoGPULightStylesChanged(t *testing.T) {
+	var old, new_ [64]float32
+	for i := range old {
+		old[i] = 1
+		new_[i] = 1
+	}
+	new_[5] = 0.5
+	new_[10] = 2
+
+	changed := lightStylesChanged(old, new_)
+	if !changed[5] || !changed[10] {
+		t.Fatalf("changed = %v, want style 5 and 10 marked", changed)
+	}
+	if changed[0] {
+		t.Fatal("style 0 should not be marked changed")
+	}
+}
+
+func TestGoGPUMarkDirtyLightmapPages(t *testing.T) {
+	pages := []WorldLightmapPage{
+		{
+			Width: 64, Height: 64,
+			Surfaces: []WorldLightmapSurface{
+				{X: 0, Y: 0, Width: 4, Height: 4, Styles: [4]uint8{0, 255, 255, 255}},
+				{X: 4, Y: 0, Width: 4, Height: 4, Styles: [4]uint8{5, 255, 255, 255}},
+			},
+		},
+	}
+	var changed [64]bool
+	changed[5] = true
+	markDirtyLightmapPages(pages, changed)
+	if pages[0].Surfaces[0].Dirty {
+		t.Fatal("style 0 surface should stay clean")
+	}
+	if !pages[0].Surfaces[1].Dirty || !pages[0].Dirty {
+		t.Fatal("style 5 surface/page should be dirty")
+	}
+	clearDirtyFlags(pages)
+	if pages[0].Dirty || pages[0].Surfaces[1].Dirty {
+		t.Fatal("dirty flags should clear after clearDirtyFlags")
+	}
+}
+
+func TestGoGPURecompositeDirtySurfaces(t *testing.T) {
+	page := WorldLightmapPage{
+		Width: 4, Height: 4,
+		Surfaces: []WorldLightmapSurface{
+			{
+				X: 0, Y: 0, Width: 2, Height: 2,
+				Styles:  [4]uint8{0, 255, 255, 255},
+				Samples: []byte{128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128},
+				Dirty:   true,
+			},
+			{
+				X: 2, Y: 0, Width: 2, Height: 2,
+				Styles:  [4]uint8{1, 255, 255, 255},
+				Samples: []byte{200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200},
+				Dirty:   false,
+			},
+		},
+	}
+	var values [64]float32
+	values[0] = 1
+	values[1] = 1
+	rgba := buildWorldLightmapPageRGBA(&page, values)
+	surface1Pixel := append([]byte(nil), rgba[8:12]...)
+	values[0] = 0.5
+	if !recompositeDirtySurfaces(rgba, page, values) {
+		t.Fatal("recompositeDirtySurfaces should report work")
+	}
+	if rgba[0] >= 128 {
+		t.Fatalf("surface 0 pixel = %d, want darkened value", rgba[0])
+	}
+	for i := 0; i < 4; i++ {
+		if rgba[8+i] != surface1Pixel[i] {
+			t.Fatalf("surface 1 pixel[%d] changed: got %d want %d", i, rgba[8+i], surface1Pixel[i])
+		}
+	}
+}
+
 func almostEqualWorldFloat32(a, b, epsilon float32) bool {
 	return float32(math.Abs(float64(a-b))) <= epsilon
 }

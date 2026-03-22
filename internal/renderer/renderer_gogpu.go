@@ -531,6 +531,7 @@ type Renderer struct {
 	worldLightmapSampler   hal.Sampler
 	worldLightmapPages     []*gpuWorldTexture
 	whiteLightmapBindGroup hal.BindGroup
+	worldLightStyleValues  [64]float32
 
 	// 1x1 white texture for fallback
 	whiteTexture          hal.Texture
@@ -1049,6 +1050,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.
 	// Then gogpu draws 2D overlay on top with LoadOpLoad to preserve the world.
 	if state.DrawWorld {
+		dc.renderer.setGoGPUWorldLightStyleValues(state.LightStyles)
 		slog.Info("RenderFrame: rendering world to surface")
 		dc.renderWorld(state)
 		slog.Info("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
