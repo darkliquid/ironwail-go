@@ -926,7 +926,14 @@ func drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
 		return
 	}
 	rc.SetCanvas(renderer.CanvasDefault)
-	rc.DrawFillAlpha(0, 0, w, h, 0, 0.5)
+	alpha := float32(cvar.FloatValue("scr_menubgalpha"))
+	if alpha < 0 {
+		alpha = 0
+	}
+	if alpha > 1 {
+		alpha = 1
+	}
+	rc.DrawFillAlpha(0, 0, w, h, 0, alpha)
 }
 
 func runtimePauseActive() bool {

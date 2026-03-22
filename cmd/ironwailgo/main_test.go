@@ -404,6 +404,7 @@ func (dc *telemetryOverlayDrawContext) SetCanvas(ct renderer.CanvasType) {
 func (dc *telemetryOverlayDrawContext) Canvas() renderer.CanvasState { return dc.canvas }
 
 func TestDrawMenuBackdropUsesAlphaFill(t *testing.T) {
+	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "")
 	dc := &consoleOverlayDrawContext{}
 
 	drawMenuBackdrop(dc, 8, 10)
@@ -411,11 +412,34 @@ func TestDrawMenuBackdropUsesAlphaFill(t *testing.T) {
 	if len(dc.fills) != 1 {
 		t.Fatalf("fill count = %d, want 1", len(dc.fills))
 	}
-	if got := dc.fills[0]; got.x != 0 || got.y != 0 || got.w != 8 || got.h != 10 || got.color != 0 || math.Abs(float64(got.alpha)-0.5) > 0.0001 {
-		t.Fatalf("fill = %+v, want x=0 y=0 w=8 h=10 color=0 alpha=0.5", got)
+	if got := dc.fills[0]; got.x != 0 || got.y != 0 || got.w != 8 || got.h != 10 || got.color != 0 || math.Abs(float64(got.alpha)-0.7) > 0.0001 {
+		t.Fatalf("fill = %+v, want x=0 y=0 w=8 h=10 color=0 alpha=0.7", got)
 	}
 	if dc.canvas.Type != renderer.CanvasDefault {
 		t.Fatalf("backdrop canvas = %v, want %v", dc.canvas.Type, renderer.CanvasDefault)
+	}
+}
+
+func TestDrawMenuBackdropClampsAlphaCVar(t *testing.T) {
+	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "")
+	dc := &consoleOverlayDrawContext{}
+
+	cvar.Set("scr_menubgalpha", "2")
+	drawMenuBackdrop(dc, 8, 10)
+	cvar.Set("scr_menubgalpha", "-1")
+	drawMenuBackdrop(dc, 8, 10)
+	t.Cleanup(func() {
+		cvar.Set("scr_menubgalpha", "0.7")
+	})
+
+	if len(dc.fills) != 2 {
+		t.Fatalf("fill count = %d, want 2", len(dc.fills))
+	}
+	if got := dc.fills[0].alpha; math.Abs(float64(got)-1) > 0.0001 {
+		t.Fatalf("clamped high alpha = %f, want 1", got)
+	}
+	if got := dc.fills[1].alpha; math.Abs(float64(got)-0) > 0.0001 {
+		t.Fatalf("clamped low alpha = %f, want 0", got)
 	}
 }
 

@@ -124,6 +124,7 @@ func initGameHost() error {
 	cvar.Register("scr_showspeed_ofs", "0", cvar.FlagArchive, "Vertical offset for the speed readout")
 	cvar.Register("scr_clock", "0", cvar.FlagArchive, "Show level clock in the corner")
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "Centerprint background style (0=off, 1=text box, 2=panel, 3=strip)")
+	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "Menu background fade alpha")
 	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
 	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "Centerprint fade-tail duration in seconds when con_notifyfade is enabled")
 	crosshair := cvar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
