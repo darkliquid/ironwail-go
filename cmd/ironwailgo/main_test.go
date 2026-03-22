@@ -474,6 +474,7 @@ func registerConsoleCanvasTestCvars() {
 	cvar.Register("scr_menuscale", "1", cvar.FlagArchive, "test menu scale")
 	cvar.Register("scr_sbarscale", "1", cvar.FlagArchive, "test sbar scale")
 	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "test crosshair scale")
+	cvar.Register("scr_pixelaspect", "1", cvar.FlagArchive, "test pixel aspect")
 	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "test console slide speed")
 }
 
@@ -559,6 +560,7 @@ func TestParseStartupOptions(t *testing.T) {
 
 func TestRuntimeConsoleDimensionsMatchCReferenceSizing(t *testing.T) {
 	registerConsoleCanvasTestCvars()
+	cvar.Set("scr_pixelaspect", "1")
 	cvar.Set("scr_conwidth", "0")
 	cvar.Set("scr_conscale", "2")
 
@@ -573,6 +575,22 @@ func TestRuntimeConsoleDimensionsMatchCReferenceSizing(t *testing.T) {
 	}
 }
 
+func TestRuntimeGUIDimensionsApplyPixelAspect(t *testing.T) {
+	registerConsoleCanvasTestCvars()
+
+	cvar.Set("vid_width", "1280")
+	cvar.Set("vid_height", "720")
+	cvar.Set("scr_pixelaspect", "5:6")
+	if gotW, gotH := runtimeGUIDimensions(1280, 720); gotW != 1280 || gotH != 600 {
+		t.Fatalf("runtimeGUIDimensions tall pixels = %dx%d, want 1280x600", gotW, gotH)
+	}
+
+	cvar.Set("scr_pixelaspect", "1.5")
+	if gotW, gotH := runtimeGUIDimensions(1280, 720); gotW != 853 || gotH != 720 {
+		t.Fatalf("runtimeGUIDimensions wide pixels = %dx%d, want 853x720", gotW, gotH)
+	}
+}
+
 func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	originalDraw := g.Draw
 	t.Cleanup(func() {
@@ -582,6 +600,7 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	registerConsoleCanvasTestCvars()
 	cvar.Set("vid_width", "1280")
 	cvar.Set("vid_height", "720")
+	cvar.Set("scr_pixelaspect", "1")
 	cvar.Set("scr_conwidth", "0")
 	cvar.Set("scr_conscale", "2")
 
@@ -640,6 +659,47 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	}
 	if len(dc.chars) == 0 {
 		t.Fatal("expected console text to be drawn")
+	}
+}
+
+func TestDrawRuntimeConsoleUsesPixelAspectAdjustedGUI(t *testing.T) {
+	originalDraw := g.Draw
+	t.Cleanup(func() {
+		g.Draw = originalDraw
+	})
+
+	registerConsoleCanvasTestCvars()
+	cvar.Set("vid_width", "1280")
+	cvar.Set("vid_height", "720")
+	cvar.Set("scr_pixelaspect", "5:6")
+	cvar.Set("scr_conwidth", "0")
+	cvar.Set("scr_conscale", "2")
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+
+	g.Draw = newTestDrawManager(t, map[string]*qimage.QPic{
+		"conback": {
+			Width:  320,
+			Height: 200,
+			Pixels: make([]byte, 320*200),
+		},
+	}, make([]byte, 768))
+
+	dc := &consoleOverlayDrawContext{}
+	drawRuntimeConsole(dc, 1280, 720, true, false)
+
+	if len(dc.canvasParams) != 1 {
+		t.Fatalf("canvas params count = %d, want 1", len(dc.canvasParams))
+	}
+	params := dc.canvasParams[0]
+	if params.GUIWidth != 1280 || params.GUIHeight != 600 {
+		t.Fatalf("GUI params = %.0fx%.0f, want 1280x600", params.GUIWidth, params.GUIHeight)
+	}
+	if params.ConWidth != 640 || params.ConHeight != 300 {
+		t.Fatalf("console params = %.0fx%.0f, want 640x300", params.ConWidth, params.ConHeight)
 	}
 }
 

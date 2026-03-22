@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,6 +199,12 @@ func runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
 	}
 	if guiH <= 0 {
 		guiH = framebufferH
+	}
+	pixelAspect := currentRuntimePixelAspect()
+	if pixelAspect > 1 {
+		guiW = int(float64(guiW)/pixelAspect + 0.5)
+	} else if pixelAspect > 0 && pixelAspect < 1 {
+		guiH = int(float64(guiH)*pixelAspect + 0.5)
 	}
 	return guiW, guiH
 }
@@ -1053,6 +1060,34 @@ func currentRuntimeFOV() float32 {
 		return cv.Float32()
 	}
 	return 90
+}
+
+func currentRuntimePixelAspect() float64 {
+	cv := cvar.Get("scr_pixelaspect")
+	if cv == nil {
+		return 1
+	}
+	if parts := strings.Split(cv.String, ":"); len(parts) == 2 {
+		num, errNum := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+		den, errDen := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		if errNum == nil && errDen == nil && num > 0 && den > 0 {
+			return clampf64(num/den, 0.5, 2)
+		}
+	}
+	if cv.Float > 0 {
+		return clampf64(cv.Float, 0.5, 2)
+	}
+	return 1
+}
+
+func clampf64(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }
 
 func currentRuntimeViewSize() float64 {
