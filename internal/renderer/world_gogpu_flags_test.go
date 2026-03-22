@@ -194,6 +194,25 @@ func TestWorldShadersIncludeFogMix(t *testing.T) {
 		}
 	}
 
+	externalSkyChecks := []string{
+		"sampleExternalSky",
+		"var skyRT: texture_2d<f32>;",
+		"var skyBK: texture_2d<f32>;",
+		"var skyLF: texture_2d<f32>;",
+		"var skyFT: texture_2d<f32>;",
+		"var skyUP: texture_2d<f32>;",
+		"var skyDN: texture_2d<f32>;",
+		"dir.x > 0.0",
+		"dir.y > 0.0",
+		"dir.z > 0.0",
+		"mix(result.rgb, uniforms.fogColor, uniforms.fogDensity)",
+	}
+	for _, check := range externalSkyChecks {
+		if !strings.Contains(worldSkyExternalFaceFragmentShaderWGSL, check) {
+			t.Fatalf("world external sky fragment shader missing %q", check)
+		}
+	}
+
 	turbChecks := []string{
 		"input.texCoord * 2.0 + 0.125 * sin",
 		"uniforms.time",

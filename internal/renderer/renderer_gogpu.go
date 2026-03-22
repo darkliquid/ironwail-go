@@ -521,19 +521,30 @@ type Renderer struct {
 	worldTurbulentPipeline            hal.RenderPipeline
 	worldTranslucentTurbulentPipeline hal.RenderPipeline
 	worldSkyPipeline                  hal.RenderPipeline
+	worldSkyExternalPipeline          hal.RenderPipeline
 	worldPipelineLayout               hal.PipelineLayout
+	worldSkyExternalPipelineLayout    hal.PipelineLayout
 	worldBindGroup                    hal.BindGroup
 	worldShader                       hal.ShaderModule
 	uniformBuffer                     hal.Buffer
 	uniformBindGroup                  hal.BindGroup
 	uniformBindGroupLayout            hal.BindGroupLayout
 	textureBindGroupLayout            hal.BindGroupLayout
+	worldSkyExternalBindGroupLayout   hal.BindGroupLayout
 	worldTextureSampler               hal.Sampler
 	worldTextures                     map[int32]*gpuWorldTexture
 	worldFullbrightTextures           map[int32]*gpuWorldTexture
 	worldSkySolidTextures             map[int32]*gpuWorldTexture
 	worldSkyAlphaTextures             map[int32]*gpuWorldTexture
 	worldTextureAnimations            []*SurfaceTexture
+	worldSkyExternalTextures          [6]hal.Texture
+	worldSkyExternalViews             [6]hal.TextureView
+	worldSkyExternalBindGroup         hal.BindGroup
+	worldSkyExternalFaces             [6]externalSkyboxFace
+	worldSkyExternalLoaded            int
+	worldSkyExternalMode              externalSkyboxRenderMode
+	worldSkyExternalName              string
+	worldSkyExternalRequestID         uint64
 	whiteTextureBindGroup             hal.BindGroup
 	transparentTexture                hal.Texture
 	transparentTextureView            hal.TextureView
@@ -1793,7 +1804,55 @@ func (r *Renderer) UpdateLights(deltaTime float32) {}
 
 func (r *Renderer) ClearDynamicLights() {}
 
-func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {}
+func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {
+	normalized := normalizeSkyboxBaseName(name)
+
+	r.mu.Lock()
+	r.worldSkyExternalRequestID++
+	requestID := r.worldSkyExternalRequestID
+	if normalized == r.worldSkyExternalName {
+		r.mu.Unlock()
+		return
+	}
+	r.mu.Unlock()
+
+	var (
+		faces  [6]externalSkyboxFace
+		loaded int
+	)
+	if normalized != "" && loadFile != nil {
+		faces, loaded = loadExternalSkyboxFaces(normalized, loadFile)
+	}
+	renderMode := externalSkyboxRenderEmbedded
+	if normalized != "" && loaded > 0 {
+		renderMode = externalSkyboxRenderFaces
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if requestID != r.worldSkyExternalRequestID {
+		return
+	}
+
+	r.destroyGoGPUExternalSkyboxResourcesLocked()
+	r.worldSkyExternalFaces = [6]externalSkyboxFace{}
+	r.worldSkyExternalLoaded = 0
+	r.worldSkyExternalMode = externalSkyboxRenderEmbedded
+	r.worldSkyExternalName = ""
+
+	if normalized == "" || renderMode == externalSkyboxRenderEmbedded {
+		return
+	}
+
+	r.worldSkyExternalFaces = faces
+	r.worldSkyExternalLoaded = loaded
+	r.worldSkyExternalMode = renderMode
+	r.worldSkyExternalName = normalized
+
+	if err := r.ensureGoGPUExternalSkyboxLocked(r.getHALDevice(), r.getHALQueue()); err != nil {
+		slog.Debug("external gogpu skybox upload deferred", "name", normalized, "error", err)
+	}
+}
 
 // NeedsWorldGPUUpload reports whether CPU world geometry exists but GPU buffers
 // are not uploaded yet.
@@ -1829,4 +1888,21 @@ func (r *Renderer) getHALQueue() hal.Queue {
 		return nil
 	}
 	return provider.Queue()
+}
+
+func (r *Renderer) destroyGoGPUExternalSkyboxResourcesLocked() {
+	if r.worldSkyExternalBindGroup != nil {
+		r.worldSkyExternalBindGroup.Destroy()
+		r.worldSkyExternalBindGroup = nil
+	}
+	for i := range r.worldSkyExternalViews {
+		if r.worldSkyExternalViews[i] != nil {
+			r.worldSkyExternalViews[i].Destroy()
+			r.worldSkyExternalViews[i] = nil
+		}
+		if r.worldSkyExternalTextures[i] != nil {
+			r.worldSkyExternalTextures[i].Destroy()
+			r.worldSkyExternalTextures[i] = nil
+		}
+	}
 }
