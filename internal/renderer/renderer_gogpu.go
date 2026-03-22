@@ -1330,7 +1330,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	for _, phase := range plan.phases {
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
-			dc.renderBrushEntityMarkers(plan.opaqueBrush, true)
+			dc.renderBrushEntityMarkers(plan.opaqueBrush, true, false)
 		case gogpuEntityPhaseOpaqueAlias:
 			for _, step := range gogpuOpaqueAliasPassSteps() {
 				switch step {
@@ -1344,8 +1344,10 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			if state.DrawParticles && state.Particles != nil {
 				dc.renderParticles(state)
 			}
+		case gogpuEntityPhaseSkyBrush:
+			dc.renderBrushEntityMarkers(plan.skyBrush, true, true)
 		case gogpuEntityPhaseTranslucentBrush:
-			dc.renderBrushEntityMarkers(plan.translucentBrush, false)
+			dc.renderBrushEntityMarkers(plan.translucentBrush, false, false)
 		case gogpuEntityPhaseDecals:
 			dc.renderDecalMarksHAL(state.DecalMarks)
 		case gogpuEntityPhaseTranslucentAlias:
@@ -1474,9 +1476,11 @@ func (r *Renderer) ensureBrushModelGeometry(submodelIndex int) *WorldGeometry {
 	return geom
 }
 
-func brushMarkerMatchesPhase(face WorldFace, entityAlpha float32, opaque bool) bool {
+func brushMarkerMatchesPhase(face WorldFace, entityAlpha float32, opaque, sky bool) bool {
 	switch {
 	case face.Flags&model.SurfDrawSky != 0:
+		return sky
+	case sky:
 		return false
 	case face.Flags&model.SurfDrawFence != 0:
 		return opaque
@@ -1489,7 +1493,7 @@ func brushMarkerMatchesPhase(face WorldFace, entityAlpha float32, opaque bool) b
 	}
 }
 
-func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, screenW, screenH int, opaque bool) []projectedParticleMarker {
+func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, screenW, screenH int, opaque, sky bool) []projectedParticleMarker {
 	if len(entities) == 0 || screenW <= 0 || screenH <= 0 {
 		return nil
 	}
@@ -1502,7 +1506,7 @@ func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, sc
 		rotation := buildBrushRotationMatrix(entity.Angles)
 		seen := make(map[uint32]struct{})
 		for _, face := range geom.Faces {
-			if !brushMarkerMatchesPhase(face, entity.Alpha, opaque) {
+			if !brushMarkerMatchesPhase(face, entity.Alpha, opaque, sky) {
 				continue
 			}
 			first := int(face.FirstIndex)
@@ -1540,12 +1544,12 @@ func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, sc
 	return markers
 }
 
-func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity, opaque bool) {
+func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity, opaque, sky bool) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
 	screenW, screenH := dc.renderer.Size()
-	markers := dc.renderer.projectBrushMarkers(entities, dc.renderer.viewMatrices.VP, screenW, screenH, opaque)
+	markers := dc.renderer.projectBrushMarkers(entities, dc.renderer.viewMatrices.VP, screenW, screenH, opaque, sky)
 	for _, marker := range markers {
 		size := marker.size
 		if size < 1 {

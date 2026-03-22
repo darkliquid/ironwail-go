@@ -315,6 +315,9 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	if len(plan.opaqueBrush) != 1 || plan.opaqueBrush[0].SubmodelIndex != 3 {
 		t.Fatalf("opaqueBrush = %#v, want only submodel 3", plan.opaqueBrush)
 	}
+	if len(plan.skyBrush) != 1 || plan.skyBrush[0].SubmodelIndex != 3 {
+		t.Fatalf("skyBrush = %#v, want only opaque submodel 3", plan.skyBrush)
+	}
 	if len(plan.translucentBrush) != 1 || plan.translucentBrush[0].SubmodelIndex != 2 {
 		t.Fatalf("translucentBrush = %#v, want only submodel 2", plan.translucentBrush)
 	}
@@ -327,6 +330,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	want := []gogpuEntityPhase{
 		gogpuEntityPhaseOpaqueBrush,
 		gogpuEntityPhaseOpaqueAlias,
+		gogpuEntityPhaseSkyBrush,
 		gogpuEntityPhaseTranslucentBrush,
 		gogpuEntityPhaseDecals,
 		gogpuEntityPhaseTranslucentAlias,

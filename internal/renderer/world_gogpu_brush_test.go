@@ -70,7 +70,7 @@ func TestProjectBrushMarkersProjectsOpaqueVertices(t *testing.T) {
 		0, 1, 0, 0,
 		0, 0, 1, 0,
 		0, 0, 0, 1,
-	}, 101, 101, true)
+	}, 101, 101, true, false)
 
 	if len(markers) != 2 {
 		t.Fatalf("marker count = %d, want 2", len(markers))
@@ -108,12 +108,17 @@ func TestProjectBrushMarkersRespectsFacePasses(t *testing.T) {
 		0, 0, 0, 1,
 	}
 
-	opaqueMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, true)
+	opaqueMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, true, false)
 	if len(opaqueMarkers) != 2 {
 		t.Fatalf("opaque marker count = %d, want 2 from opaque non-sky face only", len(opaqueMarkers))
 	}
 
-	translucentMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, false)
+	skyMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, true, true)
+	if len(skyMarkers) != 2 {
+		t.Fatalf("sky marker count = %d, want 2 from sky face only", len(skyMarkers))
+	}
+
+	translucentMarkers := renderer.projectBrushMarkers(entities, vp, 101, 101, false, false)
 	if len(translucentMarkers) != 2 {
 		t.Fatalf("translucent marker count = %d, want 2 from liquid face only", len(translucentMarkers))
 	}
@@ -121,5 +126,21 @@ func TestProjectBrushMarkersRespectsFacePasses(t *testing.T) {
 		if marker.alpha != 1 {
 			t.Fatalf("translucent marker alpha = %v, want 1", marker.alpha)
 		}
+	}
+}
+
+func TestSplitBrushEntitiesBySkyPresence(t *testing.T) {
+	entities := []BrushEntity{
+		{SubmodelIndex: 1, Alpha: 1},
+		{SubmodelIndex: 2, Alpha: 0.5},
+		{SubmodelIndex: 3, Alpha: 0},
+	}
+
+	nonSky, sky := splitBrushEntitiesBySkyPresence(entities)
+	if len(nonSky) != 2 {
+		t.Fatalf("nonSky count = %d, want 2", len(nonSky))
+	}
+	if len(sky) != 1 || sky[0].SubmodelIndex != 1 {
+		t.Fatalf("sky = %#v, want only opaque brush entity", sky)
 	}
 }
