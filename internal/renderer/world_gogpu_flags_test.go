@@ -312,6 +312,43 @@ func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
 	}
 }
 
+func TestShouldDrawGoGPUSkyBrushFace(t *testing.T) {
+	if !shouldDrawGoGPUSkyBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, 1) {
+		t.Fatal("sky brush face should draw in sky pass")
+	}
+	if shouldDrawGoGPUSkyBrushFace(WorldFace{NumIndices: 3}, 1) {
+		t.Fatal("non-sky brush face should not draw in sky pass")
+	}
+	if shouldDrawGoGPUSkyBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, 0) {
+		t.Fatal("hidden brush entity should not draw in sky pass")
+	}
+}
+
+func TestBuildGoGPUSkyBrushEntityDrawKeepsOnlySkyFaces(t *testing.T) {
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{1, 0, 0}},
+			{Position: [3]float32{0, 1, 0}},
+		},
+		Indices: []uint32{0, 1, 2, 0, 2, 1},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 9, Flags: model.SurfDrawSky},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 5},
+		},
+	}
+	draw := buildGoGPUSkyBrushEntityDraw(BrushEntity{Alpha: 1, Scale: 1}, geom)
+	if draw == nil {
+		t.Fatal("buildGoGPUSkyBrushEntityDraw() = nil")
+	}
+	if len(draw.faces) != 1 {
+		t.Fatalf("len(draw.faces) = %d, want 1", len(draw.faces))
+	}
+	if draw.faces[0].TextureIndex != 9 || draw.faces[0].Flags&model.SurfDrawSky == 0 {
+		t.Fatalf("sky face metadata = %+v, want sky texture 9", draw.faces[0])
+	}
+}
+
 func TestShouldDrawGoGPUOpaqueLiquidFace(t *testing.T) {
 	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 1, tele: 1}
 	if !shouldDrawGoGPUOpaqueLiquidFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, alpha) {

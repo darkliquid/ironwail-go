@@ -23,12 +23,16 @@ func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
 	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUOpaqueWorldFace(face)
 }
 
-func buildGoGPUOpaqueBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
+func shouldDrawGoGPUSkyBrushFace(face WorldFace, entityAlpha float32) bool {
+	return clamp01(entityAlpha) > 0 && shouldDrawGoGPUSkyWorldFace(face)
+}
+
+func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeFace func(WorldFace, float32) bool) *gogpuOpaqueBrushEntityDraw {
 	if geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 {
 		return nil
 	}
 	alpha := clamp01(entity.Alpha)
-	if !isFullyOpaqueAlpha(alpha) {
+	if alpha <= 0 {
 		return nil
 	}
 	rotation := buildBrushRotationMatrix(entity.Angles)
@@ -40,7 +44,7 @@ func buildGoGPUOpaqueBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *g
 	faces := make([]WorldFace, 0, len(geom.Faces))
 	indices := make([]uint32, 0, len(geom.Indices))
 	for _, face := range geom.Faces {
-		if !shouldDrawGoGPUOpaqueBrushFace(face, alpha) {
+		if !includeFace(face, alpha) {
 			continue
 		}
 		first := int(face.FirstIndex)
@@ -69,6 +73,14 @@ func buildGoGPUOpaqueBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *g
 		indices:  indices,
 		faces:    faces,
 	}
+}
+
+func buildGoGPUOpaqueBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
+	return buildGoGPUBrushEntityDraw(entity, geom, shouldDrawGoGPUOpaqueBrushFace)
+}
+
+func buildGoGPUSkyBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
+	return buildGoGPUBrushEntityDraw(entity, geom, shouldDrawGoGPUSkyBrushFace)
 }
 
 func worldVertexBytes(vertices []WorldVertex) []byte {
@@ -255,6 +267,165 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
 		slog.Warn("failed to submit brush entity commands", "error", err)
+	}
+	for _, buffer := range buffers {
+		buffer.Destroy()
+	}
+}
+
+func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
+	if dc == nil || dc.renderer == nil || len(entities) == 0 {
+		return
+	}
+	device := dc.renderer.getHALDevice()
+	queue := dc.renderer.getHALQueue()
+	if device == nil || queue == nil {
+		return
+	}
+	textureView := dc.currentHALRenderTargetView()
+	if textureView == nil {
+		return
+	}
+
+	draws := make([]gogpuOpaqueBrushEntityDraw, 0, len(entities))
+	for _, entity := range entities {
+		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
+		if draw := buildGoGPUSkyBrushEntityDraw(entity, geom); draw != nil {
+			draws = append(draws, *draw)
+		}
+	}
+	if len(draws) == 0 {
+		return
+	}
+
+	r := dc.renderer
+	r.mu.RLock()
+	skyPipeline := r.worldSkyPipeline
+	externalSkyPipeline := r.worldSkyExternalPipeline
+	uniformBuffer := r.uniformBuffer
+	uniformBindGroup := r.uniformBindGroup
+	whiteTextureBindGroup := r.whiteTextureBindGroup
+	transparentBindGroup := r.transparentBindGroup
+	worldSkySolidTextures := make(map[int32]*gpuWorldTexture, len(r.worldSkySolidTextures))
+	for k, v := range r.worldSkySolidTextures {
+		worldSkySolidTextures[k] = v
+	}
+	worldSkyAlphaTextures := make(map[int32]*gpuWorldTexture, len(r.worldSkyAlphaTextures))
+	for k, v := range r.worldSkyAlphaTextures {
+		worldSkyAlphaTextures[k] = v
+	}
+	externalSkyMode := r.worldSkyExternalMode
+	externalSkyBindGroup := r.worldSkyExternalBindGroup
+	depthView := r.worldDepthTextureView
+	camera := r.cameraState
+	r.mu.RUnlock()
+	if uniformBuffer == nil || uniformBindGroup == nil {
+		return
+	}
+	if transparentBindGroup == nil {
+		transparentBindGroup = whiteTextureBindGroup
+	}
+	useExternalSky := externalSkyMode == externalSkyboxRenderFaces && externalSkyPipeline != nil && externalSkyBindGroup != nil
+	if !useExternalSky && (skyPipeline == nil || whiteTextureBindGroup == nil) {
+		return
+	}
+
+	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Sky Render Encoder"})
+	if err != nil {
+		slog.Warn("failed to create brush sky encoder", "error", err)
+		return
+	}
+	if err := encoder.BeginEncoding("brush_sky"); err != nil {
+		slog.Warn("failed to begin brush sky encoding", "error", err)
+		return
+	}
+
+	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+		Label: "Brush Sky Render Pass",
+		ColorAttachments: []hal.RenderPassColorAttachment{{
+			View:    textureView,
+			LoadOp:  gputypes.LoadOpLoad,
+			StoreOp: gputypes.StoreOpStore,
+		}},
+		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+	})
+	if useExternalSky {
+		renderPass.SetPipeline(externalSkyPipeline)
+		renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
+	} else {
+		renderPass.SetPipeline(skyPipeline)
+	}
+	width, height := r.Size()
+	if width > 0 && height > 0 {
+		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
+		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+	}
+	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+
+	vpMatrix := r.GetViewProjectionMatrix()
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	buffers := make([]hal.Buffer, 0, len(draws)*2)
+	for _, draw := range draws {
+		vertexData := worldVertexBytes(draw.vertices)
+		indexData := worldIndexBytes(draw.indices)
+		vertexBuffer, err := createGoGPUBrushBuffer(device, "Brush Sky Vertices", gputypes.BufferUsageVertex, vertexData)
+		if err != nil {
+			slog.Warn("failed to create brush sky vertex buffer", "error", err)
+			continue
+		}
+		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
+			vertexBuffer.Destroy()
+			slog.Warn("failed to upload brush sky vertex buffer", "error", err)
+			continue
+		}
+		indexBuffer, err := createGoGPUBrushBuffer(device, "Brush Sky Indices", gputypes.BufferUsageIndex, indexData)
+		if err != nil {
+			vertexBuffer.Destroy()
+			slog.Warn("failed to create brush sky index buffer", "error", err)
+			continue
+		}
+		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
+			indexBuffer.Destroy()
+			vertexBuffer.Destroy()
+			slog.Warn("failed to upload brush sky index buffer", "error", err)
+			continue
+		}
+		buffers = append(buffers, vertexBuffer, indexBuffer)
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1)); err != nil {
+			slog.Warn("failed to update brush sky uniform buffer", "error", err)
+			continue
+		}
+		renderPass.SetVertexBuffer(0, vertexBuffer, 0)
+		renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
+		for _, face := range draw.faces {
+			if useExternalSky {
+				renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+				continue
+			}
+			solidBindGroup := whiteTextureBindGroup
+			if worldTexture := worldSkySolidTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+				solidBindGroup = worldTexture.bindGroup
+			}
+			alphaBindGroup := transparentBindGroup
+			if worldTexture := worldSkyAlphaTextures[face.TextureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
+				alphaBindGroup = worldTexture.bindGroup
+			}
+			renderPass.SetBindGroup(1, solidBindGroup, nil)
+			renderPass.SetBindGroup(2, alphaBindGroup, nil)
+			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		}
+	}
+	renderPass.End()
+	cmdBuffer, err := encoder.EndEncoding()
+	if err != nil {
+		slog.Warn("failed to finish brush sky encoding", "error", err)
+		for _, buffer := range buffers {
+			buffer.Destroy()
+		}
+		return
+	}
+	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+		slog.Warn("failed to submit brush sky commands", "error", err)
 	}
 	for _, buffer := range buffers {
 		buffer.Destroy()
