@@ -227,6 +227,7 @@ func updateHUDFromServer() {
 			MaxClients:    g.Client.MaxClients,
 			ShowScores:    g.ShowScores && g.Client.MaxClients > 1,
 			Scoreboard:    buildHUDScoreboard(g.Client),
+			InCutscene:    g.Client.InCutscene(),
 			Intermission:  g.Client.Intermission,
 			CompletedTime: g.Client.CompletedTime,
 			Time:          g.Client.Time,

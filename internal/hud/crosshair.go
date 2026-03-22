@@ -35,7 +35,7 @@ func (c *Crosshair) UpdateCvar(value float64) {
 
 // Draw renders the crosshair centered within the active crosshair canvas.
 func (c *Crosshair) Draw(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
-	if rc == nil || state.Intermission != 0 || c.crosshairChar == 0 {
+	if rc == nil || state.Intermission != 0 || state.InCutscene || currentViewSize() >= 130 || c.crosshairChar == 0 {
 		return
 	}
 	rc.DrawCharacter(-4, -4, c.crosshairChar)

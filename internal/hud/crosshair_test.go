@@ -3,7 +3,11 @@
 
 package hud
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 func TestCrosshairUpdateCvarCharacterSelection(t *testing.T) {
 	tests := []struct {
@@ -51,6 +55,23 @@ func TestCrosshairDrawSkipsIntermissionAndDisabled(t *testing.T) {
 
 	enabled.Draw(rc, State{Intermission: 1}, 640, 480)
 	disabled.Draw(rc, State{}, 640, 480)
+
+	if len(rc.characters) != 0 {
+		t.Fatalf("expected no crosshair draw, got %d characters", len(rc.characters))
+	}
+}
+
+func TestCrosshairDrawSkipsCutsceneAndLargeViewsize(t *testing.T) {
+	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "")
+	rc := &mockRenderContext{}
+	enabled := Crosshair{crosshairChar: int('+')}
+
+	enabled.Draw(rc, State{InCutscene: true}, 640, 480)
+	cvar.Set("scr_viewsize", "130")
+	t.Cleanup(func() {
+		cvar.Set("scr_viewsize", "100")
+	})
+	enabled.Draw(rc, State{}, 640, 480)
 
 	if len(rc.characters) != 0 {
 		t.Fatalf("expected no crosshair draw, got %d characters", len(rc.characters))
