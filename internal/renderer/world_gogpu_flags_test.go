@@ -306,6 +306,9 @@ func TestBuildGoGPUOpaqueBrushEntityDrawTransformsVerticesAndKeepsOpaqueFaces(t 
 	if got := draw.vertices[2].Position; got != [3]float32{10, 22, 30} {
 		t.Fatalf("vertex 2 position = %v, want [10 22 30]", got)
 	}
+	if len(draw.centers) != 1 || draw.centers[0] != [3]float32{10, 20, 30} {
+		t.Fatalf("face centers = %v, want [[10 20 30]]", draw.centers)
+	}
 }
 
 func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
@@ -492,11 +495,20 @@ func TestBuildGoGPUTranslucentBrushEntityDrawBucketsFaces(t *testing.T) {
 	if len(draw.translucentFaces) != 1 || draw.translucentFaces[0].face.TextureIndex != 31 {
 		t.Fatalf("translucentFaces = %+v, want texture 31", draw.translucentFaces)
 	}
+	if draw.translucentFaces[0].center != [3]float32{0, 0, 0} {
+		t.Fatalf("translucent face center = %v, want [0 0 0]", draw.translucentFaces[0].center)
+	}
 	if len(draw.liquidFaces) != 1 || draw.liquidFaces[0].face.TextureIndex != 32 {
 		t.Fatalf("liquidFaces = %+v, want texture 32", draw.liquidFaces)
 	}
+	if draw.liquidFaces[0].center != [3]float32{0, 0, 4} {
+		t.Fatalf("liquid face center = %v, want [0 0 4]", draw.liquidFaces[0].center)
+	}
 	if len(draw.alphaTestFaces) != 1 || draw.alphaTestFaces[0].TextureIndex != 33 {
 		t.Fatalf("alphaTestFaces = %+v, want texture 33", draw.alphaTestFaces)
+	}
+	if len(draw.alphaTestCenters) != 1 || draw.alphaTestCenters[0] != [3]float32{0, 0, 0} {
+		t.Fatalf("alphaTestCenters = %v, want [[0 0 0]]", draw.alphaTestCenters)
 	}
 }
 

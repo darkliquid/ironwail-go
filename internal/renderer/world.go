@@ -118,6 +118,7 @@ type WorldRenderData struct {
 type gogpuTranslucentLiquidFaceDraw struct {
 	face       WorldFace
 	alpha      float32
+	center     [3]float32
 	distanceSq float32
 }
 

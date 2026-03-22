@@ -20,6 +20,7 @@ type gogpuOpaqueBrushEntityDraw struct {
 	vertices  []WorldVertex
 	indices   []uint32
 	faces     []WorldFace
+	centers   [][3]float32
 	lightmaps []*gpuWorldTexture
 }
 
@@ -65,6 +66,7 @@ func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeF
 		vertices[i].Position = transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
 	}
 	faces := make([]WorldFace, 0, len(geom.Faces))
+	centers := make([][3]float32, 0, len(geom.Faces))
 	indices := make([]uint32, 0, len(geom.Indices))
 	for _, face := range geom.Faces {
 		if !includeFace(face, alpha) {
@@ -85,6 +87,7 @@ func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeF
 		drawFace.FirstIndex = uint32(len(indices))
 		drawFace.NumIndices = uint32(last - first)
 		faces = append(faces, drawFace)
+		centers = append(centers, transformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale))
 		indices = append(indices, geom.Indices[first:last]...)
 	}
 	if len(faces) == 0 || len(indices) == 0 {
@@ -95,6 +98,7 @@ func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeF
 		vertices: vertices,
 		indices:  indices,
 		faces:    faces,
+		centers:  centers,
 	}
 }
 
@@ -156,6 +160,7 @@ func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldG
 		faces = append(faces, gogpuTranslucentLiquidFaceDraw{
 			face:       drawFace,
 			alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
+			center:     center,
 			distanceSq: worldFaceDistanceSq(center, camera),
 		})
 		indices = append(indices, geom.Indices[first:last]...)
@@ -174,6 +179,7 @@ type gogpuTranslucentBrushEntityDraw struct {
 	vertices         []WorldVertex
 	indices          []uint32
 	alphaTestFaces   []WorldFace
+	alphaTestCenters [][3]float32
 	translucentFaces []gogpuTranslucentLiquidFaceDraw
 	liquidFaces      []gogpuTranslucentLiquidFaceDraw
 	lightmaps        []*gpuWorldTexture
@@ -194,6 +200,7 @@ func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometr
 		vertices[i].Position = transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
 	}
 	alphaTestFaces := make([]WorldFace, 0, len(geom.Faces))
+	alphaTestCenters := make([][3]float32, 0, len(geom.Faces))
 	translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(geom.Faces))
 	liquidFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(geom.Faces))
 	indices := make([]uint32, 0, len(geom.Indices))
@@ -217,14 +224,17 @@ func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometr
 		drawFace.NumIndices = uint32(last - first)
 		indices = append(indices, geom.Indices[first:last]...)
 		faceAlpha := worldFaceAlpha(face.Flags, liquidAlpha) * alpha
+		center := transformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale)
 		switch worldFacePass(face.Flags, faceAlpha) {
 		case worldPassAlphaTest:
 			alphaTestFaces = append(alphaTestFaces, drawFace)
+			alphaTestCenters = append(alphaTestCenters, center)
 		case worldPassTranslucent:
 			draw := gogpuTranslucentLiquidFaceDraw{
 				face:       drawFace,
 				alpha:      faceAlpha,
-				distanceSq: worldFaceDistanceSq(transformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale), camera),
+				center:     center,
+				distanceSq: worldFaceDistanceSq(center, camera),
 			}
 			if worldFaceIsLiquid(face.Flags) {
 				liquidFaces = append(liquidFaces, draw)
@@ -240,6 +250,7 @@ func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometr
 		vertices:         vertices,
 		indices:          indices,
 		alphaTestFaces:   alphaTestFaces,
+		alphaTestCenters: alphaTestCenters,
 		translucentFaces: translucentFaces,
 		liquidFaces:      liquidFaces,
 	}
@@ -327,6 +338,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
+	var activeDynamicLights []DynamicLight
+	if r.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+	}
 	r.mu.RUnlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
 		return
@@ -392,13 +407,17 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, [3]float32{})); err != nil {
-			slog.Warn("failed to update brush uniform buffer", "error", err)
-			continue
-		}
 		renderPass.SetVertexBuffer(0, vertexBuffer, 0)
 		renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
-		for _, face := range draw.faces {
+		for faceIndex, face := range draw.faces {
+			dynamicLight := [3]float32{}
+			if faceIndex < len(draw.centers) {
+				dynamicLight = evaluateDynamicLightsAtPoint(activeDynamicLights, draw.centers[faceIndex])
+			}
+			if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, dynamicLight)); err != nil {
+				slog.Warn("failed to update brush uniform buffer", "error", err)
+				continue
+			}
 			textureBindGroup := whiteTextureBindGroup
 			if worldTexture := gogpuWorldTextureForFace(face, worldTextures, worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 				textureBindGroup = worldTexture.bindGroup
@@ -934,6 +953,7 @@ type gogpuTranslucentBrushFaceRender struct {
 	bufferPair [2]hal.Buffer
 	face       gogpuTranslucentLiquidFaceDraw
 	liquid     bool
+	center     [3]float32
 	lightmaps  []*gpuWorldTexture
 }
 
@@ -999,6 +1019,10 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
+	var activeDynamicLights []DynamicLight
+	if r.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+	}
 	r.mu.RUnlock()
 	if alphaTestPipeline == nil || translucentPipeline == nil || liquidPipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
 		return
@@ -1064,13 +1088,18 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 			continue
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
-		for _, face := range draw.alphaTestFaces {
+		for faceIndex, face := range draw.alphaTestFaces {
+			center := [3]float32{}
+			if faceIndex < len(draw.alphaTestCenters) {
+				center = draw.alphaTestCenters[faceIndex]
+			}
 			alphaTestRenders = append(alphaTestRenders, gogpuTranslucentBrushFaceRender{
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
 				face: gogpuTranslucentLiquidFaceDraw{
 					face:  face,
 					alpha: 1,
 				},
+				center:    center,
 				lightmaps: draw.lightmaps,
 			})
 		}
@@ -1092,7 +1121,8 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 	}
 	renderPass.SetPipeline(alphaTestPipeline)
 	for _, draw := range alphaTestRenders {
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, [3]float32{})); err != nil {
+		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, dynamicLight)); err != nil {
 			slog.Warn("failed to update translucent brush alpha-test uniform buffer", "error", err)
 			continue
 		}
@@ -1126,7 +1156,11 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 		return translucentRenders[i].face.distanceSq > translucentRenders[j].face.distanceSq
 	})
 	for _, draw := range translucentRenders {
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, [3]float32{})); err != nil {
+		dynamicLight := [3]float32{}
+		if !draw.liquid {
+			dynamicLight = evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
+		}
+		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, dynamicLight)); err != nil {
 			slog.Warn("failed to update translucent brush uniform buffer", "error", err)
 			continue
 		}
