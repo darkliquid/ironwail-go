@@ -116,3 +116,21 @@ func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
 		t.Fatalf("currentRuntimeZoomFOV() = %v, want 55", got)
 	}
 }
+
+func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
+	registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "")
+
+	cvar.Set("scr_showturtle", "0")
+	cvar.Set("showturtle", "1")
+	t.Cleanup(func() {
+		cvar.Set("showturtle", "0")
+		cvar.Set("scr_showturtle", "0")
+	})
+
+	if got := currentShowTurtle(); !got {
+		t.Fatal("currentShowTurtle() = false, want true")
+	}
+	if got := cvar.BoolValue("scr_showturtle"); !got {
+		t.Fatal("legacy scr_showturtle alias did not mirror canonical showturtle")
+	}
+}

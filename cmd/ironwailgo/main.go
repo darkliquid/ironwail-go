@@ -969,7 +969,7 @@ func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 		ShowFPS:         float32(cvar.FloatValue("scr_showfps")),
 		ShowClock:       cvar.IntValue("scr_clock"),
 		ShowSpeed:       cvar.BoolValue("scr_showspeed"),
-		ShowTurtle:      cvar.BoolValue("scr_showturtle"),
+		ShowTurtle:      currentShowTurtle(),
 		ShowSpeedOfs:    float32(cvar.FloatValue("scr_showspeed_ofs")),
 		DemoBarTimeout:  float32(cvar.FloatValue("scr_demobar_timeout")),
 		ConsoleForced:   conForcedup,
@@ -1060,6 +1060,13 @@ func currentRuntimeZoomFOV() float32 {
 		return cv.Float32()
 	}
 	return 30
+}
+
+func currentShowTurtle() bool {
+	if cv := cvar.Get("showturtle"); cv != nil {
+		return cv.Bool()
+	}
+	return cvar.BoolValue("scr_showturtle")
 }
 
 func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {

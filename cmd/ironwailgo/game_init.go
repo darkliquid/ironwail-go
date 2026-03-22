@@ -37,6 +37,33 @@ func (globalConsoleAdapter) Clear()                     { console.Clear() }
 func (globalConsoleAdapter) Dump(filename string) error { return nil }
 func (globalConsoleAdapter) Shutdown()                  { console.Close() }
 
+func registerMirroredArchiveCvars(canonicalName, legacyName, defaultValue, description string) *cvar.CVar {
+	canonical := cvar.Register(canonicalName, defaultValue, cvar.FlagArchive, description)
+	legacy := cvar.Register(legacyName, canonical.String, cvar.FlagArchive, description+" (legacy alias)")
+
+	canonicalCallback := canonical.Callback
+	legacyCallback := legacy.Callback
+
+	canonical.Callback = func(cv *cvar.CVar) {
+		if legacy.String != cv.String {
+			cvar.Set(legacy.Name, cv.String)
+		}
+		if canonicalCallback != nil {
+			canonicalCallback(cv)
+		}
+	}
+	legacy.Callback = func(cv *cvar.CVar) {
+		if canonical.String != cv.String {
+			cvar.Set(canonical.Name, cv.String)
+		}
+		if legacyCallback != nil {
+			legacyCallback(cv)
+		}
+	}
+
+	return canonical
+}
+
 func initGameHost() error {
 	fmt.Printf("Detected %d CPUs.\n", runtime.NumCPU())
 	fmt.Println("Host_Init")
@@ -121,7 +148,7 @@ func initGameHost() error {
 	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "Notify line lifetime in seconds")
 	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
 	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter in the corner (negative values show frame time in ms)")
-	cvar.Register("scr_showturtle", "0", cvar.FlagArchive, "Show the turtle icon when frame time is very slow")
+	registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "Show the turtle icon when frame time is very slow")
 	cvar.Register("scr_showspeed", "0", cvar.FlagArchive, "Show horizontal player speed near the crosshair")
 	cvar.Register("scr_showspeed_ofs", "0", cvar.FlagArchive, "Vertical offset for the speed readout")
 	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "Seconds to show the demo controls overlay after speed changes (0 = always, <0 = never)")
