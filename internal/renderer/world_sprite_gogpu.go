@@ -393,10 +393,10 @@ func (r *Renderer) ensureSpriteModelLocked(device hal.Device, queue hal.Queue, m
 }
 
 func (r *Renderer) buildSpriteDrawLocked(device hal.Device, queue hal.Queue, entity SpriteEntity) *gpuSpriteDraw {
-	if entity.ModelID == "" || entity.Model == nil || entity.Model.Type != model.ModSprite || entity.SpriteData == nil {
+	if entity.ModelID == "" || entity.Model == nil || entity.Model.Type != model.ModSprite {
 		return nil
 	}
-	sprite := r.ensureSpriteModelLocked(device, queue, entity.ModelID, entity.SpriteData)
+	sprite := r.ensureSpriteModelLocked(device, queue, entity.ModelID, spriteDataForEntity(entity))
 	if sprite == nil {
 		return nil
 	}

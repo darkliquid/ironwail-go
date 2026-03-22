@@ -78,3 +78,54 @@ func TestBuildSpriteQuadVerticesUsesFrameBounds(t *testing.T) {
 		t.Fatalf("texcoords = %v %v, want sprite quad mapping", verts[0].TexCoord, verts[2].TexCoord)
 	}
 }
+
+func TestSpriteDataForEntityPrefersExplicitSpriteData(t *testing.T) {
+	explicit := &model.MSprite{Type: spriteTypeVPParallel, MaxWidth: 12, MaxHeight: 34, NumFrames: 1}
+	entity := SpriteEntity{
+		Model: &model.Model{
+			Type: model.ModSprite,
+			Mins: [3]float32{-8, -8, -8},
+			Maxs: [3]float32{8, 8, 8},
+		},
+		SpriteData: explicit,
+	}
+
+	got := spriteDataForEntity(entity)
+	if got != explicit {
+		t.Fatal("spriteDataForEntity should prefer explicit SpriteData")
+	}
+}
+
+func TestSpriteDataForEntityFallsBackToModel(t *testing.T) {
+	entity := SpriteEntity{
+		Model: &model.Model{
+			Type: model.ModSprite,
+			Mins: [3]float32{-16, -4, -6},
+			Maxs: [3]float32{16, 4, 10},
+		},
+	}
+
+	got := spriteDataForEntity(entity)
+	if got == nil {
+		t.Fatal("spriteDataForEntity returned nil")
+	}
+	if got.MaxWidth != 32 {
+		t.Fatalf("MaxWidth = %d, want 32", got.MaxWidth)
+	}
+	if got.MaxHeight != 16 {
+		t.Fatalf("MaxHeight = %d, want 16", got.MaxHeight)
+	}
+	if got.NumFrames != 1 || len(got.Frames) != 1 {
+		t.Fatalf("fallback frames = (%d, %d), want (1, 1)", got.NumFrames, len(got.Frames))
+	}
+}
+
+func TestSpriteDataFromModelUsesFallbackDimensions(t *testing.T) {
+	got := spriteDataFromModel(&model.Model{Type: model.ModSprite})
+	if got == nil {
+		t.Fatal("spriteDataFromModel returned nil")
+	}
+	if got.MaxWidth != 64 || got.MaxHeight != 64 {
+		t.Fatalf("fallback size = %dx%d, want 64x64", got.MaxWidth, got.MaxHeight)
+	}
+}

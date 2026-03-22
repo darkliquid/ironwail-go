@@ -99,6 +99,32 @@ func buildSpriteRenderModel(modelID string, spr *model.MSprite) *spriteRenderMod
 	}
 }
 
+func spriteDataFromModel(mdl *model.Model) *model.MSprite {
+	if mdl == nil || mdl.Type != model.ModSprite {
+		return nil
+	}
+
+	spr := &model.MSprite{
+		Type:      int(mdl.Type),
+		MaxWidth:  int(mdl.Maxs[0] - mdl.Mins[0]),
+		MaxHeight: int(mdl.Maxs[2] - mdl.Mins[2]),
+	}
+	if mdl.Maxs[0] == 0 && mdl.Maxs[2] == 0 {
+		spr.MaxWidth = 64
+		spr.MaxHeight = 64
+	}
+	spr.NumFrames = 1
+	spr.Frames = make([]model.MSpriteFrameDesc, 1)
+	return spr
+}
+
+func spriteDataForEntity(entity SpriteEntity) *model.MSprite {
+	if entity.SpriteData != nil {
+		return entity.SpriteData
+	}
+	return spriteDataFromModel(entity.Model)
+}
+
 func updateSpriteBounds(minBounds, maxBounds []float32, frame *model.MSpriteFrame) {
 	if minBounds == nil || maxBounds == nil || len(minBounds) < 3 || len(maxBounds) < 3 {
 		return

@@ -138,30 +138,7 @@ func (r *Renderer) ensureSpriteLocked(modelID string, mdl *model.Model) *glSprit
 		return cached
 	}
 
-	// Extract sprite data - MSprite should have been populated during model loading
-	if !isModelSprite(mdl) {
-		return nil
-	}
-
-	// For now, we'll construct sprite data from the model structure
-	// In a real implementation, the model loader would populate a Sprite field
-	spr := &model.MSprite{
-		Type:      int(mdl.Type),
-		MaxWidth:  int(mdl.Maxs[0] - mdl.Mins[0]),
-		MaxHeight: int(mdl.Maxs[2] - mdl.Mins[2]),
-	}
-
-	if mdl.Maxs[0] == 0 && mdl.Maxs[2] == 0 {
-		// Fallback dimensions
-		spr.MaxWidth = 64
-		spr.MaxHeight = 64
-	}
-
-	// For basic implementation, create a simple frame
-	// A complete implementation would load actual sprite frames from model data
-	spr.NumFrames = 1
-	spr.Frames = make([]model.MSpriteFrameDesc, 1)
-
+	spr := spriteDataFromModel(mdl)
 	glsprite := uploadSpriteModel(modelID, spr)
 	if glsprite == nil {
 		return nil
@@ -169,11 +146,6 @@ func (r *Renderer) ensureSpriteLocked(modelID string, mdl *model.Model) *glSprit
 
 	r.spriteModels[modelID] = glsprite
 	return glsprite
-}
-
-// isModelSprite checks if a model is a sprite type.
-func isModelSprite(mdl *model.Model) bool {
-	return mdl != nil && mdl.Type == model.ModSprite
 }
 
 // renderSpriteDraw renders a single sprite billboard.

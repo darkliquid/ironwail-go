@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -64,6 +65,33 @@ func TestSpriteFragmentShaderIncludesFogMix(t *testing.T) {
 		if !strings.Contains(spriteFragmentShaderWGSL, check) && !strings.Contains(spriteVertexShaderWGSL, check) {
 			t.Fatalf("sprite shaders missing %q", check)
 		}
+	}
+}
+
+func TestBuildSpriteDrawLockedFallsBackToModelSpriteData(t *testing.T) {
+	r := &Renderer{
+		spriteModels: map[string]*gpuSpriteModel{
+			"progs/flame.spr": {frames: []gpuSpriteFrame{{}}},
+		},
+	}
+	entity := SpriteEntity{
+		ModelID: "progs/flame.spr",
+		Model: &model.Model{
+			Type: model.ModSprite,
+			Mins: [3]float32{-16, -4, -6},
+			Maxs: [3]float32{16, 4, 10},
+		},
+		Frame: 0,
+		Alpha: 1,
+		Scale: 1,
+	}
+
+	draw := r.buildSpriteDrawLocked(nil, nil, entity)
+	if draw == nil {
+		t.Fatal("buildSpriteDrawLocked returned nil")
+	}
+	if draw.sprite == nil {
+		t.Fatal("buildSpriteDrawLocked should reuse cached sprite model")
 	}
 }
 
