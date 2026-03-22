@@ -457,7 +457,7 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 56, 176, "BACK", true)
 
 	m.drawArrowCursor(dc, 40, 32+m.videoCursor*16)
-	m.drawText(dc, 40, 180, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
+	m.drawText(dc, 40, 192, "VIDEO CHANGES ARE SAVED TO CONFIG", true)
 }
 
 // drawControls renders the Controls settings menu with sliders (mouse speed),
