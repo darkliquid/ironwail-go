@@ -20,7 +20,13 @@ import (
 // Uniforms structure for world rendering, must match WGSL Uniforms struct
 type WorldUniforms struct {
 	ViewProjection [16]float32 // mat4x4
+	CameraOrigin   [3]float32
+	FogDensity     float32
+	FogColor       [3]float32
+	_AlphaPad      float32
 }
+
+const worldUniformBufferSize = 96
 
 // WorldGeometry holds preprocessed BSP world data ready for GPU upload.
 // This structure bridges the gap between BSP file format and GPU rendering.
@@ -388,6 +394,10 @@ struct VertexInput {
 
 struct Uniforms {
     viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
+    _pad0: f32,
 }
 
 struct VertexOutput {
@@ -424,6 +434,14 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 // MVP path uses a constant lit color until texture/lightmap bindings are
 // fully wired.
 const worldFragmentShaderWGSL = `
+struct Uniforms {
+    viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
+    _pad0: f32,
+}
+
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
@@ -432,6 +450,9 @@ struct VertexOutput {
     @location(3) normal: vec3<f32>,
     @location(4) clipPos: vec4<f32>,
 }
+
+@group(0) @binding(0)
+var<uniform> uniforms: Uniforms;
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
@@ -458,9 +479,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	if (clipZ < 0.0 || clipZ > 1.0) {
 		debugColor = vec3<f32>(1.0, 1.0, 0.0); // Yellow for out-of-depth
 	}
-	
-	// Output the diagnostic color
-	return vec4<f32>(debugColor, 1.0);
+
+	let fogPosition = input.worldPos - uniforms.cameraOrigin;
+	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
+	return vec4<f32>(mix(uniforms.fogColor, debugColor, fog), 1.0);
 }
 `
 
@@ -637,7 +659,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 				Buffer: &gputypes.BufferBindingLayout{
 					Type:             gputypes.BufferBindingTypeUniform,
 					HasDynamicOffset: false,
-					MinBindingSize:   64,
+					MinBindingSize:   worldUniformBufferSize,
 				},
 			},
 		},
@@ -940,7 +962,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// Create uniform buffer for VP matrix
 	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label:            "World Uniforms",
-		Size:             64, // sizeof(mat4x4) = 16 floats * 4 bytes
+		Size:             worldUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
@@ -960,7 +982,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 					Resource: gputypes.BufferBinding{
 						Buffer: uniformBuffer.NativeHandle(),
 						Offset: 0,
-						Size:   64,
+						Size:   worldUniformBufferSize,
 					},
 				},
 			},
@@ -1129,11 +1151,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Update uniform buffer with VP matrix
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
-	vpBytes := matrixToBytes(vpMatrix)
+	camera := dc.renderer.cameraState
+	uniformBytes := worldSceneUniformBytes(vpMatrix, [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}, state.FogColor, state.FogDensity)
 	slog.Info("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
-	slog.Info("renderWorldInternal: writing uniform buffer", "matrix_len", len(vpBytes))
-	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, vpBytes)
+	slog.Info("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
+	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
 		renderPass.End()
@@ -1207,6 +1230,16 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 func matrixToBytes(m types.Mat4) []byte {
 	b := types.Mat4ToBytes(m)
 	return b[:]
+}
+
+func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32) []byte {
+	data := make([]byte, worldUniformBufferSize)
+	matrixBytes := matrixToBytes(vp)
+	copy(data[:64], matrixBytes)
+	putFloat32s(data[64:76], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	putFloat32s(data[80:92], fogColor[:])
+	return data
 }
 
 func gogpuWorldClearColor(clear [4]float32) gputypes.Color {

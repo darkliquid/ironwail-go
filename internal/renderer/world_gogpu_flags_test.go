@@ -4,13 +4,16 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func TestClassifyWorldTextureNameGoGPU(t *testing.T) {
@@ -89,4 +92,70 @@ func TestGoGPUSharedDepthStencilClearAttachmentForView(t *testing.T) {
 	if attachment.StencilReadOnly {
 		t.Fatal("StencilReadOnly = true, want false")
 	}
+}
+
+func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
+	vp := types.Mat4{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1,
+	}
+	cameraOrigin := [3]float32{1, 2, 3}
+	fogColor := [3]float32{0.2, 0.4, 0.6}
+	fogDensity := float32(0.75)
+
+	data := worldSceneUniformBytes(vp, cameraOrigin, fogColor, fogDensity)
+	if len(data) != worldUniformBufferSize {
+		t.Fatalf("len(worldSceneUniformBytes()) = %d, want %d", len(data), worldUniformBufferSize)
+	}
+	for i, want := range cameraOrigin {
+		got := math.Float32frombits(binary.LittleEndian.Uint32(data[64+i*4 : 68+i*4]))
+		if !almostEqualWorldFloat32(got, want, 1e-6) {
+			t.Fatalf("cameraOrigin[%d] = %v, want %v", i, got, want)
+		}
+	}
+	gotFogDensity := math.Float32frombits(binary.LittleEndian.Uint32(data[76:80]))
+	wantFogDensity := worldFogUniformDensity(fogDensity)
+	if !almostEqualWorldFloat32(gotFogDensity, wantFogDensity, 1e-6) {
+		t.Fatalf("fog density = %v, want %v", gotFogDensity, wantFogDensity)
+	}
+	for i, want := range fogColor {
+		got := math.Float32frombits(binary.LittleEndian.Uint32(data[80+i*4 : 84+i*4]))
+		if !almostEqualWorldFloat32(got, want, 1e-6) {
+			t.Fatalf("fogColor[%d] = %v, want %v", i, got, want)
+		}
+	}
+}
+
+func TestWorldShadersIncludeFogMix(t *testing.T) {
+	vertexChecks := []string{
+		"cameraOrigin",
+		"fogDensity",
+		"fogColor",
+		"worldPos",
+	}
+	for _, check := range vertexChecks {
+		if !strings.Contains(worldVertexShaderWGSL, check) {
+			t.Fatalf("world vertex shader missing %q", check)
+		}
+	}
+
+	fragmentChecks := []string{
+		"cameraOrigin",
+		"fogDensity",
+		"fogColor",
+		"worldPos",
+		"exp2(",
+		"mix(uniforms.fogColor, debugColor, fog)",
+	}
+	for _, check := range fragmentChecks {
+		if !strings.Contains(worldFragmentShaderWGSL, check) {
+			t.Fatalf("world fragment shader missing %q", check)
+		}
+	}
+}
+
+func almostEqualWorldFloat32(a, b, epsilon float32) bool {
+	return float32(math.Abs(float64(a-b))) <= epsilon
 }
