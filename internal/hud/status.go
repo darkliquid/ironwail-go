@@ -596,7 +596,11 @@ func (sb *StatusBar) facePic(state State) *image.QPic {
 	if bucket > 4 {
 		bucket = 4
 	}
-	return sb.facePics[bucket][0]
+	anim := 0
+	if state.FaceAnimUntil > 0 && state.Time <= state.FaceAnimUntil {
+		anim = 1
+	}
+	return sb.facePics[bucket][anim]
 }
 
 // armorPic returns the correct armor icon for the player's current armor type

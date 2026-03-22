@@ -4608,6 +4608,9 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 	if got.CenterPrint != "The End" || got.CenterPrintAt != 120 || got.LevelName != "Unit Test Map" {
 		t.Fatalf("hud center/intermission text state = %#v", got)
 	}
+	if got.FaceAnimUntil != g.Client.FaceAnimUntil {
+		t.Fatalf("hud face anim state = %#v, want FaceAnimUntil=%v", got, g.Client.FaceAnimUntil)
+	}
 	if !got.Paused {
 		t.Fatalf("hud paused state = %#v, want Paused=true", got)
 	}

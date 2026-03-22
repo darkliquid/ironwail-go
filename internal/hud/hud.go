@@ -75,6 +75,7 @@ type State struct {
 	Time            float64
 	CenterPrint     string
 	CenterPrintAt   float64
+	FaceAnimUntil   float64
 	CenterPrintHold float64
 	LevelName       string
 	Secrets         int

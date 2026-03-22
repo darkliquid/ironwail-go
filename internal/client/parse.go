@@ -597,6 +597,7 @@ func (p *Parser) parseDamage(msg *common.SizeBuf) error {
 	}
 	p.Client.DamageSaved = int(save)
 	p.Client.DamageTaken = int(take)
+	p.Client.FaceAnimUntil = p.Client.Time + 0.2
 	for i := 0; i < 3; i++ {
 		coord, err := p.readCoord(msg, fmt.Sprintf("svc_damage: missing origin %d", i))
 		if err != nil {

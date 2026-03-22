@@ -1118,6 +1118,69 @@ func TestStatusBarDrawMiniScoreboardForDeathmatch(t *testing.T) {
 	}
 }
 
+func TestStatusBarFaceUsesPainFrameDuringDamageWindow(t *testing.T) {
+	idleFace := &image.QPic{Width: 24, Height: 24}
+	painFace := &image.QPic{Width: 24, Height: 24}
+	sb := &StatusBar{
+		sbarPic: &image.QPic{Width: 320, Height: 24},
+		ibarPic: &image.QPic{Width: 320, Height: 24},
+	}
+	sb.facePics[3][0] = idleFace
+	sb.facePics[3][1] = painFace
+
+	mock := &mockRenderContext{}
+	sb.Draw(mock, State{
+		Health:        70,
+		Time:          5,
+		FaceAnimUntil: 5.2,
+	}, 320, 200)
+
+	var sawPain bool
+	for _, draw := range mock.pics {
+		if draw.pic == painFace {
+			sawPain = true
+		}
+		if draw.pic == idleFace {
+			t.Fatal("expected pain frame during damage animation window")
+		}
+	}
+	if !sawPain {
+		t.Fatal("expected pain face draw during damage animation window")
+	}
+}
+
+func TestStatusBarFacePowerupOverridesPainFrame(t *testing.T) {
+	painFace := &image.QPic{Width: 24, Height: 24}
+	quadFace := &image.QPic{Width: 24, Height: 24}
+	sb := &StatusBar{
+		sbarPic:  &image.QPic{Width: 320, Height: 24},
+		ibarPic:  &image.QPic{Width: 320, Height: 24},
+		faceQuad: quadFace,
+	}
+	sb.facePics[3][1] = painFace
+
+	mock := &mockRenderContext{}
+	sb.Draw(mock, State{
+		Health:        70,
+		Items:         cl.ItemQuad,
+		Time:          5,
+		FaceAnimUntil: 5.2,
+	}, 320, 200)
+
+	var sawQuad bool
+	for _, draw := range mock.pics {
+		if draw.pic == quadFace {
+			sawQuad = true
+		}
+		if draw.pic == painFace {
+			t.Fatal("expected quad face to override pain frame")
+		}
+	}
+	if !sawQuad {
+		t.Fatal("expected quad face draw")
+	}
+}
+
 func TestStatusBarDrawScoreboardOverlayWhenHeld(t *testing.T) {
 	sb := NewStatusBar(nil)
 	mock := &mockRenderContext{}

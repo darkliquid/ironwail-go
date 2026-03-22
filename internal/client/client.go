@@ -174,6 +174,7 @@ type Client struct {
 	Paused        bool
 	CenterPrint   string
 	CenterPrintAt float64
+	FaceAnimUntil float64
 
 	Stats  [32]int
 	StatsF [32]float32
@@ -361,6 +362,7 @@ func (c *Client) ClearState() {
 	c.Paused = false
 	c.CenterPrint = ""
 	c.CenterPrintAt = 0
+	c.FaceAnimUntil = 0
 	c.FixAngle = false
 	c.MoveMessages = 0
 	c.InImpulse = 0

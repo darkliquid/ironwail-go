@@ -237,6 +237,7 @@ func updateHUDFromServer() {
 			Time:          g.Client.Time,
 			CenterPrint:   g.Client.CenterPrint,
 			CenterPrintAt: g.Client.CenterPrintAt,
+			FaceAnimUntil: g.Client.FaceAnimUntil,
 			LevelName:     g.Client.LevelName,
 			Secrets:       g.Client.Stats[inet.StatSecrets],
 			TotalSecrets:  g.Client.Stats[inet.StatTotalSecrets],

@@ -1451,6 +1451,9 @@ func TestParseRuntimeServerMessages(t *testing.T) {
 	if c.DamageSaved != 5 || c.DamageTaken != 7 {
 		t.Fatalf("damage save/take = %d/%d, want 5/7", c.DamageSaved, c.DamageTaken)
 	}
+	if c.FaceAnimUntil != c.Time+0.2 {
+		t.Fatalf("face anim until = %f, want %f", c.FaceAnimUntil, c.Time+0.2)
+	}
 	if c.DamageOrigin != [3]float32{1, 2, 3} {
 		t.Fatalf("damage origin = %v, want [1 2 3]", c.DamageOrigin)
 	}
