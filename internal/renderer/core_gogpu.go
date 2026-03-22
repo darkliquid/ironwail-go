@@ -78,9 +78,13 @@ func (c *Core) InitHeadless() error {
 		return ErrCoreUnsupportedBackend
 	}
 
-	backend, backendName, backendVariant := native.NewHalBackend(c.cfg.GraphicsAPI)
-	if backend == nil {
+	backendName, backendVariant := native.BackendInfo(c.cfg.GraphicsAPI)
+	if backendVariant == 0 {
 		return fmt.Errorf("select HAL backend: %w", ErrCoreUnsupportedBackend)
+	}
+	backend, err := hal.CreateBackend(backendVariant)
+	if err != nil {
+		return fmt.Errorf("create HAL backend: %w", err)
 	}
 
 	flags := gputypes.InstanceFlags(0)

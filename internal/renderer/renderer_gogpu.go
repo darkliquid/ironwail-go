@@ -1964,7 +1964,11 @@ func (r *Renderer) getHALDevice() hal.Device {
 	if provider == nil {
 		return nil
 	}
-	return provider.Device()
+	device := provider.Device()
+	if device == nil {
+		return nil
+	}
+	return device.HalDevice()
 }
 
 // getHALQueue returns the underlying HAL queue from the gogpu renderer.
@@ -1978,7 +1982,11 @@ func (r *Renderer) getHALQueue() hal.Queue {
 	if provider == nil {
 		return nil
 	}
-	return provider.Queue()
+	device := provider.Device()
+	if device == nil {
+		return nil
+	}
+	return device.HalQueue()
 }
 
 func (r *Renderer) destroyGoGPUExternalSkyboxResourcesLocked() {

@@ -367,12 +367,11 @@ func (dc *DrawContext) surfaceHALTextureView() hal.TextureView {
 	if dc == nil || dc.ctx == nil {
 		return nil
 	}
-	surfaceViewAny := dc.ctx.SurfaceView()
-	textureView, ok := surfaceViewAny.(hal.TextureView)
-	if !ok || textureView == nil {
+	surfaceView := dc.ctx.SurfaceView()
+	if surfaceView == nil {
 		return nil
 	}
-	return textureView
+	return surfaceView.HalTextureView()
 }
 
 func (dc *DrawContext) currentHALRenderTargetView() hal.TextureView {
