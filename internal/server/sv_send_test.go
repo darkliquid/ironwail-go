@@ -979,7 +979,7 @@ func TestWriteEntitiesToClient_SkipsEntAlphaZero(t *testing.T) {
 	}
 }
 
-func TestWriteEntitiesToClient_RetiresBaselineOnlyEntity(t *testing.T) {
+func TestWriteEntitiesToClient_DoesNotEmitRetireForFreedBaselineOnlyEntity(t *testing.T) {
 	t.Parallel()
 
 	ent := &Edict{
@@ -991,57 +991,49 @@ func TestWriteEntitiesToClient_RetiresBaselineOnlyEntity(t *testing.T) {
 		Static:    &ServerStatic{MaxClients: 1},
 		Edicts:    []*Edict{{}, ent},
 		NumEdicts: 2,
-	}
-
-	s.seedClientEntityStatesFromBaselines(client)
-	if _, ok := client.EntityStates[1]; !ok {
-		t.Fatal("expected baseline entity state to be seeded for retire tracking")
 	}
 
 	ent.Free = true
 	msg := NewMessageBuffer(256)
 	s.writeEntitiesToClient(client, msg)
 
-	if got := msg.Len(); got == 0 {
-		t.Fatal("writeEntitiesToClient wrote no retire update for baseline-only entity")
+	if got := msg.Len(); got != 0 {
+		t.Fatalf("writeEntitiesToClient wrote %d retire bytes for freed baseline-only entity, want 0", got)
 	}
-	if state, ok := client.EntityStates[1]; !ok {
-		t.Fatal("baseline-only entity should stay tracked for sticky retire updates")
-	} else if state.ModelIndex != 0 {
-		t.Fatalf("sticky retire tracked ModelIndex=%d, want 0", state.ModelIndex)
+	if _, ok := client.EntityStates[1]; ok {
+		t.Fatal("freed baseline-only entity should not be tracked for sticky retire updates")
 	}
 }
 
-func TestWriteEntitiesToClient_RepeatsRetireUntilOverwritten(t *testing.T) {
+func TestWriteEntitiesToClient_DoesNotEmitStickyRetireForOmittedTrackedEntity(t *testing.T) {
 	t.Parallel()
 
 	ent := &Edict{
 		Vars:     &EntVars{},
 		Baseline: EntityState{ModelIndex: 5, Scale: inet.ENTSCALE_DEFAULT},
 	}
-	client := &Client{}
+	client := &Client{EntityStates: map[int]EntityState{1: ent.Baseline}}
 	s := &Server{
 		Static:    &ServerStatic{MaxClients: 1},
 		Edicts:    []*Edict{{}, ent},
 		NumEdicts: 2,
 	}
 
-	s.seedClientEntityStatesFromBaselines(client)
 	ent.Free = true
-
 	first := NewMessageBuffer(256)
 	s.writeEntitiesToClient(client, first)
-	if got := first.Len(); got == 0 {
-		t.Fatal("first retire update was empty")
+	if got := first.Len(); got != 0 {
+		t.Fatalf("writeEntitiesToClient wrote %d retire bytes for omitted tracked entity, want 0", got)
 	}
 
 	second := NewMessageBuffer(256)
 	s.writeEntitiesToClient(client, second)
-	if got := second.Len(); got == 0 {
-		t.Fatal("second retire update was empty; want sticky re-send")
+	if got := second.Len(); got != 0 {
+		t.Fatalf("writeEntitiesToClient wrote %d sticky retire bytes for omitted tracked entity, want 0", got)
 	}
-	if state := client.EntityStates[1]; state.ModelIndex != 0 {
-		t.Fatalf("sticky retire ModelIndex=%d, want 0", state.ModelIndex)
+
+	if state := client.EntityStates[1]; state.ModelIndex != ent.Baseline.ModelIndex {
+		t.Fatalf("tracked omitted entity ModelIndex=%d, want preserved prior state %d", state.ModelIndex, ent.Baseline.ModelIndex)
 	}
 }
 

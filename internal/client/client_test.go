@@ -272,14 +272,14 @@ func TestParseClientDataEntityAndTempEntity(t *testing.T) {
 	if got := ent.MsgOrigins[0]; got != [3]float32{10, 20, 30} {
 		t.Fatalf("entity MsgOrigins[0] = %v, want [10 20 30]", got)
 	}
-	if got := ent.Origin; got != [3]float32{1, 2, 3} {
-		t.Fatalf("entity origin = %v, want preserved live origin [1 2 3] until relink", got)
+	if got := ent.Origin; got != [3]float32{10, 20, 30} {
+		t.Fatalf("entity origin = %v, want initial forced-link origin [10 20 30]", got)
 	}
 	if got := ent.MsgAngles[0][1]; got < 44.5 || got > 45.5 {
 		t.Fatalf("entity raw yaw = %f, want ~45", got)
 	}
-	if got := ent.Angles[1]; got != 90 {
-		t.Fatalf("entity yaw = %f, want preserved live yaw 90 until relink", got)
+	if got := ent.Angles[1]; got < 44.5 || got > 45.5 {
+		t.Fatalf("entity yaw = %f, want initial forced-link yaw ~45", got)
 	}
 
 	if len(c.TempEntities) != 1 {
@@ -659,6 +659,9 @@ func TestParseEntityUpdateForceLinksFirstPartialDeltaWithoutPreviousFrame(t *tes
 
 	if err := p.ParseServerMessage(baseline.Bytes()); err != nil {
 		t.Fatalf("ParseServerMessage(baseline) error = %v", err)
+	}
+	if _, ok := c.Entities[1]; ok {
+		t.Fatal("spawn baseline seeded live entity state, want baselines-only until first packet update")
 	}
 	wantBaselineOrigin := c.EntityBaselines[1].Origin
 	wantBaselineAngles := c.EntityBaselines[1].Angles
@@ -1155,23 +1158,22 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	if err := p.ParseServerMessage(data); err != nil {
 		t.Fatalf("ParseServerMessage third datagram: %v", err)
 	}
-	// After the server retires the entity (ModelIndex → 0), the client keeps
-	// the slot in the map with ModelIndex==0, matching C Quake's fixed-size
-	// entity array where slots persist. The renderer skips ModelIndex==0.
+	// C omits missing packet entities and lets RelinkEntities stale-clear them
+	// locally on the client; there is no explicit server-side retire update.
 	if state, ok := c.Entities[s.NumForEdict(ent)]; ok {
-		if state.ModelIndex != 0 {
-			t.Fatalf("retired entity %d has ModelIndex=%d, want 0", s.NumForEdict(ent), state.ModelIndex)
+		if state.ModelIndex != 2 {
+			t.Fatalf("omitted entity %d has ModelIndex=%d before relink, want preserved previous model 2", s.NumForEdict(ent), state.ModelIndex)
 		}
 		c.RelinkEntities()
 		state = c.Entities[s.NumForEdict(ent)]
 		if state.ModelIndex != 0 {
-			t.Fatalf("retired entity %d changed ModelIndex=%d after relink, want 0", s.NumForEdict(ent), state.ModelIndex)
+			t.Fatalf("stale-cleared entity %d has ModelIndex=%d after relink, want 0", s.NumForEdict(ent), state.ModelIndex)
 		}
 		if state.Origin != [3]float32{10, 20, 30} {
-			t.Fatalf("retired entity %d origin = %v, want preserved last render origin", s.NumForEdict(ent), state.Origin)
+			t.Fatalf("stale-cleared entity %d origin = %v, want preserved last render origin", s.NumForEdict(ent), state.Origin)
 		}
 	} else {
-		t.Fatalf("entity %d should still be in map (with ModelIndex==0) after retire, but was deleted", s.NumForEdict(ent))
+		t.Fatalf("entity %d should still be in map after omission/relink stale-clear, but was deleted", s.NumForEdict(ent))
 	}
 }
 

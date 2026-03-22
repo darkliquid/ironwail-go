@@ -1147,7 +1147,6 @@ func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
 		return err
 	}
 	p.Client.EntityBaselines[entNum] = baseline
-	p.Client.Entities[entNum] = baseline
 	return nil
 }
 

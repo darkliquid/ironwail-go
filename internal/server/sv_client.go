@@ -140,8 +140,6 @@ func (s *Server) ConnectClient(clientNum int) {
 	} else {
 		clear(client.EntityStates)
 	}
-	s.seedClientEntityStatesFromBaselines(client)
-
 	if s.LoadGame || s.PreserveSpawnParms {
 	} else {
 		if s.QCVM != nil {
@@ -156,26 +154,6 @@ func (s *Server) ConnectClient(clientNum int) {
 	}
 
 	s.SendServerInfo(client)
-}
-
-func (s *Server) seedClientEntityStatesFromBaselines(client *Client) {
-	if client == nil {
-		return
-	}
-	if client.EntityStates == nil {
-		client.EntityStates = make(map[int]EntityState)
-	}
-	for entNum := 1; entNum < len(s.Edicts) && entNum < s.NumEdicts; entNum++ {
-		ent := s.Edicts[entNum]
-		if ent == nil || ent.Free {
-			continue
-		}
-		baseline := ent.Baseline
-		if s.Static != nil && entNum > s.Static.MaxClients && baseline.ModelIndex == 0 {
-			continue
-		}
-		client.EntityStates[entNum] = baseline
-	}
 }
 
 // ClearDatagram resets the shared unreliable broadcast packet assembled each simulation frame.
