@@ -246,6 +246,60 @@ func TestShouldDrawGoGPUOpaqueWorldFace(t *testing.T) {
 	}
 }
 
+func TestShouldDrawGoGPUOpaqueBrushFace(t *testing.T) {
+	if !shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3}, 1) {
+		t.Fatal("opaque brush face should draw")
+	}
+	if shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}, 1) {
+		t.Fatal("sky brush face should not draw in opaque pass")
+	}
+	if shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, 1) {
+		t.Fatal("liquid brush face should not draw in opaque pass")
+	}
+	if shouldDrawGoGPUOpaqueBrushFace(WorldFace{NumIndices: 3}, 0.5) {
+		t.Fatal("translucent brush entity should not draw in opaque pass")
+	}
+}
+
+func TestBuildGoGPUOpaqueBrushEntityDrawTransformsVerticesAndKeepsOpaqueFaces(t *testing.T) {
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}, TexCoord: [2]float32{0, 0}, LightmapCoord: [2]float32{0, 0}, Normal: [3]float32{0, 0, 1}},
+			{Position: [3]float32{1, 0, 0}, TexCoord: [2]float32{1, 0}, LightmapCoord: [2]float32{1, 0}, Normal: [3]float32{0, 0, 1}},
+			{Position: [3]float32{0, 1, 0}, TexCoord: [2]float32{0, 1}, LightmapCoord: [2]float32{0, 1}, Normal: [3]float32{0, 0, 1}},
+		},
+		Indices: []uint32{0, 1, 2, 0, 2, 1},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 4, LightmapIndex: 2},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 7, LightmapIndex: 1, Flags: model.SurfDrawSky},
+		},
+	}
+	entity := BrushEntity{
+		Origin: [3]float32{10, 20, 30},
+		Alpha:  1,
+		Scale:  2,
+	}
+	draw := buildGoGPUOpaqueBrushEntityDraw(entity, geom)
+	if draw == nil {
+		t.Fatal("buildGoGPUOpaqueBrushEntityDraw() = nil")
+	}
+	if len(draw.faces) != 1 {
+		t.Fatalf("len(draw.faces) = %d, want 1", len(draw.faces))
+	}
+	if len(draw.indices) != 3 {
+		t.Fatalf("len(draw.indices) = %d, want 3", len(draw.indices))
+	}
+	if draw.faces[0].TextureIndex != 4 || draw.faces[0].LightmapIndex != 2 {
+		t.Fatalf("opaque face metadata = %+v, want texture 4 lightmap 2", draw.faces[0])
+	}
+	if got := draw.vertices[1].Position; got != [3]float32{12, 20, 30} {
+		t.Fatalf("vertex 1 position = %v, want [12 20 30]", got)
+	}
+	if got := draw.vertices[2].Position; got != [3]float32{10, 22, 30} {
+		t.Fatalf("vertex 2 position = %v, want [10 22 30]", got)
+	}
+}
+
 func TestShouldDrawGoGPUSkyWorldFace(t *testing.T) {
 	if !shouldDrawGoGPUSkyWorldFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawSky}) {
 		t.Fatal("sky face should draw in sky pass")
