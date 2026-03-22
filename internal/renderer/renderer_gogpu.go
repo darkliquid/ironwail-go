@@ -1002,7 +1002,7 @@ type RenderFrameState struct {
 	Palette []byte
 
 	// WaterWarp, WaterWarpTime, ForceUnderwater: see stubs_opengl.go for semantics.
-	// These fields are parsed by the authoritative OpenGL path only; gogpu ignores them.
+	// GoGPU uses these for scene-target waterwarp/composite behavior and related runtime parity checks.
 	WaterWarp       bool
 	WaterWarpTime   float32
 	ForceUnderwater bool
@@ -1014,9 +1014,9 @@ type RenderFrameState struct {
 
 // RenderFrame executes the complete frame pipeline in order:
 // 1. Clear screen
-// 2. Draw 3D world (stub)
-// 3. Draw entities (baseline projected markers)
-// 4. Draw particles
+// 2. Draw 3D world / scene target
+// 3. Draw entities
+// 4. Draw particles / viewmodel / polyblend
 // 5. Draw 2D overlay (HUD, menu, console)
 func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(dc RenderContext)) {
 	if state == nil {
@@ -1640,7 +1640,7 @@ func DefaultRenderFrameState() *RenderFrameState {
 		ClearColor:    [4]float32{0.0, 0.0, 0.0, 1.0}, // Black
 		DrawWorld:     false,                          // Disabled until M4.3
 		DrawEntities:  false,                          // Disabled until M4.4
-		DrawParticles: false,                          // Disabled until particle system is wired
+		DrawParticles: false,                          // Opt-in per frame like the primary renderer
 		Draw2DOverlay: true,                           // Always draw 2D overlay
 		MenuActive:    true,                           // Menu is active at startup
 	}
