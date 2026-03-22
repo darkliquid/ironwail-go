@@ -1389,6 +1389,8 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			dc.renderSkyBrushEntitiesHAL(plan.skyBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseOpaqueLiquidBrush:
 			dc.renderOpaqueLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+		case gogpuEntityPhaseTranslucentLiquidBrush:
+			dc.renderTranslucentLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentBrush:
 			dc.renderBrushEntityMarkers(plan.translucentBrush, false, false)
 		case gogpuEntityPhaseDecals:

@@ -374,6 +374,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 		gogpuEntityPhaseOpaqueAlias,
 		gogpuEntityPhaseSkyBrush,
 		gogpuEntityPhaseOpaqueLiquidBrush,
+		gogpuEntityPhaseTranslucentLiquidBrush,
 		gogpuEntityPhaseTranslucentBrush,
 		gogpuEntityPhaseDecals,
 		gogpuEntityPhaseTranslucentAlias,

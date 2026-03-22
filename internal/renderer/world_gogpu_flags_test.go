@@ -375,6 +375,19 @@ func TestShouldDrawGoGPUOpaqueLiquidBrushFace(t *testing.T) {
 	}
 }
 
+func TestShouldDrawGoGPUTranslucentLiquidBrushFace(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+	if !shouldDrawGoGPUTranslucentLiquidBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, 1, alpha) {
+		t.Fatal("translucent liquid brush face should draw")
+	}
+	if shouldDrawGoGPUTranslucentLiquidBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawWater}, 0.5, alpha) {
+		t.Fatal("translucent brush entity should not draw in opaque-entity translucent liquid pass")
+	}
+	if shouldDrawGoGPUTranslucentLiquidBrushFace(WorldFace{NumIndices: 3, Flags: model.SurfDrawTurb | model.SurfDrawLava}, 1, alpha) {
+		t.Fatal("opaque liquid brush face should not draw in translucent liquid pass")
+	}
+}
+
 func TestBuildGoGPUOpaqueLiquidBrushEntityDrawKeepsOnlyOpaqueLiquidFaces(t *testing.T) {
 	alpha := worldLiquidAlphaSettings{water: 1, lava: 1, slime: 0.5, tele: 1}
 	geom := &WorldGeometry{
@@ -398,6 +411,35 @@ func TestBuildGoGPUOpaqueLiquidBrushEntityDrawKeepsOnlyOpaqueLiquidFaces(t *test
 	}
 	if draw.faces[0].TextureIndex != 11 {
 		t.Fatalf("opaque liquid face metadata = %+v, want texture 11", draw.faces[0])
+	}
+}
+
+func TestBuildGoGPUTranslucentLiquidBrushEntityDrawKeepsOnlyTranslucentLiquidFaces(t *testing.T) {
+	alpha := worldLiquidAlphaSettings{water: 0.5, lava: 1, slime: 1, tele: 1}
+	geom := &WorldGeometry{
+		Vertices: []WorldVertex{
+			{Position: [3]float32{0, 0, 0}},
+			{Position: [3]float32{1, 0, 0}},
+			{Position: [3]float32{0, 1, 0}},
+		},
+		Indices: []uint32{0, 1, 2, 0, 2, 1},
+		Faces: []WorldFace{
+			{FirstIndex: 0, NumIndices: 3, TextureIndex: 21, Flags: model.SurfDrawTurb | model.SurfDrawWater, Center: [3]float32{0, 0, 8}},
+			{FirstIndex: 3, NumIndices: 3, TextureIndex: 22, Flags: model.SurfDrawTurb | model.SurfDrawLava, Center: [3]float32{0, 0, 2}},
+		},
+	}
+	draw := buildGoGPUTranslucentLiquidBrushEntityDraw(BrushEntity{Alpha: 1, Scale: 1}, geom, alpha, CameraState{})
+	if draw == nil {
+		t.Fatal("buildGoGPUTranslucentLiquidBrushEntityDraw() = nil")
+	}
+	if len(draw.faces) != 1 {
+		t.Fatalf("len(draw.faces) = %d, want 1", len(draw.faces))
+	}
+	if draw.faces[0].face.TextureIndex != 21 {
+		t.Fatalf("translucent liquid face metadata = %+v, want texture 21", draw.faces[0].face)
+	}
+	if !almostEqualWorldFloat32(draw.faces[0].alpha, 0.5, 1e-6) {
+		t.Fatalf("translucent liquid face alpha = %v, want 0.5", draw.faces[0].alpha)
 	}
 }
 
