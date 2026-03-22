@@ -150,6 +150,13 @@ const (
 	gogpuEntityPhaseSprites
 )
 
+type gogpuOpaqueAliasStep int
+
+const (
+	gogpuOpaqueAliasStepEntities gogpuOpaqueAliasStep = iota
+	gogpuOpaqueAliasStepShadows
+)
+
 type gogpuEntityDrawPlan struct {
 	opaqueBrush      []BrushEntity
 	translucentBrush []BrushEntity
@@ -189,6 +196,14 @@ func planGoGPUEntityDrawOrder(brushEntities []BrushEntity, aliasEntities []Alias
 		opaqueAlias:      opaqueAlias,
 		translucentAlias: translucentAlias,
 		phases:           phases,
+	}
+}
+
+// gogpuOpaqueAliasPassSteps performs its step in this part of the renderer; this helper exists to keep the phase-internal ordering deterministic and aligned with the primary renderer.
+func gogpuOpaqueAliasPassSteps() []gogpuOpaqueAliasStep {
+	return []gogpuOpaqueAliasStep{
+		gogpuOpaqueAliasStepEntities,
+		gogpuOpaqueAliasStepShadows,
 	}
 }
 

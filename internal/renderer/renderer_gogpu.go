@@ -1336,8 +1336,14 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		case gogpuEntityPhaseOpaqueBrush:
 			dc.renderBrushEntityMarkers(plan.opaqueBrush, true)
 		case gogpuEntityPhaseOpaqueAlias:
-			dc.renderAliasShadowsHAL(plan.opaqueAlias)
-			dc.renderAliasEntitiesHAL(plan.opaqueAlias)
+			for _, step := range gogpuOpaqueAliasPassSteps() {
+				switch step {
+				case gogpuOpaqueAliasStepEntities:
+					dc.renderAliasEntitiesHAL(plan.opaqueAlias)
+				case gogpuOpaqueAliasStepShadows:
+					dc.renderAliasShadowsHAL(plan.opaqueAlias)
+				}
+			}
 		case gogpuEntityPhaseTranslucentBrush:
 			dc.renderBrushEntityMarkers(plan.translucentBrush, false)
 		case gogpuEntityPhaseDecals:

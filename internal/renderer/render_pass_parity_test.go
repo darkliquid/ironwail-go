@@ -253,6 +253,22 @@ func TestShouldRunLateTranslucencyBlock(t *testing.T) {
 	}
 }
 
+func TestGoGPUOpaqueAliasPassSteps(t *testing.T) {
+	steps := gogpuOpaqueAliasPassSteps()
+	want := []gogpuOpaqueAliasStep{
+		gogpuOpaqueAliasStepEntities,
+		gogpuOpaqueAliasStepShadows,
+	}
+	if len(steps) != len(want) {
+		t.Fatalf("step count = %d, want %d", len(steps), len(want))
+	}
+	for i := range want {
+		if steps[i] != want[i] {
+			t.Fatalf("step %d = %v, want %v", i, steps[i], want[i])
+		}
+	}
+}
+
 func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	brushEntities := []BrushEntity{
 		{SubmodelIndex: 1, Alpha: 0},
