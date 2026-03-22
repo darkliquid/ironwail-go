@@ -16,6 +16,7 @@ import (
 
 const (
 	centerPrintBackgroundCVar = "scr_centerprintbg"
+	menuBGAlphaCVar           = "scr_menubgalpha"
 	printSpeedCVar            = "scr_printspeed"
 	centerPrintDefaultHold    = 2.0
 	notifyFadeCVar            = "con_notifyfade"
@@ -289,19 +290,24 @@ func drawCenterprintBackground(rc renderer.RenderContext, screenWidth, y, lines,
 	boxHeight := lines*8 + 8
 	boxX := (screenWidth - boxWidth) / 2
 	boxY := y - 4
+	fillAlpha := centerprintBackgroundAlpha(alpha)
 
 	switch mode {
 	case 1:
-		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, alpha)
+		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, fillAlpha)
 		rc.DrawFill(boxX, boxY, boxWidth, 1, 15)
 		rc.DrawFill(boxX, boxY+boxHeight-1, boxWidth, 1, 15)
 		rc.DrawFill(boxX, boxY, 1, boxHeight, 15)
 		rc.DrawFill(boxX+boxWidth-1, boxY, 1, boxHeight, 15)
 	case 2:
-		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, alpha)
+		drawCenterprintFill(rc, boxX, boxY, boxWidth, boxHeight, 0, fillAlpha)
 	case 3:
-		drawCenterprintFill(rc, 0, boxY, screenWidth, boxHeight, 0, alpha)
+		drawCenterprintFill(rc, 0, boxY, screenWidth, boxHeight, 0, fillAlpha)
 	}
+}
+
+func centerprintBackgroundAlpha(alpha float64) float64 {
+	return alpha * max(0, min(1, cvar.FloatValue(menuBGAlphaCVar)))
 }
 
 func drawCenterprintFill(rc renderer.RenderContext, x, y, w, h int, color byte, alpha float64) {

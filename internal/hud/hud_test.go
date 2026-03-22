@@ -16,6 +16,7 @@ import (
 
 func registerCenterprintTestCvars() {
 	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
+	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "test menu background alpha")
 	cvar.Register("scr_printspeed", "8", 0, "test centerprint reveal speed")
 	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test centerprint fade enable")
 	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
@@ -514,8 +515,8 @@ func TestHUDCenterprintFadeTailUsesCharacterAlphaDuringLateFade(t *testing.T) {
 	if len(fading.alphaFills) != 1 {
 		t.Fatalf("late fade alpha background fills = %d, want 1", len(fading.alphaFills))
 	}
-	if got := fading.alphaFills[0]; got.color != 0 || math.Abs(float64(got.alpha)-0.5) > 0.0001 {
-		t.Fatalf("late fade alpha background fill = %+v, want color=0 alpha=0.5", got)
+	if got := fading.alphaFills[0]; got.color != 0 || math.Abs(float64(got.alpha)-0.35) > 0.0001 {
+		t.Fatalf("late fade alpha background fill = %+v, want color=0 alpha=0.35", got)
 	}
 }
 
@@ -692,6 +693,29 @@ func TestCenterprintBackgroundModeThreeUsesFullWidthStrip(t *testing.T) {
 	}
 	if got := mock.fills[0]; got.x != 0 || got.w != 320 {
 		t.Fatalf("strip fill = %+v, want full-width strip", got)
+	}
+}
+
+func TestCenterprintBackgroundAlphaUsesMenuBGAlpha(t *testing.T) {
+	registerCenterprintTestCvars()
+	cvar.Set("scr_menubgalpha", "0.25")
+	t.Cleanup(func() {
+		cvar.Set("scr_menubgalpha", "0.7")
+	})
+
+	cp := NewCenterprint(nil)
+	mock := &mockRenderContext{}
+	cp.Draw(mock, State{
+		CenterPrint:   "HELLO",
+		CenterPrintAt: 1,
+		Time:          1.5,
+	}, 320, 200)
+
+	if len(mock.alphaFills) != 1 {
+		t.Fatalf("alpha fill count = %d, want 1", len(mock.alphaFills))
+	}
+	if got := mock.alphaFills[0]; math.Abs(float64(got.alpha)-0.25) > 0.0001 {
+		t.Fatalf("alpha fill = %+v, want alpha=0.25", got)
 	}
 }
 
