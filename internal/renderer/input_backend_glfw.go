@@ -229,6 +229,20 @@ func mapGLFWKey(k glfw.Key) int {
 		return iinput.KBackspace
 	case glfw.KeySpace:
 		return iinput.KSpace
+	case glfw.KeyApostrophe:
+		return int('\'')
+	case glfw.KeyComma:
+		return int(',')
+	case glfw.KeyMinus:
+		return int('-')
+	case glfw.KeyPeriod:
+		return int('.')
+	case glfw.KeySlash:
+		return int('/')
+	case glfw.KeySemicolon:
+		return int(';')
+	case glfw.KeyEqual:
+		return int('=')
 	case glfw.KeyUp:
 		return iinput.KUpArrow
 	case glfw.KeyDown:
@@ -243,8 +257,14 @@ func mapGLFWKey(k glfw.Key) int {
 		return iinput.KCtrl
 	case glfw.KeyLeftAlt, glfw.KeyRightAlt:
 		return iinput.KAlt
+	case glfw.KeyLeftSuper, glfw.KeyRightSuper:
+		return iinput.KCommand
 	case glfw.KeyCapsLock:
 		return iinput.KCapsLock
+	case glfw.KeyScrollLock:
+		return iinput.KScrollLock
+	case glfw.KeyPrintScreen:
+		return iinput.KPrintScreen
 	case glfw.KeyPause:
 		return iinput.KPause
 	case glfw.KeyInsert:
@@ -259,6 +279,14 @@ func mapGLFWKey(k glfw.Key) int {
 		return iinput.KPgUp
 	case glfw.KeyPageDown:
 		return iinput.KPgDn
+	case glfw.KeyLeftBracket:
+		return int('[')
+	case glfw.KeyBackslash:
+		return int('\\')
+	case glfw.KeyRightBracket:
+		return int(']')
+	case glfw.KeyGraveAccent:
+		return int('`')
 	case glfw.KeyF1:
 		return iinput.KF1
 	case glfw.KeyF2:

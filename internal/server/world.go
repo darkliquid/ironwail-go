@@ -648,7 +648,7 @@ func (s *Server) areaTriggerEdicts(ent *Edict, node *AreaNode, list *[]*Edict, l
 }
 
 func (s *Server) touchLinks(ent *Edict) {
-	if len(s.Areanodes) == 0 || s.QCVM == nil {
+	if len(s.Areanodes) == 0 || s.QCVM == nil || s.suppressTouchQC {
 		return
 	}
 

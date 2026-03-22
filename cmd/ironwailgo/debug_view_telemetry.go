@@ -19,6 +19,8 @@ var debugViewTelemetryEmit = func(line string) {
 
 type debugViewTelemetryState struct {
 	frame               uint64
+	currentLevel        int
+	levelLoaded         bool
 	lastEntityOrigin    [3]float32
 	lastViewOrigin      [3]float32
 	lastViewModelOrigin [3]float32
@@ -28,6 +30,9 @@ type debugViewTelemetryState struct {
 	viewModelFrame      uint64
 	originSelect        runtimeOriginSelectTelemetry
 	entityCollection    map[string]string
+	coalesceKey         string
+	coalesceKind        string
+	coalesceCount       int
 }
 
 var runtimeDebugView debugViewTelemetryState
@@ -103,10 +108,10 @@ func registerDebugViewTelemetryCVar() {
 }
 
 func runtimeDebugViewLevel() int {
-	if debugViewTelemetryCVar == nil {
-		return 0
+	if !runtimeDebugView.levelLoaded {
+		runtimeDebugViewReloadLevel()
 	}
-	return debugViewTelemetryCVar.Int
+	return runtimeDebugView.currentLevel
 }
 
 func runtimeDebugViewEnabled(level int) bool {
@@ -114,11 +119,21 @@ func runtimeDebugViewEnabled(level int) bool {
 }
 
 func runtimeDebugViewBeginFrame() {
+	runtimeDebugViewFlushCoalescedRepeats()
+	runtimeDebugViewReloadLevel()
 	if !runtimeDebugViewEnabled(1) {
 		return
 	}
 	runtimeDebugView.frame++
 	runtimeDebugView.viewModelFrame = 0
+}
+
+func runtimeDebugViewReloadLevel() {
+	runtimeDebugView.currentLevel = 0
+	if debugViewTelemetryCVar != nil {
+		runtimeDebugView.currentLevel = debugViewTelemetryCVar.Int
+	}
+	runtimeDebugView.levelLoaded = true
 }
 
 func runtimeDebugViewLogf(kind, format string, args ...any) {
@@ -129,8 +144,32 @@ func runtimeDebugViewLogf(kind, format string, args ...any) {
 	if g.Client != nil {
 		clientTime = g.Client.Time
 	}
+	payload := fmt.Sprintf(format, args...)
+	key := kind + "|" + payload
+	if key == runtimeDebugView.coalesceKey {
+		runtimeDebugView.coalesceCount++
+		return
+	}
+	runtimeDebugViewFlushCoalescedRepeats()
+	runtimeDebugView.coalesceKey = key
+	runtimeDebugView.coalesceKind = kind
+	runtimeDebugView.coalesceCount = 0
 	debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] %s",
-		runtimeDebugView.frame, clientTime, kind, fmt.Sprintf(format, args...)))
+		runtimeDebugView.frame, clientTime, kind, payload))
+}
+
+func runtimeDebugViewFlushCoalescedRepeats() {
+	if runtimeDebugView.coalesceCount > 0 {
+		clientTime := 0.0
+		if g.Client != nil {
+			clientTime = g.Client.Time
+		}
+		debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] repeated x%d",
+			runtimeDebugView.frame, clientTime, runtimeDebugView.coalesceKind, runtimeDebugView.coalesceCount))
+	}
+	runtimeDebugView.coalesceKey = ""
+	runtimeDebugView.coalesceKind = ""
+	runtimeDebugView.coalesceCount = 0
 }
 
 func runtimeDebugViewLogEntityCollection(collector string, entNum int, state inet.EntityState, modelName, status string) {

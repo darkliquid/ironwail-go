@@ -457,13 +457,7 @@ func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader h
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: depthWrite,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
+		DepthStencil: gogpuNonDecalDepthStencilState(depthWrite),
 		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &hal.FragmentState{
 			Module:     fragmentShader,

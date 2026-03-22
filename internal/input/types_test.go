@@ -25,6 +25,46 @@ func TestFunctionKeyStringRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNamedKeyStringRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		key  int
+		name string
+	}{
+		{key: KIns, name: "INS"},
+		{key: KDel, name: "DEL"},
+		{key: KPgDn, name: "PGDN"},
+		{key: KPgUp, name: "PGUP"},
+		{key: KHome, name: "HOME"},
+		{key: KEnd, name: "END"},
+		{key: KPause, name: "PAUSE"},
+		{key: KPrintScreen, name: "PRINTSCREEN"},
+		{key: int(';'), name: "SEMICOLON"},
+		{key: int('`'), name: "BACKQUOTE"},
+		{key: int('~'), name: "TILDE"},
+		{key: KLShoulder, name: "LSHOULDER"},
+		{key: KRTriggerAlt, name: "RTRIGGER_ALT"},
+	} {
+		if got := KeyToString(tc.key); got != tc.name {
+			t.Fatalf("KeyToString(%d) = %q, want %q", tc.key, got, tc.name)
+		}
+		if got := StringToKey(tc.name); got != tc.key {
+			t.Fatalf("StringToKey(%q) = %d, want %d", tc.name, got, tc.key)
+		}
+	}
+}
+
+func TestPrintablePunctuationRoundTrips(t *testing.T) {
+	for _, key := range []int{int('\''), int('\\'), int('`'), int('~')} {
+		name := KeyToString(key)
+		if name == "" {
+			t.Fatalf("KeyToString(%d) returned empty name", key)
+		}
+		if got := StringToKey(name); got != key {
+			t.Fatalf("StringToKey(%q) = %d, want %d", name, got, key)
+		}
+	}
+}
+
 type textModeBackend struct {
 	lastMode TextMode
 }

@@ -27,6 +27,7 @@
 package cmdsys
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -93,6 +94,15 @@ type CmdSystem struct {
 // etc.) to delegate to a single shared instance. Test code or embedded usage
 // can create isolated instances via NewCmdSystem().
 var globalCmd = NewCmdSystem()
+var printCallback = func(string) {}
+
+func SetPrintCallback(fn func(string)) {
+	if fn == nil {
+		printCallback = func(string) {}
+		return
+	}
+	printCallback = fn
+}
 
 // NewCmdSystem creates and returns a new, independent command system instance.
 // It initializes the command and alias registries and registers the built-in
@@ -262,6 +272,14 @@ func (c *CmdSystem) InsertText(text string) {
 	c.buffer.WriteString(existing)
 }
 
+func (c *CmdSystem) drainBuffer() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	text := c.buffer.String()
+	c.buffer.Reset()
+	return text
+}
+
 // Execute drains the command buffer and executes all buffered command text.
 // This is called once per frame in the engine's main loop (analogous to
 // Cbuf_Execute() in Quake's cmd.c). It atomically grabs the current buffer
@@ -274,10 +292,7 @@ func (c *CmdSystem) Execute() {
 // ExecuteWithSource drains the command buffer and executes the buffered command
 // text under the provided command source.
 func (c *CmdSystem) ExecuteWithSource(source CommandSource) {
-	c.mu.Lock()
-	text := c.buffer.String()
-	c.buffer.Reset()
-	c.mu.Unlock()
+	text := c.drainBuffer()
 
 	c.withSource(source, func() {
 		c.executeTextWithWait(text)
@@ -340,21 +355,22 @@ func (c *CmdSystem) withSource(source CommandSource, fn func()) {
 // Each "wait" causes the engine to process one simulation frame before
 // continuing, so the jump happens before the attack.
 func (c *CmdSystem) executeTextWithWait(text string) {
-	commands := splitCommands(text)
-	for i, line := range commands {
-		line = strings.TrimSpace(line)
+	pending := splitCommands(text)
+	for len(pending) > 0 {
+		line := strings.TrimSpace(pending[0])
+		pending = pending[1:]
 		if line == "" || strings.HasPrefix(line, "//") {
 			continue
 		}
 		c.executeLine(line, nil)
 
 		// If a wait command was executed, put remaining commands back in buffer
+		// ahead of any newly buffered text and stop until the next Execute().
 		if c.waitCount > 0 {
 			c.waitCount--
-			if i+1 < len(commands) {
-				remaining := strings.Join(commands[i+1:], "\n")
+			if len(pending) > 0 {
+				remaining := strings.Join(pending, "\n")
 				c.mu.Lock()
-				// Prepend remaining to buffer (existing buffer content goes after)
 				existing := c.buffer.String()
 				c.buffer.Reset()
 				c.buffer.WriteString(remaining)
@@ -365,6 +381,17 @@ func (c *CmdSystem) executeTextWithWait(text string) {
 				c.mu.Unlock()
 			}
 			return
+		}
+
+		// Quake's command buffer processes inserted text immediately, before
+		// any remaining commands from the current execution pass. This matters
+		// for `exec`/`stuffcmds`, whose InsertText calls must preempt later
+		// lines like `startdemos` in quake.rc.
+		if injected := c.drainBuffer(); injected != "" {
+			if len(pending) > 0 {
+				injected += "\n" + strings.Join(pending, "\n")
+			}
+			pending = splitCommands(injected)
 		}
 	}
 }
@@ -450,9 +477,11 @@ fallback:
 	}
 	c.mu.RUnlock()
 
-	if cvar.Get(cmdName) != nil {
+	if cv := cvar.Get(cmdName); cv != nil {
 		if len(args) > 1 {
 			cvar.Set(cmdName, strings.Join(args[1:], " "))
+		} else {
+			printCallback(fmt.Sprintf("\"%s\" is \"%s\"\n", cv.Name, cv.String))
 		}
 		return
 	}
@@ -462,7 +491,9 @@ fallback:
 	// as clc_stringcmd messages so "say", "name", "color" etc. work in MP.
 	if c.ForwardFunc != nil {
 		c.ForwardFunc(line)
+		return
 	}
+	printCallback(fmt.Sprintf("Unknown command \"%s\"\n", args[0]))
 }
 
 // Exists checks whether a command with the given name is registered. This is
@@ -625,7 +656,7 @@ func parseCommand(line string) []string {
 			}
 		case ch == '"':
 			inQuote = !inQuote
-		case ch == ' ' && !inQuote:
+		case (ch == ' ' || ch == '\t') && !inQuote:
 			if current.Len() > 0 {
 				args = append(args, current.String())
 				current.Reset()

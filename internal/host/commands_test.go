@@ -1176,7 +1176,7 @@ func TestListSaveSlotsFallsBackToLegacyBaseGameSaveWhenUserSaveMissing(t *testin
 	}
 }
 
-func TestListSaveSlotsFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMissing(t *testing.T) {
+func TestListSaveSlotsTreatsLegacyInstallRootJSONSaveAsUnused(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()
 	for _, dir := range []string{"id1", "hipnotic"} {
@@ -1209,12 +1209,53 @@ func TestListSaveSlotsFallsBackToLegacyInstallRootSaveWhenUserAndBaseGameSaveMis
 	if len(slots) != 1 {
 		t.Fatalf("slot count = %d, want 1", len(slots))
 	}
-	if got := slots[0].DisplayName; got != "install-root-map" {
-		t.Fatalf("slot[0].DisplayName = %q, want install-root-map", got)
+	if got := slots[0].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[0].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
 	}
 }
 
-func TestListSaveSlotsPrefersLegacyInstallRootOverBaseGameFallback(t *testing.T) {
+func TestListSaveSlotsDecodesInstallRootKEXTextSave(t *testing.T) {
+	baseDir := t.TempDir()
+	userDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d\n", server.SaveGameVersionKEX)
+	b.WriteString("id1\n")
+	b.WriteString("KEX save title\n")
+	for i := 0; i < server.NumSpawnParms; i++ {
+		b.WriteString("0\n")
+	}
+	b.WriteString("2\n")
+	b.WriteString("install-root-kex-map\n")
+	b.WriteString("123.5\n")
+	for i := 0; i < 64; i++ {
+		b.WriteString("m\n")
+	}
+	b.WriteString("{\n\"serverflags\" \"0\"\n}\n")
+	b.WriteString("{\n\"classname\" \"worldspawn\"\n}\n")
+
+	if err := os.WriteFile(filepath.Join(baseDir, "s0.sav"), []byte(b.String()), 0o644); err != nil {
+		t.Fatalf("WriteFile(install root kex s0): %v", err)
+	}
+
+	h := NewHost()
+	if err := h.Init(&InitParams{BaseDir: baseDir, GameDir: "hipnotic", UserDir: userDir}, &Subsystems{}); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	slots := h.ListSaveSlots(1)
+	if len(slots) != 1 {
+		t.Fatalf("slot count = %d, want 1", len(slots))
+	}
+	if got := slots[0].DisplayName; got != "KEX save title" {
+		t.Fatalf("slot[0].DisplayName = %q, want KEX save title", got)
+	}
+}
+
+func TestListSaveSlotsTreatsLegacyInstallRootJSONAsUnusedInsteadOfFallingBack(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
@@ -1259,8 +1300,8 @@ func TestListSaveSlotsPrefersLegacyInstallRootOverBaseGameFallback(t *testing.T)
 	if len(slots) != 1 {
 		t.Fatalf("slot count = %d, want 1", len(slots))
 	}
-	if got := slots[0].DisplayName; got != "install-root-map" {
-		t.Fatalf("slot[0].DisplayName = %q, want install-root-map", got)
+	if got := slots[0].DisplayName; got != unusedSaveSlotDisplay {
+		t.Fatalf("slot[0].DisplayName = %q, want %q", got, unusedSaveSlotDisplay)
 	}
 }
 

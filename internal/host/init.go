@@ -683,12 +683,7 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 			if keyName == "" {
 				keyName = strconv.Itoa(key)
 			}
-			escapedBinding := strings.ReplaceAll(binding, "\\", "\\\\")
-			escapedBinding = strings.ReplaceAll(escapedBinding, "\n", "\\n")
-			escapedBinding = strings.ReplaceAll(escapedBinding, "\r", "\\r")
-			escapedBinding = strings.ReplaceAll(escapedBinding, "\t", "\\t")
-			escapedBinding = strings.ReplaceAll(escapedBinding, "\"", "\\\"")
-			fmt.Fprintf(f, "bind %s \"%s\"\n", keyName, escapedBinding)
+			fmt.Fprintf(f, "bind \"%s\" \"%s\"\n", escapeConfigQuotedString(keyName), escapeConfigQuotedString(binding))
 		}
 	}
 
@@ -714,4 +709,13 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 	}
 
 	return nil
+}
+
+func escapeConfigQuotedString(value string) string {
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	value = strings.ReplaceAll(value, "\n", "\\n")
+	value = strings.ReplaceAll(value, "\r", "\\r")
+	value = strings.ReplaceAll(value, "\t", "\\t")
+	value = strings.ReplaceAll(value, "\"", "\\\"")
+	return value
 }

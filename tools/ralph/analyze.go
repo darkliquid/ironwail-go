@@ -441,42 +441,47 @@ func syncBeads(tasks []taskRecord, beadsBinary string) ([]beadsSyncRecord, error
 }
 
 func syncBeadsTask(beadsBinary string, task taskRecord) (string, error) {
-	priority := "2"
-	externalRef := "ralph:" + task.Fingerprint
-	labelCSV := strings.Join(task.Labels, ",")
 	if beadsIssueExists(beadsBinary, task.ID) {
-		verbosef("updating beads task id=%s title=%q labels=%s", task.ID, task.Title, labelCSV)
-		args := []string{
-			"update",
-			task.ID,
-			"--title", task.Title,
-			"--description", task.Description,
-			"--priority", priority,
-			"--type", "task",
-			"--set-labels", labelCSV,
-			"--external-ref", externalRef,
-		}
+		args := beadsUpdateArgs(task)
+		verbosef("updating beads task id=%s title=%q labels=%s", task.ID, task.Title, strings.Join(task.Labels, ","))
 		if err := runQuiet(beadsBinary, args...); err != nil {
 			return "update_failed", err
 		}
 		return "updated", nil
 	}
 
-	verbosef("creating beads task id=%s title=%q labels=%s", task.ID, task.Title, labelCSV)
-	args := []string{
-		"create",
-		task.Title,
-		"--id", task.ID,
-		"--description", task.Description,
-		"--priority", priority,
-		"--issue-type", "task",
-		"--labels", labelCSV,
-		"--external-ref", externalRef,
-	}
+	args := beadsCreateArgs(task)
+	verbosef("creating beads task id=%s title=%q labels=%s", task.ID, task.Title, strings.Join(task.Labels, ","))
 	if err := runQuiet(beadsBinary, args...); err != nil {
 		return "create_failed", err
 	}
 	return "created", nil
+}
+
+func beadsUpdateArgs(task taskRecord) []string {
+	return []string{
+		"update",
+		task.ID,
+		"--title", task.Title,
+		"--description", task.Description,
+		"--priority", "2",
+		"--type", "task",
+		"--set-labels", strings.Join(task.Labels, ","),
+		"--external-ref", "ralph:" + task.Fingerprint,
+	}
+}
+
+func beadsCreateArgs(task taskRecord) []string {
+	return []string{
+		"create",
+		task.Title,
+		"--id", task.ID,
+		"--description", task.Description,
+		"--priority", "2",
+		"--type", "task",
+		"--labels", strings.Join(task.Labels, ","),
+		"--external-ref", "ralph:" + task.Fingerprint,
+	}
 }
 
 func beadsIssueExists(beadsBinary, issueID string) bool {

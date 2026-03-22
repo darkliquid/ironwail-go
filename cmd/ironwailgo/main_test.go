@@ -73,6 +73,31 @@ func (c *activeStateTestClient) SendCommand() error         { return nil }
 func (c *activeStateTestClient) SendStringCmd(string) error { return nil }
 func (c *activeStateTestClient) ClientState() *cl.Client    { return c.clientState }
 
+type staticTestFilesystem struct {
+	files map[string]string
+}
+
+func (f *staticTestFilesystem) Init(baseDir, gameDir string) error { return nil }
+func (f *staticTestFilesystem) Close()                             {}
+func (f *staticTestFilesystem) LoadFile(filename string) ([]byte, error) {
+	if data, ok := f.files[filename]; ok {
+		return []byte(data), nil
+	}
+	return nil, os.ErrNotExist
+}
+func (f *staticTestFilesystem) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	for _, filename := range filenames {
+		if data, ok := f.files[filename]; ok {
+			return filename, []byte(data), nil
+		}
+	}
+	return "", nil, os.ErrNotExist
+}
+func (f *staticTestFilesystem) FileExists(filename string) bool {
+	_, ok := f.files[filename]
+	return ok
+}
+
 type processClientPhaseTestClient struct {
 	readCalls int
 	sendCalls int
@@ -86,6 +111,32 @@ func (c *processClientPhaseTestClient) State() host.ClientState    { return c.st
 func (c *processClientPhaseTestClient) ReadFromServer() error      { c.readCalls++; return nil }
 func (c *processClientPhaseTestClient) SendCommand() error         { c.sendCalls++; return nil }
 func (c *processClientPhaseTestClient) SendStringCmd(string) error { return nil }
+
+type activatingProcessClientTestClient struct {
+	state       host.ClientState
+	clientState *cl.Client
+	readCalls   int
+	sendCalls   int
+}
+
+func (c *activatingProcessClientTestClient) Init() error         { return nil }
+func (c *activatingProcessClientTestClient) Frame(float64) error { return nil }
+func (c *activatingProcessClientTestClient) Shutdown()           {}
+func (c *activatingProcessClientTestClient) State() host.ClientState {
+	return c.state
+}
+func (c *activatingProcessClientTestClient) ReadFromServer() error {
+	c.readCalls++
+	if c.clientState != nil {
+		c.clientState.State = cl.StateActive
+		c.clientState.Signon = cl.Signons
+	}
+	c.state = host.ClientState(3)
+	return nil
+}
+func (c *activatingProcessClientTestClient) SendCommand() error         { c.sendCalls++; return nil }
+func (c *activatingProcessClientTestClient) SendStringCmd(string) error { return nil }
+func (c *activatingProcessClientTestClient) ClientState() *cl.Client    { return c.clientState }
 
 type demoPlaybackNoopServer struct{}
 
@@ -444,6 +495,12 @@ func TestDrawMenuBackdropClampsAlphaCVar(t *testing.T) {
 }
 
 func TestDrawRuntimeMenuDrawsBackdropBeforeMenu(t *testing.T) {
+	registerConsoleCanvasTestCvars()
+	cvar.Set("vid_width", "1280")
+	cvar.Set("vid_height", "720")
+	cvar.Set("scr_pixelaspect", "1")
+	cvar.Set("scr_menuscale", "2.25")
+
 	dc := &consoleOverlayDrawContext{}
 	menuDrawCalled := false
 
@@ -460,6 +517,16 @@ func TestDrawRuntimeMenuDrawsBackdropBeforeMenu(t *testing.T) {
 
 	if !menuDrawCalled {
 		t.Fatal("menu draw callback was not invoked")
+	}
+	if len(dc.canvasParams) != 1 {
+		t.Fatalf("canvas params count = %d, want 1", len(dc.canvasParams))
+	}
+	params := dc.canvasParams[0]
+	if params.GUIWidth != 16 || params.GUIHeight != 12 {
+		t.Fatalf("menu GUI params = %.0fx%.0f, want 16x12", params.GUIWidth, params.GUIHeight)
+	}
+	if math.Abs(float64(params.MenuScale-2.25)) > 0.0001 {
+		t.Fatalf("menu scale = %.2f, want 2.25", params.MenuScale)
 	}
 	if len(dc.chars) != 1 || dc.chars[0].num != 'M' {
 		t.Fatalf("menu draw chars = %+v, want one 'M'", dc.chars)
@@ -630,14 +697,14 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 		t.Fatalf("canvas params count = %d, want 1", len(dc.canvasParams))
 	}
 	params := dc.canvasParams[0]
-	if params.GUIWidth != 1280 || params.GUIHeight != 720 {
-		t.Fatalf("GUI params = %.0fx%.0f, want 1280x720", params.GUIWidth, params.GUIHeight)
+	if params.GUIWidth != 1864 || params.GUIHeight != 1428 {
+		t.Fatalf("GUI params = %.0fx%.0f, want 1864x1428", params.GUIWidth, params.GUIHeight)
 	}
 	if params.GLWidth != 1864 || params.GLHeight != 1428 {
 		t.Fatalf("GL params = %.0fx%.0f, want 1864x1428", params.GLWidth, params.GLHeight)
 	}
-	if params.ConWidth != 640 || params.ConHeight != 360 {
-		t.Fatalf("console params = %.0fx%.0f, want 640x360", params.ConWidth, params.ConHeight)
+	if params.ConWidth != 928 || params.ConHeight != 710 {
+		t.Fatalf("console params = %.0fx%.0f, want 928x710", params.ConWidth, params.ConHeight)
 	}
 	if math.Abs(float64(params.ConSlideFraction-0.5)) > 0.0001 {
 		t.Fatalf("console slide fraction = %.2f, want 0.50", params.ConSlideFraction)
@@ -645,14 +712,14 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 	if len(dc.pics) != 1 {
 		t.Fatalf("background pic draws = %d, want 1", len(dc.pics))
 	}
-	if got := dc.pics[0].pic.Width; got != 640 {
-		t.Fatalf("background width = %d, want 640", got)
+	if got := dc.pics[0].pic.Width; got != 928 {
+		t.Fatalf("background width = %d, want 928", got)
 	}
-	if got := dc.pics[0].pic.Height; got != 180 {
-		t.Fatalf("background height = %d, want 180", got)
+	if got := dc.pics[0].pic.Height; got != 355 {
+		t.Fatalf("background height = %d, want 355", got)
 	}
-	if got := len(dc.pics[0].pic.Pixels); got != 640*180 {
-		t.Fatalf("background pixel count = %d, want %d", got, 640*180)
+	if got := len(dc.pics[0].pic.Pixels); got != 928*355 {
+		t.Fatalf("background pixel count = %d, want %d", got, 928*355)
 	}
 	if len(dc.fills) != 0 {
 		t.Fatalf("unexpected solid fills when conback is present: %d", len(dc.fills))
@@ -700,6 +767,30 @@ func TestDrawRuntimeConsoleUsesPixelAspectAdjustedGUI(t *testing.T) {
 	}
 	if params.ConWidth != 640 || params.ConHeight != 300 {
 		t.Fatalf("console params = %.0fx%.0f, want 640x300", params.ConWidth, params.ConHeight)
+	}
+}
+
+func TestScreenToMenuCoordsUsesCanvasMenuTransform(t *testing.T) {
+	registerConsoleCanvasTestCvars()
+	cvar.Set("vid_width", "320")
+	cvar.Set("vid_height", "200")
+	cvar.Set("scr_pixelaspect", "1")
+	cvar.Set("scr_menuscale", "1")
+
+	params := runtimeOverlayCanvasParams(320, 200)
+	transform := renderer.GetCanvasTransform(renderer.CanvasMenu, params)
+	menuX, menuY := 160.75, 72.75
+	ndcX := transform.Scale[0]*float32(menuX) + transform.Offset[0]
+	ndcY := transform.Scale[1]*float32(menuY) + transform.Offset[1]
+	screenX := int(math.Floor(float64((ndcX+1)*params.GLWidth*0.5 - 0.5)))
+	screenY := int(math.Floor(float64((1-ndcY)*params.GLHeight*0.5 - 0.5)))
+
+	gotX, gotY, ok := screenToMenuCoords(screenX, screenY)
+	if !ok {
+		t.Fatalf("screenToMenuCoords(%d,%d) reported outside menu", screenX, screenY)
+	}
+	if gotX != 160 || gotY != 72 {
+		t.Fatalf("screenToMenuCoords(%d,%d) = (%d,%d), want (160,72)", screenX, screenY, gotX, gotY)
 	}
 }
 
@@ -3519,6 +3610,64 @@ func TestProcessClientReadPhaseOnlyReadsServer(t *testing.T) {
 	}
 }
 
+func TestProcessClientAppliesGameplayInputWhenClientBecomesActive(t *testing.T) {
+	originalHost := g.Host
+	originalSubs := g.Subs
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalClient := g.Client
+	originalGrabbed := g.MouseGrabbed
+	originalPhase := runtimeProcessClientPhase
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Subs = originalSubs
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.Client = originalClient
+		g.MouseGrabbed = originalGrabbed
+		runtimeProcessClientPhase = originalPhase
+	})
+
+	clientState := cl.NewClient()
+	clientState.State = cl.StateConnected
+	clientState.Signon = cl.Signons - 1
+	client := &activatingProcessClientTestClient{
+		state:       host.ClientState(2),
+		clientState: clientState,
+	}
+
+	g.Host = host.NewHost()
+	g.Subs = &host.Subsystems{Client: client}
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.MouseGrabbed = false
+
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnMenuChar = handleMenuCharEvent
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.OnChar = handleGameCharEvent
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+	g.Menu.ShowMenu()
+	syncGameplayInputMode()
+	runtimeProcessClientPhase = "read"
+
+	gameCallbacks{}.ProcessClient()
+
+	if client.readCalls != 1 || client.sendCalls != 0 {
+		t.Fatalf("send/read calls = %d/%d, want 0/1", client.sendCalls, client.readCalls)
+	}
+	if g.Menu.IsActive() {
+		t.Fatal("menu should hide when client becomes active during ProcessClient")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after activation = %v, want game", got)
+	}
+	if !g.MouseGrabbed {
+		t.Fatal("mouse should be grabbed when client becomes active during ProcessClient")
+	}
+}
+
 func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 	originalHost := g.Host
 	originalClient := g.Client
@@ -4813,6 +4962,214 @@ func TestScrAutoScaleFallsBackToVideoCvars(t *testing.T) {
 	}
 }
 
+func TestEnsureStartupUIScaleAppliesAutoscaleWhenUnconfigured(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Host = originalHost
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	g.Host = host.NewHost()
+	g.Host.SetUserDir(t.TempDir())
+
+	for _, name := range uiScaleCVarNames {
+		cvar.SetFloat(name, 1)
+	}
+
+	ensureStartupUIScale()
+
+	for _, name := range uiScaleCVarNames {
+		if got := cvar.FloatValue(name); math.Abs(got-2.25) > 0.0001 {
+			t.Fatalf("%s = %v, want 2.25", name, got)
+		}
+	}
+}
+
+func TestEnsureStartupUIScaleSkipsExplicitUserConfig(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Host = originalHost
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	userDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDir, "autoexec.cfg"), []byte("scr_menuscale 1.5\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(autoexec.cfg): %v", err)
+	}
+	g.Host = host.NewHost()
+	g.Host.SetUserDir(userDir)
+
+	for _, name := range uiScaleCVarNames {
+		cvar.SetFloat(name, 1)
+	}
+
+	ensureStartupUIScale()
+
+	for _, name := range uiScaleCVarNames {
+		if got := cvar.FloatValue(name); math.Abs(got-1) > 0.0001 {
+			t.Fatalf("%s = %v, want 1 when user config mentions UI scale", name, got)
+		}
+	}
+}
+
+func TestEnsureStartupUIScaleAutoscaleWhenConfigOnlyHasDefaultScaleValues(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Host = originalHost
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	userDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDir, "ironwail.cfg"), []byte("scr_menuscale 1\nscr_conscale 1\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(ironwail.cfg): %v", err)
+	}
+	g.Host = host.NewHost()
+	g.Host.SetUserDir(userDir)
+
+	for _, name := range uiScaleCVarNames {
+		cvar.SetFloat(name, 1)
+	}
+
+	ensureStartupUIScale()
+
+	for _, name := range uiScaleCVarNames {
+		if got := cvar.FloatValue(name); math.Abs(got-2.25) > 0.0001 {
+			t.Fatalf("%s = %v, want 2.25", name, got)
+		}
+	}
+}
+
+func TestEnsureStartupUIScaleRefreshesStaleArchivedAutoScaleForLargerFramebuffer(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Host = originalHost
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	userDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDir, "ironwail.cfg"), []byte("scr_menuscale 1.5\nscr_conscale 1.5\nscr_sbarscale 1.5\nscr_crosshairscale 1.5\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(ironwail.cfg): %v", err)
+	}
+	g.Host = host.NewHost()
+	g.Host.SetUserDir(userDir)
+	cvar.SetInt("vid_width", 1280)
+	cvar.SetInt("vid_height", 720)
+	for _, name := range uiScaleCVarNames {
+		cvar.SetFloat(name, 1.5)
+	}
+
+	ensureStartupUIScale()
+
+	for _, name := range uiScaleCVarNames {
+		if got := cvar.FloatValue(name); math.Abs(got-2.25) > 0.0001 {
+			t.Fatalf("%s = %v, want 2.25 after refreshing stale archived autoscale", name, got)
+		}
+	}
+}
+
+func TestEnsureStartupUIScalePreservesExplicitPinnedNonLegacyScale(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Host = originalHost
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	userDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDir, "ironwail.cfg"), []byte("scr_menuscale 1.75\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(ironwail.cfg): %v", err)
+	}
+	g.Host = host.NewHost()
+	g.Host.SetUserDir(userDir)
+	cvar.SetInt("vid_width", 1280)
+	cvar.SetInt("vid_height", 720)
+	for _, name := range uiScaleCVarNames {
+		cvar.SetFloat(name, 1.75)
+	}
+
+	ensureStartupUIScale()
+
+	for _, name := range uiScaleCVarNames {
+		if got := cvar.FloatValue(name); math.Abs(got-1.75) > 0.0001 {
+			t.Fatalf("%s = %v, want explicit pinned scale preserved", name, got)
+		}
+	}
+}
+
+func TestUpdateRuntimeTextEditRepeatRepeatsConsoleBackspace(t *testing.T) {
+	originalInput := g.Input
+	originalRepeat := g.TextEditRepeat
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.TextEditRepeat = originalRepeat
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Input.SetKeyDest(input.KeyConsole)
+	console.SetInputLine("test")
+	g.Input.OnKey = handleGameKeyEvent
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KBackspace, Down: true})
+	if got := console.InputLine(); got != "tes" {
+		t.Fatalf("console input after initial backspace = %q, want %q", got, "tes")
+	}
+
+	updateRuntimeTextEditRepeat(0.30)
+	if got := console.InputLine(); got != "tes" {
+		t.Fatalf("console input before repeat delay = %q, want unchanged", got)
+	}
+
+	updateRuntimeTextEditRepeat(0.20)
+	if got := console.InputLine(); got != "te" {
+		t.Fatalf("console input after repeat delay = %q, want %q", got, "te")
+	}
+}
+
+func TestUpdateRuntimeTextEditRepeatRepeatsChatBackspace(t *testing.T) {
+	originalInput := g.Input
+	originalRepeat := g.TextEditRepeat
+	originalChat := chatBuffer
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.TextEditRepeat = originalRepeat
+		chatBuffer = originalChat
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Input.SetKeyDest(input.KeyMessage)
+	g.Input.OnKey = handleGameKeyEvent
+	chatBuffer = "test"
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: input.KBackspace, Down: true})
+	if got := chatBuffer; got != "tes" {
+		t.Fatalf("chat buffer after initial backspace = %q, want %q", got, "tes")
+	}
+
+	updateRuntimeTextEditRepeat(0.50)
+	if got := chatBuffer; got != "te" {
+		t.Fatalf("chat buffer after repeat delay = %q, want %q", got, "te")
+	}
+}
+
 func TestGameplayDemoControlsInterceptBindingsAndUpdateSpeed(t *testing.T) {
 	originalInput := g.Input
 	originalHost := g.Host
@@ -5020,6 +5377,55 @@ func TestApplyStartupGameplayInputModeHidesMenuAndEnablesMovementInput(t *testin
 	}
 }
 
+func TestHandleMenuKeyEventSyncsGameplayInputWhenMenuCloses(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalClient := g.Client
+	originalGrabbed := g.MouseGrabbed
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.Client = originalClient
+		g.MouseGrabbed = originalGrabbed
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.MouseGrabbed = false
+
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnMenuChar = handleMenuCharEvent
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.OnChar = handleGameCharEvent
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	g.Menu.ShowMenu()
+	syncGameplayInputMode()
+	if got := g.Input.GetKeyDest(); got != input.KeyMenu {
+		t.Fatalf("key destination before single-player confirm = %v, want menu", got)
+	}
+
+	handleMenuKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+	if !g.Menu.IsActive() || g.Menu.GetState() != menu.MenuSinglePlayer {
+		t.Fatalf("main menu confirm should open the single-player menu, got active=%v state=%v", g.Menu.IsActive(), g.Menu.GetState())
+	}
+
+	handleMenuKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+
+	if g.Menu.IsActive() {
+		t.Fatalf("single-player confirm should hide the menu")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after single-player confirm = %v, want game", got)
+	}
+	if !g.MouseGrabbed {
+		t.Fatalf("mouse should be grabbed immediately after closing the menu")
+	}
+}
+
 func TestHostInitLoadsBindingOverridesFromConfig(t *testing.T) {
 	originalInput := g.Input
 	t.Cleanup(func() {
@@ -5050,6 +5456,83 @@ func TestHostInitLoadsBindingOverridesFromConfig(t *testing.T) {
 	}
 	if got := g.Input.GetBinding(input.KF10); got != "+attack" {
 		t.Fatalf("binding for F10 after config load = %q, want %q", got, "+attack")
+	}
+}
+
+func TestEnsureGameplayBindingsReappliesDefaultsAfterStartupConfigClearsAllBinds(t *testing.T) {
+	originalInput := g.Input
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Host = originalHost
+	})
+
+	g.Input = input.NewSystem(nil)
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	userDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDir, "ironwail.cfg"), []byte("unbindall\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(ironwail.cfg): %v", err)
+	}
+
+	h := host.NewHost()
+	subs := &host.Subsystems{
+		Commands: globalCommandBuffer{},
+		Input:    g.Input,
+	}
+	if err := h.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	ensureGameplayBindings()
+
+	if got := g.Input.GetBinding(int('w')); got != "+forward" {
+		t.Fatalf("binding for w after startup fallback = %q, want %q", got, "+forward")
+	}
+	if got := g.Input.GetBinding(int('`')); got != "toggleconsole" {
+		t.Fatalf("binding for ` after startup fallback = %q, want %q", got, "toggleconsole")
+	}
+}
+
+func TestBuiltinDefaultCfgExecBindsConsoleAndAutoscaleUI(t *testing.T) {
+	originalInput := g.Input
+	originalRenderer := g.Renderer
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Renderer = originalRenderer
+		g.Host = originalHost
+	})
+
+	registerConsoleCanvasTestCvars()
+	g.Input = input.NewSystem(nil)
+	registerGameplayBindCommands()
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 1920, Height: 1080})
+	g.Host = host.NewHost()
+
+	for _, name := range uiScaleCVarNames {
+		cvar.SetFloat(name, 1)
+	}
+
+	subs := &host.Subsystems{
+		Files:    &staticTestFilesystem{files: map[string]string{}},
+		Commands: globalCommandBuffer{},
+		Input:    g.Input,
+	}
+	g.Host.SetUserDir(t.TempDir())
+	g.Host.CmdExec([]string{"default.cfg"}, subs)
+
+	if got := g.Input.GetBinding(int('`')); got != "toggleconsole" {
+		t.Fatalf("binding for ` after builtin default.cfg exec = %q, want %q", got, "toggleconsole")
+	}
+	if got := g.Input.GetBinding(input.KEscape); got != "togglemenu" {
+		t.Fatalf("binding for ESCAPE after builtin default.cfg exec = %q, want %q", got, "togglemenu")
+	}
+	for _, name := range uiScaleCVarNames {
+		if got := cvar.FloatValue(name); math.Abs(got-2.25) > 0.0001 {
+			t.Fatalf("%s = %v, want 2.25 after builtin default.cfg scr_autoscale", name, got)
+		}
 	}
 }
 
@@ -5270,6 +5753,12 @@ func TestApplyMenuMouseMoveUsesAbsolutePosition(t *testing.T) {
 		g.Menu = originalMenu
 	})
 
+	registerConsoleCanvasTestCvars()
+	cvar.Set("vid_width", "320")
+	cvar.Set("vid_height", "200")
+	cvar.Set("scr_pixelaspect", "1")
+	cvar.Set("scr_menuscale", "1")
+
 	backend := &mouseDeltaBackend{x: 160, y: 72, mouseValid: true}
 	g.Input = input.NewSystem(backend)
 	g.Input.SetKeyDest(input.KeyMenu)
@@ -5337,6 +5826,39 @@ func TestToggleConsoleClosesMenuAndSwitchesKeyDest(t *testing.T) {
 	cmdToggleConsole(nil)
 	if got := g.Input.GetKeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after closing console = %v, want game", got)
+	}
+}
+
+func TestMenuConsoleKeyOpensConsole(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalGrabbed := g.MouseGrabbed
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.MouseGrabbed = originalGrabbed
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnKey = handleGameKeyEvent
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+	g.Menu.ShowMenu()
+	g.Input.SetKeyDest(input.KeyMenu)
+	g.MouseGrabbed = true
+
+	g.Input.HandleKeyEvent(input.KeyEvent{Key: int('`'), Down: true})
+
+	if g.Menu.IsActive() {
+		t.Fatalf("menu should be inactive after console key")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyConsole {
+		t.Fatalf("key destination after menu console key = %v, want console", got)
+	}
+	if g.MouseGrabbed {
+		t.Fatalf("console mode should release mouse grab")
 	}
 }
 
@@ -5512,6 +6034,27 @@ func TestConsoleKeyRoutingExecutesCommands(t *testing.T) {
 	handleGameKeyEvent(input.KeyEvent{Key: int('`'), Down: true})
 	if got := g.Input.GetKeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after closing console = %v, want game", got)
+	}
+}
+
+func TestProcessConsoleCommandsExecutesBufferedLocalCommands(t *testing.T) {
+	cmdsys.Execute()
+	const commandName = "testruntimeprocessconsolecommands"
+	cmdsys.RemoveCommand(commandName)
+	executed := 0
+	cmdsys.AddCommand(commandName, func(args []string) {
+		executed++
+	}, "test runtime process console commands")
+	t.Cleanup(func() {
+		cmdsys.RemoveCommand(commandName)
+		cmdsys.Execute()
+	})
+
+	cmdsys.AddText(commandName)
+	gameCallbacks{}.ProcessConsoleCommands()
+
+	if executed != 1 {
+		t.Fatalf("executed local buffered commands = %d, want 1", executed)
 	}
 }
 

@@ -3,6 +3,8 @@ package cmdsys
 import (
 	"reflect"
 	"testing"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 // TestParseCommandPreservesEscapedQuotesAndBackslashes tests command line tokenization with escape characters.
@@ -11,6 +13,14 @@ import (
 func TestParseCommandPreservesEscapedQuotesAndBackslashes(t *testing.T) {
 	args := parseCommand(`bind t "say He said \"hello\" \\world\nnext\tline"`)
 	want := []string{"bind", "t", "say He said \"hello\" \\world\nnext\tline"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("parseCommand returned %v, want %v", args, want)
+	}
+}
+
+func TestParseCommandTreatsTabsAsArgumentSeparators(t *testing.T) {
+	args := parseCommand("bind\tPAUSE\tpause")
+	want := []string{"bind", "PAUSE", "pause"}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("parseCommand returned %v, want %v", args, want)
 	}
@@ -81,6 +91,41 @@ func TestExecuteTextSplitsSemicolonSeparatedCommands(t *testing.T) {
 	want := []string{"first", "second"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("executed commands = %v, want %v", got, want)
+	}
+}
+
+func TestExecuteTextPreservesSemicolonsInsideQuotedArguments(t *testing.T) {
+	c := NewCmdSystem()
+
+	var (
+		bindings [][]string
+		waitRan  bool
+		saveRan  bool
+	)
+	c.AddCommand("bind", func(args []string) {
+		bindings = append(bindings, append([]string(nil), args...))
+	}, "")
+	c.AddCommand("wait", func(args []string) {
+		waitRan = true
+	}, "")
+	c.AddCommand("save", func(args []string) {
+		saveRan = true
+	}, "")
+
+	c.ExecuteText("bind F6 \"echo Quicksaving...; wait; save quick\"\nbind F10 quit\n")
+
+	want := [][]string{
+		{"F6", "echo Quicksaving...; wait; save quick"},
+		{"F10", "quit"},
+	}
+	if !reflect.DeepEqual(bindings, want) {
+		t.Fatalf("bind commands = %v, want %v", bindings, want)
+	}
+	if waitRan {
+		t.Fatal("quoted semicolon unexpectedly executed wait command")
+	}
+	if saveRan {
+		t.Fatal("quoted semicolon unexpectedly executed save command")
 	}
 }
 
@@ -266,6 +311,44 @@ func TestExecuteTextWithSourceSetsSourceForHandler(t *testing.T) {
 	}
 }
 
+func TestExecuteTextPrintsQueriedCVarValue(t *testing.T) {
+	c := NewCmdSystem()
+	cv := cvar.Register("test_cmdsys_query_cvar", "42", cvar.FlagNone, "test")
+	defer cvar.Set(cv.Name, cv.DefaultValue)
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText(cv.Name)
+
+	if printed != "\"test_cmdsys_query_cvar\" is \"42\"\n" {
+		t.Fatalf("printed = %q, want queried cvar output", printed)
+	}
+}
+
+func TestExecuteTextPrintsUnknownCommandWithoutForwarder(t *testing.T) {
+	c := NewCmdSystem()
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("definitely_unknown_command")
+
+	if printed != "Unknown command \"definitely_unknown_command\"\n" {
+		t.Fatalf("printed = %q, want unknown command output", printed)
+	}
+}
+
 // TestExecuteWithSourceUsesProvidedSource tests ExecuteWithSource with buffered commands.
 // It ensures the source is correctly tracked through the command buffer.
 // Where in C: Cbuf_Execute and cmd_source in cmd.c
@@ -282,6 +365,33 @@ func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
 
 	if seen != SrcClient {
 		t.Fatalf("source in buffered execute = %v, want %v", seen, SrcClient)
+	}
+}
+
+// TestInsertTextDuringExecutePreemptsRemainingCommands verifies Quake-style
+// command buffer semantics: InsertText from a running command executes before
+// later lines from the current buffer.
+func TestInsertTextDuringExecutePreemptsRemainingCommands(t *testing.T) {
+	c := NewCmdSystem()
+
+	var executed []string
+	c.AddCommand("stuffcmds", func(args []string) {
+		executed = append(executed, "stuffcmds")
+		c.InsertText("map e2m2")
+	}, "")
+	c.AddCommand("map", func(args []string) {
+		executed = append(executed, "map "+args[0])
+	}, "")
+	c.AddCommand("startdemos", func(args []string) {
+		executed = append(executed, "startdemos "+args[0])
+	}, "")
+
+	c.AddText("stuffcmds\nstartdemos demo1\n")
+	c.Execute()
+
+	want := []string{"stuffcmds", "map e2m2", "startdemos demo1"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("execution order = %v, want %v", executed, want)
 	}
 }
 

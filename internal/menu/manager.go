@@ -521,6 +521,10 @@ func (m *Manager) GetState() MenuState {
 	return m.state
 }
 
+func (m *Manager) WaitingForKeyBinding() bool {
+	return m != nil && m.active && m.state == MenuControls && m.controlsRebinding
+}
+
 func (m *Manager) MainCursor() int {
 	if m == nil {
 		return 0

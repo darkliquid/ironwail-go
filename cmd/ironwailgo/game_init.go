@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/draw"
@@ -73,6 +74,9 @@ func initGameHost() error {
 	console.InitGlobal(0)
 	console.SetPrintCallback(func(msg string) {
 		fmt.Print(msg)
+	})
+	cmdsys.SetPrintCallback(func(msg string) {
+		console.Printf("%s", msg)
 	})
 
 	// Initialize cvars for video, sound, gameplay
@@ -233,8 +237,10 @@ func serverProtocolName(protocol int) string {
 }
 
 func initGameQC() error {
-	// Create QC VM instance
-	g.QC = qc.NewVM()
+	// The authoritative server VM is owned by server.NewServer(). Keep only
+	// the client-side VM here so app init uses the same QCVM path as host/server
+	// tests instead of swapping in a parallel VM later.
+	g.QC = nil
 	g.CSQC = qc.NewCSQC()
 	// slog.Info("QC loaded") - moved to main for deterministic logs
 
@@ -352,6 +358,16 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		return err
 	}
 
+	if err := initGameServer(); err != nil {
+		return err
+	}
+
+	// Use the server-owned VM so app startup matches the direct host/server path.
+	g.QC = g.Server.QCVM
+	if g.QC == nil {
+		return fmt.Errorf("server QC VM not initialized")
+	}
+
 	// Load progs.dat into QC VM
 	progsData, err := fileSys.LoadFile("progs.dat")
 	if err != nil {
@@ -362,12 +378,6 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	}
 	// Link the builtins and set up entity sizes
 	qc.RegisterBuiltins(g.QC)
-
-	if err := initGameServer(); err != nil {
-		return err
-	}
-	// Link QC VM into the server
-	g.Server.QCVM = g.QC
 
 	if !headless {
 		startupUserDir, err := host.ResolveUserDir(basedir, "")
@@ -477,6 +487,10 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		VersionPatch: VersionPatch,
 	}, g.Subs); err != nil {
 		return fmt.Errorf("failed to initialize host: %w", err)
+	}
+	if !dedicated {
+		ensureStartupUIScale()
+		ensureGameplayBindings()
 	}
 	applySVolume()
 

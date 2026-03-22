@@ -214,3 +214,38 @@ func TestApplyTriggerDeadzone(t *testing.T) {
 		t.Fatalf("trigger scaled value = %f, want 0.5", got)
 	}
 }
+
+func TestMapSDLKeyboardKeyMapsPunctuationAndNavigation(t *testing.T) {
+	tests := []struct {
+		name     string
+		scancode sdl.Scancode
+		keycode  sdl.Keycode
+		want     int
+	}{
+		{name: "grave", scancode: sdl.SCANCODE_GRAVE, keycode: sdl.K_GRAVE, want: int('`')},
+		{name: "backslash", scancode: sdl.SCANCODE_BACKSLASH, keycode: sdl.K_BACKSLASH, want: int('\\')},
+		{name: "apostrophe", scancode: sdl.SCANCODE_APOSTROPHE, keycode: sdl.K_APOSTROPHE, want: int('\'')},
+		{name: "semicolon", scancode: sdl.SCANCODE_SEMICOLON, keycode: sdl.K_SEMICOLON, want: int(';')},
+		{name: "minus", scancode: sdl.SCANCODE_MINUS, keycode: sdl.K_MINUS, want: int('-')},
+		{name: "equals", scancode: sdl.SCANCODE_EQUALS, keycode: sdl.K_EQUALS, want: int('=')},
+		{name: "left bracket", scancode: sdl.SCANCODE_LEFTBRACKET, keycode: sdl.K_LEFTBRACKET, want: int('[')},
+		{name: "right bracket", scancode: sdl.SCANCODE_RIGHTBRACKET, keycode: sdl.K_RIGHTBRACKET, want: int(']')},
+		{name: "slash", scancode: sdl.SCANCODE_SLASH, keycode: sdl.K_SLASH, want: int('/')},
+		{name: "comma", scancode: sdl.SCANCODE_COMMA, keycode: sdl.K_COMMA, want: int(',')},
+		{name: "period", scancode: sdl.SCANCODE_PERIOD, keycode: sdl.K_PERIOD, want: int('.')},
+		{name: "insert", scancode: sdl.SCANCODE_INSERT, keycode: sdl.K_INSERT, want: KIns},
+		{name: "home", scancode: sdl.SCANCODE_HOME, keycode: sdl.K_HOME, want: KHome},
+		{name: "page up", scancode: sdl.SCANCODE_PAGEUP, keycode: sdl.K_PAGEUP, want: KPgUp},
+		{name: "delete", scancode: sdl.SCANCODE_DELETE, keycode: sdl.K_DELETE, want: KDel},
+		{name: "end", scancode: sdl.SCANCODE_END, keycode: sdl.K_END, want: KEnd},
+		{name: "page down", scancode: sdl.SCANCODE_PAGEDOWN, keycode: sdl.K_PAGEDOWN, want: KPgDn},
+		{name: "printscreen", scancode: sdl.SCANCODE_PRINTSCREEN, keycode: sdl.K_PRINTSCREEN, want: KPrintScreen},
+		{name: "pause", scancode: sdl.SCANCODE_PAUSE, keycode: sdl.K_PAUSE, want: KPause},
+	}
+
+	for _, tc := range tests {
+		if got := mapSDLKeyboardKey(tc.scancode, tc.keycode); got != tc.want {
+			t.Fatalf("%s mapped to %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}

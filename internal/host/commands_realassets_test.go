@@ -73,6 +73,71 @@ func TestCmdMapStartRealAssetsReachesCaActive(t *testing.T) {
 	}
 }
 
+func TestCmdMapE2M2RealAssetsKeepsMonstersOutOfSolid(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("e2m2", subs); err != nil {
+		t.Fatalf("CmdMap(e2m2): %v", err)
+	}
+	if got := h.ClientState(); got != caActive {
+		t.Fatalf("ClientState = %v, want %v", got, caActive)
+	}
+
+	monsterCount := 0
+	for entNum := 1; entNum < srv.NumEdicts; entNum++ {
+		ent := srv.EdictNum(entNum)
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		className := srv.GetString(ent.Vars.ClassName)
+		if len(className) < len("monster_") || className[:len("monster_")] != "monster_" {
+			continue
+		}
+		monsterCount++
+		if ent.Vars.Origin == [3]float32{} {
+			t.Fatalf("monster %d (%s) spawned at origin after CmdMap", entNum, className)
+		}
+		if blocker := srv.TestEntityPosition(ent); blocker != nil {
+			blockerClass := ""
+			if blocker.Vars != nil {
+				blockerClass = srv.GetString(blocker.Vars.ClassName)
+			}
+			t.Fatalf("monster %d (%s) spawned in solid after CmdMap at %v blocker=%d (%s)", entNum, className, ent.Vars.Origin, srv.NumForEdict(blocker), blockerClass)
+		}
+	}
+	if monsterCount == 0 {
+		t.Fatal("expected monsters on e2m2")
+	}
+}
+
 func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	quakeDir := testutil.SkipIfNoQuakeDir(t)
 

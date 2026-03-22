@@ -149,18 +149,26 @@ func (dc *glDrawContext) Gamma() float32 {
 // SetCanvas switches the active 2D drawing canvas. Coordinates in
 // subsequent draw calls are interpreted in the canvas's logical space.
 func (dc *glDrawContext) SetCanvas(ct CanvasType) {
-	// Update canvasParams from current viewport state.
-	dc.canvasParams.GUIWidth = float32(dc.viewport.width)
-	dc.canvasParams.GUIHeight = float32(dc.viewport.height)
-	dc.canvasParams.GLWidth = float32(dc.viewport.width)
-	dc.canvasParams.GLHeight = float32(dc.viewport.height)
-	if dc.canvasParams.ConWidth == 0 {
-		dc.canvasParams.ConWidth = float32(dc.viewport.width)
+	params := dc.canvasParams
+	if params.GUIWidth <= 0 {
+		params.GUIWidth = float32(dc.viewport.width)
 	}
-	if dc.canvasParams.ConHeight == 0 {
-		dc.canvasParams.ConHeight = float32(dc.viewport.height)
+	if params.GUIHeight <= 0 {
+		params.GUIHeight = float32(dc.viewport.height)
 	}
-	SetCanvas(&dc.canvas, ct, dc.canvasParams)
+	if params.GLWidth <= 0 {
+		params.GLWidth = float32(dc.viewport.width)
+	}
+	if params.GLHeight <= 0 {
+		params.GLHeight = float32(dc.viewport.height)
+	}
+	if params.ConWidth <= 0 {
+		params.ConWidth = params.GUIWidth
+	}
+	if params.ConHeight <= 0 {
+		params.ConHeight = params.GUIHeight
+	}
+	SetCanvas(&dc.canvas, ct, params)
 }
 
 // Canvas returns the current canvas state.

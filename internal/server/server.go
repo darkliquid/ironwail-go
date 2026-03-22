@@ -123,6 +123,7 @@ type Server struct {
 	touchFrameSeen    map[uint64]struct{}
 	impactFrameActive bool
 	impactFrameSeen   map[impactTouchKey]struct{}
+	suppressTouchQC   bool
 
 	compatRNG *compatrand.RNG
 

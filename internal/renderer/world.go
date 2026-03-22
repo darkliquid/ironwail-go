@@ -94,6 +94,24 @@ type WorldFace struct {
 
 const worldDepthTextureFormat = gputypes.TextureFormatDepth24PlusStencil8
 
+func gogpuNonDecalDepthStencilState(depthWrite bool) *hal.DepthStencilState {
+	stencilFace := hal.StencilFaceState{
+		Compare:     gputypes.CompareFunctionAlways,
+		FailOp:      hal.StencilOperationKeep,
+		DepthFailOp: hal.StencilOperationKeep,
+		PassOp:      hal.StencilOperationKeep,
+	}
+	return &hal.DepthStencilState{
+		Format:            worldDepthTextureFormat,
+		DepthWriteEnabled: depthWrite,
+		DepthCompare:      gputypes.CompareFunctionLessEqual,
+		StencilFront:      stencilFace,
+		StencilBack:       stencilFace,
+		StencilReadMask:   0,
+		StencilWriteMask:  0,
+	}
+}
+
 // WorldRenderData holds GPU-side resources for world rendering.
 // This is what gets uploaded to the GPU and used during rendering.
 type WorldRenderData struct {
@@ -1113,14 +1131,6 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		Targets:    fragmentTargets,
 	}
 
-	depthStencilState := hal.DepthStencilState{
-		Format:            worldDepthTextureFormat,
-		DepthWriteEnabled: true,
-		DepthCompare:      gputypes.CompareFunctionLessEqual,
-		StencilReadMask:   0xFFFFFFFF,
-		StencilWriteMask:  0xFFFFFFFF,
-	}
-
 	// Create render pipeline descriptor
 	pipelineDesc := &hal.RenderPipelineDescriptor{
 		Label:  "World Render Pipeline",
@@ -1131,7 +1141,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
 		},
 		Primitive:    primitiveState,
-		DepthStencil: &depthStencilState,
+		DepthStencil: gogpuNonDecalDepthStencilState(true),
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -1183,13 +1193,7 @@ func (r *Renderer) createWorldSkyPipeline(device hal.Device, vertexShader, fragm
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: false,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -1282,13 +1286,7 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: true,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
+		DepthStencil: gogpuNonDecalDepthStencilState(true),
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -1339,13 +1337,7 @@ func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShade
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: false,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -1396,13 +1388,7 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, ve
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: false,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,

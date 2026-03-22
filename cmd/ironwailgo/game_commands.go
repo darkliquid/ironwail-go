@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +18,13 @@ import (
 )
 
 var vidRestartFunc = restartVideo
+
+var uiScaleCVarNames = []string{
+	"scr_conscale",
+	"scr_menuscale",
+	"scr_sbarscale",
+	"scr_crosshairscale",
+}
 
 func registerGameplayBindCommands() {
 	cmdsys.AddCommand("bind", cmdBind, "Bind a key to a command")
@@ -134,10 +143,105 @@ func currentAutoScaleFactor() float64 {
 	return scale
 }
 
+func currentVideoCVarAutoScaleFactor() float64 {
+	width := cvar.IntValue("vid_width")
+	height := cvar.IntValue("vid_height")
+	if width <= 0 || height <= 0 {
+		return 1
+	}
+	scale := min(float64(width)/640.0, float64(height)/480.0)
+	if scale < 1 {
+		return 1
+	}
+	return scale
+}
+
 func cmdScreenAutoScale(_ []string) {
 	scale := currentAutoScaleFactor()
-	for _, name := range []string{"scr_conscale", "scr_menuscale", "scr_sbarscale", "scr_crosshairscale"} {
+	for _, name := range uiScaleCVarNames {
 		cvar.SetFloat(name, scale)
+	}
+}
+
+func startupConfigPinsAnyCVar(userDir string, names []string) bool {
+	userDir = strings.TrimSpace(userDir)
+	if userDir == "" || len(names) == 0 {
+		return false
+	}
+	allowed := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		allowed[name] = struct{}{}
+	}
+	for _, filename := range []string{"ironwail.cfg", "config.cfg", "autoexec.cfg"} {
+		path := filepath.Join(userDir, filename)
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
+				continue
+			}
+			if _, ok := allowed[fields[0]]; !ok {
+				continue
+			}
+			if len(fields) < 2 {
+				_ = f.Close()
+				return true
+			}
+			value := strings.TrimSpace(strings.TrimPrefix(line, fields[0]))
+			if unquoted, err := strconv.Unquote(value); err == nil {
+				value = unquoted
+			}
+			if parsed, err := strconv.ParseFloat(strings.Fields(value)[0], 64); err == nil {
+				if parsed == 1 {
+					continue
+				}
+			}
+			_ = f.Close()
+			return true
+		}
+		_ = f.Close()
+	}
+	return false
+}
+
+func shouldBootstrapStartupUIScale() bool {
+	if g.Renderer == nil || g.Host == nil {
+		return false
+	}
+	actualScale := currentAutoScaleFactor()
+	legacyScale := currentVideoCVarAutoScaleFactor()
+	allMatchLegacy := legacyScale > 0
+	for _, name := range uiScaleCVarNames {
+		if math.Abs(cvar.FloatValue(name)-legacyScale) > 0.0001 {
+			allMatchLegacy = false
+			break
+		}
+	}
+	if allMatchLegacy && actualScale > legacyScale+0.0001 {
+		return true
+	}
+	if startupConfigPinsAnyCVar(g.Host.UserDir(), uiScaleCVarNames) {
+		return false
+	}
+	for _, name := range uiScaleCVarNames {
+		if cvar.FloatValue(name) != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+func ensureStartupUIScale() {
+	if shouldBootstrapStartupUIScale() {
+		cmdScreenAutoScale(nil)
 	}
 }
 
@@ -175,6 +279,25 @@ func applyDefaultGameplayBindings() {
 	for _, binding := range gameplayDefaultBindings {
 		g.Input.SetBinding(binding.key, binding.command)
 	}
+}
+
+func hasAnyGameplayBindings() bool {
+	if g.Input == nil {
+		return false
+	}
+	for key := 0; key < input.NumKeycode; key++ {
+		if strings.TrimSpace(g.Input.GetBinding(key)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func ensureGameplayBindings() {
+	if hasAnyGameplayBindings() {
+		return
+	}
+	applyDefaultGameplayBindings()
 }
 
 func parseBindingKey(name string) (int, bool) {

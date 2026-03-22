@@ -238,13 +238,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: &hal.DepthStencilState{
-			Format:            worldDepthTextureFormat,
-			DepthWriteEnabled: false,
-			DepthCompare:      gputypes.CompareFunctionLessEqual,
-			StencilReadMask:   0xFFFFFFFF,
-			StencilWriteMask:  0xFFFFFFFF,
-		},
+		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &hal.FragmentState{
 			Module:     fragmentShader,

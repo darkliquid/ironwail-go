@@ -14,6 +14,7 @@ import (
 type TextSaveGameState struct {
 	Version     int
 	GameDir     string
+	Title       string
 	Skill       int
 	MapName     string
 	Time        float32
@@ -43,7 +44,7 @@ func ParseTextSaveGame(data []byte) (*TextSaveGameState, error) {
 		state.GameDir = line
 	}
 
-	text, _ = parseTextSaveLine(text) // save title / comment line
+	text, state.Title = parseTextSaveLine(text)
 	for i := 0; i < NumSpawnParms; i++ {
 		text, state.SpawnParms[i] = parseTextSaveFloatLine(text)
 	}

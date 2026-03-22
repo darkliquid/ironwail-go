@@ -76,6 +76,11 @@ func (gameCallbacks) GetEvents() {
 }
 
 func (gameCallbacks) ProcessConsoleCommands() {
+	if g.Subs != nil && g.Subs.Commands != nil {
+		g.Subs.Commands.Execute()
+	} else {
+		cmdsys.Execute()
+	}
 	host.DispatchLoopbackStuffText(g.Subs)
 }
 
@@ -94,6 +99,7 @@ func (gameCallbacks) ProcessClient() {
 		return
 	}
 	syncHostClientState()
+	prevState, prevSignon := currentRuntimeClientActivation()
 
 	// Handle demo playback
 	if g.Host != nil && g.Host.DemoState() != nil && g.Host.DemoState().Playback {
@@ -199,15 +205,33 @@ func (gameCallbacks) ProcessClient() {
 		_ = g.Subs.Client.ReadFromServer()
 		noteRuntimeServerMessage()
 		syncHostClientState()
+		applyRuntimeGameplayActivation(prevState, prevSignon)
 		recordRuntimeDemoFrame()
 		host.DispatchLoopbackStuffText(g.Subs)
 	default:
 		_ = g.Subs.Client.ReadFromServer()
 		noteRuntimeServerMessage()
 		syncHostClientState()
+		applyRuntimeGameplayActivation(prevState, prevSignon)
 		recordRuntimeDemoFrame()
 		host.DispatchLoopbackStuffText(g.Subs)
 		_ = g.Subs.Client.SendCommand()
+	}
+}
+
+func currentRuntimeClientActivation() (state cl.ClientState, signon int) {
+	if g.Client == nil {
+		return cl.StateDisconnected, 0
+	}
+	return g.Client.State, g.Client.Signon
+}
+
+func applyRuntimeGameplayActivation(prevState cl.ClientState, prevSignon int) {
+	if g.Client == nil {
+		return
+	}
+	if g.Client.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
+		applyStartupGameplayInputMode()
 	}
 }
 

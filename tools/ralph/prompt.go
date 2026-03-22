@@ -52,13 +52,25 @@ func runBuildPrompt(args []string) int {
 		return 1
 	}
 	verbosef("building prompt from summary=%s tasks=%s log=%s", *summaryPath, *tasksPath, *logPath)
-	if *maxTasks >= 0 && len(tasks) > *maxTasks {
-		verbosef("truncating task list from %d to %d entries", len(tasks), *maxTasks)
-		tasks = tasks[:*maxTasks]
-	}
-	for i, task := range tasks {
+	for i, task := range limitTasks(tasks, *maxTasks) {
 		verbosef("prompt task[%d] severity=%s title=%q", i, task.Severity, task.Title)
 	}
+
+	if err := ensureParentDirs(*outputPath); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return 1
+	}
+	if err := os.WriteFile(*outputPath, []byte(buildPromptText(summary, tasks, *logPath, *summaryPath, *tasksPath, *maxTasks)), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "write %s: %v\n", *outputPath, err)
+		return 1
+	}
+	verbosef("prompt output=%s", *outputPath)
+	fmt.Printf("Wrote Ralph Copilot prompt to %s\n", *outputPath)
+	return 0
+}
+
+func buildPromptText(summary summaryFile, tasks []taskRecord, logPath, summaryPath, tasksPath string, maxTasks int) string {
+	tasks = limitTasks(tasks, maxTasks)
 
 	var lines []string
 	lines = append(lines, "Work in the current repository and address the current Ralph telemetry findings.")
@@ -70,9 +82,9 @@ func runBuildPrompt(args []string) int {
 	lines = append(lines, "- Do not start another continuous loop from inside this Copilot run.")
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("Ralph iteration: %d", summary.Iteration))
-	lines = append(lines, fmt.Sprintf("Telemetry log: %s", *logPath))
-	lines = append(lines, fmt.Sprintf("Ralph summary JSON: %s", *summaryPath))
-	lines = append(lines, fmt.Sprintf("Ralph task JSON: %s", *tasksPath))
+	lines = append(lines, fmt.Sprintf("Telemetry log: %s", logPath))
+	lines = append(lines, fmt.Sprintf("Ralph summary JSON: %s", summaryPath))
+	lines = append(lines, fmt.Sprintf("Ralph task JSON: %s", tasksPath))
 	lines = append(lines, "")
 
 	if len(summary.SeverityCounts) > 0 {
@@ -119,18 +131,15 @@ func runBuildPrompt(args []string) int {
 	}
 
 	lines = append(lines, "After making changes, summarize what you changed and which validations you ran.")
+	return strings.Join(lines, "\n") + "\n"
+}
 
-	if err := ensureParentDirs(*outputPath); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return 1
+func limitTasks(tasks []taskRecord, maxTasks int) []taskRecord {
+	if maxTasks >= 0 && len(tasks) > maxTasks {
+		verbosef("truncating task list from %d to %d entries", len(tasks), maxTasks)
+		return tasks[:maxTasks]
 	}
-	if err := os.WriteFile(*outputPath, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "write %s: %v\n", *outputPath, err)
-		return 1
-	}
-	verbosef("prompt lines=%d output=%s", len(lines), *outputPath)
-	fmt.Printf("Wrote Ralph Copilot prompt to %s\n", *outputPath)
-	return 0
+	return tasks
 }
 
 func loadSummary(path string) (summaryFile, error) {

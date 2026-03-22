@@ -252,15 +252,15 @@ visual parity testing.
 
 | Tool | Description |
 |---|---|
-| `tasks/compare_parity.py` | Python script for C-to-Go function mapping audit. Parses C source and matches against Go implementations. |
-| `tasks/compare_parity.sh` | Shell wrapper / alternative for the same function-level parity comparison. |
+| `tools/compare_parity` | Go CLI for the C-to-Go function mapping audit. Parses C source and matches against Go implementations. |
+| `tasks/compare_parity.sh` | Shell wrapper that runs the Go parity-audit CLI. |
 
 ### Workflow Integration
 
 A typical parity validation session:
 
 1. **Smoke tests pass** → `mise run smoke-all`
-2. **Function audit clean** → `python3 tasks/compare_parity.py`
+2. **Function audit clean** → `go run ./tools/compare_parity`
 3. **Scene matrix captured** → Screenshots from both engines
 4. **RMSE + visual review** → Thresholds checked, human review done
 5. **Status table updated** → This document updated with results

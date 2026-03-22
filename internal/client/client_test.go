@@ -750,6 +750,59 @@ func TestParseEntityUpdateForceLinksWhenPreviousFrameMissing(t *testing.T) {
 	}
 }
 
+func TestParseEntityUpdateForceLinksWhenPreviousStateWasRetired(t *testing.T) {
+	c := NewClient()
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	c.Entities[1] = inet.EntityState{
+		ModelIndex: 0,
+		Origin:     [3]float32{111, 222, 333},
+		Angles:     [3]float32{1, 2, 3},
+		MsgOrigins: [2][3]float32{
+			{10, 20, 30},
+			{1, 2, 3},
+		},
+		MsgAngles: [2][3]float32{
+			{5, 6, 7},
+			{8, 9, 10},
+		},
+		MsgTime: 1.9,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(0x80 | inet.U_MOREBITS | inet.U_ORIGIN1 | inet.U_ORIGIN2 | inet.U_ORIGIN3))
+	msg.WriteByte(byte(inet.U_MODEL >> 8))
+	msg.WriteByte(1)
+	msg.WriteByte(2)
+	writeCoord(msg, 40)
+	writeCoord(msg, 50)
+	writeCoord(msg, 60)
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if !ent.ForceLink {
+		t.Fatal("ForceLink = false, want true when previous state was retired with ModelIndex 0")
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+		t.Fatalf("MsgOrigins[0] = %v, want latest raw origin [40 50 60]", got)
+	}
+	if got := ent.MsgOrigins[1]; got != ent.MsgOrigins[0] {
+		t.Fatalf("MsgOrigins[1] = %v, want snapped previous origin %v", got, ent.MsgOrigins[0])
+	}
+	if got := ent.Origin; got != ent.MsgOrigins[0] {
+		t.Fatalf("Origin = %v, want snapped origin %v", got, ent.MsgOrigins[0])
+	}
+}
+
 func TestParseEntityUpdateUsesBaselineForOmittedFitzFields(t *testing.T) {
 	c := NewClient()
 	c.Protocol = inet.PROTOCOL_FITZQUAKE

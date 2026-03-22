@@ -1355,7 +1355,7 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	forceLink := true
 	if current, ok := p.Client.Entities[entNum]; ok {
 		isNew = false
-		forceLink = current.MsgTime != p.Client.MTime[1]
+		forceLink = current.MsgTime != p.Client.MTime[1] || current.ModelIndex == 0
 		state.MsgOrigins = current.MsgOrigins
 		state.MsgAngles = current.MsgAngles
 		state.MsgTime = current.MsgTime

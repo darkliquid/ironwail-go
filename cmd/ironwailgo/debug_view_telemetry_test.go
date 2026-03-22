@@ -1,11 +1,80 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
+
+func TestRuntimeDebugViewLevelCachesPerFrame(t *testing.T) {
+	originalCVar := debugViewTelemetryCVar
+	originalState := runtimeDebugView
+	t.Cleanup(func() {
+		debugViewTelemetryCVar = originalCVar
+		runtimeDebugView = originalState
+	})
+
+	debugViewTelemetryCVar = cvar.Register("cl_debug_view_test_cache", "2", 0, "")
+	runtimeDebugView = debugViewTelemetryState{}
+
+	runtimeDebugViewBeginFrame()
+	if !runtimeDebugViewEnabled(2) {
+		t.Fatal("expected debug level 2 to be enabled after frame start")
+	}
+
+	debugViewTelemetryCVar.Int = 0
+	if !runtimeDebugViewEnabled(2) {
+		t.Fatal("expected cached debug level to remain enabled within the same frame")
+	}
+
+	runtimeDebugViewBeginFrame()
+	if runtimeDebugViewEnabled(1) {
+		t.Fatal("expected debug level cache to refresh on the next frame")
+	}
+}
+
+func TestRuntimeDebugViewLogfCoalescesDuplicatePayloadsAcrossFrames(t *testing.T) {
+	originalCVar := debugViewTelemetryCVar
+	originalState := runtimeDebugView
+	originalEmit := debugViewTelemetryEmit
+	originalClient := g.Client
+	t.Cleanup(func() {
+		debugViewTelemetryCVar = originalCVar
+		runtimeDebugView = originalState
+		debugViewTelemetryEmit = originalEmit
+		g.Client = originalClient
+	})
+
+	debugViewTelemetryCVar = cvar.Register("cl_debug_view_test_coalesce", "2", 0, "")
+	runtimeDebugView = debugViewTelemetryState{}
+	g.Client = cl.NewClient()
+	g.Client.Time = 1
+
+	var lines []string
+	debugViewTelemetryEmit = func(line string) {
+		lines = append(lines, line)
+	}
+
+	runtimeDebugViewBeginFrame()
+	runtimeDebugViewLogf("origin_select", "source=%s reject=%s", "authoritative_only", "teleport_gate")
+	runtimeDebugViewLogf("origin_select", "source=%s reject=%s", "authoritative_only", "teleport_gate")
+	runtimeDebugViewLogf("origin_select", "source=%s reject=%s", "authoritative_only", "teleport_gate")
+	g.Client.Time = 2
+	runtimeDebugViewBeginFrame()
+
+	if len(lines) != 2 {
+		t.Fatalf("logged %d lines, want 2 (%v)", len(lines), lines)
+	}
+	if !strings.Contains(lines[0], "kind=origin_select") || !strings.Contains(lines[0], "source=authoritative_only reject=teleport_gate") {
+		t.Fatalf("first line = %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "kind=origin_select") || !strings.Contains(lines[1], "repeated x2") {
+		t.Fatalf("repeat line = %q", lines[1])
+	}
+}
 
 func TestRuntimePlayerOriginTelemetryUsesAuthoritativeOriginWhenPredictionAccepted(t *testing.T) {
 	originalClient := g.Client

@@ -98,6 +98,48 @@ func TestGoGPUSharedDepthStencilClearAttachmentForView(t *testing.T) {
 	}
 }
 
+func TestGoGPUNonDecalDepthStencilStateDisablesStencil(t *testing.T) {
+	state := gogpuNonDecalDepthStencilState(true)
+	if state == nil {
+		t.Fatal("gogpuNonDecalDepthStencilState() = nil")
+	}
+	if state.Format != worldDepthTextureFormat {
+		t.Fatalf("Format = %v, want %v", state.Format, worldDepthTextureFormat)
+	}
+	if !state.DepthWriteEnabled {
+		t.Fatal("DepthWriteEnabled = false, want true")
+	}
+	if state.DepthCompare != gputypes.CompareFunctionLessEqual {
+		t.Fatalf("DepthCompare = %v, want %v", state.DepthCompare, gputypes.CompareFunctionLessEqual)
+	}
+	for _, face := range []struct {
+		name  string
+		state hal.StencilFaceState
+	}{
+		{name: "front", state: state.StencilFront},
+		{name: "back", state: state.StencilBack},
+	} {
+		if face.state.Compare != gputypes.CompareFunctionAlways {
+			t.Fatalf("%s.Compare = %v, want %v", face.name, face.state.Compare, gputypes.CompareFunctionAlways)
+		}
+		if face.state.FailOp != hal.StencilOperationKeep {
+			t.Fatalf("%s.FailOp = %v, want %v", face.name, face.state.FailOp, hal.StencilOperationKeep)
+		}
+		if face.state.DepthFailOp != hal.StencilOperationKeep {
+			t.Fatalf("%s.DepthFailOp = %v, want %v", face.name, face.state.DepthFailOp, hal.StencilOperationKeep)
+		}
+		if face.state.PassOp != hal.StencilOperationKeep {
+			t.Fatalf("%s.PassOp = %v, want %v", face.name, face.state.PassOp, hal.StencilOperationKeep)
+		}
+	}
+	if state.StencilReadMask != 0 {
+		t.Fatalf("StencilReadMask = %#x, want 0", state.StencilReadMask)
+	}
+	if state.StencilWriteMask != 0 {
+		t.Fatalf("StencilWriteMask = %#x, want 0", state.StencilWriteMask)
+	}
+}
+
 func TestWorldSceneUniformBytesEncodesFog(t *testing.T) {
 	vp := types.Mat4{
 		1, 0, 0, 0,

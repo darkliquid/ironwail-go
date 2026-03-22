@@ -166,14 +166,7 @@ func runLoop(args []string) int {
 				fmt.Fprintf(os.Stderr, "read %s: %v\n", promptFile, err)
 				return 1
 			}
-			copilotArgs := []string{
-				"-p", string(promptBytes),
-				"--model", copilotModel,
-				"--allow-all",
-				"--no-ask-user",
-				"--no-auto-update",
-			}
-			copilotArgs = append(copilotArgs, copilotExtraArgs...)
+			copilotArgs := buildCopilotArgs(string(promptBytes), copilotModel, copilotExtraArgs)
 			fmt.Printf("Ralph loop: invoking Copilot with prompt %s\n", promptFile)
 			verbosef("copilot command=%s %s", copilotBin, strings.Join(copilotArgs[2:], " "))
 			status := runToFile(projectDir, copilotLog, copilotBin, copilotArgs...)
@@ -193,6 +186,17 @@ func runLoop(args []string) int {
 		verbosef("sleeping for %d seconds before next iteration", sleepSeconds)
 		time.Sleep(time.Duration(sleepSeconds) * time.Second)
 	}
+}
+
+func buildCopilotArgs(prompt, model string, extraArgs []string) []string {
+	args := []string{
+		"-p", prompt,
+		"--model", model,
+		"--allow-all",
+		"--no-ask-user",
+		"--no-auto-update",
+	}
+	return append(args, extraArgs...)
 }
 
 func runEngine(engineBin, quakeDir, logPath string, timeoutSeconds int, args ...string) int {

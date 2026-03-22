@@ -913,20 +913,28 @@ func (h *Host) ListSaveSlots(count int) []SaveSlotInfo {
 			DisplayName: unusedSaveSlotDisplay,
 		}
 
-		_, data, err := h.readSaveFile(slotName, loadSaveOptions{})
+		foundPath, data, err := h.readSaveFile(slotName, loadSaveOptions{})
 		if err != nil {
 			slots = append(slots, slot)
 			continue
 		}
 
-		var save hostSaveFile
-		if err := json.Unmarshal(data, &save); err != nil {
+		options := h.effectiveLoadSaveOptions(slotName, foundPath, loadSaveOptions{})
+		decoded, err := decodeHostSaveFile(data, options)
+		if err != nil {
 			slots = append(slots, slot)
 			continue
 		}
 
-		if save.Server != nil {
-			if mapName := strings.TrimSpace(save.Server.MapName); mapName != "" {
+		switch {
+		case decoded.native != nil && decoded.native.Server != nil:
+			if mapName := strings.TrimSpace(decoded.native.Server.MapName); mapName != "" {
+				slot.DisplayName = mapName
+			}
+		case decoded.text != nil:
+			if title := strings.TrimSpace(decoded.text.Title); title != "" {
+				slot.DisplayName = title
+			} else if mapName := strings.TrimSpace(decoded.text.MapName); mapName != "" {
 				slot.DisplayName = mapName
 			}
 		}

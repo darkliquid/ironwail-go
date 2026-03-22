@@ -86,8 +86,15 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		}
 		return
 	}
-	if len(args) == 1 && strings.EqualFold(filename, legacyConfigName) && h.configFileExists(configFileName, subs) {
+	if len(args) == 1 && strings.EqualFold(filename, legacyConfigName) && h.userConfigFileExists(configFileName) {
 		filename = configFileName
+	}
+	if builtin, ok := builtinExecConfigText(filename); ok {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
+		}
+		executeConfigText(subs, builtin)
+		return
 	}
 
 	var (
@@ -141,6 +148,19 @@ func (h *Host) configFileExists(filename string, subs *Subsystems) bool {
 		}
 	}
 	return subs != nil && subs.Files != nil && subs.Files.FileExists(filename)
+}
+
+func (h *Host) userConfigFileExists(filename string) bool {
+	switch {
+	case filepath.IsAbs(filename):
+		_, err := os.Stat(filename)
+		return err == nil
+	case h.userDir != "":
+		_, err := os.Stat(filepath.Join(h.userDir, filename))
+		return err == nil
+	default:
+		return false
+	}
 }
 
 func (h *Host) CmdEcho(args []string, subs *Subsystems) {

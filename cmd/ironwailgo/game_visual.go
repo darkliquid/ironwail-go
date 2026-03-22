@@ -96,9 +96,6 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 
 	if g.Client == nil || g.Client.State != cl.StateActive {
 		g.RuntimeBeams = nil
-		if g.Renderer != nil {
-			g.Renderer.ClearDynamicLights()
-		}
 		if (g.Particles != nil && g.Particles.ActiveCount() > 0) || (g.DecalMarks != nil && g.DecalMarks.ActiveCount() > 0) {
 			resetRuntimeVisualState()
 		}
@@ -160,14 +157,8 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 		g.Client.TrailEvents = nil
 	}
 
-	effectSources := collectEntityEffectSources()
-
-	if g.Renderer != nil {
-		g.Renderer.UpdateLights(float32(dt))
-		renderer.EmitDynamicLights(g.Renderer.SpawnDynamicLight, tempEntities)
-		renderer.EmitEntityEffectLights(g.Renderer.SpawnKeyedDynamicLight, effectSources)
-	}
 	if g.Particles != nil {
+		effectSources := collectEntityEffectSources()
 		renderer.EmitClientEffects(g.Particles, particleEvents, trailEvents, tempEntities, g.ParticleRNG, g.ParticleTime)
 		renderer.EmitEntityEffectParticles(g.Particles, effectSources, g.ParticleTime)
 		g.Particles.RunParticles(g.ParticleTime, oldTime, 800)
@@ -194,10 +185,29 @@ func syncRuntimeSkybox() {
 	if g.Client != nil && g.Client.State == cl.StateActive {
 		skyboxName = g.Client.SkyboxName
 	}
-	if skyboxName == g.SkyboxNameKey {
+	g.SkyboxNameKey = skyboxName
+}
+
+func applyRuntimeRendererVisualEffects(dt float64, transientEvents cl.TransientEvents) {
+	if g.Renderer == nil {
 		return
 	}
-	g.SkyboxNameKey = skyboxName
+
+	if g.Client == nil || g.Client.State != cl.StateActive {
+		g.Renderer.ClearDynamicLights()
+		return
+	}
+
+	g.Renderer.UpdateLights(float32(dt))
+	renderer.EmitDynamicLights(g.Renderer.SpawnDynamicLight, transientEvents.TempEntities)
+	renderer.EmitEntityEffectLights(g.Renderer.SpawnKeyedDynamicLight, collectEntityEffectSources())
+}
+
+func applyRuntimeRendererSkybox() {
+	if g.Renderer == nil {
+		return
+	}
+	skyboxName := g.SkyboxNameKey
 	if skyboxName == "" || g.Subs == nil || g.Subs.Files == nil {
 		g.Renderer.SetExternalSkybox("", nil)
 		return

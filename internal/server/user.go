@@ -920,6 +920,7 @@ func (s *Server) runClientPutInServerQC(client *Client) error {
 	if client.Edict.Vars.Health <= 0 || s.GetString(client.Edict.Vars.ClassName) == "" {
 		return s.initClientSpawnFallback(client)
 	}
+	s.LinkEdict(client.Edict, true)
 	return nil
 }
 

@@ -68,6 +68,9 @@ func (s *Server) RunThink(ent *Edict) bool {
 
 // Impact runs touch functions for two entities that have collided.
 func (s *Server) Impact(e1, e2 *Edict) {
+	if s == nil || s.QCVM == nil || s.suppressTouchQC {
+		return
+	}
 	ctx := captureQCExecutionContext(s.QCVM)
 	defer restoreQCExecutionContext(s.QCVM, ctx)
 	e1Num := s.NumForEdict(e1)

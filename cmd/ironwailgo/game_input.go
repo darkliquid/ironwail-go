@@ -10,6 +10,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/input"
+	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
 func handleGameKeyEvent(event input.KeyEvent) {
@@ -127,6 +128,19 @@ func handleDemoPlaybackKeyEvent(event input.KeyEvent) bool {
 	return false
 }
 
+func backspaceChatInput() {
+	if len(chatBuffer) > 0 {
+		chatBuffer = chatBuffer[:len(chatBuffer)-1]
+	}
+}
+
+func armRuntimeTextEditRepeat(key int) {
+	g.TextEditRepeat = runtimeTextEditRepeatState{
+		key:       key,
+		nextDelay: 0.45,
+	}
+}
+
 func refreshDemoPlaybackSpeed() {
 	if g.Input == nil {
 		return
@@ -145,7 +159,17 @@ func handleMenuKeyEvent(event input.KeyEvent) {
 	if !event.Down || g.Menu == nil {
 		return
 	}
+	if event.Key == int('`') && !g.Menu.WaitingForKeyBinding() {
+		cmdToggleConsole(nil)
+		return
+	}
 	g.Menu.M_Key(event.Key)
+	if g.Input != nil && !g.Menu.IsActive() {
+		syncGameplayInputMode()
+		if g.Input.GetKeyDest() == input.KeyGame {
+			g.Input.ClearKeyStates()
+		}
+	}
 }
 
 func handleMenuCharEvent(ch rune) {
@@ -202,6 +226,7 @@ func handleConsoleKeyEvent(event input.KeyEvent) {
 		}
 		console.SetInputLine(completed)
 	case input.KBackspace:
+		armRuntimeTextEditRepeat(input.KBackspace)
 		console.BackspaceInput()
 	case input.KUpArrow:
 		console.PreviousHistory()
@@ -242,9 +267,46 @@ func handleMessageKeyEvent(event input.KeyEvent) {
 			}
 		}
 	case input.KBackspace:
-		if len(chatBuffer) > 0 {
-			chatBuffer = chatBuffer[:len(chatBuffer)-1]
+		armRuntimeTextEditRepeat(input.KBackspace)
+		backspaceChatInput()
+	}
+}
+
+func updateRuntimeTextEditRepeat(dt float64) {
+	if g.Input == nil || dt <= 0 {
+		g.TextEditRepeat = runtimeTextEditRepeatState{}
+		return
+	}
+
+	activeKey := 0
+	var repeatAction func()
+	switch g.Input.GetKeyDest() {
+	case input.KeyConsole:
+		if g.Input.IsKeyDown(input.KBackspace) {
+			activeKey = input.KBackspace
+			repeatAction = console.BackspaceInput
 		}
+	case input.KeyMessage:
+		if g.Input.IsKeyDown(input.KBackspace) {
+			activeKey = input.KBackspace
+			repeatAction = backspaceChatInput
+		}
+	}
+
+	if activeKey == 0 || repeatAction == nil {
+		g.TextEditRepeat = runtimeTextEditRepeatState{}
+		return
+	}
+	if g.TextEditRepeat.key != activeKey {
+		g.TextEditRepeat.key = activeKey
+		g.TextEditRepeat.nextDelay = 0.45
+		return
+	}
+
+	g.TextEditRepeat.nextDelay -= dt
+	for g.TextEditRepeat.nextDelay <= 0 {
+		repeatAction()
+		g.TextEditRepeat.nextDelay += 0.05
 	}
 }
 
@@ -309,19 +371,18 @@ func screenToMenuCoords(screenX, screenY int) (menuX, menuY int, ok bool) {
 			screenW, screenH = w, h
 		}
 	}
-	sx := float32(screenW) / 320.0
-	sy := float32(screenH) / 200.0
-	scale := sx
-	if sy < scale {
-		scale = sy
-	}
-	if scale <= 0 {
+	params := runtimeOverlayCanvasParams(screenW, screenH)
+	if params.GLWidth <= 0 || params.GLHeight <= 0 {
 		return 0, 0, false
 	}
-	xOff := (float32(screenW) - 320.0*scale) * 0.5
-	yOff := (float32(screenH) - 200.0*scale) * 0.5
-	menuXF := (float32(screenX) - xOff) / scale
-	menuYF := (float32(screenY) - yOff) / scale
+	transform := renderer.GetCanvasTransform(renderer.CanvasMenu, params)
+	if transform.Scale[0] == 0 || transform.Scale[1] == 0 {
+		return 0, 0, false
+	}
+	ndcX := (float32(screenX)+0.5)*2/params.GLWidth - 1
+	ndcY := 1 - (float32(screenY)+0.5)*2/params.GLHeight
+	menuXF := (ndcX - transform.Offset[0]) / transform.Scale[0]
+	menuYF := (ndcY - transform.Offset[1]) / transform.Scale[1]
 	if menuXF < 0 || menuXF >= 320 || menuYF < 0 || menuYF >= 200 {
 		return 0, 0, false
 	}

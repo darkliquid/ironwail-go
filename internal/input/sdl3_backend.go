@@ -280,49 +280,7 @@ func (b *sdl3Backend) PollEvents() bool {
 		case sdl.EVENT_KEY_DOWN, sdl.EVENT_KEY_UP:
 			ke := event.KeyboardEvent()
 			down := ke.Down
-			sym := ke.Key
-			var key int
-			switch sym {
-			case sdl.K_W:
-				key = int('w')
-			case sdl.K_A:
-				key = int('a')
-			case sdl.K_S:
-				key = int('s')
-			case sdl.K_D:
-				key = int('d')
-			case sdl.K_SPACE:
-				key = KSpace
-			case sdl.K_ESCAPE:
-				key = KEscape
-			case sdl.K_RETURN, sdl.K_KP_ENTER:
-				key = KEnter
-			case sdl.K_TAB:
-				key = KTab
-			case sdl.K_UP:
-				key = KUpArrow
-			case sdl.K_DOWN:
-				key = KDownArrow
-			case sdl.K_LEFT:
-				key = KLeftArrow
-			case sdl.K_RIGHT:
-				key = KRightArrow
-			case sdl.K_LSHIFT, sdl.K_RSHIFT:
-				key = KShift
-			case sdl.K_LCTRL, sdl.K_RCTRL:
-				key = KCtrl
-			case sdl.K_LALT, sdl.K_RALT:
-				key = KAlt
-			default:
-				if sym >= sdl.K_A && sym <= sdl.K_Z {
-					// map to lowercase ASCII
-					key = int('a' + (sym - sdl.K_A))
-				} else if sym >= sdl.K_0 && sym <= sdl.K_9 {
-					key = int(sym)
-				} else {
-					key = 0
-				}
-			}
+			key := mapSDLKeyboardKey(ke.Scancode, ke.Key)
 			if key != 0 {
 				b.sys.HandleKeyEvent(KeyEvent{Key: key, Down: down, Device: DeviceKeyboard})
 			}
@@ -454,6 +412,239 @@ func (b *sdl3Backend) PollEvents() bool {
 		}
 	}
 	return true
+}
+
+func mapSDLKeyboardKey(scancode sdl.Scancode, sym sdl.Keycode) int {
+	switch scancode {
+	case sdl.SCANCODE_A:
+		return int('a')
+	case sdl.SCANCODE_B:
+		return int('b')
+	case sdl.SCANCODE_C:
+		return int('c')
+	case sdl.SCANCODE_D:
+		return int('d')
+	case sdl.SCANCODE_E:
+		return int('e')
+	case sdl.SCANCODE_F:
+		return int('f')
+	case sdl.SCANCODE_G:
+		return int('g')
+	case sdl.SCANCODE_H:
+		return int('h')
+	case sdl.SCANCODE_I:
+		return int('i')
+	case sdl.SCANCODE_J:
+		return int('j')
+	case sdl.SCANCODE_K:
+		return int('k')
+	case sdl.SCANCODE_L:
+		return int('l')
+	case sdl.SCANCODE_M:
+		return int('m')
+	case sdl.SCANCODE_N:
+		return int('n')
+	case sdl.SCANCODE_O:
+		return int('o')
+	case sdl.SCANCODE_P:
+		return int('p')
+	case sdl.SCANCODE_Q:
+		return int('q')
+	case sdl.SCANCODE_R:
+		return int('r')
+	case sdl.SCANCODE_S:
+		return int('s')
+	case sdl.SCANCODE_T:
+		return int('t')
+	case sdl.SCANCODE_U:
+		return int('u')
+	case sdl.SCANCODE_V:
+		return int('v')
+	case sdl.SCANCODE_W:
+		return int('w')
+	case sdl.SCANCODE_X:
+		return int('x')
+	case sdl.SCANCODE_Y:
+		return int('y')
+	case sdl.SCANCODE_Z:
+		return int('z')
+	case sdl.SCANCODE_0:
+		return int('0')
+	case sdl.SCANCODE_1:
+		return int('1')
+	case sdl.SCANCODE_2:
+		return int('2')
+	case sdl.SCANCODE_3:
+		return int('3')
+	case sdl.SCANCODE_4:
+		return int('4')
+	case sdl.SCANCODE_5:
+		return int('5')
+	case sdl.SCANCODE_6:
+		return int('6')
+	case sdl.SCANCODE_7:
+		return int('7')
+	case sdl.SCANCODE_8:
+		return int('8')
+	case sdl.SCANCODE_9:
+		return int('9')
+	case sdl.SCANCODE_SPACE:
+		return KSpace
+	case sdl.SCANCODE_RETURN, sdl.SCANCODE_KP_ENTER:
+		return KEnter
+	case sdl.SCANCODE_ESCAPE:
+		return KEscape
+	case sdl.SCANCODE_TAB:
+		return KTab
+	case sdl.SCANCODE_BACKSPACE:
+		return KBackspace
+	case sdl.SCANCODE_UP:
+		return KUpArrow
+	case sdl.SCANCODE_DOWN:
+		return KDownArrow
+	case sdl.SCANCODE_LEFT:
+		return KLeftArrow
+	case sdl.SCANCODE_RIGHT:
+		return KRightArrow
+	case sdl.SCANCODE_LSHIFT, sdl.SCANCODE_RSHIFT:
+		return KShift
+	case sdl.SCANCODE_LCTRL, sdl.SCANCODE_RCTRL:
+		return KCtrl
+	case sdl.SCANCODE_LALT, sdl.SCANCODE_RALT:
+		return KAlt
+	case sdl.SCANCODE_LGUI, sdl.SCANCODE_RGUI:
+		return KCommand
+	case sdl.SCANCODE_CAPSLOCK:
+		return KCapsLock
+	case sdl.SCANCODE_SCROLLLOCK:
+		return KScrollLock
+	case sdl.SCANCODE_PRINTSCREEN:
+		return KPrintScreen
+	case sdl.SCANCODE_PAUSE:
+		return KPause
+	case sdl.SCANCODE_INSERT:
+		return KIns
+	case sdl.SCANCODE_DELETE:
+		return KDel
+	case sdl.SCANCODE_HOME:
+		return KHome
+	case sdl.SCANCODE_END:
+		return KEnd
+	case sdl.SCANCODE_PAGEUP:
+		return KPgUp
+	case sdl.SCANCODE_PAGEDOWN:
+		return KPgDn
+	case sdl.SCANCODE_MINUS:
+		return int('-')
+	case sdl.SCANCODE_EQUALS:
+		return int('=')
+	case sdl.SCANCODE_LEFTBRACKET:
+		return int('[')
+	case sdl.SCANCODE_RIGHTBRACKET:
+		return int(']')
+	case sdl.SCANCODE_BACKSLASH:
+		return int('\\')
+	case sdl.SCANCODE_SEMICOLON:
+		return int(';')
+	case sdl.SCANCODE_APOSTROPHE:
+		return int('\'')
+	case sdl.SCANCODE_GRAVE:
+		return int('`')
+	case sdl.SCANCODE_COMMA:
+		return int(',')
+	case sdl.SCANCODE_PERIOD:
+		return int('.')
+	case sdl.SCANCODE_SLASH:
+		return int('/')
+	case sdl.SCANCODE_F1:
+		return KF1
+	case sdl.SCANCODE_F2:
+		return KF2
+	case sdl.SCANCODE_F3:
+		return KF3
+	case sdl.SCANCODE_F4:
+		return KF4
+	case sdl.SCANCODE_F5:
+		return KF5
+	case sdl.SCANCODE_F6:
+		return KF6
+	case sdl.SCANCODE_F7:
+		return KF7
+	case sdl.SCANCODE_F8:
+		return KF8
+	case sdl.SCANCODE_F9:
+		return KF9
+	case sdl.SCANCODE_F10:
+		return KF10
+	case sdl.SCANCODE_F11:
+		return KF11
+	case sdl.SCANCODE_F12:
+		return KF12
+	case sdl.SCANCODE_NUMLOCKCLEAR:
+		return KKpNumLock
+	case sdl.SCANCODE_KP_DIVIDE:
+		return KKpSlash
+	case sdl.SCANCODE_KP_MULTIPLY:
+		return KKpStar
+	case sdl.SCANCODE_KP_MINUS:
+		return KKpMinus
+	case sdl.SCANCODE_KP_PLUS:
+		return KKpPlus
+	case sdl.SCANCODE_KP_0:
+		return KKpIns
+	case sdl.SCANCODE_KP_1:
+		return KKpEnd
+	case sdl.SCANCODE_KP_2:
+		return KKpDownArrow
+	case sdl.SCANCODE_KP_3:
+		return KKpPgDn
+	case sdl.SCANCODE_KP_4:
+		return KKpLeftArrow
+	case sdl.SCANCODE_KP_5:
+		return KKp5
+	case sdl.SCANCODE_KP_6:
+		return KKpRightArrow
+	case sdl.SCANCODE_KP_7:
+		return KKpHome
+	case sdl.SCANCODE_KP_8:
+		return KKpUpArrow
+	case sdl.SCANCODE_KP_9:
+		return KKpPgUp
+	case sdl.SCANCODE_KP_PERIOD:
+		return KKpDel
+	}
+
+	switch sym {
+	case sdl.K_GRAVE:
+		return int('`')
+	case sdl.K_APOSTROPHE:
+		return int('\'')
+	case sdl.K_COMMA:
+		return int(',')
+	case sdl.K_MINUS:
+		return int('-')
+	case sdl.K_PERIOD:
+		return int('.')
+	case sdl.K_SLASH:
+		return int('/')
+	case sdl.K_SEMICOLON:
+		return int(';')
+	case sdl.K_EQUALS:
+		return int('=')
+	case sdl.K_LEFTBRACKET:
+		return int('[')
+	case sdl.K_BACKSLASH:
+		return int('\\')
+	case sdl.K_RIGHTBRACKET:
+		return int(']')
+	}
+	if sym >= sdl.K_A && sym <= sdl.K_Z {
+		return int('a' + (sym - sdl.K_A))
+	}
+	if sym >= sdl.K_0 && sym <= sdl.K_9 {
+		return int(sym)
+	}
+	return 0
 }
 
 // GetMouseDelta returns the accumulated mouse movement since the last call and

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
@@ -85,6 +86,7 @@ type Game struct {
 	ZoomDir float32
 
 	ConsoleSlideFraction float32
+	TextEditRepeat       runtimeTextEditRepeatState
 	FPSOverlay           runtimeFPSOverlay
 	SpeedOverlay         runtimeSpeedOverlay
 	DemoOverlay          runtimeDemoOverlay
@@ -108,6 +110,11 @@ type runtimeFPSOverlay struct {
 	oldTime       float64
 	lastFPS       float64
 	oldFrameCount int
+}
+
+type runtimeTextEditRepeatState struct {
+	key       int
+	nextDelay float64
 }
 
 type runtimeSpeedOverlay struct {
@@ -192,13 +199,13 @@ func (globalCommandBuffer) InsertText(text string) {
 func (globalCommandBuffer) Shutdown() {}
 
 func runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
-	guiW := cvar.IntValue("vid_width")
-	guiH := cvar.IntValue("vid_height")
+	guiW := framebufferW
+	guiH := framebufferH
 	if guiW <= 0 {
-		guiW = framebufferW
+		guiW = cvar.IntValue("vid_width")
 	}
 	if guiH <= 0 {
-		guiH = framebufferH
+		guiH = cvar.IntValue("vid_height")
 	}
 	pixelAspect := currentRuntimePixelAspect()
 	if pixelAspect > 1 {
@@ -236,7 +243,7 @@ func runtimeConsoleDimensions(guiW, guiH int) (int, int) {
 	return conWidth, conHeight
 }
 
-func runtimeConsoleCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
+func runtimeCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
 	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
 	conW, conH := runtimeConsoleDimensions(guiW, guiH)
 	return renderer.CanvasTransformParams{
@@ -246,8 +253,19 @@ func runtimeConsoleCanvasParams(framebufferW, framebufferH int, slideFraction fl
 		GLHeight:         float32(framebufferH),
 		ConWidth:         float32(conW),
 		ConHeight:        float32(conH),
+		MenuScale:        float32(cvar.FloatValue("scr_menuscale")),
+		SbarScale:        float32(cvar.FloatValue("scr_sbarscale")),
+		CrosshairScale:   float32(cvar.FloatValue("scr_crosshairscale")),
 		ConSlideFraction: slideFraction,
 	}
+}
+
+func runtimeOverlayCanvasParams(framebufferW, framebufferH int) renderer.CanvasTransformParams {
+	return runtimeCanvasParams(framebufferW, framebufferH, clampUnitFloat32(g.ConsoleSlideFraction))
+}
+
+func runtimeConsoleCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
+	return runtimeCanvasParams(framebufferW, framebufferH, slideFraction)
 }
 
 func runtimeConsoleBackgroundPic() *qimage.QPic {
@@ -687,6 +705,9 @@ func main() {
 		cb := gameCallbacks{}
 		var screenshotErr error
 		screenshotCaptured := false
+		var pendingRendererMu sync.Mutex
+		var pendingRendererDT float64
+		var pendingRendererEvents cl.TransientEvents
 		// Set up renderer callbacks
 		g.Renderer.OnUpdate(func(dt float64) {
 			pollRuntimeInputEvents()
@@ -694,6 +715,7 @@ func main() {
 				syncGameplayInputMode()
 				applyMenuMouseMove()
 				applyGameplayMouseLook()
+				updateRuntimeTextEditRepeat(dt)
 			}
 			consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
 			conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
@@ -707,17 +729,11 @@ func main() {
 				return
 			}
 
-			// Update camera from client state each frame
-			// This is the critical rendering path for M4: view setup
-			if g.Renderer != nil {
-				origin, angles := runtimeViewState()
-				camera := runtimeCameraState(origin, angles)
-
-				// Update renderer matrices (near=0.1, far=4096 for Quake world)
-				g.Renderer.UpdateCamera(camera, 0.1, 4096.0)
-			}
-
 			syncRuntimeVisualEffects(dt, transientEvents)
+			pendingRendererMu.Lock()
+			pendingRendererDT = dt
+			pendingRendererEvents = transientEvents
+			pendingRendererMu.Unlock()
 		})
 		g.Renderer.OnDraw(func(dc renderer.RenderContext) {
 			if screenshotMode && !screenshotCaptured {
@@ -728,6 +744,18 @@ func main() {
 						g.Renderer.Stop()
 					}
 				}()
+			}
+
+			if g.Renderer != nil {
+				pendingRendererMu.Lock()
+				renderDT := pendingRendererDT
+				renderEvents := pendingRendererEvents
+				pendingRendererMu.Unlock()
+				origin, angles := runtimeViewState()
+				camera := runtimeCameraState(origin, angles)
+				g.Renderer.UpdateCamera(camera, 0.1, 4096.0)
+				applyRuntimeRendererVisualEffects(renderDT, renderEvents)
+				applyRuntimeRendererSkybox()
 			}
 
 			if g.Renderer != nil && g.Server != nil && g.Server.WorldTree != nil &&
@@ -749,6 +777,9 @@ func main() {
 				drawCtx.RenderFrame(state, func(overlay renderer.RenderContext) {
 					w, h := g.Renderer.Size()
 					consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
+					if setter, ok := overlay.(canvasParamSetter); ok {
+						setter.SetCanvasParams(runtimeOverlayCanvasParams(w, h))
+					}
 
 					// con_forcedup: when disconnected or not fully signed on,
 					// force full console behind everything (mirrors C Ironwail
@@ -848,6 +879,9 @@ func main() {
 			dc.Clear(0, 0, 0, 1)
 			dc.SetCanvas(renderer.CanvasDefault)
 			w, h := g.Renderer.Size()
+			if setter, ok := dc.(canvasParamSetter); ok {
+				setter.SetCanvasParams(runtimeOverlayCanvasParams(w, h))
+			}
 			if g.Host != nil && g.Host.LoadingPlaqueActive(0) {
 				drawLoadingPlaque(dc, g.Draw)
 				return
@@ -1006,13 +1040,13 @@ func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 }
 
 func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) renderer.ViewRect {
-	vidW := cvar.IntValue("vid_width")
+	vidW := framebufferW
 	if vidW <= 0 {
-		vidW = framebufferW
+		vidW = cvar.IntValue("vid_width")
 	}
-	vidH := cvar.IntValue("vid_height")
+	vidH := framebufferH
 	if vidH <= 0 {
-		vidH = framebufferH
+		vidH = cvar.IntValue("vid_height")
 	}
 	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
 	conW, conH := runtimeConsoleDimensions(guiW, guiH)
@@ -1471,6 +1505,9 @@ func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
 func drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer.RenderContext)) {
 	if rc == nil || drawMenu == nil {
 		return
+	}
+	if setter, ok := rc.(canvasParamSetter); ok {
+		setter.SetCanvasParams(runtimeOverlayCanvasParams(w, h))
 	}
 	drawMenuBackdrop(rc, w, h)
 	rc.SetCanvas(renderer.CanvasMenu)

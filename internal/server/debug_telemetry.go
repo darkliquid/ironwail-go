@@ -170,6 +170,8 @@ type DebugTelemetry struct {
 	configProvider func() DebugTelemetryConfig
 	batchOutput    bool
 	pendingLines   []string
+	currentConfig  DebugTelemetryConfig
+	configLoaded   bool
 
 	frameIndex  uint64
 	serverTime  float32
@@ -207,6 +209,7 @@ func NewDebugTelemetryWithConfig(configProvider func() DebugTelemetryConfig, emi
 func (t *DebugTelemetry) BeginFrame(serverTime, frameTime float32) {
 	t.flushCoalescedRepeats()
 	t.flushPendingLines()
+	t.reloadConfig()
 	t.frameIndex++
 	t.serverTime = serverTime
 	t.frameTime = frameTime
@@ -217,7 +220,7 @@ func (t *DebugTelemetry) BeginFrame(serverTime, frameTime float32) {
 
 func (t *DebugTelemetry) EndFrame() {
 	t.flushCoalescedRepeats()
-	cfg := t.configProvider()
+	cfg := t.currentDebugConfig()
 	if !cfg.AnyEnabled() || cfg.SummaryMode == 0 {
 		t.flushPendingLines()
 		return
@@ -252,11 +255,11 @@ func (t *DebugTelemetry) EventsEnabled() bool {
 	if debugTelemetryEnableCVar != nil {
 		return debugTelemetryEnableCVar.Bool()
 	}
-	return t.configProvider().Enabled
+	return t.currentDebugConfig().Enabled
 }
 
 func (t *DebugTelemetry) ShouldLogEvent(kind DebugEventKind, vm *qc.VM, entNum int, ent *Edict) bool {
-	cfg := t.configProvider()
+	cfg := t.currentDebugConfig()
 	if !cfg.Enabled {
 		return false
 	}
@@ -264,7 +267,7 @@ func (t *DebugTelemetry) ShouldLogEvent(kind DebugEventKind, vm *qc.VM, entNum i
 }
 
 func (t *DebugTelemetry) ShouldLogQCEvent(vm *qc.VM, entNum int, ent *Edict, verbosity int) bool {
-	cfg := t.configProvider()
+	cfg := t.currentDebugConfig()
 	if !cfg.QCTrace || verbosity > cfg.QCVerbosity {
 		return false
 	}
@@ -275,7 +278,7 @@ func (t *DebugTelemetry) QCTraceVerbosityEnabled(verbosity int) bool {
 	if t == nil {
 		return false
 	}
-	cfg := t.configProvider()
+	cfg := t.currentDebugConfig()
 	return cfg.QCTrace && cfg.EventMask&debugEventMaskQC != 0 && verbosity <= cfg.QCVerbosity
 }
 
@@ -422,6 +425,24 @@ func (t *DebugTelemetry) FormatQCFunction(vm *qc.VM, functionIndex int32) string
 		return fmt.Sprintf("%s[#%d builtin=%d]", name, functionIndex, -fn.FirstStatement)
 	}
 	return fmt.Sprintf("%s[#%d]", name, functionIndex)
+}
+
+func (t *DebugTelemetry) currentDebugConfig() DebugTelemetryConfig {
+	if t == nil {
+		return DebugTelemetryConfig{}
+	}
+	if !t.configLoaded {
+		t.reloadConfig()
+	}
+	return t.currentConfig
+}
+
+func (t *DebugTelemetry) reloadConfig() {
+	if t == nil {
+		return
+	}
+	t.currentConfig = t.configProvider()
+	t.configLoaded = true
 }
 
 func readDebugTelemetryConfig() DebugTelemetryConfig {

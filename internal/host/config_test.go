@@ -29,6 +29,31 @@ type testClientWithState struct {
 	state *cl.Client
 }
 
+type staticTestFilesystem struct {
+	files map[string]string
+}
+
+func (f *staticTestFilesystem) Init(baseDir, gameDir string) error { return nil }
+func (f *staticTestFilesystem) Close()                             {}
+func (f *staticTestFilesystem) LoadFile(filename string) ([]byte, error) {
+	if data, ok := f.files[filename]; ok {
+		return []byte(data), nil
+	}
+	return nil, os.ErrNotExist
+}
+func (f *staticTestFilesystem) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	for _, filename := range filenames {
+		if data, ok := f.files[filename]; ok {
+			return filename, []byte(data), nil
+		}
+	}
+	return "", nil, os.ErrNotExist
+}
+func (f *staticTestFilesystem) FileExists(filename string) bool {
+	_, ok := f.files[filename]
+	return ok
+}
+
 func (c *testClientWithState) Init() error                    { return nil }
 func (c *testClientWithState) Frame(float64) error            { return nil }
 func (c *testClientWithState) Shutdown()                      {}
@@ -95,6 +120,149 @@ func TestHostCmdExecConfigAliasUsesCanonicalConfigName(t *testing.T) {
 	}
 }
 
+func TestHostCmdExecDefaultCfgUsesBuiltinFallback(t *testing.T) {
+	h := NewHost()
+
+	var (
+		unbindAllCalled bool
+		scrAutoscale    bool
+		mlook           bool
+		bindings        = map[string]string{}
+	)
+
+	cmdsys.AddCommand("unbindall", func(args []string) {
+		unbindAllCalled = true
+		clear(bindings)
+	}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("unbindall") })
+	cmdsys.AddCommand("bind", func(args []string) {
+		if len(args) >= 2 {
+			bindings[args[0]] = args[1]
+		}
+	}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("bind") })
+	cmdsys.AddCommand("alias", func(args []string) {}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("alias") })
+	cmdsys.AddCommand("scr_autoscale", func(args []string) { scrAutoscale = true }, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("scr_autoscale") })
+	cmdsys.AddCommand("+mlook", func(args []string) { mlook = true }, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("+mlook") })
+
+	h.CmdExec([]string{"default.cfg"}, &Subsystems{
+		Files:    &staticTestFilesystem{files: map[string]string{}},
+		Commands: globalTestCommandBuffer{},
+	})
+
+	if !unbindAllCalled {
+		t.Fatalf("default.cfg fallback did not execute unbindall")
+	}
+	if !scrAutoscale {
+		t.Fatalf("default.cfg fallback did not execute scr_autoscale")
+	}
+	if !mlook {
+		t.Fatalf("default.cfg fallback did not execute +mlook")
+	}
+	for key, want := range map[string]string{
+		"ESCAPE":    "togglemenu",
+		"TILDE":     "toggleconsole",
+		"BACKQUOTE": "toggleconsole",
+		"t":         "messagemode",
+	} {
+		if got := bindings[key]; got != want {
+			t.Fatalf("binding %q = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestHostCmdExecDefaultCfgPrefersBuiltinOverFilesystem(t *testing.T) {
+	h := NewHost()
+
+	var (
+		unbindAllCalled bool
+		scrAutoscale    bool
+		bindings        = map[string]string{}
+	)
+
+	cmdsys.AddCommand("unbindall", func(args []string) {
+		unbindAllCalled = true
+		clear(bindings)
+	}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("unbindall") })
+	cmdsys.AddCommand("bind", func(args []string) {
+		if len(args) >= 2 {
+			bindings[args[0]] = args[1]
+		}
+	}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("bind") })
+	cmdsys.AddCommand("alias", func(args []string) {}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("alias") })
+	cmdsys.AddCommand("scr_autoscale", func(args []string) { scrAutoscale = true }, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("scr_autoscale") })
+
+	h.CmdExec([]string{"default.cfg"}, &Subsystems{
+		Files: &staticTestFilesystem{files: map[string]string{
+			"default.cfg": "bind ESCAPE oldmenu\nbind F6 oldquicksave\ngamma 0.95\n",
+		}},
+		Commands: globalTestCommandBuffer{},
+	})
+
+	if !unbindAllCalled {
+		t.Fatalf("default.cfg builtin did not execute unbindall")
+	}
+	if !scrAutoscale {
+		t.Fatalf("default.cfg builtin did not execute scr_autoscale")
+	}
+	if got := bindings["ESCAPE"]; got != "togglemenu" {
+		t.Fatalf("binding ESCAPE = %q, want %q", got, "togglemenu")
+	}
+	if got := bindings["F6"]; got != "save quick" {
+		t.Fatalf("binding F6 = %q, want %q", got, "save quick")
+	}
+}
+
+func TestHostCmdExecLegacyConfigIgnoresFilesystemIronwailCfg(t *testing.T) {
+	h := NewHost()
+
+	var (
+		bindings        = map[string]string{}
+		scrAutoscale    bool
+		unbindAllCalled bool
+	)
+
+	cmdsys.AddCommand("unbindall", func(args []string) {
+		unbindAllCalled = true
+		clear(bindings)
+	}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("unbindall") })
+	cmdsys.AddCommand("bind", func(args []string) {
+		if len(args) >= 2 {
+			bindings[args[0]] = args[1]
+		}
+	}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("bind") })
+	cmdsys.AddCommand("alias", func(args []string) {}, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("alias") })
+	cmdsys.AddCommand("scr_autoscale", func(args []string) { scrAutoscale = true }, "")
+	t.Cleanup(func() { cmdsys.RemoveCommand("scr_autoscale") })
+
+	h.CmdExec([]string{"config.cfg"}, &Subsystems{
+		Files: &staticTestFilesystem{files: map[string]string{
+			"ironwail.cfg": "bind ESCAPE oldmenu\nbind F6 oldquicksave\ngamma 0.95\n",
+		}},
+		Commands: globalTestCommandBuffer{},
+	})
+
+	if unbindAllCalled {
+		t.Fatalf("legacy config exec should not have executed packaged ironwail.cfg")
+	}
+	if scrAutoscale {
+		t.Fatalf("legacy config exec should not have executed scr_autoscale from packaged ironwail.cfg")
+	}
+	if len(bindings) != 0 {
+		t.Fatalf("legacy config exec should not have loaded packaged ironwail.cfg bindings: %#v", bindings)
+	}
+}
+
 func TestHostWriteConfigIncludesBindings(t *testing.T) {
 	h := NewHost()
 	userDir := t.TempDir()
@@ -124,8 +292,8 @@ func TestHostWriteConfigIncludesBindings(t *testing.T) {
 	}
 	text := string(data)
 	for _, want := range []string{
-		`bind w "+forward"`,
-		`bind F10 "+attack"`,
+		`bind "w" "+forward"`,
+		`bind "F10" "+attack"`,
 		`test_host_config_write_a "alpha"`,
 		`test_host_config_write_b "beta"`,
 		`vid_restart`,
@@ -134,7 +302,7 @@ func TestHostWriteConfigIncludesBindings(t *testing.T) {
 			t.Fatalf("%s missing %q in:\n%s", configFileName, want, text)
 		}
 	}
-	if strings.Index(text, `bind w "+forward"`) > strings.Index(text, `test_host_config_write_a "alpha"`) {
+	if strings.Index(text, `bind "w" "+forward"`) > strings.Index(text, `test_host_config_write_a "alpha"`) {
 		t.Fatalf("expected bindings before archived cvars in:\n%s", text)
 	}
 	if strings.Index(text, `test_host_config_write_a "alpha"`) > strings.Index(text, `test_host_config_write_b "beta"`) {
@@ -142,6 +310,37 @@ func TestHostWriteConfigIncludesBindings(t *testing.T) {
 	}
 	if strings.Index(text, `test_host_config_write_b "beta"`) > strings.Index(text, `vid_restart`) {
 		t.Fatalf("expected vid_restart after archived cvars in:\n%s", text)
+	}
+}
+
+func TestHostWriteConfigQuotesSpecialKeyBindings(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	inputSystem := input.NewSystem(nil)
+	inputSystem.SetBinding(int('`'), "toggleconsole")
+	inputSystem.SetBinding(int('\\'), "+mlook")
+	subs := &Subsystems{Input: inputSystem}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: userDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	if err := h.WriteConfig(subs); err != nil {
+		t.Fatalf("WriteConfig failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(userDir, configFileName))
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", configFileName, err)
+	}
+	text := string(data)
+
+	for _, want := range []string{
+		`bind "BACKQUOTE" "toggleconsole"`,
+		`bind "\\" "+mlook"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("%s missing %q in:\n%s", configFileName, want, text)
+		}
 	}
 }
 

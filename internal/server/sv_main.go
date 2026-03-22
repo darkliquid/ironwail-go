@@ -293,6 +293,11 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 		s.EffectsMask = defaultEffectsMask
 	}
 
+	s.suppressTouchQC = true
+	defer func() {
+		s.suppressTouchQC = false
+	}()
+
 	if err := s.loadMapEntities(string(tree.Entities)); err != nil {
 		return fmt.Errorf("parse map entities %q: %w", s.ModelName, err)
 	}
@@ -304,6 +309,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	s.FrameTime = 0.1
 	s.Physics()
 	s.Physics()
+	s.suppressTouchQC = false
 
 	// Populate signon buffers with static entities and ambient sounds.
 	// These are shared across all connecting clients.

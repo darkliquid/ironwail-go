@@ -3,7 +3,125 @@
 // This file implements key binding and key-state management methods.
 package input
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
+
+type namedKey struct {
+	name string
+	key  int
+}
+
+var namedKeys = []namedKey{
+	{name: "TAB", key: KTab},
+	{name: "ENTER", key: KEnter},
+	{name: "ESCAPE", key: KEscape},
+	{name: "SPACE", key: KSpace},
+	{name: "BACKSPACE", key: KBackspace},
+	{name: "UPARROW", key: KUpArrow},
+	{name: "DOWNARROW", key: KDownArrow},
+	{name: "LEFTARROW", key: KLeftArrow},
+	{name: "RIGHTARROW", key: KRightArrow},
+	{name: "ALT", key: KAlt},
+	{name: "CTRL", key: KCtrl},
+	{name: "SHIFT", key: KShift},
+	{name: "INS", key: KIns},
+	{name: "DEL", key: KDel},
+	{name: "PGDN", key: KPgDn},
+	{name: "PGUP", key: KPgUp},
+	{name: "HOME", key: KHome},
+	{name: "END", key: KEnd},
+	{name: "KP_NUMLOCK", key: KKpNumLock},
+	{name: "KP_SLASH", key: KKpSlash},
+	{name: "KP_STAR", key: KKpStar},
+	{name: "KP_MINUS", key: KKpMinus},
+	{name: "KP_HOME", key: KKpHome},
+	{name: "KP_UPARROW", key: KKpUpArrow},
+	{name: "KP_PGUP", key: KKpPgUp},
+	{name: "KP_PLUS", key: KKpPlus},
+	{name: "KP_LEFTARROW", key: KKpLeftArrow},
+	{name: "KP_5", key: KKp5},
+	{name: "KP_RIGHTARROW", key: KKpRightArrow},
+	{name: "KP_END", key: KKpEnd},
+	{name: "KP_DOWNARROW", key: KKpDownArrow},
+	{name: "KP_PGDN", key: KKpPgDn},
+	{name: "KP_ENTER", key: KKpEnter},
+	{name: "KP_INS", key: KKpIns},
+	{name: "KP_DEL", key: KKpDel},
+	{name: "COMMAND", key: KCommand},
+	{name: "CAPSLOCK", key: KCapsLock},
+	{name: "SCROLLLOCK", key: KScrollLock},
+	{name: "NUMLOCK", key: KKpNumLock},
+	{name: "PRINTSCREEN", key: KPrintScreen},
+	{name: "MOUSE1", key: KMouse1},
+	{name: "MOUSE2", key: KMouse2},
+	{name: "MOUSE3", key: KMouse3},
+	{name: "MOUSE4", key: KMouse4},
+	{name: "MOUSE5", key: KMouse5},
+	{name: "PAUSE", key: KPause},
+	{name: "MWHEELUP", key: KMWheelUp},
+	{name: "MWHEELDOWN", key: KMWheelDown},
+	{name: "SEMICOLON", key: int(';')},
+	{name: "BACKQUOTE", key: int('`')},
+	{name: "TILDE", key: int('~')},
+	{name: "LTHUMB", key: KLThumb},
+	{name: "RTHUMB", key: KRThumb},
+	{name: "LSHOULDER", key: KLShoulder},
+	{name: "RSHOULDER", key: KRShoulder},
+	{name: "DPAD_UP", key: KDpadUp},
+	{name: "DPAD_DOWN", key: KDpadDown},
+	{name: "DPAD_LEFT", key: KDpadLeft},
+	{name: "DPAD_RIGHT", key: KDpadRight},
+	{name: "ABUTTON", key: KAButton},
+	{name: "BBUTTON", key: KBButton},
+	{name: "XBUTTON", key: KXButton},
+	{name: "YBUTTON", key: KYButton},
+	{name: "LTRIGGER", key: KLTrigger},
+	{name: "RTRIGGER", key: KRTrigger},
+	{name: "MISC1", key: KMisc1},
+	{name: "PADDLE1", key: KPaddle1},
+	{name: "PADDLE2", key: KPaddle2},
+	{name: "PADDLE3", key: KPaddle3},
+	{name: "PADDLE4", key: KPaddle4},
+	{name: "TOUCHPAD", key: KTouchpad},
+	{name: "LTHUMB_ALT", key: KLThumbAlt},
+	{name: "RTHUMB_ALT", key: KRThumbAlt},
+	{name: "LSHOULDER_ALT", key: KLShoulderAlt},
+	{name: "RSHOULDER_ALT", key: KRShoulderAlt},
+	{name: "DPAD_UP_ALT", key: KDpadUpAlt},
+	{name: "DPAD_DOWN_ALT", key: KDpadDownAlt},
+	{name: "DPAD_LEFT_ALT", key: KDpadLeftAlt},
+	{name: "DPAD_RIGHT_ALT", key: KDpadRightAlt},
+	{name: "ABUTTON_ALT", key: KAButtonAlt},
+	{name: "BBUTTON_ALT", key: KBButtonAlt},
+	{name: "XBUTTON_ALT", key: KXButtonAlt},
+	{name: "YBUTTON_ALT", key: KYButtonAlt},
+	{name: "LTRIGGER_ALT", key: KLTriggerAlt},
+	{name: "RTRIGGER_ALT", key: KRTriggerAlt},
+	{name: "MISC1_ALT", key: KMisc1Alt},
+	{name: "PADDLE1_ALT", key: KPaddle1Alt},
+	{name: "PADDLE2_ALT", key: KPaddle2Alt},
+	{name: "PADDLE3_ALT", key: KPaddle3Alt},
+	{name: "PADDLE4_ALT", key: KPaddle4Alt},
+	{name: "TOUCHPAD_ALT", key: KTouchpadAlt},
+}
+
+var keyToName = func() map[int]string {
+	names := make(map[int]string, len(namedKeys))
+	for _, entry := range namedKeys {
+		names[entry.key] = entry.name
+	}
+	return names
+}()
+
+var nameToKey = func() map[string]int {
+	names := make(map[string]int, len(namedKeys))
+	for _, entry := range namedKeys {
+		names[entry.name] = entry.key
+	}
+	return names
+}()
 
 // SetBinding associates a console command string with an engine key code.
 // When the key is pressed in KeyGame mode, the command is submitted to the
@@ -192,45 +310,8 @@ func (s *System) SetMouseGrab(grabbed bool) {
 // names are the same ones accepted by the "bind" console command. Returns ""
 // for unknown or unmapped key codes.
 func KeyToString(key int) string {
-	switch key {
-	case KTab:
-		return "TAB"
-	case KEnter:
-		return "ENTER"
-	case KEscape:
-		return "ESCAPE"
-	case KSpace:
-		return "SPACE"
-	case KBackspace:
-		return "BACKSPACE"
-	case KUpArrow:
-		return "UPARROW"
-	case KDownArrow:
-		return "DOWNARROW"
-	case KLeftArrow:
-		return "LEFTARROW"
-	case KRightArrow:
-		return "RIGHTARROW"
-	case KAlt:
-		return "ALT"
-	case KCtrl:
-		return "CTRL"
-	case KShift:
-		return "SHIFT"
-	case KMouse1:
-		return "MOUSE1"
-	case KMouse2:
-		return "MOUSE2"
-	case KMouse3:
-		return "MOUSE3"
-	case KMouse4:
-		return "MOUSE4"
-	case KMouse5:
-		return "MOUSE5"
-	case KMWheelUp:
-		return "MWHEELUP"
-	case KMWheelDown:
-		return "MWHEELDOWN"
+	if name, ok := keyToName[key]; ok {
+		return name
 	}
 
 	// Function keys
@@ -277,54 +358,16 @@ func StringToKey(name string) int {
 		return int(c)
 	}
 
-	// Named keys (case insensitive)
-	name = strings.ToUpper(name)
-	switch name {
-	case "TAB", "Tab":
-		return KTab
-	case "ENTER", "Enter":
-		return KEnter
-	case "ESCAPE", "Escape":
-		return KEscape
-	case "SPACE", "Space":
-		return KSpace
-	case "BACKSPACE", "Backspace":
-		return KBackspace
-	case "UPARROW", "UpArrow":
-		return KUpArrow
-	case "DOWNARROW", "DownArrow":
-		return KDownArrow
-	case "LEFTARROW", "LeftArrow":
-		return KLeftArrow
-	case "RIGHTARROW", "RightArrow":
-		return KRightArrow
-	case "ALT", "Alt":
-		return KAlt
-	case "CTRL", "Ctrl":
-		return KCtrl
-	case "SHIFT", "Shift":
-		return KShift
-	case "MOUSE1", "Mouse1":
-		return KMouse1
-	case "MOUSE2", "Mouse2":
-		return KMouse2
-	case "MOUSE3", "Mouse3":
-		return KMouse3
-	case "MOUSE4", "Mouse4":
-		return KMouse4
-	case "MOUSE5", "Mouse5":
-		return KMouse5
-	case "MWHEELUP", "MWheelUp":
-		return KMWheelUp
-	case "MWHEELDOWN", "MWheelDown":
-		return KMWheelDown
+	upper := strings.ToUpper(name)
+	if key, ok := nameToKey[upper]; ok {
+		return key
 	}
 
 	// Function keys F1-F12
-	if len(name) >= 2 && (name[0] == 'F' || name[0] == 'f') {
+	if len(upper) >= 2 && upper[0] == 'F' {
 		number := 0
-		for i := 1; i < len(name); i++ {
-			digit := name[i]
+		for i := 1; i < len(upper); i++ {
+			digit := upper[i]
 			if digit < '0' || digit > '9' {
 				number = 0
 				break
@@ -334,6 +377,10 @@ func StringToKey(name string) int {
 		if number >= 1 && number <= 12 {
 			return KF1 + number - 1
 		}
+	}
+
+	if numeric, err := strconv.Atoi(name); err == nil {
+		return numeric
 	}
 
 	return 0

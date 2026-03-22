@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
@@ -194,6 +195,109 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 	}
 	if !foundChangeLevel {
 		t.Fatal("trigger_changelevel entity was not loaded from the map entity lump")
+	}
+}
+
+func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	progsData, err := vfs.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("load progs.dat: %v", err)
+	}
+	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(s.QCVM)
+
+	if err := s.SpawnServer("e2m2", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+
+	monsterCount := 0
+	for entNum := 1; entNum < s.NumEdicts; entNum++ {
+		ent := s.EdictNum(entNum)
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		className := s.GetString(ent.Vars.ClassName)
+		if len(className) < len("monster_") || className[:len("monster_")] != "monster_" {
+			continue
+		}
+		monsterCount++
+		if ent.Vars.Origin == [3]float32{} {
+			t.Fatalf("monster %d (%s) spawned at origin", entNum, className)
+		}
+		if blocker := s.TestEntityPosition(ent); blocker != nil {
+			blockerClass := ""
+			if blocker.Vars != nil {
+				blockerClass = s.GetString(blocker.Vars.ClassName)
+			}
+			t.Fatalf("monster %d (%s) spawned in solid at %v blocker=%d (%s)", entNum, className, ent.Vars.Origin, s.NumForEdict(blocker), blockerClass)
+		}
+	}
+	if monsterCount == 0 {
+		t.Fatal("expected monsters on e2m2")
+	}
+}
+
+func TestSpawnServerE2M2DoesNotWarnWalkmonsterInWall(t *testing.T) {
+	pak0Path := testutil.SkipIfNoPak0(t)
+	baseDir := filepath.Dir(pak0Path)
+	if filepath.Base(baseDir) == "id1" {
+		baseDir = filepath.Dir(baseDir)
+	}
+
+	vfs := fs.NewFileSystem()
+	if err := vfs.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer vfs.Close()
+
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+
+	progsData, err := vfs.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("load progs.dat: %v", err)
+	}
+	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(s.QCVM)
+
+	var warnings []string
+	oldDPrint := s.QCVM.Builtins[25]
+	s.QCVM.Builtins[25] = func(vm *qc.VM) {
+		msg := vm.GString(qc.OFSParm0)
+		if strings.Contains(msg, "walkmonster in wall at") {
+			warnings = append(warnings, msg)
+		}
+		oldDPrint(vm)
+	}
+
+	if err := s.SpawnServer("e2m2", vfs); err != nil {
+		t.Fatalf("spawn server: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("unexpected walkmonster warnings during spawn: %q", warnings)
 	}
 }
 
@@ -900,6 +1004,80 @@ func TestPutClientInServerRealProgsNoPanic(t *testing.T) {
 	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
 	if client.Edict.Vars.Health <= 0 {
 		t.Fatalf("player health = %v, want > 0 after PutClientInServer", client.Edict.Vars.Health)
+	}
+}
+
+func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.ClearWorld()
+
+	vm := newServerTestVM(s, 8)
+	s.QCVM = vm
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSFrameTime), Name: vm.AllocString("frametime")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSMsgEntity), Name: vm.AllocString("msg_entity")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSParm0), Name: vm.AllocString("parm1")},
+	}
+
+	triggerTouches := 0
+	const callbackBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		vm.SetEVector(self, qc.EntFieldOrigin, [3]float32{128, 0, 0})
+		vm.SetEVector(self, qc.EntFieldAngles, [3]float32{0, 90, 0})
+		vm.SetEVector(self, qc.EntFieldVAngle, [3]float32{0, 90, 0})
+		vm.SetEFloat(self, qc.EntFieldHealth, 100)
+		vm.SetEInt(self, qc.EntFieldClassName, vm.AllocString("player"))
+	}
+	vm.Builtins[2] = func(vm *qc.VM) {
+		triggerTouches++
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("PutClientInServer"), FirstStatement: 0},
+		{Name: vm.AllocString("touch_callback"), FirstStatement: 2},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(callbackBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPCall0), A: uint16(callbackBuiltinOfs + 1)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(callbackBuiltinOfs, -1)
+	vm.SetGInt(callbackBuiltinOfs+1, -2)
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+
+	trigger := s.AllocEdict()
+	if trigger == nil {
+		t.Fatal("failed to allocate trigger edict")
+	}
+	trigger.Vars.Origin = [3]float32{128, 0, 24}
+	trigger.Vars.Mins = [3]float32{-16, -16, -24}
+	trigger.Vars.Maxs = [3]float32{16, 16, 32}
+	trigger.Vars.Solid = float32(SolidTrigger)
+	trigger.Vars.Touch = 2
+	s.LinkEdict(trigger, false)
+
+	if err := s.runClientSpawnQC(client); err != nil {
+		t.Fatalf("runClientSpawnQC() error = %v", err)
+	}
+
+	if got := client.Edict.Vars.Origin; got != ([3]float32{128, 0, 0}) {
+		t.Fatalf("player origin = %v, want [128 0 0]", got)
+	}
+	if client.Edict.AreaPrev == nil || client.Edict.AreaNext == nil {
+		t.Fatal("player edict was not relinked after QC spawn move")
+	}
+	if triggerTouches != 1 {
+		t.Fatalf("trigger touches = %d, want 1 after QC spawn move", triggerTouches)
 	}
 }
 

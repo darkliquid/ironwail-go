@@ -211,6 +211,41 @@ func TestDebugTelemetrySummaryModeTwoLogsEmptyFrames(t *testing.T) {
 	}
 }
 
+func TestDebugTelemetryCachesConfigPerFrame(t *testing.T) {
+	vm := qc.NewVM()
+	ent := &Edict{Vars: &EntVars{}}
+	ent.Vars.ClassName = vm.AllocString("trigger_multiple")
+
+	configReads := 0
+	telemetry := NewDebugTelemetryWithConfig(func() DebugTelemetryConfig {
+		configReads++
+		return DebugTelemetryConfig{
+			Enabled:      true,
+			EventMask:    debugEventMaskAll,
+			EntityFilter: debugEntityFilter{all: true},
+			SummaryMode:  1,
+			QCTrace:      true,
+			QCVerbosity:  1,
+		}
+	}, nil)
+
+	telemetry.BeginFrame(1, 0.1)
+	telemetry.LogEventf(DebugEventTrigger, vm, 1, ent, "first")
+	telemetry.LogEventf(DebugEventUse, vm, 1, ent, "second")
+	telemetry.LogQCEventf("enter", 1, 0, 0, vm, 1, ent, "qc")
+	telemetry.EndFrame()
+	if configReads != 1 {
+		t.Fatalf("config provider reads after first frame = %d, want 1", configReads)
+	}
+
+	telemetry.BeginFrame(2, 0.1)
+	telemetry.LogEventf(DebugEventThink, vm, 1, ent, "third")
+	telemetry.EndFrame()
+	if configReads != 2 {
+		t.Fatalf("config provider reads after second frame = %d, want 2", configReads)
+	}
+}
+
 func TestDebugTelemetryCoalescesConsecutiveDuplicateEvents(t *testing.T) {
 	vm := qc.NewVM()
 	ent := &Edict{Vars: &EntVars{}}

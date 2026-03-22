@@ -607,6 +607,28 @@ func TestControlsMenuCancelRebinding(t *testing.T) {
 	}
 }
 
+func TestControlsMenuCanBindBackquote(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.state = MenuControls
+	mgr.active = true
+	mgr.controlsCursor = controlItemToggleConsole
+	mgr.M_Key(input.KEnter)
+	if !mgr.WaitingForKeyBinding() {
+		t.Fatal("expected controls menu to enter rebinding mode")
+	}
+	mgr.M_Key(int('`'))
+	if mgr.WaitingForKeyBinding() {
+		t.Fatal("expected controls menu to exit rebinding mode after backquote selection")
+	}
+	if got := inputSys.GetBinding(int('`')); got != "toggleconsole" {
+		t.Fatalf("binding for backquote = %q, want toggleconsole", got)
+	}
+}
+
 func TestControlsMenuAdjustsLiveControlCvars(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
