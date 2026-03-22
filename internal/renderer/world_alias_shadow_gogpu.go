@@ -22,7 +22,7 @@ const (
 	aliasShadowMaxSize  = 48.0
 )
 
-func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity) {
+func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogColor [3]float32, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -75,14 +75,14 @@ func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity) {
 		return
 	}
 
-	dc.renderAliasShadowDrawsHAL(draws, shadowSkin)
+	dc.renderAliasShadowDrawsHAL(draws, shadowSkin, fogColor, fogDensity)
 }
 
 type gpuAliasShadowDraw struct {
 	vertices []WorldVertex
 }
 
-func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, shadowSkin *gpuAliasSkin) {
+func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, shadowSkin *gpuAliasSkin, fogColor [3]float32, fogDensity float32) {
 	if len(draws) == 0 || shadowSkin == nil || shadowSkin.bindGroup == nil {
 		return
 	}
@@ -116,6 +116,7 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	uniformBindGroup := r.aliasUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
+	camera := r.cameraState
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return
@@ -151,11 +152,12 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
 
 	vpMatrix := r.GetViewProjectionMatrix()
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	for _, draw := range draws {
 		if len(draw.vertices) == 0 {
 			continue
 		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, aliasUniformBytes(vpMatrix, aliasShadowAlpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, aliasSceneUniformBytes(vpMatrix, cameraOrigin, aliasShadowAlpha, fogColor, fogDensity)); err != nil {
 			slog.Warn("failed to update alias shadow uniform buffer", "error", err)
 			continue
 		}

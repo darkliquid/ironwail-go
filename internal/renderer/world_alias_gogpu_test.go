@@ -4,10 +4,13 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 func TestSetupAliasFrameInterpolationBlendsMultiPoseFrame(t *testing.T) {
@@ -65,4 +68,63 @@ func TestResolveAliasSkinSlotUsesGroupedSkinTimingGoGPU(t *testing.T) {
 	if got := resolveAliasSkinSlot(hdr, 1, 0.35, 4); got != 1 {
 		t.Fatalf("slot at t=0.35 = %d, want 1", got)
 	}
+}
+
+func TestAliasSceneUniformBytesEncodesAlphaAndFog(t *testing.T) {
+	vp := types.Mat4{
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1,
+	}
+	cameraOrigin := [3]float32{1, 2, 3}
+	fogColor := [3]float32{0.2, 0.4, 0.6}
+	fogDensity := float32(0.75)
+	alpha := float32(0.5)
+
+	data := aliasSceneUniformBytes(vp, cameraOrigin, alpha, fogColor, fogDensity)
+	if len(data) != aliasSceneUniformBufferSize {
+		t.Fatalf("len(aliasSceneUniformBytes()) = %d, want %d", len(data), aliasSceneUniformBufferSize)
+	}
+	for i, want := range cameraOrigin {
+		got := math.Float32frombits(binary.LittleEndian.Uint32(data[64+i*4 : 68+i*4]))
+		if !almostEqualAliasFloat32(got, want, 1e-6) {
+			t.Fatalf("cameraOrigin[%d] = %v, want %v", i, got, want)
+		}
+	}
+	gotFogDensity := math.Float32frombits(binary.LittleEndian.Uint32(data[76:80]))
+	wantFogDensity := worldFogUniformDensity(fogDensity)
+	if !almostEqualAliasFloat32(gotFogDensity, wantFogDensity, 1e-6) {
+		t.Fatalf("fog density = %v, want %v", gotFogDensity, wantFogDensity)
+	}
+	for i, want := range fogColor {
+		got := math.Float32frombits(binary.LittleEndian.Uint32(data[80+i*4 : 84+i*4]))
+		if !almostEqualAliasFloat32(got, want, 1e-6) {
+			t.Fatalf("fogColor[%d] = %v, want %v", i, got, want)
+		}
+	}
+	gotAlpha := math.Float32frombits(binary.LittleEndian.Uint32(data[92:96]))
+	if !almostEqualAliasFloat32(gotAlpha, alpha, 1e-6) {
+		t.Fatalf("alpha = %v, want %v", gotAlpha, alpha)
+	}
+}
+
+func TestAliasFragmentShaderIncludesFogMix(t *testing.T) {
+	checks := []string{
+		"cameraOrigin",
+		"fogDensity",
+		"fogColor",
+		"worldPosition",
+		"exp2(",
+		"mix(uniforms.fogColor, lit, fog)",
+	}
+	for _, check := range checks {
+		if !strings.Contains(aliasFragmentShaderWGSL, check) && !strings.Contains(aliasVertexShaderWGSL, check) {
+			t.Fatalf("alias shaders missing %q", check)
+		}
+	}
+}
+
+func almostEqualAliasFloat32(a, b, epsilon float32) bool {
+	return float32(math.Abs(float64(a-b))) <= epsilon
 }

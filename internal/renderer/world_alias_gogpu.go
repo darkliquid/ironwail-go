@@ -51,7 +51,10 @@ type gpuAliasDraw struct {
 	full   bool
 }
 
-const aliasUniformBufferSize = 80
+const (
+	aliasUniformBufferSize      = 80
+	aliasSceneUniformBufferSize = 96
+)
 
 const aliasVertexShaderWGSL = `
 struct VertexInput {
@@ -63,14 +66,17 @@ struct VertexInput {
 
 struct AliasUniforms {
     viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
     alpha: f32,
-    _pad0: vec3<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) normal: vec3<f32>,
+    @location(2) worldPosition: vec3<f32>,
 }
 
 @group(0) @binding(0)
@@ -82,6 +88,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
     output.texCoord = input.texCoord;
     output.normal = input.normal;
+    output.worldPosition = input.position;
     return output;
 }
 `
@@ -89,14 +96,17 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 const aliasFragmentShaderWGSL = `
 struct AliasUniforms {
     viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
     alpha: f32,
-    _pad0: vec3<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
     @location(1) normal: vec3<f32>,
+    @location(2) worldPosition: vec3<f32>,
 }
 
 @group(0) @binding(0)
@@ -122,7 +132,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let lightDir = normalize(vec3<f32>(0.35, -0.45, 0.82));
     let normal = normalize(input.normal);
     let diffuse = max(dot(normal, lightDir), 0.25);
-    return vec4<f32>(sampled.rgb * diffuse + fullbright.rgb, sampled.a * uniforms.alpha);
+    let lit = sampled.rgb * diffuse + fullbright.rgb;
+    let fogPosition = input.worldPosition - uniforms.cameraOrigin;
+    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
+    return vec4<f32>(mix(uniforms.fogColor, lit, fog), sampled.a * uniforms.alpha);
 }
 `
 
@@ -257,7 +270,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 			Buffer: &gputypes.BufferBindingLayout{
 				Type:             gputypes.BufferBindingTypeUniform,
 				HasDynamicOffset: false,
-				MinBindingSize:   aliasUniformBufferSize,
+				MinBindingSize:   aliasSceneUniformBufferSize,
 			},
 		}},
 	})
@@ -318,7 +331,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 
 	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",
-		Size:             aliasUniformBufferSize,
+		Size:             aliasSceneUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
@@ -339,7 +352,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 			Resource: gputypes.BufferBinding{
 				Buffer: uniformBuffer.NativeHandle(),
 				Offset: 0,
-				Size:   aliasUniformBufferSize,
+				Size:   aliasSceneUniformBufferSize,
 			},
 		}},
 	})
@@ -769,7 +782,7 @@ func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, enti
 	}
 }
 
-func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity) {
+func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity, fogColor [3]float32, fogDensity float32) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
@@ -777,10 +790,10 @@ func (dc *DrawContext) renderAliasEntitiesHAL(entities []AliasModelEntity) {
 	if len(draws) == 0 {
 		return
 	}
-	dc.renderAliasDrawsHAL(draws, false)
+	dc.renderAliasDrawsHAL(draws, false, fogColor, fogDensity)
 }
 
-func (dc *DrawContext) renderViewModelHAL(entity AliasModelEntity) {
+func (dc *DrawContext) renderViewModelHAL(entity AliasModelEntity, fogColor [3]float32, fogDensity float32) {
 	if dc == nil || dc.renderer == nil {
 		return
 	}
@@ -788,7 +801,7 @@ func (dc *DrawContext) renderViewModelHAL(entity AliasModelEntity) {
 	if len(draws) == 0 {
 		return
 	}
-	dc.renderAliasDrawsHAL(draws, true)
+	dc.renderAliasDrawsHAL(draws, true, fogColor, fogDensity)
 }
 
 func (dc *DrawContext) collectAliasDraws(entities []AliasModelEntity, fullAngles bool) []gpuAliasDraw {
@@ -818,7 +831,7 @@ func (dc *DrawContext) collectAliasDraws(entities []AliasModelEntity, fullAngles
 	return draws
 }
 
-func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDepthRange bool) {
+func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDepthRange bool, fogColor [3]float32, fogDensity float32) {
 	if len(draws) == 0 {
 		return
 	}
@@ -855,6 +868,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	uniformBindGroup := r.aliasUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
+	camera := r.cameraState
 	r.mu.Unlock()
 	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return
@@ -894,12 +908,13 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 
 	vpMatrix := r.GetViewProjectionMatrix()
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	for _, draw := range draws {
 		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
 		if len(vertices) == 0 || draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
 		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, aliasUniformBytes(vpMatrix, draw.alpha)); err != nil {
+		if err := queue.WriteBuffer(uniformBuffer, 0, aliasSceneUniformBytes(vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)); err != nil {
 			slog.Warn("failed to update alias uniform buffer", "error", err)
 			continue
 		}
@@ -944,6 +959,17 @@ func aliasUniformBytes(vp types.Mat4, alpha float32) []byte {
 	matrixBytes := matrixToBytes(vp)
 	copy(data[:64], matrixBytes)
 	binary.LittleEndian.PutUint32(data[64:68], math.Float32bits(alpha))
+	return data
+}
+
+func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
+	data := make([]byte, aliasSceneUniformBufferSize)
+	matrixBytes := matrixToBytes(vp)
+	copy(data[:64], matrixBytes)
+	putFloat32s(data[64:76], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	putFloat32s(data[80:92], fogColor[:])
+	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
 	return data
 }
 

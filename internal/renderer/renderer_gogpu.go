@@ -1081,7 +1081,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	if state.DrawEntities && state.ViewModel != nil {
-		dc.renderViewModelHAL(*state.ViewModel)
+		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
 	}
 	if sceneTargetActive {
 		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
@@ -1347,9 +1347,9 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			for _, step := range gogpuOpaqueAliasPassSteps() {
 				switch step {
 				case gogpuOpaqueAliasStepEntities:
-					dc.renderAliasEntitiesHAL(plan.opaqueAlias)
+					dc.renderAliasEntitiesHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
 				case gogpuOpaqueAliasStepShadows:
-					dc.renderAliasShadowsHAL(plan.opaqueAlias)
+					dc.renderAliasShadowsHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
 				}
 			}
 		case gogpuEntityPhaseOpaqueParticles:
@@ -1363,7 +1363,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		case gogpuEntityPhaseDecals:
 			dc.renderDecalMarksHAL(state.DecalMarks)
 		case gogpuEntityPhaseTranslucentAlias:
-			dc.renderAliasEntitiesHAL(plan.translucentAlias)
+			dc.renderAliasEntitiesHAL(plan.translucentAlias, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseSprites:
 			dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentParticles:
