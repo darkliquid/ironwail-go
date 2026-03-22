@@ -70,7 +70,7 @@ const (
 	hostGameItems     = 9
 	optionsItems      = 5
 	controlsItems     = 17
-	videoItems        = 11 // added HUD-style plus telemetry toggles
+	videoItems        = 12 // added HUD-style plus telemetry toggles
 	audioItems        = 2
 
 	maxSaveGames = 12
@@ -168,6 +168,7 @@ const (
 	videoItemHUDStyle  // hud_style: selects classic, compact, or QuakeWorld HUD
 	videoItemShowFPS   // scr_showfps: toggles the runtime FPS counter
 	videoItemShowSpeed // scr_showspeed: toggles the runtime speed overlay
+	videoItemShowTime  // scr_clock: toggles the runtime level clock
 	videoItemBack
 )
 
