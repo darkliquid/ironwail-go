@@ -132,6 +132,7 @@ func initGameHost() error {
 			g.HUD.UpdateCrosshair(cv.Float)
 		}
 	}
+	cvar.Register("showpause", "1", cvar.FlagArchive, "Show pause overlay")
 	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
 	registerControlCvars()
 

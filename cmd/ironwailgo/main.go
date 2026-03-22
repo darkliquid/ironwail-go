@@ -1190,6 +1190,9 @@ func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
 	if dc == nil || pics == nil {
 		return
 	}
+	if cv := cvar.Get("showpause"); cv != nil && !cv.Bool() {
+		return
+	}
 	dc.SetCanvas(renderer.CanvasMenu)
 	if pause := pics.GetPic("gfx/pause.lmp"); pause != nil {
 		dc.DrawMenuPic((320-int(pause.Width))/2, (240-48-int(pause.Height))/2, pause)

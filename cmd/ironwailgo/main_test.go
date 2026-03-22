@@ -842,6 +842,28 @@ func TestDrawPauseOverlayNoopWithoutPics(t *testing.T) {
 	}
 }
 
+func TestDrawPauseOverlayHonorsShowPause(t *testing.T) {
+	cvar.Register("showpause", "1", cvar.FlagArchive, "")
+	cvar.Set("showpause", "0")
+	t.Cleanup(func() {
+		cvar.Set("showpause", "1")
+	})
+
+	pause := &qimage.QPic{Width: 128, Height: 24}
+	pics := &loadingPlaqueTestPics{
+		pics: map[string]*qimage.QPic{
+			"gfx/pause.lmp": pause,
+		},
+	}
+	dc := &loadingPlaqueDrawContext{}
+
+	drawPauseOverlay(dc, pics)
+
+	if len(dc.pics) != 0 || len(dc.menuPics) != 0 {
+		t.Fatalf("draw call counts = (%d screen, %d menu), want 0 when showpause=0", len(dc.pics), len(dc.menuPics))
+	}
+}
+
 func TestRuntimePauseActiveTracksServerClientAndDemoPause(t *testing.T) {
 	originalHost := g.Host
 	originalClient := g.Client
