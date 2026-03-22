@@ -1922,16 +1922,16 @@ func (r *Renderer) uploadWorldLightmapPages(device hal.Device, queue hal.Queue, 
 	return out
 }
 
-func (r *Renderer) updateUploadedWorldLightmapsLocked(queue hal.Queue, pages []WorldLightmapPage, values [64]float32) {
-	if queue == nil || len(pages) == 0 || len(r.worldLightmapPages) == 0 {
+func updateUploadedLightmapsLocked(queue hal.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
+	if queue == nil || len(pages) == 0 || len(uploaded) == 0 {
 		return
 	}
-	count := len(r.worldLightmapPages)
+	count := len(uploaded)
 	if len(pages) < count {
 		count = len(pages)
 	}
 	for i := 0; i < count; i++ {
-		if !pages[i].Dirty || r.worldLightmapPages[i] == nil || r.worldLightmapPages[i].texture == nil {
+		if !pages[i].Dirty || uploaded[i] == nil || uploaded[i].texture == nil {
 			continue
 		}
 		rgba := pages[i].rgba
@@ -1944,7 +1944,7 @@ func (r *Renderer) updateUploadedWorldLightmapsLocked(queue hal.Queue, pages []W
 			continue
 		}
 		if err := queue.WriteTexture(&hal.ImageCopyTexture{
-			Texture:  r.worldLightmapPages[i].texture,
+			Texture:  uploaded[i].texture,
 			MipLevel: 0,
 			Aspect:   gputypes.TextureAspectAll,
 		}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(pages[i].Width * 4), RowsPerImage: uint32(pages[i].Height)}, &hal.Extent3D{Width: uint32(pages[i].Width), Height: uint32(pages[i].Height), DepthOrArrayLayers: 1}); err != nil {
@@ -1964,7 +1964,14 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
 	changed := lightStylesChanged(r.worldLightStyleValues, values)
 	if r.worldData != nil && r.worldData.Geometry != nil {
 		markDirtyLightmapPages(r.worldData.Geometry.Lightmaps, changed)
-		r.updateUploadedWorldLightmapsLocked(queue, r.worldData.Geometry.Lightmaps, values)
+		updateUploadedLightmapsLocked(queue, r.worldLightmapPages, r.worldData.Geometry.Lightmaps, values)
+	}
+	for submodelIndex, geom := range r.brushModelGeometry {
+		if geom == nil || len(geom.Lightmaps) == 0 {
+			continue
+		}
+		markDirtyLightmapPages(geom.Lightmaps, changed)
+		updateUploadedLightmapsLocked(queue, r.brushModelLightmaps[submodelIndex], geom.Lightmaps, values)
 	}
 	r.worldLightStyleValues = values
 }
@@ -3182,6 +3189,23 @@ func (r *Renderer) ClearWorld() {
 		if r.worldDepthTexture != nil {
 			r.worldDepthTexture.Destroy()
 		}
+		for submodelIndex, lightmaps := range r.brushModelLightmaps {
+			for _, lightmap := range lightmaps {
+				if lightmap == nil {
+					continue
+				}
+				if lightmap.bindGroup != nil {
+					lightmap.bindGroup.Destroy()
+				}
+				if lightmap.view != nil {
+					lightmap.view.Destroy()
+				}
+				if lightmap.texture != nil {
+					lightmap.texture.Destroy()
+				}
+			}
+			delete(r.brushModelLightmaps, submodelIndex)
+		}
 		r.destroyGoGPUExternalSkyboxResourcesLocked()
 
 		r.worldData = nil
@@ -3221,6 +3245,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldDepthTexture = nil
 		r.worldDepthTextureView = nil
 		r.brushModelGeometry = make(map[int]*WorldGeometry)
+		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
 
 		slog.Debug("World geometry cleared")
 	}

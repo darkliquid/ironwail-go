@@ -578,6 +578,7 @@ type Renderer struct {
 
 	// Alias-model resources for the gogpu backend.
 	brushModelGeometry          map[int]*WorldGeometry
+	brushModelLightmaps         map[int][]*gpuWorldTexture
 	aliasModels                 map[string]*gpuAliasModel
 	spriteModels                map[string]*gpuSpriteModel
 	aliasEntityStates           map[int]*AliasEntity
@@ -666,13 +667,14 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	app := gogpu.NewApp(gpuCfg)
 
 	r := &Renderer{
-		app:                app,
-		config:             cfg,
-		textureCache:       make(map[cacheKey]*cachedTexture),
-		brushModelGeometry: make(map[int]*WorldGeometry),
-		aliasModels:        make(map[string]*gpuAliasModel),
-		spriteModels:       make(map[string]*gpuSpriteModel),
-		aliasEntityStates:  make(map[int]*AliasEntity),
+		app:                 app,
+		config:              cfg,
+		textureCache:        make(map[cacheKey]*cachedTexture),
+		brushModelGeometry:  make(map[int]*WorldGeometry),
+		brushModelLightmaps: make(map[int][]*gpuWorldTexture),
+		aliasModels:         make(map[string]*gpuAliasModel),
+		spriteModels:        make(map[string]*gpuSpriteModel),
+		aliasEntityStates:   make(map[int]*AliasEntity),
 	}
 
 	slog.Info("Renderer created",
@@ -1520,6 +1522,50 @@ func (r *Renderer) ensureBrushModelGeometry(submodelIndex int) *WorldGeometry {
 	r.brushModelGeometry[submodelIndex] = geom
 	r.mu.Unlock()
 	return geom
+}
+
+func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeometry) []*gpuWorldTexture {
+	if submodelIndex <= 0 || geom == nil || len(geom.Lightmaps) == 0 {
+		return nil
+	}
+	r.mu.RLock()
+	if cached := r.brushModelLightmaps[submodelIndex]; len(cached) > 0 {
+		r.mu.RUnlock()
+		return cached
+	}
+	sampler := r.worldLightmapSampler
+	values := r.worldLightStyleValues
+	r.mu.RUnlock()
+	device := r.getHALDevice()
+	queue := r.getHALQueue()
+	if device == nil || queue == nil || sampler == nil {
+		return nil
+	}
+	uploaded := r.uploadWorldLightmapPages(device, queue, sampler, geom.Lightmaps, values)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.brushModelLightmaps == nil {
+		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
+	}
+	if existing := r.brushModelLightmaps[submodelIndex]; len(existing) > 0 {
+		for _, page := range uploaded {
+			if page == nil {
+				continue
+			}
+			if page.bindGroup != nil {
+				page.bindGroup.Destroy()
+			}
+			if page.view != nil {
+				page.view.Destroy()
+			}
+			if page.texture != nil {
+				page.texture.Destroy()
+			}
+		}
+		return existing
+	}
+	r.brushModelLightmaps[submodelIndex] = uploaded
+	return uploaded
 }
 
 func brushMarkerMatchesPhase(face WorldFace, entityAlpha float32, opaque, sky bool) bool {

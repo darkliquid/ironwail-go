@@ -16,10 +16,11 @@ import (
 )
 
 type gogpuOpaqueBrushEntityDraw struct {
-	alpha    float32
-	vertices []WorldVertex
-	indices  []uint32
-	faces    []WorldFace
+	alpha     float32
+	vertices  []WorldVertex
+	indices   []uint32
+	faces     []WorldFace
+	lightmaps []*gpuWorldTexture
 }
 
 func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
@@ -175,6 +176,7 @@ type gogpuTranslucentBrushEntityDraw struct {
 	alphaTestFaces   []WorldFace
 	translucentFaces []gogpuTranslucentLiquidFaceDraw
 	liquidFaces      []gogpuTranslucentLiquidFaceDraw
+	lightmaps        []*gpuWorldTexture
 }
 
 func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentBrushEntityDraw {
@@ -297,6 +299,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
 		if draw := buildGoGPUOpaqueBrushEntityDraw(entity, geom); draw != nil {
+			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 			draws = append(draws, *draw)
 		}
 	}
@@ -401,7 +404,11 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 				textureBindGroup = worldTexture.bindGroup
 			}
 			lightmapBindGroup := whiteLightmapBindGroup
-			if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(worldLightmapPages) {
+			if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(draw.lightmaps) {
+				if lightmapPage := draw.lightmaps[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+					lightmapBindGroup = lightmapPage.bindGroup
+				}
+			} else if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(worldLightmapPages) {
 				if lightmapPage := worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
 					lightmapBindGroup = lightmapPage.bindGroup
 				}
@@ -927,6 +934,7 @@ type gogpuTranslucentBrushFaceRender struct {
 	bufferPair [2]hal.Buffer
 	face       gogpuTranslucentLiquidFaceDraw
 	liquid     bool
+	lightmaps  []*gpuWorldTexture
 }
 
 func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
@@ -962,6 +970,7 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
 		if draw := buildGoGPUTranslucentBrushEntityDraw(entity, geom, liquidAlpha, camera); draw != nil {
+			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 			draws = append(draws, *draw)
 		}
 	}
@@ -1062,12 +1071,14 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 					face:  face,
 					alpha: 1,
 				},
+				lightmaps: draw.lightmaps,
 			})
 		}
 		for _, face := range draw.translucentFaces {
 			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
 				face:       face,
+				lightmaps:  draw.lightmaps,
 			})
 		}
 		for _, face := range draw.liquidFaces {
@@ -1075,6 +1086,7 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
 				face:       face,
 				liquid:     true,
+				lightmaps:  draw.lightmaps,
 			})
 		}
 	}
@@ -1091,7 +1103,11 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 			textureBindGroup = worldTexture.bindGroup
 		}
 		lightmapBindGroup := whiteLightmapBindGroup
-		if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(worldLightmapPages) {
+		if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
+			if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+				lightmapBindGroup = lightmapPage.bindGroup
+			}
+		} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(worldLightmapPages) {
 			if lightmapPage := worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
 				lightmapBindGroup = lightmapPage.bindGroup
 			}
@@ -1134,7 +1150,11 @@ func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity,
 			renderPass.SetBindGroup(2, whiteLightmapBindGroup, nil)
 		} else {
 			lightmapBindGroup := whiteLightmapBindGroup
-			if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(worldLightmapPages) {
+			if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
+				if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+					lightmapBindGroup = lightmapPage.bindGroup
+				}
+			} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(worldLightmapPages) {
 				if lightmapPage := worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
 					lightmapBindGroup = lightmapPage.bindGroup
 				}
