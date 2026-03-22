@@ -1020,7 +1020,7 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		ConHeight:      conH,
 		ViewSize:       float32(cvar.FloatValue("scr_viewsize")),
 		FOV:            currentRuntimeFOV(),
-		FOVAdapt:       true,
+		FOVAdapt:       currentRuntimeFOVAdapt(),
 		ZoomFOV:        currentRuntimeZoomFOV(),
 		Zoom:           g.Zoom,
 		SbarScale:      float32(cvar.FloatValue("scr_sbarscale")),
@@ -1060,6 +1060,13 @@ func currentRuntimeZoomFOV() float32 {
 		return cv.Float32()
 	}
 	return 30
+}
+
+func currentRuntimeFOVAdapt() bool {
+	if cv := cvar.Get("fov_adapt"); cv != nil {
+		return cv.Bool()
+	}
+	return true
 }
 
 func currentShowTurtle() bool {

@@ -117,6 +117,21 @@ func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
 	}
 }
 
+func TestCurrentRuntimeFOVAdaptUsesCanonicalFOVAdaptCVar(t *testing.T) {
+	if cvar.Get("fov_adapt") == nil {
+		cvar.Register("fov_adapt", "1", cvar.FlagArchive, "")
+	}
+
+	cvar.Set("fov_adapt", "0")
+	t.Cleanup(func() {
+		cvar.Set("fov_adapt", "1")
+	})
+
+	if got := currentRuntimeFOVAdapt(); got {
+		t.Fatal("currentRuntimeFOVAdapt() = true, want false")
+	}
+}
+
 func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
 	registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "")
 
