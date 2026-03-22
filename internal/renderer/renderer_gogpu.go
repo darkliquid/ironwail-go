@@ -1399,11 +1399,9 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
-	if state.DrawWorld && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU() {
-		dc.renderWorldTranslucentLiquidsHAL(state)
-	}
+	hasTranslucentWorld := state.DrawWorld && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU()
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
-	plan := planGoGPUEntityDrawOrder(state.DrawEntities, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
+	plan := planGoGPUEntityDrawOrder(state.DrawEntities, hasTranslucentWorld, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
 	for _, phase := range plan.phases {
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
@@ -1425,6 +1423,8 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			dc.renderSkyBrushEntitiesHAL(plan.skyBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseOpaqueLiquidBrush:
 			dc.renderOpaqueLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+		case gogpuEntityPhaseTranslucentWorldLiquid:
+			dc.renderWorldTranslucentLiquidsHAL(state)
 		case gogpuEntityPhaseTranslucentLiquidBrush:
 			dc.renderTranslucentLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
 		case gogpuEntityPhaseTranslucentBrush:

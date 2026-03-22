@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -358,7 +359,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 	decalMarks := []DecalMarkEntity{{Size: 16}}
 
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(1, 4)
-	plan := planGoGPUEntityDrawOrder(true, brushEntities, aliasEntities, spriteEntities, decalMarks, particlePhase, hasParticlePhase)
+	plan := planGoGPUEntityDrawOrder(true, true, brushEntities, aliasEntities, spriteEntities, decalMarks, particlePhase, hasParticlePhase)
 	if len(plan.opaqueBrush) != 1 || plan.opaqueBrush[0].SubmodelIndex != 3 {
 		t.Fatalf("opaqueBrush = %#v, want only submodel 3", plan.opaqueBrush)
 	}
@@ -379,6 +380,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 		gogpuEntityPhaseOpaqueAlias,
 		gogpuEntityPhaseSkyBrush,
 		gogpuEntityPhaseOpaqueLiquidBrush,
+		gogpuEntityPhaseTranslucentWorldLiquid,
 		gogpuEntityPhaseTranslucentLiquidBrush,
 		gogpuEntityPhaseTranslucentBrush,
 		gogpuEntityPhaseDecals,
@@ -397,7 +399,7 @@ func TestPlanGoGPUEntityDrawOrder(t *testing.T) {
 }
 
 func TestPlanGoGPUEntityDrawOrderDrawEntitiesFalseOnlyDecalsRemain(t *testing.T) {
-	plan := planGoGPUEntityDrawOrder(false,
+	plan := planGoGPUEntityDrawOrder(false, false,
 		[]BrushEntity{{SubmodelIndex: 1, Alpha: 1}},
 		[]AliasModelEntity{{ModelID: "ogre", Alpha: 1}},
 		[]SpriteEntity{{ModelID: "flame"}},
@@ -419,7 +421,7 @@ func TestPlanGoGPUEntityDrawOrderDrawEntitiesFalseOnlyDecalsRemain(t *testing.T)
 
 func TestPlanGoGPUEntityDrawOrderDrawEntitiesFalseKeepsParticlePhase(t *testing.T) {
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(2, 4)
-	plan := planGoGPUEntityDrawOrder(false,
+	plan := planGoGPUEntityDrawOrder(false, false,
 		[]BrushEntity{{SubmodelIndex: 1, Alpha: 1}},
 		[]AliasModelEntity{{ModelID: "ogre", Alpha: 1}},
 		[]SpriteEntity{{ModelID: "flame"}},
@@ -438,6 +440,14 @@ func TestPlanGoGPUEntityDrawOrderDrawEntitiesFalseKeepsParticlePhase(t *testing.
 		if plan.phases[i] != phase {
 			t.Fatalf("phase[%d] = %v, want %v (all=%v)", i, plan.phases[i], phase, plan.phases)
 		}
+	}
+}
+
+func TestPlanGoGPUEntityDrawOrderAddsWorldLiquidLatePhaseWithoutEntities(t *testing.T) {
+	plan := planGoGPUEntityDrawOrder(false, true, nil, nil, nil, nil, 0, false)
+	want := []gogpuEntityPhase{gogpuEntityPhaseTranslucentWorldLiquid}
+	if !reflect.DeepEqual(plan.phases, want) {
+		t.Fatalf("phases = %v, want %v", plan.phases, want)
 	}
 }
 
