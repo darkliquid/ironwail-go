@@ -1070,10 +1070,6 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawEntities && state.ViewModel != nil {
 		dc.renderViewModelHAL(*state.ViewModel)
 	}
-
-	if state.VBlend[3] > 0 {
-		dc.renderPolyBlendHAL(state.VBlend)
-	}
 	if sceneTargetActive {
 		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
 			if dc.markGoGPUFrameContentForOverlay() {
@@ -1085,6 +1081,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 			slog.Warn("RenderFrame: failed to composite scene render target")
 		}
 		dc.disableSceneRenderTarget()
+	}
+	if state.VBlend[3] > 0 {
+		dc.renderPolyBlendHAL(state.VBlend)
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
