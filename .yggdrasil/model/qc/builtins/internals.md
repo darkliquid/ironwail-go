@@ -2,7 +2,7 @@
 
 ## Logic
 
-Builtins are registered by number onto the VM’s builtin table. Many builtins are thin adapters from VM memory state to typed Go hook calls, especially for server-backed entity/world operations.
+Builtins are registered by number onto the VM’s builtin table. Many builtins are thin adapters from VM memory state to typed Go hook calls, especially for server-backed entity/world operations. The trace-control slots (`traceon`/`traceoff`) are local VM toggles rather than server hooks: they flip `vm.Trace`, which the interpreter already checks before calling `TraceFunc` for each statement.
 
 The hook interface separates builtin behavior from concrete server implementation so the VM does not import server internals directly.
 

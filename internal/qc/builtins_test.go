@@ -71,6 +71,20 @@ func TestModBuiltinWarnsOnZeroDivisor(t *testing.T) {
 	}
 }
 
+func TestTraceBuiltinsToggleVMTraceFlag(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+
+	traceOnBuiltin(vm)
+	if !vm.Trace {
+		t.Fatal("traceOnBuiltin should enable vm.Trace")
+	}
+
+	traceOffBuiltin(vm)
+	if vm.Trace {
+		t.Fatal("traceOffBuiltin should disable vm.Trace")
+	}
+}
+
 func TestSpawnAllocatesEntity(t *testing.T) {
 	SetServerBuiltinHooks(ServerBuiltinHooks{})
 	vm := newBuiltinsTestVM(8)

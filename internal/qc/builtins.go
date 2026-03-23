@@ -117,8 +117,8 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[26] = ftosBuiltin
 	vm.Builtins[27] = vtosBuiltin
 	vm.Builtins[28] = noopBuiltin
-	vm.Builtins[29] = noopBuiltin
-	vm.Builtins[30] = noopBuiltin
+	vm.Builtins[29] = traceOnBuiltin
+	vm.Builtins[30] = traceOffBuiltin
 	vm.Builtins[31] = eprint
 
 	// Group 21-40: Physics/Movement (canonical indices)
@@ -218,6 +218,14 @@ func RegisterBuiltins(vm *VM) {
 }
 func noopBuiltin(vm *VM) {
 	vm.SetGFloat(OFSReturn, 0)
+}
+
+func traceOnBuiltin(vm *VM) {
+	vm.Trace = true
+}
+
+func traceOffBuiltin(vm *VM) {
+	vm.Trace = false
 }
 
 func breakBuiltin(vm *VM) {
