@@ -1,0 +1,8 @@
+name: Compatibility Random
+type: module
+description: "Parity-focused libc rand() compatibility stream shared across host, server, and QC gameplay paths"
+blackbox: false
+mapping:
+  paths:
+    - internal/compatrand/compatrand.go
+    - internal/compatrand/rng_test.go
