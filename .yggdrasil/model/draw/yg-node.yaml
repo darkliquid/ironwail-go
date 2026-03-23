@@ -1,0 +1,9 @@
+name: Draw
+type: module
+description: "2D asset manager for gfx.wad, standalone QPic lookup, conchars font bytes, palette data, and cached UI picture resolution"
+blackbox: false
+mapping:
+  paths:
+    - internal/draw/doc.go
+    - internal/draw/manager.go
+    - internal/draw/manager_test.go
