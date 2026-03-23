@@ -538,6 +538,42 @@ func (h *Host) CmdPrEnts(subs *Subsystems) {
 	}
 }
 
+func (h *Host) CmdEdictCount(subs *Subsystems) {
+	if subs == nil || subs.Server == nil || subs.Console == nil || !h.serverActive {
+		return
+	}
+	srv, ok := subs.Server.(*server.Server)
+	if !ok {
+		return
+	}
+
+	active, models, solid, step := 0, 0, 0, 0
+	for i := 0; i < srv.NumEdicts; i++ {
+		ent := srv.Edicts[i]
+		if ent == nil || ent.Free {
+			continue
+		}
+		active++
+		if ent.Vars != nil {
+			if ent.Vars.Solid != 0 {
+				solid++
+			}
+			if ent.Vars.Model != 0 {
+				models++
+			}
+			if server.MoveType(ent.Vars.MoveType) == server.MoveTypeStep {
+				step++
+			}
+		}
+	}
+
+	subs.Console.Print(fmt.Sprintf("num_edicts:%3d\n", srv.NumEdicts))
+	subs.Console.Print(fmt.Sprintf("active    :%3d\n", active))
+	subs.Console.Print(fmt.Sprintf("view      :%3d\n", models))
+	subs.Console.Print(fmt.Sprintf("touch     :%3d\n", solid))
+	subs.Console.Print(fmt.Sprintf("step      :%3d\n", step))
+}
+
 func (h *Host) CmdProfile(subs *Subsystems) {
 	if subs == nil || subs.Server == nil || subs.Console == nil || !h.serverActive {
 		return

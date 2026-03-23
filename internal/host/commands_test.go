@@ -1041,6 +1041,54 @@ func TestCmdBanSetsSingleAddress(t *testing.T) {
 	}
 }
 
+func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	srv := server.NewServer()
+	if err := srv.Init(1); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	modelEnt := srv.AllocEdict()
+	if modelEnt == nil {
+		t.Fatal("AllocEdict modelEnt = nil")
+	}
+	modelEnt.Vars.Model = srv.QCVM.AllocString("progs/ogre.mdl")
+	modelEnt.Vars.Solid = float32(server.SolidSlideBox)
+	modelEnt.Vars.MoveType = float32(server.MoveTypeStep)
+
+	solidEnt := srv.AllocEdict()
+	if solidEnt == nil {
+		t.Fatal("AllocEdict solidEnt = nil")
+	}
+	solidEnt.Vars.Solid = float32(server.SolidBSP)
+
+	subs := &Subsystems{
+		Server:  srv,
+		Console: console,
+	}
+
+	h.CmdEdictCount(subs)
+
+	got := strings.Join(console.messages, "")
+	if !strings.Contains(got, "num_edicts:  4\n") {
+		t.Fatalf("edictcount output missing num_edicts:\n%s", got)
+	}
+	if !strings.Contains(got, "active    :  4\n") {
+		t.Fatalf("edictcount output missing active count:\n%s", got)
+	}
+	if !strings.Contains(got, "view      :  1\n") {
+		t.Fatalf("edictcount output missing model count:\n%s", got)
+	}
+	if !strings.Contains(got, "touch     :  2\n") {
+		t.Fatalf("edictcount output missing solid count:\n%s", got)
+	}
+	if !strings.Contains(got, "step      :  1\n") {
+		t.Fatalf("edictcount output missing step count:\n%s", got)
+	}
+}
+
 func TestCmdBanSetsSubnetMask(t *testing.T) {
 	h := NewHost()
 	h.SetServerActive(true)
