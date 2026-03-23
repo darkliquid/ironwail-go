@@ -1,0 +1,7 @@
+name: HUD Status Bar
+type: module
+description: "Classic and QuakeWorld status-bar rendering, including inventory, scoreboards, pickup flashes, and expansion-pack HUD variants"
+blackbox: false
+mapping:
+  paths:
+    - internal/hud/status.go

@@ -1,0 +1,9 @@
+name: HUD Runtime
+type: module
+description: "HUD orchestration layer that holds flattened state, chooses styles/canvases, and coordinates child overlay renderers"
+blackbox: false
+mapping:
+  paths:
+    - internal/hud/doc.go
+    - internal/hud/hud.go
+    - internal/hud/hud_test.go

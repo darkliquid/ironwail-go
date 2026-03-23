@@ -1,0 +1,11 @@
+name: HUD Overlays
+type: module
+description: "Transient overlay helpers for centerprint, crosshair, compact HUD, and text/number drawing primitives"
+blackbox: false
+mapping:
+  paths:
+    - internal/hud/drawing.go
+    - internal/hud/centerprint.go
+    - internal/hud/crosshair.go
+    - internal/hud/compact.go
+    - internal/hud/crosshair_test.go

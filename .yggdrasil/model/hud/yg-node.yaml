@@ -1,0 +1,4 @@
+name: Heads-Up Display
+type: module
+description: "Umbrella for gameplay overlay rendering, covering HUD orchestration, status bars, crosshair, compact overlays, and centerprint/intermission presentation"
+blackbox: false
