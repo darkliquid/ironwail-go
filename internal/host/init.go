@@ -457,6 +457,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	if subs.Commands != nil {
 		subs.Commands.Init()
 	}
+	cmdsys.RegisterCvarCommands()
 	h.RegisterCommands(subs)
 
 	if subs.Console != nil {

@@ -284,6 +284,37 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 	}
 }
 
+func TestHostInitRegistersCvarHelperCommands(t *testing.T) {
+	for _, name := range []string{"cvarlist", "toggle", "cycle", "cycleback", "inc", "reset", "resetall", "resetcfg"} {
+		cmdsys.RemoveCommand(name)
+	}
+	t.Cleanup(func() {
+		for _, name := range []string{"cvarlist", "toggle", "cycle", "cycleback", "inc", "reset", "resetall", "resetcfg"} {
+			cmdsys.RemoveCommand(name)
+		}
+	})
+
+	h := NewHost()
+	subs := &mockSubsystems{
+		server:  &mockServer{},
+		client:  &mockClient{},
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Server = subs.server
+	subs.Subsystems.Client = subs.client
+	subs.Subsystems.Console = subs.console
+
+	if err := h.Init(&InitParams{BaseDir: ".", MaxClients: 1}, &subs.Subsystems); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	for _, name := range []string{"cvarlist", "toggle", "cycle", "cycleback", "inc", "reset", "resetall", "resetcfg"} {
+		if !cmdsys.Exists(name) {
+			t.Fatalf("command %q not registered", name)
+		}
+	}
+}
+
 // TestRegisterHostCVarsIncludesDebugTelemetryCVars verifies that the host registers
 // its debug telemetry cvars for parity and troubleshooting.
 // Why: Enables engine-side event logging and QuakeC tracing for parity investigations.

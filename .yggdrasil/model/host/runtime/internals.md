@@ -8,7 +8,7 @@
 
 Host cvar registration includes gameplay-fix toggles used by server/QC parity paths, including `sv_gameplayfix_random` (default `1`) that selects QC `random()` formula behavior.
 
-Host command registration is unconditional during `Init`. The optional `Subsystems.Commands` wrapper only controls how buffered command text is executed/inserted; the host command surface itself is always bound into the global `cmdsys` so localcmd/changelevel-style paths work even in embedded or test harness setups that leave `Subsystems.Commands` nil.
+Host command registration is unconditional during `Init`, and runtime now also invokes cvar helper command registration (`cvarlist`, `toggle`, `cycle`, `cycleback`, `inc`, `reset`, `resetall`, `resetcfg`) at startup. The optional `Subsystems.Commands` wrapper only controls how buffered command text is executed/inserted; the host command surface itself is always bound into the global `cmdsys` so localcmd/changelevel-style paths work even in embedded or test harness setups that leave `Subsystems.Commands` nil.
 
 Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info.
 

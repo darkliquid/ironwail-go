@@ -2,13 +2,13 @@
 
 ## Logic
 
-This node is a thin command-registration layer over the `cvar` package. It installs a small family of convenience verbs, validates argument shape where needed, and translates those verbs into `cvar.Get`, `cvar.Set`, `cvar.All`, and default-value operations.
+This node is a thin command-registration layer over the `cvar` package. It installs a small family of convenience verbs, validates argument shape where needed, and translates those verbs into `cvar.Get`, `cvar.Set`, `cvar.All`, and default-value operations. `cvarlist` snapshots and sorts cvars by name before logging, which keeps output stable across map/hash iteration order.
 
 ## Constraints
 
 - The commands are only as correct as the underlying `cvar` defaults/flags they delegate to.
 - Reset behavior must distinguish between all cvars and archived-only cvars.
-- Registration is opt-in; the package defines the commands but does not itself prove where they are installed.
+- Registration remains explicit via `RegisterCvarCommands`, while host runtime now calls the package-level registration helper during startup so helper commands are present in normal runs.
 
 ## Decisions
 

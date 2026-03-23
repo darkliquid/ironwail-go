@@ -20,7 +20,7 @@ Key methods:
 Contracts:
 - `Init` fails on fatal filesystem/console/server/client/renderer init errors.
 - Audio init warnings do not abort startup.
-- `Init` always registers host commands in the global `cmdsys`, even when `Subsystems.Commands` is nil.
+- `Init` always registers host commands and cvar helper commands in the global `cmdsys`, even when `Subsystems.Commands` is nil.
 - `Frame` expects the caller to supply callbacks that map onto concrete client/server/render/audio work.
 - `Shutdown` may use `Host.Subs` when the caller passes `nil`.
 

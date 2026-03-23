@@ -6,6 +6,26 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
+func TestRegisterCvarCommandsIncludesParityHelpers(t *testing.T) {
+	cs := NewCmdSystem()
+	cs.RegisterCvarCommands()
+
+	for _, name := range []string{
+		"cvarlist",
+		"toggle",
+		"cycle",
+		"cycleback",
+		"inc",
+		"reset",
+		"resetall",
+		"resetcfg",
+	} {
+		if !cs.Exists(name) {
+			t.Fatalf("command %q not registered", name)
+		}
+	}
+}
+
 // TestToggle tests the toggle console command.
 // It ensures that a cvar can be toggled between 0 and 1, which is a common Quake feature for boolean settings.
 // Where in C: CV_Toggle_f in cvar.c
@@ -41,6 +61,26 @@ func TestCycle(t *testing.T) {
 	cmdCycle([]string{"test_cycle", "a", "b", "c"})
 	if cvar.StringValue("test_cycle") != "a" {
 		t.Fatalf("cycle from c: got %q, want a", cvar.StringValue("test_cycle"))
+	}
+}
+
+// TestCycleBack tests the cycleback console command.
+// It ensures that a cvar can be cycled backward through a list of values.
+func TestCycleBack(t *testing.T) {
+	cvar.Register("test_cycleback", "a", cvar.FlagNone, "test")
+	defer cvar.Set("test_cycleback", "a")
+
+	cmdCycleBack([]string{"test_cycleback", "a", "b", "c"})
+	if cvar.StringValue("test_cycleback") != "c" {
+		t.Fatalf("cycleback from a: got %q, want c", cvar.StringValue("test_cycleback"))
+	}
+	cmdCycleBack([]string{"test_cycleback", "a", "b", "c"})
+	if cvar.StringValue("test_cycleback") != "b" {
+		t.Fatalf("cycleback from c: got %q, want b", cvar.StringValue("test_cycleback"))
+	}
+	cmdCycleBack([]string{"test_cycleback", "a", "b", "c"})
+	if cvar.StringValue("test_cycleback") != "a" {
+		t.Fatalf("cycleback from b: got %q, want a", cvar.StringValue("test_cycleback"))
 	}
 }
 
