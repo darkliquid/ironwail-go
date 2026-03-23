@@ -25,6 +25,7 @@
 package console
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -201,7 +202,7 @@ func (tc *TabCompleter) Complete(input string, forward bool) (string, []string) 
 
 	// If input changed or no matches, rebuild the match list
 	if input != tc.lastInput || len(tc.matches) == 0 {
-		tc.buildMatches(partial)
+		tc.buildMatches(input, partial)
 		tc.partial = partial
 		tc.matchIndex = 0
 		tc.lastInput = input
@@ -263,7 +264,7 @@ func (tc *TabCompleter) GetHint(input string) string {
 	// Build temporary match list
 	tc.mu.RUnlock()
 	tc.mu.Lock()
-	tc.buildMatches(partial)
+	tc.buildMatches(input, partial)
 	tc.mu.Unlock()
 	tc.mu.RLock()
 
@@ -300,7 +301,7 @@ func (tc *TabCompleter) GetHint(input string) string {
 //  3. Sort all results alphabetically (case-insensitive).
 //  4. Deduplicate: if the same name appears from multiple sources, keep one
 //     entry and increment its Count.
-func (tc *TabCompleter) buildMatches(partial string) {
+func (tc *TabCompleter) buildMatches(input, partial string) {
 	tc.matches = make([]*TabMatch, 0)
 	partialLower := strings.ToLower(partial)
 
@@ -337,6 +338,22 @@ func (tc *TabCompleter) buildMatches(partial string) {
 		}
 	}
 
+	// Add command-aware file completions.
+	if tc.fileProvider != nil {
+		for _, spec := range fileCompletionSpecs(input) {
+			files := tc.fileProvider(spec.Pattern)
+			for _, file := range files {
+				name := spec.Normalize(file)
+				if name == "" {
+					continue
+				}
+				if strings.Contains(strings.ToLower(name), partialLower) {
+					allMatches = append(allMatches, &TabMatch{Name: name, Type: spec.Type})
+				}
+			}
+		}
+	}
+
 	// Sort matches by name (natural sort)
 	sort.Slice(allMatches, func(i, j int) bool {
 		return strings.ToLower(allMatches[i].Name) < strings.ToLower(allMatches[j].Name)
@@ -361,6 +378,78 @@ func (tc *TabCompleter) buildMatches(partial string) {
 			tc.matches = append(tc.matches, m)
 		}
 	}
+}
+
+type fileCompletionSpec struct {
+	Pattern   string
+	Type      string
+	Normalize func(string) string
+}
+
+func fileCompletionSpecs(input string) []fileCompletionSpec {
+	segment := currentCommandSegment(input)
+	if strings.TrimSpace(segment) == "" {
+		return nil
+	}
+	fields := strings.Fields(segment)
+	if len(fields) == 0 {
+		return nil
+	}
+	if len(fields) == 1 && !strings.HasSuffix(segment, " ") {
+		return nil
+	}
+
+	switch strings.ToLower(fields[0]) {
+	case "map", "changelevel":
+		return []fileCompletionSpec{{
+			Pattern: "maps/*.bsp",
+			Type:    "map",
+			Normalize: func(path string) string {
+				name := filepath.Base(path)
+				return strings.TrimSuffix(name, ".bsp")
+			},
+		}}
+	case "exec":
+		return []fileCompletionSpec{{
+			Pattern: "*.cfg",
+			Type:    "config",
+			Normalize: func(path string) string {
+				return filepath.Base(path)
+			},
+		}}
+	case "playdemo", "timedemo":
+		return []fileCompletionSpec{{
+			Pattern: "*.dem",
+			Type:    "demo",
+			Normalize: func(path string) string {
+				name := filepath.Base(path)
+				return strings.TrimSuffix(name, ".dem")
+			},
+		}}
+	default:
+		return nil
+	}
+}
+
+func currentCommandSegment(input string) string {
+	input = strings.TrimLeft(input, " ")
+	inQuote := false
+	start := 0
+	for i := len(input) - 1; i >= 0; i-- {
+		ch := input[i]
+		if ch == '"' {
+			inQuote = !inQuote
+			continue
+		}
+		if ch == ';' && !inQuote {
+			start = i + 1
+			break
+		}
+	}
+	for start < len(input) && input[start] == ' ' {
+		start++
+	}
+	return input[start:]
 }
 
 // extractPartial extracts the "word" at the end of the input that should be

@@ -955,6 +955,50 @@ func TestRegisterConsoleCompletionProvidersIncludesAliases(t *testing.T) {
 	}
 }
 
+func TestRegisterConsoleCompletionProvidersIncludesMapFiles(t *testing.T) {
+	originalSubs := g.Subs
+	t.Cleanup(func() {
+		g.Subs = originalSubs
+		console.ResetCompletion()
+	})
+
+	console.ResetCompletion()
+
+	baseDir := t.TempDir()
+	mapsDir := filepath.Join(baseDir, "id1", "maps")
+	if err := os.MkdirAll(mapsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(mapsDir, "e1m1.bsp"), []byte("bsp"), 0o644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, ""); err != nil {
+		t.Fatalf("filesystem init failed: %v", err)
+	}
+	t.Cleanup(fileSys.Close)
+
+	g.Subs = &host.Subsystems{Files: fileSys}
+
+	registerConsoleCompletionProviders()
+
+	got, matches := console.CompleteInput("map e1", true)
+	if got != "map e1m1" {
+		t.Fatalf("CompleteInput = %q, want %q", got, "map e1m1")
+	}
+	found := false
+	for _, match := range matches {
+		if match == "e1m1 (map)" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("matches = %v, want e1m1 (map)", matches)
+	}
+}
+
 func TestDrawLoadingPlaqueDrawsPlaqueAndCenteredLoadingPic(t *testing.T) {
 	plaque := &qimage.QPic{Width: 320, Height: 20}
 	loading := &qimage.QPic{Width: 160, Height: 24}
@@ -6307,7 +6351,7 @@ func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
 	registerConsoleCompletionProviders()
 	g.Input.SetKeyDest(input.KeyConsole)
 
-	for _, ch := range "tog" {
+	for _, ch := range "togglec" {
 		handleGameCharEvent(ch)
 	}
 	handleGameKeyEvent(input.KeyEvent{Key: input.KTab, Down: true})

@@ -14,6 +14,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/input"
 )
 
@@ -91,6 +92,13 @@ func registerConsoleCompletionProviders() {
 	console.SetGlobalCommandProvider(cmdsys.Complete)
 	console.SetGlobalCVarProvider(cvar.Complete)
 	console.SetGlobalAliasProvider(cmdsys.CompleteAliases)
+	if g.Subs != nil {
+		if fileSys, ok := g.Subs.Files.(*fs.FileSystem); ok {
+			console.SetGlobalFileProvider(fileSys.ListFiles)
+			return
+		}
+	}
+	console.SetGlobalFileProvider(nil)
 }
 
 func registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
