@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -18,11 +19,54 @@ type GlobalAllocator struct {
 // NewGlobalAllocator creates a new allocator with system globals pre-reserved.
 func NewGlobalAllocator() *GlobalAllocator {
 	ga := &GlobalAllocator{
-		data:    make([]uint32, qc.OFSParmStart),
-		nextOfs: qc.OFSParmStart,
+		data:    make([]uint32, qc.ReservedOFS),
+		nextOfs: qc.ReservedOFS,
 		named:   make(map[string]uint16),
 		temps:   make(map[uint16]bool),
 	}
+
+	// Pre-register system globals at their fixed offsets
+	ga.named["self"] = qc.OFSSelf
+	ga.named["other"] = qc.OFSOther
+	ga.named["world"] = qc.OFSWorld
+	ga.named["time"] = qc.OFSTime
+	ga.named["frametime"] = qc.OFSFrameTime
+	ga.named["force_retouch"] = qc.OFSForceRetouch
+	ga.named["mapname"] = qc.OFSMapName
+	ga.named["deathmatch"] = qc.OFSDeathmatch
+	ga.named["coop"] = qc.OFSCoop
+	ga.named["teamplay"] = qc.OFSTeamplay
+	ga.named["serverflags"] = qc.OFSServerFlags
+	ga.named["total_secrets"] = qc.OFSTotalSecrets
+	ga.named["total_monsters"] = qc.OFSTotalMonsters
+	ga.named["found_secrets"] = qc.OFSFoundSecrets
+	ga.named["killed_monsters"] = qc.OFSKilledMonsters
+
+	// parm1..parm16 begin at OFSParmStart (43)
+	for i := 0; i < 16; i++ {
+		name := fmt.Sprintf("parm%d", i+1)
+		ga.named[name] = qc.OFSParmStart + uint16(i)
+	}
+
+	ga.named["v_forward"] = qc.OFSGlobalVForward
+	ga.named["v_up"] = qc.OFSGlobalVUp
+	ga.named["v_right"] = qc.OFSGlobalVRight
+
+	ga.named["trace_allsolid"] = qc.OFSTraceAllSolid
+	ga.named["trace_startsolid"] = qc.OFSTraceStartSolid
+	ga.named["trace_fraction"] = qc.OFSTraceFraction
+	ga.named["trace_endpos"] = qc.OFSTraceEndPos
+	ga.named["trace_plane_normal"] = qc.OFSTracePlaneNormal
+	ga.named["trace_plane_dist"] = qc.OFSTracePlaneDist
+	ga.named["trace_ent"] = qc.OFSTraceEnt
+	ga.named["trace_inopen"] = qc.OFSTraceInOpen
+	ga.named["trace_inwater"] = qc.OFSTraceInWater
+	ga.named["msg_entity"] = qc.OFSMsgEntity
+
+	// Next free offset after all pre-registered system globals
+	ga.nextOfs = qc.OFSMsgEntity + 1
+	ga.grow(int(ga.nextOfs))
+
 	return ga
 }
 

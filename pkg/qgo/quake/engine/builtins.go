@@ -24,7 +24,7 @@ func MakeVectors(ang quake.Vec3) {}
 //
 //qgo:builtin 2
 //go:noinline
-func SetOrigin(e quake.Entity, org quake.Vec3) {}
+func SetOrigin(e *quake.Entity, org quake.Vec3) {}
 
 // SetModel sets the visual model for an entity using a model path (e.g. "progs/player.mdl").
 // This also updates the entity's modelindex.
@@ -33,7 +33,7 @@ func SetOrigin(e quake.Entity, org quake.Vec3) {}
 //
 //qgo:builtin 3
 //go:noinline
-func SetModel(e quake.Entity, m string) {}
+func SetModel(e *quake.Entity, m string) {}
 
 // SetSize sets the bounding box (mins and maxs) for an entity's physics.
 // The bounding box is relative to the entity's origin.
@@ -42,7 +42,7 @@ func SetModel(e quake.Entity, m string) {}
 //
 //qgo:builtin 4
 //go:noinline
-func SetSize(e quake.Entity, min, max quake.Vec3) {}
+func SetSize(e *quake.Entity, min, max quake.Vec3) {}
 
 // BreakStatement triggers a debugger break if a debugger is attached to the VM.
 //
@@ -67,7 +67,7 @@ func Random() float32 { return 0 }
 //
 //qgo:builtin 8
 //go:noinline
-func Sound(e quake.Entity, ch int, samp string, vol float32, atten float32) {}
+func Sound(e *quake.Entity, ch int, samp string, vol float32, atten float32) {}
 
 // Normalize returns a vector with the same direction as the input but with a length of 1.
 //
@@ -117,7 +117,7 @@ func Vectoyaw(v quake.Vec3) float32 { return 0 }
 //
 //qgo:builtin 14
 //go:noinline
-func Spawn() quake.Entity { return 0 }
+func Spawn() *quake.Entity { return nil }
 
 // Remove deletes an entity from the game world and deallocates its slot.
 //
@@ -125,7 +125,7 @@ func Spawn() quake.Entity { return 0 }
 //
 //qgo:builtin 15
 //go:noinline
-func Remove(e quake.Entity) {}
+func Remove(e *quake.Entity) {}
 
 // Traceline performs a ray-cast from v1 to v2 and stores the results in trace globals.
 //
@@ -133,7 +133,7 @@ func Remove(e quake.Entity) {}
 //
 //qgo:builtin 16
 //go:noinline
-func Traceline(v1, v2 quake.Vec3, nomonsters float32, e quake.Entity) {}
+func Traceline(v1, v2 quake.Vec3, nomonsters float32, e *quake.Entity) {}
 
 // CheckClient returns a client entity that is currently visible to the executing entity.
 //
@@ -141,7 +141,7 @@ func Traceline(v1, v2 quake.Vec3, nomonsters float32, e quake.Entity) {}
 //
 //qgo:builtin 17
 //go:noinline
-func CheckClient() quake.Entity { return 0 }
+func CheckClient() *quake.Entity { return nil }
 
 // Find locates an entity whose string field (e.g. "classname") matches the specified value.
 // The search starts from the entity after 'e'.
@@ -150,7 +150,7 @@ func CheckClient() quake.Entity { return 0 }
 //
 //qgo:builtin 18
 //go:noinline
-func Find(e quake.Entity, field string, match string) quake.Entity { return 0 }
+func Find(e *quake.Entity, field string, match string) *quake.Entity { return nil }
 
 // PrecacheSound registers a sound file path so it can be loaded and played.
 //
@@ -176,7 +176,7 @@ func PrecacheModel(s string) string { return s }
 //
 //qgo:builtin 21
 //go:noinline
-func StuffCmd(e quake.Entity, s string) {}
+func StuffCmd(e *quake.Entity, s string) {}
 
 // FindRadius returns a linked chain of entities within a specific radius of a point.
 //
@@ -184,7 +184,7 @@ func StuffCmd(e quake.Entity, s string) {}
 //
 //qgo:builtin 22
 //go:noinline
-func FindRadius(org quake.Vec3, radius float32) quake.Entity { return 0 }
+func FindRadius(org quake.Vec3, radius float32) *quake.Entity { return nil }
 
 // Bprint broadcasts a message to all connected clients and the engine console.
 //
@@ -200,7 +200,7 @@ func Bprint(s string) {}
 //
 //qgo:builtin 24
 //go:noinline
-func SPrint(e quake.Entity, s string) {}
+func SPrint(e *quake.Entity, s string) {}
 
 // Print prints a message to the engine console.
 //
@@ -242,7 +242,7 @@ func Vtos(v quake.Vec3) string { return "" }
 //
 //qgo:builtin 31
 //go:noinline
-func EPrint(e quake.Entity) {}
+func EPrint(e *quake.Entity) {}
 
 // WalkMove moves an entity forward in its current direction, checking for collisions.
 //
@@ -298,7 +298,7 @@ func Ceil(f float32) float32 { return 0 }
 //
 //qgo:builtin 40
 //go:noinline
-func CheckBottom(e quake.Entity) float32 { return 0 }
+func CheckBottom(e *quake.Entity) float32 { return 0 }
 
 // --- Group 41-50: World Queries and AI ---
 
@@ -324,7 +324,7 @@ func FAbs(f float32) float32 { return 0 }
 //
 //qgo:builtin 44
 //go:noinline
-func Aim(e quake.Entity, speed float32) quake.Vec3 { return quake.Vec3{} }
+func Aim(e *quake.Entity, speed float32) quake.Vec3 { return quake.Vec3{} }
 
 // Cvar returns the current float value of a console variable.
 //
@@ -348,7 +348,7 @@ func LocalCmd(s string) {}
 //
 //qgo:builtin 47
 //go:noinline
-func GetNextEnt(e quake.Entity) quake.Entity { return 0 }
+func GetNextEnt(e *quake.Entity) *quake.Entity { return nil }
 
 // Particle spawns a group of particles at the specified origin.
 //
@@ -438,7 +438,7 @@ func WriteString(dest float32, s string) {}
 //
 //qgo:builtin 59
 //go:noinline
-func WriteEntity(dest float32, e quake.Entity) {}
+func WriteEntity(dest float32, e *quake.Entity) {}
 
 // Sin returns the sine of an angle given in degrees.
 //
@@ -472,7 +472,7 @@ func Sqrt(f float32) float32 { return 0 }
 //
 //qgo:builtin 65
 //go:noinline
-func Etos(e quake.Entity) string { return "" }
+func Etos(e *quake.Entity) string { return "" }
 
 // MoveToGoal moves the entity its 'dist' towards its 'goalentity'.
 //
@@ -496,7 +496,7 @@ func PrecacheFile(s string) string { return s }
 //
 //qgo:builtin 69
 //go:noinline
-func MakeStatic(e quake.Entity) {}
+func MakeStatic(e *quake.Entity) {}
 
 // Changelevel triggers a level transition to the specified map name.
 //
@@ -554,7 +554,7 @@ func PrecacheSound2(s string) string { return s }
 //
 //qgo:builtin 78
 //go:noinline
-func SetSpawnParms(e quake.Entity) {}
+func SetSpawnParms(e *quake.Entity) {}
 
 // FinaleFinished signals the engine that a finale sequence has completed.
 //
@@ -562,7 +562,7 @@ func SetSpawnParms(e quake.Entity) {}
 //
 //qgo:builtin 79
 //go:noinline
-func FinaleFinished() {}
+func FinaleFinished() float32 { return 0 }
 
 // LocalSound plays a sound that is only heard by a specific client.
 //
@@ -570,7 +570,7 @@ func FinaleFinished() {}
 //
 //qgo:builtin 80
 //go:noinline
-func LocalSound(e quake.Entity, s string) {}
+func LocalSound(e *quake.Entity, s string) {}
 
 // --- Group 81-100: Math Extensions ---
 
@@ -628,7 +628,7 @@ func CheckExtension(s string) float32 { return 0 }
 //
 //qgo:builtin 100
 //go:noinline
-func CheckPlayerEXFlags(e quake.Entity) float32 { return 0 }
+func CheckPlayerEXFlags(e *quake.Entity) float32 { return 0 }
 
 // --- Group 101+: String and Trig Extensions ---
 

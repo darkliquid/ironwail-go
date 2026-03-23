@@ -26,6 +26,9 @@ type Lowerer struct {
 	entityFields map[types.Type][]IRField // Type -> fields
 	fieldOffsets map[types.Object]uint16  // Field object -> offset
 
+	breakLabels    []string
+	continueLabels []string
+
 	// Per-package state during lowering
 	currentInfo *types.Info
 	currentFset *token.FileSet
@@ -139,6 +142,21 @@ func (l *Lowerer) lowerGenDecl(decl *ast.GenDecl) {
 				g := IRGlobal{
 					Name: name.Name,
 					Type: l.goTypeToQC(obj.Type()),
+				}
+
+				// Check for qgo tag in comments or if it's a field (ValueSpec doesn't have Tags, but we can check the comment)
+				if vs.Doc != nil {
+					for _, c := range vs.Doc.List {
+						if strings.HasPrefix(c.Text, "//qgo:") {
+							g.Name = strings.TrimSpace(c.Text[6:])
+						}
+					}
+				} else if vs.Comment != nil {
+					for _, c := range vs.Comment.List {
+						if strings.HasPrefix(c.Text, "//qgo:") {
+							g.Name = strings.TrimSpace(c.Text[6:])
+						}
+					}
 				}
 
 				// Initial value
@@ -368,6 +386,10 @@ func (l *Lowerer) lowerStmt(fn *IRFunc, stmt ast.Stmt) {
 		l.lowerIf(fn, s)
 	case *ast.ForStmt:
 		l.lowerFor(fn, s)
+	case *ast.SwitchStmt:
+		l.lowerSwitchStmt(fn, s)
+	case *ast.BranchStmt:
+		l.lowerBranch(fn, s)
 	case *ast.IncDecStmt:
 		l.lowerIncDec(fn, s)
 	case *ast.DeclStmt:
@@ -445,6 +467,10 @@ func (l *Lowerer) lowerAssign(fn *IRFunc, s *ast.AssignStmt) {
 			// Entity field store: ent.field = val → ADDRESS + STOREP
 			l.lowerFieldStore(fn, lv, rhs)
 
+		case *ast.IndexExpr:
+			// Index store: v[i] = val
+			l.lowerIndexStore(fn, lv, rhs)
+
 		default:
 			l.errors.Addf(l.pos(lhs), "unsupported assignment target: %T", lhs)
 		}
@@ -466,10 +492,36 @@ func (l *Lowerer) lowerExpr(fn *IRFunc, expr ast.Expr) VReg {
 		return l.lowerUnaryExpr(fn, e)
 
 	case *ast.CallExpr:
+		// Check for MakeVec3
+		if id, ok := e.Fun.(*ast.Ident); ok {
+			if id.Name == "MakeVec3" {
+				result := l.allocVReg()
+				fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+				for i, arg := range e.Args {
+					if i >= 3 {
+						break
+					}
+					val := l.lowerExpr(fn, arg)
+					fn.Body = append(fn.Body, IRInst{
+						Op:   qc.OPStoreF,
+						A:    val,
+						B:    VReg(uint16(result) + uint16(i)),
+						Type: EvFloat,
+					})
+				}
+				return result
+			}
+		}
 		return l.lowerCallExpr(fn, e)
+
+	case *ast.CompositeLit:
+		return l.lowerCompositeLit(fn, e)
 
 	case *ast.SelectorExpr:
 		return l.lowerSelectorExpr(fn, e)
+
+	case *ast.IndexExpr:
+		return l.lowerIndexExpr(fn, e)
 
 	case *ast.ParenExpr:
 		return l.lowerExpr(fn, e.X)
@@ -492,6 +544,35 @@ func (l *Lowerer) lowerBasicLit(fn *IRFunc, lit *ast.BasicLit) VReg {
 		l.errors.Addf(l.pos(lit), "unsupported literal kind: %s", lit.Kind)
 		return VRegInvalid
 	}
+}
+
+func (l *Lowerer) lowerCompositeLit(fn *IRFunc, lit *ast.CompositeLit) VReg {
+	qcType := l.goTypeToQC(l.currentInfo.Types[lit].Type)
+	if qcType == EvVector {
+		// Vector literal
+		result := l.allocVReg()
+		fn.Locals = append(fn.Locals, IRLocal{Type: EvVector, VReg: result})
+
+		for i, elt := range lit.Elts {
+			if i >= 3 {
+				break
+			}
+			val := l.lowerExpr(fn, elt)
+			// Store each component to result[i]
+			// Since result is a vector VReg, it takes 3 slots.
+			// result+i points to the component.
+			fn.Body = append(fn.Body, IRInst{
+				Op:   qc.OPStoreF,
+				A:    val,
+				B:    VReg(uint16(result) + uint16(i)),
+				Type: EvFloat,
+			})
+		}
+		return result
+	}
+
+	l.errors.Addf(l.pos(lit), "unsupported composite literal type: %T", l.currentInfo.Types[lit].Type)
+	return VRegInvalid
 }
 
 func (l *Lowerer) lowerIdent(fn *IRFunc, id *ast.Ident) VReg {
@@ -640,9 +721,47 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 			funcObj = obj
 		}
 	case *ast.SelectorExpr:
+		// Check for method calls (e.g., v.Add(o))
 		if sel, ok := l.currentInfo.Selections[f]; ok {
-			if fn, ok := sel.Obj().(*types.Func); ok {
-				funcObj = fn
+			if fnObj, ok := sel.Obj().(*types.Func); ok {
+				sig := fnObj.Type().(*types.Signature)
+				if sig.Recv() != nil {
+					recvType := l.goTypeToQC(sig.Recv().Type())
+					if recvType == EvVector {
+						// It's a method on Vec3
+						recvVReg := l.lowerExpr(fn, f.X)
+						argVReg := l.lowerExpr(fn, call.Args[0])
+						result := l.allocVReg()
+
+						var op qc.Opcode
+						var resType qc.EType = EvVector
+						switch fnObj.Name() {
+						case "Add":
+							op = qc.OPAddV
+						case "Sub":
+							op = qc.OPSubV
+						case "Mul":
+							op = qc.OPMulVF
+						case "Dot":
+							op = qc.OPMulV
+							resType = EvFloat
+						default:
+							l.errors.Addf(l.pos(call), "unsupported Vec3 method: %s", fnObj.Name())
+							return VRegInvalid
+						}
+
+						fn.Body = append(fn.Body, IRInst{
+							Op:   op,
+							A:    recvVReg,
+							B:    argVReg,
+							C:    result,
+							Type: resType,
+						})
+						fn.Locals = append(fn.Locals, IRLocal{Type: resType, VReg: result})
+						return result
+					}
+				}
+				funcObj = fnObj
 			}
 		}
 		// Also check Uses for package-level functions
@@ -671,11 +790,16 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 		})
 	}
 
-	// Find function VReg (reference to the function global)
+	// Find function VReg (reference to the function global or field)
 	var funcVReg VReg
 	if funcObj != nil {
 		funcVReg = l.resolveObject(fn, funcObj)
 	} else {
+		// Try lowering as a general expression (e.g., self.think1)
+		funcVReg = l.lowerExpr(fn, call.Fun)
+	}
+
+	if funcVReg == VRegInvalid {
 		l.errors.Addf(l.pos(call), "cannot resolve called function")
 		return VRegInvalid
 	}
@@ -688,8 +812,17 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 	})
 
 	// Return value is in OFS_RETURN
-	sig := funcObj.Type().(*types.Signature)
-	if sig.Results().Len() > 0 {
+	var sig *types.Signature
+	if funcObj != nil {
+		sig = funcObj.Type().(*types.Signature)
+	} else {
+		tv := l.currentInfo.Types[call.Fun]
+		if s, ok := tv.Type.Underlying().(*types.Signature); ok {
+			sig = s
+		}
+	}
+
+	if sig != nil && sig.Results().Len() > 0 {
 		retType := l.goTypeToQC(sig.Results().At(0).Type())
 		result := l.allocVReg()
 		fn.Body = append(fn.Body, IRInst{
@@ -773,12 +906,66 @@ func (l *Lowerer) lowerFieldStore(fn *IRFunc, sel *ast.SelectorExpr, val VReg) {
 		Type: fieldType,
 	})
 }
+func (l *Lowerer) lowerIndexExpr(fn *IRFunc, expr *ast.IndexExpr) VReg {
+	left := l.lowerExpr(fn, expr.X)
+	leftType := l.goTypeToQC(l.currentInfo.Types[expr.X].Type)
 
+	if leftType == EvVector {
+		// Index into vector
+		index := l.evalConstInt(expr.Index)
+		if index < 0 || index >= 3 {
+			l.errors.Addf(l.pos(expr), "vector index out of bounds: %d", index)
+			return VRegInvalid
+		}
+
+		result := l.allocVReg()
+		// For vectors, component access is just offset addition
+		fn.Body = append(fn.Body, IRInst{
+			Op:   qc.OPStoreF,
+			A:    VReg(uint16(left) + uint16(index)),
+			B:    result,
+			Type: EvFloat,
+		})
+		fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
+		return result
+	}
+
+	l.errors.Addf(l.pos(expr), "unsupported index expression type: %T", l.currentInfo.Types[expr.X].Type)
+	return VRegInvalid
+}
+
+func (l *Lowerer) lowerIndexStore(fn *IRFunc, expr *ast.IndexExpr, val VReg) {
+	left := l.lowerExpr(fn, expr.X)
+	leftType := l.goTypeToQC(l.currentInfo.Types[expr.X].Type)
+
+	if leftType == EvVector {
+		index := l.evalConstInt(expr.Index)
+		if index < 0 || index >= 3 {
+			l.errors.Addf(l.pos(expr), "vector index out of bounds: %d", index)
+			return
+		}
+
+		fn.Body = append(fn.Body, IRInst{
+			Op:   qc.OPStoreF,
+			A:    val,
+			B:    VReg(uint16(left) + uint16(index)),
+			Type: EvFloat,
+		})
+	}
+}
+
+func (l *Lowerer) evalConstInt(expr ast.Expr) int {
+	if tv, ok := l.currentInfo.Types[expr]; ok && tv.Value != nil {
+		if val, ok := constantToFloat64(tv.Value); ok {
+			return int(val)
+		}
+	}
+	return 0
+}
 func (l *Lowerer) resolveFieldOffset(sel *types.Selection) uint16 {
 	if ofs, ok := l.fieldOffsets[sel.Obj()]; ok {
 		return ofs
 	}
-
 	return uint16(sel.Index()[0])
 }
 
@@ -816,6 +1003,10 @@ func (l *Lowerer) lowerFor(fn *IRFunc, s *ast.ForStmt) {
 
 	topLabel := l.newLabel("for_top")
 	exitLabel := l.newLabel("for_exit")
+	postLabel := l.newLabel("for_post")
+
+	l.breakLabels = append(l.breakLabels, exitLabel)
+	l.continueLabels = append(l.continueLabels, postLabel)
 
 	fn.Body = append(fn.Body, LabelInst(topLabel))
 
@@ -828,12 +1019,99 @@ func (l *Lowerer) lowerFor(fn *IRFunc, s *ast.ForStmt) {
 		l.lowerStmt(fn, stmt)
 	}
 
+	fn.Body = append(fn.Body, LabelInst(postLabel))
 	if s.Post != nil {
 		l.lowerStmt(fn, s.Post)
 	}
 
 	fn.Body = append(fn.Body, IRInst{Op: qc.OPGoto, Label: topLabel})
 	fn.Body = append(fn.Body, LabelInst(exitLabel))
+
+	l.breakLabels = l.breakLabels[:len(l.breakLabels)-1]
+	l.continueLabels = l.continueLabels[:len(l.continueLabels)-1]
+}
+
+func (l *Lowerer) lowerSwitchStmt(fn *IRFunc, s *ast.SwitchStmt) {
+	if s.Init != nil {
+		l.lowerStmt(fn, s.Init)
+	}
+
+	tag := l.lowerExpr(fn, s.Tag)
+	tagType := l.goTypeToQC(l.currentInfo.Types[s.Tag].Type)
+	endLabel := l.newLabel("sw_end")
+
+	l.breakLabels = append(l.breakLabels, endLabel)
+
+	var defaultClause *ast.CaseClause
+	var nextCaseLabel string
+
+	for _, stmt := range s.Body.List {
+		cc := stmt.(*ast.CaseClause)
+		if cc.List == nil {
+			defaultClause = cc
+			continue
+		}
+
+		caseBodyLabel := l.newLabel("sw_case_body")
+		nextCaseLabel = l.newLabel("sw_next_case")
+
+		// Compare tag against each expression in the case list (OR logic)
+		for _, expr := range cc.List {
+			val := l.lowerExpr(fn, expr)
+			cond := l.allocVReg()
+			fn.Body = append(fn.Body, IRInst{
+				Op:   opcodeForEq(tagType),
+				A:    tag,
+				B:    val,
+				C:    cond,
+				Type: EvFloat,
+			})
+			fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: cond})
+			fn.Body = append(fn.Body, IRInst{Op: qc.OPIF, A: cond, Label: caseBodyLabel})
+		}
+
+		// If no expression matched, jump to next case
+		fn.Body = append(fn.Body, IRInst{Op: qc.OPGoto, Label: nextCaseLabel})
+
+		// Case body
+		fn.Body = append(fn.Body, LabelInst(caseBodyLabel))
+		for _, s := range cc.Body {
+			l.lowerStmt(fn, s)
+		}
+		fn.Body = append(fn.Body, IRInst{Op: qc.OPGoto, Label: endLabel})
+
+		// Label for next case comparison
+		fn.Body = append(fn.Body, LabelInst(nextCaseLabel))
+	}
+
+	// Default case if no other cases matched
+	if defaultClause != nil {
+		for _, s := range defaultClause.Body {
+			l.lowerStmt(fn, s)
+		}
+	}
+
+	fn.Body = append(fn.Body, LabelInst(endLabel))
+	l.breakLabels = l.breakLabels[:len(l.breakLabels)-1]
+}
+
+func (l *Lowerer) lowerBranch(fn *IRFunc, s *ast.BranchStmt) {
+	switch s.Tok {
+	case token.BREAK:
+		if len(l.breakLabels) == 0 {
+			l.errors.Addf(l.pos(s), "break outside of loop or switch")
+			return
+		}
+		fn.Body = append(fn.Body, IRInst{Op: qc.OPGoto, Label: l.breakLabels[len(l.breakLabels)-1]})
+	case token.CONTINUE:
+		if len(l.continueLabels) == 0 {
+			l.errors.Addf(l.pos(s), "continue outside of loop")
+			return
+		}
+		fn.Body = append(fn.Body, IRInst{Op: qc.OPGoto, Label: l.continueLabels[len(l.continueLabels)-1]})
+	default:
+		l.errors.Addf(l.pos(s), "unsupported branch statement: %s", s.Tok)
+	}
 }
 
 func (l *Lowerer) lowerIncDec(fn *IRFunc, s *ast.IncDecStmt) {
@@ -977,6 +1255,11 @@ func (l *Lowerer) isTerminating(inst IRInst) bool {
 
 // goTypeToQC maps a Go type to a QCVM EType.
 func (l *Lowerer) goTypeToQC(t types.Type) qc.EType {
+	// Handle pointers (especially *quake.Entity)
+	if ptr, ok := t.(*types.Pointer); ok {
+		return l.goTypeToQC(ptr.Elem())
+	}
+
 	// Check named types first
 	if named, ok := t.(*types.Named); ok {
 		switch named.Obj().Name() {

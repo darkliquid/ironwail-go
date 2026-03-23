@@ -139,6 +139,9 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 }
 
 func goBasicTypeToQC(t types.Type) qc.EType {
+	if ptr, ok := t.(*types.Pointer); ok {
+		return goBasicTypeToQC(ptr.Elem())
+	}
 	if named, ok := t.(*types.Named); ok {
 		switch named.Obj().Name() {
 		case "Vec3":
