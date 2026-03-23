@@ -162,37 +162,27 @@ func qAtoi(raw string) int {
 	return value
 }
 
-var bannedPlayers = make(map[string]bool)
-
 func (h *Host) CmdBan(args []string, subs *Subsystems) {
-	if !h.serverActive || subs.Server == nil || subs.Console == nil {
+	if h.forwardClientCommand("ban", args, subs) {
 		return
 	}
-	if len(args) == 0 {
-		subs.Console.Print("Banned names:\n")
-		for name := range bannedPlayers {
-			subs.Console.Print(fmt.Sprintf("  %s\n", name))
-		}
+	if subs == nil || subs.Console == nil {
 		return
 	}
 
-	target := args[0]
-	maxClients := subs.Server.GetMaxClients()
-
-	found := false
-	for i := 0; i < maxClients; i++ {
-		if subs.Server.IsClientActive(i) && subs.Server.GetClientName(i) == target {
-			bannedPlayers[target] = true
-			subs.Server.KickClient(i, "host", "Banned by admin")
-			subs.Console.Print(fmt.Sprintf("Banned and kicked %s\n", target))
-			found = true
-			break
+	switch len(args) {
+	case 0:
+		subs.Console.Print(inet.IPBanStatus() + "\n")
+	case 1:
+		if err := inet.SetIPBan(args[0], ""); err != nil {
+			subs.Console.Print(fmt.Sprintf("%v\n", err))
 		}
-	}
-
-	if !found {
-		bannedPlayers[target] = true
-		subs.Console.Print(fmt.Sprintf("Added %s to ban list\n", target))
+	case 2:
+		if err := inet.SetIPBan(args[0], args[1]); err != nil {
+			subs.Console.Print(fmt.Sprintf("%v\n", err))
+		}
+	default:
+		subs.Console.Print("BAN ip_address [mask]\n")
 	}
 }
 

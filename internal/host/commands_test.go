@@ -910,6 +910,107 @@ func TestCmdKickUnknownTargetNoOp(t *testing.T) {
 	}
 }
 
+func TestCmdBanPrintsInactiveStatus(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+	if err := inet.SetIPBan("off", ""); err != nil {
+		t.Fatalf("clear ban: %v", err)
+	}
+
+	h.CmdBan(nil, subs)
+
+	if got := strings.Join(console.messages, ""); got != "Banning not active\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
+func TestCmdBanSetsSingleAddress(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+	if err := inet.SetIPBan("off", ""); err != nil {
+		t.Fatalf("clear ban: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = inet.SetIPBan("off", "")
+	})
+
+	h.CmdBan([]string{"192.168.1.100"}, subs)
+
+	if got := inet.IPBanStatus(); got != "Banning 192.168.1.100 [255.255.255.255]" {
+		t.Fatalf("ban status = %q", got)
+	}
+	if got := strings.Join(console.messages, ""); got != "" {
+		t.Fatalf("console output = %q, want empty", got)
+	}
+}
+
+func TestCmdBanSetsSubnetMask(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+	if err := inet.SetIPBan("off", ""); err != nil {
+		t.Fatalf("clear ban: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = inet.SetIPBan("off", "")
+	})
+
+	h.CmdBan([]string{"10.0.0.0", "255.255.0.0"}, subs)
+
+	if got := inet.IPBanStatus(); got != "Banning 10.0.0.0 [255.255.0.0]" {
+		t.Fatalf("ban status = %q", got)
+	}
+}
+
+func TestCmdBanTurnsOff(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+	if err := inet.SetIPBan("192.168.1.100", ""); err != nil {
+		t.Fatalf("set ban: %v", err)
+	}
+
+	h.CmdBan([]string{"off"}, subs)
+
+	if got := inet.IPBanStatus(); got != "Banning not active" {
+		t.Fatalf("ban status = %q", got)
+	}
+}
+
+func TestCmdBanPrintsUsageForTooManyArgs(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.CmdBan([]string{"1.2.3.4", "255.255.255.0", "extra"}, subs)
+
+	if got := strings.Join(console.messages, ""); got != "BAN ip_address [mask]\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
+func TestCmdBanForwardsWhenRemoteConnected(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdBan([]string{"10.0.0.1"}, subs)
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"ban 10.0.0.1"}) {
+		t.Fatalf("forwarded commands = %v, want [ban 10.0.0.1]", got)
+	}
+}
+
 func TestKickCommandRegistrationPreservesFullArgs(t *testing.T) {
 	cmdsys.RemoveCommand("kick")
 	t.Cleanup(func() {

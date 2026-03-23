@@ -11,6 +11,8 @@ import (
 	"sync"
 )
 
+var serverIPBan IPBan
+
 // IPBan implements a simple IP banning mechanism with address and mask,
 // matching C Ironwail's net_dgrm.c banAddr/banMask.
 type IPBan struct {
@@ -108,4 +110,19 @@ func (b *IPBan) String() string {
 		return "Banning not active"
 	}
 	return fmt.Sprintf("Banning %s [%s]", b.addr.String(), net.IP(b.mask).String())
+}
+
+// SetIPBan configures the single active server IP ban used by the datagram
+// accept path and the host-facing ban command.
+func SetIPBan(addr, mask string) error {
+	return serverIPBan.SetBan(addr, mask)
+}
+
+// IPBanStatus returns the human-readable status string for the active server ban.
+func IPBanStatus() string {
+	return serverIPBan.String()
+}
+
+func isServerIPBanned(remoteAddr string) bool {
+	return serverIPBan.IsBanned(remoteAddr)
 }

@@ -20,3 +20,4 @@
 - Browser results are deduplicated by address.
 - `AsyncReceiver` copies payload bytes before delivering them so receivers own the message data.
 - `PartialIPAddress` fills omitted octets from the right using the local IPv4 address and default port.
+- `IPBan` models one active IPv4 address/mask pair, supports `off`/empty-address disable semantics, and exposes human-readable status text consumed by the host `ban` command.

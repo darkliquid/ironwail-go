@@ -82,6 +82,7 @@ func Shutdown() {
 		sock.udpConn = nil
 	}
 	acceptedServerSockets = nil
+	_ = SetIPBan("", "")
 	if loopback != nil {
 		loopback.Shutdown()
 		loopback = nil

@@ -6,6 +6,7 @@ package net
 import (
 	"encoding/binary"
 	stdnet "net"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,6 +94,79 @@ func TestUDPConnection(t *testing.T) {
 	}
 	if string(receivedMsg) != "Hello Client" {
 		t.Fatalf("Expected 'Hello Client', got '%s'", string(receivedMsg))
+	}
+}
+
+func TestUDPRejectsBannedConnection(t *testing.T) {
+	Init()
+	netHostPort = 26007
+	if err := SetIPBan("127.0.0.1", ""); err != nil {
+		t.Fatalf("SetIPBan failed: %v", err)
+	}
+	defer func() {
+		if err := SetIPBan("off", ""); err != nil {
+			t.Fatalf("clearing ban failed: %v", err)
+		}
+	}()
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
+
+	clientConn, err := UDPOpenSocket(0)
+	if err != nil {
+		t.Fatalf("failed to open client udp socket: %v", err)
+	}
+	defer UDPCloseSocket(clientConn)
+
+	serverAddr, err := UDPStringToAddr("127.0.0.1:26007")
+	if err != nil {
+		t.Fatalf("failed to parse server address: %v", err)
+	}
+
+	req := make([]byte, HeaderSize+1+6+1)
+	binary.BigEndian.PutUint32(req[0:], uint32(len(req))|FlagCtl)
+	binary.BigEndian.PutUint32(req[4:], 0xffffffff)
+	req[8] = CCReqConnect
+	copy(req[9:], "QUAKE\x00")
+	req[15] = 3
+
+	if _, err := UDPWrite(clientConn, req, serverAddr); err != nil {
+		t.Fatalf("failed to send connection request: %v", err)
+	}
+
+	if acceptSocket == nil {
+		t.Fatal("accept socket should be open while listening")
+	}
+	acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	if sock := CheckNewConnections(); sock != nil {
+		acceptSocket.SetReadDeadline(time.Time{})
+		Close(sock)
+		t.Fatal("server should reject banned connection before accept")
+	}
+	acceptSocket.SetReadDeadline(time.Time{})
+
+	resp := make([]byte, 1024)
+	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, _, err := UDPRead(clientConn, resp)
+	clientConn.SetReadDeadline(time.Time{})
+	if err != nil {
+		t.Fatalf("failed to read reject response: %v", err)
+	}
+	if n < HeaderSize+1+1 {
+		t.Fatalf("reject response too short: %d bytes", n)
+	}
+	if resp[8] != CCRepReject {
+		t.Fatalf("response command = %d, want %d", resp[8], CCRepReject)
+	}
+	reason := string(resp[9:n])
+	reason = strings.TrimRight(reason, "\x00")
+	if reason != "You have been banned.\n" {
+		t.Fatalf("reject reason = %q, want %q", reason, "You have been banned.\n")
 	}
 }
 

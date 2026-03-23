@@ -524,6 +524,16 @@ func DatagramCheckNewConnections() *Socket {
 	}
 
 	if cmd == CCReqConnect {
+		if isServerIPBanned(addr.String()) {
+			resp := make([]byte, HeaderSize+1+len("You have been banned.\n")+1)
+			binary.BigEndian.PutUint32(resp[0:], uint32(len(resp))|FlagCtl)
+			binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
+			resp[8] = CCRepReject
+			copy(resp[9:], "You have been banned.\n")
+			UDPWrite(acceptSocket, resp, addr)
+			return nil
+		}
+
 		// Quake closes stale server-side sockets if a client reconnects from
 		// the same address:port. Do that before accepting the replacement.
 		closeDuplicateAcceptedServerSockets(addr)

@@ -12,7 +12,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 
 - **Map/session commands** manage local server startup, reconnect-style transitions, and changelevel/load flows.
 - **Network commands** create, reset, or tear down remote datagram client sessions.
-- **Network admin commands** expose C-like `listen`/`maxplayers`/`port` query-set behavior and queue command-buffer listen transitions (`listen 0`/`listen 1`) when max-player mode or host port changes require rebinding.
+- **Network admin commands** expose C-like `listen`/`maxplayers`/`port` query-set behavior and queue command-buffer listen transitions (`listen 0`/`listen 1`) when max-player mode or host port changes require rebinding. `ban` now also mirrors C's transport-owned IP/mask surface instead of maintaining a host-local player-name blacklist.
 - **Gameplay/save commands** manage native saves, imported saves, and load validation.
 - **Gameplay/save commands** also align host autosave timestamps to restored server time after successful load restores.
 - **Gameplay/profile command** exposes QC VM per-function profile counters via `profile` (top 10), using C-like `%7d %s` line formatting and no output when no active local server/QC VM exists.
