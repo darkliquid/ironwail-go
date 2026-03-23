@@ -1017,6 +1017,67 @@ func TestParseEntityUpdateCarriesLerpFinish(t *testing.T) {
 	}
 }
 
+func TestParseServerMessageDoesNotTreat0xFFEntityUpdateAsTerminator(t *testing.T) {
+	c := NewClient()
+	c.Protocol = inet.PROTOCOL_FITZQUAKE
+	c.MTime = [2]float64{2.0, 1.9}
+	c.EntityBaselines[1] = inet.EntityState{
+		ModelIndex: 1,
+		Frame:      2,
+		Colormap:   3,
+		Skin:       4,
+		Effects:    5,
+		Origin:     [3]float32{1, 2, 3},
+		Angles:     [3]float32{10, 20, 30},
+		Alpha:      inet.ENTALPHA_DEFAULT,
+		Scale:      inet.ENTSCALE_DEFAULT,
+	}
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	// 0xFF is a valid fast-update command byte: U_SIGNAL plus all low 7 update bits.
+	// Follow with morebits that set ANGLE1/3, MODEL, COLORMAP, SKIN, EFFECTS.
+	msg.WriteByte(0xFF)
+	msg.WriteByte(0x3f)
+	msg.WriteByte(1) // entity number
+	msg.WriteByte(9) // model
+	msg.WriteByte(8) // frame
+	msg.WriteByte(7) // colormap
+	msg.WriteByte(6) // skin
+	msg.WriteByte(5) // effects
+	writeCoord(msg, 40)
+	writeAngle(msg, 11)
+	writeCoord(msg, 50)
+	writeAngle(msg, 22)
+	writeCoord(msg, 60)
+	writeAngle(msg, 33)
+	msg.WriteByte(0xFF) // packet terminator
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	ent := c.Entities[1]
+	if got := ent.ModelIndex; got != 9 {
+		t.Fatalf("ModelIndex = %d, want 9", got)
+	}
+	if got := ent.Frame; got != 8 {
+		t.Fatalf("Frame = %d, want 8", got)
+	}
+	if got := ent.Colormap; got != 7 {
+		t.Fatalf("Colormap = %d, want 7", got)
+	}
+	if got := ent.Skin; got != 6 {
+		t.Fatalf("Skin = %d, want 6", got)
+	}
+	if got := ent.Effects; got != 5 {
+		t.Fatalf("Effects = %d, want 5", got)
+	}
+	if got := ent.MsgOrigins[0]; got != [3]float32{40, 50, 60} {
+		t.Fatalf("MsgOrigins[0] = %v, want [40 50 60]", got)
+	}
+}
+
 func TestHUDAccessorsExposeParsedStats(t *testing.T) {
 	c := NewClient()
 	c.Stats[inet.StatHealth] = 81

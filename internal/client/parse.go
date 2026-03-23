@@ -66,7 +66,13 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.FinishDemoFrame()
 			return nil
 		}
-		if cmd == 0xFF {
+		// Compatibility terminator used by some Go-side message builders.
+		// C parses until byte exhaustion, but this codebase may append a trailing
+		// 0xFF sentinel (sometimes followed by zero-padded capacity bytes from
+		// SizeBuf.Data). Treat it as end-of-message only when there is no
+		// remaining non-zero payload, so a legitimate fast-update command byte
+		// 0xFF still parses correctly.
+		if cmd == 0xFF && (msg.ReadCount == msg.CurSize || remainingBytesArePadding(msg)) {
 			p.Client.FinishDemoFrame()
 			return nil
 		}
@@ -287,6 +293,18 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			return fmt.Errorf("unsupported server command: %d", cmd)
 		}
 	}
+}
+
+func remainingBytesArePadding(msg *common.SizeBuf) bool {
+	if msg == nil {
+		return true
+	}
+	for i := msg.ReadCount; i < msg.CurSize; i++ {
+		if msg.Data[i] != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *Parser) parseVersion(msg *common.SizeBuf) error {

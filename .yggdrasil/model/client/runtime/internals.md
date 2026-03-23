@@ -12,6 +12,8 @@ Important state families include:
 - entity baselines, live entities, static entities, and transient events
 - prediction bookkeeping and telemetry
 
+Runtime regression coverage includes parser-level tests in `internal/client/client_test.go` that verify entity slots are still updated when the command byte is `0xFF` (all fast-update low bits set), preventing accidental early termination of message parsing and downstream missing/disappearing entities.
+
 ## Constraints
 
 - Host behavior depends on client signon and connection state being updated consistently.
