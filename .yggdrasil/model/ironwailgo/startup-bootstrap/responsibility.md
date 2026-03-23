@@ -9,7 +9,7 @@
 - Startup option parsing and environment/cvar-driven boot policy.
 - Filesystem, QC, networking, server, renderer, input, menu, draw, HUD, audio, and host initialization.
 - Construction of `host.Subsystems` and loopback client/server setup.
-- Startup-time renderer/input backend selection policy and related tests.
+- Startup-time renderer/input backend selection policy and startup cvar registration policy (including color-shift parity cvars) with related tests.
 
 ## Does not own
 

@@ -15,6 +15,7 @@ Key methods:
 - `FrameLoop(targetFPS float64, cb FrameCallbacks, shouldQuit func() bool) error`
 - `Shutdown(subs *Subsystems)`
 - accessors/mutators for signons, max FPS, abort state, and runtime flags
+- `NetInterval() float64` and `LocalServerFast() bool` expose host frame/network policy so runtime client interpolation policy can mirror C `sv.active && !host_netinterval` semantics
 
 Contracts:
 - `Init` fails on fatal filesystem/console/server/client/renderer init errors.

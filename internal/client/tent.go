@@ -6,6 +6,7 @@ import (
 	"math/rand"
 
 	"github.com/ironwail/ironwail-go/internal/common"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -61,7 +62,7 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 		inet.TE_LAVASPLASH,
 		inet.TE_TELEPORT:
 		for i := 0; i < 3; i++ {
-			coord, err := readCoord(msg, fmt.Sprintf("svc_temp_entity: missing origin %d", i))
+			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing origin %d", i))
 			if err != nil {
 				return err
 			}
@@ -70,7 +71,7 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 
 	case inet.TE_EXPLOSION2:
 		for i := 0; i < 3; i++ {
-			coord, err := readCoord(msg, fmt.Sprintf("svc_temp_entity: missing origin %d", i))
+			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing origin %d", i))
 			if err != nil {
 				return err
 			}
@@ -97,14 +98,14 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 		}
 		event.Entity = int(entNum)
 		for i := 0; i < 3; i++ {
-			coord, err := readCoord(msg, fmt.Sprintf("svc_temp_entity: missing beam start %d", i))
+			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing beam start %d", i))
 			if err != nil {
 				return err
 			}
 			event.Start[i] = coord
 		}
 		for i := 0; i < 3; i++ {
-			coord, err := readCoord(msg, fmt.Sprintf("svc_temp_entity: missing beam end %d", i))
+			coord, err := p.readCoord(msg, fmt.Sprintf("svc_temp_entity: missing beam end %d", i))
 			if err != nil {
 				return err
 			}
@@ -201,6 +202,7 @@ func (c *Client) UpdateTempEntities() {
 		return
 	}
 	c.BeamSegments = c.BeamSegments[:0]
+	rollRNG := compatrand.New(int32(c.Time * 1000))
 	for i := range c.beams {
 		beam := c.beams[i]
 		if beam.model == "" || beam.endTime < c.Time {
@@ -213,14 +215,21 @@ func (c *Client) UpdateTempEntities() {
 				start = state.Origin
 			}
 		}
-		c.BeamSegments = append(c.BeamSegments, generateBeamSegments(beam.typ, beam.entity, beam.model, start, beam.end)...)
+		c.BeamSegments = append(c.BeamSegments, generateBeamSegments(beam.typ, beam.entity, beam.model, start, beam.end, rollRNG)...)
 	}
 	if len(c.BeamSegments) == 0 {
 		c.BeamSegments = nil
 	}
 }
 
-func generateBeamSegments(typ byte, entity int, model string, start, end [3]float32) []BeamSegment {
+func generateBeamSegments(typ byte, entity int, model string, start, end [3]float32, rollRNG *compatrand.RNG) []BeamSegment {
+	nextRoll := func() float32 {
+		if rollRNG == nil {
+			return 0
+		}
+		return float32(rollRNG.Int() % 360)
+	}
+
 	dist := [3]float32{
 		end[0] - start[0],
 		end[1] - start[1],
@@ -233,6 +242,7 @@ func generateBeamSegments(typ byte, entity int, model string, start, end [3]floa
 			Entity: entity,
 			Model:  model,
 			Origin: start,
+			Angles: [3]float32{0, 0, nextRoll()},
 		}}
 	}
 	dir := [3]float32{
@@ -247,7 +257,6 @@ func generateBeamSegments(typ byte, entity int, model string, start, end [3]floa
 	}
 	forward := sqrtFloat32(dir[0]*dir[0] + dir[1]*dir[1])
 	pitch := float32(math.Atan2(float64(dir[2]), float64(forward)) * 180 / math.Pi)
-	angles := [3]float32{pitch, yaw, 0}
 
 	segments := make([]BeamSegment, 0, int(length/beamSegmentLength)+1)
 	point := start
@@ -257,7 +266,7 @@ func generateBeamSegments(typ byte, entity int, model string, start, end [3]floa
 			Entity: entity,
 			Model:  model,
 			Origin: point,
-			Angles: angles,
+			Angles: [3]float32{pitch, yaw, nextRoll()},
 		})
 		point[0] += dir[0] * beamSegmentLength
 		point[1] += dir[1] * beamSegmentLength

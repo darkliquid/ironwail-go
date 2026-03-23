@@ -22,6 +22,9 @@ func TestCompile_Minimal(t *testing.T) {
 	if header.Version != qc.ProgVersion {
 		t.Errorf("version = %d, want %d", header.Version, qc.ProgVersion)
 	}
+	if got, want := header.CRC, int32(qc.ProgHeaderCRC); got != want {
+		t.Errorf("crc = %d, want %d", got, want)
+	}
 
 	// Should have at least 1 global def (health)
 	if header.NumGlobalDefs < 1 {
@@ -117,6 +120,9 @@ func TestRoundTrip_MinimalGlobal(t *testing.T) {
 	}
 
 	vm := loadVM(t, data)
+	if got, want := vm.CRC, uint16(qc.ProgHeaderCRC); got != want {
+		t.Fatalf("vm CRC = %d, want %d", got, want)
+	}
 
 	// Find the "health" global and verify its value
 	ofs := vm.FindGlobal("health")

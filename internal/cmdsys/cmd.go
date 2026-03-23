@@ -545,8 +545,9 @@ func (c *CmdSystem) CompleteAliases(partial string) []string {
 // splitCommands splits a block of command text into individual command strings.
 // Commands are delimited by semicolons (;) or newlines, but these delimiters
 // are ignored inside quoted strings so that arguments containing semicolons
-// (e.g., "say hello; world") are not incorrectly split. Backslash escapes
-// within quotes are also respected.
+// (e.g., "say hello; world") are not incorrectly split. Once a // line comment
+// starts outside quotes, semicolons are ignored until the next line break.
+// Backslash escapes within quotes are also respected.
 //
 // This is the tokenization stage of the command pipeline — it takes raw text
 // from the command buffer (which might contain an entire config file or a
@@ -554,10 +555,11 @@ func (c *CmdSystem) CompleteAliases(partial string) []string {
 // each ready to be parsed into argv-style tokens by parseCommand.
 func splitCommands(text string) []string {
 	var (
-		commands []string
-		current  strings.Builder
-		inQuote  bool
-		escaped  bool
+		commands  []string
+		current   strings.Builder
+		inQuote   bool
+		escaped   bool
+		inComment bool
 	)
 
 	flush := func() {
@@ -576,9 +578,32 @@ func splitCommands(text string) []string {
 			escaped = false
 			continue
 		}
+		if inComment {
+			switch ch {
+			case '\n':
+				inComment = false
+				flush()
+			case '\r':
+				inComment = false
+				flush()
+				if i+1 < len(text) && text[i+1] == '\n' {
+					i++
+				}
+			default:
+				current.WriteByte(ch)
+			}
+			continue
+		}
 		if ch == '\\' && inQuote {
 			current.WriteByte(ch)
 			escaped = true
+			continue
+		}
+		if ch == '/' && !inQuote && i+1 < len(text) && text[i+1] == '/' {
+			current.WriteByte(ch)
+			current.WriteByte(text[i+1])
+			i++
+			inComment = true
 			continue
 		}
 

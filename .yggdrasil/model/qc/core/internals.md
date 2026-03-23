@@ -23,6 +23,7 @@ Function entry saves caller state and local values, copies parameters from the r
 - Stack depth and local-stack size are bounded.
 - Execution must preserve QuakeC calling and return semantics exactly enough for progs compatibility.
 - Out-of-bounds statements or invalid function numbers are hard errors.
+- The interpreter enforces the Quakespasm/Ironwail runaway-loop guard of `0x1000000` executed statements per `ExecuteProgram` invocation and raises `"runaway loop error"` on overflow.
 
 ## Decisions
 

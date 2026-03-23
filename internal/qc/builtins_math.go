@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -131,8 +132,12 @@ func normalize(vm *VM) {
 func random(vm *VM) {
 	// Match C's 15-bit quantization: rand() & 0x7fff
 	r := vm.compatRNG.Int() & 0x7fff
-	// Default: gameplayfix_random=1 formula avoids exact 0.0 and 1.0
+	// Default: gameplayfix_random=1 formula avoids exact 0.0 and 1.0.
+	// Legacy fallback when sv_gameplayfix_random=0 keeps classic [0,1] endpoints.
 	num := (float32(r) + 0.5) * (1.0 / 0x8000)
+	if cv := cvar.Get("sv_gameplayfix_random"); cv != nil && cv.Int == 0 {
+		num = float32(r) * (1.0 / 0x7fff)
+	}
 	vm.SetGFloat(OFSReturn, num)
 }
 

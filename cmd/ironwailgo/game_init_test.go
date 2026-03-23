@@ -167,3 +167,38 @@ func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
 		t.Fatal("legacy scr_showturtle alias did not mirror canonical showturtle")
 	}
 }
+
+func TestRegisterColorShiftPercentCvarsRegistersDefaults(t *testing.T) {
+	t.Parallel()
+
+	registry := cvar.NewCVarSystem()
+	registerColorShiftPercentCvars(registry.Register)
+
+	tests := []struct {
+		name string
+	}{
+		{name: "gl_cshiftpercent"},
+		{name: "gl_cshiftpercent_contents"},
+		{name: "gl_cshiftpercent_damage"},
+		{name: "gl_cshiftpercent_bonus"},
+		{name: "gl_cshiftpercent_powerup"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cv := registry.Get(tt.name)
+			if cv == nil {
+				t.Fatalf("%s should be registered", tt.name)
+			}
+			if cv.String != "100" {
+				t.Fatalf("%s default = %q, want 100", tt.name, cv.String)
+			}
+			if cv.Flags&cvar.FlagArchive == 0 {
+				t.Fatalf("%s should be archived", tt.name)
+			}
+		})
+	}
+}

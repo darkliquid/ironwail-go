@@ -422,6 +422,31 @@ func TestParseCommandStripsComments(t *testing.T) {
 	}
 }
 
+// TestExecuteTextDoesNotSplitSemicolonsInsideComments verifies that once a //
+// comment begins, semicolons are ignored until the next newline.
+// Where in C: Cbuf_Execute and Cmd_TokenizeString in cmd.c
+func TestExecuteTextDoesNotSplitSemicolonsInsideComments(t *testing.T) {
+	c := NewCmdSystem()
+
+	var executed []string
+	c.AddCommand("first", func(args []string) {
+		executed = append(executed, "first")
+	}, "")
+	c.AddCommand("second", func(args []string) {
+		executed = append(executed, "second")
+	}, "")
+	c.AddCommand("third", func(args []string) {
+		executed = append(executed, "third")
+	}, "")
+
+	c.ExecuteText("first // comment; second\nthird")
+
+	want := []string{"first", "third"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("executed = %v, want %v", executed, want)
+	}
+}
+
 // TestForwardFuncCalledForUnknownCommands tests the command forwarding mechanism for unrecognized commands.
 // It allows the engine to pass unknown commands to other systems (like the server) for handling.
 // Where in C: Cmd_ExecuteString in cmd.c

@@ -1,5 +1,5 @@
 {
-  "hash": "6391e8ce2da1ed00d8312db890cdab0b22245fcb39dc56361c8983e2bf55f2d2",
+  "hash": "6cea32bb8d8036f3498fb02720a09f15f28deef058f091b2b2149996ddd3c47d",
   "files": {
     ".yggdrasil/model/server/network-serialization/yg-node.yaml": "0ec9299d914df66f0ed4d7341506b6e5d133c6e67f26c9d83f6421309d0e8cc0",
     ".yggdrasil/model/server/network-serialization/responsibility.md": "9967868c623953e953ae18249395568df96b28b347cd386548f043cac57f11d4",
@@ -10,22 +10,22 @@
     "internal/server/message.go": "6c51726ba260aece8daf1fc82047bf4a5ee6030614844c84133c88778f0e2e55",
     "internal/server/sv_send_sound_protocol_test.go": "e68ae98cd649594b2816991f42d6c9744285a5442a8ab06d2026d62ee2468d9f",
     ".yggdrasil/model/server/network-serialization/interface.md": "6b9e5cc0a94edaf1c9b704718fd77c1c141a2d43d3c3d6f0a8d291223f18a401",
-    ".yggdrasil/model/server/network-serialization/internals.md": "d1176222d47387e1d3c5feef40513a84d386716018f595b03dd0c73ff89d4165",
-    "internal/server/sv_send.go": "cb30cc05581bd1986c03adad87080c296add38e5b3e6de0752ec8a99ed8b3e0a",
-    "internal/server/sv_send_test.go": "5821846918de48f5fae42420b0490311554ea351347fefb01ce5a4d32615c813"
+    ".yggdrasil/model/server/network-serialization/internals.md": "bd95f2bde5d3ae72236f7b4b0b1ad52e4d2043608f43da79f7870b6c072c9cc0",
+    "internal/server/sv_send.go": "d144a0966f798a7af6360dfd3925eed7225423bea94083c1258fb2759b1e1313",
+    "internal/server/sv_send_test.go": "153a62ea31617e8bed9f89757a2a423cd9dfa46c3dab7e318fbbc26838cfa8ab"
   },
   "mtimes": {
     ".yggdrasil/model/server/network-serialization/yg-node.yaml": 1774234390008.6155,
-    ".yggdrasil/model/server/network-serialization/interface.md": 1774258184316.4915,
-    ".yggdrasil/model/server/network-serialization/internals.md": 1774258184316.4915,
+    ".yggdrasil/model/server/network-serialization/interface.md": 1774263606467.3677,
+    ".yggdrasil/model/server/network-serialization/internals.md": 1774285758293.0225,
     ".yggdrasil/model/server/network-serialization/responsibility.md": 1774234390008.6592,
     ".yggdrasil/model/server/yg-node.yaml": 1774234390007.1306,
     ".yggdrasil/model/server/interface.md": 1774234390007.2683,
     ".yggdrasil/model/server/internals.md": 1774234390007.32,
     ".yggdrasil/model/server/responsibility.md": 1774234390007.2136,
     "internal/server/message.go": 1774089553465.4822,
-    "internal/server/sv_send.go": 1774258091659.433,
-    "internal/server/sv_send_test.go": 1774258065743.8018,
+    "internal/server/sv_send.go": 1774285740040.9917,
+    "internal/server/sv_send_test.go": 1774285791930.58,
     "internal/server/sv_send_sound_protocol_test.go": 1773872746888.8008
   }
 }

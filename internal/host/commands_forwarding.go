@@ -14,7 +14,7 @@ func (h *Host) forwardClientCommand(command string, args []string, subs *Subsyst
 	if cmdsys.Source() != cmdsys.SrcCommand {
 		return false
 	}
-	if h.serverActive || (subs != nil && subs.Server != nil) {
+	if h.serverActive || (subs != nil && subs.Server != nil && subs.Server.IsActive()) {
 		return false
 	}
 	if h.demoState != nil && h.demoState.Playback {

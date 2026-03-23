@@ -409,18 +409,8 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	msg.WriteByte(byte(ent.Vars.AmmoRockets))
 	msg.WriteByte(byte(ent.Vars.AmmoCells))
 
-	weaponBits := uint32(ent.Vars.Weapon)
-	activeWeapon := byte(weaponBits)
-	if weaponBits > 0xff {
-		activeWeapon = 0
-		for i := 0; i < 32; i++ {
-			if weaponBits&(1<<i) != 0 {
-				activeWeapon = byte(i)
-				break
-			}
-		}
-	}
-	msg.WriteByte(activeWeapon)
+	weaponValue := int32(ent.Vars.Weapon)
+	msg.WriteByte(byte(weaponValue))
 
 	// FitzQuake extension data
 	if bits&inet.SU_WEAPON2 != 0 {
@@ -449,6 +439,15 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	}
 	if bits&inet.SU_WEAPONALPHA != 0 {
 		msg.WriteByte(ent.Alpha) // weaponalpha = client entity alpha
+	}
+
+	// Compatibility hack from C Ironwail for Alkaline: the clientdata payload only
+	// carries a byte for STAT_ACTIVEWEAPON, so resend the full 32-bit stat when the
+	// QuakeC weapon bitmask does not fit in that byte.
+	if uint32(byte(weaponValue)) != uint32(weaponValue) && msg.Len()+6 <= msg.limit() {
+		msg.WriteByte(byte(inet.SVCUpdateStat))
+		msg.WriteByte(byte(inet.StatActiveWeapon))
+		msg.WriteLong(weaponValue)
 	}
 }
 
@@ -777,7 +776,11 @@ func (s *Server) writeEntitiesToClient(client *Client, msg *MessageBuffer) {
 			continue
 		}
 
-		lerpFinish, hasLerpFinish := encodeLerpFinish(ent.Vars.NextThink, s.Time)
+		var lerpFinish byte
+		hasLerpFinish := ent.SendInterval
+		if hasLerpFinish {
+			lerpFinish, hasLerpFinish = encodeLerpFinish(ent.Vars.NextThink, s.Time)
+		}
 		candidate := entitySendCandidate{
 			entNum:        entNum,
 			ent:           ent,

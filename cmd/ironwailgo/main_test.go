@@ -5710,6 +5710,8 @@ func TestSyncControlCvarsToClient(t *testing.T) {
 	cvar.Set("cl_alwaysrun", "0")
 	cvar.Set("freelook", "0")
 	cvar.Set("lookspring", "1")
+	cvar.Set("v_centermove", "0.25")
+	cvar.Set("v_centerspeed", "650")
 
 	g.Client = cl.NewClient()
 	syncControlCvarsToClient()
@@ -5722,6 +5724,52 @@ func TestSyncControlCvarsToClient(t *testing.T) {
 	}
 	if !g.Client.LookSpring {
 		t.Fatalf("LookSpring should follow lookspring")
+	}
+	if got := g.Client.CenterMove; math.Abs(float64(got-0.25)) > 0.0001 {
+		t.Fatalf("CenterMove = %.3f, want 0.25", got)
+	}
+	if got := g.Client.CenterSpeed; math.Abs(float64(got-650)) > 0.0001 {
+		t.Fatalf("CenterSpeed = %.3f, want 650", got)
+	}
+}
+
+func TestControlCvarCallbackSyncsNoLerpToClient(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	registerControlCvars()
+	g.Client = cl.NewClient()
+
+	cvar.Set("cl_nolerp", "0")
+	if g.Client.NoLerp {
+		t.Fatalf("NoLerp should be false when cl_nolerp=0")
+	}
+
+	cvar.Set("cl_nolerp", "1")
+	if !g.Client.NoLerp {
+		t.Fatalf("NoLerp should be true when cl_nolerp=1")
+	}
+}
+
+func TestControlCvarCallbackSyncsPitchDriftTuningToClient(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	registerControlCvars()
+	g.Client = cl.NewClient()
+
+	cvar.Set("v_centermove", "0.35")
+	if got := g.Client.CenterMove; math.Abs(float64(got-0.35)) > 0.0001 {
+		t.Fatalf("CenterMove = %.3f, want 0.35", got)
+	}
+
+	cvar.Set("v_centerspeed", "700")
+	if got := g.Client.CenterSpeed; math.Abs(float64(got-700)) > 0.0001 {
+		t.Fatalf("CenterSpeed = %.3f, want 700", got)
 	}
 }
 
@@ -5737,6 +5785,8 @@ func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.
 	cvar.Set("cl_alwaysrun", "0")
 	cvar.Set("freelook", "0")
 	cvar.Set("lookspring", "1")
+	cvar.Set("v_centermove", "0.4")
+	cvar.Set("v_centerspeed", "800")
 
 	firstClient := cl.NewClient()
 	g.Subs = &host.Subsystems{
@@ -5750,11 +5800,19 @@ func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.
 	if firstClient.AlwaysRun || firstClient.FreeLook || !firstClient.LookSpring {
 		t.Fatalf("first client controls = %+v, want alwaysrun=false freelook=false lookspring=true", firstClient)
 	}
+	if got := firstClient.CenterMove; math.Abs(float64(got-0.4)) > 0.0001 {
+		t.Fatalf("first client CenterMove = %.3f, want 0.4", got)
+	}
+	if got := firstClient.CenterSpeed; math.Abs(float64(got-800)) > 0.0001 {
+		t.Fatalf("first client CenterSpeed = %.3f, want 800", got)
+	}
 
 	replacedClient := cl.NewClient()
 	replacedClient.AlwaysRun = true
 	replacedClient.FreeLook = true
 	replacedClient.LookSpring = false
+	replacedClient.CenterMove = 0.1
+	replacedClient.CenterSpeed = 123
 	g.Subs.Client = &activeStateTestClient{
 		state:       host.ClientState(1),
 		clientState: replacedClient,
@@ -5763,6 +5821,45 @@ func TestSyncHostClientStateReappliesControlCvarsOnClientReplacement(t *testing.
 
 	if replacedClient.AlwaysRun || replacedClient.FreeLook || !replacedClient.LookSpring {
 		t.Fatalf("replaced client controls = %+v, want alwaysrun=false freelook=false lookspring=true", replacedClient)
+	}
+	if got := replacedClient.CenterMove; math.Abs(float64(got-0.4)) > 0.0001 {
+		t.Fatalf("replaced client CenterMove = %.3f, want 0.4", got)
+	}
+	if got := replacedClient.CenterSpeed; math.Abs(float64(got-800)) > 0.0001 {
+		t.Fatalf("replaced client CenterSpeed = %.3f, want 800", got)
+	}
+}
+
+func TestSyncHostClientStateMirrorsLocalServerFastBypass(t *testing.T) {
+	originalClient := g.Client
+	originalSubs := g.Subs
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Subs = originalSubs
+		g.Host = originalHost
+	})
+
+	g.Host = host.NewHost()
+	g.Host.SetServerActive(true)
+	g.Client = cl.NewClient()
+	g.Subs = &host.Subsystems{
+		Client: &activeStateTestClient{
+			state:       host.ClientState(1),
+			clientState: g.Client,
+		},
+	}
+
+	g.Host.SetMaxFPS(250)
+	syncHostClientState()
+	if g.Client.LocalServerFast {
+		t.Fatalf("LocalServerFast at host_maxfps=250 = true, want false")
+	}
+
+	g.Host.SetMaxFPS(72)
+	syncHostClientState()
+	if !g.Client.LocalServerFast {
+		t.Fatalf("LocalServerFast at host_maxfps=72 = false, want true")
 	}
 }
 

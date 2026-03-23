@@ -8,6 +8,10 @@ Intermission parity regression coverage in `main_test.go` now asserts that runti
 
 Effect-source regression coverage in `main_test.go` now includes a rocket-model case (`model.EFRocket` with `state.Effects == 0`) to ensure command-layer collection keeps rocket light sources that renderer effect lights consume.
 
+Control-cvar regression coverage in `main_test.go` now asserts that changing `cl_nolerp` updates `g.Client.NoLerp` through the control-cvar callback/sync path, preventing interpolation-policy drift between cvar state and client lerp logic.
+Control-cvar regression coverage in `main_test.go` now also asserts `v_centermove`/`v_centerspeed` sync into `g.Client.CenterMove`/`g.Client.CenterSpeed`, including replacement-client resync through `syncHostClientState`.
+Frame/interpolation policy regression coverage in `main_test.go` now also asserts that `syncHostClientState` mirrors host-derived local fast-server policy to `g.Client.LocalServerFast` when `host_maxfps` crosses the 72 FPS net-interval threshold.
+
 ## Constraints
 
 - `main_test.go` is intentionally broad and currently cannot be cleanly attributed to only one narrow runtime concern.

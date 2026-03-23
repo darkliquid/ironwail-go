@@ -810,6 +810,8 @@ func TestStringBuiltins(t *testing.T) {
 
 func TestRandomBuiltinDistribution(t *testing.T) {
 	vm := newBuiltinsTestVM(4)
+	cvar.Set("sv_gameplayfix_random", "1")
+	t.Cleanup(func() { cvar.Set("sv_gameplayfix_random", "1") })
 
 	// Verify random() produces values in open interval (0, 1).
 	// With the gameplayfix formula: ((r+0.5)/0x8000), min=0.5/32768, max=32767.5/32768.
@@ -824,6 +826,8 @@ func TestRandomBuiltinDistribution(t *testing.T) {
 
 func TestRandomBuiltinMatchesCompatSequence(t *testing.T) {
 	vm := newBuiltinsTestVM(4)
+	cvar.Set("sv_gameplayfix_random", "1")
+	t.Cleanup(func() { cvar.Set("sv_gameplayfix_random", "1") })
 
 	want := []float32{
 		0.54222107,
@@ -835,6 +839,25 @@ func TestRandomBuiltinMatchesCompatSequence(t *testing.T) {
 		random(vm)
 		if got := vm.GFloat(OFSReturn); got != wantValue {
 			t.Fatalf("random value %d = %v, want %v", i, got, wantValue)
+		}
+	}
+}
+
+func TestRandomBuiltinLegacyFormulaWhenGameplayFixDisabled(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+	cvar.Set("sv_gameplayfix_random", "0")
+	t.Cleanup(func() { cvar.Set("sv_gameplayfix_random", "1") })
+
+	want := []float32{
+		0.5422224,
+		0.2794885,
+		0.19071017,
+	}
+
+	for i, wantValue := range want {
+		random(vm)
+		if got := vm.GFloat(OFSReturn); got != wantValue {
+			t.Fatalf("legacy random value %d = %v, want %v", i, got, wantValue)
 		}
 	}
 }

@@ -308,6 +308,20 @@ func TestProfileResultsAccumulatesPerFunction(t *testing.T) {
 	}
 }
 
+func TestExecuteProgramRunawayLoopProtectionMatchesC(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 16)
+	vm.Functions = []DFunction{{FirstStatement: 0}}
+	vm.Statements = []DStatement{{Op: uint16(OPGoto), A: uint16(0)}}
+
+	if err := vm.ExecuteProgram(0); err == nil || err.Error() != "runaway loop error" {
+		t.Fatalf("ExecuteProgram() error = %v, want runaway loop error", err)
+	}
+	if got := vm.XStatement; got != 0 {
+		t.Fatalf("XStatement = %d, want 0 at runaway loop trap", got)
+	}
+}
+
 func TestExecuteProgramTraceCallEventsNested(t *testing.T) {
 	vm := NewVM()
 	vm.Globals = make([]float32, 64)

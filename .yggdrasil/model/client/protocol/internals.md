@@ -18,7 +18,8 @@ Relink interpolates entity origins and angles between the double-buffered messag
 
 ### Temp effects and blends
 
-Temp entity decoding and view-blend state produce transient render/audio-facing information that is later consumed by other systems.
+Temp entity decoding and view-blend state produce transient render/audio-facing information that is later consumed by other systems. Temp entities now route coordinate decoding through the parser's protocol-aware helpers rather than the legacy fixed-point-only helpers used by older message paths, so beams/explosions stay aligned with servers that enable float/int32/24-bit coord flags.
+Beam segment generation also mirrors C roll jitter behavior by creating a compat RNG seeded from `int(Client.Time*1000)` at each temp-entity update pass and assigning `rand()%360` roll per emitted segment in sequence across all active beams.
 
 ## Constraints
 

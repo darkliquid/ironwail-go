@@ -11,6 +11,7 @@
 - `Server` / `ServerStatic` / `Client` / `Edict` data model
 - server construction and builtin wiring (`NewServer` and related setup)
 - edict lookup/allocation/free helpers
+- QC profiling bridge (`QCProfileResults(top)`) that returns VM profile snapshots for host console commands
 - Go↔QC synchronization helpers for globals and edicts
 
 ## Contracts

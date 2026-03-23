@@ -452,6 +452,33 @@ func TestHostFrame(t *testing.T) {
 	}
 }
 
+func TestSetMaxFPSDerivesNetIntervalAndFastBypass(t *testing.T) {
+	h := NewHost()
+
+	h.SetServerActive(true)
+	h.SetMaxFPS(72)
+	if got := h.NetInterval(); got != 0 {
+		t.Fatalf("NetInterval at 72 FPS = %v, want 0", got)
+	}
+	if !h.LocalServerFast() {
+		t.Fatalf("LocalServerFast at 72 FPS with active server = false, want true")
+	}
+
+	h.SetMaxFPS(250)
+	if got := h.NetInterval(); got <= 0 {
+		t.Fatalf("NetInterval at 250 FPS = %v, want > 0", got)
+	}
+	if h.LocalServerFast() {
+		t.Fatalf("LocalServerFast at 250 FPS with active server = true, want false")
+	}
+
+	h.SetServerActive(false)
+	h.SetMaxFPS(72)
+	if h.LocalServerFast() {
+		t.Fatalf("LocalServerFast with inactive server = true, want false")
+	}
+}
+
 // TestHostFrameAdvancesCompatRNGOnce verifies the compat-RNG is advanced each frame.
 // Why: Maintains parity with Quake's frame-based PRNG behavior.
 // Where in C: host.c, Host_Frame.

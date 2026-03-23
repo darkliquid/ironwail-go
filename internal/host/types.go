@@ -219,6 +219,14 @@ func (h *Host) SetMaxFPS(fps float64) {
 	}
 }
 
+func (h *Host) NetInterval() float64 {
+	return h.netInterval
+}
+
+func (h *Host) LocalServerFast() bool {
+	return h.serverActive && h.netInterval == 0
+}
+
 func (h *Host) SetFramerate(fps float64) {
 	h.framerate = fps
 }

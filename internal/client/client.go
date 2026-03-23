@@ -16,6 +16,8 @@ const (
 	defaultMaxPitch     = 90.0
 	defaultMinPitch     = -90.0
 	defaultWheelPitch   = 5.0
+	defaultCenterMove   = 0.15
+	defaultCenterSpeed  = 500.0
 	ItemShotgun         = 1 << 0
 	ItemSuperShotgun    = 1 << 1
 	ItemNailgun         = 1 << 2
@@ -242,9 +244,11 @@ type Client struct {
 	AngleSpeedKey float32
 	MoveSpeedKey  float32
 
-	AlwaysRun  bool
-	FreeLook   bool
-	LookSpring bool
+	AlwaysRun   bool
+	FreeLook    bool
+	LookSpring  bool
+	CenterMove  float32
+	CenterSpeed float32
 
 	MaxPitch   float32
 	MinPitch   float32
@@ -314,6 +318,8 @@ func NewClient() *Client {
 		MoveSpeedKey:    2.0,
 		AlwaysRun:       true,
 		FreeLook:        true,
+		CenterMove:      defaultCenterMove,
+		CenterSpeed:     defaultCenterSpeed,
 		ViewHeight:      inet.DEFAULT_VIEWHEIGHT,
 		MaxPitch:        defaultMaxPitch,
 		MinPitch:        defaultMinPitch,

@@ -5,5 +5,6 @@ blackbox: false
 mapping:
   paths:
     - internal/client/input.go
+    - internal/client/input_test.go
     - internal/client/prediction.go
     - internal/client/prediction_test.go

@@ -10,6 +10,7 @@
 - QC `StartFrame`, `think`, `touch`, and related callback dispatch.
 - `PlayerPreThink`/`PlayerPostThink` QC wrapping for all client-slot entities, regardless of movetype (e.g. `MoveTypeNone` during intermission).
 - Generic movetype physics helpers (gravity, clipping, fly/step logic).
+- Per-entity gravity multiplier handling sourced from optional QuakeC edict extension fields.
 - Rule enforcement that runs after simulation.
 - Shared telemetry hooks around physics/touch execution.
 

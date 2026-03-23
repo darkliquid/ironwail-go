@@ -8,6 +8,7 @@ Important state families include:
 - connection/signon/protocol state
 - timing and interpolation buffers
 - view angles and punch/viewblend state
+- pitch-drift tuning state (`CenterMove`, `CenterSpeed`) consumed by input drift recentering
 - stats, items, and player identity tables
 - entity baselines, live entities, static entities, and transient events
 - prediction bookkeeping and telemetry

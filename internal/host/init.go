@@ -56,6 +56,7 @@ func registerHostCVars() {
 	cvar.Register("sv_autosave", "1", cvar.FlagArchive, "Enable autosave in single-player")
 	cvar.Register("sv_autosave_interval", "30", cvar.FlagArchive, "Autosave interval in seconds")
 	cvar.Register("sv_autoload", "2", cvar.FlagArchive, "Autoload the last save on restart")
+	cvar.Register("sv_gameplayfix_random", "1", cvar.FlagArchive, "Use deterministic random() formula that avoids exact 0 and 1")
 	cvar.Register("sv_gameplayfix_elevators", "2", cvar.FlagArchive, "Nudge entities on elevators to prevent crushing (0=off, 1=clients, 2=all)")
 	audio.RegisterCVars()
 	server.RegisterDebugTelemetryCVars()

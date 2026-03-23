@@ -679,6 +679,99 @@ func TestWriteEntitiesToClient_UsesBaselineNotPreviousState(t *testing.T) {
 	}
 }
 
+func TestWriteEntitiesToClient_OmitsLerpFinishWithoutSendInterval(t *testing.T) {
+	t.Parallel()
+
+	ent := &Edict{
+		Vars: &EntVars{
+			Model:      1,
+			ModelIndex: 1,
+			NextThink:  10.5,
+		},
+		NumLeafs: 1,
+	}
+	ent.LeafNums[0] = 0
+
+	client := &Client{
+		FatPVS:       []byte{0x01},
+		EntityStates: make(map[int]EntityState),
+	}
+	s := &Server{
+		Time:          10,
+		Protocol:      ProtocolFitzQuake,
+		Static:        &ServerStatic{MaxClients: 0},
+		ModelPrecache: []string{"", "*1"},
+		Edicts:        []*Edict{{Vars: &EntVars{}}, ent},
+		NumEdicts:     2,
+	}
+	state, ok := s.entityStateForClient(1, ent)
+	if !ok {
+		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
+	}
+	ent.Baseline = state
+
+	msg := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, msg)
+	if msg.Len() == 0 {
+		t.Fatal("writeEntitiesToClient wrote no visible baseline-equal brush entity update")
+	}
+
+	bits, payload := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+	if bits&inet.U_LERPFINISH != 0 {
+		t.Fatalf("bits=%#x unexpectedly included U_LERPFINISH", bits)
+	}
+	if len(payload) != 0 {
+		t.Fatalf("unexpected lerpfinish payload bytes: %v", payload)
+	}
+}
+
+func TestWriteEntitiesToClient_EmitsLerpFinishOnlyWhenSendIntervalSet(t *testing.T) {
+	t.Parallel()
+
+	ent := &Edict{
+		Vars: &EntVars{
+			Model:      1,
+			ModelIndex: 1,
+			NextThink:  10.5,
+		},
+		SendInterval: true,
+		NumLeafs:     1,
+	}
+	ent.LeafNums[0] = 0
+
+	client := &Client{
+		FatPVS:       []byte{0x01},
+		EntityStates: make(map[int]EntityState),
+	}
+	s := &Server{
+		Time:          10,
+		Protocol:      ProtocolFitzQuake,
+		Static:        &ServerStatic{MaxClients: 0},
+		ModelPrecache: []string{"", "*1"},
+		Edicts:        []*Edict{{Vars: &EntVars{}}, ent},
+		NumEdicts:     2,
+	}
+	state, ok := s.entityStateForClient(1, ent)
+	if !ok {
+		t.Fatal("entityStateForClient returned ok=false for visible brush entity")
+	}
+	ent.Baseline = state
+
+	msg := NewMessageBuffer(256)
+	s.writeEntitiesToClient(client, msg)
+	if msg.Len() == 0 {
+		t.Fatal("writeEntitiesToClient wrote no visible baseline-equal brush entity update")
+	}
+
+	bits, payload := decodeEntityUpdateBitsAndPayload(t, msg.Data[:msg.Len()])
+	if bits&inet.U_LERPFINISH == 0 {
+		t.Fatalf("bits=%#x missing U_LERPFINISH", bits)
+	}
+	if !bytes.Equal(payload, []byte{128}) {
+		t.Fatalf("payload=%v, want [128]", payload)
+	}
+}
+
 func TestWriteEntitiesToClient_EmitsVisibleBaselineEqualBrushEntity(t *testing.T) {
 	t.Parallel()
 
@@ -995,6 +1088,31 @@ func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 	_, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
 	if got, want := payload[len(payload)-1], byte(1<<5); got != want {
 		t.Fatalf("active weapon byte = %#x, want %#x; payload=%v", got, want, payload)
+	}
+}
+
+func TestWriteClientDataToMessage_SendsFullActiveWeaponStatWhenBitmaskExceedsByte(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{Protocol: ProtocolNetQuake}
+	ent := &Edict{
+		Vars: &EntVars{
+			Weapon:      1 << 8,
+			Health:      100,
+			CurrentAmmo: 5,
+		},
+	}
+
+	msg := NewMessageBuffer(128)
+	s.WriteClientDataToMessage(ent, msg)
+
+	_, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
+	if got, want := payload[12], byte(0); got != want {
+		t.Fatalf("active weapon byte = %#x, want %#x; payload=%v", got, want, payload)
+	}
+	want := []byte{byte(inet.SVCUpdateStat), byte(inet.StatActiveWeapon), 0x00, 0x01, 0x00, 0x00}
+	if got := payload[len(payload)-len(want):]; !bytes.Equal(got, want) {
+		t.Fatalf("active weapon updatestat = %v, want %v", got, want)
 	}
 }
 

@@ -1736,6 +1736,13 @@ func (s *Server) GetMapName() string {
 	return s.Name
 }
 
+func (s *Server) QCProfileResults(top int) []qc.ProfileResult {
+	if s == nil || !s.Active || s.QCVM == nil || top <= 0 {
+		return nil
+	}
+	return s.QCVM.ProfileResults(top)
+}
+
 // SV_BroadcastPrintf prints formatted text to server console and all active clients reliably.
 func (s *Server) SV_BroadcastPrintf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)

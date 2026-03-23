@@ -435,6 +435,19 @@ func (h *Host) CmdPrEnts(subs *Subsystems) {
 	}
 }
 
+func (h *Host) CmdProfile(subs *Subsystems) {
+	if subs == nil || subs.Server == nil || subs.Console == nil || !h.serverActive {
+		return
+	}
+	srv, ok := subs.Server.(*server.Server)
+	if !ok {
+		return
+	}
+	for _, result := range srv.QCProfileResults(10) {
+		subs.Console.Print(fmt.Sprintf("%7d %s\n", result.Profile, result.Name))
+	}
+}
+
 func (h *Host) CmdKill(subs *Subsystems) {
 	if h.forwardClientCommand("kill", nil, subs) {
 		return
@@ -582,8 +595,16 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	}); err != nil {
 		return err
 	}
+	h.syncAutosaveLastTimeFromServer(srv)
 	h.setLastSave(name)
 	return nil
+}
+
+func (h *Host) syncAutosaveLastTimeFromServer(srv *server.Server) {
+	if h == nil || srv == nil {
+		return
+	}
+	h.autosave.lastTime = float64(srv.Time)
 }
 
 func (h *Host) CmdLoadArgs(args []string, subs *Subsystems) {

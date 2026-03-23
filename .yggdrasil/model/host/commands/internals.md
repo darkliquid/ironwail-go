@@ -13,9 +13,11 @@ Registration refreshes existing host-owned command names before re-adding them. 
 - **Map/session commands** manage local server startup, reconnect-style transitions, and changelevel/load flows.
 - **Network commands** create, reset, or tear down remote datagram client sessions.
 - **Gameplay/save commands** manage native saves, imported saves, and load validation.
+- **Gameplay/save commands** also align host autosave timestamps to restored server time after successful load restores.
+- **Gameplay/profile command** exposes QC VM per-function profile counters via `profile` (top 10), using C-like `%7d %s` line formatting and no output when no active local server/QC VM exists.
 - **Demo commands** coordinate record, playback, seek, and timedemo state.
 - **System/config commands** rebuild startup commands from argv and execute config text from builtin, user, or filesystem sources.
-- **Forwarding commands** decide whether a command should remain local or be sent to a remote server.
+- **Forwarding commands** decide whether a command should remain local or be sent to a remote server; that decision keys off active local-session state, not mere availability of a server subsystem instance.
 
 ## Constraints
 

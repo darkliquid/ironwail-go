@@ -29,6 +29,7 @@ Key exported data structures:
 
 - `Compile` expects a directory containing exactly one Go package that only imports the synthetic `quake` and `quake/engine` packages
 - generated binaries must remain loadable by `internal/qc.VM.LoadProgs`
+- emitted `progs.dat` headers must carry the canonical Quake progdefs CRC expected by the current QC runtime layout
 - builtin functions are represented as QC functions whose `FirstStatement` is the negative builtin number
 
 ## Failure modes

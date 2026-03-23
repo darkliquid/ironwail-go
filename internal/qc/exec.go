@@ -31,6 +31,8 @@ import (
 	"sort"
 )
 
+const runawayLoopLimit = 0x1000000
+
 func (vm *VM) traceCall(phase string, depth int, functionIndex int32) {
 	if vm.TraceCallFunc == nil {
 		return
@@ -93,7 +95,7 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 	startProfile := 0
 	for {
 		profile++
-		if profile > 0x1000000 {
+		if profile > runawayLoopLimit {
 			return fmt.Errorf("runaway loop error")
 		}
 

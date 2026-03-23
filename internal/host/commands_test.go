@@ -19,6 +19,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/menu"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
 
@@ -381,6 +382,100 @@ func (s *kickTrackingServer) KickClient(clientNum int, who, reason string) bool 
 	})
 	s.active[clientNum] = false
 	return true
+}
+
+func makeQCVMWithProfileResults(profiles map[string]int32) *qc.VM {
+	vm := qc.NewVM()
+	stringsData := []byte{0}
+	vm.Functions = make([]qc.DFunction, 0, len(profiles))
+
+	for name, profile := range profiles {
+		nameOfs := int32(len(stringsData))
+		stringsData = append(stringsData, []byte(name)...)
+		stringsData = append(stringsData, 0)
+		vm.Functions = append(vm.Functions, qc.DFunction{Name: nameOfs, Profile: profile})
+	}
+	vm.Strings = stringsData
+	return vm
+}
+
+func TestCmdProfileNoOpWithoutActiveServer(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Server: server.NewServer(), Console: console}
+
+	h.CmdProfile(subs)
+
+	if got := strings.Join(console.messages, ""); got != "" {
+		t.Fatalf("profile output = %q, want empty when no active local server", got)
+	}
+}
+
+func TestCmdProfilePrintsTopTenAndClearsCounters(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	srv.Active = true
+	h.SetServerActive(true)
+
+	profiles := map[string]int32{
+		"func00": 120,
+		"func01": 119,
+		"func02": 118,
+		"func03": 117,
+		"func04": 116,
+		"func05": 115,
+		"func06": 114,
+		"func07": 113,
+		"func08": 112,
+		"func09": 111,
+		"func10": 110,
+		"func11": 109,
+	}
+	srv.QCVM = makeQCVMWithProfileResults(profiles)
+	subs := &Subsystems{Server: srv, Console: console}
+
+	h.CmdProfile(subs)
+
+	if len(console.messages) != 10 {
+		t.Fatalf("profile lines = %d, want 10", len(console.messages))
+	}
+	output := strings.Join(console.messages, "")
+	if !strings.Contains(output, "    120 func00\n") {
+		t.Fatalf("profile output missing top function: %q", output)
+	}
+	if !strings.Contains(output, "    111 func09\n") {
+		t.Fatalf("profile output missing tenth function: %q", output)
+	}
+	if strings.Contains(output, "func10") || strings.Contains(output, "func11") {
+		t.Fatalf("profile output includes entries past top 10: %q", output)
+	}
+
+	for i, fn := range srv.QCVM.Functions {
+		if fn.Profile != 0 {
+			t.Fatalf("function %d profile = %d, want 0 after profile command", i, fn.Profile)
+		}
+	}
+}
+
+func TestProfileCommandRegistrationExecutes(t *testing.T) {
+	cmdsys.RemoveCommand("profile")
+	t.Cleanup(func() { cmdsys.RemoveCommand("profile") })
+
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	srv.Active = true
+	h.SetServerActive(true)
+	srv.QCVM = makeQCVMWithProfileResults(map[string]int32{"qc_profiled": 7})
+	subs := &Subsystems{Server: srv, Console: console}
+
+	h.RegisterCommands(subs)
+	cmdsys.ExecuteText("profile")
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "      7 qc_profiled\n") {
+		t.Fatalf("profile command output = %q, want formatted QC profile line", got)
+	}
 }
 
 func TestCmdChangelevel(t *testing.T) {
@@ -2258,6 +2353,30 @@ func TestCmdMapDedicatedStartsServerWithoutLocalSession(t *testing.T) {
 	}
 }
 
+func TestSyncAutosaveLastTimeFromServerUsesServerTime(t *testing.T) {
+	h := NewHost()
+	h.autosave.lastTime = 1
+	srv := server.NewServer()
+	srv.Time = 123.5
+
+	h.syncAutosaveLastTimeFromServer(srv)
+
+	if got, want := h.autosave.lastTime, 123.5; got != want {
+		t.Fatalf("autosave.lastTime = %v, want %v", got, want)
+	}
+}
+
+func TestSyncAutosaveLastTimeFromServerIgnoresNilServer(t *testing.T) {
+	h := NewHost()
+	h.autosave.lastTime = 7
+
+	h.syncAutosaveLastTimeFromServer(nil)
+
+	if got, want := h.autosave.lastTime, 7.0; got != want {
+		t.Fatalf("autosave.lastTime = %v, want %v", got, want)
+	}
+}
+
 func TestCmdLoadStopsAllSoundsDuringSessionTransition(t *testing.T) {
 	baseDir := t.TempDir()
 	userDir := t.TempDir()
@@ -3604,6 +3723,47 @@ func TestCmdNameUpdatesCVarAndForwardsWhenRemoteConnected(t *testing.T) {
 	subs := &Subsystems{
 		Client:  client,
 		Console: &mockConsole{},
+	}
+
+	h.CmdName("Ranger", subs)
+
+	if got := cvar.StringValue(clientNameCVar); got != "Ranger" {
+		t.Fatalf("%s = %q, want Ranger", clientNameCVar, got)
+	}
+	if got := client.commands; !reflect.DeepEqual(got, []string{"name Ranger"}) {
+		t.Fatalf("forwarded commands = %v, want [name Ranger]", got)
+	}
+}
+
+func TestCmdStatusForwardsWithInitializedInactiveServer(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Server:  server.NewServer(),
+		Client:  client,
+		Console: &mockConsole{},
+	}
+	if err := h.Init(&InitParams{BaseDir: "."}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	h.CmdStatus(subs)
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"status"}) {
+		t.Fatalf("forwarded commands = %v, want [status]", got)
+	}
+}
+
+func TestCmdNameForwardsWithInitializedInactiveServer(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caConnected}
+	subs := &Subsystems{
+		Server:  server.NewServer(),
+		Client:  client,
+		Console: &mockConsole{},
+	}
+	if err := h.Init(&InitParams{BaseDir: "."}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
 	}
 
 	h.CmdName("Ranger", subs)

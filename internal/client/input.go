@@ -4,11 +4,6 @@ import "math"
 
 import "github.com/ironwail/ironwail-go/pkg/types"
 
-const (
-	defaultCenterMove  = 0.15
-	defaultCenterSpeed = 500.0
-)
-
 func (c *Client) StartPitchDrift() {
 	if c == nil {
 		return
@@ -17,7 +12,7 @@ func (c *Client) StartPitchDrift() {
 		return
 	}
 	if c.NoDrift || c.PitchVel == 0 {
-		c.PitchVel = defaultCenterSpeed
+		c.PitchVel = c.centerSpeed()
 		c.NoDrift = false
 		c.DriftMove = 0
 	}
@@ -45,7 +40,7 @@ func (c *Client) DriftPitch(frametime float32, forwardMove float32) {
 		} else {
 			c.DriftMove += frametime
 		}
-		if c.DriftMove > defaultCenterMove && c.LookSpring {
+		if c.DriftMove > c.centerMove() && c.LookSpring {
 			c.StartPitchDrift()
 		}
 		return
@@ -58,7 +53,7 @@ func (c *Client) DriftPitch(frametime float32, forwardMove float32) {
 	}
 
 	move := frametime * c.PitchVel
-	c.PitchVel += frametime * defaultCenterSpeed
+	c.PitchVel += frametime * c.centerSpeed()
 	if delta > 0 {
 		if move > delta {
 			c.PitchVel = 0
@@ -72,6 +67,20 @@ func (c *Client) DriftPitch(frametime float32, forwardMove float32) {
 		}
 		c.ViewAngles[0] -= move
 	}
+}
+
+func (c *Client) centerMove() float32 {
+	if c == nil || c.CenterMove <= 0 {
+		return defaultCenterMove
+	}
+	return c.CenterMove
+}
+
+func (c *Client) centerSpeed() float32 {
+	if c == nil || c.CenterSpeed <= 0 {
+		return defaultCenterSpeed
+	}
+	return c.CenterSpeed
 }
 
 func absf(v float32) float32 {

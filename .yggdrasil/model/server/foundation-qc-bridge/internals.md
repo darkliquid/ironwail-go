@@ -4,6 +4,8 @@
 
 This node centralizes the dual-representation problem: every authoritative entity exists both as typed Go state and as flat QC VM memory. The sync helpers copy data between those representations at key boundaries so QC logic, physics, and networking all observe consistent values. It also caches field offsets and protocol-related knobs used throughout the rest of the package.
 
+The server also exposes narrow bridge helpers that project QC VM internals to host policies without leaking VM ownership; `QCProfileResults(top)` is one such bridge and only returns counters when the server and QC VM are active.
+
 ## Constraints
 
 - `EntVars` layout and QC field offsets are parity-critical.

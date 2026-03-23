@@ -102,6 +102,43 @@ func TestPhysicsWalkAppliesGravityAirborne(t *testing.T) {
 	}
 }
 
+func TestAddGravityUsesQCGravityFieldWhenPresent(t *testing.T) {
+	s, _, ent := newSyntheticClientServer(t)
+	s.FrameTime = 0.1
+	ent.Vars.Velocity = [3]float32{}
+
+	vm := newTestQCVM()
+	s.QCVM = vm
+	s.QCFieldGravity = 0
+
+	entNum := s.NumForEdict(ent)
+	if entNum < 0 {
+		t.Fatal("expected client edict to be linked into server edict table")
+	}
+
+	cases := []struct {
+		name    string
+		gravity float32
+		wantZ   float32
+	}{
+		{name: "custom multiplier", gravity: 0.5, wantZ: -40},
+		{name: "zero falls back to world gravity", gravity: 0, wantZ: -80},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ent.Vars.Velocity = [3]float32{}
+			vm.SetEFloat(entNum, s.QCFieldGravity, tc.gravity)
+
+			s.AddGravity(ent)
+
+			if got := ent.Vars.Velocity[2]; got < tc.wantZ-0.001 || got > tc.wantZ+0.001 {
+				t.Fatalf("velocity[2] = %v, want %v", got, tc.wantZ)
+			}
+		})
+	}
+}
+
 func TestPhysicsWalkSkipsGravityUnderwater(t *testing.T) {
 	s, _, ent := newSyntheticClientServer(t)
 	// SV_CheckWater needs a WorldModel to perform PointContents checks

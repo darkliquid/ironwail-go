@@ -20,3 +20,4 @@ Observed responsibilities:
 
 - `Client` is the shared state target for parser, input, prediction, relink, and demo logic.
 - Signon count and connection state transitions affect host behavior and downstream rendering/audio activation.
+- Pitch-drift tuning fields on `Client` (`CenterMove`, `CenterSpeed`) are the authoritative runtime values consumed by input drift logic; startup/control-cvar sync updates these from `v_centermove` and `v_centerspeed`.

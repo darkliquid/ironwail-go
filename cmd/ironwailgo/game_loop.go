@@ -266,6 +266,7 @@ func syncHostClientState() {
 	g.Host.SetClientState(g.Subs.Client.State())
 	if g.Client != nil {
 		g.Host.SetSignOns(g.Client.Signon)
+		g.Client.LocalServerFast = g.Host.LocalServerFast()
 	}
 }
 

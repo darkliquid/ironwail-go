@@ -24,10 +24,10 @@ func Emit(in *EmitInput) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Calculate section sizes
-	stmtSize := len(in.Statements) * 8   // 4 x uint16
-	gdefSize := len(in.GlobalDefs) * 8    // uint16 + uint16 + int32
-	fdefSize := len(in.FieldDefs) * 8     // same
-	funcSize := len(in.Functions) * 36    // DFunction is 36 bytes
+	stmtSize := len(in.Statements) * 8 // 4 x uint16
+	gdefSize := len(in.GlobalDefs) * 8 // uint16 + uint16 + int32
+	fdefSize := len(in.FieldDefs) * 8  // same
+	funcSize := len(in.Functions) * 36 // DFunction is 36 bytes
 	strSize := len(in.Strings)
 	_ = len(in.Globals) * 4 // uint32 each; size used implicitly via binary.Write
 
@@ -37,7 +37,7 @@ func Emit(in *EmitInput) ([]byte, error) {
 
 	header := qc.DProgs{
 		Version:       qc.ProgVersion,
-		CRC:           0, // TODO: compute progdefs CRC
+		CRC:           int32(qc.ProgHeaderCRC),
 		Statements:    offset,
 		NumStatements: int32(len(in.Statements)),
 	}

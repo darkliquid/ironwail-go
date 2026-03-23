@@ -189,6 +189,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
 	replaceCommand("setpos", func(args []string) { h.CmdSetPos(args, subs) }, "Teleport to position")
 	replaceCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
+	replaceCommand("profile", func(args []string) { h.CmdProfile(subs) }, "Show top QC function profile counters")
 
 	// Demo commands
 	replaceCommand("record", func(args []string) {

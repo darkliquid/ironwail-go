@@ -65,6 +65,14 @@ func registerMirroredArchiveCvars(canonicalName, legacyName, defaultValue, descr
 	return canonical
 }
 
+func registerColorShiftPercentCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
+	register("gl_cshiftpercent", "100", cvar.FlagArchive, "Global color-shift intensity percentage (0–100)")
+	register("gl_cshiftpercent_contents", "100", cvar.FlagArchive, "Contents color-shift intensity percentage (0–100)")
+	register("gl_cshiftpercent_damage", "100", cvar.FlagArchive, "Damage color-shift intensity percentage (0–100)")
+	register("gl_cshiftpercent_bonus", "100", cvar.FlagArchive, "Bonus color-shift intensity percentage (0–100)")
+	register("gl_cshiftpercent_powerup", "100", cvar.FlagArchive, "Powerup color-shift intensity percentage (0–100)")
+}
+
 func initGameHost() error {
 	fmt.Printf("Detected %d CPUs.\n", runtime.NumCPU())
 	fmt.Println("Host_Init")
@@ -105,9 +113,9 @@ func initGameHost() error {
 	// gl_polyblend: enable/disable the v_blend polyblend screen-tint pass.
 	// Mirrors C Ironwail gl_polyblend. Default 1 (enabled).
 	cvar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")
-	// gl_cshiftpercent: global scale for all color shifts (0–100).
-	// Mirrors C Ironwail gl_cshiftpercent. Default 100 (full intensity).
-	cvar.Register("gl_cshiftpercent", "100", cvar.FlagArchive, "Global color-shift intensity percentage (0–100)")
+	// gl_cshiftpercent and gl_cshiftpercent_*: global/per-channel scales for color shifts (0–100).
+	// Mirror C Ironwail defaults (all 100 = full intensity).
+	registerColorShiftPercentCvars(cvar.Register)
 	cvar.Register("developer", "0", 0, "Developer mode")
 	registerDebugViewTelemetryCVar()
 
@@ -180,6 +188,15 @@ func initGameHost() error {
 
 	// Create host instance
 	g.Host = host.NewHost()
+	hostMaxFPS := cvar.Get("host_maxfps")
+	if hostMaxFPS != nil {
+		hostMaxFPS.Callback = func(cv *cvar.CVar) {
+			if g.Host != nil {
+				g.Host.SetMaxFPS(cv.Float)
+			}
+		}
+		g.Host.SetMaxFPS(hostMaxFPS.Float)
+	}
 
 	return nil
 }
@@ -188,13 +205,16 @@ func registerControlCvars() {
 	alwaysRun := cvar.Register("cl_alwaysrun", "1", cvar.FlagArchive, "Always run movement by default")
 	freelook := cvar.Register("freelook", "1", cvar.FlagArchive, "Enable mouse freelook")
 	lookspring := cvar.Register("lookspring", "0", cvar.FlagArchive, "Center view when look key released")
+	noLerp := cvar.Register("cl_nolerp", "0", cvar.FlagArchive, "Disable view interpolation")
+	centerMove := cvar.Register("v_centermove", "0.15", 0, "Seconds of forward movement before pitch drift recenters the view")
+	centerSpeed := cvar.Register("v_centerspeed", "500", 0, "Pitch drift recenter acceleration speed")
 	cvar.Register("lookstrafe", "0", cvar.FlagArchive, "Use mouse X for strafing when +strafe held")
 	cvar.Register("sensitivity", "6.8", cvar.FlagArchive, "Mouse sensitivity scale")
 	cvar.Register("m_pitch", "0.0176", cvar.FlagArchive, "Mouse pitch scale")
 	cvar.Register("m_yaw", "0.022", cvar.FlagArchive, "Mouse yaw scale")
 	cvar.Register("m_forward", "1", cvar.FlagArchive, "Mouse forward scale")
 	cvar.Register("m_side", "0.8", cvar.FlagArchive, "Mouse side scale")
-	for _, cv := range []*cvar.CVar{alwaysRun, freelook, lookspring} {
+	for _, cv := range []*cvar.CVar{alwaysRun, freelook, lookspring, noLerp, centerMove, centerSpeed} {
 		cv.Callback = func(*cvar.CVar) {
 			syncControlCvarsToClient()
 		}
@@ -208,6 +228,9 @@ func syncControlCvarsToClient() {
 	g.Client.AlwaysRun = cvar.BoolValue("cl_alwaysrun")
 	g.Client.FreeLook = cvar.BoolValue("freelook")
 	g.Client.LookSpring = cvar.BoolValue("lookspring")
+	g.Client.NoLerp = cvar.BoolValue("cl_nolerp")
+	g.Client.CenterMove = float32(cvar.FloatValue("v_centermove"))
+	g.Client.CenterSpeed = float32(cvar.FloatValue("v_centerspeed"))
 }
 
 func initGameServer() error {
