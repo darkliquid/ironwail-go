@@ -161,7 +161,7 @@ func (c *localLoopbackClient) SendCommand() error {
 	if c == nil || c.inner == nil || c.cmd == nil || !c.cmdReady || c.inner.State != cl.StateActive {
 		return nil
 	}
-	cmd := c.inner.PendingCmd
+	cmd := c.inner.BuildPendingMove()
 	if err := c.cmd.SubmitLoopbackCmd(0, cmd.ViewAngles, cmd.Forward, cmd.Side, cmd.Up, cmd.Buttons, cmd.Impulse, c.inner.Time); err != nil {
 		return err
 	}

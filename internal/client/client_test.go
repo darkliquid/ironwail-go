@@ -1908,6 +1908,12 @@ func TestSVCKillMonster(t *testing.T) {
 	if got := c.KillCount; got != 2 {
 		t.Fatalf("kill count after second = %d, want 2", got)
 	}
+	if got := c.Stats[inet.StatMonsters]; got != 2 {
+		t.Fatalf("StatMonsters = %d, want 2", got)
+	}
+	if got := c.StatsF[inet.StatMonsters]; got != 2 {
+		t.Fatalf("StatMonstersF = %v, want 2", got)
+	}
 }
 
 func TestSVCFoundSecret(t *testing.T) {
@@ -1941,6 +1947,26 @@ func TestSVCFoundSecret(t *testing.T) {
 
 	if got := c.SecretCount; got != 2 {
 		t.Fatalf("secret count after second = %d, want 2", got)
+	}
+	if got := c.Stats[inet.StatSecrets]; got != 2 {
+		t.Fatalf("StatSecrets = %d, want 2", got)
+	}
+	if got := c.StatsF[inet.StatSecrets]; got != 2 {
+		t.Fatalf("StatSecretsF = %v, want 2", got)
+	}
+}
+
+func TestSVCLevelCompletedAndBackToLobbyAreAccepted(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCLevelCompleted))
+	msg.WriteByte(byte(inet.SVCBackToLobby))
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
 }
 
@@ -2566,9 +2592,10 @@ func TestSendCmdAfterSignOn(t *testing.T) {
 		Forward:    300.0,
 		Side:       -100.0,
 		Up:         0.0,
-		Buttons:    3,
-		Impulse:    10,
 	}
+	c.InputAttack.State = 3
+	c.InputJump.State = 3
+	c.InImpulse = 10
 
 	var sentData []byte
 	sendFunc := func(data []byte) error {
@@ -2673,6 +2700,39 @@ func TestSendCmdRateLimit(t *testing.T) {
 	}
 }
 
+func TestBuildPendingMoveLatchesAndClearsOneShotInputs(t *testing.T) {
+	c := NewClient()
+	c.PendingCmd = UserCmd{
+		ViewAngles: [3]float32{1, 2, 3},
+		Forward:    120,
+		Side:       -40,
+		Up:         8,
+		Msec:       16,
+	}
+	c.InputAttack.State = 3 // down + impulse down
+	c.InputJump.State = 3   // down + impulse down
+	c.InImpulse = 7
+
+	cmd1 := c.BuildPendingMove()
+	if cmd1.Buttons != 3 {
+		t.Fatalf("first cmd buttons = %d, want 3", cmd1.Buttons)
+	}
+	if cmd1.Impulse != 7 {
+		t.Fatalf("first cmd impulse = %d, want 7", cmd1.Impulse)
+	}
+	if c.InImpulse != 0 {
+		t.Fatalf("InImpulse after first build = %d, want 0", c.InImpulse)
+	}
+
+	cmd2 := c.BuildPendingMove()
+	if cmd2.Buttons != 3 {
+		t.Fatalf("second cmd buttons = %d, want 3 while keys remain held", cmd2.Buttons)
+	}
+	if cmd2.Impulse != 0 {
+		t.Fatalf("second cmd impulse = %d, want 0", cmd2.Impulse)
+	}
+}
+
 func TestSendMoveNilClient(t *testing.T) {
 	var c *Client
 	data, err := c.SendMove(&UserCmd{})
@@ -2718,9 +2778,9 @@ func TestSendCmdIntegrationWithSocket(t *testing.T) {
 		Forward:    250.0,
 		Side:       -50.0,
 		Up:         0.0,
-		Buttons:    1,
-		Impulse:    5,
 	}
+	c.InputAttack.State = 3
+	c.InImpulse = 5
 
 	// Mock network send function that captures data
 	var sentMessages [][]byte

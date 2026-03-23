@@ -19,6 +19,8 @@ Server-browser network advertisement wiring (`updateServerBrowserNetworking`) no
 - update screen
 - update audio
 
+For loopback clients, send command construction now performs send-time one-shot input latching (attack/jump/impulse) through client runtime helpers, matching remote send semantics and C engine timing.
+
 When `maxFPS` is above 72 or invalid, network simulation is isolated to a `1/72` interval. When `maxFPS` is at or below 72, simulation may run every frame.
 
 ### Shutdown

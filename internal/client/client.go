@@ -1122,8 +1122,9 @@ func (c *Client) SendCmd(sendFunc func([]byte) error) error {
 	// Prepare command to send
 	var cmd *UserCmd
 	if c.Signon >= Signons {
-		// Signon complete: send real player command
-		cmd = &c.PendingCmd
+		// Signon complete: sample one-shot button/impulse bits at send time.
+		pending := c.BuildPendingMove()
+		cmd = &pending
 	} else {
 		// Still in signon: send empty command to keep server in sync
 		emptyCmd := UserCmd{
@@ -1149,7 +1150,7 @@ func (c *Client) SendCmd(sendFunc func([]byte) error) error {
 
 	// Update command state
 	if c.Signon >= Signons {
-		c.Cmd = c.PendingCmd
+		c.Cmd = *cmd
 		c.RecordSentCmd(*cmd)
 	}
 

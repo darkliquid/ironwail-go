@@ -6,6 +6,12 @@
 
 The input path tracks Quake-style button transitions and computes fractional key-state contributions for the current frame.
 
+One-shot button/impulse sampling is split by responsibility:
+- `AccumulateCmd` computes movement axes and view-derived command fields.
+- `BuildPendingMove` latches attack/jump bits (`state&3`) and impulse at send time, then clears impulse-down flags (`&^=2`) and consumed impulse.
+
+This mirrors classic Ironwail/Quake timing where send-time packet construction owns one-shot button consumption.
+
 ### View and drift
 
 Pitch drift and angle adjustment logic preserve classic Quake-style view behavior, including special handling for cutscenes and look-spring behavior.

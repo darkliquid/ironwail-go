@@ -76,6 +76,42 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	}
 }
 
+func TestLocalLoopbackClientSendCommandLatchesButtonsAtSendTime(t *testing.T) {
+	s := server.NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.Static.Clients[0].Active = true
+	s.Static.Clients[0].Spawned = true
+
+	lc := newLocalLoopbackClient()
+	lc.srv = s
+	lc.cmd = s
+	lc.inner.State = cl.StateActive
+	lc.inner.Time = 1.25
+	lc.inner.ViewAngles = [3]float32{0, 90, 0}
+
+	if err := lc.Frame(0.1); err != nil {
+		t.Fatalf("frame: %v", err)
+	}
+	if !lc.cmdReady {
+		t.Fatal("command was not marked ready after frame")
+	}
+
+	// Simulate a press that happens after input accumulation but before send.
+	// C Ironwail samples in_attack/in_jump in CL_SendMove, so this press must
+	// still be visible to the server command.
+	lc.inner.KeyDown(&lc.inner.InputAttack, 1)
+
+	if err := lc.SendCommand(); err != nil {
+		t.Fatalf("send command: %v", err)
+	}
+	got := s.Static.Clients[0].LastCmd
+	if got.Buttons&1 == 0 {
+		t.Fatalf("buttons = %d, want attack bit set from send-time latch", got.Buttons)
+	}
+}
+
 func TestLocalLoopbackClientReadFromServerConsumesReliableMessage(t *testing.T) {
 	s := server.NewServer()
 	if err := s.Init(1); err != nil {
@@ -240,9 +276,11 @@ func TestDispatchLoopbackStuffTextFlushesCompleteLines(t *testing.T) {
 
 type globalExecuteTextCommandBuffer struct{}
 
-func (globalExecuteTextCommandBuffer) Init()                                         {}
-func (globalExecuteTextCommandBuffer) Execute()                                      { cmdsys.Execute() }
-func (globalExecuteTextCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) { cmdsys.ExecuteWithSource(source) }
+func (globalExecuteTextCommandBuffer) Init()    {}
+func (globalExecuteTextCommandBuffer) Execute() { cmdsys.Execute() }
+func (globalExecuteTextCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
+	cmdsys.ExecuteWithSource(source)
+}
 func (globalExecuteTextCommandBuffer) ExecuteTextWithSource(text string, source cmdsys.CommandSource) {
 	cmdsys.ExecuteTextWithSource(text, source)
 }

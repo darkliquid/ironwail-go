@@ -249,11 +249,8 @@ func (c *Client) AccumulateCmd(frametime float32) {
 	if c.InputJump.State&3 != 0 {
 		c.PendingCmd.Buttons |= 2
 	}
-	c.InputAttack.State &^= 2
-	c.InputJump.State &^= 2
 
 	c.PendingCmd.Impulse = c.InImpulse
-	c.InImpulse = 0
 	cmdMS := int(math.Round(float64(frametime * 1000)))
 	if cmdMS < 0 {
 		cmdMS = 0
@@ -262,4 +259,24 @@ func (c *Client) AccumulateCmd(frametime float32) {
 		cmdMS = 255
 	}
 	c.PendingCmd.Msec = uint8(cmdMS)
+}
+
+// BuildPendingMove captures the current pending movement command and latches
+// one-shot button/impulse bits exactly at send time (matching C Ironwail).
+func (c *Client) BuildPendingMove() UserCmd {
+	cmd := c.PendingCmd
+	cmd.Buttons = 0
+	if c.InputAttack.State&3 != 0 {
+		cmd.Buttons |= 1
+	}
+	if c.InputJump.State&3 != 0 {
+		cmd.Buttons |= 2
+	}
+	c.InputAttack.State &^= 2
+	c.InputJump.State &^= 2
+	cmd.Impulse = c.InImpulse
+	c.InImpulse = 0
+	c.PendingCmd.Buttons = cmd.Buttons
+	c.PendingCmd.Impulse = cmd.Impulse
+	return cmd
 }
