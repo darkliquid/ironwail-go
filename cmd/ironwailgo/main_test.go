@@ -5105,6 +5105,36 @@ func TestScrAutoScaleFallsBackToVideoCvars(t *testing.T) {
 	}
 }
 
+func TestSizeCommandsAdjustMirroredViewsizeCVar(t *testing.T) {
+	registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "")
+	cvar.Set("viewsize", "100")
+	cvar.Set("scr_viewsize", "100")
+	t.Cleanup(func() {
+		cvar.Set("viewsize", "100")
+		cvar.Set("scr_viewsize", "100")
+		cmdsys.RemoveCommand("sizeup")
+		cmdsys.RemoveCommand("sizedown")
+	})
+
+	registerGameplayBindCommands()
+
+	cmdsys.ExecuteText("sizeup")
+	if got := cvar.FloatValue("viewsize"); got != 110 {
+		t.Fatalf("viewsize after sizeup = %v, want 110", got)
+	}
+	if got := cvar.FloatValue("scr_viewsize"); got != 110 {
+		t.Fatalf("scr_viewsize after sizeup = %v, want 110", got)
+	}
+
+	cmdsys.ExecuteText("sizedown")
+	if got := cvar.FloatValue("viewsize"); got != 100 {
+		t.Fatalf("viewsize after sizedown = %v, want 100", got)
+	}
+	if got := cvar.FloatValue("scr_viewsize"); got != 100 {
+		t.Fatalf("scr_viewsize after sizedown = %v, want 100", got)
+	}
+}
+
 func TestEnsureStartupUIScaleAppliesAutoscaleWhenUnconfigured(t *testing.T) {
 	originalRenderer := g.Renderer
 	originalHost := g.Host

@@ -33,6 +33,8 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("unbindall", cmdUnbindAll, "Remove all key bindings")
 	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
 	cmdsys.AddCommand("scr_autoscale", cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
+	cmdsys.AddCommand("sizeup", cmdSizeUp, "Increase screen view size")
+	cmdsys.AddCommand("sizedown", cmdSizeDown, "Decrease screen view size")
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
@@ -169,6 +171,14 @@ func cmdScreenAutoScale(_ []string) {
 	for _, name := range uiScaleCVarNames {
 		cvar.SetFloat(name, scale)
 	}
+}
+
+func cmdSizeUp(_ []string) {
+	cvar.SetFloat("scr_viewsize", cvar.FloatValue("scr_viewsize")+10)
+}
+
+func cmdSizeDown(_ []string) {
+	cvar.SetFloat("scr_viewsize", cvar.FloatValue("scr_viewsize")-10)
 }
 
 func startupConfigPinsAnyCVar(userDir string, names []string) bool {
