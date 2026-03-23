@@ -6,6 +6,7 @@ package host
 import (
 	"fmt"
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"strconv"
@@ -47,6 +48,118 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 	}
 
 	subs.Console.Print(sb.String())
+}
+
+func (h *Host) CmdListen(args []string, subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+
+	if len(args) != 1 {
+		if subs != nil && subs.Console != nil {
+			listenState := 0
+			if inet.IsListening() {
+				listenState = 1
+			}
+			subs.Console.Print(fmt.Sprintf("\"listen\" is \"%d\"\n", listenState))
+		}
+		return
+	}
+
+	wantListen := qAtoi(args[0]) != 0
+	if err := inet.Listen(wantListen); err != nil && subs != nil && subs.Console != nil {
+		subs.Console.Print(fmt.Sprintf("listen: %v\n", err))
+	}
+}
+
+func (h *Host) CmdMaxPlayers(args []string, subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+
+	if len(args) != 1 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("\"maxplayers\" is \"%d\"\n", h.maxClients))
+		}
+		return
+	}
+
+	if h.serverActive {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("maxplayers can not be changed while a server is running.\n")
+		}
+		return
+	}
+
+	n := qAtoi(args[0])
+	if n < 1 {
+		n = 1
+	}
+	if n > MaxScoreboard {
+		n = MaxScoreboard
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("\"maxplayers\" set to \"%d\"\n", n))
+		}
+	}
+
+	if n == 1 && inet.IsListening() {
+		queueHostCommand("listen 0\n", subs)
+	}
+	if n > 1 && !inet.IsListening() {
+		queueHostCommand("listen 1\n", subs)
+	}
+
+	h.maxClients = n
+	cvar.SetInt("maxplayers", n)
+	if n == 1 {
+		cvar.SetInt("deathmatch", 0)
+	} else {
+		cvar.SetInt("deathmatch", 1)
+	}
+}
+
+func (h *Host) CmdPort(args []string, subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+
+	if len(args) != 1 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("\"port\" is \"%d\"\n", inet.HostPort()))
+		}
+		return
+	}
+
+	n := qAtoi(args[0])
+	if n < 1 || n > 65534 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("Bad value, must be between 1 and 65534\n")
+		}
+		return
+	}
+
+	inet.SetHostPort(n)
+
+	if inet.IsListening() {
+		queueHostCommand("listen 0\n", subs)
+		queueHostCommand("listen 1\n", subs)
+	}
+}
+
+func queueHostCommand(text string, subs *Subsystems) {
+	if subs != nil && subs.Commands != nil {
+		subs.Commands.AddText(text)
+		return
+	}
+	cmdsys.AddText(text)
+}
+
+func qAtoi(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0
+	}
+	return value
 }
 
 var bannedPlayers = make(map[string]bool)

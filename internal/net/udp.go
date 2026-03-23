@@ -115,5 +115,12 @@ func UDPAddrToString(addr *stdnet.UDPAddr) string {
 // to turn user-provided server addresses into network endpoints.
 // Corresponds to UDP_StringToAddr() in net_udp.c.
 func UDPStringToAddr(address string) (*stdnet.UDPAddr, error) {
+	if len(address) > 0 && address[0] >= '0' && address[0] <= '9' {
+		expanded, err := PartialIPAddress(address, stdnet.ParseIP(myTCPIPAddress), netHostPort)
+		if err != nil {
+			return nil, err
+		}
+		address = expanded
+	}
 	return stdnet.ResolveUDPAddr("udp4", address)
 }

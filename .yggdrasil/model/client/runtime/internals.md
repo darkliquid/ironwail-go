@@ -17,6 +17,8 @@ Runtime regression coverage includes parser-level tests in `internal/client/clie
 
 Command-send behavior samples one-shot controls at send time via `BuildPendingMove` (instead of relying on values pre-written during frame accumulation). This keeps button/impulse latching aligned with wire emission timing and avoids dropping presses that occur between accumulation and transmission.
 
+String-command serialization is intentionally thin: `SendStringCmd` now preserves the exact caller-provided payload instead of trimming whitespace first, because C-style console forwarding can intentionally send a bare newline for `cmd` with no arguments and host/network layers rely on the client serializer not to rewrite that payload.
+
 ## Constraints
 
 - Host behavior depends on client signon and connection state being updated consistently.

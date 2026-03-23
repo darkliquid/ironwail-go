@@ -2401,6 +2401,24 @@ func TestSendStringCmdEncodesOpcodeAndPayload(t *testing.T) {
 	}
 }
 
+func TestSendStringCmdPreservesNewlineOnlyPayload(t *testing.T) {
+	c := NewClient()
+
+	msg, err := c.SendStringCmd("\n")
+	if err != nil {
+		t.Fatalf("SendStringCmd error = %v", err)
+	}
+	if len(msg) < 2 {
+		t.Fatalf("message too short: %d", len(msg))
+	}
+	if msg[0] != byte(inet.CLCStringCmd) {
+		t.Fatalf("opcode = %d, want %d", msg[0], inet.CLCStringCmd)
+	}
+	if got := string(msg[1:]); got != "\n\x00" {
+		t.Fatalf("payload = %q, want %q", got, "\n\x00")
+	}
+}
+
 func TestHandleSignonReplyAcceptsSpawnArgs(t *testing.T) {
 	c := NewClient()
 	c.setState(StateConnected)

@@ -1,5 +1,5 @@
 {
-  "hash": "1179de792b12104af5a03adc78a85f81bbd731e098dae6b365e86604250e620a",
+  "hash": "d18f5f37e0fb8f488ea9ce23eebef33289ac06181de175239bf667b208de796b",
   "files": {
     ".yggdrasil/model/client/runtime/yg-node.yaml": "5e805d1e34e1d4c1c9574205426a5c64ec5ef4605d4b5f53f70dea9fb87be94a",
     ".yggdrasil/model/client/runtime/responsibility.md": "937a26754403e76ae3694488e176b668bdeb9381a4ba920427e01985f9a25086",
@@ -10,24 +10,24 @@
     "internal/client/doc.go": "8059e19c13640edb5a66e54668b73f61b8dd8e066895811fb0cf65ff975ce001",
     "internal/client/errors.go": "9c24ffd5e59521f44b0fe4d6dcea1e49cc377488e14358ea022ef7f936b7ddd5",
     "internal/client/telemetry.go": "092c79ee7788f8f6857098b6e8824c274b0dca3dfaaf4200f01623a96aa1c8f6",
-    ".yggdrasil/model/client/runtime/interface.md": "cbe21456550719fbc6f4e23a8f334c49b43eabdb59b635841fd16d1137882f19",
-    ".yggdrasil/model/client/runtime/internals.md": "56523cc76f7de70fefc7984227571f569ab29c04735aff471dc16c87cfa2f88b",
-    "internal/client/client.go": "87f9a0dc650e93fe197e1e37604374cec045129e4c90e98947605ec833c6ac1b",
-    "internal/client/client_test.go": "242c8716ca601db93c555fb02eba68f2429ba74a7a09306f3a7c8432a418abab"
+    ".yggdrasil/model/client/runtime/interface.md": "0a9c224b9013490c8deb5b272c930924637a53f3e51f35fe4d1a3f2f09c91ac0",
+    ".yggdrasil/model/client/runtime/internals.md": "94654d56f661dae03da84a76efa6a1462be53fcc1a0abf43196cf5e4f7856f52",
+    "internal/client/client.go": "360097b05c2c50305659eff7437c4b4345170124b26429dd39c7e73b6617d22a",
+    "internal/client/client_test.go": "8eb850be3c4cf3b1259ed000e7e1bf0a7d8571edc8682ede9858dde0cf678044"
   },
   "mtimes": {
     ".yggdrasil/model/client/runtime/yg-node.yaml": 1774218996944.151,
-    ".yggdrasil/model/client/runtime/interface.md": 1774283505989.7483,
-    ".yggdrasil/model/client/runtime/internals.md": 1774283510891.197,
+    ".yggdrasil/model/client/runtime/interface.md": 1774290516493.4524,
+    ".yggdrasil/model/client/runtime/internals.md": 1774290516493.5117,
     ".yggdrasil/model/client/runtime/responsibility.md": 1774218996991.1514,
     ".yggdrasil/model/client/yg-node.yaml": 1774218996656.1487,
     ".yggdrasil/model/client/interface.md": 1774218996777.1497,
     ".yggdrasil/model/client/internals.md": 1774218996851.1501,
     ".yggdrasil/model/client/responsibility.md": 1774218996715.1492,
     "internal/client/doc.go": 1773836785783.4026,
-    "internal/client/client.go": 1774283460992.0598,
+    "internal/client/client.go": 1774290516491.953,
     "internal/client/errors.go": 1773836785783.9604,
     "internal/client/telemetry.go": 1773948132169.4077,
-    "internal/client/client_test.go": 1774263606469.5107
+    "internal/client/client_test.go": 1774290600252.9043
   }
 }

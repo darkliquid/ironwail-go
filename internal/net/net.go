@@ -44,9 +44,19 @@ func NetTime() float64 {
 }
 
 func SetHostPort(port int) {
-	if port > 0 {
-		netHostPort = port
+	if port < 1 || port > 65534 {
+		return
 	}
+	netHostPort = port
+	defaultNetHostPort = port
+}
+
+func HostPort() int {
+	return netHostPort
+}
+
+func IsListening() bool {
+	return listening
 }
 
 // Init initializes the networking subsystem by bringing up all available

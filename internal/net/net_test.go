@@ -499,3 +499,98 @@ func TestListenEnableFailureReturnsErrorAndLeavesClosed(t *testing.T) {
 		t.Fatalf("Listen(false) after failed enable returned error: %v", err)
 	}
 }
+
+func TestUDPStringToAddr_ExpandsNumericLeadingPartialIP(t *testing.T) {
+	oldMyIP := myTCPIPAddress
+	oldHostPort := netHostPort
+	t.Cleanup(func() {
+		myTCPIPAddress = oldMyIP
+		netHostPort = oldHostPort
+	})
+
+	myTCPIPAddress = "192.168.1.42"
+	netHostPort = 26000
+
+	addr, err := UDPStringToAddr("2.100:27000")
+	if err != nil {
+		t.Fatalf("UDPStringToAddr failed: %v", err)
+	}
+
+	if got, want := addr.IP.String(), "192.168.2.100"; got != want {
+		t.Fatalf("resolved IP = %q, want %q", got, want)
+	}
+	if got, want := addr.Port, 27000; got != want {
+		t.Fatalf("resolved port = %d, want %d", got, want)
+	}
+}
+
+func TestUDPStringToAddr_HostnameUsesNormalResolution(t *testing.T) {
+	oldMyIP := myTCPIPAddress
+	t.Cleanup(func() {
+		myTCPIPAddress = oldMyIP
+	})
+
+	myTCPIPAddress = "192.168.1.42"
+
+	addr, err := UDPStringToAddr("localhost:26000")
+	if err != nil {
+		t.Fatalf("UDPStringToAddr failed: %v", err)
+	}
+	if !addr.IP.IsLoopback() {
+		t.Fatalf("hostname resolution IP = %q, want loopback", addr.IP.String())
+	}
+	if got, want := addr.IP.String(), myTCPIPAddress; got == want {
+		t.Fatalf("hostname path incorrectly used partial-IP expansion: got %q", got)
+	}
+}
+
+func TestSetHostPortValidationAndHostPortAccessor(t *testing.T) {
+	oldHostPort := netHostPort
+	oldDefaultHostPort := defaultNetHostPort
+	t.Cleanup(func() {
+		netHostPort = oldHostPort
+		defaultNetHostPort = oldDefaultHostPort
+	})
+
+	SetHostPort(0)
+	if got := HostPort(); got != oldHostPort {
+		t.Fatalf("HostPort after SetHostPort(0) = %d, want unchanged %d", got, oldHostPort)
+	}
+
+	SetHostPort(65535)
+	if got := HostPort(); got != oldHostPort {
+		t.Fatalf("HostPort after SetHostPort(65535) = %d, want unchanged %d", got, oldHostPort)
+	}
+
+	SetHostPort(27500)
+	if got := HostPort(); got != 27500 {
+		t.Fatalf("HostPort = %d, want 27500", got)
+	}
+	if got := defaultNetHostPort; got != 27500 {
+		t.Fatalf("defaultNetHostPort = %d, want 27500", got)
+	}
+}
+
+func TestIsListeningTracksListenState(t *testing.T) {
+	Init()
+	port := netHostPort + 20
+	SetHostPort(port)
+	_ = Listen(false)
+	t.Cleanup(Shutdown)
+
+	if IsListening() {
+		t.Fatal("IsListening() true before enabling listen")
+	}
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	if !IsListening() {
+		t.Fatal("IsListening() false after enabling listen")
+	}
+	if err := Listen(false); err != nil {
+		t.Fatalf("Listen(false) failed: %v", err)
+	}
+	if IsListening() {
+		t.Fatal("IsListening() true after disabling listen")
+	}
+}

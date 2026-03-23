@@ -21,6 +21,7 @@ Contracts:
 - `Init` fails on fatal filesystem/console/server/client/renderer init errors.
 - Audio init warnings do not abort startup.
 - `Init` always registers host commands and cvar helper commands in the global `cmdsys`, even when `Subsystems.Commands` is nil.
+- `Init` synchronizes runtime host player-slot policy into cvars by setting `maxplayers` from the clamped host `maxClients` value.
 - `Frame` expects the caller to supply callbacks that map onto concrete client/server/render/audio work.
 - `Shutdown` may use `Host.Subs` when the caller passes `nil`.
 

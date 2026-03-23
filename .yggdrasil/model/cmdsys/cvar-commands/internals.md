@@ -2,11 +2,12 @@
 
 ## Logic
 
-This node is a thin command-registration layer over the `cvar` package. It installs a small family of convenience verbs, validates argument shape where needed, and translates those verbs into `cvar.Get`, `cvar.Set`, `cvar.All`, and default-value operations. `cvarlist` snapshots and sorts cvars by name before logging, which keeps output stable across map/hash iteration order.
+This node is a thin command-registration layer over the `cvar` package. It installs a small family of convenience verbs, validates argument shape where needed, and translates those verbs into `cvar.Get`, `cvar.Set`, `cvar.All`, and default-value operations. `cycle`/`cycleback` first resolve an existing cvar and then mirror Ironwail's mixed numeric/string matching semantics when walking the candidate list; `inc` also resolves an existing cvar before computing the new numeric value. `cvarlist` snapshots and sorts cvars by name before logging, which keeps output stable across map/hash iteration order.
 
 ## Constraints
 
 - The commands are only as correct as the underlying `cvar` defaults/flags they delegate to.
+- Helper commands that mutate values must preserve Ironwail's refusal to create unknown cvars through these convenience paths.
 - Reset behavior must distinguish between all cvars and archived-only cvars.
 - Registration remains explicit via `RegisterCvarCommands`, while host runtime now calls the package-level registration helper during startup so helper commands are present in normal runs.
 

@@ -52,22 +52,32 @@ func cmdToggle(args []string) {
 	}
 }
 
+func cvarHasValue(cv *cvar.CVar, value string) bool {
+	if f, err := strconv.ParseFloat(value, 64); err == nil {
+		return cv.Float == f
+	}
+	return cv.String == value
+}
+
 func cmdCycle(args []string) {
 	if len(args) < 3 {
 		slog.Info("usage: cycle <cvar> <val1> <val2> [...]")
 		return
 	}
-	name := args[0]
+	cv := cvar.Get(args[0])
+	if cv == nil {
+		slog.Info("unknown cvar", "name", args[0])
+		return
+	}
 	values := args[1:]
-	cur := cvar.StringValue(name)
 	next := values[0]
 	for i, v := range values {
-		if v == cur {
+		if cvarHasValue(cv, v) {
 			next = values[(i+1)%len(values)]
 			break
 		}
 	}
-	cvar.Set(name, next)
+	cvar.Set(cv.Name, next)
 }
 
 func cmdCycleBack(args []string) {
@@ -75,22 +85,30 @@ func cmdCycleBack(args []string) {
 		slog.Info("usage: cycleback <cvar> <val1> <val2> [...]")
 		return
 	}
-	name := args[0]
+	cv := cvar.Get(args[0])
+	if cv == nil {
+		slog.Info("unknown cvar", "name", args[0])
+		return
+	}
 	values := args[1:]
-	cur := cvar.StringValue(name)
 	prev := values[len(values)-1]
-	for i, v := range values {
-		if v == cur {
+	for i := len(values) - 1; i >= 0; i-- {
+		if cvarHasValue(cv, values[i]) {
 			prev = values[(i-1+len(values))%len(values)]
 			break
 		}
 	}
-	cvar.Set(name, prev)
+	cvar.Set(cv.Name, prev)
 }
 
 func cmdInc(args []string) {
 	if len(args) < 1 {
 		slog.Info("usage: inc <cvar> [amount]")
+		return
+	}
+	cv := cvar.Get(args[0])
+	if cv == nil {
+		slog.Info("unknown cvar", "name", args[0])
 		return
 	}
 	amount := 1.0
@@ -99,8 +117,7 @@ func cmdInc(args []string) {
 			amount = v
 		}
 	}
-	cur := cvar.FloatValue(args[0])
-	cvar.Set(args[0], fmt.Sprintf("%g", cur+amount))
+	cvar.Set(cv.Name, fmt.Sprintf("%g", cv.Float+amount))
 }
 
 func cmdReset(args []string) {

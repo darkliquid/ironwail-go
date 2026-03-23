@@ -64,6 +64,28 @@ func TestCycle(t *testing.T) {
 	}
 }
 
+func TestCycleMatchesNumericEquivalentValue(t *testing.T) {
+	cvar.Register("test_cycle_numeric", "1.0", cvar.FlagNone, "test")
+	defer cvar.Set("test_cycle_numeric", "1.0")
+
+	cmdCycle([]string{"test_cycle_numeric", "0", "1", "2"})
+	if cvar.StringValue("test_cycle_numeric") != "2" {
+		t.Fatalf("cycle from 1.0 through numeric list: got %q, want 2", cvar.StringValue("test_cycle_numeric"))
+	}
+}
+
+func TestCycleRejectsUnknownCvar(t *testing.T) {
+	const name = "test_cycle_unknown"
+	if got := cvar.Get(name); got != nil {
+		t.Fatalf("precondition failed: %q already exists", name)
+	}
+
+	cmdCycle([]string{name, "a", "b"})
+	if got := cvar.Get(name); got != nil {
+		t.Fatalf("cycle created unknown cvar %q with value %q", name, got.String)
+	}
+}
+
 // TestCycleBack tests the cycleback console command.
 // It ensures that a cvar can be cycled backward through a list of values.
 func TestCycleBack(t *testing.T) {
@@ -81,6 +103,16 @@ func TestCycleBack(t *testing.T) {
 	cmdCycleBack([]string{"test_cycleback", "a", "b", "c"})
 	if cvar.StringValue("test_cycleback") != "a" {
 		t.Fatalf("cycleback from b: got %q, want a", cvar.StringValue("test_cycleback"))
+	}
+}
+
+func TestCycleBackMatchesNumericEquivalentValue(t *testing.T) {
+	cvar.Register("test_cycleback_numeric", "1.0", cvar.FlagNone, "test")
+	defer cvar.Set("test_cycleback_numeric", "1.0")
+
+	cmdCycleBack([]string{"test_cycleback_numeric", "0", "1", "2"})
+	if cvar.StringValue("test_cycleback_numeric") != "0" {
+		t.Fatalf("cycleback from 1.0 through numeric list: got %q, want 0", cvar.StringValue("test_cycleback_numeric"))
 	}
 }
 
@@ -102,6 +134,18 @@ func TestInc(t *testing.T) {
 	cmdInc([]string{"test_inc", "-3"})
 	if cvar.IntValue("test_inc") != 13 {
 		t.Fatalf("inc -3: got %d, want 13", cvar.IntValue("test_inc"))
+	}
+}
+
+func TestIncRejectsUnknownCvar(t *testing.T) {
+	const name = "test_inc_unknown"
+	if got := cvar.Get(name); got != nil {
+		t.Fatalf("precondition failed: %q already exists", name)
+	}
+
+	cmdInc([]string{name})
+	if got := cvar.Get(name); got != nil {
+		t.Fatalf("inc created unknown cvar %q with value %q", name, got.String)
 	}
 }
 

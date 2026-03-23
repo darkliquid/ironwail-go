@@ -6,6 +6,7 @@ package host
 import (
 	"encoding/json"
 	"fmt"
+	stdnet "net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -320,16 +321,32 @@ type nameTrackingServer struct {
 
 type insertTrackingCommandBuffer struct {
 	inserted []string
+	added    []string
 }
 
 func (b *insertTrackingCommandBuffer) Init()                                         {}
 func (b *insertTrackingCommandBuffer) Execute()                                      {}
 func (b *insertTrackingCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {}
-func (b *insertTrackingCommandBuffer) AddText(text string)                           {}
+func (b *insertTrackingCommandBuffer) AddText(text string) {
+	b.added = append(b.added, text)
+}
 func (b *insertTrackingCommandBuffer) InsertText(text string) {
 	b.inserted = append(b.inserted, text)
 }
 func (b *insertTrackingCommandBuffer) Shutdown() {}
+
+func testFreeUDPPort(t *testing.T) int {
+	t.Helper()
+	conn, err := stdnet.ListenUDP("udp4", &stdnet.UDPAddr{Port: 0})
+	if err != nil {
+		t.Fatalf("ListenUDP: %v", err)
+	}
+	port := conn.LocalAddr().(*stdnet.UDPAddr).Port
+	if err := conn.Close(); err != nil {
+		t.Fatalf("Close UDP listener: %v", err)
+	}
+	return port
+}
 
 func (s *colorTrackingServer) SetClientColor(clientNum int, color int) {
 	s.lastColor = color
@@ -3717,6 +3734,180 @@ func TestCmdStatusForwardsToRemoteServerWhenNoLocalServer(t *testing.T) {
 	}
 }
 
+func TestListenCommandRegistrationExecutes(t *testing.T) {
+	cmdsys.RemoveCommand("listen")
+	t.Cleanup(func() { cmdsys.RemoveCommand("listen") })
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	inet.Init()
+	t.Cleanup(inet.Shutdown)
+	_ = inet.Listen(false)
+
+	h.RegisterCommands(subs)
+	cmdsys.ExecuteText("listen")
+
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "\"listen\" is \"0\"") {
+		t.Fatalf("listen query output = %q", got)
+	}
+}
+
+func TestCmdListenQueryAndToggle(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	port := testFreeUDPPort(t)
+	inet.Init()
+	t.Cleanup(inet.Shutdown)
+	inet.SetHostPort(port)
+	_ = inet.Listen(false)
+
+	h.CmdListen(nil, subs)
+	if got := strings.Join(console.messages, ""); got != "\"listen\" is \"0\"\n" {
+		t.Fatalf("listen query output = %q, want disabled state", got)
+	}
+
+	h.CmdListen([]string{"1"}, subs)
+	if !inet.IsListening() {
+		t.Fatal("expected listening enabled")
+	}
+
+	h.CmdListen([]string{"0"}, subs)
+	if inet.IsListening() {
+		t.Fatal("expected listening disabled")
+	}
+}
+
+func TestCmdMaxPlayersQuerySetAndDeathmatch(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	oldDeathmatch := cvar.StringValue("deathmatch")
+	oldMaxPlayers := cvar.StringValue("maxplayers")
+	t.Cleanup(func() {
+		cvar.Set("deathmatch", oldDeathmatch)
+		cvar.Set("maxplayers", oldMaxPlayers)
+	})
+
+	h.maxClients = 1
+	cvar.Set("maxplayers", "1")
+	cvar.Set("deathmatch", "0")
+
+	h.CmdMaxPlayers(nil, subs)
+	if got := strings.Join(console.messages, ""); got != "\"maxplayers\" is \"1\"\n" {
+		t.Fatalf("maxplayers query output = %q", got)
+	}
+
+	console.messages = nil
+	h.CmdMaxPlayers([]string{"4"}, subs)
+	if got := h.MaxClients(); got != 4 {
+		t.Fatalf("maxclients = %d, want 4", got)
+	}
+	if got := cvar.IntValue("maxplayers"); got != 4 {
+		t.Fatalf("maxplayers cvar = %d, want 4", got)
+	}
+	if got := cvar.IntValue("deathmatch"); got != 1 {
+		t.Fatalf("deathmatch = %d, want 1", got)
+	}
+	if len(console.messages) != 0 {
+		t.Fatalf("unexpected console output: %q", strings.Join(console.messages, ""))
+	}
+}
+
+func TestCmdMaxPlayersRejectsWhenServerRunning(t *testing.T) {
+	h := NewHost()
+	h.maxClients = 2
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.CmdMaxPlayers([]string{"8"}, subs)
+
+	if got := h.MaxClients(); got != 2 {
+		t.Fatalf("maxclients changed to %d while server active", got)
+	}
+	if got := strings.Join(console.messages, ""); got != "maxplayers can not be changed while a server is running.\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
+func TestCmdMaxPlayersQueuesListenTransition(t *testing.T) {
+	h := NewHost()
+	h.maxClients = 1
+	cmdBuf := &insertTrackingCommandBuffer{}
+	subs := &Subsystems{Commands: cmdBuf}
+
+	port := testFreeUDPPort(t)
+	inet.Init()
+	t.Cleanup(inet.Shutdown)
+	inet.SetHostPort(port)
+	_ = inet.Listen(false)
+
+	h.CmdMaxPlayers([]string{"3"}, subs)
+	if got := cmdBuf.added; !reflect.DeepEqual(got, []string{"listen 1\n"}) {
+		t.Fatalf("queued commands = %v, want [listen 1\\n]", got)
+	}
+
+	cmdBuf.added = nil
+	if err := inet.Listen(true); err != nil {
+		t.Fatalf("Listen(true): %v", err)
+	}
+	h.CmdMaxPlayers([]string{"1"}, subs)
+	if got := cmdBuf.added; !reflect.DeepEqual(got, []string{"listen 0\n"}) {
+		t.Fatalf("queued commands = %v, want [listen 0\\n]", got)
+	}
+}
+
+func TestCmdPortQuerySetValidationAndListenRestart(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	cmdBuf := &insertTrackingCommandBuffer{}
+	subs := &Subsystems{Console: console, Commands: cmdBuf}
+
+	oldPort := inet.HostPort()
+	t.Cleanup(func() { inet.SetHostPort(oldPort) })
+
+	port := testFreeUDPPort(t)
+	inet.Init()
+	t.Cleanup(inet.Shutdown)
+	_ = inet.Listen(false)
+	inet.SetHostPort(port)
+
+	h.CmdPort(nil, subs)
+	if got := strings.Join(console.messages, ""); got != fmt.Sprintf("\"port\" is \"%d\"\n", port) {
+		t.Fatalf("port query output = %q", got)
+	}
+
+	console.messages = nil
+	h.CmdPort([]string{"70000"}, subs)
+	if got := strings.Join(console.messages, ""); got != "Bad value, must be between 1 and 65534\n" {
+		t.Fatalf("invalid port output = %q", got)
+	}
+
+	newPort := testFreeUDPPort(t)
+	h.CmdPort([]string{strconv.Itoa(newPort)}, subs)
+	if got := inet.HostPort(); got != newPort {
+		t.Fatalf("host port = %d, want %d", got, newPort)
+	}
+
+	if err := inet.Listen(true); err != nil {
+		t.Fatalf("Listen(true): %v", err)
+	}
+	cmdBuf.added = nil
+	nextPort := testFreeUDPPort(t)
+	h.CmdPort([]string{strconv.Itoa(nextPort)}, subs)
+	if got := inet.HostPort(); got != nextPort {
+		t.Fatalf("host port after change = %d, want %d", got, nextPort)
+	}
+	if got := cmdBuf.added; !reflect.DeepEqual(got, []string{"listen 0\n", "listen 1\n"}) {
+		t.Fatalf("queued commands = %v, want [listen 0\\n listen 1\\n]", got)
+	}
+}
+
 func TestCmdNameUpdatesCVarAndForwardsWhenRemoteConnected(t *testing.T) {
 	h := NewHost()
 	client := &forwardingTrackingClient{state: caConnected}
@@ -3773,6 +3964,88 @@ func TestCmdNameForwardsWithInitializedInactiveServer(t *testing.T) {
 	}
 	if got := client.commands; !reflect.DeepEqual(got, []string{"name Ranger"}) {
 		t.Fatalf("forwarded commands = %v, want [name Ranger]", got)
+	}
+}
+
+func TestRegisterCommandsAddsCmdForwarder(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.RegisterCommands(subs)
+	if !cmdsys.Exists("cmd") {
+		t.Fatal("cmd command was not registered")
+	}
+	cmdsys.ExecuteText("cmd status")
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"status"}) {
+		t.Fatalf("forwarded commands = %v, want [status]", got)
+	}
+}
+
+func TestCmdForwardToServerStillForwardsWhenLocalServerActive(t *testing.T) {
+	h := NewHost()
+	h.serverActive = true
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdForwardToServer([]string{"status"}, subs)
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"status"}) {
+		t.Fatalf("forwarded commands = %v, want [status]", got)
+	}
+}
+
+func TestCmdForwardToServerPrintsNotConnected(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.CmdForwardToServer([]string{"status"}, subs)
+
+	if got := strings.Join(console.messages, ""); got != "Can't \"cmd\", not connected\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
+func TestCmdForwardToServerNoopsDuringDemoPlayback(t *testing.T) {
+	h := NewHost()
+	h.demoState = &cl.DemoState{Playback: true}
+	client := &forwardingTrackingClient{state: caActive}
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Client:  client,
+		Console: console,
+	}
+
+	h.CmdForwardToServer([]string{"status"}, subs)
+
+	if len(client.commands) != 0 {
+		t.Fatalf("forwarded commands = %v, want none", client.commands)
+	}
+	if got := strings.Join(console.messages, ""); got != "" {
+		t.Fatalf("console output = %q, want empty", got)
+	}
+}
+
+func TestCmdForwardToServerSendsNewlineForBareCmd(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdForwardToServer(nil, subs)
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"\n"}) {
+		t.Fatalf("forwarded commands = %q, want [\n]", got)
 	}
 }
 

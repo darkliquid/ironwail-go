@@ -12,6 +12,8 @@
 ## Contracts
 
 - These commands delegate to the `cvar` package for all storage and default-value behavior.
+- `cycle`/`cycleback` only operate on existing cvars and match numeric list entries by parsed numeric value before falling back to string equality.
 - `cvarlist` emits a deterministic alphabetical listing based on cvar names.
 - `resetcfg` only targets archived cvars.
+- `inc` only operates on existing cvars; it must not implicitly create a new variable.
 - Logging/usage output is part of the operator-facing console behavior.

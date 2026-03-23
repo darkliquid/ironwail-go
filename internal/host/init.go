@@ -43,6 +43,7 @@ func registerHostCVars() {
 	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
 	cvar.Register("coop", "0", cvar.FlagServerInfo, "Cooperative game mode")
 	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
+	cvar.Register("maxplayers", "1", cvar.FlagServerInfo, "Maximum number of server player slots")
 	cvar.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
 	cvar.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
 	cvar.Register("sv_nostep", "0", cvar.FlagServerInfo, "Disable stair-step movement retries when enabled")
@@ -424,6 +425,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	}
 
 	cvar.SetBool("dedicated", h.dedicated)
+	cvar.SetInt("maxplayers", h.maxClients)
 	if h.maxClients > 1 {
 		cvar.SetInt("deathmatch", 1)
 	} else {

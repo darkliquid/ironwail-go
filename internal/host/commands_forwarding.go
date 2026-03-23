@@ -33,3 +33,23 @@ func (h *Host) forwardClientCommand(command string, args []string, subs *Subsyst
 	_ = subs.Client.SendStringCmd(line)
 	return true
 }
+
+func (h *Host) CmdForwardToServer(args []string, subs *Subsystems) {
+	if cmdsys.Source() != cmdsys.SrcCommand {
+		return
+	}
+	if h.demoState != nil && h.demoState.Playback {
+		return
+	}
+	if subs == nil || subs.Client == nil || subs.Client.State() == caDisconnected {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("Can't \"cmd\", not connected\n")
+		}
+		return
+	}
+	line := "\n"
+	if len(args) > 0 {
+		line = strings.Join(args, " ")
+	}
+	_ = subs.Client.SendStringCmd(line)
+}

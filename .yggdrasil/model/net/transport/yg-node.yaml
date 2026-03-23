@@ -2,6 +2,10 @@ name: Network Transport Runtime
 type: module
 description: "Top-level networking facade plus loopback/UDP datagram transport, socket state, handshake, and reliability logic"
 blackbox: false
+relations:
+  - target: net/discovery-support
+    type: uses
+    consumes: [PartialIPAddress]
 mapping:
   paths:
     - internal/net/doc.go

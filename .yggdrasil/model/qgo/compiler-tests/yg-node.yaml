@@ -12,7 +12,6 @@ relations:
 mapping:
   paths:
     - cmd/qgo/compiler/compiler_test.go
-    - cmd/qgo/compiler/synthetic_test.go
     - cmd/qgo/compiler/globals_test.go
     - cmd/qgo/compiler/opcodes_test.go
     - cmd/qgo/compiler/strings_test.go

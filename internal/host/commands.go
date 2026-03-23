@@ -111,8 +111,12 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 	}, "Connect to a server")
 	replaceCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
+	replaceCommand("cmd", func(args []string) { h.CmdForwardToServer(args, subs) }, "Forward command line to current server")
 	replaceCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
 	replaceCommand("slist", func(args []string) { h.CmdSlist(subs) }, "Search for LAN servers")
+	replaceCommand("listen", func(args []string) { h.CmdListen(args, subs) }, "Enable/disable network listening")
+	replaceCommand("maxplayers", func(args []string) { h.CmdMaxPlayers(args, subs) }, "Show or set maximum player slots")
+	replaceCommand("port", func(args []string) { h.CmdPort(args, subs) }, "Show or set network host port")
 	replaceClientCommand("name", func(args []string) {
 		if len(args) > 0 {
 			h.CmdName(args[0], subs)

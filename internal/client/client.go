@@ -1085,7 +1085,6 @@ func (c *Client) SendStringCmd(command string) ([]byte, error) {
 	if c == nil {
 		return nil, nil
 	}
-	command = strings.TrimSpace(command)
 	if command == "" {
 		return nil, nil
 	}
