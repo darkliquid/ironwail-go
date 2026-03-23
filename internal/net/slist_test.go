@@ -240,3 +240,15 @@ func TestServerBrowserStartAndWait(t *testing.T) {
 		t.Fatal("expected not searching after Wait")
 	}
 }
+
+func TestServerBrowserRetryDelayMatchesCParity(t *testing.T) {
+	if slistRetryDelay != 750*time.Millisecond {
+		t.Fatalf("slistRetryDelay = %s, want %s", slistRetryDelay, 750*time.Millisecond)
+	}
+	if slistStopAfter != 1500*time.Millisecond {
+		t.Fatalf("slistStopAfter = %s, want %s", slistStopAfter, 1500*time.Millisecond)
+	}
+	if slistRetryDelay >= slistStopAfter {
+		t.Fatalf("retry delay %s must be before stop window %s", slistRetryDelay, slistStopAfter)
+	}
+}

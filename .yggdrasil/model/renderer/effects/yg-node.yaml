@@ -5,6 +5,7 @@ blackbox: false
 mapping:
   paths:
     - internal/renderer/alias_skin.go
+    - internal/renderer/alias_skin_test.go
     - internal/renderer/alias_skin_variants.go
     - internal/renderer/alias_state.go
     - internal/renderer/alpha_mode.go

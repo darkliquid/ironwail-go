@@ -407,6 +407,9 @@ type Model struct {
 
 	// Alias model specific
 	AliasHeader *AliasHeader
+
+	// Sprite model specific
+	SpriteData *MSprite
 }
 
 // SideFromPlane determines which side of a plane a point is on.

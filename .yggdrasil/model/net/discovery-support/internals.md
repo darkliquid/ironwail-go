@@ -2,7 +2,7 @@
 
 ## Logic
 
-`ServerBrowser` runs a background LAN search goroutine. It broadcasts `CCReqServerInfo`, retries once after 500ms, collects `CCRepServerInfo` responses for roughly 1.5 seconds, parses address/hostname/map/player fields, and deduplicates entries by address before exposing a sorted snapshot. `AsyncReceiver` is a lightweight background poller that repeatedly calls a provided poll function, sleeps on empty polls, copies message payloads, and delivers them through a buffered channel. `IPBan` implements a single active IPv4 address/mask ban matching Quake's server-side ban behavior. `PartialIPAddress` recreates abbreviated Quake address entry by overlaying missing octets from the local IPv4 address and applying a default port unless one is explicitly provided.
+`ServerBrowser` runs a background LAN search goroutine. It broadcasts `CCReqServerInfo`, retries once after 750ms (matching C `Slist_Send` reschedule at +0.75s), collects `CCRepServerInfo` responses for roughly 1.5 seconds, parses address/hostname/map/player fields, and deduplicates entries by address before exposing a sorted snapshot. `AsyncReceiver` is a lightweight background poller that repeatedly calls a provided poll function, sleeps on empty polls, copies message payloads, and delivers them through a buffered channel. `IPBan` implements a single active IPv4 address/mask ban matching Quake's server-side ban behavior. `PartialIPAddress` recreates abbreviated Quake address entry by overlaying missing octets from the local IPv4 address and applying a default port unless one is explicitly provided.
 
 ## Constraints
 

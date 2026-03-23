@@ -5,12 +5,17 @@ import inet "github.com/ironwail/ironwail-go/internal/net"
 func (h *Host) updateServerBrowserNetworking(subs *Subsystems) {
 	if !h.serverActive || subs == nil || subs.Server == nil || subs.Server.GetMaxClients() <= 1 {
 		inet.SetServerInfoProvider(nil)
-		inet.Listen(false)
+		_ = inet.Listen(false)
 		return
 	}
 
-	inet.SetServerInfoProvider(makeServerInfoProvider(subs))
-	inet.Listen(true)
+	provider := makeServerInfoProvider(subs)
+	if err := inet.Listen(true); err != nil {
+		inet.SetServerInfoProvider(nil)
+		_ = inet.Listen(false)
+		return
+	}
+	inet.SetServerInfoProvider(provider)
 }
 
 func makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider {

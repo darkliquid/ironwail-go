@@ -49,7 +49,8 @@ Remote play is functional but shallow compared to the original engine.
 
 - [x] **Server Visibility (PVS)**: Implement `SV_AddToFatPVS` and `SV_VisibleToClient` to correctly cull network updates for far-away entities.
 - [ ] **Network Protocol Fidelity**: Replicate `Datagram_CanSendUnreliableMessage` and ensure large signon buffers (for maps with 1000s of entities) are handled without overflow.
-- [ ] **Server Browser (Slist)**: Implement LAN/Local network server broadcasting and discovery (`Slist_Poll`, `Slist_Send`).
+- [x] **Server Browser (Slist)**: Match C Ironwail poll timing in LAN/Local server discovery (`Slist_Send` retry at 0.75s and `Slist_Poll` stop at 1.5s).
+- [x] **Listen Startup Failure Handling**: `internal/net.Listen(true)` now surfaces UDP bind/open errors instead of silently failing, and host LAN-advertising setup keeps server info disabled when listen socket startup fails.
 - [ ] **Deathmatch Polish**: Fully implement all `fraglimit`/`timelimit` edge cases and the richer multiplayer setup UI.
 
 ---

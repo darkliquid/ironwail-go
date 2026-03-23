@@ -137,7 +137,7 @@ func spriteTestModel(spriteType int) *glSpriteModel {
 	}
 }
 
-func quadAxes(vertices []WorldVertex) (up, right [3]float32) {
+func quadAxes(vertices []spriteQuadVertex) (up, right [3]float32) {
 	up = spriteNormalize3([3]float32{
 		vertices[1].Position[0] - vertices[0].Position[0],
 		vertices[1].Position[1] - vertices[0].Position[1],
@@ -333,7 +333,7 @@ func TestGenerateSpriteQuadIndices(t *testing.T) {
 }
 
 func TestExpandSpriteQuadVertices(t *testing.T) {
-	vertices := []WorldVertex{
+	vertices := []spriteQuadVertex{
 		{Position: [3]float32{0, 0, 0}},
 		{Position: [3]float32{1, 0, 0}},
 		{Position: [3]float32{1, 1, 0}},
@@ -357,25 +357,5 @@ func TestExpandSpriteQuadVertices(t *testing.T) {
 		if got[i].Position != want[i] {
 			t.Fatalf("expanded vertex %d = %v, want %v", i, got[i].Position, want[i])
 		}
-	}
-}
-
-// TestBillboardMatrix tests billboard transformation matrix generation.
-func TestBillboardMatrix(t *testing.T) {
-	origin := [3]float32{10, 20, 30}
-	cameraPos := [3]float32{10, 20, 35} // Camera 5 units in front
-	cameraForward := [3]float32{0, 0, -1}
-
-	matrix := billboardMatrix(origin, cameraPos, cameraForward)
-
-	// Verify it's a valid 4x4 matrix (check last row)
-	if matrix[15] != 1 {
-		t.Errorf("matrix[15] = %.1f, want 1", matrix[15])
-	}
-
-	// Verify translation part
-	if matrix[12] != origin[0] || matrix[13] != origin[1] || matrix[14] != origin[2] {
-		t.Errorf("translation = [%.1f, %.1f, %.1f], want [%.1f, %.1f, %.1f]",
-			matrix[12], matrix[13], matrix[14], origin[0], origin[1], origin[2])
 	}
 }

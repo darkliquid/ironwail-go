@@ -24,6 +24,7 @@ package net
 // reliability layer (sequence numbers, acknowledgments, fragmentation).
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -62,7 +63,7 @@ func Init() error {
 // held by active drivers. Called during engine exit. Corresponds to
 // NET_Shutdown() in net_main.c.
 func Shutdown() {
-	Listen(false)
+	_ = Listen(false)
 	for _, sock := range acceptedServerSockets {
 		if sock == nil || sock.udpConn == nil {
 			continue
@@ -190,22 +191,28 @@ var (
 // (default 26000) to receive connection-request control packets from
 // clients. When disabled, the accept socket is closed. This corresponds
 // to NET_Listen() in net_main.c.
-func Listen(state bool) {
-	listening = state
-	if listening {
+func Listen(state bool) error {
+	if state {
 		if acceptSocket == nil {
 			var err error
 			acceptSocket, err = UDPOpenSocket(netHostPort)
 			if err != nil {
-				// Handle error
+				listening = false
+				return fmt.Errorf("listen on %d: %w", netHostPort, err)
 			}
 		}
-	} else {
-		if acceptSocket != nil {
-			UDPCloseSocket(acceptSocket)
-			acceptSocket = nil
-		}
+		listening = true
+		return nil
 	}
+
+	listening = false
+	if acceptSocket != nil {
+		if err := UDPCloseSocket(acceptSocket); err != nil {
+			return fmt.Errorf("close listen socket on %d: %w", netHostPort, err)
+		}
+		acceptSocket = nil
+	}
+	return nil
 }
 
 // CheckNewConnections polls all drivers for pending incoming connections.

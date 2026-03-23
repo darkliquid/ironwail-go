@@ -941,11 +941,17 @@ func (r *Renderer) SetConfig(cfg Config) {
 	r.config = cfg
 	r.mu.Unlock()
 
+	if r.window == nil {
+		return
+	}
+
 	// Apply fullscreen change
 	if cfg.Fullscreen {
 		monitor := glfw.GetPrimaryMonitor()
-		mode := monitor.GetVideoMode()
-		r.window.SetMonitor(monitor, 0, 0, mode.Width, mode.Height, mode.RefreshRate)
+		if monitor != nil {
+			mode := monitor.GetVideoMode()
+			r.window.SetMonitor(monitor, 0, 0, mode.Width, mode.Height, mode.RefreshRate)
+		}
 	} else {
 		r.window.SetMonitor(nil, 0, 0, cfg.Width, cfg.Height, 0)
 	}

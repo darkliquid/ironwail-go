@@ -16,7 +16,7 @@
 ## Contracts
 
 - `ServerBrowser.Start` is asynchronous and `Results` returns a sorted snapshot.
-- LAN search uses Quake-style timing: broadcast immediately, retry at 500ms, stop around 1500ms.
+- LAN search uses Quake-style timing aligned to C Ironwail `Slist_Send`/`Slist_Poll`: broadcast immediately, retry at 750ms, stop around 1500ms.
 - Browser results are deduplicated by address.
 - `AsyncReceiver` copies payload bytes before delivering them so receivers own the message data.
 - `PartialIPAddress` fills omitted octets from the right using the local IPv4 address and default port.

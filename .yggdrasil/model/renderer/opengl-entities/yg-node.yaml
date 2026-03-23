@@ -5,7 +5,9 @@ blackbox: false
 mapping:
   paths:
     - internal/renderer/alias_opengl.go
+    - internal/renderer/alias_opengl_test.go
     - internal/renderer/sprite_opengl.go
+    - internal/renderer/sprite_opengl_test.go
     - internal/renderer/world_alias_opengl.go
     - internal/renderer/world_sprite_opengl.go
     - internal/renderer/decal_opengl.go

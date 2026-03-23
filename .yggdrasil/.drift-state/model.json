@@ -1,22 +1,22 @@
 {
-  "hash": "c6b65d2cf9d5a61a320310add282e87e938944b7ac22a930d21ee3753726f695",
+  "hash": "9a927a2b1233b1080d55edcb58bd5cd91e8d94b9e5ca545c671ee21bfc1eca3c",
   "files": {
     ".yggdrasil/model/model/yg-node.yaml": "e80bd27818f64293ef9c77c13706f15ece89ac785cc69aae7343019213401a82",
-    ".yggdrasil/model/model/interface.md": "6f30b030bfbf0be39994bb57e9aec5ff5052e977677ffb1cfc9857caf5bc6eb2",
-    ".yggdrasil/model/model/internals.md": "726ff788484275c0bf626d46990ad143dd0eb828e28711aeadb9061e3a9c133f",
     ".yggdrasil/model/model/responsibility.md": "586bab07e7aa01496956ac75b135082ed3b8688647b34f1a0edd1624b654e734",
     "internal/model/doc.go": "0f86350e5bf37cb978a87e404119232c30bbec93daf75987984064ee1c7bdc34",
-    "internal/model/types.go": "b13174d73c3aa34437d06a79e9e29d9d6c973700881eefdbceafb33508dda2fb",
     "internal/model/collision.go": "3e0889ad1f091cf781cfccbd8ba949be7173ff0f01ac5a5eb56bb1d8f40f9be7",
-    "internal/model/model_test.go": "9af26a14f26c9a1cd0523fd7347371a100e374c7d896373367368101e883eac7"
+    "internal/model/model_test.go": "9af26a14f26c9a1cd0523fd7347371a100e374c7d896373367368101e883eac7",
+    ".yggdrasil/model/model/interface.md": "dc9b43871ac3e239d8f0d55859d4b83e62c59e75caef59b05e228aba1809efa7",
+    ".yggdrasil/model/model/internals.md": "7829ef68a86aa9e65772c28ee3833435f5c638cb7183302a2d6b1ef5b40cde60",
+    "internal/model/types.go": "5be9bacc3e27ecb5d569ebb5f999bbed6ba8e9ce9d06e57dd8c15817aebe0c51"
   },
   "mtimes": {
     ".yggdrasil/model/model/yg-node.yaml": 1774245222429.3418,
-    ".yggdrasil/model/model/interface.md": 1774245222429.4775,
-    ".yggdrasil/model/model/internals.md": 1774245222429.5298,
+    ".yggdrasil/model/model/interface.md": 1774250490425.9177,
+    ".yggdrasil/model/model/internals.md": 1774250499491.0645,
     ".yggdrasil/model/model/responsibility.md": 1774245222429.416,
     "internal/model/doc.go": 1773836785769.9377,
-    "internal/model/types.go": 1774126802586.0825,
+    "internal/model/types.go": 1774250384851.193,
     "internal/model/collision.go": 1773836785770.9534,
     "internal/model/model_test.go": 1774126802964.0918
   }

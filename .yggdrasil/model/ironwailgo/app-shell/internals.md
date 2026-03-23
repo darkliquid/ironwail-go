@@ -8,6 +8,7 @@ The app shell is the narrowest place that still sees the whole executable. `Game
 
 - `main_test.go` is intentionally broad and currently cannot be cleanly attributed to only one narrow runtime concern.
 - The app shell depends on almost every other child node and is therefore an orchestration/documentation seam rather than an algorithmic module.
+- Sprite-runtime regression tests in `main_test.go` verify that collected sprite entities keep parsed frame pixels reachable through both `SpriteEntity.SpriteData` and cached `model.Model.SpriteData`.
 
 ## Decisions
 

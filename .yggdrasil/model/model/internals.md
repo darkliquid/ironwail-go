@@ -6,7 +6,7 @@ The parent node is the shared model vocabulary rather than a single loader. `typ
 
 ## Constraints
 
-- `Model` is asymmetric: brush data lives directly on the struct, alias data hangs off `AliasHeader`, and sprites are loaded as `*MSprite` rather than being embedded into `Model`.
+- `Model` remains asymmetric: brush data lives directly on the struct, alias data hangs off `AliasHeader`, and sprite payload is optional (`Model.SpriteData`) for runtime paths that need direct sprite frame access.
 - `MSpriteFrameDesc.FramePtr` is a union of `*MSpriteFrame` and `*MSpriteGroup`, so callers must branch on `Type` and then type-assert.
 - `Model` also carries `bsp.DModel` submodels, making it the seam between BSP parsing and runtime consumers.
 - Several limits (`MaxAliasVerts`, `MaxAliasFrames`, `MaxSkins`, `MaxMapHulls`, `MaxLightmaps`) are part of the package contract and constrain downstream loader behavior.

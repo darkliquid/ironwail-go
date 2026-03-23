@@ -4167,6 +4167,22 @@ func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
 	if entities[0].SpriteData == nil || entities[0].SpriteData.NumFrames != 1 {
 		t.Fatalf("collectSpriteEntities sprite data = %#v, want loaded sprite data", entities[0].SpriteData)
 	}
+	if entities[0].Model.SpriteData == nil {
+		t.Fatal("collectSpriteEntities model sprite data = nil, want preserved sprite payload")
+	}
+	if entities[0].Model.SpriteData != entities[0].SpriteData {
+		t.Fatal("collectSpriteEntities model SpriteData should reference loaded sprite payload")
+	}
+	if len(entities[0].Model.SpriteData.Frames) != 1 {
+		t.Fatalf("collectSpriteEntities model SpriteData frames = %d, want 1", len(entities[0].Model.SpriteData.Frames))
+	}
+	frame, ok := entities[0].Model.SpriteData.Frames[0].FramePtr.(*model.MSpriteFrame)
+	if !ok || frame == nil {
+		t.Fatalf("collectSpriteEntities model frame ptr = %T, want *model.MSpriteFrame", entities[0].Model.SpriteData.Frames[0].FramePtr)
+	}
+	if len(frame.Pixels) != 1 || frame.Pixels[0] != 1 {
+		t.Fatalf("collectSpriteEntities model frame pixels = %v, want [1]", frame.Pixels)
+	}
 	if got := entities[0].Alpha; math.Abs(float64(got-inet.ENTALPHA_DECODE(128))) > 0.0001 {
 		t.Fatalf("collectSpriteEntities alpha = %v, want %v", got, inet.ENTALPHA_DECODE(128))
 	}

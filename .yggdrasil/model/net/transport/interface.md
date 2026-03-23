@@ -19,4 +19,5 @@
 - Reliable datagram traffic is stop-and-wait with at most one outstanding reliable message per socket.
 - Large reliable datagram payloads are fragmented and advance only after ACK of the current fragment.
 - Server-side UDP acceptance returns a newly opened per-client socket, not the listening socket.
+- `Listen(state)` returns an error if enabling listen fails to open/bind the accept socket; on failure the transport stays non-listening with no accept socket retained.
 - Loopback reliable flow control is released when the receiver reads the message.

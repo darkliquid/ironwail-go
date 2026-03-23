@@ -9,6 +9,7 @@ This node converts live client/server state into the entity lists the renderer e
 - Dynamic entity freshness is gated by `MsgTime` matching the current client message time; stale dynamic entities are intentionally skipped.
 - Runtime caches are command-package-local convenience caches, not general asset managers.
 - Entity collection depends on both client precache state and server/world state, making it a cross-subsystem translation layer.
+- Sprite cache construction must preserve frame pixel payload end-to-end: parsed `*model.MSprite` stays attached to the cached runtime model (`Model.SpriteData`) in addition to the parallel sprite pointer used by sprite-entity collection.
 
 ## Decisions
 

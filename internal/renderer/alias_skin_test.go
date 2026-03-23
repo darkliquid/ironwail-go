@@ -6,7 +6,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
-func TestResolveAliasSkinSlotUsesGroupedSkinTiming(t *testing.T) {
+func TestResolveAliasSkinSlotUsesGroupedSkinTimingAliasSkin(t *testing.T) {
 	hdr := &model.AliasHeader{
 		Skins: make([][]byte, 4),
 		SkinDescs: []model.AliasSkinDesc{

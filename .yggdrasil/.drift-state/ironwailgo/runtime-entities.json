@@ -1,25 +1,25 @@
 {
-  "hash": "d3c61a560804390586d22af9b6b7a38615c0868687191b43ae41a14505fe4c73",
+  "hash": "ed97c21d48f1d0a43475d5478ff9862ef44537f6ca8d585511c63c48afe4532f",
   "files": {
     ".yggdrasil/model/ironwailgo/runtime-entities/yg-node.yaml": "5dc05b5fa37730fa39938609e9403cb3c6178675b4eda41e6eac97d4fe338eee",
-    ".yggdrasil/model/ironwailgo/runtime-entities/interface.md": "799344431a05ba58f4ef40985faf8a3bfd9c191eb84ea4a6c6ec241e07bcec83",
-    ".yggdrasil/model/ironwailgo/runtime-entities/internals.md": "32773e3f3c59fdbbbdf34e5bf95e99ffae7bb75244f3cfd21e5edd8d75959a24",
     ".yggdrasil/model/ironwailgo/runtime-entities/responsibility.md": "171236b47f22e119efe9ebf36b830f198675e4c3c3af239ec19e26e7447daaaa",
     ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
     ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
     ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
     ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
-    "cmd/ironwailgo/game_entity.go": "7da254a0da4ee2107340e876c6b72c4502cfb83666098eee4908f510eba68eae"
+    ".yggdrasil/model/ironwailgo/runtime-entities/interface.md": "36b39df31bba7a771eb34a15c8746b83425e991f1496be6f064cb607989ad7b2",
+    ".yggdrasil/model/ironwailgo/runtime-entities/internals.md": "34ac22f8d0c9918353096b0f2cfc141a55a64a80d2ac22e6201775b56bf2cb5f",
+    "cmd/ironwailgo/game_entity.go": "98e6525125a0213ae53579bf836f82324ee947f3c8d268c91f4d3529e602ae19"
   },
   "mtimes": {
     ".yggdrasil/model/ironwailgo/runtime-entities/yg-node.yaml": 1774246120439.3008,
-    ".yggdrasil/model/ironwailgo/runtime-entities/interface.md": 1774246120439.3896,
-    ".yggdrasil/model/ironwailgo/runtime-entities/internals.md": 1774246120439.436,
+    ".yggdrasil/model/ironwailgo/runtime-entities/interface.md": 1774250507707.1973,
+    ".yggdrasil/model/ironwailgo/runtime-entities/internals.md": 1774250522415.4343,
     ".yggdrasil/model/ironwailgo/runtime-entities/responsibility.md": 1774246120439.3447,
     ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
     ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
     ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
     ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
-    "cmd/ironwailgo/game_entity.go": 1774163152270.3052
+    "cmd/ironwailgo/game_entity.go": 1774250440770.1106
   }
 }

@@ -11,7 +11,7 @@ package net
 //
 // The discovery process follows the original Quake timing:
 //   - T=0ms: first broadcast query sent to 255.255.255.255:26000
-//   - T=500ms: retry broadcast (in case the first was lost)
+//   - T=750ms: retry broadcast (in case the first was lost)
 //   - T=1500ms: search complete, results available
 //
 // Servers that receive the query respond with their hostname, current
@@ -31,6 +31,11 @@ import (
 	"sort"
 	"sync"
 	"time"
+)
+
+const (
+	slistRetryDelay = 750 * time.Millisecond
+	slistStopAfter  = 1500 * time.Millisecond
 )
 
 // HostCacheEntry holds information about a discovered LAN server.
@@ -113,7 +118,7 @@ func (sb *ServerBrowser) Wait() {
 // run executes the broadcast-poll cycle matching the C Ironwail timing:
 //
 //	T=0ms   — first broadcast
-//	T=500ms — second broadcast (retry)
+//	T=750ms — second broadcast (retry)
 //	T=1500ms — stop
 func (sb *ServerBrowser) run() {
 	defer func() {
@@ -135,8 +140,8 @@ func (sb *ServerBrowser) run() {
 	// First broadcast
 	sb.broadcast(conn, query)
 
-	deadline := time.After(1500 * time.Millisecond)
-	retryAt := time.After(500 * time.Millisecond)
+	deadline := time.After(slistStopAfter)
+	retryAt := time.After(slistRetryDelay)
 	retried := false
 
 	buf := make([]byte, 1024)

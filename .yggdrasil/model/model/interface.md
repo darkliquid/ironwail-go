@@ -14,7 +14,7 @@
 
 ## Contracts
 
-- `Model` is a shared envelope for brush and alias data; alias payload hangs off `AliasHeader`, while sprite loaders return `*MSprite` directly.
+- `Model` is a shared envelope for brush, alias, and runtime sprite data; alias payload hangs off `AliasHeader`, and sprite-capable runtime paths may attach parsed sprite payloads via `Model.SpriteData`.
 - `AliasHeader.Skins` stores flattened skin-frame payloads, while `SkinDescs` preserves logical grouped-skin structure.
 - `MSpriteFrameDesc.FramePtr` is a tagged union encoded as `interface{}` and must be type-switched by consumers.
 - `SideFromPlane` classifies equality as front, never `SideOn`.

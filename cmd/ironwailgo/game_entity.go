@@ -149,12 +149,13 @@ func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
 	halfHeight := float32(loaded.MaxHeight) * 0.5
 	entry := &runtimeSpriteModel{
 		model: &model.Model{
-			Name:      modelName,
-			Type:      model.ModSprite,
-			NumFrames: loaded.NumFrames,
-			SyncType:  loaded.SyncType,
-			Mins:      [3]float32{-halfWidth, -halfWidth, -halfHeight},
-			Maxs:      [3]float32{halfWidth, halfWidth, halfHeight},
+			Name:       modelName,
+			Type:       model.ModSprite,
+			NumFrames:  loaded.NumFrames,
+			SyncType:   loaded.SyncType,
+			Mins:       [3]float32{-halfWidth, -halfWidth, -halfHeight},
+			Maxs:       [3]float32{halfWidth, halfWidth, halfHeight},
+			SpriteData: loaded,
 		},
 		sprite: loaded,
 	}

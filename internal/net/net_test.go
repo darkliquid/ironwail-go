@@ -15,8 +15,14 @@ import (
 func TestUDPConnection(t *testing.T) {
 	Init()
 	netHostPort = 26001 // Use a different port for testing
-	Listen(true)
-	defer Listen(false)
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
 
 	// Client connect in a goroutine because Connect blocks waiting for response
 	var clientSock *Socket
@@ -93,8 +99,14 @@ func TestUDPConnection(t *testing.T) {
 func TestUDPUnreliable(t *testing.T) {
 	Init()
 	netHostPort = 26002
-	Listen(true)
-	defer Listen(false)
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
 
 	var clientSock *Socket
 	done := make(chan bool)
@@ -168,8 +180,14 @@ func TestServerInfoHostnameFallback(t *testing.T) {
 func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	Init()
 	netHostPort = 26003
-	Listen(true)
-	defer Listen(false)
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
 
 	type connectResult struct {
 		sock *Socket
@@ -264,7 +282,9 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
 	Init()
 	netHostPort = 26006
-	Listen(true)
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
 
 	done := make(chan *Socket, 1)
 	go func() {
@@ -308,8 +328,14 @@ func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
 func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 	Init()
 	netHostPort = 26004
-	Listen(true)
-	defer Listen(false)
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
 
 	if acceptSocket == nil {
 		t.Fatal("accept socket should be open while listening")
@@ -379,8 +405,14 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 	Init()
 	netHostPort = 26005
-	Listen(true)
-	defer Listen(false)
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
 
 	clientConn, err := UDPOpenSocket(0)
 	if err != nil {
@@ -440,5 +472,30 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 
 	if rc := SendUnreliableMessage(secondServerSock, []byte("fresh-connection-payload")); rc != 1 {
 		t.Fatalf("new server socket should be usable, send returned %d", rc)
+	}
+}
+
+func TestListenEnableFailureReturnsErrorAndLeavesClosed(t *testing.T) {
+	Init()
+
+	blocker, err := UDPOpenSocket(0)
+	if err != nil {
+		t.Fatalf("failed to open blocker socket: %v", err)
+	}
+	blockerPort := blocker.LocalAddr().(*stdnet.UDPAddr).Port
+	defer UDPCloseSocket(blocker)
+
+	netHostPort = blockerPort
+	if err := Listen(true); err == nil {
+		t.Fatalf("Listen(true) succeeded unexpectedly on occupied port %d", blockerPort)
+	}
+	if listening {
+		t.Fatal("listening should remain false after Listen(true) bind failure")
+	}
+	if acceptSocket != nil {
+		t.Fatal("accept socket should remain nil after Listen(true) bind failure")
+	}
+	if err := Listen(false); err != nil {
+		t.Fatalf("Listen(false) after failed enable returned error: %v", err)
 	}
 }

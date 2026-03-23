@@ -8,6 +8,7 @@ This layer owns the OpenGL backend’s event loop, context ownership, and core p
 
 - OpenGL context ownership and thread behavior are backend-critical.
 - Core state transitions must stay deterministic for the downstream world/entity render passes.
+- Command-package tests may construct `renderer.Renderer{}` without initializing GLFW; config writes must not dereference window/monitor pointers in that state.
 
 ## Decisions
 
