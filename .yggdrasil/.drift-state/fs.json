@@ -1,22 +1,22 @@
 {
-  "hash": "fca157641fbc5300be1053db8158c242972311e6a6f5225049fa12aae767834b",
+  "hash": "5455ac92a94a38db356dc854c7e8a876a9a2c442a3c036352993757a6e922720",
   "files": {
     ".yggdrasil/model/fs/yg-node.yaml": "8b9db50fccc41be404c0e00f0308d6fae6e755e7cff95e31de8611e368db3498",
-    ".yggdrasil/model/fs/interface.md": "64b3afd1991f2458ec294d37af6afde92f81c64d753c424d8c09b286814eec5b",
-    ".yggdrasil/model/fs/internals.md": "c53b0e682d6b7d8b1b9360939afb1c569a8b5e186e838ed891edb63f068f7050",
     ".yggdrasil/model/fs/responsibility.md": "da86b4760c91fd0fbbb4fc30c89719d90bd6d8a808134e3e89db64f9d2143f7d",
     "internal/fs/doc.go": "75ecd2d8df9dd12f90730d7fc2aa1d4e5a8898d3fc811b9ad8a2cffe7a92ca33",
-    "internal/fs/fs.go": "cbea464e886c8ace56002b411f76aa9b8a5692f47e681ab704ea914f40e32298",
     "internal/fs/fs_search.go": "a5681d29fb90345a9e1f74c7567f8235ca209476d1ffda1a3c022b33c3da872e",
-    "internal/fs/fs_test.go": "e5e583a0ba4f433ed37cc88f2ab21be9ecb51e7ee168b8dfba3a5bf23dc1721d"
+    "internal/fs/fs_test.go": "e5e583a0ba4f433ed37cc88f2ab21be9ecb51e7ee168b8dfba3a5bf23dc1721d",
+    ".yggdrasil/model/fs/interface.md": "66e4be754dc89ba31ebd6e4fb9e0e8221876e4235c7759bd55cac8405f01ad98",
+    ".yggdrasil/model/fs/internals.md": "9767444ec1bc8b5d19662ea1525083e588a9961e62828575c8999c99adf5b1b9",
+    "internal/fs/fs.go": "0cc5375cf94f5c290c82ed605efb7a7b990e9d07e4835dcdb1e8258e2f4b8e46"
   },
   "mtimes": {
     ".yggdrasil/model/fs/yg-node.yaml": 1774243111324.805,
-    ".yggdrasil/model/fs/interface.md": 1774243111324.9412,
-    ".yggdrasil/model/fs/internals.md": 1774243111325.0032,
+    ".yggdrasil/model/fs/interface.md": 1774308207628.895,
+    ".yggdrasil/model/fs/internals.md": 1774308207819.8962,
     ".yggdrasil/model/fs/responsibility.md": 1774243111324.8835,
     "internal/fs/doc.go": 1773836785768.1367,
-    "internal/fs/fs.go": 1774123557378.2703,
+    "internal/fs/fs.go": 1774308188676.7742,
     "internal/fs/fs_search.go": 1773836785768.7998,
     "internal/fs/fs_test.go": 1774123634341.3809
   }

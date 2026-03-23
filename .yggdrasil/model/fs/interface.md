@@ -10,6 +10,7 @@
 
 - `NewFileSystem`
 - `Init`, `AddGameDirectory`, `Close`
+- `SearchPathEntries`
 - `FindFile`, `LoadFile`, `FileExists`
 - `FindFirstAvailable`, `LoadFirstAvailable`
 - `LoadMapBSPAndLit`
@@ -20,6 +21,7 @@
 ## Contracts
 
 - `Init` mounts `id1`, then optional `ironwail.pak`, then an optional non-`id1` game directory, and is a no-op once already initialized.
+- `SearchPathEntries` snapshots the current lookup stack in the same front-to-back order used for file resolution, reporting pack file counts so debug commands can mirror Quake's `path` output without reaching into private fields.
 - Search resolution is priority-driven: later-added game directories override earlier ones, and within one directory higher-numbered PAKs outrank lower-numbered PAKs.
 - `FindFirstAvailable` prefers higher-priority search paths before candidate-name order.
 - `LoadMapBSPAndLit` only accepts a `.lit` sidecar when it comes from the same or higher-priority source than the chosen BSP.

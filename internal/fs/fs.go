@@ -115,6 +115,14 @@ type SearchResult struct {
 	Priority int
 }
 
+// SearchPathEntry is a snapshot of one mounted VFS search path entry in
+// lookup order, suitable for debug/introspection commands such as `path`.
+type SearchPathEntry struct {
+	Path      string
+	IsPack    bool
+	FileCount int
+}
+
 // searchPath is a single entry in the VFS search stack.
 //
 // Exactly one of (fs, pack) is non-nil for any given entry:
@@ -145,6 +153,27 @@ type FileSystem struct {
 	gameDir     string
 	baseDir     string
 	initialized bool
+}
+
+// SearchPathEntries returns the current lookup stack in the same front-to-back
+// order used by file resolution. Pack entries include their file counts so
+// console/debug callers can mirror Quake's `path` command output.
+func (fs *FileSystem) SearchPathEntries() []SearchPathEntry {
+	entries := make([]SearchPathEntry, 0, len(fs.lookupPaths))
+	for _, searchPath := range fs.lookupPaths {
+		if searchPath.pack != nil {
+			entries = append(entries, SearchPathEntry{
+				Path:      searchPath.pack.Filename,
+				IsPack:    true,
+				FileCount: len(searchPath.pack.Files),
+			})
+			continue
+		}
+		entries = append(entries, SearchPathEntry{
+			Path: searchPath.root,
+		})
+	}
+	return entries
 }
 
 // NewFileSystem creates an empty, uninitialised VFS. Call Init to populate the

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/fs"
 )
 
 func (h *Host) CmdQuit() {
@@ -168,6 +169,25 @@ func (h *Host) CmdEcho(args []string, subs *Subsystems) {
 		return
 	}
 	subs.Console.Print(strings.Join(args, " ") + "\n")
+}
+
+func (h *Host) CmdPath(subs *Subsystems) {
+	if subs == nil || subs.Console == nil || subs.Files == nil {
+		return
+	}
+	fsInstance, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return
+	}
+
+	subs.Console.Print("Current search path:\n")
+	for _, entry := range fsInstance.SearchPathEntries() {
+		if entry.IsPack {
+			subs.Console.Print(fmt.Sprintf("%s (%d files)\n", entry.Path, entry.FileCount))
+			continue
+		}
+		subs.Console.Print(entry.Path + "\n")
+	}
 }
 
 func (h *Host) CmdVersion(subs *Subsystems) {

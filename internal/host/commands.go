@@ -321,6 +321,9 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("stuffcmds", func(args []string) {
 		h.CmdStuffCmds(subs)
 	}, "Insert command-line +commands into the buffer")
+	replaceCommand("path", func(args []string) {
+		h.CmdPath(subs)
+	}, "Print the current filesystem search path")
 	replaceCommand("echo", func(args []string) {
 		h.CmdEcho(args, subs)
 	}, "Print text to the console")

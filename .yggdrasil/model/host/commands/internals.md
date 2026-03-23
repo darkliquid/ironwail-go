@@ -17,6 +17,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 - **Gameplay/save commands** also align host autosave timestamps to restored server time after successful load restores.
 - **Gameplay/client-state commands** include local view/render helpers such as `particle_texture` and now `fog`, which unwrap the concrete loopback/remote client wrappers to reach the shared client runtime state without widening the public host client interface.
 - **Gameplay/server-debug commands** now include `edictcount`, a read-only summary over `server.Server`'s existing `NumEdicts`/`Edicts` surface that mirrors C's quick entity-population counts without pulling in the broader QC-aware edict pretty-printer machinery.
+- **System/filesystem debug commands** now include `path`, which type-asserts `subs.Files` to the concrete `*fs.FileSystem` and prints the exported `SearchPathEntries` snapshot instead of reaching into private VFS internals directly.
 - **Gameplay/profile command** exposes QC VM per-function profile counters via `profile` (top 10), using C-like `%7d %s` line formatting and no output when no active local server/QC VM exists.
 - **Demo commands** coordinate record, playback, seek, and timedemo state.
 - **System/config commands** rebuild startup commands from argv and execute config text from builtin, user, or filesystem sources.

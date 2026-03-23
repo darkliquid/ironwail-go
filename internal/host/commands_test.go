@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	stdnet "net"
 	"os"
 	"path/filepath"
@@ -4404,6 +4405,77 @@ func (m *mapListingFiles) LoadFirstAvailable(filenames []string) (string, []byte
 }
 func (m *mapListingFiles) FileExists(filename string) bool { return false }
 
+type testingT interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
+func writeCommandTestPak(t testingT, path string, files map[string][]byte) {
+	t.Helper()
+
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("Create(%s): %v", path, err)
+	}
+	defer file.Close()
+
+	if _, err := file.Write([]byte("PACK")); err != nil {
+		t.Fatalf("Write magic: %v", err)
+	}
+	if err := binary.Write(file, binary.LittleEndian, int32(0)); err != nil {
+		t.Fatalf("Write dir ofs placeholder: %v", err)
+	}
+	if err := binary.Write(file, binary.LittleEndian, int32(0)); err != nil {
+		t.Fatalf("Write dir len placeholder: %v", err)
+	}
+
+	type dirEntry struct {
+		name string
+		pos  int32
+		size int32
+	}
+	entries := make([]dirEntry, 0, len(files))
+	for name, data := range files {
+		pos, err := file.Seek(0, io.SeekCurrent)
+		if err != nil {
+			t.Fatalf("Seek current: %v", err)
+		}
+		if _, err := file.Write(data); err != nil {
+			t.Fatalf("Write data for %s: %v", name, err)
+		}
+		entries = append(entries, dirEntry{name: name, pos: int32(pos), size: int32(len(data))})
+	}
+
+	dirOfs, err := file.Seek(0, io.SeekCurrent)
+	if err != nil {
+		t.Fatalf("Seek dir ofs: %v", err)
+	}
+	for _, entry := range entries {
+		var name [56]byte
+		copy(name[:], []byte(entry.name))
+		if _, err := file.Write(name[:]); err != nil {
+			t.Fatalf("Write dir name: %v", err)
+		}
+		if err := binary.Write(file, binary.LittleEndian, entry.pos); err != nil {
+			t.Fatalf("Write dir pos: %v", err)
+		}
+		if err := binary.Write(file, binary.LittleEndian, entry.size); err != nil {
+			t.Fatalf("Write dir size: %v", err)
+		}
+	}
+
+	dirLen := int32(len(entries) * 64)
+	if _, err := file.Seek(4, io.SeekStart); err != nil {
+		t.Fatalf("Seek header patch: %v", err)
+	}
+	if err := binary.Write(file, binary.LittleEndian, int32(dirOfs)); err != nil {
+		t.Fatalf("Patch dir ofs: %v", err)
+	}
+	if err := binary.Write(file, binary.LittleEndian, dirLen); err != nil {
+		t.Fatalf("Patch dir len: %v", err)
+	}
+}
+
 func TestCmdRandmapNoServer(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}
@@ -4435,6 +4507,64 @@ func TestCmdRandmapNoFiles(t *testing.T) {
 	h.SetServerActive(true)
 	// Files is not *fs.FileSystem, so the type assertion fails and returns early silently
 	h.CmdRandmap(subs)
+}
+
+func TestCmdPathPrintsSearchPathStack(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1")
+	modDir := filepath.Join(baseDir, "hipnotic")
+	if err := os.MkdirAll(id1Dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(mod): %v", err)
+	}
+
+	writeCommandTestPak(t, filepath.Join(id1Dir, "pak0.pak"), map[string][]byte{
+		"maps/start.bsp": []byte("id1"),
+	})
+	writeCommandTestPak(t, filepath.Join(modDir, "pak0.pak"), map[string][]byte{
+		"maps/e1m1.bsp": []byte("mod0"),
+	})
+	writeCommandTestPak(t, filepath.Join(modDir, "pak1.pak"), map[string][]byte{
+		"maps/e1m2.bsp": []byte("mod1"),
+		"progs.dat":     []byte("progs"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdPath(subs)
+
+	got := strings.Join(console.messages, "")
+	if !strings.HasPrefix(got, "Current search path:\n") {
+		t.Fatalf("path output missing header:\n%s", got)
+	}
+
+	wantInOrder := []string{
+		filepath.Join(modDir, "pak1.pak") + " (2 files)\n",
+		filepath.Join(modDir, "pak0.pak") + " (1 files)\n",
+		modDir + "\n",
+		filepath.Join(id1Dir, "pak0.pak") + " (1 files)\n",
+		id1Dir + "\n",
+	}
+	last := -1
+	for _, want := range wantInOrder {
+		idx := strings.Index(got, want)
+		if idx < 0 {
+			t.Fatalf("path output missing %q:\n%s", want, got)
+		}
+		if idx <= last {
+			t.Fatalf("path output out of order for %q:\n%s", want, got)
+		}
+		last = idx
+	}
 }
 
 // --- viewframe/viewnext/viewprev tests ---
