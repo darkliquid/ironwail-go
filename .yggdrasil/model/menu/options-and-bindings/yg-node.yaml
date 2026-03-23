@@ -1,0 +1,7 @@
+name: Menu Options and Bindings
+type: module
+description: "Options, controls, video, and audio menus that mutate cvars and input bindings through menu interactions"
+blackbox: false
+mapping:
+  paths:
+    - internal/menu/menu_options.go

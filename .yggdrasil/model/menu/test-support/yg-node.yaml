@@ -1,0 +1,8 @@
+name: Menu Test Support
+type: module
+description: "Menu-specific test doubles and cross-screen behavior tests covering state transitions, command queueing, provider refresh, and draw output"
+blackbox: false
+mapping:
+  paths:
+    - internal/menu/mock_backend.go
+    - internal/menu/manager_test.go

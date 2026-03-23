@@ -1,0 +1,8 @@
+name: Menu State Machine
+type: module
+description: "Core menu manager, screen state enum, cursor/buffer ownership, provider wiring, and top-level input/draw dispatch"
+blackbox: false
+mapping:
+  paths:
+    - internal/menu/doc.go
+    - internal/menu/manager.go

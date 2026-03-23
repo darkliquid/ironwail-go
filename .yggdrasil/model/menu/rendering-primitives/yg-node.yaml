@@ -1,0 +1,7 @@
+name: Menu Rendering Primitives
+type: module
+description: "Shared menu drawing helpers for boxes, text, cursors, title/plaque framing, and player-color preview translation"
+blackbox: false
+mapping:
+  paths:
+    - internal/menu/menu_draw.go

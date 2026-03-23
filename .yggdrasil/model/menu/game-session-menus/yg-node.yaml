@@ -1,0 +1,7 @@
+name: Menu Game Session Menus
+type: module
+description: "Load/save, join-game, host-game, and server-browser screens that prepare or launch game/session actions"
+blackbox: false
+mapping:
+  paths:
+    - internal/menu/menu_game.go

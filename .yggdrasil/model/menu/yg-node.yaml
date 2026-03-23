@@ -1,0 +1,4 @@
+name: Menu System
+type: module
+description: "Umbrella for the in-game menu state machine, menu rendering helpers, screen-specific flows, and menu test support"
+blackbox: false

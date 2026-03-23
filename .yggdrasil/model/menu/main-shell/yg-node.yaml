@@ -1,0 +1,7 @@
+name: Menu Main Shell
+type: module
+description: "Main-menu family screens and related shell flows: main, single-player, multiplayer entry, help, setup, quit/confirmation, and mods browser"
+blackbox: false
+mapping:
+  paths:
+    - internal/menu/menu_main.go
