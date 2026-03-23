@@ -1,0 +1,8 @@
+name: Engine Cache
+type: module
+description: "Thread-safe generic key/value cache for mutable runtime object lookup and lazy population"
+blackbox: false
+mapping:
+  paths:
+    - internal/engine/cache.go
+    - internal/engine/cache_test.go

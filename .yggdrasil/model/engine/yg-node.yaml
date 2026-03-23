@@ -1,0 +1,7 @@
+name: Engine Primitives
+type: module
+description: "Umbrella for generic standard-library-only runtime primitives shared across internal engine subsystems"
+blackbox: false
+mapping:
+  paths:
+    - internal/engine/doc.go

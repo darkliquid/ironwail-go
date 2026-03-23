@@ -1,0 +1,8 @@
+name: Engine Registry
+type: module
+description: "Write-once generic lookup table for init-time registrations and stable runtime reads"
+blackbox: false
+mapping:
+  paths:
+    - internal/engine/registry.go
+    - internal/engine/registry_test.go

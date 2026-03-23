@@ -1,0 +1,10 @@
+name: Engine Collections
+type: module
+description: "Small generic collection helpers: a membership set and a dynamically growing FIFO ring queue"
+blackbox: false
+mapping:
+  paths:
+    - internal/engine/set.go
+    - internal/engine/set_test.go
+    - internal/engine/queue.go
+    - internal/engine/queue_test.go

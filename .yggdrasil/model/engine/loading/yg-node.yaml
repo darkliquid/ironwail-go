@@ -1,0 +1,8 @@
+name: Engine Loading
+type: module
+description: "Generic bounded-concurrency loading helpers for bulk ordered loads and streaming worker pipelines"
+blackbox: false
+mapping:
+  paths:
+    - internal/engine/loader.go
+    - internal/engine/loader_test.go

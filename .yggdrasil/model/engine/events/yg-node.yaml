@@ -1,0 +1,8 @@
+name: Engine Events
+type: module
+description: "Typed synchronous publish/subscribe helper for deterministic intra-engine event delivery"
+blackbox: false
+mapping:
+  paths:
+    - internal/engine/event.go
+    - internal/engine/event_test.go
