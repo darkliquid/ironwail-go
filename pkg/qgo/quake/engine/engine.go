@@ -164,3 +164,11 @@ func CvarSet(s string, v float32) {}
 //qgo:builtin 73
 //go:noinline
 func Centerprint(s string) {}
+
+//qgo:builtin 36
+//go:noinline
+func RInt(f float32) float32 { return 0 }
+
+//qgo:builtin 22
+//go:noinline
+func FindRadius(org quake.Vec3, radius float32) quake.Entity { return 0 }
