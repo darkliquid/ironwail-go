@@ -400,6 +400,13 @@ func applyGameplayMouseLook() {
 		g.Input.ClearState()
 		return
 	}
+	if g.Client.InCutscene() {
+		g.Client.MouseSideMove = 0
+		g.Client.MouseForwardMove = 0
+		g.Client.MouseUpMove = 0
+		g.Input.ClearState()
+		return
+	}
 
 	state := g.Input.GetState()
 	sensitivity := float32(cvar.FloatValue("sensitivity"))

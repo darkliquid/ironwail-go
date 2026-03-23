@@ -68,20 +68,21 @@ type State struct {
 	ShowScores   bool
 	Scoreboard   []ScoreEntry
 
-	Paused          bool
-	InCutscene      bool
-	Intermission    int
-	CompletedTime   float64
-	Time            float64
-	CenterPrint     string
-	CenterPrintAt   float64
-	FaceAnimUntil   float64
-	CenterPrintHold float64
-	LevelName       string
-	Secrets         int
-	TotalSecrets    int
-	Monsters        int
-	TotalMonsters   int
+	Paused                  bool
+	InCutscene              bool
+	Intermission            int
+	HideIntermissionOverlay bool
+	CompletedTime           float64
+	Time                    float64
+	CenterPrint             string
+	CenterPrintAt           float64
+	FaceAnimUntil           float64
+	CenterPrintHold         float64
+	LevelName               string
+	Secrets                 int
+	TotalSecrets            int
+	Monsters                int
+	TotalMonsters           int
 }
 
 // ScoreEntry is a single player row in the multiplayer scoreboard.

@@ -14,6 +14,7 @@ Observed responsibilities:
 Contracts:
 - Signon stages `1`, `2`, and `3` map to `prespawn`, `name/color/spawn`, and `begin`.
 - Remote shutdown closes the socket and clears client state.
+- Loopback session tests must execute buffered local commands before draining loopback stufftext to mirror runtime `ProcessConsoleCommands` behavior.
 
 ### Autosave support
 

@@ -2883,3 +2883,18 @@ func TestAccumulateCmdSetsPerCommandMsec(t *testing.T) {
 		t.Fatalf("CommandCount = %d, want 0 until a command is actually sent", c.CommandCount)
 	}
 }
+
+func TestAdjustAnglesSkipsIntermissionCutsceneWithActiveViewEntity(t *testing.T) {
+	c := NewClient()
+	c.FixAngle = true
+	c.Intermission = 1
+	c.ViewEntity = 1
+	c.ViewAngles = [3]float32{10, 20, 0}
+	c.InputRight.State = 1
+
+	c.AdjustAngles(0.1)
+
+	if got := c.ViewAngles; got != [3]float32{10, 20, 0} {
+		t.Fatalf("ViewAngles after intermission AdjustAngles = %v, want unchanged", got)
+	}
+}

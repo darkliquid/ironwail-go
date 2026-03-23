@@ -20,3 +20,4 @@
 - `HUD.Draw` is safe on a nil `RenderContext` and otherwise always updates canvas parameters when the context supports them.
 - Exactly one HUD style renderer is chosen for the non-intermission status layer each frame.
 - Crosshair and centerprint are drawn after status-layer selection on dedicated canvases.
+- `State.HideIntermissionOverlay` lets callers preserve `Intermission` state for crosshair/policy decisions while suppressing the visible intermission/finale overlay when gameplay input focus is not active.

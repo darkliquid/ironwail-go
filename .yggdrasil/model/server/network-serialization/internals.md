@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node turns authoritative server state into Quake/FitzQuake/RMQ wire messages. It maintains signon buffers for initial world state, shared unreliable datagrams for transient events, and per-client reliable payloads for serverinfo, stats, and entity updates. Encoding paths must select the correct extended or legacy representation based on protocol limits.
+This node turns authoritative server state into Quake/FitzQuake/RMQ wire messages. It maintains signon buffers for initial world state, shared unreliable datagrams for transient events, and per-client reliable payloads for serverinfo, stats, and entity updates. Encoding paths must select the correct extended or legacy representation based on protocol limits. Non-entity intermission stats are refreshed from QuakeC globals before serialization so spawn packets and later reliable `svc_updatestat` messages match C Ironwail's `host_cmd.c` behavior.
 
 ## Constraints
 

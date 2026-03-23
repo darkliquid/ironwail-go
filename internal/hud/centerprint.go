@@ -32,6 +32,9 @@ type Centerprint struct {
 	completePic *image.QPic
 	interPic    *image.QPic
 	finalePic   *image.QPic
+	numPics     [11]*image.QPic
+	slashPic    *image.QPic
+	colonPic    *image.QPic
 	boxPics     map[string]*image.QPic
 
 	manualMessage string
@@ -45,6 +48,12 @@ func NewCenterprint(dm *draw.Manager) *Centerprint {
 		cp.completePic = dm.GetPic("gfx/complete.lmp")
 		cp.interPic = dm.GetPic("gfx/inter.lmp")
 		cp.finalePic = dm.GetPic("gfx/finale.lmp")
+		for i := 0; i < 10; i++ {
+			cp.numPics[i] = dm.GetPic(fmt.Sprintf("num_%d", i))
+		}
+		cp.numPics[10] = dm.GetPic("num_minus")
+		cp.slashPic = dm.GetPic("num_slash")
+		cp.colonPic = dm.GetPic("num_colon")
 		cp.boxPics = map[string]*image.QPic{
 			"gfx/box_tl.lmp":  dm.GetPic("gfx/box_tl.lmp"),
 			"gfx/box_ml.lmp":  dm.GetPic("gfx/box_ml.lmp"),
@@ -81,6 +90,9 @@ func (cp *Centerprint) IsActive() bool {
 // Draw renders centerprint/intermission/finale overlays.
 func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth, screenHeight int) {
 	if rc == nil {
+		return
+	}
+	if state.Intermission != 0 && state.HideIntermissionOverlay {
 		return
 	}
 
@@ -121,17 +133,64 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 		cp.drawTextBlock(rc, state.LevelName, 320, 36, 0, 1)
 	}
 
-	const rowX = 72
-	const rowValueX = 184
-	rowY := 64
-	DrawString(rc, rowX, rowY, "time")
-	DrawString(rc, rowValueX, rowY, formatIntermissionTime(state.CompletedTime))
-	rowY += 40
-	DrawString(rc, rowX, rowY, "secrets")
-	DrawString(rc, rowValueX, rowY, fmt.Sprintf("%d/%d", state.Secrets, state.TotalSecrets))
-	rowY += 40
-	DrawString(rc, rowX, rowY, "monsters")
-	DrawString(rc, rowValueX, rowY, fmt.Sprintf("%d/%d", state.Monsters, state.TotalMonsters))
+	timeText := formatIntermissionTime(state.CompletedTime)
+	secretsText := fmt.Sprintf("%d/%2d", state.Secrets, state.TotalSecrets)
+	monstersText := fmt.Sprintf("%d/%2d", state.Monsters, state.TotalMonsters)
+
+	textWidth := max(cp.intermissionTextWidth(timeText), max(cp.intermissionTextWidth(secretsText), cp.intermissionTextWidth(monstersText)))
+	totalWidth := textWidth
+	if cp.interPic != nil {
+		totalWidth += int(cp.interPic.Width) + 24
+	}
+	if totalWidth > 320 {
+		totalWidth = 320
+	}
+	valueRightX := 160 + totalWidth/2
+
+	cp.drawIntermissionText(rc, valueRightX-cp.intermissionTextWidth(timeText), 64, timeText)
+	cp.drawIntermissionText(rc, valueRightX-cp.intermissionTextWidth(secretsText), 104, secretsText)
+	cp.drawIntermissionText(rc, valueRightX-cp.intermissionTextWidth(monstersText), 144, monstersText)
+}
+
+func (cp *Centerprint) intermissionPicForRune(r rune) *image.QPic {
+	switch {
+	case r >= '0' && r <= '9':
+		return cp.numPics[r-'0']
+	case r == '/':
+		return cp.slashPic
+	case r == ':':
+		return cp.colonPic
+	case r == '-':
+		return cp.numPics[10]
+	default:
+		return nil
+	}
+}
+
+func (cp *Centerprint) intermissionTextWidth(text string) int {
+	width := 0
+	for _, r := range text {
+		pic := cp.intermissionPicForRune(r)
+		if pic != nil {
+			width += int(pic.Width)
+			continue
+		}
+		width += 24
+	}
+	return width
+}
+
+func (cp *Centerprint) drawIntermissionText(rc renderer.RenderContext, x, y int, text string) {
+	for _, r := range text {
+		pic := cp.intermissionPicForRune(r)
+		if pic != nil {
+			rc.DrawPic(x, y, pic)
+			x += int(pic.Width)
+			continue
+		}
+		rc.DrawCharacter(x, y, int(r))
+		x += 24
+	}
 }
 
 // drawFinaleOverlay renders the end-of-episode text crawl (Intermission 2/3).

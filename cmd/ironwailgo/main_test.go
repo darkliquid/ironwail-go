@@ -4916,6 +4916,29 @@ func TestApplyDefaultGameplayBindings(t *testing.T) {
 	}
 }
 
+func TestUpdateHUDFromServerKeepsIntermissionOverlayVisibleOutsideGameplayInput(t *testing.T) {
+	originalHUD := g.HUD
+	originalClient := g.Client
+	originalInput := g.Input
+	t.Cleanup(func() {
+		g.HUD = originalHUD
+		g.Client = originalClient
+		g.Input = originalInput
+	})
+
+	g.HUD = hud.NewHUD(nil)
+	g.Client = cl.NewClient()
+	g.Client.Intermission = 1
+	g.Input = input.NewSystem(nil)
+	g.Input.SetKeyDest(input.KeyConsole)
+
+	updateHUDFromServer()
+
+	if got := g.HUD.State(); got.HideIntermissionOverlay {
+		t.Fatalf("HideIntermissionOverlay = %v, want false to match C intermission flow", got.HideIntermissionOverlay)
+	}
+}
+
 func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 	originalInput := g.Input
 	originalClient := g.Client
@@ -5788,6 +5811,39 @@ func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
 	}
 	if got := g.Client.MouseSideMove; math.Abs(float64(got-16)) > 0.0001 {
 		t.Fatalf("side move with lookstrafe active = %.2f, want 16.00", got)
+	}
+}
+
+func TestApplyGameplayMouseLookSkipsIntermissionCutscene(t *testing.T) {
+	originalInput := g.Input
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Client = originalClient
+	})
+
+	registerControlCvars()
+	backend := &mouseDeltaBackend{}
+	g.Input = input.NewSystem(backend)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.Client = cl.NewClient()
+	g.Client.FixAngle = true
+	g.Client.Intermission = 1
+	g.Client.ViewEntity = 1
+	g.Client.ViewAngles = [3]float32{15, 25, 0}
+
+	backend.dx = 4
+	backend.dy = 5
+	applyGameplayMouseLook()
+
+	if got := g.Client.ViewAngles; got != [3]float32{15, 25, 0} {
+		t.Fatalf("ViewAngles during intermission = %v, want unchanged", got)
+	}
+	if got := g.Client.MouseSideMove; got != 0 {
+		t.Fatalf("MouseSideMove during intermission = %.2f, want 0", got)
+	}
+	if got := g.Client.MouseForwardMove; got != 0 {
+		t.Fatalf("MouseForwardMove during intermission = %.2f, want 0", got)
 	}
 }
 

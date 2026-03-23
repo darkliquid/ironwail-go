@@ -831,6 +831,24 @@ func (s *Server) updateClientStats(client *Client) {
 		client.Stats[inet.StatCells] = int32(ent.Vars.AmmoCells)
 		client.Stats[inet.StatActiveWeapon] = int32(ent.Vars.Weapon)
 	}
+	s.updateClientGlobalStats(client)
+}
+
+func (s *Server) updateClientGlobalStats(client *Client) {
+	if s == nil || client == nil || s.QCVM == nil {
+		return
+	}
+	s.updateClientGlobalStat(client, inet.StatTotalSecrets, "total_secrets")
+	s.updateClientGlobalStat(client, inet.StatTotalMonsters, "total_monsters")
+	s.updateClientGlobalStat(client, inet.StatSecrets, "found_secrets")
+	s.updateClientGlobalStat(client, inet.StatMonsters, "killed_monsters")
+}
+
+func (s *Server) updateClientGlobalStat(client *Client, stat int, global string) {
+	if client == nil || s == nil || s.QCVM == nil || s.QCVM.FindGlobal(global) < 0 {
+		return
+	}
+	client.Stats[stat] = int32(s.QCVM.GetGlobalFloat(global))
 }
 
 // SV_WriteStats compares stat cache and emits reliable SVCUpdateStat messages for changed non-client HUD values.

@@ -455,8 +455,8 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 
 	if subs.Commands != nil {
 		subs.Commands.Init()
-		h.RegisterCommands(subs)
 	}
+	h.RegisterCommands(subs)
 
 	if subs.Console != nil {
 		if err := subs.Console.Init(); err != nil {

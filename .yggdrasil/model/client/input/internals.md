@@ -14,7 +14,7 @@ This mirrors classic Ironwail/Quake timing where send-time packet construction o
 
 ### View and drift
 
-Pitch drift and angle adjustment logic preserve classic Quake-style view behavior, including special handling for cutscenes and look-spring behavior.
+Pitch drift and angle adjustment logic preserve classic Quake-style view behavior, including special handling for cutscenes and look-spring behavior. Intermission/finale states are treated as cutscenes when `FixAngle` is active so keyboard look/turn input does not continue rotating the camera after the server has forced an intermission angle.
 
 ### Prediction
 

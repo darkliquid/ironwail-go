@@ -23,31 +23,42 @@ type mockSubsystems struct {
 }
 
 type mockServer struct {
-	active bool
-	paused bool
+	active  bool
+	paused  bool
+	mapName string
+	spawned []string
 }
 
-func (m *mockServer) Init(maxClients int) error                            { m.active = true; return nil }
-func (m *mockServer) Frame(frameTime float64) error                        { return nil }
-func (m *mockServer) Shutdown()                                            { m.active = false }
-func (m *mockServer) IsActive() bool                                       { return m.active }
-func (m *mockServer) IsPaused() bool                                       { return m.paused }
-func (m *mockServer) SetLoadGame(v bool)                                   {}
-func (m *mockServer) SetPreserveSpawnParms(v bool)                         {}
-func (m *mockServer) SpawnServer(mapName string, vfs *fs.FileSystem) error { return nil }
-func (m *mockServer) ConnectClient(clientNum int)                          {}
-func (m *mockServer) KillClient(clientNum int) bool                        { return false }
-func (m *mockServer) KickClient(clientNum int, who, reason string) bool    { return false }
-func (m *mockServer) SaveSpawnParms()                                      {}
-func (m *mockServer) GetMaxClients() int                                   { return 1 }
-func (m *mockServer) IsClientActive(clientNum int) bool                    { return clientNum == 0 }
-func (m *mockServer) GetClientName(clientNum int) string                   { return "Player" }
-func (m *mockServer) SetClientName(clientNum int, name string)             {}
-func (m *mockServer) GetClientColor(clientNum int) int                     { return 0 }
-func (m *mockServer) SetClientColor(clientNum int, color int)              {}
-func (m *mockServer) GetClientPing(clientNum int) float32                  { return 0 }
-func (m *mockServer) EdictNum(n int) *server.Edict                         { return &server.Edict{Vars: &server.EntVars{}} }
-func (m *mockServer) GetMapName() string                                   { return "start" }
+func (m *mockServer) Init(maxClients int) error     { m.active = true; return nil }
+func (m *mockServer) Frame(frameTime float64) error { return nil }
+func (m *mockServer) Shutdown()                     { m.active = false }
+func (m *mockServer) IsActive() bool                { return m.active }
+func (m *mockServer) IsPaused() bool                { return m.paused }
+func (m *mockServer) SetLoadGame(v bool)            {}
+func (m *mockServer) SetPreserveSpawnParms(v bool)  {}
+func (m *mockServer) SpawnServer(mapName string, vfs *fs.FileSystem) error {
+	m.mapName = mapName
+	m.spawned = append(m.spawned, mapName)
+	return nil
+}
+func (m *mockServer) ConnectClient(clientNum int)                       {}
+func (m *mockServer) KillClient(clientNum int) bool                     { return false }
+func (m *mockServer) KickClient(clientNum int, who, reason string) bool { return false }
+func (m *mockServer) SaveSpawnParms()                                   {}
+func (m *mockServer) GetMaxClients() int                                { return 1 }
+func (m *mockServer) IsClientActive(clientNum int) bool                 { return clientNum == 0 }
+func (m *mockServer) GetClientName(clientNum int) string                { return "Player" }
+func (m *mockServer) SetClientName(clientNum int, name string)          {}
+func (m *mockServer) GetClientColor(clientNum int) int                  { return 0 }
+func (m *mockServer) SetClientColor(clientNum int, color int)           {}
+func (m *mockServer) GetClientPing(clientNum int) float32               { return 0 }
+func (m *mockServer) EdictNum(n int) *server.Edict                      { return &server.Edict{Vars: &server.EntVars{}} }
+func (m *mockServer) GetMapName() string {
+	if m.mapName != "" {
+		return m.mapName
+	}
+	return "start"
+}
 func (m *mockServer) RestoreTextSaveGameState(state *server.TextSaveGameState) error {
 	return nil
 }

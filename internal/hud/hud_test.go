@@ -602,6 +602,54 @@ func TestHUDIntermissionOverlaySuppressesStatusBar(t *testing.T) {
 	}
 }
 
+func TestHUDIntermissionOverlayUsesGraphicLabelsOnly(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.centerprint.completePic = &image.QPic{Width: 100, Height: 24}
+	h.centerprint.interPic = &image.QPic{Width: 64, Height: 24}
+	h.SetState(State{
+		Intermission:  1,
+		CompletedTime: 125,
+		LevelName:     "Unit Test Map",
+		Secrets:       2,
+		TotalSecrets:  4,
+		Monsters:      5,
+		TotalMonsters: 8,
+	})
+	mock := &mockRenderContext{}
+	h.Draw(mock)
+
+	got := charactersToString(mock.characters)
+	if strings.Contains(got, "time") || strings.Contains(got, "secrets") || strings.Contains(got, "monsters") {
+		t.Fatalf("intermission text drew duplicate labels: %q", got)
+	}
+	if !strings.Contains(got, "2:05") || !strings.Contains(got, "2/ 4") || !strings.Contains(got, "5/ 8") {
+		t.Fatalf("intermission values missing from draw string output: %q", got)
+	}
+}
+
+func TestHUDIntermissionOverlayCanBeHiddenOutsideGameplayFocus(t *testing.T) {
+	h := NewHUD(nil)
+	h.SetScreenSize(320, 200)
+	h.centerprint.completePic = &image.QPic{Width: 100, Height: 24}
+	h.centerprint.interPic = &image.QPic{Width: 64, Height: 24}
+	h.SetState(State{
+		Intermission:            1,
+		HideIntermissionOverlay: true,
+		CompletedTime:           125,
+		Secrets:                 2,
+		TotalSecrets:            4,
+		Monsters:                5,
+		TotalMonsters:           8,
+	})
+	mock := &mockRenderContext{}
+	h.Draw(mock)
+
+	if len(mock.pics) != 0 || len(mock.characters) != 0 {
+		t.Fatalf("hidden intermission overlay drew pics=%d chars=%d", len(mock.pics), len(mock.characters))
+	}
+}
+
 func TestCenterprintIntermissionUsesMenuSpaceOverlayCoordinates(t *testing.T) {
 	complete := &image.QPic{Width: 100, Height: 20}
 	inter := &image.QPic{Width: 64, Height: 24}

@@ -6,6 +6,8 @@
 
 `RegisterCommands` is the entry point that binds host policies into the command system during startup.
 
+Registration refreshes existing host-owned command names before re-adding them. This keeps command closures bound to the current `Host`/`Subsystems` pair across repeated init/test lifecycles instead of silently retaining the first registration forever.
+
 ### Command families
 
 - **Map/session commands** manage local server startup, reconnect-style transitions, and changelevel/load flows.

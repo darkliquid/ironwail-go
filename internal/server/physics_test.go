@@ -477,6 +477,45 @@ func TestPhysicsTelemetryFrameHooks(t *testing.T) {
 	}
 }
 
+func TestPhysicsStartFrameSeesFreshEdictButtonState(t *testing.T) {
+	s := newPhysicsTestServer()
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+
+	const (
+		captureBuiltinOfs = 10
+		capturedButtonOfs = 20
+	)
+
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvFloat), Ofs: uint16(capturedButtonOfs), Name: vm.AllocString("captured_button0")},
+	}
+	vm.Builtins[1] = func(vm *qc.VM) {
+		vm.SetGFloat(capturedButtonOfs, vm.EFloat(1, qc.EntFieldButton0))
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("StartFrame"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(captureBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(captureBuiltinOfs, -1)
+
+	player := &Edict{Vars: &EntVars{}}
+	player.Vars.Button0 = 1
+	s.Edicts = append(s.Edicts, player)
+	s.NumEdicts = len(s.Edicts)
+	vm.NumEdicts = s.NumEdicts
+
+	s.Physics()
+
+	if got := vm.GFloat(capturedButtonOfs); got != 1 {
+		t.Fatalf("StartFrame saw button0 = %v, want 1 from latest edict state", got)
+	}
+}
+
 // TestRunThinkTelemetry tests telemetry for entity \"think\" functions.
 // It monitoring the execution time and frequency of entity logic.
 // Where in C: N/A

@@ -52,117 +52,127 @@ type handshakeClient interface {
 	LocalSignon() int
 }
 
+func replaceCommand(name string, fn cmdsys.CommandFunc, desc string) {
+	cmdsys.RemoveCommand(name)
+	cmdsys.AddCommand(name, fn, desc)
+}
+
+func replaceClientCommand(name string, fn cmdsys.CommandFunc, desc string) {
+	cmdsys.RemoveCommand(name)
+	cmdsys.AddClientCommand(name, fn, desc)
+}
+
 func (h *Host) RegisterCommands(subs *Subsystems) {
-	cmdsys.AddCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
-	cmdsys.AddCommand("map", func(args []string) {
+	replaceCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
+	replaceCommand("map", func(args []string) {
 		if len(args) > 0 {
 			h.CmdMapWithSpawnArgs(args[0], args[1:], subs)
 		}
 	}, "Start a new map")
-	cmdsys.AddCommand("skill", func(args []string) {
+	replaceCommand("skill", func(args []string) {
 		if len(args) > 0 {
 			var skill int
 			fmt.Sscanf(args[0], "%d", &skill)
 			h.CmdSkill(skill)
 		}
 	}, "Set game skill level (0-3)")
-	cmdsys.AddClientCommand("pause", func(args []string) { h.CmdPause(subs) }, "Pause game")
-	cmdsys.AddClientCommand("status", func(args []string) { h.CmdStatus(subs) }, "Show server status")
-	cmdsys.AddCommand("mapname", func(args []string) { h.CmdMapname(subs) }, "Show current map name")
-	cmdsys.AddClientCommand("god", func(args []string) { h.CmdGod(subs) }, "Toggle god mode")
-	cmdsys.AddClientCommand("noclip", func(args []string) { h.CmdNoClip(subs) }, "Toggle noclip mode")
-	cmdsys.AddClientCommand("fly", func(args []string) { h.CmdFly(subs) }, "Toggle fly mode")
-	cmdsys.AddClientCommand("notarget", func(args []string) { h.CmdNotarget(subs) }, "Toggle notarget mode")
-	cmdsys.AddClientCommand("say", func(args []string) {
+	replaceClientCommand("pause", func(args []string) { h.CmdPause(subs) }, "Pause game")
+	replaceClientCommand("status", func(args []string) { h.CmdStatus(subs) }, "Show server status")
+	replaceCommand("mapname", func(args []string) { h.CmdMapname(subs) }, "Show current map name")
+	replaceClientCommand("god", func(args []string) { h.CmdGod(subs) }, "Toggle god mode")
+	replaceClientCommand("noclip", func(args []string) { h.CmdNoClip(subs) }, "Toggle noclip mode")
+	replaceClientCommand("fly", func(args []string) { h.CmdFly(subs) }, "Toggle fly mode")
+	replaceClientCommand("notarget", func(args []string) { h.CmdNotarget(subs) }, "Toggle notarget mode")
+	replaceClientCommand("say", func(args []string) {
 		if len(args) > 0 {
 			h.CmdSay(strings.Join(args, " "), subs)
 		}
 	}, "Send a message to all players")
-	cmdsys.AddClientCommand("say_team", func(args []string) {
+	replaceClientCommand("say_team", func(args []string) {
 		if len(args) > 0 {
 			h.CmdSayTeam(strings.Join(args, " "), subs)
 		}
 	}, "Send a message to your team")
-	cmdsys.AddClientCommand("tell", func(args []string) {
+	replaceClientCommand("tell", func(args []string) {
 		if len(args) > 1 {
 			h.CmdTell(args, subs)
 		}
 	}, "Send a message to a specific player")
-	cmdsys.AddCommand("serverinfo", func(args []string) { h.CmdServerInfo(subs) }, "Show server information")
-	cmdsys.AddCommand("restart", func(args []string) { h.CmdRestart(subs) }, "Restart current map")
-	cmdsys.AddCommand("changelevel", func(args []string) {
+	replaceCommand("serverinfo", func(args []string) { h.CmdServerInfo(subs) }, "Show server information")
+	replaceCommand("restart", func(args []string) { h.CmdRestart(subs) }, "Restart current map")
+	replaceCommand("changelevel", func(args []string) {
 		if len(args) > 0 {
 			h.CmdChangelevel(args[0], subs)
 		}
 	}, "Change to a new level")
-	cmdsys.AddCommand("connect", func(args []string) {
+	replaceCommand("connect", func(args []string) {
 		if len(args) > 0 {
 			h.CmdConnect(args[0], subs)
 		}
 	}, "Connect to a server")
-	cmdsys.AddCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
-	cmdsys.AddCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
-	cmdsys.AddCommand("slist", func(args []string) { h.CmdSlist(subs) }, "Search for LAN servers")
-	cmdsys.AddClientCommand("name", func(args []string) {
+	replaceCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
+	replaceCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
+	replaceCommand("slist", func(args []string) { h.CmdSlist(subs) }, "Search for LAN servers")
+	replaceClientCommand("name", func(args []string) {
 		if len(args) > 0 {
 			h.CmdName(args[0], subs)
 		}
 	}, "Set player name")
-	cmdsys.AddClientCommand("color", func(args []string) {
+	replaceClientCommand("color", func(args []string) {
 		if len(args) > 0 {
 			h.CmdColor(args, subs)
 		}
 	}, "Set player color")
-	cmdsys.AddClientCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
-	cmdsys.AddClientCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into game")
-	cmdsys.AddClientCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin game")
-	cmdsys.AddClientCommand("prespawn", func(args []string) { h.CmdPreSpawn(subs) }, "Pre-spawn handshake")
-	cmdsys.AddClientCommand("kick", func(args []string) {
+	replaceClientCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
+	replaceClientCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into game")
+	replaceClientCommand("begin", func(args []string) { h.CmdBegin(subs) }, "Begin game")
+	replaceClientCommand("prespawn", func(args []string) { h.CmdPreSpawn(subs) }, "Pre-spawn handshake")
+	replaceClientCommand("kick", func(args []string) {
 		h.CmdKick(args, subs)
 	}, "Kick a player from the server")
-	cmdsys.AddCommand("ban", func(args []string) {
+	replaceCommand("ban", func(args []string) {
 		h.CmdBan(args, subs)
 	}, "Ban a player from the server")
-	cmdsys.AddCommand("tracepos", func(args []string) { h.CmdTracepos(subs) }, "Trace from view origin to find surface/edict info")
-	cmdsys.AddCommand("play", func(args []string) {
+	replaceCommand("tracepos", func(args []string) { h.CmdTracepos(subs) }, "Trace from view origin to find surface/edict info")
+	replaceCommand("play", func(args []string) {
 		if len(args) > 0 {
 			h.CmdPlay(args, subs)
 		}
 	}, "Play one or more local sounds")
-	cmdsys.AddCommand("playvol", func(args []string) {
+	replaceCommand("playvol", func(args []string) {
 		if len(args) > 1 {
 			h.CmdPlayVol(args, subs)
 		}
 	}, "Play one or more local sounds with explicit volumes")
-	cmdsys.AddCommand("stopsound", func(args []string) { h.CmdStopsound(subs) }, "Stop all active sounds")
-	cmdsys.AddCommand("soundlist", func(args []string) { h.CmdSoundlist(subs) }, "List precached sounds")
-	cmdsys.AddCommand("soundinfo", func(args []string) { h.CmdSoundinfo(subs) }, "Show audio system statistics")
-	cmdsys.AddCommand("music", func(args []string) { h.CmdMusic(args, subs) }, "Play or inspect background music")
-	cmdsys.AddCommand("music_pause", func(args []string) { h.CmdMusicPause(subs) }, "Pause background music")
-	cmdsys.AddCommand("music_resume", func(args []string) { h.CmdMusicResume(subs) }, "Resume background music")
-	cmdsys.AddCommand("music_loop", func(args []string) { h.CmdMusicLoop(args, subs) }, "Toggle or set background music looping")
-	cmdsys.AddCommand("music_stop", func(args []string) { h.CmdMusicStop(subs) }, "Stop background music")
-	cmdsys.AddCommand("music_jump", func(args []string) { h.CmdMusicJump(args, subs) }, "Jump to a module order in the active music track")
-	cmdsys.AddCommand("particle_texture", func(args []string) {
+	replaceCommand("stopsound", func(args []string) { h.CmdStopsound(subs) }, "Stop all active sounds")
+	replaceCommand("soundlist", func(args []string) { h.CmdSoundlist(subs) }, "List precached sounds")
+	replaceCommand("soundinfo", func(args []string) { h.CmdSoundinfo(subs) }, "Show audio system statistics")
+	replaceCommand("music", func(args []string) { h.CmdMusic(args, subs) }, "Play or inspect background music")
+	replaceCommand("music_pause", func(args []string) { h.CmdMusicPause(subs) }, "Pause background music")
+	replaceCommand("music_resume", func(args []string) { h.CmdMusicResume(subs) }, "Resume background music")
+	replaceCommand("music_loop", func(args []string) { h.CmdMusicLoop(args, subs) }, "Toggle or set background music looping")
+	replaceCommand("music_stop", func(args []string) { h.CmdMusicStop(subs) }, "Stop background music")
+	replaceCommand("music_jump", func(args []string) { h.CmdMusicJump(args, subs) }, "Jump to a module order in the active music track")
+	replaceCommand("particle_texture", func(args []string) {
 		if len(args) > 0 {
 			h.CmdParticleTexture(args[0], subs)
 		}
 	}, "Change particle rendering style (1=soft, 2=pixel)")
-	cmdsys.AddClientCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
-	cmdsys.AddCommand("load", func(args []string) {
+	replaceClientCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
+	replaceCommand("load", func(args []string) {
 		h.CmdLoadArgs(args, subs)
 	}, "Load a saved game")
-	cmdsys.AddCommand("save", func(args []string) {
+	replaceCommand("save", func(args []string) {
 		h.CmdSaveArgs(args, subs)
 	}, "Save current game")
-	cmdsys.AddClientCommand("give", func(args []string) {
+	replaceClientCommand("give", func(args []string) {
 		if len(args) > 1 {
 			h.CmdGive(args[0], args[1], subs)
 		}
 	}, "Give items/ammo")
-	cmdsys.AddCommand("maps", func(args []string) { h.CmdMaps(subs) }, "List all maps")
-	cmdsys.AddCommand("randmap", func(args []string) { h.CmdRandmap(subs) }, "Change to a random map")
-	cmdsys.AddCommand("viewframe", func(args []string) {
+	replaceCommand("maps", func(args []string) { h.CmdMaps(subs) }, "List all maps")
+	replaceCommand("randmap", func(args []string) { h.CmdRandmap(subs) }, "Change to a random map")
+	replaceCommand("viewframe", func(args []string) {
 		if len(args) > 0 {
 			frame, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -174,27 +184,27 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdViewframe(frame, subs)
 		}
 	}, "Set viewthing animation frame")
-	cmdsys.AddCommand("viewnext", func(args []string) { h.CmdViewnext(subs) }, "Advance viewthing to next frame")
-	cmdsys.AddCommand("viewprev", func(args []string) { h.CmdViewprev(subs) }, "Rewind viewthing to previous frame")
-	cmdsys.AddCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
-	cmdsys.AddCommand("setpos", func(args []string) { h.CmdSetPos(args, subs) }, "Teleport to position")
-	cmdsys.AddCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
+	replaceCommand("viewnext", func(args []string) { h.CmdViewnext(subs) }, "Advance viewthing to next frame")
+	replaceCommand("viewprev", func(args []string) { h.CmdViewprev(subs) }, "Rewind viewthing to previous frame")
+	replaceCommand("viewpos", func(args []string) { h.CmdViewpos(subs) }, "Show current view position")
+	replaceCommand("setpos", func(args []string) { h.CmdSetPos(args, subs) }, "Teleport to position")
+	replaceCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
 
 	// Demo commands
-	cmdsys.AddCommand("record", func(args []string) {
+	replaceCommand("record", func(args []string) {
 		if len(args) > 0 {
 			h.CmdRecord(args[0], subs)
 		}
 	}, "Start recording a demo")
-	cmdsys.AddCommand("stop", func(args []string) {
+	replaceCommand("stop", func(args []string) {
 		h.CmdStop(subs)
 	}, "Stop recording a demo")
-	cmdsys.AddCommand("playdemo", func(args []string) {
+	replaceCommand("playdemo", func(args []string) {
 		if len(args) > 0 {
 			h.CmdPlaydemo(args[0], subs)
 		}
 	}, "Play a demo")
-	cmdsys.AddCommand("timedemo", func(args []string) {
+	replaceCommand("timedemo", func(args []string) {
 		if len(args) > 0 {
 			h.CmdTimedemo(args[0], subs)
 			return
@@ -203,7 +213,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			subs.Console.Print("usage: timedemo <demoname>\n")
 		}
 	}, "Benchmark demo playback speed")
-	cmdsys.AddCommand("demoseek", func(args []string) {
+	replaceCommand("demoseek", func(args []string) {
 		if len(args) > 0 {
 			target, err := strconv.Atoi(args[0])
 			if err != nil {
@@ -219,7 +229,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			subs.Console.Print("usage: demoseek <frame>\n")
 		}
 	}, "Seek to an absolute demo frame")
-	cmdsys.AddCommand("rewind", func(args []string) {
+	replaceCommand("rewind", func(args []string) {
 		frames := 1
 		if len(args) > 0 {
 			value, err := strconv.Atoi(args[0])
@@ -233,7 +243,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 		}
 		h.CmdRewind(frames, subs)
 	}, "Rewind demo playback by frame count")
-	cmdsys.AddCommand("demogoto", func(args []string) {
+	replaceCommand("demogoto", func(args []string) {
 		if len(args) > 0 {
 			seconds, err := strconv.ParseFloat(args[0], 64)
 			if err != nil {
@@ -249,10 +259,10 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			subs.Console.Print("usage: demogoto <seconds>\n")
 		}
 	}, "Seek demo playback to a time in seconds")
-	cmdsys.AddCommand("demopause", func(args []string) {
+	replaceCommand("demopause", func(args []string) {
 		h.CmdDemoPause(subs)
 	}, "Toggle demo playback pause")
-	cmdsys.AddCommand("demospeed", func(args []string) {
+	replaceCommand("demospeed", func(args []string) {
 		if len(args) > 0 {
 			speed, err := strconv.ParseFloat(args[0], 32)
 			if err != nil || speed <= 0 {
@@ -272,54 +282,54 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			}
 		}
 	}, "Set demo playback speed multiplier")
-	cmdsys.AddCommand("stopdemo", func(args []string) {
+	replaceCommand("stopdemo", func(args []string) {
 		h.CmdStopdemo(subs)
 	}, "Stop demo playback")
-	cmdsys.AddCommand("startdemos", func(args []string) {
+	replaceCommand("startdemos", func(args []string) {
 		h.CmdStartdemos(args, subs)
 	}, "Set a list of demos to cycle through")
-	cmdsys.AddCommand("demos", func(args []string) {
+	replaceCommand("demos", func(args []string) {
 		h.CmdDemos(subs)
 	}, "Restart the demo loop")
 
 	// Menu commands
-	cmdsys.AddCommand("togglemenu", func(args []string) {
+	replaceCommand("togglemenu", func(args []string) {
 		h.CmdToggleMenu()
 	}, "Toggle the main menu")
-	cmdsys.AddCommand("menu_main", func(args []string) {
+	replaceCommand("menu_main", func(args []string) {
 		h.CmdMenuMain()
 	}, "Show the main menu")
-	cmdsys.AddCommand("menu_quit", func(args []string) {
+	replaceCommand("menu_quit", func(args []string) {
 		h.CmdMenuQuit()
 	}, "Show the quit confirmation")
-	cmdsys.AddCommand("exec", func(args []string) {
+	replaceCommand("exec", func(args []string) {
 		h.CmdExec(args, subs)
 	}, "Execute a script file")
-	cmdsys.AddCommand("stuffcmds", func(args []string) {
+	replaceCommand("stuffcmds", func(args []string) {
 		h.CmdStuffCmds(subs)
 	}, "Insert command-line +commands into the buffer")
-	cmdsys.AddCommand("echo", func(args []string) {
+	replaceCommand("echo", func(args []string) {
 		h.CmdEcho(args, subs)
 	}, "Print text to the console")
-	cmdsys.AddCommand("version", func(args []string) {
+	replaceCommand("version", func(args []string) {
 		h.CmdVersion(subs)
 	}, "Print engine version")
-	cmdsys.AddCommand("clear", func(args []string) {
+	replaceCommand("clear", func(args []string) {
 		h.CmdClear(subs)
 	}, "Clear the console buffer")
-	cmdsys.AddCommand("condump", func(args []string) {
+	replaceCommand("condump", func(args []string) {
 		h.CmdCondump(args, subs)
 	}, "Dump the console text to a file")
-	cmdsys.AddCommand("alias", func(args []string) {
+	replaceCommand("alias", func(args []string) {
 		h.CmdAlias(args, subs)
 	}, "Create, list, and inspect command aliases")
-	cmdsys.AddCommand("unalias", func(args []string) {
+	replaceCommand("unalias", func(args []string) {
 		h.CmdUnalias(args, subs)
 	}, "Delete a command alias")
-	cmdsys.AddCommand("unaliasall", func(args []string) {
+	replaceCommand("unaliasall", func(args []string) {
 		h.CmdUnaliasAll()
 	}, "Delete all command aliases")
-	cmdsys.AddCommand("writeconfig", func(args []string) {
+	replaceCommand("writeconfig", func(args []string) {
 		name := ""
 		if len(args) > 0 {
 			name = args[0]

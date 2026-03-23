@@ -6,6 +6,8 @@
 
 The remote adapter owns a concrete client/parser pair plus socket state. It reads inbound messages until transport exhaustion, parses server packets, remembers the last signon reply sent, and emits the next required reply commands automatically.
 
+Real-assets host session regressions drive loopback frames through the same ordering as runtime callbacks: execute buffered local commands first, then dispatch loopback stufftext, then pump client/server work. That coverage is important because level progression can arrive via local command-buffer paths (`localcmd`/`changelevel`) rather than only via networked stufftext.
+
 ### Autosave heuristics
 
 Autosave is host policy, not merely elapsed-time scheduling. The score combines:

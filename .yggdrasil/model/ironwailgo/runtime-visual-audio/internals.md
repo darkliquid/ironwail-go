@@ -2,7 +2,10 @@
 
 ## Logic
 
-This node is the last command-package bridge before subsystem presentation. It takes the current runtime state assembled by earlier nodes and applies it to the renderer and audio systems: world/viewmodel submission, overlays, UI, and sound-listener/update behavior. The exact mechanics live in the underlying subsystems, but these files own the composition decisions about what gets submitted each frame and with which state.
+This node is the last command-package bridge before subsystem presentation. It takes the current runtime state assembled by earlier nodes and applies it to the renderer and audio systems: world/viewmodel submission, overlays, UI, and sound-listener/update behavior. The exact mechanics live in the underlying subsystems, but these files own the composition decisions about what gets submitted each frame and with which state. That includes flattening client intermission counters into `hud.State`.
+
+Intermission parity note:
+- Overlay visibility is no longer derived from input key-destination state in this bridge. The intermission/finale HUD overlay is always passed through when the client is in intermission, matching C Ironwail where intermission drawing is not suppressed by `key_dest`.
 
 ## Constraints
 

@@ -3076,6 +3076,31 @@ func TestAliasCommandSupportsQuotedSemicolonBodies(t *testing.T) {
 	}
 }
 
+func TestRegisterCommandsRefreshesExistingBindings(t *testing.T) {
+	h1 := NewHost()
+	subs1 := &mockSubsystems{server: &mockServer{}, client: &mockClient{}, console: &mockConsole{}}
+	subs1.Subsystems.Server = subs1.server
+	subs1.Subsystems.Client = subs1.client
+	subs1.Subsystems.Console = subs1.console
+	h1.RegisterCommands(&subs1.Subsystems)
+
+	h2 := NewHost()
+	subs2 := &mockSubsystems{server: &mockServer{}, client: &mockClient{}, console: &mockConsole{}}
+	subs2.Subsystems.Server = subs2.server
+	subs2.Subsystems.Client = subs2.client
+	subs2.Subsystems.Console = subs2.console
+	h2.RegisterCommands(&subs2.Subsystems)
+
+	cmdsys.ExecuteText("quit")
+
+	if !h2.aborted {
+		t.Fatal("newest host did not receive refreshed quit binding")
+	}
+	if h1.aborted {
+		t.Fatal("stale host unexpectedly handled refreshed quit binding")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // startdemos / demos / stopdemo playlist tests
 // ---------------------------------------------------------------------------

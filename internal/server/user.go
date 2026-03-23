@@ -742,6 +742,7 @@ func (s *Server) writeSpawnGlobalStats(client *Client, msg *MessageBuffer) {
 	if client == nil || msg == nil {
 		return
 	}
+	s.updateClientGlobalStats(client)
 	stats := [32]int32{}
 	for i := range stats {
 		stats[i] = client.Stats[i]

@@ -16,4 +16,5 @@
 
 - Crosshair selection mirrors Ironwail's cvar semantics: `0` disables, `1` is `'+'`, values greater than `1` use the dot glyph, and negative values select custom glyph indices.
 - Normal centerprint respects hold/fade timing, but finale intermissions use the typewriter reveal path instead.
+- Intermission value rows (time/secrets/monsters) prefer statusbar sprite numerals (`num_*`, `num_colon`, `num_slash`, `num_minus`) when present, with deterministic character fallback for unknown glyphs.
 - Compact HUD only presents a minimal subset of stats and accepts both impulse-style and bitmask-style weapon identifiers.

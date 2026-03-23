@@ -275,6 +275,56 @@ func TestUpdateToReliableMessagesQueuesNonClientStatsAndUnderwaterOverride(t *te
 	}
 }
 
+func TestUpdateToReliableMessagesQueuesQCGlobalStats(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	vm := newTestQCVM()
+	vm.Globals = make([]float32, 16)
+	vm.StringTable = make(map[int32]string)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvFloat), Ofs: 1, Name: vm.AllocString("total_secrets")},
+		{Type: uint16(qc.EvFloat), Ofs: 2, Name: vm.AllocString("total_monsters")},
+		{Type: uint16(qc.EvFloat), Ofs: 3, Name: vm.AllocString("found_secrets")},
+		{Type: uint16(qc.EvFloat), Ofs: 4, Name: vm.AllocString("killed_monsters")},
+	}
+	vm.Globals[1] = 9
+	vm.Globals[2] = 66
+	vm.Globals[3] = 3
+	vm.Globals[4] = 12
+	s.QCVM = vm
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Message.Clear()
+
+	s.UpdateToReliableMessages()
+
+	data := client.Message.Data[:client.Message.Len()]
+	for _, tc := range []struct {
+		stat byte
+		want int32
+	}{
+		{stat: byte(inet.StatTotalSecrets), want: 9},
+		{stat: byte(inet.StatTotalMonsters), want: 66},
+		{stat: byte(inet.StatSecrets), want: 3},
+		{stat: byte(inet.StatMonsters), want: 12},
+	} {
+		prefix := []byte{byte(inet.SVCUpdateStat), tc.stat}
+		if !bytes.Contains(data, prefix) {
+			t.Fatalf("reliable message missing stat update %d: %v", tc.stat, data)
+		}
+	}
+	if got := client.Stats[inet.StatSecrets]; got != 3 {
+		t.Fatalf("client StatSecrets = %d, want 3", got)
+	}
+	if got := client.Stats[inet.StatMonsters]; got != 12 {
+		t.Fatalf("client StatMonsters = %d, want 12", got)
+	}
+}
+
 func TestBuildClientDatagramOmitsReliableStatUpdates(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

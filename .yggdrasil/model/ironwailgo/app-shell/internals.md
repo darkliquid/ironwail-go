@@ -4,6 +4,8 @@
 
 The app shell is the narrowest place that still sees the whole executable. `Game` centralizes mutable process state so the rest of the `package main` helpers can coordinate through one runtime bag. `main()` parses startup options, chooses headless/dedicated/runtime behavior, and hands off to the appropriate bootstrap and loop code. The large `main_test.go` suite exercises this shell from many angles, including startup, runtime ordering, input/view policy, and integration edges that span multiple files.
 
+Intermission parity regression coverage in `main_test.go` now asserts that runtime HUD state keeps intermission overlays visible even when key destination is console/message/menu. This aligns shell behavior with C Ironwail's top-level screen path, where intermission draw is keyed off intermission state rather than focus-mode suppression.
+
 ## Constraints
 
 - `main_test.go` is intentionally broad and currently cannot be cleanly attributed to only one narrow runtime concern.

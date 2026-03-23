@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node coordinates how the executable interprets runtime input. It keeps menu, gameplay, console, and message/chat destinations coherent with one another and with mouse-grab state. When gameplay focus is lost, the command package deliberately releases held gameplay buttons so movement/attack state does not stick. It also forwards mouse movement into menu-space coordinates, applies gameplay mouse-look/strafe/forward rules from cvars and client state, and registers package-local gameplay commands/binds that bridge executable policy into subsystem behavior.
+This node coordinates how the executable interprets runtime input. It keeps menu, gameplay, console, and message/chat destinations coherent with one another and with mouse-grab state. When gameplay focus is lost, the command package deliberately releases held gameplay buttons so movement/attack state does not stick. It also forwards mouse movement into menu-space coordinates, applies gameplay mouse-look/strafe/forward rules from cvars and client state, and registers package-local gameplay commands/binds that bridge executable policy into subsystem behavior. Gameplay mouse-look is additionally suppressed while the client is in a fixed-angle intermission/cutscene so the forced camera cannot be rotated by local mouse deltas.
 
 ## Constraints
 

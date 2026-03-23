@@ -152,7 +152,7 @@ func (c *Client) KeyState(key *KButton) float32 {
 }
 
 func (c *Client) InCutscene() bool {
-	return c.FixAngle && c.ViewEntity == 0
+	return c.FixAngle && (c.Intermission != 0 || c.ViewEntity == 0)
 }
 
 func (c *Client) AdjustAngles(frametime float32) {

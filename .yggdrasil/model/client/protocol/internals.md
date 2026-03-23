@@ -6,6 +6,10 @@
 
 The parser consumes a `SizeBuf`-style message stream and dispatches by service command. Entity updates use the high-bit command path, while service commands update core client state, event queues, signon, stats, sounds, and text.
 
+Intermission-sensitive updates mirror C Ironwail details:
+- `svc_killedmonster` / `svc_foundsecret` increment `Client.Stats[STAT_MONSTERS/STAT_SECRETS]` and matching float mirrors (`StatsF`) in addition to convenience counters.
+- Re-release opcodes `svc_levelcompleted` and `svc_backtolobby` are treated as no-payload no-ops to avoid parser aborts when present in modern streams.
+
 It also contains a compatibility guard for an optional trailing `0xFF` sentinel used by some Go-side packet builders: `0xFF` is treated as end-of-message only when it is the last unread byte. This preserves C-compatible behavior where `0xFF` can still be a valid fast entity-update command byte (`U_SIGNAL | 0x7f`).
 
 ### Relink and interpolation

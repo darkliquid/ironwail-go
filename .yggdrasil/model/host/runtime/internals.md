@@ -6,6 +6,8 @@
 
 `Host.Init` applies parameters, clamps host-wide limits, resolves the user directory, initializes subsystems in a fixed order, then runs the startup config chain. The sequence is policy, not convenience: later steps assume earlier services already exist.
 
+Host command registration is unconditional during `Init`. The optional `Subsystems.Commands` wrapper only controls how buffered command text is executed/inserted; the host command surface itself is always bound into the global `cmdsys` so localcmd/changelevel-style paths work even in embedded or test harness setups that leave `Subsystems.Commands` nil.
+
 Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info.
 
 ### Frame scheduling

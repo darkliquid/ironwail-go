@@ -252,9 +252,13 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCKillMonster:
 			p.Client.KillCount++
+			p.Client.Stats[statMonsters]++
+			p.Client.StatsF[statMonsters] = float32(p.Client.Stats[statMonsters])
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCFoundSecret:
 			p.Client.SecretCount++
+			p.Client.Stats[statSecrets]++
+			p.Client.StatsF[statSecrets] = float32(p.Client.Stats[statSecrets])
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSkyBox:
 			p.Client.SkyboxName = msg.ReadString()
@@ -288,6 +292,10 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCAchievement:
 			_ = msg.ReadString() // achievement ID string, ignored
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
+		case inet.SVCLevelCompleted, inet.SVCBackToLobby:
+			// Re-release protocol markers (no payload in classic streams).
+			// C Ironwail advertises these opcodes and treats them as no-ops.
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		default:
 			return fmt.Errorf("unsupported server command: %d", cmd)
@@ -1152,6 +1160,12 @@ func svcCommandName(cmd byte) string {
 		return "svc_spawnstaticsound2"
 	case inet.SVCAchievement:
 		return "svc_achievement"
+	case inet.SVCChat:
+		return "svc_chat"
+	case inet.SVCLevelCompleted:
+		return "svc_levelcompleted"
+	case inet.SVCBackToLobby:
+		return "svc_backtolobby"
 	case inet.SVCLocalSound:
 		return "svc_localsound"
 	default:

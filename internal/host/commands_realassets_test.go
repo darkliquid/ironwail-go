@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -762,5 +763,181 @@ func TestCmdReconnectRealAssetsRestartsLocalSignon(t *testing.T) {
 	}
 	if !srv.Static.Clients[0].Spawned {
 		t.Fatal("server client not marked spawned after reconnect")
+	}
+}
+
+func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("e1m1", subs); err != nil {
+		t.Fatalf("CmdMap(e1m1): %v", err)
+	}
+
+	clientState := LoopbackClientState(subs)
+	if clientState == nil {
+		t.Fatal("loopback client missing")
+	}
+
+	cb := &testFrameCallbacks{
+		getEvents: func() {
+			_ = subs.Client.Frame(h.FrameTime())
+		},
+		processConsoleCommands: func() {
+			cmdsys.Execute()
+			DispatchLoopbackStuffText(subs)
+		},
+		processClient: func() {
+			_ = subs.Client.ReadFromServer()
+			_ = subs.Client.SendCommand()
+		},
+		processServer: func() {
+			_ = srv.Frame(h.FrameTime())
+		},
+	}
+
+	var trigger *server.Edict
+	wantLevel := ""
+	for entNum := 1; entNum < srv.NumEdicts; entNum++ {
+		ent := srv.EdictNum(entNum)
+		if ent == nil || ent.Free || ent.Vars == nil {
+			continue
+		}
+		if srv.GetString(ent.Vars.ClassName) != "trigger_changelevel" {
+			continue
+		}
+		trigger = ent
+		wantLevel = srv.GetString(ent.Vars.Map)
+		break
+	}
+	if trigger == nil {
+		t.Fatal("no trigger_changelevel found on e1m1")
+	}
+	if wantLevel == "" {
+		t.Fatal("trigger_changelevel missing target map")
+	}
+
+	player := srv.Static.Clients[0].Edict
+	player.Vars.Origin = [3]float32{
+		(trigger.Vars.AbsMin[0] + trigger.Vars.AbsMax[0]) * 0.5,
+		(trigger.Vars.AbsMin[1] + trigger.Vars.AbsMax[1]) * 0.5,
+		trigger.Vars.AbsMin[2] - player.Vars.Mins[2] + 1,
+	}
+	player.Vars.Velocity = [3]float32{}
+	player.Vars.Flags = float32(uint32(player.Vars.Flags) | uint32(server.FlagOnGround))
+	srv.LinkEdict(player, false)
+
+	enteredIntermission := false
+	for i := 0; i < 24; i++ {
+		if err := h.Frame(1.0/72.0, cb); err != nil {
+			t.Fatalf("enter intermission frame %d: %v", i, err)
+		}
+		if clientState.Intermission != 0 {
+			enteredIntermission = true
+			break
+		}
+	}
+	if !enteredIntermission {
+		t.Fatalf("client never entered intermission; map=%q completed=%f", srv.GetMapName(), clientState.CompletedTime)
+	}
+
+	// Quake waits briefly before an attack press can advance the intermission.
+	for i := 0; i < 180; i++ {
+		if err := h.Frame(1.0/72.0, cb); err != nil {
+			t.Fatalf("settle intermission frame %d: %v", i, err)
+		}
+	}
+
+	clientState.KeyDown(&clientState.InputAttack, 1)
+	defer clientState.KeyUp(&clientState.InputAttack, 1)
+
+	for i := 0; i < 240; i++ {
+		if err := h.Frame(1.0/72.0, cb); err != nil {
+			t.Fatalf("advance intermission frame %d: %v", i, err)
+		}
+		if got := srv.GetMapName(); got == wantLevel {
+			return
+		}
+	}
+
+	entNum := srv.NumForEdict(player)
+	intermissionRunning := float32(-1)
+	if idx := srv.QCVM.FindGlobal("intermission_running"); idx >= 0 {
+		intermissionRunning = srv.QCVM.GFloat(idx)
+	}
+	t.Fatalf("map did not advance after intermission attack: got map=%q want=%q intermission=%d completed=%f server_time=%v cmd=%+v player_button0=%v player_button2=%v player_movetype=%v player_nextthink=%v player_think=%v qc_button0=%v qc_button2=%v intermission_running=%v",
+		srv.GetMapName(), wantLevel, clientState.Intermission, clientState.CompletedTime, srv.Time, clientState.Cmd,
+		player.Vars.Button0, player.Vars.Button2, player.Vars.MoveType, player.Vars.NextThink, player.Vars.Think,
+		srv.QCVM.EFloat(entNum, qc.EntFieldButton0), srv.QCVM.EFloat(entNum, qc.EntFieldButton2), intermissionRunning)
+}
+
+func TestRealAssetsBufferedChangelevelCommandAdvancesMap(t *testing.T) {
+	quakeDir := testutil.SkipIfNoQuakeDir(t)
+
+	h := NewHost()
+	fileSys := fs.NewFileSystem()
+	srv := server.NewServer()
+	subs := &Subsystems{
+		Files:   fileSys,
+		Console: &mockConsole{},
+		Server:  srv,
+	}
+	SetupLoopbackClientServer(subs, srv)
+
+	if err := h.Init(&InitParams{
+		BaseDir:    quakeDir,
+		GameDir:    "id1",
+		MaxClients: 1,
+	}, subs); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer fileSys.Close()
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if err := srv.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		t.Fatalf("LoadProgs: %v", err)
+	}
+	qc.RegisterBuiltins(srv.QCVM)
+
+	if err := h.CmdMap("e1m1", subs); err != nil {
+		t.Fatalf("CmdMap(e1m1): %v", err)
+	}
+
+	wantLevel := "e1m2"
+	cmdsys.AddText("changelevel " + wantLevel)
+	cmdsys.Execute()
+
+	if got := srv.GetMapName(); got != wantLevel {
+		t.Fatalf("buffered changelevel got map=%q want=%q", got, wantLevel)
 	}
 }

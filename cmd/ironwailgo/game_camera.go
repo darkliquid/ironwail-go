@@ -112,7 +112,23 @@ func runtimeViewState() (origin, angles [3]float32) {
 			clientOrigin[2] += g.Client.ViewHeight
 			clientOrigin[2] += runtimeFirstPersonBobOffset()
 
-			viewAngles := runtimeInterpolatedViewAngles()
+			var viewAngles [3]float32
+			if g.Client.Intermission != 0 {
+				// During intermission the rendered camera must use the view entity's
+				// server-authoritative angles, not cl.ViewAngles. Mirrors C Ironwail
+				// V_CalcIntermissionRefdef: VectorCopy(ent->angles, r_refdef.viewangles).
+				// The server positions the view entity at the info_intermission camera
+				// spot and sets its angles; cl.ViewAngles is irrelevant and may have
+				// been mutated by AdjustAngles (left/right keys), which would visually
+				// rotate the camera in a way C never does.
+				if viewEnt, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
+					viewAngles = viewEnt.Angles
+				} else {
+					viewAngles = runtimeInterpolatedViewAngles()
+				}
+			} else {
+				viewAngles = runtimeInterpolatedViewAngles()
+			}
 			return clientOrigin, viewAngles
 		}
 	}
