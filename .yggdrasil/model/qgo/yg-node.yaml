@@ -1,0 +1,11 @@
+name: QGo CLI
+type: module
+description: "Command-line entrypoint that compiles a Go package directory into a QCVM progs.dat file"
+blackbox: false
+relations:
+  - target: qgo/compiler
+    type: calls
+    consumes: [New, Compile]
+mapping:
+  paths:
+    - cmd/qgo/main.go

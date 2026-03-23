@@ -1,0 +1,20 @@
+name: QGo Compiler Core
+type: service
+description: "Go-to-QCVM compilation pipeline, from parsing and lowering through QCVM object generation and progs.dat emission"
+blackbox: false
+relations:
+  - target: qc/core
+    type: uses
+    consumes: [Opcode enums, DProgs layouts, LoadProgs-compatible binary structures]
+mapping:
+  paths:
+    - cmd/qgo/compiler/compiler.go
+    - cmd/qgo/compiler/lowering.go
+    - cmd/qgo/compiler/ir.go
+    - cmd/qgo/compiler/codegen.go
+    - cmd/qgo/compiler/emitter.go
+    - cmd/qgo/compiler/globals.go
+    - cmd/qgo/compiler/strings.go
+    - cmd/qgo/compiler/opcodes.go
+    - cmd/qgo/compiler/synthetic.go
+    - cmd/qgo/compiler/errors.go

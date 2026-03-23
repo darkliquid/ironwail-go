@@ -1,0 +1,21 @@
+name: QGo Compiler Tests
+type: module
+description: "Round-trip and fixture-driven coverage for qgo compiler output, synthetic packages, and QCVM compatibility"
+blackbox: false
+relations:
+  - target: qgo/compiler
+    type: uses
+    consumes: [Compile, SyntheticPackages, GlobalAllocator, StringTable, opcode helpers]
+  - target: qc/core
+    type: calls
+    consumes: [LoadProgs, FindGlobal, FindFunction, ExecuteProgram]
+mapping:
+  paths:
+    - cmd/qgo/compiler/compiler_test.go
+    - cmd/qgo/compiler/synthetic_test.go
+    - cmd/qgo/compiler/globals_test.go
+    - cmd/qgo/compiler/opcodes_test.go
+    - cmd/qgo/compiler/strings_test.go
+    - cmd/qgo/testdata/minimal/progs.go
+    - cmd/qgo/testdata/arithmetic/progs.go
+    - cmd/qgo/testdata/controlflow/progs.go
