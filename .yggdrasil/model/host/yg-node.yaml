@@ -1,0 +1,4 @@
+name: Host
+type: module
+description: "Top-level engine orchestrator for startup, frame sequencing, commands, and session lifecycle"
+blackbox: false

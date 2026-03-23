@@ -1,0 +1,33 @@
+{
+  "hash": "5aba47c82a189cdc789af1ca963f59e10df6686a2f0f225376deb34de8cbdc1e",
+  "files": {
+    ".yggdrasil/model/renderer/runtime/yg-node.yaml": "7de4bb988d07ded9f37d3df61903e9693d6aa54b65612b00b4797653c22ea287",
+    ".yggdrasil/model/renderer/runtime/interface.md": "76698ccc491a77cda43bcb019521180ecb8dc3fea03043e5d1bcfab3a4c7a67e",
+    ".yggdrasil/model/renderer/runtime/internals.md": "35cd010a3a6fe76947d405befb62cc590b02ae1143197c53ad3f21b50abc11f7",
+    ".yggdrasil/model/renderer/runtime/responsibility.md": "5f3c92e35522b5c70639b6e20daaaf8936ada76b4fde92d9d11f4be270398ff9",
+    ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
+    ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
+    ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
+    ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
+    "internal/renderer/doc.go": "eca3d60eb3bbce0cfdb21933655c04dd2d88575dc6ce7b71f47e3146c53b81a1",
+    "internal/renderer/adapter.go": "983ba090966b63b005a8cbf0b34664a699fbfce21939213f9159bfcd7255cadf",
+    "internal/renderer/render_pass_parity.go": "dd1bec179cc819d7e9a8a7c8abe2f1f30797ea058b8db43e823290a75666f1e6",
+    "internal/renderer/renderer_stub.go": "9b1db79768e8579b104568db1d5f507d8aa2a8d6ffe10fd4d0ad1354230922aa",
+    "internal/renderer/software.go": "2a8f30202b13590f6c24e99e050229ab631b964b422c59b2e40e36dba559396c"
+  },
+  "mtimes": {
+    ".yggdrasil/model/renderer/runtime/yg-node.yaml": 1774219361732.5942,
+    ".yggdrasil/model/renderer/runtime/interface.md": 1774219361850.5955,
+    ".yggdrasil/model/renderer/runtime/internals.md": 1774219361926.5962,
+    ".yggdrasil/model/renderer/runtime/responsibility.md": 1774219361777.5947,
+    ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
+    ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
+    ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
+    ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
+    "internal/renderer/doc.go": 1773836853909.6846,
+    "internal/renderer/adapter.go": 1773836785805.5754,
+    "internal/renderer/render_pass_parity.go": 1774197851481.2104,
+    "internal/renderer/renderer_stub.go": 1774159378980.5352,
+    "internal/renderer/software.go": 1774159437170.0776
+  }
+}

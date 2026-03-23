@@ -1,0 +1,13 @@
+name: Renderer Assets
+type: module
+description: "Renderer-side shared asset helpers for models, sprites, decals, marks, skyboxes, and scrap atlases"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/model.go
+    - internal/renderer/decal_shared.go
+    - internal/renderer/sprite_shared.go
+    - internal/renderer/mark_system.go
+    - internal/renderer/skybox_external.go
+    - internal/renderer/scrap.go
+    - internal/renderer/scrap_atlas.go

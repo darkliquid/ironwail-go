@@ -1,0 +1,9 @@
+name: Renderer Input Backends
+type: module
+description: "Renderer-owned input backends and platform event adapters"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/input_backend_glfw.go
+    - internal/renderer/input_backend_gogpu.go
+    - internal/renderer/input_backend_stub.go

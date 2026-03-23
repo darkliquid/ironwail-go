@@ -1,0 +1,14 @@
+name: Audio Music
+type: module
+description: "Music track selection, codec decode, tracker rendering, and raw sample feeding"
+blackbox: false
+mapping:
+  paths:
+    - internal/audio/music.go
+    - internal/audio/music_tracker.go
+    - internal/audio/music_test.go
+    - internal/audio/music_tracker_test.go
+    - internal/audio/ogg.go
+    - internal/audio/opus.go
+    - internal/audio/mp3.go
+    - internal/audio/flac.go

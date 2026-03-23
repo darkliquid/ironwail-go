@@ -1,0 +1,16 @@
+name: Renderer Shared World
+type: module
+description: "Backend-neutral world data preparation, surface/texture helpers, and shared world rendering inputs"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/world.go
+    - internal/renderer/world_pass_shared.go
+    - internal/renderer/world_fog_shared.go
+    - internal/renderer/world_texture_shared.go
+    - internal/renderer/world_transform_shared.go
+    - internal/renderer/world_liquid_alpha.go
+    - internal/renderer/world_sky_shared.go
+    - internal/renderer/lightmap_samples.go
+    - internal/renderer/surface.go
+    - internal/renderer/texture.go

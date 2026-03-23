@@ -1,0 +1,11 @@
+name: Audio Runtime
+type: module
+description: "Host-facing sound system orchestration, channel lifecycle, and listener-driven update flow"
+blackbox: false
+mapping:
+  paths:
+    - internal/audio/doc.go
+    - internal/audio/adapter.go
+    - internal/audio/sound.go
+    - internal/audio/types.go
+    - internal/audio/cvars.go

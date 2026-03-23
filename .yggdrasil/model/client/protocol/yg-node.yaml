@@ -1,0 +1,13 @@
+name: Client Protocol
+type: module
+description: "Server-message parsing, temp entity handling, relink/interpolation, and blend/event synthesis"
+blackbox: false
+mapping:
+  paths:
+    - internal/client/parse.go
+    - internal/client/relink.go
+    - internal/client/tent.go
+    - internal/client/viewblend.go
+    - internal/client/relink_test.go
+    - internal/client/tent_test.go
+    - internal/client/viewblend_test.go

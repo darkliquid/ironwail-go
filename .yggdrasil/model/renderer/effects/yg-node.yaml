@@ -1,0 +1,16 @@
+name: Renderer Effects
+type: module
+description: "Backend-neutral effect and entity helper logic for skins, lights, particles, colors, and client-side visuals"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/alias_skin.go
+    - internal/renderer/alias_skin_variants.go
+    - internal/renderer/alias_state.go
+    - internal/renderer/alpha_mode.go
+    - internal/renderer/client_effects.go
+    - internal/renderer/dynamic_light.go
+    - internal/renderer/dynamic_light_pool.go
+    - internal/renderer/entity_types.go
+    - internal/renderer/particle.go
+    - internal/renderer/player_colors.go

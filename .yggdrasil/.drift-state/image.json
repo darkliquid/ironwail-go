@@ -1,0 +1,31 @@
+{
+  "hash": "8ffa8d1c2ef7a04ad6641d1108430c29b7aeff764fd399e8748c6452e8f61b12",
+  "files": {
+    ".yggdrasil/model/image/yg-node.yaml": "515222fae7a5c9071ef303461dec41f9f6a3e4b548aae424e829a71b00204bcf",
+    ".yggdrasil/model/image/interface.md": "e19458760c91f4dcf5c64c24680d84ed32cedf52f8cffc0287a4190527611c5e",
+    ".yggdrasil/model/image/internals.md": "5fd64ce83acd4b589c5e48ef3ed40013201a4d696d889321710b3854e296e8dd",
+    ".yggdrasil/model/image/responsibility.md": "e403ea972afec6f4cb980403121054f6c2ebae5e4be79e835652dcc78f7136b4",
+    "internal/image/doc.go": "a6a212672ba045f3ddbb26a4017c873ffc37a5fe960afb467b73b5ca43f1a053",
+    "internal/image/export.go": "71f7b7a6ef05da9892a5001b32c39dace52f8dcdc4485ffface88e4159f8d54b",
+    "internal/image/wad.go": "58681674c3f58c40c8ff483a73662295674cbdaba9ba96c8d730255ff9936711",
+    "internal/image/tga.go": "683e827c6c25e9aff96963a4ee350356528ed0396f521c6463af927a31ae6a8d",
+    "internal/image/texture.go": "837e414e942444eb7927493d2d31b4fa8db47286696f06c1bdcc37c4d51e97af",
+    "internal/image/lumptype_string.go": "8bbea37aec0b395104e50c15173fdbe43bc2341bce2ade2418a7bffa4ffd8b77",
+    "internal/image/image_test.go": "7c811c90b4fe299be6adc3a8d291060925a86993b538b5398d5801564f14d639",
+    "internal/image/wad_test.go": "6162736484dbc06b3827bae2fc5a0d08ca9a664a28b706a05599d0dac801991b"
+  },
+  "mtimes": {
+    ".yggdrasil/model/image/yg-node.yaml": 1774243705579.7842,
+    ".yggdrasil/model/image/interface.md": 1774243705579.9138,
+    ".yggdrasil/model/image/internals.md": 1774243705579.9663,
+    ".yggdrasil/model/image/responsibility.md": 1774243705579.8562,
+    "internal/image/doc.go": 1773836785818.6472,
+    "internal/image/export.go": 1773836860189.2834,
+    "internal/image/wad.go": 1773836785819.4187,
+    "internal/image/tga.go": 1773836785819.212,
+    "internal/image/texture.go": 1773836785819.0198,
+    "internal/image/lumptype_string.go": 1774215496481.519,
+    "internal/image/image_test.go": 1773836785818.739,
+    "internal/image/wad_test.go": 1773836785818.8704
+  }
+}

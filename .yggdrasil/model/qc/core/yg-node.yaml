@@ -1,0 +1,9 @@
+name: QuakeC Core Execution
+type: module
+description: "Progs loading, symbol lookup, stack management, and bytecode execution"
+blackbox: false
+mapping:
+  paths:
+    - internal/qc/loader.go
+    - internal/qc/exec.go
+    - internal/qc/exec_test.go

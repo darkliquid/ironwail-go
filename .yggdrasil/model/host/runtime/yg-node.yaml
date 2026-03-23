@@ -1,0 +1,15 @@
+name: Host Runtime
+type: module
+description: "Core host state, startup/shutdown, frame sequencing, and executable-facing runtime policy"
+blackbox: false
+mapping:
+  paths:
+    - internal/host/doc.go
+    - internal/host/types.go
+    - internal/host/init.go
+    - internal/host/frame.go
+    - internal/host/default_cfg.go
+    - internal/host/server_browser.go
+    - internal/host/host_test.go
+    - internal/host/config_test.go
+    - internal/host/loopback_test.go

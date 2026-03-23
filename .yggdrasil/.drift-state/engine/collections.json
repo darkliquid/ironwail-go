@@ -1,0 +1,31 @@
+{
+  "hash": "78bf3610d6bfc031b4cdca027b844d2ef127beaf340b84f41bed3edc0c3623e6",
+  "files": {
+    ".yggdrasil/model/engine/collections/yg-node.yaml": "a6126725ea7c5df337e57370c4c662aa77b130621bb786f216c2461e73642294",
+    ".yggdrasil/model/engine/collections/interface.md": "974ac806ce8b5c27f29744eb3ffdfaf9603fa2e5826b2dda1be5debefc526a6d",
+    ".yggdrasil/model/engine/collections/internals.md": "76660e0a81d08357feff55266744c76f18536c04eca44a3daca4755e89cd27c6",
+    ".yggdrasil/model/engine/collections/responsibility.md": "ff5d058a2f8321d64ae3fae22eb28421edd9481cea1c13cfb7a889088b27edb4",
+    ".yggdrasil/model/engine/yg-node.yaml": "e321b66f1e8ab1c9f101bd944c7fd57cab753e29d1084ae5425b53ba40fb4815",
+    ".yggdrasil/model/engine/interface.md": "11458b9dde5e3e94d1b2a6cba3c50fe93be37a93abbc969271cd5200126185be",
+    ".yggdrasil/model/engine/internals.md": "f3199cb16c7f749ccda1e33e51fc32b2e2e651387901c8a11d2ac474146eb04a",
+    ".yggdrasil/model/engine/responsibility.md": "7b1dc118d27f1913011b255b69496acf97061bc1dc383be1dd9d82e59cecf1b8",
+    "internal/engine/set.go": "d86ea4cd3a2758ad931e76d2c7c9eecdc4224e62d33f4de413fd172aab13f962",
+    "internal/engine/set_test.go": "6257517cc1dbaf3f6b57fce56503b1c3f9f2c3102811fddd17b50367ae6420b4",
+    "internal/engine/queue.go": "0ee10be2d5525f882efc3e5cfe503aacbd48968d74da880408a5538dc137257a",
+    "internal/engine/queue_test.go": "a4fa3839c9f5a4e3d57f9836d99350627faf4f5c0aae3a4ae29b698510e2feb1"
+  },
+  "mtimes": {
+    ".yggdrasil/model/engine/collections/yg-node.yaml": 1774242663023.019,
+    ".yggdrasil/model/engine/collections/interface.md": 1774242663023.1128,
+    ".yggdrasil/model/engine/collections/internals.md": 1774242663023.1577,
+    ".yggdrasil/model/engine/collections/responsibility.md": 1774242663023.067,
+    ".yggdrasil/model/engine/yg-node.yaml": 1774242663022.3848,
+    ".yggdrasil/model/engine/interface.md": 1774242663022.5256,
+    ".yggdrasil/model/engine/internals.md": 1774242663022.5776,
+    ".yggdrasil/model/engine/responsibility.md": 1774242663022.4578,
+    "internal/engine/set.go": 1773836785824.295,
+    "internal/engine/set_test.go": 1773836785824.392,
+    "internal/engine/queue.go": 1773836785823.877,
+    "internal/engine/queue_test.go": 1773836785823.9775
+  }
+}

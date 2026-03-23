@@ -1,0 +1,27 @@
+{
+  "hash": "da2e9f8bfd198c2aaf39ecc2293335819494fd3ab6409e6bc09ef4e4a91bc2ec",
+  "files": {
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/yg-node.yaml": "1085ec1483c447d0f3637ecaa2cc493adab2102d7dbb142cf0d8b80d4d32185f",
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/interface.md": "3b1333610095e5f45b6621da8175e3396e968822ccbddd8eac0b5d79b0ef98d4",
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/internals.md": "eebcfa44d6eecd6452a7c683bde474cae693c4d615eb5007387fd9437f387b39",
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/responsibility.md": "552606b9b89ffa5f0822df9267a2aba079a12e9b88028dec1ddfddf339915d59",
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
+    ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
+    ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
+    ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
+    "cmd/ironwailgo/debug_view_telemetry.go": "a66eaf0264e460b3566cb4fa35ccf6b449a5e1c3d618798aee827b480a265b85",
+    "cmd/ironwailgo/debug_view_telemetry_test.go": "08c7ab12c5afcc3d2c0d8ecdc454481e66c41219329001c09701933c8e142d52"
+  },
+  "mtimes": {
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/yg-node.yaml": 1774246120439.0955,
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/interface.md": 1774246120439.1875,
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/internals.md": 1774246120439.2466,
+    ".yggdrasil/model/ironwailgo/debug-view-telemetry/responsibility.md": 1774246120439.1396,
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
+    ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
+    ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
+    ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
+    "cmd/ironwailgo/debug_view_telemetry.go": 1774192091447.9119,
+    "cmd/ironwailgo/debug_view_telemetry_test.go": 1774192091647.9148
+  }
+}

@@ -1,0 +1,10 @@
+name: QuakeC CSQC
+type: module
+description: "Client-side QuakeC wrapper, hooks, globals sync, and CSQC entry points"
+blackbox: false
+mapping:
+  paths:
+    - internal/qc/csqc.go
+    - internal/qc/builtins_csqc.go
+    - internal/qc/csqc_test.go
+    - internal/qc/builtins_csqc_test.go

@@ -1,0 +1,12 @@
+name: Renderer OpenGL Core
+type: module
+description: "OpenGL backend lifecycle, GL context setup, and core fullscreen/frame utilities"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/core_opengl.go
+    - internal/renderer/renderer_opengl.go
+    - internal/renderer/camera_opengl.go
+    - internal/renderer/polyblend_opengl.go
+    - internal/renderer/warpscale_opengl.go
+    - internal/renderer/stubs_opengl.go

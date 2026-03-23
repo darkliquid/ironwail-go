@@ -1,0 +1,21 @@
+{
+  "hash": "33e80cb4b8bc12983281d418c1c5f082fa9d7eff19288b72c1b5eb08f602c447",
+  "files": {
+    ".yggdrasil/model/cvar/yg-node.yaml": "7c9e7f7572279e762da46bb15f5bffbb11740774e6c1c2d6db967abaf96a0ebc",
+    ".yggdrasil/model/cvar/interface.md": "5362df0ca1737128402ee93a6d6744b02fd8a4c181a913cfdeb3646ce394ea1a",
+    ".yggdrasil/model/cvar/internals.md": "490bb8f836cee5cca8c8a4f23812bcc0a49aba9baf2f3e53308d0874cef94d89",
+    ".yggdrasil/model/cvar/responsibility.md": "49dbad046e059ea26168c20035ced6c32decec0019bff9c5d2dda317e16baa30",
+    "internal/cvar/doc.go": "04192afac61a8052ba3d4aa2031077a00ba5797dc7952a23fdc64f950d0734d8",
+    "internal/cvar/cvar.go": "cbbcd10704f31cb83b5cba4ec17169b28e6551ff7e982d3f766504633314372a",
+    "internal/cvar/cvar_test.go": "a3ee0a718f20adb6588e79c440a2db4b4f256b99d981f95236c933a4e04779dd"
+  },
+  "mtimes": {
+    ".yggdrasil/model/cvar/yg-node.yaml": 1774241945417.238,
+    ".yggdrasil/model/cvar/interface.md": 1774241945417.3992,
+    ".yggdrasil/model/cvar/internals.md": 1774241945417.4575,
+    ".yggdrasil/model/cvar/responsibility.md": 1774241945417.3352,
+    "internal/cvar/doc.go": 1773836853909.6846,
+    "internal/cvar/cvar.go": 1773836785765.7512,
+    "internal/cvar/cvar_test.go": 1774105758102.9736
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "hash": "ea0e852d14db55608d8541ebea48c79a4edba637a5def4177887cbe07e8f8f02",
+  "files": {
+    ".yggdrasil/model/input/sdl3-backend/yg-node.yaml": "6c0a9b6082e3b228ca8359e92f6a1129b97e5290862f9a76a10908e706023619",
+    ".yggdrasil/model/input/sdl3-backend/interface.md": "ab51fcb6ca9812c4aa7bc173c4b1312bfd8f2091ca05e49ce9284bde4d394217",
+    ".yggdrasil/model/input/sdl3-backend/internals.md": "f8710e43f3f8a11f342591e6b11d95303cf09c1dbcca4449a88f35fd0e0ed56e",
+    ".yggdrasil/model/input/sdl3-backend/responsibility.md": "7da720f8233fc9446c5c116a52f44fe17bae70a859e72a909149230ad99336b9",
+    ".yggdrasil/model/input/yg-node.yaml": "422feb7875d30c233fefc1b4d736605cd723beba83e7c34458ae4efba1a4eccc",
+    ".yggdrasil/model/input/interface.md": "669885df01ab408c275ba22c3758420d488482cdb63c7fe3472bc9e7fe6914b6",
+    ".yggdrasil/model/input/internals.md": "6bd8eded223f2d6cb0690dead4cb203d3cc4b2c23404ad222970a08b371ac95d",
+    ".yggdrasil/model/input/responsibility.md": "72289ea72d9be47ac82af98231b2f4c33f8359d0d20fc0c6689ad1caba643a5d",
+    "internal/input/sdl3_backend.go": "5bde155c1953a45ae365fbc1588b22b99b7ef223cb28f0f9f57bb03c88532a1d",
+    "internal/input/sdl3_stub.go": "62e05b8e2a85a052784901feef832f9635b9f9682cb4beb81a73d9348e58a615",
+    "internal/input/sdl3_backend_test.go": "ab0746fa626815445527db1e25bf56d86019b75305bc8af5603a892f2b9e55c5"
+  },
+  "mtimes": {
+    ".yggdrasil/model/input/sdl3-backend/yg-node.yaml": 1774244014319.4307,
+    ".yggdrasil/model/input/sdl3-backend/interface.md": 1774244014319.547,
+    ".yggdrasil/model/input/sdl3-backend/internals.md": 1774244014319.5994,
+    ".yggdrasil/model/input/sdl3-backend/responsibility.md": 1774244014319.488,
+    ".yggdrasil/model/input/yg-node.yaml": 1774244014318.977,
+    ".yggdrasil/model/input/interface.md": 1774244014319.1072,
+    ".yggdrasil/model/input/internals.md": 1774244014319.1582,
+    ".yggdrasil/model/input/responsibility.md": 1774244014319.0461,
+    "internal/input/sdl3_backend.go": 1774204215939.8052,
+    "internal/input/sdl3_stub.go": 1773836785771.1628,
+    "internal/input/sdl3_backend_test.go": 1774204274373.7468
+  }
+}

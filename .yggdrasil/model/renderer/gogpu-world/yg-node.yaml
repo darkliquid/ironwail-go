@@ -1,0 +1,13 @@
+name: Renderer GoGPU World
+type: module
+description: "GoGPU world, entity, decal, particle, and late-translucent rendering paths"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/world_brush_gogpu.go
+    - internal/renderer/world_alias_gogpu.go
+    - internal/renderer/world_alias_shadow_gogpu.go
+    - internal/renderer/world_decal_gogpu.go
+    - internal/renderer/world_late_translucent_gogpu.go
+    - internal/renderer/world_sprite_gogpu.go
+    - internal/renderer/particle_gogpu.go

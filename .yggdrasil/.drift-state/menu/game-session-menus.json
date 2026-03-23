@@ -1,0 +1,25 @@
+{
+  "hash": "71877255683c91ea3c3f6b583cca0353078f9c8e81b60913ca4684ef2e9a4fd7",
+  "files": {
+    ".yggdrasil/model/menu/game-session-menus/yg-node.yaml": "3ad279d655f2676103b6bdca16b6549285a24a039a5942cc95aa3165a75d4819",
+    ".yggdrasil/model/menu/game-session-menus/interface.md": "0731de76b55f3ae7ecf36545f15a0f7256033ad027bde1fafb32b49a241e4b41",
+    ".yggdrasil/model/menu/game-session-menus/internals.md": "36164d9905c4c5bc0cca179c8f17618967a40b0eed274bccf114b3fe40239c62",
+    ".yggdrasil/model/menu/game-session-menus/responsibility.md": "8c0ce4ebdb6abc4feab5ffe5e5d71b13a876375d763e38bee9de13d15982bbb1",
+    ".yggdrasil/model/menu/yg-node.yaml": "b516ffa4150e80683bad66a33118f32c9b75ee227cbb6179b96c97ead4e4e7ac",
+    ".yggdrasil/model/menu/interface.md": "0885c999166632fb8c8ae4e8e0eb319c772913430670a287e7b91a48ad3c9bfd",
+    ".yggdrasil/model/menu/internals.md": "71f7ec1b865501f2a494b56b48f34949c8b11910c4ddfba57d332e408c3552a9",
+    ".yggdrasil/model/menu/responsibility.md": "79ae3856e410dfed62a1be02d20644c02138a52f562d1471f6e1aaf43b3b69e6",
+    "internal/menu/menu_game.go": "0959f3619bfb54f4cfc957a512bc4dee1c49d7f459b6e3a75754c2d520648c05"
+  },
+  "mtimes": {
+    ".yggdrasil/model/menu/game-session-menus/yg-node.yaml": 1774244798945.2666,
+    ".yggdrasil/model/menu/game-session-menus/interface.md": 1774244798945.3645,
+    ".yggdrasil/model/menu/game-session-menus/internals.md": 1774244798945.4104,
+    ".yggdrasil/model/menu/game-session-menus/responsibility.md": 1774244798945.312,
+    ".yggdrasil/model/menu/yg-node.yaml": 1774244798944.4082,
+    ".yggdrasil/model/menu/interface.md": 1774244798944.5251,
+    ".yggdrasil/model/menu/internals.md": 1774244798944.5735,
+    ".yggdrasil/model/menu/responsibility.md": 1774244798944.4731,
+    "internal/menu/menu_game.go": 1773868240823.4612
+  }
+}

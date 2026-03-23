@@ -1,0 +1,7 @@
+name: Game
+type: module
+description: "Planned top-level game-state consolidation layer for executable runtime orchestration"
+blackbox: false
+mapping:
+  paths:
+    - internal/game/

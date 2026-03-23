@@ -1,0 +1,33 @@
+{
+  "hash": "1bac44f5e44107b3707277b1eb0de43ff6e97f478b1e74b15dd28c45f76aa2c2",
+  "files": {
+    ".yggdrasil/model/audio/runtime/yg-node.yaml": "00429d743bff60741bc7662bb8f5c94c01aa619bdb6428635bcab69eb985b75d",
+    ".yggdrasil/model/audio/runtime/interface.md": "0fdc77ff423097db2321426755d70a3d5ac620f18579a84b4c1f4821bf3bd9bb",
+    ".yggdrasil/model/audio/runtime/internals.md": "88bc32711b1c16ac7640fd234fa58bb0cba54e2c90f493768702f3fc3134c975",
+    ".yggdrasil/model/audio/runtime/responsibility.md": "0667db06952b2aa649786fc8a82f1c84ebd3ce113b1d0ab3ffdf1e12297c4659",
+    ".yggdrasil/model/audio/yg-node.yaml": "1af7733e032eee68049eeeb261aff1c61b561a8be22c71cca2fba1f69efb0ef2",
+    ".yggdrasil/model/audio/interface.md": "713f95d243b9e561e8009a091649b1df330fe378ccdaaf3f8da620bcd1542872",
+    ".yggdrasil/model/audio/internals.md": "ac2fee544df575131529c0cf2c085a6c8da2e6fd05300d4b84f797da115da7f2",
+    ".yggdrasil/model/audio/responsibility.md": "615db07c66c5ebc2e6e3ff88e9f79900ffb21201afb790ea4f0bcd9421c8daa6",
+    "internal/audio/doc.go": "038398506a69836039b137cdd6ec66819d898fd216d5e4a69a30164c2a2871aa",
+    "internal/audio/adapter.go": "04fef25f50f93af55311db46ee324ba1d82887b91b8acab56fa89b505c313b6c",
+    "internal/audio/sound.go": "a241a43dbe6f97eebc41e6b4c977a65c989ce0c78663c766e4931de80f9d938c",
+    "internal/audio/types.go": "29e8dfb4606b88945aa8b16f308d5c0c1dfa562ec6af71a5c918be8396e408a5",
+    "internal/audio/cvars.go": "703e89bed5c241bc5cbe50ae6f12a2bd883cd61058e2a9059ebd909d8aafc214"
+  },
+  "mtimes": {
+    ".yggdrasil/model/audio/runtime/yg-node.yaml": 1774218896850.4465,
+    ".yggdrasil/model/audio/runtime/interface.md": 1774218896965.4473,
+    ".yggdrasil/model/audio/runtime/internals.md": 1774218897024.4475,
+    ".yggdrasil/model/audio/runtime/responsibility.md": 1774218896922.4468,
+    ".yggdrasil/model/audio/yg-node.yaml": 1774218896566.4446,
+    ".yggdrasil/model/audio/interface.md": 1774218896675.4453,
+    ".yggdrasil/model/audio/internals.md": 1774218896753.4458,
+    ".yggdrasil/model/audio/responsibility.md": 1774218896610.4448,
+    "internal/audio/doc.go": 1773836785774.807,
+    "internal/audio/adapter.go": 1774098304199.2986,
+    "internal/audio/sound.go": 1774098273275.446,
+    "internal/audio/types.go": 1773836785775.7163,
+    "internal/audio/cvars.go": 1774098416011.0303
+  }
+}

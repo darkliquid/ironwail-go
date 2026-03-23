@@ -1,0 +1,43 @@
+{
+  "hash": "d127f4472a0d4e805b011460b4e0889ca2d1b38e5cdcb3343899b487fdf3aa57",
+  "files": {
+    ".yggdrasil/model/host/commands/yg-node.yaml": "ce740cc898b1bf792c8aab95933b2a74af0af31a7e85c76b60e9555aee71b8f8",
+    ".yggdrasil/model/host/commands/interface.md": "e2f02c48e69d7e38e9cacc7a0116954334508b760ef6e12e4c1b4a02720e78fb",
+    ".yggdrasil/model/host/commands/internals.md": "5ddf9c8ab5fd0ea18f83c20951207b300c26a02700626264ace4c1f63a53c2d0",
+    ".yggdrasil/model/host/commands/responsibility.md": "a42b31fef251dbb58f9e0c3c3a92dd5aa2709788a9f1784468005ae50d16df74",
+    ".yggdrasil/model/host/yg-node.yaml": "b10e523d4cf94fa4c2e7eb15980b65027e6e7c5c8ae5b476f03c6ec6dbdfb1dd",
+    ".yggdrasil/model/host/interface.md": "38ccd74ad17fc4889810342633709f055c657bd1a8e1a405c982edeaecf8b4d2",
+    ".yggdrasil/model/host/internals.md": "da82fe0065297af0f53b5bfdd8f28ca7cfbf75b1c36f8d026d4bfb0ea5eb18e5",
+    ".yggdrasil/model/host/responsibility.md": "a105eab2c94b6b9f3f95569e7492e99b0308b70dd771bcf37618ead11958b716",
+    "internal/host/commands.go": "00dd9a438f8a253ab1fe1ff0d654509c2d4890f122cf88cc96354f222d42a526",
+    "internal/host/commands_audio.go": "7a19345d5c2131dc1cb6c2ea436ac7a9b21956f61c68f678de5e88c6a9154000",
+    "internal/host/commands_demo.go": "f4fbdb181a2f0b5426b3b1abf455a05aa6398d6ee4e6286d203c6ebfb770a1d7",
+    "internal/host/commands_forwarding.go": "ea3645b06861ee5935eb8570cfc65336868a8f1ec4175948a95200d5a27d82c4",
+    "internal/host/commands_gameplay.go": "e7ab2f199e3a4034c9eb73beed46087f2f96460ac10339d6d33ff974c5d12ffa",
+    "internal/host/commands_map.go": "15994b55eac3668bd4a25d7c016dc5152829ef827a62b3a921d592e7b627bf67",
+    "internal/host/commands_network.go": "45419cbfb6c18431599dd9ecebc12dfb4747b641bd412cca7fbfbeff2e6b1403",
+    "internal/host/commands_system.go": "c8b851c3bbbdcdeb6af1d9e1ee7c4df5c2e03802e45b25a503927fc8c18f42ed",
+    "internal/host/commands_test.go": "1da3ee8931ddeae68550db58990f67b2e196243626277772b01bfb206f5896a1",
+    "internal/host/commands_gameplay_test.go": "298d910dc3496124d562a30999ac58447a2979dea835df5f0c1ad8fc150abdce"
+  },
+  "mtimes": {
+    ".yggdrasil/model/host/commands/yg-node.yaml": 1774217886305.314,
+    ".yggdrasil/model/host/commands/interface.md": 1774217886460.3164,
+    ".yggdrasil/model/host/commands/internals.md": 1774217886501.3171,
+    ".yggdrasil/model/host/commands/responsibility.md": 1774217886381.3152,
+    ".yggdrasil/model/host/yg-node.yaml": 1774217885954.3083,
+    ".yggdrasil/model/host/interface.md": 1774217807092.0435,
+    ".yggdrasil/model/host/internals.md": 1774217807158.0444,
+    ".yggdrasil/model/host/responsibility.md": 1774217807057.043,
+    "internal/host/commands.go": 1774125262619.9668,
+    "internal/host/commands_audio.go": 1774098259826.7776,
+    "internal/host/commands_demo.go": 1774094821880.76,
+    "internal/host/commands_forwarding.go": 1774099094160.5747,
+    "internal/host/commands_gameplay.go": 1774193006623.4917,
+    "internal/host/commands_map.go": 1774125430166.2664,
+    "internal/host/commands_network.go": 1774125343568.5762,
+    "internal/host/commands_system.go": 1774206317314.8486,
+    "internal/host/commands_test.go": 1774193006833.4949,
+    "internal/host/commands_gameplay_test.go": 1774107822451.9006
+  }
+}

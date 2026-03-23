@@ -1,0 +1,21 @@
+{
+  "hash": "c8919db47a298446f5ddd7b3254d5e473b67cc7f63974fd2f79e0fe5a69b28bd",
+  "files": {
+    ".yggdrasil/model/draw/yg-node.yaml": "2dbea2dd052125bbed881ccc0d07858009254882ebb6d54bd91ccf5f59c93e08",
+    ".yggdrasil/model/draw/interface.md": "38b9ecce567b122a4e3f4dc9323a3783ddb54ed4b9542e04e958953295913425",
+    ".yggdrasil/model/draw/internals.md": "65f1b5af1778e99fdfcbcfd4bd39f96358eb3d1e1b4a9c06a9486c72b292105b",
+    ".yggdrasil/model/draw/responsibility.md": "30b0b1f9875d9d69dcab883b559a232288d7b735d0c707f07f07a1a455d3d2a9",
+    "internal/draw/doc.go": "2d96c2f61ba54ecc13065e3dd537a02907988eba168e37306c598d3a6fc39092",
+    "internal/draw/manager.go": "efd9d650d1429b4fec55c996cee4df6c10cc7f136ebc7f37aa33ab58a422af0e",
+    "internal/draw/manager_test.go": "5b46bb8fde59a5526cd1ac0988cec39971cf63d5a7ea8a34f84943d510e0b547"
+  },
+  "mtimes": {
+    ".yggdrasil/model/draw/yg-node.yaml": 1774242307316.9287,
+    ".yggdrasil/model/draw/interface.md": 1774242307317.0757,
+    ".yggdrasil/model/draw/internals.md": 1774242307317.1384,
+    ".yggdrasil/model/draw/responsibility.md": 1774242307317.0073,
+    "internal/draw/doc.go": 1773836785819.7783,
+    "internal/draw/manager.go": 1773836785819.948,
+    "internal/draw/manager_test.go": 1773836785819.6875
+  }
+}

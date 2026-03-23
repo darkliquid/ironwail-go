@@ -1,0 +1,39 @@
+{
+  "hash": "399caa4dfa414082d95917351b94aafe84dc020ee14c8e62d507cf5f4bc809d0",
+  "files": {
+    ".yggdrasil/model/audio/music/yg-node.yaml": "cd0829d4fdb502b392530258811cc0f8b2e34c19a8540e18df52637bdccb161f",
+    ".yggdrasil/model/audio/music/interface.md": "d7d988690e2bb48f4506922a45cf9592fda912b710b2209002326fa9700066fc",
+    ".yggdrasil/model/audio/music/internals.md": "0ea9859bd6fea69f7a1d316680107d32f8e4fab176f2036063ccc87064379231",
+    ".yggdrasil/model/audio/music/responsibility.md": "dc4dfbc04b2cc217f1be821308fa5601aae08cc1bc54145583ded87c43252350",
+    ".yggdrasil/model/audio/yg-node.yaml": "1af7733e032eee68049eeeb261aff1c61b561a8be22c71cca2fba1f69efb0ef2",
+    ".yggdrasil/model/audio/interface.md": "713f95d243b9e561e8009a091649b1df330fe378ccdaaf3f8da620bcd1542872",
+    ".yggdrasil/model/audio/internals.md": "ac2fee544df575131529c0cf2c085a6c8da2e6fd05300d4b84f797da115da7f2",
+    ".yggdrasil/model/audio/responsibility.md": "615db07c66c5ebc2e6e3ff88e9f79900ffb21201afb790ea4f0bcd9421c8daa6",
+    "internal/audio/music.go": "bd768d7ac9f73171a8ad317473b4df25a1d5e1b680f82b596df4c07a2581b596",
+    "internal/audio/music_tracker.go": "e94d7572174654a0fcfdfc573ad81bcdc3289338b9009e27dfb49876be41025e",
+    "internal/audio/music_test.go": "ed8800f5cbf5e8d954c25f4f8d59f866020a2f7ced63b4a89e045e03de1c6c5d",
+    "internal/audio/music_tracker_test.go": "64e6e81b2ec603b3d4835d4c4cee2e56b3e7d11f6df1d1065e1b2d0d6e7b22eb",
+    "internal/audio/ogg.go": "b4babc5258f0f921b31391594adeb2700a3adeb349aff63e2ddc47ec87289a05",
+    "internal/audio/opus.go": "694e498b79b4121fe84aad2dc0f73759dd0549d9f88de9b5015c50db84589e64",
+    "internal/audio/mp3.go": "082eb7e53c2f8242a233c0e20b7e7b5fc6b1a3ff82c57f5346adcb4109fb53ef",
+    "internal/audio/flac.go": "54bcef5701817450c5fae99259ba329fd2c61b9e42aa75b48fe61c728a87d920"
+  },
+  "mtimes": {
+    ".yggdrasil/model/audio/music/yg-node.yaml": 1774218897650.4514,
+    ".yggdrasil/model/audio/music/interface.md": 1774218897791.4524,
+    ".yggdrasil/model/audio/music/internals.md": 1774218897873.453,
+    ".yggdrasil/model/audio/music/responsibility.md": 1774218897715.452,
+    ".yggdrasil/model/audio/yg-node.yaml": 1774218896566.4446,
+    ".yggdrasil/model/audio/interface.md": 1774218896675.4453,
+    ".yggdrasil/model/audio/internals.md": 1774218896753.4458,
+    ".yggdrasil/model/audio/responsibility.md": 1774218896610.4448,
+    "internal/audio/music.go": 1774098436852.349,
+    "internal/audio/music_tracker.go": 1773836785774.0266,
+    "internal/audio/music_test.go": 1774105878250.7039,
+    "internal/audio/music_tracker_test.go": 1774105878260.9592,
+    "internal/audio/ogg.go": 1773836785774.1501,
+    "internal/audio/opus.go": 1773836785774.2393,
+    "internal/audio/mp3.go": 1773836785773.7588,
+    "internal/audio/flac.go": 1773836785773.671
+  }
+}

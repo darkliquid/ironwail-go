@@ -1,0 +1,31 @@
+{
+  "hash": "aad378adac08b4c8de77fe5c678f1003038feec65e18cd3156f7b27d43b2dd97",
+  "files": {
+    ".yggdrasil/model/renderer/canvas/yg-node.yaml": "d6b7a163971d896ac0a92b4454820a0842d638f381e57b29625f3425400def12",
+    ".yggdrasil/model/renderer/canvas/interface.md": "2c8b737a23bd48a6ab0deb0d3c11f132bf93bb0f97e9513ce4fdb05b936461eb",
+    ".yggdrasil/model/renderer/canvas/internals.md": "fe5431d4ed5f6774332bc9c7a4ef4e0bf03ad9d5ac87d95a560248aad5c60eb3",
+    ".yggdrasil/model/renderer/canvas/responsibility.md": "50927472f319c39e43162a3a951fec6ea9c7d2313091fd8753641e91dacdf3ed",
+    ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
+    ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
+    ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
+    ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
+    "internal/renderer/types.go": "e70525b03b208f31ca1cc7c7b7712aefec6ad463788bf10af9475743f7949381",
+    "internal/renderer/screen.go": "14a3d18ca6071a64f1994b94a768b2be0d5720c04beddcafcea9a1dedbf33a3e",
+    "internal/renderer/camera.go": "546524e08f89ca75901e5212ccdd67c41eee0cfa70f708ef74d86fa8161058c7",
+    "internal/renderer/camera_shared.go": "f48ebb81b3010878d5d31fe8bccc31c286b2a6c26f9f40e93e3ea1fb977778b6"
+  },
+  "mtimes": {
+    ".yggdrasil/model/renderer/canvas/yg-node.yaml": 1774219362025.5974,
+    ".yggdrasil/model/renderer/canvas/interface.md": 1774219362163.5989,
+    ".yggdrasil/model/renderer/canvas/internals.md": 1774219362231.5996,
+    ".yggdrasil/model/renderer/canvas/responsibility.md": 1774219362115.5984,
+    ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
+    ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
+    ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
+    ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
+    "internal/renderer/types.go": 1774133267014.8596,
+    "internal/renderer/screen.go": 1774122780946.7783,
+    "internal/renderer/camera.go": 1774129884082.4243,
+    "internal/renderer/camera_shared.go": 1774129856136.0671
+  }
+}

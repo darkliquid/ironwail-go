@@ -1,0 +1,13 @@
+name: QuakeC Builtins
+type: module
+description: "Builtin registration and server/engine hook bridge for QuakeC builtins"
+blackbox: false
+mapping:
+  paths:
+    - internal/qc/builtins.go
+    - internal/qc/builtins_entity.go
+    - internal/qc/builtins_math.go
+    - internal/qc/builtins_string.go
+    - internal/qc/builtins_world.go
+    - internal/qc/serverhooks_iface.go
+    - internal/qc/builtins_test.go

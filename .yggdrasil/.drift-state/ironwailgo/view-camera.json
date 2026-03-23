@@ -1,0 +1,33 @@
+{
+  "hash": "962bab78486d6e5e7865bc49b555e94dd04ee08fc483c99b7c8fceb9337623de",
+  "files": {
+    ".yggdrasil/model/ironwailgo/view-camera/yg-node.yaml": "39967a3b213649f3045374b280d06d20b81cf694d9d51b98bc6f2f963e59ec2b",
+    ".yggdrasil/model/ironwailgo/view-camera/interface.md": "c8094045320ef3e8cb9541507a8581bbd3654978fe6109973b6b95c55a23700d",
+    ".yggdrasil/model/ironwailgo/view-camera/internals.md": "6b65ae8bc8685cfbe83d8ee6064fbfd986e8a7b573bf5f12bd9ed699781fffc7",
+    ".yggdrasil/model/ironwailgo/view-camera/responsibility.md": "93d78e8d1e3aedf1cf199f411313d4828f07f44c0489e557585d45364b7c7e52",
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
+    ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
+    ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
+    ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
+    "cmd/ironwailgo/viewcalc.go": "3b72e1771b404f1739fae495b0a28316154fa483fbb518e0c614e179fe7a36b5",
+    "cmd/ironwailgo/viewcalc_test.go": "25cdbbd56abb30181de41fefa0c69af223ed06355fd95614f332c7dcf7414cea",
+    "cmd/ironwailgo/game_camera.go": "490e8f4e4daa5cf91287b5067bc6564adab411cba7cbe4ddd4543251ab932b7c",
+    "cmd/ironwailgo/chase.go": "386fb8d2c6ccc9529782e5d6a1ab1e854d531109ecd23f4b28c05cb53a7f07fb",
+    "cmd/ironwailgo/chase_test.go": "0b4cbdee40833cf7328fa0dc91a1dcb0daffe60fa9a570cf2de43d0115fb8dc9"
+  },
+  "mtimes": {
+    ".yggdrasil/model/ironwailgo/view-camera/yg-node.yaml": 1774246120438.9026,
+    ".yggdrasil/model/ironwailgo/view-camera/interface.md": 1774246120438.9883,
+    ".yggdrasil/model/ironwailgo/view-camera/internals.md": 1774246120439.0364,
+    ".yggdrasil/model/ironwailgo/view-camera/responsibility.md": 1774246120438.9456,
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
+    ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
+    ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
+    ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
+    "cmd/ironwailgo/viewcalc.go": 1773952783790.6455,
+    "cmd/ironwailgo/viewcalc_test.go": 1773952783791.2747,
+    "cmd/ironwailgo/game_camera.go": 1774210378046.5889,
+    "cmd/ironwailgo/chase.go": 1774097241742.9011,
+    "cmd/ironwailgo/chase_test.go": 1774097241866.9026
+  }
+}

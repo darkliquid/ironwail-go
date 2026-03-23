@@ -1,0 +1,11 @@
+name: Client Runtime
+type: module
+description: "Persistent client state, connection/signon state, and shared runtime contracts"
+blackbox: false
+mapping:
+  paths:
+    - internal/client/doc.go
+    - internal/client/client.go
+    - internal/client/errors.go
+    - internal/client/telemetry.go
+    - internal/client/client_test.go

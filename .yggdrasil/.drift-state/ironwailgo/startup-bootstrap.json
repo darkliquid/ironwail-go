@@ -1,0 +1,29 @@
+{
+  "hash": "4081bda843907ce65d7a476169e2c132f528d5f699442a80f4295de61fc514fe",
+  "files": {
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": "4e47b0560e002eb97f4e3e5977e544b84687025e5862062e81a5a061ab7d485c",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": "d7ebe68240eb1c19b0c558b5af9de2abc961055c4c1ec64f2584f9a9011009df",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": "d8bde1470ec83833ac13ff2ff2ee6631e86f04401ed2b46405324c8c6dddcbaf",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/responsibility.md": "51a3e451e900c0fcb4fee2b52f93f36b083081a64425e604cc07f41f7e9d29b0",
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
+    ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
+    ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
+    ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
+    "cmd/ironwailgo/startup_args.go": "d9cf0cf0ecb652a6198a1bc0aee3103fdcd2ec1f0bb1c91ea083ebae03085b4b",
+    "cmd/ironwailgo/game_init.go": "c28ce4fdd40ac4ea0d78222920fbc5a79d525dafc1cb102b67ed2079937a9eff",
+    "cmd/ironwailgo/game_init_test.go": "c77a0fb6a4d5b78efb7c310b06f94f401619bfa3da19bcce9fc034da54867a61"
+  },
+  "mtimes": {
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": 1774246120438.289,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": 1774246120438.3767,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": 1774246120438.4307,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/responsibility.md": 1774246120438.3337,
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
+    ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
+    ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
+    ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
+    "cmd/ironwailgo/startup_args.go": 1774115538136.7354,
+    "cmd/ironwailgo/game_init.go": 1774202338452.7678,
+    "cmd/ironwailgo/game_init_test.go": 1774163171709.5613
+  }
+}

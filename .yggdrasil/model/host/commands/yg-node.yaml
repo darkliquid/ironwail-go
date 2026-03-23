@@ -1,0 +1,16 @@
+name: Host Commands
+type: module
+description: "Host command surface for map/session, network, demo, save/load, audio, and system operations"
+blackbox: false
+mapping:
+  paths:
+    - internal/host/commands.go
+    - internal/host/commands_audio.go
+    - internal/host/commands_demo.go
+    - internal/host/commands_forwarding.go
+    - internal/host/commands_gameplay.go
+    - internal/host/commands_map.go
+    - internal/host/commands_network.go
+    - internal/host/commands_system.go
+    - internal/host/commands_test.go
+    - internal/host/commands_gameplay_test.go

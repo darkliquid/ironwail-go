@@ -1,0 +1,29 @@
+{
+  "hash": "e3d0e8013601d4e9d027080abd6bef3e21a3e1f4fc515285ee345af945dff7d7",
+  "files": {
+    ".yggdrasil/model/console/core-printing/yg-node.yaml": "7e832a97227e52c55f101786cd7434a8d76a9482a4e0cb5e9baccf0db5b11025",
+    ".yggdrasil/model/console/core-printing/interface.md": "ebe47e9c2086ec8d16c36285ec59529fac05ee33981d4a46710bdbc2edec8b28",
+    ".yggdrasil/model/console/core-printing/internals.md": "9bd530b8e54e2d24803a9923df8289d684dcc1caa2c6a0d00da7e4d6d93fb17a",
+    ".yggdrasil/model/console/core-printing/responsibility.md": "6a4dc2ce2afa846978ac128657d079d1fb194c54f3cf2c913582edba068ef415",
+    ".yggdrasil/model/console/yg-node.yaml": "4ecfe35a062858b2e6c688717bab7ace21ea3c7d9697bb533ed5ad42c8e8d2cb",
+    ".yggdrasil/model/console/interface.md": "50b85520b1ccb4b5f0b627ff29a8535cb5ad5de3ae00da248dc8b84fd2d9c770",
+    ".yggdrasil/model/console/internals.md": "08e4e3492f912a33b1ef5ccd8b98076baf6aa18742bff5b8ed49308b07398f30",
+    ".yggdrasil/model/console/responsibility.md": "9b0af9cfd276e4ff2be919050a49d04b2afea3193c2aa21dbe21b9cca452292f",
+    "internal/console/doc.go": "f6c2e4fd42dbb26667a3e21e93280d639f6d788a3cbd05b1d9c47e01febc975c",
+    "internal/console/console.go": "435cde0a590bf848e41409e355c5c598d0dfcd20a2a6753a1c0289fde6bc3fd4",
+    "internal/console/console_test.go": "b5b2b2cab990e2a3d217bcb1cac99c6d6a7cd7fc7946fa675d2233623f9eb7c4"
+  },
+  "mtimes": {
+    ".yggdrasil/model/console/core-printing/yg-node.yaml": 1774235616094.8035,
+    ".yggdrasil/model/console/core-printing/interface.md": 1774235616094.9019,
+    ".yggdrasil/model/console/core-printing/internals.md": 1774235616094.9504,
+    ".yggdrasil/model/console/core-printing/responsibility.md": 1774235616094.8513,
+    ".yggdrasil/model/console/yg-node.yaml": 1774235616094.5527,
+    ".yggdrasil/model/console/interface.md": 1774235616094.69,
+    ".yggdrasil/model/console/internals.md": 1774235616094.7437,
+    ".yggdrasil/model/console/responsibility.md": 1774235616094.6328,
+    "internal/console/doc.go": 1773836785766.7568,
+    "internal/console/console.go": 1773836785767.7383,
+    "internal/console/console_test.go": 1774105758109.9739
+  }
+}

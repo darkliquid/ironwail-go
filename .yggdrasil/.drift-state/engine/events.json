@@ -1,0 +1,27 @@
+{
+  "hash": "2eb5ba82b149850c94fbb62f9f2a89bd733553e170d6615bf20998b201f98bf3",
+  "files": {
+    ".yggdrasil/model/engine/events/yg-node.yaml": "0a2f9f7ed046393421a0a2c0f5783b1e2ad98a7c8c16b6f048eae755466a44d0",
+    ".yggdrasil/model/engine/events/interface.md": "9550bd83f2fd3d0508501e4db4ac8f2ac8954163bdca211ce6b40720fe38294c",
+    ".yggdrasil/model/engine/events/internals.md": "30981669c93ee2b02b61098ac9906ebc428eb6744b3610bfdff3e55cd1d9cd5a",
+    ".yggdrasil/model/engine/events/responsibility.md": "34ac9891b59c3592618feb4b47ed3eddcd8b2c5f300fc5dda3f2ed64192adf2b",
+    ".yggdrasil/model/engine/yg-node.yaml": "e321b66f1e8ab1c9f101bd944c7fd57cab753e29d1084ae5425b53ba40fb4815",
+    ".yggdrasil/model/engine/interface.md": "11458b9dde5e3e94d1b2a6cba3c50fe93be37a93abbc969271cd5200126185be",
+    ".yggdrasil/model/engine/internals.md": "f3199cb16c7f749ccda1e33e51fc32b2e2e651387901c8a11d2ac474146eb04a",
+    ".yggdrasil/model/engine/responsibility.md": "7b1dc118d27f1913011b255b69496acf97061bc1dc383be1dd9d82e59cecf1b8",
+    "internal/engine/event.go": "1c5ed26e64283753d85868a03f913b9cd8f1b25e2591af214b6679b87bca0145",
+    "internal/engine/event_test.go": "19470629e9c76af4261f30f4a52d96c9dd099c0d92bc3d4fa6e64adeefe70d53"
+  },
+  "mtimes": {
+    ".yggdrasil/model/engine/events/yg-node.yaml": 1774242663023.21,
+    ".yggdrasil/model/engine/events/interface.md": 1774242663023.2979,
+    ".yggdrasil/model/engine/events/internals.md": 1774242663023.3435,
+    ".yggdrasil/model/engine/events/responsibility.md": 1774242663023.2532,
+    ".yggdrasil/model/engine/yg-node.yaml": 1774242663022.3848,
+    ".yggdrasil/model/engine/interface.md": 1774242663022.5256,
+    ".yggdrasil/model/engine/internals.md": 1774242663022.5776,
+    ".yggdrasil/model/engine/responsibility.md": 1774242663022.4578,
+    "internal/engine/event.go": 1773836785823.506,
+    "internal/engine/event_test.go": 1773836785823.6035
+  }
+}

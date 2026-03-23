@@ -1,0 +1,14 @@
+name: Audio Mixing
+type: module
+description: "Sample cache, WAV decode, spatialization, and channel paint pipeline"
+blackbox: false
+mapping:
+  paths:
+    - internal/audio/cache.go
+    - internal/audio/mix.go
+    - internal/audio/spatial.go
+    - internal/audio/wav.go
+    - internal/audio/mixer_async.go
+    - internal/audio/mixer_null.go
+    - internal/audio/audio_test.go
+    - internal/audio/mixer_async_test.go

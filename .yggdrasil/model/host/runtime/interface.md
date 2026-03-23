@@ -1,0 +1,37 @@
+# Interface
+
+## Primary consumers
+
+- `cmd/ironwailgo`, which constructs `Host`, assembles `Subsystems`, and drives `Init`, `Frame`, and `Shutdown`.
+
+## Main API
+
+### `Host`
+
+Key methods:
+- `NewHost() *Host`
+- `Init(params *InitParams, subs *Subsystems) error`
+- `Frame(dt float64, cb FrameCallbacks) error`
+- `FrameLoop(targetFPS float64, cb FrameCallbacks, shouldQuit func() bool) error`
+- `Shutdown(subs *Subsystems)`
+- accessors/mutators for signons, max FPS, abort state, and runtime flags
+
+Contracts:
+- `Init` fails on fatal filesystem/console/server/client/renderer init errors.
+- Audio init warnings do not abort startup.
+- `Frame` expects the caller to supply callbacks that map onto concrete client/server/render/audio work.
+- `Shutdown` may use `Host.Subs` when the caller passes `nil`.
+
+### `Subsystems`
+
+Dependency container for the live runtime integrations. The host relies on it for sequencing but not for concrete implementations.
+
+### `FrameCallbacks`
+
+Bridge from host orchestration to executable/runtime code:
+- event collection
+- console command processing
+- server processing
+- client processing
+- screen update
+- audio update

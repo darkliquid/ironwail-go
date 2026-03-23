@@ -1,0 +1,4 @@
+name: QuakeC
+type: module
+description: "QuakeC subsystem umbrella covering VM state, progs loading, bytecode execution, builtins, and CSQC support"
+blackbox: false

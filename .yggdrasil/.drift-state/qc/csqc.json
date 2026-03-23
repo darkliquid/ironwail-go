@@ -1,0 +1,31 @@
+{
+  "hash": "175c5c39a8c6a39f081e5546e0279b88939ea6c50a17df8f173a939a6b523de3",
+  "files": {
+    ".yggdrasil/model/qc/csqc/yg-node.yaml": "41edd8efd84fbe6152894945046b67e00877b91c05970318b20f4a9007c161b9",
+    ".yggdrasil/model/qc/csqc/interface.md": "c7de9d222d263147750c22d672ded707a5b21edac3f1aaf6dcf1d613a7f346ac",
+    ".yggdrasil/model/qc/csqc/internals.md": "67fd0a6b63f563147c4f47c9f6293961c1fdc2866834d56592fbf56159b3d075",
+    ".yggdrasil/model/qc/csqc/responsibility.md": "e83ba3e505f9993a74a9cdb49f6920fcdadbb661d2576087f20c5681f00f6de0",
+    ".yggdrasil/model/qc/yg-node.yaml": "552ac3f17f92abef91befaa158083079d13ef52ae17e36e50c3b96329c75f3e0",
+    ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
+    ".yggdrasil/model/qc/internals.md": "f1714908356bb149ae2268557cb97bcbd50b82a1d0143ad60e6a60fca04faae0",
+    ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
+    "internal/qc/csqc.go": "cab1eaacf8ca91f81096fb030bf87113a234ec703c0913aeac5825c2de6be0a8",
+    "internal/qc/builtins_csqc.go": "8f298531bc082b4c2502b2db9a9546c9da4984f9cc636db5558145418c2ee5b2",
+    "internal/qc/csqc_test.go": "55183fb5b8900196fbd5746312a6d3d536f4600ca46ed00948962d6208892c71",
+    "internal/qc/builtins_csqc_test.go": "001cffb3f0773df01819cd4da580b02e399dea6449eb984dd1cab1e8d2b123a9"
+  },
+  "mtimes": {
+    ".yggdrasil/model/qc/csqc/yg-node.yaml": 1774219202833.957,
+    ".yggdrasil/model/qc/csqc/interface.md": 1774219202975.9583,
+    ".yggdrasil/model/qc/csqc/internals.md": 1774219203021.9587,
+    ".yggdrasil/model/qc/csqc/responsibility.md": 1774219202904.9578,
+    ".yggdrasil/model/qc/yg-node.yaml": 1774219201766.9465,
+    ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
+    ".yggdrasil/model/qc/internals.md": 1774219201937.9482,
+    ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
+    "internal/qc/csqc.go": 1773846863118.659,
+    "internal/qc/builtins_csqc.go": 1773846822330.9038,
+    "internal/qc/csqc_test.go": 1773846850125.4321,
+    "internal/qc/builtins_csqc_test.go": 1773845961359.5847
+  }
+}

@@ -1,0 +1,8 @@
+name: Client Demo Playback
+type: module
+description: "Demo recording, playback, indexing, and timedemo state"
+blackbox: false
+mapping:
+  paths:
+    - internal/client/demo.go
+    - internal/client/demo_test.go

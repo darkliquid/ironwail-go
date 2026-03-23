@@ -1,0 +1,9 @@
+name: Client Input and Prediction
+type: module
+description: "Button state, view-angle adjustment, usercmd generation, and local prediction support"
+blackbox: false
+mapping:
+  paths:
+    - internal/client/input.go
+    - internal/client/prediction.go
+    - internal/client/prediction_test.go

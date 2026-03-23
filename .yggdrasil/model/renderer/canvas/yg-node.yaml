@@ -1,0 +1,10 @@
+name: Renderer Canvas
+type: module
+description: "Canvas types, screen-space transforms, and shared camera/screen orchestration"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/types.go
+    - internal/renderer/screen.go
+    - internal/renderer/camera.go
+    - internal/renderer/camera_shared.go

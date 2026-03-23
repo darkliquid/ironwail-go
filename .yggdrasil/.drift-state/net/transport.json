@@ -1,0 +1,41 @@
+{
+  "hash": "1b2047c67cf629d520940fdb768f83505b9e26f2299b1653b8888f302d414b05",
+  "files": {
+    ".yggdrasil/model/net/transport/yg-node.yaml": "ea8e87c310f37ae887d3e9d8fe29f2eb331a520ca65ca2316ed8e9862df6b1bc",
+    ".yggdrasil/model/net/transport/interface.md": "7511e1c16773c68e135e579511a271d4f25743fe170f4501d2e9387575e08e0c",
+    ".yggdrasil/model/net/transport/internals.md": "1a870f37cb04c3f3e0bb40f527fa28c67b32443a874d09c744aa107a50e85ed4",
+    ".yggdrasil/model/net/transport/responsibility.md": "04f6c852f8751427c3711cb3f88979d1a0f3e2b17c819321e345ee032a22361a",
+    ".yggdrasil/model/net/yg-node.yaml": "20ff828cf42f4f47c9c44802b12c4cf0ca1e909d0d11fa7270f3aefd53734dca",
+    ".yggdrasil/model/net/interface.md": "53efc855b32aef0dece591ef3047c0520892d37baf24ec59b44dda47ea4aed11",
+    ".yggdrasil/model/net/internals.md": "25b7c56501d6217a72728eb6ef1e17b1d469caa0c6b58b1732aef0ce9767087f",
+    ".yggdrasil/model/net/responsibility.md": "31c66c1dfb400c077eff1925861fbd9639a601cac03a34cd45083e0fcaeca26c",
+    "internal/net/doc.go": "a57659c78cb4ce4258ad3a4aee351a713748d7c2d9497eee61eca481668a6cc2",
+    "internal/net/net.go": "a4b435b03ece19d1809244d0ccea73d72e5410f4ff4f5f244a349e2c30e7f916",
+    "internal/net/types.go": "7dc413c6372d9e2162354e752299b6bbe28795f91aff59833fc0b486aeea85bf",
+    "internal/net/udp.go": "42448a195b225d6c5dc58b3121b9d2ff40793ef2497c00449caa0d269602b2e4",
+    "internal/net/datagram.go": "8cd8f0aa99e9fb8d624ad9ac4f4e4de6c90d2368e061b18e57c4ad7f96262062",
+    "internal/net/loopback.go": "f3a2ff7501460b2dd1c499fd32094c89f15076589f8ccca94643feffea8ea35b",
+    "internal/net/stats.go": "9c732ce044cc856f7399557f341028c9a9eb4d913dfa956a4bae3fcd0ace2eb9",
+    "internal/net/net_test.go": "4ad0b58d4512bfb160df81871f5e9dc6bd9c86900fba9e630462999ddb852f54",
+    "internal/net/types_test.go": "7a9809bd1438a324bbaad9fd4409f1072088d29ccfeeb1b38345bec0ecfdc6f2"
+  },
+  "mtimes": {
+    ".yggdrasil/model/net/transport/yg-node.yaml": 1774245622213.796,
+    ".yggdrasil/model/net/transport/interface.md": 1774245622213.902,
+    ".yggdrasil/model/net/transport/internals.md": 1774245622213.953,
+    ".yggdrasil/model/net/transport/responsibility.md": 1774245622213.85,
+    ".yggdrasil/model/net/yg-node.yaml": 1774245622213.536,
+    ".yggdrasil/model/net/interface.md": 1774245622213.6768,
+    ".yggdrasil/model/net/internals.md": 1774245622213.7297,
+    ".yggdrasil/model/net/responsibility.md": 1774245622213.6143,
+    "internal/net/doc.go": 1773836785815.1926,
+    "internal/net/net.go": 1774115538465.7405,
+    "internal/net/types.go": 1773836785817.4998,
+    "internal/net/udp.go": 1773836785816.837,
+    "internal/net/datagram.go": 1773836785817.2773,
+    "internal/net/loopback.go": 1773836785815.6816,
+    "internal/net/stats.go": 1773836785817.912,
+    "internal/net/net_test.go": 1774113725202.5325,
+    "internal/net/types_test.go": 1773836785817.633
+  }
+}

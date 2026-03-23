@@ -1,0 +1,43 @@
+{
+  "hash": "000d911f0c56ac111e597de8f9c6135c986ba650c288506cd5cd0ab4b4e8f5da",
+  "files": {
+    ".yggdrasil/model/renderer/effects/yg-node.yaml": "0b25071004d973af0454652c33d2a1f1e2d8f6ff1bf3fd423eb07b1f6b98a85d",
+    ".yggdrasil/model/renderer/effects/interface.md": "f3327c5719923ccd39b8b75b040c82615acf8c8e7f675faa2baa63028d347a6b",
+    ".yggdrasil/model/renderer/effects/internals.md": "4f33de3f4b58f9fc42f2aad69db6777496baaa35b082857c07508d781b2ddf2c",
+    ".yggdrasil/model/renderer/effects/responsibility.md": "c10eb798b9f394e5f723d09e2cdc7c011260f6ad8641b346a4926ff0afdf60c0",
+    ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
+    ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
+    ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
+    ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
+    "internal/renderer/alias_skin.go": "60423f55db8bd6f5a876ad698b12907e20ac24b54003498770316210a5e25a43",
+    "internal/renderer/alias_skin_variants.go": "fa0b1a7c082c764fbd3cffbd445785899f2e8532cba844c4947dab07a029dc83",
+    "internal/renderer/alias_state.go": "3180e6477ddbc53c9fed909d234054688f232518568adbe633ed4901e4afc04b",
+    "internal/renderer/alpha_mode.go": "16645795ac6b354b6c6174177dfdb5f6f1b5f4aa36c0d98716aa664e52ffba6f",
+    "internal/renderer/client_effects.go": "38d62d0e9c373c62d1cc905e7ec409155de0d6d0bfc8e99ef3942bd4e9db2a93",
+    "internal/renderer/dynamic_light.go": "e3c1eb8009f9651e3493c42368dc11b66ded7041fb94499f4956b4c145281e97",
+    "internal/renderer/dynamic_light_pool.go": "1e857f67453dba7822de1d46e02b657ab634d70fb1a10f0a1328743e072af963",
+    "internal/renderer/entity_types.go": "14b70be7d8f14099fa3993b66b915483e7112eb0eba9f413262e0ca30594cf30",
+    "internal/renderer/particle.go": "a93f498e5bf65e8645c90f698a76eb245fe8f42c4eaac5385e08b3bcbf9f50e3",
+    "internal/renderer/player_colors.go": "16d49537f485042d62b8ab5a003c171321dd17edd5b17a340b94c11f1b3c6571"
+  },
+  "mtimes": {
+    ".yggdrasil/model/renderer/effects/yg-node.yaml": 1774219364398.623,
+    ".yggdrasil/model/renderer/effects/interface.md": 1774219364542.6248,
+    ".yggdrasil/model/renderer/effects/internals.md": 1774219364587.6252,
+    ".yggdrasil/model/renderer/effects/responsibility.md": 1774219364469.6238,
+    ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
+    ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
+    ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
+    ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
+    "internal/renderer/alias_skin.go": 1774122168196.0557,
+    "internal/renderer/alias_skin_variants.go": 1774126160170.7498,
+    "internal/renderer/alias_state.go": 1774126101626.699,
+    "internal/renderer/alpha_mode.go": 1773841235084.421,
+    "internal/renderer/client_effects.go": 1774088719160.408,
+    "internal/renderer/dynamic_light.go": 1773836785804.0117,
+    "internal/renderer/dynamic_light_pool.go": 1774178194335.3452,
+    "internal/renderer/entity_types.go": 1774125975115.4163,
+    "internal/renderer/particle.go": 1774034458965.2305,
+    "internal/renderer/player_colors.go": 1774125885404.7856
+  }
+}

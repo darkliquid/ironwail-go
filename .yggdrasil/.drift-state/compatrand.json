@@ -1,0 +1,19 @@
+{
+  "hash": "0a971ebbd53b4a64d0ba8960268d0833a98cfa6fa7e2748d3132ac9f205cd533",
+  "files": {
+    ".yggdrasil/model/compatrand/yg-node.yaml": "d04d0daf510a22692c4c4edd2dd0b087254578f6c2b6ca8d5d355451922c820d",
+    ".yggdrasil/model/compatrand/interface.md": "456c9afc17968e327322953ec447ead6c8436aa6afa693ae9c7a3602ff5814ef",
+    ".yggdrasil/model/compatrand/internals.md": "f685bd7a1b7dde7f897d3546be91617df520d8e16255a7ba058ad8a2c14eb8e8",
+    ".yggdrasil/model/compatrand/responsibility.md": "46a9df5b644ad390e38d3a432a4f3afd48d1c5d26bfff3e399ff35cd66f0290f",
+    "internal/compatrand/compatrand.go": "65fcfd7b38932191809bd8a5fb8f5d06d6406deef1d9945c5e758365e9b09a35",
+    "internal/compatrand/rng_test.go": "968dd4856bab1d20947571f0b2071a1088b4753c0c99d34f1725294ed4280311"
+  },
+  "mtimes": {
+    ".yggdrasil/model/compatrand/yg-node.yaml": 1774235050993.9622,
+    ".yggdrasil/model/compatrand/interface.md": 1774235050994.095,
+    ".yggdrasil/model/compatrand/internals.md": 1774235050994.1482,
+    ".yggdrasil/model/compatrand/responsibility.md": 1774235050994.0342,
+    "internal/compatrand/compatrand.go": 1774018737897.6777,
+    "internal/compatrand/rng_test.go": 1774018341570.0579
+  }
+}

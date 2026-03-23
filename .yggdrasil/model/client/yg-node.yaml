@@ -1,0 +1,4 @@
+name: Client
+type: module
+description: "Client subsystem umbrella covering runtime state, protocol ingestion, input/prediction, and demo playback"
+blackbox: false

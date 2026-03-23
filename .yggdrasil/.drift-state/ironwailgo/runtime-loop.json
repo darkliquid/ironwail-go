@@ -1,0 +1,29 @@
+{
+  "hash": "759e8f5fdff5c589066bd90d51a97377a21ff787df174663d2ab6f0d3c1a40c2",
+  "files": {
+    ".yggdrasil/model/ironwailgo/runtime-loop/yg-node.yaml": "b414f8e1e93736674063dce91c9854ef0b5313274681129969a682602eb9deac",
+    ".yggdrasil/model/ironwailgo/runtime-loop/interface.md": "570cd8770263d4a4828b7c1c1e1bb5316a13b4311080e861db1eb154d33db107",
+    ".yggdrasil/model/ironwailgo/runtime-loop/internals.md": "40f5ee94b0e24014b22e39f2385c341ff129162683737deb199c8af59d6e8ac6",
+    ".yggdrasil/model/ironwailgo/runtime-loop/responsibility.md": "f3acaaaabd298ec4693e7f06a60da0307c48b0720a7c7859de7c778e5f4cdd26",
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
+    ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
+    ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
+    ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
+    "cmd/ironwailgo/game_loop.go": "9f646d260c3d8fab48dbfca9b5775f2b10451c68edf95d1d8f69a3af57b43476",
+    "cmd/ironwailgo/shutdown.go": "1c2d4face6812c10179ee35bd0e95f94a315530f4a8802b50cbeb5549daeef9a",
+    "cmd/ironwailgo/shutdown_test.go": "15ce9aa61e5c6f38285da71b09e099f4f37236bf0bd1105515682d6aeca77648"
+  },
+  "mtimes": {
+    ".yggdrasil/model/ironwailgo/runtime-loop/yg-node.yaml": 1774246120438.4856,
+    ".yggdrasil/model/ironwailgo/runtime-loop/interface.md": 1774246120438.6018,
+    ".yggdrasil/model/ironwailgo/runtime-loop/internals.md": 1774246120438.6514,
+    ".yggdrasil/model/ironwailgo/runtime-loop/responsibility.md": 1774246120438.53,
+    ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
+    ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
+    ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
+    ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
+    "cmd/ironwailgo/game_loop.go": 1774200554726.318,
+    "cmd/ironwailgo/shutdown.go": 1774113708597.842,
+    "cmd/ironwailgo/shutdown_test.go": 1774124444459.4001
+  }
+}

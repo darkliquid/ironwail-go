@@ -1,0 +1,11 @@
+name: Renderer Runtime
+type: module
+description: "Backend-agnostic renderer surface, runtime adapter behavior, and stub/headless fallback"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/doc.go
+    - internal/renderer/adapter.go
+    - internal/renderer/render_pass_parity.go
+    - internal/renderer/renderer_stub.go
+    - internal/renderer/software.go

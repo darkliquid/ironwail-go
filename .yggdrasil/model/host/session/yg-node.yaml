@@ -1,0 +1,12 @@
+name: Host Session Support
+type: module
+description: "Host-managed remote session adapter and autosave/session heuristics"
+blackbox: false
+mapping:
+  paths:
+    - internal/host/autosave.go
+    - internal/host/remote_client.go
+    - internal/host/autosave_test.go
+    - internal/host/remote_client_test.go
+    - internal/host/commands_realassets_test.go
+    - internal/host/e2e_move_test.go

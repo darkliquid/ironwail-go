@@ -1,0 +1,4 @@
+name: Audio
+type: module
+description: "Sound subsystem umbrella covering runtime orchestration, mixing, backends, and music playback"
+blackbox: false

@@ -1,0 +1,43 @@
+{
+  "hash": "00005b8c4ec18c83b538f9d100e5f06fb637c78f9b81cc2c93a94a021c8773f6",
+  "files": {
+    ".yggdrasil/model/renderer/shared-world/yg-node.yaml": "fb746b2e66c926cfb53a1e7d92c0e2446293ec642bf625b444a9f7a21a761b56",
+    ".yggdrasil/model/renderer/shared-world/interface.md": "06324d60dd827fadbb973b394aa71f876f518378ba9a6e62153275193040c8cb",
+    ".yggdrasil/model/renderer/shared-world/internals.md": "73277e40aafdaa97fe8977dea19ac334cc9c160d3af329c4a3d541eae136075c",
+    ".yggdrasil/model/renderer/shared-world/responsibility.md": "c3672bffa9b8670d7c6ddcb9f3febcd269338b8990050591356e346bfd6d18e0",
+    ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
+    ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
+    ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
+    ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
+    "internal/renderer/world.go": "fcae5f838eba73623951d8d852aa2623a3f2185740fc32ec382009e018a7189f",
+    "internal/renderer/world_pass_shared.go": "a2abca2ceb0778fdfbaa8870f358c6821b35be5fbe76832569262ccffe9746c2",
+    "internal/renderer/world_fog_shared.go": "8d51c5b83ccb0ab3e8c740a834faf949ca7c61277ab51337c8c9b46a00ef5565",
+    "internal/renderer/world_texture_shared.go": "a093700d72ac7012ec89738786cc9639f775238c2c6ddec5964f15dc349095ed",
+    "internal/renderer/world_transform_shared.go": "77e89213be4a2223d01c670b52447413866677be6689ba9fc5c83d7b5ef418aa",
+    "internal/renderer/world_liquid_alpha.go": "cc741f011936e87e17f07c2c4d9dbf738957aeb2a4f086dac2a8f28ae0432684",
+    "internal/renderer/world_sky_shared.go": "bcaee0a26f90e8f0d6a92a887aa4c2e60aafcb7e5d897b41bfd06951865a874c",
+    "internal/renderer/lightmap_samples.go": "4874e4371bab846c2aff66ec66fab71055a9046d27feecd897b8d1fcec10ef0b",
+    "internal/renderer/surface.go": "7c0b72ce6751825cbd59aaa94fca123916c000682321c0fae465f2a9803831ec",
+    "internal/renderer/texture.go": "e0a70e787fdae7c2ebac94d6aa70c7530d75d0ad2d2b5b9e315165c15444f1cc"
+  },
+  "mtimes": {
+    ".yggdrasil/model/renderer/shared-world/yg-node.yaml": 1774219364104.6199,
+    ".yggdrasil/model/renderer/shared-world/interface.md": 1774219364273.6218,
+    ".yggdrasil/model/renderer/shared-world/internals.md": 1774219364308.622,
+    ".yggdrasil/model/renderer/shared-world/responsibility.md": 1774219364179.6206,
+    ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
+    ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
+    ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
+    ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
+    "internal/renderer/world.go": 1774198510144.8176,
+    "internal/renderer/world_pass_shared.go": 1774173925174.042,
+    "internal/renderer/world_fog_shared.go": 1774168417817.1743,
+    "internal/renderer/world_texture_shared.go": 1774133910584.6406,
+    "internal/renderer/world_transform_shared.go": 1774134456949.987,
+    "internal/renderer/world_liquid_alpha.go": 1773836785810.8274,
+    "internal/renderer/world_sky_shared.go": 1774184768624.0054,
+    "internal/renderer/lightmap_samples.go": 1774123696370.2805,
+    "internal/renderer/surface.go": 1773836785809.9563,
+    "internal/renderer/texture.go": 1773836785810.1782
+  }
+}

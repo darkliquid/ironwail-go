@@ -1,0 +1,20 @@
+# Internals
+
+## Logic
+
+This layer translates shared world data and visibility decisions into OpenGL world draw passes, including sky and liquid behavior specific to the GL path.
+
+## Constraints
+
+- Visibility, ordering, and sky/liquid behavior are parity-sensitive areas.
+- It depends on shared world state being prepared consistently before draw.
+
+## Decisions
+
+### Separate OpenGL world slice
+
+Observed decision:
+- OpenGL world rendering is factored out from backend-neutral world prep and from non-world OpenGL rendering.
+
+Rationale:
+- **unknown — inferred from code, not confirmed by a developer**

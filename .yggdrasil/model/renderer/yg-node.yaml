@@ -1,0 +1,4 @@
+name: Renderer
+type: module
+description: "Rendering subsystem umbrella covering runtime orchestration, backend implementations, world pipelines, and visual helpers"
+blackbox: false

@@ -1,0 +1,17 @@
+{
+  "hash": "f8e0d205a55f4497594816fc8a560b2c7d8e2784e9fb29bf4d0a391c803c8d5f",
+  "files": {
+    ".yggdrasil/model/game/yg-node.yaml": "015d0a966a99f8cf67e9c4fd4d25b0a606e6c5f1a072c921201e83cb08a23c17",
+    ".yggdrasil/model/game/interface.md": "de9eabd1fa6b24536beca4a58f1c1c2a58b2d5eecb893a0de7d17edda43dc00a",
+    ".yggdrasil/model/game/internals.md": "bbb4fbc8302f4d4cf57536ea22a76faf2455978b6c52507df31675c091f74acd",
+    ".yggdrasil/model/game/responsibility.md": "cbecc7c010d5c33972d13e3e503aa51f6cd2655605ab74d99e3f8f737fbbeab0",
+    "internal/game/doc.go": "d0912cffaa7eb0b81c610fabefcdf436f4d58fb96089aba57bebfc6a657d9906"
+  },
+  "mtimes": {
+    ".yggdrasil/model/game/yg-node.yaml": 1774219092990.941,
+    ".yggdrasil/model/game/interface.md": 1774219093091.942,
+    ".yggdrasil/model/game/internals.md": 1774219093122.9421,
+    ".yggdrasil/model/game/responsibility.md": 1774219093019.9412,
+    "internal/game/doc.go": 1773836785824.4968
+  }
+}
