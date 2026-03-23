@@ -131,6 +131,9 @@ func NewCmdSystem() *CmdSystem {
 	cs.AddCommand("find", func(args []string) {
 		cs.cmdApropos("find", args)
 	}, "Search commands and cvars by substring")
+	cs.AddCommand("aliaslist", func(args []string) {
+		cs.cmdAliasList()
+	}, "List defined command aliases")
 	return cs
 }
 
@@ -221,6 +224,28 @@ func (c *CmdSystem) cmdApropos(commandName string, args []string) {
 		plural = ""
 	}
 	printCallback(fmt.Sprintf("%d cvar%s/command%s containing %q\n", hits, plural, plural, args[0]))
+}
+
+func (c *CmdSystem) cmdAliasList() {
+	aliases := c.Aliases()
+	names := make([]string, 0, len(aliases))
+	for name := range aliases {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	for _, name := range names {
+		printCallback(fmt.Sprintf("   %s : %s\n", name, aliases[name]))
+	}
+
+	printCallback(fmt.Sprintf("%d alias%s\n", len(names), pluralSuffix(len(names))))
+}
+
+func pluralSuffix(count int) string {
+	if count == 1 {
+		return ""
+	}
+	return "es"
 }
 
 // AddCommand registers a new console command with the given name, handler

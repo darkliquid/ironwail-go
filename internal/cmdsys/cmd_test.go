@@ -617,3 +617,72 @@ func TestAproposPrintsUsageWithoutSubstring(t *testing.T) {
 		t.Fatalf("apropos usage = %q", printed)
 	}
 }
+
+func TestAliasListPrintsZeroCountWhenEmpty(t *testing.T) {
+	c := NewCmdSystem()
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("aliaslist")
+
+	if printed != "0 aliases\n" {
+		t.Fatalf("aliaslist empty output = %q", printed)
+	}
+}
+
+func TestAliasListPrintsAliasesAlphabetically(t *testing.T) {
+	c := NewCmdSystem()
+	c.AddAlias("zoom", "fov 110")
+	c.AddAlias("attack", "+attack")
+	c.AddAlias("rocketjump", "+jump;wait;+attack")
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("aliaslist")
+
+	wantOrder := []string{
+		"   attack : +attack\n",
+		"   rocketjump : +jump;wait;+attack\n",
+		"   zoom : fov 110\n",
+	}
+	pos := 0
+	for _, want := range wantOrder {
+		idx := strings.Index(printed[pos:], want)
+		if idx < 0 {
+			t.Fatalf("aliaslist output missing %q in:\n%s", want, printed)
+		}
+		pos += idx + len(want)
+	}
+}
+
+func TestAliasListCountMatchesDefinedAliases(t *testing.T) {
+	c := NewCmdSystem()
+	c.AddAlias("foo", "echo foo")
+	c.AddAlias("bar", "echo bar")
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("aliaslist")
+
+	if !strings.HasSuffix(printed, "2 aliases\n") {
+		t.Fatalf("aliaslist count mismatch:\n%s", printed)
+	}
+}

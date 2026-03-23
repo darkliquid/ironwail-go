@@ -1,5 +1,5 @@
 {
-  "hash": "9c6a97ee2dfa52f8fa26c5bf5ce3896f15088941d4e7b78fa0c82404f66ddc01",
+  "hash": "2b7b0c865ca860b1fad65587ded63aba0a4268ae43829e69d3ace2269e981eb3",
   "files": {
     ".yggdrasil/model/cmdsys/core/yg-node.yaml": "c6e53b1ba11e7696ad03ff44a379c3bf412f7efeefb6d9f3df30eaac55a6f523",
     ".yggdrasil/model/cmdsys/core/responsibility.md": "89692dec1d55f029dfb3e8c1e8393808ba2eefa711d2d4350bfeaa9e207523bb",
@@ -8,22 +8,22 @@
     ".yggdrasil/model/cmdsys/internals.md": "07248a8b29d07dbd3bdfc909f259a8ac8afb173ac2f602d45618dd86166523a9",
     ".yggdrasil/model/cmdsys/responsibility.md": "85a163a746f568697d0ffbea1053c6af2842cfe6eeb4d55e19e1dcaaaca9374c",
     "internal/cmdsys/doc.go": "5b6f857a99177286e2817074f819ed5cc68c2a9ecad408b3b278d77005c66613",
-    ".yggdrasil/model/cmdsys/core/interface.md": "6f6672292279efd1e326208e7afd9c5be071df1cb83b9cf5b242491ed5cdde9b",
-    ".yggdrasil/model/cmdsys/core/internals.md": "ba768014d2c37d932869b476c3c93fed1950f7db83658de1d3d77fabf6f52631",
-    "internal/cmdsys/cmd.go": "39f98e6fc3e375f6cfa400e519ca67d37b797152ff7a8c7e89faeed4a0b324fc",
-    "internal/cmdsys/cmd_test.go": "c740a4ae0ace5787d050f1b3a6c2a015e1b43da5725fe6967e58485a7a268c86"
+    ".yggdrasil/model/cmdsys/core/interface.md": "286ef095136fda5218d01e5c4105c5aa382a03c60d390e72c39abfe33ed0bcd5",
+    ".yggdrasil/model/cmdsys/core/internals.md": "d0ca2f0267e18affed0784e8fea01b4c76f2d378a2caa8d35169dfe406ca6912",
+    "internal/cmdsys/cmd.go": "8e54115073e388cdde728a5746a5340bd67961b0048e1b5d49a41ac60e0cbdfb",
+    "internal/cmdsys/cmd_test.go": "5543e30eb9312c87fc2fca7f37d976cb8c2e425ba6f1f1ace9ac4ef735a3d6b7"
   },
   "mtimes": {
     ".yggdrasil/model/cmdsys/core/yg-node.yaml": 1774234794605.9968,
-    ".yggdrasil/model/cmdsys/core/interface.md": 1774302613388.1724,
-    ".yggdrasil/model/cmdsys/core/internals.md": 1774302613563.1748,
+    ".yggdrasil/model/cmdsys/core/interface.md": 1774305128559.3613,
+    ".yggdrasil/model/cmdsys/core/internals.md": 1774305128725.3665,
     ".yggdrasil/model/cmdsys/core/responsibility.md": 1774234794606.0461,
     ".yggdrasil/model/cmdsys/yg-node.yaml": 1774234794605.7332,
     ".yggdrasil/model/cmdsys/interface.md": 1774234794605.8855,
     ".yggdrasil/model/cmdsys/internals.md": 1774234794605.9407,
     ".yggdrasil/model/cmdsys/responsibility.md": 1774234794605.8044,
     "internal/cmdsys/doc.go": 1773836853909.6846,
-    "internal/cmdsys/cmd.go": 1774302578886.91,
-    "internal/cmdsys/cmd_test.go": 1774302578888.0574
+    "internal/cmdsys/cmd.go": 1774305096246.3877,
+    "internal/cmdsys/cmd_test.go": 1774305096419.3928
   }
 }
