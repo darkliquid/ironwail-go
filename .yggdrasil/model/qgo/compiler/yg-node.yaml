@@ -16,5 +16,4 @@ mapping:
     - cmd/qgo/compiler/globals.go
     - cmd/qgo/compiler/strings.go
     - cmd/qgo/compiler/opcodes.go
-    - cmd/qgo/compiler/synthetic.go
     - cmd/qgo/compiler/errors.go

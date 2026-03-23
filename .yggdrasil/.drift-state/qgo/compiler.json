@@ -1,7 +1,8 @@
 {
-  "hash": "3c0e65301311d788c47277aeafad4e06d38f65c520f4ba25091772d83ebb1699",
+  "hash": "d5ac5517c239b57079f5b077fc58b678eb9726859e8204124d585fd6491aa234",
   "files": {
-    ".yggdrasil/model/qgo/compiler/yg-node.yaml": "83e0a78ec40d6b65fb6ac7a834cd77b1f0790d800c0da1e922642c08b454d997",
+    ".yggdrasil/model/qgo/compiler/interface.md": "8d0c7e928b69dab62a254b91f5fd7b2904cabc2a3927ec0c4d83c6c068eec4db",
+    ".yggdrasil/model/qgo/compiler/internals.md": "fa05a62a7eb04af7917cf6ee073591c00b92da1ba94171f820bf3b08f46dc906",
     ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
     ".yggdrasil/model/qgo/yg-node.yaml": "e591eb3ec6a469bf7ce7f31460dc1d113280653e7c1086193733a94b639c0df8",
     ".yggdrasil/model/qgo/interface.md": "ca27152bd7f18f13d7140bb06c8c966d80a144a047d348997e3f5754988e6ff1",
@@ -11,21 +12,19 @@
     ".yggdrasil/model/qc/core/interface.md": "5caa22a1e30bedba203c6a22689701c2d3f937b5a23af242a7e4d652ffc23651",
     ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
     ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
-    "cmd/qgo/compiler/compiler.go": "57c5cffa6d7ab3dc3ec523ef2669f09100dc58e94435bee4b88b3f4de4e56522",
-    "cmd/qgo/compiler/lowering.go": "030da987369fe736a27b53799f11a3a1642bb161c8e8035ea37d3dd11c3f6a77",
     "cmd/qgo/compiler/ir.go": "4dc1dc3b663362bf1cf5c7d4d7c10da75c80e193ab7ae8b23309db5275a05397",
     "cmd/qgo/compiler/codegen.go": "2d9b90150d2dc77fcf89f070a0a014e6fbb9ffd33660121b23c5d9462b1bb8cc",
+    "cmd/qgo/compiler/emitter.go": "b7ea292fbcf883e26ab6fe7103e86ab6d678d8a00b08465f00cae20eb66533ce",
     "cmd/qgo/compiler/globals.go": "62a748f1509a28db19d3ddcc33e657fe629f79f6d24723f760a2daeea89441ed",
     "cmd/qgo/compiler/strings.go": "36971bb2d8bd93828d3186c16c6b3c348a212d8801ea662588c483327d3c992a",
     "cmd/qgo/compiler/opcodes.go": "dcf9d5c9e6b52cdff31041a3a34a1930cfe545535fbaada644a4a13a9f661f1d",
-    "cmd/qgo/compiler/synthetic.go": "afc05d95d45536e5d32980d3b54a0e0b2059b3fb3160ffe59a0e6d144e4b2684",
     "cmd/qgo/compiler/errors.go": "a4a0432ea171eee92715a55e6717137e784afbcc8d496dd74ab63a3fabace2ff",
-    ".yggdrasil/model/qgo/compiler/interface.md": "8d0c7e928b69dab62a254b91f5fd7b2904cabc2a3927ec0c4d83c6c068eec4db",
-    ".yggdrasil/model/qgo/compiler/internals.md": "fa05a62a7eb04af7917cf6ee073591c00b92da1ba94171f820bf3b08f46dc906",
-    "cmd/qgo/compiler/emitter.go": "b7ea292fbcf883e26ab6fe7103e86ab6d678d8a00b08465f00cae20eb66533ce"
+    ".yggdrasil/model/qgo/compiler/yg-node.yaml": "6cf1f97449bb12d8cb243525281125ffea37acd8e71a1a26111335d7deda30e4",
+    "cmd/qgo/compiler/compiler.go": "26f7dda765079eca397d624b29ade647f9a43ca495d70d187a09de332de84f0c",
+    "cmd/qgo/compiler/lowering.go": "88a308a21363eb6fc4e3504266f4da7b6a8756c422df319e6025951b5640987e"
   },
   "mtimes": {
-    ".yggdrasil/model/qgo/compiler/yg-node.yaml": 1774265244141.6428,
+    ".yggdrasil/model/qgo/compiler/yg-node.yaml": 1774294112462.9868,
     ".yggdrasil/model/qgo/compiler/interface.md": 1774267288240.0479,
     ".yggdrasil/model/qgo/compiler/internals.md": 1774267288252.048,
     ".yggdrasil/model/qgo/compiler/responsibility.md": 1774265244197.6436,
@@ -37,15 +36,14 @@
     ".yggdrasil/model/qc/core/interface.md": 1774219202421.953,
     ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
     ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
-    "cmd/qgo/compiler/compiler.go": 1774263313972.0408,
-    "cmd/qgo/compiler/lowering.go": 1774263998654.6897,
+    "cmd/qgo/compiler/compiler.go": 1774294519793.4038,
+    "cmd/qgo/compiler/lowering.go": 1774293981284.926,
     "cmd/qgo/compiler/ir.go": 1774263936116.0652,
     "cmd/qgo/compiler/codegen.go": 1774263890489.8208,
     "cmd/qgo/compiler/emitter.go": 1774267301230.5242,
     "cmd/qgo/compiler/globals.go": 1774262998317.4524,
     "cmd/qgo/compiler/strings.go": 1774262962873.0496,
     "cmd/qgo/compiler/opcodes.go": 1774262956574.978,
-    "cmd/qgo/compiler/synthetic.go": 1774263172743.435,
     "cmd/qgo/compiler/errors.go": 1774262967452.1016
   }
 }
