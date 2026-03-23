@@ -1,52 +1,10 @@
-// Package engine provides bindings to the Quake engine's built-in functions and shared globals.
-//
-// These functions are mapped to the native C implementations within the Quake engine
-// via the //qgo:builtin N directive. The compiler emits function records with negative
-// first_statement indices that the engine uses to dispatch calls.
 package engine
 
 import "github.com/ironwail/ironwail-go/pkg/qgo/quake"
 
-// Engine globals that are shared between the engine and the QCVM.
-// These variables are located at fixed offsets in the global address space.
-var (
-	// Self is the entity currently executing QuakeC code.
-	Self quake.Entity
-
-	// Other is the secondary entity involved in an interaction.
-	Other quake.Entity
-
-	// World is the entity representing the map geometry and global state (entity 0).
-	World quake.Entity
-
-	// Time is the current game time in seconds.
-	Time float32
-
-	// FrameTime is the duration of the current frame in seconds.
-	FrameTime float32
-
-	// NextEnt returns the next entity in the linked list of entities.
-	NextEnt quake.Entity
-
-	// MapName is the name of the current map.
-	MapName string
-
-	// Direction globals set by MakeVectors
-	VForward quake.Vec3
-	VUp      quake.Vec3
-	VRight   quake.Vec3
-
-	// Trace result globals set by TraceLine/TraceBox
-	TraceFraction    float32
-	TraceEndPos      quake.Vec3
-	TracePlaneNormal quake.Vec3
-	TracePlaneDist   float32
-	TraceEnt         quake.Entity
-	TraceAllSolid    float32
-	TraceStartSolid  float32
-	TraceInOpen      float32
-	TraceInWater     float32
-)
+// These functions are mapped to the native implementations within the engine
+// via the //qgo:builtin N directive. The compiler emits function records with negative
+// first_statement indices that the engine uses to dispatch calls.
 
 // --- Group 1-10: Fundamental Math and Physics ---
 
@@ -390,7 +348,7 @@ func LocalCmd(s string) {}
 //
 //qgo:builtin 47
 //go:noinline
-func NextEnt(e quake.Entity) quake.Entity { return 0 }
+func GetNextEnt(e quake.Entity) quake.Entity { return 0 }
 
 // Particle spawns a group of particles at the specified origin.
 //
@@ -771,8 +729,3 @@ func Atan2(y, x float32) float32 { return 0 }
 //qgo:builtin 475
 //go:noinline
 func Tan(f float32) float32 { return 0 }
-
-// --- Helpers ---
-
-// CRandom returns a random float value between -1.0 and 1.0.
-func CRandom() float32 { return Random()*2 - 1 }
