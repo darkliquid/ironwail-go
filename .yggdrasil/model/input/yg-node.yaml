@@ -1,0 +1,4 @@
+name: Input System
+type: module
+description: "Umbrella for engine-wide input abstraction, key semantics, bindings, destination routing, and optional SDL3 backend support"
+blackbox: false

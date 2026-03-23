@@ -1,0 +1,10 @@
+name: Input Core
+type: module
+description: "Backend-neutral input contract covering key codes, bindings, frame state, destinations, callbacks, and backend delegation"
+blackbox: false
+mapping:
+  paths:
+    - internal/input/doc.go
+    - internal/input/types.go
+    - internal/input/types_binding.go
+    - internal/input/types_test.go
