@@ -1,0 +1,8 @@
+name: Alias Model Loader
+type: module
+description: "Parses Quake MDL alias models into AliasHeader plus Model bounds and pose data"
+blackbox: false
+mapping:
+  paths:
+    - internal/model/alias.go
+    - internal/model/mdl.go

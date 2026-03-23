@@ -1,0 +1,7 @@
+name: Sprite Model Loader
+type: module
+description: "Parses Quake sprite files into grouped or single sprite frames with padded texture extents"
+blackbox: false
+mapping:
+  paths:
+    - internal/model/sprite.go

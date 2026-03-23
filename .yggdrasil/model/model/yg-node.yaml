@@ -1,0 +1,10 @@
+name: Model Layer
+type: module
+description: "Umbrella for shared Quake model vocabulary plus alias and sprite format loaders"
+blackbox: false
+mapping:
+  paths:
+    - internal/model/doc.go
+    - internal/model/types.go
+    - internal/model/collision.go
+    - internal/model/model_test.go
