@@ -818,6 +818,22 @@ func TestStringBuiltins(t *testing.T) {
 		t.Errorf("substring(hello world,6,5) = %q, want world", got)
 	}
 
+	vm.SetGString(OFSParm0, "hello world")
+	vm.SetGFloat(OFSParm0+3, -5)
+	vm.SetGFloat(OFSParm0+6, 5)
+	substringBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "world" {
+		t.Errorf("substring(hello world,-5,5) = %q, want world", got)
+	}
+
+	vm.SetGString(OFSParm0, "hello world")
+	vm.SetGFloat(OFSParm0+3, 6)
+	vm.SetGFloat(OFSParm0+6, -1)
+	substringBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "world" {
+		t.Errorf("substring(hello world,6,-1) = %q, want world", got)
+	}
+
 	// stov("'1 2 3'") = [1,2,3]
 	vm.SetGString(OFSParm0, "'1 2 3'")
 	stovBuiltin(vm)

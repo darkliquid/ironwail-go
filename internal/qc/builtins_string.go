@@ -37,23 +37,27 @@ func substringBuiltin(vm *VM) {
 	s := vm.GString(OFSParm0)
 	start := int(vm.GFloat(OFSParm0 + 3))
 	length := int(vm.GFloat(OFSParm0 + 6))
+	slen := len(s)
 
+	if start < 0 {
+		start = slen + start
+	}
+	if length < 0 {
+		length = slen - start + (length + 1)
+	}
 	if start < 0 {
 		start = 0
 	}
-	if start >= len(s) {
+	if start >= slen || length <= 0 {
 		vm.SetGString(OFSReturn, "")
 		return
 	}
-	end := start + length
-	if end > len(s) {
-		end = len(s)
+
+	remaining := slen - start
+	if length > remaining {
+		length = remaining
 	}
-	if end < start {
-		vm.SetGString(OFSReturn, "")
-		return
-	}
-	vm.SetGString(OFSReturn, s[start:end])
+	vm.SetGString(OFSReturn, s[start:start+length])
 }
 
 // stovBuiltin converts a string like "'1 2 3'" to a vector.
