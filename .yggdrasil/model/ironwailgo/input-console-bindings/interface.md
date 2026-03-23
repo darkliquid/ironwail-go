@@ -19,3 +19,4 @@
 - `registerConsoleCompletionProviders` is also responsible for wiring console completion against executable-owned registries: commands, cvars, aliases, and the live VFS file listing callback when `g.Subs.Files` is a real `*fs.FileSystem`.
 - Gameplay bind command registration also owns small client-facing convenience commands such as `sizeup`/`sizedown`, which mirror C by bumping the mirrored `scr_viewsize`/`viewsize` cvars in ±10 steps.
 - Gameplay bind command registration also owns the `entities` client-debug command, which prints an indexed snapshot of the current client entity table and treats missing/zero-model slots as `EMPTY`.
+- Gameplay bind command registration also owns `centerview`, which mirrors C by calling the existing client pitch-drift restart path rather than mutating view angles directly.

@@ -57,6 +57,12 @@ func registerGameplayBindCommands() {
 		}
 	}, "Trigger bonus-pickup screen flash")
 
+	cmdsys.AddCommand("centerview", func(args []string) {
+		if g.Client != nil {
+			g.Client.StartPitchDrift()
+		}
+	}, "Recenter pitch drift")
+
 	// v_cshift: custom screen tint command (used by some QC mods).
 	// Usage: v_cshift <r> <g> <b> <percent>  (all 0–255)
 	// Mirrors C Ironwail: view.c V_cshift_f().

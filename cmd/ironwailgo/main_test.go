@@ -5051,6 +5051,17 @@ func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 		t.Fatalf("expected wheel bind to set impulse 12, got %d", g.Client.InImpulse)
 	}
 
+	g.Client.Time = 1
+	g.Client.NoDrift = true
+	g.Client.PitchVel = 0
+	cmdsys.ExecuteText("centerview")
+	if g.Client.NoDrift {
+		t.Fatalf("expected centerview to re-enable pitch drift")
+	}
+	if g.Client.PitchVel <= 0 {
+		t.Fatalf("expected centerview to seed PitchVel, got %v", g.Client.PitchVel)
+	}
+
 	cmdsys.ExecuteText("unbind w")
 	if got := g.Input.GetBinding(int('w')); got != "" {
 		t.Fatalf("unbind did not clear w binding, got %q", got)
