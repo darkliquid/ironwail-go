@@ -4,7 +4,9 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
@@ -22,26 +24,31 @@ type Lowerer struct {
 	constFloats map[float64]VReg    // const float pool
 	constStrs   map[string]VReg     // const string pool
 	labelCount int
+
+	entityFields map[types.Type][]IRField // Type -> fields
+	fieldOffsets map[types.Object]uint16  // Field object -> offset
 }
 
 // NewLowerer creates a new lowerer.
 func NewLowerer(synth *SyntheticPackages, info *types.Info, fset *token.FileSet) *Lowerer {
 	return &Lowerer{
-		synth: synth,
-		info:  info,
-		fset:  fset,
+		synth:        synth,
+		info:         info,
+		fset:         fset,
+		entityFields: make(map[types.Type][]IRField),
+		fieldOffsets: make(map[types.Object]uint16),
 	}
 }
 
-// Lower processes a package AST and returns the IR program.
-func (l *Lowerer) Lower(pkg *ast.Package) (*IRProgram, error) {
-	// First pass: collect all declarations
-	for _, file := range pkg.Files {
+// Lower processes a collection of AST files and returns the IR program.
+func (l *Lowerer) Lower(files []*ast.File) (*IRProgram, error) {
+	// First pass: collect all declarations and identify entity structs
+	for _, file := range files {
 		l.lowerFileDecls(file)
 	}
 
 	// Second pass: lower function bodies
-	for _, file := range pkg.Files {
+	for _, file := range files {
 		l.lowerFileFuncs(file)
 	}
 
@@ -72,35 +79,125 @@ func (l *Lowerer) lowerFileFuncs(file *ast.File) {
 }
 
 func (l *Lowerer) lowerGenDecl(decl *ast.GenDecl) {
-	if decl.Tok != token.VAR {
-		return // const/type/import handled elsewhere
-	}
+	switch decl.Tok {
+	case token.VAR:
+		for _, spec := range decl.Specs {
+			vs := spec.(*ast.ValueSpec)
+			for i, name := range vs.Names {
+				if name.Name == "_" {
+					continue
+				}
 
-	for _, spec := range decl.Specs {
-		vs := spec.(*ast.ValueSpec)
-		for i, name := range vs.Names {
-			if name.Name == "_" {
-				continue
+				obj := l.info.Defs[name]
+				if obj == nil {
+					continue
+				}
+
+				g := IRGlobal{
+					Name: name.Name,
+					Type: l.goTypeToQC(obj.Type()),
+				}
+
+				// Initial value
+				if i < len(vs.Values) {
+					g = l.evalGlobalInit(g, vs.Values[i])
+				}
+
+				l.program.Globals = append(l.program.Globals, g)
 			}
+		}
 
-			obj := l.info.Defs[name]
-			if obj == nil {
-				continue
-			}
-
-			g := IRGlobal{
-				Name: name.Name,
-				Type: l.goTypeToQC(obj.Type()),
-			}
-
-			// Initial value
-			if i < len(vs.Values) {
-				g = l.evalGlobalInit(g, vs.Values[i])
-			}
-
-			l.program.Globals = append(l.program.Globals, g)
+	case token.TYPE:
+		for _, spec := range decl.Specs {
+			ts := spec.(*ast.TypeSpec)
+			l.checkEntityType(decl, ts)
 		}
 	}
+}
+
+func (l *Lowerer) checkEntityType(decl *ast.GenDecl, ts *ast.TypeSpec) {
+	// Check for //qgo:entity directive
+	isEntity := false
+	if decl.Doc != nil {
+		for _, c := range decl.Doc.List {
+			if strings.TrimSpace(c.Text) == "//qgo:entity" {
+				isEntity = true
+				break
+			}
+		}
+	}
+
+	if !isEntity {
+		return
+	}
+
+	if _, ok := ts.Type.(*ast.StructType); !ok {
+		l.errors.Addf(l.pos(ts), "//qgo:entity can only be applied to struct types")
+		return
+	}
+
+	obj := l.info.Defs[ts.Name]
+	if obj == nil {
+		return
+	}
+
+	structType := obj.Type().Underlying().(*types.Struct)
+	var fields []IRField
+	l.collectEntityFields(&fields, structType, 0)
+
+	// Register fields if they haven't been registered yet
+	// (Quake fields are global and shared across all entities)
+	for _, f := range fields {
+		found := false
+		for i := range l.program.Fields {
+			if l.program.Fields[i].Name == f.Name {
+				if l.program.Fields[i].Offset != f.Offset {
+					l.errors.Addf(l.pos(ts), "conflicting offset for field %s", f.Name)
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			l.program.Fields = append(l.program.Fields, f)
+		}
+	}
+
+	l.entityFields[obj.Type()] = fields
+}
+
+func (l *Lowerer) collectEntityFields(out *[]IRField, st *types.Struct, baseOffset uint16) uint16 {
+	currentOffset := baseOffset
+	for i := 0; i < st.NumFields(); i++ {
+		f := st.Field(i)
+		tag := st.Tag(i)
+		
+		qcName := ""
+		if tag != "" {
+			qcName = reflect.StructTag(tag).Get("qgo")
+		}
+		if qcName == "" {
+			qcName = strings.ToLower(f.Name())
+		}
+
+		qcType := l.goTypeToQC(f.Type())
+
+		if f.Anonymous() {
+			if embedded, ok := f.Type().Underlying().(*types.Struct); ok {
+				currentOffset = l.collectEntityFields(out, embedded, currentOffset)
+				continue
+			}
+		}
+
+		*out = append(*out, IRField{
+			Name:   qcName,
+			Type:   qcType,
+			Offset: currentOffset,
+		})
+		l.fieldOffsets[f] = currentOffset
+		currentOffset += slotsForType(qcType)
+	}
+	return currentOffset
 }
 
 func (l *Lowerer) evalGlobalInit(g IRGlobal, expr ast.Expr) IRGlobal {
@@ -577,17 +674,18 @@ func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {
 
 	// Entity field access: ent.field → LOAD
 	entVReg := l.lowerExpr(fn, sel.X)
-	fieldObj := l.info.Selections[sel]
-	if fieldObj == nil {
+	selObj := l.info.Selections[sel]
+	if selObj == nil {
 		l.errors.Addf(l.pos(sel), "unresolved selector: %s", sel.Sel.Name)
 		return VRegInvalid
 	}
 
-	fieldType := l.goTypeToQC(fieldObj.Type())
+	fieldType := l.goTypeToQC(selObj.Type())
 	result := l.allocVReg()
 
 	// For entity field access: ADDRESS(ent, fieldOfs) then LOAD
-	fieldOfsVReg := l.constFloat(fn, float64(fieldObj.Index()[0]))
+	fieldOfs := l.resolveFieldOffset(selObj)
+	fieldOfsVReg := l.constFloat(fn, float64(fieldOfs))
 
 	fn.Body = append(fn.Body, IRInst{
 		Op:   opcodeForLoad(fieldType),
@@ -603,14 +701,15 @@ func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {
 
 func (l *Lowerer) lowerFieldStore(fn *IRFunc, sel *ast.SelectorExpr, val VReg) {
 	entVReg := l.lowerExpr(fn, sel.X)
-	fieldObj := l.info.Selections[sel]
-	if fieldObj == nil {
+	selObj := l.info.Selections[sel]
+	if selObj == nil {
 		l.errors.Addf(l.pos(sel), "unresolved selector for store: %s", sel.Sel.Name)
 		return
 	}
 
-	fieldType := l.goTypeToQC(fieldObj.Type())
-	fieldOfsVReg := l.constFloat(fn, float64(fieldObj.Index()[0]))
+	fieldType := l.goTypeToQC(selObj.Type())
+	fieldOfs := l.resolveFieldOffset(selObj)
+	fieldOfsVReg := l.constFloat(fn, float64(fieldOfs))
 
 	// ADDRESS(ent, fieldOfs) -> pointer
 	ptr := l.allocVReg()
@@ -630,6 +729,14 @@ func (l *Lowerer) lowerFieldStore(fn *IRFunc, sel *ast.SelectorExpr, val VReg) {
 		B:    ptr,
 		Type: fieldType,
 	})
+}
+
+func (l *Lowerer) resolveFieldOffset(sel *types.Selection) uint16 {
+	if ofs, ok := l.fieldOffsets[sel.Obj()]; ok {
+		return ofs
+	}
+
+	return uint16(sel.Index()[0])
 }
 
 func (l *Lowerer) lowerIf(fn *IRFunc, s *ast.IfStmt) {
@@ -872,6 +979,12 @@ func (l *Lowerer) goTypeToQC(t types.Type) qc.EType {
 // constantToFloat64 extracts a float64 from a go/constant value.
 func constantToFloat64(v interface{ ExactString() string }) (float64, bool) {
 	s := v.ExactString()
+	if s == "true" {
+		return 1, true
+	}
+	if s == "false" {
+		return 0, true
+	}
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil {
 		// Try parsing as integer

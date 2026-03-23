@@ -5,6 +5,9 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
@@ -26,26 +29,40 @@ func New() *Compiler {
 func (c *Compiler) Compile(dir string) ([]byte, error) {
 	fset := token.NewFileSet()
 
-	// Parse all Go files in the directory
-	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
+	// Parse all Go and qgo files in the directory
+	var files []*ast.File
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Find the target package (should be exactly one)
-	var pkg *ast.Package
-	for _, p := range pkgs {
-		pkg = p
-		break
-	}
-	if pkg == nil {
-		return nil, &CompileError{Msg: "no Go packages found in " + dir}
+	pkgName := ""
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, ".qgo") {
+			continue
+		}
+
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+
+		if pkgName == "" {
+			pkgName = f.Name.Name
+		} else if pkgName != f.Name.Name {
+			// Skip files from different packages in the same directory (standard Go behavior)
+			continue
+		}
+
+		files = append(files, f)
 	}
 
-	// Collect files for type-checking
-	var files []*ast.File
-	for _, f := range pkg.Files {
-		files = append(files, f)
+	if len(files) == 0 {
+		return nil, &CompileError{Msg: "no Go or qgo files found in " + dir}
 	}
 
 	// Type-check with synthetic importer
@@ -60,14 +77,14 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 		Importer: NewSyntheticImporter(c.synth),
 	}
 
-	_, err = conf.Check(pkg.Name, fset, files, info)
+	_, err = conf.Check(pkgName, fset, files, info)
 	if err != nil {
 		return nil, err
 	}
 
 	// Lower AST → IR
 	lowerer := NewLowerer(c.synth, info, fset)
-	irProg, err := lowerer.Lower(pkg)
+	irProg, err := lowerer.Lower(files)
 	if err != nil {
 		return nil, err
 	}
