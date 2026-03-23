@@ -157,6 +157,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("music_loop", func(args []string) { h.CmdMusicLoop(args, subs) }, "Toggle or set background music looping")
 	replaceCommand("music_stop", func(args []string) { h.CmdMusicStop(subs) }, "Stop background music")
 	replaceCommand("music_jump", func(args []string) { h.CmdMusicJump(args, subs) }, "Jump to a module order in the active music track")
+	replaceCommand("net_stats", func(args []string) { h.CmdNetStats(subs) }, "Show datagram network counters")
 	replaceCommand("particle_texture", func(args []string) {
 		if len(args) > 0 {
 			h.CmdParticleTexture(args[0], subs)

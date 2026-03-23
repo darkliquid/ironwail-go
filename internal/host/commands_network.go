@@ -269,6 +269,17 @@ func (h *Host) CmdServerInfo(subs *Subsystems) {
 	subs.Console.Print(fmt.Sprintf("  skill:     %d\n", h.currentSkill))
 }
 
+func (h *Host) CmdNetStats(subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	subs.Console.Print(inet.GlobalStats.String())
+}
+
 // CmdSlist initiates a LAN server search and prints discovered servers
 // to the console, matching the C Ironwail "slist" command.
 func (h *Host) CmdSlist(subs *Subsystems) {

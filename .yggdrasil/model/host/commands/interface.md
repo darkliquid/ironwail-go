@@ -32,6 +32,7 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - `maxplayers` mirrors C query/set semantics: no argument prints current max, setting is rejected while server is active, values clamp to `[1, MaxScoreboard]`, `deathmatch` tracks `maxplayers>1`, and listen toggles are queued (`listen 0`/`listen 1`) when crossing single-player/multiplayer boundary.
 - `port` mirrors C query/set semantics: no argument prints current host port, set validates `[1, 65534]`, and when already listening it queues `listen 0` then `listen 1` to rebind.
 - `ban` mirrors C transport/IP semantics rather than name moderation: local-server invocation prints current status with no args, accepts `ban off`, accepts `ban <ip>` or `ban <ip> <mask>`, prints `BAN ip_address [mask]` for invalid arity, and forwards to the remote server when no local server owns the command path.
+- `net_stats` exposes the global datagram transport counters maintained by `internal/net/stats.go`, using the same line labels as C's no-argument `NET_Stats_f` branch.
 
 ## Failure modes
 

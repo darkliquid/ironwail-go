@@ -834,6 +834,34 @@ func TestCmdPing(t *testing.T) {
 	h.CmdPing(&subs.Subsystems)
 }
 
+func TestCmdNetStatsPrintsGlobalDatagramCounters(t *testing.T) {
+	inet.GlobalStats.Reset()
+	t.Cleanup(inet.GlobalStats.Reset)
+
+	inet.GlobalStats.UnreliableSent.Store(11)
+	inet.GlobalStats.ReliableReceived.Store(7)
+	inet.GlobalStats.DroppedDatagrams.Store(3)
+
+	h := NewHost()
+	subs := &mockSubsystems{
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Console = subs.console
+
+	h.CmdNetStats(&subs.Subsystems)
+
+	got := strings.Join(subs.console.messages, "")
+	if !strings.Contains(got, "unreliable messages sent   = 11\n") {
+		t.Fatalf("net_stats output missing unreliable sent count:\n%s", got)
+	}
+	if !strings.Contains(got, "reliable messages received = 7\n") {
+		t.Fatalf("net_stats output missing reliable received count:\n%s", got)
+	}
+	if !strings.Contains(got, "droppedDatagrams           = 3\n") {
+		t.Fatalf("net_stats output missing dropped datagrams count:\n%s", got)
+	}
+}
+
 func TestCmdKickBySlot(t *testing.T) {
 	h := NewHost()
 	srv := newKickTrackingServer("Ranger", "Grunt")
