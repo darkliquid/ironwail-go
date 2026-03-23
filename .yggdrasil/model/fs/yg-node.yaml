@@ -1,0 +1,10 @@
+name: Filesystem
+type: module
+description: "Quake virtual filesystem that mounts game directories and pak archives, resolves override precedence, and loads raw asset bytes"
+blackbox: false
+mapping:
+  paths:
+    - internal/fs/doc.go
+    - internal/fs/fs.go
+    - internal/fs/fs_search.go
+    - internal/fs/fs_test.go
