@@ -27,7 +27,29 @@ var (
 
 	// NextEnt returns the next entity in the linked list of entities.
 	NextEnt quake.Entity
+
+	// Direction globals set by MakeVectors
+	VForward quake.Vec3
+	VUp      quake.Vec3
+	VRight   quake.Vec3
+
+	// Trace result globals set by TraceLine/TraceBox
+	TraceFraction    float32
+	TraceEndPos      quake.Vec3
+	TracePlaneNormal quake.Vec3
+	TracePlaneDist   float32
+	TraceEnt         quake.Entity
+	TraceAllSolid    float32
+	TraceStartSolid  float32
+	TraceInOpen      float32
+	TraceInWater     float32
 )
+
+// MakeVectors computes forward, up, and right vectors from a rotation vector.
+//
+//qgo:builtin 1
+//go:noinline
+func MakeVectors(ang quake.Vec3) {}
 
 // SetOrigin moves an entity to a specific position in the world.
 //
@@ -96,7 +118,7 @@ func Spawn() quake.Entity { return 0 }
 func Remove(e quake.Entity) {}
 
 // Traceline performs a ray-cast from v1 to v2 and stores the results in
-// global variables (trace_fraction, trace_endpos, etc.).
+// global variables (TraceFraction, TraceEndPos, etc.).
 //
 //qgo:builtin 16
 //go:noinline
@@ -116,6 +138,8 @@ func PrecacheSound(s string) string { return s }
 //go:noinline
 func PrecacheModel(s string) string { return s }
 
+// FindRadius returns a chain of entities within a radius of a point.
+//
 //qgo:builtin 22
 //go:noinline
 func FindRadius(org quake.Vec3, radius float32) quake.Entity { return 0 }
@@ -126,11 +150,11 @@ func FindRadius(org quake.Vec3, radius float32) quake.Entity { return 0 }
 //go:noinline
 func Bprint(s string) {}
 
-// Print prints a message to the engine console.
+// SPrint prints a message intended for one client.
 //
 //qgo:builtin 24
 //go:noinline
-func Print(s string) {}
+func SPrint(e quake.Entity, s string) {}
 
 // Dprint prints a message to the engine console only if the 'developer'
 // console variable is set to a non-zero value.
@@ -139,9 +163,29 @@ func Print(s string) {}
 //go:noinline
 func Dprint(s string) {}
 
+// Ftos converts a float value to a string.
+//
+//qgo:builtin 26
+//go:noinline
+func Ftos(f float32) string { return "" }
+
+// Vtos converts a vector value to a string.
+//
+//qgo:builtin 27
+//go:noinline
+func Vtos(v quake.Vec3) string { return "" }
+
+// RInt returns the nearest integer value to f.
+//
 //qgo:builtin 36
 //go:noinline
 func RInt(f float32) float32 { return 0 }
+
+// Find locates an entity whose field matches a string.
+//
+//qgo:builtin 18
+//go:noinline
+func Find(e quake.Entity, field string, match string) quake.Entity { return 0 }
 
 // Cvar returns the current float value of a console variable.
 //
@@ -159,7 +203,7 @@ func Changelevel(s string) {}
 //
 //qgo:builtin 72
 //go:noinline
-func CvarSet(s string, v float32) {}
+func CvarSet(s string, v string) {}
 
 // Centerprint prints a message in the center of a specific client's screen.
 //
@@ -172,3 +216,48 @@ func Centerprint(s string) {}
 //qgo:builtin 74
 //go:noinline
 func Ambientsound(pos quake.Vec3, samp string, vol, atten float32) {}
+
+// StuffCmd sends a command string to a client's console.
+//
+//qgo:builtin 21
+//go:noinline
+func StuffCmd(e quake.Entity, s string) {}
+
+//qgo:builtin 52
+//go:noinline
+func WriteByte(dest float32, b float32) {}
+
+//qgo:builtin 53
+//go:noinline
+func WriteChar(dest float32, b float32) {}
+
+//qgo:builtin 54
+//go:noinline
+func WriteShort(dest float32, b float32) {}
+
+//qgo:builtin 55
+//go:noinline
+func WriteLong(dest float32, b float32) {}
+
+//qgo:builtin 56
+//go:noinline
+func WriteCoord(dest float32, b float32) {}
+
+//qgo:builtin 57
+//go:noinline
+func WriteAngle(dest float32, b float32) {}
+
+//qgo:builtin 58
+//go:noinline
+func WriteString(dest float32, s string) {}
+
+//qgo:builtin 59
+//go:noinline
+func WriteEntity(dest float32, e quake.Entity) {}
+
+// CRandom returns a random float value between -1.0 and 1.0.
+func CRandom() float32 { return engine.Random()*2 - 1 }
+
+//qgo:builtin 99
+//go:noinline
+func CheckExtension(s string) float32 { return 0 }

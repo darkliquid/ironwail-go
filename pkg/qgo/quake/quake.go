@@ -39,3 +39,18 @@ func MakeVec3(x, y, z float32) Vec3 {
 func Sprintf(format string, args ...interface{}) string {
 	return ""
 }
+
+// Mul returns the vector scaled by s.
+func (v Vec3) Mul(s float32) Vec3 {
+	return Vec3{v[0] * s, v[1] * s, v[2] * s}
+}
+
+// Add returns the sum of v and o.
+func (v Vec3) Add(o Vec3) Vec3 {
+	return Vec3{v[0] + o[0], v[1] + o[1], v[2] + o[2]}
+}
+
+// Sub returns the difference of v and o.
+func (v Vec3) Sub(o Vec3) Vec3 {
+	return Vec3{v[0] - o[0], v[1] - o[1], v[2] - o[2]}
+}
