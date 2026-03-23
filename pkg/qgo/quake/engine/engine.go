@@ -256,8 +256,16 @@ func WriteString(dest float32, s string) {}
 func WriteEntity(dest float32, e quake.Entity) {}
 
 // CRandom returns a random float value between -1.0 and 1.0.
-func CRandom() float32 { return engine.Random()*2 - 1 }
+func CRandom() float32 { return Random()*2 - 1 }
 
 //qgo:builtin 99
 //go:noinline
 func CheckExtension(s string) float32 { return 0 }
+
+//qgo:builtin 38
+//go:noinline
+func Ceil(f float32) float32 { return 0 }
+
+//qgo:builtin 100
+//go:noinline
+func CheckPlayerEXFlags(e quake.Entity) float32 { return 0 }
