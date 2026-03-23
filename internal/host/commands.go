@@ -81,6 +81,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("mapname", func(args []string) { h.CmdMapname(subs) }, "Show current map name")
 	replaceCommand("mods", func(args []string) { h.CmdMods(args, subs) }, "List available mod directories")
 	replaceCommand("games", func(args []string) { h.CmdMods(args, subs) }, "Alias for mods")
+	replaceCommand("skies", func(args []string) { h.CmdSkies(args, subs) }, "List available skyboxes")
 	replaceClientCommand("god", func(args []string) { h.CmdGod(subs) }, "Toggle god mode")
 	replaceClientCommand("noclip", func(args []string) { h.CmdNoClip(subs) }, "Toggle noclip mode")
 	replaceClientCommand("fly", func(args []string) { h.CmdFly(subs) }, "Toggle fly mode")

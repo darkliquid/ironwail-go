@@ -4683,6 +4683,79 @@ func TestCmdPathPrintsSearchPathStack(t *testing.T) {
 	}
 }
 
+func TestCmdSkiesPrintsAvailableSkyboxes(t *testing.T) {
+	baseDir := t.TempDir()
+	envDir := filepath.Join(baseDir, "id1", "gfx", "env")
+	if err := os.MkdirAll(envDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(env): %v", err)
+	}
+	for _, name := range []string{"stormup.tga", "stormrt.tga", "plasmaup.tga", "junkup.jpg"} {
+		if err := os.WriteFile(filepath.Join(envDir, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("WriteFile %s: %v", name, err)
+		}
+	}
+	writeCommandTestPak(t, filepath.Join(baseDir, "id1", "pak0.pak"), map[string][]byte{
+		"gfx/env/iceup.tga":   []byte("iceup"),
+		"gfx/env/icert.tga":   []byte("icert"),
+		"gfx/env/stormup.tga": []byte("duplicate"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, ""); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdSkies(nil, subs)
+
+	got := strings.Join(console.messages, "")
+	for _, want := range []string{"   ice\n", "   plasma\n", "   storm\n", "3 skies\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("skies output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestCmdSkiesFilter(t *testing.T) {
+	baseDir := t.TempDir()
+	envDir := filepath.Join(baseDir, "id1", "gfx", "env")
+	if err := os.MkdirAll(envDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(env): %v", err)
+	}
+	for _, name := range []string{"stormup.tga", "plasmaup.tga"} {
+		if err := os.WriteFile(filepath.Join(envDir, name), []byte(name), 0o644); err != nil {
+			t.Fatalf("WriteFile %s: %v", name, err)
+		}
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, ""); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdSkies([]string{"sto"}, subs)
+	filtered := strings.Join(console.messages, "")
+	if !strings.Contains(filtered, "   storm\n") || strings.Contains(filtered, "plasma") {
+		t.Fatalf("filtered skies output mismatch:\n%s", filtered)
+	}
+	if !strings.Contains(filtered, "1 sky containing \"sto\"\n") {
+		t.Fatalf("filtered skies summary mismatch:\n%s", filtered)
+	}
+
+	console.messages = nil
+	h.CmdSkies([]string{"zzz"}, subs)
+	if got := strings.Join(console.messages, ""); got != "no skies found containing \"zzz\"\n" {
+		t.Fatalf("missing-filter output = %q", got)
+	}
+}
+
 // --- viewframe/viewnext/viewprev tests ---
 
 func TestCmdViewframeNoServer(t *testing.T) {

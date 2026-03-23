@@ -39,6 +39,7 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - `path` mirrors C's filesystem debug command by printing `Current search path:` followed by the active VFS lookup stack, with pack entries shown as `path (N files)`.
 - `mapname` mirrors C's query semantics by printing `"mapname" is "<name>"` for the active local server map or the connected client map, and `no map loaded` otherwise.
 - `mods` mirrors C's mod-directory listing by printing discovered non-`id1` mod directories plus a count footer, optionally filtering by substring; `games` is an exact alias to the same listing.
+- `skies` mirrors C's skybox listing by printing discovered `gfx/env/*up.tga` skybox bases plus a count footer, optionally filtering by substring.
 
 ## Failure modes
 

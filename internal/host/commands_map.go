@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"sort"
 	"strings"
 )
 
@@ -175,6 +176,70 @@ func (h *Host) CmdMods(args []string, subs *Subsystems) {
 		label := "mods"
 		if count == 1 {
 			label = "mod"
+		}
+		subs.Console.Print(fmt.Sprintf("%d %s\n", count, label))
+	}
+}
+
+func (h *Host) CmdSkies(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil || subs.Files == nil {
+		return
+	}
+	fsInstance, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return
+	}
+
+	filter := ""
+	filterDisplay := ""
+	if len(args) > 0 {
+		filterDisplay = args[0]
+		filter = strings.ToLower(strings.TrimSpace(args[0]))
+	}
+
+	skySet := map[string]struct{}{}
+	for _, file := range fsInstance.ListFiles("gfx/env/*up.tga") {
+		trimmed := strings.TrimPrefix(strings.ToLower(file), "gfx/env/")
+		if !strings.HasSuffix(trimmed, "up.tga") {
+			continue
+		}
+		base := strings.TrimSuffix(trimmed, "up.tga")
+		if base == "" {
+			continue
+		}
+		skySet[base] = struct{}{}
+	}
+
+	skies := make([]string, 0, len(skySet))
+	for sky := range skySet {
+		skies = append(skies, sky)
+	}
+	sort.Strings(skies)
+
+	count := 0
+	for _, sky := range skies {
+		if filter != "" && !strings.Contains(sky, filter) {
+			continue
+		}
+		subs.Console.Print(fmt.Sprintf("   %s\n", sky))
+		count++
+	}
+
+	switch {
+	case filter != "" && count == 0:
+		subs.Console.Print(fmt.Sprintf("no skies found containing %q\n", filterDisplay))
+	case filter != "":
+		label := "skies"
+		if count == 1 {
+			label = "sky"
+		}
+		subs.Console.Print(fmt.Sprintf("%d %s containing %q\n", count, label, filterDisplay))
+	case count == 0:
+		subs.Console.Print("no skies found\n")
+	default:
+		label := "skies"
+		if count == 1 {
+			label = "sky"
 		}
 		subs.Console.Print(fmt.Sprintf("%d %s\n", count, label))
 	}
