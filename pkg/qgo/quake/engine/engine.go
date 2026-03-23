@@ -29,24 +29,41 @@ var (
 	NextEnt quake.Entity
 )
 
-// Dprint prints a message to the engine console only if the 'developer'
-// console variable is set to a non-zero value.
+// SetOrigin moves an entity to a specific position in the world.
 //
-//qgo:builtin 25
+//qgo:builtin 2
 //go:noinline
-func Dprint(s string) {}
+func SetOrigin(e quake.Entity, org quake.Vec3) {}
 
-// Print prints a message to the engine console.
+// SetModel sets the visual model for an entity.
 //
-//qgo:builtin 24
+//qgo:builtin 3
 //go:noinline
-func Print(s string) {}
+func SetModel(e quake.Entity, m string) {}
 
-// Bprint broadcasts a message to all connected clients and the console.
+// SetSize sets the bounding box (mins and maxs) for an entity's physics.
 //
-//qgo:builtin 23
+//qgo:builtin 4
 //go:noinline
-func Bprint(s string) {}
+func SetSize(e quake.Entity, min, max quake.Vec3) {}
+
+// Random returns a random float value between 0.0 and 1.0.
+//
+//qgo:builtin 7
+//go:noinline
+func Random() float32 { return 0 }
+
+// Sound plays a sound effect from an entity.
+//
+//qgo:builtin 8
+//go:noinline
+func Sound(e quake.Entity, ch int, samp string, vol, atten float32) {}
+
+// Normalize returns a vector with the same direction as the input but with a length of 1.
+//
+//qgo:builtin 9
+//go:noinline
+func Normalize(v quake.Vec3) quake.Vec3 { return v }
 
 // Error prints a fatal error message and halts the server.
 //
@@ -66,12 +83,6 @@ func Vlen(v quake.Vec3) float32 { return 0 }
 //go:noinline
 func Vectoyaw(v quake.Vec3) float32 { return 0 }
 
-// Normalize returns a vector with the same direction as the input but with a length of 1.
-//
-//qgo:builtin 9
-//go:noinline
-func Normalize(v quake.Vec3) quake.Vec3 { return v }
-
 // Spawn creates a new entity in the game world and returns its handle.
 //
 //qgo:builtin 14
@@ -84,12 +95,12 @@ func Spawn() quake.Entity { return 0 }
 //go:noinline
 func Remove(e quake.Entity) {}
 
-// PrecacheModel registers a model file so it can be used by entities.
-// This must be called during the 'worldspawn' or 'spawn' phase.
+// Traceline performs a ray-cast from v1 to v2 and stores the results in
+// global variables (trace_fraction, trace_endpos, etc.).
 //
-//qgo:builtin 20
+//qgo:builtin 16
 //go:noinline
-func PrecacheModel(s string) string { return s }
+func Traceline(v1, v2 quake.Vec3, nomonsters int, e quake.Entity) {}
 
 // PrecacheSound registers a sound file so it can be played.
 // This must be called during the 'worldspawn' or 'spawn' phase.
@@ -98,60 +109,51 @@ func PrecacheModel(s string) string { return s }
 //go:noinline
 func PrecacheSound(s string) string { return s }
 
-// SetModel sets the visual model for an entity.
+// PrecacheModel registers a model file so it can be used by entities.
+// This must be called during the 'worldspawn' or 'spawn' phase.
 //
-//qgo:builtin 3
+//qgo:builtin 20
 //go:noinline
-func SetModel(e quake.Entity, m string) {}
+func PrecacheModel(s string) string { return s }
 
-// SetSize sets the bounding box (mins and maxs) for an entity's physics.
-//
-//qgo:builtin 4
+//qgo:builtin 22
 //go:noinline
-func SetSize(e quake.Entity, min, max quake.Vec3) {}
+func FindRadius(org quake.Vec3, radius float32) quake.Entity { return 0 }
 
-// SetOrigin moves an entity to a specific position in the world.
+// Bprint broadcasts a message to all connected clients and the console.
 //
-//qgo:builtin 2
+//qgo:builtin 23
 //go:noinline
-func SetOrigin(e quake.Entity, org quake.Vec3) {}
+func Bprint(s string) {}
 
-// Ambientsound plays a looping sound at a specific position.
+// Print prints a message to the engine console.
 //
-//qgo:builtin 74
+//qgo:builtin 24
 //go:noinline
-func Ambientsound(pos quake.Vec3, samp string, vol, atten float32) {}
+func Print(s string) {}
 
-// Sound plays a sound effect from an entity.
+// Dprint prints a message to the engine console only if the 'developer'
+// console variable is set to a non-zero value.
 //
-//qgo:builtin 8
+//qgo:builtin 25
 //go:noinline
-func Sound(e quake.Entity, ch int, samp string, vol, atten float32) {}
+func Dprint(s string) {}
 
-// Traceline performs a ray-cast from v1 to v2 and stores the results in
-// global variables (trace_fraction, trace_endpos, etc.).
-//
-//qgo:builtin 16
+//qgo:builtin 36
 //go:noinline
-func Traceline(v1, v2 quake.Vec3, nomonsters int, e quake.Entity) {}
-
-// Random returns a random float value between 0.0 and 1.0.
-//
-//qgo:builtin 7
-//go:noinline
-func Random() float32 { return 0 }
-
-// Changelevel triggers a level transition to the specified map.
-//
-//qgo:builtin 70
-//go:noinline
-func Changelevel(s string) {}
+func RInt(f float32) float32 { return 0 }
 
 // Cvar returns the current float value of a console variable.
 //
 //qgo:builtin 45
 //go:noinline
 func Cvar(s string) float32 { return 0 }
+
+// Changelevel triggers a level transition to the specified map.
+//
+//qgo:builtin 70
+//go:noinline
+func Changelevel(s string) {}
 
 // CvarSet sets the value of a console variable.
 //
@@ -165,10 +167,8 @@ func CvarSet(s string, v float32) {}
 //go:noinline
 func Centerprint(s string) {}
 
-//qgo:builtin 36
+// Ambientsound plays a looping sound at a specific position.
+//
+//qgo:builtin 74
 //go:noinline
-func RInt(f float32) float32 { return 0 }
-
-//qgo:builtin 22
-//go:noinline
-func FindRadius(org quake.Vec3, radius float32) quake.Entity { return 0 }
+func Ambientsound(pos quake.Vec3, samp string, vol, atten float32) {}
