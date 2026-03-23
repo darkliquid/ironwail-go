@@ -1,0 +1,14 @@
+name: Image Formats
+type: module
+description: "Low-level Quake image decoding and transcoding layer for WAD/QPic/MipTex assets, palettes, TGA loading, and debug export helpers"
+blackbox: false
+mapping:
+  paths:
+    - internal/image/doc.go
+    - internal/image/export.go
+    - internal/image/wad.go
+    - internal/image/tga.go
+    - internal/image/texture.go
+    - internal/image/lumptype_string.go
+    - internal/image/image_test.go
+    - internal/image/wad_test.go
