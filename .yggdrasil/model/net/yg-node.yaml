@@ -1,0 +1,4 @@
+name: Network Layer
+type: module
+description: "Umbrella for Quake transport/runtime networking, wire protocol definitions, and discovery/support helpers"
+blackbox: false

@@ -1,0 +1,7 @@
+name: Network Protocol Contract
+type: module
+description: "Canonical wire-protocol constants and encoding helpers for Quake, FitzQuake, RMQ, and related message formats"
+blackbox: false
+mapping:
+  paths:
+    - internal/net/protocol.go

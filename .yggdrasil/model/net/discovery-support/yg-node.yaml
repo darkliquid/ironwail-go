@@ -1,0 +1,14 @@
+name: Network Discovery and Support
+type: module
+description: "LAN server browser plus auxiliary helpers for async polling, bans, partial IP resolution, and related tests"
+blackbox: false
+mapping:
+  paths:
+    - internal/net/slist.go
+    - internal/net/async.go
+    - internal/net/ban.go
+    - internal/net/partial_ip.go
+    - internal/net/async_test.go
+    - internal/net/ban_test.go
+    - internal/net/partial_ip_test.go
+    - internal/net/slist_test.go

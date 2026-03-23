@@ -1,0 +1,15 @@
+name: Network Transport Runtime
+type: module
+description: "Top-level networking facade plus loopback/UDP datagram transport, socket state, handshake, and reliability logic"
+blackbox: false
+mapping:
+  paths:
+    - internal/net/doc.go
+    - internal/net/net.go
+    - internal/net/types.go
+    - internal/net/udp.go
+    - internal/net/datagram.go
+    - internal/net/loopback.go
+    - internal/net/stats.go
+    - internal/net/net_test.go
+    - internal/net/types_test.go
