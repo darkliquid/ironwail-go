@@ -1,0 +1,7 @@
+name: Common Binary Helpers
+type: module
+description: "Endian-aware scalar read/write helpers for binary file and protocol decoding"
+blackbox: false
+mapping:
+  paths:
+    - internal/common/binary/binary.go

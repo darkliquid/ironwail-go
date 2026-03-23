@@ -1,0 +1,10 @@
+name: Common Core
+type: module
+description: "Shared message buffers, parser helpers, command-line argv state, path/hash utilities, and small structural primitives"
+blackbox: false
+mapping:
+  paths:
+    - internal/common/doc.go
+    - internal/common/common.go
+    - internal/common/common_parse_newline.go
+    - internal/common/common_test.go

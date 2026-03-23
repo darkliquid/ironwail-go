@@ -1,0 +1,4 @@
+name: Common
+type: module
+description: "Shared low-level engine primitives for message buffers, token parsing, path helpers, hashes, small data structures, and endian I/O"
+blackbox: false
