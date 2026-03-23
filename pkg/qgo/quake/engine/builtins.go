@@ -729,3 +729,11 @@ func Atan2(y, x float32) float32 { return 0 }
 //qgo:builtin 475
 //go:noinline
 func Tan(f float32) float32 { return 0 }
+
+//qgo:builtin 75
+//go:noinline
+func PrecacheModel2(s string) string { return s }
+
+//qgo:builtin 76
+//go:noinline
+func PrecacheSound2(s string) string { return s }
