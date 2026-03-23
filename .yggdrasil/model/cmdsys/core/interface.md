@@ -9,6 +9,7 @@
 ## Main surface
 
 - `CmdSystem` construction and package-level singleton helpers
+- built-in registry commands: `wait`, `cmdlist`, `apropos`, `find`
 - `AddCommand`, `AddClientCommand`, `AddServerCommand`, `RemoveCommand`
 - `AddAlias`, `RemoveAlias`, `UnaliasAll`, `Alias`, `Aliases`
 - `AddText`, `InsertText`, `Execute`, `ExecuteWithSource`, `ExecuteText`, `ExecuteTextWithSource`
@@ -19,3 +20,4 @@
 - Command names and aliases are normalized to lowercase.
 - Resolution order and source filtering are parity-critical.
 - `InsertText` and `wait` semantics define command ordering guarantees relied on by config/script execution.
+- `cmdlist` and `apropos`/`find` only surface non-server commands; names beginning with `__` remain hidden as reserved/internal entries.

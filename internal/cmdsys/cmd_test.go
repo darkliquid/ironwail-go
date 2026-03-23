@@ -2,6 +2,7 @@ package cmdsys
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -537,5 +538,82 @@ func TestUnknownClientSourceDoesNotExpandAliasOrForward(t *testing.T) {
 	}
 	if forwarded {
 		t.Fatal("src_client should not forward unknown commands")
+	}
+}
+
+func TestCmdListListsVisibleCommandsByPrefix(t *testing.T) {
+	c := NewCmdSystem()
+	c.AddCommand("alpha", func(args []string) {}, "alpha command")
+	c.AddServerCommand("alphaserver", func(args []string) {}, "server only")
+	c.AddCommand("__alphareserved", func(args []string) {}, "reserved")
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("cmdlist alpha")
+
+	if !strings.Contains(printed, "   alpha\n") {
+		t.Fatalf("cmdlist output missing visible command:\n%s", printed)
+	}
+	if strings.Contains(printed, "alphaserver") {
+		t.Fatalf("cmdlist should not show server-only commands:\n%s", printed)
+	}
+	if strings.Contains(printed, "__alphareserved") {
+		t.Fatalf("cmdlist should not show reserved commands:\n%s", printed)
+	}
+	if !strings.Contains(printed, "1 commands beginning with \"alpha\"\n") {
+		t.Fatalf("cmdlist summary mismatch:\n%s", printed)
+	}
+}
+
+func TestFindSearchesCommandsAndCvars(t *testing.T) {
+	c := NewCmdSystem()
+	c.AddCommand("zoommode", func(args []string) {}, "camera size controls")
+	cv := cvar.Register("crosshair_size_test", "3", cvar.FlagNone, "crosshair size")
+	t.Cleanup(func() {
+		cvar.Set(cv.Name, cv.DefaultValue)
+	})
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("find size")
+
+	if !strings.Contains(printed, "   zoommode\n") {
+		t.Fatalf("find output missing command hit:\n%s", printed)
+	}
+	if !strings.Contains(printed, "   crosshair_size_test (current value: \"3\")\n") {
+		t.Fatalf("find output missing cvar hit:\n%s", printed)
+	}
+	if !strings.Contains(printed, "2 cvars/commands containing \"size\"\n") {
+		t.Fatalf("find summary mismatch:\n%s", printed)
+	}
+}
+
+func TestAproposPrintsUsageWithoutSubstring(t *testing.T) {
+	c := NewCmdSystem()
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("apropos")
+
+	if printed != "apropos <substring> : search through commands and cvars for the given substring\n" {
+		t.Fatalf("apropos usage = %q", printed)
 	}
 }

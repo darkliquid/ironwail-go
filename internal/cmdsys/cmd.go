@@ -28,6 +28,7 @@ package cmdsys
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -121,6 +122,15 @@ func NewCmdSystem() *CmdSystem {
 	cs.AddCommand("wait", func(args []string) {
 		cs.waitCount++
 	}, "Wait one frame before executing remaining commands")
+	cs.AddCommand("cmdlist", func(args []string) {
+		cs.cmdList(args)
+	}, "List registered commands")
+	cs.AddCommand("apropos", func(args []string) {
+		cs.cmdApropos("apropos", args)
+	}, "Search commands and cvars by substring")
+	cs.AddCommand("find", func(args []string) {
+		cs.cmdApropos("find", args)
+	}, "Search commands and cvars by substring")
 	return cs
 }
 
@@ -129,6 +139,88 @@ func NewCmdSystem() *CmdSystem {
 // "wait", and "cmd". As this Go port matures, subsystem-specific command
 // registration will be added here.
 func (c *CmdSystem) Init() {
+}
+
+func isReservedName(name string) bool {
+	return strings.HasPrefix(name, "__")
+}
+
+func (c *CmdSystem) visibleCommands() []*Command {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	commands := make([]*Command, 0, len(c.commands))
+	for _, cmd := range c.commands {
+		if cmd.SourceType == SrcServer || isReservedName(cmd.Name) {
+			continue
+		}
+		commands = append(commands, cmd)
+	}
+
+	slices.SortFunc(commands, func(a, b *Command) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return commands
+}
+
+func (c *CmdSystem) cmdList(args []string) {
+	partial := ""
+	if len(args) > 0 {
+		partial = strings.ToLower(args[0])
+	}
+
+	count := 0
+	for _, cmd := range c.visibleCommands() {
+		if partial != "" && !strings.HasPrefix(cmd.Name, partial) {
+			continue
+		}
+		printCallback(fmt.Sprintf("   %s\n", cmd.Name))
+		count++
+	}
+
+	msg := fmt.Sprintf("%d commands", count)
+	if partial != "" {
+		msg += fmt.Sprintf(" beginning with %q", partial)
+	}
+	printCallback(msg + "\n")
+}
+
+func (c *CmdSystem) cmdApropos(commandName string, args []string) {
+	if len(args) == 0 || args[0] == "" {
+		printCallback(fmt.Sprintf("%s <substring> : search through commands and cvars for the given substring\n", commandName))
+		return
+	}
+
+	substr := strings.ToLower(args[0])
+	hits := 0
+	for _, cmd := range c.visibleCommands() {
+		if strings.Contains(strings.ToLower(cmd.Name), substr) || strings.Contains(strings.ToLower(cmd.Description), substr) {
+			printCallback(fmt.Sprintf("   %s\n", cmd.Name))
+			hits++
+		}
+	}
+
+	vars := cvar.All()
+	slices.SortFunc(vars, func(a, b *cvar.CVar) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	for _, cv := range vars {
+		if strings.Contains(strings.ToLower(cv.Name), substr) || strings.Contains(strings.ToLower(cv.Description), substr) {
+			printCallback(fmt.Sprintf("   %s (current value: %q)\n", cv.Name, cv.String))
+			hits++
+		}
+	}
+
+	if hits == 0 {
+		printCallback(fmt.Sprintf("no cvars/commands contain %q\n", args[0]))
+		return
+	}
+
+	plural := "s"
+	if hits == 1 {
+		plural = ""
+	}
+	printCallback(fmt.Sprintf("%d cvar%s/command%s containing %q\n", hits, plural, plural, args[0]))
 }
 
 // AddCommand registers a new console command with the given name, handler
