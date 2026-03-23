@@ -5135,6 +5135,85 @@ func TestSizeCommandsAdjustMirroredViewsizeCVar(t *testing.T) {
 	}
 }
 
+func TestEntitiesCommandPrintsIndexedClientEntityDump(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+		console.SetPrintCallback(nil)
+	})
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateActive
+	g.Client.ModelPrecache = []string{"progs/player.mdl"}
+	g.Client.Entities = map[int]inet.EntityState{
+		0: {},
+		2: {
+			ModelIndex: 1,
+			Frame:      7,
+			Origin:     [3]float32{1, 2, 3},
+			Angles:     [3]float32{10, 20, 30},
+		},
+	}
+
+	registerGameplayBindCommands()
+
+	var printed strings.Builder
+	console.SetPrintCallback(func(msg string) {
+		printed.WriteString(msg)
+	})
+
+	cmdsys.ExecuteText("entities")
+
+	got := printed.String()
+	if !strings.Contains(got, "  0:EMPTY\n") {
+		t.Fatalf("entities output missing empty entity:\n%s", got)
+	}
+	if !strings.Contains(got, "  1:EMPTY\n") {
+		t.Fatalf("entities output missing gap entity:\n%s", got)
+	}
+	if !strings.Contains(got, "  2:progs/player.mdl: 7  (  1.0,  2.0,  3.0) [ 10.0  20.0  30.0]\n") {
+		t.Fatalf("entities output missing live entity line:\n%s", got)
+	}
+}
+
+func TestEntitiesCommandIsSilentWhenClientDisconnected(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+		console.SetPrintCallback(nil)
+	})
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateDisconnected
+	g.Client.Entities = map[int]inet.EntityState{
+		0: {ModelIndex: 1},
+	}
+	g.Client.ModelPrecache = []string{"progs/player.mdl"}
+
+	registerGameplayBindCommands()
+
+	var printed strings.Builder
+	console.SetPrintCallback(func(msg string) {
+		printed.WriteString(msg)
+	})
+
+	cmdsys.ExecuteText("entities")
+
+	if got := printed.String(); got != "" {
+		t.Fatalf("entities output while disconnected = %q, want empty", got)
+	}
+}
+
 func TestEnsureStartupUIScaleAppliesAutoscaleWhenUnconfigured(t *testing.T) {
 	originalRenderer := g.Renderer
 	originalHost := g.Host

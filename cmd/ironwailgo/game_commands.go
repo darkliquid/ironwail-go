@@ -35,6 +35,7 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("scr_autoscale", cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
 	cmdsys.AddCommand("sizeup", cmdSizeUp, "Increase screen view size")
 	cmdsys.AddCommand("sizedown", cmdSizeDown, "Decrease screen view size")
+	cmdsys.AddCommand("entities", cmdEntities, "List current client entities")
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
@@ -179,6 +180,41 @@ func cmdSizeUp(_ []string) {
 
 func cmdSizeDown(_ []string) {
 	cvar.SetFloat("scr_viewsize", cvar.FloatValue("scr_viewsize")-10)
+}
+
+func cmdEntities(_ []string) {
+	if g.Client == nil || g.Client.State == cl.StateDisconnected {
+		return
+	}
+
+	maxEntity := -1
+	for entityNum := range g.Client.Entities {
+		if entityNum > maxEntity {
+			maxEntity = entityNum
+		}
+	}
+	if maxEntity < 0 {
+		return
+	}
+
+	for entityNum := 0; entityNum <= maxEntity; entityNum++ {
+		console.Printf("%3d:", entityNum)
+		state, ok := g.Client.Entities[entityNum]
+		modelName := ""
+		if ok {
+			modelName = clientEntityModelName(state)
+		}
+		if !ok || modelName == "" {
+			console.Printf("EMPTY\n")
+			continue
+		}
+		console.Printf("%s:%2d  (%5.1f,%5.1f,%5.1f) [%5.1f %5.1f %5.1f]\n",
+			modelName,
+			state.Frame,
+			state.Origin[0], state.Origin[1], state.Origin[2],
+			state.Angles[0], state.Angles[1], state.Angles[2],
+		)
+	}
 }
 
 func startupConfigPinsAnyCVar(userDir string, names []string) bool {
