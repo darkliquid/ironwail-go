@@ -1,0 +1,7 @@
+name: Console Input and History
+type: module
+description: "Editable prompt line, commit flow, bounded history, and package-level input/history helpers"
+blackbox: false
+mapping:
+  paths:
+    - internal/console/console_input.go

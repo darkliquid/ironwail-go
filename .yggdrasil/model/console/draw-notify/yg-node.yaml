@@ -1,0 +1,12 @@
+name: Console Draw and Notify
+type: module
+description: "Backend-neutral rendering of full-console and notify overlays, prompt clipping, cursor blink, and notify fade logic"
+blackbox: false
+relations:
+  - target: renderer/canvas
+    type: uses
+    consumes: [DrawContext-like 2D overlay drawing semantics]
+mapping:
+  paths:
+    - internal/console/draw.go
+    - internal/console/draw_test.go

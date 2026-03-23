@@ -1,0 +1,9 @@
+name: Console Core and Printing
+type: module
+description: "Scrollback ring buffer, resize behavior, print/log sinks, notify timestamps, and core console lifecycle state"
+blackbox: false
+mapping:
+  paths:
+    - internal/console/doc.go
+    - internal/console/console.go
+    - internal/console/console_test.go

@@ -1,0 +1,4 @@
+name: Console
+type: module
+description: "Quake-style text console umbrella covering scrollback state, input/history, completion, notify/fullscreen drawing, and debug-log support"
+blackbox: false

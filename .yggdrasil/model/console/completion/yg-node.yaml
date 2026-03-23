@@ -1,0 +1,8 @@
+name: Console Completion
+type: module
+description: "Provider-driven tab completion, hint generation, and completion-session state for console input"
+blackbox: false
+mapping:
+  paths:
+    - internal/console/completion.go
+    - internal/console/completion_test.go
