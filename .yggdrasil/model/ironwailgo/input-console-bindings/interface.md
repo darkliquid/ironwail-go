@@ -16,3 +16,4 @@
 - Input destination changes also control mouse grab and may force gameplay button release.
 - Menu mouse handling prefers absolute menu-space hit testing and falls back to relative movement.
 - Chat/console text editing includes held-backspace repeat behavior in the command package.
+- `registerConsoleCompletionProviders` is also responsible for wiring console completion against executable-owned registries: commands, cvars, aliases, and the live VFS file listing callback when `g.Subs.Files` is a real `*fs.FileSystem`.

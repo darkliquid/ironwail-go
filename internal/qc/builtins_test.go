@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
@@ -44,6 +45,29 @@ func TestWriteStringBuiltinDecodesEscapedNewlines(t *testing.T) {
 
 	if got != "line1\nline2" {
 		t.Fatalf("WriteString decoded value = %q, want real newline payload", got)
+	}
+}
+
+func TestModBuiltinWarnsOnZeroDivisor(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+	var printed []string
+	console.SetPrintCallback(func(msg string) {
+		printed = append(printed, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
+
+	vm.SetGFloat(OFSParm0, 7)
+	vm.SetGFloat(OFSParm1, 0)
+
+	modBuiltin(vm)
+
+	if got := vm.GFloat(OFSReturn); got != 0 {
+		t.Fatalf("modBuiltin return = %v, want 0", got)
+	}
+	if len(printed) != 1 || printed[0] != "PF_mod: mod by zero\n" {
+		t.Fatalf("printed = %q, want %q", printed, "PF_mod: mod by zero\n")
 	}
 }
 

@@ -18,3 +18,4 @@
 - Completion is provider-driven and intentionally decoupled from direct package imports.
 - Repeated completion on unchanged input reuses the match set and cycles through it.
 - Matching is case-insensitive and substring-based after provider results are gathered.
+- File completion is command-aware rather than global: `map`/`changelevel` consume VFS map listings, `exec` consumes `*.cfg`, and `playdemo`/`timedemo` consume demo names with `.dem` trimmed from the inserted token.

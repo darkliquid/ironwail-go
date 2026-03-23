@@ -17,6 +17,7 @@ Observed surfaces:
 - Builtin numbers must remain aligned with Quake expectations.
 - Server-facing builtins depend on hooks being registered before use.
 - Builtins read/write VM globals and edict fields directly through VM helpers.
+- `mod()` preserves C's divide-by-zero contract by returning `0` and printing `PF_mod: mod by zero` to the console for observability.
 - `random()` reads `sv_gameplayfix_random` to select formula parity:
   - `1` (default): `((rand()&0x7fff)+0.5)/0x8000` (open interval `(0,1)`).
   - `0` (legacy): `(rand()&0x7fff)/0x7fff` (closed interval `[0,1]`).

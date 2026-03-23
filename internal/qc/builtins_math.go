@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 )
@@ -273,6 +274,7 @@ func modBuiltin(vm *VM) {
 	a := vm.GFloat(OFSParm0)
 	b := vm.GFloat(OFSParm0 + 3)
 	if b == 0 {
+		console.Printf("PF_mod: mod by zero\n")
 		vm.SetGFloat(OFSReturn, 0)
 		return
 	}

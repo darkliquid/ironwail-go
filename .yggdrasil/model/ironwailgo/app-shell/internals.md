@@ -11,6 +11,7 @@ Effect-source regression coverage in `main_test.go` now includes a rocket-model 
 Control-cvar regression coverage in `main_test.go` now asserts that changing `cl_nolerp` updates `g.Client.NoLerp` through the control-cvar callback/sync path, preventing interpolation-policy drift between cvar state and client lerp logic.
 Control-cvar regression coverage in `main_test.go` now also asserts `v_centermove`/`v_centerspeed` sync into `g.Client.CenterMove`/`g.Client.CenterSpeed`, including replacement-client resync through `syncHostClientState`.
 Frame/interpolation policy regression coverage in `main_test.go` now also asserts that `syncHostClientState` mirrors host-derived local fast-server policy to `g.Client.LocalServerFast` when `host_maxfps` crosses the 72 FPS net-interval threshold.
+Console-completion regression coverage in `main_test.go` now also asserts that startup wiring exposes VFS-backed map completion (`map e1` -> `map e1m1`) and that the broad command-completion smoke test uses a unique `toggleconsole` prefix so full-package command registration does not make the assertion order-dependent.
 
 ## Constraints
 

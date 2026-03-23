@@ -10,6 +10,8 @@ The hook interface separates builtin behavior from concrete server implementatio
 
 If `sv_gameplayfix_random` is absent, builtin behavior stays on the gameplay-fix path (default formula), matching host default registration.
 
+`mod()` follows C's parity contract for zero divisors by returning `0` while also surfacing the condition through a console warning (`PF_mod: mod by zero`) instead of failing silently.
+
 ## Constraints
 
 - Incorrect builtin numbering would silently break program behavior.
