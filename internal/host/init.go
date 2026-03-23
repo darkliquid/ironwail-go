@@ -78,6 +78,10 @@ type compatRNGSetter interface {
 	SetCompatRNG(rng *compatrand.RNG)
 }
 
+type runtimeStateClient interface {
+	RuntimeState() *cl.Client
+}
+
 type localLoopbackClient struct {
 	inner    *cl.Client
 	parser   *cl.Parser
@@ -102,6 +106,13 @@ func (c *localLoopbackClient) Init() error {
 	c.cmdReady = false
 	c.lastServerMessage = nil
 	return nil
+}
+
+func (c *localLoopbackClient) RuntimeState() *cl.Client {
+	if c == nil {
+		return nil
+	}
+	return c.inner
 }
 
 func (c *localLoopbackClient) Frame(frameTime float64) error {

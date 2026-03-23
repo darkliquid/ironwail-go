@@ -168,6 +168,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdParticleTexture(args[0], subs)
 		}
 	}, "Change particle rendering style (1=soft, 2=pixel)")
+	replaceCommand("fog", func(args []string) { h.CmdFog(args, subs) }, "Inspect or set client fog parameters")
 	replaceClientCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
 	replaceCommand("load", func(args []string) {
 		h.CmdLoadArgs(args, subs)

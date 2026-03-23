@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	cl "github.com/ironwail/ironwail-go/internal/client"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
@@ -203,6 +204,108 @@ func (h *Host) CmdParticleTexture(mode string, subs *Subsystems) {
 	}
 	cvar.Set("r_particles", mode)
 	subs.Console.Print(fmt.Sprintf("particle_texture set to %s\n", mode))
+}
+
+func (h *Host) CmdFog(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil {
+		return
+	}
+	state := fogRuntimeState(subs)
+	if state == nil {
+		return
+	}
+
+	density, color := state.FogValues()
+	targetDensity := density
+	targetColor := color
+	fadeTime := float32(0)
+
+	switch len(args) {
+	default:
+		subs.Console.Print("usage:\n")
+		subs.Console.Print("   fog <density>\n")
+		subs.Console.Print("   fog <red> <green> <blue>\n")
+		subs.Console.Print("   fog <density> <red> <green> <blue>\n")
+		subs.Console.Print("current values:\n")
+		subs.Console.Print(fmt.Sprintf("   \"density\" is \"%g\"\n", density))
+		subs.Console.Print(fmt.Sprintf("   \"red\"     is \"%g\"\n", color[0]))
+		subs.Console.Print(fmt.Sprintf("   \"green\"   is \"%g\"\n", color[1]))
+		subs.Console.Print(fmt.Sprintf("   \"blue\"    is \"%g\"\n", color[2]))
+		return
+	case 1:
+		targetDensity = parseFogFloat(args[0])
+	case 2:
+		targetDensity = parseFogFloat(args[0])
+		fadeTime = parseFogFloat(args[1])
+	case 3:
+		targetColor = [3]float32{
+			parseFogFloat(args[0]),
+			parseFogFloat(args[1]),
+			parseFogFloat(args[2]),
+		}
+	case 4:
+		targetDensity = parseFogFloat(args[0])
+		targetColor = [3]float32{
+			parseFogFloat(args[1]),
+			parseFogFloat(args[2]),
+			parseFogFloat(args[3]),
+		}
+	case 5:
+		targetDensity = parseFogFloat(args[0])
+		targetColor = [3]float32{
+			parseFogFloat(args[1]),
+			parseFogFloat(args[2]),
+			parseFogFloat(args[3]),
+		}
+		fadeTime = parseFogFloat(args[4])
+	}
+
+	if targetDensity < 0 {
+		targetDensity = 0
+	}
+	for i := range targetColor {
+		if targetColor[i] < 0 {
+			targetColor[i] = 0
+		}
+		if targetColor[i] > 1 {
+			targetColor[i] = 1
+		}
+	}
+
+	state.SetFogState(
+		fogByte(targetDensity),
+		[3]byte{fogByte(targetColor[0]), fogByte(targetColor[1]), fogByte(targetColor[2])},
+		fadeTime,
+	)
+}
+
+func fogRuntimeState(subs *Subsystems) *cl.Client {
+	if subs == nil || subs.Client == nil {
+		return nil
+	}
+	stateClient, ok := subs.Client.(runtimeStateClient)
+	if !ok {
+		return nil
+	}
+	return stateClient.RuntimeState()
+}
+
+func parseFogFloat(s string) float32 {
+	value, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return 0
+	}
+	return float32(value)
+}
+
+func fogByte(value float32) byte {
+	if value <= 0 {
+		return 0
+	}
+	if value >= 1 {
+		return 255
+	}
+	return byte(math.Round(float64(value * 255)))
 }
 
 func (h *Host) CmdMaps(subs *Subsystems) {

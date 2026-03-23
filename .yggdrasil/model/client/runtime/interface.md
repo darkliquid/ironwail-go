@@ -23,3 +23,4 @@ Observed responsibilities:
 - Signon count and connection state transitions affect host behavior and downstream rendering/audio activation.
 - Pitch-drift tuning fields on `Client` (`CenterMove`, `CenterSpeed`) are the authoritative runtime values consumed by input drift logic; startup/control-cvar sync updates these from `v_centermove` and `v_centerspeed`.
 - `SendStringCmd` preserves the literal command payload passed by callers, including newline-only strings used by the explicit `cmd` console forwarder, and wraps it in a `CLCStringCmd` message.
+- Fog target state lives on `Client`; both parsed `svc_fog` updates and local `fog` console commands must route through the same fade-preserving update helper so in-flight fades restart from the current interpolated fog value.

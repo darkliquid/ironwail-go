@@ -15,6 +15,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 - **Network admin commands** expose C-like `listen`/`maxplayers`/`port` query-set behavior and queue command-buffer listen transitions (`listen 0`/`listen 1`) when max-player mode or host port changes require rebinding. `ban` now also mirrors C's transport-owned IP/mask surface instead of maintaining a host-local player-name blacklist. `net_stats` surfaces the existing package-level datagram counters through the host console without adding a separate host-owned stats cache. `test2` now uses the discovery-support rule-query helper to print serverinfo cvars from a remote host.
 - **Gameplay/save commands** manage native saves, imported saves, and load validation.
 - **Gameplay/save commands** also align host autosave timestamps to restored server time after successful load restores.
+- **Gameplay/client-state commands** include local view/render helpers such as `particle_texture` and now `fog`, which unwrap the concrete loopback/remote client wrappers to reach the shared client runtime state without widening the public host client interface.
 - **Gameplay/profile command** exposes QC VM per-function profile counters via `profile` (top 10), using C-like `%7d %s` line formatting and no output when no active local server/QC VM exists.
 - **Demo commands** coordinate record, playback, seek, and timedemo state.
 - **System/config commands** rebuild startup commands from argv and execute config text from builtin, user, or filesystem sources.

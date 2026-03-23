@@ -56,6 +56,13 @@ func (c *remoteDatagramClient) Init() error {
 	return nil
 }
 
+func (c *remoteDatagramClient) RuntimeState() *cl.Client {
+	if c == nil {
+		return nil
+	}
+	return c.inner
+}
+
 func (c *remoteDatagramClient) Frame(frameTime float64) error {
 	if c == nil || c.inner == nil {
 		return nil

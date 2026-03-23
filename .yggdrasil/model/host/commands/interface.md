@@ -34,6 +34,7 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - `ban` mirrors C transport/IP semantics rather than name moderation: local-server invocation prints current status with no args, accepts `ban off`, accepts `ban <ip>` or `ban <ip> <mask>`, prints `BAN ip_address [mask]` for invalid arity, and forwards to the remote server when no local server owns the command path.
 - `net_stats` exposes the global datagram transport counters maintained by `internal/net/stats.go`, using the same line labels as C's no-argument `NET_Stats_f` branch.
 - `test2 <server>` mirrors C's rule-info query path by printing the target server's `FlagServerInfo` cvars in `%-16.16s  %-16.16s` rows.
+- `fog` mirrors C's client-side query/set forms: no args prints usage plus current values, one arg sets density, two args set density plus fade time, three args set RGB, four args set density+RGB, and five args set density+RGB+fade time while clamping density/RGB ranges.
 
 ## Failure modes
 

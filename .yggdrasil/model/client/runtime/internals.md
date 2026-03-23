@@ -11,6 +11,7 @@ Important state families include:
 - pitch-drift tuning state (`CenterMove`, `CenterSpeed`) consumed by input drift recentering
 - stats, items, and player identity tables
 - entity baselines, live entities, static entities, and transient events
+- fog target/fade state shared by parser, local console commands, demo capture, and renderer-facing readers
 - prediction bookkeeping and telemetry
 
 Runtime regression coverage includes parser-level tests in `internal/client/client_test.go` that verify entity slots are still updated when the command byte is `0xFF` (all fast-update low bits set), preventing accidental early termination of message parsing and downstream missing/disappearing entities.
@@ -18,6 +19,8 @@ Runtime regression coverage includes parser-level tests in `internal/client/clie
 Command-send behavior samples one-shot controls at send time via `BuildPendingMove` (instead of relying on values pre-written during frame accumulation). This keeps button/impulse latching aligned with wire emission timing and avoids dropping presses that occur between accumulation and transmission.
 
 String-command serialization is intentionally thin: `SendStringCmd` now preserves the exact caller-provided payload instead of trimming whitespace first, because C-style console forwarding can intentionally send a bare newline for `cmd` with no arguments and host/network layers rely on the client serializer not to rewrite that payload.
+
+Fog state now has a small shared mutation surface: `SetFogState` snapshots the current interpolated fog via `CurrentFog` before swapping the target density/color/time, so both network-driven `svc_fog` messages and local `fog` console commands restart fades from the same visible in-flight value instead of snapping back to stale targets.
 
 ## Constraints
 

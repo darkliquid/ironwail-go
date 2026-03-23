@@ -601,14 +601,7 @@ func (p *Parser) parseFog(msg *common.SizeBuf) error {
 	if t < 0 {
 		t = 0
 	}
-	oldDensity, oldColor := p.Client.CurrentFog()
-	p.Client.fogOldDensity = oldDensity
-	p.Client.fogOldColor = oldColor
-	p.Client.FogDensity = density
-	p.Client.FogColor = [3]byte{r, g, b}
-	p.Client.FogTime = float32(t)
-	p.Client.fogFadeTime = float32(t)
-	p.Client.fogFadeDone = p.Client.Time + float64(t)
+	p.Client.SetFogState(density, [3]byte{r, g, b}, float32(t))
 	return nil
 }
 

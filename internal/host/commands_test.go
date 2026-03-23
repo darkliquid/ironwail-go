@@ -3913,6 +3913,103 @@ func TestCmdMusicJumpPrintsUsageOnInvalidArgs(t *testing.T) {
 	}
 }
 
+func TestCmdFogWithoutArgsPrintsUsageAndCurrentValues(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	client := newLocalLoopbackClient()
+	client.inner.FogDensity = 128
+	client.inner.FogColor = [3]byte{64, 128, 255}
+	subs := &Subsystems{
+		Client:  client,
+		Console: console,
+	}
+
+	h.CmdFog(nil, subs)
+
+	got := strings.Join(console.messages, "")
+	if !strings.Contains(got, "usage:\n") {
+		t.Fatalf("fog usage missing in %q", got)
+	}
+	if !strings.Contains(got, "\"density\" is \"0.5019608\"") {
+		t.Fatalf("fog density line missing in %q", got)
+	}
+	if !strings.Contains(got, "\"blue\"    is \"1\"") {
+		t.Fatalf("fog blue line missing in %q", got)
+	}
+}
+
+func TestCmdFogDensityOnlyPreservesColor(t *testing.T) {
+	h := NewHost()
+	client := newLocalLoopbackClient()
+	client.inner.FogColor = [3]byte{51, 102, 153}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdFog([]string{"0.25"}, subs)
+
+	if got := client.inner.FogDensity; got != 64 {
+		t.Fatalf("FogDensity = %d, want 64", got)
+	}
+	if got := client.inner.FogColor; got != [3]byte{51, 102, 153} {
+		t.Fatalf("FogColor = %v, want preserved [51 102 153]", got)
+	}
+	if got := client.inner.FogTime; got != 0 {
+		t.Fatalf("FogTime = %v, want 0", got)
+	}
+}
+
+func TestCmdFogRGBOnlyPreservesDensity(t *testing.T) {
+	h := NewHost()
+	client := newLocalLoopbackClient()
+	client.inner.FogDensity = 200
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdFog([]string{"0.1", "0.2", "0.3"}, subs)
+
+	if got := client.inner.FogDensity; got != 200 {
+		t.Fatalf("FogDensity = %d, want preserved 200", got)
+	}
+	if got := client.inner.FogColor; got != [3]byte{26, 51, 77} {
+		t.Fatalf("FogColor = %v, want [26 51 77]", got)
+	}
+}
+
+func TestCmdFogDensityRGBTimeClampsInputs(t *testing.T) {
+	h := NewHost()
+	client := newLocalLoopbackClient()
+	client.inner.Time = 2
+	client.inner.SetFogState(255, [3]byte{255, 128, 0}, 4)
+	client.inner.Time = 4
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.CmdFog([]string{"-1", "-0.5", "2", "0.4", "1.5"}, subs)
+
+	if got := client.inner.FogDensity; got != 0 {
+		t.Fatalf("FogDensity = %d, want clamped 0", got)
+	}
+	if got := client.inner.FogColor; got != [3]byte{0, 255, 102} {
+		t.Fatalf("FogColor = %v, want [0 255 102]", got)
+	}
+	if got := client.inner.FogTime; got != 1.5 {
+		t.Fatalf("FogTime = %v, want 1.5", got)
+	}
+	currentDensity, currentColor := client.inner.CurrentFog()
+	if currentDensity < 0.49 || currentDensity > 0.51 {
+		t.Fatalf("CurrentFog density = %v, want ~0.5", currentDensity)
+	}
+	if currentColor[0] < 0.49 || currentColor[0] > 0.51 || currentColor[1] < 0.24 || currentColor[1] > 0.26 || currentColor[2] != 0 {
+		t.Fatalf("CurrentFog color = %v, want previous in-flight fade color", currentColor)
+	}
+}
+
 func TestCmdStatusForwardsToRemoteServerWhenNoLocalServer(t *testing.T) {
 	h := NewHost()
 	client := &forwardingTrackingClient{state: caActive}

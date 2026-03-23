@@ -770,6 +770,31 @@ func (c *Client) CurrentFog() (density float32, color [3]float32) {
 	return density, color
 }
 
+func (c *Client) SetFogState(density byte, color [3]byte, time float32) {
+	if c == nil {
+		return
+	}
+	oldDensity, oldColor := c.CurrentFog()
+	c.fogOldDensity = oldDensity
+	c.fogOldColor = oldColor
+	c.FogDensity = density
+	c.FogColor = color
+	c.FogTime = time
+	c.fogFadeTime = time
+	c.fogFadeDone = c.Time + float64(time)
+}
+
+func (c *Client) FogValues() (density float32, color [3]float32) {
+	if c == nil {
+		return 0, [3]float32{}
+	}
+	return float32(c.FogDensity) / 255, [3]float32{
+		float32(c.FogColor[0]) / 255,
+		float32(c.FogColor[1]) / 255,
+		float32(c.FogColor[2]) / 255,
+	}
+}
+
 // lightstyleNormalBrightness is the brightness of character 'm' (normal light).
 const lightstyleNormalBrightness = float32('m' - 'a') // 12
 
