@@ -135,6 +135,51 @@ func (h *Host) CmdMapname(subs *Subsystems) {
 	subs.Console.Print("no map loaded\n")
 }
 
+func (h *Host) CmdMods(args []string, subs *Subsystems) {
+	if subs == nil || subs.Console == nil || subs.Files == nil {
+		return
+	}
+	fsInstance, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return
+	}
+
+	filter := ""
+	filterDisplay := ""
+	if len(args) > 0 {
+		filterDisplay = args[0]
+		filter = strings.ToLower(strings.TrimSpace(args[0]))
+	}
+
+	count := 0
+	for _, mod := range fsInstance.ListMods() {
+		if filter != "" && !strings.Contains(strings.ToLower(mod.Name), filter) {
+			continue
+		}
+		subs.Console.Print(fmt.Sprintf("   %s\n", mod.Name))
+		count++
+	}
+
+	switch {
+	case filter != "" && count == 0:
+		subs.Console.Print(fmt.Sprintf("no mods found containing %q\n", filterDisplay))
+	case filter != "":
+		label := "mods"
+		if count == 1 {
+			label = "mod"
+		}
+		subs.Console.Print(fmt.Sprintf("%d %s containing %q\n", count, label, filterDisplay))
+	case count == 0:
+		subs.Console.Print("no mods found\n")
+	default:
+		label := "mods"
+		if count == 1 {
+			label = "mod"
+		}
+		subs.Console.Print(fmt.Sprintf("%d %s\n", count, label))
+	}
+}
+
 func (h *Host) CmdRestart(subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return

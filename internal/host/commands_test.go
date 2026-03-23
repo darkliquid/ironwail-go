@@ -1046,6 +1046,80 @@ func TestCmdMapnamePrintsConnectedClientMap(t *testing.T) {
 	}
 }
 
+func TestCmdModsPrintsAvailableMods(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic", "rogue"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "pak0.pak"), []byte("fake"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic pak: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "rogue", "progs.dat"), []byte("fake"), 0o644); err != nil {
+		t.Fatalf("WriteFile rogue progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdMods(nil, subs)
+
+	got := strings.Join(console.messages, "")
+	for _, want := range []string{"   hipnotic\n", "   rogue\n", "2 mods\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("mods output missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "id1") {
+		t.Fatalf("mods output should not include id1:\n%s", got)
+	}
+}
+
+func TestCmdModsFilter(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic", "rogue"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "pak0.pak"), []byte("fake"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic pak: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "rogue", "progs.dat"), []byte("fake"), 0o644); err != nil {
+		t.Fatalf("WriteFile rogue progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdMods([]string{"rog"}, subs)
+	h.CmdMods([]string{"zzz"}, subs)
+
+	got := strings.Join(console.messages, "")
+	for _, want := range []string{
+		"   rogue\n",
+		"1 mod containing \"rog\"\n",
+		"no mods found containing \"zzz\"\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("filtered mods output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestCmdBanPrintsInactiveStatus(t *testing.T) {
 	h := NewHost()
 	h.SetServerActive(true)
