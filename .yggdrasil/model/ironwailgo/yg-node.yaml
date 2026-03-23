@@ -1,0 +1,4 @@
+name: Ironwail Go Application Shell
+type: module
+description: "Umbrella for the cmd/ironwailgo executable composition root, runtime orchestration, camera/view logic, input routing, and presentation helpers"
+blackbox: false

@@ -1,0 +1,24 @@
+# Internals
+
+## Logic
+
+This node converts live client/server state into the entity lists the renderer expects. It resolves model names from client precaches, distinguishes brush submodels from alias and sprite models, lazily loads/caches alias and sprite payloads through the filesystem, and emits renderer-facing entity structs for world entities, static entities, beams, particles, and lights. Debug-view telemetry hooks record why entities were drawn or skipped.
+
+## Constraints
+
+- Dynamic entity freshness is gated by `MsgTime` matching the current client message time; stale dynamic entities are intentionally skipped.
+- Runtime caches are command-package-local convenience caches, not general asset managers.
+- Entity collection depends on both client precache state and server/world state, making it a cross-subsystem translation layer.
+
+## Decisions
+
+### Filter stale dynamic entities before presentation while still keeping static entities visible
+
+Observed decision:
+- Dynamic entity collectors require current message time, but static entities are still eligible for collection.
+
+Rationale:
+- **unknown — inferred from code and telemetry hooks, not confirmed by a developer**
+
+Observed effect:
+- Presentation avoids rendering stale dynamic state after packet/entity churn, but the exact freshness rule is subtle and important for debugging visibility/parity issues.

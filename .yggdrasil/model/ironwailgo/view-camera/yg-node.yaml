@@ -1,0 +1,11 @@
+name: Ironwail Go View and Camera
+type: module
+description: "First-person and chase camera policy, shared view smoothing state, and canonical Quake-style view calculations"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/viewcalc.go
+    - cmd/ironwailgo/viewcalc_test.go
+    - cmd/ironwailgo/game_camera.go
+    - cmd/ironwailgo/chase.go
+    - cmd/ironwailgo/chase_test.go

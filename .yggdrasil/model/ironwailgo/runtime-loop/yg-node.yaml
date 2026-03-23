@@ -1,0 +1,9 @@
+name: Ironwail Go Runtime Loop
+type: module
+description: "Host frame callbacks, demo playback handling, per-frame client/server/runtime ordering, and orderly shutdown"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/game_loop.go
+    - cmd/ironwailgo/shutdown.go
+    - cmd/ironwailgo/shutdown_test.go

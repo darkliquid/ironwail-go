@@ -1,0 +1,9 @@
+name: Ironwail Go Startup Bootstrap
+type: module
+description: "Startup argument parsing plus subsystem bootstrap and initial composition of host, filesystem, QC, server, renderer, input, UI, and audio"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/startup_args.go
+    - cmd/ironwailgo/game_init.go
+    - cmd/ironwailgo/game_init_test.go

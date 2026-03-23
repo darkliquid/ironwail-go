@@ -1,0 +1,8 @@
+name: Ironwail Go Input Console Bindings
+type: module
+description: "Runtime input destination policy, mouse grab, gameplay key routing, chat/console handling, and gameplay bind commands"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/game_input.go
+    - cmd/ironwailgo/game_commands.go

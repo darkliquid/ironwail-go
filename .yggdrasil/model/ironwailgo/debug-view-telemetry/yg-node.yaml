@@ -1,0 +1,8 @@
+name: Ironwail Go Debug View Telemetry
+type: module
+description: "Debug telemetry for runtime view/origin selection, relink phases, and entity collection diagnostics"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/debug_view_telemetry.go
+    - cmd/ironwailgo/debug_view_telemetry_test.go

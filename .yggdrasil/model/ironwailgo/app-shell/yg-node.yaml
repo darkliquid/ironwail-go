@@ -1,0 +1,8 @@
+name: Ironwail Go App Shell
+type: module
+description: "Top-level executable shell, process-wide Game state, startup handoff, and cross-cutting command-package tests"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/main.go
+    - cmd/ironwailgo/main_test.go

@@ -1,0 +1,8 @@
+name: Ironwail Go Runtime Visual Audio
+type: module
+description: "Runtime presentation helpers that apply visual overlay/render submission and audio updates from current game state"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/game_visual.go
+    - cmd/ironwailgo/game_audio.go

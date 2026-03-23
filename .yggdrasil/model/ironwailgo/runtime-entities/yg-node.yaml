@@ -1,0 +1,7 @@
+name: Ironwail Go Runtime Entities
+type: module
+description: "Collection and preparation of renderer-facing brush, alias, sprite, beam, particle, and light entities from client/server runtime state"
+blackbox: false
+mapping:
+  paths:
+    - cmd/ironwailgo/game_entity.go
