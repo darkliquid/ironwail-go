@@ -1,6 +1,7 @@
 package cmdsys
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -23,6 +24,42 @@ func TestRegisterCvarCommandsIncludesParityHelpers(t *testing.T) {
 		if !cs.Exists(name) {
 			t.Fatalf("command %q not registered", name)
 		}
+	}
+}
+
+func TestCvarListPrintsCStyleListingAndPrefixSummary(t *testing.T) {
+	cs := NewCmdSystem()
+	cs.RegisterCvarCommands()
+	cvar.Register("test_cvarlist_archived", "1", cvar.FlagArchive, "archived")
+	cvar.Register("test_cvarlist_notify", "2", cvar.FlagNotify, "notify")
+	cvar.Register("test_cvarlist_other", "3", cvar.FlagNone, "other")
+	t.Cleanup(func() {
+		cvar.Set("test_cvarlist_archived", "1")
+		cvar.Set("test_cvarlist_notify", "2")
+		cvar.Set("test_cvarlist_other", "3")
+	})
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	cs.ExecuteText("cvarlist test_cvarlist_")
+
+	if !strings.Contains(printed, "*  test_cvarlist_archived \"1\"\n") {
+		t.Fatalf("cvarlist missing archived marker:\n%s", printed)
+	}
+	if !strings.Contains(printed, " s test_cvarlist_notify \"2\"\n") {
+		t.Fatalf("cvarlist missing notify marker:\n%s", printed)
+	}
+	if !strings.Contains(printed, "   test_cvarlist_other \"3\"\n") {
+		t.Fatalf("cvarlist missing plain entry:\n%s", printed)
+	}
+	if !strings.Contains(printed, "3 cvars beginning with \"test_cvarlist_\"\n") {
+		t.Fatalf("cvarlist summary mismatch:\n%s", printed)
 	}
 }
 

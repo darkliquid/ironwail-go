@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node is a thin command-registration layer over the `cvar` package. It installs a small family of convenience verbs, validates argument shape where needed, and translates those verbs into `cvar.Get`, `cvar.Set`, `cvar.All`, and default-value operations. `cycle`/`cycleback` first resolve an existing cvar and then mirror Ironwail's mixed numeric/string matching semantics when walking the candidate list; `inc` also resolves an existing cvar before computing the new numeric value. `cvarlist` snapshots and sorts cvars by name before logging, which keeps output stable across map/hash iteration order.
+This node is a thin command-registration layer over the `cvar` package. It installs a small family of convenience verbs, validates argument shape where needed, and translates those verbs into `cvar.Get`, `cvar.Set`, `cvar.All`, and default-value operations. `cycle`/`cycleback` first resolve an existing cvar and then mirror Ironwail's mixed numeric/string matching semantics when walking the candidate list; `inc` also resolves an existing cvar before computing the new numeric value. `cvarlist` snapshots and sorts cvars by name, applies an optional lowercase prefix filter, then prints Quake-style flag markers (`*` archive, `s` notify) plus the current value and final count summary.
 
 ## Constraints
 

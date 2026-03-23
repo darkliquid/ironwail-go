@@ -24,15 +24,39 @@ func (c *CmdSystem) RegisterCvarCommands() {
 	c.AddCommand("resetcfg", cmdResetCfg, "Reset all archived cvars to their default values")
 }
 
-func cmdCvarList(_ []string) {
+func cmdCvarList(args []string) {
 	vars := cvar.All()
 	slices.SortFunc(vars, func(a, b *cvar.CVar) int {
 		return strings.Compare(a.Name, b.Name)
 	})
-	for _, cv := range vars {
-		slog.Info("cvar", "name", cv.Name, "value", cv.String, "default", cv.DefaultValue)
+
+	partial := ""
+	if len(args) > 0 {
+		partial = strings.ToLower(args[0])
 	}
-	slog.Info("cvars listed", "count", len(vars))
+
+	count := 0
+	for _, cv := range vars {
+		if partial != "" && !strings.HasPrefix(cv.Name, partial) {
+			continue
+		}
+		archiveMarker := " "
+		if cv.Flags&cvar.FlagArchive != 0 {
+			archiveMarker = "*"
+		}
+		notifyMarker := " "
+		if cv.Flags&cvar.FlagNotify != 0 {
+			notifyMarker = "s"
+		}
+		printCallback(fmt.Sprintf("%s%s %s %q\n", archiveMarker, notifyMarker, cv.Name, cv.String))
+		count++
+	}
+
+	msg := fmt.Sprintf("%d cvars", count)
+	if partial != "" {
+		msg += fmt.Sprintf(" beginning with %q", partial)
+	}
+	printCallback(msg + "\n")
 }
 
 func cmdToggle(args []string) {
