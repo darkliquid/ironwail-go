@@ -1,0 +1,8 @@
+name: Command System Cvar Commands
+type: module
+description: "Optional command registrations that manipulate cvars through the command system"
+blackbox: false
+mapping:
+  paths:
+    - internal/cmdsys/cvar_commands.go
+    - internal/cmdsys/cvar_commands_test.go

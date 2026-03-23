@@ -1,0 +1,4 @@
+name: Command System
+type: module
+description: "Console command subsystem umbrella covering command buffering, parsing, routing, aliases, source gating, completion, and cvar helper commands"
+blackbox: false

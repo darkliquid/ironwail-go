@@ -1,0 +1,9 @@
+name: Command System Core
+type: module
+description: "Global command registry, aliases, buffer execution, source tracking, parser helpers, and completion surfaces"
+blackbox: false
+mapping:
+  paths:
+    - internal/cmdsys/doc.go
+    - internal/cmdsys/cmd.go
+    - internal/cmdsys/cmd_test.go
