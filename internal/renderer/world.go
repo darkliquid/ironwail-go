@@ -48,6 +48,9 @@ type WorldGeometry struct {
 	// Faces stores metadata for each BSP face
 	Faces []WorldFace
 
+	// LeafFaces maps BSP leaf indices to built face indices for visibility culling.
+	LeafFaces [][]int
+
 	// Lightmaps stores allocated static lightmap atlas pages for faces with BSP lighting.
 	Lightmaps []WorldLightmapPage
 
@@ -267,6 +270,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 	// Process all faces in the selected model.
 	numFaces := int(worldModel.NumFaces)
 	firstFace := int(worldModel.FirstFace)
+	faceLookup := make(map[int]int, numFaces)
 
 	slog.Debug("Building world geometry",
 		"numFaces", numFaces,
@@ -325,6 +329,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 
 		faceData.NumIndices = uint32((len(faceVerts) - 2) * 3)
 		geom.Faces = append(geom.Faces, faceData)
+		faceLookup[globalFaceIdx] = len(geom.Faces) - 1
 	}
 
 	slog.Info("World geometry built",
@@ -333,6 +338,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		"faces", len(geom.Faces),
 		"triangles", len(geom.Indices)/3)
 
+	geom.LeafFaces = buildWorldLeafFaceLookup(tree, faceLookup)
 	geom.Lightmaps = lightmapPages
 	return geom, nil
 }
@@ -2769,6 +2775,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, dynamicLight, litWater, fogDensity)
 	}
+	visibleFaces := selectVisibleWorldFaces(
+		worldData.Geometry.Tree,
+		worldData.Geometry.Faces,
+		worldData.Geometry.LeafFaces,
+		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+	)
 
 	skyDrawnIndices := uint32(0)
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
@@ -2779,7 +2791,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		}
 		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
 		renderPass.SetBindGroup(1, dc.renderer.worldSkyExternalBindGroup, nil)
-		for _, face := range worldData.Geometry.Faces {
+		for _, face := range visibleFaces {
 			if !shouldDrawGoGPUSkyWorldFace(face) {
 				continue
 			}
@@ -2793,7 +2805,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			return
 		}
 		renderPass.SetPipeline(dc.renderer.worldSkyPipeline)
-		for _, face := range worldData.Geometry.Faces {
+		for _, face := range visibleFaces {
 			if !shouldDrawGoGPUSkyWorldFace(face) {
 				continue
 			}
@@ -2826,7 +2838,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	drawnIndices := uint32(0)
 	alphaTestDrawnIndices := uint32(0)
 	liquidDrawnIndices := uint32(0)
-	for _, face := range worldData.Geometry.Faces {
+	for _, face := range visibleFaces {
 		if !shouldDrawGoGPUOpaqueWorldFace(face) {
 			continue
 		}
@@ -2859,7 +2871,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		drawnIndices += face.NumIndices
 	}
-	for _, face := range worldData.Geometry.Faces {
+	for _, face := range visibleFaces {
 		if !shouldDrawGoGPUAlphaTestWorldFace(face) {
 			continue
 		}
@@ -2894,7 +2906,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
-		for _, face := range worldData.Geometry.Faces {
+		for _, face := range visibleFaces {
 			if !shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
 				continue
 			}

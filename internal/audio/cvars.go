@@ -19,7 +19,7 @@ func RegisterCVars() {
 	cvar.Register("_snd_mixahead", "0.1", cvar.FlagArchive, "Amount of audio to mix ahead in seconds")
 	cvar.Register("sndspeed", "11025", cvar.FlagNone, "Sound sample rate")
 	cvar.Register("snd_mixspeed", "44100", cvar.FlagArchive, "Mixing sample rate")
-	cvar.Register("snd_filterquality", "1", cvar.FlagArchive, "Sound resampling filter quality")
+	cvar.Register("snd_filterquality", "5", cvar.FlagArchive, "Sound resampling filter quality")
 	cvar.Register("snd_waterfx", "1", cvar.FlagArchive, "Underwater sound effect (0=off, 1=on)")
 	cvar.Register("bgm_extmusic", "1", cvar.FlagArchive, "Allow external music playback")
 }
@@ -37,4 +37,12 @@ func (s *System) UpdateFromCVars() {
 		vol = 1
 	}
 	s.SetVolume(vol)
+
+	quality := cvar.IntValue("snd_filterquality")
+	if quality < 1 || quality > 5 {
+		quality = 5
+	}
+	if mixer, ok := s.mixer.(interface{ SetFilterQuality(int) }); ok {
+		mixer.SetFilterQuality(quality)
+	}
 }

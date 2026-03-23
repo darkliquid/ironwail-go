@@ -172,35 +172,6 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 	return geom, nil
 }
 
-func buildWorldLeafFaceLookup(tree *bsp.Tree, faceLookup map[int]int) [][]int {
-	if tree == nil || len(tree.Leafs) == 0 || len(tree.MarkSurfaces) == 0 || len(faceLookup) == 0 {
-		return nil
-	}
-	leafFaces := make([][]int, len(tree.Leafs))
-	for leafIndex, leaf := range tree.Leafs {
-		start := int(leaf.FirstMarkSurface)
-		count := int(leaf.NumMarkSurfaces)
-		if start < 0 || count <= 0 || start >= len(tree.MarkSurfaces) {
-			continue
-		}
-		end := min(start+count, len(tree.MarkSurfaces))
-		seen := make(map[int]struct{}, end-start)
-		for i := start; i < end; i++ {
-			faceIndex := tree.MarkSurfaces[i]
-			builtFaceIndex, ok := faceLookup[faceIndex]
-			if !ok {
-				continue
-			}
-			if _, exists := seen[builtFaceIndex]; exists {
-				continue
-			}
-			leafFaces[leafIndex] = append(leafFaces[leafIndex], builtFaceIndex)
-			seen[builtFaceIndex] = struct{}{}
-		}
-	}
-	return leafFaces
-}
-
 // worldFaceCenter computes the centroid of a face's vertices, used for distance-based
 // sorting of translucent faces.
 func worldFaceCenter(vertices []WorldVertex) [3]float32 {

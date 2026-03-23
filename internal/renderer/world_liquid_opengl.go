@@ -274,18 +274,6 @@ func decompressLeafVisibility(visibility []byte, visOfs int32, leafCount int) []
 	return mask
 }
 
-// leafVisibleInMask tests if a specific BSP leaf is visible in a decompressed PVS bitmask.
-func leafVisibleInMask(mask []byte, leafBit int) bool {
-	if leafBit < 0 {
-		return false
-	}
-	byteIndex := leafBit >> 3
-	if byteIndex >= len(mask) {
-		return false
-	}
-	return mask[byteIndex]&(1<<uint(leafBit&7)) != 0
-}
-
 // parseEntityAlphaField parses a floating-point alpha value from an entity key-value field.
 func parseEntityAlphaField(fields map[string]string, key string) (float32, bool) {
 	value, ok := fields[key]

@@ -21,6 +21,10 @@ It tries 44.1 kHz first, retries at 48 kHz on failure, and falls back to the nul
 - top up music/raw samples
 - paint mixed audio into the DMA buffer
 
+### Cvar application
+
+`System.UpdateFromCVars` is the runtime bridge from console variables into mixer state. It clamps `volume` to the `[0,1]` range before delegating to `SetVolume`, and it clamps `snd_filterquality` to `[1,5]` before applying the value through the mixer's filter-quality setter.
+
 ### Channel policy
 
 - ambient channels occupy the low fixed range

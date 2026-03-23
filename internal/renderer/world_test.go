@@ -213,6 +213,103 @@ func TestBuildWorldGeometry_DerivesFaceMetadataAndTexcoords(t *testing.T) {
 	}
 }
 
+func TestBuildWorldGeometry_PopulatesLeafFacesFromMarkSurfaces(t *testing.T) {
+	tree := &bsp.Tree{
+		Models: []bsp.DModel{
+			{FirstFace: 0, NumFaces: 1},
+		},
+		Faces: []bsp.TreeFace{
+			{PlaneNum: 0, FirstEdge: 0, NumEdges: 3, Texinfo: 0},
+		},
+		Edges: []bsp.TreeEdge{
+			{V: [2]uint32{0, 1}},
+			{V: [2]uint32{1, 2}},
+			{V: [2]uint32{2, 0}},
+		},
+		Surfedges: []int32{0, 1, 2},
+		Vertexes: []bsp.DVertex{
+			{Point: [3]float32{0, 0, 0}},
+			{Point: [3]float32{1, 0, 0}},
+			{Point: [3]float32{0, 1, 0}},
+		},
+		Planes: []bsp.DPlane{
+			{Normal: [3]float32{0, 0, 1}, Type: bsp.PlaneZ},
+		},
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{FirstMarkSurface: 0, NumMarkSurfaces: 1},
+		},
+		MarkSurfaces: []int{0},
+	}
+
+	geom, err := BuildWorldGeometry(tree)
+	if err != nil {
+		t.Fatalf("BuildWorldGeometry failed: %v", err)
+	}
+	if len(geom.LeafFaces) != len(tree.Leafs) {
+		t.Fatalf("LeafFaces len = %d, want %d", len(geom.LeafFaces), len(tree.Leafs))
+	}
+	if len(geom.LeafFaces[1]) != 1 || geom.LeafFaces[1][0] != 0 {
+		t.Fatalf("LeafFaces[1] = %v, want [0]", geom.LeafFaces[1])
+	}
+}
+
+func TestSelectVisibleWorldFaces_UsesLeafPVS(t *testing.T) {
+	tree := &bsp.Tree{
+		Models: []bsp.DModel{{VisLeafs: 3}},
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{Contents: bsp.ContentsEmpty, VisOfs: 0},
+			{Contents: bsp.ContentsEmpty, VisOfs: 1},
+			{Contents: bsp.ContentsEmpty, VisOfs: 2},
+		},
+		Visibility: []byte{
+			0x03,
+			0x06,
+			0x04,
+		},
+		Nodes: []bsp.TreeNode{
+			{
+				PlaneNum: 0,
+				Children: [2]bsp.TreeChild{
+					{IsLeaf: true, Index: 1},
+					{IsLeaf: true, Index: 2},
+				},
+			},
+		},
+		Planes: []bsp.DPlane{
+			{Type: bsp.PlaneX, Dist: 0},
+		},
+	}
+	allFaces := []WorldFace{
+		{FirstIndex: 0, NumIndices: 3},
+		{FirstIndex: 3, NumIndices: 3},
+		{FirstIndex: 6, NumIndices: 3},
+	}
+	leafFaces := [][]int{
+		nil,
+		{0},
+		{1},
+		{2},
+	}
+
+	visible := selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{1, 0, 0})
+	if len(visible) != 2 {
+		t.Fatalf("visible len = %d, want 2", len(visible))
+	}
+	if visible[0].FirstIndex != 0 || visible[1].FirstIndex != 3 {
+		t.Fatalf("visible faces = %+v, want first two faces", visible)
+	}
+
+	visible = selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{-1, 0, 0})
+	if len(visible) != 2 {
+		t.Fatalf("visible len from leaf2 = %d, want 2", len(visible))
+	}
+	if visible[0].FirstIndex != 3 || visible[1].FirstIndex != 6 {
+		t.Fatalf("visible faces from leaf2 = %+v, want faces 1 and 2", visible)
+	}
+}
+
 func TestWorldDepthAttachmentForViewNil(t *testing.T) {
 	if got := worldDepthAttachmentForView(nil); got != nil {
 		t.Fatalf("worldDepthAttachmentForView(nil) = %#v, want nil", got)

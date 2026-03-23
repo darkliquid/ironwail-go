@@ -28,11 +28,13 @@ Observed runtime methods include:
 - `StartSound(...)`, `StopSound(...)`
 - `StartStaticSound(...)`, `ClearStaticSounds()`
 - `SetListener(...)`, `SetViewEntity(...)`
+- `UpdateFromCVars()`
 - `Update(...)`
 
 ## Contracts
 
 - `Init` must negotiate a backend before runtime playback can start.
 - `Startup` clears runtime playback state and enables sound processing.
+- `UpdateFromCVars` clamps cvar-backed mixer state before applying it, including `volume` in the `[0,1]` range and `snd_filterquality` in the `[1,5]` range.
 - `Update` is a no-op when the system is not started or is blocked.
 - The runtime assumes callers provide loaders for SFX and music assets instead of reaching into the filesystem directly.
