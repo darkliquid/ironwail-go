@@ -1,0 +1,9 @@
+name: CVar System
+type: module
+description: "Configuration-variable registry covering named cvar storage, flags, typed cached views, change callbacks, archive serialization, and global singleton access"
+blackbox: false
+mapping:
+  paths:
+    - internal/cvar/doc.go
+    - internal/cvar/cvar.go
+    - internal/cvar/cvar_test.go
