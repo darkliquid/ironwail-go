@@ -9,13 +9,11 @@ import (
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/qc"
+	"golang.org/x/tools/go/packages"
 )
 
 // Lowerer translates a type-checked Go AST into IR.
 type Lowerer struct {
-	synth  *SyntheticPackages
-	info   *types.Info
-	fset   *token.FileSet
 	errors ErrorList
 
 	program    IRProgram
@@ -27,29 +25,74 @@ type Lowerer struct {
 
 	entityFields map[types.Type][]IRField // Type -> fields
 	fieldOffsets map[types.Object]uint16  // Field object -> offset
+
+	// Per-package state during lowering
+	currentInfo *types.Info
+	currentFset *token.FileSet
 }
 
 // NewLowerer creates a new lowerer.
-func NewLowerer(synth *SyntheticPackages, info *types.Info, fset *token.FileSet) *Lowerer {
+func NewLowerer() *Lowerer {
 	return &Lowerer{
-		synth:        synth,
-		info:         info,
-		fset:         fset,
 		entityFields: make(map[types.Type][]IRField),
 		fieldOffsets: make(map[types.Object]uint16),
 	}
 }
 
-// Lower processes a collection of AST files and returns the IR program.
-func (l *Lowerer) Lower(files []*ast.File) (*IRProgram, error) {
-	// First pass: collect all declarations and identify entity structs
-	for _, file := range files {
-		l.lowerFileDecls(file)
+// LowerPackages processes a collection of packages and returns the IR program.
+func (l *Lowerer) LowerPackages(pkgs []*packages.Package) (*IRProgram, error) {
+	processed := make(map[string]bool)
+
+	var visit func(*packages.Package)
+	visit = func(p *packages.Package) {
+		if processed[p.ID] {
+			return
+		}
+		processed[p.ID] = true
+
+		// Visit dependencies first
+		for _, imp := range p.Imports {
+			visit(imp)
+		}
+
+		// Set per-package context
+		l.currentInfo = p.TypesInfo
+		l.currentFset = p.Fset
+
+		// Pass 1: declarations and entity structs
+		for _, file := range p.Syntax {
+			l.lowerFileDecls(file)
+		}
 	}
 
-	// Second pass: lower function bodies
-	for _, file := range files {
-		l.lowerFileFuncs(file)
+	// Pass 1 for all packages
+	for _, p := range pkgs {
+		visit(p)
+	}
+
+	// Pass 2: function bodies
+	processedBody := make(map[string]bool)
+	var visitBody func(*packages.Package)
+	visitBody = func(p *packages.Package) {
+		if processedBody[p.ID] {
+			return
+		}
+		processedBody[p.ID] = true
+
+		for _, imp := range p.Imports {
+			visitBody(imp)
+		}
+
+		l.currentInfo = p.TypesInfo
+		l.currentFset = p.Fset
+
+		for _, file := range p.Syntax {
+			l.lowerFileFuncs(file)
+		}
+	}
+
+	for _, p := range pkgs {
+		visitBody(p)
 	}
 
 	if err := l.errors.Err(); err != nil {
@@ -88,7 +131,7 @@ func (l *Lowerer) lowerGenDecl(decl *ast.GenDecl) {
 					continue
 				}
 
-				obj := l.info.Defs[name]
+				obj := l.currentInfo.Defs[name]
 				if obj == nil {
 					continue
 				}
@@ -136,7 +179,7 @@ func (l *Lowerer) checkEntityType(decl *ast.GenDecl, ts *ast.TypeSpec) {
 		return
 	}
 
-	obj := l.info.Defs[ts.Name]
+	obj := l.currentInfo.Defs[ts.Name]
 	if obj == nil {
 		return
 	}
@@ -202,7 +245,7 @@ func (l *Lowerer) collectEntityFields(out *[]IRField, st *types.Struct, baseOffs
 
 func (l *Lowerer) evalGlobalInit(g IRGlobal, expr ast.Expr) IRGlobal {
 	// Try constant evaluation
-	if tv, ok := l.info.Types[expr]; ok && tv.Value != nil {
+	if tv, ok := l.currentInfo.Types[expr]; ok && tv.Value != nil {
 		switch g.Type {
 		case EvFloat:
 			if f, ok := constantToFloat64(tv.Value); ok {
@@ -220,7 +263,7 @@ func (l *Lowerer) evalGlobalInit(g IRGlobal, expr ast.Expr) IRGlobal {
 }
 
 func (l *Lowerer) registerFunc(fd *ast.FuncDecl) {
-	obj := l.info.Defs[fd.Name]
+	obj := l.currentInfo.Defs[fd.Name]
 	if obj == nil {
 		return
 	}
@@ -289,7 +332,7 @@ func (l *Lowerer) lowerFuncBody(fd *ast.FuncDecl) {
 	l.constStrs = make(map[string]VReg)
 
 	// Register parameters as VRegs
-	sig := l.info.Defs[fd.Name].Type().(*types.Signature)
+	sig := l.currentInfo.Defs[fd.Name].Type().(*types.Signature)
 	params := sig.Params()
 	for i := range params.Len() {
 		p := params.At(i)
@@ -362,7 +405,7 @@ func (l *Lowerer) lowerAssign(fn *IRFunc, s *ast.AssignStmt) {
 		case *ast.Ident:
 			if s.Tok == token.DEFINE {
 				// Short variable declaration
-				obj := l.info.Defs[lv]
+				obj := l.currentInfo.Defs[lv]
 				if obj != nil {
 					vreg := l.allocVReg()
 					l.vregMap[obj] = vreg
@@ -381,9 +424,9 @@ func (l *Lowerer) lowerAssign(fn *IRFunc, s *ast.AssignStmt) {
 				}
 			}
 
-			obj := l.info.Uses[lv]
+			obj := l.currentInfo.Uses[lv]
 			if obj == nil {
-				obj = l.info.Defs[lv]
+				obj = l.currentInfo.Defs[lv]
 			}
 			if obj == nil {
 				l.errors.Addf(l.pos(lv), "unresolved identifier: %s", lv.Name)
@@ -453,15 +496,15 @@ func (l *Lowerer) lowerBasicLit(fn *IRFunc, lit *ast.BasicLit) VReg {
 
 func (l *Lowerer) lowerIdent(fn *IRFunc, id *ast.Ident) VReg {
 	// Check for constant value
-	if tv, ok := l.info.Types[id]; ok && tv.Value != nil {
+	if tv, ok := l.currentInfo.Types[id]; ok && tv.Value != nil {
 		if f, ok := constantToFloat64(tv.Value); ok {
 			return l.constFloat(fn, f)
 		}
 	}
 
-	obj := l.info.Uses[id]
+	obj := l.currentInfo.Uses[id]
 	if obj == nil {
-		obj = l.info.Defs[id]
+		obj = l.currentInfo.Defs[id]
 	}
 	if obj == nil {
 		l.errors.Addf(l.pos(id), "unresolved identifier: %s", id.Name)
@@ -475,7 +518,7 @@ func (l *Lowerer) lowerBinaryExpr(fn *IRFunc, expr *ast.BinaryExpr) VReg {
 	right := l.lowerExpr(fn, expr.Y)
 	result := l.allocVReg()
 
-	tv := l.info.Types[expr]
+	tv := l.currentInfo.Types[expr]
 	qcType := l.goTypeToQC(tv.Type)
 
 	var op qc.Opcode
@@ -495,8 +538,8 @@ func (l *Lowerer) lowerBinaryExpr(fn *IRFunc, expr *ast.BinaryExpr) VReg {
 	case token.MUL:
 		op = qc.OPMulF
 		// Check for vec*float, float*vec
-		leftType := l.goTypeToQC(l.info.Types[expr.X].Type)
-		rightType := l.goTypeToQC(l.info.Types[expr.Y].Type)
+		leftType := l.goTypeToQC(l.currentInfo.Types[expr.X].Type)
+		rightType := l.goTypeToQC(l.currentInfo.Types[expr.Y].Type)
 		if leftType == EvVector && rightType == EvFloat {
 			op = qc.OPMulVF
 		} else if leftType == EvFloat && rightType == EvVector {
@@ -555,7 +598,7 @@ func (l *Lowerer) lowerBinaryExpr(fn *IRFunc, expr *ast.BinaryExpr) VReg {
 
 func (l *Lowerer) lowerUnaryExpr(fn *IRFunc, expr *ast.UnaryExpr) VReg {
 	operand := l.lowerExpr(fn, expr.X)
-	qcType := l.goTypeToQC(l.info.Types[expr].Type)
+	qcType := l.goTypeToQC(l.currentInfo.Types[expr].Type)
 
 	switch expr.Op {
 	case token.NOT:
@@ -593,18 +636,18 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 	var funcObj *types.Func
 	switch f := call.Fun.(type) {
 	case *ast.Ident:
-		if obj, ok := l.info.Uses[f].(*types.Func); ok {
+		if obj, ok := l.currentInfo.Uses[f].(*types.Func); ok {
 			funcObj = obj
 		}
 	case *ast.SelectorExpr:
-		if sel, ok := l.info.Selections[f]; ok {
+		if sel, ok := l.currentInfo.Selections[f]; ok {
 			if fn, ok := sel.Obj().(*types.Func); ok {
 				funcObj = fn
 			}
 		}
 		// Also check Uses for package-level functions
 		if funcObj == nil {
-			if obj, ok := l.info.Uses[f.Sel].(*types.Func); ok {
+			if obj, ok := l.currentInfo.Uses[f.Sel].(*types.Func); ok {
 				funcObj = obj
 			}
 		}
@@ -617,7 +660,7 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 			break
 		}
 		argVReg := l.lowerExpr(fn, arg)
-		argType := l.goTypeToQC(l.info.Types[arg].Type)
+		argType := l.goTypeToQC(l.currentInfo.Types[arg].Type)
 		parmOfs := VReg(qc.OFSParm0 + i*3)
 
 		fn.Body = append(fn.Body, IRInst{
@@ -665,16 +708,16 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {
 	// Check if this is a package-qualified name (e.g., engine.Self)
 	if id, ok := sel.X.(*ast.Ident); ok {
-		if _, ok := l.info.Uses[id].(*types.PkgName); ok {
+		if _, ok := l.currentInfo.Uses[id].(*types.PkgName); ok {
 			// Package-level variable or function
-			obj := l.info.Uses[sel.Sel]
+			obj := l.currentInfo.Uses[sel.Sel]
 			return l.resolveObject(fn, obj)
 		}
 	}
 
 	// Entity field access: ent.field → LOAD
 	entVReg := l.lowerExpr(fn, sel.X)
-	selObj := l.info.Selections[sel]
+	selObj := l.currentInfo.Selections[sel]
 	if selObj == nil {
 		l.errors.Addf(l.pos(sel), "unresolved selector: %s", sel.Sel.Name)
 		return VRegInvalid
@@ -701,7 +744,7 @@ func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {
 
 func (l *Lowerer) lowerFieldStore(fn *IRFunc, sel *ast.SelectorExpr, val VReg) {
 	entVReg := l.lowerExpr(fn, sel.X)
-	selObj := l.info.Selections[sel]
+	selObj := l.currentInfo.Selections[sel]
 	if selObj == nil {
 		l.errors.Addf(l.pos(sel), "unresolved selector for store: %s", sel.Sel.Name)
 		return
@@ -832,7 +875,7 @@ func (l *Lowerer) lowerDeclStmt(fn *IRFunc, s *ast.DeclStmt) {
 			if name.Name == "_" {
 				continue
 			}
-			obj := l.info.Defs[name]
+			obj := l.currentInfo.Defs[name]
 			if obj == nil {
 				continue
 			}
@@ -925,7 +968,7 @@ func (l *Lowerer) newLabel(prefix string) string {
 }
 
 func (l *Lowerer) pos(node ast.Node) token.Position {
-	return l.fset.Position(node.Pos())
+	return l.currentFset.Position(node.Pos())
 }
 
 func (l *Lowerer) isTerminating(inst IRInst) bool {

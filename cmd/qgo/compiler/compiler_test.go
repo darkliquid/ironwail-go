@@ -306,3 +306,15 @@ func stringAt(table []byte, ofs int32) string {
 	}
 	return string(table[ofs:end])
 }
+
+func TestCompile_Modules(t *testing.T) {
+	c := New()
+	data, err := c.Compile("../testdata/modules")
+	if err != nil {
+		t.Fatalf("Compile failed: %v", err)
+	}
+	if len(data) == 0 {
+		t.Fatal("Produced empty output")
+	}
+}
+

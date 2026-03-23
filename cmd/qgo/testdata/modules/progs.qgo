@@ -1,0 +1,16 @@
+package main
+
+import (
+	"github.com/ironwail/ironwail-go/pkg/qgo/quake"
+	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
+)
+
+func main() {
+	engine.Print("Hello from modules!")
+}
+
+//qgo:entity
+type MyEntity struct {
+	Health float32
+	Origin quake.Vec3
+}
