@@ -6,6 +6,8 @@ The app shell is the narrowest place that still sees the whole executable. `Game
 
 Intermission parity regression coverage in `main_test.go` now asserts that runtime HUD state keeps intermission overlays visible even when key destination is console/message/menu. This aligns shell behavior with C Ironwail's top-level screen path, where intermission draw is keyed off intermission state rather than focus-mode suppression.
 
+Effect-source regression coverage in `main_test.go` now includes a rocket-model case (`model.EFRocket` with `state.Effects == 0`) to ensure command-layer collection keeps rocket light sources that renderer effect lights consume.
+
 ## Constraints
 
 - `main_test.go` is intentionally broad and currently cannot be cleanly attributed to only one narrow runtime concern.

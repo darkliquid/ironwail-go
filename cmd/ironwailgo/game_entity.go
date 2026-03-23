@@ -279,7 +279,7 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 	}
 
 	resolve := func(state inet.EntityState) (renderer.EntityEffectSource, bool) {
-		if state.Effects == 0 || state.ModelIndex == 0 {
+		if state.ModelIndex == 0 {
 			return renderer.EntityEffectSource{}, false
 		}
 		precacheIndex := int(state.ModelIndex) - 1
@@ -293,6 +293,9 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 		modelFlags := 0
 		if g.Client.ModelFlagsFunc != nil {
 			modelFlags = g.Client.ModelFlagsFunc(modelName)
+		}
+		if state.Effects == 0 && modelFlags&model.EFRocket == 0 {
+			return renderer.EntityEffectSource{}, false
 		}
 		return renderer.EntityEffectSource{
 			Origin:     state.Origin,

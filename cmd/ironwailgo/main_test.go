@@ -4543,6 +4543,36 @@ func TestEntityStateScaleDecodesProtocolScale(t *testing.T) {
 	}
 }
 
+func TestCollectEntityEffectSourcesIncludesRocketModelFlagWithZeroEffects(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.ModelPrecache = []string{"progs/missile.mdl"}
+	g.Client.ModelFlagsFunc = func(name string) int {
+		if name == "progs/missile.mdl" {
+			return model.EFRocket
+		}
+		return 0
+	}
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, Origin: [3]float32{1, 2, 3}},
+	}
+
+	sources := collectEntityEffectSources()
+	if got := len(sources); got != 1 {
+		t.Fatalf("collectEntityEffectSources len = %d, want 1 rocket source", got)
+	}
+	if got := sources[0].Effects; got != 0 {
+		t.Fatalf("collectEntityEffectSources effects = %d, want 0", got)
+	}
+	if got := sources[0].ModelFlags; got&model.EFRocket == 0 {
+		t.Fatalf("collectEntityEffectSources model flags = %#x, want rocket flag", got)
+	}
+}
+
 func TestCollectEntityEffectSourcesKeepsAliasEffectsOnly(t *testing.T) {
 	originalClient := g.Client
 	t.Cleanup(func() {
