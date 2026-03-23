@@ -11,6 +11,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 ### Command families
 
 - **Map/session commands** manage local server startup, reconnect-style transitions, and changelevel/load flows.
+- **Map/session command queries** include `mapname`, which now reports the real active map from `Server.GetMapName()` for local sessions or `ActiveClientState(subs).MapName` for connected clients instead of placeholder text.
 - **Network commands** create, reset, or tear down remote datagram client sessions.
 - **Network admin commands** expose C-like `listen`/`maxplayers`/`port` query-set behavior and queue command-buffer listen transitions (`listen 0`/`listen 1`) when max-player mode or host port changes require rebinding. `ban` now also mirrors C's transport-owned IP/mask surface instead of maintaining a host-local player-name blacklist. `net_stats` surfaces the existing package-level datagram counters through the host console without adding a separate host-owned stats cache. `test2` now uses the discovery-support rule-query helper to print serverinfo cvars from a remote host.
 - **Gameplay/save commands** manage native saves, imported saves, and load validation.

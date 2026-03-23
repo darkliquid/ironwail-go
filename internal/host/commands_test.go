@@ -1004,6 +1004,48 @@ func TestCmdKickUnknownTargetNoOp(t *testing.T) {
 	}
 }
 
+func TestCmdMapnamePrintsServerMap(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Console: console,
+		Server:  &mockServer{mapName: "e1m1"},
+	}
+
+	h.CmdMapname(subs)
+
+	if got := strings.Join(console.messages, ""); got != "\"mapname\" is \"e1m1\"\n" {
+		t.Fatalf("mapname output = %q", got)
+	}
+}
+
+type mapnameStateClient struct {
+	mockClient
+	client *cl.Client
+}
+
+func (c *mapnameStateClient) ClientState() *cl.Client { return c.client }
+
+func TestCmdMapnamePrintsConnectedClientMap(t *testing.T) {
+	h := NewHost()
+	h.clientState = caConnected
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Console: console,
+		Client: &mapnameStateClient{
+			mockClient: mockClient{state: caConnected},
+			client:     &cl.Client{MapName: "start"},
+		},
+	}
+
+	h.CmdMapname(subs)
+
+	if got := strings.Join(console.messages, ""); got != "\"mapname\" is \"start\"\n" {
+		t.Fatalf("mapname output = %q", got)
+	}
+}
+
 func TestCmdBanPrintsInactiveStatus(t *testing.T) {
 	h := NewHost()
 	h.SetServerActive(true)

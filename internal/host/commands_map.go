@@ -116,17 +116,23 @@ func formatSpawnArgs(args []string) string {
 }
 
 func (h *Host) CmdMapname(subs *Subsystems) {
-	if subs.Console == nil {
+	if subs == nil || subs.Console == nil {
 		return
 	}
 
 	if h.serverActive {
-		subs.Console.Print("mapname: (server active)\n")
-	} else if h.clientState == caConnected {
-		subs.Console.Print("mapname: (connected)\n")
-	} else {
-		subs.Console.Print("no map loaded\n")
+		subs.Console.Print(fmt.Sprintf("\"mapname\" is %q\n", subs.Server.GetMapName()))
+		return
 	}
+	if h.clientState == caConnected {
+		mapName := ""
+		if clientState := ActiveClientState(subs); clientState != nil {
+			mapName = clientState.MapName
+		}
+		subs.Console.Print(fmt.Sprintf("\"mapname\" is %q\n", mapName))
+		return
+	}
+	subs.Console.Print("no map loaded\n")
 }
 
 func (h *Host) CmdRestart(subs *Subsystems) {
