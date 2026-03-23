@@ -48,7 +48,7 @@ var (
 	TraceInWater     float32
 )
 
-// --- Group 1-10: Vector/Math Operations ---
+// --- Group 1-10 ---
 
 // MakeVectors computes forward, up, and right vectors from a rotation vector.
 //
@@ -104,7 +104,7 @@ func Normalize(v quake.Vec3) quake.Vec3 { return v }
 //go:noinline
 func Error(s string) {}
 
-// --- Group 11-20: Math and Entity Management ---
+// --- Group 11-20 ---
 
 // ObjError prints a fatal error message related to an entity.
 //
@@ -166,7 +166,7 @@ func PrecacheSound(s string) string { return s }
 //go:noinline
 func PrecacheModel(s string) string { return s }
 
-// --- Group 21-31: Utilities and Printing ---
+// --- Group 21-30 ---
 
 // StuffCmd sends a command string to a client's console.
 //
@@ -192,6 +192,12 @@ func Bprint(s string) {}
 //go:noinline
 func SPrint(e quake.Entity, s string) {}
 
+// Print prints a message to the engine console.
+//
+//qgo:builtin 24
+//go:noinline
+func Print(s string) {}
+
 // Dprint prints a message to the engine console (only if developer is 1).
 //
 //qgo:builtin 25
@@ -210,13 +216,13 @@ func Ftos(f float32) string { return "" }
 //go:noinline
 func Vtos(v quake.Vec3) string { return "" }
 
+// --- Group 31-40 ---
+
 // EPrint prints an entity's information to the console.
 //
 //qgo:builtin 31
 //go:noinline
 func EPrint(e quake.Entity) {}
-
-// --- Group 32-40: Physics and Math ---
 
 // WalkMove moves an entity forward with collision detection.
 //
@@ -260,7 +266,7 @@ func Ceil(f float32) float32 { return 0 }
 //go:noinline
 func CheckBottom(e quake.Entity) float32 { return 0 }
 
-// --- Group 41-51: World and AI ---
+// --- Group 41-50 ---
 
 // PointContents reports the contents of the world at a point.
 //
@@ -310,13 +316,13 @@ func Particle(org quake.Vec3, dir quake.Vec3, color float32, count float32) {}
 //go:noinline
 func ChangeYaw() {}
 
+// --- Group 51-60 ---
+
 // VectoAngles converts a direction vector to Euler angles.
 //
 //qgo:builtin 51
 //go:noinline
 func VectoAngles(v quake.Vec3) quake.Vec3 { return quake.Vec3{} }
-
-// --- Group 52-59: Networking/Writes ---
 
 //qgo:builtin 52
 //go:noinline
@@ -350,11 +356,11 @@ func WriteString(dest float32, s string) {}
 //go:noinline
 func WriteEntity(dest float32, e quake.Entity) {}
 
-// --- Group 60-80: Math, AI and Level ---
-
 //qgo:builtin 60
 //go:noinline
 func Sin(f float32) float32 { return 0 }
+
+// --- Group 61-70 ---
 
 //qgo:builtin 61
 //go:noinline
@@ -384,6 +390,8 @@ func MakeStatic(e quake.Entity) {}
 //go:noinline
 func Changelevel(s string) {}
 
+// --- Group 71-80 ---
+
 //qgo:builtin 72
 //go:noinline
 func CvarSet(s string, v string) {}
@@ -408,7 +416,7 @@ func FinaleFinished() {}
 //go:noinline
 func LocalSound(e quake.Entity, s string) {}
 
-// --- Group 81+: Extended Functions ---
+// --- Group 81-100 ---
 
 //qgo:builtin 81
 //go:noinline
@@ -429,6 +437,16 @@ func Bound(min, val, max float32) float32 { return 0 }
 //qgo:builtin 97
 //go:noinline
 func Pow(base, exp float32) float32 { return 0 }
+
+//qgo:builtin 99
+//go:noinline
+func CheckExtension(s string) float32 { return 0 }
+
+//qgo:builtin 100
+//go:noinline
+func CheckPlayerEXFlags(e quake.Entity) float32 { return 0 }
+
+// --- Group 101+ ---
 
 //qgo:builtin 114
 //go:noinline
@@ -466,8 +484,6 @@ func Chr2str(f float32) string { return "" }
 //go:noinline
 func Mod(a, b float32) float32 { return 0 }
 
-// --- Trigonometry Extended ---
-
 //qgo:builtin 471
 //go:noinline
 func Asin(f float32) float32 { return 0 }
@@ -492,11 +508,3 @@ func Tan(f float32) float32 { return 0 }
 
 // CRandom returns a random float value between -1.0 and 1.0.
 func CRandom() float32 { return Random()*2 - 1 }
-
-//qgo:builtin 99
-//go:noinline
-func CheckExtension(s string) float32 { return 0 }
-
-//qgo:builtin 100
-//go:noinline
-func CheckPlayerEXFlags(e quake.Entity) float32 { return 0 }
