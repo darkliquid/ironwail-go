@@ -10,6 +10,8 @@ The DP/FTE-style trig extension slots map directly to Go's `math` package withou
 
 `substring()` mirrors the C helper's byte-oriented slicing rules instead of clamping everything to non-negative bounds. Negative `start` is applied relative to the string end, negative `length` is rewritten as "remaining chars after start, minus tail trim", and non-positive effective lengths return the empty string.
 
+The string-concatenation helpers use `vm.ArgC` to mirror C's variadic behavior. `strcat()` and the Go no-op version of `strzone()` both concatenate all provided QC string arguments in order, while still tolerating direct unit-test calls that bypass the interpreter and leave `ArgC` unset.
+
 `random()` consumes the VM compat RNG stream (`rand() & 0x7fff`) and then applies one of two formulas keyed by `sv_gameplayfix_random`. Default-on behavior uses the gameplay fix formula to avoid exact endpoints; legacy-off behavior uses the original closed-interval division formula.
 
 If `sv_gameplayfix_random` is absent, builtin behavior stays on the gameplay-fix path (default formula), matching host default registration.

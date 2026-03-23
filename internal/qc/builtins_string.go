@@ -26,9 +26,15 @@ func strlenBuiltin(vm *VM) {
 // strcatBuiltin concatenates two strings.
 // QuakeC signature: string(string s1, string s2) strcat
 func strcatBuiltin(vm *VM) {
-	s1 := vm.GString(OFSParm0)
-	s2 := vm.GString(OFSParm1)
-	vm.SetGString(OFSReturn, s1+s2)
+	argc := vm.ArgC
+	if argc <= 0 {
+		argc = 2
+	}
+	var b strings.Builder
+	for i := 0; i < argc; i++ {
+		b.WriteString(vm.GString(OFSParm0 + i*3))
+	}
+	vm.SetGString(OFSReturn, b.String())
 }
 
 // substringBuiltin extracts a substring.
@@ -76,8 +82,15 @@ func stovBuiltin(vm *VM) {
 // that just returns the same string index.
 // QuakeC signature: string(string s) strzone
 func strzoneBuiltin(vm *VM) {
-	s := vm.GString(OFSParm0)
-	vm.SetGString(OFSReturn, s)
+	argc := vm.ArgC
+	if argc <= 0 {
+		argc = 1
+	}
+	var b strings.Builder
+	for i := 0; i < argc; i++ {
+		b.WriteString(vm.GString(OFSParm0 + i*3))
+	}
+	vm.SetGString(OFSReturn, b.String())
 }
 
 // strunzoneBuiltin frees a zoned string. No-op in Go (GC handles it).

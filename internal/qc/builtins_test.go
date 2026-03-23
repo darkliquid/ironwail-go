@@ -809,6 +809,16 @@ func TestStringBuiltins(t *testing.T) {
 		t.Errorf("strcat(foo,bar) = %q, want foobar", got)
 	}
 
+	vm.ArgC = 3
+	vm.SetGString(OFSParm0, "foo")
+	vm.SetGString(OFSParm0+3, "bar")
+	vm.SetGString(OFSParm0+6, "baz")
+	strcatBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "foobarbaz" {
+		t.Errorf("strcat(foo,bar,baz) = %q, want foobarbaz", got)
+	}
+	vm.ArgC = 0
+
 	// substring("hello world", 6, 5) = "world"
 	vm.SetGString(OFSParm0, "hello world")
 	vm.SetGFloat(OFSParm0+3, 6)
@@ -862,6 +872,15 @@ func TestStringBuiltins(t *testing.T) {
 	if got := vm.GString(OFSReturn); got != "A" {
 		t.Errorf("chr2str(65) = %q, want A", got)
 	}
+
+	vm.ArgC = 2
+	vm.SetGString(OFSParm0, "hello")
+	vm.SetGString(OFSParm0+3, " world")
+	strzoneBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "hello world" {
+		t.Errorf("strzone(hello, world) = %q, want hello world", got)
+	}
+	vm.ArgC = 0
 
 	// str2chr("A", 0) = 65
 	vm.SetGString(OFSParm0, "A")

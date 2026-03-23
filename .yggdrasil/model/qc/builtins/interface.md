@@ -20,6 +20,7 @@ Observed surfaces:
 - `traceon()` and `traceoff()` must toggle the VM's `Trace` execution flag rather than silently no-op, because the interpreter already honors that flag when statement tracing is enabled.
 - Trig builtins using C/Ironwail extension slots (`sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`) follow raw C math semantics and therefore consume/return radians, not Quake angle degrees.
 - `substring()` follows C's negative-index rules: negative `start` counts back from the end of the string, and negative `length` means "trim that many chars from the tail after `start`".
+- `strcat()` and `strzone()` concatenate all provided QC string arguments in order rather than stopping at a fixed two-argument surface.
 - `mod()` preserves C's divide-by-zero contract by returning `0` and printing `PF_mod: mod by zero` to the console for observability.
 - `random()` reads `sv_gameplayfix_random` to select formula parity:
   - `1` (default): `((rand()&0x7fff)+0.5)/0x8000` (open interval `(0,1)`).
