@@ -6,6 +6,8 @@ Builtins are registered by number onto the VM’s builtin table. Many builtins a
 
 The hook interface separates builtin behavior from concrete server implementation so the VM does not import server internals directly.
 
+The DP/FTE-style trig extension slots map directly to Go's `math` package without degree conversion so they match C `sin/cos/tan/asin/acos/atan/atan2` behavior. Quake angle-degree helpers like `makevectors`, `vectoyaw`, and `vectoangles` remain separate builtins with their own degree-based conventions.
+
 `random()` consumes the VM compat RNG stream (`rand() & 0x7fff`) and then applies one of two formulas keyed by `sv_gameplayfix_random`. Default-on behavior uses the gameplay fix formula to avoid exact endpoints; legacy-off behavior uses the original closed-interval division formula.
 
 If `sv_gameplayfix_random` is absent, builtin behavior stays on the gameplay-fix path (default formula), matching host default registration.

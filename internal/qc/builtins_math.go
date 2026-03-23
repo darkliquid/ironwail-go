@@ -162,18 +162,18 @@ func fabsBuiltin(vm *VM) {
 	vm.SetGFloat(OFSReturn, float32(math.Abs(float64(v))))
 }
 
-// sin returns the sine of an angle in degrees.
+// sin returns the sine of an angle in radians.
 // QuakeC signature: float(float angle) sin
 func sinBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
-	vm.SetGFloat(OFSReturn, float32(math.Sin(float64(v)*math.Pi/180.0)))
+	vm.SetGFloat(OFSReturn, float32(math.Sin(float64(v))))
 }
 
-// cos returns the cosine of an angle in degrees.
+// cos returns the cosine of an angle in radians.
 // QuakeC signature: float(float angle) cos
 func cosBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
-	vm.SetGFloat(OFSReturn, float32(math.Cos(float64(v)*math.Pi/180.0)))
+	vm.SetGFloat(OFSReturn, float32(math.Cos(float64(v))))
 }
 
 // sqrt returns the square root of a value.
@@ -238,35 +238,35 @@ func powBuiltin(vm *VM) {
 	vm.SetGFloat(OFSReturn, float32(math.Pow(float64(base), float64(exp))))
 }
 
-// asinBuiltin returns the arcsine in degrees.
+// asinBuiltin returns the arcsine in radians.
 func asinBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
-	vm.SetGFloat(OFSReturn, float32(math.Asin(float64(v))*180.0/math.Pi))
+	vm.SetGFloat(OFSReturn, float32(math.Asin(float64(v))))
 }
 
-// acosBuiltin returns the arccosine in degrees.
+// acosBuiltin returns the arccosine in radians.
 func acosBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
-	vm.SetGFloat(OFSReturn, float32(math.Acos(float64(v))*180.0/math.Pi))
+	vm.SetGFloat(OFSReturn, float32(math.Acos(float64(v))))
 }
 
-// atanBuiltin returns the arctangent in degrees.
+// atanBuiltin returns the arctangent in radians.
 func atanBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
-	vm.SetGFloat(OFSReturn, float32(math.Atan(float64(v))*180.0/math.Pi))
+	vm.SetGFloat(OFSReturn, float32(math.Atan(float64(v))))
 }
 
-// atan2Builtin returns the two-argument arctangent in degrees.
+// atan2Builtin returns the two-argument arctangent in radians.
 func atan2Builtin(vm *VM) {
 	y := vm.GFloat(OFSParm0)
 	x := vm.GFloat(OFSParm0 + 3)
-	vm.SetGFloat(OFSReturn, float32(math.Atan2(float64(y), float64(x))*180.0/math.Pi))
+	vm.SetGFloat(OFSReturn, float32(math.Atan2(float64(y), float64(x))))
 }
 
-// tanBuiltin returns the tangent of an angle in degrees.
+// tanBuiltin returns the tangent of an angle in radians.
 func tanBuiltin(vm *VM) {
 	v := vm.GFloat(OFSParm0)
-	vm.SetGFloat(OFSReturn, float32(math.Tan(float64(v)*math.Pi/180.0)))
+	vm.SetGFloat(OFSReturn, float32(math.Tan(float64(v))))
 }
 
 // modBuiltin returns the remainder of a/b.

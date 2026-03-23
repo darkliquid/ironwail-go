@@ -722,13 +722,16 @@ func TestMathBuiltins(t *testing.T) {
 		want float32
 		tol  float32
 	}{
-		{"sin(90)", sinBuiltin, 90, 1.0, 0.001},
+		{"sin(pi/2)", sinBuiltin, math.Pi / 2, 1.0, 0.001},
 		{"sin(0)", sinBuiltin, 0, 0.0, 0.001},
 		{"cos(0)", cosBuiltin, 0, 1.0, 0.001},
-		{"cos(90)", cosBuiltin, 90, 0.0, 0.001},
+		{"cos(pi/2)", cosBuiltin, math.Pi / 2, 0.0, 0.001},
 		{"sqrt(4)", sqrtBuiltin, 4, 2.0, 0.001},
 		{"sqrt(9)", sqrtBuiltin, 9, 3.0, 0.001},
-		{"tan(45)", tanBuiltin, 45, 1.0, 0.001},
+		{"tan(pi/4)", tanBuiltin, math.Pi / 4, 1.0, 0.001},
+		{"asin(1)", asinBuiltin, 1, math.Pi / 2, 0.001},
+		{"acos(0)", acosBuiltin, 0, math.Pi / 2, 0.001},
+		{"atan(1)", atanBuiltin, 1, math.Pi / 4, 0.001},
 	}
 
 	for _, tt := range tests {
@@ -741,6 +744,13 @@ func TestMathBuiltins(t *testing.T) {
 				t.Errorf("%s = %v, want %v", tt.name, got, tt.want)
 			}
 		})
+	}
+
+	vm.SetGFloat(OFSParm0, 1)
+	vm.SetGFloat(OFSParm0+3, 1)
+	atan2Builtin(vm)
+	if got := vm.GFloat(OFSReturn); math.Abs(float64(got-math.Pi/4)) > 0.001 {
+		t.Errorf("atan2(1,1) = %v, want %v", got, math.Pi/4)
 	}
 }
 

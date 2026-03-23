@@ -1,5 +1,5 @@
 {
-  "hash": "88b9889486c3e76156b2de9395335b2569b560d7582ee6da8949c9d2d2bfaa9a",
+  "hash": "6b5e66f2bf4ee4434a4f8262cf63ad9ed548e4129c350666c9baaa531237b0f3",
   "files": {
     ".yggdrasil/model/qc/builtins/yg-node.yaml": "265ad1fa3dda4736495aeec8ffb4b45f3ae31a00f7bb6e66ec80deec7edc9b7e",
     ".yggdrasil/model/qc/builtins/responsibility.md": "1161a31cd163bb2f06c5b167a7b313421fc746bb487b231ba61e00e862768683",
@@ -7,20 +7,20 @@
     ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
     ".yggdrasil/model/qc/internals.md": "f1714908356bb149ae2268557cb97bcbd50b82a1d0143ad60e6a60fca04faae0",
     ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
+    "internal/qc/builtins.go": "2195103c28b60127a6d3ce1fd700b9c6e8160abd58356f08ef6ced2630a84744",
     "internal/qc/builtins_entity.go": "44a451ce3676de22a2534860c6c3a92572b7d1539e216bb7398d69f2a7d26617",
-    "internal/qc/builtins_math.go": "19b97018e8fdaac0210a96fa8ea9505f3a2c37f6b16bdbd833c81c6ccb6fe5a2",
     "internal/qc/builtins_string.go": "97c516913c75e2df0b44c7af9122d6c18b34c22fdb8475fd1d29cc7c12e2f08b",
     "internal/qc/builtins_world.go": "9d1eae0479d719c1e08ee111b90b35a71f0fed69f6a0d87a13144c1af34ed17e",
     "internal/qc/serverhooks_iface.go": "06fb6bac57b5754bb3c71c756489187baede6e26be5638162cc2fd720dfb6fda",
-    ".yggdrasil/model/qc/builtins/interface.md": "d8ec4437e16387f1c86166e394e951f9b8c45d815b780eb2694f505490f228ba",
-    ".yggdrasil/model/qc/builtins/internals.md": "3a50991df5bbc0f397538421896fa50cf351e2c92a2269f83468c84a63654af9",
-    "internal/qc/builtins.go": "2195103c28b60127a6d3ce1fd700b9c6e8160abd58356f08ef6ced2630a84744",
-    "internal/qc/builtins_test.go": "98ac92433159dac2cb72520b990ebe42a6acea42a976a7608e5982d9d71722ad"
+    ".yggdrasil/model/qc/builtins/interface.md": "1bef031a91830ad8b847a4ac16aadbd9d58aec34f33ddab40b736609c9a283f9",
+    ".yggdrasil/model/qc/builtins/internals.md": "6cfd938c702839d469adb5f718e29d41c8c15f4cbd6a6bd3ff617e6e771ccce5",
+    "internal/qc/builtins_math.go": "18dfadbf71bfeb6f80a7ee3e8ac20b882714526b2d989dd187a3a352836d6023",
+    "internal/qc/builtins_test.go": "652afa0ceec46ca23e9e01a317d06a978b4e5cacbd7f8bcce2e80cf33d4180ff"
   },
   "mtimes": {
     ".yggdrasil/model/qc/builtins/yg-node.yaml": 1774219202577.9546,
-    ".yggdrasil/model/qc/builtins/interface.md": 1774303331141.1533,
-    ".yggdrasil/model/qc/builtins/internals.md": 1774303331141.1533,
+    ".yggdrasil/model/qc/builtins/interface.md": 1774303495498.6733,
+    ".yggdrasil/model/qc/builtins/internals.md": 1774303495499.6733,
     ".yggdrasil/model/qc/builtins/responsibility.md": 1774219202644.955,
     ".yggdrasil/model/qc/yg-node.yaml": 1774219201766.9465,
     ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
@@ -28,10 +28,10 @@
     ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
     "internal/qc/builtins.go": 1774303300435.7275,
     "internal/qc/builtins_entity.go": 1773892508168.2336,
-    "internal/qc/builtins_math.go": 1774298019601.74,
+    "internal/qc/builtins_math.go": 1774303463392.4824,
     "internal/qc/builtins_string.go": 1773893036000.6506,
     "internal/qc/builtins_world.go": 1774211147450.3188,
     "internal/qc/serverhooks_iface.go": 1773836785813.0933,
-    "internal/qc/builtins_test.go": 1774303300447.7278
+    "internal/qc/builtins_test.go": 1774303463558.4922
   }
 }
