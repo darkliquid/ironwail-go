@@ -1,0 +1,10 @@
+name: Shared Math Types
+type: library
+description: "Public Quake vector, angle, matrix, and serialization helpers shared across engine subsystems"
+blackbox: false
+mapping:
+  paths:
+    - pkg/types/types.go
+    - pkg/types/mat4.go
+    - pkg/types/types_test.go
+    - pkg/types/mat4_test.go
