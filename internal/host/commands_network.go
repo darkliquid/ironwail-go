@@ -303,6 +303,24 @@ func (h *Host) CmdSlist(subs *Subsystems) {
 	}
 }
 
+func (h *Host) CmdTest2(address string, subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	rules, err := inet.QueryServerRules(strings.TrimSpace(address))
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("%v\n", err))
+		return
+	}
+	for _, rule := range rules {
+		subs.Console.Print(fmt.Sprintf("%-16.16s  %-16.16s\n", rule.Name, rule.Value))
+	}
+}
+
 func (h *Host) EndGame(message string, subs *Subsystems) {
 	if subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("Host_EndGame: %s\n", message))

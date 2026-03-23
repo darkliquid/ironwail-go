@@ -4,6 +4,7 @@
 package host
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	stdnet "net"
@@ -834,6 +835,53 @@ func TestCmdPing(t *testing.T) {
 	h.CmdPing(&subs.Subsystems)
 }
 
+func TestCmdTest2PrintsQueriedRules(t *testing.T) {
+	serverConn, err := stdnet.ListenUDP("udp4", &stdnet.UDPAddr{IP: stdnet.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("failed to start test server: %v", err)
+	}
+	defer serverConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		buf := make([]byte, 1024)
+		for {
+			n, addr, err := serverConn.ReadFromUDP(buf)
+			if err != nil {
+				return
+			}
+			if n < inet.HeaderSize+1 || buf[8] != inet.CCReqRuleInfo {
+				continue
+			}
+			prev := strings.TrimRight(string(buf[9:n]), "\x00")
+			var resp []byte
+			switch prev {
+			case "":
+				resp = buildHostRuleInfoResponse("deathmatch", "1")
+			case "deathmatch":
+				resp = buildHostRuleInfoResponse("teamplay", "0")
+			default:
+				resp = buildHostRuleInfoResponse("", "")
+			}
+			serverConn.WriteToUDP(resp, addr)
+		}
+	}()
+
+	h := NewHost()
+	subs := &mockSubsystems{
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Console = subs.console
+
+	h.CmdTest2(serverConn.LocalAddr().String(), &subs.Subsystems)
+
+	got := strings.Join(subs.console.messages, "")
+	if !strings.Contains(got, "deathmatch") || !strings.Contains(got, "teamplay") {
+		t.Fatalf("test2 output missing expected rules:\n%s", got)
+	}
+}
+
 func TestCmdNetStatsPrintsGlobalDatagramCounters(t *testing.T) {
 	inet.GlobalStats.Reset()
 	t.Cleanup(inet.GlobalStats.Reset)
@@ -860,6 +908,23 @@ func TestCmdNetStatsPrintsGlobalDatagramCounters(t *testing.T) {
 	if !strings.Contains(got, "droppedDatagrams           = 3\n") {
 		t.Fatalf("net_stats output missing dropped datagrams count:\n%s", got)
 	}
+}
+
+func buildHostRuleInfoResponse(name, value string) []byte {
+	payloadLen := 1
+	if name != "" {
+		payloadLen += len(name) + 1 + len(value) + 1
+	}
+	buf := make([]byte, inet.HeaderSize+payloadLen)
+	binary.BigEndian.PutUint32(buf[0:], uint32(len(buf))|inet.FlagCtl)
+	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
+	buf[8] = inet.CCRepRuleInfo
+	if name != "" {
+		copy(buf[9:], name)
+		buf[9+len(name)] = 0
+		copy(buf[10+len(name):], value)
+	}
+	return buf
 }
 
 func TestCmdKickBySlot(t *testing.T) {

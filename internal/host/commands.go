@@ -114,6 +114,11 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("cmd", func(args []string) { h.CmdForwardToServer(args, subs) }, "Forward command line to current server")
 	replaceCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
 	replaceCommand("slist", func(args []string) { h.CmdSlist(subs) }, "Search for LAN servers")
+	replaceCommand("test2", func(args []string) {
+		if len(args) > 0 {
+			h.CmdTest2(args[0], subs)
+		}
+	}, "Query a server's rule list")
 	replaceCommand("listen", func(args []string) { h.CmdListen(args, subs) }, "Enable/disable network listening")
 	replaceCommand("maxplayers", func(args []string) { h.CmdMaxPlayers(args, subs) }, "Show or set maximum player slots")
 	replaceCommand("port", func(args []string) { h.CmdPort(args, subs) }, "Show or set network host port")

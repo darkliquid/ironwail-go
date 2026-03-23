@@ -30,6 +30,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	stdnet "net"
+	"slices"
 	"strings"
 	"time"
 
@@ -522,6 +523,10 @@ func DatagramCheckNewConnections() *Socket {
 		sendServerInfoResponse(acceptSocket, addr)
 		return nil
 	}
+	if cmd == CCReqRuleInfo {
+		sendRuleInfoResponse(acceptSocket, addr, strings.TrimRight(string(buf[9:n]), "\x00"))
+		return nil
+	}
 
 	if cmd == CCReqConnect {
 		if isServerIPBanned(addr.String()) {
@@ -565,6 +570,25 @@ func DatagramCheckNewConnections() *Socket {
 		return sock
 	}
 
+	return nil
+}
+
+func nextServerInfoCvarAfter(previous string) *cvar.CVar {
+	var names []string
+	serverInfoVars := make(map[string]*cvar.CVar)
+	for _, cv := range cvar.All() {
+		if cv.Flags&cvar.FlagServerInfo == 0 {
+			continue
+		}
+		names = append(names, cv.Name)
+		serverInfoVars[cv.Name] = cv
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if strings.Compare(name, previous) > 0 {
+			return serverInfoVars[name]
+		}
+	}
 	return nil
 }
 
@@ -612,6 +636,23 @@ func sendServerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr) {
 
 	resp := make([]byte, HeaderSize+len(payload))
 	binary.BigEndian.PutUint32(resp[0:], uint32(HeaderSize+len(payload))|FlagCtl)
+	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
+	copy(resp[HeaderSize:], payload)
+	UDPWrite(conn, resp, addr)
+}
+
+func sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, previous string) {
+	var payload []byte
+	payload = append(payload, CCRepRuleInfo)
+	if cv := nextServerInfoCvarAfter(previous); cv != nil {
+		payload = append(payload, []byte(cv.Name)...)
+		payload = append(payload, 0)
+		payload = append(payload, []byte(cv.String)...)
+		payload = append(payload, 0)
+	}
+
+	resp := make([]byte, HeaderSize+len(payload))
+	binary.BigEndian.PutUint32(resp[0:], uint32(len(resp))|FlagCtl)
 	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 	copy(resp[HeaderSize:], payload)
 	UDPWrite(conn, resp, addr)

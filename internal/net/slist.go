@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	stdnet "net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,6 +46,12 @@ type HostCacheEntry struct {
 	Players    int    // Current player count
 	MaxPlayers int    // Maximum player count
 	Address    string // Network address (ip:port)
+}
+
+// RuleInfoEntry holds a single serverinfo cvar returned by a CCREQ_RULE_INFO query.
+type RuleInfoEntry struct {
+	Name  string
+	Value string
 }
 
 // String returns a one-line summary suitable for console display.
@@ -196,6 +203,17 @@ func buildServerInfoQuery() []byte {
 	return buf
 }
 
+func buildRuleInfoQuery(previous string) []byte {
+	payloadLen := 1 + len(previous) + 1
+	packetLen := HeaderSize + payloadLen
+	buf := make([]byte, packetLen)
+	binary.BigEndian.PutUint32(buf[0:], uint32(packetLen)|FlagCtl)
+	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
+	buf[8] = CCReqRuleInfo
+	copy(buf[9:], previous)
+	return buf
+}
+
 // parseServerInfoResponse decodes a CCRepServerInfo control packet into a
 // HostCacheEntry. Returns false if the packet is not a valid response.
 func parseServerInfoResponse(data []byte, addr stdnet.Addr) (HostCacheEntry, bool) {
@@ -251,6 +269,81 @@ func parseServerInfoResponse(data []byte, addr stdnet.Addr) (HostCacheEntry, boo
 		MaxPlayers: maxPlayers,
 		Address:    address,
 	}, true
+}
+
+func parseRuleInfoResponse(data []byte) (RuleInfoEntry, bool) {
+	if len(data) < HeaderSize+1 {
+		return RuleInfoEntry{}, false
+	}
+	header := binary.BigEndian.Uint32(data[0:])
+	if header&FlagCtl == 0 {
+		return RuleInfoEntry{}, false
+	}
+	if data[8] != CCRepRuleInfo {
+		return RuleInfoEntry{}, false
+	}
+
+	payload := data[9:]
+	readString := func() string {
+		for i, b := range payload {
+			if b == 0 {
+				s := string(payload[:i])
+				payload = payload[i+1:]
+				return s
+			}
+		}
+		s := string(payload)
+		payload = nil
+		return s
+	}
+
+	name := readString()
+	if name == "" {
+		return RuleInfoEntry{}, true
+	}
+	return RuleInfoEntry{Name: name, Value: readString()}, true
+}
+
+func QueryServerRules(address string) ([]RuleInfoEntry, error) {
+	if !strings.Contains(address, ":") {
+		address = fmt.Sprintf("%s:%d", address, defaultNetHostPort)
+	}
+	addr, err := UDPStringToAddr(address)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := stdnet.ListenUDP("udp4", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	var rules []RuleInfoEntry
+	previous := ""
+	buf := make([]byte, 1024)
+	for {
+		query := buildRuleInfoQuery(previous)
+		if _, err := conn.WriteToUDP(query, addr); err != nil {
+			return nil, err
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+			return nil, err
+		}
+		n, _, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			return nil, err
+		}
+		entry, ok := parseRuleInfoResponse(buf[:n])
+		if !ok {
+			return nil, fmt.Errorf("unexpected response to Rule Info request")
+		}
+		if entry.Name == "" {
+			return rules, nil
+		}
+		rules = append(rules, entry)
+		previous = entry.Name
+	}
 }
 
 // addEntry appends an entry if no duplicate address is already present.

@@ -48,6 +48,23 @@ func buildTestServerInfoResponse(address, hostname, mapName string, players, max
 	return buf
 }
 
+func buildTestRuleInfoResponse(name, value string) []byte {
+	payloadLen := 1
+	if name != "" {
+		payloadLen += len(name) + 1 + len(value) + 1
+	}
+	buf := make([]byte, HeaderSize+payloadLen)
+	binary.BigEndian.PutUint32(buf[0:], uint32(len(buf))|FlagCtl)
+	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
+	buf[8] = CCRepRuleInfo
+	if name != "" {
+		copy(buf[9:], name)
+		buf[9+len(name)] = 0
+		copy(buf[10+len(name):], value)
+	}
+	return buf
+}
+
 func TestParseServerInfoResponse(t *testing.T) {
 	resp := buildTestServerInfoResponse("192.168.1.5:26000", "Test Server", "dm4", 3, 8, 3)
 	addr := &stdnet.UDPAddr{IP: stdnet.IPv4(192, 168, 1, 5), Port: 26000}
@@ -111,6 +128,66 @@ func TestParseServerInfoResponseTruncated(t *testing.T) {
 	_, ok := parseServerInfoResponse([]byte{1, 2, 3}, &stdnet.UDPAddr{})
 	if ok {
 		t.Fatal("expected rejection of truncated packet")
+	}
+}
+
+func TestParseRuleInfoResponse(t *testing.T) {
+	resp := buildTestRuleInfoResponse("deathmatch", "1")
+	entry, ok := parseRuleInfoResponse(resp)
+	if !ok {
+		t.Fatal("parseRuleInfoResponse returned false")
+	}
+	if entry.Name != "deathmatch" || entry.Value != "1" {
+		t.Fatalf("rule entry = %#v, want deathmatch=1", entry)
+	}
+}
+
+func TestQueryServerRules(t *testing.T) {
+	serverConn, err := stdnet.ListenUDP("udp4", &stdnet.UDPAddr{IP: stdnet.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("failed to start test server: %v", err)
+	}
+	defer serverConn.Close()
+
+	serverAddr := serverConn.LocalAddr().(*stdnet.UDPAddr)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		buf := make([]byte, 1024)
+		for {
+			n, addr, err := serverConn.ReadFromUDP(buf)
+			if err != nil {
+				return
+			}
+			if n < HeaderSize+1 || buf[8] != CCReqRuleInfo {
+				continue
+			}
+			prev := strings.TrimRight(string(buf[9:n]), "\x00")
+			var resp []byte
+			switch prev {
+			case "":
+				resp = buildTestRuleInfoResponse("deathmatch", "1")
+			case "deathmatch":
+				resp = buildTestRuleInfoResponse("teamplay", "0")
+			default:
+				resp = buildTestRuleInfoResponse("", "")
+			}
+			serverConn.WriteToUDP(resp, addr)
+		}
+	}()
+
+	rules, err := QueryServerRules(serverAddr.String())
+	if err != nil {
+		t.Fatalf("QueryServerRules() error = %v", err)
+	}
+	if got, want := len(rules), 2; got != want {
+		t.Fatalf("rule count = %d, want %d", got, want)
+	}
+	if rules[0] != (RuleInfoEntry{Name: "deathmatch", Value: "1"}) {
+		t.Fatalf("first rule = %#v", rules[0])
+	}
+	if rules[1] != (RuleInfoEntry{Name: "teamplay", Value: "0"}) {
+		t.Fatalf("second rule = %#v", rules[1])
 	}
 }
 
