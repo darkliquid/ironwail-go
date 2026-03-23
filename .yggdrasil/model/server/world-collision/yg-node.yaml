@@ -1,0 +1,15 @@
+name: Server World Collision
+type: module
+description: "BSP hull tracing, area-node broadphase, point contents, entity linking, and trigger-touch discovery"
+blackbox: false
+relations:
+  - target: bsp
+    type: uses
+    consumes: [contents constants, BSP traversal semantics]
+mapping:
+  paths:
+    - internal/server/world.go
+    - internal/server/trace_test.go
+    - internal/server/world_leafs_test.go
+    - internal/server/walkable_point_diagnostics_test.go
+    - internal/server/synthetic_bsp_helper.go

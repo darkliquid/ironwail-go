@@ -1,0 +1,14 @@
+name: Server Player Movement
+type: module
+description: "Player/usercmd movement translation, walk/fly/swim stepping, and movement-specific helpers layered over server traces"
+blackbox: false
+relations:
+  - target: bsp
+    type: uses
+    consumes: [contents semantics used for water and ground checks]
+mapping:
+  paths:
+    - internal/server/movement.go
+    - internal/server/movement_test.go
+    - internal/server/map_movement_test.go
+    - internal/server/synthetic_movement_test.go

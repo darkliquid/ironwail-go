@@ -1,0 +1,17 @@
+name: Server Savegame
+type: module
+description: "Portable native and text/KEX save/load capture, restore, and QC string/global persistence"
+blackbox: false
+relations:
+  - target: qc/vm
+    type: uses
+    consumes: [string table, globals, entity field accessors]
+  - target: qc/core
+    type: calls
+    consumes: [global lookup and restore helpers]
+mapping:
+  paths:
+    - internal/server/savegame.go
+    - internal/server/savegame_text.go
+    - internal/server/savegame_test.go
+    - internal/server/savegame_text_test.go

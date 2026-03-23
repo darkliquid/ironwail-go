@@ -1,0 +1,4 @@
+name: Server
+type: module
+description: "Authoritative gameplay server umbrella covering runtime state, map bootstrap, collision, physics, client/session handling, networking, save/load, and debug telemetry"
+blackbox: false

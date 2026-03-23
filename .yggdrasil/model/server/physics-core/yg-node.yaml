@@ -1,0 +1,21 @@
+name: Server Physics Core
+type: module
+description: "Frame ordering, think/touch/impact dispatch, general movetype simulation, and server rule enforcement"
+blackbox: false
+relations:
+  - target: qc/core
+    type: calls
+    consumes: [QC callback execution for StartFrame, think, touch, blocked]
+  - target: bsp
+    type: uses
+    consumes: [contents semantics for water and collision-driven physics]
+mapping:
+  paths:
+    - internal/server/frame.go
+    - internal/server/physics.go
+    - internal/server/physics_loop.go
+    - internal/server/rules.go
+    - internal/server/frame_physics_parity_test.go
+    - internal/server/physics_parity_test.go
+    - internal/server/physics_test.go
+    - internal/server/rules_test.go

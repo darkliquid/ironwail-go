@@ -1,0 +1,25 @@
+name: Server Foundation and QC Bridge
+type: module
+description: "Authoritative server state model, edict lifecycle, protocol types, and Go↔QC synchronization surfaces"
+blackbox: false
+relations:
+  - target: qc/vm
+    type: uses
+    consumes: [VM, EntVars, global and entity field accessors]
+  - target: qc/core
+    type: calls
+    consumes: [function lookup, builtin execution, global synchronization]
+  - target: bsp
+    type: uses
+    consumes: [Tree]
+mapping:
+  paths:
+    - internal/server/doc.go
+    - internal/server/server.go
+    - internal/server/types.go
+    - internal/server/types_entities.go
+    - internal/server/types_flags.go
+    - internal/server/types_protocol.go
+    - internal/server/edict.go
+    - internal/server/server_test.go
+    - internal/server/server_hooks_test.go

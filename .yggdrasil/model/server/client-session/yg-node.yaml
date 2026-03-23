@@ -1,0 +1,15 @@
+name: Server Client Session
+type: module
+description: "Client slot admission, signon handshake, player-edict binding, client commands, and disconnect/respawn session behavior"
+blackbox: false
+relations:
+  - target: qc/core
+    type: calls
+    consumes: [SetNewParms, PutClientInServer, ClientDisconnect, player QC callbacks]
+mapping:
+  paths:
+    - internal/server/sv_client.go
+    - internal/server/user.go
+    - internal/server/sv_client_test.go
+    - internal/server/user_test.go
+    - internal/server/signon_test.go

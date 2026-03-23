@@ -1,0 +1,10 @@
+name: Server Network Serialization
+type: module
+description: "Server-side protocol message buffers, signon/datagram encoding, entity deltas, and sound/particle/stat serialization"
+blackbox: false
+mapping:
+  paths:
+    - internal/server/message.go
+    - internal/server/sv_send.go
+    - internal/server/sv_send_test.go
+    - internal/server/sv_send_sound_protocol_test.go

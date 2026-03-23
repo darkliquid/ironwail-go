@@ -1,0 +1,16 @@
+name: Server Map Bootstrap
+type: module
+description: "Map loading, world-model bootstrap, entity-lump instantiation, precache setup, and initial signon preparation"
+blackbox: false
+relations:
+  - target: bsp
+    type: uses
+    consumes: [Load, LoadTree, ApplyLitFile]
+  - target: qc/core
+    type: calls
+    consumes: [spawn function lookup and execution]
+mapping:
+  paths:
+    - internal/server/sv_main.go
+    - internal/server/world_model.go
+    - internal/server/sv_main_test.go

@@ -1,0 +1,15 @@
+name: Server Debug Telemetry
+type: module
+description: "Server-side debug cvars, trigger/physics event telemetry, and QC trace instrumentation"
+blackbox: false
+relations:
+  - target: qc/core
+    type: uses
+    consumes: [execution context and function name/trace surfaces]
+mapping:
+  paths:
+    - internal/server/debug_telemetry.go
+    - internal/server/qc_trace.go
+    - internal/server/debug_telemetry_test.go
+    - internal/server/qc_trace_test.go
+    - internal/server/world_telemetry_test.go
