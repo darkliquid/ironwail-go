@@ -10,23 +10,26 @@ import "github.com/ironwail/ironwail-go/pkg/qgo/quake"
 // Engine globals that are shared between the engine and the QCVM.
 // These variables are located at fixed offsets in the global address space.
 var (
-	// Self is the entity currently executing QuakeC code (e.g., the entity
-	// whose .think function was called).
+	// Self is the entity currently executing QuakeC code.
 	Self quake.Entity
 
-	// Other is the secondary entity involved in an interaction (e.g.,
-	// the entity that was touched, or the entity being used).
+	// Other is the secondary entity involved in an interaction.
 	Other quake.Entity
 
-	// World is the entity representing the map geometry and global state.
-	// It is always entity 0.
+	// World is the entity representing the map geometry and global state (entity 0).
 	World quake.Entity
 
 	// Time is the current game time in seconds.
 	Time float32
 
+	// FrameTime is the duration of the current frame in seconds.
+	FrameTime float32
+
 	// NextEnt returns the next entity in the linked list of entities.
 	NextEnt quake.Entity
+
+	// MapName is the name of the current map.
+	MapName string
 
 	// Direction globals set by MakeVectors
 	VForward quake.Vec3
@@ -44,6 +47,8 @@ var (
 	TraceInOpen      float32
 	TraceInWater     float32
 )
+
+// --- Group 1-10: Vector/Math Operations ---
 
 // MakeVectors computes forward, up, and right vectors from a rotation vector.
 //
@@ -69,6 +74,12 @@ func SetModel(e quake.Entity, m string) {}
 //go:noinline
 func SetSize(e quake.Entity, min, max quake.Vec3) {}
 
+// BreakStatement triggers a debugger break if one is attached.
+//
+//qgo:builtin 6
+//go:noinline
+func BreakStatement() {}
+
 // Random returns a random float value between 0.0 and 1.0.
 //
 //qgo:builtin 7
@@ -79,7 +90,7 @@ func Random() float32 { return 0 }
 //
 //qgo:builtin 8
 //go:noinline
-func Sound(e quake.Entity, ch int, samp string, vol, atten float32) {}
+func Sound(e quake.Entity, ch int, samp string, vol float32, atten float32) {}
 
 // Normalize returns a vector with the same direction as the input but with a length of 1.
 //
@@ -92,6 +103,14 @@ func Normalize(v quake.Vec3) quake.Vec3 { return v }
 //qgo:builtin 10
 //go:noinline
 func Error(s string) {}
+
+// --- Group 11-20: Math and Entity Management ---
+
+// ObjError prints a fatal error message related to an entity.
+//
+//qgo:builtin 11
+//go:noinline
+func ObjError(s string) {}
 
 // Vlen returns the length (magnitude) of a 3D vector.
 //
@@ -117,26 +136,43 @@ func Spawn() quake.Entity { return 0 }
 //go:noinline
 func Remove(e quake.Entity) {}
 
-// Traceline performs a ray-cast from v1 to v2 and stores the results in
-// global variables (TraceFraction, TraceEndPos, etc.).
+// Traceline performs a ray-cast from v1 to v2.
 //
 //qgo:builtin 16
 //go:noinline
-func Traceline(v1, v2 quake.Vec3, nomonsters int, e quake.Entity) {}
+func Traceline(v1, v2 quake.Vec3, nomonsters float32, e quake.Entity) {}
+
+// CheckClient returns a client entity that is visible to the current entity.
+//
+//qgo:builtin 17
+//go:noinline
+func CheckClient() quake.Entity { return 0 }
+
+// Find locates an entity whose field matches a string.
+//
+//qgo:builtin 18
+//go:noinline
+func Find(e quake.Entity, field string, match string) quake.Entity { return 0 }
 
 // PrecacheSound registers a sound file so it can be played.
-// This must be called during the 'worldspawn' or 'spawn' phase.
 //
 //qgo:builtin 19
 //go:noinline
 func PrecacheSound(s string) string { return s }
 
 // PrecacheModel registers a model file so it can be used by entities.
-// This must be called during the 'worldspawn' or 'spawn' phase.
 //
 //qgo:builtin 20
 //go:noinline
 func PrecacheModel(s string) string { return s }
+
+// --- Group 21-31: Utilities and Printing ---
+
+// StuffCmd sends a command string to a client's console.
+//
+//qgo:builtin 21
+//go:noinline
+func StuffCmd(e quake.Entity, s string) {}
 
 // FindRadius returns a chain of entities within a radius of a point.
 //
@@ -156,8 +192,7 @@ func Bprint(s string) {}
 //go:noinline
 func SPrint(e quake.Entity, s string) {}
 
-// Dprint prints a message to the engine console only if the 'developer'
-// console variable is set to a non-zero value.
+// Dprint prints a message to the engine console (only if developer is 1).
 //
 //qgo:builtin 25
 //go:noinline
@@ -175,17 +210,75 @@ func Ftos(f float32) string { return "" }
 //go:noinline
 func Vtos(v quake.Vec3) string { return "" }
 
+// EPrint prints an entity's information to the console.
+//
+//qgo:builtin 31
+//go:noinline
+func EPrint(e quake.Entity) {}
+
+// --- Group 32-40: Physics and Math ---
+
+// WalkMove moves an entity forward with collision detection.
+//
+//qgo:builtin 32
+//go:noinline
+func WalkMove(yaw float32, dist float32) float32 { return 0 }
+
+// DropToFloor drops an entity down until it hits the floor.
+//
+//qgo:builtin 34
+//go:noinline
+func DropToFloor() float32 { return 0 }
+
+// LightStyle sets the animation for a light style.
+//
+//qgo:builtin 35
+//go:noinline
+func LightStyle(style float32, value string) {}
+
 // RInt returns the nearest integer value to f.
 //
 //qgo:builtin 36
 //go:noinline
 func RInt(f float32) float32 { return 0 }
 
-// Find locates an entity whose field matches a string.
+// Floor returns the largest integer less than or equal to f.
 //
-//qgo:builtin 18
+//qgo:builtin 37
 //go:noinline
-func Find(e quake.Entity, field string, match string) quake.Entity { return 0 }
+func Floor(f float32) float32 { return 0 }
+
+// Ceil returns the smallest integer greater than or equal to f.
+//
+//qgo:builtin 38
+//go:noinline
+func Ceil(f float32) float32 { return 0 }
+
+// CheckBottom verifies that the entity is supported by the floor.
+//
+//qgo:builtin 40
+//go:noinline
+func CheckBottom(e quake.Entity) float32 { return 0 }
+
+// --- Group 41-51: World and AI ---
+
+// PointContents reports the contents of the world at a point.
+//
+//qgo:builtin 41
+//go:noinline
+func PointContents(p quake.Vec3) float32 { return 0 }
+
+// FAbs returns the absolute value of f.
+//
+//qgo:builtin 43
+//go:noinline
+func FAbs(f float32) float32 { return 0 }
+
+// Aim returns a vector pointing towards a target.
+//
+//qgo:builtin 44
+//go:noinline
+func Aim(e quake.Entity, speed float32) quake.Vec3 { return quake.Vec3{} }
 
 // Cvar returns the current float value of a console variable.
 //
@@ -193,35 +286,37 @@ func Find(e quake.Entity, field string, match string) quake.Entity { return 0 }
 //go:noinline
 func Cvar(s string) float32 { return 0 }
 
-// Changelevel triggers a level transition to the specified map.
+// LocalCmd adds text to the local command buffer.
 //
-//qgo:builtin 70
+//qgo:builtin 46
 //go:noinline
-func Changelevel(s string) {}
+func LocalCmd(s string) {}
 
-// CvarSet sets the value of a console variable.
+// NextEnt returns the next entity in the linked list.
 //
-//qgo:builtin 72
+//qgo:builtin 47
 //go:noinline
-func CvarSet(s string, v string) {}
+func NextEnt(e quake.Entity) quake.Entity { return 0 }
 
-// Centerprint prints a message in the center of a specific client's screen.
+// Particle spawns a particle effect.
 //
-//qgo:builtin 73
+//qgo:builtin 48
 //go:noinline
-func Centerprint(s string) {}
+func Particle(org quake.Vec3, dir quake.Vec3, color float32, count float32) {}
 
-// Ambientsound plays a looping sound at a specific position.
+// ChangeYaw smoothly rotates an entity toward its ideal yaw.
 //
-//qgo:builtin 74
+//qgo:builtin 49
 //go:noinline
-func Ambientsound(pos quake.Vec3, samp string, vol, atten float32) {}
+func ChangeYaw() {}
 
-// StuffCmd sends a command string to a client's console.
+// VectoAngles converts a direction vector to Euler angles.
 //
-//qgo:builtin 21
+//qgo:builtin 51
 //go:noinline
-func StuffCmd(e quake.Entity, s string) {}
+func VectoAngles(v quake.Vec3) quake.Vec3 { return quake.Vec3{} }
+
+// --- Group 52-59: Networking/Writes ---
 
 //qgo:builtin 52
 //go:noinline
@@ -255,16 +350,152 @@ func WriteString(dest float32, s string) {}
 //go:noinline
 func WriteEntity(dest float32, e quake.Entity) {}
 
+// --- Group 60-80: Math, AI and Level ---
+
+//qgo:builtin 60
+//go:noinline
+func Sin(f float32) float32 { return 0 }
+
+//qgo:builtin 61
+//go:noinline
+func Cos(f float32) float32 { return 0 }
+
+//qgo:builtin 62
+//go:noinline
+func Sqrt(f float32) float32 { return 0 }
+
+//qgo:builtin 65
+//go:noinline
+func Etos(e quake.Entity) string { return "" }
+
+//qgo:builtin 67
+//go:noinline
+func MoveToGoal(dist float32) {}
+
+//qgo:builtin 68
+//go:noinline
+func PrecacheFile(s string) string { return s }
+
+//qgo:builtin 69
+//go:noinline
+func MakeStatic(e quake.Entity) {}
+
+//qgo:builtin 70
+//go:noinline
+func Changelevel(s string) {}
+
+//qgo:builtin 72
+//go:noinline
+func CvarSet(s string, v string) {}
+
+//qgo:builtin 73
+//go:noinline
+func Centerprint(s string) {}
+
+//qgo:builtin 74
+//go:noinline
+func Ambientsound(pos quake.Vec3, samp string, vol float32, atten float32) {}
+
+//qgo:builtin 78
+//go:noinline
+func SetSpawnParms(e quake.Entity) {}
+
+//qgo:builtin 79
+//go:noinline
+func FinaleFinished() {}
+
+//qgo:builtin 80
+//go:noinline
+func LocalSound(e quake.Entity, s string) {}
+
+// --- Group 81+: Extended Functions ---
+
+//qgo:builtin 81
+//go:noinline
+func Stof(s string) float32 { return 0 }
+
+//qgo:builtin 94
+//go:noinline
+func Min(a, b float32) float32 { return 0 }
+
+//qgo:builtin 95
+//go:noinline
+func Max(a, b float32) float32 { return 0 }
+
+//qgo:builtin 96
+//go:noinline
+func Bound(min, val, max float32) float32 { return 0 }
+
+//qgo:builtin 97
+//go:noinline
+func Pow(base, exp float32) float32 { return 0 }
+
+//qgo:builtin 114
+//go:noinline
+func Strlen(s string) float32 { return 0 }
+
+//qgo:builtin 115
+//go:noinline
+func Strcat(s1, s2 string) string { return "" }
+
+//qgo:builtin 116
+//go:noinline
+func Substring(s string, start, length float32) string { return "" }
+
+//qgo:builtin 117
+//go:noinline
+func Stov(s string) quake.Vec3 { return quake.Vec3{} }
+
+//qgo:builtin 118
+//go:noinline
+func Strzone(s string) string { return s }
+
+//qgo:builtin 119
+//go:noinline
+func Strunzone(s string) {}
+
+//qgo:builtin 222
+//go:noinline
+func Str2chr(s string, index float32) float32 { return 0 }
+
+//qgo:builtin 223
+//go:noinline
+func Chr2str(f float32) string { return "" }
+
+//qgo:builtin 245
+//go:noinline
+func Mod(a, b float32) float32 { return 0 }
+
+// --- Trigonometry Extended ---
+
+//qgo:builtin 471
+//go:noinline
+func Asin(f float32) float32 { return 0 }
+
+//qgo:builtin 472
+//go:noinline
+func Acos(f float32) float32 { return 0 }
+
+//qgo:builtin 473
+//go:noinline
+func Atan(f float32) float32 { return 0 }
+
+//qgo:builtin 474
+//go:noinline
+func Atan2(y, x float32) float32 { return 0 }
+
+//qgo:builtin 475
+//go:noinline
+func Tan(f float32) float32 { return 0 }
+
+// --- Helpers ---
+
 // CRandom returns a random float value between -1.0 and 1.0.
 func CRandom() float32 { return Random()*2 - 1 }
 
 //qgo:builtin 99
 //go:noinline
 func CheckExtension(s string) float32 { return 0 }
-
-//qgo:builtin 38
-//go:noinline
-func Ceil(f float32) float32 { return 0 }
 
 //qgo:builtin 100
 //go:noinline
