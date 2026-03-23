@@ -1,4 +1,3 @@
-// Package engine provides bindings to the Quake engine's built-in functions and shared globals.
 package engine
 
 import "github.com/ironwail/ironwail-go/pkg/qgo/quake"

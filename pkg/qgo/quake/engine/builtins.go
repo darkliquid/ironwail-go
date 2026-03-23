@@ -532,6 +532,22 @@ func Centerprint(s string) {}
 //go:noinline
 func Ambientsound(pos quake.Vec3, samp string, vol float32, atten float32) {}
 
+// PrecacheModel2 registers a model file path so it can be loaded and used.
+//
+// Implementation: internal/qc/builtins_entity.go:precacheModel
+//
+//qgo:builtin 75
+//go:noinline
+func PrecacheModel2(s string) string { return s }
+
+// PrecacheSound2 registers a sound file path so it can be loaded and played.
+//
+// Implementation: internal/qc/builtins_entity.go:precacheSound
+//
+//qgo:builtin 76
+//go:noinline
+func PrecacheSound2(s string) string { return s }
+
 // SetSpawnParms prepares the spawn parameters for a client entity.
 //
 // Implementation: internal/qc/builtins_entity.go:setspawnparms
@@ -729,11 +745,3 @@ func Atan2(y, x float32) float32 { return 0 }
 //qgo:builtin 475
 //go:noinline
 func Tan(f float32) float32 { return 0 }
-
-//qgo:builtin 75
-//go:noinline
-func PrecacheModel2(s string) string { return s }
-
-//qgo:builtin 76
-//go:noinline
-func PrecacheSound2(s string) string { return s }
