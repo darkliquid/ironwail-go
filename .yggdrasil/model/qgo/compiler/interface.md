@@ -35,8 +35,11 @@ Key exported data structures:
 - emitted `progs.dat` headers must carry the canonical Quake progdefs CRC expected by the current QC runtime layout
 - builtin functions are represented as QC functions whose `FirstStatement` is the negative builtin number
 - builtin directives accept either numeric form (`//qgo:builtin 23`) or a compiler-known name alias (`//qgo:builtin bprint`)
+- alias coverage is intentionally a curated subset of runtime builtin IDs; when no alias exists, users can still bind using numeric directives (`//qgo:builtin <number>`)
 - builtin directive parsing is strict and diagnostic-driven: unknown aliases fail with `unknown //qgo:builtin alias "<name>"`, empty/multi-token payloads fail as malformed, and multiple directives on one function fail as duplicate (same builtin id) or ambiguous (different builtin ids)
 - dynamic helper intrinsics `quake.FieldFloat(entity, fieldOffset)` and `quake.SetFieldFloat(entity, fieldOffset, value)` are compiler-recognized and lowered directly to QC field opcodes (`OP_LOAD_F`, `OP_ADDRESS`, `OP_STOREP_F`) with strict arity/type gating.
+- receiver-form dynamic read helper `ent.FieldFloat(fieldOffset)` on `quake.Entity` is compiler-recognized and lowered directly to `OP_LOAD_F` with strict receiver/argument type gating.
+- receiver-form `ent.SetFieldFloat(...)` is intentionally deferred in this slice and emits an explicit defer diagnostic instead of falling through generic call lowering.
 - other `quake.Field*` / `quake.SetField*` dynamic helpers are intentionally deferred for now and fail with an explicit defer diagnostic that points users back to the supported `FieldFloat`/`SetFieldFloat` surface.
 - composite literal support is intentionally narrow: `Vec3` literals are supported as vector values, while non-`Vec3` struct literals are explicitly deferred with a dedicated compile-time diagnostic (`general struct literals are deferred ...`).
 - IR optimization now includes a first literal-only constant-folding pass for scalar float arithmetic/comparison opcodes (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) when both operands are known literal immediate sources in the same traversal.

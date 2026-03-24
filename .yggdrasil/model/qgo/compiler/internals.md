@@ -47,7 +47,7 @@ Builtin directives in function doc comments now accept either explicit numeric I
 
 Float and string constants are represented in IR with `IRInst.ImmFloat` / `IRInst.ImmStr` pseudo-store instructions emitted by `constFloat` and `constString`. Float immediates additionally carry `IRInst.HasImmFloat` so `0.0` remains an explicit immediate instead of being conflated with "no immediate". Code generation recognizes these pseudo-stores and seeds `GlobalAllocator`/`StringTable` directly instead of emitting runtime `OPStore*` statements that would require initialized source slots.
 
-The first constant-folding pass runs in `foldLiteralConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks only literal-origin float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg. Copy-propagated values and unary/bitwise boolean-style ops are intentionally left for follow-up phases.
+The first constant-folding pass runs in `foldLiteralConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks literal-origin float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg. Folded immediate stores are fed back into the same local-known map, so deterministic multi-op arithmetic chains (for example add→mul→sub on literal-derived values) collapse in one pass. Non-immediate copy stores and unary/bitwise boolean-style ops remain out of scope for this slice.
 
 After folding and self-store cleanup, `pruneUnreachableBlocks` computes minimal basic blocks from labels and control-flow terminators and removes blocks unreachable from entry. This specifically trims post-terminator fallthrough fragments that are not targeted by any reachable branch label, while preserving any explicitly targeted label blocks.
 
@@ -106,16 +106,18 @@ Dynamic helper lowering is now enabled for a narrow FieldOffset contract:
 
 - `quake.FieldFloat(entity, fieldOffset)` lowers directly to `OP_LOAD_F`
 - `quake.SetFieldFloat(entity, fieldOffset, value)` lowers directly to `OP_ADDRESS` + `OP_STOREP_F`
+- `ent.FieldFloat(fieldOffset)` for `quake.Entity` receiver form lowers directly to `OP_LOAD_F`
 
 Lowering performs strict intrinsic gating before generic call handling:
 
 - helper name must be one of the recognized intrinsic names
 - arity must match exactly (`2` for read, `3` for write)
 - argument QC types are validated (`entity`, `field`, `float` where applicable)
+- receiver-form read validates receiver QC type `entity` and field-offset QC type `field`
 
 This keeps dynamic field access opcode-correct without lowering imported helper bodies.
 
-Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow pair now produce an explicit defer diagnostic. That guard prevents accidental fallback to generic call lowering for unimplemented dynamic helper variants and keeps scope decisions observable in tests.
+Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow pair now produce an explicit defer diagnostic. Receiver-form `quake.Entity.SetField*` is also deferred, including `ent.SetFieldFloat(...)`. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
 
 ## Constraints
 
@@ -169,6 +171,7 @@ Rejected alternatives:
 Observed decision:
 - preserve numeric builtin IDs in IR/function tables, but allow a named alias layer in directive parsing (`//qgo:builtin <name>`)
 - enforce a deterministic directive failure matrix in lowering: unknown alias, malformed payload, duplicate same-id directives, and ambiguous differing-id directives all produce explicit compile-time diagnostics instead of silent fallback.
+- keep alias coverage explicitly curated rather than auto-generated from all runtime builtin declarations; numeric directives remain the fallback for runtime-only/extension IDs.
 
 Rationale:
 - builtin names are easier to read and review in source than raw numbers
@@ -178,6 +181,8 @@ Rationale:
 Rejected alternatives:
 - replacing all builtin references with names through codegen/emitter:
   - rejected for this slice because it increases API churn beyond a focused compiler increment
+- requiring every runtime builtin stub ID to have a compiler alias:
+  - rejected because many runtime/extension IDs are rarely referenced by name in authored qgo and are adequately addressable through numeric directives; enforcing full alias parity adds maintenance churn with low user value.
 
 ### Chose narrow intrinsic helper lowering for FieldOffset read/write
 
@@ -230,6 +235,19 @@ Rejected alternatives:
   - rejected because straightforward constant arithmetic remained in emitted statements and was a low-risk optimization target.
 - use `ImmFloat != 0` as the only immediate-presence check:
   - rejected because it cannot distinguish a real `0.0` immediate from "no immediate".
+
+### Phase-1 arithmetic-chain folding extends phase-0 local folding
+
+Observed decision:
+- keep the optimizer single-pass/local but allow folded immediate `OPStoreF` results to seed subsequent fold decisions in the same function walk.
+
+Rationale:
+- arithmetic-chain folding provides meaningful instruction-count reduction without introducing branch pruning, CFG-wide value propagation, or broader optimizer churn in this phase.
+- deterministic behavior is preserved because the pass remains an ordered linear traversal over non-builtin function bodies.
+
+Rejected alternatives:
+- add copy-propagation and branch-aware constant analysis in the same slice:
+  - rejected because it broadens risk beyond the targeted arithmetic-chain folding goal.
 
 ### Chose local-slot pruning as the smallest safe temp/global reuse follow-up
 

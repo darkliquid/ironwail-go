@@ -16,6 +16,7 @@ Observed validation surface:
 - unsupported-language coverage is explicit: tests should assert precise compiler errors for intentionally out-of-scope syntax (currently type assertions and type switches)
 - incremental cache behavior is covered with focused tests that assert cache-hit reuse on unchanged sources and cache-miss recompilation after source edits
 - builtin directive coverage includes numeric and named forms with case-insensitive alias handling, asserting that emitted `DFunction.FirstStatement` remains the negative builtin number
+- builtin directive coverage includes an alias-parity guard for mapped extension aliases (`precache_file2` -> builtin 77), reducing drift between compiler alias parsing and runtime stub catalog entries
 - builtin directive failure coverage pins diagnostics for unknown aliases, malformed payloads, duplicate directives mapping to the same builtin id, and ambiguous directives mapping to different builtin ids
 - IR pipeline coverage asserts optimizer behavior against no-op `OPStore* x -> x` statements without stripping immediate-backed constant pseudo-stores
 - IR pipeline coverage also asserts builtin IR functions are excluded from the no-op self-store optimization pass
@@ -27,9 +28,12 @@ Observed validation surface:
 - deterministic smoke coverage asserts repeated compiles of identical input produce byte-identical `progs.dat` output
 - parity smoke coverage includes Go-vs-QC output comparison for arithmetic fixture execution (`Add`) using shared input vectors
 - parity smoke harness coverage includes a deterministic QCVM baseline matrix across arithmetic/controlflow fixtures (`Add`, `Max`, `Sum`) with pinned input vectors and native-Go expected outputs
+- parity smoke harness map-runner coverage includes one deterministic end-to-end scenario (`MapRunner(start, steps)`) using the `cmd/qgo/testdata/maprunner` fixture, asserting QCVM/native-Go agreement on loop/branch position updates
 - import-isolation coverage asserts compiler success when an imported package body contains unsupported syntax, proving lowering remains constrained to compile-target package syntax.
 - dynamic field intrinsic coverage now asserts `FieldFloat`/`SetFieldFloat` opcode emission (`OP_LOAD_F`, `OP_ADDRESS`, `OP_STOREP_F`) and strict helper-contract failures for wrong helper argument types and arity.
+- dynamic field intrinsic coverage now also asserts receiver-form read lowering (`ent.FieldFloat(ofs)`) emits `OP_LOAD_F` without `OP_CALL*`, and that receiver `ent.SetFieldFloat(...)` remains explicitly deferred with a deterministic diagnostic boundary.
 - dynamic field intrinsic coverage also includes compile→VM round-trip execution that proves runtime read/write behavior for a discovered field offset (`FindField("health")`) using `SetEFloat`/`EFloat` assertions.
+- dynamic field intrinsic coverage includes compile→VM round-trip execution for receiver-form read (`ent.FieldFloat(ofs)`) to prove runtime entity field read behavior.
 - dynamic field intrinsic coverage now also pins the defer boundary by asserting non-float helper names (for example `FieldVector`/`SetFieldVector`) fail with an explicit "deferred" diagnostic instead of falling through generic call lowering.
 - struct-literal scope coverage is explicit: tests assert `Vec3` literals continue to compile while non-`Vec3` struct literals fail with the dedicated `general struct literals are deferred` diagnostic including type context.
 - structural parity smoke coverage asserts shallow per-fixture structural signals (header/version/CRC/core-section sanity), function-shape contracts (`Add`/`Max`/`Sum` arity and positive statement anchors), and required opcode presence (`OPAddF`, `OPGT`, `OPIFNot`, `OPGoto`) without broad golden diffing

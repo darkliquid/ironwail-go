@@ -332,6 +332,12 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 			},
 			requiredOpcodes: []qc.Opcode{qc.OPGT, qc.OPIFNot, qc.OPGoto, qc.OPAddF},
 		},
+		"../testdata/maprunner": {
+			requiredParms: map[string]int32{
+				"MapRunner": 2,
+			},
+			requiredOpcodes: []qc.Opcode{qc.OPGT, qc.OPIFNot, qc.OPGoto, qc.OPAddF, qc.OPSubF},
+		},
 	}
 
 	cases := []smokeCase{
@@ -401,6 +407,25 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 					result += i
 				}
 				return result
+			},
+		},
+		{
+			name:     "maprunner-step-sequence",
+			fixture:  "../testdata/maprunner",
+			function: "MapRunner",
+			args:     []float32{1, 4},
+			goExpect: func(args []float32) float32 {
+				pos := args[0]
+				steps := args[1]
+				var i float32
+				for i = 0; i < steps; i++ {
+					if pos > 5 {
+						pos = pos - 2
+					} else {
+						pos = pos + 3
+					}
+				}
+				return pos
 			},
 		},
 	}
@@ -1220,6 +1245,61 @@ func ReadWrite(ent *Entity, ofs FieldOffset, value float32) float32 {
 	}
 }
 
+func TestRoundTrip_FieldOffsetIntrinsic_ReceiverFieldFloatRead(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgoreceiverfieldintrinsicroundtriptest`)
+	writeFieldIntrinsicRuntimeStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgoreceiverfieldintrinsicroundtriptest/quake"
+
+//qgo:entity
+type Entity struct {
+	Health float32 `+"`qgo:\"health\"`"+`
+}
+
+type FieldOffset any
+
+func Read(ent *quake.Entity, ofs FieldOffset) float32 {
+	return ent.FieldFloat(ofs)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	vm := loadVM(t, data)
+	vm.NumEdicts = 4
+	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
+
+	healthOfs := vm.FindField("health")
+	if healthOfs < 0 {
+		t.Fatal("field 'health' not found")
+	}
+
+	const initial = float32(48.25)
+	const entNum = 1
+	vm.SetEFloat(entNum, healthOfs, initial)
+
+	fnum := vm.FindFunction("Read")
+	if fnum < 0 {
+		t.Fatal("function 'Read' not found")
+	}
+
+	vm.SetGInt(qc.OFSParm0, entNum)
+	vm.SetGInt(qc.OFSParm1, int32(healthOfs))
+
+	if err := vm.ExecuteProgram(fnum); err != nil {
+		t.Fatalf("ExecuteProgram failed: %v", err)
+	}
+	if got := vm.GFloat(qc.OFSReturn); got != initial {
+		t.Fatalf("Read return = %v, want %v", got, initial)
+	}
+}
+
 func mustAppearInOrder(t *testing.T, funcs []qc.DFunction, stringTable []byte, names []string) {
 	t.Helper()
 
@@ -1301,5 +1381,10 @@ func writeFieldIntrinsicRuntimeStubPackage(t *testing.T, dir string) {
 
 func FieldFloat(entity any, args ...any) float32 { return 0 }
 func SetFieldFloat(entity any, args ...any) {}
+
+type Entity struct{}
+
+func (e *Entity) FieldFloat(args ...any) float32 { return 0 }
+func (e *Entity) SetFieldFloat(args ...any) {}
 `)
 }
