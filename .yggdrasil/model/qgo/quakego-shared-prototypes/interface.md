@@ -10,6 +10,7 @@
 - Package-level function variables declared in `prototypes.go` for shared gameplay support flows.
 - Existing gameplay entry points in the mapped files continue to use those declarations with unchanged names and signatures.
 - `combat.go` keeps global QuakeC-compatible entry points (`CanDamage`, `Killed`, `T_Damage`) while allowing receiver-backed internals for entity-local combat behavior.
+- `doors.go` keeps `EntitiesTouching(e1, e2 *quake.Entity) float32` as a wrapper API while delegating overlap logic to a receiver-backed helper for pilot method grouping.
 
 ## Contracts
 

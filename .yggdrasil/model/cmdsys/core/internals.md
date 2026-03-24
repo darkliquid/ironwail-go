@@ -23,3 +23,19 @@ Rationale:
 
 Observed effect:
 - Most of the engine can use a familiar flat command API while tests and isolated callers can still create fresh command-system instances.
+
+### Command source attribution audit seam (console-command-source-tracking-audit)
+
+Observed audit snapshot:
+- `CommandSource` plumbing exists and is enforced at execution time (`ExecuteWithSource`, `ExecuteTextWithSource`, `SetSource`, source-gated command dispatch).
+- Most ingress points still use source-implicit wrappers (`AddText`, `InsertText`, `Execute`, `ExecuteText`) that default to `SrcCommand`.
+- Explicit attribution is already used in targeted host paths (`internal/host/init.go`) and via app-shell forwarding hooks, but not as the default at all ingress boundaries.
+
+Narrowest next implementation seam:
+- Add source-aware global queue wrappers in `internal/cmdsys/cmd.go` (for example `AddTextWithSource` / `InsertTextWithSource`) that preserve command provenance across buffered execution without mutating broad call-site APIs at once.
+- Implement these wrappers by storing text with an associated source in the core buffer path, then executing each queued segment under `withSource(source, ...)`.
+
+Why this seam is narrow:
+- Centralizes change in `cmdsys/core` where source policy already lives.
+- Avoids immediate churn across host, QC, menu, and runtime packages.
+- Enables incremental migration of high-value ingress points (network/server/QC) first, while keeping legacy callers behaviorally stable.

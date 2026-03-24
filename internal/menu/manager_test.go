@@ -456,6 +456,121 @@ func TestSinglePlayerNewGamePromptCancelReturnsToSinglePlayer(t *testing.T) {
 	}
 }
 
+func TestSinglePlayerResumePromptShownWhenAutosaveAvailable(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetResumeGameAvailableProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> resume prompt
+
+	if !mgr.IsActive() {
+		t.Fatal("menu should stay active for resume prompt")
+	}
+	if got := mgr.GetState(); got != MenuQuit {
+		t.Fatalf("state = %v, want %v", got, MenuQuit)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("commands should not be queued before responding to resume prompt, got %v", commands)
+	}
+}
+
+func TestSinglePlayerResumePromptConfirmLoadsAutosave(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetResumeGameAvailableProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> resume prompt
+	mgr.M_Key('y')          // Resume
+
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after confirming resume prompt")
+	}
+	if len(commands) != 1 {
+		t.Fatalf("commands = %v, want single autosave load", commands)
+	}
+	if got := commands[0]; got != "load \"autosave/start\"\n" {
+		t.Fatalf("command = %q, want %q", got, "load \"autosave/start\"\\n")
+	}
+}
+
+func TestSinglePlayerResumePromptDeclineStartsFreshGame(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetResumeGameAvailableProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> resume prompt
+	mgr.M_Key('n')          // Fresh start
+
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after declining resume prompt into fresh game")
+	}
+	want := []string{"disconnect\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
+	if len(commands) < len(want) {
+		t.Fatalf("expected at least %d commands, got %d", len(want), len(commands))
+	}
+	for i, expected := range want {
+		if commands[i] != expected {
+			t.Fatalf("command %d: expected %q, got %q", i, expected, commands[i])
+		}
+	}
+}
+
+func TestSinglePlayerNewGameConfirmationTakesPrecedenceOverResumePrompt(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetNewGameConfirmationProvider(func() bool { return true })
+	mgr.SetResumeGameAvailableProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> active-session prompt
+	mgr.M_Key('n')          // Decline
+
+	if !mgr.IsActive() {
+		t.Fatal("menu should remain active after declining active-session prompt")
+	}
+	if got := mgr.GetState(); got != MenuSinglePlayer {
+		t.Fatalf("state = %v, want %v", got, MenuSinglePlayer)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("commands should not be queued when active-session prompt is declined, got %v", commands)
+	}
+}
+
 func TestLoadSaveCommands(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}

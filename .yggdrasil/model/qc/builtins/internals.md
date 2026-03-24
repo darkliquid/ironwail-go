@@ -14,9 +14,13 @@ The string-concatenation helpers use `vm.ArgC` to mirror C's variadic behavior. 
 
 `random()` consumes the VM compat RNG stream (`rand() & 0x7fff`) exactly at its current injected state and then applies one of two formulas keyed by `sv_gameplayfix_random`. Default-on behavior uses the gameplay fix formula to avoid exact endpoints; legacy-off behavior uses the original closed-interval division formula.
 
+Trace-parity audit confirmed C `PF_random` formula alignment against Ironwail `pr_cmds.c`:
+`((rand() & 0x7fff) + 0.5f) * (1.f / 0x8000)` when fix is on, `(rand() & 0x7fff) / 0x7fff` when off.
+The concrete stream delta is offset-only: if one upstream `rand()` draw has already happened (for example, host frame-time entropy upkeep), every QC `random()` value shifts by one compat-rand slot with no additional distortion.
+
 If `sv_gameplayfix_random` is absent, builtin behavior stays on the gameplay-fix path (default formula), matching host default registration.
 
-`mod()` follows C's parity contract for zero divisors by returning `0` while also surfacing the condition through a console warning (`PF_mod: mod by zero`) instead of failing silently.
+`mod()` follows C's `PF_mod` formula exactly (`a - n * (int)(a/n)`), which implies truncation-toward-zero quotient behavior for signed/float operands. Tests pin a behavior matrix for positive/negative operand combinations plus `±0` divisors, where zero divisors emit `PF_mod: mod by zero` and return `0`.
 
 Builtin slot `#28` now maps to `coredump` semantics: iterating the currently allocated edict range (`0..NumEdicts-1`) and printing entity headers to the console. This preserves canonical slot behavior (C `PF_coredump`) and avoids silently swallowing QC calls at that index.
 
@@ -39,3 +43,16 @@ Rationale:
 Observed effect:
 - the VM remains modular and testable
 - server integration remains explicit at the boundary
+
+### Narrowest next parity implementation slice for RNG provenance
+
+Observed decision:
+- Add regression trace coverage first (zero-offset vs one-draw-offset) before changing runtime RNG wiring.
+
+Rationale:
+- minimize churn while proving deterministic deltas in executable tests
+- isolate parity work to provenance/wiring after formula parity is locked
+
+Observed effect:
+- concrete expected traces now exist for both gameplayfix modes
+- next code slice can focus only on where/when upstream draws are consumed, not on float math semantics

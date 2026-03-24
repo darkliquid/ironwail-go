@@ -8,7 +8,7 @@ The compiler is a four-stage pipeline:
 
 1. `Compiler.Compile` parses every Go file in the target directory and type-checks them with a `types.Config` that only knows about the synthetic `quake` packages.
 2. `Lowerer` performs a two-pass walk over the package: first it collects globals and function signatures, then it lowers function bodies into `IRProgram`.
-3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, trims no-op self-store instructions (`OPStore* x -> x`), then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
+3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, trims no-op self-store instructions (`OPStore* x -> x`), prunes blocks that become unreachable once explicit terminators are honored, then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
 4. `CodeGen` maps IR virtual registers to QC global/local offsets, emits `qc.DStatement` and `qc.DFunction` tables, and patches branch labels in a second pass.
 5. `Emit` serializes those tables into the `progs.dat` section layout expected by `internal/qc`, including the canonical header CRC that matches the current progdefs layout used by the runtime.
 
@@ -47,11 +47,58 @@ Builtin directives in function doc comments now accept either explicit numeric I
 
 Float and string constants are represented in IR with `IRInst.ImmFloat` / `IRInst.ImmStr` pseudo-store instructions emitted by `constFloat` and `constString`. Float immediates additionally carry `IRInst.HasImmFloat` so `0.0` remains an explicit immediate instead of being conflated with "no immediate". Code generation recognizes these pseudo-stores and seeds `GlobalAllocator`/`StringTable` directly instead of emitting runtime `OPStore*` statements that would require initialized source slots.
 
-The first constant-folding pass runs in `foldConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks known float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, comparisons, boolean float ops, bitwise float-backed int ops, and `OPNotF`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg.
+The first constant-folding pass runs in `foldLiteralConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks only literal-origin float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg. Copy-propagated values and unary/bitwise boolean-style ops are intentionally left for follow-up phases.
 
-After folding and self-store cleanup, `eliminateDeadVirtualStores` constructs minimal basic blocks from labels and branch/return terminators, computes conservative backward liveness across block successors, then performs reverse per-block filtering. The pass only removes pure instructions whose destination is an auto-allocated virtual register (`vreg >= vregBase`) and not live at that point on any successor path. Side-effecting instructions (calls, pointer stores, returns, control flow) are always retained, and unknown branch labels conservatively disable DCE for that function.
+After folding and self-store cleanup, `pruneUnreachableBlocks` computes minimal basic blocks from labels and control-flow terminators and removes blocks unreachable from entry. This specifically trims post-terminator fallthrough fragments that are not targeted by any reachable branch label, while preserving any explicitly targeted label blocks.
+
+Then `eliminateDeadVirtualStores` constructs the same minimal basic-block view and computes conservative backward liveness across block successors before reverse per-block filtering. The pass only removes pure instructions whose destination is an auto-allocated virtual register (`vreg >= vregBase`) and not live at that point on any successor path. Side-effecting instructions (calls, pointer stores, returns, control flow) are always retained, and unknown branch labels conservatively disable optimization for that function.
 
 Unary bitwise not (`^x`) is lowered in `lowerUnaryExpr` using the QC-compatible two's-complement identity `^x == -1 - x`. Because QCVM numeric values are float-backed, this is emitted as `OPSubF` with a `-1` constant left operand.
+
+### Temporary lifetime audit for slot-reuse planning
+
+This audit narrows safe candidates for future temp-slot reuse without changing current lowering/codegen behavior.
+
+Observed temp model in current pipeline:
+
+- function-local VRegs are monotonic (`allocVReg`) and start at `vregBase` per function; no reuse occurs during lowering.
+- every newly created temp is appended into `IRFunc.Locals`; codegen allocates one contiguous local/global slot range from that list.
+- existing optimizer passes can delete dead virtual defs and prune unused locals, but they do not renumber or reuse surviving VRegs.
+
+Safe reuse candidates (for allocator follow-up):
+
+1. **Pure expression-result temps inside one basic block**
+   - Source evidence: `lowerBinaryExpr`, `lowerUnaryExpr`, vector indexing/load helpers create result VRegs and append them to locals.
+   - Safety condition: candidate VReg is virtual (`vreg >= vregBase`), pure-defined, and dead at all block successors (same condition already used by `eliminateDeadVirtualStores` liveness logic).
+   - Why low risk: aligns with existing purity/liveness model already used for removal; reuse extends that model from deletion-only to lifetime packing.
+
+2. **Switch comparison condition temps**
+   - Source evidence: `lowerSwitchStmt` emits per-case compare result `cond` VRegs (`opcodeForEq` result) then consumes them immediately in `OPIF`.
+   - Safety condition: reuse only after compare+branch pair is emitted and liveness confirms no later use.
+   - Why low risk: short, explicit lifetime and no pointer/call side effects.
+
+3. **Address-pointer temps for dynamic/entity field stores**
+   - Source evidence: `lowerFieldStore` and `SetFieldFloat` intrinsic emit `OPAddress` into a pointer temp then immediate `OPStoreP*`.
+   - Safety condition: pointer temp not used after corresponding store and not carried across labels/branches.
+   - Why medium-low risk: two-instruction lifetime; must respect control-flow boundaries.
+
+4. **Call-return copy temps when immediately consumed**
+   - Source evidence: `lowerCallExpr` stores `OFS_RETURN` into a fresh temp result for non-void calls.
+   - Safety condition: result temp dies before any branch join and before any subsequent value-consuming operation requiring persistence.
+   - Why medium risk (still candidate): call sites are side-effecting; reuse must not collapse lifetimes across later reads.
+
+High-risk / defer zones:
+
+- **Cross-branch/join live ranges** (`OPIF`/`OPIFNot`/`OPGoto`, labels): reuse requires successor-aware liveness to avoid clobbering values needed on alternate paths.
+- **Reserved VM slots** (`OFS_PARM*`, `OFS_RETURN`) used for call/return ABI: never part of reusable temp pool.
+- **Vector locals**: 3-slot width must remain contiguous; scalar-slot packing must not fragment vector allocations.
+- **Non-virtual operands and direct globals** (`vreg < vregBase`, plus unresolved-object placeholders later mapped by codegen): treat as non-reusable storage identities.
+
+Recommended narrow implementation slice after this audit:
+
+- implement optional **post-liveness slot assignment** for virtual locals only, keyed by non-overlapping live intervals within CFG blocks;
+- preserve existing VReg identifiers and IR semantics; change only `IRLocal`→slot mapping stage;
+- keep explicit no-reuse guards for reserved ABI slots and multi-slot vector alignment.
 
 ### Dynamic entity-field helper intrinsics
 
@@ -121,10 +168,12 @@ Rejected alternatives:
 
 Observed decision:
 - preserve numeric builtin IDs in IR/function tables, but allow a named alias layer in directive parsing (`//qgo:builtin <name>`)
+- enforce a deterministic directive failure matrix in lowering: unknown alias, malformed payload, duplicate same-id directives, and ambiguous differing-id directives all produce explicit compile-time diagnostics instead of silent fallback.
 
 Rationale:
 - builtin names are easier to read and review in source than raw numbers
 - keeping IR/storage numeric avoids widening downstream codegen/emitter interfaces
+- strict diagnostics prevent accidental non-builtin lowering when directive text is present but invalid, which previously made failures indirect and harder to triage.
 
 Rejected alternatives:
 - replacing all builtin references with names through codegen/emitter:
@@ -197,6 +246,19 @@ Rejected alternatives:
 - implement broad CFG/SSA dataflow in the same change:
   - rejected because this slice only needs simple label/branch support and should avoid large optimizer architecture churn.
 
+### Chose audit-first narrowing before temp-slot allocator changes
+
+Observed decision:
+- perform a precise temporary-lifetime audit and identify explicit safe/restricted reuse zones before introducing any allocator-level temp-slot reuse implementation.
+
+Rationale:
+- temp-slot reuse touches lowering, liveness, and codegen slot assignment simultaneously; premature implementation risks semantic regressions in QC ABI-sensitive paths.
+- a documented candidate map allows incremental implementation with smaller blast radius and test targeting.
+
+Rejected alternatives:
+- implement broad temp-slot reuse immediately across all VRegs:
+  - rejected because branch joins, call ABI slots, and vector width constraints require explicit safety boundaries first.
+
 ### Chose smallest-safe control-flow DCE over full CFG/dataflow optimization
 
 Observed decision:
@@ -212,6 +274,22 @@ Rejected alternatives:
   - rejected because it increases blast radius and correctness risk around branch labels and jump targets.
 - removing dead writes to direct QC global offsets:
   - rejected because those writes may target reserved VM slots or externally observed state and are not safe for a first pass.
+
+### Chose explicit unreachable-block pruning before liveness DCE
+
+Observed decision:
+- add a dedicated control-flow pass (`pruneUnreachableBlocks`) that drops whole basic blocks unreachable from entry once explicit terminators are respected, and run it before virtual-register liveness DCE.
+
+Rationale:
+- lowering can emit instructions after explicit `return`/`done`/unconditional branch boundaries that are not branch targets; retaining those blocks adds avoidable IR noise and can mask optimization intent.
+- doing this as a separate pass keeps scope independent from value-level DCE and avoids coupling with constant-folding or temp-slot reuse behavior.
+- pruning at block granularity preserves branch-target semantics: reachable labeled blocks remain intact, while only truly unreachable blocks are removed.
+
+Rejected alternatives:
+- fold unreachable-block handling into `eliminateDeadVirtualStores`:
+  - rejected because it entangles structural control-flow cleanup with value liveness logic and makes the pass harder to reason about and test in isolation.
+- rely on codegen/runtime to ignore post-terminator IR:
+  - rejected because optimizer stages should hand downstream codegen a structurally cleaner IR and deterministic pass boundaries.
 
 ### Local source hash cache before wider dependency hashing
 

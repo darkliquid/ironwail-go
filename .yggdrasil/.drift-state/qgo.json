@@ -1,21 +1,21 @@
 {
-  "hash": "645509eb10700d0663aa322916634760849e83fe981e4430aca16561704b53f0",
+  "hash": "ec0ceb8c16cdbc247b912820aa1f49e653f381a4604e1a25e4b16a5f4a906cbe",
   "files": {
     ".yggdrasil/model/qgo/yg-node.yaml": "e591eb3ec6a469bf7ce7f31460dc1d113280653e7c1086193733a94b639c0df8",
-    ".yggdrasil/model/qgo/interface.md": "ca27152bd7f18f13d7140bb06c8c966d80a144a047d348997e3f5754988e6ff1",
-    ".yggdrasil/model/qgo/internals.md": "d8808ad92e01827957d884ef38b232c148ca63fbdc9220505cbc6d6eda3ad9cd",
     ".yggdrasil/model/qgo/responsibility.md": "1d670421e1d4c77d5a44e3352013e442a8d98af7bc2e45717b8a857ca0ee168e",
     ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
-    ".yggdrasil/model/qgo/compiler/interface.md": "30689d0d6e5a965cedc1270b4df088abc6701209d0e1cf1b89cd59a4002cdf43",
-    "cmd/qgo/main.go": "e5d53ef6c6114a4e3123f8b4218f544c3406810f3f63768ec39cc55aa2f4b76e"
+    ".yggdrasil/model/qgo/compiler/interface.md": "b66eff2456e729f643104c8b54ee4eb1cb6e9ac3fe6b3d1fbaa0b269f164b2b0",
+    "cmd/qgo/main.go": "e5d53ef6c6114a4e3123f8b4218f544c3406810f3f63768ec39cc55aa2f4b76e",
+    ".yggdrasil/model/qgo/interface.md": "09fc8703219222b0f572568f62a9e7c4b7afdaf29949ea1d69847ea180001a60",
+    ".yggdrasil/model/qgo/internals.md": "fec9228da819bf7d4819b70f42a00035e8e57ae0cfbefbf60f5b311e70bd1edf"
   },
   "mtimes": {
     ".yggdrasil/model/qgo/yg-node.yaml": 1774265243900.6392,
-    ".yggdrasil/model/qgo/interface.md": 1774265244017.6409,
-    ".yggdrasil/model/qgo/internals.md": 1774265244073.6418,
+    ".yggdrasil/model/qgo/interface.md": 1774345731227.3816,
+    ".yggdrasil/model/qgo/internals.md": 1774345737447.4785,
     ".yggdrasil/model/qgo/responsibility.md": 1774265243949.64,
     ".yggdrasil/model/qgo/compiler/responsibility.md": 1774265244197.6436,
-    ".yggdrasil/model/qgo/compiler/interface.md": 1774343576634.5583,
+    ".yggdrasil/model/qgo/compiler/interface.md": 1774345596609.751,
     "cmd/qgo/main.go": 1774263308105.974
   }
 }

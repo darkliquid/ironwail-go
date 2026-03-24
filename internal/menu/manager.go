@@ -343,6 +343,7 @@ type Manager struct {
 	loadSlotLabels       [maxSaveGames]string
 	saveSlotLabels       [maxSaveGames]string
 	shouldConfirmNewGame func() bool
+	resumeGameAvailable  func() bool
 	saveEntryAllowed     func() bool
 }
 
@@ -381,6 +382,12 @@ func (m *Manager) SetCurrentMod(name string) {
 // Single Player -> New Game should show a confirmation prompt before starting.
 func (m *Manager) SetNewGameConfirmationProvider(provider func() bool) {
 	m.shouldConfirmNewGame = provider
+}
+
+// SetResumeGameAvailableProvider sets a callback that decides whether selecting
+// Single Player -> New Game should offer resuming the canonical autosave first.
+func (m *Manager) SetResumeGameAvailableProvider(provider func() bool) {
+	m.resumeGameAvailable = provider
 }
 
 // SetSaveEntryAllowedProvider sets a callback that decides whether selecting

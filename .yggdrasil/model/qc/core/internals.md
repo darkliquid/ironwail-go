@@ -43,7 +43,7 @@ Observed effect:
 
 Observed decision:
 - `OPDivF` executes raw floating-point division without guard logic, including zero denominators.
-- Tests assert `1/0 -> +Inf` and `0/0 -> NaN` through VM globals and `OFSReturn`.
+- Tests pin a behavior matrix across operand/sign cases: `±1/±0 -> ±Inf` with sign derived from IEEE-754 signed-zero rules, and `0/±0 -> NaN`, validated through VM globals and `OFSReturn`.
 
 Rationale:
 - Match C Ironwail `pr_exec.c` behavior (`OPC->_float = OPA->_float / OPB->_float;`) and avoid introducing non-parity runtime errors.
@@ -51,4 +51,3 @@ Rationale:
 Rejected alternatives:
 - Throwing `PR_RunError`/Go errors for divide-by-zero:
   - rejected because C VM does not do this, and would change gameplay/QC behavior for existing `progs.dat`.
-

@@ -288,13 +288,32 @@ func (l *Lowerer) registerFunc(fd *ast.FuncDecl) {
 		fn.ReturnType = EvVoid
 	}
 
-	// Check for builtin directive in preceding comments
+	// Check for builtin directives in preceding comments.
+	// A function may carry at most one valid builtin mapping.
 	if fd.Doc != nil {
+		seenBuiltin := false
+		seenBuiltinNum := 0
 		for _, c := range fd.Doc.List {
-			if num, ok := parseBuiltinDirective(c.Text); ok {
+			num, matched, errMsg := parseBuiltinDirective(c.Text)
+			if !matched {
+				continue
+			}
+			if errMsg != "" {
+				l.errors.Add(l.pos(c), errMsg)
+				continue
+			}
+			if !seenBuiltin {
+				seenBuiltin = true
+				seenBuiltinNum = num
 				fn.IsBuiltin = true
 				fn.BuiltinNum = num
+				continue
 			}
+			if num == seenBuiltinNum {
+				l.errors.Addf(l.pos(c), "duplicate //qgo:builtin directive for %s (builtin %d)", fd.Name.Name, num)
+				continue
+			}
+			l.errors.Addf(l.pos(c), "ambiguous //qgo:builtin directives for %s: %d and %d", fd.Name.Name, seenBuiltinNum, num)
 		}
 	}
 
@@ -1576,18 +1595,26 @@ func builtinAliasToNumber(alias string) (int, bool) {
 	return 0, false
 }
 
-func parseBuiltinDirective(comment string) (int, bool) {
-	const prefix = "//qgo:builtin "
-	if len(comment) <= len(prefix) || comment[:len(prefix)] != prefix {
-		return 0, false
+func parseBuiltinDirective(comment string) (int, bool, string) {
+	const base = "//qgo:builtin"
+	if !strings.HasPrefix(comment, base) {
+		return 0, false, ""
 	}
-	token := strings.TrimSpace(comment[len(prefix):])
+	rest := strings.TrimSpace(comment[len(base):])
+	if rest == "" {
+		return 0, true, "malformed //qgo:builtin directive: expected one builtin number or alias"
+	}
+	tokens := strings.Fields(rest)
+	if len(tokens) != 1 {
+		return 0, true, "malformed //qgo:builtin directive: expected one builtin number or alias"
+	}
+	token := tokens[0]
 	n, err := strconv.Atoi(token)
 	if err != nil {
 		if n, ok := builtinAliasToNumber(strings.ToLower(token)); ok {
-			return n, true
+			return n, true, ""
 		}
-		return 0, false
+		return 0, true, "unknown //qgo:builtin alias \"" + token + "\""
 	}
-	return n, true
+	return n, true, ""
 }

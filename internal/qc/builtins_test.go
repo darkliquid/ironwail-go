@@ -72,6 +72,59 @@ func TestModBuiltinWarnsOnZeroDivisor(t *testing.T) {
 	}
 }
 
+func TestModBuiltinBehaviorMatrixMatchesC(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+	negZero := float32(math.Copysign(0, -1))
+
+	tests := []struct {
+		name        string
+		a           float32
+		b           float32
+		want        float32
+		wantWarning bool
+	}{
+		{name: "7 mod 3", a: 7, b: 3, want: 1},
+		{name: "-7 mod 3", a: -7, b: 3, want: -1},
+		{name: "7 mod -3", a: 7, b: -3, want: 1},
+		{name: "-7 mod -3", a: -7, b: -3, want: -1},
+		{name: "5.5 mod 2", a: 5.5, b: 2, want: 1.5},
+		{name: "-5.5 mod 2", a: -5.5, b: 2, want: -1.5},
+		{name: "0 mod 3", a: 0, b: 3, want: 0},
+		{name: "7 mod +0", a: 7, b: 0, want: 0, wantWarning: true},
+		{name: "7 mod -0", a: 7, b: negZero, want: 0, wantWarning: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var printed []string
+			console.SetPrintCallback(func(msg string) {
+				printed = append(printed, msg)
+			})
+			defer console.SetPrintCallback(nil)
+
+			vm.SetGFloat(OFSParm0, tc.a)
+			vm.SetGFloat(OFSParm1, tc.b)
+			vm.SetGFloat(OFSReturn, -999)
+
+			modBuiltin(vm)
+
+			if got := vm.GFloat(OFSReturn); got != tc.want {
+				t.Fatalf("modBuiltin(%v,%v) = %v, want %v", tc.a, tc.b, got, tc.want)
+			}
+
+			if tc.wantWarning {
+				if len(printed) != 1 || printed[0] != "PF_mod: mod by zero\n" {
+					t.Fatalf("printed = %q, want %q", printed, "PF_mod: mod by zero\n")
+				}
+				return
+			}
+			if len(printed) != 0 {
+				t.Fatalf("printed = %q, want no warning", printed)
+			}
+		})
+	}
+}
+
 func TestTraceBuiltinsToggleVMTraceFlag(t *testing.T) {
 	vm := newBuiltinsTestVM(4)
 
@@ -967,6 +1020,98 @@ func TestRandomBuiltinUsesInjectedCompatRNGState(t *testing.T) {
 	if got := vm.GFloat(OFSReturn); got != 0.27949524 {
 		t.Fatalf("random() after shared upstream draw = %v, want 0.27949524", got)
 	}
+}
+
+func TestRandomBuiltinTraceParityDeltaFromUpstreamRandDraw(t *testing.T) {
+	const sampleSize = 5
+
+	makeTrace := func(consumeUpstream bool, gameplayFix string) []float32 {
+		vm := newBuiltinsTestVM(4)
+		cvar.Set("sv_gameplayfix_random", gameplayFix)
+
+		rng := compatrand.NewSeed(1)
+		if consumeUpstream {
+			rng.Int()
+		}
+		vm.SetCompatRNG(rng)
+
+		trace := make([]float32, 0, sampleSize)
+		for range sampleSize {
+			random(vm)
+			trace = append(trace, vm.GFloat(OFSReturn))
+		}
+		return trace
+	}
+
+	t.Run("gameplayfix-on", func(t *testing.T) {
+		cvar.Set("sv_gameplayfix_random", "1")
+		t.Cleanup(func() { cvar.Set("sv_gameplayfix_random", "1") })
+
+		zeroOffset := makeTrace(false, "1")
+		oneDrawOffset := makeTrace(true, "1")
+
+		wantZeroOffset := []float32{
+			0.54222107,
+			0.27949524,
+			0.1907196,
+			0.5660248,
+			0.7212372,
+		}
+		wantOneDrawOffset := []float32{
+			0.27949524,
+			0.1907196,
+			0.5660248,
+			0.7212372,
+			0.72654724,
+		}
+
+		for i := range wantZeroOffset {
+			if got := zeroOffset[i]; got != wantZeroOffset[i] {
+				t.Fatalf("gameplayfix=1 zero-offset[%d] = %v, want %v", i, got, wantZeroOffset[i])
+			}
+			if got := oneDrawOffset[i]; got != wantOneDrawOffset[i] {
+				t.Fatalf("gameplayfix=1 one-draw-offset[%d] = %v, want %v", i, got, wantOneDrawOffset[i])
+			}
+			if i+1 < len(zeroOffset) && oneDrawOffset[i] != zeroOffset[i+1] {
+				t.Fatalf("gameplayfix=1 delta mismatch at %d: one-draw=%v, expected shifted=%v", i, oneDrawOffset[i], zeroOffset[i+1])
+			}
+		}
+	})
+
+	t.Run("gameplayfix-off", func(t *testing.T) {
+		cvar.Set("sv_gameplayfix_random", "0")
+		t.Cleanup(func() { cvar.Set("sv_gameplayfix_random", "1") })
+
+		zeroOffset := makeTrace(false, "0")
+		oneDrawOffset := makeTrace(true, "0")
+
+		wantZeroOffset := []float32{
+			0.5422224,
+			0.2794885,
+			0.19071017,
+			0.5660268,
+			0.7212439,
+		}
+		wantOneDrawOffset := []float32{
+			0.2794885,
+			0.19071017,
+			0.5660268,
+			0.7212439,
+			0.72655416,
+		}
+
+		for i := range wantZeroOffset {
+			if got := zeroOffset[i]; got != wantZeroOffset[i] {
+				t.Fatalf("gameplayfix=0 zero-offset[%d] = %v, want %v", i, got, wantZeroOffset[i])
+			}
+			if got := oneDrawOffset[i]; got != wantOneDrawOffset[i] {
+				t.Fatalf("gameplayfix=0 one-draw-offset[%d] = %v, want %v", i, got, wantOneDrawOffset[i])
+			}
+			if i+1 < len(zeroOffset) && oneDrawOffset[i] != zeroOffset[i+1] {
+				t.Fatalf("gameplayfix=0 delta mismatch at %d: one-draw=%v, expected shifted=%v", i, oneDrawOffset[i], zeroOffset[i+1])
+			}
+		}
+	})
 }
 
 func TestRandomBuiltinLegacyFormulaWhenGameplayFixDisabled(t *testing.T) {

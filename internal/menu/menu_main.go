@@ -92,6 +92,18 @@ func (m *Manager) singlePlayerKey(key int) {
 				}, nil, MenuSinglePlayer)
 				return
 			}
+			if m.resumeGameAvailable != nil && m.resumeGameAvailable() {
+				m.ShowConfirmationPrompt([]string{
+					"RESUME LAST GAME? (Y/N)",
+					"PRESS Y OR ENTER TO RESUME",
+					"PRESS N OR ESC FOR NEW GAME",
+				}, func() {
+					m.queueCommand("load \"autosave/start\"\n")
+				}, func() {
+					m.startSinglePlayerNewGame()
+				}, MenuSinglePlayer)
+				return
+			}
 			m.startSinglePlayerNewGame()
 		case 1:
 			m.enterLoadMenu()

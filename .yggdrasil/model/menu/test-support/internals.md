@@ -2,7 +2,7 @@
 
 ## Logic
 
-The test-support node assembles lightweight stand-ins for input and render dependencies so the rest of the menu package can be exercised deterministically. Tests operate from the package boundary: they instantiate `Manager`, drive it through key/mouse/text entry flows, inspect queued commands and cvar changes, and verify menu-space drawing by reconstructing rendered lines from captured character calls. For session-sensitive UX paths, tests inject callbacks such as `SetNewGameConfirmationProvider` and `SetSaveEntryAllowedProvider` to verify prompt/confirm/cancel and save-entry gating behavior without bootstrapping a full host runtime. Host-game startup tests explicitly verify listen-toggle command parity for both multiplayer and single-player host settings.
+The test-support node assembles lightweight stand-ins for input and render dependencies so the rest of the menu package can be exercised deterministically. Tests operate from the package boundary: they instantiate `Manager`, drive it through key/mouse/text entry flows, inspect queued commands and cvar changes, and verify menu-space drawing by reconstructing rendered lines from captured character calls. For session-sensitive UX paths, tests inject callbacks such as `SetNewGameConfirmationProvider`, `SetResumeGameAvailableProvider`, and `SetSaveEntryAllowedProvider` to verify prompt/confirm/cancel behavior, autosave-resume branching, and save-entry gating without bootstrapping a full host runtime. Host-game startup tests explicitly verify listen-toggle command parity for both multiplayer and single-player host settings.
 
 ## Constraints
 

@@ -35,11 +35,13 @@ Key exported data structures:
 - emitted `progs.dat` headers must carry the canonical Quake progdefs CRC expected by the current QC runtime layout
 - builtin functions are represented as QC functions whose `FirstStatement` is the negative builtin number
 - builtin directives accept either numeric form (`//qgo:builtin 23`) or a compiler-known name alias (`//qgo:builtin bprint`)
+- builtin directive parsing is strict and diagnostic-driven: unknown aliases fail with `unknown //qgo:builtin alias "<name>"`, empty/multi-token payloads fail as malformed, and multiple directives on one function fail as duplicate (same builtin id) or ambiguous (different builtin ids)
 - dynamic helper intrinsics `quake.FieldFloat(entity, fieldOffset)` and `quake.SetFieldFloat(entity, fieldOffset, value)` are compiler-recognized and lowered directly to QC field opcodes (`OP_LOAD_F`, `OP_ADDRESS`, `OP_STOREP_F`) with strict arity/type gating.
 - other `quake.Field*` / `quake.SetField*` dynamic helpers are intentionally deferred for now and fail with an explicit defer diagnostic that points users back to the supported `FieldFloat`/`SetFieldFloat` surface.
 - composite literal support is intentionally narrow: `Vec3` literals are supported as vector values, while non-`Vec3` struct literals are explicitly deferred with a dedicated compile-time diagnostic (`general struct literals are deferred ...`).
-- IR optimization now includes a first constant-folding pass for scalar float opcodes (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`, `OPAnd`, `OPOr`, `OPBitAnd`, `OPBitOr`, `OPNotF`) when operands are known function-local constants.
+- IR optimization now includes a first literal-only constant-folding pass for scalar float arithmetic/comparison opcodes (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) when both operands are known literal immediate sources in the same traversal.
 - folded float immediates are represented with `IRInst.HasImmFloat=true` so zero-valued constants remain explicit and are preserved through codegen.
+- IR optimization includes a dedicated unreachable-block pruning pass that removes basic blocks not reachable from entry after explicit terminators (`OPGoto`, `OPIF`, `OPIFNot`, `OPReturn`, `OPDone`) are honored.
 - IR optimization includes a minimal dead-code elimination pass that now supports simple label/branch control flow (`OPIF`/`OPIFNot`/`OPGoto`) via conservative block-level liveness, removing dead pure definitions to auto-allocated virtual registers while preserving jump semantics and side effects.
 
 ## Failure modes

@@ -24,3 +24,18 @@ Rationale:
 Observed effect:
 - shell-facing behavior stays easy to reason about
 - compiler internals remain reusable from tests without spawning a process
+
+### Define source-order behavior as a CLI contract before implementation
+
+Observed decision:
+- document a precise `qgo source-order` CLI/input-output contract in `QGO_SPEC.md` before adding command code
+
+Rationale:
+- enables incremental implementation slices without revisiting external behavior decisions
+- prevents accidental divergence from already-landed deterministic traversal behavior in compiler tests
+
+Rejected alternatives:
+- implement command first and infer contract from emergent behavior
+  - rejected because it risks churn in flags/output shape and weakens downstream parity tooling assumptions
+- add a standalone tool with unrelated stderr/exit conventions
+  - rejected because existing `qgo` consumers already rely on consistent `qgo:` error prefix and status semantics

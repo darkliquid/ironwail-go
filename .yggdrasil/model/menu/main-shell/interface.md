@@ -16,4 +16,5 @@
 - Setup text entry accepts printable ASCII only and commits through `name`, `color`, and `hostname` updates.
 - Generic confirmations reuse the quit screen state and confirmation callback machinery.
 - Single Player -> New Game can be guarded by a confirmation prompt when the state-machine provider indicates an active in-game session; confirm queues the usual new-game command sequence and cancel returns to the single-player menu.
+- When no active session-confirmation is needed, Single Player -> New Game can instead offer a resume prompt if the state machine reports that `autosave/start` exists; confirm queues `load "autosave/start"` and decline falls through to the normal fresh-start command sequence.
 - Single Player -> Save now consults the state-machine save-entry provider before transitioning to `MenuSave`; disallowed attempts remain on `MenuSinglePlayer` and play cancel feedback.

@@ -1,9 +1,7 @@
 {
-  "hash": "4196ed7f550519113636c58e78f4a3ff0e0f86354392e76841adfe152108d29a",
+  "hash": "fbaade156af5ecaef2c2d2e7c99529862692cff4b003c01bdd7269d0a1342a3a",
   "files": {
     ".yggdrasil/model/qgo/quakego-shared-prototypes/yg-node.yaml": "a55be3c76b9c650f4b4d814202382947e9e2b34529f5cfdbd25a3e19c8dd41e8",
-    ".yggdrasil/model/qgo/quakego-shared-prototypes/interface.md": "bfb8d1ad3e778561f21b27dbe141cea8249c3353a791d6eb8a19e7a0007a3305",
-    ".yggdrasil/model/qgo/quakego-shared-prototypes/internals.md": "1093f6855c6cb4621edc685e1ca55911b125afb3cffaabf1349e1b87fc043835",
     ".yggdrasil/model/qgo/quakego-shared-prototypes/responsibility.md": "5535adb9fe76d53fa51a677be3ecd16cc05869da81a71b08c15c0d3833206efe",
     ".yggdrasil/model/qgo/yg-node.yaml": "e591eb3ec6a469bf7ce7f31460dc1d113280653e7c1086193733a94b639c0df8",
     ".yggdrasil/model/qgo/interface.md": "ca27152bd7f18f13d7140bb06c8c966d80a144a047d348997e3f5754988e6ff1",
@@ -17,14 +15,16 @@
     "pkg/qgo/quakego/items.go": "b122f8c514f99c164c5fc192a09487fe1f181a0d9181b3c43a9f9e59e256aadb",
     "pkg/qgo/quakego/misc.go": "b007d53a23f188d02fec63b0e923ca9bc929708ed1dd1a7965f0ab220b5464b4",
     "pkg/qgo/quakego/plats.go": "d4876b1f7e260f82c8efa3ac0db04f0820c8246dee3ad581b4d121bfa7154ee3",
-    "pkg/qgo/quakego/doors.go": "dc0b1081d16efa6ea80345224925d4430be25cbe10760081d0ee184f5a7fafac",
     "pkg/qgo/quakego/fight.go": "b7e961591460472b9a8107c76a778587df1863249fa7e71ab743be21dd6064ad",
-    "pkg/qgo/quakego/weapons.go": "73538ee9c645b180220825074698f2f2b5ee6461235945b848a1a70f77bf1ebe"
+    "pkg/qgo/quakego/weapons.go": "73538ee9c645b180220825074698f2f2b5ee6461235945b848a1a70f77bf1ebe",
+    ".yggdrasil/model/qgo/quakego-shared-prototypes/interface.md": "37f599e8134c62b12af3993ccce2dca7d50bee4d70291c267aa12ef6af1d64d7",
+    ".yggdrasil/model/qgo/quakego-shared-prototypes/internals.md": "3192f9501b5a381456f92077e9a66efcb34729864bb52d5a1049991eaeb268ab",
+    "pkg/qgo/quakego/doors.go": "b7435b06215041934a0def747a3759f114f4553590aab332fc97bd516bb07cfb"
   },
   "mtimes": {
     ".yggdrasil/model/qgo/quakego-shared-prototypes/yg-node.yaml": 1774311086165.3606,
-    ".yggdrasil/model/qgo/quakego-shared-prototypes/interface.md": 1774343633116.9531,
-    ".yggdrasil/model/qgo/quakego-shared-prototypes/internals.md": 1774343642466.02,
+    ".yggdrasil/model/qgo/quakego-shared-prototypes/interface.md": 1774345661377.9739,
+    ".yggdrasil/model/qgo/quakego-shared-prototypes/internals.md": 1774345661377.8975,
     ".yggdrasil/model/qgo/quakego-shared-prototypes/responsibility.md": 1774311093786.8672,
     ".yggdrasil/model/qgo/yg-node.yaml": 1774265243900.6392,
     ".yggdrasil/model/qgo/interface.md": 1774265244017.6409,
@@ -38,7 +38,7 @@
     "pkg/qgo/quakego/items.go": 1774334900516.3982,
     "pkg/qgo/quakego/misc.go": 1774337527376.8904,
     "pkg/qgo/quakego/plats.go": 1774310981146.6187,
-    "pkg/qgo/quakego/doors.go": 1774343489443.014,
+    "pkg/qgo/quakego/doors.go": 1774345564623.9739,
     "pkg/qgo/quakego/fight.go": 1774310981146.6187,
     "pkg/qgo/quakego/weapons.go": 1774310981149.6187
   }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -555,6 +556,13 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 				return false
 			}
 			return g.Host.ServerActive()
+		})
+		g.Menu.SetResumeGameAvailableProvider(func() bool {
+			if g.Host == nil {
+				return false
+			}
+			_, err := os.Stat(filepath.Join(g.Host.UserDir(), "saves", "autosave", "start.sav"))
+			return err == nil
 		})
 		g.Menu.SetSaveEntryAllowedProvider(func() bool {
 			if g.Host == nil {

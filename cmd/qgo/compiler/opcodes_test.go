@@ -109,7 +109,7 @@ func TestOptimizeIRProgram_RemovesNoOpSelfStores(t *testing.T) {
 	}
 }
 
-func TestOptimizeIRProgram_FoldsConstFloatOps(t *testing.T) {
+func TestOptimizeIRProgram_FoldsLiteralArithmeticAndComparisons(t *testing.T) {
 	prog := &IRProgram{
 		Functions: []IRFunc{
 			{
@@ -118,9 +118,8 @@ func TestOptimizeIRProgram_FoldsConstFloatOps(t *testing.T) {
 					{Op: qc.OPStoreF, A: 100, B: 100, ImmFloat: 7, HasImmFloat: true, Type: EvFloat},
 					{Op: qc.OPStoreF, A: 101, B: 101, ImmFloat: 3, HasImmFloat: true, Type: EvFloat},
 					{Op: qc.OPAddF, A: 100, B: 101, C: 102, Type: EvFloat}, // fold -> 10
-					{Op: qc.OPNotF, A: 101, C: 103, Type: EvFloat},         // fold -> 0
-					{Op: qc.OPStoreF, A: 102, B: 104, Type: EvFloat},       // propagate 10
-					{Op: qc.OPMulF, A: 104, B: 101, C: 105, Type: EvFloat}, // fold -> 30
+					{Op: qc.OPLT, A: 101, B: 100, C: 103, Type: EvFloat},   // fold -> 1
+					{Op: qc.OPGE, A: 101, B: 100, C: 104, Type: EvFloat},   // fold -> 0
 					{Op: qc.OPStoreF, A: 106, B: 106, Type: EvFloat},       // removable self-store
 				},
 			},
@@ -130,20 +129,57 @@ func TestOptimizeIRProgram_FoldsConstFloatOps(t *testing.T) {
 	optimizeIRProgram(prog)
 
 	body := prog.Functions[0].Body
-	if len(body) != 6 {
-		t.Fatalf("body len = %d, want 6", len(body))
+	if len(body) != 5 {
+		t.Fatalf("body len = %d, want 5", len(body))
 	}
 
 	if body[2].Op != qc.OPStoreF || body[2].B != 102 || body[2].ImmFloat != 10 || !body[2].HasImmFloat {
 		t.Fatalf("inst[2] = %+v, want folded OPStoreF to vreg 102 with ImmFloat=10", body[2])
 	}
 
-	if body[3].Op != qc.OPStoreF || body[3].B != 103 || body[3].ImmFloat != 0 || !body[3].HasImmFloat {
-		t.Fatalf("inst[3] = %+v, want folded OPStoreF to vreg 103 with ImmFloat=0", body[3])
+	if body[3].Op != qc.OPStoreF || body[3].B != 103 || body[3].ImmFloat != 1 || !body[3].HasImmFloat {
+		t.Fatalf("inst[3] = %+v, want folded OPStoreF to vreg 103 with ImmFloat=1", body[3])
 	}
 
-	if body[5].Op != qc.OPStoreF || body[5].B != 105 || body[5].ImmFloat != 30 || !body[5].HasImmFloat {
-		t.Fatalf("inst[5] = %+v, want folded OPStoreF to vreg 105 with ImmFloat=30", body[5])
+	if body[4].Op != qc.OPStoreF || body[4].B != 104 || body[4].ImmFloat != 0 || !body[4].HasImmFloat {
+		t.Fatalf("inst[4] = %+v, want folded OPStoreF to vreg 104 with ImmFloat=0", body[4])
+	}
+}
+
+func TestOptimizeIRProgram_DoesNotFoldThroughCopyOrUnaryNot(t *testing.T) {
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Body: []IRInst{
+					{Op: qc.OPStoreF, B: 100, ImmFloat: 7, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPStoreF, A: 100, B: 101, Type: EvFloat},       // copy should not seed literal tracking
+					{Op: qc.OPAddF, A: 101, B: 100, C: 102, Type: EvFloat}, // must remain unfurled in phase-0
+					{Op: qc.OPNotF, A: 100, C: 103, Type: EvFloat},         // unary not intentionally out of scope
+					{Op: qc.OPStoreF, A: 102, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+
+	var sawAdd, sawNot bool
+	for _, inst := range body {
+		if inst.Op == qc.OPAddF && inst.C == 102 {
+			sawAdd = true
+		}
+		if inst.Op == qc.OPNotF && inst.C == 103 {
+			sawNot = true
+		}
+	}
+	if !sawAdd {
+		t.Fatalf("expected OPAddF via copied input to remain unfurled in phase-0: %+v", body)
+	}
+	if !sawNot {
+		t.Fatalf("expected OPNotF to remain unfurled in phase-0: %+v", body)
 	}
 }
 
@@ -295,6 +331,50 @@ func TestOptimizeIRProgram_PrunesUnusedLocalsAfterDCE(t *testing.T) {
 	for _, inst := range fn.Body {
 		if inst.Op == qc.OPStoreF && inst.B == vDead {
 			t.Fatalf("dead temp store still present: %+v", inst)
+		}
+	}
+}
+
+func TestOptimizeIRProgram_PrunesUnreachableBlocksAfterTerminator(t *testing.T) {
+	vLive := vregBase + 30
+	vUnreachable := vregBase + 31
+
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Body: []IRInst{
+					{Op: qc.OPStoreF, B: vLive, ImmFloat: 4, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vLive, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+					LabelInst("dead"),
+					{Op: qc.OPStoreF, B: vUnreachable, ImmFloat: 9, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vUnreachable, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+
+	if len(body) != 3 {
+		t.Fatalf("body len = %d, want 3", len(body))
+	}
+	if body[0].Op != qc.OPStoreF || body[0].B != vLive || body[0].ImmFloat != 4 || !body[0].HasImmFloat {
+		t.Fatalf("inst[0] = %+v, want reachable immediate store", body[0])
+	}
+	if body[1].Op != qc.OPStoreF || body[1].A != vLive || body[1].B != VReg(qc.OFSReturn) {
+		t.Fatalf("inst[1] = %+v, want reachable return store", body[1])
+	}
+	if body[2].Op != qc.OPReturn {
+		t.Fatalf("inst[2] = %+v, want reachable return", body[2])
+	}
+
+	for _, inst := range body {
+		if inst.IsLabel() || (inst.Op == qc.OPStoreF && inst.B == vUnreachable) {
+			t.Fatalf("unreachable block instruction still present: %+v", inst)
 		}
 	}
 }

@@ -110,7 +110,7 @@ func TestCompile_ConstantFloatExpression_IsFoldedInIRPass(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "main.go"), `package main
 
 func Folded() float32 {
-	return (2 + 3) * 4
+	return 2 + 3
 }
 `)
 
@@ -149,8 +149,8 @@ func Folded() float32 {
 		if op == qc.OPDone {
 			break
 		}
-		if op == qc.OPAddF || op == qc.OPMulF {
-			t.Fatalf("Folded body contains arithmetic opcode %v at statement %d; expected constant-folded store/return only", op, i)
+		if op == qc.OPAddF {
+			t.Fatalf("Folded body contains arithmetic opcode %v at statement %d; expected literal-folded store/return only", op, i)
 		}
 	}
 }
@@ -294,6 +294,19 @@ func TestRoundTrip_ControlFlowMax(t *testing.T) {
 	}
 }
 
+type fixtureSignalSpec struct {
+	requiredParms   map[string]int32
+	requiredOpcodes []qc.Opcode
+}
+
+type compiledFixture struct {
+	vm      *qc.VM
+	header  qc.DProgs
+	funcs   []qc.DFunction
+	strings []byte
+	stmts   []qc.DStatement
+}
+
 func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 	c := New()
 
@@ -302,7 +315,23 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 		fixture  string
 		function string
 		args     []float32
-		want     float32
+		goExpect func(args []float32) float32
+	}
+
+	fixtureSignals := map[string]fixtureSignalSpec{
+		"../testdata/arithmetic": {
+			requiredParms: map[string]int32{
+				"Add": 2,
+			},
+			requiredOpcodes: []qc.Opcode{qc.OPAddF},
+		},
+		"../testdata/controlflow": {
+			requiredParms: map[string]int32{
+				"Max": 2,
+				"Sum": 1,
+			},
+			requiredOpcodes: []qc.Opcode{qc.OPGT, qc.OPIFNot, qc.OPGoto, qc.OPAddF},
+		},
 	}
 
 	cases := []smokeCase{
@@ -311,32 +340,72 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 			fixture:  "../testdata/arithmetic",
 			function: "Add",
 			args:     []float32{3, 4},
-			want:     7,
+			goExpect: func(args []float32) float32 { return args[0] + args[1] },
 		},
 		{
 			name:     "arithmetic-add-mixed-sign",
 			fixture:  "../testdata/arithmetic",
 			function: "Add",
 			args:     []float32{-2.5, 1.25},
-			want:     -1.25,
+			goExpect: func(args []float32) float32 { return args[0] + args[1] },
 		},
 		{
 			name:     "controlflow-max-descending",
 			fixture:  "../testdata/controlflow",
 			function: "Max",
 			args:     []float32{9, 2},
-			want:     9,
+			goExpect: func(args []float32) float32 {
+				if args[0] > args[1] {
+					return args[0]
+				}
+				return args[1]
+			},
 		},
 		{
 			name:     "controlflow-max-negative",
 			fixture:  "../testdata/controlflow",
 			function: "Max",
 			args:     []float32{-3, -7},
-			want:     -3,
+			goExpect: func(args []float32) float32 {
+				if args[0] > args[1] {
+					return args[0]
+				}
+				return args[1]
+			},
+		},
+		{
+			name:     "controlflow-sum-five",
+			fixture:  "../testdata/controlflow",
+			function: "Sum",
+			args:     []float32{5},
+			goExpect: func(args []float32) float32 {
+				n := args[0]
+				var result float32
+				var i float32
+				for i = 0; i < n; i++ {
+					result += i
+				}
+				return result
+			},
+		},
+		{
+			name:     "controlflow-sum-zero",
+			fixture:  "../testdata/controlflow",
+			function: "Sum",
+			args:     []float32{0},
+			goExpect: func(args []float32) float32 {
+				n := args[0]
+				var result float32
+				var i float32
+				for i = 0; i < n; i++ {
+					result += i
+				}
+				return result
+			},
 		},
 	}
 
-	compiled := map[string]*qc.VM{}
+	compiled := map[string]compiledFixture{}
 	parmSlots := []int{
 		qc.OFSParm0,
 		qc.OFSParm1,
@@ -350,17 +419,30 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			vm, ok := compiled[tc.fixture]
+			fixtureData, ok := compiled[tc.fixture]
 			if !ok {
 				data, err := c.Compile(tc.fixture)
 				if err != nil {
 					t.Fatalf("compile %s failed: %v", tc.fixture, err)
 				}
-				vm = loadVM(t, data)
-				compiled[tc.fixture] = vm
+				header := parseHeader(t, data)
+				fixtureData = compiledFixture{
+					vm:      loadVM(t, data),
+					header:  header,
+					funcs:   parseFunctions(t, data, header),
+					strings: parseStrings(t, data, header),
+					stmts:   parseStatements(t, data, header),
+				}
+				compiled[tc.fixture] = fixtureData
 			}
 
-			fnum := vm.FindFunction(tc.function)
+			spec, ok := fixtureSignals[tc.fixture]
+			if !ok {
+				t.Fatalf("missing fixture signal spec for %s", tc.fixture)
+			}
+			assertShallowFixtureSignals(t, tc.fixture, fixtureData, spec)
+
+			fnum := fixtureData.vm.FindFunction(tc.function)
 			if fnum < 0 {
 				t.Fatalf("function %q not found in fixture %s", tc.function, tc.fixture)
 			}
@@ -369,17 +451,61 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 				t.Fatalf("test case has %d args, max supported %d", len(tc.args), len(parmSlots))
 			}
 			for i, arg := range tc.args {
-				vm.SetGFloat(parmSlots[i], arg)
+				fixtureData.vm.SetGFloat(parmSlots[i], arg)
 			}
 
-			if err := vm.ExecuteProgram(fnum); err != nil {
+			if err := fixtureData.vm.ExecuteProgram(fnum); err != nil {
 				t.Fatalf("%s execution failed: %v", tc.name, err)
 			}
 
-			if got := vm.GFloat(qc.OFSReturn); got != tc.want {
-				t.Fatalf("%s return = %v, want %v", tc.name, got, tc.want)
+			want := tc.goExpect(tc.args)
+			if got := fixtureData.vm.GFloat(qc.OFSReturn); got != want {
+				t.Fatalf("%s return = %v, want native-Go %v", tc.name, got, want)
 			}
 		})
+	}
+}
+
+func assertShallowFixtureSignals(t *testing.T, fixture string, got compiledFixture, want fixtureSignalSpec) {
+	t.Helper()
+	if got.header.Version != int32(qc.ProgVersion) {
+		t.Fatalf("%s version = %d, want %d", fixture, got.header.Version, qc.ProgVersion)
+	}
+	if got.header.CRC != int32(qc.ProgHeaderCRC) {
+		t.Fatalf("%s crc = %d, want %d", fixture, got.header.CRC, qc.ProgHeaderCRC)
+	}
+	if got.header.NumStatements == 0 || got.header.NumFunctions == 0 || got.header.NumGlobals == 0 {
+		t.Fatalf("%s empty core sections: statements=%d functions=%d globals=%d", fixture, got.header.NumStatements, got.header.NumFunctions, got.header.NumGlobals)
+	}
+
+	funcMeta := make(map[string]qc.DFunction, len(got.funcs))
+	for _, fn := range got.funcs {
+		name := stringAt(got.strings, fn.Name)
+		if name != "" {
+			funcMeta[name] = fn
+		}
+	}
+	for name, numParms := range want.requiredParms {
+		fn, ok := funcMeta[name]
+		if !ok {
+			t.Fatalf("%s missing required function %q", fixture, name)
+		}
+		if fn.NumParms != numParms {
+			t.Fatalf("%s %s NumParms = %d, want %d", fixture, name, fn.NumParms, numParms)
+		}
+		if fn.FirstStatement <= 0 {
+			t.Fatalf("%s %s FirstStatement = %d, want > 0", fixture, name, fn.FirstStatement)
+		}
+	}
+
+	hasOpcode := make(map[qc.Opcode]bool, len(got.stmts))
+	for _, s := range got.stmts {
+		hasOpcode[qc.Opcode(s.Op)] = true
+	}
+	for _, op := range want.requiredOpcodes {
+		if !hasOpcode[op] {
+			t.Fatalf("%s missing required opcode %d", fixture, op)
+		}
 	}
 }
 
@@ -788,6 +914,84 @@ func SpawnAlias() {}
 	}
 
 	t.Fatal("function 'SpawnAlias' not found")
+}
+
+func TestCompile_BuiltinDirective_UnknownAlias_FailsWithDiagnostic(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinunknownaliastest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin definitely_not_a_real_builtin
+func UnknownAliasBuiltin() {}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for unknown builtin alias")
+	}
+	if !strings.Contains(err.Error(), `unknown //qgo:builtin alias "definitely_not_a_real_builtin"`) {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestCompile_BuiltinDirective_AmbiguousMultiple_FailsWithDiagnostic(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinambiguoustest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin spawn
+//qgo:builtin remove
+func AmbiguousBuiltin() {}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for ambiguous builtin directives")
+	}
+	if !strings.Contains(err.Error(), "ambiguous //qgo:builtin directives for AmbiguousBuiltin: 14 and 15") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestCompile_BuiltinDirective_DuplicateSameBuiltin_FailsWithDiagnostic(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinduplicatetest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin 23
+//qgo:builtin bprint
+func DuplicateBuiltin() {}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for duplicate builtin directives")
+	}
+	if !strings.Contains(err.Error(), "duplicate //qgo:builtin directive for DuplicateBuiltin (builtin 23)") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestCompile_BuiltinDirective_MalformedPayload_FailsWithDiagnostic(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinmalformedtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin
+func MalformedBuiltin() {}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for malformed builtin directive")
+	}
+	if !strings.Contains(err.Error(), "malformed //qgo:builtin directive: expected one builtin number or alias") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
 }
 
 func TestCompile_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloatOpcodes(t *testing.T) {

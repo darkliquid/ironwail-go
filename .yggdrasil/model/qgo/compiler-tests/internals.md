@@ -13,18 +13,22 @@ The compiler tests combine three layers of evidence:
 - general-struct-literal defer test compiles an ephemeral package and asserts the explicit `general struct literals are deferred` diagnostic contract
 - incremental cache tests use ephemeral packages to validate compile-cache semantics without introducing persistent fixture directories
 - builtin-directive tests now cover numeric and named alias parsing (`//qgo:builtin 23`, `//qgo:builtin bprint`, `//qgo:builtin SPAWN`) and verify compiled function metadata uses negative builtin IDs
+- builtin-directive diagnostic tests additionally pin the failure matrix: unknown alias (`unknown //qgo:builtin alias "<name>"`), malformed directive payload, duplicate same-id directives on one function, and ambiguous differing-id directives on one function
 - IR pipeline tests include a direct optimizer unit assertion that no-op self-store instructions are removed from function bodies, plus an end-to-end compile assertion that generated statements do not contain self-copy stores
 - optimizer unit coverage now explicitly includes builtin-function IR bodies and asserts they are left untouched while non-builtin bodies are trimmed
-- IR optimizer unit coverage now includes constant-folding assertions that supported scalar float operations collapse into immediate `OPStoreF` pseudo-stores, including folded zero-valued results
+- IR optimizer unit coverage now includes phase-0 constant-folding assertions that supported literal-only scalar float arithmetic/comparison operations collapse into immediate `OPStoreF` pseudo-stores, including folded zero-valued results
+- optimizer boundary assertions now pin that fold tracking does not propagate through copy stores and that unary `OPNotF` remains unfurled in this slice
 - IR optimizer unit coverage now includes local-slot pruning assertions that confirm dead-temp locals are removed after DCE while parameter locals are retained
 - IR optimizer unit coverage now includes control-flow DCE assertions that verify dead pure virtual-register defs are removed across simple label/branch patterns while side-effecting pointer stores, branch conditions, and jump/return structure are retained
-- compile-level constant-folding coverage builds an ephemeral package with `(2 + 3) * 4` and asserts the resulting function body has no runtime `OPAddF`/`OPMulF` statements
+- IR optimizer unit coverage now includes unreachable-block assertions that verify instructions after an explicit terminator are removed when no reachable label targets them
+- compile-level constant-folding coverage builds an ephemeral package with `2 + 3` and asserts the resulting function body has no runtime `OPAddF` statements
 - source-order tests compile multi-file ephemeral packages and assert function-table order follows filename order, protecting deterministic lowering traversal for parity tooling
   - current assertion pins `a_first.go` (`Able`) before `main.go` (`MainValue`) before `z_last.go` (`Zed`) in emitted function order
 - deterministic smoke tests compile the same fixture twice and assert byte-identical output to catch nondeterministic table/section emission drift
 - structural parity smoke tests parse compiled `controlflow` output and pin stable layout/function/opcode invariants (including `Max`/`Sum` arity and positive first statements) so section-shape drift is detected even when output remains deterministic
 - parity smoke tests evaluate `Add` in QCVM and compare output with equivalent native Go arithmetic over multiple signed/decimal vectors
-- parity smoke harness adds a deterministic QCVM baseline matrix that executes `Add`, `Max`, and `Sum` against pinned vectors and expected returns, catching VM-visible lowering drift without broad golden tooling
+- parity smoke harness adds a deterministic QCVM baseline matrix that executes `Add`, `Max`, and `Sum` against pinned vectors and native-Go expected returns, catching VM-visible lowering drift without broad golden tooling
+- parity smoke harness now also asserts shallow structural signals per fixture (header/version/CRC/core-section sanity, required function-arity contracts, and required opcode presence) so compile-shape regressions are caught without introducing broad cross-binary diff infrastructure
 - import-isolation tests compile an ephemeral package that imports a local dependency whose body includes unsupported type-switch syntax, asserting successful compile to prove imported bodies are not lowered
 - dynamic-field intrinsic tests now include a runtime round-trip that executes compiled `ReadWrite(ent, ofs, value)` against a loaded VM and verifies both return value (pre-write read) and post-call entity field mutation
 
@@ -120,6 +124,19 @@ Rationale:
 Rejected alternatives:
 - implementing multiple optimization passes (constant folding, full dead code elimination, temp-slot compaction) in one change:
   - rejected because it expands blast radius and weakens confidence in round-trip behavior for a first pipeline slice
+
+### Keep unreachable-block cleanup as an isolated optimizer contract
+
+Observed decision:
+- add a focused optimizer unit test that verifies post-terminator unreachable blocks are pruned independently of value-liveness dead-code elimination.
+
+Rationale:
+- this pins a structural control-flow invariant in a deterministic unit test without expanding fixture or runtime smoke scope.
+- explicit pass-level coverage helps keep this optimization isolated from constant folding and local-slot pruning behavior.
+
+Rejected alternatives:
+- only assert final emitted bytecode shape:
+  - rejected because bytecode-only checks can hide IR-pass boundary regressions and make optimizer failures harder to localize.
 
 ### Pin smallest-safe temp/global reuse behavior with local-pruning tests
 

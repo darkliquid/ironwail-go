@@ -14,6 +14,41 @@ const (
 	doorFlagToggle
 )
 
+type doorEntity quake.Entity
+
+func asDoorEntity(ent *quake.Entity) *doorEntity {
+	return (*doorEntity)(ent)
+}
+
+func (de *doorEntity) entity() *quake.Entity {
+	return (*quake.Entity)(de)
+}
+
+func (de *doorEntity) touches(other *quake.Entity) float32 {
+	self := de.entity()
+
+	if self.Mins[0] > other.Maxs[0] {
+		return FALSE
+	}
+	if self.Mins[1] > other.Maxs[1] {
+		return FALSE
+	}
+	if self.Mins[2] > other.Maxs[2] {
+		return FALSE
+	}
+	if self.Maxs[0] < other.Mins[0] {
+		return FALSE
+	}
+	if self.Maxs[1] < other.Mins[1] {
+		return FALSE
+	}
+	if self.Maxs[2] < other.Mins[2] {
+		return FALSE
+	}
+
+	return TRUE
+}
+
 func door_blocked() {
 	T_Damage(Other, Self, Self, Self.Dmg)
 
@@ -225,26 +260,7 @@ func spawn_field(fmins, fmaxs quake.Vec3) *quake.Entity {
 }
 
 func EntitiesTouching(e1, e2 *quake.Entity) float32 {
-	if e1.Mins[0] > e2.Maxs[0] {
-		return FALSE
-	}
-	if e1.Mins[1] > e2.Maxs[1] {
-		return FALSE
-	}
-	if e1.Mins[2] > e2.Maxs[2] {
-		return FALSE
-	}
-	if e1.Maxs[0] < e2.Mins[0] {
-		return FALSE
-	}
-	if e1.Maxs[1] < e2.Mins[1] {
-		return FALSE
-	}
-	if e1.Maxs[2] < e2.Mins[2] {
-		return FALSE
-	}
-
-	return TRUE
+	return asDoorEntity(e1).touches(e2)
 }
 
 func LinkDoors() {

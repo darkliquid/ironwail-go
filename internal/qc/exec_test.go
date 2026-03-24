@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestExecuteProgramDivByZeroProducesInfMatchingC(t *testing.T) {
+func TestExecuteProgramDivByZeroBehaviorMatrixMatchesC(t *testing.T) {
 	vm := NewVM()
 	vm.Globals = make([]float32, 64)
 
@@ -22,52 +22,84 @@ func TestExecuteProgramDivByZeroProducesInfMatchingC(t *testing.T) {
 		{Op: uint16(OPDone), A: uint16(resultOfs)},
 	}
 
-	vm.SetGFloat(numerOfs, 1)
-	vm.SetGFloat(denomOfs, 0)
-
-	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
-		t.Fatalf("ExecuteProgram() error = %v", err)
+	negZero := float32(math.Copysign(0, -1))
+	tests := []struct {
+		name   string
+		numer  float32
+		denom  float32
+		check  func(float32) bool
+		checkR func(float32) bool
+	}{
+		{
+			name:   "1/+0 -> +Inf",
+			numer:  1,
+			denom:  0,
+			check:  func(v float32) bool { return math.IsInf(float64(v), 1) },
+			checkR: func(v float32) bool { return math.IsInf(float64(v), 1) },
+		},
+		{
+			name:   "-1/+0 -> -Inf",
+			numer:  -1,
+			denom:  0,
+			check:  func(v float32) bool { return math.IsInf(float64(v), -1) },
+			checkR: func(v float32) bool { return math.IsInf(float64(v), -1) },
+		},
+		{
+			name:   "1/-0 -> -Inf",
+			numer:  1,
+			denom:  negZero,
+			check:  func(v float32) bool { return math.IsInf(float64(v), -1) },
+			checkR: func(v float32) bool { return math.IsInf(float64(v), -1) },
+		},
+		{
+			name:   "-1/-0 -> +Inf",
+			numer:  -1,
+			denom:  negZero,
+			check:  func(v float32) bool { return math.IsInf(float64(v), 1) },
+			checkR: func(v float32) bool { return math.IsInf(float64(v), 1) },
+		},
+		{
+			name:   "0/+0 -> NaN",
+			numer:  0,
+			denom:  0,
+			check:  func(v float32) bool { return math.IsNaN(float64(v)) },
+			checkR: func(v float32) bool { return math.IsNaN(float64(v)) },
+		},
+		{
+			name:   "0/-0 -> NaN",
+			numer:  0,
+			denom:  negZero,
+			check:  func(v float32) bool { return math.IsNaN(float64(v)) },
+			checkR: func(v float32) bool { return math.IsNaN(float64(v)) },
+		},
+		{
+			name:   "finite divide still works",
+			numer:  5,
+			denom:  -2,
+			check:  func(v float32) bool { return v == -2.5 },
+			checkR: func(v float32) bool { return v == -2.5 },
+		},
 	}
 
-	got := vm.GFloat(resultOfs)
-	if !math.IsInf(float64(got), 1) {
-		t.Fatalf("1/0 result = %v, want +Inf", got)
-	}
-	if gotReturn := vm.GFloat(OFSReturn); !math.IsInf(float64(gotReturn), 1) {
-		t.Fatalf("OFSReturn = %v, want +Inf", gotReturn)
-	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vm.SetGFloat(numerOfs, tc.numer)
+			vm.SetGFloat(denomOfs, tc.denom)
+			vm.SetGFloat(resultOfs, 0)
+			vm.SetGFloat(OFSReturn, 0)
 
-func TestExecuteProgramZeroDivZeroProducesNaNMatchingC(t *testing.T) {
-	vm := NewVM()
-	vm.Globals = make([]float32, 64)
+			if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+				t.Fatalf("ExecuteProgram() error = %v", err)
+			}
 
-	const (
-		mainFuncNum = 0
-		numerOfs    = 10
-		denomOfs    = 11
-		resultOfs   = 12
-	)
-
-	vm.Functions = []DFunction{{FirstStatement: 0}}
-	vm.Statements = []DStatement{
-		{Op: uint16(OPDivF), A: uint16(numerOfs), B: uint16(denomOfs), C: uint16(resultOfs)},
-		{Op: uint16(OPDone), A: uint16(resultOfs)},
-	}
-
-	vm.SetGFloat(numerOfs, 0)
-	vm.SetGFloat(denomOfs, 0)
-
-	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
-		t.Fatalf("ExecuteProgram() error = %v", err)
-	}
-
-	got := vm.GFloat(resultOfs)
-	if !math.IsNaN(float64(got)) {
-		t.Fatalf("0/0 result = %v, want NaN", got)
-	}
-	if gotReturn := vm.GFloat(OFSReturn); !math.IsNaN(float64(gotReturn)) {
-		t.Fatalf("OFSReturn = %v, want NaN", gotReturn)
+			got := vm.GFloat(resultOfs)
+			if !tc.check(got) {
+				t.Fatalf("result = %v, case %q failed", got, tc.name)
+			}
+			if gotReturn := vm.GFloat(OFSReturn); !tc.checkR(gotReturn) {
+				t.Fatalf("OFSReturn = %v, case %q failed", gotReturn, tc.name)
+			}
+		})
 	}
 }
 

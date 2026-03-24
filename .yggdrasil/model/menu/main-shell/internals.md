@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node owns the shell around the menu system. The main menu routes into single-player, multiplayer, options, help, mods, or quit. Help cycles through six pages, the setup screen stages hostname/name/color edits before applying them, and quit confirmation is implemented as a generic three-line prompt with optional callbacks. The main-menu draw path also supports inserting a Mods row into a pre-baked graphic by splitting `mainmenu.lmp` into cached top and bottom sub-pics once, then drawing a mod label/picture in the gap. Single Player -> New Game now reuses the confirmation prompt path when the runtime-provided session-state gate says a game is already active; accepting starts the standard new-game command pipeline, declining returns to the single-player menu.
+This node owns the shell around the menu system. The main menu routes into single-player, multiplayer, options, help, mods, or quit. Help cycles through six pages, the setup screen stages hostname/name/color edits before applying them, and quit confirmation is implemented as a generic three-line prompt with optional callbacks. The main-menu draw path also supports inserting a Mods row into a pre-baked graphic by splitting `mainmenu.lmp` into cached top and bottom sub-pics once, then drawing a mod label/picture in the gap. Single Player -> New Game now reuses the confirmation prompt path in two cases: when the runtime-provided session-state gate says a game is already active, accepting starts the standard new-game command pipeline and declining returns to the single-player menu; otherwise, when runtime wiring reports that `autosave/start` exists, the prompt offers resuming the canonical autosave on confirm and falling through to a fresh start on decline.
 
 ## Constraints
 

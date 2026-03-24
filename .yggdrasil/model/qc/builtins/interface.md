@@ -25,4 +25,8 @@ Observed surfaces:
 - `random()` reads `sv_gameplayfix_random` to select formula parity:
   - `1` (default): `((rand()&0x7fff)+0.5)/0x8000` (open interval `(0,1)`).
   - `0` (legacy): `(rand()&0x7fff)/0x7fff` (closed interval `[0,1]`).
+- RNG trace parity contract: with seed `1`, zero-offset gameplay-fix `random()` starts with
+  `[0.54222107, 0.27949524, 0.1907196, 0.5660248, 0.7212372]`; if one upstream compat-rand
+  draw is consumed first, QC `random()` starts at `[0.27949524, 0.1907196, 0.5660248, 0.7212372, 0.72654724]`.
+  Legacy (`sv_gameplayfix_random=0`) follows the same one-draw shift with legacy-formula values.
 - builtin `#28` (`coredump`) is wired to entity dump behavior (matching C slot mapping) instead of a generic no-op.

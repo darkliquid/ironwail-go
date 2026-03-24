@@ -16,6 +16,8 @@ A bounded readability pilot in `items.go` now delegates `T_Heal` to `(*quake.Ent
 
 An additional narrow combat/helper cluster in `combat.go` now uses a local receiver-backed adapter (`combatEntity`) for `CanDamage`, `Killed`, and `T_Damage` internals. Each global entry point still exists and immediately delegates, so translated call sites keep QuakeC-style names while entity-local logic is grouped as methods.
 
+A doors pilot now mirrors this adapter pattern for one narrow helper: `EntitiesTouching` delegates to `(*doorEntity).touches(...)` in `doors.go`. The global helper signature remains unchanged for existing callers (such as `LinkDoors`) while bounding-box overlap checks are grouped on a receiver-backed alias.
+
 ## Constraints
 
 The declarations must remain package-level `var` function slots because the translated QuakeC code assigns implementations after declaration order has been established. Replacing them with direct function declarations or broader API rewrites would risk changing compiler assumptions and is intentionally out of scope.

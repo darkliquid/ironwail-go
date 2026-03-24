@@ -106,27 +106,30 @@ func optimizeIRProgram(prog *IRProgram) {
 }
 
 func optimizeIRFunc(fn *IRFunc) {
-	foldConstFloatOps(fn)
+	foldLiteralConstFloatOps(fn)
 	foldStoreSelfCopies(fn)
+	pruneUnreachableBlocks(fn)
 	eliminateDeadVirtualStores(fn)
 	pruneUnusedLocals(fn)
 }
 
-// foldConstFloatOps performs a local constant fold for scalar float operations.
-// It only folds instructions whose operands are known float constants within
-// the current function body traversal order.
-func foldConstFloatOps(fn *IRFunc) {
+// foldLiteralConstFloatOps performs a local constant fold for scalar float
+// arithmetic/comparison operations when both operands are known literal float
+// immediates in the current traversal.
+func foldLiteralConstFloatOps(fn *IRFunc) {
 	if len(fn.Body) == 0 {
 		return
 	}
 	known := make(map[VReg]float64)
 	for i := range fn.Body {
 		inst := fn.Body[i]
+		foldedNow := false
 		if folded, ok := foldConstFloatInst(inst, known); ok {
 			fn.Body[i] = folded
 			inst = folded
+			foldedNow = true
 		}
-		updateKnownFloatConsts(known, inst)
+		updateKnownFloatConsts(known, inst, foldedNow)
 	}
 }
 
@@ -199,37 +202,6 @@ func foldConstFloatInst(inst IRInst, known map[VReg]float64) (IRInst, bool) {
 		if fa > fb {
 			out = 1
 		}
-	case qc.OPAnd:
-		if !aok || !bok {
-			return IRInst{}, false
-		}
-		if fa != 0 && fb != 0 {
-			out = 1
-		}
-	case qc.OPOr:
-		if !aok || !bok {
-			return IRInst{}, false
-		}
-		if fa != 0 || fb != 0 {
-			out = 1
-		}
-	case qc.OPBitAnd:
-		if !aok || !bok {
-			return IRInst{}, false
-		}
-		out = float32(int(fa) & int(fb))
-	case qc.OPBitOr:
-		if !aok || !bok {
-			return IRInst{}, false
-		}
-		out = float32(int(fa) | int(fb))
-	case qc.OPNotF:
-		if !aok {
-			return IRInst{}, false
-		}
-		if fa == 0 {
-			out = 1
-		}
 	default:
 		return IRInst{}, false
 	}
@@ -244,21 +216,16 @@ func foldConstFloatInst(inst IRInst, known map[VReg]float64) (IRInst, bool) {
 	}, true
 }
 
-func updateKnownFloatConsts(known map[VReg]float64, inst IRInst) {
+func updateKnownFloatConsts(known map[VReg]float64, inst IRInst, foldedNow bool) {
 	switch inst.Op {
 	case qc.OPStoreF:
-		if inst.HasImmFloat {
+		if inst.HasImmFloat && !foldedNow {
 			known[inst.B] = inst.ImmFloat
-			return
-		}
-		if v, ok := known[inst.A]; ok {
-			known[inst.B] = v
 			return
 		}
 		delete(known, inst.B)
 	case qc.OPAddF, qc.OPSubF, qc.OPMulF, qc.OPDivF,
-		qc.OPEqF, qc.OPNeF, qc.OPLE, qc.OPGE, qc.OPLT, qc.OPGT,
-		qc.OPAnd, qc.OPOr, qc.OPBitAnd, qc.OPBitOr, qc.OPNotF:
+		qc.OPEqF, qc.OPNeF, qc.OPLE, qc.OPGE, qc.OPLT, qc.OPGT:
 		delete(known, inst.C)
 	}
 }
@@ -452,6 +419,53 @@ func isIRBlockTerminator(op qc.Opcode) bool {
 	default:
 		return false
 	}
+}
+
+// pruneUnreachableBlocks removes whole basic blocks that cannot be reached from
+// function entry once explicit control-flow terminators are respected.
+func pruneUnreachableBlocks(fn *IRFunc) {
+	if len(fn.Body) == 0 {
+		return
+	}
+
+	blocks, labelToBlock, ok := buildIRBasicBlocks(fn.Body)
+	if !ok || len(blocks) == 0 {
+		return
+	}
+
+	succ := make([][]int, len(blocks))
+	for i := range blocks {
+		next, succOK := irBlockSuccessors(fn.Body, blocks, labelToBlock, i)
+		if !succOK {
+			// Unknown branch target: keep function body unchanged.
+			return
+		}
+		succ[i] = next
+	}
+
+	reachable := make([]bool, len(blocks))
+	work := []int{0}
+	reachable[0] = true
+	for len(work) > 0 {
+		bi := work[len(work)-1]
+		work = work[:len(work)-1]
+		for _, next := range succ[bi] {
+			if next < 0 || next >= len(blocks) || reachable[next] {
+				continue
+			}
+			reachable[next] = true
+			work = append(work, next)
+		}
+	}
+
+	pruned := make([]IRInst, 0, len(fn.Body))
+	for bi, block := range blocks {
+		if !reachable[bi] {
+			continue
+		}
+		pruned = append(pruned, fn.Body[block.start:block.end]...)
+	}
+	fn.Body = pruned
 }
 
 func irBlockSuccessors(body []IRInst, blocks []irBlock, labelToBlock map[string]int, bi int) ([]int, bool) {
