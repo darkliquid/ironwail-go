@@ -12,6 +12,7 @@
 - `menuCursorForPoint` is row-oriented and largely ignores the X coordinate.
 - `MenuSkill` row hit-testing uses a non-uniform table (`56,72,88,104[,128]`) rather than the 20px stride used by `MenuSinglePlayer`.
 - Controls-menu cursor math and absolute-row hit testing are coupled to `controlsItems` and `controlRowY`; when the bind matrix expands these values must stay aligned or keyboard and mouse navigation diverge.
+- While Controls rebinding is active, absolute mouse hover updates are intentionally ignored so the selected bind row cannot drift before the capture key is chosen or cancelled.
 
 ## Recent update: Controls key-matrix parity expansion
 

@@ -7,6 +7,8 @@ import (
 	"go/types"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -18,6 +20,13 @@ type Compiler struct {
 	Verbose bool
 }
 
+// SourceOrderEntry captures one deterministic source-order row.
+type SourceOrderEntry struct {
+	Index    int
+	File     string
+	Function string
+}
+
 // New creates a new Compiler instance.
 func New() *Compiler {
 	return &Compiler{}
@@ -25,9 +34,74 @@ func New() *Compiler {
 
 // Compile compiles a Go package directory into a progs.dat binary.
 func (c *Compiler) Compile(dir string) ([]byte, error) {
+	loaded, err := loadTargetPackages(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Lower AST → IR
+	lowerer := NewLowerer()
+	irProg, err := lowerer.LowerPackages(loaded.pkgs)
+	if err != nil {
+		return nil, err
+	}
+	optimizeIRProgram(irProg)
+
+	// Code generation: IR → QCVM
+	globals := NewGlobalAllocator()
+	strings := NewStringTable()
+	codegen := NewCodeGen(globals, strings)
+
+	emitInput, err := codegen.Generate(irProg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Emit binary
+	return Emit(emitInput)
+}
+
+// SourceOrder returns deterministic function ordering for the target package using the
+// same package loading and file traversal semantics as compilation.
+func SourceOrder(dir string) ([]SourceOrderEntry, error) {
+	loaded, err := loadTargetPackages(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]SourceOrderEntry, 0)
+	for _, p := range loaded.pkgs {
+		for _, file := range sortedSyntaxFiles(p) {
+			relFile, err := loaded.displayPath(dir, p.Fset.Position(file.Pos()).Filename)
+			if err != nil {
+				return nil, err
+			}
+			for _, decl := range file.Decls {
+				fd, ok := decl.(*ast.FuncDecl)
+				if !ok {
+					continue
+				}
+				entries = append(entries, SourceOrderEntry{
+					Index:    len(entries),
+					File:     relFile,
+					Function: fd.Name.Name,
+				})
+			}
+		}
+	}
+	return entries, nil
+}
+
+type loadedPackages struct {
+	pkgs          []*packages.Package
+	overlaySource map[string]string
+}
+
+func loadTargetPackages(dir string) (*loadedPackages, error) {
 	// Discover all .go and .qgo files in the directory to build an overlay
 	// for packages.Load (which doesn't natively support .qgo).
 	overlay := make(map[string][]byte)
+	overlaySource := make(map[string]string)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -49,7 +123,9 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 				return nil, err
 			}
 			// Map .qgo files to .go filenames in the same directory for the overlay.
-			overlay[path[:len(path)-4]+".go"] = content
+			overlayPath := path[:len(path)-4] + ".go"
+			overlay[overlayPath] = content
+			overlaySource[overlayPath] = path
 			hasGo = true
 		}
 	}
@@ -68,7 +144,7 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 		}
 	}
 
-	// Ensure we use the correct package name for any injected file
+	// Ensure we use the correct package name for any injected file.
 	pkgName := "main"
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -97,7 +173,7 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 		Dir:     dir,
 		Overlay: overlay,
 		ParseFile: func(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
-			// Ensure we parse comments
+			// Ensure we parse comments.
 			return parser.ParseFile(fset, filename, src, parser.ParseComments)
 		},
 	}
@@ -108,35 +184,61 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if packages.PrintErrors(pkgs) > 0 {
-		return nil, &CompileError{Msg: "errors during package loading"}
-	}
-
 	if len(pkgs) == 0 {
 		return nil, &CompileError{Msg: "no packages found in " + dir}
 	}
 
-	// Lower AST → IR
-	lowerer := NewLowerer()
-	irProg, err := lowerer.LowerPackages(pkgs)
-	if err != nil {
-		return nil, err
-	}
-	optimizeIRProgram(irProg)
-
-	// Code generation: IR → QCVM
-	globals := NewGlobalAllocator()
-	strings := NewStringTable()
-	codegen := NewCodeGen(globals, strings)
-
-	emitInput, err := codegen.Generate(irProg)
-	if err != nil {
+	if err := packageLoadError(pkgs); err != nil {
 		return nil, err
 	}
 
-	// Emit binary
-	return Emit(emitInput)
+	return &loadedPackages{
+		pkgs:          pkgs,
+		overlaySource: overlaySource,
+	}, nil
+}
+
+func packageLoadError(pkgs []*packages.Package) error {
+	msgs := make([]string, 0)
+	for _, pkg := range pkgs {
+		for _, pkgErr := range pkg.Errors {
+			msg := strings.TrimSpace(pkgErr.Msg)
+			if msg == "" {
+				continue
+			}
+			msgs = append(msgs, msg)
+		}
+	}
+	if len(msgs) == 0 {
+		return nil
+	}
+	slices.Sort(msgs)
+	msgs = slices.Compact(msgs)
+	if len(msgs) == 1 {
+		return &CompileError{Msg: "errors during package loading: " + msgs[0]}
+	}
+	return &CompileError{Msg: "errors during package loading (" + strconv.Itoa(len(msgs)) + "): " + strings.Join(msgs, "; ")}
+}
+
+func (l *loadedPackages) displayPath(rootDir, filename string) (string, error) {
+	rootDir, err := filepath.Abs(rootDir)
+	if err != nil {
+		return "", err
+	}
+	if original, ok := l.overlaySource[filename]; ok {
+		filename = original
+	}
+	if !filepath.IsAbs(filename) {
+		filename, err = filepath.Abs(filename)
+		if err != nil {
+			return "", err
+		}
+	}
+	rel, err := filepath.Rel(rootDir, filename)
+	if err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 func goBasicTypeToQC(t types.Type) qc.EType {

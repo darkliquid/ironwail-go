@@ -1,5 +1,5 @@
 {
-  "hash": "2afd0377319825980965022c15f883a109f46839ee93472a4528e52e526e8fd7",
+  "hash": "e0fcf2a05de68a44c18ad08bffeb43354f1333ce2939e4a808161e0d6ed8fb96",
   "files": {
     ".yggdrasil/model/console/draw-notify/yg-node.yaml": "5c420f6e500fb955f21688eb13b45e9e3152a4728ec4527409f8af46eda651aa",
     ".yggdrasil/model/console/draw-notify/interface.md": "de3fce20c7c54aaeee21a89ec943ada6140fddc9ba32f42891715c61d119ce4c",
@@ -10,11 +10,11 @@
     ".yggdrasil/model/console/internals.md": "08e4e3492f912a33b1ef5ccd8b98076baf6aa18742bff5b8ed49308b07398f30",
     ".yggdrasil/model/console/responsibility.md": "9b0af9cfd276e4ff2be919050a49d04b2afea3193c2aa21dbe21b9cca452292f",
     ".yggdrasil/model/renderer/canvas/responsibility.md": "50927472f319c39e43162a3a951fec6ea9c7d2313091fd8753641e91dacdf3ed",
-    ".yggdrasil/model/renderer/canvas/interface.md": "425123cdba54abba8d38d65ead5aafaf881a27a54726dce3c7d76f7f9dad30fa",
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
     "internal/console/draw.go": "f3f5b05ea918b3d8719eab966c4c6dbd30a13afa2f4a1a5b271dde76e3cba5b5",
-    "internal/console/draw_test.go": "24edb1c2cf7eaf4c7729a245e509e569bcf125d9906b12bfbbcc610eb3137b94"
+    "internal/console/draw_test.go": "24edb1c2cf7eaf4c7729a245e509e569bcf125d9906b12bfbbcc610eb3137b94",
+    ".yggdrasil/model/renderer/canvas/interface.md": "757a9fbbdf251949ec8305d7d31a0f1995781a00827c2676c489579230c8e753"
   },
   "mtimes": {
     ".yggdrasil/model/console/draw-notify/yg-node.yaml": 1774235616095.434,
@@ -26,7 +26,7 @@
     ".yggdrasil/model/console/internals.md": 1774235616094.7437,
     ".yggdrasil/model/console/responsibility.md": 1774235616094.6328,
     ".yggdrasil/model/renderer/canvas/responsibility.md": 1774219362115.5984,
-    ".yggdrasil/model/renderer/canvas/interface.md": 1774338067871.9717,
+    ".yggdrasil/model/renderer/canvas/interface.md": 1774354069736.3416,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     "internal/console/draw.go": 1774124988608.2341,

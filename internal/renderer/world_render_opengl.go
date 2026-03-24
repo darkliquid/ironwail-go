@@ -78,8 +78,7 @@ func lightstyleScale(values [64]float32, style uint8) float32 {
 func (r *Renderer) setFogState(color [3]float32, density float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.worldFogColor = color
-	r.worldFogDensity = density
+	r.worldFogColor, r.worldFogDensity = blendFogStateTowards(r.worldFogColor, r.worldFogDensity, color, density, 0.2)
 }
 
 // renderWorld renders the world BSP geometry using the specified pass selector. Binds the world shader, sets the view-projection matrix and camera uniforms, buckets faces by type (sky, opaque, liquid, translucent), and issues draw calls with per-face diffuse + lightmap + fullbright texture binds.
@@ -93,6 +92,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	r.mu.RLock()
 	program := r.worldProgram
 	skyProgram := r.worldSkyProgram
+	skyProceduralProgram := r.worldSkyProceduralProgram
 	skyCubemapProgram := r.worldSkyCubemapProgram
 	skyExternalFaceProgram := r.worldSkyExternalFaceProgram
 	vao := r.worldVAO
@@ -118,6 +118,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	skyVPUniform := r.worldSkyVPUniform
 	skySolidUniform := r.worldSkySolidUniform
 	skyAlphaUniform := r.worldSkyAlphaUniform
+	skyProceduralVPUniform := r.worldSkyProceduralVPUniform
 	skyCubemapVPUniform := r.worldSkyCubemapVPUniform
 	skyCubemapUniform := r.worldSkyCubemapUniform
 	skyExternalFaceVPUniform := r.worldSkyExternalFaceVPUniform
@@ -130,6 +131,9 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	skyModelOffsetUniform := r.worldSkyModelOffsetUniform
 	skyModelRotationUniform := r.worldSkyModelRotationUniform
 	skyModelScaleUniform := r.worldSkyModelScaleUniform
+	skyProceduralModelOffsetUniform := r.worldSkyProceduralModelOffset
+	skyProceduralModelRotationUniform := r.worldSkyProceduralModelRotation
+	skyProceduralModelScaleUniform := r.worldSkyProceduralModelScale
 	skyCubemapModelOffsetUniform := r.worldSkyCubemapModelOffsetUniform
 	skyCubemapModelRotationUniform := r.worldSkyCubemapModelRotationUniform
 	skyCubemapModelScaleUniform := r.worldSkyCubemapModelScaleUniform
@@ -140,17 +144,23 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	skySolidLayerSpeedUniform := r.worldSkySolidLayerSpeedUniform
 	skyAlphaLayerSpeedUniform := r.worldSkyAlphaLayerSpeedUniform
 	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
+	skyProceduralCameraOriginUniform := r.worldSkyProceduralCameraOrigin
 	skyCubemapCameraOriginUniform := r.worldSkyCubemapCameraOriginUniform
 	skyExternalFaceCameraOriginUniform := r.worldSkyExternalFaceCameraOrigin
 	skyFogColorUniform := r.worldSkyFogColorUniform
+	skyProceduralFogColorUniform := r.worldSkyProceduralFogColor
 	skyCubemapFogColorUniform := r.worldSkyCubemapFogColorUniform
 	skyExternalFaceFogColorUniform := r.worldSkyExternalFaceFogColor
 	skyFogDensityUniform := r.worldSkyFogDensityUniform
+	skyProceduralFogDensityUniform := r.worldSkyProceduralFogDensity
+	skyProceduralHorizonColorUniform := r.worldSkyProceduralHorizonColor
+	skyProceduralZenithColorUniform := r.worldSkyProceduralZenithColor
 	skyCubemapFogDensityUniform := r.worldSkyCubemapFogDensityUniform
 	skyExternalFaceFogDensityUniform := r.worldSkyExternalFaceFogDensity
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
 	worldFastSky := readWorldFastSkyEnabled()
+	worldProceduralSky := readWorldProceduralSkyEnabled()
 	skySolidLayerSpeed := readWorldSkySolidSpeedCvar()
 	skyAlphaLayerSpeed := readWorldSkyAlphaSpeedCvar()
 	skyExternalCubemap := r.worldSkyExternalCubemap
@@ -163,6 +173,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	worldHasLitWater := r.worldHasLitWater
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
+	proceduralSkyHorizon, proceduralSkyZenith := proceduralSkyGradientColors()
 	allFaces := []WorldFace(nil)
 	leafFaces := [][]int(nil)
 	if r.worldData != nil && r.worldData.Geometry != nil {
@@ -241,10 +252,12 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 		if drawSky {
 			renderSkyPass(skyFaces, skyPassState{
 				program:                     skyProgram,
+				proceduralProgram:           skyProceduralProgram,
 				cubemapProgram:              skyCubemapProgram,
 				vpUniform:                   skyVPUniform,
 				solidUniform:                skySolidUniform,
 				alphaUniform:                skyAlphaUniform,
+				proceduralVPUniform:         skyProceduralVPUniform,
 				cubemapVPUniform:            skyCubemapVPUniform,
 				cubemapUniform:              skyCubemapUniform,
 				externalFaceVPUniform:       skyExternalFaceVPUniform,
@@ -257,6 +270,9 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				modelOffsetUniform:          skyModelOffsetUniform,
 				modelRotationUniform:        skyModelRotationUniform,
 				modelScaleUniform:           skyModelScaleUniform,
+				proceduralModelOffset:       skyProceduralModelOffsetUniform,
+				proceduralModelRotation:     skyProceduralModelRotationUniform,
+				proceduralModelScale:        skyProceduralModelScaleUniform,
 				cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
 				cubemapModelRotationUniform: skyCubemapModelRotationUniform,
 				cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
@@ -267,12 +283,17 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				solidLayerSpeedUniform:      skySolidLayerSpeedUniform,
 				alphaLayerSpeedUniform:      skyAlphaLayerSpeedUniform,
 				cameraOriginUniform:         skyCameraOriginUniform,
+				proceduralCameraOrigin:      skyProceduralCameraOriginUniform,
 				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
 				externalFaceCameraOrigin:    skyExternalFaceCameraOriginUniform,
 				fogColorUniform:             skyFogColorUniform,
+				proceduralFogColor:          skyProceduralFogColorUniform,
 				cubemapFogColorUniform:      skyCubemapFogColorUniform,
 				externalFaceFogColor:        skyExternalFaceFogColorUniform,
 				fogDensityUniform:           skyFogDensityUniform,
+				proceduralFogDensity:        skyProceduralFogDensityUniform,
+				proceduralHorizonColor:      skyProceduralHorizonColorUniform,
+				proceduralZenithColor:       skyProceduralZenithColorUniform,
 				cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
 				externalFaceFogDensity:      skyExternalFaceFogDensityUniform,
 				vp:                          vp,
@@ -284,6 +305,8 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				modelRotation:               identityModelRotationMatrix,
 				modelScale:                  1,
 				fogColor:                    fogColor,
+				proceduralHorizon:           proceduralSkyHorizon,
+				proceduralZenith:            proceduralSkyZenith,
 				fogDensity:                  skyFogFactor,
 				solidTextures:               worldSkySolidTextures,
 				alphaTextures:               worldSkyAlphaTextures,
@@ -296,6 +319,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				externalFaceTextures:        skyExternalFaceTextures,
 				externalSkyMode:             skyExternalMode,
 				fastSky:                     worldFastSky,
+				proceduralSky:               shouldUseProceduralSky(worldFastSky, worldProceduralSky, skyExternalMode),
 			})
 			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindWorldProgram()
@@ -343,6 +367,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	r.mu.Lock()
 	program := r.worldProgram
 	skyProgram := r.worldSkyProgram
+	skyProceduralProgram := r.worldSkyProceduralProgram
 	skyCubemapProgram := r.worldSkyCubemapProgram
 	skyExternalFaceProgram := r.worldSkyExternalFaceProgram
 	vp := r.viewMatrices.VP
@@ -366,6 +391,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skyVPUniform := r.worldSkyVPUniform
 	skySolidUniform := r.worldSkySolidUniform
 	skyAlphaUniform := r.worldSkyAlphaUniform
+	skyProceduralVPUniform := r.worldSkyProceduralVPUniform
 	skyCubemapVPUniform := r.worldSkyCubemapVPUniform
 	skyCubemapUniform := r.worldSkyCubemapUniform
 	skyExternalFaceVPUniform := r.worldSkyExternalFaceVPUniform
@@ -378,6 +404,9 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skyModelOffsetUniform := r.worldSkyModelOffsetUniform
 	skyModelRotationUniform := r.worldSkyModelRotationUniform
 	skyModelScaleUniform := r.worldSkyModelScaleUniform
+	skyProceduralModelOffsetUniform := r.worldSkyProceduralModelOffset
+	skyProceduralModelRotationUniform := r.worldSkyProceduralModelRotation
+	skyProceduralModelScaleUniform := r.worldSkyProceduralModelScale
 	skyCubemapModelOffsetUniform := r.worldSkyCubemapModelOffsetUniform
 	skyCubemapModelRotationUniform := r.worldSkyCubemapModelRotationUniform
 	skyCubemapModelScaleUniform := r.worldSkyCubemapModelScaleUniform
@@ -388,17 +417,23 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skySolidLayerSpeedUniform := r.worldSkySolidLayerSpeedUniform
 	skyAlphaLayerSpeedUniform := r.worldSkyAlphaLayerSpeedUniform
 	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
+	skyProceduralCameraOriginUniform := r.worldSkyProceduralCameraOrigin
 	skyCubemapCameraOriginUniform := r.worldSkyCubemapCameraOriginUniform
 	skyExternalFaceCameraOriginUniform := r.worldSkyExternalFaceCameraOrigin
 	skyFogColorUniform := r.worldSkyFogColorUniform
+	skyProceduralFogColorUniform := r.worldSkyProceduralFogColor
 	skyCubemapFogColorUniform := r.worldSkyCubemapFogColorUniform
 	skyExternalFaceFogColorUniform := r.worldSkyExternalFaceFogColor
 	skyFogDensityUniform := r.worldSkyFogDensityUniform
+	skyProceduralFogDensityUniform := r.worldSkyProceduralFogDensity
+	skyProceduralHorizonColorUniform := r.worldSkyProceduralHorizonColor
+	skyProceduralZenithColorUniform := r.worldSkyProceduralZenithColor
 	skyCubemapFogDensityUniform := r.worldSkyCubemapFogDensityUniform
 	skyExternalFaceFogDensityUniform := r.worldSkyExternalFaceFogDensity
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
 	worldFastSky := readWorldFastSkyEnabled()
+	worldProceduralSky := readWorldProceduralSkyEnabled()
 	skySolidLayerSpeed := readWorldSkySolidSpeedCvar()
 	skyAlphaLayerSpeed := readWorldSkyAlphaSpeedCvar()
 	skyExternalCubemap := r.worldSkyExternalCubemap
@@ -410,6 +445,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	worldTree := r.worldTree
 	fogColor := r.worldFogColor
 	fogDensity := r.worldFogDensity
+	proceduralSkyHorizon, proceduralSkyZenith := proceduralSkyGradientColors()
 	worldTextures := make(map[int32]uint32, len(r.worldTextures))
 	for k, v := range r.worldTextures {
 		worldTextures[k] = v
@@ -507,10 +543,12 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 		if drawSky {
 			renderSkyPass(skyFaces, skyPassState{
 				program:                     skyProgram,
+				proceduralProgram:           skyProceduralProgram,
 				cubemapProgram:              skyCubemapProgram,
 				vpUniform:                   skyVPUniform,
 				solidUniform:                skySolidUniform,
 				alphaUniform:                skyAlphaUniform,
+				proceduralVPUniform:         skyProceduralVPUniform,
 				cubemapVPUniform:            skyCubemapVPUniform,
 				cubemapUniform:              skyCubemapUniform,
 				externalFaceVPUniform:       skyExternalFaceVPUniform,
@@ -523,6 +561,9 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				modelOffsetUniform:          skyModelOffsetUniform,
 				modelRotationUniform:        skyModelRotationUniform,
 				modelScaleUniform:           skyModelScaleUniform,
+				proceduralModelOffset:       skyProceduralModelOffsetUniform,
+				proceduralModelRotation:     skyProceduralModelRotationUniform,
+				proceduralModelScale:        skyProceduralModelScaleUniform,
 				cubemapModelOffsetUniform:   skyCubemapModelOffsetUniform,
 				cubemapModelRotationUniform: skyCubemapModelRotationUniform,
 				cubemapModelScaleUniform:    skyCubemapModelScaleUniform,
@@ -533,12 +574,17 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				solidLayerSpeedUniform:      skySolidLayerSpeedUniform,
 				alphaLayerSpeedUniform:      skyAlphaLayerSpeedUniform,
 				cameraOriginUniform:         skyCameraOriginUniform,
+				proceduralCameraOrigin:      skyProceduralCameraOriginUniform,
 				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
 				externalFaceCameraOrigin:    skyExternalFaceCameraOriginUniform,
 				fogColorUniform:             skyFogColorUniform,
+				proceduralFogColor:          skyProceduralFogColorUniform,
 				cubemapFogColorUniform:      skyCubemapFogColorUniform,
 				externalFaceFogColor:        skyExternalFaceFogColorUniform,
 				fogDensityUniform:           skyFogDensityUniform,
+				proceduralFogDensity:        skyProceduralFogDensityUniform,
+				proceduralHorizonColor:      skyProceduralHorizonColorUniform,
+				proceduralZenithColor:       skyProceduralZenithColorUniform,
 				cubemapFogDensityUniform:    skyCubemapFogDensityUniform,
 				externalFaceFogDensity:      skyExternalFaceFogDensityUniform,
 				vp:                          vp,
@@ -550,6 +596,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				modelRotation:               brush.rotation,
 				modelScale:                  brush.scale,
 				fogColor:                    fogColor,
+				proceduralHorizon:           proceduralSkyHorizon,
+				proceduralZenith:            proceduralSkyZenith,
 				fogDensity:                  skyFogFactor,
 				solidTextures:               worldSkySolidTextures,
 				alphaTextures:               worldSkyAlphaTextures,
@@ -563,6 +611,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				externalSkyMode:             skyExternalMode,
 				frame:                       brush.frame,
 				fastSky:                     worldFastSky,
+				proceduralSky:               shouldUseProceduralSky(worldFastSky, worldProceduralSky, skyExternalMode),
 			})
 			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindBrushWorldProgram()

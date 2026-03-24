@@ -1,9 +1,8 @@
 {
-  "hash": "aafe2cb285d9faf9ea5dea3689392c62b4274915b91dc5b7db26d8dae3bac766",
+  "hash": "af7fccc48ff4c6db082eea9ba7a1d4224fe5d47abf23e6ca48bc8719ca8d65c2",
   "files": {
     ".yggdrasil/model/host/runtime/yg-node.yaml": "831542b11bcbaaa502763f88e7277fdf2b2676b37f08115f0a6d5177c9928a16",
     ".yggdrasil/model/host/runtime/interface.md": "92a42f7b427be3c2869da0ddb9928ed68e09b6503bd1282d29998b25dc9ad0aa",
-    ".yggdrasil/model/host/runtime/internals.md": "f8b4cfbe4f710b5485877d95bd91def7c4de512e42fcd1a0a11a100786d5c318",
     ".yggdrasil/model/host/runtime/responsibility.md": "e16fc307c021643ddbb945edc4867f4f8dbbd82ce5ccd05f62da8d7713144df0",
     ".yggdrasil/model/host/yg-node.yaml": "b10e523d4cf94fa4c2e7eb15980b65027e6e7c5c8ae5b476f03c6ec6dbdfb1dd",
     ".yggdrasil/model/host/interface.md": "38ccd74ad17fc4889810342633709f055c657bd1a8e1a405c982edeaecf8b4d2",
@@ -17,12 +16,13 @@
     "internal/host/server_browser.go": "b0577383529d25a50ec6b3c4610afc088be492f39939ee826d4e1c54c6cb688f",
     "internal/host/host_test.go": "83b30984ec3dcaa32d28ac55009926782cdb69f1a14550b7e3d9243c3e9485bb",
     "internal/host/config_test.go": "02b16b0a2bdd82513235cd6e9f9a3f7e0d54f4876ce9fc333475258668d3dc13",
-    "internal/host/loopback_test.go": "ebe38a45b99ddbb26d998e23f0150ebcfb5f2fd4dbd25ac1586242619f3fb2db"
+    "internal/host/loopback_test.go": "ebe38a45b99ddbb26d998e23f0150ebcfb5f2fd4dbd25ac1586242619f3fb2db",
+    ".yggdrasil/model/host/runtime/internals.md": "410da426c843ea424ee11fa9e20900626fa5eb10234eeb6d95e9f1ace3225e09"
   },
   "mtimes": {
     ".yggdrasil/model/host/runtime/yg-node.yaml": 1774217886037.3098,
     ".yggdrasil/model/host/runtime/interface.md": 1774337829808.6445,
-    ".yggdrasil/model/host/runtime/internals.md": 1774337836432.7668,
+    ".yggdrasil/model/host/runtime/internals.md": 1774348878343.5398,
     ".yggdrasil/model/host/runtime/responsibility.md": 1774217886119.311,
     ".yggdrasil/model/host/yg-node.yaml": 1774217885954.3083,
     ".yggdrasil/model/host/interface.md": 1774217807092.0435,

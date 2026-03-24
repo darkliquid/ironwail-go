@@ -127,6 +127,24 @@ void main() {
 	fragColor = result;
 }`
 
+	worldSkyProceduralFragmentShaderGL = `#version 410 core
+in vec3 vDir;
+out vec4 fragColor;
+
+uniform vec3 uHorizonColor;
+uniform vec3 uZenithColor;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+
+void main() {
+	vec3 dir = normalize(vDir);
+	float gradient = clamp(dir.z * 0.5 + 0.5, 0.0, 1.0);
+	gradient = gradient * gradient;
+	vec3 result = mix(uHorizonColor, uZenithColor, gradient);
+	result = mix(result, uFogColor, uFogDensity);
+	fragColor = vec4(result, 1.0);
+}`
+
 	worldSkyCubemapVertexShaderGL = `#version 410 core
 layout(location = 0) in vec3 aPosition;
 
@@ -244,6 +262,30 @@ func (r *Renderer) ensureWorldSkyPrograms() error {
 		r.worldSkyCameraOriginUniform = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
 		r.worldSkyFogColorUniform = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
 		r.worldSkyFogDensityUniform = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
+	}
+
+	if r.worldSkyProceduralProgram == 0 {
+		vs, err := compileShader(worldSkyVertexShaderGL, gl.VERTEX_SHADER)
+		if err != nil {
+			return fmt.Errorf("compile world sky procedural vertex shader: %w", err)
+		}
+		fs, err := compileShader(worldSkyProceduralFragmentShaderGL, gl.FRAGMENT_SHADER)
+		if err != nil {
+			gl.DeleteShader(vs)
+			return fmt.Errorf("compile world sky procedural fragment shader: %w", err)
+		}
+
+		program := createProgram(vs, fs)
+		r.worldSkyProceduralProgram = program
+		r.worldSkyProceduralVPUniform = gl.GetUniformLocation(program, gl.Str("uViewProjection\x00"))
+		r.worldSkyProceduralModelOffset = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
+		r.worldSkyProceduralModelRotation = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
+		r.worldSkyProceduralModelScale = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
+		r.worldSkyProceduralCameraOrigin = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
+		r.worldSkyProceduralFogColor = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
+		r.worldSkyProceduralFogDensity = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
+		r.worldSkyProceduralHorizonColor = gl.GetUniformLocation(program, gl.Str("uHorizonColor\x00"))
+		r.worldSkyProceduralZenithColor = gl.GetUniformLocation(program, gl.Str("uZenithColor\x00"))
 	}
 
 	if r.worldSkyCubemapProgram == 0 {
@@ -521,11 +563,13 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 
 type skyPassState struct {
 	program                     uint32
+	proceduralProgram           uint32
 	cubemapProgram              uint32
 	externalFaceProgram         uint32
 	vpUniform                   int32
 	solidUniform                int32
 	alphaUniform                int32
+	proceduralVPUniform         int32
 	cubemapVPUniform            int32
 	cubemapUniform              int32
 	externalFaceVPUniform       int32
@@ -538,6 +582,9 @@ type skyPassState struct {
 	modelOffsetUniform          int32
 	modelRotationUniform        int32
 	modelScaleUniform           int32
+	proceduralModelOffset       int32
+	proceduralModelRotation     int32
+	proceduralModelScale        int32
 	cubemapModelOffsetUniform   int32
 	cubemapModelRotationUniform int32
 	cubemapModelScaleUniform    int32
@@ -548,12 +595,17 @@ type skyPassState struct {
 	solidLayerSpeedUniform      int32
 	alphaLayerSpeedUniform      int32
 	cameraOriginUniform         int32
+	proceduralCameraOrigin      int32
 	cubemapCameraOriginUniform  int32
 	externalFaceCameraOrigin    int32
 	fogColorUniform             int32
+	proceduralFogColor          int32
 	cubemapFogColorUniform      int32
 	externalFaceFogColor        int32
 	fogDensityUniform           int32
+	proceduralFogDensity        int32
+	proceduralHorizonColor      int32
+	proceduralZenithColor       int32
 	cubemapFogDensityUniform    int32
 	externalFaceFogDensity      int32
 	vp                          [16]float32
@@ -565,6 +617,8 @@ type skyPassState struct {
 	modelRotation               [16]float32
 	modelScale                  float32
 	fogColor                    [3]float32
+	proceduralHorizon           [3]float32
+	proceduralZenith            [3]float32
 	fogDensity                  float32
 	solidTextures               map[int32]uint32
 	alphaTextures               map[int32]uint32
@@ -577,6 +631,7 @@ type skyPassState struct {
 	externalFaceTextures        [6]uint32
 	frame                       int
 	fastSky                     bool
+	proceduralSky               bool
 }
 
 // worldSkyTexturesForFace resolves the solid and alpha sky layer texture handles for a sky face, with animation support.
@@ -622,7 +677,22 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	}
 	useCubemap := state.externalSkyMode == externalSkyboxRenderCubemap && state.externalCubemap != 0
 	useExternalFaces := state.externalSkyMode == externalSkyboxRenderFaces
-	if useCubemap {
+	useProcedural := state.proceduralSky && !useCubemap && !useExternalFaces
+	if useProcedural {
+		if state.proceduralProgram == 0 {
+			return
+		}
+		gl.UseProgram(state.proceduralProgram)
+		gl.UniformMatrix4fv(state.proceduralVPUniform, 1, false, &state.vp[0])
+		gl.Uniform3f(state.proceduralModelOffset, state.modelOffset[0], state.modelOffset[1], state.modelOffset[2])
+		gl.UniformMatrix4fv(state.proceduralModelRotation, 1, false, &state.modelRotation[0])
+		gl.Uniform1f(state.proceduralModelScale, state.modelScale)
+		gl.Uniform3f(state.proceduralCameraOrigin, state.cameraOrigin[0], state.cameraOrigin[1], state.cameraOrigin[2])
+		gl.Uniform3f(state.proceduralFogColor, state.fogColor[0], state.fogColor[1], state.fogColor[2])
+		gl.Uniform1f(state.proceduralFogDensity, state.fogDensity)
+		gl.Uniform3f(state.proceduralHorizonColor, state.proceduralHorizon[0], state.proceduralHorizon[1], state.proceduralHorizon[2])
+		gl.Uniform3f(state.proceduralZenithColor, state.proceduralZenith[0], state.proceduralZenith[1], state.proceduralZenith[2])
+	} else if useCubemap {
 		if state.cubemapProgram == 0 {
 			return
 		}
@@ -686,7 +756,7 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	gl.Disable(gl.BLEND)
 
 	for _, call := range calls {
-		if !useCubemap && !useExternalFaces {
+		if !useProcedural && !useCubemap && !useExternalFaces {
 			solid, alpha := worldSkyTexturesForFace(
 				call.face,
 				state.solidTextures,

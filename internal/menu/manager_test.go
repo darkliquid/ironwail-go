@@ -2198,6 +2198,35 @@ func TestMousemoveAbsoluteSelectsControlsRows(t *testing.T) {
 	}
 }
 
+func TestControlsMouseRebindingModeLocksHoveredRow(t *testing.T) {
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(nil, inputSys)
+	mgr.active = true
+	mgr.state = MenuControls
+	mgr.controlsCursor = controlItemForward
+
+	mgr.M_Key(input.KMouse1)
+	if !mgr.WaitingForKeyBinding() {
+		t.Fatal("expected controls menu to enter rebinding mode via mouse1")
+	}
+
+	mgr.M_MousemoveAbsolute(0, controlRowY(controlItemAttack))
+	if got := mgr.controlsCursor; got != controlItemForward {
+		t.Fatalf("controls cursor should stay locked while rebinding, got %d", got)
+	}
+
+	mgr.M_Key(input.KEscape)
+	if mgr.WaitingForKeyBinding() {
+		t.Fatal("expected controls rebinding mode to exit on escape")
+	}
+
+	mgr.M_MousemoveAbsolute(0, controlRowY(controlItemAttack))
+	if got := mgr.controlsCursor; got != controlItemAttack {
+		t.Fatalf("controls cursor after rebinding = %d, want %d", got, controlItemAttack)
+	}
+}
+
 func TestMousemoveAbsoluteSelectsJoinGameServerRows(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)

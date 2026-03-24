@@ -9,3 +9,4 @@ relations:
 mapping:
   paths:
     - cmd/qgo/main.go
+    - cmd/qgo/main_test.go

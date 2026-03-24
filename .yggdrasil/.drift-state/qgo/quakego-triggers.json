@@ -1,0 +1,31 @@
+{
+  "hash": "13959d1ac09dc46789df950f7a50157cbf324424e6d7a7ffb90425315996e6eb",
+  "files": {
+    ".yggdrasil/model/qgo/quakego-triggers/yg-node.yaml": "8c67893f4e85d1f901dd4f433279376170a24b39300bc4443955908300640126",
+    ".yggdrasil/model/qgo/quakego-triggers/responsibility.md": "d0cd6f2c67214048d4645d2826d8990cf2bf0bc4eda736758e422d3e48c12467",
+    ".yggdrasil/model/qgo/yg-node.yaml": "70b3a7301c232f3277b6fd201f3b868e782b403d6f5be85811ae86f045f93338",
+    ".yggdrasil/model/qgo/interface.md": "9a62990de6bd7a015f715a0cc250c87c893473db33e40aabd1fff984834df6b0",
+    ".yggdrasil/model/qgo/internals.md": "647bc39c090a4eab37e5e9f64e25924b1b197a0552d31324c3ede86689a88243",
+    ".yggdrasil/model/qgo/responsibility.md": "713aa683d5b44e1415e7bc49449023717a2641e096d97f763254a25d7619eceb",
+    ".yggdrasil/model/qgo/quake-stubs/responsibility.md": "1132195d2e3474c2baae5662d0fbba39275be66b86f98130ecbfb47c51a5d428",
+    ".yggdrasil/model/qgo/quake-stubs/interface.md": "ff1f3aa69f3795626f3a8c4744fbfdea65bfbe95a983d1f6530a75b8258b8db3",
+    ".yggdrasil/model/qgo/quakego-triggers/interface.md": "97b3548e014ee5a78fd45b7a7f5a79fc1a0d3b8dfad30957c10634b887f4eb66",
+    ".yggdrasil/model/qgo/quakego-triggers/internals.md": "9f557739c39c0f0762c795f1190e304724615ab17aa78280805d8bf4f0cf373f",
+    "pkg/qgo/quakego/triggers.go": "6605dd87f551c34da14436f65d158e70aa6ee0e8a8d861bf6326cd9499d0c6b4",
+    "pkg/qgo/quakego/triggers_test.go": "ab7d6be36c70fd112cd29b5c340a609fbb9d514f72cf8585bcbb3fde08a81b30"
+  },
+  "mtimes": {
+    ".yggdrasil/model/qgo/quakego-triggers/yg-node.yaml": 1774353920297.9614,
+    ".yggdrasil/model/qgo/quakego-triggers/interface.md": 1774354526073.6077,
+    ".yggdrasil/model/qgo/quakego-triggers/internals.md": 1774354534181.7368,
+    ".yggdrasil/model/qgo/quakego-triggers/responsibility.md": 1774353927311.073,
+    ".yggdrasil/model/qgo/yg-node.yaml": 1774354005414.3171,
+    ".yggdrasil/model/qgo/interface.md": 1774354006040.3271,
+    ".yggdrasil/model/qgo/internals.md": 1774354006196.3296,
+    ".yggdrasil/model/qgo/responsibility.md": 1774354005918.3252,
+    ".yggdrasil/model/qgo/quake-stubs/responsibility.md": 1774311350958.75,
+    ".yggdrasil/model/qgo/quake-stubs/interface.md": 1774348861085.2717,
+    "pkg/qgo/quakego/triggers.go": 1774354501434.2153,
+    "pkg/qgo/quakego/triggers_test.go": 1774354515578.4407
+  }
+}

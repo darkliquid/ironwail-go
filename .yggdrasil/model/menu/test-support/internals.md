@@ -17,6 +17,7 @@ The test-support node assembles lightweight stand-ins for input and render depen
   - cursor navigation wrap from `BACK` to first row (and back),
   - label generation for a newly added command (`centerview`),
   - clear/rebind flow on a newly added command row while preserving existing semantics.
+  - mouse-hover lock during rebinding (`KMouse1` enter capture, `M_MousemoveAbsolute` no-op until cancel).
 - These tests keep coverage narrow and behavior-oriented, so matrix growth remains safe without broad menu snapshot churn.
 
 ## Decisions

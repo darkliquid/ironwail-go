@@ -117,10 +117,21 @@ func TestOptimizeIRProgram_FoldsLiteralArithmeticAndComparisons(t *testing.T) {
 				Body: []IRInst{
 					{Op: qc.OPStoreF, A: 100, B: 100, ImmFloat: 7, HasImmFloat: true, Type: EvFloat},
 					{Op: qc.OPStoreF, A: 101, B: 101, ImmFloat: 3, HasImmFloat: true, Type: EvFloat},
-					{Op: qc.OPAddF, A: 100, B: 101, C: 102, Type: EvFloat}, // fold -> 10
-					{Op: qc.OPLT, A: 101, B: 100, C: 103, Type: EvFloat},   // fold -> 1
-					{Op: qc.OPGE, A: 101, B: 100, C: 104, Type: EvFloat},   // fold -> 0
-					{Op: qc.OPStoreF, A: 106, B: 106, Type: EvFloat},       // removable self-store
+					{Op: qc.OPStoreF, A: 102, B: 102, ImmFloat: 7, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPAddF, A: 100, B: 101, C: 103, Type: EvFloat}, // fold -> 10
+					{Op: qc.OPEqF, A: 100, B: 102, C: 104, Type: EvFloat},  // fold -> 1
+					{Op: qc.OPEqF, A: 100, B: 101, C: 105, Type: EvFloat},  // fold -> 0
+					{Op: qc.OPNeF, A: 100, B: 101, C: 106, Type: EvFloat},  // fold -> 1
+					{Op: qc.OPNeF, A: 100, B: 102, C: 107, Type: EvFloat},  // fold -> 0
+					{Op: qc.OPLT, A: 101, B: 100, C: 108, Type: EvFloat},   // fold -> 1
+					{Op: qc.OPLT, A: 100, B: 101, C: 109, Type: EvFloat},   // fold -> 0
+					{Op: qc.OPLE, A: 101, B: 100, C: 110, Type: EvFloat},   // fold -> 1
+					{Op: qc.OPLE, A: 100, B: 101, C: 111, Type: EvFloat},   // fold -> 0
+					{Op: qc.OPGT, A: 100, B: 101, C: 112, Type: EvFloat},   // fold -> 1
+					{Op: qc.OPGT, A: 101, B: 100, C: 113, Type: EvFloat},   // fold -> 0
+					{Op: qc.OPGE, A: 100, B: 101, C: 114, Type: EvFloat},   // fold -> 1
+					{Op: qc.OPGE, A: 101, B: 100, C: 115, Type: EvFloat},   // fold -> 0
+					{Op: qc.OPStoreF, A: 116, B: 116, Type: EvFloat},       // removable self-store
 				},
 			},
 		},
@@ -129,20 +140,38 @@ func TestOptimizeIRProgram_FoldsLiteralArithmeticAndComparisons(t *testing.T) {
 	optimizeIRProgram(prog)
 
 	body := prog.Functions[0].Body
-	if len(body) != 5 {
-		t.Fatalf("body len = %d, want 5", len(body))
+	if len(body) != 16 {
+		t.Fatalf("body len = %d, want 16", len(body))
 	}
 
-	if body[2].Op != qc.OPStoreF || body[2].B != 102 || body[2].ImmFloat != 10 || !body[2].HasImmFloat {
-		t.Fatalf("inst[2] = %+v, want folded OPStoreF to vreg 102 with ImmFloat=10", body[2])
+	if body[3].Op != qc.OPStoreF || body[3].B != 103 || body[3].ImmFloat != 10 || !body[3].HasImmFloat {
+		t.Fatalf("inst[3] = %+v, want folded OPStoreF to vreg 103 with ImmFloat=10", body[3])
 	}
 
-	if body[3].Op != qc.OPStoreF || body[3].B != 103 || body[3].ImmFloat != 1 || !body[3].HasImmFloat {
-		t.Fatalf("inst[3] = %+v, want folded OPStoreF to vreg 103 with ImmFloat=1", body[3])
+	want := []struct {
+		idx int
+		reg VReg
+		val float64
+	}{
+		{4, 104, 1},
+		{5, 105, 0},
+		{6, 106, 1},
+		{7, 107, 0},
+		{8, 108, 1},
+		{9, 109, 0},
+		{10, 110, 1},
+		{11, 111, 0},
+		{12, 112, 1},
+		{13, 113, 0},
+		{14, 114, 1},
+		{15, 115, 0},
 	}
 
-	if body[4].Op != qc.OPStoreF || body[4].B != 104 || body[4].ImmFloat != 0 || !body[4].HasImmFloat {
-		t.Fatalf("inst[4] = %+v, want folded OPStoreF to vreg 104 with ImmFloat=0", body[4])
+	for _, tc := range want {
+		inst := body[tc.idx]
+		if inst.Op != qc.OPStoreF || inst.B != tc.reg || inst.ImmFloat != tc.val || !inst.HasImmFloat {
+			t.Fatalf("inst[%d] = %+v, want folded OPStoreF to vreg %d with ImmFloat=%v", tc.idx, inst, tc.reg, tc.val)
+		}
 	}
 }
 
@@ -477,4 +506,125 @@ func TestOptimizeIRProgram_PrunesConstConditionBranches(t *testing.T) {
 	if !hasDynamicIfNot {
 		t.Fatalf("expected dynamic OPIFNot to remain conditional: %+v", body)
 	}
+}
+
+func TestOptimizeIRProgram_PropagatesLocalCopiesInStraightLine(t *testing.T) {
+	vSrc := vregBase + 50
+	vTmp := vregBase + 51
+	vRes := vregBase + 52
+
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Locals: []IRLocal{
+					{Name: "src", Type: EvFloat, VReg: vSrc},
+					{Name: "tmp", Type: EvFloat, VReg: vTmp},
+					{Name: "res", Type: EvFloat, VReg: vRes},
+				},
+				Body: []IRInst{
+					{Op: qc.OPStoreF, B: vSrc, ImmFloat: 4, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vSrc, B: vTmp, Type: EvFloat}, // tmp = src
+					{Op: qc.OPAddF, A: vTmp, B: VReg(qc.OFSParm0), C: vRes, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vRes, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+
+	var sawAdd bool
+	for _, inst := range body {
+		if inst.Op == qc.OPAddF && inst.C == vRes {
+			sawAdd = true
+			if inst.A != vSrc {
+				t.Fatalf("expected copy-propagated add source %d, got %d (%+v)", vSrc, inst.A, inst)
+			}
+		}
+	}
+	if !sawAdd {
+		t.Fatalf("expected OPAddF in optimized body: %+v", body)
+	}
+}
+
+func TestOptimizeIRProgram_CopyPropagationStopsOnInterveningWrite(t *testing.T) {
+	vSrc := vregBase + 60
+	vTmp := vregBase + 61
+	vRes := vregBase + 62
+
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Locals: []IRLocal{
+					{Name: "src", Type: EvFloat, VReg: vSrc},
+					{Name: "tmp", Type: EvFloat, VReg: vTmp},
+					{Name: "res", Type: EvFloat, VReg: vRes},
+				},
+				Body: []IRInst{
+					{Op: qc.OPStoreF, B: vSrc, ImmFloat: 5, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vSrc, B: vTmp, Type: EvFloat},                        // tmp = src
+					{Op: qc.OPStoreF, B: vSrc, ImmFloat: 9, HasImmFloat: true, Type: EvFloat}, // write src invalidates tmp alias
+					{Op: qc.OPAddF, A: vTmp, B: VReg(qc.OFSParm0), C: vRes, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vRes, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+
+	for _, inst := range body {
+		if inst.Op == qc.OPAddF && inst.C == vRes {
+			if inst.A != vTmp {
+				t.Fatalf("expected add to keep tmp after source write, got %+v", inst)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected OPAddF in optimized body: %+v", body)
+}
+
+func TestOptimizeIRProgram_CopyPropagationStopsAtLabels(t *testing.T) {
+	vSrc := vregBase + 70
+	vTmp := vregBase + 71
+	vRes := vregBase + 72
+
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Locals: []IRLocal{
+					{Name: "src", Type: EvFloat, VReg: vSrc},
+					{Name: "tmp", Type: EvFloat, VReg: vTmp},
+					{Name: "res", Type: EvFloat, VReg: vRes},
+				},
+				Body: []IRInst{
+					{Op: qc.OPStoreF, A: vSrc, B: vTmp, Type: EvFloat}, // tmp = src
+					LabelInst("join"), // new block boundary clears alias state
+					{Op: qc.OPAddF, A: vTmp, B: VReg(qc.OFSParm0), C: vRes, Type: EvFloat},
+					{Op: qc.OPStoreF, A: vRes, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+
+	for _, inst := range body {
+		if inst.Op == qc.OPAddF && inst.C == vRes {
+			if inst.A != vTmp {
+				t.Fatalf("expected add to keep tmp across label boundary, got %+v", inst)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected OPAddF in optimized body: %+v", body)
 }

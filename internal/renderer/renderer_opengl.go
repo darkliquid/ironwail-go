@@ -574,6 +574,7 @@ type Renderer struct {
 	worldEBO                            uint32
 	worldProgram                        uint32
 	worldSkyProgram                     uint32
+	worldSkyProceduralProgram           uint32
 	worldSkyCubemapProgram              uint32
 	worldSkyExternalFaceProgram         uint32
 	worldVPUniform                      int32
@@ -585,6 +586,15 @@ type Renderer struct {
 	worldSkyVPUniform                   int32
 	worldSkySolidUniform                int32
 	worldSkyAlphaUniform                int32
+	worldSkyProceduralVPUniform         int32
+	worldSkyProceduralModelOffset       int32
+	worldSkyProceduralModelRotation     int32
+	worldSkyProceduralModelScale        int32
+	worldSkyProceduralCameraOrigin      int32
+	worldSkyProceduralFogColor          int32
+	worldSkyProceduralFogDensity        int32
+	worldSkyProceduralHorizonColor      int32
+	worldSkyProceduralZenithColor       int32
 	worldSkyCubemapVPUniform            int32
 	worldSkyCubemapUniform              int32
 	worldSkyExternalFaceVPUniform       int32

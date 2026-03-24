@@ -1769,6 +1769,14 @@ func (s *Server) DevStatsSnapshot() (curr, peak DevStats) {
 	return s.devStats, s.devPeak
 }
 
+// DevStatsEdictCounters returns active and configured maximum edict counters.
+func (s *Server) DevStatsEdictCounters() (active, max int) {
+	if s == nil {
+		return 0, 0
+	}
+	return s.devStats.Edicts, s.MaxEdicts
+}
+
 func (s *Server) recordDevStatsEdicts(active int) {
 	if active > 600 && s.devPeak.Edicts <= 600 {
 		slog.Warn("edict count exceeds standard limit",

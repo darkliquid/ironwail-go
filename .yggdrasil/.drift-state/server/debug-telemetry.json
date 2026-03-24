@@ -1,5 +1,5 @@
 {
-  "hash": "3b0ef485820c2e7cc8fb2deb3e6af49beb06618c7afd668baccae0e97a21af12",
+  "hash": "e8244fe07bd82421379163b450b87001fc920de345940bac58342f639503012b",
   "files": {
     ".yggdrasil/model/server/debug-telemetry/yg-node.yaml": "ab9ce8288868f0d31ee62502b5ae9cb9fd02945b1166e07b87deaa5e0d207d43",
     ".yggdrasil/model/server/debug-telemetry/interface.md": "6c874e23ed1bd993ec7d1828ab5ff732ade7bdc427302cf6fff8f99ac4cc70aa",
@@ -10,14 +10,14 @@
     ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
     ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
     ".yggdrasil/model/qc/core/responsibility.md": "2c4a6cf150e8684ba3066af25c1bfeff1324adda5efb34fa4cdb82dd9cbbf112",
-    ".yggdrasil/model/qc/core/interface.md": "ddfca839a025d89b9811b1484b8d392da6a1f385ab1d14ac93d7c7f9cb04159b",
     ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
     ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
     "internal/server/debug_telemetry.go": "f3473b73582ce800374897c26d5a46b10988ad82725b3fa25958030e22af6645",
     "internal/server/qc_trace.go": "c05e6e9fd0f8937546860864bfc35c6de445be9f85b6541fd2f2fbd2ae9c7bec",
     "internal/server/debug_telemetry_test.go": "876eb68a965941822d77009047c6ddde923f6b7eb448cb082f62b756b1d187ea",
     "internal/server/qc_trace_test.go": "58d2066f21e27e57464de49defa7cdd348fdda4abfb6f7dab95bfb22e8d3fc23",
-    "internal/server/world_telemetry_test.go": "bbffa0250565f1439d68aae966d2b6aa25229f70c3e213f24564da1dc8778977"
+    "internal/server/world_telemetry_test.go": "bbffa0250565f1439d68aae966d2b6aa25229f70c3e213f24564da1dc8778977",
+    ".yggdrasil/model/qc/core/interface.md": "57ee3c9accaf9b4db0201bbc575828ed3d178deaf4b2e044e69ea44c4d0ea1c1"
   },
   "mtimes": {
     ".yggdrasil/model/server/debug-telemetry/yg-node.yaml": 1774234390008.9812,
@@ -29,7 +29,7 @@
     ".yggdrasil/model/server/internals.md": 1774234390007.32,
     ".yggdrasil/model/server/responsibility.md": 1774234390007.2136,
     ".yggdrasil/model/qc/core/responsibility.md": 1774219202378.9526,
-    ".yggdrasil/model/qc/core/interface.md": 1774334792377.562,
+    ".yggdrasil/model/qc/core/interface.md": 1774349215557.5637,
     ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
     ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
     "internal/server/debug_telemetry.go": 1774191893478.9595,

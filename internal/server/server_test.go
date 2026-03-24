@@ -1424,6 +1424,31 @@ func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 	}
 }
 
+func TestDevStatsEdictCountersReturnsActiveAndMax(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	s.recordDevStatsEdicts(4)
+	active, max := s.DevStatsEdictCounters()
+	if active != 4 {
+		t.Fatalf("active edicts = %d, want 4", active)
+	}
+	if max != s.MaxEdicts {
+		t.Fatalf("max edicts = %d, want %d", max, s.MaxEdicts)
+	}
+
+	s.recordDevStatsEdicts(3)
+	active, max = s.DevStatsEdictCounters()
+	if active != 3 {
+		t.Fatalf("active edicts after decrease = %d, want 3", active)
+	}
+	if max != s.MaxEdicts {
+		t.Fatalf("max edicts after decrease = %d, want %d", max, s.MaxEdicts)
+	}
+}
+
 func TestFrameIncrementsDevStatsFrameCounter(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

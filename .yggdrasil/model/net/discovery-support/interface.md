@@ -24,5 +24,5 @@
 - `QueryServerRules` performs the C `test2`-style control query loop synchronously: send `CCReqRuleInfo` starting with an empty name, append each returned `(name, value)` pair, and stop when the server returns an empty-name `CCRepRuleInfo`.
 - `QueryServerPlayers` performs the C-style `CCReqPlayerInfo` loop synchronously: request each player index in order, append decoded rows while names are non-empty, and stop on an empty-name `CCRepPlayerInfo` terminator.
 - `AsyncReceiver` copies payload bytes before delivering them so receivers own the message data.
-- `PartialIPAddress` fills omitted octets from the right using the local IPv4 address and default port.
+- `PartialIPAddress` fills omitted octets from the right using the local IPv4 address and default port, with C-style tokenization edges: consecutive dots contribute zero-valued octets and `:port` parsing follows permissive `atoi` semantics.
 - `IPBan` models one active IPv4 address/mask pair, supports `off`/empty-address disable semantics, and exposes human-readable status text consumed by the host `ban` command.

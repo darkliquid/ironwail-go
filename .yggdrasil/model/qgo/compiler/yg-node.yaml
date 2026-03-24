@@ -9,6 +9,7 @@ relations:
 mapping:
   paths:
     - cmd/qgo/compiler/compiler.go
+    - cmd/qgo/compiler/builtins_registry.go
     - cmd/qgo/compiler/lowering.go
     - cmd/qgo/compiler/ir.go
     - cmd/qgo/compiler/codegen.go

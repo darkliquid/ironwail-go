@@ -14,6 +14,18 @@ The compiler is a four-stage pipeline:
 
 `Compiler.Compile` is the optimizer integration point: lowering always returns IR first, then `optimizeIRProgram` runs before code generation so downstream emission never sees removable self-copy store instructions and local-slot allocation reflects post-DCE live virtual-register use.
 
+### Shared package-loading seam for compile and source-order
+
+`loadTargetPackages` now centralizes the `.go`/`.qgo` overlay setup, dummy-file fallback,
+comment-preserving parse mode, and package-error aggregation used by the compiler entry
+points. This keeps `Compile` and `SourceOrder` aligned on what counts as the target package
+and avoids a second `go/packages` loading path with potentially different semantics.
+
+`SourceOrder` reuses the same loaded packages plus `sortedSyntaxFiles` to emit deterministic
+function rows in file/declaration order. When `.qgo` files were presented to `go/packages`
+through `.go` overlay filenames, the helper maps those synthetic filenames back to the
+original `.qgo` display path before returning rows.
+
 ### Incremental source-hash cache seam
 
 `Compiler.Compile` now computes a deterministic SHA-256 hash across every top-level `.go` and `.qgo` source file in the target package (sorted by filename, hashing both name and content). The hash maps to `<dir>/.qgo-cache/<hash>.progs.dat`.
@@ -34,10 +46,12 @@ Lowering intentionally processes only the packages passed in from `packages.Load
 To keep emitted `progs.dat` function/global ordering deterministic within the target package, lowering explicitly sorts:
 
 - syntax file lowering order by source filename from the package file-set for both declaration and body passes.
+- source-order helper output rows by that same sorted file order and each file's original
+  declaration order.
 
 This makes function table order stable across runs and machines for the same source tree, and prevents imported implementation details from introducing unrelated unsupported-syntax failures during user package compilation.
 
-Builtin directives in function doc comments now accept either explicit numeric IDs or canonical builtin names mapped from the runtime builtin table (`setorigin`, `spawn`, `remove`, `bprint`, `walkmove`, `droptofloor`, `write*`, etc). Alias resolution is case-insensitive and falls back to numeric parsing first.
+Builtin directives in function doc comments now accept either explicit numeric IDs or canonical builtin names resolved through a single compiler-local registry (`setorigin`, `spawn`, `remove`, `bprint`, `walkmove`, `droptofloor`, `write*`, etc). Name resolution is case-insensitive and falls back to numeric parsing first. The registry validates startup data for duplicate names, duplicate numeric IDs, missing names, and out-of-range builtin numbers so lowering no longer depends on a scattered switch table.
 
 ### QCVM-oriented allocation
 
@@ -123,7 +137,7 @@ This keeps dynamic field access opcode-correct without lowering imported helper 
 
 Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow float helper slice now produce an explicit defer diagnostic. Receiver-form methods beyond `FieldFloat`/`SetFieldFloat` remain deferred, so vector/string/entity receiver helpers still stay out of scope. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
 
-Method-based Vec3 lowering is also intentionally narrow in this slice: `lowerCallExpr` recognizes only receiver-form `Vec3.Add(Vec3)` and `Vec3.Sub(Vec3)` and emits direct vector arithmetic ops (`OPAddV` and `OPSubV`). This keeps method support aligned with the minimal vector helper objective and avoids broad operator/method emulation; other Vec3 receiver methods remain out of scope and fail with `unsupported Vec3 method`.
+Method-based Vec3 lowering is also intentionally narrow in this slice: `lowerCallExpr` recognizes receiver-form `Vec3.Add(Vec3)`, `Vec3.Sub(Vec3)`, `Vec3.Scale(float32)`, and `Vec3.Dot(Vec3)` and emits direct vector arithmetic ops (`OPAddV`, `OPSubV`, `OPMulVF`, `OPMulV`) with no `OP_CALL*` fallback. This keeps method support aligned with a small deterministic helper surface that mirrors existing vector opcode semantics while avoiding broad operator/method emulation; other Vec3 receiver methods remain out of scope and fail with `unsupported Vec3 method`.
 
 ### Deferred type-form diagnostics are lowered through dedicated handlers
 
@@ -174,6 +188,8 @@ Observed decision:
 Rationale:
 - traversing imported package bodies can trigger unsupported-language failures that are unrelated to the package being compiled.
 - stable function ordering is required for repeatable `progs.dat` layout comparisons in parity tooling.
+- the source-order CLI/helper must expose that exact ordering rather than reimplementing a
+  second traversal contract.
 
 Rejected alternatives:
 - recursively lowering imported package syntax:
@@ -185,6 +201,7 @@ Rejected alternatives:
 
 Observed decision:
 - preserve numeric builtin IDs in IR/function tables, but allow a named alias layer in directive parsing (`//qgo:builtin <name>`)
+- centralize the compiler-known builtin names in one validated registry that can answer both name→number and number→name lookups for later lowering/codegen slices
 - enforce a deterministic directive failure matrix in lowering: unknown alias, malformed payload, duplicate same-id directives, and ambiguous differing-id directives all produce explicit compile-time diagnostics instead of silent fallback.
 - keep alias coverage explicitly curated rather than auto-generated from all runtime builtin declarations; numeric directives remain the fallback for runtime-only/extension IDs.
 

@@ -347,6 +347,12 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 			},
 			requiredOpcodes: []qc.Opcode{qc.OPGT, qc.OPIFNot, qc.OPGoto, qc.OPAddF, qc.OPSubF},
 		},
+		"../testdata/vec3methods": {
+			requiredParms: map[string]int32{
+				"Compose": 7,
+			},
+			requiredOpcodes: []qc.Opcode{qc.OPAddV, qc.OPSubV, qc.OPMulVF, qc.OPMulV},
+		},
 	}
 
 	cases := []smokeCase{
@@ -435,6 +441,18 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 					}
 				}
 				return pos
+			},
+		},
+		{
+			name:     "vec3-methods-compose-deterministic",
+			fixture:  "../testdata/vec3methods",
+			function: "Compose",
+			args:     []float32{2, 0, 0, -1, 0, 0, 2.25},
+			goExpect: func(args []float32) float32 {
+				ax, ay, az := args[0], args[1], args[2]
+				bx, by, bz := args[3], args[4], args[5]
+				s := args[6]
+				return (ax*s)*bx + (ay*s)*by + (az*s)*bz
 			},
 		},
 	}
@@ -1096,6 +1114,115 @@ func Combine(a Vec3, b Vec3) Vec3 {
 	}
 }
 
+func TestCompile_Vec3MethodLowering_AddSubScaleDot_EmitsExpectedOpcodesNoCallFallback(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgovec3methodloweringextendedtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+type Vec3 [3]float32
+
+func (v Vec3) Add(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Sub(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Scale(s float32) Vec3 { return Vec3{} }
+func (v Vec3) Dot(o Vec3) float32 { return 0 }
+
+func Compose(a Vec3, b Vec3, s float32) float32 {
+	return a.Add(b).Sub(b).Scale(s).Dot(b)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	stmts := parseStatements(t, data, header)
+	hasAddV := false
+	hasSubV := false
+	hasMulVF := false
+	hasMulV := false
+	hasCall := false
+	for _, s := range stmts {
+		switch qc.Opcode(s.Op) {
+		case qc.OPAddV:
+			hasAddV = true
+		case qc.OPSubV:
+			hasSubV = true
+		case qc.OPMulVF:
+			hasMulVF = true
+		case qc.OPMulV:
+			hasMulV = true
+		case qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3, qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
+			hasCall = true
+		}
+	}
+
+	if !hasAddV {
+		t.Fatal("expected OP_ADD_V from Vec3.Add method lowering")
+	}
+	if !hasSubV {
+		t.Fatal("expected OP_SUB_V from Vec3.Sub method lowering")
+	}
+	if !hasMulVF {
+		t.Fatal("expected OP_MUL_VF from Vec3.Scale method lowering")
+	}
+	if !hasMulV {
+		t.Fatal("expected OP_MUL_V from Vec3.Dot method lowering")
+	}
+	if hasCall {
+		t.Fatal("did not expect OP_CALL* fallback for Vec3 Add/Sub/Scale/Dot method lowering")
+	}
+}
+
+func TestRoundTrip_Vec3MethodLowering_ScaleDot_ReturnExpectedResults(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgovec3methodroundtripextendedtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+type Vec3 [3]float32
+
+func (v Vec3) Add(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Sub(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Scale(s float32) Vec3 { return Vec3{} }
+func (v Vec3) Dot(o Vec3) float32 { return 0 }
+
+func Compose(a Vec3, b Vec3, s float32) float32 {
+	return a.Add(b).Sub(b).Scale(s).Dot(b)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	vm := loadVM(t, data)
+	fnum := vm.FindFunction("Compose")
+	if fnum < 0 {
+		t.Fatal("function 'Compose' not found")
+	}
+
+	inA := [3]float32{2, -3, 4.5}
+	inB := [3]float32{-1, 5, 0.5}
+	scale := float32(2.25)
+	vm.SetGVector(qc.OFSParm0, inA)
+	vm.SetGVector(qc.OFSParm1, inB)
+	vm.SetGFloat(qc.OFSParm2, scale)
+
+	if err := vm.ExecuteProgram(fnum); err != nil {
+		t.Fatalf("ExecuteProgram failed: %v", err)
+	}
+
+	got := vm.GFloat(qc.OFSReturn)
+	want := ((inA[0]*scale)*inB[0] + (inA[1]*scale)*inB[1] + (inA[2]*scale)*inB[2])
+	if got != want {
+		t.Fatalf("Compose(a, b, s) = %v, want %v", got, want)
+	}
+}
+
 func TestCompile_FunctionTableOrderFollowsFilenameOrder(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "go.mod"), `module qgosourceordertest
@@ -1126,6 +1253,53 @@ func MainValue() float32 { return Able() + Zed() }
 	stringTable := parseStrings(t, data, header)
 
 	mustAppearInOrder(t, funcs, stringTable, []string{"Able", "MainValue", "Zed"})
+}
+
+func TestSourceOrder_FunctionRowsFollowCompilerTraversal(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), `module qgosourceorderrows
+
+go 1.26
+`)
+	writeFile(t, filepath.Join(dir, "z_last.qgo"), `package main
+
+func Zed() float32 { return 2 }
+`)
+	writeFile(t, filepath.Join(dir, "a_first.qgo"), `package main
+
+func Able() float32 { return 1 }
+
+func Alpha() float32 { return Able() }
+`)
+	writeFile(t, filepath.Join(dir, "main.qgo"), `package main
+
+func MainValue() float32 { return Able() + Zed() }
+`)
+
+	order, err := SourceOrder(dir)
+	if err != nil {
+		t.Fatalf("SourceOrder failed: %v", err)
+	}
+
+	got := make([]string, 0, len(order))
+	for _, entry := range order {
+		got = append(got, fmt.Sprintf("%d:%s:%s", entry.Index, entry.File, entry.Function))
+	}
+
+	want := []string{
+		"0:a_first.qgo:Able",
+		"1:a_first.qgo:Alpha",
+		"2:main.qgo:MainValue",
+		"3:z_last.qgo:Zed",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len(order) = %d, want %d\n got=%v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("order[%d] = %q, want %q\nfull=%v", i, got[i], want[i], got)
+		}
+	}
 }
 
 func TestCompile_BuiltinDirectiveNamedAlias_EmitsNegativeBuiltinStatement(t *testing.T) {
@@ -1190,6 +1364,49 @@ func SpawnAlias() {}
 	}
 
 	t.Fatal("function 'SpawnAlias' not found")
+}
+
+func TestCompile_BuiltinDirective_CanonicalAndAliasNames_Equivalent(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinequivalencetest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin sprint
+func CanonicalSPrintBuiltin() {}
+
+//qgo:builtin print
+func AliasPrintBuiltin() {}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	funcs := parseFunctions(t, data, header)
+	stringTable := parseStrings(t, data, header)
+
+	want := map[string]int32{
+		"CanonicalSPrintBuiltin": -24,
+		"AliasPrintBuiltin":      -24,
+	}
+	gotCount := 0
+	for _, fn := range funcs {
+		name := stringAt(stringTable, fn.Name)
+		wantBuiltin, ok := want[name]
+		if !ok {
+			continue
+		}
+		gotCount++
+		if fn.FirstStatement != wantBuiltin {
+			t.Fatalf("%s first_statement = %d, want %d", name, fn.FirstStatement, wantBuiltin)
+		}
+	}
+	if gotCount != len(want) {
+		t.Fatalf("resolved builtin functions = %d, want %d", gotCount, len(want))
+	}
 }
 
 func TestCompile_BuiltinDirective_UnknownAlias_FailsWithDiagnostic(t *testing.T) {

@@ -7,6 +7,8 @@ This layer is the bridge between BSP/model-facing world data and backend-specifi
 It now also owns the shared BSP visibility helpers that map leaf mark-surfaces to built world faces and select the camera-visible face subset from a PVS mask. Backend-specific render loops are expected to consume these shared results rather than reimplementing leaf visibility policy independently.
 The shared sky helper layer now includes flat-sky color synthesis for `r_fastsky`: it averages non-transparent alpha-layer pixels into a 1x1 RGBA color swatch that backend runtimes can upload and bind for fast-sky rendering.
 The shared sky helper layer also normalizes cvar-driven embedded-sky layer speed controls (`r_skysolidspeed`, `r_skyalphaspeed`) with stable defaults and non-negative clamping so backend sky passes can safely consume runtime-tunable motion multipliers.
+The same helper layer now also owns the narrow procedural-sky baseline policy: a dedicated `r_proceduralsky` gate, deterministic horizon/zenith colors, and a shared predicate that limits the path to embedded fast-sky rendering only.
+The shared fog helper layer now also owns a narrow transition baseline (`blendFogStateTowards`) that clamps per-frame fog color/density deltas by a fixed step, providing a deterministic seam for snapshot-to-snapshot fog updates without introducing clock-based interpolation.
 OpenGL world-runtime upload now builds and stores a per-sky-texture 1x1 fast-sky texture cache from this helper output, and world teardown releases that cache with other sky textures.
 Texture animation chain building now treats any `'+'`-prefixed name as an animation participant and relies on `textureAnimationFrame` for token validation. This closes a narrow parity gap where a malformed `"+"` texture name was previously skipped silently (due to a pre-validation length guard) instead of surfacing the canonical "bad animating texture" error path used for other malformed animated names.
 
@@ -14,7 +16,9 @@ Texture animation chain building now treats any `'+'`-prefixed name as an animat
 
 - Shared world data must be backend-neutral enough for both OpenGL and GoGPU.
 - Fog, sky, liquid alpha, and lightmap helpers are parity-sensitive and feed directly into visible output differences.
+- Fog transition blending must remain deterministic (fixed-step, no wall-clock dependency) so tests and parity captures stay reproducible.
 - Flat-sky color derivation must ignore transparent alpha-layer pixels so fast-sky output stays stable across maps and texture animations.
+- Procedural-sky gating must stay deterministic and must not activate for external skyboxes or non-fast-sky paths.
 - Animation-name validation should not silently ignore malformed `'+'` names; invalid frame tokens must fail fast via `textureAnimationFrame` to keep texture-animation chain setup deterministic and diagnosable.
 
 ## Decisions

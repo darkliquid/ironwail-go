@@ -1,0 +1,12 @@
+name: QuakeGo Trigger Entities
+type: module
+description: "Trigger-family setup and dispatch logic for translated quakego gameplay, including receiver-style trigger adapters"
+blackbox: false
+relations:
+  - target: qgo/quake-stubs
+    type: uses
+    consumes: [Entity, Func callbacks, engine builtins]
+mapping:
+  paths:
+    - pkg/qgo/quakego/triggers.go
+    - pkg/qgo/quakego/triggers_test.go

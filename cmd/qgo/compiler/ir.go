@@ -109,6 +109,7 @@ func optimizeIRFunc(fn *IRFunc) {
 	foldLiteralConstFloatOps(fn)
 	pruneConstConditionBranches(fn)
 	foldStoreSelfCopies(fn)
+	propagateLocalCopies(fn)
 	pruneUnreachableBlocks(fn)
 	eliminateDeadVirtualStores(fn)
 	pruneUnusedLocals(fn)
@@ -307,6 +308,139 @@ func isNoOpStore(inst IRInst) bool {
 	switch inst.Op {
 	case qc.OPStoreF, qc.OPStoreV, qc.OPStoreS, qc.OPStoreEnt, qc.OPStoreFld, qc.OPStoreFNC:
 		return inst.A == inst.B
+	default:
+		return false
+	}
+}
+
+// propagateLocalCopies rewrites straight-line uses of local temporaries copied
+// from other single-slot locals (tmp = x; use(tmp) -> use(x)) while staying
+// within one basic-block segment and invalidating aliases on writes/calls.
+func propagateLocalCopies(fn *IRFunc) {
+	if len(fn.Body) == 0 || len(fn.Locals) == 0 {
+		return
+	}
+
+	localSlots := make(map[VReg]uint16, len(fn.Locals))
+	for _, local := range fn.Locals {
+		localSlots[local.VReg] = slotsForType(local.Type)
+	}
+	isTrackableLocal := func(v VReg) bool {
+		return localSlots[v] == 1
+	}
+
+	aliases := make(map[VReg]VReg)
+	clearAliases := func() {
+		for dst := range aliases {
+			delete(aliases, dst)
+		}
+	}
+	resolveAlias := func(v VReg) VReg {
+		if !isTrackableLocal(v) {
+			return v
+		}
+		cur := v
+		seen := map[VReg]struct{}{}
+		for {
+			next, ok := aliases[cur]
+			if !ok || next == cur {
+				return cur
+			}
+			if _, loop := seen[cur]; loop {
+				return cur
+			}
+			seen[cur] = struct{}{}
+			cur = next
+		}
+	}
+	invalidateAliasForDef := func(def VReg) {
+		if !isTrackableLocal(def) {
+			return
+		}
+		for dst, src := range aliases {
+			if dst == def || src == def || resolveAlias(src) == def {
+				delete(aliases, dst)
+			}
+		}
+	}
+
+	rewriteOperand := func(v VReg) VReg {
+		return resolveAlias(v)
+	}
+
+	for i := range fn.Body {
+		inst := fn.Body[i]
+		if inst.IsLabel() {
+			clearAliases()
+			continue
+		}
+
+		inst = rewriteCopyPropUses(inst, rewriteOperand)
+		info := irLivenessInfo(inst)
+		invalidateAliasForDef(info.def)
+
+		if isTrackableLocalCopy(inst, isTrackableLocal) {
+			inst.A = resolveAlias(inst.A)
+			aliases[inst.B] = inst.A
+		}
+
+		fn.Body[i] = inst
+
+		if isIRBlockTerminator(inst.Op) || irMayClobberLocals(inst.Op) {
+			clearAliases()
+		}
+	}
+}
+
+func isTrackableLocalCopy(inst IRInst, isTrackableLocal func(VReg) bool) bool {
+	if inst.ImmStr != "" || (inst.Op == qc.OPStoreF && inst.HasImmFloat) {
+		return false
+	}
+	switch inst.Op {
+	case qc.OPStoreF, qc.OPStoreS, qc.OPStoreEnt, qc.OPStoreFld, qc.OPStoreFNC:
+		return inst.A != inst.B && isTrackableLocal(inst.A) && isTrackableLocal(inst.B)
+	default:
+		return false
+	}
+}
+
+func rewriteCopyPropUses(inst IRInst, rewrite func(VReg) VReg) IRInst {
+	switch inst.Op {
+	case qc.OPStoreF, qc.OPStoreV, qc.OPStoreS, qc.OPStoreEnt, qc.OPStoreFld, qc.OPStoreFNC:
+		if !(inst.Op == qc.OPStoreS && inst.ImmStr != "") && !(inst.Op == qc.OPStoreF && inst.HasImmFloat) {
+			inst.A = rewrite(inst.A)
+		}
+	case qc.OPLoadF, qc.OPLoadV, qc.OPLoadS, qc.OPLoadEnt, qc.OPLoadFld, qc.OPLoadFNC,
+		qc.OPAddress,
+		qc.OPAddF, qc.OPSubF, qc.OPMulF, qc.OPDivF,
+		qc.OPAddV, qc.OPSubV,
+		qc.OPMulFV, qc.OPMulVF,
+		qc.OPEqF, qc.OPEqV, qc.OPEqS, qc.OPEqE, qc.OPEqFNC,
+		qc.OPNeF, qc.OPNeV, qc.OPNeS, qc.OPNeE, qc.OPNeFNC,
+		qc.OPLE, qc.OPGE, qc.OPLT, qc.OPGT,
+		qc.OPAnd, qc.OPOr, qc.OPBitAnd, qc.OPBitOr:
+		inst.A = rewrite(inst.A)
+		inst.B = rewrite(inst.B)
+	case qc.OPNotF, qc.OPNotV, qc.OPNotS, qc.OPNotEnt, qc.OPNotFNC:
+		inst.A = rewrite(inst.A)
+	case qc.OPIF, qc.OPIFNot, qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3, qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
+		inst.A = rewrite(inst.A)
+	case qc.OPStorePF, qc.OPStorePV, qc.OPStorePS, qc.OPStorePEnt, qc.OPStorePFld, qc.OPStorePFNC:
+		inst.A = rewrite(inst.A)
+		inst.B = rewrite(inst.B)
+	case qc.OPReturn, qc.OPDone:
+		inst.A = rewrite(inst.A)
+		inst.B = rewrite(inst.B)
+		inst.C = rewrite(inst.C)
+	}
+	return inst
+}
+
+func irMayClobberLocals(op qc.Opcode) bool {
+	switch op {
+	case qc.OPStorePF, qc.OPStorePV, qc.OPStorePS, qc.OPStorePEnt, qc.OPStorePFld, qc.OPStorePFNC,
+		qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3, qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
+		return true
 	default:
 		return false
 	}

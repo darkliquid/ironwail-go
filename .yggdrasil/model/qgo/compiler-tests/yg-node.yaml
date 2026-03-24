@@ -11,6 +11,7 @@ relations:
     consumes: [LoadProgs, FindGlobal, FindFunction, ExecuteProgram]
 mapping:
   paths:
+    - cmd/qgo/compiler/builtins_registry_test.go
     - cmd/qgo/compiler/compiler_test.go
     - cmd/qgo/compiler/globals_test.go
     - cmd/qgo/compiler/opcodes_test.go
@@ -19,3 +20,5 @@ mapping:
     - cmd/qgo/testdata/arithmetic/progs.go
     - cmd/qgo/testdata/controlflow/progs.go
     - cmd/qgo/testdata/maprunner/progs.go
+    - cmd/qgo/testdata/unsupported_typeswitch/progs.go
+    - cmd/qgo/testdata/vec3methods/progs.go

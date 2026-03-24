@@ -13,6 +13,7 @@
 - edict lookup/allocation/free helpers
 - QC profiling bridge (`QCProfileResults(top)`) that returns VM profile snapshots for host console commands
 - dev-stats bridge (`DevStatsSnapshot`) that surfaces current/peak server-side developer counters (including monotonic frame count, packet size, and edict population) to host commands
+- narrow edict-capacity bridge (`DevStatsEdictCounters`) that returns the active dev-stats edict count plus configured server max-edicts capacity for focused diagnostics
 - Go↔QC synchronization helpers for globals and edicts
 
 ## Contracts

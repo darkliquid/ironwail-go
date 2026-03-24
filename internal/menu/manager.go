@@ -729,6 +729,9 @@ func (m *Manager) M_MousemoveAbsolute(x, y int) {
 		m.ignoreMouseFrame = false
 		return
 	}
+	if m.state == MenuControls && m.controlsRebinding {
+		return
+	}
 	cursor, ok := m.menuCursorForPoint(x, y)
 	if !ok {
 		return

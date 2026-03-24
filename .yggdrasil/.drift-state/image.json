@@ -10,9 +10,9 @@
     "internal/image/wad.go": "58681674c3f58c40c8ff483a73662295674cbdaba9ba96c8d730255ff9936711",
     "internal/image/tga.go": "683e827c6c25e9aff96963a4ee350356528ed0396f521c6463af927a31ae6a8d",
     "internal/image/texture.go": "837e414e942444eb7927493d2d31b4fa8db47286696f06c1bdcc37c4d51e97af",
-    "internal/image/lumptype_string.go": "8bbea37aec0b395104e50c15173fdbe43bc2341bce2ade2418a7bffa4ffd8b77",
     "internal/image/image_test.go": "7c811c90b4fe299be6adc3a8d291060925a86993b538b5398d5801564f14d639",
-    "internal/image/wad_test.go": "6162736484dbc06b3827bae2fc5a0d08ca9a664a28b706a05599d0dac801991b"
+    "internal/image/wad_test.go": "6162736484dbc06b3827bae2fc5a0d08ca9a664a28b706a05599d0dac801991b",
+    "internal/image/lumptype_string.go": "8bbea37aec0b395104e50c15173fdbe43bc2341bce2ade2418a7bffa4ffd8b77"
   },
   "mtimes": {
     ".yggdrasil/model/image/yg-node.yaml": 1774243705579.7842,
@@ -24,7 +24,7 @@
     "internal/image/wad.go": 1773836785819.4187,
     "internal/image/tga.go": 1773836785819.212,
     "internal/image/texture.go": 1773836785819.0198,
-    "internal/image/lumptype_string.go": 1774335034463.0083,
+    "internal/image/lumptype_string.go": 1774353538531.8767,
     "internal/image/image_test.go": 1773836785818.739,
     "internal/image/wad_test.go": 1773836785818.8704
   }

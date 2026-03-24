@@ -11,6 +11,7 @@ mapping:
     - internal/renderer/world_transform_shared.go
     - internal/renderer/world_liquid_alpha.go
     - internal/renderer/world_sky_shared.go
+    - internal/renderer/world_sky_shared_test.go
     - internal/renderer/lightmap_samples.go
     - internal/renderer/surface.go
     - internal/renderer/surface_test.go

@@ -11,19 +11,25 @@
 - `-v` enables a success message that prints the destination path and byte count
 - `[dir]` defaults to `.` and is passed to `compiler.(*Compiler).Compile`
 
-## Planned CLI contract (not yet implemented)
+## Source-order CLI contract
 
-- future command shape: `qgo source-order [flags] [dir]`
+- command shape: `qgo source-order [flags] [dir]`
 - purpose: expose deterministic source/function ordering used by compilation for parity/debug tooling
-- expected formats:
-  - `-format text` emits stable line-based output
-  - `-format json` emits stable machine-readable output with `version`, `dir`, `scope`, and `order`
-- expected scopes:
-  - `-scope files` for file ordering only
-  - `-scope functions` for file + function ordering (default)
+- currently implemented formats/scopes:
+  - `-format text -scope functions` emits `<index>\t<relative-file>\t<function-name>`
+  - `-format text -scope files` emits `<index>\t<relative-file>`
+  - `-format json -scope functions` emits a JSON array of objects with keys ordered as
+    `index`, `file`, `function`
+  - `-format json -scope files` emits a JSON array of objects with keys ordered as
+    `index`, `file`
 - output destination:
   - stdout by default
   - `-o <path>` writes payload to file
+- forward-compatibility flags:
+  - `-strict` is parsed so later slices can tighten declaration handling without changing the CLI shape
+- currently rejected values:
+  - unknown `-format` values (anything other than `text` and `json`)
+  - unknown `-scope` values (anything other than `functions` and `files`)
 - diagnostics and status:
   - stderr diagnostics retain `qgo:` prefix
   - exit status `0` on success, `1` on failure
@@ -31,6 +37,8 @@
   - identical input + flags must produce byte-identical output
   - ordering must not depend on filesystem enumeration order
   - traversal logic must reuse existing compiler source-order semantics instead of a second ordering algorithm
+  - source-order `index` fields are zero-based
+  - relative file paths are normalized with `/` separators
 
 ## Failure modes
 

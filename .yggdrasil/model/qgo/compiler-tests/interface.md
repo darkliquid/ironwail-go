@@ -14,13 +14,18 @@ Observed validation surface:
 - helper-level tests pin allocator, string-table, and opcode-selection behavior so backend regressions fail near the source
 - GlobalAllocator baseline coverage asserts the first compiler-owned slot starts at `qc.OFSMsgEntity + 1`, preserving QCVM runtime/system globals before user allocations
 - unsupported-language coverage is explicit: tests should assert precise compiler errors for intentionally out-of-scope syntax (currently type assertions and type switches)
+- unsupported type-form diagnostics are pinned with dedicated contracts:
+  - `unsupported type assertion expression: x.(T) is deferred`
+  - `unsupported type switch statement: switch v := x.(type) is deferred`
 - incremental cache behavior is covered with focused tests that assert cache-hit reuse on unchanged sources and cache-miss recompilation after source edits
 - builtin directive coverage includes numeric and named forms with case-insensitive alias handling, asserting that emitted `DFunction.FirstStatement` remains the negative builtin number
+- builtin registry coverage includes direct registration/validation tests for canonical name↔number lookup, alias-name registration to an existing canonical builtin id, and rejection of duplicate names, duplicate canonical numbers, and missing/out-of-range entries
 - builtin directive coverage includes an alias-parity guard for mapped extension aliases (`precache_file2` -> builtin 77), reducing drift between compiler alias parsing and runtime stub catalog entries
 - builtin directive failure coverage pins diagnostics for unknown aliases, malformed payloads, duplicate directives mapping to the same builtin id, and ambiguous directives mapping to different builtin ids
 - IR pipeline coverage asserts optimizer behavior against no-op `OPStore* x -> x` statements without stripping immediate-backed constant pseudo-stores
 - IR pipeline coverage also asserts builtin IR functions are excluded from the no-op self-store optimization pass
 - IR pipeline coverage asserts a first literal-only constant-folding pass rewrites supported scalar float arithmetic/comparison expressions into immediate stores (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`), including `0.0` results that must remain explicit
+- IR pipeline coverage now pins full constant-comparison folding truth tables for `==`, `!=`, `<`, `<=`, `>`, and `>=` when both operands are literal-known in the same local fold segment
 - IR pipeline coverage also asserts phase-0 boundaries: fold tracking does not continue through copy-propagated stores and does not fold unary `OPNotF` in this slice
 - IR pipeline coverage asserts the minimal DCE pass removes dead pure virtual-register defs in both straight-line and simple label/branch control-flow bodies while retaining side-effecting ops and preserving branch/jump semantics
 - IR pipeline coverage asserts a dedicated unreachable-block pruning pass removes blocks that are not entry-reachable after explicit control-flow terminators, while retaining reachable label-target blocks
@@ -29,12 +34,14 @@ Observed validation surface:
 - parity smoke coverage includes Go-vs-QC output comparison for arithmetic fixture execution (`Add`) using shared input vectors
 - parity smoke harness coverage includes a deterministic QCVM baseline matrix across arithmetic/controlflow fixtures (`Add`, `Max`, `Sum`) with pinned input vectors and native-Go expected outputs
 - parity smoke harness map-runner coverage includes one deterministic end-to-end scenario (`MapRunner(start, steps)`) using the `cmd/qgo/testdata/maprunner` fixture, asserting QCVM/native-Go agreement on loop/branch position updates
+- parity smoke harness Vec3 coverage includes one deterministic fixture (`cmd/qgo/testdata/vec3methods`) with `Compose(ax, ay, az, bx, by, bz, s)` so QCVM/native-Go comparisons exercise lowered `Add/Sub/Scale/Dot` helper chains through a single numeric return value
 - import-isolation coverage asserts compiler success when an imported package body contains unsupported syntax, proving lowering remains constrained to compile-target package syntax.
 - dynamic field intrinsic coverage now asserts package-level `FieldFloat`/`SetFieldFloat` opcode emission (`OP_LOAD_F`, `OP_ADDRESS`, `OP_STOREP_F`) and strict helper-contract failures for wrong helper argument types and arity.
 - dynamic field intrinsic coverage now also asserts receiver-form lowering for `ent.FieldFloat(ofs)` and `ent.SetFieldFloat(ofs, value)` emits direct field opcodes without `OP_CALL*` fallback.
 - dynamic field intrinsic coverage also includes compile→VM round-trip execution that proves runtime read/write behavior for a discovered field offset (`FindField("health")`) using `SetEFloat` setup plus return-value and post-write assertions.
 - dynamic field intrinsic coverage includes compile→VM round-trip execution for receiver-form read/write helpers to prove runtime entity field access behavior through the receiver surface.
 - dynamic field intrinsic coverage now also pins the defer boundary by asserting non-float helper names (for example `FieldVector`/`SetFieldVector`) fail with an explicit "deferred" diagnostic instead of falling through generic call lowering.
+- vector method coverage now asserts minimal receiver-form Vec3 helper lowering: `a.Add(b).Sub(b).Scale(s).Dot(b)` emits `OP_ADD_V`, `OP_SUB_V`, `OP_MUL_VF`, and `OP_MUL_V` without `OP_CALL*` fallback, and compile→VM round-trip checks verify both vector-return (`Add/Sub`) and float-return (`Scale+Dot`) behavior through `OFS_RETURN`.
 - struct-literal scope coverage is explicit: tests assert `Vec3` literals continue to compile while non-`Vec3` struct literals fail with the dedicated `general struct literals are deferred` diagnostic including type context.
-- structural parity smoke coverage asserts shallow per-fixture structural signals (header/version/CRC/core-section sanity), function-shape contracts (`Add`/`Max`/`Sum` arity and positive statement anchors), and required opcode presence (`OPAddF`, `OPGT`, `OPIFNot`, `OPGoto`) without broad golden diffing
+- structural parity smoke coverage asserts shallow per-fixture structural signals (header/version/CRC/core-section sanity), function-shape contracts (`Add`/`Max`/`Sum`/`Compose` arity and positive statement anchors), and required opcode presence (`OPAddF`, `OPGT`, `OPIFNot`, `OPGoto`, `OPAddV`, `OPSubV`, `OPMulVF`, `OPMulV`) without broad golden diffing
 - parity smoke failure output now emits a minimal structured diff report grouped by actionable categories (`structural.header`, `structural.sections`, `structural.function_presence`, `structural.function_signature`, `structural.function_anchor`, `structural.opcode_presence`, `runtime.execute_program`, `behavior.return_value`) so follow-up parity slices can diagnose mismatches quickly

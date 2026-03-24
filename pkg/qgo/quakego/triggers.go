@@ -5,8 +5,22 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
+type triggerEntity quake.Entity
+
+func asTriggerEntity(ent *quake.Entity) *triggerEntity {
+	return (*triggerEntity)(ent)
+}
+
+func (te *triggerEntity) entity() *quake.Entity {
+	return (*quake.Entity)(te)
+}
+
 func trigger_reactivate() {
-	Self.Solid = SOLID_TRIGGER
+	asTriggerEntity(Self).reactivate()
+}
+
+func (te *triggerEntity) reactivate() {
+	te.entity().Solid = SOLID_TRIGGER
 }
 
 var (
@@ -15,49 +29,61 @@ var (
 )
 
 func multi_wait() {
-	if Self.MaxHealth != 0 {
-		Self.Health = Self.MaxHealth
-		Self.TakeDamage = DAMAGE_YES
-		Self.Solid = SOLID_BBOX
+	asTriggerEntity(Self).wait()
+}
+
+func (te *triggerEntity) wait() {
+	self := te.entity()
+
+	if self.MaxHealth != 0 {
+		self.Health = self.MaxHealth
+		self.TakeDamage = DAMAGE_YES
+		self.Solid = SOLID_BBOX
 	}
 }
 
 func multi_trigger() {
-	if Self.NextThink > Time {
+	asTriggerEntity(Self).trigger(Other)
+}
+
+func (te *triggerEntity) trigger(toucher *quake.Entity) {
+	self := te.entity()
+
+	if self.NextThink > Time {
 		return
 	}
 
-	if Self.ClassName == "trigger_secret" {
-		if Other.ClassName != "player" {
+	if self.ClassName == "trigger_secret" {
+		if toucher.ClassName != "player" {
 			return
 		}
 		FoundSecrets = FoundSecrets + 1
 		engine.WriteByte(MSG_ALL, float32(SVC_FOUNDSECRET))
 
-		MsgEntity = Other
+		MsgEntity = toucher
 		engine.WriteByte(MSG_ONE, float32(SVC_ACHIEVEMENT))
 		engine.WriteString(MSG_ONE, "ACH_FIND_SECRET")
 	}
 
-	if Self.Noise != StringNull {
-		engine.Sound(Self, int(CHAN_VOICE), Self.Noise, 1, ATTN_NORM)
+	if self.Noise != StringNull {
+		engine.Sound(self, int(CHAN_VOICE), self.Noise, 1, ATTN_NORM)
 	}
 
-	Self.TakeDamage = DAMAGE_NO
-	Activator = Other
+	self.TakeDamage = DAMAGE_NO
+	Activator = toucher
 
 	SUB_UseTargets()
 
-	if Self.Wait > 0 {
-		Self.Think = multi_wait
-		Self.NextThink = Time + Self.Wait
+	if self.Wait > 0 {
+		self.Think = te.wait
+		self.NextThink = Time + self.Wait
 	} else {
-		Self.Touch = SUB_Null
-		Self.NextThink = Time + 0.1
-		Self.Think = SUB_Remove
+		self.Touch = SUB_Null
+		self.NextThink = Time + 0.1
+		self.Think = SUB_Remove
 	}
 
-	if Activator.ClassName == "player" && World.Model == "maps/e2m3.bsp" && Self.Message == "$map_dopefish" {
+	if Activator.ClassName == "player" && World.Model == "maps/e2m3.bsp" && self.Message == "$map_dopefish" {
 		MsgEntity = Activator
 		engine.WriteByte(MSG_ONE, float32(SVC_ACHIEVEMENT))
 		engine.WriteString(MSG_ONE, "ACH_FIND_DOPEFISH")
@@ -65,70 +91,93 @@ func multi_trigger() {
 }
 
 func multi_killed() {
+	asTriggerEntity(Self).killed()
+}
+
+func (te *triggerEntity) killed() {
 	Other = DamageAttacker
-	multi_trigger()
+	te.trigger(Other)
 }
 
 func multi_use() {
+	asTriggerEntity(Self).use()
+}
+
+func (te *triggerEntity) use() {
 	Other = Activator
-	multi_trigger()
+	te.trigger(Other)
 }
 
 func multi_touch() {
-	if Other.ClassName != "player" {
+	asTriggerEntity(Self).touch(Other)
+}
+
+func (te *triggerEntity) touch(toucher *quake.Entity) {
+	if toucher.ClassName != "player" {
 		return
 	}
 
-	if Self.MoveDir != quake.MakeVec3(0, 0, 0) {
-		engine.MakeVectors(Other.Angles)
-		if VForward.Dot(Self.MoveDir) < 0 {
+	self := te.entity()
+	if self.MoveDir != quake.MakeVec3(0, 0, 0) {
+		engine.MakeVectors(toucher.Angles)
+		if VForward.Dot(self.MoveDir) < 0 {
 			return
 		}
 	}
 
-	multi_trigger()
+	te.trigger(toucher)
 }
 
 func trigger_multiple() {
-	if Self.Sounds == 1 {
+	asTriggerEntity(Self).setupMultiple()
+}
+
+func (te *triggerEntity) setupMultiple() {
+	self := te.entity()
+
+	if self.Sounds == 1 {
 		engine.PrecacheSound("misc/secret.wav")
-		Self.Noise = "misc/secret.wav"
-	} else if Self.Sounds == 2 {
+		self.Noise = "misc/secret.wav"
+	} else if self.Sounds == 2 {
 		engine.PrecacheSound("misc/talk.wav")
-		Self.Noise = "misc/talk.wav"
-	} else if Self.Sounds == 3 {
+		self.Noise = "misc/talk.wav"
+	} else if self.Sounds == 3 {
 		engine.PrecacheSound("misc/trigger1.wav")
-		Self.Noise = "misc/trigger1.wav"
+		self.Noise = "misc/trigger1.wav"
 	}
 
-	if Self.Wait == 0 {
-		Self.Wait = 0.2
+	if self.Wait == 0 {
+		self.Wait = 0.2
 	}
 
-	Self.Use = multi_use
+	self.Use = te.use
 
 	InitTrigger()
 
-	if Self.Health != 0 {
-		if (int(Self.SpawnFlags) & int(SPAWNFLAG_NOTOUCH)) != 0 {
+	if self.Health != 0 {
+		if (int(self.SpawnFlags) & int(SPAWNFLAG_NOTOUCH)) != 0 {
 			engine.ObjError("health and notouch don't make sense\n")
 		}
 
-		Self.MaxHealth = Self.Health
-		Self.ThDie = multi_killed
-		Self.TakeDamage = DAMAGE_YES
-		Self.Solid = SOLID_BBOX
-		engine.SetOrigin(Self, Self.Origin)
+		self.MaxHealth = self.Health
+		self.ThDie = multi_killed
+		self.TakeDamage = DAMAGE_YES
+		self.Solid = SOLID_BBOX
+		engine.SetOrigin(self, self.Origin)
 	} else {
-		if (int(Self.SpawnFlags) & int(SPAWNFLAG_NOTOUCH)) == 0 {
-			Self.Touch = multi_touch
+		if (int(self.SpawnFlags) & int(SPAWNFLAG_NOTOUCH)) == 0 {
+			self.Touch = multi_touch
 		}
 	}
 }
 
 func trigger_once() {
-	Self.Wait = -1
-	trigger_multiple()
+	asTriggerEntity(Self).setupOnce()
+}
+
+func (te *triggerEntity) setupOnce() {
+	te.entity().Wait = -1
+	te.setupMultiple()
 }
 
 func trigger_relay() {

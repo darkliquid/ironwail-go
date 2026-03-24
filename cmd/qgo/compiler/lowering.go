@@ -294,7 +294,7 @@ func (l *Lowerer) registerFunc(fd *ast.FuncDecl) {
 		seenBuiltin := false
 		seenBuiltinNum := 0
 		for _, c := range fd.Doc.List {
-			num, matched, errMsg := parseBuiltinDirective(c.Text)
+			num, matched, errMsg := parseBuiltinDirective(c.Text, builtinDirectiveRegistry)
 			if !matched {
 				continue
 			}
@@ -754,22 +754,35 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 				if sig.Recv() != nil {
 					recvType := l.goTypeToQC(sig.Recv().Type())
 					if recvType == EvVector {
-						// It's a method on Vec3
-						recvVReg := l.lowerExpr(fn, f.X)
-						argVReg := l.lowerExpr(fn, call.Args[0])
-						result := l.allocVReg()
-
+						// It's a method on Vec3.
 						var op qc.Opcode
-						var resType qc.EType = EvVector
+						var resType qc.EType
 						switch fnObj.Name() {
 						case "Add":
 							op = qc.OPAddV
+							resType = EvVector
 						case "Sub":
 							op = qc.OPSubV
+							resType = EvVector
+						case "Scale":
+							op = qc.OPMulVF
+							resType = EvVector
+						case "Dot":
+							op = qc.OPMulV
+							resType = EvFloat
 						default:
 							l.errors.Addf(l.pos(call), "unsupported Vec3 method: %s", fnObj.Name())
 							return VRegInvalid
 						}
+
+						if len(call.Args) != 1 {
+							l.errors.Addf(l.pos(call), "unsupported Vec3 method arity for %s: got %d args, want 1", fnObj.Name(), len(call.Args))
+							return VRegInvalid
+						}
+
+						recvVReg := l.lowerExpr(fn, f.X)
+						argVReg := l.lowerExpr(fn, call.Args[0])
+						result := l.allocVReg()
 
 						fn.Body = append(fn.Body, IRInst{
 							Op:   op,
@@ -1628,131 +1641,7 @@ func constantToFloat64(v interface{ ExactString() string }) (float64, bool) {
 	return f, true
 }
 
-func builtinAliasToNumber(alias string) (int, bool) {
-	switch alias {
-	case "setorigin":
-		return 2, true
-	case "setmodel":
-		return 3, true
-	case "setsize":
-		return 4, true
-	case "sound":
-		return 8, true
-	case "spawn":
-		return 14, true
-	case "remove":
-		return 15, true
-	case "traceline":
-		return 16, true
-	case "checkclient":
-		return 17, true
-	case "find":
-		return 18, true
-	case "precache_sound":
-		return 19, true
-	case "precache_model":
-		return 20, true
-	case "stuffcmd":
-		return 21, true
-	case "findradius":
-		return 22, true
-	case "bprint":
-		return 23, true
-	case "sprint":
-		return 24, true
-	case "dprint":
-		return 25, true
-	case "ftos":
-		return 26, true
-	case "vtos":
-		return 27, true
-	case "eprint":
-		return 31, true
-	case "walkmove":
-		return 32, true
-	case "droptofloor":
-		return 34, true
-	case "lightstyle":
-		return 35, true
-	case "rint":
-		return 36, true
-	case "floor":
-		return 37, true
-	case "ceil":
-		return 38, true
-	case "checkbottom":
-		return 40, true
-	case "pointcontents":
-		return 41, true
-	case "fabs":
-		return 43, true
-	case "aim":
-		return 44, true
-	case "cvar":
-		return 45, true
-	case "localcmd":
-		return 46, true
-	case "nextent":
-		return 47, true
-	case "particle":
-		return 48, true
-	case "changeyaw":
-		return 49, true
-	case "vectoangles":
-		return 51, true
-	case "writebyte":
-		return 52, true
-	case "writechar":
-		return 53, true
-	case "writeshort":
-		return 54, true
-	case "writelong":
-		return 55, true
-	case "writecoord":
-		return 56, true
-	case "writeangle":
-		return 57, true
-	case "writestring":
-		return 58, true
-	case "writeentity":
-		return 59, true
-	case "sin":
-		return 60, true
-	case "cos":
-		return 61, true
-	case "sqrt":
-		return 62, true
-	case "etos":
-		return 65, true
-	case "movetogoal":
-		return 67, true
-	case "precache_file":
-		return 68, true
-	case "makestatic":
-		return 69, true
-	case "changelevel":
-		return 70, true
-	case "cvar_set":
-		return 72, true
-	case "centerprint":
-		return 73, true
-	case "ambientsound":
-		return 74, true
-	case "precache_model2":
-		return 75, true
-	case "precache_sound2":
-		return 76, true
-	case "precache_file2":
-		return 77, true
-	case "setspawnparms":
-		return 78, true
-	case "local_sound":
-		return 80, true
-	}
-	return 0, false
-}
-
-func parseBuiltinDirective(comment string) (int, bool, string) {
+func parseBuiltinDirective(comment string, registry builtinNameRegistry) (int, bool, string) {
 	const base = "//qgo:builtin"
 	if !strings.HasPrefix(comment, base) {
 		return 0, false, ""
@@ -1768,7 +1657,7 @@ func parseBuiltinDirective(comment string) (int, bool, string) {
 	token := tokens[0]
 	n, err := strconv.Atoi(token)
 	if err != nil {
-		if n, ok := builtinAliasToNumber(strings.ToLower(token)); ok {
+		if n, ok := registry.numberForName(token); ok {
 			return n, true, ""
 		}
 		return 0, true, "unknown //qgo:builtin alias \"" + token + "\""

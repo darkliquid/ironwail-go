@@ -80,6 +80,40 @@ func TestBuildTextureAnimationsRejectsInvalidFrameToken(t *testing.T) {
 	}
 }
 
+func TestBlendFogStateTowards(t *testing.T) {
+	prevColor := [3]float32{0.1, 0.2, 0.3}
+	prevDensity := float32(0.1)
+	nextColor := [3]float32{0.9, 0.05, 0.6}
+	nextDensity := float32(0.7)
+
+	gotColor, gotDensity := blendFogStateTowards(prevColor, prevDensity, nextColor, nextDensity, 0.2)
+	wantColor := [3]float32{0.3, 0.05, 0.5}
+	wantDensity := float32(0.3)
+	for i := range wantColor {
+		if gotColor[i] != wantColor[i] {
+			t.Fatalf("blendFogStateTowards color[%d] = %v, want %v", i, gotColor[i], wantColor[i])
+		}
+	}
+	if gotDensity != wantDensity {
+		t.Fatalf("blendFogStateTowards density = %v, want %v", gotDensity, wantDensity)
+	}
+}
+
+func TestBlendFogStateTowardsImmediateWhenStepDisabled(t *testing.T) {
+	prevColor := [3]float32{0.1, 0.2, 0.3}
+	prevDensity := float32(0.1)
+	nextColor := [3]float32{0.9, 0.8, 0.7}
+	nextDensity := float32(0.6)
+
+	gotColor, gotDensity := blendFogStateTowards(prevColor, prevDensity, nextColor, nextDensity, 0)
+	if gotColor != nextColor {
+		t.Fatalf("blendFogStateTowards color = %v, want %v", gotColor, nextColor)
+	}
+	if gotDensity != nextDensity {
+		t.Fatalf("blendFogStateTowards density = %v, want %v", gotDensity, nextDensity)
+	}
+}
+
 func TestChartAddSerpentine(t *testing.T) {
 	var c Chart
 	if err := c.Init(8, 4); err != nil {

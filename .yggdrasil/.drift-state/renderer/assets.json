@@ -1,7 +1,9 @@
 {
   "hash": "77724285d38bf0970b0c728778f9a5ab54be27319ae4b987bbc73514c3c95854",
   "files": {
+    ".yggdrasil/model/renderer/assets/yg-node.yaml": "b29327b1fe09efe7f8997b8fddaf7a69ddef43bb1cc99273c2012fb77d0f4a61",
     ".yggdrasil/model/renderer/assets/interface.md": "25cfd57679b16a70700b5dfca5d754f67693e0d338b1a1b0880da701a64aeba7",
+    ".yggdrasil/model/renderer/assets/internals.md": "5e23432d31980ab07b83ff6548c405a8a933c60802675ea3071d1ae324a12503",
     ".yggdrasil/model/renderer/assets/responsibility.md": "86577e456ddc97e20d5c57955405341092bfd95301c6a353b0e0347c85b3bde1",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
@@ -9,14 +11,12 @@
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
     "internal/renderer/model.go": "94ded1600efd7421fa2d1d79d4fb04fea010fe857e69686ac14282db73df7bb7",
     "internal/renderer/decal_shared.go": "d3f490cf59731896aafc5d84d42c0e05bdfc390c39bd6af6862ee0a5da9177f0",
+    "internal/renderer/sprite_shared.go": "a8d22f29cdecc457e102637b89a1dd103ab556f3ebec9d9f4f2e7d3e06e51efc",
+    "internal/renderer/sprite_shared_test.go": "a886a9e323fdd14f4df4bac63f7a109f5b3abd1a169bc5f14963686a39bbb1d7",
     "internal/renderer/mark_system.go": "6dc3b2be4c8db2b1803bdc88bcf4256413e24c04bc16067dd9db9be3cf772eb4",
     "internal/renderer/skybox_external.go": "cfa4ecd859d5de547094ed3b4c0770521c1f66075615dd13d2661da4eba3233d",
     "internal/renderer/scrap.go": "0e1311f423329162c2422310d12ae1542a230d161e4cad07710ea2ac95f568ca",
-    "internal/renderer/scrap_atlas.go": "00e947fc3190fb52731b5e64e6d97397543c9263b1faef9d5734dbb2220a2541",
-    ".yggdrasil/model/renderer/assets/yg-node.yaml": "b29327b1fe09efe7f8997b8fddaf7a69ddef43bb1cc99273c2012fb77d0f4a61",
-    ".yggdrasil/model/renderer/assets/internals.md": "5e23432d31980ab07b83ff6548c405a8a933c60802675ea3071d1ae324a12503",
-    "internal/renderer/sprite_shared.go": "a8d22f29cdecc457e102637b89a1dd103ab556f3ebec9d9f4f2e7d3e06e51efc",
-    "internal/renderer/sprite_shared_test.go": "a886a9e323fdd14f4df4bac63f7a109f5b3abd1a169bc5f14963686a39bbb1d7"
+    "internal/renderer/scrap_atlas.go": "00e947fc3190fb52731b5e64e6d97397543c9263b1faef9d5734dbb2220a2541"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/assets/yg-node.yaml": 1774344143401.0896,

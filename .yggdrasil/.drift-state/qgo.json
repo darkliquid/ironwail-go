@@ -1,21 +1,23 @@
 {
-  "hash": "ec0ceb8c16cdbc247b912820aa1f49e653f381a4604e1a25e4b16a5f4a906cbe",
+  "hash": "cb54354eb8c0f2fbff5b83866f11beef74012db9819065ff755409b60b92adf4",
   "files": {
-    ".yggdrasil/model/qgo/yg-node.yaml": "e591eb3ec6a469bf7ce7f31460dc1d113280653e7c1086193733a94b639c0df8",
-    ".yggdrasil/model/qgo/responsibility.md": "1d670421e1d4c77d5a44e3352013e442a8d98af7bc2e45717b8a857ca0ee168e",
+    ".yggdrasil/model/qgo/yg-node.yaml": "70b3a7301c232f3277b6fd201f3b868e782b403d6f5be85811ae86f045f93338",
+    ".yggdrasil/model/qgo/responsibility.md": "713aa683d5b44e1415e7bc49449023717a2641e096d97f763254a25d7619eceb",
     ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
-    ".yggdrasil/model/qgo/compiler/interface.md": "b66eff2456e729f643104c8b54ee4eb1cb6e9ac3fe6b3d1fbaa0b269f164b2b0",
-    "cmd/qgo/main.go": "e5d53ef6c6114a4e3123f8b4218f544c3406810f3f63768ec39cc55aa2f4b76e",
-    ".yggdrasil/model/qgo/interface.md": "09fc8703219222b0f572568f62a9e7c4b7afdaf29949ea1d69847ea180001a60",
-    ".yggdrasil/model/qgo/internals.md": "fec9228da819bf7d4819b70f42a00035e8e57ae0cfbefbf60f5b311e70bd1edf"
+    ".yggdrasil/model/qgo/compiler/interface.md": "d35c48af87015474b3edf3276fb16913850bddd8710dbf75dfc26e2ccb3ecf73",
+    ".yggdrasil/model/qgo/interface.md": "19847d370e0cecd3a605e5efb2d83aa87e63f6847b8038b7bdb5ec0e615a10dc",
+    ".yggdrasil/model/qgo/internals.md": "dd06ac14d2bcf2f05b8810999ac14c8fa2b07bfc8ac8dc02842de376a554428f",
+    "cmd/qgo/main.go": "594a7939fb76485b0afd9cd5c61974c5262f004d5e8a6f66dcb8f1644e1aa9b2",
+    "cmd/qgo/main_test.go": "096bb46b69f2ced3d126ca318c67e285712d991fcaf1067df27f5ec6cc005cb1"
   },
   "mtimes": {
-    ".yggdrasil/model/qgo/yg-node.yaml": 1774265243900.6392,
-    ".yggdrasil/model/qgo/interface.md": 1774345731227.3816,
-    ".yggdrasil/model/qgo/internals.md": 1774345737447.4785,
-    ".yggdrasil/model/qgo/responsibility.md": 1774265243949.64,
+    ".yggdrasil/model/qgo/yg-node.yaml": 1774354005414.3171,
+    ".yggdrasil/model/qgo/interface.md": 1774354638022.065,
+    ".yggdrasil/model/qgo/internals.md": 1774354647423.823,
+    ".yggdrasil/model/qgo/responsibility.md": 1774354005918.3252,
     ".yggdrasil/model/qgo/compiler/responsibility.md": 1774265244197.6436,
-    ".yggdrasil/model/qgo/compiler/interface.md": 1774345596609.751,
-    "cmd/qgo/main.go": 1774263308105.974
+    ".yggdrasil/model/qgo/compiler/interface.md": 1774354326476.43,
+    "cmd/qgo/main.go": 1774354605797.9417,
+    "cmd/qgo/main_test.go": 1774354675555.1848
   }
 }

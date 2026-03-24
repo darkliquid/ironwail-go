@@ -44,6 +44,10 @@ func readWorldFastSkyEnabled() bool {
 	return cvar.BoolValue(CvarRFastSky)
 }
 
+func readWorldProceduralSkyEnabled() bool {
+	return cvar.BoolValue(CvarRProceduralSky)
+}
+
 func readWorldSkyLayerSpeedCvar(name string, fallback float32) float32 {
 	cv := cvar.Get(name)
 	if cv == nil {
@@ -62,6 +66,14 @@ func readWorldSkySolidSpeedCvar() float32 {
 
 func readWorldSkyAlphaSpeedCvar() float32 {
 	return readWorldSkyLayerSpeedCvar(CvarRSkyAlphaSpeed, 1)
+}
+
+func proceduralSkyGradientColors() (horizon, zenith [3]float32) {
+	return [3]float32{0.40, 0.53, 0.78}, [3]float32{0.07, 0.10, 0.23}
+}
+
+func shouldUseProceduralSky(fastSky, proceduralSkyEnabled bool, externalSkyMode externalSkyboxRenderMode) bool {
+	return fastSky && proceduralSkyEnabled && externalSkyMode == externalSkyboxRenderEmbedded
 }
 
 // resolveWorldSkyFogMix resolves the final sky fog mix factor from the cvar value, worldspawn override, and fog density.

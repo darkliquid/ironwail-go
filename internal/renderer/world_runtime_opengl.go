@@ -651,6 +651,10 @@ func (r *Renderer) clearWorldLocked() {
 		gl.DeleteProgram(r.worldSkyProgram)
 		r.worldSkyProgram = 0
 	}
+	if r.worldSkyProceduralProgram != 0 {
+		gl.DeleteProgram(r.worldSkyProceduralProgram)
+		r.worldSkyProceduralProgram = 0
+	}
 	if r.worldSkyCubemapProgram != 0 {
 		gl.DeleteProgram(r.worldSkyCubemapProgram)
 		r.worldSkyCubemapProgram = 0
@@ -737,6 +741,15 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldSkyVPUniform = -1
 	r.worldSkySolidUniform = -1
 	r.worldSkyAlphaUniform = -1
+	r.worldSkyProceduralVPUniform = -1
+	r.worldSkyProceduralModelOffset = -1
+	r.worldSkyProceduralModelRotation = -1
+	r.worldSkyProceduralModelScale = -1
+	r.worldSkyProceduralCameraOrigin = -1
+	r.worldSkyProceduralFogColor = -1
+	r.worldSkyProceduralFogDensity = -1
+	r.worldSkyProceduralHorizonColor = -1
+	r.worldSkyProceduralZenithColor = -1
 	r.worldSkyCubemapVPUniform = -1
 	r.worldSkyCubemapUniform = -1
 	r.worldSkyExternalFaceVPUniform = -1
