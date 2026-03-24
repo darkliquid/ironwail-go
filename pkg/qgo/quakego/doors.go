@@ -450,12 +450,12 @@ func func_door() {
 	Self.NextThink = Self.LTime + 0.1
 }
 
-var (
-	SECRET_OPEN_ONCE float32 = 1
-	SECRET_1ST_LEFT  float32 = 2
-	SECRET_1ST_DOWN  float32 = 4
-	SECRET_NO_SHOOT  float32 = 8
-	SECRET_YES_SHOOT float32 = 16
+const (
+	SECRET_OPEN_ONCE = 1 << iota
+	SECRET_1ST_LEFT
+	SECRET_1ST_DOWN
+	SECRET_NO_SHOOT
+	SECRET_YES_SHOOT
 )
 
 func SUB_Null_Pain(attacker *quake.Entity, damage float32)      {}

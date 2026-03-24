@@ -116,6 +116,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	}, "Connect to a server")
 	replaceCommand("disconnect", func(args []string) { h.CmdDisconnect(subs) }, "Disconnect from current server")
 	replaceCommand("cmd", func(args []string) { h.CmdForwardToServer(args, subs) }, "Forward command line to current server")
+	replaceCommand("rcon", func(args []string) { h.CmdRcon(args, subs) }, "Forward a remote console command to current server")
 	replaceCommand("reconnect", func(args []string) { h.CmdReconnect(subs) }, "Reconnect to current server")
 	replaceCommand("slist", func(args []string) { h.CmdSlist(subs) }, "List LAN Quake servers")
 	replaceCommand("test2", func(args []string) {

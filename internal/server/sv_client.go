@@ -555,7 +555,7 @@ func (s *Server) queuePendingSignon(client *Client) {
 		return
 	}
 
-	local := client.Loopback || (client.NetConnection != nil && client.NetConnection.Address() == "localhost")
+	local := s.SV_IsLocalClient(client)
 	for client.SignonIdx < len(s.SignonBuffers) {
 		buf := s.SignonBuffers[client.SignonIdx]
 		if buf == nil || buf.Len() == 0 {
@@ -577,6 +577,22 @@ func (s *Server) queuePendingSignon(client *Client) {
 		client.Message.WriteByte(2)
 		client.SendSignon = SignonSignonBufs
 	}
+}
+
+// SV_IsLocalClient reports whether a client should follow local/loopback send
+// behavior (e.g. consume all pending signon buffers in one flush).
+func (s *Server) SV_IsLocalClient(client *Client) bool {
+	if client == nil {
+		return false
+	}
+	if client.Loopback {
+		return true
+	}
+	if client.NetConnection == nil {
+		return false
+	}
+	addr := client.NetConnection.Address()
+	return addr == "localhost" || addr == "LOCAL"
 }
 
 // UpdateToReliableMessages queues scoreboard frag changes on reliable channels for all clients.

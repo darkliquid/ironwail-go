@@ -765,6 +765,74 @@ func TestControlsMenuCanBindBackquote(t *testing.T) {
 	}
 }
 
+func TestControlsMenuCursorWrapWithExpandedBindings(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.state = MenuControls
+	mgr.controlsCursor = controlItemBack
+	mgr.M_Key(input.KDownArrow)
+	if got := mgr.controlsCursor; got != controlItemMouseSpeed {
+		t.Fatalf("down from back should wrap to first row, got %d", got)
+	}
+
+	mgr.controlsCursor = controlItemMouseSpeed
+	mgr.M_Key(input.KUpArrow)
+	if got := mgr.controlsCursor; got != controlItemBack {
+		t.Fatalf("up from first row should wrap to back, got %d", got)
+	}
+}
+
+func TestControlsMenuLabelForNewCommand(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	if got := mgr.controlBindingLabel(controlItemCenterView); got != "UNBOUND" {
+		t.Fatalf("centerview label when unbound = %q, want UNBOUND", got)
+	}
+
+	inputSys.SetBinding(int('v'), "centerview")
+	if got := mgr.controlBindingLabel(controlItemCenterView); got != "v" {
+		t.Fatalf("centerview label with one key = %q, want v", got)
+	}
+}
+
+func TestControlsMenuRebindAndClearNewCommand(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	inputSys.SetBinding(int('z'), "centerview")
+
+	mgr.state = MenuControls
+	mgr.active = true
+	mgr.controlsCursor = controlItemCenterView
+	mgr.M_Key(input.KEnter)
+	if !mgr.WaitingForKeyBinding() {
+		t.Fatal("expected controls menu to enter rebinding mode")
+	}
+	mgr.M_Key(int('v'))
+	if mgr.WaitingForKeyBinding() {
+		t.Fatal("expected controls menu to exit rebinding mode after key selection")
+	}
+	if got := inputSys.GetBinding(int('v')); got != "centerview" {
+		t.Fatalf("binding for v = %q, want centerview", got)
+	}
+	if got := inputSys.GetBinding(int('z')); got != "" {
+		t.Fatalf("binding for z should be cleared by menu rebind, got %q", got)
+	}
+
+	mgr.M_Key(input.KLeftArrow)
+	if got := inputSys.GetBinding(int('v')); got != "" {
+		t.Fatalf("binding for v should be cleared by menu clear action, got %q", got)
+	}
+}
+
 func TestControlsMenuAdjustsLiveControlCvars(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
@@ -1050,7 +1118,7 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 
 	want := []string{
 		"disconnect\n",
-		"listen 0\n",
+		"listen 1\n",
 		"maxplayers 3\n",
 		"deathmatch 1\n",
 		"coop 0\n",
@@ -1059,6 +1127,52 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 		"timelimit 5\n",
 		"skill 2\n",
 		"map \"dm2\"\n",
+	}
+	if len(commands) < len(want) {
+		t.Fatalf("expected at least %d commands, got %d (%v)", len(want), len(commands), commands)
+	}
+	for i, expected := range want {
+		if got := commands[i]; got != expected {
+			t.Fatalf("command %d = %q, want %q", i, got, expected)
+		}
+	}
+}
+
+func TestHostGameStartQueuesListenZeroForSinglePlayer(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+	setHostGameTestCVars(t, 1, 0, 0, 0, 1)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+
+	mgr.ShowMenu()
+	mgr.state = MenuMultiPlayer
+	mgr.multiPlayerCursor = 1
+	mgr.M_Key(input.KEnter)
+	if got := mgr.GetState(); got != MenuHostGame {
+		t.Fatalf("expected host game menu, got %v", got)
+	}
+	mgr.hostMaxPlayers = 1
+
+	mgr.hostGameCursor = hostGameItemStart
+	mgr.M_Key(input.KEnter)
+
+	want := []string{
+		"disconnect\n",
+		"listen 0\n",
+		"maxplayers 1\n",
+		"deathmatch 1\n",
+		"coop 0\n",
+		"teamplay 0\n",
+		"fraglimit 0\n",
+		"timelimit 0\n",
+		"skill 1\n",
+		"map \"start\"\n",
 	}
 	if len(commands) < len(want) {
 		t.Fatalf("expected at least %d commands, got %d (%v)", len(want), len(commands), commands)

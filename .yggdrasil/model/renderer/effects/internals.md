@@ -18,3 +18,11 @@ Observed decision:
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**
+
+### Preserve tracer alternation state in ParticleSystem
+
+Observed decision:
+- Tracer-specific state (`tracerCount`) is stored on `ParticleSystem` instead of as a `RocketTrail` local variable.
+
+Rationale:
+- Quake's tracer implementation uses a persistent static counter to alternate lateral tracer velocities and color phase across emission calls; resetting each call collapses direction alternation over time and causes visible parity drift.

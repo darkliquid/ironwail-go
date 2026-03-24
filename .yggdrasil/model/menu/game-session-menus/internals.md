@@ -2,7 +2,7 @@
 
 ## Logic
 
-These screens bridge menu UI into actual game/session actions. Load/save pages are simple slot pickers that queue `load`/`save` commands. Join Game combines a typed address field, a `ServerBrowser`-backed LAN search, and result selection that can copy an advertised address into the connect field before applying `connect`. Host Game mirrors cvars into editable fields, lets the player adjust max players, mode, teamplay, skill, frag limit, time limit, and map name, then queues a deterministic listen-server startup sequence ending in `map`.
+These screens bridge menu UI into actual game/session actions. Load/save pages are simple slot pickers that queue `load`/`save` commands. Join Game combines a typed address field, a `ServerBrowser`-backed LAN search, and result selection that can copy an advertised address into the connect field before applying `connect`. Host Game mirrors cvars into editable fields, lets the player adjust max players, mode, teamplay, skill, frag limit, time limit, and map name, then queues a deterministic startup sequence ending in `map`. The listen command now toggles based on `hostMaxPlayers` (`listen 1` for multiplayer hosting, `listen 0` for single-player hosting) so menu launch behavior matches host command parity.
 
 ## Constraints
 

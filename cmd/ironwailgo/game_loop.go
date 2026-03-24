@@ -414,7 +414,7 @@ type picProvider interface {
 }
 
 func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
-	if pics == nil {
+	if dc == nil || pics == nil {
 		return
 	}
 	dc.SetCanvas(renderer.CanvasMenu)

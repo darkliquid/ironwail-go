@@ -4972,6 +4972,49 @@ func TestRegisterCommandsAddsCmdForwarder(t *testing.T) {
 	}
 }
 
+func TestRegisterCommandsAddsRconForwarder(t *testing.T) {
+	h := NewHost()
+	client := &forwardingTrackingClient{state: caActive}
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+
+	h.RegisterCommands(subs)
+	if !cmdsys.Exists("rcon") {
+		t.Fatal("rcon command was not registered")
+	}
+	cmdsys.ExecuteText("rcon status")
+
+	if got := client.commands; !reflect.DeepEqual(got, []string{"rcon status"}) {
+		t.Fatalf("forwarded commands = %v, want [rcon status]", got)
+	}
+}
+
+func TestCmdRconPrintsUsageWithoutArgs(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.CmdRcon(nil, subs)
+
+	if got := strings.Join(console.messages, ""); got != "usage: rcon <command>\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
+func TestCmdRconPrintsNotConnected(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+
+	h.CmdRcon([]string{"status"}, subs)
+
+	if got := strings.Join(console.messages, ""); got != "Can't \"rcon\", not connected\n" {
+		t.Fatalf("console output = %q", got)
+	}
+}
+
 func TestCmdForwardToServerStillForwardsWhenLocalServerActive(t *testing.T) {
 	h := NewHost()
 	h.serverActive = true

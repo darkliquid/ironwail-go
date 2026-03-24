@@ -13,4 +13,5 @@ mapping:
     - internal/renderer/world_sky_shared.go
     - internal/renderer/lightmap_samples.go
     - internal/renderer/surface.go
+    - internal/renderer/surface_test.go
     - internal/renderer/texture.go

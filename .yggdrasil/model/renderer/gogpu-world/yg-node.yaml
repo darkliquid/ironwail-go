@@ -10,4 +10,5 @@ mapping:
     - internal/renderer/world_decal_gogpu.go
     - internal/renderer/world_late_translucent_gogpu.go
     - internal/renderer/world_sprite_gogpu.go
+    - internal/renderer/world_sprite_gogpu_test.go
     - internal/renderer/particle_gogpu.go

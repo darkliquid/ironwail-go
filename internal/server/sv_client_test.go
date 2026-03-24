@@ -375,3 +375,37 @@ func TestSendClientMessagesCrashDropOnOverflowClosesConnection(t *testing.T) {
 		t.Fatal("overflowed message should be cleared after drop")
 	}
 }
+
+func TestQueuePendingSignonTreatsLOCALSocketAsLocalClient(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	bufA := NewMessageBuffer(MaxDatagram)
+	bufA.WriteByte(0x11)
+	bufB := NewMessageBuffer(MaxDatagram)
+	bufB.WriteByte(0x22)
+	s.SignonBuffers = []*MessageBuffer{bufA, bufB}
+
+	client := s.Static.Clients[0]
+	client.SendSignon = SignonPrespawn
+	client.SignonIdx = 0
+	client.Loopback = false
+	client.NetConnection = inet.NewSocket("LOCAL")
+
+	s.queuePendingSignon(client)
+
+	if got := client.SignonIdx; got != 2 {
+		t.Fatalf("SignonIdx = %d, want 2 for LOCAL socket", got)
+	}
+	if client.SendSignon != SignonSignonBufs {
+		t.Fatalf("SendSignon = %v, want %v", client.SendSignon, SignonSignonBufs)
+	}
+
+	got := client.Message.Data[:client.Message.Len()]
+	want := []byte{0x11, 0x22, byte(inet.SVCSignOnNum), 2}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("message = %v, want %v", got, want)
+	}
+}

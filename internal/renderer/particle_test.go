@@ -120,6 +120,27 @@ func TestRocketTrailTracerAlternatesVelocity(t *testing.T) {
 	}
 }
 
+func TestRocketTrailTracerAlternatesAcrossCalls(t *testing.T) {
+	ps := NewParticleSystem(1024)
+	rng := rand.New(rand.NewSource(11))
+
+	ps.RocketTrail([3]float32{0, 0, 0}, [3]float32{3, 0, 0}, 3, rng, 1)
+	first := ps.ActiveParticles()
+	if len(first) != 1 {
+		t.Fatalf("first call particles = %d, want 1", len(first))
+	}
+
+	ps.RocketTrail([3]float32{10, 0, 0}, [3]float32{13, 0, 0}, 3, rng, 1)
+	all := ps.ActiveParticles()
+	if len(all) != 2 {
+		t.Fatalf("total particles = %d, want 2", len(all))
+	}
+
+	if all[0].Vel[1] == all[1].Vel[1] {
+		t.Fatalf("expected alternating tracer side velocity across calls, got %f and %f", all[0].Vel[1], all[1].Vel[1])
+	}
+}
+
 func TestBlobExplosionAddsBlobParticles(t *testing.T) {
 	ps := NewParticleSystem(2048)
 	rng := rand.New(rand.NewSource(3))

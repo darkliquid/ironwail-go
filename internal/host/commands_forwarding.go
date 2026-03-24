@@ -53,3 +53,15 @@ func (h *Host) CmdForwardToServer(args []string, subs *Subsystems) {
 	}
 	_ = subs.Client.SendStringCmd(line)
 }
+
+func (h *Host) CmdRcon(args []string, subs *Subsystems) {
+	if len(args) == 0 {
+		if subs != nil && subs.Console != nil {
+			subs.Console.Print("usage: rcon <command>\n")
+		}
+		return
+	}
+	if h.forwardClientCommand("rcon", args, subs) {
+		return
+	}
+}

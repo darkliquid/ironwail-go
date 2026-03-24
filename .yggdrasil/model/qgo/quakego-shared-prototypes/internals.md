@@ -10,13 +10,19 @@ Another mechanical cleanup converted `items.go` health spawnflag constants to `i
 
 A similarly narrow cleanup converted `misc.go` trap-shooter spawnflag constants to `iota` bit constants (`spawnFlagSuperSpike`, `spawnFlagLaser`) while preserving the original Quake mask values (`1` and `2`). Behavior remains the same because all call sites still test bits against `Self.SpawnFlags`; only constant representation changed.
 
+A further scoped cleanup converted `doors.go` secret-door spawnflag constants (`SECRET_*`) from mutable `float32` vars to compile-time `iota` bit constants, preserving the original mask sequence (`1, 2, 4, 8, 16`). The existing bit tests and the `temp = 1 - (spawnflag & SECRET_1ST_LEFT)` parity trick continue to behave identically because `SECRET_1ST_LEFT` remains `2`.
+
 A bounded readability pilot in `items.go` now delegates `T_Heal` to `(*quake.Entity).Heal(...)`. This keeps the global function entry point intact for parity and call-site stability while moving entity-local healing rules to a receiver method in the shared quake stubs.
+
+An additional narrow combat/helper cluster in `combat.go` now uses a local receiver-backed adapter (`combatEntity`) for `CanDamage`, `Killed`, and `T_Damage` internals. Each global entry point still exists and immediately delegates, so translated call sites keep QuakeC-style names while entity-local logic is grouped as methods.
 
 ## Constraints
 
 The declarations must remain package-level `var` function slots because the translated QuakeC code assigns implementations after declaration order has been established. Replacing them with direct function declarations or broader API rewrites would risk changing compiler assumptions and is intentionally out of scope.
 
 The pilot intentionally avoided converting broader `Self`-driven globals into methods because those functions mutate process-global quakego state (`Self`, `Other`, `Activator`, `Time`) and often swap `Self` mid-function; method conversion there is higher risk for parity.
+
+For combat receiver adaptation, a type alias pattern (`type combatEntity quake.Entity`) is used so method grouping can be introduced without changing `quake.Entity` ownership in the `quake` package or altering existing function signatures.
 
 ## Decisions
 

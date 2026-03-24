@@ -909,6 +909,49 @@ func BadArity(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 {
 	}
 }
 
+func TestCompile_FieldOffsetIntrinsic_DefersNonFloatDynamicHelpers(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgofieldintrinsicdeferredtest`)
+	if err := os.MkdirAll(filepath.Join(dir, "quake"), 0o755); err != nil {
+		t.Fatalf("mkdir quake stub package: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "quake", "quake.go"), `package quake
+
+type Entity struct{}
+type FieldOffset any
+type Vec3 [3]float32
+
+func FieldFloat(entity *Entity, args ...any) float32 { return 0 }
+func SetFieldFloat(entity *Entity, args ...any) {}
+
+func FieldVector(entity *Entity, args ...any) Vec3 { return Vec3{} }
+func SetFieldVector(entity *Entity, args ...any) {}
+`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgofieldintrinsicdeferredtest/quake"
+
+func ReadVector(ent *quake.Entity, ofs quake.FieldOffset) quake.Vec3 {
+	return quake.FieldVector(ent, ofs)
+}
+
+func WriteVector(ent *quake.Entity, ofs quake.FieldOffset, value quake.Vec3) {
+	quake.SetFieldVector(ent, ofs, value)
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for deferred non-float dynamic helper")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "quake.FieldVector is deferred for dynamic field access; only quake.FieldFloat and quake.SetFieldFloat are currently supported") &&
+		!strings.Contains(msg, "quake.SetFieldVector is deferred for dynamic field access; only quake.FieldFloat and quake.SetFieldFloat are currently supported") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
 func TestRoundTrip_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloat(t *testing.T) {
 	dir := makeCompilerTempDir(t)
 	writeQGoModule(t, dir, `module qgofieldintrinsicroundtriptest`)

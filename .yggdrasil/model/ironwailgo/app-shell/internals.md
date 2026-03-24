@@ -18,12 +18,14 @@ Runtime telemetry regression coverage in `main_test.go` now also asserts `scr_sh
 Render-frame regression coverage in `main_test.go` now also asserts that `buildRuntimeRenderFrameState` picks up worldspawn fog defaults from the loaded BSP entity lump before sampling client fog for renderer submission.
 Input regression coverage in `main_test.go` now also asserts that gameplay look-path processing consumes right-stick gamepad look deltas and (optionally) gyro deltas through cvar gates, so stick look can ship independently while gyro remains explicitly opt-in.
 Screenshot regression coverage in `main_test.go` now asserts capture behavior for both renderer-present and renderer-absent flows, including dimension expectations for renderer-sized fallback output and the default 1280x720 software fallback.
+Loading-plaque regression coverage in `main_test.go` now also asserts `drawLoadingPlaque` is a no-op when render context is nil, matching pause-overlay safety and preventing nil-context panics in focused overlay draw tests.
 
 ## Constraints
 
 - `main_test.go` is intentionally broad and currently cannot be cleanly attributed to only one narrow runtime concern.
 - The app shell depends on almost every other child node and is therefore an orchestration/documentation seam rather than an algorithmic module.
 - Sprite-runtime regression tests in `main_test.go` verify that collected sprite entities keep parsed frame pixels reachable through both `SpriteEntity.SpriteData` and cached `model.Model.SpriteData`.
+- Render-frame regression tests in `main_test.go` also preserve `model.Model.SpriteData` when a sprite entity carries no explicit `SpriteEntity.SpriteData`, guarding renderer fallback expectations.
 
 ## Decisions
 

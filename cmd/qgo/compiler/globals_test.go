@@ -9,16 +9,18 @@ import (
 
 func TestGlobalAllocator_ReservesSystem(t *testing.T) {
 	ga := NewGlobalAllocator()
-	if ga.NextOffset() != qc.OFSParmStart {
-		t.Fatalf("expected next offset %d, got %d", qc.OFSParmStart, ga.NextOffset())
+	want := uint16(qc.OFSMsgEntity + 1)
+	if ga.NextOffset() != want {
+		t.Fatalf("expected next offset %d, got %d", want, ga.NextOffset())
 	}
 }
 
 func TestGlobalAllocator_AllocGlobal(t *testing.T) {
 	ga := NewGlobalAllocator()
 	ofs := ga.AllocGlobal("health", 1)
-	if ofs != qc.OFSParmStart {
-		t.Fatalf("first global should be at %d, got %d", qc.OFSParmStart, ofs)
+	wantFirst := uint16(qc.OFSMsgEntity + 1)
+	if ofs != wantFirst {
+		t.Fatalf("first global should be at %d, got %d", wantFirst, ofs)
 	}
 
 	// Duplicate returns same offset
@@ -29,8 +31,9 @@ func TestGlobalAllocator_AllocGlobal(t *testing.T) {
 
 	// Next alloc is sequential
 	ofs3 := ga.AllocGlobal("armor", 1)
-	if ofs3 != qc.OFSParmStart+1 {
-		t.Fatalf("second global should be at %d, got %d", qc.OFSParmStart+1, ofs3)
+	wantSecond := uint16(wantFirst + 1)
+	if ofs3 != wantSecond {
+		t.Fatalf("second global should be at %d, got %d", wantSecond, ofs3)
 	}
 }
 

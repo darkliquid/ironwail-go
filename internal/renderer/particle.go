@@ -237,6 +237,7 @@ func particleVertexPtr(vertices []ParticleVertex) unsafe.Pointer {
 type ParticleSystem struct {
 	particles []Particle
 	active    int
+	tracerCount int
 }
 
 // NewParticleSystem allocates the particle pool and freelists used by Quake effects, avoiding per-frame allocations in hot rendering paths.
@@ -294,6 +295,7 @@ func (ps *ParticleSystem) Clear() {
 		return
 	}
 	ps.active = 0
+	ps.tracerCount = 0
 }
 
 // ParticleTexture returns the texture handle used by particle passes, typically a small alpha mask sampled by billboard shaders.
@@ -633,7 +635,6 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 		typ -= 128
 	}
 
-	tracerCount := 0
 	for len > 0 {
 		len -= dec
 
@@ -669,13 +670,13 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 			p.Die = timeNow + 0.5
 			p.Type = ParticleStatic
 			if typ == 3 {
-				p.Color = byte(52 + ((tracerCount & 4) << 1))
+				p.Color = byte(52 + ((ps.tracerCount & 4) << 1))
 			} else {
-				p.Color = byte(230 + ((tracerCount & 4) << 1))
+				p.Color = byte(230 + ((ps.tracerCount & 4) << 1))
 			}
-			tracerCount++
+			ps.tracerCount++
 			p.Org = start
-			if tracerCount&1 == 1 {
+			if ps.tracerCount&1 == 1 {
 				p.Vel[0] = 30 * vec[1]
 				p.Vel[1] = -30 * vec[0]
 			} else {

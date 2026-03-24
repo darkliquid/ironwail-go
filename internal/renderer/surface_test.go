@@ -73,6 +73,13 @@ func TestBuildTextureAnimationsRejectsMissingFrame(t *testing.T) {
 	}
 }
 
+func TestBuildTextureAnimationsRejectsInvalidFrameToken(t *testing.T) {
+	_, err := BuildTextureAnimations([]string{"+"})
+	if err == nil || err.Error() != "bad animating texture \"+\"" {
+		t.Fatalf("BuildTextureAnimations error = %v, want bad animating texture error", err)
+	}
+}
+
 func TestChartAddSerpentine(t *testing.T) {
 	var c Chart
 	if err := c.Init(8, 4); err != nil {

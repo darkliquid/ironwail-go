@@ -28,6 +28,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 - **System/config commands** rebuild startup commands from argv and execute config text from builtin, user, or filesystem sources.
 - **Forwarding commands** decide whether a command should remain local or be sent to a remote server; that decision keys off active local-session state, not mere availability of a server subsystem instance.
 - **Explicit `cmd` forwarding** bypasses that local-session ownership check and mirrors C Ironwail's dedicated `cmd` command: local console only, current connection only, silent during demo playback, and payload reconstruction that drops the leading `cmd` token before sending the remainder.
+- **Explicit `rcon` forwarding** reuses the same forwarding gate but keeps `rcon` prefixed in the forwarded payload so remote servers can parse it as remote-admin input. The host command adds only a minimal UX layer (`usage: rcon <command>` when empty args) and otherwise defers transport/connectivity behavior to the existing forwarding path.
 
 ## Constraints
 

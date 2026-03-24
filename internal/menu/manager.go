@@ -69,7 +69,7 @@ const (
 	joinGameBaseItems = 4
 	hostGameItems     = 9
 	optionsItems      = 5
-	controlsItems     = 17
+	controlsItems     = 26
 	videoItems        = 12 // added HUD-style plus telemetry toggles
 	audioItems        = 2
 
@@ -144,6 +144,15 @@ const (
 	controlItemJump
 	controlItemAttack
 	controlItemUse
+	controlItemRun
+	controlItemStrafe
+	controlItemLookUp
+	controlItemLookDown
+	controlItemCenterView
+	controlItemMouseLook
+	controlItemKeyboardLook
+	controlItemMoveUp
+	controlItemMoveDown
 	controlItemNextWeapon
 	controlItemPrevWeapon
 	controlItemToggleConsole
@@ -239,6 +248,15 @@ var controlBindings = []controlBinding{
 	{label: "JUMP", command: "+jump"},
 	{label: "ATTACK", command: "+attack"},
 	{label: "USE", command: "+use"},
+	{label: "RUN", command: "+speed"},
+	{label: "STRAFE", command: "+strafe"},
+	{label: "LOOK UP", command: "+lookup"},
+	{label: "LOOK DOWN", command: "+lookdown"},
+	{label: "CENTER VIEW", command: "centerview"},
+	{label: "MOUSE LOOK", command: "+mlook"},
+	{label: "KEYBOARD LOOK", command: "+klook"},
+	{label: "MOVE UP", command: "+moveup"},
+	{label: "MOVE DOWN", command: "+movedown"},
 	{label: "NEXT WEAPON", command: "impulse 10"},
 	{label: "PREV WEAPON", command: "impulse 12"},
 	{label: "TOGGLE CONSOLE", command: "toggleconsole"},

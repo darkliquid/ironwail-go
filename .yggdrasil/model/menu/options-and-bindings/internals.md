@@ -11,6 +11,23 @@ This node implements three distinct settings surfaces on top of shared menu mach
 - Back rows are treated specially across all these menus.
 - Absolute mouse hit testing for the expanded video menu is more brittle than keyboard navigation because row tables must stay in sync with draw layout.
 
+## Controls key-matrix parity
+
+- The in-game Controls page now exposes **21 bindable actions**.
+- In addition to the original rows (`+forward`, `+back`, `+left`, `+right`, `+moveleft`, `+moveright`, `+jump`, `+attack`, `+use`, `impulse 10`, `impulse 12`, `toggleconsole`), it now includes:
+  - `+speed`
+  - `+strafe`
+  - `+lookup`
+  - `+lookdown`
+  - `centerview`
+  - `+mlook`
+  - `+klook`
+  - `+moveup`
+  - `+movedown`
+- Rebind and clear semantics are unchanged:
+  - Enter/Right starts key capture on binding rows,
+  - Left/Backspace clears all keys bound to the selected command.
+
 ## Decisions
 
 ### Make settings pages live-edit engine state instead of staging everything behind Apply

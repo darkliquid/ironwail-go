@@ -12,6 +12,7 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - map/session lifecycle
 - remote networking and reconnect
 - explicit `cmd` console forwarding to the currently connected server
+- explicit `rcon` forwarding for remote admin command payloads
 - save/load
 - listen-server admin commands (`listen`, `maxplayers`, `port`)
 - QC profiling (`profile`) for top QuakeC function counters on an active local server
@@ -24,6 +25,7 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - Host commands execute under command-source gating from `cmdsys`.
 - Some commands intentionally forward to the remote server only when command source is local console input and no active local server session owns the command path; merely having an initialized server subsystem must not block remote forwarding.
 - The explicit `cmd` command is the escape hatch that always targets the current connection, even when a local server is active, strips the leading `cmd` token from the forwarded payload, prints `Can't "cmd", not connected` when disconnected, and silently no-ops during demo playback.
+- The explicit `rcon` command forwards `rcon <payload>` to the current connection when forwarding policy allows, prints `usage: rcon <command>` for missing payload, and otherwise inherits standard forwarding failure text (`Can't "rcon", not connected`).
 - Save/load commands enforce strict save-name and path safety rules.
 - Local map/changelevel/load commands may synchronously mutate both host and loopback client state.
 - Successful load operations synchronize autosave timing with restored server time so autosave scoring does not fire immediately after a save restore.

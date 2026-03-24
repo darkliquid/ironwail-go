@@ -68,6 +68,8 @@ Lowering performs strict intrinsic gating before generic call handling:
 
 This keeps dynamic field access opcode-correct without lowering imported helper bodies.
 
+Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow pair now produce an explicit defer diagnostic. That guard prevents accidental fallback to generic call lowering for unimplemented dynamic helper variants and keeps scope decisions observable in tests.
+
 ## Constraints
 
 - the compiler currently targets a narrow Go subset tailored for QC-like programs
@@ -147,6 +149,8 @@ Rejected alternatives:
   - rejected because imported helper bodies are intentionally not lowered, so helper semantics are not guaranteed to materialize as required QC field opcodes.
 - implement all field-value helper variants (`FieldVector`, `FieldString`, etc.) in one pass:
   - rejected for this slice to keep blast radius limited to the unblock seam.
+- silently allow other `Field*`/`SetField*` helper names to pass through generic call lowering:
+  - rejected because it obscures the intentional defer boundary and makes non-float dynamic helper usage fail in less actionable ways.
 
 ### Chose explicit defer diagnostics for non-Vec3 struct literals
 

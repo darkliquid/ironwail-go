@@ -5,7 +5,23 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
+type combatEntity quake.Entity
+
+func asCombatEntity(ent *quake.Entity) *combatEntity {
+	return (*combatEntity)(ent)
+}
+
+func (ce *combatEntity) entity() *quake.Entity {
+	return (*quake.Entity)(ce)
+}
+
 func CanDamage(targ, inflictor *quake.Entity) float32 {
+	return asCombatEntity(targ).canDamage(inflictor)
+}
+
+func (ce *combatEntity) canDamage(inflictor *quake.Entity) float32 {
+	targ := ce.entity()
+
 	if targ.MoveType == MOVETYPE_PUSH {
 		engine.Traceline(inflictor.Origin, targ.AbsMin.Add(targ.AbsMax).Mul(0.5), TRUE, Self)
 		if TraceFraction == 1 {
@@ -46,6 +62,12 @@ func CanDamage(targ, inflictor *quake.Entity) float32 {
 }
 
 func Killed(targ, attacker *quake.Entity) {
+	asCombatEntity(targ).killed(attacker)
+}
+
+func (ce *combatEntity) killed(attacker *quake.Entity) {
+	targ := ce.entity()
+
 	oself := Self
 	Self = targ
 
@@ -76,6 +98,12 @@ func Killed(targ, attacker *quake.Entity) {
 }
 
 func T_Damage(targ, inflictor, attacker *quake.Entity, damage float32) {
+	asCombatEntity(targ).takeDamage(inflictor, attacker, damage)
+}
+
+func (ce *combatEntity) takeDamage(inflictor, attacker *quake.Entity, damage float32) {
+	targ := ce.entity()
+
 	var save, take float32
 	var dir, knockback quake.Vec3
 
@@ -115,7 +143,7 @@ func T_Damage(targ, inflictor, attacker *quake.Entity, damage float32) {
 	targ.Health = targ.Health - take
 
 	if targ.Health <= 0 {
-		Killed(targ, attacker)
+		ce.killed(attacker)
 		return
 	}
 

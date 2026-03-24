@@ -1036,6 +1036,17 @@ func TestDrawLoadingPlaqueNoopWithoutPics(t *testing.T) {
 	}
 }
 
+func TestDrawLoadingPlaqueNoopWithoutRenderContext(t *testing.T) {
+	loading := &qimage.QPic{Width: 160, Height: 24}
+	pics := &loadingPlaqueTestPics{
+		pics: map[string]*qimage.QPic{
+			"gfx/loading.lmp": loading,
+		},
+	}
+
+	drawLoadingPlaque(nil, pics)
+}
+
 func TestDrawPauseOverlayDrawsCenteredPausePic(t *testing.T) {
 	pause := &qimage.QPic{Width: 128, Height: 24}
 	pics := &loadingPlaqueTestPics{
@@ -4245,6 +4256,39 @@ func TestBuildRuntimeRenderFrameStateAppliesWorldspawnFogDefaults(t *testing.T) 
 	wantColor := [3]float32{64.0 / 255.0, 128.0 / 255.0, 191.0 / 255.0}
 	if state.FogColor != wantColor {
 		t.Fatalf("FogColor = %v, want %v", state.FogColor, wantColor)
+	}
+}
+
+func TestBuildRuntimeRenderFrameStatePreservesModelSpriteDataFallback(t *testing.T) {
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+	})
+	g.Renderer = &renderer.Renderer{}
+
+	spritePayload := &model.MSprite{
+		Type:      0,
+		MaxWidth:  4,
+		MaxHeight: 4,
+		NumFrames: 1,
+	}
+	state := buildRuntimeRenderFrameState(nil, nil, []renderer.SpriteEntity{{
+		ModelID: "progs/flame.spr",
+		Model: &model.Model{
+			Type:       model.ModSprite,
+			SpriteData: spritePayload,
+		},
+		SpriteData: nil,
+	}}, nil)
+
+	if got := len(state.SpriteEntities); got != 1 {
+		t.Fatalf("SpriteEntities len = %d, want 1", got)
+	}
+	if state.SpriteEntities[0].SpriteData != nil {
+		t.Fatalf("SpriteEntities[0].SpriteData = %#v, want nil explicit payload", state.SpriteEntities[0].SpriteData)
+	}
+	if state.SpriteEntities[0].Model == nil || state.SpriteEntities[0].Model.SpriteData != spritePayload {
+		t.Fatal("SpriteEntities[0].Model.SpriteData should preserve fallback sprite payload")
 	}
 }
 

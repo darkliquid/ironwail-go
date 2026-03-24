@@ -7,3 +7,4 @@
 ## Contracts
 
 - this node consumes shared world/entity structures and renders them through the GoGPU backend-specific path
+- world-face visibility for GoGPU draws is expected to come from shared-world PVS helpers (`WorldGeometry.LeafFaces` + `selectVisibleWorldFaces`) rather than backend-specific culling logic

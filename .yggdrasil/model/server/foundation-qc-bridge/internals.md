@@ -6,6 +6,8 @@ This node centralizes the dual-representation problem: every authoritative entit
 
 The server also exposes narrow bridge helpers that project QC VM internals to host policies without leaking VM ownership; `QCProfileResults(top)` is one such bridge and only returns counters when the server and QC VM are active. The same bridge layer now includes a `DevStatsSnapshot()` surface backed by `devStats/devPeak` state on `Server`, keeping runtime developer counters available to host command code without exposing serialization/physics internals directly.
 
+The `Server` filesystem surface is intentionally narrowed to the `modelAssetFileSystem` contract (`OpenFile` only) for model-bound operations. This preserves bridge-layer decoupling: server bootstrap/model cache logic can stream model assets without depending on broader VFS convenience APIs, while still accepting the concrete `*fs.FileSystem` injected by spawn/bootstrap callers.
+
 Node-owned integration tests in `server_test.go` now also pin cross-node command-bridge behavior at the public `ExecuteClientString` surface for `ban`: non-deathmatch execution mutates/query-reads the shared datagram IP-ban state via `internal/net`, while deathmatch mode remains a no-op.
 
 ## Constraints

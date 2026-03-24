@@ -6,4 +6,5 @@ This node is not responsible for implementing compiler behavior. Its job is to p
 
 It also maintains a narrow structural parity smoke that validates section-layout monotonicity, control-flow function-shape expectations, and opcode presence for the controlflow fixture so regressions are caught beyond byte-ordering checks.
 It maintains a deterministic VM-visible parity smoke harness over selected arithmetic/controlflow fixture calls, pinning baseline behavior for `Add`, `Max`, and `Sum` so lowering drift is detected early.
+Allocator-focused tests in this node are responsible for preserving the package baseline assumption that compiler globals begin after QCVM/system slots (`qc.OFSMsgEntity + 1`), ensuring qgo slices compare against the same reserved-global model as runtime.
 It also owns explicit deferred-scope evidence for struct literals: `Vec3` composite literals remain supported while non-`Vec3` struct literals are intentionally deferred and must fail with a stable diagnostic contract.

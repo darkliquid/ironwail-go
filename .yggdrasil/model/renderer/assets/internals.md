@@ -18,3 +18,12 @@ Observed decision:
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**
+
+### Sprite fallback prefers parsed model payload
+
+Observed decision:
+- `spriteDataFromModel` now returns `model.Model.SpriteData` whenever it is present before synthesizing bounds-only placeholder sprite metadata.
+
+Rationale:
+- Runtime entity collection can retain parsed sprite frame payload on `Model.SpriteData` even when `SpriteEntity.SpriteData` is absent on a downstream path.
+- Returning `Model.SpriteData` preserves real frame pixels for backend uploads and prevents cache-miss uploads from degenerating to empty placeholder frames.

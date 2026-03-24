@@ -10,6 +10,14 @@
 - The first absolute mouse sample after showing a menu is deliberately ignored to avoid jumpy initial selection.
 - `ForcedUnderwater` depends on both menu activity and the current video-menu cursor position, so menu state affects renderer preview behavior.
 - `menuCursorForPoint` is row-oriented and largely ignores the X coordinate.
+- Controls-menu cursor math and absolute-row hit testing are coupled to `controlsItems` and `controlRowY`; when the bind matrix expands these values must stay aligned or keyboard and mouse navigation diverge.
+
+## Recent update: Controls key-matrix parity expansion
+
+- The Controls menu now exposes a broader legacy movement/look key matrix by extending binding rows from 12 actions to 21 actions.
+- Newly surfaced commands are: `+speed`, `+strafe`, `+lookup`, `+lookdown`, `centerview`, `+mlook`, `+klook`, `+moveup`, `+movedown`.
+- The existing semantics are preserved: settings rows still live-toggle cvars, binding rows still use Enter/Right to rebind, and Left/Backspace to clear.
+- `controlsItems` increased to keep wrap-around navigation and absolute row hit testing in sync with the larger binding surface.
 
 ## Decisions
 

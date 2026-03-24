@@ -32,3 +32,17 @@ Rationale:
 
 Observed effect:
 - The backend can support modern controller-centric play styles without changing the core input contract, but SDL-specific cvar/cmd coupling lives in this implementation rather than the backend-neutral core.
+
+### Gyro calibration persistence is currently covered by archived cvars (audit)
+
+Observed decision:
+- No new storage slice is required for gyro calibration persistence at this time.
+- `gyro_calibration_x`, `gyro_calibration_y`, and `gyro_calibration_z` are registered with `cvar.FlagArchive`, and `Host.WriteConfigNamed` writes archived cvars to `ironwail.cfg`.
+
+Rationale:
+- The gameplay look-path integration (`joy_gyro_look`, `joy_gyro_yaw_scale`, `joy_gyro_pitch_scale`) consumes gyro deltas from input, but persistence ownership remains in the input/backend + host config pipeline, not gameplay look code.
+- Calibration runs (`gyro_calibrate`) update the calibration cvars via `cvar.SetFloat`, so persistence is already obtained through normal config write behavior.
+
+Observed effect:
+- The previously suspected persistence gap is not live in current code.
+- Future gyro tuning can stay cvar-backed unless requirements shift toward per-device profiles or autosave-on-calibrate semantics.

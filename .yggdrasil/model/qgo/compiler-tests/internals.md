@@ -6,6 +6,7 @@ The compiler tests combine three layers of evidence:
 
 - fixture compilation checks that `Compile` produces structurally valid `progs.dat` sections
 - helper tests isolate small invariants like opcode/type mapping and string/global allocation
+- GlobalAllocator helper tests assert the allocator baseline tracks pre-registered QCVM/system globals (`self`, `parm*`, tracing globals, `msg_entity`) and begins compiler-owned allocation at `qc.OFSMsgEntity + 1`
 - round-trip tests compile sample programs, load them with `qc.NewVM().LoadProgs`, execute functions such as `Add` and `Max`, and verify the VM-visible results
 - round-trip arithmetic coverage now includes bitwise-not semantics (`^x`) and mask-clearing (`a & ^b`) via an ephemeral source package compiled in-test
 - unsupported-feature tests create temporary package directories under `cmd/qgo/testdata` and assert deterministic lowering errors for syntax outside the supported subset
@@ -79,6 +80,8 @@ Rejected alternatives:
   - rejected because intrinsic lowering must enforce its own helper contract even when helper signatures are broad/variadic in synthetic or test stubs.
 - stop at opcode assertions without VM execution:
   - rejected because this cannot prove `OP_LOAD_F`/`OP_ADDRESS`/`OP_STOREP_F` cooperate correctly with runtime field pointers and entity memory layout.
+- avoid explicit defer-boundary tests for additional helper names:
+  - rejected because compiler users need a deterministic diagnostic that broader dynamic helper variants are intentionally not in scope yet.
 
 ### Keep deferred feature boundaries explicit in tests
 

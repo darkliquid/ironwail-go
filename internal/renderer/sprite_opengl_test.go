@@ -116,6 +116,56 @@ func TestUploadSpriteModelWithGroup(t *testing.T) {
 	}
 }
 
+func TestBuildSpriteDrawLockedUsesModelSpriteDataWhenEntitySpriteDataNil(t *testing.T) {
+	r := &Renderer{
+		spriteModels: map[string]*glSpriteModel{},
+	}
+	modelSprite := &model.MSprite{
+		Type:      spriteTypeVPParallel,
+		MaxWidth:  8,
+		MaxHeight: 8,
+		NumFrames: 1,
+		Frames: []model.MSpriteFrameDesc{{
+			Type: model.SpriteFrameSingle,
+			FramePtr: &model.MSpriteFrame{
+				Width:  8,
+				Height: 8,
+				Up:     4,
+				Down:   -4,
+				Left:   -4,
+				Right:  4,
+				SMax:   1,
+				TMax:   1,
+				Pixels: []byte{5, 6, 7},
+			},
+		}},
+	}
+	entity := SpriteEntity{
+		ModelID: "progs/flame.spr",
+		Model: &model.Model{
+			Type:       model.ModSprite,
+			SpriteData: modelSprite,
+		},
+		Frame: 0,
+		Alpha: 1,
+		Scale: 1,
+	}
+
+	draw := r.buildSpriteDrawLocked(entity)
+	if draw == nil {
+		t.Fatal("buildSpriteDrawLocked returned nil")
+	}
+	if draw.sprite == nil {
+		t.Fatal("buildSpriteDrawLocked should upload sprite from Model.SpriteData")
+	}
+	if len(draw.sprite.frames) != 1 {
+		t.Fatalf("sprite frames = %d, want 1", len(draw.sprite.frames))
+	}
+	if got := draw.sprite.frames[0].pixels; len(got) != 3 || got[0] != 5 || got[2] != 7 {
+		t.Fatalf("sprite frame pixels = %v, want copied Model.SpriteData payload", got)
+	}
+}
+
 func spriteTestModel(spriteType int) *glSpriteModel {
 	return &glSpriteModel{
 		modelID:    "test",

@@ -120,6 +120,34 @@ func TestSpriteDataForEntityFallsBackToModel(t *testing.T) {
 	}
 }
 
+func TestSpriteDataForEntityFallsBackToModelSpriteDataPayload(t *testing.T) {
+	modelSprite := &model.MSprite{
+		Type:      spriteTypeVPParallel,
+		MaxWidth:  8,
+		MaxHeight: 8,
+		NumFrames: 1,
+		Frames: []model.MSpriteFrameDesc{{
+			Type: model.SpriteFrameSingle,
+			FramePtr: &model.MSpriteFrame{
+				Width:  8,
+				Height: 8,
+				Pixels: []byte{7, 8, 9},
+			},
+		}},
+	}
+	entity := SpriteEntity{
+		Model: &model.Model{
+			Type:       model.ModSprite,
+			SpriteData: modelSprite,
+		},
+	}
+
+	got := spriteDataForEntity(entity)
+	if got != modelSprite {
+		t.Fatal("spriteDataForEntity should prefer Model.SpriteData when explicit SpriteData is nil")
+	}
+}
+
 func TestSpriteDataFromModelUsesFallbackDimensions(t *testing.T) {
 	got := spriteDataFromModel(&model.Model{Type: model.ModSprite})
 	if got == nil {

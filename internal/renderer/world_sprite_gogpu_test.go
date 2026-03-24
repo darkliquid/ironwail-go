@@ -95,6 +95,56 @@ func TestBuildSpriteDrawLockedFallsBackToModelSpriteData(t *testing.T) {
 	}
 }
 
+func TestBuildSpriteDrawLockedUsesModelSpriteDataWhenEntitySpriteDataNil(t *testing.T) {
+	r := &Renderer{
+		spriteModels: map[string]*gpuSpriteModel{},
+	}
+	modelSprite := &model.MSprite{
+		Type:      spriteTypeVPParallel,
+		MaxWidth:  8,
+		MaxHeight: 8,
+		NumFrames: 1,
+		Frames: []model.MSpriteFrameDesc{{
+			Type: model.SpriteFrameSingle,
+			FramePtr: &model.MSpriteFrame{
+				Width:  8,
+				Height: 8,
+				Up:     4,
+				Down:   -4,
+				Left:   -4,
+				Right:  4,
+				SMax:   1,
+				TMax:   1,
+				Pixels: []byte{1, 2, 3, 4},
+			},
+		}},
+	}
+	entity := SpriteEntity{
+		ModelID: "progs/flame.spr",
+		Model: &model.Model{
+			Type:       model.ModSprite,
+			SpriteData: modelSprite,
+		},
+		Frame: 0,
+		Alpha: 1,
+		Scale: 1,
+	}
+
+	draw := r.buildSpriteDrawLocked(nil, nil, entity)
+	if draw == nil {
+		t.Fatal("buildSpriteDrawLocked returned nil")
+	}
+	if draw.sprite == nil {
+		t.Fatal("buildSpriteDrawLocked should upload sprite from Model.SpriteData")
+	}
+	if len(draw.sprite.frames) != 1 {
+		t.Fatalf("sprite frames = %d, want 1", len(draw.sprite.frames))
+	}
+	if got := draw.sprite.frames[0].meta.pixels; len(got) != 4 || got[0] != 1 || got[3] != 4 {
+		t.Fatalf("sprite frame pixels = %v, want copied Model.SpriteData payload", got)
+	}
+}
+
 func almostEqualSpriteFloat32(a, b, epsilon float32) bool {
 	return float32(math.Abs(float64(a-b))) <= epsilon
 }

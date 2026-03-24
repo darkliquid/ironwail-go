@@ -4,6 +4,7 @@
 
 The runtime loop implements `host.FrameCallbacks` and decides what happens each frame. It polls input/events, executes console commands, advances the server, and then processes the client according to the configured phase ordering. In live play, client read/send ordering is explicit and paired with host/client activation synchronization and loopback stufftext dispatch. In demo playback, the loop bypasses normal networked gameplay, advances demo timing, parses recorded messages, handles rewind/EOF behavior, and bootstraps demo world state when needed. Shutdown complements startup by tearing down renderer/audio/networking and writing config.
 `syncHostClientState` is also responsible for mirroring host-derived interpolation policy into the active client state; it now propagates `Host.LocalServerFast()` to `Client.LocalServerFast` so LerpPoint fast-bypass behavior tracks host net-interval policy during local server play.
+The loading-plaque helper now returns immediately when either the render context or pic provider is nil. This aligns runtime-loop overlay helpers with the existing pause-overlay nil-safety and prevents panic-on-missing-context behavior in focused runtime/UI code paths.
 
 ## Constraints
 

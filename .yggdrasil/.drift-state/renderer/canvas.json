@@ -2,6 +2,7 @@
   "hash": "19a6ce083d3e4dcaee5cf5282db00139d4ea5cf3150e96bb6d4d841c980d7d84",
   "files": {
     ".yggdrasil/model/renderer/canvas/yg-node.yaml": "d6b7a163971d896ac0a92b4454820a0842d638f381e57b29625f3425400def12",
+    ".yggdrasil/model/renderer/canvas/interface.md": "425123cdba54abba8d38d65ead5aafaf881a27a54726dce3c7d76f7f9dad30fa",
     ".yggdrasil/model/renderer/canvas/internals.md": "4d177ccee1528db221849f7dbd1a4d5954fa3b39789ef9b3169c190ef1741439",
     ".yggdrasil/model/renderer/canvas/responsibility.md": "50927472f319c39e43162a3a951fec6ea9c7d2313091fd8753641e91dacdf3ed",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
@@ -11,8 +12,7 @@
     "internal/renderer/types.go": "3170b469431d02a1a026c9a938d03879dc8d4299d27af4c77a46cabefd0ffd56",
     "internal/renderer/screen.go": "14a3d18ca6071a64f1994b94a768b2be0d5720c04beddcafcea9a1dedbf33a3e",
     "internal/renderer/camera.go": "546524e08f89ca75901e5212ccdd67c41eee0cfa70f708ef74d86fa8161058c7",
-    "internal/renderer/camera_shared.go": "f48ebb81b3010878d5d31fe8bccc31c286b2a6c26f9f40e93e3ea1fb977778b6",
-    ".yggdrasil/model/renderer/canvas/interface.md": "425123cdba54abba8d38d65ead5aafaf881a27a54726dce3c7d76f7f9dad30fa"
+    "internal/renderer/camera_shared.go": "f48ebb81b3010878d5d31fe8bccc31c286b2a6c26f9f40e93e3ea1fb977778b6"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/canvas/yg-node.yaml": 1774219362025.5974,

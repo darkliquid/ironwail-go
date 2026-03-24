@@ -64,6 +64,76 @@ func globalEffectBitSupported(vm *qc.VM, bit int, names ...string) bool {
 	return false
 }
 
+func (s *Server) mapCheckEnabled() bool {
+	// C parity intent: map-check diagnostics become active when either map_checks
+	// or developer is enabled. Keep this deliberately tiny until full sv_main
+	// parity work lands.
+	if cvar.FloatValue("map_checks") != 0 {
+		return true
+	}
+	return cvar.FloatValue("developer") != 0
+}
+
+func (s *Server) mapCheckReportf(format string, args ...any) bool {
+	msg := fmt.Sprintf(format, args...)
+	reported := false
+	if s != nil && s.DebugTelemetry != nil {
+		if s.DebugTelemetry.LogEventf(DebugEventPhysics, s.QCVM, -1, nil, "mapcheck %s", msg) {
+			reported = true
+		}
+	}
+	if s != nil && s.Static != nil {
+		for _, client := range s.Static.Clients {
+			if !s.SV_IsLocalClient(client) {
+				continue
+			}
+			s.SV_ClientPrintf(client, "%s\n", msg)
+			reported = true
+		}
+	}
+	if !reported {
+		slog.Warn("mapcheck", "message", msg)
+	}
+	return reported
+}
+
+// SV_MapCheckThresh gates map-check diagnostics behind map_checks/developer.
+//
+// Minimal parity slice: this currently returns whether diagnostics are enabled
+// and leaves threshold semantics to future C-parity work.
+func (s *Server) SV_MapCheckThresh(threshold float32) bool {
+	_ = threshold
+	return s.mapCheckEnabled()
+}
+
+// SV_PrintMapCheck emits a single map-check diagnostic line when map checks are enabled.
+func (s *Server) SV_PrintMapCheck(format string, args ...any) bool {
+	if !s.SV_MapCheckThresh(0) {
+		return false
+	}
+	return s.mapCheckReportf(format, args...)
+}
+
+// SV_PrintMapChecklist emits the header plus entries for map-check diagnostics.
+func (s *Server) SV_PrintMapChecklist(header string, checks ...string) int {
+	if !s.SV_MapCheckThresh(0) {
+		return 0
+	}
+	printed := 0
+	if strings.TrimSpace(header) != "" {
+		s.mapCheckReportf("%s", header)
+		printed++
+	}
+	for _, check := range checks {
+		if strings.TrimSpace(check) == "" {
+			continue
+		}
+		s.mapCheckReportf("- %s", check)
+		printed++
+	}
+	return printed
+}
+
 func (s *Server) detectEffectsMaskFromQC() int {
 	mask := defaultEffectsMask
 	if s == nil || s.QCVM == nil {
@@ -733,28 +803,29 @@ func (s *Server) cacheModelInfo(modelName string) (cachedModelInfo, error) {
 	if s.FileSystem == nil {
 		return cachedModelInfo{}, fmt.Errorf("filesystem unavailable while loading %q", modelName)
 	}
-	data, err := s.FileSystem.LoadFile(modelName)
+	file, _, err := s.FileSystem.OpenFile(modelName)
 	if err != nil {
 		return cachedModelInfo{}, err
 	}
+	defer file.Close()
 
 	var info cachedModelInfo
 	switch filepath.Ext(modelName) {
 	case ".mdl":
-		m, err := model.LoadAliasModel(bytes.NewReader(data))
+		m, err := model.LoadAliasModel(file)
 		if err != nil {
 			return cachedModelInfo{}, err
 		}
 		info = cachedModelInfo{mins: m.Mins, maxs: m.Maxs, known: true}
 	case ".spr":
-		sprite, err := model.LoadSprite(bytes.NewReader(data))
+		sprite, err := model.LoadSprite(file)
 		if err != nil {
 			return cachedModelInfo{}, err
 		}
 		info.mins, info.maxs = spriteBounds(sprite)
 		info.known = true
 	case ".bsp":
-		tree, err := bsp.LoadTree(bytes.NewReader(data))
+		tree, err := bsp.LoadTree(file)
 		if err != nil {
 			return cachedModelInfo{}, err
 		}

@@ -103,6 +103,9 @@ func spriteDataFromModel(mdl *model.Model) *model.MSprite {
 	if mdl == nil || mdl.Type != model.ModSprite {
 		return nil
 	}
+	if mdl.SpriteData != nil {
+		return mdl.SpriteData
+	}
 
 	spr := &model.MSprite{
 		Type:      int(mdl.Type),

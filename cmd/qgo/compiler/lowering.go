@@ -829,6 +829,14 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 func (l *Lowerer) lowerFieldOffsetIntrinsic(fn *IRFunc, call *ast.CallExpr) (VReg, bool) {
 	intrinsic, ok := l.fieldOffsetIntrinsicName(call)
 	if !ok {
+		if deferredName, deferred := l.deferredFieldOffsetIntrinsicName(call); deferred {
+			l.errors.Addf(
+				l.pos(call),
+				"quake.%s is deferred for dynamic field access; only quake.FieldFloat and quake.SetFieldFloat are currently supported",
+				deferredName,
+			)
+			return VRegInvalid, true
+		}
 		return VRegInvalid, false
 	}
 
@@ -930,6 +938,32 @@ func (l *Lowerer) fieldOffsetIntrinsicName(call *ast.CallExpr) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+func (l *Lowerer) deferredFieldOffsetIntrinsicName(call *ast.CallExpr) (string, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	pkgIdent, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	pkgObj, ok := l.currentInfo.Uses[pkgIdent].(*types.PkgName)
+	if !ok || pkgObj == nil {
+		return "", false
+	}
+	if pkgObj.Imported() == nil || pkgObj.Imported().Name() != "quake" {
+		return "", false
+	}
+	switch sel.Sel.Name {
+	case "FieldFloat", "SetFieldFloat":
+		return "", false
+	}
+	if strings.HasPrefix(sel.Sel.Name, "Field") || strings.HasPrefix(sel.Sel.Name, "SetField") {
+		return sel.Sel.Name, true
+	}
+	return "", false
 }
 
 func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {

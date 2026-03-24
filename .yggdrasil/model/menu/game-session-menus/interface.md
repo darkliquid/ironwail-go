@@ -16,4 +16,5 @@
 - Load/save use fixed slot indices `s0` through `s11`.
 - Join Game defaults an empty address to `local`.
 - Host Game edits live settings locally/cvar-by-cvar and issues a fixed command sequence when starting.
+- Host Game queues `listen 1` when configured `maxplayers > 1`, and `listen 0` when `maxplayers == 1`, matching host-network parity behavior.
 - Only the first `joinGameVisibleResults` server entries are displayed/selectable.

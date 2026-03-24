@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"reflect"
@@ -34,7 +35,6 @@ import (
 	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/fs"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
@@ -95,7 +95,7 @@ type Server struct {
 	StaticEntities []EntityState
 	StaticSounds   []StaticSound
 	LightStyles    [64]string
-	FileSystem     *fs.FileSystem
+	FileSystem     modelAssetFileSystem
 
 	// Protocol version (15=NetQuake, 666=FitzQuake, 999=RMQ)
 	Protocol int
@@ -133,6 +133,10 @@ type Server struct {
 	compatRNG *compatrand.RNG
 
 	modelCache map[string]cachedModelInfo
+}
+
+type modelAssetFileSystem interface {
+	OpenFile(filename string) (io.ReadSeekCloser, int64, error)
 }
 
 type impactTouchKey struct {

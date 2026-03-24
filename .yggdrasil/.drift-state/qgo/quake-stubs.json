@@ -1,5 +1,5 @@
 {
-  "hash": "1fce428803d23d16c4be4f34e8c31764e8f1d92af3ed2209845ade3e4393b3ef",
+  "hash": "0c3828b9950d8cf91b848fbe8febe9b8ee95d6ebf9f89d83891089f34575a822",
   "files": {
     ".yggdrasil/model/qgo/quake-stubs/yg-node.yaml": "7f6a244978c1ea3f653ad44f5d5445133497a5310d5846a5ffc92c8405f4a3c6",
     ".yggdrasil/model/qgo/quake-stubs/interface.md": "f1b224ba8a0a668b45bd58449ce65d75de0e36f436bf76be56b4ec6d3938b039",
@@ -10,7 +10,7 @@
     ".yggdrasil/model/qgo/internals.md": "d8808ad92e01827957d884ef38b232c148ca63fbdc9220505cbc6d6eda3ad9cd",
     ".yggdrasil/model/qgo/responsibility.md": "1d670421e1d4c77d5a44e3352013e442a8d98af7bc2e45717b8a857ca0ee168e",
     ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
-    ".yggdrasil/model/qgo/compiler/interface.md": "adba7b508c10e927cc56472765771812cb9c5c5aa685a3cb23d994a323b994c3",
+    ".yggdrasil/model/qgo/compiler/interface.md": "30689d0d6e5a965cedc1270b4df088abc6701209d0e1cf1b89cd59a4002cdf43",
     "pkg/qgo/quake/quake.go": "293828a161564fd08560e7cb7c4573abe8a39ffa0ab05eb0b9ada49e8ce912c7",
     "pkg/qgo/quake/quake_test.go": "7e01a31829fc966977f989ba6ec81f0e5230a578c70fadb2775b71ae0c2496b3",
     "pkg/qgo/quake/engine/backend.go": "26fccd8872a55bf8fc1c90fda8fc7800a9357bd9ce14d8d5a25c5d1094420b84",
@@ -29,7 +29,7 @@
     ".yggdrasil/model/qgo/internals.md": 1774265244073.6418,
     ".yggdrasil/model/qgo/responsibility.md": 1774265243949.64,
     ".yggdrasil/model/qgo/compiler/responsibility.md": 1774265244197.6436,
-    ".yggdrasil/model/qgo/compiler/interface.md": 1774337536918.786,
+    ".yggdrasil/model/qgo/compiler/interface.md": 1774343576634.5583,
     "pkg/qgo/quake/quake.go": 1774337627660.84,
     "pkg/qgo/quake/quake_test.go": 1774337633535.953,
     "pkg/qgo/quake/engine/backend.go": 1774311311872.6946,

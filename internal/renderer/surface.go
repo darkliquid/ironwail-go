@@ -43,7 +43,7 @@ func BuildTextureAnimations(names []string) ([]*SurfaceTexture, error) {
 			continue
 		}
 		name := trimmed[i]
-		if len(name) < 2 || name[0] != '+' {
+		if name == "" || name[0] != '+' {
 			continue
 		}
 

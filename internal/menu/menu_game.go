@@ -397,9 +397,13 @@ func (m *Manager) applyHostGame() {
 	} else {
 		deathmatch = 1
 	}
+	listen := 0
+	if m.hostMaxPlayers > 1 {
+		listen = 1
+	}
 	m.HideMenu()
 	m.queueCommand("disconnect\n")
-	m.queueCommand("listen 0\n")
+	m.queueCommand(fmt.Sprintf("listen %d\n", listen))
 	m.queueCommand(fmt.Sprintf("maxplayers %d\n", m.hostMaxPlayers))
 	m.queueCommand(fmt.Sprintf("deathmatch %d\n", deathmatch))
 	m.queueCommand(fmt.Sprintf("coop %d\n", coop))
@@ -534,7 +538,7 @@ func (m *Manager) drawHostGame(dc renderer.RenderContext) {
 	}
 	m.drawText(dc, 192, 112, timeLabel, true)
 	m.drawText(dc, 192, 128, m.hostMapName, true)
-	m.drawText(dc, 40, 200, "HOSTING USES EXISTING LOCAL LOOPBACK", true)
+	m.drawText(dc, 32, 200, "LOOPBACK ALWAYS ACTIVE; LISTEN ALLOWS JOINS", true)
 
 	cursorRows := []int{32, 48, 64, 80, 96, 112, 128, 152, 176}
 	m.drawArrowCursor(dc, 40, cursorRows[m.hostGameCursor])

@@ -1,9 +1,6 @@
 {
-  "hash": "553de3d4464f889663af5e1488026dcdd7d445f1642e1a8a7504b619c88be9d6",
+  "hash": "80dc2c2f445c684afd6409c8ab167d6fe4fa71089092917c9fd13c03c1c58488",
   "files": {
-    ".yggdrasil/model/renderer/shared-world/yg-node.yaml": "fb746b2e66c926cfb53a1e7d92c0e2446293ec642bf625b444a9f7a21a761b56",
-    ".yggdrasil/model/renderer/shared-world/interface.md": "e5a866975efaae07e391d31526f5f4e08ce77074942addb67816db9cb747a472",
-    ".yggdrasil/model/renderer/shared-world/internals.md": "385d1e6c58e88bc9fd008583301bb60a0317b1e0e0dc8b7fb002ccfc9521c987",
     ".yggdrasil/model/renderer/shared-world/responsibility.md": "c3672bffa9b8670d7c6ddcb9f3febcd269338b8990050591356e346bfd6d18e0",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
@@ -17,13 +14,17 @@
     "internal/renderer/world_liquid_alpha.go": "cc741f011936e87e17f07c2c4d9dbf738957aeb2a4f086dac2a8f28ae0432684",
     "internal/renderer/world_sky_shared.go": "181b3d171cdb35a3f874eee2fe84a0a0cec04ad1e42644d4e893eb6e0991085e",
     "internal/renderer/lightmap_samples.go": "4874e4371bab846c2aff66ec66fab71055a9046d27feecd897b8d1fcec10ef0b",
-    "internal/renderer/surface.go": "7c0b72ce6751825cbd59aaa94fca123916c000682321c0fae465f2a9803831ec",
-    "internal/renderer/texture.go": "e0a70e787fdae7c2ebac94d6aa70c7530d75d0ad2d2b5b9e315165c15444f1cc"
+    "internal/renderer/texture.go": "e0a70e787fdae7c2ebac94d6aa70c7530d75d0ad2d2b5b9e315165c15444f1cc",
+    ".yggdrasil/model/renderer/shared-world/yg-node.yaml": "bf416f2723de92389e49e7f70dc458a0c73d214b5067e3b7fda00ec945fcbbb0",
+    ".yggdrasil/model/renderer/shared-world/interface.md": "c5789f655228c9041bf334248c0f3533b0ff1f1b5bf01ae34ba4c2340bdfaec2",
+    ".yggdrasil/model/renderer/shared-world/internals.md": "b77a1bec72c9a5cb546f4d13a9943330609aa6c3d15b907582802d833ed3a731",
+    "internal/renderer/surface.go": "4cc4b9cbafd8850882476cb0b3b2f56e96cb16bd8fb2e9936a0603f6972384e1",
+    "internal/renderer/surface_test.go": "c746a3b794f8a0a4292d16a6d297c059ed532ae0861d898bd4f798078ddf5a89"
   },
   "mtimes": {
-    ".yggdrasil/model/renderer/shared-world/yg-node.yaml": 1774219364104.6199,
-    ".yggdrasil/model/renderer/shared-world/interface.md": 1774337785623.8252,
-    ".yggdrasil/model/renderer/shared-world/internals.md": 1774337791080.9268,
+    ".yggdrasil/model/renderer/shared-world/yg-node.yaml": 1774343966111.5627,
+    ".yggdrasil/model/renderer/shared-world/interface.md": 1774343971355.6067,
+    ".yggdrasil/model/renderer/shared-world/internals.md": 1774343977991.6626,
     ".yggdrasil/model/renderer/shared-world/responsibility.md": 1774219364179.6206,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
@@ -37,7 +38,8 @@
     "internal/renderer/world_liquid_alpha.go": 1773836785810.8274,
     "internal/renderer/world_sky_shared.go": 1774337711504.4363,
     "internal/renderer/lightmap_samples.go": 1774123696370.2805,
-    "internal/renderer/surface.go": 1773836785809.9563,
+    "internal/renderer/surface.go": 1774343890808,
+    "internal/renderer/surface_test.go": 1774343911979.8545,
     "internal/renderer/texture.go": 1773836785810.1782
   }
 }
