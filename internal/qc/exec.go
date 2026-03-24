@@ -93,9 +93,10 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 	// C: startprofile = profile = 0; xfunction->profile += profile - startprofile
 	profile := 0
 	startProfile := 0
+	statementLimit := vm.statementBudgetLimit()
 	for {
 		profile++
-		if profile > runawayLoopLimit {
+		if profile > statementLimit {
 			return fmt.Errorf("runaway loop error")
 		}
 

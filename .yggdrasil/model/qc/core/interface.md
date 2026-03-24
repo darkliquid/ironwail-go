@@ -14,6 +14,7 @@ Observed surfaces:
 - `EnterFunction`, `LeaveFunction`
 - `ExecuteProgram`
 - `ProfileResults(top int)` for sorted function-level QC profile counters (reset on read)
+- runaway-loop guard remains Quake-compatible by default (`0x1000000`); tests may opt into `VM.RunawayLoopLimit` override for focused fixture coverage
 
 ## Contracts
 

@@ -25,6 +25,7 @@ Function entry saves caller state and local values, copies parameters from the r
 - Out-of-bounds statements or invalid function numbers are hard errors.
 - The interpreter enforces the Quakespasm/Ironwail runaway-loop guard of `0x1000000` executed statements per `ExecuteProgram` invocation and raises `"runaway loop error"` on overflow.
 - Regression tests pin guard parity with C by asserting both the `0x1000000` limit constant and trap behavior for a tight infinite loop.
+- A first-pass fixture slice additionally verifies an opt-in VM test override path (`VM.RunawayLoopLimit`) still traps with the same runaway-loop error while leaving default behavior unchanged.
 
 ## Decisions
 

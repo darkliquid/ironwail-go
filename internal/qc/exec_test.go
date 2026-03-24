@@ -429,6 +429,25 @@ func TestExecuteProgramRunawayLoopLimitConstantMatchesC(t *testing.T) {
 	}
 }
 
+func TestExecuteProgramRunawayLoopLimitOverrideUsesVMFixture(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 16)
+	vm.Functions = []DFunction{{FirstStatement: 0}}
+	vm.Statements = []DStatement{{Op: uint16(OPGoto), A: uint16(0)}}
+	vm.RunawayLoopLimit = 3
+
+	if got := vm.statementBudgetLimit(); got != 3 {
+		t.Fatalf("statementBudgetLimit() = %d, want 3", got)
+	}
+
+	if err := vm.ExecuteProgram(0); err == nil || err.Error() != "runaway loop error" {
+		t.Fatalf("ExecuteProgram() error = %v, want runaway loop error", err)
+	}
+	if got := vm.XStatement; got != 0 {
+		t.Fatalf("XStatement = %d, want 0 at override runaway loop trap", got)
+	}
+}
+
 func TestExecuteProgramTraceCallEventsNested(t *testing.T) {
 	vm := NewVM()
 	vm.Globals = make([]float32, 64)

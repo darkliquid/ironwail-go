@@ -11,6 +11,7 @@
 
 Observed surfaces include:
 - VM construction
+- optional runaway-loop guard fixture override via `VM.RunawayLoopLimit` (`<=0` keeps default guard)
 - typed global and entity-field accessors
 - string allocation and lookup helpers
 - shared layout types for global and entity variables

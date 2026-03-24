@@ -534,6 +534,10 @@ type VM struct {
 	// XStatement is the current instruction pointer.
 	XStatement int
 
+	// RunawayLoopLimit overrides the default per-ExecuteProgram statement budget
+	// when > 0. A value <= 0 keeps the Quake-compatible default guard.
+	RunawayLoopLimit int
+
 	// CRC is the checksum of the loaded progs.
 	CRC uint16
 
@@ -605,6 +609,13 @@ func (vm *VM) SetCompatRNG(rng *compatrand.RNG) {
 		return
 	}
 	vm.compatRNG = rng
+}
+
+func (vm *VM) statementBudgetLimit() int {
+	if vm != nil && vm.RunawayLoopLimit > 0 {
+		return vm.RunawayLoopLimit
+	}
+	return runawayLoopLimit
 }
 
 // GFloat returns a float global value by offset.
