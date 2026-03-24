@@ -11,6 +11,7 @@ mapping:
     - pkg/qgo/quakego/prototypes.go
     - pkg/qgo/quakego/client.qc.go
     - pkg/qgo/quakego/combat.go
+    - pkg/qgo/quakego/buttons.go
     - pkg/qgo/quakego/items.go
     - pkg/qgo/quakego/misc.go
     - pkg/qgo/quakego/plats.go

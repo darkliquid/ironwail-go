@@ -5,26 +5,52 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
+type buttonEntity quake.Entity
+
+func asButtonEntity(ent *quake.Entity) *buttonEntity {
+	return (*buttonEntity)(ent)
+}
+
+func (be *buttonEntity) entity() *quake.Entity {
+	return (*quake.Entity)(be)
+}
+
 func button_wait() {
-	Self.State = float32(STATE_TOP)
-	Self.NextThink = Self.LTime + Self.Wait
-	Self.Think = button_return
-	Activator = Self.Enemy
+	asButtonEntity(Self).wait()
+}
+
+func (be *buttonEntity) wait() {
+	self := be.entity()
+
+	self.State = float32(STATE_TOP)
+	self.NextThink = self.LTime + self.Wait
+	self.Think = button_return
+	Activator = self.Enemy
 	SUB_UseTargets()
-	Self.Frame = 1 // use alternate textures
+	self.Frame = 1 // use alternate textures
 }
 
 func button_done() {
-	Self.State = float32(STATE_BOTTOM)
+	asButtonEntity(Self).done()
+}
+
+func (be *buttonEntity) done() {
+	be.entity().State = float32(STATE_BOTTOM)
 }
 
 func button_return() {
-	Self.State = float32(STATE_DOWN)
-	SUB_CalcMove(Self.Pos1, Self.Speed, button_done)
-	Self.Frame = 0 // use normal textures
+	asButtonEntity(Self).returnToStart()
+}
 
-	if Self.Health != 0 {
-		Self.TakeDamage = DAMAGE_YES // can be shot again
+func (be *buttonEntity) returnToStart() {
+	self := be.entity()
+
+	self.State = float32(STATE_DOWN)
+	SUB_CalcMove(self.Pos1, self.Speed, button_done)
+	self.Frame = 0 // use normal textures
+
+	if self.Health != 0 {
+		self.TakeDamage = DAMAGE_YES // can be shot again
 	}
 }
 
@@ -33,14 +59,20 @@ func button_blocked() {
 }
 
 func button_fire() {
-	if Self.State == float32(STATE_UP) || Self.State == float32(STATE_TOP) {
+	asButtonEntity(Self).fire()
+}
+
+func (be *buttonEntity) fire() {
+	self := be.entity()
+
+	if self.State == float32(STATE_UP) || self.State == float32(STATE_TOP) {
 		return
 	}
 
-	engine.Sound(Self, int(CHAN_VOICE), Self.Noise, 1, ATTN_NORM)
+	engine.Sound(self, int(CHAN_VOICE), self.Noise, 1, ATTN_NORM)
 
-	Self.State = float32(STATE_UP)
-	SUB_CalcMove(Self.Pos2, Self.Speed, button_wait)
+	self.State = float32(STATE_UP)
+	SUB_CalcMove(self.Pos2, self.Speed, button_wait)
 }
 
 func button_use() {
@@ -119,7 +151,7 @@ func func_button() {
 
 	Self.Pos1 = Self.Origin
 	movedir_fabs := quake.MakeVec3(engine.FAbs(Self.MoveDir[0]), engine.FAbs(Self.MoveDir[1]), engine.FAbs(Self.MoveDir[2]))
-	
+
 	// self.pos2 = self.pos1 + ((movedir_fabs * self.size) - self.lip) * self.movedir;
 	dot := movedir_fabs.Dot(Self.Size)
 	Self.Pos2 = Self.Pos1.Add(Self.MoveDir.Mul(dot - Self.Lip))

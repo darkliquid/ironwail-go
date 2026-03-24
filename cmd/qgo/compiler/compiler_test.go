@@ -3,9 +3,11 @@ package compiler
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -307,6 +309,13 @@ type compiledFixture struct {
 	stmts   []qc.DStatement
 }
 
+type parityMismatch struct {
+	category string
+	field    string
+	want     string
+	got      string
+}
+
 func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 	c := New()
 
@@ -465,11 +474,18 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 			if !ok {
 				t.Fatalf("missing fixture signal spec for %s", tc.fixture)
 			}
-			assertShallowFixtureSignals(t, tc.fixture, fixtureData, spec)
+			if mismatches := collectShallowFixtureMismatches(tc.fixture, fixtureData, spec); len(mismatches) > 0 {
+				t.Fatalf("%s", formatParitySmokeDiffReport(tc.name, tc.fixture, tc.function, mismatches))
+			}
 
 			fnum := fixtureData.vm.FindFunction(tc.function)
 			if fnum < 0 {
-				t.Fatalf("function %q not found in fixture %s", tc.function, tc.fixture)
+				t.Fatalf("%s", formatParitySmokeDiffReport(tc.name, tc.fixture, tc.function, []parityMismatch{{
+					category: "structural.function_presence",
+					field:    "required function",
+					want:     tc.function,
+					got:      "missing",
+				}}))
 			}
 
 			if len(tc.args) > len(parmSlots) {
@@ -480,27 +496,53 @@ func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
 			}
 
 			if err := fixtureData.vm.ExecuteProgram(fnum); err != nil {
-				t.Fatalf("%s execution failed: %v", tc.name, err)
+				t.Fatalf("%s", formatParitySmokeDiffReport(tc.name, tc.fixture, tc.function, []parityMismatch{{
+					category: "runtime.execute_program",
+					field:    "ExecuteProgram",
+					want:     "no error",
+					got:      err.Error(),
+				}}))
 			}
 
 			want := tc.goExpect(tc.args)
 			if got := fixtureData.vm.GFloat(qc.OFSReturn); got != want {
-				t.Fatalf("%s return = %v, want native-Go %v", tc.name, got, want)
+				t.Fatalf("%s", formatParitySmokeDiffReport(tc.name, tc.fixture, tc.function, []parityMismatch{{
+					category: "behavior.return_value",
+					field:    "OFSReturn",
+					want:     fmt.Sprintf("%g (native-go)", want),
+					got:      fmt.Sprintf("%g (qcvm)", got),
+				}}))
 			}
 		})
 	}
 }
 
-func assertShallowFixtureSignals(t *testing.T, fixture string, got compiledFixture, want fixtureSignalSpec) {
-	t.Helper()
+func collectShallowFixtureMismatches(fixture string, got compiledFixture, want fixtureSignalSpec) []parityMismatch {
+	var mismatches []parityMismatch
+
 	if got.header.Version != int32(qc.ProgVersion) {
-		t.Fatalf("%s version = %d, want %d", fixture, got.header.Version, qc.ProgVersion)
+		mismatches = append(mismatches, parityMismatch{
+			category: "structural.header",
+			field:    "version",
+			want:     fmt.Sprintf("%d", qc.ProgVersion),
+			got:      fmt.Sprintf("%d", got.header.Version),
+		})
 	}
 	if got.header.CRC != int32(qc.ProgHeaderCRC) {
-		t.Fatalf("%s crc = %d, want %d", fixture, got.header.CRC, qc.ProgHeaderCRC)
+		mismatches = append(mismatches, parityMismatch{
+			category: "structural.header",
+			field:    "crc",
+			want:     fmt.Sprintf("%d", qc.ProgHeaderCRC),
+			got:      fmt.Sprintf("%d", got.header.CRC),
+		})
 	}
 	if got.header.NumStatements == 0 || got.header.NumFunctions == 0 || got.header.NumGlobals == 0 {
-		t.Fatalf("%s empty core sections: statements=%d functions=%d globals=%d", fixture, got.header.NumStatements, got.header.NumFunctions, got.header.NumGlobals)
+		mismatches = append(mismatches, parityMismatch{
+			category: "structural.sections",
+			field:    "non-empty core sections",
+			want:     "statements>0 && functions>0 && globals>0",
+			got:      fmt.Sprintf("statements=%d functions=%d globals=%d", got.header.NumStatements, got.header.NumFunctions, got.header.NumGlobals),
+		})
 	}
 
 	funcMeta := make(map[string]qc.DFunction, len(got.funcs))
@@ -510,16 +552,39 @@ func assertShallowFixtureSignals(t *testing.T, fixture string, got compiledFixtu
 			funcMeta[name] = fn
 		}
 	}
-	for name, numParms := range want.requiredParms {
+	requiredNames := make([]string, 0, len(want.requiredParms))
+	for name := range want.requiredParms {
+		requiredNames = append(requiredNames, name)
+	}
+	sort.Strings(requiredNames)
+
+	for _, name := range requiredNames {
+		numParms := want.requiredParms[name]
 		fn, ok := funcMeta[name]
 		if !ok {
-			t.Fatalf("%s missing required function %q", fixture, name)
+			mismatches = append(mismatches, parityMismatch{
+				category: "structural.function_presence",
+				field:    "required function",
+				want:     name,
+				got:      "missing",
+			})
+			continue
 		}
 		if fn.NumParms != numParms {
-			t.Fatalf("%s %s NumParms = %d, want %d", fixture, name, fn.NumParms, numParms)
+			mismatches = append(mismatches, parityMismatch{
+				category: "structural.function_signature",
+				field:    fmt.Sprintf("%s.NumParms", name),
+				want:     fmt.Sprintf("%d", numParms),
+				got:      fmt.Sprintf("%d", fn.NumParms),
+			})
 		}
 		if fn.FirstStatement <= 0 {
-			t.Fatalf("%s %s FirstStatement = %d, want > 0", fixture, name, fn.FirstStatement)
+			mismatches = append(mismatches, parityMismatch{
+				category: "structural.function_anchor",
+				field:    fmt.Sprintf("%s.FirstStatement", name),
+				want:     "> 0",
+				got:      fmt.Sprintf("%d", fn.FirstStatement),
+			})
 		}
 	}
 
@@ -529,9 +594,25 @@ func assertShallowFixtureSignals(t *testing.T, fixture string, got compiledFixtu
 	}
 	for _, op := range want.requiredOpcodes {
 		if !hasOpcode[op] {
-			t.Fatalf("%s missing required opcode %d", fixture, op)
+			mismatches = append(mismatches, parityMismatch{
+				category: "structural.opcode_presence",
+				field:    fmt.Sprintf("opcode %d", op),
+				want:     "present",
+				got:      "missing",
+			})
 		}
 	}
+
+	return mismatches
+}
+
+func formatParitySmokeDiffReport(caseName, fixture, function string, mismatches []parityMismatch) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "parity smoke structured diff (case=%s fixture=%s function=%s):", caseName, fixture, function)
+	for _, m := range mismatches {
+		fmt.Fprintf(&b, "\n- [%s] %s: want %s, got %s", m.category, m.field, m.want, m.got)
+	}
+	return b.String()
 }
 
 func TestCompile_ControlFlow(t *testing.T) {
@@ -1019,7 +1100,7 @@ func MalformedBuiltin() {}
 	}
 }
 
-func TestCompile_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloatOpcodes(t *testing.T) {
+func TestCompile_FieldOffsetIntrinsic_FieldFloatOpcodes(t *testing.T) {
 	dir := makeCompilerTempDir(t)
 	writeQGoModule(t, dir, `module qgofieldintrinsictest`)
 	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
@@ -1027,10 +1108,8 @@ func TestCompile_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloatOpcodes(t *testi
 
 import "qgofieldintrinsictest/quake"
 
-func ReadWrite(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 {
-	current := quake.FieldFloat(ent, ofs)
-	quake.SetFieldFloat(ent, ofs, value)
-	return current
+func Read(ent *quake.Entity, ofs quake.FieldOffset) float32 {
+	return quake.FieldFloat(ent, ofs)
 }
 `)
 
@@ -1043,27 +1122,15 @@ func ReadWrite(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 
 	header := parseHeader(t, data)
 	stmts := parseStatements(t, data, header)
 	hasLoadF := false
-	hasAddress := false
-	hasStorePF := false
 	for _, s := range stmts {
 		switch qc.Opcode(s.Op) {
 		case qc.OPLoadF:
 			hasLoadF = true
-		case qc.OPAddress:
-			hasAddress = true
-		case qc.OPStorePF:
-			hasStorePF = true
 		}
 	}
 
 	if !hasLoadF {
 		t.Fatal("expected OP_LOAD_F from quake.FieldFloat intrinsic lowering")
-	}
-	if !hasAddress {
-		t.Fatal("expected OP_ADDRESS from quake.SetFieldFloat intrinsic lowering")
-	}
-	if !hasStorePF {
-		t.Fatal("expected OP_STOREP_F from quake.SetFieldFloat intrinsic lowering")
 	}
 }
 
@@ -1090,29 +1157,6 @@ func Bad(ent *quake.Entity, notField float32) float32 {
 	}
 }
 
-func TestCompile_FieldOffsetIntrinsic_RejectsSetNonFieldOffsetArg(t *testing.T) {
-	dir := makeCompilerTempDir(t)
-	writeQGoModule(t, dir, `module qgofieldintrinsicbadsetargtest`)
-	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
-	writeFile(t, filepath.Join(dir, "main.go"), `package main
-
-import "qgofieldintrinsicbadsetargtest/quake"
-
-func BadSet(ent *quake.Entity, notField float32, value float32) {
-	quake.SetFieldFloat(ent, notField, value)
-}
-`)
-
-	c := New()
-	_, err := c.Compile(dir)
-	if err == nil {
-		t.Fatal("expected compile to fail for non-field offset set argument")
-	}
-	if !strings.Contains(err.Error(), "quake.SetFieldFloat arg 2 must be field offset") {
-		t.Fatalf("unexpected compile error: %v", err)
-	}
-}
-
 func TestCompile_FieldOffsetIntrinsic_RejectsWrongArity(t *testing.T) {
 	dir := makeCompilerTempDir(t)
 	writeQGoModule(t, dir, `module qgofieldintrinsicaritytest`)
@@ -1121,9 +1165,8 @@ func TestCompile_FieldOffsetIntrinsic_RejectsWrongArity(t *testing.T) {
 
 import "qgofieldintrinsicaritytest/quake"
 
-func BadArity(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 {
-	quake.SetFieldFloat(ent, ofs)
-	return quake.FieldFloat(ent, ofs, value)
+func BadArity(ent *quake.Entity, ofs quake.FieldOffset) float32 {
+	return quake.FieldFloat(ent, ofs, 1)
 }
 `)
 
@@ -1133,7 +1176,7 @@ func BadArity(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 {
 		t.Fatal("expected compile to fail for wrong intrinsic arity")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "quake.SetFieldFloat expects 3 args") && !strings.Contains(msg, "quake.FieldFloat expects 2 args") {
+	if !strings.Contains(msg, "quake.FieldFloat expects 2 args") {
 		t.Fatalf("unexpected compile error: %v", err)
 	}
 }
@@ -1181,7 +1224,7 @@ func WriteVector(ent *quake.Entity, ofs quake.FieldOffset, value quake.Vec3) {
 	}
 }
 
-func TestRoundTrip_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloat(t *testing.T) {
+func TestRoundTrip_FieldOffsetIntrinsic_FieldFloatRead(t *testing.T) {
 	dir := makeCompilerTempDir(t)
 	writeQGoModule(t, dir, `module qgofieldintrinsicroundtriptest`)
 	writeFieldIntrinsicRuntimeStubPackage(t, filepath.Join(dir, "quake"))
@@ -1196,10 +1239,8 @@ type Entity struct {
 
 type FieldOffset any
 
-func ReadWrite(ent *Entity, ofs FieldOffset, value float32) float32 {
-	current := quake.FieldFloat(ent, ofs)
-	quake.SetFieldFloat(ent, ofs, value)
-	return current
+func Read(ent *Entity, ofs FieldOffset) float32 {
+	return quake.FieldFloat(ent, ofs)
 }
 `)
 
@@ -1219,29 +1260,24 @@ func ReadWrite(ent *Entity, ofs FieldOffset, value float32) float32 {
 	}
 
 	const initial = float32(33.5)
-	const updated = float32(75.0)
 	const entNum = 1
 
 	vm.SetEFloat(entNum, healthOfs, initial)
 
-	fnum := vm.FindFunction("ReadWrite")
+	fnum := vm.FindFunction("Read")
 	if fnum < 0 {
-		t.Fatal("function 'ReadWrite' not found")
+		t.Fatal("function 'Read' not found")
 	}
 
 	vm.SetGInt(qc.OFSParm0, entNum)
 	vm.SetGInt(qc.OFSParm1, int32(healthOfs))
-	vm.SetGFloat(qc.OFSParm2, updated)
 
 	if err := vm.ExecuteProgram(fnum); err != nil {
 		t.Fatalf("ExecuteProgram failed: %v", err)
 	}
 
 	if got := vm.GFloat(qc.OFSReturn); got != initial {
-		t.Fatalf("ReadWrite return = %v, want initial value %v", got, initial)
-	}
-	if got := vm.EFloat(entNum, healthOfs); got != updated {
-		t.Fatalf("entity health after write = %v, want %v", got, updated)
+		t.Fatalf("Read return = %v, want initial value %v", got, initial)
 	}
 }
 
@@ -1297,6 +1333,75 @@ func Read(ent *quake.Entity, ofs FieldOffset) float32 {
 	}
 	if got := vm.GFloat(qc.OFSReturn); got != initial {
 		t.Fatalf("Read return = %v, want %v", got, initial)
+	}
+}
+
+func TestCompile_FieldOffsetIntrinsic_ReceiverFieldFloatOpcodes_NoCallFallback(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgoreceiverfieldintrinsictest`)
+	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgoreceiverfieldintrinsictest/quake"
+
+func Read(ent *quake.Entity, ofs quake.FieldOffset) float32 {
+	return ent.FieldFloat(ofs)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	stmts := parseStatements(t, data, header)
+	hasLoadF := false
+	hasCall := false
+	for _, s := range stmts {
+		switch qc.Opcode(s.Op) {
+		case qc.OPLoadF:
+			hasLoadF = true
+		case qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3, qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
+			hasCall = true
+		}
+	}
+
+	if !hasLoadF {
+		t.Fatal("expected OP_LOAD_F from quake.Entity.FieldFloat intrinsic lowering")
+	}
+	if hasCall {
+		t.Fatal("did not expect OP_CALL* fallback for quake.Entity.FieldFloat intrinsic lowering")
+	}
+}
+
+func TestCompile_FieldOffsetIntrinsic_ReceiverSetFieldVectorDeferred(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgoreceiversetfielddeferredtest`)
+	writeFieldIntrinsicRuntimeStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "quake", "extra.go"), `package quake
+
+type Vec3 [3]float32
+
+func (e *Entity) SetFieldVector(fieldOffset any, value Vec3) {}
+`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgoreceiversetfielddeferredtest/quake"
+
+func Write(ent *quake.Entity, ofs quake.FieldOffset, value quake.Vec3) {
+	ent.SetFieldVector(ofs, value)
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for deferred receiver dynamic helper")
+	}
+	if !strings.Contains(err.Error(), "quake.Entity.SetFieldVector is deferred for dynamic field access; only quake.Entity.FieldFloat and quake.Entity.SetFieldFloat receiver forms are currently supported") {
+		t.Fatalf("unexpected compile error: %v", err)
 	}
 }
 
@@ -1369,6 +1474,8 @@ type FieldOffset any
 
 func FieldFloat(entity *Entity, args ...any) float32 { return 0 }
 func SetFieldFloat(entity *Entity, args ...any) {}
+func (e *Entity) FieldFloat(args ...any) float32 { return 0 }
+func (e *Entity) SetFieldFloat(args ...any) {}
 `)
 }
 
@@ -1378,6 +1485,8 @@ func writeFieldIntrinsicRuntimeStubPackage(t *testing.T, dir string) {
 		t.Fatalf("mkdir quake stub package: %v", err)
 	}
 	writeFile(t, filepath.Join(dir, "quake.go"), `package quake
+
+type FieldOffset any
 
 func FieldFloat(entity any, args ...any) float32 { return 0 }
 func SetFieldFloat(entity any, args ...any) {}

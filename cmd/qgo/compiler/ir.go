@@ -107,10 +107,55 @@ func optimizeIRProgram(prog *IRProgram) {
 
 func optimizeIRFunc(fn *IRFunc) {
 	foldLiteralConstFloatOps(fn)
+	pruneConstConditionBranches(fn)
 	foldStoreSelfCopies(fn)
 	pruneUnreachableBlocks(fn)
 	eliminateDeadVirtualStores(fn)
 	pruneUnusedLocals(fn)
+}
+
+// pruneConstConditionBranches removes conditional branches whose condition is a
+// known literal float within the current straight-line segment.
+func pruneConstConditionBranches(fn *IRFunc) {
+	if len(fn.Body) == 0 {
+		return
+	}
+
+	known := make(map[VReg]float64)
+	optimized := make([]IRInst, 0, len(fn.Body))
+
+	for _, inst := range fn.Body {
+		if inst.IsLabel() {
+			clearKnownFloatConsts(known)
+			optimized = append(optimized, inst)
+			continue
+		}
+
+		switch inst.Op {
+		case qc.OPIF, qc.OPIFNot:
+			cond, ok := known[inst.A]
+			clearKnownFloatConsts(known)
+			if !ok {
+				optimized = append(optimized, inst)
+				continue
+			}
+
+			truthy := float32(cond) != 0
+			taken := (inst.Op == qc.OPIF && truthy) || (inst.Op == qc.OPIFNot && !truthy)
+			if taken {
+				optimized = append(optimized, IRInst{Op: qc.OPGoto, Label: inst.Label})
+			}
+			continue
+		}
+
+		updateKnownFloatConsts(known, inst, false)
+		optimized = append(optimized, inst)
+		if isIRBlockTerminator(inst.Op) {
+			clearKnownFloatConsts(known)
+		}
+	}
+
+	fn.Body = optimized
 }
 
 // foldLiteralConstFloatOps performs a local constant fold for scalar float
@@ -219,7 +264,7 @@ func foldConstFloatInst(inst IRInst, known map[VReg]float64) (IRInst, bool) {
 func updateKnownFloatConsts(known map[VReg]float64, inst IRInst, foldedNow bool) {
 	switch inst.Op {
 	case qc.OPStoreF:
-		if inst.HasImmFloat && !foldedNow {
+		if inst.HasImmFloat {
 			known[inst.B] = inst.ImmFloat
 			return
 		}
@@ -227,6 +272,12 @@ func updateKnownFloatConsts(known map[VReg]float64, inst IRInst, foldedNow bool)
 	case qc.OPAddF, qc.OPSubF, qc.OPMulF, qc.OPDivF,
 		qc.OPEqF, qc.OPNeF, qc.OPLE, qc.OPGE, qc.OPLT, qc.OPGT:
 		delete(known, inst.C)
+	}
+}
+
+func clearKnownFloatConsts(known map[VReg]float64) {
+	for reg := range known {
+		delete(known, reg)
 	}
 }
 

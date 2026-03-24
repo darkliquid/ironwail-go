@@ -102,6 +102,7 @@ func initGameHost() error {
 	cvar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	cvar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	cvar.Register("r_drawentities", "1", 0, "Draw entities")
+	cvar.Register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")

@@ -19,6 +19,7 @@ Render-frame regression coverage in `main_test.go` now also asserts that `buildR
 Input regression coverage in `main_test.go` now also asserts that gameplay look-path processing consumes right-stick gamepad look deltas and (optionally) gyro deltas through cvar gates, so stick look can ship independently while gyro remains explicitly opt-in.
 Screenshot regression coverage in `main_test.go` now asserts capture behavior for both renderer-present and renderer-absent flows, including dimension expectations for renderer-sized fallback output and the default 1280x720 software fallback.
 Loading-plaque regression coverage in `main_test.go` now also asserts `drawLoadingPlaque` is a no-op when render context is nil, matching pause-overlay safety and preventing nil-context panics in focused overlay draw tests.
+Menu-close regression coverage in `main_test.go` now follows the dedicated `MenuSkill` submenu: the shell only restores gameplay input/mouse grab after a second confirm from the skill screen, rather than directly from `MenuSinglePlayer`.
 
 ## Constraints
 

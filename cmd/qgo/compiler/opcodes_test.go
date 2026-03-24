@@ -146,17 +146,18 @@ func TestOptimizeIRProgram_FoldsLiteralArithmeticAndComparisons(t *testing.T) {
 	}
 }
 
-func TestOptimizeIRProgram_DoesNotFoldThroughCopyOrUnaryNot(t *testing.T) {
+func TestOptimizeIRProgram_FoldsArithmeticChains(t *testing.T) {
 	prog := &IRProgram{
 		Functions: []IRFunc{
 			{
 				Name: "main",
 				Body: []IRInst{
-					{Op: qc.OPStoreF, B: 100, ImmFloat: 7, HasImmFloat: true, Type: EvFloat},
-					{Op: qc.OPStoreF, A: 100, B: 101, Type: EvFloat},       // copy should not seed literal tracking
-					{Op: qc.OPAddF, A: 101, B: 100, C: 102, Type: EvFloat}, // must remain unfurled in phase-0
-					{Op: qc.OPNotF, A: 100, C: 103, Type: EvFloat},         // unary not intentionally out of scope
-					{Op: qc.OPStoreF, A: 102, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPStoreF, B: 100, ImmFloat: 2, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPStoreF, B: 101, ImmFloat: 3, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPAddF, A: 100, B: 101, C: 103, Type: EvFloat}, // fold -> 5
+					{Op: qc.OPMulF, A: 103, B: 101, C: 104, Type: EvFloat}, // fold -> 15
+					{Op: qc.OPSubF, A: 104, B: 100, C: 105, Type: EvFloat}, // fold -> 13
+					{Op: qc.OPStoreF, A: 105, B: VReg(qc.OFSReturn), Type: EvFloat},
 					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
 				},
 			},
@@ -166,21 +167,53 @@ func TestOptimizeIRProgram_DoesNotFoldThroughCopyOrUnaryNot(t *testing.T) {
 	optimizeIRProgram(prog)
 	body := prog.Functions[0].Body
 
-	var sawAdd, sawNot bool
+	var sawAdd, sawMul, sawSub bool
+	var sawReturnStore bool
 	for _, inst := range body {
-		if inst.Op == qc.OPAddF && inst.C == 102 {
+		if inst.Op == qc.OPAddF {
 			sawAdd = true
 		}
-		if inst.Op == qc.OPNotF && inst.C == 103 {
-			sawNot = true
+		if inst.Op == qc.OPMulF {
+			sawMul = true
+		}
+		if inst.Op == qc.OPSubF {
+			sawSub = true
+		}
+		if inst.Op == qc.OPStoreF && inst.B == VReg(qc.OFSReturn) && inst.A == 105 {
+			sawReturnStore = true
 		}
 	}
-	if !sawAdd {
-		t.Fatalf("expected OPAddF via copied input to remain unfurled in phase-0: %+v", body)
+	if sawAdd || sawMul || sawSub {
+		t.Fatalf("expected arithmetic chain to fold to immediates, got body: %+v", body)
 	}
-	if !sawNot {
-		t.Fatalf("expected OPNotF to remain unfurled in phase-0: %+v", body)
+	if !sawReturnStore {
+		t.Fatalf("expected return store to use folded chain result vreg 105: %+v", body)
 	}
+}
+
+func TestOptimizeIRProgram_DoesNotFoldUnaryNot(t *testing.T) {
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Body: []IRInst{
+					{Op: qc.OPStoreF, B: 100, ImmFloat: 7, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPNotF, A: 100, C: 101, Type: EvFloat}, // unary not intentionally out of scope
+					{Op: qc.OPStoreF, A: 101, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+	for _, inst := range body {
+		if inst.Op == qc.OPNotF && inst.C == 101 {
+			return
+		}
+	}
+	t.Fatalf("expected OPNotF to remain unfurled: %+v", body)
 }
 
 func TestOptimizeIRProgram_EliminatesDeadVirtualStores(t *testing.T) {
@@ -250,8 +283,8 @@ func TestOptimizeIRProgram_DCEHandlesSimpleControlFlow(t *testing.T) {
 			{
 				Name: "main",
 				Body: []IRInst{
-					{Op: qc.OPStoreF, B: vDead, ImmFloat: 11, HasImmFloat: true, Type: EvFloat}, // dead across both paths
-					{Op: qc.OPStoreF, B: vCond, ImmFloat: 1, HasImmFloat: true, Type: EvFloat},  // feeds branch condition
+					{Op: qc.OPStoreF, B: vDead, ImmFloat: 11, HasImmFloat: true, Type: EvFloat},          // dead across both paths
+					{Op: qc.OPAddF, A: VReg(qc.OFSParm0), B: VReg(qc.OFSParm1), C: vCond, Type: EvFloat}, // dynamic branch condition
 					{Op: qc.OPIF, A: vCond, Label: "then"},
 					{Op: qc.OPStoreF, B: vKeep, ImmFloat: 2, HasImmFloat: true, Type: EvFloat},
 					{Op: qc.OPGoto, Label: "done"},
@@ -376,5 +409,72 @@ func TestOptimizeIRProgram_PrunesUnreachableBlocksAfterTerminator(t *testing.T) 
 		if inst.IsLabel() || (inst.Op == qc.OPStoreF && inst.B == vUnreachable) {
 			t.Fatalf("unreachable block instruction still present: %+v", inst)
 		}
+	}
+}
+
+func TestOptimizeIRProgram_PrunesConstConditionBranches(t *testing.T) {
+	vFalse := vregBase + 40
+	vTrue := vregBase + 41
+	vCondDynamic := vregBase + 42
+
+	prog := &IRProgram{
+		Functions: []IRFunc{
+			{
+				Name: "main",
+				Body: []IRInst{
+					{Op: qc.OPStoreF, B: vFalse, ImmFloat: 0, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPIF, A: vFalse, Label: "never"}, // prune: never taken
+					{Op: qc.OPStoreF, B: vFalse, ImmFloat: 0, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPIFNot, A: vFalse, Label: "take1"}, // prune -> goto
+					LabelInst("take1"),
+					{Op: qc.OPStoreF, B: vTrue, ImmFloat: 1, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPIF, A: vTrue, Label: "take2"}, // prune -> goto
+					{Op: qc.OPStoreF, B: vTrue, ImmFloat: 1, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPIFNot, A: vTrue, Label: "never2"}, // prune: never taken
+					LabelInst("take2"),
+					{Op: qc.OPAddF, A: VReg(qc.OFSParm0), B: VReg(qc.OFSParm1), C: vCondDynamic, Type: EvFloat},
+					{Op: qc.OPIFNot, A: vCondDynamic, Label: "dynamic"}, // must stay conditional
+					LabelInst("dynamic"),
+					{Op: qc.OPDone},
+					LabelInst("never"),
+					LabelInst("never2"),
+				},
+			},
+		},
+	}
+
+	optimizeIRProgram(prog)
+	body := prog.Functions[0].Body
+
+	var hasIfFalse, hasIfNotTrue, hasGotoTake1, hasGotoTake2, hasDynamicIfNot bool
+	for _, inst := range body {
+		if inst.Op == qc.OPIF && inst.A == vFalse && inst.Label == "never" {
+			hasIfFalse = true
+		}
+		if inst.Op == qc.OPIFNot && inst.A == vTrue && inst.Label == "never2" {
+			hasIfNotTrue = true
+		}
+		if inst.Op == qc.OPGoto && inst.Label == "take1" {
+			hasGotoTake1 = true
+		}
+		if inst.Op == qc.OPGoto && inst.Label == "take2" {
+			hasGotoTake2 = true
+		}
+		if inst.Op == qc.OPIFNot && inst.A == vCondDynamic && inst.Label == "dynamic" {
+			hasDynamicIfNot = true
+		}
+	}
+
+	if hasIfFalse {
+		t.Fatalf("constant-false OPIF should be pruned: %+v", body)
+	}
+	if hasIfNotTrue {
+		t.Fatalf("constant-true OPIFNot should be pruned: %+v", body)
+	}
+	if !hasGotoTake1 || !hasGotoTake2 {
+		t.Fatalf("expected taken constant branches rewritten to GOTO: %+v", body)
+	}
+	if !hasDynamicIfNot {
+		t.Fatalf("expected dynamic OPIFNot to remain conditional: %+v", body)
 	}
 }

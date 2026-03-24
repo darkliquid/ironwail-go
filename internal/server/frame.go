@@ -7,6 +7,7 @@ func (s *Server) Frame(frameTime float64) error {
 	}
 
 	s.FrameTime = float32(frameTime)
+	s.recordDevStatsFrame()
 	s.ClearDatagram()
 
 	if err := s.CheckForNewClients(); err != nil {

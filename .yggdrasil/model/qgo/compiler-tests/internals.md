@@ -31,10 +31,11 @@ The compiler tests combine three layers of evidence:
 - parity smoke harness adds a deterministic QCVM baseline matrix that executes `Add`, `Max`, and `Sum` against pinned vectors and native-Go expected returns, catching VM-visible lowering drift without broad golden tooling
 - parity smoke harness now also asserts shallow structural signals per fixture (header/version/CRC/core-section sanity, required function-arity contracts, and required opcode presence) so compile-shape regressions are caught without introducing broad cross-binary diff infrastructure
 - parity smoke harness includes one deterministic map-runner scenario (`MapRunner`) that exercises looped branch transitions over a position accumulator and compares QCVM/native-Go results in one end-to-end call path (current pinned vector: `start=1`, `steps=4`)
+- parity smoke mismatch handling now routes checks through a single collector that emits a concise, category-tagged structured diff report (`category`, `field`, `want`, `got`) instead of one-off fatal strings, so failures stay minimal but directly actionable
 - import-isolation tests compile an ephemeral package that imports a local dependency whose body includes unsupported type-switch syntax, asserting successful compile to prove imported bodies are not lowered
-- dynamic-field intrinsic tests now include a runtime round-trip that executes compiled `ReadWrite(ent, ofs, value)` against a loaded VM and verifies both return value (pre-write read) and post-call entity field mutation
-- dynamic-field intrinsic tests now include receiver-form coverage: compile-level opcode assertions for `ent.FieldFloat(ofs)` (including no `OPCall*` fallback), explicit defer-boundary diagnostics for `ent.SetFieldFloat(...)`, and VM round-trip read assertions for receiver-form dynamic field reads
-- dynamic-field runtime stub helpers now intentionally include both package-level and receiver-form method signatures so tests can isolate intrinsic matching behavior for each call shape without importing production quake stubs
+- dynamic-field intrinsic tests now include a runtime round-trip that executes compiled `Read(ent, ofs)` against a loaded VM and verifies return value against the seeded entity field
+- dynamic-field intrinsic tests now include receiver-form coverage: compile-level opcode assertions for `ent.FieldFloat(ofs)` (including no `OPCall*` fallback), deterministic compile-time defer diagnostics for `ent.SetFieldFloat(ofs, value)`, and VM round-trip read assertions for receiver-form dynamic field reads
+- dynamic-field runtime stub helpers now intentionally include both package-level and receiver-form method signatures plus a local `FieldOffset` alias so tests can isolate intrinsic matching behavior for each call shape without importing production quake stubs
 
 The `cmd/qgo/testdata/*/progs.go` programs are part of the persistent reverse-engineering story because they document the supported subset in executable form: globals, arithmetic, and basic control flow.
 
@@ -75,11 +76,11 @@ Rejected alternatives:
 ### Dynamic field access uses explicit helper contracts
 
 Observed decision:
-- add focused compiler tests for the first intrinsic helper pair (`FieldFloat`, `SetFieldFloat`) and keep broader dynamic syntax work deferred.
+- add focused compiler tests for the first intrinsic helper (`FieldFloat`) and keep broader dynamic syntax work deferred.
 
 Rationale:
 - import/body isolation is a required prerequisite and is now covered by dedicated tests.
-- intrinsic lowering now exists for the narrow read/write float helper seam, so opcode assertions can validate direct field-op emission and type gating.
+- intrinsic lowering now exists for the narrow read-only float helper seam, so opcode assertions can validate direct field-read emission and type gating.
 
 Rejected alternatives:
 - skip negative tests and only assert happy-path opcode presence:
@@ -87,7 +88,7 @@ Rejected alternatives:
 - rely on Go type-check arity errors alone:
   - rejected because intrinsic lowering must enforce its own helper contract even when helper signatures are broad/variadic in synthetic or test stubs.
 - stop at opcode assertions without VM execution:
-  - rejected because this cannot prove `OP_LOAD_F`/`OP_ADDRESS`/`OP_STOREP_F` cooperate correctly with runtime field pointers and entity memory layout.
+  - rejected because this cannot prove `OP_LOAD_F` cooperates correctly with runtime field pointers and entity memory layout.
 - avoid explicit defer-boundary tests for additional helper names:
   - rejected because compiler users need a deterministic diagnostic that broader dynamic helper variants are intentionally not in scope yet.
 
@@ -142,6 +143,19 @@ Rejected alternatives:
 - only assert final emitted bytecode shape:
   - rejected because bytecode-only checks can hide IR-pass boundary regressions and make optimizer failures harder to localize.
 
+### Keep const-condition branch pruning as a narrow optimizer contract
+
+Observed decision:
+- add a focused optimizer unit test that directly asserts literal-condition branch pruning behavior (`OPIF`/`OPIFNot` remove-or-rewrite) instead of only inferring it through end-to-end compile output.
+
+Rationale:
+- this localizes regressions to the branch-pruning pass boundary and keeps coverage deterministic without expanding fixture/runtime smoke scope.
+- explicit assertions that dynamic conditions remain conditional guard against over-aggressive branch simplification.
+
+Rejected alternatives:
+- rely only on downstream unreachable-block tests to imply branch pruning:
+  - rejected because unreachable-block cleanup does not validate always-taken conditional-to-goto rewriting behavior.
+
 ### Pin smallest-safe temp/global reuse behavior with local-pruning tests
 
 Observed decision:
@@ -193,3 +207,18 @@ Rationale:
 Rejected alternatives:
 - introducing full map asset loading or a standalone parity executable:
   - rejected because this slice only needs one deterministic end-to-end runner and should remain cheap to execute in regular compiler tests.
+
+### Add minimal structured mismatch categories to parity smoke failures
+
+Observed decision:
+- parity smoke failures now format mismatches through a compact structured reporter that groups differences by stable categories (header/sections/function presence+shape/opcode presence/runtime execute/return mismatch).
+
+Rationale:
+- this follow-up needs actionable parity failure output without introducing broad diff infrastructure or golden artifacts.
+- stable category labels let later tooling parse and aggregate failures while keeping developer-facing messages short.
+
+Rejected alternatives:
+- keep ad-hoc `t.Fatalf` messages per assertion:
+  - rejected because scattered failure strings do not provide a unified mismatch taxonomy for parity follow-ups.
+- introduce full serialized diff artifacts (JSON/golden):
+  - rejected for scope; current slice only needs minimal on-failure structure in test output.

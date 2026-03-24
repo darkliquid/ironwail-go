@@ -18,6 +18,8 @@ An additional narrow combat/helper cluster in `combat.go` now uses a local recei
 
 A doors pilot now mirrors this adapter pattern for one narrow helper: `EntitiesTouching` delegates to `(*doorEntity).touches(...)` in `doors.go`. The global helper signature remains unchanged for existing callers (such as `LinkDoors`) while bounding-box overlap checks are grouped on a receiver-backed alias.
 
+The next contained pilot extends the same approach to `buttons.go`: top-level `button_wait`, `button_done`, `button_return`, and `button_fire` remain callable as before, but each now delegates to `(*buttonEntity)` methods (`wait`, `done`, `returnToStart`, `fire`). This preserves wrapper API shape for translated call sites while grouping button state-transition logic under a receiver-backed alias.
+
 ## Constraints
 
 The declarations must remain package-level `var` function slots because the translated QuakeC code assigns implementations after declaration order has been established. Replacing them with direct function declarations or broader API rewrites would risk changing compiler assumptions and is intentionally out of scope.

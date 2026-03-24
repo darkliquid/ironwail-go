@@ -1,9 +1,7 @@
 {
-  "hash": "51dc62eebf05c4252d4029c245dddc2228286a49be8f1dd0762b3714c5aad07e",
+  "hash": "b64a70e7eb120208e6da6ce69ed8493a1f09346ce8a596f51154a0bd22dad98f",
   "files": {
     ".yggdrasil/model/renderer/effects/yg-node.yaml": "bea716d797dcd189bb55b535372992f76ec137c224eaecf0e2c4c593f2367a1a",
-    ".yggdrasil/model/renderer/effects/interface.md": "2dc693102fda03a82a07e611f18c5e87a34d1c9b6a7bfa4cf0fdc1d95e29b903",
-    ".yggdrasil/model/renderer/effects/internals.md": "c9e95333e08720302ea52be14a09eb01435a0a4fe2f7854ccf9506957573b856",
     ".yggdrasil/model/renderer/effects/responsibility.md": "c10eb798b9f394e5f723d09e2cdc7c011260f6ad8641b346a4926ff0afdf60c0",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
@@ -14,18 +12,20 @@
     "internal/renderer/alias_skin_variants.go": "fa0b1a7c082c764fbd3cffbd445785899f2e8532cba844c4947dab07a029dc83",
     "internal/renderer/alias_state.go": "3180e6477ddbc53c9fed909d234054688f232518568adbe633ed4901e4afc04b",
     "internal/renderer/alpha_mode.go": "16645795ac6b354b6c6174177dfdb5f6f1b5f4aa36c0d98716aa664e52ffba6f",
-    "internal/renderer/client_effects.go": "38d62d0e9c373c62d1cc905e7ec409155de0d6d0bfc8e99ef3942bd4e9db2a93",
     "internal/renderer/dynamic_light.go": "e3c1eb8009f9651e3493c42368dc11b66ded7041fb94499f4956b4c145281e97",
-    "internal/renderer/dynamic_light_pool.go": "1e857f67453dba7822de1d46e02b657ab634d70fb1a10f0a1328743e072af963",
     "internal/renderer/entity_types.go": "14b70be7d8f14099fa3993b66b915483e7112eb0eba9f413262e0ca30594cf30",
     "internal/renderer/particle.go": "3b65a39141d58d536ae1b6a8171af416b4d9607511ecd6828f3557b7980a3917",
-    "internal/renderer/particle_test.go": "225ad8a04bca478dd2944df23f799031c85fc1d5ace75deef15da8d632617054",
-    "internal/renderer/player_colors.go": "16d49537f485042d62b8ab5a003c171321dd17edd5b17a340b94c11f1b3c6571"
+    "internal/renderer/player_colors.go": "16d49537f485042d62b8ab5a003c171321dd17edd5b17a340b94c11f1b3c6571",
+    ".yggdrasil/model/renderer/effects/interface.md": "58fcc8b2ea637b7d5d092b53780085ba067a905a9177116c63d65681df0ad9e7",
+    ".yggdrasil/model/renderer/effects/internals.md": "18065e753e7cf92361d34f4f46b6ceb9c8e1436d168467cc676e9e8a1146602d",
+    "internal/renderer/client_effects.go": "34c2a6e1d8a527c3e0d811bb45537b15d067c87b71000abbf41a5a2bd8bb3834",
+    "internal/renderer/dynamic_light_pool.go": "87c70dab13c53750dae712b9dc5ae5522604d44c6967b54872fd38feac26eab8",
+    "internal/renderer/particle_test.go": "61a3c8944e7a450cc0c145563540a5574ad55ead664d8cb472d81c218780abb2"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/effects/yg-node.yaml": 1774343606142.7625,
-    ".yggdrasil/model/renderer/effects/interface.md": 1774343611511.8,
-    ".yggdrasil/model/renderer/effects/internals.md": 1774343618057.8462,
+    ".yggdrasil/model/renderer/effects/interface.md": 1774348956354.7363,
+    ".yggdrasil/model/renderer/effects/internals.md": 1774348966466.8896,
     ".yggdrasil/model/renderer/effects/responsibility.md": 1774219364469.6238,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
@@ -36,12 +36,12 @@
     "internal/renderer/alias_skin_variants.go": 1774126160170.7498,
     "internal/renderer/alias_state.go": 1774126101626.699,
     "internal/renderer/alpha_mode.go": 1773841235084.421,
-    "internal/renderer/client_effects.go": 1774088719160.408,
+    "internal/renderer/client_effects.go": 1774348909622.278,
     "internal/renderer/dynamic_light.go": 1773836785804.0117,
-    "internal/renderer/dynamic_light_pool.go": 1774178194335.3452,
+    "internal/renderer/dynamic_light_pool.go": 1774348909622.4692,
     "internal/renderer/entity_types.go": 1774125975115.4163,
     "internal/renderer/particle.go": 1774343579994.5813,
-    "internal/renderer/particle_test.go": 1774343566632.7095,
+    "internal/renderer/particle_test.go": 1774348870618.904,
     "internal/renderer/player_colors.go": 1774125885404.7856
   }
 }

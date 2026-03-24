@@ -19,6 +19,7 @@
 - QC callback dispatch must preserve execution context and synchronize mutated/spawned edicts back into Go state.
 - `PushMove` blocked callbacks must refresh pusher/check edicts into the QC VM before execution and then apply QC mutations/spawns back to authoritative server state, matching C `SV_PushMove` callback expectations.
 - Physics safety checks must sanitize invalid values before they leak into world/link/network code.
+- `Frame()` increments the server dev-stats frame counter once per successful active frame, while `Physics()` continues to own per-frame edict-population updates.
 - Gravity helpers must honor the optional QuakeC `gravity` edict field as a per-entity multiplier, but treat a missing or zero field value as the canonical `1.0` fallback from C `SV_AddGravity`.
 - `PeakEdicts` reflects the high-water mark captured by `Physics()` after each frame's active-edict scan; this is intended for parity/debug reporting rather than gameplay logic.
 - `Physics()` also updates server dev-stats edict counters each frame (`current` + `peak`) and emits a one-time warning when active edicts first exceed the classic 600 threshold.

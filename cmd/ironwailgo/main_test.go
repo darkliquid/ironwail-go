@@ -5792,8 +5792,14 @@ func TestHandleMenuKeyEventSyncsGameplayInputWhenMenuCloses(t *testing.T) {
 
 	handleMenuKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
 
+	if !g.Menu.IsActive() || g.Menu.GetState() != menu.MenuSkill {
+		t.Fatalf("single-player confirm should open the skill menu, got active=%v state=%v", g.Menu.IsActive(), g.Menu.GetState())
+	}
+
+	handleMenuKeyEvent(input.KeyEvent{Key: input.KEnter, Down: true})
+
 	if g.Menu.IsActive() {
-		t.Fatalf("single-player confirm should hide the menu")
+		t.Fatalf("skill confirm should hide the menu")
 	}
 	if got := g.Input.GetKeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after single-player confirm = %v, want game", got)

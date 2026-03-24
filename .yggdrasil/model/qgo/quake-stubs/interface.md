@@ -22,6 +22,7 @@ Engine backend injection surface:
 Engine builtin stubs:
 - existing `engine.*` builtin functions keep compiler-compatible signatures
 - a focused subset routes through installed backend hooks when present (`SetOrigin`, `Random`, `Spawn`, `Find`, `WriteByte`, `WriteString`, etc.)
+- compiler-alias-facing builtin IDs used by `//qgo:builtin <name>` remain declared in this file, including extension-slot ids such as `precache_file2` (`//qgo:builtin 77`)
 
 Dynamic field helper stubs:
 - `FieldFloat(entity, field)` and `SetFieldFloat(entity, field, value)` are present as compiler-intrinsic seam helpers for qgo dynamic-field lowering.
@@ -30,6 +31,7 @@ Dynamic field helper stubs:
 ## Contracts
 
 - builtin function signatures remain stable for compiler directive mapping (`//qgo:builtin N`)
+- runtime-only/extension builtin IDs may exist here without compiler name aliases; those IDs remain addressable through numeric directives (`//qgo:builtin <number>`)
 - when no hook is set, behavior remains compatible with previous stubs (zero/nil/identity/no-op)
 - backend hooks are process-global and intended for controlled test setup/teardown
 

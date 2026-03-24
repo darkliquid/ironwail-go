@@ -8,6 +8,10 @@
 
 `udp.go` keeps address parsing parity with C `UDP_StringToAddr`: if the input omits `:port`, it first appends the current `netHostPort`. After that normalization, when a connect target begins with a digit, it routes through `PartialIPAddress` (from `net/discovery-support`) using `myTCPIPAddress` and `netHostPort`; otherwise it resolves via `net.ResolveUDPAddr`, preserving hostname lookup behavior while still honoring default-port fallback.
 
+Audit result (C reference: `Quake/net_udp.c`):
+- The resolution seam for partial-address parity remains `UDPStringToAddr` → `PartialIPAddress`. The C gate (`name[0]` numeric check in `UDP_GetAddrFromName`) already matches the Go numeric-leading gate.
+- Remaining drift is inside parser details of `PartialIPAddress` (token acceptance rules), not in transport routing.
+
 `net.go` listen handling now reports accept-socket startup errors to callers. Enabling listen (`Listen(true)`) attempts to open/bind the UDP accept socket and returns an error on failure, leaving `listening=false` and `acceptSocket=nil` so callers do not proceed under a false "listening" state. Disabling listen (`Listen(false)`) closes and clears the accept socket and returns close errors if they occur. Host-port management is exposed through validated setters/accessors (`SetHostPort`, `HostPort`, `IsListening`) so host commands can implement C-like query/set behavior without mutating transport internals directly.
 
 `loopback.go` provides the in-process transport for local play and tests. It uses paired sockets, a simple packed in-memory message format, and Quake-style 4-byte alignment. Reliable loopback sends clear `canSend` on the sender and only restore it once the peer reads the message.
@@ -19,6 +23,7 @@
 - Server-info responses fall back to cvar/default hostname and packet-source IP when embedded address state is placeholder or missing.
 - Accepted UDP sockets must be tracked so reconnects from the same remote endpoint can evict stale server-side sockets.
 - Partial-IP expansion is only applied for numeric-leading inputs; hostname/non-numeric-leading inputs must bypass expansion and use normal resolver behavior.
+- The next implementation seam should be parser-edge parity in `PartialIPAddress` (e.g., C's `atoi` port permissiveness and dotted-token validation details) with focused `internal/net` regression coverage; no transport handshake/listen changes are required for this todo.
 - Listen/open failures must be surfaced to callers so host startup and LAN-advertising policy can react instead of silently running with networking disabled.
 - `Buffer.WriteFloat` appears incomplete/unrepresentative of a real IEEE wire-format helper and is not the core transport contract.
 

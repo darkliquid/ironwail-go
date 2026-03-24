@@ -8,6 +8,8 @@ Entity-level gameplay helpers can live as receiver methods when they only depend
 
 Engine builtin stubs stay as top-level functions with unchanged signatures. A selected subset now performs a fast hook lookup via `backend()` and either calls the configured hook or returns legacy stub defaults. This gives tests a minimal seam without changing call sites in translated gameplay packages.
 
+The stub catalog intentionally includes a broader runtime ID surface than the compiler alias table. Alias-backed directives (`//qgo:builtin <name>`) are intended for frequently used/readable names and must map to declared stubs; numeric directives remain valid for any runtime-only/extension IDs even when no alias exists.
+
 `FieldFloat` and `SetFieldFloat` are intentionally no-op-compatible stubs at runtime; qgo treats them as compiler intrinsics and lowers calls directly to QC field opcodes instead of relying on Go runtime behavior.
 
 A narrow receiver refactor adds `(*Entity).FieldFloat` and `(*Entity).SetFieldFloat` with identical runtime no-op semantics. The package-level wrappers now delegate to the receiver forms, which keeps compiler-facing helper names stable while enabling method-style usage for cohesive entity-local helper clusters.
@@ -15,6 +17,7 @@ A narrow receiver refactor adds `(*Entity).FieldFloat` and `(*Entity).SetFieldFl
 ## Constraints
 
 - do not break `//qgo:builtin` signature and naming expectations used by compiler lowering
+- keep alias-backed IDs and runtime stub declarations in sync where aliases are advertised (for example `precache_file2` -> builtin 77)
 - preserve default behavior for callers that do not install a backend
 - keep backend API small and additive; avoid introducing runtime-engine assumptions into the test seam
 

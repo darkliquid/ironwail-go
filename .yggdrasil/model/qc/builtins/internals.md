@@ -47,7 +47,7 @@ Observed effect:
 ### Narrowest next parity implementation slice for RNG provenance
 
 Observed decision:
-- Add regression trace coverage first (zero-offset vs one-draw-offset) before changing runtime RNG wiring.
+- Keep runtime wiring unchanged while proving and documenting the exact upstream-draw provenance chain, then target the next seam at frame-phase consumption ordering.
 
 Rationale:
 - minimize churn while proving deterministic deltas in executable tests
@@ -55,4 +55,5 @@ Rationale:
 
 Observed effect:
 - concrete expected traces now exist for both gameplayfix modes
-- next code slice can focus only on where/when upstream draws are consumed, not on float math semantics
+- current upstream chain is explicit and stable: host frame entry draw -> shared RNG pointer in server/QC -> server `MoveToGoal` and QC `random()` consume ordered slots from one stream
+- next code slice can focus only on where/when frame-phase consumers draw (host frame entry vs server movement vs QC callback timing), not on float math semantics

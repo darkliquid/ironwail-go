@@ -944,49 +944,95 @@ func (l *Lowerer) lowerEntityFieldFloatMethodIntrinsic(fn *IRFunc, call *ast.Cal
 	if !ok {
 		return VRegInvalid, false
 	}
-
-	methodName, ok := l.quakeEntityMethodName(sel)
-	if !ok {
+	if l.currentInfo.Selections[sel] == nil {
 		return VRegInvalid, false
 	}
 
-	if methodName != "FieldFloat" {
+	methodName := sel.Sel.Name
+	tv, ok := l.currentInfo.Types[sel.X]
+	if !ok || tv.Type == nil {
+		return VRegInvalid, false
+	}
+	entType := l.goTypeToQC(tv.Type)
+	if entType != EvEntity {
+		return VRegInvalid, false
+	}
+
+	if methodName != "FieldFloat" && methodName != "SetFieldFloat" {
+		if !strings.HasPrefix(methodName, "Field") && !strings.HasPrefix(methodName, "SetField") {
+			return VRegInvalid, false
+		}
 		l.errors.Addf(
 			l.pos(call),
-			"quake.Entity.%s is deferred for dynamic field access; only quake.Entity.FieldFloat receiver form is currently supported",
+			"quake.Entity.%s is deferred for dynamic field access; only quake.Entity.FieldFloat and quake.Entity.SetFieldFloat receiver forms are currently supported",
 			methodName,
 		)
 		return VRegInvalid, true
 	}
 
-	if len(call.Args) != 1 {
-		l.errors.Addf(l.pos(call), "quake.Entity.FieldFloat expects 1 arg: (fieldOffset)")
+	switch methodName {
+	case "FieldFloat":
+		if len(call.Args) != 1 {
+			l.errors.Addf(l.pos(call), "quake.Entity.FieldFloat expects 1 arg: (fieldOffset)")
+			return VRegInvalid, true
+		}
+		ofsType := l.goTypeToQC(l.currentInfo.Types[call.Args[0]].Type)
+		if ofsType != EvField {
+			l.errors.Addf(l.pos(call.Args[0]), "quake.Entity.FieldFloat arg 1 must be field offset, got %T", l.currentInfo.Types[call.Args[0]].Type)
+			return VRegInvalid, true
+		}
+
+		ent := l.lowerExpr(fn, sel.X)
+		ofs := l.lowerExpr(fn, call.Args[0])
+		result := l.allocVReg()
+		fn.Body = append(fn.Body, IRInst{
+			Op:   opcodeForLoad(EvFloat),
+			A:    ent,
+			B:    ofs,
+			C:    result,
+			Type: EvFloat,
+		})
+		fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
+		return result, true
+
+	case "SetFieldFloat":
+		if len(call.Args) != 2 {
+			l.errors.Addf(l.pos(call), "quake.Entity.SetFieldFloat expects 2 args: (fieldOffset, value)")
+			return VRegInvalid, true
+		}
+		ofsType := l.goTypeToQC(l.currentInfo.Types[call.Args[0]].Type)
+		valType := l.goTypeToQC(l.currentInfo.Types[call.Args[1]].Type)
+		if ofsType != EvField {
+			l.errors.Addf(l.pos(call.Args[0]), "quake.Entity.SetFieldFloat arg 1 must be field offset, got %T", l.currentInfo.Types[call.Args[0]].Type)
+			return VRegInvalid, true
+		}
+		if valType != EvFloat {
+			l.errors.Addf(l.pos(call.Args[1]), "quake.Entity.SetFieldFloat arg 2 must be float, got %T", l.currentInfo.Types[call.Args[1]].Type)
+			return VRegInvalid, true
+		}
+
+		ent := l.lowerExpr(fn, sel.X)
+		ofs := l.lowerExpr(fn, call.Args[0])
+		val := l.lowerExpr(fn, call.Args[1])
+		ptr := l.allocVReg()
+		fn.Body = append(fn.Body, IRInst{
+			Op:   qc.OPAddress,
+			A:    ent,
+			B:    ofs,
+			C:    ptr,
+			Type: EvPointer,
+		})
+		fn.Locals = append(fn.Locals, IRLocal{Type: EvPointer, VReg: ptr})
+		fn.Body = append(fn.Body, IRInst{
+			Op:   opcodeForStoreP(EvFloat),
+			A:    val,
+			B:    ptr,
+			Type: EvFloat,
+		})
 		return VRegInvalid, true
 	}
 
-	entType := l.goTypeToQC(l.currentInfo.Types[sel.X].Type)
-	ofsType := l.goTypeToQC(l.currentInfo.Types[call.Args[0]].Type)
-	if entType != EvEntity {
-		l.errors.Addf(l.pos(sel.X), "quake.Entity.FieldFloat receiver must be entity, got %T", l.currentInfo.Types[sel.X].Type)
-		return VRegInvalid, true
-	}
-	if ofsType != EvField {
-		l.errors.Addf(l.pos(call.Args[0]), "quake.Entity.FieldFloat arg 1 must be field offset, got %T", l.currentInfo.Types[call.Args[0]].Type)
-		return VRegInvalid, true
-	}
-
-	ent := l.lowerExpr(fn, sel.X)
-	ofs := l.lowerExpr(fn, call.Args[0])
-	result := l.allocVReg()
-	fn.Body = append(fn.Body, IRInst{
-		Op:   opcodeForLoad(EvFloat),
-		A:    ent,
-		B:    ofs,
-		C:    result,
-		Type: EvFloat,
-	})
-	fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
-	return result, true
+	return VRegInvalid, false
 }
 
 func (l *Lowerer) fieldOffsetIntrinsicName(call *ast.CallExpr) (string, bool) {
@@ -1017,7 +1063,7 @@ func (l *Lowerer) deferredFieldOffsetIntrinsicName(call *ast.CallExpr) (string, 
 	if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 		if methodName, method := l.quakeEntityMethodName(sel); method {
 			switch methodName {
-			case "FieldFloat":
+			case "FieldFloat", "SetFieldFloat":
 				return "", false
 			}
 			if strings.HasPrefix(methodName, "Field") || strings.HasPrefix(methodName, "SetField") {

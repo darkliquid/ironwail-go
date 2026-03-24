@@ -149,6 +149,7 @@ type impactTouchKey struct {
 // Some fields are populated by server runtime while others are currently
 // renderer/client-owned and may remain zero on the server side.
 type DevStats struct {
+	Frames     int
 	PacketSize int
 	Edicts     int
 	Visedicts  int
@@ -1778,6 +1779,13 @@ func (s *Server) recordDevStatsEdicts(active int) {
 		s.devPeak.Edicts = active
 	}
 	s.peakEdicts = s.devPeak.Edicts
+}
+
+func (s *Server) recordDevStatsFrame() {
+	s.devStats.Frames++
+	if s.devStats.Frames > s.devPeak.Frames {
+		s.devPeak.Frames = s.devStats.Frames
+	}
 }
 
 func (s *Server) recordDevStatsPacketSize(size int) {

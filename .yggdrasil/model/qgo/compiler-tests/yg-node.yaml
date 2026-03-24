@@ -18,3 +18,4 @@ mapping:
     - cmd/qgo/testdata/minimal/progs.go
     - cmd/qgo/testdata/arithmetic/progs.go
     - cmd/qgo/testdata/controlflow/progs.go
+    - cmd/qgo/testdata/maprunner/progs.go

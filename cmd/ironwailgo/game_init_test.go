@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
 func TestShouldWarnAboutGoGPUX11Keyboard(t *testing.T) {
@@ -200,5 +201,11 @@ func TestRegisterColorShiftPercentCvarsRegistersDefaults(t *testing.T) {
 				t.Fatalf("%s should be archived", tt.name)
 			}
 		})
+	}
+}
+
+func TestRendererRDynamicCVarName(t *testing.T) {
+	if renderer.CvarRDynamic != "r_dynamic" {
+		t.Fatalf("renderer.CvarRDynamic = %q, want %q", renderer.CvarRDynamic, "r_dynamic")
 	}
 }

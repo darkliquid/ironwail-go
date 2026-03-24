@@ -1395,9 +1395,14 @@ func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 		t.Fatalf("init: %v", err)
 	}
 
+	s.recordDevStatsFrame()
+	s.recordDevStatsFrame()
 	s.recordDevStatsEdicts(4)
 	s.recordDevStatsPacketSize(600)
 	curr, peak := s.DevStatsSnapshot()
+	if curr.Frames != 2 || peak.Frames != 2 {
+		t.Fatalf("frames curr/peak = %d/%d, want 2/2", curr.Frames, peak.Frames)
+	}
 	if curr.Edicts != 4 || peak.Edicts != 4 {
 		t.Fatalf("edicts curr/peak = %d/%d, want 4/4", curr.Edicts, peak.Edicts)
 	}
@@ -1408,11 +1413,38 @@ func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
 	s.recordDevStatsEdicts(3)
 	s.recordDevStatsPacketSize(400)
 	curr, peak = s.DevStatsSnapshot()
+	if curr.Frames != 2 || peak.Frames != 2 {
+		t.Fatalf("frames curr/peak = %d/%d, want 2/2", curr.Frames, peak.Frames)
+	}
 	if curr.Edicts != 3 || peak.Edicts != 4 {
 		t.Fatalf("edicts curr/peak = %d/%d, want 3/4", curr.Edicts, peak.Edicts)
 	}
 	if curr.PacketSize != 400 || peak.PacketSize != 600 {
 		t.Fatalf("packet curr/peak = %d/%d, want 400/600", curr.PacketSize, peak.PacketSize)
+	}
+}
+
+func TestFrameIncrementsDevStatsFrameCounter(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	s.Active = true
+
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("first frame: %v", err)
+	}
+	curr, peak := s.DevStatsSnapshot()
+	if curr.Frames != 1 || peak.Frames != 1 {
+		t.Fatalf("after first frame curr/peak = %d/%d, want 1/1", curr.Frames, peak.Frames)
+	}
+
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("second frame: %v", err)
+	}
+	curr, peak = s.DevStatsSnapshot()
+	if curr.Frames != 2 || peak.Frames != 2 {
+		t.Fatalf("after second frame curr/peak = %d/%d, want 2/2", curr.Frames, peak.Frames)
 	}
 }
 

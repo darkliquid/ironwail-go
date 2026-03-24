@@ -8,6 +8,7 @@ This layer centralizes effect- and entity-oriented helper logic that should not 
 
 - Dynamic light, particle, and alpha behavior feed directly into visible parity outcomes.
 - Shared helper behavior must stay consistent across multiple backend renderers.
+- Runtime parity requires dynamic-light emission and world-light contribution math to share the same `r_dynamic` gate semantics to avoid "spawn disabled but still lit" or "spawn enabled but never contributes" drift.
 
 ## Decisions
 
@@ -26,3 +27,15 @@ Observed decision:
 
 Rationale:
 - Quake's tracer implementation uses a persistent static counter to alternate lateral tracer velocities and color phase across emission calls; resetting each call collapses direction alternation over time and causes visible parity drift.
+
+### Gate dynamic-light spawn and contribution with `r_dynamic`
+
+Observed decision:
+- Dynamic-light helper entrypoints in this node now check `r_dynamic` before spawning temporary/keyed lights and before evaluating per-point contribution sums.
+
+Rationale:
+- Dynamic-light parity from C/Ironwail expects `r_dynamic=0` to disable both creation and visual contribution of dynamic lights; gating one side without the other leaves inconsistent lighting behavior.
+
+Rejected alternative:
+- Gate only spawn-side calls and leave contribution evaluation unchanged.
+- Rejected because pre-existing active lights would continue contributing while new lights stop spawning, violating the expected hard-off behavior.

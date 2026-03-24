@@ -660,6 +660,14 @@ func PrecacheModel2(s string) string { return s }
 //go:noinline
 func PrecacheSound2(s string) string { return s }
 
+// PrecacheFile2 registers a generic file path using the extension-slot builtin ID.
+//
+// Implementation: internal/qc/builtins.go:precacheFile
+//
+//qgo:builtin 77
+//go:noinline
+func PrecacheFile2(s string) string { return s }
+
 // SetSpawnParms prepares the spawn parameters for a client entity.
 //
 // Implementation: internal/qc/builtins_entity.go:setspawnparms

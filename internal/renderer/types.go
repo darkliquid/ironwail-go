@@ -126,6 +126,7 @@ const (
 	CvarRSlimeAlpha    = "r_slimealpha"    // Slime alpha (0 uses water alpha)
 	CvarRTeleAlpha     = "r_telealpha"     // Teleport alpha (0 uses water alpha)
 	CvarRParticles     = "r_particles"     // Particle blend mode (1=alpha, 2=opaque)
+	CvarRDynamic       = "r_dynamic"       // Dynamic lights (0=off, 1=on)
 	CvarRFastSky       = "r_fastsky"       // Fast sky mode (flat sky color, no scrolling layers)
 	CvarRSkyFog        = "r_skyfog"        // Sky fog mix factor (0..1, default 0.5)
 	CvarRSkySolidSpeed = "r_skysolidspeed" // Embedded sky solid-layer speed scale (default: 1.0)

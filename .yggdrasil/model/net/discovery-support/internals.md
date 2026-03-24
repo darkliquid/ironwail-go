@@ -12,6 +12,7 @@
 - `AsyncReceiver` preserves message ownership by copying bytes, which is part of its contract rather than an optimization detail.
 - `IPBan` is IPv4-only and models one configured ban rather than a general list.
 - Partial-address parsing is right-aligned: fewer octets replace the tail of the local IPv4 address.
+- Audit note (C parity): current Go `PartialIPAddress` matches the broad right-aligned merge behavior used by `UDPStringToAddr`, but it is more strict/Go-idiomatic than C token parsing in several edge cases (`atoi`-style permissive port parsing, 3-digit-per-octet run limit, and consecutive-dot handling). These differences are currently observable only when parser edge cases are reached.
 
 ## Decisions
 
@@ -25,3 +26,14 @@ Rationale:
 
 Observed effect:
 - Callers can stay thin and reuse Quake-compatible helper behavior, but the package includes several support concepts that are related to networking without participating directly in the core transport state machine.
+
+### Keep partial-IP parser tightening scoped to tokenization parity tests first
+
+Observed decision:
+- The next parity increment should target only `PartialIPAddress` tokenization/validation edges proven against C (`net_udp.c:PartialIPAddress`) and should not expand host command or transport architecture scope.
+
+Rationale:
+- This seam is the smallest change that can remove known C/Go parser drift while preserving the existing `UDPStringToAddr` call path and command surfaces (`connect`, `test2`, `players`).
+
+Observed effect:
+- Work can stay focused on parser behavior plus focused `internal/net` tests, avoiding overbuilding in unrelated networking or host-command code.

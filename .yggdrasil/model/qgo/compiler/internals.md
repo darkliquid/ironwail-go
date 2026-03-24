@@ -8,7 +8,7 @@ The compiler is a four-stage pipeline:
 
 1. `Compiler.Compile` parses every Go file in the target directory and type-checks them with a `types.Config` that only knows about the synthetic `quake` packages.
 2. `Lowerer` performs a two-pass walk over the package: first it collects globals and function signatures, then it lowers function bodies into `IRProgram`.
-3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, trims no-op self-store instructions (`OPStore* x -> x`), prunes blocks that become unreachable once explicit terminators are honored, then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
+3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, rewrites or removes `OPIF`/`OPIFNot` branches whose condition is proven literal in the current straight-line segment, trims no-op self-store instructions (`OPStore* x -> x`), prunes blocks that become unreachable once explicit terminators are honored, then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
 4. `CodeGen` maps IR virtual registers to QC global/local offsets, emits `qc.DStatement` and `qc.DFunction` tables, and patches branch labels in a second pass.
 5. `Emit` serializes those tables into the `progs.dat` section layout expected by `internal/qc`, including the canonical header CRC that matches the current progdefs layout used by the runtime.
 
@@ -47,7 +47,9 @@ Builtin directives in function doc comments now accept either explicit numeric I
 
 Float and string constants are represented in IR with `IRInst.ImmFloat` / `IRInst.ImmStr` pseudo-store instructions emitted by `constFloat` and `constString`. Float immediates additionally carry `IRInst.HasImmFloat` so `0.0` remains an explicit immediate instead of being conflated with "no immediate". Code generation recognizes these pseudo-stores and seeds `GlobalAllocator`/`StringTable` directly instead of emitting runtime `OPStore*` statements that would require initialized source slots.
 
-The first constant-folding pass runs in `foldLiteralConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks literal-origin float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg. Folded immediate stores are fed back into the same local-known map, so deterministic multi-op arithmetic chains (for example add→mul→sub on literal-derived values) collapse in one pass. Non-immediate copy stores and unary/bitwise boolean-style ops remain out of scope for this slice.
+The first constant-folding pass runs in `foldLiteralConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks literal-origin float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg. Folded immediate stores are fed back into the same local-known map, so deterministic multi-op arithmetic chains (for example add→mul→sub on literal-derived values) collapse in one pass.
+
+`pruneConstConditionBranches` then consumes the same literal-constant signal for control flow in a narrow way: when an `OPIF`/`OPIFNot` condition operand is proven literal in the current straight-line segment, the pass either removes the branch (never taken) or rewrites it to an unconditional `OPGoto` (always taken). The pass clears its known-constant map at labels and terminators so it does not propagate values across branch joins. Non-literal conditions and broader branch-aware value propagation remain out of scope for this slice.
 
 After folding and self-store cleanup, `pruneUnreachableBlocks` computes minimal basic blocks from labels and control-flow terminators and removes blocks unreachable from entry. This specifically trims post-terminator fallthrough fragments that are not targeted by any reachable branch label, while preserving any explicitly targeted label blocks.
 
@@ -78,7 +80,7 @@ Safe reuse candidates (for allocator follow-up):
    - Why low risk: short, explicit lifetime and no pointer/call side effects.
 
 3. **Address-pointer temps for dynamic/entity field stores**
-   - Source evidence: `lowerFieldStore` and `SetFieldFloat` intrinsic emit `OPAddress` into a pointer temp then immediate `OPStoreP*`.
+   - Source evidence: `lowerFieldStore` emits `OPAddress` into a pointer temp then immediate `OPStoreP*`.
    - Safety condition: pointer temp not used after corresponding store and not carried across labels/branches.
    - Why medium-low risk: two-instruction lifetime; must respect control-flow boundaries.
 
@@ -105,19 +107,18 @@ Recommended narrow implementation slice after this audit:
 Dynamic helper lowering is now enabled for a narrow FieldOffset contract:
 
 - `quake.FieldFloat(entity, fieldOffset)` lowers directly to `OP_LOAD_F`
-- `quake.SetFieldFloat(entity, fieldOffset, value)` lowers directly to `OP_ADDRESS` + `OP_STOREP_F`
 - `ent.FieldFloat(fieldOffset)` for `quake.Entity` receiver form lowers directly to `OP_LOAD_F`
 
 Lowering performs strict intrinsic gating before generic call handling:
 
 - helper name must be one of the recognized intrinsic names
-- arity must match exactly (`2` for read, `3` for write)
-- argument QC types are validated (`entity`, `field`, `float` where applicable)
+- arity must match exactly (`2` for read)
+- argument QC types are validated (`entity`, `field`)
 - receiver-form read validates receiver QC type `entity` and field-offset QC type `field`
 
 This keeps dynamic field access opcode-correct without lowering imported helper bodies.
 
-Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow pair now produce an explicit defer diagnostic. Receiver-form `quake.Entity.SetField*` is also deferred, including `ent.SetFieldFloat(...)`. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
+Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow read-only helper now produce an explicit defer diagnostic. Receiver-form methods beyond `FieldFloat`, including `ent.SetFieldFloat(...)`, remain deferred so the receiver surface stays read-only in this slice. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
 
 ## Constraints
 
@@ -248,6 +249,22 @@ Rationale:
 Rejected alternatives:
 - add copy-propagation and branch-aware constant analysis in the same slice:
   - rejected because it broadens risk beyond the targeted arithmetic-chain folding goal.
+
+### Chose literal-condition branch pruning after arithmetic-chain folding
+
+Observed decision:
+- add a narrow branch simplification pass (`pruneConstConditionBranches`) that prunes or rewrites `OPIF`/`OPIFNot` when condition literals are already known from immediate float stores in the same straight-line segment.
+
+Rationale:
+- this builds directly on existing constant-folding state with low extra surface area, producing immediate CFG cleanup value before unreachable-block pruning.
+- rewriting known-taken conditionals to `OPGoto` and removing known-not-taken conditionals makes downstream `pruneUnreachableBlocks` and DCE more effective without changing runtime semantics.
+- clearing known-constant state at labels/terminators keeps behavior conservative and deterministic for this phase.
+
+Rejected alternatives:
+- broad branch-aware constant propagation across joins and back-edges:
+  - rejected because it requires larger CFG/dataflow machinery and broadens optimizer risk outside this focused slice.
+- deferring all branch simplification to unreachable-block pruning only:
+  - rejected because unreachable pruning alone cannot convert known-taken conditionals into explicit unconditional branches.
 
 ### Chose local-slot pruning as the smallest safe temp/global reuse follow-up
 

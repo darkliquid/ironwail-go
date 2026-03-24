@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"math"
 	"math/rand"
 
@@ -125,7 +126,7 @@ func EmitDecalMarks(ms *DecalMarkSystem, tempEntities []cl.TempEntityEvent, rng 
 
 // EmitDynamicLights maps temp-entity gameplay events to transient dynamic lights.
 func EmitDynamicLights(spawn func(DynamicLight) bool, tempEntities []cl.TempEntityEvent) {
-	if spawn == nil || len(tempEntities) == 0 {
+	if spawn == nil || len(tempEntities) == 0 || !dynamicLightsEnabled() {
 		return
 	}
 
@@ -160,7 +161,7 @@ func EmitEntityEffectParticles(ps *ParticleSystem, entities []EntityEffectSource
 // Uses keyed spawning so each entity reuses the same light slot across frames,
 // matching C's CL_AllocDlight(entityNum) per-entity slot reuse behavior.
 func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffectSource) {
-	if spawn == nil || len(entities) == 0 {
+	if spawn == nil || len(entities) == 0 || !dynamicLightsEnabled() {
 		return
 	}
 
@@ -267,4 +268,12 @@ func randomMarkRotation(rng *rand.Rand) float32 {
 		return 0
 	}
 	return float32(rng.Float64() * 2.0 * math.Pi)
+}
+
+func dynamicLightsEnabled() bool {
+	cv := cvar.Get(CvarRDynamic)
+	if cv == nil {
+		return true
+	}
+	return cv.Int != 0
 }
