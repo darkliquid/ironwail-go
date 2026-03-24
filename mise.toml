@@ -106,7 +106,12 @@ fi
 
 [tasks.smoke-all]
 description = "Run all smoke tests"
-depends = ["smoke-menu", "smoke-headless", "smoke-map-start", "smoke-cgo-map-start"]
+depends = [
+  "smoke-menu",
+  "smoke-headless",
+  "smoke-map-start",
+  "smoke-cgo-map-start",
+]
 
 [tasks.ralph-analyze-log]
 description = "Analyze a telemetry log into Ralph task records"
@@ -154,6 +159,16 @@ run = "go test ./..."
 [tasks.verify]
 description = "Run core verification suite"
 depends = ["test", "build-gogpu", "build-cgo"]
+
+[tasks.build-qgo]
+depends = ["go-generate"]
+description = "Build the QGo compiler"
+run = "CGO_ENABLED=0 go build ./cmd/qgo"
+
+[tasks.build-progs]
+depends = ["build-qgo"]
+description = "Build the progs.dat from QuakeGo sources"
+run = "cd pkg/qgo/quakego && ../../../qgo"
 
 [tasks.build-gogpu]
 depends = ["go-generate"]
