@@ -738,6 +738,9 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 	if result, handled := l.lowerFieldOffsetIntrinsic(fn, call); handled {
 		return result
 	}
+	if result, handled := l.lowerTypeConversionExpr(fn, call); handled {
+		return result
+	}
 
 	// Resolve the function being called
 	var funcObj *types.Func
@@ -763,6 +766,9 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 							resType = EvVector
 						case "Sub":
 							op = qc.OPSubV
+							resType = EvVector
+						case "Mul":
+							op = qc.OPMulVF
 							resType = EvVector
 						case "Scale":
 							op = qc.OPMulVF
@@ -870,6 +876,57 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 	}
 
 	return VRegInvalid
+}
+
+func (l *Lowerer) lowerTypeConversionExpr(fn *IRFunc, call *ast.CallExpr) (VReg, bool) {
+	tv, ok := l.currentInfo.Types[call.Fun]
+	if !ok || !tv.IsType() {
+		return VRegInvalid, false
+	}
+	if len(call.Args) != 1 {
+		l.errors.Addf(l.pos(call), "type conversion expects 1 arg, got %d", len(call.Args))
+		return VRegInvalid, true
+	}
+
+	targetType := tv.Type
+	sourceType := l.currentInfo.Types[call.Args[0]].Type
+	if targetType == nil || sourceType == nil {
+		l.errors.Addf(l.pos(call), "cannot resolve type conversion")
+		return VRegInvalid, true
+	}
+
+	targetQC := l.goTypeToQC(targetType)
+	sourceQC := l.goTypeToQC(sourceType)
+	if targetQC != sourceQC {
+		if l.isEquivalentEntityPointerConversion(sourceType, targetType) {
+			return l.lowerExpr(fn, call.Args[0]), true
+		}
+		l.errors.Addf(l.pos(call), "unsupported type conversion from %s to %s", sourceType.String(), targetType.String())
+		return VRegInvalid, true
+	}
+
+	return l.lowerExpr(fn, call.Args[0]), true
+}
+
+func (l *Lowerer) isEquivalentEntityPointerConversion(sourceType, targetType types.Type) bool {
+	srcPtr, ok := sourceType.(*types.Pointer)
+	if !ok {
+		return false
+	}
+	dstPtr, ok := targetType.(*types.Pointer)
+	if !ok {
+		return false
+	}
+	if !types.Identical(srcPtr.Elem().Underlying(), dstPtr.Elem().Underlying()) {
+		return false
+	}
+
+	srcNamed, ok := srcPtr.Elem().(*types.Named)
+	if ok && srcNamed.Obj().Name() == "Entity" {
+		return true
+	}
+	dstNamed, ok := dstPtr.Elem().(*types.Named)
+	return ok && dstNamed.Obj().Name() == "Entity"
 }
 
 func (l *Lowerer) lowerFieldOffsetIntrinsic(fn *IRFunc, call *ast.CallExpr) (VReg, bool) {

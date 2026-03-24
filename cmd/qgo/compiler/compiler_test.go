@@ -1123,11 +1123,12 @@ type Vec3 [3]float32
 
 func (v Vec3) Add(o Vec3) Vec3 { return Vec3{} }
 func (v Vec3) Sub(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Mul(s float32) Vec3 { return Vec3{} }
 func (v Vec3) Scale(s float32) Vec3 { return Vec3{} }
 func (v Vec3) Dot(o Vec3) float32 { return 0 }
 
 func Compose(a Vec3, b Vec3, s float32) float32 {
-	return a.Add(b).Sub(b).Scale(s).Dot(b)
+	return a.Add(b).Sub(b).Mul(s).Dot(b)
 }
 `)
 
@@ -1166,13 +1167,13 @@ func Compose(a Vec3, b Vec3, s float32) float32 {
 		t.Fatal("expected OP_SUB_V from Vec3.Sub method lowering")
 	}
 	if !hasMulVF {
-		t.Fatal("expected OP_MUL_VF from Vec3.Scale method lowering")
+		t.Fatal("expected OP_MUL_VF from Vec3.Mul/Scale method lowering")
 	}
 	if !hasMulV {
 		t.Fatal("expected OP_MUL_V from Vec3.Dot method lowering")
 	}
 	if hasCall {
-		t.Fatal("did not expect OP_CALL* fallback for Vec3 Add/Sub/Scale/Dot method lowering")
+		t.Fatal("did not expect OP_CALL* fallback for Vec3 Add/Sub/Mul/Scale/Dot method lowering")
 	}
 }
 
@@ -1185,11 +1186,12 @@ type Vec3 [3]float32
 
 func (v Vec3) Add(o Vec3) Vec3 { return Vec3{} }
 func (v Vec3) Sub(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Mul(s float32) Vec3 { return Vec3{} }
 func (v Vec3) Scale(s float32) Vec3 { return Vec3{} }
 func (v Vec3) Dot(o Vec3) float32 { return 0 }
 
 func Compose(a Vec3, b Vec3, s float32) float32 {
-	return a.Add(b).Sub(b).Scale(s).Dot(b)
+	return a.Add(b).Sub(b).Mul(s).Dot(b)
 }
 `)
 
@@ -1484,6 +1486,36 @@ func MalformedBuiltin() {}
 	}
 	if !strings.Contains(err.Error(), "malformed //qgo:builtin directive: expected one builtin number or alias") {
 		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestCompile_TypeConversion_NoopForEquivalentQCType(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgotypeconversiontest`)
+	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgotypeconversiontest/quake"
+
+type buttonEntity quake.Entity
+
+func asButtonEntity(ent *quake.Entity) *buttonEntity {
+	return (*buttonEntity)(ent)
+}
+
+func (be *buttonEntity) entity() *quake.Entity {
+	return (*quake.Entity)(be)
+}
+
+func roundTrip(ent *quake.Entity) *quake.Entity {
+	return asButtonEntity(ent).entity()
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
 	}
 }
 

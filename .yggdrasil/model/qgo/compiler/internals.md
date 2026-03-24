@@ -137,7 +137,9 @@ This keeps dynamic field access opcode-correct without lowering imported helper 
 
 Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow float helper slice now produce an explicit defer diagnostic. Receiver-form methods beyond `FieldFloat`/`SetFieldFloat` remain deferred, so vector/string/entity receiver helpers still stay out of scope. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
 
-Method-based Vec3 lowering is also intentionally narrow in this slice: `lowerCallExpr` recognizes receiver-form `Vec3.Add(Vec3)`, `Vec3.Sub(Vec3)`, `Vec3.Scale(float32)`, and `Vec3.Dot(Vec3)` and emits direct vector arithmetic ops (`OPAddV`, `OPSubV`, `OPMulVF`, `OPMulV`) with no `OP_CALL*` fallback. This keeps method support aligned with a small deterministic helper surface that mirrors existing vector opcode semantics while avoiding broad operator/method emulation; other Vec3 receiver methods remain out of scope and fail with `unsupported Vec3 method`.
+Method-based Vec3 lowering is also intentionally narrow in this slice: `lowerCallExpr` recognizes receiver-form `Vec3.Add(Vec3)`, `Vec3.Sub(Vec3)`, `Vec3.Mul(float32)`, `Vec3.Scale(float32)`, and `Vec3.Dot(Vec3)` and emits direct vector arithmetic ops (`OPAddV`, `OPSubV`, `OPMulVF`, `OPMulV`) with no `OP_CALL*` fallback. `Mul` and `Scale` intentionally share the same scalar-vector multiply lowering so existing quakego call sites compile without forcing a naming migration. Other Vec3 receiver methods remain out of scope and fail with `unsupported Vec3 method`.
+
+Receiver-adapter helper conversions such as `(*buttonEntity)(ent)` and `(*quake.Entity)(be)` are now handled as narrow no-op conversions when both pointer element types share the same underlying struct and one side is the canonical `quake.Entity` named type. This avoids misclassifying adapter conversions as callable expressions while still rejecting unrelated unsupported conversions.
 
 ### Deferred type-form diagnostics are lowered through dedicated handlers
 
