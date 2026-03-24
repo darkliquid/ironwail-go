@@ -115,6 +115,13 @@ type SearchResult struct {
 	Priority int
 }
 
+type readSeekNopCloser struct {
+	io.Reader
+	io.Seeker
+}
+
+func (readSeekNopCloser) Close() error { return nil }
+
 // SearchPathEntry is a snapshot of one mounted VFS search path entry in
 // lookup order, suitable for debug/introspection commands such as `path`.
 type SearchPathEntry struct {
@@ -279,6 +286,20 @@ func (fs *FileSystem) LoadFile(filename string) ([]byte, error) {
 	return fs.loadSearchResult(result)
 }
 
+// OpenFile opens a file from the VFS as a streaming read/seek handle and
+// returns the handle plus its byte length.
+//
+// For loose files this returns an *os.File opened at offset 0.
+// For PAK-resident files this returns a section reader over the file's byte
+// range in the open archive handle.
+func (fs *FileSystem) OpenFile(filename string) (io.ReadSeekCloser, int64, error) {
+	result, err := fs.FindFile(filename)
+	if err != nil {
+		return nil, 0, err
+	}
+	return fs.openSearchResult(result)
+}
+
 // FindFirstAvailable attempts to locate the first file that exists from a
 // prioritised list of candidate filenames. This is used when the engine can
 // accept multiple asset variants — for example trying "maps/e1m1.bsp" first
@@ -412,6 +433,27 @@ func (fs *FileSystem) loadSearchResult(result *SearchResult) ([]byte, error) {
 		return fs.loadFromPack(result)
 	}
 	return iofs.ReadFile(result.SourceFS, result.Name)
+}
+
+func (fs *FileSystem) openSearchResult(result *SearchResult) (io.ReadSeekCloser, int64, error) {
+	if result.IsPack {
+		reader := io.NewSectionReader(result.Pack.Handle, int64(result.FilePos), int64(result.FileLen))
+		return readSeekNopCloser{
+			Reader: reader,
+			Seeker: reader,
+		}, int64(result.FileLen), nil
+	}
+
+	file, err := os.Open(result.Path)
+	if err != nil {
+		return nil, 0, err
+	}
+	stat, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, 0, err
+	}
+	return file, stat.Size(), nil
 }
 
 // FileExists returns true if the named file can be found anywhere in the VFS

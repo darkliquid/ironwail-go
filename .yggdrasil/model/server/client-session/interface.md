@@ -16,5 +16,6 @@
 ## Contracts
 
 - Player slots are reserved edicts and must remain stable across connect/disconnect flows.
+- Client admission must reject new sockets when all server slots are occupied without aborting the frame loop.
 - Signon stage transitions must align with the message-buffer flush protocol expected by clients.
 - QC hooks such as `SetNewParms`, `PutClientInServer`, and `ClientDisconnect` are authoritative extension points and must be synchronized with Go state updates.

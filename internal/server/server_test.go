@@ -1326,6 +1326,33 @@ func TestCheckForNewClientsNoConnections(t *testing.T) {
 	}
 }
 
+func TestCheckForNewClientsRejectsWhenServerFull(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("server init: %v", err)
+	}
+	s.Static.Clients[0].Active = true
+	incoming := inet.NewSocket("incoming")
+	s.acceptConnection = func() *inet.Socket {
+		if incoming == nil {
+			return nil
+		}
+		sock := incoming
+		incoming = nil
+		return sock
+	}
+
+	if err := s.CheckForNewClients(); err != nil {
+		t.Fatalf("CheckForNewClients should not fail when full: %v", err)
+	}
+	if incoming != nil {
+		t.Fatal("expected pending connection to be consumed")
+	}
+	if s.Static.Clients[0].NetConnection != nil {
+		t.Fatal("full server should not bind incoming socket to active client slot")
+	}
+}
+
 func TestFrameClearsDatagramBeforeSimulation(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

@@ -3,6 +3,7 @@ package fs_test
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -409,6 +410,52 @@ func TestEnginePakOptionalWhenMissing(t *testing.T) {
 	}
 	if got := string(progs); got != "id1-progs" {
 		t.Fatalf("progs.dat = %q, want %q", got, "id1-progs")
+	}
+}
+
+func TestOpenFileFromPakReturnsReadSeekHandle(t *testing.T) {
+	baseDir := t.TempDir()
+	gameDir := filepath.Join(baseDir, "id1")
+	if err := os.MkdirAll(gameDir, 0o755); err != nil {
+		t.Fatalf("failed to create game dir: %v", err)
+	}
+	writeTestPak(t, filepath.Join(gameDir, "pak0.pak"), map[string][]byte{
+		"progs.dat": []byte("pak-bytes"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("failed to init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	handle, size, err := fileSys.OpenFile("progs.dat")
+	if err != nil {
+		t.Fatalf("OpenFile failed: %v", err)
+	}
+	defer handle.Close()
+
+	if size != int64(len("pak-bytes")) {
+		t.Fatalf("size = %d, want %d", size, len("pak-bytes"))
+	}
+
+	buf := make([]byte, 3)
+	if _, err := io.ReadFull(handle, buf); err != nil {
+		t.Fatalf("failed initial read: %v", err)
+	}
+	if got := string(buf); got != "pak" {
+		t.Fatalf("first bytes = %q, want %q", got, "pak")
+	}
+
+	if _, err := handle.Seek(4, io.SeekStart); err != nil {
+		t.Fatalf("seek failed: %v", err)
+	}
+	rest, err := io.ReadAll(handle)
+	if err != nil {
+		t.Fatalf("read after seek failed: %v", err)
+	}
+	if got := string(rest); got != "bytes" {
+		t.Fatalf("seek/read data = %q, want %q", got, "bytes")
 	}
 }
 

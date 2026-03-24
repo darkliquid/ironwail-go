@@ -85,6 +85,31 @@ func TestTraceBuiltinsToggleVMTraceFlag(t *testing.T) {
 	}
 }
 
+func TestCoredumpBuiltinPrintsAllAllocatedEntities(t *testing.T) {
+	vm := newBuiltinsTestVM(8)
+	vm.NumEdicts = 3
+
+	var printed []string
+	console.SetPrintCallback(func(msg string) {
+		printed = append(printed, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
+
+	coredumpBuiltin(vm)
+
+	want := []string{"entity 0\n", "entity 1\n", "entity 2\n"}
+	if len(printed) != len(want) {
+		t.Fatalf("printed len = %d, want %d (%q)", len(printed), len(want), printed)
+	}
+	for i := range want {
+		if printed[i] != want[i] {
+			t.Fatalf("printed[%d] = %q, want %q", i, printed[i], want[i])
+		}
+	}
+}
+
 func TestSpawnAllocatesEntity(t *testing.T) {
 	SetServerBuiltinHooks(ServerBuiltinHooks{})
 	vm := newBuiltinsTestVM(8)
@@ -505,7 +530,7 @@ func TestRegisterBuiltinsCanonicalMappings(t *testing.T) {
 	vm := newBuiltinsTestVM(8)
 	RegisterBuiltins(vm)
 
-	for _, slot := range []int{6, 8, 10, 11, 16, 17, 19, 20, 21, 23, 24, 25, 31, 35, 36, 37, 38, 40, 41, 43, 44, 45, 46, 48, 52, 53, 54, 55, 56, 57, 58, 59, 68, 69, 70, 72, 73, 74, 78, 79, 80, 316, 317, 318, 320, 321, 322, 323, 324, 325, 326, 327, 328} {
+	for _, slot := range []int{6, 8, 10, 11, 16, 17, 19, 20, 21, 23, 24, 25, 28, 31, 35, 36, 37, 38, 40, 41, 43, 44, 45, 46, 48, 52, 53, 54, 55, 56, 57, 58, 59, 68, 69, 70, 72, 73, 74, 78, 79, 80, 316, 317, 318, 320, 321, 322, 323, 324, 325, 326, 327, 328} {
 		if vm.Builtins[slot] == nil {
 			t.Fatalf("builtin %d is nil", slot)
 		}

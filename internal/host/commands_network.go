@@ -13,6 +13,16 @@ import (
 	"strings"
 )
 
+type serverBrowser interface {
+	Start()
+	Wait()
+	Results() []inet.HostCacheEntry
+}
+
+var newServerBrowser = func() serverBrowser {
+	return inet.NewServerBrowser()
+}
+
 func (h *Host) CmdStatus(subs *Subsystems) {
 	if h.forwardClientCommand("status", nil, subs) {
 		return
@@ -286,21 +296,28 @@ func (h *Host) CmdSlist(subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
 		return
 	}
-	subs.Console.Print("Searching for LAN servers...\n")
+	subs.Console.Print("Looking for Quake servers...\n")
+	subs.Console.Print("Server          Map             Users\n")
+	subs.Console.Print("--------------- --------------- -----\n")
 
-	sb := inet.NewServerBrowser()
+	sb := newServerBrowser()
 	sb.Start()
 	sb.Wait()
 
 	results := sb.Results()
 	if len(results) == 0 {
-		subs.Console.Print("No servers found.\n")
+		subs.Console.Print("No Quake servers found.\n\n")
 		return
 	}
-	subs.Console.Print(fmt.Sprintf("Found %d server(s):\n", len(results)))
+
 	for _, entry := range results {
-		subs.Console.Print(fmt.Sprintf("  %s\n", entry.String()))
+		if entry.MaxPlayers > 0 {
+			subs.Console.Print(fmt.Sprintf("%-15.15s %-15.15s %2d/%2d\n", entry.Name, entry.Map, entry.Players, entry.MaxPlayers))
+		} else {
+			subs.Console.Print(fmt.Sprintf("%-15.15s %-15.15s\n", entry.Name, entry.Map))
+		}
 	}
+	subs.Console.Print("== end list ==\n\n")
 }
 
 func (h *Host) CmdTest2(address string, subs *Subsystems) {

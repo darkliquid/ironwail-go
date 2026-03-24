@@ -326,6 +326,16 @@ type insertTrackingCommandBuffer struct {
 	added    []string
 }
 
+type fakeServerBrowser struct {
+	results []inet.HostCacheEntry
+}
+
+func (f *fakeServerBrowser) Start() {}
+func (f *fakeServerBrowser) Wait()  {}
+func (f *fakeServerBrowser) Results() []inet.HostCacheEntry {
+	return append([]inet.HostCacheEntry(nil), f.results...)
+}
+
 func (b *insertTrackingCommandBuffer) Init()                                         {}
 func (b *insertTrackingCommandBuffer) Execute()                                      {}
 func (b *insertTrackingCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {}
@@ -908,6 +918,67 @@ func TestCmdNetStatsPrintsGlobalDatagramCounters(t *testing.T) {
 	}
 	if !strings.Contains(got, "droppedDatagrams           = 3\n") {
 		t.Fatalf("net_stats output missing dropped datagrams count:\n%s", got)
+	}
+}
+
+func TestCmdSlistPrintsCStyleHeaderEntriesAndTrailer(t *testing.T) {
+	h := NewHost()
+	subs := &Subsystems{Console: &mockConsole{}}
+	console := subs.Console.(*mockConsole)
+
+	oldFactory := newServerBrowser
+	t.Cleanup(func() { newServerBrowser = oldFactory })
+	newServerBrowser = func() serverBrowser {
+		return &fakeServerBrowser{
+			results: []inet.HostCacheEntry{
+				{Name: "LAN Test", Map: "e1m1", Players: 2, MaxPlayers: 8, Address: "127.0.0.1:26000"},
+				{Name: "NoSlots", Map: "start", Players: 0, MaxPlayers: 0, Address: "127.0.0.1:26001"},
+			},
+		}
+	}
+
+	h.CmdSlist(subs)
+
+	got := strings.Join(console.messages, "")
+	if !strings.Contains(got, "Looking for Quake servers...\n") {
+		t.Fatalf("slist output missing banner:\n%s", got)
+	}
+	if !strings.Contains(got, "Server          Map             Users\n") {
+		t.Fatalf("slist output missing header:\n%s", got)
+	}
+	if !strings.Contains(got, "--------------- --------------- -----\n") {
+		t.Fatalf("slist output missing separator:\n%s", got)
+	}
+	if !strings.Contains(got, "LAN Test        e1m1             2/ 8\n") {
+		t.Fatalf("slist output missing users row:\n%s", got)
+	}
+	if !strings.Contains(got, "NoSlots         start          \n") {
+		t.Fatalf("slist output missing zero-max row:\n%s", got)
+	}
+	if !strings.Contains(got, "== end list ==\n\n") {
+		t.Fatalf("slist output missing trailer:\n%s", got)
+	}
+}
+
+func TestCmdSlistPrintsNoServersMessageWhenEmpty(t *testing.T) {
+	h := NewHost()
+	subs := &Subsystems{Console: &mockConsole{}}
+	console := subs.Console.(*mockConsole)
+
+	oldFactory := newServerBrowser
+	t.Cleanup(func() { newServerBrowser = oldFactory })
+	newServerBrowser = func() serverBrowser {
+		return &fakeServerBrowser{}
+	}
+
+	h.CmdSlist(subs)
+
+	got := strings.Join(console.messages, "")
+	if !strings.Contains(got, "Looking for Quake servers...\n") {
+		t.Fatalf("slist output missing banner:\n%s", got)
+	}
+	if !strings.Contains(got, "No Quake servers found.\n\n") {
+		t.Fatalf("slist output missing empty message:\n%s", got)
 	}
 }
 
@@ -2307,6 +2378,54 @@ func TestCmdDemoSeekRejectsFrameEqualToFrameCount(t *testing.T) {
 	}
 	if strings.Contains(output, "Failed to seek demo") {
 		t.Fatalf("console output = %q, did not expect seek failure from lower-level demo code", output)
+	}
+}
+
+func TestCmdDemoSeekClearsRewindBackstop(t *testing.T) {
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir(%q) failed: %v", tmpDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(oldWD)
+	}()
+
+	recorder := cl.NewDemoState()
+	if err := recorder.StartDemoRecording("demoseek_backstop", 0); err != nil {
+		t.Fatalf("StartDemoRecording failed: %v", err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := recorder.WriteDemoFrame([]byte{0xff}, [3]float32{float32(i), 0, 0}); err != nil {
+			t.Fatalf("WriteDemoFrame %d failed: %v", i, err)
+		}
+	}
+	if err := recorder.StopRecording(); err != nil {
+		t.Fatalf("StopRecording failed: %v", err)
+	}
+
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  newLocalLoopbackClient(),
+		Console: console,
+	}
+	if err := h.Init(&InitParams{BaseDir: tmpDir, UserDir: tmpDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.CmdPlaydemo("demoseek_backstop", subs)
+	if h.demoState == nil || !h.demoState.Playback {
+		t.Fatal("expected demo playback to be active")
+	}
+	h.demoState.SetRewindBackstop(true)
+	h.CmdDemoSeek(1, subs)
+	if h.demoState.RewindBackstop() {
+		t.Fatal("expected demoseek to clear rewind backstop")
 	}
 }
 

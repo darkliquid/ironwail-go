@@ -312,6 +312,7 @@ func (h *Host) seekDemoFrame(frame int, subs *Subsystems) error {
 	}
 	clientState.ClearState()
 	clientState.State = cl.StateDisconnected
+	h.demoState.SetRewindBackstop(false)
 	h.clientState = caConnected
 	h.signOns = 0
 

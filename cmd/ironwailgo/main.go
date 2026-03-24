@@ -1207,7 +1207,7 @@ func drawRuntimeFPS(rc renderer.RenderContext, state runtimeTelemetryState, over
 		return
 	}
 	text := fmt.Sprintf("%4.0f fps", overlay.lastFPS)
-	if state.ShowFPS < 0 {
+	if state.ShowFPS < 0 || state.ShowFPS >= 2 {
 		text = fmt.Sprintf("%.2f ms", 1000.0/overlay.lastFPS)
 	}
 	if state.HUDStyle == renderer.HUDClassic {

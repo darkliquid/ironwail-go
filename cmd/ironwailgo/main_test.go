@@ -1145,6 +1145,36 @@ func TestDrawRuntimeClockAndFPSUseBottomRightCanvasForClassicHUD(t *testing.T) {
 	}
 }
 
+func TestDrawRuntimeFPSUsesMillisecondsModeForShowFPS2(t *testing.T) {
+	dc := &telemetryOverlayDrawContext{}
+	state := runtimeTelemetryState{
+		RealTime:   1,
+		FrameCount: 100,
+		ViewSize:   100,
+		HUDStyle:   renderer.HUDClassic,
+		ShowFPS:    2,
+	}
+	fps := &runtimeFPSOverlay{}
+
+	drawRuntimeFPS(dc, state, fps)
+
+	if len(dc.chars) != len("10.00 ms") {
+		t.Fatalf("char count = %d, want %d", len(dc.chars), len("10.00 ms"))
+	}
+	got := string(charsToRunes(dc.chars))
+	if got != "10.00 ms" {
+		t.Fatalf("fps text = %q, want %q", got, "10.00 ms")
+	}
+}
+
+func charsToRunes(chars []overlayChar) []rune {
+	out := make([]rune, 0, len(chars))
+	for _, ch := range chars {
+		out = append(out, rune(ch.num))
+	}
+	return out
+}
+
 func TestDrawRuntimeSpeedUsesCrosshairCanvas(t *testing.T) {
 	dc := &telemetryOverlayDrawContext{}
 	state := runtimeTelemetryState{

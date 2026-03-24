@@ -11,7 +11,7 @@
 - `NewFileSystem`
 - `Init`, `AddGameDirectory`, `Close`
 - `SearchPathEntries`
-- `FindFile`, `LoadFile`, `FileExists`
+- `FindFile`, `LoadFile`, `OpenFile`, `FileExists`
 - `FindFirstAvailable`, `LoadFirstAvailable`
 - `LoadMapBSPAndLit`
 - `ListMods`, `ListFiles`
@@ -25,3 +25,4 @@
 - Search resolution is priority-driven: later-added game directories override earlier ones, and within one directory higher-numbered PAKs outrank lower-numbered PAKs.
 - `FindFirstAvailable` prefers higher-priority search paths before candidate-name order.
 - `LoadMapBSPAndLit` only accepts a `.lit` sidecar when it comes from the same or higher-priority source than the chosen BSP.
+- `OpenFile` returns a read/seek handle and byte length for the resolved VFS file: loose files are opened as OS files, and pack files are exposed via section readers constrained to the entry byte range.

@@ -11,6 +11,7 @@ The server also exposes narrow bridge helpers that project QC VM internals to ho
 - `EntVars` layout and QC field offsets are parity-critical.
 - Freed edicts must clear QC-visible model/state surfaces so stale entities do not leak into later frames.
 - QC execution context (`self`, `other`, time globals, spawned edict sync) must be preserved across builtin and callback paths.
+- Server-level collaborators that introduce nondeterminism (such as network accept polling) should be injectable so protocol/session parity behaviors remain unit-testable.
 
 ## Decisions
 

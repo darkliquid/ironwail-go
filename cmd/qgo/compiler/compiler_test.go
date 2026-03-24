@@ -452,6 +452,70 @@ func MainValue() float32 { return Able() + Zed() }
 	mustAppearInOrder(t, funcs, stringTable, []string{"Able", "MainValue", "Zed"})
 }
 
+func TestCompile_BuiltinDirectiveNamedAlias_EmitsNegativeBuiltinStatement(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinaliasnamedtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin bprint
+func Broadcast() {}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	funcs := parseFunctions(t, data, header)
+	stringTable := parseStrings(t, data, header)
+
+	for _, fn := range funcs {
+		if stringAt(stringTable, fn.Name) != "Broadcast" {
+			continue
+		}
+		if got, want := fn.FirstStatement, int32(-23); got != want {
+			t.Fatalf("Broadcast first_statement = %d, want %d for bprint builtin", got, want)
+		}
+		return
+	}
+
+	t.Fatal("function 'Broadcast' not found")
+}
+
+func TestCompile_BuiltinDirectiveNamedAlias_CaseInsensitive(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgobuiltinaliascasetest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+//qgo:builtin SPAWN
+func SpawnAlias() {}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	funcs := parseFunctions(t, data, header)
+	stringTable := parseStrings(t, data, header)
+
+	for _, fn := range funcs {
+		if stringAt(stringTable, fn.Name) != "SpawnAlias" {
+			continue
+		}
+		if got, want := fn.FirstStatement, int32(-14); got != want {
+			t.Fatalf("SpawnAlias first_statement = %d, want %d for spawn builtin", got, want)
+		}
+		return
+	}
+
+	t.Fatal("function 'SpawnAlias' not found")
+}
+
 func TestCompile_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloatOpcodes(t *testing.T) {
 	dir := makeCompilerTempDir(t)
 	writeQGoModule(t, dir, `module qgofieldintrinsictest`)

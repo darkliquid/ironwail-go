@@ -116,7 +116,7 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[25] = dprint
 	vm.Builtins[26] = ftosBuiltin
 	vm.Builtins[27] = vtosBuiltin
-	vm.Builtins[28] = noopBuiltin
+	vm.Builtins[28] = coredumpBuiltin
 	vm.Builtins[29] = traceOnBuiltin
 	vm.Builtins[30] = traceOffBuiltin
 	vm.Builtins[31] = eprint
@@ -218,6 +218,12 @@ func RegisterBuiltins(vm *VM) {
 }
 func noopBuiltin(vm *VM) {
 	vm.SetGFloat(OFSReturn, 0)
+}
+
+func coredumpBuiltin(vm *VM) {
+	for entNum := 0; entNum < vm.NumEdicts; entNum++ {
+		console.Printf("entity %d\n", entNum)
+	}
 }
 
 func traceOnBuiltin(vm *VM) {

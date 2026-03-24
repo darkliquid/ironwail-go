@@ -1410,14 +1410,141 @@ func constantToFloat64(v interface{ ExactString() string }) (float64, bool) {
 	return f, true
 }
 
-// parseBuiltinDirective parses "//qgo:builtin N" and returns N.
+func builtinAliasToNumber(alias string) (int, bool) {
+	switch alias {
+	case "setorigin":
+		return 2, true
+	case "setmodel":
+		return 3, true
+	case "setsize":
+		return 4, true
+	case "sound":
+		return 8, true
+	case "spawn":
+		return 14, true
+	case "remove":
+		return 15, true
+	case "traceline":
+		return 16, true
+	case "checkclient":
+		return 17, true
+	case "find":
+		return 18, true
+	case "precache_sound":
+		return 19, true
+	case "precache_model":
+		return 20, true
+	case "stuffcmd":
+		return 21, true
+	case "findradius":
+		return 22, true
+	case "bprint":
+		return 23, true
+	case "sprint":
+		return 24, true
+	case "dprint":
+		return 25, true
+	case "ftos":
+		return 26, true
+	case "vtos":
+		return 27, true
+	case "eprint":
+		return 31, true
+	case "walkmove":
+		return 32, true
+	case "droptofloor":
+		return 34, true
+	case "lightstyle":
+		return 35, true
+	case "rint":
+		return 36, true
+	case "floor":
+		return 37, true
+	case "ceil":
+		return 38, true
+	case "checkbottom":
+		return 40, true
+	case "pointcontents":
+		return 41, true
+	case "fabs":
+		return 43, true
+	case "aim":
+		return 44, true
+	case "cvar":
+		return 45, true
+	case "localcmd":
+		return 46, true
+	case "nextent":
+		return 47, true
+	case "particle":
+		return 48, true
+	case "changeyaw":
+		return 49, true
+	case "vectoangles":
+		return 51, true
+	case "writebyte":
+		return 52, true
+	case "writechar":
+		return 53, true
+	case "writeshort":
+		return 54, true
+	case "writelong":
+		return 55, true
+	case "writecoord":
+		return 56, true
+	case "writeangle":
+		return 57, true
+	case "writestring":
+		return 58, true
+	case "writeentity":
+		return 59, true
+	case "sin":
+		return 60, true
+	case "cos":
+		return 61, true
+	case "sqrt":
+		return 62, true
+	case "etos":
+		return 65, true
+	case "movetogoal":
+		return 67, true
+	case "precache_file":
+		return 68, true
+	case "makestatic":
+		return 69, true
+	case "changelevel":
+		return 70, true
+	case "cvar_set":
+		return 72, true
+	case "centerprint":
+		return 73, true
+	case "ambientsound":
+		return 74, true
+	case "precache_model2":
+		return 75, true
+	case "precache_sound2":
+		return 76, true
+	case "precache_file2":
+		return 77, true
+	case "setspawnparms":
+		return 78, true
+	case "local_sound":
+		return 80, true
+	}
+	return 0, false
+}
+
 func parseBuiltinDirective(comment string) (int, bool) {
 	const prefix = "//qgo:builtin "
 	if len(comment) <= len(prefix) || comment[:len(prefix)] != prefix {
 		return 0, false
 	}
-	n, err := strconv.Atoi(comment[len(prefix):])
+	token := strings.TrimSpace(comment[len(prefix):])
+	n, err := strconv.Atoi(token)
 	if err != nil {
+		if n, ok := builtinAliasToNumber(strings.ToLower(token)); ok {
+			return n, true
+		}
 		return 0, false
 	}
 	return n, true

@@ -25,3 +25,4 @@ Observed surfaces:
 - `random()` reads `sv_gameplayfix_random` to select formula parity:
   - `1` (default): `((rand()&0x7fff)+0.5)/0x8000` (open interval `(0,1)`).
   - `0` (legacy): `(rand()&0x7fff)/0x7fff` (closed interval `[0,1]`).
+- builtin `#28` (`coredump`) is wired to entity dump behavior (matching C slot mapping) instead of a generic no-op.

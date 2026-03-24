@@ -8,6 +8,9 @@ Within `Physics()`, client-slot entities (edict indices 1..maxclients) receive `
 
 `AddGravity` follows the C `SV_AddGravity` pattern instead of reading only typed Go entity state. The server caches the QuakeC field offset for `gravity` when progs are loaded, then resolves that field from QC edict memory at runtime. A non-zero QC value scales `sv_gravity`; a missing field or zero value falls back to `1.0`. That preserves mod behavior that uses `.gravity` as an opt-in multiplier while leaving entities at default world gravity when the field is absent or unset.
 
+`CheckWaterTransition` intentionally mirrors the C `SV_CheckWaterTransition` edge-case semantics. On spawn (`watertype == 0`) it seeds `watertype` from `PointContents` and sets `waterlevel = 1`. On transitions out of liquid it writes `watertype = CONTENTS_EMPTY` and stores the raw `PointContents` result in `waterlevel` (not zero), matching legacy behavior used by mods and parity checks.
+
+
 ## Constraints
 
 - `StartFrame` and per-entity callback ordering are parity-sensitive with original Quake behavior.

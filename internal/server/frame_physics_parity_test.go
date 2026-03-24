@@ -139,6 +139,33 @@ func TestAddGravityUsesQCGravityFieldWhenPresent(t *testing.T) {
 	}
 }
 
+func TestCheckWaterTransitionSetsOutOfWaterLevelToContentsValue(t *testing.T) {
+	s, _, ent := newSyntheticClientServer(t)
+	// Force PointContents(origin) to report open air.
+	s.WorldModel = &model.Model{
+		Hulls: [4]model.Hull{{
+			ClipNodes: []model.MClipNode{{
+				PlaneNum: 0,
+				Children: [2]int{bsp.ContentsEmpty, bsp.ContentsEmpty},
+			}},
+			Planes: []model.MPlane{{Normal: [3]float32{0, 0, 1}, Dist: 0}},
+		}},
+	}
+
+	ent.Vars.Origin = [3]float32{0, 0, 128}
+	ent.Vars.WaterType = float32(bsp.ContentsWater)
+	ent.Vars.WaterLevel = 1
+
+	s.CheckWaterTransition(ent)
+
+	if got, want := ent.Vars.WaterType, float32(bsp.ContentsEmpty); got != want {
+		t.Fatalf("watertype = %v, want %v", got, want)
+	}
+	if got, want := ent.Vars.WaterLevel, float32(bsp.ContentsEmpty); got != want {
+		t.Fatalf("waterlevel = %v, want %v", got, want)
+	}
+}
+
 func TestPhysicsWalkSkipsGravityUnderwater(t *testing.T) {
 	s, _, ent := newSyntheticClientServer(t)
 	// SV_CheckWater needs a WorldModel to perform PointContents checks

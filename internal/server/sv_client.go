@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -692,11 +691,15 @@ func (s *Server) SaveSpawnParms() {
 }
 
 // CheckForNewClients polls the network layer for incoming connections and
-// assigns them to a free client slot. Returns an error if a connection arrives
-// but no free slot is available.
+// assigns them to a free client slot. When all slots are busy, incoming
+// connections are rejected and the frame continues.
 func (s *Server) CheckForNewClients() error {
+	checkNewConnections := s.acceptConnection
+	if checkNewConnections == nil {
+		checkNewConnections = inet.CheckNewConnections
+	}
 	for {
-		sock := inet.CheckNewConnections()
+		sock := checkNewConnections()
 		if sock == nil {
 			break
 		}
@@ -712,7 +715,7 @@ func (s *Server) CheckForNewClients() error {
 		if freeSlot < 0 {
 			slog.Warn("CheckForNewClients: no free client slots")
 			inet.Close(sock)
-			return errors.New("no free client slots")
+			continue
 		}
 
 		if s.Static.Clients[freeSlot] == nil {

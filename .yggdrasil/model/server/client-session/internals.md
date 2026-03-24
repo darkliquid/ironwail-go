@@ -8,6 +8,7 @@ This node manages the boundary between transport-level client presence and autho
 
 - Signon ordering is parity-sensitive and easy to regress.
 - Loopback/local clients must still follow the same authoritative session rules as remote clients where behavior matters.
+- Transport-level connection surges (e.g. handshake while server is full) must be handled as non-fatal admission rejections, not frame-fatal errors.
 - Spawnparm preservation and loadgame flows intentionally alter the normal `SetNewParms`/spawn path.
 
 ## Decisions

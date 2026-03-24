@@ -37,7 +37,7 @@ To keep emitted `progs.dat` function/global ordering deterministic within the ta
 
 This makes function table order stable across runs and machines for the same source tree, and prevents imported implementation details from introducing unrelated unsupported-syntax failures during user package compilation.
 
-Builtin directives in function doc comments now accept either explicit numeric IDs or a curated set of lowercase builtin aliases (`bprint`, `spawn`, `remove`, `sound`, etc). Alias resolution is case-insensitive and falls back to numeric parsing first.
+Builtin directives in function doc comments now accept either explicit numeric IDs or canonical builtin names mapped from the runtime builtin table (`setorigin`, `spawn`, `remove`, `bprint`, `walkmove`, `droptofloor`, `write*`, etc). Alias resolution is case-insensitive and falls back to numeric parsing first.
 
 ### QCVM-oriented allocation
 

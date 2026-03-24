@@ -202,7 +202,7 @@ func (s *Server) CheckWaterTransition(ent *Edict) {
 			s.StartSound(ent, 0, "misc/h2ohit1.wav", 255, 1)
 		}
 		ent.Vars.WaterType = float32(bsp.ContentsEmpty)
-		ent.Vars.WaterLevel = 0
+		ent.Vars.WaterLevel = float32(cont)
 	}
 }
 

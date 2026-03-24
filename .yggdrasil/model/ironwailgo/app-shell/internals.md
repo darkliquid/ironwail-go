@@ -14,6 +14,7 @@ Frame/interpolation policy regression coverage in `main_test.go` now also assert
 Console-completion regression coverage in `main_test.go` now also asserts that startup wiring exposes VFS-backed map completion (`map e1` -> `map e1m1`) and that the broad command-completion smoke test uses a unique `toggleconsole` prefix so full-package command registration does not make the assertion order-dependent.
 Command-surface regression coverage in `main_test.go` now also asserts the new `entities` debug command prints indexed `EMPTY` gaps plus live client entity lines from the process-wide `g.Client` state, and stays silent while the client is disconnected.
 Command-surface regression coverage in `main_test.go` now also asserts `centerview` restarts pitch drift through the executable command-binding surface by flipping `g.Client.NoDrift` off and reseeding `PitchVel`.
+Runtime telemetry regression coverage in `main_test.go` now also asserts `scr_showfps=2` uses milliseconds text (`xx.xx ms`) in the runtime FPS overlay path, matching legacy Ironwail semantics where nonzero showfps modes include an ms-style display mode in addition to FPS text.
 
 ## Constraints
 

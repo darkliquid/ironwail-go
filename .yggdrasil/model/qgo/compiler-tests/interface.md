@@ -14,7 +14,7 @@ Observed validation surface:
 - helper-level tests pin allocator, string-table, and opcode-selection behavior so backend regressions fail near the source
 - unsupported-language coverage is explicit: tests should assert precise compiler errors for intentionally out-of-scope syntax (currently type assertions and type switches)
 - incremental cache behavior is covered with focused tests that assert cache-hit reuse on unchanged sources and cache-miss recompilation after source edits
-- builtin directive coverage includes both numeric and named-alias forms, asserting that emitted `DFunction.FirstStatement` remains the negative builtin number
+- builtin directive coverage includes numeric and named forms with case-insensitive alias handling, asserting that emitted `DFunction.FirstStatement` remains the negative builtin number
 - IR pipeline coverage asserts optimizer behavior against no-op `OPStore* x -> x` statements without stripping immediate-backed constant pseudo-stores
 - IR pipeline coverage also asserts builtin IR functions are excluded from the no-op self-store optimization pass
 - deterministic smoke coverage asserts repeated compiles of identical input produce byte-identical `progs.dat` output

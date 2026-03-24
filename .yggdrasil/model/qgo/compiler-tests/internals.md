@@ -10,7 +10,7 @@ The compiler tests combine three layers of evidence:
 - round-trip arithmetic coverage now includes bitwise-not semantics (`^x`) and mask-clearing (`a & ^b`) via an ephemeral source package compiled in-test
 - unsupported-feature tests create temporary package directories under `cmd/qgo/testdata` and assert deterministic lowering errors for syntax outside the supported subset
 - incremental cache tests use ephemeral packages to validate compile-cache semantics without introducing persistent fixture directories
-- builtin-directive tests now cover numeric and named alias parsing (`//qgo:builtin 23` and `//qgo:builtin bprint`) and verify compiled function metadata uses negative builtin IDs
+- builtin-directive tests now cover numeric and named alias parsing (`//qgo:builtin 23`, `//qgo:builtin bprint`, `//qgo:builtin SPAWN`) and verify compiled function metadata uses negative builtin IDs
 - IR pipeline tests include a direct optimizer unit assertion that no-op self-store instructions are removed from function bodies, plus an end-to-end compile assertion that generated statements do not contain self-copy stores
 - optimizer unit coverage now explicitly includes builtin-function IR bodies and asserts they are left untouched while non-builtin bodies are trimmed
 - source-order tests compile multi-file ephemeral packages and assert function-table order follows filename order, protecting deterministic lowering traversal for parity tooling

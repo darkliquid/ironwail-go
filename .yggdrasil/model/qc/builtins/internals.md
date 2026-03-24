@@ -18,6 +18,8 @@ If `sv_gameplayfix_random` is absent, builtin behavior stays on the gameplay-fix
 
 `mod()` follows C's parity contract for zero divisors by returning `0` while also surfacing the condition through a console warning (`PF_mod: mod by zero`) instead of failing silently.
 
+Builtin slot `#28` now maps to `coredump` semantics: iterating the currently allocated edict range (`0..NumEdicts-1`) and printing entity headers to the console. This preserves canonical slot behavior (C `PF_coredump`) and avoids silently swallowing QC calls at that index.
+
 ## Constraints
 
 - Incorrect builtin numbering would silently break program behavior.

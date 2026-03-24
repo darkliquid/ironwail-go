@@ -115,6 +115,8 @@ type Server struct {
 
 	DebugTelemetry *DebugTelemetry
 
+	acceptConnection func() *inet.Socket
+
 	checkClientSlot int
 	checkClientTime float32
 	checkClientPVS  []byte
@@ -751,21 +753,22 @@ func NewServer() *Server {
 	vm.SetCompatRNG(compatRNG)
 
 	s := &Server{
-		Gravity:         800,
-		MaxVelocity:     2000,
-		Friction:        4,
-		StopSpeed:       100,
-		MaxEdicts:       1024,
-		Protocol:        ProtocolFitzQuake,
-		QCFieldAlpha:    -1,
-		QCFieldScale:    -1,
-		QCFieldGravity:  -1,
-		EffectsMask:     defaultEffectsMask,
-		QCVM:            vm,
-		DebugTelemetry:  NewDebugTelemetry(),
-		touchFrameSeen:  make(map[uint64]struct{}),
-		impactFrameSeen: make(map[impactTouchKey]struct{}),
-		compatRNG:       compatRNG,
+		Gravity:          800,
+		MaxVelocity:      2000,
+		Friction:         4,
+		StopSpeed:        100,
+		MaxEdicts:        1024,
+		Protocol:         ProtocolFitzQuake,
+		QCFieldAlpha:     -1,
+		QCFieldScale:     -1,
+		QCFieldGravity:   -1,
+		EffectsMask:      defaultEffectsMask,
+		QCVM:             vm,
+		DebugTelemetry:   NewDebugTelemetry(),
+		acceptConnection: inet.CheckNewConnections,
+		touchFrameSeen:   make(map[uint64]struct{}),
+		impactFrameSeen:  make(map[impactTouchKey]struct{}),
+		compatRNG:        compatRNG,
 	}
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
