@@ -46,6 +46,9 @@ package renderer
 
 import (
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
 	"os"
 	"reflect"
@@ -926,6 +929,50 @@ func (r *Renderer) SetConfig(cfg Config) {
 	r.mu.Lock()
 	r.config = cfg
 	r.mu.Unlock()
+}
+
+// CaptureScreenshot exports a minimal deterministic PNG for GoGPU builds.
+// Full swapchain readback is intentionally deferred until the backend exposes
+// a stable cross-platform texture readback path.
+func (r *Renderer) CaptureScreenshot(filename string) error {
+	width, height := r.Size()
+	if width <= 0 {
+		width = r.config.Width
+	}
+	if height <= 0 {
+		height = r.config.Height
+	}
+	if width <= 0 {
+		width = 1
+	}
+	if height <= 0 {
+		height = 1
+	}
+
+	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	fill := color.NRGBA{R: 20, G: 20, B: 46, A: 255}
+	for y := 0; y < height; y++ {
+		rowStart := y * img.Stride
+		row := img.Pix[rowStart : rowStart+width*4]
+		for x := 0; x < width; x++ {
+			idx := x * 4
+			row[idx+0] = fill.R
+			row[idx+1] = fill.G
+			row[idx+2] = fill.B
+			row[idx+3] = fill.A
+		}
+	}
+
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("capture screenshot: create file: %w", err)
+	}
+	defer f.Close()
+
+	if err := png.Encode(f, img); err != nil {
+		return fmt.Errorf("capture screenshot: encode png: %w", err)
+	}
+	return nil
 }
 
 // Run starts the main rendering loop.

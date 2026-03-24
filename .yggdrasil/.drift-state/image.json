@@ -24,7 +24,7 @@
     "internal/image/wad.go": 1773836785819.4187,
     "internal/image/tga.go": 1773836785819.212,
     "internal/image/texture.go": 1773836785819.0198,
-    "internal/image/lumptype_string.go": 1774215496481.519,
+    "internal/image/lumptype_string.go": 1774335034463.0083,
     "internal/image/image_test.go": 1773836785818.739,
     "internal/image/wad_test.go": 1773836785818.8704
   }

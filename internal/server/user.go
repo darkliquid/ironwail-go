@@ -1117,7 +1117,6 @@ func (s *Server) RunClients() {
 }
 
 func (s *Server) DropClient(client *Client, crash bool) {
-	_ = crash
 	if client == nil || !client.Active {
 		return
 	}
@@ -1134,6 +1133,10 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	client.Active = false
 	client.Spawned = false
 	client.RespawnTime = 0
+	if crash && client.NetConnection != nil {
+		inet.Close(client.NetConnection)
+		client.NetConnection = nil
+	}
 	if client.Edict != nil {
 		client.Edict.Free = true
 		client.Edict.FreeTime = s.Time

@@ -2,17 +2,17 @@
   "hash": "60daa5a0ed6ae65582afd0da02793a02a164a394d8b7f17693ae3d17a264d3fc",
   "files": {
     ".yggdrasil/model/server/network-serialization/yg-node.yaml": "0ec9299d914df66f0ed4d7341506b6e5d133c6e67f26c9d83f6421309d0e8cc0",
+    ".yggdrasil/model/server/network-serialization/interface.md": "3649c1c844a0d797f3102d60c9cd90f3e5398b3ca72fcaeebefe1e44f09ff716",
+    ".yggdrasil/model/server/network-serialization/internals.md": "b09459edce54ed6041fa0ac61cbc980a7ba1ae9192704aa38124adc14c151d47",
     ".yggdrasil/model/server/network-serialization/responsibility.md": "9967868c623953e953ae18249395568df96b28b347cd386548f043cac57f11d4",
     ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
     ".yggdrasil/model/server/interface.md": "31e18a0edf10d68397fad666946d8bfb99f281e325fb388b042dc01d088c42d2",
     ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
     ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
     "internal/server/message.go": "6c51726ba260aece8daf1fc82047bf4a5ee6030614844c84133c88778f0e2e55",
-    "internal/server/sv_send_sound_protocol_test.go": "e68ae98cd649594b2816991f42d6c9744285a5442a8ab06d2026d62ee2468d9f",
-    ".yggdrasil/model/server/network-serialization/interface.md": "3649c1c844a0d797f3102d60c9cd90f3e5398b3ca72fcaeebefe1e44f09ff716",
-    ".yggdrasil/model/server/network-serialization/internals.md": "b09459edce54ed6041fa0ac61cbc980a7ba1ae9192704aa38124adc14c151d47",
     "internal/server/sv_send.go": "d1378610a49c6049e5e69a70b35ac35839af5e0301f1d6ca0208cc9394da9880",
-    "internal/server/sv_send_test.go": "76de920703d5cfcc352655839ca533206bf53639a3f45308010bbfc0c2659ea4"
+    "internal/server/sv_send_test.go": "76de920703d5cfcc352655839ca533206bf53639a3f45308010bbfc0c2659ea4",
+    "internal/server/sv_send_sound_protocol_test.go": "e68ae98cd649594b2816991f42d6c9744285a5442a8ab06d2026d62ee2468d9f"
   },
   "mtimes": {
     ".yggdrasil/model/server/network-serialization/yg-node.yaml": 1774234390008.6155,

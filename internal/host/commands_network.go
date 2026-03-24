@@ -338,6 +338,27 @@ func (h *Host) CmdTest2(address string, subs *Subsystems) {
 	}
 }
 
+func (h *Host) CmdPlayers(address string, subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+	if subs == nil || subs.Console == nil {
+		return
+	}
+
+	players, err := inet.QueryServerPlayers(strings.TrimSpace(address))
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("%v\n", err))
+		return
+	}
+
+	subs.Console.Print("slot  name              color  frags  ping\n")
+	subs.Console.Print("----  ----------------  -----  -----  ----\n")
+	for _, player := range players {
+		subs.Console.Print(fmt.Sprintf("%4d  %-16.16s  %2d/%-2d  %5d  %4.0f\n", player.Slot, player.Name, player.Colors[0], player.Colors[1], player.Frags, player.Ping))
+	}
+}
+
 func (h *Host) EndGame(message string, subs *Subsystems) {
 	if subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("Host_EndGame: %s\n", message))

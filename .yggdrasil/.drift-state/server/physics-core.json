@@ -2,6 +2,7 @@
   "hash": "68c6e40c5a796a1ac65c22d1a4a062f3d191e27dc7c0dbf828acbbcc3af7ec5b",
   "files": {
     ".yggdrasil/model/server/physics-core/yg-node.yaml": "d64a34c279acfc9dff3eb437eb5bbcffb05452117a2239399e68f252bd72d1bf",
+    ".yggdrasil/model/server/physics-core/interface.md": "7a01a092a9dbe1f1a0a19d38161c8e0e2641e389dcc1a0d2119d3e00df69c6b7",
     ".yggdrasil/model/server/physics-core/internals.md": "8b5da31a646c945b47618d8b4070bd904b89952a5e3103470c7183544ff66f77",
     ".yggdrasil/model/server/physics-core/responsibility.md": "0a598c69f88d1f4ad8ce4187b415c174ae3477fff0d68fec65cacf638a66923d",
     ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
@@ -21,8 +22,7 @@
     "internal/server/frame_physics_parity_test.go": "c79fa9d842a92f3651afd4d2b84c7be206f2bc59ff9833433d89983c753c0ef5",
     "internal/server/physics_parity_test.go": "09ee86376c8122101b30ff275075ec8ce98c3725afad02e8360ecee5f1f9d137",
     "internal/server/physics_test.go": "5eaaa774aa97a3d4a4817ba24b568406b90266fb2d1dff69cf1c23bb7ee5a6d8",
-    "internal/server/rules_test.go": "1bd0ecff90c82153bfdfb67f13d72f4eb5498ca4bc5bfd1a84aaff5fdbe2ad3e",
-    ".yggdrasil/model/server/physics-core/interface.md": "7a01a092a9dbe1f1a0a19d38161c8e0e2641e389dcc1a0d2119d3e00df69c6b7"
+    "internal/server/rules_test.go": "1bd0ecff90c82153bfdfb67f13d72f4eb5498ca4bc5bfd1a84aaff5fdbe2ad3e"
   },
   "mtimes": {
     ".yggdrasil/model/server/physics-core/yg-node.yaml": 1774234390008.0103,

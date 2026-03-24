@@ -105,6 +105,8 @@ func initGameHost() error {
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
+	cvar.Register(renderer.CvarRSkySolidSpeed, "1", cvar.FlagArchive, "Embedded sky solid-layer speed multiplier")
+	cvar.Register(renderer.CvarRSkyAlphaSpeed, "1", cvar.FlagArchive, "Embedded sky alpha-layer speed multiplier")
 	cvar.Register(renderer.CvarRShadows, "1", cvar.FlagArchive, "Enable entity shadows (0=off, 1=on)")
 	cvar.Register(renderer.CvarRNoshadowList, "progs/eyes.mdl", cvar.FlagArchive, "Space-separated list of model names to exclude from shadows")
 	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
@@ -215,6 +217,12 @@ func registerControlCvars() {
 	cvar.Register("m_yaw", "0.022", cvar.FlagArchive, "Mouse yaw scale")
 	cvar.Register("m_forward", "1", cvar.FlagArchive, "Mouse forward scale")
 	cvar.Register("m_side", "0.8", cvar.FlagArchive, "Mouse side scale")
+	cvar.Register("joy_look", "1", cvar.FlagArchive, "Enable right-stick look in gameplay")
+	cvar.Register("joy_looksensitivity_yaw", "4", cvar.FlagArchive, "Right-stick yaw look scale")
+	cvar.Register("joy_looksensitivity_pitch", "4", cvar.FlagArchive, "Right-stick pitch look scale")
+	cvar.Register("joy_gyro_look", "0", cvar.FlagArchive, "Enable gyro contribution in gameplay look")
+	cvar.Register("joy_gyro_yaw_scale", "1", cvar.FlagArchive, "Gyro yaw scale applied to gameplay look")
+	cvar.Register("joy_gyro_pitch_scale", "1", cvar.FlagArchive, "Gyro pitch scale applied to gameplay look")
 	for _, cv := range []*cvar.CVar{alwaysRun, freelook, lookspring, noLerp, centerMove, centerSpeed} {
 		cv.Callback = func(*cvar.CVar) {
 			syncControlCvarsToClient()
@@ -547,6 +555,12 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 				return false
 			}
 			return g.Host.ServerActive()
+		})
+		g.Menu.SetSaveEntryAllowedProvider(func() bool {
+			if g.Host == nil {
+				return false
+			}
+			return g.Host.SaveEntryAllowed(g.Subs)
 		})
 	}
 

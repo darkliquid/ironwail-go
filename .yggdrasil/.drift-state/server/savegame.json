@@ -1,5 +1,5 @@
 {
-  "hash": "bbd2bec851dce9b7573a8bea7a23fcf75929ffcb2b2b7049af85469504fc46db",
+  "hash": "210bcf08ab119c9b40cdeaa44ac82f9ad3c07ac05dddb84f3fb6d5827d9fa21c",
   "files": {
     ".yggdrasil/model/server/savegame/yg-node.yaml": "43f56aedd62123ce3bff785ef93bb31c682b8df32bcf2a368e75190c63af18dd",
     ".yggdrasil/model/server/savegame/interface.md": "64a96141e1c5925e78a94aec7bf651d21aa9ef18fc9151068fde2103b2555413",
@@ -14,7 +14,7 @@
     ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
     ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
     ".yggdrasil/model/qc/core/responsibility.md": "2c4a6cf150e8684ba3066af25c1bfeff1324adda5efb34fa4cdb82dd9cbbf112",
-    ".yggdrasil/model/qc/core/interface.md": "5caa22a1e30bedba203c6a22689701c2d3f937b5a23af242a7e4d652ffc23651",
+    ".yggdrasil/model/qc/core/interface.md": "ddfca839a025d89b9811b1484b8d392da6a1f385ab1d14ac93d7c7f9cb04159b",
     "internal/server/savegame.go": "314153739f03090e2e8fa3a37c4a10090dccfc90b3874a14b6cf456bc3015c4a",
     "internal/server/savegame_text.go": "f250a84d318e09fd25428f2e5367906e9e4219302b21c9ffcb7f0e56c16e2846",
     "internal/server/savegame_test.go": "93ed57aa855f5287589c69194aa187a52a26669a99edaecff5d0fc9707df140b",
@@ -34,7 +34,7 @@
     ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
     ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
     ".yggdrasil/model/qc/core/responsibility.md": 1774219202378.9526,
-    ".yggdrasil/model/qc/core/interface.md": 1774219202421.953,
+    ".yggdrasil/model/qc/core/interface.md": 1774334792377.562,
     "internal/server/savegame.go": 1774107822317.8987,
     "internal/server/savegame_text.go": 1774193006478.4895,
     "internal/server/savegame_test.go": 1774106058798.756,

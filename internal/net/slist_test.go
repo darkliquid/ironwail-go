@@ -5,6 +5,7 @@ package net
 
 import (
 	"encoding/binary"
+	"math"
 	stdnet "net"
 	"strings"
 	"testing"
@@ -61,6 +62,28 @@ func buildTestRuleInfoResponse(name, value string) []byte {
 		copy(buf[9:], name)
 		buf[9+len(name)] = 0
 		copy(buf[10+len(name):], value)
+	}
+	return buf
+}
+
+func buildTestPlayerInfoResponse(slot byte, name string, top, bottom byte, frags int32, ping float32) []byte {
+	payloadLen := 2 // slot + empty name terminator
+	if name != "" {
+		payloadLen += len(name) + 1 + 2 + 4 + 4
+	}
+	buf := make([]byte, HeaderSize+1+payloadLen)
+	binary.BigEndian.PutUint32(buf[0:], uint32(len(buf))|FlagCtl)
+	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
+	buf[8] = CCRepPlayerInfo
+	buf[9] = slot
+	if name != "" {
+		copy(buf[10:], name)
+		nameEnd := 10 + len(name)
+		buf[nameEnd] = 0
+		buf[nameEnd+1] = top
+		buf[nameEnd+2] = bottom
+		binary.LittleEndian.PutUint32(buf[nameEnd+3:], uint32(frags))
+		binary.LittleEndian.PutUint32(buf[nameEnd+7:], math.Float32bits(ping))
 	}
 	return buf
 }
@@ -188,6 +211,69 @@ func TestQueryServerRules(t *testing.T) {
 	}
 	if rules[1] != (RuleInfoEntry{Name: "teamplay", Value: "0"}) {
 		t.Fatalf("second rule = %#v", rules[1])
+	}
+}
+
+func TestParsePlayerInfoResponse(t *testing.T) {
+	resp := buildTestPlayerInfoResponse(2, "Ranger", 4, 9, 15, 32.5)
+	entry, ok := parsePlayerInfoResponse(resp)
+	if !ok {
+		t.Fatal("parsePlayerInfoResponse returned false")
+	}
+	if entry.Slot != 2 {
+		t.Fatalf("slot = %d, want 2", entry.Slot)
+	}
+	if entry.Name != "Ranger" {
+		t.Fatalf("name = %q, want Ranger", entry.Name)
+	}
+	if entry.Colors != [2]byte{4, 9} {
+		t.Fatalf("colors = %#v, want [4 9]", entry.Colors)
+	}
+	if entry.Frags != 15 {
+		t.Fatalf("frags = %d, want 15", entry.Frags)
+	}
+	if entry.Ping != float32(32.5) {
+		t.Fatalf("ping = %f, want 32.5", entry.Ping)
+	}
+}
+
+func TestQueryServerPlayers(t *testing.T) {
+	serverConn, err := stdnet.ListenUDP("udp4", &stdnet.UDPAddr{IP: stdnet.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("failed to start test server: %v", err)
+	}
+	defer serverConn.Close()
+
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, addr, err := serverConn.ReadFromUDP(buf)
+			if err != nil {
+				return
+			}
+			if n < HeaderSize+2 || buf[8] != CCReqPlayerInfo {
+				continue
+			}
+			switch buf[9] {
+			case 0:
+				serverConn.WriteToUDP(buildTestPlayerInfoResponse(0, "Ranger", 4, 9, 15, 32.5), addr)
+			case 1:
+				serverConn.WriteToUDP(buildTestPlayerInfoResponse(1, "Shambler", 13, 13, 42, 60.0), addr)
+			default:
+				serverConn.WriteToUDP(buildTestPlayerInfoResponse(buf[9], "", 0, 0, 0, 0), addr)
+			}
+		}
+	}()
+
+	players, err := QueryServerPlayers(serverConn.LocalAddr().String())
+	if err != nil {
+		t.Fatalf("QueryServerPlayers() error = %v", err)
+	}
+	if len(players) != 2 {
+		t.Fatalf("player count = %d, want 2", len(players))
+	}
+	if players[0].Name != "Ranger" || players[1].Name != "Shambler" {
+		t.Fatalf("player names = %#v", players)
 	}
 }
 

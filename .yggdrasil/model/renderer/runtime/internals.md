@@ -3,6 +3,7 @@
 ## Logic
 
 This layer defines the package-level renderer role without tying callers to one concrete backend. It also carries the stub path that lets the engine boot and exercise rendering-adjacent code without a full graphics backend.
+The runtime fallback also now includes a minimal screenshot export implementation in the stub backend so command/runtime screenshot surfaces can produce a deterministic PNG even when no GPU backend is active.
 
 ## Constraints
 

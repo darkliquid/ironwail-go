@@ -218,7 +218,6 @@ func TestWorldSkyTexturesForFaceUsesAnimatedFrame(t *testing.T) {
 	}
 }
 
-
 func TestShouldSplitAsQuake64Sky(t *testing.T) {
 	if !shouldSplitAsQuake64Sky(bsp.BSPVersion_Quake64, 256, 128) {
 		t.Fatalf("expected quake64 BSP version to force quake64 split")
@@ -354,6 +353,40 @@ func TestResolveWorldSkyFogMix(t *testing.T) {
 	if got := resolveWorldSkyFogMix(0.5, override, 0); got != 0 {
 		t.Fatalf("resolveWorldSkyFogMix(no general fog) = %v, want 0", got)
 	}
+}
+
+func TestReadWorldSkyLayerSpeedCvar(t *testing.T) {
+	t.Run("fallback when cvar missing", func(t *testing.T) {
+		if got := readWorldSkyLayerSpeedCvar("r__test_missing_skyspeed_"+t.Name(), 1.75); got != 1.75 {
+			t.Fatalf("readWorldSkyLayerSpeedCvar(missing) = %v, want 1.75", got)
+		}
+	})
+
+	t.Run("wrappers use registered values and clamp negatives", func(t *testing.T) {
+		cvar.Register(CvarRSkySolidSpeed, "2.5", 0, "")
+		cvar.Register(CvarRSkyAlphaSpeed, "0.25", 0, "")
+		cvar.Set(CvarRSkySolidSpeed, "2.5")
+		cvar.Set(CvarRSkyAlphaSpeed, "0.25")
+		if got := readWorldSkySolidSpeedCvar(); got != 2.5 {
+			t.Fatalf("readWorldSkySolidSpeedCvar(value) = %v, want 2.5", got)
+		}
+		if got := readWorldSkyAlphaSpeedCvar(); got != 0.25 {
+			t.Fatalf("readWorldSkyAlphaSpeedCvar(value) = %v, want 0.25", got)
+		}
+
+		cvar.Set(CvarRSkySolidSpeed, "-5")
+		cvar.Set(CvarRSkyAlphaSpeed, "-1")
+		if got := readWorldSkySolidSpeedCvar(); got != 0 {
+			t.Fatalf("readWorldSkySolidSpeedCvar(clamp) = %v, want 0", got)
+		}
+		if got := readWorldSkyAlphaSpeedCvar(); got != 0 {
+			t.Fatalf("readWorldSkyAlphaSpeedCvar(clamp) = %v, want 0", got)
+		}
+
+		// Keep global cvar state on documented defaults for downstream tests.
+		cvar.Set(CvarRSkySolidSpeed, "1")
+		cvar.Set(CvarRSkyAlphaSpeed, "1")
+	})
 }
 
 func TestResolveWorldLiquidAlphaSettings_OverrideZeroFallsBack(t *testing.T) {

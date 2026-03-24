@@ -158,3 +158,28 @@ func TestEntityHealMethod(t *testing.T) {
 		}
 	})
 }
+
+func TestEntityFieldFloatReceiverAndWrapperNilSafety(t *testing.T) {
+	var nilEnt *Entity
+
+	if got := nilEnt.FieldFloat("any"); got != 0 {
+		t.Fatalf("nil receiver FieldFloat = %v, want 0", got)
+	}
+	nilEnt.SetFieldFloat("any", 1)
+
+	if got := FieldFloat(nilEnt, "any"); got != 0 {
+		t.Fatalf("nil wrapper FieldFloat = %v, want 0", got)
+	}
+	SetFieldFloat(nilEnt, "any", 1)
+
+	ent := &Entity{}
+	if got := ent.FieldFloat("any"); got != 0 {
+		t.Fatalf("receiver FieldFloat = %v, want 0", got)
+	}
+	ent.SetFieldFloat("any", 123)
+
+	if got := FieldFloat(ent, "any"); got != 0 {
+		t.Fatalf("wrapper FieldFloat = %v, want 0", got)
+	}
+	SetFieldFloat(ent, "any", 456)
+}

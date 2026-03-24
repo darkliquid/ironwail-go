@@ -30,6 +30,8 @@ Contracts:
 
 Dependency container for the live runtime integrations. The host relies on it for sequencing but not for concrete implementations.
 
+`updateServerBrowserNetworking` configures transport-side server-query callbacks when listen-server advertisement is active; those callbacks include server info plus indexed player rows used by remote `players` queries.
+
 ### `FrameCallbacks`
 
 Bridge from host orchestration to executable/runtime code:

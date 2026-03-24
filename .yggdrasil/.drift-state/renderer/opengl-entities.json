@@ -1,7 +1,7 @@
 {
-  "hash": "46b529237fda1daa3316acf7b06d01595bda645a23840f480c42df92c1bc129b",
+  "hash": "571517bf19e2f7822f219e4228a7b686a33c441317ec8c1761987d3eb7ab04c2",
   "files": {
-    ".yggdrasil/model/renderer/opengl-entities/yg-node.yaml": "78e58f1fbbf4a34f6b29440d93bf2165d1b22faee2b855b601440fe272f9e38a",
+    ".yggdrasil/model/renderer/opengl-entities/yg-node.yaml": "385e799d7fe8b3659b407cb03b37d4fc0c8b1f52df9e3422b1c62491c5848256",
     ".yggdrasil/model/renderer/opengl-entities/interface.md": "77a2b0fc91481efa68be0ffd921b0bc66c5f48e38cf3d8498f0f5552132b2a48",
     ".yggdrasil/model/renderer/opengl-entities/internals.md": "072ac70b046b5f9a0795ad69909050906b8e6afbfbee9a8cc6a80782705fd133",
     ".yggdrasil/model/renderer/opengl-entities/responsibility.md": "a7bd1c5e1cdd001db5306322d72572d7e495001338d1ef481b9995a8dc2cf260",
@@ -10,7 +10,9 @@
     ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
     "internal/renderer/alias_opengl.go": "109917088871871af7ff19cfcf4daa39f4e2f08bebc84c9a76ac1eedd846949f",
+    "internal/renderer/alias_opengl_test.go": "28144c88e999e4e1833554964a2af691618818c56b234b60aca85a9a00dc67d3",
     "internal/renderer/sprite_opengl.go": "d43e2ccd8d0b3167f52d6825453e9695ddfee16db3ca1e4625908ce5bf01109e",
+    "internal/renderer/sprite_opengl_test.go": "a458e8bd4c5080a6e4ff46ef1b1a829573a9192450f3599991267fb28f772a0a",
     "internal/renderer/world_alias_opengl.go": "86645603fac79ef3089b01ed81456dffa10565a865f89526353357cfd5f74060",
     "internal/renderer/world_sprite_opengl.go": "6b215d4663c56a0d477c537dacb43090e1b4baee9e48f48be065b80af2841e56",
     "internal/renderer/decal_opengl.go": "346656807bc550d9c199382cfff3044779bf69658f85b19826ca4811e9227236",
@@ -21,7 +23,7 @@
     "internal/renderer/scrap_opengl.go": "d24d6394aa0d4ed2609bffe8a52429a79dce41d6594b17fd33054cfd77390fe9"
   },
   "mtimes": {
-    ".yggdrasil/model/renderer/opengl-entities/yg-node.yaml": 1774219363232.6104,
+    ".yggdrasil/model/renderer/opengl-entities/yg-node.yaml": 1774251216727.2253,
     ".yggdrasil/model/renderer/opengl-entities/interface.md": 1774219363344.6116,
     ".yggdrasil/model/renderer/opengl-entities/internals.md": 1774219363424.6125,
     ".yggdrasil/model/renderer/opengl-entities/responsibility.md": 1774219363276.6108,
@@ -30,7 +32,9 @@
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     "internal/renderer/alias_opengl.go": 1773836785790.379,
+    "internal/renderer/alias_opengl_test.go": 1774122241028.2302,
     "internal/renderer/sprite_opengl.go": 1774127531344.1062,
+    "internal/renderer/sprite_opengl_test.go": 1774251186315.7634,
     "internal/renderer/world_alias_opengl.go": 1774126134791.2944,
     "internal/renderer/world_sprite_opengl.go": 1774169577517.648,
     "internal/renderer/decal_opengl.go": 1774128099214.2898,

@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node manages the boundary between transport-level client presence and authoritative in-game player state. It allocates/binds player slots, sends initial serverinfo, progresses clients through signon stages, ingests `UserCmd` packets and string commands, and coordinates QC hooks for player spawn and disconnect behavior. During signon it refreshes the global secret/monster counters from the QC VM before handing them to the serializer, so newly spawned clients inherit correct intermission stats. For client-issued `ban` commands, the server now mirrors C dispatch behavior by handling them in the client-string-command path: in non-deathmatch it applies/query-disables the shared `internal/net` IP ban (`SetIPBan` / `IPBanStatus`) and reports status/errors via `SV_ClientPrintf`; in deathmatch it no-ops.
+This node manages the boundary between transport-level client presence and authoritative in-game player state. It allocates/binds player slots, sends initial serverinfo, progresses clients through signon stages, ingests `UserCmd` packets and string commands, and coordinates QC hooks for player spawn and disconnect behavior. During signon it refreshes the global secret/monster counters from the QC VM before handing them to the serializer, so newly spawned clients inherit correct intermission stats. For client-issued `ban` commands, the server now mirrors C dispatch behavior by handling them in the client-string-command path: in non-deathmatch it applies/query-disables the shared `internal/net` IP ban (`SetIPBan` / `IPBanStatus`) and reports status/errors via `SV_ClientPrintf`; in deathmatch it no-ops. Disconnect handling now preserves crash-path parity with C behavior: when transport send paths fail and invoke `DropClient(..., true)`, the server closes and clears the remote `NetConnection` in addition to the normal active/spawned teardown so bad sockets cannot be reused later in frame processing.
 
 ## Constraints
 
@@ -10,6 +10,7 @@ This node manages the boundary between transport-level client presence and autho
 - Loopback/local clients must still follow the same authoritative session rules as remote clients where behavior matters.
 - Transport-level connection surges (e.g. handshake while server is full) must be handled as non-fatal admission rejections, not frame-fatal errors.
 - Spawnparm preservation and loadgame flows intentionally alter the normal `SetNewParms`/spawn path.
+- Crash disconnects are stricter than graceful drops: they must tear down transport state (`NetConnection`) immediately to keep failure recovery parity with C server behavior.
 
 ## Decisions
 

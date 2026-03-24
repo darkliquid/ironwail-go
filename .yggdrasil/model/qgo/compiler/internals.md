@@ -8,7 +8,7 @@ The compiler is a four-stage pipeline:
 
 1. `Compiler.Compile` parses every Go file in the target directory and type-checks them with a `types.Config` that only knows about the synthetic `quake` packages.
 2. `Lowerer` performs a two-pass walk over the package: first it collects globals and function signatures, then it lowers function bodies into `IRProgram`.
-3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, trims no-op self-store instructions (`OPStore* x -> x`), then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions in straight-line IR. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
+3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, trims no-op self-store instructions (`OPStore* x -> x`), then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
 4. `CodeGen` maps IR virtual registers to QC global/local offsets, emits `qc.DStatement` and `qc.DFunction` tables, and patches branch labels in a second pass.
 5. `Emit` serializes those tables into the `progs.dat` section layout expected by `internal/qc`, including the canonical header CRC that matches the current progdefs layout used by the runtime.
 
@@ -49,7 +49,7 @@ Float and string constants are represented in IR with `IRInst.ImmFloat` / `IRIns
 
 The first constant-folding pass runs in `foldConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks known float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, comparisons, boolean float ops, bitwise float-backed int ops, and `OPNotF`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg.
 
-After folding and self-store cleanup, `eliminateDeadVirtualStores` performs a reverse liveness walk for straight-line functions (no labels / `OPGoto` / `OPIF` / `OPIFNot`). The pass only removes pure instructions whose destination is an auto-allocated virtual register (`vreg >= vregBase`) and not live at that point. Side-effecting instructions (calls, pointer stores, returns, control flow) are always retained.
+After folding and self-store cleanup, `eliminateDeadVirtualStores` constructs minimal basic blocks from labels and branch/return terminators, computes conservative backward liveness across block successors, then performs reverse per-block filtering. The pass only removes pure instructions whose destination is an auto-allocated virtual register (`vreg >= vregBase`) and not live at that point on any successor path. Side-effecting instructions (calls, pointer stores, returns, control flow) are always retained, and unknown branch labels conservatively disable DCE for that function.
 
 Unary bitwise not (`^x`) is lowered in `lowerUnaryExpr` using the QC-compatible two's-complement identity `^x == -1 - x`. Because QCVM numeric values are float-backed, this is emitted as `OPSubF` with a `-1` constant left operand.
 
@@ -190,17 +190,18 @@ Rationale:
 Rejected alternatives:
 - implement full virtual-register renumbering/compaction:
   - rejected for this slice because it increases blast radius and complicates debugability.
-- implement CFG-aware liveness across branches in the same change:
-  - rejected because the current DCE pass intentionally skips control-flow functions for safety; local pruning follows that boundary.
+- implement broad CFG/SSA dataflow in the same change:
+  - rejected because this slice only needs simple label/branch support and should avoid large optimizer architecture churn.
 
-### Chose straight-line virtual-register DCE before full CFG/dataflow optimization
+### Chose smallest-safe control-flow DCE over full CFG/dataflow optimization
 
 Observed decision:
-- add a minimal dead-code elimination pass that runs only on functions without control-flow edges and removes dead pure defs to virtual registers.
+- extend the minimal dead-code elimination pass to support simple label/branch patterns with conservative block-level liveness, while still limiting scope to existing IR control-flow opcodes.
 
 Rationale:
 - this gives immediate IR cleanup value after constant folding with low semantic risk.
-- restricting to straight-line bodies avoids branch-sensitive liveness mistakes while preserving deterministic pass behavior.
+- conservative per-block liveness across branch successors removes obvious dead defs in control-flow-heavy lowering output without altering jump structure.
+- avoiding full CFG/SSA rewrites keeps implementation deterministic and reviewable.
 
 Rejected alternatives:
 - full CFG-based DCE in the same slice:

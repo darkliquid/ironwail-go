@@ -457,6 +457,38 @@ func applyGameplayMouseLook() {
 			g.Client.MouseForwardMove -= float32(state.MouseDY) * forwardScale
 		}
 	}
+	if g.Input.IsGamepadConnected(0) && cvar.BoolValue("joy_look") {
+		gamepad := g.Input.GetGamepadState(0)
+		gamepadYawScale := float32(cvar.FloatValue("joy_looksensitivity_yaw"))
+		if gamepadYawScale == 0 {
+			gamepadYawScale = 4
+		}
+		gamepadPitchScale := float32(cvar.FloatValue("joy_looksensitivity_pitch"))
+		if gamepadPitchScale == 0 {
+			gamepadPitchScale = 4
+		}
+		yawDelta := gamepad.RightX * gamepadYawScale
+		pitchDelta := gamepad.RightY * gamepadPitchScale
+		if cvar.BoolValue("joy_gyro_look") {
+			yawDelta += gamepad.GyroYawDelta * float32(cvar.FloatValue("joy_gyro_yaw_scale"))
+			pitchDelta += gamepad.GyroPitchDelta * float32(cvar.FloatValue("joy_gyro_pitch_scale"))
+		}
+		if yawDelta != 0 {
+			g.Client.ViewAngles[1] -= yawDelta
+		}
+		if pitchDelta != 0 && g.Client.InputStrafe.State&1 == 0 {
+			g.Client.ViewAngles[0] += pitchDelta
+			if g.Client.ViewAngles[0] > g.Client.MaxPitch {
+				g.Client.ViewAngles[0] = g.Client.MaxPitch
+			}
+			if g.Client.ViewAngles[0] < g.Client.MinPitch {
+				g.Client.ViewAngles[0] = g.Client.MinPitch
+			}
+		}
+		if yawDelta != 0 || pitchDelta != 0 {
+			g.Client.StopPitchDrift()
+		}
+	}
 	if !mouseLook && g.Client.LookSpring {
 		g.Client.StartPitchDrift()
 	}

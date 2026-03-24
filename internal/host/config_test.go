@@ -3,6 +3,7 @@ package host
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -87,6 +88,34 @@ func TestHostCmdExecRunsUserConfig(t *testing.T) {
 	h.CmdExec([]string{"autoexec.cfg"}, &Subsystems{Commands: globalTestCommandBuffer{}})
 	if executed != "loaded" {
 		t.Fatalf("exec command payload = %q, want %q", executed, "loaded")
+	}
+}
+
+func TestHostCmdExecStripsCStyleCommentsFromScriptedCommands(t *testing.T) {
+	h := NewHost()
+	userDir := t.TempDir()
+	h.SetUserDir(userDir)
+
+	configPath := filepath.Join(userDir, "autoexec.cfg")
+	if err := os.WriteFile(configPath, []byte(strings.Join([]string{
+		"test_exec_comment first // trailing line comment",
+		"/* block comment with ; semicolon should not spawn commands */",
+		"test_exec_comment second",
+	}, "\n")), 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", configPath, err)
+	}
+
+	var executed []string
+	cmdsys.AddCommand("test_exec_comment", func(args []string) {
+		executed = append(executed, strings.Join(args, " "))
+	}, "")
+	defer cmdsys.RemoveCommand("test_exec_comment")
+
+	h.CmdExec([]string{"autoexec.cfg"}, &Subsystems{Commands: globalTestCommandBuffer{}})
+
+	want := []string{"first", "second"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("exec command payloads = %v, want %v", executed, want)
 	}
 }
 

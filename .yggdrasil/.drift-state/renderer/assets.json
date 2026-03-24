@@ -28,7 +28,7 @@
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     "internal/renderer/model.go": 1773836785807.326,
     "internal/renderer/decal_shared.go": 1774128099006.286,
-    "internal/renderer/sprite_shared.go": 1774169569593.5186,
+    "internal/renderer/sprite_shared.go": 1774250471074.604,
     "internal/renderer/mark_system.go": 1773836785791.5415,
     "internal/renderer/skybox_external.go": 1773836785809.2078,
     "internal/renderer/scrap.go": 1773843476426.8171,

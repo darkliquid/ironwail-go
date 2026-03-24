@@ -294,6 +294,95 @@ func TestRoundTrip_ControlFlowMax(t *testing.T) {
 	}
 }
 
+func TestParitySmoke_QCVMBehaviorBaselines(t *testing.T) {
+	c := New()
+
+	type smokeCase struct {
+		name     string
+		fixture  string
+		function string
+		args     []float32
+		want     float32
+	}
+
+	cases := []smokeCase{
+		{
+			name:     "arithmetic-add-positive",
+			fixture:  "../testdata/arithmetic",
+			function: "Add",
+			args:     []float32{3, 4},
+			want:     7,
+		},
+		{
+			name:     "arithmetic-add-mixed-sign",
+			fixture:  "../testdata/arithmetic",
+			function: "Add",
+			args:     []float32{-2.5, 1.25},
+			want:     -1.25,
+		},
+		{
+			name:     "controlflow-max-descending",
+			fixture:  "../testdata/controlflow",
+			function: "Max",
+			args:     []float32{9, 2},
+			want:     9,
+		},
+		{
+			name:     "controlflow-max-negative",
+			fixture:  "../testdata/controlflow",
+			function: "Max",
+			args:     []float32{-3, -7},
+			want:     -3,
+		},
+	}
+
+	compiled := map[string]*qc.VM{}
+	parmSlots := []int{
+		qc.OFSParm0,
+		qc.OFSParm1,
+		qc.OFSParm2,
+		qc.OFSParm3,
+		qc.OFSParm4,
+		qc.OFSParm5,
+		qc.OFSParm6,
+		qc.OFSParm7,
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			vm, ok := compiled[tc.fixture]
+			if !ok {
+				data, err := c.Compile(tc.fixture)
+				if err != nil {
+					t.Fatalf("compile %s failed: %v", tc.fixture, err)
+				}
+				vm = loadVM(t, data)
+				compiled[tc.fixture] = vm
+			}
+
+			fnum := vm.FindFunction(tc.function)
+			if fnum < 0 {
+				t.Fatalf("function %q not found in fixture %s", tc.function, tc.fixture)
+			}
+
+			if len(tc.args) > len(parmSlots) {
+				t.Fatalf("test case has %d args, max supported %d", len(tc.args), len(parmSlots))
+			}
+			for i, arg := range tc.args {
+				vm.SetGFloat(parmSlots[i], arg)
+			}
+
+			if err := vm.ExecuteProgram(fnum); err != nil {
+				t.Fatalf("%s execution failed: %v", tc.name, err)
+			}
+
+			if got := vm.GFloat(qc.OFSReturn); got != tc.want {
+				t.Fatalf("%s return = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCompile_ControlFlow(t *testing.T) {
 	c := New()
 	data, err := c.Compile("../testdata/controlflow")
@@ -577,6 +666,31 @@ func BuildPair(a float32, b float32) Pair {
 	msg := err.Error()
 	if !strings.Contains(msg, "general struct literals are deferred") {
 		t.Fatalf("unexpected compile error: %v", err)
+	}
+	if !strings.Contains(msg, "Pair") {
+		t.Fatalf("expected deferred diagnostic to include struct type context, got: %v", err)
+	}
+}
+
+func TestCompile_Vec3StructLiteral_RemainsSupported(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgovec3literaltest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+type Vec3 struct {
+	X float32
+	Y float32
+	Z float32
+}
+
+func BuildVec3(x float32, y float32, z float32) Vec3 {
+	return Vec3{x, y, z}
+}
+`)
+
+	c := New()
+	if _, err := c.Compile(dir); err != nil {
+		t.Fatalf("expected Vec3 literal compile to succeed, got: %v", err)
 	}
 }
 

@@ -309,6 +309,75 @@ func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
 	}
 }
 
+func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
+	Init()
+	netHostPort = 26009
+	playerProvider := &ServerInfoProvider{
+		PlayerInfo: func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool) {
+			switch index {
+			case 0:
+				return "Ranger", 4, 9, 15, 32.5, true
+			default:
+				return "", 0, 0, 0, 0, false
+			}
+		},
+	}
+	SetServerInfoProvider(playerProvider)
+	t.Cleanup(func() {
+		SetServerInfoProvider(nil)
+	})
+	if err := Listen(true); err != nil {
+		t.Fatalf("Listen(true) failed: %v", err)
+	}
+	defer func() {
+		if err := Listen(false); err != nil {
+			t.Fatalf("Listen(false) failed: %v", err)
+		}
+	}()
+
+	clientConn, err := UDPOpenSocket(0)
+	if err != nil {
+		t.Fatalf("failed to open client udp socket: %v", err)
+	}
+	defer UDPCloseSocket(clientConn)
+
+	serverAddr, err := UDPStringToAddr("127.0.0.1:26009")
+	if err != nil {
+		t.Fatalf("failed to parse server address: %v", err)
+	}
+
+	req := buildPlayerInfoQuery(0)
+	if _, err := UDPWrite(clientConn, req, serverAddr); err != nil {
+		t.Fatalf("failed to send player info request: %v", err)
+	}
+
+	if acceptSocket == nil {
+		t.Fatal("accept socket should be open while listening")
+	}
+	acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	if sock := CheckNewConnections(); sock != nil {
+		acceptSocket.SetReadDeadline(time.Time{})
+		Close(sock)
+		t.Fatal("player info request should not create an accepted socket")
+	}
+	acceptSocket.SetReadDeadline(time.Time{})
+
+	resp := make([]byte, 1024)
+	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, _, err := UDPRead(clientConn, resp)
+	clientConn.SetReadDeadline(time.Time{})
+	if err != nil {
+		t.Fatalf("failed to read player info response: %v", err)
+	}
+	entry, ok := parsePlayerInfoResponse(resp[:n])
+	if !ok {
+		t.Fatalf("parsePlayerInfoResponse returned false for %d-byte response", n)
+	}
+	if entry.Name != "Ranger" || entry.Colors != [2]byte{4, 9} || entry.Frags != 15 || entry.Ping != float32(32.5) {
+		t.Fatalf("player info response = %#v, want Ranger 4/9 15 32.5", entry)
+	}
+}
+
 func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	Init()
 	netHostPort = 26003

@@ -3,12 +3,12 @@
   "files": {
     ".yggdrasil/model/types/yg-node.yaml": "43779af4a0df7627a5e54c9df9f14e57a5e0c1d6e8ba147d92fa2cd49c44db43",
     ".yggdrasil/model/types/interface.md": "b528129bc995ffe3e915f4d2cc949bb3afb1d78b2749cece09c14efe4118ce05",
-    ".yggdrasil/model/types/responsibility.md": "d089891c8aff653d5097559f31e0fa247dd9e93f7859a9070b483bea23ae2703",
-    "pkg/types/mat4.go": "3ccbe75d5eae1fa157fb7f78b9e3bce30b142fa9b75e2f5b5a01c461957ce56b",
-    "pkg/types/mat4_test.go": "c4bff0b3ce1ebe3e249e2938ac61c02145c556137e5fa14bb2d987a985cd4ccd",
     ".yggdrasil/model/types/internals.md": "37637bd0dfccb6eff5c6264e7d619d9835b699a5aa9c5ce019bf6c2a8c598281",
+    ".yggdrasil/model/types/responsibility.md": "d089891c8aff653d5097559f31e0fa247dd9e93f7859a9070b483bea23ae2703",
     "pkg/types/types.go": "6da52f4ec35e846ecd23e4c037f692ea7aeaa7a0f148a0b071e6ec7b241fa012",
-    "pkg/types/types_test.go": "210947f4bd1b2a902f5784c3280ddd42a5837f2d86c603f1efc00bf974c1af83"
+    "pkg/types/mat4.go": "3ccbe75d5eae1fa157fb7f78b9e3bce30b142fa9b75e2f5b5a01c461957ce56b",
+    "pkg/types/types_test.go": "210947f4bd1b2a902f5784c3280ddd42a5837f2d86c603f1efc00bf974c1af83",
+    "pkg/types/mat4_test.go": "c4bff0b3ce1ebe3e249e2938ac61c02145c556137e5fa14bb2d987a985cd4ccd"
   },
   "mtimes": {
     ".yggdrasil/model/types/yg-node.yaml": 1774246393622.633,

@@ -16,3 +16,4 @@
 - Frame ordering is deliberate and affects later consumers like camera, entity, render, and audio updates.
 - Demo playback follows a special path distinct from live networking.
 - Shutdown is responsible for releasing initialized subsystems and persisting config/state where appropriate.
+- Screenshot capture first attempts the active renderer export path and now falls back to software capture when renderer export is unavailable or errors, preserving screenshot command/flag behavior across backend states.

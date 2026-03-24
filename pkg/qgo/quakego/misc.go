@@ -194,13 +194,13 @@ func misc_explobox2() {
 	misc_explobox()
 }
 
-var (
-	SPAWNFLAG_SUPERSPIKE float32 = 1
-	SPAWNFLAG_LASER      float32 = 2
+const (
+	spawnFlagSuperSpike = 1 << iota
+	spawnFlagLaser
 )
 
 func spikeshooter_use() {
-	if (int(Self.SpawnFlags) & int(SPAWNFLAG_LASER)) != 0 {
+	if (int(Self.SpawnFlags) & spawnFlagLaser) != 0 {
 		engine.Sound(Self, int(CHAN_VOICE), "enforcer/enfire.wav", 1, ATTN_NORM)
 		LaunchLaser(Self.Origin, Self.MoveDir)
 	} else {
@@ -208,7 +208,7 @@ func spikeshooter_use() {
 		launch_spike(Self.Origin, Self.MoveDir)
 		Newmis.Velocity = Self.MoveDir.Mul(500)
 
-		if (int(Self.SpawnFlags) & int(SPAWNFLAG_SUPERSPIKE)) != 0 {
+		if (int(Self.SpawnFlags) & spawnFlagSuperSpike) != 0 {
 			Newmis.Touch = superspike_touch
 		}
 	}
@@ -226,7 +226,7 @@ func trap_spikeshooter() {
 	Self.NetName = "$qc_spike_trap"
 	Self.KillString = "$qc_ks_spiked"
 
-	if (int(Self.SpawnFlags) & int(SPAWNFLAG_LASER)) != 0 {
+	if (int(Self.SpawnFlags) & spawnFlagLaser) != 0 {
 		engine.PrecacheModel2("progs/laser.mdl")
 		engine.PrecacheSound2("enforcer/enfire.wav")
 		engine.PrecacheSound2("enforcer/enfstop.wav")

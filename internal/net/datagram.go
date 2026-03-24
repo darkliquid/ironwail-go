@@ -29,6 +29,7 @@ package net
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	stdnet "net"
 	"slices"
 	"strings"
@@ -51,6 +52,7 @@ type ServerInfoProvider struct {
 	Players    func() int
 	MaxPlayers func() int
 	Address    func() string
+	PlayerInfo func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool)
 }
 
 // serverInfoProvider is the active callback for live server state. When nil,
@@ -527,6 +529,13 @@ func DatagramCheckNewConnections() *Socket {
 		sendRuleInfoResponse(acceptSocket, addr, strings.TrimRight(string(buf[9:n]), "\x00"))
 		return nil
 	}
+	if cmd == CCReqPlayerInfo {
+		if n < HeaderSize+2 {
+			return nil
+		}
+		sendPlayerInfoResponse(acceptSocket, addr, int(buf[9]))
+		return nil
+	}
 
 	if cmd == CCReqConnect {
 		if isServerIPBanned(addr.String()) {
@@ -648,6 +657,36 @@ func sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, previous s
 		payload = append(payload, []byte(cv.Name)...)
 		payload = append(payload, 0)
 		payload = append(payload, []byte(cv.String)...)
+		payload = append(payload, 0)
+	}
+
+	resp := make([]byte, HeaderSize+len(payload))
+	binary.BigEndian.PutUint32(resp[0:], uint32(len(resp))|FlagCtl)
+	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
+	copy(resp[HeaderSize:], payload)
+	UDPWrite(conn, resp, addr)
+}
+
+func sendPlayerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, index int) {
+	var payload []byte
+	payload = append(payload, CCRepPlayerInfo)
+	payload = append(payload, byte(index))
+	if serverInfoProvider != nil && serverInfoProvider.PlayerInfo != nil {
+		name, top, bottom, frags, ping, ok := serverInfoProvider.PlayerInfo(index)
+		if ok && name != "" {
+			payload = append(payload, []byte(name)...)
+			payload = append(payload, 0)
+			payload = append(payload, top, bottom)
+			fragsBuf := make([]byte, 4)
+			binary.LittleEndian.PutUint32(fragsBuf, uint32(frags))
+			payload = append(payload, fragsBuf...)
+			pingBuf := make([]byte, 4)
+			binary.LittleEndian.PutUint32(pingBuf, math.Float32bits(ping))
+			payload = append(payload, pingBuf...)
+		} else {
+			payload = append(payload, 0)
+		}
+	} else {
 		payload = append(payload, 0)
 	}
 

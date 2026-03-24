@@ -551,6 +551,8 @@ type mouseDeltaBackend struct {
 	x          int32
 	y          int32
 	mouseValid bool
+	gamepad    input.GamepadState
+	connected  bool
 }
 
 func (b *mouseDeltaBackend) Init() error                   { return nil }
@@ -564,8 +566,8 @@ func (b *mouseDeltaBackend) GetModifierState() input.ModifierState  { return inp
 func (b *mouseDeltaBackend) SetTextMode(input.TextMode)             {}
 func (b *mouseDeltaBackend) SetCursorMode(input.CursorMode)         {}
 func (b *mouseDeltaBackend) ShowKeyboard(bool)                      {}
-func (b *mouseDeltaBackend) GetGamepadState(int) input.GamepadState { return input.GamepadState{} }
-func (b *mouseDeltaBackend) IsGamepadConnected(int) bool            { return false }
+func (b *mouseDeltaBackend) GetGamepadState(int) input.GamepadState { return b.gamepad }
+func (b *mouseDeltaBackend) IsGamepadConnected(int) bool            { return b.connected }
 func (b *mouseDeltaBackend) SetMouseGrab(bool)                      {}
 func (b *mouseDeltaBackend) SetWindow(interface{})                  {}
 
@@ -5867,6 +5869,74 @@ func TestBuiltinDefaultCfgExecBindsConsoleAndAutoscaleUI(t *testing.T) {
 	}
 }
 
+func TestCaptureScreenshotFallsBackUsingRendererSizeWhenDirectCaptureUnavailable(t *testing.T) {
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+	})
+
+	g.Renderer = &renderer.Renderer{}
+	g.Renderer.SetConfig(renderer.Config{Width: 64, Height: 48})
+
+	outPath := filepath.Join(t.TempDir(), "renderer-shot.png")
+	if err := captureScreenshot(outPath, ".", "id1"); err != nil {
+		t.Fatalf("captureScreenshot returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q): %v", outPath, err)
+	}
+	img, err := qimage.LoadPNG(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("LoadPNG(%q): %v", outPath, err)
+	}
+	if got := img.Bounds().Dx(); got != 64 {
+		t.Fatalf("screenshot width = %d, want 64", got)
+	}
+	if got := img.Bounds().Dy(); got != 48 {
+		t.Fatalf("screenshot height = %d, want 48", got)
+	}
+}
+
+func TestCaptureScreenshotFallsBackWithoutRenderer(t *testing.T) {
+	originalRenderer := g.Renderer
+	originalServer := g.Server
+	originalMenu := g.Menu
+	originalDraw := g.Draw
+	t.Cleanup(func() {
+		g.Renderer = originalRenderer
+		g.Server = originalServer
+		g.Menu = originalMenu
+		g.Draw = originalDraw
+	})
+
+	g.Renderer = nil
+	g.Server = nil
+	g.Menu = nil
+	g.Draw = nil
+
+	outPath := filepath.Join(t.TempDir(), "fallback-shot.png")
+	if err := captureScreenshot(outPath, ".", "id1"); err != nil {
+		t.Fatalf("captureScreenshot fallback returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q): %v", outPath, err)
+	}
+	img, err := qimage.LoadPNG(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("LoadPNG(%q): %v", outPath, err)
+	}
+	if got := img.Bounds().Dx(); got != 1280 {
+		t.Fatalf("fallback screenshot width = %d, want 1280", got)
+	}
+	if got := img.Bounds().Dy(); got != 720 {
+		t.Fatalf("fallback screenshot height = %d, want 720", got)
+	}
+}
+
 func TestQuotedBindingsRoundTripThroughConfig(t *testing.T) {
 	originalInput := g.Input
 	t.Cleanup(func() {
@@ -6170,6 +6240,41 @@ func TestApplyGameplayMouseLookUsesControlCvars(t *testing.T) {
 	}
 	if got := g.Client.MouseSideMove; math.Abs(float64(got-16)) > 0.0001 {
 		t.Fatalf("side move with lookstrafe active = %.2f, want 16.00", got)
+	}
+
+	g.Client.ViewAngles = [3]float32{}
+	cvar.Set("freelook", "1")
+	cvar.Set("joy_look", "1")
+	cvar.Set("joy_looksensitivity_yaw", "4")
+	cvar.Set("joy_looksensitivity_pitch", "8")
+	cvar.Set("joy_gyro_look", "1")
+	cvar.Set("joy_gyro_yaw_scale", "2")
+	cvar.Set("joy_gyro_pitch_scale", "3")
+	backend.connected = true
+	backend.gamepad = input.GamepadState{
+		RightX:         0.5,
+		RightY:         0.25,
+		GyroYawDelta:   1.25,
+		GyroPitchDelta: 0.5,
+	}
+	backend.dx = 0
+	backend.dy = 0
+	applyGameplayMouseLook()
+	if got := g.Client.ViewAngles[1]; math.Abs(float64(got-(-4.5))) > 0.0001 {
+		t.Fatalf("yaw after gamepad look+gyro = %.2f, want -4.50", got)
+	}
+	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-3.5)) > 0.0001 {
+		t.Fatalf("pitch after gamepad look+gyro = %.2f, want 3.50", got)
+	}
+
+	g.Client.ViewAngles = [3]float32{}
+	cvar.Set("joy_gyro_look", "0")
+	applyGameplayMouseLook()
+	if got := g.Client.ViewAngles[1]; math.Abs(float64(got-(-2.0))) > 0.0001 {
+		t.Fatalf("yaw after gamepad look without gyro = %.2f, want -2.00", got)
+	}
+	if got := g.Client.ViewAngles[0]; math.Abs(float64(got-2.0)) > 0.0001 {
+		t.Fatalf("pitch after gamepad look without gyro = %.2f, want 2.00", got)
 	}
 }
 

@@ -96,6 +96,10 @@ func (m *Manager) singlePlayerKey(key int) {
 		case 1:
 			m.enterLoadMenu()
 		case 2:
+			if m.saveEntryAllowed != nil && !m.saveEntryAllowed() {
+				m.playMenuSound(menuSoundCancel)
+				return
+			}
 			m.enterSaveMenu()
 		}
 	case input.KEscape, input.KBackspace, input.KMouse2:

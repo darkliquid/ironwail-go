@@ -325,6 +325,7 @@ type Manager struct {
 	loadSlotLabels       [maxSaveGames]string
 	saveSlotLabels       [maxSaveGames]string
 	shouldConfirmNewGame func() bool
+	saveEntryAllowed     func() bool
 }
 
 // DrawManager defines the interface for loading menu graphics.
@@ -362,6 +363,12 @@ func (m *Manager) SetCurrentMod(name string) {
 // Single Player -> New Game should show a confirmation prompt before starting.
 func (m *Manager) SetNewGameConfirmationProvider(provider func() bool) {
 	m.shouldConfirmNewGame = provider
+}
+
+// SetSaveEntryAllowedProvider sets a callback that decides whether selecting
+// Single Player -> Save is currently allowed.
+func (m *Manager) SetSaveEntryAllowedProvider(provider func() bool) {
+	m.saveEntryAllowed = provider
 }
 
 // NewManager creates a new menu manager.

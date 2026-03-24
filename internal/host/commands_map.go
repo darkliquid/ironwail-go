@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -179,6 +180,85 @@ func (h *Host) CmdMods(args []string, subs *Subsystems) {
 		}
 		subs.Console.Print(fmt.Sprintf("%d %s\n", count, label))
 	}
+}
+
+func (h *Host) CmdGame(args []string, subs *Subsystems) {
+	if subs == nil {
+		subs = h.Subs
+	}
+	if subs == nil || subs.Files == nil || subs.Console == nil {
+		return
+	}
+
+	fileSys, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return
+	}
+
+	current := strings.TrimSpace(fileSys.GetGameDir())
+	if current == "" {
+		current = "id1"
+	}
+	if len(args) == 0 {
+		subs.Console.Print(fmt.Sprintf("\"game\" is \"%s\"\n", current))
+		return
+	}
+	if len(args) != 1 {
+		subs.Console.Print("usage: game <gamedir>\n")
+		return
+	}
+
+	targetRaw := strings.TrimSpace(args[0])
+	if targetRaw == "" {
+		subs.Console.Print("usage: game <gamedir>\n")
+		return
+	}
+	target := strings.ToLower(targetRaw)
+	if target == "." || target == ".." || strings.Contains(target, "/") || strings.Contains(target, `\`) || filepath.Clean(target) != target {
+		subs.Console.Print("game: invalid gamedir\n")
+		return
+	}
+	if target != "id1" {
+		allowed := false
+		for _, mod := range fileSys.ListMods() {
+			if strings.EqualFold(mod.Name, target) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			subs.Console.Print(fmt.Sprintf("game: unknown gamedir %q\n", targetRaw))
+			return
+		}
+	}
+
+	if strings.EqualFold(target, current) {
+		subs.Console.Print(fmt.Sprintf("\"game\" is \"%s\"\n", current))
+		return
+	}
+
+	baseDir := strings.TrimSpace(h.baseDir)
+	if baseDir == "" {
+		baseDir = fileSys.GetBaseDir()
+	}
+	if baseDir == "" {
+		subs.Console.Print("game: base directory is not set\n")
+		return
+	}
+
+	nextFS := fs.NewFileSystem()
+	if err := nextFS.Init(baseDir, target); err != nil {
+		subs.Console.Print(fmt.Sprintf("game: failed to switch to %q: %v\n", targetRaw, err))
+		return
+	}
+
+	subs.Files.Close()
+	subs.Files = nextFS
+	h.gameDir = target
+	if h.menu != nil {
+		h.menu.SetCurrentMod(target)
+	}
+	subs.Console.Print(fmt.Sprintf("\"game\" changed to \"%s\"\n", target))
 }
 
 func (h *Host) CmdSkies(args []string, subs *Subsystems) {

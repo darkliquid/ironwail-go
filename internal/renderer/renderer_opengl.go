@@ -609,6 +609,8 @@ type Renderer struct {
 	worldAlphaUniform                   int32
 	worldTimeUniform                    int32
 	worldSkyTimeUniform                 int32
+	worldSkySolidLayerSpeedUniform      int32
+	worldSkyAlphaLayerSpeedUniform      int32
 	worldTurbulentUniform               int32
 	worldLitWaterUniform                int32
 	worldCameraOriginUniform            int32

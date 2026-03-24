@@ -23,6 +23,7 @@
 - Server-side UDP acceptance returns a newly opened per-client socket, not the listening socket.
 - Server-side UDP acceptance rejects banned IPv4 clients with `CCRepReject` and the C-style reason string `You have been banned.\n` before any accepted per-client socket is created.
 - Server-side UDP control packets also answer `CCReqRuleInfo` by enumerating the next `FlagServerInfo` cvar after the provided name and returning it as `CCRepRuleInfo`; an empty-name reply terminates enumeration.
+- Server-side UDP control packets answer `CCReqPlayerInfo` by index and return `CCRepPlayerInfo` rows sourced from `ServerInfoProvider.PlayerInfo`; empty-name rows are explicit end-of-list markers.
 - `Listen(state)` returns an error if enabling listen fails to open/bind the accept socket; on failure the transport stays non-listening with no accept socket retained.
 - `SetHostPort` accepts only `[1, 65534]` and updates both current host port and default host port used by discovery/control-packet paths.
 - Loopback reliable flow control is released when the receiver reads the message.

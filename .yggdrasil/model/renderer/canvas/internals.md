@@ -3,7 +3,7 @@
 ## Logic
 
 This layer computes logical-to-physical drawing transforms and shared camera/screen helpers that let multiple backends expose the same 2D/3D coordination model.
-It also centralizes renderer cvar-name constants so startup/bootstrap and backend-specific render paths use a single authoritative identifier set for features such as fast sky (`r_fastsky`) and sky fog (`r_skyfog`).
+It also centralizes renderer cvar-name constants so startup/bootstrap and backend-specific render paths use a single authoritative identifier set for features such as fast sky (`r_fastsky`), sky fog (`r_skyfog`), and embedded sky layer motion multipliers (`r_skysolidspeed`, `r_skyalphaspeed`).
 
 ## Constraints
 

@@ -2,7 +2,7 @@
 
 ## Logic
 
-The package centers on a mutex-protected map of lowercase cvar names to `*CVar`. Registration is idempotent, mutation updates the canonical string plus cached numeric views, and typed read helpers expose those cached conversions without repeated parsing. `Set` enforces flag policy, creates unknown vars implicitly when needed, unlocks before firing callbacks, and optionally triggers the global auto-cvar hook for QC synchronization. A package-global singleton preserves the classic flat cvar API used across the engine.
+The package centers on a mutex-protected map of lowercase cvar names to `*CVar`. Registration is idempotent, mutation updates the canonical string plus cached numeric views, and typed read helpers expose those cached conversions without repeated parsing. `Set` enforces flag policy, creates unknown vars implicitly when needed, unlocks before firing callbacks, and optionally triggers the auto-cvar hook for QC synchronization. A package-global singleton preserves the classic flat cvar API used across the engine, while tests and isolated subsystems can use independent `CVarSystem` instances with their own callbacks and `MarkAutoCvar` behavior.
 
 ## Constraints
 
@@ -10,6 +10,7 @@ The package centers on a mutex-protected map of lowercase cvar names to `*CVar`.
 - Name canonicalization is part of the lookup contract.
 - The current `FlagLatched` behavior is only a partial latch model: it suppresses callbacks but still mutates the live value immediately.
 - Implicit creation on `Set` can diverge from later intended registration metadata (flags/default/description).
+- `AutoCvarChanged` must not run when `Set` is rejected (`FlagLocked` / `FlagNoSet` / `FlagROM`) or when `FlagLatched` short-circuits callbacks.
 
 ## Decisions
 

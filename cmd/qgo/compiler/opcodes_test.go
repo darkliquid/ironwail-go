@@ -205,16 +205,26 @@ func TestOptimizeIRProgram_EliminatesDeadVirtualStores(t *testing.T) {
 	}
 }
 
-func TestOptimizeIRProgram_DCESkipsControlFlowFunctions(t *testing.T) {
-	vTmp := vregBase + 10
+func TestOptimizeIRProgram_DCEHandlesSimpleControlFlow(t *testing.T) {
+	vDead := vregBase + 10
+	vCond := vregBase + 11
+	vKeep := vregBase + 12
 	prog := &IRProgram{
 		Functions: []IRFunc{
 			{
 				Name: "main",
 				Body: []IRInst{
+					{Op: qc.OPStoreF, B: vDead, ImmFloat: 11, HasImmFloat: true, Type: EvFloat}, // dead across both paths
+					{Op: qc.OPStoreF, B: vCond, ImmFloat: 1, HasImmFloat: true, Type: EvFloat},  // feeds branch condition
+					{Op: qc.OPIF, A: vCond, Label: "then"},
+					{Op: qc.OPStoreF, B: vKeep, ImmFloat: 2, HasImmFloat: true, Type: EvFloat},
+					{Op: qc.OPGoto, Label: "done"},
 					LabelInst("start"),
-					{Op: qc.OPStoreF, B: vTmp, ImmFloat: 11, HasImmFloat: true, Type: EvFloat}, // dead if linear, should be kept when control-flow exists
-					{Op: qc.OPGoto, Label: "start"},
+					LabelInst("then"),
+					{Op: qc.OPStoreF, B: vKeep, ImmFloat: 3, HasImmFloat: true, Type: EvFloat},
+					LabelInst("done"),
+					{Op: qc.OPStoreF, A: vKeep, B: VReg(qc.OFSReturn), Type: EvFloat},
+					{Op: qc.OPReturn, A: VReg(qc.OFSReturn)},
 				},
 			},
 		},
@@ -222,11 +232,30 @@ func TestOptimizeIRProgram_DCESkipsControlFlowFunctions(t *testing.T) {
 
 	optimizeIRProgram(prog)
 	body := prog.Functions[0].Body
-	if len(body) != 3 {
-		t.Fatalf("body len = %d, want 3 (DCE should skip control-flow functions)", len(body))
+
+	for _, inst := range body {
+		if inst.Op == qc.OPStoreF && inst.B == vDead {
+			t.Fatalf("dead control-flow store still present: %+v", inst)
+		}
 	}
-	if !body[0].IsLabel() || body[1].Op != qc.OPStoreF || body[2].Op != qc.OPGoto {
-		t.Fatalf("unexpected body after optimize: %+v", body)
+
+	var sawIf, sawThenStore, sawElseStore, sawReturn bool
+	for _, inst := range body {
+		if inst.Op == qc.OPIF && inst.A == vCond && inst.Label == "then" {
+			sawIf = true
+		}
+		if inst.Op == qc.OPStoreF && inst.B == vKeep && inst.ImmFloat == 2 && inst.HasImmFloat {
+			sawElseStore = true
+		}
+		if inst.Op == qc.OPStoreF && inst.B == vKeep && inst.ImmFloat == 3 && inst.HasImmFloat {
+			sawThenStore = true
+		}
+		if inst.Op == qc.OPReturn && inst.A == VReg(qc.OFSReturn) {
+			sawReturn = true
+		}
+	}
+	if !sawIf || !sawThenStore || !sawElseStore || !sawReturn {
+		t.Fatalf("missing expected control-flow ops after DCE: %+v", body)
 	}
 }
 

@@ -16,13 +16,14 @@ The compiler tests combine three layers of evidence:
 - optimizer unit coverage now explicitly includes builtin-function IR bodies and asserts they are left untouched while non-builtin bodies are trimmed
 - IR optimizer unit coverage now includes constant-folding assertions that supported scalar float operations collapse into immediate `OPStoreF` pseudo-stores, including folded zero-valued results
 - IR optimizer unit coverage now includes local-slot pruning assertions that confirm dead-temp locals are removed after DCE while parameter locals are retained
-- IR optimizer unit coverage now includes a straight-line DCE slice that verifies dead pure virtual-register defs are removed, side-effecting pointer stores are retained, and control-flow-bearing bodies are excluded from DCE
+- IR optimizer unit coverage now includes control-flow DCE assertions that verify dead pure virtual-register defs are removed across simple label/branch patterns while side-effecting pointer stores, branch conditions, and jump/return structure are retained
 - compile-level constant-folding coverage builds an ephemeral package with `(2 + 3) * 4` and asserts the resulting function body has no runtime `OPAddF`/`OPMulF` statements
 - source-order tests compile multi-file ephemeral packages and assert function-table order follows filename order, protecting deterministic lowering traversal for parity tooling
   - current assertion pins `a_first.go` (`Able`) before `main.go` (`MainValue`) before `z_last.go` (`Zed`) in emitted function order
 - deterministic smoke tests compile the same fixture twice and assert byte-identical output to catch nondeterministic table/section emission drift
 - structural parity smoke tests parse compiled `controlflow` output and pin stable layout/function/opcode invariants (including `Max`/`Sum` arity and positive first statements) so section-shape drift is detected even when output remains deterministic
 - parity smoke tests evaluate `Add` in QCVM and compare output with equivalent native Go arithmetic over multiple signed/decimal vectors
+- parity smoke harness adds a deterministic QCVM baseline matrix that executes `Add`, `Max`, and `Sum` against pinned vectors and expected returns, catching VM-visible lowering drift without broad golden tooling
 - import-isolation tests compile an ephemeral package that imports a local dependency whose body includes unsupported type-switch syntax, asserting successful compile to prove imported bodies are not lowered
 - dynamic-field intrinsic tests now include a runtime round-trip that executes compiled `ReadWrite(ent, ofs, value)` against a loaded VM and verifies both return value (pre-write read) and post-call entity field mutation
 
@@ -82,7 +83,7 @@ Rejected alternatives:
 ### Keep deferred feature boundaries explicit in tests
 
 Observed decision:
-- add a focused negative test for non-Vec3 struct literals that asserts the dedicated defer diagnostic string.
+- add focused struct-literal boundary tests: one negative case for non-Vec3 struct literals (asserting the dedicated defer diagnostic and type context), and one positive case proving Vec3 literals remain supported.
 
 Rationale:
 - this guards the intentional boundary between shipped vector-literal support and deferred general-struct lowering.
@@ -107,7 +108,7 @@ Rejected alternatives:
 ### Add focused IR optimization assertions without broad pass churn
 
 Observed decision:
-- add a narrow optimizer contract slice that now covers first-pass constant folding, dead self-store elimination, and straight-line virtual-register DCE rather than broad multi-pass optimization churn
+- add a narrow optimizer contract slice that now covers first-pass constant folding, dead self-store elimination, and minimal control-flow-aware virtual-register DCE rather than broad multi-pass optimization churn
 
 Rationale:
 - keeps the slice small, reviewable, and directly tied to current lowering/codegen shapes
@@ -142,3 +143,16 @@ Rationale:
 Rejected alternatives:
 - introducing full cross-tooling golden comparisons for all sections and all fixtures in one pass:
   - rejected because it broadens scope significantly and would require additional harness/plumbing not needed for this focused follow-up
+
+### Add narrow deterministic parity smoke harness for core fixture behavior
+
+Observed decision:
+- add a table-driven QCVM smoke harness in compiler tests that compiles existing arithmetic/controlflow fixtures and asserts stable VM-visible outputs for selected calls.
+
+Rationale:
+- keeps parity detection focused on a small, repeatable baseline while reusing existing compiler/VM test infrastructure and fixtures.
+- makes future lowering regressions easier to spot by pinning function-level behavior without introducing extra tooling.
+
+Rejected alternatives:
+- introducing a standalone external parity runner:
+  - rejected because this scope is intentionally narrow and existing test helpers already provide compile/load/execute coverage.

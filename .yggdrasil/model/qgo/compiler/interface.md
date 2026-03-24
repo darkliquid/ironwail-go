@@ -36,9 +36,10 @@ Key exported data structures:
 - builtin functions are represented as QC functions whose `FirstStatement` is the negative builtin number
 - builtin directives accept either numeric form (`//qgo:builtin 23`) or a compiler-known name alias (`//qgo:builtin bprint`)
 - dynamic helper intrinsics `quake.FieldFloat(entity, fieldOffset)` and `quake.SetFieldFloat(entity, fieldOffset, value)` are compiler-recognized and lowered directly to QC field opcodes (`OP_LOAD_F`, `OP_ADDRESS`, `OP_STOREP_F`) with strict arity/type gating.
+- composite literal support is intentionally narrow: `Vec3` literals are supported as vector values, while non-`Vec3` struct literals are explicitly deferred with a dedicated compile-time diagnostic (`general struct literals are deferred ...`).
 - IR optimization now includes a first constant-folding pass for scalar float opcodes (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, `OPEqF`, `OPNeF`, `OPLE`, `OPGE`, `OPLT`, `OPGT`, `OPAnd`, `OPOr`, `OPBitAnd`, `OPBitOr`, `OPNotF`) when operands are known function-local constants.
 - folded float immediates are represented with `IRInst.HasImmFloat=true` so zero-valued constants remain explicit and are preserved through codegen.
-- IR optimization includes a minimal dead-code elimination pass for straight-line function bodies that removes dead pure definitions to auto-allocated virtual registers while preserving control-flow, side-effecting operations, builtin bodies, and immediate materialization semantics.
+- IR optimization includes a minimal dead-code elimination pass that now supports simple label/branch control flow (`OPIF`/`OPIFNot`/`OPGoto`) via conservative block-level liveness, removing dead pure definitions to auto-allocated virtual registers while preserving jump semantics and side effects.
 
 ## Failure modes
 

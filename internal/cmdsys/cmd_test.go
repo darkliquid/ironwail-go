@@ -406,8 +406,11 @@ func TestParseCommandStripsComments(t *testing.T) {
 	}{
 		{"sv_gravity 800 // normal gravity", []string{"sv_gravity", "800"}},
 		{"// full line comment", nil},
+		{"/* full line block comment */", nil},
 		{"echo \"hello // world\"", []string{"echo", "hello // world"}},
+		{"echo \"hello /* world */\"", []string{"echo", "hello /* world */"}},
 		{"cmd arg1 arg2//attached", []string{"cmd", "arg1", "arg2"}},
+		{"cmd arg1 /* block */ arg2", []string{"cmd", "arg1", "arg2"}},
 	}
 	for _, tc := range tests {
 		got := parseCommand(tc.line)
@@ -441,6 +444,28 @@ func TestExecuteTextDoesNotSplitSemicolonsInsideComments(t *testing.T) {
 	}, "")
 
 	c.ExecuteText("first // comment; second\nthird")
+
+	want := []string{"first", "third"}
+	if !reflect.DeepEqual(executed, want) {
+		t.Fatalf("executed = %v, want %v", executed, want)
+	}
+}
+
+func TestExecuteTextDoesNotSplitSemicolonsInsideBlockComments(t *testing.T) {
+	c := NewCmdSystem()
+
+	var executed []string
+	c.AddCommand("first", func(args []string) {
+		executed = append(executed, "first")
+	}, "")
+	c.AddCommand("second", func(args []string) {
+		executed = append(executed, "second")
+	}, "")
+	c.AddCommand("third", func(args []string) {
+		executed = append(executed, "third")
+	}, "")
+
+	c.ExecuteText("first /* comment; second */\nthird")
 
 	want := []string{"first", "third"}
 	if !reflect.DeepEqual(executed, want) {

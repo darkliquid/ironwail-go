@@ -112,14 +112,16 @@ out vec4 fragColor;
 uniform sampler2D uSolidLayer;
 uniform sampler2D uAlphaLayer;
 uniform float uTime;
+uniform float uSolidLayerSpeed;
+uniform float uAlphaLayerSpeed;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
 
 void main() {
 	vec3 dir = normalize(vDir);
 	vec2 uv = dir.xy * (189.0 / 64.0);
-	vec4 result = texture(uSolidLayer, uv + vec2(uTime / 16.0));
-	vec4 layer = texture(uAlphaLayer, uv + vec2(uTime / 8.0));
+	vec4 result = texture(uSolidLayer, uv + vec2((uTime / 16.0) * uSolidLayerSpeed));
+	vec4 layer = texture(uAlphaLayer, uv + vec2((uTime / 8.0) * uAlphaLayerSpeed));
 	result.rgb = mix(result.rgb, layer.rgb, layer.a);
 	result.rgb = mix(result.rgb, uFogColor, uFogDensity);
 	fragColor = result;
@@ -237,6 +239,8 @@ func (r *Renderer) ensureWorldSkyPrograms() error {
 		r.worldSkyModelRotationUniform = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
 		r.worldSkyModelScaleUniform = gl.GetUniformLocation(program, gl.Str("uModelScale\x00"))
 		r.worldSkyTimeUniform = gl.GetUniformLocation(program, gl.Str("uTime\x00"))
+		r.worldSkySolidLayerSpeedUniform = gl.GetUniformLocation(program, gl.Str("uSolidLayerSpeed\x00"))
+		r.worldSkyAlphaLayerSpeedUniform = gl.GetUniformLocation(program, gl.Str("uAlphaLayerSpeed\x00"))
 		r.worldSkyCameraOriginUniform = gl.GetUniformLocation(program, gl.Str("uCameraOrigin\x00"))
 		r.worldSkyFogColorUniform = gl.GetUniformLocation(program, gl.Str("uFogColor\x00"))
 		r.worldSkyFogDensityUniform = gl.GetUniformLocation(program, gl.Str("uFogDensity\x00"))
@@ -541,6 +545,8 @@ type skyPassState struct {
 	externalFaceModelRotation   int32
 	externalFaceModelScale      int32
 	timeUniform                 int32
+	solidLayerSpeedUniform      int32
+	alphaLayerSpeedUniform      int32
 	cameraOriginUniform         int32
 	cubemapCameraOriginUniform  int32
 	externalFaceCameraOrigin    int32
@@ -552,6 +558,8 @@ type skyPassState struct {
 	externalFaceFogDensity      int32
 	vp                          [16]float32
 	time                        float32
+	solidLayerSpeed             float32
+	alphaLayerSpeed             float32
 	cameraOrigin                [3]float32
 	modelOffset                 [3]float32
 	modelRotation               [16]float32
@@ -665,6 +673,8 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 		gl.UniformMatrix4fv(state.modelRotationUniform, 1, false, &state.modelRotation[0])
 		gl.Uniform1f(state.modelScaleUniform, state.modelScale)
 		gl.Uniform1f(state.timeUniform, state.time)
+		gl.Uniform1f(state.solidLayerSpeedUniform, state.solidLayerSpeed)
+		gl.Uniform1f(state.alphaLayerSpeedUniform, state.alphaLayerSpeed)
 		gl.Uniform3f(state.cameraOriginUniform, state.cameraOrigin[0], state.cameraOrigin[1], state.cameraOrigin[2])
 		gl.Uniform3f(state.fogColorUniform, state.fogColor[0], state.fogColor[1], state.fogColor[2])
 		gl.Uniform1f(state.fogDensityUniform, state.fogDensity)

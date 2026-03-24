@@ -2,6 +2,7 @@
   "hash": "d1800ef360da0f62c3d8a57ee8da795fa927a2ab0ae0eac8ed9779dec1e2ba79",
   "files": {
     ".yggdrasil/model/hud/runtime/yg-node.yaml": "fd11c344b178daee047a2aef22a3d57d6e334d81a8c54b3f33cacdc70c93d5eb",
+    ".yggdrasil/model/hud/runtime/interface.md": "b281b696c66e995668276b55f10985d0d2ec760245da51ee3ddd35b4c82db260",
     ".yggdrasil/model/hud/runtime/internals.md": "d94cb590567bb30eb7ac65ce877fffbfe5279c7ce5c58d075cd96b4c8ed9c17f",
     ".yggdrasil/model/hud/runtime/responsibility.md": "d36e725b11b76a14b3774c5dc0c1aaccc76ec41470bec8e956bb8e437edb7d38",
     ".yggdrasil/model/hud/yg-node.yaml": "39ee93487e796587caf2d9ff2f2cdaff740c3da1e1327c59d15dffd714a985a0",
@@ -9,13 +10,12 @@
     ".yggdrasil/model/hud/internals.md": "eb88599f1c81e299fb2c867ea9d39b7a50eaf8b3d171e27d8e1d55cc29763906",
     ".yggdrasil/model/hud/responsibility.md": "13b43a98b1ea6d1b6cbf91f5e5d88375f08f790634e2a4123921f55862357352",
     "internal/hud/doc.go": "8050b3ad540dc04a67f3d801d6989b35c0f604026923e633588001235d1a362f",
-    ".yggdrasil/model/hud/runtime/interface.md": "b281b696c66e995668276b55f10985d0d2ec760245da51ee3ddd35b4c82db260",
     "internal/hud/hud.go": "b10b706ece166dc8c9899e42f1a16b5437b44542e3911d5476939742a5f5feba",
     "internal/hud/hud_test.go": "d2e853385ff6b9907fcd77ebaa3cd6ed45c0ab340f3350597f3394068468fe48"
   },
   "mtimes": {
     ".yggdrasil/model/hud/runtime/yg-node.yaml": 1774243428464.4297,
-    ".yggdrasil/model/hud/runtime/interface.md": 1774258184314.3533,
+    ".yggdrasil/model/hud/runtime/interface.md": 1774263606467.3677,
     ".yggdrasil/model/hud/runtime/internals.md": 1774243428464.5713,
     ".yggdrasil/model/hud/runtime/responsibility.md": 1774243428464.477,
     ".yggdrasil/model/hud/yg-node.yaml": 1774243428464.1729,
@@ -23,7 +23,7 @@
     ".yggdrasil/model/hud/internals.md": 1774243428464.3596,
     ".yggdrasil/model/hud/responsibility.md": 1774243428464.2515,
     "internal/hud/doc.go": 1773836785821.9465,
-    "internal/hud/hud.go": 1774258033772.8865,
-    "internal/hud/hud_test.go": 1774258033777.486
+    "internal/hud/hud.go": 1774263606470.0046,
+    "internal/hud/hud_test.go": 1774263606470.1472
   }
 }

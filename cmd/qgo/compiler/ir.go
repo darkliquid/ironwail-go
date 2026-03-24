@@ -295,62 +295,267 @@ func isNoOpStore(inst IRInst) bool {
 }
 
 // eliminateDeadVirtualStores removes pure instructions that define only virtual
-// registers whose values are never consumed later in the same straight-line IR
-// body. To keep this first DCE slice safe and deterministic, the pass skips
-// functions that contain labels or branch opcodes.
+// registers whose values are never consumed along any simple label/branch
+// control-flow path in the function body.
 func eliminateDeadVirtualStores(fn *IRFunc) {
-	if len(fn.Body) == 0 || hasIRControlFlow(fn.Body) {
+	if len(fn.Body) == 0 {
 		return
 	}
 
-	live := make(map[VReg]struct{})
-	keptRev := make([]IRInst, 0, len(fn.Body))
-	for i := len(fn.Body) - 1; i >= 0; i-- {
-		inst := fn.Body[i]
-		info := irLivenessInfo(inst)
+	blocks, labelToBlock, ok := buildIRBasicBlocks(fn.Body)
+	if !ok || len(blocks) == 0 {
+		return
+	}
 
-		keep := true
-		if info.pure && isVirtualVReg(info.def) {
-			if _, ok := live[info.def]; !ok {
-				keep = false
-			} else {
+	for i := range blocks {
+		succ, succOK := irBlockSuccessors(fn.Body, blocks, labelToBlock, i)
+		if !succOK {
+			return
+		}
+		blocks[i].succ = succ
+	}
+
+	// Solve backward liveness at block boundaries.
+	liveIn := make([]map[VReg]struct{}, len(blocks))
+	liveOut := make([]map[VReg]struct{}, len(blocks))
+	for i := range blocks {
+		liveIn[i] = make(map[VReg]struct{})
+		liveOut[i] = make(map[VReg]struct{})
+	}
+
+	changed := true
+	for changed {
+		changed = false
+		for bi := len(blocks) - 1; bi >= 0; bi-- {
+			newOut := make(map[VReg]struct{})
+			for _, succ := range blocks[bi].succ {
+				mergeVRegSet(newOut, liveIn[succ])
+			}
+			newIn := irBlockLiveIn(fn.Body, blocks[bi], newOut)
+
+			if !equalVRegSet(newOut, liveOut[bi]) {
+				liveOut[bi] = newOut
+				changed = true
+			}
+			if !equalVRegSet(newIn, liveIn[bi]) {
+				liveIn[bi] = newIn
+				changed = true
+			}
+		}
+	}
+
+	keptByBlock := make([][]IRInst, len(blocks))
+	for bi := len(blocks) - 1; bi >= 0; bi-- {
+		block := blocks[bi]
+		live := cloneVRegSet(liveOut[bi])
+		keptRev := make([]IRInst, 0, block.end-block.start)
+		for i := block.end - 1; i >= block.start; i-- {
+			inst := fn.Body[i]
+			info := irLivenessInfo(inst)
+
+			keep := true
+			if info.pure && isVirtualVReg(info.def) {
+				if _, ok := live[info.def]; !ok {
+					keep = false
+				} else {
+					delete(live, info.def)
+				}
+			} else if isVirtualVReg(info.def) {
 				delete(live, info.def)
 			}
-		} else if isVirtualVReg(info.def) {
-			delete(live, info.def)
-		}
 
-		if keep {
-			for _, u := range info.uses {
-				if isVirtualVReg(u) {
-					live[u] = struct{}{}
+			if keep {
+				for _, u := range info.uses {
+					if isVirtualVReg(u) {
+						live[u] = struct{}{}
+					}
 				}
+				keptRev = append(keptRev, inst)
 			}
-			keptRev = append(keptRev, inst)
 		}
+
+		for i, j := 0, len(keptRev)-1; i < j; i, j = i+1, j-1 {
+			keptRev[i], keptRev[j] = keptRev[j], keptRev[i]
+		}
+		keptByBlock[bi] = keptRev
 	}
 
-	for i, j := 0, len(keptRev)-1; i < j; i, j = i+1, j-1 {
-		keptRev[i], keptRev[j] = keptRev[j], keptRev[i]
+	optimized := make([]IRInst, 0, len(fn.Body))
+	for _, kept := range keptByBlock {
+		optimized = append(optimized, kept...)
 	}
-	fn.Body = keptRev
-}
-
-func hasIRControlFlow(body []IRInst) bool {
-	for _, inst := range body {
-		if inst.IsLabel() {
-			return true
-		}
-		switch inst.Op {
-		case qc.OPGoto, qc.OPIF, qc.OPIFNot:
-			return true
-		}
-	}
-	return false
+	fn.Body = optimized
 }
 
 func isVirtualVReg(v VReg) bool {
 	return v != VRegInvalid && v >= vregBase
+}
+
+type irBlock struct {
+	start int
+	end   int
+	succ  []int
+}
+
+func buildIRBasicBlocks(body []IRInst) ([]irBlock, map[string]int, bool) {
+	if len(body) == 0 {
+		return nil, nil, true
+	}
+
+	leaders := map[int]struct{}{0: {}}
+	for i, inst := range body {
+		if inst.IsLabel() {
+			leaders[i] = struct{}{}
+		}
+		if i+1 < len(body) && isIRBlockTerminator(inst.Op) {
+			leaders[i+1] = struct{}{}
+		}
+	}
+
+	leaderOrder := make([]int, 0, len(leaders))
+	for idx := range leaders {
+		leaderOrder = append(leaderOrder, idx)
+	}
+	for i := 0; i < len(leaderOrder)-1; i++ {
+		for j := i + 1; j < len(leaderOrder); j++ {
+			if leaderOrder[j] < leaderOrder[i] {
+				leaderOrder[i], leaderOrder[j] = leaderOrder[j], leaderOrder[i]
+			}
+		}
+	}
+
+	blocks := make([]irBlock, 0, len(leaderOrder))
+	for i, start := range leaderOrder {
+		end := len(body)
+		if i+1 < len(leaderOrder) {
+			end = leaderOrder[i+1]
+		}
+		blocks = append(blocks, irBlock{start: start, end: end})
+	}
+
+	labelToBlock := make(map[string]int)
+	for bi, block := range blocks {
+		for i := block.start; i < block.end; i++ {
+			if !body[i].IsLabel() {
+				break
+			}
+			labelToBlock[body[i].LabelName()] = bi
+		}
+	}
+	return blocks, labelToBlock, true
+}
+
+func isIRBlockTerminator(op qc.Opcode) bool {
+	switch op {
+	case qc.OPGoto, qc.OPIF, qc.OPIFNot, qc.OPReturn, qc.OPDone:
+		return true
+	default:
+		return false
+	}
+}
+
+func irBlockSuccessors(body []IRInst, blocks []irBlock, labelToBlock map[string]int, bi int) ([]int, bool) {
+	termInst, ok := irBlockTerminatorInst(body, blocks[bi])
+	if !ok {
+		if bi+1 < len(blocks) {
+			return []int{bi + 1}, true
+		}
+		return nil, true
+	}
+
+	switch termInst.Op {
+	case qc.OPGoto:
+		target, ok := labelToBlock[termInst.Label]
+		if !ok {
+			return nil, false
+		}
+		return []int{target}, true
+	case qc.OPIF, qc.OPIFNot:
+		target, ok := labelToBlock[termInst.Label]
+		if !ok {
+			return nil, false
+		}
+		succ := []int{target}
+		if bi+1 < len(blocks) && target != bi+1 {
+			succ = append(succ, bi+1)
+		}
+		return succ, true
+	case qc.OPReturn, qc.OPDone:
+		return nil, true
+	default:
+		if bi+1 < len(blocks) {
+			return []int{bi + 1}, true
+		}
+		return nil, true
+	}
+}
+
+func irBlockTerminatorInst(body []IRInst, block irBlock) (IRInst, bool) {
+	for i := block.end - 1; i >= block.start; i-- {
+		inst := body[i]
+		if inst.IsLabel() {
+			continue
+		}
+		if isIRBlockTerminator(inst.Op) {
+			return inst, true
+		}
+		return IRInst{}, false
+	}
+	return IRInst{}, false
+}
+
+func irBlockLiveIn(body []IRInst, block irBlock, liveOut map[VReg]struct{}) map[VReg]struct{} {
+	live := cloneVRegSet(liveOut)
+	for i := block.end - 1; i >= block.start; i-- {
+		inst := body[i]
+		info := irLivenessInfo(inst)
+		if info.pure && isVirtualVReg(info.def) {
+			if _, ok := live[info.def]; ok {
+				delete(live, info.def)
+				for _, u := range info.uses {
+					if isVirtualVReg(u) {
+						live[u] = struct{}{}
+					}
+				}
+			}
+			continue
+		}
+		if isVirtualVReg(info.def) {
+			delete(live, info.def)
+		}
+		for _, u := range info.uses {
+			if isVirtualVReg(u) {
+				live[u] = struct{}{}
+			}
+		}
+	}
+	return live
+}
+
+func cloneVRegSet(in map[VReg]struct{}) map[VReg]struct{} {
+	out := make(map[VReg]struct{}, len(in))
+	for v := range in {
+		out[v] = struct{}{}
+	}
+	return out
+}
+
+func mergeVRegSet(dst, src map[VReg]struct{}) {
+	for v := range src {
+		dst[v] = struct{}{}
+	}
+}
+
+func equalVRegSet(a, b map[VReg]struct{}) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for v := range a {
+		if _, ok := b[v]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 type irInstInfo struct {

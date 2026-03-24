@@ -44,6 +44,26 @@ func readWorldFastSkyEnabled() bool {
 	return cvar.BoolValue(CvarRFastSky)
 }
 
+func readWorldSkyLayerSpeedCvar(name string, fallback float32) float32 {
+	cv := cvar.Get(name)
+	if cv == nil {
+		return fallback
+	}
+	speed := cv.Float32()
+	if speed < 0 {
+		return 0
+	}
+	return speed
+}
+
+func readWorldSkySolidSpeedCvar() float32 {
+	return readWorldSkyLayerSpeedCvar(CvarRSkySolidSpeed, 1)
+}
+
+func readWorldSkyAlphaSpeedCvar() float32 {
+	return readWorldSkyLayerSpeedCvar(CvarRSkyAlphaSpeed, 1)
+}
+
 // resolveWorldSkyFogMix resolves the final sky fog mix factor from the cvar value, worldspawn override, and fog density.
 func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogDensity float32) float32 {
 	if fogDensity <= 0 {

@@ -18,11 +18,13 @@ Observed validation surface:
 - IR pipeline coverage asserts optimizer behavior against no-op `OPStore* x -> x` statements without stripping immediate-backed constant pseudo-stores
 - IR pipeline coverage also asserts builtin IR functions are excluded from the no-op self-store optimization pass
 - IR pipeline coverage asserts a first constant-folding pass rewrites supported scalar float constant expressions into immediate stores, including `0.0` results that must remain explicit
-- IR pipeline coverage asserts a minimal DCE pass removes dead pure virtual-register defs in straight-line bodies while retaining side-effecting ops and skipping control-flow-bearing functions
+- IR pipeline coverage asserts the minimal DCE pass removes dead pure virtual-register defs in both straight-line and simple label/branch control-flow bodies while retaining side-effecting ops and preserving branch/jump semantics
 - end-to-end compile coverage asserts folded arithmetic expressions are emitted without runtime `OPAddF`/`OPMulF` instructions in the function body
 - deterministic smoke coverage asserts repeated compiles of identical input produce byte-identical `progs.dat` output
 - parity smoke coverage includes Go-vs-QC output comparison for arithmetic fixture execution (`Add`) using shared input vectors
+- parity smoke harness coverage includes a deterministic QCVM baseline matrix across arithmetic/controlflow fixtures (`Add`, `Max`, `Sum`) with pinned input/output vectors
 - import-isolation coverage asserts compiler success when an imported package body contains unsupported syntax, proving lowering remains constrained to compile-target package syntax.
 - dynamic field intrinsic coverage now asserts `FieldFloat`/`SetFieldFloat` opcode emission (`OP_LOAD_F`, `OP_ADDRESS`, `OP_STOREP_F`) and strict helper-contract failures for wrong helper argument types and arity.
 - dynamic field intrinsic coverage also includes compile→VM round-trip execution that proves runtime read/write behavior for a discovered field offset (`FindField("health")`) using `SetEFloat`/`EFloat` assertions.
+- struct-literal scope coverage is explicit: tests assert `Vec3` literals continue to compile while non-`Vec3` struct literals fail with the dedicated `general struct literals are deferred` diagnostic including type context.
 - structural parity smoke coverage asserts controlflow fixture layout invariants (non-overlapping section spans), function-shape contracts (`Max` arity=2 and `Sum` arity=1 with positive statement anchors), and required control-flow opcode presence

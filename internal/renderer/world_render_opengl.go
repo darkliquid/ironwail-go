@@ -137,6 +137,8 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	skyExternalFaceModelRotationUniform := r.worldSkyExternalFaceModelRotation
 	skyExternalFaceModelScaleUniform := r.worldSkyExternalFaceModelScale
 	skyTimeUniform := r.worldSkyTimeUniform
+	skySolidLayerSpeedUniform := r.worldSkySolidLayerSpeedUniform
+	skyAlphaLayerSpeedUniform := r.worldSkyAlphaLayerSpeedUniform
 	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
 	skyCubemapCameraOriginUniform := r.worldSkyCubemapCameraOriginUniform
 	skyExternalFaceCameraOriginUniform := r.worldSkyExternalFaceCameraOrigin
@@ -149,6 +151,8 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
 	worldFastSky := readWorldFastSkyEnabled()
+	skySolidLayerSpeed := readWorldSkySolidSpeedCvar()
+	skyAlphaLayerSpeed := readWorldSkyAlphaSpeedCvar()
 	skyExternalCubemap := r.worldSkyExternalCubemap
 	skyExternalFaceTextures := r.worldSkyExternalFaceTextures
 	skyExternalMode := r.worldSkyExternalMode
@@ -260,6 +264,8 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				externalFaceModelRotation:   skyExternalFaceModelRotationUniform,
 				externalFaceModelScale:      skyExternalFaceModelScaleUniform,
 				timeUniform:                 skyTimeUniform,
+				solidLayerSpeedUniform:      skySolidLayerSpeedUniform,
+				alphaLayerSpeedUniform:      skyAlphaLayerSpeedUniform,
 				cameraOriginUniform:         skyCameraOriginUniform,
 				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
 				externalFaceCameraOrigin:    skyExternalFaceCameraOriginUniform,
@@ -271,6 +277,8 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				externalFaceFogDensity:      skyExternalFaceFogDensityUniform,
 				vp:                          vp,
 				time:                        camera.Time,
+				solidLayerSpeed:             skySolidLayerSpeed,
+				alphaLayerSpeed:             skyAlphaLayerSpeed,
 				cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
 				modelOffset:                 [3]float32{0, 0, 0},
 				modelRotation:               identityModelRotationMatrix,
@@ -377,6 +385,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skyExternalFaceModelRotationUniform := r.worldSkyExternalFaceModelRotation
 	skyExternalFaceModelScaleUniform := r.worldSkyExternalFaceModelScale
 	skyTimeUniform := r.worldSkyTimeUniform
+	skySolidLayerSpeedUniform := r.worldSkySolidLayerSpeedUniform
+	skyAlphaLayerSpeedUniform := r.worldSkyAlphaLayerSpeedUniform
 	skyCameraOriginUniform := r.worldSkyCameraOriginUniform
 	skyCubemapCameraOriginUniform := r.worldSkyCubemapCameraOriginUniform
 	skyExternalFaceCameraOriginUniform := r.worldSkyExternalFaceCameraOrigin
@@ -389,6 +399,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
 	worldFastSky := readWorldFastSkyEnabled()
+	skySolidLayerSpeed := readWorldSkySolidSpeedCvar()
+	skyAlphaLayerSpeed := readWorldSkyAlphaSpeedCvar()
 	skyExternalCubemap := r.worldSkyExternalCubemap
 	skyExternalFaceTextures := r.worldSkyExternalFaceTextures
 	skyExternalMode := r.worldSkyExternalMode
@@ -518,6 +530,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				externalFaceModelRotation:   skyExternalFaceModelRotationUniform,
 				externalFaceModelScale:      skyExternalFaceModelScaleUniform,
 				timeUniform:                 skyTimeUniform,
+				solidLayerSpeedUniform:      skySolidLayerSpeedUniform,
+				alphaLayerSpeedUniform:      skyAlphaLayerSpeedUniform,
 				cameraOriginUniform:         skyCameraOriginUniform,
 				cubemapCameraOriginUniform:  skyCubemapCameraOriginUniform,
 				externalFaceCameraOrigin:    skyExternalFaceCameraOriginUniform,
@@ -529,6 +543,8 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				externalFaceFogDensity:      skyExternalFaceFogDensityUniform,
 				vp:                          vp,
 				time:                        camera.Time,
+				solidLayerSpeed:             skySolidLayerSpeed,
+				alphaLayerSpeed:             skyAlphaLayerSpeed,
 				cameraOrigin:                [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
 				modelOffset:                 brush.origin,
 				modelRotation:               brush.rotation,

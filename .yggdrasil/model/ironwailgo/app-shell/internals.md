@@ -16,6 +16,8 @@ Command-surface regression coverage in `main_test.go` now also asserts the new `
 Command-surface regression coverage in `main_test.go` now also asserts `centerview` restarts pitch drift through the executable command-binding surface by flipping `g.Client.NoDrift` off and reseeding `PitchVel`.
 Runtime telemetry regression coverage in `main_test.go` now also asserts `scr_showfps=2` uses milliseconds text (`xx.xx ms`) in the runtime FPS overlay path, matching legacy Ironwail semantics where nonzero showfps modes include an ms-style display mode in addition to FPS text.
 Render-frame regression coverage in `main_test.go` now also asserts that `buildRuntimeRenderFrameState` picks up worldspawn fog defaults from the loaded BSP entity lump before sampling client fog for renderer submission.
+Input regression coverage in `main_test.go` now also asserts that gameplay look-path processing consumes right-stick gamepad look deltas and (optionally) gyro deltas through cvar gates, so stick look can ship independently while gyro remains explicitly opt-in.
+Screenshot regression coverage in `main_test.go` now asserts capture behavior for both renderer-present and renderer-absent flows, including dimension expectations for renderer-sized fallback output and the default 1280x720 software fallback.
 
 ## Constraints
 

@@ -6,11 +6,13 @@
 
 `Host.Init` applies parameters, clamps host-wide limits, resolves the user directory, initializes subsystems in a fixed order, then runs the startup config chain. The sequence is policy, not convenience: later steps assume earlier services already exist.
 
+Startup config ingestion routes script text through the shared command-buffer path (`executeConfigText` → `cmdsys` insert/execute), so comment stripping and command splitting semantics are inherited from cmdsys parser rules. This keeps host `exec` behavior aligned with C-style comment handling in scripted command buffers.
+
 Host cvar registration includes gameplay-fix toggles used by server/QC parity paths, including `sv_gameplayfix_random` (default `1`) that selects QC `random()` formula behavior. It also registers the `devstats` cvar so user config/console flows can control developer stats surfaces with parity-friendly naming.
 
 Host command registration is unconditional during `Init`, and runtime now also invokes cvar helper command registration (`cvarlist`, `toggle`, `cycle`, `cycleback`, `inc`, `reset`, `resetall`, `resetcfg`) at startup. The optional `Subsystems.Commands` wrapper only controls how buffered command text is executed/inserted; the host command surface itself is always bound into the global `cmdsys` so localcmd/changelevel-style paths work even in embedded or test harness setups that leave `Subsystems.Commands` nil.
 
-Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info.
+Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info. The provider includes both summary server info and per-player row callbacks (slot/name/colors/frags/ping) so datagram control queries can answer remote `players` requests without exposing full server internals through the host command layer.
 
 ### Frame scheduling
 

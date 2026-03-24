@@ -1,5 +1,5 @@
 {
-  "hash": "42df19484024114df27d258791912aef5d1f0ca0aebbb70594de29d3fd03ad02",
+  "hash": "08123c7f871a1a9995bd994f01cc6c8d5bbf2d9ad8b4260b68eeb92f870321a9",
   "files": {
     ".yggdrasil/model/renderer/opengl-core/yg-node.yaml": "32de8bd6c240e8c1de627cf9b6e29b5b76d473b44bc5e13720afbaf7003c4e53",
     ".yggdrasil/model/renderer/opengl-core/interface.md": "2dd69a2355635ab0a3ec6d4fc84707d366a612ba0d436acb62c6b9f12dedfb6c",
@@ -10,7 +10,7 @@
     ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
     "internal/renderer/core_opengl.go": "45bd6c85161dc140403cdb588fa69a5a206f3289a951fabfdf1682422f7dda0e",
-    "internal/renderer/renderer_opengl.go": "40794af9b4d1fe642d29bf751cd390fc8ca06255745d23d8d3a19b3f9668a885",
+    "internal/renderer/renderer_opengl.go": "e4ae13f194321c29a9c754fb16e4a9546e88832b16e5a0df18ff183920d537ff",
     "internal/renderer/camera_opengl.go": "41fac627d0cac73d57e074309da7fd10c8e3465fff320bb52dcab88b2efd0db7",
     "internal/renderer/polyblend_opengl.go": "ca6c426fce6eb4c972aab170d91f94513fd2d3660df1266f231111fb804551c9",
     "internal/renderer/warpscale_opengl.go": "60c986b411b8c90fbd50779ed8afdfdf81a8817ca6cc803f37aa027e3b0a8867",
@@ -26,7 +26,7 @@
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     "internal/renderer/core_opengl.go": 1773836785791.1616,
-    "internal/renderer/renderer_opengl.go": 1774335087402.0144,
+    "internal/renderer/renderer_opengl.go": 1774337730262.7896,
     "internal/renderer/camera_opengl.go": 1774129892160.528,
     "internal/renderer/polyblend_opengl.go": 1773836785802.7588,
     "internal/renderer/warpscale_opengl.go": 1774129955027.3455,

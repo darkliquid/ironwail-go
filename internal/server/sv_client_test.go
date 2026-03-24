@@ -269,3 +269,109 @@ func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients
 		t.Fatalf("unchanged client 2 OldFrags = %d, want -2", got)
 	}
 }
+
+func TestDropClientCrashClosesAndClearsRemoteConnection(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init: %v", err)
+	}
+	clientSock := loop.Connect()
+	serverSock := loop.CheckNewConnections()
+	if serverSock == nil {
+		t.Fatal("server socket missing")
+	}
+	defer inet.Close(clientSock)
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.NetConnection = serverSock
+
+	s.DropClient(client, true)
+
+	if client.NetConnection != nil {
+		t.Fatal("crash drop should clear client net connection")
+	}
+	if got := inet.SendMessage(clientSock, []byte{0x01}); got != -1 {
+		t.Fatalf("send from peer after server close = %d, want -1", got)
+	}
+}
+
+func TestSendClientMessagesCrashDropOnReliableSendFailureClosesConnection(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init: %v", err)
+	}
+	clientSock := loop.Connect()
+	serverSock := loop.CheckNewConnections()
+	if serverSock == nil {
+		t.Fatal("server socket missing")
+	}
+	defer inet.Close(clientSock)
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Spawned = false
+	client.Loopback = false
+	client.NetConnection = serverSock
+	client.SendSignon = SignonPrespawn
+	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.WriteString("force send path")
+	inet.Close(clientSock)
+
+	s.SendClientMessages()
+
+	if client.Active {
+		t.Fatal("client should be dropped on reliable send failure")
+	}
+	if client.NetConnection != nil {
+		t.Fatal("crash drop should clear net connection after reliable send failure")
+	}
+}
+
+func TestSendClientMessagesCrashDropOnOverflowClosesConnection(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init: %v", err)
+	}
+	clientSock := loop.Connect()
+	serverSock := loop.CheckNewConnections()
+	if serverSock == nil {
+		t.Fatal("server socket missing")
+	}
+	defer inet.Close(clientSock)
+
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Spawned = false
+	client.Loopback = false
+	client.NetConnection = serverSock
+	client.SendSignon = SignonFlush
+	client.Message.Overflowed = true
+
+	s.SendClientMessages()
+
+	if client.Active {
+		t.Fatal("client should be dropped on message overflow")
+	}
+	if client.NetConnection != nil {
+		t.Fatal("crash drop should clear net connection after overflow drop")
+	}
+	if client.Message.Overflowed {
+		t.Fatal("overflowed message should be cleared after drop")
+	}
+}

@@ -8,6 +8,8 @@ A follow-up cleanup converted `doors.go` door spawnflag constants from mutable `
 
 Another mechanical cleanup converted `items.go` health spawnflag constants to `iota` bit constants (`healthFlag*`) with unchanged mask values (`1` and `2`). The call sites still perform bit tests against `Self.SpawnFlags`; only declaration style and local naming were modernized.
 
+A similarly narrow cleanup converted `misc.go` trap-shooter spawnflag constants to `iota` bit constants (`spawnFlagSuperSpike`, `spawnFlagLaser`) while preserving the original Quake mask values (`1` and `2`). Behavior remains the same because all call sites still test bits against `Self.SpawnFlags`; only constant representation changed.
+
 A bounded readability pilot in `items.go` now delegates `T_Heal` to `(*quake.Entity).Heal(...)`. This keeps the global function entry point intact for parity and call-site stability while moving entity-local healing rules to a receiver method in the shared quake stubs.
 
 ## Constraints

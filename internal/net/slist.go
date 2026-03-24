@@ -27,6 +27,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"math"
 	stdnet "net"
 	"strings"
 	"sync"
@@ -51,6 +52,15 @@ type HostCacheEntry struct {
 type RuleInfoEntry struct {
 	Name  string
 	Value string
+}
+
+// PlayerInfoEntry holds a single player row returned by a CCREQ_PLAYER_INFO query.
+type PlayerInfoEntry struct {
+	Slot   int
+	Name   string
+	Colors [2]byte
+	Frags  int32
+	Ping   float32
 }
 
 // String returns a one-line summary suitable for console display.
@@ -224,6 +234,17 @@ func buildRuleInfoQuery(previous string) []byte {
 	return buf
 }
 
+func buildPlayerInfoQuery(index byte) []byte {
+	const payloadLen = 2 // command + player index
+	packetLen := HeaderSize + payloadLen
+	buf := make([]byte, packetLen)
+	binary.BigEndian.PutUint32(buf[0:], uint32(packetLen)|FlagCtl)
+	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
+	buf[8] = CCReqPlayerInfo
+	buf[9] = index
+	return buf
+}
+
 // parseServerInfoResponse decodes a CCRepServerInfo control packet into a
 // HostCacheEntry. Returns false if the packet is not a valid response.
 func parseServerInfoResponse(data []byte, addr stdnet.Addr) (HostCacheEntry, bool) {
@@ -314,6 +335,49 @@ func parseRuleInfoResponse(data []byte) (RuleInfoEntry, bool) {
 	return RuleInfoEntry{Name: name, Value: readString()}, true
 }
 
+func parsePlayerInfoResponse(data []byte) (PlayerInfoEntry, bool) {
+	if len(data) < HeaderSize+2 {
+		return PlayerInfoEntry{}, false
+	}
+	header := binary.BigEndian.Uint32(data[0:])
+	if header&FlagCtl == 0 {
+		return PlayerInfoEntry{}, false
+	}
+	if data[8] != CCRepPlayerInfo {
+		return PlayerInfoEntry{}, false
+	}
+
+	payload := data[9:]
+	entry := PlayerInfoEntry{
+		Slot: int(payload[0]),
+	}
+	payload = payload[1:]
+	readString := func() string {
+		for i, b := range payload {
+			if b == 0 {
+				s := string(payload[:i])
+				payload = payload[i+1:]
+				return s
+			}
+		}
+		s := string(payload)
+		payload = nil
+		return s
+	}
+	entry.Name = readString()
+	if entry.Name == "" {
+		return PlayerInfoEntry{}, true
+	}
+	if len(payload) < 10 {
+		return PlayerInfoEntry{}, false
+	}
+	entry.Colors[0] = payload[0]
+	entry.Colors[1] = payload[1]
+	entry.Frags = int32(binary.LittleEndian.Uint32(payload[2:6]))
+	entry.Ping = math.Float32frombits(binary.LittleEndian.Uint32(payload[6:10]))
+	return entry, true
+}
+
 func QueryServerRules(address string) ([]RuleInfoEntry, error) {
 	if !strings.Contains(address, ":") {
 		address = fmt.Sprintf("%s:%d", address, defaultNetHostPort)
@@ -354,6 +418,47 @@ func QueryServerRules(address string) ([]RuleInfoEntry, error) {
 		rules = append(rules, entry)
 		previous = entry.Name
 	}
+}
+
+func QueryServerPlayers(address string) ([]PlayerInfoEntry, error) {
+	if !strings.Contains(address, ":") {
+		address = fmt.Sprintf("%s:%d", address, defaultNetHostPort)
+	}
+	addr, err := UDPStringToAddr(address)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := stdnet.ListenUDP("udp4", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	var players []PlayerInfoEntry
+	buf := make([]byte, 1024)
+	for i := 0; i < 256; i++ {
+		query := buildPlayerInfoQuery(byte(i))
+		if _, err := conn.WriteToUDP(query, addr); err != nil {
+			return nil, err
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+			return nil, err
+		}
+		n, _, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			return nil, err
+		}
+		entry, ok := parsePlayerInfoResponse(buf[:n])
+		if !ok {
+			return nil, fmt.Errorf("unexpected response to Player Info request")
+		}
+		if entry.Name == "" {
+			return players, nil
+		}
+		players = append(players, entry)
+	}
+	return nil, fmt.Errorf("too many player info rows")
 }
 
 // addEntry appends an entry if no duplicate address is already present.

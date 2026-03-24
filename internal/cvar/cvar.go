@@ -496,13 +496,19 @@ func SetAutoCvarCallback(fn func(cv *CVar)) {
 	globalCVar.mu.Unlock()
 }
 
+// MarkAutoCvar sets the FlagAutoCvar flag on a cvar within this registry,
+// indicating its value should be synced to a QC global variable.
+func (c *CVarSystem) MarkAutoCvar(name string) {
+	name = strings.ToLower(name)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cv, ok := c.vars[name]; ok {
+		cv.Flags |= FlagAutoCvar
+	}
+}
+
 // MarkAutoCvar sets the FlagAutoCvar flag on a cvar, indicating its value
 // should be synced to a QC global variable.
 func MarkAutoCvar(name string) {
-	globalCVar.mu.Lock()
-	defer globalCVar.mu.Unlock()
-	cv, ok := globalCVar.vars[strings.ToLower(name)]
-	if ok {
-		cv.Flags |= FlagAutoCvar
-	}
+	globalCVar.MarkAutoCvar(name)
 }

@@ -5,3 +5,5 @@
 This node is not responsible for implementing compiler behavior. Its job is to pin down what the compiler is expected to emit and which sample programs demonstrate that behavior.
 
 It also maintains a narrow structural parity smoke that validates section-layout monotonicity, control-flow function-shape expectations, and opcode presence for the controlflow fixture so regressions are caught beyond byte-ordering checks.
+It maintains a deterministic VM-visible parity smoke harness over selected arithmetic/controlflow fixture calls, pinning baseline behavior for `Add`, `Max`, and `Sum` so lowering drift is detected early.
+It also owns explicit deferred-scope evidence for struct literals: `Vec3` composite literals remain supported while non-`Vec3` struct literals are intentionally deferred and must fail with a stable diagnostic contract.

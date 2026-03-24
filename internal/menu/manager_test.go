@@ -496,6 +496,56 @@ func TestLoadSaveCommands(t *testing.T) {
 	}
 }
 
+func TestSinglePlayerSaveEntryAllowedTransitionsToSave(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.SetSaveEntryAllowedProvider(func() bool { return true })
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 2
+
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuSave {
+		t.Fatalf("state = %v, want %v", got, MenuSave)
+	}
+}
+
+func TestSinglePlayerSaveEntryDisallowedStaysOnSinglePlayerAndPlaysCancel(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var played []string
+	mgr.SetSoundPlayer(func(name string) {
+		played = append(played, name)
+	})
+	mgr.SetSaveEntryAllowedProvider(func() bool { return false })
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 2
+	played = nil
+
+	mgr.M_Key(input.KEnter)
+
+	if got := mgr.GetState(); got != MenuSinglePlayer {
+		t.Fatalf("state = %v, want %v", got, MenuSinglePlayer)
+	}
+	if len(played) < 2 {
+		t.Fatalf("played sounds = %v, want select+cancel feedback", played)
+	}
+	if played[0] != menuSoundSelect {
+		t.Fatalf("first sound = %q, want %q", played[0], menuSoundSelect)
+	}
+	if played[1] != menuSoundCancel {
+		t.Fatalf("second sound = %q, want %q", played[1], menuSoundCancel)
+	}
+}
+
 func TestLoadSaveMenusRefreshLabelsFromProvider(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}

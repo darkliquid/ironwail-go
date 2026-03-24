@@ -761,6 +761,8 @@ func (r *Renderer) clearWorldLocked() {
 	r.worldAlphaUniform = -1
 	r.worldTimeUniform = -1
 	r.worldSkyTimeUniform = -1
+	r.worldSkySolidLayerSpeedUniform = -1
+	r.worldSkyAlphaLayerSpeedUniform = -1
 	r.worldTurbulentUniform = -1
 	r.worldLitWaterUniform = -1
 	r.worldCameraOriginUniform = -1

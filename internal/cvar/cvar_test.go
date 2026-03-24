@@ -115,3 +115,59 @@ func TestAutoCvarCallback(t *testing.T) {
 		t.Fatalf("non-autocvar triggered callback with %q", calledWith)
 	}
 }
+
+func TestMarkAutoCvarEnablesAutoCallback(t *testing.T) {
+	sys := NewCVarSystem()
+	sys.Register("sv_friction", "4", FlagNone, "friction")
+
+	var calledWith string
+	sys.AutoCvarChanged = func(cv *CVar) {
+		calledWith = cv.String
+	}
+
+	sys.MarkAutoCvar("sv_friction")
+	sys.Set("sv_friction", "3")
+
+	if calledWith != "3" {
+		t.Fatalf("marked autocvar callback got %q, want 3", calledWith)
+	}
+}
+
+func TestLockedAutoCvarRejectsSetWithoutAutoCallback(t *testing.T) {
+	sys := NewCVarSystem()
+	sys.Register("sv_gravity", "800", FlagAutoCvar, "gravity")
+
+	callbackCalled := false
+	sys.AutoCvarChanged = func(cv *CVar) {
+		callbackCalled = true
+	}
+
+	sys.LockVar("sv_gravity")
+	sys.Set("sv_gravity", "400")
+
+	if got := sys.StringValue("sv_gravity"); got != "800" {
+		t.Fatalf("locked autocvar changed to %q, want 800", got)
+	}
+	if callbackCalled {
+		t.Fatal("locked autocvar triggered AutoCvarChanged callback")
+	}
+}
+
+func TestLatchedAutoCvarSetSuppressesAutoCallback(t *testing.T) {
+	sys := NewCVarSystem()
+	sys.Register("sv_test_latched_auto", "1", FlagLatched|FlagAutoCvar, "latched auto")
+
+	callbackCalled := false
+	sys.AutoCvarChanged = func(cv *CVar) {
+		callbackCalled = true
+	}
+
+	sys.Set("sv_test_latched_auto", "2")
+
+	if got := sys.StringValue("sv_test_latched_auto"); got != "2" {
+		t.Fatalf("latched autocvar value = %q, want 2", got)
+	}
+	if callbackCalled {
+		t.Fatal("latched autocvar triggered AutoCvarChanged callback")
+	}
+}

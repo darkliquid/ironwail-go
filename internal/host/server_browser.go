@@ -41,5 +41,15 @@ func makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider {
 		MaxPlayers: func() int {
 			return subs.Server.GetMaxClients()
 		},
+		PlayerInfo: func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool) {
+			if index < 0 || index >= subs.Server.GetMaxClients() || !subs.Server.IsClientActive(index) {
+				return "", 0, 0, 0, 0, false
+			}
+			color := subs.Server.GetClientColor(index)
+			if edict := subs.Server.EdictNum(index + 1); edict != nil && edict.Vars != nil {
+				frags = int32(edict.Vars.Frags)
+			}
+			return subs.Server.GetClientName(index), byte((color >> 4) & 0x0f), byte(color & 0x0f), frags, subs.Server.GetClientPing(index), true
+		},
 	}
 }

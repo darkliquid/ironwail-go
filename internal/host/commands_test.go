@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	stdnet "net"
 	"os"
 	"path/filepath"
@@ -988,6 +989,51 @@ func TestCmdTest2PrintsQueriedRules(t *testing.T) {
 	}
 }
 
+func TestCmdPlayersPrintsQueriedPlayers(t *testing.T) {
+	serverConn, err := stdnet.ListenUDP("udp4", &stdnet.UDPAddr{IP: stdnet.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatalf("failed to start test server: %v", err)
+	}
+	defer serverConn.Close()
+
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, addr, err := serverConn.ReadFromUDP(buf)
+			if err != nil {
+				return
+			}
+			if n < inet.HeaderSize+2 || buf[8] != inet.CCReqPlayerInfo {
+				continue
+			}
+			switch buf[9] {
+			case 0:
+				serverConn.WriteToUDP(buildHostPlayerInfoResponse(0, "Ranger", 4, 9, 15, 32.5), addr)
+			case 1:
+				serverConn.WriteToUDP(buildHostPlayerInfoResponse(1, "Shambler", 13, 13, 42, 60.0), addr)
+			default:
+				serverConn.WriteToUDP(buildHostPlayerInfoResponse(buf[9], "", 0, 0, 0, 0), addr)
+			}
+		}
+	}()
+
+	h := NewHost()
+	subs := &mockSubsystems{
+		console: &mockConsole{},
+	}
+	subs.Subsystems.Console = subs.console
+
+	h.CmdPlayers(serverConn.LocalAddr().String(), &subs.Subsystems)
+
+	got := strings.Join(subs.console.messages, "")
+	if !strings.Contains(got, "slot  name              color  frags  ping") {
+		t.Fatalf("players output missing header:\n%s", got)
+	}
+	if !strings.Contains(got, "Ranger") || !strings.Contains(got, "Shambler") {
+		t.Fatalf("players output missing expected player names:\n%s", got)
+	}
+}
+
 func TestCmdNetStatsPrintsGlobalDatagramCounters(t *testing.T) {
 	inet.GlobalStats.Reset()
 	t.Cleanup(inet.GlobalStats.Reset)
@@ -1090,6 +1136,28 @@ func buildHostRuleInfoResponse(name, value string) []byte {
 		copy(buf[9:], name)
 		buf[9+len(name)] = 0
 		copy(buf[10+len(name):], value)
+	}
+	return buf
+}
+
+func buildHostPlayerInfoResponse(slot byte, name string, top, bottom byte, frags int32, ping float32) []byte {
+	payloadLen := 2 // slot + empty name terminator
+	if name != "" {
+		payloadLen += len(name) + 1 + 2 + 4 + 4
+	}
+	buf := make([]byte, inet.HeaderSize+1+payloadLen)
+	binary.BigEndian.PutUint32(buf[0:], uint32(len(buf))|inet.FlagCtl)
+	binary.BigEndian.PutUint32(buf[4:], 0xffffffff)
+	buf[8] = inet.CCRepPlayerInfo
+	buf[9] = slot
+	if name != "" {
+		copy(buf[10:], name)
+		nameEnd := 10 + len(name)
+		buf[nameEnd] = 0
+		buf[nameEnd+1] = top
+		buf[nameEnd+2] = bottom
+		binary.LittleEndian.PutUint32(buf[nameEnd+3:], uint32(frags))
+		binary.LittleEndian.PutUint32(buf[nameEnd+7:], math.Float32bits(ping))
 	}
 	return buf
 }
@@ -1283,6 +1351,145 @@ func TestCmdModsFilter(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("filtered mods output missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestCmdGamePrintsCurrentGameDir(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "pak0.pak"), []byte("fake"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic pak: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdGame(nil, subs)
+
+	if got := strings.Join(console.messages, ""); got != "\"game\" is \"id1\"\n" {
+		t.Fatalf("game output = %q", got)
+	}
+}
+
+func TestCmdGameSwitchesFilesystemToSelectedMod(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("WriteFile id1 progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "progs.dat"), []byte("hipnotic"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdGame([]string{"hipnotic"}, subs)
+
+	activeFS, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
+	}
+	if got := activeFS.GetGameDir(); got != "hipnotic" {
+		t.Fatalf("active game dir = %q, want %q", got, "hipnotic")
+	}
+	data, err := subs.Files.LoadFile("progs.dat")
+	if err != nil {
+		t.Fatalf("LoadFile(progs.dat): %v", err)
+	}
+	if got := string(data); got != "hipnotic" {
+		t.Fatalf("progs.dat contents = %q, want %q", got, "hipnotic")
+	}
+	if h.gameDir != "hipnotic" {
+		t.Fatalf("host gameDir = %q, want %q", h.gameDir, "hipnotic")
+	}
+}
+
+func TestGameConsoleCommandSwitchesFilesystemToSelectedMod(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("WriteFile id1 progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "progs.dat"), []byte("hipnotic"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	h.baseDir = baseDir
+	subs := &Subsystems{
+		Console: console,
+		Files:   fileSys,
+	}
+	h.RegisterCommands(subs)
+
+	cmdsys.ExecuteText(`game "hipnotic"`)
+
+	activeFS, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
+	}
+	if got := activeFS.GetGameDir(); got != "hipnotic" {
+		t.Fatalf("active game dir = %q, want %q", got, "hipnotic")
+	}
+}
+
+func TestCmdGameRejectsUnknownModAndLeavesFilesystemUnchanged(t *testing.T) {
+	baseDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(baseDir, "id1"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("WriteFile id1 progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	h.CmdGame([]string{"missingmod"}, subs)
+
+	activeFS, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
+	}
+	if got := activeFS.GetGameDir(); got != "id1" {
+		t.Fatalf("active game dir = %q, want %q", got, "id1")
+	}
+	gotOutput := strings.Join(console.messages, "")
+	if !strings.Contains(gotOutput, "unknown gamedir") {
+		t.Fatalf("console output = %q, want unknown gamedir message", gotOutput)
 	}
 }
 
@@ -1679,6 +1886,44 @@ func TestCmdSaveRejectsMultiplayerGames(t *testing.T) {
 
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "Can't save multiplayer games.") {
 		t.Fatalf("console output = %q, want multiplayer rejection", got)
+	}
+}
+
+func TestSaveEntryAllowed(t *testing.T) {
+	h := NewHost()
+	srv := server.NewServer()
+	lc := newLocalLoopbackClient()
+	subs := &Subsystems{
+		Server:  srv,
+		Client:  lc,
+		Console: &mockConsole{},
+	}
+
+	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	h.SetServerActive(true)
+	srv.Active = true
+	if got := h.SaveEntryAllowed(subs); !got {
+		t.Fatal("SaveEntryAllowed() = false, want true for local active single-player")
+	}
+
+	lc.inner.Intermission = 1
+	if got := h.SaveEntryAllowed(subs); got {
+		t.Fatal("SaveEntryAllowed() = true during intermission, want false")
+	}
+	lc.inner.Intermission = 0
+
+	srv.Static.MaxClients = 2
+	if got := h.SaveEntryAllowed(subs); got {
+		t.Fatal("SaveEntryAllowed() = true for multiplayer server, want false")
+	}
+	srv.Static.MaxClients = 1
+
+	h.SetServerActive(false)
+	if got := h.SaveEntryAllowed(subs); got {
+		t.Fatal("SaveEntryAllowed() = true when host server inactive, want false")
 	}
 }
 

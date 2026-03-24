@@ -385,6 +385,15 @@ func FieldFloat(entity *Entity, field FieldOffset) float32 {
 	if entity == nil {
 		return 0
 	}
+	return entity.FieldFloat(field)
+}
+
+// FieldFloat reads a float32 entity field using a runtime field offset.
+// qgo lowers this helper as a compiler intrinsic (OP_LOAD_F).
+func (e *Entity) FieldFloat(field FieldOffset) float32 {
+	if e == nil {
+		return 0
+	}
 	_ = field
 	return 0
 }
@@ -393,6 +402,15 @@ func FieldFloat(entity *Entity, field FieldOffset) float32 {
 // qgo lowers this helper as a compiler intrinsic (OP_ADDRESS + OP_STOREP_F).
 func SetFieldFloat(entity *Entity, field FieldOffset, value float32) {
 	if entity == nil {
+		return
+	}
+	entity.SetFieldFloat(field, value)
+}
+
+// SetFieldFloat writes a float32 entity field using a runtime field offset.
+// qgo lowers this helper as a compiler intrinsic (OP_ADDRESS + OP_STOREP_F).
+func (e *Entity) SetFieldFloat(field FieldOffset, value float32) {
+	if e == nil {
 		return
 	}
 	_, _ = field, value

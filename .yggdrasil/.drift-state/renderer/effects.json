@@ -1,7 +1,7 @@
 {
-  "hash": "000d911f0c56ac111e597de8f9c6135c986ba650c288506cd5cd0ab4b4e8f5da",
+  "hash": "8964627cce6a4a6c48266389a9557e212179d6abaa1e2a27aa96b141173ebc51",
   "files": {
-    ".yggdrasil/model/renderer/effects/yg-node.yaml": "0b25071004d973af0454652c33d2a1f1e2d8f6ff1bf3fd423eb07b1f6b98a85d",
+    ".yggdrasil/model/renderer/effects/yg-node.yaml": "b9be249317bf53da84159bb79d4c564c41ce987eb3eebf1354e28e7514a68b5e",
     ".yggdrasil/model/renderer/effects/interface.md": "f3327c5719923ccd39b8b75b040c82615acf8c8e7f675faa2baa63028d347a6b",
     ".yggdrasil/model/renderer/effects/internals.md": "4f33de3f4b58f9fc42f2aad69db6777496baaa35b082857c07508d781b2ddf2c",
     ".yggdrasil/model/renderer/effects/responsibility.md": "c10eb798b9f394e5f723d09e2cdc7c011260f6ad8641b346a4926ff0afdf60c0",
@@ -10,6 +10,7 @@
     ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
     "internal/renderer/alias_skin.go": "60423f55db8bd6f5a876ad698b12907e20ac24b54003498770316210a5e25a43",
+    "internal/renderer/alias_skin_test.go": "ec25f90c69670e55a87072931c01dc6b75a73fc5586693a04e55f488a48d6936",
     "internal/renderer/alias_skin_variants.go": "fa0b1a7c082c764fbd3cffbd445785899f2e8532cba844c4947dab07a029dc83",
     "internal/renderer/alias_state.go": "3180e6477ddbc53c9fed909d234054688f232518568adbe633ed4901e4afc04b",
     "internal/renderer/alpha_mode.go": "16645795ac6b354b6c6174177dfdb5f6f1b5f4aa36c0d98716aa664e52ffba6f",
@@ -21,7 +22,7 @@
     "internal/renderer/player_colors.go": "16d49537f485042d62b8ab5a003c171321dd17edd5b17a340b94c11f1b3c6571"
   },
   "mtimes": {
-    ".yggdrasil/model/renderer/effects/yg-node.yaml": 1774219364398.623,
+    ".yggdrasil/model/renderer/effects/yg-node.yaml": 1774251212961.1682,
     ".yggdrasil/model/renderer/effects/interface.md": 1774219364542.6248,
     ".yggdrasil/model/renderer/effects/internals.md": 1774219364587.6252,
     ".yggdrasil/model/renderer/effects/responsibility.md": 1774219364469.6238,
@@ -30,6 +31,7 @@
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     "internal/renderer/alias_skin.go": 1774122168196.0557,
+    "internal/renderer/alias_skin_test.go": 1774251178311.6416,
     "internal/renderer/alias_skin_variants.go": 1774126160170.7498,
     "internal/renderer/alias_state.go": 1774126101626.699,
     "internal/renderer/alpha_mode.go": 1773841235084.421,

@@ -8,6 +8,7 @@
 
 - Registration of host-facing commands into the command system.
 - Map and local session commands.
+- Runtime game-directory switching command seam (`game`) that validates and swaps active VFS mounts.
 - Connect/disconnect/reconnect and remote-session commands.
 - Demo record/playback/timedemo commands.
 - Save/load command handlers and save path validation.

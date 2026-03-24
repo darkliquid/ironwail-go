@@ -672,11 +672,12 @@ func (c *CmdSystem) CompleteAliases(partial string) []string {
 // each ready to be parsed into argv-style tokens by parseCommand.
 func splitCommands(text string) []string {
 	var (
-		commands  []string
-		current   strings.Builder
-		inQuote   bool
-		escaped   bool
-		inComment bool
+		commands       []string
+		current        strings.Builder
+		inQuote        bool
+		escaped        bool
+		inLineComment  bool
+		inBlockComment bool
 	)
 
 	flush := func() {
@@ -695,19 +696,24 @@ func splitCommands(text string) []string {
 			escaped = false
 			continue
 		}
-		if inComment {
+		if inLineComment {
 			switch ch {
 			case '\n':
-				inComment = false
+				inLineComment = false
 				flush()
 			case '\r':
-				inComment = false
+				inLineComment = false
 				flush()
 				if i+1 < len(text) && text[i+1] == '\n' {
 					i++
 				}
-			default:
-				current.WriteByte(ch)
+			}
+			continue
+		}
+		if inBlockComment {
+			if ch == '*' && i+1 < len(text) && text[i+1] == '/' {
+				inBlockComment = false
+				i++
 			}
 			continue
 		}
@@ -716,12 +722,17 @@ func splitCommands(text string) []string {
 			escaped = true
 			continue
 		}
-		if ch == '/' && !inQuote && i+1 < len(text) && text[i+1] == '/' {
-			current.WriteByte(ch)
-			current.WriteByte(text[i+1])
-			i++
-			inComment = true
-			continue
+		if ch == '/' && !inQuote && i+1 < len(text) {
+			switch text[i+1] {
+			case '/':
+				i++
+				inLineComment = true
+				continue
+			case '*':
+				i++
+				inBlockComment = true
+				continue
+			}
 		}
 
 		switch ch {
@@ -779,6 +790,20 @@ func parseCommand(line string) []string {
 		case ch == '/' && !inQuote && i+1 < len(line) && line[i+1] == '/':
 			// Strip // comments outside quotes, matching C COM_Parse behavior
 			goto done
+		case ch == '/' && !inQuote && i+1 < len(line) && line[i+1] == '*':
+			// Strip /*...*/ comments outside quotes, matching C COM_Parse behavior
+			i += 2
+			for i+1 < len(line) && !(line[i] == '*' && line[i+1] == '/') {
+				i++
+			}
+			if i+1 >= len(line) {
+				goto done
+			}
+			i++
+			if current.Len() > 0 && i+1 < len(line) && (line[i+1] == ' ' || line[i+1] == '\t') {
+				args = append(args, current.String())
+				current.Reset()
+			}
 		case ch == '\\' && inQuote && i+1 < len(line):
 			switch line[i+1] {
 			case '"', '\\':

@@ -790,6 +790,21 @@ func (h *Host) CmdSave(name string, subs *Subsystems) {
 	h.cmdSave(name, subs, false)
 }
 
+// SaveEntryAllowed reports whether entering the Single Player -> Save menu item
+// should be permitted, mirroring cmdSave's top-level gating.
+func (h *Host) SaveEntryAllowed(subs *Subsystems) bool {
+	if subs == nil || subs.Server == nil || !h.serverActive || !subs.Server.IsActive() {
+		return false
+	}
+	if subs.Server.GetMaxClients() != 1 {
+		return false
+	}
+	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
+		return false
+	}
+	return true
+}
+
 func (h *Host) CmdSaveArgs(args []string, subs *Subsystems) {
 	if len(args) == 0 {
 		if subs != nil && subs.Console != nil {

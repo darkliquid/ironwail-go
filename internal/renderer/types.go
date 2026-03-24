@@ -91,6 +91,7 @@ type Backend interface {
 	Shutdown()
 	Run() error
 	Stop()
+	CaptureScreenshot(filename string) error
 
 	// Callbacks
 	OnDraw(func(RenderContext))
@@ -112,23 +113,25 @@ type Backend interface {
 // These cvars must be registered by the host application before
 // creating a Renderer instance.
 const (
-	CvarVidWidth      = "vid_width"      // Video width in pixels (default: 1920)
-	CvarVidHeight     = "vid_height"     // Video height in pixels (default: 1080)
-	CvarVidFullscreen = "vid_fullscreen" // Fullscreen mode: 0=windowed, 1=fullscreen (default: 1)
-	CvarVidVsync      = "vid_vsync"      // Vertical sync: 0=off, 1=on (default: 1)
-	CvarHostMaxFPS    = "host_maxfps"    // Maximum frames per second (default: 250)
-	CvarRGamma        = "r_gamma"        // Gamma correction value (default: 1.0)
-	CvarRAlphaSort    = "r_alphasort"    // Alpha surface sorting (0=basic, 1=sorted)
-	CvarROIT          = "r_oit"          // Order-independent transparency mode (0=off, 1=on)
-	CvarRWaterAlpha   = "r_wateralpha"   // Water alpha (0..1, default 1.0)
-	CvarRLavaAlpha    = "r_lavaalpha"    // Lava alpha (0 uses water alpha)
-	CvarRSlimeAlpha   = "r_slimealpha"   // Slime alpha (0 uses water alpha)
-	CvarRTeleAlpha    = "r_telealpha"    // Teleport alpha (0 uses water alpha)
-	CvarRParticles    = "r_particles"    // Particle blend mode (1=alpha, 2=opaque)
-	CvarRFastSky      = "r_fastsky"      // Fast sky mode (flat sky color, no scrolling layers)
-	CvarRSkyFog       = "r_skyfog"       // Sky fog mix factor (0..1, default 0.5)
-	CvarRShadows      = "r_shadows"      // Entity shadows (0=off, 1=on)
-	CvarRNoshadowList = "r_noshadow_list"
+	CvarVidWidth       = "vid_width"       // Video width in pixels (default: 1920)
+	CvarVidHeight      = "vid_height"      // Video height in pixels (default: 1080)
+	CvarVidFullscreen  = "vid_fullscreen"  // Fullscreen mode: 0=windowed, 1=fullscreen (default: 1)
+	CvarVidVsync       = "vid_vsync"       // Vertical sync: 0=off, 1=on (default: 1)
+	CvarHostMaxFPS     = "host_maxfps"     // Maximum frames per second (default: 250)
+	CvarRGamma         = "r_gamma"         // Gamma correction value (default: 1.0)
+	CvarRAlphaSort     = "r_alphasort"     // Alpha surface sorting (0=basic, 1=sorted)
+	CvarROIT           = "r_oit"           // Order-independent transparency mode (0=off, 1=on)
+	CvarRWaterAlpha    = "r_wateralpha"    // Water alpha (0..1, default 1.0)
+	CvarRLavaAlpha     = "r_lavaalpha"     // Lava alpha (0 uses water alpha)
+	CvarRSlimeAlpha    = "r_slimealpha"    // Slime alpha (0 uses water alpha)
+	CvarRTeleAlpha     = "r_telealpha"     // Teleport alpha (0 uses water alpha)
+	CvarRParticles     = "r_particles"     // Particle blend mode (1=alpha, 2=opaque)
+	CvarRFastSky       = "r_fastsky"       // Fast sky mode (flat sky color, no scrolling layers)
+	CvarRSkyFog        = "r_skyfog"        // Sky fog mix factor (0..1, default 0.5)
+	CvarRSkySolidSpeed = "r_skysolidspeed" // Embedded sky solid-layer speed scale (default: 1.0)
+	CvarRSkyAlphaSpeed = "r_skyalphaspeed" // Embedded sky alpha-layer speed scale (default: 1.0)
+	CvarRShadows       = "r_shadows"       // Entity shadows (0=off, 1=on)
+	CvarRNoshadowList  = "r_noshadow_list"
 	// CvarRWaterwarp controls the underwater visual warp effect.
 	// 0 = off (no underwater visual effect)
 	// 1 = screen-space sinusoidal warp (post-process distortion of the rendered scene)

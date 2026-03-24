@@ -10,6 +10,8 @@ Engine builtin stubs stay as top-level functions with unchanged signatures. A se
 
 `FieldFloat` and `SetFieldFloat` are intentionally no-op-compatible stubs at runtime; qgo treats them as compiler intrinsics and lowers calls directly to QC field opcodes instead of relying on Go runtime behavior.
 
+A narrow receiver refactor adds `(*Entity).FieldFloat` and `(*Entity).SetFieldFloat` with identical runtime no-op semantics. The package-level wrappers now delegate to the receiver forms, which keeps compiler-facing helper names stable while enabling method-style usage for cohesive entity-local helper clusters.
+
 ## Constraints
 
 - do not break `//qgo:builtin` signature and naming expectations used by compiler lowering

@@ -25,6 +25,7 @@ Engine builtin stubs:
 
 Dynamic field helper stubs:
 - `FieldFloat(entity, field)` and `SetFieldFloat(entity, field, value)` are present as compiler-intrinsic seam helpers for qgo dynamic-field lowering.
+- `(*Entity).FieldFloat(field)` and `(*Entity).SetFieldFloat(field, value)` provide receiver-oriented equivalents for entity-local readability; wrapper functions remain for compatibility and intrinsic lowering.
 
 ## Contracts
 

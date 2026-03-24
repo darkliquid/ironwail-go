@@ -492,17 +492,21 @@ func captureScreenshot(sspath, _, _ string) error {
 			CaptureScreenshot(string) error
 		}); ok {
 			if err := capturer.CaptureScreenshot(sspath); err != nil {
-				return fmt.Errorf("capture renderer screenshot: %w", err)
+				slog.Warn("renderer screenshot capture failed, falling back to software path", "error", err)
+			} else {
+				slog.Info("Screenshot saved", "path", sspath)
+				return nil
 			}
-			slog.Info("Screenshot saved", "path", sspath)
-			return nil
 		}
 	}
 
-	const (
-		ssWidth  = 1280
-		ssHeight = 720
-	)
+	ssWidth, ssHeight := 1280, 720
+	if g.Renderer != nil {
+		if w, h := g.Renderer.Size(); w > 0 && h > 0 {
+			ssWidth = w
+			ssHeight = h
+		}
+	}
 
 	var palette []byte
 	if g.Draw != nil {
