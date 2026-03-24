@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/qc"
@@ -163,6 +166,45 @@ func TestRoundTrip_ArithmeticAdd(t *testing.T) {
 	}
 }
 
+func TestRoundTrip_ArithmeticMatchesNativeGo(t *testing.T) {
+	c := New()
+	data, err := c.Compile("../testdata/arithmetic")
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	vm := loadVM(t, data)
+	fnum := vm.FindFunction("Add")
+	if fnum < 0 {
+		t.Fatal("function 'Add' not found")
+	}
+
+	tests := []struct {
+		a, b float32
+	}{
+		{3, 4},
+		{-2, 5},
+		{1.5, 2.25},
+		{-7.75, -0.25},
+	}
+
+	goAdd := func(a, b float32) float32 { return a + b }
+
+	for _, tt := range tests {
+		vm.SetGFloat(qc.OFSParm0, tt.a)
+		vm.SetGFloat(qc.OFSParm1, tt.b)
+		if err := vm.ExecuteProgram(fnum); err != nil {
+			t.Fatalf("Add(%v, %v) error: %v", tt.a, tt.b, err)
+		}
+
+		got := vm.GFloat(qc.OFSReturn)
+		want := goAdd(tt.a, tt.b)
+		if got != want {
+			t.Fatalf("Add(%v, %v) = %v, want native-Go %v", tt.a, tt.b, got, want)
+		}
+	}
+}
+
 func TestRoundTrip_ControlFlowMax(t *testing.T) {
 	c := New()
 	data, err := c.Compile("../testdata/controlflow")
@@ -318,3 +360,361 @@ func TestCompile_Modules(t *testing.T) {
 	}
 }
 
+func TestCompile_ImportedBodiesAreNotLowered(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), `module qgoimportisotest
+
+go 1.26
+
+`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import (
+	"qgoimportisotest/dep"
+)
+
+func main() {
+	dep.Value(12)
+}
+`)
+	if err := os.MkdirAll(filepath.Join(dir, "dep"), 0o755); err != nil {
+		t.Fatalf("mkdir dep: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "dep", "dep.go"), `package dep
+
+func Value(v interface{}) float32 {
+	switch x := v.(type) {
+	case int:
+		return float32(x)
+	default:
+		return 0
+	}
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "*ast.TypeSwitchStmt") || strings.Contains(msg, "*ast.TypeAssertExpr") {
+			t.Fatalf("compile should not lower imported package bodies, got: %v", err)
+		}
+		t.Fatalf("compile failed: %v", err)
+	}
+}
+
+func TestCompile_DeterministicBinaryForSameInput(t *testing.T) {
+	c := New()
+	first, err := c.Compile("../testdata/controlflow")
+	if err != nil {
+		t.Fatalf("first compile failed: %v", err)
+	}
+
+	second, err := c.Compile("../testdata/controlflow")
+	if err != nil {
+		t.Fatalf("second compile failed: %v", err)
+	}
+
+	if !bytes.Equal(first, second) {
+		t.Fatal("compile output differed between identical runs")
+	}
+}
+
+func TestCompile_FunctionTableOrderFollowsFilenameOrder(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "go.mod"), `module qgosourceordertest
+
+go 1.26
+`)
+	writeFile(t, filepath.Join(dir, "z_last.qgo"), `package main
+
+func Zed() float32 { return 2 }
+`)
+	writeFile(t, filepath.Join(dir, "a_first.qgo"), `package main
+
+func Able() float32 { return 1 }
+`)
+	writeFile(t, filepath.Join(dir, "main.qgo"), `package main
+
+func MainValue() float32 { return Able() + Zed() }
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	funcs := parseFunctions(t, data, header)
+	stringTable := parseStrings(t, data, header)
+
+	mustAppearInOrder(t, funcs, stringTable, []string{"Able", "MainValue", "Zed"})
+}
+
+func TestCompile_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloatOpcodes(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgofieldintrinsictest`)
+	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgofieldintrinsictest/quake"
+
+func ReadWrite(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 {
+	current := quake.FieldFloat(ent, ofs)
+	quake.SetFieldFloat(ent, ofs, value)
+	return current
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	stmts := parseStatements(t, data, header)
+	hasLoadF := false
+	hasAddress := false
+	hasStorePF := false
+	for _, s := range stmts {
+		switch qc.Opcode(s.Op) {
+		case qc.OPLoadF:
+			hasLoadF = true
+		case qc.OPAddress:
+			hasAddress = true
+		case qc.OPStorePF:
+			hasStorePF = true
+		}
+	}
+
+	if !hasLoadF {
+		t.Fatal("expected OP_LOAD_F from quake.FieldFloat intrinsic lowering")
+	}
+	if !hasAddress {
+		t.Fatal("expected OP_ADDRESS from quake.SetFieldFloat intrinsic lowering")
+	}
+	if !hasStorePF {
+		t.Fatal("expected OP_STOREP_F from quake.SetFieldFloat intrinsic lowering")
+	}
+}
+
+func TestCompile_FieldOffsetIntrinsic_RejectsNonFieldOffsetArg(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgofieldintrinsicbadargtest`)
+	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgofieldintrinsicbadargtest/quake"
+
+func Bad(ent *quake.Entity, notField float32) float32 {
+	return quake.FieldFloat(ent, notField)
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for non-field offset argument")
+	}
+	if !strings.Contains(err.Error(), "quake.FieldFloat arg 2 must be field offset") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestCompile_FieldOffsetIntrinsic_RejectsSetNonFieldOffsetArg(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgofieldintrinsicbadsetargtest`)
+	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgofieldintrinsicbadsetargtest/quake"
+
+func BadSet(ent *quake.Entity, notField float32, value float32) {
+	quake.SetFieldFloat(ent, notField, value)
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for non-field offset set argument")
+	}
+	if !strings.Contains(err.Error(), "quake.SetFieldFloat arg 2 must be field offset") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestCompile_FieldOffsetIntrinsic_RejectsWrongArity(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgofieldintrinsicaritytest`)
+	writeFieldIntrinsicStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgofieldintrinsicaritytest/quake"
+
+func BadArity(ent *quake.Entity, ofs quake.FieldOffset, value float32) float32 {
+	quake.SetFieldFloat(ent, ofs)
+	return quake.FieldFloat(ent, ofs, value)
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for wrong intrinsic arity")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "quake.SetFieldFloat expects 3 args") && !strings.Contains(msg, "quake.FieldFloat expects 2 args") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+}
+
+func TestRoundTrip_FieldOffsetIntrinsic_FieldFloatAndSetFieldFloat(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgofieldintrinsicroundtriptest`)
+	writeFieldIntrinsicRuntimeStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgofieldintrinsicroundtriptest/quake"
+
+//qgo:entity
+type Entity struct {
+	Health float32 `+"`qgo:\"health\"`"+`
+}
+
+type FieldOffset any
+
+func ReadWrite(ent *Entity, ofs FieldOffset, value float32) float32 {
+	current := quake.FieldFloat(ent, ofs)
+	quake.SetFieldFloat(ent, ofs, value)
+	return current
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	vm := loadVM(t, data)
+	vm.NumEdicts = 4
+	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
+
+	healthOfs := vm.FindField("health")
+	if healthOfs < 0 {
+		t.Fatal("field 'health' not found")
+	}
+
+	const initial = float32(33.5)
+	const updated = float32(75.0)
+	const entNum = 1
+
+	vm.SetEFloat(entNum, healthOfs, initial)
+
+	fnum := vm.FindFunction("ReadWrite")
+	if fnum < 0 {
+		t.Fatal("function 'ReadWrite' not found")
+	}
+
+	vm.SetGInt(qc.OFSParm0, entNum)
+	vm.SetGInt(qc.OFSParm1, int32(healthOfs))
+	vm.SetGFloat(qc.OFSParm2, updated)
+
+	if err := vm.ExecuteProgram(fnum); err != nil {
+		t.Fatalf("ExecuteProgram failed: %v", err)
+	}
+
+	if got := vm.GFloat(qc.OFSReturn); got != initial {
+		t.Fatalf("ReadWrite return = %v, want initial value %v", got, initial)
+	}
+	if got := vm.EFloat(entNum, healthOfs); got != updated {
+		t.Fatalf("entity health after write = %v, want %v", got, updated)
+	}
+}
+
+func mustAppearInOrder(t *testing.T, funcs []qc.DFunction, stringTable []byte, names []string) {
+	t.Helper()
+
+	indices := make(map[string]int, len(names))
+	for _, name := range names {
+		indices[name] = -1
+	}
+
+	for i, fn := range funcs {
+		name := stringAt(stringTable, fn.Name)
+		if _, ok := indices[name]; ok && indices[name] == -1 {
+			indices[name] = i
+		}
+	}
+
+	for _, name := range names {
+		if indices[name] == -1 {
+			t.Fatalf("function %q not found in function table", name)
+		}
+	}
+
+	for i := 1; i < len(names); i++ {
+		prev := indices[names[i-1]]
+		curr := indices[names[i]]
+		if prev >= curr {
+			t.Fatalf("function order mismatch: %q index=%d should come before %q index=%d", names[i-1], prev, names[i], curr)
+		}
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func writeQGoModule(t *testing.T, dir, moduleDecl string) {
+	t.Helper()
+	writeFile(t, filepath.Join(dir, "go.mod"), moduleDecl+`
+
+go 1.26
+`)
+}
+
+func makeCompilerTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp(".", "fieldoffset-intrinsic-*")
+	if err != nil {
+		t.Fatalf("mkdirtemp: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	return dir
+}
+
+func writeFieldIntrinsicStubPackage(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir quake stub package: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "quake.go"), `package quake
+
+type Entity struct{}
+type FieldOffset any
+
+func FieldFloat(entity *Entity, args ...any) float32 { return 0 }
+func SetFieldFloat(entity *Entity, args ...any) {}
+`)
+}
+
+func writeFieldIntrinsicRuntimeStubPackage(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir quake stub package: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "quake.go"), `package quake
+
+func FieldFloat(entity any, args ...any) float32 { return 0 }
+func SetFieldFloat(entity any, args ...any) {}
+`)
+}

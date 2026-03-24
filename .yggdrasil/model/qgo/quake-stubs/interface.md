@@ -22,6 +22,9 @@ Engine builtin stubs:
 - existing `engine.*` builtin functions keep compiler-compatible signatures
 - a focused subset routes through installed backend hooks when present (`SetOrigin`, `Random`, `Spawn`, `Find`, `WriteByte`, `WriteString`, etc.)
 
+Dynamic field helper stubs:
+- `FieldFloat(entity, field)` and `SetFieldFloat(entity, field, value)` are present as compiler-intrinsic seam helpers for qgo dynamic-field lowering.
+
 ## Contracts
 
 - builtin function signatures remain stable for compiler directive mapping (`//qgo:builtin N`)

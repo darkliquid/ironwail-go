@@ -6,6 +6,8 @@ Vector/operator behavior is implemented as pure methods/helpers on `Vec3` and re
 
 Engine builtin stubs stay as top-level functions with unchanged signatures. A selected subset now performs a fast hook lookup via `backend()` and either calls the configured hook or returns legacy stub defaults. This gives tests a minimal seam without changing call sites in translated gameplay packages.
 
+`FieldFloat` and `SetFieldFloat` are intentionally no-op-compatible stubs at runtime; qgo treats them as compiler intrinsics and lowers calls directly to QC field opcodes instead of relying on Go runtime behavior.
+
 ## Constraints
 
 - do not break `//qgo:builtin` signature and naming expectations used by compiler lowering

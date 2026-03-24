@@ -1094,20 +1094,40 @@ purely as compile-time constraints.
 
 ### 14.5 Type Assertions
 
-Limited type assertions are supported for entity types:
+Type assertions and type switches are currently **not supported**.
 
-```go
-monster, ok := target.(*Monster)
-```
+Current compiler behavior:
+- `x.(*T)` fails during lowering with: `unsupported expression type: *ast.TypeAssertExpr`
+- `switch x.(type)` fails during lowering with: `unsupported statement type: *ast.TypeSwitchStmt`
 
-This compiles to a **classname check**:
-```
-OP_LOAD_S    target   classname_field   temp_name
-OP_EQ_S      temp_name  "Monster"_ofs  ok_global
-OP_STORE_ENT target     monster_global              // just copy the entity ref
-```
+Rationale for the near-term scope:
+- The current lowering/codegen pipeline has no runtime type metadata, no interface-value representation, and no canonical entity-type tag abstraction beyond ad-hoc `classname` string usage.
+- A "quick" implementation based only on `classname` string compares would hardcode one game-data convention into the compiler and risk non-portable behavior.
+- Until a stable runtime type-tag model is designed and tested, qgo keeps these forms explicitly unsupported.
 
-The `classname` field is the standard Quake mechanism for identifying entity types.
+### 14.6 Dynamic Entity Field Access
+
+Dynamic entity field access is **partially enabled** via a narrow intrinsic helper seam.
+
+Current status:
+- Static selector access (`ent.Health`) is lowered and emitted.
+- The import/body-isolation prerequisite is complete: lowering no longer descends into imported package bodies.
+- The compiler now recognizes `quake.FieldFloat` and `quake.SetFieldFloat` as intrinsics and lowers them directly to field opcodes.
+
+Current limitations:
+- The intrinsic surface is intentionally narrow in this slice (`FieldFloat`/`SetFieldFloat` only).
+- Broader dynamic syntax and additional helper families (`FieldVector`, `FieldString`, etc.) remain deferred.
+- Generic imported helper calls are still not a safe fallback because imported package functions are not lowered into target-package IR bodies.
+
+Implemented unblock slice:
+1. Compiler-recognized intrinsics with strict type gating (`entity`, `field offset`, and `float` value where applicable):
+   - `quake.FieldFloat(entity, fieldOffset) float32`
+   - `quake.SetFieldFloat(entity, fieldOffset, value float32)`
+2. Direct opcode lowering:
+   - `FieldFloat` → `OP_LOAD_F`
+   - `SetFieldFloat` → `OP_ADDRESS` + `OP_STOREP_F`
+3. Focused compiler tests assert opcode presence, negative type-gating failures, and
+   compile→VM round-trip execution for dynamic float field read/write.
 
 ---
 

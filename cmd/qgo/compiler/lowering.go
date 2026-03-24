@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"go/types"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -16,12 +17,12 @@ import (
 type Lowerer struct {
 	errors ErrorList
 
-	program    IRProgram
-	nextVReg   VReg
-	vregMap    map[types.Object]VReg // Go object -> virtual register
-	constFloats map[float64]VReg    // const float pool
-	constStrs   map[string]VReg     // const string pool
-	labelCount int
+	program     IRProgram
+	nextVReg    VReg
+	vregMap     map[types.Object]VReg // Go object -> virtual register
+	constFloats map[float64]VReg      // const float pool
+	constStrs   map[string]VReg       // const string pool
+	labelCount  int
 
 	entityFields map[types.Type][]IRField // Type -> fields
 	fieldOffsets map[types.Object]uint16  // Field object -> offset
@@ -44,58 +45,24 @@ func NewLowerer() *Lowerer {
 
 // LowerPackages processes a collection of packages and returns the IR program.
 func (l *Lowerer) LowerPackages(pkgs []*packages.Package) (*IRProgram, error) {
-	processed := make(map[string]bool)
-
-	var visit func(*packages.Package)
-	visit = func(p *packages.Package) {
-		if processed[p.ID] {
-			return
-		}
-		processed[p.ID] = true
-
-		// Visit dependencies first
-		for _, imp := range p.Imports {
-			visit(imp)
-		}
-
-		// Set per-package context
+	// Pass 1: declarations and entity structs for explicitly requested packages only.
+	// Imported package bodies are intentionally excluded; lowering should not descend
+	// into dependency implementation files.
+	for _, p := range pkgs {
 		l.currentInfo = p.TypesInfo
 		l.currentFset = p.Fset
-
-		// Pass 1: declarations and entity structs
-		for _, file := range p.Syntax {
+		for _, file := range sortedSyntaxFiles(p) {
 			l.lowerFileDecls(file)
 		}
 	}
 
-	// Pass 1 for all packages
+	// Pass 2: function bodies for explicitly requested packages only.
 	for _, p := range pkgs {
-		visit(p)
-	}
-
-	// Pass 2: function bodies
-	processedBody := make(map[string]bool)
-	var visitBody func(*packages.Package)
-	visitBody = func(p *packages.Package) {
-		if processedBody[p.ID] {
-			return
-		}
-		processedBody[p.ID] = true
-
-		for _, imp := range p.Imports {
-			visitBody(imp)
-		}
-
 		l.currentInfo = p.TypesInfo
 		l.currentFset = p.Fset
-
-		for _, file := range p.Syntax {
+		for _, file := range sortedSyntaxFiles(p) {
 			l.lowerFileFuncs(file)
 		}
-	}
-
-	for _, p := range pkgs {
-		visitBody(p)
 	}
 
 	if err := l.errors.Err(); err != nil {
@@ -103,6 +70,16 @@ func (l *Lowerer) LowerPackages(pkgs []*packages.Package) (*IRProgram, error) {
 	}
 
 	return &l.program, nil
+}
+
+func sortedSyntaxFiles(p *packages.Package) []*ast.File {
+	files := append([]*ast.File(nil), p.Syntax...)
+	sort.Slice(files, func(i, j int) bool {
+		pi := p.Fset.Position(files[i].Pos()).Filename
+		pj := p.Fset.Position(files[j].Pos()).Filename
+		return pi < pj
+	})
+	return files
 }
 
 func (l *Lowerer) lowerFileDecls(file *ast.File) {
@@ -232,7 +209,7 @@ func (l *Lowerer) collectEntityFields(out *[]IRField, st *types.Struct, baseOffs
 	for i := 0; i < st.NumFields(); i++ {
 		f := st.Field(i)
 		tag := st.Tag(i)
-		
+
 		qcName := ""
 		if tag != "" {
 			qcName = reflect.StructTag(tag).Get("qgo")
@@ -713,6 +690,10 @@ func (l *Lowerer) lowerUnaryExpr(fn *IRFunc, expr *ast.UnaryExpr) VReg {
 }
 
 func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
+	if result, handled := l.lowerFieldOffsetIntrinsic(fn, call); handled {
+		return result
+	}
+
 	// Resolve the function being called
 	var funcObj *types.Func
 	switch f := call.Fun.(type) {
@@ -836,6 +817,112 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 	}
 
 	return VRegInvalid
+}
+
+func (l *Lowerer) lowerFieldOffsetIntrinsic(fn *IRFunc, call *ast.CallExpr) (VReg, bool) {
+	intrinsic, ok := l.fieldOffsetIntrinsicName(call)
+	if !ok {
+		return VRegInvalid, false
+	}
+
+	switch intrinsic {
+	case "FieldFloat":
+		if len(call.Args) != 2 {
+			l.errors.Addf(l.pos(call), "quake.FieldFloat expects 2 args: (entity, fieldOffset)")
+			return VRegInvalid, true
+		}
+		entType := l.goTypeToQC(l.currentInfo.Types[call.Args[0]].Type)
+		ofsType := l.goTypeToQC(l.currentInfo.Types[call.Args[1]].Type)
+		if entType != EvEntity {
+			l.errors.Addf(l.pos(call.Args[0]), "quake.FieldFloat arg 1 must be entity, got %T", l.currentInfo.Types[call.Args[0]].Type)
+			return VRegInvalid, true
+		}
+		if ofsType != EvField {
+			l.errors.Addf(l.pos(call.Args[1]), "quake.FieldFloat arg 2 must be field offset, got %T", l.currentInfo.Types[call.Args[1]].Type)
+			return VRegInvalid, true
+		}
+
+		ent := l.lowerExpr(fn, call.Args[0])
+		ofs := l.lowerExpr(fn, call.Args[1])
+		result := l.allocVReg()
+		fn.Body = append(fn.Body, IRInst{
+			Op:   opcodeForLoad(EvFloat),
+			A:    ent,
+			B:    ofs,
+			C:    result,
+			Type: EvFloat,
+		})
+		fn.Locals = append(fn.Locals, IRLocal{Type: EvFloat, VReg: result})
+		return result, true
+
+	case "SetFieldFloat":
+		if len(call.Args) != 3 {
+			l.errors.Addf(l.pos(call), "quake.SetFieldFloat expects 3 args: (entity, fieldOffset, value)")
+			return VRegInvalid, true
+		}
+		entType := l.goTypeToQC(l.currentInfo.Types[call.Args[0]].Type)
+		ofsType := l.goTypeToQC(l.currentInfo.Types[call.Args[1]].Type)
+		valType := l.goTypeToQC(l.currentInfo.Types[call.Args[2]].Type)
+		if entType != EvEntity {
+			l.errors.Addf(l.pos(call.Args[0]), "quake.SetFieldFloat arg 1 must be entity, got %T", l.currentInfo.Types[call.Args[0]].Type)
+			return VRegInvalid, true
+		}
+		if ofsType != EvField {
+			l.errors.Addf(l.pos(call.Args[1]), "quake.SetFieldFloat arg 2 must be field offset, got %T", l.currentInfo.Types[call.Args[1]].Type)
+			return VRegInvalid, true
+		}
+		if valType != EvFloat {
+			l.errors.Addf(l.pos(call.Args[2]), "quake.SetFieldFloat arg 3 must be float, got %T", l.currentInfo.Types[call.Args[2]].Type)
+			return VRegInvalid, true
+		}
+
+		ent := l.lowerExpr(fn, call.Args[0])
+		ofs := l.lowerExpr(fn, call.Args[1])
+		val := l.lowerExpr(fn, call.Args[2])
+
+		ptr := l.allocVReg()
+		fn.Body = append(fn.Body, IRInst{
+			Op:   qc.OPAddress,
+			A:    ent,
+			B:    ofs,
+			C:    ptr,
+			Type: EvPointer,
+		})
+		fn.Locals = append(fn.Locals, IRLocal{Type: EvPointer, VReg: ptr})
+		fn.Body = append(fn.Body, IRInst{
+			Op:   opcodeForStoreP(EvFloat),
+			A:    val,
+			B:    ptr,
+			Type: EvFloat,
+		})
+		return VRegInvalid, true
+	}
+
+	return VRegInvalid, false
+}
+
+func (l *Lowerer) fieldOffsetIntrinsicName(call *ast.CallExpr) (string, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	pkgIdent, ok := sel.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	pkgObj, ok := l.currentInfo.Uses[pkgIdent].(*types.PkgName)
+	if !ok || pkgObj == nil {
+		return "", false
+	}
+	if pkgObj.Imported() == nil || pkgObj.Imported().Name() != "quake" {
+		return "", false
+	}
+	switch sel.Sel.Name {
+	case "FieldFloat", "SetFieldFloat":
+		return sel.Sel.Name, true
+	default:
+		return "", false
+	}
 }
 
 func (l *Lowerer) lowerSelectorExpr(fn *IRFunc, sel *ast.SelectorExpr) VReg {

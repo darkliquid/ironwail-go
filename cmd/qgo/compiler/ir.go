@@ -52,12 +52,12 @@ type IRLocal struct {
 
 // IRGlobal represents a global variable.
 type IRGlobal struct {
-	Name     string
-	Type     qc.EType
-	Offset   uint16  // Assigned global offset
+	Name      string
+	Type      qc.EType
+	Offset    uint16  // Assigned global offset
 	InitFloat float64 // Initial float value
-	InitStr  string  // Initial string value (interned later)
-	InitVec  [3]float32
+	InitStr   string  // Initial string value (interned later)
+	InitVec   [3]float32
 }
 
 // IRField represents an entity field definition.
@@ -90,4 +90,51 @@ func (inst *IRInst) LabelName() string {
 		return inst.Label[1:]
 	}
 	return inst.Label
+}
+
+// optimizeIRProgram runs lightweight IR optimization passes that preserve
+// current semantics while trimming no-op work from lowering output.
+func optimizeIRProgram(prog *IRProgram) {
+	for i := range prog.Functions {
+		fn := &prog.Functions[i]
+		if fn.IsBuiltin {
+			continue
+		}
+		optimizeIRFunc(fn)
+	}
+}
+
+func optimizeIRFunc(fn *IRFunc) {
+	foldStoreSelfCopies(fn)
+}
+
+// foldStoreSelfCopies removes no-op stores like OPStoreF x -> x that can be
+// emitted for constants and return-value materialization.
+func foldStoreSelfCopies(fn *IRFunc) {
+	if len(fn.Body) == 0 {
+		return
+	}
+	optimized := fn.Body[:0]
+	for _, inst := range fn.Body {
+		if isNoOpStore(inst) {
+			continue
+		}
+		optimized = append(optimized, inst)
+	}
+	fn.Body = optimized
+}
+
+func isNoOpStore(inst IRInst) bool {
+	if inst.ImmStr != "" {
+		return false
+	}
+	if inst.Op == qc.OPStoreF && inst.ImmFloat != 0 {
+		return false
+	}
+	switch inst.Op {
+	case qc.OPStoreF, qc.OPStoreV, qc.OPStoreS, qc.OPStoreEnt, qc.OPStoreFld, qc.OPStoreFNC:
+		return inst.A == inst.B
+	default:
+		return false
+	}
 }

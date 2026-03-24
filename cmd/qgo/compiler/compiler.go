@@ -123,6 +123,7 @@ func (c *Compiler) Compile(dir string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	optimizeIRProgram(irProg)
 
 	// Code generation: IR → QCVM
 	globals := NewGlobalAllocator()

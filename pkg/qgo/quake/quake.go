@@ -259,26 +259,29 @@ type Entity struct {
 }
 
 // EntityFlags represents bitflags stored in Entity.Flags.
+//
+//go:generate stringer -type=EntityFlags
 type EntityFlags uint32
 
 const (
-	FlagFly           EntityFlags = 1
-	FlagSwim          EntityFlags = 2
-	FlagClient        EntityFlags = 8
-	FlagInWater       EntityFlags = 16
-	FlagMonster       EntityFlags = 32
-	FlagGodMode       EntityFlags = 64
-	FlagNoTarget      EntityFlags = 128
-	FlagItem          EntityFlags = 256
-	FlagOnGround      EntityFlags = 512
-	FlagPartialGround EntityFlags = 1024
-	FlagWaterJump     EntityFlags = 2048
-	FlagJumpReleased  EntityFlags = 4096
-	FlagIsBot         EntityFlags = 8192
-	FlagNoPlayers     EntityFlags = 16384
-	FlagNoMonsters    EntityFlags = 32768
-	FlagNoBots        EntityFlags = 65536
-	FlagObjective     EntityFlags = 131072
+	FlagFly EntityFlags = 1 << iota
+	FlagSwim
+	_
+	FlagClient
+	FlagInWater
+	FlagMonster
+	FlagGodMode
+	FlagNoTarget
+	FlagItem
+	FlagOnGround
+	FlagPartialGround
+	FlagWaterJump
+	FlagJumpReleased
+	FlagIsBot
+	FlagNoPlayers
+	FlagNoMonsters
+	FlagNoBots
+	FlagObjective
 )
 
 // EntityFlagsFromFloat converts QC-style float storage into typed flag bits.
@@ -373,6 +376,25 @@ type PainFunc func(attacker *Entity, damage float32)
 // FieldOffset represents an offset into the entity field data, mapped to
 // the 'ev_field' type. It is used to dynamically access fields on entities.
 type FieldOffset any
+
+// FieldFloat reads a float32 entity field using a runtime field offset.
+// qgo lowers this helper as a compiler intrinsic (OP_LOAD_F).
+func FieldFloat(entity *Entity, field FieldOffset) float32 {
+	if entity == nil {
+		return 0
+	}
+	_ = field
+	return 0
+}
+
+// SetFieldFloat writes a float32 entity field using a runtime field offset.
+// qgo lowers this helper as a compiler intrinsic (OP_ADDRESS + OP_STOREP_F).
+func SetFieldFloat(entity *Entity, field FieldOffset, value float32) {
+	if entity == nil {
+		return
+	}
+	_, _ = field, value
+}
 
 // Void is a marker type used for functions that do not return a value.
 // In QGo, a function returning Void maps to a QCVM 'ev_void' return type.

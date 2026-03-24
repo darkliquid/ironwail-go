@@ -5,12 +5,13 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
-var (
-	DOOR_START_OPEN float32 = 1
-	DOOR_DONT_LINK  float32 = 4
-	DOOR_GOLD_KEY   float32 = 8
-	DOOR_SILVER_KEY float32 = 16
-	DOOR_TOGGLE     float32 = 32
+const (
+	doorFlagStartOpen = 1 << iota
+	_
+	doorFlagDontLink
+	doorFlagGoldKey
+	doorFlagSilverKey
+	doorFlagToggle
 )
 
 func door_blocked() {
@@ -29,7 +30,7 @@ func door_hit_top() {
 	engine.Sound(Self, int(CHAN_VOICE), Self.Noise1, 1, ATTN_NORM)
 	Self.State = float32(STATE_TOP)
 
-	if (int(Self.SpawnFlags) & int(DOOR_TOGGLE)) != 0 {
+	if (int(Self.SpawnFlags) & doorFlagToggle) != 0 {
 		return
 	}
 
@@ -91,7 +92,7 @@ func door_fire() {
 	Self.Message = StringNull
 	oself = Self
 
-	if (int(Self.SpawnFlags) & int(DOOR_TOGGLE)) != 0 {
+	if (int(Self.SpawnFlags) & doorFlagToggle) != 0 {
 		if Self.State == float32(STATE_UP) || Self.State == float32(STATE_TOP) {
 			starte = Self
 			for {
@@ -254,7 +255,7 @@ func LinkDoors() {
 		return
 	}
 
-	if (int(Self.SpawnFlags) & 4) != 0 {
+	if (int(Self.SpawnFlags) & doorFlagDontLink) != 0 {
 		Self.Owner = Self
 		Self.Enemy = Self
 		return
@@ -396,11 +397,11 @@ func func_door() {
 	Self.Blocked = door_blocked
 	Self.Use = door_use
 
-	if (int(Self.SpawnFlags) & int(DOOR_SILVER_KEY)) != 0 {
+	if (int(Self.SpawnFlags) & doorFlagSilverKey) != 0 {
 		Self.Items = float32(IT_KEY1)
 	}
 
-	if (int(Self.SpawnFlags) & int(DOOR_GOLD_KEY)) != 0 {
+	if (int(Self.SpawnFlags) & doorFlagGoldKey) != 0 {
 		Self.Items = float32(IT_KEY2)
 	}
 
@@ -426,7 +427,7 @@ func func_door() {
 	dot := movedir_fabs.Dot(Self.Size)
 	Self.Pos2 = Self.Pos1.Add(Self.MoveDir.Mul(dot - Self.Lip))
 
-	if (int(Self.SpawnFlags) & int(DOOR_START_OPEN)) != 0 {
+	if (int(Self.SpawnFlags) & doorFlagStartOpen) != 0 {
 		engine.SetOrigin(Self, Self.Pos2)
 		Self.Pos2 = Self.Pos1
 		Self.Pos1 = Self.Origin

@@ -19,8 +19,8 @@ type CodeGen struct {
 	// Per-function state
 	vregMap      map[VReg]uint16 // Virtual register -> global offset
 	nextVReg     VReg
-	localOfs     uint16 // Start of function locals
-	localSize    uint16 // Number of local slots used
+	localOfs     uint16         // Start of function locals
+	localSize    uint16         // Number of local slots used
 	labelTargets map[int]string // statement index -> label name for branch patching
 }
 
@@ -200,6 +200,15 @@ func (cg *CodeGen) generateFunc(fn *IRFunc) {
 
 func (cg *CodeGen) emitInst(inst *IRInst) {
 	op := inst.Op
+
+	if inst.ImmStr != "" && op == qc.OPStoreS {
+		cg.globals.SetInt(cg.resolveVReg(inst.B), cg.strings.Intern(inst.ImmStr))
+		return
+	}
+	if op == qc.OPStoreF && inst.ImmFloat != 0 {
+		cg.globals.SetFloat(cg.resolveVReg(inst.B), inst.ImmFloat)
+		return
+	}
 
 	switch op {
 	case qc.OPGoto:
