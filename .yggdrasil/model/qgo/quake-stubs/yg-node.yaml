@@ -1,0 +1,17 @@
+name: Quake Stub Runtime API
+type: library
+description: "Runtime-executable quake stubs, including vector helpers and mockable engine builtin hooks for unit tests"
+blackbox: false
+relations:
+  - target: qgo/compiler
+    type: uses
+    consumes: [qgo:builtin directive signatures, quake stub API contracts]
+mapping:
+  paths:
+    - pkg/qgo/quake/quake.go
+    - pkg/qgo/quake/quake_test.go
+    - pkg/qgo/quake/engine/backend.go
+    - pkg/qgo/quake/engine/backend_test.go
+    - pkg/qgo/quake/engine/builtins.go
+    - pkg/qgo/quake/engine/globals.go
+    - pkg/qgo/quake/engine/helpers.go

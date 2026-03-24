@@ -2,36 +2,26 @@
 
 ## Logic
 
-The vector API is implemented directly on top of `Vec3`'s `[3]float32` layout so semantics remain transparent and close to QCVM vector slots. Operator-emulation helpers are thin adapters to the method surface, keeping one canonical implementation path for each operation.
+Vector/operator behavior is implemented as pure methods/helpers on `Vec3` and remains deterministic.
 
-Entity flag helpers keep `Entity.Flags` and `Entity.SpawnFlags` as `float32` to preserve entvar compatibility while introducing `EntityFlags` (`uint32`) for bitwise operations. The conversion seam is explicit (`EntityFlagsFromFloat` and `Float32`) so gameplay code can use typed masks without changing field storage layout.
+Engine builtin stubs stay as top-level functions with unchanged signatures. A selected subset now performs a fast hook lookup via `backend()` and either calls the configured hook or returns legacy stub defaults. This gives tests a minimal seam without changing call sites in translated gameplay packages.
 
 ## Constraints
 
-- preserve straightforward arithmetic semantics to support test execution outside compiler/lowering paths
-- keep the helper naming explicit (`Op*`) to avoid confusion with regular Go operators that cannot be overloaded
-- keep entity/storage compatibility by leaving `Entity` flag fields float-backed while adding typed wrappers for reads and writes
+- do not break `//qgo:builtin` signature and naming expectations used by compiler lowering
+- preserve default behavior for callers that do not install a backend
+- keep backend API small and additive; avoid introducing runtime-engine assumptions into the test seam
 
 ## Decisions
 
-### Thin helper wrappers over duplicated arithmetic
+### Chose a hook-table backend over replacing builtin functions
 
 Observed decision:
-- `Op*` helper functions delegate to `Vec3` methods instead of re-implementing each formula.
+- add `Backend` with function fields and route selected builtins through it.
 
 Rationale:
-- avoid divergence between method semantics and operator-emulation behavior.
+- keeps existing `engine.*` API stable for both compiler and translated code while enabling deterministic unit tests with regular Go tooling.
 
 Rejected alternatives:
-- duplicate formulas in each `Op*` helper — rejected because it increases drift risk and test burden.
-
-### Typed wrappers over changing `Entity` field types
-
-Observed decision:
-- introduce `EntityFlags` plus `Entity` helper methods, but keep `Entity.Flags` and `Entity.SpawnFlags` as `float32`.
-
-Rationale:
-- this tightens type safety for common bitflag operations immediately while avoiding broad compiler and generated-code churn in the same slice.
-
-Rejected alternatives:
-- change `Entity.Flags`/`SpawnFlags` field types directly to a non-float type — rejected for now due to larger compatibility and lowering implications outside this focused stub slice.
+- replace builtins with interface methods and require dependency injection at every call site — rejected because it would require large churn across translated gameplay code.
+- implement all builtins immediately in pure Go — rejected because it increases scope and does not provide the minimal testing seam needed for this slice.

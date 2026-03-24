@@ -15,7 +15,11 @@ import "github.com/ironwail/ironwail-go/pkg/qgo/quake"
 //
 //qgo:builtin 1
 //go:noinline
-func MakeVectors(ang quake.Vec3) {}
+func MakeVectors(ang quake.Vec3) {
+	if fn := backend().MakeVectors; fn != nil {
+		fn(ang)
+	}
+}
 
 // SetOrigin moves an entity to a specific position in the world.
 // This is an absolute movement that bypasses physics and collision.
@@ -24,7 +28,11 @@ func MakeVectors(ang quake.Vec3) {}
 //
 //qgo:builtin 2
 //go:noinline
-func SetOrigin(e *quake.Entity, org quake.Vec3) {}
+func SetOrigin(e *quake.Entity, org quake.Vec3) {
+	if fn := backend().SetOrigin; fn != nil {
+		fn(e, org)
+	}
+}
 
 // SetModel sets the visual model for an entity using a model path (e.g. "progs/player.mdl").
 // This also updates the entity's modelindex.
@@ -33,7 +41,11 @@ func SetOrigin(e *quake.Entity, org quake.Vec3) {}
 //
 //qgo:builtin 3
 //go:noinline
-func SetModel(e *quake.Entity, m string) {}
+func SetModel(e *quake.Entity, m string) {
+	if fn := backend().SetModel; fn != nil {
+		fn(e, m)
+	}
+}
 
 // SetSize sets the bounding box (mins and maxs) for an entity's physics.
 // The bounding box is relative to the entity's origin.
@@ -42,7 +54,11 @@ func SetModel(e *quake.Entity, m string) {}
 //
 //qgo:builtin 4
 //go:noinline
-func SetSize(e *quake.Entity, min, max quake.Vec3) {}
+func SetSize(e *quake.Entity, min, max quake.Vec3) {
+	if fn := backend().SetSize; fn != nil {
+		fn(e, min, max)
+	}
+}
 
 // BreakStatement triggers a debugger break if a debugger is attached to the VM.
 //
@@ -59,7 +75,12 @@ func BreakStatement() {}
 //
 //qgo:builtin 7
 //go:noinline
-func Random() float32 { return 0 }
+func Random() float32 {
+	if fn := backend().Random; fn != nil {
+		return fn()
+	}
+	return 0
+}
 
 // Sound plays a sound effect from the specified entity.
 //
@@ -67,7 +88,11 @@ func Random() float32 { return 0 }
 //
 //qgo:builtin 8
 //go:noinline
-func Sound(e *quake.Entity, ch int, samp string, vol float32, atten float32) {}
+func Sound(e *quake.Entity, ch int, samp string, vol float32, atten float32) {
+	if fn := backend().Sound; fn != nil {
+		fn(e, ch, samp, vol, atten)
+	}
+}
 
 // Normalize returns a vector with the same direction as the input but with a length of 1.
 //
@@ -93,7 +118,11 @@ func Error(s string) {}
 //
 //qgo:builtin 11
 //go:noinline
-func ObjError(s string) {}
+func ObjError(s string) {
+	if fn := backend().ObjError; fn != nil {
+		fn(s)
+	}
+}
 
 // Vlen returns the length (magnitude) of a 3D vector.
 //
@@ -101,7 +130,12 @@ func ObjError(s string) {}
 //
 //qgo:builtin 12
 //go:noinline
-func Vlen(v quake.Vec3) float32 { return 0 }
+func Vlen(v quake.Vec3) float32 {
+	if fn := backend().Vlen; fn != nil {
+		return fn(v)
+	}
+	return 0
+}
 
 // Vectoyaw returns the yaw angle (0-360) that a direction vector points towards.
 //
@@ -109,7 +143,12 @@ func Vlen(v quake.Vec3) float32 { return 0 }
 //
 //qgo:builtin 13
 //go:noinline
-func Vectoyaw(v quake.Vec3) float32 { return 0 }
+func Vectoyaw(v quake.Vec3) float32 {
+	if fn := backend().Vectoyaw; fn != nil {
+		return fn(v)
+	}
+	return 0
+}
 
 // Spawn creates a new, empty entity in the game world and returns its handle.
 //
@@ -117,7 +156,12 @@ func Vectoyaw(v quake.Vec3) float32 { return 0 }
 //
 //qgo:builtin 14
 //go:noinline
-func Spawn() *quake.Entity { return nil }
+func Spawn() *quake.Entity {
+	if fn := backend().Spawn; fn != nil {
+		return fn()
+	}
+	return nil
+}
 
 // Remove deletes an entity from the game world and deallocates its slot.
 //
@@ -125,7 +169,11 @@ func Spawn() *quake.Entity { return nil }
 //
 //qgo:builtin 15
 //go:noinline
-func Remove(e *quake.Entity) {}
+func Remove(e *quake.Entity) {
+	if fn := backend().Remove; fn != nil {
+		fn(e)
+	}
+}
 
 // Traceline performs a ray-cast from v1 to v2 and stores the results in trace globals.
 //
@@ -150,7 +198,12 @@ func CheckClient() *quake.Entity { return nil }
 //
 //qgo:builtin 18
 //go:noinline
-func Find(e *quake.Entity, field string, match string) *quake.Entity { return nil }
+func Find(e *quake.Entity, field string, match string) *quake.Entity {
+	if fn := backend().Find; fn != nil {
+		return fn(e, field, match)
+	}
+	return nil
+}
 
 // PrecacheSound registers a sound file path so it can be loaded and played.
 //
@@ -158,7 +211,12 @@ func Find(e *quake.Entity, field string, match string) *quake.Entity { return ni
 //
 //qgo:builtin 19
 //go:noinline
-func PrecacheSound(s string) string { return s }
+func PrecacheSound(s string) string {
+	if fn := backend().PrecacheSound; fn != nil {
+		return fn(s)
+	}
+	return s
+}
 
 // PrecacheModel registers a model file path so it can be loaded and used.
 //
@@ -166,7 +224,12 @@ func PrecacheSound(s string) string { return s }
 //
 //qgo:builtin 20
 //go:noinline
-func PrecacheModel(s string) string { return s }
+func PrecacheModel(s string) string {
+	if fn := backend().PrecacheModel; fn != nil {
+		return fn(s)
+	}
+	return s
+}
 
 // --- Group 21-30: Communication and Strings ---
 
@@ -216,7 +279,11 @@ func Print(s string) {}
 //
 //qgo:builtin 25
 //go:noinline
-func Dprint(s string) {}
+func Dprint(s string) {
+	if fn := backend().Dprint; fn != nil {
+		fn(s)
+	}
+}
 
 // Ftos converts a float value to its string representation.
 //
@@ -232,7 +299,12 @@ func Ftos(f float32) string { return "" }
 //
 //qgo:builtin 27
 //go:noinline
-func Vtos(v quake.Vec3) string { return "" }
+func Vtos(v quake.Vec3) string {
+	if fn := backend().Vtos; fn != nil {
+		return fn(v)
+	}
+	return ""
+}
 
 // --- Group 31-40: Physics and Rounding ---
 
@@ -250,7 +322,12 @@ func EPrint(e *quake.Entity) {}
 //
 //qgo:builtin 32
 //go:noinline
-func WalkMove(yaw float32, dist float32) float32 { return 0 }
+func WalkMove(yaw float32, dist float32) float32 {
+	if fn := backend().WalkMove; fn != nil {
+		return fn(yaw, dist)
+	}
+	return 0
+}
 
 // DropToFloor moves an entity vertically down until it hits a solid floor.
 //
@@ -258,7 +335,12 @@ func WalkMove(yaw float32, dist float32) float32 { return 0 }
 //
 //qgo:builtin 34
 //go:noinline
-func DropToFloor() float32 { return 0 }
+func DropToFloor() float32 {
+	if fn := backend().DropToFloor; fn != nil {
+		return fn()
+	}
+	return 0
+}
 
 // LightStyle sets the illumination pattern for a specific light style index (0-63).
 //
@@ -316,7 +398,12 @@ func PointContents(p quake.Vec3) float32 { return 0 }
 //
 //qgo:builtin 43
 //go:noinline
-func FAbs(f float32) float32 { return 0 }
+func FAbs(f float32) float32 {
+	if fn := backend().FAbs; fn != nil {
+		return fn(f)
+	}
+	return 0
+}
 
 // Aim returns a direction vector pointing towards a target for a missile with the given speed.
 //
@@ -332,7 +419,12 @@ func Aim(e *quake.Entity, speed float32) quake.Vec3 { return quake.Vec3{} }
 //
 //qgo:builtin 45
 //go:noinline
-func Cvar(s string) float32 { return 0 }
+func Cvar(s string) float32 {
+	if fn := backend().Cvar; fn != nil {
+		return fn(s)
+	}
+	return 0
+}
 
 // LocalCmd appends text to the engine's local command buffer for execution.
 //
@@ -340,7 +432,11 @@ func Cvar(s string) float32 { return 0 }
 //
 //qgo:builtin 46
 //go:noinline
-func LocalCmd(s string) {}
+func LocalCmd(s string) {
+	if fn := backend().LocalCmd; fn != nil {
+		fn(s)
+	}
+}
 
 // NextEnt returns the next entity in the world's entity list after the given entity.
 //
@@ -382,7 +478,11 @@ func VectoAngles(v quake.Vec3) quake.Vec3 { return quake.Vec3{} }
 //
 //qgo:builtin 52
 //go:noinline
-func WriteByte(dest float32, b float32) {}
+func WriteByte(dest float32, b float32) {
+	if fn := backend().WriteByte; fn != nil {
+		fn(dest, b)
+	}
+}
 
 // WriteChar adds a character value to a network message.
 //
@@ -430,7 +530,11 @@ func WriteAngle(dest float32, b float32) {}
 //
 //qgo:builtin 58
 //go:noinline
-func WriteString(dest float32, s string) {}
+func WriteString(dest float32, s string) {
+	if fn := backend().WriteString; fn != nil {
+		fn(dest, s)
+	}
+}
 
 // WriteEntity adds an entity handle to a network message.
 //
@@ -504,7 +608,11 @@ func MakeStatic(e *quake.Entity) {}
 //
 //qgo:builtin 70
 //go:noinline
-func Changelevel(s string) {}
+func Changelevel(s string) {
+	if fn := backend().Changelevel; fn != nil {
+		fn(s)
+	}
+}
 
 // --- Group 71-80: Configuration and Sound ---
 
@@ -522,7 +630,11 @@ func CvarSet(s string, v string) {}
 //
 //qgo:builtin 73
 //go:noinline
-func Centerprint(s string) {}
+func Centerprint(s string) {
+	if fn := backend().Centerprint; fn != nil {
+		fn(s)
+	}
+}
 
 // Ambientsound plays a looping sound at a specific position.
 //
@@ -554,7 +666,11 @@ func PrecacheSound2(s string) string { return s }
 //
 //qgo:builtin 78
 //go:noinline
-func SetSpawnParms(e *quake.Entity) {}
+func SetSpawnParms(e *quake.Entity) {
+	if fn := backend().SetSpawnParms; fn != nil {
+		fn(e)
+	}
+}
 
 // FinaleFinished signals the engine that a finale sequence has completed.
 //
