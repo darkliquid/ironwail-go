@@ -143,10 +143,10 @@ type Entity struct {
 	Style    float32 `qgo:"style"`
 
 	// monster AI
-	ThStand   Func `qgo:"th_stand"`
-	ThWalk    Func `qgo:"th_walk"`
-	ThRun     Func `qgo:"th_run"`
-	ThMissile Func `qgo:"th_missile"`
+	ThStand   Func     `qgo:"th_stand"`
+	ThWalk    Func     `qgo:"th_walk"`
+	ThRun     Func     `qgo:"th_run"`
+	ThMissile Func     `qgo:"th_missile"`
 	ThMelee   Func     `qgo:"th_melee"`
 	ThPain    PainFunc `qgo:"th_pain"`
 	ThDie     Func     `qgo:"th_die"`
@@ -258,6 +258,110 @@ type Entity struct {
 	DmgTime float32 `qgo:"dmgtime"`
 }
 
+// EntityFlags represents bitflags stored in Entity.Flags.
+type EntityFlags uint32
+
+const (
+	FlagFly           EntityFlags = 1
+	FlagSwim          EntityFlags = 2
+	FlagClient        EntityFlags = 8
+	FlagInWater       EntityFlags = 16
+	FlagMonster       EntityFlags = 32
+	FlagGodMode       EntityFlags = 64
+	FlagNoTarget      EntityFlags = 128
+	FlagItem          EntityFlags = 256
+	FlagOnGround      EntityFlags = 512
+	FlagPartialGround EntityFlags = 1024
+	FlagWaterJump     EntityFlags = 2048
+	FlagJumpReleased  EntityFlags = 4096
+	FlagIsBot         EntityFlags = 8192
+	FlagNoPlayers     EntityFlags = 16384
+	FlagNoMonsters    EntityFlags = 32768
+	FlagNoBots        EntityFlags = 65536
+	FlagObjective     EntityFlags = 131072
+)
+
+// EntityFlagsFromFloat converts QC-style float storage into typed flag bits.
+func EntityFlagsFromFloat(v float32) EntityFlags {
+	return EntityFlags(uint32(v))
+}
+
+// Float32 converts typed flags into QC-style float storage.
+func (f EntityFlags) Float32() float32 {
+	return float32(uint32(f))
+}
+
+// Has reports whether all bits in mask are set.
+func (f EntityFlags) Has(mask EntityFlags) bool {
+	return f&mask == mask
+}
+
+// With returns flags with mask bits set.
+func (f EntityFlags) With(mask EntityFlags) EntityFlags {
+	return f | mask
+}
+
+// Without returns flags with mask bits cleared.
+func (f EntityFlags) Without(mask EntityFlags) EntityFlags {
+	return f &^ mask
+}
+
+// FlagsValue returns Entity.Flags as strongly typed bits.
+func (e *Entity) FlagsValue() EntityFlags {
+	if e == nil {
+		return 0
+	}
+	return EntityFlagsFromFloat(e.Flags)
+}
+
+// SetFlagsValue writes strongly typed bits into Entity.Flags.
+func (e *Entity) SetFlagsValue(flags EntityFlags) {
+	if e == nil {
+		return
+	}
+	e.Flags = flags.Float32()
+}
+
+// HasFlags reports whether all bits in mask are set in Entity.Flags.
+func (e *Entity) HasFlags(mask EntityFlags) bool {
+	if e == nil {
+		return false
+	}
+	return e.FlagsValue().Has(mask)
+}
+
+// AddFlags sets bits in Entity.Flags.
+func (e *Entity) AddFlags(mask EntityFlags) {
+	if e == nil {
+		return
+	}
+	e.SetFlagsValue(e.FlagsValue().With(mask))
+}
+
+// ClearFlags clears bits in Entity.Flags.
+func (e *Entity) ClearFlags(mask EntityFlags) {
+	if e == nil {
+		return
+	}
+	e.SetFlagsValue(e.FlagsValue().Without(mask))
+}
+
+// SpawnFlagsValue returns Entity.SpawnFlags as strongly typed bits.
+func (e *Entity) SpawnFlagsValue() EntityFlags {
+	if e == nil {
+		return 0
+	}
+	return EntityFlagsFromFloat(e.SpawnFlags)
+}
+
+// SetSpawnFlagsValue writes strongly typed bits into Entity.SpawnFlags.
+func (e *Entity) SetSpawnFlagsValue(flags EntityFlags) {
+	if e == nil {
+		return
+	}
+	e.SpawnFlags = flags.Float32()
+}
+
 // Func represents a function pointer or index in the QCVM function table,
 // mapped to the 'ev_function' type. It is used for callback fields like
 // .think, .touch, and .use.
@@ -292,6 +396,11 @@ func (v Vec3) Mul(s float32) Vec3 {
 	return Vec3{v[0] * s, v[1] * s, v[2] * s}
 }
 
+// Div returns the vector divided by s.
+func (v Vec3) Div(s float32) Vec3 {
+	return Vec3{v[0] / s, v[1] / s, v[2] / s}
+}
+
 // Add returns the sum of v and o.
 func (v Vec3) Add(o Vec3) Vec3 {
 	return Vec3{v[0] + o[0], v[1] + o[1], v[2] + o[2]}
@@ -305,4 +414,58 @@ func (v Vec3) Sub(o Vec3) Vec3 {
 // Dot returns the dot product of v and o.
 func (v Vec3) Dot(o Vec3) float32 {
 	return v[0]*o[0] + v[1]*o[1] + v[2]*o[2]
+}
+
+// Neg returns the negated vector.
+func (v Vec3) Neg() Vec3 {
+	return Vec3{-v[0], -v[1], -v[2]}
+}
+
+// Cross returns the cross product of v and o.
+func (v Vec3) Cross(o Vec3) Vec3 {
+	return Vec3{
+		v[1]*o[2] - v[2]*o[1],
+		v[2]*o[0] - v[0]*o[2],
+		v[0]*o[1] - v[1]*o[0],
+	}
+}
+
+// Lerp linearly interpolates between v and o by t.
+func (v Vec3) Lerp(o Vec3, t float32) Vec3 {
+	return v.Add(o.Sub(v).Mul(t))
+}
+
+// OpAddVV emulates QC vector addition: a + b.
+func OpAddVV(a, b Vec3) Vec3 {
+	return a.Add(b)
+}
+
+// OpSubVV emulates QC vector subtraction: a - b.
+func OpSubVV(a, b Vec3) Vec3 {
+	return a.Sub(b)
+}
+
+// OpMulVF emulates QC vector-scalar multiply: a * s.
+func OpMulVF(a Vec3, s float32) Vec3 {
+	return a.Mul(s)
+}
+
+// OpMulFV emulates QC scalar-vector multiply: s * a.
+func OpMulFV(s float32, a Vec3) Vec3 {
+	return a.Mul(s)
+}
+
+// OpMulVV emulates QC vector multiply (dot product): a * b.
+func OpMulVV(a, b Vec3) float32 {
+	return a.Dot(b)
+}
+
+// OpDivVF emulates QC vector-scalar divide: a / s.
+func OpDivVF(a Vec3, s float32) Vec3 {
+	return a.Div(s)
+}
+
+// OpNegV emulates QC unary vector negation: -a.
+func OpNegV(a Vec3) Vec3 {
+	return a.Neg()
 }
