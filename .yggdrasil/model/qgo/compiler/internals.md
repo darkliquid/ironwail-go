@@ -107,18 +107,21 @@ Recommended narrow implementation slice after this audit:
 Dynamic helper lowering is now enabled for a narrow FieldOffset contract:
 
 - `quake.FieldFloat(entity, fieldOffset)` lowers directly to `OP_LOAD_F`
+- `quake.SetFieldFloat(entity, fieldOffset, value)` lowers directly to `OP_ADDRESS` + `OP_STOREP_F`
 - `ent.FieldFloat(fieldOffset)` for `quake.Entity` receiver form lowers directly to `OP_LOAD_F`
+- `ent.SetFieldFloat(fieldOffset, value)` for `quake.Entity` receiver form lowers directly to `OP_ADDRESS` + `OP_STOREP_F`
 
 Lowering performs strict intrinsic gating before generic call handling:
 
 - helper name must be one of the recognized intrinsic names
-- arity must match exactly (`2` for read)
-- argument QC types are validated (`entity`, `field`)
+- arity must match exactly (`2` for reads, `3` for package-level writes, `2` for receiver writes)
+- argument QC types are validated (`entity`, `field`, `float` where applicable)
 - receiver-form read validates receiver QC type `entity` and field-offset QC type `field`
+- receiver-form write validates receiver QC type `entity`, field-offset QC type `field`, and value QC type `float`
 
 This keeps dynamic field access opcode-correct without lowering imported helper bodies.
 
-Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow read-only helper now produce an explicit defer diagnostic. Receiver-form methods beyond `FieldFloat`, including `ent.SetFieldFloat(...)`, remain deferred so the receiver surface stays read-only in this slice. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
+Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow float helper slice now produce an explicit defer diagnostic. Receiver-form methods beyond `FieldFloat`/`SetFieldFloat` remain deferred, so vector/string/entity receiver helpers still stay out of scope. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
 
 ## Constraints
 

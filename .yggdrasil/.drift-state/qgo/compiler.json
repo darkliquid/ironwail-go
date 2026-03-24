@@ -1,9 +1,7 @@
 {
-  "hash": "98b1314e062ed870b97cbd41ef805e8b0f4b1ec621bfb439c34e48b46d3c99e8",
+  "hash": "efe1a05d86b9e0fdbe1ffb53cf1fd09c9876b5921a4f7fc7841f19a1b579691b",
   "files": {
     ".yggdrasil/model/qgo/compiler/yg-node.yaml": "6cf1f97449bb12d8cb243525281125ffea37acd8e71a1a26111335d7deda30e4",
-    ".yggdrasil/model/qgo/compiler/interface.md": "4b42bde9e23e9384bb4f1d6b429acbae615887dab0fd1cf0e305913f9603780e",
-    ".yggdrasil/model/qgo/compiler/internals.md": "e68d7731014e4bebf4fb44a4a0f355901afc0b2d14397c4fca47e9894477ab97",
     ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
     ".yggdrasil/model/qgo/yg-node.yaml": "e591eb3ec6a469bf7ce7f31460dc1d113280653e7c1086193733a94b639c0df8",
     ".yggdrasil/model/qgo/interface.md": "09fc8703219222b0f572568f62a9e7c4b7afdaf29949ea1d69847ea180001a60",
@@ -21,12 +19,14 @@
     "cmd/qgo/compiler/globals.go": "e7fac09e135ca1fdb22054dfafabc1fb9e8bf6a90c551786c7849f265ed58799",
     "cmd/qgo/compiler/strings.go": "36971bb2d8bd93828d3186c16c6b3c348a212d8801ea662588c483327d3c992a",
     "cmd/qgo/compiler/opcodes.go": "dcf9d5c9e6b52cdff31041a3a34a1930cfe545535fbaada644a4a13a9f661f1d",
-    "cmd/qgo/compiler/errors.go": "a4a0432ea171eee92715a55e6717137e784afbcc8d496dd74ab63a3fabace2ff"
+    "cmd/qgo/compiler/errors.go": "a4a0432ea171eee92715a55e6717137e784afbcc8d496dd74ab63a3fabace2ff",
+    ".yggdrasil/model/qgo/compiler/interface.md": "6412db9267a7f1316afc88035e5795fea8a42f637414d3615388f6fb6192f9d3",
+    ".yggdrasil/model/qgo/compiler/internals.md": "b2cf430ad8b196cfb4a2c68714dc6234888ead8d6b258bc13a32b463e5a213a5"
   },
   "mtimes": {
     ".yggdrasil/model/qgo/compiler/yg-node.yaml": 1774294112462.9868,
-    ".yggdrasil/model/qgo/compiler/interface.md": 1774349991195.308,
-    ".yggdrasil/model/qgo/compiler/internals.md": 1774350002005.454,
+    ".yggdrasil/model/qgo/compiler/interface.md": 1774350189811.9827,
+    ".yggdrasil/model/qgo/compiler/internals.md": 1774350216601.3423,
     ".yggdrasil/model/qgo/compiler/responsibility.md": 1774265244197.6436,
     ".yggdrasil/model/qgo/yg-node.yaml": 1774265243900.6392,
     ".yggdrasil/model/qgo/interface.md": 1774345731227.3816,

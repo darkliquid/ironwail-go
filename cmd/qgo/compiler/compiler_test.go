@@ -1376,6 +1376,109 @@ func Read(ent *quake.Entity, ofs quake.FieldOffset) float32 {
 	}
 }
 
+func TestCompile_FieldOffsetIntrinsic_ReceiverSetFieldFloatOpcodes_NoCallFallback(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgoreceiversetfieldintrinsictest`)
+	writeFieldIntrinsicRuntimeStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgoreceiversetfieldintrinsictest/quake"
+
+func Write(ent *quake.Entity, ofs quake.FieldOffset, value float32) {
+	ent.SetFieldFloat(ofs, value)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	stmts := parseStatements(t, data, header)
+	hasAddress := false
+	hasStorePF := false
+	hasCall := false
+	for _, s := range stmts {
+		switch qc.Opcode(s.Op) {
+		case qc.OPAddress:
+			hasAddress = true
+		case qc.OPStorePF:
+			hasStorePF = true
+		case qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3, qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
+			hasCall = true
+		}
+	}
+
+	if !hasAddress {
+		t.Fatal("expected OP_ADDRESS from quake.Entity.SetFieldFloat intrinsic lowering")
+	}
+	if !hasStorePF {
+		t.Fatal("expected OP_STOREP_F from quake.Entity.SetFieldFloat intrinsic lowering")
+	}
+	if hasCall {
+		t.Fatal("did not expect OP_CALL* fallback for quake.Entity.SetFieldFloat intrinsic lowering")
+	}
+}
+
+func TestRoundTrip_FieldOffsetIntrinsic_ReceiverSetFieldFloatWrite(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgoreceiversetfieldintrinsicroundtriptest`)
+	writeFieldIntrinsicRuntimeStubPackage(t, filepath.Join(dir, "quake"))
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+import "qgoreceiversetfieldintrinsicroundtriptest/quake"
+
+//qgo:entity
+type Entity struct {
+	Health float32 `+"`qgo:\"health\"`"+`
+}
+
+type FieldOffset any
+
+func Write(ent *quake.Entity, ofs FieldOffset, value float32) {
+	ent.SetFieldFloat(ofs, value)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	vm := loadVM(t, data)
+	vm.NumEdicts = 4
+	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
+
+	healthOfs := vm.FindField("health")
+	if healthOfs < 0 {
+		t.Fatal("field 'health' not found")
+	}
+
+	const initial = float32(10.0)
+	const updated = float32(96.5)
+	const entNum = 1
+	vm.SetEFloat(entNum, healthOfs, initial)
+
+	fnum := vm.FindFunction("Write")
+	if fnum < 0 {
+		t.Fatal("function 'Write' not found")
+	}
+
+	vm.SetGInt(qc.OFSParm0, entNum)
+	vm.SetGInt(qc.OFSParm1, int32(healthOfs))
+	vm.SetGFloat(qc.OFSParm2, updated)
+
+	if err := vm.ExecuteProgram(fnum); err != nil {
+		t.Fatalf("ExecuteProgram failed: %v", err)
+	}
+	if got := vm.EFloat(entNum, healthOfs); got != updated {
+		t.Fatalf("entity health after receiver write = %v, want %v", got, updated)
+	}
+}
+
 func TestCompile_FieldOffsetIntrinsic_ReceiverSetFieldVectorDeferred(t *testing.T) {
 	dir := makeCompilerTempDir(t)
 	writeQGoModule(t, dir, `module qgoreceiversetfielddeferredtest`)
