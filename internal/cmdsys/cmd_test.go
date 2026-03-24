@@ -369,6 +369,56 @@ func TestExecuteWithSourceUsesProvidedSource(t *testing.T) {
 	}
 }
 
+func TestAddTextWithSourceRetainsPerChunkProvenance(t *testing.T) {
+	c := NewCmdSystem()
+
+	var seen []CommandSource
+	c.AddCommand("capture", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+	c.AddClientCommand("clientcapture", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+	c.AddServerCommand("servercapture", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+
+	c.AddTextWithSource("capture", SrcCommand)
+	c.AddTextWithSource("clientcapture", SrcClient)
+	c.AddTextWithSource("servercapture", SrcServer)
+	c.Execute()
+
+	want := []CommandSource{SrcCommand, SrcClient, SrcServer}
+	if !reflect.DeepEqual(seen, want) {
+		t.Fatalf("seen sources = %v, want %v", seen, want)
+	}
+}
+
+func TestInsertTextWithSourcePreemptsAndRetainsSource(t *testing.T) {
+	c := NewCmdSystem()
+
+	var seen []CommandSource
+	c.AddCommand("inject", func(args []string) {
+		seen = append(seen, c.Source())
+		c.InsertTextWithSource("clientcapture", SrcClient)
+	}, "")
+	c.AddClientCommand("clientcapture", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+	c.AddCommand("tail", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+
+	c.AddTextWithSource("inject", SrcCommand)
+	c.AddTextWithSource("tail", SrcCommand)
+	c.Execute()
+
+	want := []CommandSource{SrcCommand, SrcClient, SrcCommand}
+	if !reflect.DeepEqual(seen, want) {
+		t.Fatalf("seen sources = %v, want %v", seen, want)
+	}
+}
+
 // TestInsertTextDuringExecutePreemptsRemainingCommands verifies Quake-style
 // command buffer semantics: InsertText from a running command executes before
 // later lines from the current buffer.

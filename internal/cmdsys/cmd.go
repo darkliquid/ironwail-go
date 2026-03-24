@@ -68,6 +68,11 @@ type Command struct {
 	SourceType  CommandSource
 }
 
+type bufferedText struct {
+	text   string
+	source CommandSource
+}
+
 // CmdSystem is the central command execution engine, analogous to the global
 // state in Quake's cmd.c. It maintains three key data structures:
 //   - commands: a registry of named commands with their handler callbacks.
@@ -83,7 +88,7 @@ type CmdSystem struct {
 	mu          sync.RWMutex        // Protects concurrent access to commands, aliases, and buffer.
 	commands    map[string]*Command // Registry of all named commands, keyed by lowercase name.
 	aliases     map[string]string   // User-defined alias expansions, keyed by lowercase alias name.
-	buffer      strings.Builder     // Accumulated command text waiting to be executed.
+	buffer      []bufferedText      // Accumulated command text chunks waiting to be executed.
 	waitCount   int                 // Tracks pending "wait" frames; see executeTextWithWait.
 	source      CommandSource       // Current command source for handlers executing in this context.
 	ForwardFunc func(line string)   // Called for unrecognized commands (e.g., forward to server).
@@ -359,13 +364,46 @@ func (c *CmdSystem) Aliases() map[string]string {
 //
 // This corresponds to Cbuf_AddText() in Quake's cmd.c — "Cbuf" being the
 // "command buffer" that accumulates text between frames.
+func normalizeBufferedText(text string) string {
+	if !strings.HasSuffix(text, "\n") {
+		return text + "\n"
+	}
+	return text
+}
+
+func (c *CmdSystem) addBufferedTextLocked(text string, source CommandSource) {
+	c.buffer = append(c.buffer, bufferedText{
+		text:   normalizeBufferedText(text),
+		source: source,
+	})
+}
+
+func (c *CmdSystem) prependBufferedTextLocked(text string, source CommandSource) {
+	c.buffer = append([]bufferedText{{
+		text:   normalizeBufferedText(text),
+		source: source,
+	}}, c.buffer...)
+}
+
+func (c *CmdSystem) prependBufferedEntries(entries []bufferedText) {
+	if len(entries) == 0 {
+		return
+	}
+	c.mu.Lock()
+	c.buffer = append(append([]bufferedText(nil), entries...), c.buffer...)
+	c.mu.Unlock()
+}
+
 func (c *CmdSystem) AddText(text string) {
+	c.AddTextWithSource(text, c.Source())
+}
+
+// AddTextWithSource appends command text to the end of the command buffer and
+// records its command source for later buffered execution.
+func (c *CmdSystem) AddTextWithSource(text string, source CommandSource) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.buffer.WriteString(text)
-	if !strings.HasSuffix(text, "\n") {
-		c.buffer.WriteByte('\n')
-	}
+	c.addBufferedTextLocked(text, source)
 }
 
 // InsertText prepends command text to the front of the command buffer, before
@@ -377,23 +415,25 @@ func (c *CmdSystem) AddText(text string) {
 //
 // This corresponds to Cbuf_InsertText() in Quake's cmd.c.
 func (c *CmdSystem) InsertText(text string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	existing := c.buffer.String()
-	c.buffer.Reset()
-	c.buffer.WriteString(text)
-	if !strings.HasSuffix(text, "\n") {
-		c.buffer.WriteByte('\n')
-	}
-	c.buffer.WriteString(existing)
+	c.InsertTextWithSource(text, c.Source())
 }
 
-func (c *CmdSystem) drainBuffer() string {
+// InsertTextWithSource prepends command text to the front of the command buffer
+// and records its command source for later buffered execution.
+func (c *CmdSystem) InsertTextWithSource(text string, source CommandSource) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	text := c.buffer.String()
-	c.buffer.Reset()
+	c.prependBufferedTextLocked(text, source)
+}
+
+func (c *CmdSystem) drainBuffer() []bufferedText {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.buffer) == 0 {
+		return nil
+	}
+	text := append([]bufferedText(nil), c.buffer...)
+	c.buffer = nil
 	return text
 }
 
@@ -403,17 +443,17 @@ func (c *CmdSystem) drainBuffer() string {
 // contents and resets it, then processes each command. The "wait" command can
 // interrupt execution, deferring remaining commands to the next frame.
 func (c *CmdSystem) Execute() {
-	c.ExecuteWithSource(SrcCommand)
+	c.executeBufferedEntries(c.drainBuffer())
 }
 
 // ExecuteWithSource drains the command buffer and executes the buffered command
 // text under the provided command source.
 func (c *CmdSystem) ExecuteWithSource(source CommandSource) {
-	text := c.drainBuffer()
-
-	c.withSource(source, func() {
-		c.executeTextWithWait(text)
-	})
+	entries := c.drainBuffer()
+	for i := range entries {
+		entries[i].source = source
+	}
+	c.executeBufferedEntries(entries)
 }
 
 // ExecuteText immediately executes the given command text without going through
@@ -472,43 +512,60 @@ func (c *CmdSystem) withSource(source CommandSource, fn func()) {
 // Each "wait" causes the engine to process one simulation frame before
 // continuing, so the jump happens before the attack.
 func (c *CmdSystem) executeTextWithWait(text string) {
-	pending := splitCommands(text)
+	c.executeBufferedEntries([]bufferedText{{
+		text:   text,
+		source: c.Source(),
+	}})
+}
+
+func (c *CmdSystem) executeBufferedEntries(entries []bufferedText) {
+	pending := append([]bufferedText(nil), entries...)
 	for len(pending) > 0 {
-		line := strings.TrimSpace(pending[0])
+		entry := pending[0]
 		pending = pending[1:]
-		if line == "" || strings.HasPrefix(line, "//") {
-			continue
-		}
-		c.executeLine(line, nil)
 
-		// If a wait command was executed, put remaining commands back in buffer
-		// ahead of any newly buffered text and stop until the next Execute().
-		if c.waitCount > 0 {
-			c.waitCount--
-			if len(pending) > 0 {
-				remaining := strings.Join(pending, "\n")
-				c.mu.Lock()
-				existing := c.buffer.String()
-				c.buffer.Reset()
-				c.buffer.WriteString(remaining)
-				if existing != "" {
-					c.buffer.WriteString("\n")
-					c.buffer.WriteString(existing)
+		lines := splitCommands(entry.text)
+		for len(lines) > 0 {
+			line := strings.TrimSpace(lines[0])
+			lines = lines[1:]
+			if line == "" || strings.HasPrefix(line, "//") {
+				continue
+			}
+
+			c.withSource(entry.source, func() {
+				c.executeLine(line, nil)
+			})
+
+			// If a wait command was executed, put remaining commands back in buffer
+			// ahead of any newly buffered text and stop until the next Execute().
+			if c.waitCount > 0 {
+				c.waitCount--
+				var requeue []bufferedText
+				if len(lines) > 0 {
+					requeue = append(requeue, bufferedText{
+						text:   strings.Join(lines, "\n"),
+						source: entry.source,
+					})
 				}
-				c.mu.Unlock()
+				requeue = append(requeue, pending...)
+				c.prependBufferedEntries(requeue)
+				return
 			}
-			return
-		}
 
-		// Quake's command buffer processes inserted text immediately, before
-		// any remaining commands from the current execution pass. This matters
-		// for `exec`/`stuffcmds`, whose InsertText calls must preempt later
-		// lines like `startdemos` in quake.rc.
-		if injected := c.drainBuffer(); injected != "" {
-			if len(pending) > 0 {
-				injected += "\n" + strings.Join(pending, "\n")
+			// Quake's command buffer processes inserted text immediately, before
+			// any remaining commands from the current execution pass. This matters
+			// for `exec`/`stuffcmds`, whose InsertText calls must preempt later
+			// lines like `startdemos` in quake.rc.
+			if injected := c.drainBuffer(); len(injected) > 0 {
+				if len(lines) > 0 {
+					injected = append(injected, bufferedText{
+						text:   strings.Join(lines, "\n"),
+						source: entry.source,
+					})
+				}
+				pending = append(injected, pending...)
+				break
 			}
-			pending = splitCommands(injected)
 		}
 	}
 }
@@ -899,9 +956,19 @@ func AddText(text string) {
 	globalCmd.AddText(text)
 }
 
+// AddTextWithSource appends command text to the global command buffer using source.
+func AddTextWithSource(text string, source CommandSource) {
+	globalCmd.AddTextWithSource(text, source)
+}
+
 // InsertText prepends command text to the front of the global command buffer.
 func InsertText(text string) {
 	globalCmd.InsertText(text)
+}
+
+// InsertTextWithSource prepends command text to the global command buffer using source.
+func InsertTextWithSource(text string, source CommandSource) {
+	globalCmd.InsertTextWithSource(text, source)
 }
 
 // Execute drains and executes the global command buffer.

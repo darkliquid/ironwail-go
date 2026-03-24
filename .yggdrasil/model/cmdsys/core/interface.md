@@ -12,7 +12,7 @@
 - built-in registry commands: `wait`, `cmdlist`, `apropos`, `find`, `aliaslist`
 - `AddCommand`, `AddClientCommand`, `AddServerCommand`, `RemoveCommand`
 - `AddAlias`, `RemoveAlias`, `UnaliasAll`, `Alias`, `Aliases`
-- `AddText`, `InsertText`, `Execute`, `ExecuteWithSource`, `ExecuteText`, `ExecuteTextWithSource`
+- `AddText`, `AddTextWithSource`, `InsertText`, `InsertTextWithSource`, `Execute`, `ExecuteWithSource`, `ExecuteText`, `ExecuteTextWithSource`
 - `SetSource`, `Source`, `Exists`, `Complete`, `CompleteAliases`, `SetForwardFunc`
 
 ## Contracts
@@ -20,5 +20,6 @@
 - Command names and aliases are normalized to lowercase.
 - Resolution order and source filtering are parity-critical.
 - `InsertText` and `wait` semantics define command ordering guarantees relied on by config/script execution.
+- Source-aware buffered wrappers (`AddTextWithSource`, `InsertTextWithSource`) must preserve per-chunk provenance through deferred execution, even when injected text preempts remaining buffered lines.
 - `cmdlist` and `apropos`/`find` only surface non-server commands; names beginning with `__` remain hidden as reserved/internal entries.
 - `aliaslist` enumerates a sorted snapshot of user-defined aliases and ends with an alias count summary.
