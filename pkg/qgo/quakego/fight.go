@@ -12,17 +12,6 @@ var (
 	EnemyYaw     float32
 )
 
-// Prototyped elsewhere
-var (
-	knight_atk1      func()
-	knight_runatk1   func()
-	ogre_smash1      func()
-	DemonCheckAttack func() float32
-	Demon_Melee      func(side float32)
-	WizardCheckAttack func() float32
-	DogCheckAttack    func() float32
-)
-
 func knight_attack() {
 	len := engine.Vlen(Self.Enemy.Origin.Add(Self.Enemy.ViewOfs).Sub(Self.Origin.Add(Self.ViewOfs)))
 

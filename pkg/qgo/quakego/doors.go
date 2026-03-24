@@ -13,10 +13,6 @@ var (
 	DOOR_TOGGLE     float32 = 32
 )
 
-// Prototyped elsewhere
-var door_go_down func()
-var door_go_up func()
-
 func door_blocked() {
 	T_Damage(Other, Self, Self, Self.Dmg)
 
@@ -426,7 +422,7 @@ func func_door() {
 
 	Self.Pos1 = Self.Origin
 	movedir_fabs := quake.MakeVec3(engine.FAbs(Self.MoveDir[0]), engine.FAbs(Self.MoveDir[1]), engine.FAbs(Self.MoveDir[2]))
-	
+
 	dot := movedir_fabs.Dot(Self.Size)
 	Self.Pos2 = Self.Pos1.Add(Self.MoveDir.Mul(dot - Self.Lip))
 
@@ -461,16 +457,7 @@ var (
 	SECRET_YES_SHOOT float32 = 16
 )
 
-// Prototyped elsewhere
-var fd_secret_move1 func()
-var fd_secret_move2 func()
-var fd_secret_move3 func()
-var fd_secret_move4 func()
-var fd_secret_move5 func()
-var fd_secret_move6 func()
-var fd_secret_done func()
-
-func SUB_Null_Pain(attacker *quake.Entity, damage float32) {}
+func SUB_Null_Pain(attacker *quake.Entity, damage float32)      {}
 func fd_secret_use_pain(attacker *quake.Entity, damage float32) { fd_secret_use() }
 
 func fd_secret_use() {

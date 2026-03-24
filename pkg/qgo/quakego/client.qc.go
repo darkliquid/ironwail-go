@@ -5,15 +5,11 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
-// Prototyped elsewhere
 var (
-)
-
-var (
-	IntermissionRunning float32
+	IntermissionRunning  float32
 	IntermissionExitTime float32
-	NextMap             string
-	ResetFlag           float32
+	NextMap              string
+	ResetFlag            float32
 )
 
 func info_intermission() {}
@@ -373,7 +369,7 @@ func PlayerVisibleToSpawnPoint(point *quake.Entity) float32 {
 var (
 	IDEAL_DIST_FROM_DM_SPAWN_POINT float32 = 384
 	MIN_DIST_FROM_DM_SPAWN_POINT   float32 = 84
-	LastSpawn                     *quake.Entity
+	LastSpawn                      *quake.Entity
 )
 
 func SelectSpawnPoint(forceSpawn float32) *quake.Entity {
@@ -594,11 +590,11 @@ func PutClientInServer() {
 	engine.StuffCmd(Self, "-attack\n")
 }
 
-func info_player_start() {}
-func info_player_start2() {}
-func testplayerstart() {}
+func info_player_start()      {}
+func info_player_start2()     {}
+func testplayerstart()        {}
 func info_player_deathmatch() {}
-func info_player_coop() {}
+func info_player_coop()       {}
 
 func NextLevel() {
 	var o *quake.Entity

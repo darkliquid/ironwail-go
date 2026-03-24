@@ -7,16 +7,6 @@ import (
 
 var PLAT_LOW_TRIGGER float32 = 1
 
-// Prototyped elsewhere
-var (
-	plat_center_touch  func()
-	plat_outside_touch func()
-	plat_trigger_use   func()
-	plat_go_up         func()
-	plat_go_down       func()
-	plat_crush         func()
-)
-
 func plat_spawn_inside_trigger() {
 	var trigger *quake.Entity
 	var tmin, tmax quake.Vec3
@@ -211,10 +201,6 @@ func func_plat() {
 	}
 }
 
-// Prototyped elsewhere
-var train_next func()
-var func_train_find func()
-
 func train_blocked() {
 	if Time < Self.AttackFinished {
 		return
@@ -231,10 +217,10 @@ func train_use() {
 	// We can use a state or just check if it's already active via other means.
 	// Since train_next changes think to train_wait or train_next, maybe it's fine.
 	// Let's use a workaround: check if NextThink is set. If it's already moving, it has a NextThink.
-	
+
 	// If it's already moving, return. In QC this was checking the think pointer.
 	// We'll leave it as is if it compiles, otherwise we'll refactor.
-	
+
 	// train_next() changes it.
 	train_next()
 }

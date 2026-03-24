@@ -5,11 +5,6 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
-// Prototyped elsewhere
-var (
-	ClientObituary func(targ, attacker *quake.Entity)
-)
-
 func CanDamage(targ, inflictor *quake.Entity) float32 {
 	if targ.MoveType == MOVETYPE_PUSH {
 		engine.Traceline(inflictor.Origin, targ.AbsMin.Add(targ.AbsMax).Mul(0.5), TRUE, Self)
@@ -126,7 +121,7 @@ func T_Damage(targ, inflictor, attacker *quake.Entity, damage float32) {
 
 	oldSelf := Self
 	Self = targ
-	if (int(Self.Flags) & FL_MONSTER) != 0 && attacker != World {
+	if (int(Self.Flags)&FL_MONSTER) != 0 && attacker != World {
 		if (Self.Enemy != attacker) && (attacker != Self) {
 			if Self.Enemy.ClassName == "player" {
 				Self.OldEnemy = Self.Enemy

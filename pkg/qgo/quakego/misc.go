@@ -5,10 +5,6 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
-// Prototyped elsewhere
-var (
-)
-
 func info_null() {
 	engine.Remove(Self)
 }

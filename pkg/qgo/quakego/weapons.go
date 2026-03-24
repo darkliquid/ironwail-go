@@ -5,11 +5,6 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
-// Prototyped elsewhere
-var (
-	SpawnBlood       func(org, vel quake.Vec3, damage float32)
-)
-
 func W_Precache() {
 	engine.PrecacheSound("weapons/r_exp3.wav")
 	engine.PrecacheSound("weapons/rocket1i.wav")

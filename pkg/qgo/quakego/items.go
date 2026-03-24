@@ -5,10 +5,6 @@ import (
 	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
 )
 
-// Prototyped elsewhere
-var (
-)
-
 func SUB_regen() {
 	Self.Model = Self.Mdl
 	Self.Solid = SOLID_TRIGGER

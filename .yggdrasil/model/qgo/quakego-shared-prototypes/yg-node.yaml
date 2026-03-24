@@ -1,0 +1,19 @@
+name: QuakeGo Shared Prototypes
+type: module
+description: "Shared quakego support files that rely on centralized cross-file forward declarations"
+blackbox: false
+relations:
+  - target: qgo/quake-stubs
+    type: uses
+    consumes: [Entity, Vec3]
+mapping:
+  paths:
+    - pkg/qgo/quakego/prototypes.go
+    - pkg/qgo/quakego/client.qc.go
+    - pkg/qgo/quakego/combat.go
+    - pkg/qgo/quakego/items.go
+    - pkg/qgo/quakego/misc.go
+    - pkg/qgo/quakego/plats.go
+    - pkg/qgo/quakego/doors.go
+    - pkg/qgo/quakego/fight.go
+    - pkg/qgo/quakego/weapons.go
