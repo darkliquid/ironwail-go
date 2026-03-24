@@ -775,6 +775,80 @@ func Value(v interface{}) float32 {
 	}
 }
 
+func TestCompile_TypeSwitchStatement_DeferredWithClearError(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgotypeswitchdeferredtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+func KindName(v any) float32 {
+	switch x := v.(type) {
+	case float32:
+		return x
+	default:
+		return 0
+	}
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for type switch statement")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "unsupported type switch statement") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+	if !strings.Contains(msg, "switch v := x.(type) is deferred") {
+		t.Fatalf("expected dedicated type-switch diagnostic, got: %v", err)
+	}
+	if strings.Contains(msg, "unsupported statement type: *ast.TypeSwitchStmt") {
+		t.Fatalf("expected dedicated type-switch diagnostic, got generic fallback: %v", err)
+	}
+}
+
+func TestCompile_TypeAssertionExpression_DeferredWithClearError(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgotypeassertdeferredtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+func Cast(v any) float32 {
+	return v.(float32)
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for type assertion expression")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "unsupported type assertion expression") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+	if !strings.Contains(msg, "x.(T) is deferred") {
+		t.Fatalf("expected dedicated type-assertion diagnostic, got: %v", err)
+	}
+	if strings.Contains(msg, "unsupported expression type: *ast.TypeAssertExpr") {
+		t.Fatalf("expected dedicated type-assertion diagnostic, got generic fallback: %v", err)
+	}
+}
+
+func TestCompile_UnsupportedTypeSwitchFixture_DeferredWithClearError(t *testing.T) {
+	c := New()
+	_, err := c.Compile("../testdata/unsupported_typeswitch")
+	if err == nil {
+		t.Fatal("expected compile to fail for unsupported_typeswitch fixture")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "unsupported type switch statement") {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+	if !strings.Contains(msg, "switch v := x.(type) is deferred") {
+		t.Fatalf("expected dedicated type-switch diagnostic, got: %v", err)
+	}
+}
+
 func TestCompile_ControlFlowStructuralBaseline(t *testing.T) {
 	c := New()
 	data, err := c.Compile("../testdata/controlflow")
@@ -923,6 +997,102 @@ func BuildVec3(x float32, y float32, z float32) Vec3 {
 	c := New()
 	if _, err := c.Compile(dir); err != nil {
 		t.Fatalf("expected Vec3 literal compile to succeed, got: %v", err)
+	}
+}
+
+func TestCompile_Vec3MethodLowering_AddSub_EmitsVectorOpcodesNoCallFallback(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgovec3methodloweringtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+type Vec3 [3]float32
+
+func (v Vec3) Add(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Sub(o Vec3) Vec3 { return Vec3{} }
+
+func Combine(a Vec3, b Vec3) Vec3 {
+	return a.Add(b).Sub(b)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	stmts := parseStatements(t, data, header)
+	hasAddV := false
+	hasSubV := false
+	hasCall := false
+	for _, s := range stmts {
+		switch qc.Opcode(s.Op) {
+		case qc.OPAddV:
+			hasAddV = true
+		case qc.OPSubV:
+			hasSubV = true
+		case qc.OPCall0, qc.OPCall1, qc.OPCall2, qc.OPCall3, qc.OPCall4, qc.OPCall5, qc.OPCall6, qc.OPCall7, qc.OPCall8:
+			hasCall = true
+		}
+	}
+
+	if !hasAddV {
+		t.Fatal("expected OP_ADD_V from Vec3.Add method lowering")
+	}
+	if !hasSubV {
+		t.Fatal("expected OP_SUB_V from Vec3.Sub method lowering")
+	}
+	if hasCall {
+		t.Fatal("did not expect OP_CALL* fallback for Vec3 Add/Sub method lowering")
+	}
+}
+
+func TestRoundTrip_Vec3MethodLowering_AddSub_ReturnsExpectedVector(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgovec3methodroundtriptest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+type Vec3 [3]float32
+
+func (v Vec3) Add(o Vec3) Vec3 { return Vec3{} }
+func (v Vec3) Sub(o Vec3) Vec3 { return Vec3{} }
+
+func Combine(a Vec3, b Vec3) Vec3 {
+	return a.Add(b).Sub(b)
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	vm := loadVM(t, data)
+
+	fnum := vm.FindFunction("Combine")
+	if fnum < 0 {
+		t.Fatal("function 'Combine' not found")
+	}
+
+	inA := [3]float32{10.5, -2.25, 7}
+	inB := [3]float32{3, 4, -1.5}
+	vm.SetGVector(qc.OFSParm0, inA)
+	vm.SetGVector(qc.OFSParm1, inB)
+
+	if err := vm.ExecuteProgram(fnum); err != nil {
+		t.Fatalf("ExecuteProgram failed: %v", err)
+	}
+
+	got := vm.GVector(qc.OFSReturn)
+	want := [3]float32{
+		(inA[0] + inB[0]) - inB[0],
+		(inA[1] + inB[1]) - inB[1],
+		(inA[2] + inB[2]) - inB[2],
+	}
+	if got != want {
+		t.Fatalf("Combine(a, b) = %v, want %v", got, want)
 	}
 }
 

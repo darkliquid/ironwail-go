@@ -384,6 +384,8 @@ func (l *Lowerer) lowerStmt(fn *IRFunc, stmt ast.Stmt) {
 		l.lowerFor(fn, s)
 	case *ast.SwitchStmt:
 		l.lowerSwitchStmt(fn, s)
+	case *ast.TypeSwitchStmt:
+		l.lowerTypeSwitchStmt(s)
 	case *ast.BranchStmt:
 		l.lowerBranch(fn, s)
 	case *ast.IncDecStmt:
@@ -397,6 +399,13 @@ func (l *Lowerer) lowerStmt(fn *IRFunc, stmt ast.Stmt) {
 	default:
 		l.errors.Addf(l.pos(stmt), "unsupported statement type: %T", stmt)
 	}
+}
+
+func (l *Lowerer) lowerTypeSwitchStmt(s *ast.TypeSwitchStmt) {
+	l.errors.Addf(
+		l.pos(s),
+		"unsupported type switch statement: switch v := x.(type) is deferred",
+	)
 }
 
 func (l *Lowerer) lowerReturn(fn *IRFunc, s *ast.ReturnStmt) {
@@ -521,11 +530,21 @@ func (l *Lowerer) lowerExpr(fn *IRFunc, expr ast.Expr) VReg {
 
 	case *ast.ParenExpr:
 		return l.lowerExpr(fn, e.X)
+	case *ast.TypeAssertExpr:
+		return l.lowerTypeAssertExpr(e)
 
 	default:
 		l.errors.Addf(l.pos(expr), "unsupported expression type: %T", expr)
 		return VRegInvalid
 	}
+}
+
+func (l *Lowerer) lowerTypeAssertExpr(expr *ast.TypeAssertExpr) VReg {
+	l.errors.Addf(
+		l.pos(expr),
+		"unsupported type assertion expression: x.(T) is deferred",
+	)
+	return VRegInvalid
 }
 
 func (l *Lowerer) lowerBasicLit(fn *IRFunc, lit *ast.BasicLit) VReg {
@@ -747,11 +766,6 @@ func (l *Lowerer) lowerCallExpr(fn *IRFunc, call *ast.CallExpr) VReg {
 							op = qc.OPAddV
 						case "Sub":
 							op = qc.OPSubV
-						case "Mul":
-							op = qc.OPMulVF
-						case "Dot":
-							op = qc.OPMulV
-							resType = EvFloat
 						default:
 							l.errors.Addf(l.pos(call), "unsupported Vec3 method: %s", fnObj.Name())
 							return VRegInvalid

@@ -8,7 +8,7 @@ The compiler is a four-stage pipeline:
 
 1. `Compiler.Compile` parses every Go file in the target directory and type-checks them with a `types.Config` that only knows about the synthetic `quake` packages.
 2. `Lowerer` performs a two-pass walk over the package: first it collects globals and function signatures, then it lowers function bodies into `IRProgram`.
-3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, rewrites or removes `OPIF`/`OPIFNot` branches whose condition is proven literal in the current straight-line segment, trims no-op self-store instructions (`OPStore* x -> x`), prunes blocks that become unreachable once explicit terminators are honored, then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
+3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, rewrites or removes `OPIF`/`OPIFNot` branches whose condition is proven literal in the current straight-line segment, trims no-op self-store instructions (`OPStore* x -> x`), propagates straight-line single-slot local copies (`tmp = x`) into subsequent uses while no intervening writes/calls/label boundaries occur, prunes blocks that become unreachable once explicit terminators are honored, then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions across straight-line IR and simple label/branch control flow. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
 4. `CodeGen` maps IR virtual registers to QC global/local offsets, emits `qc.DStatement` and `qc.DFunction` tables, and patches branch labels in a second pass.
 5. `Emit` serializes those tables into the `progs.dat` section layout expected by `internal/qc`, including the canonical header CRC that matches the current progdefs layout used by the runtime.
 
@@ -122,6 +122,17 @@ Lowering performs strict intrinsic gating before generic call handling:
 This keeps dynamic field access opcode-correct without lowering imported helper bodies.
 
 Calls that match the broader dynamic-helper naming family (`quake.Field*` / `quake.SetField*`) but are not part of this narrow float helper slice now produce an explicit defer diagnostic. Receiver-form methods beyond `FieldFloat`/`SetFieldFloat` remain deferred, so vector/string/entity receiver helpers still stay out of scope. These guards prevent accidental fallback to generic call lowering for unimplemented dynamic helper variants and keep scope decisions observable in tests.
+
+Method-based Vec3 lowering is also intentionally narrow in this slice: `lowerCallExpr` recognizes only receiver-form `Vec3.Add(Vec3)` and `Vec3.Sub(Vec3)` and emits direct vector arithmetic ops (`OPAddV` and `OPSubV`). This keeps method support aligned with the minimal vector helper objective and avoids broad operator/method emulation; other Vec3 receiver methods remain out of scope and fail with `unsupported Vec3 method`.
+
+### Deferred type-form diagnostics are lowered through dedicated handlers
+
+Type forms outside current qgo scope (`switch v := x.(type)` and `x.(T)`) are now routed through explicit lowering handlers instead of relying on generic unsupported-node fallbacks.
+
+- statement path: `lowerTypeSwitchStmt` emits `unsupported type switch statement: switch v := x.(type) is deferred`
+- expression path: `lowerTypeAssertExpr` emits `unsupported type assertion expression: x.(T) is deferred`
+
+This keeps unsupported-feature diagnostics stable and intentional as expression/statement lowering evolves.
 
 ## Constraints
 
@@ -268,6 +279,22 @@ Rejected alternatives:
   - rejected because it requires larger CFG/dataflow machinery and broadens optimizer risk outside this focused slice.
 - deferring all branch simplification to unreachable-block pruning only:
   - rejected because unreachable pruning alone cannot convert known-taken conditionals into explicit unconditional branches.
+
+### Chose intra-block local copy propagation as a narrow follow-up
+
+Observed decision:
+- add `propagateLocalCopies` between self-store pruning and unreachable-block/DCE so straight-line local aliases (`tmp = x`) are replaced at use sites when both locals are single-slot and no invalidating event has occurred.
+
+Rationale:
+- this captures a high-frequency lowering pattern (copy temp followed by immediate use) with minimal risk by constraining scope to intra-block local values.
+- alias state is conservatively reset at labels, terminators, pointer stores, and calls, and invalidated when a source/destination local is redefined, keeping semantics mechanically safe without broader CFG/SSA propagation.
+- running before unreachable pruning and DCE increases cleanup opportunities while preserving deterministic pass ordering.
+
+Rejected alternatives:
+- broad copy propagation across block joins/back-edges:
+  - rejected because it requires richer dataflow/lattice machinery and increases optimizer blast radius in this slice.
+- propagating vector/aggregate local copies in the same pass:
+  - rejected because multi-slot alias tracking is more complex and less mechanically obvious than scalar/local single-slot rewriting.
 
 ### Chose local-slot pruning as the smallest safe temp/global reuse follow-up
 
