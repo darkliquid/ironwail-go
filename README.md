@@ -32,9 +32,11 @@ into C engine code.
 
 ## Project Status & Parity Roadmap
 
-The goal of this project is 100% behavioral parity with the original C Ironwail engine on the OpenGL path. 
+ The goal of this project is 100% behavioral parity with the original C Ironwail engine on the OpenGL path. 
+ 
+ You can track our progress and see the remaining gaps in the [Final Parity Roadmap](docs/FINAL_PARITY_ROADMAP.md).
 
-You can track our progress and see the remaining gaps in the [Final Parity Roadmap](docs/FINAL_PARITY_ROADMAP.md).
+For the Go-to-QuakeC toolchain and gameplay-language subset used by this repository, see the [QGo / QuakeGo Guide](docs/QGO_QUAKEGO_GUIDE.md).
 
 ## Building
 
