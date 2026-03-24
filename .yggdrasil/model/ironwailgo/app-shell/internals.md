@@ -15,6 +15,7 @@ Console-completion regression coverage in `main_test.go` now also asserts that s
 Command-surface regression coverage in `main_test.go` now also asserts the new `entities` debug command prints indexed `EMPTY` gaps plus live client entity lines from the process-wide `g.Client` state, and stays silent while the client is disconnected.
 Command-surface regression coverage in `main_test.go` now also asserts `centerview` restarts pitch drift through the executable command-binding surface by flipping `g.Client.NoDrift` off and reseeding `PitchVel`.
 Runtime telemetry regression coverage in `main_test.go` now also asserts `scr_showfps=2` uses milliseconds text (`xx.xx ms`) in the runtime FPS overlay path, matching legacy Ironwail semantics where nonzero showfps modes include an ms-style display mode in addition to FPS text.
+Render-frame regression coverage in `main_test.go` now also asserts that `buildRuntimeRenderFrameState` picks up worldspawn fog defaults from the loaded BSP entity lump before sampling client fog for renderer submission.
 
 ## Constraints
 

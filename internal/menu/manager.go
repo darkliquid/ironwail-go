@@ -321,9 +321,10 @@ type Manager struct {
 
 	playSound func(name string)
 
-	saveSlotProvider func(slotCount int) []SaveSlotInfo
-	loadSlotLabels   [maxSaveGames]string
-	saveSlotLabels   [maxSaveGames]string
+	saveSlotProvider     func(slotCount int) []SaveSlotInfo
+	loadSlotLabels       [maxSaveGames]string
+	saveSlotLabels       [maxSaveGames]string
+	shouldConfirmNewGame func() bool
 }
 
 // DrawManager defines the interface for loading menu graphics.
@@ -355,6 +356,12 @@ func (m *Manager) SetModsProvider(provider func() []ModInfo) {
 // menu can highlight it.  Pass "" or "id1" for vanilla.
 func (m *Manager) SetCurrentMod(name string) {
 	m.currentMod = name
+}
+
+// SetNewGameConfirmationProvider sets a callback that decides whether selecting
+// Single Player -> New Game should show a confirmation prompt before starting.
+func (m *Manager) SetNewGameConfirmationProvider(provider func() bool) {
+	m.shouldConfirmNewGame = provider
 }
 
 // NewManager creates a new menu manager.
@@ -536,6 +543,7 @@ func (m *Manager) MainCursor() int {
 func (m *Manager) M_Key(key int) {
 	// Any key resets the mouse accumulator so keyboard nav takes precedence.
 	m.mouseAccumY = 0
+	key = normalizeMenuKey(key)
 	switch m.state {
 	case MenuMain:
 		m.mainKey(key)
@@ -567,6 +575,29 @@ func (m *Manager) M_Key(key int) {
 		m.setupKey(key)
 	case MenuMods:
 		m.modsKey(key)
+	}
+}
+
+// normalizeMenuKey maps gamepad buttons to equivalent menu/navigation keys so
+// menu pages can be fully operated from a controller.
+func normalizeMenuKey(key int) int {
+	switch key {
+	case input.KDpadUp, input.KDpadUpAlt:
+		return input.KUpArrow
+	case input.KDpadDown, input.KDpadDownAlt:
+		return input.KDownArrow
+	case input.KDpadLeft, input.KDpadLeftAlt:
+		return input.KLeftArrow
+	case input.KDpadRight, input.KDpadRightAlt:
+		return input.KRightArrow
+	case input.KAButton, input.KAButtonAlt, input.KStart:
+		return input.KEnter
+	case input.KBButton, input.KBButtonAlt:
+		return input.KEscape
+	case input.KBack:
+		return input.KBackspace
+	default:
+		return key
 	}
 }
 

@@ -205,7 +205,7 @@ func (cg *CodeGen) emitInst(inst *IRInst) {
 		cg.globals.SetInt(cg.resolveVReg(inst.B), cg.strings.Intern(inst.ImmStr))
 		return
 	}
-	if op == qc.OPStoreF && inst.ImmFloat != 0 {
+	if op == qc.OPStoreF && inst.HasImmFloat {
 		cg.globals.SetFloat(cg.resolveVReg(inst.B), inst.ImmFloat)
 		return
 	}

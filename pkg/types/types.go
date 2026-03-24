@@ -213,9 +213,12 @@ func ClampInt(value, min, max int) int {
 //	a = (360.0/65536) * ((int)(a*(65536/360.0)) & 65535)
 //
 // This uses 16-bit precision (~0.0055° per step), matching the exact
-// quantization behavior of the C Quake engine.
+// quantization behavior of the C Quake engine. The intermediate cast is
+// explicitly int32 to mirror C's 32-bit int truncation semantics on all Go
+// architectures.
 func AngleMod(angle float32) float32 {
-	return float32((360.0 / 65536.0) * float64(int(float64(angle)*(65536.0/360.0))&65535))
+	scaled := int32(float64(angle) * (65536.0 / 360.0))
+	return float32((360.0 / 65536.0) * float64(uint16(scaled)))
 }
 
 // AngleByte converts a float angle (in degrees) to the 8-bit byte

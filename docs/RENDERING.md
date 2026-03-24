@@ -33,3 +33,4 @@ This document provides a detailed comparison of the OpenGL rendering implementat
 - **Visual Fidelity**: Parity is ensured by matching the Quake colormap and palette processing.
 - **PVS and Frustum Culling**: Both implementations use the BSP's Potentially Visible Set (PVS) to cull non-visible areas.
 - **Texture Filtering**: Parity is maintained by respecting the `gl_texturemode` (e.g., `GL_NEAREST_MIPMAP_LINEAR`).
+- **Fog Transition Fidelity**: `CurrentFog` now matches Ironwail C behavior by keeping density interpolation continuous during fades (no 8-bit quantization), while fog color remains quantized to 1/255 for sky-color matching.

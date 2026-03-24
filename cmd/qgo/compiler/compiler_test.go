@@ -104,6 +104,57 @@ func TestCompile_Arithmetic(t *testing.T) {
 	}
 }
 
+func TestCompile_ConstantFloatExpression_IsFoldedInIRPass(t *testing.T) {
+	dir := t.TempDir()
+	writeQGoModule(t, dir, "module qgoconstfoldtest")
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+func Folded() float32 {
+	return (2 + 3) * 4
+}
+`)
+
+	c := New()
+	data, err := c.Compile(dir)
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	stmts := parseStatements(t, data, header)
+	funcs := parseFunctions(t, data, header)
+	stringTable := parseStrings(t, data, header)
+
+	var folded *qc.DFunction
+	for i := range funcs {
+		if stringAt(stringTable, funcs[i].Name) == "Folded" {
+			folded = &funcs[i]
+			break
+		}
+	}
+	if folded == nil {
+		t.Fatal("function 'Folded' not found")
+	}
+	if folded.FirstStatement <= 0 {
+		t.Fatalf("Folded first_statement = %d, want > 0", folded.FirstStatement)
+	}
+
+	start := int(folded.FirstStatement)
+	if start >= len(stmts) {
+		t.Fatalf("Folded first_statement %d out of range (num statements %d)", start, len(stmts))
+	}
+
+	for i := start; i < len(stmts); i++ {
+		op := qc.Opcode(stmts[i].Op)
+		if op == qc.OPDone {
+			break
+		}
+		if op == qc.OPAddF || op == qc.OPMulF {
+			t.Fatalf("Folded body contains arithmetic opcode %v at statement %d; expected constant-folded store/return only", op, i)
+		}
+	}
+}
+
 // Round-trip tests: compile → load into VM → execute → verify results
 
 func loadVM(t *testing.T, data []byte) *qc.VM {
@@ -403,6 +454,89 @@ func Value(v interface{}) float32 {
 	}
 }
 
+func TestCompile_ControlFlowStructuralBaseline(t *testing.T) {
+	c := New()
+	data, err := c.Compile("../testdata/controlflow")
+	if err != nil {
+		t.Fatalf("compile failed: %v", err)
+	}
+
+	header := parseHeader(t, data)
+	if got, want := header.Version, int32(qc.ProgVersion); got != want {
+		t.Fatalf("version = %d, want %d", got, want)
+	}
+	if got, want := header.CRC, int32(qc.ProgHeaderCRC); got != want {
+		t.Fatalf("crc = %d, want %d", got, want)
+	}
+
+	if header.NumStatements == 0 || header.NumFunctions == 0 || header.NumGlobals == 0 {
+		t.Fatalf("unexpected empty sections: statements=%d functions=%d globals=%d", header.NumStatements, header.NumFunctions, header.NumGlobals)
+	}
+
+	if header.Statements <= 0 || header.GlobalDefs <= 0 || header.Functions <= 0 || header.Strings <= 0 || header.Globals <= 0 {
+		t.Fatalf("invalid section offsets: statements=%d globaldefs=%d functions=%d strings=%d globals=%d", header.Statements, header.GlobalDefs, header.Functions, header.Strings, header.Globals)
+	}
+	section := []struct {
+		name string
+		ofs  int32
+		end  int32
+	}{
+		{name: "statements", ofs: header.Statements, end: header.Statements + int32(binary.Size(qc.DStatement{}))*header.NumStatements},
+		{name: "globaldefs", ofs: header.GlobalDefs, end: header.GlobalDefs + int32(binary.Size(qc.DDef{}))*header.NumGlobalDefs},
+		{name: "fielddefs", ofs: header.FieldDefs, end: header.FieldDefs + int32(binary.Size(qc.DDef{}))*header.NumFieldDefs},
+		{name: "functions", ofs: header.Functions, end: header.Functions + int32(binary.Size(qc.DFunction{}))*header.NumFunctions},
+		{name: "strings", ofs: header.Strings, end: header.Strings + header.NumStrings},
+		{name: "globals", ofs: header.Globals, end: header.Globals + 4*header.NumGlobals},
+	}
+	prevEnd := int32(0)
+	for _, sec := range section {
+		if sec.ofs < prevEnd {
+			t.Fatalf("section %s starts before previous section end: start=%d prev_end=%d", sec.name, sec.ofs, prevEnd)
+		}
+		if sec.end < sec.ofs {
+			t.Fatalf("section %s has invalid bounds: start=%d end=%d", sec.name, sec.ofs, sec.end)
+		}
+		prevEnd = sec.end
+	}
+	if prevEnd > int32(len(data)) {
+		t.Fatalf("section layout exceeds binary size: end=%d len=%d", prevEnd, len(data))
+	}
+
+	funcs := parseFunctions(t, data, header)
+	strings := parseStrings(t, data, header)
+	indices := map[string]int{"Max": -1, "Sum": -1}
+	wantParms := map[string]int32{"Max": 2, "Sum": 1}
+	for i, fn := range funcs {
+		name := stringAt(strings, fn.Name)
+		if _, ok := indices[name]; ok {
+			indices[name] = i
+			if got, want := fn.NumParms, wantParms[name]; got != want {
+				t.Fatalf("%s NumParms = %d, want %d", name, got, want)
+			}
+			if fn.FirstStatement <= 0 {
+				t.Fatalf("%s FirstStatement = %d, want > 0", name, fn.FirstStatement)
+			}
+		}
+	}
+	if indices["Max"] == -1 || indices["Sum"] == -1 {
+		t.Fatalf("expected both Max and Sum in function table, got indices: %#v", indices)
+	}
+	if !(indices["Max"] < indices["Sum"]) {
+		t.Fatalf("expected Max before Sum for controlflow baseline ordering, got Max=%d Sum=%d", indices["Max"], indices["Sum"])
+	}
+
+	stmts := parseStatements(t, data, header)
+	has := map[qc.Opcode]bool{}
+	for _, s := range stmts {
+		has[qc.Opcode(s.Op)] = true
+	}
+	for _, op := range []qc.Opcode{qc.OPGT, qc.OPIFNot, qc.OPGoto, qc.OPAddF} {
+		if !has[op] {
+			t.Fatalf("missing expected opcode %d in controlflow baseline", op)
+		}
+	}
+}
+
 func TestCompile_DeterministicBinaryForSameInput(t *testing.T) {
 	c := New()
 	first, err := c.Compile("../testdata/controlflow")
@@ -417,6 +551,32 @@ func TestCompile_DeterministicBinaryForSameInput(t *testing.T) {
 
 	if !bytes.Equal(first, second) {
 		t.Fatal("compile output differed between identical runs")
+	}
+}
+
+func TestCompile_GeneralStructLiteral_DeferredWithClearError(t *testing.T) {
+	dir := makeCompilerTempDir(t)
+	writeQGoModule(t, dir, `module qgostructliteraldeferredtest`)
+	writeFile(t, filepath.Join(dir, "main.go"), `package main
+
+type Pair struct {
+	A float32
+	B float32
+}
+
+func BuildPair(a float32, b float32) Pair {
+	return Pair{A: a, B: b}
+}
+`)
+
+	c := New()
+	_, err := c.Compile(dir)
+	if err == nil {
+		t.Fatal("expected compile to fail for general struct literal")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "general struct literals are deferred") {
+		t.Fatalf("unexpected compile error: %v", err)
 	}
 }
 

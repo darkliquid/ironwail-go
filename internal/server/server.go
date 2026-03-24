@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"reflect"
 	"strconv"
@@ -68,6 +69,8 @@ type Server struct {
 	NumEdicts  int
 	MaxEdicts  int
 	peakEdicts int // Dev stats: peak active edict count
+	devStats   DevStats
+	devPeak    DevStats
 
 	// QuakeC VM integration
 	QCVM *qc.VM
@@ -136,6 +139,20 @@ type impactTouchKey struct {
 	self  int
 	other int
 	fn    int32
+}
+
+// DevStats mirrors C Ironwail's per-frame developer counters.
+// Some fields are populated by server runtime while others are currently
+// renderer/client-owned and may remain zero on the server side.
+type DevStats struct {
+	PacketSize int
+	Edicts     int
+	Visedicts  int
+	Efrags     int
+	Tempents   int
+	Beams      int
+	DLights    int
+	GPUUpload  int
 }
 
 // ServerStatic holds state that persists across level changes.
@@ -1737,6 +1754,37 @@ func (s *Server) KickClient(clientNum int, who, reason string) bool {
 // GetMapName returns the currently loaded map short name (without maps/ path or .bsp suffix).
 func (s *Server) GetMapName() string {
 	return s.Name
+}
+
+// DevStatsSnapshot returns current and peak developer counters.
+func (s *Server) DevStatsSnapshot() (curr, peak DevStats) {
+	if s == nil {
+		return DevStats{}, DevStats{}
+	}
+	return s.devStats, s.devPeak
+}
+
+func (s *Server) recordDevStatsEdicts(active int) {
+	if active > 600 && s.devPeak.Edicts <= 600 {
+		slog.Warn("edict count exceeds standard limit",
+			"active", active, "limit", 600, "max", s.MaxEdicts)
+	}
+	s.devStats.Edicts = active
+	if active > s.devPeak.Edicts {
+		s.devPeak.Edicts = active
+	}
+	s.peakEdicts = s.devPeak.Edicts
+}
+
+func (s *Server) recordDevStatsPacketSize(size int) {
+	if size > 1024 && s.devPeak.PacketSize <= 1024 {
+		slog.Warn("packet size exceeds standard limit",
+			"packet", size, "limit", 1024, "max", MaxDatagram)
+	}
+	s.devStats.PacketSize = size
+	if size > s.devPeak.PacketSize {
+		s.devPeak.PacketSize = size
+	}
 }
 
 func (s *Server) QCProfileResults(top int) []qc.ProfileResult {

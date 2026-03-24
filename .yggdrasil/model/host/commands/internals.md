@@ -18,10 +18,10 @@ Registration refreshes existing host-owned command names before re-adding them. 
 - **Gameplay/save commands** manage native saves, imported saves, and load validation.
 - **Gameplay/save commands** also align host autosave timestamps to restored server time after successful load restores.
 - **Gameplay/client-state commands** include local view/render helpers such as `particle_texture` and now `fog`, which unwrap the concrete loopback/remote client wrappers to reach the shared client runtime state without widening the public host client interface.
-- **Gameplay/server-debug commands** now include `edictcount`, a read-only summary over `server.Server`'s existing `NumEdicts`/`Edicts` surface that mirrors C's quick entity-population counts without pulling in the broader QC-aware edict pretty-printer machinery.
+- **Gameplay/server-debug commands** now include `edictcount`, a read-only summary over `server.Server`'s existing `NumEdicts`/`Edicts` surface that mirrors C's quick entity-population counts without pulling in the broader QC-aware edict pretty-printer machinery. The same output also wires through physics/movement parity counters (`peak` from `Physics` dev stats, `c_yes`/`c_no` from `CheckBottom` counters) so the command exposes the same class of runtime diagnostics that C tracks for `dev_stats`/`sv_move` debugging.
 - **System/filesystem debug commands** now include `path`, which type-asserts `subs.Files` to the concrete `*fs.FileSystem` and prints the exported `SearchPathEntries` snapshot instead of reaching into private VFS internals directly.
-- **Gameplay/profile command** exposes QC VM per-function profile counters via `profile` (top 10), using C-like `%7d %s` line formatting and no output when no active local server/QC VM exists.
-- **Demo commands** coordinate record, playback, seek, and timedemo state. Seek-based flows (`demoseek`, `demogoto`, `rewind`) call a shared replay-from-zero path (`seekDemoFrame`) that clears the demo rewind-backstop latch before replaying frames into parser state, so an earlier negative-speed rewind edge does not leak into subsequent explicit seeks.
+- **Gameplay/profile and dev-stats commands** expose QC VM counters via `profile` (top 10, `%7d %s`) and C-style runtime dev counters via `devstats` (`Curr/Peak` table mirroring the C overlay labels). `devstats` consumes a narrow server bridge (`DevStatsSnapshot`) and currently reports server-owned counters (`Edicts`, `Packet`) while leaving renderer/client-owned rows as zero.
+- **Demo commands** coordinate record, playback, seek, and timedemo state. `playdemo` now first probes an optional filesystem `OpenFile` seam so PAK-aware playback can keep a seekable VFS handle open (closer to `COM_FOpenFile` behavior) before falling back to byte-slice loading or loose OS-file playback. Seek-based flows (`demoseek`, `demogoto`, `rewind`) call a shared replay-from-zero path (`seekDemoFrame`) that clears the demo rewind-backstop latch before replaying frames into parser state, so an earlier negative-speed rewind edge does not leak into subsequent explicit seeks.
 - **System/config commands** rebuild startup commands from argv and execute config text from builtin, user, or filesystem sources.
 - **Forwarding commands** decide whether a command should remain local or be sent to a remote server; that decision keys off active local-session state, not mere availability of a server subsystem instance.
 - **Explicit `cmd` forwarding** bypasses that local-session ownership check and mirrors C Ironwail's dedicated `cmd` command: local console only, current connection only, silent during demo playback, and payload reconstruction that drops the leading `cmd` token before sending the remainder.
@@ -45,3 +45,14 @@ Rationale:
 Observed effect:
 - related policies are grouped by domain
 - tests can target command families more precisely
+
+### Keep QC profiling as a host command, not telemetry output
+
+Observed decision:
+- QC profiling remains exposed via the `profile` host command instead of being folded into the server telemetry stream.
+
+Rationale:
+- `profile` already mirrors the C-style operational contract (top 10 rows, `%7d %s` formatting, local-server/QC-only behavior, counter reset after read), and telemetry has a different goal: event tracing for parity/debug workflows.
+
+Observed effect:
+- QC profiling is implemented and available for focused VM hot-spot checks without increasing telemetry noise.

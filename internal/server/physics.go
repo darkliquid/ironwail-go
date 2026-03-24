@@ -453,9 +453,16 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
 					"pushmove blocked by=%d callback=%d movetime=%.3f", checkNum, pusher.Vars.Blocked, movetime)
 			}
+			prevNumEdicts := s.NumEdicts
+			pusherSnapshots := s.capturePusherSnapshots()
+			s.syncPushersToQCVM()
+			syncEdictToQCVM(s.QCVM, checkNum, check)
 			s.QCVM.SetGlobal("self", pusherNum)
 			s.QCVM.SetGlobal("other", checkNum)
-			_ = s.executeQCFunction(int(pusher.Vars.Blocked))
+			if err := s.executeQCFunction(int(pusher.Vars.Blocked)); err == nil {
+				s.syncMutatedPushersFromQCVM(pusherSnapshots)
+				s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
+			}
 			restoreQCExecutionContext(s.QCVM, ctx)
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventBlocked, s.QCVM, pusherNum, pusher,
@@ -623,6 +630,11 @@ func (s *Server) SV_TryUnstick(ent *Edict, oldVel [3]float32) int {
 	return 7 // still not moving
 }
 
+func walkMoveNeedsUnstick(oldOrg, newOrg [3]float32) bool {
+	return math.Abs(float64(oldOrg[0]-newOrg[0])) < DistEpsilon &&
+		math.Abs(float64(oldOrg[1]-newOrg[1])) < DistEpsilon
+}
+
 func (s *Server) SV_WalkMove(ent *Edict) {
 	oldonground := uint32(ent.Vars.Flags) & FlagOnGround
 	ent.Vars.Flags = float32(uint32(ent.Vars.Flags) &^ FlagOnGround)
@@ -671,8 +683,7 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 
 	// check for stuckness
 	if clip != 0 {
-		if math.Abs(float64(oldorg[0]-ent.Vars.Origin[0])) < 0.03125 &&
-			math.Abs(float64(oldorg[1]-ent.Vars.Origin[1])) < 0.03125 {
+		if walkMoveNeedsUnstick(oldorg, ent.Vars.Origin) {
 			clip = s.SV_TryUnstick(ent, oldvel)
 		}
 	}

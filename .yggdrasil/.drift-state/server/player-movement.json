@@ -1,8 +1,8 @@
 {
-  "hash": "8b96f53a2d35d0f61d6c68cfd58631dd7605fb15265ffe0661bd808e141c2415",
+  "hash": "c00457f9333424791a75e690b63f6979aa2f2f92d35af8d3256b10b8da8ca5e3",
   "files": {
     ".yggdrasil/model/server/player-movement/yg-node.yaml": "753ec9b83b64f472be40fbeaa4ab2060677dcbaa13e44edbd510c59fb8f7214d",
-    ".yggdrasil/model/server/player-movement/interface.md": "e32f966e40b5880a234722669fd682ba12f605dad4f2b89ab730555706402b27",
+    ".yggdrasil/model/server/player-movement/interface.md": "36d0ab3d2ab4bab3911385634217513394d27b4852b5db6ea6344db194b8b99a",
     ".yggdrasil/model/server/player-movement/internals.md": "28a79a0f8186eb59d6cadb79f021c95ef95b2b7030f6d1d7f0cfe991ff6c34f8",
     ".yggdrasil/model/server/player-movement/responsibility.md": "0dec88e4e3bb877816ebb848ecaa3f06490e8ff2bee7bf33192f51ae8194b6e3",
     ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
@@ -11,14 +11,14 @@
     ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
     ".yggdrasil/model/bsp/responsibility.md": "9d1101bdf415cd0268a4d8e8de92ae095970536a46296f0770b93832d0573b83",
     ".yggdrasil/model/bsp/interface.md": "91ff09541cacc29c279b1e02be68c859414fff304b9ba3cb62c4f1b92acf6556",
-    "internal/server/movement.go": "34bea56248b099ffbfe37eb99cefedd853d3d8144fc2b54e2ce55b9d36d8d796",
+    "internal/server/movement.go": "b73feaac7b60c3e8e5a9268e519470d5398cbda4badcaeb4dc368125c8b23c1c",
     "internal/server/movement_test.go": "5c664707d38ddbe3c48a6d7c21d75aaff455a318c90bd5964cbf2133977fbeb5",
     "internal/server/map_movement_test.go": "cda78832a0385b8045322557ae0d06311702bd7b0216fa9a1fb61748176ba2b7",
     "internal/server/synthetic_movement_test.go": "067b71cbcb960d3cabd4974763f2fdfd636a717677ea9d0ce7dcd6da2102cebe"
   },
   "mtimes": {
     ".yggdrasil/model/server/player-movement/yg-node.yaml": 1774234390008.2017,
-    ".yggdrasil/model/server/player-movement/interface.md": 1774234390008.2915,
+    ".yggdrasil/model/server/player-movement/interface.md": 1774334939187.0447,
     ".yggdrasil/model/server/player-movement/internals.md": 1774234390008.3362,
     ".yggdrasil/model/server/player-movement/responsibility.md": 1774234390008.2466,
     ".yggdrasil/model/server/yg-node.yaml": 1774234390007.1306,
@@ -27,7 +27,7 @@
     ".yggdrasil/model/server/responsibility.md": 1774234390007.2136,
     ".yggdrasil/model/bsp/responsibility.md": 1774218763751.7432,
     ".yggdrasil/model/bsp/interface.md": 1774218763811.7434,
-    "internal/server/movement.go": 1774030102283.0166,
+    "internal/server/movement.go": 1774334870720.3528,
     "internal/server/movement_test.go": 1774061916400.4631,
     "internal/server/map_movement_test.go": 1774061916399.4631,
     "internal/server/synthetic_movement_test.go": 1774112698551.5906

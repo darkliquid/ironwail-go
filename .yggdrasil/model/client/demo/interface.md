@@ -11,9 +11,10 @@ Observed surfaces:
 - `NewDemoState()`
 - start/stop recording
 - write demo frame helpers
-- playback source management and timedemo bookkeeping
+- playback source management (`StartDemoPlayback`, `StartDemoPlaybackFromData`, `StartDemoPlaybackFromSource`) and timedemo bookkeeping
 
 ## Contracts
 
 - Recording and playback are mutually exclusive.
 - Demo file format includes CD track header plus per-frame message size, view angles, and message payload.
+- `StartDemoPlaybackFromSource` accepts an already-open seekable stream plus optional closer so callers can keep demo playback on top of VFS-owned handles instead of materializing a separate byte slice first.

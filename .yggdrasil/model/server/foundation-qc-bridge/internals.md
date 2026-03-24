@@ -4,7 +4,9 @@
 
 This node centralizes the dual-representation problem: every authoritative entity exists both as typed Go state and as flat QC VM memory. The sync helpers copy data between those representations at key boundaries so QC logic, physics, and networking all observe consistent values. It also caches field offsets and protocol-related knobs used throughout the rest of the package.
 
-The server also exposes narrow bridge helpers that project QC VM internals to host policies without leaking VM ownership; `QCProfileResults(top)` is one such bridge and only returns counters when the server and QC VM are active.
+The server also exposes narrow bridge helpers that project QC VM internals to host policies without leaking VM ownership; `QCProfileResults(top)` is one such bridge and only returns counters when the server and QC VM are active. The same bridge layer now includes a `DevStatsSnapshot()` surface backed by `devStats/devPeak` state on `Server`, keeping runtime developer counters available to host command code without exposing serialization/physics internals directly.
+
+Node-owned integration tests in `server_test.go` now also pin cross-node command-bridge behavior at the public `ExecuteClientString` surface for `ban`: non-deathmatch execution mutates/query-reads the shared datagram IP-ban state via `internal/net`, while deathmatch mode remains a no-op.
 
 ## Constraints
 
@@ -25,3 +27,14 @@ Rationale:
 
 Observed effect:
 - Server-side gameplay code is easier to read and test than raw pointer arithmetic, but still remains constrained by the QC memory layout contract.
+
+### Provide QC profile snapshots through a narrow bridge
+
+Observed decision:
+- The server exposes VM profile counters to host policies through `QCProfileResults(top)` rather than exposing the VM directly.
+
+Rationale:
+- This keeps VM ownership and mutation boundaries inside server/QC nodes while still supporting the parity `profile` command contract.
+
+Observed effect:
+- QC profiling is an implemented, bounded bridge feature and does not require extra telemetry-specific plumbing.

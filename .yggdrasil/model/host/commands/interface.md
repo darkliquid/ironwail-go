@@ -28,6 +28,7 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - Local map/changelevel/load commands may synchronously mutate both host and loopback client state.
 - Successful load operations synchronize autosave timing with restored server time so autosave scoring does not fire immediately after a save restore.
 - `profile` is local-server/QC-only: it no-ops when no active local server/QC VM is available, prints at most 10 lines in `%7d %s` format, and consumes/reset VM counters.
+- `devstats` is local-server only: it prints an 8-row C-style `Curr/Peak` table (`Edicts`, `Packet`, `Visedicts`, `Efrags`, `Dlights`, `Beams`, `Tempents`, `GL upload`) sourced from server-side counters; fields not currently produced by server/runtime remain zero.
 - `listen` mirrors C query/set semantics: no argument prints `"listen" is "0|1"`, one numeric argument toggles transport listening.
 - `maxplayers` mirrors C query/set semantics: no argument prints current max, setting is rejected while server is active, values clamp to `[1, MaxScoreboard]`, `deathmatch` tracks `maxplayers>1`, and listen toggles are queued (`listen 0`/`listen 1`) when crossing single-player/multiplayer boundary.
 - `port` mirrors C query/set semantics: no argument prints current host port, set validates `[1, 65534]`, and when already listening it queues `listen 0` then `listen 1` to rebind.
@@ -36,12 +37,13 @@ The public surface is command-oriented rather than method-oriented. Observed com
 - `test2 <server>` mirrors C's rule-info query path by printing the target server's `FlagServerInfo` cvars in `%-16.16s  %-16.16s` rows.
 - `slist` mirrors C's LAN-browser console contract: prints `Looking for Quake servers...`, then `Server/Map/Users` header rows, then one row per host (`%-15.15s %-15.15s %2u/%2u` when max users is known, otherwise name/map only), ending with `== end list ==` or `No Quake servers found.`.
 - `fog` mirrors C's client-side query/set forms: no args prints usage plus current values, one arg sets density, two args set density plus fade time, three args set RGB, four args set density+RGB, and five args set density+RGB+fade time while clamping density/RGB ranges.
-- `edictcount` mirrors C's local-server debug summary by printing `num_edicts`, `active`, `view`, `touch`, and `step` counts derived from the current server entity array.
+- `edictcount` mirrors C's local-server debug summary by printing `num_edicts`, `active`, `view`, `touch`, and `step` counts derived from the current server entity array, and also exposes parity-facing physics counters (`peak`, `c_yes`, `c_no`) sourced from server physics/movement debug stats.
 - `path` mirrors C's filesystem debug command by printing `Current search path:` followed by the active VFS lookup stack, with pack entries shown as `path (N files)`.
 - `mapname` mirrors C's query semantics by printing `"mapname" is "<name>"` for the active local server map or the connected client map, and `no map loaded` otherwise.
 - `mods` mirrors C's mod-directory listing by printing discovered non-`id1` mod directories plus a count footer, optionally filtering by substring; `games` is an exact alias to the same listing.
 - `skies` mirrors C's skybox listing by printing discovered `gfx/env/*up.tga` skybox bases plus a count footer, optionally filtering by substring.
 - `demoseek`/`demogoto`/`rewind` rebuild playback state from frame 0 and must clear any rewind-edge backstop flag as part of seeking so explicit seeks do not remain stuck in the "first-frame rewind clamp" state.
+- `playdemo` prefers a filesystem-provided `OpenFile` seam when available so PAK-aware playback can start from a seekable VFS handle directly, falling back to byte-slice loading and finally loose OS-file playback for older/mock filesystem implementations.
 
 ## Failure modes
 

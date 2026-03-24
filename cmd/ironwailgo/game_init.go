@@ -103,6 +103,7 @@ func initGameHost() error {
 	cvar.Register("r_drawentities", "1", 0, "Draw entities")
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
+	cvar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")
 	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
 	cvar.Register(renderer.CvarRShadows, "1", cvar.FlagArchive, "Enable entity shadows (0=off, 1=on)")
 	cvar.Register(renderer.CvarRNoshadowList, "progs/eyes.mdl", cvar.FlagArchive, "Space-separated list of model names to exclude from shadows")
@@ -541,6 +542,12 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 			return out
 		})
 		g.Menu.SetCurrentMod(g.ModDir)
+		g.Menu.SetNewGameConfirmationProvider(func() bool {
+			if g.Host == nil {
+				return false
+			}
+			return g.Host.ServerActive()
+		})
 	}
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)

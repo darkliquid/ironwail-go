@@ -370,6 +370,92 @@ func TestSinglePlayerActions(t *testing.T) {
 	}
 }
 
+func TestSinglePlayerNewGamePromptsWhenProviderRequiresConfirmation(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetNewGameConfirmationProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> prompt
+
+	if !mgr.IsActive() {
+		t.Fatal("menu should stay active for new game confirmation")
+	}
+	if got := mgr.GetState(); got != MenuQuit {
+		t.Fatalf("state = %v, want %v", got, MenuQuit)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("commands should not be queued before confirming, got %v", commands)
+	}
+}
+
+func TestSinglePlayerNewGamePromptConfirmStartsGame(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetNewGameConfirmationProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> prompt
+	mgr.M_Key('y')          // Confirm
+
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after confirming new game prompt")
+	}
+	want := []string{"disconnect\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
+	if len(commands) < len(want) {
+		t.Fatalf("expected at least %d commands, got %d", len(want), len(commands))
+	}
+	for i, expected := range want {
+		if commands[i] != expected {
+			t.Fatalf("command %d: expected %q, got %q", i, expected, commands[i])
+		}
+	}
+}
+
+func TestSinglePlayerNewGamePromptCancelReturnsToSinglePlayer(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	var commands []string
+	mgr.commandText = func(text string) {
+		commands = append(commands, text)
+	}
+	mgr.SetNewGameConfirmationProvider(func() bool { return true })
+
+	mgr.ShowMenu()
+	mgr.M_Key(input.KEnter) // Main -> Single Player
+	mgr.M_Key(input.KEnter) // New Game -> prompt
+	mgr.M_Key('n')          // Cancel
+
+	if !mgr.IsActive() {
+		t.Fatal("menu should remain active after declining new game prompt")
+	}
+	if got := mgr.GetState(); got != MenuSinglePlayer {
+		t.Fatalf("state = %v, want %v", got, MenuSinglePlayer)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("commands should not be queued after declining prompt, got %v", commands)
+	}
+}
+
 func TestLoadSaveCommands(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
@@ -1315,6 +1401,70 @@ func TestMouseBindingsForActivationAndBack(t *testing.T) {
 
 	if len(commands) == 0 || commands[len(commands)-1] != "quit\n" {
 		t.Fatalf("expected quit command from mouse confirm, got %v", commands)
+	}
+}
+
+func TestControllerButtonsMapToMenuAcceptAndBack(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.ShowMenu()
+	mgr.state = MenuSinglePlayer
+	mgr.singlePlayerCursor = 1 // LOAD
+
+	mgr.M_Key(input.KAButton)
+	if got := mgr.GetState(); got != MenuLoad {
+		t.Fatalf("A button should activate selection, got %v", got)
+	}
+
+	mgr.M_Key(input.KBButton)
+	if got := mgr.GetState(); got != MenuSinglePlayer {
+		t.Fatalf("B button should go back, got %v", got)
+	}
+}
+
+func TestControllerDpadMapsToArrowNavigation(t *testing.T) {
+	mgr := NewManager(nil, nil)
+	mgr.ShowMenu()
+
+	mgr.mainCursor = 0
+	mgr.M_Key(input.KDpadDown)
+	if got := mgr.mainCursor; got != 1 {
+		t.Fatalf("D-pad down should move cursor down, got %d", got)
+	}
+
+	mgr.M_Key(input.KDpadUp)
+	if got := mgr.mainCursor; got != 0 {
+		t.Fatalf("D-pad up should move cursor up, got %d", got)
+	}
+
+	// Alt-layer gamepad keys should be accepted too.
+	mgr.M_Key(input.KDpadUpAlt)
+	if got := mgr.mainCursor; got != mainQuit {
+		t.Fatalf("alt D-pad up should wrap like up-arrow, got %d", got)
+	}
+}
+
+func TestControllerStartAndBackMapInOptionsMenu(t *testing.T) {
+	drawMgr := &mockDrawManager{}
+	backend := &mockInputBackend{}
+	inputSys := input.NewSystem(backend)
+	mgr := NewManager(drawMgr, inputSys)
+
+	mgr.ShowMenu()
+	mgr.state = MenuOptions
+	mgr.optionsCursor = 0 // CONTROLS
+
+	mgr.M_Key(input.KStart)
+	if got := mgr.GetState(); got != MenuControls {
+		t.Fatalf("START should activate current option, got %v", got)
+	}
+
+	mgr.M_Key(input.KBack)
+	if got := mgr.GetState(); got != MenuOptions {
+		t.Fatalf("BACK should behave like backspace and return, got %v", got)
 	}
 }
 

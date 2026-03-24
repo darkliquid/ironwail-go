@@ -679,6 +679,25 @@ func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
 			return fmt.Errorf("begin out of order")
 		}
 		client.Spawned = true
+	case "ban":
+		if cvar.IntValue("deathmatch") != 0 {
+			return nil
+		}
+		args := strings.Fields(clientStringCommandArgs(cmd))
+		switch len(args) {
+		case 0:
+			s.SV_ClientPrintf(client, "%s\n", inet.IPBanStatus())
+		case 1:
+			if err := inet.SetIPBan(args[0], ""); err != nil {
+				s.SV_ClientPrintf(client, "%s\n", err.Error())
+			}
+		case 2:
+			if err := inet.SetIPBan(args[0], args[1]); err != nil {
+				s.SV_ClientPrintf(client, "%s\n", err.Error())
+			}
+		default:
+			s.SV_ClientPrintf(client, "BAN ip_address [mask]\n")
+		}
 	}
 	return nil
 }

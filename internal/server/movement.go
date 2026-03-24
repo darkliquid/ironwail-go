@@ -78,6 +78,12 @@ func CheckBottomStats() (yes, no int) {
 	return checkBottomYes, checkBottomNo
 }
 
+// ResetCheckBottomStats clears the c_yes/c_no debug counters.
+func ResetCheckBottomStats() {
+	checkBottomYes = 0
+	checkBottomNo = 0
+}
+
 func (s *Server) checkBottom(ent *Edict) bool {
 	mins := VecAdd(ent.Vars.Origin, ent.Vars.Mins)
 	maxs := VecAdd(ent.Vars.Origin, ent.Vars.Maxs)

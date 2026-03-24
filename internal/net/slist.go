@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"log/slog"
 	stdnet "net"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -98,10 +97,21 @@ func (sb *ServerBrowser) Results() []HostCacheEntry {
 	defer sb.mu.Unlock()
 	out := make([]HostCacheEntry, len(sb.entries))
 	copy(out, sb.entries)
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Name < out[j].Name
-	})
-	return out
+	return sortHostCacheEntriesCStyle(out)
+}
+
+// sortHostCacheEntriesCStyle reproduces NET_SlistSort from C Ironwail.
+// It intentionally uses the same nested-loop swap behavior (strcmp < 0)
+// instead of Go's standard sort helpers.
+func sortHostCacheEntriesCStyle(entries []HostCacheEntry) []HostCacheEntry {
+	for i := 0; i < len(entries); i++ {
+		for j := i + 1; j < len(entries); j++ {
+			if strings.Compare(entries[j].Name, entries[i].Name) < 0 {
+				entries[i], entries[j] = entries[j], entries[i]
+			}
+		}
+	}
+	return entries
 }
 
 // IsSearching reports whether a search is currently in progress.

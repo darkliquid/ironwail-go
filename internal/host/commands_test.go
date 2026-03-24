@@ -4,6 +4,7 @@
 package host
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -38,6 +39,49 @@ func (s *reconnectTrackingServer) ConnectClient(clientNum int) {
 type disconnectTrackingServer struct {
 	mockServer
 	shutdownCalls int
+}
+
+type readSeekNopCloser struct {
+	*bytes.Reader
+}
+
+func (r readSeekNopCloser) Close() error { return nil }
+
+type demoCommandFiles struct {
+	loaded    map[string][]byte
+	loadCalls []string
+	openCalls []string
+}
+
+func (f *demoCommandFiles) Init(baseDir, gameDir string) error { return nil }
+func (f *demoCommandFiles) Close()                             {}
+func (f *demoCommandFiles) LoadFile(filename string) ([]byte, error) {
+	f.loadCalls = append(f.loadCalls, filename)
+	data, ok := f.loaded[filename]
+	if !ok {
+		return nil, fmt.Errorf("missing file %s", filename)
+	}
+	return data, nil
+}
+func (f *demoCommandFiles) OpenFile(filename string) (io.ReadSeekCloser, int64, error) {
+	f.openCalls = append(f.openCalls, filename)
+	data, ok := f.loaded[filename]
+	if !ok {
+		return nil, 0, fmt.Errorf("missing file %s", filename)
+	}
+	return readSeekNopCloser{Reader: bytes.NewReader(data)}, int64(len(data)), nil
+}
+func (f *demoCommandFiles) LoadFirstAvailable(filenames []string) (string, []byte, error) {
+	for _, filename := range filenames {
+		if data, ok := f.loaded[filename]; ok {
+			return filename, data, nil
+		}
+	}
+	return "", nil, fmt.Errorf("missing files")
+}
+func (f *demoCommandFiles) FileExists(filename string) bool {
+	_, ok := f.loaded[filename]
+	return ok
 }
 
 func (s *disconnectTrackingServer) Shutdown() {
@@ -504,6 +548,57 @@ func TestProfileCommandRegistrationExecutes(t *testing.T) {
 
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "      7 qc_profiled\n") {
 		t.Fatalf("profile command output = %q, want formatted QC profile line", got)
+	}
+}
+
+func TestCmdDevStatsPrintsCStyleTable(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	console := &mockConsole{}
+	srv := server.NewServer()
+	if err := srv.Init(1); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	srv.Active = true
+
+	subs := &Subsystems{Server: srv, Console: console}
+	h.CmdDevStats(subs)
+
+	got := strings.Join(console.messages, "")
+	if !strings.Contains(got, "devstats | Curr  Peak\n") {
+		t.Fatalf("devstats output missing header:\n%s", got)
+	}
+	if !strings.Contains(got, "Edicts   |") {
+		t.Fatalf("devstats output missing Edicts row:\n%s", got)
+	}
+	if !strings.Contains(got, "Packet   |") {
+		t.Fatalf("devstats output missing Packet row:\n%s", got)
+	}
+	if !strings.Contains(got, "GL upload|") {
+		t.Fatalf("devstats output missing GL upload row:\n%s", got)
+	}
+}
+
+func TestDevStatsCommandRegistrationExecutes(t *testing.T) {
+	cmdsys.RemoveCommand("devstats")
+	t.Cleanup(func() { cmdsys.RemoveCommand("devstats") })
+
+	h := NewHost()
+	console := &mockConsole{}
+	srv := server.NewServer()
+	if err := srv.Init(1); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	srv.Active = true
+	h.SetServerActive(true)
+
+	subs := &Subsystems{Server: srv, Console: console}
+	h.RegisterCommands(subs)
+	cmdsys.ExecuteText("devstats")
+
+	got := strings.Join(console.messages, "")
+	if !strings.Contains(got, "devstats | Curr  Peak\n") {
+		t.Fatalf("devstats command output = %q, want devstats header", got)
 	}
 }
 
@@ -1251,6 +1346,36 @@ func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
 		t.Fatal("AllocEdict solidEnt = nil")
 	}
 	solidEnt.Vars.Solid = float32(server.SolidBSP)
+	server.ResetCheckBottomStats()
+	grounded := srv.AllocEdict()
+	if grounded == nil {
+		t.Fatal("AllocEdict grounded = nil")
+	}
+	grounded.Vars.Origin = [3]float32{0, 0, 24}
+	grounded.Vars.Mins = [3]float32{-16, -16, -24}
+	grounded.Vars.Maxs = [3]float32{16, 16, 32}
+	grounded.Vars.Solid = float32(server.SolidSlideBox)
+	grounded.Vars.MoveType = float32(server.MoveTypeStep)
+	srv.WorldModel = server.CreateSyntheticWorldModel()
+	srv.Edicts[0].Vars.Solid = float32(server.SolidBSP)
+	srv.ClearWorld()
+	srv.LinkEdict(grounded, false)
+	if !srv.CheckBottom(grounded) {
+		t.Fatal("expected grounded entity to satisfy CheckBottom")
+	}
+	air := srv.AllocEdict()
+	if air == nil {
+		t.Fatal("AllocEdict air = nil")
+	}
+	air.Vars.Origin = [3]float32{0, 0, 256}
+	air.Vars.Mins = [3]float32{-16, -16, -24}
+	air.Vars.Maxs = [3]float32{16, 16, 32}
+	air.Vars.Solid = float32(server.SolidSlideBox)
+	srv.LinkEdict(air, false)
+	if srv.CheckBottom(air) {
+		t.Fatal("expected elevated entity to fail CheckBottom")
+	}
+	srv.Physics()
 
 	subs := &Subsystems{
 		Server:  srv,
@@ -1260,20 +1385,29 @@ func TestCmdEdictCountPrintsCanonicalSummary(t *testing.T) {
 	h.CmdEdictCount(subs)
 
 	got := strings.Join(console.messages, "")
-	if !strings.Contains(got, "num_edicts:  4\n") {
+	if !strings.Contains(got, "num_edicts:  6\n") {
 		t.Fatalf("edictcount output missing num_edicts:\n%s", got)
 	}
-	if !strings.Contains(got, "active    :  4\n") {
+	if !strings.Contains(got, "active    :  6\n") {
 		t.Fatalf("edictcount output missing active count:\n%s", got)
+	}
+	if !strings.Contains(got, "peak      :  6\n") {
+		t.Fatalf("edictcount output missing peak count:\n%s", got)
 	}
 	if !strings.Contains(got, "view      :  1\n") {
 		t.Fatalf("edictcount output missing model count:\n%s", got)
 	}
-	if !strings.Contains(got, "touch     :  2\n") {
+	if !strings.Contains(got, "touch     :  5\n") {
 		t.Fatalf("edictcount output missing solid count:\n%s", got)
 	}
-	if !strings.Contains(got, "step      :  1\n") {
+	if !strings.Contains(got, "step      :  2\n") {
 		t.Fatalf("edictcount output missing step count:\n%s", got)
+	}
+	if !strings.Contains(got, "c_yes     :  1\n") {
+		t.Fatalf("edictcount output missing c_yes count:\n%s", got)
+	}
+	if !strings.Contains(got, "c_no      :  1\n") {
+		t.Fatalf("edictcount output missing c_no count:\n%s", got)
 	}
 }
 
@@ -2218,6 +2352,38 @@ func TestCmdPlaydemoLeavesLoopbackClientDisconnectedForServerInfo(t *testing.T) 
 	h.CmdPlaydemo("bootstrap", subs)
 	if lc.inner.State != cl.StateDisconnected {
 		t.Fatalf("loopback client state = %v, want disconnected", lc.inner.State)
+	}
+}
+
+func TestCmdPlaydemoUsesOpenFileWhenAvailable(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	files := &demoCommandFiles{
+		loaded: map[string][]byte{
+			"bootstrap.dem": []byte("0\n"),
+		},
+	}
+	lc := newLocalLoopbackClient()
+	subs := &Subsystems{
+		Client:  lc,
+		Console: console,
+		Files:   files,
+	}
+
+	h.CmdPlaydemo("bootstrap", subs)
+	if h.demoState == nil || !h.demoState.Playback {
+		t.Fatal("expected demo playback to be active")
+	}
+	defer h.demoState.StopPlayback()
+
+	if !reflect.DeepEqual(files.openCalls, []string{"bootstrap.dem"}) {
+		t.Fatalf("OpenFile calls = %v, want [bootstrap.dem]", files.openCalls)
+	}
+	if len(files.loadCalls) != 0 {
+		t.Fatalf("LoadFile calls = %v, want none", files.loadCalls)
+	}
+	if got := h.demoState.Filename; got != "bootstrap.dem" {
+		t.Fatalf("demo filename = %q, want bootstrap.dem", got)
 	}
 }
 

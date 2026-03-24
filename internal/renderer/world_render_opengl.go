@@ -7,7 +7,6 @@ package renderer
 import (
 	"fmt"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
 	"sort"
@@ -149,6 +148,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	skyExternalFaceFogDensityUniform := r.worldSkyExternalFaceFogDensity
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
+	worldFastSky := readWorldFastSkyEnabled()
 	skyExternalCubemap := r.worldSkyExternalCubemap
 	skyExternalFaceTextures := r.worldSkyExternalFaceTextures
 	skyExternalMode := r.worldSkyExternalMode
@@ -180,6 +180,10 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 	worldSkyAlphaTextures := make(map[int32]uint32, len(r.worldSkyAlphaTextures))
 	for k, v := range r.worldSkyAlphaTextures {
 		worldSkyAlphaTextures[k] = v
+	}
+	worldSkyFlatTextures := make(map[int32]uint32, len(r.worldSkyFlatTextures))
+	for k, v := range r.worldSkyFlatTextures {
+		worldSkyFlatTextures[k] = v
 	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	worldLightmaps := append([]uint32(nil), r.worldLightmaps...)
@@ -275,6 +279,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				fogDensity:                  skyFogFactor,
 				solidTextures:               worldSkySolidTextures,
 				alphaTextures:               worldSkyAlphaTextures,
+				flatTextures:                worldSkyFlatTextures,
 				textureAnimations:           worldTextureAnimations,
 				fallbackSolid:               fallbackTexture,
 				fallbackAlpha:               skyFallbackAlpha,
@@ -282,6 +287,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 				externalCubemap:             skyExternalCubemap,
 				externalFaceTextures:        skyExternalFaceTextures,
 				externalSkyMode:             skyExternalMode,
+				fastSky:                     worldFastSky,
 			})
 			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindWorldProgram()
@@ -382,6 +388,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	skyExternalFaceFogDensityUniform := r.worldSkyExternalFaceFogDensity
 	fallbackTexture := r.worldFallbackTexture
 	skyFallbackAlpha := r.worldSkyAlphaFallback
+	worldFastSky := readWorldFastSkyEnabled()
 	skyExternalCubemap := r.worldSkyExternalCubemap
 	skyExternalFaceTextures := r.worldSkyExternalFaceTextures
 	skyExternalMode := r.worldSkyExternalMode
@@ -406,6 +413,10 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 	worldSkyAlphaTextures := make(map[int32]uint32, len(r.worldSkyAlphaTextures))
 	for k, v := range r.worldSkyAlphaTextures {
 		worldSkyAlphaTextures[k] = v
+	}
+	worldSkyFlatTextures := make(map[int32]uint32, len(r.worldSkyFlatTextures))
+	for k, v := range r.worldSkyFlatTextures {
+		worldSkyFlatTextures[k] = v
 	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
 	lightPool := r.lightPool // Get light pool for light evaluation
@@ -526,6 +537,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				fogDensity:                  skyFogFactor,
 				solidTextures:               worldSkySolidTextures,
 				alphaTextures:               worldSkyAlphaTextures,
+				flatTextures:                worldSkyFlatTextures,
 				textureAnimations:           worldTextureAnimations,
 				fallbackSolid:               fallbackTexture,
 				fallbackAlpha:               skyFallbackAlpha,
@@ -534,6 +546,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 				externalFaceTextures:        skyExternalFaceTextures,
 				externalSkyMode:             skyExternalMode,
 				frame:                       brush.frame,
+				fastSky:                     worldFastSky,
 			})
 			if drawNonLiquid || drawLiquidOpaque || drawLiquidTranslucent {
 				bindBrushWorldProgram()

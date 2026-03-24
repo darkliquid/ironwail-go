@@ -16,3 +16,4 @@
 
 - canvas transforms define the logical coordinate spaces used by 2D drawing
 - config and backend interfaces are the stable package contract for renderer creation and runtime control
+- renderer cvar-name constants exposed from this layer include sky controls consumed by backend world paths, including `r_fastsky` and `r_skyfog`

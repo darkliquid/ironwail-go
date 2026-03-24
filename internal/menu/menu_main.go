@@ -82,12 +82,17 @@ func (m *Manager) singlePlayerKey(key int) {
 		m.playMenuSound(menuSoundSelect)
 		switch m.singlePlayerCursor {
 		case 0:
-			m.HideMenu()
-			m.queueCommand("disconnect\n")
-			m.queueCommand("maxplayers 1\n")
-			m.queueCommand("deathmatch 0\n")
-			m.queueCommand("coop 0\n")
-			m.queueCommand("map start\n")
+			if m.shouldConfirmNewGame != nil && m.shouldConfirmNewGame() {
+				m.ShowConfirmationPrompt([]string{
+					"START A NEW GAME? (Y/N)",
+					"PRESS Y OR ENTER TO START",
+					"PRESS N OR ESC TO CANCEL",
+				}, func() {
+					m.startSinglePlayerNewGame()
+				}, nil, MenuSinglePlayer)
+				return
+			}
+			m.startSinglePlayerNewGame()
 		case 1:
 			m.enterLoadMenu()
 		case 2:
@@ -97,6 +102,15 @@ func (m *Manager) singlePlayerKey(key int) {
 		m.playMenuSound(menuSoundCancel)
 		m.state = MenuMain
 	}
+}
+
+func (m *Manager) startSinglePlayerNewGame() {
+	m.HideMenu()
+	m.queueCommand("disconnect\n")
+	m.queueCommand("maxplayers 1\n")
+	m.queueCommand("deathmatch 0\n")
+	m.queueCommand("coop 0\n")
+	m.queueCommand("map start\n")
 }
 
 // multiPlayerKey routes keyboard input on the Multiplayer menu page.

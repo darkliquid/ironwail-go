@@ -13,6 +13,7 @@ Observed surfaces:
 - `FindFunction`, `FindGlobal`, `FindField`
 - `EnterFunction`, `LeaveFunction`
 - `ExecuteProgram`
+- `ProfileResults(top int)` for sorted function-level QC profile counters (reset on read)
 
 ## Contracts
 

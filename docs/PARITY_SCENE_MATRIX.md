@@ -5,6 +5,28 @@ Part of Milestone 0 ("Parity Harness and Scene Matrix") from the Entity Renderin
 
 ---
 
+## Scope boundary: CSQC for near-term parity
+
+Near-term parity work is scoped to the canonical NetQuake/FitzQuake engine path.
+CSQC runtime enablement (for example host/client loading and execution of
+`csprogs.dat`) is explicitly **deferred** from near-term parity milestones.
+
+Rationale:
+
+- Current parity harness/sign-off in this document is centered on deterministic
+  baseline engine behavior and renderer parity.
+- The repository has a CSQC VM wrapper in `internal/qc/csqc.go`, but host/client
+  runtime wiring for a full CSQC gameplay path is not yet part of the current
+  parity milestone criteria.
+- Keeping CSQC runtime deferred prevents expanding protocol/runtime scope while
+  baseline parity milestones are still being stabilized.
+
+Deferred means "not in near-term milestones," not "rejected." Keep CSQC wrapper
+infrastructure maintained and revisit runtime integration after near-term parity
+targets are complete or when parity scope is explicitly expanded.
+
+---
+
 ## 1. Scene Matrix
 
 Canonical id1 scenes for parity comparison. Each row defines a repeatable

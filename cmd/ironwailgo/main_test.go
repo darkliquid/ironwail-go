@@ -357,9 +357,11 @@ type consoleOverlayDrawContext struct {
 		color      byte
 		alpha      float32
 	}
-	chars []struct {
-		x, y, num int
-	}
+	chars []overlayChar
+}
+
+type overlayChar struct {
+	x, y, num int
 }
 
 func (dc *consoleOverlayDrawContext) Clear(r, g, b, a float32)        {}
@@ -388,9 +390,7 @@ func (dc *consoleOverlayDrawContext) DrawFillAlpha(x, y, w, h int, color byte, a
 	}{x, y, w, h, color, alpha})
 }
 func (dc *consoleOverlayDrawContext) DrawCharacter(x, y int, num int) {
-	dc.chars = append(dc.chars, struct {
-		x, y, num int
-	}{x, y, num})
+	dc.chars = append(dc.chars, overlayChar{x: x, y: y, num: num})
 }
 func (dc *consoleOverlayDrawContext) DrawMenuCharacter(x, y int, num int) {
 	dc.DrawCharacter(x, y, num)
@@ -1167,7 +1167,7 @@ func TestDrawRuntimeFPSUsesMillisecondsModeForShowFPS2(t *testing.T) {
 	}
 }
 
-func charsToRunes(chars []overlayChar) []rune {
+func charsToRunes(chars []telemetryOverlayCharCall) []rune {
 	out := make([]rune, 0, len(chars))
 	for _, ch := range chars {
 		out = append(out, rune(ch.num))
@@ -4154,6 +4154,7 @@ func TestResetRuntimeVisualStateResetsPersistentViewCalcState(t *testing.T) {
 
 func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	originalClient := g.Client
+	originalServer := g.Server
 	originalMenu := g.Menu
 	originalDraw := g.Draw
 	originalRenderer := g.Renderer
@@ -4161,6 +4162,7 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	originalMarks := g.DecalMarks
 	t.Cleanup(func() {
 		g.Client = originalClient
+		g.Server = originalServer
 		g.Menu = originalMenu
 		g.Draw = originalDraw
 		g.Renderer = originalRenderer
@@ -4170,6 +4172,7 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 
 	g.Renderer = &renderer.Renderer{}
 	g.Client = cl.NewClient()
+	g.Server = nil
 	g.Client.FogDensity = 128
 	g.Client.FogColor = [3]byte{64, 128, 255}
 	g.Menu = nil
@@ -4205,6 +4208,41 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	}
 	if state.FogColor != [3]float32{64.0 / 255.0, 128.0 / 255.0, 1} {
 		t.Fatalf("FogColor = %v, want [64/255 128/255 1]", state.FogColor)
+	}
+}
+
+func TestBuildRuntimeRenderFrameStateAppliesWorldspawnFogDefaults(t *testing.T) {
+	originalClient := g.Client
+	originalServer := g.Server
+	originalMenu := g.Menu
+	originalDraw := g.Draw
+	originalRenderer := g.Renderer
+	t.Cleanup(func() {
+		g.Client = originalClient
+		g.Server = originalServer
+		g.Menu = originalMenu
+		g.Draw = originalDraw
+		g.Renderer = originalRenderer
+	})
+
+	g.Renderer = &renderer.Renderer{}
+	g.Client = cl.NewClient()
+	g.Server = &server.Server{
+		WorldTree: &bsp.Tree{
+			Entities: []byte(`{"classname" "worldspawn" "fog" "0.5 0.25 0.5 0.75"}`),
+		},
+	}
+	g.Menu = nil
+	g.Draw = nil
+
+	state := buildRuntimeRenderFrameState(nil, nil, nil, nil)
+
+	if math.Abs(float64(state.FogDensity-float32(128)/255.0)) > 0.0001 {
+		t.Fatalf("FogDensity = %v, want %v", state.FogDensity, float32(128)/255.0)
+	}
+	wantColor := [3]float32{64.0 / 255.0, 128.0 / 255.0, 191.0 / 255.0}
+	if state.FogColor != wantColor {
+		t.Fatalf("FogColor = %v, want %v", state.FogColor, wantColor)
 	}
 }
 

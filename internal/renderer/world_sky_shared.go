@@ -1,6 +1,10 @@
 package renderer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
+)
 
 type worldSkyFogOverride struct {
 	hasValue bool
@@ -36,6 +40,10 @@ func readWorldSkyFogCvar(fallback float32) float32 {
 	return readWorldAlphaCvar(CvarRSkyFog, fallback)
 }
 
+func readWorldFastSkyEnabled() bool {
+	return cvar.BoolValue(CvarRFastSky)
+}
+
 // resolveWorldSkyFogMix resolves the final sky fog mix factor from the cvar value, worldspawn override, and fog density.
 func resolveWorldSkyFogMix(cvarValue float32, override worldSkyFogOverride, fogDensity float32) float32 {
 	if fogDensity <= 0 {
@@ -60,4 +68,36 @@ func resolveWorldSkyTextureIndex(face WorldFace, textureAnimations []*SurfaceTex
 		}
 	}
 	return textureIndex
+}
+
+func buildSkyFlatRGBA(alphaLayer []byte) [4]byte {
+	var out [4]byte
+	if len(alphaLayer) < 4 {
+		out[3] = 255
+		return out
+	}
+	var (
+		sumR uint64
+		sumG uint64
+		sumB uint64
+		n    uint64
+	)
+	for i := 0; i+3 < len(alphaLayer); i += 4 {
+		if alphaLayer[i+3] == 0 {
+			continue
+		}
+		sumR += uint64(alphaLayer[i+0])
+		sumG += uint64(alphaLayer[i+1])
+		sumB += uint64(alphaLayer[i+2])
+		n++
+	}
+	if n == 0 {
+		out[3] = 255
+		return out
+	}
+	out[0] = byte(sumR / n)
+	out[1] = byte(sumG / n)
+	out[2] = byte(sumB / n)
+	out[3] = 255
+	return out
 }

@@ -214,6 +214,7 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 	r.worldFullbrightTextures = make(map[int32]uint32)
 	r.worldSkySolidTextures = make(map[int32]uint32)
 	r.worldSkyAlphaTextures = make(map[int32]uint32)
+	r.worldSkyFlatTextures = make(map[int32]uint32)
 	r.worldTextureAnimations = nil
 	r.ensureWorldFallbackTextureLocked()
 	r.ensureWorldSkyFallbackTexturesLocked()
@@ -277,6 +278,11 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 		}
 		if alphaTex != 0 {
 			r.worldSkyAlphaTextures[int32(i)] = alphaTex
+		}
+		flatRGBA := buildSkyFlatRGBA(alphaRGBA)
+		flatTex := uploadWorldTextureRGBA(1, 1, flatRGBA[:])
+		if flatTex != 0 {
+			r.worldSkyFlatTextures[int32(i)] = flatTex
 		}
 	}
 
@@ -682,6 +688,12 @@ func (r *Renderer) clearWorldLocked() {
 			gl.DeleteTextures(1, &tex)
 		}
 		delete(r.worldSkyAlphaTextures, textureIndex)
+	}
+	for textureIndex, tex := range r.worldSkyFlatTextures {
+		if tex != 0 {
+			gl.DeleteTextures(1, &tex)
+		}
+		delete(r.worldSkyFlatTextures, textureIndex)
 	}
 	r.worldTextureAnimations = nil
 	for i, tex := range r.worldLightmaps {

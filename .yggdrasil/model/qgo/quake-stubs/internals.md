@@ -4,6 +4,8 @@
 
 Vector/operator behavior is implemented as pure methods/helpers on `Vec3` and remains deterministic.
 
+Entity-level gameplay helpers can live as receiver methods when they only depend on entity-local fields. The first pilot is `(*Entity).Heal`, which centralizes the `T_Heal` arithmetic/ceiling/clamping behavior into the entity type without changing gameplay semantics.
+
 Engine builtin stubs stay as top-level functions with unchanged signatures. A selected subset now performs a fast hook lookup via `backend()` and either calls the configured hook or returns legacy stub defaults. This gives tests a minimal seam without changing call sites in translated gameplay packages.
 
 `FieldFloat` and `SetFieldFloat` are intentionally no-op-compatible stubs at runtime; qgo treats them as compiler intrinsics and lowers calls directly to QC field opcodes instead of relying on Go runtime behavior.

@@ -11,6 +11,7 @@
 Core type + vector surface:
 - `MakeVec3(x, y, z float32) Vec3`
 - `Vec3` methods (`Add`, `Sub`, `Mul`, `Div`, `Dot`, `Neg`, `Cross`, `Lerp`)
+- `(*Entity).Heal(healAmount, ignore float32) float32` applies Quake health rules (ceil amount, max-health clamp when `ignore == 0`, absolute cap at 250)
 - operator emulation helpers (`OpAddVV`, `OpSubVV`, `OpMulVF`, `OpMulFV`, `OpMulVV`, `OpDivVF`, `OpNegV`)
 
 Engine backend injection surface:

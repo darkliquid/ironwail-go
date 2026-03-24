@@ -1,6 +1,75 @@
 package qc
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
+
+func TestExecuteProgramDivByZeroProducesInfMatchingC(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+
+	const (
+		mainFuncNum = 0
+		numerOfs    = 10
+		denomOfs    = 11
+		resultOfs   = 12
+	)
+
+	vm.Functions = []DFunction{{FirstStatement: 0}}
+	vm.Statements = []DStatement{
+		{Op: uint16(OPDivF), A: uint16(numerOfs), B: uint16(denomOfs), C: uint16(resultOfs)},
+		{Op: uint16(OPDone), A: uint16(resultOfs)},
+	}
+
+	vm.SetGFloat(numerOfs, 1)
+	vm.SetGFloat(denomOfs, 0)
+
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+
+	got := vm.GFloat(resultOfs)
+	if !math.IsInf(float64(got), 1) {
+		t.Fatalf("1/0 result = %v, want +Inf", got)
+	}
+	if gotReturn := vm.GFloat(OFSReturn); !math.IsInf(float64(gotReturn), 1) {
+		t.Fatalf("OFSReturn = %v, want +Inf", gotReturn)
+	}
+}
+
+func TestExecuteProgramZeroDivZeroProducesNaNMatchingC(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+
+	const (
+		mainFuncNum = 0
+		numerOfs    = 10
+		denomOfs    = 11
+		resultOfs   = 12
+	)
+
+	vm.Functions = []DFunction{{FirstStatement: 0}}
+	vm.Statements = []DStatement{
+		{Op: uint16(OPDivF), A: uint16(numerOfs), B: uint16(denomOfs), C: uint16(resultOfs)},
+		{Op: uint16(OPDone), A: uint16(resultOfs)},
+	}
+
+	vm.SetGFloat(numerOfs, 0)
+	vm.SetGFloat(denomOfs, 0)
+
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+
+	got := vm.GFloat(resultOfs)
+	if !math.IsNaN(float64(got)) {
+		t.Fatalf("0/0 result = %v, want NaN", got)
+	}
+	if gotReturn := vm.GFloat(OFSReturn); !math.IsNaN(float64(gotReturn)) {
+		t.Fatalf("OFSReturn = %v, want NaN", gotReturn)
+	}
+}
 
 func TestExecuteProgramCallRunsCalleeFirstStatement(t *testing.T) {
 	vm := NewVM()
@@ -319,6 +388,12 @@ func TestExecuteProgramRunawayLoopProtectionMatchesC(t *testing.T) {
 	}
 	if got := vm.XStatement; got != 0 {
 		t.Fatalf("XStatement = %d, want 0 at runaway loop trap", got)
+	}
+}
+
+func TestExecuteProgramRunawayLoopLimitConstantMatchesC(t *testing.T) {
+	if runawayLoopLimit != 0x1000000 {
+		t.Fatalf("runawayLoopLimit = %#x, want %#x", runawayLoopLimit, 0x1000000)
 	}
 }
 

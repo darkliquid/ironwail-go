@@ -569,9 +569,13 @@ func (h *Host) CmdEdictCount(subs *Subsystems) {
 
 	subs.Console.Print(fmt.Sprintf("num_edicts:%3d\n", srv.NumEdicts))
 	subs.Console.Print(fmt.Sprintf("active    :%3d\n", active))
+	subs.Console.Print(fmt.Sprintf("peak      :%3d\n", srv.PeakEdicts()))
 	subs.Console.Print(fmt.Sprintf("view      :%3d\n", models))
 	subs.Console.Print(fmt.Sprintf("touch     :%3d\n", solid))
 	subs.Console.Print(fmt.Sprintf("step      :%3d\n", step))
+	yes, no := server.CheckBottomStats()
+	subs.Console.Print(fmt.Sprintf("c_yes     :%3d\n", yes))
+	subs.Console.Print(fmt.Sprintf("c_no      :%3d\n", no))
 }
 
 func (h *Host) CmdProfile(subs *Subsystems) {
@@ -585,6 +589,27 @@ func (h *Host) CmdProfile(subs *Subsystems) {
 	for _, result := range srv.QCProfileResults(10) {
 		subs.Console.Print(fmt.Sprintf("%7d %s\n", result.Profile, result.Name))
 	}
+}
+
+func (h *Host) CmdDevStats(subs *Subsystems) {
+	if subs == nil || subs.Server == nil || subs.Console == nil || !h.serverActive {
+		return
+	}
+	srv, ok := subs.Server.(*server.Server)
+	if !ok {
+		return
+	}
+	curr, peak := srv.DevStatsSnapshot()
+	subs.Console.Print("devstats | Curr  Peak\n")
+	subs.Console.Print("---------+-----------\n")
+	subs.Console.Print(fmt.Sprintf("Edicts   |%5d %5d\n", curr.Edicts, peak.Edicts))
+	subs.Console.Print(fmt.Sprintf("Packet   |%5d %5d\n", curr.PacketSize, peak.PacketSize))
+	subs.Console.Print(fmt.Sprintf("Visedicts|%5d %5d\n", curr.Visedicts, peak.Visedicts))
+	subs.Console.Print(fmt.Sprintf("Efrags   |%5d %5d\n", curr.Efrags, peak.Efrags))
+	subs.Console.Print(fmt.Sprintf("Dlights  |%5d %5d\n", curr.DLights, peak.DLights))
+	subs.Console.Print(fmt.Sprintf("Beams    |%5d %5d\n", curr.Beams, peak.Beams))
+	subs.Console.Print(fmt.Sprintf("Tempents |%5d %5d\n", curr.Tempents, peak.Tempents))
+	subs.Console.Print(fmt.Sprintf("GL upload|%4dK %4dK\n", curr.GPUUpload/1024, peak.GPUUpload/1024))
 }
 
 func (h *Host) CmdKill(subs *Subsystems) {

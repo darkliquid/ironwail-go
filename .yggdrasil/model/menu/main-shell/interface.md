@@ -15,3 +15,4 @@
 - Main-menu navigation conditionally skips the Mods slot when no mods are available.
 - Setup text entry accepts printable ASCII only and commits through `name`, `color`, and `hostname` updates.
 - Generic confirmations reuse the quit screen state and confirmation callback machinery.
+- Single Player -> New Game can be guarded by a confirmation prompt when the state-machine provider indicates an active in-game session; confirm queues the usual new-game command sequence and cancel returns to the single-player menu.

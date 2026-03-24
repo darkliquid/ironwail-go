@@ -113,3 +113,48 @@ func TestEntityFlagHelpersNilSafetyAndSpawnFlags(t *testing.T) {
 		t.Fatalf("SpawnFlagsValue = %v, want %v", got, want)
 	}
 }
+
+func TestEntityHealMethod(t *testing.T) {
+	t.Run("applies heal with cap and ceil", func(t *testing.T) {
+		e := &Entity{Health: 50, MaxHealth: 100}
+		if got := e.Heal(20.2, 0); got != 1 {
+			t.Fatalf("Heal return = %v, want 1", got)
+		}
+		if got, want := e.Health, float32(71); got != want {
+			t.Fatalf("Health = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("clamps to max health when ignore is false", func(t *testing.T) {
+		e := &Entity{Health: 95, MaxHealth: 100}
+		e.Heal(10, 0)
+		if got, want := e.Health, float32(100); got != want {
+			t.Fatalf("Health = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("allows over-max when ignore is true but caps at 250", func(t *testing.T) {
+		e := &Entity{Health: 240, MaxHealth: 100}
+		e.Heal(20, 1)
+		if got, want := e.Health, float32(250); got != want {
+			t.Fatalf("Health = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("returns 0 for nil, dead, or already full without ignore", func(t *testing.T) {
+		var nilEnt *Entity
+		if got := nilEnt.Heal(10, 0); got != 0 {
+			t.Fatalf("nil Heal return = %v, want 0", got)
+		}
+
+		dead := &Entity{Health: 0, MaxHealth: 100}
+		if got := dead.Heal(10, 0); got != 0 {
+			t.Fatalf("dead Heal return = %v, want 0", got)
+		}
+
+		full := &Entity{Health: 100, MaxHealth: 100}
+		if got := full.Heal(10, 0); got != 0 {
+			t.Fatalf("full Heal return = %v, want 0", got)
+		}
+	})
+}

@@ -218,6 +218,7 @@ func TestWorldSkyTexturesForFaceUsesAnimatedFrame(t *testing.T) {
 	}
 }
 
+
 func TestShouldSplitAsQuake64Sky(t *testing.T) {
 	if !shouldSplitAsQuake64Sky(bsp.BSPVersion_Quake64, 256, 128) {
 		t.Fatalf("expected quake64 BSP version to force quake64 split")

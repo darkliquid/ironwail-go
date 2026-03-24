@@ -5,10 +5,15 @@ package host
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 )
+
+type demoFileOpener interface {
+	OpenFile(filename string) (io.ReadSeekCloser, int64, error)
+}
 
 func setLoopbackDemoFlags(subs *Subsystems, demoPlayback, timeDemo bool) {
 	if clientState := LoopbackClientState(subs); clientState != nil {
@@ -143,7 +148,16 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 	// This matches C Ironwail which uses COM_FOpenFile to search PAK files.
 	var startErr error
 	if subs.Files != nil {
-		if data, err := subs.Files.LoadFile(demoName); err == nil {
+		if opener, ok := subs.Files.(demoFileOpener); ok {
+			if file, _, err := opener.OpenFile(demoName); err == nil {
+				startErr = h.demoState.StartDemoPlaybackFromSource(demoName, file, file)
+			} else if data, err := subs.Files.LoadFile(demoName); err == nil {
+				startErr = h.demoState.StartDemoPlaybackFromData(demoName, data)
+			} else {
+				// Not in filesystem, fall back to loose file
+				startErr = h.demoState.StartDemoPlayback(filename)
+			}
+		} else if data, err := subs.Files.LoadFile(demoName); err == nil {
 			startErr = h.demoState.StartDemoPlaybackFromData(demoName, data)
 		} else {
 			// Not in filesystem, fall back to loose file

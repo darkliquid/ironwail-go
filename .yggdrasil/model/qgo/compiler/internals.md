@@ -8,11 +8,11 @@ The compiler is a four-stage pipeline:
 
 1. `Compiler.Compile` parses every Go file in the target directory and type-checks them with a `types.Config` that only knows about the synthetic `quake` packages.
 2. `Lowerer` performs a two-pass walk over the package: first it collects globals and function signatures, then it lowers function bodies into `IRProgram`.
-3. a lightweight IR optimizer trims no-op self-store instructions (`OPStore* x -> x`) while preserving immediate pseudo-store records (`ImmFloat` / `ImmStr`) used for constant materialization.
+3. a lightweight IR optimizer first folds supported scalar float operations with known constant operands, trims no-op self-store instructions (`OPStore* x -> x`), then runs a narrow dead-code elimination pass that removes dead pure virtual-register definitions in straight-line IR. After DCE, it prunes unused non-parameter `IRFunc.Locals` entries so codegen allocates fewer QC slots. Immediate pseudo-store records (`ImmFloat` / `ImmStr`) remain preserved for constant materialization.
 4. `CodeGen` maps IR virtual registers to QC global/local offsets, emits `qc.DStatement` and `qc.DFunction` tables, and patches branch labels in a second pass.
 5. `Emit` serializes those tables into the `progs.dat` section layout expected by `internal/qc`, including the canonical header CRC that matches the current progdefs layout used by the runtime.
 
-`Compiler.Compile` is the optimizer integration point: lowering always returns IR first, then `optimizeIRProgram` runs before code generation so downstream emission never sees removable self-copy store instructions.
+`Compiler.Compile` is the optimizer integration point: lowering always returns IR first, then `optimizeIRProgram` runs before code generation so downstream emission never sees removable self-copy store instructions and local-slot allocation reflects post-DCE live virtual-register use.
 
 ### Incremental source-hash cache seam
 
@@ -43,9 +43,13 @@ Builtin directives in function doc comments now accept either explicit numeric I
 
 `GlobalAllocator` starts at `qc.OFSParmStart`, preserving QCVM-reserved slots. `StringTable` interns all strings and guarantees offset `0` is the empty string. `slotsForType` handles the special three-slot width of vectors so globals, locals, and parameter sizes match QCVM expectations.
 
-### Constant materialization and bitwise-not lowering
+### Constant materialization, first-pass folding, and bitwise-not lowering
 
-Float and string constants are represented in IR with `IRInst.ImmFloat` / `IRInst.ImmStr` pseudo-store instructions emitted by `constFloat` and `constString`. Code generation now recognizes those pseudo-stores and seeds `GlobalAllocator`/`StringTable` directly instead of emitting runtime `OPStore*` statements that would require initialized source slots.
+Float and string constants are represented in IR with `IRInst.ImmFloat` / `IRInst.ImmStr` pseudo-store instructions emitted by `constFloat` and `constString`. Float immediates additionally carry `IRInst.HasImmFloat` so `0.0` remains an explicit immediate instead of being conflated with "no immediate". Code generation recognizes these pseudo-stores and seeds `GlobalAllocator`/`StringTable` directly instead of emitting runtime `OPStore*` statements that would require initialized source slots.
+
+The first constant-folding pass runs in `foldConstFloatOps` as a deterministic local walk over each non-builtin IR function. It tracks known float constants by VReg and rewrites supported operations (`OPAddF`, `OPSubF`, `OPMulF`, `OPDivF`, comparisons, boolean float ops, bitwise float-backed int ops, and `OPNotF`) into immediate `OPStoreF` pseudo-stores targeting the original destination VReg.
+
+After folding and self-store cleanup, `eliminateDeadVirtualStores` performs a reverse liveness walk for straight-line functions (no labels / `OPGoto` / `OPIF` / `OPIFNot`). The pass only removes pure instructions whose destination is an auto-allocated virtual register (`vreg >= vregBase`) and not live at that point. Side-effecting instructions (calls, pointer stores, returns, control flow) are always retained.
 
 Unary bitwise not (`^x`) is lowered in `lowerUnaryExpr` using the QC-compatible two's-complement identity `^x == -1 - x`. Because QCVM numeric values are float-backed, this is emitted as `OPSubF` with a `-1` constant left operand.
 
@@ -143,6 +147,66 @@ Rejected alternatives:
   - rejected because imported helper bodies are intentionally not lowered, so helper semantics are not guaranteed to materialize as required QC field opcodes.
 - implement all field-value helper variants (`FieldVector`, `FieldString`, etc.) in one pass:
   - rejected for this slice to keep blast radius limited to the unblock seam.
+
+### Chose explicit defer diagnostics for non-Vec3 struct literals
+
+Observed decision:
+- keep `lowerCompositeLit` support narrow to `Vec3` and add a dedicated compile-time error path for general struct literals with type-qualified context.
+
+Rationale:
+- non-`Vec3` structs currently collapse to scalar-slot QC typing (`EvFloat`) in `goTypeToQC`, so naive acceptance would silently mis-lower field layout and stores.
+- a deterministic defer diagnostic is safer than partial support because it prevents accidental semantic corruption while preserving forward progress for users and tests.
+
+Rejected alternatives:
+- infer arbitrary struct layout from Go field order and emit sequential stores immediately:
+  - rejected because current QC type mapping/opcode selection does not encode multi-slot non-vector struct layout and would require broader allocator/codegen contracts.
+- leave the old generic unsupported-composite error:
+  - rejected because it does not clearly communicate that this is an intentional defer boundary and slows triage for compiler users.
+
+### First IR constant-folding slice uses explicit immediate-presence semantics
+
+Observed decision:
+- implement a narrow IR constant-folding pass over scalar float operations and represent folded float immediates with `HasImmFloat`.
+
+Rationale:
+- this introduces optimization value with low blast radius and deterministic behavior.
+- folded expressions can produce `0.0`, and explicit immediate presence avoids silently dropping valid zero immediates during later optimization/codegen checks.
+
+Rejected alternatives:
+- keep optimizer limited only to self-store pruning:
+  - rejected because straightforward constant arithmetic remained in emitted statements and was a low-risk optimization target.
+- use `ImmFloat != 0` as the only immediate-presence check:
+  - rejected because it cannot distinguish a real `0.0` immediate from "no immediate".
+
+### Chose local-slot pruning as the smallest safe temp/global reuse follow-up
+
+Observed decision:
+- after constant folding and straight-line dead virtual-store elimination, prune `IRFunc.Locals` entries that are no longer referenced by any kept IR instruction, while always retaining parameter locals.
+
+Rationale:
+- codegen allocates local/global storage from `IRFunc.Locals`, so removing dead locals immediately reduces allocated QC slots without changing opcode emission contracts.
+- this is a narrow deterministic change: no register renumbering, no control-flow rewriting, and no semantic changes to retained instructions.
+
+Rejected alternatives:
+- implement full virtual-register renumbering/compaction:
+  - rejected for this slice because it increases blast radius and complicates debugability.
+- implement CFG-aware liveness across branches in the same change:
+  - rejected because the current DCE pass intentionally skips control-flow functions for safety; local pruning follows that boundary.
+
+### Chose straight-line virtual-register DCE before full CFG/dataflow optimization
+
+Observed decision:
+- add a minimal dead-code elimination pass that runs only on functions without control-flow edges and removes dead pure defs to virtual registers.
+
+Rationale:
+- this gives immediate IR cleanup value after constant folding with low semantic risk.
+- restricting to straight-line bodies avoids branch-sensitive liveness mistakes while preserving deterministic pass behavior.
+
+Rejected alternatives:
+- full CFG-based DCE in the same slice:
+  - rejected because it increases blast radius and correctness risk around branch labels and jump targets.
+- removing dead writes to direct QC global offsets:
+  - rejected because those writes may target reserved VM slots or externally observed state and are not safe for a first pass.
 
 ### Local source hash cache before wider dependency hashing
 

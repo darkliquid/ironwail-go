@@ -120,10 +120,6 @@ func normalize(vm *VM) {
 	vm.SetGVector(OFSReturn, normalized)
 }
 
-// random returns a random float in the range [0, 1].
-//
-// QuakeC signature: float() random
-
 // random returns a random float matching C Quake's PF_random behavior.
 // With sv_gameplayfix_random (default): ((rand()&0x7fff)+0.5)*(1/0x8000)
 // produces values in open interval (0,1), never exactly 0 or 1.

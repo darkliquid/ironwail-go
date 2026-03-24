@@ -19,3 +19,4 @@
 - Client admission must reject new sockets when all server slots are occupied without aborting the frame loop.
 - Signon stage transitions must align with the message-buffer flush protocol expected by clients.
 - QC hooks such as `SetNewParms`, `PutClientInServer`, and `ClientDisconnect` are authoritative extension points and must be synchronized with Go state updates.
+- Client `ban` string-commands are accepted through the same whitelist/parsing path as C (`q_strncasecmp(..., "ban", 3)` parity), mutate the shared datagram IP ban state used by connection admission, print status/errors back to that client, and are ignored while `deathmatch != 0`.

@@ -197,6 +197,7 @@ type Client struct {
 	fogOldColor   [3]float32
 	fogFadeDone   float64
 	fogFadeTime   float32
+	fogConfigured bool
 
 	OnGround bool
 	InWater  bool
@@ -400,6 +401,7 @@ func (c *Client) ClearState() {
 	c.fogOldColor = [3]float32{}
 	c.fogFadeDone = 0
 	c.fogFadeTime = 0
+	c.fogConfigured = false
 	c.SoundEvents = nil
 	c.StopSoundEvents = nil
 	c.ParticleEvents = nil
@@ -737,12 +739,6 @@ func (c *Client) CurrentFog() (density float32, color [3]float32) {
 	}
 	if c.fogFadeDone > c.Time && c.fogFadeTime > 0 {
 		f := float32((c.fogFadeDone - c.Time) / float64(c.fogFadeTime))
-		if f < 0 {
-			f = 0
-		}
-		if f > 1 {
-			f = 1
-		}
 		density = f*c.fogOldDensity + (1-f)*targetDensity
 		for i := range color {
 			color[i] = f*c.fogOldColor[i] + (1-f)*targetColor[i]
@@ -761,12 +757,6 @@ func (c *Client) CurrentFog() (density float32, color [3]float32) {
 		}
 		color[i] = float32(math.Round(float64(color[i]*255))) / 255
 	}
-	if density < 0 {
-		density = 0
-	}
-	if density > 1 {
-		density = 1
-	}
 	return density, color
 }
 
@@ -782,6 +772,7 @@ func (c *Client) SetFogState(density byte, color [3]byte, time float32) {
 	c.FogTime = time
 	c.fogFadeTime = time
 	c.fogFadeDone = c.Time + float64(time)
+	c.fogConfigured = true
 }
 
 func (c *Client) FogValues() (density float32, color [3]float32) {
@@ -793,6 +784,124 @@ func (c *Client) FogValues() (density float32, color [3]float32) {
 		float32(c.FogColor[1]) / 255,
 		float32(c.FogColor[2]) / 255,
 	}
+}
+
+func (c *Client) ApplyWorldspawnFogDefaults(entities []byte) {
+	if c == nil || c.fogConfigured || len(entities) == 0 {
+		return
+	}
+
+	density, color, ok := worldspawnFogStateFromEntities(entities)
+	if !ok {
+		return
+	}
+
+	c.FogDensity = density
+	c.FogColor = color
+	c.FogTime = 0
+	c.fogOldDensity = float32(density) / 255
+	c.fogOldColor = [3]float32{
+		float32(color[0]) / 255,
+		float32(color[1]) / 255,
+		float32(color[2]) / 255,
+	}
+	c.fogFadeDone = 0
+	c.fogFadeTime = 0
+	c.fogConfigured = true
+}
+
+func worldspawnFogStateFromEntities(entities []byte) (byte, [3]byte, bool) {
+	if len(entities) == 0 {
+		return 0, [3]byte{}, false
+	}
+
+	entity, ok := firstEntityLumpObject(string(entities))
+	if !ok {
+		return 0, [3]byte{}, false
+	}
+
+	fields := parseEntityFields(entity)
+	if !strings.EqualFold(strings.TrimSpace(fields["classname"]), "worldspawn") {
+		return 0, [3]byte{}, false
+	}
+
+	const defaultGray = 0.3
+	density := float32(0)
+	color := [3]float32{defaultGray, defaultGray, defaultGray}
+
+	value, ok := fields["fog"]
+	if !ok {
+		value, ok = fields["_fog"]
+	}
+	if ok {
+		var parsedDensity, red, green, blue float32
+		parsedDensity = density
+		red, green, blue = color[0], color[1], color[2]
+		if n, _ := fmt.Sscanf(value, "%f %f %f %f", &parsedDensity, &red, &green, &blue); n >= 1 {
+			density = parsedDensity
+			color = [3]float32{red, green, blue}
+		}
+	}
+
+	return fogByteFromFloat(density), [3]byte{
+		fogByteFromFloat(color[0]),
+		fogByteFromFloat(color[1]),
+		fogByteFromFloat(color[2]),
+	}, true
+}
+
+func parseEntityFields(entity string) map[string]string {
+	fields := make(map[string]string)
+	pos := 0
+	for {
+		key, next, ok := nextQuotedEntityToken(entity, pos)
+		if !ok {
+			break
+		}
+		value, nextValue, ok := nextQuotedEntityToken(entity, next)
+		if !ok {
+			break
+		}
+		fields[strings.ToLower(key)] = value
+		pos = nextValue
+	}
+	return fields
+}
+
+func firstEntityLumpObject(data string) (string, bool) {
+	start := strings.IndexByte(data, '{')
+	if start < 0 {
+		return "", false
+	}
+	end := strings.IndexByte(data[start+1:], '}')
+	if end < 0 {
+		return "", false
+	}
+	return data[start+1 : start+1+end], true
+}
+
+func nextQuotedEntityToken(data string, pos int) (string, int, bool) {
+	start := strings.IndexByte(data[pos:], '"')
+	if start < 0 {
+		return "", pos, false
+	}
+	start += pos
+	end := strings.IndexByte(data[start+1:], '"')
+	if end < 0 {
+		return "", pos, false
+	}
+	end += start + 1
+	return data[start+1 : end], end + 1, true
+}
+
+func fogByteFromFloat(value float32) byte {
+	if value < 0 {
+		value = 0
+	}
+	if value > 1 {
+		value = 1
+	}
+	return byte(math.Round(float64(value * 255)))
 }
 
 // lightstyleNormalBrightness is the brightness of character 'm' (normal light).

@@ -18,6 +18,7 @@
 
 - `ServerBrowser.Start` is asynchronous and `Results` returns a sorted snapshot.
 - LAN search uses Quake-style timing aligned to C Ironwail `Slist_Send`/`Slist_Poll`: broadcast immediately, retry at 750ms, stop around 1500ms.
+- `Results` sorting follows C `NET_SlistSort` semantics: in-place nested-loop name comparison (`strcmp < 0`) instead of Go's stable sort helpers.
 - Browser results are deduplicated by address.
 - `QueryServerRules` performs the C `test2`-style control query loop synchronously: send `CCReqRuleInfo` starting with an empty name, append each returned `(name, value)` pair, and stop when the server returns an empty-name `CCRepRuleInfo`.
 - `AsyncReceiver` copies payload bytes before delivering them so receivers own the message data.

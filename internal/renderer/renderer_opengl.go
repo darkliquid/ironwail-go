@@ -634,6 +634,7 @@ type Renderer struct {
 	worldFullbrightTextures             map[int32]uint32
 	worldSkySolidTextures               map[int32]uint32
 	worldSkyAlphaTextures               map[int32]uint32
+	worldSkyFlatTextures                map[int32]uint32
 	worldTextureAnimations              []*SurfaceTexture
 	worldLightmaps                      []uint32
 	worldHasLitWater                    bool
@@ -807,6 +808,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 		worldFullbrightTextures: make(map[int32]uint32),
 		worldSkySolidTextures:   make(map[int32]uint32),
 		worldSkyAlphaTextures:   make(map[int32]uint32),
+		worldSkyFlatTextures:    make(map[int32]uint32),
 		brushModels:             make(map[int]*glWorldMesh),
 		aliasModels:             make(map[string]*glAliasModel),
 		aliasEntityStates:       make(map[int]*AliasEntity),

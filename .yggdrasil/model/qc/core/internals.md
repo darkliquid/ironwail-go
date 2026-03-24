@@ -24,6 +24,7 @@ Function entry saves caller state and local values, copies parameters from the r
 - Execution must preserve QuakeC calling and return semantics exactly enough for progs compatibility.
 - Out-of-bounds statements or invalid function numbers are hard errors.
 - The interpreter enforces the Quakespasm/Ironwail runaway-loop guard of `0x1000000` executed statements per `ExecuteProgram` invocation and raises `"runaway loop error"` on overflow.
+- Regression tests pin guard parity with C by asserting both the `0x1000000` limit constant and trap behavior for a tight infinite loop.
 
 ## Decisions
 
@@ -37,3 +38,17 @@ Rationale:
 
 Observed effect:
 - execution is more observable and testable than a minimal black-box interpreter
+
+### OP_DIV_F keeps C/IEEE-754 divide-by-zero semantics
+
+Observed decision:
+- `OPDivF` executes raw floating-point division without guard logic, including zero denominators.
+- Tests assert `1/0 -> +Inf` and `0/0 -> NaN` through VM globals and `OFSReturn`.
+
+Rationale:
+- Match C Ironwail `pr_exec.c` behavior (`OPC->_float = OPA->_float / OPB->_float;`) and avoid introducing non-parity runtime errors.
+
+Rejected alternatives:
+- Throwing `PR_RunError`/Go errors for divide-by-zero:
+  - rejected because C VM does not do this, and would change gameplay/QC behavior for existing `progs.dat`.
+

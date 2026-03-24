@@ -22,6 +22,7 @@ package net
 import (
 	"fmt"
 	stdnet "net"
+	"strings"
 )
 
 // Network configuration variables. These mirror the C Quake globals
@@ -115,6 +116,9 @@ func UDPAddrToString(addr *stdnet.UDPAddr) string {
 // to turn user-provided server addresses into network endpoints.
 // Corresponds to UDP_StringToAddr() in net_udp.c.
 func UDPStringToAddr(address string) (*stdnet.UDPAddr, error) {
+	if !strings.Contains(address, ":") {
+		address = fmt.Sprintf("%s:%d", address, netHostPort)
+	}
 	if len(address) > 0 && address[0] >= '0' && address[0] <= '9' {
 		expanded, err := PartialIPAddress(address, stdnet.ParseIP(myTCPIPAddress), netHostPort)
 		if err != nil {

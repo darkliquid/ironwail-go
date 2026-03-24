@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
@@ -948,6 +949,23 @@ func TestRandomBuiltinMatchesCompatSequence(t *testing.T) {
 		if got := vm.GFloat(OFSReturn); got != wantValue {
 			t.Fatalf("random value %d = %v, want %v", i, got, wantValue)
 		}
+	}
+}
+
+func TestRandomBuiltinUsesInjectedCompatRNGState(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+	cvar.Set("sv_gameplayfix_random", "1")
+	t.Cleanup(func() { cvar.Set("sv_gameplayfix_random", "1") })
+
+	rng := compatrand.NewSeed(1)
+	if got := rng.Int(); got != 1804289383 {
+		t.Fatalf("first compat rand draw = %d, want 1804289383", got)
+	}
+	vm.SetCompatRNG(rng)
+
+	random(vm)
+	if got := vm.GFloat(OFSReturn); got != 0.27949524 {
+		t.Fatalf("random() after shared upstream draw = %v, want 0.27949524", got)
 	}
 }
 

@@ -54,6 +54,7 @@ func registerHostCVars() {
 	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
 	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
 	cvar.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
+	cvar.Register("devstats", "0", cvar.FlagNone, "Enable developer statistics overlay and command output")
 	cvar.Register("sv_autosave", "1", cvar.FlagArchive, "Enable autosave in single-player")
 	cvar.Register("sv_autosave_interval", "30", cvar.FlagArchive, "Autosave interval in seconds")
 	cvar.Register("sv_autoload", "2", cvar.FlagArchive, "Autoload the last save on restart")

@@ -212,6 +212,21 @@ func TestServerBrowserAddEntryDedup(t *testing.T) {
 	}
 }
 
+func TestServerBrowserResultsSortCStyle(t *testing.T) {
+	sb := NewServerBrowser()
+	sb.addEntry(HostCacheEntry{Name: "zeta", Address: "1.1.1.1:26000"})
+	sb.addEntry(HostCacheEntry{Name: "alpha", Address: "2.2.2.2:26000"})
+	sb.addEntry(HostCacheEntry{Name: "beta", Address: "3.3.3.3:26000"})
+	sb.addEntry(HostCacheEntry{Name: "alpha", Address: "4.4.4.4:26000"})
+
+	results := sb.Results()
+	gotNames := []string{results[0].Name, results[1].Name, results[2].Name, results[3].Name}
+	wantNames := []string{"alpha", "alpha", "beta", "zeta"}
+	if strings.Join(gotNames, ",") != strings.Join(wantNames, ",") {
+		t.Fatalf("sorted names = %v, want %v", gotNames, wantNames)
+	}
+}
+
 func TestHostCacheEntryString(t *testing.T) {
 	e := HostCacheEntry{
 		Name:       "MyServer",

@@ -10,6 +10,14 @@ Within `Physics()`, client-slot entities (edict indices 1..maxclients) receive `
 
 `CheckWaterTransition` intentionally mirrors the C `SV_CheckWaterTransition` edge-case semantics. On spawn (`watertype == 0`) it seeds `watertype` from `PointContents` and sets `waterlevel = 1`. On transitions out of liquid it writes `watertype = CONTENTS_EMPTY` and stores the raw `PointContents` result in `waterlevel` (not zero), matching legacy behavior used by mods and parity checks.
 
+FitzQuake `sendinterval` bookkeeping in `Physics()` intentionally matches the C `sv_phys.c` logic rather than a simplified approximation. After movetype dispatch it clears `SendInterval`, then only re-enables it when the entity is still live, `nextthink > sv.time`, and either the mover is `MOVETYPE_STEP`/`MOVETYPE_WALK` or its animation frame changed. The interval test uses the same rounded byte window as C — `Q_rint((nextthink-oldthinktime)*255)` with `25` and `26` suppressed as "close enough" to the client's assumed `0.1` cadence — leaving serialization to emit the remaining `nextthink - sv.time` payload only when that flag is set.
+
+`SV_WalkMove` uses the same unstick trigger threshold as C (`0.03125`, `DIST_EPSILON`) for "no progress after step-up" detection. The Go implementation centralizes this in `walkMoveNeedsUnstick` and references `DistEpsilon` directly rather than a duplicate literal, preserving strict `< DIST_EPSILON` behavior on X/Y and keeping world/physics epsilon parity coupled to one constant.
+
+`PushMove` mirrors FitzQuake's `sv_gameplayfix_elevators` gate: when a rider remains blocked by the same pusher after the normal move, it only applies a `DistEpsilon` upward nudge if the cvar allows that edict class (`1` for client edicts `<= maxclients`, `2` for all entities). When disabled (`0`) or disallowed for non-clients at level `1`, the blocked move reverts exactly as in C.
+
+`PushMove` blocked-callback execution now mirrors the QC synchronization pattern already used for touch/think callbacks: it snapshots pusher state, syncs pushers and the blocking entity to the QC VM before calling `blocked`, then applies mutated pushers and newly spawned edicts back into Go state when the callback succeeds. This closes a parity gap where blocked callbacks could mutate QC state that was not re-materialized into authoritative server edicts.
+
 
 ## Constraints
 
@@ -53,3 +61,14 @@ Rationale:
 
 Observed effect:
 - Per-entity gravity parity stays cheap enough for hot physics paths and behaves like C for both custom multipliers and zero-value fallback.
+
+### Blocked callback sync parity in PushMove
+
+Observed decision:
+- `PushMove` blocked callbacks run through the same VM sync/apply discipline as other QC callback surfaces (`think`, `touch`).
+
+Rationale:
+- C `SV_PushMove` allows pusher blocked handlers to mutate gameplay state; using stale QC snapshots or skipping post-callback apply risks losing those mutations in Go authoritative state.
+
+Observed effect:
+- Mutations to pushers and spawned entities performed by blocked callbacks now persist immediately after the callback, matching expected Quake callback behavior and reducing callback-surface divergence.

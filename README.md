@@ -161,6 +161,13 @@ when debugging map logic and parity issues:
 - pusher/blocker physics callbacks
 - QuakeC call chains executed through the server's QC wrapper
 
+QC profiling counters are already implemented and available through the
+`profile` host command (top 10 functions, reset-on-read, local server only).
+That command is separate from telemetry tracing. This means QC profiling is in
+scope and considered implemented for parity purposes; there is no current plan
+to add a full statement-by-statement VM profiler as part of this telemetry
+feature.
+
 QC tracing is not a generic whole-engine instruction trace. It follows QuakeC
 function entry/leave activity and optional builtin calls for server-side paths
 that execute through `executeQCFunction`.

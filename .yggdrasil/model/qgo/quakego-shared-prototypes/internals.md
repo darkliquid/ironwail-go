@@ -6,9 +6,15 @@ The node keeps low-risk structural cleanup focused on package-level forward decl
 
 A follow-up cleanup converted `doors.go` door spawnflag constants from mutable `float32` vars to compile-time `iota` bit constants (`doorFlag*`). This preserves QuakeC-equivalent bit masks while removing magic-number checks and making spawnflag intent explicit at call sites.
 
+Another mechanical cleanup converted `items.go` health spawnflag constants to `iota` bit constants (`healthFlag*`) with unchanged mask values (`1` and `2`). The call sites still perform bit tests against `Self.SpawnFlags`; only declaration style and local naming were modernized.
+
+A bounded readability pilot in `items.go` now delegates `T_Heal` to `(*quake.Entity).Heal(...)`. This keeps the global function entry point intact for parity and call-site stability while moving entity-local healing rules to a receiver method in the shared quake stubs.
+
 ## Constraints
 
 The declarations must remain package-level `var` function slots because the translated QuakeC code assigns implementations after declaration order has been established. Replacing them with direct function declarations or broader API rewrites would risk changing compiler assumptions and is intentionally out of scope.
+
+The pilot intentionally avoided converting broader `Self`-driven globals into methods because those functions mutate process-global quakego state (`Self`, `Other`, `Activator`, `Time`) and often swap `Self` mid-function; method conversion there is higher risk for parity.
 
 ## Decisions
 

@@ -2,7 +2,7 @@
 
 ## Logic
 
-The test-support node assembles lightweight stand-ins for input and render dependencies so the rest of the menu package can be exercised deterministically. Tests operate from the package boundary: they instantiate `Manager`, drive it through key/mouse/text entry flows, inspect queued commands and cvar changes, and verify menu-space drawing by reconstructing rendered lines from captured character calls.
+The test-support node assembles lightweight stand-ins for input and render dependencies so the rest of the menu package can be exercised deterministically. Tests operate from the package boundary: they instantiate `Manager`, drive it through key/mouse/text entry flows, inspect queued commands and cvar changes, and verify menu-space drawing by reconstructing rendered lines from captured character calls. For session-sensitive UX paths, tests inject callbacks such as `SetNewGameConfirmationProvider` to verify prompt/confirm/cancel behavior without bootstrapping a full host runtime.
 
 ## Constraints
 

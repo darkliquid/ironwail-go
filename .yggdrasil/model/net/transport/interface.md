@@ -17,6 +17,7 @@
 
 - `Connect("local")`/`Connect("localhost")` create a loopback connection; other hosts use the datagram/UDP path.
 - `UDPStringToAddr` preserves C parity by applying partial-IP expansion only when the address begins with a digit; hostname/non-numeric-leading inputs use normal UDP resolution.
+- `UDPStringToAddr` accepts host-only inputs (no explicit `:port`) by applying the current `netHostPort` before resolution; numeric-leading host-only inputs still follow partial-IP expansion semantics.
 - Reliable datagram traffic is stop-and-wait with at most one outstanding reliable message per socket.
 - Large reliable datagram payloads are fragmented and advance only after ACK of the current fragment.
 - Server-side UDP acceptance returns a newly opened per-client socket, not the listening socket.

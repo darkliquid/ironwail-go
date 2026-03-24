@@ -8,6 +8,7 @@ The package is a single cohesive public math library. `types.go` defines the eng
 
 - Quake coordinate-system semantics are the core contract: many helpers only make sense if callers respect X=forward, Y=left, Z=up and `{pitch, yaw, roll}` angle ordering.
 - `AngleMod` intentionally preserves Quake's 16-bit quantized C behavior, not just a mathematically convenient modulo.
+- `AngleMod` uses an explicit `int32` intermediate before `uint16` masking so behavior matches C's `int` truncation + `& 65535` formula regardless of host architecture word size.
 - `RotationMatrix` uses raw axis ids `0/1/2` without extra validation.
 - `QNextPow2` returns `1` for non-positive inputs and `Vec3Normalize` leaves the zero vector unchanged.
 - `Mat4ToBytes` is a GPU-facing ABI detail: 16 float32 values, little-endian, column-major, 64 bytes total.
@@ -35,3 +36,14 @@ Rationale:
 
 Observed effect:
 - The projection/view contract differs from textbook OpenGL expectations, so this behavior must be documented explicitly for future renderer or math work.
+
+### Pin `AngleMod` intermediate width to 32-bit
+
+Observed decision:
+- `AngleMod` converts the scaled angle through `int32` before applying the 16-bit mask and converting back to degrees.
+
+Rationale:
+- **unknown — inferred from code and C parity objective, not confirmed by a developer**
+
+Observed effect:
+- The helper now encodes the same cast-width semantics as C Quake's `anglemod` implementation on all Go targets, rather than relying on platform-dependent `int` width.

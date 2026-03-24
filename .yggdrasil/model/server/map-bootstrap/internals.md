@@ -2,7 +2,7 @@
 
 ## Logic
 
-The bootstrap flow clears prior runtime state, loads BSP and `.lit` data, rebuilds the world model, reserves the world edict, precaches submodels, parses the entity lump, runs QC spawn functions for accepted entities, and then settles the map through initial frame processing before declaring the server active. It also prepares the signon/static-world state that later clients consume.
+The bootstrap flow clears prior runtime state, loads BSP and `.lit` data, rebuilds the world model, reserves the world edict, precaches submodels, parses the entity lump, runs QC spawn functions for accepted entities, and then settles the map through initial frame processing before declaring the server active. It also prepares the signon/static-world state that later clients consume. Server initialization now resets dev-stats accumulators (`devStats`, `devPeak`) so map/session transitions begin with clean current/peak counters.
 
 ## Constraints
 

@@ -50,44 +50,25 @@ func StartItem() {
 }
 
 func T_Heal(e *quake.Entity, healamount, ignore float32) float32 {
-	if e.Health <= 0 {
-		return 0
-	}
-
-	if (ignore == 0) && (e.Health >= e.MaxHealth) {
-		return 0
-	}
-
-	healamount = engine.Ceil(healamount)
-	e.Health = e.Health + healamount
-
-	if (ignore == 0) && (e.Health >= e.MaxHealth) {
-		e.Health = e.MaxHealth
-	}
-
-	if e.Health > 250 {
-		e.Health = 250
-	}
-
-	return 1
+	return e.Heal(healamount, ignore)
 }
 
 const (
-	H_ROTTEN = 1
-	H_MEGA   = 2
+	healthFlagRotten = 1 << iota
+	healthFlagMega
 )
 
 func item_health() {
 	Self.Touch = health_touch
 
-	if (int(Self.SpawnFlags) & H_ROTTEN) != 0 {
+	if (int(Self.SpawnFlags) & healthFlagRotten) != 0 {
 		engine.PrecacheModel("maps/b_bh10.bsp")
 		engine.PrecacheSound("items/r_item1.wav")
 		engine.SetModel(Self, "maps/b_bh10.bsp")
 		Self.Noise = "items/r_item1.wav"
 		Self.HealAmount = 15
 		Self.HealType = 0
-	} else if (int(Self.SpawnFlags) & H_MEGA) != 0 {
+	} else if (int(Self.SpawnFlags) & healthFlagMega) != 0 {
 		engine.PrecacheModel("maps/b_bh100.bsp")
 		engine.PrecacheSound("items/r_item2.wav")
 		engine.SetModel(Self, "maps/b_bh100.bsp")

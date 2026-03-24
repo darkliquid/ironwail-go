@@ -10,6 +10,7 @@ import (
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -808,6 +809,81 @@ func TestClientColorCommandAcceptsTopAndBottom(t *testing.T) {
 	}
 }
 
+func TestClientBanCommandAppliesIPBanAndPrintsStatus(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Message.Clear()
+	if err := inet.SetIPBan("off", ""); err != nil {
+		t.Fatalf("clear starting ban: %v", err)
+	}
+	oldDeathmatch := cvar.StringValue("deathmatch")
+	cvar.Set("deathmatch", "0")
+	t.Cleanup(func() {
+		cvar.Set("deathmatch", oldDeathmatch)
+		_ = inet.SetIPBan("off", "")
+	})
+
+	if !s.ExecuteClientString(client, "ban 10.0.0.0 255.255.0.0") {
+		t.Fatal("ExecuteClientString(ban set) = false, want true")
+	}
+	if got := inet.IPBanStatus(); got != "Banning 10.0.0.0 [255.255.0.0]" {
+		t.Fatalf("ban status after set = %q", got)
+	}
+	if client.Message.Len() != 0 {
+		t.Fatalf("ban set produced unexpected client print data: %q", string(client.Message.Data[:client.Message.Len()]))
+	}
+
+	if !s.ExecuteClientString(client, "ban") {
+		t.Fatal("ExecuteClientString(ban status) = false, want true")
+	}
+	if !bytes.Contains(client.Message.Data[:client.Message.Len()], []byte("Banning 10.0.0.0 [255.255.0.0]\n")) {
+		t.Fatalf("ban status print missing, got %q", string(client.Message.Data[:client.Message.Len()]))
+	}
+
+	client.Message.Clear()
+	if !s.ExecuteClientString(client, "ban off") {
+		t.Fatal("ExecuteClientString(ban off) = false, want true")
+	}
+	if got := inet.IPBanStatus(); got != "Banning not active" {
+		t.Fatalf("ban status after off = %q", got)
+	}
+}
+
+func TestClientBanCommandNoopsDuringDeathmatch(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Message.Clear()
+	if err := inet.SetIPBan("off", ""); err != nil {
+		t.Fatalf("clear starting ban: %v", err)
+	}
+	oldDeathmatch := cvar.StringValue("deathmatch")
+	cvar.Set("deathmatch", "1")
+	t.Cleanup(func() {
+		cvar.Set("deathmatch", oldDeathmatch)
+		_ = inet.SetIPBan("off", "")
+	})
+
+	if !s.ExecuteClientString(client, "ban 1.2.3.4") {
+		t.Fatal("ExecuteClientString(ban in deathmatch) = false, want true")
+	}
+	if got := inet.IPBanStatus(); got != "Banning not active" {
+		t.Fatalf("ban status changed in deathmatch: %q", got)
+	}
+	if client.Message.Len() != 0 {
+		t.Fatalf("deathmatch ban produced unexpected output: %q", string(client.Message.Data[:client.Message.Len()]))
+	}
+}
+
 func TestKickClientDropsTargetAndWritesReason(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(2); err != nil {
@@ -1310,6 +1386,33 @@ func TestEdictInPVSMaxLeafsStillRequiresVisibleBits(t *testing.T) {
 
 	if !s.SV_EdictInPVS(ent, make([]byte, 1)) {
 		t.Error("expected edict touching max leafs to be treated as always visible")
+	}
+}
+
+func TestDevStatsSnapshotTracksCurrentAndPeak(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	s.recordDevStatsEdicts(4)
+	s.recordDevStatsPacketSize(600)
+	curr, peak := s.DevStatsSnapshot()
+	if curr.Edicts != 4 || peak.Edicts != 4 {
+		t.Fatalf("edicts curr/peak = %d/%d, want 4/4", curr.Edicts, peak.Edicts)
+	}
+	if curr.PacketSize != 600 || peak.PacketSize != 600 {
+		t.Fatalf("packet curr/peak = %d/%d, want 600/600", curr.PacketSize, peak.PacketSize)
+	}
+
+	s.recordDevStatsEdicts(3)
+	s.recordDevStatsPacketSize(400)
+	curr, peak = s.DevStatsSnapshot()
+	if curr.Edicts != 3 || peak.Edicts != 4 {
+		t.Fatalf("edicts curr/peak = %d/%d, want 3/4", curr.Edicts, peak.Edicts)
+	}
+	if curr.PacketSize != 400 || peak.PacketSize != 600 {
+		t.Fatalf("packet curr/peak = %d/%d, want 400/600", curr.PacketSize, peak.PacketSize)
 	}
 }
 

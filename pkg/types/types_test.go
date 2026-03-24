@@ -45,7 +45,8 @@ func TestAngles(t *testing.T) {
 }
 
 func cAngleModReference(a float32) float32 {
-	return float32((360.0 / 65536.0) * float64(int(float64(a)*(65536.0/360.0))&65535))
+	scaled := int32(float64(a) * (65536.0 / 360.0))
+	return float32((360.0 / 65536.0) * float64(uint16(scaled)))
 }
 
 func TestAngleModMatchesCQuantization(t *testing.T) {
@@ -61,6 +62,10 @@ func TestAngleModMatchesCQuantization(t *testing.T) {
 		1.9 * step,  // truncates to 1 step
 		-step,       // wraps to 360 - 1 step
 		-0.5 * step, // truncates to 0 then wraps via mask
+		1e9,
+		-1e9,
+		1e12,
+		-1e12,
 	}
 
 	for _, in := range tests {

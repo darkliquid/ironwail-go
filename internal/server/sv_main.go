@@ -109,6 +109,8 @@ func (s *Server) Init(maxClients int) error {
 	}
 
 	s.Datagram = NewMessageBuffer(MaxDatagram)
+	s.devStats = DevStats{}
+	s.devPeak = DevStats{}
 	s.SoundPrecache = make([]string, MaxSounds)
 	s.ModelPrecache = make([]string, MaxModels)
 	s.modelCache = make(map[string]cachedModelInfo)

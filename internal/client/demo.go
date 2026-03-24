@@ -412,7 +412,8 @@ func appendCoord16(dst []byte, v float32) []byte {
 }
 
 // StartDemoPlayback opens a loose demo file for playback.
-// For demos inside PAK files, use StartDemoPlaybackFromData instead.
+// For demos inside PAK files, use StartDemoPlaybackFromData or
+// StartDemoPlaybackFromSource instead.
 func (d *DemoState) StartDemoPlayback(filename string) error {
 	if d.Recording {
 		return fmt.Errorf("cannot playback while recording")
@@ -438,12 +439,19 @@ func (d *DemoState) StartDemoPlayback(filename string) error {
 		fullPath = filename
 	}
 
-	return d.startPlaybackInternal(fullPath, f, f)
+	return d.StartDemoPlaybackFromSource(fullPath, f, f)
 }
 
 // StartDemoPlaybackFromData starts playback from in-memory demo data
 // (e.g. loaded from a PAK file via the game filesystem).
 func (d *DemoState) StartDemoPlaybackFromData(filename string, data []byte) error {
+	return d.StartDemoPlaybackFromSource(filename, bytes.NewReader(data), nil)
+}
+
+// StartDemoPlaybackFromSource starts playback from an already-open, seekable
+// demo source. closer may be nil when the source does not need explicit close
+// handling.
+func (d *DemoState) StartDemoPlaybackFromSource(filename string, source io.ReadSeeker, closer io.Closer) error {
 	if d.Recording {
 		return fmt.Errorf("cannot playback while recording")
 	}
@@ -451,7 +459,7 @@ func (d *DemoState) StartDemoPlaybackFromData(filename string, data []byte) erro
 		return fmt.Errorf("already playing back a demo")
 	}
 
-	return d.startPlaybackInternal(filename, bytes.NewReader(data), nil)
+	return d.startPlaybackInternal(filename, source, closer)
 }
 
 // startPlaybackInternal sets up demo playback from any ReadSeeker source.

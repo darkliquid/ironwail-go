@@ -3,6 +3,7 @@
 ## Logic
 
 This layer owns the OpenGL backend’s event loop, context ownership, and core per-frame setup. It also carries OpenGL-specific postprocessing-like utilities such as polyblend and waterwarp support.
+The OpenGL renderer state now includes a dedicated world fast-sky texture cache (`worldSkyFlatTextures`) that is initialized with other map resources and cleared through the same world teardown path.
 
 ## Constraints
 

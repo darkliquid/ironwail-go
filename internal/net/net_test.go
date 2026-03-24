@@ -676,6 +676,26 @@ func TestUDPStringToAddr_HostnameUsesNormalResolution(t *testing.T) {
 	}
 }
 
+func TestUDPStringToAddr_HostnameWithoutPortUsesDefaultHostPort(t *testing.T) {
+	oldHostPort := netHostPort
+	t.Cleanup(func() {
+		netHostPort = oldHostPort
+	})
+
+	netHostPort = 27500
+
+	addr, err := UDPStringToAddr("localhost")
+	if err != nil {
+		t.Fatalf("UDPStringToAddr failed: %v", err)
+	}
+	if got, want := addr.Port, 27500; got != want {
+		t.Fatalf("resolved port = %d, want %d", got, want)
+	}
+	if !addr.IP.IsLoopback() {
+		t.Fatalf("hostname resolution IP = %q, want loopback", addr.IP.String())
+	}
+}
+
 func TestSetHostPortValidationAndHostPortAccessor(t *testing.T) {
 	oldHostPort := netHostPort
 	oldDefaultHostPort := defaultNetHostPort

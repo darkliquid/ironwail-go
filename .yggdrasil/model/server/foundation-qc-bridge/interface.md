@@ -12,6 +12,7 @@
 - server construction and builtin wiring (`NewServer` and related setup)
 - edict lookup/allocation/free helpers
 - QC profiling bridge (`QCProfileResults(top)`) that returns VM profile snapshots for host console commands
+- dev-stats bridge (`DevStatsSnapshot`) that surfaces current/peak server-side developer counters to host commands
 - Go↔QC synchronization helpers for globals and edicts
 
 ## Contracts

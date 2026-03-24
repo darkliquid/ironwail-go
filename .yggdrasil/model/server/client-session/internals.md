@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node manages the boundary between transport-level client presence and authoritative in-game player state. It allocates/binds player slots, sends initial serverinfo, progresses clients through signon stages, ingests `UserCmd` packets and string commands, and coordinates QC hooks for player spawn and disconnect behavior. During signon it refreshes the global secret/monster counters from the QC VM before handing them to the serializer, so newly spawned clients inherit correct intermission stats.
+This node manages the boundary between transport-level client presence and authoritative in-game player state. It allocates/binds player slots, sends initial serverinfo, progresses clients through signon stages, ingests `UserCmd` packets and string commands, and coordinates QC hooks for player spawn and disconnect behavior. During signon it refreshes the global secret/monster counters from the QC VM before handing them to the serializer, so newly spawned clients inherit correct intermission stats. For client-issued `ban` commands, the server now mirrors C dispatch behavior by handling them in the client-string-command path: in non-deathmatch it applies/query-disables the shared `internal/net` IP ban (`SetIPBan` / `IPBanStatus`) and reports status/errors via `SV_ClientPrintf`; in deathmatch it no-ops.
 
 ## Constraints
 

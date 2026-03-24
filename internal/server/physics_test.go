@@ -43,6 +43,46 @@ func withPhysicsCVars(t *testing.T, values map[string]string) {
 	})
 }
 
+func newPushMoveElevatorTestServer(t *testing.T) (*Server, *Edict, *Edict) {
+	t.Helper()
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.WorldModel = CreateSyntheticWorldModel()
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+	s.FrameTime = 0.1
+
+	rider := s.EdictNum(1) // preallocated client edict
+	if rider == nil || rider.Vars == nil {
+		t.Fatal("missing client edict 1")
+	}
+	rider.Vars.MoveType = float32(MoveTypeWalk)
+	rider.Vars.Solid = float32(SolidSlideBox)
+	rider.Vars.Mins = [3]float32{-16, -16, -24}
+	rider.Vars.Maxs = [3]float32{16, 16, 32}
+	rider.Vars.Origin = [3]float32{0, 0, 31.99}
+
+	pusher := s.AllocEdict() // edict 2+: non-client pusher
+	if pusher == nil {
+		t.Fatal("failed to allocate pusher")
+	}
+	pusher.Vars.MoveType = float32(MoveTypePush)
+	pusher.Vars.Solid = float32(SolidBSP)
+	pusher.Vars.Mins = [3]float32{-32, -32, -8}
+	pusher.Vars.Maxs = [3]float32{32, 32, 8}
+	pusher.Vars.Origin = [3]float32{0, 0, 0}
+	pusher.Vars.Velocity = [3]float32{0, 0, 10}
+
+	s.LinkEdict(pusher, false)
+	rider.Vars.Flags = float32(uint32(rider.Vars.Flags) | FlagOnGround)
+	rider.Vars.GroundEntity = int32(s.NumForEdict(pusher))
+	s.LinkEdict(rider, false)
+
+	return s, pusher, rider
+}
+
 // TestClipVelocity tests the velocity clipping function.
 // It ensures that entities correctly slide along surfaces instead of stopping or penetrating them when they collide at an angle.
 // Where in C: SV_ClipVelocity in sv_phys.c
@@ -90,6 +130,41 @@ func TestPhysicsPusherAdvancesLocalTimeWhenIdle(t *testing.T) {
 
 	if diff := ent.Vars.LTime - 3.1; diff < -0.0001 || diff > 0.0001 {
 		t.Fatalf("ltime = %v, want 3.1", ent.Vars.LTime)
+	}
+}
+
+func TestPushMoveElevatorFixOffRevertsBlockedMove(t *testing.T) {
+	withPhysicsCVars(t, map[string]string{"sv_gameplayfix_elevators": "0"})
+	s, pusher, rider := newPushMoveElevatorTestServer(t)
+
+	startPusher := pusher.Vars.Origin
+	startRider := rider.Vars.Origin
+
+	s.PushMove(pusher, s.FrameTime)
+
+	if pusher.Vars.Origin != startPusher {
+		t.Fatalf("pusher moved with fix disabled: got=%v want=%v", pusher.Vars.Origin, startPusher)
+	}
+	if rider.Vars.Origin != startRider {
+		t.Fatalf("rider moved with fix disabled: got=%v want=%v", rider.Vars.Origin, startRider)
+	}
+}
+
+func TestPushMoveElevatorFixNudgesClientWhenEnabled(t *testing.T) {
+	withPhysicsCVars(t, map[string]string{"sv_gameplayfix_elevators": "1"})
+	s, pusher, rider := newPushMoveElevatorTestServer(t)
+
+	startPusher := pusher.Vars.Origin
+	startRider := rider.Vars.Origin
+
+	s.PushMove(pusher, s.FrameTime)
+
+	if !(pusher.Vars.Origin[2] > startPusher[2]) {
+		t.Fatalf("pusher did not advance with fix enabled: start=%v got=%v", startPusher, pusher.Vars.Origin)
+	}
+	wantRiderZ := startRider[2] + pusher.Vars.Velocity[2]*s.FrameTime + DistEpsilon
+	if diff := rider.Vars.Origin[2] - wantRiderZ; diff < -0.001 || diff > 0.001 {
+		t.Fatalf("rider z = %.5f, want %.5f (move + DistEpsilon nudge)", rider.Vars.Origin[2], wantRiderZ)
 	}
 }
 
@@ -275,6 +350,33 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	}
 }
 
+func TestWalkMoveNeedsUnstickUsesDistEpsilonThreshold(t *testing.T) {
+	oldOrg := [3]float32{100, 200, 0}
+
+	// Strictly inside threshold on both axes should request unstick.
+	inside := [3]float32{100 + DistEpsilon - 0.0001, 200 - DistEpsilon + 0.0001, 0}
+	if !walkMoveNeedsUnstick(oldOrg, inside) {
+		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = false, want true", oldOrg, inside)
+	}
+
+	// Exact threshold should not request unstick (strict '<' parity with C code).
+	xEdge := [3]float32{100 + DistEpsilon, 200, 0}
+	if walkMoveNeedsUnstick(oldOrg, xEdge) {
+		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, xEdge)
+	}
+
+	yEdge := [3]float32{100, 200 - DistEpsilon, 0}
+	if walkMoveNeedsUnstick(oldOrg, yEdge) {
+		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, yEdge)
+	}
+
+	// Outside threshold on either axis should not request unstick.
+	outside := [3]float32{100 + DistEpsilon + 0.0001, 200, 0}
+	if walkMoveNeedsUnstick(oldOrg, outside) {
+		t.Fatalf("walkMoveNeedsUnstick(%v, %v) = true, want false", oldOrg, outside)
+	}
+}
+
 // TestPhysicsFrameOnSpawnedMap tests a full physics frame on a real map.
 // It ensuring that the basic server time and physics update loop works correctly when a map is loaded.
 // Where in C: SV_Physics in sv_phys.c
@@ -382,6 +484,62 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 	}
 	if triggerCalls != secondCalls {
 		t.Fatalf("force_retouch kept triggering after countdown expired: before=%d after=%d", secondCalls, triggerCalls)
+	}
+}
+
+// TestPhysicsSendIntervalMatchesFitzQuakeParity verifies the FitzQuake
+// sendinterval gate remains byte-for-byte aligned with the C reference in
+// sv_phys.c: non-default cadences round from (nextthink-oldthinktime)*255,
+// 25/26 are suppressed as "close enough" to 0.1, and non-step/non-walk
+// entities only send when their animation frame changed.
+func TestPhysicsSendIntervalMatchesFitzQuakeParity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		moveType MoveType
+		frame    float32
+		oldFrame float32
+		ticks    float32
+		wantSend bool
+	}{
+		{name: "frame change sends 24 tick cadence", moveType: MoveTypeNone, frame: 1, oldFrame: 0, ticks: 24, wantSend: true},
+		{name: "frame change suppresses 25 tick cadence", moveType: MoveTypeNone, frame: 1, oldFrame: 0, ticks: 25, wantSend: false},
+		{name: "frame change suppresses 26 tick cadence", moveType: MoveTypeNone, frame: 1, oldFrame: 0, ticks: 26, wantSend: false},
+		{name: "frame change sends 27 tick cadence", moveType: MoveTypeNone, frame: 1, oldFrame: 0, ticks: 27, wantSend: true},
+		{name: "step mover sends without frame change", moveType: MoveTypeStep, frame: 0, oldFrame: 0, ticks: 27, wantSend: true},
+		{name: "non step unchanged frame does not send", moveType: MoveTypeNone, frame: 0, oldFrame: 0, ticks: 27, wantSend: false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := newPhysicsTestServer()
+			s.Time = 10
+			s.FrameTime = 0.001
+
+			ent := &Edict{Vars: &EntVars{}}
+			ent.Vars.MoveType = float32(tc.moveType)
+			ent.Vars.Frame = tc.frame
+			ent.OldFrame = tc.oldFrame
+			ent.OldThinkTime = s.Time
+			ent.Vars.NextThink = s.Time + tc.ticks/255
+			if tc.moveType == MoveTypeStep {
+				ent.Vars.Flags = float32(FlagOnGround)
+			}
+
+			s.Edicts = append(s.Edicts, ent)
+			s.NumEdicts = len(s.Edicts)
+
+			s.Physics()
+
+			if ent.SendInterval != tc.wantSend {
+				t.Fatalf("SendInterval=%v for moveType=%v frame=%v oldFrame=%v ticks=%v nextThink=%v oldThinkTime=%v",
+					ent.SendInterval, tc.moveType, tc.frame, tc.oldFrame, tc.ticks, ent.Vars.NextThink, ent.OldThinkTime)
+			}
+		})
 	}
 }
 
@@ -1061,6 +1219,75 @@ func TestPhysicsPusherSyncsNewTriggerSpawnedDuringThinkFromQCVM(t *testing.T) {
 	}
 	if spawned.AreaPrev == nil || spawned.AreaNext == nil {
 		t.Fatalf("spawned trigger was not linked: prev=%p next=%p", spawned.AreaPrev, spawned.AreaNext)
+	}
+}
+
+// TestPushMoveBlockedSyncsMutatedPusherFromQCVM tests blocked callback synchronization for pusher entities.
+// It ensuring that pusher blocked callbacks can mutate pusher state in QC and have those mutations applied back to server state.
+// Where in C: SV_PushMove in sv_phys.c
+func TestPushMoveBlockedSyncsMutatedPusherFromQCVM(t *testing.T) {
+	s := NewServer()
+	s.FrameTime = 0.1
+	s.WorldModel = CreateSyntheticWorldModel()
+	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
+		t.Fatal("missing world edict")
+	}
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+
+	s.QCVM = qc.NewVM()
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+
+	const mutateBlockedBuiltinOfs = 10
+	vm.Builtins[1] = func(vm *qc.VM) {
+		self := int(vm.GInt(qc.OFSSelf))
+		vm.SetEVector(self, qc.EntFieldVelocity, [3]float32{0, 0, 200})
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("pusher_blocked_mutates_self"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(mutateBlockedBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(mutateBlockedBuiltinOfs, -1)
+
+	pusher := s.AllocEdict()
+	if pusher == nil {
+		t.Fatal("failed to alloc pusher")
+	}
+	pusher.Vars.MoveType = float32(MoveTypePush)
+	pusher.Vars.Solid = float32(SolidBSP)
+	pusher.Vars.Velocity = [3]float32{0, 0, 64}
+	pusher.Vars.Origin = [3]float32{0, 0, 0}
+	pusher.Vars.Mins = [3]float32{-64, -64, -8}
+	pusher.Vars.Maxs = [3]float32{64, 64, 8}
+	pusher.Vars.Blocked = 1
+	s.LinkEdict(pusher, false)
+
+	blocker := s.AllocEdict()
+	if blocker == nil {
+		t.Fatal("failed to alloc blocker")
+	}
+	blocker.Vars.MoveType = float32(MoveTypeWalk)
+	blocker.Vars.Solid = float32(SolidSlideBox)
+	blocker.Vars.Origin = [3]float32{0, 0, 24}
+	blocker.Vars.Mins = [3]float32{-16, -16, -24}
+	blocker.Vars.Maxs = [3]float32{16, 16, 32}
+	s.LinkEdict(blocker, false)
+
+	vm.NumEdicts = s.NumEdicts
+
+	s.PushMove(pusher, s.FrameTime)
+
+	if got := pusher.Vars.Velocity; got != [3]float32{0, 0, 200} {
+		t.Fatalf("pusher velocity = %v, want [0 0 200] after blocked callback", got)
 	}
 }
 

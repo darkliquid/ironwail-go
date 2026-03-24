@@ -564,6 +564,9 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 		state.DecalMarks = g.DecalMarks.ActiveMarks()
 	}
 	if g.Client != nil {
+		if g.Server != nil && g.Server.WorldTree != nil {
+			g.Client.ApplyWorldspawnFogDefaults(g.Server.WorldTree.Entities)
+		}
 		state.LightStyles = g.Client.LightStyleValues()
 		state.FogDensity, state.FogColor = g.Client.CurrentFog()
 	}

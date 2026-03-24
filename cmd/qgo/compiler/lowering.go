@@ -548,6 +548,13 @@ func (l *Lowerer) lowerCompositeLit(fn *IRFunc, lit *ast.CompositeLit) VReg {
 		return result
 	}
 
+	if typ := l.currentInfo.Types[lit].Type; typ != nil {
+		if _, ok := typ.Underlying().(*types.Struct); ok {
+			l.errors.Addf(l.pos(lit), "general struct literals are deferred (only Vec3 vector literals are currently supported): %s", typ.String())
+			return VRegInvalid
+		}
+	}
+
 	l.errors.Addf(l.pos(lit), "unsupported composite literal type: %T", l.currentInfo.Types[lit].Type)
 	return VRegInvalid
 }
@@ -1287,11 +1294,12 @@ func (l *Lowerer) constFloat(fn *IRFunc, val float64) VReg {
 	})
 	// Emit a const-init pseudo-instruction (handled during codegen as an immediate global)
 	fn.Body = append(fn.Body, IRInst{
-		Op:       qc.OPStoreF,
-		A:        v, // self-referential: codegen sets this slot's initial value
-		B:        v,
-		ImmFloat: val,
-		Type:     EvFloat,
+		Op:          qc.OPStoreF,
+		A:           v, // self-referential: codegen sets this slot's initial value
+		B:           v,
+		ImmFloat:    val,
+		HasImmFloat: true,
+		Type:        EvFloat,
 	})
 	return v
 }

@@ -907,6 +907,7 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
 	}
 	msg.WriteByte(0xff)
+	s.recordDevStatsPacketSize(msg.Len())
 }
 
 // SV_AddToFatPVS builds an expanded visibility set around a point to reduce pop-in during movement.

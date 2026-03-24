@@ -560,6 +560,7 @@ type skyPassState struct {
 	fogDensity                  float32
 	solidTextures               map[int32]uint32
 	alphaTextures               map[int32]uint32
+	flatTextures                map[int32]uint32
 	textureAnimations           []*SurfaceTexture
 	fallbackSolid               uint32
 	fallbackAlpha               uint32
@@ -567,6 +568,7 @@ type skyPassState struct {
 	externalCubemap             uint32
 	externalFaceTextures        [6]uint32
 	frame                       int
+	fastSky                     bool
 }
 
 // worldSkyTexturesForFace resolves the solid and alpha sky layer texture handles for a sky face, with animation support.
@@ -590,6 +592,19 @@ func worldSkyTexturesForFace(face WorldFace, solidTextures, alphaTextures map[in
 		alpha = fallbackAlpha
 	}
 	return solid, alpha
+}
+
+func worldSkyFlatTextureForFace(face WorldFace, flatTextures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackFlat uint32, frame int, timeSeconds float64) uint32 {
+	textureIndex := resolveWorldSkyTextureIndex(face, textureAnimations, frame, timeSeconds)
+
+	flat := flatTextures[textureIndex]
+	if flat == 0 && textureIndex != face.TextureIndex {
+		flat = flatTextures[face.TextureIndex]
+	}
+	if flat == 0 {
+		flat = fallbackFlat
+	}
+	return flat
 }
 
 // renderSkyPass renders sky surfaces using one of three sky shader programs: embedded two-layer scrolling sky, cubemap sky, or individual face textures. Draws sky as a backdrop with depth clamped to the far plane.
@@ -672,6 +687,17 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 				state.frame,
 				float64(state.time),
 			)
+			if state.fastSky {
+				solid = worldSkyFlatTextureForFace(
+					call.face,
+					state.flatTextures,
+					state.textureAnimations,
+					state.fallbackSolid,
+					state.frame,
+					float64(state.time),
+				)
+				alpha = state.fallbackAlpha
+			}
 			gl.ActiveTexture(gl.TEXTURE0)
 			gl.BindTexture(gl.TEXTURE_2D, solid)
 			gl.ActiveTexture(gl.TEXTURE1)

@@ -204,6 +204,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("setpos", func(args []string) { h.CmdSetPos(args, subs) }, "Teleport to position")
 	replaceCommand("pr_ents", func(args []string) { h.CmdPrEnts(subs) }, "Print all active entities")
 	replaceCommand("edictcount", func(args []string) { h.CmdEdictCount(subs) }, "Print edict summary counts")
+	replaceCommand("devstats", func(args []string) { h.CmdDevStats(subs) }, "Print server development statistics (current and peak)")
 	replaceCommand("profile", func(args []string) { h.CmdProfile(subs) }, "Show top QC function profile counters")
 
 	// Demo commands

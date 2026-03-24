@@ -2039,6 +2039,22 @@ func TestClientCurrentFogInterpolatesFade(t *testing.T) {
 	}
 }
 
+func TestClientCurrentFogDensityInterpolationNotQuantized(t *testing.T) {
+	c := NewClient()
+	c.Time = 5
+	c.FogDensity = 255
+	c.FogColor = [3]byte{0, 0, 0}
+	c.fogOldDensity = 0
+	c.fogOldColor = [3]float32{}
+	c.fogFadeTime = 3
+	c.fogFadeDone = 7
+
+	density, _ := c.CurrentFog()
+	if math.Abs(float64(density-float32(1.0/3.0))) > 0.0001 {
+		t.Fatalf("density = %v, want %v", density, float32(1.0/3.0))
+	}
+}
+
 func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
 	c := NewClient()
 	c.Time = 4
@@ -2073,6 +2089,52 @@ func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
 	}
 	if c.fogFadeDone != 6 {
 		t.Fatalf("fogFadeDone = %v, want 6", c.fogFadeDone)
+	}
+}
+
+func TestApplyWorldspawnFogDefaultsParsesFogKey(t *testing.T) {
+	c := NewClient()
+	c.ApplyWorldspawnFogDefaults([]byte(`{"classname" "worldspawn" "fog" "0.5 0.25 0.5 0.75"}`))
+
+	if got := c.FogDensity; got != 128 {
+		t.Fatalf("FogDensity = %d, want 128", got)
+	}
+	if got := c.FogColor; got != [3]byte{64, 128, 191} {
+		t.Fatalf("FogColor = %v, want [64 128 191]", got)
+	}
+	if got := c.fogOldDensity; math.Abs(float64(got-float32(128)/255.0)) > 0.0001 {
+		t.Fatalf("fogOldDensity = %v, want %v", got, float32(128)/255.0)
+	}
+	if got := c.fogOldColor; got != [3]float32{64.0 / 255.0, 128.0 / 255.0, 191.0 / 255.0} {
+		t.Fatalf("fogOldColor = %v, want [64/255 128/255 191/255]", got)
+	}
+	if !c.fogConfigured {
+		t.Fatal("fogConfigured = false, want true")
+	}
+}
+
+func TestApplyWorldspawnFogDefaultsDoesNotOverrideConfiguredFog(t *testing.T) {
+	c := NewClient()
+	c.SetFogState(32, [3]byte{16, 32, 48}, 0)
+	c.ApplyWorldspawnFogDefaults([]byte(`{"classname" "worldspawn" "fog" "0.5 0.25 0.5 0.75"}`))
+
+	if got := c.FogDensity; got != 32 {
+		t.Fatalf("FogDensity = %d, want 32", got)
+	}
+	if got := c.FogColor; got != [3]byte{16, 32, 48} {
+		t.Fatalf("FogColor = %v, want [16 32 48]", got)
+	}
+}
+
+func TestApplyWorldspawnFogDefaultsUsesCGrayWhenFogMissing(t *testing.T) {
+	c := NewClient()
+	c.ApplyWorldspawnFogDefaults([]byte(`{"classname" "worldspawn" "message" "start"}`))
+
+	if got := c.FogDensity; got != 0 {
+		t.Fatalf("FogDensity = %d, want 0", got)
+	}
+	if got := c.FogColor; got != [3]byte{77, 77, 77} {
+		t.Fatalf("FogColor = %v, want [77 77 77]", got)
 	}
 }
 
@@ -2265,6 +2327,36 @@ func TestParseClientDataNormalizesIndexedActiveWeapon(t *testing.T) {
 	}
 
 	if got, want := c.ActiveWeapon(), ItemRocketLauncher; got != want {
+		t.Fatalf("ActiveWeapon() = %d, want %d", got, want)
+	}
+}
+
+func TestParseClientDataActiveWeaponOverflowUpdatestatWins(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCClientData))
+	writeShort(msg, 0)
+	writeLong(msg, 0)
+	writeShort(msg, 100)
+	msg.WriteByte(20)
+	msg.WriteByte(5)
+	msg.WriteByte(6)
+	msg.WriteByte(7)
+	msg.WriteByte(8)
+	msg.WriteByte(0) // truncated active weapon byte in clientdata
+
+	msg.WriteByte(byte(inet.SVCUpdateStat))
+	msg.WriteByte(byte(inet.StatActiveWeapon))
+	writeLong(msg, int32(1<<8)) // full active weapon bitmask from Alkaline compat path
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if got, want := c.ActiveWeapon(), 1<<8; got != want {
 		t.Fatalf("ActiveWeapon() = %d, want %d", got, want)
 	}
 }

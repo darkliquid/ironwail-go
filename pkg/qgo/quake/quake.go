@@ -5,6 +5,8 @@
 // primitive types (ev_float, ev_vector, ev_string, etc.).
 package quake
 
+import "math"
+
 // Vec3 represents a 3D vector, mapped to the QCVM 'ev_vector' type.
 // In the QCVM, it is laid out as three consecutive float32 slots (X, Y, Z).
 type Vec3 [3]float32
@@ -394,6 +396,29 @@ func SetFieldFloat(entity *Entity, field FieldOffset, value float32) {
 		return
 	}
 	_, _ = field, value
+}
+
+// Heal applies Quake-style healing rules to an entity.
+// Returns 1 when healing was applied, or 0 when no change occurred.
+func (e *Entity) Heal(healAmount, ignore float32) float32 {
+	if e == nil || e.Health <= 0 {
+		return 0
+	}
+	if ignore == 0 && e.Health >= e.MaxHealth {
+		return 0
+	}
+
+	healAmount = float32(math.Ceil(float64(healAmount)))
+	e.Health += healAmount
+
+	if ignore == 0 && e.Health >= e.MaxHealth {
+		e.Health = e.MaxHealth
+	}
+	if e.Health > 250 {
+		e.Health = 250
+	}
+
+	return 1
 }
 
 // Void is a marker type used for functions that do not return a value.
