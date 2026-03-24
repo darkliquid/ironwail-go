@@ -340,6 +340,12 @@ func TestSinglePlayerActions(t *testing.T) {
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
 	mgr := NewManager(drawMgr, inputSys)
+	skillCV := cvar.Register("skill", "1", cvar.FlagArchive, "")
+	oldSkill := skillCV.String
+	defer func() {
+		cvar.Set(skillCV.Name, oldSkill)
+	}()
+	cvar.SetInt(skillCV.Name, 2)
 
 	var commands []string
 	mgr.commandText = func(text string) {
@@ -353,13 +359,22 @@ func TestSinglePlayerActions(t *testing.T) {
 		t.Fatalf("expected single player state, got %v", mgr.GetState())
 	}
 
-	// New game selection queues core startup commands and exits menu.
+	// New Game enters the skill menu first.
+	mgr.M_Key(input.KEnter)
+	if !mgr.IsActive() {
+		t.Fatal("menu should remain active in skill menu before selection")
+	}
+	if got := mgr.GetState(); got != MenuSkill {
+		t.Fatalf("state = %v, want %v", got, MenuSkill)
+	}
+
+	// Accept default (current cvar skill) and start game.
 	mgr.M_Key(input.KEnter)
 	if mgr.IsActive() {
 		t.Fatal("menu should hide when starting new game")
 	}
 
-	want := []string{"disconnect\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
+	want := []string{"disconnect\n", "skill 2\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
 	if len(commands) < len(want) {
 		t.Fatalf("expected at least %d commands, got %d", len(want), len(commands))
 	}
@@ -414,10 +429,21 @@ func TestSinglePlayerNewGamePromptConfirmStartsGame(t *testing.T) {
 	mgr.M_Key(input.KEnter) // New Game -> prompt
 	mgr.M_Key('y')          // Confirm
 
-	if mgr.IsActive() {
-		t.Fatal("menu should hide after confirming new game prompt")
+	if !mgr.IsActive() {
+		t.Fatal("menu should stay active after confirming prompt to allow skill selection")
 	}
-	want := []string{"disconnect\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
+	if got := mgr.GetState(); got != MenuSkill {
+		t.Fatalf("state = %v, want %v", got, MenuSkill)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("commands should not be queued until skill is selected, got %v", commands)
+	}
+
+	mgr.M_Key(input.KEnter) // Select skill
+	if mgr.IsActive() {
+		t.Fatal("menu should hide after confirming skill selection")
+	}
+	want := []string{"disconnect\n", "skill 1\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
 	if len(commands) < len(want) {
 		t.Fatalf("expected at least %d commands, got %d", len(want), len(commands))
 	}
@@ -456,7 +482,7 @@ func TestSinglePlayerNewGamePromptCancelReturnsToSinglePlayer(t *testing.T) {
 	}
 }
 
-func TestSinglePlayerResumePromptShownWhenAutosaveAvailable(t *testing.T) {
+func TestSinglePlayerSkillMenuShowsResumeWhenAutosaveAvailable(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
@@ -470,20 +496,23 @@ func TestSinglePlayerResumePromptShownWhenAutosaveAvailable(t *testing.T) {
 
 	mgr.ShowMenu()
 	mgr.M_Key(input.KEnter) // Main -> Single Player
-	mgr.M_Key(input.KEnter) // New Game -> resume prompt
+	mgr.M_Key(input.KEnter) // New Game -> skill menu
 
 	if !mgr.IsActive() {
-		t.Fatal("menu should stay active for resume prompt")
+		t.Fatal("menu should stay active for skill menu")
 	}
-	if got := mgr.GetState(); got != MenuQuit {
-		t.Fatalf("state = %v, want %v", got, MenuQuit)
+	if got := mgr.GetState(); got != MenuSkill {
+		t.Fatalf("state = %v, want %v", got, MenuSkill)
+	}
+	if got := mgr.skillCursor; got != 4 {
+		t.Fatalf("skill cursor = %d, want resume row 4", got)
 	}
 	if len(commands) != 0 {
-		t.Fatalf("commands should not be queued before responding to resume prompt, got %v", commands)
+		t.Fatalf("commands should not be queued before selecting skill/resume, got %v", commands)
 	}
 }
 
-func TestSinglePlayerResumePromptConfirmLoadsAutosave(t *testing.T) {
+func TestSinglePlayerSkillMenuResumeLoadsAutosave(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
@@ -497,11 +526,11 @@ func TestSinglePlayerResumePromptConfirmLoadsAutosave(t *testing.T) {
 
 	mgr.ShowMenu()
 	mgr.M_Key(input.KEnter) // Main -> Single Player
-	mgr.M_Key(input.KEnter) // New Game -> resume prompt
-	mgr.M_Key('y')          // Resume
+	mgr.M_Key(input.KEnter) // New Game -> skill menu
+	mgr.M_Key(input.KEnter) // Resume
 
 	if mgr.IsActive() {
-		t.Fatal("menu should hide after confirming resume prompt")
+		t.Fatal("menu should hide after selecting resume")
 	}
 	if len(commands) != 1 {
 		t.Fatalf("commands = %v, want single autosave load", commands)
@@ -511,7 +540,7 @@ func TestSinglePlayerResumePromptConfirmLoadsAutosave(t *testing.T) {
 	}
 }
 
-func TestSinglePlayerResumePromptDeclineStartsFreshGame(t *testing.T) {
+func TestSinglePlayerSkillMenuCanChooseFreshGameWhenResumeAvailable(t *testing.T) {
 	drawMgr := &mockDrawManager{}
 	backend := &mockInputBackend{}
 	inputSys := input.NewSystem(backend)
@@ -525,13 +554,14 @@ func TestSinglePlayerResumePromptDeclineStartsFreshGame(t *testing.T) {
 
 	mgr.ShowMenu()
 	mgr.M_Key(input.KEnter) // Main -> Single Player
-	mgr.M_Key(input.KEnter) // New Game -> resume prompt
-	mgr.M_Key('n')          // Fresh start
+	mgr.M_Key(input.KEnter) // New Game -> skill menu
+	mgr.M_Key(input.KUpArrow)
+	mgr.M_Key(input.KEnter) // Fresh start with NIGHTMARE from resume row wrap
 
 	if mgr.IsActive() {
-		t.Fatal("menu should hide after declining resume prompt into fresh game")
+		t.Fatal("menu should hide after selecting skill")
 	}
-	want := []string{"disconnect\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
+	want := []string{"disconnect\n", "skill 3\n", "maxplayers 1\n", "deathmatch 0\n", "coop 0\n", "map start\n"}
 	if len(commands) < len(want) {
 		t.Fatalf("expected at least %d commands, got %d", len(want), len(commands))
 	}
@@ -1753,6 +1783,7 @@ func TestMenuStateStringability(t *testing.T) {
 		MenuNone,
 		MenuMain,
 		MenuSinglePlayer,
+		MenuSkill,
 		MenuLoad,
 		MenuSave,
 		MenuMultiPlayer,

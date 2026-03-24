@@ -33,6 +33,7 @@ const (
 	MenuNone         MenuState = iota // No menu active
 	MenuMain                          // Main menu
 	MenuSinglePlayer                  // Single player submenu
+	MenuSkill                         // Skill / resume submenu for New Game
 	MenuLoad                          // Load game submenu
 	MenuSave                          // Save game submenu
 	MenuMultiPlayer                   // Multiplayer submenu
@@ -65,6 +66,7 @@ const (
 	mainItems        = 6 // total slots (Mods may be skipped)
 
 	singlePlayerItems = 3
+	skillBaseItems    = 4
 	multiPlayerItems  = 3
 	joinGameBaseItems = 4
 	hostGameItems     = 9
@@ -271,6 +273,8 @@ type Manager struct {
 	mainCursor int
 
 	singlePlayerCursor int
+	skillCursor        int
+	skillCanResume     bool
 	loadCursor         int
 	saveCursor         int
 	multiPlayerCursor  int
@@ -402,6 +406,8 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		state:              MenuNone,
 		mainCursor:         0,
 		singlePlayerCursor: 0,
+		skillCursor:        0,
+		skillCanResume:     false,
 		loadCursor:         0,
 		saveCursor:         0,
 		multiPlayerCursor:  0,
@@ -581,6 +587,8 @@ func (m *Manager) M_Key(key int) {
 		m.mainKey(key)
 	case MenuSinglePlayer:
 		m.singlePlayerKey(key)
+	case MenuSkill:
+		m.skillKey(key)
 	case MenuLoad:
 		m.loadKey(key)
 	case MenuSave:
@@ -652,6 +660,8 @@ func (m *Manager) M_Draw(dc renderer.RenderContext) {
 		m.drawMain(dc)
 	case MenuSinglePlayer:
 		m.drawSinglePlayer(dc)
+	case MenuSkill:
+		m.drawSkill(dc)
 	case MenuLoad:
 		m.drawLoad(dc)
 	case MenuSave:
@@ -735,6 +745,9 @@ func (m *Manager) setMenuCursor(cursor int) {
 	case MenuSinglePlayer:
 		changed = m.singlePlayerCursor != cursor
 		m.singlePlayerCursor = cursor
+	case MenuSkill:
+		changed = m.skillCursor != cursor
+		m.skillCursor = cursor
 	case MenuLoad:
 		changed = m.loadCursor != cursor
 		m.loadCursor = cursor
@@ -791,6 +804,8 @@ func (m *Manager) menuCursorForPoint(x, y int) (int, bool) {
 		return visible[slot], true
 	case MenuSinglePlayer:
 		return hitTestStride(y, 32, 20, singlePlayerItems)
+	case MenuSkill:
+		return hitTestTable(y, m.skillRowPositions(), 8)
 	case MenuLoad:
 		return hitTestStride(y, 32, 8, maxSaveGames)
 	case MenuSave:
@@ -873,6 +888,8 @@ func (m *Manager) moveCursorDown() {
 		}
 	case MenuSinglePlayer:
 		m.singlePlayerCursor = (m.singlePlayerCursor + 1) % singlePlayerItems
+	case MenuSkill:
+		m.skillCursor = (m.skillCursor + 1) % m.skillItemCount()
 	case MenuLoad:
 		m.loadCursor = (m.loadCursor + 1) % maxSaveGames
 	case MenuSave:
@@ -916,6 +933,11 @@ func (m *Manager) moveCursorUp() {
 		m.singlePlayerCursor--
 		if m.singlePlayerCursor < 0 {
 			m.singlePlayerCursor = singlePlayerItems - 1
+		}
+	case MenuSkill:
+		m.skillCursor--
+		if m.skillCursor < 0 {
+			m.skillCursor = m.skillItemCount() - 1
 		}
 	case MenuLoad:
 		m.loadCursor--

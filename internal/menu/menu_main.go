@@ -88,23 +88,11 @@ func (m *Manager) singlePlayerKey(key int) {
 					"PRESS Y OR ENTER TO START",
 					"PRESS N OR ESC TO CANCEL",
 				}, func() {
-					m.startSinglePlayerNewGame()
+					m.enterSinglePlayerSkillMenu()
 				}, nil, MenuSinglePlayer)
 				return
 			}
-			if m.resumeGameAvailable != nil && m.resumeGameAvailable() {
-				m.ShowConfirmationPrompt([]string{
-					"RESUME LAST GAME? (Y/N)",
-					"PRESS Y OR ENTER TO RESUME",
-					"PRESS N OR ESC FOR NEW GAME",
-				}, func() {
-					m.queueCommand("load \"autosave/start\"\n")
-				}, func() {
-					m.startSinglePlayerNewGame()
-				}, MenuSinglePlayer)
-				return
-			}
-			m.startSinglePlayerNewGame()
+			m.enterSinglePlayerSkillMenu()
 		case 1:
 			m.enterLoadMenu()
 		case 2:
@@ -120,9 +108,83 @@ func (m *Manager) singlePlayerKey(key int) {
 	}
 }
 
-func (m *Manager) startSinglePlayerNewGame() {
+func (m *Manager) enterSinglePlayerSkillMenu() {
+	m.active = true
+	if m.inputSystem != nil {
+		m.inputSystem.SetKeyDest(input.KeyMenu)
+	}
+	m.skillCanResume = m.resumeGameAvailable != nil && m.resumeGameAvailable()
+	if m.skillCanResume {
+		m.skillCursor = 4
+	} else {
+		skill := 1
+		if cv := cvar.Get("skill"); cv != nil {
+			skill = cv.Int
+		}
+		if skill < 0 {
+			skill = 0
+		}
+		if skill > 3 {
+			skill = 3
+		}
+		m.skillCursor = skill
+	}
+	m.state = MenuSkill
+}
+
+func (m *Manager) skillItemCount() int {
+	if m.skillCanResume {
+		return skillBaseItems + 1
+	}
+	return skillBaseItems
+}
+
+func (m *Manager) skillRowPositions() []int {
+	rows := []int{56, 72, 88, 104}
+	if m.skillCanResume {
+		rows = append(rows, 128)
+	}
+	return rows
+}
+
+func (m *Manager) skillKey(key int) {
+	switch key {
+	case input.KUpArrow, input.KMWheelUp:
+		m.skillCursor--
+		if m.skillCursor < 0 {
+			m.skillCursor = m.skillItemCount() - 1
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KDownArrow, input.KMWheelDown:
+		m.skillCursor++
+		if m.skillCursor >= m.skillItemCount() {
+			m.skillCursor = 0
+		}
+		m.playMenuSound(menuSoundNavigate)
+	case input.KEnter, input.KSpace, input.KMouse1:
+		m.playMenuSound(menuSoundSelect)
+		if m.skillCanResume && m.skillCursor == 4 {
+			m.HideMenu()
+			m.queueCommand("load \"autosave/start\"\n")
+			return
+		}
+		m.startSinglePlayerNewGame(m.skillCursor)
+	case input.KEscape, input.KBackspace, input.KMouse2:
+		m.playMenuSound(menuSoundCancel)
+		m.state = MenuSinglePlayer
+	}
+}
+
+func (m *Manager) startSinglePlayerNewGame(skill int) {
+	if skill < 0 {
+		skill = 0
+	}
+	if skill > 3 {
+		skill = 3
+	}
 	m.HideMenu()
 	m.queueCommand("disconnect\n")
+	m.queueCommand(fmt.Sprintf("skill %d\n", skill))
 	m.queueCommand("maxplayers 1\n")
 	m.queueCommand("deathmatch 0\n")
 	m.queueCommand("coop 0\n")
@@ -482,6 +544,20 @@ func (m *Manager) drawSinglePlayer(dc renderer.RenderContext) {
 	}
 
 	m.drawCursor(dc, 54, 32+m.singlePlayerCursor*20)
+}
+
+func (m *Manager) drawSkill(dc renderer.RenderContext) {
+	m.drawPlaqueAndTitle(dc, "gfx/ttl_sgl.lmp")
+	m.drawText(dc, 84, 32, "SKILL", true)
+	m.drawText(dc, 84, 56, "EASY", true)
+	m.drawText(dc, 84, 72, "NORMAL", true)
+	m.drawText(dc, 84, 88, "HARD", true)
+	m.drawText(dc, 84, 104, "NIGHTMARE", true)
+	if m.skillCanResume {
+		m.drawText(dc, 84, 128, "RESUME LAST GAME", true)
+	}
+	rows := m.skillRowPositions()
+	m.drawArrowCursor(dc, 68, rows[m.skillCursor])
 }
 
 // drawMultiPlayer renders the Multiplayer sub-menu with its three items

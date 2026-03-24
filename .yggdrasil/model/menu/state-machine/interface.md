@@ -18,7 +18,8 @@
 
 - Opening the menu redirects input to `input.KeyMenu`; hiding it restores `input.KeyGame`.
 - `MenuQuit` is the shared confirmation-screen state, not only the quit page.
+- `MenuSkill` is the dedicated Single Player -> New Game selection state between `MenuSinglePlayer` and gameplay launch.
 - Provider-backed screens refresh on entry or draw according to manager-owned rules.
 - `SetNewGameConfirmationProvider` controls whether selecting Single Player -> New Game goes directly to command queueing or first enters a confirmation prompt that returns to `MenuSinglePlayer` on cancel.
-- `SetResumeGameAvailableProvider` controls whether selecting Single Player -> New Game offers a resume prompt that confirms into `load "autosave/start"` and declines into the normal fresh-start command sequence.
+- `SetResumeGameAvailableProvider` controls whether `MenuSkill` includes a Resume row that queues `load "autosave/start"` and becomes the initial cursor target when present.
 - `SetSaveEntryAllowedProvider` controls whether selecting Single Player -> Save transitions to `MenuSave`; when disallowed, selection stays on `MenuSinglePlayer` and emits cancel feedback.
