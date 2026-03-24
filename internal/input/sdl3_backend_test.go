@@ -12,6 +12,26 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
+func withSDLTextHooks(
+	t *testing.T,
+	start func(*sdl.Window) error,
+	stop func(*sdl.Window) error,
+	hasSupport func() bool,
+) {
+	t.Helper()
+	oldStart := startTextInput
+	oldStop := stopTextInput
+	oldSupport := hasScreenKeyboardSupport
+	startTextInput = start
+	stopTextInput = stop
+	hasScreenKeyboardSupport = hasSupport
+	t.Cleanup(func() {
+		startTextInput = oldStart
+		stopTextInput = oldStop
+		hasScreenKeyboardSupport = oldSupport
+	})
+}
+
 // TestTransformKey tests gamepad key transformation.
 // It ensures that certain keys are correctly shifted when an "alt" modifier is pressed, allowing for expanded gamepad bindings.
 // Where in C: N/A (Modern engine extension)
@@ -247,5 +267,100 @@ func TestMapSDLKeyboardKeyMapsPunctuationAndNavigation(t *testing.T) {
 		if got := mapSDLKeyboardKey(tc.scancode, tc.keycode); got != tc.want {
 			t.Fatalf("%s mapped to %d, want %d", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestSetTextModeWithoutWindowIsNoop(t *testing.T) {
+	var starts, stops int
+	withSDLTextHooks(t,
+		func(*sdl.Window) error {
+			starts++
+			return nil
+		},
+		func(*sdl.Window) error {
+			stops++
+			return nil
+		},
+		func() bool { return true },
+	)
+
+	b := &sdl3Backend{}
+	b.SetTextMode(TextModeOn)
+	b.SetTextMode(TextModeNoPopup)
+	b.SetTextMode(TextModeOff)
+
+	if starts != 0 || stops != 0 {
+		t.Fatalf("expected no text input calls without window, got starts=%d stops=%d", starts, stops)
+	}
+}
+
+func TestSetTextModeTogglesSDLTextInput(t *testing.T) {
+	var starts, stops int
+	withSDLTextHooks(t,
+		func(*sdl.Window) error {
+			starts++
+			return nil
+		},
+		func(*sdl.Window) error {
+			stops++
+			return nil
+		},
+		func() bool { return true },
+	)
+
+	b := &sdl3Backend{window: &sdl.Window{}}
+	b.SetTextMode(TextModeOn)
+	b.SetTextMode(TextModeNoPopup)
+	b.SetTextMode(TextModeOff)
+
+	if starts != 2 {
+		t.Fatalf("start calls = %d, want 2", starts)
+	}
+	if stops != 1 {
+		t.Fatalf("stop calls = %d, want 1", stops)
+	}
+}
+
+func TestShowKeyboardUsesPlatformSupport(t *testing.T) {
+	var starts, stops int
+	withSDLTextHooks(t,
+		func(*sdl.Window) error {
+			starts++
+			return nil
+		},
+		func(*sdl.Window) error {
+			stops++
+			return nil
+		},
+		func() bool { return false },
+	)
+
+	b := &sdl3Backend{window: &sdl.Window{}}
+	b.ShowKeyboard(true)
+	b.ShowKeyboard(false)
+	if starts != 0 || stops != 0 {
+		t.Fatalf("expected no calls without support, got starts=%d stops=%d", starts, stops)
+	}
+
+	withSDLTextHooks(t,
+		func(*sdl.Window) error {
+			starts++
+			return nil
+		},
+		func(*sdl.Window) error {
+			stops++
+			return nil
+		},
+		func() bool { return true },
+	)
+
+	b.ShowKeyboard(true)
+	b.ShowKeyboard(false)
+
+	if starts != 1 {
+		t.Fatalf("start calls with support = %d, want 1", starts)
+	}
+	if stops != 1 {
+		t.Fatalf("stop calls with support = %d, want 1", stops)
 	}
 }

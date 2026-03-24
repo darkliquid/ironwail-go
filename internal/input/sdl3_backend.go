@@ -134,8 +134,11 @@ var sdlButtonToKey = map[sdl.GamepadButton]int{
 // activeSDL3Input points to the currently active backend instance so that the
 // global console-command callbacks can reach it.
 var (
-	sdl3CommandOnce sync.Once
-	activeSDL3Input *sdl3Backend
+	sdl3CommandOnce          sync.Once
+	activeSDL3Input          *sdl3Backend
+	startTextInput           = func(win *sdl.Window) error { return win.StartTextInput() }
+	stopTextInput            = func(win *sdl.Window) error { return win.StopTextInput() }
+	hasScreenKeyboardSupport = func() bool { return sdl.HasScreenKeyboardSupport() }
 )
 
 // triggerState tracks the digital (pressed/released) interpretation of each
@@ -666,18 +669,37 @@ func (b *sdl3Backend) GetMousePosition() (x, y int32, valid bool) {
 // modifier is pressed or released while the window is unfocused.
 func (b *sdl3Backend) GetModifierState() ModifierState { return b.modifiers }
 
-// SetTextMode is a no-op in the current SDL3 backend. SDL's text input is
-// implicitly enabled when the event loop receives TEXT_INPUT events.
-// A full implementation would call sdl.StartTextInput / sdl.StopTextInput.
-func (b *sdl3Backend) SetTextMode(mode TextMode) {}
+// SetTextMode toggles SDL text input so console/chat text entry matches the
+// backend-neutral input contract. TextModeOn and TextModeNoPopup both request
+// text events; TextModeOff disables them.
+func (b *sdl3Backend) SetTextMode(mode TextMode) {
+	if b.window == nil {
+		return
+	}
+	switch mode {
+	case TextModeOff:
+		_ = stopTextInput(b.window)
+	default:
+		_ = startTextInput(b.window)
+	}
+}
 
 // SetCursorMode is a no-op stub. Cursor visibility is managed through
 // SetMouseGrab and the renderer's own cursor handling.
 func (b *sdl3Backend) SetCursorMode(mode CursorMode) {}
 
-// ShowKeyboard is a no-op on desktop platforms. On mobile it would call
-// SDL_StartTextInput to raise the virtual keyboard.
-func (b *sdl3Backend) ShowKeyboard(show bool) {}
+// ShowKeyboard requests mobile on-screen keyboard visibility when SDL reports
+// support. Desktop platforms typically report no support, making this a no-op.
+func (b *sdl3Backend) ShowKeyboard(show bool) {
+	if b.window == nil || !hasScreenKeyboardSupport() {
+		return
+	}
+	if show {
+		_ = startTextInput(b.window)
+		return
+	}
+	_ = stopTextInput(b.window)
+}
 
 // SetMouseGrab enables or disables SDL relative mouse mode on the attached
 // window. In relative mode the cursor is hidden and SDL reports motion as

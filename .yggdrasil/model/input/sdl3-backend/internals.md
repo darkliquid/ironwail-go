@@ -8,8 +8,17 @@ The SDL3 backend is the platform-facing implementation of the input contract. It
 
 - SDL3 support is build-tagged; the stub file must preserve compile-time availability when SDL3 is disabled.
 - Trigger digital events are threshold-based, while analog trigger values remain separately available through `GamepadState`.
-- Text mode, cursor mode, and on-screen keyboard hooks exist in the backend contract, but SDL3 currently implements some of them as no-ops.
+- Cursor mode remains a no-op hook in this backend; relative mouse capture is still controlled through `SetMouseGrab`.
+- Text mode and on-screen keyboard hooks are window-gated and support-gated: they only call SDL text-input APIs when a backend window is attached, and on-screen keyboard requests are further gated by `SDL_HasScreenKeyboardSupport`.
 - Device connection/removal bookkeeping is best-effort and tied to SDL's controller events rather than an engine-owned device model.
+
+### Text-input control path
+
+- `SetTextMode` now enforces the backend-neutral contract from `input/core`:
+  - `TextModeOn` and `TextModeNoPopup` call `Window.StartTextInput()`
+  - `TextModeOff` calls `Window.StopTextInput()`
+- `ShowKeyboard(show)` reuses the same start/stop calls but only when screen keyboard support is available.
+- The implementation intentionally ignores SDL errors from these calls to match the backend interface shape (`void` methods) and keep behavior fail-soft across platforms.
 
 ## Decisions
 
