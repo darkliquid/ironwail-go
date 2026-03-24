@@ -91,6 +91,13 @@ func (s *Server) handleDeathmatchRespawn(client *Client) bool {
 	if !dead {
 		return false
 	}
+	if s.QCVM != nil && s.QCVM.FindFunction("PlayerPreThink") >= 0 {
+		// When QC owns PlayerPreThink, let PlayerDeathThink drive the entire
+		// death progression/respawn path during Physics. That preserves the QC
+		// release-then-press gating, button clearing, and respawn-side effects
+		// instead of the older Go-only PutClientInServer shortcut.
+		return true
+	}
 	if DeadFlag(ent.Vars.DeadFlag) < DeadRespawnable {
 		return true
 	}

@@ -18,6 +18,8 @@ FitzQuake `sendinterval` bookkeeping in `Physics()` intentionally matches the C 
 
 `PushMove` blocked-callback execution now mirrors the QC synchronization pattern already used for touch/think callbacks: it snapshots pusher state, syncs pushers and the blocking entity to the QC VM before calling `blocked`, then applies mutated pushers and newly spawned edicts back into Go state when the callback succeeds. This closes a parity gap where blocked callbacks could mutate QC state that was not re-materialized into authoritative server edicts.
 
+Deathmatch respawn progression now defers to QuakeC whenever `PlayerPreThink` is present. The server still blocks dead clients from running Go-side movement in `RunClients`, but it no longer bypasses QC by calling `PutClientInServer` directly from the Go-only deathmatch shortcut. That preserves QC `PlayerDeathThink` semantics for held-button release, button clearing before respawn, and any additional respawn side effects implemented by mods.
+
 
 ## Constraints
 

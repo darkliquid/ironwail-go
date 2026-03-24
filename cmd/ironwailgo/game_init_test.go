@@ -209,3 +209,36 @@ func TestRendererRDynamicCVarName(t *testing.T) {
 		t.Fatalf("renderer.CvarRDynamic = %q, want %q", renderer.CvarRDynamic, "r_dynamic")
 	}
 }
+
+func TestRegisterRendererLightingAndParticleCvarsRegistersParityDefaults(t *testing.T) {
+	t.Parallel()
+
+	registry := cvar.NewCVarSystem()
+	registerRendererLightingAndParticleCvars(registry.Register)
+
+	tests := []struct {
+		name         string
+		defaultValue string
+	}{
+		{name: renderer.CvarRDynamic, defaultValue: "1"},
+		{name: renderer.CvarRParticles, defaultValue: "2"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cv := registry.Get(tt.name)
+			if cv == nil {
+				t.Fatalf("%s should be registered", tt.name)
+			}
+			if cv.String != tt.defaultValue {
+				t.Fatalf("%s default = %q, want %s", tt.name, cv.String, tt.defaultValue)
+			}
+			if cv.Flags&cvar.FlagArchive == 0 {
+				t.Fatalf("%s should be archived", tt.name)
+			}
+		})
+	}
+}

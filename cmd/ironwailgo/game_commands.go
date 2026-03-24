@@ -180,12 +180,21 @@ func cmdScreenAutoScale(_ []string) {
 	}
 }
 
+const (
+	minBoundViewSize = 30.0
+	maxHUDViewSize   = 110.0
+)
+
+func boundedRuntimeViewSize(v float64) float64 {
+	return clampf64(v, minBoundViewSize, maxHUDViewSize)
+}
+
 func cmdSizeUp(_ []string) {
-	cvar.SetFloat("scr_viewsize", cvar.FloatValue("scr_viewsize")+10)
+	cvar.SetFloat("scr_viewsize", boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")+10))
 }
 
 func cmdSizeDown(_ []string) {
-	cvar.SetFloat("scr_viewsize", cvar.FloatValue("scr_viewsize")-10)
+	cvar.SetFloat("scr_viewsize", boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")-10))
 }
 
 func cmdEntities(_ []string) {

@@ -17,7 +17,7 @@
 - Menu mouse handling prefers absolute menu-space hit testing and falls back to relative movement.
 - Chat/console text editing includes held-backspace repeat behavior in the command package.
 - `registerConsoleCompletionProviders` is also responsible for wiring console completion against executable-owned registries: commands, cvars, aliases, and the live VFS file listing callback when `g.Subs.Files` is a real `*fs.FileSystem`.
-- Gameplay bind command registration also owns small client-facing convenience commands such as `sizeup`/`sizedown`, which mirror C by bumping the mirrored `scr_viewsize`/`viewsize` cvars in ±10 steps.
+- Gameplay bind command registration also owns small client-facing convenience commands such as `sizeup`/`sizedown`, which mirror C by bumping the mirrored `scr_viewsize`/`viewsize` cvars in ±10 steps while clamping into the gameplay-safe range (`30..110`) so accidental persisted values cannot hide normal runtime HUD elements.
 - Gameplay bind command registration also owns the `entities` client-debug command, which prints an indexed snapshot of the current client entity table and treats missing/zero-model slots as `EMPTY`.
 - Gameplay bind command registration also owns `centerview`, which mirrors C by calling the existing client pitch-drift restart path rather than mutating view angles directly.
 - `applyGameplayMouseLook` also owns the gameplay gamepad look path: right-stick look is opt-in via `joy_look`, while gyro contribution is separately gated by `joy_gyro_look` so teams can ship stick-only look without forcing gyro behavior.

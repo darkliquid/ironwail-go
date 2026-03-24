@@ -485,6 +485,72 @@ func TestLoopbackJumpAppliesVerticalVelocity(t *testing.T) {
 	}
 }
 
+func TestFrameRealProgsDeathRespawnClearsPressedButtons(t *testing.T) {
+	withRuleCVars(t, map[string]string{
+		"coop":       "0",
+		"deathmatch": "1",
+	})
+
+	s := newStartMapDiagnosticsServer(t)
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+	for _, cmd := range []string{"prespawn", "spawn", "begin"} {
+		if err := s.SubmitLoopbackStringCommand(0, cmd); err != nil {
+			t.Fatalf("SubmitLoopbackStringCommand(%s): %v", cmd, err)
+		}
+	}
+	if !client.Spawned {
+		t.Fatal("client not marked spawned after signon")
+	}
+
+	ent := client.Edict
+	ent.Vars.Health = 0
+	ent.Vars.DeadFlag = float32(DeadDead)
+	ent.Vars.Velocity = [3]float32{}
+
+	if err := s.SubmitLoopbackCmd(0, [3]float32{}, 0, 0, 0, 1, 0, float64(s.Time)); err != nil {
+		t.Fatalf("SubmitLoopbackCmd(hold attack): %v", err)
+	}
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("Frame(hold attack): %v", err)
+	}
+	if ent.Vars.Health > 0 {
+		t.Fatalf("held attack should not respawn immediately: health=%v", ent.Vars.Health)
+	}
+	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadDead; got != want {
+		t.Fatalf("deadflag after held attack = %v, want %v", got, want)
+	}
+
+	if err := s.SubmitLoopbackCmd(0, [3]float32{}, 0, 0, 0, 0, 0, float64(s.Time)); err != nil {
+		t.Fatalf("SubmitLoopbackCmd(release): %v", err)
+	}
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("Frame(release): %v", err)
+	}
+	if ent.Vars.Health > 0 {
+		t.Fatalf("release should only mark respawnable: health=%v", ent.Vars.Health)
+	}
+	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadRespawnable; got != want {
+		t.Fatalf("deadflag after release = %v, want %v", got, want)
+	}
+
+	if err := s.SubmitLoopbackCmd(0, [3]float32{}, 0, 0, 0, 1, 0, float64(s.Time)); err != nil {
+		t.Fatalf("SubmitLoopbackCmd(respawn press): %v", err)
+	}
+	if err := s.Frame(0.05); err != nil {
+		t.Fatalf("Frame(respawn press): %v", err)
+	}
+	if ent.Vars.Health <= 0 {
+		t.Fatalf("respawn press did not restore health: health=%v", ent.Vars.Health)
+	}
+	if got, want := DeadFlag(ent.Vars.DeadFlag), DeadNo; got != want {
+		t.Fatalf("deadflag after respawn = %v, want %v", got, want)
+	}
+	if ent.Vars.Button0 != 0 || ent.Vars.Button1 != 0 || ent.Vars.Button2 != 0 {
+		t.Fatalf("QC respawn should clear held buttons: b0=%v b1=%v b2=%v", ent.Vars.Button0, ent.Vars.Button1, ent.Vars.Button2)
+	}
+}
+
 func TestPhysicsWalkClearsStaleGroundFlagWhenUnsupported(t *testing.T) {
 	s := newStartMapDiagnosticsServer(t)
 

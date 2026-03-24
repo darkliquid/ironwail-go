@@ -5260,6 +5260,38 @@ func TestSizeCommandsAdjustMirroredViewsizeCVar(t *testing.T) {
 	}
 }
 
+func TestSizeCommandsClampToHUDSafeRange(t *testing.T) {
+	registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "")
+	cvar.Set("viewsize", "100")
+	cvar.Set("scr_viewsize", "100")
+	t.Cleanup(func() {
+		cvar.Set("viewsize", "100")
+		cvar.Set("scr_viewsize", "100")
+		cmdsys.RemoveCommand("sizeup")
+		cmdsys.RemoveCommand("sizedown")
+	})
+
+	registerGameplayBindCommands()
+
+	cvar.Set("scr_viewsize", "110")
+	cmdsys.ExecuteText("sizeup")
+	if got := cvar.FloatValue("viewsize"); got != 110 {
+		t.Fatalf("viewsize after clamped sizeup = %v, want 110", got)
+	}
+	if got := cvar.FloatValue("scr_viewsize"); got != 110 {
+		t.Fatalf("scr_viewsize after clamped sizeup = %v, want 110", got)
+	}
+
+	cvar.Set("scr_viewsize", "30")
+	cmdsys.ExecuteText("sizedown")
+	if got := cvar.FloatValue("viewsize"); got != 30 {
+		t.Fatalf("viewsize after clamped sizedown = %v, want 30", got)
+	}
+	if got := cvar.FloatValue("scr_viewsize"); got != 30 {
+		t.Fatalf("scr_viewsize after clamped sizedown = %v, want 30", got)
+	}
+}
+
 func TestEntitiesCommandPrintsIndexedClientEntityDump(t *testing.T) {
 	originalClient := g.Client
 	t.Cleanup(func() {

@@ -74,6 +74,11 @@ func registerColorShiftPercentCvars(register func(name, defaultValue string, fla
 	register("gl_cshiftpercent_powerup", "100", cvar.FlagArchive, "Powerup color-shift intensity percentage (0–100)")
 }
 
+func registerRendererLightingAndParticleCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
+	register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
+	register(renderer.CvarRParticles, "2", cvar.FlagArchive, "Particle blend mode (1=alpha, 2=opaque)")
+}
+
 func initGameHost() error {
 	fmt.Printf("Detected %d CPUs.\n", runtime.NumCPU())
 	fmt.Println("Host_Init")
@@ -102,7 +107,7 @@ func initGameHost() error {
 	cvar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	cvar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	cvar.Register("r_drawentities", "1", 0, "Draw entities")
-	cvar.Register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
+	registerRendererLightingAndParticleCvars(cvar.Register)
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")
