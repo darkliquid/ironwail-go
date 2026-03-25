@@ -9,3 +9,4 @@ mapping:
     - internal/audio/sound.go
     - internal/audio/types.go
     - internal/audio/cvars.go
+    - internal/audio/cvars_test.go
