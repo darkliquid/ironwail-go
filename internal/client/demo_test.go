@@ -8,7 +8,9 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
@@ -76,6 +78,13 @@ func TestDemoRecordingAlreadyRecording(t *testing.T) {
 	// Try to start recording again
 	if err := demo.StartDemoRecording("test2", 0); err == nil {
 		t.Error("Expected error when starting recording while already recording")
+	}
+}
+
+func TestStartDemoRecordingRejectsParentTraversal(t *testing.T) {
+	demo := NewDemoState()
+	if err := demo.StartDemoRecording("../escape", 0); err == nil {
+		t.Fatal("StartDemoRecording with '..' path error = nil, want rejection")
 	}
 }
 
@@ -809,6 +818,27 @@ func TestTimeDemoStartsCountingOnSecondPlaybackFrame(t *testing.T) {
 	}
 	if demo.timedemoStart.IsZero() {
 		t.Fatal("timedemo start should be set on the second playback frame")
+	}
+}
+
+func TestStopPlaybackWithSummaryPrintsTimedemoLine(t *testing.T) {
+	demo := NewDemoState()
+	demo.Playback = true
+	demo.TimeDemo = true
+	demo.timedemoFrames = 10
+	demo.timedemoStart = time.Now().Add(-2 * time.Second)
+
+	var output strings.Builder
+	if err := demo.StopPlaybackWithSummary(func(msg string) {
+		output.WriteString(msg)
+	}); err != nil {
+		t.Fatalf("StopPlaybackWithSummary error = %v", err)
+	}
+	if got := output.String(); !strings.Contains(got, "timedemo: 10 frames") {
+		t.Fatalf("summary output = %q, want timedemo line", got)
+	}
+	if demo.TimeDemo {
+		t.Fatal("TimeDemo = true after stop, want false")
 	}
 }
 

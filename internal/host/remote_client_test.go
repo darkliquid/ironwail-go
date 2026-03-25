@@ -191,3 +191,25 @@ func TestRemoteDatagramClientResetConnectionStateClearsClient(t *testing.T) {
 		t.Fatalf("lastSignonReply = %d, want 0", got)
 	}
 }
+
+func TestRemoteClientFrameSkipsAccumulationBeforeSignonComplete(t *testing.T) {
+	rc := newRemoteDatagramClient(nil)
+	rc.inner.Signon = 0
+	rc.inner.ViewAngles = [3]float32{10, 20, 0}
+	rc.inner.InputForward.State = 1
+
+	if err := rc.Frame(0.016); err != nil {
+		t.Fatalf("Frame failed: %v", err)
+	}
+	if rc.inner.PendingCmd.Forward != 0 {
+		t.Fatalf("PendingCmd.Forward = %v, want 0 before signon", rc.inner.PendingCmd.Forward)
+	}
+
+	rc.inner.Signon = cl.Signons
+	if err := rc.Frame(0.016); err != nil {
+		t.Fatalf("Frame after signon failed: %v", err)
+	}
+	if rc.inner.PendingCmd.Msec == 0 {
+		t.Fatal("PendingCmd.Msec = 0 after signon, want accumulated movement command")
+	}
+}

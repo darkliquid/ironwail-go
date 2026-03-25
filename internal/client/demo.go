@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -73,6 +74,10 @@ func (d *DemoState) StartDemoRecording(filename string, cdtrack int) error {
 	demoDir := "demos"
 	if err := os.MkdirAll(demoDir, 0755); err != nil {
 		return fmt.Errorf("failed to create demos directory: %w", err)
+	}
+
+	if strings.Contains(filename, "..") {
+		return fmt.Errorf("invalid demo path %q", filename)
 	}
 
 	// Add .dem extension if not present
@@ -589,6 +594,23 @@ func (d *DemoState) TimeDemoSummary() (frames int, seconds float64, fps float64)
 	return frames, seconds, fps
 }
 
+func (d *DemoState) PrintTimeDemoSummary(printFn func(string)) bool {
+	if d == nil || !d.TimeDemo || printFn == nil {
+		return false
+	}
+	frames, seconds, fps := d.TimeDemoSummary()
+	printFn(fmt.Sprintf("timedemo: %d frames %.3f seconds %.1f fps\n", frames, seconds, fps))
+	return true
+}
+
+func (d *DemoState) StopPlaybackWithSummary(printFn func(string)) error {
+	if d == nil {
+		return nil
+	}
+	d.PrintTimeDemoSummary(printFn)
+	return d.StopPlayback()
+}
+
 func (d *DemoState) ShouldReadFrame(hostFrame int) bool {
 	if d == nil || !d.Playback {
 		return false
@@ -918,5 +940,6 @@ func (c *Client) StopPlayback(demo *DemoState) {
 	demo.Frames = nil
 	demo.FrameIndex = 0
 	demo.rewindBackstop = false
+	demo.PrintTimeDemoSummary(func(msg string) { slog.Info(strings.TrimSpace(msg)) })
 	c.State = StateDisconnected
 }

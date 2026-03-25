@@ -14,6 +14,8 @@ Host command registration is unconditional during `Init`, and runtime now also i
 
 Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info. The provider includes both summary server info and per-player row callbacks (slot/name/colors/frags/ping) so datagram control queries can answer remote `players` requests without exposing full server internals through the host command layer.
 
+Host runtime also owns cross-module callback slots such as `SetGameDirChangedCallback`, which lets executable bootstrap install mod-switch follow-up behavior (for example draw asset reload and renderer palette/conchars refresh) without giving host/runtime a direct dependency on draw or renderer packages.
+
 ### Frame scheduling
 
 `Host.Frame` preserves the classic host order:
@@ -28,6 +30,7 @@ Server-browser network advertisement wiring (`updateServerBrowserNetworking`) no
 `Host.Frame` advances the shared compat-rand stream once at frame entry (`h.compatRNG.Int()`) before any callback phases. Because the same RNG instance is injected into server and QC VM paths during init, this early draw is the deterministic upstream offset source for all later frame-local compat-rand consumers (`SV_MoveToGoal` branches and QC `random()`).
 
 For loopback clients, send command construction now performs send-time one-shot input latching (attack/jump/impulse) through client runtime helpers, matching remote send semantics and C engine timing.
+Remote datagram client frame accumulation now mirrors C signon gating by skipping `AccumulateCmd` until `Signons` is complete; this prevents pre-signon movement intent from being accumulated in remote sessions.
 
 When `maxFPS` is above 72 or invalid, network simulation is isolated to a `1/72` interval. When `maxFPS` is at or below 72, simulation may run every frame.
 `SetMaxFPS` is the authoritative derivation point for that policy (`netInterval`), and host runtime now exposes both `NetInterval()` and `LocalServerFast()` so callers can consume the exact derived state without duplicating threshold logic.

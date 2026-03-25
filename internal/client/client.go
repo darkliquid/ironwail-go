@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/common"
@@ -1117,12 +1118,39 @@ func (c *Client) HandleSignonReply(command string) error {
 	return nil
 }
 
+func SignonReplyCommands(signon int, playerName string, playerColor int, spawnArgs string) ([]string, bool) {
+	switch signon {
+	case 1:
+		return []string{"prespawn"}, true
+	case 2:
+		top := (playerColor >> 4) & 15
+		bottom := playerColor & 15
+		return []string{
+			"name " + strconv.Quote(playerName),
+			fmt.Sprintf("color %d %d", top, bottom),
+			spawnSignonCommand(spawnArgs),
+		}, true
+	case 3:
+		return []string{"begin"}, true
+	default:
+		return nil, false
+	}
+}
+
 func signonReplyVerb(command string) string {
 	fields := strings.Fields(strings.TrimSpace(command))
 	if len(fields) == 0 {
 		return ""
 	}
 	return fields[0]
+}
+
+func spawnSignonCommand(spawnArgs string) string {
+	spawnArgs = strings.TrimSpace(spawnArgs)
+	if spawnArgs == "" {
+		return "spawn"
+	}
+	return "spawn " + spawnArgs
 }
 
 func parseMapNameFromWorldModel(worldModel string) string {

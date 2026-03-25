@@ -16,6 +16,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/host"
 	qimage "github.com/ironwail/ironwail-go/internal/image"
@@ -127,7 +128,11 @@ func (gameCallbacks) ProcessClient() {
 			}
 			if err := g.Host.SeekDemoFrame(demo.FrameIndex-1, g.Subs); err != nil {
 				slog.Warn("demo rewind error", "error", err)
-				_ = demo.StopPlayback()
+				_ = demo.StopPlaybackWithSummary(func(msg string) {
+					if g.Subs != nil && g.Subs.Console != nil {
+						g.Subs.Console.Print(msg)
+					}
+				})
 				clearRuntimeDemoFlags()
 				g.Host.SetClientState(0) // caDisconnected
 				return
@@ -144,12 +149,12 @@ func (gameCallbacks) ProcessClient() {
 		msgData, viewAngles, err := demo.ReadDemoFrame()
 		if err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-				if demo.TimeDemo && g.Subs != nil && g.Subs.Console != nil {
-					frames, seconds, fps := demo.TimeDemoSummary()
-					g.Subs.Console.Print(fmt.Sprintf("timedemo: %d frames %.3f seconds %.1f fps\n", frames, seconds, fps))
-				}
 				// Demo ended, check if we should loop to next demo
-				_ = demo.StopPlayback()
+				_ = demo.StopPlaybackWithSummary(func(msg string) {
+					if g.Subs != nil && g.Subs.Console != nil {
+						g.Subs.Console.Print(msg)
+					}
+				})
 				clearRuntimeDemoFlags()
 				g.Host.SetClientState(0) // caDisconnected
 
@@ -167,7 +172,11 @@ func (gameCallbacks) ProcessClient() {
 			}
 			// Other errors - stop playback
 			slog.Warn("demo playback error", "error", err)
-			_ = demo.StopPlayback()
+			_ = demo.StopPlaybackWithSummary(func(msg string) {
+				if g.Subs != nil && g.Subs.Console != nil {
+					g.Subs.Console.Print(msg)
+				}
+			})
 			clearRuntimeDemoFlags()
 			g.Host.SetClientState(0) // caDisconnected
 			return
@@ -363,8 +372,6 @@ func dedicatedGameLoop() {
 	}()
 
 	lastTime := time.Now()
-	ticker := time.NewTicker(time.Second / 250) // 250 FPS target
-	defer ticker.Stop()
 
 	queueConsoleCommand := func(text string) {
 		if !strings.HasSuffix(text, "\n") {
@@ -379,7 +386,12 @@ func dedicatedGameLoop() {
 		cmdsys.Execute()
 	}
 
-	for range ticker.C {
+	for {
+		ticrate := cvar.FloatValue("sys_ticrate")
+		if ticrate <= 0 {
+			ticrate = 0.05
+		}
+		time.Sleep(time.Duration(ticrate * float64(time.Second)))
 		for {
 			select {
 			case command := <-consoleCommands:

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	stdnet "net"
 	"os"
 	"path/filepath"
@@ -787,7 +786,7 @@ func TestCmdGod(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
-	h.CmdGod(&subs.Subsystems)
+	h.CmdGod(nil, &subs.Subsystems)
 }
 
 func TestCmdNoClip(t *testing.T) {
@@ -804,7 +803,7 @@ func TestCmdNoClip(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
-	h.CmdNoClip(&subs.Subsystems)
+	h.CmdNoClip(nil, &subs.Subsystems)
 }
 
 func TestCmdNotarget(t *testing.T) {
@@ -821,7 +820,7 @@ func TestCmdNotarget(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
-	h.CmdNotarget(&subs.Subsystems)
+	h.CmdNotarget(nil, &subs.Subsystems)
 }
 
 func TestCmdGive(t *testing.T) {
@@ -1008,11 +1007,11 @@ func TestCmdPlayersPrintsQueriedPlayers(t *testing.T) {
 			}
 			switch buf[9] {
 			case 0:
-				serverConn.WriteToUDP(buildHostPlayerInfoResponse(0, "Ranger", 4, 9, 15, 32.5), addr)
+				serverConn.WriteToUDP(buildHostPlayerInfoResponse(0, "Ranger", 0x49, 15, 32, "10.0.0.2:26000"), addr)
 			case 1:
-				serverConn.WriteToUDP(buildHostPlayerInfoResponse(1, "Shambler", 13, 13, 42, 60.0), addr)
+				serverConn.WriteToUDP(buildHostPlayerInfoResponse(1, "Shambler", 0xdd, 42, 60, "10.0.0.3:26000"), addr)
 			default:
-				serverConn.WriteToUDP(buildHostPlayerInfoResponse(buf[9], "", 0, 0, 0, 0), addr)
+				serverConn.WriteToUDP(buildHostPlayerInfoResponse(buf[9], "", 0, 0, 0, ""), addr)
 			}
 		}
 	}()
@@ -1140,10 +1139,10 @@ func buildHostRuleInfoResponse(name, value string) []byte {
 	return buf
 }
 
-func buildHostPlayerInfoResponse(slot byte, name string, top, bottom byte, frags int32, ping float32) []byte {
+func buildHostPlayerInfoResponse(slot byte, name string, colors byte, frags int32, ping int32, address string) []byte {
 	payloadLen := 2 // slot + empty name terminator
 	if name != "" {
-		payloadLen += len(name) + 1 + 2 + 4 + 4
+		payloadLen += len(name) + 1 + 4 + 4 + 4 + len(address) + 1
 	}
 	buf := make([]byte, inet.HeaderSize+1+payloadLen)
 	binary.BigEndian.PutUint32(buf[0:], uint32(len(buf))|inet.FlagCtl)
@@ -1154,10 +1153,10 @@ func buildHostPlayerInfoResponse(slot byte, name string, top, bottom byte, frags
 		copy(buf[10:], name)
 		nameEnd := 10 + len(name)
 		buf[nameEnd] = 0
-		buf[nameEnd+1] = top
-		buf[nameEnd+2] = bottom
-		binary.LittleEndian.PutUint32(buf[nameEnd+3:], uint32(frags))
-		binary.LittleEndian.PutUint32(buf[nameEnd+7:], math.Float32bits(ping))
+		binary.LittleEndian.PutUint32(buf[nameEnd+1:], uint32(colors))
+		binary.LittleEndian.PutUint32(buf[nameEnd+5:], uint32(frags))
+		binary.LittleEndian.PutUint32(buf[nameEnd+9:], uint32(ping))
+		copy(buf[nameEnd+13:], address)
 	}
 	return buf
 }
@@ -1420,6 +1419,97 @@ func TestCmdGameSwitchesFilesystemToSelectedMod(t *testing.T) {
 	}
 	if h.gameDir != "hipnotic" {
 		t.Fatalf("host gameDir = %q, want %q", h.gameDir, "hipnotic")
+	}
+}
+
+func TestCmdGameInvokesGameDirChangedCallbackWithNewFilesystem(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("WriteFile id1 progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "progs.dat"), []byte("hipnotic"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+	calls := 0
+	var seenGameDir string
+	var seenData string
+	h.SetGameDirChangedCallback(func(_ *Subsystems, changed *fs.FileSystem) error {
+		calls++
+		seenGameDir = changed.GetGameDir()
+		data, err := changed.LoadFile("progs.dat")
+		if err != nil {
+			return err
+		}
+		seenData = string(data)
+		return nil
+	})
+
+	h.CmdGame([]string{"hipnotic"}, subs)
+
+	if calls != 1 {
+		t.Fatalf("callback calls = %d, want 1", calls)
+	}
+	if seenGameDir != "hipnotic" {
+		t.Fatalf("callback game dir = %q, want hipnotic", seenGameDir)
+	}
+	if seenData != "hipnotic" {
+		t.Fatalf("callback progs data = %q, want hipnotic", seenData)
+	}
+}
+
+func TestCmdGameReportsCallbackReloadWarningAndContinues(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("WriteFile id1 progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "hipnotic", "progs.dat"), []byte("hipnotic"), 0o644); err != nil {
+		t.Fatalf("WriteFile hipnotic progs: %v", err)
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+	h.SetGameDirChangedCallback(func(_ *Subsystems, _ *fs.FileSystem) error {
+		return fmt.Errorf("reload failed")
+	})
+
+	h.CmdGame([]string{"hipnotic"}, subs)
+
+	activeFS, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
+	}
+	if got := activeFS.GetGameDir(); got != "hipnotic" {
+		t.Fatalf("active game dir = %q, want %q", got, "hipnotic")
+	}
+	out := strings.Join(console.messages, "")
+	if !strings.Contains(out, "failed to reload draw assets") {
+		t.Fatalf("console output = %q, want reload warning", out)
+	}
+	if !strings.Contains(out, "\"game\" changed to \"hipnotic\"") {
+		t.Fatalf("console output = %q, want successful game switch message", out)
 	}
 }
 
@@ -2437,7 +2527,7 @@ func TestCmdRecordUsesLoopbackClientCDTrack(t *testing.T) {
 		Console: console,
 	}
 
-	h.CmdRecord("music_header", subs)
+	h.CmdRecord([]string{"music_header"}, subs)
 	if h.demoState == nil {
 		t.Fatal("expected demo state to be created")
 	}
@@ -2541,7 +2631,7 @@ func TestCmdRecordWritesInitialStateSnapshotWhenConnected(t *testing.T) {
 		Console: console,
 	}
 
-	h.CmdRecord("record_snapshot", subs)
+	h.CmdRecord([]string{"record_snapshot"}, subs)
 	if h.demoState == nil {
 		t.Fatal("expected demo state")
 	}
@@ -4126,6 +4216,49 @@ func TestRegisterCommandsRefreshesExistingBindings(t *testing.T) {
 	}
 }
 
+func TestRegisterCommands_MenuCommandsTargetExpectedStates(t *testing.T) {
+	h := NewHost()
+	mgr := menu.NewManager(nil, nil)
+	h.SetMenu(mgr)
+	subs := &Subsystems{
+		Server:  &mockServer{},
+		Client:  &mockClient{},
+		Console: &mockConsole{},
+	}
+	h.RegisterCommands(subs)
+
+	tests := []struct {
+		command string
+		want    menu.MenuState
+	}{
+		{command: "menu_main", want: menu.MenuMain},
+		{command: "menu_singleplayer", want: menu.MenuSinglePlayer},
+		{command: "menu_maps", want: menu.MenuMaps},
+		{command: "menu_load", want: menu.MenuLoad},
+		{command: "menu_save", want: menu.MenuSave},
+		{command: "menu_multiplayer", want: menu.MenuMultiPlayer},
+		{command: "menu_setup", want: menu.MenuSetup},
+		{command: "menu_options", want: menu.MenuOptions},
+		{command: "menu_keys", want: menu.MenuKeys},
+		{command: "menu_video", want: menu.MenuVideo},
+		{command: "menu_help", want: menu.MenuHelp},
+		{command: "menu_quit", want: menu.MenuQuit},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.command, func(t *testing.T) {
+			mgr.HideMenu()
+			cmdsys.ExecuteText(tc.command)
+			if !mgr.IsActive() {
+				t.Fatalf("%s should show menu", tc.command)
+			}
+			if got := mgr.GetState(); got != tc.want {
+				t.Fatalf("%s state = %v, want %v", tc.command, got, tc.want)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // startdemos / demos / stopdemo playlist tests
 // ---------------------------------------------------------------------------
@@ -4259,6 +4392,27 @@ func TestCmdStopdemoResetsDemoNum(t *testing.T) {
 	}
 	if client.inner.DemoPlayback || client.inner.TimeDemoActive {
 		t.Fatalf("loopback demo flags = demo:%v timedemo:%v, want both false", client.inner.DemoPlayback, client.inner.TimeDemoActive)
+	}
+}
+
+func TestCmdStopdemoPrintsTimedemoSummary(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	subs := &Subsystems{Console: console}
+	h.demoState = &cl.DemoState{
+		Playback: true,
+		TimeDemo: true,
+	}
+	// Seed benchmarking counters so summary has deterministic frame count.
+	h.demoState.EnableTimeDemo()
+	h.demoState.NotePlaybackFrame() // arm
+	h.demoState.NotePlaybackFrame() // starts + increments to 1
+
+	h.CmdStopdemo(subs)
+
+	joined := strings.Join(console.messages, "")
+	if !strings.Contains(joined, "timedemo: 1 frames") {
+		t.Fatalf("console output = %q, want timedemo summary", joined)
 	}
 }
 

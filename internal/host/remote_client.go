@@ -5,8 +5,6 @@ package host
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -65,6 +63,9 @@ func (c *remoteDatagramClient) RuntimeState() *cl.Client {
 
 func (c *remoteDatagramClient) Frame(frameTime float64) error {
 	if c == nil || c.inner == nil {
+		return nil
+	}
+	if c.inner.Signon < cl.Signons {
 		return nil
 	}
 	c.inner.AccumulateCmd(float32(frameTime))
@@ -142,7 +143,7 @@ func (c *remoteDatagramClient) SendCommand() error {
 	}
 	if c.inner.Signon >= 1 && c.inner.Signon < cl.Signons {
 		if c.inner.Signon != c.lastSignonReply {
-			commands, ok := signonReplyCommands(c.inner.Signon, c.spawnArgs)
+			commands, ok := cl.SignonReplyCommands(c.inner.Signon, c.playerName(), c.playerColor(), c.spawnArgs)
 			if !ok {
 				return fmt.Errorf("unsupported signon stage %d", c.inner.Signon)
 			}
@@ -166,32 +167,12 @@ func (c *remoteDatagramClient) SendCommand() error {
 	})
 }
 
-func signonReplyCommands(signon int, spawnArgs string) ([]string, bool) {
-	switch signon {
-	case 1:
-		return []string{"prespawn"}, true
-	case 2:
-		color := cvar.IntValue(clientColorCVar)
-		top := (color >> 4) & 15
-		bottom := color & 15
-		return []string{
-			"name " + strconv.Quote(cvar.StringValue(clientNameCVar)),
-			fmt.Sprintf("color %d %d", top, bottom),
-			spawnSignonCommand(spawnArgs),
-		}, true
-	case 3:
-		return []string{"begin"}, true
-	default:
-		return nil, false
-	}
+func (c *remoteDatagramClient) playerName() string {
+	return cvar.StringValue(clientNameCVar)
 }
 
-func spawnSignonCommand(spawnArgs string) string {
-	spawnArgs = strings.TrimSpace(spawnArgs)
-	if spawnArgs == "" {
-		return "spawn"
-	}
-	return "spawn " + spawnArgs
+func (c *remoteDatagramClient) playerColor() int {
+	return cvar.IntValue(clientColorCVar)
 }
 
 func (c *remoteDatagramClient) SendSignonCommand(command string) error {

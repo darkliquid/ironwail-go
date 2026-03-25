@@ -1995,12 +1995,12 @@ func TestSVCFog(t *testing.T) {
 
 	msg := bytes.NewBuffer(nil)
 	msg.WriteByte(byte(inet.SVCFog))
-	msg.WriteByte(128)                                       // density
-	msg.WriteByte(192)                                       // red
-	msg.WriteByte(144)                                       // green
-	msg.WriteByte(100)                                       // blue
-	_ = binary.Write(msg, binary.LittleEndian, float32(2.5)) // time
-	msg.WriteByte(0xFF)                                      // frame terminator
+	msg.WriteByte(128)   // density
+	msg.WriteByte(192)   // red
+	msg.WriteByte(144)   // green
+	msg.WriteByte(100)   // blue
+	writeShort(msg, 250) // time (2.50s in C wire format)
+	msg.WriteByte(0xFF)  // frame terminator
 
 	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
 		t.Fatalf("ParseServerMessage() error = %v", err)
@@ -2014,6 +2014,50 @@ func TestSVCFog(t *testing.T) {
 	}
 	if got := c.FogTime; got < 2.49 || got > 2.51 {
 		t.Fatalf("fog time = %f, want ~2.5", got)
+	}
+}
+
+func TestSVCBFTriggersBonusFlash(t *testing.T) {
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCBF))
+	msg.WriteByte(0xFF)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+	shift := c.CShifts[CShiftBonus]
+	if shift.Percent != 50 || shift.R != 215 || shift.G != 186 || shift.B != 69 {
+		t.Fatalf("bonus shift = %+v, want R215 G186 B69 P50", shift)
+	}
+}
+
+func TestSVCDisconnectClearsClientRuntimeState(t *testing.T) {
+	c := NewClient()
+	c.State = StateActive
+	c.Signon = Signons
+	c.LevelName = "start"
+	c.MapName = "start"
+	c.Stats[0] = 99
+	p := NewParser(c)
+
+	msg := []byte{byte(inet.SVCDisconnect), 0xFF}
+	if err := p.ParseServerMessage(msg); err == nil {
+		t.Fatal("ParseServerMessage() error = nil, want disconnect error")
+	}
+	if c.State != StateDisconnected {
+		t.Fatalf("state = %v, want disconnected", c.State)
+	}
+	if c.Signon != 0 {
+		t.Fatalf("signon = %d, want 0", c.Signon)
+	}
+	if c.LevelName != "" || c.MapName != "" {
+		t.Fatalf("level/map = %q/%q, want cleared", c.LevelName, c.MapName)
+	}
+	if c.Stats[0] != 0 {
+		t.Fatalf("stats[0] = %d, want 0", c.Stats[0])
 	}
 }
 
@@ -2072,7 +2116,7 @@ func TestSVCFogStartsFadeFromCurrentValue(t *testing.T) {
 	msg.WriteByte(0)
 	msg.WriteByte(0)
 	msg.WriteByte(0)
-	_ = binary.Write(msg, binary.LittleEndian, float32(2.0))
+	writeShort(msg, 200)
 	msg.WriteByte(0xFF)
 
 	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
@@ -2991,6 +3035,21 @@ func TestAccumulateCmdSetsPerCommandMsec(t *testing.T) {
 	}
 	if c.CommandCount != 0 {
 		t.Fatalf("CommandCount = %d, want 0 until a command is actually sent", c.CommandCount)
+	}
+}
+
+func TestBaseMoveReturnsEmptyCommandBeforeSignonComplete(t *testing.T) {
+	c := NewClient()
+	c.Signon = Signons - 1
+	c.InputForward.State = 1
+	c.InputRight.State = 1
+	c.ForwardSpeed = 200
+	c.SideSpeed = 350
+
+	var cmd UserCmd
+	c.BaseMove(&cmd)
+	if cmd.Forward != 0 || cmd.Side != 0 || cmd.Up != 0 {
+		t.Fatalf("cmd = %+v, want zero movement before signon", cmd)
 	}
 }
 

@@ -19,8 +19,10 @@ Relink interpolates entity origins and angles between the double-buffered messag
 ### Temp effects and blends
 
 Temp entity decoding and view-blend state produce transient render/audio-facing information that is later consumed by other systems. Temp entities now route coordinate decoding through the parser's protocol-aware helpers rather than the legacy fixed-point-only helpers used by older message paths, so beams/explosions stay aligned with servers that enable float/int32/24-bit coord flags.
-Beam segment generation also mirrors C roll jitter behavior by creating a compat RNG seeded from `int(Client.Time*1000)` at each temp-entity update pass and assigning `rand()%360` roll per emitted segment in sequence across all active beams.
-`svc_fog` parsing routes through the shared runtime fog helper instead of open-coding the fade bookkeeping, keeping parsed server messages and local console fog changes aligned on how they preserve the currently visible fog during a transition.
+Beam segment generation mirrors C roll jitter and RNG side effects by reseeding the package-shared compat rand stream (`ResetShared(int32(Client.Time*1000))`) at each temp-entity update pass, then consuming `rand()%360` from that shared stream per emitted segment in sequence across active beams.
+`svc_fog` parsing routes through the shared runtime fog helper and decodes fade time from the C wire format (`short` divided by `100.0`) instead of float payload bytes, keeping parsed server messages and local console fog changes aligned on transition semantics.
+`svc_bf` now executes the same bonus-flash side effect as the command path by calling `Client.BonusFlash()` directly during parse dispatch.
+`svc_disconnect` now performs full `Client.ClearState()` teardown before transitioning state to disconnected and returning the disconnect error.
 
 ## Constraints
 

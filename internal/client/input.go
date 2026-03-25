@@ -214,6 +214,9 @@ func (c *Client) AdjustAngles(frametime float32) {
 
 func (c *Client) BaseMove(cmd *UserCmd) {
 	*cmd = UserCmd{}
+	if c == nil || c.Signon != Signons {
+		return
+	}
 
 	if c.InputStrafe.State&1 != 0 {
 		cmd.Side += c.SideSpeed * c.KeyState(&c.InputRight)
@@ -245,6 +248,20 @@ func (c *Client) AccumulateCmd(frametime float32) {
 	c.MViewAngles[1] = c.MViewAngles[0]
 	c.MViewAngles[0] = c.ViewAngles
 	c.BaseMove(&c.PendingCmd)
+	if c.Signon != Signons {
+		c.PendingCmd.ViewAngles = c.ViewAngles
+		cmdMS := int(math.Round(float64(frametime * 1000)))
+		if cmdMS < 0 {
+			cmdMS = 0
+		}
+		if cmdMS > 255 {
+			cmdMS = 255
+		}
+		c.PendingCmd.Msec = uint8(cmdMS)
+		c.PendingCmd.Buttons = 0
+		c.PendingCmd.Impulse = 0
+		return
+	}
 	c.DriftPitch(frametime, c.PendingCmd.Forward)
 	c.PendingCmd.ViewAngles = c.ViewAngles
 	c.MouseSideMove = 0

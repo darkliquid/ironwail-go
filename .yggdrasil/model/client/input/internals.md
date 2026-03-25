@@ -9,6 +9,7 @@ The input path tracks Quake-style button transitions and computes fractional key
 One-shot button/impulse sampling is split by responsibility:
 - `AccumulateCmd` computes movement axes and view-derived command fields.
 - `BuildPendingMove` latches attack/jump bits (`state&3`) and impulse at send time, then clears impulse-down flags (`&^=2`) and consumed impulse.
+- `BaseMove` / `AccumulateCmd` now hard-gate movement/button/impulse accumulation on `Client.Signon == Signons`, matching C behavior where pre-signon packets carry no movement intent.
 
 This mirrors classic Ironwail/Quake timing where send-time packet construction owns one-shot button consumption.
 

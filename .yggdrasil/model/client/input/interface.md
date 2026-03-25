@@ -17,3 +17,4 @@ Observed surfaces:
 
 - Input helpers mutate shared `Client` state and therefore depend on correct host-side ordering with parse/relink/render phases.
 - Prediction is explicitly a client-side support mechanism rather than an authoritative source of render truth.
+- Movement accumulation (`BaseMove` / `AccumulateCmd`) is signon-gated: before `Signons` completes it emits zeroed movement/buttons/impulse while still keeping view-angle and msec bookkeeping coherent for outbound packets.

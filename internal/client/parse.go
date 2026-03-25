@@ -92,6 +92,7 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 		case inet.SVCNop:
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCDisconnect:
+			p.Client.ClearState()
 			p.Client.setState(StateDisconnected)
 			return fmt.Errorf("server disconnected")
 		case inet.SVCTime:
@@ -232,8 +233,10 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			}
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCCenterPrint:
-			p.Client.CenterPrint = msg.ReadString()
+			str := msg.ReadString()
+			p.Client.CenterPrint = str
 			p.Client.CenterPrintAt = p.Client.Time
+			console.LogCenterPrint(p.Client.GameType, str)
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCUpdateName:
 			if err := p.parseUpdateName(msg); err != nil {
@@ -273,22 +276,26 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.CompletedTime = p.Client.Time
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCFinale:
-			p.Client.CenterPrint = msg.ReadString()
+			str := msg.ReadString()
+			p.Client.CenterPrint = str
 			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 2
 			p.Client.CompletedTime = p.Client.Time
+			console.LogCenterPrint(p.Client.GameType, str)
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCCutScene:
-			p.Client.CenterPrint = msg.ReadString()
+			str := msg.ReadString()
+			p.Client.CenterPrint = str
 			p.Client.CenterPrintAt = p.Client.Time
 			p.Client.Intermission = 3
 			p.Client.CompletedTime = p.Client.Time
+			console.LogCenterPrint(p.Client.GameType, str)
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCSellScreen:
 			// C: Cmd_ExecuteString("help", src_command) — no data to read
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCBF:
-			// C: Cmd_ExecuteString("bf", src_command) — bonus flash, no data to read
+			p.Client.BonusFlash()
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCAchievement:
 			_ = msg.ReadString() // achievement ID string, ignored
@@ -594,14 +601,15 @@ func (p *Parser) parseFog(msg *common.SizeBuf) error {
 	if !ok {
 		return fmt.Errorf("svc_fog: missing blue")
 	}
-	t, ok := msg.ReadFloat()
+	tRaw, ok := msg.ReadShort()
 	if !ok {
 		return fmt.Errorf("svc_fog: missing time")
 	}
+	t := float32(tRaw) / 100.0
 	if t < 0 {
 		t = 0
 	}
-	p.Client.SetFogState(density, [3]byte{r, g, b}, float32(t))
+	p.Client.SetFogState(density, [3]byte{r, g, b}, t)
 	return nil
 }
 

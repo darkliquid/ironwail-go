@@ -27,6 +27,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/model"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/renderer"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -1482,6 +1483,87 @@ func TestBuildCSQCDrawHooksSubPicClipAndFill(t *testing.T) {
 	}
 	if got := dc.fills[1]; got.x != 0 || got.y != 0 || got.w != 4 || got.h != 4 || got.color != 2 {
 		t.Fatalf("reset DrawFill = %+v, want x=0 y=0 w=4 h=4 color=2", got)
+	}
+}
+
+func TestBuildCSQCDrawHooksCachePicParitySemantics(t *testing.T) {
+	originalDraw := g.Draw
+	originalCSQC := g.CSQC
+	t.Cleanup(func() {
+		g.Draw = originalDraw
+		g.CSQC = originalCSQC
+	})
+
+	palette := make([]byte, 768)
+	g.Draw = newTestDrawManager(t, map[string]*qimage.QPic{
+		"test": &qimage.QPic{Width: 2, Height: 1, Pixels: []byte{1, 2}},
+	}, palette)
+	g.CSQC = qc.NewCSQC()
+
+	hooks := buildCSQCDrawHooks(&csqcDrawTestContext{})
+	if hooks.IsCachedPic("gfx/test.lmp") {
+		t.Fatal("IsCachedPic should be false before first non-NOLOAD cache")
+	}
+	if got := hooks.PrecachePic("gfx/test.lmp", int(csqcPicFlagNoLoad)); got != "gfx/test.lmp" {
+		t.Fatalf("PrecachePic(NOLOAD) = %q, want input string", got)
+	}
+	if hooks.IsCachedPic("gfx/test.lmp") {
+		t.Fatal("IsCachedPic should remain false after NOLOAD precache query")
+	}
+	w, h := hooks.GetImageSize("gfx/test.lmp")
+	if w != 2 || h != 1 {
+		t.Fatalf("GetImageSize after cache load = (%v,%v), want (2,1)", w, h)
+	}
+	if !hooks.IsCachedPic("gfx/test.lmp") {
+		t.Fatal("IsCachedPic should be true after AUTO cache load")
+	}
+	if got := hooks.PrecachePic("gfx/missing.lmp", int(csqcPicFlagBlock)); got != "" {
+		t.Fatalf("PrecachePic(BLOCK) on missing pic = %q, want empty string", got)
+	}
+}
+
+func TestBuildCSQCFrameStatePopulatesCSQCExtGlobals(t *testing.T) {
+	originalHost := g.Host
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Client = originalClient
+	})
+
+	g.Host = host.NewHost()
+	g.Client = cl.NewClient()
+	g.Client.Time = 12.5
+	g.Client.MaxClients = 8
+	g.Client.Intermission = 2
+	g.Client.CompletedTime = 8.25
+	g.Client.ViewEntity = 3
+	g.Client.ViewAngles = [3]float32{1, 2, 3}
+	g.Client.CommandSequence = 17
+
+	state := buildCSQCFrameState()
+	if state.Time != 12.5 {
+		t.Fatalf("state.Time = %v, want 12.5", state.Time)
+	}
+	if state.MaxClients != 8 {
+		t.Fatalf("state.MaxClients = %v, want 8", state.MaxClients)
+	}
+	if state.Intermission != 2 {
+		t.Fatalf("state.Intermission = %v, want 2", state.Intermission)
+	}
+	if state.IntermissionTime != 8.25 {
+		t.Fatalf("state.IntermissionTime = %v, want 8.25", state.IntermissionTime)
+	}
+	if state.PlayerLocalNum != 2 {
+		t.Fatalf("state.PlayerLocalNum = %v, want 2", state.PlayerLocalNum)
+	}
+	if state.PlayerLocalEntNum != 3 {
+		t.Fatalf("state.PlayerLocalEntNum = %v, want 3", state.PlayerLocalEntNum)
+	}
+	if state.ClientCommandFrame != 17 {
+		t.Fatalf("state.ClientCommandFrame = %v, want 17", state.ClientCommandFrame)
+	}
+	if state.ViewAngles != [3]float32{1, 2, 3} {
+		t.Fatalf("state.ViewAngles = %v, want [1 2 3]", state.ViewAngles)
 	}
 }
 
@@ -3420,6 +3502,10 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 	}
 	if demo.Playback {
 		t.Fatal("expected timedemo playback to stop at EOF")
+	}
+	output := strings.Join(g.Subs.Console.(*demoPlaybackConsole).messages, "")
+	if !strings.Contains(output, "timedemo: 1 frames") {
+		t.Fatalf("console output = %q, want timedemo summary", output)
 	}
 	if clientState.DemoPlayback || clientState.TimeDemoActive {
 		t.Fatalf("timedemo flags after EOF = demo:%v timedemo:%v, want both false", clientState.DemoPlayback, clientState.TimeDemoActive)
@@ -6733,6 +6819,69 @@ func TestConsoleTabCompletionCompletesCommand(t *testing.T) {
 
 	if got := console.InputLine(); got != "toggleconsole" {
 		t.Fatalf("console input line after tab completion = %q, want %q", got, "toggleconsole")
+	}
+}
+
+func TestConsoleGamepadBackCompletesCommand(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+	})
+
+	if err := console.InitGlobal(0); err != nil {
+		t.Fatalf("InitGlobal failed: %v", err)
+	}
+	console.Clear()
+	console.ResetCompletion()
+
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	registerGameplayBindCommands()
+	registerConsoleCompletionProviders()
+	g.Input.SetKeyDest(input.KeyConsole)
+
+	for _, ch := range "togglec" {
+		handleGameCharEvent(ch)
+	}
+	handleGameKeyEvent(input.KeyEvent{Key: input.KBack, Down: true})
+
+	if got := console.InputLine(); got != "toggleconsole" {
+		t.Fatalf("console input line after gamepad back completion = %q, want %q", got, "toggleconsole")
+	}
+}
+
+func TestGamepadStartTogglesMenuFromGameplay(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalGrabbed := g.MouseGrabbed
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.MouseGrabbed = originalGrabbed
+	})
+
+	g.Input = input.NewSystem(nil)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Input.OnMenuKey = handleMenuKeyEvent
+	g.Input.OnKey = handleGameKeyEvent
+	g.Input.SetKeyDest(input.KeyGame)
+
+	handleGameKeyEvent(input.KeyEvent{Key: input.KStart, Down: true})
+	if !g.Menu.IsActive() {
+		t.Fatalf("menu should be active after gamepad start in gameplay")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyMenu {
+		t.Fatalf("key destination after opening menu with start = %v, want menu", got)
+	}
+
+	handleGameKeyEvent(input.KeyEvent{Key: input.KStart, Down: true})
+	if g.Menu.IsActive() {
+		t.Fatalf("menu should close after second gamepad start")
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+		t.Fatalf("key destination after closing menu with start = %v, want game", got)
 	}
 }
 

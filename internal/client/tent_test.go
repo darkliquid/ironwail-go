@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 )
 
@@ -149,6 +150,27 @@ func TestUpdateTempEntitiesBeamRollJitterConsumesOneRollPerSegmentAcrossBeams(t 
 	}
 	if got := c.BeamSegments[3].Angles[2]; got != 158 {
 		t.Fatalf("segment 3 roll = %v, want 158", got)
+	}
+}
+
+func TestUpdateTempEntitiesMutatesSharedCompatRandStream(t *testing.T) {
+	compatrand.ResetShared(123)
+	before := compatrand.Int()
+
+	c := NewClient()
+	c.Time = 1
+	c.beams[0] = beamState{
+		entity:  7,
+		typ:     inet.TE_LIGHTNING2,
+		model:   "progs/bolt2.mdl",
+		endTime: 1.2,
+		start:   [3]float32{0, 0, 0},
+		end:     [3]float32{90, 0, 0},
+	}
+	c.UpdateTempEntities()
+	after := compatrand.Int()
+	if before == after {
+		t.Fatalf("shared compatrand stream unchanged (%d), want mutation from beam roll consumption", before)
 	}
 }
 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 )
@@ -22,15 +24,23 @@ func setLoopbackDemoFlags(subs *Subsystems, demoPlayback, timeDemo bool) {
 	}
 }
 
-func (h *Host) CmdRecord(filename string, subs *Subsystems) {
+func (h *Host) CmdRecord(args []string, subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
+		return
+	}
+	if len(args) < 1 || len(args) > 3 {
+		subs.Console.Print("record <demoname> [<map> [cd track]]\n")
+		return
+	}
+	filename := strings.TrimSpace(args[0])
+	if filename == "" {
+		subs.Console.Print("record <demoname> [<map> [cd track]]\n")
 		return
 	}
 
 	// Check if already recording
 	if h.demoState != nil && h.demoState.Recording {
-		subs.Console.Print("Already recording a demo. Use 'stop' to end recording.\n")
-		return
+		h.CmdStop(subs)
 	}
 
 	// Check if playing back
@@ -49,8 +59,25 @@ func (h *Host) CmdRecord(filename string, subs *Subsystems) {
 
 	// Get CD track (default to -1, meaning no forced track, matching C Ironwail)
 	cdtrack := -1
+	if len(args) == 3 {
+		if parsed, err := strconv.Atoi(strings.TrimSpace(args[2])); err == nil {
+			cdtrack = parsed
+		}
+	}
 	if loopbackClient := LoopbackClientState(subs); loopbackClient != nil && loopbackClient.CDTrack > 0 {
-		cdtrack = loopbackClient.CDTrack
+		if len(args) != 3 {
+			cdtrack = loopbackClient.CDTrack
+		}
+	}
+
+	if len(args) >= 2 {
+		if err := h.CmdMap(args[1], subs); err != nil {
+			subs.Console.Print(fmt.Sprintf("Failed to start map for recording: %v\n", err))
+			return
+		}
+		if h.clientState != caConnected && h.clientState != caActive {
+			return
+		}
 	}
 
 	// Start recording
@@ -194,7 +221,7 @@ func (h *Host) CmdStopdemo(subs *Subsystems) {
 		return
 	}
 
-	if err := h.demoState.StopPlayback(); err != nil {
+	if err := h.demoState.StopPlaybackWithSummary(func(msg string) { subs.Console.Print(msg) }); err != nil {
 		subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
 		return
 	}

@@ -202,7 +202,7 @@ func (c *Client) UpdateTempEntities() {
 		return
 	}
 	c.BeamSegments = c.BeamSegments[:0]
-	rollRNG := compatrand.New(int32(c.Time * 1000))
+	compatrand.ResetShared(int32(c.Time * 1000))
 	for i := range c.beams {
 		beam := c.beams[i]
 		if beam.model == "" || beam.endTime < c.Time {
@@ -215,19 +215,16 @@ func (c *Client) UpdateTempEntities() {
 				start = state.Origin
 			}
 		}
-		c.BeamSegments = append(c.BeamSegments, generateBeamSegments(beam.typ, beam.entity, beam.model, start, beam.end, rollRNG)...)
+		c.BeamSegments = append(c.BeamSegments, generateBeamSegments(beam.typ, beam.entity, beam.model, start, beam.end)...)
 	}
 	if len(c.BeamSegments) == 0 {
 		c.BeamSegments = nil
 	}
 }
 
-func generateBeamSegments(typ byte, entity int, model string, start, end [3]float32, rollRNG *compatrand.RNG) []BeamSegment {
+func generateBeamSegments(typ byte, entity int, model string, start, end [3]float32) []BeamSegment {
 	nextRoll := func() float32 {
-		if rollRNG == nil {
-			return 0
-		}
-		return float32(rollRNG.Int() % 360)
+		return float32(compatrand.Int() % 360)
 	}
 
 	dist := [3]float32{
