@@ -458,7 +458,7 @@ func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader h
 			CullMode:  gputypes.CullModeNone,
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(depthWrite),
-		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &hal.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
@@ -743,7 +743,9 @@ func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, enti
 	}
 	state := r.ensureAliasStateLocked(entity)
 	state.Frame = frame
-	interpData, err := SetupAliasFrame(state, aliasHeaderFromModel(hdr), entity.TimeSeconds, true, false, 1)
+	aliasHdr := aliasHeaderFromModel(hdr)
+	aliasHdr.Flags = applyAliasNoLerpListFlags(aliasHdr.Flags, entity.ModelID)
+	interpData, err := SetupAliasFrame(state, aliasHdr, entity.TimeSeconds, true, false, 1)
 	if err != nil {
 		return nil
 	}

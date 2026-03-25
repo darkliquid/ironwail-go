@@ -255,13 +255,5 @@ func buildAliasShadowVertices(entity AliasModelEntity) []WorldVertex {
 }
 
 func parseAliasShadowExclusionsGO(value string) map[string]struct{} {
-	fields := strings.Fields(strings.ToLower(value))
-	if len(fields) == 0 {
-		return nil
-	}
-	exclusions := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		exclusions[field] = struct{}{}
-	}
-	return exclusions
+	return parseAliasModelList(value)
 }

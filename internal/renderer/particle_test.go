@@ -2,10 +2,12 @@ package renderer
 
 import (
 	"github.com/ironwail/ironwail-go/internal/client"
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"math"
 	"math/rand"
+	"sync"
 	"testing"
 	"unsafe"
 )
@@ -214,6 +216,58 @@ func TestSplashEffectsAddExpectedCounts(t *testing.T) {
 	ps.TeleportSplash([3]float32{0, 0, 0}, rng, 1)
 	if ps.ActiveCount() != 896 {
 		t.Fatalf("TeleportSplash count = %d, want 896", ps.ActiveCount())
+	}
+}
+
+func TestRunParticleEffectNilRNGUsesCompatRandStream(t *testing.T) {
+	t.Cleanup(func() { compatrand.ResetShared(1) })
+
+	capture := func() []Particle {
+		ps := NewParticleSystem(64)
+		ps.RunParticleEffect([3]float32{1, 2, 3}, [3]float32{0, 1, 0}, 32, 16, nil, 0)
+		return ps.ActiveParticles()
+	}
+
+	compatrand.ResetShared(1)
+	base := capture()
+
+	compatrand.ResetShared(1)
+	_ = compatrand.Int() // advance global stream; nil RNG path should observe this
+	shifted := capture()
+
+	if len(base) == 0 || len(shifted) == 0 {
+		t.Fatalf("expected generated particles for nil RNG path")
+	}
+	if base[0].Org == shifted[0].Org && base[0].Color == shifted[0].Color {
+		t.Fatalf("nil RNG particle output did not change after compatrand stream advance")
+	}
+}
+
+func TestEntityParticlesUsesCompatRandForAngularVelocitySeed(t *testing.T) {
+	t.Cleanup(func() { compatrand.ResetShared(1) })
+
+	run := func() [3]float32 {
+		entityParticleAngularVelOnce = sync.Once{}
+		entityParticleAngularVelocities = [len(entityParticleNormals)][3]float32{}
+
+		ps := NewParticleSystem(2048)
+		ps.EntityParticles([3]float32{10, 20, 30}, 1)
+		a := ps.ActiveParticles()
+		if len(a) == 0 {
+			t.Fatalf("expected entity particles")
+		}
+		return a[0].Org
+	}
+
+	compatrand.ResetShared(1)
+	base := run()
+
+	compatrand.ResetShared(1)
+	_ = compatrand.Int() // alter shared stream before velocity table init
+	shifted := run()
+
+	if base == shifted {
+		t.Fatalf("entity particle origin unchanged after compatrand stream advance")
 	}
 }
 

@@ -285,7 +285,9 @@ func (r *Renderer) buildAliasDrawLocked(entity AliasModelEntity, fullAngles bool
 
 	state := r.ensureAliasStateLocked(entity)
 	state.Frame = frame
-	interpData, err := SetupAliasFrame(state, aliasHeaderFromModel(hdr), entity.TimeSeconds, true, false, 1)
+	aliasHdr := aliasHeaderFromModel(hdr)
+	aliasHdr.Flags = applyAliasNoLerpListFlags(aliasHdr.Flags, entity.ModelID)
+	interpData, err := SetupAliasFrame(state, aliasHdr, entity.TimeSeconds, true, false, 1)
 	if err != nil {
 		return nil
 	}
@@ -615,15 +617,7 @@ func (r *Renderer) renderViewModel(entity AliasModelEntity) {
 
 // parseAliasShadowExclusions parses the r_noshadow_list cvar into a set of model names that should not cast ground shadows.
 func parseAliasShadowExclusions(value string) map[string]struct{} {
-	fields := strings.Fields(strings.ToLower(value))
-	if len(fields) == 0 {
-		return nil
-	}
-	exclusions := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		exclusions[field] = struct{}{}
-	}
-	return exclusions
+	return parseAliasModelList(value)
 }
 
 // ensureAliasShadowTextureLocked creates a 1x1 dark semi-transparent texture used for alias model ground shadows.

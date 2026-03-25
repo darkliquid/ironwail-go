@@ -5,7 +5,9 @@ import "unsafe"
 import (
 	"math"
 	"math/rand"
+	"sync"
 
+	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -183,19 +185,26 @@ var (
 		{-0.587785, -0.425325, -0.688191},
 		{-0.688191, -0.587785, -0.425325},
 	}
-	entityParticleAngularVelocities = initEntityParticleAngularVelocities()
+	entityParticleAngularVelocities [len(entityParticleNormals)][3]float32
+	entityParticleAngularVelOnce    sync.Once
 )
 
 // initEntityParticleAngularVelocities seeds deterministic spin vectors used to vary particle billboard rotation and keep effects visually rich.
 func initEntityParticleAngularVelocities() [len(entityParticleNormals)][3]float32 {
-	rng := rand.New(rand.NewSource(1))
 	var velocities [len(entityParticleNormals)][3]float32
 	for i := range velocities {
-		velocities[i][0] = float32(rng.Intn(256)) * 0.01
-		velocities[i][1] = float32(rng.Intn(256)) * 0.01
-		velocities[i][2] = float32(rng.Intn(256)) * 0.01
+		velocities[i][0] = float32(compatrand.Int()&255) * 0.01
+		velocities[i][1] = float32(compatrand.Int()&255) * 0.01
+		velocities[i][2] = float32(compatrand.Int()&255) * 0.01
 	}
 	return velocities
+}
+
+func randIntCompat(rng *rand.Rand) int {
+	if rng != nil {
+		return rng.Int()
+	}
+	return int(compatrand.Int())
 }
 
 type ParticleType byte
@@ -235,8 +244,8 @@ func particleVertexPtr(vertices []ParticleVertex) unsafe.Pointer {
 }
 
 type ParticleSystem struct {
-	particles []Particle
-	active    int
+	particles   []Particle
+	active      int
 	tracerCount int
 }
 
@@ -421,10 +430,6 @@ func (ps *ParticleSystem) RunParticles(timeNow, oldTime, gravity float32) {
 
 // RunParticleEffect performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, count int, rng *rand.Rand, timeNow float32) {
-	if rng == nil {
-		rng = rand.New(rand.NewSource(1))
-	}
-
 	for i := 0; i < count; i++ {
 		p := ps.AllocParticle(timeNow)
 		if p == nil {
@@ -434,24 +439,24 @@ func (ps *ParticleSystem) RunParticleEffect(org, dir [3]float32, color byte, cou
 		if count == 1024 {
 			p.Die = timeNow + 5
 			p.Color = ramp1[0]
-			p.Ramp = float32(rng.Intn(4))
+			p.Ramp = float32(randIntCompat(rng) & 3)
 			if i&1 == 1 {
 				p.Type = ParticleExplode
 			} else {
 				p.Type = ParticleExplode2
 			}
 			for j := 0; j < 3; j++ {
-				p.Org[j] = org[j] + float32(rng.Intn(32)-16)
-				p.Vel[j] = float32(rng.Intn(512) - 256)
+				p.Org[j] = org[j] + float32(randIntCompat(rng)%32-16)
+				p.Vel[j] = float32(randIntCompat(rng)%512 - 256)
 			}
 			continue
 		}
 
-		p.Die = timeNow + 0.1*float32(rng.Intn(5))
-		p.Color = (color &^ 7) + byte(rng.Intn(8))
+		p.Die = timeNow + 0.1*float32(randIntCompat(rng)%5)
+		p.Color = (color &^ 7) + byte(randIntCompat(rng)&7)
 		p.Type = ParticleSlowGrav
 		for j := 0; j < 3; j++ {
-			p.Org[j] = org[j] + float32((rng.Int()&15)-8)
+			p.Org[j] = org[j] + float32((randIntCompat(rng)&15)-8)
 			p.Vel[j] = dir[j] * 15
 		}
 	}
@@ -462,6 +467,9 @@ func (ps *ParticleSystem) EntityParticles(org [3]float32, timeNow float32) {
 	if ps == nil {
 		return
 	}
+	entityParticleAngularVelOnce.Do(func() {
+		entityParticleAngularVelocities = initEntityParticleAngularVelocities()
+	})
 
 	const (
 		entityParticleDist       = 64
@@ -495,9 +503,6 @@ func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLe
 	if ps == nil || colorLength == 0 {
 		return
 	}
-	if rng == nil {
-		rng = rand.New(rand.NewSource(1))
-	}
 
 	colorMod := 0
 	for i := 0; i < 512; i++ {
@@ -511,8 +516,8 @@ func (ps *ParticleSystem) ParticleExplosion2(org [3]float32, colorStart, colorLe
 		colorMod++
 		p.Type = ParticleBlob
 		for j := 0; j < 3; j++ {
-			p.Org[j] = org[j] + float32(rng.Intn(32)-16)
-			p.Vel[j] = float32(rng.Intn(512) - 256)
+			p.Org[j] = org[j] + float32(randIntCompat(rng)%32-16)
+			p.Vel[j] = float32(randIntCompat(rng)%512 - 256)
 		}
 	}
 }
@@ -522,9 +527,6 @@ func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow 
 	if ps == nil {
 		return
 	}
-	if rng == nil {
-		rng = rand.New(rand.NewSource(1))
-	}
 
 	for i := 0; i < 1024; i++ {
 		p := ps.AllocParticle(timeNow)
@@ -532,17 +534,17 @@ func (ps *ParticleSystem) BlobExplosion(org [3]float32, rng *rand.Rand, timeNow 
 			return
 		}
 
-		p.Die = timeNow + 1 + float32(rng.Int()&8)*0.05
+		p.Die = timeNow + 1 + float32(randIntCompat(rng)&8)*0.05
 		if i&1 == 1 {
 			p.Type = ParticleBlob
-			p.Color = byte(66 + rng.Intn(6))
+			p.Color = byte(66 + randIntCompat(rng)%6)
 		} else {
 			p.Type = ParticleBlob2
-			p.Color = byte(150 + rng.Intn(6))
+			p.Color = byte(150 + randIntCompat(rng)%6)
 		}
 		for j := 0; j < 3; j++ {
-			p.Org[j] = org[j] + float32(rng.Intn(32)-16)
-			p.Vel[j] = float32(rng.Intn(512) - 256)
+			p.Org[j] = org[j] + float32(randIntCompat(rng)%32-16)
+			p.Vel[j] = float32(randIntCompat(rng)%512 - 256)
 		}
 	}
 }
@@ -552,9 +554,6 @@ func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow flo
 	if ps == nil {
 		return
 	}
-	if rng == nil {
-		rng = rand.New(rand.NewSource(1))
-	}
 
 	for i := -16; i < 16; i++ {
 		for j := -16; j < 16; j++ {
@@ -563,21 +562,21 @@ func (ps *ParticleSystem) LavaSplash(org [3]float32, rng *rand.Rand, timeNow flo
 				return
 			}
 
-			p.Die = timeNow + 2 + float32(rng.Int()&31)*0.02
-			p.Color = byte(224 + (rng.Int() & 7))
+			p.Die = timeNow + 2 + float32(randIntCompat(rng)&31)*0.02
+			p.Color = byte(224 + (randIntCompat(rng) & 7))
 			p.Type = ParticleSlowGrav
 
 			dir := [3]float32{
-				float32(j*8 + (rng.Int() & 7)),
-				float32(i*8 + (rng.Int() & 7)),
+				float32(j*8 + (randIntCompat(rng) & 7)),
+				float32(i*8 + (randIntCompat(rng) & 7)),
 				256,
 			}
 			p.Org[0] = org[0] + dir[0]
 			p.Org[1] = org[1] + dir[1]
-			p.Org[2] = org[2] + float32(rng.Int()&63)
+			p.Org[2] = org[2] + float32(randIntCompat(rng)&63)
 
 			normalize3(&dir)
-			vel := float32(50 + (rng.Int() & 63))
+			vel := float32(50 + (randIntCompat(rng) & 63))
 			for k := 0; k < 3; k++ {
 				p.Vel[k] = dir[k] * vel
 			}
@@ -590,9 +589,6 @@ func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow
 	if ps == nil {
 		return
 	}
-	if rng == nil {
-		rng = rand.New(rand.NewSource(1))
-	}
 
 	for i := -16; i < 16; i += 4 {
 		for j := -16; j < 16; j += 4 {
@@ -602,17 +598,17 @@ func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow
 					return
 				}
 
-				p.Die = timeNow + 0.2 + float32(rng.Int()&7)*0.02
-				p.Color = byte(7 + (rng.Int() & 7))
+				p.Die = timeNow + 0.2 + float32(randIntCompat(rng)&7)*0.02
+				p.Color = byte(7 + (randIntCompat(rng) & 7))
 				p.Type = ParticleSlowGrav
 
 				dir := [3]float32{float32(j * 8), float32(i * 8), float32(k * 8)}
-				p.Org[0] = org[0] + float32(i+(rng.Int()&3))
-				p.Org[1] = org[1] + float32(j+(rng.Int()&3))
-				p.Org[2] = org[2] + float32(k+(rng.Int()&3))
+				p.Org[0] = org[0] + float32(i+(randIntCompat(rng)&3))
+				p.Org[1] = org[1] + float32(j+(randIntCompat(rng)&3))
+				p.Org[2] = org[2] + float32(k+(randIntCompat(rng)&3))
 
 				normalize3(&dir)
-				vel := float32(50 + (rng.Int() & 63))
+				vel := float32(50 + (randIntCompat(rng) & 63))
 				for n := 0; n < 3; n++ {
 					p.Vel[n] = dir[n] * vel
 				}
@@ -623,10 +619,6 @@ func (ps *ParticleSystem) TeleportSplash(org [3]float32, rng *rand.Rand, timeNow
 
 // RocketTrail performs its step in the particle simulation/storage layer feeding billboard rendering passes; this helper exists to keep the frame pipeline deterministic and easier to reason about for engine learners.
 func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.Rand, timeNow float32) {
-	if rng == nil {
-		rng = rand.New(rand.NewSource(1))
-	}
-
 	vec := [3]float32{end[0] - start[0], end[1] - start[1], end[2] - start[2]}
 	len := normalize3(&vec)
 	dec := float32(3)
@@ -647,24 +639,24 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 
 		switch typ {
 		case 0:
-			p.Ramp = float32(rng.Intn(4))
+			p.Ramp = float32(randIntCompat(rng) & 3)
 			p.Color = ramp3[int(p.Ramp)]
 			p.Type = ParticleFire
 			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(rng.Intn(6)-3)
+				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
 			}
 		case 1:
-			p.Ramp = float32(rng.Intn(4) + 2)
+			p.Ramp = float32((randIntCompat(rng) & 3) + 2)
 			p.Color = ramp3[int(p.Ramp)]
 			p.Type = ParticleFire
 			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(rng.Intn(6)-3)
+				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
 			}
 		case 2:
 			p.Type = ParticleGrav
-			p.Color = byte(67 + rng.Intn(4))
+			p.Color = byte(67 + (randIntCompat(rng) & 3))
 			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(rng.Intn(6)-3)
+				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
 			}
 		case 3, 5:
 			p.Die = timeNow + 0.5
@@ -685,17 +677,17 @@ func (ps *ParticleSystem) RocketTrail(start, end [3]float32, typ int, rng *rand.
 			}
 		case 4:
 			p.Type = ParticleGrav
-			p.Color = byte(67 + rng.Intn(4))
+			p.Color = byte(67 + (randIntCompat(rng) & 3))
 			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32(rng.Intn(6)-3)
+				p.Org[j] = start[j] + float32(randIntCompat(rng)%6-3)
 			}
 			len -= 3
 		case 6:
-			p.Color = byte(9*16 + 8 + rng.Intn(4))
+			p.Color = byte(9*16 + 8 + (randIntCompat(rng) & 3))
 			p.Type = ParticleStatic
 			p.Die = timeNow + 0.3
 			for j := 0; j < 3; j++ {
-				p.Org[j] = start[j] + float32((rng.Int()&15)-8)
+				p.Org[j] = start[j] + float32((randIntCompat(rng)&15)-8)
 			}
 		}
 

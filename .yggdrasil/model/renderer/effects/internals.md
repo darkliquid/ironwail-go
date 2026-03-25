@@ -9,6 +9,7 @@ This layer centralizes effect- and entity-oriented helper logic that should not 
 - Dynamic light, particle, and alpha behavior feed directly into visible parity outcomes.
 - Shared helper behavior must stay consistent across multiple backend renderers.
 - Runtime parity requires dynamic-light emission and world-light contribution math to share the same `r_dynamic` gate semantics to avoid "spawn disabled but still lit" or "spawn enabled but never contributes" drift.
+- Particle parity with C/Ironwail depends on consuming a process-global rand stream when explicit RNG injection is absent; per-call fixed-seed RNG fallbacks desynchronize long-running effect sequences.
 
 ## Decisions
 
@@ -39,3 +40,16 @@ Rationale:
 Rejected alternative:
 - Gate only spawn-side calls and leave contribution evaluation unchanged.
 - Rejected because pre-existing active lights would continue contributing while new lights stop spawning, violating the expected hard-off behavior.
+
+### Use shared compatibility rand stream when effect helpers receive nil RNG
+
+Observed decision:
+- Particle helpers (`RunParticleEffect`, `ParticleExplosion2`, `BlobExplosion`, `LavaSplash`, `TeleportSplash`, `RocketTrail`) use `internal/compatrand` when callers do not supply an explicit `*rand.Rand`.
+- Entity-particle angular velocity table initialization (`initEntityParticleAngularVelocities`) also consumes the shared compatibility stream.
+
+Rationale:
+- C/Ironwail particle code consumes the process-global libc rand() sequence; replacing nil-RNG paths with per-call fixed seeds causes repeated local subsequences and visible long-run parity drift.
+
+Rejected alternative:
+- Keep deterministic per-call `rand.New(rand.NewSource(1))` fallbacks for nil RNG paths.
+- Rejected because this repeats the same sequence at every call site and diverges from process-global rand progression used by C/Ironwail.

@@ -1,6 +1,11 @@
 package renderer
 
-import "github.com/ironwail/ironwail-go/internal/model"
+import (
+	"strings"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/model"
+)
 
 func aliasHeaderFromModel(hdr *model.AliasHeader) *AliasHeader {
 	if hdr == nil {
@@ -20,6 +25,29 @@ func aliasHeaderFromModel(hdr *model.AliasHeader) *AliasHeader {
 		Frames:       frames,
 		PoseVertType: hdr.PoseVertType,
 	}
+}
+
+func applyAliasNoLerpListFlags(flags int, modelID string) int {
+	modelID = strings.ToLower(strings.TrimSpace(modelID))
+	if modelID == "" {
+		return flags
+	}
+	if _, noLerp := parseAliasModelList(cvar.StringValue(CvarRNoLerpList))[modelID]; noLerp {
+		flags |= ModNoLerp
+	}
+	return flags
+}
+
+func parseAliasModelList(value string) map[string]struct{} {
+	fields := strings.Fields(strings.ToLower(value))
+	if len(fields) == 0 {
+		return nil
+	}
+	models := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		models[field] = struct{}{}
+	}
+	return models
 }
 
 func (r *Renderer) ensureAliasStateLocked(entity AliasModelEntity) *AliasEntity {

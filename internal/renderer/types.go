@@ -133,7 +133,11 @@ const (
 	CvarRSkySolidSpeed = "r_skysolidspeed" // Embedded sky solid-layer speed scale (default: 1.0)
 	CvarRSkyAlphaSpeed = "r_skyalphaspeed" // Embedded sky alpha-layer speed scale (default: 1.0)
 	CvarRShadows       = "r_shadows"       // Entity shadows (0=off, 1=on)
+	CvarRNoLerpList    = "r_nolerp_list"
 	CvarRNoshadowList  = "r_noshadow_list"
+	CvarGLTextureMode  = "gl_texturemode"
+	CvarGLLodBias      = "gl_lodbias"
+	CvarGLAnisotropy   = "gl_texture_anisotropy"
 	// CvarRWaterwarp controls the underwater visual warp effect.
 	// 0 = off (no underwater visual effect)
 	// 1 = screen-space sinusoidal warp (post-process distortion of the rendered scene)

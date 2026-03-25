@@ -38,3 +38,13 @@ Observed decision:
 Rationale:
 - GoGPU sprite upload must keep parity with OpenGL and avoid backend-specific fallback differences.
 - Reusing the shared fallback path ensures cache-miss sprite uploads preserve parsed payload data instead of synthetic metadata-only placeholders.
+
+### Alias interpolation honors shared no-lerp model list
+
+Observed decision:
+- GoGPU alias draw preparation now mutates alias header flags via `applyAliasNoLerpListFlags` before calling `SetupAliasFrame`.
+- GoGPU alias shadow exclusion parsing (`parseAliasShadowExclusionsGO`) delegates to the shared alias model-list parser.
+
+Rationale:
+- C/Ironwail uses `r_nolerp_list` as a model-level interpolation override; applying the same list in GoGPU prevents backend-specific animation blending drift.
+- Sharing parser behavior with OpenGL avoids diverging tokenization/case-handling behavior for model-list cvars.

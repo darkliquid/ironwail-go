@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
 	"log/slog"
 	"sort"
+	"strings"
 )
 
 type glWorldMesh struct {
@@ -135,7 +137,36 @@ func worldTextureFilters(lightmap bool) (minFilter, magFilter int32) {
 	if lightmap {
 		return gl.LINEAR, gl.LINEAR
 	}
-	return gl.NEAREST, gl.NEAREST
+	return parseGLTextureMode(cvar.StringValue(CvarGLTextureMode))
+}
+
+func parseGLTextureMode(mode string) (minFilter, magFilter int32) {
+	switch strings.ToUpper(strings.TrimSpace(mode)) {
+	case "GL_NEAREST":
+		return gl.NEAREST, gl.NEAREST
+	case "GL_LINEAR":
+		return gl.LINEAR, gl.LINEAR
+	case "GL_NEAREST_MIPMAP_NEAREST":
+		return gl.NEAREST_MIPMAP_NEAREST, gl.NEAREST
+	case "GL_LINEAR_MIPMAP_NEAREST":
+		return gl.LINEAR_MIPMAP_NEAREST, gl.LINEAR
+	case "GL_LINEAR_MIPMAP_LINEAR":
+		return gl.LINEAR_MIPMAP_LINEAR, gl.LINEAR
+	default:
+		return gl.NEAREST_MIPMAP_LINEAR, gl.NEAREST
+	}
+}
+
+func readTextureAnisotropy() float32 {
+	raw := float32(cvar.FloatValue(CvarGLAnisotropy))
+	if raw < 1 {
+		return 1
+	}
+	return raw
+}
+
+func readTextureLodBias() float32 {
+	return float32(cvar.FloatValue(CvarGLLodBias))
 }
 
 // uploadWorldTextureRGBAWithFilters creates a GL texture from RGBA data with specified min/mag filters and generates mipmaps to reduce aliasing at distance.
@@ -147,6 +178,8 @@ func uploadWorldTextureRGBAWithFilters(width, height int, rgba []byte, minFilter
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter)
+	gl.TexParameterf(gl.TEXTURE_2D, gl.TEXTURE_LOD_BIAS, readTextureLodBias())
+	gl.TexParameterf(gl.TEXTURE_2D, gl.TEXTURE_MAX_ANISOTROPY, readTextureAnisotropy())
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
 	return tex

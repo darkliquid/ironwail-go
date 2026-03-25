@@ -19,6 +19,7 @@ Embedded-sky shader uniforms now also include per-layer motion multipliers sourc
 - Fast-sky mode must keep fog blending and texture animation frame resolution consistent with non-fast-sky paths, only changing the bound texture content.
 - Procedural-sky mode must remain deterministic and must not override external skybox cubemap/face rendering.
 - Sky speed controls must remain bounded/non-negative to avoid invalid texture-coordinate regressions in the shader path.
+- OpenGL world texture-mode controls must preserve Quake-style diffuse defaults while keeping lightmap filtering linear and clamping anisotropy to valid driver ranges.
 
 ## Decisions
 
@@ -29,3 +30,16 @@ Observed decision:
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**
+
+### Parse world texture filtering from cvars at upload time
+
+Observed decision:
+- OpenGL world uploads now parse `gl_texturemode` into min/mag filters, apply `gl_lodbias` via `TEXTURE_LOD_BIAS`, and apply `gl_texture_anisotropy` via `TEXTURE_MAX_ANISOTROPY`.
+- Lightmap textures keep linear min/mag filters while diffuse textures use the cvar-controlled path.
+
+Rationale:
+- C/Ironwail exposes these texture controls at runtime; hardcoded filter settings in Go prevented parity tuning and constrained visual matching.
+
+Rejected alternative:
+- Keep fixed nearest-mipmap-linear diffuse filtering and ignore lodbias/anisotropy cvars.
+- Rejected because users could set startup/runtime cvars without any effect, diverging from expected OpenGL parity behavior.
