@@ -10,6 +10,7 @@ The package centers on a `Manager` that owns a parsed WAD pointer, optional virt
 - `GetPic` only accepts WAD lumps of `TypQPic` or `TypConsolePic`; `conchars` follows a separate raw-data path.
 - Returned palette and `conchars` slices alias manager-owned backing data.
 - Cache keys are the requested names, so multiple equivalent lookup names can occupy distinct cache entries.
+- `IsPicCached` is cache-state only and must not trigger image loading.
 
 ## Decisions
 

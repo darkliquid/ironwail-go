@@ -11,6 +11,7 @@
 - `NewManager`
 - `Init` / `InitFromDir`
 - `GetPic`
+- `IsPicCached`
 - `GetConcharsData`
 - `Palette`
 - `Shutdown`
@@ -18,6 +19,7 @@
 ## Contracts
 
 - `GetPic` returns cached or lazily loaded `QPic` data, or `nil` if the manager is uninitialized or the asset cannot be resolved.
+- `IsPicCached` is a non-loading query over in-memory picture cache state.
 - Palette data is expected to be the first 768 bytes of Quake palette content.
 - `conchars` is exposed as raw 128×128 indexed pixel bytes, not as a `QPic`.
 - Initialization is idempotent once successful; callers should `Shutdown` before switching asset bases.

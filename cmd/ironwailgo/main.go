@@ -38,6 +38,10 @@ const (
 	VersionPatch = 0
 
 	runtimeMaxPredictedXYOffset = 4.0
+
+	csqcPicFlagAuto   uint32 = 0
+	csqcPicFlagBlock  uint32 = 1 << 9
+	csqcPicFlagNoLoad uint32 = 1 << 31
 )
 
 // Game consolidates all top-level engine state into a single struct.
@@ -375,6 +379,22 @@ func lookupCSQCPic(name string) *qimage.QPic {
 	return g.Draw.GetPic(name)
 }
 
+func cacheCSQCPic(name string, flags uint32) *qimage.QPic {
+	if g.CSQC != nil {
+		g.CSQC.PrecachePic(name)
+	}
+	if g.Draw == nil {
+		return nil
+	}
+	if flags&csqcPicFlagNoLoad != 0 {
+		if g.Draw.IsPicCached(name) {
+			return g.Draw.GetPic(name)
+		}
+		return nil
+	}
+	return lookupCSQCPic(name)
+}
+
 func nearestPaletteIndex(r, g, b float32, palette []byte) byte {
 	if len(palette) < 3 {
 		return 0
@@ -506,16 +526,23 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 
 	return qc.CSQCDrawHooks{
 		IsCachedPic: func(name string) bool {
-			return lookupCSQCPic(name) != nil
+			if g.Draw == nil {
+				return false
+			}
+			return g.Draw.IsPicCached(name)
 		},
 		PrecachePic: func(name string, flags int) string {
-			if g.CSQC != nil {
-				g.CSQC.PrecachePic(name)
+			if name == "" {
+				return ""
+			}
+			pic := cacheCSQCPic(name, uint32(flags))
+			if pic == nil && uint32(flags)&csqcPicFlagBlock != 0 {
+				return ""
 			}
 			return name
 		},
 		GetImageSize: func(name string) (float32, float32) {
-			pic := lookupCSQCPic(name)
+			pic := cacheCSQCPic(name, csqcPicFlagAuto)
 			if pic == nil {
 				return 0, 0
 			}
@@ -539,7 +566,7 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 			if alpha <= 0 {
 				return
 			}
-			pic := lookupCSQCPic(name)
+			pic := cacheCSQCPic(name, csqcPicFlagAuto)
 			if pic == nil {
 				return
 			}
@@ -568,7 +595,7 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 			if alpha <= 0 {
 				return
 			}
-			pic := lookupCSQCPic(name)
+			pic := cacheCSQCPic(name, csqcPicFlagAuto)
 			if pic == nil {
 				return
 			}
@@ -602,13 +629,20 @@ func wireCSQCDrawHooks(rc renderer.RenderContext) {
 func buildCSQCFrameState() qc.CSQCFrameState {
 	var state qc.CSQCFrameState
 	if g.Host != nil {
+		state.RealTime = float32(g.Host.RealTime())
 		state.FrameTime = float32(g.Host.FrameTime())
 	}
 	if g.Client != nil {
 		state.Time = float32(g.Client.Time)
 		state.MaxClients = float32(g.Client.MaxClients)
 		state.Intermission = float32(g.Client.Intermission)
+		state.IntermissionTime = float32(g.Client.CompletedTime)
+		if g.Client.ViewEntity > 0 {
+			state.PlayerLocalEntNum = float32(g.Client.ViewEntity)
+			state.PlayerLocalNum = float32(g.Client.ViewEntity - 1)
+		}
 		state.ViewAngles = g.Client.ViewAngles
+		state.ClientCommandFrame = float32(g.Client.CommandSequence)
 	}
 	return state
 }

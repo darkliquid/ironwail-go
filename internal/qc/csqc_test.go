@@ -176,3 +176,24 @@ func TestCSQCUnloadResetsPrecacheRegistries(t *testing.T) {
 		t.Fatalf("pic index after Unload = %d, want 1", got)
 	}
 }
+
+func TestCSQCSyncGlobalsUsesRealtimeForCltime(t *testing.T) {
+	csqc := NewCSQC()
+	csqc.VM.Globals = make([]float32, 32)
+	csqc.VM.Progs = &DProgs{NumGlobals: 32}
+	csqc.loaded = true
+	csqc.globals.cltime = 4
+
+	csqc.SyncGlobals(CSQCFrameState{
+		RealTime:  10.5,
+		Time:      2.25,
+		FrameTime: 0.05,
+	})
+
+	if got := csqc.VM.GFloat(4); got != 10.5 {
+		t.Fatalf("cltime global = %v, want realtime 10.5", got)
+	}
+	if got := csqc.VM.GFloat(OFSTime); got != 2.25 {
+		t.Fatalf("time global = %v, want client time 2.25", got)
+	}
+}

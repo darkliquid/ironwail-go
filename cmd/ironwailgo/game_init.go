@@ -77,6 +77,10 @@ func registerColorShiftPercentCvars(register func(name, defaultValue string, fla
 func registerRendererLightingAndParticleCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
 	register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
 	register(renderer.CvarRParticles, "2", cvar.FlagArchive, "Particle blend mode (1=alpha, 2=opaque)")
+	register(renderer.CvarRNoLerpList, "progs/flame.mdl progs/flame2.mdl progs/braztall.mdl progs/brazshrt.mdl progs/longtrch.mdl progs/flame_pyre.mdl progs/v_saw.mdl progs/v_xfist.mdl progs/h2stuff/newfire.mdl", cvar.FlagArchive, "Space-separated list of model names to force no alias frame lerp")
+	register(renderer.CvarGLTextureMode, "GL_NEAREST_MIPMAP_LINEAR", cvar.FlagArchive, "OpenGL texture filter mode for world textures")
+	register(renderer.CvarGLLodBias, "0", cvar.FlagArchive, "OpenGL texture LOD bias for world textures")
+	register(renderer.CvarGLAnisotropy, "1", cvar.FlagArchive, "OpenGL texture anisotropy amount (>=1)")
 }
 
 func initGameHost() error {
@@ -99,6 +103,8 @@ func initGameHost() error {
 	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode (0=windowed, 1=fullscreen)")
 	cvar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
 	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
+	cvar.Register("pr_checkextension", "1", cvar.FlagArchive, "Enable QuakeC extension checks")
+	cvar.Register("cl_nocsqc", "0", cvar.FlagArchive, "Disable CSQC loading")
 	sVolume := cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
 	sVolume.Callback = func(*cvar.CVar) {
 		applySVolume()
@@ -170,6 +176,8 @@ func initGameHost() error {
 	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "Console scale factor")
 	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "Console slide speed")
 	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "Notify line lifetime in seconds")
+	cvar.Register("con_logcenterprint", "1", cvar.FlagArchive, "Centerprint logging mode (0=off,1=single-player,2=always)")
+	cvar.Register("con_maxcols", "0", cvar.FlagArchive, "Maximum tab-completion columns (0=auto)")
 	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
 	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter in the corner (negative values show frame time in ms)")
 	registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "Show the turtle icon when frame time is very slow")
@@ -286,7 +294,13 @@ func initGameQC() error {
 
 	// Register server and CSQC builtins with their respective VMs.
 	qc.RegisterBuiltins(g.CSQC.VM)
-	qc.SetCSQCClientHooks(qc.CSQCClientHooks{
+	qc.SetCSQCClientHooks(buildCSQCClientHooks())
+
+	return nil
+}
+
+func buildCSQCClientHooks() qc.CSQCClientHooks {
+	return qc.CSQCClientHooks{
 		PrecacheModel: func(name string) int {
 			if g.CSQC == nil {
 				return 0
@@ -299,9 +313,74 @@ func initGameQC() error {
 			}
 			return g.CSQC.PrecacheSound(name)
 		},
-	})
-
-	return nil
+		GetStatInt: func(statNum int) int32 {
+			if g.Client == nil || statNum < 0 || statNum >= len(g.Client.Stats) {
+				return 0
+			}
+			return int32(g.Client.Stats[statNum])
+		},
+		GetStatFloat: func(statNum int, firstBit, bitCount int) float32 {
+			if g.Client == nil || statNum < 0 || statNum >= len(g.Client.Stats) {
+				return 0
+			}
+			if bitCount <= 0 {
+				return g.Client.StatsF[statNum]
+			}
+			if firstBit < 0 {
+				firstBit = 0
+			}
+			if firstBit >= 32 {
+				return 0
+			}
+			if bitCount > 32-firstBit {
+				bitCount = 32 - firstBit
+			}
+			if bitCount <= 0 {
+				return 0
+			}
+			raw := uint32(g.Client.Stats[statNum])
+			mask := uint32((1 << bitCount) - 1)
+			return float32((raw >> firstBit) & mask)
+		},
+		GetStatString: func(statNum int) string {
+			if g.Client == nil || statNum < 0 || statNum >= len(g.Client.Stats) {
+				return ""
+			}
+			return strconv.Itoa(g.Client.Stats[statNum])
+		},
+		GetPlayerKeyValue: func(playerNum int, keyName string) string {
+			if g.Client == nil || playerNum < 0 {
+				return ""
+			}
+			switch strings.ToLower(keyName) {
+			case "name":
+				return g.Client.PlayerNames[playerNum]
+			case "frags":
+				return strconv.Itoa(g.Client.Frags[playerNum])
+			case "colors":
+				return strconv.Itoa(int(g.Client.PlayerColors[playerNum]))
+			case "topcolor":
+				colors := g.Client.PlayerColors[playerNum]
+				return strconv.Itoa(int((colors & 0xF0) >> 4))
+			case "bottomcolor":
+				colors := g.Client.PlayerColors[playerNum]
+				return strconv.Itoa(int(colors & 0x0F))
+			case "team":
+				colors := g.Client.PlayerColors[playerNum]
+				return strconv.Itoa(int(colors&0x0F) + 1)
+			case "viewentity":
+				return strconv.Itoa(g.Client.ViewEntity)
+			default:
+				return ""
+			}
+		},
+		RegisterCommand: func(cmdName string) {
+			if cmdName == "" || cmdsys.Exists(cmdName) {
+				return
+			}
+			cmdsys.AddCommand(cmdName, func(args []string) {}, "csqc client command")
+		},
+	}
 }
 
 func initGameRenderer() error {
@@ -418,6 +497,26 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	}
 	// Link the builtins and set up entity sizes
 	qc.RegisterBuiltins(g.QC)
+	qc.SetCSQCClientHooks(buildCSQCClientHooks())
+
+	if g.CSQC != nil && cvar.IntValue("cl_nocsqc") == 0 {
+		if loadedName, csprogsData, err := fileSys.LoadFirstAvailable([]string{"csprogs.dat", "progs.dat"}); err == nil {
+			if err := g.CSQC.Load(bytes.NewReader(csprogsData)); err != nil {
+				slog.Warn("failed to load csqc progs", "file", loadedName, "error", err)
+			} else {
+				frameState := buildCSQCFrameState()
+				if maxClients > 0 {
+					frameState.MaxClients = float32(maxClients)
+				}
+				g.CSQC.SyncGlobals(frameState)
+				engineVersion := float32(10000*VersionMajor + 100*VersionMinor + VersionPatch)
+				if err := g.CSQC.CallInit("Ironwail", engineVersion); err != nil {
+					g.CSQC.Unload()
+					slog.Warn("failed to initialize csqc", "error", err)
+				}
+			}
+		}
+	}
 
 	if !headless {
 		startupUserDir, err := host.ResolveUserDir(basedir, "")

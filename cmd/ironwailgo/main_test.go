@@ -166,10 +166,10 @@ func (s *demoPlaybackNoopServer) RestoreTextSaveGameState(*server.TextSaveGameSt
 func (s *demoPlaybackNoopServer) SetLoadGame(bool)           {}
 func (s *demoPlaybackNoopServer) SetPreserveSpawnParms(bool) {}
 
-type demoPlaybackConsole struct{}
+type demoPlaybackConsole struct{ messages []string }
 
 func (c *demoPlaybackConsole) Init() error       { return nil }
-func (c *demoPlaybackConsole) Print(string)      {}
+func (c *demoPlaybackConsole) Print(msg string)  { c.messages = append(c.messages, msg) }
 func (c *demoPlaybackConsole) Clear()            {}
 func (c *demoPlaybackConsole) Dump(string) error { return nil }
 func (c *demoPlaybackConsole) Shutdown()         {}

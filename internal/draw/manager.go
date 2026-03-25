@@ -213,6 +213,18 @@ func (m *Manager) GetPic(name string) *image.QPic {
 	return pic
 }
 
+// IsPicCached reports whether a named pic is already present in the manager's
+// in-memory QPic cache without triggering any load path.
+func (m *Manager) IsPicCached(name string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if !m.initialized {
+		return false
+	}
+	_, ok := m.pics[name]
+	return ok
+}
+
 // loadPic tries all resolution strategies and returns the first match.
 // Must be called with m.mu held for writing.
 //

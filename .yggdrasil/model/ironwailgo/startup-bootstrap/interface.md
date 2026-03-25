@@ -19,6 +19,7 @@
 - Startup registers renderer sky parity cvars, including `r_fastsky`, `r_proceduralsky`, `r_skyfog`, `r_skysolidspeed`, and `r_skyalphaspeed`, before renderer/world paths run.
 - Startup registers `r_dynamic` (default `1`) so runtime visual helpers can deterministically gate dynamic-light spawn/contribution parity.
 - Startup registers `r_particles` (default `2`) so temp-entity explosion effects use the C Ironwail parity particle mode when no user override exists.
+- Startup registers `pr_checkextension` and `cl_nocsqc`, then conditionally loads CSQC programs (`csprogs.dat` fallback `progs.dat`) and invokes `CSQC_Init` during bootstrap.
 - Color-shift intensity cvars are registered during bootstrap with C Ironwail parity defaults: `gl_cshiftpercent` plus per-channel `gl_cshiftpercent_contents`, `gl_cshiftpercent_damage`, `gl_cshiftpercent_bonus`, and `gl_cshiftpercent_powerup` all default to `100`.
 - Menu bootstrap wiring includes runtime policy callbacks; specifically, single-player New Game confirmation is gated by `Host.ServerActive()` through `SetNewGameConfirmationProvider`, resume availability is gated by presence of `UserDir()/saves/autosave/start.sav` through `SetResumeGameAvailableProvider`, and Save entry gating uses `Host.SaveEntryAllowed(g.Subs)`.
 - Bootstrap registers gameplay controller-look cvars (`joy_look`, `joy_looksensitivity_yaw`, `joy_looksensitivity_pitch`) and optional gyro look toggles/scales (`joy_gyro_look`, `joy_gyro_yaw_scale`, `joy_gyro_pitch_scale`) used by runtime gameplay input.

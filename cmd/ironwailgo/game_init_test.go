@@ -222,6 +222,10 @@ func TestRegisterRendererLightingAndParticleCvarsRegistersParityDefaults(t *test
 	}{
 		{name: renderer.CvarRDynamic, defaultValue: "1"},
 		{name: renderer.CvarRParticles, defaultValue: "2"},
+		{name: renderer.CvarRNoLerpList, defaultValue: "progs/flame.mdl progs/flame2.mdl progs/braztall.mdl progs/brazshrt.mdl progs/longtrch.mdl progs/flame_pyre.mdl progs/v_saw.mdl progs/v_xfist.mdl progs/h2stuff/newfire.mdl"},
+		{name: renderer.CvarGLTextureMode, defaultValue: "GL_NEAREST_MIPMAP_LINEAR"},
+		{name: renderer.CvarGLLodBias, defaultValue: "0"},
+		{name: renderer.CvarGLAnisotropy, defaultValue: "1"},
 	}
 
 	for _, tt := range tests {
@@ -240,5 +244,68 @@ func TestRegisterRendererLightingAndParticleCvarsRegistersParityDefaults(t *test
 				t.Fatalf("%s should be archived", tt.name)
 			}
 		})
+	}
+}
+
+func TestBuildCSQCClientHooksExposeStatAndPlayerBuiltins(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = cl.NewClient()
+	g.Client.Stats[3] = 77
+	g.Client.Stats[5] = 0xAB
+	g.Client.StatsF[5] = 12.5
+	g.Client.PlayerNames[1] = "Ranger"
+	g.Client.Frags[1] = 42
+	g.Client.PlayerColors[1] = 0x2d
+
+	hooks := buildCSQCClientHooks()
+
+	if got := hooks.GetStatInt(3); got != 77 {
+		t.Fatalf("GetStatInt(3) = %d, want 77", got)
+	}
+	if got := hooks.GetStatFloat(5, 0, 0); got != 12.5 {
+		t.Fatalf("GetStatFloat(5,0,0) = %v, want 12.5", got)
+	}
+	if got := hooks.GetStatFloat(5, 4, 4); got != 0xA {
+		t.Fatalf("GetStatFloat(5,4,4) = %v, want 10", got)
+	}
+	if got := hooks.GetStatString(3); got != "77" {
+		t.Fatalf("GetStatString(3) = %q, want 77", got)
+	}
+	if got := hooks.GetPlayerKeyValue(1, "name"); got != "Ranger" {
+		t.Fatalf("GetPlayerKeyValue(name) = %q, want Ranger", got)
+	}
+	if got := hooks.GetPlayerKeyValue(1, "frags"); got != "42" {
+		t.Fatalf("GetPlayerKeyValue(frags) = %q, want 42", got)
+	}
+	if got := hooks.GetPlayerKeyValue(1, "topcolor"); got != strconv.Itoa(int((0x2d&0xf0)>>4)) {
+		t.Fatalf("GetPlayerKeyValue(topcolor) = %q", got)
+	}
+	if got := hooks.GetPlayerKeyValue(1, "bottomcolor"); got != strconv.Itoa(int(0x2d&0x0f)) {
+		t.Fatalf("GetPlayerKeyValue(bottomcolor) = %q", got)
+	}
+	if got := hooks.GetPlayerKeyValue(1, "team"); got != strconv.Itoa(int(0x2d&0x0f)+1) {
+		t.Fatalf("GetPlayerKeyValue(team) = %q", got)
+	}
+}
+
+func TestBuildCSQCClientHooksRegistersCommandOnce(t *testing.T) {
+	hooks := buildCSQCClientHooks()
+	cmdName := "csqc_unit_registercommand_test"
+	cmdsys.RemoveCommand(cmdName)
+	t.Cleanup(func() {
+		cmdsys.RemoveCommand(cmdName)
+	})
+
+	hooks.RegisterCommand(cmdName)
+	if !cmdsys.Exists(cmdName) {
+		t.Fatalf("command %q not registered", cmdName)
+	}
+	hooks.RegisterCommand(cmdName)
+	if !cmdsys.Exists(cmdName) {
+		t.Fatalf("command %q should remain registered", cmdName)
 	}
 }

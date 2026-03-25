@@ -38,6 +38,7 @@ func newCSQCGlobals() csqcGlobals {
 // CSQCFrameState holds per-frame state values synced to CSQC globals
 // before each entry point call.
 type CSQCFrameState struct {
+	RealTime           float32
 	Time               float32
 	FrameTime          float32
 	MaxClients         float32
@@ -147,7 +148,7 @@ func (c *CSQC) SyncGlobals(state CSQCFrameState) {
 	}
 
 	if c.globals.cltime >= 0 {
-		c.VM.SetGFloat(c.globals.cltime, state.Time)
+		c.VM.SetGFloat(c.globals.cltime, state.RealTime)
 	}
 	if c.globals.clframetime >= 0 {
 		c.VM.SetGFloat(c.globals.clframetime, state.FrameTime)
