@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"image"
+	"image/color"
 	"image/png"
 	"path/filepath"
 	"testing"
@@ -171,5 +172,113 @@ func TestDecodeTGA_RLETrueColor(t *testing.T) {
 		if pixel.R != 0 || pixel.G != 0 || pixel.B != 255 || pixel.A != 255 {
 			t.Fatalf("pixel %d = %#v, want blue", x, pixel)
 		}
+	}
+}
+
+func TestWritePNG_OrientationAndBPP(t *testing.T) {
+	rgbaPixels := []byte{
+		255, 0, 0, 255, // top: red
+		0, 0, 255, 255, // bottom: blue
+	}
+
+	var flipped bytes.Buffer
+	err := WritePNG(&flipped, rgbaPixels, 1, 2, 32, false)
+	testutil.AssertNoError(t, err)
+	imgFlipped, err := png.Decode(&flipped)
+	testutil.AssertNoError(t, err)
+	topFlipped := color.RGBAModel.Convert(imgFlipped.At(0, 0)).(color.RGBA)
+	bottomFlipped := color.RGBAModel.Convert(imgFlipped.At(0, 1)).(color.RGBA)
+	if topFlipped.B != 255 || bottomFlipped.R != 255 {
+		t.Fatalf("expected vertical flip for upsidedown=false, got top=%#v bottom=%#v", topFlipped, bottomFlipped)
+	}
+
+	var passthrough bytes.Buffer
+	err = WritePNG(&passthrough, rgbaPixels, 1, 2, 32, true)
+	testutil.AssertNoError(t, err)
+	imgPassthrough, err := png.Decode(&passthrough)
+	testutil.AssertNoError(t, err)
+	topPass := color.RGBAModel.Convert(imgPassthrough.At(0, 0)).(color.RGBA)
+	bottomPass := color.RGBAModel.Convert(imgPassthrough.At(0, 1)).(color.RGBA)
+	if topPass.R != 255 || bottomPass.B != 255 {
+		t.Fatalf("expected no vertical flip for upsidedown=true, got top=%#v bottom=%#v", topPass, bottomPass)
+	}
+
+	rgbPixels := []byte{
+		255, 0, 0,
+		0, 255, 0,
+	}
+	var rgbOut bytes.Buffer
+	err = WritePNG(&rgbOut, rgbPixels, 1, 2, 24, true)
+	testutil.AssertNoError(t, err)
+	imgRGB, err := png.Decode(&rgbOut)
+	testutil.AssertNoError(t, err)
+	r, g, b, a := imgRGB.At(0, 0).RGBA()
+	if r>>8 != 255 || g>>8 != 0 || b>>8 != 0 || a>>8 != 255 {
+		t.Fatalf("unexpected 24bpp top pixel rgba=(%d,%d,%d,%d)", r>>8, g>>8, b>>8, a>>8)
+	}
+}
+
+func TestWritePNG_RejectsInvalidBufferOrBPP(t *testing.T) {
+	var out bytes.Buffer
+	err := WritePNG(&out, []byte{1, 2, 3}, 1, 1, 16, true)
+	if err == nil {
+		t.Fatal("expected bpp error")
+	}
+	err = WritePNG(&out, []byte{1, 2}, 1, 1, 24, true)
+	if err == nil {
+		t.Fatal("expected length error")
+	}
+}
+
+func TestWriteTGA_BPPOrientationAndChannelOrder(t *testing.T) {
+	rgbaPixels := []byte{
+		10, 20, 30, 40,
+		50, 60, 70, 80,
+	}
+	var tga32 bytes.Buffer
+	err := WriteTGA(&tga32, rgbaPixels, 2, 1, 32, true)
+	testutil.AssertNoError(t, err)
+	out32 := tga32.Bytes()
+	if len(out32) != 18+8 {
+		t.Fatalf("unexpected tga32 size: %d", len(out32))
+	}
+	if out32[16] != 32 {
+		t.Fatalf("expected 32 bpp header, got %d", out32[16])
+	}
+	if out32[17] != 0x28 { // alpha bits + top-origin
+		t.Fatalf("expected descriptor 0x28, got %#x", out32[17])
+	}
+	if !bytes.Equal(out32[18:22], []byte{30, 20, 10, 40}) {
+		t.Fatalf("unexpected first BGRA pixel: %v", out32[18:22])
+	}
+
+	rgbPixels := []byte{
+		1, 2, 3,
+		4, 5, 6,
+	}
+	var tga24 bytes.Buffer
+	err = WriteTGA(&tga24, rgbPixels, 2, 1, 24, false)
+	testutil.AssertNoError(t, err)
+	out24 := tga24.Bytes()
+	if out24[16] != 24 {
+		t.Fatalf("expected 24 bpp header, got %d", out24[16])
+	}
+	if out24[17] != 0x00 {
+		t.Fatalf("expected descriptor 0x00 for 24bpp non-upsidedown, got %#x", out24[17])
+	}
+	if !bytes.Equal(out24[18:21], []byte{3, 2, 1}) {
+		t.Fatalf("unexpected first BGR pixel: %v", out24[18:21])
+	}
+}
+
+func TestWriteTGA_RejectsInvalidBufferOrBPP(t *testing.T) {
+	var out bytes.Buffer
+	err := WriteTGA(&out, []byte{1, 2, 3}, 1, 1, 8, true)
+	if err == nil {
+		t.Fatal("expected bpp error")
+	}
+	err = WriteTGA(&out, []byte{1, 2, 3}, 1, 1, 32, true)
+	if err == nil {
+		t.Fatal("expected length error")
 	}
 }

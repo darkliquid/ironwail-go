@@ -22,3 +22,5 @@
 - `QPic` width and height must be non-zero and the payload must contain enough indexed pixels.
 - TGA decoding only supports the subset of Quake-relevant truecolor/grayscale formats implemented in the package.
 - Palette index `255` is treated as transparent only when callers explicitly request transparent expansion.
+- `WritePNG` accepts either 24-bit RGB or 32-bit RGBA buffers (`bpp` 24/32) and takes an `upsidedown` flag. With `upsidedown=false` it flips rows vertically before encoding, matching Ironwail C `Image_WritePNG` semantics.
+- `WriteTGA` accepts either 24-bit RGB or 32-bit RGBA buffers (`bpp` 24/32) and takes an `upsidedown` flag that controls the TGA descriptor top-origin bit (`0x20`), mirroring Ironwail C `Image_WriteTGA`.

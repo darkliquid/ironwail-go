@@ -2,7 +2,7 @@
 
 ## Logic
 
-The package is format-centric rather than renderer-centric. `LoadWad` reads the WAD2 header, seeks to the lump directory, loads each lump payload into memory, and stores it in a canonicalized-name map. `ParseQPic` and `ParseMipTex` then interpret those raw bytes without deep copying unless a later operation like `SubPic` allocates fresh storage. Palette helpers preserve Quake's indexed-pixel model until a caller explicitly expands to RGBA. TGA decoding supports a narrow subset of image types and pixel depths, handling BGR/BGRA reordering, origin flipping, and RLE decompression before producing a standard `image.RGBA`. Export helpers move the other direction, writing straightforward PNG or uncompressed 32-bit TGA output for screenshots and debugging.
+The package is format-centric rather than renderer-centric. `LoadWad` reads the WAD2 header, seeks to the lump directory, loads each lump payload into memory, and stores it in a canonicalized-name map. `ParseQPic` and `ParseMipTex` then interpret those raw bytes without deep copying unless a later operation like `SubPic` allocates fresh storage. Palette helpers preserve Quake's indexed-pixel model until a caller explicitly expands to RGBA. TGA decoding supports a narrow subset of image types and pixel depths, handling BGR/BGRA reordering, origin flipping, and RLE decompression before producing a standard `image.RGBA`. Export helpers now mirror the C surface more closely: `WritePNG` and `WriteTGA` both validate 24-bit and 32-bit buffers, support explicit orientation control via `upsidedown`, and perform RGB↔BGR channel ordering as required by each file format.
 
 ## Constraints
 
