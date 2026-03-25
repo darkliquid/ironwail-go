@@ -13,6 +13,14 @@ agents converting the C code to Go. However, I've been fairly hands on in
 terms of planning and guiding that work, as well as reviewing and making
 manual changes of my own.
 
+In terms of tooling, mostly GitHub Copilot has been used, with a smattering of
+other things, but the vast majority of agentic work has been done with
+**Claude Opus 4.6** and **GPT-5.4**.
+
+The [yggdrasil][3] repo has been invaluable for documenting and mapping the
+growing codebase, providing structural overviews and cross-references that help
+agents and humans alike navigate the port.
+
 ## Differences from Ironwail
 
 Well, apart from the obvious that this is Go, rather than C, I'm building this
@@ -30,13 +38,18 @@ canonical OpenGL renderer currently requires CGo bindings, but the gameplay and
 engine logic remain in Go and can still be understood without diving deeply
 into C engine code.
 
-## Project Status & Parity Roadmap
+## Project Status & Parity
 
- The goal of this project is 100% behavioral parity with the original C Ironwail engine on the OpenGL path. 
- 
- You can track our progress and see the remaining gaps in the [Final Parity Roadmap](docs/FINAL_PARITY_ROADMAP.md).
+The goal of this project is 100% behavioral parity with the original C
+[Ironwail][1] engine on the OpenGL path. Regular parity audits are carried out,
+but there is no concrete public tracking of gaps, differences, or known bugs at
+this time.
 
-For the Go-to-QuakeC toolchain and gameplay-language subset used by this repository, see the [QGo / QuakeGo Guide](docs/QGO_QUAKEGO_GUIDE.md).
+For the Go-to-QuakeC toolchain and gameplay-language subset used by this
+repository, see the [QGo / QuakeGo Guide](docs/QGO_QUAKEGO_GUIDE.md).
+
+> **Note:** None of the original Ironwail C developers have reviewed or
+> endorsed the work done in this repository.
 
 ## Building
 
@@ -68,69 +81,6 @@ acts like a real gate:
 - `mise run parity-compare` writes visual diffs to `testdata/parity/diff/` and
   exits nonzero if captures are missing or if any scene exceeds the configured
   mismatch threshold
-
-### Continuous Ralph loop
-
-For telemetry-driven parity/debug work, the repo now includes a `mise`-driven
-Ralph loop built around the canonical CGO/OpenGL repro path:
-
-- `mise run ralph-loop-once`
-- `mise run ralph-loop`
-- `mise run ralph-analyze-log`
-
-`ralph-loop-once` builds the CGO binary, runs it with full telemetry enabled,
-captures the log under `.ralph/`, analyzes the output, builds a Copilot prompt
-from the task records, and then invokes `copilot -p ...` to work the generated
-issues once. Ralph now lives in a single Go package under `tools/ralph`, with
-the subcommands calling shared Go code directly instead of spawning nested
-`go run` wrappers.
-
-Ralph subcommands:
-
-- `go run ./tools/ralph analyze-log ...`
-- `go run ./tools/ralph build-prompt ...`
-- `go run ./tools/ralph loop once`
-- `go run ./tools/ralph loop continuous`
-
-Add `--verbose` before the subcommand, or set `RALPH_VERBOSE=1`, to have Ralph
-print what it is doing, including loop configuration, detected issue groups,
-generated task IDs/titles, prompt selection, and beads sync actions.
-
-Artifacts emitted under `.ralph/` include:
-
-- `.ralph/latest-summary.json` — run summary and severity counts
-- `.ralph/latest-task-records.json` — actionable Ralph task records
-- `.ralph/latest-copilot-prompt.txt` — generated non-interactive Copilot prompt
-- `.ralph/latest-beads-sync.json` — direct beads create/update results when task
-  syncing is enabled
-- `.ralph/state.json` — issue persistence/stall tracking across iterations
-
-`ralph-loop` repeats that cycle continuously until interrupted or until no
-actionable issues remain. Persistent issue fingerprints automatically emit
-telemetry-design task records after the configured stall threshold so the loop
-can escalate to “add narrower telemetry” instead of spinning on the same log.
-Each iteration also writes a timestamped Copilot transcript under
-`.ralph/runs/*.copilot.log`.
-
-Useful environment variables:
-
-- `QUAKE_DIR` — required Quake basedir
-- `RALPH_TIMEOUT` — max runtime per engine launch (default `30`)
-- `RALPH_MAX_ITERATIONS` — stop after N iterations (`0` = continuous)
-- `RALPH_SLEEP` — delay between continuous iterations
-- `RALPH_ENGINE_ARGS` — extra engine args appended after the default telemetry
-  flags
-- `RALPH_INVOKE_COPILOT` — set to `0` to disable the automatic Copilot fixing
-  step
-- `RALPH_COPILOT_BIN` — Copilot CLI binary name/path (default `copilot`)
-- `RALPH_COPILOT_MODEL` — Copilot model for loop fixes (default `gpt-5.4`)
-- `RALPH_COPILOT_MAX_TASKS` — max task records to include in each generated
-  Copilot prompt
-- `RALPH_COPILOT_ARGS` — extra arguments appended to the Copilot CLI invocation
-- `RALPH_VERBOSE=1` — enable verbose Ralph logging without passing `--verbose`
-- `RALPH_APPLY_BEADS=1` — create/update Ralph task records directly through the
-  `bd` CLI during analysis
-- `RALPH_BEADS_BIN` — beads CLI binary name/path (default `bd`)
 
 ## Debug Telemetry
 
@@ -244,3 +194,4 @@ Notes:
 
 [1]:https://github.com/andrei-drexler/ironwail
 [2]:https://mise.jdx.dev
+[3]:https://github.com/krzysztofdudek/Yggdrasil
