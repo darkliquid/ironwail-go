@@ -27,7 +27,7 @@ Well, apart from the obvious that this is Go, rather than C, I'm building this
 with the following changes:
 
 - OpenGL/CGO as the default gameplay renderer/runtime
-- gogpu/WebGPU as a secondary backend for non-parity experimentation
+- [gogpu/WebGPU][4] as a secondary backend for non-parity experimentation
 - Dividing the codebase up into packages
 - Use Go stdlib for as much as possible, rather than custom implementations of
   things from the original C codebase
@@ -195,3 +195,4 @@ Notes:
 [1]:https://github.com/andrei-drexler/ironwail
 [2]:https://mise.jdx.dev
 [3]:https://github.com/krzysztofdudek/Yggdrasil
+[4]:https://github.com/gogpu/gogpu
