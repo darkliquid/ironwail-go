@@ -327,13 +327,16 @@ func TestExecuteTextPrintsQueriedCVarValue(t *testing.T) {
 
 	c.ExecuteText(cv.Name)
 
-	if printed != "\"test_cmdsys_query_cvar\" is \"42\"\n" {
+	if printed != "\"test_cmdsys_query_cvar\" is \"42\" (default)\n" {
 		t.Fatalf("printed = %q, want queried cvar output", printed)
 	}
 }
 
-func TestExecuteTextPrintsUnknownCommandWithoutForwarder(t *testing.T) {
+func TestExecuteTextPrintsQueriedCVarDefaultWhenModified(t *testing.T) {
 	c := NewCmdSystem()
+	cv := cvar.Register("test_cmdsys_query_cvar_modified", "42", cvar.FlagNone, "test")
+	cvar.Set(cv.Name, "17")
+	defer cvar.Set(cv.Name, cv.DefaultValue)
 
 	var printed string
 	SetPrintCallback(func(msg string) {
@@ -343,10 +346,10 @@ func TestExecuteTextPrintsUnknownCommandWithoutForwarder(t *testing.T) {
 		SetPrintCallback(nil)
 	})
 
-	c.ExecuteText("definitely_unknown_command")
+	c.ExecuteText(cv.Name)
 
-	if printed != "Unknown command \"definitely_unknown_command\"\n" {
-		t.Fatalf("printed = %q, want unknown command output", printed)
+	if printed != "\"test_cmdsys_query_cvar_modified\" is \"17\" (default: \"42\")\n" {
+		t.Fatalf("printed = %q, want queried cvar output with default annotation", printed)
 	}
 }
 
@@ -672,6 +675,46 @@ func TestFindSearchesCommandsAndCvars(t *testing.T) {
 	}
 	if !strings.Contains(printed, "2 cvars/commands containing \"size\"\n") {
 		t.Fatalf("find summary mismatch:\n%s", printed)
+	}
+}
+
+func TestExecuteTextUnknownCommandWithoutForwarderShowsContainingMatches(t *testing.T) {
+	c := NewCmdSystem()
+	c.AddCommand("definitely_helpful_command", func(args []string) {}, "suggestion")
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("definitely")
+
+	if !strings.Contains(printed, "   definitely_helpful_command\n") {
+		t.Fatalf("unknown command fallback missing containing command list:\n%s", printed)
+	}
+	if !strings.Contains(printed, "1 cvar/command containing \"definitely\"\n") {
+		t.Fatalf("unknown command fallback summary mismatch:\n%s", printed)
+	}
+}
+
+func TestExecuteTextUnknownCommandWithoutForwarderShowsNoMatchesMessage(t *testing.T) {
+	c := NewCmdSystem()
+
+	var printed string
+	SetPrintCallback(func(msg string) {
+		printed += msg
+	})
+	t.Cleanup(func() {
+		SetPrintCallback(nil)
+	})
+
+	c.ExecuteText("definitely_unknown_command")
+
+	if printed != "no cvars/commands contain \"definitely_unknown_command\"\n" {
+		t.Fatalf("printed = %q, want no-matches fallback output", printed)
 	}
 }
 

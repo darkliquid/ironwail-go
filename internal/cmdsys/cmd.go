@@ -199,10 +199,14 @@ func (c *CmdSystem) cmdApropos(commandName string, args []string) {
 		return
 	}
 
-	substr := strings.ToLower(args[0])
+	c.listAllContaining(args[0])
+}
+
+func (c *CmdSystem) listAllContaining(substr string) {
+	lowerSubstr := strings.ToLower(substr)
 	hits := 0
 	for _, cmd := range c.visibleCommands() {
-		if strings.Contains(strings.ToLower(cmd.Name), substr) || strings.Contains(strings.ToLower(cmd.Description), substr) {
+		if strings.Contains(strings.ToLower(cmd.Name), lowerSubstr) || strings.Contains(strings.ToLower(cmd.Description), lowerSubstr) {
 			printCallback(fmt.Sprintf("   %s\n", cmd.Name))
 			hits++
 		}
@@ -213,14 +217,14 @@ func (c *CmdSystem) cmdApropos(commandName string, args []string) {
 		return strings.Compare(a.Name, b.Name)
 	})
 	for _, cv := range vars {
-		if strings.Contains(strings.ToLower(cv.Name), substr) || strings.Contains(strings.ToLower(cv.Description), substr) {
+		if strings.Contains(strings.ToLower(cv.Name), lowerSubstr) || strings.Contains(strings.ToLower(cv.Description), lowerSubstr) {
 			printCallback(fmt.Sprintf("   %s (current value: %q)\n", cv.Name, cv.String))
 			hits++
 		}
 	}
 
 	if hits == 0 {
-		printCallback(fmt.Sprintf("no cvars/commands contain %q\n", args[0]))
+		printCallback(fmt.Sprintf("no cvars/commands contain %q\n", substr))
 		return
 	}
 
@@ -228,7 +232,7 @@ func (c *CmdSystem) cmdApropos(commandName string, args []string) {
 	if hits == 1 {
 		plural = ""
 	}
-	printCallback(fmt.Sprintf("%d cvar%s/command%s containing %q\n", hits, plural, plural, args[0]))
+	printCallback(fmt.Sprintf("%d cvar%s/command%s containing %q\n", hits, plural, plural, substr))
 }
 
 func (c *CmdSystem) cmdAliasList() {
@@ -655,7 +659,15 @@ fallback:
 		if len(args) > 1 {
 			cvar.Set(cmdName, strings.Join(args[1:], " "))
 		} else {
-			printCallback(fmt.Sprintf("\"%s\" is \"%s\"\n", cv.Name, cv.String))
+			if cv.DefaultValue != "" {
+				if cv.String == cv.DefaultValue {
+					printCallback(fmt.Sprintf("\"%s\" is \"%s\" (default)\n", cv.Name, cv.String))
+				} else {
+					printCallback(fmt.Sprintf("\"%s\" is \"%s\" (default: \"%s\")\n", cv.Name, cv.String, cv.DefaultValue))
+				}
+			} else {
+				printCallback(fmt.Sprintf("\"%s\" is \"%s\"\n", cv.Name, cv.String))
+			}
 		}
 		return
 	}
@@ -667,7 +679,7 @@ fallback:
 		c.ForwardFunc(line)
 		return
 	}
-	printCallback(fmt.Sprintf("Unknown command \"%s\"\n", args[0]))
+	c.listAllContaining(args[0])
 }
 
 // Exists checks whether a command with the given name is registered. This is

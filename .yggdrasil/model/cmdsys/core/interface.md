@@ -22,4 +22,6 @@
 - `InsertText` and `wait` semantics define command ordering guarantees relied on by config/script execution.
 - Source-aware buffered wrappers (`AddTextWithSource`, `InsertTextWithSource`) must preserve per-chunk provenance through deferred execution, even when injected text preempts remaining buffered lines.
 - `cmdlist` and `apropos`/`find` only surface non-server commands; names beginning with `__` remain hidden as reserved/internal entries.
+- Cvar query output must include default-state annotations to match Ironwail semantics: `"(default)"` when current value equals the default and `"(default: \"...\")"` when it differs.
+- For local (`SrcCommand`) unknown commands without a forwarding hook, the fallback must invoke apropos-style listing (`listAllContaining`) instead of printing a plain unknown-command line.
 - `aliaslist` enumerates a sorted snapshot of user-defined aliases and ends with an alias count summary.
