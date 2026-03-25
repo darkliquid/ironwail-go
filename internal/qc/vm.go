@@ -45,6 +45,7 @@ package qc
 
 import (
 	"math"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/compatrand"
 )
@@ -563,6 +564,11 @@ type VM struct {
 	// Points into Globals at the correct offset.
 	GlobalVars *GlobalVars
 
+	// IsServerActive reports whether server simulation is fully active.
+	// OP_ADDRESS world-entity write checks are gated by this callback to
+	// match C behavior (error only when sv.state == ss_active).
+	IsServerActive func() bool
+
 	compatRNG *compatrand.RNG
 }
 
@@ -714,15 +720,55 @@ func (vm *VM) AllocString(s string) int32 {
 	return idx
 }
 
-// SetEngineString updates an existing dynamic string.
-// Only works for positive indices (dynamic strings).
-// Returns the index unchanged.
-func (vm *VM) SetEngineString(idx int32, s string) int32 {
-	if idx < 0 {
+// SetEngineString returns a progs string index for an engine-provided string.
+// If the string exists in static progs string storage, returns its positive
+// offset. Otherwise returns a managed negative knownstring slot.
+func (vm *VM) SetEngineString(s string) int32 {
+	if s == "" {
+		return 0
+	}
+	if idx, ok := vm.findStaticStringOffset(s); ok {
 		return idx
 	}
-	vm.StringTable[-idx-1] = s
-	return idx
+	for idx, existing := range vm.StringTable {
+		if existing == s {
+			return idx
+		}
+	}
+	return vm.AllocString(s)
+}
+
+func (vm *VM) findStaticStringOffset(s string) (int32, bool) {
+	if len(vm.Strings) == 0 {
+		return 0, false
+	}
+	start := 0
+	for start < len(vm.Strings) {
+		end := start
+		for end < len(vm.Strings) && vm.Strings[end] != 0 {
+			end++
+		}
+		if string(vm.Strings[start:end]) == s {
+			return int32(start), true
+		}
+		if end >= len(vm.Strings) {
+			break
+		}
+		start = end + 1
+	}
+
+	// Some mods may contain non-canonical trailing bytes; allow a conservative
+	// fallback search for exact null-terminated matches.
+	needle := []byte(s)
+	for i := 0; i+len(needle) < len(vm.Strings); i++ {
+		if vm.Strings[i+len(needle)] != 0 {
+			continue
+		}
+		if strings.HasPrefix(string(vm.Strings[i:]), s+"\x00") {
+			return int32(i), true
+		}
+	}
+	return 0, false
 }
 
 // EdictNum converts an entity number to an edict index.

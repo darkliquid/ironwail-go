@@ -82,7 +82,8 @@ type Server struct {
 	numAreaNodes int
 
 	// Network messaging
-	Datagram *MessageBuffer
+	Datagram         *MessageBuffer
+	ReliableDatagram *MessageBuffer
 
 	// Signon buffer system - shared initial game state sent to connecting clients.
 	// Populated during SpawnServer with precache lists, static entities, and sounds.
@@ -124,8 +125,6 @@ type Server struct {
 	checkClientTime float32
 	checkClientPVS  []byte
 
-	touchFrameActive  bool
-	touchFrameSeen    map[uint64]struct{}
 	impactFrameActive bool
 	impactFrameSeen   map[impactTouchKey]struct{}
 	suppressTouchQC   bool
@@ -744,6 +743,9 @@ func (s *Server) syncQCVMState() {
 	s.QCVM.SetGlobal("mapname", s.QCVM.AllocString(s.Name))
 	s.QCVM.SetGlobal("skill", skill)
 	s.QCVM.SetGlobal("time", s.Time)
+	if s.Static != nil {
+		s.QCVM.SetGlobal("serverflags", s.Static.ServerFlags)
+	}
 
 	// C Ironwail sets coop/deathmatch globals before ED_LoadFromFile so
 	// QC spawn functions can branch on game mode.
@@ -773,6 +775,8 @@ func NewServer() *Server {
 	compatRNG := compatrand.New()
 	vm := qc.NewVM()
 	vm.SetCompatRNG(compatRNG)
+	cvar.Register("sv_aim", "0.93", cvar.FlagNone, "Auto-aim cosine threshold")
+	cvar.Register("teamplay", "0", cvar.FlagServerInfo, "Teamplay rules")
 
 	s := &Server{
 		Gravity:          800,
@@ -788,10 +792,10 @@ func NewServer() *Server {
 		QCVM:             vm,
 		DebugTelemetry:   NewDebugTelemetry(),
 		acceptConnection: inet.CheckNewConnections,
-		touchFrameSeen:   make(map[uint64]struct{}),
 		impactFrameSeen:  make(map[impactTouchKey]struct{}),
 		compatRNG:        compatRNG,
 	}
+	vm.IsServerActive = func() bool { return s.State == ServerStateActive }
 
 	// Ensure entity 0 (worldspawn) exists so subsequent allocations
 	// return entity indices starting at 1, matching the VM's
@@ -835,16 +839,9 @@ func NewServer() *Server {
 				return []*MessageBuffer{client.Message}
 			}
 		case 2:
-			if s.Static == nil {
-				return nil
+			if s.ReliableDatagram != nil {
+				return []*MessageBuffer{s.ReliableDatagram}
 			}
-			buffers := make([]*MessageBuffer, 0, len(s.Static.Clients))
-			for _, client := range s.Static.Clients {
-				if client != nil && client.Message != nil {
-					buffers = append(buffers, client.Message)
-				}
-			}
-			return buffers
 		case 3:
 			if s.Signon != nil {
 				return []*MessageBuffer{s.Signon}
@@ -1023,6 +1020,7 @@ func NewServer() *Server {
 			if e == nil || e.Vars == nil {
 				return false
 			}
+			syncEdictFromQCVM(vm, entNum, e)
 			return s.CheckBottom(e)
 		},
 		PointContents: func(vm *qc.VM, point [3]float32) int {

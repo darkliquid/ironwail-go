@@ -13,7 +13,7 @@ import (
 // QuakeC signature: string(entity e) etos
 func etosBuiltin(vm *VM) {
 	e := int(vm.GInt(OFSParm0))
-	vm.SetGString(OFSReturn, fmt.Sprintf("%d", e))
+	vm.SetGString(OFSReturn, fmt.Sprintf("entity %d", e))
 }
 
 // strlenBuiltin returns the length of a string.
@@ -104,6 +104,9 @@ func strunzoneBuiltin(vm *VM) {
 func str2chrBuiltin(vm *VM) {
 	s := vm.GString(OFSParm0)
 	idx := int(vm.GFloat(OFSParm0 + 3))
+	if idx < 0 {
+		idx = len(s) + idx
+	}
 	if idx < 0 || idx >= len(s) {
 		vm.SetGFloat(OFSReturn, 0)
 		return
@@ -114,10 +117,17 @@ func str2chrBuiltin(vm *VM) {
 // chr2strBuiltin converts an ASCII code to a single-character string.
 // QuakeC signature: string(float c) chr2str
 func chr2strBuiltin(vm *VM) {
-	c := int(vm.GFloat(OFSParm0))
-	if c < 0 || c > 255 {
-		vm.SetGString(OFSReturn, "")
-		return
+	argc := vm.ArgC
+	if argc <= 0 {
+		argc = 1
 	}
-	vm.SetGString(OFSReturn, string(rune(c)))
+	var b strings.Builder
+	for i := 0; i < argc; i++ {
+		c := int(vm.GFloat(OFSParm0 + i*3))
+		if c < 0 || c > 255 {
+			c = '?'
+		}
+		b.WriteByte(byte(c))
+	}
+	vm.SetGString(OFSReturn, b.String())
 }

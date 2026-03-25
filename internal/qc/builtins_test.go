@@ -680,6 +680,27 @@ func TestVectoanglesBuiltinUsesQuakeYawConvention(t *testing.T) {
 	}
 }
 
+func TestVectoanglesBuiltinVerticalCasesMatchC(t *testing.T) {
+	vm := newBuiltinsTestVM(1)
+	tests := []struct {
+		name string
+		vec  [3]float32
+		want [3]float32
+	}{
+		{name: "straight up", vec: [3]float32{0, 0, 1}, want: [3]float32{90, 0, 0}},
+		{name: "straight down", vec: [3]float32{0, 0, -1}, want: [3]float32{270, 0, 0}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vm.SetGVector(OFSParm0, tc.vec)
+			vectoangles(vm)
+			if got := vm.GVector(OFSReturn); got != tc.want {
+				t.Fatalf("vectoangles(%v) = %v, want %v", tc.vec, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestMakevectorsMatchesQuakeAngleVectors(t *testing.T) {
 	vm := newBuiltinsTestVM(1)
 
@@ -868,6 +889,21 @@ func TestMinMaxBoundPow(t *testing.T) {
 	if got := vm.GFloat(OFSReturn); got != 8 {
 		t.Errorf("pow(2,3) = %v, want 8", got)
 	}
+
+	vm.ArgC = 4
+	vm.SetGFloat(OFSParm0, 9)
+	vm.SetGFloat(OFSParm0+3, 5)
+	vm.SetGFloat(OFSParm0+6, -3)
+	vm.SetGFloat(OFSParm0+9, 7)
+	minBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != -3 {
+		t.Errorf("min(9,5,-3,7) = %v, want -3", got)
+	}
+	maxBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 9 {
+		t.Errorf("max(9,5,-3,7) = %v, want 9", got)
+	}
+	vm.ArgC = 0
 }
 
 func TestStringBuiltins(t *testing.T) {
@@ -938,11 +974,11 @@ func TestStringBuiltins(t *testing.T) {
 		t.Errorf("stof(3.14) = %v, want ~3.14", got)
 	}
 
-	// etos(42) = "42"
+	// etos(42) = "entity 42"
 	vm.SetGInt(OFSParm0, 42)
 	etosBuiltin(vm)
-	if got := vm.GString(OFSReturn); got != "42" {
-		t.Errorf("etos(42) = %q, want 42", got)
+	if got := vm.GString(OFSReturn); got != "entity 42" {
+		t.Errorf("etos(42) = %q, want \"entity 42\"", got)
 	}
 
 	// chr2str(65) = "A"
@@ -968,6 +1004,23 @@ func TestStringBuiltins(t *testing.T) {
 	if got := vm.GFloat(OFSReturn); got != 65 {
 		t.Errorf("str2chr(A,0) = %v, want 65", got)
 	}
+
+	vm.SetGString(OFSParm0, "ABC")
+	vm.SetGFloat(OFSParm0+3, -1)
+	str2chrBuiltin(vm)
+	if got := vm.GFloat(OFSReturn); got != 'C' {
+		t.Errorf("str2chr(ABC,-1) = %v, want %d", got, 'C')
+	}
+
+	vm.ArgC = 3
+	vm.SetGFloat(OFSParm0, 'Q')
+	vm.SetGFloat(OFSParm0+3, 10)
+	vm.SetGFloat(OFSParm0+6, 500)
+	chr2strBuiltin(vm)
+	if got := vm.GString(OFSReturn); got != "Q\n?" {
+		t.Errorf("chr2str variadic = %q, want %q", got, "Q\n?")
+	}
+	vm.ArgC = 0
 }
 
 func TestRandomBuiltinDistribution(t *testing.T) {

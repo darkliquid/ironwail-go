@@ -52,18 +52,24 @@ func makevectors(vm *VM) {
 func vectoangles(vm *VM) {
 	dir := vm.GVector(OFSParm0)
 
-	yaw := float64(vectoyawValue(dir))
-
-	// Calculate pitch from up component and forward z
-	forwardLen := math.Sqrt(float64(dir[0]*dir[0] + dir[1]*dir[1]))
-	pitch := math.Atan2(float64(dir[2]), forwardLen) * 180.0 / math.Pi
-
-	// Roll is always 0
-	angles := [3]float32{
-		-float32(pitch),
-		float32(yaw),
-		0,
+	var yaw float32
+	var pitch float32
+	if dir[0] == 0 && dir[1] == 0 {
+		yaw = 0
+		if dir[2] > 0 {
+			pitch = 90
+		} else {
+			pitch = 270
+		}
+	} else {
+		yaw = vectoyawValue(dir)
+		forwardLen := math.Sqrt(float64(dir[0]*dir[0] + dir[1]*dir[1]))
+		pitch = float32(math.Atan2(float64(dir[2]), forwardLen) * 180.0 / math.Pi)
+		if pitch < 0 {
+			pitch += 360
+		}
 	}
+	angles := [3]float32{pitch, yaw, 0}
 
 	vm.SetGVector(OFSReturn, angles)
 }
@@ -191,25 +197,35 @@ func stofBuiltin(vm *VM) {
 // minBuiltin returns the smaller of two floats.
 // QuakeC signature: float(float a, float b) min
 func minBuiltin(vm *VM) {
-	a := vm.GFloat(OFSParm0)
-	b := vm.GFloat(OFSParm0 + 3)
-	if a < b {
-		vm.SetGFloat(OFSReturn, a)
-	} else {
-		vm.SetGFloat(OFSReturn, b)
+	argc := vm.ArgC
+	if argc <= 0 {
+		argc = 2
 	}
+	minValue := vm.GFloat(OFSParm0)
+	for i := 1; i < argc; i++ {
+		v := vm.GFloat(OFSParm0 + i*3)
+		if v < minValue {
+			minValue = v
+		}
+	}
+	vm.SetGFloat(OFSReturn, minValue)
 }
 
 // maxBuiltin returns the larger of two floats.
 // QuakeC signature: float(float a, float b) max
 func maxBuiltin(vm *VM) {
-	a := vm.GFloat(OFSParm0)
-	b := vm.GFloat(OFSParm0 + 3)
-	if a > b {
-		vm.SetGFloat(OFSReturn, a)
-	} else {
-		vm.SetGFloat(OFSReturn, b)
+	argc := vm.ArgC
+	if argc <= 0 {
+		argc = 2
 	}
+	maxValue := vm.GFloat(OFSParm0)
+	for i := 1; i < argc; i++ {
+		v := vm.GFloat(OFSParm0 + i*3)
+		if v > maxValue {
+			maxValue = v
+		}
+	}
+	vm.SetGFloat(OFSReturn, maxValue)
 }
 
 // boundBuiltin clamps a value between min and max.
