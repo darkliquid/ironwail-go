@@ -254,7 +254,8 @@ type Client struct {
 
 	MaxPitch   float32
 	MinPitch   float32
-	WheelPitch float32
+	WheelPitch      float32
+	WheelPitchAccum float32
 
 	InputForward     KButton
 	InputBack        KButton
@@ -1002,8 +1003,6 @@ func (c *Client) LerpPoint() float64 {
 		telemetry.Reason = LerpTelemetryReasonTimeDemo
 	case c.LocalServerFast:
 		telemetry.Reason = LerpTelemetryReasonFastServer
-	case c.NoLerp:
-		telemetry.Reason = LerpTelemetryReasonNoLerp
 	}
 	if telemetry.Reason != LerpTelemetryReasonNormal {
 		c.Time = c.MTime[0]
@@ -1042,6 +1041,14 @@ func (c *Client) LerpPoint() float64 {
 		telemetry.TimeAfter = c.Time
 		telemetry.Frac = 1
 		telemetry.Reason = LerpTelemetryReasonFracGT1
+		c.LastLerpTelemetry = telemetry
+		return 1
+	}
+	// C applies cl_nolerp after frac computation and clamping, not before.
+	if c.NoLerp {
+		telemetry.TimeAfter = c.Time
+		telemetry.Frac = 1
+		telemetry.Reason = LerpTelemetryReasonNoLerp
 		c.LastLerpTelemetry = telemetry
 		return 1
 	}

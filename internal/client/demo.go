@@ -474,16 +474,26 @@ func (d *DemoState) startPlaybackInternal(filename string, source io.ReadSeeker,
 	d.Reader = bufio.NewReader(source)
 	d.Filename = filename
 
-	// Read CD track header
+	// Read CD track header — C uses fscanf("%i", &track) then fgetc() == '\n':
+	// the integer (with optional leading whitespace) must be followed immediately
+	// by '\n' — no trailing whitespace or other characters allowed.
 	line, err := d.Reader.ReadString('\n')
 	if err != nil {
 		d.StopPlayback()
 		return fmt.Errorf("failed to read demo header: %w", err)
 	}
+	raw := strings.TrimSuffix(line, "\n")
 	var cdtrack int
-	if _, err := fmt.Sscanf(strings.TrimSpace(line), "%d", &cdtrack); err != nil {
+	n, parseErr := fmt.Sscanf(raw, "%d", &cdtrack)
+	if n != 1 || parseErr != nil {
 		d.StopPlayback()
-		return fmt.Errorf("failed to parse demo header track '%s': %w", strings.TrimSpace(line), err)
+		return fmt.Errorf("failed to parse demo header track '%s': invalid integer", raw)
+	}
+	// Verify nothing follows the integer (reject trailing whitespace/chars).
+	canonical := strings.TrimLeft(raw, " \t")
+	if canonical != fmt.Sprintf("%d", cdtrack) {
+		d.StopPlayback()
+		return fmt.Errorf("demo \"%s\" is invalid", d.Filename)
 	}
 	d.CDTrack = cdtrack
 
@@ -940,6 +950,8 @@ func (c *Client) StopPlayback(demo *DemoState) {
 	demo.Frames = nil
 	demo.FrameIndex = 0
 	demo.rewindBackstop = false
+	demo.Filename = ""
+	demo.CDTrack = 0
 	demo.PrintTimeDemoSummary(func(msg string) { slog.Info(strings.TrimSpace(msg)) })
 	c.State = StateDisconnected
 }

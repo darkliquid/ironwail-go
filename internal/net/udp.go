@@ -49,9 +49,30 @@ var (
 
 // UDPInit initializes the UDP transport layer. In the original C engine,
 // this performed Winsock initialization (Windows) or socket setup (Unix).
-// In Go, the standard library handles these details, so this simply
-// marks UDP as available. Corresponds to UDP_Init() in net_udp.c.
+// In Go, the standard library handles these details, so this discovers
+// the local IPv4 address and marks UDP as available.
+// Corresponds to UDP_Init() in net_udp.c.
 func UDPInit() error {
+	// Discover local IPv4 address, matching C UDP_Init behavior.
+	// Default to loopback (same as C: myAddr = htonl(INADDR_LOOPBACK)).
+	myTCPIPAddress = "127.0.0.1"
+
+	addrs, err := stdnet.InterfaceAddrs()
+	if err == nil {
+		for _, a := range addrs {
+			ipNet, ok := a.(*stdnet.IPNet)
+			if !ok {
+				continue
+			}
+			ip4 := ipNet.IP.To4()
+			if ip4 == nil || ip4.IsLoopback() {
+				continue
+			}
+			myTCPIPAddress = ip4.String()
+			break
+		}
+	}
+
 	tcpipAvailable = true
 	return nil
 }

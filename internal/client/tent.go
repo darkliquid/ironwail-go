@@ -152,7 +152,13 @@ func tempEntitySoundName(typ byte) string {
 		if rand.Intn(5) != 0 {
 			return "weapons/tink1.wav"
 		}
-		return fmt.Sprintf("weapons/ric%d.wav", rand.Intn(3)+1)
+		// C uses (rand() & 3) + 1, clamped to 3: values 0-2 map to ric1-ric3,
+		// value 3 also maps to ric3, giving ric3 ~50% more probability.
+		rnd := rand.Intn(4) + 1
+		if rnd > 3 {
+			rnd = 3
+		}
+		return fmt.Sprintf("weapons/ric%d.wav", rnd)
 	default:
 		return ""
 	}

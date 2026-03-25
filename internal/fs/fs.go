@@ -525,21 +525,27 @@ func GetExtension(path string) string {
 	return ""
 }
 
-// AddExtension appends ext to path only if the path has no extension already.
-// ext should include the leading dot (e.g. ".bsp"). If the path already has
-// an extension it is returned unchanged. This matches the behaviour of the
-// original C COM_AddExtension function.
+// AddExtension appends ext to path when the path's current extension does not
+// match ext. ext should include the leading dot (e.g. ".bsp"). If the path
+// already ends with the same extension it is returned unchanged; otherwise ext
+// is appended — even if the path already has a different extension (e.g.
+// "config.txt" + ".cfg" → "config.txt.cfg"). This matches the behaviour of
+// the C COM_AddExtension which compares COM_FileGetExtension(path) against
+// extension+1 using strcmp.
 func AddExtension(path, ext string) string {
-	if GetExtension(path) == "" {
+	cur := GetExtension(path)
+	want := strings.TrimPrefix(ext, ".")
+	if cur != want {
 		return path + ext
 	}
 	return path
 }
 
-// DefaultExtension is a semantic alias for AddExtension — it appends ext to
-// path if no extension is present. In the original Quake source these were
-// separate functions (COM_DefaultExtension vs COM_AddExtension) but they have
-// identical logic.
+// DefaultExtension appends ext to path only when the path has no extension at
+// all. Unlike AddExtension, it will not append to a path that already has any
+// extension — even a different one. This matches the C COM_DefaultExtension
+// semantics (which is #if 0 / disabled in Ironwail's common.c but historically
+// used this "has any extension at all" check).
 func DefaultExtension(path, ext string) string {
 	if GetExtension(path) == "" {
 		return path + ext

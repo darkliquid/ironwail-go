@@ -1720,7 +1720,6 @@ func TestLerpPointBypassConditions(t *testing.T) {
 	}{
 		{"TimeDemoActive", func(c *Client) { c.TimeDemoActive = true }, LerpTelemetryReasonTimeDemo},
 		{"LocalServerFast", func(c *Client) { c.LocalServerFast = true }, LerpTelemetryReasonFastServer},
-		{"NoLerp", func(c *Client) { c.NoLerp = true }, LerpTelemetryReasonNoLerp},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := NewClient()
@@ -1740,6 +1739,27 @@ func TestLerpPointBypassConditions(t *testing.T) {
 			}
 		})
 	}
+
+	// NoLerp is applied after frac computation and clamping (matching C),
+	// so Time is not snapped to MTime[0] when frac is in the normal range.
+	t.Run("NoLerp", func(t *testing.T) {
+		c := NewClient()
+		c.MTime[1] = 1.0
+		c.MTime[0] = 1.1
+		c.Time = 1.05
+		c.NoLerp = true
+		frac := c.LerpPoint()
+		if frac != 1 {
+			t.Fatalf("LerpPoint() = %f, want 1 (bypass)", frac)
+		}
+		// Time is NOT snapped because nolerp fires after frac is in [0,1].
+		if c.Time != 1.05 {
+			t.Fatalf("Time = %f, want 1.05 (no snap)", c.Time)
+		}
+		if telemetry := c.LerpTelemetrySnapshot(); telemetry.Reason != LerpTelemetryReasonNoLerp {
+			t.Fatalf("LerpTelemetrySnapshot().Reason = %s, want %s", telemetry.Reason, LerpTelemetryReasonNoLerp)
+		}
+	})
 }
 
 func TestLerpPointTelemetryCapturesNormalAndGapClamp(t *testing.T) {

@@ -181,22 +181,51 @@ func (c *Client) AdjustAngles(frametime float32) {
 	}
 
 	if c.InputKLook.State&1 != 0 {
+		// C always stops pitch drift when +klook is held, not just when
+		// forward/back are pressed.
+		c.StopPitchDrift()
 		forward := c.KeyState(&c.InputForward)
 		back := c.KeyState(&c.InputBack)
-		if forward != 0 || back != 0 {
-			c.StopPitchDrift()
-		}
 		c.ViewAngles[0] -= speed * c.PitchSpeed * forward
 		c.ViewAngles[0] += speed * c.PitchSpeed * back
 	}
 
 	up := c.KeyState(&c.InputLookUp)
 	down := c.KeyState(&c.InputLookDown)
-	if up != 0 || down != 0 {
-		c.StopPitchDrift()
-	}
+
 	c.ViewAngles[0] -= speed * c.PitchSpeed * up
 	c.ViewAngles[0] += speed * c.PitchSpeed * down
+
+	// C: if (up || down || cl.wheel_pitch) V_StopPitchDrift();
+	if up != 0 || down != 0 || c.WheelPitchAccum != 0 {
+		c.StopPitchDrift()
+	}
+
+	// Drain wheel_pitch accumulator over time, matching C CL_AdjustAngles.
+	if c.WheelPitchAccum != 0 {
+		delta := speed * c.PitchSpeed
+		if c.WheelPitchAccum > 0 {
+			apply := delta
+			if apply > c.WheelPitchAccum {
+				apply = c.WheelPitchAccum
+			}
+			c.ViewAngles[0] += apply
+			c.WheelPitchAccum -= delta
+			if c.WheelPitchAccum < 0 {
+				c.WheelPitchAccum = 0
+			}
+		} else {
+			apply := delta
+			if apply > -c.WheelPitchAccum {
+				apply = -c.WheelPitchAccum
+			}
+			c.ViewAngles[0] -= apply
+			c.WheelPitchAccum += delta
+			if c.WheelPitchAccum > 0 {
+				c.WheelPitchAccum = 0
+			}
+		}
+	}
 
 	if c.ViewAngles[0] > c.MaxPitch {
 		c.ViewAngles[0] = c.MaxPitch
@@ -209,6 +238,18 @@ func (c *Client) AdjustAngles(frametime float32) {
 	}
 	if c.ViewAngles[2] < -50 {
 		c.ViewAngles[2] = -50
+	}
+}
+
+// AccumMWheelPitch accumulates mouse wheel pitch input, matching C
+// IN_AccumMWheelPitch. amt is positive for lookdown, negative for lookup.
+func (c *Client) AccumMWheelPitch(amt float32) {
+	c.WheelPitchAccum += amt
+	if c.WheelPitchAccum < -90 {
+		c.WheelPitchAccum = -90
+	}
+	if c.WheelPitchAccum > 90 {
+		c.WheelPitchAccum = 90
 	}
 }
 

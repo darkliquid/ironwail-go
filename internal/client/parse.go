@@ -1574,6 +1574,13 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		return nil
 	}
 
+	// Long-gap animation reset: if more than 0.2 seconds since the last
+	// message for this entity, reset animation lerp to avoid interpolating
+	// from a stale frame. Mirrors C: if (ent->msgtime + 0.2 < cl.mtime[0])
+	if state.MsgTime+0.2 < p.Client.MTime[0] {
+		state.LerpFlags |= inet.LerpResetAnim
+	}
+
 	// Update interpolation double-buffer: shift previous position/angles, then
 	// store the new network values in [0]. Mirrors C's entity_t msg_origins handling.
 	// Keep live Origin/Angles untouched on normal updates; CL_RelinkEntities owns

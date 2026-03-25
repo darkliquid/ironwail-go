@@ -327,11 +327,7 @@ func (h *Host) CmdMaps(subs *Subsystems) {
 
 // CmdRandmap picks a random map from the available maps and changes to it.
 func (h *Host) CmdRandmap(subs *Subsystems) {
-	if subs == nil || subs.Files == nil || subs.Console == nil {
-		return
-	}
-	if !h.serverActive || subs.Server == nil {
-		subs.Console.Print("randmap: no server running\n")
+	if subs == nil || subs.Files == nil || subs.Console == nil || subs.Commands == nil {
 		return
 	}
 	fsInstance, ok := subs.Files.(*fs.FileSystem)
@@ -352,9 +348,11 @@ func (h *Host) CmdRandmap(subs *Subsystems) {
 		maps = append(maps, name)
 	}
 
+	// C Host_Randmap_f queues the map command via Cbuf_AddText, so it works
+	// even without an active server.
 	choice := maps[rand.Intn(len(maps))]
 	subs.Console.Print(fmt.Sprintf("randmap: changing to %s\n", choice))
-	h.CmdMap(choice, subs)
+	subs.Commands.AddText(fmt.Sprintf("map %s\n", choice))
 }
 
 // findViewthing searches the server's edicts for an entity with classname "viewthing".

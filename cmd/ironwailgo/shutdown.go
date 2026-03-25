@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"log/slog"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -32,10 +31,6 @@ func releaseRuntimeRenderer() {
 func shutdownEngine() {
 	if g.Host == nil {
 		return
-	}
-
-	if err := g.Host.WriteConfig(g.Subs); err != nil {
-		log.Printf("Failed to write config: %v", err)
 	}
 
 	g.Host.PrepareForShutdown(g.Subs)

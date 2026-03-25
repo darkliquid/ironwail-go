@@ -11,6 +11,7 @@ import (
 
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -133,14 +134,22 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("maxplayers", func(args []string) { h.CmdMaxPlayers(args, subs) }, "Show or set maximum player slots")
 	replaceCommand("port", func(args []string) { h.CmdPort(args, subs) }, "Show or set network host port")
 	replaceClientCommand("name", func(args []string) {
-		if len(args) > 0 {
-			h.CmdName(args[0], subs)
+		if len(args) == 0 {
+			// C prints current name on no-arg query.
+			subs.Console.Print(fmt.Sprintf("\"name\" is \"%s\"\n", cvar.StringValue(clientNameCVar)))
+			return
 		}
+		// C uses full Cmd_Args for multi-word names.
+		h.CmdName(strings.Join(args, " "), subs)
 	}, "Set player name")
 	replaceClientCommand("color", func(args []string) {
-		if len(args) > 0 {
-			h.CmdColor(args, subs)
+		if len(args) == 0 {
+			// C prints current color on no-arg query.
+			color := cvar.IntValue(clientColorCVar)
+			subs.Console.Print(fmt.Sprintf("\"color\" is \"%d %d\"\n", color>>4, color&15))
+			return
 		}
+		h.CmdColor(args, subs)
 	}, "Set player color")
 	replaceClientCommand("kill", func(args []string) { h.CmdKill(subs) }, "Suicide")
 	replaceClientCommand("spawn", func(args []string) { h.CmdSpawn(subs) }, "Spawn into game")

@@ -110,6 +110,10 @@ func TestConsoleDrawRendersBlinkCursorAndClipsPrompt(t *testing.T) {
 	mock := &mockRenderContext{}
 	c.Draw(mock, 80, 80, true, nil)
 
+	// Collect prompt-row characters, but exclude version string characters
+	// that are drawn on the same row. The prompt + cursor are drawn before
+	// the title string, so we find the cursor (glyph 10 or 11) and collect
+	// only characters up to and including it.
 	var row []struct{ x, y, num int }
 	for _, ch := range mock.characters {
 		if ch.y == 32 {
@@ -119,9 +123,22 @@ func TestConsoleDrawRendersBlinkCursorAndClipsPrompt(t *testing.T) {
 	if len(row) == 0 {
 		t.Fatal("expected prompt row characters")
 	}
-	last := row[len(row)-1]
-	if last.x != 64 || last.num != 11 {
-		t.Fatalf("cursor draw = (%d,%d), want (%d,%d)", last.x, last.num, 64, 11)
+
+	// Find the cursor character (glyph 10 or 11) — it is drawn after the
+	// prompt text and before the title string.
+	cursorIdx := -1
+	for i, ch := range row {
+		if ch.num == 10 || ch.num == 11 {
+			cursorIdx = i
+			break
+		}
+	}
+	if cursorIdx < 0 {
+		t.Fatal("cursor glyph (10 or 11) not found on prompt row")
+	}
+	cursor := row[cursorIdx]
+	if cursor.x != 64 || cursor.num != 11 {
+		t.Fatalf("cursor draw = (%d,%d), want (%d,%d)", cursor.x, cursor.num, 64, 11)
 	}
 	if got := string(rune(row[0].num)); got != "]" {
 		t.Fatalf("prompt prefix = %q, want %q", got, "]")
@@ -287,6 +304,64 @@ func TestConsoleDrawUsesBackgroundPicWhenProvided(t *testing.T) {
 	linesByY := charactersByRow(mock.characters)
 	if !containsRowSubstring(linesByY, "hello") {
 		t.Fatalf("console draw did not include text, rows: %#v", linesByY)
+	}
+}
+
+// TestConsoleDrawRendersTitleString verifies that the version/title string is
+// drawn in the bottom-right corner of the full console overlay, matching C
+// Ironwail's CONSOLE_TITLE_STRING rendering in Con_DrawConsole.
+func TestConsoleDrawRendersTitleString(t *testing.T) {
+	originalTitle := TitleString
+	TitleString = "Test 1.0"
+	t.Cleanup(func() { TitleString = originalTitle })
+
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	mock := &mockRenderContext{}
+	// Use a wide enough screen so the title fits
+	c.Draw(mock, 320, 200, true, nil)
+
+	linesByY := charactersByRow(mock.characters)
+	found := false
+	for _, row := range linesByY {
+		if strings.Contains(row, "Test 1.0") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("title string %q not found in rendered output, rows: %#v", "Test 1.0", linesByY)
+	}
+}
+
+// TestNotifyBoxPrintsFramedMessage verifies that NotifyBox prints the expected
+// framed modal warning message to the console scrollback.
+func TestNotifyBoxPrintsFramedMessage(t *testing.T) {
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	c.NotifyBox("Sound init failed.\n")
+
+	// Collect all visible lines
+	var lines []string
+	for i := c.current - 10; i <= c.current; i++ {
+		line := c.GetLine(i)
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	combined := strings.Join(lines, "\n")
+	if !strings.Contains(combined, "Sound init failed.") {
+		t.Fatalf("NotifyBox output missing warning text, got: %s", combined)
+	}
+	if !strings.Contains(combined, "Press a key.") {
+		t.Fatalf("NotifyBox output missing 'Press a key.' prompt, got: %s", combined)
 	}
 }
 

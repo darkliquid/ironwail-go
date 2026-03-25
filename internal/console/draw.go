@@ -129,6 +129,7 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool,
 //	│ scrollback line N-1                                                   │
 //	│ scrollback line N   (most recent, adjusted for backScroll)            │
 //	│ ] user input line_                                                    │
+//	│                                        version string (bottom-right)  │
 //	└───────────────────────────────────────────────────────────────────────┘
 //
 // The console occupies the top half of the screen (screenHeight / 2). A solid
@@ -181,6 +182,16 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 	visiblePrompt, cursorCol := clipPromptWithCursor(prompt, cursorPos+1, max(1, charsWide-3))
 	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, visiblePrompt)
 	drawBlinkCursor(rc, consoleCharWidth+cursorCol*consoleCharWidth, consoleHeight-consoleCharHeight, consoleNow())
+
+	// Draw version/title string in the bottom-right corner, matching C
+	// Ironwail's Con_DrawConsole which renders CONSOLE_TITLE_STRING via
+	// M_PrintWhite at (vid.conwidth - strlen*8, vid.conheight - 8).
+	title := TitleString
+	if len(title) > 0 {
+		titleX := screenWidth - len(title)*consoleCharWidth
+		titleY := consoleHeight - consoleCharHeight
+		drawWhiteText(rc, titleX, titleY, title)
+	}
 }
 
 func scaledBackgroundPic(pic *qimage.QPic, width, height int) *qimage.QPic {
@@ -366,6 +377,18 @@ func drawRuneText(rc DrawContext, x, y int, text []rune) {
 			num = int('?')
 		}
 		rc.DrawCharacter(x+i*consoleCharWidth, y, num)
+	}
+}
+
+// drawWhiteText renders a plain ASCII string as white (non-bronze) characters.
+// This matches C Ironwail's M_PrintWhite: each byte is drawn as-is without
+// setting the high bit. Used for the version/title string in the console.
+func drawWhiteText(rc DrawContext, x, y int, text string) {
+	if rc == nil {
+		return
+	}
+	for i := 0; i < len(text); i++ {
+		rc.DrawCharacter(x+i*consoleCharWidth, y, int(text[i]))
 	}
 }
 

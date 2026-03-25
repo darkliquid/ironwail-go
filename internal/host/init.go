@@ -640,6 +640,9 @@ func (h *Host) Shutdown(subs *Subsystems) {
 		subs = h.Subs
 	}
 
+	// C Host_Shutdown writes config before tearing down subsystems.
+	_ = h.WriteConfig(subs)
+
 	if subs.Client != nil {
 		subs.Client.Shutdown()
 	}
@@ -673,7 +676,7 @@ func (h *Host) WriteConfig(subs *Subsystems) error {
 }
 
 func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
-	if !h.initialized {
+	if !h.initialized || h.dedicated || h.aborted {
 		return nil
 	}
 	if subs == nil {

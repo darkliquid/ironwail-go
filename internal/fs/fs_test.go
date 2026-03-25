@@ -597,3 +597,62 @@ func TestListModsEmptyBaseDir(t *testing.T) {
 		t.Fatalf("expected nil from ListMods with no basedir, got %v", mods)
 	}
 }
+
+// TestAddExtension verifies that AddExtension matches C COM_AddExtension
+// semantics: append whenever the current extension differs from the requested
+// one. This means "config.txt" + ".cfg" becomes "config.txt.cfg".
+func TestAddExtension(t *testing.T) {
+	tests := []struct {
+		path string
+		ext  string
+		want string
+	}{
+		// No extension: always append.
+		{"file", ".bsp", "file.bsp"},
+		{"maps/e1m1", ".bsp", "maps/e1m1.bsp"},
+		// Same extension: no change.
+		{"file.bsp", ".bsp", "file.bsp"},
+		{"maps/e1m1.bsp", ".bsp", "maps/e1m1.bsp"},
+		// Different extension: append (C parity).
+		{"config.txt", ".cfg", "config.txt.cfg"},
+		{"demo.dem", ".bsp", "demo.dem.bsp"},
+		// Case-sensitive: different case means different extension (C uses strcmp).
+		{"file.BSP", ".bsp", "file.BSP.bsp"},
+		// Dot in directory component, no file extension.
+		{"dir.d/file", ".cfg", "dir.d/file.cfg"},
+	}
+	for _, tt := range tests {
+		got := fs.AddExtension(tt.path, tt.ext)
+		if got != tt.want {
+			t.Errorf("AddExtension(%q, %q) = %q, want %q", tt.path, tt.ext, got, tt.want)
+		}
+	}
+}
+
+// TestDefaultExtension verifies that DefaultExtension only appends when there
+// is no extension at all (matching the disabled C COM_DefaultExtension).
+func TestDefaultExtension(t *testing.T) {
+	tests := []struct {
+		path string
+		ext  string
+		want string
+	}{
+		// No extension: append.
+		{"file", ".cfg", "file.cfg"},
+		{"maps/e1m1", ".bsp", "maps/e1m1.bsp"},
+		// Has extension (same): no change.
+		{"file.cfg", ".cfg", "file.cfg"},
+		// Has extension (different): still no change -- DefaultExtension
+		// does NOT append when any extension is present.
+		{"config.txt", ".cfg", "config.txt"},
+		{"demo.dem", ".bsp", "demo.dem"},
+		// Dot in directory, no file extension.
+		{"dir.d/file", ".cfg", "dir.d/file.cfg"},
+	}
+	for _, tt := range tests {
+		got := fs.DefaultExtension(tt.path, tt.ext)
+		if got != tt.want {
+			t.Errorf("DefaultExtension(%q, %q) = %q, want %q", tt.path, tt.ext, got, tt.want)
+		}
+	}
+}

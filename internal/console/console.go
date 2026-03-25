@@ -36,7 +36,17 @@ const (
 	MaxPrintMsg      = 4096
 	Margin           = 1
 	MaxInputHistory  = 32
+
+	// DefaultTitleString is the fallback title shown in the bottom-right
+	// corner of the full console. Callers should set TitleString during
+	// engine startup to include the actual version number.
+	DefaultTitleString = "Ironwail-Go"
 )
+
+// TitleString is displayed in the bottom-right corner of the full console,
+// matching C Ironwail's CONSOLE_TITLE_STRING. Set this during engine startup
+// to include the version number (e.g. "Ironwail-Go 0.2.0").
+var TitleString = DefaultTitleString
 
 // Console is the core state for the Quake-style drop-down developer console.
 //
@@ -787,6 +797,25 @@ func (c *Console) ClearNotify() {
 	for i := range c.notifyTimes {
 		c.notifyTimes[i] = time.Time{}
 	}
+}
+
+// NotifyBox displays a modal warning message in the console, matching C
+// Ironwail's Con_NotifyBox. It prints the text framed by Quake bars with a
+// "Press a key." prompt. Unlike the C version, this Go implementation does
+// not block waiting for a keypress — the caller is responsible for switching
+// to key_console mode and handling the input grab externally, since Go's
+// concurrency model handles the event loop differently.
+func (c *Console) NotifyBox(text string) {
+	c.Printf("\n\n%s", QuakeBar(40))
+	c.Printf("%s", text)
+	c.Printf("Press a key.\n")
+	c.Printf("%s", QuakeBar(40))
+}
+
+// NotifyBox displays a modal warning on the global console. See
+// (*Console).NotifyBox for details.
+func NotifyBox(text string) {
+	globalConsole.NotifyBox(text)
 }
 
 func Printf(format string, args ...interface{}) {
