@@ -3,6 +3,7 @@ package server
 import (
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	inet "github.com/ironwail/ironwail-go/internal/net"
@@ -18,6 +19,22 @@ func (s *Server) effectsMask() int {
 		return defaultEffectsMask
 	}
 	return s.EffectsMask
+}
+
+func (s *Server) standardQuakeWeaponEncoding() bool {
+	if s == nil || s.FileSystem == nil {
+		return true
+	}
+	fsInfo, ok := s.FileSystem.(interface{ GetGameDir() string })
+	if !ok {
+		return true
+	}
+	switch strings.ToLower(fsInfo.GetGameDir()) {
+	case "rogue", "hipnotic", "quoth":
+		return false
+	default:
+		return true
+	}
 }
 
 // CalcStats derives HUD/stat slots from player entvars for SVCUpdateStat style networking.
@@ -410,7 +427,18 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	msg.WriteByte(byte(ent.Vars.AmmoCells))
 
 	weaponValue := int32(ent.Vars.Weapon)
-	msg.WriteByte(byte(weaponValue))
+	if s.standardQuakeWeaponEncoding() {
+		msg.WriteByte(byte(weaponValue))
+	} else {
+		activeWeapon := byte(0)
+		for i := 0; i < 32; i++ {
+			if weaponValue&(1<<i) != 0 {
+				activeWeapon = byte(i)
+				break
+			}
+		}
+		msg.WriteByte(activeWeapon)
+	}
 
 	// FitzQuake extension data
 	if bits&inet.SU_WEAPON2 != 0 {

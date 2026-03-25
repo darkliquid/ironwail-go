@@ -564,6 +564,7 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 	t.Run("freeze enabled skips non-clients", func(t *testing.T) {
 		withPhysicsCVars(t, map[string]string{"sv_freezenonclients": "1"})
 		s, clientEnt, nonClientEnt := mkServer()
+		before := s.Time
 
 		s.Physics()
 
@@ -572,6 +573,9 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 		}
 		if nonClientEnt.Vars.Origin[0] != 0 {
 			t.Fatalf("non-client entity moved with freeze enabled: origin=%v", nonClientEnt.Vars.Origin)
+		}
+		if s.Time != before {
+			t.Fatalf("server time advanced with freeze enabled: before=%v after=%v", before, s.Time)
 		}
 	})
 
@@ -588,6 +592,22 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 			t.Fatalf("non-client entity did not move with freeze disabled: origin=%v", nonClientEnt.Vars.Origin)
 		}
 	})
+}
+
+func TestPhysicsPanicsOnInvalidMoveType(t *testing.T) {
+	s := newPhysicsTestServer()
+	bad := &Edict{Vars: &EntVars{}}
+	bad.Vars.MoveType = 999
+	s.Edicts = append(s.Edicts, bad)
+	s.NumEdicts = len(s.Edicts)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Physics() did not panic on invalid movetype")
+		}
+	}()
+
+	s.Physics()
 }
 
 // TestPhysicsTelemetryFrameHooks tests physics telemetry.

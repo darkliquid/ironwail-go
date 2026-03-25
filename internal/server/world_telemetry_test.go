@@ -477,22 +477,16 @@ func TestTouchLinksDeduplicatesTriggerCallbacksWithinPhysicsFrame(t *testing.T) 
 	trigger.Vars.Touch = 1
 	s.LinkEdict(trigger, false)
 
-	s.touchFrameActive = true
-	clear(s.touchFrameSeen)
 	s.touchLinks(mover)
 	s.touchLinks(mover)
-	s.touchFrameActive = false
-
-	if callbacks != 1 {
-		t.Fatalf("callbacks in same physics frame = %d, want 1", callbacks)
-	}
-
-	clear(s.touchFrameSeen)
-	s.touchFrameActive = true
-	s.touchLinks(mover)
-	s.touchFrameActive = false
 
 	if callbacks != 2 {
-		t.Fatalf("callbacks after next physics frame = %d, want 2", callbacks)
+		t.Fatalf("callbacks after repeated same-frame touches = %d, want 2", callbacks)
+	}
+
+	s.touchLinks(mover)
+
+	if callbacks != 3 {
+		t.Fatalf("callbacks after third touch = %d, want 3", callbacks)
 	}
 }

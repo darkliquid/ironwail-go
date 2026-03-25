@@ -3,6 +3,7 @@ package renderer
 import (
 	"testing"
 
+	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
@@ -26,5 +27,21 @@ func TestResolveAliasSkinSlotUsesGroupedSkinTimingAliasSkin(t *testing.T) {
 	}
 	if got := resolveAliasSkinSlot(hdr, 1, 0.35, 4); got != 1 {
 		t.Fatalf("slot at t=0.35 = %d, want 1", got)
+	}
+}
+
+func TestApplyAliasNoLerpListFlags(t *testing.T) {
+	if cvar.Get(CvarRNoLerpList) == nil {
+		cvar.Register(CvarRNoLerpList, "", 0, "")
+	}
+	cvar.Set(CvarRNoLerpList, "progs/flame.mdl")
+
+	flags := applyAliasNoLerpListFlags(0, "progs/flame.mdl")
+	if flags&ModNoLerp == 0 {
+		t.Fatalf("expected ModNoLerp bit from r_nolerp_list")
+	}
+	flags = applyAliasNoLerpListFlags(0, "progs/ogre.mdl")
+	if flags&ModNoLerp != 0 {
+		t.Fatalf("unexpected ModNoLerp bit for non-listed model")
 	}
 }

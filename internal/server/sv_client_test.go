@@ -3,9 +3,11 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
+	"strings"
 	"testing"
 
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
 func TestSendServerInfoFitzQuakeOmitsProtocolFlags(t *testing.T) {
@@ -73,6 +75,38 @@ func TestSendServerInfoRMQIncludesProtocolFlags(t *testing.T) {
 	}
 	if got := data[idx+9]; got != byte(s.Static.MaxClients) {
 		t.Fatalf("byte after protocolflags = %d, want maxclients %d", got, s.Static.MaxClients)
+	}
+}
+
+func TestSendServerInfoNetQuakeCapsPrecaches(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	s.Protocol = ProtocolNetQuake
+	s.ModelPrecache = make([]string, 258)
+	s.SoundPrecache = make([]string, 258)
+	for i := 1; i < len(s.ModelPrecache); i++ {
+		s.ModelPrecache[i] = "model"
+		s.SoundPrecache[i] = "sound"
+	}
+	s.ModelPrecache[255] = "mdl255"
+	s.ModelPrecache[256] = "mdl256"
+	s.SoundPrecache[255] = "snd255"
+	s.SoundPrecache[256] = "snd256"
+
+	client := &Client{
+		Edict:   s.EdictNum(0),
+		Message: NewMessageBuffer(MaxDatagram * 4),
+	}
+	s.SendServerInfo(client)
+
+	payload := string(client.Message.Data[:client.Message.Len()])
+	if !strings.Contains(payload, "mdl255\x00") || !strings.Contains(payload, "snd255\x00") {
+		t.Fatalf("serverinfo missing capped NetQuake precache entries: %q", payload)
+	}
+	if strings.Contains(payload, "mdl256\x00") || strings.Contains(payload, "snd256\x00") {
+		t.Fatalf("serverinfo included overflow NetQuake precache entries: %q", payload)
 	}
 }
 
@@ -267,6 +301,50 @@ func TestUpdateToReliableMessages_BroadcastsChangedPlayerFragsToAllActiveClients
 	}
 	if got := s.Static.Clients[2].OldFrags; got != -2 {
 		t.Fatalf("unchanged client 2 OldFrags = %d, want -2", got)
+	}
+}
+
+func TestUpdateToReliableMessagesFansOutSharedReliableDatagram(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	for _, client := range s.Static.Clients[:2] {
+		client.Active = true
+		client.Message.Clear()
+	}
+	s.ReliableDatagram.WriteByte(byte(inet.SVCPrint))
+	s.ReliableDatagram.WriteString("shared\n")
+
+	s.UpdateToReliableMessages()
+
+	for i, client := range s.Static.Clients[:2] {
+		if got := string(client.Message.Data[:client.Message.Len()]); !strings.Contains(got, "shared\n") {
+			t.Fatalf("client %d missing shared reliable payload: %q", i, got)
+		}
+	}
+	if got := s.ReliableDatagram.Len(); got != 0 {
+		t.Fatalf("ReliableDatagram len = %d, want 0 after fanout", got)
+	}
+}
+
+func TestSaveSpawnParmsCopiesServerFlagsFromQC(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	vm := qc.NewVM()
+	vm.Globals = make([]float32, 16)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvFloat), Ofs: 1, Name: vm.AllocString("serverflags")},
+	}
+	vm.SetGInt(1, 13)
+	s.QCVM = vm
+
+	s.SaveSpawnParms()
+
+	if got := s.Static.ServerFlags; got != 13 {
+		t.Fatalf("Static.ServerFlags = %d, want 13", got)
 	}
 }
 

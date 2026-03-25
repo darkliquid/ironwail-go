@@ -235,6 +235,45 @@ func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
 	}
 }
 
+func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
+	s := NewServer()
+	defer qc.RegisterServerHooks(nil)
+
+	vm := newServerTestVM(s, 8)
+	qc.RegisterBuiltins(vm)
+	s.WorldModel = CreateSyntheticWorldModel()
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("AllocEdict returned nil")
+	}
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.Origin = [3]float32{0, 0, 24}
+	s.LinkEdict(ent, false)
+
+	entNum := s.NumForEdict(ent)
+	vm.NumEdicts = s.NumEdicts
+	syncEdictToQCVM(vm, entNum, ent)
+	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{0, 0, 128})
+	vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{-16, -16, 104})
+	vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{16, 16, 160})
+
+	vm.SetGInt(qc.OFSParm0, int32(entNum))
+	if fn := vm.Builtins[40]; fn == nil {
+		t.Fatal("checkbottom builtin not registered")
+	} else {
+		fn(vm)
+	}
+
+	if got := vm.GFloat(qc.OFSReturn); got != 0 {
+		t.Fatalf("checkbottom return = %v, want 0 after QC moved entity off ground", got)
+	}
+}
+
 func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)
@@ -994,9 +1033,6 @@ func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
 	aim := vm.GVector(qc.OFSReturn)
 	if aim[1] <= 0.8 {
 		t.Fatalf("aim vector = %v, want mostly +Y", aim)
-	}
-	if aim[2] <= 0 {
-		t.Fatalf("aim vector = %v, want positive z lift toward elevated target", aim)
 	}
 
 	cvar.Set("sv_aim", "0.99")

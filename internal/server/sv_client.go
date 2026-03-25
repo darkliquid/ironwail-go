@@ -69,6 +69,9 @@ func (s *Server) SendServerInfo(client *Client) {
 		if s.ModelPrecache[i] == "" {
 			break
 		}
+		if s.Protocol == ProtocolNetQuake && i >= 256 {
+			continue
+		}
 		client.Message.WriteString(s.ModelPrecache[i])
 	}
 	client.Message.WriteByte(0)
@@ -76,6 +79,9 @@ func (s *Server) SendServerInfo(client *Client) {
 	for i := 1; i < len(s.SoundPrecache); i++ {
 		if s.SoundPrecache[i] == "" {
 			break
+		}
+		if s.Protocol == ProtocolNetQuake && i >= 256 {
+			continue
 		}
 		client.Message.WriteString(s.SoundPrecache[i])
 	}
@@ -134,6 +140,7 @@ func (s *Server) ConnectClient(clientNum int) {
 	if client.Message != nil {
 		client.Message.Clear()
 	}
+	client.OldFrags = -999999
 	if client.EntityStates == nil {
 		client.EntityStates = make(map[int]EntityState)
 	} else {
@@ -157,7 +164,12 @@ func (s *Server) ConnectClient(clientNum int) {
 
 // ClearDatagram resets the shared unreliable broadcast packet assembled each simulation frame.
 func (s *Server) ClearDatagram() {
-	s.Datagram.Clear()
+	if s.Datagram != nil {
+		s.Datagram.Clear()
+	}
+	if s.ReliableDatagram != nil {
+		s.ReliableDatagram.Clear()
+	}
 }
 
 // ============================================================================
@@ -597,6 +609,9 @@ func (s *Server) SV_IsLocalClient(client *Client) bool {
 
 // UpdateToReliableMessages queues scoreboard frag changes on reliable channels for all clients.
 func (s *Server) UpdateToReliableMessages() {
+	if s == nil || s.Static == nil {
+		return
+	}
 	for playerNum, changedClient := range s.Static.Clients {
 		if changedClient == nil || !changedClient.Active {
 			continue
@@ -624,6 +639,12 @@ func (s *Server) UpdateToReliableMessages() {
 		}
 		s.SV_WriteStats(client)
 		s.writeUnderwaterOverride(client)
+		if client.Message != nil && s.ReliableDatagram != nil && s.ReliableDatagram.Len() > 0 {
+			client.Message.Write(s.ReliableDatagram.Data[:s.ReliableDatagram.Len()])
+		}
+	}
+	if s.ReliableDatagram != nil {
+		s.ReliableDatagram.Clear()
 	}
 }
 
@@ -688,6 +709,12 @@ func (s *Server) SendReconnect() {
 
 // SaveSpawnParms runs SetChangeParms QC to persist per-client parms across level transitions.
 func (s *Server) SaveSpawnParms() {
+	if s == nil || s.Static == nil {
+		return
+	}
+	if s.QCVM != nil {
+		s.Static.ServerFlags = s.QCVM.GetGlobalInt("serverflags")
+	}
 	for _, client := range s.Static.Clients {
 		if client == nil || !client.Active {
 			continue

@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -141,6 +142,18 @@ func newTestQCVM() *qc.VM {
 	}
 	vm.Edicts = make([]byte, vm.EdictSize*vm.NumEdicts)
 	return vm
+}
+
+type testGameDirFS struct {
+	gameDir string
+}
+
+func (fs testGameDirFS) OpenFile(filename string) (io.ReadSeekCloser, int64, error) {
+	return nil, 0, nil
+}
+
+func (fs testGameDirFS) GetGameDir() string {
+	return fs.gameDir
 }
 
 func TestEncodeLerpFinish(t *testing.T) {
@@ -1088,6 +1101,30 @@ func TestWriteClientDataToMessage_SendsBaseWeaponBitmask(t *testing.T) {
 	_, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
 	if got, want := payload[len(payload)-1], byte(1<<5); got != want {
 		t.Fatalf("active weapon byte = %#x, want %#x; payload=%v", got, want, payload)
+	}
+}
+
+func TestWriteClientDataToMessage_MissionPackEncodesWeaponAsBitNumber(t *testing.T) {
+	t.Parallel()
+
+	s := &Server{
+		Protocol:   ProtocolNetQuake,
+		FileSystem: testGameDirFS{gameDir: "rogue"},
+	}
+	ent := &Edict{
+		Vars: &EntVars{
+			Weapon:      1 << 5,
+			Health:      100,
+			CurrentAmmo: 5,
+		},
+	}
+
+	msg := NewMessageBuffer(128)
+	s.WriteClientDataToMessage(ent, msg)
+
+	_, payload := decodeClientDataBitsAndPayload(t, msg.Data[:msg.Len()])
+	if got, want := payload[len(payload)-1], byte(5); got != want {
+		t.Fatalf("mission-pack active weapon byte = %#x, want %#x; payload=%v", got, want, payload)
 	}
 }
 

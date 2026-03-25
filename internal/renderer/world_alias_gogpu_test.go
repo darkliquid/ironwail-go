@@ -24,6 +24,14 @@ func TestSetupAliasFrameInterpolationBlendsMultiPoseFrame(t *testing.T) {
 	}
 }
 
+func TestSetupAliasFrameInterpolationHonorsModNoLerp(t *testing.T) {
+	frames := []model.AliasFrameDesc{{FirstPose: 2, NumPoses: 2, Interval: 0.2}}
+	result := setupAliasFrameInterpolation(0, frames, 0.1, true, ModNoLerp)
+	if result.Blend != 0 {
+		t.Fatalf("blend with ModNoLerp = %f, want 0", result.Blend)
+	}
+}
+
 func TestBuildAliasVerticesInterpolatedAppliesYawRotation(t *testing.T) {
 	mdl := &model.Model{AliasHeader: &model.AliasHeader{Scale: [3]float32{1, 1, 1}, ScaleOrigin: [3]float32{0, 0, 0}}}
 	alias := &gpuAliasModel{

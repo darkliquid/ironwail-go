@@ -514,6 +514,69 @@ func TestAllocEdictHonorsReuseCooldownAfterInitialServerWarmup(t *testing.T) {
 	}
 }
 
+func TestLoadMapEntitiesReservesFreshSignonSpaceAndSeedsServerFlags(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	s.Static.ServerFlags = 7
+	initialSignon := NewMessageBuffer(520)
+	for i := 0; i < 500; i++ {
+		initialSignon.WriteByte(0x42)
+	}
+	s.Signon = initialSignon
+	s.SignonBuffers = []*MessageBuffer{initialSignon}
+
+	vm := newServerTestVM(s, 16)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSWorld), Name: vm.AllocString("world")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.OFSMapName), Name: vm.AllocString("mapname")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSDeathmatch), Name: vm.AllocString("deathmatch")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSCoop), Name: vm.AllocString("coop")},
+		{Type: uint16(qc.EvFloat), Ofs: 90, Name: vm.AllocString("serverflags")},
+	}
+	const inspectBuiltinOfs = 10
+	sawFreshSignon := false
+	vm.Builtins[1] = func(vm *qc.VM) {
+		sawFreshSignon = s.Signon != initialSignon && s.Signon.Len() == 0
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 2},
+		{Name: vm.AllocString("trigger_test"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: uint16(inspectBuiltinOfs)},
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(inspectBuiltinOfs, -1)
+	s.syncQCVMState()
+	if got := vm.GetGlobalInt("serverflags"); got != 7 {
+		t.Fatalf("syncQCVMState serverflags = %d, want 7", got)
+	}
+
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+}`
+	if err := s.loadMapEntities(raw); err != nil {
+		t.Fatalf("loadMapEntities() error = %v", err)
+	}
+
+	if !sawFreshSignon {
+		t.Fatalf("spawn QC did not observe fresh signon buffer; buffers=%d currentLen=%d", len(s.SignonBuffers), s.Signon.Len())
+	}
+	if len(s.SignonBuffers) < 2 {
+		t.Fatalf("SignonBuffers = %d, want new buffer allocated before spawn", len(s.SignonBuffers))
+	}
+}
+
 // TestClearWorldAllocatesAreaNodesWhenMissing tests area node initialization.
 // It ensuring the spatial partitioning system is correctly set up for the current world model.
 // Where in C: SV_ClearWorld in sv_phys.c

@@ -696,18 +696,6 @@ func (s *Server) touchLinks(ent *Edict) {
 			}
 			continue
 		}
-		if s.touchFrameActive {
-			key := uint64(uint32(touchNum))<<32 | uint64(uint32(entNum))
-			if _, seen := s.touchFrameSeen[key]; seen {
-				if telemetryEnabled {
-					s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,
-						"touchlinks scan reject candidate=%d other=%d reason=duplicate-frame-touch classname=%q",
-						touchNum, entNum, touchClassName)
-				}
-				continue
-			}
-			s.touchFrameSeen[key] = struct{}{}
-		}
 		if int(touch.Vars.Solid) != int(SolidTrigger) {
 			if telemetryEnabled {
 				s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, touchNum, touch,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/qc"
 	"github.com/ironwail/ironwail-go/internal/testutil"
 )
@@ -590,5 +591,140 @@ func TestPhysicsWalkClearsStaleGroundFlagWhenUnsupported(t *testing.T) {
 	}
 	if ent.Vars.Origin[2] >= start[2] {
 		t.Fatalf("entity did not fall after losing support: start=%v end=%v", start, ent.Vars.Origin)
+	}
+}
+
+func TestRunClientSpawnQCCallsClientConnectBeforePutClientInServer(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	client := s.Static.Clients[0]
+	client.Edict = s.EdictNum(1)
+
+	vm := newServerTestVM(s, 16)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSFrameTime), Name: vm.AllocString("frametime")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSMsgEntity), Name: vm.AllocString("msg_entity")},
+	}
+	var order []string
+	vm.Builtins[1] = func(vm *qc.VM) { order = append(order, "ClientConnect") }
+	vm.Builtins[2] = func(vm *qc.VM) { order = append(order, "PutClientInServer") }
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("ClientConnect"), FirstStatement: 0},
+		{Name: vm.AllocString("PutClientInServer"), FirstStatement: 2},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: 10},
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPCall0), A: 11},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(10, -1)
+	vm.SetGInt(11, -2)
+	s.QCVM = vm
+
+	s.runClientSpawnQC(client)
+
+	if len(order) != 2 || order[0] != "ClientConnect" || order[1] != "PutClientInServer" {
+		t.Fatalf("spawn QC order = %v, want [ClientConnect PutClientInServer]", order)
+	}
+}
+
+func TestExecuteClientStringCommandFallsBackToSVParseClientCommandQC(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	client := s.Static.Clients[0]
+	client.Active = true
+	client.Edict = s.EdictNum(1)
+
+	vm := newServerTestVM(s, 8)
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSMsgEntity), Name: vm.AllocString("msg_entity")},
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.OFSParm0), Name: vm.AllocString("parm0")},
+	}
+	var got string
+	vm.Builtins[1] = func(vm *qc.VM) { got = vm.GString(qc.OFSParm0) }
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("SV_ParseClientCommand"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPCall0), A: 10},
+		{Op: uint16(qc.OPDone)},
+	}
+	vm.SetGInt(10, -1)
+	s.QCVM = vm
+
+	if err := s.executeClientStringCommand(client, "mod_custom 1 2"); err != nil {
+		t.Fatalf("executeClientStringCommand() error = %v", err)
+	}
+	if got != "mod_custom 1 2" {
+		t.Fatalf("SV_ParseClientCommand parm0 = %q, want %q", got, "mod_custom 1 2")
+	}
+}
+
+func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(2); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	loop := inet.NewLoopback()
+	if err := loop.Init(); err != nil {
+		t.Fatalf("loopback init: %v", err)
+	}
+	clientPeer := loop.Connect()
+	serverSock := loop.CheckNewConnections()
+	if serverSock == nil {
+		t.Fatal("server socket missing")
+	}
+	defer inet.Close(clientPeer)
+
+	dropped := s.Static.Clients[0]
+	observer := s.Static.Clients[1]
+	dropped.Active = true
+	dropped.Spawned = true
+	dropped.Name = "player1"
+	dropped.Color = 77
+	dropped.OldFrags = 4
+	dropped.Edict = s.EdictNum(1)
+	dropped.Edict.Vars.Frags = 4
+	dropped.NetConnection = serverSock
+	observer.Active = true
+	observer.Message = NewMessageBuffer(MaxDatagram)
+
+	s.DropClient(dropped, false)
+
+	if dropped.Active {
+		t.Fatal("client should be inactive after drop")
+	}
+	if dropped.NetConnection != nil {
+		t.Fatal("drop should clear client net connection")
+	}
+	if dropped.Edict.Free {
+		t.Fatal("drop should preserve player edict allocation")
+	}
+	if got := dropped.Edict.Vars.Frags; got != 0 {
+		t.Fatalf("player frags = %v, want 0 after roster clear", got)
+	}
+	if got := string(observer.Message.Data[:observer.Message.Len()]); !bytes.Contains([]byte(got), []byte{byte(inet.SVCUpdateName), 0}) {
+		t.Fatalf("observer message missing roster-clear update: %v", observer.Message.Data[:observer.Message.Len()])
+	}
+	msgType, payload := inet.GetMessage(clientPeer)
+	if msgType != 1 {
+		t.Fatalf("disconnect message type = %d, want 1", msgType)
+	}
+	if !bytes.Contains(payload, []byte{byte(inet.SVCDisconnect)}) {
+		t.Fatalf("disconnect payload missing SVCDisconnect: %v", payload)
 	}
 }

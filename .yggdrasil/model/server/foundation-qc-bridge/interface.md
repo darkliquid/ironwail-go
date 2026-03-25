@@ -15,10 +15,12 @@
 - dev-stats bridge (`DevStatsSnapshot`) that surfaces current/peak server-side developer counters (including monotonic frame count, packet size, and edict population) to host commands
 - narrow edict-capacity bridge (`DevStatsEdictCounters`) that returns the active dev-stats edict count plus configured server max-edicts capacity for focused diagnostics
 - Go↔QC synchronization helpers for globals and edicts
+- builtin write-buffer routing for `MSG_ALL`, QC `checkbottom` bridging, and default server-rule cvar registration used by isolated server tests
 
 ## Contracts
 
 - Edict numbering and reserved client slots are semantic and must remain stable.
 - QC-visible state must be synchronized explicitly at execution boundaries.
+- Bridge helpers that consult Go collision or networking state (`checkbottom`, write destinations, saved globals) must sync QC mutations into authoritative Go entities first.
 - QC builtin registration assumes the loaded VM layout matches the server-side field/global expectations.
 - `SetCompatRNG(rng)` is the authoritative RNG provenance bridge for server/QC runtime: it stores the server RNG stream and forwards the same pointer to `QCVM.SetCompatRNG`, so server movement random branches and QC `random()` consume a single ordered stream.

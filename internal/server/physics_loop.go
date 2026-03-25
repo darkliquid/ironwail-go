@@ -1,19 +1,13 @@
 package server
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 func (s *Server) Physics() {
-	s.touchFrameActive = true
-	clear(s.touchFrameSeen)
-	defer func() {
-		s.touchFrameActive = false
-		clear(s.touchFrameSeen)
-	}()
-
 	telemetryActive := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
 	if telemetryActive {
 		s.DebugTelemetry.BeginFrame(s.Time, s.FrameTime)
@@ -47,16 +41,23 @@ func (s *Server) Physics() {
 		}
 	}
 
-	for i := 0; i < s.NumEdicts; i++ {
+	freezeNonClients := false
+	if cv := cvar.Get("sv_freezenonclients"); cv != nil && cv.Bool() {
+		freezeNonClients = true
+	}
+
+	entityCap := s.NumEdicts
+	if freezeNonClients && s.Static != nil {
+		entityCap = s.Static.MaxClients + 1
+		if entityCap > s.NumEdicts {
+			entityCap = s.NumEdicts
+		}
+	}
+
+	for i := 0; i < entityCap; i++ {
 		ent := s.Edicts[i]
 		if ent == nil || ent.Free {
 			continue
-		}
-		if cv := cvar.Get("sv_freezenonclients"); cv != nil && cv.Bool() {
-			isClientEnt := s.Static != nil && i > 0 && i <= s.Static.MaxClients
-			if !isClientEnt {
-				continue
-			}
 		}
 
 		if s.QCVM != nil {
@@ -97,6 +98,8 @@ func (s *Server) Physics() {
 			s.PhysicsToss(ent)
 		case MoveTypeWalk:
 			s.PhysicsWalk(ent)
+		default:
+			panic(fmt.Sprintf("SV_Physics: bad movetype %d", int(ent.Vars.MoveType)))
 		}
 
 		if clientForPostThink != nil && !ent.Free {
@@ -126,7 +129,9 @@ func (s *Server) Physics() {
 		}
 	}
 
-	s.Time += s.FrameTime
+	if !freezeNonClients {
+		s.Time += s.FrameTime
+	}
 
 	// Track active edict count and warn if exceeding standard limit of 600.
 	// Matches C host.c dev_stats/dev_peakstats tracking.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
 const (
@@ -650,7 +651,10 @@ func (s *Server) ExecuteClientString(client *Client, cmd string) bool {
 
 func (s *Server) executeClientStringCommand(client *Client, cmd string) error {
 	if !s.SV_ExecuteUserCommand(client, cmd) {
-		return fmt.Errorf("command %q rejected", cmd)
+		if err := s.runClientParseClientCommandQC(client, cmd); err != nil {
+			return err
+		}
+		return nil
 	}
 	return s.handleClientStringCommand(client, cmd)
 }
@@ -877,7 +881,13 @@ func (s *Server) runClientSpawnQC(client *Client) error {
 	if err := s.initClientSpawnFallback(client); err != nil {
 		return err
 	}
-	if s.QCVM == nil || s.QCVM.FindFunction("PutClientInServer") < 0 {
+	if s.QCVM == nil {
+		return nil
+	}
+	if err := s.runClientQCFunction(client, "ClientConnect", true); err != nil {
+		return err
+	}
+	if s.QCVM.FindFunction("PutClientInServer") < 0 {
 		return nil
 	}
 	return s.runClientPutInServerQC(client)
@@ -941,6 +951,38 @@ func (s *Server) runClientPutInServerQC(client *Client) error {
 		return s.initClientSpawnFallback(client)
 	}
 	s.LinkEdict(client.Edict, true)
+	return nil
+}
+
+func (s *Server) runClientParseClientCommandQC(client *Client, cmd string) error {
+	if client == nil || client.Edict == nil {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+	if s.QCVM == nil {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+	funcNum := s.QCVM.FindFunction("SV_ParseClientCommand")
+	if funcNum < 0 {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+
+	entNum := s.NumForEdict(client.Edict)
+	if entNum <= 0 {
+		return fmt.Errorf("command %q rejected", cmd)
+	}
+
+	s.syncQCVMState()
+	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
+	s.QCVM.Time = float64(s.Time)
+	s.QCVM.SetGlobal("time", s.Time)
+	s.QCVM.SetGlobal("self", entNum)
+	s.QCVM.SetGlobal("other", 0)
+	s.QCVM.SetGlobal("msg_entity", entNum)
+	s.QCVM.SetGString(qc.OFSParm0, cmd)
+	if err := s.executeQCFunction(funcNum); err != nil {
+		return fmt.Errorf("SV_ParseClientCommand execution failed: %w", err)
+	}
+	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
 	return nil
 }
 
@@ -1121,7 +1163,12 @@ func (s *Server) DropClient(client *Client, crash bool) {
 		return
 	}
 
-	if client.Edict != nil && s.QCVM != nil {
+	if !crash && client.NetConnection != nil && inet.CanSendMessage(client.NetConnection) {
+		client.Message.WriteByte(byte(inet.SVCDisconnect))
+		_ = inet.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()])
+	}
+
+	if !crash && client.Spawned && client.Edict != nil && s.QCVM != nil {
 		funcIdx := s.QCVM.FindFunction("ClientDisconnect")
 		if funcIdx >= 0 {
 			s.setQCTimeGlobal(s.Time)
@@ -1130,16 +1177,45 @@ func (s *Server) DropClient(client *Client, crash bool) {
 		}
 	}
 
-	client.Active = false
-	client.Spawned = false
-	client.RespawnTime = 0
-	if crash && client.NetConnection != nil {
+	if client.NetConnection != nil {
 		inet.Close(client.NetConnection)
 		client.NetConnection = nil
 	}
-	if client.Edict != nil {
-		client.Edict.Free = true
-		client.Edict.FreeTime = s.Time
+
+	clientName := client.Name
+	clientColor := client.Color
+	if client.Edict != nil && client.Edict.Vars != nil {
+		client.Edict.Vars.NetName = 0
+		client.Edict.Vars.Team = 0
+		client.Edict.Vars.Frags = 0
+	}
+
+	client.Active = false
+	client.Spawned = false
+	client.RespawnTime = 0
+	client.DropASAP = false
+	client.Name = ""
+	client.Color = 0
+	client.OldFrags = -999999
+
+	if s.Static != nil {
+		clientNum := s.clientIndex(client)
+		if clientNum >= 0 {
+			s.broadcastClientNameUpdate(clientNum, "")
+			for _, receiver := range s.Static.Clients {
+				if receiver == nil || !receiver.Active || receiver.Message == nil {
+					continue
+				}
+				receiver.Message.WriteByte(byte(inet.SVCUpdateFrags))
+				receiver.Message.WriteByte(byte(clientNum))
+				receiver.Message.WriteShort(0)
+			}
+			s.broadcastClientColorUpdate(clientNum, 0)
+		}
+	}
+
+	if clientName != "" && !crash {
+		slog.Info("client dropped", "name", clientName, "color", clientColor)
 	}
 }
 

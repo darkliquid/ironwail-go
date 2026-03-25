@@ -12,12 +12,15 @@
 - shared physics helpers such as gravity, clip, water, and QC callback dispatch
 - physics debug counters surfaced for host diagnostics (e.g., peak active edicts via `PeakEdicts`)
 - match-rule enforcement helpers
+- top-level `Physics()` entity iteration, freeze semantics, and movetype validation
 
 ## Contracts
 
 - Active-frame ordering is significant: client command ingestion precedes physics, and rules/messages run after simulation.
 - QC callback dispatch must preserve execution context and synchronize mutated/spawned edicts back into Go state.
 - `PushMove` blocked callbacks must refresh pusher/check edicts into the QC VM before execution and then apply QC mutations/spawns back to authoritative server state, matching C `SV_PushMove` callback expectations.
+- `sv_freezenonclients 1` freezes non-client entities by limiting iteration to world + client edicts and by keeping `sv.time`/QC `time` fixed for that frame.
+- Unknown movetypes are fatal programmer errors and should fail loudly instead of silently skipping simulation.
 - Physics safety checks must sanitize invalid values before they leak into world/link/network code.
 - `Frame()` increments the server dev-stats frame counter once per successful active frame, while `Physics()` continues to own per-frame edict-population updates.
 - Gravity helpers must honor the optional QuakeC `gravity` edict field as a per-entity multiplier, but treat a missing or zero field value as the canonical `1.0` fallback from C `SV_AddGravity`.

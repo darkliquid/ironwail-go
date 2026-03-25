@@ -2,6 +2,8 @@ package server
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -87,6 +89,9 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 	}
 	if s.QCVM == nil {
 		return fmt.Errorf("qcvm is not initialized")
+	}
+	if err := s.validateTextSaveGameDir(state.GameDir); err != nil {
+		return err
 	}
 
 	s.Time = state.Time
@@ -182,6 +187,40 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 	}
 
 	return nil
+}
+
+func (s *Server) validateTextSaveGameDir(gameDir string) error {
+	if strings.TrimSpace(gameDir) == "" || s == nil || s.FileSystem == nil {
+		return nil
+	}
+
+	fsInfo, ok := s.FileSystem.(interface {
+		GetGameDir() string
+		GetBaseDir() string
+	})
+	if !ok {
+		return nil
+	}
+
+	current := strings.TrimSpace(fsInfo.GetGameDir())
+	if current == "" {
+		current = "id1"
+	}
+	if strings.EqualFold(current, gameDir) {
+		return nil
+	}
+
+	baseDir := strings.TrimSpace(fsInfo.GetBaseDir())
+	if baseDir == "" {
+		return fmt.Errorf("savegame gamedir %q does not match active gamedir %q", gameDir, current)
+	}
+
+	dirInfo, err := os.Stat(filepath.Join(baseDir, gameDir))
+	if err != nil || !dirInfo.IsDir() {
+		return fmt.Errorf("savegame gamedir %q is unavailable under %q", gameDir, baseDir)
+	}
+
+	return fmt.Errorf("savegame gamedir %q does not match active gamedir %q", gameDir, current)
 }
 
 func (s *Server) ensureTextSaveEdictCapacity(required int) error {

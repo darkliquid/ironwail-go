@@ -83,9 +83,18 @@ func TestWorldFacePass(t *testing.T) {
 }
 
 func TestWorldTextureFilters(t *testing.T) {
+	if cvar.Get(CvarGLTextureMode) == nil {
+		cvar.Register(CvarGLTextureMode, "GL_NEAREST_MIPMAP_LINEAR", 0, "")
+	}
+	cvar.Set(CvarGLTextureMode, "GL_NEAREST")
 	minFilter, magFilter := worldTextureFilters(false)
 	if minFilter != gl.NEAREST || magFilter != gl.NEAREST {
 		t.Fatalf("worldTextureFilters(false) = (%d, %d), want (%d, %d)", minFilter, magFilter, gl.NEAREST, gl.NEAREST)
+	}
+	cvar.Set(CvarGLTextureMode, "GL_LINEAR_MIPMAP_LINEAR")
+	minFilter, magFilter = worldTextureFilters(false)
+	if minFilter != gl.LINEAR_MIPMAP_LINEAR || magFilter != gl.LINEAR {
+		t.Fatalf("worldTextureFilters(GL_LINEAR_MIPMAP_LINEAR) = (%d, %d), want (%d, %d)", minFilter, magFilter, gl.LINEAR_MIPMAP_LINEAR, gl.LINEAR)
 	}
 
 	minFilter, magFilter = worldTextureFilters(true)
@@ -499,6 +508,9 @@ func TestMapVisTransparentWaterSafe_TeleVisibilityCountsAsTransparent(t *testing
 }
 
 func TestShouldDrawParticlePassUsesRParticlesMode(t *testing.T) {
+	if cvar.Get(CvarRParticles) == nil {
+		cvar.Register(CvarRParticles, "2", 0, "")
+	}
 	original := cvar.Get(CvarRParticles)
 	if original != nil {
 		defer cvar.Set(CvarRParticles, original.String)
