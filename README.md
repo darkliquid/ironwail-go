@@ -194,4 +194,4 @@ Notes:
 
 [1]:https://github.com/andrei-drexler/ironwail
 [2]:https://mise.jdx.dev
-[3]:https://github.com/darkliquid/yggdrasil
+[3]:https://github.com/krzysztofdudek/Yggdrasil
