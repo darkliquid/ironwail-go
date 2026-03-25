@@ -10,6 +10,7 @@
 - server initialization/reset entry points
 - `SpawnServer`
 - helper paths that parse map entities and prepare world/model state
+- `SpawnServer` accepts map names with optional `maps/` prefix and optional `.bsp` suffix and normalizes to canonical basename before loading `maps/<name>.bsp`.
 
 ## Contracts
 

@@ -16,6 +16,18 @@ import (
 	"github.com/ironwail/ironwail-go/internal/qc"
 )
 
+func normalizeServerMapName(mapName string) string {
+	name := strings.TrimSpace(mapName)
+	if name == "" {
+		return ""
+	}
+	name = strings.TrimPrefix(strings.ToLower(name), "maps/")
+	if idx := strings.LastIndex(strings.ToLower(name), ".bsp"); idx >= 0 && idx+4 == len(name) {
+		name = name[:idx]
+	}
+	return filepath.Base(name)
+}
+
 const (
 	ProtocolNetQuake  = 15
 	ProtocolFitzQuake = 666
@@ -179,6 +191,7 @@ func (s *Server) Init(maxClients int) error {
 	}
 
 	s.Datagram = NewMessageBuffer(MaxDatagram)
+	s.ReliableDatagram = NewMessageBuffer(MaxDatagram)
 	s.devStats = DevStats{}
 	s.devPeak = DevStats{}
 	s.SoundPrecache = make([]string, MaxSounds)
@@ -238,6 +251,9 @@ func (s *Server) Shutdown() {
 	if s.Datagram != nil {
 		s.Datagram.Clear()
 	}
+	if s.ReliableDatagram != nil {
+		s.ReliableDatagram.Clear()
+	}
 }
 
 // SpawnServer loads BSP assets, resets world state, builds entities, and enters active simulation.
@@ -248,6 +264,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	if vfs == nil {
 		return errors.New("filesystem is nil")
 	}
+	mapName = normalizeServerMapName(mapName)
 	if mapName == "" {
 		return errors.New("map name is empty")
 	}
@@ -267,7 +284,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	}
 	resetLightStyles(&s.LightStyles)
 
-	s.Name = filepath.Base(mapName)
+	s.Name = mapName
 	s.ModelName = fmt.Sprintf("maps/%s.bsp", s.Name)
 
 	bspData, litData, err := vfs.LoadMapBSPAndLit(s.ModelName)
@@ -528,6 +545,9 @@ func (s *Server) loadMapEntities(raw string) error {
 		syncEdictToQCVM(s.QCVM, entNum, ent)
 
 		// Set QC globals and execute the spawn function.
+		if err := s.ReserveSignonSpace(512); err != nil {
+			return fmt.Errorf("reserve signon space for %q: %w", className, err)
+		}
 		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger qc begin classname=%q targetname=%q target=%q touch=%d solid=%d origin=(%.1f %.1f %.1f)",
