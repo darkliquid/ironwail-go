@@ -89,6 +89,8 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 		}
 
 		switch cmd {
+		case inet.SVCBad:
+			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCNop:
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCDisconnect:

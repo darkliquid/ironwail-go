@@ -104,7 +104,8 @@ type CVar struct {
 	DefaultValue string         // Initial value set at registration time, used for "reset".
 	Description  string         // Human-readable help text shown by "cvarlist".
 	Callback     func(cv *CVar) // Optional function called after value changes (nil = none).
-	modified     bool           // True if value has been changed since registration.
+	Completion   func(currentValue, partial string) []string
+	modified     bool // True if value has been changed since registration.
 }
 
 // Bool returns the cvar value as a boolean.
@@ -403,6 +404,24 @@ func (c *CVarSystem) Complete(partial string) []string {
 	return matches
 }
 
+func (c *CVarSystem) SetCompletion(name string, completion func(currentValue, partial string) []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cv, ok := c.vars[strings.ToLower(name)]; ok {
+		cv.Completion = completion
+	}
+}
+
+func (c *CVarSystem) CompleteValue(name, partial string) []string {
+	c.mu.RLock()
+	cv := c.vars[strings.ToLower(name)]
+	c.mu.RUnlock()
+	if cv == nil || cv.Completion == nil {
+		return nil
+	}
+	return cv.Completion(cv.String, partial)
+}
+
 // ---------------------------------------------------------------------------
 // Package-level convenience functions
 // ---------------------------------------------------------------------------
@@ -475,6 +494,14 @@ func ArchiveVars() []string {
 // Complete returns cvar name completions from the global registry.
 func Complete(partial string) []string {
 	return globalCVar.Complete(partial)
+}
+
+func SetCompletion(name string, completion func(currentValue, partial string) []string) {
+	globalCVar.SetCompletion(name, completion)
+}
+
+func CompleteValue(name, partial string) []string {
+	return globalCVar.CompleteValue(name, partial)
 }
 
 // LockVar locks a cvar in the global registry, preventing changes via Set.

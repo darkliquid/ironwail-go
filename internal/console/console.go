@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 const (
@@ -116,6 +118,11 @@ type Console struct {
 	// user is editing a fresh (empty) line; otherwise it indexes a recalled
 	// entry.
 	historyPos int
+
+	cursorPos       int
+	insertMode      bool
+	historyBackup   []rune
+	lastCenterPrint string
 
 	// printCallback is an optional hook invoked after every Printf call.
 	// External systems (e.g. a network broadcast or a GUI widget) can register
@@ -390,7 +397,9 @@ func (c *Console) Clear() {
 	c.x = 0
 	c.backScroll = 0
 	c.inputLine = nil
+	c.cursorPos = 0
 	c.historyPos = len(c.history)
+	c.historyBackup = nil
 
 	for i := range c.notifyTimes {
 		c.notifyTimes[i] = time.Time{}
@@ -503,6 +512,17 @@ func (c *Console) printRaw(txt string) {
 	txt = strings.TrimPrefix(txt, "[skipnotify]")
 
 	for len(txt) > 0 {
+		wordLen := 0
+		for i := 0; i < len(txt); i++ {
+			if txt[i] <= ' ' {
+				break
+			}
+			wordLen++
+		}
+		if wordLen > 0 && c.x != 0 && c.x+wordLen > c.lineWidth {
+			c.x = 0
+		}
+
 		ch := txt[0]
 		txt = txt[1:]
 
@@ -559,6 +579,15 @@ func (c *Console) Printf(format string, args ...interface{}) {
 // opt in with "developer 1".
 func (c *Console) DPrintf(developer bool, format string, args ...interface{}) {
 	if !developer {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	c.printRaw(msg)
+	c.debugLogWrite(msg)
+}
+
+func (c *Console) DPrintf2(format string, args ...interface{}) {
+	if cvar.IntValue("developer") < 2 {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -630,15 +659,46 @@ func QuakeBar(length int) string {
 		length = 2
 	}
 
-	result := make([]byte, length+1)
+	if lw := LineWidth(); lw > 0 && length > lw {
+		length = lw
+	}
+	appendNewline := true
+	if lw := LineWidth(); lw > 0 && length == lw {
+		appendNewline = false
+	}
+
+	size := length
+	if appendNewline {
+		size++
+	}
+	result := make([]byte, size)
 	result[0] = '\x35'
 	for i := 1; i < length-1; i++ {
 		result[i] = '\x36'
 	}
 	result[length-1] = '\x37'
-	result[length] = '\n'
+	if appendNewline {
+		result[length] = '\n'
+	}
+	return string(result)
+}
 
-	return string(result[:length+1])
+func (c *Console) LogCenterPrint(gameType int, str string) {
+	mode := cvar.IntValue("con_logcenterprint")
+	if mode <= 0 {
+		return
+	}
+	if mode != 2 && gameType != 0 {
+		return
+	}
+	if str == "" || str == c.lastCenterPrint {
+		return
+	}
+	c.lastCenterPrint = str
+	c.Printf("%s", QuakeBar(c.lineWidth))
+	c.CenterPrintf(c.lineWidth, "%s\n", str)
+	c.Printf("%s", QuakeBar(c.lineWidth))
+	c.ClearNotify()
 }
 
 // SetPrintCallback registers an optional function that is called with a copy
@@ -727,4 +787,80 @@ func (c *Console) ClearNotify() {
 	for i := range c.notifyTimes {
 		c.notifyTimes[i] = time.Time{}
 	}
+}
+
+func Printf(format string, args ...interface{}) {
+	globalConsole.Printf(format, args...)
+}
+
+func DPrintf(developer bool, format string, args ...interface{}) {
+	globalConsole.DPrintf(developer, format, args...)
+}
+
+func DPrintf2(format string, args ...interface{}) {
+	globalConsole.DPrintf2(format, args...)
+}
+
+func Warning(format string, args ...interface{}) {
+	globalConsole.Warning(format, args...)
+}
+
+func DWarning(developer bool, format string, args ...interface{}) {
+	globalConsole.DWarning(developer, format, args...)
+}
+
+func SafePrintf(format string, args ...interface{}) {
+	globalConsole.SafePrintf(format, args...)
+}
+
+func CenterPrintf(width int, format string, args ...interface{}) {
+	globalConsole.CenterPrintf(width, format, args...)
+}
+
+func LogCenterPrint(gameType int, str string) {
+	globalConsole.LogCenterPrint(gameType, str)
+}
+
+func Clear() {
+	globalConsole.Clear()
+}
+
+func Scroll(lines int) {
+	globalConsole.Scroll(lines)
+}
+
+func Resize(newWidth int) {
+	globalConsole.Resize(newWidth)
+}
+
+func GetLine(lineNum int) string {
+	return globalConsole.GetLine(lineNum)
+}
+
+func Close() {
+	globalConsole.Close()
+}
+
+func EnableDebugLog(filename string) error {
+	return globalConsole.EnableDebugLog(filename)
+}
+
+func DisableDebugLog() {
+	globalConsole.DisableDebugLog()
+}
+
+func SetPrintCallback(fn func(msg string)) {
+	globalConsole.SetPrintCallback(fn)
+}
+
+func CurrentLine() int {
+	return globalConsole.CurrentLine()
+}
+
+func LineWidth() int {
+	return globalConsole.LineWidth()
+}
+
+func TotalLines() int {
+	return globalConsole.TotalLines()
 }

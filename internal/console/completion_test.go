@@ -1,6 +1,10 @@
 package console
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
 
 // TestExtractPartialSingleToken tests extraction of the current token for completion.
 // It providing the foundation for tab-completion by identifying what the user is currently typing.
@@ -88,5 +92,30 @@ func TestTabCompleterCompletesExecArgument(t *testing.T) {
 	}
 	if len(matches) != 1 || matches[0] != "autoexec.cfg (config)" {
 		t.Fatalf("matches = %v, want [autoexec.cfg (config)]", matches)
+	}
+}
+
+func TestTabCompleterFirstTabUsesCommonPrefix(t *testing.T) {
+	tc := NewTabCompleter()
+	tc.SetCommandProvider(func(partial string) []string {
+		if partial == "tog" {
+			return []string{"toggleconsole", "togglemenu"}
+		}
+		return nil
+	})
+	var printed strings.Builder
+	tc.SetPrintFunc(func(format string, args ...interface{}) {
+		printed.WriteString(fmt.Sprintf(format, args...))
+	})
+
+	got, matches := tc.Complete("tog", true)
+	if got != "toggle" {
+		t.Fatalf("first Complete(%q) = %q, want %q", "tog", got, "toggle")
+	}
+	if len(matches) != 2 {
+		t.Fatalf("matches len = %d, want 2", len(matches))
+	}
+	if printed.Len() == 0 {
+		t.Fatalf("expected first-tab completion to print match list")
 	}
 }

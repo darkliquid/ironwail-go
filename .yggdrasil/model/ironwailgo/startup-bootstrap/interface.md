@@ -17,6 +17,7 @@
 - Renderer/input initialization follows explicit platform/build-tag policy rather than being left implicit.
 - Control cvars that affect `client.Client` runtime behavior (including `cl_nolerp`, `v_centermove`, and `v_centerspeed`) are registered during bootstrap and synchronized into the active client state.
 - Startup registers renderer sky parity cvars, including `r_fastsky`, `r_proceduralsky`, `r_skyfog`, `r_skysolidspeed`, and `r_skyalphaspeed`, before renderer/world paths run.
+- Startup also registers console parity cvars consumed by console core/completion (`con_logcenterprint`, `con_maxcols`) alongside existing notify cvars.
 - Startup registers `r_dynamic` (default `1`) so runtime visual helpers can deterministically gate dynamic-light spawn/contribution parity.
 - Startup registers `r_particles` (default `2`) so temp-entity explosion effects use the C Ironwail parity particle mode when no user override exists.
 - Startup also registers alias/world texture parity cvars (`r_nolerp_list`, `gl_texturemode`, `gl_lodbias`, `gl_texture_anisotropy`) with C-parity defaults before renderer world/entity draw paths consume them.

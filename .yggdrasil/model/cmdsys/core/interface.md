@@ -14,6 +14,7 @@
 - `AddAlias`, `RemoveAlias`, `UnaliasAll`, `Alias`, `Aliases`
 - `AddText`, `AddTextWithSource`, `InsertText`, `InsertTextWithSource`, `Execute`, `ExecuteWithSource`, `ExecuteText`, `ExecuteTextWithSource`
 - `SetSource`, `Source`, `Exists`, `Complete`, `CompleteAliases`, `SetForwardFunc`
+- command-specific completion hooks: `SetCommandCompletion`, `CompleteCommandArgs`
 
 ## Contracts
 
@@ -25,3 +26,4 @@
 - Cvar query output must include default-state annotations to match Ironwail semantics: `"(default)"` when current value equals the default and `"(default: \"...\")"` when it differs.
 - For local (`SrcCommand`) unknown commands without a forwarding hook, the fallback must invoke apropos-style listing (`listAllContaining`) instead of printing a plain unknown-command line.
 - `aliaslist` enumerates a sorted snapshot of user-defined aliases and ends with an alias count summary.
+- Registered commands may expose argument-completion callbacks, enabling console tab-completion to dispatch based on command name and parsed arguments.

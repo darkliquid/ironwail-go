@@ -21,6 +21,7 @@
 - `svc_fog` updates must reuse the runtime fog-state helper so server-driven fog transitions start fades from the current interpolated value, matching local `fog` command behavior.
 - `svc_fog` wire-format decoding must read transition time as `short/100` (C protocol format), not float payload bytes.
 - `svc_killedmonster` / `svc_foundsecret` increment both legacy counters and HUD-facing `Stats` / `StatsF` indices so intermission overlays and score snapshots stay in sync with C behavior.
+- Centerprint-family commands (`svc_centerprint`, `svc_finale`, `svc_cutscene`) update HUD centerprint state and mirror into console logging via `console.LogCenterPrint`.
 - `svc_levelcompleted` and `svc_backtolobby` (re-release opcodes) are accepted as no-op markers instead of aborting packet parsing.
 - `RelinkEntities` must run after message parsing and before renderer entity collection.
 - Entities not refreshed by the latest server message are intentionally dropped from the current live render set.

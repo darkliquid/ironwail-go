@@ -18,3 +18,5 @@
 - Drawing is backend-neutral and must work through the small `DrawContext` surface.
 - Draw paths snapshot console state under read locks, then render outside the lock.
 - Notify visibility depends on `con_notify*` cvars and timestamp state owned by the console core.
+- Console ring-buffer resize width is derived from `charsWide - Margin*2`, matching C line-width semantics instead of raw viewport columns.
+- Prompt clipping keeps the `]` prefix visible while scrolling the editable tail around the current cursor position; blink cursor placement tracks the clipped cursor column.

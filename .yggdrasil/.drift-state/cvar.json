@@ -1,21 +1,21 @@
 {
-  "hash": "5787937adf6fe8215195ab3e3bcb685f85461a39e4a8fb55dd9dc68f15ed613c",
+  "hash": "8525e459db8299a850382907b709f6e945b3d4cbef0cf0503eaf370ada6a1b96",
   "files": {
     ".yggdrasil/model/cvar/yg-node.yaml": "7c9e7f7572279e762da46bb15f5bffbb11740774e6c1c2d6db967abaf96a0ebc",
-    ".yggdrasil/model/cvar/interface.md": "8557289d5480f232918ca18fa51372b2973e2de1593cdbfe13eaf2184de3b3b5",
+    ".yggdrasil/model/cvar/interface.md": "9e33acef5db80eb8828f538cfcfe1edb28c306e978b0a2008c20cb606270f0fd",
     ".yggdrasil/model/cvar/internals.md": "4d7f59b2ebfd26a5a178799f9ef1047f5273ac28b5f7146bff26cbbba808806c",
     ".yggdrasil/model/cvar/responsibility.md": "49dbad046e059ea26168c20035ced6c32decec0019bff9c5d2dda317e16baa30",
     "internal/cvar/doc.go": "04192afac61a8052ba3d4aa2031077a00ba5797dc7952a23fdc64f950d0734d8",
-    "internal/cvar/cvar.go": "722c37cb789925b21fee8fd70d5296e732db45ff840e200c4bb1c97e5328a495",
+    "internal/cvar/cvar.go": "cfca5eabf277f8b3bfbe07c308c394122568e20e40804b1bcba67e9c87cf14d6",
     "internal/cvar/cvar_test.go": "df965e9da24508fe642aea3eb3878c0b532d0a6bcb2f9c4dd36483c2e0f8028e"
   },
   "mtimes": {
     ".yggdrasil/model/cvar/yg-node.yaml": 1774241945417.238,
-    ".yggdrasil/model/cvar/interface.md": 1774337654189.3481,
-    ".yggdrasil/model/cvar/internals.md": 1774337661126.4807,
+    ".yggdrasil/model/cvar/interface.md": 1774475681970.7988,
+    ".yggdrasil/model/cvar/internals.md": 1774474450780.624,
     ".yggdrasil/model/cvar/responsibility.md": 1774241945417.3352,
     "internal/cvar/doc.go": 1773836853909.6846,
-    "internal/cvar/cvar.go": 1774337621957.7473,
-    "internal/cvar/cvar_test.go": 1774337597290.2546
+    "internal/cvar/cvar.go": 1774475081302.997,
+    "internal/cvar/cvar_test.go": 1774474452264.6023
   }
 }

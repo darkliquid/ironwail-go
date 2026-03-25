@@ -101,6 +101,13 @@ func registerConsoleCompletionProviders() {
 	console.SetGlobalCommandProvider(cmdsys.Complete)
 	console.SetGlobalCVarProvider(cvar.Complete)
 	console.SetGlobalAliasProvider(cmdsys.CompleteAliases)
+	console.SetGlobalCommandArgsProvider(func(command string, args []string, partial string) []string {
+		return cmdsys.CompleteCommandArgs(command, args, partial)
+	})
+	console.SetGlobalCVarValueProvider(func(cvarName string, partial string) []string {
+		return cvar.CompleteValue(cvarName, partial)
+	})
+	console.SetGlobalCompletionPrintFunc(console.Printf)
 	if g.Subs != nil {
 		if fileSys, ok := g.Subs.Files.(*fs.FileSystem); ok {
 			console.SetGlobalFileProvider(fileSys.ListFiles)

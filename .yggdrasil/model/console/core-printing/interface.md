@@ -12,9 +12,13 @@
 - printing and log APIs
 - line/scrollback state queries such as `GetLine`, `CurrentLine`, `LineWidth`, `TotalLines`, `NotifyTimes`, `ClearNotify`
 - package-level singleton wrappers for the same core behavior
+- centerprint logging helpers (`LogCenterPrint`) and developer level-2 logging (`DPrintf2`)
 
 ## Contracts
 
 - The scrollback ring buffer is space-padded and line-width-dependent.
 - Printing updates both text storage and notify state.
 - Debug-log output is optional and should not block normal console use when disabled.
+- `printRaw` performs C-style word-boundary wrapping when a non-whitespace token would overflow the current line.
+- `QuakeBar` suppresses trailing newline when the bar exactly fills the current console line width.
+- `LogCenterPrint` honors `con_logcenterprint` modes (0/1/2), suppresses duplicate centerprints, frames output with quakebars, and clears notify timestamps after logging.

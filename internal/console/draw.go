@@ -107,7 +107,11 @@ func (c *Console) Draw(rc DrawContext, screenWidth, screenHeight int, full bool,
 	if charsWide <= 0 {
 		return
 	}
-	c.Resize(charsWide)
+	lineWidth := charsWide - Margin*2
+	if lineWidth < 1 {
+		lineWidth = 1
+	}
+	c.Resize(lineWidth)
 
 	if full {
 		forced := len(forcedup) > 0 && forcedup[0]
@@ -150,6 +154,7 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 	current := c.current
 	backScroll := c.backScroll
 	inputLine := append([]rune(nil), c.inputLine...)
+	cursorPos := c.cursorPos
 	visibleRows := consoleHeight/consoleCharHeight - 2
 	if visibleRows < 1 {
 		visibleRows = 1
@@ -173,9 +178,9 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 	}
 
 	prompt := append([]rune{']'}, inputLine...)
-	visiblePrompt := clipPrompt(prompt, max(1, charsWide-3))
+	visiblePrompt, cursorCol := clipPromptWithCursor(prompt, cursorPos+1, max(1, charsWide-3))
 	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, visiblePrompt)
-	drawBlinkCursor(rc, consoleCharWidth+len(visiblePrompt)*consoleCharWidth, consoleHeight-consoleCharHeight, consoleNow())
+	drawBlinkCursor(rc, consoleCharWidth+cursorCol*consoleCharWidth, consoleHeight-consoleCharHeight, consoleNow())
 }
 
 func scaledBackgroundPic(pic *qimage.QPic, width, height int) *qimage.QPic {
@@ -380,6 +385,53 @@ func clipPrompt(prompt []rune, maxChars int) []rune {
 	clipped = append(clipped, ']')
 	clipped = append(clipped, prompt[len(prompt)-(maxChars-1):]...)
 	return clipped
+}
+
+func clipPromptWithCursor(prompt []rune, cursor, maxChars int) ([]rune, int) {
+	if maxChars <= 0 {
+		return nil, 0
+	}
+	if cursor < 1 {
+		cursor = 1
+	}
+	if cursor > len(prompt) {
+		cursor = len(prompt)
+	}
+	if len(prompt) <= maxChars {
+		return prompt, cursor
+	}
+	if maxChars == 1 {
+		return []rune{']'}, 1
+	}
+
+	content := prompt[1:]
+	contentCursor := cursor - 1
+	if contentCursor < 0 {
+		contentCursor = 0
+	}
+	window := maxChars - 1
+	start := 0
+	if contentCursor > window {
+		start = contentCursor - window
+	}
+	maxStart := len(content) - window
+	if maxStart < 0 {
+		maxStart = 0
+	}
+	if start > maxStart {
+		start = maxStart
+	}
+	visible := make([]rune, 0, maxChars)
+	visible = append(visible, ']')
+	visible = append(visible, content[start:start+window]...)
+	cursorCol := 1 + contentCursor - start
+	if cursorCol < 1 {
+		cursorCol = 1
+	}
+	if cursorCol > len(visible) {
+		cursorCol = len(visible)
+	}
+	return visible, cursorCol
 }
 
 func drawBlinkCursor(rc DrawContext, x, y int, now time.Time) {

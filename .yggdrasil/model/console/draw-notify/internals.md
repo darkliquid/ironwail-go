@@ -2,13 +2,14 @@
 
 ## Logic
 
-The draw layer recalculates console width from the current screen width, asks the console core to resize if needed, and then renders either the full drop-down overlay or just recent notify lines. Full-console rendering snapshots visible lines plus the current prompt, clips long prompts from the left, and draws a blinking cursor. Notify rendering filters recent lines by timestamp/fade state, then applies either left-aligned or centered text output depending on cvars.
+The draw layer recalculates console width from the current screen width, subtracts left/right console margins from the character width, asks the console core to resize if needed, and then renders either the full drop-down overlay or just recent notify lines. Full-console rendering snapshots visible lines plus prompt/cursor state, clips long prompts from the left while preserving the `]` prefix, and draws a blinking cursor at the clipped cursor column. Notify rendering filters recent lines by timestamp/fade state, then applies either left-aligned or centered text output depending on cvars.
 
 ## Constraints
 
 - Resize is triggered from draw, so rendering and buffer layout are tightly coupled.
 - Notify fading is visually approximated through deterministic stipple-like character omission.
 - Background scaling and prompt clipping must preserve readability across varied resolutions.
+- Prompt clipping and cursor placement must stay synchronized with mutable input cursor state from `console/input-history`.
 
 ## Decisions
 

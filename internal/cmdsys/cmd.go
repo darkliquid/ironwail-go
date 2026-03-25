@@ -65,6 +65,7 @@ type Command struct {
 	Name        string      // Canonical lowercase name used for console lookup.
 	Description string      // Human-readable help text shown by "cmdlist" or tab-completion.
 	Func        CommandFunc // Callback invoked when this command is executed.
+	Completion  func(args []string, partial string) []string
 	SourceType  CommandSource
 }
 
@@ -282,6 +283,14 @@ func (c *CmdSystem) AddCommandForSource(name string, fn CommandFunc, desc string
 		Func:        fn,
 		Description: desc,
 		SourceType:  sourceType,
+	}
+}
+
+func (c *CmdSystem) SetCommandCompletion(name string, completion func(args []string, partial string) []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cmd, ok := c.commands[strings.ToLower(name)]; ok {
+		cmd.Completion = completion
 	}
 }
 
@@ -728,6 +737,16 @@ func (c *CmdSystem) CompleteAliases(partial string) []string {
 	return matches
 }
 
+func (c *CmdSystem) CompleteCommandArgs(cmdName string, args []string, partial string) []string {
+	c.mu.RLock()
+	cmd := c.commands[strings.ToLower(cmdName)]
+	c.mu.RUnlock()
+	if cmd == nil || cmd.Completion == nil {
+		return nil
+	}
+	return cmd.Completion(args, partial)
+}
+
 // splitCommands splits a block of command text into individual command strings.
 // Commands are delimited by semicolons (;) or newlines, but these delimiters
 // are ignored inside quoted strings so that arguments containing semicolons
@@ -1026,6 +1045,14 @@ func Complete(partial string) []string {
 // CompleteAliases returns alias name completions from the global command system.
 func CompleteAliases(partial string) []string {
 	return globalCmd.CompleteAliases(partial)
+}
+
+func SetCommandCompletion(name string, completion func(args []string, partial string) []string) {
+	globalCmd.SetCommandCompletion(name, completion)
+}
+
+func CompleteCommandArgs(cmdName string, args []string, partial string) []string {
+	return globalCmd.CompleteCommandArgs(cmdName, args, partial)
 }
 
 // SetForwardFunc sets the callback for unrecognized commands on the global

@@ -1,7 +1,9 @@
 {
-  "hash": "77e8a974771fcf4e7f0682fc973f5c552fca542ed1a8ebbda98715a02d275044",
+  "hash": "2af5a363f038cf92947290e9e7110b00cb7f52f6f8830e40e429f011b3dee7f8",
   "files": {
     ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": "4e47b0560e002eb97f4e3e5977e544b84687025e5862062e81a5a061ab7d485c",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": "22fe28c45cabd066cd2ae4f7bc1eb69e84fa55114c085ca670a906105e8f7140",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": "d638ce049cfb7d98f0b693035b595fd1d04e8f7e6463542bb69f456c70e86035",
     ".yggdrasil/model/ironwailgo/startup-bootstrap/responsibility.md": "9bfc842c8c4aaadaa6f709bf1bfcf0fe619d5e31eadb2bf398e60b74adc0dd75",
     ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
     ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
@@ -9,13 +11,11 @@
     ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
     "cmd/ironwailgo/startup_args.go": "d9cf0cf0ecb652a6198a1bc0aee3103fdcd2ec1f0bb1c91ea083ebae03085b4b",
     "cmd/ironwailgo/game_init.go": "8032abfd636d30b038d13994d9913c39e4ac2a09d2329f3993fd9937feb19f85",
-    "cmd/ironwailgo/game_init_test.go": "a54e024fe1a498c3cc4bffbe02bc7abd3a258be518581d34b68b6da8681496d2",
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": "79546c47d8fedfe418d35355739d47784e054cda9359959a8e78b8ff0ac6811e",
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": "d638ce049cfb7d98f0b693035b595fd1d04e8f7e6463542bb69f456c70e86035"
+    "cmd/ironwailgo/game_init_test.go": "27bfd80f0452e04c68d55d6c57874bdd4ccc74ff61167fc3fe36a74a2936bfe2"
   },
   "mtimes": {
     ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": 1774246120438.289,
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": 1774475193292.9438,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": 1774475693767.0925,
     ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": 1774475206306.1875,
     ".yggdrasil/model/ironwailgo/startup-bootstrap/responsibility.md": 1774284755390.7458,
     ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
@@ -24,6 +24,6 @@
     ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
     "cmd/ironwailgo/startup_args.go": 1774115538136.7354,
     "cmd/ironwailgo/game_init.go": 1774475065839.7512,
-    "cmd/ironwailgo/game_init_test.go": 1774474985178.5725
+    "cmd/ironwailgo/game_init_test.go": 1774475369022.485
   }
 }

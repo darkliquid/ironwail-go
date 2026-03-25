@@ -17,6 +17,11 @@ func handleGameKeyEvent(event input.KeyEvent) {
 	if g.Input == nil {
 		return
 	}
+	if event.Down && event.Key == input.KStart && g.Menu != nil {
+		g.Menu.ToggleMenu()
+		syncGameplayInputMode()
+		return
+	}
 
 	switch g.Input.GetKeyDest() {
 	case input.KeyConsole:
@@ -30,7 +35,7 @@ func handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	if event.Key == input.KEscape && event.Down {
+	if (event.Key == input.KEscape || event.Key == input.KStart) && event.Down {
 		if g.Menu != nil {
 			g.Menu.ToggleMenu()
 		}
@@ -218,28 +223,53 @@ func handleConsoleKeyEvent(event input.KeyEvent) {
 		}
 		console.Printf("]%s\n", line)
 		cmdsys.ExecuteText(line)
-	case input.KTab:
+	case input.KTab, input.KBack:
 		line := console.InputLine()
-		completed, matches := console.CompleteInput(line, true)
+		forward := !g.Input.GetModifierState().Shift
+		completed, matches := console.CompleteInput(line, forward)
 		if len(matches) == 0 {
 			return
 		}
 		console.SetInputLine(completed)
 	case input.KBackspace:
 		armRuntimeTextEditRepeat(input.KBackspace)
-		console.BackspaceInput()
+		if g.Input.GetModifierState().Ctrl {
+			console.DeleteWordLeft()
+		} else {
+			console.BackspaceInput()
+		}
+	case input.KDel:
+		if g.Input.GetModifierState().Ctrl {
+			console.DeleteWordRight()
+		} else {
+			console.DeleteInput()
+		}
 	case input.KUpArrow:
 		console.PreviousHistory()
 	case input.KDownArrow:
 		console.NextHistory()
+	case input.KLeftArrow:
+		console.MoveCursorLeft(g.Input.GetModifierState().Ctrl)
+	case input.KRightArrow:
+		console.MoveCursorRight(g.Input.GetModifierState().Ctrl)
+	case input.KIns:
+		console.ToggleInsertMode()
 	case input.KPgUp:
 		console.Scroll(2)
 	case input.KPgDn:
 		console.Scroll(-2)
 	case input.KHome:
-		console.Scroll(console.TotalLines())
+		if g.Input.GetModifierState().Ctrl {
+			console.Scroll(console.TotalLines())
+		} else {
+			console.MoveCursorStart()
+		}
 	case input.KEnd:
-		console.Scroll(-console.TotalLines())
+		if g.Input.GetModifierState().Ctrl {
+			console.Scroll(-console.TotalLines())
+		} else {
+			console.MoveCursorEnd()
+		}
 	}
 }
 

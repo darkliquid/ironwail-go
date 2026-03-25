@@ -242,6 +242,18 @@ func TestConsoleDrawNotifyFadeStipplesLateLines(t *testing.T) {
 	}
 }
 
+func TestConsoleDrawResizesWithMargins(t *testing.T) {
+	c := NewConsole(DefaultTextSize)
+	if err := c.Init(DefaultLineWidth); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	mock := &mockRenderContext{}
+	c.Draw(mock, 80, 80, true, nil)
+	if got := c.LineWidth(); got != 8 {
+		t.Fatalf("line width = %d, want 8 (charsWide 10 minus 2 margins)", got)
+	}
+}
+
 // TestConsoleDrawUsesBackgroundPicWhenProvided tests the console background image rendering.
 // It allowing the engine to use a custom image (e.g., conback.lmp) for the console background instead of a solid color.
 // Where in C: Con_DrawConsole in console.c

@@ -13,6 +13,7 @@
 - `Register`, `Get`, `Set`, `SetFloat`, `SetInt`, `SetBool`
 - `FloatValue`, `IntValue`, `BoolValue`, `StringValue`
 - `All`, `ArchiveVars`, `Complete`
+- value completion hooks: `SetCompletion`, `CompleteValue`
 - `LockVar`, `UnlockVar`, `SetAutoCvarCallback`, `MarkAutoCvar`
 - `(*CVarSystem).MarkAutoCvar` for non-global registries (tests and isolated runtimes)
 - package-global wrappers over the singleton registry
@@ -25,3 +26,4 @@
 - `AutoCvarChanged` only runs on successful non-latched, non-locked updates of cvars marked `FlagAutoCvar`.
 - Marking a cvar as auto-cvar is supported both globally and per-registry (`MarkAutoCvar` variants).
 - `ArchiveVars` only includes `FlagArchive` vars and returns deterministic sorted output.
+- Cvars can expose value-completion callbacks used by console argument completion for cvar assignment contexts.

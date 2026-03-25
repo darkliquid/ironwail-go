@@ -217,7 +217,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	// Demo commands
 	replaceCommand("record", func(args []string) {
 		if len(args) > 0 {
-			h.CmdRecord(args[0], subs)
+			h.CmdRecord(args, subs)
 		}
 	}, "Start recording a demo")
 	replaceCommand("stop", func(args []string) {
