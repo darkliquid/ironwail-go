@@ -11,6 +11,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 ### Command families
 
 - **Map/session commands** manage local server startup, reconnect-style transitions, and changelevel/load flows.
+- **Menu commands** now include a broad C-style `menu_*` family that maps directly to menu states (`menu_main`, `menu_singleplayer`, `menu_maps`, `menu_load`, `menu_save`, `menu_multiplayer`, `menu_setup`, `menu_options`, `menu_keys`, `menu_video`, `menu_help`, `menu_quit`).
 - **Map/session command queries** include `mapname`, which now reports the real active map from `Server.GetMapName()` for local sessions or `ActiveClientState(subs).MapName` for connected clients instead of placeholder text.
 - **Map/session discovery commands** now include `mods`/`games`, which type-assert `subs.Files` to `*fs.FileSystem`, reuse `ListMods()`, and mirror C's list-or-filter count summaries without introducing a separate mod registry in host state.
 - **Game-directory switch seam** now includes `game`, which uses the same concrete `*fs.FileSystem` seam to query current gamedir, validate requested targets against `id1` plus `ListMods()`, rebuild a fresh VFS mount for the selected gamedir, atomically swap `subs.Files`, invoke the host runtime optional game-dir-changed callback so executable wiring can reload draw assets from the new mod, update host/menu current-mod state, and leave existing mounts untouched on validation/init failure.
@@ -35,6 +36,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 - Command behavior depends on command source; server-sent text is more restricted than local input.
 - Some paths require concrete server/filesystem implementations even though host otherwise programs to interfaces.
 - Map/load/changelevel behavior is parity-sensitive because it touches both host policy and client/server transition state.
+- `menu_quit` intentionally preserves `ShowQuitPrompt` callback/populated-line behavior instead of using raw state selection.
 
 ## Decisions
 
