@@ -1522,6 +1522,22 @@ func TestBuildCSQCDrawHooksCachePicParitySemantics(t *testing.T) {
 	}
 }
 
+func TestBuildCSQCDrawHooksWithActivityTracksActualDrawCalls(t *testing.T) {
+	activity := &csqcDrawActivity{}
+	dc := &csqcDrawTestContext{}
+	hooks := buildCSQCDrawHooksWithActivity(dc, activity)
+
+	hooks.DrawFill(10, 12, 20, 24, 1, 0, 0, 0, 0)
+	if activity.drew {
+		t.Fatal("activity should remain false for fully transparent draw")
+	}
+
+	hooks.DrawFill(10, 12, 20, 24, 1, 0, 0, 1, 0)
+	if !activity.drew {
+		t.Fatal("activity should become true after opaque draw")
+	}
+}
+
 func TestBuildCSQCFrameStatePopulatesCSQCExtGlobals(t *testing.T) {
 	originalHost := g.Host
 	originalClient := g.Client

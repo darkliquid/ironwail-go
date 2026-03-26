@@ -1,5 +1,5 @@
 {
-  "hash": "a324a4f4284845014a3f4a556f36036fb4ef57f7cbd4dd949c1e4e6b725f9fb1",
+  "hash": "9dfadcab7274025ef83308c18415705fdeac312b44fc3aabc0e6ce371f9ad80c",
   "files": {
     ".yggdrasil/model/ironwailgo/app-shell/yg-node.yaml": "c5bd2b5f955b9c9a8cfa5342c19797d6789d8b3c5ff36be2c31cfcd821a5131f",
     ".yggdrasil/model/ironwailgo/app-shell/interface.md": "2ddbdec4033e8df735bbf19b9fef7163e2898951078b754ffa4cb59bf29211b5",
@@ -8,20 +8,20 @@
     ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
     ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
     ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
-    ".yggdrasil/model/ironwailgo/app-shell/internals.md": "3ab5459e999daf9c3e179a816674c8cc6dc7955f4e365bcdced0033d21828bf3",
-    "cmd/ironwailgo/main.go": "e342fa500ed0d9d31a830f1f9a4fe6f72659cc1ff6f1c45268fcf124cf5e316c",
-    "cmd/ironwailgo/main_test.go": "49dbe22098d5ae4b8feea819366a5c903044215fd02e3c027a661ec92f611f8d"
+    ".yggdrasil/model/ironwailgo/app-shell/internals.md": "a7750c0946e162c4b17a21ffbaa7834fb29f0dfc59706f133c102192d0350d39",
+    "cmd/ironwailgo/main.go": "f5d54c20429e5c8bfb2490df7411bd39be7434d316bba95d3b363e6f6391ddc1",
+    "cmd/ironwailgo/main_test.go": "77f41376b13719509f4c01a8a01526ecf2de2e2f5fdb005e64b6f8d6440c5f09"
   },
   "mtimes": {
     ".yggdrasil/model/ironwailgo/app-shell/yg-node.yaml": 1774246120438.0808,
     ".yggdrasil/model/ironwailgo/app-shell/interface.md": 1774505699818.651,
-    ".yggdrasil/model/ironwailgo/app-shell/internals.md": 1774506972386.21,
+    ".yggdrasil/model/ironwailgo/app-shell/internals.md": 1774508950117.7036,
     ".yggdrasil/model/ironwailgo/app-shell/responsibility.md": 1774246120438.132,
     ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
     ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
     ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
     ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
-    "cmd/ironwailgo/main.go": 1774506784727.214,
-    "cmd/ironwailgo/main_test.go": 1774506937767.0642
+    "cmd/ironwailgo/main.go": 1774508933650.6628,
+    "cmd/ironwailgo/main_test.go": 1774509005601.8303
   }
 }

@@ -362,6 +362,16 @@ type csqcClipRect struct {
 	height  float32
 }
 
+type csqcDrawActivity struct {
+	drew bool
+}
+
+func (a *csqcDrawActivity) mark() {
+	if a != nil {
+		a.drew = true
+	}
+}
+
 func clampUnitFloat32(v float32) float32 {
 	if v < 0 {
 		return 0
@@ -521,7 +531,7 @@ func prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW
 	return int(drawX), int(drawY), drawPic, true
 }
 
-func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
+func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDrawActivity) qc.CSQCDrawHooks {
 	var clip csqcClipRect
 
 	return qc.CSQCDrawHooks{
@@ -549,9 +559,16 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 			return float32(pic.Width), float32(pic.Height)
 		},
 		DrawCharacter: func(posX, posY float32, char int, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
+			if alpha <= 0 {
+				return
+			}
 			rc.DrawCharacter(int(posX), int(posY), char)
+			activity.mark()
 		},
 		DrawString: func(posX, posY float32, text string, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int, useColors bool) {
+			if alpha <= 0 || text == "" {
+				return
+			}
 			step := int(sizeX)
 			if step <= 0 {
 				step = 8
@@ -561,6 +578,7 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 				rc.DrawCharacter(x, int(posY), int(ch))
 				x += step
 			}
+			activity.mark()
 		},
 		DrawPic: func(posX, posY float32, name string, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
 			if alpha <= 0 {
@@ -575,6 +593,7 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 				return
 			}
 			rc.DrawPic(x, y, drawPic)
+			activity.mark()
 		},
 		DrawFill: func(posX, posY float32, sizeX, sizeY float32, red, green, blue, alpha float32, drawflag int) {
 			if alpha <= 0 {
@@ -590,6 +609,7 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 			}
 			color := nearestPaletteIndex(red, green, blue, palette)
 			rc.DrawFill(int(x), int(y), int(width), int(height), color)
+			activity.mark()
 		},
 		DrawSubPic: func(posX, posY float32, sizeX, sizeY float32, name string, srcX, srcY, srcW, srcH float32, r, g, b, alpha float32, drawflag int) {
 			if alpha <= 0 {
@@ -604,6 +624,7 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 				return
 			}
 			rc.DrawPic(x, y, drawPic)
+			activity.mark()
 		},
 		SetClipArea: func(x, y, width, height float32) {
 			clip = csqcClipRect{enabled: true, x: x, y: y, width: width, height: height}
@@ -619,6 +640,10 @@ func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 			return count * fontSizeX
 		},
 	}
+}
+
+func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
+	return buildCSQCDrawHooksWithActivity(rc, nil)
 }
 
 // wireCSQCDrawHooks connects CSQC drawing builtins to a RenderContext.
@@ -652,8 +677,9 @@ func drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
 		return false
 	}
 
+	activity := &csqcDrawActivity{}
 	rc.SetCanvas(renderer.CanvasCSQC)
-	wireCSQCDrawHooks(rc)
+	qc.SetCSQCDrawHooks(buildCSQCDrawHooksWithActivity(rc, activity))
 
 	frameState := buildCSQCFrameState()
 	canvas := rc.Canvas()
@@ -664,7 +690,7 @@ func drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
 		slog.Error("CSQC_DrawHud failed", "error", err)
 		return false
 	}
-	if !drewHUD {
+	if !drewHUD && !activity.drew {
 		return false
 	}
 	if showScores && g.CSQC.HasDrawScores() {
