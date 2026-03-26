@@ -1154,6 +1154,14 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 	if gotLevels[0] != wantLevel {
 		t.Fatalf("changelevel target = %q, want %q", gotLevels[0], wantLevel)
 	}
+
+	// Touch the trigger again before a host-side changelevel reset runs. QC can
+	// refire in this window, but the server should guard duplicate enqueueing.
+	s.touchLinks(player)
+	cmdsys.Execute()
+	if len(gotLevels) != 1 {
+		t.Fatalf("duplicate trigger touch queued extra changelevel: %v", gotLevels)
+	}
 }
 
 func TestRunClientSpawnQCRelinksClientAfterQCSpawnMove(t *testing.T) {

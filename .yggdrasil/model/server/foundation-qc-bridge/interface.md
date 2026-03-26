@@ -16,6 +16,7 @@
 - narrow edict-capacity bridge (`DevStatsEdictCounters`) that returns the active dev-stats edict count plus configured server max-edicts capacity for focused diagnostics
 - Go↔QC synchronization helpers for globals and edicts
 - builtin write-buffer routing for `MSG_ALL`, QC `checkbottom` bridging, and default server-rule cvar registration used by isolated server tests
+- QC builtin bridge hook `IssueChangeLevel(level)` now marks `ServerStatic.ChangeLevelIssued` before queueing command-buffer `changelevel <map>`, so duplicate QC trigger firings in the same transition window do not queue repeated map restarts.
 
 ## Contracts
 

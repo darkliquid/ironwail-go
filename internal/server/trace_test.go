@@ -7,6 +7,42 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
+func newOwnerSkipTraceServer(t *testing.T) (*Server, *Edict, *Edict, int) {
+	t.Helper()
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.WorldModel = CreateSyntheticWorldModel()
+	if len(s.Edicts) == 0 || s.Edicts[0] == nil {
+		t.Fatal("missing world edict")
+	}
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+
+	owner := s.AllocEdict()
+	projectile := s.AllocEdict()
+	if owner == nil || projectile == nil {
+		t.Fatal("failed to allocate edicts")
+	}
+	ownerNum := s.NumForEdict(owner)
+
+	owner.Vars.Origin = [3]float32{0, 0, 128}
+	owner.Vars.Mins = [3]float32{-16, -16, -16}
+	owner.Vars.Maxs = [3]float32{16, 16, 16}
+	owner.Vars.Solid = float32(SolidBBox)
+	s.LinkEdict(owner, false)
+
+	projectile.Vars.Origin = [3]float32{-64, 0, 128}
+	projectile.Vars.Mins = [3]float32{}
+	projectile.Vars.Maxs = [3]float32{}
+	projectile.Vars.Solid = float32(SolidBBox)
+	projectile.Vars.MoveType = float32(MoveTypeFlyMissile)
+	s.LinkEdict(projectile, false)
+
+	return s, owner, projectile, ownerNum
+}
+
 func TestMoveAgainstBoxWorld(t *testing.T) {
 	s := newMovementTestServer()
 
@@ -45,6 +81,27 @@ func TestMoveThroughEmptySpace(t *testing.T) {
 
 	if trace.Fraction != 1 {
 		t.Fatalf("expected no collision (fraction==1), got %v", trace.Fraction)
+	}
+}
+
+func TestMoveMissileSkipsOwnerEdictRef(t *testing.T) {
+	s, owner, projectile, ownerNum := newOwnerSkipTraceServer(t)
+	projectile.Vars.Owner = int32(ownerNum)
+
+	trace := s.Move(projectile.Vars.Origin, projectile.Vars.Mins, projectile.Vars.Maxs, owner.Vars.Origin, MoveMissile, projectile)
+	if trace.Entity == owner {
+		t.Fatal("missile move clipped against owner with edict-number owner ref")
+	}
+}
+
+func TestMoveMissileSkipsOwnerQCOffsetRef(t *testing.T) {
+	s, owner, projectile, ownerNum := newOwnerSkipTraceServer(t)
+	s.QCVM.EdictSize = 223
+	projectile.Vars.Owner = int32(ownerNum * s.QCVM.EdictSize)
+
+	trace := s.Move(projectile.Vars.Origin, projectile.Vars.Mins, projectile.Vars.Maxs, owner.Vars.Origin, MoveMissile, projectile)
+	if trace.Entity == owner {
+		t.Fatal("missile move clipped against owner with QC offset owner ref")
 	}
 }
 

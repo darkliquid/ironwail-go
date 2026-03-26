@@ -659,8 +659,12 @@ func drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
 	canvas := rc.Canvas()
 	virtW := canvas.Right - canvas.Left
 	virtH := canvas.Bottom - canvas.Top
-	if err := g.CSQC.CallDrawHud(frameState, virtW, virtH, showScores); err != nil {
+	drewHUD, err := g.CSQC.CallDrawHud(frameState, virtW, virtH, showScores)
+	if err != nil {
 		slog.Error("CSQC_DrawHud failed", "error", err)
+		return false
+	}
+	if !drewHUD {
 		return false
 	}
 	if showScores && g.CSQC.HasDrawScores() {

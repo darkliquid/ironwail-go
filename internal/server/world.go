@@ -868,10 +868,10 @@ func (s *Server) clipToLinks(node *AreaNode, clip *moveClip) {
 
 		// Don't clip against own missiles or owner
 		if clip.passedict != nil {
-			if ent.Vars.Owner != 0 && s.EdictNum(int(ent.Vars.Owner)) == clip.passedict {
+			if owner := s.edictFromEntRef(ent.Vars.Owner); owner == clip.passedict {
 				continue
 			}
-			if clip.passedict.Vars.Owner != 0 && s.EdictNum(int(clip.passedict.Vars.Owner)) == ent {
+			if owner := s.edictFromEntRef(clip.passedict.Vars.Owner); owner == ent {
 				continue
 			}
 		}
@@ -912,6 +912,23 @@ func (s *Server) clipToLinks(node *AreaNode, clip *moveClip) {
 	if clip.boxMins[node.Axis] < node.Dist && node.Children[1] != nil {
 		s.clipToLinks(node.Children[1], clip)
 	}
+}
+
+func (s *Server) edictFromEntRef(ref int32) *Edict {
+	if s == nil || ref == 0 {
+		return nil
+	}
+	if ent := s.EdictNum(int(ref)); ent != nil {
+		return ent
+	}
+	if s.QCVM == nil || s.QCVM.EdictSize <= 0 {
+		return nil
+	}
+	raw := int(ref)
+	if raw <= 0 || raw%s.QCVM.EdictSize != 0 {
+		return nil
+	}
+	return s.EdictNum(raw / s.QCVM.EdictSize)
 }
 
 // Move traces a move from start to end with the given bounding box.

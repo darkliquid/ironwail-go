@@ -25,46 +25,47 @@ type BuiltinTraceResult struct {
 }
 
 type ServerBuiltinHooks struct {
-	Traceline      func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult
-	Spawn          func(vm *VM) (int, error)
-	Remove         func(vm *VM, entNum int) error
-	Find           func(vm *VM, startEnt, fieldOfs int, match string) int
-	FindFloat      func(vm *VM, startEnt, fieldOfs int, match float32) int
-	FindRadius     func(vm *VM, org [3]float32, radius float32) int
-	CheckClient    func(vm *VM) int
-	NextEnt        func(vm *VM, entNum int) int
-	CheckBottom    func(vm *VM, entNum int) bool
-	PointContents  func(vm *VM, point [3]float32) int
-	Aim            func(vm *VM, entNum int, missileSpeed float32) [3]float32
-	WalkMove       func(vm *VM, yaw, dist float32) bool
-	DropToFloor    func(vm *VM) bool
-	SetOrigin      func(vm *VM, entNum int, org [3]float32)
-	SetSize        func(vm *VM, entNum int, mins, maxs [3]float32)
-	SetModel       func(vm *VM, entNum int, modelName string)
-	PrecacheSound  func(vm *VM, sample string)
-	PrecacheModel  func(vm *VM, modelName string)
-	BroadcastPrint func(vm *VM, msg string)
-	ClientPrint    func(vm *VM, entNum int, msg string)
-	DebugPrint     func(vm *VM, msg string)
-	CenterPrint    func(vm *VM, entNum int, msg string)
-	Sound          func(vm *VM, entNum, channel int, sample string, volume int, attenuation float32)
-	StuffCmd       func(vm *VM, entNum int, cmd string)
-	LightStyle     func(vm *VM, style int, value string)
-	Particle       func(vm *VM, org, dir [3]float32, color, count int)
-	LocalSound     func(vm *VM, entNum int, sample string)
-	WriteByte      func(vm *VM, dest, value int)
-	WriteChar      func(vm *VM, dest, value int)
-	WriteShort     func(vm *VM, dest, value int)
-	WriteLong      func(vm *VM, dest int, value int32)
-	WriteCoord     func(vm *VM, dest int, value float32)
-	WriteAngle     func(vm *VM, dest int, value float32)
-	WriteString    func(vm *VM, dest int, value string)
-	WriteEntity    func(vm *VM, dest, entNum int)
-	SetSpawnParms  func(vm *VM, entNum int)
-	MakeStatic     func(vm *VM, entNum int)
-	AmbientSound   func(vm *VM, org [3]float32, sample string, volume int, attenuation float32)
-	MoveToGoal     func(vm *VM, dist float32)
-	ChangeYaw      func(vm *VM)
+	Traceline        func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult
+	Spawn            func(vm *VM) (int, error)
+	Remove           func(vm *VM, entNum int) error
+	Find             func(vm *VM, startEnt, fieldOfs int, match string) int
+	FindFloat        func(vm *VM, startEnt, fieldOfs int, match float32) int
+	FindRadius       func(vm *VM, org [3]float32, radius float32) int
+	CheckClient      func(vm *VM) int
+	NextEnt          func(vm *VM, entNum int) int
+	CheckBottom      func(vm *VM, entNum int) bool
+	PointContents    func(vm *VM, point [3]float32) int
+	Aim              func(vm *VM, entNum int, missileSpeed float32) [3]float32
+	WalkMove         func(vm *VM, yaw, dist float32) bool
+	DropToFloor      func(vm *VM) bool
+	SetOrigin        func(vm *VM, entNum int, org [3]float32)
+	SetSize          func(vm *VM, entNum int, mins, maxs [3]float32)
+	SetModel         func(vm *VM, entNum int, modelName string)
+	PrecacheSound    func(vm *VM, sample string)
+	PrecacheModel    func(vm *VM, modelName string)
+	BroadcastPrint   func(vm *VM, msg string)
+	ClientPrint      func(vm *VM, entNum int, msg string)
+	DebugPrint       func(vm *VM, msg string)
+	CenterPrint      func(vm *VM, entNum int, msg string)
+	Sound            func(vm *VM, entNum, channel int, sample string, volume int, attenuation float32)
+	StuffCmd         func(vm *VM, entNum int, cmd string)
+	LightStyle       func(vm *VM, style int, value string)
+	Particle         func(vm *VM, org, dir [3]float32, color, count int)
+	LocalSound       func(vm *VM, entNum int, sample string)
+	WriteByte        func(vm *VM, dest, value int)
+	WriteChar        func(vm *VM, dest, value int)
+	WriteShort       func(vm *VM, dest, value int)
+	WriteLong        func(vm *VM, dest int, value int32)
+	WriteCoord       func(vm *VM, dest int, value float32)
+	WriteAngle       func(vm *VM, dest int, value float32)
+	WriteString      func(vm *VM, dest int, value string)
+	WriteEntity      func(vm *VM, dest, entNum int)
+	SetSpawnParms    func(vm *VM, entNum int)
+	MakeStatic       func(vm *VM, entNum int)
+	AmbientSound     func(vm *VM, org [3]float32, sample string, volume int, attenuation float32)
+	MoveToGoal       func(vm *VM, dist float32)
+	ChangeYaw        func(vm *VM)
+	IssueChangeLevel func(vm *VM, level string) bool
 }
 
 var serverBuiltinHooks ServerBuiltinHooks
@@ -471,7 +472,17 @@ func precacheFile(vm *VM) {
 	vm.SetGInt(OFSReturn, vm.GInt(OFSParm0))
 }
 func changelevel(vm *VM) {
-	cmdsys.AddText("changelevel " + vm.GString(OFSParm0) + "\n")
+	level := strings.TrimSpace(vm.GString(OFSParm0))
+	if level == "" {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+	if serverBuiltinHooks.IssueChangeLevel != nil {
+		serverBuiltinHooks.IssueChangeLevel(vm, level)
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+	cmdsys.AddText("changelevel " + level + "\n")
 	vm.SetGFloat(OFSReturn, 0)
 }
 func finaleFinished(vm *VM) {

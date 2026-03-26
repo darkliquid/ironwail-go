@@ -30,8 +30,10 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/compatrand"
 	"github.com/ironwail/ironwail-go/internal/console"
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -1477,6 +1479,15 @@ func NewServer() *Server {
 			syncEdictFromQCVM(vm, entNum, ent)
 			s.changeYaw(ent)
 			syncEdictToQCVM(vm, entNum, ent)
+		},
+		IssueChangeLevel: func(vm *qc.VM, level string) bool {
+			level = strings.TrimSpace(level)
+			if level == "" || s.Static == nil || s.Static.ChangeLevelIssued {
+				return false
+			}
+			s.Static.ChangeLevelIssued = true
+			cmdsys.AddText("changelevel " + level + "\n")
+			return true
 		},
 	}))
 	return s

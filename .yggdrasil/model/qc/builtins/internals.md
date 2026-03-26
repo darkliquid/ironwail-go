@@ -6,6 +6,8 @@ Builtins are registered by number onto the VM’s builtin table. Many builtins a
 
 The hook interface separates builtin behavior from concrete server implementation so the VM does not import server internals directly.
 
+`changelevel()` now trims map text and first delegates to the optional `IssueChangeLevel` hook. This lets server-owned transition guards decide whether to queue a changelevel command (for example, dropping duplicate QC trigger fires in the same intermission). If no hook is installed, builtin behavior remains command-buffer enqueue parity.
+
 The DP/FTE-style trig extension slots map directly to Go's `math` package without degree conversion so they match C `sin/cos/tan/asin/acos/atan/atan2` behavior. Quake angle-degree helpers like `makevectors`, `vectoyaw`, and `vectoangles` remain separate builtins with their own degree-based conventions.
 
 `substring()` mirrors the C helper's byte-oriented slicing rules instead of clamping everything to non-negative bounds. Negative `start` is applied relative to the string end, negative `length` is rewritten as "remaining chars after start, minus tail trim", and non-positive effective lengths return the empty string.

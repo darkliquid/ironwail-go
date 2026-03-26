@@ -94,6 +94,9 @@ type ServerHooks interface {
 	// MoveToGoal/ChangeYaw are AI helpers invoked by QuakeC.
 	MoveToGoal(vm *VM, dist float32)
 	ChangeYaw(vm *VM)
+
+	// IssueChangeLevel requests a map transition command and returns true if accepted.
+	IssueChangeLevel(vm *VM, level string) bool
 }
 
 type serverBuiltinHooksAdapter struct {
@@ -360,6 +363,13 @@ func (a serverBuiltinHooksAdapter) ChangeYaw(vm *VM) {
 	}
 }
 
+func (a serverBuiltinHooksAdapter) IssueChangeLevel(vm *VM, level string) bool {
+	if a.hooks.IssueChangeLevel == nil {
+		return false
+	}
+	return a.hooks.IssueChangeLevel(vm, level)
+}
+
 // RegisterServerHooks adapts a ServerHooks implementation to the
 // legacy `ServerBuiltinHooks` struct used by existing builtins. This
 // helper enables code that already calls `SetServerBuiltinHooks` to
@@ -423,7 +433,8 @@ func RegisterServerHooks(h ServerHooks) {
 		AmbientSound: func(vm *VM, org [3]float32, sample string, volume int, attenuation float32) {
 			h.AmbientSound(vm, org, sample, volume, attenuation)
 		},
-		MoveToGoal: func(vm *VM, dist float32) { h.MoveToGoal(vm, dist) },
-		ChangeYaw:  func(vm *VM) { h.ChangeYaw(vm) },
+		MoveToGoal:       func(vm *VM, dist float32) { h.MoveToGoal(vm, dist) },
+		ChangeYaw:        func(vm *VM) { h.ChangeYaw(vm) },
+		IssueChangeLevel: func(vm *VM, level string) bool { return h.IssueChangeLevel(vm, level) },
 	})
 }

@@ -219,15 +219,17 @@ func (c *CSQC) CallShutdown() error {
 
 // CallDrawHud calls CSQC_DrawHud.
 // Parameters: (vector virtSize, float showScores).
-func (c *CSQC) CallDrawHud(state CSQCFrameState, virtSizeX, virtSizeY float32, showScores bool) error {
+// It returns whether CSQC explicitly reported that it drew the HUD.
+func (c *CSQC) CallDrawHud(state CSQCFrameState, virtSizeX, virtSizeY float32, showScores bool) (bool, error) {
 	if !c.loaded {
-		return fmt.Errorf("csqc: not loaded")
+		return false, fmt.Errorf("csqc: not loaded")
 	}
 	if c.drawHudFunc < 0 {
-		return fmt.Errorf("csqc: required function CSQC_DrawHud not found")
+		return false, fmt.Errorf("csqc: required function CSQC_DrawHud not found")
 	}
 
 	c.SyncGlobals(state)
+	c.VM.SetGFloat(OFSReturn, 0)
 	c.VM.SetGVector(OFSParm0, [3]float32{virtSizeX, virtSizeY, 0})
 	if showScores {
 		c.VM.SetGFloat(OFSParm1, 1)
@@ -236,9 +238,9 @@ func (c *CSQC) CallDrawHud(state CSQCFrameState, virtSizeX, virtSizeY float32, s
 	}
 
 	if err := c.VM.ExecuteProgram(c.drawHudFunc); err != nil {
-		return fmt.Errorf("csqc: call CSQC_DrawHud: %w", err)
+		return false, fmt.Errorf("csqc: call CSQC_DrawHud: %w", err)
 	}
-	return nil
+	return c.VM.GFloat(OFSReturn) != 0, nil
 }
 
 // CallDrawScores calls CSQC_DrawScores when available.

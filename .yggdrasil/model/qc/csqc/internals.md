@@ -6,6 +6,7 @@
 
 It maintains separate registries for precached models, sounds, and pics so client-side scripts can refer to stable resource indices.
 The CSQC timing regression test allocates globals through `OFSFrameTime+1` before calling `SyncGlobals`, matching the VM contract that both `OFSTime` and `OFSFrameTime` are always written during sync.
+`CallDrawHud` now uses QuakeC return semantics (`OFSReturn`) to decide whether CSQC claimed HUD ownership for the frame, and explicitly seeds `OFSReturn=0` before execution so stale VM return state cannot suppress native HUD fallback.
 
 ## Constraints
 
@@ -13,6 +14,7 @@ The CSQC timing regression test allocates globals through `OFSFrameTime+1` befor
 - Per-frame state must be synchronized into globals before entry-point execution.
 - CSQC behavior depends on hook availability for draw and client-state queries.
 - `cltime` uses host realtime while `time` (`OFSTime`) keeps client simulation time for C-compatible timing semantics.
+- HUD ownership reported by `CSQC_DrawHud` is interpreted from `OFSReturn`; callers must not assume that successful execution means the HUD was drawn.
 
 ## Decisions
 

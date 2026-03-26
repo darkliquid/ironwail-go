@@ -197,3 +197,56 @@ func TestCSQCSyncGlobalsUsesRealtimeForCltime(t *testing.T) {
 		t.Fatalf("time global = %v, want client time 2.25", got)
 	}
 }
+
+func TestCSQCCallDrawHudUsesProgramReturnValue(t *testing.T) {
+	csqc := NewCSQC()
+	csqc.loaded = true
+	csqc.drawHudFunc = 0
+	csqc.VM.Globals = make([]float32, 64)
+	csqc.VM.Functions = []DFunction{
+		{FirstStatement: 0},
+	}
+	csqc.VM.Statements = []DStatement{
+		{Op: uint16(OPDone), A: uint16(OFSParm1)},
+	}
+
+	drewHUD, err := csqc.CallDrawHud(CSQCFrameState{}, 320, 200, false)
+	if err != nil {
+		t.Fatalf("CallDrawHud(false) error = %v", err)
+	}
+	if drewHUD {
+		t.Fatal("CallDrawHud(false) = true, want false")
+	}
+
+	drewHUD, err = csqc.CallDrawHud(CSQCFrameState{}, 320, 200, true)
+	if err != nil {
+		t.Fatalf("CallDrawHud(true) error = %v", err)
+	}
+	if !drewHUD {
+		t.Fatal("CallDrawHud(true) = false, want true")
+	}
+}
+
+func TestCSQCCallDrawHudClearsStaleReturnBeforeExecute(t *testing.T) {
+	csqc := NewCSQC()
+	csqc.loaded = true
+	csqc.drawHudFunc = 0
+	csqc.VM.Globals = make([]float32, 64)
+	csqc.VM.Functions = []DFunction{
+		{FirstStatement: 0},
+	}
+	// Explicitly return OFSReturn without writing a new value first.
+	// CallDrawHud must clear stale return state before execution.
+	csqc.VM.Statements = []DStatement{
+		{Op: uint16(OPDone), A: uint16(OFSReturn)},
+	}
+	csqc.VM.SetGFloat(OFSReturn, 1)
+
+	drewHUD, err := csqc.CallDrawHud(CSQCFrameState{}, 320, 200, false)
+	if err != nil {
+		t.Fatalf("CallDrawHud() error = %v", err)
+	}
+	if drewHUD {
+		t.Fatal("CallDrawHud() = true from stale OFSReturn, want false")
+	}
+}

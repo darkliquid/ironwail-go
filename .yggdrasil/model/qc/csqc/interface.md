@@ -12,6 +12,7 @@ Observed surfaces:
 - `IsLoaded()`
 - `HasDrawScores()`
 - `SyncGlobals(...)`
+- `CallDrawHud(...)` (returns whether CSQC reports that HUD draw occurred)
 - CSQC entry-point execution paths through the wrapped VM
 
 ## Contracts
@@ -21,3 +22,4 @@ Observed surfaces:
 - Draw/client behavior depends on caller-supplied hook implementations.
 - Runtime integration supports bootstrap-time CSQC load (`csprogs.dat` fallback `progs.dat`) plus optional `CSQC_Init` execution with Ironwail engine metadata.
 - Global sync contract mirrors C timing split: `cltime` uses realtime while legacy `time` global remains client simulation time.
+- `CallDrawHud` clears stale `OFSReturn` before invoking `CSQC_DrawHud` and treats the post-call return value (`OFSReturn != 0`) as the source of truth for whether CSQC actually drew HUD content.
