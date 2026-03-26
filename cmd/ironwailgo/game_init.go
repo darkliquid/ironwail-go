@@ -78,7 +78,7 @@ func registerRendererLightingAndParticleCvars(register func(name, defaultValue s
 	register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
 	register(renderer.CvarRParticles, "2", cvar.FlagArchive, "Particle blend mode (1=alpha, 2=opaque)")
 	register(renderer.CvarRNoLerpList, "progs/flame.mdl progs/flame2.mdl progs/braztall.mdl progs/brazshrt.mdl progs/longtrch.mdl progs/flame_pyre.mdl progs/v_saw.mdl progs/v_xfist.mdl progs/h2stuff/newfire.mdl", cvar.FlagArchive, "Space-separated list of model names to force no alias frame lerp")
-	register(renderer.CvarGLTextureMode, "GL_NEAREST", cvar.FlagArchive, "OpenGL texture filter mode for world textures")
+	register(renderer.CvarGLTextureMode, "GL_LINEAR_MIPMAP_NEAREST", cvar.FlagArchive, "OpenGL texture filter mode for world textures")
 	register(renderer.CvarGLLodBias, "0", cvar.FlagArchive, "OpenGL texture LOD bias for world textures")
 	register(renderer.CvarGLAnisotropy, "1", cvar.FlagArchive, "OpenGL texture anisotropy amount (>=1)")
 }

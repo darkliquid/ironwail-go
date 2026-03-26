@@ -181,6 +181,7 @@ func uploadWorldTextureRGBAWithFilters(width, height int, rgba []byte, minFilter
 	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter)
+	gl.GenerateMipmap(gl.TEXTURE_2D)
 	gl.TexParameterf(gl.TEXTURE_2D, gl.TEXTURE_LOD_BIAS, readTextureLodBias())
 	gl.TexParameterf(gl.TEXTURE_2D, gl.TEXTURE_MAX_ANISOTROPY, readTextureAnisotropy())
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
