@@ -206,6 +206,13 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		// Mirrors C Ironwail's GL_Set2D() before the 2D overlay pass.
 		// Without this, 2D quads are back-face culled when no 3D scene
 		// rendered first (e.g., main menu at boot with no map loaded).
+		//
+		// Re-enable alpha blending here because world/oit/polyblend paths can
+		// leave GL_BLEND disabled after the 3D passes complete. Menu backdrop
+		// and console fades rely on SRC_ALPHA blending to preserve the world
+		// scene behind overlays instead of drawing opaque black fills.
+		gl.Enable(gl.BLEND)
+		gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 		gl.Disable(gl.DEPTH_TEST)
 		gl.Disable(gl.CULL_FACE)
 		draw2DOverlay(dc)
