@@ -8,6 +8,8 @@ CSQC draw hooks now route pic lookups through a parity cache bridge that matches
 Frame-state assembly also now publishes CSQC extglobals from runtime host/client state, including realtime-backed `cltime`, intermission timing, local player numbers/entities, and client command frame.
 When CSQC is loaded, the runtime loop now treats CSQC HUD rendering as successful only after `CallDrawHud` returns nil; otherwise it logs the CSQC error and immediately falls back to native HUD rendering for that frame. This keeps HUD overlays visible under CSQC runtime failures instead of blanking the entire HUD path while still honoring CSQC ownership on successful frames.
 
+The runtime console-forced-up gate now uses a dedicated helper that considers `client.State == StateActive` authoritative and only falls back to signon-count checks while not active. This mirrors Quake's effective runtime readiness better during demo playback/live transitions where signon counters can temporarily lag state changes, and it prevents HUD/overlay suppression in OpenGL frames that were previously misclassified as forced-console mode.
+
 Intermission parity regression coverage in `main_test.go` now asserts that runtime HUD state keeps intermission overlays visible even when key destination is console/message/menu. This aligns shell behavior with C Ironwail's top-level screen path, where intermission draw is keyed off intermission state rather than focus-mode suppression.
 
 Effect-source regression coverage in `main_test.go` now includes a rocket-model case (`model.EFRocket` with `state.Effects == 0`) to ensure command-layer collection keeps rocket light sources that renderer effect lights consume.

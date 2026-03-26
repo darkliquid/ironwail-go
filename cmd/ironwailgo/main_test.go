@@ -5242,6 +5242,31 @@ func TestDrawRuntimeHUDLayerFallsBackToNativeHUDWhenCSQCDrawFails(t *testing.T) 
 	}
 }
 
+func TestRuntimeConsoleForcedUpUsesClientStateWhenActive(t *testing.T) {
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Client = originalClient
+	})
+
+	g.Client = nil
+	if !runtimeConsoleForcedUp() {
+		t.Fatal("runtimeConsoleForcedUp() = false, want true when client is nil")
+	}
+
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateConnected
+	g.Client.Signon = 0
+	if !runtimeConsoleForcedUp() {
+		t.Fatal("runtimeConsoleForcedUp() = false, want true while client not active")
+	}
+
+	g.Client.State = cl.StateActive
+	g.Client.Signon = 0
+	if runtimeConsoleForcedUp() {
+		t.Fatal("runtimeConsoleForcedUp() = true, want false when client state is active")
+	}
+}
+
 func TestGameplayBindCommandsAndDispatch(t *testing.T) {
 	originalInput := g.Input
 	originalClient := g.Client

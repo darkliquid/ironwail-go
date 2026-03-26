@@ -689,6 +689,16 @@ func drawRuntimeHUDLayer(rc renderer.RenderContext, w, h int, telemetryState *ru
 	}
 }
 
+func runtimeConsoleForcedUp() bool {
+	if g.Client == nil {
+		return true
+	}
+	if g.Client.State == cl.StateActive {
+		return false
+	}
+	return g.Client.Signon < cl.Signons
+}
+
 func main() {
 	// Logger initialization is handled in logger_*.go files based on build tags
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
@@ -797,7 +807,7 @@ func main() {
 				updateRuntimeTextEditRepeat(dt)
 			}
 			consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
-			conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
+			conForcedup := runtimeConsoleForcedUp()
 			updateRuntimeConsoleSlide(dt, consoleVisible, conForcedup)
 
 			transientEvents := runRuntimeFrame(dt, cb)
@@ -863,7 +873,7 @@ func main() {
 					// con_forcedup: when disconnected or not fully signed on,
 					// force full console behind everything (mirrors C Ironwail
 					// gl_screen.c:1511: con_forcedup = !cl.worldmodel || cls.signon != SIGNONS)
-					conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
+					conForcedup := runtimeConsoleForcedUp()
 
 					// Begin 2D overlay with default canvas.
 					overlay.SetCanvas(renderer.CanvasDefault)
@@ -939,7 +949,7 @@ func main() {
 				return
 			}
 			// con_forcedup for gogpu path
-			conForcedup := g.Client == nil || g.Client.Signon < cl.Signons
+			conForcedup := runtimeConsoleForcedUp()
 			if conForcedup {
 				// In gogpu path we just show menu over black
 			}
