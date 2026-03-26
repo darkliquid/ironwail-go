@@ -7,14 +7,15 @@ package renderer
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
+	"sort"
+	"strings"
+
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
-	"log/slog"
-	"sort"
-	"strings"
 )
 
 type glWorldMesh struct {
@@ -148,12 +149,14 @@ func parseGLTextureMode(mode string) (minFilter, magFilter int32) {
 		return gl.LINEAR, gl.LINEAR
 	case "GL_NEAREST_MIPMAP_NEAREST":
 		return gl.NEAREST_MIPMAP_NEAREST, gl.NEAREST
+	case "GL_NEAREST_MIPMAP_LINEAR":
+		return gl.NEAREST_MIPMAP_LINEAR, gl.NEAREST
 	case "GL_LINEAR_MIPMAP_NEAREST":
 		return gl.LINEAR_MIPMAP_NEAREST, gl.LINEAR
 	case "GL_LINEAR_MIPMAP_LINEAR":
 		return gl.LINEAR_MIPMAP_LINEAR, gl.LINEAR
 	default:
-		return gl.NEAREST_MIPMAP_LINEAR, gl.NEAREST
+		return gl.NEAREST, gl.NEAREST
 	}
 }
 
