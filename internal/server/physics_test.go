@@ -350,6 +350,46 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	}
 }
 
+func TestSVWalkMoveStepDownDoesNotGroundNonBSPMover(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.WorldModel = CreateSyntheticWorldModel()
+	s.Edicts[0].Vars.Solid = float32(SolidBSP)
+	s.ClearWorld()
+
+	obstacle := s.AllocEdict()
+	if obstacle == nil {
+		t.Fatal("failed to allocate obstacle")
+	}
+	obstacle.Vars.Solid = float32(SolidBBox)
+	obstacle.Vars.Origin = [3]float32{32, 0, 8}
+	obstacle.Vars.Mins = [3]float32{-8, -32, -8}
+	obstacle.Vars.Maxs = [3]float32{8, 32, 8}
+	s.LinkEdict(obstacle, false)
+
+	ent := s.AllocEdict()
+	if ent == nil {
+		t.Fatal("failed to allocate mover")
+	}
+	ent.Vars.MoveType = float32(MoveTypeWalk)
+	ent.Vars.Solid = float32(SolidSlideBox)
+	ent.Vars.Flags = float32(FlagOnGround)
+	ent.Vars.Mins = [3]float32{-16, -16, -24}
+	ent.Vars.Maxs = [3]float32{16, 16, 32}
+	ent.Vars.Origin = [3]float32{0, 0, 24}
+	ent.Vars.Velocity = [3]float32{100, 0, 0}
+	s.LinkEdict(ent, false)
+
+	withPhysicsCVars(t, map[string]string{"sv_nostep": "0"})
+	s.SV_WalkMove(ent)
+
+	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
+		t.Fatalf("SV_WalkMove set onground for non-BSP mover: flags=%#x", uint32(ent.Vars.Flags))
+	}
+}
+
 func TestWalkMoveNeedsUnstickUsesDistEpsilonThreshold(t *testing.T) {
 	oldOrg := [3]float32{100, 200, 0}
 

@@ -698,9 +698,13 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 	downtrace := s.PushEntity(ent, downmove)
 
 	if downtrace.PlaneNormal[2] > 0.7 {
-		if downtrace.Entity != nil && int(downtrace.Entity.Vars.Solid) == int(SolidBSP) {
+		if int(ent.Vars.Solid) == int(SolidBSP) {
 			ent.Vars.Flags = float32(uint32(ent.Vars.Flags) | FlagOnGround)
-			ent.Vars.GroundEntity = int32(s.NumForEdict(downtrace.Entity))
+			if downtrace.Entity != nil {
+				ent.Vars.GroundEntity = int32(s.NumForEdict(downtrace.Entity))
+			} else {
+				ent.Vars.GroundEntity = 0
+			}
 		}
 	} else {
 		// if the push down didn't end up on good ground, use the move without the step up
