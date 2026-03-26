@@ -14,7 +14,7 @@ FitzQuake `sendinterval` bookkeeping in `Physics()` intentionally matches the C 
 
 `SV_WalkMove` uses the same unstick trigger threshold as C (`0.03125`, `DIST_EPSILON`) for "no progress after step-up" detection. The Go implementation centralizes this in `walkMoveNeedsUnstick` and references `DistEpsilon` directly rather than a duplicate literal, preserving strict `< DIST_EPSILON` behavior on X/Y and keeping world/physics epsilon parity coupled to one constant.
 
-`SV_WalkMove` step-down grounding intentionally mirrors the C condition that checks the mover's own solidity (`ent->v.solid == SOLID_BSP`) before setting `FL_ONGROUND` and `groundentity`, rather than checking the contacted `downtrace.ent` solidity. This preserves canonical behavior for players and other non-BSP movers traversing liquid-adjacent step geometry.
+`SV_WalkMove` step-down grounding follows the same effective floor-contact rule as C movement flow: set `FL_ONGROUND` only when the downward trace lands on BSP-solid geometry (`downtrace.ent->v.solid == SOLID_BSP` in trace result terms). In Go this must use `downtrace.Entity` solidity, because movers (players, monsters) are typically non-BSP (`SOLID_SLIDEBOX`/`SOLID_BBOX`) and otherwise never reacquire on-ground while traversing liquid-adjacent steps, leading to runtime "stuck in water/slime" behavior after entry/exit transitions.
 
 `PushMove` mirrors FitzQuake's `sv_gameplayfix_elevators` gate: when a rider remains blocked by the same pusher after the normal move, it only applies a `DistEpsilon` upward nudge if the cvar allows that edict class (`1` for client edicts `<= maxclients`, `2` for all entities). When disabled (`0`) or disallowed for non-clients at level `1`, the blocked move reverts exactly as in C.
 

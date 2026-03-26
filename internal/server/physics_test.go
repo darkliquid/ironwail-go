@@ -350,7 +350,7 @@ func TestSVWalkMoveHonorsSvNoStep(t *testing.T) {
 	}
 }
 
-func TestSVWalkMoveStepDownDoesNotGroundNonBSPMover(t *testing.T) {
+func TestSVWalkMoveStepDownGroundsOnBSPContactForNonBSPMover(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
@@ -363,7 +363,7 @@ func TestSVWalkMoveStepDownDoesNotGroundNonBSPMover(t *testing.T) {
 	if obstacle == nil {
 		t.Fatal("failed to allocate obstacle")
 	}
-	obstacle.Vars.Solid = float32(SolidBBox)
+	obstacle.Vars.Solid = float32(SolidBSP)
 	obstacle.Vars.Origin = [3]float32{32, 0, 8}
 	obstacle.Vars.Mins = [3]float32{-8, -32, -8}
 	obstacle.Vars.Maxs = [3]float32{8, 32, 8}
@@ -385,8 +385,11 @@ func TestSVWalkMoveStepDownDoesNotGroundNonBSPMover(t *testing.T) {
 	withPhysicsCVars(t, map[string]string{"sv_nostep": "0"})
 	s.SV_WalkMove(ent)
 
-	if uint32(ent.Vars.Flags)&FlagOnGround != 0 {
-		t.Fatalf("SV_WalkMove set onground for non-BSP mover: flags=%#x", uint32(ent.Vars.Flags))
+	if uint32(ent.Vars.Flags)&FlagOnGround == 0 {
+		t.Fatalf("SV_WalkMove did not set onground after BSP contact: flags=%#x", uint32(ent.Vars.Flags))
+	}
+	if got, want := ent.Vars.GroundEntity, int32(s.NumForEdict(obstacle)); got != want {
+		t.Fatalf("ground entity = %d, want %d", got, want)
 	}
 }
 
