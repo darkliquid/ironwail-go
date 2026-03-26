@@ -647,6 +647,48 @@ func buildCSQCFrameState() qc.CSQCFrameState {
 	return state
 }
 
+func drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
+	if rc == nil || g.CSQC == nil || !g.CSQC.IsLoaded() {
+		return false
+	}
+
+	rc.SetCanvas(renderer.CanvasCSQC)
+	wireCSQCDrawHooks(rc)
+
+	frameState := buildCSQCFrameState()
+	canvas := rc.Canvas()
+	virtW := canvas.Right - canvas.Left
+	virtH := canvas.Bottom - canvas.Top
+	if err := g.CSQC.CallDrawHud(frameState, virtW, virtH, showScores); err != nil {
+		slog.Error("CSQC_DrawHud failed", "error", err)
+		return false
+	}
+	if showScores && g.CSQC.HasDrawScores() {
+		if err := g.CSQC.CallDrawScores(frameState, virtW, virtH, showScores); err != nil {
+			slog.Error("CSQC_DrawScores failed", "error", err)
+		}
+	}
+	return true
+}
+
+var runtimeDrawCSQCHUD = drawRuntimeCSQCHUD
+
+func drawRuntimeHUDLayer(rc renderer.RenderContext, w, h int, telemetryState *runtimeTelemetryState) {
+	if rc == nil || telemetryState == nil {
+		return
+	}
+
+	showScores := g.ShowScores && g.Client != nil && g.Client.MaxClients > 1
+	csqcDrewHUD := runtimeDrawCSQCHUD(rc, showScores)
+	telemetryState.ViewRect = runtimeOverlayViewRect(w, h, csqcDrewHUD)
+	if !csqcDrewHUD && g.HUD != nil {
+		rc.SetCanvas(renderer.CanvasDefault) // TODO: CanvasSbar
+		g.HUD.SetScreenSize(w, h)
+		updateHUDFromServer()
+		g.HUD.Draw(rc)
+	}
+}
+
 func main() {
 	// Logger initialization is handled in logger_*.go files based on build tags
 	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
@@ -853,34 +895,7 @@ func main() {
 
 					if !conForcedup {
 						telemetryState := buildRuntimeTelemetryState(conForcedup)
-						csqcActive := false
-						if g.CSQC != nil && g.CSQC.IsLoaded() {
-							csqcActive = true
-							overlay.SetCanvas(renderer.CanvasCSQC)
-							wireCSQCDrawHooks(overlay)
-
-							frameState := buildCSQCFrameState()
-							showScores := g.ShowScores && g.Client != nil && g.Client.MaxClients > 1
-							canvas := overlay.Canvas()
-							virtW := canvas.Right - canvas.Left
-							virtH := canvas.Bottom - canvas.Top
-							if err := g.CSQC.CallDrawHud(frameState, virtW, virtH, showScores); err != nil {
-								slog.Error("CSQC_DrawHud failed", "error", err)
-							}
-							if showScores && g.CSQC.HasDrawScores() {
-								if err := g.CSQC.CallDrawScores(frameState, virtW, virtH, showScores); err != nil {
-									slog.Error("CSQC_DrawScores failed", "error", err)
-								}
-							}
-						}
-						telemetryState.ViewRect = runtimeOverlayViewRect(w, h, csqcActive)
-
-						if !csqcActive && g.HUD != nil {
-							overlay.SetCanvas(renderer.CanvasDefault) // TODO: CanvasSbar
-							g.HUD.SetScreenSize(w, h)
-							updateHUDFromServer()
-							g.HUD.Draw(overlay)
-						}
+						drawRuntimeHUDLayer(overlay, w, h, &telemetryState)
 						drawRuntimeClock(overlay, telemetryState)
 						drawRuntimeDemoControls(overlay, g.Draw, telemetryState, &g.DemoOverlay)
 						drawRuntimeSpeed(overlay, telemetryState, &g.SpeedOverlay)

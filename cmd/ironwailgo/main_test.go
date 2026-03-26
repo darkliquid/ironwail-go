@@ -1383,14 +1383,14 @@ func TestBuildCSQCDrawHooksUsesNamedPicsAndScales(t *testing.T) {
 	dc := &csqcDrawTestContext{}
 	hooks := buildCSQCDrawHooks(dc)
 
+	if width, height := hooks.GetImageSize("gfx/test.lmp"); width != 2 || height != 1 {
+		t.Fatalf("GetImageSize = (%v, %v), want (2, 1)", width, height)
+	}
 	if !hooks.IsCachedPic("gfx/test.lmp") {
-		t.Fatal("IsCachedPic(gfx/test.lmp) = false, want true")
+		t.Fatal("IsCachedPic(gfx/test.lmp) = false after GetImageSize cache load, want true")
 	}
 	if hooks.IsCachedPic("gfx/missing.lmp") {
 		t.Fatal("IsCachedPic(gfx/missing.lmp) = true, want false")
-	}
-	if width, height := hooks.GetImageSize("gfx/test.lmp"); width != 2 || height != 1 {
-		t.Fatalf("GetImageSize = (%v, %v), want (2, 1)", width, height)
 	}
 
 	hooks.DrawPic(10, 20, "gfx/test.lmp", 4, 2, 1, 1, 1, 1, 0)
@@ -5210,6 +5210,35 @@ func TestUpdateHUDFromServerKeepsIntermissionOverlayVisibleOutsideGameplayInput(
 
 	if got := g.HUD.State(); got.HideIntermissionOverlay {
 		t.Fatalf("HideIntermissionOverlay = %v, want false to match C intermission flow", got.HideIntermissionOverlay)
+	}
+}
+
+func TestDrawRuntimeHUDLayerFallsBackToNativeHUDWhenCSQCDrawFails(t *testing.T) {
+	originalHUD := g.HUD
+	originalClient := g.Client
+	originalDrawCSQCHUD := runtimeDrawCSQCHUD
+	t.Cleanup(func() {
+		g.HUD = originalHUD
+		g.Client = originalClient
+		runtimeDrawCSQCHUD = originalDrawCSQCHUD
+	})
+
+	g.HUD = hud.NewHUD(nil)
+	g.Client = cl.NewClient()
+	g.Client.Stats[inet.StatHealth] = 123
+
+	rc := &consoleOverlayDrawContext{}
+	telemetry := runtimeTelemetryState{}
+	runtimeDrawCSQCHUD = func(_ renderer.RenderContext, _ bool) bool { return true }
+	drawRuntimeHUDLayer(rc, 320, 200, &telemetry)
+	if got := g.HUD.State().Health; got != 0 {
+		t.Fatalf("HUD state should remain unchanged when CSQC draws HUD, got health=%d", got)
+	}
+
+	runtimeDrawCSQCHUD = func(_ renderer.RenderContext, _ bool) bool { return false }
+	drawRuntimeHUDLayer(rc, 320, 200, &telemetry)
+	if got := g.HUD.State().Health; got != 123 {
+		t.Fatalf("HUD fallback did not refresh native HUD state, health=%d want 123", got)
 	}
 }
 

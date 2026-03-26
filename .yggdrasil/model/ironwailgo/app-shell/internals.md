@@ -4,8 +4,9 @@
 
 The app shell is the narrowest place that still sees the whole executable. `Game` centralizes mutable process state so the rest of the `package main` helpers can coordinate through one runtime bag. `main()` parses startup options, chooses headless/dedicated/runtime behavior, and hands off to the appropriate bootstrap and loop code. The large `main_test.go` suite exercises this shell from many angles, including startup, runtime ordering, input/view policy, and integration edges that span multiple files.
 
-CSQC draw hooks now route pic lookups through a parity cache bridge that matches C `DrawQC_CachePic` behavior: `iscachedpic` remains a pure cache query, `precache_pic` only fails under BLOCK on missing assets, and draw/getsize/subpic use a shared AUTO cache path.
+CSQC draw hooks now route pic lookups through a parity cache bridge that matches C `DrawQC_CachePic` behavior: `iscachedpic` remains a pure cache query, `precache_pic` only fails under BLOCK on missing assets, and draw/getsize/subpic use a shared AUTO cache path. Regression coverage keeps this split explicit by asserting that `iscachedpic` only flips true after an AUTO-loading call (`GetImageSize`/draw path), not before.
 Frame-state assembly also now publishes CSQC extglobals from runtime host/client state, including realtime-backed `cltime`, intermission timing, local player numbers/entities, and client command frame.
+When CSQC is loaded, the runtime loop now treats CSQC HUD rendering as successful only after `CallDrawHud` returns nil; otherwise it logs the CSQC error and immediately falls back to native HUD rendering for that frame. This keeps HUD overlays visible under CSQC runtime failures instead of blanking the entire HUD path while still honoring CSQC ownership on successful frames.
 
 Intermission parity regression coverage in `main_test.go` now asserts that runtime HUD state keeps intermission overlays visible even when key destination is console/message/menu. This aligns shell behavior with C Ironwail's top-level screen path, where intermission draw is keyed off intermission state rather than focus-mode suppression.
 

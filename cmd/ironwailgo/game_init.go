@@ -78,9 +78,29 @@ func registerRendererLightingAndParticleCvars(register func(name, defaultValue s
 	register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
 	register(renderer.CvarRParticles, "2", cvar.FlagArchive, "Particle blend mode (1=alpha, 2=opaque)")
 	register(renderer.CvarRNoLerpList, "progs/flame.mdl progs/flame2.mdl progs/braztall.mdl progs/brazshrt.mdl progs/longtrch.mdl progs/flame_pyre.mdl progs/v_saw.mdl progs/v_xfist.mdl progs/h2stuff/newfire.mdl", cvar.FlagArchive, "Space-separated list of model names to force no alias frame lerp")
-	register(renderer.CvarGLTextureMode, "GL_LINEAR_MIPMAP_NEAREST", cvar.FlagArchive, "OpenGL texture filter mode for world textures")
+	register(renderer.CvarGLTextureMode, "GL_NEAREST_MIPMAP_LINEAR", cvar.FlagArchive, "OpenGL texture filter mode for world textures")
 	register(renderer.CvarGLLodBias, "0", cvar.FlagArchive, "OpenGL texture LOD bias for world textures")
 	register(renderer.CvarGLAnisotropy, "1", cvar.FlagArchive, "OpenGL texture anisotropy amount (>=1)")
+}
+
+func configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {
+	registered := cvar.Register("registered", "0", cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
+
+	if vfs != nil && vfs.FileExists("gfx/pop.lmp") {
+		cvar.Set(registered.Name, "1")
+		console.Printf("Playing registered version.\n")
+		return nil
+	}
+
+	cvar.Set(registered.Name, "0")
+	console.Printf("Playing shareware version.\n")
+
+	modDir := strings.ToLower(strings.TrimSpace(gameDir))
+	if modDir != "" && modDir != "id1" {
+		return fmt.Errorf("you must have the registered version to use modified games")
+	}
+
+	return nil
 }
 
 func initGameHost() error {
@@ -469,6 +489,9 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	fileSys := fs.NewFileSystem()
 	if err := fileSys.Init(basedir, gamedir); err != nil {
 		return fmt.Errorf("failed to init filesystem: %w", err)
+	}
+	if err := configureRegistrationMode(fileSys, gamedir); err != nil {
+		return err
 	}
 	// slog.Info("FS mounted") - moved to main for deterministic logs
 

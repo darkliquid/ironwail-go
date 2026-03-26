@@ -12,6 +12,8 @@ The DP/FTE-style trig extension slots map directly to Go's `math` package withou
 
 The string-concatenation helpers use `vm.ArgC` to mirror C's variadic behavior. `strcat()` and the Go no-op version of `strzone()` both concatenate all provided QC string arguments in order, while still tolerating direct unit-test calls that bypass the interpreter and leave `ArgC` unset.
 
+`sound()` now mirrors QuakeC parameter semantics for packet encoding inputs: OFS parm3 is normalized gain (typically `0..1`) converted to byte volume with `int(gain*255)` and default fallback `255`, while OFS parm4 attenuation is passed through verbatim (including explicit zero). This prevents gameplay events such as item/weapon/monster sounds from being serialized with near-zero volume when QC passes `1` (full volume).
+
 `random()` consumes the VM compat RNG stream (`rand() & 0x7fff`) exactly at its current injected state and then applies one of two formulas keyed by `sv_gameplayfix_random`. Default-on behavior uses the gameplay fix formula to avoid exact endpoints; legacy-off behavior uses the original closed-interval division formula.
 
 Trace-parity audit confirmed C `PF_random` formula alignment against Ironwail `pr_cmds.c`:

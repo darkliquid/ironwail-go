@@ -46,7 +46,7 @@ package renderer
 
 import (
 	"fmt"
-	"image"
+	stdimage "image"
 	"image/color"
 	"image/png"
 	"log/slog"
@@ -949,7 +949,7 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 		height = 1
 	}
 
-	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	img := stdimage.NewNRGBA(stdimage.Rect(0, 0, width, height))
 	fill := color.NRGBA{R: 20, G: 20, B: 46, A: 255}
 	for y := 0; y < height; y++ {
 		rowStart := y * img.Stride
@@ -1126,7 +1126,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
 	sceneTargetActive := shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
 	if !state.DrawWorld && !sceneTargetActive {
-		dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+		// When the in-game menu is up without an active world pass, preserve the
+		// previously rendered scene behind the menu instead of force-clearing to black.
+		// This matches Quake-style "menu over frozen gameplay" behavior.
+		if !state.MenuActive {
+			dc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+		}
 	} else if sceneTargetActive && !state.DrawWorld {
 		dc.clearCurrentHALRenderTarget(state.ClearColor)
 	}

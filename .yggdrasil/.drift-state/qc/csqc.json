@@ -1,7 +1,8 @@
 {
-  "hash": "76ec9c9299d72cbfc3f7693d535d33a1e2b9ac70f289b2a2aaca91d70be34341",
+  "hash": "31a1f1b5515f385c27e067f3b39c225d9aa65a1058f39d77a12d1e2150922bb7",
   "files": {
     ".yggdrasil/model/qc/csqc/yg-node.yaml": "41edd8efd84fbe6152894945046b67e00877b91c05970318b20f4a9007c161b9",
+    ".yggdrasil/model/qc/csqc/interface.md": "56b51715731464d29844b6f22e9127782b3b3eba085d20c33a95590f78316296",
     ".yggdrasil/model/qc/csqc/responsibility.md": "e83ba3e505f9993a74a9cdb49f6920fcdadbb661d2576087f20c5681f00f6de0",
     ".yggdrasil/model/qc/yg-node.yaml": "552ac3f17f92abef91befaa158083079d13ef52ae17e36e50c3b96329c75f3e0",
     ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
@@ -9,23 +10,22 @@
     ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
     "internal/qc/csqc.go": "969f15b47811c29269460f8101cca6e40c9307ea6e667225498f8e7bf47cc0a8",
     "internal/qc/builtins_csqc.go": "8f298531bc082b4c2502b2db9a9546c9da4984f9cc636db5558145418c2ee5b2",
-    "internal/qc/csqc_test.go": "e827b84623ae9ae7b9632ab7b77d456be1db4593d61eae2407e8cc566e233b8a",
+    "internal/qc/csqc_test.go": "c91130844b27b719be3cffeae21fe8d67d226d04c2423ce76ef8966880b5c5a9",
     "internal/qc/builtins_csqc_test.go": "001cffb3f0773df01819cd4da580b02e399dea6449eb984dd1cab1e8d2b123a9",
-    ".yggdrasil/model/qc/csqc/interface.md": "56b51715731464d29844b6f22e9127782b3b3eba085d20c33a95590f78316296",
-    ".yggdrasil/model/qc/csqc/internals.md": "e7e9cc9ab713e9a70181df03c3c2482d6ba55685199eadb216a757f918b53e5b"
+    ".yggdrasil/model/qc/csqc/internals.md": "2ff78a55cec5266c85b4fd5a9db9d9057763fbe9b0ae6948e0e5d47e2d5acd42"
   },
   "mtimes": {
     ".yggdrasil/model/qc/csqc/yg-node.yaml": 1774219202833.957,
-    ".yggdrasil/model/qc/csqc/interface.md": 1774475049405.4968,
-    ".yggdrasil/model/qc/csqc/internals.md": 1774475058954.6438,
+    ".yggdrasil/model/qc/csqc/interface.md": 1774482569043.6958,
+    ".yggdrasil/model/qc/csqc/internals.md": 1774503939806.5847,
     ".yggdrasil/model/qc/csqc/responsibility.md": 1774219202904.9578,
     ".yggdrasil/model/qc/yg-node.yaml": 1774219201766.9465,
     ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
     ".yggdrasil/model/qc/internals.md": 1774219201937.9482,
     ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
-    "internal/qc/csqc.go": 1774474749522.3735,
+    "internal/qc/csqc.go": 1774482569050.2236,
     "internal/qc/builtins_csqc.go": 1773846822330.9038,
-    "internal/qc/csqc_test.go": 1774474870063.236,
+    "internal/qc/csqc_test.go": 1774503790058.5354,
     "internal/qc/builtins_csqc_test.go": 1773845961359.5847
   }
 }

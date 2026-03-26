@@ -179,8 +179,8 @@ func TestCSQCUnloadResetsPrecacheRegistries(t *testing.T) {
 
 func TestCSQCSyncGlobalsUsesRealtimeForCltime(t *testing.T) {
 	csqc := NewCSQC()
-	csqc.VM.Globals = make([]float32, 32)
-	csqc.VM.Progs = &DProgs{NumGlobals: 32}
+	csqc.VM.Globals = make([]float32, OFSFrameTime+1)
+	csqc.VM.Progs = &DProgs{NumGlobals: OFSFrameTime + 1}
 	csqc.loaded = true
 	csqc.globals.cltime = 4
 

@@ -125,6 +125,46 @@ func TestModBuiltinBehaviorMatrixMatchesC(t *testing.T) {
 	}
 }
 
+func TestSoundBuiltinScalesVolumeAndPreservesZeroAttenuation(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+	vm.Globals = make([]float32, OFSParm4+2)
+	vm.SetGInt(OFSParm0, 7)
+	vm.SetGFloat(OFSParm1, 3)
+	vm.SetGString(OFSParm2, "misc/hit.wav")
+	vm.SetGFloat(OFSParm3, 1)
+	vm.SetGFloat(OFSParm4, 0)
+
+	var (
+		gotEntNum      int
+		gotChannel     int
+		gotSample      string
+		gotVolume      int
+		gotAttenuation float32
+	)
+	SetServerBuiltinHooks(ServerBuiltinHooks{
+		Sound: func(_ *VM, entNum, channel int, sample string, volume int, attenuation float32) {
+			gotEntNum = entNum
+			gotChannel = channel
+			gotSample = sample
+			gotVolume = volume
+			gotAttenuation = attenuation
+		},
+	})
+	defer SetServerBuiltinHooks(ServerBuiltinHooks{})
+
+	sound(vm)
+
+	if gotEntNum != 7 || gotChannel != 3 || gotSample != "misc/hit.wav" {
+		t.Fatalf("sound hook identity args = (%d,%d,%q), want (7,3,%q)", gotEntNum, gotChannel, gotSample, "misc/hit.wav")
+	}
+	if gotVolume != 255 {
+		t.Fatalf("sound volume = %d, want 255", gotVolume)
+	}
+	if gotAttenuation != 0 {
+		t.Fatalf("sound attenuation = %v, want 0", gotAttenuation)
+	}
+}
+
 func TestTraceBuiltinsToggleVMTraceFlag(t *testing.T) {
 	vm := newBuiltinsTestVM(4)
 

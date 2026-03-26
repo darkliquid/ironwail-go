@@ -38,15 +38,13 @@ func sound(vm *VM) {
 	sample := vm.GString(OFSParm2)
 	volume := 255
 	if len(vm.Globals) > OFSParm3 {
-		if v := int(vm.GFloat(OFSParm3)); v != 0 {
+		if v := int(vm.GFloat(OFSParm3) * 255); v != 0 {
 			volume = v
 		}
 	}
 	attenuation := float32(1)
 	if len(vm.Globals) > OFSParm4 {
-		if a := vm.GFloat(OFSParm4); a != 0 {
-			attenuation = a
-		}
+		attenuation = vm.GFloat(OFSParm4)
 	}
 	if serverBuiltinHooks.Sound != nil {
 		serverBuiltinHooks.Sound(vm, entNum, channel, sample, volume, attenuation)

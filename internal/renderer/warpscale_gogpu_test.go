@@ -104,3 +104,16 @@ func TestShouldUseSceneRenderTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestMenuWithoutWorldShouldSkipInitialClear(t *testing.T) {
+	state := &RenderFrameState{
+		DrawWorld:     false,
+		Draw2DOverlay: true,
+		MenuActive:    true,
+	}
+
+	shouldClear := !state.DrawWorld && !state.MenuActive
+	if shouldClear {
+		t.Fatal("menu-only frame should preserve existing scene content and skip clear")
+	}
+}

@@ -10,6 +10,63 @@ import (
 	"github.com/ironwail/ironwail-go/internal/renderer"
 )
 
+type registrationModeTestFS struct {
+	hasPop bool
+}
+
+func (fs registrationModeTestFS) FileExists(filename string) bool {
+	return fs.hasPop && filename == "gfx/pop.lmp"
+}
+
+func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
+	t.Parallel()
+
+	if cvar.Get("registered") == nil {
+		cvar.Register("registered", "0", cvar.FlagNone, "")
+	}
+	cvar.Set("registered", "0")
+
+	if err := configureRegistrationMode(registrationModeTestFS{hasPop: true}, "id1"); err != nil {
+		t.Fatalf("configureRegistrationMode returned error: %v", err)
+	}
+	if got := cvar.IntValue("registered"); got != 1 {
+		t.Fatalf("registered = %d, want 1", got)
+	}
+}
+
+func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
+	t.Parallel()
+
+	if cvar.Get("registered") == nil {
+		cvar.Register("registered", "1", cvar.FlagNone, "")
+	}
+	cvar.Set("registered", "1")
+
+	if err := configureRegistrationMode(registrationModeTestFS{hasPop: false}, "id1"); err != nil {
+		t.Fatalf("configureRegistrationMode returned error: %v", err)
+	}
+	if got := cvar.IntValue("registered"); got != 0 {
+		t.Fatalf("registered = %d, want 0", got)
+	}
+}
+
+func TestConfigureRegistrationModeRejectsModsWithoutRegisteredData(t *testing.T) {
+	t.Parallel()
+
+	if cvar.Get("registered") == nil {
+		cvar.Register("registered", "1", cvar.FlagNone, "")
+	}
+	cvar.Set("registered", "1")
+
+	err := configureRegistrationMode(registrationModeTestFS{hasPop: false}, "hipnotic")
+	if err == nil {
+		t.Fatal("configureRegistrationMode should fail for mod dir in shareware mode")
+	}
+	if got := cvar.IntValue("registered"); got != 0 {
+		t.Fatalf("registered = %d, want 0", got)
+	}
+}
+
 func TestShouldWarnAboutGoGPUX11Keyboard(t *testing.T) {
 	t.Parallel()
 

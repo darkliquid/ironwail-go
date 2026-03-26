@@ -8,3 +8,4 @@ mapping:
     - internal/renderer/renderer_gogpu.go
     - internal/renderer/polyblend_gogpu.go
     - internal/renderer/warpscale_gogpu.go
+    - internal/renderer/warpscale_gogpu_test.go

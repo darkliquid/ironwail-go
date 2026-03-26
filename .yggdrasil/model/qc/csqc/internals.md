@@ -5,6 +5,7 @@
 `CSQC` resets wrapper state on load, loads a program into a fresh VM, resolves required and optional entry points, caches CSQC global offsets, and then synchronizes per-frame state into those globals before entry-point calls.
 
 It maintains separate registries for precached models, sounds, and pics so client-side scripts can refer to stable resource indices.
+The CSQC timing regression test allocates globals through `OFSFrameTime+1` before calling `SyncGlobals`, matching the VM contract that both `OFSTime` and `OFSFrameTime` are always written during sync.
 
 ## Constraints
 

@@ -22,6 +22,7 @@ Observed surfaces:
 - `substring()` follows C's negative-index rules: negative `start` counts back from the end of the string, and negative `length` means "trim that many chars from the tail after `start`".
 - `strcat()` and `strzone()` concatenate all provided QC string arguments in order rather than stopping at a fixed two-argument surface.
 - `mod()` preserves C's divide-by-zero contract by returning `0` and printing `PF_mod: mod by zero` to the console for observability.
+- `sound()` treats QuakeC volume as normalized `0..1` and forwards packet volume as `int(volume*255)` (defaulting to `255` when omitted/zero), while forwarding attenuation exactly (including `0`) so server-side sound serialization receives C-equivalent values.
 - `random()` reads `sv_gameplayfix_random` to select formula parity:
   - `1` (default): `((rand()&0x7fff)+0.5)/0x8000` (open interval `(0,1)`).
   - `0` (legacy): `(rand()&0x7fff)/0x7fff` (closed interval `[0,1]`).

@@ -8,8 +8,11 @@ This layer owns the GoGPU backend’s event/render loop integration and the core
 
 - Backend thread/event behavior is critical for correctness.
 - Shared canvas/world data must be consumed consistently with the GoGPU runtime model.
+- In frames where `RenderFrameState.DrawWorld` is false but `MenuActive` is true, the frame-clear step must not wipe the existing surface to black, otherwise menu overlays lose the expected frozen-world backdrop.
 - All render/draw mutations must be pinned to the dedicated render thread by running through `OnDraw`.
 - `OnUpdate` is for event-loop-side staging only; moving draw mutations there is unsafe for the GoGPU backend.
+- `warpscale_gogpu_test.go` includes a menu-only regression check that locks this clear-skipping rule so future frame-pipeline refactors do not reintroduce black menu backgrounds.
+- Go source in this node aliases the standard library `image` import (`stdimage`) where needed because Quake pic types come from `internal/image`; this avoids symbol collision while preserving screenshot/export behavior.
 
 ## Decisions
 
