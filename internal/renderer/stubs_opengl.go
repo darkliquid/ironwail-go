@@ -117,7 +117,12 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		}
 	}
 
-	dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+	// Preserve the last rendered world behind in-game menu overlays when no
+	// world pass is active. This matches the GoGPU backend behavior and avoids
+	// black-screening after returning to the menu from gameplay.
+	if state.DrawWorld || !state.MenuActive {
+		dc.gldc.Clear(state.ClearColor[0], state.ClearColor[1], state.ClearColor[2], state.ClearColor[3])
+	}
 	if state.DrawWorld && dc.gldc.renderer != nil {
 		dc.gldc.renderer.renderWorld(worldBrushPassNonLiquid)
 	}

@@ -4,6 +4,7 @@
 
 This layer owns the OpenGL backend’s event loop, context ownership, and core per-frame setup. It also carries OpenGL-specific postprocessing-like utilities such as polyblend and waterwarp support.
 The OpenGL renderer state now includes a dedicated world fast-sky texture cache (`worldSkyFlatTextures`) plus procedural-sky shader/uniform handles that are initialized with other world resources and cleared through the same world teardown path.
+OpenGL menu-only frames now mirror GoGPU clear semantics: the frame clear is skipped while `MenuActive` is true and no world draw runs, preserving the last scene behind menu overlays instead of replacing it with a black screen.
 
 ## Constraints
 
