@@ -2815,9 +2815,8 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		return
 	}
 
-	preparedMarks := make([]worldgogpu.DecalPreparedMark, 0, len(draws))
-	for _, draw := range draws {
-		preparedMarks = append(preparedMarks, worldgogpu.DecalPreparedMark{
+	preparedDraws := worldgogpu.PrepareDecalDrawsWithAdapter(draws, func(draw decalDraw) (worldgogpu.DecalPreparedMark, bool) {
+		return worldgogpu.DecalPreparedMark{
 			Params: worldgogpu.DecalMarkParams{
 				Origin:   draw.mark.Origin,
 				Normal:   draw.mark.Normal,
@@ -2826,9 +2825,8 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 				Variant:  int(draw.mark.Variant),
 			},
 			Color: [4]float32{clamp01(draw.mark.Color[0]), clamp01(draw.mark.Color[1]), clamp01(draw.mark.Color[2]), clamp01(draw.mark.Alpha)},
-		})
-	}
-	preparedDraws := worldgogpu.PrepareDecalDraws(preparedMarks, func(params worldgogpu.DecalMarkParams) ([4][3]float32, bool) {
+		}, true
+	}, func(params worldgogpu.DecalMarkParams) ([4][3]float32, bool) {
 		return buildDecalQuad(DecalMarkEntity{
 			Origin:   params.Origin,
 			Normal:   params.Normal,

@@ -259,3 +259,98 @@ func TestPrepareDecalDrawsRejectsMissingBuilderOrMarks(t *testing.T) {
 		t.Fatalf("PrepareDecalDraws(mark, nil) = %v, want nil", got)
 	}
 }
+
+func TestPrepareDecalDrawsWithAdapter(t *testing.T) {
+	type rootDecalDraw struct {
+		mark   DecalMarkParams
+		color  [4]float32
+		drop   bool
+		called int
+	}
+
+	input := []rootDecalDraw{
+		{
+			mark:  DecalMarkParams{Origin: [3]float32{1, 2, 3}, Normal: [3]float32{0, 0, 1}, Size: 16, Rotation: 0.5, Variant: 1},
+			color: [4]float32{0.1, 0.2, 0.3, 0.4},
+		},
+		{
+			mark:  DecalMarkParams{Origin: [3]float32{4, 5, 6}, Normal: [3]float32{0, 1, 0}, Size: 12, Rotation: 0.25, Variant: 2},
+			color: [4]float32{0.5, 0.6, 0.7, 0.8},
+			drop:  true,
+		},
+		{
+			mark:  DecalMarkParams{Origin: [3]float32{7, 8, 9}, Normal: [3]float32{1, 0, 0}, Size: 20, Variant: 3},
+			color: [4]float32{0.9, 0.8, 0.7, 0.6},
+		},
+	}
+
+	var adapted []DecalPreparedMark
+	var built []DecalMarkParams
+	draws := PrepareDecalDrawsWithAdapter(input, func(mark rootDecalDraw) (DecalPreparedMark, bool) {
+		if mark.drop {
+			return DecalPreparedMark{}, false
+		}
+		prepared := DecalPreparedMark{Params: mark.mark, Color: mark.color}
+		adapted = append(adapted, prepared)
+		return prepared, true
+	}, func(params DecalMarkParams) ([4][3]float32, bool) {
+		built = append(built, params)
+		switch len(built) {
+		case 1:
+			return [4][3]float32{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}}, true
+		default:
+			return [4][3]float32{{2, 3, 4}, {5, 6, 7}, {8, 9, 10}, {11, 12, 13}}, true
+		}
+	})
+
+	if len(adapted) != 2 {
+		t.Fatalf("adapted len = %d, want 2", len(adapted))
+	}
+	if len(built) != 2 {
+		t.Fatalf("built len = %d, want 2", len(built))
+	}
+	if built[0] != input[0].mark {
+		t.Fatalf("built[0] = %+v, want %+v", built[0], input[0].mark)
+	}
+	if built[1] != input[2].mark {
+		t.Fatalf("built[1] = %+v, want %+v", built[1], input[2].mark)
+	}
+	if len(draws) != 2 {
+		t.Fatalf("len(draws) = %d, want 2", len(draws))
+	}
+	if draws[0].VertexCount != 6 || draws[1].VertexCount != 6 {
+		t.Fatalf("vertex counts = %d, %d, want 6, 6", draws[0].VertexCount, draws[1].VertexCount)
+	}
+	firstAlpha := math.Float32frombits(binary.LittleEndian.Uint32(draws[0].VertexBytes[32:36]))
+	if firstAlpha != input[0].color[3] {
+		t.Fatalf("first alpha = %v, want %v", firstAlpha, input[0].color[3])
+	}
+	secondU := math.Float32frombits(binary.LittleEndian.Uint32(draws[1].VertexBytes[12:16]))
+	secondV := math.Float32frombits(binary.LittleEndian.Uint32(draws[1].VertexBytes[16:20]))
+	if secondU != 0.5 || secondV != 0.5 {
+		t.Fatalf("second draw uv = (%v,%v), want (0.5,0.5)", secondU, secondV)
+	}
+}
+
+func TestPrepareDecalDrawsWithAdapterRejectsMissingInputs(t *testing.T) {
+	type rootDecalDraw struct{ mark DecalMarkParams }
+
+	builder := func(DecalMarkParams) ([4][3]float32, bool) {
+		t.Fatal("builder should not be called")
+		return [4][3]float32{}, false
+	}
+	adapter := func(rootDecalDraw) (DecalPreparedMark, bool) {
+		t.Fatal("adapter should not be called")
+		return DecalPreparedMark{}, false
+	}
+
+	if got := PrepareDecalDrawsWithAdapter([]rootDecalDraw(nil), adapter, builder); got != nil {
+		t.Fatalf("PrepareDecalDrawsWithAdapter(nil, adapter, builder) = %v, want nil", got)
+	}
+	if got := PrepareDecalDrawsWithAdapter([]rootDecalDraw{{mark: DecalMarkParams{Variant: 1}}}, nil, builder); got != nil {
+		t.Fatalf("PrepareDecalDrawsWithAdapter(mark, nil, builder) = %v, want nil", got)
+	}
+	if got := PrepareDecalDrawsWithAdapter([]rootDecalDraw{{mark: DecalMarkParams{Variant: 1}}}, adapter, nil); got != nil {
+		t.Fatalf("PrepareDecalDrawsWithAdapter(mark, adapter, nil) = %v, want nil", got)
+	}
+}

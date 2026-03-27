@@ -130,3 +130,23 @@ func PrepareDecalDraws(marks []DecalPreparedMark, buildQuad func(DecalMarkParams
 	}
 	return draws
 }
+
+// PrepareDecalDrawsWithAdapter batches caller-owned mark adaptation and packed GoGPU draw preparation while keeping policy and quad building in the caller.
+func PrepareDecalDrawsWithAdapter[Mark any](marks []Mark, adapt func(Mark) (DecalPreparedMark, bool), buildQuad func(DecalMarkParams) ([4][3]float32, bool)) []PreparedDecalDraw {
+	if len(marks) == 0 || adapt == nil || buildQuad == nil {
+		return nil
+	}
+	draws := make([]PreparedDecalDraw, 0, len(marks))
+	for _, mark := range marks {
+		preparedMark, ok := adapt(mark)
+		if !ok {
+			continue
+		}
+		draw := PrepareDecalDrawFromMark(preparedMark.Params, preparedMark.Color, buildQuad)
+		if draw.VertexCount == 0 {
+			continue
+		}
+		draws = append(draws, draw)
+	}
+	return draws
+}
