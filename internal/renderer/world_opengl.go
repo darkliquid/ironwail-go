@@ -1050,24 +1050,6 @@ func bucketWorldFacesWithLights(faces []WorldFace, hasLitWater bool, textures ma
 	)
 }
 
-// bucketWorldFaces is a simplified face bucketing function without dynamic light support, used for brush entities.
-func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
-	return worldopengl.BucketFaces(
-		faces,
-		textures,
-		fullbrightTextures,
-		textureAnimations,
-		lightmaps,
-		fallbackTexture,
-		fallbackLightmap,
-		modelOffset,
-		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
-		float64(camera.Time),
-		liquidAlpha.toWorld(),
-		TextureAnimation,
-	)
-}
-
 // renderWorldDrawCalls issues GL draw calls for bucketed world faces. Each call binds its diffuse + lightmap + fullbright textures and draws the face's index range from the VAO.
 func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform int32, depthWrite bool) {
 	if len(calls) == 0 {
@@ -1125,7 +1107,8 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 		}
 		gl.Uniform3f(dynamicLightUniform, call.Light[0], call.Light[1], call.Light[2])
 		gl.Uniform1f(alphaUniform, call.Alpha)
-		gl.DrawElements(gl.TRIANGLES, int32(call.Face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.Face.FirstIndex*4)))
+		//lint:ignore SA1019 OpenGL indexed draws require byte offsets into the bound element array buffer.
+		gl.DrawElements(gl.TRIANGLES, int32(call.Face.NumIndices), gl.UNSIGNED_INT, gl.PtrOffset(int(call.Face.FirstIndex*4)))
 	}
 }
 
@@ -2720,7 +2703,8 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 			gl.BindTexture(gl.TEXTURE_2D, alpha)
 			gl.ActiveTexture(gl.TEXTURE0)
 		}
-		gl.DrawElements(gl.TRIANGLES, int32(call.Face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.Face.FirstIndex*4)))
+		//lint:ignore SA1019 OpenGL indexed draws require byte offsets into the bound element array buffer.
+		gl.DrawElements(gl.TRIANGLES, int32(call.Face.NumIndices), gl.UNSIGNED_INT, gl.PtrOffset(int(call.Face.FirstIndex*4)))
 	}
 	if useCubemap {
 		gl.ActiveTexture(gl.TEXTURE2)

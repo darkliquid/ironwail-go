@@ -114,55 +114,30 @@ type gogpuTranslucentLiquidBrushEntityDraw struct {
 }
 
 func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentLiquidBrushEntityDraw {
-	if geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 {
+	draw := worldgogpu.BuildTranslucentLiquidBrushEntityDraw(gogpuBrushEntityParams(entity), geom, func(face WorldFace, entityAlpha float32) (float32, bool) {
+		if !shouldDrawGoGPUTranslucentLiquidBrushFace(face, entityAlpha, liquidAlpha) {
+			return 0, false
+		}
+		return worldFaceAlpha(face.Flags, liquidAlpha), true
+	}, func(center [3]float32) float32 {
+		return worldFaceDistanceSq(center, camera)
+	})
+	if draw == nil {
 		return nil
 	}
-	alpha := clamp01(entity.Alpha)
-	if !isFullyOpaqueAlpha(alpha) {
-		return nil
-	}
-	rotation := buildBrushRotationMatrix(entity.Angles)
-	vertices := make([]WorldVertex, len(geom.Vertices))
-	for i, vertex := range geom.Vertices {
-		vertices[i] = vertex
-		vertices[i].Position = transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
-	}
-	faces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(geom.Faces))
-	indices := make([]uint32, 0, len(geom.Indices))
-	for _, face := range geom.Faces {
-		if !shouldDrawGoGPUTranslucentLiquidBrushFace(face, alpha, liquidAlpha) {
-			continue
-		}
-		first := int(face.FirstIndex)
-		last := first + int(face.NumIndices)
-		if first < 0 {
-			first = 0
-		}
-		if last > len(geom.Indices) {
-			last = len(geom.Indices)
-		}
-		if first >= last {
-			continue
-		}
-		drawFace := face
-		drawFace.FirstIndex = uint32(len(indices))
-		drawFace.NumIndices = uint32(last - first)
-		center := transformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale)
+	faces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(draw.Faces))
+	for _, face := range draw.Faces {
 		faces = append(faces, gogpuTranslucentLiquidFaceDraw{
-			face:       drawFace,
-			alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
-			center:     center,
-			distanceSq: worldFaceDistanceSq(center, camera),
+			face:       face.Face,
+			alpha:      face.Alpha,
+			center:     face.Center,
+			distanceSq: face.DistanceSq,
 		})
-		indices = append(indices, geom.Indices[first:last]...)
-	}
-	if len(faces) == 0 || len(indices) == 0 {
-		return nil
 	}
 	return &gogpuTranslucentLiquidBrushEntityDraw{
-		frame:    entity.Frame,
-		vertices: vertices,
-		indices:  indices,
+		frame:    draw.Frame,
+		vertices: draw.Vertices,
+		indices:  draw.Indices,
 		faces:    faces,
 	}
 }
@@ -179,72 +154,56 @@ type gogpuTranslucentBrushEntityDraw struct {
 }
 
 func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentBrushEntityDraw {
-	if geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 {
-		return nil
-	}
-	alpha := clamp01(entity.Alpha)
-	if alpha <= 0 || alpha >= 1 {
-		return nil
-	}
-	rotation := buildBrushRotationMatrix(entity.Angles)
-	vertices := make([]WorldVertex, len(geom.Vertices))
-	for i, vertex := range geom.Vertices {
-		vertices[i] = vertex
-		vertices[i].Position = transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
-	}
-	alphaTestFaces := make([]WorldFace, 0, len(geom.Faces))
-	alphaTestCenters := make([][3]float32, 0, len(geom.Faces))
-	translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(geom.Faces))
-	liquidFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(geom.Faces))
-	indices := make([]uint32, 0, len(geom.Indices))
-	for _, face := range geom.Faces {
-		if !shouldDrawGoGPUTranslucentBrushEntityFace(face, alpha, liquidAlpha) {
-			continue
+	draw := worldgogpu.BuildTranslucentBrushEntityDraw(gogpuBrushEntityParams(entity), geom, func(face WorldFace, entityAlpha float32) (worldgogpu.TranslucentFacePlan, bool) {
+		if !shouldDrawGoGPUTranslucentBrushEntityFace(face, entityAlpha, liquidAlpha) {
+			return worldgogpu.TranslucentFacePlan{}, false
 		}
-		first := int(face.FirstIndex)
-		last := first + int(face.NumIndices)
-		if first < 0 {
-			first = 0
-		}
-		if last > len(geom.Indices) {
-			last = len(geom.Indices)
-		}
-		if first >= last {
-			continue
-		}
-		drawFace := face
-		drawFace.FirstIndex = uint32(len(indices))
-		drawFace.NumIndices = uint32(last - first)
-		indices = append(indices, geom.Indices[first:last]...)
-		faceAlpha := worldFaceAlpha(face.Flags, liquidAlpha) * alpha
-		center := transformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale)
+		faceAlpha := worldFaceAlpha(face.Flags, liquidAlpha) * entityAlpha
 		switch worldFacePass(face.Flags, faceAlpha) {
 		case worldPassAlphaTest:
-			alphaTestFaces = append(alphaTestFaces, drawFace)
-			alphaTestCenters = append(alphaTestCenters, center)
+			return worldgogpu.TranslucentFacePlan{
+				Pass:  worldgogpu.TranslucentFacePassAlphaTest,
+				Alpha: faceAlpha,
+			}, true
 		case worldPassTranslucent:
-			draw := gogpuTranslucentLiquidFaceDraw{
-				face:       drawFace,
-				alpha:      faceAlpha,
-				center:     center,
-				distanceSq: worldFaceDistanceSq(center, camera),
-			}
-			if worldFaceIsLiquid(face.Flags) {
-				liquidFaces = append(liquidFaces, draw)
-				continue
-			}
-			translucentFaces = append(translucentFaces, draw)
+			return worldgogpu.TranslucentFacePlan{
+				Pass:   worldgogpu.TranslucentFacePassTranslucent,
+				Alpha:  faceAlpha,
+				Liquid: worldFaceIsLiquid(face.Flags),
+			}, true
+		default:
+			return worldgogpu.TranslucentFacePlan{}, false
 		}
-	}
-	if len(alphaTestFaces) == 0 && len(translucentFaces) == 0 && len(liquidFaces) == 0 {
+	}, func(center [3]float32) float32 {
+		return worldFaceDistanceSq(center, camera)
+	})
+	if draw == nil {
 		return nil
 	}
+	translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(draw.TranslucentFaces))
+	for _, face := range draw.TranslucentFaces {
+		translucentFaces = append(translucentFaces, gogpuTranslucentLiquidFaceDraw{
+			face:       face.Face,
+			alpha:      face.Alpha,
+			center:     face.Center,
+			distanceSq: face.DistanceSq,
+		})
+	}
+	liquidFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(draw.LiquidFaces))
+	for _, face := range draw.LiquidFaces {
+		liquidFaces = append(liquidFaces, gogpuTranslucentLiquidFaceDraw{
+			face:       face.Face,
+			alpha:      face.Alpha,
+			center:     face.Center,
+			distanceSq: face.DistanceSq,
+		})
+	}
 	return &gogpuTranslucentBrushEntityDraw{
-		frame:            entity.Frame,
-		vertices:         vertices,
-		indices:          indices,
-		alphaTestFaces:   alphaTestFaces,
-		alphaTestCenters: alphaTestCenters,
+		frame:            draw.Frame,
+		vertices:         draw.Vertices,
+		indices:          draw.Indices,
+		alphaTestFaces:   draw.AlphaTestFaces,
+		alphaTestCenters: draw.AlphaTestCenters,
 		translucentFaces: translucentFaces,
 		liquidFaces:      liquidFaces,
 	}
