@@ -96,6 +96,7 @@ func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipeline
 	if desc == nil {
 		return nil, fmt.Errorf("nil render pipeline descriptor")
 	}
+	slog.Info("Creating GPU Render Pipeline", "label", desc.Label, "vertex shader", desc.Vertex.Module.Label, "fragment shader", desc.Fragment.Module.Label)
 	return device.CreateRenderPipeline(desc)
 }
 
