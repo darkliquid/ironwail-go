@@ -1074,7 +1074,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	}
 
 	// Create the render pipeline
-	pipeline, err := device.CreateRenderPipeline(pipelineDesc)
+	pipeline, err := validatedGoGPURenderPipeline(device, pipelineDesc)
 	if err != nil {
 		textureLayout.Destroy()
 		uniformLayout.Destroy()
@@ -1103,7 +1103,7 @@ func (r *Renderer) createWorldSkyPipeline(device hal.Device, vertexShader, fragm
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "World Sky Render Pipeline",
 		Layout: layout,
 		Vertex: hal.VertexState{
@@ -1196,7 +1196,7 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "World Turbulent Render Pipeline",
 		Layout: layout,
 		Vertex: hal.VertexState{
@@ -1247,7 +1247,7 @@ func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShade
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "World Translucent Render Pipeline",
 		Layout: layout,
 		Vertex: hal.VertexState{
@@ -1298,7 +1298,7 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, ve
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "World Translucent Turbulent Render Pipeline",
 		Layout: layout,
 		Vertex: hal.VertexState{

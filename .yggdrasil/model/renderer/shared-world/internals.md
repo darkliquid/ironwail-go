@@ -24,6 +24,7 @@ The same helper layer now also owns the narrow procedural-sky baseline policy: a
 The shared fog helper layer now also owns a narrow transition baseline (`blendFogStateTowards`) that clamps per-frame fog color/density deltas by a fixed step, providing a deterministic seam for snapshot-to-snapshot fog updates without introducing clock-based interpolation.
 OpenGL world-runtime upload now builds and stores a per-sky-texture 1x1 fast-sky texture cache from this helper output, and world teardown releases that cache with other sky textures.
 Texture animation chain building now treats any `'+'`-prefixed name as an animation participant and relies on `textureAnimationFrame` for token validation. This closes a narrow parity gap where a malformed `"+"` texture name was previously skipped silently (due to a pre-validation length guard) instead of surfacing the canonical "bad animating texture" error path used for other malformed animated names.
+GoGPU world-pipeline construction now also inserts a spec-aligned validation step before HAL pipeline creation: `world.go` still builds `hal.RenderPipelineDescriptor` values so the existing renderer storage/render-pass code can keep using HAL handles, but pipeline creation now routes through `validatedGoGPURenderPipeline`, mirroring the public `wgpu.Device` wrapper’s descriptor validation before backend submission.
 
 ## Constraints
 

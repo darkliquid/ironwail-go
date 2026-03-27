@@ -901,7 +901,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 }
 
 func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout, surfaceFormat gputypes.TextureFormat, label string, depthWrite bool) (hal.RenderPipeline, error) {
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  label,
 		Layout: layout,
 		Vertex: hal.VertexState{
@@ -1503,7 +1503,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 		}
 	}
 
-	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "Sprite Render Pipeline",
 		Layout: r.aliasPipelineLayout,
 		Vertex: hal.VertexState{
@@ -1953,7 +1953,7 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "Decal Render Pipeline",
 		Layout: pipelineLayout,
 		Vertex: hal.VertexState{

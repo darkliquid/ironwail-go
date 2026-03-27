@@ -20,3 +20,4 @@
 - world-face visibility for GoGPU draws is expected to come from shared-world PVS helpers (`WorldGeometry.LeafFaces` + `selectVisibleWorldFaces`) rather than backend-specific culling logic
 - alias-model draw preparation applies `r_nolerp_list` through shared alias-state helpers before `SetupAliasFrame`, keeping no-lerp model handling aligned with OpenGL and C parity expectations
 - normal tagged builds (`-tags gogpu`) are expected to exercise the root seam files in `internal/renderer/`, including the root decal seam coverage in `internal/renderer/world_gogpu_decal_test.go`
+- alias, sprite, and decal GoGPU resource setup now creates pipelines through the shared `validatedGoGPURenderPipeline` helper, so descriptor validation happens before HAL/Vulkan pipeline creation while draw submission continues to use HAL handles

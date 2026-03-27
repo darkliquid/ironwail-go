@@ -172,7 +172,7 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
 		}
 	}
 
-	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "PolyBlend Render Pipeline",
 		Layout: pipelineLayout,
 		Vertex: hal.VertexState{

@@ -241,7 +241,7 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 		return fmt.Errorf("create scene composite uniform buffer: %w", err)
 	}
 
-	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
 		Label:  "Scene Composite Pipeline",
 		Layout: pipelineLayout,
 		Vertex: hal.VertexState{

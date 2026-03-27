@@ -12,3 +12,4 @@
 - when using the GoGPU renderer, all render/draw mutations MUST happen via the `OnDraw` callback
 - `OnUpdate` may stage data for rendering, but it must not directly mutate render-thread-owned draw state
 - callers must treat `OnDraw` as the only safe place to perform GoGPU-backed camera, world-upload, canvas, and other draw-state mutations because it runs on the dedicated render thread
+- GoGPU render-pipeline creation now routes through `validatedGoGPURenderPipeline` in `internal/renderer/renderer_gogpu.go`, which applies the same `wgpu/core.ValidateRenderPipelineDescriptor` check used by the public `wgpu.Device` before calling the HAL `CreateRenderPipeline` entry point exposed by this gogpu version

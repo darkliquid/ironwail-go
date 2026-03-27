@@ -59,6 +59,8 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath" // retained only for gogpu API boundary (Color type)
 	"github.com/gogpu/gogpu/input"
+	"github.com/gogpu/gputypes"
+	"github.com/gogpu/wgpu/core"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
@@ -87,6 +89,19 @@ type DrawContext struct {
 	canvasParams      CanvasTransformParams
 	sceneRenderActive bool
 	sceneRenderTarget hal.TextureView
+}
+
+func validatedGoGPURenderPipeline(device hal.Device, desc *hal.RenderPipelineDescriptor) (hal.RenderPipeline, error) {
+	if device == nil {
+		return nil, fmt.Errorf("nil device")
+	}
+	if desc == nil {
+		return nil, fmt.Errorf("nil render pipeline descriptor")
+	}
+	if err := core.ValidateRenderPipelineDescriptor(desc, gputypes.DefaultLimits()); err != nil {
+		return nil, fmt.Errorf("validate render pipeline %q: %w", desc.Label, err)
+	}
+	return device.CreateRenderPipeline(desc)
 }
 
 var halOnlyFrameConsumed atomic.Bool
