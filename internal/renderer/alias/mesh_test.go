@@ -7,6 +7,15 @@ import (
 	"github.com/ironwail/ironwail-go/internal/model"
 )
 
+type convertibleBackendRef struct {
+	index int
+	uv    [2]float32
+}
+
+func (ref convertibleBackendRef) AliasMeshRef() MeshRef {
+	return MeshRef{VertexIndex: ref.index, TexCoord: ref.uv}
+}
+
 func TestInterpolateVertexPosition(t *testing.T) {
 	scale := [3]float32{1, 1, 1}
 	origin := [3]float32{}
@@ -107,6 +116,21 @@ func TestMeshFromAccessor(t *testing.T) {
 	}
 	got := mesh.RefAt(0)
 	if got.VertexIndex != 3 || got.TexCoord != ([2]float32{0.5, 0.25}) {
+		t.Fatalf("RefAt(0) = %#v", got)
+	}
+}
+
+func TestMeshFromConvertibleRefs(t *testing.T) {
+	mesh := MeshFromConvertibleRefs(
+		[][]model.TriVertX{{}},
+		[]convertibleBackendRef{{index: 7, uv: [2]float32{0.75, 0.5}}},
+	)
+
+	if mesh.RefCount != 1 {
+		t.Fatalf("RefCount = %d, want 1", mesh.RefCount)
+	}
+	got := mesh.RefAt(0)
+	if got.VertexIndex != 7 || got.TexCoord != ([2]float32{0.75, 0.5}) {
 		t.Fatalf("RefAt(0) = %#v", got)
 	}
 }

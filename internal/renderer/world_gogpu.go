@@ -1941,9 +1941,7 @@ func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose
 		return nil
 	}
 	return aliasimpl.BuildVerticesInterpolated(
-		aliasimpl.MeshFromAccessor(alias.poses, alias.refs, func(ref gpuAliasVertexRef) aliasimpl.MeshRef {
-			return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
-		}),
+		aliasimpl.MeshFromConvertibleRefs(alias.poses, alias.refs),
 		mdl.AliasHeader,
 		pose1Index,
 		pose2Index,
@@ -3679,6 +3677,10 @@ func (r *Renderer) destroyDecalResourcesLocked() {
 type gpuAliasVertexRef struct {
 	vertexIndex int
 	texCoord    [2]float32
+}
+
+func (ref gpuAliasVertexRef) AliasMeshRef() aliasimpl.MeshRef {
+	return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
 }
 
 type gpuAliasSkin struct {

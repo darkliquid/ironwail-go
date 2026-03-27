@@ -12,6 +12,10 @@ type MeshRef struct {
 	TexCoord    [2]float32
 }
 
+type MeshRefConvertible interface {
+	AliasMeshRef() MeshRef
+}
+
 type Mesh struct {
 	Poses    [][]model.TriVertX
 	RefCount int
@@ -53,6 +57,16 @@ func MeshFromAccessor[R any](poses [][]model.TriVertX, refs []R, adapt func(R) M
 		RefCount: len(refs),
 		RefAt: func(index int) MeshRef {
 			return adapt(refs[index])
+		},
+	}
+}
+
+func MeshFromConvertibleRefs[R MeshRefConvertible](poses [][]model.TriVertX, refs []R) Mesh {
+	return Mesh{
+		Poses:    poses,
+		RefCount: len(refs),
+		RefAt: func(index int) MeshRef {
+			return refs[index].AliasMeshRef()
 		},
 	}
 }

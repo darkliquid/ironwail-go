@@ -3,7 +3,7 @@
 ## Logic
 
 This layer handles entity and effect categories that require OpenGL-specific draw code, especially alias models, sprites, decals, and transparency strategies.
-`internal/renderer/alias_opengl.go` now acts as a narrow OpenGL adapter over the shared `renderer/alias` package for interpolated alias world-vertex shaping, keeping the remaining OpenGL-specific entity concerns in this node focused on draw orchestration and tests rather than duplicated CPU mesh math.
+`internal/renderer/alias_opengl.go` now acts as a narrow OpenGL adapter over the shared `renderer/alias` package for interpolated alias world-vertex shaping, with `glAliasVertexRef` satisfying the shared `MeshRefConvertible` contract so the shim can pass ref slices through without repeating mesh-adapter closures. The remaining OpenGL-specific entity concerns stay focused on draw orchestration and tests rather than duplicated CPU mesh math.
 
 ## Constraints
 
@@ -34,7 +34,7 @@ Rationale:
 Observed decision:
 - OpenGL alias draw preparation now applies `applyAliasNoLerpListFlags` to alias header flags before invoking `SetupAliasFrame`.
 - Alias shadow exclusion parsing (`parseAliasShadowExclusions`) reuses shared alias model-list parsing.
-- The OpenGL-only alias shim now delegates interpolated vertex shaping to `renderer/alias` mesh helpers via `MeshFromAccessor` over `glAliasModel` refs instead of carrying a second copy of interpolation/rotation math or a backend-local mesh adapter helper.
+- The OpenGL-only alias shim now delegates interpolated vertex shaping to `renderer/alias` mesh helpers via the shared `MeshRefConvertible` contract over `glAliasModel` refs instead of carrying a second copy of interpolation/rotation math or repeated call-site mesh adapter closures.
 
 Rationale:
 - C/Ironwail model interpolation parity depends on `r_nolerp_list` being respected during frame blending decisions.

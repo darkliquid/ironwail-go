@@ -18,9 +18,7 @@ func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1
 		return nil
 	}
 	return aliasimpl.BuildVerticesInterpolated(
-		aliasimpl.MeshFromAccessor(alias.poses, alias.refs, func(ref glAliasVertexRef) aliasimpl.MeshRef {
-			return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
-		}),
+		aliasimpl.MeshFromConvertibleRefs(alias.poses, alias.refs),
 		mdl.AliasHeader,
 		pose1Index,
 		pose2Index,
