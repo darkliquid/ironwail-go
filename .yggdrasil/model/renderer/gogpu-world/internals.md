@@ -6,6 +6,8 @@ This layer implements the GoGPU equivalents of world/entity/effect rendering.
 For static world visibility selection, the GoGPU world pass now consumes the backend-neutral shared helpers (`buildWorldLeafFaceLookup` output from world upload plus `selectVisibleWorldFaces` during draw) instead of carrying a backend-local leaf/PVS policy.
 The live GoGPU world/entity implementation now sits in `internal/renderer/world_gogpu.go`. Earlier root seam fragments (`world_alias_gogpu_root.go`, `world_alias_shadow_gogpu_root.go`, `world_brush_gogpu_root.go`, `world_late_translucent_gogpu_root.go`, `world_sprite_gogpu_root.go`, `world_decal_gogpu_root.go`, plus support/cleanup helpers) were merged into that file after tagged validation confirmed they were the only live code path. An earlier duplicate `internal/renderer/world/gogpu/*.go` tree had already been removed. The next extraction step has now restarted by moving WGSL shader payloads into `internal/renderer/world/gogpu/shaders.go`, GoGPU brush vertex/index packing plus buffer-allocation helpers into `internal/renderer/world/gogpu/buffer.go`, opaque brush-entity CPU build helpers into `internal/renderer/world/gogpu/brush_build.go`, translucent/liquid brush-face planning into `internal/renderer/world/gogpu/brush_translucent.go`, the sprite draw-planning/uniform/vertex conversion helpers into `internal/renderer/world/gogpu/sprite.go`, and the first decal mark/draw-prep/uniform/vertex packing helpers into `internal/renderer/world/gogpu/decal.go`, which the root backend imports.
 Alias-model CPU mesh shaping now also consumes `internal/renderer/alias/mesh.go`: `world_gogpu.go` keeps only renderer-owned draw orchestration, and cached alias refs are normalized to shared `[]aliasimpl.MeshRef` storage consumed through `MeshFromRefs`. The earlier renderer-local stateless pose/blend helper copy has been removed instead of being maintained beside the shared alias seam.
+GoGPU world runtime submission now records command buffers through public `wgpu.CommandEncoder` / `wgpu.RenderPassEncoder` wrappers and submits them through public `wgpu.Queue`, while the CPU-only subpackage helpers in `internal/renderer/world/gogpu` remain backend-neutral planning code.
+GoGPU particle runtime submission now follows the same wrapper-only path in `internal/renderer/particle_gogpu.go` (public encoder/render-pass/finish/submit plus wrapper resource lifetimes) to keep world-adjacent draw flows on one API surface.
 
 ## Constraints
 
@@ -22,6 +24,15 @@ Observed decision:
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**
+
+### Public wgpu command-recording contract for GoGPU world-adjacent passes
+
+Observed decision:
+- Renderer-owned GoGPU world-adjacent passes (world/entity/sprite/decal/particle/late-translucent) now use public `*wgpu.Device` / `*wgpu.Queue` wrappers for encoder creation, render-pass recording, command-buffer finish, and submission.
+- Renderer code in this node no longer mixes wrapper submission with renderer-local HAL queue/device fetches for these flows.
+
+Rationale:
+- Keeping creation, encoding, and submission on a single public API surface reduces backend-boundary ambiguity and avoids mismatched wrapper-vs-HAL lifetime semantics in live draw paths.
 
 ### World-PVS parity scope outcome
 

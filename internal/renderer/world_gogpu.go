@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
@@ -199,12 +199,12 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -257,19 +257,15 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		transparentBindGroup = whiteTextureBindGroup
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Entity Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Entity Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create brush entity encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("brush_entities"); err != nil {
-		slog.Warn("failed to begin brush entity encoding", "error", err)
-		return
-	}
 
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Brush Entity Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -287,7 +283,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
+	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
 		vertexData := worldgogpu.VertexBytes(draw.vertices)
 		indexData := worldgogpu.IndexBytes(draw.indices)
@@ -297,19 +293,19 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			continue
 		}
 		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
+			vertexBuffer.Release()
 			slog.Warn("failed to upload brush vertex buffer", "error", err)
 			continue
 		}
 		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Entity Indices", gputypes.BufferUsageIndex, indexData)
 		if err != nil {
-			vertexBuffer.Destroy()
+			vertexBuffer.Release()
 			slog.Warn("failed to create brush index buffer", "error", err)
 			continue
 		}
 		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
+			indexBuffer.Release()
+			vertexBuffer.Release()
 			slog.Warn("failed to upload brush index buffer", "error", err)
 			continue
 		}
@@ -350,19 +346,19 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}
 	}
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush entity encoding", "error", err)
 		for _, buffer := range buffers {
-			buffer.Destroy()
+			buffer.Release()
 		}
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush entity commands", "error", err)
 	}
 	for _, buffer := range buffers {
-		buffer.Destroy()
+		buffer.Release()
 	}
 }
 
@@ -370,12 +366,12 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -429,19 +425,15 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	}
 	skyFogDensity := gogpuWorldSkyFogDensity(treeEntities, fogDensity)
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Sky Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Sky Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create brush sky encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("brush_sky"); err != nil {
-		slog.Warn("failed to begin brush sky encoding", "error", err)
-		return
-	}
 
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Brush Sky Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -463,7 +455,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
+	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
 		vertexData := worldgogpu.VertexBytes(draw.vertices)
 		indexData := worldgogpu.IndexBytes(draw.indices)
@@ -473,19 +465,19 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			continue
 		}
 		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
+			vertexBuffer.Release()
 			slog.Warn("failed to upload brush sky vertex buffer", "error", err)
 			continue
 		}
 		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Sky Indices", gputypes.BufferUsageIndex, indexData)
 		if err != nil {
-			vertexBuffer.Destroy()
+			vertexBuffer.Release()
 			slog.Warn("failed to create brush sky index buffer", "error", err)
 			continue
 		}
 		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
+			indexBuffer.Release()
+			vertexBuffer.Release()
 			slog.Warn("failed to upload brush sky index buffer", "error", err)
 			continue
 		}
@@ -516,19 +508,19 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}
 	}
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush sky encoding", "error", err)
 		for _, buffer := range buffers {
-			buffer.Destroy()
+			buffer.Release()
 		}
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush sky commands", "error", err)
 	}
 	for _, buffer := range buffers {
-		buffer.Destroy()
+		buffer.Release()
 	}
 }
 
@@ -536,12 +528,12 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -598,19 +590,15 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		transparentBindGroup = whiteTextureBindGroup
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Liquid Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Liquid Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create brush liquid encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("brush_liquid"); err != nil {
-		slog.Warn("failed to begin brush liquid encoding", "error", err)
-		return
-	}
 
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Brush Liquid Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -634,7 +622,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
 	}
 	r.mu.RUnlock()
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
+	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
 		vertexData := worldgogpu.VertexBytes(draw.vertices)
 		indexData := worldgogpu.IndexBytes(draw.indices)
@@ -644,19 +632,19 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			continue
 		}
 		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
+			vertexBuffer.Release()
 			slog.Warn("failed to upload brush liquid vertex buffer", "error", err)
 			continue
 		}
 		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Liquid Indices", gputypes.BufferUsageIndex, indexData)
 		if err != nil {
-			vertexBuffer.Destroy()
+			vertexBuffer.Release()
 			slog.Warn("failed to create brush liquid index buffer", "error", err)
 			continue
 		}
 		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
+			indexBuffer.Release()
+			vertexBuffer.Release()
 			slog.Warn("failed to upload brush liquid index buffer", "error", err)
 			continue
 		}
@@ -688,19 +676,19 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		}
 	}
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush liquid encoding", "error", err)
 		for _, buffer := range buffers {
-			buffer.Destroy()
+			buffer.Release()
 		}
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush liquid commands", "error", err)
 	}
 	for _, buffer := range buffers {
-		buffer.Destroy()
+		buffer.Release()
 	}
 }
 
@@ -710,7 +698,7 @@ const (
 	aliasSceneUniformBufferSize = 96
 )
 
-func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
+func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
@@ -724,11 +712,11 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 	}
 	fragmentShader, err := createWorldShaderModule(device, worldgogpu.AliasFragmentShaderWGSL, "Alias Fragment Shader")
 	if err != nil {
-		vertexShader.Destroy()
+		vertexShader.Release()
 		return fmt.Errorf("create alias fragment shader: %w", err)
 	}
 
-	uniformLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "Alias Uniform BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{{
 			Binding:    0,
@@ -741,12 +729,12 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 		}},
 	})
 	if err != nil {
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias uniform layout: %w", err)
 	}
 
-	textureLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "Alias Texture BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
@@ -777,62 +765,55 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 		},
 	})
 	if err != nil {
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias texture layout: %w", err)
 	}
 
-	pipelineLayout, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "Alias Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout},
 	})
 	if err != nil {
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias pipeline layout: %w", err)
 	}
 
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",
 		Size:             aliasSceneUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias uniform buffer: %w", err)
 	}
 
-	uniformBindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
-		Label:  "Alias Uniform BG",
-		Layout: uniformLayout,
-		Entries: []gputypes.BindGroupEntry{{
-			Binding: 0,
-			Resource: gputypes.BufferBinding{
-				Buffer: uniformBuffer.NativeHandle(),
-				Offset: 0,
-				Size:   aliasSceneUniformBufferSize,
-			},
-		}},
+	uniformBindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:   "Alias Uniform BG",
+		Layout:  uniformLayout,
+		Entries: []wgpu.BindGroupEntry{{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: aliasSceneUniformBufferSize}},
 	})
 	if err != nil {
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias uniform bind group: %w", err)
 	}
 
-	sampler, err := device.CreateSampler(&hal.SamplerDescriptor{
+	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "Alias Sampler",
 		AddressModeU: gputypes.AddressModeClampToEdge,
 		AddressModeV: gputypes.AddressModeClampToEdge,
@@ -844,13 +825,13 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 		LodMaxClamp:  0,
 	})
 	if err != nil {
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias sampler: %w", err)
 	}
 
@@ -863,27 +844,27 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 
 	pipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Render Pipeline", true)
 	if err != nil {
-		sampler.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		sampler.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias pipeline: %w", err)
 	}
 	shadowPipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Shadow Render Pipeline", false)
 	if err != nil {
-		pipeline.Destroy()
-		sampler.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		textureLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		pipeline.Release()
+		sampler.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		textureLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create alias shadow pipeline: %w", err)
 	}
 
@@ -900,11 +881,11 @@ func (r *Renderer) ensureAliasResourcesLocked(device hal.Device) error {
 	return nil
 }
 
-func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout, surfaceFormat gputypes.TextureFormat, label string, depthWrite bool) (hal.RenderPipeline, error) {
-	return validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
+func createAliasRenderPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, surfaceFormat gputypes.TextureFormat, label string, depthWrite bool) (*wgpu.RenderPipeline, error) {
+	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  label,
 		Layout: layout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
@@ -925,7 +906,7 @@ func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader h
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(depthWrite),
 		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -948,7 +929,7 @@ func createAliasRenderPipeline(device hal.Device, vertexShader, fragmentShader h
 	})
 }
 
-func (r *Renderer) ensureAliasDepthTextureLocked(device hal.Device) {
+func (r *Renderer) ensureAliasDepthTextureLocked(device *wgpu.Device) {
 	if r.worldDepthTextureView != nil || device == nil {
 		return
 	}
@@ -965,7 +946,7 @@ func (r *Renderer) ensureAliasDepthTextureLocked(device hal.Device) {
 	r.worldDepthTextureView = depthView
 }
 
-func (r *Renderer) ensureAliasModelLocked(device hal.Device, queue hal.Queue, modelID string, mdl *model.Model) *gpuAliasModel {
+func (r *Renderer) ensureAliasModelLocked(device *wgpu.Device, queue *wgpu.Queue, modelID string, mdl *model.Model) *gpuAliasModel {
 	if modelID == "" || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}
@@ -1032,7 +1013,7 @@ func (r *Renderer) ensureAliasModelLocked(device hal.Device, queue hal.Queue, mo
 	return alias
 }
 
-func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, width, height int, pixels []byte) (gpuAliasSkin, error) {
+func (r *Renderer) createAliasSkinLocked(device *wgpu.Device, queue *wgpu.Queue, width, height int, pixels []byte) (gpuAliasSkin, error) {
 	if width <= 0 || height <= 0 {
 		width, height = 1, 1
 	}
@@ -1040,9 +1021,9 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 		pixels = make([]byte, width*height)
 	}
 	baseRGBA, fullbrightRGBA := aliasSkinVariantRGBA(pixels, r.palette, 0, false)
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "Alias Skin Texture",
-		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1052,15 +1033,15 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 	if err != nil {
 		return gpuAliasSkin{}, fmt.Errorf("create texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, baseRGBA, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Destroy()
+	}, baseRGBA, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Release()
 		return gpuAliasSkin{}, fmt.Errorf("write texture: %w", err)
 	}
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           "Alias Skin View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1071,12 +1052,12 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return gpuAliasSkin{}, fmt.Errorf("create texture view: %w", err)
 	}
-	fullbrightTexture, err := device.CreateTexture(&hal.TextureDescriptor{
+	fullbrightTexture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "Alias Fullbright Texture",
-		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1084,21 +1065,21 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
 	})
 	if err != nil {
-		view.Destroy()
-		texture.Destroy()
+		view.Release()
+		texture.Release()
 		return gpuAliasSkin{}, fmt.Errorf("create fullbright texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  fullbrightTexture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, fullbrightRGBA, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-		fullbrightTexture.Destroy()
-		view.Destroy()
-		texture.Destroy()
+	}, fullbrightRGBA, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		fullbrightTexture.Release()
+		view.Release()
+		texture.Release()
 		return gpuAliasSkin{}, fmt.Errorf("write fullbright texture: %w", err)
 	}
-	fullbrightView, err := device.CreateTextureView(fullbrightTexture, &hal.TextureViewDescriptor{
+	fullbrightView, err := device.CreateTextureView(fullbrightTexture, &wgpu.TextureViewDescriptor{
 		Label:           "Alias Fullbright View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1109,25 +1090,25 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		fullbrightTexture.Destroy()
-		view.Destroy()
-		texture.Destroy()
+		fullbrightTexture.Release()
+		view.Release()
+		texture.Release()
 		return gpuAliasSkin{}, fmt.Errorf("create fullbright texture view: %w", err)
 	}
-	bindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "Alias Skin BG",
 		Layout: r.aliasTextureBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{
-			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: r.aliasSampler.NativeHandle()}},
-			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
-			{Binding: 2, Resource: gputypes.TextureViewBinding{TextureView: fullbrightView.NativeHandle()}},
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: r.aliasSampler},
+			{Binding: 1, TextureView: view},
+			{Binding: 2, TextureView: fullbrightView},
 		},
 	})
 	if err != nil {
-		fullbrightView.Destroy()
-		fullbrightTexture.Destroy()
-		view.Destroy()
-		texture.Destroy()
+		fullbrightView.Release()
+		fullbrightTexture.Release()
+		view.Release()
+		texture.Release()
 		return gpuAliasSkin{}, fmt.Errorf("create bind group: %w", err)
 	}
 	return gpuAliasSkin{
@@ -1139,7 +1120,7 @@ func (r *Renderer) createAliasSkinLocked(device hal.Device, queue hal.Queue, wid
 	}, nil
 }
 
-func (r *Renderer) resolveAliasSkinLocked(device hal.Device, queue hal.Queue, alias *gpuAliasModel, entity AliasModelEntity, slot int) *gpuAliasSkin {
+func (r *Renderer) resolveAliasSkinLocked(device *wgpu.Device, queue *wgpu.Queue, alias *gpuAliasModel, entity AliasModelEntity, slot int) *gpuAliasSkin {
 	if alias == nil || slot < 0 {
 		return nil
 	}
@@ -1170,7 +1151,7 @@ func (r *Renderer) resolveAliasSkinLocked(device hal.Device, queue hal.Queue, al
 	return nil
 }
 
-func (r *Renderer) buildAliasDrawLocked(device hal.Device, queue hal.Queue, entity AliasModelEntity, fullAngles bool) *gpuAliasDraw {
+func (r *Renderer) buildAliasDrawLocked(device *wgpu.Device, queue *wgpu.Queue, entity AliasModelEntity, fullAngles bool) *gpuAliasDraw {
 	alias := r.ensureAliasModelLocked(device, queue, entity.ModelID, entity.Model)
 	if alias == nil || entity.Model == nil || entity.Model.AliasHeader == nil || len(alias.refs) == 0 {
 		return nil
@@ -1259,8 +1240,8 @@ func (dc *DrawContext) renderViewModelHAL(entity AliasModelEntity, fogColor [3]f
 }
 
 func (dc *DrawContext) collectAliasDraws(entities []AliasModelEntity, fullAngles bool) []gpuAliasDraw {
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return nil
 	}
@@ -1289,12 +1270,12 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	if len(draws) == 0 {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -1328,26 +1309,22 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create alias encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("alias"); err != nil {
-		slog.Warn("failed to begin alias encoding", "error", err)
-		return
-	}
 
-	renderPassDesc := &hal.RenderPassDescriptor{
+	renderPassDesc := &wgpu.RenderPassDescriptor{
 		Label: "Alias Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
 	}
-	renderPass := encoder.BeginRenderPass(renderPassDesc)
+	renderPass, _ := encoder.BeginRenderPass(renderPassDesc)
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
@@ -1381,12 +1358,12 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish alias encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alias commands", "error", err)
 	}
 }
@@ -1445,7 +1422,7 @@ func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose
 
 // ---- merged from world_sprite_gogpu_root.go ----
 
-func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
+func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
@@ -1456,7 +1433,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 		return nil
 	}
 
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Sprite Uniform Buffer",
 		Size:             worldgogpu.SpriteUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
@@ -1465,34 +1442,27 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 	if err != nil {
 		return fmt.Errorf("create sprite uniform buffer: %w", err)
 	}
-	uniformBindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
-		Label:  "Sprite Uniform BG",
-		Layout: r.aliasUniformBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{{
-			Binding: 0,
-			Resource: gputypes.BufferBinding{
-				Buffer: uniformBuffer.NativeHandle(),
-				Offset: 0,
-				Size:   worldgogpu.SpriteUniformBufferSize,
-			},
-		}},
+	uniformBindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:   "Sprite Uniform BG",
+		Layout:  r.aliasUniformBindGroupLayout,
+		Entries: []wgpu.BindGroupEntry{{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldgogpu.SpriteUniformBufferSize}},
 	})
 	if err != nil {
-		uniformBuffer.Destroy()
+		uniformBuffer.Release()
 		return fmt.Errorf("create sprite uniform bind group: %w", err)
 	}
 
 	vertexShader, err := createWorldShaderModule(device, worldgogpu.SpriteVertexShaderWGSL, "Sprite Vertex Shader")
 	if err != nil {
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
 		return fmt.Errorf("create sprite vertex shader: %w", err)
 	}
 	fragmentShader, err := createWorldShaderModule(device, worldgogpu.SpriteFragmentShaderWGSL, "Sprite Fragment Shader")
 	if err != nil {
-		vertexShader.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
+		vertexShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
 		return fmt.Errorf("create sprite fragment shader: %w", err)
 	}
 
@@ -1503,10 +1473,10 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 		}
 	}
 
-	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Sprite Render Pipeline",
 		Layout: r.aliasPipelineLayout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
@@ -1527,7 +1497,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(false),
 		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -1549,10 +1519,10 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 		},
 	})
 	if err != nil {
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
+		vertexShader.Release()
+		fragmentShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
 		return fmt.Errorf("create sprite pipeline: %w", err)
 	}
 
@@ -1564,7 +1534,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device hal.Device) error {
 	return nil
 }
 
-func (r *Renderer) createSpriteFrameLocked(device hal.Device, queue hal.Queue, frame spriteRenderFrame) (gpuSpriteFrame, error) {
+func (r *Renderer) createSpriteFrameLocked(device *wgpu.Device, queue *wgpu.Queue, frame spriteRenderFrame) (gpuSpriteFrame, error) {
 	width, height := frame.width, frame.height
 	if width <= 0 || height <= 0 {
 		width, height = 1, 1
@@ -1574,9 +1544,9 @@ func (r *Renderer) createSpriteFrameLocked(device hal.Device, queue hal.Queue, f
 		pixels = make([]byte, width*height)
 	}
 	rgba := ConvertPaletteToRGBA(pixels, r.palette)
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "Sprite Frame Texture",
-		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1586,15 +1556,15 @@ func (r *Renderer) createSpriteFrameLocked(device hal.Device, queue hal.Queue, f
 	if err != nil {
 		return gpuSpriteFrame{}, fmt.Errorf("create texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Destroy()
+	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Release()
 		return gpuSpriteFrame{}, fmt.Errorf("write texture: %w", err)
 	}
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           "Sprite Frame View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1605,21 +1575,21 @@ func (r *Renderer) createSpriteFrameLocked(device hal.Device, queue hal.Queue, f
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return gpuSpriteFrame{}, fmt.Errorf("create texture view: %w", err)
 	}
-	bindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "Sprite Frame BG",
 		Layout: r.aliasTextureBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{
-			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: r.aliasSampler.NativeHandle()}},
-			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
-			{Binding: 2, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: r.aliasSampler},
+			{Binding: 1, TextureView: view},
+			{Binding: 2, TextureView: view},
 		},
 	})
 	if err != nil {
-		view.Destroy()
-		texture.Destroy()
+		view.Release()
+		texture.Release()
 		return gpuSpriteFrame{}, fmt.Errorf("create bind group: %w", err)
 	}
 	return gpuSpriteFrame{
@@ -1630,7 +1600,7 @@ func (r *Renderer) createSpriteFrameLocked(device hal.Device, queue hal.Queue, f
 	}, nil
 }
 
-func (r *Renderer) ensureSpriteModelLocked(device hal.Device, queue hal.Queue, modelID string, spr *model.MSprite) *gpuSpriteModel {
+func (r *Renderer) ensureSpriteModelLocked(device *wgpu.Device, queue *wgpu.Queue, modelID string, spr *model.MSprite) *gpuSpriteModel {
 	if modelID == "" || spr == nil {
 		return nil
 	}
@@ -1648,13 +1618,13 @@ func (r *Renderer) ensureSpriteModelLocked(device hal.Device, queue hal.Queue, m
 			slog.Warn("failed to upload sprite frame", "model", modelID, "error", err)
 			for _, uploaded := range frames {
 				if uploaded.bindGroup != nil {
-					uploaded.bindGroup.Destroy()
+					uploaded.bindGroup.Release()
 				}
 				if uploaded.view != nil {
-					uploaded.view.Destroy()
+					uploaded.view.Release()
 				}
 				if uploaded.texture != nil {
-					uploaded.texture.Destroy()
+					uploaded.texture.Release()
 				}
 			}
 			return nil
@@ -1673,7 +1643,7 @@ func (r *Renderer) ensureSpriteModelLocked(device hal.Device, queue hal.Queue, m
 	return model
 }
 
-func (r *Renderer) buildSpriteDrawLocked(device hal.Device, queue hal.Queue, entity SpriteEntity) *gpuSpriteDraw {
+func (r *Renderer) buildSpriteDrawLocked(device *wgpu.Device, queue *wgpu.Queue, entity SpriteEntity) *gpuSpriteDraw {
 	if entity.ModelID == "" || entity.Model == nil || entity.Model.Type != model.ModSprite {
 		return nil
 	}
@@ -1709,8 +1679,8 @@ func (r *Renderer) buildSpriteDrawLocked(device hal.Device, queue hal.Queue, ent
 }
 
 func (dc *DrawContext) collectSpriteDraws(entities []SpriteEntity) []gpuSpriteDraw {
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return nil
 	}
@@ -1747,12 +1717,12 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	if dc == nil || dc.renderer == nil || len(draws) == 0 {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -1776,18 +1746,15 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Sprite Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Sprite Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create sprite encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("sprite"); err != nil {
-		slog.Warn("failed to begin sprite encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Sprite Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -1846,12 +1813,12 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	}
 
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish sprite encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit sprite commands", "error", err)
 	}
 }
@@ -1863,7 +1830,7 @@ type gpuDecalVertex struct {
 	Color    [4]float32
 }
 
-func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue) error {
+func (r *Renderer) ensureDecalResourcesLocked(device *wgpu.Device, queue *wgpu.Queue) error {
 	if device == nil || queue == nil {
 		return fmt.Errorf("nil device or queue")
 	}
@@ -1880,11 +1847,11 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 	}
 	fragmentShader, err := createWorldShaderModule(device, worldgogpu.DecalFragmentShaderWGSL, "Decal Fragment Shader")
 	if err != nil {
-		vertexShader.Destroy()
+		vertexShader.Release()
 		return fmt.Errorf("create decal fragment shader: %w", err)
 	}
 
-	uniformLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "Decal Uniform BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{{
 			Binding:    0,
@@ -1897,53 +1864,46 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 		}},
 	})
 	if err != nil {
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal uniform layout: %w", err)
 	}
 
-	pipelineLayout, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "Decal Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, r.aliasTextureBindGroupLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, r.aliasTextureBindGroupLayout},
 	})
 	if err != nil {
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal pipeline layout: %w", err)
 	}
 
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Decal Uniform Buffer",
 		Size:             worldgogpu.DecalUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal uniform buffer: %w", err)
 	}
-	uniformBindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
-		Label:  "Decal Uniform BG",
-		Layout: uniformLayout,
-		Entries: []gputypes.BindGroupEntry{{
-			Binding: 0,
-			Resource: gputypes.BufferBinding{
-				Buffer: uniformBuffer.NativeHandle(),
-				Offset: 0,
-				Size:   worldgogpu.DecalUniformBufferSize,
-			},
-		}},
+	uniformBindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:   "Decal Uniform BG",
+		Layout:  uniformLayout,
+		Entries: []wgpu.BindGroupEntry{{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldgogpu.DecalUniformBufferSize}},
 	})
 	if err != nil {
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal uniform bind group: %w", err)
 	}
 
@@ -1953,10 +1913,10 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Decal Render Pipeline",
 		Layout: pipelineLayout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers: []gputypes.VertexBufferLayout{{
@@ -1976,7 +1936,7 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 		},
 		DepthStencil: decalDepthStencilState(),
 		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -1998,19 +1958,19 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 		},
 	})
 	if err != nil {
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal pipeline: %w", err)
 	}
 
 	atlasData := generateDecalAtlasData()
-	atlasTexture, err := device.CreateTexture(&hal.TextureDescriptor{
+	atlasTexture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "Decal Atlas Texture",
-		Size:          hal.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -2018,31 +1978,31 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
 	})
 	if err != nil {
-		pipeline.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		pipeline.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal atlas texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  atlasTexture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, atlasData, &hal.ImageDataLayout{BytesPerRow: 256 * 4, RowsPerImage: 256}, &hal.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1}); err != nil {
-		atlasTexture.Destroy()
-		pipeline.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+	}, atlasData, &wgpu.ImageDataLayout{BytesPerRow: 256 * 4, RowsPerImage: 256}, &wgpu.Extent3D{Width: 256, Height: 256, DepthOrArrayLayers: 1}); err != nil {
+		atlasTexture.Release()
+		pipeline.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("write decal atlas texture: %w", err)
 	}
-	atlasView, err := device.CreateTextureView(atlasTexture, &hal.TextureViewDescriptor{
+	atlasView, err := device.CreateTextureView(atlasTexture, &wgpu.TextureViewDescriptor{
 		Label:           "Decal Atlas View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -2053,35 +2013,35 @@ func (r *Renderer) ensureDecalResourcesLocked(device hal.Device, queue hal.Queue
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		atlasTexture.Destroy()
-		pipeline.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		atlasTexture.Release()
+		pipeline.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal atlas view: %w", err)
 	}
-	bindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "Decal Atlas BG",
 		Layout: r.aliasTextureBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{
-			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: r.aliasSampler.NativeHandle()}},
-			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: atlasView.NativeHandle()}},
-			{Binding: 2, Resource: gputypes.TextureViewBinding{TextureView: atlasView.NativeHandle()}},
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: r.aliasSampler},
+			{Binding: 1, TextureView: atlasView},
+			{Binding: 2, TextureView: atlasView},
 		},
 	})
 	if err != nil {
-		atlasView.Destroy()
-		atlasTexture.Destroy()
-		pipeline.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		atlasView.Release()
+		atlasTexture.Release()
+		pipeline.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create decal bind group: %w", err)
 	}
 
@@ -2102,12 +2062,12 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	if dc == nil || dc.renderer == nil || len(marks) == 0 {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -2138,18 +2098,15 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Decal Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Decal Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create decal encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("decal"); err != nil {
-		slog.Warn("failed to begin decal encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Decal Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -2185,12 +2142,12 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	}
 
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish decal encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit decal commands", "error", err)
 	}
 }
@@ -2230,14 +2187,14 @@ func gogpuDecalQuad(params worldgogpu.DecalMarkParams) ([4][3]float32, bool) {
 	})
 }
 
-func decalDepthStencilState() *hal.DepthStencilState {
-	stencilFace := hal.StencilFaceState{
+func decalDepthStencilState() *wgpu.DepthStencilState {
+	stencilFace := wgpu.StencilFaceState{
 		Compare:     gputypes.CompareFunctionEqual,
-		FailOp:      hal.StencilOperationKeep,
-		DepthFailOp: hal.StencilOperationKeep,
-		PassOp:      hal.StencilOperationIncrementClamp,
+		FailOp:      wgpu.StencilOperationKeep,
+		DepthFailOp: wgpu.StencilOperationKeep,
+		PassOp:      wgpu.StencilOperationIncrementClamp,
 	}
-	return &hal.DepthStencilState{
+	return &wgpu.DepthStencilState{
 		Format:              worldDepthTextureFormat,
 		DepthWriteEnabled:   false,
 		DepthCompare:        gputypes.CompareFunctionLessEqual,
@@ -2251,11 +2208,11 @@ func decalDepthStencilState() *hal.DepthStencilState {
 	}
 }
 
-func decalDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+func decalDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {
 	if view == nil {
 		return nil
 	}
-	return &hal.RenderPassDepthStencilAttachment{
+	return &wgpu.RenderPassDepthStencilAttachment{
 		View:              view,
 		DepthLoadOp:       gputypes.LoadOpLoad,
 		DepthStoreOp:      gputypes.StoreOpStore,
@@ -2270,18 +2227,18 @@ func decalDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStenc
 
 // ---- merged from world_late_translucent_gogpu_root.go ----
 type gogpuLateTranslucentFaceResources struct {
-	device                  hal.Device
-	queue                   hal.Queue
-	textureView             hal.TextureView
-	alphaTestPipeline       hal.RenderPipeline
-	translucentPipeline     hal.RenderPipeline
-	liquidPipeline          hal.RenderPipeline
-	uniformBuffer           hal.Buffer
-	uniformBindGroup        hal.BindGroup
-	whiteTextureBindGroup   hal.BindGroup
-	whiteLightmapBindGroup  hal.BindGroup
-	transparentBindGroup    hal.BindGroup
-	depthView               hal.TextureView
+	device                  *wgpu.Device
+	queue                   *wgpu.Queue
+	textureView             *wgpu.TextureView
+	alphaTestPipeline       *wgpu.RenderPipeline
+	translucentPipeline     *wgpu.RenderPipeline
+	liquidPipeline          *wgpu.RenderPipeline
+	uniformBuffer           *wgpu.Buffer
+	uniformBindGroup        *wgpu.BindGroup
+	whiteTextureBindGroup   *wgpu.BindGroup
+	whiteLightmapBindGroup  *wgpu.BindGroup
+	transparentBindGroup    *wgpu.BindGroup
+	depthView               *wgpu.TextureView
 	camera                  CameraState
 	worldTextures           map[int32]*gpuWorldTexture
 	worldFullbrightTextures map[int32]*gpuWorldTexture
@@ -2294,9 +2251,9 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 	if dc == nil || dc.renderer == nil {
 		return gogpuLateTranslucentFaceResources{}, false
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	textureView := dc.currentHALRenderTargetView()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
+	textureView := dc.currentWGPURenderTargetView()
 	if device == nil || queue == nil || textureView == nil {
 		return gogpuLateTranslucentFaceResources{}, false
 	}
@@ -2341,8 +2298,8 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 }
 
 type gogpuTranslucentBrushCollectState struct {
-	device      hal.Device
-	queue       hal.Queue
+	device      *wgpu.Device
+	queue       *wgpu.Queue
 	camera      CameraState
 	liquidAlpha worldLiquidAlphaSettings
 }
@@ -2351,8 +2308,8 @@ func (dc *DrawContext) loadGoGPUTranslucentBrushCollectState() (gogpuTranslucent
 	if dc == nil || dc.renderer == nil {
 		return gogpuTranslucentBrushCollectState{}, false
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return gogpuTranslucentBrushCollectState{}, false
 	}
@@ -2373,9 +2330,9 @@ func (dc *DrawContext) loadGoGPUTranslucentBrushCollectState() (gogpuTranslucent
 	}, true
 }
 
-func createGoGPUTranslucentBrushBuffers(device hal.Device, queue hal.Queue, vertexLabel, indexLabel string, vertices []WorldVertex, indices []uint32) ([2]hal.Buffer, []hal.Buffer, bool) {
+func createGoGPUTranslucentBrushBuffers(device *wgpu.Device, queue *wgpu.Queue, vertexLabel, indexLabel string, vertices []WorldVertex, indices []uint32) ([2]*wgpu.Buffer, []*wgpu.Buffer, bool) {
 	if device == nil || queue == nil || len(vertices) == 0 || len(indices) == 0 {
-		return [2]hal.Buffer{}, nil, false
+		return [2]*wgpu.Buffer{}, nil, false
 	}
 	vertexData := worldgogpu.VertexBytes(vertices)
 	indexData := worldgogpu.IndexBytes(indices)
@@ -2383,31 +2340,31 @@ func createGoGPUTranslucentBrushBuffers(device hal.Device, queue hal.Queue, vert
 	vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, vertexLabel, gputypes.BufferUsageVertex, vertexData)
 	if err != nil {
 		slog.Warn("failed to create translucent brush vertex buffer", "label", vertexLabel, "error", err)
-		return [2]hal.Buffer{}, nil, false
+		return [2]*wgpu.Buffer{}, nil, false
 	}
 	if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-		vertexBuffer.Destroy()
+		vertexBuffer.Release()
 		slog.Warn("failed to upload translucent brush vertex buffer", "label", vertexLabel, "error", err)
-		return [2]hal.Buffer{}, nil, false
+		return [2]*wgpu.Buffer{}, nil, false
 	}
 
 	indexBuffer, err := worldgogpu.CreateBrushBuffer(device, indexLabel, gputypes.BufferUsageIndex, indexData)
 	if err != nil {
-		vertexBuffer.Destroy()
+		vertexBuffer.Release()
 		slog.Warn("failed to create translucent brush index buffer", "label", indexLabel, "error", err)
-		return [2]hal.Buffer{}, nil, false
+		return [2]*wgpu.Buffer{}, nil, false
 	}
 	if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-		indexBuffer.Destroy()
-		vertexBuffer.Destroy()
+		indexBuffer.Release()
+		vertexBuffer.Release()
 		slog.Warn("failed to upload translucent brush index buffer", "label", indexLabel, "error", err)
-		return [2]hal.Buffer{}, nil, false
+		return [2]*wgpu.Buffer{}, nil, false
 	}
 
-	return [2]hal.Buffer{vertexBuffer, indexBuffer}, []hal.Buffer{vertexBuffer, indexBuffer}, true
+	return [2]*wgpu.Buffer{vertexBuffer, indexBuffer}, []*wgpu.Buffer{vertexBuffer, indexBuffer}, true
 }
 
-func appendGoGPUTranslucentLiquidBrushFaceRenders(dst []gogpuTranslucentBrushFaceRender, bufferPair [2]hal.Buffer, draw gogpuTranslucentLiquidBrushEntityDraw) []gogpuTranslucentBrushFaceRender {
+func appendGoGPUTranslucentLiquidBrushFaceRenders(dst []gogpuTranslucentBrushFaceRender, bufferPair [2]*wgpu.Buffer, draw gogpuTranslucentLiquidBrushEntityDraw) []gogpuTranslucentBrushFaceRender {
 	for _, face := range draw.faces {
 		dst = append(dst, gogpuTranslucentBrushFaceRender{
 			bufferPair: bufferPair,
@@ -2420,7 +2377,7 @@ func appendGoGPUTranslucentLiquidBrushFaceRenders(dst []gogpuTranslucentBrushFac
 	return dst
 }
 
-func appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestDst, translucentDst []gogpuTranslucentBrushFaceRender, bufferPair [2]hal.Buffer, draw gogpuTranslucentBrushEntityDraw) ([]gogpuTranslucentBrushFaceRender, []gogpuTranslucentBrushFaceRender) {
+func appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestDst, translucentDst []gogpuTranslucentBrushFaceRender, bufferPair [2]*wgpu.Buffer, draw gogpuTranslucentBrushEntityDraw) ([]gogpuTranslucentBrushFaceRender, []gogpuTranslucentBrushFaceRender) {
 	for faceIndex, face := range draw.alphaTestFaces {
 		center := [3]float32{}
 		if faceIndex < len(draw.alphaTestCenters) {
@@ -2457,7 +2414,7 @@ func appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestDst, translucentDst [
 	return alphaTestDst, translucentDst
 }
 
-func gogpuLateTranslucentTextureBindGroups(res gogpuLateTranslucentFaceResources, draw gogpuTranslucentBrushFaceRender, timeSeconds float64) (hal.BindGroup, hal.BindGroup) {
+func gogpuLateTranslucentTextureBindGroups(res gogpuLateTranslucentFaceResources, draw gogpuTranslucentBrushFaceRender, timeSeconds float64) (*wgpu.BindGroup, *wgpu.BindGroup) {
 	textureBindGroup := res.whiteTextureBindGroup
 	if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 		textureBindGroup = worldTexture.bindGroup
@@ -2471,7 +2428,7 @@ func gogpuLateTranslucentTextureBindGroups(res gogpuLateTranslucentFaceResources
 	return textureBindGroup, fullbrightBindGroup
 }
 
-func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources, draw gogpuTranslucentBrushFaceRender) (hal.BindGroup, float32) {
+func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources, draw gogpuTranslucentBrushFaceRender) (*wgpu.BindGroup, float32) {
 	if draw.liquid {
 		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, res.whiteLightmapBindGroup)
 		if lightmapBindGroup == res.whiteLightmapBindGroup {
@@ -2515,7 +2472,7 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 			continue
 		}
 		renders = append(renders, gogpuTranslucentBrushFaceRender{
-			bufferPair: [2]hal.Buffer{worldVertexBuffer, worldIndexBuffer},
+			bufferPair: [2]*wgpu.Buffer{worldVertexBuffer, worldIndexBuffer},
 			face: gogpuTranslucentLiquidFaceDraw{
 				face:       face,
 				alpha:      worldFaceAlpha(face.Flags, liquidAlpha),
@@ -2529,7 +2486,7 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 	return renders
 }
 
-func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []hal.Buffer) {
+func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []*wgpu.Buffer) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return nil, nil
 	}
@@ -2550,7 +2507,7 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 	}
 
 	renders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws)*2)
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
+	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
 		bufferPair, owned, ok := createGoGPUTranslucentBrushBuffers(state.device, state.queue, "Brush Translucent Liquid Vertices", "Brush Translucent Liquid Indices", draw.vertices, draw.indices)
 		if !ok {
@@ -2562,7 +2519,7 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 	return renders, buffers
 }
 
-func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []gogpuTranslucentBrushFaceRender, []hal.Buffer) {
+func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []gogpuTranslucentBrushFaceRender, []*wgpu.Buffer) {
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return nil, nil, nil
 	}
@@ -2584,7 +2541,7 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 
 	alphaTestRenders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws))
 	translucentRenders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws)*2)
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
+	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
 		bufferPair, owned, ok := createGoGPUTranslucentBrushBuffers(state.device, state.queue, "Brush Translucent Vertices", "Brush Translucent Indices", draw.vertices, draw.indices)
 		if !ok {
@@ -2604,18 +2561,14 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	if !ok || res.alphaTestPipeline == nil {
 		return
 	}
-	encoder, err := res.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "GoGPU Alpha-Test Brush Encoder"})
+	encoder, err := res.device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Alpha-Test Brush Encoder"})
 	if err != nil {
 		slog.Warn("failed to create alpha-test brush encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("brush_alpha_test"); err != nil {
-		slog.Warn("failed to begin alpha-test brush encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "GoGPU Alpha-Test Brush Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    res.textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -2649,12 +2602,12 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
 	}
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish alpha-test brush encoding", "error", err)
 		return
 	}
-	if err := res.queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alpha-test brush commands", "error", err)
 	}
 }
@@ -2667,18 +2620,14 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	if !ok {
 		return
 	}
-	encoder, err := res.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "GoGPU Late Translucent Encoder"})
+	encoder, err := res.device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Late Translucent Encoder"})
 	if err != nil {
 		slog.Warn("failed to create late translucent encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("late_translucent"); err != nil {
-		slog.Warn("failed to begin late translucent encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "GoGPU Late Translucent Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    res.textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -2716,12 +2665,12 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
 	}
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish late translucent encoding", "error", err)
 		return
 	}
-	if err := res.queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit late translucent commands", "error", err)
 	}
 }
@@ -2743,8 +2692,8 @@ func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogCol
 		return
 	}
 
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
@@ -2798,12 +2747,12 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	if len(draws) == 0 || shadowSkin == nil || shadowSkin.bindGroup == nil {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -2838,19 +2787,15 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 		pipeline = shadowPipeline
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Alias Shadow Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Shadow Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create alias shadow encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("alias-shadow"); err != nil {
-		slog.Warn("failed to begin alias shadow encoding", "error", err)
-		return
-	}
 
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Alias Shadow Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -2885,17 +2830,17 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 	}
 
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish alias shadow encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alias shadow commands", "error", err)
 	}
 }
 
-func (r *Renderer) ensureAliasShadowSkinLocked(device hal.Device, queue hal.Queue) error {
+func (r *Renderer) ensureAliasShadowSkinLocked(device *wgpu.Device, queue *wgpu.Queue) error {
 	if r.aliasShadowSkin != nil {
 		return nil
 	}
@@ -2976,37 +2921,37 @@ func (r *Renderer) clearAliasModelsLocked() {
 	for key, cached := range r.aliasModels {
 		for _, skin := range cached.skins {
 			if skin.bindGroup != nil {
-				skin.bindGroup.Destroy()
+				skin.bindGroup.Release()
 			}
 			if skin.fullbrightView != nil {
-				skin.fullbrightView.Destroy()
+				skin.fullbrightView.Release()
 			}
 			if skin.fullbrightTexture != nil {
-				skin.fullbrightTexture.Destroy()
+				skin.fullbrightTexture.Release()
 			}
 			if skin.view != nil {
-				skin.view.Destroy()
+				skin.view.Release()
 			}
 			if skin.texture != nil {
-				skin.texture.Destroy()
+				skin.texture.Release()
 			}
 		}
 		for _, variants := range cached.playerSkins {
 			for _, skin := range variants {
 				if skin.bindGroup != nil {
-					skin.bindGroup.Destroy()
+					skin.bindGroup.Release()
 				}
 				if skin.fullbrightView != nil {
-					skin.fullbrightView.Destroy()
+					skin.fullbrightView.Release()
 				}
 				if skin.fullbrightTexture != nil {
-					skin.fullbrightTexture.Destroy()
+					skin.fullbrightTexture.Release()
 				}
 				if skin.view != nil {
-					skin.view.Destroy()
+					skin.view.Release()
 				}
 				if skin.texture != nil {
-					skin.texture.Destroy()
+					skin.texture.Release()
 				}
 			}
 		}
@@ -3018,64 +2963,64 @@ func (r *Renderer) destroyAliasResourcesLocked() {
 	r.clearAliasModelsLocked()
 	if r.aliasShadowSkin != nil {
 		if r.aliasShadowSkin.bindGroup != nil {
-			r.aliasShadowSkin.bindGroup.Destroy()
+			r.aliasShadowSkin.bindGroup.Release()
 		}
 		if r.aliasShadowSkin.fullbrightView != nil {
-			r.aliasShadowSkin.fullbrightView.Destroy()
+			r.aliasShadowSkin.fullbrightView.Release()
 		}
 		if r.aliasShadowSkin.fullbrightTexture != nil {
-			r.aliasShadowSkin.fullbrightTexture.Destroy()
+			r.aliasShadowSkin.fullbrightTexture.Release()
 		}
 		if r.aliasShadowSkin.view != nil {
-			r.aliasShadowSkin.view.Destroy()
+			r.aliasShadowSkin.view.Release()
 		}
 		if r.aliasShadowSkin.texture != nil {
-			r.aliasShadowSkin.texture.Destroy()
+			r.aliasShadowSkin.texture.Release()
 		}
 		r.aliasShadowSkin = nil
 	}
 	if r.aliasScratchBuffer != nil {
-		r.aliasScratchBuffer.Destroy()
+		r.aliasScratchBuffer.Release()
 		r.aliasScratchBuffer = nil
 	}
 	if r.aliasUniformBuffer != nil {
-		r.aliasUniformBuffer.Destroy()
+		r.aliasUniformBuffer.Release()
 		r.aliasUniformBuffer = nil
 	}
 	if r.aliasUniformBindGroup != nil {
-		r.aliasUniformBindGroup.Destroy()
+		r.aliasUniformBindGroup.Release()
 		r.aliasUniformBindGroup = nil
 	}
 	if r.aliasSampler != nil {
-		r.aliasSampler.Destroy()
+		r.aliasSampler.Release()
 		r.aliasSampler = nil
 	}
 	if r.aliasPipeline != nil {
-		r.aliasPipeline.Destroy()
+		r.aliasPipeline.Release()
 		r.aliasPipeline = nil
 	}
 	if r.aliasShadowPipeline != nil {
-		r.aliasShadowPipeline.Destroy()
+		r.aliasShadowPipeline.Release()
 		r.aliasShadowPipeline = nil
 	}
 	if r.aliasPipelineLayout != nil {
-		r.aliasPipelineLayout.Destroy()
+		r.aliasPipelineLayout.Release()
 		r.aliasPipelineLayout = nil
 	}
 	if r.aliasVertexShader != nil {
-		r.aliasVertexShader.Destroy()
+		r.aliasVertexShader.Release()
 		r.aliasVertexShader = nil
 	}
 	if r.aliasFragmentShader != nil {
-		r.aliasFragmentShader.Destroy()
+		r.aliasFragmentShader.Release()
 		r.aliasFragmentShader = nil
 	}
 	if r.aliasUniformBindGroupLayout != nil {
-		r.aliasUniformBindGroupLayout.Destroy()
+		r.aliasUniformBindGroupLayout.Release()
 		r.aliasUniformBindGroupLayout = nil
 	}
 	if r.aliasTextureBindGroupLayout != nil {
-		r.aliasTextureBindGroupLayout.Destroy()
+		r.aliasTextureBindGroupLayout.Release()
 		r.aliasTextureBindGroupLayout = nil
 	}
 }
@@ -3084,13 +3029,13 @@ func (r *Renderer) clearSpriteModelsLocked() {
 	for key, cached := range r.spriteModels {
 		for _, frame := range cached.frames {
 			if frame.bindGroup != nil {
-				frame.bindGroup.Destroy()
+				frame.bindGroup.Release()
 			}
 			if frame.view != nil {
-				frame.view.Destroy()
+				frame.view.Release()
 			}
 			if frame.texture != nil {
-				frame.texture.Destroy()
+				frame.texture.Release()
 			}
 		}
 		delete(r.spriteModels, key)
@@ -3100,77 +3045,77 @@ func (r *Renderer) clearSpriteModelsLocked() {
 func (r *Renderer) destroySpriteResourcesLocked() {
 	r.clearSpriteModelsLocked()
 	if r.spriteUniformBuffer != nil {
-		r.spriteUniformBuffer.Destroy()
+		r.spriteUniformBuffer.Release()
 		r.spriteUniformBuffer = nil
 	}
 	if r.spriteUniformBindGroup != nil {
-		r.spriteUniformBindGroup.Destroy()
+		r.spriteUniformBindGroup.Release()
 		r.spriteUniformBindGroup = nil
 	}
 	if r.spritePipeline != nil {
-		r.spritePipeline.Destroy()
+		r.spritePipeline.Release()
 		r.spritePipeline = nil
 	}
 	if r.spriteVertexShader != nil {
-		r.spriteVertexShader.Destroy()
+		r.spriteVertexShader.Release()
 		r.spriteVertexShader = nil
 	}
 	if r.spriteFragmentShader != nil {
-		r.spriteFragmentShader.Destroy()
+		r.spriteFragmentShader.Release()
 		r.spriteFragmentShader = nil
 	}
 }
 
 func (r *Renderer) destroyDecalResourcesLocked() {
 	if r.decalBindGroup != nil {
-		r.decalBindGroup.Destroy()
+		r.decalBindGroup.Release()
 		r.decalBindGroup = nil
 	}
 	if r.decalAtlasView != nil {
-		r.decalAtlasView.Destroy()
+		r.decalAtlasView.Release()
 		r.decalAtlasView = nil
 	}
 	if r.decalAtlasTextureHAL != nil {
-		r.decalAtlasTextureHAL.Destroy()
+		r.decalAtlasTextureHAL.Release()
 		r.decalAtlasTextureHAL = nil
 	}
 	if r.decalUniformBuffer != nil {
-		r.decalUniformBuffer.Destroy()
+		r.decalUniformBuffer.Release()
 		r.decalUniformBuffer = nil
 	}
 	if r.decalUniformBindGroup != nil {
-		r.decalUniformBindGroup.Destroy()
+		r.decalUniformBindGroup.Release()
 		r.decalUniformBindGroup = nil
 	}
 	if r.decalUniformLayout != nil {
-		r.decalUniformLayout.Destroy()
+		r.decalUniformLayout.Release()
 		r.decalUniformLayout = nil
 	}
 	if r.decalPipelineLayout != nil {
-		r.decalPipelineLayout.Destroy()
+		r.decalPipelineLayout.Release()
 		r.decalPipelineLayout = nil
 	}
 	if r.decalPipeline != nil {
-		r.decalPipeline.Destroy()
+		r.decalPipeline.Release()
 		r.decalPipeline = nil
 	}
 	if r.decalVertexShader != nil {
-		r.decalVertexShader.Destroy()
+		r.decalVertexShader.Release()
 		r.decalVertexShader = nil
 	}
 	if r.decalFragmentShader != nil {
-		r.decalFragmentShader.Destroy()
+		r.decalFragmentShader.Release()
 		r.decalFragmentShader = nil
 	}
 }
 
 // ---- merged from world_support_gogpu_root.go ----
 type gpuAliasSkin struct {
-	texture           hal.Texture
-	view              hal.TextureView
-	fullbrightTexture hal.Texture
-	fullbrightView    hal.TextureView
-	bindGroup         hal.BindGroup
+	texture           *wgpu.Texture
+	view              *wgpu.TextureView
+	fullbrightTexture *wgpu.Texture
+	fullbrightView    *wgpu.TextureView
+	bindGroup         *wgpu.BindGroup
 }
 
 type gpuAliasModel struct {
@@ -3198,9 +3143,9 @@ type gpuAliasDraw struct {
 
 type gpuSpriteFrame struct {
 	meta      spriteRenderFrame
-	texture   hal.Texture
-	view      hal.TextureView
-	bindGroup hal.BindGroup
+	texture   *wgpu.Texture
+	view      *wgpu.TextureView
+	bindGroup *wgpu.BindGroup
 }
 
 type gpuSpriteModel struct {
@@ -3221,7 +3166,7 @@ type gpuSpriteDraw struct {
 	scale  float32
 }
 
-func (r *Renderer) ensureAliasScratchBufferLocked(device hal.Device, size uint64) error {
+func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint64) error {
 	if size == 0 {
 		size = 44
 	}
@@ -3229,11 +3174,11 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device hal.Device, size uint64
 		return nil
 	}
 	if r.aliasScratchBuffer != nil {
-		r.aliasScratchBuffer.Destroy()
+		r.aliasScratchBuffer.Release()
 		r.aliasScratchBuffer = nil
 		r.aliasScratchBufferSize = 0
 	}
-	buffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Scratch Buffer",
 		Size:             size,
 		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
@@ -3247,11 +3192,11 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device hal.Device, size uint64
 	return nil
 }
 
-func aliasDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+func aliasDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {
 	if view == nil {
 		return nil
 	}
-	return &hal.RenderPassDepthStencilAttachment{
+	return &wgpu.RenderPassDepthStencilAttachment{
 		View:              view,
 		DepthLoadOp:       gputypes.LoadOpLoad,
 		DepthStoreOp:      gputypes.StoreOpStore,
@@ -3271,16 +3216,16 @@ func putFloat32s(dst []byte, values []float32) {
 }
 
 // ---- merged from world_translucent_sort_gogpu_root.go ----
-func destroyGoGPUTransientBuffers(buffers []hal.Buffer) {
+func destroyGoGPUTransientBuffers(buffers []*wgpu.Buffer) {
 	for _, buffer := range buffers {
 		if buffer != nil {
-			buffer.Destroy()
+			buffer.Release()
 		}
 	}
 }
 
 type gogpuTranslucentBrushFaceRender struct {
-	bufferPair [2]hal.Buffer
+	bufferPair [2]*wgpu.Buffer
 	frame      int
 	face       gogpuTranslucentLiquidFaceDraw
 	liquid     bool

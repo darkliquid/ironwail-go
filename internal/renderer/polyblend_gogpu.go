@@ -10,7 +10,7 @@ import (
 	"math"
 
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 )
 
 const polyBlendUniformBufferSize = 16
@@ -54,36 +54,36 @@ fn fs_main(_input: VertexOutput) -> @location(0) vec4<f32> {
 
 func (r *Renderer) destroyPolyBlendResourcesLocked() {
 	if r.polyBlendUniformBuffer != nil {
-		r.polyBlendUniformBuffer.Destroy()
+		r.polyBlendUniformBuffer.Release()
 		r.polyBlendUniformBuffer = nil
 	}
 	if r.polyBlendBindGroup != nil {
-		r.polyBlendBindGroup.Destroy()
+		r.polyBlendBindGroup.Release()
 		r.polyBlendBindGroup = nil
 	}
 	if r.polyBlendBindGroupLayout != nil {
-		r.polyBlendBindGroupLayout.Destroy()
+		r.polyBlendBindGroupLayout.Release()
 		r.polyBlendBindGroupLayout = nil
 	}
 	if r.polyBlendPipelineLayout != nil {
-		r.polyBlendPipelineLayout.Destroy()
+		r.polyBlendPipelineLayout.Release()
 		r.polyBlendPipelineLayout = nil
 	}
 	if r.polyBlendPipeline != nil {
-		r.polyBlendPipeline.Destroy()
+		r.polyBlendPipeline.Release()
 		r.polyBlendPipeline = nil
 	}
 	if r.polyBlendVertexShader != nil {
-		r.polyBlendVertexShader.Destroy()
+		r.polyBlendVertexShader.Release()
 		r.polyBlendVertexShader = nil
 	}
 	if r.polyBlendFragmentShader != nil {
-		r.polyBlendFragmentShader.Destroy()
+		r.polyBlendFragmentShader.Release()
 		r.polyBlendFragmentShader = nil
 	}
 }
 
-func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
+func (r *Renderer) ensurePolyBlendResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
@@ -97,11 +97,11 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
 	}
 	fragmentShader, err := createWorldShaderModule(device, polyBlendFragmentShaderWGSL, "PolyBlend Fragment Shader")
 	if err != nil {
-		vertexShader.Destroy()
+		vertexShader.Release()
 		return fmt.Errorf("create polyblend fragment shader: %w", err)
 	}
 
-	bindGroupLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	bindGroupLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "PolyBlend Uniform BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{{
 			Binding:    0,
@@ -114,54 +114,52 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
 		}},
 	})
 	if err != nil {
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create polyblend bind group layout: %w", err)
 	}
 
-	pipelineLayout, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "PolyBlend Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{bindGroupLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{bindGroupLayout},
 	})
 	if err != nil {
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create polyblend pipeline layout: %w", err)
 	}
 
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "PolyBlend Uniform Buffer",
 		Size:             polyBlendUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
-		pipelineLayout.Destroy()
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		pipelineLayout.Release()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create polyblend uniform buffer: %w", err)
 	}
 
-	bindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "PolyBlend Uniform BG",
 		Layout: bindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{{
+		Entries: []wgpu.BindGroupEntry{{
 			Binding: 0,
-			Resource: gputypes.BufferBinding{
-				Buffer: uniformBuffer.NativeHandle(),
-				Offset: 0,
-				Size:   polyBlendUniformBufferSize,
-			},
+			Buffer:  uniformBuffer,
+			Offset:  0,
+			Size:    polyBlendUniformBufferSize,
 		}},
 	})
 	if err != nil {
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create polyblend bind group: %w", err)
 	}
 
@@ -172,10 +170,10 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
 		}
 	}
 
-	pipeline, err := validatedGoGPURenderPipeline(device, &hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "PolyBlend Render Pipeline",
 		Layout: pipelineLayout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 		},
@@ -185,7 +183,7 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
 			CullMode:  gputypes.CullModeNone,
 		},
 		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -207,12 +205,12 @@ func (r *Renderer) ensurePolyBlendResourcesLocked(device hal.Device) error {
 		},
 	})
 	if err != nil {
-		bindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		bindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create polyblend pipeline: %w", err)
 	}
 
@@ -231,12 +229,12 @@ func (dc *DrawContext) renderPolyBlendHAL(blend [4]float32) {
 		return
 	}
 
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -256,23 +254,23 @@ func (dc *DrawContext) renderPolyBlendHAL(blend [4]float32) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "PolyBlend Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "PolyBlend Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create polyblend encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("polyblend"); err != nil {
-		slog.Warn("failed to begin polyblend encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "PolyBlend Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
 		}},
 	})
+	if err != nil {
+		slog.Warn("failed to begin polyblend render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(pipeline)
 	renderPass.SetBindGroup(0, bindGroup, nil)
 	width, height := r.Size()
@@ -283,18 +281,21 @@ func (dc *DrawContext) renderPolyBlendHAL(blend [4]float32) {
 
 	if err := queue.WriteBuffer(uniformBuffer, 0, polyBlendUniformBytes(blend)); err != nil {
 		slog.Warn("failed to upload polyblend uniform", "error", err)
-		renderPass.End()
+		_ = renderPass.End()
 		return
 	}
 	renderPass.Draw(3, 1, 0, 0)
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("failed to end polyblend render pass", "error", err)
+		return
+	}
 
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish polyblend encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit polyblend commands", "error", err)
 	}
 }

@@ -12,4 +12,7 @@
 - when using the GoGPU renderer, all render/draw mutations MUST happen via the `OnDraw` callback
 - `OnUpdate` may stage data for rendering, but it must not directly mutate render-thread-owned draw state
 - callers must treat `OnDraw` as the only safe place to perform GoGPU-backed camera, world-upload, canvas, and other draw-state mutations because it runs on the dedicated render thread
-- GoGPU render-pipeline creation now routes through `validatedGoGPURenderPipeline` in `internal/renderer/renderer_gogpu.go`, which applies the same `wgpu/core.ValidateRenderPipelineDescriptor` check used by the public `wgpu.Device` before calling the HAL `CreateRenderPipeline` entry point exposed by this gogpu version
+- GoGPU core renderer setup now acquires the public `*wgpu.Device` / `*wgpu.Queue` directly from `app.DeviceProvider()` and treats those wrappers as the canonical backend handles for GoGPU resource creation and command submission
+- GoGPU render-pipeline creation routes through `validatedGoGPURenderPipeline` in `internal/renderer/renderer_gogpu.go`, which accepts `*wgpu.Device`/`*wgpu.RenderPipelineDescriptor` and returns `*wgpu.RenderPipeline`; the HAL abstraction layer is no longer imported or used
+- GoGPU postprocess helpers in `polyblend_gogpu.go` and `warpscale_gogpu.go` now use public `wgpu` descriptors/encoders/render passes/submit paths end-to-end (no renderer-side `getHAL*` fetches)
+- active GoGPU core passes in this node (`clearCurrentWGPURenderTarget`, warpscale/polyblend scene composition) now use wrapper command encoding (`CreateCommandEncoder`, `BeginRenderPass`, `RenderPass.End`, `CommandEncoder.Finish`, `Queue.Submit`) with explicit pass/finish error handling

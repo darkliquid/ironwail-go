@@ -9,7 +9,7 @@ import (
 	"math"
 
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 )
 
@@ -38,11 +38,11 @@ func IndexBytes(indices []uint32) []byte {
 }
 
 // CreateBrushBuffer allocates a GoGPU buffer suitable for queued brush uploads.
-func CreateBrushBuffer(device hal.Device, label string, usage gputypes.BufferUsage, data []byte) (hal.Buffer, error) {
+func CreateBrushBuffer(device *wgpu.Device, label string, usage gputypes.BufferUsage, data []byte) (*wgpu.Buffer, error) {
 	if device == nil || len(data) == 0 {
 		return nil, fmt.Errorf("invalid brush buffer upload")
 	}
-	buffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            label,
 		Size:             uint64(len(data)),
 		Usage:            usage | gputypes.BufferUsageCopyDst,

@@ -9,6 +9,7 @@ relations:
       - BuildVerticesInterpolated
 mapping:
   paths:
+    - internal/renderer/particle_gogpu.go
     - internal/renderer/world_gogpu.go
     - internal/renderer/world_gogpu_decal_test.go
     - internal/renderer/world/gogpu/shaders.go

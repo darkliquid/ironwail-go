@@ -59,9 +59,7 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath" // retained only for gogpu API boundary (Color type)
 	"github.com/gogpu/gogpu/input"
-	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/core"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
@@ -88,18 +86,15 @@ type DrawContext struct {
 	canvas            CanvasState
 	canvasParams      CanvasTransformParams
 	sceneRenderActive bool
-	sceneRenderTarget hal.TextureView
+	sceneRenderTarget *wgpu.TextureView
 }
 
-func validatedGoGPURenderPipeline(device hal.Device, desc *hal.RenderPipelineDescriptor) (hal.RenderPipeline, error) {
+func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipelineDescriptor) (*wgpu.RenderPipeline, error) {
 	if device == nil {
 		return nil, fmt.Errorf("nil device")
 	}
 	if desc == nil {
 		return nil, fmt.Errorf("nil render pipeline descriptor")
-	}
-	if err := core.ValidateRenderPipelineDescriptor(desc, gputypes.DefaultLimits()); err != nil {
-		return nil, fmt.Errorf("validate render pipeline %q: %w", desc.Label, err)
 	}
 	return device.CreateRenderPipeline(desc)
 }
@@ -531,67 +526,67 @@ type Renderer struct {
 	worldData *WorldRenderData
 
 	// GPU resources for world rendering
-	worldVertexBuffer                 hal.Buffer
-	worldIndexBuffer                  hal.Buffer
+	worldVertexBuffer                 *wgpu.Buffer
+	worldIndexBuffer                  *wgpu.Buffer
 	worldIndexCount                   uint32
-	worldPipeline                     hal.RenderPipeline
-	worldTranslucentPipeline          hal.RenderPipeline
-	worldTurbulentPipeline            hal.RenderPipeline
-	worldTranslucentTurbulentPipeline hal.RenderPipeline
-	worldSkyPipeline                  hal.RenderPipeline
-	worldSkyExternalPipeline          hal.RenderPipeline
-	worldPipelineLayout               hal.PipelineLayout
-	worldSkyExternalPipelineLayout    hal.PipelineLayout
-	worldBindGroup                    hal.BindGroup
-	worldShader                       hal.ShaderModule
-	uniformBuffer                     hal.Buffer
-	uniformBindGroup                  hal.BindGroup
-	uniformBindGroupLayout            hal.BindGroupLayout
-	textureBindGroupLayout            hal.BindGroupLayout
-	worldSkyExternalBindGroupLayout   hal.BindGroupLayout
-	worldTextureSampler               hal.Sampler
+	worldPipeline                     *wgpu.RenderPipeline
+	worldTranslucentPipeline          *wgpu.RenderPipeline
+	worldTurbulentPipeline            *wgpu.RenderPipeline
+	worldTranslucentTurbulentPipeline *wgpu.RenderPipeline
+	worldSkyPipeline                  *wgpu.RenderPipeline
+	worldSkyExternalPipeline          *wgpu.RenderPipeline
+	worldPipelineLayout               *wgpu.PipelineLayout
+	worldSkyExternalPipelineLayout    *wgpu.PipelineLayout
+	worldBindGroup                    *wgpu.BindGroup
+	worldShader                       *wgpu.ShaderModule
+	uniformBuffer                     *wgpu.Buffer
+	uniformBindGroup                  *wgpu.BindGroup
+	uniformBindGroupLayout            *wgpu.BindGroupLayout
+	textureBindGroupLayout            *wgpu.BindGroupLayout
+	worldSkyExternalBindGroupLayout   *wgpu.BindGroupLayout
+	worldTextureSampler               *wgpu.Sampler
 	worldTextures                     map[int32]*gpuWorldTexture
 	worldFullbrightTextures           map[int32]*gpuWorldTexture
 	worldSkySolidTextures             map[int32]*gpuWorldTexture
 	worldSkyAlphaTextures             map[int32]*gpuWorldTexture
 	worldTextureAnimations            []*SurfaceTexture
-	worldSkyExternalTextures          [6]hal.Texture
-	worldSkyExternalViews             [6]hal.TextureView
-	worldSkyExternalBindGroup         hal.BindGroup
+	worldSkyExternalTextures          [6]*wgpu.Texture
+	worldSkyExternalViews             [6]*wgpu.TextureView
+	worldSkyExternalBindGroup         *wgpu.BindGroup
 	worldSkyExternalFaces             [6]externalSkyboxFace
 	worldSkyExternalLoaded            int
 	worldSkyExternalMode              externalSkyboxRenderMode
 	worldSkyExternalName              string
 	worldSkyExternalRequestID         uint64
-	whiteTextureBindGroup             hal.BindGroup
-	transparentTexture                hal.Texture
-	transparentTextureView            hal.TextureView
-	transparentBindGroup              hal.BindGroup
-	worldLightmapSampler              hal.Sampler
+	whiteTextureBindGroup             *wgpu.BindGroup
+	transparentTexture                *wgpu.Texture
+	transparentTextureView            *wgpu.TextureView
+	transparentBindGroup              *wgpu.BindGroup
+	worldLightmapSampler              *wgpu.Sampler
 	worldLightmapPages                []*gpuWorldTexture
-	whiteLightmapBindGroup            hal.BindGroup
+	whiteLightmapBindGroup            *wgpu.BindGroup
 	worldLightStyleValues             [64]float32
 
 	// 1x1 white texture for fallback
-	whiteTexture          hal.Texture
-	whiteTextureView      hal.TextureView
-	worldDepthTexture     hal.Texture
-	worldDepthTextureView hal.TextureView
+	whiteTexture          *wgpu.Texture
+	whiteTextureView      *wgpu.TextureView
+	worldDepthTexture     *wgpu.Texture
+	worldDepthTextureView *wgpu.TextureView
 
 	// Offscreen render target for world rendering
-	worldRenderTexture            hal.Texture
-	worldRenderTextureView        hal.TextureView
+	worldRenderTexture            *wgpu.Texture
+	worldRenderTextureView        *wgpu.TextureView
 	worldRenderTextureGogpu       *gogpu.Texture // gogpu-wrapped version for compositing
 	worldRenderWidth              int
 	worldRenderHeight             int
-	sceneCompositePipeline        hal.RenderPipeline
-	sceneCompositePipelineLayout  hal.PipelineLayout
-	sceneCompositeVertexShader    hal.ShaderModule
-	sceneCompositeFragmentShader  hal.ShaderModule
-	sceneCompositeBindGroupLayout hal.BindGroupLayout
-	sceneCompositeSampler         hal.Sampler
-	sceneCompositeUniformBuffer   hal.Buffer
-	sceneCompositeBindGroup       hal.BindGroup
+	sceneCompositePipeline        *wgpu.RenderPipeline
+	sceneCompositePipelineLayout  *wgpu.PipelineLayout
+	sceneCompositeVertexShader    *wgpu.ShaderModule
+	sceneCompositeFragmentShader  *wgpu.ShaderModule
+	sceneCompositeBindGroupLayout *wgpu.BindGroupLayout
+	sceneCompositeSampler         *wgpu.Sampler
+	sceneCompositeUniformBuffer   *wgpu.Buffer
+	sceneCompositeBindGroup       *wgpu.BindGroup
 
 	// Alias-model resources for the gogpu backend.
 	lightPool                      *glLightPool
@@ -602,48 +597,48 @@ type Renderer struct {
 	aliasEntityStates              map[int]*AliasEntity
 	viewModelAliasState            *AliasEntity
 	aliasShadowSkin                *gpuAliasSkin
-	aliasScratchBuffer             hal.Buffer
+	aliasScratchBuffer             *wgpu.Buffer
 	aliasScratchBufferSize         uint64
-	aliasPipeline                  hal.RenderPipeline
-	aliasShadowPipeline            hal.RenderPipeline
-	aliasPipelineLayout            hal.PipelineLayout
-	aliasVertexShader              hal.ShaderModule
-	aliasFragmentShader            hal.ShaderModule
-	aliasUniformBuffer             hal.Buffer
-	aliasUniformBindGroup          hal.BindGroup
-	aliasUniformBindGroupLayout    hal.BindGroupLayout
-	aliasTextureBindGroupLayout    hal.BindGroupLayout
-	aliasSampler                   hal.Sampler
-	spriteUniformBuffer            hal.Buffer
-	spriteUniformBindGroup         hal.BindGroup
-	spritePipeline                 hal.RenderPipeline
-	spriteVertexShader             hal.ShaderModule
-	spriteFragmentShader           hal.ShaderModule
-	particleOpaquePipeline         hal.RenderPipeline
-	particleTranslucentPipeline    hal.RenderPipeline
-	particlePipelineLayout         hal.PipelineLayout
-	particleVertexShader           hal.ShaderModule
-	particleFragmentShader         hal.ShaderModule
-	particleUniformBuffer          hal.Buffer
-	particleUniformBindGroup       hal.BindGroup
-	particleUniformBindGroupLayout hal.BindGroupLayout
-	decalPipeline                  hal.RenderPipeline
-	decalPipelineLayout            hal.PipelineLayout
-	decalVertexShader              hal.ShaderModule
-	decalFragmentShader            hal.ShaderModule
-	decalUniformBuffer             hal.Buffer
-	decalUniformBindGroup          hal.BindGroup
-	decalUniformLayout             hal.BindGroupLayout
-	decalAtlasTextureHAL           hal.Texture
-	decalAtlasView                 hal.TextureView
-	decalBindGroup                 hal.BindGroup
-	polyBlendPipeline              hal.RenderPipeline
-	polyBlendPipelineLayout        hal.PipelineLayout
-	polyBlendVertexShader          hal.ShaderModule
-	polyBlendFragmentShader        hal.ShaderModule
-	polyBlendUniformBuffer         hal.Buffer
-	polyBlendBindGroupLayout       hal.BindGroupLayout
-	polyBlendBindGroup             hal.BindGroup
+	aliasPipeline                  *wgpu.RenderPipeline
+	aliasShadowPipeline            *wgpu.RenderPipeline
+	aliasPipelineLayout            *wgpu.PipelineLayout
+	aliasVertexShader              *wgpu.ShaderModule
+	aliasFragmentShader            *wgpu.ShaderModule
+	aliasUniformBuffer             *wgpu.Buffer
+	aliasUniformBindGroup          *wgpu.BindGroup
+	aliasUniformBindGroupLayout    *wgpu.BindGroupLayout
+	aliasTextureBindGroupLayout    *wgpu.BindGroupLayout
+	aliasSampler                   *wgpu.Sampler
+	spriteUniformBuffer            *wgpu.Buffer
+	spriteUniformBindGroup         *wgpu.BindGroup
+	spritePipeline                 *wgpu.RenderPipeline
+	spriteVertexShader             *wgpu.ShaderModule
+	spriteFragmentShader           *wgpu.ShaderModule
+	particleOpaquePipeline         *wgpu.RenderPipeline
+	particleTranslucentPipeline    *wgpu.RenderPipeline
+	particlePipelineLayout         *wgpu.PipelineLayout
+	particleVertexShader           *wgpu.ShaderModule
+	particleFragmentShader         *wgpu.ShaderModule
+	particleUniformBuffer          *wgpu.Buffer
+	particleUniformBindGroup       *wgpu.BindGroup
+	particleUniformBindGroupLayout *wgpu.BindGroupLayout
+	decalPipeline                  *wgpu.RenderPipeline
+	decalPipelineLayout            *wgpu.PipelineLayout
+	decalVertexShader              *wgpu.ShaderModule
+	decalFragmentShader            *wgpu.ShaderModule
+	decalUniformBuffer             *wgpu.Buffer
+	decalUniformBindGroup          *wgpu.BindGroup
+	decalUniformLayout             *wgpu.BindGroupLayout
+	decalAtlasTextureHAL           *wgpu.Texture
+	decalAtlasView                 *wgpu.TextureView
+	decalBindGroup                 *wgpu.BindGroup
+	polyBlendPipeline              *wgpu.RenderPipeline
+	polyBlendPipelineLayout        *wgpu.PipelineLayout
+	polyBlendVertexShader          *wgpu.ShaderModule
+	polyBlendFragmentShader        *wgpu.ShaderModule
+	polyBlendUniformBuffer         *wgpu.Buffer
+	polyBlendBindGroupLayout       *wgpu.BindGroupLayout
+	polyBlendBindGroup             *wgpu.BindGroup
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -1472,7 +1467,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
 	plan := planGoGPUEntityDrawOrder(state.DrawEntities, hasTranslucentWorld, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
 	var pendingTranslucentRenders []gogpuTranslucentBrushFaceRender
-	var pendingTransientBuffers []hal.Buffer
+	var pendingTransientBuffers []*wgpu.Buffer
 	flushPendingTranslucency := func() {
 		if len(pendingTranslucentRenders) == 0 {
 			destroyGoGPUTransientBuffers(pendingTransientBuffers)
@@ -1645,8 +1640,8 @@ func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeome
 	sampler := r.worldLightmapSampler
 	values := r.worldLightStyleValues
 	r.mu.RUnlock()
-	device := r.getHALDevice()
-	queue := r.getHALQueue()
+	device := r.getWGPUDevice()
+	queue := r.getWGPUQueue()
 	if device == nil || queue == nil || sampler == nil {
 		return nil
 	}
@@ -1662,13 +1657,13 @@ func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeome
 				continue
 			}
 			if page.bindGroup != nil {
-				page.bindGroup.Destroy()
+				page.bindGroup.Release()
 			}
 			if page.view != nil {
-				page.view.Destroy()
+				page.view.Release()
 			}
 			if page.texture != nil {
-				page.texture.Destroy()
+				page.texture.Release()
 			}
 		}
 		return existing
@@ -1900,7 +1895,7 @@ func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte,
 	r.worldSkyExternalMode = renderMode
 	r.worldSkyExternalName = normalized
 
-	if err := r.ensureGoGPUExternalSkyboxLocked(r.getHALDevice(), r.getHALQueue()); err != nil {
+	if err := r.ensureGoGPUExternalSkyboxLocked(r.getWGPUDevice(), r.getWGPUQueue()); err != nil {
 		slog.Debug("external gogpu skybox upload deferred", "name", normalized, "error", err)
 	}
 }
@@ -1913,10 +1908,8 @@ func (r *Renderer) NeedsWorldGPUUpload() bool {
 	return r.worldData != nil && (r.worldVertexBuffer == nil || r.worldIndexBuffer == nil || r.worldIndexCount == 0)
 }
 
-// getHALDevice returns the underlying HAL device from the gogpu renderer.
-// This uses reflection to access the private device field from gogpu.Renderer.
-// Returns nil if device is not available.
-func (r *Renderer) getHALDevice() hal.Device {
+// getWGPUDevice returns the public WebGPU device exposed by the app provider.
+func (r *Renderer) getWGPUDevice() *wgpu.Device {
 	if r.app == nil {
 		return nil
 	}
@@ -1924,43 +1917,34 @@ func (r *Renderer) getHALDevice() hal.Device {
 	if provider == nil {
 		return nil
 	}
-	device := provider.Device()
-	if device == nil {
+	raw := any(provider.Device())
+	device, ok := raw.(*wgpu.Device)
+	if !ok {
 		return nil
 	}
-	return device.HalDevice()
+	return device
 }
 
-// getHALQueue returns the underlying HAL queue from the gogpu renderer.
-// This uses reflection to access the private queue field from gogpu.Renderer.
-// Returns nil if queue is not available.
-func (r *Renderer) getHALQueue() hal.Queue {
-	if r.app == nil {
-		return nil
-	}
-	provider := r.app.DeviceProvider()
-	if provider == nil {
-		return nil
-	}
-	device := provider.Device()
+func (r *Renderer) getWGPUQueue() *wgpu.Queue {
+	device := r.getWGPUDevice()
 	if device == nil {
 		return nil
 	}
-	return device.HalQueue()
+	return device.Queue()
 }
 
 func (r *Renderer) destroyGoGPUExternalSkyboxResourcesLocked() {
 	if r.worldSkyExternalBindGroup != nil {
-		r.worldSkyExternalBindGroup.Destroy()
+		r.worldSkyExternalBindGroup.Release()
 		r.worldSkyExternalBindGroup = nil
 	}
 	for i := range r.worldSkyExternalViews {
 		if r.worldSkyExternalViews[i] != nil {
-			r.worldSkyExternalViews[i].Destroy()
+			r.worldSkyExternalViews[i].Release()
 			r.worldSkyExternalViews[i] = nil
 		}
 		if r.worldSkyExternalTextures[i] != nil {
-			r.worldSkyExternalTextures[i].Destroy()
+			r.worldSkyExternalTextures[i].Release()
 			r.worldSkyExternalTextures[i] = nil
 		}
 	}

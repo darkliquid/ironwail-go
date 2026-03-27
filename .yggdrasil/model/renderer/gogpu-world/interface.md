@@ -20,4 +20,6 @@
 - world-face visibility for GoGPU draws is expected to come from shared-world PVS helpers (`WorldGeometry.LeafFaces` + `selectVisibleWorldFaces`) rather than backend-specific culling logic
 - alias-model draw preparation applies `r_nolerp_list` through shared alias-state helpers before `SetupAliasFrame`, keeping no-lerp model handling aligned with OpenGL and C parity expectations
 - normal tagged builds (`-tags gogpu`) are expected to exercise the root seam files in `internal/renderer/`, including the root decal seam coverage in `internal/renderer/world_gogpu_decal_test.go`
-- alias, sprite, and decal GoGPU resource setup now creates pipelines through the shared `validatedGoGPURenderPipeline` helper, so descriptor validation happens before HAL/Vulkan pipeline creation while draw submission continues to use HAL handles
+- GoGPU world, particle, sprite, decal, and late-translucent runtime paths now use public `*wgpu.Device` / `*wgpu.Queue` handles plus public encoder/render-pass/submit APIs for renderer-owned command recording
+- GoGPU particle rendering in `internal/renderer/particle_gogpu.go` now follows the same public wrapper contract (`CreateCommandEncoder` → `BeginRenderPass` → `RenderPass.End` → `Finish` → `Queue.Submit`) and no longer performs renderer-side HAL queue/device fetches
+- receiver-free GoGPU brush buffer allocation in `internal/renderer/world/gogpu/buffer.go` now accepts public `*wgpu.Device` / `*wgpu.Buffer` handles to match root runtime ownership types
