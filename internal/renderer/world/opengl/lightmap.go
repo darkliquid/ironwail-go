@@ -178,7 +178,7 @@ func UpdateLightmapTextures(textures []uint32, pages []worldimpl.WorldLightmapPa
 			continue
 		}
 		gl.BindTexture(gl.TEXTURE_2D, textures[i])
-		withPinnedPixelData(rgba, func(ptr unsafe.Pointer) {
+		withCPixelData(rgba, func(ptr unsafe.Pointer) {
 			gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, ptr)
 		})
 	}

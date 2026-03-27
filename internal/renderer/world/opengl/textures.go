@@ -4,10 +4,14 @@
 
 package opengl
 
+/*
+#include <stdlib.h>
+*/
+import "C"
+
 import (
 	"encoding/binary"
 	"log/slog"
-	"runtime"
 	"strings"
 	"unsafe"
 
@@ -79,7 +83,7 @@ func ParseTextureMode(mode string) (minFilter, magFilter int32) {
 	}
 }
 
-func withPinnedPixelData(pixels []byte, fn func(unsafe.Pointer)) {
+func withCPixelData(pixels []byte, fn func(unsafe.Pointer)) {
 	if fn == nil {
 		return
 	}
@@ -87,10 +91,9 @@ func withPinnedPixelData(pixels []byte, fn func(unsafe.Pointer)) {
 		fn(nil)
 		return
 	}
-	var pinner runtime.Pinner
-	pinner.Pin(&pixels[0])
-	defer pinner.Unpin()
-	fn(unsafe.Pointer(&pixels[0]))
+	ptr := C.CBytes(pixels)
+	defer C.free(ptr)
+	fn(ptr)
 }
 
 func UploadTextureRGBA(width, height int, rgba []byte, options TextureUploadOptions) uint32 {
@@ -98,7 +101,7 @@ func UploadTextureRGBA(width, height int, rgba []byte, options TextureUploadOpti
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	withPinnedPixelData(rgba, func(ptr unsafe.Pointer) {
+	withCPixelData(rgba, func(ptr unsafe.Pointer) {
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, ptr)
 	})
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.MinFilter)
