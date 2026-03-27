@@ -7,6 +7,7 @@ package opengl
 import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+	"unsafe"
 )
 
 type LightmapTextureUploader func(width, height int, rgba []byte) uint32
@@ -177,7 +178,9 @@ func UpdateLightmapTextures(textures []uint32, pages []worldimpl.WorldLightmapPa
 			continue
 		}
 		gl.BindTexture(gl.TEXTURE_2D, textures[i])
-		gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, pixelDataPtr(rgba))
+		withPinnedPixelData(rgba, func(ptr unsafe.Pointer) {
+			gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, ptr)
+		})
 	}
 	if count > 0 {
 		gl.BindTexture(gl.TEXTURE_2D, 0)

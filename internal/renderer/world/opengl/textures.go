@@ -7,6 +7,7 @@ package opengl
 import (
 	"encoding/binary"
 	"log/slog"
+	"runtime"
 	"strings"
 	"unsafe"
 
@@ -78,11 +79,18 @@ func ParseTextureMode(mode string) (minFilter, magFilter int32) {
 	}
 }
 
-func pixelDataPtr(pixels []byte) unsafe.Pointer {
-	if len(pixels) == 0 {
-		return nil
+func withPinnedPixelData(pixels []byte, fn func(unsafe.Pointer)) {
+	if fn == nil {
+		return
 	}
-	return unsafe.Pointer(&pixels[0])
+	if len(pixels) == 0 {
+		fn(nil)
+		return
+	}
+	var pinner runtime.Pinner
+	pinner.Pin(&pixels[0])
+	defer pinner.Unpin()
+	fn(unsafe.Pointer(&pixels[0]))
 }
 
 func UploadTextureRGBA(width, height int, rgba []byte, options TextureUploadOptions) uint32 {
@@ -90,7 +98,9 @@ func UploadTextureRGBA(width, height int, rgba []byte, options TextureUploadOpti
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelDataPtr(rgba))
+	withPinnedPixelData(rgba, func(ptr unsafe.Pointer) {
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, ptr)
+	})
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.MinFilter)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.MagFilter)
 	gl.GenerateMipmap(gl.TEXTURE_2D)

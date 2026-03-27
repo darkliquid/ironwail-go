@@ -19,6 +19,6 @@ The texture helpers intentionally accept palette conversion and upload callbacks
 ## Constraints
 
 - texture planning must preserve Quake-style diffuse/fullbright/sky behavior
-- OpenGL texture upload helpers must pass raw pixel storage, not slice headers, across the cgo boundary
+- OpenGL texture upload helpers must pin raw pixel storage for the duration of each cgo-backed OpenGL upload call instead of passing slice headers directly
 - lightmap recomposition and dirty bounds are parity-sensitive
 - cleanup helpers must remain mechanical and must not silently change renderer cleanup order

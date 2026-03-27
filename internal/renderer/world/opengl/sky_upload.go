@@ -7,6 +7,7 @@ package opengl
 import (
 	"github.com/go-gl/gl/v4.6-core/gl"
 	skyimpl "github.com/ironwail/ironwail-go/internal/renderer/sky"
+	"unsafe"
 )
 
 var skyboxCubemapTargets = [...]uint32{
@@ -52,7 +53,9 @@ func UploadSkyboxCubemap(faces [6]skyimpl.ExternalSkyboxFace, faceSize int) uint
 			gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
 			return 0
 		}
-		gl.TexImage2D(target, 0, gl.RGBA8, int32(faceSize), int32(faceSize), 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelDataPtr(faceData))
+		withPinnedPixelData(faceData, func(ptr unsafe.Pointer) {
+			gl.TexImage2D(target, 0, gl.RGBA8, int32(faceSize), int32(faceSize), 0, gl.RGBA, gl.UNSIGNED_BYTE, ptr)
+		})
 	}
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
 	return cubemap
@@ -87,7 +90,9 @@ func UploadSkyboxFaceTextures(faces [6]skyimpl.ExternalSkyboxFace) (textures [6]
 			width, height = 1, 1
 			data = fallbackPixel[:]
 		}
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelDataPtr(data))
+		withPinnedPixelData(data, func(ptr unsafe.Pointer) {
+			gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, ptr)
+		})
 	}
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	return textures, true
