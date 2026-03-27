@@ -1202,7 +1202,7 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 		fullbrightSkins = append(fullbrightSkins, fullbrightTex)
 	}
 
-	refs := make([]glAliasVertexRef, 0, len(hdr.Triangles)*3)
+	refs := make([]aliasimpl.MeshRef, 0, len(hdr.Triangles)*3)
 	for _, tri := range hdr.Triangles {
 		for vertexIndex := 0; vertexIndex < 3; vertexIndex++ {
 			idx := int(tri.VertIndex[vertexIndex])
@@ -1214,9 +1214,9 @@ func (r *Renderer) ensureAliasModelLocked(modelID string, mdl *model.Model) *glA
 			if tri.FacesFront == 0 && st.OnSeam != 0 {
 				s += float32(hdr.SkinWidth) * 0.5
 			}
-			refs = append(refs, glAliasVertexRef{
-				vertexIndex: idx,
-				texCoord: [2]float32{
+			refs = append(refs, aliasimpl.MeshRef{
+				VertexIndex: idx,
+				TexCoord: [2]float32{
 					s / float32(hdr.SkinWidth),
 					(float32(st.T) + 0.5) / float32(hdr.SkinHeight),
 				},
@@ -1276,14 +1276,6 @@ func (r *Renderer) resolveAliasSkinTexturesLocked(alias *glAliasModel, entity Al
 		return alias.skins[skinSlot], alias.fullbrightSkins[skinSlot]
 	}
 	return r.worldFallbackTexture, r.worldFallbackTexture
-}
-
-// buildAliasVertices builds world-space vertices for a single alias model pose without interpolation. Used for shadow rendering and static pose display.
-func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, origin, angles [3]float32, fullAngles bool) []WorldVertex {
-	if alias == nil || mdl == nil || mdl.AliasHeader == nil || poseIndex < 0 || poseIndex >= len(alias.poses) {
-		return nil
-	}
-	return aliasimpl.BuildVertices(aliasimpl.MeshFromConvertibleRefs(alias.poses, alias.refs), mdl.AliasHeader, poseIndex, origin, angles, fullAngles)
 }
 
 // buildAliasDrawLocked prepares a complete alias model draw command: resolves the model, computes pose interpolation, builds interpolated vertices, and uploads to the scratch VBO.
@@ -3270,15 +3262,6 @@ func (mesh *glWorldMesh) destroy() {
 
 type worldDrawCall = worldopengl.DrawCall
 
-type glAliasVertexRef struct {
-	vertexIndex int
-	texCoord    [2]float32
-}
-
-func (ref glAliasVertexRef) AliasMeshRef() aliasimpl.MeshRef {
-	return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
-}
-
 type glAliasModel struct {
 	modelID          string
 	flags            int
@@ -3287,7 +3270,7 @@ type glAliasModel struct {
 	playerSkins      map[uint32][]uint32
 	playerFullbright map[uint32][]uint32
 	poses            [][]model.TriVertX
-	refs             []glAliasVertexRef
+	refs             []aliasimpl.MeshRef
 }
 
 type glAliasDraw struct {

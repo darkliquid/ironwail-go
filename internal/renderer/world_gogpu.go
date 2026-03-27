@@ -1508,7 +1508,7 @@ func (r *Renderer) ensureAliasModelLocked(device hal.Device, queue hal.Queue, mo
 		skins = append(skins, fallback)
 	}
 
-	refs := make([]gpuAliasVertexRef, 0, len(hdr.Triangles)*3)
+	refs := make([]aliasimpl.MeshRef, 0, len(hdr.Triangles)*3)
 	for _, tri := range hdr.Triangles {
 		for vertexIndex := 0; vertexIndex < 3; vertexIndex++ {
 			idx := int(tri.VertIndex[vertexIndex])
@@ -1520,9 +1520,9 @@ func (r *Renderer) ensureAliasModelLocked(device hal.Device, queue hal.Queue, mo
 			if tri.FacesFront == 0 && st.OnSeam != 0 {
 				s += float32(hdr.SkinWidth) * 0.5
 			}
-			refs = append(refs, gpuAliasVertexRef{
-				vertexIndex: idx,
-				texCoord: [2]float32{
+			refs = append(refs, aliasimpl.MeshRef{
+				VertexIndex: idx,
+				TexCoord: [2]float32{
 					s / float32(hdr.SkinWidth),
 					(float32(st.T) + 0.5) / float32(hdr.SkinHeight),
 				},
@@ -1941,7 +1941,7 @@ func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose
 		return nil
 	}
 	return aliasimpl.BuildVerticesInterpolated(
-		aliasimpl.MeshFromConvertibleRefs(alias.poses, alias.refs),
+		aliasimpl.MeshFromRefs(alias.poses, alias.refs),
 		mdl.AliasHeader,
 		pose1Index,
 		pose2Index,
@@ -3674,15 +3674,6 @@ func (r *Renderer) destroyDecalResourcesLocked() {
 }
 
 // ---- merged from world_support_gogpu_root.go ----
-type gpuAliasVertexRef struct {
-	vertexIndex int
-	texCoord    [2]float32
-}
-
-func (ref gpuAliasVertexRef) AliasMeshRef() aliasimpl.MeshRef {
-	return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
-}
-
 type gpuAliasSkin struct {
 	texture           hal.Texture
 	view              hal.TextureView
@@ -3697,7 +3688,7 @@ type gpuAliasModel struct {
 	skins       []gpuAliasSkin
 	playerSkins map[uint32][]gpuAliasSkin
 	poses       [][]model.TriVertX
-	refs        []gpuAliasVertexRef
+	refs        []aliasimpl.MeshRef
 }
 
 type gpuAliasDraw struct {

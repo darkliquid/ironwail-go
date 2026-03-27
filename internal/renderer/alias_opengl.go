@@ -18,7 +18,7 @@ func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1
 		return nil
 	}
 	return aliasimpl.BuildVerticesInterpolated(
-		aliasimpl.MeshFromConvertibleRefs(alias.poses, alias.refs),
+		aliasimpl.MeshFromRefs(alias.poses, alias.refs),
 		mdl.AliasHeader,
 		pose1Index,
 		pose2Index,
