@@ -1,0 +1,41 @@
+{
+  "hash": "d061de6606d56ee93685236d19413fac2f1d154e92a8e6ca74737661e4418783",
+  "files": {
+    ".yggdrasil/model/renderer/opengl-world/passes/yg-node.yaml": "7680f0f918d85fb76ee8e12856741238510526ebe57a08a85a14651a6664d44d",
+    ".yggdrasil/model/renderer/opengl-world/passes/interface.md": "e115317f0daeae3f35204979986d0cad20e848568a5ecfb3c45741e1a7e2b006",
+    ".yggdrasil/model/renderer/opengl-world/passes/internals.md": "46360dc5c045776fea31b62d6c06d0aaae9cade908c540ec80af44a794c58b6f",
+    ".yggdrasil/model/renderer/opengl-world/passes/responsibility.md": "86a10580ec1fd6ef28ab1662182ec4f2326c384535915e5109d03d8719136ead",
+    ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
+    ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
+    ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
+    ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
+    ".yggdrasil/model/renderer/opengl-world/yg-node.yaml": "e6a1e2ab7a0e0f7b733876bed1792f846233ecc814912d2b1f282abbbc8e1120",
+    ".yggdrasil/model/renderer/opengl-world/responsibility.md": "d06792ac75a7d8592d6ef8f4b04c677be818aa018ae1c149049cc0e8fc9d9be5",
+    "internal/renderer/world/opengl/bucket.go": "d1eafd42c2851217fcdc815029078eb3b2c538bdbd3eb06cc4e0a95c1cdaee52",
+    "internal/renderer/world/opengl/draw.go": "175bf2203a40805684b70a43ec9c1e57880845d4c0976aa0c0af53f5f51a6733",
+    "internal/renderer/world/opengl/pass.go": "f6d154f0687f6b161aadf8e7aa834fcddd2f9f11d281fc9de76784b8f9df6e8d",
+    "internal/renderer/world/opengl/probe.go": "6339491efbb46b1b8e46ae80eefd95f3287a7974cdb0ccb8b24488aad9b1fe3b",
+    "internal/renderer/world/opengl/sprite.go": "75df777be463f2e2411946ccb6caa371b32e3cf5609bdff8e103724f0b46d3dc",
+    ".yggdrasil/model/renderer/opengl-world/interface.md": "0ee82c7a035414a8034e4c92d88b35b15ce1485f4db69bda5dc899c1b357d525",
+    ".yggdrasil/model/renderer/opengl-world/internals.md": "d47c466c72fd8bf294e18478e69ea038f3912c5311c080dd6dc2ffdf0f560884"
+  },
+  "mtimes": {
+    ".yggdrasil/model/renderer/opengl-world/passes/yg-node.yaml": 1774619027312.7747,
+    ".yggdrasil/model/renderer/opengl-world/passes/interface.md": 1774619719295.7788,
+    ".yggdrasil/model/renderer/opengl-world/passes/internals.md": 1774619027314.6792,
+    ".yggdrasil/model/renderer/opengl-world/passes/responsibility.md": 1774619027313.4224,
+    ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
+    ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
+    ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
+    ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
+    ".yggdrasil/model/renderer/opengl-world/yg-node.yaml": 1774619027307.307,
+    ".yggdrasil/model/renderer/opengl-world/interface.md": 1774619760121.6318,
+    ".yggdrasil/model/renderer/opengl-world/internals.md": 1774619760213.6338,
+    ".yggdrasil/model/renderer/opengl-world/responsibility.md": 1774619027308.0571,
+    "internal/renderer/world/opengl/bucket.go": 1774599914002.6096,
+    "internal/renderer/world/opengl/draw.go": 1774614791278.2275,
+    "internal/renderer/world/opengl/pass.go": 1774615045130.753,
+    "internal/renderer/world/opengl/probe.go": 1774614134940.9421,
+    "internal/renderer/world/opengl/sprite.go": 1774603663429.4548
+  }
+}

@@ -1,0 +1,10 @@
+name: Renderer Alias Helpers
+type: library
+description: "Shared alias-model math and state helpers reused by renderer backends"
+blackbox: false
+mapping:
+  paths:
+    - internal/renderer/alias/model.go
+    - internal/renderer/alias/mesh.go
+    - internal/renderer/alias/mesh_test.go
+

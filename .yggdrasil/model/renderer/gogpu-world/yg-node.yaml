@@ -1,14 +1,23 @@
 name: Renderer GoGPU World
 type: module
-description: "GoGPU world, entity, decal, particle, and late-translucent rendering paths"
+description: "GoGPU world, entity, decal, and late-translucent rendering paths"
 blackbox: false
+relations:
+  - target: renderer/alias
+    type: uses
+    consumes:
+      - BuildVerticesInterpolated
 mapping:
   paths:
-    - internal/renderer/world_brush_gogpu.go
-    - internal/renderer/world_alias_gogpu.go
-    - internal/renderer/world_alias_shadow_gogpu.go
-    - internal/renderer/world_decal_gogpu.go
-    - internal/renderer/world_late_translucent_gogpu.go
-    - internal/renderer/world_sprite_gogpu.go
-    - internal/renderer/world_sprite_gogpu_test.go
     - internal/renderer/particle_gogpu.go
+    - internal/renderer/world_gogpu.go
+    - internal/renderer/world_gogpu_decal_test.go
+    - internal/renderer/world/gogpu/shaders.go
+    - internal/renderer/world/gogpu/buffer.go
+    - internal/renderer/world/gogpu/brush_build.go
+    - internal/renderer/world/gogpu/brush_translucent.go
+    - internal/renderer/world/gogpu/brush_translucent_test.go
+    - internal/renderer/world/gogpu/decal.go
+    - internal/renderer/world/gogpu/decal_test.go
+    - internal/renderer/world/gogpu/sprite.go
+    - internal/renderer/world/gogpu/sprite_test.go

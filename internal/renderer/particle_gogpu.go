@@ -11,7 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -108,40 +108,40 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
 func (r *Renderer) destroyParticleResourcesLocked() {
 	if r.particleUniformBindGroup != nil {
-		r.particleUniformBindGroup.Destroy()
+		r.particleUniformBindGroup.Release()
 		r.particleUniformBindGroup = nil
 	}
 	if r.particleUniformBuffer != nil {
-		r.particleUniformBuffer.Destroy()
+		r.particleUniformBuffer.Release()
 		r.particleUniformBuffer = nil
 	}
 	if r.particleOpaquePipeline != nil {
-		r.particleOpaquePipeline.Destroy()
+		r.particleOpaquePipeline.Release()
 		r.particleOpaquePipeline = nil
 	}
 	if r.particleTranslucentPipeline != nil {
-		r.particleTranslucentPipeline.Destroy()
+		r.particleTranslucentPipeline.Release()
 		r.particleTranslucentPipeline = nil
 	}
 	if r.particlePipelineLayout != nil {
-		r.particlePipelineLayout.Destroy()
+		r.particlePipelineLayout.Release()
 		r.particlePipelineLayout = nil
 	}
 	if r.particleUniformBindGroupLayout != nil {
-		r.particleUniformBindGroupLayout.Destroy()
+		r.particleUniformBindGroupLayout.Release()
 		r.particleUniformBindGroupLayout = nil
 	}
 	if r.particleVertexShader != nil {
-		r.particleVertexShader.Destroy()
+		r.particleVertexShader.Release()
 		r.particleVertexShader = nil
 	}
 	if r.particleFragmentShader != nil {
-		r.particleFragmentShader.Destroy()
+		r.particleFragmentShader.Release()
 		r.particleFragmentShader = nil
 	}
 }
 
-func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
+func (r *Renderer) ensureParticleResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
@@ -149,7 +149,7 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 		return nil
 	}
 
-	uniformLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "Particle Uniform Layout",
 		Entries: []gputypes.BindGroupLayoutEntry{{
 			Binding:    0,
@@ -164,58 +164,56 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 	if err != nil {
 		return fmt.Errorf("create particle uniform layout: %w", err)
 	}
-	pipelineLayout, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "Particle Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout},
 	})
 	if err != nil {
-		uniformLayout.Destroy()
+		uniformLayout.Release()
 		return fmt.Errorf("create particle pipeline layout: %w", err)
 	}
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Particle Uniform Buffer",
 		Size:             particleUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
+		pipelineLayout.Release()
+		uniformLayout.Release()
 		return fmt.Errorf("create particle uniform buffer: %w", err)
 	}
-	uniformBindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+	uniformBindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "Particle Uniform BG",
 		Layout: uniformLayout,
-		Entries: []gputypes.BindGroupEntry{{
+		Entries: []wgpu.BindGroupEntry{{
 			Binding: 0,
-			Resource: gputypes.BufferBinding{
-				Buffer: uniformBuffer.NativeHandle(),
-				Offset: 0,
-				Size:   particleUniformBufferSize,
-			},
+			Buffer:  uniformBuffer,
+			Offset:  0,
+			Size:    particleUniformBufferSize,
 		}},
 	})
 	if err != nil {
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
 		return fmt.Errorf("create particle uniform bind group: %w", err)
 	}
 	vertexShader, err := createWorldShaderModule(device, particleVertexShaderWGSL, "Particle Vertex Shader")
 	if err != nil {
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
 		return fmt.Errorf("create particle vertex shader: %w", err)
 	}
 	fragmentShader, err := createWorldShaderModule(device, particleFragmentShaderWGSL, "Particle Fragment Shader")
 	if err != nil {
-		vertexShader.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
+		vertexShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
 		return fmt.Errorf("create particle fragment shader: %w", err)
 	}
 
@@ -225,7 +223,7 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	vertexState := hal.VertexState{
+	vertexState := wgpu.VertexState{
 		Module:     vertexShader,
 		EntryPoint: "vs_main",
 		Buffers: []gputypes.VertexBufferLayout{{
@@ -237,8 +235,8 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 			},
 		}},
 	}
-	createPipeline := func(label string, depthWrite bool, blend *gputypes.BlendState) (hal.RenderPipeline, error) {
-		return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	createPipeline := func(label string, depthWrite bool, blend *gputypes.BlendState) (*wgpu.RenderPipeline, error) {
+		return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: pipelineLayout,
 			Vertex: vertexState,
@@ -248,8 +246,8 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 				CullMode:  gputypes.CullModeNone,
 			},
 			DepthStencil: gogpuNonDecalDepthStencilState(depthWrite),
-			Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-			Fragment: &hal.FragmentState{
+			Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+			Fragment: &wgpu.FragmentState{
 				Module:     fragmentShader,
 				EntryPoint: "fs_main",
 				Targets: []gputypes.ColorTargetState{{
@@ -262,12 +260,12 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 	}
 	opaquePipeline, err := createPipeline("Particle Opaque Pipeline", true, nil)
 	if err != nil {
-		fragmentShader.Destroy()
-		vertexShader.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
+		fragmentShader.Release()
+		vertexShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
 		return fmt.Errorf("create opaque particle pipeline: %w", err)
 	}
 	translucentPipeline, err := createPipeline("Particle Translucent Pipeline", false, &gputypes.BlendState{
@@ -283,13 +281,13 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 		},
 	})
 	if err != nil {
-		opaquePipeline.Destroy()
-		fragmentShader.Destroy()
-		vertexShader.Destroy()
-		uniformBindGroup.Destroy()
-		uniformBuffer.Destroy()
-		pipelineLayout.Destroy()
-		uniformLayout.Destroy()
+		opaquePipeline.Release()
+		fragmentShader.Release()
+		vertexShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		pipelineLayout.Release()
+		uniformLayout.Release()
 		return fmt.Errorf("create translucent particle pipeline: %w", err)
 	}
 
@@ -348,12 +346,12 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 		return
 	}
 
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		return
 	}
@@ -365,24 +363,29 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 		slog.Warn("failed to ensure particle resources", "error", err)
 		return
 	}
-	if err := r.ensureAliasScratchBufferLocked(device, uint64(particleBatchCapacity)*uint64(unsafe.Sizeof(ParticleVertex{}))); err != nil {
-		r.mu.Unlock()
-		slog.Warn("failed to ensure particle scratch buffer", "error", err)
-		return
-	}
 	pipeline := r.particleOpaquePipeline
 	if alpha {
 		pipeline = r.particleTranslucentPipeline
 	}
 	uniformBuffer := r.particleUniformBuffer
 	uniformBindGroup := r.particleUniformBindGroup
-	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil {
 		return
 	}
+	scratchBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Particle Scratch Buffer",
+		Size:             uint64(particleBatchCapacity) * uint64(unsafe.Sizeof(ParticleVertex{})),
+		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		slog.Warn("failed to create particle scratch buffer", "error", err)
+		return
+	}
+	defer scratchBuffer.Release()
 
 	vpMatrix := r.GetViewProjectionMatrix()
 	projectionMatrix := r.GetProjectionMatrix()
@@ -394,24 +397,24 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Particle Render Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Particle Render Encoder"})
 	if err != nil {
 		slog.Warn("failed to create particle encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("particles"); err != nil {
-		slog.Warn("failed to begin particle encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Particle Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
 		}},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+		DepthStencilAttachment: particleDepthAttachmentForView(depthView),
 	})
+	if err != nil {
+		slog.Warn("failed to begin particle render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
@@ -434,13 +437,33 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 		drawVertices = drawVertices[len(batch):]
 	}
 
-	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
-	if err != nil {
-		slog.Warn("failed to finish particle encoding", "error", err)
+	if err := renderPass.End(); err != nil {
+		slog.Warn("failed to end particle render pass", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		slog.Warn("failed to finish particle encoder", "error", err)
+		return
+	}
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit particle commands", "error", err)
+	}
+}
+
+func particleDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {
+	if view == nil {
+		return nil
+	}
+	return &wgpu.RenderPassDepthStencilAttachment{
+		View:              view,
+		DepthLoadOp:       gputypes.LoadOpLoad,
+		DepthStoreOp:      gputypes.StoreOpStore,
+		DepthClearValue:   1.0,
+		DepthReadOnly:     false,
+		StencilLoadOp:     gputypes.LoadOpLoad,
+		StencilStoreOp:    gputypes.StoreOpStore,
+		StencilClearValue: 0,
+		StencilReadOnly:   true,
 	}
 }

@@ -4,6 +4,7 @@
 
 This layer defines the package-level renderer role without tying callers to one concrete backend. It also carries the stub path that lets the engine boot and exercise rendering-adjacent code without a full graphics backend.
 The runtime fallback also now includes a minimal screenshot export implementation in the stub backend so command/runtime screenshot surfaces can produce a deterministic PNG even when no GPU backend is active.
+The stub backend also preserves the renderer-root world lifecycle surface with no-op / empty implementations (`UploadWorld`, `ClearWorld`, `HasWorldData`, `GetWorldBounds`, `SetExternalSkybox`) so shared callers can treat the stub as a real `WorldRuntime` even during the world-backend package split.
 
 ## Constraints
 

@@ -7,10 +7,17 @@
 ## Owns
 
 - GoGPU world and entity draw implementations
+- GoGPU world brush buffer packing/allocation helpers that are backend-specific but receiver-free
+- GoGPU brush-entity CPU build helpers that transform shared geometry into backend draw payloads before HAL submission
+- GoGPU sprite draw-planning helpers, uniform packing, sprite vertex DTO adaptation, and package-local resolver/regression coverage
+- GoGPU decal mark/draw-prep batching, uniform, and vertex packing helpers plus their package-local regression coverage, with a tiny root-local adapter seam and gogpu-tagged root regression coverage (`internal/renderer/world_gogpu_decal_test.go`) that keep shared quad construction, final mark policy, and HAL/resource lifecycle in root
 - GoGPU particle path
 - GoGPU decal and late-translucent handling
+- the live GoGPU world/entity implementation in `internal/renderer/world_gogpu.go`, plus receiver-free CPU planning helpers under `internal/renderer/world/gogpu/*`
+- renderer-owned GoGPU command recording/submission for world/alias/sprite/decal/particle/late-translucent passes via public `*wgpu.Device` / `*wgpu.Queue` APIs
 
 ## Does not own
 
 - backend-neutral world preparation
 - GoGPU backend lifecycle itself
+- raw HAL-only command/pipeline creation paths for renderer-owned world submission (those paths now use public `wgpu` wrappers)

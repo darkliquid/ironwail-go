@@ -13,7 +13,7 @@ import (
 	"github.com/gogpu/gogpu/gpu/backend/native"
 	"github.com/gogpu/gogpu/gpu/types"
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 )
 
 var (
@@ -51,10 +51,10 @@ type Core struct {
 
 	backendName string
 
-	instance hal.Instance
-	adapter  hal.Adapter
-	device   hal.Device
-	queue    hal.Queue
+	instance *wgpu.Instance
+	adapter  *wgpu.Adapter
+	device   *wgpu.Device
+	queue    *wgpu.Queue
 
 	adapterInfo gputypes.AdapterInfo
 	frameData   FrameData
@@ -82,44 +82,37 @@ func (c *Core) InitHeadless() error {
 	if backendVariant == 0 {
 		return fmt.Errorf("select HAL backend: %w", ErrCoreUnsupportedBackend)
 	}
-	backend, err := hal.CreateBackend(backendVariant)
-	if err != nil {
-		return fmt.Errorf("create HAL backend: %w", err)
-	}
 
-	flags := gputypes.InstanceFlags(0)
-	if c.cfg.EnableValidation {
-		flags = gputypes.InstanceFlagsDebug | gputypes.InstanceFlagsValidation
-	}
-
-	instance, err := backend.CreateInstance(&hal.InstanceDescriptor{
+	instance, err := wgpu.CreateInstance(&wgpu.InstanceDescriptor{
 		Backends: gputypes.Backends(backendVariant),
-		Flags:    flags,
 	})
 	if err != nil {
 		return fmt.Errorf("create instance: %w", err)
 	}
 
-	adapters := instance.EnumerateAdapters(nil)
-	if len(adapters) == 0 {
-		instance.Destroy()
+	adapter, err := instance.RequestAdapter(nil)
+	if err != nil {
+		instance.Release()
 		return ErrCoreNoAdapters
 	}
 
-	selected := pickBestAdapter(adapters)
-	openDevice, err := selected.Adapter.Open(0, selected.Capabilities.Limits)
+	openDevice, err := adapter.RequestDevice(&wgpu.DeviceDescriptor{
+		Label:            "Ironwail-Go WGPU Device",
+		RequiredFeatures: 0,
+		RequiredLimits:   adapter.Limits(),
+	})
 	if err != nil {
-		selected.Adapter.Destroy()
-		instance.Destroy()
+		adapter.Release()
+		instance.Release()
 		return fmt.Errorf("open device: %w", err)
 	}
 
 	c.backendName = backendName
 	c.instance = instance
-	c.adapter = selected.Adapter
-	c.device = openDevice.Device
-	c.queue = openDevice.Queue
-	c.adapterInfo = selected.Info
+	c.adapter = adapter
+	c.device = openDevice
+	c.queue = openDevice.Queue()
+	c.adapterInfo = adapter.Info()
 	c.frameData = defaultFrameData()
 	c.initialized = true
 
@@ -136,15 +129,15 @@ func (c *Core) Shutdown() {
 
 	if c.device != nil {
 		_ = c.device.WaitIdle()
-		c.device.Destroy()
+		c.device.Release()
 		c.device = nil
 	}
 	if c.adapter != nil {
-		c.adapter.Destroy()
+		c.adapter.Release()
 		c.adapter = nil
 	}
 	if c.instance != nil {
-		c.instance.Destroy()
+		c.instance.Release()
 		c.instance = nil
 	}
 
@@ -201,34 +194,4 @@ func defaultFrameData() FrameData {
 		0, 0, 0, 1,
 	}
 	return fd
-}
-
-func pickBestAdapter(adapters []hal.ExposedAdapter) hal.ExposedAdapter {
-	best := adapters[0]
-	bestRank := adapterRank(best.Info.DeviceType)
-
-	for _, adapter := range adapters[1:] {
-		rank := adapterRank(adapter.Info.DeviceType)
-		if rank > bestRank {
-			best = adapter
-			bestRank = rank
-		}
-	}
-
-	return best
-}
-
-func adapterRank(t gputypes.DeviceType) int {
-	switch t {
-	case gputypes.DeviceTypeDiscreteGPU:
-		return 5
-	case gputypes.DeviceTypeIntegratedGPU:
-		return 4
-	case gputypes.DeviceTypeVirtualGPU:
-		return 3
-	case gputypes.DeviceTypeCPU:
-		return 2
-	default:
-		return 1
-	}
 }

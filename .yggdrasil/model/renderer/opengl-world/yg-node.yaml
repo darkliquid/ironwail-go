@@ -1,12 +1,13 @@
 name: Renderer OpenGL World
 type: module
-description: "OpenGL world rendering passes, probes, sky, and liquid/world runtime handling"
+description: "Root OpenGL world runtime orchestration and renderer-owned lifecycle state"
 blackbox: false
+relations:
+  - target: renderer/alias
+    type: uses
+    consumes:
+      - BuildVertices
 mapping:
   paths:
     - internal/renderer/world_opengl.go
-    - internal/renderer/world_render_opengl.go
-    - internal/renderer/world_runtime_opengl.go
-    - internal/renderer/world_probe_opengl.go
-    - internal/renderer/world_sky_opengl.go
-    - internal/renderer/world_liquid_opengl.go
+    - internal/renderer/world/opengl/shaders.go

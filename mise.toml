@@ -3,6 +3,8 @@ TIMEOUT = "5"
 
 [tools]
 go = "1.26"
+golangci-lint = "latest"
+"go:golang.org/x/vuln/cmd/govulncheck" = "latest"
 
 # Helper task - not meant to be run directly
 [tasks.go-run]
@@ -175,6 +177,12 @@ depends = ["go-generate"]
 description = "Build binary in WGPU mode"
 run = "CGO_ENABLED=0 go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
 
+[tasks.build-gogpu-rust]
+depends = ["go-generate"]
+description = "Build binary in WGPU mode with rust backend"
+run = "CGO_ENABLED=0 go build -tags gogpu,rust -o ironwailgo-wgpu-rust ./cmd/ironwailgo"
+
+
 [tasks.build-gogpu-sdl3]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
@@ -222,3 +230,16 @@ run = "go run ./tools/parity_screenshots both"
 hide = true
 description = "Run go generate (internal task)"
 run = "go generate ./..."
+
+[tasks.lint]
+description = "Run Go linting (golangci-lint + govulncheck)"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+TMPDIR=/tmp golangci-lint run ./...
+TMPDIR=/tmp govulncheck ./...
+"""
+
+[tasks.fmt]
+description = "Format Go code"
+run = "golangci-lint fmt ./..."

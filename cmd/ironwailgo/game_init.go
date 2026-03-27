@@ -409,7 +409,7 @@ func initGameRenderer() error {
 	// Create renderer instance from cvars
 	cfg := renderer.ConfigFromCvars()
 
-	tr, err := renderer.NewWithConfig(cfg)
+	tr, err := newRendererBackend(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create renderer: %w", err)
 	}

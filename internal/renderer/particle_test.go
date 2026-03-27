@@ -179,6 +179,11 @@ func TestParticleExplosion2UsesColorRange(t *testing.T) {
 }
 
 func TestEntityParticlesMatchQuakeCountAndStyle(t *testing.T) {
+	t.Cleanup(func() { compatrand.ResetShared(1) })
+	entityParticleAngularVelOnce = sync.Once{}
+	entityParticleAngularVelocities = [len(entityParticleNormals)][3]float32{}
+	compatrand.ResetShared(1)
+
 	ps := NewParticleSystem(2048)
 	ps.EntityParticles([3]float32{10, 20, 30}, 1)
 
@@ -197,7 +202,7 @@ func TestEntityParticlesMatchQuakeCountAndStyle(t *testing.T) {
 		}
 	}
 	first := ps.ActiveParticles()[0]
-	want := [3]float32{-7.647106, 20.041887, 84.34951}
+	want := [3]float32{-26.924153, 27.55703, 70.72488}
 	for i := range want {
 		if math.Abs(float64(first.Org[i]-want[i])) > 0.0001 {
 			t.Fatalf("first particle org[%d] = %v, want %v", i, first.Org[i], want[i])

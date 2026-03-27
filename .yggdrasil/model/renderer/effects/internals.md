@@ -10,6 +10,7 @@ This layer centralizes effect- and entity-oriented helper logic that should not 
 - Shared helper behavior must stay consistent across multiple backend renderers.
 - Runtime parity requires dynamic-light emission and world-light contribution math to share the same `r_dynamic` gate semantics to avoid "spawn disabled but still lit" or "spawn enabled but never contributes" drift.
 - Particle parity with C/Ironwail depends on consuming a process-global rand stream when explicit RNG injection is absent; per-call fixed-seed RNG fallbacks desynchronize long-running effect sequences.
+- Entity-particle parity also depends on using Quake's raw radian `sin/cos` math for the seeded beam direction, with the first seeded component feeding pitch and the second feeding yaw as in `r_part.c`; routing those time-scaled angular velocities through degree-based angle helpers or swapping that component order introduces visible numeric drift.
 
 ## Decisions
 

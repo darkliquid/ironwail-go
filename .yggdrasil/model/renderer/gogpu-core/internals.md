@@ -4,6 +4,10 @@
 
 This layer owns the GoGPU backend’s event/render loop integration and the core frame helpers needed before world/entity drawing.
 
+It intentionally does not retain dormant debug rendering branches. When a helper path no longer feeds the live `renderEntities` / frame runtime flow, it should be deleted rather than kept as an unused overlay hook inside the backend core.
+
+The current gogpu version in this repo exposes public `*wgpu.Device` / `*wgpu.Queue` values from `DeviceProvider`, so GoGPU renderer code now treats those wrappers as the canonical creation/submission API. Core helpers no longer rebuild wrapper devices from HAL handles for renderer-owned paths.
+
 ## Constraints
 
 - Backend thread/event behavior is critical for correctness.
@@ -32,3 +36,28 @@ Observed decision:
 Rationale:
 - The app will crash if these mutations happen off the render thread, because most graphics driver backends require state changes to remain thread-local.
 - GoGPU guarantees that code inside `OnDraw` runs on the dedicated render thread, so all render/draw mutations must be routed there.
+
+### Public WebGPU handles for GoGPU core paths
+
+Observed decision:
+- GoGPU renderer core helpers now fetch `*wgpu.Device` / `*wgpu.Queue` from `app.DeviceProvider()` and pass those wrappers through postprocess/runtime helpers, command encoding, and submission.
+- The renderer does not use `wgpu.NewDeviceFromHAL` in these creation/submission paths.
+
+Rationale:
+- This keeps GoGPU renderer-owned paths aligned with the public API surface actually exposed by gogpu, avoids redundant HAL-wrapper reconstruction, and reduces backend-boundary ambiguity during resource ownership and submission.
+
+### Public render-pipeline creation for GoGPU core helpers
+
+Observed decision:
+- GoGPU render-pipeline creation now routes through public `wgpu.RenderPipelineDescriptor` values and `wgpu.Device.CreateRenderPipeline`.
+
+Rationale:
+- This keeps GoGPU pipeline construction on the same public API surface as command encoding and queue submission, instead of mixing public wrappers with raw HAL creation only at pipeline setup time.
+
+### Core postprocess command recording stays on public wgpu APIs
+
+Observed decision:
+- Scene-composite/water-warp and polyblend helpers now encode and submit with public `wgpu` APIs (`CreateCommandEncoder`, `BeginRenderPass`, `Finish`, `Queue.Submit`) using the same `*wgpu.Device` / `*wgpu.Queue` handles.
+
+Rationale:
+- Keeping these core frame passes on one public API surface avoids renderer-local HAL/public mixing and keeps resource-creation, pass encoding, and submission semantics aligned.

@@ -1,9 +1,8 @@
 package renderer
 
 import (
-	"math"
-
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	warpscaleimpl "github.com/ironwail/ironwail-go/internal/renderer/warpscale"
 )
 
 // readWaterwarpCvar returns the current r_waterwarp value (0, 1, or >1).
@@ -23,13 +22,11 @@ func WaterwarpFOV(underwaterOrForced bool) bool {
 
 // WaterwarpFOVScale computes the horizontal FOV scale factor for r_waterwarp > 1.
 func WaterwarpFOVScale(t float32) float32 {
-	return float32(0.97 + math.Sin(float64(t)*1.5)*0.03)
+	return warpscaleimpl.WaterwarpFOVScale(t)
 }
 
 // ApplyWaterwarpFOV returns the FOV (in degrees) after applying the r_waterwarp > 1
 // sinusoidal modulation.
 func ApplyWaterwarpFOV(baseFOV, t float32) float32 {
-	scale := WaterwarpFOVScale(t)
-	halfTan := float32(math.Tan(float64(baseFOV) * math.Pi / 360.0))
-	return float32(math.Atan(float64(halfTan)*float64(scale))) * 360.0 / math.Pi
+	return warpscaleimpl.ApplyWaterwarpFOV(baseFOV, t)
 }

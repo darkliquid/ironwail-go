@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/ironwail/ironwail-go/internal/compatrand"
-	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 const (
@@ -483,18 +482,15 @@ func (ps *ParticleSystem) EntityParticles(org [3]float32, timeNow float32) {
 		}
 
 		velocity := entityParticleAngularVelocities[i]
-		forward, _, _ := types.AngleVectors(types.Vec3{
-			X: timeNow * velocity[0],
-			Y: timeNow * velocity[1],
-			Z: timeNow * velocity[2],
-		})
+		sp, cp := math.Sincos(float64(timeNow * velocity[0]))
+		sy, cy := math.Sincos(float64(timeNow * velocity[1]))
 
 		p.Die = timeNow + 0.01
 		p.Color = 0x6f
 		p.Type = ParticleExplode
-		p.Org[0] = org[0] + normal[0]*entityParticleDist + forward.X*entityParticleBeamLength
-		p.Org[1] = org[1] + normal[1]*entityParticleDist + forward.Y*entityParticleBeamLength
-		p.Org[2] = org[2] + normal[2]*entityParticleDist + forward.Z*entityParticleBeamLength
+		p.Org[0] = org[0] + normal[0]*entityParticleDist + float32(cp*cy)*entityParticleBeamLength
+		p.Org[1] = org[1] + normal[1]*entityParticleDist + float32(cp*sy)*entityParticleBeamLength
+		p.Org[2] = org[2] + normal[2]*entityParticleDist + float32(-sp)*entityParticleBeamLength
 	}
 }
 

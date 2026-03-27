@@ -12,99 +12,31 @@ import (
 	"sort"
 
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
+	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
-// Uniforms structure for world rendering, must match WGSL Uniforms struct
-type WorldUniforms struct {
-	ViewProjection [16]float32 // mat4x4
-	CameraOrigin   [3]float32
-	FogDensity     float32
-	FogColor       [3]float32
-	Time           float32
-	Alpha          float32
-	_Pad0          [3]float32
-	DynamicLight   [3]float32
-	LitWater       float32
-}
-
 const worldUniformBufferSize = 128
 
-// WorldGeometry holds preprocessed BSP world data ready for GPU upload.
-// This structure bridges the gap between BSP file format and GPU rendering.
-type WorldGeometry struct {
-	// Vertices stores all unique world vertices (position + tex coords + lightmap coords)
-	Vertices []WorldVertex
-
-	// Indices stores triangle indices for indexed drawing
-	// BSP faces are converted to triangles (fan triangulation)
-	Indices []uint32
-
-	// Faces stores metadata for each BSP face
-	Faces []WorldFace
-
-	// LeafFaces maps BSP leaf indices to built face indices for visibility culling.
-	LeafFaces [][]int
-
-	// Lightmaps stores allocated static lightmap atlas pages for faces with BSP lighting.
-	Lightmaps []WorldLightmapPage
-
-	// Tree is the original BSP tree (kept for PVS, collision, etc)
-	Tree *bsp.Tree
-}
-
-// WorldVertex represents a single vertex in world geometry.
-// Layout matches what the GPU shader expects.
-type WorldVertex struct {
-	// Position in world space (X, Y, Z)
-	Position [3]float32
-
-	// TexCoord for diffuse texture sampling (U, V)
-	TexCoord [2]float32
-
-	// LightmapCoord for lightmap texture sampling (U, V)
-	LightmapCoord [2]float32
-
-	// Normal for lighting calculations (X, Y, Z)
-	Normal [3]float32
-}
-
-// WorldFace stores rendering metadata for a BSP face.
-type WorldFace struct {
-	// FirstIndex is the index into the Indices array
-	FirstIndex uint32
-
-	// NumIndices is the number of indices (triangles * 3)
-	NumIndices uint32
-
-	// TextureIndex identifies which texture to use
-	TextureIndex int32
-
-	// LightmapIndex identifies which lightmap to use (-1 = none)
-	LightmapIndex int32
-
-	// Flags control rendering behavior (sky, water, transparent, etc)
-	Flags int32
-
-	// Center stores the approximate face center for draw-order decisions.
-	Center [3]float32
-}
+type WorldGeometry = worldimpl.WorldGeometry
+type WorldVertex = worldimpl.WorldVertex
+type WorldFace = worldimpl.WorldFace
 
 const worldDepthTextureFormat = gputypes.TextureFormatDepth24PlusStencil8
 
-func gogpuNonDecalDepthStencilState(depthWrite bool) *hal.DepthStencilState {
-	stencilFace := hal.StencilFaceState{
+func gogpuNonDecalDepthStencilState(depthWrite bool) *wgpu.DepthStencilState {
+	stencilFace := wgpu.StencilFaceState{
 		Compare:     gputypes.CompareFunctionAlways,
-		FailOp:      hal.StencilOperationKeep,
-		DepthFailOp: hal.StencilOperationKeep,
-		PassOp:      hal.StencilOperationKeep,
+		FailOp:      wgpu.StencilOperationKeep,
+		DepthFailOp: wgpu.StencilOperationKeep,
+		PassOp:      wgpu.StencilOperationKeep,
 	}
-	return &hal.DepthStencilState{
+	return &wgpu.DepthStencilState{
 		Format:            worldDepthTextureFormat,
 		DepthWriteEnabled: depthWrite,
 		DepthCompare:      gputypes.CompareFunctionLessEqual,
@@ -147,28 +79,13 @@ type gogpuTranslucentLiquidFaceDraw struct {
 }
 
 type gpuWorldTexture struct {
-	texture   hal.Texture
-	view      hal.TextureView
-	bindGroup hal.BindGroup
+	texture   *wgpu.Texture
+	view      *wgpu.TextureView
+	bindGroup *wgpu.BindGroup
 }
 
-type WorldLightmapSurface struct {
-	X       int
-	Y       int
-	Width   int
-	Height  int
-	Styles  [bsp.MaxLightmaps]uint8
-	Samples []byte
-	Dirty   bool
-}
-
-type WorldLightmapPage struct {
-	Width    int
-	Height   int
-	Surfaces []WorldLightmapSurface
-	Dirty    bool
-	rgba     []byte
-}
+type WorldLightmapSurface = worldimpl.WorldLightmapSurface
+type WorldLightmapPage = worldimpl.WorldLightmapPage
 
 type faceLightmapSurface struct {
 	pageIndex int
@@ -188,7 +105,7 @@ func worldLitWaterCvarEnabled() bool {
 	return cv.Int != 0
 }
 
-func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback hal.BindGroup) (hal.BindGroup, float32) {
+func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback *wgpu.BindGroup) (*wgpu.BindGroup, float32) {
 	bindGroup := fallback
 	if face.LightmapIndex < 0 || int(face.LightmapIndex) >= len(lightmaps) {
 		return bindGroup, 0
@@ -876,12 +793,10 @@ func compileWorldShader(source string) string {
 }
 
 // createWorldShaderModule creates a HAL shader module from WGSL source
-func createWorldShaderModule(device hal.Device, wgslSource string, label string) (hal.ShaderModule, error) {
-	shaderModule, err := device.CreateShaderModule(&hal.ShaderModuleDescriptor{
+func createWorldShaderModule(device *wgpu.Device, wgslSource string, label string) (*wgpu.ShaderModule, error) {
+	shaderModule, err := device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
 		Label: label,
-		Source: hal.ShaderSource{
-			WGSL: wgslSource,
-		},
+		WGSL:  wgslSource,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create shader module: %w", err)
@@ -891,7 +806,7 @@ func createWorldShaderModule(device hal.Device, wgslSource string, label string)
 }
 
 // createWorldVertexBuffer uploads vertex data to GPU
-func (r *Renderer) createWorldVertexBuffer(device hal.Device, queue hal.Queue, vertices []WorldVertex) (hal.Buffer, error) {
+func (r *Renderer) createWorldVertexBuffer(device *wgpu.Device, queue *wgpu.Queue, vertices []WorldVertex) (*wgpu.Buffer, error) {
 	if len(vertices) == 0 {
 		return nil, fmt.Errorf("no vertices to upload")
 	}
@@ -904,7 +819,7 @@ func (r *Renderer) createWorldVertexBuffer(device hal.Device, queue hal.Queue, v
 		"sizeBytes", vertexSize)
 
 	// Create GPU buffer
-	buffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Vertices",
 		Size:             vertexSize,
 		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
@@ -944,7 +859,7 @@ func (r *Renderer) createWorldVertexBuffer(device hal.Device, queue hal.Queue, v
 }
 
 // createWorldIndexBuffer uploads index data to GPU
-func (r *Renderer) createWorldIndexBuffer(device hal.Device, queue hal.Queue, indices []uint32) (hal.Buffer, uint32, error) {
+func (r *Renderer) createWorldIndexBuffer(device *wgpu.Device, queue *wgpu.Queue, indices []uint32) (*wgpu.Buffer, uint32, error) {
 	if len(indices) == 0 {
 		return nil, 0, fmt.Errorf("no indices to upload")
 	}
@@ -956,7 +871,7 @@ func (r *Renderer) createWorldIndexBuffer(device hal.Device, queue hal.Queue, in
 		"sizeBytes", indexSize)
 
 	// Create GPU buffer
-	buffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Indices",
 		Size:             indexSize,
 		Usage:            gputypes.BufferUsageIndex | gputypes.BufferUsageCopyDst,
@@ -986,9 +901,9 @@ func (r *Renderer) createWorldRenderTarget() error {
 	if width <= 0 || height <= 0 {
 		return fmt.Errorf("invalid window size: %dx%d", width, height)
 	}
-	device := r.getHALDevice()
+	device := r.getWGPUDevice()
 	if device == nil {
-		return fmt.Errorf("nil HAL device")
+		return fmt.Errorf("nil wgpu device")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -997,7 +912,7 @@ func (r *Renderer) createWorldRenderTarget() error {
 
 // createWorldPipeline creates the render pipeline for world rendering.
 // Configures all pipeline state: vertex layout, shaders, depth-stencil, primitive topology, etc.
-func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule) (hal.RenderPipeline, hal.PipelineLayout, error) {
+func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, error) {
 	if device == nil || vertexShader == nil || fragmentShader == nil {
 		return nil, nil, fmt.Errorf("invalid shader modules or device")
 	}
@@ -1032,7 +947,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	}
 
 	// Create bind group layout for @group(0) @binding(0) uniform buffer.
-	uniformLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World Uniform BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
@@ -1050,7 +965,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		return nil, nil, fmt.Errorf("create uniform bind group layout: %w", err)
 	}
 
-	textureLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World Texture BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
@@ -1072,20 +987,20 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		},
 	})
 	if err != nil {
-		uniformLayout.Destroy()
+		uniformLayout.Release()
 		return nil, nil, fmt.Errorf("create texture bind group layout: %w", err)
 	}
 
 	// Create pipeline layout with the uniform bind group layout.
-	pipelineLayoutDesc := &hal.PipelineLayoutDescriptor{
+	pipelineLayoutDesc := &wgpu.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{uniformLayout, textureLayout, textureLayout, textureLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, textureLayout, textureLayout},
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
 	if err != nil {
-		textureLayout.Destroy()
-		uniformLayout.Destroy()
+		textureLayout.Release()
+		uniformLayout.Release()
 		return nil, nil, fmt.Errorf("create pipeline layout: %w", err)
 	}
 
@@ -1131,17 +1046,17 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 		},
 	}
 
-	fragmentState := &hal.FragmentState{
+	fragmentState := &wgpu.FragmentState{
 		Module:     fragmentShader,
 		EntryPoint: "fs_main",
 		Targets:    fragmentTargets,
 	}
 
 	// Create render pipeline descriptor
-	pipelineDesc := &hal.RenderPipelineDescriptor{
+	pipelineDesc := &wgpu.RenderPipelineDescriptor{
 		Label:  "World Render Pipeline",
 		Layout: pipelineLayout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
@@ -1157,11 +1072,11 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	}
 
 	// Create the render pipeline
-	pipeline, err := device.CreateRenderPipeline(pipelineDesc)
+	pipeline, err := validatedGoGPURenderPipeline(device, pipelineDesc)
 	if err != nil {
-		textureLayout.Destroy()
-		uniformLayout.Destroy()
-		pipelineLayout.Destroy()
+		textureLayout.Release()
+		uniformLayout.Release()
+		pipelineLayout.Release()
 		return nil, nil, fmt.Errorf("create render pipeline: %w", err)
 	}
 
@@ -1169,7 +1084,7 @@ func (r *Renderer) createWorldPipeline(device hal.Device, vertexShader, fragment
 	return pipeline, pipelineLayout, nil
 }
 
-func (r *Renderer) createWorldSkyPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
+func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
 	vertexBufferLayout := gputypes.VertexBufferLayout{
 		ArrayStride: 44,
 		StepMode:    gputypes.VertexStepModeVertex,
@@ -1186,10 +1101,10 @@ func (r *Renderer) createWorldSkyPipeline(device hal.Device, vertexShader, fragm
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "World Sky Render Pipeline",
 		Layout: layout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
@@ -1205,7 +1120,7 @@ func (r *Renderer) createWorldSkyPipeline(device hal.Device, vertexShader, fragm
 			Mask:                   0xFFFFFFFF,
 			AlphaToCoverageEnabled: false,
 		},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -1220,11 +1135,11 @@ func (r *Renderer) createWorldSkyPipeline(device hal.Device, vertexShader, fragm
 	})
 }
 
-func (r *Renderer) createWorldExternalSkyPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule) (hal.RenderPipeline, hal.PipelineLayout, hal.BindGroupLayout, error) {
+func (r *Renderer) createWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, error) {
 	if device == nil || vertexShader == nil || fragmentShader == nil || r.uniformBindGroupLayout == nil {
 		return nil, nil, nil, fmt.Errorf("missing external sky pipeline inputs")
 	}
-	textureLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World External Sky Texture BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
@@ -1245,24 +1160,24 @@ func (r *Renderer) createWorldExternalSkyPipeline(device hal.Device, vertexShade
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("create external sky bind group layout: %w", err)
 	}
-	layout, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+	layout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "World External Sky Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{r.uniformBindGroupLayout, textureLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{r.uniformBindGroupLayout, textureLayout},
 	})
 	if err != nil {
-		textureLayout.Destroy()
+		textureLayout.Release()
 		return nil, nil, nil, fmt.Errorf("create external sky pipeline layout: %w", err)
 	}
 	pipeline, err := r.createWorldSkyPipeline(device, vertexShader, fragmentShader, layout)
 	if err != nil {
-		layout.Destroy()
-		textureLayout.Destroy()
+		layout.Release()
+		textureLayout.Release()
 		return nil, nil, nil, fmt.Errorf("create external sky pipeline: %w", err)
 	}
 	return pipeline, layout, textureLayout, nil
 }
 
-func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
+func (r *Renderer) createWorldTurbulentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
 	vertexBufferLayout := gputypes.VertexBufferLayout{
 		ArrayStride: 44,
 		StepMode:    gputypes.VertexStepModeVertex,
@@ -1279,10 +1194,10 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "World Turbulent Render Pipeline",
 		Layout: layout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
@@ -1298,7 +1213,7 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 			Mask:                   0xFFFFFFFF,
 			AlphaToCoverageEnabled: false,
 		},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -1313,7 +1228,7 @@ func (r *Renderer) createWorldTurbulentPipeline(device hal.Device, vertexShader,
 	})
 }
 
-func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
+func (r *Renderer) createWorldTranslucentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
 	vertexBufferLayout := gputypes.VertexBufferLayout{
 		ArrayStride: 44,
 		StepMode:    gputypes.VertexStepModeVertex,
@@ -1330,10 +1245,10 @@ func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShade
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "World Translucent Render Pipeline",
 		Layout: layout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
@@ -1349,7 +1264,7 @@ func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShade
 			Mask:                   0xFFFFFFFF,
 			AlphaToCoverageEnabled: false,
 		},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -1364,7 +1279,7 @@ func (r *Renderer) createWorldTranslucentPipeline(device hal.Device, vertexShade
 	})
 }
 
-func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, vertexShader, fragmentShader hal.ShaderModule, layout hal.PipelineLayout) (hal.RenderPipeline, error) {
+func (r *Renderer) createWorldTranslucentTurbulentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
 	vertexBufferLayout := gputypes.VertexBufferLayout{
 		ArrayStride: 44,
 		StepMode:    gputypes.VertexStepModeVertex,
@@ -1381,10 +1296,10 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, ve
 			surfaceFormat = provider.SurfaceFormat()
 		}
 	}
-	return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "World Translucent Turbulent Render Pipeline",
 		Layout: layout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
@@ -1400,7 +1315,7 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, ve
 			Mask:                   0xFFFFFFFF,
 			AlphaToCoverageEnabled: false,
 		},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -1417,15 +1332,15 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device hal.Device, ve
 
 // createWorldWhiteTexture creates a simple 1x1 white texture for fallback.
 // Used when actual textures are not yet available for rendering.
-func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (hal.Texture, hal.TextureView, error) {
+func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queue) (*wgpu.Texture, *wgpu.TextureView, error) {
 	if device == nil || queue == nil {
 		return nil, nil, fmt.Errorf("invalid device or queue")
 	}
 
 	// Create 1x1 RGBA texture descriptor
-	textureDesc := &hal.TextureDescriptor{
+	textureDesc := &wgpu.TextureDescriptor{
 		Label:         "World White Texture",
-		Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1444,27 +1359,27 @@ func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (
 
 	// Write white pixel to texture using queue
 	err = queue.WriteTexture(
-		&hal.ImageCopyTexture{
+		&wgpu.ImageCopyTexture{
 			Texture:  texture,
 			MipLevel: 0,
-			Origin:   hal.Origin3D{X: 0, Y: 0, Z: 0},
+			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: 0},
 			Aspect:   gputypes.TextureAspectAll,
 		},
 		whitePixel,
-		&hal.ImageDataLayout{
+		&wgpu.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  4, // 1 pixel × 4 bytes
 			RowsPerImage: 1,
 		},
-		&hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
+		&wgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 	)
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return nil, nil, fmt.Errorf("write white texture data: %w", err)
 	}
 
 	// Create texture view
-	textureViewDesc := &hal.TextureViewDescriptor{
+	textureViewDesc := &wgpu.TextureViewDescriptor{
 		Label:           "World White Texture View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1477,7 +1392,7 @@ func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (
 
 	textureView, err := device.CreateTextureView(texture, textureViewDesc)
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return nil, nil, fmt.Errorf("create white texture view: %w", err)
 	}
 
@@ -1485,16 +1400,16 @@ func (r *Renderer) createWorldWhiteTexture(device hal.Device, queue hal.Queue) (
 	return texture, textureView, nil
 }
 
-func (r *Renderer) createWorldTextureFromRGBA(device hal.Device, queue hal.Queue, sampler hal.Sampler, label string, rgba []byte, width, height int) (*gpuWorldTexture, error) {
+func (r *Renderer) createWorldTextureFromRGBA(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, label string, rgba []byte, width, height int) (*gpuWorldTexture, error) {
 	if device == nil || queue == nil || sampler == nil {
 		return nil, fmt.Errorf("invalid world texture upload inputs")
 	}
 	if width <= 0 || height <= 0 || len(rgba) != width*height*4 {
 		return nil, fmt.Errorf("invalid world texture size/data %dx%d (%d bytes)", width, height, len(rgba))
 	}
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         label,
-		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1504,15 +1419,15 @@ func (r *Renderer) createWorldTextureFromRGBA(device hal.Device, queue hal.Queue
 	if err != nil {
 		return nil, fmt.Errorf("create world texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Destroy()
+	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Release()
 		return nil, fmt.Errorf("write world texture: %w", err)
 	}
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           label + " View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1523,13 +1438,13 @@ func (r *Renderer) createWorldTextureFromRGBA(device hal.Device, queue hal.Queue
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return nil, fmt.Errorf("create world texture view: %w", err)
 	}
 	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
 	if err != nil {
-		view.Destroy()
-		texture.Destroy()
+		view.Release()
+		texture.Release()
 		return nil, fmt.Errorf("create world texture bind group: %w", err)
 	}
 	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
@@ -1561,8 +1476,8 @@ func shouldDrawGoGPUTranslucentLiquidFace(face WorldFace, liquidAlpha worldLiqui
 	return face.NumIndices > 0 && worldFaceIsLiquid(face.Flags) && worldFacePass(face.Flags, worldFaceAlpha(face.Flags, liquidAlpha)) == worldPassTranslucent
 }
 
-func (r *Renderer) createWorldTextureSampler(device hal.Device) (hal.Sampler, error) {
-	return device.CreateSampler(&hal.SamplerDescriptor{
+func (r *Renderer) createWorldTextureSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
+	return device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "World Texture Sampler",
 		AddressModeU: gputypes.AddressModeRepeat,
 		AddressModeV: gputypes.AddressModeRepeat,
@@ -1575,8 +1490,8 @@ func (r *Renderer) createWorldTextureSampler(device hal.Device) (hal.Sampler, er
 	})
 }
 
-func (r *Renderer) createWorldLightmapSampler(device hal.Device) (hal.Sampler, error) {
-	return device.CreateSampler(&hal.SamplerDescriptor{
+func (r *Renderer) createWorldLightmapSampler(device *wgpu.Device) (*wgpu.Sampler, error) {
+	return device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "World Lightmap Sampler",
 		AddressModeU: gputypes.AddressModeClampToEdge,
 		AddressModeV: gputypes.AddressModeClampToEdge,
@@ -1589,21 +1504,21 @@ func (r *Renderer) createWorldLightmapSampler(device hal.Device) (hal.Sampler, e
 	})
 }
 
-func (r *Renderer) createWorldTextureBindGroup(device hal.Device, sampler hal.Sampler, view hal.TextureView) (hal.BindGroup, error) {
+func (r *Renderer) createWorldTextureBindGroup(device *wgpu.Device, sampler *wgpu.Sampler, view *wgpu.TextureView) (*wgpu.BindGroup, error) {
 	if device == nil || sampler == nil || view == nil || r.textureBindGroupLayout == nil {
 		return nil, fmt.Errorf("missing world texture bind group resources")
 	}
-	return device.CreateBindGroup(&hal.BindGroupDescriptor{
+	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World Texture BG",
 		Layout: r.textureBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{
-			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: sampler.NativeHandle()}},
-			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: sampler},
+			{Binding: 1, TextureView: view},
 		},
 	})
 }
 
-func (r *Renderer) createWorldExternalSkyBindGroup(device hal.Device, sampler hal.Sampler, views [6]hal.TextureView) (hal.BindGroup, error) {
+func (r *Renderer) createWorldExternalSkyBindGroup(device *wgpu.Device, sampler *wgpu.Sampler, views [6]*wgpu.TextureView) (*wgpu.BindGroup, error) {
 	if device == nil || sampler == nil || r.worldSkyExternalBindGroupLayout == nil {
 		return nil, fmt.Errorf("missing external sky bind group resources")
 	}
@@ -1612,31 +1527,31 @@ func (r *Renderer) createWorldExternalSkyBindGroup(device hal.Device, sampler ha
 			return nil, fmt.Errorf("missing external sky texture view %d", i)
 		}
 	}
-	return device.CreateBindGroup(&hal.BindGroupDescriptor{
+	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World External Sky BG",
 		Layout: r.worldSkyExternalBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{
-			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: sampler.NativeHandle()}},
-			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: views[0].NativeHandle()}},
-			{Binding: 2, Resource: gputypes.TextureViewBinding{TextureView: views[1].NativeHandle()}},
-			{Binding: 3, Resource: gputypes.TextureViewBinding{TextureView: views[2].NativeHandle()}},
-			{Binding: 4, Resource: gputypes.TextureViewBinding{TextureView: views[3].NativeHandle()}},
-			{Binding: 5, Resource: gputypes.TextureViewBinding{TextureView: views[4].NativeHandle()}},
-			{Binding: 6, Resource: gputypes.TextureViewBinding{TextureView: views[5].NativeHandle()}},
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: sampler},
+			{Binding: 1, TextureView: views[0]},
+			{Binding: 2, TextureView: views[1]},
+			{Binding: 3, TextureView: views[2]},
+			{Binding: 4, TextureView: views[3]},
+			{Binding: 5, TextureView: views[4]},
+			{Binding: 6, TextureView: views[5]},
 		},
 	})
 }
 
-func (r *Renderer) createWorldExternalSkyFaceTexture(device hal.Device, queue hal.Queue, label string, rgba []byte, width, height int) (hal.Texture, hal.TextureView, error) {
+func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue *wgpu.Queue, label string, rgba []byte, width, height int) (*wgpu.Texture, *wgpu.TextureView, error) {
 	if device == nil || queue == nil {
 		return nil, nil, fmt.Errorf("invalid external sky texture upload inputs")
 	}
 	if width <= 0 || height <= 0 || len(rgba) != width*height*4 {
 		return nil, nil, fmt.Errorf("invalid external sky texture size/data %dx%d (%d bytes)", width, height, len(rgba))
 	}
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         label,
-		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1646,15 +1561,15 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device hal.Device, queue ha
 	if err != nil {
 		return nil, nil, fmt.Errorf("create external sky texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Destroy()
+	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Release()
 		return nil, nil, fmt.Errorf("write external sky texture: %w", err)
 	}
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           label + " View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1665,13 +1580,13 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device hal.Device, queue ha
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return nil, nil, fmt.Errorf("create external sky texture view: %w", err)
 	}
 	return texture, view, nil
 }
 
-func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device hal.Device, queue hal.Queue) error {
+func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device *wgpu.Device, queue *wgpu.Queue) error {
 	if r.worldSkyExternalMode != externalSkyboxRenderFaces || r.worldSkyExternalLoaded == 0 {
 		return nil
 	}
@@ -1680,7 +1595,7 @@ func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device hal.Device, queue hal.
 	}
 	r.destroyGoGPUExternalSkyboxResourcesLocked()
 	fallbackPixel := [4]byte{0, 0, 0, 255}
-	var views [6]hal.TextureView
+	var views [6]*wgpu.TextureView
 	for i, face := range r.worldSkyExternalFaces {
 		width := face.Width
 		height := face.Height
@@ -1707,7 +1622,7 @@ func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device hal.Device, queue hal.
 	return nil
 }
 
-func (r *Renderer) createWorldDiffuseTexture(device hal.Device, queue hal.Queue, sampler hal.Sampler, miptex *image.MipTex) (*gpuWorldTexture, error) {
+func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, miptex *image.MipTex) (*gpuWorldTexture, error) {
 	if device == nil || queue == nil || sampler == nil || miptex == nil {
 		return nil, fmt.Errorf("invalid world texture upload inputs")
 	}
@@ -1722,7 +1637,7 @@ func (r *Renderer) createWorldDiffuseTexture(device hal.Device, queue hal.Queue,
 	return r.createWorldTextureFromRGBA(device, queue, sampler, "World Diffuse Texture", rgba, width, height)
 }
 
-func (r *Renderer) uploadWorldMaterialTextures(device hal.Device, queue hal.Queue, sampler hal.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
+func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
 	if tree == nil || device == nil || queue == nil || sampler == nil || len(tree.TextureData) < 4 {
 		return nil, nil, nil
 	}
@@ -1772,85 +1687,14 @@ func (r *Renderer) uploadWorldMaterialTextures(device hal.Device, queue hal.Queu
 }
 
 func shouldSplitAsQuake64Sky(treeVersion int32, width, height int) bool {
-	return bsp.IsQuake64(treeVersion) || (width == 32 && height == 64)
-}
-
-func indexedOpaqueToRGBA(pixels []byte, palette []byte) []byte {
-	rgba := make([]byte, len(pixels)*4)
-	for i, p := range pixels {
-		r, g, b := GetPaletteColor(p, palette)
-		rgba[i*4] = r
-		rgba[i*4+1] = g
-		rgba[i*4+2] = b
-		rgba[i*4+3] = 255
-	}
-	return rgba
+	return worldimpl.ShouldSplitAsQuake64Sky(treeVersion, width, height)
 }
 
 func extractEmbeddedSkyLayers(pixels []byte, width, height int, palette []byte, quake64 bool) (solidRGBA, alphaRGBA []byte, layerWidth, layerHeight int, ok bool) {
-	if width <= 0 || height <= 0 || len(pixels) < width*height {
-		return nil, nil, 0, 0, false
-	}
-	if quake64 {
-		if height < 2 {
-			return nil, nil, 0, 0, false
-		}
-		layerWidth = width
-		layerHeight = height / 2
-		if layerHeight <= 0 {
-			return nil, nil, 0, 0, false
-		}
-		layerSize := layerWidth * layerHeight
-		front := pixels[:layerSize]
-		back := pixels[layerSize : layerSize*2]
-		solidRGBA = indexedOpaqueToRGBA(back, palette)
-		alphaRGBA = make([]byte, layerSize*4)
-		for i, p := range front {
-			r, g, b := GetPaletteColor(p, palette)
-			alphaRGBA[i*4] = r
-			alphaRGBA[i*4+1] = g
-			alphaRGBA[i*4+2] = b
-			alphaRGBA[i*4+3] = 128
-		}
-		return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
-	}
-	if width < 2 {
-		return nil, nil, 0, 0, false
-	}
-	layerWidth = width / 2
-	layerHeight = height
-	if layerWidth <= 0 {
-		return nil, nil, 0, 0, false
-	}
-	layerSize := layerWidth * layerHeight
-	backIndexed := make([]byte, layerSize)
-	frontIndexed := make([]byte, layerSize)
-	for y := 0; y < height; y++ {
-		row := y * width
-		copy(backIndexed[y*layerWidth:(y+1)*layerWidth], pixels[row+layerWidth:row+width])
-		copy(frontIndexed[y*layerWidth:(y+1)*layerWidth], pixels[row:row+layerWidth])
-	}
-	solidRGBA = indexedOpaqueToRGBA(backIndexed, palette)
-	alphaRGBA = make([]byte, layerSize*4)
-	for i, p := range frontIndexed {
-		if p == 0 || p == 255 {
-			r, g, b := GetPaletteColor(255, palette)
-			alphaRGBA[i*4] = r
-			alphaRGBA[i*4+1] = g
-			alphaRGBA[i*4+2] = b
-			alphaRGBA[i*4+3] = 0
-			continue
-		}
-		r, g, b := GetPaletteColor(p, palette)
-		alphaRGBA[i*4] = r
-		alphaRGBA[i*4+1] = g
-		alphaRGBA[i*4+2] = b
-		alphaRGBA[i*4+3] = 255
-	}
-	return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
+	return worldimpl.ExtractEmbeddedSkyLayers(pixels, width, height, palette, quake64)
 }
 
-func (r *Renderer) uploadWorldEmbeddedSkyTextures(device hal.Device, queue hal.Queue, sampler hal.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture) {
+func (r *Renderer) uploadWorldEmbeddedSkyTextures(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture) {
 	if tree == nil || device == nil || queue == nil || sampler == nil || len(tree.TextureData) < 4 {
 		return nil, nil
 	}
@@ -1885,13 +1729,13 @@ func (r *Renderer) uploadWorldEmbeddedSkyTextures(device hal.Device, queue hal.Q
 		alphaTexture, err := r.createWorldTextureFromRGBA(device, queue, sampler, "World Sky Alpha Texture", alphaRGBA, layerWidth, layerHeight)
 		if err != nil {
 			if solidTexture.bindGroup != nil {
-				solidTexture.bindGroup.Destroy()
+				solidTexture.bindGroup.Release()
 			}
 			if solidTexture.view != nil {
-				solidTexture.view.Destroy()
+				solidTexture.view.Release()
 			}
 			if solidTexture.texture != nil {
-				solidTexture.texture.Destroy()
+				solidTexture.texture.Release()
 			}
 			slog.Warn("failed to upload world sky alpha texture", "texture", miptex.Name, "error", err)
 			continue
@@ -1919,7 +1763,7 @@ func gogpuWorldTextureForFace(face WorldFace, textures map[int32]*gpuWorldTextur
 	return worldTexture
 }
 
-func (r *Renderer) createWorldLightmapPageTexture(device hal.Device, queue hal.Queue, sampler hal.Sampler, page *WorldLightmapPage, values [64]float32) (*gpuWorldTexture, error) {
+func (r *Renderer) createWorldLightmapPageTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, page *WorldLightmapPage, values [64]float32) (*gpuWorldTexture, error) {
 	if device == nil || queue == nil || sampler == nil || page == nil {
 		return nil, fmt.Errorf("invalid world lightmap upload inputs")
 	}
@@ -1927,9 +1771,9 @@ func (r *Renderer) createWorldLightmapPageTexture(device hal.Device, queue hal.Q
 	if len(rgba) == 0 {
 		return nil, fmt.Errorf("empty world lightmap page")
 	}
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "World Lightmap Texture",
-		Size:          hal.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -1939,15 +1783,15 @@ func (r *Renderer) createWorldLightmapPageTexture(device hal.Device, queue hal.Q
 	if err != nil {
 		return nil, fmt.Errorf("create world lightmap texture: %w", err)
 	}
-	if err := queue.WriteTexture(&hal.ImageCopyTexture{
+	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 		Texture:  texture,
 		MipLevel: 0,
 		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(page.Width * 4), RowsPerImage: uint32(page.Height)}, &hal.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Destroy()
+	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(page.Width * 4), RowsPerImage: uint32(page.Height)}, &wgpu.Extent3D{Width: uint32(page.Width), Height: uint32(page.Height), DepthOrArrayLayers: 1}); err != nil {
+		texture.Release()
 		return nil, fmt.Errorf("write world lightmap texture: %w", err)
 	}
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           "World Lightmap Texture View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -1958,19 +1802,19 @@ func (r *Renderer) createWorldLightmapPageTexture(device hal.Device, queue hal.Q
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return nil, fmt.Errorf("create world lightmap view: %w", err)
 	}
 	bindGroup, err := r.createWorldTextureBindGroup(device, sampler, view)
 	if err != nil {
-		view.Destroy()
-		texture.Destroy()
+		view.Release()
+		texture.Release()
 		return nil, fmt.Errorf("create world lightmap bind group: %w", err)
 	}
 	return &gpuWorldTexture{texture: texture, view: view, bindGroup: bindGroup}, nil
 }
 
-func (r *Renderer) uploadWorldLightmapPages(device hal.Device, queue hal.Queue, sampler hal.Sampler, pages []WorldLightmapPage, values [64]float32) []*gpuWorldTexture {
+func (r *Renderer) uploadWorldLightmapPages(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, pages []WorldLightmapPage, values [64]float32) []*gpuWorldTexture {
 	if device == nil || queue == nil || sampler == nil || len(pages) == 0 {
 		return nil
 	}
@@ -1986,7 +1830,7 @@ func (r *Renderer) uploadWorldLightmapPages(device hal.Device, queue hal.Queue, 
 	return out
 }
 
-func updateUploadedLightmapsLocked(queue hal.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
+func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
 	if queue == nil || len(pages) == 0 || len(uploaded) == 0 {
 		return
 	}
@@ -1998,20 +1842,15 @@ func updateUploadedLightmapsLocked(queue hal.Queue, uploaded []*gpuWorldTexture,
 		if !pages[i].Dirty || uploaded[i] == nil || uploaded[i].texture == nil {
 			continue
 		}
-		rgba := pages[i].rgba
-		if len(rgba) == 0 {
-			rgba = buildWorldLightmapPageRGBA(&pages[i], values)
-		} else {
-			recompositeDirtySurfaces(rgba, pages[i], values)
-		}
+		rgba := buildWorldLightmapPageRGBA(&pages[i], values)
 		if len(rgba) == 0 {
 			continue
 		}
-		if err := queue.WriteTexture(&hal.ImageCopyTexture{
+		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 			Texture:  uploaded[i].texture,
 			MipLevel: 0,
 			Aspect:   gputypes.TextureAspectAll,
-		}, rgba, &hal.ImageDataLayout{BytesPerRow: uint32(pages[i].Width * 4), RowsPerImage: uint32(pages[i].Height)}, &hal.Extent3D{Width: uint32(pages[i].Width), Height: uint32(pages[i].Height), DepthOrArrayLayers: 1}); err != nil {
+		}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(pages[i].Width * 4), RowsPerImage: uint32(pages[i].Height)}, &wgpu.Extent3D{Width: uint32(pages[i].Width), Height: uint32(pages[i].Height), DepthOrArrayLayers: 1}); err != nil {
 			slog.Warn("failed to update world lightmap page", "page", i, "error", err)
 		}
 	}
@@ -2019,7 +1858,7 @@ func updateUploadedLightmapsLocked(queue hal.Queue, uploaded []*gpuWorldTexture,
 }
 
 func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
-	queue := r.getHALQueue()
+	queue := r.getWGPUQueue()
 	if queue == nil {
 		return
 	}
@@ -2105,7 +1944,6 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	for _, surface := range page.Surfaces {
 		compositeWorldLightmapSurfaceRGBA(rgba, page.Width, surface, values)
 	}
-	page.rgba = rgba
 	return rgba
 }
 
@@ -2325,8 +2163,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Get HAL device and queue from gogpu renderer
-	device := r.getHALDevice()
-	queue := r.getHALQueue()
+	device := r.getWGPUDevice()
+	queue := r.getWGPUQueue()
 	if device == nil || queue == nil {
 		slog.Warn("HAL device or queue not available, skipping GPU upload")
 		// Store geometry anyway for later use
@@ -2382,15 +2220,15 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Create render pipeline (may fail if gogpu API not fully exposed)
-	var pipeline hal.RenderPipeline
-	var pipelineLayout hal.PipelineLayout
-	var skyPipeline hal.RenderPipeline
-	var externalSkyPipeline hal.RenderPipeline
-	var externalSkyPipelineLayout hal.PipelineLayout
-	var externalSkyBindGroupLayout hal.BindGroupLayout
-	var translucentPipeline hal.RenderPipeline
-	var turbulentPipeline hal.RenderPipeline
-	var translucentTurbulentPipeline hal.RenderPipeline
+	var pipeline *wgpu.RenderPipeline
+	var pipelineLayout *wgpu.PipelineLayout
+	var skyPipeline *wgpu.RenderPipeline
+	var externalSkyPipeline *wgpu.RenderPipeline
+	var externalSkyPipelineLayout *wgpu.PipelineLayout
+	var externalSkyBindGroupLayout *wgpu.BindGroupLayout
+	var translucentPipeline *wgpu.RenderPipeline
+	var turbulentPipeline *wgpu.RenderPipeline
+	var translucentTurbulentPipeline *wgpu.RenderPipeline
 	if vertexShader != nil && fragmentShader != nil {
 		var err2 error
 		pipeline, pipelineLayout, err2 = r.createWorldPipeline(device, vertexShader, fragmentShader)
@@ -2435,7 +2273,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	// Create uniform buffer for VP matrix
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Uniforms",
 		Size:             worldUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
@@ -2448,18 +2286,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	// Create bind group for world uniform buffer.
 	uniformLayout := r.uniformBindGroupLayout
 	if uniformLayout != nil {
-		uniformBindGroup, bindErr := device.CreateBindGroup(&hal.BindGroupDescriptor{
+		uniformBindGroup, bindErr := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 			Label:  "World Uniform BG",
 			Layout: uniformLayout,
-			Entries: []gputypes.BindGroupEntry{
-				{
-					Binding: 0,
-					Resource: gputypes.BufferBinding{
-						Buffer: uniformBuffer.NativeHandle(),
-						Offset: 0,
-						Size:   worldUniformBufferSize,
-					},
-				},
+			Entries: []wgpu.BindGroupEntry{
+				{Binding: 0, Buffer: uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
 			},
 		})
 		if bindErr != nil {
@@ -2476,11 +2307,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		slog.Warn("Failed to create white texture", "error", err)
 		// Don't fail completely, will use fallback rendering
 	}
-	var worldTextureSampler hal.Sampler
-	var whiteTextureBindGroup hal.BindGroup
-	var transparentTexture hal.Texture
-	var transparentTextureView hal.TextureView
-	var transparentBindGroup hal.BindGroup
+	var worldTextureSampler *wgpu.Sampler
+	var whiteTextureBindGroup *wgpu.BindGroup
+	var transparentTexture *wgpu.Texture
+	var transparentTextureView *wgpu.TextureView
+	var transparentBindGroup *wgpu.BindGroup
 	if r.textureBindGroupLayout != nil {
 		worldTextureSampler, err = r.createWorldTextureSampler(device)
 		if err != nil {
@@ -2498,11 +2329,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			} else {
 				transparentTexture = transparentTextureResource
 				transparentTextureView = transparentViewResource
-				if queueErr := queue.WriteTexture(&hal.ImageCopyTexture{
+				if queueErr := queue.WriteTexture(&wgpu.ImageCopyTexture{
 					Texture:  transparentTexture,
 					MipLevel: 0,
 					Aspect:   gputypes.TextureAspectAll,
-				}, []byte{0, 0, 0, 0}, &hal.ImageDataLayout{BytesPerRow: 4, RowsPerImage: 1}, &hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1}); queueErr != nil {
+				}, []byte{0, 0, 0, 0}, &wgpu.ImageDataLayout{BytesPerRow: 4, RowsPerImage: 1}, &wgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1}); queueErr != nil {
 					slog.Warn("Failed to zero transparent fallback texture", "error", queueErr)
 				} else {
 					transparentBindGroup, err = r.createWorldTextureBindGroup(device, worldTextureSampler, transparentTextureView)
@@ -2516,8 +2347,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	worldTextures, worldFullbrightTextures, worldTextureAnimations := r.uploadWorldMaterialTextures(device, queue, worldTextureSampler, tree)
 	worldSkySolidTextures, worldSkyAlphaTextures := r.uploadWorldEmbeddedSkyTextures(device, queue, worldTextureSampler, tree)
 	lightstyleValues := defaultWorldLightStyleValues()
-	var worldLightmapSampler hal.Sampler
-	var whiteLightmapBindGroup hal.BindGroup
+	var worldLightmapSampler *wgpu.Sampler
+	var whiteLightmapBindGroup *wgpu.BindGroup
 	if r.textureBindGroupLayout != nil {
 		worldLightmapSampler, err = r.createWorldLightmapSampler(device)
 		if err != nil {
@@ -2538,8 +2369,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	}
 
 	width, height := r.Size()
-	var depthTexture hal.Texture
-	var depthTextureView hal.TextureView
+	var depthTexture *wgpu.Texture
+	var depthTextureView *wgpu.TextureView
 	if width > 0 && height > 0 {
 		depthTexture, depthTextureView, err = r.createWorldDepthTexture(device, width, height)
 		if err != nil {
@@ -2636,8 +2467,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Get HAL device and queue
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		slog.Info("renderWorldInternal: HAL device or queue not available for world rendering")
 		return
@@ -2645,23 +2476,20 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Create command encoder
 	slog.Info("renderWorldInternal: creating command encoder")
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{
 		Label: "World Render Command Encoder",
 	})
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to create command encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("world"); err != nil {
-		slog.Error("renderWorldInternal: Failed to begin command encoding", "error", err)
-		return
-	}
+
 	slog.Info("renderWorldInternal: command encoder started")
 
 	// Use the current surface view for zero-copy rendering (per gogpu design)
 	// This allows HAL to render directly to the same surface that gogpu will composite onto
 	slog.Info("renderWorldInternal: getting surface view from gogpu context")
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
 		slog.Info("renderWorldInternal: Render target view not available, skipping world rendering")
 		return
@@ -2672,9 +2500,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Use LoadOpClear to handle the clear ourselves since we skip gogpu's Clear().
 	clearColor := gogpuWorldClearColor(state.ClearColor)
 	slog.Info("renderWorldInternal: creating render pass descriptor")
-	renderPassDesc := &hal.RenderPassDescriptor{
+	renderPassDesc := &wgpu.RenderPassDescriptor{
 		Label: "World Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{
 			{
 				View:       textureView,
 				LoadOp:     gputypes.LoadOpClear,
@@ -2687,7 +2515,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Begin render pass
 	slog.Info("renderWorldInternal: beginning render pass")
-	renderPass := encoder.BeginRenderPass(renderPassDesc)
+	renderPass, _ := encoder.BeginRenderPass(renderPassDesc)
 	slog.Info("renderWorldInternal: render pass created", "pass", fmt.Sprintf("%T", renderPass))
 
 	// Set pipeline
@@ -2958,7 +2786,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	renderPass.End()
 
 	// Finish encoding and get command buffer
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to finish command encoding", "error", err)
 		return
@@ -2966,7 +2794,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Submit to queue
 	slog.Info("renderWorldInternal: submitting to queue")
-	err = queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0)
+	err = queue.Submit(cmdBuffer)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
@@ -3025,9 +2853,9 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 	if dc == nil || dc.renderer == nil {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	textureView := dc.currentHALRenderTargetView()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
+	textureView := dc.currentWGPURenderTargetView()
 	if device == nil || queue == nil || textureView == nil {
 		return
 	}
@@ -3040,18 +2868,15 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "GoGPU Shared Depth Clear Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Shared Depth Clear Encoder"})
 	if err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to create encoder", "error", err)
 		return
 	}
-	if err := encoder.BeginEncoding("gogpu-shared-depth-clear"); err != nil {
-		slog.Warn("clearGoGPUSharedDepthStencil: failed to begin encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+
+	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "GoGPU Shared Depth Clear Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
 			LoadOp:  gputypes.LoadOpLoad,
 			StoreOp: gputypes.StoreOpStore,
@@ -3059,12 +2884,12 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		DepthStencilAttachment: attachment,
 	})
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to finish encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
 	}
 }
@@ -3077,10 +2902,10 @@ func TransformVertex(pos [3]float32, mvp types.Mat4) types.Vec4 {
 }
 
 // createWorldDepthTexture allocates a depth attachment used by multi-pass world rendering so later passes can depth-test against the opaque world.
-func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int) (hal.Texture, hal.TextureView, error) {
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+func (r *Renderer) createWorldDepthTexture(device *wgpu.Device, width, height int) (*wgpu.Texture, *wgpu.TextureView, error) {
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label:         "World Depth Texture",
-		Size:          hal.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     gputypes.TextureDimension2D,
@@ -3091,7 +2916,7 @@ func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int)
 		return nil, nil, fmt.Errorf("create depth texture: %w", err)
 	}
 
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           "World Depth Texture View",
 		Format:          worldDepthTextureFormat,
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -3102,7 +2927,7 @@ func (r *Renderer) createWorldDepthTexture(device hal.Device, width, height int)
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return nil, nil, fmt.Errorf("create depth texture view: %w", err)
 	}
 
@@ -3113,15 +2938,15 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	if dc == nil || dc.renderer == nil || state == nil {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return
 	}
 
 	dc.renderer.mu.RLock()
 	worldData := dc.renderer.worldData
-	textureView := dc.currentHALRenderTargetView()
+	textureView := dc.currentWGPURenderTargetView()
 	depthView := dc.renderer.worldDepthTextureView
 	uniformBuffer := dc.renderer.uniformBuffer
 	uniformBindGroup := dc.renderer.uniformBindGroup
@@ -3150,8 +2975,8 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		return
 	}
 
-	renderPassDescriptor := &hal.RenderPassDescriptor{
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+	renderPassDescriptor := &wgpu.RenderPassDescriptor{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:       textureView,
 			LoadOp:     gputypes.LoadOpLoad,
 			StoreOp:    gputypes.StoreOpStore,
@@ -3164,7 +2989,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to create command encoder", "error", err)
 		return
 	}
-	renderPass := encoder.BeginRenderPass(renderPassDescriptor)
+	renderPass, _ := encoder.BeginRenderPass(renderPassDescriptor)
 	w, h := dc.renderer.Size()
 	renderPass.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 	renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
@@ -3226,12 +3051,12 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	}
 
 	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to finish encoding", "error", err)
 		return
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to submit render commands", "error", err)
 		return
 	}
@@ -3257,11 +3082,11 @@ func (r *Renderer) hasTranslucentWorldLiquidFacesGoGPU() bool {
 }
 
 // worldDepthAttachmentForView picks the correct depth target for the current view configuration and pass sequence.
-func worldDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+func worldDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {
 	if view == nil {
 		return nil
 	}
-	return &hal.RenderPassDepthStencilAttachment{
+	return &wgpu.RenderPassDepthStencilAttachment{
 		View:              view,
 		DepthLoadOp:       gputypes.LoadOpClear,
 		DepthStoreOp:      gputypes.StoreOpStore,
@@ -3274,11 +3099,11 @@ func worldDepthAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStenc
 	}
 }
 
-func gogpuSharedDepthStencilClearAttachmentForView(view hal.TextureView) *hal.RenderPassDepthStencilAttachment {
+func gogpuSharedDepthStencilClearAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {
 	if view == nil {
 		return nil
 	}
-	return &hal.RenderPassDepthStencilAttachment{
+	return &wgpu.RenderPassDepthStencilAttachment{
 		View:              view,
 		DepthLoadOp:       gputypes.LoadOpClear,
 		DepthStoreOp:      gputypes.StoreOpStore,
@@ -3300,61 +3125,61 @@ func (r *Renderer) ClearWorld() {
 	if r.worldData != nil {
 		// Release GPU buffers
 		if r.worldVertexBuffer != nil {
-			r.worldVertexBuffer.Destroy()
+			r.worldVertexBuffer.Release()
 		}
 		if r.worldIndexBuffer != nil {
-			r.worldIndexBuffer.Destroy()
+			r.worldIndexBuffer.Release()
 		}
 		if r.uniformBuffer != nil {
-			r.uniformBuffer.Destroy()
+			r.uniformBuffer.Release()
 		}
 		if r.worldSkyPipeline != nil {
-			r.worldSkyPipeline.Destroy()
+			r.worldSkyPipeline.Release()
 		}
 		if r.worldSkyExternalPipeline != nil {
-			r.worldSkyExternalPipeline.Destroy()
+			r.worldSkyExternalPipeline.Release()
 		}
 		if r.worldTurbulentPipeline != nil {
-			r.worldTurbulentPipeline.Destroy()
+			r.worldTurbulentPipeline.Release()
 		}
 		if r.worldTranslucentPipeline != nil {
-			r.worldTranslucentPipeline.Destroy()
+			r.worldTranslucentPipeline.Release()
 		}
 		if r.worldTranslucentTurbulentPipeline != nil {
-			r.worldTranslucentTurbulentPipeline.Destroy()
+			r.worldTranslucentTurbulentPipeline.Release()
 		}
 		if r.worldPipeline != nil {
-			r.worldPipeline.Destroy()
+			r.worldPipeline.Release()
 		}
 		if r.worldPipelineLayout != nil {
-			r.worldPipelineLayout.Destroy()
+			r.worldPipelineLayout.Release()
 		}
 		if r.worldSkyExternalPipelineLayout != nil {
-			r.worldSkyExternalPipelineLayout.Destroy()
+			r.worldSkyExternalPipelineLayout.Release()
 		}
 		if r.uniformBindGroup != nil {
-			r.uniformBindGroup.Destroy()
+			r.uniformBindGroup.Release()
 		}
 		if r.uniformBindGroupLayout != nil {
-			r.uniformBindGroupLayout.Destroy()
+			r.uniformBindGroupLayout.Release()
 		}
 		if r.textureBindGroupLayout != nil {
-			r.textureBindGroupLayout.Destroy()
+			r.textureBindGroupLayout.Release()
 		}
 		if r.worldSkyExternalBindGroupLayout != nil {
-			r.worldSkyExternalBindGroupLayout.Destroy()
+			r.worldSkyExternalBindGroupLayout.Release()
 		}
 		if r.whiteTextureBindGroup != nil {
-			r.whiteTextureBindGroup.Destroy()
+			r.whiteTextureBindGroup.Release()
 		}
 		if r.whiteLightmapBindGroup != nil {
-			r.whiteLightmapBindGroup.Destroy()
+			r.whiteLightmapBindGroup.Release()
 		}
 		if r.worldTextureSampler != nil {
-			r.worldTextureSampler.Destroy()
+			r.worldTextureSampler.Release()
 		}
 		if r.worldLightmapSampler != nil {
-			r.worldLightmapSampler.Destroy()
+			r.worldLightmapSampler.Release()
 		}
 		for textureIndex, worldTexture := range r.worldTextures {
 			if worldTexture == nil {
@@ -3362,13 +3187,13 @@ func (r *Renderer) ClearWorld() {
 				continue
 			}
 			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Destroy()
+				worldTexture.bindGroup.Release()
 			}
 			if worldTexture.view != nil {
-				worldTexture.view.Destroy()
+				worldTexture.view.Release()
 			}
 			if worldTexture.texture != nil {
-				worldTexture.texture.Destroy()
+				worldTexture.texture.Release()
 			}
 			delete(r.worldTextures, textureIndex)
 		}
@@ -3378,13 +3203,13 @@ func (r *Renderer) ClearWorld() {
 				continue
 			}
 			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Destroy()
+				worldTexture.bindGroup.Release()
 			}
 			if worldTexture.view != nil {
-				worldTexture.view.Destroy()
+				worldTexture.view.Release()
 			}
 			if worldTexture.texture != nil {
-				worldTexture.texture.Destroy()
+				worldTexture.texture.Release()
 			}
 			delete(r.worldSkySolidTextures, textureIndex)
 		}
@@ -3394,13 +3219,13 @@ func (r *Renderer) ClearWorld() {
 				continue
 			}
 			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Destroy()
+				worldTexture.bindGroup.Release()
 			}
 			if worldTexture.view != nil {
-				worldTexture.view.Destroy()
+				worldTexture.view.Release()
 			}
 			if worldTexture.texture != nil {
-				worldTexture.texture.Destroy()
+				worldTexture.texture.Release()
 			}
 			delete(r.worldSkyAlphaTextures, textureIndex)
 		}
@@ -3410,13 +3235,13 @@ func (r *Renderer) ClearWorld() {
 				continue
 			}
 			if worldTexture.bindGroup != nil {
-				worldTexture.bindGroup.Destroy()
+				worldTexture.bindGroup.Release()
 			}
 			if worldTexture.view != nil {
-				worldTexture.view.Destroy()
+				worldTexture.view.Release()
 			}
 			if worldTexture.texture != nil {
-				worldTexture.texture.Destroy()
+				worldTexture.texture.Release()
 			}
 			delete(r.worldFullbrightTextures, textureIndex)
 		}
@@ -3425,30 +3250,30 @@ func (r *Renderer) ClearWorld() {
 				continue
 			}
 			if worldLightmap.bindGroup != nil {
-				worldLightmap.bindGroup.Destroy()
+				worldLightmap.bindGroup.Release()
 			}
 			if worldLightmap.view != nil {
-				worldLightmap.view.Destroy()
+				worldLightmap.view.Release()
 			}
 			if worldLightmap.texture != nil {
-				worldLightmap.texture.Destroy()
+				worldLightmap.texture.Release()
 			}
 			r.worldLightmapPages[index] = nil
 		}
 		if r.whiteTexture != nil {
-			r.whiteTexture.Destroy()
+			r.whiteTexture.Release()
 		}
 		if r.transparentBindGroup != nil {
-			r.transparentBindGroup.Destroy()
+			r.transparentBindGroup.Release()
 		}
 		if r.transparentTextureView != nil {
-			r.transparentTextureView.Destroy()
+			r.transparentTextureView.Release()
 		}
 		if r.transparentTexture != nil {
-			r.transparentTexture.Destroy()
+			r.transparentTexture.Release()
 		}
 		if r.worldDepthTexture != nil {
-			r.worldDepthTexture.Destroy()
+			r.worldDepthTexture.Release()
 		}
 		for submodelIndex, lightmaps := range r.brushModelLightmaps {
 			for _, lightmap := range lightmaps {
@@ -3456,13 +3281,13 @@ func (r *Renderer) ClearWorld() {
 					continue
 				}
 				if lightmap.bindGroup != nil {
-					lightmap.bindGroup.Destroy()
+					lightmap.bindGroup.Release()
 				}
 				if lightmap.view != nil {
-					lightmap.view.Destroy()
+					lightmap.view.Release()
 				}
 				if lightmap.texture != nil {
-					lightmap.texture.Destroy()
+					lightmap.texture.Release()
 				}
 			}
 			delete(r.brushModelLightmaps, submodelIndex)

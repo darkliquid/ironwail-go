@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 	iinput "github.com/ironwail/ironwail-go/internal/input"
+	openglimpl "github.com/ironwail/ironwail-go/internal/renderer/opengl"
 )
 
 func TestMapGLFWKeyMapsPunctuationAndSpecialKeys(t *testing.T) {
@@ -34,7 +35,7 @@ func TestMapGLFWKeyMapsPunctuationAndSpecialKeys(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		if got := mapGLFWKey(tc.key); got != tc.want {
+		if got := openglimpl.MapGLFWKey(tc.key); got != tc.want {
 			t.Fatalf("%s mapped to %d, want %d", tc.name, got, tc.want)
 		}
 	}

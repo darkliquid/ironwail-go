@@ -9,7 +9,7 @@ import (
 	"math"
 
 	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu/hal"
+	"github.com/gogpu/wgpu"
 )
 
 const sceneCompositeUniformBufferSize = 16
@@ -92,57 +92,57 @@ func (r *Renderer) sceneSurfaceFormat() gputypes.TextureFormat {
 
 func (r *Renderer) destroySceneCompositeResourcesLocked() {
 	if r.sceneCompositeBindGroup != nil {
-		r.sceneCompositeBindGroup.Destroy()
+		r.sceneCompositeBindGroup.Release()
 		r.sceneCompositeBindGroup = nil
 	}
 	if r.sceneCompositeUniformBuffer != nil {
-		r.sceneCompositeUniformBuffer.Destroy()
+		r.sceneCompositeUniformBuffer.Release()
 		r.sceneCompositeUniformBuffer = nil
 	}
 	if r.sceneCompositeSampler != nil {
-		r.sceneCompositeSampler.Destroy()
+		r.sceneCompositeSampler.Release()
 		r.sceneCompositeSampler = nil
 	}
 	if r.sceneCompositeBindGroupLayout != nil {
-		r.sceneCompositeBindGroupLayout.Destroy()
+		r.sceneCompositeBindGroupLayout.Release()
 		r.sceneCompositeBindGroupLayout = nil
 	}
 	if r.sceneCompositePipelineLayout != nil {
-		r.sceneCompositePipelineLayout.Destroy()
+		r.sceneCompositePipelineLayout.Release()
 		r.sceneCompositePipelineLayout = nil
 	}
 	if r.sceneCompositePipeline != nil {
-		r.sceneCompositePipeline.Destroy()
+		r.sceneCompositePipeline.Release()
 		r.sceneCompositePipeline = nil
 	}
 	if r.sceneCompositeVertexShader != nil {
-		r.sceneCompositeVertexShader.Destroy()
+		r.sceneCompositeVertexShader.Release()
 		r.sceneCompositeVertexShader = nil
 	}
 	if r.sceneCompositeFragmentShader != nil {
-		r.sceneCompositeFragmentShader.Destroy()
+		r.sceneCompositeFragmentShader.Release()
 		r.sceneCompositeFragmentShader = nil
 	}
 }
 
 func (r *Renderer) destroyWorldRenderTargetLocked() {
 	if r.sceneCompositeBindGroup != nil {
-		r.sceneCompositeBindGroup.Destroy()
+		r.sceneCompositeBindGroup.Release()
 		r.sceneCompositeBindGroup = nil
 	}
 	if r.worldRenderTextureView != nil {
-		r.worldRenderTextureView.Destroy()
+		r.worldRenderTextureView.Release()
 		r.worldRenderTextureView = nil
 	}
 	if r.worldRenderTexture != nil {
-		r.worldRenderTexture.Destroy()
+		r.worldRenderTexture.Release()
 		r.worldRenderTexture = nil
 	}
 	r.worldRenderWidth = 0
 	r.worldRenderHeight = 0
 }
 
-func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error {
+func (r *Renderer) ensureSceneCompositeResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
@@ -156,11 +156,11 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 	}
 	fragmentShader, err := createWorldShaderModule(device, sceneCompositeFragmentShaderWGSL, "Scene Composite Fragment Shader")
 	if err != nil {
-		vertexShader.Destroy()
+		vertexShader.Release()
 		return fmt.Errorf("create scene composite fragment shader: %w", err)
 	}
 
-	bindGroupLayout, err := device.CreateBindGroupLayout(&hal.BindGroupLayoutDescriptor{
+	bindGroupLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "Scene Composite BGL",
 		Entries: []gputypes.BindGroupLayoutEntry{
 			{
@@ -191,23 +191,23 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 		},
 	})
 	if err != nil {
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create scene composite bind group layout: %w", err)
 	}
 
-	pipelineLayout, err := device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
+	pipelineLayout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "Scene Composite Pipeline Layout",
-		BindGroupLayouts: []hal.BindGroupLayout{bindGroupLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{bindGroupLayout},
 	})
 	if err != nil {
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create scene composite pipeline layout: %w", err)
 	}
 
-	sampler, err := device.CreateSampler(&hal.SamplerDescriptor{
+	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "Scene Composite Sampler",
 		AddressModeU: gputypes.AddressModeClampToEdge,
 		AddressModeV: gputypes.AddressModeClampToEdge,
@@ -219,32 +219,32 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 		LodMaxClamp:  1,
 	})
 	if err != nil {
-		pipelineLayout.Destroy()
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		pipelineLayout.Release()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create scene composite sampler: %w", err)
 	}
 
-	uniformBuffer, err := device.CreateBuffer(&hal.BufferDescriptor{
+	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Scene Composite Uniform Buffer",
 		Size:             sceneCompositeUniformBufferSize,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
 	if err != nil {
-		sampler.Destroy()
-		pipelineLayout.Destroy()
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		sampler.Release()
+		pipelineLayout.Release()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create scene composite uniform buffer: %w", err)
 	}
 
-	pipeline, err := device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	pipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
 		Label:  "Scene Composite Pipeline",
 		Layout: pipelineLayout,
-		Vertex: hal.VertexState{
+		Vertex: wgpu.VertexState{
 			Module:     vertexShader,
 			EntryPoint: "vs_main",
 		},
@@ -254,7 +254,7 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 			CullMode:  gputypes.CullModeNone,
 		},
 		Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-		Fragment: &hal.FragmentState{
+		Fragment: &wgpu.FragmentState{
 			Module:     fragmentShader,
 			EntryPoint: "fs_main",
 			Targets: []gputypes.ColorTargetState{{
@@ -264,12 +264,12 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 		},
 	})
 	if err != nil {
-		uniformBuffer.Destroy()
-		sampler.Destroy()
-		pipelineLayout.Destroy()
-		bindGroupLayout.Destroy()
-		vertexShader.Destroy()
-		fragmentShader.Destroy()
+		uniformBuffer.Release()
+		sampler.Release()
+		pipelineLayout.Release()
+		bindGroupLayout.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
 		return fmt.Errorf("create scene composite pipeline: %w", err)
 	}
 
@@ -283,7 +283,7 @@ func (r *Renderer) ensureSceneCompositeResourcesLocked(device hal.Device) error 
 	return nil
 }
 
-func (r *Renderer) ensureWorldRenderTargetLocked(device hal.Device, width, height int) error {
+func (r *Renderer) ensureWorldRenderTargetLocked(device *wgpu.Device, width, height int) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
@@ -301,9 +301,9 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device hal.Device, width, heigh
 
 	r.destroyWorldRenderTargetLocked()
 
-	texture, err := device.CreateTexture(&hal.TextureDescriptor{
+	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
 		Label: "World Scene Texture",
-		Size: hal.Extent3D{
+		Size: wgpu.Extent3D{
 			Width:              uint32(width),
 			Height:             uint32(height),
 			DepthOrArrayLayers: 1,
@@ -318,7 +318,7 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device hal.Device, width, heigh
 		return fmt.Errorf("create world scene texture: %w", err)
 	}
 
-	view, err := device.CreateTextureView(texture, &hal.TextureViewDescriptor{
+	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
 		Label:           "World Scene Texture View",
 		Format:          r.sceneSurfaceFormat(),
 		Dimension:       gputypes.TextureViewDimension2D,
@@ -329,29 +329,22 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device hal.Device, width, heigh
 		ArrayLayerCount: 1,
 	})
 	if err != nil {
-		texture.Destroy()
+		texture.Release()
 		return fmt.Errorf("create world scene texture view: %w", err)
 	}
 
-	bindGroup, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+	bindGroup, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Label:  "World Scene Composite BG",
 		Layout: r.sceneCompositeBindGroupLayout,
-		Entries: []gputypes.BindGroupEntry{
-			{Binding: 0, Resource: gputypes.SamplerBinding{Sampler: r.sceneCompositeSampler.NativeHandle()}},
-			{Binding: 1, Resource: gputypes.TextureViewBinding{TextureView: view.NativeHandle()}},
-			{
-				Binding: 2,
-				Resource: gputypes.BufferBinding{
-					Buffer: r.sceneCompositeUniformBuffer.NativeHandle(),
-					Offset: 0,
-					Size:   sceneCompositeUniformBufferSize,
-				},
-			},
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Sampler: r.sceneCompositeSampler},
+			{Binding: 1, TextureView: view},
+			{Binding: 2, Buffer: r.sceneCompositeUniformBuffer, Offset: 0, Size: sceneCompositeUniformBufferSize},
 		},
 	})
 	if err != nil {
-		view.Destroy()
-		texture.Destroy()
+		view.Release()
+		texture.Release()
 		return fmt.Errorf("create world scene composite bind group: %w", err)
 	}
 
@@ -363,25 +356,21 @@ func (r *Renderer) ensureWorldRenderTargetLocked(device hal.Device, width, heigh
 	return nil
 }
 
-func (dc *DrawContext) surfaceHALTextureView() hal.TextureView {
+func (dc *DrawContext) surfaceTextureView() *wgpu.TextureView {
 	if dc == nil || dc.ctx == nil {
 		return nil
 	}
-	surfaceView := dc.ctx.SurfaceView()
-	if surfaceView == nil {
-		return nil
-	}
-	return surfaceView.HalTextureView()
+	return dc.ctx.SurfaceView()
 }
 
-func (dc *DrawContext) currentHALRenderTargetView() hal.TextureView {
+func (dc *DrawContext) currentWGPURenderTargetView() *wgpu.TextureView {
 	if dc == nil {
 		return nil
 	}
 	if dc.sceneRenderActive && dc.sceneRenderTarget != nil {
 		return dc.sceneRenderTarget
 	}
-	return dc.surfaceHALTextureView()
+	return dc.surfaceTextureView()
 }
 
 func shouldUseSceneRenderTarget(state *RenderFrameState) bool {
@@ -398,44 +387,43 @@ func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {
 	if dc == nil || dc.renderer == nil {
 		return
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	textureView := dc.currentHALRenderTargetView()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
+	textureView := dc.currentWGPURenderTargetView()
 	if device == nil || queue == nil || textureView == nil {
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Scene Target Clear Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Scene Target Clear Encoder"})
 	if err != nil {
 		return
 	}
-	if err := encoder.BeginEncoding("scene-target-clear"); err != nil {
-		return
-	}
-
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Scene Target Clear Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:       textureView,
 			LoadOp:     gputypes.LoadOpClear,
 			StoreOp:    gputypes.StoreOpStore,
 			ClearValue: gputypes.Color{R: float64(clearColor[0]), G: float64(clearColor[1]), B: float64(clearColor[2]), A: float64(clearColor[3])},
 		}},
 	})
-	renderPass.End()
-
-	cmdBuffer, err := encoder.EndEncoding()
 	if err != nil {
 		return
 	}
-	_ = queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0)
+	_ = renderPass.End()
+
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		return
+	}
+	_ = queue.Submit(cmdBuffer)
 }
 
 func (dc *DrawContext) enableSceneRenderTarget() bool {
 	if dc == nil || dc.renderer == nil {
 		return false
 	}
-	device := dc.renderer.getHALDevice()
+	device := dc.renderer.getWGPUDevice()
 	if device == nil {
 		return false
 	}
@@ -470,12 +458,12 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 	if dc == nil || dc.renderer == nil || dc.sceneRenderTarget == nil {
 		return false
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		return false
 	}
-	surfaceView := dc.surfaceHALTextureView()
+	surfaceView := dc.surfaceTextureView()
 	if surfaceView == nil {
 		return false
 	}
@@ -490,23 +478,22 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 		return false
 	}
 
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Scene Composite Encoder"})
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Scene Composite Encoder"})
 	if err != nil {
 		return false
 	}
-	if err := encoder.BeginEncoding("scene-composite"); err != nil {
-		return false
-	}
-
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Scene Composite Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:       surfaceView,
 			LoadOp:     gputypes.LoadOpClear,
 			StoreOp:    gputypes.StoreOpStore,
 			ClearValue: gputypes.Color{R: float64(clearColor[0]), G: float64(clearColor[1]), B: float64(clearColor[2]), A: float64(clearColor[3])},
 		}},
 	})
+	if err != nil {
+		return false
+	}
 	renderPass.SetPipeline(pipeline)
 	renderPass.SetBindGroup(0, bindGroup, nil)
 	width, height := r.Size()
@@ -518,13 +505,15 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 		return false
 	}
 	renderPass.Draw(3, 1, 0, 0)
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		return false
+	}
 
-	cmdBuffer, err := encoder.EndEncoding()
+	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		return false
 	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
+	if err := queue.Submit(cmdBuffer); err != nil {
 		return false
 	}
 	return true

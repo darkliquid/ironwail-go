@@ -786,7 +786,7 @@ func TestCmdGod(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
-	h.CmdGod(nil, &subs.Subsystems)
+	h.CmdGod(&subs.Subsystems)
 }
 
 func TestCmdNoClip(t *testing.T) {
@@ -803,7 +803,7 @@ func TestCmdNoClip(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
-	h.CmdNoClip(nil, &subs.Subsystems)
+	h.CmdNoClip(&subs.Subsystems)
 }
 
 func TestCmdNotarget(t *testing.T) {
@@ -820,7 +820,7 @@ func TestCmdNotarget(t *testing.T) {
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
-	h.CmdNotarget(nil, &subs.Subsystems)
+	h.CmdNotarget(&subs.Subsystems)
 }
 
 func TestCmdGive(t *testing.T) {
@@ -4233,13 +4233,13 @@ func TestRegisterCommands_MenuCommandsTargetExpectedStates(t *testing.T) {
 	}{
 		{command: "menu_main", want: menu.MenuMain},
 		{command: "menu_singleplayer", want: menu.MenuSinglePlayer},
-		{command: "menu_maps", want: menu.MenuMaps},
+		{command: "menu_maps", want: menu.MenuMods},
 		{command: "menu_load", want: menu.MenuLoad},
 		{command: "menu_save", want: menu.MenuSave},
 		{command: "menu_multiplayer", want: menu.MenuMultiPlayer},
 		{command: "menu_setup", want: menu.MenuSetup},
 		{command: "menu_options", want: menu.MenuOptions},
-		{command: "menu_keys", want: menu.MenuKeys},
+		{command: "menu_keys", want: menu.MenuControls},
 		{command: "menu_video", want: menu.MenuVideo},
 		{command: "menu_help", want: menu.MenuHelp},
 		{command: "menu_quit", want: menu.MenuQuit},
@@ -5320,20 +5320,38 @@ func writeCommandTestPak(t testingT, path string, files map[string][]byte) {
 }
 
 func TestCmdRandmapNoServer(t *testing.T) {
+	baseDir := t.TempDir()
+	id1Dir := filepath.Join(baseDir, "id1")
+	if err := os.MkdirAll(id1Dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(id1): %v", err)
+	}
+	writeCommandTestPak(t, filepath.Join(id1Dir, "pak0.pak"), map[string][]byte{
+		"maps/start.bsp": []byte("start"),
+	})
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
 	h := NewHost()
 	console := &mockConsole{}
+	commands := &insertTrackingCommandBuffer{}
 	subs := &Subsystems{
-		Server:  &mockServer{},
-		Client:  &mockClient{},
-		Console: console,
-		Files:   &mapListingFiles{},
+		Server:   &mockServer{},
+		Client:   &mockClient{},
+		Console:  console,
+		Files:    fileSys,
+		Commands: commands,
 	}
 	h.Init(&InitParams{BaseDir: "."}, subs)
-	// serverActive is false by default
 	h.CmdRandmap(subs)
+
 	output := strings.Join(console.messages, "")
-	if !strings.Contains(output, "no server running") {
-		t.Errorf("expected 'no server running', got %q", output)
+	if !strings.Contains(output, "randmap: changing to start") {
+		t.Errorf("expected randmap change message, got %q", output)
+	}
+	if !reflect.DeepEqual(commands.added, []string{"map start\n"}) {
+		t.Fatalf("queued commands = %v, want [\"map start\\n\"]", commands.added)
 	}
 }
 

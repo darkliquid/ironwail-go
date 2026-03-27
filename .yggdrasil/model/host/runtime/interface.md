@@ -15,6 +15,7 @@ Key methods:
 - `FrameLoop(targetFPS float64, cb FrameCallbacks, shouldQuit func() bool) error`
 - `Shutdown(subs *Subsystems)`
 - accessors/mutators for signons, max FPS, abort state, and runtime flags
+- `SetGameDirChangedCallback(func(*Subsystems) error)` installs an optional executable-side reload hook that runs after `game` successfully swaps the mounted `*fs.FileSystem`
 - `NetInterval() float64` and `LocalServerFast() bool` expose host frame/network policy so runtime client interpolation policy can mirror C `sv.active && !host_netinterval` semantics
 
 Contracts:

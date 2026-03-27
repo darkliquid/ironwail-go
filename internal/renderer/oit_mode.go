@@ -1,7 +1,9 @@
 package renderer
 
+import oitimpl "github.com/ironwail/ironwail-go/internal/renderer/oit"
+
 // ShouldUseOITResources reports whether weighted blended OIT framebuffer
 // resources should be active for the current alpha compositing mode.
 func ShouldUseOITResources() bool {
-	return GetAlphaMode() == AlphaModeOIT
+	return oitimpl.ShouldUseResources(int(GetAlphaMode()))
 }

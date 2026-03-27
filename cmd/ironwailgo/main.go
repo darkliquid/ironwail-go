@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ironwail/ironwail-go/internal/audio"
+	"github.com/ironwail/ironwail-go/internal/bsp"
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/console"
@@ -52,7 +53,7 @@ type Game struct {
 	Server     *server.Server
 	QC         *qc.VM
 	CSQC       *qc.CSQC // Client-side QuakeC VM (nil when not loaded)
-	Renderer   *renderer.Renderer
+	Renderer   gameRenderer
 	Subs       *host.Subsystems
 	Client     *cl.Client
 	Particles  *renderer.ParticleSystem
@@ -96,6 +97,48 @@ type Game struct {
 	DemoOverlay          runtimeDemoOverlay
 	TurtleOverlayCount   int
 	LastServerMessageAt  float64
+}
+
+type gameRendererFrameLoop interface {
+	OnDraw(func(renderer.RenderContext))
+	OnUpdate(func(dt float64))
+	Size() (width, height int)
+	SetConfig(renderer.Config)
+	Run() error
+	Stop()
+	Shutdown()
+}
+
+type gameRendererAssets interface {
+	SetPalette([]byte)
+	SetConchars([]byte)
+	SetExternalSkybox(string, func(string) ([]byte, error))
+}
+
+type gameRendererWorld interface {
+	UpdateCamera(renderer.CameraState, float32, float32)
+	UploadWorld(*bsp.Tree) error
+	HasWorldData() bool
+	GetWorldBounds() (min [3]float32, max [3]float32, ok bool)
+}
+
+type gameRendererLights interface {
+	SpawnDynamicLight(renderer.DynamicLight) bool
+	SpawnKeyedDynamicLight(renderer.DynamicLight) bool
+	UpdateLights(float32)
+	ClearDynamicLights()
+}
+
+type gameRendererInput interface {
+	InputBackendForSystem(*input.System) input.Backend
+}
+
+type gameRenderer interface {
+	gameRendererFrameLoop
+	gameRendererAssets
+	gameRendererWorld
+	gameRendererLights
+	gameRendererInput
 }
 
 var g Game
@@ -873,8 +916,8 @@ func main() {
 				origin, angles := runtimeViewState()
 				camera := runtimeCameraState(origin, angles)
 				g.Renderer.UpdateCamera(camera, 0.1, 4096.0)
-				applyRuntimeRendererVisualEffects(renderDT, renderEvents)
-				applyRuntimeRendererSkybox()
+				applyRuntimeRendererVisualEffects(renderDT, g.Renderer, renderEvents)
+				applyRuntimeRendererSkybox(g.Renderer)
 			}
 
 			if g.Renderer != nil && g.Server != nil && g.Server.WorldTree != nil &&

@@ -3,6 +3,9 @@
 ## Logic
 
 The app shell is the narrowest place that still sees the whole executable. `Game` centralizes mutable process state so the rest of the `package main` helpers can coordinate through one runtime bag. `main()` parses startup options, chooses headless/dedicated/runtime behavior, and hands off to the appropriate bootstrap and loop code. The large `main_test.go` suite exercises this shell from many angles, including startup, runtime ordering, input/view policy, and integration edges that span multiple files.
+`Game.Renderer` is now stored behind a command-layer `gameRenderer` interface so app-shell code no longer requires a concrete `*renderer.Renderer` field type for routine runtime calls. Startup subsystem wiring now consumes this interface directly when constructing `renderer.NewRendererAdapter`, removing the temporary concrete bridge.
+The app-shell renderer contract is decomposed into embedded role interfaces (`frame loop`, `assets`, `world`, `lights`, and `input`) so future decoupling can reduce surface area by seam without rewriting call sites all at once.
+Runtime visual helpers in `game_visual.go` now consume role-specific renderer interfaces (`lights` and `assets`) rather than closing over the full renderer composite, with `main.go` passing `g.Renderer` as the provider.
 
 CSQC draw hooks now route pic lookups through a parity cache bridge that matches C `DrawQC_CachePic` behavior: `iscachedpic` remains a pure cache query, `precache_pic` only fails under BLOCK on missing assets, and draw/getsize/subpic use a shared AUTO cache path. Regression coverage keeps this split explicit by asserting that `iscachedpic` only flips true after an AUTO-loading call (`GetImageSize`/draw path), not before.
 Frame-state assembly also now publishes CSQC extglobals from runtime host/client state, including realtime-backed `cltime`, intermission timing, local player numbers/entities, and client command frame.

@@ -2,14 +2,19 @@ name: Renderer OpenGL Entities
 type: module
 description: "OpenGL alias, sprite, decal, transparency, and atlas-backed entity rendering helpers"
 blackbox: false
+relations:
+  - target: renderer/alias
+    type: uses
+    consumes:
+      - BuildVerticesInterpolated
+      - InterpolateVertexPosition
+      - SetupFrameInterpolation
 mapping:
   paths:
     - internal/renderer/alias_opengl.go
     - internal/renderer/alias_opengl_test.go
     - internal/renderer/sprite_opengl.go
     - internal/renderer/sprite_opengl_test.go
-    - internal/renderer/world_alias_opengl.go
-    - internal/renderer/world_sprite_opengl.go
     - internal/renderer/decal_opengl.go
     - internal/renderer/oit_mode.go
     - internal/renderer/oit_opengl.go

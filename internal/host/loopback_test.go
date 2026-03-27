@@ -24,6 +24,7 @@ func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {
 	lc.srv = s
 	lc.cmd = s
 	lc.inner.State = cl.StateActive
+	lc.inner.Signon = cl.Signons
 	lc.inner.Time = 1.25
 	lc.inner.ViewAngles = [3]float32{0, 90, 0}
 	lc.inner.InputForward.State = 1
@@ -88,6 +89,7 @@ func TestLocalLoopbackClientSendCommandLatchesButtonsAtSendTime(t *testing.T) {
 	lc.srv = s
 	lc.cmd = s
 	lc.inner.State = cl.StateActive
+	lc.inner.Signon = cl.Signons
 	lc.inner.Time = 1.25
 	lc.inner.ViewAngles = [3]float32{0, 90, 0}
 

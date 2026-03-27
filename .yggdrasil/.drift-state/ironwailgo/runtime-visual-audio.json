@@ -1,27 +1,27 @@
 {
-  "hash": "4a87bc1f0f8f5ea3d907c9a345cdbdda2da12b1804a48d60df4dafb52f7684f1",
+  "hash": "9ffec4e1097bf18533626224f968a81f6ffc98d1dac200722be7c92f4850d639",
   "files": {
     ".yggdrasil/model/ironwailgo/runtime-visual-audio/yg-node.yaml": "34cc3cbe3c0c7a80a843633ad20e1dc47ee5085d25a25405653a3c48477c35dc",
-    ".yggdrasil/model/ironwailgo/runtime-visual-audio/interface.md": "c63ccaa66e1894366e5ae46997fe95dc74e9809d89ead298d831d0e705b33973",
-    ".yggdrasil/model/ironwailgo/runtime-visual-audio/internals.md": "489aebf5b06778ac52503eaa27cf874e4e39596713d57ca7bca45004bef45518",
     ".yggdrasil/model/ironwailgo/runtime-visual-audio/responsibility.md": "5b2d6d36ba8f1d7f26a486bd20336b67494f2272cb42d48763dffbc0f471034b",
     ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
     ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
     ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
     ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
-    "cmd/ironwailgo/game_visual.go": "e6ee5dd7278c6da659d085cf3e86b63ccac73cc3ad43fbfbe4c9e86b9031facb",
-    "cmd/ironwailgo/game_audio.go": "ed0929b7c450dadc7167b99b32492eed7fecad0f044317cb9b6939cd3ef8a954"
+    "cmd/ironwailgo/game_audio.go": "ed0929b7c450dadc7167b99b32492eed7fecad0f044317cb9b6939cd3ef8a954",
+    ".yggdrasil/model/ironwailgo/runtime-visual-audio/interface.md": "76db67570c05b9361aaa1a9dab0849a08354079486ff0d32352a21b92f706d08",
+    ".yggdrasil/model/ironwailgo/runtime-visual-audio/internals.md": "59b23049fd4ab549c1e8b812698333ad773bcfcf971ab6990708987a1d138e8e",
+    "cmd/ironwailgo/game_visual.go": "8e344e77ba6ad24698cd7180d98892e0583400c46b0f267f23fc1fe0ad5b6e38"
   },
   "mtimes": {
     ".yggdrasil/model/ironwailgo/runtime-visual-audio/yg-node.yaml": 1774246120439.488,
-    ".yggdrasil/model/ironwailgo/runtime-visual-audio/interface.md": 1774263606467.3677,
-    ".yggdrasil/model/ironwailgo/runtime-visual-audio/internals.md": 1774263606467.3677,
+    ".yggdrasil/model/ironwailgo/runtime-visual-audio/interface.md": 1774587953753.1824,
+    ".yggdrasil/model/ironwailgo/runtime-visual-audio/internals.md": 1774587958953.229,
     ".yggdrasil/model/ironwailgo/runtime-visual-audio/responsibility.md": 1774246120439.532,
     ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
     ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
     ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
     ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
-    "cmd/ironwailgo/game_visual.go": 1774263606467.3677,
+    "cmd/ironwailgo/game_visual.go": 1774587935945.8394,
     "cmd/ironwailgo/game_audio.go": 1774130426189.8389
   }
 }
