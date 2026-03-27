@@ -1940,18 +1940,19 @@ func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}
-	return aliasimpl.BuildVerticesInterpolated(goGPUAliasMesh(alias), mdl.AliasHeader, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
-}
-
-func goGPUAliasMesh(alias *gpuAliasModel) aliasimpl.Mesh {
-	return aliasimpl.Mesh{
-		Poses:    alias.poses,
-		RefCount: len(alias.refs),
-		RefAt: func(index int) aliasimpl.MeshRef {
-			ref := alias.refs[index]
+	return aliasimpl.BuildVerticesInterpolated(
+		aliasimpl.MeshFromAccessor(alias.poses, alias.refs, func(ref gpuAliasVertexRef) aliasimpl.MeshRef {
 			return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
-		},
-	}
+		}),
+		mdl.AliasHeader,
+		pose1Index,
+		pose2Index,
+		blend,
+		origin,
+		angles,
+		entityScale,
+		fullAngles,
+	)
 }
 
 // ---- merged from world_sprite_gogpu_root.go ----

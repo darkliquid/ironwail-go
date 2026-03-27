@@ -44,6 +44,19 @@ func MeshFromRefs(poses [][]model.TriVertX, refs []MeshRef) Mesh {
 	}
 }
 
+func MeshFromAccessor[R any](poses [][]model.TriVertX, refs []R, adapt func(R) MeshRef) Mesh {
+	if adapt == nil {
+		return Mesh{Poses: poses}
+	}
+	return Mesh{
+		Poses:    poses,
+		RefCount: len(refs),
+		RefAt: func(index int) MeshRef {
+			return adapt(refs[index])
+		},
+	}
+}
+
 func InterpolateVertexPosition(pose1Vert, pose2Vert model.TriVertX, scale, origin [3]float32, factor float32) [3]float32 {
 	pos1 := model.DecodeVertex(pose1Vert, scale, origin)
 	pos2 := model.DecodeVertex(pose2Vert, scale, origin)

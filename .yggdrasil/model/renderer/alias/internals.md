@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node exists to hold pure alias-model logic that would otherwise be duplicated across backend roots. It centralizes frame/state interpolation, CPU mesh shaping, and Euler rotation math while staying independent from renderer-owned caches and backend APIs.
+This node exists to hold pure alias-model logic that would otherwise be duplicated across backend roots. It centralizes frame/state interpolation, CPU mesh shaping, generic mesh-adapter construction from backend ref slices, and Euler rotation math while staying independent from renderer-owned caches and backend APIs.
 
 ## Constraints
 

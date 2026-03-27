@@ -88,6 +88,29 @@ func TestBuildVerticesUsesSinglePose(t *testing.T) {
 	}
 }
 
+func TestMeshFromAccessor(t *testing.T) {
+	type backendRef struct {
+		index int
+		uv    [2]float32
+	}
+
+	mesh := MeshFromAccessor(
+		[][]model.TriVertX{{}},
+		[]backendRef{{index: 3, uv: [2]float32{0.5, 0.25}}},
+		func(ref backendRef) MeshRef {
+			return MeshRef{VertexIndex: ref.index, TexCoord: ref.uv}
+		},
+	)
+
+	if mesh.RefCount != 1 {
+		t.Fatalf("RefCount = %d, want 1", mesh.RefCount)
+	}
+	got := mesh.RefAt(0)
+	if got.VertexIndex != 3 || got.TexCoord != ([2]float32{0.5, 0.25}) {
+		t.Fatalf("RefAt(0) = %#v", got)
+	}
+}
+
 func TestSetupFrameInterpolation(t *testing.T) {
 	frames := []FrameDesc{
 		{FirstPose: 0, NumPoses: 1, Interval: 0.1},

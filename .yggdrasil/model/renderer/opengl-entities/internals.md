@@ -34,7 +34,7 @@ Rationale:
 Observed decision:
 - OpenGL alias draw preparation now applies `applyAliasNoLerpListFlags` to alias header flags before invoking `SetupAliasFrame`.
 - Alias shadow exclusion parsing (`parseAliasShadowExclusions`) reuses shared alias model-list parsing.
-- The OpenGL-only alias shim now delegates interpolated vertex shaping to `renderer/alias` mesh helpers via `glAliasModel` adapters instead of carrying a second copy of interpolation/rotation math.
+- The OpenGL-only alias shim now delegates interpolated vertex shaping to `renderer/alias` mesh helpers via `MeshFromAccessor` over `glAliasModel` refs instead of carrying a second copy of interpolation/rotation math or a backend-local mesh adapter helper.
 
 Rationale:
 - C/Ironwail model interpolation parity depends on `r_nolerp_list` being respected during frame blending decisions.

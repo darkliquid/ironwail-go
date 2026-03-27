@@ -17,18 +17,19 @@ func buildAliasVerticesInterpolated(alias *glAliasModel, mdl *model.Model, pose1
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}
-	return aliasimpl.BuildVerticesInterpolated(openGLAliasMesh(alias), mdl.AliasHeader, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
-}
-
-func openGLAliasMesh(alias *glAliasModel) aliasimpl.Mesh {
-	return aliasimpl.Mesh{
-		Poses:    alias.poses,
-		RefCount: len(alias.refs),
-		RefAt: func(index int) aliasimpl.MeshRef {
-			ref := alias.refs[index]
+	return aliasimpl.BuildVerticesInterpolated(
+		aliasimpl.MeshFromAccessor(alias.poses, alias.refs, func(ref glAliasVertexRef) aliasimpl.MeshRef {
 			return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
-		},
-	}
+		}),
+		mdl.AliasHeader,
+		pose1Index,
+		pose2Index,
+		blend,
+		origin,
+		angles,
+		entityScale,
+		fullAngles,
+	)
 }
 
 type InterpolationData = aliasimpl.InterpolationData

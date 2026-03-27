@@ -1283,7 +1283,16 @@ func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, or
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil || poseIndex < 0 || poseIndex >= len(alias.poses) {
 		return nil
 	}
-	return aliasimpl.BuildVertices(openGLAliasMesh(alias), mdl.AliasHeader, poseIndex, origin, angles, fullAngles)
+	return aliasimpl.BuildVertices(
+		aliasimpl.MeshFromAccessor(alias.poses, alias.refs, func(ref glAliasVertexRef) aliasimpl.MeshRef {
+			return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
+		}),
+		mdl.AliasHeader,
+		poseIndex,
+		origin,
+		angles,
+		fullAngles,
+	)
 }
 
 // buildAliasDrawLocked prepares a complete alias model draw command: resolves the model, computes pose interpolation, builds interpolated vertices, and uploads to the scratch VBO.
