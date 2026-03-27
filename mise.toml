@@ -177,6 +177,12 @@ depends = ["go-generate"]
 description = "Build binary in WGPU mode"
 run = "CGO_ENABLED=0 go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
 
+[tasks.build-gogpu-rust]
+depends = ["go-generate"]
+description = "Build binary in WGPU mode with rust backend"
+run = "CGO_ENABLED=0 go build -tags gogpu,rust -o ironwailgo-wgpu-rust ./cmd/ironwailgo"
+
+
 [tasks.build-gogpu-sdl3]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
