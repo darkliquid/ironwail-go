@@ -1943,54 +1943,6 @@ func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose
 	return aliasimpl.BuildVerticesInterpolated(goGPUAliasMesh(alias), mdl.AliasHeader, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
 }
 
-func setupAliasFrameInterpolation(frameIndex int, frames []model.AliasFrameDesc, timeSeconds float64, lerpModels bool, flags int) InterpolationData {
-	var result InterpolationData
-	if len(frames) == 0 {
-		return result
-	}
-	if frameIndex < 0 || frameIndex >= len(frames) {
-		frameIndex = 0
-	}
-	frameDesc := frames[frameIndex]
-	if frameDesc.NumPoses <= 0 {
-		result.Pose1 = frameDesc.FirstPose
-		result.Pose2 = frameDesc.FirstPose
-		return result
-	}
-	poseOffset := 0
-	if frameDesc.NumPoses > 1 {
-		interval := frameDesc.Interval
-		if interval <= 0 {
-			interval = 0.1
-		}
-		poseOffset = int(timeSeconds/float64(interval)) % frameDesc.NumPoses
-	}
-	currentPose := frameDesc.FirstPose + poseOffset
-	if frameDesc.NumPoses <= 1 {
-		result.Pose1 = currentPose
-		result.Pose2 = currentPose
-		return result
-	}
-	nextPose := frameDesc.FirstPose + (poseOffset+1)%frameDesc.NumPoses
-	if lerpModels && (flags&ModNoLerp == 0) {
-		interval := frameDesc.Interval
-		if interval <= 0 {
-			interval = 0.1
-		}
-		timeInInterval := math.Mod(timeSeconds, float64(interval))
-		result.Blend = clamp01(float32(timeInInterval / float64(interval)))
-	}
-	result.Pose1 = currentPose
-	result.Pose2 = nextPose
-	return result
-}
-
-type InterpolationData struct {
-	Pose1 int
-	Pose2 int
-	Blend float32
-}
-
 func goGPUAliasMesh(alias *gpuAliasModel) aliasimpl.Mesh {
 	return aliasimpl.Mesh{
 		Poses:    alias.poses,
