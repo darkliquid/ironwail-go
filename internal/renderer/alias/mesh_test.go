@@ -87,3 +87,95 @@ func TestBuildVerticesUsesSinglePose(t *testing.T) {
 		}
 	}
 }
+
+func TestSetupFrameInterpolation(t *testing.T) {
+	frames := []FrameDesc{
+		{FirstPose: 0, NumPoses: 1, Interval: 0.1},
+		{FirstPose: 1, NumPoses: 3, Interval: 0.05},
+		{FirstPose: 4, NumPoses: 1, Interval: 0.1},
+	}
+
+	tests := []struct {
+		name          string
+		frameIndex    int
+		timeSeconds   float64
+		lerpModels    bool
+		flags         int
+		expectedPose1 int
+		expectedPose2 int
+		expectedBlend float32
+		blendRange    float32
+	}{
+		{
+			name:          "single-pose frame has no blend",
+			frameIndex:    0,
+			timeSeconds:   0.0,
+			lerpModels:    true,
+			flags:         0,
+			expectedPose1: 0,
+			expectedPose2: 0,
+			expectedBlend: 0.0,
+		},
+		{
+			name:          "multi-pose frame at t=0 starts at first pose",
+			frameIndex:    1,
+			timeSeconds:   0.0,
+			lerpModels:    true,
+			flags:         0,
+			expectedPose1: 1,
+			expectedPose2: 2,
+			expectedBlend: 0.0,
+			blendRange:    0.1,
+		},
+		{
+			name:          "multi-pose frame halfway through interval blends",
+			frameIndex:    1,
+			timeSeconds:   0.025,
+			lerpModels:    true,
+			flags:         0,
+			expectedPose1: 1,
+			expectedPose2: 2,
+			expectedBlend: 0.5,
+			blendRange:    0.1,
+		},
+		{
+			name:          "ModNoLerp disables blend",
+			frameIndex:    1,
+			timeSeconds:   0.025,
+			lerpModels:    true,
+			flags:         ModNoLerp,
+			expectedPose1: 1,
+			expectedPose2: 2,
+			expectedBlend: 0.0,
+			blendRange:    0.01,
+		},
+		{
+			name:          "invalid frame defaults to zero",
+			frameIndex:    99,
+			timeSeconds:   0.0,
+			lerpModels:    true,
+			flags:         0,
+			expectedPose1: 0,
+			expectedPose2: 0,
+			expectedBlend: 0.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SetupFrameInterpolation(tt.frameIndex, frames, tt.timeSeconds, tt.lerpModels, tt.flags)
+			if got.Pose1 != tt.expectedPose1 {
+				t.Fatalf("Pose1 = %d, want %d", got.Pose1, tt.expectedPose1)
+			}
+			if got.Pose2 != tt.expectedPose2 {
+				t.Fatalf("Pose2 = %d, want %d", got.Pose2, tt.expectedPose2)
+			}
+			if tt.blendRange == 0 {
+				tt.blendRange = 0.01
+			}
+			if math.Abs(float64(got.Blend-tt.expectedBlend)) > float64(tt.blendRange) {
+				t.Fatalf("Blend = %f, want %f (±%f)", got.Blend, tt.expectedBlend, tt.blendRange)
+			}
+		})
+	}
+}
