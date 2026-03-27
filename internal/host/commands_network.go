@@ -355,7 +355,7 @@ func (h *Host) CmdPlayers(address string, subs *Subsystems) {
 	subs.Console.Print("slot  name              color  frags  ping\n")
 	subs.Console.Print("----  ----------------  -----  -----  ----\n")
 	for _, player := range players {
-		subs.Console.Print(fmt.Sprintf("%4d  %-16.16s  %2d/%-2d  %5d  %4d\n", player.Slot, player.Name, player.Colors[0], player.Colors[1], player.Frags, player.Ping))
+		subs.Console.Print(fmt.Sprintf("%4d  %-16.16s  %2d/%-2d  %5d  %4.0f\n", player.Slot, player.Name, player.Colors[0], player.Colors[1], player.Frags, player.Ping))
 	}
 }
 

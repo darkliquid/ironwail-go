@@ -188,31 +188,31 @@ func syncRuntimeSkybox() {
 	g.SkyboxNameKey = skyboxName
 }
 
-func applyRuntimeRendererVisualEffects(dt float64, transientEvents cl.TransientEvents) {
-	if g.Renderer == nil {
+func applyRuntimeRendererVisualEffects(dt float64, lights gameRendererLights, transientEvents cl.TransientEvents) {
+	if lights == nil {
 		return
 	}
 
 	if g.Client == nil || g.Client.State != cl.StateActive {
-		g.Renderer.ClearDynamicLights()
+		lights.ClearDynamicLights()
 		return
 	}
 
-	g.Renderer.UpdateLights(float32(dt))
-	renderer.EmitDynamicLights(g.Renderer.SpawnDynamicLight, transientEvents.TempEntities)
-	renderer.EmitEntityEffectLights(g.Renderer.SpawnKeyedDynamicLight, collectEntityEffectSources())
+	lights.UpdateLights(float32(dt))
+	renderer.EmitDynamicLights(lights.SpawnDynamicLight, transientEvents.TempEntities)
+	renderer.EmitEntityEffectLights(lights.SpawnKeyedDynamicLight, collectEntityEffectSources())
 }
 
-func applyRuntimeRendererSkybox() {
-	if g.Renderer == nil {
+func applyRuntimeRendererSkybox(assets gameRendererAssets) {
+	if assets == nil {
 		return
 	}
 	skyboxName := g.SkyboxNameKey
 	if skyboxName == "" || g.Subs == nil || g.Subs.Files == nil {
-		g.Renderer.SetExternalSkybox("", nil)
+		assets.SetExternalSkybox("", nil)
 		return
 	}
-	g.Renderer.SetExternalSkybox(skyboxName, g.Subs.Files.LoadFile)
+	assets.SetExternalSkybox(skyboxName, g.Subs.Files.LoadFile)
 }
 
 // updateHUDFromServer pushes current player/client state into the HUD.

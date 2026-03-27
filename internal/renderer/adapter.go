@@ -3,14 +3,18 @@
 
 package renderer
 
+type backendWithShutdown interface {
+	Shutdown()
+}
+
 // RendererAdapter wraps renderer.Renderer to implement host.Renderer interface
 type RendererAdapter struct {
-	renderer *Renderer
+	backend backendWithShutdown
 }
 
 // NewRendererAdapter selects the active renderer backend (OpenGL, GoGPU, or stub) and wires it behind a single interface so the rest of the engine can run the same frame pipeline regardless of graphics API.
-func NewRendererAdapter(r *Renderer) *RendererAdapter {
-	return &RendererAdapter{renderer: r}
+func NewRendererAdapter(b backendWithShutdown) *RendererAdapter {
+	return &RendererAdapter{backend: b}
 }
 
 // Init prepares backend resources needed before the first frame, including API-specific state, cached GPU objects, and per-frame scratch structures used by the renderer.
@@ -27,5 +31,7 @@ func (a *RendererAdapter) UpdateScreen() {
 
 // Shutdown releases backend-owned resources in reverse order of creation so context-bound objects (textures, buffers, shaders) are destroyed safely.
 func (a *RendererAdapter) Shutdown() {
-	a.renderer.Shutdown()
+	if a.backend != nil {
+		a.backend.Shutdown()
+	}
 }

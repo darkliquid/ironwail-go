@@ -11,6 +11,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/ironwail/ironwail-go/internal/menu"
 	"github.com/ironwail/ironwail-go/internal/server"
 	qtypes "github.com/ironwail/ironwail-go/pkg/types"
 	"math"
@@ -1201,6 +1202,13 @@ func (h *Host) CmdMenuMain() {
 		return
 	}
 	h.menu.ShowMenu()
+}
+
+func (h *Host) CmdMenuState(state menu.MenuState) {
+	if h.menu == nil {
+		return
+	}
+	h.menu.ShowState(state)
 }
 
 func (h *Host) CmdMenuQuit() {

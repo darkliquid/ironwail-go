@@ -7,3 +7,4 @@ mapping:
     - internal/renderer/input_backend_glfw.go
     - internal/renderer/input_backend_gogpu.go
     - internal/renderer/input_backend_stub.go
+    - internal/renderer/input_backend_glfw_test.go

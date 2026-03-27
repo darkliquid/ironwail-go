@@ -254,6 +254,11 @@ func (h *Host) CmdGame(args []string, subs *Subsystems) {
 
 	subs.Files.Close()
 	subs.Files = nextFS
+	if h.gameDirChangedCallback != nil {
+		if err := h.gameDirChangedCallback(subs, nextFS); err != nil && subs.Console != nil {
+			subs.Console.Print(fmt.Sprintf("failed to reload draw assets: %v\n", err))
+		}
+	}
 	h.gameDir = target
 	if h.menu != nil {
 		h.menu.SetCurrentMod(target)

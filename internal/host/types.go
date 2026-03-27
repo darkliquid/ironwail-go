@@ -9,6 +9,7 @@ import (
 
 	"github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/compatrand"
+	"github.com/ironwail/ironwail-go/internal/fs"
 	"github.com/ironwail/ironwail-go/internal/menu"
 )
 
@@ -70,8 +71,9 @@ type Host struct {
 	aborted     bool
 	abortReason string
 
-	menu      *menu.Manager
-	demoState *client.DemoState
+	menu                   *menu.Manager
+	demoState              *client.DemoState
+	gameDirChangedCallback func(subs *Subsystems, changed *fs.FileSystem) error
 
 	// Subs holds the subsystem container for this host instance.
 	// Previously stored in a package-level sync.Map registry; now owned
@@ -255,6 +257,10 @@ func (h *Host) SetMenu(menu *menu.Manager) {
 
 func (h *Host) GetMenu() *menu.Manager {
 	return h.menu
+}
+
+func (h *Host) SetGameDirChangedCallback(cb func(subs *Subsystems, changed *fs.FileSystem) error) {
+	h.gameDirChangedCallback = cb
 }
 
 func (h *Host) DemoState() *client.DemoState {

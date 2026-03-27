@@ -113,6 +113,19 @@ type gogpuTranslucentLiquidBrushEntityDraw struct {
 	lightmaps []*gpuWorldTexture
 }
 
+func convertGoGPUTranslucentFaceDraws(src []worldgogpu.TranslucentFaceDraw) []gogpuTranslucentLiquidFaceDraw {
+	dst := make([]gogpuTranslucentLiquidFaceDraw, 0, len(src))
+	for _, face := range src {
+		dst = append(dst, gogpuTranslucentLiquidFaceDraw{
+			face:       face.Face,
+			alpha:      face.Alpha,
+			center:     face.Center,
+			distanceSq: face.DistanceSq,
+		})
+	}
+	return dst
+}
+
 func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentLiquidBrushEntityDraw {
 	draw := worldgogpu.BuildTranslucentLiquidBrushEntityDraw(gogpuBrushEntityParams(entity), geom, func(face WorldFace, entityAlpha float32) (float32, bool) {
 		if !shouldDrawGoGPUTranslucentLiquidBrushFace(face, entityAlpha, liquidAlpha) {
@@ -125,20 +138,11 @@ func buildGoGPUTranslucentLiquidBrushEntityDraw(entity BrushEntity, geom *WorldG
 	if draw == nil {
 		return nil
 	}
-	faces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(draw.Faces))
-	for _, face := range draw.Faces {
-		faces = append(faces, gogpuTranslucentLiquidFaceDraw{
-			face:       face.Face,
-			alpha:      face.Alpha,
-			center:     face.Center,
-			distanceSq: face.DistanceSq,
-		})
-	}
 	return &gogpuTranslucentLiquidBrushEntityDraw{
 		frame:    draw.Frame,
 		vertices: draw.Vertices,
 		indices:  draw.Indices,
-		faces:    faces,
+		faces:    convertGoGPUTranslucentFaceDraws(draw.Faces),
 	}
 }
 
@@ -180,32 +184,14 @@ func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometr
 	if draw == nil {
 		return nil
 	}
-	translucentFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(draw.TranslucentFaces))
-	for _, face := range draw.TranslucentFaces {
-		translucentFaces = append(translucentFaces, gogpuTranslucentLiquidFaceDraw{
-			face:       face.Face,
-			alpha:      face.Alpha,
-			center:     face.Center,
-			distanceSq: face.DistanceSq,
-		})
-	}
-	liquidFaces := make([]gogpuTranslucentLiquidFaceDraw, 0, len(draw.LiquidFaces))
-	for _, face := range draw.LiquidFaces {
-		liquidFaces = append(liquidFaces, gogpuTranslucentLiquidFaceDraw{
-			face:       face.Face,
-			alpha:      face.Alpha,
-			center:     face.Center,
-			distanceSq: face.DistanceSq,
-		})
-	}
 	return &gogpuTranslucentBrushEntityDraw{
 		frame:            draw.Frame,
 		vertices:         draw.Vertices,
 		indices:          draw.Indices,
 		alphaTestFaces:   draw.AlphaTestFaces,
 		alphaTestCenters: draw.AlphaTestCenters,
-		translucentFaces: translucentFaces,
-		liquidFaces:      liquidFaces,
+		translucentFaces: convertGoGPUTranslucentFaceDraws(draw.TranslucentFaces),
+		liquidFaces:      convertGoGPUTranslucentFaceDraws(draw.LiquidFaces),
 	}
 }
 
@@ -712,461 +698,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	}
 	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
 		slog.Warn("failed to submit brush liquid commands", "error", err)
-	}
-	for _, buffer := range buffers {
-		buffer.Destroy()
-	}
-}
-
-type gogpuTranslucentLiquidBrushFaceRender struct {
-	bufferPair [2]hal.Buffer
-	frame      int
-	face       gogpuTranslucentLiquidFaceDraw
-	lightmaps  []*gpuWorldTexture
-}
-
-func sortGoGPUTranslucentLiquidBrushFaceRenders(mode AlphaMode, renders []gogpuTranslucentLiquidBrushFaceRender) {
-	if !shouldSortTranslucentCalls(mode) {
-		return
-	}
-	sort.SliceStable(renders, func(i, j int) bool {
-		return renders[i].face.distanceSq > renders[j].face.distanceSq
-	})
-}
-
-func (dc *DrawContext) renderTranslucentLiquidBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
-	if dc == nil || dc.renderer == nil || len(entities) == 0 {
-		return
-	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	if device == nil || queue == nil {
-		return
-	}
-	textureView := dc.currentHALRenderTargetView()
-	if textureView == nil {
-		return
-	}
-
-	r := dc.renderer
-	r.mu.RLock()
-	var treeEntities []byte
-	var tree *bsp.Tree
-	camera := r.cameraState
-	if r.worldData != nil && r.worldData.Geometry != nil && r.worldData.Geometry.Tree != nil {
-		tree = r.worldData.Geometry.Tree
-		treeEntities = r.worldData.Geometry.Tree.Entities
-	}
-	r.mu.RUnlock()
-	if tree == nil {
-		return
-	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(treeEntities), tree)
-	draws := make([]gogpuTranslucentLiquidBrushEntityDraw, 0, len(entities))
-	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if draw := buildGoGPUTranslucentLiquidBrushEntityDraw(entity, geom, liquidAlpha, camera); draw != nil {
-			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
-			draws = append(draws, *draw)
-		}
-	}
-	if len(draws) == 0 {
-		return
-	}
-
-	r.mu.RLock()
-	pipeline := r.worldTranslucentTurbulentPipeline
-	uniformBuffer := r.uniformBuffer
-	uniformBindGroup := r.uniformBindGroup
-	whiteTextureBindGroup := r.whiteTextureBindGroup
-	whiteLightmapBindGroup := r.whiteLightmapBindGroup
-	transparentBindGroup := r.transparentBindGroup
-	depthView := r.worldDepthTextureView
-	camera = r.cameraState
-	worldTextures := make(map[int32]*gpuWorldTexture, len(r.worldTextures))
-	for k, v := range r.worldTextures {
-		worldTextures[k] = v
-	}
-	worldFullbrightTextures := make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
-	for k, v := range r.worldFullbrightTextures {
-		worldFullbrightTextures[k] = v
-	}
-	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
-	r.mu.RUnlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
-		return
-	}
-	if transparentBindGroup == nil {
-		transparentBindGroup = whiteTextureBindGroup
-	}
-
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Translucent Liquid Render Encoder"})
-	if err != nil {
-		slog.Warn("failed to create translucent brush liquid encoder", "error", err)
-		return
-	}
-	if err := encoder.BeginEncoding("brush_liquid_translucent"); err != nil {
-		slog.Warn("failed to begin translucent brush liquid encoding", "error", err)
-		return
-	}
-
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
-		Label: "Brush Translucent Liquid Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
-			View:    textureView,
-			LoadOp:  gputypes.LoadOpLoad,
-			StoreOp: gputypes.StoreOpStore,
-		}},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
-	})
-	renderPass.SetPipeline(pipeline)
-	width, height := r.Size()
-	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-	}
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-
-	vpMatrix := r.GetViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	timeSeconds := float64(camera.Time)
-	var activeDynamicLights []DynamicLight
-	r.mu.RLock()
-	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
-	}
-	r.mu.RUnlock()
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
-	faceRenders := make([]gogpuTranslucentLiquidBrushFaceRender, 0, len(draws)*2)
-	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Liquid Vertices", gputypes.BufferUsageVertex, vertexData)
-		if err != nil {
-			slog.Warn("failed to create translucent brush liquid vertex buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush liquid vertex buffer", "error", err)
-			continue
-		}
-		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Liquid Indices", gputypes.BufferUsageIndex, indexData)
-		if err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to create translucent brush liquid index buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush liquid index buffer", "error", err)
-			continue
-		}
-		buffers = append(buffers, vertexBuffer, indexBuffer)
-		for _, face := range draw.faces {
-			faceRenders = append(faceRenders, gogpuTranslucentLiquidBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face:       face,
-				lightmaps:  draw.lightmaps,
-			})
-		}
-	}
-	sortGoGPUTranslucentLiquidBrushFaceRenders(effectiveGoGPUAlphaMode(GetAlphaMode()), faceRenders)
-	for _, draw := range faceRenders {
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
-		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, whiteLightmapBindGroup)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, dynamicLight, litWater)); err != nil {
-			slog.Warn("failed to update translucent brush liquid uniform buffer", "error", err)
-			continue
-		}
-		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
-		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
-		textureBindGroup := whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, worldTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
-		}
-		fullbrightBindGroup := transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, worldFullbrightTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
-		renderPass.SetBindGroup(1, textureBindGroup, nil)
-		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
-	}
-	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
-	if err != nil {
-		slog.Warn("failed to finish translucent brush liquid encoding", "error", err)
-		for _, buffer := range buffers {
-			buffer.Destroy()
-		}
-		return
-	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
-		slog.Warn("failed to submit translucent brush liquid commands", "error", err)
-	}
-	for _, buffer := range buffers {
-		buffer.Destroy()
-	}
-}
-
-func (dc *DrawContext) renderTranslucentBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
-	if dc == nil || dc.renderer == nil || len(entities) == 0 {
-		return
-	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	if device == nil || queue == nil {
-		return
-	}
-	textureView := dc.currentHALRenderTargetView()
-	if textureView == nil {
-		return
-	}
-
-	r := dc.renderer
-	r.mu.RLock()
-	var treeEntities []byte
-	var tree *bsp.Tree
-	camera := r.cameraState
-	if r.worldData != nil && r.worldData.Geometry != nil && r.worldData.Geometry.Tree != nil {
-		tree = r.worldData.Geometry.Tree
-		treeEntities = r.worldData.Geometry.Tree.Entities
-	}
-	r.mu.RUnlock()
-	if tree == nil {
-		return
-	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(treeEntities), tree)
-
-	draws := make([]gogpuTranslucentBrushEntityDraw, 0, len(entities))
-	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if draw := buildGoGPUTranslucentBrushEntityDraw(entity, geom, liquidAlpha, camera); draw != nil {
-			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
-			draws = append(draws, *draw)
-		}
-	}
-	if len(draws) == 0 {
-		return
-	}
-
-	r.mu.RLock()
-	alphaTestPipeline := r.worldPipeline
-	translucentPipeline := r.worldTranslucentPipeline
-	liquidPipeline := r.worldTranslucentTurbulentPipeline
-	uniformBuffer := r.uniformBuffer
-	uniformBindGroup := r.uniformBindGroup
-	whiteTextureBindGroup := r.whiteTextureBindGroup
-	whiteLightmapBindGroup := r.whiteLightmapBindGroup
-	transparentBindGroup := r.transparentBindGroup
-	depthView := r.worldDepthTextureView
-	camera = r.cameraState
-	worldTextures := make(map[int32]*gpuWorldTexture, len(r.worldTextures))
-	for k, v := range r.worldTextures {
-		worldTextures[k] = v
-	}
-	worldFullbrightTextures := make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures))
-	for k, v := range r.worldFullbrightTextures {
-		worldFullbrightTextures[k] = v
-	}
-	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
-	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
-	var activeDynamicLights []DynamicLight
-	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
-	}
-	r.mu.RUnlock()
-	if alphaTestPipeline == nil || translucentPipeline == nil || liquidPipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
-		return
-	}
-	if transparentBindGroup == nil {
-		transparentBindGroup = whiteTextureBindGroup
-	}
-
-	encoder, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "Brush Translucent Render Encoder"})
-	if err != nil {
-		slog.Warn("failed to create translucent brush encoder", "error", err)
-		return
-	}
-	if err := encoder.BeginEncoding("brush_translucent"); err != nil {
-		slog.Warn("failed to begin translucent brush encoding", "error", err)
-		return
-	}
-	renderPass := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
-		Label: "Brush Translucent Render Pass",
-		ColorAttachments: []hal.RenderPassColorAttachment{{
-			View:    textureView,
-			LoadOp:  gputypes.LoadOpLoad,
-			StoreOp: gputypes.StoreOpStore,
-		}},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
-	})
-	width, height := r.Size()
-	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-	}
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-
-	vpMatrix := r.GetViewProjectionMatrix()
-	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	timeSeconds := float64(camera.Time)
-	buffers := make([]hal.Buffer, 0, len(draws)*2)
-	alphaTestRenders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws))
-	translucentRenders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws)*2)
-	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Vertices", gputypes.BufferUsageVertex, vertexData)
-		if err != nil {
-			slog.Warn("failed to create translucent brush vertex buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush vertex buffer", "error", err)
-			continue
-		}
-		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Indices", gputypes.BufferUsageIndex, indexData)
-		if err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to create translucent brush index buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush index buffer", "error", err)
-			continue
-		}
-		buffers = append(buffers, vertexBuffer, indexBuffer)
-		for faceIndex, face := range draw.alphaTestFaces {
-			center := [3]float32{}
-			if faceIndex < len(draw.alphaTestCenters) {
-				center = draw.alphaTestCenters[faceIndex]
-			}
-			alphaTestRenders = append(alphaTestRenders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face: gogpuTranslucentLiquidFaceDraw{
-					face:  face,
-					alpha: 1,
-				},
-				center:    center,
-				lightmaps: draw.lightmaps,
-			})
-		}
-		for _, face := range draw.translucentFaces {
-			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face:       face,
-				lightmaps:  draw.lightmaps,
-			})
-		}
-		for _, face := range draw.liquidFaces {
-			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face:       face,
-				liquid:     true,
-				lightmaps:  draw.lightmaps,
-			})
-		}
-	}
-	renderPass.SetPipeline(alphaTestPipeline)
-	for _, draw := range alphaTestRenders {
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, dynamicLight, 0)); err != nil {
-			slog.Warn("failed to update translucent brush alpha-test uniform buffer", "error", err)
-			continue
-		}
-		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
-		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
-		textureBindGroup := whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, worldTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
-		}
-		lightmapBindGroup := whiteLightmapBindGroup
-		if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
-			if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-				lightmapBindGroup = lightmapPage.bindGroup
-			}
-		} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(worldLightmapPages) {
-			if lightmapPage := worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-				lightmapBindGroup = lightmapPage.bindGroup
-			}
-		}
-		fullbrightBindGroup := transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, worldFullbrightTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
-		renderPass.SetBindGroup(1, textureBindGroup, nil)
-		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
-	}
-
-	sortGoGPUTranslucentBrushFaceRenders(effectiveGoGPUAlphaMode(GetAlphaMode()), translucentRenders)
-	for _, draw := range translucentRenders {
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.face.center)
-		litWater := float32(0)
-		lightmapBindGroup := whiteLightmapBindGroup
-		if draw.liquid {
-			lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, whiteLightmapBindGroup)
-			if lightmapBindGroup == whiteLightmapBindGroup {
-				lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(draw.face.face, worldLightmapPages, whiteLightmapBindGroup)
-			}
-		} else {
-			if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
-				if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-					lightmapBindGroup = lightmapPage.bindGroup
-				}
-			} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(worldLightmapPages) {
-				if lightmapPage := worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-					lightmapBindGroup = lightmapPage.bindGroup
-				}
-			}
-		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.face.alpha, dynamicLight, litWater)); err != nil {
-			slog.Warn("failed to update translucent brush uniform buffer", "error", err)
-			continue
-		}
-		if draw.liquid {
-			renderPass.SetPipeline(liquidPipeline)
-		} else {
-			renderPass.SetPipeline(translucentPipeline)
-		}
-		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
-		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
-		textureBindGroup := whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, worldTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
-		}
-		fullbrightBindGroup := transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, worldFullbrightTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
-		renderPass.SetBindGroup(1, textureBindGroup, nil)
-		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
-	}
-	renderPass.End()
-	cmdBuffer, err := encoder.EndEncoding()
-	if err != nil {
-		slog.Warn("failed to finish translucent brush encoding", "error", err)
-		for _, buffer := range buffers {
-			buffer.Destroy()
-		}
-		return
-	}
-	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
-		slog.Warn("failed to submit translucent brush commands", "error", err)
 	}
 	for _, buffer := range buffers {
 		buffer.Destroy()
@@ -2809,6 +2340,159 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 	return res, true
 }
 
+type gogpuTranslucentBrushCollectState struct {
+	device      hal.Device
+	queue       hal.Queue
+	camera      CameraState
+	liquidAlpha worldLiquidAlphaSettings
+}
+
+func (dc *DrawContext) loadGoGPUTranslucentBrushCollectState() (gogpuTranslucentBrushCollectState, bool) {
+	if dc == nil || dc.renderer == nil {
+		return gogpuTranslucentBrushCollectState{}, false
+	}
+	device := dc.renderer.getHALDevice()
+	queue := dc.renderer.getHALQueue()
+	if device == nil || queue == nil {
+		return gogpuTranslucentBrushCollectState{}, false
+	}
+
+	r := dc.renderer
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if r.worldData == nil || r.worldData.Geometry == nil || r.worldData.Geometry.Tree == nil {
+		return gogpuTranslucentBrushCollectState{}, false
+	}
+
+	return gogpuTranslucentBrushCollectState{
+		device:      device,
+		queue:       queue,
+		camera:      r.cameraState,
+		liquidAlpha: worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(r.worldData.Geometry.Tree.Entities), r.worldData.Geometry.Tree),
+	}, true
+}
+
+func createGoGPUTranslucentBrushBuffers(device hal.Device, queue hal.Queue, vertexLabel, indexLabel string, vertices []WorldVertex, indices []uint32) ([2]hal.Buffer, []hal.Buffer, bool) {
+	if device == nil || queue == nil || len(vertices) == 0 || len(indices) == 0 {
+		return [2]hal.Buffer{}, nil, false
+	}
+	vertexData := worldgogpu.VertexBytes(vertices)
+	indexData := worldgogpu.IndexBytes(indices)
+
+	vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, vertexLabel, gputypes.BufferUsageVertex, vertexData)
+	if err != nil {
+		slog.Warn("failed to create translucent brush vertex buffer", "label", vertexLabel, "error", err)
+		return [2]hal.Buffer{}, nil, false
+	}
+	if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
+		vertexBuffer.Destroy()
+		slog.Warn("failed to upload translucent brush vertex buffer", "label", vertexLabel, "error", err)
+		return [2]hal.Buffer{}, nil, false
+	}
+
+	indexBuffer, err := worldgogpu.CreateBrushBuffer(device, indexLabel, gputypes.BufferUsageIndex, indexData)
+	if err != nil {
+		vertexBuffer.Destroy()
+		slog.Warn("failed to create translucent brush index buffer", "label", indexLabel, "error", err)
+		return [2]hal.Buffer{}, nil, false
+	}
+	if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
+		indexBuffer.Destroy()
+		vertexBuffer.Destroy()
+		slog.Warn("failed to upload translucent brush index buffer", "label", indexLabel, "error", err)
+		return [2]hal.Buffer{}, nil, false
+	}
+
+	return [2]hal.Buffer{vertexBuffer, indexBuffer}, []hal.Buffer{vertexBuffer, indexBuffer}, true
+}
+
+func appendGoGPUTranslucentLiquidBrushFaceRenders(dst []gogpuTranslucentBrushFaceRender, bufferPair [2]hal.Buffer, draw gogpuTranslucentLiquidBrushEntityDraw) []gogpuTranslucentBrushFaceRender {
+	for _, face := range draw.faces {
+		dst = append(dst, gogpuTranslucentBrushFaceRender{
+			bufferPair: bufferPair,
+			frame:      draw.frame,
+			face:       face,
+			liquid:     true,
+			lightmaps:  draw.lightmaps,
+		})
+	}
+	return dst
+}
+
+func appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestDst, translucentDst []gogpuTranslucentBrushFaceRender, bufferPair [2]hal.Buffer, draw gogpuTranslucentBrushEntityDraw) ([]gogpuTranslucentBrushFaceRender, []gogpuTranslucentBrushFaceRender) {
+	for faceIndex, face := range draw.alphaTestFaces {
+		center := [3]float32{}
+		if faceIndex < len(draw.alphaTestCenters) {
+			center = draw.alphaTestCenters[faceIndex]
+		}
+		alphaTestDst = append(alphaTestDst, gogpuTranslucentBrushFaceRender{
+			bufferPair: bufferPair,
+			frame:      draw.frame,
+			face: gogpuTranslucentLiquidFaceDraw{
+				face:  face,
+				alpha: 1,
+			},
+			center:    center,
+			lightmaps: draw.lightmaps,
+		})
+	}
+	for _, face := range draw.translucentFaces {
+		translucentDst = append(translucentDst, gogpuTranslucentBrushFaceRender{
+			bufferPair: bufferPair,
+			frame:      draw.frame,
+			face:       face,
+			lightmaps:  draw.lightmaps,
+		})
+	}
+	for _, face := range draw.liquidFaces {
+		translucentDst = append(translucentDst, gogpuTranslucentBrushFaceRender{
+			bufferPair: bufferPair,
+			frame:      draw.frame,
+			face:       face,
+			liquid:     true,
+			lightmaps:  draw.lightmaps,
+		})
+	}
+	return alphaTestDst, translucentDst
+}
+
+func gogpuLateTranslucentTextureBindGroups(res gogpuLateTranslucentFaceResources, draw gogpuTranslucentBrushFaceRender, timeSeconds float64) (hal.BindGroup, hal.BindGroup) {
+	textureBindGroup := res.whiteTextureBindGroup
+	if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+		textureBindGroup = worldTexture.bindGroup
+	}
+
+	fullbrightBindGroup := res.transparentBindGroup
+	if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+		fullbrightBindGroup = worldTexture.bindGroup
+	}
+
+	return textureBindGroup, fullbrightBindGroup
+}
+
+func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources, draw gogpuTranslucentBrushFaceRender) (hal.BindGroup, float32) {
+	if draw.liquid {
+		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, res.whiteLightmapBindGroup)
+		if lightmapBindGroup == res.whiteLightmapBindGroup {
+			lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(draw.face.face, res.worldLightmapPages, res.whiteLightmapBindGroup)
+		}
+		return lightmapBindGroup, litWater
+	}
+
+	lightmapBindGroup := res.whiteLightmapBindGroup
+	if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
+		if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+			lightmapBindGroup = lightmapPage.bindGroup
+		}
+	} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(res.worldLightmapPages) {
+		if lightmapPage := res.worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+			lightmapBindGroup = lightmapPage.bindGroup
+		}
+	}
+	return lightmapBindGroup, 0
+}
+
 func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTranslucentBrushFaceRender {
 	if dc == nil || dc.renderer == nil {
 		return nil
@@ -2849,30 +2533,14 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return nil, nil
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	if device == nil || queue == nil {
+	state, ok := dc.loadGoGPUTranslucentBrushCollectState()
+	if !ok {
 		return nil, nil
 	}
-
-	r := dc.renderer
-	r.mu.RLock()
-	var treeEntities []byte
-	var tree *bsp.Tree
-	camera := r.cameraState
-	if r.worldData != nil && r.worldData.Geometry != nil && r.worldData.Geometry.Tree != nil {
-		tree = r.worldData.Geometry.Tree
-		treeEntities = r.worldData.Geometry.Tree.Entities
-	}
-	r.mu.RUnlock()
-	if tree == nil {
-		return nil, nil
-	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(treeEntities), tree)
 	draws := make([]gogpuTranslucentLiquidBrushEntityDraw, 0, len(entities))
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if draw := buildGoGPUTranslucentLiquidBrushEntityDraw(entity, geom, liquidAlpha, camera); draw != nil {
+		if draw := buildGoGPUTranslucentLiquidBrushEntityDraw(entity, geom, state.liquidAlpha, state.camera); draw != nil {
 			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 			draws = append(draws, *draw)
 		}
@@ -2884,40 +2552,12 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 	renders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws)*2)
 	buffers := make([]hal.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Liquid Vertices", gputypes.BufferUsageVertex, vertexData)
-		if err != nil {
-			slog.Warn("failed to create translucent brush liquid vertex buffer", "error", err)
+		bufferPair, owned, ok := createGoGPUTranslucentBrushBuffers(state.device, state.queue, "Brush Translucent Liquid Vertices", "Brush Translucent Liquid Indices", draw.vertices, draw.indices)
+		if !ok {
 			continue
 		}
-		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush liquid vertex buffer", "error", err)
-			continue
-		}
-		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Liquid Indices", gputypes.BufferUsageIndex, indexData)
-		if err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to create translucent brush liquid index buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush liquid index buffer", "error", err)
-			continue
-		}
-		buffers = append(buffers, vertexBuffer, indexBuffer)
-		for _, face := range draw.faces {
-			renders = append(renders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face:       face,
-				liquid:     true,
-				lightmaps:  draw.lightmaps,
-			})
-		}
+		buffers = append(buffers, owned...)
+		renders = appendGoGPUTranslucentLiquidBrushFaceRenders(renders, bufferPair, draw)
 	}
 	return renders, buffers
 }
@@ -2926,30 +2566,14 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return nil, nil, nil
 	}
-	device := dc.renderer.getHALDevice()
-	queue := dc.renderer.getHALQueue()
-	if device == nil || queue == nil {
+	state, ok := dc.loadGoGPUTranslucentBrushCollectState()
+	if !ok {
 		return nil, nil, nil
 	}
-
-	r := dc.renderer
-	r.mu.RLock()
-	var treeEntities []byte
-	var tree *bsp.Tree
-	camera := r.cameraState
-	if r.worldData != nil && r.worldData.Geometry != nil && r.worldData.Geometry.Tree != nil {
-		tree = r.worldData.Geometry.Tree
-		treeEntities = r.worldData.Geometry.Tree.Entities
-	}
-	r.mu.RUnlock()
-	if tree == nil {
-		return nil, nil, nil
-	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(treeEntities), tree)
 	draws := make([]gogpuTranslucentBrushEntityDraw, 0, len(entities))
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if draw := buildGoGPUTranslucentBrushEntityDraw(entity, geom, liquidAlpha, camera); draw != nil {
+		if draw := buildGoGPUTranslucentBrushEntityDraw(entity, geom, state.liquidAlpha, state.camera); draw != nil {
 			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 			draws = append(draws, *draw)
 		}
@@ -2962,64 +2586,12 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 	translucentRenders := make([]gogpuTranslucentBrushFaceRender, 0, len(draws)*2)
 	buffers := make([]hal.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Vertices", gputypes.BufferUsageVertex, vertexData)
-		if err != nil {
-			slog.Warn("failed to create translucent brush vertex buffer", "error", err)
+		bufferPair, owned, ok := createGoGPUTranslucentBrushBuffers(state.device, state.queue, "Brush Translucent Vertices", "Brush Translucent Indices", draw.vertices, draw.indices)
+		if !ok {
 			continue
 		}
-		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush vertex buffer", "error", err)
-			continue
-		}
-		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Translucent Indices", gputypes.BufferUsageIndex, indexData)
-		if err != nil {
-			vertexBuffer.Destroy()
-			slog.Warn("failed to create translucent brush index buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Destroy()
-			vertexBuffer.Destroy()
-			slog.Warn("failed to upload translucent brush index buffer", "error", err)
-			continue
-		}
-		buffers = append(buffers, vertexBuffer, indexBuffer)
-		for faceIndex, face := range draw.alphaTestFaces {
-			center := [3]float32{}
-			if faceIndex < len(draw.alphaTestCenters) {
-				center = draw.alphaTestCenters[faceIndex]
-			}
-			alphaTestRenders = append(alphaTestRenders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face: gogpuTranslucentLiquidFaceDraw{
-					face:  face,
-					alpha: 1,
-				},
-				center:    center,
-				lightmaps: draw.lightmaps,
-			})
-		}
-		for _, face := range draw.translucentFaces {
-			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face:       face,
-				lightmaps:  draw.lightmaps,
-			})
-		}
-		for _, face := range draw.liquidFaces {
-			translucentRenders = append(translucentRenders, gogpuTranslucentBrushFaceRender{
-				bufferPair: [2]hal.Buffer{vertexBuffer, indexBuffer},
-				frame:      draw.frame,
-				face:       face,
-				liquid:     true,
-				lightmaps:  draw.lightmaps,
-			})
-		}
+		buffers = append(buffers, owned...)
+		alphaTestRenders, translucentRenders = appendGoGPUTranslucentBrushEntityFaceRenders(alphaTestRenders, translucentRenders, bufferPair, draw)
 	}
 	return alphaTestRenders, translucentRenders, buffers
 }
@@ -3069,24 +2641,8 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		}
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
-		textureBindGroup := res.whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
-		}
-		lightmapBindGroup := res.whiteLightmapBindGroup
-		if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
-			if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-				lightmapBindGroup = lightmapPage.bindGroup
-			}
-		} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(res.worldLightmapPages) {
-			if lightmapPage := res.worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-				lightmapBindGroup = lightmapPage.bindGroup
-			}
-		}
-		fullbrightBindGroup := res.transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
+		textureBindGroup, fullbrightBindGroup := gogpuLateTranslucentTextureBindGroups(res, draw, timeSeconds)
+		lightmapBindGroup, _ := gogpuLateTranslucentLightmapBindGroup(res, draw)
 		renderPass.SetBindGroup(1, textureBindGroup, nil)
 		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
 		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
@@ -3141,24 +2697,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	timeSeconds := float64(timeValue)
 	for _, draw := range renders {
 		dynamicLight := evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.face.center)
-		litWater := float32(0)
-		lightmapBindGroup := res.whiteLightmapBindGroup
-		if draw.liquid {
-			lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(draw.face.face, draw.lightmaps, res.whiteLightmapBindGroup)
-			if lightmapBindGroup == res.whiteLightmapBindGroup {
-				lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(draw.face.face, res.worldLightmapPages, res.whiteLightmapBindGroup)
-			}
-		} else {
-			if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(draw.lightmaps) {
-				if lightmapPage := draw.lightmaps[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-					lightmapBindGroup = lightmapPage.bindGroup
-				}
-			} else if draw.face.face.LightmapIndex >= 0 && int(draw.face.face.LightmapIndex) < len(res.worldLightmapPages) {
-				if lightmapPage := res.worldLightmapPages[draw.face.face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-					lightmapBindGroup = lightmapPage.bindGroup
-				}
-			}
-		}
+		lightmapBindGroup, litWater := gogpuLateTranslucentLightmapBindGroup(res, draw)
 		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, dynamicLight, litWater)); err != nil {
 			slog.Warn("failed to update late translucent uniform buffer", "error", err)
 			continue
@@ -3170,14 +2709,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		}
 		renderPass.SetVertexBuffer(0, draw.bufferPair[0], 0)
 		renderPass.SetIndexBuffer(draw.bufferPair[1], gputypes.IndexFormatUint32, 0)
-		textureBindGroup := res.whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
-		}
-		fullbrightBindGroup := res.transparentBindGroup
-		if worldTexture := gogpuWorldTextureForFace(draw.face.face, res.worldFullbrightTextures, res.worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
+		textureBindGroup, fullbrightBindGroup := gogpuLateTranslucentTextureBindGroups(res, draw, timeSeconds)
 		renderPass.SetBindGroup(1, textureBindGroup, nil)
 		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
 		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)

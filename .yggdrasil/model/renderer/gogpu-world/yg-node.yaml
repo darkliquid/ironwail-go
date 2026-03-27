@@ -14,6 +14,8 @@ mapping:
     - internal/renderer/world/gogpu/shaders.go
     - internal/renderer/world/gogpu/buffer.go
     - internal/renderer/world/gogpu/brush_build.go
+    - internal/renderer/world/gogpu/brush_translucent.go
+    - internal/renderer/world/gogpu/brush_translucent_test.go
     - internal/renderer/world/gogpu/decal.go
     - internal/renderer/world/gogpu/decal_test.go
     - internal/renderer/world/gogpu/sprite.go

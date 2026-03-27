@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
+	worldopengl "github.com/ironwail/ironwail-go/internal/renderer/world/opengl"
 )
 
 // oitWorldFragmentShaderGL outputs weighted blended OIT accumulation and
@@ -123,9 +124,9 @@ func (r *Renderer) ensureOITShaders() error {
 		return nil
 	}
 
-	// --- OIT world program (reuses worldVertexShaderGL) ---
+	// --- OIT world program (reuses world backend vertex shader) ---
 	if r.oitWorldProgram == 0 {
-		vs, err := compileShader(worldVertexShaderGL, gl.VERTEX_SHADER)
+		vs, err := compileShader(worldopengl.WorldVertexShaderGL, gl.VERTEX_SHADER)
 		if err != nil {
 			return fmt.Errorf("compile OIT world vertex shader: %w", err)
 		}

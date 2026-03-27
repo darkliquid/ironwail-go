@@ -63,7 +63,6 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/model"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -1523,24 +1522,6 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	flushPendingTranslucency()
 }
 
-const (
-	gogpuBrushMarkerColor = byte(250)
-	gogpuBrushMarkerSize  = 2
-)
-
-func (dc *DrawContext) drawProjectedEntityMarker(pos [3]float32, vp types.Mat4, screenW, screenH, size int, color byte) {
-	x, y, ok := projectWorldPointToScreen(pos, vp, screenW, screenH)
-	if !ok {
-		return
-	}
-
-	if size < 1 {
-		size = 1
-	}
-	half := size / 2
-	dc.DrawFill(x-half, y-half, size, size, color)
-}
-
 func projectWorldPointToScreen(pos [3]float32, vp types.Mat4, screenW, screenH int) (x int, y int, ok bool) {
 	if screenW <= 0 || screenH <= 0 {
 		return 0, 0, false
@@ -1679,97 +1660,6 @@ func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeome
 	}
 	r.brushModelLightmaps[submodelIndex] = uploaded
 	return uploaded
-}
-
-func brushMarkerMatchesPhase(face WorldFace, entityAlpha float32, opaque, sky bool) bool {
-	switch {
-	case face.Flags&model.SurfDrawSky != 0:
-		return sky
-	case sky:
-		return false
-	case face.Flags&model.SurfDrawFence != 0:
-		return opaque
-	case face.Flags&(model.SurfDrawLava|model.SurfDrawSlime|model.SurfDrawTele|model.SurfDrawWater) != 0:
-		return !opaque
-	case entityAlpha < 1:
-		return !opaque
-	default:
-		return opaque
-	}
-}
-
-func (r *Renderer) projectBrushMarkers(entities []BrushEntity, vp types.Mat4, screenW, screenH int, opaque, sky bool) []projectedParticleMarker {
-	if len(entities) == 0 || screenW <= 0 || screenH <= 0 {
-		return nil
-	}
-	markers := make([]projectedParticleMarker, 0, len(entities)*8)
-	for _, entity := range entities {
-		geom := r.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if geom == nil || len(geom.Vertices) == 0 || len(geom.Faces) == 0 || len(geom.Indices) == 0 {
-			continue
-		}
-		rotation := buildBrushRotationMatrix(entity.Angles)
-		seen := make(map[uint32]struct{})
-		for _, face := range geom.Faces {
-			if !brushMarkerMatchesPhase(face, entity.Alpha, opaque, sky) {
-				continue
-			}
-			first := int(face.FirstIndex)
-			last := first + int(face.NumIndices)
-			if first < 0 {
-				first = 0
-			}
-			if last > len(geom.Indices) {
-				last = len(geom.Indices)
-			}
-			for _, vertexIndex := range geom.Indices[first:last] {
-				if _, ok := seen[vertexIndex]; ok {
-					continue
-				}
-				seen[vertexIndex] = struct{}{}
-				if int(vertexIndex) >= len(geom.Vertices) {
-					continue
-				}
-				vertex := geom.Vertices[vertexIndex]
-				worldPos := transformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
-				x, y, ok := projectWorldPointToScreen(worldPos, vp, screenW, screenH)
-				if !ok {
-					continue
-				}
-				markers = append(markers, projectedParticleMarker{
-					x:     x,
-					y:     y,
-					color: gogpuBrushMarkerColor,
-					size:  gogpuBrushMarkerSize,
-					alpha: clamp01(entity.Alpha),
-				})
-			}
-		}
-	}
-	return markers
-}
-
-func (dc *DrawContext) renderBrushEntityMarkers(entities []BrushEntity, opaque, sky bool) {
-	if dc == nil || dc.renderer == nil || len(entities) == 0 {
-		return
-	}
-	screenW, screenH := dc.renderer.Size()
-	markers := dc.renderer.projectBrushMarkers(entities, dc.renderer.viewMatrices.VP, screenW, screenH, opaque, sky)
-	for _, marker := range markers {
-		size := marker.size
-		if size < 1 {
-			size = 1
-		}
-		x := marker.x - size/2
-		y := marker.y - size/2
-		if opaque || marker.alpha >= 1 {
-			dc.DrawFill(x, y, size, size, marker.color)
-			continue
-		}
-		if marker.alpha > 0 {
-			dc.DrawFillAlpha(x, y, size, size, marker.color, marker.alpha)
-		}
-	}
 }
 
 func readGoGPUParticleModeCvar() int {

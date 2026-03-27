@@ -6,14 +6,15 @@ package renderer
 import (
 	"errors"
 	"fmt"
-	"image"
+	stdimage "image"
 	"image/color"
 	"image/png"
 	"os"
 	"sync"
 
 	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/image"
+	qimage "github.com/ironwail/ironwail-go/internal/image"
+	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
@@ -29,9 +30,9 @@ func (dc *stubDrawContext) Clear(r, g, b, a float32) {}
 
 func (dc *stubDrawContext) DrawTriangle(r, g, b, a float32) {}
 
-func (dc *stubDrawContext) DrawPic(x, y int, pic *image.QPic) {}
+func (dc *stubDrawContext) DrawPic(x, y int, pic *qimage.QPic) {}
 
-func (dc *stubDrawContext) DrawMenuPic(x, y int, pic *image.QPic) {}
+func (dc *stubDrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {}
 
 func (dc *stubDrawContext) DrawFill(x, y, w, h int, color byte) {}
 
@@ -113,16 +114,16 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	draw2DOverlay(dc)
 }
 
-func (dc *DrawContext) Clear(r, g, b, a float32)          { dc.stubContext().Clear(r, g, b, a) }
-func (dc *DrawContext) DrawTriangle(r, g, b, a float32)   { dc.stubContext().DrawTriangle(r, g, b, a) }
-func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) { dc.stubContext().DrawPic(x, y, pic) }
-func (dc *DrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
+func (dc *DrawContext) Clear(r, g, b, a float32)           { dc.stubContext().Clear(r, g, b, a) }
+func (dc *DrawContext) DrawTriangle(r, g, b, a float32)    { dc.stubContext().DrawTriangle(r, g, b, a) }
+func (dc *DrawContext) DrawPic(x, y int, pic *qimage.QPic) { dc.stubContext().DrawPic(x, y, pic) }
+func (dc *DrawContext) DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32) {
 	if alpha <= 0 {
 		return
 	}
 	dc.stubContext().DrawPic(x, y, pic)
 }
-func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
+func (dc *DrawContext) DrawMenuPic(x, y int, pic *qimage.QPic) {
 	dc.stubContext().DrawMenuPic(x, y, pic)
 }
 func (dc *DrawContext) DrawFill(x, y, w, h int, color byte) {
@@ -252,7 +253,7 @@ func (r *Renderer) CaptureScreenshot(filename string) error {
 		height = 1
 	}
 
-	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	img := stdimage.NewNRGBA(stdimage.Rect(0, 0, width, height))
 	fill := color.NRGBA{R: 20, G: 20, B: 46, A: 255}
 	for y := 0; y < height; y++ {
 		rowStart := y * img.Stride
@@ -296,6 +297,9 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	return ErrNoBackend
 }
 
+// ClearWorld is a no-op in the no-backend build.
+func (r *Renderer) ClearWorld() {}
+
 // HasWorldData reports whether world geometry has been uploaded.
 func (r *Renderer) HasWorldData() bool {
 	return false
@@ -316,16 +320,7 @@ func (r *Renderer) ClearDynamicLights() {}
 
 func (r *Renderer) SetExternalSkybox(name string, loadFile func(string) ([]byte, error)) {}
 
-// WorldFace is a minimal stub matching the fields referenced by untagged
-// parity helpers (worldLiquidFaceTypeMask). The authoritative definitions
-// live in world.go (gogpu) and world_opengl.go (opengl/cgo).
-type WorldFace struct {
-	FirstIndex    uint32
-	NumIndices    uint32
-	TextureIndex  int32
-	LightmapIndex int32
-	Flags         int32
-}
+type WorldFace = worldimpl.WorldFace
 
 // GetWorldBounds returns no bounds in the no-backend build.
 func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {

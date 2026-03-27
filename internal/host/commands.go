@@ -12,6 +12,7 @@ import (
 	cl "github.com/ironwail/ironwail-go/internal/client"
 	"github.com/ironwail/ironwail-go/internal/cmdsys"
 	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/ironwail/ironwail-go/internal/menu"
 	inet "github.com/ironwail/ironwail-go/internal/net"
 	"github.com/ironwail/ironwail-go/internal/server"
 )
@@ -332,6 +333,36 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	replaceCommand("menu_main", func(args []string) {
 		h.CmdMenuMain()
 	}, "Show the main menu")
+	replaceCommand("menu_singleplayer", func(args []string) {
+		h.CmdMenuState(menu.MenuSinglePlayer)
+	}, "Show the single-player menu")
+	replaceCommand("menu_maps", func(args []string) {
+		h.CmdMenuState(menu.MenuMods)
+	}, "Show the mods browser")
+	replaceCommand("menu_load", func(args []string) {
+		h.CmdMenuState(menu.MenuLoad)
+	}, "Show the load-game menu")
+	replaceCommand("menu_save", func(args []string) {
+		h.CmdMenuState(menu.MenuSave)
+	}, "Show the save-game menu")
+	replaceCommand("menu_multiplayer", func(args []string) {
+		h.CmdMenuState(menu.MenuMultiPlayer)
+	}, "Show the multiplayer menu")
+	replaceCommand("menu_setup", func(args []string) {
+		h.CmdMenuState(menu.MenuSetup)
+	}, "Show the player setup menu")
+	replaceCommand("menu_options", func(args []string) {
+		h.CmdMenuState(menu.MenuOptions)
+	}, "Show the options menu")
+	replaceCommand("menu_keys", func(args []string) {
+		h.CmdMenuState(menu.MenuControls)
+	}, "Show the controls menu")
+	replaceCommand("menu_video", func(args []string) {
+		h.CmdMenuState(menu.MenuVideo)
+	}, "Show the video menu")
+	replaceCommand("menu_help", func(args []string) {
+		h.CmdMenuState(menu.MenuHelp)
+	}, "Show the help menu")
 	replaceCommand("menu_quit", func(args []string) {
 		h.CmdMenuQuit()
 	}, "Show the quit confirmation")

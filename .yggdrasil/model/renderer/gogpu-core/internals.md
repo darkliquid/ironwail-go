@@ -4,6 +4,8 @@
 
 This layer owns the GoGPU backend’s event/render loop integration and the core frame helpers needed before world/entity drawing.
 
+It intentionally does not retain dormant debug rendering branches. When a helper path no longer feeds the live `renderEntities` / frame runtime flow, it should be deleted rather than kept as an unused overlay hook inside the backend core.
+
 ## Constraints
 
 - Backend thread/event behavior is critical for correctness.

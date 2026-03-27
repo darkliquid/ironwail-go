@@ -484,6 +484,55 @@ func (m *Manager) ShowMenu() {
 	}
 }
 
+// ShowState activates the menu and transitions directly to a specific page.
+// States with dedicated entry helpers use those helpers so cached/provider-backed
+// data refreshes the same way it does through normal menu navigation.
+func (m *Manager) ShowState(state MenuState) {
+	m.active = true
+	m.ignoreMouseFrame = true
+	switch state {
+	case MenuMain:
+		m.state = MenuMain
+		m.mainCursor = 0
+		m.refreshModsList()
+	case MenuSinglePlayer:
+		m.state = MenuSinglePlayer
+		m.singlePlayerCursor = 0
+	case MenuMods:
+		m.enterModsMenu()
+	case MenuLoad:
+		m.enterLoadMenu()
+	case MenuSave:
+		m.enterSaveMenu()
+	case MenuMultiPlayer:
+		m.state = MenuMultiPlayer
+		m.multiPlayerCursor = 0
+	case MenuSetup:
+		m.enterSetupMenu()
+	case MenuOptions:
+		m.state = MenuOptions
+		m.optionsCursor = 0
+	case MenuControls:
+		m.state = MenuControls
+		m.controlsCursor = 0
+		m.controlsRebinding = false
+	case MenuVideo:
+		m.state = MenuVideo
+		m.videoCursor = 0
+	case MenuHelp:
+		m.state = MenuHelp
+		m.helpPage = 0
+	case MenuQuit:
+		m.ShowQuitPrompt()
+		return
+	default:
+		m.state = state
+	}
+	if m.inputSystem != nil {
+		m.inputSystem.SetKeyDest(input.KeyMenu)
+	}
+}
+
 // ShowConfirmationPrompt displays a yes/no confirmation screen.
 // Confirm hides the menu and runs onConfirm. Cancel either returns to cancelState
 // or hides the menu when cancelState is MenuNone, then runs onCancel.

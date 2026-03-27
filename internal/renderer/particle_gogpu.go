@@ -10,6 +10,7 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/go-webgpu/webgpu/wgpu"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu/hal"
 	"github.com/ironwail/ironwail-go/pkg/types"
@@ -237,8 +238,8 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 			},
 		}},
 	}
-	createPipeline := func(label string, depthWrite bool, blend *gputypes.BlendState) (hal.RenderPipeline, error) {
-		return device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+	createPipeline := func(label string, depthWrite bool, blend *gputypes.BlendState) (wgpu.RenderPipeline, error) {
+		return device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 			Label:  label,
 			Layout: pipelineLayout,
 			Vertex: vertexState,
@@ -248,8 +249,8 @@ func (r *Renderer) ensureParticleResourcesLocked(device hal.Device) error {
 				CullMode:  gputypes.CullModeNone,
 			},
 			DepthStencil: gogpuNonDecalDepthStencilState(depthWrite),
-			Multisample: gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
-			Fragment: &hal.FragmentState{
+			Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+			Fragment: &wgpu.FragmentState{
 				Module:     fragmentShader,
 				EntryPoint: "fs_main",
 				Targets: []gputypes.ColorTargetState{{

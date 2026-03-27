@@ -5,13 +5,17 @@ blackbox: false
 mapping:
   paths:
     - internal/renderer/world.go
-    - internal/renderer/world_pass_shared.go
-    - internal/renderer/world_fog_shared.go
-    - internal/renderer/world_texture_shared.go
-    - internal/renderer/world_transform_shared.go
-    - internal/renderer/world_liquid_alpha.go
-    - internal/renderer/world_sky_shared.go
-    - internal/renderer/world_sky_shared_test.go
+    - internal/renderer/world_shared.go
+    - internal/renderer/world/fog.go
+    - internal/renderer/world/pass.go
+    - internal/renderer/world/liquid_alpha.go
+    - internal/renderer/world/entity_lump.go
+    - internal/renderer/world/types.go
+    - internal/renderer/world/texture.go
+    - internal/renderer/world/transform.go
+    - internal/renderer/world/sky.go
+    - internal/renderer/world/lightmap_samples.go
+    - internal/renderer/world_shared_test.go
     - internal/renderer/lightmap_samples.go
     - internal/renderer/surface.go
     - internal/renderer/surface_test.go

@@ -17,83 +17,15 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
+	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
-// Uniforms structure for world rendering, must match WGSL Uniforms struct
-type WorldUniforms struct {
-	ViewProjection [16]float32 // mat4x4
-	CameraOrigin   [3]float32
-	FogDensity     float32
-	FogColor       [3]float32
-	Time           float32
-	Alpha          float32
-	_Pad0          [3]float32
-	DynamicLight   [3]float32
-	LitWater       float32
-}
-
 const worldUniformBufferSize = 128
 
-// WorldGeometry holds preprocessed BSP world data ready for GPU upload.
-// This structure bridges the gap between BSP file format and GPU rendering.
-type WorldGeometry struct {
-	// Vertices stores all unique world vertices (position + tex coords + lightmap coords)
-	Vertices []WorldVertex
-
-	// Indices stores triangle indices for indexed drawing
-	// BSP faces are converted to triangles (fan triangulation)
-	Indices []uint32
-
-	// Faces stores metadata for each BSP face
-	Faces []WorldFace
-
-	// LeafFaces maps BSP leaf indices to built face indices for visibility culling.
-	LeafFaces [][]int
-
-	// Lightmaps stores allocated static lightmap atlas pages for faces with BSP lighting.
-	Lightmaps []WorldLightmapPage
-
-	// Tree is the original BSP tree (kept for PVS, collision, etc)
-	Tree *bsp.Tree
-}
-
-// WorldVertex represents a single vertex in world geometry.
-// Layout matches what the GPU shader expects.
-type WorldVertex struct {
-	// Position in world space (X, Y, Z)
-	Position [3]float32
-
-	// TexCoord for diffuse texture sampling (U, V)
-	TexCoord [2]float32
-
-	// LightmapCoord for lightmap texture sampling (U, V)
-	LightmapCoord [2]float32
-
-	// Normal for lighting calculations (X, Y, Z)
-	Normal [3]float32
-}
-
-// WorldFace stores rendering metadata for a BSP face.
-type WorldFace struct {
-	// FirstIndex is the index into the Indices array
-	FirstIndex uint32
-
-	// NumIndices is the number of indices (triangles * 3)
-	NumIndices uint32
-
-	// TextureIndex identifies which texture to use
-	TextureIndex int32
-
-	// LightmapIndex identifies which lightmap to use (-1 = none)
-	LightmapIndex int32
-
-	// Flags control rendering behavior (sky, water, transparent, etc)
-	Flags int32
-
-	// Center stores the approximate face center for draw-order decisions.
-	Center [3]float32
-}
+type WorldGeometry = worldimpl.WorldGeometry
+type WorldVertex = worldimpl.WorldVertex
+type WorldFace = worldimpl.WorldFace
 
 const worldDepthTextureFormat = gputypes.TextureFormatDepth24PlusStencil8
 
@@ -152,23 +84,8 @@ type gpuWorldTexture struct {
 	bindGroup hal.BindGroup
 }
 
-type WorldLightmapSurface struct {
-	X       int
-	Y       int
-	Width   int
-	Height  int
-	Styles  [bsp.MaxLightmaps]uint8
-	Samples []byte
-	Dirty   bool
-}
-
-type WorldLightmapPage struct {
-	Width    int
-	Height   int
-	Surfaces []WorldLightmapSurface
-	Dirty    bool
-	rgba     []byte
-}
+type WorldLightmapSurface = worldimpl.WorldLightmapSurface
+type WorldLightmapPage = worldimpl.WorldLightmapPage
 
 type faceLightmapSurface struct {
 	pageIndex int
@@ -1772,82 +1689,11 @@ func (r *Renderer) uploadWorldMaterialTextures(device hal.Device, queue hal.Queu
 }
 
 func shouldSplitAsQuake64Sky(treeVersion int32, width, height int) bool {
-	return bsp.IsQuake64(treeVersion) || (width == 32 && height == 64)
-}
-
-func indexedOpaqueToRGBA(pixels []byte, palette []byte) []byte {
-	rgba := make([]byte, len(pixels)*4)
-	for i, p := range pixels {
-		r, g, b := GetPaletteColor(p, palette)
-		rgba[i*4] = r
-		rgba[i*4+1] = g
-		rgba[i*4+2] = b
-		rgba[i*4+3] = 255
-	}
-	return rgba
+	return worldimpl.ShouldSplitAsQuake64Sky(treeVersion, width, height)
 }
 
 func extractEmbeddedSkyLayers(pixels []byte, width, height int, palette []byte, quake64 bool) (solidRGBA, alphaRGBA []byte, layerWidth, layerHeight int, ok bool) {
-	if width <= 0 || height <= 0 || len(pixels) < width*height {
-		return nil, nil, 0, 0, false
-	}
-	if quake64 {
-		if height < 2 {
-			return nil, nil, 0, 0, false
-		}
-		layerWidth = width
-		layerHeight = height / 2
-		if layerHeight <= 0 {
-			return nil, nil, 0, 0, false
-		}
-		layerSize := layerWidth * layerHeight
-		front := pixels[:layerSize]
-		back := pixels[layerSize : layerSize*2]
-		solidRGBA = indexedOpaqueToRGBA(back, palette)
-		alphaRGBA = make([]byte, layerSize*4)
-		for i, p := range front {
-			r, g, b := GetPaletteColor(p, palette)
-			alphaRGBA[i*4] = r
-			alphaRGBA[i*4+1] = g
-			alphaRGBA[i*4+2] = b
-			alphaRGBA[i*4+3] = 128
-		}
-		return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
-	}
-	if width < 2 {
-		return nil, nil, 0, 0, false
-	}
-	layerWidth = width / 2
-	layerHeight = height
-	if layerWidth <= 0 {
-		return nil, nil, 0, 0, false
-	}
-	layerSize := layerWidth * layerHeight
-	backIndexed := make([]byte, layerSize)
-	frontIndexed := make([]byte, layerSize)
-	for y := 0; y < height; y++ {
-		row := y * width
-		copy(backIndexed[y*layerWidth:(y+1)*layerWidth], pixels[row+layerWidth:row+width])
-		copy(frontIndexed[y*layerWidth:(y+1)*layerWidth], pixels[row:row+layerWidth])
-	}
-	solidRGBA = indexedOpaqueToRGBA(backIndexed, palette)
-	alphaRGBA = make([]byte, layerSize*4)
-	for i, p := range frontIndexed {
-		if p == 0 || p == 255 {
-			r, g, b := GetPaletteColor(255, palette)
-			alphaRGBA[i*4] = r
-			alphaRGBA[i*4+1] = g
-			alphaRGBA[i*4+2] = b
-			alphaRGBA[i*4+3] = 0
-			continue
-		}
-		r, g, b := GetPaletteColor(p, palette)
-		alphaRGBA[i*4] = r
-		alphaRGBA[i*4+1] = g
-		alphaRGBA[i*4+2] = b
-		alphaRGBA[i*4+3] = 255
-	}
-	return solidRGBA, alphaRGBA, layerWidth, layerHeight, true
+	return worldimpl.ExtractEmbeddedSkyLayers(pixels, width, height, palette, quake64)
 }
 
 func (r *Renderer) uploadWorldEmbeddedSkyTextures(device hal.Device, queue hal.Queue, sampler hal.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture) {
@@ -1998,12 +1844,7 @@ func updateUploadedLightmapsLocked(queue hal.Queue, uploaded []*gpuWorldTexture,
 		if !pages[i].Dirty || uploaded[i] == nil || uploaded[i].texture == nil {
 			continue
 		}
-		rgba := pages[i].rgba
-		if len(rgba) == 0 {
-			rgba = buildWorldLightmapPageRGBA(&pages[i], values)
-		} else {
-			recompositeDirtySurfaces(rgba, pages[i], values)
-		}
+		rgba := buildWorldLightmapPageRGBA(&pages[i], values)
 		if len(rgba) == 0 {
 			continue
 		}
@@ -2105,7 +1946,6 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	for _, surface := range page.Surfaces {
 		compositeWorldLightmapSurfaceRGBA(rgba, page.Width, surface, values)
 	}
-	page.rgba = rgba
 	return rgba
 }
 

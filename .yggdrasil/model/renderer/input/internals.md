@@ -3,6 +3,7 @@
 ## Logic
 
 This layer isolates backend/window-system input differences from the rest of the renderer package.
+For OpenGL builds, key/mouse mapping helpers are now treated as canonical in `internal/renderer/opengl`; renderer-root code only wires `InputBackendForSystem` to that implementation, and GLFW keymap regression tests call the opengl mapping helpers directly.
 
 ## Constraints
 

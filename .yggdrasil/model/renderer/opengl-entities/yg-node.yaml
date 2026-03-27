@@ -15,8 +15,6 @@ mapping:
     - internal/renderer/alias_opengl_test.go
     - internal/renderer/sprite_opengl.go
     - internal/renderer/sprite_opengl_test.go
-    - internal/renderer/world_alias_opengl.go
-    - internal/renderer/world_sprite_opengl.go
     - internal/renderer/decal_opengl.go
     - internal/renderer/oit_mode.go
     - internal/renderer/oit_opengl.go
