@@ -2,8 +2,9 @@
 
 ## Logic
 
-This layer implements the GoGPU equivalents of world/entity/effect rendering that in the OpenGL path are spread across dedicated GL files.
+This layer implements the GoGPU equivalents of world/entity/effect rendering.
 For static world visibility selection, the GoGPU world pass now consumes the backend-neutral shared helpers (`buildWorldLeafFaceLookup` output from world upload plus `selectVisibleWorldFaces` during draw) instead of carrying a backend-local leaf/PVS policy.
+The live GoGPU world/entity implementation now sits in `internal/renderer/world_gogpu.go`. Earlier root seam fragments (`world_alias_gogpu_root.go`, `world_alias_shadow_gogpu_root.go`, `world_brush_gogpu_root.go`, `world_late_translucent_gogpu_root.go`, `world_sprite_gogpu_root.go`, `world_decal_gogpu_root.go`, plus support/cleanup helpers) were merged into that file after tagged validation confirmed they were the only live code path. An earlier duplicate `internal/renderer/world/gogpu/*.go` tree had already been removed. The next extraction step has now restarted by moving WGSL shader payloads into `internal/renderer/world/gogpu/shaders.go`, GoGPU brush vertex/index packing plus buffer-allocation helpers into `internal/renderer/world/gogpu/buffer.go`, the generic brush-entity CPU build path into `internal/renderer/world/gogpu/brush_build.go`, the sprite draw-planning/uniform/vertex conversion helpers into `internal/renderer/world/gogpu/sprite.go`, and the first decal mark/draw-prep/uniform/vertex packing helpers into `internal/renderer/world/gogpu/decal.go`, which the root backend imports.
 
 ## Constraints
 
@@ -16,6 +17,7 @@ For static world visibility selection, the GoGPU world pass now consumes the bac
 
 Observed decision:
 - The GoGPU path mirrors many renderer concerns with dedicated files rather than trying to express all rendering through one shared implementation.
+- During the refactor, the live implementation was first consolidated into root seam files instead of keeping half-migrated method receivers in a dead `internal/renderer/world/gogpu/` subtree, then those seams were merged into one backend file to reduce root-file count.
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**
@@ -34,10 +36,25 @@ Rationale:
 
 Observed decision:
 - `world_sprite_gogpu` sprite draw preparation continues to use shared `spriteDataForEntity`, with regression coverage asserting that a nil `SpriteEntity.SpriteData` can still upload frame pixels from `entity.Model.SpriteData`.
+- Sprite draw planning, render uniform packing, and the world-vertex conversion now live beside other GoGPU receiver-free helpers in `internal/renderer/world/gogpu/sprite.go`, while `internal/renderer/world_gogpu.go` keeps sprite model resolution/cache ownership, draw orchestration, and quad expansion.
+- The draw-planning seam now follows a resolver-based shape: root adapts `SpriteEntity` into a DTO containing model id, parsed sprite payload, frame/origin/angles/alpha/scale, then supplies a closure that resolves a caller-owned `*gpuSpriteModel` plus frame count.
+- Package-local tests now cover resolver hits, misses, nil resolver rejection, frame clamping, and alpha visibility without instantiating root renderer state.
+- The final sprite quad DTO bridge (`spriteQuadVerticesToGoGPU`) is gone from the root file; `world_gogpu.go` now passes expanded shared sprite vertices through a package-local projection helper in `internal/renderer/world/gogpu/sprite.go`.
 
 Rationale:
 - GoGPU sprite upload must keep parity with OpenGL and avoid backend-specific fallback differences.
 - Reusing the shared fallback path ensures cache-miss sprite uploads preserve parsed payload data instead of synthetic metadata-only placeholders.
+- Keeping GPU upload/cache ownership in `Renderer` avoids leaking root-only HAL/bind-group state into the subpackage, while a resolver-based helper still moves frame clamping/alpha visibility and draw assembly out of the root file.
+- Moving the uniform byte layout and world-vertex conversion into `package gogpu` trims root-file byte-packing noise while keeping the remaining root adapter limited to concrete sprite-model resolution plus quad expansion.
+
+### Decal quad expansion keeps shared geometry ownership in root
+
+Observed decision:
+- GoGPU decal extraction starts with mark DTO shaping, packed draw preparation, batched mark-local draw collection, uniform packing, vertex expansion, and vertex byte packing in `internal/renderer/world/gogpu/decal.go`, while `internal/renderer/world_gogpu.go` still owns the call to shared `buildDecalQuad`, clamps per-mark color/alpha, and keeps HAL resource setup/bind groups in root.
+
+Rationale:
+- `buildDecalQuad` is shared with the OpenGL path, so leaving quad construction in root/shared code avoids backend drift in decal placement math.
+- Moving mark DTO shaping plus packed draw preparation, batched mark-local collection, and uniform/triangle/byte packing creates a clean early decal seam without pulling HAL resource setup into the subpackage.
 
 ### Alias interpolation honors shared no-lerp model list
 
