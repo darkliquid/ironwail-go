@@ -50,12 +50,12 @@ Rationale:
 ### Decal quad expansion keeps shared geometry ownership in root
 
 Observed decision:
-- GoGPU decal extraction starts with mark DTO shaping, packed draw preparation, adapter-light draw collection, batched mark-local draw collection, uniform packing, vertex expansion, and vertex byte packing in `internal/renderer/world/gogpu/decal.go`, while `internal/renderer/world_gogpu.go` still owns the call to shared `buildDecalQuad`, clamps per-mark color/alpha, and keeps HAL resource setup/bind groups in root.
+- GoGPU decal extraction currently stops at mark DTO shaping, packed draw preparation, uniform packing, vertex expansion, and vertex byte packing in `internal/renderer/world/gogpu/decal.go`, while `internal/renderer/world_gogpu.go` still owns the call to shared `buildDecalQuad`, clamps per-mark color/alpha, and keeps HAL resource setup/bind groups in root.
 
 Rationale:
 - `buildDecalQuad` is shared with the OpenGL path, so leaving quad construction in root/shared code avoids backend drift in decal placement math.
-- Extending the seam with an adapter-light batch helper lets the root file hand `decalDraw` values straight to the subpackage while still supplying the color-clamp policy and shared quad builder closure.
-- Moving mark DTO shaping plus packed draw preparation, batched mark-local collection, adapter-light collection, and uniform/triangle/byte packing creates a clean early decal seam without pulling HAL resource setup into the subpackage.
+- Stopping here keeps the remaining logic small and obviously root-owned: shared decal placement math, final color/alpha policy, and HAL submission are still coupled to renderer state and backend resource lifetime.
+- Moving mark DTO shaping plus packed draw preparation, batched mark-local collection, and uniform/triangle/byte packing creates a clean early decal seam without pulling HAL resource setup into the subpackage; beyond this point, extra helpers would mostly wrap root-owned policy instead of removing meaningful receiver-free logic.
 
 ### Alias interpolation honors shared no-lerp model list
 
