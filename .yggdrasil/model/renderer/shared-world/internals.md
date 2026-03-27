@@ -11,9 +11,8 @@ Canonical geometry/lightmap metadata now also lives in `internal/renderer/world/
 The shared-world/root layer now also exposes an explicit `WorldRuntime` interface in `internal/renderer/world_runtime_shared.go`. It captures the renderer-root lifecycle surface already shared by the active backends (`UploadWorld`, `ClearWorld`, `HasWorldData`, `GetWorldBounds`, `SetExternalSkybox`) so the ongoing subpackage split has a stable root contract to preserve while moving method-heavy backend files behind wrapper/adaptor seams.
 
 **Backend-specific implementation organization:**
-- **GoGPU implementations** now live in renderer-root seam files (`internal/renderer/world_alias_gogpu_root.go`, `world_brush_gogpu_root.go`, `world_decal_gogpu_root.go`, `world_sprite_gogpu_root.go`, `world_late_translucent_gogpu_root.go`, plus support/cleanup helpers).
-- **OpenGL implementations** now live in renderer-root seam files (`internal/renderer/world_runtime_opengl_root.go`, `world_render_opengl_root.go`, `world_alias_opengl_root.go`, `world_sky_*_opengl_root.go`, `world_upload_opengl_root.go`, plus support/probe helpers).
-- An earlier attempt to stage true `internal/renderer/world/{gogpu,opengl}` subpackages left duplicate method-heavy copies in those directories. Those files were first quarantined, then removed once the root seam files proved to be the only live code path.
+- **GoGPU implementations** currently live in `internal/renderer/world_gogpu.go` with receiver-free helper extraction under `internal/renderer/world/gogpu/*`.
+- **OpenGL implementations** currently live in renderer-root OpenGL world files under `internal/renderer/world_*_opengl*.go`.
 - The remaining structural reason for keeping backend code in the renderer package is method ownership on renderer-root types like `*Renderer` and `*DrawContext`; the shared `WorldRuntime` seam documents the root lifecycle boundary while shared helpers stay below it in `internal/renderer/world/*`.
 
 It now also owns the shared BSP visibility helpers that map leaf mark-surfaces to built world faces and select the camera-visible face subset from a PVS mask. Backend-specific render loops are expected to consume these shared results rather than reimplementing leaf visibility policy independently.

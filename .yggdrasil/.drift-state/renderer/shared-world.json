@@ -1,8 +1,9 @@
 {
-  "hash": "f4a8f0f705deaa56afedf3aae50862876e04d188ee0234c9a6107bc4a6667381",
+  "hash": "04b3c3c6a2d2740772b8355e7798ffca4343388e218bc20a33535642dd7c3eb9",
   "files": {
     ".yggdrasil/model/renderer/shared-world/yg-node.yaml": "7d2848a9b342f62022d40046a0bcb00ef482cbfb4bb6d63a73b9b2bc7b4b9f6f",
-    ".yggdrasil/model/renderer/shared-world/internals.md": "73abe74a26d43db8c810de87c893dc8c270c55faf5ac28358520a658391a7511",
+    ".yggdrasil/model/renderer/shared-world/interface.md": "3cb893f4d829136dc1a734e854941e38f16b4e11557b26b9f6f05c434200b4fe",
+    ".yggdrasil/model/renderer/shared-world/internals.md": "a7dd96edf0d612055b4c2bb045f73ca741c45de2443fa2fef375240b472d1509",
     ".yggdrasil/model/renderer/shared-world/responsibility.md": "c3672bffa9b8670d7c6ddcb9f3febcd269338b8990050591356e346bfd6d18e0",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
@@ -23,13 +24,12 @@
     "internal/renderer/lightmap_samples.go": "c137424c7e596fdf3dc083a341b0232f443cbb57978d81ad3f61df4d23c69f45",
     "internal/renderer/surface.go": "8c862aca80feff762e9e3fb6ad4526285ff02600b4f2a1ddc3b3ddf27472cebb",
     "internal/renderer/surface_test.go": "7160f5ccdff34528a1044cd9aa7253b42feaecab6bf448868020d8513ccf5087",
-    "internal/renderer/texture.go": "e0a70e787fdae7c2ebac94d6aa70c7530d75d0ad2d2b5b9e315165c15444f1cc",
-    ".yggdrasil/model/renderer/shared-world/interface.md": "3cb893f4d829136dc1a734e854941e38f16b4e11557b26b9f6f05c434200b4fe"
+    "internal/renderer/texture.go": "e0a70e787fdae7c2ebac94d6aa70c7530d75d0ad2d2b5b9e315165c15444f1cc"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/shared-world/yg-node.yaml": 1774597958551.5044,
     ".yggdrasil/model/renderer/shared-world/interface.md": 1774630198484.7617,
-    ".yggdrasil/model/renderer/shared-world/internals.md": 1774630088801.6606,
+    ".yggdrasil/model/renderer/shared-world/internals.md": 1774630207468.8545,
     ".yggdrasil/model/renderer/shared-world/responsibility.md": 1774219364179.6206,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
