@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"log/slog"
 	"strings"
+	"unsafe"
 
 	"github.com/go-gl/gl/v4.6-core/gl"
 	"github.com/ironwail/ironwail-go/internal/bsp"
@@ -77,12 +78,19 @@ func ParseTextureMode(mode string) (minFilter, magFilter int32) {
 	}
 }
 
+func pixelDataPtr(pixels []byte) unsafe.Pointer {
+	if len(pixels) == 0 {
+		return nil
+	}
+	return unsafe.Pointer(&pixels[0])
+}
+
 func UploadTextureRGBA(width, height int, rgba []byte, options TextureUploadOptions) uint32 {
 	var tex uint32
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
 	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(width), int32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, pixelDataPtr(rgba))
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.MinFilter)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.MagFilter)
 	gl.GenerateMipmap(gl.TEXTURE_2D)

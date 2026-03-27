@@ -12,3 +12,4 @@
 - exposes raw mesh upload and GL cleanup helpers (`UploadWorldMesh`, `Delete*`, `SetInt32Fields`)
 
 These helpers stay callback-friendly where needed so the renderer-root package can keep ownership of fallback setup and specific upload call sites without creating import cycles.
+Texture upload entry points in this node also own the cgo-safe conversion from Go byte slices to raw pixel pointers before calling OpenGL upload APIs.

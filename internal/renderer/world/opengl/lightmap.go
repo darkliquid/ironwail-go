@@ -177,7 +177,7 @@ func UpdateLightmapTextures(textures []uint32, pages []worldimpl.WorldLightmapPa
 			continue
 		}
 		gl.BindTexture(gl.TEXTURE_2D, textures[i])
-		gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(rgba))
+		gl.TexSubImage2D(gl.TEXTURE_2D, 0, 0, 0, int32(pages[i].Width), int32(pages[i].Height), gl.RGBA, gl.UNSIGNED_BYTE, pixelDataPtr(rgba))
 	}
 	if count > 0 {
 		gl.BindTexture(gl.TEXTURE_2D, 0)
