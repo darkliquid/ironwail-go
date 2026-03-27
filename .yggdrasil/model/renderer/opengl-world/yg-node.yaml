@@ -5,8 +5,5 @@ blackbox: false
 mapping:
   paths:
     - internal/renderer/world_opengl.go
-    - internal/renderer/world_render_opengl.go
-    - internal/renderer/world_runtime_opengl.go
-    - internal/renderer/world_probe_opengl.go
-    - internal/renderer/world_sky_opengl.go
-    - internal/renderer/world_liquid_opengl.go
+    - internal/renderer/world/opengl/shaders.go
+    - internal/renderer/world/opengl/textures.go
