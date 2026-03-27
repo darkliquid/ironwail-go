@@ -5,6 +5,7 @@
 This layer implements the GoGPU equivalents of world/entity/effect rendering.
 For static world visibility selection, the GoGPU world pass now consumes the backend-neutral shared helpers (`buildWorldLeafFaceLookup` output from world upload plus `selectVisibleWorldFaces` during draw) instead of carrying a backend-local leaf/PVS policy.
 The live GoGPU world/entity implementation now sits in `internal/renderer/world_gogpu.go`. Earlier root seam fragments (`world_alias_gogpu_root.go`, `world_alias_shadow_gogpu_root.go`, `world_brush_gogpu_root.go`, `world_late_translucent_gogpu_root.go`, `world_sprite_gogpu_root.go`, `world_decal_gogpu_root.go`, plus support/cleanup helpers) were merged into that file after tagged validation confirmed they were the only live code path. An earlier duplicate `internal/renderer/world/gogpu/*.go` tree had already been removed. The next extraction step has now restarted by moving WGSL shader payloads into `internal/renderer/world/gogpu/shaders.go`, GoGPU brush vertex/index packing plus buffer-allocation helpers into `internal/renderer/world/gogpu/buffer.go`, the generic brush-entity CPU build path into `internal/renderer/world/gogpu/brush_build.go`, the sprite draw-planning/uniform/vertex conversion helpers into `internal/renderer/world/gogpu/sprite.go`, and the first decal mark/draw-prep/uniform/vertex packing helpers into `internal/renderer/world/gogpu/decal.go`, which the root backend imports.
+Alias-model CPU mesh shaping now also consumes `internal/renderer/alias/mesh.go`: `world_gogpu.go` keeps only a thin adapter from `gpuAliasModel` into shared mesh refs/poses, while shared interpolation/rotation/world-vertex shaping lives in the alias helper package.
 
 ## Constraints
 
@@ -62,7 +63,9 @@ Rationale:
 Observed decision:
 - GoGPU alias draw preparation now mutates alias header flags via `applyAliasNoLerpListFlags` before calling `SetupAliasFrame`.
 - GoGPU alias shadow exclusion parsing (`parseAliasShadowExclusionsGO`) delegates to the shared alias model-list parser.
+- GoGPU alias CPU mesh/interpolation math now delegates to shared `renderer/alias` helpers via callback-based DTO adaptation instead of duplicating Euler rotation and vertex interpolation logic in `world_gogpu.go`.
 
 Rationale:
 - C/Ironwail uses `r_nolerp_list` as a model-level interpolation override; applying the same list in GoGPU prevents backend-specific animation blending drift.
 - Sharing parser behavior with OpenGL avoids diverging tokenization/case-handling behavior for model-list cvars.
+- Moving the pure mesh math behind DTO callbacks removes duplicated alias-vertex shaping logic while leaving GoGPU skin lookup, draw orchestration, and HAL submission in the root backend where renderer-owned state already lives.

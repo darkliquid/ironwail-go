@@ -3,6 +3,7 @@
 ## Logic
 
 This layer handles entity and effect categories that require OpenGL-specific draw code, especially alias models, sprites, decals, and transparency strategies.
+`internal/renderer/alias_opengl.go` now acts as a narrow OpenGL adapter over the shared `renderer/alias` package for interpolated alias world-vertex shaping, keeping the remaining OpenGL-specific entity concerns in this node focused on draw orchestration and tests rather than duplicated CPU mesh math.
 
 ## Constraints
 
@@ -33,7 +34,9 @@ Rationale:
 Observed decision:
 - OpenGL alias draw preparation now applies `applyAliasNoLerpListFlags` to alias header flags before invoking `SetupAliasFrame`.
 - Alias shadow exclusion parsing (`parseAliasShadowExclusions`) reuses shared alias model-list parsing.
+- The OpenGL-only alias shim now delegates interpolated vertex shaping to `renderer/alias` mesh helpers via `glAliasModel` adapters instead of carrying a second copy of interpolation/rotation math.
 
 Rationale:
 - C/Ironwail model interpolation parity depends on `r_nolerp_list` being respected during frame blending decisions.
 - Reusing shared list parsing keeps OpenGL and GoGPU behavior aligned for case/whitespace token handling in model-list cvars.
+- Sharing the CPU mesh helper implementation with GoGPU reduces backend drift risk while preserving an OpenGL-local adapter surface for tests and call sites.

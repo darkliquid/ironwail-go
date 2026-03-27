@@ -11,6 +11,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/bsp"
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/model"
+	aliasimpl "github.com/ironwail/ironwail-go/internal/renderer/alias"
 	worldgogpu "github.com/ironwail/ironwail-go/internal/renderer/world/gogpu"
 	"github.com/ironwail/ironwail-go/pkg/types"
 	"log/slog"
@@ -1935,58 +1936,11 @@ func aliasVertexBytes(vertices []WorldVertex) []byte {
 	return data
 }
 
-func interpolateVertexPosition(pose1Vert, pose2Vert model.TriVertX, scale, origin [3]float32, factor float32) [3]float32 {
-	pos1 := model.DecodeVertex(pose1Vert, scale, origin)
-	pos2 := model.DecodeVertex(pose2Vert, scale, origin)
-	return [3]float32{
-		pos1[0] + (pos2[0]-pos1[0])*factor,
-		pos1[1] + (pos2[1]-pos1[1])*factor,
-		pos1[2] + (pos2[2]-pos1[2])*factor,
-	}
-}
-
 func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}
-	if pose1Index < 0 || pose1Index >= len(alias.poses) || pose2Index < 0 || pose2Index >= len(alias.poses) {
-		return nil
-	}
-	blend = clamp01(blend)
-	if entityScale <= 0 {
-		entityScale = 1
-	}
-	pose1 := alias.poses[pose1Index]
-	pose2 := alias.poses[pose2Index]
-	vertices := make([]WorldVertex, 0, len(alias.refs))
-	hdr := mdl.AliasHeader
-	for _, ref := range alias.refs {
-		if ref.vertexIndex < 0 || ref.vertexIndex >= len(pose1) || ref.vertexIndex >= len(pose2) {
-			continue
-		}
-		position := interpolateVertexPosition(pose1[ref.vertexIndex], pose2[ref.vertexIndex], hdr.Scale, hdr.ScaleOrigin, blend)
-		position[0] *= entityScale
-		position[1] *= entityScale
-		position[2] *= entityScale
-		normal := model.GetNormal(pose1[ref.vertexIndex].LightNormalIndex)
-		if fullAngles {
-			position = rotateAliasAngles(position, angles)
-			normal = rotateAliasAngles(normal, angles)
-		} else {
-			position = rotateAliasYaw(position, angles[1])
-			normal = rotateAliasYaw(normal, angles[1])
-		}
-		position[0] += origin[0]
-		position[1] += origin[1]
-		position[2] += origin[2]
-		vertices = append(vertices, WorldVertex{
-			Position:      position,
-			TexCoord:      ref.texCoord,
-			LightmapCoord: [2]float32{},
-			Normal:        normal,
-		})
-	}
-	return vertices
+	return aliasimpl.BuildVerticesInterpolated(goGPUAliasMesh(alias), mdl.AliasHeader, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
 }
 
 func setupAliasFrameInterpolation(frameIndex int, frames []model.AliasFrameDesc, timeSeconds float64, lerpModels bool, flags int) InterpolationData {
@@ -2037,52 +1991,14 @@ type InterpolationData struct {
 	Blend float32
 }
 
-func rotateAliasAngles(v [3]float32, angles [3]float32) [3]float32 {
-	v = rotateAliasYaw(v, angles[1])
-	v = rotateAliasPitch(v, angles[0])
-	v = rotateAliasRoll(v, angles[2])
-	return v
-}
-
-func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
-	if yawDegrees == 0 {
-		return v
-	}
-	yaw := float32(math.Pi) * yawDegrees / 180.0
-	sinYaw := float32(math.Sin(float64(yaw)))
-	cosYaw := float32(math.Cos(float64(yaw)))
-	return [3]float32{
-		v[0]*cosYaw - v[1]*sinYaw,
-		v[0]*sinYaw + v[1]*cosYaw,
-		v[2],
-	}
-}
-
-func rotateAliasPitch(v [3]float32, pitchDegrees float32) [3]float32 {
-	if pitchDegrees == 0 {
-		return v
-	}
-	pitch := float32(math.Pi) * pitchDegrees / 180.0
-	sinPitch := float32(math.Sin(float64(pitch)))
-	cosPitch := float32(math.Cos(float64(pitch)))
-	return [3]float32{
-		v[0],
-		v[1]*cosPitch - v[2]*sinPitch,
-		v[1]*sinPitch + v[2]*cosPitch,
-	}
-}
-
-func rotateAliasRoll(v [3]float32, rollDegrees float32) [3]float32 {
-	if rollDegrees == 0 {
-		return v
-	}
-	roll := float32(math.Pi) * rollDegrees / 180.0
-	sinRoll := float32(math.Sin(float64(roll)))
-	cosRoll := float32(math.Cos(float64(roll)))
-	return [3]float32{
-		v[0]*cosRoll + v[2]*sinRoll,
-		v[1],
-		-v[0]*sinRoll + v[2]*cosRoll,
+func goGPUAliasMesh(alias *gpuAliasModel) aliasimpl.Mesh {
+	return aliasimpl.Mesh{
+		Poses:    alias.poses,
+		RefCount: len(alias.refs),
+		RefAt: func(index int) aliasimpl.MeshRef {
+			ref := alias.refs[index]
+			return aliasimpl.MeshRef{VertexIndex: ref.vertexIndex, TexCoord: ref.texCoord}
+		},
 	}
 }
 
@@ -2815,25 +2731,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		return
 	}
 
-	preparedDraws := worldgogpu.PrepareDecalDrawsWithAdapter(draws, func(draw decalDraw) (worldgogpu.DecalPreparedMark, bool) {
-		return worldgogpu.DecalPreparedMark{
-			Params: worldgogpu.DecalMarkParams{
-				Origin:   draw.mark.Origin,
-				Normal:   draw.mark.Normal,
-				Size:     draw.mark.Size,
-				Rotation: draw.mark.Rotation,
-				Variant:  int(draw.mark.Variant),
-			},
-			Color: [4]float32{clamp01(draw.mark.Color[0]), clamp01(draw.mark.Color[1]), clamp01(draw.mark.Color[2]), clamp01(draw.mark.Alpha)},
-		}, true
-	}, func(params worldgogpu.DecalMarkParams) ([4][3]float32, bool) {
-		return buildDecalQuad(DecalMarkEntity{
-			Origin:   params.Origin,
-			Normal:   params.Normal,
-			Size:     params.Size,
-			Rotation: params.Rotation,
-		})
-	})
+	preparedDraws := prepareGoGPUDecalHALDraws(draws)
 	for _, prepared := range preparedDraws {
 		if prepared.VertexCount == 0 {
 			continue
@@ -2854,6 +2752,41 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	if err := queue.Submit([]hal.CommandBuffer{cmdBuffer}, nil, 0); err != nil {
 		slog.Warn("failed to submit decal commands", "error", err)
 	}
+}
+
+func prepareGoGPUDecalHALDraws(draws []decalDraw) []worldgogpu.PreparedDecalDraw {
+	return worldgogpu.PrepareDecalDrawsWithAdapter(draws, gogpuDecalPreparedMark, gogpuDecalQuad)
+}
+
+func gogpuDecalPreparedMark(draw decalDraw) (worldgogpu.DecalPreparedMark, bool) {
+	return worldgogpu.DecalPreparedMark{
+		Params: gogpuDecalMarkParams(draw.mark),
+		Color: [4]float32{
+			clamp01(draw.mark.Color[0]),
+			clamp01(draw.mark.Color[1]),
+			clamp01(draw.mark.Color[2]),
+			clamp01(draw.mark.Alpha),
+		},
+	}, true
+}
+
+func gogpuDecalMarkParams(mark DecalMarkEntity) worldgogpu.DecalMarkParams {
+	return worldgogpu.DecalMarkParams{
+		Origin:   mark.Origin,
+		Normal:   mark.Normal,
+		Size:     mark.Size,
+		Rotation: mark.Rotation,
+		Variant:  int(mark.Variant),
+	}
+}
+
+func gogpuDecalQuad(params worldgogpu.DecalMarkParams) ([4][3]float32, bool) {
+	return buildDecalQuad(DecalMarkEntity{
+		Origin:   params.Origin,
+		Normal:   params.Normal,
+		Size:     params.Size,
+		Rotation: params.Rotation,
+	})
 }
 
 func decalDepthStencilState() *hal.DepthStencilState {

@@ -12,6 +12,7 @@ import (
 	"github.com/ironwail/ironwail-go/internal/cvar"
 	"github.com/ironwail/ironwail-go/internal/image"
 	"github.com/ironwail/ironwail-go/internal/model"
+	aliasimpl "github.com/ironwail/ironwail-go/internal/renderer/alias"
 	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 	worldopengl "github.com/ironwail/ironwail-go/internal/renderer/world/opengl"
 	"log/slog"
@@ -1020,89 +1021,51 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 // bucketWorldFacesWithLights is like bucketWorldFaces but also evaluates dynamic lights.
 // This variant accepts a light pool and computes light contributions for each face.
 func bucketWorldFacesWithLights(faces []WorldFace, hasLitWater bool, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap, vao uint32, modelOffset [3]float32, modelRotation [16]float32, modelScale, entityAlpha float32, entityFrame int, timeSeconds float64, camera CameraState, liquidAlpha worldLiquidAlphaSettings, lightPool *glLightPool) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
-	for _, face := range faces {
-		center := transformModelSpacePoint(face.Center, modelOffset, modelRotation, modelScale)
-		call := worldDrawCall{
-			face:              face,
-			texture:           worldTextureForFace(face, textures, textureAnimations, fallbackTexture, entityFrame, timeSeconds),
-			fullbrightTexture: worldTextureForFace(face, fullbrightTextures, textureAnimations, 0, entityFrame, timeSeconds),
-			lightmap:          worldLightmapForFace(face, lightmaps, fallbackLightmap),
-			alpha:             worldFaceAlpha(face.Flags, liquidAlpha) * entityAlpha,
-			turbulent:         worldFaceUsesTurb(face.Flags),
-			hasLitWater:       hasLitWater,
-			distanceSq:        worldFaceDistanceSq(center, camera),
-			light:             [3]float32{}, // Will be populated below
-			vao:               vao,
-			modelOffset:       modelOffset,
-			modelRotation:     modelRotation,
-			modelScale:        modelScale,
-		}
-
-		// Evaluate dynamic lights at this face's center
-		if lightPool != nil {
-			call.light = lightPool.EvaluateLightsAtPoint(center)
-		}
-
-		switch worldFacePass(face.Flags, call.alpha) {
-		case worldPassSky:
-			sky = append(sky, call)
-		case worldPassAlphaTest:
-			alphaTest = append(alphaTest, call)
-		case worldPassTranslucent:
-			if worldFaceIsLiquid(face.Flags) {
-				liquidTranslucent = append(liquidTranslucent, call)
-				continue
-			}
-			translucent = append(translucent, call)
-		default:
-			if worldFaceIsLiquid(face.Flags) {
-				liquidOpaque = append(liquidOpaque, call)
-				continue
-			}
-			opaque = append(opaque, call)
+	var evaluateLights worldopengl.LightEvaluator
+	if lightPool != nil {
+		evaluateLights = func(point [3]float32) [3]float32 {
+			return lightPool.EvaluateLightsAtPoint(point)
 		}
 	}
-
-	sort.SliceStable(liquidTranslucent, func(i, j int) bool {
-		return liquidTranslucent[i].distanceSq > liquidTranslucent[j].distanceSq
-	})
-	sort.SliceStable(translucent, func(i, j int) bool {
-		return translucent[i].distanceSq > translucent[j].distanceSq
-	})
-
-	return sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent
+	return worldopengl.BucketFacesWithLights(
+		faces,
+		hasLitWater,
+		textures,
+		fullbrightTextures,
+		textureAnimations,
+		lightmaps,
+		fallbackTexture,
+		fallbackLightmap,
+		vao,
+		modelOffset,
+		modelRotation,
+		modelScale,
+		entityAlpha,
+		entityFrame,
+		timeSeconds,
+		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+		liquidAlpha.toWorld(),
+		TextureAnimation,
+		evaluateLights,
+	)
 }
 
 // bucketWorldFaces is a simplified face bucketing function without dynamic light support, used for brush entities.
 func bucketWorldFaces(faces []WorldFace, textures map[int32]uint32, fullbrightTextures map[int32]uint32, textureAnimations []*SurfaceTexture, lightmaps []uint32, fallbackTexture, fallbackLightmap uint32, modelOffset [3]float32, camera CameraState, liquidAlpha worldLiquidAlphaSettings) (sky, opaque, alphaTest, liquidOpaque, liquidTranslucent, translucent []worldDrawCall) {
-	return bucketWorldFacesWithLights(faces, worldFacesHaveLitWater(faces), textures, fullbrightTextures, textureAnimations, lightmaps, fallbackTexture, fallbackLightmap, 0, modelOffset, identityModelRotationMatrix, 1, 1, 0, float64(camera.Time), camera, liquidAlpha, nil)
-}
-
-// worldTextureForFace resolves the current diffuse texture GL handle for a face, accounting for texture animation chains.
-func worldTextureForFace(face WorldFace, textures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackTexture uint32, frame int, timeSeconds float64) uint32 {
-	textureIndex := face.TextureIndex
-	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
-		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
-			textureIndex = animated.TextureIndex
-		}
-	}
-
-	tex := textures[textureIndex]
-	if tex == 0 && textureIndex != face.TextureIndex {
-		tex = textures[face.TextureIndex]
-	}
-	if tex == 0 {
-		tex = fallbackTexture
-	}
-	return tex
-}
-
-// worldLightmapForFace resolves the lightmap texture GL handle for a face from the atlas page array.
-func worldLightmapForFace(face WorldFace, lightmaps []uint32, fallbackLightmap uint32) uint32 {
-	if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(lightmaps) && lightmaps[face.LightmapIndex] != 0 {
-		return lightmaps[face.LightmapIndex]
-	}
-	return fallbackLightmap
+	return worldopengl.BucketFaces(
+		faces,
+		textures,
+		fullbrightTextures,
+		textureAnimations,
+		lightmaps,
+		fallbackTexture,
+		fallbackLightmap,
+		modelOffset,
+		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+		float64(camera.Time),
+		liquidAlpha.toWorld(),
+		TextureAnimation,
+	)
 }
 
 // renderWorldDrawCalls issues GL draw calls for bucketed world faces. Each call binds its diffuse + lightmap + fullbright textures and draws the face's index range from the VAO.
@@ -1121,23 +1084,23 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 	lastVAO := uint32(0xFFFFFFFF)
 	lastLitWaterValue := float32(-1)
 	for _, call := range calls {
-		if call.vao != lastVAO {
-			gl.BindVertexArray(call.vao)
-			lastVAO = call.vao
+		if call.VAO != lastVAO {
+			gl.BindVertexArray(call.VAO)
+			lastVAO = call.VAO
 		}
-		gl.Uniform3f(modelOffsetUniform, call.modelOffset[0], call.modelOffset[1], call.modelOffset[2])
-		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &call.modelRotation[0])
-		gl.Uniform1f(modelScaleUniform, call.modelScale)
+		gl.Uniform3f(modelOffsetUniform, call.ModelOffset[0], call.ModelOffset[1], call.ModelOffset[2])
+		gl.UniformMatrix4fv(modelRotationUniform, 1, false, &call.ModelRotation[0])
+		gl.Uniform1f(modelScaleUniform, call.ModelScale)
 
 		gl.ActiveTexture(gl.TEXTURE0)
-		gl.BindTexture(gl.TEXTURE_2D, call.texture)
+		gl.BindTexture(gl.TEXTURE_2D, call.Texture)
 		gl.ActiveTexture(gl.TEXTURE1)
-		gl.BindTexture(gl.TEXTURE_2D, call.lightmap)
+		gl.BindTexture(gl.TEXTURE_2D, call.Lightmap)
 
 		// Bind fullbright texture if available
 		gl.ActiveTexture(gl.TEXTURE2)
-		if call.fullbrightTexture != 0 {
-			gl.BindTexture(gl.TEXTURE_2D, call.fullbrightTexture)
+		if call.FullbrightTexture != 0 {
+			gl.BindTexture(gl.TEXTURE_2D, call.FullbrightTexture)
 			gl.Uniform1f(hasFullbrightUniform, 1.0)
 		} else {
 			gl.BindTexture(gl.TEXTURE_2D, 0)
@@ -1145,14 +1108,14 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 		}
 
 		gl.ActiveTexture(gl.TEXTURE0)
-		if call.turbulent {
+		if call.Turbulent {
 			gl.Uniform1f(turbulentUniform, 1)
 		} else {
 			gl.Uniform1f(turbulentUniform, 0)
 		}
 		if litWaterUniform >= 0 {
 			litWaterValue := float32(0)
-			if litWaterEnabled && call.hasLitWater {
+			if litWaterEnabled && call.HasLitWater {
 				litWaterValue = 1
 			}
 			if litWaterValue != lastLitWaterValue {
@@ -1160,9 +1123,9 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 				lastLitWaterValue = litWaterValue
 			}
 		}
-		gl.Uniform3f(dynamicLightUniform, call.light[0], call.light[1], call.light[2])
-		gl.Uniform1f(alphaUniform, call.alpha)
-		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
+		gl.Uniform3f(dynamicLightUniform, call.Light[0], call.Light[1], call.Light[2])
+		gl.Uniform1f(alphaUniform, call.Alpha)
+		gl.DrawElements(gl.TRIANGLES, int32(call.Face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.Face.FirstIndex*4)))
 	}
 }
 
@@ -1172,15 +1135,6 @@ func worldLitWaterCvarEnabled() bool {
 		return true
 	}
 	return cv.Int != 0
-}
-
-func worldFacesHaveLitWater(faces []WorldFace) bool {
-	for _, face := range faces {
-		if face.Flags&model.SurfDrawTurb != 0 && face.LightmapIndex >= 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // ---- merged from world_alias_opengl_root.go ----
@@ -1329,33 +1283,7 @@ func buildAliasVertices(alias *glAliasModel, mdl *model.Model, poseIndex int, or
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil || poseIndex < 0 || poseIndex >= len(alias.poses) {
 		return nil
 	}
-	pose := alias.poses[poseIndex]
-	vertices := make([]WorldVertex, 0, len(alias.refs))
-	for _, ref := range alias.refs {
-		if ref.vertexIndex < 0 || ref.vertexIndex >= len(pose) {
-			continue
-		}
-		compressed := pose[ref.vertexIndex]
-		position := model.DecodeVertex(compressed, mdl.AliasHeader.Scale, mdl.AliasHeader.ScaleOrigin)
-		normal := model.GetNormal(compressed.LightNormalIndex)
-		if fullAngles {
-			position = rotateAliasAngles(position, angles)
-			normal = rotateAliasAngles(normal, angles)
-		} else {
-			position = rotateAliasYaw(position, angles[1])
-			normal = rotateAliasYaw(normal, angles[1])
-		}
-		position[0] += origin[0]
-		position[1] += origin[1]
-		position[2] += origin[2]
-		vertices = append(vertices, WorldVertex{
-			Position:      position,
-			TexCoord:      ref.texCoord,
-			LightmapCoord: [2]float32{},
-			Normal:        normal,
-		})
-	}
-	return vertices
+	return aliasimpl.BuildVertices(openGLAliasMesh(alias), mdl.AliasHeader, poseIndex, origin, angles, fullAngles)
 }
 
 // buildAliasDrawLocked prepares a complete alias model draw command: resolves the model, computes pose interpolation, builds interpolated vertices, and uploads to the scratch VBO.
@@ -1500,7 +1428,7 @@ func (r *Renderer) renderAliasDraws(draws []glAliasDraw, useViewModelDepthRange 
 		if len(vertices) == 0 {
 			continue
 		}
-		vertexData := flattenWorldVertices(vertices)
+		vertexData := worldopengl.FlattenWorldVertices(vertices)
 		gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
 		gl.BindTexture(gl.TEXTURE_2D, draw.skin)
 		gl.ActiveTexture(gl.TEXTURE2)
@@ -1676,7 +1604,7 @@ func (r *Renderer) renderAliasShadows(entities []AliasModelEntity) {
 			vertices = append(vertices, center, p0, p1)
 		}
 
-		vertexData := flattenWorldVertices(vertices)
+		vertexData := worldopengl.FlattenWorldVertices(vertices)
 		gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
 		gl.Uniform1f(alphaUniform, shadowAlpha)
 		gl.DrawArrays(gl.TRIANGLES, 0, int32(len(vertices)))
@@ -2588,7 +2516,7 @@ func (r *Renderer) DrawTranslucentCalls() {
 
 	if shouldSortTranslucentCalls(GetAlphaMode()) {
 		sort.SliceStable(calls, func(i, j int) bool {
-			return calls[i].distanceSq > calls[j].distanceSq
+			return calls[i].DistanceSq > calls[j].DistanceSq
 		})
 	}
 
@@ -2684,42 +2612,6 @@ type skyPassState struct {
 	proceduralSky               bool
 }
 
-// worldSkyTexturesForFace resolves the solid and alpha sky layer texture handles for a sky face, with animation support.
-func worldSkyTexturesForFace(face WorldFace, solidTextures, alphaTextures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackSolid, fallbackAlpha uint32, frame int, timeSeconds float64) (solid, alpha uint32) {
-	textureIndex := resolveWorldSkyTextureIndex(face, textureAnimations, frame, timeSeconds)
-
-	solid = solidTextures[textureIndex]
-	alpha = alphaTextures[textureIndex]
-	if (solid == 0 || alpha == 0) && textureIndex != face.TextureIndex {
-		if solid == 0 {
-			solid = solidTextures[face.TextureIndex]
-		}
-		if alpha == 0 {
-			alpha = alphaTextures[face.TextureIndex]
-		}
-	}
-	if solid == 0 {
-		solid = fallbackSolid
-	}
-	if alpha == 0 {
-		alpha = fallbackAlpha
-	}
-	return solid, alpha
-}
-
-func worldSkyFlatTextureForFace(face WorldFace, flatTextures map[int32]uint32, textureAnimations []*SurfaceTexture, fallbackFlat uint32, frame int, timeSeconds float64) uint32 {
-	textureIndex := resolveWorldSkyTextureIndex(face, textureAnimations, frame, timeSeconds)
-
-	flat := flatTextures[textureIndex]
-	if flat == 0 && textureIndex != face.TextureIndex {
-		flat = flatTextures[face.TextureIndex]
-	}
-	if flat == 0 {
-		flat = fallbackFlat
-	}
-	return flat
-}
-
 // renderSkyPass renders sky surfaces using one of three sky shader programs: embedded two-layer scrolling sky, cubemap sky, or individual face textures. Draws sky as a backdrop with depth clamped to the far plane.
 func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 	if len(calls) == 0 {
@@ -2807,8 +2699,8 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 
 	for _, call := range calls {
 		if !useProcedural && !useCubemap && !useExternalFaces {
-			solid, alpha := worldSkyTexturesForFace(
-				call.face,
+			solid, alpha := worldopengl.SkyTexturesForFace(
+				call.Face,
 				state.solidTextures,
 				state.alphaTextures,
 				state.textureAnimations,
@@ -2816,15 +2708,17 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 				state.fallbackAlpha,
 				state.frame,
 				float64(state.time),
+				TextureAnimation,
 			)
 			if state.fastSky {
-				solid = worldSkyFlatTextureForFace(
-					call.face,
+				solid = worldopengl.SkyFlatTextureForFace(
+					call.Face,
 					state.flatTextures,
 					state.textureAnimations,
 					state.fallbackSolid,
 					state.frame,
 					float64(state.time),
+					TextureAnimation,
 				)
 				alpha = state.fallbackAlpha
 			}
@@ -2834,7 +2728,7 @@ func renderSkyPass(calls []worldDrawCall, state skyPassState) {
 			gl.BindTexture(gl.TEXTURE_2D, alpha)
 			gl.ActiveTexture(gl.TEXTURE0)
 		}
-		gl.DrawElements(gl.TRIANGLES, int32(call.face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.face.FirstIndex*4)))
+		gl.DrawElements(gl.TRIANGLES, int32(call.Face.NumIndices), gl.UNSIGNED_INT, unsafe.Pointer(uintptr(call.Face.FirstIndex*4)))
 	}
 	if useCubemap {
 		gl.ActiveTexture(gl.TEXTURE2)
@@ -3280,14 +3174,14 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 
 	r.ensureAliasScratchLocked()
 
-	vertexData := flattenWorldVertices(worldVertices)
-	gl.BindBuffer(gl.ARRAY_BUFFER, r.aliasScratchVBO)
-	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
-
-	gl.Uniform3f(modelOffsetUniform, draw.origin[0], draw.origin[1], draw.origin[2])
-	gl.Uniform1f(alphaUniform, draw.alpha)
-	gl.BindVertexArray(r.aliasScratchVAO)
-	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(worldVertices)))
+	worldopengl.DrawSpriteWorldVertices(worldVertices, worldopengl.SpriteDrawParams{
+		VBO:                r.aliasScratchVBO,
+		VAO:                r.aliasScratchVAO,
+		ModelOffset:        draw.origin,
+		Alpha:              draw.alpha,
+		ModelOffsetUniform: modelOffsetUniform,
+		AlphaUniform:       alphaUniform,
+	})
 }
 
 func spriteQuadVerticesToWorldVertices(vertices []spriteQuadVertex) []WorldVertex {
@@ -3315,25 +3209,12 @@ type glWorldMesh struct {
 	lightmapPages []WorldLightmapPage
 }
 
-func flattenWorldVertices(vertices []WorldVertex) []float32 {
-	data := make([]float32, 0, len(vertices)*10)
-	for _, v := range vertices {
-		data = append(data,
-			v.Position[0], v.Position[1], v.Position[2],
-			v.TexCoord[0], v.TexCoord[1],
-			v.LightmapCoord[0], v.LightmapCoord[1],
-			v.Normal[0], v.Normal[1], v.Normal[2],
-		)
-	}
-	return data
-}
-
 func uploadWorldMesh(vertices []WorldVertex, indices []uint32) *glWorldMesh {
 	if len(vertices) == 0 || len(indices) == 0 {
 		return nil
 	}
 
-	vertexData := flattenWorldVertices(vertices)
+	vertexData := worldopengl.FlattenWorldVertices(vertices)
 	mesh := &glWorldMesh{indexCount: int32(len(indices))}
 
 	gl.GenVertexArrays(1, &mesh.vao)
@@ -3387,21 +3268,7 @@ func (mesh *glWorldMesh) destroy() {
 	}
 }
 
-type worldDrawCall struct {
-	face              WorldFace
-	texture           uint32
-	fullbrightTexture uint32
-	lightmap          uint32
-	alpha             float32
-	turbulent         bool
-	hasLitWater       bool
-	distanceSq        float32
-	light             [3]float32
-	vao               uint32
-	modelOffset       [3]float32
-	modelRotation     [16]float32
-	modelScale        float32
-}
+type worldDrawCall = worldopengl.DrawCall
 
 type glAliasVertexRef struct {
 	vertexIndex int
@@ -3432,43 +3299,6 @@ type glAliasDraw struct {
 	alpha          float32
 	scale          float32
 	full           bool
-}
-
-func rotateAliasAngles(v [3]float32, angles [3]float32) [3]float32 {
-	v = rotateAliasYaw(v, angles[1])
-	v = rotateAliasPitch(v, angles[0])
-	v = rotateAliasRoll(v, angles[2])
-	return v
-}
-
-func rotateAliasYaw(v [3]float32, yawDegrees float32) [3]float32 {
-	radians := float64(yawDegrees) * math.Pi / 180.0
-	s, c := float32(math.Sin(radians)), float32(math.Cos(radians))
-	return [3]float32{
-		v[0]*c - v[1]*s,
-		v[0]*s + v[1]*c,
-		v[2],
-	}
-}
-
-func rotateAliasPitch(v [3]float32, pitchDegrees float32) [3]float32 {
-	radians := float64(pitchDegrees) * math.Pi / 180.0
-	s, c := float32(math.Sin(radians)), float32(math.Cos(radians))
-	return [3]float32{
-		v[0],
-		v[1]*c - v[2]*s,
-		v[1]*s + v[2]*c,
-	}
-}
-
-func rotateAliasRoll(v [3]float32, rollDegrees float32) [3]float32 {
-	radians := float64(rollDegrees) * math.Pi / 180.0
-	s, c := float32(math.Sin(radians)), float32(math.Cos(radians))
-	return [3]float32{
-		v[0]*c + v[2]*s,
-		v[1],
-		-v[0]*s + v[2]*c,
-	}
 }
 
 // ---- merged from world_sky_opengl_root.go ----
