@@ -249,7 +249,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		faceLookup[globalFaceIdx] = len(geom.Faces) - 1
 	}
 
-	slog.Info("World geometry built",
+	slog.Debug("World geometry built",
 		"vertices", len(geom.Vertices),
 		"indices", len(geom.Indices),
 		"faces", len(geom.Faces),
@@ -853,7 +853,7 @@ func (r *Renderer) createWorldVertexBuffer(device *wgpu.Device, queue *wgpu.Queu
 
 	queue.WriteBuffer(buffer, 0, vertexData)
 
-	slog.Info("World vertex buffer uploaded", "vertices", len(vertices))
+	slog.Debug("World vertex buffer uploaded", "vertices", len(vertices))
 
 	return buffer, nil
 }
@@ -890,7 +890,7 @@ func (r *Renderer) createWorldIndexBuffer(device *wgpu.Device, queue *wgpu.Queue
 
 	queue.WriteBuffer(buffer, 0, indexData)
 
-	slog.Info("World index buffer uploaded", "indices", len(indices))
+	slog.Debug("World index buffer uploaded", "indices", len(indices))
 
 	return buffer, uint32(len(indices)), nil
 }
@@ -1080,7 +1080,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 		return nil, nil, fmt.Errorf("create render pipeline: %w", err)
 	}
 
-	slog.Info("World render pipeline created")
+	slog.Debug("World render pipeline created")
 	return pipeline, pipelineLayout, nil
 }
 
@@ -2116,7 +2116,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.brushModelGeometry = make(map[int]*WorldGeometry)
 	r.mu.Unlock()
 
-	slog.Info("Uploading world geometry to GPU")
+	slog.Debug("Uploading world geometry to GPU")
 
 	// Build geometry from BSP
 	geom, err := BuildWorldGeometry(tree)
@@ -2423,7 +2423,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	renderData.HasDepthBuffer = depthTextureView != nil
 	r.mu.Unlock()
 
-	slog.Info("World geometry uploaded to GPU",
+	slog.Debug("World geometry uploaded to GPU",
 		"vertices", renderData.TotalVertices,
 		"indices", renderData.TotalIndices,
 		"faces", renderData.TotalFaces,
@@ -2442,11 +2442,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	worldData := dc.renderer.GetWorldData()
 	if worldData == nil || worldData.Geometry == nil {
-		slog.Info("renderWorldInternal: no world data")
+		slog.Debug("renderWorldInternal: no world data")
 		return
 	}
 
-	slog.Info("renderWorldInternal: starting world render")
+	slog.Debug("renderWorldInternal: starting world render")
 
 	dc.renderer.mu.RLock()
 	defer dc.renderer.mu.RUnlock()
@@ -2454,7 +2454,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	// Check if GPU resources are ready
 	if dc.renderer.worldVertexBuffer == nil || dc.renderer.worldIndexBuffer == nil {
 		if worldData.TotalFaces > 0 {
-			slog.Info("renderWorldInternal: World GPU buffers not ready",
+			slog.Debug("renderWorldInternal: World GPU buffers not ready",
 				"faces", worldData.TotalFaces,
 				"triangles", worldData.TotalIndices/3)
 		}
@@ -2462,7 +2462,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	if dc.renderer.worldPipeline == nil {
-		slog.Info("renderWorldInternal: World pipeline not ready")
+		slog.Debug("renderWorldInternal: World pipeline not ready")
 		return
 	}
 
@@ -2470,12 +2470,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	device := dc.renderer.getWGPUDevice()
 	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
-		slog.Info("renderWorldInternal: HAL device or queue not available for world rendering")
+		slog.Debug("renderWorldInternal: HAL device or queue not available for world rendering")
 		return
 	}
 
 	// Create command encoder
-	slog.Info("renderWorldInternal: creating command encoder")
+	slog.Debug("renderWorldInternal: creating command encoder")
 	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{
 		Label: "World Render Command Encoder",
 	})
@@ -2484,22 +2484,22 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 
-	slog.Info("renderWorldInternal: command encoder started")
+	slog.Debug("renderWorldInternal: command encoder started")
 
 	// Use the current surface view for zero-copy rendering (per gogpu design)
 	// This allows HAL to render directly to the same surface that gogpu will composite onto
-	slog.Info("renderWorldInternal: getting surface view from gogpu context")
+	slog.Debug("renderWorldInternal: getting surface view from gogpu context")
 	textureView := dc.currentWGPURenderTargetView()
 	if textureView == nil {
-		slog.Info("renderWorldInternal: Render target view not available, skipping world rendering")
+		slog.Debug("renderWorldInternal: Render target view not available, skipping world rendering")
 		return
 	}
-	slog.Info("renderWorldInternal: render target view acquired", "view_type", fmt.Sprintf("%T", textureView), "queue_type", fmt.Sprintf("%T", queue))
+	slog.Debug("renderWorldInternal: render target view acquired", "view_type", fmt.Sprintf("%T", textureView), "queue_type", fmt.Sprintf("%T", queue))
 
 	// Create render pass descriptor with color and depth attachments.
 	// Use LoadOpClear to handle the clear ourselves since we skip gogpu's Clear().
 	clearColor := gogpuWorldClearColor(state.ClearColor)
-	slog.Info("renderWorldInternal: creating render pass descriptor")
+	slog.Debug("renderWorldInternal: creating render pass descriptor")
 	renderPassDesc := &wgpu.RenderPassDescriptor{
 		Label: "World Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{
@@ -2514,18 +2514,18 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Begin render pass
-	slog.Info("renderWorldInternal: beginning render pass")
+	slog.Debug("renderWorldInternal: beginning render pass")
 	renderPass, _ := encoder.BeginRenderPass(renderPassDesc)
-	slog.Info("renderWorldInternal: render pass created", "pass", fmt.Sprintf("%T", renderPass))
+	slog.Debug("renderWorldInternal: render pass created", "pass", fmt.Sprintf("%T", renderPass))
 
 	// Set pipeline
-	slog.Info("renderWorldInternal: setting pipeline", "pipeline", fmt.Sprintf("%T", dc.renderer.worldPipeline))
+	slog.Debug("renderWorldInternal: setting pipeline", "pipeline", fmt.Sprintf("%T", dc.renderer.worldPipeline))
 	renderPass.SetPipeline(dc.renderer.worldPipeline)
 
 	// Explicit viewport/scissor to avoid backend defaults that can yield zero-area rasterization.
 	w, h := dc.renderer.Size()
 	if w > 0 && h > 0 {
-		slog.Info("renderWorldInternal: setting viewport", "x", 0, "y", 0, "w", w, "h", h)
+		slog.Debug("renderWorldInternal: setting viewport", "x", 0, "y", 0, "w", w, "h", h)
 		renderPass.SetViewport(0, 0, float32(w), float32(h), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
 	} else {
@@ -2539,9 +2539,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	var currentDynamicLight [3]float32
 	currentLitWater := float32(0)
 	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
-	slog.Info("renderWorldInternal: VP matrix",
+	slog.Debug("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
-	slog.Info("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
+	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
 	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
@@ -2550,16 +2550,16 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Set vertex buffer
-	slog.Info("renderWorldInternal: setting vertex buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldVertexBuffer))
+	slog.Debug("renderWorldInternal: setting vertex buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldVertexBuffer))
 	renderPass.SetVertexBuffer(0, dc.renderer.worldVertexBuffer, 0)
 
 	// Set index buffer (uint32 format for indices)
-	slog.Info("renderWorldInternal: setting index buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldIndexBuffer), "count", dc.renderer.worldIndexCount)
+	slog.Debug("renderWorldInternal: setting index buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldIndexBuffer), "count", dc.renderer.worldIndexCount)
 	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
 	// Set uniform bind group.
 	if dc.renderer.uniformBindGroup != nil {
-		slog.Info("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.uniformBindGroup))
+		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.uniformBindGroup))
 		renderPass.SetBindGroup(0, dc.renderer.uniformBindGroup, nil)
 	} else {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
@@ -2764,25 +2764,25 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		}
 	}
 	if drawnIndices > 0 {
-		slog.Info("World rendered",
+		slog.Debug("World rendered",
 			"indices", drawnIndices,
 			"triangles", drawnIndices/3,
 			"vertices", worldData.TotalVertices)
 	} else {
-		slog.Info("renderWorldInternal: No opaque world faces selected for textured draw")
+		slog.Debug("renderWorldInternal: No opaque world faces selected for textured draw")
 	}
 	if skyDrawnIndices > 0 {
-		slog.Info("GoGPU world sky rendered", "indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
+		slog.Debug("GoGPU world sky rendered", "indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
 	}
 	if alphaTestDrawnIndices > 0 {
-		slog.Info("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3)
+		slog.Debug("GoGPU alpha-test world faces rendered", "indices", alphaTestDrawnIndices, "triangles", alphaTestDrawnIndices/3)
 	}
 	if liquidDrawnIndices > 0 {
-		slog.Info("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
+		slog.Debug("GoGPU opaque liquids rendered", "indices", liquidDrawnIndices, "triangles", liquidDrawnIndices/3)
 	}
 
 	// End render pass
-	slog.Info("renderWorldInternal: ending render pass")
+	slog.Debug("renderWorldInternal: ending render pass")
 	renderPass.End()
 
 	// Finish encoding and get command buffer
@@ -2793,7 +2793,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Submit to queue
-	slog.Info("renderWorldInternal: submitting to queue")
+	slog.Debug("renderWorldInternal: submitting to queue")
 	err = queue.Submit(cmdBuffer)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
@@ -2805,11 +2805,11 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		if waitErr := device.WaitIdle(); waitErr != nil {
 			slog.Error("renderWorldInternal: device WaitIdle failed", "error", waitErr)
 		} else {
-			slog.Info("renderWorldInternal: device WaitIdle completed")
+			slog.Debug("renderWorldInternal: device WaitIdle completed")
 		}
 	}
 
-	slog.Info("World render commands submitted successfully")
+	slog.Debug("World render commands submitted successfully")
 }
 
 // matrixToBytes converts a types.Mat4 to bytes (column-major, little-endian).
@@ -3061,7 +3061,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		return
 	}
 	if translucentLiquidDrawnIndices > 0 {
-		slog.Info("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
+		slog.Debug("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
 	}
 }
 

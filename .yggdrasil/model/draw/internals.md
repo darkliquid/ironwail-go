@@ -3,6 +3,7 @@
 ## Logic
 
 The package centers on a `Manager` that owns a parsed WAD pointer, optional virtual-filesystem or base-directory fallback source, a cache of already-parsed `QPic` assets, and shared palette/font data. Initialization loads `gfx.wad`, extracts palette data, and marks the manager ready. Asset lookup first checks the cache, then resolves by WAD full name, WAD bare normalized name, pak/filesystem lookup, and finally direct directory lookup, caching successful `QPic` parses so repeated HUD/menu/console draws avoid reparsing binary data.
+Draw-manager initialization summaries are treated as backend-internal asset-loading diagnostics and now log at `Debug` rather than `Info`.
 
 ## Constraints
 

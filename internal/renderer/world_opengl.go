@@ -1296,7 +1296,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldIndexCount = worldMesh.indexCount
 	r.worldLightmaps = uploadLightmapPages(renderData.Lightmaps, r.lightStyleValues)
 
-	slog.Info("OpenGL world uploaded",
+	slog.Debug("OpenGL world uploaded",
 		"vertices", renderData.TotalVertices,
 		"indices", renderData.TotalIndices,
 		"faces", renderData.TotalFaces,

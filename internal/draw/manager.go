@@ -83,7 +83,7 @@ func (m *Manager) Init(filesys *fs.FileSystem) error {
 		return nil
 	}
 
-	slog.Info("Initializing draw manager")
+	slog.Debug("Initializing draw manager")
 
 	// Try to load gfx.wad from the filesystem
 	wadData, err := filesys.LoadFile("gfx.wad")
@@ -110,7 +110,7 @@ func (m *Manager) Init(filesys *fs.FileSystem) error {
 	}
 	m.palette = palData[:768]
 
-	slog.Info("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
+	slog.Debug("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
 
 	m.initialized = true
 	return nil
@@ -132,7 +132,7 @@ func (m *Manager) InitFromDir(baseDir string) error {
 		return nil
 	}
 
-	slog.Info("Initializing draw manager from directory", "dir", baseDir)
+	slog.Debug("Initializing draw manager from directory", "dir", baseDir)
 
 	// Load gfx.wad from the directory
 	wadPath := filepath.Join(baseDir, "gfx.wad")
@@ -156,7 +156,7 @@ func (m *Manager) InitFromDir(baseDir string) error {
 
 	m.palette = paletteLump.Data[:768]
 
-	slog.Info("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
+	slog.Debug("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
 
 	m.initialized = true
 	return nil

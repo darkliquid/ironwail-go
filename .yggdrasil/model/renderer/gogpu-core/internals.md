@@ -3,6 +3,7 @@
 ## Logic
 
 This layer owns the GoGPU backend’s event/render loop integration and the core frame helpers needed before world/entity drawing.
+Backend-internal frame diagnostics now default to `Debug`: pipeline-creation traces, one-time device/surface dumps, GoGPU frame-state snapshots, overlay/fallback markers, and camera-matrix dumps remain available when needed without spamming normal runtime logs.
 
 It intentionally does not retain dormant debug rendering branches. When a helper path no longer feeds the live `renderEntities` / frame runtime flow, it should be deleted rather than kept as an unused overlay hook inside the backend core.
 

@@ -96,7 +96,7 @@ func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipeline
 	if desc == nil {
 		return nil, fmt.Errorf("nil render pipeline descriptor")
 	}
-	slog.Info("Creating GPU Render Pipeline", "label", desc.Label, "vertex shader", fmt.Sprintf("%p", desc.Vertex.Module), "fragment shader", fmt.Sprintf("%p", desc.Fragment))
+	slog.Debug("Creating GPU Render Pipeline", "label", desc.Label, "vertex shader", fmt.Sprintf("%p", desc.Vertex.Module), "fragment shader", fmt.Sprintf("%p", desc.Fragment))
 	return device.CreateRenderPipeline(desc)
 }
 
@@ -816,7 +816,7 @@ func (r *Renderer) OnDraw(callback func(dc RenderContext)) {
 
 		// Log device info once
 		if !printed {
-			slog.Info(
+			slog.Debug(
 				"DeviceProvider",
 				slog.String("device", fmt.Sprintf("%T", provider.Device())),
 				slog.String("queue", fmt.Sprintf("%T", provider.Queue())),
@@ -1126,9 +1126,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	slog.Debug("RenderFrame called", "draw_world", state.DrawWorld, "draw_particles", state.DrawParticles, "draw_2d_overlay", state.Draw2DOverlay)
-	slog.Info("RenderFrame: surface view (start)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+	slog.Debug("RenderFrame: surface view (start)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
 	if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
-		slog.Info("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+		slog.Debug("RenderFrame: gogpu frame state (start)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 	}
 
 	// Phase 1: Clear screen
@@ -1151,13 +1151,13 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Then gogpu draws 2D overlay on top with LoadOpLoad to preserve the world.
 	if state.DrawWorld {
 		dc.renderer.setGoGPUWorldLightStyleValues(state.LightStyles)
-		slog.Info("RenderFrame: rendering world to surface")
+		slog.Debug("RenderFrame: rendering world to surface")
 		dc.renderWorld(state)
-		slog.Info("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+		slog.Debug("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
 		if !sceneTargetActive && dc.markGoGPUFrameContentForOverlay() {
-			slog.Info("RenderFrame: marked gogpu frame as pre-populated (HAL world rendered)")
+			slog.Debug("RenderFrame: marked gogpu frame as pre-populated (HAL world rendered)")
 			if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
-				slog.Info("RenderFrame: gogpu frame state (after mark)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+				slog.Debug("RenderFrame: gogpu frame state (after mark)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 			}
 		} else if !sceneTargetActive {
 			slog.Warn("RenderFrame: unable to mark gogpu frame state; first 2D draw may clear world")
@@ -1213,7 +1213,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if sceneTargetActive {
 		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
 			if dc.markGoGPUFrameContentForOverlay() {
-				slog.Info("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
+				slog.Debug("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
 			} else {
 				slog.Warn("RenderFrame: unable to mark gogpu frame state after scene composite")
 			}
@@ -1234,10 +1234,10 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// internal behavior to detect that Clear() was not called.
 	if state.Draw2DOverlay && draw2DOverlay != nil {
 		if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
-			slog.Info("RenderFrame: gogpu frame state (pre-overlay)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
+			slog.Debug("RenderFrame: gogpu frame state (pre-overlay)", "frameCleared", frameCleared, "hasPendingClear", hasPendingClear)
 		}
 		if shouldDrawWorldFallbackDots() {
-			slog.Info("RenderFrame: debug world fallback dots enabled")
+			slog.Debug("RenderFrame: debug world fallback dots enabled")
 			dc.renderWorldFallbackTopDown()
 		}
 		slog.Debug("Drawing 2D overlay on top of world", "menu_active", state.MenuActive)
@@ -1261,7 +1261,7 @@ func (dc *DrawContext) logPrePresentState(mode string) {
 	}
 
 	if frameCleared, hasPendingClear, ok := dc.getGoGPUFrameStateForDebug(); ok {
-		slog.Info("RenderFrame: gogpu frame state (pre-present)",
+		slog.Debug("RenderFrame: gogpu frame state (pre-present)",
 			"mode", mode,
 			"frameCleared", frameCleared,
 			"hasPendingClear", hasPendingClear,
@@ -1270,7 +1270,7 @@ func (dc *DrawContext) logPrePresentState(mode string) {
 		slog.Warn("RenderFrame: unable to read gogpu frame state (pre-present)", "mode", mode)
 	}
 
-	slog.Info("RenderFrame: surface view (pre-present)", "mode", mode, "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
+	slog.Debug("RenderFrame: surface view (pre-present)", "mode", mode, "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
 }
 
 func debugSurfaceViewID(view any) string {
@@ -1752,7 +1752,7 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 	r.viewMatrices.Projection = ComputeProjectionMatrix(projectionFOVForCamera(camera), aspect, nearPlane, farPlane)
 
 	// Log individual matrices before multiplication
-	slog.Info("Camera matrices computed",
+	slog.Debug("Camera matrices computed",
 		"view_m00", r.viewMatrices.View[0],
 		"view_m11", r.viewMatrices.View[5],
 		"view_m22", r.viewMatrices.View[10],

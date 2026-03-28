@@ -28,14 +28,14 @@ func (a *AudioAdapter) Init() error {
 
 	sdl3 := NewSDL3AudioBackend()
 	oto := NewOtoBackend()
-	slog.Info("audio backend availability", "sdl3", sdl3 != nil, "oto", oto != nil)
+	slog.Debug("audio backend availability", "sdl3", sdl3 != nil, "oto", oto != nil)
 
 	backend := Backend(NewNullBackend())
 	if sdl3 != nil {
-		slog.Info("selecting SDL3 audio backend")
+		slog.Debug("selecting SDL3 audio backend")
 		backend = sdl3
 	} else if oto != nil {
-		slog.Info("selecting Oto audio backend")
+		slog.Debug("selecting Oto audio backend")
 		backend = oto
 	} else {
 		slog.Warn("no hardware audio backends available, using null backend")

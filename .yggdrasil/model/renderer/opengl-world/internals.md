@@ -25,6 +25,7 @@ The parent node exists to describe the part of the OpenGL world path that could 
 - program setup that consumes the shader payloads in `shaders.go`
 
 This split follows the already-landed code seams instead of inventing new ones. Helper implementation detail remains in the extracted subpackage files; the parent keeps only the root orchestration layer that coordinates those helpers. For sky rendering, that now means root code snapshots one locked base `worldopengl.SkyPassState`, then reuses it for both world and brush passes by overriding only the per-model fields instead of duplicating the full sky-state assembly twice.
+The OpenGL world upload summary log is treated as diagnostic bring-up data and now emits at `Debug` so normal runs are not dominated by backend-internal geometry stats.
 
 Dead compatibility glue should not accumulate here. Once a helper seam is fully consumed from child packages or shared-world helpers, the parent drops unused forwarding wrappers and aliases instead of preserving them as historical baggage.
 

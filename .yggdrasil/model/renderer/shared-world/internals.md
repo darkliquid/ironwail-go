@@ -24,6 +24,7 @@ The shared fog helper layer now also owns a narrow transition baseline (`blendFo
 OpenGL world-runtime upload now builds and stores a per-sky-texture 1x1 fast-sky texture cache from this helper output, and world teardown releases that cache with other sky textures.
 Texture animation chain building now treats any `'+'`-prefixed name as an animation participant and relies on `textureAnimationFrame` for token validation. This closes a narrow parity gap where a malformed `"+"` texture name was previously skipped silently (due to a pre-validation length guard) instead of surfacing the canonical "bad animating texture" error path used for other malformed animated names.
 GoGPU shared world setup now constructs public `wgpu` resource wrappers directly in `world.go`: shader modules, vertex/index/uniform buffers, texture/sampler/bind-group state, depth/render targets, and world pipeline descriptors are created from `*wgpu.Device` / `*wgpu.Queue` instead of raw HAL handles so the shared upload/setup layer matches the public renderer submission path.
+Shared-world upload and render-stage tracing now logs at `Debug` instead of `Info`: geometry-build/upload summaries, GoGPU world-pass state transitions, and per-pass draw counts remain available for diagnostics without polluting normal startup/frame logs.
 
 ## Constraints
 

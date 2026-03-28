@@ -71,7 +71,7 @@ func ComputeViewMatrix(camera CameraState) types.Mat4 {
 
 	viewMatrix := types.ViewMatrix(camera.Angles, camera.Origin)
 
-	slog.Info("View matrix computed",
+	slog.Debug("View matrix computed",
 		"origin", camera.Origin,
 		"angles", camera.Angles,
 		"view_m00", viewMatrix[0],
