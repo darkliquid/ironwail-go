@@ -17,7 +17,7 @@ The current gogpu version in this repo exposes public `*wgpu.Device` / `*wgpu.Qu
 - `OnUpdate` is for event-loop-side staging only; moving draw mutations there is unsafe for the GoGPU backend.
 - `warpscale_gogpu_test.go` includes a menu-only regression check that locks this clear-skipping rule so future frame-pipeline refactors do not reintroduce black menu backgrounds.
 - Go source in this node aliases the standard library `image` import (`stdimage`) where needed because Quake pic types come from `internal/image`; this avoids symbol collision while preserving screenshot/export behavior.
-- The GoGPU scene-composite fragment shader avoids derivative instructions in pipeline creation. For the fullscreen scene texture pass, the OpenGL shader's `abs(dFdy(uv.y)) / abs(dFdx(uv.x))` aspect term reduces to `textureWidth / textureHeight`, so the WGSL path computes aspect from `textureDimensions(sceneTexture)` instead of `dpdx`/`dpdy` to avoid the Vulkan pipeline crash hit during scene-composite pipeline creation.
+- The GoGPU scene-composite fragment shader currently uses a conservative passthrough sample (`textureSample(sceneTexture, sceneSampler, input.uv * uvScale)`) instead of the OpenGL waterwarp distortion math. Earlier WGSL variants using derivative-driven aspect compensation and then a reduced `textureDimensions`-based rewrite still triggered a Vulkan pipeline-creation SIGSEGV on this stack, so the live GoGPU path keeps the fullscreen blit simple to preserve runtime stability while the backend/compiler bug is investigated separately.
 
 ## Decisions
 
