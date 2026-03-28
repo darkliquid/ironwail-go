@@ -14,6 +14,8 @@ Uses a goroutine/ticker-driven output loop that reads from the DMA buffer and wr
 
 Uses a pure-Go runtime-loaded miniaudio device. The playback callback reads from the existing circular DMA byte buffer, decodes little-endian `int16` samples into callback frame slices, and advances the shared sample cursor in lockstep with the runtime mixer.
 
+The backend installs its playback callback through a heap-stable reference instead of the upstream `SetPlaybackCallback` helper. This avoids a callback-lifetime bug in the current dependency version where the helper stores the address of a stack-local callback value in the hidden `dataCallback` slot, which can later fault when the device invokes playback.
+
 ### Null backend
 
 Advances a fake playback cursor without hardware output so the rest of the sound system can run in tests or unsupported environments.

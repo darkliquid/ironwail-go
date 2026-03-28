@@ -5,7 +5,10 @@ package audio
 import (
 	"encoding/binary"
 	"fmt"
+	"reflect"
 	"sync"
+	"sync/atomic"
+	"unsafe"
 
 	"github.com/samborkent/miniaudio"
 )
@@ -18,6 +21,8 @@ type MiniaudioBackend struct {
 
 	dma    *DMAInfo
 	device *miniaudio.Device
+
+	callbackRef *miniaudio.PlaybackCallback[int16]
 
 	mu      sync.Mutex
 	blocked bool
@@ -68,9 +73,11 @@ func (b *MiniaudioBackend) Init(sampleRate, sampleBits, channels, bufferSize int
 			Channels: channels,
 		},
 	}
-	if err := miniaudio.SetPlaybackCallback(config, b.playbackCallback); err != nil {
+	callbackRef, err := installStableMiniaudioPlaybackCallback(config, b.playbackCallback)
+	if err != nil {
 		return nil, err
 	}
+	b.callbackRef = callbackRef
 
 	device, err := miniaudio.NewDevice(config)
 	if err != nil {
@@ -102,6 +109,7 @@ func (b *MiniaudioBackend) Shutdown() {
 
 	b.pos = 0
 	b.dma = nil
+	b.callbackRef = nil
 }
 
 func (b *MiniaudioBackend) Lock() {
@@ -211,4 +219,27 @@ func (b *MiniaudioBackend) copyFrames(frameCount, channelCount int) [][]int16 {
 	b.dma.SamplePos = b.pos
 
 	return frames
+}
+
+func installStableMiniaudioPlaybackCallback(config *miniaudio.DeviceConfig, callback miniaudio.PlaybackCallback[int16]) (*miniaudio.PlaybackCallback[int16], error) {
+	callbackRef := new(miniaudio.PlaybackCallback[int16])
+	*callbackRef = callback
+
+	value := reflect.ValueOf(config)
+	if value.Kind() != reflect.Pointer || value.IsNil() {
+		return nil, fmt.Errorf("miniaudio config must be a non-nil pointer")
+	}
+	elem := value.Elem()
+	field := elem.FieldByName("dataCallback")
+	if !field.IsValid() {
+		return nil, fmt.Errorf("miniaudio config missing dataCallback field")
+	}
+	if !field.CanAddr() {
+		return nil, fmt.Errorf("miniaudio config dataCallback field is not addressable")
+	}
+
+	dataCallback := (*atomic.Uintptr)(unsafe.Pointer(field.UnsafeAddr()))
+	dataCallback.Store(uintptr(unsafe.Pointer(callbackRef)))
+
+	return callbackRef, nil
 }

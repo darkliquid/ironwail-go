@@ -4,7 +4,12 @@ package audio
 
 import (
 	"encoding/binary"
+	"reflect"
+	"sync/atomic"
 	"testing"
+	"unsafe"
+
+	"github.com/samborkent/miniaudio"
 )
 
 func TestMiniaudioBackendCopyFramesAdvancesCursor(t *testing.T) {
@@ -80,5 +85,49 @@ func TestMiniaudioBackendCopyFramesLeavesExtraChannelsSilent(t *testing.T) {
 	}
 	if got := frames[1][1]; got != 0 {
 		t.Fatalf("frame 1 extra channel = %d, want 0", got)
+	}
+}
+
+func TestInstallStableMiniaudioPlaybackCallbackStoresHeapCallback(t *testing.T) {
+	config := &miniaudio.DeviceConfig{
+		DeviceType: miniaudio.DeviceTypePlayback,
+		Playback: miniaudio.FormatConfig{
+			Format:   miniaudio.FormatInt16,
+			Channels: 2,
+		},
+	}
+	callback := miniaudio.PlaybackCallback[int16](func(frameCount, channelCount int) [][]int16 {
+		frames := make([][]int16, frameCount)
+		samples := make([]int16, frameCount*channelCount)
+		for frame := range frameCount {
+			start := frame * channelCount
+			frames[frame] = samples[start : start+channelCount]
+		}
+		frames[0][0] = 42
+		return frames
+	})
+
+	callbackRef, err := installStableMiniaudioPlaybackCallback(config, callback)
+	if err != nil {
+		t.Fatalf("installStableMiniaudioPlaybackCallback returned error: %v", err)
+	}
+	if callbackRef == nil {
+		t.Fatal("installStableMiniaudioPlaybackCallback returned nil callback ref")
+	}
+
+	field := reflect.ValueOf(config).Elem().FieldByName("dataCallback")
+	dataCallback := (*atomic.Uintptr)(unsafe.Pointer(field.UnsafeAddr()))
+	stored := dataCallback.Load()
+	if stored == 0 {
+		t.Fatal("dataCallback was not populated")
+	}
+	if got, want := uintptr(unsafe.Pointer(callbackRef)), stored; got != want {
+		t.Fatalf("stored callback pointer = %#x, want %#x", stored, got)
+	}
+
+	storedRef := (*miniaudio.PlaybackCallback[int16])(unsafe.Pointer(stored))
+	got := (*storedRef)(1, 2)
+	if got[0][0] != 42 {
+		t.Fatalf("callback result = %d, want 42", got[0][0])
 	}
 }
