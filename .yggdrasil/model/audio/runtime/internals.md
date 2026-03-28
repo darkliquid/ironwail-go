@@ -5,12 +5,12 @@
 ### Startup
 
 `AudioAdapter.Init` selects a backend in priority order:
-1. SDL3
-2. oto
-3. miniaudio
+1. miniaudio
+2. SDL3
+3. oto
 4. null backend
 
-It tries each available backend in priority order, attempting 44.1 kHz first and then 48 kHz before falling through to the next backend. This keeps `oto` as the cgo-path fallback while allowing supported CGO-free builds to land on miniaudio when SDL3 is unavailable.
+It tries each available backend in priority order, attempting 44.1 kHz first and then 48 kHz before falling through to the next backend. This now prefers `miniaudio` across both CGO and non-CGO supported builds, with SDL3 and oto as fallbacks before null.
 Backend availability and backend-selection traces in `AudioAdapter.Init` are diagnostic and now emit at `Debug`; successful hardware initialization remains visible at `Info`, while degraded/failed startup still uses `Warn`/`Error`.
 
 ### Runtime update flow

@@ -42,9 +42,9 @@ func (a *AudioAdapter) Init() error {
 		name    string
 		backend Backend
 	}{
+		{name: "miniaudio", backend: miniaudio},
 		{name: "SDL3", backend: sdl3},
 		{name: "Oto", backend: oto},
-		{name: "miniaudio", backend: miniaudio},
 		{name: "null", backend: NewNullBackend()},
 	}
 

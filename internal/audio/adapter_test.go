@@ -49,7 +49,45 @@ func TestAudioAdapterInitFallsBackAcrossBackends(t *testing.T) {
 		newMiniaudioBackend = oldNewMiniaudio
 	})
 
-	sdl3 := &adapterTestBackend{name: "sdl3", failRates: map[int]error{44100: fmt.Errorf("no device"), 48000: fmt.Errorf("no device")}}
+	sdl3 := &adapterTestBackend{name: "sdl3", failRates: map[int]error{}}
+	oto := &adapterTestBackend{name: "oto", failRates: map[int]error{}}
+	miniaudio := &adapterTestBackend{name: "miniaudio", failRates: map[int]error{44100: fmt.Errorf("no device"), 48000: fmt.Errorf("no device")}}
+
+	newSDL3AudioBackend = func() Backend { return sdl3 }
+	newOtoBackend = func() Backend { return oto }
+	newMiniaudioBackend = func() Backend { return miniaudio }
+
+	sys := NewSystem()
+	adapter := NewAudioAdapter(sys)
+	if err := adapter.Init(); err != nil {
+		t.Fatalf("Init returned error: %v", err)
+	}
+
+	if sys.backend != sdl3 {
+		t.Fatalf("selected backend = %T, want SDL3 backend after miniaudio failure", sys.backend)
+	}
+	if len(miniaudio.initCalls) != 2 || miniaudio.initCalls[0] != 44100 || miniaudio.initCalls[1] != 48000 {
+		t.Fatalf("miniaudio init calls = %v, want [44100 48000]", miniaudio.initCalls)
+	}
+	if len(sdl3.initCalls) != 1 || sdl3.initCalls[0] != 44100 {
+		t.Fatalf("SDL3 init calls = %v, want [44100]", sdl3.initCalls)
+	}
+	if len(oto.initCalls) != 0 {
+		t.Fatalf("oto should not be tried when SDL3 succeeds, got %v", oto.initCalls)
+	}
+}
+
+func TestAudioAdapterInitUsesMiniaudioBeforeSDL3AndOto(t *testing.T) {
+	oldNewSDL3 := newSDL3AudioBackend
+	oldNewOto := newOtoBackend
+	oldNewMiniaudio := newMiniaudioBackend
+	t.Cleanup(func() {
+		newSDL3AudioBackend = oldNewSDL3
+		newOtoBackend = oldNewOto
+		newMiniaudioBackend = oldNewMiniaudio
+	})
+
+	sdl3 := &adapterTestBackend{name: "sdl3", failRates: map[int]error{}}
 	oto := &adapterTestBackend{name: "oto", failRates: map[int]error{}}
 	miniaudio := &adapterTestBackend{name: "miniaudio", failRates: map[int]error{}}
 
@@ -63,46 +101,16 @@ func TestAudioAdapterInitFallsBackAcrossBackends(t *testing.T) {
 		t.Fatalf("Init returned error: %v", err)
 	}
 
-	if sys.backend != oto {
-		t.Fatalf("selected backend = %T, want oto backend after SDL3 failure", sys.backend)
-	}
-	if len(sdl3.initCalls) != 2 || sdl3.initCalls[0] != 44100 || sdl3.initCalls[1] != 48000 {
-		t.Fatalf("SDL3 init calls = %v, want [44100 48000]", sdl3.initCalls)
-	}
-	if len(oto.initCalls) != 1 || oto.initCalls[0] != 44100 {
-		t.Fatalf("oto init calls = %v, want [44100]", oto.initCalls)
-	}
-	if len(miniaudio.initCalls) != 0 {
-		t.Fatalf("miniaudio should not be tried when oto succeeds, got %v", miniaudio.initCalls)
-	}
-}
-
-func TestAudioAdapterInitUsesMiniaudioWhenOtoUnavailable(t *testing.T) {
-	oldNewSDL3 := newSDL3AudioBackend
-	oldNewOto := newOtoBackend
-	oldNewMiniaudio := newMiniaudioBackend
-	t.Cleanup(func() {
-		newSDL3AudioBackend = oldNewSDL3
-		newOtoBackend = oldNewOto
-		newMiniaudioBackend = oldNewMiniaudio
-	})
-
-	miniaudio := &adapterTestBackend{name: "miniaudio", failRates: map[int]error{}}
-
-	newSDL3AudioBackend = func() Backend { return nil }
-	newOtoBackend = func() Backend { return nil }
-	newMiniaudioBackend = func() Backend { return miniaudio }
-
-	sys := NewSystem()
-	adapter := NewAudioAdapter(sys)
-	if err := adapter.Init(); err != nil {
-		t.Fatalf("Init returned error: %v", err)
-	}
-
 	if sys.backend != miniaudio {
 		t.Fatalf("selected backend = %T, want miniaudio backend", sys.backend)
 	}
 	if len(miniaudio.initCalls) != 1 || miniaudio.initCalls[0] != 44100 {
 		t.Fatalf("miniaudio init calls = %v, want [44100]", miniaudio.initCalls)
+	}
+	if len(sdl3.initCalls) != 0 {
+		t.Fatalf("SDL3 should not be tried when miniaudio succeeds, got %v", sdl3.initCalls)
+	}
+	if len(oto.initCalls) != 0 {
+		t.Fatalf("oto should not be tried when miniaudio succeeds, got %v", oto.initCalls)
 	}
 }
