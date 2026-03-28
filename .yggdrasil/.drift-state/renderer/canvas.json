@@ -16,14 +16,14 @@
   },
   "mtimes": {
     ".yggdrasil/model/renderer/canvas/yg-node.yaml": 1774219362025.5974,
-    ".yggdrasil/model/renderer/canvas/interface.md": 1774475145884.086,
-    ".yggdrasil/model/renderer/canvas/internals.md": 1774475151411.1833,
+    ".yggdrasil/model/renderer/canvas/interface.md": 1774482569043.6958,
+    ".yggdrasil/model/renderer/canvas/internals.md": 1774482569044.6958,
     ".yggdrasil/model/renderer/canvas/responsibility.md": 1774219362115.5984,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
-    "internal/renderer/types.go": 1774474798979.6528,
+    "internal/renderer/types.go": 1774482569050.7947,
     "internal/renderer/screen.go": 1774122780946.7783,
     "internal/renderer/camera.go": 1774129884082.4243,
     "internal/renderer/camera_shared.go": 1774129856136.0671

@@ -1,14 +1,14 @@
 {
-  "hash": "cb54354eb8c0f2fbff5b83866f11beef74012db9819065ff755409b60b92adf4",
+  "hash": "8f85f43aec2014aba5bb3d77a1536284948e0acf41394c7004218ab1db5b6348",
   "files": {
     ".yggdrasil/model/qgo/yg-node.yaml": "70b3a7301c232f3277b6fd201f3b868e782b403d6f5be85811ae86f045f93338",
-    ".yggdrasil/model/qgo/responsibility.md": "713aa683d5b44e1415e7bc49449023717a2641e096d97f763254a25d7619eceb",
-    ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
-    ".yggdrasil/model/qgo/compiler/interface.md": "d35c48af87015474b3edf3276fb16913850bddd8710dbf75dfc26e2ccb3ecf73",
     ".yggdrasil/model/qgo/interface.md": "19847d370e0cecd3a605e5efb2d83aa87e63f6847b8038b7bdb5ec0e615a10dc",
     ".yggdrasil/model/qgo/internals.md": "dd06ac14d2bcf2f05b8810999ac14c8fa2b07bfc8ac8dc02842de376a554428f",
+    ".yggdrasil/model/qgo/responsibility.md": "713aa683d5b44e1415e7bc49449023717a2641e096d97f763254a25d7619eceb",
+    ".yggdrasil/model/qgo/compiler/responsibility.md": "e7691ff2fcfe8fc35eaea7923d677cac3a80fc4a5f22e2b1fb9dc9b65b9f6ed6",
     "cmd/qgo/main.go": "594a7939fb76485b0afd9cd5c61974c5262f004d5e8a6f66dcb8f1644e1aa9b2",
-    "cmd/qgo/main_test.go": "096bb46b69f2ced3d126ca318c67e285712d991fcaf1067df27f5ec6cc005cb1"
+    "cmd/qgo/main_test.go": "096bb46b69f2ced3d126ca318c67e285712d991fcaf1067df27f5ec6cc005cb1",
+    ".yggdrasil/model/qgo/compiler/interface.md": "543b66330287e8665d51cfcba787550b28cb882b1210f80a392eafa0f7154730"
   },
   "mtimes": {
     ".yggdrasil/model/qgo/yg-node.yaml": 1774354005414.3171,
@@ -16,7 +16,7 @@
     ".yggdrasil/model/qgo/internals.md": 1774354647423.823,
     ".yggdrasil/model/qgo/responsibility.md": 1774354005918.3252,
     ".yggdrasil/model/qgo/compiler/responsibility.md": 1774265244197.6436,
-    ".yggdrasil/model/qgo/compiler/interface.md": 1774354326476.43,
+    ".yggdrasil/model/qgo/compiler/interface.md": 1774355446012.2034,
     "cmd/qgo/main.go": 1774354605797.9417,
     "cmd/qgo/main_test.go": 1774354675555.1848
   }

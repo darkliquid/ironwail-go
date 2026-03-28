@@ -16,16 +16,16 @@
   },
   "mtimes": {
     ".yggdrasil/model/image/yg-node.yaml": 1774243705579.7842,
-    ".yggdrasil/model/image/interface.md": 1774473476629.276,
-    ".yggdrasil/model/image/internals.md": 1774473483764.5388,
+    ".yggdrasil/model/image/interface.md": 1774482187794.8506,
+    ".yggdrasil/model/image/internals.md": 1774482187794.8506,
     ".yggdrasil/model/image/responsibility.md": 1774243705579.8562,
     "internal/image/doc.go": 1773836785818.6472,
-    "internal/image/export.go": 1774473361998.1077,
+    "internal/image/export.go": 1774482187801.3335,
     "internal/image/wad.go": 1773836785819.4187,
     "internal/image/tga.go": 1773836785819.212,
     "internal/image/texture.go": 1773836785819.0198,
-    "internal/image/lumptype_string.go": 1774357968252.2192,
-    "internal/image/image_test.go": 1774473447850.0667,
+    "internal/image/lumptype_string.go": 1774681098299.6055,
+    "internal/image/image_test.go": 1774482187801.3335,
     "internal/image/wad_test.go": 1773836785818.8704
   }
 }

@@ -2,38 +2,38 @@
   "hash": "6a442e7fe4e2904f23d82aa3485b8bf6b9c1b42ddd6904d670caf9f19693c131",
   "files": {
     ".yggdrasil/model/net/discovery-support/yg-node.yaml": "40abc2145ae375ca45b217a583c433c0cef5a5ef821975a5ffd89ba4113bfdab",
-    ".yggdrasil/model/net/discovery-support/interface.md": "7b548a4c79020c87c68c40a501f3b058329afe38b492932e41cfe94ee6ea73de",
     ".yggdrasil/model/net/discovery-support/internals.md": "f6b5a41355dcf0d169bfc5a3fdfdd04bf1470e87806e1fb55f14709c313c735f",
     ".yggdrasil/model/net/discovery-support/responsibility.md": "2ce20cbdd22ba58918cd3518ff796ff4684889a11588523752e836b2b8a09542",
     ".yggdrasil/model/net/yg-node.yaml": "20ff828cf42f4f47c9c44802b12c4cf0ca1e909d0d11fa7270f3aefd53734dca",
     ".yggdrasil/model/net/interface.md": "53efc855b32aef0dece591ef3047c0520892d37baf24ec59b44dda47ea4aed11",
     ".yggdrasil/model/net/internals.md": "25b7c56501d6217a72728eb6ef1e17b1d469caa0c6b58b1732aef0ce9767087f",
     ".yggdrasil/model/net/responsibility.md": "31c66c1dfb400c077eff1925861fbd9639a601cac03a34cd45083e0fcaeca26c",
-    "internal/net/slist.go": "88353382d3dce6d1269790942a11b4db8c6a5d3f7bf97879e099fee8d3266009",
     "internal/net/async.go": "d0c65485046ba3db2723ebb74d24a7c8488f52261c826172f33e306989bf52e0",
     "internal/net/ban.go": "5f81da9ebbff072e34b808de0f907b16980b3e492728f3b6f55c2b527d2c6640",
     "internal/net/partial_ip.go": "e585b5a722c8a6b83ef46d55fd10bc98c3c6bc90ba6523755b10824bcb1efbdc",
     "internal/net/async_test.go": "481875648ff0ae81572ac1772a7689a84db184d2cfe645da67e322bdc34b4db8",
     "internal/net/ban_test.go": "e509af201eb2567211f01b9040b78c01723a3dcad40ca59ede3e29c11c3c0efb",
     "internal/net/partial_ip_test.go": "d6c4733a011a0dcadfe386a721675c1c50365e615e40a75ab540b95fc5b2d751",
+    ".yggdrasil/model/net/discovery-support/interface.md": "7b548a4c79020c87c68c40a501f3b058329afe38b492932e41cfe94ee6ea73de",
+    "internal/net/slist.go": "88353382d3dce6d1269790942a11b4db8c6a5d3f7bf97879e099fee8d3266009",
     "internal/net/slist_test.go": "f5cbcd039953a3c13d7023d7690a6a5bb38405341225299cf6cbad8644569886"
   },
   "mtimes": {
     ".yggdrasil/model/net/discovery-support/yg-node.yaml": 1774245622214.251,
-    ".yggdrasil/model/net/discovery-support/interface.md": 1774353750118.2498,
+    ".yggdrasil/model/net/discovery-support/interface.md": 1774474611506.2468,
     ".yggdrasil/model/net/discovery-support/internals.md": 1774353765994.5027,
     ".yggdrasil/model/net/discovery-support/responsibility.md": 1774245622214.2998,
     ".yggdrasil/model/net/yg-node.yaml": 1774245622213.536,
     ".yggdrasil/model/net/interface.md": 1774245622213.6768,
     ".yggdrasil/model/net/internals.md": 1774245622213.7297,
     ".yggdrasil/model/net/responsibility.md": 1774245622213.6143,
-    "internal/net/slist.go": 1774337625242.7937,
+    "internal/net/slist.go": 1774474452966.592,
     "internal/net/async.go": 1773836785816.9692,
     "internal/net/ban.go": 1774300232000.2869,
     "internal/net/partial_ip.go": 1774353707215.566,
     "internal/net/async_test.go": 1773836785817.0725,
     "internal/net/ban_test.go": 1773836785817.8188,
     "internal/net/partial_ip_test.go": 1774353715948.705,
-    "internal/net/slist_test.go": 1774337640231.0813
+    "internal/net/slist_test.go": 1774474452993.5916
   }
 }

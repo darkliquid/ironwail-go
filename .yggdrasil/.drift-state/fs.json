@@ -1,23 +1,23 @@
 {
-  "hash": "6dc5154c2008bae8baee98797fd0b0c1985d3476d05dc317de48975493143379",
+  "hash": "c381e2245b3a7e0472b6755bee3cfd4ecc0f0ae03322522f9c3d699b0bf94e16",
   "files": {
+    ".yggdrasil/model/fs/responsibility.md": "da86b4760c91fd0fbbb4fc30c89719d90bd6d8a808134e3e89db64f9d2143f7d",
+    "internal/fs/doc.go": "75ecd2d8df9dd12f90730d7fc2aa1d4e5a8898d3fc811b9ad8a2cffe7a92ca33",
     ".yggdrasil/model/fs/yg-node.yaml": "8b9db50fccc41be404c0e00f0308d6fae6e755e7cff95e31de8611e368db3498",
     ".yggdrasil/model/fs/interface.md": "93dcc878227e158bc3668be1bb1303d1bb6f85e5b562802efc5ffc360be4d342",
     ".yggdrasil/model/fs/internals.md": "0f7da08d6e5a635179bc7b12466e88f2f2f76b0267a2ab45ea8f43c84a306bde",
-    ".yggdrasil/model/fs/responsibility.md": "da86b4760c91fd0fbbb4fc30c89719d90bd6d8a808134e3e89db64f9d2143f7d",
-    "internal/fs/doc.go": "75ecd2d8df9dd12f90730d7fc2aa1d4e5a8898d3fc811b9ad8a2cffe7a92ca33",
-    "internal/fs/fs.go": "a0fcc9b8a03b9dbb131746fb8d65052c1c718e730f03970541e8e0f9f4e51825",
+    "internal/fs/fs.go": "c96e52130752299cc6b29484ac3d17fa26b6a52130cc3dfcd70b7d3ca39a2164",
     "internal/fs/fs_search.go": "a5681d29fb90345a9e1f74c7567f8235ca209476d1ffda1a3c022b33c3da872e",
-    "internal/fs/fs_test.go": "79526060a1514e9d9338891349b47ed393407f91807c618d62ac2babe11aba00"
+    "internal/fs/fs_test.go": "932e9f9b427e5809bb0f920048f6e26d5e2b9a7dd8a93963ebef914290943b0f"
   },
   "mtimes": {
-    ".yggdrasil/model/fs/yg-node.yaml": 1774243111324.805,
-    ".yggdrasil/model/fs/interface.md": 1774333452547.4382,
-    ".yggdrasil/model/fs/internals.md": 1774333466155.801,
+    ".yggdrasil/model/fs/yg-node.yaml": 1774474450893.6223,
+    ".yggdrasil/model/fs/interface.md": 1774474450848.623,
+    ".yggdrasil/model/fs/internals.md": 1774474450870.6228,
     ".yggdrasil/model/fs/responsibility.md": 1774243111324.8835,
     "internal/fs/doc.go": 1773836785768.1367,
-    "internal/fs/fs.go": 1774333414395.6377,
-    "internal/fs/fs_search.go": 1773836785768.7998,
-    "internal/fs/fs_test.go": 1774333431039.2427
+    "internal/fs/fs.go": 1774482569048.8477,
+    "internal/fs/fs_search.go": 1774474452354.601,
+    "internal/fs/fs_test.go": 1774482569048.9614
   }
 }

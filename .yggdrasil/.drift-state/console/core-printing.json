@@ -1,29 +1,29 @@
 {
-  "hash": "d462894f5b47a10dce75ea862fc6ef4622ca1e154d2ce8838f88920400cb94c7",
+  "hash": "e7c13ac450e2681c4d6225d8b79d88310876c0eae685b2ea3b7c56a7569d5bb0",
   "files": {
     ".yggdrasil/model/console/core-printing/yg-node.yaml": "7e832a97227e52c55f101786cd7434a8d76a9482a4e0cb5e9baccf0db5b11025",
-    ".yggdrasil/model/console/core-printing/interface.md": "5a68c07d078e060387eb7ae4dbb4e09f07bb1627edc8e8e7fdedfaef337fc578",
     ".yggdrasil/model/console/core-printing/responsibility.md": "6a4dc2ce2afa846978ac128657d079d1fb194c54f3cf2c913582edba068ef415",
     ".yggdrasil/model/console/yg-node.yaml": "4ecfe35a062858b2e6c688717bab7ace21ea3c7d9697bb533ed5ad42c8e8d2cb",
     ".yggdrasil/model/console/interface.md": "50b85520b1ccb4b5f0b627ff29a8535cb5ad5de3ae00da248dc8b84fd2d9c770",
     ".yggdrasil/model/console/internals.md": "08e4e3492f912a33b1ef5ccd8b98076baf6aa18742bff5b8ed49308b07398f30",
     ".yggdrasil/model/console/responsibility.md": "9b0af9cfd276e4ff2be919050a49d04b2afea3193c2aa21dbe21b9cca452292f",
     "internal/console/doc.go": "f6c2e4fd42dbb26667a3e21e93280d639f6d788a3cbd05b1d9c47e01febc975c",
-    "internal/console/console.go": "12c8ffc1ef62e8edca1d6a073ce4b1a2383f68ede18737619642c61f8d25455d",
-    "internal/console/console_test.go": "8cf3c66f887d82bc8605b39d584efd213a3f61b7e22c432bdaf8516d3c4ad975",
-    ".yggdrasil/model/console/core-printing/internals.md": "f5258e6c20a5c99a8b09d9d44979c0122df848d4f3637115c5b7a40a22d207df"
+    ".yggdrasil/model/console/core-printing/interface.md": "5a68c07d078e060387eb7ae4dbb4e09f07bb1627edc8e8e7fdedfaef337fc578",
+    ".yggdrasil/model/console/core-printing/internals.md": "f5258e6c20a5c99a8b09d9d44979c0122df848d4f3637115c5b7a40a22d207df",
+    "internal/console/console.go": "dd20e611d615b49af479fbcd9f84bb3b83c3a6564b8b6ce124ce9929460a5741",
+    "internal/console/console_test.go": "8cf3c66f887d82bc8605b39d584efd213a3f61b7e22c432bdaf8516d3c4ad975"
   },
   "mtimes": {
     ".yggdrasil/model/console/core-printing/yg-node.yaml": 1774235616094.8035,
-    ".yggdrasil/model/console/core-printing/interface.md": 1774475646677.9265,
-    ".yggdrasil/model/console/core-printing/internals.md": 1774475914502.758,
+    ".yggdrasil/model/console/core-printing/interface.md": 1774482569042.6958,
+    ".yggdrasil/model/console/core-printing/internals.md": 1774482569042.6958,
     ".yggdrasil/model/console/core-printing/responsibility.md": 1774235616094.8513,
     ".yggdrasil/model/console/yg-node.yaml": 1774235616094.5527,
     ".yggdrasil/model/console/interface.md": 1774235616094.69,
     ".yggdrasil/model/console/internals.md": 1774235616094.7437,
     ".yggdrasil/model/console/responsibility.md": 1774235616094.6328,
     "internal/console/doc.go": 1773836785766.7568,
-    "internal/console/console.go": 1774475242443.8806,
-    "internal/console/console_test.go": 1774475853780.171
+    "internal/console/console.go": 1774482569048.2476,
+    "internal/console/console_test.go": 1774482569048.2476
   }
 }

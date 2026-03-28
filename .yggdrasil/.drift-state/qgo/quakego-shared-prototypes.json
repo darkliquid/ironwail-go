@@ -1,10 +1,12 @@
 {
-  "hash": "8d25a5541d0bbd05c375ec41fc97dc1a31deaa5bec620c4f3ea1deb24e29b822",
+  "hash": "ca26ebdc7fe220d0e8f51e1ea502e4ddf2246ce542583ecd94dc0cec6f0d9fad",
   "files": {
     ".yggdrasil/model/qgo/quakego-shared-prototypes/yg-node.yaml": "f2081a71b12514d16028e851ae511764e4d33163a1b773d495645bcd1ec5d568",
     ".yggdrasil/model/qgo/quakego-shared-prototypes/interface.md": "74a3d5bed40c34a9894b12a6d44c3ae3158088d4673d50f4f01349ea8dcf7a50",
     ".yggdrasil/model/qgo/quakego-shared-prototypes/internals.md": "ff0a2118a43134a0f1ee4e85b3122b433a6e2032293d9908fd9fac0f2a7ba38d",
     ".yggdrasil/model/qgo/quakego-shared-prototypes/responsibility.md": "5535adb9fe76d53fa51a677be3ecd16cc05869da81a71b08c15c0d3833206efe",
+    ".yggdrasil/model/qgo/yg-node.yaml": "70b3a7301c232f3277b6fd201f3b868e782b403d6f5be85811ae86f045f93338",
+    ".yggdrasil/model/qgo/responsibility.md": "713aa683d5b44e1415e7bc49449023717a2641e096d97f763254a25d7619eceb",
     ".yggdrasil/model/qgo/quake-stubs/responsibility.md": "1132195d2e3474c2baae5662d0fbba39275be66b86f98130ecbfb47c51a5d428",
     ".yggdrasil/model/qgo/quake-stubs/interface.md": "ff1f3aa69f3795626f3a8c4744fbfdea65bfbe95a983d1f6530a75b8258b8db3",
     "pkg/qgo/quakego/prototypes.go": "4454db6c8666dac6c2a9ee14d099a862987a252dba27f909dc1eeb01e194b51b",
@@ -17,10 +19,8 @@
     "pkg/qgo/quakego/doors.go": "b7435b06215041934a0def747a3759f114f4553590aab332fc97bd516bb07cfb",
     "pkg/qgo/quakego/fight.go": "b7e961591460472b9a8107c76a778587df1863249fa7e71ab743be21dd6064ad",
     "pkg/qgo/quakego/weapons.go": "73538ee9c645b180220825074698f2f2b5ee6461235945b848a1a70f77bf1ebe",
-    ".yggdrasil/model/qgo/yg-node.yaml": "70b3a7301c232f3277b6fd201f3b868e782b403d6f5be85811ae86f045f93338",
-    ".yggdrasil/model/qgo/interface.md": "9a62990de6bd7a015f715a0cc250c87c893473db33e40aabd1fff984834df6b0",
-    ".yggdrasil/model/qgo/internals.md": "647bc39c090a4eab37e5e9f64e25924b1b197a0552d31324c3ede86689a88243",
-    ".yggdrasil/model/qgo/responsibility.md": "713aa683d5b44e1415e7bc49449023717a2641e096d97f763254a25d7619eceb"
+    ".yggdrasil/model/qgo/interface.md": "19847d370e0cecd3a605e5efb2d83aa87e63f6847b8038b7bdb5ec0e615a10dc",
+    ".yggdrasil/model/qgo/internals.md": "dd06ac14d2bcf2f05b8810999ac14c8fa2b07bfc8ac8dc02842de376a554428f"
   },
   "mtimes": {
     ".yggdrasil/model/qgo/quakego-shared-prototypes/yg-node.yaml": 1774348857665.2185,
@@ -28,8 +28,8 @@
     ".yggdrasil/model/qgo/quakego-shared-prototypes/internals.md": 1774348869516.4028,
     ".yggdrasil/model/qgo/quakego-shared-prototypes/responsibility.md": 1774311093786.8672,
     ".yggdrasil/model/qgo/yg-node.yaml": 1774354005414.3171,
-    ".yggdrasil/model/qgo/interface.md": 1774354006040.3271,
-    ".yggdrasil/model/qgo/internals.md": 1774354006196.3296,
+    ".yggdrasil/model/qgo/interface.md": 1774354638022.065,
+    ".yggdrasil/model/qgo/internals.md": 1774354647423.823,
     ".yggdrasil/model/qgo/responsibility.md": 1774354005918.3252,
     ".yggdrasil/model/qgo/quake-stubs/responsibility.md": 1774311350958.75,
     ".yggdrasil/model/qgo/quake-stubs/interface.md": 1774348861085.2717,

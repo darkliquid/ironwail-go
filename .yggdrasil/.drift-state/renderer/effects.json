@@ -25,7 +25,7 @@
   "mtimes": {
     ".yggdrasil/model/renderer/effects/yg-node.yaml": 1774343606142.7625,
     ".yggdrasil/model/renderer/effects/interface.md": 1774482569044.6958,
-    ".yggdrasil/model/renderer/effects/internals.md": 1774596521435.785,
+    ".yggdrasil/model/renderer/effects/internals.md": 1774681169531.854,
     ".yggdrasil/model/renderer/effects/responsibility.md": 1774219364469.6238,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
@@ -40,8 +40,8 @@
     "internal/renderer/dynamic_light.go": 1773836785804.0117,
     "internal/renderer/dynamic_light_pool.go": 1774348909622.4692,
     "internal/renderer/entity_types.go": 1774125975115.4163,
-    "internal/renderer/particle.go": 1774596515169.6746,
-    "internal/renderer/particle_test.go": 1774596557247.4155,
+    "internal/renderer/particle.go": 1774681169542.7957,
+    "internal/renderer/particle_test.go": 1774681169543.0862,
     "internal/renderer/player_colors.go": 1774125885404.7856
   }
 }

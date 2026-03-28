@@ -58,7 +58,13 @@ fn vs_main(instance: ParticleInstance, @builtin(vertex_index) vertexIndex: u32) 
     let corner = corners[vertexIndex & 3u];
     var clipPosition = uniforms.viewProjection * vec4<f32>(instance.position, 1.0);
     let depthScale = max(1.0 + clipPosition.w * 0.004, 1.08);
-    clipPosition.xy += uniforms.projScale * corner * depthScale;
+    let clipOffset = uniforms.projScale * corner * depthScale;
+    clipPosition = vec4<f32>(
+        clipPosition.x + clipOffset.x,
+        clipPosition.y + clipOffset.y,
+        clipPosition.z,
+        clipPosition.w,
+    );
 
     var output: VertexOutput;
     output.clipPosition = clipPosition;

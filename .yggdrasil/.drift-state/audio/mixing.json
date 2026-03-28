@@ -3,7 +3,6 @@
   "files": {
     ".yggdrasil/model/audio/mixing/yg-node.yaml": "4f1789621770f48bf108b85db7cb33edbe97308b8f18a7b0f66049c6876d2b50",
     ".yggdrasil/model/audio/mixing/interface.md": "cfd33c220001472c160cf695791f4d537daa92037a9f8c783fdb94bf806d1e52",
-    ".yggdrasil/model/audio/mixing/internals.md": "e632aacac69c883f9af766746398a4e4b00cfff6b41c3a4fde2f4a78a86f0713",
     ".yggdrasil/model/audio/mixing/responsibility.md": "fc84aa4f9553751b3db998525981d5fd75908a46ea4f104d3ce8f6195ac28e0c",
     ".yggdrasil/model/audio/yg-node.yaml": "1af7733e032eee68049eeeb261aff1c61b561a8be22c71cca2fba1f69efb0ef2",
     ".yggdrasil/model/audio/interface.md": "713f95d243b9e561e8009a091649b1df330fe378ccdaaf3f8da620bcd1542872",
@@ -15,13 +14,14 @@
     "internal/audio/wav.go": "073b002606c0c94a334c3fceb789e51d2703fa403b639e35864f3dfd8e7264b4",
     "internal/audio/mixer_async.go": "5916c3d12022a32ae322235f024bd4e5a5ce7652e66098991c6bb476254bbe29",
     "internal/audio/mixer_null.go": "da430345e132d88c7327defd1d294e29f409b558e72043b0a776fbfc20b297b8",
-    "internal/audio/audio_test.go": "8b3c6da211ad363b4371f6d7de135e356888346d60e198d13d52dff7e1635567",
-    "internal/audio/mixer_async_test.go": "ea833d9c6224cf2cb09efb3dddbb1c09e6d3ee63f88520b0a85a1924dee7fee5"
+    "internal/audio/mixer_async_test.go": "ea833d9c6224cf2cb09efb3dddbb1c09e6d3ee63f88520b0a85a1924dee7fee5",
+    ".yggdrasil/model/audio/mixing/internals.md": "e632aacac69c883f9af766746398a4e4b00cfff6b41c3a4fde2f4a78a86f0713",
+    "internal/audio/audio_test.go": "8b3c6da211ad363b4371f6d7de135e356888346d60e198d13d52dff7e1635567"
   },
   "mtimes": {
     ".yggdrasil/model/audio/mixing/yg-node.yaml": 1774218897107.448,
     ".yggdrasil/model/audio/mixing/interface.md": 1774218897225.4487,
-    ".yggdrasil/model/audio/mixing/internals.md": 1774218897302.4492,
+    ".yggdrasil/model/audio/mixing/internals.md": 1774474450509.6282,
     ".yggdrasil/model/audio/mixing/responsibility.md": 1774218897180.4485,
     ".yggdrasil/model/audio/yg-node.yaml": 1774218896566.4446,
     ".yggdrasil/model/audio/interface.md": 1774218896675.4453,
@@ -33,7 +33,7 @@
     "internal/audio/wav.go": 1773836785774.4597,
     "internal/audio/mixer_async.go": 1773836785775.0808,
     "internal/audio/mixer_null.go": 1773836785775.2622,
-    "internal/audio/audio_test.go": 1774105878253.9905,
+    "internal/audio/audio_test.go": 1774474451857.6082,
     "internal/audio/mixer_async_test.go": 1774105878256.964
   }
 }

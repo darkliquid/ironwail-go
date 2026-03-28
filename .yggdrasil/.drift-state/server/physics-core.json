@@ -3,6 +3,7 @@
   "files": {
     ".yggdrasil/model/server/physics-core/yg-node.yaml": "d64a34c279acfc9dff3eb437eb5bbcffb05452117a2239399e68f252bd72d1bf",
     ".yggdrasil/model/server/physics-core/interface.md": "ef73374d9de58bd5bb92873c54b1e1b08d0d1fb0805f76a31bd887770d921e25",
+    ".yggdrasil/model/server/physics-core/internals.md": "49a9c07c0c05a43e685ecfd158a8fba7e945d0a08bad2c0bbb8fff3a4bd5a9c1",
     ".yggdrasil/model/server/physics-core/responsibility.md": "0a598c69f88d1f4ad8ce4187b415c174ae3477fff0d68fec65cacf638a66923d",
     ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
     ".yggdrasil/model/server/interface.md": "31e18a0edf10d68397fad666946d8bfb99f281e325fb388b042dc01d088c42d2",
@@ -15,14 +16,13 @@
     ".yggdrasil/model/bsp/responsibility.md": "9d1101bdf415cd0268a4d8e8de92ae095970536a46296f0770b93832d0573b83",
     ".yggdrasil/model/bsp/interface.md": "91ff09541cacc29c279b1e02be68c859414fff304b9ba3cb62c4f1b92acf6556",
     "internal/server/frame.go": "27ddbc645f8534652f7d6d97fcf5299b281cb2cb2e2764de3ca8e35049f36520",
+    "internal/server/physics.go": "2f72dc2fc7b419d78c1173da25f6be7377fde5568cee9766e3a6aae618cee812",
     "internal/server/physics_loop.go": "27fe78b8e718b851dcefb03cb2867a062755788f845f3821db38bf3bafa16c6d",
     "internal/server/rules.go": "1b3d79f22a45a65f737fef0c795f99a542749c2790f79cad72c5a40e5e73243d",
     "internal/server/frame_physics_parity_test.go": "c79fa9d842a92f3651afd4d2b84c7be206f2bc59ff9833433d89983c753c0ef5",
     "internal/server/physics_parity_test.go": "09ee86376c8122101b30ff275075ec8ce98c3725afad02e8360ecee5f1f9d137",
-    "internal/server/rules_test.go": "1bd0ecff90c82153bfdfb67f13d72f4eb5498ca4bc5bfd1a84aaff5fdbe2ad3e",
-    ".yggdrasil/model/server/physics-core/internals.md": "49a9c07c0c05a43e685ecfd158a8fba7e945d0a08bad2c0bbb8fff3a4bd5a9c1",
-    "internal/server/physics.go": "2f72dc2fc7b419d78c1173da25f6be7377fde5568cee9766e3a6aae618cee812",
-    "internal/server/physics_test.go": "67546695795ebb28d3ab6f45a98330cafed49f32c9a24e27e50c2a61d4ae31af"
+    "internal/server/physics_test.go": "67546695795ebb28d3ab6f45a98330cafed49f32c9a24e27e50c2a61d4ae31af",
+    "internal/server/rules_test.go": "1bd0ecff90c82153bfdfb67f13d72f4eb5498ca4bc5bfd1a84aaff5fdbe2ad3e"
   },
   "mtimes": {
     ".yggdrasil/model/server/physics-core/yg-node.yaml": 1774234390008.0103,

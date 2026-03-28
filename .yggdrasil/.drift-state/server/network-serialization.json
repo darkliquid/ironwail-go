@@ -1,31 +1,31 @@
 {
-  "hash": "bd9f5f4b572112956e33886d7003bc1b70ccee7e610b4a60d95f31ee4d8b0b59",
+  "hash": "1fe9a778f2aad49fc414c62f167351ccee29f83f2c8c4f597e1c71c44cc3f9b0",
   "files": {
     ".yggdrasil/model/server/network-serialization/yg-node.yaml": "0ec9299d914df66f0ed4d7341506b6e5d133c6e67f26c9d83f6421309d0e8cc0",
-    ".yggdrasil/model/server/network-serialization/interface.md": "2b2948ecb391d654fb082e5b1a84cbde95257bd62e7c7043aba1d42b4f156bd4",
     ".yggdrasil/model/server/network-serialization/internals.md": "b09459edce54ed6041fa0ac61cbc980a7ba1ae9192704aa38124adc14c151d47",
     ".yggdrasil/model/server/network-serialization/responsibility.md": "9967868c623953e953ae18249395568df96b28b347cd386548f043cac57f11d4",
     ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
     ".yggdrasil/model/server/interface.md": "31e18a0edf10d68397fad666946d8bfb99f281e325fb388b042dc01d088c42d2",
-    ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
     ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
     "internal/server/message.go": "6c51726ba260aece8daf1fc82047bf4a5ee6030614844c84133c88778f0e2e55",
+    "internal/server/sv_send_sound_protocol_test.go": "e68ae98cd649594b2816991f42d6c9744285a5442a8ab06d2026d62ee2468d9f",
+    ".yggdrasil/model/server/network-serialization/interface.md": "2b2948ecb391d654fb082e5b1a84cbde95257bd62e7c7043aba1d42b4f156bd4",
+    ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
     "internal/server/sv_send.go": "4ce019c606eb168577e4e15e9f769c210400eeb9b983d9235b342e18d56d8741",
-    "internal/server/sv_send_test.go": "7b656b620df3902a6ed1adfe8fcf698cbcae31b40ace8a46c2f9fcc6a1e820e8",
-    "internal/server/sv_send_sound_protocol_test.go": "e68ae98cd649594b2816991f42d6c9744285a5442a8ab06d2026d62ee2468d9f"
+    "internal/server/sv_send_test.go": "7b656b620df3902a6ed1adfe8fcf698cbcae31b40ace8a46c2f9fcc6a1e820e8"
   },
   "mtimes": {
     ".yggdrasil/model/server/network-serialization/yg-node.yaml": 1774234390008.6155,
-    ".yggdrasil/model/server/network-serialization/interface.md": 1774475295050.9316,
+    ".yggdrasil/model/server/network-serialization/interface.md": 1774482569044.6958,
     ".yggdrasil/model/server/network-serialization/internals.md": 1774335442301.1409,
     ".yggdrasil/model/server/network-serialization/responsibility.md": 1774234390008.6592,
     ".yggdrasil/model/server/yg-node.yaml": 1774234390007.1306,
     ".yggdrasil/model/server/interface.md": 1774234390007.2683,
-    ".yggdrasil/model/server/internals.md": 1774234390007.3198,
+    ".yggdrasil/model/server/internals.md": 1774234390007.32,
     ".yggdrasil/model/server/responsibility.md": 1774234390007.2136,
     "internal/server/message.go": 1774089553465.4822,
-    "internal/server/sv_send.go": 1774474107713.0254,
-    "internal/server/sv_send_test.go": 1774474659833.1716,
+    "internal/server/sv_send.go": 1774482569052.5923,
+    "internal/server/sv_send_test.go": 1774482569052.7893,
     "internal/server/sv_send_sound_protocol_test.go": 1773872746888.8008
   }
 }

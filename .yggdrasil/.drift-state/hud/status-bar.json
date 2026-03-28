@@ -2,24 +2,24 @@
   "hash": "e03ef879159026cf167b268254dc787c0c7bb6e7149097fccfe91a18ab585439",
   "files": {
     ".yggdrasil/model/hud/status-bar/yg-node.yaml": "0595d480ebe0485046a98a630871f9952979243501296dad48ac2687a4398e03",
-    ".yggdrasil/model/hud/status-bar/interface.md": "5a9bb1a4ae6f21a63daba4962cde7f4c214e426b3847ea3fb45db969893dc98f",
-    ".yggdrasil/model/hud/status-bar/internals.md": "6928d4f02ae10bfd8e3b1f7d2930786566991b8f53c79b2c237f67e045cdf96e",
     ".yggdrasil/model/hud/status-bar/responsibility.md": "fc5ed191fff03bcd45159fa0202b3c9da178778387241c4bfc854e2923cf30aa",
     ".yggdrasil/model/hud/yg-node.yaml": "39ee93487e796587caf2d9ff2f2cdaff740c3da1e1327c59d15dffd714a985a0",
     ".yggdrasil/model/hud/interface.md": "76ee41aeebb231f440f03a3c2fc8785150a29bae17061b931bf0d10b875c39c0",
     ".yggdrasil/model/hud/internals.md": "eb88599f1c81e299fb2c867ea9d39b7a50eaf8b3d171e27d8e1d55cc29763906",
     ".yggdrasil/model/hud/responsibility.md": "13b43a98b1ea6d1b6cbf91f5e5d88375f08f790634e2a4123921f55862357352",
+    ".yggdrasil/model/hud/status-bar/interface.md": "5a9bb1a4ae6f21a63daba4962cde7f4c214e426b3847ea3fb45db969893dc98f",
+    ".yggdrasil/model/hud/status-bar/internals.md": "6928d4f02ae10bfd8e3b1f7d2930786566991b8f53c79b2c237f67e045cdf96e",
     "internal/hud/status.go": "c148f7b4a1daf88e0352c20ef59a1566832105e23dd9d29dfef670334fd96679"
   },
   "mtimes": {
     ".yggdrasil/model/hud/status-bar/yg-node.yaml": 1774243428464.64,
-    ".yggdrasil/model/hud/status-bar/interface.md": 1774243428464.7322,
-    ".yggdrasil/model/hud/status-bar/internals.md": 1774243428464.7803,
+    ".yggdrasil/model/hud/status-bar/interface.md": 1774474451005.6208,
+    ".yggdrasil/model/hud/status-bar/internals.md": 1774474451029.6204,
     ".yggdrasil/model/hud/status-bar/responsibility.md": 1774243428464.686,
     ".yggdrasil/model/hud/yg-node.yaml": 1774243428464.1729,
     ".yggdrasil/model/hud/interface.md": 1774243428464.3076,
     ".yggdrasil/model/hud/internals.md": 1774243428464.3596,
     ".yggdrasil/model/hud/responsibility.md": 1774243428464.2515,
-    "internal/hud/status.go": 1774164011700.1135
+    "internal/hud/status.go": 1774474452624.597
   }
 }

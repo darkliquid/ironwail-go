@@ -1,21 +1,21 @@
 {
   "hash": "9b76dc7ca7d8a0d0b7d7f5f5809913636b0e7d3fe3f541b048396f488adaea27",
   "files": {
-    ".yggdrasil/model/server/world-collision/responsibility.md": "49233881e6461f6a2486a5a121e9e51fac1f122366fce4834d44f559a3c34344",
-    ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
-    ".yggdrasil/model/server/interface.md": "31e18a0edf10d68397fad666946d8bfb99f281e325fb388b042dc01d088c42d2",
-    ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
-    ".yggdrasil/model/bsp/responsibility.md": "9d1101bdf415cd0268a4d8e8de92ae095970536a46296f0770b93832d0573b83",
-    ".yggdrasil/model/bsp/interface.md": "91ff09541cacc29c279b1e02be68c859414fff304b9ba3cb62c4f1b92acf6556",
-    "internal/server/walkable_point_diagnostics_test.go": "23eb701f0c791cd060b7d8a903b8c2c1933696bf58513e878b95154fe3c98f6a",
-    "internal/server/synthetic_bsp_helper.go": "811cc4ad8377b2d57f25262a9c71f8b94465b75a6752072a7aaeeb5719e695f4",
     ".yggdrasil/model/server/world-collision/yg-node.yaml": "0f4596d9051aa776f64c0137751464cb918a91363ed9627e4145f8a695587e8c",
     ".yggdrasil/model/server/world-collision/interface.md": "3185844903e6eec12bd231c6c09d825238b80faa0dfaea4f2ed6b5149bbe27f0",
     ".yggdrasil/model/server/world-collision/internals.md": "829b5fa3e5983bc574a47416dce3b0794cf864aa62e528b85827e87ce083d661",
+    ".yggdrasil/model/server/world-collision/responsibility.md": "49233881e6461f6a2486a5a121e9e51fac1f122366fce4834d44f559a3c34344",
+    ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
+    ".yggdrasil/model/server/interface.md": "31e18a0edf10d68397fad666946d8bfb99f281e325fb388b042dc01d088c42d2",
     ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
+    ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
+    ".yggdrasil/model/bsp/responsibility.md": "9d1101bdf415cd0268a4d8e8de92ae095970536a46296f0770b93832d0573b83",
+    ".yggdrasil/model/bsp/interface.md": "91ff09541cacc29c279b1e02be68c859414fff304b9ba3cb62c4f1b92acf6556",
     "internal/server/world.go": "44f1d3b2985e8f4131c62ddd486c8947733e168608cc2eab0a040b5c12c2c45f",
     "internal/server/trace_test.go": "da6f7686c21f7177afc73187e8524761aecd9db4507bf4a4b132f604b6a55911",
-    "internal/server/world_leafs_test.go": "5320cba1e95455590c6cbdaceaedf14ff39e22ca988efe03f2093c2c45d751e4"
+    "internal/server/world_leafs_test.go": "5320cba1e95455590c6cbdaceaedf14ff39e22ca988efe03f2093c2c45d751e4",
+    "internal/server/walkable_point_diagnostics_test.go": "23eb701f0c791cd060b7d8a903b8c2c1933696bf58513e878b95154fe3c98f6a",
+    "internal/server/synthetic_bsp_helper.go": "811cc4ad8377b2d57f25262a9c71f8b94465b75a6752072a7aaeeb5719e695f4"
   },
   "mtimes": {
     ".yggdrasil/model/server/world-collision/yg-node.yaml": 1774234390007.8179,

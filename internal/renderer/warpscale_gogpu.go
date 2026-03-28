@@ -61,22 +61,8 @@ var<uniform> uniforms: SceneCompositeUniforms;
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    var uv = input.uv;
     let uvScale = uniforms.uvScaleWarpTime.xy;
-    let warpAmp = uniforms.uvScaleWarpTime.z;
-    let time = uniforms.uvScaleWarpTime.w;
-
-    if (warpAmp > 0.0) {
-        let textureSizeVec = vec2<f32>(textureDimensions(sceneTexture));
-        let ddx = dpdx(uv.x) * textureSizeVec.x;
-        let ddy = dpdy(uv.y) * textureSizeVec.y;
-        let aspect = abs(ddy) / max(abs(ddx), 0.0001);
-        let amp = vec2<f32>(warpAmp, warpAmp * aspect);
-        uv = amp + uv * (1.0 - 2.0 * amp);
-        uv += amp * sin(vec2<f32>(uv.y / max(aspect, 0.0001), uv.x) * (3.14159265 * 8.0) + time);
-    }
-
-    return textureSample(sceneTexture, sceneSampler, uv * uvScale);
+    return textureSample(sceneTexture, sceneSampler, input.uv * uvScale);
 }
 `
 

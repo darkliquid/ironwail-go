@@ -1,5 +1,5 @@
 {
-  "hash": "3daa4a5b727cb20b89f262ad3a0359a5a06b215932f17a984058f2e3a841823e",
+  "hash": "32657a96255d9b85b0632abfd06055d8fc39a4d40eaa100acd7042b08f30d9b8",
   "files": {
     ".yggdrasil/model/client/runtime/yg-node.yaml": "5e805d1e34e1d4c1c9574205426a5c64ec5ef4605d4b5f53f70dea9fb87be94a",
     ".yggdrasil/model/client/runtime/responsibility.md": "937a26754403e76ae3694488e176b668bdeb9381a4ba920427e01985f9a25086",
@@ -12,22 +12,22 @@
     "internal/client/telemetry.go": "092c79ee7788f8f6857098b6e8824c274b0dca3dfaaf4200f01623a96aa1c8f6",
     ".yggdrasil/model/client/runtime/interface.md": "2f04ac196d5f79ad550cae875b4242b0dfc9bf5a11a431e47d987bc3bc31fae2",
     ".yggdrasil/model/client/runtime/internals.md": "a3d2e1fd6140470e25cf25699177c0549cbab5281be7816d4d705d5d18bf314d",
-    "internal/client/client.go": "c491872d2f523c7d5873f2d366a0cb031ef1db2bc839fdaa31dee53e7a905297",
-    "internal/client/client_test.go": "5941f078441556da1c98c50cde2268772ffd445d0fc8a5e5aae98f0e1a78ea2e"
+    "internal/client/client.go": "81b9d85dd5debb9631165b4101554c454c570f4964a8f027d44f9fbb2ec1a78e",
+    "internal/client/client_test.go": "c475fa9f97853b021002a2dfb52e7725139f94b3a468c9bcf7cb4d46958984ca"
   },
   "mtimes": {
     ".yggdrasil/model/client/runtime/yg-node.yaml": 1774218996944.151,
-    ".yggdrasil/model/client/runtime/interface.md": 1774474020827.105,
-    ".yggdrasil/model/client/runtime/internals.md": 1774474026911.344,
+    ".yggdrasil/model/client/runtime/interface.md": 1774482569042.6958,
+    ".yggdrasil/model/client/runtime/internals.md": 1774482569042.6958,
     ".yggdrasil/model/client/runtime/responsibility.md": 1774218996991.1514,
     ".yggdrasil/model/client/yg-node.yaml": 1774218996656.1487,
     ".yggdrasil/model/client/interface.md": 1774218996777.1497,
     ".yggdrasil/model/client/internals.md": 1774218996851.1501,
     ".yggdrasil/model/client/responsibility.md": 1774218996715.1492,
     "internal/client/doc.go": 1773836785783.4026,
-    "internal/client/client.go": 1774473682698.0012,
+    "internal/client/client.go": 1774482569046.696,
     "internal/client/errors.go": 1773836785783.9604,
     "internal/client/telemetry.go": 1773948132169.4077,
-    "internal/client/client_test.go": 1774474143445.904
+    "internal/client/client_test.go": 1774482569046.696
   }
 }
