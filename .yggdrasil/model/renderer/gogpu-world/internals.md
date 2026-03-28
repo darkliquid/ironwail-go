@@ -8,6 +8,7 @@ The live GoGPU world/entity implementation now sits in `internal/renderer/world_
 Alias-model CPU mesh shaping now also consumes `internal/renderer/alias/mesh.go`: `world_gogpu.go` keeps only renderer-owned draw orchestration, and cached alias refs are normalized to shared `[]aliasimpl.MeshRef` storage consumed through `MeshFromRefs`. The earlier renderer-local stateless pose/blend helper copy has been removed instead of being maintained beside the shared alias seam.
 GoGPU world runtime submission now records command buffers through public `wgpu.CommandEncoder` / `wgpu.RenderPassEncoder` wrappers and submits them through public `wgpu.Queue`, while the CPU-only subpackage helpers in `internal/renderer/world/gogpu` remain backend-neutral planning code.
 GoGPU particle runtime submission now follows the same wrapper-only path in `internal/renderer/particle_gogpu.go` (public encoder/render-pass/finish/submit plus wrapper resource lifetimes) to keep world-adjacent draw flows on one API surface.
+The particle vertex shader now avoids writable swizzle compound assignment on clip-space position (`clipPosition.xy += ...`) and instead reconstructs `clipPosition` with an explicit `vec4<f32>` update after computing the XY offset. This keeps behavior equivalent while avoiding the Naga/SPIR-V lowering failure (`ExprSwizzle is not a pointer expression`) seen in the GoGPU path.
 
 ## Constraints
 
