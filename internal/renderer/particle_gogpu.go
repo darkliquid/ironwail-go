@@ -101,7 +101,8 @@ var<uniform> uniforms: ParticleUniforms;
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     var color = input.color;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(input.fogPosition, input.fogPosition)), 0.0, 1.0);
-    color.rgb = mix(uniforms.fogColor, color.rgb, fog);
+    let foggedRGB = mix(uniforms.fogColor, color.rgb, fog);
+    color = vec4<f32>(foggedRGB, color.a);
     let radius = length(input.uv);
     let pixel = fwidth(radius);
     color.a *= clamp((1.0 - radius) / pixel, 0.0, 1.0);
