@@ -6,5 +6,8 @@ mapping:
   paths:
     - internal/renderer/input_backend_glfw.go
     - internal/renderer/input_backend_gogpu.go
+    - internal/renderer/gogpu/input_backend.go
+    - internal/renderer/gogpu/input_map.go
     - internal/renderer/input_backend_stub.go
     - internal/renderer/input_backend_glfw_test.go
+    - internal/renderer/gogpu/input_map_test.go

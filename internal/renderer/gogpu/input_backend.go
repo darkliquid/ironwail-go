@@ -4,7 +4,6 @@
 package gogpu
 
 import (
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -31,6 +30,7 @@ type InputBackend struct {
 	callbackInputOK bool
 	callbackSeen    bool
 	pollPrevPressed []bool
+	pollPrevMouse   []bool
 	pollCounter     uint64
 	lastPollLog     time.Time
 }
@@ -42,7 +42,7 @@ func NewInputBackend(app *gg.App, sys *iinput.System) iinput.Backend {
 
 func (b *InputBackend) Init() error {
 	b.initCallbacks()
-	slog.Info("gogpu input backend: init completed")
+	slog.Debug("gogpu input backend: init completed")
 	return nil
 }
 
@@ -56,41 +56,39 @@ func (b *InputBackend) PollEvents() bool {
 
 	if b.app == nil {
 		if time.Since(b.lastPollLog) > time.Second {
-			slog.Info("INPUT poll early", "reason", "app nil", "poll_count", b.pollCounter)
+			slog.Debug("INPUT poll early", "reason", "app nil", "poll_count", b.pollCounter)
 			b.lastPollLog = time.Now()
 		}
 		return true
 	}
 	if b.sys == nil {
 		if time.Since(b.lastPollLog) > time.Second {
-			slog.Info("INPUT poll early", "reason", "sys nil", "poll_count", b.pollCounter)
+			slog.Debug("INPUT poll early", "reason", "sys nil", "poll_count", b.pollCounter)
 			b.lastPollLog = time.Now()
 		}
 		return true
 	}
 	if b.hasCallbackInput() {
 		if time.Since(b.lastPollLog) > time.Second {
-			slog.Info("INPUT poll early", "reason", "callbacks active", "poll_count", b.pollCounter)
+			slog.Debug("INPUT poll early", "reason", "callbacks active", "poll_count", b.pollCounter)
 			b.lastPollLog = time.Now()
 		}
 		return true
 	}
 
 	state := b.app.Input()
-	if state == nil || state.Keyboard() == nil {
+	if state == nil || state.Keyboard() == nil || state.Mouse() == nil {
 		if time.Since(b.lastPollLog) > time.Second {
-			slog.Info("INPUT poll early", "reason", "state/keyboard nil", "poll_count", b.pollCounter)
+			slog.Debug("INPUT poll early", "reason", "state/keyboard nil", "poll_count", b.pollCounter)
 			b.lastPollLog = time.Now()
 		}
 		return true
 	}
 
-	state.Update()
-
 	keyboard := state.Keyboard()
 	mouse := state.Mouse()
 	if time.Since(b.lastPollLog) > time.Second {
-		slog.Info(
+		slog.Debug(
 			"INPUT poll heartbeat",
 			"poll_count", b.pollCounter,
 			"any_pressed", keyboard.AnyPressed(),
@@ -103,16 +101,47 @@ func (b *InputBackend) PollEvents() bool {
 	if len(b.pollPrevPressed) != len(PollingKeyMap) {
 		b.pollPrevPressed = make([]bool, len(PollingKeyMap))
 	}
+	if len(b.pollPrevMouse) != len(PollingMouseButtonMap) {
+		b.pollPrevMouse = make([]bool, len(PollingMouseButtonMap))
+	}
 
 	for index, pair := range PollingKeyMap {
 		pressed := keyboard.Pressed(pair.Src)
 		prev := b.pollPrevPressed[index]
 		if pressed != prev {
-			slog.Info("gogpu input polling key", "src", pair.Src, "dst", pair.Dst, "down", pressed)
+			slog.Debug("gogpu input polling key", "src", pair.Src, "dst", pair.Dst, "down", pressed)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.Dst, Down: pressed, Device: iinput.DeviceKeyboard})
 			b.pollPrevPressed[index] = pressed
 		}
 	}
+	for index, pair := range PollingMouseButtonMap {
+		pressed := mouse.Pressed(pair.Src)
+		prev := b.pollPrevMouse[index]
+		if pressed != prev {
+			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.Dst, Down: pressed, Device: iinput.DeviceMouse})
+			b.pollPrevMouse[index] = pressed
+		}
+	}
+
+	scrollX, scrollY := mouse.Scroll()
+	if scrollY > 0 {
+		b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelUp, Down: true, Device: iinput.DeviceMouse})
+		b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelUp, Down: false, Device: iinput.DeviceMouse})
+	} else if scrollY < 0 {
+		b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelDown, Down: true, Device: iinput.DeviceMouse})
+		b.sys.HandleKeyEvent(iinput.KeyEvent{Key: iinput.KMWheelDown, Down: false, Device: iinput.DeviceMouse})
+	}
+	_ = scrollX
+
+	dx, dy := mouse.Delta()
+	x, y := mouse.Position()
+	b.mu.Lock()
+	b.accumMouseDX += int32(dx)
+	b.accumMouseDY += int32(dy)
+	b.lastMouseX = float64(x)
+	b.lastMouseY = float64(y)
+	b.hasMousePos = true
+	b.mu.Unlock()
 
 	return true
 }
@@ -213,7 +242,7 @@ func (b *InputBackend) initCallbacks() {
 	})
 
 	b.callbacksInited = true
-	slog.Info("gogpu input backend: event source callbacks registered", "event_source", fmt.Sprintf("%T", es))
+	slog.Debug("gogpu input backend: event source callbacks registered")
 }
 
 func (b *InputBackend) markCallbackInput() {
