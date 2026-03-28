@@ -5,6 +5,9 @@ blackbox: false
 mapping:
   paths:
     - internal/audio/backend.go
+    - internal/audio/backend_miniaudio.go
+    - internal/audio/backend_miniaudio_stub.go
+    - internal/audio/backend_miniaudio_test.go
     - internal/audio/backend_oto.go
     - internal/audio/backend_oto_stub.go
     - internal/audio/backend_sdl3.go

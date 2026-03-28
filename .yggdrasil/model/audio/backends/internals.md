@@ -10,6 +10,10 @@ Uses an audio callback path and updates the playback cursor while consuming the 
 
 Uses a goroutine/ticker-driven output loop that reads from the DMA buffer and writes into the oto player/pipe.
 
+### miniaudio backend
+
+Uses a pure-Go runtime-loaded miniaudio device. The playback callback reads from the existing circular DMA byte buffer, decodes little-endian `int16` samples into callback frame slices, and advances the shared sample cursor in lockstep with the runtime mixer.
+
 ### Null backend
 
 Advances a fake playback cursor without hardware output so the rest of the sound system can run in tests or unsupported environments.
@@ -25,6 +29,7 @@ Advances a fake playback cursor without hardware output so the rest of the sound
 
 Observed decision:
 - The Go port supports SDL3, oto, and null output backends behind a common contract.
+- The Go port supports SDL3, oto, miniaudio, and null output backends behind a common contract.
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**

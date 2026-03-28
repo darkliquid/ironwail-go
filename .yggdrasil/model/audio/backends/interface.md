@@ -17,3 +17,4 @@ Observed backend contract:
 - The backend owns the output thread/callback mechanics.
 - The DMA buffer and sample cursor must stay coherent with the runtime mix path.
 - The null backend provides a timing/testing fallback rather than real audio output.
+- The miniaudio backend converts the existing byte-backed DMA ring into callback-provided `int16` sample frames without changing the higher-level mixer contract.

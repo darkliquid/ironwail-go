@@ -10,6 +10,13 @@ import (
 	"github.com/ironwail/ironwail-go/internal/console"
 )
 
+var (
+	newSDL3AudioBackend  = NewSDL3AudioBackend
+	newOtoBackend        = NewOtoBackend
+	newMiniaudioBackend  = NewMiniaudioBackend
+	audioInitSampleRates = []int{44100, 48000}
+)
+
 // AudioAdapter wraps audio.System to implement host.Audio interface
 type AudioAdapter struct {
 	sys              *System
@@ -26,37 +33,46 @@ func (a *AudioAdapter) Init() error {
 	}
 	console.Printf("Sound Initialization\n")
 
-	sdl3 := NewSDL3AudioBackend()
-	oto := NewOtoBackend()
-	slog.Debug("audio backend availability", "sdl3", sdl3 != nil, "oto", oto != nil)
+	sdl3 := newSDL3AudioBackend()
+	oto := newOtoBackend()
+	miniaudio := newMiniaudioBackend()
+	slog.Debug("audio backend availability", "sdl3", sdl3 != nil, "oto", oto != nil, "miniaudio", miniaudio != nil)
 
-	backend := Backend(NewNullBackend())
-	if sdl3 != nil {
-		slog.Debug("selecting SDL3 audio backend")
-		backend = sdl3
-	} else if oto != nil {
-		slog.Debug("selecting Oto audio backend")
-		backend = oto
-	} else {
-		slog.Warn("no hardware audio backends available, using null backend")
+	candidates := []struct {
+		name    string
+		backend Backend
+	}{
+		{name: "SDL3", backend: sdl3},
+		{name: "Oto", backend: oto},
+		{name: "miniaudio", backend: miniaudio},
+		{name: "null", backend: NewNullBackend()},
 	}
 
-	if err := a.sys.Init(backend, 44100, false); err != nil {
-		slog.Warn("failed to init audio at 44.1kHz, retrying at 48kHz", "error", err)
-		// Fallback to 48kHz which is common on modern Linux/Pipewire
-		if err2 := a.sys.Init(backend, 48000, false); err2 != nil {
-			slog.Error("failed to init audio at 48kHz, using null backend", "error", err2)
-			fallback := Backend(NewNullBackend())
-			if err3 := a.sys.Init(fallback, 44100, false); err3 != nil {
-				return err
-			}
-		} else {
-			slog.Info("audio initialized at 48kHz")
+	var initErr error
+	for _, candidate := range candidates {
+		if candidate.backend == nil {
+			continue
 		}
-	} else {
-		slog.Info("audio initialized at 44.1kHz")
+		for index, rate := range audioInitSampleRates {
+			err := a.sys.Init(candidate.backend, rate, false)
+			if err == nil {
+				slog.Info("audio initialized", "backend", candidate.name, "sample_rate", rate)
+				initErr = nil
+				goto startup
+			}
+			initErr = err
+			if index+1 < len(audioInitSampleRates) {
+				slog.Warn("failed to init audio backend, retrying alternate sample rate", "backend", candidate.name, "sample_rate", rate, "error", err)
+				continue
+			}
+			slog.Warn("failed to init audio backend", "backend", candidate.name, "sample_rate", rate, "error", err)
+		}
+	}
+	if initErr != nil {
+		return initErr
 	}
 
+startup:
 	if err := a.sys.Startup(); err != nil {
 		return err
 	}
