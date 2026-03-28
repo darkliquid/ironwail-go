@@ -131,3 +131,15 @@ func TestInstallStableMiniaudioPlaybackCallbackStoresHeapCallback(t *testing.T) 
 		t.Fatalf("callback result = %d, want 42", got[0][0])
 	}
 }
+
+func TestNewMiniaudioBackendRequiresOptIn(t *testing.T) {
+	t.Setenv(miniaudioOptInEnv, "")
+	if backend := NewMiniaudioBackend(); backend != nil {
+		t.Fatalf("backend = %T, want nil when %s is unset", backend, miniaudioOptInEnv)
+	}
+
+	t.Setenv(miniaudioOptInEnv, "1")
+	if backend := NewMiniaudioBackend(); backend == nil {
+		t.Fatalf("backend = nil, want miniaudio backend when %s=1", miniaudioOptInEnv)
+	}
+}

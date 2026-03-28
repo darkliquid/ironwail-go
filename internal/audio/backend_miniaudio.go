@@ -5,6 +5,7 @@ package audio
 import (
 	"encoding/binary"
 	"fmt"
+	"os"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -29,8 +30,23 @@ type MiniaudioBackend struct {
 	pos     int
 }
 
+const miniaudioOptInEnv = "IW_AUDIO_MINIAUDIO"
+
 func NewMiniaudioBackend() Backend {
+	if !miniaudioEnabled() {
+		return nil
+	}
 	return &MiniaudioBackend{}
+}
+
+func miniaudioEnabled() bool {
+	value := os.Getenv(miniaudioOptInEnv)
+	switch value {
+	case "1", "true", "TRUE", "True", "yes", "YES", "Yes", "on", "ON", "On":
+		return true
+	default:
+		return false
+	}
 }
 
 func (b *MiniaudioBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {

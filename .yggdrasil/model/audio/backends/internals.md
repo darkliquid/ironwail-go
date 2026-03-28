@@ -16,6 +16,8 @@ Uses a pure-Go runtime-loaded miniaudio device. The playback callback reads from
 
 The backend installs its playback callback through a heap-stable reference instead of the upstream `SetPlaybackCallback` helper. This avoids a callback-lifetime bug in the current dependency version where the helper stores the address of a stack-local callback value in the hidden `dataCallback` slot, which can later fault when the device invokes playback.
 
+Because the same dependency currently faults on some machines with `SIGILL` after device startup, the miniaudio backend is also opt-in through `IW_AUDIO_MINIAUDIO`. The default runtime path therefore treats miniaudio as experimental rather than as a guaranteed-safe primary backend.
+
 ### Null backend
 
 Advances a fake playback cursor without hardware output so the rest of the sound system can run in tests or unsupported environments.

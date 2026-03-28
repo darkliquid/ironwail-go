@@ -1,5 +1,5 @@
 {
-  "hash": "19228b3bd1cda0394267bef33aa176f1a451952bae2812a5db43bab4496f80ce",
+  "hash": "e3d07a98411ce6e4dd0733514af39807d03145e9d9c89f245ea9ca572aad0854",
   "files": {
     ".yggdrasil/model/audio/backends/yg-node.yaml": "be7f79ee9f66e960534287b849e08f2f957fae89c927e5c5b9273fcdc31b9ddc",
     ".yggdrasil/model/audio/backends/interface.md": "1587041c3ed6e3f32f4eb56b13b0d7c9915a1c611b01e26489185e500cd2dd97",
@@ -14,23 +14,23 @@
     "internal/audio/backend_oto_stub.go": "63d264efd779389c69c36b6c99278cd587977176ff1f92c9ecd82e2514050c48",
     "internal/audio/backend_sdl3.go": "687311a0d46cb512785ff1c89b2c992a19e1fc4fc1c644913d620bbbcb5e3a1d",
     "internal/audio/backend_sdl3_stub.go": "218e603c1500aebc5e04acbc703a0e32930210798459bc57a8b4aa23134410d8",
-    ".yggdrasil/model/audio/backends/internals.md": "0227fbf0456434929a9effaa6d6b21c0f334712320bb7ea8f02f0783551dabd6",
-    "internal/audio/backend_miniaudio.go": "48eb33cdfcaafa9682a76e7b2a448fd5d281052c6fd1b08d91279de9d03e8654",
-    "internal/audio/backend_miniaudio_test.go": "3385c767e37c1f82a886e6f3c88792cd077ffc4d395867ef1d41ed453184bbbc"
+    ".yggdrasil/model/audio/backends/internals.md": "cc69e4ca396d1109af81c8c1289951cfc28710be8f6e02b276e1e2b242d8256d",
+    "internal/audio/backend_miniaudio.go": "55b89157e4dda1333549b811bfc2d6fec98af58d63268b14c85ffa0ae1dd097e",
+    "internal/audio/backend_miniaudio_test.go": "66b839c4f9ca2a38c2b9433b0fe79c4a8598ccb964a5093baf09e40aaef2787b"
   },
   "mtimes": {
     ".yggdrasil/model/audio/backends/yg-node.yaml": 1774686950341.4688,
     ".yggdrasil/model/audio/backends/interface.md": 1774686950342.4688,
-    ".yggdrasil/model/audio/backends/internals.md": 1774688004640.682,
+    ".yggdrasil/model/audio/backends/internals.md": 1774690675806.7334,
     ".yggdrasil/model/audio/backends/responsibility.md": 1774686950341.4688,
     ".yggdrasil/model/audio/yg-node.yaml": 1774218896566.4446,
     ".yggdrasil/model/audio/interface.md": 1774218896675.4453,
     ".yggdrasil/model/audio/internals.md": 1774218896753.4458,
     ".yggdrasil/model/audio/responsibility.md": 1774218896610.4448,
     "internal/audio/backend.go": 1773836785773.3044,
-    "internal/audio/backend_miniaudio.go": 1774687985286.5024,
+    "internal/audio/backend_miniaudio.go": 1774690655743.5767,
     "internal/audio/backend_miniaudio_stub.go": 1774686950138.4675,
-    "internal/audio/backend_miniaudio_test.go": 1774687995262.595,
+    "internal/audio/backend_miniaudio_test.go": 1774690663123.6343,
     "internal/audio/backend_oto.go": 1773836785773.4001,
     "internal/audio/backend_oto_stub.go": 1773836785772.7305,
     "internal/audio/backend_sdl3.go": 1773836785772.5498,
