@@ -1311,6 +1311,8 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	// queue.WriteBuffer is ordered on the queue, not inside a recorded render pass, so
+	// each draw must upload and submit separately when reusing one shared uniform/scratch buffer.
 	for _, draw := range draws {
 		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
 		if len(vertices) == 0 || draw.skin == nil || draw.skin.bindGroup == nil {

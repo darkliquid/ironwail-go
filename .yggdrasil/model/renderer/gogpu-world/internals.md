@@ -121,6 +121,7 @@ Observed decision:
 
 - GoGPU alias-model and alias-shadow rendering now upload the shared scratch/uniform payload for one draw, record one render pass using that payload, submit it, then repeat for the next draw.
 - The backend intentionally avoids encoding multiple alias draws after a sequence of `queue.WriteBuffer` calls into the same shared buffers.
+- `internal/renderer/world_gogpu.go` now keeps an inline note beside `renderAliasDrawsHAL` so future cleanup does not accidentally re-batch those per-draw uploads into one pass.
 
 Rationale:
 
