@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // drawMenuTextBox draws a 9-patch text box (top-left/mid/right, mid-left/mid/

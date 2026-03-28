@@ -47,7 +47,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
 )
 
 // ProgHeaderCRC is the expected CRC checksum for the original Quake progs.dat.

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	"github.com/ironwail/ironwail-go/internal/qc"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 func TestSendServerInfoFitzQuakeOmitsProtocolFlags(t *testing.T) {

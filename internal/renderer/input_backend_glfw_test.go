@@ -7,9 +7,9 @@ package renderer
 import (
 	"testing"
 
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
+	openglimpl "github.com/darkliquid/ironwail-go/internal/renderer/opengl"
 	"github.com/go-gl/glfw/v3.3/glfw"
-	iinput "github.com/ironwail/ironwail-go/internal/input"
-	openglimpl "github.com/ironwail/ironwail-go/internal/renderer/opengl"
 )
 
 func TestMapGLFWKeyMapsPunctuationAndSpecialKeys(t *testing.T) {

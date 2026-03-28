@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/ironwail/ironwail-go/pkg/qgo/quake"
+import "github.com/darkliquid/ironwail-go/pkg/qgo/quake"
 
 // Engine globals that are shared between the engine and the QCVM.
 // These variables are located at fixed offsets in the global address space.

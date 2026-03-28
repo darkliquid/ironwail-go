@@ -3,7 +3,7 @@
 
 package hud
 
-import "github.com/ironwail/ironwail-go/internal/renderer"
+import "github.com/darkliquid/ironwail-go/internal/renderer"
 
 // Crosshair renders the center-screen crosshair character.
 type Crosshair struct {

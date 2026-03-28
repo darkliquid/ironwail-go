@@ -1,6 +1,6 @@
 package renderer
 
-import surfaceimpl "github.com/ironwail/ironwail-go/internal/renderer/surface"
+import surfaceimpl "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 
 const (
 	MaxSanityLightmaps = surfaceimpl.MaxSanityLightmaps

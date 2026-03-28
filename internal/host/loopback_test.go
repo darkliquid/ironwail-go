@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	"github.com/ironwail/ironwail-go/internal/server"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 func TestLocalLoopbackClientFrameAndSendCommand(t *testing.T) {

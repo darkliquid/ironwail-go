@@ -1,7 +1,7 @@
 package audio
 
 import (
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // RegisterCVars registers the audio-related console variables exposed during

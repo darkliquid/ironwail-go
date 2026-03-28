@@ -6,7 +6,7 @@ package renderer
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
 
 // TestBuildWorldGeometry_NilTree tests handling of nil BSP tree.

@@ -3,7 +3,7 @@ package compiler
 import (
 	"go/token"
 
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 // CodeGen converts an IRProgram into QCVM statements, functions, and defs.

@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/input"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // mainKey routes keyboard input while the Main menu page is active.

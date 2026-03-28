@@ -1,4 +1,4 @@
-module github.com/ironwail/ironwail-go
+module github.com/darkliquid/ironwail-go
 
 go 1.26
 

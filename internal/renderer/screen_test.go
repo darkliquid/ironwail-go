@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
 func TestUpdateZoomClampAndRecalc(t *testing.T) {

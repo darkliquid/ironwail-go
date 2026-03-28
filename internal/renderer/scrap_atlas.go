@@ -1,6 +1,6 @@
 package renderer
 
-import scrapimpl "github.com/ironwail/ironwail-go/internal/renderer/scrap"
+import scrapimpl "github.com/darkliquid/ironwail-go/internal/renderer/scrap"
 
 type ScrapUVRect = scrapimpl.ScrapUVRect
 type ScrapEntry = scrapimpl.ScrapEntry

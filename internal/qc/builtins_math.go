@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/console"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	qtypes "github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // ============================================================================

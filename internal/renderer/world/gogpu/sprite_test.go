@@ -9,9 +9,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/model"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestSpriteUniformBytes(t *testing.T) {

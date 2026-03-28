@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/common"
+	"github.com/darkliquid/ironwail-go/internal/common"
 )
 
 // TextSaveGameState captures the line-oriented KEX/native text save format

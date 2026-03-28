@@ -1,8 +1,8 @@
 package renderer
 
 import (
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	warpscaleimpl "github.com/ironwail/ironwail-go/internal/renderer/warpscale"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	warpscaleimpl "github.com/darkliquid/ironwail-go/internal/renderer/warpscale"
 )
 
 // readWaterwarpCvar returns the current r_waterwarp value (0, 1, or >1).

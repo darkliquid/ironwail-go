@@ -3,9 +3,9 @@ package renderer
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/model"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 func TestEmitDynamicLightsOnlyExplosionsSpawnLights(t *testing.T) {

@@ -35,7 +35,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // defaultServerInfoHostname is the fallback server name returned in server

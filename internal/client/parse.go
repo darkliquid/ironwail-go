@@ -7,9 +7,9 @@ import (
 	"math/bits"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/common"
-	"github.com/ironwail/ironwail-go/internal/console"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/common"
+	"github.com/darkliquid/ironwail-go/internal/console"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 const (

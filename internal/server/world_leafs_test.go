@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 func TestFindTouchedLeafsSkipsSolidLeafZero(t *testing.T) {

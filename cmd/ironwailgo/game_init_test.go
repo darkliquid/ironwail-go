@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"testing"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 type registrationModeTestFS struct {

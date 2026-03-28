@@ -13,14 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/host"
-	qimage "github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/host"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // gameCallbacks implements host.FrameCallbacks to drive server+client each frame.

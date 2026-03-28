@@ -5,8 +5,8 @@
 package opengl
 
 import (
+	surfaceimpl "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	surfaceimpl "github.com/ironwail/ironwail-go/internal/renderer/surface"
 )
 
 type ExternalSkyMode uint8

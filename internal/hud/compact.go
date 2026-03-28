@@ -6,8 +6,8 @@ package hud
 import (
 	"fmt"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // CompactHUD renders an alternate, compact HUD overlay inspired by the Quake 64

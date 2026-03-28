@@ -3,7 +3,7 @@ package renderer
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 func TestBuildSpriteRenderModelRetainsFramePixels(t *testing.T) {

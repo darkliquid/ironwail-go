@@ -3,9 +3,9 @@ package main
 import (
 	"math"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	qtypes "github.com/ironwail/ironwail-go/pkg/types"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // viewCalcState holds persistent (frame-to-frame) state for view calculations.

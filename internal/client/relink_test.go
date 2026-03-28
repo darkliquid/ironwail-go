@@ -8,8 +8,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/model"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 // TestRelinkEntities_DemoViewAngleInterpolation verifies that view angles are interpolated during demo playback.

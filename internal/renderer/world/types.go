@@ -1,6 +1,6 @@
 package world
 
-import "github.com/ironwail/ironwail-go/internal/bsp"
+import "github.com/darkliquid/ironwail-go/internal/bsp"
 
 // WorldGeometry holds backend-neutral BSP world data prepared for rendering.
 type WorldGeometry struct {

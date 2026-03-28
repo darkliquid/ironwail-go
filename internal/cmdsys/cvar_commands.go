@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // RegisterCvarCommands registers console commands for cvar manipulation:

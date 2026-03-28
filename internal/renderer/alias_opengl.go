@@ -5,8 +5,8 @@
 package renderer
 
 import (
-	"github.com/ironwail/ironwail-go/internal/model"
-	aliasimpl "github.com/ironwail/ironwail-go/internal/renderer/alias"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 )
 
 func interpolateVertexPosition(pose1Vert, pose2Vert model.TriVertX, scale, origin [3]float32, factor float32) [3]float32 {

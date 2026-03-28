@@ -5,8 +5,8 @@
 package opengl
 
 import (
-	surfaceimpl "github.com/ironwail/ironwail-go/internal/renderer/surface"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+	surfaceimpl "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 func SkyTexturesForFace(face worldimpl.WorldFace, solidTextures, alphaTextures map[int32]uint32, textureAnimations []*surfaceimpl.SurfaceTexture, fallbackSolid, fallbackAlpha uint32, frame int, timeSeconds float64, animateTexture TextureAnimationFunc) (solid, alpha uint32) {

@@ -3,7 +3,7 @@
 
 package gogpu
 
-import worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+import worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 
 type BrushEntityParams struct {
 	Alpha  float32

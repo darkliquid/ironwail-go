@@ -32,13 +32,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/compatrand"
-	"github.com/ironwail/ironwail-go/internal/console"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 // Server holds the state for the current running game.

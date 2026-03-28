@@ -4,8 +4,8 @@
 package renderer
 
 import (
-	iinput "github.com/ironwail/ironwail-go/internal/input"
-	gogpuimpl "github.com/ironwail/ironwail-go/internal/renderer/gogpu"
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
+	gogpuimpl "github.com/darkliquid/ironwail-go/internal/renderer/gogpu"
 )
 
 // InputBackendForSystem returns a Backend implementation wired to this renderer's app.

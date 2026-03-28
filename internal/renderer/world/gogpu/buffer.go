@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"math"
 
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 )
 
 const worldVertexStrideBytes = 11 * 4

@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/common"
-	"github.com/ironwail/ironwail-go/internal/console"
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	"github.com/ironwail/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/common"
+	"github.com/darkliquid/ironwail-go/internal/console"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 var serverSignOnMsg1 = []byte{

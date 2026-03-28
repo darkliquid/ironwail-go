@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // TestParseCommandPreservesEscapedQuotesAndBackslashes tests command line tokenization with escape characters.

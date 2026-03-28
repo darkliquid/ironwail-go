@@ -7,8 +7,8 @@ package opengl
 import (
 	"sync"
 
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/go-gl/glfw/v3.3/glfw"
-	iinput "github.com/ironwail/ironwail-go/internal/input"
 )
 
 type glfwInputBackend struct {

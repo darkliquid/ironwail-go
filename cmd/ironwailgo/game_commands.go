@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/console"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/input"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/input"
 )
 
 var vidRestartFunc = restartVideo

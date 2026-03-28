@@ -55,7 +55,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 // entVarsFieldIndex is a pre-computed reflection lookup table that maps

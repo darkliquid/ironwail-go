@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/model"
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	"github.com/ironwail/ironwail-go/internal/renderer"
-	qtypes "github.com/ironwail/ironwail-go/pkg/types"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func clientEntityStateIsCurrent(state inet.EntityState) bool {

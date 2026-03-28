@@ -15,11 +15,11 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/model"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 )
 
 type TextureUploadOptions struct {

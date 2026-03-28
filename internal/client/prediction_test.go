@@ -7,7 +7,7 @@ package client
 import (
 	"testing"
 
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 // TestPredictPlayersInitialization verifies that the client correctly initializes its prediction state from server data.

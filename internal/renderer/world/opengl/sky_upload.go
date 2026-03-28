@@ -5,9 +5,10 @@
 package opengl
 
 import (
-	"github.com/go-gl/gl/v4.6-core/gl"
-	skyimpl "github.com/ironwail/ironwail-go/internal/renderer/sky"
 	"unsafe"
+
+	skyimpl "github.com/darkliquid/ironwail-go/internal/renderer/sky"
+	"github.com/go-gl/gl/v4.6-core/gl"
 )
 
 var skyboxCubemapTargets = [...]uint32{

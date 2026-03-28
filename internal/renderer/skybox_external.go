@@ -1,6 +1,6 @@
 package renderer
 
-import skyimpl "github.com/ironwail/ironwail-go/internal/renderer/sky"
+import skyimpl "github.com/darkliquid/ironwail-go/internal/renderer/sky"
 
 var (
 	skyboxFaceSuffixes     = skyimpl.SkyboxFaceSuffixes

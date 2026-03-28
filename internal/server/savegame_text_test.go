@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/fs"
 )
 
 func TestParseTextSaveGamePreservesTitle(t *testing.T) {

@@ -1,6 +1,6 @@
 package renderer
 
-import "github.com/ironwail/ironwail-go/internal/model"
+import "github.com/darkliquid/ironwail-go/internal/model"
 
 func resolveAliasSkinSlot(hdr *model.AliasHeader, skinNum int, timeSeconds float64, available int) int {
 	if available <= 0 {

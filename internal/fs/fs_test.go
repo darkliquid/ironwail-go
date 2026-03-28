@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 // TestFilesystemLoadsPak verifies that the filesystem can correctly initialize

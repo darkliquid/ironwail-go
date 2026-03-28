@@ -7,8 +7,8 @@ package renderer
 import (
 	"unsafe"
 
+	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/image"
 )
 
 // initScrapAtlas creates the atlas (256×256 pages) used for small UI textures.

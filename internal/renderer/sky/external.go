@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	qimage "github.com/ironwail/ironwail-go/internal/image"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
 )
 
 var (

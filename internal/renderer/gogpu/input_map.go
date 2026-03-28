@@ -1,9 +1,9 @@
 package gogpu
 
 import (
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
 	ginput "github.com/gogpu/gogpu/input"
 	"github.com/gogpu/gpucontext"
-	iinput "github.com/ironwail/ironwail-go/internal/input"
 )
 
 type PollingKeyPair struct {

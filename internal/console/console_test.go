@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // TestConsoleInputHistory tests the console's input buffer and history management.

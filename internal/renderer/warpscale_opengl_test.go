@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // TestApplyWaterwarpFOV verifies that the r_waterwarp > 1 FOV modulation formula

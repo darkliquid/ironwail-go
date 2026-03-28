@@ -3,7 +3,7 @@ package model
 import (
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 )
 
 // ModelType represents the type of a loaded model.

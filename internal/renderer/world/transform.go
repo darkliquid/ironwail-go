@@ -1,6 +1,6 @@
 package world
 
-import qtypes "github.com/ironwail/ironwail-go/pkg/types"
+import qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 
 var IdentityModelRotationMatrix = [16]float32{
 	1, 0, 0, 0,

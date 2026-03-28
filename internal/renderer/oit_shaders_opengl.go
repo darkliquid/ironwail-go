@@ -7,8 +7,8 @@ package renderer
 import (
 	"fmt"
 
+	worldopengl "github.com/darkliquid/ironwail-go/internal/renderer/world/opengl"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	worldopengl "github.com/ironwail/ironwail-go/internal/renderer/world/opengl"
 )
 
 // oitWorldFragmentShaderGL outputs weighted blended OIT accumulation and

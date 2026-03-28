@@ -7,9 +7,9 @@ package opengl
 import (
 	"sort"
 
-	"github.com/ironwail/ironwail-go/internal/model"
-	surfaceimpl "github.com/ironwail/ironwail-go/internal/renderer/surface"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	surfaceimpl "github.com/darkliquid/ironwail-go/internal/renderer/surface"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 type DrawCall struct {

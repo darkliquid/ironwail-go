@@ -3,8 +3,8 @@ package alias
 import (
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/model"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 type MeshRef struct {

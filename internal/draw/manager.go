@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
 // Manager handles loading and caching of 2D graphics assets from WAD files.

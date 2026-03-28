@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/console"
 )
 
 // AudioAdapter wraps audio.System to implement host.Audio interface

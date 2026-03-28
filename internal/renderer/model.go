@@ -3,7 +3,7 @@ package renderer
 import (
 	"math"
 
-	aliasimpl "github.com/ironwail/ironwail-go/internal/renderer/alias"
+	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 )
 
 const (

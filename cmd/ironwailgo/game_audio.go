@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/audio"
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/audio"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 func resetRuntimeSoundState() {

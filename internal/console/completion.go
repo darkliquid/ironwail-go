@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 type TabCompletionMode int

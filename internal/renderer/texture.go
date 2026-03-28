@@ -11,7 +11,7 @@ package renderer
 import (
 	"log/slog"
 
-	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
 // Texture represents a GPU texture created from a QPic.

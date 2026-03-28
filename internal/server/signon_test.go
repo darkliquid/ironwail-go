@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 func TestAddSignonBuffer(t *testing.T) {

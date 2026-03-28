@@ -1,14 +1,15 @@
 package renderer
 
 import (
-	"github.com/ironwail/ironwail-go/internal/cvar"
 	"math"
 	"math/rand"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/model"
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	qtypes "github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // EmitClientEffects spawns transient render-side effects (muzzle flashes, trails, impacts) from current client/entity state.

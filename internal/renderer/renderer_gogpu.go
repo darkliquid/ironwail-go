@@ -56,14 +56,14 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gogpu/gmath" // retained only for gogpu API boundary (Color type)
 	"github.com/gogpu/gogpu/input"
 	"github.com/gogpu/wgpu"
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 // DrawContext provides frame-specific rendering operations.

@@ -7,8 +7,8 @@ package renderer
 import (
 	"log/slog"
 
+	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/image"
 )
 
 // RenderFrameState carries per-frame render configuration passed to RenderFrame.

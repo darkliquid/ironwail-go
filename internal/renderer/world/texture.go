@@ -4,9 +4,9 @@ import (
 	"encoding/binary"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 // TextureMeta holds parsed texture metadata from BSP miptex entries.

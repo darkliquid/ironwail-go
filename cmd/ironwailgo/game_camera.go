@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/renderer"
-	"github.com/ironwail/ironwail-go/internal/server"
-	qtypes "github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/server"
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func runtimeViewDeltaTime() float64 {

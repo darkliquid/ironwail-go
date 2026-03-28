@@ -1,8 +1,8 @@
 package renderer
 
 import (
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.

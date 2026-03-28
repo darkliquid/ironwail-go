@@ -10,9 +10,9 @@ import (
 	"math"
 	"unsafe"
 
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
-	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 const (

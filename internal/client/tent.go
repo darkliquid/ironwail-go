@@ -5,9 +5,9 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/ironwail/ironwail-go/internal/common"
-	"github.com/ironwail/ironwail-go/internal/compatrand"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/common"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 const (

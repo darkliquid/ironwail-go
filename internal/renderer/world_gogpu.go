@@ -6,18 +6,19 @@ package renderer
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/gogpu/gputypes"
-	"github.com/gogpu/wgpu"
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/model"
-	aliasimpl "github.com/ironwail/ironwail-go/internal/renderer/alias"
-	worldgogpu "github.com/ironwail/ironwail-go/internal/renderer/world/gogpu"
-	"github.com/ironwail/ironwail-go/pkg/types"
 	"log/slog"
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
+	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+	"github.com/darkliquid/ironwail-go/pkg/types"
+	"github.com/gogpu/gputypes"
+	"github.com/gogpu/wgpu"
 )
 
 // ---- merged from world_brush_gogpu_root.go ----

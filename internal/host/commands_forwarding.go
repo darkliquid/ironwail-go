@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 )
 
 func (h *Host) forwardClientCommand(command string, args []string, subs *Subsystems) bool {

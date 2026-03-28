@@ -7,7 +7,7 @@ package renderer
 import (
 	"math"
 
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // CameraState holds the player's camera position and orientation for view setup.

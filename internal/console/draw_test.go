@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
 func registerConsoleNotifyTestCvars() {

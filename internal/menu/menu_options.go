@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/input"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // optionsKey routes keyboard input on the Options menu page.

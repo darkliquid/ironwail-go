@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/testutil"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 // TestLoadAliasModelFromPak0 tests the loading of Quake Alias Models (.mdl).

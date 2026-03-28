@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 func TestGlobalAllocator_ReservesSystem(t *testing.T) {

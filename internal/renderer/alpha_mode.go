@@ -1,6 +1,6 @@
 package renderer
 
-import "github.com/ironwail/ironwail-go/internal/cvar"
+import "github.com/darkliquid/ironwail-go/internal/cvar"
 
 // AlphaMode selects how translucent surfaces are composited.
 // This mirrors C Ironwail's alphamode_t behavior:

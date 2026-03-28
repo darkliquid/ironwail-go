@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 func TestBuildTranslucentLiquidBrushEntityDraw(t *testing.T) {

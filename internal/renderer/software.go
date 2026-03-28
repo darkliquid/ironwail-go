@@ -8,8 +8,8 @@ import (
 	"image/color"
 	"sort"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	qimage "github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
 )
 
 // SoftwareRenderer implements RenderContext using a CPU-side image buffer.

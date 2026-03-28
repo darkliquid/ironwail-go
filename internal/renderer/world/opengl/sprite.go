@@ -5,8 +5,8 @@
 package opengl
 
 import (
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
 )
 
 type SpriteDrawParams struct {

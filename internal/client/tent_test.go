@@ -9,8 +9,8 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/compatrand"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 // TestParseTempEntityBeamStoresBeamState verifies that lightning beams are correctly parsed and stored in the client state.

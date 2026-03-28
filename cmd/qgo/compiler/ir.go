@@ -1,6 +1,6 @@
 package compiler
 
-import "github.com/ironwail/ironwail-go/internal/qc"
+import "github.com/darkliquid/ironwail-go/internal/qc"
 
 // VReg is a virtual register identifier used during IR construction.
 // Virtual registers are mapped to global offsets during code generation.

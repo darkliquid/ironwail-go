@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 type FrameStats struct {

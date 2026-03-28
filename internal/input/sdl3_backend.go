@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	sdl "github.com/Zyko0/go-sdl3/sdl"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // SDL3 backend constants for gamepad processing.

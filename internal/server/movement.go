@@ -3,9 +3,9 @@ package server
 import (
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/model"
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const (

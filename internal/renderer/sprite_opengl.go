@@ -3,7 +3,7 @@
 
 package renderer
 
-import "github.com/ironwail/ironwail-go/internal/model"
+import "github.com/darkliquid/ironwail-go/internal/model"
 
 type glSpriteModel = spriteRenderModel
 type glSpriteFrame = spriteRenderFrame

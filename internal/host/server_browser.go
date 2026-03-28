@@ -1,6 +1,6 @@
 package host
 
-import inet "github.com/ironwail/ironwail-go/internal/net"
+import inet "github.com/darkliquid/ironwail-go/internal/net"
 
 func (h *Host) updateServerBrowserNetworking(subs *Subsystems) {
 	if !h.serverActive || subs == nil || subs.Server == nil || subs.Server.GetMaxClients() <= 1 {

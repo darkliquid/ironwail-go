@@ -3,7 +3,7 @@ package server
 import (
 	"log/slog"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // syncGameModeFromCVars snapshots coop/deathmatch cvars into server booleans.

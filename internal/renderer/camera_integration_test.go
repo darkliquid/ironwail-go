@@ -6,7 +6,7 @@ package renderer
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestRendererUpdateCamera tests that camera updates are properly cached.

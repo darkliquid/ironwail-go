@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 const (

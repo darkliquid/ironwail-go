@@ -3,8 +3,8 @@ package quakego
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/pkg/qgo/quake"
-	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
+	"github.com/darkliquid/ironwail-go/pkg/qgo/quake"
+	"github.com/darkliquid/ironwail-go/pkg/qgo/quake/engine"
 )
 
 func resetTriggerGlobals() {

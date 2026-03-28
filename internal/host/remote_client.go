@@ -6,9 +6,9 @@ package host
 import (
 	"fmt"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 type signonCommandClient interface {

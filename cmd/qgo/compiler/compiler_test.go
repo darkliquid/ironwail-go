@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 func TestCompile_Minimal(t *testing.T) {

@@ -5,8 +5,8 @@
 package renderer
 
 import (
-	iinput "github.com/ironwail/ironwail-go/internal/input"
-	openglimpl "github.com/ironwail/ironwail-go/internal/renderer/opengl"
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
+	openglimpl "github.com/darkliquid/ironwail-go/internal/renderer/opengl"
 )
 
 // InputBackendForSystem returns a GLFW-based input backend for the OpenGL/CGO renderer.

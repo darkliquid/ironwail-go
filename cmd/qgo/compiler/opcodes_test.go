@@ -3,7 +3,7 @@ package compiler
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 func TestOpcodeForStore(t *testing.T) {

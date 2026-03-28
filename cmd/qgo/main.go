@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/ironwail/ironwail-go/cmd/qgo/compiler"
+	"github.com/darkliquid/ironwail-go/cmd/qgo/compiler"
 )
 
 func main() {

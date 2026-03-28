@@ -4,7 +4,7 @@
 package qc
 
 import (
-	"github.com/ironwail/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/console"
 )
 
 // traceline performs a line trace and stores the result in the trace globals.

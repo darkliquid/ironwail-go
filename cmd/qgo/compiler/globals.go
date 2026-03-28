@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/qc"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
 // GlobalAllocator manages the QCVM global address space.

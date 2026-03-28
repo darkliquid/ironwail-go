@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	sdl "github.com/Zyko0/go-sdl3/sdl"
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func withSDLTextHooks(

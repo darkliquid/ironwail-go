@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const DecalUniformBufferSize = 80

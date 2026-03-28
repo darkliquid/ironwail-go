@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 func newOwnerSkipTraceServer(t *testing.T) (*Server, *Edict, *Edict, int) {

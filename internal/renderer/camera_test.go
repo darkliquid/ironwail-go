@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // TestComputeViewMatrixIdentity tests that camera at origin with zero angles produces a valid view.

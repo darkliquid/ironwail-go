@@ -32,7 +32,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // CommandFunc is the signature for a command handler callback. When a console

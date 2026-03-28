@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 // TestPhysicsWalkJump tests walk/jump physics parity.

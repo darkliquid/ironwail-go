@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // CheckVelocity ensures entity velocity is within valid bounds.

@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func assertVec3Close(t *testing.T, name string, got [3]float32, want [3]float32) {

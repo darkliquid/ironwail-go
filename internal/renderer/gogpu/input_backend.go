@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
 	gg "github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
-	iinput "github.com/ironwail/ironwail-go/internal/input"
 )
 
 // InputBackend adapts gogpu input to the engine input.Backend.

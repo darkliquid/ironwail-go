@@ -1,6 +1,6 @@
 package quakego
 
-import "github.com/ironwail/ironwail-go/pkg/qgo/quake"
+import "github.com/darkliquid/ironwail-go/pkg/qgo/quake"
 
 // Shared forward declarations for core quakego support files.
 var (

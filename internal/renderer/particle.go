@@ -1,13 +1,12 @@
 package renderer
 
-import "unsafe"
-
 import (
 	"math"
 	"math/rand"
 	"sync"
+	"unsafe"
 
-	"github.com/ironwail/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
 )
 
 const (

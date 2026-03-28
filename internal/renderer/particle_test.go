@@ -1,15 +1,16 @@
 package renderer
 
 import (
-	"github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/compatrand"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	inet "github.com/ironwail/ironwail-go/internal/net"
 	"math"
 	"math/rand"
 	"sync"
 	"testing"
 	"unsafe"
+
+	"github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 func TestParticleSystemCapacityAndAlloc(t *testing.T) {

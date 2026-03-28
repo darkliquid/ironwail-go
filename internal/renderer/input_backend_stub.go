@@ -4,8 +4,8 @@
 package renderer
 
 import (
-	iinput "github.com/ironwail/ironwail-go/internal/input"
-	stubimpl "github.com/ironwail/ironwail-go/internal/renderer/stub"
+	iinput "github.com/darkliquid/ironwail-go/internal/input"
+	stubimpl "github.com/darkliquid/ironwail-go/internal/renderer/stub"
 )
 
 // InputBackendForSystem is a no-op on builds that don't provide a platform backend.

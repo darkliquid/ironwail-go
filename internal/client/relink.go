@@ -6,9 +6,9 @@ package client
 // events based on model flags, and interpolates demo view angles.
 
 import (
-	"github.com/ironwail/ironwail-go/internal/model"
-	inet "github.com/ironwail/ironwail-go/internal/net"
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 const hardResetMsgOriginDelta = 100.0

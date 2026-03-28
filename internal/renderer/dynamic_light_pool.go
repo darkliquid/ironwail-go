@@ -3,7 +3,7 @@ package renderer
 import (
 	"math"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // glLightPool manages the active set of dynamic lights for the current frame.

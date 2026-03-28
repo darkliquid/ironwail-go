@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 // TestUploadSpriteModel tests sprite model upload.

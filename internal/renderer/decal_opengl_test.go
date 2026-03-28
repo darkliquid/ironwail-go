@@ -7,7 +7,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 func TestPrepareDecalDrawsSortsBackToFront(t *testing.T) {

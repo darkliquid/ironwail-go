@@ -14,8 +14,8 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/cvar"
 )
 
 const (

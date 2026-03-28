@@ -1,6 +1,6 @@
 package renderer
 
-import "github.com/ironwail/ironwail-go/internal/model"
+import "github.com/darkliquid/ironwail-go/internal/model"
 
 // DecalVariant identifies the visual style used by a projected decal mark.
 type DecalVariant int

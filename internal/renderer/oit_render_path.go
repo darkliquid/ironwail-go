@@ -1,6 +1,6 @@
 package renderer
 
-import oitimpl "github.com/ironwail/ironwail-go/internal/renderer/oit"
+import oitimpl "github.com/darkliquid/ironwail-go/internal/renderer/oit"
 
 // shouldSortTranslucentCalls reports whether translucent draw calls should be
 // depth-sorted before rendering.

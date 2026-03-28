@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	worldgogpu "github.com/ironwail/ironwail-go/internal/renderer/world/gogpu"
+	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
 )
 
 func TestGoGPUDecalMarkParamsPreserveGeometry(t *testing.T) {

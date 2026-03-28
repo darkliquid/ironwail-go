@@ -1,8 +1,8 @@
 package quakego
 
 import (
-	"github.com/ironwail/ironwail-go/pkg/qgo/quake"
-	"github.com/ironwail/ironwail-go/pkg/qgo/quake/engine"
+	"github.com/darkliquid/ironwail-go/pkg/qgo/quake"
+	"github.com/darkliquid/ironwail-go/pkg/qgo/quake/engine"
 )
 
 var PLAT_LOW_TRIGGER float32 = 1

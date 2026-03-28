@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/cmdsys"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/input"
-	"github.com/ironwail/ironwail-go/internal/server"
+	"github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 type mockSubsystems struct {

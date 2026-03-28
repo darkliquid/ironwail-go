@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 // TestDemoRecordingOpenClose verifies that demo recording can be started and stopped correctly.

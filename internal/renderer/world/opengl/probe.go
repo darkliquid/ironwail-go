@@ -7,9 +7,9 @@ package opengl
 import (
 	"fmt"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/model"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 // FaceProbeStats captures opt-in world extraction diagnostics for a bbox.

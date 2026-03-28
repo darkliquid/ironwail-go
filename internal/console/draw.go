@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	qimage "github.com/ironwail/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
 )
 
 // DrawContext is the rendering abstraction that decouples console drawing from

@@ -1,7 +1,7 @@
 package menu
 
 import (
-	"github.com/ironwail/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/input"
 )
 
 // mockInputBackend is a mock implementation of input.Backend for testing.

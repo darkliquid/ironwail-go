@@ -12,10 +12,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	qimage "github.com/ironwail/ironwail-go/internal/image"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
-	"github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	qimage "github.com/darkliquid/ironwail-go/internal/image"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 var (

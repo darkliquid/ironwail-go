@@ -25,7 +25,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 const (

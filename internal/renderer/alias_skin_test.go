@@ -3,8 +3,8 @@ package renderer
 import (
 	"testing"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 func TestResolveAliasSkinSlotUsesGroupedSkinTimingAliasSkin(t *testing.T) {

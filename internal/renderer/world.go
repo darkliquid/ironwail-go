@@ -11,14 +11,14 @@ import (
 	"os"
 	"sort"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/image"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/image"
-	"github.com/ironwail/ironwail-go/internal/model"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
-	"github.com/ironwail/ironwail-go/pkg/types"
 )
 
 const worldUniformBufferSize = 128

@@ -4,7 +4,7 @@
 package hud
 
 import (
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // DrawNumber renders a numeric value at the specified position using character glyphs.

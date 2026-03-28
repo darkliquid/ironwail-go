@@ -1,8 +1,10 @@
 package client
 
-import "math"
+import (
+	"math"
 
-import "github.com/ironwail/ironwail-go/pkg/types"
+	"github.com/darkliquid/ironwail-go/pkg/types"
+)
 
 func (c *Client) StartPitchDrift() {
 	if c == nil {

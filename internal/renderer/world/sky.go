@@ -1,8 +1,8 @@
 package world
 
 import (
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func ReadBoolCvar(name string) bool {

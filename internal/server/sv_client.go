@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	inet "github.com/ironwail/ironwail-go/internal/net"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 // writeSpawnStaticMessage emits SVCSpawnStatic(_2) for entities baked into signon world state.

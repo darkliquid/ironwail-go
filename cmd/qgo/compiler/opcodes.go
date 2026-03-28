@@ -1,7 +1,7 @@
 // Package compiler implements a Go-to-QCVM compiler.
 package compiler
 
-import "github.com/ironwail/ironwail-go/internal/qc"
+import "github.com/darkliquid/ironwail-go/internal/qc"
 
 // opcodeForStore returns the STORE opcode for a given QC type.
 func opcodeForStore(t qc.EType) qc.Opcode {

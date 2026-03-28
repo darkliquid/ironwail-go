@@ -1,6 +1,6 @@
 package server
 
-import "github.com/ironwail/ironwail-go/internal/model"
+import "github.com/darkliquid/ironwail-go/internal/model"
 
 // CollisionModel abstracts the collision-relevant aspects of a BSP world model.
 // The server only needs collision data from the world model — it never accesses

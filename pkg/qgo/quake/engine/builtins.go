@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/ironwail/ironwail-go/pkg/qgo/quake"
+import "github.com/darkliquid/ironwail-go/pkg/qgo/quake"
 
 // These functions are mapped to the native implementations within the engine
 // via the //qgo:builtin N directive. The compiler emits function records with negative

@@ -8,9 +8,9 @@ package hud
 import (
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/draw"
-	"github.com/ironwail/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/draw"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // HUDStyle selects the active HUD presentation.

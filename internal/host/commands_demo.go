@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	cl "github.com/ironwail/ironwail-go/internal/client"
+	cl "github.com/darkliquid/ironwail-go/internal/client"
 )
 
 type demoFileOpener interface {

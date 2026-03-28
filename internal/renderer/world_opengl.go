@@ -6,18 +6,19 @@ package renderer
 
 import (
 	"fmt"
-	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/ironwail/ironwail-go/internal/bsp"
-	"github.com/ironwail/ironwail-go/internal/cvar"
-	"github.com/ironwail/ironwail-go/internal/model"
-	aliasimpl "github.com/ironwail/ironwail-go/internal/renderer/alias"
-	worldimpl "github.com/ironwail/ironwail-go/internal/renderer/world"
-	worldopengl "github.com/ironwail/ironwail-go/internal/renderer/world/opengl"
 	"log/slog"
 	"math"
 	"sort"
 	"strings"
 	"unsafe"
+
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+	worldopengl "github.com/darkliquid/ironwail-go/internal/renderer/world/opengl"
+	"github.com/go-gl/gl/v4.6-core/gl"
 )
 
 // ---- merged from world_opengl.go ----

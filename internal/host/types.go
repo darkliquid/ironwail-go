@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ironwail/ironwail-go/internal/client"
-	"github.com/ironwail/ironwail-go/internal/compatrand"
-	"github.com/ironwail/ironwail-go/internal/fs"
-	"github.com/ironwail/ironwail-go/internal/menu"
+	"github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/menu"
 )
 
 const (
