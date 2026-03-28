@@ -5,4 +5,6 @@ blackbox: false
 mapping:
   paths:
     - cmd/ironwailgo/main.go
+    - cmd/ironwailgo/logging.go
+    - cmd/ironwailgo/logging_test.go
     - cmd/ironwailgo/main_test.go

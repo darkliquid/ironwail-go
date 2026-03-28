@@ -789,7 +789,7 @@ func main() {
 	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
 	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
 	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
-	logLevel := flag.String("loglvl", "INFO", "logging level (INFO, WARN, ERROR, DEBUG)")
+	logLevel := flag.String("loglvl", "INFO", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG)")
 	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
 		log.Fatal(err)
 	}
@@ -800,15 +800,8 @@ func main() {
 		startupVidHeight = *heightFlag
 	}
 
-	switch strings.ToUpper(*logLevel) {
-	case "WARN":
-		slog.SetLogLoggerLevel(slog.LevelWarn)
-	case "ERROR":
-		slog.SetLogLoggerLevel(slog.LevelError)
-	case "DEBUG":
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-	default:
-		slog.SetLogLoggerLevel(slog.LevelInfo)
+	if err := installLogging(*logLevel); err != nil {
+		log.Fatal(err)
 	}
 
 	// Parse Quake-style +command arguments (e.g. +map start)

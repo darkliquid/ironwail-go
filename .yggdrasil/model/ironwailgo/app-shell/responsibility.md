@@ -8,6 +8,7 @@
 
 - `Game` and related top-level executable state in `main.go`.
 - `main()` startup flow and mode selection.
+- Process-wide startup logging configuration, including `-loglvl` parsing and default logger installation.
 - Cross-cutting helper glue that does not fit cleanly into narrower child nodes.
 - `main_test.go`, which currently acts as the command package's broad regression suite.
 
