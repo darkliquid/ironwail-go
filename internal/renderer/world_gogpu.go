@@ -1309,35 +1309,6 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
-	if err != nil {
-		slog.Warn("failed to create alias encoder", "error", err)
-		return
-	}
-
-	renderPassDesc := &wgpu.RenderPassDescriptor{
-		Label: "Alias Render Pass",
-		ColorAttachments: []wgpu.RenderPassColorAttachment{{
-			View:    textureView,
-			LoadOp:  gputypes.LoadOpLoad,
-			StoreOp: gputypes.StoreOpStore,
-		}},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
-	}
-	renderPass, _ := encoder.BeginRenderPass(renderPassDesc)
-	renderPass.SetPipeline(pipeline)
-	width, height := r.Size()
-	if width > 0 && height > 0 {
-		maxDepth := float32(1.0)
-		if useViewModelDepthRange {
-			maxDepth = 0.3
-		}
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, maxDepth)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-	}
-	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	for _, draw := range draws {
@@ -1353,18 +1324,48 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 			slog.Warn("failed to upload alias vertices", "error", err)
 			continue
 		}
+		encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
+		if err != nil {
+			slog.Warn("failed to create alias encoder", "error", err)
+			continue
+		}
+		renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			Label: "Alias Render Pass",
+			ColorAttachments: []wgpu.RenderPassColorAttachment{{
+				View:    textureView,
+				LoadOp:  gputypes.LoadOpLoad,
+				StoreOp: gputypes.StoreOpStore,
+			}},
+			DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+		})
+		if err != nil {
+			slog.Warn("failed to begin alias render pass", "error", err)
+			continue
+		}
+		renderPass.SetPipeline(pipeline)
+		width, height := r.Size()
+		if width > 0 && height > 0 {
+			maxDepth := float32(1.0)
+			if useViewModelDepthRange {
+				maxDepth = 0.3
+			}
+			renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, maxDepth)
+			renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		}
+		renderPass.SetVertexBuffer(0, scratchBuffer, 0)
+		renderPass.SetBindGroup(0, uniformBindGroup, nil)
 		renderPass.SetBindGroup(1, draw.skin.bindGroup, nil)
 		renderPass.Draw(uint32(len(vertices)), 1, 0, 0)
-	}
+		renderPass.End()
 
-	renderPass.End()
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish alias encoding", "error", err)
-		return
-	}
-	if err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit alias commands", "error", err)
+		cmdBuffer, err := encoder.Finish()
+		if err != nil {
+			slog.Warn("failed to finish alias encoding", "error", err)
+			continue
+		}
+		if err := queue.Submit(cmdBuffer); err != nil {
+			slog.Warn("failed to submit alias commands", "error", err)
+		}
 	}
 }
 
@@ -2787,31 +2788,6 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 		pipeline = shadowPipeline
 	}
 
-	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Shadow Render Encoder"})
-	if err != nil {
-		slog.Warn("failed to create alias shadow encoder", "error", err)
-		return
-	}
-
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
-		Label: "Alias Shadow Render Pass",
-		ColorAttachments: []wgpu.RenderPassColorAttachment{{
-			View:    textureView,
-			LoadOp:  gputypes.LoadOpLoad,
-			StoreOp: gputypes.StoreOpStore,
-		}},
-		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
-	})
-	renderPass.SetPipeline(pipeline)
-	width, height := r.Size()
-	if width > 0 && height > 0 {
-		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-	}
-	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
-	renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
-
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	for _, draw := range draws {
@@ -2826,17 +2802,44 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 			slog.Warn("failed to upload alias shadow vertices", "error", err)
 			continue
 		}
+		encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Shadow Render Encoder"})
+		if err != nil {
+			slog.Warn("failed to create alias shadow encoder", "error", err)
+			continue
+		}
+		renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			Label: "Alias Shadow Render Pass",
+			ColorAttachments: []wgpu.RenderPassColorAttachment{{
+				View:    textureView,
+				LoadOp:  gputypes.LoadOpLoad,
+				StoreOp: gputypes.StoreOpStore,
+			}},
+			DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+		})
+		if err != nil {
+			slog.Warn("failed to begin alias shadow render pass", "error", err)
+			continue
+		}
+		renderPass.SetPipeline(pipeline)
+		width, height := r.Size()
+		if width > 0 && height > 0 {
+			renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
+			renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+		}
+		renderPass.SetVertexBuffer(0, scratchBuffer, 0)
+		renderPass.SetBindGroup(0, uniformBindGroup, nil)
+		renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
 		renderPass.Draw(uint32(len(draw.vertices)), 1, 0, 0)
-	}
+		renderPass.End()
 
-	renderPass.End()
-	cmdBuffer, err := encoder.Finish()
-	if err != nil {
-		slog.Warn("failed to finish alias shadow encoding", "error", err)
-		return
-	}
-	if err := queue.Submit(cmdBuffer); err != nil {
-		slog.Warn("failed to submit alias shadow commands", "error", err)
+		cmdBuffer, err := encoder.Finish()
+		if err != nil {
+			slog.Warn("failed to finish alias shadow encoding", "error", err)
+			continue
+		}
+		if err := queue.Submit(cmdBuffer); err != nil {
+			slog.Warn("failed to submit alias shadow commands", "error", err)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ Alias-model CPU mesh shaping now also consumes `internal/renderer/alias/mesh.go`
 GoGPU world runtime submission now records command buffers through public `wgpu.CommandEncoder` / `wgpu.RenderPassEncoder` wrappers and submits them through public `wgpu.Queue`, while the CPU-only subpackage helpers in `internal/renderer/world/gogpu` remain backend-neutral planning code.
 GoGPU particle runtime submission now follows the same wrapper-only path in `internal/renderer/particle_gogpu.go` (public encoder/render-pass/finish/submit plus wrapper resource lifetimes) to keep world-adjacent draw flows on one API surface.
 The particle shaders now avoid writable swizzle updates on the GoGPU Vulkan/SPIR-V path. The vertex shader reconstructs `clipPosition` instead of mutating `clipPosition.xy`, and the fragment shader reconstructs `color` from `foggedRGB` instead of assigning through `color.rgb`. This keeps behavior equivalent while avoiding the Naga lowering failure (`ExprSwizzle is not a pointer expression`) seen during shader-module creation.
+GoGPU alias-model and alias-shadow submission must not batch per-draw `queue.WriteBuffer` updates for one shared uniform/scratch buffer inside a single recorded render pass. On this stack, later queue writes can overwrite the data seen by earlier recorded draws, so alias submissions now record and submit one pass per draw after uploading that draw's uniform/vertex payload.
 
 ## Constraints
 
@@ -113,3 +114,15 @@ Rationale:
 - C/Ironwail uses `r_nolerp_list` as a model-level interpolation override; applying the same list in GoGPU prevents backend-specific animation blending drift.
 - Sharing parser behavior with OpenGL avoids diverging tokenization/case-handling behavior for model-list cvars.
 - Moving the pure mesh math behind DTO callbacks removes duplicated alias-vertex shaping logic while leaving GoGPU skin lookup, draw orchestration, and HAL submission in the root backend where renderer-owned state already lives.
+
+### Alias GoGPU draws submit one uploaded payload at a time
+
+Observed decision:
+
+- GoGPU alias-model and alias-shadow rendering now upload the shared scratch/uniform payload for one draw, record one render pass using that payload, submit it, then repeat for the next draw.
+- The backend intentionally avoids encoding multiple alias draws after a sequence of `queue.WriteBuffer` calls into the same shared buffers.
+
+Rationale:
+
+- The previous batched encoding path reused one shared scratch vertex buffer and one shared uniform buffer across multiple draws in a single recorded pass while updating them with `queue.WriteBuffer` inside the draw loop.
+- On the GoGPU/WebGPU path this can collapse multiple alias draws onto the last uploaded payload, which matches the observed flickering/missing-model symptoms for animated alias entities such as zombies and grenades.
