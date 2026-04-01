@@ -27,7 +27,11 @@ type WorldGeometry = worldimpl.WorldGeometry
 type WorldVertex = worldimpl.WorldVertex
 type WorldFace = worldimpl.WorldFace
 
-const worldDepthTextureFormat = gputypes.TextureFormatDepth24PlusStencil8
+// Depth32FloatStencil8 is used instead of Depth24PlusStencil8 because the
+// wgpu HAL maps Depth24PlusStencil8 to VK_FORMAT_D24_UNORM_S8_UINT, which
+// NVIDIA GPUs do not support. Depth32FloatStencil8 maps to
+// VK_FORMAT_D32_SFLOAT_S8_UINT which is universally supported.
+const worldDepthTextureFormat = gputypes.TextureFormatDepth32FloatStencil8
 
 func gogpuNonDecalDepthStencilState(depthWrite bool) *wgpu.DepthStencilState {
 	stencilFace := wgpu.StencilFaceState{
