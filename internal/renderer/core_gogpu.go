@@ -26,6 +26,7 @@ type CoreConfig struct {
 	Backend          types.BackendType
 	GraphicsAPI      types.GraphicsAPI
 	EnableValidation bool
+	GPUPreference    GPUPreference
 }
 
 func DefaultCoreConfig() CoreConfig {
@@ -33,6 +34,7 @@ func DefaultCoreConfig() CoreConfig {
 		Backend:          gogpu.BackendGo,
 		GraphicsAPI:      gogpu.GraphicsAPIAuto,
 		EnableValidation: true,
+		GPUPreference:    GPUPreferHighPerformance,
 	}
 }
 
@@ -90,7 +92,18 @@ func (c *Core) InitHeadless() error {
 		return fmt.Errorf("create instance: %w", err)
 	}
 
-	adapter, err := instance.RequestAdapter(nil)
+	var powerPref gputypes.PowerPreference
+	switch c.cfg.GPUPreference {
+	case GPUPreferHighPerformance:
+		powerPref = gputypes.PowerPreferenceHighPerformance
+	case GPUPreferLowPower:
+		powerPref = gputypes.PowerPreferenceLowPower
+	default:
+		powerPref = gputypes.PowerPreferenceNone
+	}
+	adapter, err := instance.RequestAdapter(&wgpu.RequestAdapterOptions{
+		PowerPreference: powerPref,
+	})
 	if err != nil {
 		instance.Release()
 		return ErrCoreNoAdapters

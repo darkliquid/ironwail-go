@@ -143,8 +143,22 @@ const (
 	// 1 = screen-space sinusoidal warp (post-process distortion of the rendered scene)
 	// 2 = FOV-based warp (oscillates horizontal/vertical FOV while underwater)
 	// Mirrors C Ironwail r_waterwarp: values >1 use FOV modulation, value 1 uses screen warp.
-	CvarRWaterwarp = "r_waterwarp"
-	CvarRLitWater  = "r_litwater" // Lit water: 1=lightmapped water surfaces, 0=unlit (default: 1)
+	CvarRWaterwarp     = "r_waterwarp"
+	CvarRLitWater      = "r_litwater"      // Lit water: 1=lightmapped water surfaces, 0=unlit (default: 1)
+	CvarVidGPUPrefer   = "vid_gpupreference" // GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto
+)
+
+// GPUPreference controls which adapter type is preferred when multiple GPUs
+// are available (e.g. integrated + discrete on a laptop).
+type GPUPreference int
+
+const (
+	// GPUPreferHighPerformance prefers discrete GPUs over integrated (default).
+	GPUPreferHighPerformance GPUPreference = iota
+	// GPUPreferLowPower prefers integrated GPUs for battery life.
+	GPUPreferLowPower
+	// GPUPreferAuto lets the driver/runtime choose.
+	GPUPreferAuto
 )
 
 // Config holds the video configuration for the renderer.
@@ -172,6 +186,13 @@ type Config struct {
 
 	// Title is the window title displayed in the title bar.
 	Title string
+
+	// GPUPreference controls adapter selection when multiple GPUs are
+	// available (e.g. integrated + discrete on a laptop).
+	// 0 = high-performance (prefer discrete GPU, default)
+	// 1 = low-power (prefer integrated GPU)
+	// 2 = auto (let driver choose)
+	GPUPreference GPUPreference
 }
 
 // DefaultConfig returns a Config with sensible defaults for a modern game.
@@ -210,6 +231,16 @@ func ConfigFromCvars() Config {
 	}
 	if cv := cvar.Get(CvarRGamma); cv != nil {
 		cfg.Gamma = cv.Float32()
+	}
+	if cv := cvar.Get(CvarVidGPUPrefer); cv != nil {
+		switch cv.Int {
+		case 1:
+			cfg.GPUPreference = GPUPreferLowPower
+		case 2:
+			cfg.GPUPreference = GPUPreferAuto
+		default:
+			cfg.GPUPreference = GPUPreferHighPerformance
+		}
 	}
 
 	return cfg

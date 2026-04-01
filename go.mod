@@ -22,7 +22,6 @@ require (
 require (
 	github.com/Zyko0/purego-gen v0.0.0-20250727121216-3bcd331a1e0c // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/gen2brain/alsa v0.5.0 // indirect
 	github.com/go-webgpu/goffi v0.5.0 // indirect
 	github.com/go-webgpu/webgpu v0.4.3 // indirect
 	github.com/gogpu/naga v0.15.2 // indirect
@@ -31,6 +30,7 @@ require (
 	github.com/heucuva/comparison v1.0.0 // indirect
 	github.com/heucuva/optional v0.0.1 // indirect
 	github.com/icza/bitio v1.1.0 // indirect
+	github.com/jfreymuth/pulse v0.1.1 // indirect
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect
 	github.com/mewpkg/term v0.0.0-20241026122259-37a80af23985 // indirect

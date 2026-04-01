@@ -961,6 +961,20 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	// Apply VSync setting from engine config
 	gpuCfg = gpuCfg.WithVSync(cfg.VSync)
 
+	// Log GPU preference — gogpu doesn't yet support PowerPreference in its
+	// Config, so this only affects our headless Core path. On the runtime
+	// path, adapter selection falls back to the first non-CPU GPU enumerated
+	// by the driver. Use DRI_PRIME=1 (Linux) to force discrete GPU selection
+	// at the Vulkan loader level.
+	switch cfg.GPUPreference {
+	case GPUPreferHighPerformance:
+		slog.Info("GPU preference: high-performance (discrete)")
+	case GPUPreferLowPower:
+		slog.Info("GPU preference: low-power (integrated)")
+	default:
+		slog.Info("GPU preference: auto")
+	}
+
 	// Use Pure Go backend (no CGO required)
 	gpuCfg = gpuCfg.WithBackend(gogpu.BackendGo)
 

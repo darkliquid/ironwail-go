@@ -122,6 +122,7 @@ func initGameHost() error {
 	cvar.Register("vid_height", strconv.Itoa(startupVidHeight), cvar.FlagArchive, "Video height")
 	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode (0=windowed, 1=fullscreen)")
 	cvar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
+	cvar.Register("vid_gpupreference", "0", cvar.FlagArchive, "GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto")
 	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
 	cvar.Register("pr_checkextension", "1", cvar.FlagArchive, "Enable QuakeC extension checks")
 	cvar.Register("cl_nocsqc", "0", cvar.FlagArchive, "Disable CSQC loading")
