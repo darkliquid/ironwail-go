@@ -124,6 +124,8 @@ type overlay2D struct {
 
 // ensureOverlay initializes or resets the CPU overlay compositor at the
 // current screen resolution. Called lazily on the first 2D draw each frame.
+// Reuses a pooled pixel buffer from the Renderer to avoid ~4.5MB allocation
+// per frame.
 func (dc *DrawContext) ensureOverlay() *overlay2D {
 	if dc.overlay != nil {
 		return dc.overlay
@@ -132,8 +134,21 @@ func (dc *DrawContext) ensureOverlay() *overlay2D {
 	if w <= 0 || h <= 0 {
 		return nil
 	}
+	needed := w * h * 4
+	r := dc.renderer
+	r.mu.Lock()
+	// Reuse pooled buffer if dimensions match, otherwise allocate.
+	if r.overlayBufWidth == w && r.overlayBufHeight == h && len(r.overlayPixelBuf) == needed {
+		clear(r.overlayPixelBuf)
+	} else {
+		r.overlayPixelBuf = make([]byte, needed)
+		r.overlayBufWidth = w
+		r.overlayBufHeight = h
+	}
+	buf := r.overlayPixelBuf
+	r.mu.Unlock()
 	dc.overlay = &overlay2D{
-		pixels: make([]byte, w*h*4),
+		pixels: buf,
 		width:  w,
 		height: h,
 	}
@@ -141,20 +156,49 @@ func (dc *DrawContext) ensureOverlay() *overlay2D {
 }
 
 // flush2DOverlay uploads the CPU overlay buffer as a single GPU texture and
-// draws it onto the current surface in one submit. This replaces ~80 individual
-// GPU submissions with a single one.
+// draws it onto the current surface in one submit. Reuses a cached GPU
+// texture when dimensions match to avoid per-frame CreateTexture overhead.
 func (dc *DrawContext) flush2DOverlay() {
 	ov := dc.overlay
 	if ov == nil || !ov.dirty {
+		dc.overlay = nil
 		return
 	}
-	tex, err := dc.ctx.Renderer().NewTextureFromRGBA(ov.width, ov.height, ov.pixels)
-	if err != nil {
-		slog.Error("flush2DOverlay: texture upload failed", "error", err)
-		return
-	}
-	if err := dc.ctx.DrawTextureScaled(tex, 0, 0, float32(ov.width), float32(ov.height)); err != nil {
-		slog.Error("flush2DOverlay: draw failed", "error", err)
+	r := dc.renderer
+	r.mu.Lock()
+	// Reuse cached GPU texture if dimensions match.
+	if r.overlayTexture != nil && r.overlayTextureWidth == ov.width && r.overlayTextureHeight == ov.height {
+		tex := r.overlayTexture
+		r.mu.Unlock()
+		if err := tex.UpdateData(ov.pixels); err != nil {
+			slog.Error("flush2DOverlay: texture update failed", "error", err)
+			dc.overlay = nil
+			return
+		}
+		if err := dc.ctx.DrawTextureScaled(tex, 0, 0, float32(ov.width), float32(ov.height)); err != nil {
+			slog.Error("flush2DOverlay: draw failed", "error", err)
+		}
+	} else {
+		// Dimensions changed or first frame — create new texture.
+		if r.overlayTexture != nil {
+			r.overlayTexture.Destroy()
+			r.overlayTexture = nil
+		}
+		r.mu.Unlock()
+		tex, err := dc.ctx.Renderer().NewTextureFromRGBA(ov.width, ov.height, ov.pixels)
+		if err != nil {
+			slog.Error("flush2DOverlay: texture upload failed", "error", err)
+			dc.overlay = nil
+			return
+		}
+		r.mu.Lock()
+		r.overlayTexture = tex
+		r.overlayTextureWidth = ov.width
+		r.overlayTextureHeight = ov.height
+		r.mu.Unlock()
+		if err := dc.ctx.DrawTextureScaled(tex, 0, 0, float32(ov.width), float32(ov.height)); err != nil {
+			slog.Error("flush2DOverlay: draw failed", "error", err)
+		}
 	}
 	dc.overlay = nil
 }
@@ -861,6 +905,16 @@ type Renderer struct {
 	polyBlendUniformBuffer         *wgpu.Buffer
 	polyBlendBindGroupLayout       *wgpu.BindGroupLayout
 	polyBlendBindGroup             *wgpu.BindGroup
+
+	// Cached overlay texture for 2D compositing — avoids creating a new
+	// GPU texture every frame. Recreated only when screen dimensions change.
+	overlayTexture       *gogpu.Texture
+	overlayTextureWidth  int
+	overlayTextureHeight int
+	// Pooled CPU pixel buffer — avoids ~4.5MB allocation per frame.
+	overlayPixelBuf []byte
+	overlayBufWidth int
+	overlayBufHeight int
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -1262,6 +1316,11 @@ func (r *Renderer) Shutdown() {
 	r.destroyPolyBlendResourcesLocked()
 	r.destroyWorldRenderTargetLocked()
 	r.destroySceneCompositeResourcesLocked()
+	if r.overlayTexture != nil {
+		r.overlayTexture.Destroy()
+		r.overlayTexture = nil
+	}
+	r.overlayPixelBuf = nil
 	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
