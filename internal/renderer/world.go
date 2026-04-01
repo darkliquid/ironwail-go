@@ -2413,6 +2413,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldLightStyleValues = lightstyleValues
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthTextureView
+	if depthTexture != nil {
+		r.worldDepthWidth = width
+		r.worldDepthHeight = height
+	}
 	if err := r.ensureGoGPUExternalSkyboxLocked(device, queue); err != nil && r.worldSkyExternalMode == externalSkyboxRenderFaces {
 		slog.Debug("external gogpu skybox remains deferred", "name", r.worldSkyExternalName, "error", err)
 	}
@@ -2473,6 +2477,11 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("renderWorldInternal: HAL device or queue not available for world rendering")
 		return
 	}
+
+	// Ensure depth texture matches current surface dimensions (handles window resize).
+	dc.renderer.mu.Lock()
+	dc.renderer.ensureAliasDepthTextureLocked(device)
+	dc.renderer.mu.Unlock()
 
 	// Create command encoder
 	slog.Debug("renderWorldInternal: creating command encoder")
@@ -2862,6 +2871,7 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 	}
 
 	dc.renderer.mu.Lock()
+	dc.renderer.ensureAliasDepthTextureLocked(device)
 	depthView := dc.renderer.worldDepthTextureView
 	dc.renderer.mu.Unlock()
 	attachment := gogpuSharedDepthStencilClearAttachmentForView(depthView)
@@ -3345,6 +3355,8 @@ func (r *Renderer) ClearWorld() {
 		r.whiteTextureView = nil
 		r.worldDepthTexture = nil
 		r.worldDepthTextureView = nil
+		r.worldDepthWidth = 0
+		r.worldDepthHeight = 0
 		r.brushModelGeometry = make(map[int]*WorldGeometry)
 		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
 

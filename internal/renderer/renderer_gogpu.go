@@ -573,6 +573,8 @@ type Renderer struct {
 	whiteTextureView      *wgpu.TextureView
 	worldDepthTexture     *wgpu.Texture
 	worldDepthTextureView *wgpu.TextureView
+	worldDepthWidth       int
+	worldDepthHeight      int
 
 	// Offscreen render target for world rendering
 	worldRenderTexture            *wgpu.Texture

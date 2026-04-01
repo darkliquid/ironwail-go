@@ -955,20 +955,42 @@ func createAliasRenderPipeline(device *wgpu.Device, vertexShader, fragmentShader
 }
 
 func (r *Renderer) ensureAliasDepthTextureLocked(device *wgpu.Device) {
-	if r.worldDepthTextureView != nil || device == nil {
+	if device == nil {
 		return
 	}
 	width, height := r.Size()
 	if width <= 0 || height <= 0 {
 		return
 	}
+	// Recreate if nil or dimensions changed (e.g. window resize).
+	if r.worldDepthTextureView != nil && r.worldDepthWidth == width && r.worldDepthHeight == height {
+		return
+	}
+	if r.worldDepthTextureView != nil {
+		slog.Debug("recreating world depth texture for new dimensions",
+			"old", fmt.Sprintf("%dx%d", r.worldDepthWidth, r.worldDepthHeight),
+			"new", fmt.Sprintf("%dx%d", width, height))
+	}
+	// Release old resources.
+	if r.worldDepthTextureView != nil {
+		r.worldDepthTextureView.Release()
+	}
+	if r.worldDepthTexture != nil {
+		r.worldDepthTexture.Release()
+	}
 	depthTexture, depthView, err := r.createWorldDepthTexture(device, width, height)
 	if err != nil {
 		slog.Warn("failed to create alias depth texture", "error", err)
+		r.worldDepthTexture = nil
+		r.worldDepthTextureView = nil
+		r.worldDepthWidth = 0
+		r.worldDepthHeight = 0
 		return
 	}
 	r.worldDepthTexture = depthTexture
 	r.worldDepthTextureView = depthView
+	r.worldDepthWidth = width
+	r.worldDepthHeight = height
 }
 
 func (r *Renderer) ensureAliasModelLocked(device *wgpu.Device, queue *wgpu.Queue, modelID string, mdl *model.Model) *gpuAliasModel {
