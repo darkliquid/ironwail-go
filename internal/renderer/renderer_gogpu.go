@@ -315,6 +315,54 @@ func (dc *DrawContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
 	}
 }
 
+// DrawString renders an entire line of text as a single GPU texture, instead
+// of issuing one command encoder + render pass + submit per character. This
+// reduces GPU submission overhead from ~950 per console frame to ~15.
+func (dc *DrawContext) DrawString(x, y int, text []byte) {
+	if len(text) == 0 {
+		return
+	}
+	dc.renderer.mu.RLock()
+	conchars := dc.renderer.concharsData
+	palette := dc.renderer.palette
+	dc.renderer.mu.RUnlock()
+
+	if len(conchars) < 128*128 || len(palette) < 768 {
+		// Conchars not loaded yet — fall back to per-character.
+		for i, ch := range text {
+			dc.DrawCharacter(x+i*8, y, int(ch))
+		}
+		return
+	}
+
+	// Composite all characters into a single pixel buffer (palette indices).
+	w := len(text) * 8
+	pixels := make([]byte, w*8) // filled with 0 = transparent in conchars
+	for i, ch := range text {
+		num := int(ch) & 0xFF
+		col := num % 16
+		row := num / 16
+		for py := 0; py < 8; py++ {
+			srcOff := (row*8+py)*128 + col*8
+			dstOff := py*w + i*8
+			copy(pixels[dstOff:dstOff+8], conchars[srcOff:srcOff+8])
+		}
+	}
+
+	// Convert to RGBA (index 0 → transparent via ConvertConcharsToRGBA).
+	rgba := ConvertConcharsToRGBA(pixels, palette)
+	tex, err := dc.ctx.Renderer().NewTextureFromRGBA(w, 8, rgba)
+	if err != nil {
+		slog.Error("DrawString: texture upload failed", "len", len(text), "error", err)
+		return
+	}
+
+	rect := dc.screenPicRect(x, y, w, 8)
+	if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
+		slog.Error("DrawString: draw failed", "len", len(text), "error", err)
+	}
+}
+
 // DrawMenuCharacter renders a single 8×8 character in menu-space coordinates.
 func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
 	if num < 0 || num > 255 {

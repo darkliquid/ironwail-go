@@ -44,6 +44,16 @@ type DrawContext interface {
 	DrawPic(x, y int, pic *qimage.QPic)
 }
 
+// StringDrawer is an optional interface that DrawContext implementations can
+// provide for efficient batch text rendering. When supported, entire text
+// lines are composited into a single texture and drawn in one GPU operation,
+// instead of issuing a separate draw call per character. This dramatically
+// reduces GPU command submission overhead in backends like GoGPU where each
+// DrawCharacter creates a separate command encoder, render pass, and submit.
+type StringDrawer interface {
+	DrawString(x, y int, text []byte)
+}
+
 type scaledPicKey struct {
 	src           *qimage.QPic
 	width, height uint32
@@ -326,15 +336,34 @@ func (c *Console) lineBytesLocked(lineNum int) []byte {
 // outside the console area. This is used for scrollback lines, which are
 // stored as []byte in the ring buffer.
 func drawByteText(rc DrawContext, x, y int, text []byte, maxChars int) {
-	drawByteTextAlpha(rc, x, y, text, maxChars, 0, 1)
-}
-
-func drawByteTextAlpha(rc DrawContext, x, y int, text []byte, maxChars, lineIndex int, alpha float64) {
-	if rc == nil || maxChars == 0 {
+	if rc == nil || maxChars == 0 || len(text) == 0 {
 		return
 	}
 	if maxChars > 0 && len(text) > maxChars {
 		text = text[:maxChars]
+	}
+	if sd, ok := rc.(StringDrawer); ok {
+		sd.DrawString(x, y, text)
+		return
+	}
+	for i, ch := range text {
+		rc.DrawCharacter(x+i*consoleCharWidth, y, int(ch))
+	}
+}
+
+func drawByteTextAlpha(rc DrawContext, x, y int, text []byte, maxChars, lineIndex int, alpha float64) {
+	if rc == nil || maxChars == 0 || len(text) == 0 {
+		return
+	}
+	if maxChars > 0 && len(text) > maxChars {
+		text = text[:maxChars]
+	}
+	// Full opacity: use batch drawing if available.
+	if alpha >= 0.875 {
+		if sd, ok := rc.(StringDrawer); ok {
+			sd.DrawString(x, y, text)
+			return
+		}
 	}
 	for i, ch := range text {
 		if shouldDrawNotifyChar(lineIndex, i, alpha) {
@@ -355,6 +384,13 @@ func drawCenteredNotifyText(rc DrawContext, charsWide, y int, text []byte, lineI
 		return
 	}
 	x := (charsWide - len(trimmed)) * consoleCharWidth / 2
+	// Full opacity: use batch drawing if available.
+	if alpha >= 0.875 {
+		if sd, ok := rc.(StringDrawer); ok {
+			sd.DrawString(x, y, trimmed)
+			return
+		}
+	}
 	for i, ch := range trimmed {
 		if shouldDrawNotifyChar(lineIndex, i, alpha) {
 			rc.DrawCharacter(x+i*consoleCharWidth, y, int(ch))
@@ -368,7 +404,19 @@ func drawCenteredNotifyText(rc DrawContext, charsWide, y int, text []byte, lineI
 // This is used for the input line, which is stored as []rune to support
 // correct backspacing of multi-byte UTF-8 characters.
 func drawRuneText(rc DrawContext, x, y int, text []rune) {
-	if rc == nil {
+	if rc == nil || len(text) == 0 {
+		return
+	}
+	if sd, ok := rc.(StringDrawer); ok {
+		buf := make([]byte, len(text))
+		for i, ch := range text {
+			num := int(ch)
+			if num < 0 || num > 255 {
+				num = int('?')
+			}
+			buf[i] = byte(num)
+		}
+		sd.DrawString(x, y, buf)
 		return
 	}
 	for i, ch := range text {
@@ -384,7 +432,11 @@ func drawRuneText(rc DrawContext, x, y int, text []rune) {
 // This matches C Ironwail's M_PrintWhite: each byte is drawn as-is without
 // setting the high bit. Used for the version/title string in the console.
 func drawWhiteText(rc DrawContext, x, y int, text string) {
-	if rc == nil {
+	if rc == nil || len(text) == 0 {
+		return
+	}
+	if sd, ok := rc.(StringDrawer); ok {
+		sd.DrawString(x, y, []byte(text))
 		return
 	}
 	for i := 0; i < len(text); i++ {
