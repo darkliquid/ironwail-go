@@ -87,6 +87,13 @@ type DrawContext struct {
 	canvasParams      CanvasTransformParams
 	sceneRenderActive bool
 	sceneRenderTarget *wgpu.TextureView
+
+	// overlay is the CPU-side 2D compositor buffer. All 2D draw calls
+	// (DrawPic, DrawFill, DrawCharacter, DrawString) composite into this
+	// buffer at screen resolution instead of issuing individual GPU
+	// submissions through gogpu's 2D API. The overlay is flushed as a
+	// single texture upload + draw at the end of the 2D overlay phase.
+	overlay *overlay2D
 }
 
 func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipelineDescriptor) (*wgpu.RenderPipeline, error) {
@@ -101,6 +108,186 @@ func validatedGoGPURenderPipeline(device *wgpu.Device, desc *wgpu.RenderPipeline
 }
 
 var halOnlyFrameConsumed atomic.Bool
+
+// overlay2D is a CPU-side RGBA compositor buffer at screen resolution.
+// Instead of issuing one GPU command encoder + render pass + submit per 2D
+// draw call (which is what gogpu's DrawTextureScaled/DrawTextureEx does),
+// all 2D draws composite into this buffer on the CPU. The buffer is then
+// uploaded as a single GPU texture and drawn in one submit at the end of
+// the 2D overlay phase.
+type overlay2D struct {
+	pixels []byte // RGBA at screen resolution (straight alpha)
+	width  int
+	height int
+	dirty  bool
+}
+
+// ensureOverlay initializes or resets the CPU overlay compositor at the
+// current screen resolution. Called lazily on the first 2D draw each frame.
+func (dc *DrawContext) ensureOverlay() *overlay2D {
+	if dc.overlay != nil {
+		return dc.overlay
+	}
+	w, h := dc.renderer.Size()
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	dc.overlay = &overlay2D{
+		pixels: make([]byte, w*h*4),
+		width:  w,
+		height: h,
+	}
+	return dc.overlay
+}
+
+// flush2DOverlay uploads the CPU overlay buffer as a single GPU texture and
+// draws it onto the current surface in one submit. This replaces ~80 individual
+// GPU submissions with a single one.
+func (dc *DrawContext) flush2DOverlay() {
+	ov := dc.overlay
+	if ov == nil || !ov.dirty {
+		return
+	}
+	tex, err := dc.ctx.Renderer().NewTextureFromRGBA(ov.width, ov.height, ov.pixels)
+	if err != nil {
+		slog.Error("flush2DOverlay: texture upload failed", "error", err)
+		return
+	}
+	if err := dc.ctx.DrawTextureScaled(tex, 0, 0, float32(ov.width), float32(ov.height)); err != nil {
+		slog.Error("flush2DOverlay: draw failed", "error", err)
+	}
+	dc.overlay = nil
+}
+
+// overlayFillRect fills a rectangle in the overlay buffer with an RGBA color.
+func (ov *overlay2D) fillRect(x, y, w, h int, r, g, b, a byte) {
+	// Clip to overlay bounds.
+	if x < 0 {
+		w += x
+		x = 0
+	}
+	if y < 0 {
+		h += y
+		y = 0
+	}
+	if x+w > ov.width {
+		w = ov.width - x
+	}
+	if y+h > ov.height {
+		h = ov.height - y
+	}
+	if w <= 0 || h <= 0 {
+		return
+	}
+	ov.dirty = true
+	stride := ov.width * 4
+	if a == 255 {
+		// Fast path: opaque fill, no blending needed.
+		for dy := 0; dy < h; dy++ {
+			off := (y+dy)*stride + x*4
+			for dx := 0; dx < w; dx++ {
+				ov.pixels[off] = r
+				ov.pixels[off+1] = g
+				ov.pixels[off+2] = b
+				ov.pixels[off+3] = 255
+				off += 4
+			}
+		}
+	} else {
+		// Alpha blend (source over).
+		sa := uint32(a)
+		invSA := 255 - sa
+		for dy := 0; dy < h; dy++ {
+			off := (y+dy)*stride + x*4
+			for dx := 0; dx < w; dx++ {
+				dr := uint32(ov.pixels[off])
+				dg := uint32(ov.pixels[off+1])
+				db := uint32(ov.pixels[off+2])
+				da := uint32(ov.pixels[off+3])
+				ov.pixels[off] = byte((uint32(r)*sa + dr*invSA) / 255)
+				ov.pixels[off+1] = byte((uint32(g)*sa + dg*invSA) / 255)
+				ov.pixels[off+2] = byte((uint32(b)*sa + db*invSA) / 255)
+				ov.pixels[off+3] = byte((sa*255 + da*invSA) / 255)
+				off += 4
+			}
+		}
+	}
+}
+
+// overlayBlitRGBA blits an RGBA source image into the overlay with
+// nearest-neighbor scaling and alpha compositing.
+func (ov *overlay2D) blitRGBA(srcRGBA []byte, srcW, srcH int, dstX, dstY, dstW, dstH int, alpha float32) {
+	if len(srcRGBA) < srcW*srcH*4 || dstW <= 0 || dstH <= 0 {
+		return
+	}
+	// Clip destination to overlay bounds.
+	sx0, sy0 := 0, 0
+	if dstX < 0 {
+		sx0 = -dstX * srcW / dstW
+		dstW += dstX
+		dstX = 0
+	}
+	if dstY < 0 {
+		sy0 = -dstY * srcH / dstH
+		dstH += dstY
+		dstY = 0
+	}
+	if dstX+dstW > ov.width {
+		dstW = ov.width - dstX
+	}
+	if dstY+dstH > ov.height {
+		dstH = ov.height - dstY
+	}
+	if dstW <= 0 || dstH <= 0 {
+		return
+	}
+	ov.dirty = true
+	stride := ov.width * 4
+	globalAlpha := uint32(alpha * 255)
+	if globalAlpha > 255 {
+		globalAlpha = 255
+	}
+	for dy := 0; dy < dstH; dy++ {
+		srcY := sy0 + dy*srcH/dstH
+		if srcY >= srcH {
+			srcY = srcH - 1
+		}
+		dstOff := (dstY+dy)*stride + dstX*4
+		for dx := 0; dx < dstW; dx++ {
+			srcX := sx0 + dx*srcW/dstW
+			if srcX >= srcW {
+				srcX = srcW - 1
+			}
+			srcOff := (srcY*srcW + srcX) * 4
+			sr := uint32(srcRGBA[srcOff])
+			sg := uint32(srcRGBA[srcOff+1])
+			sb := uint32(srcRGBA[srcOff+2])
+			sa := uint32(srcRGBA[srcOff+3]) * globalAlpha / 255
+
+			if sa == 0 {
+				dstOff += 4
+				continue
+			}
+			if sa == 255 {
+				ov.pixels[dstOff] = byte(sr)
+				ov.pixels[dstOff+1] = byte(sg)
+				ov.pixels[dstOff+2] = byte(sb)
+				ov.pixels[dstOff+3] = 255
+			} else {
+				invSA := 255 - sa
+				dr := uint32(ov.pixels[dstOff])
+				dg := uint32(ov.pixels[dstOff+1])
+				db := uint32(ov.pixels[dstOff+2])
+				da := uint32(ov.pixels[dstOff+3])
+				ov.pixels[dstOff] = byte((sr*sa + dr*invSA) / 255)
+				ov.pixels[dstOff+1] = byte((sg*sa + dg*invSA) / 255)
+				ov.pixels[dstOff+2] = byte((sb*sa + db*invSA) / 255)
+				ov.pixels[dstOff+3] = byte((sa*255 + da*invSA) / 255)
+			}
+			dstOff += 4
+		}
+	}
+}
 
 // Clear fills the screen with the specified RGBA color.
 // This is typically called at the start of each frame to clear
@@ -186,6 +373,10 @@ func (dc *DrawContext) SetCanvasParams(p CanvasTransformParams) {
 }
 
 // 2D Drawing API implementation
+//
+// All 2D draws composite into a CPU overlay buffer at screen resolution.
+// The buffer is flushed as a single GPU texture draw at the end of the
+// 2D overlay phase, reducing ~80 GPU submissions to 1.
 
 // DrawPic renders a QPic image at the specified screen-space position.
 func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
@@ -194,54 +385,24 @@ func (dc *DrawContext) DrawPic(x, y int, pic *image.QPic) {
 
 // DrawPicAlpha renders a QPic image at a screen-space position with explicit alpha.
 func (dc *DrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
-	if pic == nil {
+	if pic == nil || alpha <= 0 {
 		return
 	}
-	if alpha <= 0 {
+	ov := dc.ensureOverlay()
+	if ov == nil {
 		return
 	}
-
-	tex := dc.renderer.getOrCreateTexture(dc.ctx, pic)
-	if tex == nil {
+	rgba := dc.renderer.getOrCreatePicRGBA(pic)
+	if rgba == nil {
 		return
 	}
-
-	rect := dc.screenPicRect(x, y, int(pic.Width), int(pic.Height))
-	if alpha >= 1 {
-		err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
-		if err != nil {
-			slog.Error("Failed to draw texture", "error", err)
-		}
-		return
-	}
-	err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
-		X:      rect.x,
-		Y:      rect.y,
-		Width:  rect.w,
-		Height: rect.h,
-		Alpha:  alpha,
-	})
-	if err != nil {
-		slog.Error("Failed to draw texture", "error", err)
-	}
+	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, int(pic.Width), int(pic.Height))
+	ov.blitRGBA(rgba, int(pic.Width), int(pic.Height), sx, sy, sw, sh, alpha)
 }
 
 // DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.
 func (dc *DrawContext) DrawMenuPic(x, y int, pic *image.QPic) {
-	if pic == nil {
-		return
-	}
-
-	tex := dc.renderer.getOrCreateTexture(dc.ctx, pic)
-	if tex == nil {
-		return
-	}
-
-	rect := dc.screenPicRect(x, y, int(pic.Width), int(pic.Height))
-	err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h)
-	if err != nil {
-		slog.Error("Failed to draw texture", "error", err)
-	}
+	dc.DrawPicAlpha(x, y, pic, 1)
 }
 
 // DrawFill fills a rectangle with a Quake palette color.
@@ -254,72 +415,52 @@ func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) 
 	if w <= 0 || h <= 0 || alpha <= 0 {
 		return
 	}
-	tex := dc.renderer.getOrCreateColorTexture(dc.ctx, color)
-	if tex == nil {
+	ov := dc.ensureOverlay()
+	if ov == nil {
 		return
 	}
-
-	if alpha >= 1 {
+	r, g, b := GetPaletteColor(color, dc.renderer.palette)
+	if alpha > 1 {
 		alpha = 1
 	}
-	rect := dc.screenPicRect(x, y, w, h)
-	err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
-		X:      rect.x,
-		Y:      rect.y,
-		Width:  rect.w,
-		Height: rect.h,
-		Alpha:  alpha,
-	})
-	if err != nil {
-		slog.Error("Failed to draw color texture", "error", err)
-	}
+	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, w, h)
+	ov.fillRect(sx, sy, sw, sh, r, g, b, byte(alpha*255))
 }
 
 // DrawCharacter renders a single 8×8 character from the conchars font.
-// Falls back to a coloured square if conchars is not loaded.
 func (dc *DrawContext) DrawCharacter(x, y int, num int) {
 	dc.DrawCharacterAlpha(x, y, num, 1)
 }
 
 // DrawCharacterAlpha renders a single 8×8 character from the conchars font with explicit alpha.
 func (dc *DrawContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
-	if num < 0 || num > 255 {
+	if num < 0 || num > 255 || alpha <= 0 {
 		return
 	}
-	if alpha <= 0 {
+	ov := dc.ensureOverlay()
+	if ov == nil {
 		return
 	}
 	pic := dc.renderer.getCharPic(num)
 	if pic == nil {
 		return
 	}
-	tex := dc.renderer.getOrCreateCharTexture(dc.ctx, num, pic)
-	if tex == nil {
+	rgba := dc.renderer.getOrCreateCharRGBA(pic)
+	if rgba == nil {
 		return
 	}
-	rect := dc.screenPicRect(x, y, 8, 8)
-	if alpha >= 1 {
-		if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
-			slog.Error("DrawCharacter: draw failed", "num", num, "error", err)
-		}
-		return
-	}
-	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
-		X:      rect.x,
-		Y:      rect.y,
-		Width:  rect.w,
-		Height: rect.h,
-		Alpha:  alpha,
-	}); err != nil {
-		slog.Error("DrawCharacterAlpha: draw failed", "num", num, "alpha", alpha, "error", err)
-	}
+	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, 8, 8)
+	ov.blitRGBA(rgba, 8, 8, sx, sy, sw, sh, alpha)
 }
 
-// DrawString renders an entire line of text as a single GPU texture, instead
-// of issuing one command encoder + render pass + submit per character. This
-// reduces GPU submission overhead from ~950 per console frame to ~15.
+// DrawString renders an entire line of text by compositing all characters
+// directly into the CPU overlay buffer. No GPU submission occurs.
 func (dc *DrawContext) DrawString(x, y int, text []byte) {
 	if len(text) == 0 {
+		return
+	}
+	ov := dc.ensureOverlay()
+	if ov == nil {
 		return
 	}
 	dc.renderer.mu.RLock()
@@ -328,7 +469,7 @@ func (dc *DrawContext) DrawString(x, y int, text []byte) {
 	dc.renderer.mu.RUnlock()
 
 	if len(conchars) < 128*128 || len(palette) < 768 {
-		// Conchars not loaded yet — fall back to per-character.
+		// Conchars not loaded — fall back to per-character.
 		for i, ch := range text {
 			dc.DrawCharacter(x+i*8, y, int(ch))
 		}
@@ -351,35 +492,13 @@ func (dc *DrawContext) DrawString(x, y int, text []byte) {
 
 	// Convert to RGBA (index 0 → transparent via ConvertConcharsToRGBA).
 	rgba := ConvertConcharsToRGBA(pixels, palette)
-	tex, err := dc.ctx.Renderer().NewTextureFromRGBA(w, 8, rgba)
-	if err != nil {
-		slog.Error("DrawString: texture upload failed", "len", len(text), "error", err)
-		return
-	}
-
-	rect := dc.screenPicRect(x, y, w, 8)
-	if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
-		slog.Error("DrawString: draw failed", "len", len(text), "error", err)
-	}
+	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, w, 8)
+	ov.blitRGBA(rgba, w, 8, sx, sy, sw, sh, 1)
 }
 
 // DrawMenuCharacter renders a single 8×8 character in menu-space coordinates.
 func (dc *DrawContext) DrawMenuCharacter(x, y int, num int) {
-	if num < 0 || num > 255 {
-		return
-	}
-	pic := dc.renderer.getCharPic(num)
-	if pic == nil {
-		return
-	}
-	tex := dc.renderer.getOrCreateCharTexture(dc.ctx, num, pic)
-	if tex == nil {
-		return
-	}
-	rect := dc.screenPicRect(x, y, 8, 8)
-	if err := dc.ctx.DrawTextureScaled(tex, rect.x, rect.y, rect.w, rect.h); err != nil {
-		slog.Error("DrawMenuCharacter: draw failed", "num", num, "error", err)
-	}
+	dc.DrawCharacterAlpha(x, y, num, 1)
 }
 
 // SetConchars stores the raw 128×128 conchars pixel data and clears the
@@ -504,6 +623,54 @@ func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *imag
 	return tex
 }
 
+// getOrCreatePicRGBA returns cached RGBA pixel data for a QPic, converting
+// from the Quake palette on first access. Used by the CPU overlay compositor.
+func (r *Renderer) getOrCreatePicRGBA(pic *image.QPic) []byte {
+	r.mu.RLock()
+	if rgba, ok := r.picRGBACache[pic]; ok {
+		r.mu.RUnlock()
+		return rgba
+	}
+	r.mu.RUnlock()
+
+	if r.palette == nil || len(pic.Pixels) == 0 {
+		return nil
+	}
+	rgba := ConvertPaletteToRGBA(pic.Pixels, r.palette)
+
+	r.mu.Lock()
+	if r.picRGBACache == nil {
+		r.picRGBACache = make(map[*image.QPic][]byte)
+	}
+	r.picRGBACache[pic] = rgba
+	r.mu.Unlock()
+	return rgba
+}
+
+// getOrCreateCharRGBA returns cached RGBA pixel data for a conchars character,
+// using ConvertConcharsToRGBA (index 0 = transparent). Used by the CPU overlay.
+func (r *Renderer) getOrCreateCharRGBA(pic *image.QPic) []byte {
+	r.mu.RLock()
+	if rgba, ok := r.picRGBACache[pic]; ok {
+		r.mu.RUnlock()
+		return rgba
+	}
+	r.mu.RUnlock()
+
+	if r.palette == nil || len(pic.Pixels) == 0 {
+		return nil
+	}
+	rgba := ConvertConcharsToRGBA(pic.Pixels, r.palette)
+
+	r.mu.Lock()
+	if r.picRGBACache == nil {
+		r.picRGBACache = make(map[*image.QPic][]byte)
+	}
+	r.picRGBACache[pic] = rgba
+	r.mu.Unlock()
+	return rgba
+}
+
 type cacheKey struct {
 	pic *image.QPic
 }
@@ -561,6 +728,10 @@ type Renderer struct {
 
 	// concharsData is the raw 128×128 indexed-pixel data for the console font.
 	concharsData []byte
+
+	// picRGBACache caches RGBA conversions of QPic images for CPU overlay compositing.
+	// Keyed by QPic pointer identity (same as textureCache).
+	picRGBACache map[*image.QPic][]byte
 	// charCache caches per-character 8×8 QPic objects extracted from concharsData.
 	charCache [256]*image.QPic
 
@@ -1292,6 +1463,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		}
 		slog.Debug("Drawing 2D overlay on top of world", "menu_active", state.MenuActive)
 		draw2DOverlay(dc)
+		dc.flush2DOverlay()
 	}
 
 	dc.logPrePresentState("normal")
