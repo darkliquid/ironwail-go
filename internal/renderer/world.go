@@ -2452,6 +2452,15 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	slog.Debug("renderWorldInternal: starting world render")
 
+	// Ensure depth texture matches current surface dimensions (handles window resize).
+	// Must happen before the RLock below since ensureAliasDepthTextureLocked needs a write lock.
+	device := dc.renderer.getWGPUDevice()
+	if device != nil {
+		dc.renderer.mu.Lock()
+		dc.renderer.ensureAliasDepthTextureLocked(device)
+		dc.renderer.mu.Unlock()
+	}
+
 	dc.renderer.mu.RLock()
 	defer dc.renderer.mu.RUnlock()
 
@@ -2470,18 +2479,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 
-	// Get HAL device and queue
-	device := dc.renderer.getWGPUDevice()
+	// Get HAL device and queue (device already fetched above, just need queue)
 	queue := dc.renderer.getWGPUQueue()
 	if device == nil || queue == nil {
 		slog.Debug("renderWorldInternal: HAL device or queue not available for world rendering")
 		return
 	}
-
-	// Ensure depth texture matches current surface dimensions (handles window resize).
-	dc.renderer.mu.Lock()
-	dc.renderer.ensureAliasDepthTextureLocked(device)
-	dc.renderer.mu.Unlock()
 
 	// Create command encoder
 	slog.Debug("renderWorldInternal: creating command encoder")
