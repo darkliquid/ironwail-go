@@ -358,6 +358,16 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	// tree to exist. C Ironwail calls SV_ClearWorld() before ED_LoadFromFile().
 	s.ClearWorld()
 
+	// Reload progs.dat to reset all QC globals, matching C Ironwail's
+	// PR_LoadProgs call in SV_SpawnServer. Without this, QC globals like
+	// intermission_running persist across map changes and cause infinite
+	// changelevel loops.
+	if s.QCVM != nil {
+		if err := s.reloadProgs(vfs); err != nil {
+			return fmt.Errorf("reload progs: %w", err)
+		}
+	}
+
 	if s.QCVM != nil {
 		if world.Vars.Model == 0 {
 			world.Vars.Model = s.QCVM.AllocString(s.ModelName)
@@ -408,6 +418,31 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 
 	slog.Info("server spawned map start", "map", mapName)
 
+	return nil
+}
+
+// reloadProgs reloads progs.dat into the QCVM, resetting all QC globals to
+// their initial values. This matches C Ironwail's PR_LoadProgs call within
+// SV_SpawnServer. Without this, QC globals like intermission_running persist
+// across map changes and cause bugs like infinite changelevel loops.
+func (s *Server) reloadProgs(vfs *fs.FileSystem) error {
+	progsData, err := vfs.LoadFile("progs.dat")
+	if err != nil {
+		return fmt.Errorf("load progs.dat: %w", err)
+	}
+	if err := s.QCVM.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		return fmt.Errorf("parse progs.dat: %w", err)
+	}
+	// Clear runtime string allocations from the previous map. LoadProgs
+	// replaces the static string table but StringTable (negative-index
+	// entries from AllocString) is separate.
+	s.QCVM.StringTable = make(map[int32]string)
+	// Reset execution state so no stale call stack leaks across maps.
+	s.QCVM.Depth = 0
+	s.QCVM.LocalUsed = 0
+	s.QCVM.XFunction = nil
+	s.QCVM.XFunctionIndex = -1
+	s.QCVM.XStatement = 0
 	return nil
 }
 
