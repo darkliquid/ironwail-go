@@ -110,7 +110,6 @@ func runtimeViewState() (origin, angles [3]float32) {
 		if clientOrigin, ok := runtimeSmoothedLocalPlayerBaseOrigin(); ok {
 			// Keep the first-person camera anchored to the smoothed eye origin.
 			clientOrigin[2] += g.Client.ViewHeight
-			clientOrigin[2] += runtimeFirstPersonBobOffset()
 
 			var viewAngles [3]float32
 			if g.Client.Intermission != 0 {
@@ -121,12 +120,15 @@ func runtimeViewState() (origin, angles [3]float32) {
 				// spot and sets its angles; cl.ViewAngles is irrelevant and may have
 				// been mutated by AdjustAngles (left/right keys), which would visually
 				// rotate the camera in a way C never does.
+				// No bob offset: C Ironwail's V_CalcIntermissionRefdef does not apply
+				// V_CalcBob, so the intermission camera is rock-steady.
 				if viewEnt, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
 					viewAngles = viewEnt.Angles
 				} else {
 					viewAngles = runtimeInterpolatedViewAngles()
 				}
 			} else {
+				clientOrigin[2] += runtimeFirstPersonBobOffset()
 				viewAngles = runtimeInterpolatedViewAngles()
 			}
 			return clientOrigin, viewAngles

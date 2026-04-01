@@ -669,7 +669,7 @@ func TestCenterprintIntermissionUsesMenuSpaceOverlayCoordinates(t *testing.T) {
 		pic  *image.QPic
 	}{
 		{x: 110, y: 8, pic: complete},
-		{x: 128, y: 56, pic: inter},
+		{x: 0, y: 56, pic: inter},
 	}
 	if len(mock.pics) < len(want) {
 		t.Fatalf("pic draw count = %d, want at least %d", len(mock.pics), len(want))

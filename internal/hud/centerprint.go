@@ -126,30 +126,20 @@ func (cp *Centerprint) drawIntermissionOverlay(rc renderer.RenderContext, state 
 		rc.DrawPic((320-int(cp.completePic.Width))/2, 8, cp.completePic)
 	}
 	if cp.interPic != nil {
-		rc.DrawPic((320-int(cp.interPic.Width))/2, 56, cp.interPic)
+		// Draw labels at X=0, matching C Ironwail's Sbar_IntermissionOverlay.
+		rc.DrawPic(0, 56, cp.interPic)
 	}
 
 	if state.LevelName != "" {
 		cp.drawTextBlock(rc, state.LevelName, 320, 36, 0, 1)
 	}
 
-	timeText := formatIntermissionTime(state.CompletedTime)
-	secretsText := fmt.Sprintf("%d/%2d", state.Secrets, state.TotalSecrets)
-	monstersText := fmt.Sprintf("%d/%2d", state.Monsters, state.TotalMonsters)
-
-	textWidth := max(cp.intermissionTextWidth(timeText), max(cp.intermissionTextWidth(secretsText), cp.intermissionTextWidth(monstersText)))
-	totalWidth := textWidth
-	if cp.interPic != nil {
-		totalWidth += int(cp.interPic.Width) + 24
-	}
-	if totalWidth > 320 {
-		totalWidth = 320
-	}
-	valueRightX := 160 + totalWidth/2
-
-	cp.drawIntermissionText(rc, valueRightX-cp.intermissionTextWidth(timeText), 64, timeText)
-	cp.drawIntermissionText(rc, valueRightX-cp.intermissionTextWidth(secretsText), 104, secretsText)
-	cp.drawIntermissionText(rc, valueRightX-cp.intermissionTextWidth(monstersText), 144, monstersText)
+	// Values start at X=160, matching C Ironwail's Sbar_IntermissionNumber
+	// positioning. This provides clear visual separation from the label
+	// graphics which occupy the left side of inter.lmp.
+	cp.drawIntermissionText(rc, 160, 64, formatIntermissionTime(state.CompletedTime))
+	cp.drawIntermissionText(rc, 160, 104, fmt.Sprintf("%d/%2d", state.Secrets, state.TotalSecrets))
+	cp.drawIntermissionText(rc, 160, 144, fmt.Sprintf("%d/%2d", state.Monsters, state.TotalMonsters))
 }
 
 func (cp *Centerprint) intermissionPicForRune(r rune) *image.QPic {
