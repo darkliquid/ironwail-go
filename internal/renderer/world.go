@@ -562,7 +562,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, lit, fog), sampled.a * uniforms.alpha);
+	return vec4<f32>(mix(uniforms.fogColor, lit, vec3<f32>(fog)), sampled.a * uniforms.alpha);
 }
 `
 
@@ -661,7 +661,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    return vec4<f32>(mix(uniforms.fogColor, lit, fog), sampled.a * uniforms.alpha);
+    return vec4<f32>(mix(uniforms.fogColor, lit, vec3<f32>(fog)), sampled.a * uniforms.alpha);
 }
 `
 
@@ -703,8 +703,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = dir.xy * (189.0 / 64.0);
     var result = textureSample(skySolidTexture, skySolidSampler, uv + vec2<f32>(uniforms.time / 16.0, uniforms.time / 16.0));
     let layer = textureSample(skyAlphaTexture, skyAlphaSampler, uv + vec2<f32>(uniforms.time / 8.0, uniforms.time / 8.0));
-    result = vec4<f32>(mix(result.rgb, layer.rgb, layer.a), 1.0);
-    result = vec4<f32>(mix(result.rgb, uniforms.fogColor, uniforms.fogDensity), 1.0);
+    result = vec4<f32>(mix(result.rgb, layer.rgb, vec3<f32>(layer.a)), 1.0);
+    result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), 1.0);
     return result;
 }
 `
@@ -784,7 +784,7 @@ fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     var result = sampleExternalSky(normalize(input.dir));
-    result = vec4<f32>(mix(result.rgb, uniforms.fogColor, uniforms.fogDensity), result.a);
+    result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), result.a);
     return result;
 }
 `
