@@ -718,6 +718,8 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 const (
 	aliasUniformBufferSize      = 80
 	aliasSceneUniformBufferSize = 96
+	aliasUniformAlign           = 256 // minUniformBufferOffsetAlignment
+	aliasInitialDrawCapacity    = 64  // initial capacity for batched draws
 )
 
 func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
@@ -745,7 +747,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 			Visibility: gputypes.ShaderStageVertex | gputypes.ShaderStageFragment,
 			Buffer: &gputypes.BufferBindingLayout{
 				Type:             gputypes.BufferBindingTypeUniform,
-				HasDynamicOffset: false,
+				HasDynamicOffset: true,
 				MinBindingSize:   aliasSceneUniformBufferSize,
 			},
 		}},
@@ -807,7 +809,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 
 	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "Alias Uniform Buffer",
-		Size:             aliasSceneUniformBufferSize,
+		Size:             uint64(aliasInitialDrawCapacity) * aliasUniformAlign,
 		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
 		MappedAtCreation: false,
 	})
@@ -1324,22 +1326,36 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	maxVertexBytes := uint64(44)
+	// Pre-build all vertex data and compute total scratch buffer size.
+	type preparedDraw struct {
+		vertices []WorldVertex
+		skin     *gpuAliasSkin
+		alpha    float32
+	}
+	prepared := make([]preparedDraw, 0, len(draws))
+	totalVertexBytes := uint64(0)
 	for _, draw := range draws {
-		if draw.alias == nil {
+		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
+		if len(vertices) == 0 || draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
 		}
-		size := uint64(len(draw.alias.refs) * 44)
-		if size > maxVertexBytes {
-			maxVertexBytes = size
-		}
+		prepared = append(prepared, preparedDraw{vertices: vertices, skin: draw.skin, alpha: draw.alpha})
+		totalVertexBytes += uint64(len(vertices) * 44)
+	}
+	if len(prepared) == 0 {
+		return
 	}
 
 	r := dc.renderer
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, maxVertexBytes); err != nil {
+	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias scratch buffer", "error", err)
+		return
+	}
+	if err := r.ensureAliasUniformBufferLocked(device, len(prepared)); err != nil {
+		r.mu.Unlock()
+		slog.Warn("failed to ensure alias uniform buffer", "error", err)
 		return
 	}
 	pipeline := r.aliasPipeline
@@ -1355,65 +1371,76 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	// queue.WriteBuffer is ordered on the queue, not inside a recorded render pass, so
-	// each draw must upload and submit separately when reusing one shared uniform/scratch buffer.
-	for _, draw := range draws {
-		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
-		if len(vertices) == 0 || draw.skin == nil || draw.skin.bindGroup == nil {
-			continue
-		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, aliasSceneUniformBytes(vpMatrix, cameraOrigin, draw.alpha, fogColor, fogDensity)); err != nil {
-			slog.Warn("failed to update alias uniform buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(scratchBuffer, 0, aliasVertexBytes(vertices)); err != nil {
-			slog.Warn("failed to upload alias vertices", "error", err)
-			continue
-		}
-		encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
-		if err != nil {
-			slog.Warn("failed to create alias encoder", "error", err)
-			continue
-		}
-		renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
-			Label: "Alias Render Pass",
-			ColorAttachments: []wgpu.RenderPassColorAttachment{{
-				View:    textureView,
-				LoadOp:  gputypes.LoadOpLoad,
-				StoreOp: gputypes.StoreOpStore,
-			}},
-			DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
-		})
-		if err != nil {
-			slog.Warn("failed to begin alias render pass", "error", err)
-			continue
-		}
-		renderPass.SetPipeline(pipeline)
-		width, height := r.Size()
-		if width > 0 && height > 0 {
-			maxDepth := float32(1.0)
-			if useViewModelDepthRange {
-				maxDepth = 0.3
-			}
-			renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, maxDepth)
-			renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-		}
-		renderPass.SetVertexBuffer(0, scratchBuffer, 0)
-		renderPass.SetBindGroup(0, uniformBindGroup, nil)
-		renderPass.SetBindGroup(1, draw.skin.bindGroup, nil)
-		renderPass.Draw(uint32(len(vertices)), 1, 0, 0)
-		if err := renderPass.End(); err != nil {
-			slog.Warn("renderAliasDrawsHAL: render pass end error", "error", err)
-		}
 
-		cmdBuffer, err := encoder.Finish()
-		if err != nil {
-			slog.Warn("failed to finish alias encoding", "error", err)
-			continue
+	// Pre-upload all uniform data at 256-byte aligned offsets
+	// and all vertex data at consecutive offsets.
+	vertexOffsets := make([]uint64, len(prepared))
+	vertexCounts := make([]uint32, len(prepared))
+	uniformOffsets := make([]uint32, len(prepared))
+	currentVertexOffset := uint64(0)
+	for i, pd := range prepared {
+		uniformOffsets[i] = uint32(i) * aliasUniformAlign
+		vertexOffsets[i] = currentVertexOffset
+		vertexCounts[i] = uint32(len(pd.vertices))
+
+		if err := queue.WriteBuffer(uniformBuffer, uint64(uniformOffsets[i]), aliasSceneUniformBytes(vpMatrix, cameraOrigin, pd.alpha, fogColor, fogDensity)); err != nil {
+			slog.Warn("failed to update alias uniform buffer", "error", err, "draw", i)
+			return
 		}
-		if _, err := queue.Submit(cmdBuffer); err != nil {
-			slog.Warn("failed to submit alias commands", "error", err)
+		if err := queue.WriteBuffer(scratchBuffer, currentVertexOffset, aliasVertexBytes(pd.vertices)); err != nil {
+			slog.Warn("failed to upload alias vertices", "error", err, "draw", i)
+			return
 		}
+		currentVertexOffset += uint64(len(pd.vertices) * 44)
+	}
+
+	// Record a single render pass with all draws.
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Render Encoder"})
+	if err != nil {
+		slog.Warn("failed to create alias encoder", "error", err)
+		return
+	}
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+		Label: "Alias Render Pass",
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
+			View:    textureView,
+			LoadOp:  gputypes.LoadOpLoad,
+			StoreOp: gputypes.StoreOpStore,
+		}},
+		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+	})
+	if err != nil {
+		slog.Warn("failed to begin alias render pass", "error", err)
+		return
+	}
+	renderPass.SetPipeline(pipeline)
+	width, height := r.Size()
+	if width > 0 && height > 0 {
+		maxDepth := float32(1.0)
+		if useViewModelDepthRange {
+			maxDepth = 0.3
+		}
+		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, maxDepth)
+		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+	}
+
+	for i, pd := range prepared {
+		renderPass.SetVertexBuffer(0, scratchBuffer, vertexOffsets[i])
+		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{uniformOffsets[i]})
+		renderPass.SetBindGroup(1, pd.skin.bindGroup, nil)
+		renderPass.Draw(vertexCounts[i], 1, 0, 0)
+	}
+
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderAliasDrawsHAL: render pass end error", "error", err)
+	}
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		slog.Warn("failed to finish alias encoding", "error", err)
+		return
+	}
+	if _, err := queue.Submit(cmdBuffer); err != nil {
+		slog.Warn("failed to submit alias commands", "error", err)
 	}
 }
 
@@ -1821,7 +1848,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
-	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+	renderPass.SetBindGroup(0, uniformBindGroup, []uint32{0})
 
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
@@ -2830,19 +2857,33 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 		return
 	}
 
-	maxVertexBytes := uint64(44)
+	// Filter and compute total vertex bytes.
+	type preparedShadow struct {
+		vertices []WorldVertex
+	}
+	prepared := make([]preparedShadow, 0, len(draws))
+	totalVertexBytes := uint64(0)
 	for _, draw := range draws {
-		size := uint64(len(draw.vertices) * 44)
-		if size > maxVertexBytes {
-			maxVertexBytes = size
+		if len(draw.vertices) == 0 {
+			continue
 		}
+		prepared = append(prepared, preparedShadow{vertices: draw.vertices})
+		totalVertexBytes += uint64(len(draw.vertices) * 44)
+	}
+	if len(prepared) == 0 {
+		return
 	}
 
 	r := dc.renderer
 	r.mu.Lock()
-	if err := r.ensureAliasScratchBufferLocked(device, maxVertexBytes); err != nil {
+	if err := r.ensureAliasScratchBufferLocked(device, totalVertexBytes); err != nil {
 		r.mu.Unlock()
 		slog.Warn("failed to ensure alias scratch buffer for shadows", "error", err)
+		return
+	}
+	if err := r.ensureAliasUniformBufferLocked(device, len(prepared)); err != nil {
+		r.mu.Unlock()
+		slog.Warn("failed to ensure alias uniform buffer for shadows", "error", err)
 		return
 	}
 	pipeline := r.aliasPipeline
@@ -2862,58 +2903,75 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
-	for _, draw := range draws {
-		if len(draw.vertices) == 0 {
-			continue
-		}
-		if err := queue.WriteBuffer(uniformBuffer, 0, aliasShadowUniformBytes(vpMatrix, cameraOrigin, aliasShadowAlpha, fogColor, fogDensity)); err != nil {
-			slog.Warn("failed to update alias shadow uniform buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(scratchBuffer, 0, aliasVertexBytes(draw.vertices)); err != nil {
-			slog.Warn("failed to upload alias shadow vertices", "error", err)
-			continue
-		}
-		encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Shadow Render Encoder"})
-		if err != nil {
-			slog.Warn("failed to create alias shadow encoder", "error", err)
-			continue
-		}
-		renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
-			Label: "Alias Shadow Render Pass",
-			ColorAttachments: []wgpu.RenderPassColorAttachment{{
-				View:    textureView,
-				LoadOp:  gputypes.LoadOpLoad,
-				StoreOp: gputypes.StoreOpStore,
-			}},
-			DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
-		})
-		if err != nil {
-			slog.Warn("failed to begin alias shadow render pass", "error", err)
-			continue
-		}
-		renderPass.SetPipeline(pipeline)
-		width, height := r.Size()
-		if width > 0 && height > 0 {
-			renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
-			renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
-		}
-		renderPass.SetVertexBuffer(0, scratchBuffer, 0)
-		renderPass.SetBindGroup(0, uniformBindGroup, nil)
-		renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
-		renderPass.Draw(uint32(len(draw.vertices)), 1, 0, 0)
-		if err := renderPass.End(); err != nil {
-			slog.Warn("renderAliasShadowsHAL: render pass end error", "error", err)
-		}
 
-		cmdBuffer, err := encoder.Finish()
-		if err != nil {
-			slog.Warn("failed to finish alias shadow encoding", "error", err)
-			continue
+	// Pre-upload all uniform and vertex data.
+	// Shadows all share the same uniform data, but we still use dynamic offsets
+	// so the bind group layout is consistent.
+	shadowUniform := aliasShadowUniformBytes(vpMatrix, cameraOrigin, aliasShadowAlpha, fogColor, fogDensity)
+	vertexOffsets := make([]uint64, len(prepared))
+	vertexCounts := make([]uint32, len(prepared))
+	uniformOffsets := make([]uint32, len(prepared))
+	currentVertexOffset := uint64(0)
+	for i, pd := range prepared {
+		uniformOffsets[i] = uint32(i) * aliasUniformAlign
+		vertexOffsets[i] = currentVertexOffset
+		vertexCounts[i] = uint32(len(pd.vertices))
+
+		if err := queue.WriteBuffer(uniformBuffer, uint64(uniformOffsets[i]), shadowUniform); err != nil {
+			slog.Warn("failed to update alias shadow uniform buffer", "error", err, "draw", i)
+			return
 		}
-		if _, err := queue.Submit(cmdBuffer); err != nil {
-			slog.Warn("failed to submit alias shadow commands", "error", err)
+		if err := queue.WriteBuffer(scratchBuffer, currentVertexOffset, aliasVertexBytes(pd.vertices)); err != nil {
+			slog.Warn("failed to upload alias shadow vertices", "error", err, "draw", i)
+			return
 		}
+		currentVertexOffset += uint64(len(pd.vertices) * 44)
+	}
+
+	// Record a single render pass with all shadow draws.
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Alias Shadow Render Encoder"})
+	if err != nil {
+		slog.Warn("failed to create alias shadow encoder", "error", err)
+		return
+	}
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+		Label: "Alias Shadow Render Pass",
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
+			View:    textureView,
+			LoadOp:  gputypes.LoadOpLoad,
+			StoreOp: gputypes.StoreOpStore,
+		}},
+		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+	})
+	if err != nil {
+		slog.Warn("failed to begin alias shadow render pass", "error", err)
+		return
+	}
+	renderPass.SetPipeline(pipeline)
+	width, height := r.Size()
+	if width > 0 && height > 0 {
+		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
+		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+	}
+
+	for i, pd := range prepared {
+		renderPass.SetVertexBuffer(0, scratchBuffer, vertexOffsets[i])
+		renderPass.SetBindGroup(0, uniformBindGroup, []uint32{uniformOffsets[i]})
+		renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
+		renderPass.Draw(vertexCounts[i], 1, 0, 0)
+		_ = pd // used via vertexOffsets/vertexCounts
+	}
+
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderAliasShadowsHAL: render pass end error", "error", err)
+	}
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		slog.Warn("failed to finish alias shadow encoding", "error", err)
+		return
+	}
+	if _, err := queue.Submit(cmdBuffer); err != nil {
+		slog.Warn("failed to submit alias shadow commands", "error", err)
 	}
 }
 
@@ -3266,6 +3324,48 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	}
 	r.aliasScratchBuffer = buffer
 	r.aliasScratchBufferSize = size
+	return nil
+}
+
+// ensureAliasUniformBufferLocked grows the alias uniform buffer and rebuilds
+// the bind group when the current buffer is too small for numDraws draws.
+func (r *Renderer) ensureAliasUniformBufferLocked(device *wgpu.Device, numDraws int) error {
+	needed := uint64(numDraws) * aliasUniformAlign
+	if needed < aliasSceneUniformBufferSize {
+		needed = aliasSceneUniformBufferSize
+	}
+	if r.aliasUniformBuffer != nil && r.aliasUniformBuffer.Size() >= needed {
+		return nil
+	}
+	// Release old resources.
+	if r.aliasUniformBindGroup != nil {
+		r.aliasUniformBindGroup.Release()
+		r.aliasUniformBindGroup = nil
+	}
+	if r.aliasUniformBuffer != nil {
+		r.aliasUniformBuffer.Release()
+		r.aliasUniformBuffer = nil
+	}
+	buf, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Alias Uniform Buffer",
+		Size:             needed,
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("grow alias uniform buffer: %w", err)
+	}
+	bg, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:   "Alias Uniform BG",
+		Layout:  r.aliasUniformBindGroupLayout,
+		Entries: []wgpu.BindGroupEntry{{Binding: 0, Buffer: buf, Offset: 0, Size: aliasSceneUniformBufferSize}},
+	})
+	if err != nil {
+		buf.Release()
+		return fmt.Errorf("recreate alias uniform bind group: %w", err)
+	}
+	r.aliasUniformBuffer = buf
+	r.aliasUniformBindGroup = bg
 	return nil
 }
 
