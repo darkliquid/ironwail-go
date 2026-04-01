@@ -904,6 +904,9 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	// Quake engines typically run at max FPS, not event-driven
 	gpuCfg = gpuCfg.WithContinuousRender(true)
 
+	// Apply VSync setting from engine config
+	gpuCfg = gpuCfg.WithVSync(cfg.VSync)
+
 	// Use Pure Go backend (no CGO required)
 	gpuCfg = gpuCfg.WithBackend(gogpu.BackendGo)
 
