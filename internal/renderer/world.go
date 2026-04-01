@@ -2820,7 +2820,6 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 
 	slog.Debug("World render commands submitted successfully")
 }
@@ -2912,7 +2911,6 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 // TransformVertex applies model-view-projection transformation to a vertex.
@@ -3087,7 +3085,6 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to submit render commands", "error", err)
 		return
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	if translucentLiquidDrawnIndices > 0 {
 		slog.Debug("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
 	}

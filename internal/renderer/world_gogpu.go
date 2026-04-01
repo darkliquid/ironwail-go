@@ -364,7 +364,6 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush entity commands", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	for _, buffer := range buffers {
 		buffer.Release()
 	}
@@ -536,7 +535,6 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush sky commands", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	for _, buffer := range buffers {
 		buffer.Release()
 	}
@@ -711,7 +709,6 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush liquid commands", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	for _, buffer := range buffers {
 		buffer.Release()
 	}
@@ -1417,7 +1414,6 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		if _, err := queue.Submit(cmdBuffer); err != nil {
 			slog.Warn("failed to submit alias commands", "error", err)
 		}
-		_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	}
 }
 
@@ -1880,7 +1876,6 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit sprite commands", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 // ---- merged from world_decal_gogpu_root.go ----
@@ -2216,7 +2211,6 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit decal commands", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func prepareGoGPUDecalHALDraws(draws []decalDraw) []worldgogpu.PreparedDecalDraw {
@@ -2683,7 +2677,6 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	if _, err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alpha-test brush commands", "error", err)
 	}
-	_ = res.device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor [3]float32, fogDensity float32) {
@@ -2753,7 +2746,6 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	if _, err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit late translucent commands", "error", err)
 	}
-	_ = res.device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 // ---- merged from world_alias_shadow_gogpu_root.go ----
@@ -2922,7 +2914,6 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 		if _, err := queue.Submit(cmdBuffer); err != nil {
 			slog.Warn("failed to submit alias shadow commands", "error", err)
 		}
-		_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	}
 }
 

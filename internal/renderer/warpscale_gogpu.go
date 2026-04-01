@@ -406,7 +406,6 @@ func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("clearCurrentHALRenderTarget: failed to submit clear commands", "error", err, "subsystem", "renderer")
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func (dc *DrawContext) enableSceneRenderTarget() bool {
@@ -506,7 +505,6 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		return false
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	return true
 }
 

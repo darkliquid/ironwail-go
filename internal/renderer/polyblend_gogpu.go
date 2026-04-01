@@ -298,7 +298,6 @@ func (dc *DrawContext) renderPolyBlendHAL(blend [4]float32) {
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit polyblend commands", "error", err)
 	}
-	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func polyBlendUniformBytes(blend [4]float32) []byte {
