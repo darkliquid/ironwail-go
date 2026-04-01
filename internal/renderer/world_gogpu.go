@@ -264,7 +264,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Brush Entity Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
@@ -273,6 +273,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
 	})
+	if err != nil {
+		slog.Warn("renderOpaqueBrushEntitiesHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
@@ -346,7 +350,9 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		}
 	}
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderOpaqueBrushEntitiesHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush entity encoding", "error", err)
@@ -355,9 +361,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		}
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush entity commands", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	for _, buffer := range buffers {
 		buffer.Release()
 	}
@@ -432,7 +439,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		return
 	}
 
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Brush Sky Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
@@ -441,6 +448,10 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
 	})
+	if err != nil {
+		slog.Warn("renderSkyBrushEntitiesHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	if useExternalSky {
 		renderPass.SetPipeline(externalSkyPipeline)
 		renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
@@ -505,10 +516,15 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			}
 			renderPass.SetBindGroup(1, solidBindGroup, nil)
 			renderPass.SetBindGroup(2, alphaBindGroup, nil)
+			// Bind group 3 (fullbright/lightmap) is required by the shared pipeline
+			// layout even though the sky shader doesn't use it.
+			renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		}
 	}
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderSkyBrushEntitiesHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush sky encoding", "error", err)
@@ -517,9 +533,10 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush sky commands", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	for _, buffer := range buffers {
 		buffer.Release()
 	}
@@ -597,7 +614,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		return
 	}
 
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Brush Liquid Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
@@ -606,6 +623,10 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
 	})
+	if err != nil {
+		slog.Warn("renderOpaqueLiquidBrushEntitiesHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
@@ -676,7 +697,9 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		}
 	}
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderOpaqueLiquidBrushEntitiesHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush liquid encoding", "error", err)
@@ -685,9 +708,10 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		}
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush liquid commands", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	for _, buffer := range buffers {
 		buffer.Release()
 	}
@@ -1359,16 +1383,19 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		renderPass.SetBindGroup(0, uniformBindGroup, nil)
 		renderPass.SetBindGroup(1, draw.skin.bindGroup, nil)
 		renderPass.Draw(uint32(len(vertices)), 1, 0, 0)
-		renderPass.End()
+		if err := renderPass.End(); err != nil {
+			slog.Warn("renderAliasDrawsHAL: render pass end error", "error", err)
+		}
 
 		cmdBuffer, err := encoder.Finish()
 		if err != nil {
 			slog.Warn("failed to finish alias encoding", "error", err)
 			continue
 		}
-		if err := queue.Submit(cmdBuffer); err != nil {
+		if _, err := queue.Submit(cmdBuffer); err != nil {
 			slog.Warn("failed to submit alias commands", "error", err)
 		}
+		_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	}
 }
 
@@ -1756,7 +1783,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		return
 	}
 
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Sprite Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
@@ -1765,6 +1792,10 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
 	})
+	if err != nil {
+		slog.Warn("renderSpriteDrawsHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
@@ -1816,15 +1847,18 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		renderPass.Draw(uint32(len(worldVertices)), 1, 0, 0)
 	}
 
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderSpriteDrawsHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish sprite encoding", "error", err)
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit sprite commands", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 // ---- merged from world_decal_gogpu_root.go ----
@@ -2108,7 +2142,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		return
 	}
 
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "Decal Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
@@ -2117,6 +2151,10 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		}},
 		DepthStencilAttachment: decalDepthAttachmentForView(depthView),
 	})
+	if err != nil {
+		slog.Warn("renderDecalMarksHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
@@ -2145,15 +2183,18 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 		renderPass.Draw(prepared.VertexCount, 1, 0, 0)
 	}
 
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderDecalMarksHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish decal encoding", "error", err)
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit decal commands", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func prepareGoGPUDecalHALDraws(draws []decalDraw) []worldgogpu.PreparedDecalDraw {
@@ -2570,7 +2611,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		slog.Warn("failed to create alpha-test brush encoder", "error", err)
 		return
 	}
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "GoGPU Alpha-Test Brush Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    res.textureView,
@@ -2579,6 +2620,10 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(res.depthView),
 	})
+	if err != nil {
+		slog.Warn("renderGoGPUAlphaTestBrushFaceRendersHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	renderPass.SetPipeline(res.alphaTestPipeline)
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
@@ -2605,15 +2650,18 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
 	}
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderGoGPUAlphaTestBrushFaceRendersHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish alpha-test brush encoding", "error", err)
 		return
 	}
-	if err := res.queue.Submit(cmdBuffer); err != nil {
+	if _, err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit alpha-test brush commands", "error", err)
 	}
+	_ = res.device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogpuTranslucentBrushFaceRender, fogColor [3]float32, fogDensity float32) {
@@ -2629,7 +2677,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		slog.Warn("failed to create late translucent encoder", "error", err)
 		return
 	}
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "GoGPU Late Translucent Render Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    res.textureView,
@@ -2638,6 +2686,10 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		}},
 		DepthStencilAttachment: aliasDepthAttachmentForView(res.depthView),
 	})
+	if err != nil {
+		slog.Warn("renderGoGPUSortedTranslucentFaceRendersHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
@@ -2668,15 +2720,18 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
 		renderPass.DrawIndexed(draw.face.face.NumIndices, 1, draw.face.face.FirstIndex, 0, 0)
 	}
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderGoGPUSortedTranslucentFaceRendersHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish late translucent encoding", "error", err)
 		return
 	}
-	if err := res.queue.Submit(cmdBuffer); err != nil {
+	if _, err := res.queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit late translucent commands", "error", err)
 	}
+	_ = res.device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 // ---- merged from world_alias_shadow_gogpu_root.go ----
@@ -2833,16 +2888,19 @@ func (dc *DrawContext) renderAliasShadowDrawsHAL(draws []gpuAliasShadowDraw, sha
 		renderPass.SetBindGroup(0, uniformBindGroup, nil)
 		renderPass.SetBindGroup(1, shadowSkin.bindGroup, nil)
 		renderPass.Draw(uint32(len(draw.vertices)), 1, 0, 0)
-		renderPass.End()
+		if err := renderPass.End(); err != nil {
+			slog.Warn("renderAliasShadowsHAL: render pass end error", "error", err)
+		}
 
 		cmdBuffer, err := encoder.Finish()
 		if err != nil {
 			slog.Warn("failed to finish alias shadow encoding", "error", err)
 			continue
 		}
-		if err := queue.Submit(cmdBuffer); err != nil {
+		if _, err := queue.Submit(cmdBuffer); err != nil {
 			slog.Warn("failed to submit alias shadow commands", "error", err)
 		}
+		_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	}
 }
 

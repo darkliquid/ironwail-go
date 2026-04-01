@@ -7,25 +7,27 @@ require (
 	github.com/ebitengine/oto/v3 v3.4.0
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728
-	github.com/gogpu/gogpu v0.25.0
+	github.com/gogpu/gogpu v0.26.0
 	github.com/gogpu/gpucontext v0.11.0
 	github.com/gogpu/gputypes v0.3.0
-	github.com/gogpu/wgpu v0.22.1
+	github.com/gogpu/wgpu v0.23.2
+	github.com/gotracker/playback v1.5.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/kazzmir/opus-go v1.3.0
 	github.com/mewkiz/flac v1.0.13
+	golang.org/x/tools v0.42.0
 )
 
 require (
 	github.com/Zyko0/purego-gen v0.0.0-20250727121216-3bcd331a1e0c // indirect
-	github.com/ebitengine/purego v0.9.0 // indirect
-	github.com/go-webgpu/goffi v0.4.2 // indirect
-	github.com/go-webgpu/webgpu v0.4.2 // indirect
-	github.com/gogpu/naga v0.14.8 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
+	github.com/gen2brain/alsa v0.5.0 // indirect
+	github.com/go-webgpu/goffi v0.5.0 // indirect
+	github.com/go-webgpu/webgpu v0.4.3 // indirect
+	github.com/gogpu/naga v0.15.2 // indirect
 	github.com/gotracker/goaudiofile v1.0.16 // indirect
 	github.com/gotracker/opl2 v1.0.2 // indirect
-	github.com/gotracker/playback v1.5.0 // indirect
 	github.com/heucuva/comparison v1.0.0 // indirect
 	github.com/heucuva/optional v0.0.1 // indirect
 	github.com/icza/bitio v1.1.0 // indirect
@@ -36,7 +38,8 @@ require (
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
 )
 
 tool golang.org/x/tools/cmd/stringer
+
+replace github.com/ebitengine/oto/v3 => ../oto

@@ -6,6 +6,7 @@ package renderer
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"math"
 
 	"github.com/gogpu/gputypes"
@@ -402,7 +403,10 @@ func (dc *DrawContext) clearCurrentHALRenderTarget(clearColor [4]float32) {
 	if err != nil {
 		return
 	}
-	_ = queue.Submit(cmdBuffer)
+	if _, err := queue.Submit(cmdBuffer); err != nil {
+		slog.Warn("clearCurrentHALRenderTarget: failed to submit clear commands", "error", err, "subsystem", "renderer")
+	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func (dc *DrawContext) enableSceneRenderTarget() bool {
@@ -499,9 +503,10 @@ func (dc *DrawContext) compositeSceneRenderTarget(warpActive bool, warpTime floa
 	if err != nil {
 		return false
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		return false
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	return true
 }
 

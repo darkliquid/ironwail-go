@@ -2515,7 +2515,11 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Begin render pass
 	slog.Debug("renderWorldInternal: beginning render pass")
-	renderPass, _ := encoder.BeginRenderPass(renderPassDesc)
+	renderPass, err := encoder.BeginRenderPass(renderPassDesc)
+	if err != nil {
+		slog.Error("renderWorldInternal: Failed to begin render pass", "error", err)
+		return
+	}
 	slog.Debug("renderWorldInternal: render pass created", "pass", fmt.Sprintf("%T", renderPass))
 
 	// Set pipeline
@@ -2651,6 +2655,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			}
 			renderPass.SetBindGroup(1, solidBindGroup, nil)
 			renderPass.SetBindGroup(2, alphaBindGroup, nil)
+			// Bind group 3 (fullbright/lightmap) is required by the shared pipeline
+			// layout even though the sky shader doesn't use it.
+			renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
 		}
@@ -2783,7 +2790,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// End render pass
 	slog.Debug("renderWorldInternal: ending render pass")
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderWorldInternal: render pass end error", "error", err)
+	}
 
 	// Finish encoding and get command buffer
 	cmdBuffer, err := encoder.Finish()
@@ -2794,20 +2803,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Submit to queue
 	slog.Debug("renderWorldInternal: submitting to queue")
-	err = queue.Submit(cmdBuffer)
+	_, err = queue.Submit(cmdBuffer)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
 	}
-
-	if os.Getenv("IRONWAIL_DEBUG_HAL_WAIT_IDLE") == "1" {
-		slog.Warn("renderWorldInternal: IRONWAIL_DEBUG_HAL_WAIT_IDLE=1, waiting for device idle after submit")
-		if waitErr := device.WaitIdle(); waitErr != nil {
-			slog.Error("renderWorldInternal: device WaitIdle failed", "error", waitErr)
-		} else {
-			slog.Debug("renderWorldInternal: device WaitIdle completed")
-		}
-	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 
 	slog.Debug("World render commands submitted successfully")
 }
@@ -2874,7 +2875,7 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		return
 	}
 
-	renderPass, _ := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		Label: "GoGPU Shared Depth Clear Pass",
 		ColorAttachments: []wgpu.RenderPassColorAttachment{{
 			View:    textureView,
@@ -2883,15 +2884,22 @@ func (dc *DrawContext) clearGoGPUSharedDepthStencil() {
 		}},
 		DepthStencilAttachment: attachment,
 	})
-	renderPass.End()
+	if err != nil {
+		slog.Error("clearGoGPUSharedDepthStencil: Failed to begin render pass", "error", err)
+		return
+	}
+	if err := renderPass.End(); err != nil {
+		slog.Warn("clearGoGPUSharedDepthStencil: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to finish encoding", "error", err)
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("clearGoGPUSharedDepthStencil: failed to submit clear pass", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 // TransformVertex applies model-view-projection transformation to a vertex.
@@ -2989,7 +2997,11 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to create command encoder", "error", err)
 		return
 	}
-	renderPass, _ := encoder.BeginRenderPass(renderPassDescriptor)
+	renderPass, err := encoder.BeginRenderPass(renderPassDescriptor)
+	if err != nil {
+		slog.Error("renderWorldTranslucentLiquidsHAL: Failed to begin render pass", "error", err)
+		return
+	}
 	w, h := dc.renderer.Size()
 	renderPass.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 	renderPass.SetScissorRect(0, 0, uint32(w), uint32(h))
@@ -3050,16 +3062,19 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		translucentLiquidDrawnIndices += draw.face.NumIndices
 	}
 
-	renderPass.End()
+	if err := renderPass.End(); err != nil {
+		slog.Warn("renderWorldTranslucentLiquidsHAL: render pass end error", "error", err)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to finish encoding", "error", err)
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Error("renderWorldTranslucentLiquidsHAL: failed to submit render commands", "error", err)
 		return
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 	if translucentLiquidDrawnIndices > 0 {
 		slog.Debug("GoGPU translucent liquids rendered", "indices", translucentLiquidDrawnIndices, "triangles", translucentLiquidDrawnIndices/3)
 	}
@@ -3095,7 +3110,7 @@ func worldDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthSt
 		StencilLoadOp:     gputypes.LoadOpClear,
 		StencilStoreOp:    gputypes.StoreOpStore,
 		StencilClearValue: 0,
-		StencilReadOnly:   true,
+		StencilReadOnly:   false, // Must be false when StencilLoadOp is Clear (WebGPU spec)
 	}
 }
 

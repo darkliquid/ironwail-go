@@ -453,9 +453,10 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 		slog.Warn("failed to finish particle encoder", "error", err)
 		return
 	}
-	if err := queue.Submit(cmdBuffer); err != nil {
+	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit particle commands", "error", err)
 	}
+	_ = device.WaitIdle() // Restore blocking submit (wgpu v0.23.2 Submit is non-blocking)
 }
 
 func particleDepthAttachmentForView(view *wgpu.TextureView) *wgpu.RenderPassDepthStencilAttachment {
