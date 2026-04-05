@@ -506,9 +506,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 `
 
-// worldFragmentShaderWGSL is the WGSL source for world fragment shader.
-// MVP path uses a constant lit color until texture/lightmap bindings are
-// fully wired.
+// worldFragmentShaderWGSL is the WGSL source for the GoGPU world fragment shader.
+// Keep its lightmap/fullbright/fog math aligned with the OpenGL world shader so
+// BSP world surfaces look the same across backends.
 const worldFragmentShaderWGSL = `
 struct Uniforms {
     viewProjection: mat4x4<f32>,
@@ -554,15 +554,13 @@ var worldFullbrightTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
-	if (sampled.a < 0.5) {
+	if (sampled.a < 0.1) {
 		discard;
 	}
 	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
-	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
-	let fogPosition = input.worldPos - uniforms.cameraOrigin;
-	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, lit, vec3<f32>(fog)), sampled.a * uniforms.alpha);
+	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
+	return vec4<f32>(mix(lit, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), sampled.a * uniforms.alpha);
 }
 `
 
@@ -658,10 +656,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     if (uniforms.litWater > 0.5) {
         lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
-    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
-    let fogPosition = input.worldPos - uniforms.cameraOrigin;
-    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    return vec4<f32>(mix(uniforms.fogColor, lit, vec3<f32>(fog)), sampled.a * uniforms.alpha);
+    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
+    return vec4<f32>(mix(lit, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), sampled.a * uniforms.alpha);
 }
 `
 

@@ -21,6 +21,7 @@ The shared sky helper layer also normalizes cvar-driven embedded-sky layer speed
 The same sky helper layer now also owns canonical Quake-vs-Quake64 embedded sky splitting and indexed-layer-to-RGBA conversion, so GoGPU and OpenGL no longer maintain duplicate palette-splitting implementations in backend files.
 The same helper layer now also owns the narrow procedural-sky baseline policy: a dedicated `r_proceduralsky` gate, deterministic horizon/zenith colors, and a shared predicate that limits the path to embedded fast-sky rendering only.
 The shared fog helper layer now also owns a narrow transition baseline (`blendFogStateTowards`) that clamps per-frame fog color/density deltas by a fixed step, providing a deterministic seam for snapshot-to-snapshot fog updates without introducing clock-based interpolation.
+The shared GoGPU world WGSL that still lives in `world.go` intentionally follows the OpenGL world-fragment contract for surface lighting: world and lit-water passes use the same `* 2.0` lightmap overbright factor as OpenGL, and world-surface fog blends directly by the configured fog density instead of applying a backend-only distance-squared exponential term. Keeping those formulas aligned prevents colored `.lit` maps such as qbj2 from rendering noticeably darker or more strongly tinted on GoGPU than on OpenGL.
 OpenGL world-runtime upload now builds and stores a per-sky-texture 1x1 fast-sky texture cache from this helper output, and world teardown releases that cache with other sky textures.
 Texture animation chain building now treats any `'+'`-prefixed name as an animation participant and relies on `textureAnimationFrame` for token validation. This closes a narrow parity gap where a malformed `"+"` texture name was previously skipped silently (due to a pre-validation length guard) instead of surfacing the canonical "bad animating texture" error path used for other malformed animated names.
 GoGPU shared world setup now constructs public `wgpu` resource wrappers directly in `world.go`: shader modules, vertex/index/uniform buffers, texture/sampler/bind-group state, depth/render targets, and world pipeline descriptors are created from `*wgpu.Device` / `*wgpu.Queue` instead of raw HAL handles so the shared upload/setup layer matches the public renderer submission path.
@@ -30,6 +31,7 @@ Shared-world upload and render-stage tracing now logs at `Debug` instead of `Inf
 
 - Shared world data must be backend-neutral enough for both OpenGL and GoGPU.
 - Fog, sky, liquid alpha, and lightmap helpers are parity-sensitive and feed directly into visible output differences.
+- GoGPU world WGSL that remains rooted in `world.go` must preserve OpenGL-visible lighting and fog math unless an intentional parity change is being made.
 - Fog transition blending must remain deterministic (fixed-step, no wall-clock dependency) so tests and parity captures stay reproducible.
 - Flat-sky color derivation must ignore transparent alpha-layer pixels so fast-sky output stays stable across maps and texture animations.
 - Procedural-sky gating must stay deterministic and must not activate for external skyboxes or non-fast-sky paths.
