@@ -1,28 +1,28 @@
 {
-  "hash": "b357fc6333efeef33617f4cb70effad8b4c2609edbd1738d1522244b6d5b1e78",
+  "hash": "b03881e1ddccbfbd1351bd1171a6de207fa412349fab473a8ace7fa709b63141",
   "files": {
     ".yggdrasil/model/server/map-bootstrap/yg-node.yaml": "8f1d961e072fab2e76cf791005d104b13f91f7d5bb4ecc82c941e7b2832fb76e",
-    ".yggdrasil/model/server/map-bootstrap/internals.md": "8d9807a6d7cca2e9fadbc2f0a36df86127e274d7452eaed80f0c481006edd5ba",
     ".yggdrasil/model/server/map-bootstrap/responsibility.md": "31106c69f209c09814d886aeb4deefd3a60eec8dfd319fbfcb5d48d7c3ca2214",
     ".yggdrasil/model/server/yg-node.yaml": "5fd57f0396b8497fc8af354997752cf8b90c7543218d6fa9d59d36c810420491",
     ".yggdrasil/model/server/interface.md": "31e18a0edf10d68397fad666946d8bfb99f281e325fb388b042dc01d088c42d2",
+    ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
     ".yggdrasil/model/server/responsibility.md": "9acfc5495e87e606ba7554578a1756784b3fbd82d6e554ba97708e3c286b103b",
     ".yggdrasil/model/bsp/responsibility.md": "9d1101bdf415cd0268a4d8e8de92ae095970536a46296f0770b93832d0573b83",
     ".yggdrasil/model/bsp/interface.md": "91ff09541cacc29c279b1e02be68c859414fff304b9ba3cb62c4f1b92acf6556",
-    ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
-    ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
-    "internal/server/world_model.go": "1266374bd391e1709d44aa9ffd3b2258461e6cb6866e19e405ecdff5eb7e1275",
-    ".yggdrasil/model/server/map-bootstrap/interface.md": "33db89693befbde68792e83348dbddedebf5586f1bcca1ced8d3a464884093f6",
-    ".yggdrasil/model/server/internals.md": "bbcb0d487fcbefe90780a35c001a2fa9acc74818c2437b1d5f0c03fec6dc21da",
     ".yggdrasil/model/qc/core/responsibility.md": "2c4a6cf150e8684ba3066af25c1bfeff1324adda5efb34fa4cdb82dd9cbbf112",
     ".yggdrasil/model/qc/core/interface.md": "57ee3c9accaf9b4db0201bbc575828ed3d178deaf4b2e044e69ea44c4d0ea1c1",
-    "internal/server/sv_main.go": "59786ebe7576c34ba52adce4f6337260e5fafa144bb92fbee0622ccdb5f50db0",
-    "internal/server/sv_main_test.go": "d672c7f4e758a287cda2a02c101944832889f695d926ce6c0101c1f33c82263d"
+    ".yggdrasil/model/qc/responsibility.md": "6c72c468d45add47f0c287b7c8771f4bdace8335bd7b2b795d4d58a39ef1012b",
+    ".yggdrasil/model/qc/interface.md": "5bacb8f6db1195ed90c57b37464f3037745d14a37af26d5b3b3fffc1964e4661",
+    ".yggdrasil/model/server/map-bootstrap/interface.md": "27ba71b02d3aef53a86cea9201690f004edeed3980aad47b3db29f405cd7c873",
+    ".yggdrasil/model/server/map-bootstrap/internals.md": "68c62abec69e10510dc3fc65103705e74083ceb5949ff9d7a2fe7c87fdbae5b8",
+    "internal/server/sv_main.go": "79524d9429cccbe5515008b357bb247857a9686e0dcb93bff910dfcec1a8b8fd",
+    "internal/server/world_model.go": "2b193fe01d7f2a9263bd30dfd8c6abc300b0054f8b12daf94e5b5849af3e2fb8",
+    "internal/server/sv_main_test.go": "b6b0e7aad4d01a5751902b731faeb927bda377987e5d7723e3d6bd07fddb4f0a"
   },
   "mtimes": {
     ".yggdrasil/model/server/map-bootstrap/yg-node.yaml": 1774234390007.5955,
-    ".yggdrasil/model/server/map-bootstrap/interface.md": 1774482569044.6958,
-    ".yggdrasil/model/server/map-bootstrap/internals.md": 1774344472499.17,
+    ".yggdrasil/model/server/map-bootstrap/interface.md": 1775390842479.5276,
+    ".yggdrasil/model/server/map-bootstrap/internals.md": 1775390850899.4983,
     ".yggdrasil/model/server/map-bootstrap/responsibility.md": 1774234390007.6501,
     ".yggdrasil/model/server/yg-node.yaml": 1774234390007.1306,
     ".yggdrasil/model/server/interface.md": 1774234390007.2683,
@@ -34,8 +34,8 @@
     ".yggdrasil/model/qc/core/interface.md": 1774474451481.6138,
     ".yggdrasil/model/qc/responsibility.md": 1774219201795.9468,
     ".yggdrasil/model/qc/interface.md": 1774219201865.9475,
-    "internal/server/sv_main.go": 1774482569052.3472,
-    "internal/server/world_model.go": 1773836785780.06,
-    "internal/server/sv_main_test.go": 1774482569052.4976
+    "internal/server/sv_main.go": 1775390773516.8135,
+    "internal/server/world_model.go": 1774696575807.991,
+    "internal/server/sv_main_test.go": 1775390816127.6267
   }
 }

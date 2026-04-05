@@ -20,3 +20,4 @@
 - Entity spawn filtering must respect skill/deathmatch/co-op semantics before QC spawn logic runs.
 - Each spawned map entity reserves 512 bytes of signon space before its QC spawn function, matching the C bootstrap guard against mid-spawn signon fragmentation.
 - Touch QC is intentionally suppressed during entity loading and initial settle frames.
+- Entity 0 (`worldspawn`) is a hard bootstrap invariant: if worldspawn parsing, classname resolution, spawn-function lookup, or spawn execution fails, map bootstrap must return an error immediately and must not free/reuse entity 0 for subsequent entities.
