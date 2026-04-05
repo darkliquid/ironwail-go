@@ -6,6 +6,7 @@ mapping:
   paths:
     - internal/renderer/core_gogpu.go
     - internal/renderer/renderer_gogpu.go
+    - internal/renderer/renderer_gogpu_overlay_test.go
     - internal/renderer/polyblend_gogpu.go
     - internal/renderer/warpscale_gogpu.go
     - internal/renderer/warpscale_gogpu_test.go

@@ -121,6 +121,17 @@ type overlay2D struct {
 	width  int
 	height int
 	dirty  bool
+	minX   int
+	minY   int
+	maxX   int
+	maxY   int
+}
+
+type overlayDirtyRect struct {
+	x int
+	y int
+	w int
+	h int
 }
 
 // ensureOverlay initializes or resets the CPU overlay compositor at the
@@ -167,11 +178,33 @@ func (dc *DrawContext) flush2DOverlay() {
 	}
 	r := dc.renderer
 	r.mu.Lock()
+	currentDirty := ov.dirtyRect()
+	uploadRect := currentDirty
+	if r.overlayTextureDirtyValid {
+		uploadRect = unionOverlayDirtyRects(uploadRect, overlayDirtyRect{
+			x: r.overlayTextureDirtyX,
+			y: r.overlayTextureDirtyY,
+			w: r.overlayTextureDirtyW,
+			h: r.overlayTextureDirtyH,
+		})
+	}
 	// Reuse cached GPU texture if dimensions match.
 	if r.overlayTexture != nil && r.overlayTextureWidth == ov.width && r.overlayTextureHeight == ov.height {
 		tex := r.overlayTexture
+		uploadPixels := r.overlayUploadRegionPixelsLocked(ov.pixels, ov.width, uploadRect)
+		r.overlayTextureDirtyX = currentDirty.x
+		r.overlayTextureDirtyY = currentDirty.y
+		r.overlayTextureDirtyW = currentDirty.w
+		r.overlayTextureDirtyH = currentDirty.h
+		r.overlayTextureDirtyValid = true
 		r.mu.Unlock()
-		if err := tex.UpdateData(ov.pixels); err != nil {
+		var err error
+		if uploadRect.x == 0 && uploadRect.y == 0 && uploadRect.w == ov.width && uploadRect.h == ov.height {
+			err = tex.UpdateData(ov.pixels)
+		} else {
+			err = tex.UpdateRegion(uploadRect.x, uploadRect.y, uploadRect.w, uploadRect.h, uploadPixels)
+		}
+		if err != nil {
 			slog.Error("flush2DOverlay: texture update failed", "error", err)
 			dc.overlay = nil
 			return
@@ -185,6 +218,11 @@ func (dc *DrawContext) flush2DOverlay() {
 			r.overlayTexture.Destroy()
 			r.overlayTexture = nil
 		}
+		r.overlayTextureDirtyX = currentDirty.x
+		r.overlayTextureDirtyY = currentDirty.y
+		r.overlayTextureDirtyW = currentDirty.w
+		r.overlayTextureDirtyH = currentDirty.h
+		r.overlayTextureDirtyValid = true
 		r.mu.Unlock()
 		tex, err := dc.ctx.Renderer().NewTextureFromRGBA(ov.width, ov.height, ov.pixels)
 		if err != nil {
@@ -224,7 +262,7 @@ func (ov *overlay2D) fillRect(x, y, w, h int, r, g, b, a byte) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	ov.dirty = true
+	ov.markDirtyRect(x, y, w, h)
 	stride := ov.width * 4
 	if a == 255 {
 		// Fast path: opaque fill, no blending needed.
@@ -286,7 +324,7 @@ func (ov *overlay2D) blitRGBA(srcRGBA []byte, srcW, srcH int, dstX, dstY, dstW, 
 	if dstW <= 0 || dstH <= 0 {
 		return
 	}
-	ov.dirty = true
+	ov.markDirtyRect(dstX, dstY, dstW, dstH)
 	stride := ov.width * 4
 	globalAlpha := uint32(alpha * 255)
 	if globalAlpha > 255 {
@@ -332,6 +370,90 @@ func (ov *overlay2D) blitRGBA(srcRGBA []byte, srcW, srcH int, dstX, dstY, dstW, 
 			dstOff += 4
 		}
 	}
+}
+
+func (ov *overlay2D) markDirtyRect(x, y, w, h int) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	rect := overlayDirtyRect{x: x, y: y, w: w, h: h}
+	if !ov.dirty {
+		ov.dirty = true
+		ov.minX = rect.x
+		ov.minY = rect.y
+		ov.maxX = rect.x + rect.w
+		ov.maxY = rect.y + rect.h
+		return
+	}
+	if rect.x < ov.minX {
+		ov.minX = rect.x
+	}
+	if rect.y < ov.minY {
+		ov.minY = rect.y
+	}
+	if rect.x+rect.w > ov.maxX {
+		ov.maxX = rect.x + rect.w
+	}
+	if rect.y+rect.h > ov.maxY {
+		ov.maxY = rect.y + rect.h
+	}
+}
+
+func (ov *overlay2D) dirtyRect() overlayDirtyRect {
+	if ov == nil || !ov.dirty {
+		return overlayDirtyRect{}
+	}
+	return overlayDirtyRect{
+		x: ov.minX,
+		y: ov.minY,
+		w: ov.maxX - ov.minX,
+		h: ov.maxY - ov.minY,
+	}
+}
+
+func unionOverlayDirtyRects(a, b overlayDirtyRect) overlayDirtyRect {
+	if a.w <= 0 || a.h <= 0 {
+		return b
+	}
+	if b.w <= 0 || b.h <= 0 {
+		return a
+	}
+	minX := a.x
+	if b.x < minX {
+		minX = b.x
+	}
+	minY := a.y
+	if b.y < minY {
+		minY = b.y
+	}
+	maxX := a.x + a.w
+	if b.x+b.w > maxX {
+		maxX = b.x + b.w
+	}
+	maxY := a.y + a.h
+	if b.y+b.h > maxY {
+		maxY = b.y + b.h
+	}
+	return overlayDirtyRect{x: minX, y: minY, w: maxX - minX, h: maxY - minY}
+}
+
+func (r *Renderer) overlayUploadRegionPixelsLocked(src []byte, srcWidth int, rect overlayDirtyRect) []byte {
+	needed := rect.w * rect.h * 4
+	if needed <= 0 {
+		return nil
+	}
+	if cap(r.overlayUploadBuf) < needed {
+		r.overlayUploadBuf = make([]byte, needed)
+	}
+	buf := r.overlayUploadBuf[:needed]
+	rowBytes := rect.w * 4
+	srcStride := srcWidth * 4
+	for row := 0; row < rect.h; row++ {
+		srcOff := (rect.y+row)*srcStride + rect.x*4
+		dstOff := row * rowBytes
+		copy(buf[dstOff:dstOff+rowBytes], src[srcOff:srcOff+rowBytes])
+	}
+	return buf
 }
 
 // Clear fills the screen with the specified RGBA color.
@@ -949,9 +1071,15 @@ type Renderer struct {
 	overlayTextureWidth  int
 	overlayTextureHeight int
 	// Pooled CPU pixel buffer — avoids ~4.5MB allocation per frame.
-	overlayPixelBuf  []byte
-	overlayBufWidth  int
-	overlayBufHeight int
+	overlayPixelBuf          []byte
+	overlayBufWidth          int
+	overlayBufHeight         int
+	overlayUploadBuf         []byte
+	overlayTextureDirtyX     int
+	overlayTextureDirtyY     int
+	overlayTextureDirtyW     int
+	overlayTextureDirtyH     int
+	overlayTextureDirtyValid bool
 }
 
 // New creates a new Renderer with configuration from cvars.
@@ -1387,6 +1515,12 @@ func (r *Renderer) Shutdown() {
 		r.overlayTexture = nil
 	}
 	r.overlayPixelBuf = nil
+	r.overlayUploadBuf = nil
+	r.overlayTextureDirtyX = 0
+	r.overlayTextureDirtyY = 0
+	r.overlayTextureDirtyW = 0
+	r.overlayTextureDirtyH = 0
+	r.overlayTextureDirtyValid = false
 	r.mu.Unlock()
 	// gogpu.App handles cleanup automatically
 }
