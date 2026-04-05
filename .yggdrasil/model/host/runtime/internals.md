@@ -27,6 +27,8 @@ Host runtime also owns cross-module callback slots such as `SetGameDirChangedCal
 - update screen
 - update audio
 
+When `host_speeds` is enabled, `Host.Frame` now logs a visible per-frame phase breakdown at `Info` instead of a debug-only total. The log includes game timestep plus event, console, client-send, server, client-read, render, audio, and total wall-clock milliseconds so slow sessions can distinguish host/server/client/runtime bottlenecks from renderer time without attaching a profiler.
+
 `Host.Frame` advances the shared compat-rand stream once at frame entry (`h.compatRNG.Int()`) before any callback phases. Because the same RNG instance is injected into server and QC VM paths during init, this early draw is the deterministic upstream offset source for all later frame-local compat-rand consumers (`SV_MoveToGoal` branches and QC `random()`).
 
 For loopback clients, send command construction now performs send-time one-shot input latching (attack/jump/impulse) through client runtime helpers, matching remote send semantics and C engine timing.

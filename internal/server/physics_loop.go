@@ -75,7 +75,7 @@ func (s *Server) Physics() {
 		var clientForPostThink *Client
 		if MoveType(ent.Vars.MoveType) != MoveTypeWalk {
 			if pc := s.playerClient(ent); pc != nil {
-				s.runClientQCThink(pc, "PlayerPreThink")
+				s.runClientQCThinkWithMode(pc, "PlayerPreThink", false)
 				if ent.Free {
 					// Entity freed by PreThink (e.g. ClientDisconnect during think).
 					// Skip movetype dispatch and SendInterval bookkeeping.
@@ -103,7 +103,7 @@ func (s *Server) Physics() {
 		}
 
 		if clientForPostThink != nil && !ent.Free {
-			s.runClientQCThink(clientForPostThink, "PlayerPostThink")
+			s.runClientQCThinkWithMode(clientForPostThink, "PlayerPostThink", false)
 		}
 
 		ent.SendInterval = false
