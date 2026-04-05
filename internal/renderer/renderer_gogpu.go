@@ -788,6 +788,8 @@ type Renderer struct {
 	// worldData holds GPU-side resources for BSP world rendering.
 	// Set via UploadWorld() when a map is loaded.
 	worldData *WorldRenderData
+	// worldFirstFrameStatsLogged gates one-shot first-world-frame diagnostics per upload.
+	worldFirstFrameStatsLogged atomic.Bool
 
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer
@@ -1500,6 +1502,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		hasTranslucentBrushEntities: len(translucentBrushEntities) > 0,
 		hasTranslucentAliasEntities: len(translucentAliasEntities) > 0,
 	})
+	dc.maybeLogGoGPUFirstWorldFrameStats(state, lateTranslucency, translucentBrushEntities, translucentAliasEntities)
 
 	if shouldClearGoGPUSharedDepthStencil(gogpuSharedDepthStencilClearInputs{
 		drawWorld:         state.DrawWorld,
@@ -1558,6 +1561,79 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	}
 
 	dc.logPrePresentState("normal")
+}
+
+func (dc *DrawContext) maybeLogGoGPUFirstWorldFrameStats(state *RenderFrameState, lateTranslucency bool, translucentBrushEntities []BrushEntity, translucentAliasEntities []AliasModelEntity) {
+	if dc == nil || dc.renderer == nil || state == nil || !state.DrawWorld {
+		return
+	}
+	worldData := dc.renderer.GetWorldData()
+	if worldData == nil || worldData.Geometry == nil {
+		return
+	}
+	if !dc.renderer.worldFirstFrameStatsLogged.CompareAndSwap(false, true) {
+		return
+	}
+
+	camera := dc.renderer.cameraState
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	visibleFaces := selectVisibleWorldFaces(
+		worldData.Geometry.Tree,
+		worldData.Geometry.Faces,
+		worldData.Geometry.LeafFaces,
+		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+	)
+	visibleStats := summarizeGoGPUWorldFaceStats(visibleFaces, liquidAlpha)
+
+	dynamicLightCount := 0
+	dc.renderer.mu.RLock()
+	if dc.renderer.lightPool != nil {
+		dynamicLightCount = dc.renderer.lightPool.ActiveCount()
+	}
+	dc.renderer.mu.RUnlock()
+
+	particleTotal := 0
+	if state.DrawParticles {
+		particleTotal = particleCount(state.Particles)
+	}
+	opaqueBrushEntities := len(state.BrushEntities) - len(translucentBrushEntities)
+	if opaqueBrushEntities < 0 {
+		opaqueBrushEntities = 0
+	}
+	opaqueAliasEntities := len(state.AliasEntities) - len(translucentAliasEntities)
+	if opaqueAliasEntities < 0 {
+		opaqueAliasEntities = 0
+	}
+
+	slog.Info("GoGPU first frame stats",
+		"alpha_mode", effectiveGoGPUAlphaMode(GetAlphaMode()).String(),
+		"visible_faces", visibleStats.TotalFaces,
+		"visible_triangles", visibleStats.TotalTriangles,
+		"visible_lightmapped_faces", visibleStats.LightmappedFaces,
+		"visible_lit_water_faces", visibleStats.LitWaterFaces,
+		"visible_turbulent_faces", visibleStats.TurbulentFaces,
+		"visible_sky_faces", visibleStats.SkyFaces,
+		"visible_opaque_faces", visibleStats.OpaqueFaces,
+		"visible_alpha_test_faces", visibleStats.AlphaTestFaces,
+		"visible_opaque_liquid_faces", visibleStats.OpaqueLiquidFaces,
+		"visible_translucent_liquid_faces", visibleStats.TranslucentLiquidFaces,
+		"world_faces_total", worldData.TotalFaces,
+		"world_triangles_total", worldData.TotalIndices/3,
+		"lightmap_pages", len(worldData.Geometry.Lightmaps),
+		"brush_entities", len(state.BrushEntities),
+		"brush_entities_opaque", opaqueBrushEntities,
+		"brush_entities_translucent", len(translucentBrushEntities),
+		"alias_entities", len(state.AliasEntities),
+		"alias_entities_opaque", opaqueAliasEntities,
+		"alias_entities_translucent", len(translucentAliasEntities),
+		"sprite_entities", len(state.SpriteEntities),
+		"decal_marks", len(state.DecalMarks),
+		"particles", particleTotal,
+		"dynamic_lights", dynamicLightCount,
+		"late_translucency", lateTranslucency,
+		"menu_active", state.MenuActive,
+		"view_model", state.ViewModel != nil,
+	)
 }
 
 func shouldRunHALOnlyFrame() bool {

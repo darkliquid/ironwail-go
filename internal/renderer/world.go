@@ -76,6 +76,70 @@ type WorldRenderData struct {
 	TotalFaces    int
 }
 
+type gogpuWorldFaceStats struct {
+	TotalFaces                 int
+	TotalTriangles             int
+	LightmappedFaces           int
+	LitWaterFaces              int
+	TurbulentFaces             int
+	TurbulentTriangles         int
+	SkyFaces                   int
+	SkyTriangles               int
+	OpaqueFaces                int
+	OpaqueTriangles            int
+	AlphaTestFaces             int
+	AlphaTestTriangles         int
+	OpaqueLiquidFaces          int
+	OpaqueLiquidTriangles      int
+	TranslucentLiquidFaces     int
+	TranslucentLiquidTriangles int
+	UnclassifiedFaces          int
+	UnclassifiedTriangles      int
+}
+
+func summarizeGoGPUWorldFaceStats(faces []WorldFace, liquidAlpha worldLiquidAlphaSettings) gogpuWorldFaceStats {
+	var stats gogpuWorldFaceStats
+	for _, face := range faces {
+		if face.NumIndices == 0 {
+			continue
+		}
+		triangles := int(face.NumIndices / 3)
+		stats.TotalFaces++
+		stats.TotalTriangles += triangles
+		if face.LightmapIndex >= 0 {
+			stats.LightmappedFaces++
+		}
+		if face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 {
+			stats.TurbulentFaces++
+			stats.TurbulentTriangles += triangles
+			if face.LightmapIndex >= 0 {
+				stats.LitWaterFaces++
+			}
+		}
+		switch {
+		case shouldDrawGoGPUSkyWorldFace(face):
+			stats.SkyFaces++
+			stats.SkyTriangles += triangles
+		case shouldDrawGoGPUAlphaTestWorldFace(face):
+			stats.AlphaTestFaces++
+			stats.AlphaTestTriangles += triangles
+		case shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
+			stats.OpaqueLiquidFaces++
+			stats.OpaqueLiquidTriangles += triangles
+		case shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha):
+			stats.TranslucentLiquidFaces++
+			stats.TranslucentLiquidTriangles += triangles
+		case shouldDrawGoGPUOpaqueWorldFace(face):
+			stats.OpaqueFaces++
+			stats.OpaqueTriangles += triangles
+		default:
+			stats.UnclassifiedFaces++
+			stats.UnclassifiedTriangles += triangles
+		}
+	}
+	return stats
+}
+
 type gogpuTranslucentLiquidFaceDraw struct {
 	face       WorldFace
 	alpha      float32
@@ -2130,6 +2194,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if tree == nil {
 		return fmt.Errorf("nil BSP tree")
 	}
+	r.worldFirstFrameStatsLogged.Store(false)
 	r.mu.Lock()
 	r.brushModelGeometry = make(map[int]*WorldGeometry)
 	r.mu.Unlock()
@@ -2141,6 +2206,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err != nil {
 		return fmt.Errorf("build world geometry: %w", err)
 	}
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(tree.Entities), tree)
+	faceStats := summarizeGoGPUWorldFaceStats(geom.Faces, liquidAlpha)
 
 	// Create render data
 	renderData := &WorldRenderData{
@@ -2189,6 +2256,27 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		r.mu.Lock()
 		r.worldData = renderData
 		r.mu.Unlock()
+		slog.Info("GoGPU world upload stats",
+			"gpu_upload", false,
+			"bsp_version", tree.Version,
+			"lighting_rgb", tree.LightingRGB,
+			"raw_faces", len(tree.Faces),
+			"built_faces", faceStats.TotalFaces,
+			"built_triangles", faceStats.TotalTriangles,
+			"vertices", renderData.TotalVertices,
+			"lightmap_pages", len(geom.Lightmaps),
+			"lightmapped_faces", faceStats.LightmappedFaces,
+			"lit_water_faces", faceStats.LitWaterFaces,
+			"turbulent_faces", faceStats.TurbulentFaces,
+			"sky_faces", faceStats.SkyFaces,
+			"opaque_faces", faceStats.OpaqueFaces,
+			"alpha_test_faces", faceStats.AlphaTestFaces,
+			"opaque_liquid_faces", faceStats.OpaqueLiquidFaces,
+			"translucent_liquid_faces", faceStats.TranslucentLiquidFaces,
+			"textures", tree.NumTextures,
+			"leafs", len(tree.Leafs),
+			"models", len(tree.Models),
+		)
 		return nil
 	}
 
@@ -2454,6 +2542,32 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"boundsMax", renderData.BoundsMax,
 		"vertexBufferSize", uint64(len(geom.Vertices))*44,
 		"indexBufferSize", uint64(len(geom.Indices))*4)
+	slog.Info("GoGPU world upload stats",
+		"gpu_upload", true,
+		"bsp_version", tree.Version,
+		"lighting_rgb", tree.LightingRGB,
+		"raw_faces", len(tree.Faces),
+		"built_faces", faceStats.TotalFaces,
+		"built_triangles", faceStats.TotalTriangles,
+		"vertices", renderData.TotalVertices,
+		"lightmap_pages", len(geom.Lightmaps),
+		"gpu_lightmap_pages", len(worldLightmapPages),
+		"lightmapped_faces", faceStats.LightmappedFaces,
+		"lit_water_faces", faceStats.LitWaterFaces,
+		"turbulent_faces", faceStats.TurbulentFaces,
+		"sky_faces", faceStats.SkyFaces,
+		"opaque_faces", faceStats.OpaqueFaces,
+		"alpha_test_faces", faceStats.AlphaTestFaces,
+		"opaque_liquid_faces", faceStats.OpaqueLiquidFaces,
+		"translucent_liquid_faces", faceStats.TranslucentLiquidFaces,
+		"textures", tree.NumTextures,
+		"gpu_textures", len(worldTextures),
+		"gpu_fullbright_textures", len(worldFullbrightTextures),
+		"gpu_sky_solid_textures", len(worldSkySolidTextures),
+		"gpu_sky_alpha_textures", len(worldSkyAlphaTextures),
+		"leafs", len(tree.Leafs),
+		"models", len(tree.Models),
+	)
 
 	return nil
 }
@@ -3166,6 +3280,7 @@ func gogpuSharedDepthStencilClearAttachmentForView(view *wgpu.TextureView) *wgpu
 func (r *Renderer) ClearWorld() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.worldFirstFrameStatsLogged.Store(false)
 
 	if r.worldData != nil {
 		// Release GPU buffers

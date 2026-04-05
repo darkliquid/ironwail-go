@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
 // TestBuildWorldGeometry_NilTree tests handling of nil BSP tree.
@@ -638,5 +639,57 @@ func TestExtractFaceVertices_FlippedNormal(t *testing.T) {
 	if vertsBack[0].Normal != expectedFlippedNormal {
 		t.Errorf("Back face normal = %v, want %v",
 			vertsBack[0].Normal, expectedFlippedNormal)
+	}
+}
+
+func TestSummarizeGoGPUWorldFaceStats(t *testing.T) {
+	liquidAlpha := worldLiquidAlphaSettings{
+		water: 0.5,
+		lava:  1,
+		slime: 1,
+		tele:  1,
+	}
+	faces := []WorldFace{
+		{NumIndices: 6, Flags: model.SurfDrawSky, LightmapIndex: -1},
+		{NumIndices: 3, Flags: 0, LightmapIndex: 0},
+		{NumIndices: 9, Flags: model.SurfDrawFence, LightmapIndex: 1},
+		{NumIndices: 12, Flags: model.SurfDrawTurb | model.SurfDrawLava, LightmapIndex: 2},
+		{NumIndices: 15, Flags: model.SurfDrawTurb | model.SurfDrawWater, LightmapIndex: -1},
+	}
+
+	stats := summarizeGoGPUWorldFaceStats(faces, liquidAlpha)
+
+	if stats.TotalFaces != 5 {
+		t.Fatalf("TotalFaces = %d, want 5", stats.TotalFaces)
+	}
+	if stats.TotalTriangles != 15 {
+		t.Fatalf("TotalTriangles = %d, want 15", stats.TotalTriangles)
+	}
+	if stats.LightmappedFaces != 3 {
+		t.Fatalf("LightmappedFaces = %d, want 3", stats.LightmappedFaces)
+	}
+	if stats.LitWaterFaces != 1 {
+		t.Fatalf("LitWaterFaces = %d, want 1", stats.LitWaterFaces)
+	}
+	if stats.TurbulentFaces != 2 {
+		t.Fatalf("TurbulentFaces = %d, want 2", stats.TurbulentFaces)
+	}
+	if stats.SkyFaces != 1 || stats.SkyTriangles != 2 {
+		t.Fatalf("sky stats = (%d faces, %d tris), want (1, 2)", stats.SkyFaces, stats.SkyTriangles)
+	}
+	if stats.OpaqueFaces != 1 || stats.OpaqueTriangles != 1 {
+		t.Fatalf("opaque stats = (%d faces, %d tris), want (1, 1)", stats.OpaqueFaces, stats.OpaqueTriangles)
+	}
+	if stats.AlphaTestFaces != 1 || stats.AlphaTestTriangles != 3 {
+		t.Fatalf("alpha-test stats = (%d faces, %d tris), want (1, 3)", stats.AlphaTestFaces, stats.AlphaTestTriangles)
+	}
+	if stats.OpaqueLiquidFaces != 1 || stats.OpaqueLiquidTriangles != 4 {
+		t.Fatalf("opaque liquid stats = (%d faces, %d tris), want (1, 4)", stats.OpaqueLiquidFaces, stats.OpaqueLiquidTriangles)
+	}
+	if stats.TranslucentLiquidFaces != 1 || stats.TranslucentLiquidTriangles != 5 {
+		t.Fatalf("translucent liquid stats = (%d faces, %d tris), want (1, 5)", stats.TranslucentLiquidFaces, stats.TranslucentLiquidTriangles)
+	}
+	if stats.UnclassifiedFaces != 0 || stats.UnclassifiedTriangles != 0 {
+		t.Fatalf("unclassified stats = (%d faces, %d tris), want 0", stats.UnclassifiedFaces, stats.UnclassifiedTriangles)
 	}
 }
