@@ -1835,6 +1835,7 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 		Alpha:              draw.alpha,
 		ModelOffsetUniform: modelOffsetUniform,
 		AlphaUniform:       alphaUniform,
+		DepthOffset:        spriteNeedsDepthOffset(draw.sprite.spriteType),
 	})
 }
 

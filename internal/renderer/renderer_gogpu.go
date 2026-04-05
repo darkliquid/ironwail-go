@@ -1081,6 +1081,7 @@ type Renderer struct {
 	spriteUniformBuffer            *wgpu.Buffer
 	spriteUniformBindGroup         *wgpu.BindGroup
 	spritePipeline                 *wgpu.RenderPipeline
+	spriteDepthOffsetPipeline      *wgpu.RenderPipeline
 	spriteVertexShader             *wgpu.ShaderModule
 	spriteFragmentShader           *wgpu.ShaderModule
 	particleOpaquePipeline         *wgpu.RenderPipeline

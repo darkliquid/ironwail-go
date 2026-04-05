@@ -16,6 +16,7 @@ type SpriteDrawParams struct {
 	Alpha              float32
 	ModelOffsetUniform int32
 	AlphaUniform       int32
+	DepthOffset        bool
 }
 
 func FlattenWorldVertices(vertices []worldimpl.WorldVertex) []float32 {
@@ -36,6 +37,11 @@ func DrawSpriteWorldVertices(vertices []worldimpl.WorldVertex, params SpriteDraw
 		return
 	}
 	vertexData := FlattenWorldVertices(vertices)
+	if params.DepthOffset {
+		gl.Enable(gl.POLYGON_OFFSET_FILL)
+		gl.PolygonOffset(-1.0, -2.0)
+		defer gl.Disable(gl.POLYGON_OFFSET_FILL)
+	}
 	gl.BindBuffer(gl.ARRAY_BUFFER, params.VBO)
 	gl.BufferData(gl.ARRAY_BUFFER, len(vertexData)*4, gl.Ptr(vertexData), gl.DYNAMIC_DRAW)
 	gl.Uniform3f(params.ModelOffsetUniform, params.ModelOffset[0], params.ModelOffset[1], params.ModelOffset[2])

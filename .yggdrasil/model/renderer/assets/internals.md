@@ -23,7 +23,9 @@ Rationale:
 
 Observed decision:
 - `spriteDataFromModel` now returns `model.Model.SpriteData` whenever it is present before synthesizing bounds-only placeholder sprite metadata.
+- Shared sprite helpers also centralize poster policy predicates such as `spriteNeedsDepthOffset` and `spriteUsesOpaqueCutout` so backend-specific sprite passes can make the same `SPR_ORIENTED` cutout/depth-bias decision without duplicating type checks.
 
 Rationale:
 - Runtime entity collection can retain parsed sprite frame payload on `Model.SpriteData` even when `SpriteEntity.SpriteData` is absent on a downstream path.
+- Keeping the poster-policy branch in shared code reduces backend drift while the concrete backends still own the actual render-state differences.
 - Returning `Model.SpriteData` preserves real frame pixels for backend uploads and prevents cache-miss uploads from degenerating to empty placeholder frames.

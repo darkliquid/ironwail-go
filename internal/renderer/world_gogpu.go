@@ -1755,7 +1755,7 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 	if err := r.ensureAliasResourcesLocked(device); err != nil {
 		return err
 	}
-	if r.spritePipeline != nil && r.spriteUniformBuffer != nil && r.spriteUniformBindGroup != nil {
+	if r.spritePipeline != nil && r.spriteDepthOffsetPipeline != nil && r.spriteUniformBuffer != nil && r.spriteUniformBindGroup != nil {
 		return nil
 	}
 
@@ -1852,11 +1852,54 @@ func (r *Renderer) ensureSpriteResourcesLocked(device *wgpu.Device) error {
 		return fmt.Errorf("create sprite pipeline: %w", err)
 	}
 
+	depthOffsetPipeline, err := validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
+		Label:  "Sprite Depth Offset Render Pipeline",
+		Layout: r.aliasPipelineLayout,
+		Vertex: wgpu.VertexState{
+			Module:     vertexShader,
+			EntryPoint: "vs_main",
+			Buffers: []gputypes.VertexBufferLayout{{
+				ArrayStride: 44,
+				StepMode:    gputypes.VertexStepModeVertex,
+				Attributes: []gputypes.VertexAttribute{
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+					{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
+					{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+				},
+			}},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeBack,
+		},
+		DepthStencil: spriteDepthOffsetDepthStencilState(),
+		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets: []gputypes.ColorTargetState{{
+				Format:    surfaceFormat,
+				WriteMask: gputypes.ColorWriteMaskAll,
+			}},
+		},
+	})
+	if err != nil {
+		pipeline.Release()
+		vertexShader.Release()
+		fragmentShader.Release()
+		uniformBindGroup.Release()
+		uniformBuffer.Release()
+		return fmt.Errorf("create sprite depth-offset pipeline: %w", err)
+	}
+
 	r.spriteUniformBuffer = uniformBuffer
 	r.spriteUniformBindGroup = uniformBindGroup
 	r.spriteVertexShader = vertexShader
 	r.spriteFragmentShader = fragmentShader
 	r.spritePipeline = pipeline
+	r.spriteDepthOffsetPipeline = depthOffsetPipeline
 	return nil
 }
 
@@ -2062,13 +2105,14 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		return
 	}
 	pipeline := r.spritePipeline
+	depthOffsetPipeline := r.spriteDepthOffsetPipeline
 	uniformBuffer := r.spriteUniformBuffer
 	uniformBindGroup := r.spriteUniformBindGroup
 	scratchBuffer := r.aliasScratchBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
 	r.mu.Unlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
+	if pipeline == nil || depthOffsetPipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || scratchBuffer == nil {
 		return
 	}
 
@@ -2091,7 +2135,6 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		slog.Warn("renderSpriteDrawsHAL: Failed to begin render pass", "error", err)
 		return
 	}
-	renderPass.SetPipeline(pipeline)
 	width, height := r.Size()
 	if width > 0 && height > 0 {
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
@@ -2104,10 +2147,19 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 	cameraForward, cameraRight, cameraUp := spriteCameraBasis(cameraAngles)
+	currentPipeline := (*wgpu.RenderPipeline)(nil)
 
 	for _, draw := range draws {
 		if draw.sprite == nil || draw.frame < 0 || draw.frame >= len(draw.sprite.frames) {
 			continue
+		}
+		targetPipeline := pipeline
+		if spriteUsesOpaqueCutout(draw.sprite.spriteType, draw.alpha) {
+			targetPipeline = depthOffsetPipeline
+		}
+		if currentPipeline != targetPipeline {
+			renderPass.SetPipeline(targetPipeline)
+			currentPipeline = targetPipeline
 		}
 		vertices := buildSpriteQuadVertices(&spriteRenderModel{
 			modelID:    draw.sprite.modelID,
@@ -2540,6 +2592,27 @@ func decalDepthStencilState() *wgpu.DepthStencilState {
 		StencilBack:         stencilFace,
 		StencilReadMask:     0xFFFFFFFF,
 		StencilWriteMask:    0xFFFFFFFF,
+		DepthBias:           -1,
+		DepthBiasSlopeScale: -2,
+		DepthBiasClamp:      0,
+	}
+}
+
+func spriteDepthOffsetDepthStencilState() *wgpu.DepthStencilState {
+	stencilFace := wgpu.StencilFaceState{
+		Compare:     gputypes.CompareFunctionAlways,
+		FailOp:      wgpu.StencilOperationKeep,
+		DepthFailOp: wgpu.StencilOperationKeep,
+		PassOp:      wgpu.StencilOperationKeep,
+	}
+	return &wgpu.DepthStencilState{
+		Format:              worldDepthTextureFormat,
+		DepthWriteEnabled:   true,
+		DepthCompare:        gputypes.CompareFunctionLessEqual,
+		StencilFront:        stencilFace,
+		StencilBack:         stencilFace,
+		StencilReadMask:     0,
+		StencilWriteMask:    0,
 		DepthBias:           -1,
 		DepthBiasSlopeScale: -2,
 		DepthBiasClamp:      0,
@@ -3611,6 +3684,10 @@ func (r *Renderer) destroySpriteResourcesLocked() {
 	if r.spritePipeline != nil {
 		r.spritePipeline.Release()
 		r.spritePipeline = nil
+	}
+	if r.spriteDepthOffsetPipeline != nil {
+		r.spriteDepthOffsetPipeline.Release()
+		r.spriteDepthOffsetPipeline = nil
 	}
 	if r.spriteVertexShader != nil {
 		r.spriteVertexShader.Release()

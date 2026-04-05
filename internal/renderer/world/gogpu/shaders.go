@@ -147,7 +147,7 @@ var unusedTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let sampled = textureSample(spriteTexture, spriteSampler, input.texCoord);
-    if (sampled.a < 0.01) {
+    if (sampled.a < 0.666) {
         discard;
     }
     let fogPosition = input.worldPosition - uniforms.cameraOrigin;

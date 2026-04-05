@@ -1,5 +1,5 @@
 {
-  "hash": "c9a8a4713230de646cc17ad3f9d4d4c5a3750544ac7df7b8b9175068c31d97d8",
+  "hash": "b5a35cc03df65e0707894b829e1f60868d72ef4f89b12a5e520e5617bc49c851",
   "files": {
     ".yggdrasil/model/renderer/gogpu-world/yg-node.yaml": "fb7e6a14b354a7e2261ffd6f202057b602cd2f1f569a50d44eaa3ee01eb8b306",
     ".yggdrasil/model/renderer/gogpu-world/interface.md": "40393f3f52f3325512176673f71a9e8cc6742d85713a858ba909e8df85a260e9",
@@ -13,7 +13,6 @@
     "internal/renderer/particle_gogpu.go": "ef1d2611ae925e44d8ed127bb88acfdcaea785b6c12f4a9f7f8cbc3d3b3baa39",
     "internal/renderer/world_gogpu_brush_test.go": "4f110295f0de8c7dae0cf22aaea55a305de0b5e5292c91fe25720792133111c7",
     "internal/renderer/world_gogpu_decal_test.go": "f77049eae7707681e836036cdcc46dfff11bd24a6249e998e78ec049e910bbef",
-    "internal/renderer/world/gogpu/shaders.go": "f24133879790c2531577b81726cea690302ba6e399b60251adeac6e2d66e53a2",
     "internal/renderer/world/gogpu/buffer.go": "1c5e079fce924527a4404443ea62cd43df0c86d839687a5117ea0a665b13dad4",
     "internal/renderer/world/gogpu/brush_build.go": "478c171d5060eb04e55a0d7009e4002a170b34d69b76ac4bb7165229077e12fd",
     "internal/renderer/world/gogpu/brush_translucent.go": "3e0fe6055a079cc99d41bbc2d72208ceff151bf4baa6ddea9f7009ebd50d7c08",
@@ -22,13 +21,14 @@
     "internal/renderer/world/gogpu/decal_test.go": "9ac4fe8d87f1f1ee84d6751604a83b68c7a61e43c1c36037f44c3ccadc119211",
     "internal/renderer/world/gogpu/sprite.go": "fb3391fd8be0f48914a90a404a14ca4783f4e6cc348e751337ff565a3edccc97",
     "internal/renderer/world/gogpu/sprite_test.go": "26550c0b8b53956aa19e53bfe5aa0b1c522eb7ec85126220118b77b5b2ba93d7",
-    ".yggdrasil/model/renderer/gogpu-world/internals.md": "1fecf6aa0ac6050b43698d0a689bccf41be9df1a5dff396c126c6c2861c977d3",
-    "internal/renderer/world_gogpu.go": "2bf50c02b1aff643fdf24e089db7bb9b8e83a5cf1bdc45037ea871fe13088c37"
+    ".yggdrasil/model/renderer/gogpu-world/internals.md": "d0ceb56265f915ad86c6d3ab507b1f7f4af47d933b1c50ec1dfc81e376fa7193",
+    "internal/renderer/world_gogpu.go": "6ecdb0de7119ef4b84e82a493e01383f0df5d2113da38409809cd11ab7658d9a",
+    "internal/renderer/world/gogpu/shaders.go": "56764104adb642744167b63b0849421cfc80d45540f460d0f8eb20310812ce46"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/gogpu-world/yg-node.yaml": 1775416120541.6091,
     ".yggdrasil/model/renderer/gogpu-world/interface.md": 1775416136827.7231,
-    ".yggdrasil/model/renderer/gogpu-world/internals.md": 1775418828363.6,
+    ".yggdrasil/model/renderer/gogpu-world/internals.md": 1775421882287.002,
     ".yggdrasil/model/renderer/gogpu-world/responsibility.md": 1774681169532.7742,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
@@ -37,10 +37,10 @@
     ".yggdrasil/model/renderer/alias/responsibility.md": 1774681169531.854,
     ".yggdrasil/model/renderer/alias/interface.md": 1775415673520.3442,
     "internal/renderer/particle_gogpu.go": 1775028989784.2566,
-    "internal/renderer/world_gogpu.go": 1775418592054.268,
+    "internal/renderer/world_gogpu.go": 1775421852986.6665,
     "internal/renderer/world_gogpu_brush_test.go": 1775416115405.573,
     "internal/renderer/world_gogpu_decal_test.go": 1775416048040.098,
-    "internal/renderer/world/gogpu/shaders.go": 1775029009513.3,
+    "internal/renderer/world/gogpu/shaders.go": 1775421843099.552,
     "internal/renderer/world/gogpu/buffer.go": 1774696575384.936,
     "internal/renderer/world/gogpu/brush_build.go": 1775415724984.7373,
     "internal/renderer/world/gogpu/brush_translucent.go": 1774696575383.9324,
