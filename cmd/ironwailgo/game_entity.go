@@ -548,19 +548,26 @@ func spriteFrameSpan(frameDesc model.MSpriteFrameDesc) int {
 
 func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, spriteEntities []renderer.SpriteEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
 	state := renderer.DefaultRenderFrameState()
+	sceneActive := runtimeScenePlaybackActive()
+	if !sceneActive {
+		brushEntities = nil
+		aliasEntities = nil
+		spriteEntities = nil
+		viewModel = nil
+	}
 	state.ClearColor = [4]float32{0, 0, 0, 1}
-	state.DrawWorld = g.Renderer != nil && g.Renderer.HasWorldData()
-	state.DrawEntities = len(brushEntities) > 0 || len(aliasEntities) > 0 || len(spriteEntities) > 0 || viewModel != nil
+	state.DrawWorld = sceneActive && g.Renderer != nil && g.Renderer.HasWorldData()
+	state.DrawEntities = sceneActive && (len(brushEntities) > 0 || len(aliasEntities) > 0 || len(spriteEntities) > 0 || viewModel != nil)
 	state.BrushEntities = brushEntities
 	state.AliasEntities = aliasEntities
 	state.SpriteEntities = spriteEntities
 	state.ViewModel = viewModel
-	state.DrawParticles = g.Particles != nil && g.Particles.ActiveCount() > 0
+	state.DrawParticles = sceneActive && g.Particles != nil && g.Particles.ActiveCount() > 0
 	state.Draw2DOverlay = true
 	state.MenuActive = g.Menu != nil && g.Menu.IsActive()
 	state.CSQCDrawHud = g.CSQC != nil && g.CSQC.IsLoaded()
 	state.Particles = g.Particles
-	if g.DecalMarks != nil {
+	if sceneActive && g.DecalMarks != nil {
 		state.DecalMarks = g.DecalMarks.ActiveMarks()
 	}
 	if g.Client != nil {
@@ -613,6 +620,18 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 		}
 	}
 	return state
+}
+
+func runtimeScenePlaybackActive() bool {
+	if g.Host != nil {
+		if demo := g.Host.DemoState(); demo != nil && demo.Playback {
+			return true
+		}
+		if g.Host.ClientSessionActive() {
+			return true
+		}
+	}
+	return false
 }
 
 func entityStateAlpha(state inet.EntityState) float32 {

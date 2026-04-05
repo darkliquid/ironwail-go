@@ -14,7 +14,7 @@ Host command registration is unconditional during `Init`, and runtime now also i
 
 Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info. The provider includes both summary server info and per-player row callbacks (slot/name/colors/frags/ping) so datagram control queries can answer remote `players` requests without exposing full server internals through the host command layer.
 
-Host runtime also owns cross-module callback slots such as `SetGameDirChangedCallback`, which lets executable bootstrap install mod-switch follow-up behavior (for example draw asset reload and renderer palette/conchars refresh) without giving host/runtime a direct dependency on draw or renderer packages.
+Host runtime also owns cross-module callback slots such as `SetGameDirChangedCallback`, which lets executable bootstrap install mod-switch follow-up behavior (for example draw asset reload and renderer palette/conchars refresh) without giving host/runtime a direct dependency on draw or renderer packages. It now also exposes a narrow `ClientSessionActive()` accessor so executable render glue can key scene visibility off authoritative host session state instead of stale client-object residue after failed transitions.
 
 ### Frame scheduling
 

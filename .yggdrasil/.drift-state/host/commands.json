@@ -1,5 +1,5 @@
 {
-  "hash": "5a0625debd23a6a031edf4ea508f6eb9ea623e41e0bdf18217fd2d200126682b",
+  "hash": "4fb0d86f3181ae3258fbf90acd1043a24d02277255abf9fec4a6314cdf5231b9",
   "files": {
     ".yggdrasil/model/host/commands/yg-node.yaml": "ce740cc898b1bf792c8aab95933b2a74af0af31a7e85c76b60e9555aee71b8f8",
     ".yggdrasil/model/host/commands/interface.md": "2a4d03306bd749569a0144ea5e6a25218df2ab2ff71e3a33968c5841738e413b",
@@ -16,14 +16,14 @@
     "internal/host/commands_network.go": "20b125187a8af6574a6655d4ebbf66ff769f58d7e2f95137a126f8a0ad7dd84e",
     "internal/host/commands_system.go": "a7b607d991676042d2d591fdc3c647df807e572b5e337e8472762e452dea4462",
     "internal/host/commands_gameplay_test.go": "298d910dc3496124d562a30999ac58447a2979dea835df5f0c1ad8fc150abdce",
-    ".yggdrasil/model/host/commands/internals.md": "5de5fddb012f535645be168d5cf3fbf92e853da21f2dc4f2eb3c7c5e4242e926",
-    "internal/host/commands_map.go": "145560a68520c81a16c5c7d7294a00927693f77fbe2f776e398659a0a9ac84b7",
-    "internal/host/commands_test.go": "1ed718d604622c43e26a3beca5c27ac7b407986de94ca0ab042bd66f39ae5d8e"
+    ".yggdrasil/model/host/commands/internals.md": "aacd0ca8fcf1880db7ade518f80c52552634c62af743354eada0dff2b2f947aa",
+    "internal/host/commands_map.go": "46a9cf09336f80f9143d99a379b8d22c50b7be3ab04713b8b13e8532c4853352",
+    "internal/host/commands_test.go": "beba21ce78823d3613842261778b9199913f4c4b879b1ee21c8b386e43781211"
   },
   "mtimes": {
     ".yggdrasil/model/host/commands/yg-node.yaml": 1774217886305.314,
     ".yggdrasil/model/host/commands/interface.md": 1775389035741.1624,
-    ".yggdrasil/model/host/commands/internals.md": 1775392016206.5044,
+    ".yggdrasil/model/host/commands/internals.md": 1775392963315.1868,
     ".yggdrasil/model/host/commands/responsibility.md": 1774337951063.865,
     ".yggdrasil/model/host/yg-node.yaml": 1774217885954.3083,
     ".yggdrasil/model/host/interface.md": 1774217807092.0435,
@@ -34,10 +34,10 @@
     "internal/host/commands_demo.go": 1774696575752.6704,
     "internal/host/commands_forwarding.go": 1774696575584.453,
     "internal/host/commands_gameplay.go": 1774696575752.6704,
-    "internal/host/commands_map.go": 1775391773967.549,
+    "internal/host/commands_map.go": 1775392737240.8118,
     "internal/host/commands_network.go": 1774696575584.829,
     "internal/host/commands_system.go": 1774696575579.8215,
-    "internal/host/commands_test.go": 1775391813762.697,
+    "internal/host/commands_test.go": 1775392737372.8125,
     "internal/host/commands_gameplay_test.go": 1774107822451.9006
   }
 }

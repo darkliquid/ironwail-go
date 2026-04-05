@@ -11,6 +11,7 @@ Registration refreshes existing host-owned command names before re-adding them. 
 ### Command families
 
 - **Map/session commands** manage local server startup, reconnect-style transitions, and changelevel/load flows.
+- Local `map` startup now fails closed before any handshake begins: if server init or `SpawnServer` fails, host tears down the partially started server/client session, clears loopback state/signons, and leaves the runtime disconnected instead of keeping stale gameplay state alive.
 - **Menu commands** now include a broad C-style `menu_*` family that maps directly to menu states (`menu_main`, `menu_singleplayer`, `menu_maps`, `menu_load`, `menu_save`, `menu_multiplayer`, `menu_setup`, `menu_options`, `menu_keys`, `menu_video`, `menu_help`, `menu_quit`).
 - **Map/session command queries** include `mapname`, which now reports the real active map from `Server.GetMapName()` for local sessions or `ActiveClientState(subs).MapName` for connected clients instead of placeholder text.
 - **Map/session discovery commands** now include `mods`/`games`, which type-assert `subs.Files` to `*fs.FileSystem`, reuse `ListMods()`, and mirror C's list-or-filter count summaries without introducing a separate mod registry in host state.

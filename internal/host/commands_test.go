@@ -96,6 +96,12 @@ type sessionStartTrackingServer struct {
 	shutdownCalls  int
 }
 
+type spawnFailureTrackingServer struct {
+	mockServer
+	shutdownCalls int
+	spawnErr      error
+}
+
 func (s *sessionStartTrackingServer) Init(maxClients int) error {
 	s.initMaxClients = maxClients
 	return s.mockServer.Init(maxClients)
@@ -106,6 +112,20 @@ func (s *sessionStartTrackingServer) ConnectClient(clientNum int) {
 }
 
 func (s *sessionStartTrackingServer) Shutdown() {
+	s.shutdownCalls++
+	s.mockServer.Shutdown()
+}
+
+func (s *spawnFailureTrackingServer) SpawnServer(mapName string, vfs *fs.FileSystem) error {
+	s.mapName = mapName
+	s.spawned = append(s.spawned, mapName)
+	if s.spawnErr != nil {
+		return s.spawnErr
+	}
+	return nil
+}
+
+func (s *spawnFailureTrackingServer) Shutdown() {
 	s.shutdownCalls++
 	s.mockServer.Shutdown()
 }
@@ -3310,6 +3330,45 @@ func TestCmdMapShutsDownRemoteClientBeforeReplacingWithLocalClient(t *testing.T)
 	}
 	if _, ok := subs.Client.(*localLoopbackClient); !ok {
 		t.Fatalf("client = %T, want *localLoopbackClient", subs.Client)
+	}
+}
+
+func TestCmdMapSpawnFailureCleansUpDisconnectedSessionState(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(4)
+
+	srv := &spawnFailureTrackingServer{spawnErr: fmt.Errorf("spawn failed")}
+	remoteClient := &remoteSignonTestClient{state: caActive}
+	subs := &Subsystems{
+		Files:   &fs.FileSystem{},
+		Server:  srv,
+		Client:  remoteClient,
+		Console: &mockConsole{},
+	}
+
+	err := h.CmdMap("start", subs)
+	if err == nil {
+		t.Fatal("CmdMap(start) error = nil, want spawn failure")
+	}
+	if !strings.Contains(err.Error(), "spawn failed") {
+		t.Fatalf("CmdMap(start) error = %q, want spawn failure", err)
+	}
+	if srv.shutdownCalls != 1 {
+		t.Fatalf("Shutdown calls = %d, want 1", srv.shutdownCalls)
+	}
+	if remoteClient.shutdownCalls != 1 {
+		t.Fatalf("remote client Shutdown calls = %d, want 1", remoteClient.shutdownCalls)
+	}
+	if h.ServerActive() {
+		t.Fatal("ServerActive = true, want false after failed map spawn")
+	}
+	if got := h.ClientState(); got != caDisconnected {
+		t.Fatalf("ClientState = %v, want disconnected", got)
+	}
+	if got := h.SignOns(); got != 0 {
+		t.Fatalf("SignOns = %d, want 0", got)
 	}
 }
 
