@@ -977,6 +977,28 @@ func TestBuildWorldLightmapPageRGBA_ReusesCachedBufferForDirtySurfaces(t *testin
 	}
 }
 
+func TestExtractLightmapRegionRGBAReusesScratchBuffer(t *testing.T) {
+	rgba := []byte{
+		1, 2, 3, 4, 5, 6, 7, 8,
+		9, 10, 11, 12, 13, 14, 15, 16,
+	}
+	first := extractLightmapRegionRGBA(nil, rgba, 2, 1, 0, 1, 2)
+	if len(first) != 8 {
+		t.Fatalf("len(first) = %d, want 8", len(first))
+	}
+	if first[0] != 5 || first[4] != 13 {
+		t.Fatalf("unexpected region bytes: %v", first)
+	}
+	ptr := &first[0]
+	second := extractLightmapRegionRGBA(first, rgba, 2, 1, 0, 1, 2)
+	if len(second) != 8 {
+		t.Fatalf("len(second) = %d, want 8", len(second))
+	}
+	if &second[0] != ptr {
+		t.Fatal("expected region extraction to reuse scratch buffer")
+	}
+}
+
 func TestWorldLiquidAlphaSettingsForGeometryUsesCachedWorldFacts(t *testing.T) {
 	geom := &WorldGeometry{
 		LiquidAlphaOverrides: worldimpl.LiquidAlphaOverrides{
@@ -994,5 +1016,23 @@ func TestWorldLiquidAlphaSettingsForGeometryUsesCachedWorldFacts(t *testing.T) {
 	got = worldLiquidAlphaSettingsForGeometry(geom)
 	if got.water != 1 || got.lava != 1 || got.slime != 1 || got.tele != 1 {
 		t.Fatalf("unsafe transparent-water map should force opaque liquids, got %+v", got)
+	}
+}
+
+func TestRendererHasTranslucentWorldLiquidFacesGoGPUUsesCachedGeometryFacts(t *testing.T) {
+	r := &Renderer{
+		worldData: &WorldRenderData{
+			Geometry: &WorldGeometry{
+				LiquidFaceTypes: model.SurfDrawWater,
+				LiquidAlphaOverrides: worldimpl.LiquidAlphaOverrides{
+					HasWater: true,
+					Water:    0.25,
+				},
+				TransparentWaterSafe: true,
+			},
+		},
+	}
+	if !r.hasTranslucentWorldLiquidFacesGoGPU() {
+		t.Fatal("expected cached liquid face types to report translucent world liquids")
 	}
 }

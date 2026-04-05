@@ -14,12 +14,13 @@ type BrushEntityParams struct {
 }
 
 type OpaqueBrushEntityDraw struct {
-	Alpha    float32
-	Frame    int
-	Vertices []worldimpl.WorldVertex
-	Indices  []uint32
-	Faces    []worldimpl.WorldFace
-	Centers  [][3]float32
+	HasLitWater bool
+	Alpha       float32
+	Frame       int
+	Vertices    []worldimpl.WorldVertex
+	Indices     []uint32
+	Faces       []worldimpl.WorldFace
+	Centers     [][3]float32
 }
 
 type BrushEntityFaceClass uint8
@@ -42,23 +43,26 @@ type ClassifiedBrushEntityDraw struct {
 	AlphaTestCenters [][3]float32
 }
 
-func BuildBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, includeFace func(worldimpl.WorldFace, float32) bool) *OpaqueBrushEntityDraw {
-	if geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 {
-		return nil
+func FillBrushEntityDraw(dst *OpaqueBrushEntityDraw, entity BrushEntityParams, geom *worldimpl.WorldGeometry, includeFace func(worldimpl.WorldFace, float32) bool) bool {
+	if dst == nil || geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 {
+		return false
 	}
 	alpha := clamp01(entity.Alpha)
 	if alpha <= 0 {
-		return nil
+		return false
 	}
 	rotation := worldimpl.BuildBrushRotationMatrix(entity.Angles)
-	vertices := make([]worldimpl.WorldVertex, len(geom.Vertices))
+	dst.HasLitWater = geom.HasLitWater
+	dst.Alpha = alpha
+	dst.Frame = entity.Frame
+	dst.Vertices = resizeWorldVertices(dst.Vertices, len(geom.Vertices))
 	for i, vertex := range geom.Vertices {
-		vertices[i] = vertex
-		vertices[i].Position = worldimpl.TransformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
+		dst.Vertices[i] = vertex
+		dst.Vertices[i].Position = worldimpl.TransformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
 	}
-	faces := make([]worldimpl.WorldFace, 0, len(geom.Faces))
-	centers := make([][3]float32, 0, len(geom.Faces))
-	indices := make([]uint32, 0, len(geom.Indices))
+	dst.Faces = dst.Faces[:0]
+	dst.Centers = dst.Centers[:0]
+	dst.Indices = dst.Indices[:0]
 	for _, face := range geom.Faces {
 		if !includeFace(face, alpha) {
 			continue
@@ -75,50 +79,45 @@ func BuildBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometr
 			continue
 		}
 		drawFace := face
-		drawFace.FirstIndex = uint32(len(indices))
+		drawFace.FirstIndex = uint32(len(dst.Indices))
 		drawFace.NumIndices = uint32(last - first)
-		faces = append(faces, drawFace)
-		centers = append(centers, worldimpl.TransformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale))
-		indices = append(indices, geom.Indices[first:last]...)
+		dst.Faces = append(dst.Faces, drawFace)
+		dst.Centers = append(dst.Centers, worldimpl.TransformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale))
+		dst.Indices = append(dst.Indices, geom.Indices[first:last]...)
 	}
-	if len(faces) == 0 || len(indices) == 0 {
-		return nil
-	}
-	return &OpaqueBrushEntityDraw{
-		Alpha:    alpha,
-		Frame:    entity.Frame,
-		Vertices: vertices,
-		Indices:  indices,
-		Faces:    faces,
-		Centers:  centers,
-	}
+	return len(dst.Faces) > 0 && len(dst.Indices) > 0
 }
 
-func BuildClassifiedBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, classifyFace func(worldimpl.WorldFace, float32) BrushEntityFaceClass) *ClassifiedBrushEntityDraw {
-	if geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 || classifyFace == nil {
+func BuildBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, includeFace func(worldimpl.WorldFace, float32) bool) *OpaqueBrushEntityDraw {
+	draw := &OpaqueBrushEntityDraw{}
+	if !FillBrushEntityDraw(draw, entity, geom, includeFace) {
 		return nil
+	}
+	return draw
+}
+
+func FillClassifiedBrushEntityDraw(dst *ClassifiedBrushEntityDraw, entity BrushEntityParams, geom *worldimpl.WorldGeometry, classifyFace func(worldimpl.WorldFace, float32) BrushEntityFaceClass) bool {
+	if dst == nil || geom == nil || len(geom.Vertices) == 0 || len(geom.Indices) == 0 || len(geom.Faces) == 0 || classifyFace == nil {
+		return false
 	}
 	alpha := clamp01(entity.Alpha)
 	if alpha <= 0 {
-		return nil
+		return false
 	}
 	rotation := worldimpl.BuildBrushRotationMatrix(entity.Angles)
-	vertices := make([]worldimpl.WorldVertex, len(geom.Vertices))
+	dst.Alpha = alpha
+	dst.Frame = entity.Frame
+	dst.Vertices = resizeWorldVertices(dst.Vertices, len(geom.Vertices))
 	for i, vertex := range geom.Vertices {
-		vertices[i] = vertex
-		vertices[i].Position = worldimpl.TransformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
+		dst.Vertices[i] = vertex
+		dst.Vertices[i].Position = worldimpl.TransformModelSpacePoint(vertex.Position, entity.Origin, rotation, entity.Scale)
 	}
-	draw := &ClassifiedBrushEntityDraw{
-		Alpha:            alpha,
-		Frame:            entity.Frame,
-		Vertices:         vertices,
-		OpaqueFaces:      make([]worldimpl.WorldFace, 0, len(geom.Faces)),
-		OpaqueCenters:    make([][3]float32, 0, len(geom.Faces)),
-		OpaqueIndices:    make([]uint32, 0, len(geom.Indices)),
-		AlphaTestFaces:   make([]worldimpl.WorldFace, 0, len(geom.Faces)),
-		AlphaTestCenters: make([][3]float32, 0, len(geom.Faces)),
-		AlphaTestIndices: make([]uint32, 0, len(geom.Indices)),
-	}
+	dst.OpaqueFaces = dst.OpaqueFaces[:0]
+	dst.OpaqueCenters = dst.OpaqueCenters[:0]
+	dst.OpaqueIndices = dst.OpaqueIndices[:0]
+	dst.AlphaTestFaces = dst.AlphaTestFaces[:0]
+	dst.AlphaTestCenters = dst.AlphaTestCenters[:0]
+	dst.AlphaTestIndices = dst.AlphaTestIndices[:0]
 	for _, face := range geom.Faces {
 		first := int(face.FirstIndex)
 		last := first + int(face.NumIndices)
@@ -134,12 +133,17 @@ func BuildClassifiedBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.Wo
 		center := worldimpl.TransformModelSpacePoint(face.Center, entity.Origin, rotation, entity.Scale)
 		switch classifyFace(face, alpha) {
 		case BrushEntityFaceClassOpaque:
-			appendClassifiedBrushEntityFace(&draw.OpaqueFaces, &draw.OpaqueCenters, &draw.OpaqueIndices, face, center, geom.Indices[first:last])
+			appendClassifiedBrushEntityFace(&dst.OpaqueFaces, &dst.OpaqueCenters, &dst.OpaqueIndices, face, center, geom.Indices[first:last])
 		case BrushEntityFaceClassAlphaTest:
-			appendClassifiedBrushEntityFace(&draw.AlphaTestFaces, &draw.AlphaTestCenters, &draw.AlphaTestIndices, face, center, geom.Indices[first:last])
+			appendClassifiedBrushEntityFace(&dst.AlphaTestFaces, &dst.AlphaTestCenters, &dst.AlphaTestIndices, face, center, geom.Indices[first:last])
 		}
 	}
-	if len(draw.OpaqueFaces) == 0 && len(draw.AlphaTestFaces) == 0 {
+	return len(dst.OpaqueFaces) > 0 || len(dst.AlphaTestFaces) > 0
+}
+
+func BuildClassifiedBrushEntityDraw(entity BrushEntityParams, geom *worldimpl.WorldGeometry, classifyFace func(worldimpl.WorldFace, float32) BrushEntityFaceClass) *ClassifiedBrushEntityDraw {
+	draw := &ClassifiedBrushEntityDraw{}
+	if !FillClassifiedBrushEntityDraw(draw, entity, geom, classifyFace) {
 		return nil
 	}
 	return draw
@@ -152,6 +156,13 @@ func appendClassifiedBrushEntityFace(dstFaces *[]worldimpl.WorldFace, dstCenters
 	*dstFaces = append(*dstFaces, drawFace)
 	*dstCenters = append(*dstCenters, center)
 	*dstIndices = append(*dstIndices, indices...)
+}
+
+func resizeWorldVertices(vertices []worldimpl.WorldVertex, size int) []worldimpl.WorldVertex {
+	if cap(vertices) < size {
+		return make([]worldimpl.WorldVertex, size)
+	}
+	return vertices[:size]
 }
 
 func clamp01(v float32) float32 {

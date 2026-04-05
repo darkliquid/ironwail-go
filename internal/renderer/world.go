@@ -485,6 +485,12 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
 		}
 		faceData.Center = worldFaceCenter(faceVerts)
+		if worldFaceHasLitWater(faceData.Flags, lightmapSurface) {
+			geom.HasLitWater = true
+		}
+		if faceData.Flags&model.SurfDrawTurb != 0 {
+			geom.LiquidFaceTypes |= faceData.Flags & (model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele | model.SurfDrawWater)
+		}
 
 		// Triangulate face using fan triangulation
 		// Face with N vertices becomes (N-2) triangles
@@ -2155,20 +2161,25 @@ func lightmapDirtyBounds(page WorldLightmapPage) (x, y, w, h int) {
 	return minX, minY, maxX - minX, maxY - minY
 }
 
-func extractLightmapRegionRGBA(rgba []byte, pageWidth, x, y, w, h int) []byte {
+func extractLightmapRegionRGBA(dst, rgba []byte, pageWidth, x, y, w, h int) []byte {
 	if len(rgba) == 0 || pageWidth <= 0 || w <= 0 || h <= 0 {
 		return nil
 	}
-	region := make([]byte, w*h*4)
+	size := w * h * 4
+	if cap(dst) < size {
+		dst = make([]byte, size)
+	} else {
+		dst = dst[:size]
+	}
 	srcStride := pageWidth * 4
 	dstStride := w * 4
 	for row := 0; row < h; row++ {
 		srcStart := ((y + row) * srcStride) + x*4
 		srcEnd := srcStart + dstStride
 		dstStart := row * dstStride
-		copy(region[dstStart:dstStart+dstStride], rgba[srcStart:srcEnd])
+		copy(dst[dstStart:dstStart+dstStride], rgba[srcStart:srcEnd])
 	}
-	return region
+	return dst
 }
 
 func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
@@ -2191,10 +2202,11 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTextur
 		if w == 0 || h == 0 {
 			continue
 		}
-		region := extractLightmapRegionRGBA(rgba, pages[i].Width, x, y, w, h)
+		region := extractLightmapRegionRGBA(pages[i].CachedRegionRGBA, rgba, pages[i].Width, x, y, w, h)
 		if len(region) == 0 {
 			continue
 		}
+		pages[i].CachedRegionRGBA = region
 		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 			Texture:  uploaded[i].texture,
 			MipLevel: 0,
@@ -3044,7 +3056,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	timeSeconds := float64(camera.Time)
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
-	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
+	worldHasLitWater := worldData.Geometry.HasLitWater
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	var activeDynamicLights []DynamicLight
 	dc.renderer.mu.RLock()
@@ -3601,8 +3613,8 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	}
 
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
-	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
-	if !hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
+	worldHasLitWater := worldData.Geometry.HasLitWater
+	if !hasTranslucentWorldLiquidFaceType(worldData.Geometry.LiquidFaceTypes, liquidAlpha) {
 		return
 	}
 
@@ -3714,7 +3726,7 @@ func (r *Renderer) hasTranslucentWorldLiquidFacesGoGPU() bool {
 		return false
 	}
 	return hasTranslucentWorldLiquidFaceType(
-		worldLiquidFaceTypeMask(worldData.Geometry.Faces),
+		worldData.Geometry.LiquidFaceTypes,
 		worldLiquidAlphaSettingsForGeometry(worldData.Geometry),
 	)
 }

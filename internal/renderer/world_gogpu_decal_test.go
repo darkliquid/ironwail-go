@@ -8,6 +8,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/model"
+	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
 )
 
@@ -119,5 +121,70 @@ func TestPrepareGoGPUDecalHALDrawsUsesRootAdapterSeam(t *testing.T) {
 	firstA := math.Float32frombits(binary.LittleEndian.Uint32(got[0].VertexBytes[32:36]))
 	if firstR != 0 || firstG != 0.4 || firstB != 1 || firstA != 1 {
 		t.Fatalf("first color = (%v,%v,%v,%v), want (0,0.4,1,1)", firstR, firstG, firstB, firstA)
+	}
+}
+
+func TestAliasVertexBytesIntoReusesBuffer(t *testing.T) {
+	vertices := []WorldVertex{
+		{
+			Position:      [3]float32{1, 2, 3},
+			TexCoord:      [2]float32{0.25, 0.75},
+			LightmapCoord: [2]float32{0.5, 0.125},
+			Normal:        [3]float32{0, 0, 1},
+		},
+	}
+	scratch := make([]byte, 0, len(vertices)*aliasVertexStride)
+	before := &scratch[:cap(scratch)][0]
+
+	got := aliasVertexBytesInto(scratch, vertices)
+	if len(got) != len(vertices)*aliasVertexStride {
+		t.Fatalf("len(aliasVertexBytesInto()) = %d, want %d", len(got), len(vertices)*aliasVertexStride)
+	}
+	after := &got[:cap(got)][0]
+	if before != after {
+		t.Fatal("expected aliasVertexBytesInto to reuse caller buffer")
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = aliasVertexBytesInto(scratch, vertices)
+	})
+	if allocs != 0 {
+		t.Fatalf("aliasVertexBytesInto allocated %.2f times per run, want 0", allocs)
+	}
+}
+
+func TestBuildAliasVerticesInterpolatedIntoReusesBuffer(t *testing.T) {
+	alias := &gpuAliasModel{
+		poses: [][]model.TriVertX{
+			{{V: [3]byte{1, 0, 0}, LightNormalIndex: 0}},
+			{{V: [3]byte{3, 0, 0}, LightNormalIndex: 0}},
+		},
+		refs: []aliasimpl.MeshRef{{VertexIndex: 0, TexCoord: [2]float32{0.25, 0.75}}},
+	}
+	mdl := &model.Model{
+		AliasHeader: &model.AliasHeader{
+			Scale:       [3]float32{1, 1, 1},
+			ScaleOrigin: [3]float32{},
+		},
+	}
+	input := make([]WorldVertex, 0, 4)
+	input = append(input, WorldVertex{})
+	input = input[:0]
+	before := &input[:cap(input)][0]
+
+	got := buildAliasVerticesInterpolatedInto(input, alias, mdl, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	if len(got) != 1 {
+		t.Fatalf("len(buildAliasVerticesInterpolatedInto()) = %d, want 1", len(got))
+	}
+	after := &got[:cap(got)][0]
+	if before != after {
+		t.Fatal("expected buildAliasVerticesInterpolatedInto to reuse caller buffer")
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = buildAliasVerticesInterpolatedInto(input, alias, mdl, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	})
+	if allocs != 0 {
+		t.Fatalf("buildAliasVerticesInterpolatedInto allocated %.2f times per run, want 0", allocs)
 	}
 }

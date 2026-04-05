@@ -10,6 +10,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
@@ -22,13 +23,14 @@ import (
 
 // ---- merged from world_brush_gogpu_root.go ----
 type gogpuOpaqueBrushEntityDraw struct {
-	alpha     float32
-	frame     int
-	vertices  []WorldVertex
-	indices   []uint32
-	faces     []WorldFace
-	centers   [][3]float32
-	lightmaps []*gpuWorldTexture
+	hasLitWater bool
+	alpha       float32
+	frame       int
+	vertices    []WorldVertex
+	indices     []uint32
+	faces       []WorldFace
+	centers     [][3]float32
+	lightmaps   []*gpuWorldTexture
 }
 
 type gogpuClassifiedBrushEntityDraw struct {
@@ -43,6 +45,39 @@ type gogpuClassifiedBrushEntityDraw struct {
 	alphaTestCenters [][3]float32
 	lightmaps        []*gpuWorldTexture
 }
+
+type gogpuPreparedClassifiedBrushDraw struct {
+	drawIndex            int
+	vertexOffset         uint64
+	opaqueIndexOffset    uint64
+	alphaTestIndexOffset uint64
+}
+
+type gogpuPreparedOpaqueBrushDraw struct {
+	drawIndex    int
+	hasLitWater  bool
+	vertexOffset uint64
+	indexOffset  uint64
+}
+
+type gogpuBrushPrepScratch struct {
+	classifiedBuild    []worldgogpu.ClassifiedBrushEntityDraw
+	classifiedDraws    []gogpuClassifiedBrushEntityDraw
+	classifiedPrepared []gogpuPreparedClassifiedBrushDraw
+	opaqueBuild        []worldgogpu.OpaqueBrushEntityDraw
+	opaqueDraws        []gogpuOpaqueBrushEntityDraw
+	opaquePrepared     []gogpuPreparedOpaqueBrushDraw
+	vertexData         []byte
+	indexData          []byte
+}
+
+var gogpuBrushPrepScratchPool = sync.Pool{
+	New: func() any {
+		return &gogpuBrushPrepScratch{}
+	},
+}
+
+const goGPUWorldVertexStrideBytes = 11 * 4
 
 func shouldDrawGoGPUOpaqueBrushFace(face WorldFace, entityAlpha float32) bool {
 	return isFullyOpaqueAlpha(clamp01(entityAlpha)) && shouldDrawGoGPUOpaqueWorldFace(face)
@@ -75,18 +110,67 @@ func shouldDrawGoGPUTranslucentBrushEntityFace(face WorldFace, entityAlpha float
 	return pass == worldPassAlphaTest || pass == worldPassTranslucent
 }
 
+func classifyGoGPUBrushEntityFace(face WorldFace, entityAlpha float32) worldgogpu.BrushEntityFaceClass {
+	switch {
+	case shouldDrawGoGPUOpaqueBrushFace(face, entityAlpha):
+		return worldgogpu.BrushEntityFaceClassOpaque
+	case shouldDrawGoGPUAlphaTestBrushFace(face, entityAlpha):
+		return worldgogpu.BrushEntityFaceClassAlphaTest
+	default:
+		return worldgogpu.BrushEntityFaceClassSkip
+	}
+}
+
+func appendGoGPUWorldVertexBytes(dst []byte, vertices []WorldVertex) []byte {
+	if len(vertices) == 0 {
+		return dst
+	}
+	start := len(dst)
+	dst = append(dst, make([]byte, len(vertices)*goGPUWorldVertexStrideBytes)...)
+	write := start
+	for _, vertex := range vertices {
+		putGoGPUFloat32Slice(dst[write:write+12], vertex.Position[:])
+		putGoGPUFloat32Slice(dst[write+12:write+20], vertex.TexCoord[:])
+		putGoGPUFloat32Slice(dst[write+20:write+28], vertex.LightmapCoord[:])
+		putGoGPUFloat32Slice(dst[write+28:write+40], vertex.Normal[:])
+		write += goGPUWorldVertexStrideBytes
+	}
+	return dst
+}
+
+func appendGoGPUWorldIndexBytes(dst []byte, indices []uint32) []byte {
+	if len(indices) == 0 {
+		return dst
+	}
+	start := len(dst)
+	dst = append(dst, make([]byte, len(indices)*4)...)
+	write := start
+	for _, index := range indices {
+		binary.LittleEndian.PutUint32(dst[write:write+4], index)
+		write += 4
+	}
+	return dst
+}
+
+func putGoGPUFloat32Slice(dst []byte, values []float32) {
+	for i, value := range values {
+		binary.LittleEndian.PutUint32(dst[i*4:(i+1)*4], math.Float32bits(value))
+	}
+}
+
 func buildGoGPUBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, includeFace func(WorldFace, float32) bool) *gogpuOpaqueBrushEntityDraw {
 	draw := worldgogpu.BuildBrushEntityDraw(gogpuBrushEntityParams(entity), geom, includeFace)
 	if draw == nil {
 		return nil
 	}
 	return &gogpuOpaqueBrushEntityDraw{
-		alpha:    draw.Alpha,
-		frame:    draw.Frame,
-		vertices: draw.Vertices,
-		indices:  draw.Indices,
-		faces:    draw.Faces,
-		centers:  draw.Centers,
+		hasLitWater: draw.HasLitWater,
+		alpha:       draw.Alpha,
+		frame:       draw.Frame,
+		vertices:    draw.Vertices,
+		indices:     draw.Indices,
+		faces:       draw.Faces,
+		centers:     draw.Centers,
 	}
 }
 
@@ -101,16 +185,7 @@ func gogpuBrushEntityParams(entity BrushEntity) worldgogpu.BrushEntityParams {
 }
 
 func buildGoGPUClassifiedBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuClassifiedBrushEntityDraw {
-	draw := worldgogpu.BuildClassifiedBrushEntityDraw(gogpuBrushEntityParams(entity), geom, func(face WorldFace, entityAlpha float32) worldgogpu.BrushEntityFaceClass {
-		switch {
-		case shouldDrawGoGPUOpaqueBrushFace(face, entityAlpha):
-			return worldgogpu.BrushEntityFaceClassOpaque
-		case shouldDrawGoGPUAlphaTestBrushFace(face, entityAlpha):
-			return worldgogpu.BrushEntityFaceClassAlphaTest
-		default:
-			return worldgogpu.BrushEntityFaceClassSkip
-		}
-	})
+	draw := worldgogpu.BuildClassifiedBrushEntityDraw(gogpuBrushEntityParams(entity), geom, classifyGoGPUBrushEntityFace)
 	if draw == nil {
 		return nil
 	}
@@ -241,49 +316,53 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 
-	draws := make([]gogpuClassifiedBrushEntityDraw, 0, len(entities))
+	scratch := gogpuBrushPrepScratchPool.Get().(*gogpuBrushPrepScratch)
+	defer gogpuBrushPrepScratchPool.Put(scratch)
+	scratch.classifiedBuild = scratch.classifiedBuild[:0]
+	scratch.classifiedDraws = scratch.classifiedDraws[:0]
+	scratch.classifiedPrepared = scratch.classifiedPrepared[:0]
+	scratch.vertexData = scratch.vertexData[:0]
+	scratch.indexData = scratch.indexData[:0]
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if draw := buildGoGPUClassifiedBrushEntityDraw(entity, geom); draw != nil {
-			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
-			draws = append(draws, *draw)
+		scratch.classifiedBuild = append(scratch.classifiedBuild, worldgogpu.ClassifiedBrushEntityDraw{})
+		buildDraw := &scratch.classifiedBuild[len(scratch.classifiedBuild)-1]
+		if !worldgogpu.FillClassifiedBrushEntityDraw(buildDraw, gogpuBrushEntityParams(entity), geom, classifyGoGPUBrushEntityFace) {
+			scratch.classifiedBuild = scratch.classifiedBuild[:len(scratch.classifiedBuild)-1]
+			continue
 		}
-	}
-	if len(draws) == 0 {
-		return
-	}
-
-	type preparedBrushDraw struct {
-		draw                 gogpuClassifiedBrushEntityDraw
-		vertexData           []byte
-		opaqueIndexData      []byte
-		alphaTestIndexData   []byte
-		vertexOffset         uint64
-		opaqueIndexOffset    uint64
-		alphaTestIndexOffset uint64
-	}
-	prepared := make([]preparedBrushDraw, 0, len(draws))
-	totalVertexBytes := uint64(0)
-	totalIndexBytes := uint64(0)
-	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		opaqueIndexData := worldgogpu.IndexBytes(draw.opaqueIndices)
-		alphaTestIndexData := worldgogpu.IndexBytes(draw.alphaTestIndices)
-		prepared = append(prepared, preparedBrushDraw{
-			draw:                 draw,
-			vertexData:           vertexData,
-			opaqueIndexData:      opaqueIndexData,
-			alphaTestIndexData:   alphaTestIndexData,
-			vertexOffset:         totalVertexBytes,
-			opaqueIndexOffset:    totalIndexBytes,
-			alphaTestIndexOffset: totalIndexBytes + uint64(len(opaqueIndexData)),
+		scratch.classifiedDraws = append(scratch.classifiedDraws, gogpuClassifiedBrushEntityDraw{
+			alpha:            buildDraw.Alpha,
+			frame:            buildDraw.Frame,
+			vertices:         buildDraw.Vertices,
+			opaqueIndices:    buildDraw.OpaqueIndices,
+			opaqueFaces:      buildDraw.OpaqueFaces,
+			opaqueCenters:    buildDraw.OpaqueCenters,
+			alphaTestIndices: buildDraw.AlphaTestIndices,
+			alphaTestFaces:   buildDraw.AlphaTestFaces,
+			alphaTestCenters: buildDraw.AlphaTestCenters,
+			lightmaps:        dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom),
 		})
-		totalVertexBytes += uint64(len(vertexData))
-		totalIndexBytes += uint64(len(opaqueIndexData) + len(alphaTestIndexData))
+		drawIndex := len(scratch.classifiedDraws) - 1
+		draw := &scratch.classifiedDraws[drawIndex]
+		vertexOffset := uint64(len(scratch.vertexData))
+		scratch.vertexData = appendGoGPUWorldVertexBytes(scratch.vertexData, draw.vertices)
+		opaqueIndexOffset := uint64(len(scratch.indexData))
+		scratch.indexData = appendGoGPUWorldIndexBytes(scratch.indexData, draw.opaqueIndices)
+		alphaTestIndexOffset := uint64(len(scratch.indexData))
+		scratch.indexData = appendGoGPUWorldIndexBytes(scratch.indexData, draw.alphaTestIndices)
+		scratch.classifiedPrepared = append(scratch.classifiedPrepared, gogpuPreparedClassifiedBrushDraw{
+			drawIndex:            drawIndex,
+			vertexOffset:         vertexOffset,
+			opaqueIndexOffset:    opaqueIndexOffset,
+			alphaTestIndexOffset: alphaTestIndexOffset,
+		})
 	}
-	if len(prepared) == 0 {
+	if len(scratch.classifiedPrepared) == 0 {
 		return
 	}
+	totalVertexBytes := uint64(len(scratch.vertexData))
+	totalIndexBytes := uint64(len(scratch.indexData))
 
 	r := dc.renderer
 	r.mu.Lock()
@@ -324,22 +403,16 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		transparentBindGroup = whiteTextureBindGroup
 	}
 
-	for i, preparedDraw := range prepared {
-		if err := queue.WriteBuffer(vertexScratchBuffer, preparedDraw.vertexOffset, preparedDraw.vertexData); err != nil {
-			slog.Warn("failed to upload brush scratch vertices", "error", err, "draw", i)
+	if len(scratch.vertexData) > 0 {
+		if err := queue.WriteBuffer(vertexScratchBuffer, 0, scratch.vertexData); err != nil {
+			slog.Warn("failed to upload brush scratch vertices", "error", err)
 			return
 		}
-		if len(preparedDraw.opaqueIndexData) > 0 {
-			if err := queue.WriteBuffer(indexScratchBuffer, preparedDraw.opaqueIndexOffset, preparedDraw.opaqueIndexData); err != nil {
-				slog.Warn("failed to upload brush scratch opaque indices", "error", err, "draw", i)
-				return
-			}
-		}
-		if len(preparedDraw.alphaTestIndexData) > 0 {
-			if err := queue.WriteBuffer(indexScratchBuffer, preparedDraw.alphaTestIndexOffset, preparedDraw.alphaTestIndexData); err != nil {
-				slog.Warn("failed to upload brush scratch alpha-test indices", "error", err, "draw", i)
-				return
-			}
+	}
+	if len(scratch.indexData) > 0 {
+		if err := queue.WriteBuffer(indexScratchBuffer, 0, scratch.indexData); err != nil {
+			slog.Warn("failed to upload brush scratch indices", "error", err)
+			return
 		}
 	}
 
@@ -375,8 +448,8 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	timeSeconds := float64(camera.Time)
 	var uniformData [worldUniformBufferSize]byte
 	var materialBindState gogpuWorldMaterialBindState
-	for _, preparedDraw := range prepared {
-		draw := preparedDraw.draw
+	for _, preparedDraw := range scratch.classifiedPrepared {
+		draw := scratch.classifiedDraws[preparedDraw.drawIndex]
 		renderPass.SetVertexBuffer(0, vertexScratchBuffer, preparedDraw.vertexOffset)
 		if len(draw.opaqueFaces) > 0 {
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
@@ -677,46 +750,51 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	}
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
 
-	draws := make([]gogpuOpaqueBrushEntityDraw, 0, len(entities))
+	scratch := gogpuBrushPrepScratchPool.Get().(*gogpuBrushPrepScratch)
+	defer gogpuBrushPrepScratchPool.Put(scratch)
+	scratch.opaqueBuild = scratch.opaqueBuild[:0]
+	scratch.opaqueDraws = scratch.opaqueDraws[:0]
+	scratch.opaquePrepared = scratch.opaquePrepared[:0]
+	scratch.vertexData = scratch.vertexData[:0]
+	scratch.indexData = scratch.indexData[:0]
 	for _, entity := range entities {
 		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
-		if draw := buildGoGPUOpaqueLiquidBrushEntityDraw(entity, geom, liquidAlpha); draw != nil {
-			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
-			draws = append(draws, *draw)
+		scratch.opaqueBuild = append(scratch.opaqueBuild, worldgogpu.OpaqueBrushEntityDraw{})
+		buildDraw := &scratch.opaqueBuild[len(scratch.opaqueBuild)-1]
+		if !worldgogpu.FillBrushEntityDraw(buildDraw, gogpuBrushEntityParams(entity), geom, func(face WorldFace, entityAlpha float32) bool {
+			return shouldDrawGoGPUOpaqueLiquidBrushFace(face, entityAlpha, liquidAlpha)
+		}) {
+			scratch.opaqueBuild = scratch.opaqueBuild[:len(scratch.opaqueBuild)-1]
+			continue
 		}
-	}
-	if len(draws) == 0 {
-		return
-	}
-
-	type preparedBrushLiquidDraw struct {
-		draw         gogpuOpaqueBrushEntityDraw
-		hasLitWater  bool
-		vertexData   []byte
-		indexData    []byte
-		vertexOffset uint64
-		indexOffset  uint64
-	}
-	prepared := make([]preparedBrushLiquidDraw, 0, len(draws))
-	totalVertexBytes := uint64(0)
-	totalIndexBytes := uint64(0)
-	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		prepared = append(prepared, preparedBrushLiquidDraw{
-			draw:         draw,
-			hasLitWater:  gogpuFacesHaveLitWater(draw.faces),
-			vertexData:   vertexData,
-			indexData:    indexData,
-			vertexOffset: totalVertexBytes,
-			indexOffset:  totalIndexBytes,
+		scratch.opaqueDraws = append(scratch.opaqueDraws, gogpuOpaqueBrushEntityDraw{
+			hasLitWater: buildDraw.HasLitWater,
+			alpha:       buildDraw.Alpha,
+			frame:       buildDraw.Frame,
+			vertices:    buildDraw.Vertices,
+			indices:     buildDraw.Indices,
+			faces:       buildDraw.Faces,
+			centers:     buildDraw.Centers,
+			lightmaps:   dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom),
 		})
-		totalVertexBytes += uint64(len(vertexData))
-		totalIndexBytes += uint64(len(indexData))
+		drawIndex := len(scratch.opaqueDraws) - 1
+		draw := &scratch.opaqueDraws[drawIndex]
+		vertexOffset := uint64(len(scratch.vertexData))
+		scratch.vertexData = appendGoGPUWorldVertexBytes(scratch.vertexData, draw.vertices)
+		indexOffset := uint64(len(scratch.indexData))
+		scratch.indexData = appendGoGPUWorldIndexBytes(scratch.indexData, draw.indices)
+		scratch.opaquePrepared = append(scratch.opaquePrepared, gogpuPreparedOpaqueBrushDraw{
+			drawIndex:    drawIndex,
+			hasLitWater:  draw.hasLitWater,
+			vertexOffset: vertexOffset,
+			indexOffset:  indexOffset,
+		})
 	}
-	if len(prepared) == 0 {
+	if len(scratch.opaquePrepared) == 0 {
 		return
 	}
+	totalVertexBytes := uint64(len(scratch.vertexData))
+	totalIndexBytes := uint64(len(scratch.indexData))
 
 	r.mu.Lock()
 	if err := r.ensureBrushEntityScratchBuffersLocked(device, totalVertexBytes, totalIndexBytes); err != nil {
@@ -754,13 +832,15 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	if transparentBindGroup == nil {
 		transparentBindGroup = whiteTextureBindGroup
 	}
-	for i, preparedDraw := range prepared {
-		if err := queue.WriteBuffer(vertexScratchBuffer, preparedDraw.vertexOffset, preparedDraw.vertexData); err != nil {
-			slog.Warn("failed to upload brush liquid scratch vertices", "error", err, "draw", i)
+	if len(scratch.vertexData) > 0 {
+		if err := queue.WriteBuffer(vertexScratchBuffer, 0, scratch.vertexData); err != nil {
+			slog.Warn("failed to upload brush liquid scratch vertices", "error", err)
 			return
 		}
-		if err := queue.WriteBuffer(indexScratchBuffer, preparedDraw.indexOffset, preparedDraw.indexData); err != nil {
-			slog.Warn("failed to upload brush liquid scratch indices", "error", err, "draw", i)
+	}
+	if len(scratch.indexData) > 0 {
+		if err := queue.WriteBuffer(indexScratchBuffer, 0, scratch.indexData); err != nil {
+			slog.Warn("failed to upload brush liquid scratch indices", "error", err)
 			return
 		}
 	}
@@ -797,8 +877,8 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	timeSeconds := float64(camera.Time)
 	var uniformData [worldUniformBufferSize]byte
 	var materialBindState gogpuWorldMaterialBindState
-	for _, preparedDraw := range prepared {
-		draw := preparedDraw.draw
+	for _, preparedDraw := range scratch.opaquePrepared {
+		draw := scratch.opaqueDraws[preparedDraw.drawIndex]
 		renderPass.SetVertexBuffer(0, vertexScratchBuffer, preparedDraw.vertexOffset)
 		renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.indexOffset)
 		for faceIndex, face := range draw.faces {
@@ -852,6 +932,7 @@ const (
 	aliasSceneUniformBufferSize = 96
 	aliasUniformAlign           = 256 // minUniformBufferOffsetAlignment
 	aliasInitialDrawCapacity    = 64  // initial capacity for batched draws
+	aliasVertexStride           = 44
 )
 
 func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
@@ -1460,19 +1541,29 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 
 	// Pre-build all vertex data and compute total scratch buffer size.
 	type preparedDraw struct {
-		vertices []WorldVertex
-		skin     *gpuAliasSkin
-		alpha    float32
+		draw        gpuAliasDraw
+		skin        *gpuAliasSkin
+		alpha       float32
+		vertexCount uint32
 	}
 	prepared := make([]preparedDraw, 0, len(draws))
+	vertexScratch := make([]WorldVertex, 0)
 	totalVertexBytes := uint64(0)
 	for _, draw := range draws {
-		vertices := buildAliasVerticesInterpolated(draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
-		if len(vertices) == 0 || draw.skin == nil || draw.skin.bindGroup == nil {
+		if draw.skin == nil || draw.skin.bindGroup == nil {
 			continue
 		}
-		prepared = append(prepared, preparedDraw{vertices: vertices, skin: draw.skin, alpha: draw.alpha})
-		totalVertexBytes += uint64(len(vertices) * 44)
+		vertexScratch = buildAliasVerticesInterpolatedInto(vertexScratch[:0], draw.alias, draw.model, draw.pose1, draw.pose2, draw.blend, draw.origin, draw.angles, draw.scale, draw.full)
+		if len(vertexScratch) == 0 {
+			continue
+		}
+		prepared = append(prepared, preparedDraw{
+			draw:        draw,
+			skin:        draw.skin,
+			alpha:       draw.alpha,
+			vertexCount: uint32(len(vertexScratch)),
+		})
+		totalVertexBytes += uint64(len(vertexScratch) * aliasVertexStride)
 	}
 	if len(prepared) == 0 {
 		return
@@ -1509,21 +1600,28 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	vertexOffsets := make([]uint64, len(prepared))
 	vertexCounts := make([]uint32, len(prepared))
 	uniformOffsets := make([]uint32, len(prepared))
+	vertexByteScratch := make([]byte, 0)
 	currentVertexOffset := uint64(0)
 	for i, pd := range prepared {
+		vertexScratch = buildAliasVerticesInterpolatedInto(vertexScratch[:0], pd.draw.alias, pd.draw.model, pd.draw.pose1, pd.draw.pose2, pd.draw.blend, pd.draw.origin, pd.draw.angles, pd.draw.scale, pd.draw.full)
+		if len(vertexScratch) == 0 {
+			continue
+		}
 		uniformOffsets[i] = uint32(i) * aliasUniformAlign
 		vertexOffsets[i] = currentVertexOffset
-		vertexCounts[i] = uint32(len(pd.vertices))
+		vertexCounts[i] = pd.vertexCount
 
 		if err := queue.WriteBuffer(uniformBuffer, uint64(uniformOffsets[i]), aliasSceneUniformBytes(vpMatrix, cameraOrigin, pd.alpha, fogColor, fogDensity)); err != nil {
 			slog.Warn("failed to update alias uniform buffer", "error", err, "draw", i)
 			return
 		}
-		if err := queue.WriteBuffer(scratchBuffer, currentVertexOffset, aliasVertexBytes(pd.vertices)); err != nil {
+		vertexBytes := aliasVertexBytesInto(vertexByteScratch[:0], vertexScratch)
+		vertexByteScratch = vertexBytes[:0]
+		if err := queue.WriteBuffer(scratchBuffer, currentVertexOffset, vertexBytes); err != nil {
 			slog.Warn("failed to upload alias vertices", "error", err, "draw", i)
 			return
 		}
-		currentVertexOffset += uint64(len(pd.vertices) * 44)
+		currentVertexOffset += uint64(len(vertexBytes))
 	}
 
 	// Record a single render pass with all draws.
@@ -1600,9 +1698,19 @@ func aliasShadowUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float
 }
 
 func aliasVertexBytes(vertices []WorldVertex) []byte {
-	data := make([]byte, len(vertices)*44)
+	return aliasVertexBytesInto(nil, vertices)
+}
+
+func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
+	required := len(vertices) * aliasVertexStride
+	data := dst[:0]
+	if cap(data) < required {
+		data = make([]byte, required)
+	} else {
+		data = data[:required]
+	}
 	for i, v := range vertices {
-		offset := i * 44
+		offset := i * aliasVertexStride
 		putFloat32s(data[offset:offset+12], v.Position[:])
 		putFloat32s(data[offset+12:offset+20], v.TexCoord[:])
 		putFloat32s(data[offset+20:offset+28], v.LightmapCoord[:])
@@ -1612,10 +1720,15 @@ func aliasVertexBytes(vertices []WorldVertex) []byte {
 }
 
 func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
+	return buildAliasVerticesInterpolatedInto(nil, alias, mdl, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
+}
+
+func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
 	if alias == nil || mdl == nil || mdl.AliasHeader == nil {
 		return nil
 	}
-	return aliasimpl.BuildVerticesInterpolated(
+	return aliasimpl.BuildVerticesInterpolatedInto(
+		dst,
 		aliasimpl.MeshFromRefs(alias.poses, alias.refs),
 		mdl.AliasHeader,
 		pose1Index,
@@ -2750,7 +2863,7 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 			cachedFaces = cacheEntry.translucentLiquid
 		}
 	}
-	worldHasLitWater := worldData != nil && worldData.Geometry != nil && gogpuFacesHaveLitWater(worldData.Geometry.Faces)
+	worldHasLitWater := worldData != nil && worldData.Geometry != nil && worldData.Geometry.HasLitWater
 	r.mu.RUnlock()
 	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
 		return nil

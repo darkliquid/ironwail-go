@@ -10,6 +10,7 @@ type WorldGeometry struct {
 	LeafFaces            [][]int
 	Lightmaps            []WorldLightmapPage
 	HasLitWater          bool
+	LiquidFaceTypes      int32
 	LiquidAlphaOverrides LiquidAlphaOverrides
 	TransparentWaterSafe bool
 	Tree                 *bsp.Tree
@@ -46,9 +47,10 @@ type WorldLightmapSurface struct {
 
 // WorldLightmapPage represents a shared lightmap atlas texture page.
 type WorldLightmapPage struct {
-	Width      int
-	Height     int
-	Surfaces   []WorldLightmapSurface
-	Dirty      bool
-	CachedRGBA []byte
+	Width            int
+	Height           int
+	Surfaces         []WorldLightmapSurface
+	Dirty            bool
+	CachedRGBA       []byte
+	CachedRegionRGBA []byte
 }
