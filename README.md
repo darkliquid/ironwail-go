@@ -26,24 +26,22 @@ agents and humans alike navigate the port.
 Well, apart from the obvious that this is Go, rather than C, I'm building this
 with the following changes:
 
-- OpenGL/CGO as the default gameplay renderer/runtime
-- [gogpu/WebGPU][4] as a secondary backend for non-parity experimentation
+- [gogpu/WebGPU][4] as the canonical gameplay renderer/runtime
 - Dividing the codebase up into packages
 - Use Go stdlib for as much as possible, rather than custom implementations of
   things from the original C codebase
 
 Additionally, I'm trying to build it as readable as possible, with extensive
 commenting and to keep as much of the codebase in Go as practical. The
-canonical OpenGL renderer currently requires CGo bindings, but the gameplay and
-engine logic remain in Go and can still be understood without diving deeply
-into C engine code.
+canonical GoGPU renderer keeps the gameplay and engine logic in Go without
+requiring a separate legacy renderer runtime path.
 
 ## Project Status & Parity
 
 https://github.com/user-attachments/assets/b652d2c6-74ce-41bb-90fa-8976262e043a
 
 The goal of this project is 100% behavioral parity with the original C
-[Ironwail][1] engine on the OpenGL path. Regular parity audits are carried out,
+[Ironwail][1] engine through the canonical GoGPU path. Regular parity audits are carried out,
 but there is no concrete public tracking of gaps, differences, or known bugs at
 this time.
 
@@ -60,25 +58,21 @@ the tasks for running tests, builds, etc.
 
 You can see what tasks are available to run using `mise tasks`
 
-The canonical parity/build path is the CGO/OpenGL runtime:
+The canonical parity/build path is the GoGPU runtime:
 
 - `mise run test`
-- `mise run build-cgo`
+- `mise run build-gogpu`
 - `mise run smoke-map-start`
-- `mise run smoke-cgo-map-start`
 - `mise run parity-ref`
 - `mise run parity-go`
 - `mise run parity-compare`
 
-The gogpu tasks remain available for secondary-backend work, but they are no
-longer the primary parity gate.
-
-The parity screenshot harness now targets the CGO/OpenGL path by default and
+The parity screenshot harness now targets the GoGPU path by default and
 acts like a real gate:
 
 - `mise run parity-ref` captures deterministic reference screenshots from C
   Ironwail into `testdata/parity/reference/`
-- `mise run parity-go` captures the matching Go CGO/OpenGL screenshots into
+- `mise run parity-go` captures the matching Go GoGPU screenshots into
   `testdata/parity/go/`
 - `mise run parity-compare` writes visual diffs to `testdata/parity/diff/` and
   exits nonzero if captures are missing or if any scene exceeds the configured

@@ -766,8 +766,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 `
 
 // worldFragmentShaderWGSL is the WGSL source for the GoGPU world fragment shader.
-// Keep its lightmap/fullbright/fog math aligned with the OpenGL world shader so
-// BSP world surfaces look the same across backends.
+// Keep its lightmap/fullbright/fog math aligned with the canonical world-shader
+// behavior so BSP world surfaces look the same across renderer paths.
 const worldFragmentShaderWGSL = `
 struct Uniforms {
     viewProjection: mat4x4<f32>,

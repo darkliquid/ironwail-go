@@ -6,7 +6,7 @@ The `renderer` node is the umbrella for the visual output subsystem. It covers r
 
 ## Owns
 
-- The top-level decomposition of renderer concerns into runtime, canvas/input, OpenGL, GoGPU, shared world logic, and rendering helpers.
+- The top-level decomposition of renderer concerns into runtime, canvas/input, GoGPU, shared world logic, and rendering helpers.
 - Package-level responsibility for turning renderer-facing game state into frame output.
 
 ## Does not own

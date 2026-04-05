@@ -22,12 +22,12 @@ The main qbj2 world bottleneck turned out not to be submission or visibility sel
 
 ## Constraints
 
-- Backend parity with the OpenGL path is a major ongoing concern.
+- Backend parity with the established reference behavior is a major ongoing concern.
 - Late-translucent and decal handling are especially sensitive to ordering differences.
 
 ## Decisions
 
-### GoGPU world/entity slice parallel to OpenGL
+### GoGPU world/entity slice parallel to the retired renderer split
 
 Observed decision:
 
@@ -58,7 +58,7 @@ Observed decision:
 
 Rationale:
 
-- `internal/renderer/world.go` applies `selectVisibleWorldFaces` over `worldData.Geometry.LeafFaces`, matching the shared visibility policy used by the OpenGL path.
+- `internal/renderer/world.go` applies `selectVisibleWorldFaces` over `worldData.Geometry.LeafFaces`, matching the shared visibility policy used by the legacy parity path.
 - Remaining renderer differences are broader feature deltas rather than a narrow leaf/PVS selection mismatch.
 
 ### Sprite draw fallback consumes model-retained sprite payload
@@ -73,7 +73,7 @@ Observed decision:
 
 Rationale:
 
-- GoGPU sprite upload must keep parity with OpenGL and avoid backend-specific fallback differences.
+- GoGPU sprite upload must keep renderer parity and avoid backend-specific fallback differences.
 - Reusing the shared fallback path ensures cache-miss sprite uploads preserve parsed payload data instead of synthetic metadata-only placeholders.
 - Keeping GPU upload/cache ownership in `Renderer` avoids leaking root-only HAL/bind-group state into the subpackage, while a resolver-based helper still moves frame clamping/alpha visibility and draw assembly out of the root file.
 - Moving the uniform byte layout and world-vertex conversion into `package gogpu` trims root-file byte-packing noise while keeping the remaining root adapter limited to concrete sprite-model resolution plus quad expansion.
@@ -88,7 +88,7 @@ Observed decision:
 
 Rationale:
 
-- `buildDecalQuad` is shared with the OpenGL path, so leaving quad construction in root/shared code avoids backend drift in decal placement math.
+- `buildDecalQuad` is shared with the legacy parity path, so leaving quad construction in root/shared code avoids backend drift in decal placement math.
 - Stopping here keeps the remaining logic small and obviously root-owned: shared decal placement math, final color/alpha policy, and HAL submission are still coupled to renderer state and backend resource lifetime.
 - Extracting the adapter into root-local helpers trims `renderDecalMarksHAL` without moving policy into the subpackage; beyond this point, extra helpers would mostly wrap root-owned policy instead of removing meaningful receiver-free logic.
 
@@ -103,7 +103,7 @@ Observed decision:
 - The remaining live collector duplication is now reduced to face-render assembly: the brush collectors share a root-local `gogpuTranslucentBrushCollectState` snapshot plus `createGoGPUTranslucentBrushBuffers`, which centralize HAL device/queue access, liquid-alpha snapshotting, and transient vertex/index upload while still leaving face bucketing and lightmap attachment local to each collector.
 - The root adapter layer has also been collapsed around the remaining DTO conversions: `convertGoGPUTranslucentFaceDraws` now handles package-to-root translucent face conversion, and `appendGoGPUTranslucentLiquidBrushFaceRenders` / `appendGoGPUTranslucentBrushEntityFaceRenders` centralize the last mechanical render-wrapper assembly without moving lightmap ownership or HAL submission out of `world_gogpu.go`.
 - Late-translucent render submission now also shares root-local material selection: `gogpuLateTranslucentTextureBindGroups` and `gogpuLateTranslucentLightmapBindGroup` centralize texture/fullbright/lightmap lookup for both alpha-test and sorted translucent draws, leaving the render loops focused on uniform updates, pipeline choice, and draw submission.
-- GoGPU liquid/lightmap selection now carries an explicit model/world-level `hasLitWater` signal through opaque-liquid, translucent-liquid, and late-translucent liquid draw assembly, so turbulent faces follow the same lit-water gate as OpenGL (`HasLitWater` on the owning model/world) instead of toggling lit-water only when the individual face has a direct lightmap slot.
+- GoGPU liquid/lightmap selection now carries an explicit model/world-level `hasLitWater` signal through opaque-liquid, translucent-liquid, and late-translucent liquid draw assembly, so turbulent faces follow the same lit-water gate as the legacy parity path (`HasLitWater` on the owning model/world) instead of toggling lit-water only when the individual face has a direct lightmap slot.
 - Translucent brush collectors no longer create one temporary vertex/index buffer pair per brush draw. Each collector phase now packs all prepared translucent brush vertices and indices into one uploaded buffer pair and carries per-draw vertex/index offsets through `gogpuTranslucentBrushFaceRender`, so late-translucent alpha-test and sorted passes keep their existing ordering while cutting Vulkan buffer create/release churn during qbj2-scale brush-heavy scenes.
 - The late-translucent alpha-test and sorted passes now also reuse the renderer-owned world uniform bind group and cache texture/lightmap/fullbright bind state inside the pass, mirroring the opaque brush passes. This preserves existing face order and per-draw uniform uploads, but it avoids recreating a pass-local uniform bind group every frame and stops rebinding identical material groups on consecutive translucent draws.
 - Late-translucent **world** liquid collection now prefers the main world-pass cached translucent-liquid face subset instead of rerunning `selectVisibleWorldFaces` and then refiltering for translucent liquid. The collector still rebuilds per-frame `distanceSq` from the live camera before sorted translucency, so ordering stays correct while qbj2 stops paying duplicate world-visibility/filter work in the entity/translucency phase. It also now benefits from the renderer's small fixed set of recent `(leaf, light-signature)` cache entries instead of only the immediately previous world-pass entry, improving reuse during movement across nearby leaves without changing translucent ordering.
@@ -136,7 +136,7 @@ Observed decision:
 Rationale:
 
 - C/Ironwail uses `r_nolerp_list` as a model-level interpolation override; applying the same list in GoGPU prevents backend-specific animation blending drift.
-- Sharing parser behavior with OpenGL avoids diverging tokenization/case-handling behavior for model-list cvars.
+- Sharing parser behavior with the legacy parity path avoids diverging tokenization/case-handling behavior for model-list cvars.
 - Moving the pure mesh math behind DTO callbacks removes duplicated alias-vertex shaping logic while leaving GoGPU skin lookup, draw orchestration, and HAL submission in the root backend where renderer-owned state already lives.
 
 ### Alias GoGPU draws submit one uploaded payload at a time

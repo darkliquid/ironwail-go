@@ -5,11 +5,10 @@ go 1.26
 require (
 	github.com/Zyko0/go-sdl3 v0.0.0-20260125144524-02de3d449cb1
 	github.com/ebitengine/oto/v3 v3.5.0-alpha.2.0.20260401061121-e3a524c98afb
-	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
-	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728
 	github.com/gogpu/gogpu v0.26.0
 	github.com/gogpu/gpucontext v0.11.0
 	github.com/gogpu/gputypes v0.3.0
+	github.com/gogpu/naga v0.15.2
 	github.com/gogpu/wgpu v0.23.2
 	github.com/gotracker/playback v1.5.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
@@ -24,7 +23,6 @@ require (
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/go-webgpu/goffi v0.5.0 // indirect
 	github.com/go-webgpu/webgpu v0.4.3 // indirect
-	github.com/gogpu/naga v0.15.2 // indirect
 	github.com/gotracker/goaudiofile v1.0.16 // indirect
 	github.com/gotracker/opl2 v1.0.2 // indirect
 	github.com/heucuva/comparison v1.0.0 // indirect

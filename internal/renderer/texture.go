@@ -3,9 +3,9 @@
 // This package handles uploading Quake picture (QPic) data to GPU textures,
 // managing palette conversion, and handling transparency (palette index 255).
 //
-// Note: The actual texture upload is performed per-backend in the
-// respective renderer implementation (OpenGL or GoGPU). This package
-// provides shared utilities for texture management.
+// Note: The actual texture upload is performed by the active renderer
+// implementation. This package provides shared utilities for texture
+// management.
 package renderer
 
 import (

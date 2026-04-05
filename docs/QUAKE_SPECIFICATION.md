@@ -88,7 +88,7 @@ The engine implements a specific movement model including friction and gravity.
 
 ---
 
-## 5. Rendering (OpenGL)
+## 5. Rendering
 
 ### 5.1 Light Styles
 Light styles define how lightmaps flicker or pulse.

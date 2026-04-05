@@ -96,7 +96,7 @@ lighting are captured at a single consistent instant.
 
 ### Capturing from Go
 
-1. Launch Ironwail Go (CGO build for renderer parity): `mise run run-cgo`
+1. Launch Ironwail Go (GoGPU build for renderer parity): `mise run run-gogpu`
 2. Repeat steps 2–5 identically.
 
 ### Naming Convention
@@ -230,16 +230,15 @@ prerequisite for any scene matrix run.
 
 | Smoke Test | What It Validates |
 |---|---|
-| `mise run smoke-menu` | Basic CGO/OpenGL startup: renderer init plus filesystem mount (`"FS mounted"`), QuakeC load (`"QC loaded"`), menu activation (`"menu active"`), frame loop (`"frame loop started"`) |
-| `mise run smoke-headless` | Headless mode operation from the CGO parity build (no window, no renderer) |
-| `mise run smoke-map-start` | CGO/OpenGL map spawn lifecycle: renderer init plus `"map spawn started"` → `"map spawn finished"` |
-| `mise run smoke-cgo-map-start` | Full CGO/OpenGL pipeline with explicit headless-fallback guards through map spawn |
-| `mise run smoke-all` | Runs all of the above in sequence, including `smoke-cgo-map-start` |
+| `mise run smoke-menu` | Basic GoGPU startup: renderer loop start plus filesystem mount (`"FS mounted"`), QuakeC load (`"QC loaded"`), menu activation (`"menu active"`), frame loop (`"frame loop started"`) |
+| `mise run smoke-headless` | Headless mode operation from the GoGPU parity build (no window, no renderer) |
+| `mise run smoke-map-start` | GoGPU map spawn lifecycle: renderer loop start plus `"map spawn started"` → `"map spawn finished"` |
+| `mise run smoke-all` | Runs all of the above in sequence |
 
 ### Current Harness Commands
 
 Use this repo-local harness sequence for parity work on the canonical
-OpenGL/CGO path:
+GoGPU path:
 
 1. `mise run smoke-all`
 2. `mise run parity-ref`

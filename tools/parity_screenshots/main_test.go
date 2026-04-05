@@ -281,7 +281,7 @@ func TestShouldBuildGoBinaryForProjectLocalBinary(t *testing.T) {
 	t.Parallel()
 
 	projectDir := t.TempDir()
-	goBin := filepath.Join(projectDir, "ironwailgo-cgo")
+	goBin := filepath.Join(projectDir, "ironwailgo-wgpu")
 	if !shouldBuildGoBinary(projectDir, goBin) {
 		t.Fatal("shouldBuildGoBinary returned false for project-local binary")
 	}
@@ -291,7 +291,7 @@ func TestShouldBuildGoBinarySkipsExternalBinary(t *testing.T) {
 	t.Parallel()
 
 	projectDir := t.TempDir()
-	goBin := filepath.Join(t.TempDir(), "ironwailgo-cgo")
+	goBin := filepath.Join(t.TempDir(), "ironwailgo-wgpu")
 	if shouldBuildGoBinary(projectDir, goBin) {
 		t.Fatal("shouldBuildGoBinary returned true for external binary")
 	}
@@ -299,7 +299,7 @@ func TestShouldBuildGoBinarySkipsExternalBinary(t *testing.T) {
 
 func TestShouldBuildGoBinaryHonorsSkipEnv(t *testing.T) {
 	projectDir := t.TempDir()
-	goBin := filepath.Join(projectDir, "ironwailgo-cgo")
+	goBin := filepath.Join(projectDir, "ironwailgo-wgpu")
 	t.Setenv("PARITY_SKIP_GO_BUILD", "1")
 	if shouldBuildGoBinary(projectDir, goBin) {
 		t.Fatal("shouldBuildGoBinary ignored PARITY_SKIP_GO_BUILD")

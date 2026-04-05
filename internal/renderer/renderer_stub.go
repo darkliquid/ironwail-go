@@ -1,5 +1,5 @@
-//go:build !gogpu && !opengl && !cgo
-// +build !gogpu,!opengl,!cgo
+//go:build !gogpu
+// +build !gogpu
 
 package renderer
 
@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	ErrNoBackend = errors.New("no rendering backend available - build with -tags=gogpu or -tags=opengl")
+	ErrNoBackend = errors.New("no rendering backend available - build with -tags=gogpu")
 )
 
 type stubDrawContext struct {
@@ -87,14 +87,13 @@ type RenderFrameState struct {
 	Particles      *ParticleSystem
 	Palette        []byte
 
-	// WaterWarp, WaterWarpTime, ForceUnderwater: see stubs_opengl.go for semantics.
-	// These fields are parsed by the authoritative OpenGL path only; stub ignores them.
+	// WaterWarp, WaterWarpTime, and ForceUnderwater carry scene-composite state.
+	// The no-backend stub ignores them.
 	WaterWarp       bool
 	WaterWarpTime   float32
 	ForceUnderwater bool
 
-	// VBlend: see stubs_opengl.go for semantics.
-	// Parsed by the authoritative OpenGL path only; stub ignores this field.
+	// VBlend is the composite RGBA screen tint. The no-backend stub ignores it.
 	VBlend [4]float32
 }
 

@@ -54,7 +54,7 @@ func runLoop(args []string) int {
 	beadsSyncPath := envOr("RALPH_BEADS_SYNC", filepath.Join(outDir, "latest-beads-sync.json"))
 	promptPath := envOr("RALPH_PROMPT_PATH", filepath.Join(outDir, "latest-copilot-prompt.txt"))
 	latestLog := envOr("RALPH_LOG", filepath.Join(outDir, "latest.log"))
-	engineBin := envOr("RALPH_ENGINE_BIN", filepath.Join(projectDir, "ironwailgo-cgo"))
+	engineBin := envOr("RALPH_ENGINE_BIN", filepath.Join(projectDir, "ironwailgo-wgpu"))
 
 	if _, err := os.Stat(engineBin); err != nil {
 		fmt.Fprintf(os.Stderr, "missing executable engine binary: %s\n", engineBin)

@@ -8,8 +8,8 @@
 //
 // # High-level design
 //
-// Build tags select concrete implementations such as WebGPU, OpenGL, or a stub
-// backend, while the package exposes common renderer and render-context types.
+// Build tags select the concrete GoGPU renderer or a stub backend, while the
+// package exposes common renderer and render-context types.
 // It coordinates backend initialization, frame callbacks, surface helpers, and
 // screen updates behind a unified package surface.
 //
@@ -26,10 +26,10 @@
 //
 // # Deviations and improvements
 //
-// The Go port is more deliberately modular and supports multiple backends with
-// pure-Go build-tag selection, including a stub path for headless development
-// and tests. Adapter types, backend-neutral callbacks, and clearer package
-// boundaries replace the original renderer's tightly intertwined C files.
+// The Go port is more deliberately modular and supports a canonical GoGPU
+// backend plus a stub path for headless development and tests. Adapter types,
+// backend-neutral callbacks, and clearer package boundaries replace the
+// original renderer's tightly intertwined C files.
 //
 // Recent additions include entity trail events in client_effects.go (rocket
 // smoke, blood trails, grenade smoke, etc. dispatched from model flags during

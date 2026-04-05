@@ -96,7 +96,7 @@ func run() int {
 		quakeBaseDir = "/home/darkliquid/Games/Heroic/Quake"
 	}
 	ironwailBin := envOr("IRONWAIL_BIN", filepath.Join(quakeBaseDir, "ironwail"))
-	goBin := envOr("GO_BIN", filepath.Join(projectDir, "ironwailgo-cgo"))
+	goBin := envOr("GO_BIN", filepath.Join(projectDir, "ironwailgo-wgpu"))
 	parityWidth := parseIntEnv("PARITY_WIDTH", 1280)
 	parityHeight := parseIntEnv("PARITY_HEIGHT", 720)
 	refDir := filepath.Join(projectDir, "testdata", "parity", "reference")
@@ -205,7 +205,7 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 	if shouldBuildGoBinary(projectDir, goBin) {
 		fmt.Println("Building Go binary...")
 		mustMkdir(filepath.Dir(goBin))
-		if status := runInDir(projectDir, []string{"CGO_ENABLED=1"}, "go", "build", "-o", goBin, "./cmd/ironwailgo"); status != 0 {
+		if status := runInDir(projectDir, []string{"CGO_ENABLED=0"}, "go", "build", "-tags", "gogpu,audio_oto", "-o", goBin, "./cmd/ironwailgo"); status != 0 {
 			return captureSummary{}, errors.New("failed to build Go binary")
 		}
 	} else if _, err := os.Stat(goBin); err != nil {
@@ -973,13 +973,13 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  reference  Capture reference screenshots from C Ironwail")
-	fmt.Println("  go         Capture screenshots from the Go CGO/OpenGL parity build")
+	fmt.Println("  go         Capture screenshots from the Go GoGPU parity build")
 	fmt.Println("  compare    Compare reference vs Go screenshots (nonzero on diffs/missing captures)")
 	fmt.Println("  both       Do all three in sequence (nonzero on diffs/missing captures)")
 	fmt.Println()
 	fmt.Println("Environment:")
 	fmt.Println("  QUAKE_BASEDIR  Path to Quake data")
 	fmt.Println("  IRONWAIL_BIN   Path to C Ironwail binary")
-	fmt.Println("  GO_BIN         Path to Go binary (default: ./ironwailgo-cgo)")
+	fmt.Println("  GO_BIN         Path to Go binary (default: ./ironwailgo-wgpu)")
 	fmt.Println("  PARITY_ONION_ALPHA  Blend weight for reference image in overlay output (default: 0.5)")
 }

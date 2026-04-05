@@ -1,35 +1,33 @@
 {
-  "hash": "cfffc1d3ab016ff3327c09a26a4fb2e3041c6cab1a549aead4df4f474057bebe",
+  "hash": "f73f79c078ea7a08086a193e4cefda34edf792e7adab7dd4ef057c59a6453e88",
   "files": {
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": "99789575dae5c981da2c07f485026eba9c060001bb125a67a2be1495e0461bc1",
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": "794d4b928a2cdeba1a9c1523e05032e442e1cceca43664bf9bf9ae574b1fc8a0",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": "71eb7c57937c63a7699e14b00e0c83f7e8d20c00622a7fc3d862a758293bed97",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": "f1e8a11973f44da5215d763819cd5677e47a889aa35f950167157ddb89ca8464",
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": "665effab8fe33abc51b77579efb04f2ddac14dea5deb845c75fd78e906e57ff7",
     ".yggdrasil/model/ironwailgo/startup-bootstrap/responsibility.md": "9bfc842c8c4aaadaa6f709bf1bfcf0fe619d5e31eadb2bf398e60b74adc0dd75",
     ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
     ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
     ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
     ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
     "cmd/ironwailgo/startup_args.go": "3d0a6db5a2868091eae14d18c29fb9797ce375fc042a899d5387e6045cd99c49",
+    "cmd/ironwailgo/game_init.go": "3914f98e5efb5ba8d0261f5609d9fc808c55b7a8e7a48621b0d5207cb0b69a84",
+    "cmd/ironwailgo/game_init_test.go": "1cc8be1841daf2ddf40c6db9ee2a58224a70289572e0daa73fe2187ecf051fed",
     "cmd/ironwailgo/mkrenderer_gogpu.go": "a1eab14beda0b12e592e3827e7386c6b3b4d0f24be7c84c1dc960a44cf649729",
-    "cmd/ironwailgo/mkrenderer_opengl.go": "24ef241c3eb6610a6b079834daca64a35f5261ca1531964544a3f9363a792451",
-    "cmd/ironwailgo/mkrenderer_stub.go": "112f02c5ac3fc21d68fa3c43940504acf96274f0e77b6d976f3b54c6e921bd3d",
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": "6630ce13940a1ce9e06c9ffe6480ab2079637d89c97a6ff4b1bf734b989928e6",
-    "cmd/ironwailgo/game_init.go": "3f5d5778dfd67c1649bf8cd27ded11d6394cc2a34ffad2c93b57342b8f0f4b42",
-    "cmd/ironwailgo/game_init_test.go": "1cc8be1841daf2ddf40c6db9ee2a58224a70289572e0daa73fe2187ecf051fed"
+    "cmd/ironwailgo/mkrenderer_stub.go": "5ce8298ed246feb8e982d47bb306b08b12e0609d3b42f91c2d9e5ba677a8f7e3"
   },
   "mtimes": {
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": 1774681169531.3074,
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": 1775390549872.442,
-    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": 1775392025833.545,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/yg-node.yaml": 1775423023334.8428,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/interface.md": 1775423023333.8428,
+    ".yggdrasil/model/ironwailgo/startup-bootstrap/internals.md": 1775423023333.8428,
     ".yggdrasil/model/ironwailgo/startup-bootstrap/responsibility.md": 1774284755390.7458,
     ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
     ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
     ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
     ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
     "cmd/ironwailgo/startup_args.go": 1774696576896.2664,
-    "cmd/ironwailgo/game_init.go": 1775391940837.2637,
-    "cmd/ironwailgo/game_init_test.go": 1775391960630.2747,
+    "cmd/ironwailgo/game_init.go": 1775423077171.3047,
+    "cmd/ironwailgo/game_init_test.go": 1775422318687.516,
     "cmd/ironwailgo/mkrenderer_gogpu.go": 1774696576887.6821,
-    "cmd/ironwailgo/mkrenderer_opengl.go": 1774696576887.6821,
-    "cmd/ironwailgo/mkrenderer_stub.go": 1774696576886.587
+    "cmd/ironwailgo/mkrenderer_stub.go": 1775422926140.0042
   }
 }

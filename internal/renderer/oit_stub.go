@@ -1,9 +1,7 @@
-//go:build !((opengl || cgo) && !gogpu)
-
 package renderer
 
-// oitFramebuffers mirrors the OpenGL OIT resource layout for non-OpenGL builds
-// so shared logic and tests can still reason about initialization state.
+// oitFramebuffers keeps the shared OIT zero-value shape available even when
+// no renderer backend provides concrete OIT resources.
 type oitFramebuffers struct {
 	accumTex     uint32
 	revealageTex uint32

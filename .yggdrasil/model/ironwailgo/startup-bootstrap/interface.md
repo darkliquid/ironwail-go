@@ -9,7 +9,7 @@
 
 - startup option parsing helpers
 - `initSubsystems` and bootstrap helpers such as `initGameQC`, `initGameServer`, `initGameRenderer`
-- build-tagged renderer backend factories (`mkrenderer_gogpu.go`, `mkrenderer_opengl.go`, `mkrenderer_stub.go`) used by `initGameRenderer`
+- build-tagged renderer backend factories (`mkrenderer_gogpu.go`, `mkrenderer_stub.go`) used by `initGameRenderer`
 
 ## Contracts
 

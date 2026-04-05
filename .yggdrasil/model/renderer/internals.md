@@ -6,9 +6,6 @@ The package is split into focused concerns:
 - `renderer/runtime`
 - `renderer/canvas`
 - `renderer/input`
-- `renderer/opengl-core`
-- `renderer/opengl-world`
-- `renderer/opengl-entities`
 - `renderer/gogpu-core`
 - `renderer/gogpu-world`
 - `renderer/shared-world`

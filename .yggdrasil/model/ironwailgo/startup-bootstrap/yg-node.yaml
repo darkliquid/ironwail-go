@@ -8,5 +8,4 @@ mapping:
     - cmd/ironwailgo/game_init.go
     - cmd/ironwailgo/game_init_test.go
     - cmd/ironwailgo/mkrenderer_gogpu.go
-    - cmd/ironwailgo/mkrenderer_opengl.go
     - cmd/ironwailgo/mkrenderer_stub.go

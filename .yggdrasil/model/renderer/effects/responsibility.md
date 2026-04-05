@@ -14,5 +14,5 @@
 
 ## Does not own
 
-- concrete OpenGL/GoGPU draw submission
+- concrete renderer draw submission
 - shared world geometry preparation

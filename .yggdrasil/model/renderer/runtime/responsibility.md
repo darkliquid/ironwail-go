@@ -14,5 +14,5 @@
 ## Does not own
 
 - Canvas transform logic.
-- Concrete OpenGL or GoGPU implementation details.
+- Concrete backend implementation details.
 - World/entity render pipelines.
