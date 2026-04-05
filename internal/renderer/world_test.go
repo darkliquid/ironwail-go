@@ -8,6 +8,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/gogpu/wgpu"
 )
 
 // TestBuildWorldGeometry_NilTree tests handling of nil BSP tree.
@@ -138,6 +139,35 @@ func TestBuildWorldGeometry_SimpleQuad(t *testing.T) {
 		if v.Normal != expectedNormal {
 			t.Errorf("Vertex[%d] normal = %v, want %v", i, v.Normal, expectedNormal)
 		}
+	}
+}
+
+func TestGoGPUWorldMaterialBindState_Update(t *testing.T) {
+	textureA := new(wgpu.BindGroup)
+	textureB := new(wgpu.BindGroup)
+	lightmapA := new(wgpu.BindGroup)
+	fullbrightA := new(wgpu.BindGroup)
+
+	var state gogpuWorldMaterialBindState
+	setTexture, setLightmap, setFullbright := state.update(textureA, lightmapA, fullbrightA)
+	if !setTexture || !setLightmap || !setFullbright {
+		t.Fatalf("first material bind update = (%v, %v, %v), want all true", setTexture, setLightmap, setFullbright)
+	}
+
+	setTexture, setLightmap, setFullbright = state.update(textureA, lightmapA, fullbrightA)
+	if setTexture || setLightmap || setFullbright {
+		t.Fatalf("identical material bind update = (%v, %v, %v), want all false", setTexture, setLightmap, setFullbright)
+	}
+
+	setTexture, setLightmap, setFullbright = state.update(textureB, lightmapA, fullbrightA)
+	if !setTexture || setLightmap || setFullbright {
+		t.Fatalf("texture-only change update = (%v, %v, %v), want (true, false, false)", setTexture, setLightmap, setFullbright)
+	}
+
+	state.invalidate()
+	setTexture, setLightmap, setFullbright = state.update(textureB, lightmapA, fullbrightA)
+	if !setTexture || !setLightmap || !setFullbright {
+		t.Fatalf("post-invalidate update = (%v, %v, %v), want all true", setTexture, setLightmap, setFullbright)
 	}
 }
 
@@ -691,5 +721,49 @@ func TestSummarizeGoGPUWorldFaceStats(t *testing.T) {
 	}
 	if stats.UnclassifiedFaces != 0 || stats.UnclassifiedTriangles != 0 {
 		t.Fatalf("unclassified stats = (%d faces, %d tris), want 0", stats.UnclassifiedFaces, stats.UnclassifiedTriangles)
+	}
+}
+
+func TestSortGoGPUWorldFaceDrawsByMaterial(t *testing.T) {
+	texA := &wgpu.BindGroup{}
+	texB := &wgpu.BindGroup{}
+	lightA := &wgpu.BindGroup{}
+	lightB := &wgpu.BindGroup{}
+	fullA := &wgpu.BindGroup{}
+	fullB := &wgpu.BindGroup{}
+	draws := []gogpuWorldFaceDraw{
+		{
+			face:                WorldFace{FirstIndex: 30},
+			textureBindGroup:    texB,
+			lightmapBindGroup:   lightB,
+			fullbrightBindGroup: fullA,
+			dynamicLight:        [3]float32{1, 0, 0},
+		},
+		{
+			face:                WorldFace{FirstIndex: 10},
+			textureBindGroup:    texA,
+			lightmapBindGroup:   lightB,
+			fullbrightBindGroup: fullB,
+			dynamicLight:        [3]float32{0, 0, 0},
+		},
+		{
+			face:                WorldFace{FirstIndex: 20},
+			textureBindGroup:    texA,
+			lightmapBindGroup:   lightA,
+			fullbrightBindGroup: fullA,
+			dynamicLight:        [3]float32{0, 0, 0},
+		},
+	}
+
+	sortGoGPUWorldFaceDrawsByMaterial(draws)
+
+	if draws[0].face.FirstIndex != 20 {
+		t.Fatalf("draws[0].FirstIndex = %d, want 20", draws[0].face.FirstIndex)
+	}
+	if draws[1].face.FirstIndex != 10 {
+		t.Fatalf("draws[1].FirstIndex = %d, want 10", draws[1].face.FirstIndex)
+	}
+	if draws[2].face.FirstIndex != 30 {
+		t.Fatalf("draws[2].FirstIndex = %d, want 30", draws[2].face.FirstIndex)
 	}
 }
