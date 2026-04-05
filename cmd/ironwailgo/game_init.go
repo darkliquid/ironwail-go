@@ -561,6 +561,9 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 	if subs == nil {
 		return fmt.Errorf("game dir reload missing subsystems")
 	}
+	if g.Server == nil {
+		return fmt.Errorf("game dir reload missing server runtime")
+	}
 
 	subs.Files = changed
 	g.Subs = subs
@@ -595,6 +598,7 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 	g.SpriteModelCache = nil
 	resetRuntimeSoundState()
 	resetRuntimeVisualState()
+	queueRuntimeRendererWorldClear()
 
 	reloadRuntimeDrawAssets(changed)
 	if g.Draw != nil {

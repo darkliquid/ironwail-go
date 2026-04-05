@@ -150,6 +150,7 @@ var (
 	pendingRendererPalette       []byte
 	pendingRendererConchars      []byte
 	pendingRendererAssetsPending bool
+	pendingRendererWorldClear    bool
 )
 
 type canvasParamSetter interface {
@@ -165,23 +166,37 @@ func queueRuntimeRendererAssets(palette []byte, conchars []byte) {
 	pendingRendererAssetsPending = true
 }
 
-func applyQueuedRuntimeRendererAssets(target gameRendererAssets) {
+func queueRuntimeRendererWorldClear() {
+	pendingRendererAssetsMu.Lock()
+	defer pendingRendererAssetsMu.Unlock()
+
+	pendingRendererWorldClear = true
+}
+
+func applyQueuedRuntimeRendererAssets(target gameRenderer) {
 	if target == nil {
 		return
 	}
 
 	pendingRendererAssetsMu.Lock()
-	if !pendingRendererAssetsPending {
+	if !pendingRendererAssetsPending && !pendingRendererWorldClear {
 		pendingRendererAssetsMu.Unlock()
 		return
 	}
+	clearWorld := pendingRendererWorldClear
 	palette := append([]byte(nil), pendingRendererPalette...)
 	conchars := append([]byte(nil), pendingRendererConchars...)
 	pendingRendererPalette = pendingRendererPalette[:0]
 	pendingRendererConchars = pendingRendererConchars[:0]
 	pendingRendererAssetsPending = false
+	pendingRendererWorldClear = false
 	pendingRendererAssetsMu.Unlock()
 
+	if clearWorld {
+		if clearer, ok := any(target).(interface{ ClearWorld() }); ok {
+			clearer.ClearWorld()
+		}
+	}
 	if len(palette) >= 768 {
 		target.SetPalette(palette)
 	}
