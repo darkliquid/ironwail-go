@@ -2566,8 +2566,14 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 		return nil
 	}
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	visibleFaces := selectVisibleWorldFaces(
+		worldData.Geometry.Tree,
+		worldData.Geometry.Faces,
+		worldData.Geometry.LeafFaces,
+		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+	)
 	renders := make([]gogpuTranslucentBrushFaceRender, 0, 8)
-	for _, face := range worldData.Geometry.Faces {
+	for _, face := range visibleFaces {
 		if !shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
 			continue
 		}
