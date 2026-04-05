@@ -226,14 +226,48 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 
+	type preparedBrushDraw struct {
+		draw         gogpuOpaqueBrushEntityDraw
+		vertexData   []byte
+		indexData    []byte
+		vertexOffset uint64
+		indexOffset  uint64
+	}
+	prepared := make([]preparedBrushDraw, 0, len(draws))
+	totalVertexBytes := uint64(0)
+	totalIndexBytes := uint64(0)
+	for _, draw := range draws {
+		vertexData := worldgogpu.VertexBytes(draw.vertices)
+		indexData := worldgogpu.IndexBytes(draw.indices)
+		prepared = append(prepared, preparedBrushDraw{
+			draw:         draw,
+			vertexData:   vertexData,
+			indexData:    indexData,
+			vertexOffset: totalVertexBytes,
+			indexOffset:  totalIndexBytes,
+		})
+		totalVertexBytes += uint64(len(vertexData))
+		totalIndexBytes += uint64(len(indexData))
+	}
+	if len(prepared) == 0 {
+		return
+	}
+
 	r := dc.renderer
-	r.mu.RLock()
+	r.mu.Lock()
+	if err := r.ensureBrushEntityScratchBuffersLocked(device, totalVertexBytes, totalIndexBytes); err != nil {
+		r.mu.Unlock()
+		slog.Warn("failed to ensure brush entity scratch buffers", "error", err)
+		return
+	}
 	pipeline := r.worldPipeline
 	uniformBuffer := r.uniformBuffer
 	uniformBindGroup := r.uniformBindGroup
 	whiteTextureBindGroup := r.whiteTextureBindGroup
 	transparentBindGroup := r.transparentBindGroup
 	whiteLightmapBindGroup := r.whiteLightmapBindGroup
+	vertexScratchBuffer := r.brushEntityScratchVertexBuffer
+	indexScratchBuffer := r.brushEntityScratchIndexBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
 	worldTextures := make(map[int32]*gpuWorldTexture, len(r.worldTextures))
@@ -250,12 +284,23 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	if r.lightPool != nil {
 		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
 	}
-	r.mu.RUnlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
+	r.mu.Unlock()
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil || vertexScratchBuffer == nil || indexScratchBuffer == nil {
 		return
 	}
 	if transparentBindGroup == nil {
 		transparentBindGroup = whiteTextureBindGroup
+	}
+
+	for i, preparedDraw := range prepared {
+		if err := queue.WriteBuffer(vertexScratchBuffer, preparedDraw.vertexOffset, preparedDraw.vertexData); err != nil {
+			slog.Warn("failed to upload brush scratch vertices", "error", err, "draw", i)
+			return
+		}
+		if err := queue.WriteBuffer(indexScratchBuffer, preparedDraw.indexOffset, preparedDraw.indexData); err != nil {
+			slog.Warn("failed to upload brush scratch indices", "error", err, "draw", i)
+			return
+		}
 	}
 
 	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Entity Render Encoder"})
@@ -288,35 +333,11 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
-	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
-	for _, draw := range draws {
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Entity Vertices", gputypes.BufferUsageVertex, vertexData)
-		if err != nil {
-			slog.Warn("failed to create brush vertex buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Release()
-			slog.Warn("failed to upload brush vertex buffer", "error", err)
-			continue
-		}
-		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Entity Indices", gputypes.BufferUsageIndex, indexData)
-		if err != nil {
-			vertexBuffer.Release()
-			slog.Warn("failed to create brush index buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Release()
-			vertexBuffer.Release()
-			slog.Warn("failed to upload brush index buffer", "error", err)
-			continue
-		}
-		buffers = append(buffers, vertexBuffer, indexBuffer)
-		renderPass.SetVertexBuffer(0, vertexBuffer, 0)
-		renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
+	var materialBindState gogpuWorldMaterialBindState
+	for _, preparedDraw := range prepared {
+		draw := preparedDraw.draw
+		renderPass.SetVertexBuffer(0, vertexScratchBuffer, preparedDraw.vertexOffset)
+		renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.indexOffset)
 		for faceIndex, face := range draw.faces {
 			dynamicLight := [3]float32{}
 			if faceIndex < len(draw.centers) {
@@ -344,9 +365,16 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			if worldTexture := gogpuWorldTextureForFace(face, worldFullbrightTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 				fullbrightBindGroup = worldTexture.bindGroup
 			}
-			renderPass.SetBindGroup(1, textureBindGroup, nil)
-			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+			setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
+			if setTexture {
+				renderPass.SetBindGroup(1, textureBindGroup, nil)
+			}
+			if setLightmap {
+				renderPass.SetBindGroup(2, lightmapBindGroup, nil)
+			}
+			if setFullbright {
+				renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+			}
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		}
 	}
@@ -356,16 +384,10 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush entity encoding", "error", err)
-		for _, buffer := range buffers {
-			buffer.Release()
-		}
 		return
 	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush entity commands", "error", err)
-	}
-	for _, buffer := range buffers {
-		buffer.Release()
 	}
 }
 
@@ -3176,6 +3198,14 @@ func (r *Renderer) destroyAliasResourcesLocked() {
 		r.aliasScratchBuffer.Release()
 		r.aliasScratchBuffer = nil
 	}
+	if r.brushEntityScratchVertexBuffer != nil {
+		r.brushEntityScratchVertexBuffer.Release()
+		r.brushEntityScratchVertexBuffer = nil
+	}
+	if r.brushEntityScratchIndexBuffer != nil {
+		r.brushEntityScratchIndexBuffer.Release()
+		r.brushEntityScratchIndexBuffer = nil
+	}
 	if r.aliasUniformBuffer != nil {
 		r.aliasUniformBuffer.Release()
 		r.aliasUniformBuffer = nil
@@ -3382,6 +3412,53 @@ func (r *Renderer) ensureAliasScratchBufferLocked(device *wgpu.Device, size uint
 	}
 	r.aliasScratchBuffer = buffer
 	r.aliasScratchBufferSize = size
+	return nil
+}
+
+func (r *Renderer) ensureBrushEntityScratchBuffersLocked(device *wgpu.Device, vertexSize, indexSize uint64) error {
+	if vertexSize == 0 {
+		vertexSize = 44
+	}
+	if indexSize == 0 {
+		indexSize = 4
+	}
+	if r.brushEntityScratchVertexBuffer != nil && r.brushEntityScratchVertexSize >= vertexSize &&
+		r.brushEntityScratchIndexBuffer != nil && r.brushEntityScratchIndexSize >= indexSize {
+		return nil
+	}
+	if r.brushEntityScratchVertexBuffer != nil {
+		r.brushEntityScratchVertexBuffer.Release()
+		r.brushEntityScratchVertexBuffer = nil
+		r.brushEntityScratchVertexSize = 0
+	}
+	if r.brushEntityScratchIndexBuffer != nil {
+		r.brushEntityScratchIndexBuffer.Release()
+		r.brushEntityScratchIndexBuffer = nil
+		r.brushEntityScratchIndexSize = 0
+	}
+	vertexBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Brush Entity Vertex Scratch Buffer",
+		Size:             vertexSize,
+		Usage:            gputypes.BufferUsageVertex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create brush entity vertex scratch buffer: %w", err)
+	}
+	indexBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "Brush Entity Index Scratch Buffer",
+		Size:             indexSize,
+		Usage:            gputypes.BufferUsageIndex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		vertexBuffer.Release()
+		return fmt.Errorf("create brush entity index scratch buffer: %w", err)
+	}
+	r.brushEntityScratchVertexBuffer = vertexBuffer
+	r.brushEntityScratchVertexSize = vertexSize
+	r.brushEntityScratchIndexBuffer = indexBuffer
+	r.brushEntityScratchIndexSize = indexSize
 	return nil
 }
 

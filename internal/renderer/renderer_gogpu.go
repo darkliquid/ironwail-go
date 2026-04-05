@@ -54,6 +54,7 @@ import (
 	"reflect"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -800,6 +801,15 @@ type Renderer struct {
 	worldOpaqueBatchScratch  []gogpuWorldFaceBatch
 	worldAlphaBatchScratch   []gogpuWorldFaceBatch
 	worldLiquidBatchScratch  []gogpuWorldFaceBatch
+	worldBatchCacheValid     bool
+	worldBatchCacheLeaf      int
+	worldBatchCacheLightSig  uint64
+	worldBatchCacheFaceCount int
+	worldBatchCacheSkyFaces  []WorldFace
+	worldBatchCacheIndices   []uint32
+	worldBatchCacheOpaque    []gogpuWorldFaceBatch
+	worldBatchCacheAlpha     []gogpuWorldFaceBatch
+	worldBatchCacheLiquid    []gogpuWorldFaceBatch
 
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer
@@ -879,6 +889,10 @@ type Renderer struct {
 	aliasShadowSkin                *gpuAliasSkin
 	aliasScratchBuffer             *wgpu.Buffer
 	aliasScratchBufferSize         uint64
+	brushEntityScratchVertexBuffer *wgpu.Buffer
+	brushEntityScratchVertexSize   uint64
+	brushEntityScratchIndexBuffer  *wgpu.Buffer
+	brushEntityScratchIndexSize    uint64
 	aliasPipeline                  *wgpu.RenderPipeline
 	aliasShadowPipeline            *wgpu.RenderPipeline
 	aliasPipelineLayout            *wgpu.PipelineLayout
@@ -1450,6 +1464,26 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state == nil {
 		return
 	}
+	frameStart := time.Now()
+	hostSpeeds := cvar.BoolValue("host_speeds")
+	phaseStart := time.Time{}
+	phaseBegin := func() {
+		if hostSpeeds {
+			phaseStart = time.Now()
+		}
+	}
+	phaseEnd := func(total *float64) {
+		if hostSpeeds {
+			*total += float64(time.Since(phaseStart)) / float64(time.Millisecond)
+		}
+	}
+	var clearMS float64
+	var worldMS float64
+	var entitiesMS float64
+	var viewModelMS float64
+	var sceneCompositeMS float64
+	var polyBlendMS float64
+	var overlayMS float64
 
 	slog.Debug("RenderFrame called", "draw_world", state.DrawWorld, "draw_particles", state.DrawParticles, "draw_2d_overlay", state.Draw2DOverlay)
 	slog.Debug("RenderFrame: surface view (start)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
@@ -1461,6 +1495,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	// Skip clear when world rendering is active - the world render pass will handle clearing,
 	// and gogpu will use LoadOpLoad to preserve our world rendering when drawing the overlay.
 	sceneTargetActive := shouldUseSceneRenderTarget(state) && dc.enableSceneRenderTarget()
+	phaseBegin()
 	if !state.DrawWorld && !sceneTargetActive {
 		// When the in-game menu is up without an active world pass, preserve the
 		// previously rendered scene behind the menu instead of force-clearing to black.
@@ -1471,6 +1506,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	} else if sceneTargetActive && !state.DrawWorld {
 		dc.clearCurrentHALRenderTarget(state.ClearColor)
 	}
+	phaseEnd(&clearMS)
 
 	// Phase 2: Draw 3D world directly to surface view (zero-copy)
 	// HAL renders to dc.ctx.SurfaceView() which is the current frame's swapchain texture.
@@ -1478,7 +1514,9 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 	if state.DrawWorld {
 		dc.renderer.setGoGPUWorldLightStyleValues(state.LightStyles)
 		slog.Debug("RenderFrame: rendering world to surface")
+		phaseBegin()
 		dc.renderWorld(state)
+		phaseEnd(&worldMS)
 		slog.Debug("RenderFrame: surface view (after world)", "id", debugSurfaceViewID(dc.ctx.SurfaceView()))
 		if !sceneTargetActive && dc.markGoGPUFrameContentForOverlay() {
 			slog.Debug("RenderFrame: marked gogpu frame as pre-populated (HAL world rendered)")
@@ -1531,13 +1569,18 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 
 	// Phase 3: Draw entities, decals, and mode-placed particles.
 	if lateTranslucency || state.DrawEntities || len(state.DecalMarks) > 0 || (state.DrawParticles && state.Particles != nil) {
+		phaseBegin()
 		dc.renderEntities(state)
+		phaseEnd(&entitiesMS)
 	}
 
 	if state.DrawEntities && state.ViewModel != nil {
+		phaseBegin()
 		dc.renderViewModelHAL(*state.ViewModel, state.FogColor, state.FogDensity)
+		phaseEnd(&viewModelMS)
 	}
 	if sceneTargetActive {
+		phaseBegin()
 		if dc.compositeSceneRenderTarget(state.WaterWarp, state.WaterWarpTime, state.ClearColor) {
 			if dc.markGoGPUFrameContentForOverlay() {
 				slog.Debug("RenderFrame: marked gogpu frame as pre-populated (scene composite rendered)")
@@ -1547,10 +1590,13 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		} else {
 			slog.Warn("RenderFrame: failed to composite scene render target")
 		}
+		phaseEnd(&sceneCompositeMS)
 		dc.disableSceneRenderTarget()
 	}
 	if state.VBlend[3] > 0 {
+		phaseBegin()
 		dc.renderPolyBlendHAL(state.VBlend)
+		phaseEnd(&polyBlendMS)
 	}
 
 	// Phase 5: Draw 2D overlay (HUD, menu, console)
@@ -1568,11 +1614,31 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 			dc.renderWorldFallbackTopDown()
 		}
 		slog.Debug("Drawing 2D overlay on top of world", "menu_active", state.MenuActive)
+		phaseBegin()
 		draw2DOverlay(dc)
 		dc.flush2DOverlay()
+		phaseEnd(&overlayMS)
 	}
 
 	dc.logPrePresentState("normal")
+	if hostSpeeds {
+		slog.Info("render_thread_speeds",
+			"clear_ms", clearMS,
+			"world_ms", worldMS,
+			"entities_ms", entitiesMS,
+			"viewmodel_ms", viewModelMS,
+			"scene_composite_ms", sceneCompositeMS,
+			"polyblend_ms", polyBlendMS,
+			"overlay_ms", overlayMS,
+			"total_ms", float64(time.Since(frameStart))/float64(time.Millisecond),
+			"draw_world", state.DrawWorld,
+			"draw_entities", state.DrawEntities,
+			"draw_particles", state.DrawParticles,
+			"draw_overlay", state.Draw2DOverlay,
+			"menu_active", state.MenuActive,
+			"water_warp", state.WaterWarp,
+		)
+	}
 }
 
 func (dc *DrawContext) maybeLogGoGPUFirstWorldFrameStats(state *RenderFrameState, lateTranslucency bool, translucentBrushEntities []BrushEntity, translucentAliasEntities []AliasModelEntity) {
@@ -1866,8 +1932,25 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		return
 	}
 	hasTranslucentWorld := state.DrawWorld && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU()
+	hostSpeeds := cvar.BoolValue("host_speeds")
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
 	plan := planGoGPUEntityDrawOrder(state.DrawEntities, hasTranslucentWorld, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
+	var (
+		opaqueBrushMS          float64
+		opaqueAliasMS          float64
+		opaqueParticlesMS      float64
+		skyBrushMS             float64
+		opaqueLiquidBrushMS    float64
+		translucentWorldMS     float64
+		translucentLiquidMS    float64
+		alphaTestBrushMS       float64
+		translucentBrushMS     float64
+		translucencyFlushMS    float64
+		decalsMS               float64
+		translucentAliasMS     float64
+		spritesMS              float64
+		translucentParticlesMS float64
+	)
 	var pendingTranslucentRenders []gogpuTranslucentBrushFaceRender
 	var pendingTransientBuffers []*wgpu.Buffer
 	flushPendingTranslucency := func() {
@@ -1886,12 +1969,17 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		switch phase {
 		case gogpuEntityPhaseTranslucentWorldLiquid, gogpuEntityPhaseTranslucentLiquidBrush, gogpuEntityPhaseTranslucentBrush:
 		default:
+			flushStart := time.Now()
 			flushPendingTranslucency()
+			translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
 		}
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
+			phaseStart := time.Now()
 			dc.renderOpaqueBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+			opaqueBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseOpaqueAlias:
+			phaseStart := time.Now()
 			for _, step := range gogpuOpaqueAliasPassSteps() {
 				switch step {
 				case gogpuOpaqueAliasStepEntities:
@@ -1900,38 +1988,88 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 					dc.renderAliasShadowsHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
 				}
 			}
+			opaqueAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseOpaqueParticles:
 			if state.DrawParticles && state.Particles != nil {
+				phaseStart := time.Now()
 				dc.renderParticlesHAL(state, false)
+				opaqueParticlesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		case gogpuEntityPhaseSkyBrush:
+			phaseStart := time.Now()
 			dc.renderSkyBrushEntitiesHAL(plan.skyBrush, state.FogColor, state.FogDensity)
+			skyBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseOpaqueLiquidBrush:
+			phaseStart := time.Now()
 			dc.renderOpaqueLiquidBrushEntitiesHAL(plan.opaqueBrush, state.FogColor, state.FogDensity)
+			opaqueLiquidBrushMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseTranslucentWorldLiquid:
+			phaseStart := time.Now()
 			pendingTranslucentRenders = append(pendingTranslucentRenders, dc.collectGoGPUWorldTranslucentLiquidFaceRenders()...)
+			translucentWorldMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseTranslucentLiquidBrush:
+			phaseStart := time.Now()
 			renders, buffers := dc.collectGoGPUTranslucentLiquidBrushFaceRenders(plan.opaqueBrush)
 			pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
 			pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
+			translucentLiquidMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseTranslucentBrush:
+			collectStart := time.Now()
 			alphaTestRenders, renders, buffers := dc.collectGoGPUTranslucentBrushEntityFaceRenders(plan.translucentBrush)
+			translucentBrushMS += float64(time.Since(collectStart)) / float64(time.Millisecond)
+			alphaTestStart := time.Now()
 			dc.renderGoGPUAlphaTestBrushFaceRendersHAL(alphaTestRenders, state.FogColor, state.FogDensity)
+			alphaTestBrushMS += float64(time.Since(alphaTestStart)) / float64(time.Millisecond)
 			pendingTranslucentRenders = append(pendingTranslucentRenders, renders...)
 			pendingTransientBuffers = append(pendingTransientBuffers, buffers...)
 		case gogpuEntityPhaseDecals:
+			phaseStart := time.Now()
 			dc.renderDecalMarksHAL(state.DecalMarks)
+			decalsMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseTranslucentAlias:
+			phaseStart := time.Now()
 			dc.renderAliasEntitiesHAL(plan.translucentAlias, state.FogColor, state.FogDensity)
+			translucentAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseSprites:
+			phaseStart := time.Now()
 			dc.renderSpriteEntitiesHAL(state.SpriteEntities, state.FogColor, state.FogDensity)
+			spritesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 		case gogpuEntityPhaseTranslucentParticles:
 			if state.DrawParticles && state.Particles != nil {
+				phaseStart := time.Now()
 				dc.renderParticlesHAL(state, true)
+				translucentParticlesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		}
 	}
+	flushStart := time.Now()
 	flushPendingTranslucency()
+	translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
+	if hostSpeeds {
+		slog.Info("render_entities_speeds",
+			"opaque_brush_ms", opaqueBrushMS,
+			"opaque_alias_ms", opaqueAliasMS,
+			"opaque_particles_ms", opaqueParticlesMS,
+			"sky_brush_ms", skyBrushMS,
+			"opaque_liquid_brush_ms", opaqueLiquidBrushMS,
+			"translucent_world_collect_ms", translucentWorldMS,
+			"translucent_liquid_collect_ms", translucentLiquidMS,
+			"alpha_test_brush_ms", alphaTestBrushMS,
+			"translucent_brush_collect_ms", translucentBrushMS,
+			"translucency_flush_ms", translucencyFlushMS,
+			"decals_ms", decalsMS,
+			"translucent_alias_ms", translucentAliasMS,
+			"sprites_ms", spritesMS,
+			"translucent_particles_ms", translucentParticlesMS,
+			"opaque_brush_count", len(plan.opaqueBrush),
+			"opaque_alias_count", len(plan.opaqueAlias),
+			"translucent_brush_count", len(plan.translucentBrush),
+			"translucent_alias_count", len(plan.translucentAlias),
+			"sprite_count", len(state.SpriteEntities),
+			"decal_count", len(state.DecalMarks),
+			"particle_count", particleCount(state.Particles),
+		)
+	}
 }
 
 func projectWorldPointToScreen(pos [3]float32, vp types.Mat4, screenW, screenH int) (x int, y int, ok bool) {
