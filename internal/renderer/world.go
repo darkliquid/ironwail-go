@@ -2231,9 +2231,6 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	}
 	rgba := make([]byte, page.Width*page.Height*4)
 	for i := 0; i < len(rgba); i += 4 {
-		rgba[i] = 255
-		rgba[i+1] = 255
-		rgba[i+2] = 255
 		rgba[i+3] = 255
 	}
 	for _, surface := range page.Surfaces {

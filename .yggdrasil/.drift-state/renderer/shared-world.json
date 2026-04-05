@@ -1,5 +1,5 @@
 {
-  "hash": "3780ce342c0d85e9069772967b52efe7f21a680c157534bf8f253d3d335c9f8b",
+  "hash": "bfeac9024302b444bd0832c532a8642e8bbb0a3debfcec126cea22a82ba9821c",
   "files": {
     ".yggdrasil/model/renderer/shared-world/yg-node.yaml": "0614c8870b9a9d48ff34fd6dca91902b5598ef5925b8c4b153a5b80e4ae85efd",
     ".yggdrasil/model/renderer/shared-world/interface.md": "3cb893f4d829136dc1a734e854941e38f16b4e11557b26b9f6f05c434200b4fe",
@@ -8,7 +8,6 @@
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
     ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
-    "internal/renderer/world.go": "d52ae4cadf95de6eda7e4b36c74f15f72f0e94515c0f5718ee3c642b7b372c7e",
     "internal/renderer/world_shared.go": "323e78c3b7b30fc7947bcc6b8de25db934d3ef3148e10becc926ef164ff66960",
     "internal/renderer/world/fog.go": "d3d8317b8fc19a1be5e17d8d722d591ace5403614032f076a2b6e8bf3a9519f7",
     "internal/renderer/world/pass.go": "99b47985c85cb6fe987168376ad7de73cbbc22635810c9b6c8a4c198da5ceee2",
@@ -25,18 +24,19 @@
     "internal/renderer/surface.go": "9005b64d517b97bd0aa430faf386ff0cef2e3a8146a62d925e49c63484af33ad",
     "internal/renderer/surface_test.go": "795c4dc37d496cc4dc170ca1fbfda56398981f6226e140f14d81ee2b27af70a4",
     "internal/renderer/texture.go": "c3c0b1b6f77c0d1aa6145b5ebfa0090c67a62644475212a091ca20f019c4b3e0",
-    ".yggdrasil/model/renderer/shared-world/internals.md": "9dc211e793b80fd7ef6f254dcf2bf37d35e6369ff4cf7a73bbee86fc9eb09382"
+    ".yggdrasil/model/renderer/shared-world/internals.md": "647e3f6e14522dfb32d23edce830ccd64aad5f339336cda0dda420e56360e2bc",
+    "internal/renderer/world.go": "8d7297f2072ea5cff1e99eaa32072555539361e84246b4635b78497691bbd0be"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/shared-world/yg-node.yaml": 1775402171375.3586,
     ".yggdrasil/model/renderer/shared-world/interface.md": 1774681169534.243,
-    ".yggdrasil/model/renderer/shared-world/internals.md": 1775407630629.548,
+    ".yggdrasil/model/renderer/shared-world/internals.md": 1775407885793.113,
     ".yggdrasil/model/renderer/shared-world/responsibility.md": 1774219364179.6206,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
-    "internal/renderer/world.go": 1775407599734.3633,
+    "internal/renderer/world.go": 1775407841487.8372,
     "internal/renderer/world_shared.go": 1775401957465.278,
     "internal/renderer/world/fog.go": 1774681169546.3745,
     "internal/renderer/world/pass.go": 1774696575367.5718,

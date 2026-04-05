@@ -877,3 +877,48 @@ func TestAppendGoGPUOpaqueWorldFaceBatches(t *testing.T) {
 		t.Fatalf("batches[1] = %+v, want firstIndex=6 numIndices=3", batches[1])
 	}
 }
+
+func TestBuildWorldLightmapPageRGBA_DefaultsUntouchedTexelsToBlack(t *testing.T) {
+	page := &WorldLightmapPage{Width: 2, Height: 1}
+	got := buildWorldLightmapPageRGBA(page, defaultWorldLightStyleValues())
+	want := []byte{
+		0, 0, 0, 255,
+		0, 0, 0, 255,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len(got) = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got[%d] = %d, want %d (full rgba=%v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+func TestBuildWorldLightmapPageRGBA_CompositesSurfaceIntoBlackPage(t *testing.T) {
+	page := &WorldLightmapPage{
+		Width:  2,
+		Height: 1,
+		Surfaces: []WorldLightmapSurface{{
+			X:       0,
+			Y:       0,
+			Width:   1,
+			Height:  1,
+			Styles:  [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
+			Samples: []byte{128, 64, 32},
+		}},
+	}
+	got := buildWorldLightmapPageRGBA(page, defaultWorldLightStyleValues())
+	want := []byte{
+		128, 64, 32, 255,
+		0, 0, 0, 255,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len(got) = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got[%d] = %d, want %d (full rgba=%v)", i, got[i], want[i], got)
+		}
+	}
+}

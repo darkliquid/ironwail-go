@@ -602,13 +602,49 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		return
 	}
 
-	r.mu.RLock()
+	type preparedBrushLiquidDraw struct {
+		draw         gogpuOpaqueBrushEntityDraw
+		hasLitWater  bool
+		vertexData   []byte
+		indexData    []byte
+		vertexOffset uint64
+		indexOffset  uint64
+	}
+	prepared := make([]preparedBrushLiquidDraw, 0, len(draws))
+	totalVertexBytes := uint64(0)
+	totalIndexBytes := uint64(0)
+	for _, draw := range draws {
+		vertexData := worldgogpu.VertexBytes(draw.vertices)
+		indexData := worldgogpu.IndexBytes(draw.indices)
+		prepared = append(prepared, preparedBrushLiquidDraw{
+			draw:         draw,
+			hasLitWater:  gogpuFacesHaveLitWater(draw.faces),
+			vertexData:   vertexData,
+			indexData:    indexData,
+			vertexOffset: totalVertexBytes,
+			indexOffset:  totalIndexBytes,
+		})
+		totalVertexBytes += uint64(len(vertexData))
+		totalIndexBytes += uint64(len(indexData))
+	}
+	if len(prepared) == 0 {
+		return
+	}
+
+	r.mu.Lock()
+	if err := r.ensureBrushEntityScratchBuffersLocked(device, totalVertexBytes, totalIndexBytes); err != nil {
+		r.mu.Unlock()
+		slog.Warn("failed to ensure brush liquid scratch buffers", "error", err)
+		return
+	}
 	pipeline := r.worldTurbulentPipeline
 	uniformBuffer := r.uniformBuffer
 	uniformBindGroup := r.uniformBindGroup
 	whiteTextureBindGroup := r.whiteTextureBindGroup
 	whiteLightmapBindGroup := r.whiteLightmapBindGroup
 	transparentBindGroup := r.transparentBindGroup
+	vertexScratchBuffer := r.brushEntityScratchVertexBuffer
+	indexScratchBuffer := r.brushEntityScratchIndexBuffer
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
 	worldTextures := make(map[int32]*gpuWorldTexture, len(r.worldTextures))
@@ -620,12 +656,26 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 		worldFullbrightTextures[k] = v
 	}
 	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
-	r.mu.RUnlock()
-	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil {
+	var activeDynamicLights []DynamicLight
+	if r.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+	}
+	r.mu.Unlock()
+	if pipeline == nil || uniformBuffer == nil || uniformBindGroup == nil || whiteTextureBindGroup == nil || whiteLightmapBindGroup == nil || vertexScratchBuffer == nil || indexScratchBuffer == nil {
 		return
 	}
 	if transparentBindGroup == nil {
 		transparentBindGroup = whiteTextureBindGroup
+	}
+	for i, preparedDraw := range prepared {
+		if err := queue.WriteBuffer(vertexScratchBuffer, preparedDraw.vertexOffset, preparedDraw.vertexData); err != nil {
+			slog.Warn("failed to upload brush liquid scratch vertices", "error", err, "draw", i)
+			return
+		}
+		if err := queue.WriteBuffer(indexScratchBuffer, preparedDraw.indexOffset, preparedDraw.indexData); err != nil {
+			slog.Warn("failed to upload brush liquid scratch indices", "error", err, "draw", i)
+			return
+		}
 	}
 
 	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "Brush Liquid Render Encoder"})
@@ -658,42 +708,11 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	vpMatrix := r.GetViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
-	var activeDynamicLights []DynamicLight
-	r.mu.RLock()
-	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
-	}
-	r.mu.RUnlock()
-	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
-	for _, draw := range draws {
-		hasLitWater := gogpuFacesHaveLitWater(draw.faces)
-		vertexData := worldgogpu.VertexBytes(draw.vertices)
-		indexData := worldgogpu.IndexBytes(draw.indices)
-		vertexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Liquid Vertices", gputypes.BufferUsageVertex, vertexData)
-		if err != nil {
-			slog.Warn("failed to create brush liquid vertex buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(vertexBuffer, 0, vertexData); err != nil {
-			vertexBuffer.Release()
-			slog.Warn("failed to upload brush liquid vertex buffer", "error", err)
-			continue
-		}
-		indexBuffer, err := worldgogpu.CreateBrushBuffer(device, "Brush Liquid Indices", gputypes.BufferUsageIndex, indexData)
-		if err != nil {
-			vertexBuffer.Release()
-			slog.Warn("failed to create brush liquid index buffer", "error", err)
-			continue
-		}
-		if err := queue.WriteBuffer(indexBuffer, 0, indexData); err != nil {
-			indexBuffer.Release()
-			vertexBuffer.Release()
-			slog.Warn("failed to upload brush liquid index buffer", "error", err)
-			continue
-		}
-		buffers = append(buffers, vertexBuffer, indexBuffer)
-		renderPass.SetVertexBuffer(0, vertexBuffer, 0)
-		renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
+	var materialBindState gogpuWorldMaterialBindState
+	for _, preparedDraw := range prepared {
+		draw := preparedDraw.draw
+		renderPass.SetVertexBuffer(0, vertexScratchBuffer, preparedDraw.vertexOffset)
+		renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.indexOffset)
 		for faceIndex, face := range draw.faces {
 			textureBindGroup := whiteTextureBindGroup
 			if worldTexture := gogpuWorldTextureForFace(face, worldTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
@@ -703,7 +722,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			if faceIndex < len(draw.centers) {
 				dynamicLight = quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, draw.centers[faceIndex]))
 			}
-			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, draw.lightmaps, whiteLightmapBindGroup, hasLitWater)
+			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, draw.lightmaps, whiteLightmapBindGroup, preparedDraw.hasLitWater)
 			if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, dynamicLight, litWater)); err != nil {
 				slog.Warn("failed to update brush liquid uniform buffer", "error", err)
 				continue
@@ -712,9 +731,16 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			if worldTexture := gogpuWorldTextureForFace(face, worldFullbrightTextures, worldTextureAnimations, nil, draw.frame, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 				fullbrightBindGroup = worldTexture.bindGroup
 			}
-			renderPass.SetBindGroup(1, textureBindGroup, nil)
-			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+			setTexture, setLightmap, setFullbright := materialBindState.update(textureBindGroup, lightmapBindGroup, fullbrightBindGroup)
+			if setTexture {
+				renderPass.SetBindGroup(1, textureBindGroup, nil)
+			}
+			if setLightmap {
+				renderPass.SetBindGroup(2, lightmapBindGroup, nil)
+			}
+			if setFullbright {
+				renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
+			}
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		}
 	}
@@ -724,16 +750,10 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Warn("failed to finish brush liquid encoding", "error", err)
-		for _, buffer := range buffers {
-			buffer.Release()
-		}
 		return
 	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush liquid commands", "error", err)
-	}
-	for _, buffer := range buffers {
-		buffer.Release()
 	}
 }
 
