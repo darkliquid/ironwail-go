@@ -188,6 +188,7 @@ type gogpuWorldFaceBatchKey struct {
 	lightmapBindGroup   *wgpu.BindGroup
 	fullbrightBindGroup *wgpu.BindGroup
 	dynamicLight        [3]float32
+	litWater            float32
 }
 
 type gogpuWorldFaceBatch struct {
@@ -253,6 +254,7 @@ func gogpuWorldFaceBatchKeyForDraw(draw gogpuWorldFaceDraw) gogpuWorldFaceBatchK
 		lightmapBindGroup:   draw.lightmapBindGroup,
 		fullbrightBindGroup: draw.fullbrightBindGroup,
 		dynamicLight:        draw.dynamicLight,
+		litWater:            draw.litWater,
 	}
 }
 
@@ -2919,6 +2921,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	opaqueLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
 	batchedIndices := dc.renderer.worldBatchedIndexScratch[:0]
 	opaqueBatches := dc.renderer.worldOpaqueBatchScratch[:0]
+	alphaTestBatches := dc.renderer.worldAlphaBatchScratch[:0]
+	opaqueLiquidBatches := dc.renderer.worldLiquidBatchScratch[:0]
 	defer func() {
 		dc.renderer.worldSkyFacesScratch = skyFaces[:0]
 		dc.renderer.worldOpaqueDrawsScratch = opaqueDraws[:0]
@@ -2926,6 +2930,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		dc.renderer.worldLiquidDrawsScratch = opaqueLiquidDraws[:0]
 		dc.renderer.worldBatchedIndexScratch = batchedIndices[:0]
 		dc.renderer.worldOpaqueBatchScratch = opaqueBatches[:0]
+		dc.renderer.worldAlphaBatchScratch = alphaTestBatches[:0]
+		dc.renderer.worldLiquidBatchScratch = opaqueLiquidBatches[:0]
 	}()
 	for _, face := range visibleFaces {
 		switch {
@@ -2974,6 +2980,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	sortGoGPUWorldFaceDrawsByMaterial(alphaTestDraws)
 	sortGoGPUWorldFaceDrawsByMaterial(opaqueLiquidDraws)
 	batchedIndices, opaqueBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueBatches, opaqueDraws, worldData.Geometry.Indices)
+	batchedIndices, alphaTestBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, alphaTestBatches, alphaTestDraws, worldData.Geometry.Indices)
+	batchedIndices, opaqueLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueLiquidBatches, opaqueLiquidDraws, worldData.Geometry.Indices)
 	var opaqueBatchBuffer *wgpu.Buffer
 	if len(batchedIndices) > 0 {
 		opaqueBatchBuffer, err = dc.renderer.ensureGoGPUWorldDynamicIndexBuffer(device, uint64(len(batchedIndices))*4)
@@ -3056,7 +3064,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.SetIndexBuffer(opaqueBatchBuffer, gputypes.IndexFormatUint32, 0)
 	}
 	for _, batch := range opaqueBatches {
-		if !writeWorldUniform(1, batch.key.dynamicLight, 0) {
+		if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
 			renderPass.End()
 			return
@@ -3074,49 +3082,46 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
 		drawnIndices += batch.numIndices
 	}
-	if opaqueBatchBuffer != nil {
-		renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
-	}
-	for _, draw := range alphaTestDraws {
-		if !writeWorldUniform(1, draw.dynamicLight, 0) {
+	for _, batch := range alphaTestBatches {
+		if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
 			renderPass.End()
 			return
 		}
-		setTexture, setLightmap, setFullbright := materialBindState.update(draw.textureBindGroup, draw.lightmapBindGroup, draw.fullbrightBindGroup)
+		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
 		if setTexture {
-			renderPass.SetBindGroup(1, draw.textureBindGroup, nil)
+			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
 		}
 		if setLightmap {
-			renderPass.SetBindGroup(2, draw.lightmapBindGroup, nil)
+			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
 		}
 		if setFullbright {
-			renderPass.SetBindGroup(3, draw.fullbrightBindGroup, nil)
+			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
-		alphaTestDrawnIndices += draw.face.NumIndices
+		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+		alphaTestDrawnIndices += batch.numIndices
 	}
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
 		materialBindState.invalidate()
-		for _, draw := range opaqueLiquidDraws {
-			if !writeWorldUniform(1, draw.dynamicLight, draw.litWater) {
+		for _, batch := range opaqueLiquidBatches {
+			if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
 				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
 				renderPass.End()
 				return
 			}
-			setTexture, setLightmap, setFullbright := materialBindState.update(draw.textureBindGroup, draw.lightmapBindGroup, draw.fullbrightBindGroup)
+			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
 			if setTexture {
-				renderPass.SetBindGroup(1, draw.textureBindGroup, nil)
+				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
 			}
 			if setLightmap {
-				renderPass.SetBindGroup(2, draw.lightmapBindGroup, nil)
+				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
 			}
 			if setFullbright {
-				renderPass.SetBindGroup(3, draw.fullbrightBindGroup, nil)
+				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 			}
-			renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
-			liquidDrawnIndices += draw.face.NumIndices
+			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+			liquidDrawnIndices += batch.numIndices
 		}
 	}
 	if drawnIndices > 0 {
