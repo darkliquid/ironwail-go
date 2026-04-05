@@ -569,31 +569,18 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 		g.Host.PrepareForShutdown(subs)
 	}
 
-	g.Server = server.NewServer()
-	g.QC = g.Server.QCVM
-	if g.CSQC != nil && g.CSQC.IsLoaded() {
-		if err := g.CSQC.CallShutdown(); err != nil {
-			slog.Warn("CSQC_Shutdown failed during gamedir reload", "error", err)
+	if g.Server != nil {
+		g.Server.Shutdown()
+		g.QC = g.Server.QCVM
+		subs.Server = g.Server
+	}
+	if g.CSQC != nil {
+		if g.CSQC.IsLoaded() {
+			if err := g.CSQC.CallShutdown(); err != nil {
+				slog.Warn("CSQC_Shutdown failed during gamedir reload", "error", err)
+			}
 		}
 		g.CSQC.Unload()
-	}
-	g.CSQC = qc.NewCSQC()
-	qc.RegisterBuiltins(g.CSQC.VM)
-	qc.SetCSQCClientHooks(buildCSQCClientHooks())
-
-	subs.Server = g.Server
-	if g.Menu != nil {
-		host.SetupLoopbackClientServer(subs, g.Server)
-	}
-	g.Client = host.ActiveClientState(subs)
-	syncControlCvarsToClient()
-
-	maxClients := 1
-	if g.Host != nil {
-		maxClients = g.Host.MaxClients()
-	}
-	if err := loadRuntimePrograms(changed, maxClients); err != nil {
-		return err
 	}
 
 	modDir := strings.ToLower(strings.TrimSpace(changed.GetGameDir()))
@@ -619,6 +606,8 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 		g.Menu.SetCurrentMod(modDir)
 		g.Menu.ShowState(menu.MenuMain)
 	}
+	g.Client = host.ActiveClientState(subs)
+	syncControlCvarsToClient()
 
 	return nil
 }

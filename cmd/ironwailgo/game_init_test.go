@@ -484,6 +484,9 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 	g.Server = server.NewServer()
 	g.QC = g.Server.QCVM
 	g.CSQC = qc.NewCSQC()
+	originalServer := g.Server
+	originalQC := g.QC
+	originalCSQC := g.CSQC
 	g.Subs = &host.Subsystems{
 		Files:  fileSys,
 		Server: g.Server,
@@ -501,6 +504,18 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 
 	if g.Renderer != testRenderer {
 		t.Fatal("reload replaced renderer; expected renderer/window stack to be preserved")
+	}
+	if g.Server != originalServer {
+		t.Fatal("reload replaced server; expected map bootstrap to keep server instance")
+	}
+	if g.QC != originalQC {
+		t.Fatal("reload replaced server qc; expected server-owned VM to be preserved")
+	}
+	if g.CSQC != originalCSQC {
+		t.Fatal("reload replaced CSQC container; expected in-place unload")
+	}
+	if g.CSQC.IsLoaded() {
+		t.Fatal("CSQC should be unloaded after mod reload")
 	}
 	if g.ModDir != "hipnotic" {
 		t.Fatalf("mod dir = %q, want hipnotic", g.ModDir)
