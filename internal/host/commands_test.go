@@ -1476,6 +1476,46 @@ func TestCmdGameInvokesGameDirChangedCallbackWithNewFilesystem(t *testing.T) {
 	}
 }
 
+func TestCmdGameKeepsPreviousFilesystemAliveDuringCallback(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	writeCommandTestPak(t, filepath.Join(baseDir, "id1", "pak0.pak"), map[string][]byte{
+		"gfx.wad": []byte("base-gfx"),
+	})
+	writeCommandTestPak(t, filepath.Join(baseDir, "hipnotic", "pak0.pak"), map[string][]byte{
+		"progs.dat": []byte("hipnotic"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	var callbackErr error
+	h.SetGameDirChangedCallback(func(_ *Subsystems, changed *fs.FileSystem) error {
+		if _, err := fileSys.LoadFile("gfx.wad"); err != nil {
+			callbackErr = err
+		}
+		if _, err := changed.LoadFile("progs.dat"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	h.CmdGame([]string{"hipnotic"}, subs)
+
+	if callbackErr != nil {
+		t.Fatalf("previous filesystem should remain readable during callback: %v", callbackErr)
+	}
+}
+
 func TestCmdGameReportsCallbackReloadWarningAndContinues(t *testing.T) {
 	baseDir := t.TempDir()
 	for _, dir := range []string{"id1", "hipnotic"} {

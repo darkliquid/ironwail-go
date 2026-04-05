@@ -479,6 +479,13 @@ func runtimeMenuMods(subs *host.Subsystems) []menu.ModInfo {
 	return out
 }
 
+func runtimeDrawFileSystem(fallback *fs.FileSystem) *fs.FileSystem {
+	if current := runtimeFileSystem(g.Subs); current != nil {
+		return current
+	}
+	return fallback
+}
+
 func loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
 	if fileSys == nil {
 		return fmt.Errorf("filesystem is not initialized")
@@ -834,7 +841,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
 	if g.Draw != nil {
-		drawErr := g.Draw.Init(fileSys)
+		drawErr := g.Draw.Init(runtimeDrawFileSystem(fileSys))
 		if drawErr != nil {
 			// Fall back to local "data" directory for development/testing
 			slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)

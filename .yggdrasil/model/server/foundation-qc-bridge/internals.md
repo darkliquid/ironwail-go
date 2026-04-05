@@ -10,6 +10,8 @@ The QC builtin hook table now includes `IssueChangeLevel(level)` as a server-own
 
 The `Server` filesystem surface is intentionally narrowed to the `modelAssetFileSystem` contract (`OpenFile` only) for model-bound operations. This preserves bridge-layer decoupling: server bootstrap/model cache logic can stream model assets without depending on broader VFS convenience APIs, while still accepting the concrete `*fs.FileSystem` injected by spawn/bootstrap callers.
 
+Entity field parsing now matches Quake's lenient `ED_ParseEpair` numeric behavior for empty and incomplete map values. Empty float/int fields decode as `0`, and incomplete vectors zero-fill missing components instead of aborting entity load. This is required for mission-pack entity lumps such as Hipnotic's `func_particlefield` entries that legitimately carry `"count" ""`.
+
 Node-owned integration tests in `server_test.go` now also pin cross-node command-bridge behavior at the public `ExecuteClientString` surface for `ban`: non-deathmatch execution mutates/query-reads the shared datagram IP-ban state via `internal/net`, while deathmatch mode remains a no-op.
 
 ## Constraints

@@ -536,3 +536,43 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 		t.Fatalf("world upload key = %q, want empty", g.WorldUploadKey)
 	}
 }
+
+func TestRuntimeDrawFileSystemPrefersCurrentSubsystemFilesystem(t *testing.T) {
+	original := g
+	t.Cleanup(func() { g = original })
+
+	baseA := t.TempDir()
+	baseB := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseA, dir), 0o755); err != nil {
+			t.Fatalf("mkdir %s in baseA: %v", dir, err)
+		}
+		if err := os.MkdirAll(filepath.Join(baseB, dir), 0o755); err != nil {
+			t.Fatalf("mkdir %s in baseB: %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseA, "hipnotic", "progs.dat"), []byte("a"), 0o644); err != nil {
+		t.Fatalf("write baseA hipnotic progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseB, "hipnotic", "progs.dat"), []byte("b"), 0o644); err != nil {
+		t.Fatalf("write baseB hipnotic progs: %v", err)
+	}
+
+	fallback := fs.NewFileSystem()
+	if err := fallback.Init(baseA, "id1"); err != nil {
+		t.Fatalf("init fallback fs: %v", err)
+	}
+	defer fallback.Close()
+
+	current := fs.NewFileSystem()
+	if err := current.Init(baseB, "id1"); err != nil {
+		t.Fatalf("init current fs: %v", err)
+	}
+	defer current.Close()
+
+	g.Subs = &host.Subsystems{Files: current}
+
+	if got := runtimeDrawFileSystem(fallback); got != current {
+		t.Fatalf("runtimeDrawFileSystem() = %p, want current subsystem fs %p", got, current)
+	}
+}

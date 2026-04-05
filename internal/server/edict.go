@@ -577,32 +577,45 @@ func normalizeFieldName(name string) string {
 }
 
 // parseVec3 parses a space-separated "x y z" string (as found in map entity
-// definitions) into a [3]float32 vector. Quake stores all spatial data —
-// origins, angles, velocities, bounding box corners — as three-component
-// float vectors in this text format. Returns an error if the string does
-// not contain exactly three parseable float components.
+// definitions) into a [3]float32 vector. Quake's entity parser is lenient
+// here: missing or empty components decode as 0 and extra components are
+// ignored, matching the original C atof-based parsing.
 func parseVec3(raw string) ([3]float32, error) {
-	parts := strings.Fields(raw)
-	if len(parts) != 3 {
-		return [3]float32{}, fmt.Errorf("expected 3 components, got %d", len(parts))
-	}
-
 	var out [3]float32
-	for i := 0; i < 3; i++ {
-		v, err := strconv.ParseFloat(parts[i], 32)
+	normalized := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ").Replace(strings.TrimSpace(raw))
+	if normalized == "" {
+		return out, nil
+	}
+	parts := strings.Split(normalized, " ")
+	component := 0
+	for _, part := range parts {
+		if component >= len(out) {
+			break
+		}
+		if part == "" {
+			component++
+			continue
+		}
+		v, err := strconv.ParseFloat(part, 32)
 		if err != nil {
 			return [3]float32{}, err
 		}
-		out[i] = float32(v)
+		out[component] = float32(v)
+		component++
 	}
 	return out, nil
 }
 
 // parseFloat32 parses a single string token into a float32, trimming
 // surrounding whitespace first. Used for scalar entity fields such as
-// health, speed, and delay that are stored as float32 in EntVars.
+// health, speed, and delay that are stored as float32 in EntVars. Empty
+// values decode to 0 to match Quake's atof-based entity parsing.
 func parseFloat32(raw string) (float32, error) {
-	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 32)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	v, err := strconv.ParseFloat(raw, 32)
 	if err != nil {
 		return 0, err
 	}
@@ -612,9 +625,14 @@ func parseFloat32(raw string) (float32, error) {
 // parseInt32 parses a string into a base-10 int32 value, trimming
 // surrounding whitespace. Used for integer-valued entity fields such as
 // entity numbers (EvEntity), function indices (EvFunction), spawnflags,
-// and bit-flag fields.
+// and bit-flag fields. Empty values decode to 0 to match Quake's atoi-based
+// entity parsing.
 func parseInt32(raw string) (int32, error) {
-	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 32)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	v, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
 		return 0, err
 	}
