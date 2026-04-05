@@ -1,5 +1,5 @@
 {
-  "hash": "5ac7cd0dd8ee53f2efa3365c394333738cde5be42881223fdd42413fd3bbb427",
+  "hash": "f92d6eb0494ec06e8fe4d8fafa4a64831e9e57bc2856848b10b53f2679b01777",
   "files": {
     ".yggdrasil/model/renderer/gogpu-world/yg-node.yaml": "85cd03afdce7894640bede86c4cae738004e015953500c130ccc276254efd607",
     ".yggdrasil/model/renderer/gogpu-world/interface.md": "ec461d4b0271127d8ff18d6967d56b760c9e78b5cfdfbdbdcaae4f2ed0b5db61",
@@ -21,13 +21,13 @@
     "internal/renderer/world/gogpu/decal_test.go": "9ac4fe8d87f1f1ee84d6751604a83b68c7a61e43c1c36037f44c3ccadc119211",
     "internal/renderer/world/gogpu/sprite.go": "fb3391fd8be0f48914a90a404a14ca4783f4e6cc348e751337ff565a3edccc97",
     "internal/renderer/world/gogpu/sprite_test.go": "26550c0b8b53956aa19e53bfe5aa0b1c522eb7ec85126220118b77b5b2ba93d7",
-    ".yggdrasil/model/renderer/gogpu-world/internals.md": "3dee126db0aaa321fed1c35dd975b44ffa1518f5a0c2f1fe8a0e44bb220253ce",
-    "internal/renderer/world_gogpu.go": "5a89006480b5bb8ba672ad1a81805ae3a595adb7e4ac471443ee5347b8d960a4"
+    ".yggdrasil/model/renderer/gogpu-world/internals.md": "84ec3803050c0dece4efc54b1238762996f50be3b4dca2886645befa2a30f71f",
+    "internal/renderer/world_gogpu.go": "77d28e6f9692bb7d439cefdd3498185b64a1ff3bea02a2403dde3ae24d914182"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/gogpu-world/yg-node.yaml": 1774681169532.7742,
     ".yggdrasil/model/renderer/gogpu-world/interface.md": 1774681169532.7742,
-    ".yggdrasil/model/renderer/gogpu-world/internals.md": 1775409288588.9343,
+    ".yggdrasil/model/renderer/gogpu-world/internals.md": 1775409734810.7273,
     ".yggdrasil/model/renderer/gogpu-world/responsibility.md": 1774681169532.7742,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
@@ -36,7 +36,7 @@
     ".yggdrasil/model/renderer/alias/responsibility.md": 1774681169531.854,
     ".yggdrasil/model/renderer/alias/interface.md": 1774681169531.7583,
     "internal/renderer/particle_gogpu.go": 1775028989784.2566,
-    "internal/renderer/world_gogpu.go": 1775409250235.6995,
+    "internal/renderer/world_gogpu.go": 1775409715216.6028,
     "internal/renderer/world_gogpu_decal_test.go": 1774696574890.7288,
     "internal/renderer/world/gogpu/shaders.go": 1775029009513.3,
     "internal/renderer/world/gogpu/buffer.go": 1774696575384.936,

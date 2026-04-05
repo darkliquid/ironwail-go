@@ -2923,11 +2923,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
 	var currentDynamicLight [3]float32
 	currentLitWater := float32(0)
-	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
+	var uniformBytes [worldUniformBufferSize]byte
+	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
 	slog.Debug("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
-	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes)
+	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:])
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
 		renderPass.End()
@@ -2975,16 +2976,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		currentDynamicLight = dynamicLight
 		currentLitWater = litWater
 		currentFogDensity = activeFogDensity
-		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, worldSceneUniformBytes(
-			vpMatrix,
-			cameraOrigin,
-			state.FogColor,
-			activeFogDensity,
-			timeValue,
-			alpha,
-			dynamicLight,
-			litWater,
-		)) == nil
+		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, dynamicLight, litWater)
+		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
 	}
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, dynamicLight, litWater, fogDensity)
@@ -3321,17 +3314,22 @@ func matrixToBytes(m types.Mat4) []byte {
 	return b[:]
 }
 
+func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) {
+	clear(dst[:worldUniformBufferSize])
+	matrixBytes := matrixToBytes(vp)
+	copy(dst[:64], matrixBytes)
+	putFloat32s(dst[64:76], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(dst[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	putFloat32s(dst[80:92], fogColor[:])
+	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
+	binary.LittleEndian.PutUint32(dst[96:100], math.Float32bits(alpha))
+	putFloat32s(dst[112:124], dynamicLight[:])
+	binary.LittleEndian.PutUint32(dst[124:128], math.Float32bits(litWater))
+}
+
 func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) []byte {
 	data := make([]byte, worldUniformBufferSize)
-	matrixBytes := matrixToBytes(vp)
-	copy(data[:64], matrixBytes)
-	putFloat32s(data[64:76], cameraOrigin[:])
-	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
-	putFloat32s(data[80:92], fogColor[:])
-	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(time))
-	binary.LittleEndian.PutUint32(data[96:100], math.Float32bits(alpha))
-	putFloat32s(data[112:124], dynamicLight[:])
-	binary.LittleEndian.PutUint32(data[124:128], math.Float32bits(litWater))
+	fillWorldSceneUniformBytes(data, vp, cameraOrigin, fogColor, fogDensity, time, alpha, dynamicLight, litWater)
 	return data
 }
 
@@ -3515,9 +3513,10 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	cameraState := dc.renderer.cameraState
 	camera, fogDensity, timeValue := gogpuWorldUniformInputs(state, cameraState)
 	vp := dc.renderer.GetViewProjectionMatrix()
+	var uniformData [worldUniformBufferSize]byte
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
-		uniformData := worldSceneUniformBytes(vp, camera, state.FogColor, fogDensity, timeValue, alpha, dynamicLight, litWater)
-		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData); err != nil {
+		fillWorldSceneUniformBytes(uniformData[:], vp, camera, state.FogColor, fogDensity, timeValue, alpha, dynamicLight, litWater)
+		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
 			slog.Error("renderWorldTranslucentLiquidsHAL: failed to update world uniform", "error", err)
 			return false
 		}

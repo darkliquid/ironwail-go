@@ -1,5 +1,5 @@
 {
-  "hash": "8d6840d1a252147e578abb46ea47e3dc176480d9bc32a9b191d6ab34a4068504",
+  "hash": "c48c79b70cbab584b744befaaaaa6e723c4d6d9beae70ef8c2a069c302f1edb1",
   "files": {
     ".yggdrasil/model/renderer/shared-world/yg-node.yaml": "0614c8870b9a9d48ff34fd6dca91902b5598ef5925b8c4b153a5b80e4ae85efd",
     ".yggdrasil/model/renderer/shared-world/interface.md": "3cb893f4d829136dc1a734e854941e38f16b4e11557b26b9f6f05c434200b4fe",
@@ -24,19 +24,19 @@
     "internal/renderer/surface.go": "9005b64d517b97bd0aa430faf386ff0cef2e3a8146a62d925e49c63484af33ad",
     "internal/renderer/surface_test.go": "795c4dc37d496cc4dc170ca1fbfda56398981f6226e140f14d81ee2b27af70a4",
     "internal/renderer/texture.go": "c3c0b1b6f77c0d1aa6145b5ebfa0090c67a62644475212a091ca20f019c4b3e0",
-    ".yggdrasil/model/renderer/shared-world/internals.md": "1866c411d2662ec788435c7f27b8c453e9301d257dd73adc368c91b8e2f76e67",
-    "internal/renderer/world.go": "045f1c9c8d6abade5a27d3a9976921f92d5a0b71931f6fb64eb94c75ae9644f2"
+    ".yggdrasil/model/renderer/shared-world/internals.md": "9b5f201ea0e17a16681072bef2936de59b969e47bf242bd406d3727840ed63d9",
+    "internal/renderer/world.go": "55a04b6947f2a9f1a297911b3aceda8da1433617f9c831af9449dcbec09ee292"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/shared-world/yg-node.yaml": 1775402171375.3586,
     ".yggdrasil/model/renderer/shared-world/interface.md": 1774681169534.243,
-    ".yggdrasil/model/renderer/shared-world/internals.md": 1775409278119.87,
+    ".yggdrasil/model/renderer/shared-world/internals.md": 1775409725768.67,
     ".yggdrasil/model/renderer/shared-world/responsibility.md": 1774219364179.6206,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
-    "internal/renderer/world.go": 1775409231678.5864,
+    "internal/renderer/world.go": 1775409694854.4736,
     "internal/renderer/world_shared.go": 1775401957465.278,
     "internal/renderer/world/fog.go": 1774681169546.3745,
     "internal/renderer/world/pass.go": 1774696575367.5718,
