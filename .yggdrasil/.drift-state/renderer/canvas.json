@@ -1,31 +1,31 @@
 {
-  "hash": "749b148fe6707c175aa4b92ca9d5334412bd9d21b821f6ff7d500fea35e3e0fd",
+  "hash": "bb327e27532c467fa0b911d834284408ab91e4ca62d470ff69f8cddcf7d45b2c",
   "files": {
     ".yggdrasil/model/renderer/canvas/yg-node.yaml": "d6b7a163971d896ac0a92b4454820a0842d638f381e57b29625f3425400def12",
-    ".yggdrasil/model/renderer/canvas/interface.md": "d72aa21d2aaa1b1fa104ec1af60f1ba507706413d36f291b7c3e2c4cb2d57f37",
-    ".yggdrasil/model/renderer/canvas/responsibility.md": "50927472f319c39e43162a3a951fec6ea9c7d2313091fd8753641e91dacdf3ed",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
-    "internal/renderer/screen.go": "14a3d18ca6071a64f1994b94a768b2be0d5720c04beddcafcea9a1dedbf33a3e",
-    "internal/renderer/camera_shared.go": "f48ebb81b3010878d5d31fe8bccc31c286b2a6c26f9f40e93e3ea1fb977778b6",
-    ".yggdrasil/model/renderer/canvas/internals.md": "ec9b9ec94546be8a956e6becd935be1a1e8193fca039dc23ef91c101c1230897",
     ".yggdrasil/model/renderer/internals.md": "dc8ca2c5f85f596f64ad7fc8dd0fdb3d8b866ca502f9053a34a9a6dfb3972f16",
     ".yggdrasil/model/renderer/responsibility.md": "c94625936f300bf6afb89e8bfe947887c024fd5e6e3faab83b0d545e66856634",
-    "internal/renderer/types.go": "1482a45cd17682caf63a39d0c4ba58e84a588b002c6d5b15a70575ea253a9196",
-    "internal/renderer/camera.go": "1c8f827f5d17ff727be98a68568b0d87e6f71468c2b477ecf15dacd837e7c80d"
+    "internal/renderer/types.go": "4ab5f39c6ee312ce63141c133702ef3757a39a37b00991c037758a8f82b69121",
+    "internal/renderer/screen.go": "14a3d18ca6071a64f1994b94a768b2be0d5720c04beddcafcea9a1dedbf33a3e",
+    "internal/renderer/camera.go": "53993cc5a8e8697d817b478b60671edd3134eca49c28a1d3528b371a00dd8391",
+    "internal/renderer/camera_shared.go": "f48ebb81b3010878d5d31fe8bccc31c286b2a6c26f9f40e93e3ea1fb977778b6",
+    ".yggdrasil/model/renderer/canvas/interface.md": "f69d830addd97f841a8e6d6b6bc5e0fc23b786bd9fd4a2ff5336f712b6c14709",
+    ".yggdrasil/model/renderer/canvas/internals.md": "98ebe175c413c2e0d3940bb5d7a1738101ba9d7fc7e819892cc23a7029d221b2",
+    ".yggdrasil/model/renderer/canvas/responsibility.md": "66083d585b6b751b71ba0d4e4a4eb485f37c2576aea1c12c86fe7a5507d76ca3"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/canvas/yg-node.yaml": 1774219362025.5974,
-    ".yggdrasil/model/renderer/canvas/interface.md": 1774482569043.6958,
-    ".yggdrasil/model/renderer/canvas/internals.md": 1775423129628.753,
-    ".yggdrasil/model/renderer/canvas/responsibility.md": 1774219362115.5984,
+    ".yggdrasil/model/renderer/canvas/interface.md": 1775424186716.8286,
+    ".yggdrasil/model/renderer/canvas/internals.md": 1775424186716.994,
+    ".yggdrasil/model/renderer/canvas/responsibility.md": 1775424186710.7617,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     ".yggdrasil/model/renderer/internals.md": 1775423023335.8428,
     ".yggdrasil/model/renderer/responsibility.md": 1775423023335.8428,
-    "internal/renderer/types.go": 1775423204891.1946,
+    "internal/renderer/types.go": 1775424036194.9524,
     "internal/renderer/screen.go": 1774122780946.7783,
-    "internal/renderer/camera.go": 1774696574725.6426,
+    "internal/renderer/camera.go": 1775424009928.0671,
     "internal/renderer/camera_shared.go": 1774129856136.0671
   }
 }

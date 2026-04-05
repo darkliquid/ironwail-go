@@ -205,7 +205,7 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 	if shouldBuildGoBinary(projectDir, goBin) {
 		fmt.Println("Building Go binary...")
 		mustMkdir(filepath.Dir(goBin))
-		if status := runInDir(projectDir, []string{"CGO_ENABLED=0"}, "go", "build", "-tags", "gogpu,audio_oto", "-o", goBin, "./cmd/ironwailgo"); status != 0 {
+		if status := runInDir(projectDir, []string{"CGO_ENABLED=0"}, "go", "build", "-tags", "audio_oto", "-o", goBin, "./cmd/ironwailgo"); status != 0 {
 			return captureSummary{}, errors.New("failed to build Go binary")
 		}
 	} else if _, err := os.Stat(goBin); err != nil {

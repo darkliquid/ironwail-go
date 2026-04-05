@@ -11,7 +11,7 @@ Late startup draw-manager initialization now follows the same rule: it resolves 
 
 Regression coverage in `game_init_test.go` keeps `gl_texturemode` pinned to `GL_NEAREST_MIPMAP_LINEAR` so startup defaults do not silently drift, and now also covers runtime mod-provider filesystem selection plus game-dir reload behavior (fresh main menu and renderer preservation). The registration-mode tests in that file intentionally run serially because they mutate the global `registered` cvar.
 With app-shell renderer storage decoupled behind `gameRenderer`, startup now constructs `renderer.NewRendererAdapter` directly from the interface-typed game renderer; this keeps host subsystem wiring behavior unchanged while eliminating concrete renderer downcasting from bootstrap code.
-Renderer backend construction is delegated to build-tag-specific factory files (`mkrenderer_gogpu.go`, `mkrenderer_stub.go`) that return the app-shell `gameRenderer` interface into the shared `initGameRenderer` path.
+Renderer backend construction is delegated to the canonical factory file (`mkrenderer_gogpu.go`), which returns the app-shell `gameRenderer` interface into the shared `initGameRenderer` path.
 At host bootstrap, `host_maxfps` now has an explicit callback that calls `Host.SetMaxFPS`, and bootstrap applies the initial cvar value immediately so host frame/network policy is active before the first runtime frame.
 
 ## Constraints

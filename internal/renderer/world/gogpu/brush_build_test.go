@@ -1,6 +1,3 @@
-//go:build gogpu && !cgo
-// +build gogpu,!cgo
-
 package gogpu
 
 import (

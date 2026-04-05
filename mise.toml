@@ -15,7 +15,7 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
-CGO_ENABLED=0 go run -tags gogpu,audio_oto ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
+CGO_ENABLED=0 go run -tags audio_oto ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
 """
 
 [tasks.clean-logs]
@@ -140,30 +140,24 @@ depends = ["build-qgo"]
 description = "Build the progs.dat from QuakeGo sources"
 run = "cd pkg/qgo/quakego && ../../../qgo"
 
+[tasks.build]
+depends = ["go-generate"]
+description = "Build game binary"
+run = "CGO_ENABLED=0 go build -o ironwailgo ./cmd/ironwailgo"
+
 [tasks.build-gogpu]
 depends = ["go-generate"]
-description = "Build binary in WGPU mode"
-run = "CGO_ENABLED=0 go build -tags gogpu,audio_oto -o ironwailgo-wgpu ./cmd/ironwailgo"
+description = "Build the canonical GoGPU game binary"
+run = "CGO_ENABLED=0 go build -o ironwailgo-wgpu ./cmd/ironwailgo"
 
-[tasks.build-gogpu-rust]
-depends = ["go-generate"]
-description = "Build binary in WGPU mode with rust backend"
-run = "CGO_ENABLED=0 go build -tags gogpu,rust,audio_oto -o ironwailgo-wgpu-rust ./cmd/ironwailgo"
-
-
-[tasks.build-gogpu-sdl3]
-depends = ["go-generate"]
-description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
-run = "CGO_ENABLED=0 go build -tags 'gogpu sdl3 nofakecgo' -o ironwailgo-wgpu-sdl3 ./cmd/ironwailgo"
-
-[tasks.run-gogpu-sdl3]
-depends = ["build-gogpu-sdl3"]
-description = "Run WGPU + SDL3 input/audio build"
-run = "IW_INPUT_BACKEND=sdl3 ./ironwailgo-wgpu-sdl3 -basedir ${QUAKE_DIR}"
+[tasks.run]
+depends = ["build"]
+description = "Run game"
+run = "./ironwailgo -basedir ${QUAKE_DIR}"
 
 [tasks.run-gogpu]
 depends = ["build-gogpu"]
-description = "Run GoGPU + oto build"
+description = "Run the canonical GoGPU game binary"
 run = "./ironwailgo-wgpu -basedir ${QUAKE_DIR}"
 
 [tasks.parity-ref]

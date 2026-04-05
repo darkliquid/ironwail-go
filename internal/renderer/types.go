@@ -6,15 +6,7 @@ import (
 )
 
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
-// The supported runtime backend is selected at build time via build tags.
-//
-// Build tags:
-//   - gogpu: Uses gogpu library for GPU acceleration (no CGO required)
-//   - (no tags): Returns an explicit no-backend error
-//
-// To build with gogpu backend:
-//
-//	go build -tags=gogpu ./...
+// GoGPU is the canonical and only supported runtime backend.
 //
 // Architecture:
 //
@@ -24,7 +16,7 @@ import (
 //	- Core: Manages GPU resources (headless capable, adapter info, frame data)
 //
 // Pure Go game logic (screen, particle, surface, model packages) remains untagged
-// and works with any backend implementation.
+// and feeds the canonical GoGPU backend.
 //
 // RenderContext provides frame-specific rendering operations.
 // It is passed to the OnDraw callback and provides access to

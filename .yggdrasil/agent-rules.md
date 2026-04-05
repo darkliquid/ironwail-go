@@ -26,7 +26,7 @@ THESE INSTRUCTIONS ARE MANDATORY AND MUST BE FOLLOWED AT ALL TIMES. DO NOT IGNOR
 
 - Entry point: `cmd/ironwailgo/main.go`.
 - Core systems live in `internal/`: `host`, `server`, `client`, `renderer`, `audio`, `input`, `qc`, `fs`, `bsp`, `model`.
-- Renderer backends are build-tagged (`renderer_gogpu.go`, `renderer_stub.go`).
+- The canonical renderer runtime lives in `internal/renderer/renderer_gogpu.go`; no alternate tagged renderer backend remains.
 - Project direction is parity with C Ironwail; use `/home/darkliquid/Projects/ironwail` for behavior reference when needed.
 
 ## Build and Test

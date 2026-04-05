@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`renderer/canvas` owns the backend-neutral screen/canvas model and shared camera/screen orchestration helpers used by both 2D and 3D rendering paths.
+`renderer/canvas` owns the backend-neutral screen/canvas model and shared camera/screen orchestration helpers used by the canonical GoGPU runtime across both 2D and 3D rendering paths.
 
 ## Owns
 

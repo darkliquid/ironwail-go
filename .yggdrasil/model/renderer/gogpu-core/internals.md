@@ -33,10 +33,10 @@ The current gogpu version in this repo exposes public `*wgpu.Device` / `*wgpu.Qu
 
 ## Decisions
 
-### Dedicated GoGPU backend slice
+### Dedicated GoGPU core slice
 
 Observed decision:
-- The GoGPU path is factored into a distinct core slice, parallel to the retired backend split.
+- The GoGPU path is factored into a distinct core slice so runtime lifecycle, overlay, and postprocess ownership stay separated from shared-world helpers even though no alternate renderer backend remains.
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**

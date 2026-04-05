@@ -7,5 +7,4 @@ mapping:
     - internal/renderer/input_backend_gogpu.go
     - internal/renderer/gogpu/input_backend.go
     - internal/renderer/gogpu/input_map.go
-    - internal/renderer/input_backend_stub.go
     - internal/renderer/gogpu/input_map_test.go

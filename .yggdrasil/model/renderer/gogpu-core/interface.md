@@ -6,7 +6,7 @@
 
 ## Contracts
 
-- this node fulfills the package-level backend contract for the GoGPU path
+- this node fulfills the package-level backend contract for the canonical GoGPU path
 - this node now implements the backend screenshot/export contract with a minimal deterministic PNG path, keeping command/runtime screenshot surfaces available on gogpu builds while full swapchain readback remains deferred
 - when no world pass is submitted for a frame, opening the menu must preserve the already-presented scene behind the menu instead of forcing an immediate black clear
 - when using the GoGPU renderer, all render/draw mutations MUST happen via the `OnDraw` callback
