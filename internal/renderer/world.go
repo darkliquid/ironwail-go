@@ -533,7 +533,7 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *Lightmap
 	}
 
 	vertices := make([]WorldVertex, 0, numEdges)
-	rawLightmapCoords := make([][2]float32, 0, numEdges)
+	rawLightmapCoords := make([][2]float64, 0, numEdges)
 
 	// Get plane normal for this face
 	var normal [3]float32
@@ -597,10 +597,10 @@ func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *Lightmap
 		texCoord := [2]float32{0.0, 0.0}
 		lightmapCoord := [2]float32{0.0, 0.0}
 		if texInfo != nil {
-			u := position[0]*texInfo.Vecs[0][0] + position[1]*texInfo.Vecs[0][1] + position[2]*texInfo.Vecs[0][2] + texInfo.Vecs[0][3]
-			v := position[0]*texInfo.Vecs[1][0] + position[1]*texInfo.Vecs[1][1] + position[2]*texInfo.Vecs[1][2] + texInfo.Vecs[1][3]
-			texCoord = [2]float32{u / textureWidth, v / textureHeight}
-			rawLightmapCoords = append(rawLightmapCoords, [2]float32{u, v})
+			u := worldTexCoordDouble(position, texInfo.Vecs[0])
+			v := worldTexCoordDouble(position, texInfo.Vecs[1])
+			texCoord = [2]float32{float32(u) / textureWidth, float32(v) / textureHeight}
+			rawLightmapCoords = append(rawLightmapCoords, [2]float64{u, v})
 		}
 
 		vertices = append(vertices, WorldVertex{
@@ -1212,35 +1212,6 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 		return nil, nil, fmt.Errorf("invalid shader modules or device")
 	}
 
-	// Define vertex buffer layout for WorldVertex (44 bytes total)
-	// Layout: Position(12B) + TexCoord(8B) + LightmapCoord(8B) + Normal(12B) + Padding(4B)
-	vertexBufferLayout := gputypes.VertexBufferLayout{
-		ArrayStride: 44,
-		StepMode:    gputypes.VertexStepModeVertex,
-		Attributes: []gputypes.VertexAttribute{
-			{
-				Format:         gputypes.VertexFormatFloat32x3, // Position
-				Offset:         0,
-				ShaderLocation: 0,
-			},
-			{
-				Format:         gputypes.VertexFormatFloat32x2, // TexCoord
-				Offset:         12,
-				ShaderLocation: 1,
-			},
-			{
-				Format:         gputypes.VertexFormatFloat32x2, // LightmapCoord
-				Offset:         20,
-				ShaderLocation: 2,
-			},
-			{
-				Format:         gputypes.VertexFormatFloat32x3, // Normal
-				Offset:         28,
-				ShaderLocation: 3,
-			},
-		},
-	}
-
 	// Create bind group layout for @group(0) @binding(0) uniform buffer.
 	uniformLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World Uniform BGL",
@@ -1304,70 +1275,7 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 	r.textureBindGroupLayout = textureLayout
 	r.mu.Unlock()
 
-	// Define primitive state.
-	// Disable face culling for now: BSP triangulation winding can vary and
-	// aggressive culling can drop all visible geometry in this MVP renderer.
-	primitiveState := gputypes.PrimitiveState{
-		Topology:  gputypes.PrimitiveTopologyTriangleList,
-		FrontFace: gputypes.FrontFaceCCW,
-		CullMode:  gputypes.CullModeNone,
-	}
-
-	// Define fragment stage with color targets.
-	// Match the active swapchain surface format to avoid format mismatch on some backends.
-	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
-	if r.app != nil {
-		if provider := r.app.DeviceProvider(); provider != nil {
-			surfaceFormat = provider.SurfaceFormat()
-		}
-	}
-
-	fragmentTargets := []gputypes.ColorTargetState{
-		{
-			Format: surfaceFormat,
-			Blend: &gputypes.BlendState{
-				Color: gputypes.BlendComponent{
-					SrcFactor: gputypes.BlendFactorOne,
-					DstFactor: gputypes.BlendFactorZero,
-					Operation: gputypes.BlendOperationAdd,
-				},
-				Alpha: gputypes.BlendComponent{
-					SrcFactor: gputypes.BlendFactorOne,
-					DstFactor: gputypes.BlendFactorZero,
-					Operation: gputypes.BlendOperationAdd,
-				},
-			},
-			WriteMask: gputypes.ColorWriteMaskAll,
-		},
-	}
-
-	fragmentState := &wgpu.FragmentState{
-		Module:     fragmentShader,
-		EntryPoint: "fs_main",
-		Targets:    fragmentTargets,
-	}
-
-	// Create render pipeline descriptor
-	pipelineDesc := &wgpu.RenderPipelineDescriptor{
-		Label:  "World Render Pipeline",
-		Layout: pipelineLayout,
-		Vertex: wgpu.VertexState{
-			Module:     vertexShader,
-			EntryPoint: "vs_main",
-			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
-		},
-		Primitive:    primitiveState,
-		DepthStencil: gogpuNonDecalDepthStencilState(true),
-		Multisample: gputypes.MultisampleState{
-			Count:                  1,
-			Mask:                   0xFFFFFFFF,
-			AlphaToCoverageEnabled: false,
-		},
-		Fragment: fragmentState,
-	}
-
-	// Create the render pipeline
-	pipeline, err := validatedGoGPURenderPipeline(device, pipelineDesc)
+	pipeline, err := r.createWorldOpaquePipeline(device, vertexShader, fragmentShader, pipelineLayout)
 	if err != nil {
 		textureLayout.Release()
 		uniformLayout.Release()
@@ -1377,6 +1285,57 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 
 	slog.Debug("World render pipeline created")
 	return pipeline, pipelineLayout, nil
+}
+
+func (r *Renderer) createWorldOpaquePipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
+	vertexBufferLayout := gputypes.VertexBufferLayout{
+		ArrayStride: 44,
+		StepMode:    gputypes.VertexStepModeVertex,
+		Attributes: []gputypes.VertexAttribute{
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 20, ShaderLocation: 2},
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 3},
+		},
+	}
+	surfaceFormat := gputypes.TextureFormatBGRA8Unorm
+	if r.app != nil {
+		if provider := r.app.DeviceProvider(); provider != nil {
+			surfaceFormat = provider.SurfaceFormat()
+		}
+	}
+	return validatedGoGPURenderPipeline(device, &wgpu.RenderPipelineDescriptor{
+		Label:  "World Render Pipeline",
+		Layout: layout,
+		Vertex: wgpu.VertexState{
+			Module:     vertexShader,
+			EntryPoint: "vs_main",
+			Buffers:    []gputypes.VertexBufferLayout{vertexBufferLayout},
+		},
+		Primitive: gputypes.PrimitiveState{
+			Topology:  gputypes.PrimitiveTopologyTriangleList,
+			FrontFace: gputypes.FrontFaceCCW,
+			CullMode:  gputypes.CullModeNone,
+		},
+		DepthStencil: gogpuNonDecalDepthStencilState(true),
+		Multisample: gputypes.MultisampleState{
+			Count:                  1,
+			Mask:                   0xFFFFFFFF,
+			AlphaToCoverageEnabled: false,
+		},
+		Fragment: &wgpu.FragmentState{
+			Module:     fragmentShader,
+			EntryPoint: "fs_main",
+			Targets: []gputypes.ColorTargetState{{
+				Format: surfaceFormat,
+				Blend: &gputypes.BlendState{
+					Color: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
+					Alpha: gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorZero, Operation: gputypes.BlendOperationAdd},
+				},
+				WriteMask: gputypes.ColorWriteMaskAll,
+			}},
+		},
+	})
 }
 
 func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
@@ -1917,13 +1876,9 @@ func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device *wgpu.Device, queue *w
 	return nil
 }
 
-func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, miptex *image.MipTex) (*gpuWorldTexture, error) {
-	if device == nil || queue == nil || sampler == nil || miptex == nil {
+func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, textureType model.TextureType, rgba []byte, width, height int) (*gpuWorldTexture, error) {
+	if device == nil || queue == nil || sampler == nil {
 		return nil, fmt.Errorf("invalid world texture upload inputs")
-	}
-	pixels, width, height, err := miptex.MipLevel(0)
-	if err != nil {
-		return nil, fmt.Errorf("read mip level: %w", err)
 	}
 	if width <= 0 || height <= 0 {
 		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
@@ -1961,21 +1916,22 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 			continue
 		}
 		textureNames[i] = miptex.Name
-		worldTexture, err := r.createWorldDiffuseTexture(device, queue, sampler, miptex)
+		pixels, width, height, err := miptex.MipLevel(0)
+		if err != nil || width <= 0 || height <= 0 {
+			continue
+		}
+		textureType := classifyWorldTextureName(miptex.Name)
+		materialRGBA := worldimpl.BuildMaterialTextureRGBA(pixels, r.palette, textureType)
+		worldTexture, err := r.createWorldDiffuseTexture(device, queue, sampler, textureType, materialRGBA.DiffuseRGBA, width, height)
 		if err != nil {
 			slog.Warn("failed to upload world diffuse texture", "texture", miptex.Name, "error", err)
 			continue
 		}
 		textures[int32(i)] = worldTexture
-		pixels, width, height, err := miptex.MipLevel(0)
-		if err != nil || width <= 0 || height <= 0 {
+		if !materialRGBA.HasFullbright {
 			continue
 		}
-		fullbrightRGBA, hasFullbright := ConvertPaletteToFullbrightRGBA(pixels, r.palette)
-		if !hasFullbright {
-			continue
-		}
-		fullbrightTexture, err := r.createWorldTextureFromRGBA(device, queue, sampler, "World Fullbright Texture", fullbrightRGBA, width, height)
+		fullbrightTexture, err := r.createWorldTextureFromRGBA(device, queue, sampler, "World Fullbright Texture", materialRGBA.FullbrightRGBA, width, height)
 		if err != nil {
 			slog.Warn("failed to upload world fullbright texture", "texture", miptex.Name, "error", err)
 			continue
@@ -2424,10 +2380,10 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bs
 		}
 	}
 
-	textureMinU := float32(math.Floor(float64(minU/16.0))) * 16.0
-	textureMinV := float32(math.Floor(float64(minV/16.0))) * 16.0
-	extentU := int(math.Ceil(float64(maxU/16.0))*16.0 - float64(textureMinU))
-	extentV := int(math.Ceil(float64(maxV/16.0))*16.0 - float64(textureMinV))
+	textureMinU := math.Floor(minU/16.0) * 16.0
+	textureMinV := math.Floor(minV/16.0) * 16.0
+	extentU := int(math.Ceil(maxU/16.0)*16.0 - textureMinU)
+	extentV := int(math.Ceil(maxV/16.0)*16.0 - textureMinV)
 	if extentU < 0 {
 		extentU = 0
 	}
@@ -2475,8 +2431,8 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bs
 	})
 
 	for i := range vertices {
-		lightS := (rawCoords[i][0]-textureMinU)/16.0 + float32(x) + 0.5
-		lightT := (rawCoords[i][1]-textureMinV)/16.0 + float32(y) + 0.5
+		lightS := float32((rawCoords[i][0]-textureMinU)/16.0 + float64(x) + 0.5)
+		lightT := float32((rawCoords[i][1]-textureMinV)/16.0 + float64(y) + 0.5)
 		vertices[i].LightmapCoord = [2]float32{
 			lightS / float32(worldLightmapPageSize),
 			lightT / float32(worldLightmapPageSize),
@@ -2484,6 +2440,13 @@ func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bs
 	}
 
 	return &faceLightmapSurface{pageIndex: texNum}, nil
+}
+
+func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
+	return float64(position[0])*float64(vec[0]) +
+		float64(position[1])*float64(vec[1]) +
+		float64(position[2])*float64(vec[2]) +
+		float64(vec[3])
 }
 
 // Helper functions to convert Go types to byte slices
@@ -2629,6 +2592,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		slog.Warn("Failed to create fragment shader", "error", err)
 		fragmentShader = nil
 	}
+	alphaTestFragmentShader, err := createWorldShaderModule(device, worldAlphaTestFragmentShaderWGSL, "World Alpha Test Fragment Shader")
+	if err != nil {
+		slog.Warn("Failed to create alpha-test fragment shader", "error", err)
+		alphaTestFragmentShader = nil
+	}
 	skyVertexShader, err := createWorldShaderModule(device, worldSkyVertexShaderWGSL, "World Sky Vertex Shader")
 	if err != nil {
 		slog.Warn("Failed to create sky vertex shader", "error", err)
@@ -2657,6 +2625,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	var externalSkyPipeline *wgpu.RenderPipeline
 	var externalSkyPipelineLayout *wgpu.PipelineLayout
 	var externalSkyBindGroupLayout *wgpu.BindGroupLayout
+	var alphaTestPipeline *wgpu.RenderPipeline
 	var translucentPipeline *wgpu.RenderPipeline
 	var turbulentPipeline *wgpu.RenderPipeline
 	var translucentTurbulentPipeline *wgpu.RenderPipeline
@@ -2672,6 +2641,13 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		if err != nil {
 			slog.Warn("Failed to create world sky pipeline", "error", err)
 			skyPipeline = nil
+		}
+	}
+	if pipelineLayout != nil && vertexShader != nil && alphaTestFragmentShader != nil {
+		alphaTestPipeline, err = r.createWorldOpaquePipeline(device, vertexShader, alphaTestFragmentShader, pipelineLayout)
+		if err != nil {
+			slog.Warn("Failed to create world alpha-test pipeline", "error", err)
+			alphaTestPipeline = nil
 		}
 	}
 	if skyVertexShader != nil && externalSkyFragmentShader != nil {
@@ -2816,6 +2792,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldIndexBuffer = indexBuffer
 	r.worldIndexCount = indexCount
 	r.worldPipeline = pipeline
+	r.worldAlphaTestPipeline = alphaTestPipeline
 	r.worldTranslucentPipeline = translucentPipeline
 	r.worldTurbulentPipeline = turbulentPipeline
 	r.worldTranslucentTurbulentPipeline = translucentTurbulentPipeline
@@ -3805,6 +3782,9 @@ func (r *Renderer) ClearWorld() {
 		if r.worldPipeline != nil {
 			r.worldPipeline.Release()
 		}
+		if r.worldAlphaTestPipeline != nil {
+			r.worldAlphaTestPipeline.Release()
+		}
 		if r.worldPipelineLayout != nil {
 			r.worldPipelineLayout.Release()
 		}
@@ -3954,6 +3934,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldDynamicIndexBuffer = nil
 		r.worldDynamicIndexBufferSize = 0
 		r.worldPipeline = nil
+		r.worldAlphaTestPipeline = nil
 		r.worldTranslucentPipeline = nil
 		r.worldTurbulentPipeline = nil
 		r.worldTranslucentTurbulentPipeline = nil

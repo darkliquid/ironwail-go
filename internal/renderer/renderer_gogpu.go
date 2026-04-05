@@ -992,6 +992,7 @@ type Renderer struct {
 	worldDynamicIndexBufferSize       uint64
 	worldIndexCount                   uint32
 	worldPipeline                     *wgpu.RenderPipeline
+	worldAlphaTestPipeline            *wgpu.RenderPipeline
 	worldTranslucentPipeline          *wgpu.RenderPipeline
 	worldTurbulentPipeline            *wgpu.RenderPipeline
 	worldTranslucentTurbulentPipeline *wgpu.RenderPipeline
@@ -1080,6 +1081,7 @@ type Renderer struct {
 	spriteUniformBuffer            *wgpu.Buffer
 	spriteUniformBindGroup         *wgpu.BindGroup
 	spritePipeline                 *wgpu.RenderPipeline
+	spriteDepthOffsetPipeline      *wgpu.RenderPipeline
 	spriteVertexShader             *wgpu.ShaderModule
 	spriteFragmentShader           *wgpu.ShaderModule
 	particleOpaquePipeline         *wgpu.RenderPipeline

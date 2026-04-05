@@ -79,6 +79,27 @@ func TestBuildSpriteQuadVerticesUsesFrameBounds(t *testing.T) {
 	}
 }
 
+func TestSpriteNeedsDepthOffset(t *testing.T) {
+	if !spriteNeedsDepthOffset(spriteTypeOriented) {
+		t.Fatal("spriteNeedsDepthOffset(oriented) = false, want true")
+	}
+	if spriteNeedsDepthOffset(spriteTypeVPParallel) {
+		t.Fatal("spriteNeedsDepthOffset(vp-parallel) = true, want false")
+	}
+}
+
+func TestSpriteUsesOpaqueCutout(t *testing.T) {
+	if !spriteUsesOpaqueCutout(spriteTypeOriented, 1) {
+		t.Fatal("spriteUsesOpaqueCutout(oriented, 1) = false, want true")
+	}
+	if spriteUsesOpaqueCutout(spriteTypeOriented, 0.5) {
+		t.Fatal("spriteUsesOpaqueCutout(oriented, 0.5) = true, want false")
+	}
+	if spriteUsesOpaqueCutout(spriteTypeVPParallel, 1) {
+		t.Fatal("spriteUsesOpaqueCutout(vp-parallel, 1) = true, want false")
+	}
+}
+
 func TestSpriteDataForEntityPrefersExplicitSpriteData(t *testing.T) {
 	explicit := &model.MSprite{Type: spriteTypeVPParallel, MaxWidth: 12, MaxHeight: 34, NumFrames: 1}
 	entity := SpriteEntity{

@@ -9,6 +9,7 @@ import "github.com/go-gl/gl/v4.6-core/gl"
 type DrawUniformState struct {
 	AlphaUniform         int32
 	TurbulentUniform     int32
+	AlphaTestUniform     int32
 	LitWaterUniform      int32
 	DynamicLightUniform  int32
 	ModelOffsetUniform   int32
@@ -16,6 +17,7 @@ type DrawUniformState struct {
 	ModelScaleUniform    int32
 	HasFullbrightUniform int32
 	DepthWrite           bool
+	AlphaTest            bool
 	LitWaterEnabled      bool
 }
 
@@ -62,6 +64,13 @@ func RenderDrawCalls(calls []DrawCall, state DrawUniformState) {
 			gl.Uniform1f(state.TurbulentUniform, 1)
 		} else {
 			gl.Uniform1f(state.TurbulentUniform, 0)
+		}
+		if state.AlphaTestUniform >= 0 {
+			if state.AlphaTest {
+				gl.Uniform1f(state.AlphaTestUniform, 1)
+			} else {
+				gl.Uniform1f(state.AlphaTestUniform, 0)
+			}
 		}
 		if state.LitWaterUniform >= 0 {
 			litWaterValue := float32(0)

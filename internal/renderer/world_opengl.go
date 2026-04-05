@@ -76,6 +76,7 @@ func (r *Renderer) ensureWorldProgram() error {
 	r.worldLightmapUniform = gl.GetUniformLocation(program, gl.Str("uLightmap\x00"))
 	r.worldFullbrightUniform = gl.GetUniformLocation(program, gl.Str("uFullbright\x00"))
 	r.worldHasFullbrightUniform = gl.GetUniformLocation(program, gl.Str("uHasFullbright\x00"))
+	r.worldAlphaTestUniform = gl.GetUniformLocation(program, gl.Str("uAlphaTest\x00"))
 	r.worldDynamicLightUniform = gl.GetUniformLocation(program, gl.Str("uDynamicLight\x00"))
 	r.worldModelOffsetUniform = gl.GetUniformLocation(program, gl.Str("uModelOffset\x00"))
 	r.worldModelRotationUniform = gl.GetUniformLocation(program, gl.Str("uModelRotation\x00"))
@@ -272,6 +273,7 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 		DynamicLightUniform:  dynamicLightUniform,
 		TimeUniform:          timeUniform,
 		TurbulentUniform:     turbulentUniform,
+		AlphaTestUniform:     r.worldAlphaTestUniform,
 		LitWaterUniform:      litWaterUniform,
 		CameraOriginUniform:  cameraOriginUniform,
 		FogColorUniform:      fogColorUniform,
@@ -314,14 +316,14 @@ func (r *Renderer) renderWorld(selector worldBrushPassSelector) {
 			}
 		}
 		if drawNonLiquid {
-			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
-			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true, false)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true, true)
 			r.mu.Lock()
 			r.translucentCalls = append(r.translucentCalls, translucentFaces...)
 			r.mu.Unlock()
 		}
 		if drawLiquidOpaque {
-			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true, false)
 		}
 		if drawLiquidTranslucent {
 			r.mu.Lock()
@@ -433,6 +435,7 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 		DynamicLightUniform:  dynamicLightUniform,
 		TimeUniform:          timeUniform,
 		TurbulentUniform:     turbulentUniform,
+		AlphaTestUniform:     r.worldAlphaTestUniform,
 		LitWaterUniform:      litWaterUniform,
 		CameraOriginUniform:  cameraOriginUniform,
 		FogColorUniform:      fogColorUniform,
@@ -468,14 +471,14 @@ func (r *Renderer) renderBrushEntities(entities []BrushEntity, selector worldBru
 			}
 		}
 		if drawNonLiquid {
-			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
-			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(opaqueFaces, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true, false)
+			renderWorldDrawCalls(alphaTestFaces, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true, true)
 			r.mu.Lock()
 			r.translucentCalls = append(r.translucentCalls, translucentFaces...)
 			r.mu.Unlock()
 		}
 		if drawLiquidOpaque {
-			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true)
+			renderWorldDrawCalls(liquidOpaqueFaces, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, true, false)
 		}
 		if drawLiquidTranslucent {
 			r.mu.Lock()
@@ -528,10 +531,11 @@ func bucketWorldFacesWithLights(faces []WorldFace, hasLitWater bool, textures ma
 }
 
 // renderWorldDrawCalls issues GL draw calls for bucketed world faces. Each call binds its diffuse + lightmap + fullbright textures and draws the face's index range from the VAO.
-func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform int32, depthWrite bool) {
+func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform, alphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform int32, depthWrite, alphaTest bool) {
 	worldopengl.RenderDrawCalls(calls, worldopengl.DrawUniformState{
 		AlphaUniform:         alphaUniform,
 		TurbulentUniform:     turbulentUniform,
+		AlphaTestUniform:     alphaTestUniform,
 		LitWaterUniform:      litWaterUniform,
 		DynamicLightUniform:  dynamicLightUniform,
 		ModelOffsetUniform:   modelOffsetUniform,
@@ -539,6 +543,7 @@ func renderWorldDrawCalls(calls []worldDrawCall, alphaUniform, turbulentUniform,
 		ModelScaleUniform:    modelScaleUniform,
 		HasFullbrightUniform: hasFullbrightUniform,
 		DepthWrite:           depthWrite,
+		AlphaTest:            alphaTest,
 		LitWaterEnabled:      worldLitWaterCvarEnabled(),
 	})
 }
@@ -1181,7 +1186,7 @@ func (r *Renderer) uploadWorldTexturesLocked(tree *bsp.Tree) error {
 	}
 
 	palette := append([]byte(nil), r.palette...)
-	plan := worldopengl.BuildTextureUploadPlan(tree, palette, ConvertPaletteToRGBA, ConvertPaletteToFullbrightRGBA)
+	plan := worldopengl.BuildTextureUploadPlan(tree, palette)
 	if len(plan.TextureNames) == 0 {
 		return nil
 	}
@@ -1619,7 +1624,7 @@ func (r *Renderer) DrawTranslucentCalls() {
 	gl.Uniform3f(fogColorUniform, fogColor[0], fogColor[1], fogColor[2])
 	gl.Uniform1f(fogDensityUniform, worldFogUniformDensity(fogDensity))
 
-	renderWorldDrawCalls(calls, alphaUniform, turbulentUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, false)
+	renderWorldDrawCalls(calls, alphaUniform, turbulentUniform, r.worldAlphaTestUniform, litWaterUniform, dynamicLightUniform, modelOffsetUniform, modelRotationUniform, modelScaleUniform, hasFullbrightUniform, false, false)
 
 	gl.UseProgram(0)
 }
@@ -1830,6 +1835,7 @@ func (r *Renderer) renderSpriteDraw(draw glSpriteDraw, camera CameraState, camer
 		Alpha:              draw.alpha,
 		ModelOffsetUniform: modelOffsetUniform,
 		AlphaUniform:       alphaUniform,
+		DepthOffset:        spriteNeedsDepthOffset(draw.sprite.spriteType),
 	})
 }
 

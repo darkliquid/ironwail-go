@@ -188,6 +188,14 @@ func buildSpriteQuadVertices(sprite *spriteRenderModel, frameIndex int, cameraOr
 	return vertices
 }
 
+func spriteNeedsDepthOffset(spriteType int) bool {
+	return spriteType == spriteTypeOriented
+}
+
+func spriteUsesOpaqueCutout(spriteType int, alpha float32) bool {
+	return spriteNeedsDepthOffset(spriteType) && isFullyOpaqueAlpha(clamp01(alpha))
+}
+
 const (
 	spriteTypeVPParallelUpright  = 0
 	spriteTypeFacingUpright      = 1

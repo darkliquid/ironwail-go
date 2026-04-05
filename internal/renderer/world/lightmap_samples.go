@@ -9,6 +9,7 @@ func ExpandLightmapSamples(lighting []byte, lightingRGB bool, lightOfs, sampleCo
 		return nil
 	}
 	if lightingRGB {
+		lightOfs *= 3
 		end := lightOfs + sampleCount*3
 		if end > len(lighting) {
 			return nil

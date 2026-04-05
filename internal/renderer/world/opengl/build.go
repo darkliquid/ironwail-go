@@ -133,7 +133,7 @@ func ExtractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []world
 	}
 
 	vertices := make([]worldimpl.WorldVertex, 0, int(face.NumEdges))
-	rawLightmapCoords := make([][2]float32, 0, int(face.NumEdges))
+	rawLightmapCoords := make([][2]float64, 0, int(face.NumEdges))
 	var normal [3]float32
 	if int(face.PlaneNum) < len(tree.Planes) {
 		normal = tree.Planes[face.PlaneNum].Normal
@@ -196,11 +196,11 @@ func ExtractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, textureMeta []world
 		texCoord := [2]float32{0, 0}
 		lightmapCoord := [2]float32{0, 0}
 		if texInfo != nil {
-			u := position[0]*texInfo.Vecs[0][0] + position[1]*texInfo.Vecs[0][1] + position[2]*texInfo.Vecs[0][2] + texInfo.Vecs[0][3]
-			v := position[0]*texInfo.Vecs[1][0] + position[1]*texInfo.Vecs[1][1] + position[2]*texInfo.Vecs[1][2] + texInfo.Vecs[1][3]
-			texCoord[0] = u / textureWidth
-			texCoord[1] = v / textureHeight
-			rawLightmapCoords = append(rawLightmapCoords, [2]float32{u, v})
+			u := worldTexCoordDouble(position, texInfo.Vecs[0])
+			v := worldTexCoordDouble(position, texInfo.Vecs[1])
+			texCoord[0] = float32(u) / textureWidth
+			texCoord[1] = float32(v) / textureHeight
+			rawLightmapCoords = append(rawLightmapCoords, [2]float64{u, v})
 		}
 
 		vertices = append(vertices, worldimpl.WorldVertex{
@@ -294,7 +294,7 @@ func faceHasLitWater(textureFlags int32, lightmapSurface *FaceLightmapSurface) b
 		lightmapSurface != nil
 }
 
-func assignFaceLightmap(vertices []worldimpl.WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *surfaceimpl.LightmapAllocator, pages *[]worldimpl.WorldLightmapPage) (*FaceLightmapSurface, error) {
+func assignFaceLightmap(vertices []worldimpl.WorldVertex, rawCoords [][2]float64, face *bsp.TreeFace, tree *bsp.Tree, allocator *surfaceimpl.LightmapAllocator, pages *[]worldimpl.WorldLightmapPage) (*FaceLightmapSurface, error) {
 	if face == nil || tree == nil || allocator == nil || pages == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
 		return nil, nil
 	}
@@ -316,10 +316,10 @@ func assignFaceLightmap(vertices []worldimpl.WorldVertex, rawCoords [][2]float32
 		}
 	}
 
-	textureMinU := float32(math.Floor(float64(minU/16.0))) * 16.0
-	textureMinV := float32(math.Floor(float64(minV/16.0))) * 16.0
-	extentU := int(math.Ceil(float64(maxU/16.0))*16.0 - float64(textureMinU))
-	extentV := int(math.Ceil(float64(maxV/16.0))*16.0 - float64(textureMinV))
+	textureMinU := math.Floor(minU/16.0) * 16.0
+	textureMinV := math.Floor(minV/16.0) * 16.0
+	extentU := int(math.Ceil(maxU/16.0)*16.0 - textureMinU)
+	extentV := int(math.Ceil(maxV/16.0)*16.0 - textureMinV)
 	if extentU < 0 {
 		extentU = 0
 	}
@@ -367,8 +367,8 @@ func assignFaceLightmap(vertices []worldimpl.WorldVertex, rawCoords [][2]float32
 	})
 
 	for i := range vertices {
-		lightS := (rawCoords[i][0]-textureMinU)/16.0 + float32(x) + 0.5
-		lightT := (rawCoords[i][1]-textureMinV)/16.0 + float32(y) + 0.5
+		lightS := float32((rawCoords[i][0]-textureMinU)/16.0 + float64(x) + 0.5)
+		lightT := float32((rawCoords[i][1]-textureMinV)/16.0 + float64(y) + 0.5)
 		vertices[i].LightmapCoord = [2]float32{
 			lightS / float32(LightmapPageSize),
 			lightT / float32(LightmapPageSize),
@@ -376,4 +376,11 @@ func assignFaceLightmap(vertices []worldimpl.WorldVertex, rawCoords [][2]float32
 	}
 
 	return &FaceLightmapSurface{PageIndex: texNum}, nil
+}
+
+func worldTexCoordDouble(position [3]float32, vec [4]float32) float64 {
+	return float64(position[0])*float64(vec[0]) +
+		float64(position[1])*float64(vec[1]) +
+		float64(position[2])*float64(vec[2]) +
+		float64(vec[3])
 }

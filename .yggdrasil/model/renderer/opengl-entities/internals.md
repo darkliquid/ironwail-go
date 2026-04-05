@@ -24,10 +24,12 @@ Rationale:
 
 Observed decision:
 - OpenGL sprite draw tests now assert that `buildSpriteDrawLocked` can upload from `entity.Model.SpriteData` when `entity.SpriteData` is nil.
+- OpenGL sprite/shared sprite tests also lock the shared `SPR_ORIENTED` poster offset so wall-mounted sprites keep a small depth separation from coplanar world geometry.
 
 Rationale:
 - Shared sprite fallback behavior should preserve parsed sprite payloads regardless of whether explicit entity sprite data is present.
 - This keeps OpenGL behavior aligned with GoGPU and prevents placeholder-only cache uploads when explicit sprite payload wiring is absent.
+- Keeping the poster offset under shared/OpenGL test coverage helps preserve Ironwail parity for the path that had been shimmering during camera motion.
 
 ### Alias interpolation honors shared no-lerp model list
 

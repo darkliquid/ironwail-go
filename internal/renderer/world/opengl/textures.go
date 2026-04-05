@@ -29,10 +29,6 @@ type TextureUploadOptions struct {
 	Anisotropy float32
 }
 
-type PaletteToRGBAFunc func(pixels []byte, palette []byte) []byte
-
-type PaletteToFullbrightRGBAFunc func(pixels []byte, palette []byte) ([]byte, bool)
-
 type TextureUploaderFunc func(width, height int, rgba []byte) uint32
 
 type WorldTextureUploadPlan struct {
@@ -118,7 +114,7 @@ func UploadTextureRGBA(width, height int, rgba []byte, options TextureUploadOpti
 	return tex
 }
 
-func BuildTextureUploadPlan(tree *bsp.Tree, palette []byte, toRGBA PaletteToRGBAFunc, toFullbrightRGBA PaletteToFullbrightRGBAFunc) WorldTextureUploadPlanSet {
+func BuildTextureUploadPlan(tree *bsp.Tree, palette []byte) WorldTextureUploadPlanSet {
 	if tree == nil || len(tree.TextureData) < 4 {
 		return WorldTextureUploadPlanSet{}
 	}
@@ -153,13 +149,12 @@ func BuildTextureUploadPlan(tree *bsp.Tree, palette []byte, toRGBA PaletteToRGBA
 			Width:  width,
 			Height: height,
 		}
-		if toRGBA != nil {
-			plan.DiffuseRGBA = toRGBA(pixels, palette)
-		}
-		if toFullbrightRGBA != nil {
-			plan.FullbrightRGBA, plan.HasFullbright = toFullbrightRGBA(pixels, palette)
-		}
-		if worldimpl.ClassifyTextureName(miptex.Name) == model.TexTypeSky {
+		textureType := worldimpl.ClassifyTextureName(miptex.Name)
+		rgba := worldimpl.BuildMaterialTextureRGBA(pixels, palette, textureType)
+		plan.DiffuseRGBA = rgba.DiffuseRGBA
+		plan.FullbrightRGBA = rgba.FullbrightRGBA
+		plan.HasFullbright = rgba.HasFullbright
+		if textureType == model.TexTypeSky {
 			solidRGBA, alphaRGBA, layerWidth, layerHeight, ok := worldimpl.ExtractEmbeddedSkyLayers(
 				pixels,
 				width,
