@@ -43,4 +43,4 @@ The Go port aims for "high-fidelity parity," meaning:
 ## 5. Technology Stack
 
 - **C**: C99, SDL2, OpenGL 1.x-3.x (Legacy/Core mix).
-- **Go**: Go 1.26, SDL3 (pure-Go via `go-sdl3`), GoGPU/WebGPU, GLM-style math via `pkg/types`.
+- **Go**: Go 1.26, GoGPU/WebGPU, Oto audio, and GLM-style math via `pkg/types`.

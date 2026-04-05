@@ -420,26 +420,21 @@ func initGameRenderer() error {
 }
 
 func preferWaylandForGoGPU() {
-	if !shouldWarnAboutGoGPUX11Keyboard(runtime.GOOS, os.Getenv("IW_INPUT_BACKEND"), os.Getenv("WAYLAND_DISPLAY"), os.Getenv("DISPLAY")) {
+	if !shouldWarnAboutGoGPUX11Keyboard(runtime.GOOS, os.Getenv("WAYLAND_DISPLAY"), os.Getenv("DISPLAY")) {
 		return
 	}
 
-	sdl3Available := input.NewSDL3Backend(nil) != nil
 	slog.Info(
 		"Using X11 backend; gogpu falls back to polling-based keyboard input",
 		"display_server", "x11",
 		"keyboard_input_mode", "polling",
 		"preferred_keyboard_input_mode", "event-driven",
-		"sdl3_input_available", sdl3Available,
-		"hint", gogpuX11KeyboardHint(sdl3Available),
+		"hint", gogpuX11KeyboardHint(),
 	)
 }
 
-func shouldWarnAboutGoGPUX11Keyboard(goos, requestedInputBackend, waylandDisplay, x11Display string) bool {
+func shouldWarnAboutGoGPUX11Keyboard(goos, waylandDisplay, x11Display string) bool {
 	if goos != "linux" {
-		return false
-	}
-	if strings.EqualFold(requestedInputBackend, "sdl3") {
 		return false
 	}
 	if waylandDisplay != "" {
@@ -448,11 +443,8 @@ func shouldWarnAboutGoGPUX11Keyboard(goos, requestedInputBackend, waylandDisplay
 	return x11Display != ""
 }
 
-func gogpuX11KeyboardHint(sdl3Available bool) string {
-	if sdl3Available {
-		return "set IW_INPUT_BACKEND=sdl3 for event-driven keyboard input on X11"
-	}
-	return "rebuild with `mise run build-gogpu-sdl3` or run under Wayland for event-driven keyboard input"
+func gogpuX11KeyboardHint() string {
+	return "run under Wayland for event-driven keyboard input"
 }
 
 func runtimeFileSystem(subs *host.Subsystems) *fs.FileSystem {
@@ -711,44 +703,6 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 			if err := g.Input.SetBackend(bb); err != nil {
 				return fmt.Errorf("failed to set renderer input backend: %w", err)
 			}
-		}
-	}
-
-	// Optional override to force SDL3 input even when renderer backend exists.
-	// Useful when platform-specific window backends do not emit keyboard events.
-	if !dedicated && g.Input != nil && strings.EqualFold(os.Getenv("IW_INPUT_BACKEND"), "sdl3") {
-		previousBackend := g.Input.Backend()
-		if b := input.NewSDL3Backend(g.Input); b != nil {
-			if err := g.Input.SetBackend(b); err != nil {
-				slog.Warn("failed to force SDL3 input backend; keeping previous backend", "error", err)
-				if previousBackend != nil {
-					if restoreErr := g.Input.SetBackend(previousBackend); restoreErr != nil {
-						return fmt.Errorf("failed to restore previous input backend after SDL3 override failure: %w", restoreErr)
-					}
-				}
-			} else {
-				slog.Warn("input backend override active", "backend", "sdl3")
-			}
-		} else {
-			slog.Warn("IW_INPUT_BACKEND=sdl3 requested but SDL3 backend is not available in this build")
-		}
-	}
-
-	// If no backend was provided by the renderer, allow other build-tagged
-	// backends (e.g. SDL3) to provide system input. input.NewSDL3Backend
-	// is a no-op stub when the sdl3 build tag is not present.
-	if !dedicated && g.Input != nil {
-		if err := func() error {
-			// Only set SDL3 backend if renderer didn't provide one
-			if g.Input.Backend() != nil {
-				return nil
-			}
-			if b := input.NewSDL3Backend(g.Input); b != nil {
-				return g.Input.SetBackend(b)
-			}
-			return nil
-		}(); err != nil {
-			return fmt.Errorf("failed to set input backend: %w", err)
 		}
 	}
 

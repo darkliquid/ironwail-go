@@ -5,7 +5,7 @@ This document describes how input events are processed in both codebases.
 ## 1. Input Architecture
 
 - **Ironwail (C)**: Uses `in_sdl.c` to interface with SDL2. It handles raw mouse events (`SDL_MOUSEMOTION`), keyboard events (`SDL_KEYDOWN`), and gamepad events (`SDL_CONTROLLERBUTTONDOWN`).
-- **Ironwail-Go (Go)**: Uses `internal/input/` as an abstraction layer. The primary backend is `sdl3_backend.go` which uses `go-sdl3`. It also supports alternative backends like `input_backend_glfw.go`.
+- **Ironwail-Go (Go)**: Uses `internal/input/` as a backend-neutral abstraction layer. The active runtime backend is supplied by the executable/renderer integration rather than by a package-local SDL implementation.
 
 ## 2. Event Dispatching
 

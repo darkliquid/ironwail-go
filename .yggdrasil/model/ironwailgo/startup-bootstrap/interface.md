@@ -18,6 +18,7 @@
 - Renderer/input initialization follows explicit canonical GoGPU policy rather than being left implicit.
 - `initGameRenderer` calls the canonical renderer factory and stores the result behind app-shell `gameRenderer`, avoiding concrete renderer type leakage in startup code.
 - Startup wires `host.Subsystems.Renderer` whenever an app-shell renderer is available, passing the interface-typed renderer directly to `renderer.NewRendererAdapter`.
+- Startup relies on renderer-provided input backends and no longer installs a separate SDL fallback or override path.
 - Control cvars that affect `client.Client` runtime behavior (including `cl_nolerp`, `v_centermove`, and `v_centerspeed`) are registered during bootstrap and synchronized into the active client state.
 - Startup registers renderer sky parity cvars, including `r_fastsky`, `r_proceduralsky`, `r_skyfog`, `r_skysolidspeed`, and `r_skyalphaspeed`, before renderer/world paths run.
 - Startup also registers console parity cvars consumed by console core/completion (`con_logcenterprint`, `con_maxcols`) alongside existing notify cvars.

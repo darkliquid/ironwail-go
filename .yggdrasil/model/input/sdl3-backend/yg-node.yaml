@@ -1,9 +1,0 @@
-name: Input SDL3 Backend
-type: module
-description: "SDL3-backed event ingestion layer with keyboard/mouse translation, controller support, gyro handling, and a stub fallback when sdl3 is disabled"
-blackbox: false
-mapping:
-  paths:
-    - internal/input/sdl3_backend.go
-    - internal/input/sdl3_stub.go
-    - internal/input/sdl3_backend_test.go
