@@ -1446,8 +1446,14 @@ func TestCmdGameInvokesGameDirChangedCallbackWithNewFilesystem(t *testing.T) {
 	calls := 0
 	var seenGameDir string
 	var seenData string
-	h.SetGameDirChangedCallback(func(_ *Subsystems, changed *fs.FileSystem) error {
+	h.SetGameDirChangedCallback(func(changedSubs *Subsystems, changed *fs.FileSystem) error {
 		calls++
+		if changedSubs != subs {
+			t.Fatalf("callback subs pointer changed")
+		}
+		if changedSubs.Files != changed {
+			t.Fatalf("callback saw stale subs filesystem")
+		}
 		seenGameDir = changed.GetGameDir()
 		data, err := changed.LoadFile("progs.dat")
 		if err != nil {

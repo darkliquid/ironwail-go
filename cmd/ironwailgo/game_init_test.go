@@ -1,13 +1,23 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
+	"github.com/darkliquid/ironwail-go/internal/fs"
+	"github.com/darkliquid/ironwail-go/internal/host"
+	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/menu"
+	"github.com/darkliquid/ironwail-go/internal/model"
+	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
 type registrationModeTestFS struct {
@@ -19,8 +29,6 @@ func (fs registrationModeTestFS) FileExists(filename string) bool {
 }
 
 func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
-	t.Parallel()
-
 	if cvar.Get("registered") == nil {
 		cvar.Register("registered", "0", cvar.FlagNone, "")
 	}
@@ -35,8 +43,6 @@ func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
 }
 
 func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
-	t.Parallel()
-
 	if cvar.Get("registered") == nil {
 		cvar.Register("registered", "1", cvar.FlagNone, "")
 	}
@@ -51,8 +57,6 @@ func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
 }
 
 func TestConfigureRegistrationModeRejectsModsWithoutRegisteredData(t *testing.T) {
-	t.Parallel()
-
 	if cvar.Get("registered") == nil {
 		cvar.Register("registered", "1", cvar.FlagNone, "")
 	}
@@ -367,5 +371,153 @@ func TestBuildCSQCClientHooksRegistersCommandOnce(t *testing.T) {
 	hooks.RegisterCommand(cmdName)
 	if !cmdsys.Exists(cmdName) {
 		t.Fatalf("command %q should remain registered", cmdName)
+	}
+}
+
+type reloadTestRenderer struct{}
+
+func (reloadTestRenderer) OnDraw(func(renderer.RenderContext))                    {}
+func (reloadTestRenderer) OnUpdate(func(float64))                                 {}
+func (reloadTestRenderer) Size() (int, int)                                       { return 320, 200 }
+func (reloadTestRenderer) SetConfig(renderer.Config)                              {}
+func (reloadTestRenderer) Run() error                                             { return nil }
+func (reloadTestRenderer) Stop()                                                  {}
+func (reloadTestRenderer) Shutdown()                                              {}
+func (reloadTestRenderer) SetPalette([]byte)                                      {}
+func (reloadTestRenderer) SetConchars([]byte)                                     {}
+func (reloadTestRenderer) SetExternalSkybox(string, func(string) ([]byte, error)) {}
+func (reloadTestRenderer) UpdateCamera(renderer.CameraState, float32, float32)    {}
+func (reloadTestRenderer) UploadWorld(*bsp.Tree) error                            { return nil }
+func (reloadTestRenderer) HasWorldData() bool                                     { return false }
+func (reloadTestRenderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
+	return [3]float32{}, [3]float32{}, false
+}
+func (reloadTestRenderer) SpawnDynamicLight(renderer.DynamicLight) bool      { return false }
+func (reloadTestRenderer) SpawnKeyedDynamicLight(renderer.DynamicLight) bool { return false }
+func (reloadTestRenderer) UpdateLights(float32)                              {}
+func (reloadTestRenderer) ClearDynamicLights()                               {}
+func (reloadTestRenderer) InputBackendForSystem(*input.System) input.Backend { return nil }
+
+func TestRuntimeMenuModsUsesCurrentSubsystemFilesystem(t *testing.T) {
+	original := g
+	t.Cleanup(func() { g = original })
+
+	baseA := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseA, dir), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseA, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("write id1 progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseA, "hipnotic", "pak0.pak"), []byte("pak"), 0o644); err != nil {
+		t.Fatalf("write hipnotic pak: %v", err)
+	}
+
+	baseB := t.TempDir()
+	for _, dir := range []string{"id1", "rogue"} {
+		if err := os.MkdirAll(filepath.Join(baseB, dir), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(baseB, "id1", "progs.dat"), []byte("base"), 0o644); err != nil {
+		t.Fatalf("write id1 progs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseB, "rogue", "pak0.pak"), []byte("pak"), 0o644); err != nil {
+		t.Fatalf("write rogue pak: %v", err)
+	}
+
+	fsA := fs.NewFileSystem()
+	if err := fsA.Init(baseA, "id1"); err != nil {
+		t.Fatalf("init fsA: %v", err)
+	}
+	defer fsA.Close()
+	fsB := fs.NewFileSystem()
+	if err := fsB.Init(baseB, "id1"); err != nil {
+		t.Fatalf("init fsB: %v", err)
+	}
+	defer fsB.Close()
+
+	g.Subs = &host.Subsystems{Files: fsA}
+	modsA := runtimeMenuMods(g.Subs)
+	if len(modsA) != 1 || modsA[0].Name != "hipnotic" {
+		t.Fatalf("mods from fsA = %#v, want hipnotic", modsA)
+	}
+
+	g.Subs.Files = fsB
+	modsB := runtimeMenuMods(g.Subs)
+	if len(modsB) != 1 || modsB[0].Name != "rogue" {
+		t.Fatalf("mods from fsB = %#v, want rogue", modsB)
+	}
+}
+
+func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing.T) {
+	original := g
+	t.Cleanup(func() { g = original })
+
+	progsData, err := os.ReadFile(filepath.Join("..", "..", "progs.dat"))
+	if err != nil {
+		t.Fatalf("read test progs.dat: %v", err)
+	}
+
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, dir, "progs.dat"), progsData, 0o644); err != nil {
+			t.Fatalf("write %s/progs.dat: %v", dir, err)
+		}
+	}
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "hipnotic"); err != nil {
+		t.Fatalf("init filesystem: %v", err)
+	}
+	defer fileSys.Close()
+
+	testRenderer := reloadTestRenderer{}
+	g.Renderer = testRenderer
+	g.Host = host.NewHost()
+	g.Menu = menu.NewManager(nil, nil)
+	g.Server = server.NewServer()
+	g.QC = g.Server.QCVM
+	g.CSQC = qc.NewCSQC()
+	g.Subs = &host.Subsystems{
+		Files:  fileSys,
+		Server: g.Server,
+	}
+	g.Host.SetMenu(g.Menu)
+	g.ModDir = "id1"
+	g.AliasModelCache = map[string]*model.Model{"progs/player.mdl": nil}
+	g.SpriteModelCache = map[string]*runtimeSpriteModel{"progs/flame.spr": nil}
+	g.ShowScores = true
+	g.WorldUploadKey = "old-world"
+
+	if err := reloadRuntimeAfterGameDirChange(g.Subs, fileSys); err != nil {
+		t.Fatalf("reloadRuntimeAfterGameDirChange failed: %v", err)
+	}
+
+	if g.Renderer != testRenderer {
+		t.Fatal("reload replaced renderer; expected renderer/window stack to be preserved")
+	}
+	if g.ModDir != "hipnotic" {
+		t.Fatalf("mod dir = %q, want hipnotic", g.ModDir)
+	}
+	if g.Menu == nil || !g.Menu.IsActive() || g.Menu.GetState() != menu.MenuMain {
+		t.Fatalf("menu state = active:%v state:%v, want active main menu", g.Menu != nil && g.Menu.IsActive(), g.Menu.GetState())
+	}
+	if g.AliasModelCache != nil {
+		t.Fatalf("alias model cache should reset, got %#v", g.AliasModelCache)
+	}
+	if g.SpriteModelCache != nil {
+		t.Fatalf("sprite model cache should reset, got %#v", g.SpriteModelCache)
+	}
+	if g.ShowScores {
+		t.Fatal("show scores should reset to false")
+	}
+	if g.WorldUploadKey != "" {
+		t.Fatalf("world upload key = %q, want empty", g.WorldUploadKey)
 	}
 }
