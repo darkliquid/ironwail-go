@@ -792,24 +792,26 @@ type Renderer struct {
 	// worldFirstFrameStatsLogged gates one-shot first-world-frame diagnostics per upload.
 	worldFirstFrameStatsLogged atomic.Bool
 	// worldVisibleFacesScratch reuses visibility marking/storage across world passes.
-	worldVisibleFacesScratch worldVisibilityScratch
-	worldSkyFacesScratch     []WorldFace
-	worldOpaqueDrawsScratch  []gogpuWorldFaceDraw
-	worldAlphaDrawsScratch   []gogpuWorldFaceDraw
-	worldLiquidDrawsScratch  []gogpuWorldFaceDraw
-	worldBatchedIndexScratch []uint32
-	worldOpaqueBatchScratch  []gogpuWorldFaceBatch
-	worldAlphaBatchScratch   []gogpuWorldFaceBatch
-	worldLiquidBatchScratch  []gogpuWorldFaceBatch
-	worldBatchCacheValid     bool
-	worldBatchCacheLeaf      int
-	worldBatchCacheLightSig  uint64
-	worldBatchCacheFaceCount int
-	worldBatchCacheSkyFaces  []WorldFace
-	worldBatchCacheIndices   []uint32
-	worldBatchCacheOpaque    []gogpuWorldFaceBatch
-	worldBatchCacheAlpha     []gogpuWorldFaceBatch
-	worldBatchCacheLiquid    []gogpuWorldFaceBatch
+	worldVisibleFacesScratch         worldVisibilityScratch
+	worldSkyFacesScratch             []WorldFace
+	worldTranslucentLiquidScratch    []WorldFace
+	worldOpaqueDrawsScratch          []gogpuWorldFaceDraw
+	worldAlphaDrawsScratch           []gogpuWorldFaceDraw
+	worldLiquidDrawsScratch          []gogpuWorldFaceDraw
+	worldBatchedIndexScratch         []uint32
+	worldOpaqueBatchScratch          []gogpuWorldFaceBatch
+	worldAlphaBatchScratch           []gogpuWorldFaceBatch
+	worldLiquidBatchScratch          []gogpuWorldFaceBatch
+	worldBatchCacheValid             bool
+	worldBatchCacheLeaf              int
+	worldBatchCacheLightSig          uint64
+	worldBatchCacheFaceCount         int
+	worldBatchCacheSkyFaces          []WorldFace
+	worldBatchCacheTranslucentLiquid []WorldFace
+	worldBatchCacheIndices           []uint32
+	worldBatchCacheOpaque            []gogpuWorldFaceBatch
+	worldBatchCacheAlpha             []gogpuWorldFaceBatch
+	worldBatchCacheLiquid            []gogpuWorldFaceBatch
 
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer

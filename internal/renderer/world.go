@@ -2419,6 +2419,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldBatchCacheLightSig = 0
 	r.worldBatchCacheFaceCount = 0
 	r.worldBatchCacheSkyFaces = nil
+	r.worldBatchCacheTranslucentLiquid = nil
 	r.worldBatchCacheIndices = nil
 	r.worldBatchCacheOpaque = nil
 	r.worldBatchCacheAlpha = nil
@@ -2996,6 +2997,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		dc.renderer.worldBatchCacheLightSig == dynamicLightSig
 	visibleFaceCount := 0
 	var skyFaces []WorldFace
+	var translucentLiquidFaces []WorldFace
 	var batchedIndices []uint32
 	var opaqueBatches []gogpuWorldFaceBatch
 	var alphaTestBatches []gogpuWorldFaceBatch
@@ -3003,6 +3005,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	if cacheHit {
 		visibleFaceCount = dc.renderer.worldBatchCacheFaceCount
 		skyFaces = dc.renderer.worldBatchCacheSkyFaces
+		translucentLiquidFaces = dc.renderer.worldBatchCacheTranslucentLiquid
 		batchedIndices = dc.renderer.worldBatchCacheIndices
 		opaqueBatches = dc.renderer.worldBatchCacheOpaque
 		alphaTestBatches = dc.renderer.worldBatchCacheAlpha
@@ -3018,6 +3021,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		visibleSelectMS = float64(time.Since(selectStart)) / float64(time.Millisecond)
 		visibleFaceCount = len(visibleFaces)
 		skyFaces = dc.renderer.worldSkyFacesScratch[:0]
+		translucentLiquidFaces = dc.renderer.worldTranslucentLiquidScratch[:0]
 		opaqueDraws := dc.renderer.worldOpaqueDrawsScratch[:0]
 		alphaTestDraws := dc.renderer.worldAlphaDrawsScratch[:0]
 		opaqueLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
@@ -3027,6 +3031,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		opaqueLiquidBatches = dc.renderer.worldLiquidBatchScratch[:0]
 		defer func() {
 			dc.renderer.worldSkyFacesScratch = skyFaces[:0]
+			dc.renderer.worldTranslucentLiquidScratch = translucentLiquidFaces[:0]
 			dc.renderer.worldOpaqueDrawsScratch = opaqueDraws[:0]
 			dc.renderer.worldAlphaDrawsScratch = alphaTestDraws[:0]
 			dc.renderer.worldLiquidDrawsScratch = opaqueLiquidDraws[:0]
@@ -3040,6 +3045,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			switch {
 			case shouldDrawGoGPUSkyWorldFace(face):
 				skyFaces = append(skyFaces, face)
+			case shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha):
+				translucentLiquidFaces = append(translucentLiquidFaces, face)
 			case shouldDrawGoGPUOpaqueWorldFace(face), shouldDrawGoGPUAlphaTestWorldFace(face), shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
 				textureBindGroup := dc.renderer.whiteTextureBindGroup
 				if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
@@ -3091,6 +3098,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			dc.renderer.worldBatchCacheLightSig = dynamicLightSig
 			dc.renderer.worldBatchCacheFaceCount = visibleFaceCount
 			dc.renderer.worldBatchCacheSkyFaces = append(dc.renderer.worldBatchCacheSkyFaces[:0], skyFaces...)
+			dc.renderer.worldBatchCacheTranslucentLiquid = append(dc.renderer.worldBatchCacheTranslucentLiquid[:0], translucentLiquidFaces...)
 			dc.renderer.worldBatchCacheIndices = append(dc.renderer.worldBatchCacheIndices[:0], batchedIndices...)
 			dc.renderer.worldBatchCacheOpaque = append(dc.renderer.worldBatchCacheOpaque[:0], opaqueBatches...)
 			dc.renderer.worldBatchCacheAlpha = append(dc.renderer.worldBatchCacheAlpha[:0], alphaTestBatches...)
@@ -3849,6 +3857,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldDepthHeight = 0
 		r.worldVisibleFacesScratch = worldVisibilityScratch{}
 		r.worldSkyFacesScratch = nil
+		r.worldTranslucentLiquidScratch = nil
 		r.worldOpaqueDrawsScratch = nil
 		r.worldAlphaDrawsScratch = nil
 		r.worldLiquidDrawsScratch = nil
@@ -3861,6 +3870,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldBatchCacheLightSig = 0
 		r.worldBatchCacheFaceCount = 0
 		r.worldBatchCacheSkyFaces = nil
+		r.worldBatchCacheTranslucentLiquid = nil
 		r.worldBatchCacheIndices = nil
 		r.worldBatchCacheOpaque = nil
 		r.worldBatchCacheAlpha = nil

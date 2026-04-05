@@ -2604,34 +2604,20 @@ func gogpuLateTranslucentLightmapBindGroup(res gogpuLateTranslucentFaceResources
 	return lightmapBindGroup, 0
 }
 
-func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTranslucentBrushFaceRender {
-	if dc == nil || dc.renderer == nil {
+func gogpuWorldTranslucentLiquidFaceRenders(
+	faces []WorldFace,
+	camera CameraState,
+	worldVertexBuffer *wgpu.Buffer,
+	worldIndexBuffer *wgpu.Buffer,
+	worldLightmapPages []*gpuWorldTexture,
+	liquidAlpha worldLiquidAlphaSettings,
+	worldHasLitWater bool,
+) []gogpuTranslucentBrushFaceRender {
+	if len(faces) == 0 || worldVertexBuffer == nil || worldIndexBuffer == nil {
 		return nil
 	}
-	r := dc.renderer
-	r.mu.RLock()
-	worldData := r.worldData
-	camera := r.cameraState
-	worldVertexBuffer := r.worldVertexBuffer
-	worldIndexBuffer := r.worldIndexBuffer
-	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
-	r.mu.RUnlock()
-	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
-		return nil
-	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
-	visibleFaces := r.worldVisibleFacesScratch.selectVisibleWorldFaces(
-		worldData.Geometry.Tree,
-		worldData.Geometry.Faces,
-		worldData.Geometry.LeafFaces,
-		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
-	)
-	renders := make([]gogpuTranslucentBrushFaceRender, 0, 8)
-	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
-	for _, face := range visibleFaces {
-		if !shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
-			continue
-		}
+	renders := make([]gogpuTranslucentBrushFaceRender, 0, len(faces))
+	for _, face := range faces {
 		renders = append(renders, gogpuTranslucentBrushFaceRender{
 			bufferPair: [2]*wgpu.Buffer{worldVertexBuffer, worldIndexBuffer},
 			face: gogpuTranslucentLiquidFaceDraw{
@@ -2646,6 +2632,56 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 		})
 	}
 	return renders
+}
+
+func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTranslucentBrushFaceRender {
+	if dc == nil || dc.renderer == nil {
+		return nil
+	}
+	r := dc.renderer
+	r.mu.RLock()
+	worldData := r.worldData
+	camera := r.cameraState
+	worldVertexBuffer := r.worldVertexBuffer
+	worldIndexBuffer := r.worldIndexBuffer
+	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
+	var activeDynamicLights []DynamicLight
+	if r.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
+	}
+	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	cameraLeafIndex := -1
+	if worldData != nil && worldData.Geometry != nil && worldData.Geometry.Tree != nil {
+		cameraLeafIndex = worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
+	}
+	dynamicLightSig := gogpuWorldDynamicLightSignature(activeDynamicLights)
+	cacheHit := worldData != nil && worldData.Geometry != nil &&
+		r.worldBatchCacheValid &&
+		r.worldBatchCacheLeaf == cameraLeafIndex &&
+		r.worldBatchCacheLightSig == dynamicLightSig
+	cachedFaces := r.worldBatchCacheTranslucentLiquid
+	worldHasLitWater := worldData != nil && worldData.Geometry != nil && gogpuFacesHaveLitWater(worldData.Geometry.Faces)
+	r.mu.RUnlock()
+	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
+		return nil
+	}
+	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	if cacheHit {
+		return gogpuWorldTranslucentLiquidFaceRenders(cachedFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapPages, liquidAlpha, worldHasLitWater)
+	}
+	visibleFaces := r.worldVisibleFacesScratch.selectVisibleWorldFaces(
+		worldData.Geometry.Tree,
+		worldData.Geometry.Faces,
+		worldData.Geometry.LeafFaces,
+		cameraOriginWorld,
+	)
+	translucentFaces := make([]WorldFace, 0, len(visibleFaces))
+	for _, face := range visibleFaces {
+		if shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha) {
+			translucentFaces = append(translucentFaces, face)
+		}
+	}
+	return gogpuWorldTranslucentLiquidFaceRenders(translucentFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapPages, liquidAlpha, worldHasLitWater)
 }
 
 func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []BrushEntity) ([]gogpuTranslucentBrushFaceRender, []*wgpu.Buffer) {
