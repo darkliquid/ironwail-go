@@ -20,26 +20,22 @@ func NewAudioAdapter(sys *System) *AudioAdapter {
 	return &AudioAdapter{sys: sys, consoleSoundHash: 345}
 }
 
+func selectAudioBackend(oto Backend) Backend {
+	if oto != nil {
+		slog.Debug("selecting Oto audio backend")
+		return oto
+	}
+	slog.Warn("oto audio backend unavailable, using null backend")
+	return NewNullBackend()
+}
+
 func (a *AudioAdapter) Init() error {
 	if a.sys == nil {
 		return nil
 	}
 	console.Printf("Sound Initialization\n")
 
-	sdl3 := NewSDL3AudioBackend()
-	oto := NewOtoBackend()
-	slog.Debug("audio backend availability", "sdl3", sdl3 != nil, "oto", oto != nil)
-
-	backend := Backend(NewNullBackend())
-	if sdl3 != nil {
-		slog.Debug("selecting SDL3 audio backend")
-		backend = sdl3
-	} else if oto != nil {
-		slog.Debug("selecting Oto audio backend")
-		backend = oto
-	} else {
-		slog.Warn("no hardware audio backends available, using null backend")
-	}
+	backend := selectAudioBackend(NewOtoBackend())
 
 	if err := a.sys.Init(backend, 44100, false); err != nil {
 		slog.Warn("failed to init audio at 44.1kHz, retrying at 48kHz", "error", err)

@@ -22,7 +22,7 @@ This document details the initialization process of the original C codebase vers
 3.  **QuakeC**: `gameQC.LoadProgs()` reads `progs.dat` and prepares the VM.
 4.  **Host**: `initGameHost()` initializes the coordinator.
 5.  **Renderer**: `renderer.NewWithConfig()` initializes the GoGPU renderer or the explicit no-backend fallback.
-6.  **Audio**: `audio.NewAudioAdapter()` starts the audio backend (Oto or SDL3).
+6.  **Audio**: `audio.NewAudioAdapter()` starts the canonical Oto audio backend and falls back to null audio if hardware init fails.
 
 ## 3. The Main Loop
 

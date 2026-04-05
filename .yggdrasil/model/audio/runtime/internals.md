@@ -5,9 +5,8 @@
 ### Startup
 
 `AudioAdapter.Init` selects a backend in priority order:
-1. SDL3
-2. oto
-3. null backend
+1. oto
+2. null backend
 
 It tries 44.1 kHz first, retries at 48 kHz on failure, and falls back to the null backend if hardware init still fails.
 Backend availability and backend-selection traces in `AudioAdapter.Init` are diagnostic and now emit at `Debug`; successful hardware initialization remains visible at `Info`, while degraded/failed startup still uses `Warn`/`Error`.

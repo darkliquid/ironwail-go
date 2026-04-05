@@ -15,7 +15,7 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
-CGO_ENABLED=0 go run -tags audio_oto ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
+CGO_ENABLED=0 go run ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
 """
 
 [tasks.clean-logs]
