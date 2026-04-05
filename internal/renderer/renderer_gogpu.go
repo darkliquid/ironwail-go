@@ -1840,7 +1840,7 @@ func (dc *DrawContext) maybeLogGoGPUFirstWorldFrameStats(state *RenderFrameState
 	}
 
 	camera := dc.renderer.cameraState
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	visibleFaces := selectVisibleWorldFaces(
 		worldData.Geometry.Tree,
 		worldData.Geometry.Faces,

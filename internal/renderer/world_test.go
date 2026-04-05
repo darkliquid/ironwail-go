@@ -9,6 +9,7 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/gogpu/wgpu"
 )
 
@@ -920,5 +921,78 @@ func TestBuildWorldLightmapPageRGBA_CompositesSurfaceIntoBlackPage(t *testing.T)
 		if got[i] != want[i] {
 			t.Fatalf("got[%d] = %d, want %d (full rgba=%v)", i, got[i], want[i], got)
 		}
+	}
+}
+
+func TestBuildWorldLightmapPageRGBA_ReusesCachedBufferForDirtySurfaces(t *testing.T) {
+	page := &WorldLightmapPage{
+		Width:  2,
+		Height: 1,
+		Surfaces: []WorldLightmapSurface{
+			{
+				X:       0,
+				Y:       0,
+				Width:   1,
+				Height:  1,
+				Styles:  [bsp.MaxLightmaps]uint8{0, 255, 255, 255},
+				Samples: []byte{200, 0, 0},
+			},
+			{
+				X:       1,
+				Y:       0,
+				Width:   1,
+				Height:  1,
+				Styles:  [bsp.MaxLightmaps]uint8{1, 255, 255, 255},
+				Samples: []byte{0, 200, 0},
+			},
+		},
+	}
+	values := defaultWorldLightStyleValues()
+	values[1] = 1
+	first := buildWorldLightmapPageRGBA(page, values)
+	if len(first) == 0 {
+		t.Fatal("expected initial lightmap RGBA")
+	}
+	firstPixel := first[0]
+	cleanPixel := first[4:8]
+	cachePtr := &first[0]
+
+	values[0] = 0.5
+	page.Dirty = true
+	page.Surfaces[0].Dirty = true
+	second := buildWorldLightmapPageRGBA(page, values)
+	if len(second) == 0 {
+		t.Fatal("expected recomposited lightmap RGBA")
+	}
+	if &second[0] != cachePtr {
+		t.Fatal("expected dirty recomposite to reuse cached lightmap buffer")
+	}
+	if second[0] >= firstPixel {
+		t.Fatalf("expected dirty surface to darken, got %d want < %d", second[0], firstPixel)
+	}
+	for i := range cleanPixel {
+		if second[4+i] != cleanPixel[i] {
+			t.Fatalf("clean surface byte %d changed: got %d want %d", i, second[4+i], cleanPixel[i])
+		}
+	}
+}
+
+func TestWorldLiquidAlphaSettingsForGeometryUsesCachedWorldFacts(t *testing.T) {
+	geom := &WorldGeometry{
+		LiquidAlphaOverrides: worldimpl.LiquidAlphaOverrides{
+			HasWater: true,
+			Water:    0.25,
+		},
+		TransparentWaterSafe: true,
+	}
+	got := worldLiquidAlphaSettingsForGeometry(geom)
+	if got.water != 0.25 {
+		t.Fatalf("water = %v, want 0.25 from cached override", got.water)
+	}
+
+	geom.TransparentWaterSafe = false
+	got = worldLiquidAlphaSettingsForGeometry(geom)
+	if got.water != 1 || got.lava != 1 || got.slime != 1 || got.tele != 1 {
+		t.Fatalf("unsafe transparent-water map should force opaque liquids, got %+v", got)
 	}
 }

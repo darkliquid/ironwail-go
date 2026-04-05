@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
@@ -668,17 +667,15 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 
 	r := dc.renderer
 	r.mu.RLock()
-	var treeEntities []byte
-	var tree *bsp.Tree
+	var geom *WorldGeometry
 	if r.worldData != nil && r.worldData.Geometry != nil && r.worldData.Geometry.Tree != nil {
-		tree = r.worldData.Geometry.Tree
-		treeEntities = r.worldData.Geometry.Tree.Entities
+		geom = r.worldData.Geometry
 	}
 	r.mu.RUnlock()
-	if tree == nil {
+	if geom == nil || geom.Tree == nil {
 		return
 	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(treeEntities), tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
 
 	draws := make([]gogpuOpaqueBrushEntityDraw, 0, len(entities))
 	for _, entity := range entities {
@@ -2553,7 +2550,7 @@ func (dc *DrawContext) loadGoGPUTranslucentBrushCollectState() (gogpuTranslucent
 		device:      device,
 		queue:       queue,
 		camera:      r.cameraState,
-		liquidAlpha: worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(r.worldData.Geometry.Tree.Entities), r.worldData.Geometry.Tree),
+		liquidAlpha: worldLiquidAlphaSettingsForGeometry(r.worldData.Geometry),
 	}, true
 }
 
@@ -2758,7 +2755,7 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
 		return nil
 	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	if cachedFaces != nil {
 		return gogpuWorldTranslucentLiquidFaceRenders(cachedFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapPages, liquidAlpha, worldHasLitWater)
 	}

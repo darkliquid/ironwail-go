@@ -4,13 +4,15 @@ import "github.com/darkliquid/ironwail-go/internal/bsp"
 
 // WorldGeometry holds backend-neutral BSP world data prepared for rendering.
 type WorldGeometry struct {
-	Vertices    []WorldVertex
-	Indices     []uint32
-	Faces       []WorldFace
-	LeafFaces   [][]int
-	Lightmaps   []WorldLightmapPage
-	HasLitWater bool
-	Tree        *bsp.Tree
+	Vertices             []WorldVertex
+	Indices              []uint32
+	Faces                []WorldFace
+	LeafFaces            [][]int
+	Lightmaps            []WorldLightmapPage
+	HasLitWater          bool
+	LiquidAlphaOverrides LiquidAlphaOverrides
+	TransparentWaterSafe bool
+	Tree                 *bsp.Tree
 }
 
 // WorldVertex matches the packed vertex layout used by world renderers.
@@ -44,9 +46,9 @@ type WorldLightmapSurface struct {
 
 // WorldLightmapPage represents a shared lightmap atlas texture page.
 type WorldLightmapPage struct {
-	Width    int
-	Height   int
-	Surfaces []WorldLightmapSurface
-	Dirty    bool
-	rgba     []byte
+	Width      int
+	Height     int
+	Surfaces   []WorldLightmapSurface
+	Dirty      bool
+	CachedRGBA []byte
 }

@@ -427,10 +427,12 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 	worldModel := tree.Models[modelIndex]
 
 	geom := &WorldGeometry{
-		Vertices: make([]WorldVertex, 0, 4096),
-		Indices:  make([]uint32, 0, 16384),
-		Faces:    make([]WorldFace, 0, 256),
-		Tree:     tree,
+		Vertices:             make([]WorldVertex, 0, 4096),
+		Indices:              make([]uint32, 0, 16384),
+		Faces:                make([]WorldFace, 0, 256),
+		LiquidAlphaOverrides: worldimpl.ParseWorldspawnLiquidAlphaOverrides(tree.Entities),
+		TransparentWaterSafe: worldimpl.MapVisTransparentWaterSafe(tree),
+		Tree:                 tree,
 	}
 	lightmapAllocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
 	if err != nil {
@@ -2125,6 +2127,50 @@ func (r *Renderer) uploadWorldLightmapPages(device *wgpu.Device, queue *wgpu.Que
 	return out
 }
 
+func lightmapDirtyBounds(page WorldLightmapPage) (x, y, w, h int) {
+	minX, minY := page.Width, page.Height
+	maxX, maxY := 0, 0
+	found := false
+	for _, surface := range page.Surfaces {
+		if !surface.Dirty || surface.Width <= 0 || surface.Height <= 0 {
+			continue
+		}
+		if surface.X < minX {
+			minX = surface.X
+		}
+		if surface.Y < minY {
+			minY = surface.Y
+		}
+		if surface.X+surface.Width > maxX {
+			maxX = surface.X + surface.Width
+		}
+		if surface.Y+surface.Height > maxY {
+			maxY = surface.Y + surface.Height
+		}
+		found = true
+	}
+	if !found {
+		return 0, 0, 0, 0
+	}
+	return minX, minY, maxX - minX, maxY - minY
+}
+
+func extractLightmapRegionRGBA(rgba []byte, pageWidth, x, y, w, h int) []byte {
+	if len(rgba) == 0 || pageWidth <= 0 || w <= 0 || h <= 0 {
+		return nil
+	}
+	region := make([]byte, w*h*4)
+	srcStride := pageWidth * 4
+	dstStride := w * 4
+	for row := 0; row < h; row++ {
+		srcStart := ((y + row) * srcStride) + x*4
+		srcEnd := srcStart + dstStride
+		dstStart := row * dstStride
+		copy(region[dstStart:dstStart+dstStride], rgba[srcStart:srcEnd])
+	}
+	return region
+}
+
 func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
 	if queue == nil || len(pages) == 0 || len(uploaded) == 0 {
 		return
@@ -2141,11 +2187,20 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTextur
 		if len(rgba) == 0 {
 			continue
 		}
+		x, y, w, h := lightmapDirtyBounds(pages[i])
+		if w == 0 || h == 0 {
+			continue
+		}
+		region := extractLightmapRegionRGBA(rgba, pages[i].Width, x, y, w, h)
+		if len(region) == 0 {
+			continue
+		}
 		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 			Texture:  uploaded[i].texture,
 			MipLevel: 0,
 			Aspect:   gputypes.TextureAspectAll,
-		}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(pages[i].Width * 4), RowsPerImage: uint32(pages[i].Height)}, &wgpu.Extent3D{Width: uint32(pages[i].Width), Height: uint32(pages[i].Height), DepthOrArrayLayers: 1}); err != nil {
+			Origin:   wgpu.Origin3D{X: uint32(x), Y: uint32(y)},
+		}, region, &wgpu.ImageDataLayout{BytesPerRow: uint32(w * 4), RowsPerImage: uint32(h)}, &wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}); err != nil {
 			slog.Warn("failed to update world lightmap page", "page", i, "error", err)
 		}
 	}
@@ -2160,6 +2215,9 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	changed := lightStylesChanged(r.worldLightStyleValues, values)
+	if !anyLightStyleChanged(changed) {
+		return
+	}
 	if r.worldData != nil && r.worldData.Geometry != nil {
 		markDirtyLightmapPages(r.worldData.Geometry.Lightmaps, changed)
 		updateUploadedLightmapsLocked(queue, r.worldLightmapPages, r.worldData.Geometry.Lightmaps, values)
@@ -2229,14 +2287,21 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	if page.Width <= 0 || page.Height <= 0 {
 		return nil
 	}
-	rgba := make([]byte, page.Width*page.Height*4)
-	for i := 0; i < len(rgba); i += 4 {
-		rgba[i+3] = 255
+	size := page.Width * page.Height * 4
+	if len(page.CachedRGBA) != size {
+		page.CachedRGBA = make([]byte, size)
+		for i := 0; i < len(page.CachedRGBA); i += 4 {
+			page.CachedRGBA[i+3] = 255
+		}
+		for _, surface := range page.Surfaces {
+			compositeWorldLightmapSurfaceRGBA(page.CachedRGBA, page.Width, surface, values)
+		}
+		return page.CachedRGBA
 	}
-	for _, surface := range page.Surfaces {
-		compositeWorldLightmapSurfaceRGBA(rgba, page.Width, surface, values)
+	if page.Dirty {
+		recompositeDirtySurfaces(page.CachedRGBA, *page, values)
 	}
-	return rgba
+	return page.CachedRGBA
 }
 
 func lightStylesChanged(old, new_ [64]float32) [64]bool {
@@ -2247,6 +2312,15 @@ func lightStylesChanged(old, new_ [64]float32) [64]bool {
 		}
 	}
 	return changed
+}
+
+func anyLightStyleChanged(changed [64]bool) bool {
+	for _, dirty := range changed {
+		if dirty {
+			return true
+		}
+	}
+	return false
 }
 
 func markDirtyLightmapPages(pages []WorldLightmapPage, changed [64]bool) {
@@ -2293,6 +2367,27 @@ func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [64]fl
 		recomposited = true
 	}
 	return recomposited
+}
+
+func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSettings {
+	if geom == nil {
+		return worldLiquidAlphaSettingsFromCvars(worldLiquidAlphaOverrides{}, nil)
+	}
+	settings := resolveWorldLiquidAlphaSettings(
+		worldimpl.ReadAlphaCvar(CvarRWaterAlpha, 1),
+		worldimpl.ReadAlphaCvar(CvarRLavaAlpha, 0),
+		worldimpl.ReadAlphaCvar(CvarRSlimeAlpha, 0),
+		worldimpl.ReadAlphaCvar(CvarRTeleAlpha, 0),
+		worldLiquidAlphaOverridesFromWorld(geom.LiquidAlphaOverrides),
+		nil,
+	)
+	if !geom.TransparentWaterSafe {
+		settings.water = 1
+		settings.lava = 1
+		settings.slime = 1
+		settings.tele = 1
+	}
+	return settings
 }
 
 func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
@@ -2424,7 +2519,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err != nil {
 		return fmt.Errorf("build world geometry: %w", err)
 	}
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(tree.Entities), tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
 	faceStats := summarizeGoGPUWorldFaceStats(geom.Faces, liquidAlpha)
 
 	// Create render data
@@ -2948,7 +3043,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	timeSeconds := float64(camera.Time)
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	var activeDynamicLights []DynamicLight
@@ -3505,7 +3600,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		return
 	}
 
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
 	if !hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
 		return
@@ -3620,7 +3715,7 @@ func (r *Renderer) hasTranslucentWorldLiquidFacesGoGPU() bool {
 	}
 	return hasTranslucentWorldLiquidFaceType(
 		worldLiquidFaceTypeMask(worldData.Geometry.Faces),
-		worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree),
+		worldLiquidAlphaSettingsForGeometry(worldData.Geometry),
 	)
 }
 
