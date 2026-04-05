@@ -17,6 +17,12 @@ type TextureMeta struct {
 	Type   model.TextureType
 }
 
+type MaterialTextureRGBA struct {
+	DiffuseRGBA    []byte
+	FullbrightRGBA []byte
+	HasFullbright  bool
+}
+
 // ParseTextureMeta parses the BSP miptex lump to extract texture names and dimensions.
 func ParseTextureMeta(tree *bsp.Tree) []TextureMeta {
 	if tree == nil || len(tree.TextureData) < 4 {
@@ -95,4 +101,51 @@ func DeriveFaceFlags(textureType model.TextureType, texinfoFlags int32) int32 {
 	}
 
 	return flags
+}
+
+func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureType) MaterialTextureRGBA {
+	diffuse := make([]byte, len(pixels)*4)
+	fullbright := make([]byte, len(pixels)*4)
+	cutout := textureType == model.TexTypeCutout
+	hasSeparateFullbright := false
+
+	for i, idx := range pixels {
+		base := i * 4
+		if cutout && idx == 255 {
+			continue
+		}
+		r, g, b := paletteColor(idx, palette)
+		if idx >= 224 && idx <= 254 {
+			if cutout {
+				fullbright[base+0] = r
+				fullbright[base+1] = g
+				fullbright[base+2] = b
+				fullbright[base+3] = 255
+				diffuse[base+3] = 255
+				hasSeparateFullbright = true
+			} else {
+				diffuse[base+0] = r
+				diffuse[base+1] = g
+				diffuse[base+2] = b
+				// Regular world materials use alpha as a lighting mask for embedded
+				// fullbright texels; they are not true transparent pixels.
+				diffuse[base+3] = 0
+			}
+			continue
+		}
+
+		diffuse[base+0] = r
+		diffuse[base+1] = g
+		diffuse[base+2] = b
+		diffuse[base+3] = 255
+	}
+
+	if !hasSeparateFullbright {
+		fullbright = nil
+	}
+	return MaterialTextureRGBA{
+		DiffuseRGBA:    diffuse,
+		FullbrightRGBA: fullbright,
+		HasFullbright:  hasSeparateFullbright,
+	}
 }

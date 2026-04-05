@@ -582,6 +582,7 @@ type Renderer struct {
 	worldLightmapUniform                int32
 	worldFullbrightUniform              int32
 	worldHasFullbrightUniform           int32
+	worldAlphaTestUniform               int32
 	worldDynamicLightUniform            int32
 	worldSkyVPUniform                   int32
 	worldSkySolidUniform                int32

@@ -287,6 +287,62 @@ func TestBuildWorldGeometry_PopulatesLeafFacesFromMarkSurfaces(t *testing.T) {
 	}
 }
 
+func TestExtractFaceVertices_UsesHighPrecisionLightmapExtents(t *testing.T) {
+	tree := &bsp.Tree{
+		Planes: []bsp.DPlane{
+			{Normal: [3]float32{0, 0, 1}},
+		},
+		Texinfo: []bsp.Texinfo{
+			{
+				Miptex: 0,
+				Vecs: [2][4]float32{
+					{0.57220185, -0.10834341, 1.6845309, 1.3638687},
+					{0, 0, 0, 0},
+				},
+			},
+		},
+		Edges: []bsp.TreeEdge{
+			{V: [2]uint32{0, 1}},
+			{V: [2]uint32{1, 2}},
+			{V: [2]uint32{2, 0}},
+		},
+		Surfedges: []int32{0, 1, 2},
+		Vertexes: []bsp.DVertex{
+			{Point: [3]float32{4026.5183, 32887.621, 131090.9}},
+			{Point: [3]float32{4080.9375, 32887.621, 131090.9}},
+			{Point: [3]float32{4026.5183, 32937.996, 131090.9}},
+		},
+		Lighting: make([]byte, 8),
+	}
+	face := &bsp.TreeFace{
+		PlaneNum:  0,
+		FirstEdge: 0,
+		NumEdges:  3,
+		Texinfo:   0,
+		LightOfs:  0,
+		Styles:    [4]uint8{0, 255, 255, 255},
+	}
+
+	allocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
+	if err != nil {
+		t.Fatalf("NewLightmapAllocator failed: %v", err)
+	}
+	var pages []WorldLightmapPage
+	_, surface, err := extractFaceVertices(tree, face, allocator, &pages)
+	if err != nil {
+		t.Fatalf("extractFaceVertices failed: %v", err)
+	}
+	if surface == nil {
+		t.Fatal("expected lightmap surface")
+	}
+	if len(pages) != 1 || len(pages[0].Surfaces) != 1 {
+		t.Fatalf("unexpected lightmap pages: %+v", pages)
+	}
+	if got := pages[0].Surfaces[0].Width; got != 5 {
+		t.Fatalf("lightmap width = %d, want 5; float32 precision would incorrectly shrink this face to 4 texels", got)
+	}
+}
+
 func TestSelectVisibleWorldFaces_UsesLeafPVS(t *testing.T) {
 	tree := &bsp.Tree{
 		Models: []bsp.DModel{{VisLeafs: 3}},

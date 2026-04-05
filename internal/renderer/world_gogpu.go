@@ -372,6 +372,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 	pipeline := r.worldPipeline
+	alphaTestPipeline := r.worldAlphaTestPipeline
 	uniformBuffer := r.uniformBuffer
 	uniformBindGroup := r.uniformBindGroup
 	whiteTextureBindGroup := r.whiteTextureBindGroup
@@ -452,6 +453,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		draw := scratch.classifiedDraws[preparedDraw.drawIndex]
 		renderPass.SetVertexBuffer(0, vertexScratchBuffer, preparedDraw.vertexOffset)
 		if len(draw.opaqueFaces) > 0 {
+			renderPass.SetPipeline(pipeline)
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.opaqueIndexOffset)
 			for faceIndex, face := range draw.opaqueFaces {
 				dynamicLight := [3]float32{}
@@ -495,6 +497,9 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			}
 		}
 		if len(draw.alphaTestFaces) > 0 {
+			if alphaTestPipeline != nil {
+				renderPass.SetPipeline(alphaTestPipeline)
+			}
 			renderPass.SetIndexBuffer(indexScratchBuffer, gputypes.IndexFormatUint32, preparedDraw.alphaTestIndexOffset)
 			for faceIndex, face := range draw.alphaTestFaces {
 				dynamicLight := [3]float32{}
@@ -2598,7 +2603,7 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 		device:                  device,
 		queue:                   queue,
 		textureView:             textureView,
-		alphaTestPipeline:       r.worldPipeline,
+		alphaTestPipeline:       r.worldAlphaTestPipeline,
 		translucentPipeline:     r.worldTranslucentPipeline,
 		liquidPipeline:          r.worldTranslucentTurbulentPipeline,
 		uniformBuffer:           r.uniformBuffer,

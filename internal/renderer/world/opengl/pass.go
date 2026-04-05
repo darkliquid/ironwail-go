@@ -16,6 +16,7 @@ type WorldProgramState struct {
 	DynamicLightUniform  int32
 	TimeUniform          int32
 	TurbulentUniform     int32
+	AlphaTestUniform     int32
 	LitWaterUniform      int32
 	CameraOriginUniform  int32
 	FogColorUniform      int32
@@ -50,6 +51,7 @@ func BindWorldProgram(programState WorldProgramState, modelState WorldModelState
 	gl.Uniform1f(modelState.ModelScaleUniform, modelState.ModelScale)
 	gl.Uniform1f(programState.TimeUniform, programState.Time)
 	gl.Uniform1f(programState.TurbulentUniform, 0)
+	gl.Uniform1f(programState.AlphaTestUniform, 0)
 	gl.Uniform1f(programState.LitWaterUniform, 0)
 	gl.Uniform3f(programState.CameraOriginUniform, programState.CameraOrigin[0], programState.CameraOrigin[1], programState.CameraOrigin[2])
 	gl.Uniform3f(programState.FogColorUniform, programState.FogColor[0], programState.FogColor[1], programState.FogColor[2])

@@ -44,6 +44,7 @@ uniform vec3 uDynamicLight;
 uniform float uAlpha;
 uniform float uTime;
 uniform float uTurbulent;
+uniform float uAlphaTest;
 uniform vec3 uCameraOrigin;
 uniform vec3 uFogColor;
 uniform float uFogDensity;
@@ -62,16 +63,21 @@ void main() {
 	} else {
 		light = texture(uLightmap, vLightmapCoord).rgb + uDynamicLight;
 	}
-	if (base.a < 0.1) {
+	if (uAlphaTest > 0.5 && base.a < 0.1) {
 		discard;
 	}
-	vec3 color = base.rgb * light * 2.0;
+	vec3 color = base.rgb;
+	if (uAlphaTest > 0.5) {
+		color *= light * 2.0;
+	} else {
+		color = mix(color, color * light * 2.0, base.a);
+	}
 	if (uHasFullbright > 0.5) {
 		vec4 fb = texture(uFullbright, uv);
 		color += fb.rgb;
 	}
 	color = mix(color, uFogColor, uFogDensity);
-	fragColor = vec4(color, base.a * uAlpha);
+	fragColor = vec4(color, uAlpha);
 }`
 )
 
