@@ -183,6 +183,19 @@ func sortGoGPUWorldFaceDrawsByMaterial(draws []gogpuWorldFaceDraw) {
 	})
 }
 
+type gogpuWorldFaceBatchKey struct {
+	textureBindGroup    *wgpu.BindGroup
+	lightmapBindGroup   *wgpu.BindGroup
+	fullbrightBindGroup *wgpu.BindGroup
+	dynamicLight        [3]float32
+}
+
+type gogpuWorldFaceBatch struct {
+	key        gogpuWorldFaceBatchKey
+	firstIndex uint32
+	numIndices uint32
+}
+
 type gogpuTranslucentLiquidFaceDraw struct {
 	face       WorldFace
 	alpha      float32
@@ -232,6 +245,37 @@ func (s *gogpuWorldMaterialBindState) update(texture, lightmap, fullbright *wgpu
 	}
 	s.initialized = true
 	return setTexture, setLightmap, setFullbright
+}
+
+func gogpuWorldFaceBatchKeyForDraw(draw gogpuWorldFaceDraw) gogpuWorldFaceBatchKey {
+	return gogpuWorldFaceBatchKey{
+		textureBindGroup:    draw.textureBindGroup,
+		lightmapBindGroup:   draw.lightmapBindGroup,
+		fullbrightBindGroup: draw.fullbrightBindGroup,
+		dynamicLight:        draw.dynamicLight,
+	}
+}
+
+func appendGoGPUOpaqueWorldFaceBatches(dstIndices []uint32, dstBatches []gogpuWorldFaceBatch, draws []gogpuWorldFaceDraw, worldIndices []uint32) ([]uint32, []gogpuWorldFaceBatch) {
+	for _, draw := range draws {
+		first := int(draw.face.FirstIndex)
+		end := first + int(draw.face.NumIndices)
+		if first < 0 || end > len(worldIndices) || first > end {
+			continue
+		}
+		key := gogpuWorldFaceBatchKeyForDraw(draw)
+		if n := len(dstBatches); n > 0 && dstBatches[n-1].key == key {
+			dstBatches[n-1].numIndices += draw.face.NumIndices
+		} else {
+			dstBatches = append(dstBatches, gogpuWorldFaceBatch{
+				key:        key,
+				firstIndex: uint32(len(dstIndices)),
+				numIndices: draw.face.NumIndices,
+			})
+		}
+		dstIndices = append(dstIndices, worldIndices[first:end]...)
+	}
+	return dstIndices, dstBatches
 }
 
 func worldFaceHasLitWater(textureFlags int32, lightmapSurface *faceLightmapSurface) bool {
@@ -1041,6 +1085,36 @@ func (r *Renderer) createWorldIndexBuffer(device *wgpu.Device, queue *wgpu.Queue
 	slog.Debug("World index buffer uploaded", "indices", len(indices))
 
 	return buffer, uint32(len(indices)), nil
+}
+
+func (r *Renderer) ensureGoGPUWorldDynamicIndexBuffer(device *wgpu.Device, size uint64) (*wgpu.Buffer, error) {
+	if size == 0 {
+		return nil, nil
+	}
+	if r.worldDynamicIndexBuffer != nil && r.worldDynamicIndexBufferSize >= size {
+		return r.worldDynamicIndexBuffer, nil
+	}
+	if r.worldDynamicIndexBuffer != nil {
+		r.worldDynamicIndexBuffer.Release()
+		r.worldDynamicIndexBuffer = nil
+		r.worldDynamicIndexBufferSize = 0
+	}
+	allocSize := size
+	if allocSize < 4096 {
+		allocSize = 4096
+	}
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "World Dynamic Indices",
+		Size:             allocSize,
+		Usage:            gputypes.BufferUsageIndex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create dynamic world index buffer: %w", err)
+	}
+	r.worldDynamicIndexBuffer = buffer
+	r.worldDynamicIndexBufferSize = allocSize
+	return buffer, nil
 }
 
 // createWorldRenderTarget ensures the GoGPU world scene target exists for the current framebuffer size.
@@ -2259,6 +2333,13 @@ func uint32ToBytes(u uint32) []byte {
 	return result
 }
 
+func uint32SliceToBytes(values []uint32) []byte {
+	if len(values) == 0 {
+		return nil
+	}
+	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(values))), len(values)*4)
+}
+
 // UploadWorld prepares BSP world geometry for rendering.
 // This should be called once when a map is loaded.
 //
@@ -2836,11 +2917,15 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	opaqueDraws := dc.renderer.worldOpaqueDrawsScratch[:0]
 	alphaTestDraws := dc.renderer.worldAlphaDrawsScratch[:0]
 	opaqueLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
+	batchedIndices := dc.renderer.worldBatchedIndexScratch[:0]
+	opaqueBatches := dc.renderer.worldOpaqueBatchScratch[:0]
 	defer func() {
 		dc.renderer.worldSkyFacesScratch = skyFaces[:0]
 		dc.renderer.worldOpaqueDrawsScratch = opaqueDraws[:0]
 		dc.renderer.worldAlphaDrawsScratch = alphaTestDraws[:0]
 		dc.renderer.worldLiquidDrawsScratch = opaqueLiquidDraws[:0]
+		dc.renderer.worldBatchedIndexScratch = batchedIndices[:0]
+		dc.renderer.worldOpaqueBatchScratch = opaqueBatches[:0]
 	}()
 	for _, face := range visibleFaces {
 		switch {
@@ -2888,6 +2973,23 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	sortGoGPUWorldFaceDrawsByMaterial(opaqueDraws)
 	sortGoGPUWorldFaceDrawsByMaterial(alphaTestDraws)
 	sortGoGPUWorldFaceDrawsByMaterial(opaqueLiquidDraws)
+	batchedIndices, opaqueBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueBatches, opaqueDraws, worldData.Geometry.Indices)
+	var opaqueBatchBuffer *wgpu.Buffer
+	if len(batchedIndices) > 0 {
+		dc.renderer.mu.Lock()
+		opaqueBatchBuffer, err = dc.renderer.ensureGoGPUWorldDynamicIndexBuffer(device, uint64(len(batchedIndices))*4)
+		dc.renderer.mu.Unlock()
+		if err != nil {
+			slog.Error("renderWorldInternal: Failed to allocate batched world index buffer", "error", err)
+			renderPass.End()
+			return
+		}
+		if err := queue.WriteBuffer(opaqueBatchBuffer, 0, uint32SliceToBytes(batchedIndices)); err != nil {
+			slog.Error("renderWorldInternal: Failed to upload batched world indices", "error", err)
+			renderPass.End()
+			return
+		}
+	}
 
 	skyDrawnIndices := uint32(0)
 	var materialBindState gogpuWorldMaterialBindState
@@ -2952,24 +3054,30 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	drawnIndices := uint32(0)
 	alphaTestDrawnIndices := uint32(0)
 	liquidDrawnIndices := uint32(0)
-	for _, draw := range opaqueDraws {
-		if !writeWorldUniform(1, draw.dynamicLight, 0) {
+	if opaqueBatchBuffer != nil {
+		renderPass.SetIndexBuffer(opaqueBatchBuffer, gputypes.IndexFormatUint32, 0)
+	}
+	for _, batch := range opaqueBatches {
+		if !writeWorldUniform(1, batch.key.dynamicLight, 0) {
 			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
 			renderPass.End()
 			return
 		}
-		setTexture, setLightmap, setFullbright := materialBindState.update(draw.textureBindGroup, draw.lightmapBindGroup, draw.fullbrightBindGroup)
+		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
 		if setTexture {
-			renderPass.SetBindGroup(1, draw.textureBindGroup, nil)
+			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
 		}
 		if setLightmap {
-			renderPass.SetBindGroup(2, draw.lightmapBindGroup, nil)
+			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
 		}
 		if setFullbright {
-			renderPass.SetBindGroup(3, draw.fullbrightBindGroup, nil)
+			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 		}
-		renderPass.DrawIndexed(draw.face.NumIndices, 1, draw.face.FirstIndex, 0, 0)
-		drawnIndices += draw.face.NumIndices
+		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+		drawnIndices += batch.numIndices
+	}
+	if opaqueBatchBuffer != nil {
+		renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 	}
 	for _, draw := range alphaTestDraws {
 		if !writeWorldUniform(1, draw.dynamicLight, 0) {
@@ -3388,6 +3496,9 @@ func (r *Renderer) ClearWorld() {
 		if r.worldIndexBuffer != nil {
 			r.worldIndexBuffer.Release()
 		}
+		if r.worldDynamicIndexBuffer != nil {
+			r.worldDynamicIndexBuffer.Release()
+		}
 		if r.uniformBuffer != nil {
 			r.uniformBuffer.Release()
 		}
@@ -3555,6 +3666,8 @@ func (r *Renderer) ClearWorld() {
 		r.worldData = nil
 		r.worldVertexBuffer = nil
 		r.worldIndexBuffer = nil
+		r.worldDynamicIndexBuffer = nil
+		r.worldDynamicIndexBufferSize = 0
 		r.worldPipeline = nil
 		r.worldTranslucentPipeline = nil
 		r.worldTurbulentPipeline = nil
@@ -3595,6 +3708,10 @@ func (r *Renderer) ClearWorld() {
 		r.worldOpaqueDrawsScratch = nil
 		r.worldAlphaDrawsScratch = nil
 		r.worldLiquidDrawsScratch = nil
+		r.worldBatchedIndexScratch = nil
+		r.worldOpaqueBatchScratch = nil
+		r.worldAlphaBatchScratch = nil
+		r.worldLiquidBatchScratch = nil
 		r.brushModelGeometry = make(map[int]*WorldGeometry)
 		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
 

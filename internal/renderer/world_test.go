@@ -828,3 +828,49 @@ func TestSortGoGPUWorldFaceDrawsByMaterial(t *testing.T) {
 		t.Fatalf("draws[2].FirstIndex = %d, want 30", draws[2].face.FirstIndex)
 	}
 }
+
+func TestAppendGoGPUOpaqueWorldFaceBatches(t *testing.T) {
+	texA := &wgpu.BindGroup{}
+	texB := &wgpu.BindGroup{}
+	lightA := &wgpu.BindGroup{}
+	fullA := &wgpu.BindGroup{}
+	draws := []gogpuWorldFaceDraw{
+		{
+			face:                WorldFace{FirstIndex: 0, NumIndices: 3},
+			textureBindGroup:    texA,
+			lightmapBindGroup:   lightA,
+			fullbrightBindGroup: fullA,
+			dynamicLight:        [3]float32{0, 0, 0},
+		},
+		{
+			face:                WorldFace{FirstIndex: 3, NumIndices: 3},
+			textureBindGroup:    texA,
+			lightmapBindGroup:   lightA,
+			fullbrightBindGroup: fullA,
+			dynamicLight:        [3]float32{0, 0, 0},
+		},
+		{
+			face:                WorldFace{FirstIndex: 6, NumIndices: 3},
+			textureBindGroup:    texB,
+			lightmapBindGroup:   lightA,
+			fullbrightBindGroup: fullA,
+			dynamicLight:        [3]float32{0, 0, 0},
+		},
+	}
+	worldIndices := []uint32{10, 11, 12, 20, 21, 22, 30, 31, 32}
+
+	indices, batches := appendGoGPUOpaqueWorldFaceBatches(nil, nil, draws, worldIndices)
+
+	if len(indices) != len(worldIndices) {
+		t.Fatalf("len(indices) = %d, want %d", len(indices), len(worldIndices))
+	}
+	if len(batches) != 2 {
+		t.Fatalf("len(batches) = %d, want 2", len(batches))
+	}
+	if batches[0].firstIndex != 0 || batches[0].numIndices != 6 {
+		t.Fatalf("batches[0] = %+v, want firstIndex=0 numIndices=6", batches[0])
+	}
+	if batches[1].firstIndex != 6 || batches[1].numIndices != 3 {
+		t.Fatalf("batches[1] = %+v, want firstIndex=6 numIndices=3", batches[1])
+	}
+}

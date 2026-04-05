@@ -796,10 +796,16 @@ type Renderer struct {
 	worldOpaqueDrawsScratch  []gogpuWorldFaceDraw
 	worldAlphaDrawsScratch   []gogpuWorldFaceDraw
 	worldLiquidDrawsScratch  []gogpuWorldFaceDraw
+	worldBatchedIndexScratch []uint32
+	worldOpaqueBatchScratch  []gogpuWorldFaceBatch
+	worldAlphaBatchScratch   []gogpuWorldFaceBatch
+	worldLiquidBatchScratch  []gogpuWorldFaceBatch
 
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer
 	worldIndexBuffer                  *wgpu.Buffer
+	worldDynamicIndexBuffer           *wgpu.Buffer
+	worldDynamicIndexBufferSize       uint64
 	worldIndexCount                   uint32
 	worldPipeline                     *wgpu.RenderPipeline
 	worldTranslucentPipeline          *wgpu.RenderPipeline

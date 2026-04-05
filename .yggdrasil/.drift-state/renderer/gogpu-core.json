@@ -1,31 +1,31 @@
 {
-  "hash": "310ecadff7a01cbfcee243ebd133c642eac3ae209d5d1f421ef9e7594de1e0a7",
+  "hash": "cb736ba76d5571ab8c21d8ca9e56cc8ad19ed143910090ec7c28d9992c9f4cf0",
   "files": {
     ".yggdrasil/model/renderer/gogpu-core/yg-node.yaml": "cac904193fbcd80d6ed87609e07eb13562f8fad19b2ebceda5d2fb20380f03e5",
     ".yggdrasil/model/renderer/gogpu-core/interface.md": "e9f3219edec9f658a36b0437088c0060bbfd9f7204d2b004d6b5ef335df0f94b",
-    ".yggdrasil/model/renderer/gogpu-core/internals.md": "1b3cf02b258e27effe64e5ac0171509b31ff9e81259faf17ca66661d8258e9dc",
     ".yggdrasil/model/renderer/gogpu-core/responsibility.md": "55b619c9985dea9e994f24cdc4660b38852ffb6714ff0966ec0991609bf866ca",
     ".yggdrasil/model/renderer/yg-node.yaml": "957cee378016d7459216eb47e6f21f6f278aeeb6c54e71f49a5c442f2cd2d916",
     ".yggdrasil/model/renderer/interface.md": "4935f67546990a3c3a9a8c38741fc5df4598c48244e49380a0e4409af9140ba2",
     ".yggdrasil/model/renderer/internals.md": "c740811c4a7506b3ba4ad2b03e2c13ea21d5dfc93f2675c7efd91238fb42c844",
     ".yggdrasil/model/renderer/responsibility.md": "21814859085e9026566c090368fea04a437226959785d8ba42285dc9705be63e",
     "internal/renderer/core_gogpu.go": "1b491a9eb9d8183e692b2723c4dfcf00f57c4c4f21921c8ddf04ed06b7ce8ec9",
-    "internal/renderer/renderer_gogpu.go": "2ac030699325672547ded363896558b4263546d2223fe698210d404785588af7",
     "internal/renderer/polyblend_gogpu.go": "55577eea65c043aac283721c7546f1949b4e2109c47cf8c749dd494270059869",
     "internal/renderer/warpscale_gogpu.go": "1635b668d7f76bd3541ddddab6f18e12c3fde9ae3a3a34b537d7e7aa27647871",
-    "internal/renderer/warpscale_gogpu_test.go": "bc130e76b7685159cdc34a4a9fdc31c4718e74e3af4b852157f4e0508e8ef192"
+    "internal/renderer/warpscale_gogpu_test.go": "bc130e76b7685159cdc34a4a9fdc31c4718e74e3af4b852157f4e0508e8ef192",
+    ".yggdrasil/model/renderer/gogpu-core/internals.md": "f5b20e072aa2d77d299420d909326a10b6a23a5dae2376b3c5fd1c2a5fa91698",
+    "internal/renderer/renderer_gogpu.go": "d5ff0d909a50f79729d8708ab583a3387b120a9da9598aca14c7fafb5afce569"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/gogpu-core/yg-node.yaml": 1774630175755.3376,
     ".yggdrasil/model/renderer/gogpu-core/interface.md": 1775396029146.3323,
-    ".yggdrasil/model/renderer/gogpu-core/internals.md": 1775402109295.045,
+    ".yggdrasil/model/renderer/gogpu-core/internals.md": 1775402726426.4248,
     ".yggdrasil/model/renderer/gogpu-core/responsibility.md": 1774681169531.854,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     "internal/renderer/core_gogpu.go": 1775027615996.7327,
-    "internal/renderer/renderer_gogpu.go": 1775401966880.3257,
+    "internal/renderer/renderer_gogpu.go": 1775402586180.4539,
     "internal/renderer/polyblend_gogpu.go": 1775016443904.3462,
     "internal/renderer/warpscale_gogpu.go": 1775016443902.9792,
     "internal/renderer/warpscale_gogpu_test.go": 1774672689004.503
