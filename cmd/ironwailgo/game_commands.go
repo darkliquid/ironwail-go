@@ -6,8 +6,11 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
+	runtimepprof "runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
@@ -19,6 +22,12 @@ import (
 )
 
 var vidRestartFunc = restartVideo
+
+var cpuProfileState struct {
+	mu   sync.Mutex
+	file *os.File
+	path string
+}
 
 var uiScaleCVarNames = []string{
 	"scr_conscale",
@@ -39,6 +48,10 @@ func registerGameplayBindCommands() {
 	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
 	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
 	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
+	cmdsys.AddCommand("profile_cpu_start", cmdProfileCPUStart, "Start writing a CPU pprof capture to disk")
+	cmdsys.AddCommand("profile_cpu_stop", cmdProfileCPUStop, "Stop the active CPU pprof capture and flush it to disk")
+	cmdsys.AddCommand("profile_dump_heap", cmdProfileDumpHeap, "Write a heap pprof capture to disk")
+	cmdsys.AddCommand("profile_dump_allocs", cmdProfileDumpAllocs, "Write an allocs pprof capture to disk")
 	cmdsys.AddCommand("vid_restart", func(args []string) {
 		if err := vidRestartFunc(); err != nil {
 			console.Printf("vid_restart failed: %v\n", err)
@@ -527,6 +540,166 @@ func cmdScreenshot(args []string) {
 		console.Printf("screenshot failed: %v\n", err)
 		return
 	}
+}
+
+func profileBaseDirAndModDir() (baseDir, modDir string) {
+	baseDir = "."
+	if g.Host != nil && strings.TrimSpace(g.Host.BaseDir()) != "" {
+		baseDir = g.Host.BaseDir()
+	}
+	modDir = strings.TrimSpace(g.ModDir)
+	if modDir == "" {
+		modDir = "id1"
+	}
+	return baseDir, modDir
+}
+
+func resolveProfileOutputPath(filename, kind string, now time.Time) string {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		filename = filepath.Join("profiles", fmt.Sprintf("ironwail_%s_%s.pprof", now.Format("20060102_150405"), kind))
+	}
+	if filepath.IsAbs(filename) {
+		return filename
+	}
+	baseDir, modDir := profileBaseDirAndModDir()
+	return filepath.Join(baseDir, modDir, filename)
+}
+
+func ensureProfileOutputPath(filename, kind string) (string, error) {
+	outputPath := resolveProfileOutputPath(filename, kind, time.Now())
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return "", fmt.Errorf("create output directory: %w", err)
+	}
+	return outputPath, nil
+}
+
+func writeNamedRuntimeProfile(kind, filename string) error {
+	outputPath, err := ensureProfileOutputPath(filename, kind)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("create profile file: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	runtime.GC()
+
+	switch kind {
+	case "heap":
+		if err := runtimepprof.WriteHeapProfile(f); err != nil {
+			return fmt.Errorf("write heap profile: %w", err)
+		}
+	case "allocs":
+		profile := runtimepprof.Lookup("allocs")
+		if profile == nil {
+			return fmt.Errorf("allocs profile unavailable")
+		}
+		if err := profile.WriteTo(f, 0); err != nil {
+			return fmt.Errorf("write allocs profile: %w", err)
+		}
+	default:
+		return fmt.Errorf("unknown profile kind %q", kind)
+	}
+
+	console.Printf("%s profile saved to %s\n", kind, outputPath)
+	return nil
+}
+
+func cmdProfileCPUStart(args []string) {
+	if len(args) > 1 {
+		console.Printf("usage: profile_cpu_start [filename]\n")
+		return
+	}
+	filename := ""
+	if len(args) == 1 {
+		filename = args[0]
+	}
+	outputPath, err := ensureProfileOutputPath(filename, "cpu")
+	if err != nil {
+		console.Printf("profile_cpu_start: %v\n", err)
+		return
+	}
+
+	cpuProfileState.mu.Lock()
+	defer cpuProfileState.mu.Unlock()
+	if cpuProfileState.file != nil {
+		console.Printf("profile_cpu_start: CPU profiling already active (%s)\n", cpuProfileState.path)
+		return
+	}
+
+	f, err := os.Create(outputPath)
+	if err != nil {
+		console.Printf("profile_cpu_start: create profile file: %v\n", err)
+		return
+	}
+	if err := runtimepprof.StartCPUProfile(f); err != nil {
+		_ = f.Close()
+		console.Printf("profile_cpu_start: start CPU profile: %v\n", err)
+		return
+	}
+
+	cpuProfileState.file = f
+	cpuProfileState.path = outputPath
+	console.Printf("CPU profile started: %s\n", outputPath)
+}
+
+func cmdProfileCPUStop(_ []string) {
+	path, active, err := stopCPUProfile()
+	if !active {
+		console.Printf("profile_cpu_stop: CPU profiling is not active\n")
+		return
+	}
+	if err != nil {
+		console.Printf("profile_cpu_stop: close profile file: %v\n", err)
+		return
+	}
+	console.Printf("CPU profile saved to %s\n", path)
+}
+
+func cmdProfileDumpHeap(args []string) {
+	if len(args) > 1 {
+		console.Printf("usage: profile_dump_heap [filename]\n")
+		return
+	}
+	filename := ""
+	if len(args) == 1 {
+		filename = args[0]
+	}
+	if err := writeNamedRuntimeProfile("heap", filename); err != nil {
+		console.Printf("profile_dump_heap: %v\n", err)
+	}
+}
+
+func cmdProfileDumpAllocs(args []string) {
+	if len(args) > 1 {
+		console.Printf("usage: profile_dump_allocs [filename]\n")
+		return
+	}
+	filename := ""
+	if len(args) == 1 {
+		filename = args[0]
+	}
+	if err := writeNamedRuntimeProfile("allocs", filename); err != nil {
+		console.Printf("profile_dump_allocs: %v\n", err)
+	}
+}
+
+func stopCPUProfile() (path string, active bool, err error) {
+	cpuProfileState.mu.Lock()
+	defer cpuProfileState.mu.Unlock()
+	if cpuProfileState.file == nil {
+		return "", false, nil
+	}
+
+	runtimepprof.StopCPUProfile()
+	path = cpuProfileState.path
+	err = cpuProfileState.file.Close()
+	cpuProfileState.file = nil
+	cpuProfileState.path = ""
+	return path, true, err
 }
 
 func cmdShowScores(_ []string) {

@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/Zyko0/go-sdl3 v0.0.0-20260125144524-02de3d449cb1
-	github.com/ebitengine/oto/v3 v3.4.0
+	github.com/ebitengine/oto/v3 v3.5.0-alpha.2.0.20260401061121-e3a524c98afb
 	github.com/go-gl/gl v0.0.0-20231021071112-07e5d0ea2e71
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728
 	github.com/gogpu/gogpu v0.26.0
@@ -41,5 +41,3 @@ require (
 )
 
 tool golang.org/x/tools/cmd/stringer
-
-replace github.com/ebitengine/oto/v3 => ../oto

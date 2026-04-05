@@ -161,6 +161,10 @@ func (h *Host) ClientState() ClientState {
 	return h.clientState
 }
 
+func (h *Host) ClientSessionActive() bool {
+	return h.clientState != caDisconnected
+}
+
 func (h *Host) SetClientState(state ClientState) {
 	h.clientState = state
 }

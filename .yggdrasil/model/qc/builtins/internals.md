@@ -28,6 +28,8 @@ If `sv_gameplayfix_random` is absent, builtin behavior stays on the gameplay-fix
 
 Builtin slot `#28` now maps to `coredump` semantics: iterating the currently allocated edict range (`0..NumEdicts-1`) and printing entity headers to the console. This preserves canonical slot behavior (C `PF_coredump`) and avoids silently swallowing QC calls at that index.
 
+Builtin slots `#99` and `#100` are registered as benign no-op extension probes. Mods that test for DP/FTE-style engine extensions can call them without aborting startup; the current engine contract is simply "unsupported", expressed as a zero return value.
+
 ## Constraints
 
 - Incorrect builtin numbering would silently break program behavior.

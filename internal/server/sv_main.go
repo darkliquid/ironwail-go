@@ -511,6 +511,9 @@ func (s *Server) loadMapEntities(raw string) error {
 		remaining = next
 
 		ent := s.EdictNum(entNum)
+		if entNum == 0 && (ent == nil || ent.Vars == nil || ent.Free) {
+			return fmt.Errorf("worldspawn parse produced invalid entity 0")
+		}
 		if ent == nil || ent.Vars == nil {
 			continue
 		}
@@ -524,6 +527,9 @@ func (s *Server) loadMapEntities(raw string) error {
 		// Resolve the classname string from the QC string table.
 		className := s.QCVM.GetString(ent.Vars.ClassName)
 		if className == "" {
+			if entNum == 0 {
+				return fmt.Errorf("worldspawn has no classname")
+			}
 			slog.Warn("entity has no classname", "entNum", entNum)
 			s.FreeEdict(ent)
 			continue
@@ -566,6 +572,9 @@ func (s *Server) loadMapEntities(raw string) error {
 		// Find the QC function matching the classname (e.g. "trigger_teleport").
 		funcIdx := s.QCVM.FindFunction(className)
 		if funcIdx < 0 {
+			if entNum == 0 {
+				return fmt.Errorf("worldspawn spawn function not found for %q", className)
+			}
 			slog.Warn("no spawn function for entity", "classname", className, "entNum", entNum)
 			s.FreeEdict(ent)
 			continue
@@ -597,6 +606,9 @@ func (s *Server) loadMapEntities(raw string) error {
 		s.QCVM.SetGlobal("self", entNum)
 		s.QCVM.SetGlobal("time", s.Time)
 		if err := s.executeQCFunction(funcIdx); err != nil {
+			if entNum == 0 {
+				return fmt.Errorf("worldspawn spawn function failed: %w", err)
+			}
 			slog.Error("spawn function failed", "classname", className, "entNum", entNum, "err", err)
 			s.FreeEdict(ent)
 			continue

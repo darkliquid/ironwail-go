@@ -177,6 +177,8 @@ func RegisterBuiltins(vm *VM) {
 	vm.Builtins[95] = maxBuiltin
 	vm.Builtins[96] = boundBuiltin
 	vm.Builtins[97] = powBuiltin
+	vm.Builtins[99] = noopBuiltin
+	vm.Builtins[100] = noopBuiltin
 	vm.Builtins[114] = strlenBuiltin
 	vm.Builtins[115] = strcatBuiltin
 	vm.Builtins[116] = substringBuiltin

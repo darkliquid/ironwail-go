@@ -732,7 +732,7 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 	playerClient := s.playerClient(ent)
 	wasUnderwater := ent.Vars.WaterLevel >= 3
 	if playerClient != nil {
-		s.runClientQCThink(playerClient, "PlayerPreThink")
+		s.runClientQCThinkWithMode(playerClient, "PlayerPreThink", false)
 		if ent.Free {
 			return
 		}
@@ -753,7 +753,7 @@ func (s *Server) PhysicsWalk(ent *Edict) {
 
 	s.LinkEdict(ent, true)
 	if playerClient != nil {
-		s.runClientQCThink(playerClient, "PlayerPostThink")
+		s.runClientQCThinkWithMode(playerClient, "PlayerPostThink", false)
 		if ent.Free {
 			return
 		}

@@ -3,6 +3,7 @@
 ## Logic
 
 The bootstrap flow clears prior runtime state, loads BSP and `.lit` data, rebuilds the world model, reserves the world edict, precaches submodels, parses the entity lump, runs QC spawn functions for accepted entities, and then settles the map through initial frame processing before declaring the server active. It also prepares the signon/static-world state that later clients consume. Server initialization now resets dev-stats accumulators (`devStats`, `devPeak`) so map/session transitions begin with clean current/peak counters. A minimal map-check parity slice now lives in `sv_main`: `SV_MapCheckThresh` gates map-check diagnostics via `map_checks`/`developer`, while `SV_PrintMapCheck` and `SV_PrintMapChecklist` intentionally remain thin reporting helpers (telemetry-backed when debug telemetry is enabled, otherwise warning/local-client print fallback) until full C checklist semantics are ported.
+Entity-lump loading now treats worldspawn (entity 0) failures as fatal bootstrap errors. If worldspawn ends up invalid/missing classname, has no spawn function, or its spawn function errors, `loadMapEntities` returns immediately instead of freeing entity 0 and continuing. This prevents downstream entity parsing from reusing entnum 0 and triggering broad `OPAddress assignment to world entity` spawn failures.
 
 Model bounds caching in `cacheModelInfo` now uses `FileSystem.OpenFile` streaming handles instead of eager `LoadFile` buffers. This keeps parser input on `io.Reader`/`io.ReadSeeker` streams for `.mdl`, `.spr`, and `.bsp`, and always closes the handle via defer even when parsing fails. Node-owned tests in `sv_main_test.go` pin both parsing parity against the legacy buffered path and close-on-error/close-on-success handle semantics.
 
@@ -11,6 +12,7 @@ Model bounds caching in `cacheModelInfo` now uses `FileSystem.OpenFile` streamin
 - Bootstrap must leave the world/link state coherent before any client begins signon.
 - Spawn ordering and precache indices are parity-sensitive with original Quake behavior.
 - Bootstrap errors must fail map startup cleanly rather than leaving partially active state behind.
+- Worldspawn must remain allocated and non-free for the entire entity-load pass; subsequent entities must never be allocated as entnum 0.
 - Map-check helpers are intentionally stub-level for now; behavior-focused tests lock current no-op/reporting semantics to avoid accidental expansion before parity work.
 
 ## Decisions

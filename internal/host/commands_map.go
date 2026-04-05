@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 )
@@ -59,16 +60,38 @@ func (h *Host) CmdMapWithSpawnArgs(mapName string, spawnArgs []string, subs *Sub
 
 	h.clientState = caDisconnected
 	h.serverActive = false
+	cleanupFailedMapStart := func() {
+		if subs == nil {
+			return
+		}
+		if subs.Server != nil {
+			subs.Server.Shutdown()
+		}
+		if subs.Client != nil {
+			subs.Client.Shutdown()
+		}
+		if loopbackClient := LoopbackClientState(subs); loopbackClient != nil {
+			loopbackClient.ClearState()
+			loopbackClient.State = cl.StateDisconnected
+		}
+		setLoopbackDemoFlags(subs, false, false)
+		h.signOns = 0
+		h.clientState = caDisconnected
+		h.serverActive = false
+	}
 
 	if err := subs.Server.Init(h.maxClients); err != nil {
+		cleanupFailedMapStart()
 		return fmt.Errorf("failed to init server for map %s: %w", mapName, err)
 	}
 
 	if fsInstance, ok := subs.Files.(*fs.FileSystem); ok {
 		if err := subs.Server.SpawnServer(mapName, fsInstance); err != nil {
+			cleanupFailedMapStart()
 			return fmt.Errorf("failed to spawn server for map %s: %w", mapName, err)
 		}
 	} else {
+		cleanupFailedMapStart()
 		return fmt.Errorf("filesystem implementation is missing")
 	}
 
@@ -253,13 +276,14 @@ func (h *Host) CmdGame(args []string, subs *Subsystems) {
 		return
 	}
 
-	subs.Files.Close()
+	previousFS := subs.Files
 	subs.Files = nextFS
 	if h.gameDirChangedCallback != nil {
 		if err := h.gameDirChangedCallback(subs, nextFS); err != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("failed to reload draw assets: %v\n", err))
 		}
 	}
+	previousFS.Close()
 	h.gameDir = target
 	if h.menu != nil {
 		h.menu.SetCurrentMod(target)

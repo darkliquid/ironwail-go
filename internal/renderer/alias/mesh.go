@@ -133,6 +133,10 @@ func SetupFrameInterpolation(frameIndex int, frames []FrameDesc, timeSeconds flo
 }
 
 func BuildVerticesInterpolated(mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
+	return BuildVerticesInterpolatedInto(nil, mesh, hdr, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
+}
+
+func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *model.AliasHeader, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []worldimpl.WorldVertex {
 	if hdr == nil || mesh.RefAt == nil {
 		return nil
 	}
@@ -146,7 +150,10 @@ func BuildVerticesInterpolated(mesh Mesh, hdr *model.AliasHeader, pose1Index, po
 
 	pose1 := mesh.Poses[pose1Index]
 	pose2 := mesh.Poses[pose2Index]
-	vertices := make([]worldimpl.WorldVertex, 0, mesh.RefCount)
+	vertices := dst[:0]
+	if vertices == nil {
+		vertices = make([]worldimpl.WorldVertex, 0, mesh.RefCount)
+	}
 	for i := 0; i < mesh.RefCount; i++ {
 		ref := mesh.RefAt(i)
 		if ref.VertexIndex < 0 || ref.VertexIndex >= len(pose1) || ref.VertexIndex >= len(pose2) {

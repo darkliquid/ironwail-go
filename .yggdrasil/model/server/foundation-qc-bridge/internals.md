@@ -4,11 +4,15 @@
 
 This node centralizes the dual-representation problem: every authoritative entity exists both as typed Go state and as flat QC VM memory. The sync helpers copy data between those representations at key boundaries so QC logic, physics, and networking all observe consistent values. It also caches field offsets and protocol-related knobs used throughout the rest of the package.
 
+The QC bridge now caches per-VM edict sync metadata instead of rebuilding it on every edict publish/import. The normalized QuakeC field-offset table and the `EntVars`→VM binding list are both derived once per loaded VM and then reused by `syncEdictToQCVM` / `syncEdictFromQCVM`. This keeps the generic bridge behavior but removes a large repeated reflection/name-lookup tax from hot paths like the per-frame `syncQCVMState()` before `StartFrame`.
+
 The server also exposes narrow bridge helpers that project QC VM internals to host policies without leaking VM ownership; `QCProfileResults(top)` is one such bridge and only returns counters when the server and QC VM are active. The same bridge layer now includes a `DevStatsSnapshot()` surface backed by `devStats/devPeak` state on `Server`, keeping runtime developer counters available to host command code without exposing serialization/physics internals directly. That snapshot now includes a monotonic frame counter advanced from `Frame()` so command-side diagnostics can correlate per-frame server activity with other per-frame counters. A narrower `DevStatsEdictCounters()` helper also returns the current active-edict dev counter together with `MaxEdicts`, so command/runtime callers can consume just the active/max slice without pulling unrelated counters.
 
 The QC builtin hook table now includes `IssueChangeLevel(level)` as a server-owned transition seam. Its implementation sets `ServerStatic.ChangeLevelIssued` before enqueueing `changelevel <map>` in `cmdsys`, which closes the duplicate-transition window where repeated trigger touches could otherwise spam reconnect/map spawn loops before host command processing completes.
 
 The `Server` filesystem surface is intentionally narrowed to the `modelAssetFileSystem` contract (`OpenFile` only) for model-bound operations. This preserves bridge-layer decoupling: server bootstrap/model cache logic can stream model assets without depending on broader VFS convenience APIs, while still accepting the concrete `*fs.FileSystem` injected by spawn/bootstrap callers.
+
+Entity field parsing now matches Quake's lenient `ED_ParseEpair` numeric behavior for empty and incomplete map values. Empty float/int fields decode as `0`, and incomplete vectors zero-fill missing components instead of aborting entity load. This is required for mission-pack entity lumps such as Hipnotic's `func_particlefield` entries that legitimately carry `"count" ""`.
 
 Node-owned integration tests in `server_test.go` now also pin cross-node command-bridge behavior at the public `ExecuteClientString` surface for `ban`: non-deathmatch execution mutates/query-reads the shared datagram IP-ban state via `internal/net`, while deathmatch mode remains a no-op.
 

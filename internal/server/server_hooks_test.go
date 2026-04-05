@@ -28,6 +28,42 @@ func newServerTestVM(s *Server, maxEdicts int) *qc.VM {
 	return vm
 }
 
+func TestLoadMapEntitiesAllowsEmptyNumericQCFields(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.FieldDefs = []qc.DDef{
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.EntFieldClassName), Name: vm.AllocString("classname")},
+		{Type: uint16(qc.EvString), Ofs: uint16(qc.EntFieldModel), Name: vm.AllocString("model")},
+		{Type: uint16(qc.EvFloat), Ofs: 90, Name: vm.AllocString("count")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("worldspawn"), FirstStatement: 0},
+		{Name: vm.AllocString("func_particlefield"), FirstStatement: 1},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+		{Op: uint16(qc.OPDone)},
+	}
+
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "func_particlefield"
+"count" ""
+}`
+
+	if err := s.loadMapEntities(raw); err != nil {
+		t.Fatalf("loadMapEntities() error = %v", err)
+	}
+
+	if got := vm.EFloat(1, 90); got != 0 {
+		t.Fatalf("QC count field = %v, want 0", got)
+	}
+}
+
 func TestServerHooksSpawnAndRemove(t *testing.T) {
 	s := NewServer()
 	defer qc.RegisterServerHooks(nil)

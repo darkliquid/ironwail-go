@@ -10,6 +10,10 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
+func elapsedMilliseconds(start time.Time) float64 {
+	return float64(time.Since(start)) / float64(time.Millisecond)
+}
+
 type FrameStats struct {
 	GameTime float64
 	Server   float64
@@ -69,6 +73,12 @@ func (h *Host) advanceTime(dt float64) {
 
 func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 	frameStart := time.Now()
+	hostSpeeds := cvar.BoolValue("host_speeds")
+	var frameStats FrameStats
+	var eventMS float64
+	var consoleMS float64
+	var clientSendMS float64
+	var clientReadMS float64
 	if h.aborted {
 		return nil
 	}
@@ -78,10 +88,22 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 	}
 
 	h.advanceTime(dt)
+	frameStats.GameTime = h.frameTime * 1000.0
 
 	if cb != nil {
+		phaseStart := time.Time{}
+		if hostSpeeds {
+			phaseStart = time.Now()
+		}
 		cb.GetEvents()
+		if hostSpeeds {
+			eventMS = elapsedMilliseconds(phaseStart)
+			phaseStart = time.Now()
+		}
 		cb.ProcessConsoleCommands()
+		if hostSpeeds {
+			consoleMS = elapsedMilliseconds(phaseStart)
+		}
 
 		if h.netInterval > 0 {
 			h.accumTime += clamp(dt, 0, 0.2)
@@ -105,36 +127,76 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 			}
 
 			setProcessClientPhase(cb, "send")
+			if hostSpeeds {
+				phaseStart = time.Now()
+			}
 			cb.ProcessClient() // This should be CL_SendCmd
+			if hostSpeeds {
+				clientSendMS = elapsedMilliseconds(phaseStart)
+			}
 			setProcessClientPhase(cb, "")
 
 			if h.serverActive {
+				if hostSpeeds {
+					phaseStart = time.Now()
+				}
 				cb.ProcessServer()
 				h.checkAutosave(h.Subs)
+				if hostSpeeds {
+					frameStats.Server = elapsedMilliseconds(phaseStart)
+				}
 			}
 			h.frameTime = realFrameTime
 		}
 
 		if h.clientState == caConnected || h.clientState == caActive {
 			setProcessClientPhase(cb, "read")
+			if hostSpeeds {
+				phaseStart = time.Now()
+			}
 			cb.ProcessClient() // This should be CL_ReadFromServer
+			if hostSpeeds {
+				clientReadMS = elapsedMilliseconds(phaseStart)
+			}
 			setProcessClientPhase(cb, "")
 		}
 
+		if hostSpeeds {
+			phaseStart = time.Now()
+		}
 		cb.UpdateScreen()
+		if hostSpeeds {
+			frameStats.Render = elapsedMilliseconds(phaseStart)
+			phaseStart = time.Now()
+		}
 
 		if h.signOns >= 4 {
 			cb.UpdateAudio([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
 		} else {
 			cb.UpdateAudio([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
 		}
+		if hostSpeeds {
+			frameStats.Audio = elapsedMilliseconds(phaseStart)
+		}
 	}
 
 	h.frameCount++
+	frameStats.Client = clientSendMS + clientReadMS
+	frameStats.Total = elapsedMilliseconds(frameStart)
 
-	if cvar.BoolValue("host_speeds") {
-		elapsed := time.Since(frameStart)
-		slog.Debug("frame timing", "ms", elapsed.Milliseconds(), "frame", h.frameCount)
+	if hostSpeeds {
+		slog.Info("host_speeds",
+			"frame", h.frameCount,
+			"game_ms", frameStats.GameTime,
+			"events_ms", eventMS,
+			"console_ms", consoleMS,
+			"client_send_ms", clientSendMS,
+			"server_ms", frameStats.Server,
+			"client_read_ms", clientReadMS,
+			"render_ms", frameStats.Render,
+			"audio_ms", frameStats.Audio,
+			"total_ms", frameStats.Total,
+		)
 	}
 
 	return nil

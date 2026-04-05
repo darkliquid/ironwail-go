@@ -455,6 +455,174 @@ func gogpuX11KeyboardHint(sdl3Available bool) string {
 	return "rebuild with `mise run build-gogpu-sdl3` or run under Wayland for event-driven keyboard input"
 }
 
+func runtimeFileSystem(subs *host.Subsystems) *fs.FileSystem {
+	if subs == nil || subs.Files == nil {
+		return nil
+	}
+	fileSys, ok := subs.Files.(*fs.FileSystem)
+	if !ok {
+		return nil
+	}
+	return fileSys
+}
+
+func runtimeMenuMods(subs *host.Subsystems) []menu.ModInfo {
+	fileSys := runtimeFileSystem(subs)
+	if fileSys == nil {
+		return nil
+	}
+	mods := fileSys.ListMods()
+	out := make([]menu.ModInfo, 0, len(mods))
+	for _, m := range mods {
+		out = append(out, menu.ModInfo{Name: m.Name})
+	}
+	return out
+}
+
+func runtimeDrawFileSystem(fallback *fs.FileSystem) *fs.FileSystem {
+	if current := runtimeFileSystem(g.Subs); current != nil {
+		return current
+	}
+	return fallback
+}
+
+func loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
+	if fileSys == nil {
+		return fmt.Errorf("filesystem is not initialized")
+	}
+	if g.QC == nil {
+		return fmt.Errorf("server QC VM not initialized")
+	}
+
+	progsData, err := fileSys.LoadFile("progs.dat")
+	if err != nil {
+		return fmt.Errorf("failed to load progs.dat: %w", err)
+	}
+	if err := g.QC.LoadProgs(bytes.NewReader(progsData)); err != nil {
+		return fmt.Errorf("failed to parse progs.dat: %w", err)
+	}
+
+	qc.RegisterBuiltins(g.QC)
+	qc.SetCSQCClientHooks(buildCSQCClientHooks())
+
+	if g.CSQC == nil || cvar.IntValue("cl_nocsqc") != 0 {
+		if g.CSQC != nil {
+			g.CSQC.Unload()
+		}
+		return nil
+	}
+
+	if loadedName, csprogsData, err := fileSys.LoadFirstAvailable([]string{"csprogs.dat", "progs.dat"}); err == nil {
+		if err := g.CSQC.Load(bytes.NewReader(csprogsData)); err != nil {
+			slog.Warn("failed to load csqc progs", "file", loadedName, "error", err)
+			return nil
+		}
+
+		frameState := buildCSQCFrameState()
+		if maxClients > 0 {
+			frameState.MaxClients = float32(maxClients)
+		}
+		g.CSQC.SyncGlobals(frameState)
+
+		engineVersion := float32(10000*VersionMajor + 100*VersionMinor + VersionPatch)
+		if err := g.CSQC.CallInit("Ironwail", engineVersion); err != nil {
+			g.CSQC.Unload()
+			slog.Warn("failed to initialize csqc", "error", err)
+		}
+	}
+
+	return nil
+}
+
+func reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
+	if g.Draw == nil || fileSys == nil {
+		return
+	}
+
+	g.Draw.Shutdown()
+	drawErr := g.Draw.Init(fileSys)
+	if drawErr != nil {
+		slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
+		drawErr = g.Draw.InitFromDir("data")
+	}
+	if drawErr != nil {
+		slog.Warn("Failed to initialize draw manager", "error", drawErr)
+		return
+	}
+
+	if g.Renderer != nil {
+		queueRuntimeRendererAssets(g.Draw.Palette(), g.Draw.GetConcharsData())
+	}
+}
+
+func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSystem) error {
+	runtimeStateMu.Lock()
+	defer runtimeStateMu.Unlock()
+
+	if changed == nil {
+		return fmt.Errorf("game dir reload missing filesystem")
+	}
+	if subs == nil {
+		subs = g.Subs
+	}
+	if subs == nil {
+		return fmt.Errorf("game dir reload missing subsystems")
+	}
+	if g.Server == nil {
+		return fmt.Errorf("game dir reload missing server runtime")
+	}
+
+	subs.Files = changed
+	g.Subs = subs
+
+	if g.Host != nil {
+		g.Host.PrepareForShutdown(subs)
+	}
+
+	if g.Server != nil {
+		g.Server.Shutdown()
+		g.QC = g.Server.QCVM
+		subs.Server = g.Server
+	}
+	if g.CSQC != nil {
+		if g.CSQC.IsLoaded() {
+			if err := g.CSQC.CallShutdown(); err != nil {
+				slog.Warn("CSQC_Shutdown failed during gamedir reload", "error", err)
+			}
+		}
+		g.CSQC.Unload()
+	}
+
+	modDir := strings.ToLower(strings.TrimSpace(changed.GetGameDir()))
+	if modDir == "" {
+		modDir = "id1"
+	}
+	g.ModDir = modDir
+	g.ShowScores = false
+	g.WorldUploadKey = ""
+	g.LastServerMessageAt = 0
+	g.AliasModelCache = nil
+	g.SpriteModelCache = nil
+	resetRuntimeSoundState()
+	resetRuntimeVisualState()
+	queueRuntimeRendererWorldClear()
+
+	reloadRuntimeDrawAssets(changed)
+	if g.Draw != nil {
+		g.HUD = hud.NewHUD(g.Draw)
+		g.HUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
+	}
+
+	if g.Menu != nil {
+		g.Menu.SetCurrentMod(modDir)
+		g.Menu.ShowState(menu.MenuMain)
+	}
+	g.Client = host.ActiveClientState(subs)
+	syncControlCvarsToClient()
+
+	return nil
+}
+
 func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string) error {
 	g.ModDir = strings.ToLower(strings.TrimSpace(gamedir))
 	g.Input = nil
@@ -511,35 +679,8 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		return fmt.Errorf("server QC VM not initialized")
 	}
 
-	// Load progs.dat into QC VM
-	progsData, err := fileSys.LoadFile("progs.dat")
-	if err != nil {
-		return fmt.Errorf("failed to load progs.dat: %w", err)
-	}
-	if err := g.QC.LoadProgs(bytes.NewReader(progsData)); err != nil {
-		return fmt.Errorf("failed to parse progs.dat: %w", err)
-	}
-	// Link the builtins and set up entity sizes
-	qc.RegisterBuiltins(g.QC)
-	qc.SetCSQCClientHooks(buildCSQCClientHooks())
-
-	if g.CSQC != nil && cvar.IntValue("cl_nocsqc") == 0 {
-		if loadedName, csprogsData, err := fileSys.LoadFirstAvailable([]string{"csprogs.dat", "progs.dat"}); err == nil {
-			if err := g.CSQC.Load(bytes.NewReader(csprogsData)); err != nil {
-				slog.Warn("failed to load csqc progs", "file", loadedName, "error", err)
-			} else {
-				frameState := buildCSQCFrameState()
-				if maxClients > 0 {
-					frameState.MaxClients = float32(maxClients)
-				}
-				g.CSQC.SyncGlobals(frameState)
-				engineVersion := float32(10000*VersionMajor + 100*VersionMinor + VersionPatch)
-				if err := g.CSQC.CallInit("Ironwail", engineVersion); err != nil {
-					g.CSQC.Unload()
-					slog.Warn("failed to initialize csqc", "error", err)
-				}
-			}
-		}
+	if err := loadRuntimePrograms(fileSys, maxClients); err != nil {
+		return err
 	}
 
 	if !headless {
@@ -659,6 +800,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 
 	// Set menu in host
 	g.Host.SetMenu(g.Menu)
+	g.Host.SetGameDirChangedCallback(reloadRuntimeAfterGameDirChange)
 	if g.Menu != nil {
 		g.Menu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
 			hostSlots := g.Host.ListSaveSlots(slotCount)
@@ -673,12 +815,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		})
 		// Wire mod enumeration and current-mod tracking into the menu.
 		g.Menu.SetModsProvider(func() []menu.ModInfo {
-			mods := fileSys.ListMods()
-			out := make([]menu.ModInfo, 0, len(mods))
-			for _, m := range mods {
-				out = append(out, menu.ModInfo{Name: m.Name})
-			}
-			return out
+			return runtimeMenuMods(g.Subs)
 		})
 		g.Menu.SetCurrentMod(g.ModDir)
 		g.Menu.SetNewGameConfirmationProvider(func() bool {
@@ -704,7 +841,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
 	if g.Draw != nil {
-		drawErr := g.Draw.Init(fileSys)
+		drawErr := g.Draw.Init(runtimeDrawFileSystem(fileSys))
 		if drawErr != nil {
 			// Fall back to local "data" directory for development/testing
 			slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)

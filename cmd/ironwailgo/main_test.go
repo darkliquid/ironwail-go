@@ -4268,6 +4268,7 @@ func TestResetRuntimeVisualStateResetsPersistentViewCalcState(t *testing.T) {
 }
 
 func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
+	originalHost := g.Host
 	originalClient := g.Client
 	originalServer := g.Server
 	originalMenu := g.Menu
@@ -4276,6 +4277,7 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 	originalParticles := g.Particles
 	originalMarks := g.DecalMarks
 	t.Cleanup(func() {
+		g.Host = originalHost
 		g.Client = originalClient
 		g.Server = originalServer
 		g.Menu = originalMenu
@@ -4285,6 +4287,8 @@ func TestBuildRuntimeRenderFrameStateIncludesDecalMarks(t *testing.T) {
 		g.DecalMarks = originalMarks
 	})
 
+	g.Host = host.NewHost()
+	g.Host.SetDemoState(&cl.DemoState{Playback: true})
 	g.Renderer = &renderer.Renderer{}
 	g.Client = cl.NewClient()
 	g.Server = nil
@@ -4362,11 +4366,18 @@ func TestBuildRuntimeRenderFrameStateAppliesWorldspawnFogDefaults(t *testing.T) 
 }
 
 func TestBuildRuntimeRenderFrameStatePreservesModelSpriteDataFallback(t *testing.T) {
+	originalHost := g.Host
 	originalRenderer := g.Renderer
+	originalClient := g.Client
 	t.Cleanup(func() {
+		g.Host = originalHost
 		g.Renderer = originalRenderer
+		g.Client = originalClient
 	})
+	g.Host = host.NewHost()
+	g.Host.SetDemoState(&cl.DemoState{Playback: true})
 	g.Renderer = &renderer.Renderer{}
+	g.Client = cl.NewClient()
 
 	spritePayload := &model.MSprite{
 		Type:      0,
@@ -4391,6 +4402,90 @@ func TestBuildRuntimeRenderFrameStatePreservesModelSpriteDataFallback(t *testing
 	}
 	if state.SpriteEntities[0].Model == nil || state.SpriteEntities[0].Model.SpriteData != spritePayload {
 		t.Fatal("SpriteEntities[0].Model.SpriteData should preserve fallback sprite payload")
+	}
+}
+
+type runtimeSceneStateTestRenderer struct {
+	reloadTestRenderer
+	hasWorldData bool
+}
+
+func (r runtimeSceneStateTestRenderer) HasWorldData() bool { return r.hasWorldData }
+
+func TestBuildRuntimeRenderFrameStateSuppressesStaleSceneWhenDisconnected(t *testing.T) {
+	originalHost := g.Host
+	originalRenderer := g.Renderer
+	originalClient := g.Client
+	originalParticles := g.Particles
+	originalMarks := g.DecalMarks
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Renderer = originalRenderer
+		g.Client = originalClient
+		g.Particles = originalParticles
+		g.DecalMarks = originalMarks
+	})
+
+	g.Host = host.NewHost()
+	g.Renderer = runtimeSceneStateTestRenderer{hasWorldData: true}
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateDisconnected
+	g.Particles = renderer.NewParticleSystem(renderer.MaxParticles)
+	g.DecalMarks = renderer.NewDecalMarkSystem()
+	g.DecalMarks.AddMark(renderer.DecalMarkEntity{
+		Origin: [3]float32{1, 2, 3},
+		Normal: [3]float32{0, 0, 1},
+		Size:   12,
+		Alpha:  1,
+	}, 5, 0)
+
+	state := buildRuntimeRenderFrameState(
+		[]renderer.BrushEntity{{}},
+		[]renderer.AliasModelEntity{{}},
+		[]renderer.SpriteEntity{{ModelID: "progs/flame.spr"}},
+		&renderer.AliasModelEntity{},
+	)
+
+	if state.DrawWorld {
+		t.Fatal("DrawWorld = true, want false when disconnected and not playing a demo")
+	}
+	if state.DrawEntities {
+		t.Fatal("DrawEntities = true, want false when disconnected and not playing a demo")
+	}
+	if state.DrawParticles {
+		t.Fatal("DrawParticles = true, want false when disconnected and not playing a demo")
+	}
+	if len(state.DecalMarks) != 0 {
+		t.Fatalf("DecalMarks len = %d, want 0 when disconnected and not playing a demo", len(state.DecalMarks))
+	}
+}
+
+func TestBuildRuntimeRenderFrameStateKeepsDemoSceneWhileDisconnected(t *testing.T) {
+	originalHost := g.Host
+	originalRenderer := g.Renderer
+	originalClient := g.Client
+	t.Cleanup(func() {
+		g.Host = originalHost
+		g.Renderer = originalRenderer
+		g.Client = originalClient
+	})
+
+	g.Host = host.NewHost()
+	g.Host.SetDemoState(&cl.DemoState{Playback: true})
+	g.Renderer = runtimeSceneStateTestRenderer{hasWorldData: true}
+	g.Client = cl.NewClient()
+	g.Client.State = cl.StateDisconnected
+
+	state := buildRuntimeRenderFrameState(nil, nil, []renderer.SpriteEntity{{
+		ModelID: "progs/flame.spr",
+		Model:   &model.Model{Type: model.ModSprite},
+	}}, nil)
+
+	if !state.DrawWorld {
+		t.Fatal("DrawWorld = false, want true during demo playback")
+	}
+	if !state.DrawEntities {
+		t.Fatal("DrawEntities = false, want true during demo playback")
 	}
 }
 

@@ -418,6 +418,10 @@ func (s *Server) playerClient(ent *Edict) *Client {
 }
 
 func (s *Server) runClientQCThink(client *Client, funcName string) {
+	s.runClientQCThinkWithMode(client, funcName, true)
+}
+
+func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullSync bool) {
 	if s == nil || s.QCVM == nil || client == nil || client.Edict == nil || client.Edict.Free {
 		return
 	}
@@ -432,7 +436,9 @@ func (s *Server) runClientQCThink(client *Client, funcName string) {
 		return
 	}
 
-	s.syncQCVMState()
+	if fullSync {
+		s.syncQCVMState()
+	}
 	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)

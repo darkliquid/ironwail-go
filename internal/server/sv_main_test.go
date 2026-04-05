@@ -369,6 +369,45 @@ func TestLoadMapEntitiesPreservesQCOnlyMapFieldForSpawn(t *testing.T) {
 	}
 }
 
+func TestLoadMapEntitiesFailsWhenWorldspawnFunctionMissing(t *testing.T) {
+	s := NewServer()
+	vm := newServerTestVM(s, 8)
+	s.ClearWorld()
+	vm.GlobalDefs = []qc.DDef{
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
+		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSWorld), Name: vm.AllocString("world")},
+		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
+	}
+	vm.Functions = []qc.DFunction{
+		{},
+		{Name: vm.AllocString("trigger_test"), FirstStatement: 0},
+	}
+	vm.Statements = []qc.DStatement{
+		{Op: uint16(qc.OPDone)},
+	}
+
+	raw := `{
+"classname" "worldspawn"
+}
+{
+"classname" "trigger_test"
+}`
+
+	err := s.loadMapEntities(raw)
+	if err == nil {
+		t.Fatal("loadMapEntities() should fail when worldspawn function is missing")
+	}
+	if !strings.Contains(err.Error(), "worldspawn spawn function not found") {
+		t.Fatalf("loadMapEntities() error = %v", err)
+	}
+
+	world := s.EdictNum(0)
+	if world == nil || world.Free {
+		t.Fatalf("world entity corrupted after worldspawn failure: %#v", world)
+	}
+}
+
 // TestLoadMapEntitiesClearsQCOnlyFieldsBeforeSpawn tests clearing of QuakeC-only fields for reused edicts.
 // It preventing state leakage between entities when an edict is reused.
 // Where in C: ED_NewEntry in pr_edict.c

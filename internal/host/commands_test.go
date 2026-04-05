@@ -96,6 +96,12 @@ type sessionStartTrackingServer struct {
 	shutdownCalls  int
 }
 
+type spawnFailureTrackingServer struct {
+	mockServer
+	shutdownCalls int
+	spawnErr      error
+}
+
 func (s *sessionStartTrackingServer) Init(maxClients int) error {
 	s.initMaxClients = maxClients
 	return s.mockServer.Init(maxClients)
@@ -106,6 +112,20 @@ func (s *sessionStartTrackingServer) ConnectClient(clientNum int) {
 }
 
 func (s *sessionStartTrackingServer) Shutdown() {
+	s.shutdownCalls++
+	s.mockServer.Shutdown()
+}
+
+func (s *spawnFailureTrackingServer) SpawnServer(mapName string, vfs *fs.FileSystem) error {
+	s.mapName = mapName
+	s.spawned = append(s.spawned, mapName)
+	if s.spawnErr != nil {
+		return s.spawnErr
+	}
+	return nil
+}
+
+func (s *spawnFailureTrackingServer) Shutdown() {
 	s.shutdownCalls++
 	s.mockServer.Shutdown()
 }
@@ -1446,8 +1466,14 @@ func TestCmdGameInvokesGameDirChangedCallbackWithNewFilesystem(t *testing.T) {
 	calls := 0
 	var seenGameDir string
 	var seenData string
-	h.SetGameDirChangedCallback(func(_ *Subsystems, changed *fs.FileSystem) error {
+	h.SetGameDirChangedCallback(func(changedSubs *Subsystems, changed *fs.FileSystem) error {
 		calls++
+		if changedSubs != subs {
+			t.Fatalf("callback subs pointer changed")
+		}
+		if changedSubs.Files != changed {
+			t.Fatalf("callback saw stale subs filesystem")
+		}
 		seenGameDir = changed.GetGameDir()
 		data, err := changed.LoadFile("progs.dat")
 		if err != nil {
@@ -1467,6 +1493,46 @@ func TestCmdGameInvokesGameDirChangedCallbackWithNewFilesystem(t *testing.T) {
 	}
 	if seenData != "hipnotic" {
 		t.Fatalf("callback progs data = %q, want hipnotic", seenData)
+	}
+}
+
+func TestCmdGameKeepsPreviousFilesystemAliveDuringCallback(t *testing.T) {
+	baseDir := t.TempDir()
+	for _, dir := range []string{"id1", "hipnotic"} {
+		if err := os.MkdirAll(filepath.Join(baseDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s): %v", dir, err)
+		}
+	}
+	writeCommandTestPak(t, filepath.Join(baseDir, "id1", "pak0.pak"), map[string][]byte{
+		"gfx.wad": []byte("base-gfx"),
+	})
+	writeCommandTestPak(t, filepath.Join(baseDir, "hipnotic", "pak0.pak"), map[string][]byte{
+		"progs.dat": []byte("hipnotic"),
+	})
+
+	fileSys := fs.NewFileSystem()
+	if err := fileSys.Init(baseDir, "id1"); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	console := &mockConsole{}
+	h := NewHost()
+	subs := &Subsystems{Console: console, Files: fileSys}
+
+	var callbackErr error
+	h.SetGameDirChangedCallback(func(_ *Subsystems, changed *fs.FileSystem) error {
+		if _, err := fileSys.LoadFile("gfx.wad"); err != nil {
+			callbackErr = err
+		}
+		if _, err := changed.LoadFile("progs.dat"); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	h.CmdGame([]string{"hipnotic"}, subs)
+
+	if callbackErr != nil {
+		t.Fatalf("previous filesystem should remain readable during callback: %v", callbackErr)
 	}
 }
 
@@ -3264,6 +3330,45 @@ func TestCmdMapShutsDownRemoteClientBeforeReplacingWithLocalClient(t *testing.T)
 	}
 	if _, ok := subs.Client.(*localLoopbackClient); !ok {
 		t.Fatalf("client = %T, want *localLoopbackClient", subs.Client)
+	}
+}
+
+func TestCmdMapSpawnFailureCleansUpDisconnectedSessionState(t *testing.T) {
+	h := NewHost()
+	h.SetServerActive(true)
+	h.SetClientState(caActive)
+	h.SetSignOns(4)
+
+	srv := &spawnFailureTrackingServer{spawnErr: fmt.Errorf("spawn failed")}
+	remoteClient := &remoteSignonTestClient{state: caActive}
+	subs := &Subsystems{
+		Files:   &fs.FileSystem{},
+		Server:  srv,
+		Client:  remoteClient,
+		Console: &mockConsole{},
+	}
+
+	err := h.CmdMap("start", subs)
+	if err == nil {
+		t.Fatal("CmdMap(start) error = nil, want spawn failure")
+	}
+	if !strings.Contains(err.Error(), "spawn failed") {
+		t.Fatalf("CmdMap(start) error = %q, want spawn failure", err)
+	}
+	if srv.shutdownCalls != 1 {
+		t.Fatalf("Shutdown calls = %d, want 1", srv.shutdownCalls)
+	}
+	if remoteClient.shutdownCalls != 1 {
+		t.Fatalf("remote client Shutdown calls = %d, want 1", remoteClient.shutdownCalls)
+	}
+	if h.ServerActive() {
+		t.Fatal("ServerActive = true, want false after failed map spawn")
+	}
+	if got := h.ClientState(); got != caDisconnected {
+		t.Fatalf("ClientState = %v, want disconnected", got)
+	}
+	if got := h.SignOns(); got != 0 {
+		t.Fatalf("SignOns = %d, want 0", got)
 	}
 }
 

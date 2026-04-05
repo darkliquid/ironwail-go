@@ -6,3 +6,4 @@ mapping:
   paths:
     - cmd/ironwailgo/game_input.go
     - cmd/ironwailgo/game_commands.go
+    - cmd/ironwailgo/game_commands_profile_test.go

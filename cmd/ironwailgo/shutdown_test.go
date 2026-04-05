@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/host"
@@ -39,5 +41,30 @@ func TestPollRuntimeInputEventsRequestsQuitOnWindowClose(t *testing.T) {
 
 	if !g.Host.IsAborted() {
 		t.Fatal("pollRuntimeInputEvents did not request quit after backend close event")
+	}
+}
+
+func TestShutdownEngineStopsActiveCPUProfile(t *testing.T) {
+	prev := g
+	t.Cleanup(func() { g = prev })
+
+	g.Host = host.NewHost()
+	path := filepath.Join(t.TempDir(), "shutdown_cpu.pprof")
+	cmdProfileCPUStart([]string{path})
+	if cpuProfileState.file == nil {
+		t.Fatal("expected CPU profile to be active")
+	}
+
+	shutdownEngine()
+
+	if cpuProfileState.file != nil {
+		t.Fatal("shutdownEngine did not clear active CPU profile state")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(cpu profile): %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("shutdownEngine wrote an empty CPU profile")
 	}
 }

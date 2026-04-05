@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
+	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 type convertibleBackendRef struct {
@@ -70,6 +71,47 @@ func TestBuildVerticesInterpolated(t *testing.T) {
 	}
 	if got[0].TexCoord != ([2]float32{0.25, 0.75}) {
 		t.Fatalf("texcoord = %v", got[0].TexCoord)
+	}
+}
+
+func TestBuildVerticesInterpolatedInto(t *testing.T) {
+	mesh := MeshFromRefs(
+		[][]model.TriVertX{
+			{{V: [3]byte{1, 0, 0}, LightNormalIndex: 0}},
+			{{V: [3]byte{3, 0, 0}, LightNormalIndex: 0}},
+		},
+		[]MeshRef{{VertexIndex: 0, TexCoord: [2]float32{0.25, 0.75}}},
+	)
+	hdr := &model.AliasHeader{
+		Scale:       [3]float32{1, 1, 1},
+		ScaleOrigin: [3]float32{},
+	}
+	input := make([]worldimpl.WorldVertex, 0, 4)
+	input = append(input, worldimpl.WorldVertex{})
+	input = input[:0]
+	beforePtr := &input[:cap(input)][0]
+
+	got := BuildVerticesInterpolatedInto(input, mesh, hdr, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	if len(got) != 1 {
+		t.Fatalf("len(vertices) = %d, want 1", len(got))
+	}
+	afterPtr := &got[:cap(got)][0]
+	if beforePtr != afterPtr {
+		t.Fatalf("expected BuildVerticesInterpolatedInto to reuse caller buffer")
+	}
+
+	wantPosition := [3]float32{10, 24, 30}
+	for i := range wantPosition {
+		if math.Abs(float64(got[0].Position[i]-wantPosition[i])) > 0.01 {
+			t.Fatalf("position[%d] = %f, want %f", i, got[0].Position[i], wantPosition[i])
+		}
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		_ = BuildVerticesInterpolatedInto(input, mesh, hdr, 0, 1, 0.5, [3]float32{10, 20, 30}, [3]float32{0, 90, 0}, 2, false)
+	})
+	if allocs != 0 {
+		t.Fatalf("BuildVerticesInterpolatedInto allocated %.2f times per run, want 0", allocs)
 	}
 }
 

@@ -4,6 +4,7 @@
 
 This node converts live client/server state into the entity lists the renderer expects. It resolves model names from client precaches, distinguishes brush submodels from alias and sprite models, lazily loads/caches alias and sprite payloads through the filesystem, and emits renderer-facing entity structs for world entities, static entities, beams, particles, and lights. Debug-view telemetry hooks record why entities were drawn or skipped.
 Before the renderer-facing frame state samples `Client.CurrentFog`, this node now gives the client a chance to seed map-load fog defaults from `g.Server.WorldTree.Entities`. That keeps renderer fog state aligned with C/Ironwail worldspawn fog without bypassing the client's shared fade logic.
+The renderer-facing frame-state bridge now also suppresses world/entities/particles/decals entirely unless host session state still reports an active gameplay/demo scene. That prevents stale draw lists from surviving failed map startups or disconnect-driven mod switches into the fresh menu.
 
 ## Constraints
 

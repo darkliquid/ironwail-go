@@ -6,10 +6,13 @@ package renderer
 import (
 	"encoding/binary"
 	"fmt"
+	stdimage "image"
 	"log/slog"
 	"math"
 	"os"
 	"sort"
+	"time"
+	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
@@ -75,6 +78,161 @@ type WorldRenderData struct {
 	TotalFaces    int
 }
 
+type gogpuWorldFaceStats struct {
+	TotalFaces                 int
+	TotalTriangles             int
+	LightmappedFaces           int
+	LitWaterFaces              int
+	TurbulentFaces             int
+	TurbulentTriangles         int
+	SkyFaces                   int
+	SkyTriangles               int
+	OpaqueFaces                int
+	OpaqueTriangles            int
+	AlphaTestFaces             int
+	AlphaTestTriangles         int
+	OpaqueLiquidFaces          int
+	OpaqueLiquidTriangles      int
+	TranslucentLiquidFaces     int
+	TranslucentLiquidTriangles int
+	UnclassifiedFaces          int
+	UnclassifiedTriangles      int
+}
+
+type gogpuWorldFaceDraw struct {
+	face                WorldFace
+	textureBindGroup    *wgpu.BindGroup
+	lightmapBindGroup   *wgpu.BindGroup
+	fullbrightBindGroup *wgpu.BindGroup
+	dynamicLight        [3]float32
+	litWater            float32
+}
+
+func summarizeGoGPUWorldFaceStats(faces []WorldFace, liquidAlpha worldLiquidAlphaSettings) gogpuWorldFaceStats {
+	var stats gogpuWorldFaceStats
+	for _, face := range faces {
+		if face.NumIndices == 0 {
+			continue
+		}
+		triangles := int(face.NumIndices / 3)
+		stats.TotalFaces++
+		stats.TotalTriangles += triangles
+		if face.LightmapIndex >= 0 {
+			stats.LightmappedFaces++
+		}
+		if face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 {
+			stats.TurbulentFaces++
+			stats.TurbulentTriangles += triangles
+			if face.LightmapIndex >= 0 {
+				stats.LitWaterFaces++
+			}
+		}
+		switch {
+		case shouldDrawGoGPUSkyWorldFace(face):
+			stats.SkyFaces++
+			stats.SkyTriangles += triangles
+		case shouldDrawGoGPUAlphaTestWorldFace(face):
+			stats.AlphaTestFaces++
+			stats.AlphaTestTriangles += triangles
+		case shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
+			stats.OpaqueLiquidFaces++
+			stats.OpaqueLiquidTriangles += triangles
+		case shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha):
+			stats.TranslucentLiquidFaces++
+			stats.TranslucentLiquidTriangles += triangles
+		case shouldDrawGoGPUOpaqueWorldFace(face):
+			stats.OpaqueFaces++
+			stats.OpaqueTriangles += triangles
+		default:
+			stats.UnclassifiedFaces++
+			stats.UnclassifiedTriangles += triangles
+		}
+	}
+	return stats
+}
+
+func gogpuBindGroupSortKey(bindGroup *wgpu.BindGroup) uintptr {
+	return uintptr(unsafe.Pointer(bindGroup))
+}
+
+func worldLeafIndex(tree *bsp.Tree, cameraOrigin [3]float32) int {
+	if tree == nil || len(tree.Leafs) == 0 {
+		return -1
+	}
+	cameraLeaf := tree.PointInLeaf(cameraOrigin)
+	if cameraLeaf == nil {
+		return -1
+	}
+	for i := range tree.Leafs {
+		if &tree.Leafs[i] == cameraLeaf {
+			return i
+		}
+	}
+	return -1
+}
+
+func gogpuWorldDynamicLightSignature(lights []DynamicLight) uint64 {
+	var h uint64 = 1469598103934665603
+	mix := func(v uint32) {
+		h ^= uint64(v)
+		h *= 1099511628211
+	}
+	mix(uint32(len(lights)))
+	for _, light := range lights {
+		mix(math.Float32bits(light.Position[0]))
+		mix(math.Float32bits(light.Position[1]))
+		mix(math.Float32bits(light.Position[2]))
+		mix(math.Float32bits(light.Radius))
+		effectiveMul := light.Brightness * light.FadeMultiplier()
+		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[0] * effectiveMul)))
+		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[1] * effectiveMul)))
+		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[2] * effectiveMul)))
+		mix(uint32(light.Type))
+	}
+	return h
+}
+
+func gogpuWorldFaceBatchKeyLess(a, b gogpuWorldFaceBatchKey) bool {
+	if ak, bk := gogpuBindGroupSortKey(a.textureBindGroup), gogpuBindGroupSortKey(b.textureBindGroup); ak != bk {
+		return ak < bk
+	}
+	if ak, bk := gogpuBindGroupSortKey(a.lightmapBindGroup), gogpuBindGroupSortKey(b.lightmapBindGroup); ak != bk {
+		return ak < bk
+	}
+	if ak, bk := gogpuBindGroupSortKey(a.fullbrightBindGroup), gogpuBindGroupSortKey(b.fullbrightBindGroup); ak != bk {
+		return ak < bk
+	}
+	if a.litWater != b.litWater {
+		return a.litWater < b.litWater
+	}
+	if a.dynamicLight[0] != b.dynamicLight[0] {
+		return a.dynamicLight[0] < b.dynamicLight[0]
+	}
+	if a.dynamicLight[1] != b.dynamicLight[1] {
+		return a.dynamicLight[1] < b.dynamicLight[1]
+	}
+	return a.dynamicLight[2] < b.dynamicLight[2]
+}
+
+type gogpuWorldFaceDrawBucket struct {
+	key   gogpuWorldFaceBatchKey
+	draws []gogpuWorldFaceDraw
+}
+
+type gogpuWorldFaceBatchKey struct {
+	textureBindGroup    *wgpu.BindGroup
+	lightmapBindGroup   *wgpu.BindGroup
+	fullbrightBindGroup *wgpu.BindGroup
+	dynamicLight        [3]float32
+	litWater            float32
+}
+
+type gogpuWorldFaceBatch struct {
+	key        gogpuWorldFaceBatchKey
+	firstIndex uint32
+	numIndices uint32
+}
+
 type gogpuTranslucentLiquidFaceDraw struct {
 	face       WorldFace
 	alpha      float32
@@ -95,6 +253,90 @@ type faceLightmapSurface struct {
 	pageIndex int
 }
 
+type gogpuWorldMaterialBindState struct {
+	initialized bool
+	texture     *wgpu.BindGroup
+	lightmap    *wgpu.BindGroup
+	fullbright  *wgpu.BindGroup
+}
+
+func (s *gogpuWorldMaterialBindState) invalidate() {
+	s.initialized = false
+	s.texture = nil
+	s.lightmap = nil
+	s.fullbright = nil
+}
+
+func (s *gogpuWorldMaterialBindState) update(texture, lightmap, fullbright *wgpu.BindGroup) (setTexture, setLightmap, setFullbright bool) {
+	if !s.initialized || s.texture != texture {
+		setTexture = true
+		s.texture = texture
+	}
+	if !s.initialized || s.lightmap != lightmap {
+		setLightmap = true
+		s.lightmap = lightmap
+	}
+	if !s.initialized || s.fullbright != fullbright {
+		setFullbright = true
+		s.fullbright = fullbright
+	}
+	s.initialized = true
+	return setTexture, setLightmap, setFullbright
+}
+
+func gogpuWorldFaceBatchKeyForDraw(draw gogpuWorldFaceDraw) gogpuWorldFaceBatchKey {
+	return gogpuWorldFaceBatchKey{
+		textureBindGroup:    draw.textureBindGroup,
+		lightmapBindGroup:   draw.lightmapBindGroup,
+		fullbrightBindGroup: draw.fullbrightBindGroup,
+		dynamicLight:        draw.dynamicLight,
+		litWater:            draw.litWater,
+	}
+}
+
+func appendGoGPUOpaqueWorldFaceBatches(dstIndices []uint32, dstBatches []gogpuWorldFaceBatch, draws []gogpuWorldFaceDraw, worldIndices []uint32) ([]uint32, []gogpuWorldFaceBatch) {
+	if len(draws) == 0 {
+		return dstIndices, dstBatches
+	}
+	bucketIndex := make(map[gogpuWorldFaceBatchKey]int, len(draws))
+	buckets := make([]gogpuWorldFaceDrawBucket, 0, len(draws))
+	for _, draw := range draws {
+		key := gogpuWorldFaceBatchKeyForDraw(draw)
+		index, ok := bucketIndex[key]
+		if !ok {
+			index = len(buckets)
+			bucketIndex[key] = index
+			buckets = append(buckets, gogpuWorldFaceDrawBucket{key: key})
+		}
+		buckets[index].draws = append(buckets[index].draws, draw)
+	}
+	sort.Slice(buckets, func(i, j int) bool {
+		return gogpuWorldFaceBatchKeyLess(buckets[i].key, buckets[j].key)
+	})
+	for _, bucket := range buckets {
+		firstIndex := uint32(len(dstIndices))
+		numIndices := uint32(0)
+		for _, draw := range bucket.draws {
+			first := int(draw.face.FirstIndex)
+			end := first + int(draw.face.NumIndices)
+			if first < 0 || end > len(worldIndices) || first > end {
+				continue
+			}
+			dstIndices = append(dstIndices, worldIndices[first:end]...)
+			numIndices += draw.face.NumIndices
+		}
+		if numIndices == 0 {
+			continue
+		}
+		dstBatches = append(dstBatches, gogpuWorldFaceBatch{
+			key:        bucket.key,
+			firstIndex: firstIndex,
+			numIndices: numIndices,
+		})
+	}
+	return dstIndices, dstBatches
+}
+
 func worldFaceHasLitWater(textureFlags int32, lightmapSurface *faceLightmapSurface) bool {
 	return textureFlags&model.SurfDrawTurb != 0 &&
 		textureFlags&model.SurfDrawSky == 0 &&
@@ -109,7 +351,7 @@ func worldLitWaterCvarEnabled() bool {
 	return cv.Int != 0
 }
 
-func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback *wgpu.BindGroup) (*wgpu.BindGroup, float32) {
+func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback *wgpu.BindGroup, hasLitWater bool) (*wgpu.BindGroup, float32) {
 	bindGroup := fallback
 	if face.LightmapIndex < 0 || int(face.LightmapIndex) >= len(lightmaps) {
 		return bindGroup, 0
@@ -119,10 +361,19 @@ func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTex
 		return bindGroup, 0
 	}
 	bindGroup = lightmapPage.bindGroup
-	if worldLitWaterCvarEnabled() && worldFaceHasLitWater(face.Flags, &faceLightmapSurface{pageIndex: int(face.LightmapIndex)}) {
+	if worldLitWaterCvarEnabled() && hasLitWater && face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 {
 		return bindGroup, 1
 	}
 	return bindGroup, 0
+}
+
+func gogpuFacesHaveLitWater(faces []WorldFace) bool {
+	for _, face := range faces {
+		if face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 && face.LightmapIndex >= 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func sortGoGPUTranslucentLiquidFaces(mode AlphaMode, faces []gogpuTranslucentLiquidFaceDraw) {
@@ -176,10 +427,12 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 	worldModel := tree.Models[modelIndex]
 
 	geom := &WorldGeometry{
-		Vertices: make([]WorldVertex, 0, 4096),
-		Indices:  make([]uint32, 0, 16384),
-		Faces:    make([]WorldFace, 0, 256),
-		Tree:     tree,
+		Vertices:             make([]WorldVertex, 0, 4096),
+		Indices:              make([]uint32, 0, 16384),
+		Faces:                make([]WorldFace, 0, 256),
+		LiquidAlphaOverrides: worldimpl.ParseWorldspawnLiquidAlphaOverrides(tree.Entities),
+		TransparentWaterSafe: worldimpl.MapVisTransparentWaterSafe(tree),
+		Tree:                 tree,
 	}
 	lightmapAllocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
 	if err != nil {
@@ -232,6 +485,12 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 			faceData.LightmapIndex = int32(lightmapSurface.pageIndex)
 		}
 		faceData.Center = worldFaceCenter(faceVerts)
+		if worldFaceHasLitWater(faceData.Flags, lightmapSurface) {
+			geom.HasLitWater = true
+		}
+		if faceData.Flags&model.SurfDrawTurb != 0 {
+			geom.LiquidFaceTypes |= faceData.Flags & (model.SurfDrawLava | model.SurfDrawSlime | model.SurfDrawTele | model.SurfDrawWater)
+		}
 
 		// Triangulate face using fan triangulation
 		// Face with N vertices becomes (N-2) triangles
@@ -506,9 +765,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 `
 
-// worldFragmentShaderWGSL is the WGSL source for world fragment shader.
-// MVP path uses a constant lit color until texture/lightmap bindings are
-// fully wired.
+// worldFragmentShaderWGSL is the WGSL source for the GoGPU world fragment shader.
+// Keep its lightmap/fullbright/fog math aligned with the OpenGL world shader so
+// BSP world surfaces look the same across backends.
 const worldFragmentShaderWGSL = `
 struct Uniforms {
     viewProjection: mat4x4<f32>,
@@ -554,15 +813,16 @@ var worldFullbrightTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
-	if (sampled.a < 0.5) {
+	if (sampled.a < 0.1) {
 		discard;
 	}
 	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
-	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
+	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	return vec4<f32>(mix(uniforms.fogColor, lit, vec3<f32>(fog)), sampled.a * uniforms.alpha);
+	let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
+	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
 
@@ -658,10 +918,11 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     if (uniforms.litWater > 0.5) {
         lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
-    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) + fullbright.rgb*fullbright.a;
+    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    return vec4<f32>(mix(uniforms.fogColor, lit, vec3<f32>(fog)), sampled.a * uniforms.alpha);
+    let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
+    return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
 
@@ -897,6 +1158,36 @@ func (r *Renderer) createWorldIndexBuffer(device *wgpu.Device, queue *wgpu.Queue
 	slog.Debug("World index buffer uploaded", "indices", len(indices))
 
 	return buffer, uint32(len(indices)), nil
+}
+
+func (r *Renderer) ensureGoGPUWorldDynamicIndexBuffer(device *wgpu.Device, size uint64) (*wgpu.Buffer, error) {
+	if size == 0 {
+		return nil, nil
+	}
+	if r.worldDynamicIndexBuffer != nil && r.worldDynamicIndexBufferSize >= size {
+		return r.worldDynamicIndexBuffer, nil
+	}
+	if r.worldDynamicIndexBuffer != nil {
+		r.worldDynamicIndexBuffer.Release()
+		r.worldDynamicIndexBuffer = nil
+		r.worldDynamicIndexBufferSize = 0
+	}
+	allocSize := size
+	if allocSize < 4096 {
+		allocSize = 4096
+	}
+	buffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "World Dynamic Indices",
+		Size:             allocSize,
+		Usage:            gputypes.BufferUsageIndex | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create dynamic world index buffer: %w", err)
+	}
+	r.worldDynamicIndexBuffer = buffer
+	r.worldDynamicIndexBufferSize = allocSize
+	return buffer, nil
 }
 
 // createWorldRenderTarget ensures the GoGPU world scene target exists for the current framebuffer size.
@@ -1638,6 +1929,14 @@ func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Qu
 		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
 	}
 	rgba := ConvertPaletteToRGBA(pixels, r.palette)
+	if classifyWorldTextureName(miptex.Name) == model.TexTypeCutout {
+		cutout := &stdimage.RGBA{
+			Pix:    rgba,
+			Stride: width * 4,
+			Rect:   stdimage.Rect(0, 0, width, height),
+		}
+		image.AlphaEdgeFix(cutout)
+	}
 	return r.createWorldTextureFromRGBA(device, queue, sampler, "World Diffuse Texture", rgba, width, height)
 }
 
@@ -1834,6 +2133,55 @@ func (r *Renderer) uploadWorldLightmapPages(device *wgpu.Device, queue *wgpu.Que
 	return out
 }
 
+func lightmapDirtyBounds(page WorldLightmapPage) (x, y, w, h int) {
+	minX, minY := page.Width, page.Height
+	maxX, maxY := 0, 0
+	found := false
+	for _, surface := range page.Surfaces {
+		if !surface.Dirty || surface.Width <= 0 || surface.Height <= 0 {
+			continue
+		}
+		if surface.X < minX {
+			minX = surface.X
+		}
+		if surface.Y < minY {
+			minY = surface.Y
+		}
+		if surface.X+surface.Width > maxX {
+			maxX = surface.X + surface.Width
+		}
+		if surface.Y+surface.Height > maxY {
+			maxY = surface.Y + surface.Height
+		}
+		found = true
+	}
+	if !found {
+		return 0, 0, 0, 0
+	}
+	return minX, minY, maxX - minX, maxY - minY
+}
+
+func extractLightmapRegionRGBA(dst, rgba []byte, pageWidth, x, y, w, h int) []byte {
+	if len(rgba) == 0 || pageWidth <= 0 || w <= 0 || h <= 0 {
+		return nil
+	}
+	size := w * h * 4
+	if cap(dst) < size {
+		dst = make([]byte, size)
+	} else {
+		dst = dst[:size]
+	}
+	srcStride := pageWidth * 4
+	dstStride := w * 4
+	for row := 0; row < h; row++ {
+		srcStart := ((y + row) * srcStride) + x*4
+		srcEnd := srcStart + dstStride
+		dstStart := row * dstStride
+		copy(dst[dstStart:dstStart+dstStride], rgba[srcStart:srcEnd])
+	}
+	return dst
+}
+
 func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTexture, pages []WorldLightmapPage, values [64]float32) {
 	if queue == nil || len(pages) == 0 || len(uploaded) == 0 {
 		return
@@ -1850,11 +2198,21 @@ func updateUploadedLightmapsLocked(queue *wgpu.Queue, uploaded []*gpuWorldTextur
 		if len(rgba) == 0 {
 			continue
 		}
+		x, y, w, h := lightmapDirtyBounds(pages[i])
+		if w == 0 || h == 0 {
+			continue
+		}
+		region := extractLightmapRegionRGBA(pages[i].CachedRegionRGBA, rgba, pages[i].Width, x, y, w, h)
+		if len(region) == 0 {
+			continue
+		}
+		pages[i].CachedRegionRGBA = region
 		if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
 			Texture:  uploaded[i].texture,
 			MipLevel: 0,
 			Aspect:   gputypes.TextureAspectAll,
-		}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(pages[i].Width * 4), RowsPerImage: uint32(pages[i].Height)}, &wgpu.Extent3D{Width: uint32(pages[i].Width), Height: uint32(pages[i].Height), DepthOrArrayLayers: 1}); err != nil {
+			Origin:   wgpu.Origin3D{X: uint32(x), Y: uint32(y)},
+		}, region, &wgpu.ImageDataLayout{BytesPerRow: uint32(w * 4), RowsPerImage: uint32(h)}, &wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}); err != nil {
 			slog.Warn("failed to update world lightmap page", "page", i, "error", err)
 		}
 	}
@@ -1869,6 +2227,9 @@ func (r *Renderer) setGoGPUWorldLightStyleValues(values [64]float32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	changed := lightStylesChanged(r.worldLightStyleValues, values)
+	if !anyLightStyleChanged(changed) {
+		return
+	}
 	if r.worldData != nil && r.worldData.Geometry != nil {
 		markDirtyLightmapPages(r.worldData.Geometry.Lightmaps, changed)
 		updateUploadedLightmapsLocked(queue, r.worldLightmapPages, r.worldData.Geometry.Lightmaps, values)
@@ -1938,17 +2299,21 @@ func buildWorldLightmapPageRGBA(page *WorldLightmapPage, values [64]float32) []b
 	if page.Width <= 0 || page.Height <= 0 {
 		return nil
 	}
-	rgba := make([]byte, page.Width*page.Height*4)
-	for i := 0; i < len(rgba); i += 4 {
-		rgba[i] = 255
-		rgba[i+1] = 255
-		rgba[i+2] = 255
-		rgba[i+3] = 255
+	size := page.Width * page.Height * 4
+	if len(page.CachedRGBA) != size {
+		page.CachedRGBA = make([]byte, size)
+		for i := 0; i < len(page.CachedRGBA); i += 4 {
+			page.CachedRGBA[i+3] = 255
+		}
+		for _, surface := range page.Surfaces {
+			compositeWorldLightmapSurfaceRGBA(page.CachedRGBA, page.Width, surface, values)
+		}
+		return page.CachedRGBA
 	}
-	for _, surface := range page.Surfaces {
-		compositeWorldLightmapSurfaceRGBA(rgba, page.Width, surface, values)
+	if page.Dirty {
+		recompositeDirtySurfaces(page.CachedRGBA, *page, values)
 	}
-	return rgba
+	return page.CachedRGBA
 }
 
 func lightStylesChanged(old, new_ [64]float32) [64]bool {
@@ -1959,6 +2324,15 @@ func lightStylesChanged(old, new_ [64]float32) [64]bool {
 		}
 	}
 	return changed
+}
+
+func anyLightStyleChanged(changed [64]bool) bool {
+	for _, dirty := range changed {
+		if dirty {
+			return true
+		}
+	}
+	return false
 }
 
 func markDirtyLightmapPages(pages []WorldLightmapPage, changed [64]bool) {
@@ -2005,6 +2379,27 @@ func recompositeDirtySurfaces(rgba []byte, page WorldLightmapPage, values [64]fl
 		recomposited = true
 	}
 	return recomposited
+}
+
+func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSettings {
+	if geom == nil {
+		return worldLiquidAlphaSettingsFromCvars(worldLiquidAlphaOverrides{}, nil)
+	}
+	settings := resolveWorldLiquidAlphaSettings(
+		worldimpl.ReadAlphaCvar(CvarRWaterAlpha, 1),
+		worldimpl.ReadAlphaCvar(CvarRLavaAlpha, 0),
+		worldimpl.ReadAlphaCvar(CvarRSlimeAlpha, 0),
+		worldimpl.ReadAlphaCvar(CvarRTeleAlpha, 0),
+		worldLiquidAlphaOverridesFromWorld(geom.LiquidAlphaOverrides),
+		nil,
+	)
+	if !geom.TransparentWaterSafe {
+		settings.water = 1
+		settings.lava = 1
+		settings.slime = 1
+		settings.tele = 1
+	}
+	return settings
 }
 
 func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
@@ -2107,6 +2502,13 @@ func uint32ToBytes(u uint32) []byte {
 	return result
 }
 
+func uint32SliceToBytes(values []uint32) []byte {
+	if len(values) == 0 {
+		return nil
+	}
+	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(values))), len(values)*4)
+}
+
 // UploadWorld prepares BSP world geometry for rendering.
 // This should be called once when a map is loaded.
 //
@@ -2116,8 +2518,10 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if tree == nil {
 		return fmt.Errorf("nil BSP tree")
 	}
+	r.worldFirstFrameStatsLogged.Store(false)
 	r.mu.Lock()
 	r.brushModelGeometry = make(map[int]*WorldGeometry)
+	r.resetGoGPUWorldBatchCache()
 	r.mu.Unlock()
 
 	slog.Debug("Uploading world geometry to GPU")
@@ -2127,6 +2531,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if err != nil {
 		return fmt.Errorf("build world geometry: %w", err)
 	}
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(geom)
+	faceStats := summarizeGoGPUWorldFaceStats(geom.Faces, liquidAlpha)
 
 	// Create render data
 	renderData := &WorldRenderData{
@@ -2175,6 +2581,27 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		r.mu.Lock()
 		r.worldData = renderData
 		r.mu.Unlock()
+		slog.Info("GoGPU world upload stats",
+			"gpu_upload", false,
+			"bsp_version", tree.Version,
+			"lighting_rgb", tree.LightingRGB,
+			"raw_faces", len(tree.Faces),
+			"built_faces", faceStats.TotalFaces,
+			"built_triangles", faceStats.TotalTriangles,
+			"vertices", renderData.TotalVertices,
+			"lightmap_pages", len(geom.Lightmaps),
+			"lightmapped_faces", faceStats.LightmappedFaces,
+			"lit_water_faces", faceStats.LitWaterFaces,
+			"turbulent_faces", faceStats.TurbulentFaces,
+			"sky_faces", faceStats.SkyFaces,
+			"opaque_faces", faceStats.OpaqueFaces,
+			"alpha_test_faces", faceStats.AlphaTestFaces,
+			"opaque_liquid_faces", faceStats.OpaqueLiquidFaces,
+			"translucent_liquid_faces", faceStats.TranslucentLiquidFaces,
+			"textures", tree.NumTextures,
+			"leafs", len(tree.Leafs),
+			"models", len(tree.Models),
+		)
 		return nil
 	}
 
@@ -2440,6 +2867,32 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"boundsMax", renderData.BoundsMax,
 		"vertexBufferSize", uint64(len(geom.Vertices))*44,
 		"indexBufferSize", uint64(len(geom.Indices))*4)
+	slog.Info("GoGPU world upload stats",
+		"gpu_upload", true,
+		"bsp_version", tree.Version,
+		"lighting_rgb", tree.LightingRGB,
+		"raw_faces", len(tree.Faces),
+		"built_faces", faceStats.TotalFaces,
+		"built_triangles", faceStats.TotalTriangles,
+		"vertices", renderData.TotalVertices,
+		"lightmap_pages", len(geom.Lightmaps),
+		"gpu_lightmap_pages", len(worldLightmapPages),
+		"lightmapped_faces", faceStats.LightmappedFaces,
+		"lit_water_faces", faceStats.LitWaterFaces,
+		"turbulent_faces", faceStats.TurbulentFaces,
+		"sky_faces", faceStats.SkyFaces,
+		"opaque_faces", faceStats.OpaqueFaces,
+		"alpha_test_faces", faceStats.AlphaTestFaces,
+		"opaque_liquid_faces", faceStats.OpaqueLiquidFaces,
+		"translucent_liquid_faces", faceStats.TranslucentLiquidFaces,
+		"textures", tree.NumTextures,
+		"gpu_textures", len(worldTextures),
+		"gpu_fullbright_textures", len(worldFullbrightTextures),
+		"gpu_sky_solid_textures", len(worldSkySolidTextures),
+		"gpu_sky_alpha_textures", len(worldSkyAlphaTextures),
+		"leafs", len(tree.Leafs),
+		"models", len(tree.Models),
+	)
 
 	return nil
 }
@@ -2453,6 +2906,16 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("renderWorldInternal: no world data")
 		return
 	}
+	hostSpeeds := cvar.BoolValue("host_speeds")
+	var (
+		visibleSelectMS float64
+		classifyFacesMS float64
+		batchBuildMS    float64
+		batchUploadMS   float64
+		skyDrawMS       float64
+		opaqueDrawMS    float64
+		submitMS        float64
+	)
 
 	slog.Debug("renderWorldInternal: starting world render")
 
@@ -2558,11 +3021,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
 	var currentDynamicLight [3]float32
 	currentLitWater := float32(0)
-	uniformBytes := worldSceneUniformBytes(vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
+	var uniformBytes [worldUniformBufferSize]byte
+	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
 	slog.Debug("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
-	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes)
+	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:])
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
 		renderPass.End()
@@ -2591,7 +3055,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		return
 	}
 	timeSeconds := float64(camera.Time)
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
+	worldHasLitWater := worldData.Geometry.HasLitWater
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	var activeDynamicLights []DynamicLight
 	dc.renderer.mu.RLock()
@@ -2609,28 +3074,136 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		currentDynamicLight = dynamicLight
 		currentLitWater = litWater
 		currentFogDensity = activeFogDensity
-		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, worldSceneUniformBytes(
-			vpMatrix,
-			cameraOrigin,
-			state.FogColor,
-			activeFogDensity,
-			timeValue,
-			alpha,
-			dynamicLight,
-			litWater,
-		)) == nil
+		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, dynamicLight, litWater)
+		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
 	}
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, dynamicLight, litWater, fogDensity)
 	}
-	visibleFaces := selectVisibleWorldFaces(
-		worldData.Geometry.Tree,
-		worldData.Geometry.Faces,
-		worldData.Geometry.LeafFaces,
-		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
-	)
+	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
+	dynamicLightSig := gogpuWorldDynamicLightSignature(activeDynamicLights)
+	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex, dynamicLightSig)
+	cacheHit := cacheEntry != nil
+	visibleFaceCount := 0
+	var skyFaces []WorldFace
+	var translucentLiquidFaces []WorldFace
+	var batchedIndices []uint32
+	var opaqueBatches []gogpuWorldFaceBatch
+	var alphaTestBatches []gogpuWorldFaceBatch
+	var opaqueLiquidBatches []gogpuWorldFaceBatch
+	if cacheHit {
+		visibleFaceCount = cacheEntry.faceCount
+		skyFaces = cacheEntry.skyFaces
+		translucentLiquidFaces = cacheEntry.translucentLiquid
+		batchedIndices = cacheEntry.indices
+		opaqueBatches = cacheEntry.opaque
+		alphaTestBatches = cacheEntry.alpha
+		opaqueLiquidBatches = cacheEntry.liquid
+	} else {
+		selectStart := time.Now()
+		visibleFaces := dc.renderer.worldVisibleFacesScratch.selectVisibleWorldFaces(
+			worldData.Geometry.Tree,
+			worldData.Geometry.Faces,
+			worldData.Geometry.LeafFaces,
+			cameraOriginWorld,
+		)
+		visibleSelectMS = float64(time.Since(selectStart)) / float64(time.Millisecond)
+		visibleFaceCount = len(visibleFaces)
+		skyFaces = dc.renderer.worldSkyFacesScratch[:0]
+		translucentLiquidFaces = dc.renderer.worldTranslucentLiquidScratch[:0]
+		opaqueDraws := dc.renderer.worldOpaqueDrawsScratch[:0]
+		alphaTestDraws := dc.renderer.worldAlphaDrawsScratch[:0]
+		opaqueLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
+		batchedIndices = dc.renderer.worldBatchedIndexScratch[:0]
+		opaqueBatches = dc.renderer.worldOpaqueBatchScratch[:0]
+		alphaTestBatches = dc.renderer.worldAlphaBatchScratch[:0]
+		opaqueLiquidBatches = dc.renderer.worldLiquidBatchScratch[:0]
+		defer func() {
+			dc.renderer.worldSkyFacesScratch = skyFaces[:0]
+			dc.renderer.worldTranslucentLiquidScratch = translucentLiquidFaces[:0]
+			dc.renderer.worldOpaqueDrawsScratch = opaqueDraws[:0]
+			dc.renderer.worldAlphaDrawsScratch = alphaTestDraws[:0]
+			dc.renderer.worldLiquidDrawsScratch = opaqueLiquidDraws[:0]
+			dc.renderer.worldBatchedIndexScratch = batchedIndices[:0]
+			dc.renderer.worldOpaqueBatchScratch = opaqueBatches[:0]
+			dc.renderer.worldAlphaBatchScratch = alphaTestBatches[:0]
+			dc.renderer.worldLiquidBatchScratch = opaqueLiquidBatches[:0]
+		}()
+		classifyStart := time.Now()
+		for _, face := range visibleFaces {
+			switch {
+			case shouldDrawGoGPUSkyWorldFace(face):
+				skyFaces = append(skyFaces, face)
+			case shouldDrawGoGPUTranslucentLiquidFace(face, liquidAlpha):
+				translucentLiquidFaces = append(translucentLiquidFaces, face)
+			case shouldDrawGoGPUOpaqueWorldFace(face), shouldDrawGoGPUAlphaTestWorldFace(face), shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha):
+				textureBindGroup := dc.renderer.whiteTextureBindGroup
+				if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+					textureBindGroup = worldTexture.bindGroup
+				}
+				lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
+				litWater := float32(0)
+				if shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
+					lightmapBindGroup, litWater = gogpuWorldLightmapBindGroupForFace(face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
+				} else if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(dc.renderer.worldLightmapPages) {
+					if lightmapPage := dc.renderer.worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
+						lightmapBindGroup = lightmapPage.bindGroup
+					}
+				}
+				fullbrightBindGroup := dc.renderer.transparentBindGroup
+				if fullbrightBindGroup == nil {
+					fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+				}
+				if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
+					fullbrightBindGroup = worldTexture.bindGroup
+				}
+				draw := gogpuWorldFaceDraw{
+					face:                face,
+					textureBindGroup:    textureBindGroup,
+					lightmapBindGroup:   lightmapBindGroup,
+					fullbrightBindGroup: fullbrightBindGroup,
+					dynamicLight:        quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)),
+					litWater:            litWater,
+				}
+				switch {
+				case shouldDrawGoGPUOpaqueWorldFace(face):
+					opaqueDraws = append(opaqueDraws, draw)
+				case shouldDrawGoGPUAlphaTestWorldFace(face):
+					alphaTestDraws = append(alphaTestDraws, draw)
+				default:
+					opaqueLiquidDraws = append(opaqueLiquidDraws, draw)
+				}
+			}
+		}
+		classifyFacesMS = float64(time.Since(classifyStart)) / float64(time.Millisecond)
+		batchBuildStart := time.Now()
+		batchedIndices, opaqueBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueBatches, opaqueDraws, worldData.Geometry.Indices)
+		batchedIndices, alphaTestBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, alphaTestBatches, alphaTestDraws, worldData.Geometry.Indices)
+		batchedIndices, opaqueLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueLiquidBatches, opaqueLiquidDraws, worldData.Geometry.Indices)
+		batchBuildMS = float64(time.Since(batchBuildStart)) / float64(time.Millisecond)
+		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, dynamicLightSig, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
+	}
+	var opaqueBatchBuffer *wgpu.Buffer
+	if len(batchedIndices) > 0 {
+		batchUploadStart := time.Now()
+		opaqueBatchBuffer, err = dc.renderer.ensureGoGPUWorldDynamicIndexBuffer(device, uint64(len(batchedIndices))*4)
+		if err != nil {
+			slog.Error("renderWorldInternal: Failed to allocate batched world index buffer", "error", err)
+			renderPass.End()
+			return
+		}
+		if err := queue.WriteBuffer(opaqueBatchBuffer, 0, uint32SliceToBytes(batchedIndices)); err != nil {
+			slog.Error("renderWorldInternal: Failed to upload batched world indices", "error", err)
+			renderPass.End()
+			return
+		}
+		batchUploadMS = float64(time.Since(batchUploadStart)) / float64(time.Millisecond)
+	}
 
 	skyDrawnIndices := uint32(0)
+	var materialBindState gogpuWorldMaterialBindState
+	skyDrawStart := time.Now()
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
 		if !writeWorldUniformWithFog(1, [3]float32{}, 0, skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
@@ -2639,10 +3212,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		}
 		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
 		renderPass.SetBindGroup(1, dc.renderer.worldSkyExternalBindGroup, nil)
-		for _, face := range visibleFaces {
-			if !shouldDrawGoGPUSkyWorldFace(face) {
-				continue
-			}
+		for _, face := range skyFaces {
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
 		}
@@ -2653,10 +3223,8 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			return
 		}
 		renderPass.SetPipeline(dc.renderer.worldSkyPipeline)
-		for _, face := range visibleFaces {
-			if !shouldDrawGoGPUSkyWorldFace(face) {
-				continue
-			}
+		materialBindState.invalidate()
+		for _, face := range skyFaces {
 			textureIndex := resolveWorldSkyTextureIndex(face, dc.renderer.worldTextureAnimations, 0, timeSeconds)
 			solidBindGroup := dc.renderer.whiteTextureBindGroup
 			if worldTexture := dc.renderer.worldSkySolidTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
@@ -2669,15 +3237,23 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			if worldTexture := dc.renderer.worldSkyAlphaTextures[textureIndex]; worldTexture != nil && worldTexture.bindGroup != nil {
 				alphaBindGroup = worldTexture.bindGroup
 			}
-			renderPass.SetBindGroup(1, solidBindGroup, nil)
-			renderPass.SetBindGroup(2, alphaBindGroup, nil)
+			setTexture, setLightmap, setFullbright := materialBindState.update(solidBindGroup, alphaBindGroup, dc.renderer.whiteTextureBindGroup)
+			if setTexture {
+				renderPass.SetBindGroup(1, solidBindGroup, nil)
+			}
+			if setLightmap {
+				renderPass.SetBindGroup(2, alphaBindGroup, nil)
+			}
 			// Bind group 3 (fullbright/lightmap) is required by the shared pipeline
 			// layout even though the sky shader doesn't use it.
-			renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
+			if setFullbright {
+				renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
+			}
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
 		}
 	}
+	skyDrawMS = float64(time.Since(skyDrawStart)) / float64(time.Millisecond)
 
 	if !writeWorldUniform(1, [3]float32{}, 0) {
 		slog.Error("renderWorldInternal: Failed to restore world fog uniform after sky pass")
@@ -2686,106 +3262,76 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	renderPass.SetPipeline(dc.renderer.worldPipeline)
+	materialBindState.invalidate()
 	drawnIndices := uint32(0)
 	alphaTestDrawnIndices := uint32(0)
 	liquidDrawnIndices := uint32(0)
-	for _, face := range visibleFaces {
-		if !shouldDrawGoGPUOpaqueWorldFace(face) {
-			continue
-		}
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
-		if !writeWorldUniform(1, dynamicLight, 0) {
+	if opaqueBatchBuffer != nil {
+		renderPass.SetIndexBuffer(opaqueBatchBuffer, gputypes.IndexFormatUint32, 0)
+	}
+	opaqueDrawStart := time.Now()
+	for _, batch := range opaqueBatches {
+		if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
 			renderPass.End()
 			return
 		}
-		textureBindGroup := dc.renderer.whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
+		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
+		if setTexture {
+			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
 		}
-		lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
-		if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(dc.renderer.worldLightmapPages) {
-			if lightmapPage := dc.renderer.worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-				lightmapBindGroup = lightmapPage.bindGroup
-			}
+		if setLightmap {
+			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
 		}
-		fullbrightBindGroup := dc.renderer.transparentBindGroup
-		if fullbrightBindGroup == nil {
-			fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+		if setFullbright {
+			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 		}
-		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
-		renderPass.SetBindGroup(1, textureBindGroup, nil)
-		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
-		drawnIndices += face.NumIndices
+		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+		drawnIndices += batch.numIndices
 	}
-	for _, face := range visibleFaces {
-		if !shouldDrawGoGPUAlphaTestWorldFace(face) {
-			continue
-		}
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
-		if !writeWorldUniform(1, dynamicLight, 0) {
+	for _, batch := range alphaTestBatches {
+		if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
 			renderPass.End()
 			return
 		}
-		textureBindGroup := dc.renderer.whiteTextureBindGroup
-		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			textureBindGroup = worldTexture.bindGroup
+		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
+		if setTexture {
+			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
 		}
-		lightmapBindGroup := dc.renderer.whiteLightmapBindGroup
-		if face.LightmapIndex >= 0 && int(face.LightmapIndex) < len(dc.renderer.worldLightmapPages) {
-			if lightmapPage := dc.renderer.worldLightmapPages[face.LightmapIndex]; lightmapPage != nil && lightmapPage.bindGroup != nil {
-				lightmapBindGroup = lightmapPage.bindGroup
-			}
+		if setLightmap {
+			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
 		}
-		fullbrightBindGroup := dc.renderer.transparentBindGroup
-		if fullbrightBindGroup == nil {
-			fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+		if setFullbright {
+			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
 		}
-		if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-			fullbrightBindGroup = worldTexture.bindGroup
-		}
-		renderPass.SetBindGroup(1, textureBindGroup, nil)
-		renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-		renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
-		alphaTestDrawnIndices += face.NumIndices
+		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+		alphaTestDrawnIndices += batch.numIndices
 	}
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
-		for _, face := range visibleFaces {
-			if !shouldDrawGoGPUOpaqueLiquidFace(face, liquidAlpha) {
-				continue
-			}
-			textureBindGroup := dc.renderer.whiteTextureBindGroup
-			if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-				textureBindGroup = worldTexture.bindGroup
-			}
-			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)
-			dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
-			if !writeWorldUniform(1, dynamicLight, litWater) {
+		materialBindState.invalidate()
+		for _, batch := range opaqueLiquidBatches {
+			if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
 				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
 				renderPass.End()
 				return
 			}
-			fullbrightBindGroup := dc.renderer.transparentBindGroup
-			if fullbrightBindGroup == nil {
-				fullbrightBindGroup = dc.renderer.whiteTextureBindGroup
+			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
+			if setTexture {
+				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
 			}
-			if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldFullbrightTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
-				fullbrightBindGroup = worldTexture.bindGroup
+			if setLightmap {
+				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
 			}
-			renderPass.SetBindGroup(1, textureBindGroup, nil)
-			renderPass.SetBindGroup(2, lightmapBindGroup, nil)
-			renderPass.SetBindGroup(3, fullbrightBindGroup, nil)
-			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
-			liquidDrawnIndices += face.NumIndices
+			if setFullbright {
+				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
+			}
+			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+			liquidDrawnIndices += batch.numIndices
 		}
 	}
+	opaqueDrawMS = float64(time.Since(opaqueDrawStart)) / float64(time.Millisecond)
 	if drawnIndices > 0 {
 		slog.Debug("World rendered",
 			"indices", drawnIndices,
@@ -2819,12 +3365,32 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// Submit to queue
 	slog.Debug("renderWorldInternal: submitting to queue")
+	submitStart := time.Now()
 	_, err = queue.Submit(cmdBuffer)
+	submitMS = float64(time.Since(submitStart)) / float64(time.Millisecond)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
 	}
 
+	if hostSpeeds {
+		slog.Info("render_world_speeds",
+			"visible_select_ms", visibleSelectMS,
+			"classify_faces_ms", classifyFacesMS,
+			"batch_build_ms", batchBuildMS,
+			"batch_upload_ms", batchUploadMS,
+			"sky_draw_ms", skyDrawMS,
+			"opaque_draw_ms", opaqueDrawMS,
+			"submit_ms", submitMS,
+			"cache_hit", cacheHit,
+			"visible_faces", visibleFaceCount,
+			"sky_faces", len(skyFaces),
+			"opaque_batches", len(opaqueBatches),
+			"alpha_test_batches", len(alphaTestBatches),
+			"opaque_liquid_batches", len(opaqueLiquidBatches),
+			"batched_indices", len(batchedIndices),
+		)
+	}
 	slog.Debug("World render commands submitted successfully")
 }
 
@@ -2834,17 +3400,70 @@ func matrixToBytes(m types.Mat4) []byte {
 	return b[:]
 }
 
+func (r *Renderer) resetGoGPUWorldBatchCache() {
+	for i := range r.worldBatchCacheEntries {
+		entry := &r.worldBatchCacheEntries[i]
+		entry.valid = false
+		entry.leaf = 0
+		entry.lightSig = 0
+		entry.faceCount = 0
+		entry.skyFaces = nil
+		entry.translucentLiquid = nil
+		entry.indices = nil
+		entry.opaque = nil
+		entry.alpha = nil
+		entry.liquid = nil
+	}
+	r.worldBatchCacheNext = 0
+}
+
+func (r *Renderer) gogpuWorldBatchCacheEntry(leaf int, lightSig uint64) *gogpuWorldBatchCacheEntry {
+	for i := range r.worldBatchCacheEntries {
+		entry := &r.worldBatchCacheEntries[i]
+		if entry.valid && entry.leaf == leaf && entry.lightSig == lightSig {
+			return entry
+		}
+	}
+	return nil
+}
+
+func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, lightSig uint64, faceCount int, skyFaces, translucentLiquid []WorldFace, batchedIndices []uint32, opaqueBatches, alphaTestBatches, opaqueLiquidBatches []gogpuWorldFaceBatch) {
+	if leaf < 0 {
+		return
+	}
+	entry := r.gogpuWorldBatchCacheEntry(leaf, lightSig)
+	if entry == nil {
+		entry = &r.worldBatchCacheEntries[r.worldBatchCacheNext]
+		r.worldBatchCacheNext = (r.worldBatchCacheNext + 1) % len(r.worldBatchCacheEntries)
+	}
+	entry.valid = true
+	entry.leaf = leaf
+	entry.lightSig = lightSig
+	entry.faceCount = faceCount
+	entry.skyFaces = append(entry.skyFaces[:0], skyFaces...)
+	entry.translucentLiquid = append(entry.translucentLiquid[:0], translucentLiquid...)
+	entry.indices = append(entry.indices[:0], batchedIndices...)
+	entry.opaque = append(entry.opaque[:0], opaqueBatches...)
+	entry.alpha = append(entry.alpha[:0], alphaTestBatches...)
+	entry.liquid = append(entry.liquid[:0], opaqueLiquidBatches...)
+}
+
+func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) {
+	clear(dst[:worldUniformBufferSize])
+	matrixBytes := matrixToBytes(vp)
+	copy(dst[:64], matrixBytes)
+	putFloat32s(dst[64:76], cameraOrigin[:])
+	binary.LittleEndian.PutUint32(dst[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
+	putFloat32s(dst[80:92], fogColor[:])
+	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
+	binary.LittleEndian.PutUint32(dst[96:100], math.Float32bits(alpha))
+	putFloat32s(dst[112:124], dynamicLight[:])
+	binary.LittleEndian.PutUint32(dst[124:128], math.Float32bits(litWater))
+}
+
 func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) []byte {
 	data := make([]byte, worldUniformBufferSize)
-	matrixBytes := matrixToBytes(vp)
-	copy(data[:64], matrixBytes)
-	putFloat32s(data[64:76], cameraOrigin[:])
-	binary.LittleEndian.PutUint32(data[76:80], math.Float32bits(worldFogUniformDensity(fogDensity)))
-	putFloat32s(data[80:92], fogColor[:])
-	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(time))
-	binary.LittleEndian.PutUint32(data[96:100], math.Float32bits(alpha))
-	putFloat32s(data[112:124], dynamicLight[:])
-	binary.LittleEndian.PutUint32(data[124:128], math.Float32bits(litWater))
+	fillWorldSceneUniformBytes(data, vp, cameraOrigin, fogColor, fogDensity, time, alpha, dynamicLight, litWater)
 	return data
 }
 
@@ -2993,8 +3612,9 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 		return
 	}
 
-	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
-	if !hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
+	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
+	worldHasLitWater := worldData.Geometry.HasLitWater
+	if !hasTranslucentWorldLiquidFaceType(worldData.Geometry.LiquidFaceTypes, liquidAlpha) {
 		return
 	}
 
@@ -3027,9 +3647,10 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	cameraState := dc.renderer.cameraState
 	camera, fogDensity, timeValue := gogpuWorldUniformInputs(state, cameraState)
 	vp := dc.renderer.GetViewProjectionMatrix()
+	var uniformData [worldUniformBufferSize]byte
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
-		uniformData := worldSceneUniformBytes(vp, camera, state.FogColor, fogDensity, timeValue, alpha, dynamicLight, litWater)
-		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData); err != nil {
+		fillWorldSceneUniformBytes(uniformData[:], vp, camera, state.FogColor, fogDensity, timeValue, alpha, dynamicLight, litWater)
+		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
 			slog.Error("renderWorldTranslucentLiquidsHAL: failed to update world uniform", "error", err)
 			return false
 		}
@@ -3053,8 +3674,8 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 
 	translucentLiquidDrawnIndices := uint32(0)
 	for _, draw := range translucentFaces {
-		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup)
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
+		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup, worldHasLitWater)
+		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center))
 		if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
 			renderPass.End()
 			return
@@ -3105,8 +3726,8 @@ func (r *Renderer) hasTranslucentWorldLiquidFacesGoGPU() bool {
 		return false
 	}
 	return hasTranslucentWorldLiquidFaceType(
-		worldLiquidFaceTypeMask(worldData.Geometry.Faces),
-		worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree),
+		worldData.Geometry.LiquidFaceTypes,
+		worldLiquidAlphaSettingsForGeometry(worldData.Geometry),
 	)
 }
 
@@ -3150,6 +3771,7 @@ func gogpuSharedDepthStencilClearAttachmentForView(view *wgpu.TextureView) *wgpu
 func (r *Renderer) ClearWorld() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.worldFirstFrameStatsLogged.Store(false)
 
 	if r.worldData != nil {
 		// Release GPU buffers
@@ -3158,6 +3780,9 @@ func (r *Renderer) ClearWorld() {
 		}
 		if r.worldIndexBuffer != nil {
 			r.worldIndexBuffer.Release()
+		}
+		if r.worldDynamicIndexBuffer != nil {
+			r.worldDynamicIndexBuffer.Release()
 		}
 		if r.uniformBuffer != nil {
 			r.uniformBuffer.Release()
@@ -3326,6 +3951,8 @@ func (r *Renderer) ClearWorld() {
 		r.worldData = nil
 		r.worldVertexBuffer = nil
 		r.worldIndexBuffer = nil
+		r.worldDynamicIndexBuffer = nil
+		r.worldDynamicIndexBufferSize = 0
 		r.worldPipeline = nil
 		r.worldTranslucentPipeline = nil
 		r.worldTurbulentPipeline = nil
@@ -3361,6 +3988,17 @@ func (r *Renderer) ClearWorld() {
 		r.worldDepthTextureView = nil
 		r.worldDepthWidth = 0
 		r.worldDepthHeight = 0
+		r.worldVisibleFacesScratch = worldVisibilityScratch{}
+		r.worldSkyFacesScratch = nil
+		r.worldTranslucentLiquidScratch = nil
+		r.worldOpaqueDrawsScratch = nil
+		r.worldAlphaDrawsScratch = nil
+		r.worldLiquidDrawsScratch = nil
+		r.worldBatchedIndexScratch = nil
+		r.worldOpaqueBatchScratch = nil
+		r.worldAlphaBatchScratch = nil
+		r.worldLiquidBatchScratch = nil
+		r.resetGoGPUWorldBatchCache()
 		r.brushModelGeometry = make(map[int]*WorldGeometry)
 		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
 

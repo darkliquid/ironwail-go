@@ -129,11 +129,7 @@ func TestExecuteQCFunctionBuiltinTracingHonorsVerbosity(t *testing.T) {
 
 func TestExecuteQCFunctionRestoresVMStateAfterError(t *testing.T) {
 	s := NewServer()
-	vm := s.QCVM
-	vm.Globals = make([]float32, 128)
-
-	self := s.AllocEdict()
-	selfNum := int32(s.NumForEdict(self))
+	vm := newServerTestVM(s, 8)
 
 	const (
 		badFuncNum  = 1
@@ -147,12 +143,13 @@ func TestExecuteQCFunctionRestoresVMStateAfterError(t *testing.T) {
 		{Name: vm.AllocString("good_touch"), FirstStatement: 2},
 	}
 	vm.Statements = []qc.DStatement{
-		{Op: uint16(qc.OPAddress), A: uint16(qc.OFSNull), B: uint16(fieldOfs), C: uint16(ptrOfs)},
+		{Op: uint16(qc.OPAddress), A: uint16(qc.OFSSelf), B: uint16(fieldOfs), C: uint16(ptrOfs)},
 		{Op: uint16(qc.OPDone), A: 0},
 		{Op: uint16(qc.OPDone), A: 0},
 	}
 	vm.SetGInt(fieldOfs, qc.EntFieldHealth)
-	vm.SetGInt(qc.OFSSelf, selfNum)
+	invalidEdict := int32(vm.MaxEdicts)
+	vm.SetGInt(qc.OFSSelf, invalidEdict)
 
 	if err := s.executeQCFunction(badFuncNum); err == nil {
 		t.Fatal("bad QC function unexpectedly succeeded")
@@ -169,8 +166,8 @@ func TestExecuteQCFunctionRestoresVMStateAfterError(t *testing.T) {
 	if vm.XFunctionIndex != -1 {
 		t.Fatalf("XFunctionIndex after error = %d, want -1", vm.XFunctionIndex)
 	}
-	if got := vm.GInt(qc.OFSSelf); got != selfNum {
-		t.Fatalf("self after error = %d, want %d", got, selfNum)
+	if got := vm.GInt(qc.OFSSelf); got != invalidEdict {
+		t.Fatalf("self after error = %d, want invalid edict sentinel", got)
 	}
 
 	if err := s.executeQCFunction(goodFuncNum); err != nil {

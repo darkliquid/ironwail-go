@@ -2,7 +2,7 @@
 
 ## Logic
 
-This node exists to hold pure alias-model logic that would otherwise be duplicated across backend roots. It centralizes frame/state interpolation, CPU mesh shaping, generic mesh-adapter construction from backend ref slices, and Euler rotation math while staying independent from renderer-owned caches and backend APIs. Backend-local ref types can now satisfy the shared `MeshRefConvertible` contract so renderer roots pass ref slices directly without repeating inline `MeshFromAccessor` closures.
+This node exists to hold pure alias-model logic that would otherwise be duplicated across backend roots. It centralizes frame/state interpolation, CPU mesh shaping, generic mesh-adapter construction from backend ref slices, and Euler rotation math while staying independent from renderer-owned caches and backend APIs. Backend-local ref types can now satisfy the shared `MeshRefConvertible` contract so renderer roots pass ref slices directly without repeating inline `MeshFromAccessor` closures. `BuildVerticesInterpolatedInto` provides a caller-owned destination path so per-frame alias interpolation can reuse buffers instead of allocating a new vertex slice each call.
 
 ## Constraints
 

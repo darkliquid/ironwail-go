@@ -14,7 +14,7 @@ Host command registration is unconditional during `Init`, and runtime now also i
 
 Server-browser network advertisement wiring (`updateServerBrowserNetworking`) now enables UDP listen before installing a `ServerInfoProvider`. If listen startup fails (accept socket cannot bind/open), host runtime clears provider state and keeps LAN advertisement disabled instead of exposing stale/partial server info. The provider includes both summary server info and per-player row callbacks (slot/name/colors/frags/ping) so datagram control queries can answer remote `players` requests without exposing full server internals through the host command layer.
 
-Host runtime also owns cross-module callback slots such as `SetGameDirChangedCallback`, which lets executable bootstrap install mod-switch follow-up behavior (for example draw asset reload and renderer palette/conchars refresh) without giving host/runtime a direct dependency on draw or renderer packages.
+Host runtime also owns cross-module callback slots such as `SetGameDirChangedCallback`, which lets executable bootstrap install mod-switch follow-up behavior (for example draw asset reload and renderer palette/conchars refresh) without giving host/runtime a direct dependency on draw or renderer packages. It now also exposes a narrow `ClientSessionActive()` accessor so executable render glue can key scene visibility off authoritative host session state instead of stale client-object residue after failed transitions.
 
 ### Frame scheduling
 
@@ -26,6 +26,8 @@ Host runtime also owns cross-module callback slots such as `SetGameDirChangedCal
 - read from server
 - update screen
 - update audio
+
+When `host_speeds` is enabled, `Host.Frame` now logs a visible per-frame phase breakdown at `Info` instead of a debug-only total. The log includes game timestep plus event, console, client-send, server, client-read, render, audio, and total wall-clock milliseconds so slow sessions can distinguish host/server/client/runtime bottlenecks from renderer time without attaching a profiler.
 
 `Host.Frame` advances the shared compat-rand stream once at frame entry (`h.compatRNG.Int()`) before any callback phases. Because the same RNG instance is injected into server and QC VM paths during init, this early draw is the deterministic upstream offset source for all later frame-local compat-rand consumers (`SV_MoveToGoal` branches and QC `random()`).
 

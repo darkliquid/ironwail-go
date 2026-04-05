@@ -51,3 +51,75 @@ func TestShouldUseProceduralSky(t *testing.T) {
 		})
 	}
 }
+
+func TestQuantizeGoGPUWorldDynamicLight(t *testing.T) {
+	tests := []struct {
+		name  string
+		input [3]float32
+		want  [3]float32
+	}{
+		{
+			name:  "tiny contributions are dropped",
+			input: [3]float32{0.001, -0.002, 0.0},
+			want:  [3]float32{0, 0, 0},
+		},
+		{
+			name:  "values quantize to 1 over 32 steps",
+			input: [3]float32{0.12, 0.27, 0.49},
+			want:  [3]float32{0.125, 0.28125, 0.5},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := quantizeGoGPUWorldDynamicLight(tt.input)
+			if got != tt.want {
+				t.Fatalf("quantizeGoGPUWorldDynamicLight(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestQuantizeGoGPUWorldDynamicLightScalar(t *testing.T) {
+	if got := quantizeGoGPUWorldDynamicLightScalar(0.001); got != 0 {
+		t.Fatalf("quantizeGoGPUWorldDynamicLightScalar(0.001) = %v, want 0", got)
+	}
+	if got := quantizeGoGPUWorldDynamicLightScalar(0.27); got != 0.28125 {
+		t.Fatalf("quantizeGoGPUWorldDynamicLightScalar(0.27) = %v, want 0.28125", got)
+	}
+}
+
+func TestGoGPUWorldDynamicLightSignatureIgnoresTinyFadeDrift(t *testing.T) {
+	base := DynamicLight{
+		Position:   [3]float32{10, 20, 30},
+		Radius:     200,
+		Color:      [3]float32{1, 0.5, 0.25},
+		Brightness: 1,
+		Lifetime:   10,
+		Age:        1,
+		Type:       2,
+		EntityKey:  99,
+	}
+	drifted := base
+	drifted.Age = 1.01
+	if got, want := gogpuWorldDynamicLightSignature([]DynamicLight{base}), gogpuWorldDynamicLightSignature([]DynamicLight{drifted}); got != want {
+		t.Fatalf("signature changed for tiny fade drift: base=%d drifted=%d", got, want)
+	}
+}
+
+func TestGoGPUWorldDynamicLightSignatureTracksVisualLightChanges(t *testing.T) {
+	base := DynamicLight{
+		Position:   [3]float32{10, 20, 30},
+		Radius:     200,
+		Color:      [3]float32{1, 0.5, 0.25},
+		Brightness: 1,
+		Lifetime:   10,
+		Age:        1,
+		Type:       2,
+	}
+	changed := base
+	changed.Age = 2
+	if got, want := gogpuWorldDynamicLightSignature([]DynamicLight{base}), gogpuWorldDynamicLightSignature([]DynamicLight{changed}); got == want {
+		t.Fatalf("signature did not change for visible fade step: base=%d changed=%d", got, want)
+	}
+}
