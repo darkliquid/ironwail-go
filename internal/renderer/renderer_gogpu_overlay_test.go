@@ -45,3 +45,50 @@ func TestOverlayUploadRegionPixelsLocked(t *testing.T) {
 		}
 	}
 }
+
+func TestOverlayBlitConcharsStringMatchesRGBAPath(t *testing.T) {
+	palette := make([]byte, 256*3)
+	palette[3] = 10
+	palette[4] = 20
+	palette[5] = 30
+	conchars := make([]byte, 128*128)
+	// Character 1, row 0: a 2x2 opaque block in the top-left corner.
+	conchars[8] = 1
+	conchars[9] = 1
+	conchars[128+8] = 1
+	conchars[128+9] = 1
+	text := []byte{1}
+
+	got := &overlay2D{
+		pixels: make([]byte, 4*4*4),
+		width:  4,
+		height: 4,
+	}
+	got.blitConcharsString(conchars, palette, text, 0, 0, 4, 4)
+
+	want := &overlay2D{
+		pixels: make([]byte, 4*4*4),
+		width:  4,
+		height: 4,
+	}
+	rgba := ConvertConcharsToRGBA([]byte{
+		1, 1, 0, 0, 0, 0, 0, 0,
+		1, 1, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+	}, palette)
+	want.blitRGBA(rgba, 8, 8, 0, 0, 4, 4, 1)
+
+	for i := range want.pixels {
+		if got.pixels[i] != want.pixels[i] {
+			t.Fatalf("pixel[%d] = %d, want %d", i, got.pixels[i], want.pixels[i])
+		}
+	}
+	if got.dirtyRect() != (overlayDirtyRect{x: 0, y: 0, w: 4, h: 4}) {
+		t.Fatalf("dirtyRect = %+v, want full 4x4", got.dirtyRect())
+	}
+}

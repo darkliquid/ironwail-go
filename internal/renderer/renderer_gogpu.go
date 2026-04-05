@@ -372,6 +372,64 @@ func (ov *overlay2D) blitRGBA(srcRGBA []byte, srcW, srcH int, dstX, dstY, dstW, 
 	}
 }
 
+func (ov *overlay2D) blitConcharsString(conchars, palette, text []byte, dstX, dstY, dstW, dstH int) {
+	if len(text) == 0 || len(conchars) < 128*128 || len(palette) < 768 || dstW <= 0 || dstH <= 0 {
+		return
+	}
+	srcW := len(text) * 8
+	srcH := 8
+	sx0, sy0 := 0, 0
+	if dstX < 0 {
+		sx0 = -dstX * srcW / dstW
+		dstW += dstX
+		dstX = 0
+	}
+	if dstY < 0 {
+		sy0 = -dstY * srcH / dstH
+		dstH += dstY
+		dstY = 0
+	}
+	if dstX+dstW > ov.width {
+		dstW = ov.width - dstX
+	}
+	if dstY+dstH > ov.height {
+		dstH = ov.height - dstY
+	}
+	if dstW <= 0 || dstH <= 0 {
+		return
+	}
+	ov.markDirtyRect(dstX, dstY, dstW, dstH)
+	stride := ov.width * 4
+	for dy := 0; dy < dstH; dy++ {
+		srcY := sy0 + dy*srcH/dstH
+		if srcY >= srcH {
+			srcY = srcH - 1
+		}
+		dstOff := (dstY+dy)*stride + dstX*4
+		for dx := 0; dx < dstW; dx++ {
+			srcX := sx0 + dx*srcW/dstW
+			if srcX >= srcW {
+				srcX = srcW - 1
+			}
+			charIndex := srcX / 8
+			glyphX := srcX % 8
+			num := int(text[charIndex]) & 0xFF
+			col := num % 16
+			row := num / 16
+			srcOff := (row*8+srcY)*128 + col*8 + glyphX
+			pixel := conchars[srcOff]
+			if pixel != 0 {
+				paletteOff := int(pixel) * 3
+				ov.pixels[dstOff] = palette[paletteOff]
+				ov.pixels[dstOff+1] = palette[paletteOff+1]
+				ov.pixels[dstOff+2] = palette[paletteOff+2]
+				ov.pixels[dstOff+3] = 255
+			}
+			dstOff += 4
+		}
+	}
+}
+
 func (ov *overlay2D) markDirtyRect(x, y, w, h int) {
 	if w <= 0 || h <= 0 {
 		return
@@ -643,24 +701,9 @@ func (dc *DrawContext) DrawString(x, y int, text []byte) {
 		return
 	}
 
-	// Composite all characters into a single pixel buffer (palette indices).
 	w := len(text) * 8
-	pixels := make([]byte, w*8) // filled with 0 = transparent in conchars
-	for i, ch := range text {
-		num := int(ch) & 0xFF
-		col := num % 16
-		row := num / 16
-		for py := 0; py < 8; py++ {
-			srcOff := (row*8+py)*128 + col*8
-			dstOff := py*w + i*8
-			copy(pixels[dstOff:dstOff+8], conchars[srcOff:srcOff+8])
-		}
-	}
-
-	// Convert to RGBA (index 0 → transparent via ConvertConcharsToRGBA).
-	rgba := ConvertConcharsToRGBA(pixels, palette)
 	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, w, 8)
-	ov.blitRGBA(rgba, w, 8, sx, sy, sw, sh, 1)
+	ov.blitConcharsString(conchars, palette, text, sx, sy, sw, sh)
 }
 
 // DrawMenuCharacter renders a single 8×8 character in menu-space coordinates.
