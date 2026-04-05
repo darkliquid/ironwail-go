@@ -2976,9 +2976,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	batchedIndices, opaqueBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueBatches, opaqueDraws, worldData.Geometry.Indices)
 	var opaqueBatchBuffer *wgpu.Buffer
 	if len(batchedIndices) > 0 {
-		dc.renderer.mu.Lock()
 		opaqueBatchBuffer, err = dc.renderer.ensureGoGPUWorldDynamicIndexBuffer(device, uint64(len(batchedIndices))*4)
-		dc.renderer.mu.Unlock()
 		if err != nil {
 			slog.Error("renderWorldInternal: Failed to allocate batched world index buffer", "error", err)
 			renderPass.End()
