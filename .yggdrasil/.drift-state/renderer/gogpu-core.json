@@ -1,5 +1,5 @@
 {
-  "hash": "025b7743a31911f34b48aa4940c92898540afa88bb5c027caf3308a460628027",
+  "hash": "67f0788dd27ec603d4535bbf64fe45b2c3b93322b4bbcbee213ada0bd70de8b4",
   "files": {
     ".yggdrasil/model/renderer/gogpu-core/yg-node.yaml": "cac904193fbcd80d6ed87609e07eb13562f8fad19b2ebceda5d2fb20380f03e5",
     ".yggdrasil/model/renderer/gogpu-core/interface.md": "e9f3219edec9f658a36b0437088c0060bbfd9f7204d2b004d6b5ef335df0f94b",
@@ -12,20 +12,20 @@
     "internal/renderer/polyblend_gogpu.go": "55577eea65c043aac283721c7546f1949b4e2109c47cf8c749dd494270059869",
     "internal/renderer/warpscale_gogpu.go": "1635b668d7f76bd3541ddddab6f18e12c3fde9ae3a3a34b537d7e7aa27647871",
     "internal/renderer/warpscale_gogpu_test.go": "bc130e76b7685159cdc34a4a9fdc31c4718e74e3af4b852157f4e0508e8ef192",
-    ".yggdrasil/model/renderer/gogpu-core/internals.md": "28a72219134fde79c879726eb8ab6b78b4cb86cf911e6bdafb4ae7a00cf2f563",
-    "internal/renderer/renderer_gogpu.go": "38b0847ab6f4782ad9aa5e50c5f3ae2032437a4c7de687ab5f7256aba982817a"
+    ".yggdrasil/model/renderer/gogpu-core/internals.md": "e391e670b33a18abf8a5a2d23e772667fc49f37c015e2bfc6af25046de882d7f",
+    "internal/renderer/renderer_gogpu.go": "c5412d858a6dccefd26f24a23e785d3aaab69f2056854daee49497ee94731d45"
   },
   "mtimes": {
     ".yggdrasil/model/renderer/gogpu-core/yg-node.yaml": 1774630175755.3376,
     ".yggdrasil/model/renderer/gogpu-core/interface.md": 1775396029146.3323,
-    ".yggdrasil/model/renderer/gogpu-core/internals.md": 1775409318283.2642,
+    ".yggdrasil/model/renderer/gogpu-core/internals.md": 1775410336087.5854,
     ".yggdrasil/model/renderer/gogpu-core/responsibility.md": 1774681169531.854,
     ".yggdrasil/model/renderer/yg-node.yaml": 1774219361397.5906,
     ".yggdrasil/model/renderer/interface.md": 1774219361549.5923,
     ".yggdrasil/model/renderer/internals.md": 1774219361639.5933,
     ".yggdrasil/model/renderer/responsibility.md": 1774219361472.5913,
     "internal/renderer/core_gogpu.go": 1775027615996.7327,
-    "internal/renderer/renderer_gogpu.go": 1775409296490.9827,
+    "internal/renderer/renderer_gogpu.go": 1775410354583.7048,
     "internal/renderer/polyblend_gogpu.go": 1775016443904.3462,
     "internal/renderer/warpscale_gogpu.go": 1775016443902.9792,
     "internal/renderer/warpscale_gogpu_test.go": 1774672689004.503

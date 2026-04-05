@@ -726,6 +726,21 @@ type cachedTexture struct {
 	height  int
 }
 
+const gogpuWorldBatchCacheEntryCount = 4
+
+type gogpuWorldBatchCacheEntry struct {
+	valid             bool
+	leaf              int
+	lightSig          uint64
+	faceCount         int
+	skyFaces          []WorldFace
+	translucentLiquid []WorldFace
+	indices           []uint32
+	opaque            []gogpuWorldFaceBatch
+	alpha             []gogpuWorldFaceBatch
+	liquid            []gogpuWorldFaceBatch
+}
+
 // Renderer is the main rendering context for the Ironwail-Go engine.
 // It manages the gogpu application window, handles the game loop,
 // and provides rendering callbacks for the game logic.
@@ -792,26 +807,18 @@ type Renderer struct {
 	// worldFirstFrameStatsLogged gates one-shot first-world-frame diagnostics per upload.
 	worldFirstFrameStatsLogged atomic.Bool
 	// worldVisibleFacesScratch reuses visibility marking/storage across world passes.
-	worldVisibleFacesScratch         worldVisibilityScratch
-	worldSkyFacesScratch             []WorldFace
-	worldTranslucentLiquidScratch    []WorldFace
-	worldOpaqueDrawsScratch          []gogpuWorldFaceDraw
-	worldAlphaDrawsScratch           []gogpuWorldFaceDraw
-	worldLiquidDrawsScratch          []gogpuWorldFaceDraw
-	worldBatchedIndexScratch         []uint32
-	worldOpaqueBatchScratch          []gogpuWorldFaceBatch
-	worldAlphaBatchScratch           []gogpuWorldFaceBatch
-	worldLiquidBatchScratch          []gogpuWorldFaceBatch
-	worldBatchCacheValid             bool
-	worldBatchCacheLeaf              int
-	worldBatchCacheLightSig          uint64
-	worldBatchCacheFaceCount         int
-	worldBatchCacheSkyFaces          []WorldFace
-	worldBatchCacheTranslucentLiquid []WorldFace
-	worldBatchCacheIndices           []uint32
-	worldBatchCacheOpaque            []gogpuWorldFaceBatch
-	worldBatchCacheAlpha             []gogpuWorldFaceBatch
-	worldBatchCacheLiquid            []gogpuWorldFaceBatch
+	worldVisibleFacesScratch      worldVisibilityScratch
+	worldSkyFacesScratch          []WorldFace
+	worldTranslucentLiquidScratch []WorldFace
+	worldOpaqueDrawsScratch       []gogpuWorldFaceDraw
+	worldAlphaDrawsScratch        []gogpuWorldFaceDraw
+	worldLiquidDrawsScratch       []gogpuWorldFaceDraw
+	worldBatchedIndexScratch      []uint32
+	worldOpaqueBatchScratch       []gogpuWorldFaceBatch
+	worldAlphaBatchScratch        []gogpuWorldFaceBatch
+	worldLiquidBatchScratch       []gogpuWorldFaceBatch
+	worldBatchCacheEntries        [gogpuWorldBatchCacheEntryCount]gogpuWorldBatchCacheEntry
+	worldBatchCacheNext           int
 
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer

@@ -2661,18 +2661,19 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 		cameraLeafIndex = worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
 	}
 	dynamicLightSig := gogpuWorldDynamicLightSignature(activeDynamicLights)
-	cacheHit := worldData != nil && worldData.Geometry != nil &&
-		r.worldBatchCacheValid &&
-		r.worldBatchCacheLeaf == cameraLeafIndex &&
-		r.worldBatchCacheLightSig == dynamicLightSig
-	cachedFaces := r.worldBatchCacheTranslucentLiquid
+	var cachedFaces []WorldFace
+	if worldData != nil && worldData.Geometry != nil {
+		if cacheEntry := r.gogpuWorldBatchCacheEntry(cameraLeafIndex, dynamicLightSig); cacheEntry != nil {
+			cachedFaces = cacheEntry.translucentLiquid
+		}
+	}
 	worldHasLitWater := worldData != nil && worldData.Geometry != nil && gogpuFacesHaveLitWater(worldData.Geometry.Faces)
 	r.mu.RUnlock()
 	if worldData == nil || worldData.Geometry == nil || worldVertexBuffer == nil || worldIndexBuffer == nil {
 		return nil
 	}
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
-	if cacheHit {
+	if cachedFaces != nil {
 		return gogpuWorldTranslucentLiquidFaceRenders(cachedFaces, camera, worldVertexBuffer, worldIndexBuffer, worldLightmapPages, liquidAlpha, worldHasLitWater)
 	}
 	visibleFaces := r.worldVisibleFacesScratch.selectVisibleWorldFaces(
