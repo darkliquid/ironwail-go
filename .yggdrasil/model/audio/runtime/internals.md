@@ -21,6 +21,10 @@ Backend availability and backend-selection traces in `AudioAdapter.Init` are dia
 - top up music/raw samples
 - paint mixed audio into the DMA buffer
 
+### Shutdown flow
+
+`System.Shutdown` now quiesces playback before backend teardown: it forces mixer volume to zero, blocks backend output, clears active channels plus the DMA buffer, and only then closes the backend. This keeps exit-time teardown from replaying stale mixed samples through the live Oto player while the rest of the process is shutting down.
+
 ### Cvar application
 
 `System.UpdateFromCVars` is the runtime bridge from console variables into mixer state. It clamps `volume` to the `[0,1]` range before delegating to `SetVolume`, and it clamps `snd_filterquality` to `[1,5]` before applying the value through the mixer's filter-quality setter.

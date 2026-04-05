@@ -456,6 +456,76 @@ func (b *positionBackend) GetPosition() int {
 	return pos
 }
 
+type shutdownBackend struct {
+	events []string
+}
+
+func (b *shutdownBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
+	return nil, nil
+}
+
+func (b *shutdownBackend) Shutdown() {
+	b.events = append(b.events, "shutdown")
+}
+
+func (b *shutdownBackend) Lock() {
+	b.events = append(b.events, "lock")
+}
+
+func (b *shutdownBackend) Unlock() {
+	b.events = append(b.events, "unlock")
+}
+
+func (b *shutdownBackend) GetPosition() int { return 0 }
+
+func (b *shutdownBackend) Block() {
+	b.events = append(b.events, "block")
+}
+
+func (b *shutdownBackend) Unblock() {
+	b.events = append(b.events, "unblock")
+}
+
+func TestShutdownMutesAndClearsBeforeBackendTeardown(t *testing.T) {
+	backend := &shutdownBackend{}
+	sys := NewSystem()
+	sys.initialized = true
+	sys.started = true
+	sys.backend = backend
+	sys.dma = &DMAInfo{Buffer: []byte{1, 2, 3, 4}}
+	sys.mixer = NewMixer()
+	sys.channels[0] = Channel{SFX: &SFX{}}
+	sys.channels[NumAmbients] = Channel{SFX: &SFX{}}
+	sys.totalChans = NumAmbients + MaxDynamicChannels + 1
+	sys.music = &musicState{}
+	sys.rawSamples.End = 99
+	sys.paintedTime = 33
+
+	sys.Shutdown()
+
+	if got := sys.Volume(); got != 0 {
+		t.Fatalf("Volume() after Shutdown = %v, want 0", got)
+	}
+	if sys.music != nil {
+		t.Fatal("Shutdown did not clear active music state")
+	}
+	if sys.rawSamples.End != sys.paintedTime {
+		t.Fatalf("rawSamples.End = %d, want %d", sys.rawSamples.End, sys.paintedTime)
+	}
+	if sys.channels[0].SFX != nil || sys.channels[NumAmbients].SFX != nil {
+		t.Fatal("Shutdown did not clear active sound channels")
+	}
+	if !slices.Equal(sys.dma.Buffer, []byte{0, 0, 0, 0}) {
+		t.Fatalf("DMA buffer after Shutdown = %v, want zeroed buffer", sys.dma.Buffer)
+	}
+	if !slices.Equal(backend.events, []string{"block", "lock", "unlock", "shutdown"}) {
+		t.Fatalf("backend events = %v, want [block lock unlock shutdown]", backend.events)
+	}
+	if sys.started || sys.initialized || sys.blocked != 0 {
+		t.Fatalf("shutdown state = started:%v initialized:%v blocked:%d, want false false 0", sys.started, sys.initialized, sys.blocked)
+	}
+}
+
 // TestUpdateSoundTimeMonotonicAcrossWraps tests sound timing logic across DMA buffer wraps.
 // It preventing audio glitches and sync issues by correctly tracking global sound time.
 // Where in C: S_Update in snd_dma.c
