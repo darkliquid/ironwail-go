@@ -93,12 +93,16 @@ Observed decision:
 - The remaining live collector duplication is now reduced to face-render assembly: the brush collectors share a root-local `gogpuTranslucentBrushCollectState` snapshot plus `createGoGPUTranslucentBrushBuffers`, which centralize HAL device/queue access, liquid-alpha snapshotting, and transient vertex/index upload while still leaving face bucketing and lightmap attachment local to each collector.
 - The root adapter layer has also been collapsed around the remaining DTO conversions: `convertGoGPUTranslucentFaceDraws` now handles package-to-root translucent face conversion, and `appendGoGPUTranslucentLiquidBrushFaceRenders` / `appendGoGPUTranslucentBrushEntityFaceRenders` centralize the last mechanical render-wrapper assembly without moving lightmap ownership or HAL submission out of `world_gogpu.go`.
 - Late-translucent render submission now also shares root-local material selection: `gogpuLateTranslucentTextureBindGroups` and `gogpuLateTranslucentLightmapBindGroup` centralize texture/fullbright/lightmap lookup for both alpha-test and sorted translucent draws, leaving the render loops focused on uniform updates, pipeline choice, and draw submission.
+- Late-translucent resource loading now keeps the renderer read lock for the full pass-recording window and releases it only after command submission setup is complete, preventing `ClearWorld`/world-reload teardown from releasing world uniform layout/buffer state while late-translucent passes are still creating/binding their transient uniform bind group.
+- The sorted late-translucent GoGPU pass must bind a render pipeline before its first `SetBindGroup(0, ...)`. On this Vulkan wrapper stack, descriptor-set binding resolves through the currently active raw pipeline layout; skipping the initial `SetPipeline` left the raw pass without a layout and crashed qbj2/new-game startup on the first fogged translucent world frame.
 - Package-local coverage in `internal/renderer/world/gogpu/brush_translucent_test.go` locks the seam to rebased indices, transformed centers, and alpha-test vs translucent/liquid partitioning without instantiating renderer HAL state.
 
 Rationale:
 
 - The face-policy decisions still depend on renderer-owned liquid-alpha settings and shared world-pass helpers, so keeping that policy in root avoids leaking renderer state into the subpackage.
 - The extracted helpers are CPU-only planning with stable DTO boundaries, which trims `world_gogpu.go` without pulling HAL/resource lifetime code across the seam.
+- Holding the renderer read lock across late-translucent pass setup removes a startup/reload lifetime race where a non-nil but already released world uniform resource could be observed after snapshotting, causing Vulkan `SetBindGroup` failures during mod new-game transitions.
+- Seeding the sorted pass with an initial pipeline bind preserves the wrapper/HAL contract for descriptor-set binding and fixes the observed qbj2 mod-start crash without changing face ordering or material selection.
 
 ### Alias interpolation honors shared no-lerp model list
 

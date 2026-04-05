@@ -175,12 +175,12 @@ run = "cd pkg/qgo/quakego && ../../../qgo"
 [tasks.build-gogpu]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode"
-run = "CGO_ENABLED=0 go build -tags gogpu -o ironwailgo-wgpu ./cmd/ironwailgo"
+run = "CGO_ENABLED=0 go build -tags gogpu,audio_oto -o ironwailgo-wgpu ./cmd/ironwailgo"
 
 [tasks.build-gogpu-rust]
 depends = ["go-generate"]
 description = "Build binary in WGPU mode with rust backend"
-run = "CGO_ENABLED=0 go build -tags gogpu,rust -o ironwailgo-wgpu-rust ./cmd/ironwailgo"
+run = "CGO_ENABLED=0 go build -tags gogpu,rust,audio_oto -o ironwailgo-wgpu-rust ./cmd/ironwailgo"
 
 
 [tasks.build-gogpu-sdl3]
@@ -196,12 +196,12 @@ run = "IW_INPUT_BACKEND=sdl3 ./ironwailgo-wgpu-sdl3 -basedir ${QUAKE_DIR}"
 [tasks.build-gl]
 depends = ["go-generate"]
 description = "Build binary in OpenGL mode"
-run = "go build -tags opengl,egl -o ironwailgo-gl ./cmd/ironwailgo"
+run = "go build -tags opengl,egl,audio_oto -o ironwailgo-gl ./cmd/ironwailgo"
 
 [tasks.build-cgo]
 depends = ["go-generate"]
 description = "Build binary with CGO enabled (OpenGL renderer + oto audio + GLFW input)"
-run = "CGO_ENABLED=1 go build -o ironwailgo-cgo ./cmd/ironwailgo"
+run = "CGO_ENABLED=1 go build -tags audio_oto -o ironwailgo-cgo ./cmd/ironwailgo"
 
 [tasks.run-cgo]
 depends = ["build-cgo"]

@@ -2322,7 +2322,7 @@ type gogpuLateTranslucentFaceResources struct {
 	translucentPipeline     *wgpu.RenderPipeline
 	liquidPipeline          *wgpu.RenderPipeline
 	uniformBuffer           *wgpu.Buffer
-	uniformBindGroup        *wgpu.BindGroup
+	uniformBindGroupLayout  *wgpu.BindGroupLayout
 	whiteTextureBindGroup   *wgpu.BindGroup
 	whiteLightmapBindGroup  *wgpu.BindGroup
 	transparentBindGroup    *wgpu.BindGroup
@@ -2333,6 +2333,7 @@ type gogpuLateTranslucentFaceResources struct {
 	worldTextureAnimations  []*SurfaceTexture
 	worldLightmapPages      []*gpuWorldTexture
 	activeDynamicLights     []DynamicLight
+	unlock                  func()
 }
 
 func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslucentFaceResources, bool) {
@@ -2355,7 +2356,7 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 		translucentPipeline:     r.worldTranslucentPipeline,
 		liquidPipeline:          r.worldTranslucentTurbulentPipeline,
 		uniformBuffer:           r.uniformBuffer,
-		uniformBindGroup:        r.uniformBindGroup,
+		uniformBindGroupLayout:  r.uniformBindGroupLayout,
 		whiteTextureBindGroup:   r.whiteTextureBindGroup,
 		whiteLightmapBindGroup:  r.whiteLightmapBindGroup,
 		transparentBindGroup:    r.transparentBindGroup,
@@ -2365,6 +2366,7 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 		worldFullbrightTextures: make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures)),
 		worldTextureAnimations:  append([]*SurfaceTexture(nil), r.worldTextureAnimations...),
 		worldLightmapPages:      append([]*gpuWorldTexture(nil), r.worldLightmapPages...),
+		unlock:                  r.mu.RUnlock,
 	}
 	for k, v := range r.worldTextures {
 		res.worldTextures[k] = v
@@ -2375,14 +2377,24 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 	if r.lightPool != nil {
 		res.activeDynamicLights = append(res.activeDynamicLights, r.lightPool.ActiveLights()...)
 	}
-	r.mu.RUnlock()
-	if res.translucentPipeline == nil || res.liquidPipeline == nil || res.uniformBuffer == nil || res.uniformBindGroup == nil || res.whiteTextureBindGroup == nil || res.whiteLightmapBindGroup == nil {
+	if res.translucentPipeline == nil || res.liquidPipeline == nil || res.uniformBuffer == nil || res.uniformBindGroupLayout == nil || res.whiteTextureBindGroup == nil || res.whiteLightmapBindGroup == nil {
+		res.unlock()
 		return gogpuLateTranslucentFaceResources{}, false
 	}
 	if res.transparentBindGroup == nil {
 		res.transparentBindGroup = res.whiteTextureBindGroup
 	}
 	return res, true
+}
+
+func createGoGPULateTranslucentUniformBindGroup(res gogpuLateTranslucentFaceResources) (*wgpu.BindGroup, error) {
+	return res.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Label:  "GoGPU Late Translucent Uniform BG",
+		Layout: res.uniformBindGroupLayout,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Buffer: res.uniformBuffer, Offset: 0, Size: worldUniformBufferSize},
+		},
+	})
 }
 
 type gogpuTranslucentBrushCollectState struct {
@@ -2649,6 +2661,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	if !ok || res.alphaTestPipeline == nil {
 		return
 	}
+	defer res.unlock()
 	encoder, err := res.device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Alpha-Test Brush Encoder"})
 	if err != nil {
 		slog.Warn("failed to create alpha-test brush encoder", "error", err)
@@ -2667,13 +2680,24 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 		slog.Warn("renderGoGPUAlphaTestBrushFaceRendersHAL: Failed to begin render pass", "error", err)
 		return
 	}
+	uniformBindGroup, err := createGoGPULateTranslucentUniformBindGroup(res)
+	if err != nil {
+		slog.Warn("failed to create alpha-test brush uniform bind group", "error", err)
+		_ = renderPass.End()
+		return
+	}
+	defer uniformBindGroup.Release()
 	renderPass.SetPipeline(res.alphaTestPipeline)
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
-	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
+	// GoGPU's Vulkan render-pass backend resolves descriptor-set binding through the
+	// currently bound pipeline layout, so a known-good world pipeline must be selected
+	// before the first SetBindGroup call in this pass.
+	renderPass.SetPipeline(res.alphaTestPipeline)
+	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
@@ -2714,6 +2738,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	if !ok {
 		return
 	}
+	defer res.unlock()
 	encoder, err := res.device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "GoGPU Late Translucent Encoder"})
 	if err != nil {
 		slog.Warn("failed to create late translucent encoder", "error", err)
@@ -2732,12 +2757,23 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 		slog.Warn("renderGoGPUSortedTranslucentFaceRendersHAL: Failed to begin render pass", "error", err)
 		return
 	}
+	uniformBindGroup, err := createGoGPULateTranslucentUniformBindGroup(res)
+	if err != nil {
+		slog.Warn("failed to create late translucent uniform bind group", "error", err)
+		_ = renderPass.End()
+		return
+	}
+	defer uniformBindGroup.Release()
 	width, height := dc.renderer.Size()
 	if width > 0 && height > 0 {
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
-	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
+	// GoGPU's Vulkan backend resolves descriptor-set binding through the active
+	// pipeline layout, so the sorted late-translucent pass must select a pipeline
+	// before its first SetBindGroup call.
+	renderPass.SetPipeline(res.translucentPipeline)
+	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
