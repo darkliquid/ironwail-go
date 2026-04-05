@@ -33,6 +33,14 @@ func shutdownEngine() {
 		return
 	}
 
+	if path, active, err := stopCPUProfile(); active {
+		if err != nil {
+			slog.Error("Failed to close active CPU profile during shutdown", "path", path, "error", err)
+		} else {
+			slog.Info("Stopped active CPU profile during shutdown", "path", path)
+		}
+	}
+
 	g.Host.PrepareForShutdown(g.Subs)
 
 	if g.CSQC != nil && g.CSQC.IsLoaded() {

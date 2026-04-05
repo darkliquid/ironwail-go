@@ -647,24 +647,16 @@ func cmdProfileCPUStart(args []string) {
 }
 
 func cmdProfileCPUStop(_ []string) {
-	cpuProfileState.mu.Lock()
-	defer cpuProfileState.mu.Unlock()
-	if cpuProfileState.file == nil {
+	path, active, err := stopCPUProfile()
+	if !active {
 		console.Printf("profile_cpu_stop: CPU profiling is not active\n")
 		return
 	}
-
-	runtimepprof.StopCPUProfile()
-	if err := cpuProfileState.file.Close(); err != nil {
+	if err != nil {
 		console.Printf("profile_cpu_stop: close profile file: %v\n", err)
-		cpuProfileState.file = nil
-		cpuProfileState.path = ""
 		return
 	}
-
-	console.Printf("CPU profile saved to %s\n", cpuProfileState.path)
-	cpuProfileState.file = nil
-	cpuProfileState.path = ""
+	console.Printf("CPU profile saved to %s\n", path)
 }
 
 func cmdProfileDumpHeap(args []string) {
@@ -693,6 +685,21 @@ func cmdProfileDumpAllocs(args []string) {
 	if err := writeNamedRuntimeProfile("allocs", filename); err != nil {
 		console.Printf("profile_dump_allocs: %v\n", err)
 	}
+}
+
+func stopCPUProfile() (path string, active bool, err error) {
+	cpuProfileState.mu.Lock()
+	defer cpuProfileState.mu.Unlock()
+	if cpuProfileState.file == nil {
+		return "", false, nil
+	}
+
+	runtimepprof.StopCPUProfile()
+	path = cpuProfileState.path
+	err = cpuProfileState.file.Close()
+	cpuProfileState.file = nil
+	cpuProfileState.path = ""
+	return path, true, err
 }
 
 func cmdShowScores(_ []string) {

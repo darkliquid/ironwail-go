@@ -16,5 +16,6 @@
 - Frame ordering is deliberate and affects later consumers like camera, entity, render, and audio updates.
 - Demo playback follows a special path distinct from live networking.
 - Shutdown is responsible for releasing initialized subsystems and persisting config/state where appropriate.
+- Shutdown also closes any active manual CPU profile before tearing subsystems down so ad-hoc profiling captures are flushed even when the user quits without running `profile_cpu_stop`.
 - Screenshot capture first attempts the active renderer export path and now falls back to software capture when renderer export is unavailable or errors, preserving screenshot command/flag behavior across backend states.
 - Dedicated loop pacing is controlled by `sys_ticrate` each iteration (with C-style default fallback) instead of a fixed 250 Hz ticker.
