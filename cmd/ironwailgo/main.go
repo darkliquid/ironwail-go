@@ -143,9 +143,51 @@ type gameRenderer interface {
 
 var g Game
 var runtimeNow = time.Now
+var runtimeStateMu sync.Mutex
+
+var (
+	pendingRendererAssetsMu      sync.Mutex
+	pendingRendererPalette       []byte
+	pendingRendererConchars      []byte
+	pendingRendererAssetsPending bool
+)
 
 type canvasParamSetter interface {
 	SetCanvasParams(renderer.CanvasTransformParams)
+}
+
+func queueRuntimeRendererAssets(palette []byte, conchars []byte) {
+	pendingRendererAssetsMu.Lock()
+	defer pendingRendererAssetsMu.Unlock()
+
+	pendingRendererPalette = append(pendingRendererPalette[:0], palette...)
+	pendingRendererConchars = append(pendingRendererConchars[:0], conchars...)
+	pendingRendererAssetsPending = true
+}
+
+func applyQueuedRuntimeRendererAssets(target gameRendererAssets) {
+	if target == nil {
+		return
+	}
+
+	pendingRendererAssetsMu.Lock()
+	if !pendingRendererAssetsPending {
+		pendingRendererAssetsMu.Unlock()
+		return
+	}
+	palette := append([]byte(nil), pendingRendererPalette...)
+	conchars := append([]byte(nil), pendingRendererConchars...)
+	pendingRendererPalette = pendingRendererPalette[:0]
+	pendingRendererConchars = pendingRendererConchars[:0]
+	pendingRendererAssetsPending = false
+	pendingRendererAssetsMu.Unlock()
+
+	if len(palette) >= 768 {
+		target.SetPalette(palette)
+	}
+	if len(conchars) >= 128*128 {
+		target.SetConchars(conchars)
+	}
 }
 
 type defaultBinding struct {
@@ -891,6 +933,9 @@ func main() {
 			pendingRendererMu.Unlock()
 		})
 		g.Renderer.OnDraw(func(dc renderer.RenderContext) {
+			runtimeStateMu.Lock()
+			defer runtimeStateMu.Unlock()
+
 			if screenshotMode && !screenshotCaptured {
 				defer func() {
 					screenshotCaptured = true
@@ -902,6 +947,7 @@ func main() {
 			}
 
 			if g.Renderer != nil {
+				applyQueuedRuntimeRendererAssets(g.Renderer)
 				pendingRendererMu.Lock()
 				renderDT := pendingRendererDT
 				renderEvents := pendingRendererEvents

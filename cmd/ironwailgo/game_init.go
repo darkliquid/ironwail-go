@@ -544,16 +544,14 @@ func reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
 	}
 
 	if g.Renderer != nil {
-		if pal := g.Draw.Palette(); len(pal) >= 768 {
-			g.Renderer.SetPalette(pal)
-		}
-		if conchars := g.Draw.GetConcharsData(); len(conchars) >= 128*128 {
-			g.Renderer.SetConchars(conchars)
-		}
+		queueRuntimeRendererAssets(g.Draw.Palette(), g.Draw.GetConcharsData())
 	}
 }
 
 func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSystem) error {
+	runtimeStateMu.Lock()
+	defer runtimeStateMu.Unlock()
+
 	if changed == nil {
 		return fmt.Errorf("game dir reload missing filesystem")
 	}
