@@ -183,14 +183,11 @@ func gogpuWorldDynamicLightSignature(lights []DynamicLight) uint64 {
 		mix(math.Float32bits(light.Position[1]))
 		mix(math.Float32bits(light.Position[2]))
 		mix(math.Float32bits(light.Radius))
-		mix(math.Float32bits(light.Color[0]))
-		mix(math.Float32bits(light.Color[1]))
-		mix(math.Float32bits(light.Color[2]))
-		mix(math.Float32bits(light.Brightness))
-		mix(math.Float32bits(light.Lifetime))
-		mix(math.Float32bits(light.Age))
+		effectiveMul := light.Brightness * light.FadeMultiplier()
+		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[0] * effectiveMul)))
+		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[1] * effectiveMul)))
+		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[2] * effectiveMul)))
 		mix(uint32(light.Type))
-		mix(uint32(light.EntityKey))
 	}
 	return h
 }
@@ -814,7 +811,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
 	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
-	return vec4<f32>(mix(lit, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), sampled.a * uniforms.alpha);
+	let fogPosition = input.worldPos - uniforms.cameraOrigin;
+	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
+	let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
+	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
 
@@ -911,7 +911,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
     let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
-    return vec4<f32>(mix(lit, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), sampled.a * uniforms.alpha);
+    let fogPosition = input.worldPos - uniforms.cameraOrigin;
+    let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
+    let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
+    return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
 

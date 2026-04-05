@@ -4,6 +4,7 @@
 package renderer
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
@@ -816,7 +817,9 @@ func TestSortGoGPUWorldFaceDrawsByMaterial(t *testing.T) {
 		},
 	}
 
-	sortGoGPUWorldFaceDrawsByMaterial(draws)
+	sort.Slice(draws, func(i, j int) bool {
+		return gogpuWorldFaceBatchKeyLess(gogpuWorldFaceBatchKeyForDraw(draws[i]), gogpuWorldFaceBatchKeyForDraw(draws[j]))
+	})
 
 	if draws[0].face.FirstIndex != 20 {
 		t.Fatalf("draws[0].FirstIndex = %d, want 20", draws[0].face.FirstIndex)
