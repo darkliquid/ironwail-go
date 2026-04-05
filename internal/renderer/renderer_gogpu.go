@@ -912,8 +912,8 @@ type Renderer struct {
 	overlayTextureWidth  int
 	overlayTextureHeight int
 	// Pooled CPU pixel buffer — avoids ~4.5MB allocation per frame.
-	overlayPixelBuf []byte
-	overlayBufWidth int
+	overlayPixelBuf  []byte
+	overlayBufWidth  int
 	overlayBufHeight int
 }
 
@@ -974,6 +974,7 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	default:
 		slog.Info("GPU preference: auto")
 	}
+	applyGPUPreferenceRuntimeEnv(cfg.GPUPreference)
 
 	// Use Pure Go backend (no CGO required)
 	gpuCfg = gpuCfg.WithBackend(gogpu.BackendGo)
@@ -1002,6 +1003,20 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	)
 
 	return r, nil
+}
+
+func applyGPUPreferenceRuntimeEnv(pref GPUPreference) {
+	if pref != GPUPreferHighPerformance {
+		return
+	}
+	if _, exists := os.LookupEnv("DRI_PRIME"); exists {
+		return
+	}
+	if err := os.Setenv("DRI_PRIME", "1"); err != nil {
+		slog.Warn("failed to apply GPU preference override", "env", "DRI_PRIME", "value", "1", "error", err)
+		return
+	}
+	slog.Info("Applied GPU preference override", "env", "DRI_PRIME", "value", "1")
 }
 
 // SetPalette sets the Quake palette used for rendering.

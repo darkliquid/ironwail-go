@@ -19,6 +19,7 @@ The current gogpu version in this repo exposes public `*wgpu.Device` / `*wgpu.Qu
 - `warpscale_gogpu_test.go` includes a menu-only regression check that locks this clear-skipping rule so future frame-pipeline refactors do not reintroduce black menu backgrounds.
 - Go source in this node aliases the standard library `image` import (`stdimage`) where needed because Quake pic types come from `internal/image`; this avoids symbol collision while preserving screenshot/export behavior.
 - The GoGPU scene-composite fragment shader currently uses a conservative passthrough sample (`textureSample(sceneTexture, sceneSampler, input.uv * uvScale)`) instead of the OpenGL waterwarp distortion math. Earlier WGSL variants using derivative-driven aspect compensation and then a reduced `textureDimensions`-based rewrite still triggered a Vulkan pipeline-creation SIGSEGV on this stack, so the live GoGPU path keeps the fullscreen blit simple to preserve runtime stability while the backend/compiler bug is investigated separately.
+- GoGPU runtime adapter selection currently depends on Vulkan loader ordering. On Linux hybrid systems this can pick the integrated adapter even when `GPUPreferHighPerformance` is requested, so the renderer now applies `DRI_PRIME=1` at startup when that preference is selected and no explicit `DRI_PRIME` override is already set.
 
 ## Decisions
 
@@ -63,3 +64,12 @@ Observed decision:
 
 Rationale:
 - Keeping these core frame passes on one public API surface avoids renderer-local HAL/public mixing and keeps resource-creation, pass encoding, and submission semantics aligned.
+
+### High-performance preference forces Linux PRIME default
+
+Observed decision:
+- `NewWithConfig` applies `DRI_PRIME=1` before `gogpu.NewApp` when `GPUPreferHighPerformance` is selected and `DRI_PRIME` is not already defined.
+
+Rationale:
+- Reproduction logs showed GoGPU runtime selecting the integrated AMD adapter even though the renderer requested high-performance mode; manually setting `DRI_PRIME=1` switched selection to the NVIDIA discrete adapter.
+- Applying the same override in-process keeps behavior aligned with renderer intent while preserving an escape hatch (`DRI_PRIME` already set by the caller is respected).
