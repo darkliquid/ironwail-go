@@ -31,6 +31,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
@@ -136,6 +137,28 @@ type Server struct {
 	modelCache map[string]cachedModelInfo
 }
 
+type entFieldKind uint8
+
+const (
+	entFieldFloat32 entFieldKind = iota
+	entFieldInt32
+	entFieldVec3
+)
+
+type entFieldBinding struct {
+	fieldIndex int
+	ofs        int
+	kind       entFieldKind
+}
+
+type qcSyncCache struct {
+	fieldOffsets   map[string]int
+	entVarBindings []entFieldBinding
+	modelIndexOfs  int
+}
+
+var qcSyncCaches sync.Map
+
 type modelAssetFileSystem interface {
 	OpenFile(filename string) (io.ReadSeekCloser, int64, error)
 }
@@ -219,12 +242,10 @@ func syncEdictToQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
 		return
 	}
-	fieldOffsets := qcFieldOffsets(vm)
-	syncEntVarsToQC(vm, entNum, ent.Vars, fieldOffsets)
-	if ent.Free {
-		if modelIndexOfs, ok := fieldOffsets[normalizeFieldName("ModelIndex")]; ok {
-			vm.SetEFloat(entNum, modelIndexOfs, 0)
-		}
+	cache := qcSyncCacheForVM(vm)
+	syncEntVarsToQC(vm, entNum, ent.Vars, cache.entVarBindings)
+	if ent.Free && cache.modelIndexOfs >= 0 {
+		vm.SetEFloat(entNum, cache.modelIndexOfs, 0)
 	}
 }
 
@@ -235,8 +256,8 @@ func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
 	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
 		return
 	}
-	fieldOffsets := qcFieldOffsets(vm)
-	syncEntVarsFromQC(vm, entNum, ent.Vars, fieldOffsets)
+	cache := qcSyncCacheForVM(vm)
+	syncEntVarsFromQC(vm, entNum, ent.Vars, cache.entVarBindings)
 	if ent.Vars.Model == 0 || vm.GetString(ent.Vars.Model) == "" {
 		ent.Vars.ModelIndex = 0
 	}
@@ -535,7 +556,7 @@ func (s *Server) newCheckClient() int {
 // qcFieldOffsets builds a normalized field-name → VM offset table for entvars.
 // QuakeC field layouts are data-driven from progs.dat; this lookup lets reflection
 // code map Go struct field names onto runtime VM offsets safely.
-func qcFieldOffsets(vm *qc.VM) map[string]int {
+func buildQCFieldOffsets(vm *qc.VM) map[string]int {
 	offsets := make(map[string]int, len(defaultEntFieldOffsets)+len(vm.FieldDefs))
 	for key, ofs := range defaultEntFieldOffsets {
 		offsets[key] = ofs
@@ -548,6 +569,49 @@ func qcFieldOffsets(vm *qc.VM) map[string]int {
 		offsets[normalizeFieldName(name)] = int(def.Ofs)
 	}
 	return offsets
+}
+
+func qcSyncCacheForVM(vm *qc.VM) *qcSyncCache {
+	if vm == nil {
+		return nil
+	}
+	if cached, ok := qcSyncCaches.Load(vm); ok {
+		return cached.(*qcSyncCache)
+	}
+
+	fieldOffsets := buildQCFieldOffsets(vm)
+	rt := reflect.TypeOf(EntVars{})
+	bindings := make([]entFieldBinding, 0, rt.NumField())
+	for i := 0; i < rt.NumField(); i++ {
+		field := rt.Field(i)
+		ofs, ok := fieldOffsets[normalizeFieldName(field.Name)]
+		if !ok {
+			continue
+		}
+		switch field.Type.Kind() {
+		case reflect.Float32:
+			bindings = append(bindings, entFieldBinding{fieldIndex: i, ofs: ofs, kind: entFieldFloat32})
+		case reflect.Int32:
+			bindings = append(bindings, entFieldBinding{fieldIndex: i, ofs: ofs, kind: entFieldInt32})
+		case reflect.Array:
+			if field.Type.Len() == 3 && field.Type.Elem().Kind() == reflect.Float32 {
+				bindings = append(bindings, entFieldBinding{fieldIndex: i, ofs: ofs, kind: entFieldVec3})
+			}
+		}
+	}
+
+	cache := &qcSyncCache{
+		fieldOffsets:   fieldOffsets,
+		entVarBindings: bindings,
+		modelIndexOfs:  -1,
+	}
+	if ofs, ok := fieldOffsets[normalizeFieldName("ModelIndex")]; ok {
+		cache.modelIndexOfs = ofs
+	}
+	if existing, loaded := qcSyncCaches.LoadOrStore(vm, cache); loaded {
+		return existing.(*qcSyncCache)
+	}
+	return cache
 }
 
 var defaultEntFieldOffsets = map[string]int{
@@ -633,29 +697,20 @@ var defaultEntFieldOffsets = map[string]int{
 // syncEntVarsToQC reflects over EntVars and writes each mapped field into VM edict memory.
 // This generic reflection pass avoids hand-writing dozens of assignments and keeps
 // the Go-side EntVars schema synchronized with QuakeC-visible entity fields.
-func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[string]int) {
+func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, bindings []entFieldBinding) {
 	if vm == nil || vars == nil {
 		return
 	}
 	rv := reflect.ValueOf(vars).Elem()
-	rt := rv.Type()
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		ofs, ok := fieldOffsets[normalizeFieldName(field.Name)]
-		if !ok {
-			continue
-		}
-		value := rv.Field(i)
-		switch value.Kind() {
-		case reflect.Float32:
-			vm.SetEFloat(entNum, ofs, float32(value.Float()))
-		case reflect.Int32:
-			vm.SetEInt(entNum, ofs, int32(value.Int()))
-		case reflect.Array:
-			if value.Len() != 3 || value.Type().Elem().Kind() != reflect.Float32 {
-				continue
-			}
-			vm.SetEVector(entNum, ofs, [3]float32{
+	for _, binding := range bindings {
+		value := rv.Field(binding.fieldIndex)
+		switch binding.kind {
+		case entFieldFloat32:
+			vm.SetEFloat(entNum, binding.ofs, float32(value.Float()))
+		case entFieldInt32:
+			vm.SetEInt(entNum, binding.ofs, int32(value.Int()))
+		case entFieldVec3:
+			vm.SetEVector(entNum, binding.ofs, [3]float32{
 				float32(value.Index(0).Float()),
 				float32(value.Index(1).Float()),
 				float32(value.Index(2).Float()),
@@ -667,29 +722,20 @@ func syncEntVarsToQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[stri
 // syncEntVarsFromQC reflects over EntVars and imports values from VM edict memory.
 // It is the inverse of syncEntVarsToQC and keeps engine systems (physics, networking,
 // savegames) in lockstep with whatever game DLL logic changed in QuakeC this frame.
-func syncEntVarsFromQC(vm *qc.VM, entNum int, vars *EntVars, fieldOffsets map[string]int) {
+func syncEntVarsFromQC(vm *qc.VM, entNum int, vars *EntVars, bindings []entFieldBinding) {
 	if vm == nil || vars == nil {
 		return
 	}
 	rv := reflect.ValueOf(vars).Elem()
-	rt := rv.Type()
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		ofs, ok := fieldOffsets[normalizeFieldName(field.Name)]
-		if !ok {
-			continue
-		}
-		value := rv.Field(i)
-		switch value.Kind() {
-		case reflect.Float32:
-			value.SetFloat(float64(vm.EFloat(entNum, ofs)))
-		case reflect.Int32:
-			value.SetInt(int64(vm.EInt(entNum, ofs)))
-		case reflect.Array:
-			if value.Len() != 3 || value.Type().Elem().Kind() != reflect.Float32 {
-				continue
-			}
-			vec := vm.EVector(entNum, ofs)
+	for _, binding := range bindings {
+		value := rv.Field(binding.fieldIndex)
+		switch binding.kind {
+		case entFieldFloat32:
+			value.SetFloat(float64(vm.EFloat(entNum, binding.ofs)))
+		case entFieldInt32:
+			value.SetInt(int64(vm.EInt(entNum, binding.ofs)))
+		case entFieldVec3:
+			vec := vm.EVector(entNum, binding.ofs)
 			value.Index(0).SetFloat(float64(vec[0]))
 			value.Index(1).SetFloat(float64(vec[1]))
 			value.Index(2).SetFloat(float64(vec[2]))
