@@ -24,8 +24,8 @@ The input system itself decides which callback to trigger based on the current `
 
 | Feature | Ironwail (C) | Ironwail-Go (Go) |
 | :--- | :--- | :--- |
-| **SDL Version** | SDL2 (C headers) | SDL3 (Pure-Go) |
-| **Mouse Acceleration** | Handled manually with Mac hacks | Handled by SDL3 and OS settings |
+| **Event backend** | SDL2 via `in_sdl.c` | Renderer/window backend injected through `internal/input/` |
+| **Mouse handling** | Handled manually with Mac hacks | Handled by the active platform/window backend and OS settings |
 | **Gamepad Support** | Extensive (Gyro, Rumble, Deadzones) | Initial support (Deadzones only) |
 | **Text Mode** | `K_TEXTMODE` and manual buffer handling | `HandleCharEvent()` with `rune` support |
 

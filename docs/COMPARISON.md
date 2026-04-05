@@ -44,3 +44,7 @@ The Go port aims for "high-fidelity parity," meaning:
 
 - **C**: C99, SDL2, OpenGL 1.x-3.x (Legacy/Core mix).
 - **Go**: Go 1.26, GoGPU/WebGPU, Oto audio, and GLM-style math via `pkg/types`.
+
+The Go runtime no longer carries parallel legacy renderer/input/audio variants:
+the canonical gameplay stack is GoGPU rendering, renderer-provided input, and
+Oto audio.

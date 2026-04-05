@@ -78,6 +78,63 @@ acts like a real gate:
   exits nonzero if captures are missing or if any scene exceeds the configured
   mismatch threshold
 
+There are no longer alternate renderer/audio/input build-tag variants for
+normal development. `mise run build` is the canonical gameplay build, using the
+GoGPU renderer, renderer-provided input backend, and Oto audio backend by
+default.
+
+## Runtime Profiling
+
+The executable exposes file-based profiling commands directly through the in-game
+console. They are meant for focused captures during gameplay/debug sessions
+without requiring an always-on HTTP profiling server.
+
+### pprof capture commands
+
+| Command | Purpose |
+| --- | --- |
+| `profile_cpu_start [filename]` | Start a CPU pprof capture. |
+| `profile_cpu_stop` | Stop the active CPU capture and flush it to disk. |
+| `profile_dump_heap [filename]` | Write a one-shot heap profile. |
+| `profile_dump_allocs [filename]` | Write a one-shot allocs profile. |
+
+Notes:
+
+- If `filename` is omitted, output goes to
+  `<basedir>/<moddir>/profiles/ironwail_YYYYMMDD_HHMMSS_<kind>.pprof`.
+- Relative paths are resolved under the current `<basedir>/<moddir>/`.
+- Only one CPU profile can be active at a time.
+- Orderly quit stops an active CPU profile automatically, so captures are still
+  flushed if you exit without typing `profile_cpu_stop`.
+- Heap and allocs dumps force a GC before writing so the snapshot reflects the
+  just-played scenario more closely.
+
+Example workflow:
+
+```text
+profile_cpu_start
+map start
+profile_cpu_stop
+profile_dump_heap
+profile_dump_allocs
+```
+
+Analyze captures with Go's standard tooling:
+
+```text
+go tool pprof ./ironwailgo id1/profiles/ironwail_20260405_190000_cpu.pprof
+go tool pprof ./ironwailgo id1/profiles/ironwail_20260405_190030_heap.pprof
+```
+
+### Lightweight in-engine timing/profiling
+
+- `host_speeds 1` enables frame timing logs from the host/server/renderer. With
+  it enabled, normal output includes `host_speeds`, `server_speeds`,
+  `render_thread_speeds`, `render_entities_speeds`, and `render_world_speeds`
+  records.
+- `profile` is the QuakeC host command. It prints the top 10 QC function profile
+  counters for the active local server and resets those counters on read.
+
 ## Debug Telemetry
 
 The server now exposes an opt-in debug telemetry mode for following trigger,
@@ -109,12 +166,11 @@ when debugging map logic and parity issues:
 - pusher/blocker physics callbacks
 - QuakeC call chains executed through the server's QC wrapper
 
-QC profiling counters are already implemented and available through the
-`profile` host command (top 10 functions, reset-on-read, local server only).
-That command is separate from telemetry tracing. This means QC profiling is in
-scope and considered implemented for parity purposes; there is no current plan
-to add a full statement-by-statement VM profiler as part of this telemetry
-feature.
+QC profiling counters are already implemented through the `profile` host command
+(top 10 functions, reset-on-read, local server only). That command is separate
+from telemetry tracing. This means QC profiling is in scope and considered
+implemented for parity purposes; there is no current plan to add a full
+statement-by-statement VM profiler as part of this telemetry feature.
 
 QC tracing is not a generic whole-engine instruction trace. It follows QuakeC
 function entry/leave activity and optional builtin calls for server-side paths
