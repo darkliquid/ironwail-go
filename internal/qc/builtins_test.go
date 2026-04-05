@@ -49,6 +49,24 @@ func TestWriteStringBuiltinDecodesEscapedNewlines(t *testing.T) {
 	}
 }
 
+func TestRegisterBuiltinsIncludesNoopExtensionProbes(t *testing.T) {
+	vm := newBuiltinsTestVM(4)
+
+	RegisterBuiltins(vm)
+
+	for _, builtinNum := range []int{99, 100} {
+		builtin := vm.Builtins[builtinNum]
+		if builtin == nil {
+			t.Fatalf("builtin %d was not registered", builtinNum)
+		}
+		vm.SetGFloat(OFSReturn, 123)
+		builtin(vm)
+		if got := vm.GFloat(OFSReturn); got != 0 {
+			t.Fatalf("builtin %d return = %v, want 0", builtinNum, got)
+		}
+	}
+}
+
 func TestModBuiltinWarnsOnZeroDivisor(t *testing.T) {
 	vm := newBuiltinsTestVM(4)
 	var printed []string

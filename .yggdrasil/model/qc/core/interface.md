@@ -21,3 +21,4 @@ Observed surfaces:
 - `LoadProgs` requires a compatible `progs.dat` version and layout.
 - `ExecuteProgram` expects a valid function index and previously loaded VM tables.
 - Negative `FirstStatement` values denote builtins and are dispatched through the builtin registry.
+- `ExecuteProgram` accepts `OPAddress` pointers into edict `0` (the world entity) as long as the edict index and field offset are in bounds; mods may legally write world fields such as `self.gravity` during `worldspawn`.

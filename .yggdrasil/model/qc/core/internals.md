@@ -14,6 +14,8 @@
 
 The interpreter loop advances through statements, dispatches opcodes, handles control flow and function calls, tracks profile counters, and copies return values into `OFSReturn`.
 
+`OPAddress` now permits pointers into edict `0` when the target field offset is valid. That keeps the VM compatible with mods that treat `worldspawn` as a writable entity context and assign world fields such as `self.gravity`.
+
 ### Stack handling
 
 Function entry saves caller state and local values, copies parameters from the reserved parameter globals, and sets the new execution context. Leave restores locals and unwinds the stack.
@@ -52,3 +54,17 @@ Rationale:
 Rejected alternatives:
 - Throwing `PR_RunError`/Go errors for divide-by-zero:
   - rejected because C VM does not do this, and would change gameplay/QC behavior for existing `progs.dat`.
+
+### World-entity field pointers stay valid during bytecode execution
+
+Observed decision:
+- `OPAddress` no longer rejects edict `0` solely because it is the world entity.
+- The opcode still errors on out-of-range edict indices or field offsets; only the blanket "world entity" rejection was removed.
+
+Rationale:
+- qbj2 `worldspawn` stores through `self.gravity`, which is valid pointer math against edict `0` in this VM layout.
+- Rejecting all world-entity field pointers broke otherwise valid mod startup before the menu-driven `map start` path could finish.
+
+Rejected alternatives:
+- Keeping the classic guard and treating qbj2 as unsupported:
+  - rejected because the surrounding VM storage model already supports in-bounds world-field access, and the compatibility failure blocked a normal mod bootstrap path.

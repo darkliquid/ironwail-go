@@ -103,6 +103,40 @@ func TestExecuteProgramDivByZeroBehaviorMatrixMatchesC(t *testing.T) {
 	}
 }
 
+func TestExecuteProgramOPAddressAllowsWorldEntityFieldStores(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 128)
+	vm.MaxEdicts = 2
+	vm.NumEdicts = 1
+	vm.EntityFields = 64
+	vm.EdictSize = 28 + vm.EntityFields*4
+	vm.Edicts = make([]byte, vm.EdictSize*2)
+
+	const (
+		mainFuncNum = 0
+		fieldOfs    = 10
+		ptrOfs      = 11
+		valueOfs    = 12
+	)
+
+	vm.Functions = []DFunction{{FirstStatement: 0}}
+	vm.Statements = []DStatement{
+		{Op: uint16(OPAddress), A: uint16(OFSSelf), B: uint16(fieldOfs), C: uint16(ptrOfs)},
+		{Op: uint16(OPStorePF), A: uint16(valueOfs), B: uint16(ptrOfs)},
+		{Op: uint16(OPDone)},
+	}
+	vm.SetGInt(OFSSelf, 0)
+	vm.SetGInt(fieldOfs, EntFieldHealth)
+	vm.SetGFloat(valueOfs, 42)
+
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram() error = %v", err)
+	}
+	if got := vm.EFloat(0, EntFieldHealth); got != 42 {
+		t.Fatalf("world health = %v, want 42", got)
+	}
+}
+
 func TestExecuteProgramCallRunsCalleeFirstStatement(t *testing.T) {
 	vm := NewVM()
 	vm.Globals = make([]float32, 64)

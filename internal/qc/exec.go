@@ -369,9 +369,6 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			if edictNum < 0 || edictNum >= maxEdicts {
 				return fmt.Errorf("OPAddress invalid edict: %d", edictNum)
 			}
-			if edictNum == 0 {
-				return fmt.Errorf("OPAddress assignment to world entity")
-			}
 			ptr := edictNum*vm.EdictSize + 28 + fieldOfs*4
 			if ptr < 0 || ptr+4 > len(vm.Edicts) {
 				return fmt.Errorf("OPAddress pointer out of bounds: %d", ptr)
