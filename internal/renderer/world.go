@@ -6,6 +6,7 @@ package renderer
 import (
 	"encoding/binary"
 	"fmt"
+	stdimage "image"
 	"log/slog"
 	"math"
 	"os"
@@ -109,7 +110,7 @@ func worldLitWaterCvarEnabled() bool {
 	return cv.Int != 0
 }
 
-func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback *wgpu.BindGroup) (*wgpu.BindGroup, float32) {
+func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTexture, fallback *wgpu.BindGroup, hasLitWater bool) (*wgpu.BindGroup, float32) {
 	bindGroup := fallback
 	if face.LightmapIndex < 0 || int(face.LightmapIndex) >= len(lightmaps) {
 		return bindGroup, 0
@@ -119,10 +120,19 @@ func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTex
 		return bindGroup, 0
 	}
 	bindGroup = lightmapPage.bindGroup
-	if worldLitWaterCvarEnabled() && worldFaceHasLitWater(face.Flags, &faceLightmapSurface{pageIndex: int(face.LightmapIndex)}) {
+	if worldLitWaterCvarEnabled() && hasLitWater && face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 {
 		return bindGroup, 1
 	}
 	return bindGroup, 0
+}
+
+func gogpuFacesHaveLitWater(faces []WorldFace) bool {
+	for _, face := range faces {
+		if face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 && face.LightmapIndex >= 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func sortGoGPUTranslucentLiquidFaces(mode AlphaMode, faces []gogpuTranslucentLiquidFaceDraw) {
@@ -1634,6 +1644,14 @@ func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Qu
 		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
 	}
 	rgba := ConvertPaletteToRGBA(pixels, r.palette)
+	if classifyWorldTextureName(miptex.Name) == model.TexTypeCutout {
+		cutout := &stdimage.RGBA{
+			Pix:    rgba,
+			Stride: width * 4,
+			Rect:   stdimage.Rect(0, 0, width, height),
+		}
+		image.AlphaEdgeFix(cutout)
+	}
 	return r.createWorldTextureFromRGBA(device, queue, sampler, "World Diffuse Texture", rgba, width, height)
 }
 
@@ -2588,6 +2606,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	timeSeconds := float64(camera.Time)
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
 	var activeDynamicLights []DynamicLight
 	dc.renderer.mu.RLock()
@@ -2761,7 +2780,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			if worldTexture := gogpuWorldTextureForFace(face, dc.renderer.worldTextures, dc.renderer.worldTextureAnimations, nil, 0, timeSeconds); worldTexture != nil && worldTexture.bindGroup != nil {
 				textureBindGroup = worldTexture.bindGroup
 			}
-			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup)
+			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, dc.renderer.worldLightmapPages, dc.renderer.whiteLightmapBindGroup, worldHasLitWater)
 			dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)
 			if !writeWorldUniform(1, dynamicLight, litWater) {
 				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
@@ -2990,6 +3009,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	}
 
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
+	worldHasLitWater := gogpuFacesHaveLitWater(worldData.Geometry.Faces)
 	if !hasTranslucentWorldLiquidFaceType(worldLiquidFaceTypeMask(worldData.Geometry.Faces), liquidAlpha) {
 		return
 	}
@@ -3049,7 +3069,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 
 	translucentLiquidDrawnIndices := uint32(0)
 	for _, draw := range translucentFaces {
-		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup)
+		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup, worldHasLitWater)
 		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
 		if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
 			renderPass.End()
