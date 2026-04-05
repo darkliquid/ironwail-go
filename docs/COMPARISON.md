@@ -10,7 +10,7 @@ This document provides a high-level comparison between the original Ironwail C c
 
 ### Concurrency
 - **Ironwail (C)**: Primarily single-threaded, with some use of SDL mutexes and threads for specific tasks like async loading or background music.
-- **Ironwail-Go (Go)**: Leverages Go's goroutines for background tasks (e.g., filesystem loading, audio streaming) while maintaining a strict `runtime.LockOSThread()` for the main rendering thread to satisfy OpenGL requirements.
+- **Ironwail-Go (Go)**: Leverages Go's goroutines for background tasks (e.g., filesystem loading, audio streaming) while coordinating a dedicated render thread for the canonical GoGPU path.
 
 ## 2. Subsystem Organization
 
@@ -30,17 +30,17 @@ Detailed analysis of specific divergences can be found in the following sub-docu
 
 1. [Boot and Start Sequence](BOOT_SEQUENCE.md)
 2. [Input Handling and Event Loop](INPUT_HANDLING.md)
-3. [Rendering Pipeline (OpenGL)](RENDERING.md)
+3. [Parity Scene Matrix](PARITY_SCENE_MATRIX.md)
 
 ## 4. Parity Goals
 
 The Go port aims for "high-fidelity parity," meaning:
 - Identical `progs.dat` (QuakeC) execution behavior.
 - Identical physics and movement logic.
-- Visual parity with the canonical OpenGL renderer.
+- Visual parity with the canonical GoGPU renderer.
 - Support for standard Quake data files (PAK, BSP, MDL, SPR).
 
 ## 5. Technology Stack
 
 - **C**: C99, SDL2, OpenGL 1.x-3.x (Legacy/Core mix).
-- **Go**: Go 1.26, SDL3 (pure-Go via `go-sdl3`), OpenGL 4.6 (Core Profile), GLM-style math via `pkg/types`.
+- **Go**: Go 1.26, GoGPU/WebGPU, Oto audio, and GLM-style math via `pkg/types`.

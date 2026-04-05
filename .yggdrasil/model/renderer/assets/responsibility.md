@@ -13,5 +13,5 @@
 
 ## Does not own
 
-- concrete OpenGL atlas upload behavior
+- concrete backend atlas upload behavior
 - backend lifecycle or world submission logic

@@ -5,9 +5,8 @@
 ### Startup
 
 `AudioAdapter.Init` selects a backend in priority order:
-1. SDL3
-2. oto
-3. null backend
+1. oto
+2. null backend
 
 It tries 44.1 kHz first, retries at 48 kHz on failure, and falls back to the null backend if hardware init still fails.
 Backend availability and backend-selection traces in `AudioAdapter.Init` are diagnostic and now emit at `Debug`; successful hardware initialization remains visible at `Info`, while degraded/failed startup still uses `Warn`/`Error`.
@@ -21,6 +20,10 @@ Backend availability and backend-selection traces in `AudioAdapter.Init` are dia
 - compute a mix horizon
 - top up music/raw samples
 - paint mixed audio into the DMA buffer
+
+### Shutdown flow
+
+`System.Shutdown` now quiesces playback before backend teardown: it forces mixer volume to zero, blocks backend output, clears active channels plus the DMA buffer, and only then closes the backend. This keeps exit-time teardown from replaying stale mixed samples through the live Oto player while the rest of the process is shutting down.
 
 ### Cvar application
 

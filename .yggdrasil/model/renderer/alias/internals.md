@@ -6,7 +6,7 @@ This node exists to hold pure alias-model logic that would otherwise be duplicat
 
 ## Constraints
 
-- behavior must stay parity-safe across OpenGL and GoGPU
+- behavior must stay parity-safe across renderer implementations
 - helpers should work from DTOs/adapters rather than importing backend-local model/cache types
 - no GL state, HAL handles, or `*Renderer` methods belong here
 

@@ -1,31 +1,31 @@
 {
-  "hash": "c73a2b8d6108924ac2d48c24ffaac4e309e57505aba767585adece74f7ecff06",
+  "hash": "1221ed0c9725cfe24e1adb4d50193db181f6345d621f32b7a59d207f891e255e",
   "files": {
     ".yggdrasil/model/ironwailgo/app-shell/yg-node.yaml": "402c8a666a6248d3e0e457ced88388ef29b3b5c5d5e77371bc9e0bb3034b34e9",
-    ".yggdrasil/model/ironwailgo/app-shell/interface.md": "2987efb032173a2dbd71d5832ed396bff1d302509a63f2b72853e0a0d7f81be1",
+    ".yggdrasil/model/ironwailgo/app-shell/interface.md": "aed9628a49c52b057697d119fcd7a8388e7e9f2755974613a8d3d1f44c967f71",
     ".yggdrasil/model/ironwailgo/app-shell/responsibility.md": "9f96de167e6944ecb1fbe28604b709e28bffcf1b9733553f1c31c544bb10f544",
     ".yggdrasil/model/ironwailgo/yg-node.yaml": "757b9f0acbb74ce8f5693099a83287127ab06ba224d95a7e8047bc5c45aff60e",
     ".yggdrasil/model/ironwailgo/interface.md": "54436a5c76aeca4c3da3c537228927559a1dfaa0d8075afe065ad54e5992676a",
     ".yggdrasil/model/ironwailgo/internals.md": "d5a03e189aedcfc36f9becaafbaabab824e3bc025c3c088597be342cbd9f75ba",
     ".yggdrasil/model/ironwailgo/responsibility.md": "3b73c146ad81f307c03e74e9ac382c4ef72f54cf103075465c40a11cd4f42b42",
-    "cmd/ironwailgo/logging.go": "3a10b016d8fcd424b20c5a14bdf1c8800b00b342bc1cd9aa457d3409a18e5fc8",
-    "cmd/ironwailgo/logging_test.go": "16050f7ab5d7df7c68290980a6fbc4de647ec13f27a61c8cff368e6beb48e88d",
-    "cmd/ironwailgo/main_test.go": "cb00599aadc9a61d560ae560ef922dacb0ebc6d0ab1857ceae170f3a0d277938",
-    ".yggdrasil/model/ironwailgo/app-shell/internals.md": "4de34cb4e0641bf3057fb1da94dfc4ff2ed352863974fdcbcb0c7dfcb75940d0",
-    "cmd/ironwailgo/main.go": "b031643fc0463e66585cc91e6f5d6029e51b561a6dc402fda2607f4abba1fcef"
+    "cmd/ironwailgo/main.go": "b031643fc0463e66585cc91e6f5d6029e51b561a6dc402fda2607f4abba1fcef",
+    "cmd/ironwailgo/logging.go": "164e89b67b2e640a2556dd6147e42d8d8a68eab706cd5e306b7d4d274c1527ac",
+    "cmd/ironwailgo/logging_test.go": "238b185fc6e6b98f2df9949d5c2d808e47d91cf1554b562ee52953e6659d6f8c",
+    "cmd/ironwailgo/main_test.go": "554e3c0e3040b9c890b44238d417535bbc312d01232c239a0dc662ddd3671a65",
+    ".yggdrasil/model/ironwailgo/app-shell/internals.md": "0a90614354b7c09c8323dfcf42db893afbc0d0a92e0c546ee601c3c94540fe7d"
   },
   "mtimes": {
     ".yggdrasil/model/ironwailgo/app-shell/yg-node.yaml": 1774684826374.2485,
-    ".yggdrasil/model/ironwailgo/app-shell/interface.md": 1774684826375.2485,
-    ".yggdrasil/model/ironwailgo/app-shell/internals.md": 1775390534836.5981,
+    ".yggdrasil/model/ironwailgo/app-shell/interface.md": 1775423023335.8428,
+    ".yggdrasil/model/ironwailgo/app-shell/internals.md": 1775424186718.994,
     ".yggdrasil/model/ironwailgo/app-shell/responsibility.md": 1774684826375.2485,
     ".yggdrasil/model/ironwailgo/yg-node.yaml": 1774246120437.7908,
     ".yggdrasil/model/ironwailgo/interface.md": 1774246120437.9446,
     ".yggdrasil/model/ironwailgo/internals.md": 1774246120438.0176,
     ".yggdrasil/model/ironwailgo/responsibility.md": 1774246120437.8784,
-    "cmd/ironwailgo/main.go": 1775390507415.7087,
-    "cmd/ironwailgo/logging.go": 1774684826137.2454,
-    "cmd/ironwailgo/logging_test.go": 1774684866290.8005,
-    "cmd/ironwailgo/main_test.go": 1774696576892.587
+    "cmd/ironwailgo/main.go": 1775422318687.516,
+    "cmd/ironwailgo/logging.go": 1775422926184.0044,
+    "cmd/ironwailgo/logging_test.go": 1775424036197.3882,
+    "cmd/ironwailgo/main_test.go": 1775422318688.516
   }
 }

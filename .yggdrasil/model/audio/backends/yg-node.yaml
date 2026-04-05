@@ -1,11 +1,8 @@
 name: Audio Backends
 type: module
-description: "Concrete SDL3, oto, and null backends plus DMA cursor management"
+description: "Concrete Oto and null backends plus DMA cursor management"
 blackbox: false
 mapping:
   paths:
     - internal/audio/backend.go
     - internal/audio/backend_oto.go
-    - internal/audio/backend_oto_stub.go
-    - internal/audio/backend_sdl3.go
-    - internal/audio/backend_sdl3_stub.go

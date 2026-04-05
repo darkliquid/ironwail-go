@@ -15,7 +15,7 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
-CGO_ENABLED=1 go run ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
+CGO_ENABLED=0 go run ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
 """
 
 [tasks.clean-logs]
@@ -23,17 +23,16 @@ description = "Remove smoke test log files"
 run = "rm -f smoke-*.log"
 
 [tasks.smoke-menu]
-description = "Smoke test: verify CGO/OpenGL menu startup works"
-depends = ["clean-logs", "build-cgo"]
+description = "Smoke test: verify GoGPU menu startup works"
+depends = ["clean-logs", "build"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} ./ironwailgo-cgo -basedir "${QUAKE_DIR}" 2>&1 | tee smoke-menu.log || true
-grep "OpenGL renderer created" smoke-menu.log
-grep "Starting OpenGL render loop" smoke-menu.log
+timeout ${TIMEOUT} ./ironwailgo-wgpu -basedir "${QUAKE_DIR}" 2>&1 | tee smoke-menu.log || true
+grep "Starting render loop" smoke-menu.log
 grep "FS mounted" smoke-menu.log
 grep "QC loaded" smoke-menu.log
 grep "menu active" smoke-menu.log
@@ -41,15 +40,15 @@ grep "frame loop started" smoke-menu.log
 """
 
 [tasks.smoke-headless]
-description = "Smoke test: verify headless mode works from the CGO build"
-depends = ["clean-logs", "build-cgo"]
+description = "Smoke test: verify headless mode works from the GoGPU build"
+depends = ["clean-logs", "build"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} ./ironwailgo-cgo -basedir "${QUAKE_DIR}" -headless 2>&1 | tee smoke-headless.log || true
+timeout ${TIMEOUT} ./ironwailgo-wgpu -basedir "${QUAKE_DIR}" -headless 2>&1 | tee smoke-headless.log || true
 grep "FS mounted" smoke-headless.log
 grep "QC loaded" smoke-headless.log
 grep "menu active" smoke-headless.log
@@ -57,17 +56,16 @@ grep "frame loop started" smoke-headless.log
 """
 
 [tasks.smoke-map-start]
-description = "Smoke test: verify CGO/OpenGL map spawning works"
-depends = ["clean-logs", "build-cgo"]
+description = "Smoke test: verify GoGPU map spawning works"
+depends = ["clean-logs", "build"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
 export WAYLAND_DISPLAY=
-timeout ${TIMEOUT} ./ironwailgo-cgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-map-start.log || true
-grep "OpenGL renderer created" smoke-map-start.log
-grep "Starting OpenGL render loop" smoke-map-start.log
+timeout ${TIMEOUT} ./ironwailgo-wgpu -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-map-start.log || true
+grep "Starting render loop" smoke-map-start.log
 grep "FS mounted" smoke-map-start.log
 grep "QC loaded" smoke-map-start.log
 grep "menu active" smoke-map-start.log
@@ -77,42 +75,12 @@ grep "client active" smoke-map-start.log
 grep "frame loop started" smoke-map-start.log
 """
 
-[tasks.smoke-cgo-map-start]
-description = "Smoke test: verify CGO/OpenGL boots to map start without headless fallback"
-depends = ["clean-logs", "build-cgo"]
-run = """
-if [ -z "${QUAKE_DIR:-}" ]; then
-  echo "QUAKE_DIR is required" >&2
-  exit 1
-fi
-timeout 8 ./ironwailgo-cgo -basedir "${QUAKE_DIR}" +map start 2>&1 | tee smoke-cgo-map-start.log || true
-grep "OpenGL renderer created" smoke-cgo-map-start.log
-grep "Starting OpenGL render loop" smoke-cgo-map-start.log
-grep "OpenGL world uploaded" smoke-cgo-map-start.log
-grep "FS mounted" smoke-cgo-map-start.log
-grep "QC loaded" smoke-cgo-map-start.log
-grep "menu active" smoke-cgo-map-start.log
-grep "map spawn started" smoke-cgo-map-start.log
-grep "map spawn finished" smoke-cgo-map-start.log
-grep "client active" smoke-cgo-map-start.log
-grep "frame loop started" smoke-cgo-map-start.log
-if grep -q "Renderer initialization failed. Running in headless mode." smoke-cgo-map-start.log; then
-	echo "unexpected renderer init fallback to headless" >&2
-	exit 1
-fi
-if grep -q "Render loop failed. Falling back to headless mode." smoke-cgo-map-start.log; then
-	echo "unexpected render-loop fallback to headless" >&2
-	exit 1
-fi
-"""
-
 [tasks.smoke-all]
 description = "Run all smoke tests"
 depends = [
   "smoke-menu",
   "smoke-headless",
   "smoke-map-start",
-  "smoke-cgo-map-start",
 ]
 
 [tasks.ralph-analyze-log]
@@ -145,13 +113,13 @@ go run ./tools/ralph build-prompt \
 [tasks.ralph-loop-once]
 interactive = true
 description = "Run one telemetry/analyze/fix Ralph iteration"
-depends = ["build-cgo"]
+depends = ["build"]
 run = "go run ./tools/ralph loop once"
 
 [tasks.ralph-loop]
 interactive = true
 description = "Continuously run the telemetry-driven Ralph parity/fix loop"
-depends = ["build-cgo"]
+depends = ["build"]
 run = "go run ./tools/ralph loop continuous"
 
 [tasks.test]
@@ -160,7 +128,7 @@ run = "go test ./..."
 
 [tasks.verify]
 description = "Run core verification suite"
-depends = ["test", "build-gogpu", "build-cgo"]
+depends = ["test", "build"]
 
 [tasks.build-qgo]
 depends = ["go-generate"]
@@ -172,49 +140,23 @@ depends = ["build-qgo"]
 description = "Build the progs.dat from QuakeGo sources"
 run = "cd pkg/qgo/quakego && ../../../qgo"
 
-[tasks.build-gogpu]
+[tasks.build]
 depends = ["go-generate"]
-description = "Build binary in WGPU mode"
-run = "CGO_ENABLED=0 go build -tags gogpu,audio_oto -o ironwailgo-wgpu ./cmd/ironwailgo"
+description = "Build game binary"
+run = "CGO_ENABLED=0 go build -o ironwailgo ./cmd/ironwailgo"
 
-[tasks.build-gogpu-rust]
-depends = ["go-generate"]
-description = "Build binary in WGPU mode with rust backend"
-run = "CGO_ENABLED=0 go build -tags gogpu,rust,audio_oto -o ironwailgo-wgpu-rust ./cmd/ironwailgo"
-
-
-[tasks.build-gogpu-sdl3]
-depends = ["go-generate"]
-description = "Build binary in WGPU mode with SDL3 input/audio (nofakecgo workaround)"
-run = "CGO_ENABLED=0 go build -tags 'gogpu sdl3 nofakecgo' -o ironwailgo-wgpu-sdl3 ./cmd/ironwailgo"
-
-[tasks.run-gogpu-sdl3]
-depends = ["build-gogpu-sdl3"]
-description = "Run WGPU + SDL3 input/audio build"
-run = "IW_INPUT_BACKEND=sdl3 ./ironwailgo-wgpu-sdl3 -basedir ${QUAKE_DIR}"
-
-[tasks.build-gl]
-depends = ["go-generate"]
-description = "Build binary in OpenGL mode"
-run = "go build -tags opengl,egl,audio_oto -o ironwailgo-gl ./cmd/ironwailgo"
-
-[tasks.build-cgo]
-depends = ["go-generate"]
-description = "Build binary with CGO enabled (OpenGL renderer + oto audio + GLFW input)"
-run = "CGO_ENABLED=1 go build -tags audio_oto -o ironwailgo-cgo ./cmd/ironwailgo"
-
-[tasks.run-cgo]
-depends = ["build-cgo"]
-description = "Run CGO build (OpenGL + oto + GLFW)"
-run = "./ironwailgo-cgo -basedir ${QUAKE_DIR}"
+[tasks.run]
+depends = ["build"]
+description = "Run game"
+run = "./ironwailgo -basedir ${QUAKE_DIR}"
 
 [tasks.parity-ref]
 description = "Capture reference screenshots from C Ironwail"
 run = "go run ./tools/parity_screenshots reference"
 
 [tasks.parity-go]
-description = "Capture screenshots from the CGO/OpenGL Go parity build"
-depends = ["build-cgo"]
+description = "Capture screenshots from the GoGPU parity build"
+depends = ["build"]
 run = "go run ./tools/parity_screenshots go"
 
 [tasks.parity-compare]
@@ -222,8 +164,8 @@ description = "Compare reference vs Go screenshots and fail on diffs/missing cap
 run = "go run ./tools/parity_screenshots compare"
 
 [tasks.parity-all]
-description = "Capture reference + CGO/OpenGL Go screenshots and compare them"
-depends = ["build-cgo"]
+description = "Capture reference + GoGPU Go screenshots and compare them"
+depends = ["build"]
 run = "go run ./tools/parity_screenshots both"
 
 [tasks.go-generate]

@@ -1,6 +1,3 @@
-//go:build gogpu && !cgo
-// +build gogpu,!cgo
-
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
 package renderer
 

@@ -4,13 +4,13 @@
 //
 // Input flows through three distinct layers:
 //
-//  1. Platform Layer (Backend interface implementations, e.g. sdl3_backend.go):
-//     Polls the OS/library for raw hardware events — SDL key-down, mouse
-//     motion, gamepad axis changes, gyroscope sensor updates. This layer is
+//  1. Platform Layer (Backend interface implementations):
+//     Polls the OS/library for raw hardware events — key-down, mouse motion,
+//     gamepad axis changes, gyroscope sensor updates. This layer is
 //     platform-specific and lives behind the Backend interface.
 //
 //  2. Translation Layer (Backend → engine key codes):
-//     Converts platform-specific identifiers (SDL scancodes, gamepad button
+//     Converts platform-specific identifiers (backend scancodes, gamepad button
 //     enums) into Quake-compatible engine key codes (the K_* constants
 //     defined in this file). The mapping preserves Quake's original numbering
 //     scheme so that configs, bindings, and demo playback remain compatible.
@@ -38,8 +38,8 @@
 //   - KPause:  The very last key code; NumKeycodes = KPause + 1.
 //
 // This package abstracts keyboard, mouse, and gamepad input behind a
-// platform-independent interface. It uses go-sdl3 as the primary backend
-// (pure Go, no CGO required) but is designed to support alternative backends.
+// platform-independent interface. It defines the canonical engine-side routing
+// and state model while leaving concrete event backends to other packages.
 //
 // Key Features:
 //   - Quake-compatible key codes for game logic

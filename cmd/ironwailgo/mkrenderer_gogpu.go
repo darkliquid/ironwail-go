@@ -1,5 +1,3 @@
-//go:build gogpu && !cgo
-
 package main
 
 import "github.com/darkliquid/ironwail-go/internal/renderer"

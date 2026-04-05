@@ -1,6 +1,3 @@
-//go:build gogpu && !cgo
-// +build gogpu,!cgo
-
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
 // It wraps the gogpu library to provide a Quake-specific rendering interface
 // with support for window management, video modes, and basic drawing operations.
@@ -1591,16 +1588,16 @@ type RenderFrameState struct {
 	// DrawEntities enables entity rendering
 	DrawEntities bool
 
-	// BrushEntities contains inline BSP submodels for parity with the OpenGL path.
+	// BrushEntities contains inline BSP submodels for renderer parity.
 	BrushEntities []BrushEntity
 
-	// AliasEntities contains world-space MDL entities for parity with the OpenGL path.
+	// AliasEntities contains world-space MDL entities for renderer parity.
 	AliasEntities []AliasModelEntity
 
-	// SpriteEntities contains sprite (billboard) entities for parity with the OpenGL path.
+	// SpriteEntities contains sprite (billboard) entities for renderer parity.
 	SpriteEntities []SpriteEntity
 
-	// DecalMarks contains projected world-space mark entities for parity with the OpenGL path.
+	// DecalMarks contains projected world-space mark entities for renderer parity.
 	DecalMarks []DecalMarkEntity
 
 	// ViewModel contains the first-person weapon model when active.
@@ -1631,8 +1628,8 @@ type RenderFrameState struct {
 	// Palette for color conversion
 	Palette []byte
 
-	// WaterWarp, WaterWarpTime, ForceUnderwater: see stubs_opengl.go for semantics.
-	// GoGPU uses these for scene-target waterwarp/composite behavior and related runtime parity checks.
+	// WaterWarp, WaterWarpTime, and ForceUnderwater drive scene-target waterwarp,
+	// composite behavior, and related runtime parity checks.
 	WaterWarp       bool
 	WaterWarpTime   float32
 	ForceUnderwater bool

@@ -8,10 +8,10 @@
 //
 // # High-level design
 //
-// Backend-neutral types and system logic live alongside build-tag-selected
-// implementations such as the SDL3 backend and a stub fallback. The package
-// models Quake key constants, input destinations like game or menu, modifier
-// state, cursor modes, and accumulated per-frame input state.
+// Backend-neutral types and system logic live here, while executable- or
+// renderer-owned backends provide concrete event ingestion. The package models
+// Quake key constants, input destinations like game or menu, modifier state,
+// cursor modes, and accumulated per-frame input state.
 //
 // # Role in the engine
 //
@@ -20,13 +20,13 @@
 //
 // # Original C lineage
 //
-// The closest concepts are keys.c, keys.h, input.h, and SDL/window handling
-// paths such as gl_vidsdl.c.
+// The closest concepts are keys.c, keys.h, input.h, and the original
+// platform/window input handling paths.
 //
 // # Deviations and improvements
 //
-// The Go port uses pure-Go SDL3 bindings and cleaner backend boundaries than
-// the original C code, and it treats gamepad support as a first-class part of
-// the abstraction. Typed event structs and build-tag-selected backends replace
-// raw globals and platform-specific ifdef tangles.
+// The Go port uses cleaner backend boundaries than the original C code, and it
+// treats gamepad support as a first-class part of the abstraction. Typed event
+// structs and injected backends replace raw globals and platform-specific ifdef
+// tangles.
 package input

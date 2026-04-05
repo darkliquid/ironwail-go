@@ -28,15 +28,15 @@ The current gogpu version in this repo exposes public `*wgpu.Device` / `*wgpu.Qu
 - `OnUpdate` is for event-loop-side staging only; moving draw mutations there is unsafe for the GoGPU backend.
 - `warpscale_gogpu_test.go` includes a menu-only regression check that locks this clear-skipping rule so future frame-pipeline refactors do not reintroduce black menu backgrounds.
 - Go source in this node aliases the standard library `image` import (`stdimage`) where needed because Quake pic types come from `internal/image`; this avoids symbol collision while preserving screenshot/export behavior.
-- The GoGPU scene-composite fragment shader currently uses a conservative passthrough sample (`textureSample(sceneTexture, sceneSampler, input.uv * uvScale)`) instead of the OpenGL waterwarp distortion math. Earlier WGSL variants using derivative-driven aspect compensation and then a reduced `textureDimensions`-based rewrite still triggered a Vulkan pipeline-creation SIGSEGV on this stack, so the live GoGPU path keeps the fullscreen blit simple to preserve runtime stability while the backend/compiler bug is investigated separately.
+- The GoGPU scene-composite fragment shader currently uses a conservative passthrough sample (`textureSample(sceneTexture, sceneSampler, input.uv * uvScale)`) instead of the legacy waterwarp distortion math. Earlier WGSL variants using derivative-driven aspect compensation and then a reduced `textureDimensions`-based rewrite still triggered a Vulkan pipeline-creation SIGSEGV on this stack, so the live GoGPU path keeps the fullscreen blit simple to preserve runtime stability while the backend/compiler bug is investigated separately.
 - GoGPU runtime adapter selection currently depends on Vulkan loader ordering. On Linux hybrid systems this can pick the integrated adapter even when `GPUPreferHighPerformance` is requested, so the renderer now applies `DRI_PRIME=1` at startup when that preference is selected and no explicit `DRI_PRIME` override is already set.
 
 ## Decisions
 
-### Dedicated GoGPU backend slice
+### Dedicated GoGPU core slice
 
 Observed decision:
-- The GoGPU path is factored into a distinct core slice, parallel to the OpenGL backend core.
+- The GoGPU path is factored into a distinct core slice so runtime lifecycle, overlay, and postprocess ownership stay separated from shared-world helpers even though no alternate renderer backend remains.
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**

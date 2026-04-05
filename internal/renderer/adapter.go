@@ -12,7 +12,9 @@ type RendererAdapter struct {
 	backend backendWithShutdown
 }
 
-// NewRendererAdapter selects the active renderer backend (OpenGL, GoGPU, or stub) and wires it behind a single interface so the rest of the engine can run the same frame pipeline regardless of graphics API.
+// NewRendererAdapter wires the active renderer backend behind a single interface
+// so the rest of the engine can run the same frame pipeline regardless of
+// whether it is using the canonical GoGPU backend or the no-backend stub.
 func NewRendererAdapter(b backendWithShutdown) *RendererAdapter {
 	return &RendererAdapter{backend: b}
 }

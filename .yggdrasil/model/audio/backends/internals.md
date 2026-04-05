@@ -2,10 +2,6 @@
 
 ## Logic
 
-### SDL3 backend
-
-Uses an audio callback path and updates the playback cursor while consuming the circular DMA buffer.
-
 ### oto backend
 
 Uses a goroutine/ticker-driven output loop that reads from the DMA buffer and writes into the oto player/pipe.
@@ -21,14 +17,14 @@ Advances a fake playback cursor without hardware output so the rest of the sound
 
 ## Decisions
 
-### Multiple backend implementations behind one DMA contract
+### Canonical Oto backend behind one DMA contract
 
 Observed decision:
-- The Go port supports SDL3, oto, and null output backends behind a common contract.
+- The Go port supports Oto and null output backends behind a common contract, with Oto as the canonical hardware path.
 
 Rationale:
 - **unknown — inferred from code, not confirmed by a developer**
 
 Observed effect:
 - runtime sound logic is backend-agnostic
-- platform/audio availability issues can be handled by fallback rather than by build failure
+- hardware audio remains available in default builds while platform/audio availability issues can still degrade to null output rather than build failure

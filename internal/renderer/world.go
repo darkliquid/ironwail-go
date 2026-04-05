@@ -1,6 +1,3 @@
-//go:build gogpu && !cgo
-// +build gogpu,!cgo
-
 package renderer
 
 import (
@@ -766,8 +763,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 `
 
 // worldFragmentShaderWGSL is the WGSL source for the GoGPU world fragment shader.
-// Keep its lightmap/fullbright/fog math aligned with the OpenGL world shader so
-// BSP world surfaces look the same across backends.
+// Keep its lightmap/fullbright/fog math aligned with the canonical world-shader
+// behavior so BSP world surfaces look the same across renderer paths.
 const worldFragmentShaderWGSL = `
 struct Uniforms {
     viewProjection: mat4x4<f32>,
@@ -825,6 +822,11 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
+
+// Alpha-tested world surfaces currently share the same fragment program as the
+// opaque path; the dedicated symbol keeps pipeline wiring stable as the shader
+// set evolves.
+const worldAlphaTestFragmentShaderWGSL = worldFragmentShaderWGSL
 
 const worldSkyVertexShaderWGSL = `
 struct VertexInput {
@@ -1883,8 +1885,7 @@ func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Qu
 	if width <= 0 || height <= 0 {
 		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
 	}
-	rgba := ConvertPaletteToRGBA(pixels, r.palette)
-	if classifyWorldTextureName(miptex.Name) == model.TexTypeCutout {
+	if textureType == model.TexTypeCutout {
 		cutout := &stdimage.RGBA{
 			Pix:    rgba,
 			Stride: width * 4,
@@ -2358,7 +2359,7 @@ func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSe
 	return settings
 }
 
-func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
+func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
 	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
 		return nil, nil
 	}

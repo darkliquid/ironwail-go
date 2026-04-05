@@ -2,12 +2,12 @@
 
 ## Purpose
 
-`input` owns the engine-wide abstraction for keyboard, mouse, and gamepad handling: key vocabulary, binding/routing semantics, per-frame input state, and backend-specific event ingestion.
+`input` owns the engine-wide abstraction for keyboard, mouse, and gamepad handling: key vocabulary, binding/routing semantics, per-frame input state, and the backend contract used by runtime event sources.
 
 ## Owns
 
-- The package-level boundary between engine-facing input semantics and platform backends.
-- Separation between backend-neutral key/routing logic and the SDL3 implementation.
+- The package-level boundary between engine-facing input semantics and concrete platform/window backends.
+- Separation between backend-neutral key/routing logic and executable- or renderer-owned backend implementations.
 - Engine key naming/serialization conventions used by config files and bind commands.
 
 ## Does not own

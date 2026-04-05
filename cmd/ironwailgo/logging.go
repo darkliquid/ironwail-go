@@ -172,11 +172,6 @@ func subsystemForSourcePath(path string) string {
 	switch {
 	case strings.Contains(normalized, "/cmd/ironwailgo/"):
 		return "app"
-	case strings.Contains(normalized, "/internal/renderer/world/opengl/"),
-		strings.Contains(normalized, "/internal/renderer/opengl/"),
-		strings.Contains(normalized, "/internal/renderer/world_opengl.go"),
-		strings.Contains(normalized, "/internal/renderer/renderer_opengl.go"):
-		return "renderer.opengl"
 	case strings.Contains(normalized, "/internal/renderer/world/gogpu/"),
 		strings.Contains(normalized, "/internal/renderer/gogpu/"),
 		strings.Contains(normalized, "_gogpu.go"):

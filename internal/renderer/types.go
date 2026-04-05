@@ -6,20 +6,7 @@ import (
 )
 
 // Package renderer provides GPU-accelerated rendering for the Ironwail-Go engine.
-// It supports multiple rendering backends selected at build time via build tags.
-//
-// Build tags:
-//   - gogpu: Uses gogpu library for GPU acceleration (default, no CGO required)
-//   - opengl: Uses go-gl/gl for OpenGL rendering (requires CGO)
-//   - (no tags): Returns error, requires explicit backend selection
-//
-// To build with gogpu backend:
-//
-//	go build -tags=gogpu ./...
-//
-// To build with OpenGL backend (requires CGO):
-//
-//	go build -tags=opengl ./...
+// GoGPU is the canonical and only supported runtime backend.
 //
 // Architecture:
 //
@@ -29,12 +16,7 @@ import (
 //	- Core: Manages GPU resources (headless capable, adapter info, frame data)
 //
 // Pure Go game logic (screen, particle, surface, model packages) remains untagged
-// and works with any backend implementation.
-//
-// Platform-specific requirements for OpenGL:
-//   - Linux: apt-get install libglfw3-dev libgl1-mesa-dev
-//   - macOS: No additional dependencies (OpenGL framework available)
-//   - Windows: No additional dependencies (OpenGL available)
+// and feeds the canonical GoGPU backend.
 //
 // RenderContext provides frame-specific rendering operations.
 // It is passed to the OnDraw callback and provides access to
@@ -143,9 +125,9 @@ const (
 	// 1 = screen-space sinusoidal warp (post-process distortion of the rendered scene)
 	// 2 = FOV-based warp (oscillates horizontal/vertical FOV while underwater)
 	// Mirrors C Ironwail r_waterwarp: values >1 use FOV modulation, value 1 uses screen warp.
-	CvarRWaterwarp     = "r_waterwarp"
-	CvarRLitWater      = "r_litwater"      // Lit water: 1=lightmapped water surfaces, 0=unlit (default: 1)
-	CvarVidGPUPrefer   = "vid_gpupreference" // GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto
+	CvarRWaterwarp   = "r_waterwarp"
+	CvarRLitWater    = "r_litwater"        // Lit water: 1=lightmapped water surfaces, 0=unlit (default: 1)
+	CvarVidGPUPrefer = "vid_gpupreference" // GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto
 )
 
 // GPUPreference controls which adapter type is preferred when multiple GPUs

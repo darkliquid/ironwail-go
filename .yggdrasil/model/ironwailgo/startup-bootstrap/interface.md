@@ -9,15 +9,16 @@
 
 - startup option parsing helpers
 - `initSubsystems` and bootstrap helpers such as `initGameQC`, `initGameServer`, `initGameRenderer`
-- build-tagged renderer backend factories (`mkrenderer_gogpu.go`, `mkrenderer_opengl.go`, `mkrenderer_stub.go`) used by `initGameRenderer`
+- the canonical renderer factory (`mkrenderer_gogpu.go`) used by `initGameRenderer`
 
 ## Contracts
 
 - Startup builds the authoritative subsystem graph through `host.Subsystems`.
 - The server-owned QC VM becomes the authoritative QC VM used by app startup.
-- Renderer/input initialization follows explicit platform/build-tag policy rather than being left implicit.
-- `initGameRenderer` selects the build-tag-specific factory and stores the result behind app-shell `gameRenderer`, avoiding concrete renderer type leakage in startup code.
+- Renderer/input initialization follows explicit canonical GoGPU policy rather than being left implicit.
+- `initGameRenderer` calls the canonical renderer factory and stores the result behind app-shell `gameRenderer`, avoiding concrete renderer type leakage in startup code.
 - Startup wires `host.Subsystems.Renderer` whenever an app-shell renderer is available, passing the interface-typed renderer directly to `renderer.NewRendererAdapter`.
+- Startup relies on renderer-provided input backends and no longer installs a separate SDL fallback or override path.
 - Control cvars that affect `client.Client` runtime behavior (including `cl_nolerp`, `v_centermove`, and `v_centerspeed`) are registered during bootstrap and synchronized into the active client state.
 - Startup registers renderer sky parity cvars, including `r_fastsky`, `r_proceduralsky`, `r_skyfog`, `r_skysolidspeed`, and `r_skyalphaspeed`, before renderer/world paths run.
 - Startup also registers console parity cvars consumed by console core/completion (`con_logcenterprint`, `con_maxcols`) alongside existing notify cvars.

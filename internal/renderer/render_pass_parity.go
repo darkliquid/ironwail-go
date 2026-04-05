@@ -224,9 +224,9 @@ func classifyGoGPUParticlePhase(mode, activeParticles int) (gogpuEntityPhase, bo
 	}
 }
 
-// planGoGPUEntityDrawOrder keeps the GoGPU entity pass sequencing aligned with the
-// current OpenGL ordering without pulling world-pass or translucency-block mechanics
-// into the secondary backend.
+// planGoGPUEntityDrawOrder keeps the GoGPU entity pass sequencing aligned with
+// the established renderer ordering without pulling world-pass or
+// translucency-block mechanics into the entity planner.
 func planGoGPUEntityDrawOrder(drawEntities bool, hasTranslucentWorld bool, brushEntities []BrushEntity, aliasEntities []AliasModelEntity, spriteEntities []SpriteEntity, decalMarks []DecalMarkEntity, particlePhase gogpuEntityPhase, hasParticlePhase bool) gogpuEntityDrawPlan {
 	var (
 		opaqueBrush      []BrushEntity

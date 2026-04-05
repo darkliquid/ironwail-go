@@ -53,7 +53,7 @@ func TestSubsystemForSourcePath(t *testing.T) {
 		{path: "/repo/internal/input/types.go", want: "input"},
 		{path: "/repo/internal/renderer/world.go", want: "renderer"},
 		{path: "/repo/internal/renderer/gogpu/input_backend.go", want: "renderer.gogpu"},
-		{path: "/repo/internal/renderer/world/opengl/textures.go", want: "renderer.opengl"},
+		{path: "/repo/internal/renderer/software.go", want: "renderer"},
 		{path: "/repo/pkg/types/types.go", want: "types"},
 	}
 

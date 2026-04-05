@@ -1,9 +1,0 @@
-name: Renderer OpenGL World Sky
-type: module
-description: "OpenGL embedded sky, sky-pass, and external skybox helper implementations"
-blackbox: false
-mapping:
-  paths:
-    - internal/renderer/world/opengl/sky.go
-    - internal/renderer/world/opengl/sky_pass.go
-    - internal/renderer/world/opengl/sky_upload.go

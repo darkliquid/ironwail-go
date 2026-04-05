@@ -1,5 +1,3 @@
-//go:build gogpu
-
 package renderer
 
 import (

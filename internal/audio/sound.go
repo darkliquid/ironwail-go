@@ -76,12 +76,16 @@ func (s *System) Shutdown() {
 		return
 	}
 
+	s.SetVolume(0)
+	s.Block()
 	s.StopMusic()
+	s.StopAllSounds(true)
 
 	if s.backend != nil {
 		s.backend.Shutdown()
 	}
 
+	s.blocked = 0
 	s.started = false
 	s.initialized = false
 }
