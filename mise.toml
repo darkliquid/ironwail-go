@@ -24,7 +24,7 @@ run = "rm -f smoke-*.log"
 
 [tasks.smoke-menu]
 description = "Smoke test: verify GoGPU menu startup works"
-depends = ["clean-logs", "build-gogpu"]
+depends = ["clean-logs", "build"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
@@ -41,7 +41,7 @@ grep "frame loop started" smoke-menu.log
 
 [tasks.smoke-headless]
 description = "Smoke test: verify headless mode works from the GoGPU build"
-depends = ["clean-logs", "build-gogpu"]
+depends = ["clean-logs", "build"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
@@ -57,7 +57,7 @@ grep "frame loop started" smoke-headless.log
 
 [tasks.smoke-map-start]
 description = "Smoke test: verify GoGPU map spawning works"
-depends = ["clean-logs", "build-gogpu"]
+depends = ["clean-logs", "build"]
 run = """
 if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
@@ -113,13 +113,13 @@ go run ./tools/ralph build-prompt \
 [tasks.ralph-loop-once]
 interactive = true
 description = "Run one telemetry/analyze/fix Ralph iteration"
-depends = ["build-gogpu"]
+depends = ["build"]
 run = "go run ./tools/ralph loop once"
 
 [tasks.ralph-loop]
 interactive = true
 description = "Continuously run the telemetry-driven Ralph parity/fix loop"
-depends = ["build-gogpu"]
+depends = ["build"]
 run = "go run ./tools/ralph loop continuous"
 
 [tasks.test]
@@ -128,7 +128,7 @@ run = "go test ./..."
 
 [tasks.verify]
 description = "Run core verification suite"
-depends = ["test", "build-gogpu"]
+depends = ["test", "build"]
 
 [tasks.build-qgo]
 depends = ["go-generate"]
@@ -145,20 +145,10 @@ depends = ["go-generate"]
 description = "Build game binary"
 run = "CGO_ENABLED=0 go build -o ironwailgo ./cmd/ironwailgo"
 
-[tasks.build-gogpu]
-depends = ["go-generate"]
-description = "Build the canonical GoGPU game binary"
-run = "CGO_ENABLED=0 go build -o ironwailgo-wgpu ./cmd/ironwailgo"
-
 [tasks.run]
 depends = ["build"]
 description = "Run game"
 run = "./ironwailgo -basedir ${QUAKE_DIR}"
-
-[tasks.run-gogpu]
-depends = ["build-gogpu"]
-description = "Run the canonical GoGPU game binary"
-run = "./ironwailgo-wgpu -basedir ${QUAKE_DIR}"
 
 [tasks.parity-ref]
 description = "Capture reference screenshots from C Ironwail"
@@ -166,7 +156,7 @@ run = "go run ./tools/parity_screenshots reference"
 
 [tasks.parity-go]
 description = "Capture screenshots from the GoGPU parity build"
-depends = ["build-gogpu"]
+depends = ["build"]
 run = "go run ./tools/parity_screenshots go"
 
 [tasks.parity-compare]
@@ -175,7 +165,7 @@ run = "go run ./tools/parity_screenshots compare"
 
 [tasks.parity-all]
 description = "Capture reference + GoGPU Go screenshots and compare them"
-depends = ["build-gogpu"]
+depends = ["build"]
 run = "go run ./tools/parity_screenshots both"
 
 [tasks.go-generate]

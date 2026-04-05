@@ -61,7 +61,7 @@ You can see what tasks are available to run using `mise tasks`
 The canonical parity/build path is the GoGPU runtime:
 
 - `mise run test`
-- `mise run build-gogpu`
+- `mise run build`
 - `mise run smoke-map-start`
 - `mise run parity-ref`
 - `mise run parity-go`

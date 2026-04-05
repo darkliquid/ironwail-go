@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/cvar"
-	"github.com/darkliquid/ironwail-go/internal/model"
-	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 )
 
 func TestReadWorldProceduralSkyEnabled(t *testing.T) {

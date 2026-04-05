@@ -33,7 +33,7 @@ THESE INSTRUCTIONS ARE MANDATORY AND MUST BE FOLLOWED AT ALL TIMES. DO NOT IGNOR
 
 - Use `mise` tasks from `mise.toml`; `CGO_ENABLED=0` is expected.
 - Before first build or after generator-affecting edits: `mise run go-generate`.
-- Build: `mise run build-gogpu`.
+- Build: `mise run build`.
 - Unit tests: `mise run test` or `go test ./internal/<package>`.
 - Smoke tests (requires `QUAKE_DIR` assets): `mise run smoke-menu`, `mise run smoke-headless`, `mise run smoke-map-start`, `mise run smoke-all`.
 - For windowed tests, set `WAYLAND_DISPLAY=`.

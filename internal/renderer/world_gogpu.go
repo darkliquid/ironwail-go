@@ -369,7 +369,6 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		return
 	}
 	pipeline := r.worldPipeline
-	alphaTestPipeline := r.worldAlphaTestPipeline
 	uniformBuffer := r.uniformBuffer
 	uniformBindGroup := r.uniformBindGroup
 	whiteTextureBindGroup := r.whiteTextureBindGroup
