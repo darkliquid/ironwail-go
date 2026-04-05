@@ -64,16 +64,37 @@ func buildWorldLeafFaceLookup(tree *bsp.Tree, faceLookup map[int]int) [][]int {
 	return worldimpl.BuildLeafFaceLookup(tree, faceLookup)
 }
 
-func selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin [3]float32) []WorldFace {
+type worldVisibilityScratch struct {
+	marks []uint32
+	stamp uint32
+	faces []WorldFace
+}
+
+func (s *worldVisibilityScratch) nextStamp(faceCount int) uint32 {
+	if faceCount > len(s.marks) {
+		s.marks = make([]uint32, faceCount)
+	}
+	s.stamp++
+	if s.stamp == 0 {
+		clear(s.marks)
+		s.stamp = 1
+	}
+	return s.stamp
+}
+
+func (s *worldVisibilityScratch) selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin [3]float32) []WorldFace {
 	if len(allFaces) == 0 {
+		s.faces = s.faces[:0]
 		return nil
 	}
 	if tree == nil || len(tree.Leafs) <= 1 || len(leafFaces) == 0 {
+		s.faces = s.faces[:0]
 		return allFaces
 	}
 
 	cameraLeaf := tree.PointInLeaf(cameraOrigin)
 	if cameraLeaf == nil {
+		s.faces = s.faces[:0]
 		return allFaces
 	}
 	cameraLeafIndex := -1
@@ -85,34 +106,44 @@ func selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][
 	}
 	pvs := tree.LeafPVS(cameraLeaf)
 	if len(pvs) == 0 {
+		s.faces = s.faces[:0]
 		return allFaces
 	}
 
-	visible := make([]bool, len(allFaces))
+	stamp := s.nextStamp(len(allFaces))
+	visibleMarks := s.marks[:len(allFaces)]
 	visibleCount := 0
 	for leafIndex := 1; leafIndex < len(tree.Leafs) && leafIndex < len(leafFaces); leafIndex++ {
 		if leafIndex != cameraLeafIndex && !leafVisibleInMask(pvs, leafIndex-1) {
 			continue
 		}
 		for _, faceIndex := range leafFaces[leafIndex] {
-			if faceIndex < 0 || faceIndex >= len(allFaces) || visible[faceIndex] {
+			if faceIndex < 0 || faceIndex >= len(allFaces) || visibleMarks[faceIndex] == stamp {
 				continue
 			}
-			visible[faceIndex] = true
+			visibleMarks[faceIndex] = stamp
 			visibleCount++
 		}
 	}
 
 	if visibleCount == 0 {
+		s.faces = s.faces[:0]
 		return allFaces
 	}
-	faces := make([]WorldFace, 0, visibleCount)
-	for faceIndex, ok := range visible {
-		if ok {
+
+	faces := s.faces[:0]
+	for faceIndex, mark := range visibleMarks {
+		if mark == stamp {
 			faces = append(faces, allFaces[faceIndex])
 		}
 	}
+	s.faces = faces
 	return faces
+}
+
+func selectVisibleWorldFaces(tree *bsp.Tree, allFaces []WorldFace, leafFaces [][]int, cameraOrigin [3]float32) []WorldFace {
+	var scratch worldVisibilityScratch
+	return scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, cameraOrigin)
 }
 
 func leafVisibleInMask(mask []byte, leafBit int) bool {

@@ -320,7 +320,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 		for faceIndex, face := range draw.faces {
 			dynamicLight := [3]float32{}
 			if faceIndex < len(draw.centers) {
-				dynamicLight = evaluateDynamicLightsAtPoint(activeDynamicLights, draw.centers[faceIndex])
+				dynamicLight = quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, draw.centers[faceIndex]))
 			}
 			if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, draw.alpha, dynamicLight, 0)); err != nil {
 				slog.Warn("failed to update brush uniform buffer", "error", err)
@@ -679,7 +679,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			}
 			dynamicLight := [3]float32{}
 			if faceIndex < len(draw.centers) {
-				dynamicLight = evaluateDynamicLightsAtPoint(activeDynamicLights, draw.centers[faceIndex])
+				dynamicLight = quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, draw.centers[faceIndex]))
 			}
 			lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(face, draw.lightmaps, whiteLightmapBindGroup, hasLitWater)
 			if err := queue.WriteBuffer(uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, camera.Time, 1, dynamicLight, litWater)); err != nil {
@@ -2580,7 +2580,7 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 		return nil
 	}
 	liquidAlpha := worldLiquidAlphaSettingsFromCvars(parseWorldspawnLiquidAlphaOverrides(worldData.Geometry.Tree.Entities), worldData.Geometry.Tree)
-	visibleFaces := selectVisibleWorldFaces(
+	visibleFaces := r.worldVisibleFacesScratch.selectVisibleWorldFaces(
 		worldData.Geometry.Tree,
 		worldData.Geometry.Faces,
 		worldData.Geometry.LeafFaces,
@@ -2725,7 +2725,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
 	timeSeconds := float64(timeValue)
 	for _, draw := range renders {
-		dynamicLight := evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.center)
+		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.center))
 		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, dynamicLight, 0)); err != nil {
 			slog.Warn("failed to update alpha-test brush uniform buffer", "error", err)
 			continue
@@ -2801,7 +2801,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
 	timeSeconds := float64(timeValue)
 	for _, draw := range renders {
-		dynamicLight := evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.face.center)
+		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.face.center))
 		lightmapBindGroup, litWater := gogpuLateTranslucentLightmapBindGroup(res, draw)
 		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, worldSceneUniformBytes(vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, dynamicLight, litWater)); err != nil {
 			slog.Warn("failed to update late translucent uniform buffer", "error", err)

@@ -341,6 +341,67 @@ func TestSelectVisibleWorldFaces_UsesLeafPVS(t *testing.T) {
 	}
 }
 
+func TestWorldVisibilityScratch_ReusesStorageAndPreservesOrder(t *testing.T) {
+	tree := &bsp.Tree{
+		Models: []bsp.DModel{{VisLeafs: 3}},
+		Leafs: []bsp.TreeLeaf{
+			{},
+			{Contents: bsp.ContentsEmpty, VisOfs: 0},
+			{Contents: bsp.ContentsEmpty, VisOfs: 1},
+			{Contents: bsp.ContentsEmpty, VisOfs: 2},
+		},
+		Visibility: []byte{
+			0x03,
+			0x06,
+			0x04,
+		},
+		Nodes: []bsp.TreeNode{{
+			PlaneNum: 0,
+			Children: [2]bsp.TreeChild{
+				{IsLeaf: true, Index: 1},
+				{IsLeaf: true, Index: 2},
+			},
+		}},
+		Planes: []bsp.DPlane{{Type: bsp.PlaneX, Dist: 0}},
+	}
+	allFaces := []WorldFace{
+		{FirstIndex: 0, NumIndices: 3},
+		{FirstIndex: 3, NumIndices: 3},
+		{FirstIndex: 6, NumIndices: 3},
+	}
+	leafFaces := [][]int{
+		nil,
+		{1, 0},
+		{1},
+		{2},
+	}
+
+	var scratch worldVisibilityScratch
+	first := scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{1, 0, 0})
+	if len(first) != 2 {
+		t.Fatalf("first visible len = %d, want 2", len(first))
+	}
+	if first[0].FirstIndex != 0 || first[1].FirstIndex != 3 {
+		t.Fatalf("first visible faces = %+v, want first two faces in face-index order", first)
+	}
+	marksPtr := &scratch.marks[0]
+	facesPtr := &scratch.faces[:cap(scratch.faces)][0]
+
+	second := scratch.selectVisibleWorldFaces(tree, allFaces, leafFaces, [3]float32{-1, 0, 0})
+	if len(second) != 2 {
+		t.Fatalf("second visible len = %d, want 2", len(second))
+	}
+	if second[0].FirstIndex != 3 || second[1].FirstIndex != 6 {
+		t.Fatalf("second visible faces = %+v, want faces 1 and 2 in face-index order", second)
+	}
+	if &scratch.marks[0] != marksPtr {
+		t.Fatal("scratch marks backing array was replaced instead of reused")
+	}
+	if &scratch.faces[:cap(scratch.faces)][0] != facesPtr {
+		t.Fatal("scratch face backing array was replaced instead of reused")
+	}
+}
+
 func TestWorldDepthAttachmentForViewNil(t *testing.T) {
 	if got := worldDepthAttachmentForView(nil); got != nil {
 		t.Fatalf("worldDepthAttachmentForView(nil) = %#v, want nil", got)

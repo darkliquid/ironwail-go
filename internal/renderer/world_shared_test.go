@@ -51,3 +51,31 @@ func TestShouldUseProceduralSky(t *testing.T) {
 		})
 	}
 }
+
+func TestQuantizeGoGPUWorldDynamicLight(t *testing.T) {
+	tests := []struct {
+		name  string
+		input [3]float32
+		want  [3]float32
+	}{
+		{
+			name:  "tiny contributions are dropped",
+			input: [3]float32{0.001, -0.002, 0.0},
+			want:  [3]float32{0, 0, 0},
+		},
+		{
+			name:  "values quantize to 1 over 32 steps",
+			input: [3]float32{0.12, 0.27, 0.49},
+			want:  [3]float32{0.125, 0.28125, 0.5},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := quantizeGoGPUWorldDynamicLight(tt.input)
+			if got != tt.want {
+				t.Fatalf("quantizeGoGPUWorldDynamicLight(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}

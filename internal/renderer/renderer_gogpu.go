@@ -790,6 +790,12 @@ type Renderer struct {
 	worldData *WorldRenderData
 	// worldFirstFrameStatsLogged gates one-shot first-world-frame diagnostics per upload.
 	worldFirstFrameStatsLogged atomic.Bool
+	// worldVisibleFacesScratch reuses visibility marking/storage across world passes.
+	worldVisibleFacesScratch worldVisibilityScratch
+	worldSkyFacesScratch     []WorldFace
+	worldOpaqueDrawsScratch  []gogpuWorldFaceDraw
+	worldAlphaDrawsScratch   []gogpuWorldFaceDraw
+	worldLiquidDrawsScratch  []gogpuWorldFaceDraw
 
 	// GPU resources for world rendering
 	worldVertexBuffer                 *wgpu.Buffer

@@ -2826,16 +2826,22 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, dynamicLight, litWater, fogDensity)
 	}
-	visibleFaces := selectVisibleWorldFaces(
+	visibleFaces := dc.renderer.worldVisibleFacesScratch.selectVisibleWorldFaces(
 		worldData.Geometry.Tree,
 		worldData.Geometry.Faces,
 		worldData.Geometry.LeafFaces,
 		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
 	)
-	skyFaces := make([]WorldFace, 0, 8)
-	opaqueDraws := make([]gogpuWorldFaceDraw, 0, len(visibleFaces))
-	alphaTestDraws := make([]gogpuWorldFaceDraw, 0, len(visibleFaces)/8)
-	opaqueLiquidDraws := make([]gogpuWorldFaceDraw, 0, len(visibleFaces)/16)
+	skyFaces := dc.renderer.worldSkyFacesScratch[:0]
+	opaqueDraws := dc.renderer.worldOpaqueDrawsScratch[:0]
+	alphaTestDraws := dc.renderer.worldAlphaDrawsScratch[:0]
+	opaqueLiquidDraws := dc.renderer.worldLiquidDrawsScratch[:0]
+	defer func() {
+		dc.renderer.worldSkyFacesScratch = skyFaces[:0]
+		dc.renderer.worldOpaqueDrawsScratch = opaqueDraws[:0]
+		dc.renderer.worldAlphaDrawsScratch = alphaTestDraws[:0]
+		dc.renderer.worldLiquidDrawsScratch = opaqueLiquidDraws[:0]
+	}()
 	for _, face := range visibleFaces {
 		switch {
 		case shouldDrawGoGPUSkyWorldFace(face):
@@ -2866,7 +2872,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 				textureBindGroup:    textureBindGroup,
 				lightmapBindGroup:   lightmapBindGroup,
 				fullbrightBindGroup: fullbrightBindGroup,
-				dynamicLight:        evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center),
+				dynamicLight:        quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)),
 				litWater:            litWater,
 			}
 			switch {
@@ -3276,7 +3282,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	translucentLiquidDrawnIndices := uint32(0)
 	for _, draw := range translucentFaces {
 		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup, worldHasLitWater)
-		dynamicLight := evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center)
+		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center))
 		if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
 			renderPass.End()
 			return
@@ -3584,6 +3590,11 @@ func (r *Renderer) ClearWorld() {
 		r.worldDepthTextureView = nil
 		r.worldDepthWidth = 0
 		r.worldDepthHeight = 0
+		r.worldVisibleFacesScratch = worldVisibilityScratch{}
+		r.worldSkyFacesScratch = nil
+		r.worldOpaqueDrawsScratch = nil
+		r.worldAlphaDrawsScratch = nil
+		r.worldLiquidDrawsScratch = nil
 		r.brushModelGeometry = make(map[int]*WorldGeometry)
 		r.brushModelLightmaps = make(map[int][]*gpuWorldTexture)
 
