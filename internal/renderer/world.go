@@ -813,63 +813,6 @@ var worldFullbrightTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
-	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
-	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
-	let lightingMask = sampled.a;
-	let litBase = mix(sampled.rgb, sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0, vec3<f32>(lightingMask));
-	let lit = litBase + fullbright.rgb * fullbright.a;
-	let fogPosition = input.worldPos - uniforms.cameraOrigin;
-	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
-	return vec4<f32>(fogged, uniforms.alpha);
-}
-`
-
-const worldAlphaTestFragmentShaderWGSL = `
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
-
-struct VertexOutput {
-    @builtin(position) clipPosition: vec4<f32>,
-    @location(0) texCoord: vec2<f32>,
-    @location(1) lightmapCoord: vec2<f32>,
-    @location(2) worldPos: vec3<f32>,
-    @location(3) normal: vec3<f32>,
-    @location(4) clipPos: vec4<f32>,
-}
-
-@group(0) @binding(0)
-var<uniform> uniforms: Uniforms;
-
-@group(1) @binding(0)
-var worldSampler: sampler;
-
-@group(1) @binding(1)
-var worldTexture: texture_2d<f32>;
-
-@group(2) @binding(0)
-var worldLightmapSampler: sampler;
-
-@group(2) @binding(1)
-var worldLightmap: texture_2d<f32>;
-
-@group(3) @binding(0)
-var worldFullbrightSampler: sampler;
-
-@group(3) @binding(1)
-var worldFullbrightTexture: texture_2d<f32>;
-
-@fragment
-fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
 	if (sampled.a < 0.1) {
 		discard;
 	}
@@ -879,7 +822,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
 	let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
-	return vec4<f32>(fogged, uniforms.alpha);
+	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
 
@@ -975,13 +918,11 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     if (uniforms.litWater > 0.5) {
         lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
-    let lightingMask = sampled.a;
-    let litBase = mix(sampled.rgb, sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0, vec3<f32>(lightingMask));
-    let lit = litBase + fullbright.rgb * fullbright.a;
+    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
     let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
-    return vec4<f32>(fogged, uniforms.alpha);
+    return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
 
@@ -1942,7 +1883,8 @@ func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Qu
 	if width <= 0 || height <= 0 {
 		return nil, fmt.Errorf("invalid world texture size %dx%d", width, height)
 	}
-	if textureType == model.TexTypeCutout {
+	rgba := ConvertPaletteToRGBA(pixels, r.palette)
+	if classifyWorldTextureName(miptex.Name) == model.TexTypeCutout {
 		cutout := &stdimage.RGBA{
 			Pix:    rgba,
 			Stride: width * 4,
@@ -2416,7 +2358,7 @@ func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSe
 	return settings
 }
 
-func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
+func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float32, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
 	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
 		return nil, nil
 	}

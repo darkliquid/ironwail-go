@@ -40,6 +40,8 @@ into C engine code.
 
 ## Project Status & Parity
 
+https://github.com/user-attachments/assets/b652d2c6-74ce-41bb-90fa-8976262e043a
+
 The goal of this project is 100% behavioral parity with the original C
 [Ironwail][1] engine on the OpenGL path. Regular parity audits are carried out,
 but there is no concrete public tracking of gaps, differences, or known bugs at
