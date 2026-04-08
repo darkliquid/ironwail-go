@@ -1,7 +1,7 @@
 {
   "database": "dolt",
   "backend": "dolt",
-  "dolt_mode": "server",
+  "dolt_mode": "embedded",
   "dolt_database": "ironwail_go",
   "project_id": "96d3294e-6416-40e9-a9b7-2e1ea36682f3"
 }
