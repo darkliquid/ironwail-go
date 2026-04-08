@@ -1586,16 +1586,14 @@ func (r *Renderer) createWorldTranslucentTurbulentPipeline(device *wgpu.Device, 
 	})
 }
 
-// createWorldWhiteTexture creates a simple 1x1 white texture for fallback.
-// Used when actual textures are not yet available for rendering.
-func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queue) (*wgpu.Texture, *wgpu.TextureView, error) {
+func (r *Renderer) createWorldSolidTexture(device *wgpu.Device, queue *wgpu.Queue, label string, pixel [4]byte) (*wgpu.Texture, *wgpu.TextureView, error) {
 	if device == nil || queue == nil {
 		return nil, nil, fmt.Errorf("invalid device or queue")
 	}
 
 	// Create 1x1 RGBA texture descriptor
 	textureDesc := &wgpu.TextureDescriptor{
-		Label:         "World White Texture",
+		Label:         label,
 		Size:          wgpu.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
@@ -1607,13 +1605,9 @@ func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queu
 	// Create the texture
 	texture, err := device.CreateTexture(textureDesc)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create white texture: %w", err)
+		return nil, nil, fmt.Errorf("create %s: %w", label, err)
 	}
 
-	// Create white pixel data (RGBA: 255,255,255,255)
-	whitePixel := []byte{255, 255, 255, 255}
-
-	// Write white pixel to texture using queue
 	err = queue.WriteTexture(
 		&wgpu.ImageCopyTexture{
 			Texture:  texture,
@@ -1621,7 +1615,7 @@ func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queu
 			Origin:   wgpu.Origin3D{X: 0, Y: 0, Z: 0},
 			Aspect:   gputypes.TextureAspectAll,
 		},
-		whitePixel,
+		pixel[:],
 		&wgpu.ImageDataLayout{
 			Offset:       0,
 			BytesPerRow:  4, // 1 pixel × 4 bytes
@@ -1631,12 +1625,12 @@ func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queu
 	)
 	if err != nil {
 		texture.Release()
-		return nil, nil, fmt.Errorf("write white texture data: %w", err)
+		return nil, nil, fmt.Errorf("write %s data: %w", label, err)
 	}
 
 	// Create texture view
 	textureViewDesc := &wgpu.TextureViewDescriptor{
-		Label:           "World White Texture View",
+		Label:           label + " View",
 		Format:          gputypes.TextureFormatRGBA8Unorm,
 		Dimension:       gputypes.TextureViewDimension2D,
 		Aspect:          gputypes.TextureAspectAll,
@@ -1649,11 +1643,24 @@ func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queu
 	textureView, err := device.CreateTextureView(texture, textureViewDesc)
 	if err != nil {
 		texture.Release()
-		return nil, nil, fmt.Errorf("create white texture view: %w", err)
+		return nil, nil, fmt.Errorf("create %s view: %w", label, err)
 	}
 
-	slog.Debug("World white texture created")
+	slog.Debug("World solid texture created", "label", label)
 	return texture, textureView, nil
+}
+
+// createWorldWhiteTexture creates a simple 1x1 white texture for fallback.
+// Used when actual textures are not yet available for rendering.
+func (r *Renderer) createWorldWhiteTexture(device *wgpu.Device, queue *wgpu.Queue) (*wgpu.Texture, *wgpu.TextureView, error) {
+	return r.createWorldSolidTexture(device, queue, "World White Texture", [4]byte{255, 255, 255, 255})
+}
+
+func worldLightmapFallbackView(blackView, whiteView *wgpu.TextureView) *wgpu.TextureView {
+	if blackView != nil {
+		return blackView
+	}
+	return whiteView
 }
 
 func (r *Renderer) createWorldTextureFromRGBA(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, label string, rgba []byte, width, height int) (*gpuWorldTexture, error) {
@@ -2761,10 +2768,12 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		worldLightmapSampler, err = r.createWorldLightmapSampler(device)
 		if err != nil {
 			slog.Warn("Failed to create world lightmap sampler", "error", err)
-		} else if whiteTextureView != nil {
-			whiteLightmapBindGroup, err = r.createWorldTextureBindGroup(device, worldLightmapSampler, whiteTextureView)
+		} else if fallbackView := worldLightmapFallbackView(transparentTextureView, whiteTextureView); fallbackView != nil {
+			// Match C brush rendering: faces without valid lightmap data should
+			// sample black, not white, so localized assignment failures stay dark.
+			whiteLightmapBindGroup, err = r.createWorldTextureBindGroup(device, worldLightmapSampler, fallbackView)
 			if err != nil {
-				slog.Warn("Failed to create white world lightmap bind group", "error", err)
+				slog.Warn("Failed to create world lightmap fallback bind group", "error", err)
 			}
 		}
 	}
