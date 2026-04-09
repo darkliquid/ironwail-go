@@ -188,18 +188,39 @@ func (b *InputBackend) initCallbacks() {
 		}
 	})
 
-	es.OnMouseMove(func(x, y float64) {
-		b.markCallbackSeen()
-		b.mu.Lock()
-		if b.hasMousePos {
-			b.accumMouseDX += int32(x - b.lastMouseX)
-			b.accumMouseDY += int32(y - b.lastMouseY)
-		}
-		b.lastMouseX = x
-		b.lastMouseY = y
-		b.hasMousePos = true
-		b.mu.Unlock()
-	})
+	if pes, ok := es.(gpucontext.PointerEventSource); ok {
+		pes.OnPointer(func(ev gpucontext.PointerEvent) {
+			b.markCallbackSeen()
+			if ev.PointerType != gpucontext.PointerTypeMouse || ev.Type != gpucontext.PointerMove {
+				return
+			}
+			b.mu.Lock()
+			if b.cursorMode == iinput.CursorModeGrabbed {
+				b.accumMouseDX += int32(ev.DeltaX)
+				b.accumMouseDY += int32(ev.DeltaY)
+			} else if b.hasMousePos {
+				b.accumMouseDX += int32(ev.X - b.lastMouseX)
+				b.accumMouseDY += int32(ev.Y - b.lastMouseY)
+			}
+			b.lastMouseX = ev.X
+			b.lastMouseY = ev.Y
+			b.hasMousePos = true
+			b.mu.Unlock()
+		})
+	} else {
+		es.OnMouseMove(func(x, y float64) {
+			b.markCallbackSeen()
+			b.mu.Lock()
+			if b.hasMousePos {
+				b.accumMouseDX += int32(x - b.lastMouseX)
+				b.accumMouseDY += int32(y - b.lastMouseY)
+			}
+			b.lastMouseX = x
+			b.lastMouseY = y
+			b.hasMousePos = true
+			b.mu.Unlock()
+		})
+	}
 
 	es.OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
 		b.markCallbackSeen()
@@ -289,19 +310,27 @@ func (b *InputBackend) GetModifierState() iinput.ModifierState {
 
 func (b *InputBackend) SetTextMode(mode iinput.TextMode) {}
 
+func cursorModeAdapter(mode iinput.CursorMode) (gpucontext.CursorShape, gpucontext.CursorMode) {
+	switch mode {
+	case iinput.CursorModeNormal:
+		return gpucontext.CursorDefault, gpucontext.CursorModeNormal
+	case iinput.CursorModeHidden:
+		return gpucontext.CursorNone, gpucontext.CursorModeNormal
+	case iinput.CursorModeGrabbed:
+		return gpucontext.CursorNone, gpucontext.CursorModeLocked
+	default:
+		return gpucontext.CursorDefault, gpucontext.CursorModeNormal
+	}
+}
+
 func (b *InputBackend) SetCursorMode(mode iinput.CursorMode) {
 	b.cursorMode = mode
 	if b.app == nil {
 		return
 	}
-	switch mode {
-	case iinput.CursorModeNormal:
-		b.app.SetCursor(gpucontext.CursorDefault)
-	case iinput.CursorModeHidden, iinput.CursorModeGrabbed:
-		b.app.SetCursor(gpucontext.CursorNone)
-	default:
-		b.app.SetCursor(gpucontext.CursorDefault)
-	}
+	cursor, cursorMode := cursorModeAdapter(mode)
+	b.app.SetCursor(cursor)
+	b.app.SetCursorMode(cursorMode)
 }
 
 func (b *InputBackend) ShowKeyboard(show bool) {}

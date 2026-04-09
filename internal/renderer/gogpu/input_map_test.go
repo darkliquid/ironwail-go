@@ -96,3 +96,38 @@ func TestInputBackendSetMouseGrabSetsCursorMode(t *testing.T) {
 		t.Fatalf("cursorMode after release = %v, want normal", backend.cursorMode)
 	}
 }
+
+func TestCursorModeAdapter(t *testing.T) {
+	tests := []struct {
+		name           string
+		mode           iinput.CursorMode
+		wantCursor     gpucontext.CursorShape
+		wantCursorMode gpucontext.CursorMode
+	}{
+		{
+			name:           "normal",
+			mode:           iinput.CursorModeNormal,
+			wantCursor:     gpucontext.CursorDefault,
+			wantCursorMode: gpucontext.CursorModeNormal,
+		},
+		{
+			name:           "hidden",
+			mode:           iinput.CursorModeHidden,
+			wantCursor:     gpucontext.CursorNone,
+			wantCursorMode: gpucontext.CursorModeNormal,
+		},
+		{
+			name:           "grabbed",
+			mode:           iinput.CursorModeGrabbed,
+			wantCursor:     gpucontext.CursorNone,
+			wantCursorMode: gpucontext.CursorModeLocked,
+		},
+	}
+
+	for _, tc := range tests {
+		cursor, cursorMode := cursorModeAdapter(tc.mode)
+		if cursor != tc.wantCursor || cursorMode != tc.wantCursorMode {
+			t.Fatalf("%s adapter = (%v, %v), want (%v, %v)", tc.name, cursor, cursorMode, tc.wantCursor, tc.wantCursorMode)
+		}
+	}
+}
