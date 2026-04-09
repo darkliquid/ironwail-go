@@ -312,6 +312,12 @@ func (b *InputBackend) GetGamepadState(player int) iinput.GamepadState {
 
 func (b *InputBackend) IsGamepadConnected(player int) bool { return false }
 
-func (b *InputBackend) SetMouseGrab(grabbed bool) {}
+func (b *InputBackend) SetMouseGrab(grabbed bool) {
+	if grabbed {
+		b.SetCursorMode(iinput.CursorModeGrabbed)
+		return
+	}
+	b.SetCursorMode(iinput.CursorModeNormal)
+}
 
 func (b *InputBackend) SetWindow(win interface{}) {}

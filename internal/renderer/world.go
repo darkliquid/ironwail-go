@@ -818,7 +818,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-	let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
+	let fogged = mix(uniforms.fogColor, lit, fog);
 	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `
@@ -923,7 +923,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
-    let fogged = mix(uniforms.fogColor, lit, vec3<f32>(fog));
+    let fogged = mix(uniforms.fogColor, lit, fog);
     return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
 `

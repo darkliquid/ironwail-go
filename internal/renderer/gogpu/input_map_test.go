@@ -82,3 +82,17 @@ func TestPollingKeyMapCoversQuakeCriticalKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestInputBackendSetMouseGrabSetsCursorMode(t *testing.T) {
+	var backend InputBackend
+
+	backend.SetMouseGrab(true)
+	if backend.cursorMode != iinput.CursorModeGrabbed {
+		t.Fatalf("cursorMode after grab = %v, want grabbed", backend.cursorMode)
+	}
+
+	backend.SetMouseGrab(false)
+	if backend.cursorMode != iinput.CursorModeNormal {
+		t.Fatalf("cursorMode after release = %v, want normal", backend.cursorMode)
+	}
+}
