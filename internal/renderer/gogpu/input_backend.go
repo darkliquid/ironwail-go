@@ -333,9 +333,7 @@ func cursorModeAdapter(mode iinput.CursorMode) cursorModeState {
 		}
 	case iinput.CursorModeGrabbed:
 		return cursorModeState{
-			cursor:     gpucontext.CursorNone,
 			cursorMode: gpucontext.CursorModeLocked,
-			setCursor:  true,
 		}
 	default:
 		return cursorModeState{

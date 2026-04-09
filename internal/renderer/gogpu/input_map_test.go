@@ -122,9 +122,8 @@ func TestCursorModeAdapter(t *testing.T) {
 		{
 			name:           "grabbed",
 			mode:           iinput.CursorModeGrabbed,
-			wantCursor:     gpucontext.CursorNone,
 			wantCursorMode: gpucontext.CursorModeLocked,
-			wantSetCursor:  true,
+			wantSetCursor:  false,
 		},
 	}
 
