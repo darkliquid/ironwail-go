@@ -103,31 +103,34 @@ func TestCursorModeAdapter(t *testing.T) {
 		mode           iinput.CursorMode
 		wantCursor     gpucontext.CursorShape
 		wantCursorMode gpucontext.CursorMode
+		wantSetCursor  bool
 	}{
 		{
 			name:           "normal",
 			mode:           iinput.CursorModeNormal,
 			wantCursor:     gpucontext.CursorDefault,
 			wantCursorMode: gpucontext.CursorModeNormal,
+			wantSetCursor:  true,
 		},
 		{
 			name:           "hidden",
 			mode:           iinput.CursorModeHidden,
 			wantCursor:     gpucontext.CursorNone,
 			wantCursorMode: gpucontext.CursorModeNormal,
+			wantSetCursor:  true,
 		},
 		{
 			name:           "grabbed",
 			mode:           iinput.CursorModeGrabbed,
-			wantCursor:     gpucontext.CursorNone,
 			wantCursorMode: gpucontext.CursorModeLocked,
+			wantSetCursor:  false,
 		},
 	}
 
 	for _, tc := range tests {
-		cursor, cursorMode := cursorModeAdapter(tc.mode)
-		if cursor != tc.wantCursor || cursorMode != tc.wantCursorMode {
-			t.Fatalf("%s adapter = (%v, %v), want (%v, %v)", tc.name, cursor, cursorMode, tc.wantCursor, tc.wantCursorMode)
+		state := cursorModeAdapter(tc.mode)
+		if state.cursor != tc.wantCursor || state.cursorMode != tc.wantCursorMode || state.setCursor != tc.wantSetCursor {
+			t.Fatalf("%s adapter = (%v, %v, %v), want (%v, %v, %v)", tc.name, state.cursor, state.cursorMode, state.setCursor, tc.wantCursor, tc.wantCursorMode, tc.wantSetCursor)
 		}
 	}
 }
