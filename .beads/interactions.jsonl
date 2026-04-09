@@ -222,3 +222,4 @@
 {"id":"int-5b3d410c","kind":"field_change","created_at":"2026-04-09T21:54:14.561034746Z","actor":"Andrew Montgomery","issue_id":"ironwail-go-8mi","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Completed"}}
 {"id":"int-d0a0c453","kind":"field_change","created_at":"2026-04-09T22:04:00.785930486Z","actor":"Andrew Montgomery","issue_id":"ironwail-go-9yo","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Completed"}}
 {"id":"int-a9f8ebd9","kind":"field_change","created_at":"2026-04-09T22:11:10.419087158Z","actor":"Andrew Montgomery","issue_id":"ironwail-go-5y4","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}
+{"id":"int-7aac1d1f","kind":"field_change","created_at":"2026-04-09T22:19:55.568314723Z","actor":"Andrew Montgomery","issue_id":"ironwail-go-ju4","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Completed"}}

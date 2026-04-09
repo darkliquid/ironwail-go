@@ -195,7 +195,8 @@ func (b *InputBackend) initCallbacks() {
 				return
 			}
 			b.mu.Lock()
-			if b.cursorMode == iinput.CursorModeGrabbed {
+			locked := b.app != nil && b.app.CursorMode() == gpucontext.CursorModeLocked
+			if b.cursorMode == iinput.CursorModeGrabbed && locked {
 				b.accumMouseDX += int32(ev.DeltaX)
 				b.accumMouseDY += int32(ev.DeltaY)
 			} else if b.hasMousePos {
@@ -332,7 +333,9 @@ func cursorModeAdapter(mode iinput.CursorMode) cursorModeState {
 		}
 	case iinput.CursorModeGrabbed:
 		return cursorModeState{
+			cursor:     gpucontext.CursorNone,
 			cursorMode: gpucontext.CursorModeLocked,
+			setCursor:  true,
 		}
 	default:
 		return cursorModeState{
