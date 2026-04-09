@@ -14,6 +14,7 @@
 ## Contracts
 
 - Input destination changes also control mouse grab and may force gameplay button release.
+- Direct runtime menu entry points must route through the same input-sync policy so startup and game-dir reload menus also restore normal mouse mode immediately.
 - Menu mouse handling prefers absolute menu-space hit testing and falls back to relative movement.
 - Chat/console text editing includes held-backspace repeat behavior in the command package.
 - `registerConsoleCompletionProviders` is also responsible for wiring console completion against executable-owned registries: commands, cvars, aliases, and the live VFS file listing callback when `g.Subs.Files` is a real `*fs.FileSystem`.

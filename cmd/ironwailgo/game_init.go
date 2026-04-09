@@ -607,7 +607,7 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 
 	if g.Menu != nil {
 		g.Menu.SetCurrentMod(modDir)
-		g.Menu.ShowState(menu.MenuMain)
+		showRuntimeMenuState(menu.MenuMain)
 	}
 	g.Client = host.ActiveClientState(subs)
 	syncControlCvarsToClient()
@@ -831,9 +831,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	}
 
 	// Make sure the menu is visible at startup
-	if g.Menu != nil {
-		g.Menu.ShowMenu()
-	}
+	showRuntimeMenuState(menu.MenuMain)
 	// slog.Info("menu active") - moved to main for deterministic logs
 
 	slog.Info("All subsystems initialized")

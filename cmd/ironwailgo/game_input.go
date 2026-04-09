@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
@@ -552,6 +553,14 @@ func releaseGameplayButtons() {
 	for _, button := range buttons {
 		g.Client.KeyUp(button, -1)
 	}
+}
+
+func showRuntimeMenuState(state menu.MenuState) {
+	if g.Menu == nil {
+		return
+	}
+	g.Menu.ShowState(state)
+	syncGameplayInputMode()
 }
 
 func applyStartupGameplayInputMode() {

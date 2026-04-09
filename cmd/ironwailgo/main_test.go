@@ -554,6 +554,8 @@ type mouseDeltaBackend struct {
 	mouseValid bool
 	gamepad    input.GamepadState
 	connected  bool
+	lastGrab   bool
+	grabCalls  int
 }
 
 func (b *mouseDeltaBackend) Init() error                   { return nil }
@@ -569,8 +571,11 @@ func (b *mouseDeltaBackend) SetCursorMode(input.CursorMode)         {}
 func (b *mouseDeltaBackend) ShowKeyboard(bool)                      {}
 func (b *mouseDeltaBackend) GetGamepadState(int) input.GamepadState { return b.gamepad }
 func (b *mouseDeltaBackend) IsGamepadConnected(int) bool            { return b.connected }
-func (b *mouseDeltaBackend) SetMouseGrab(bool)                      {}
-func (b *mouseDeltaBackend) SetWindow(interface{})                  {}
+func (b *mouseDeltaBackend) SetMouseGrab(grabbed bool) {
+	b.lastGrab = grabbed
+	b.grabCalls++
+}
+func (b *mouseDeltaBackend) SetWindow(interface{}) {}
 
 func TestStartupMapArg(t *testing.T) {
 	for _, tc := range []struct {
@@ -5985,6 +5990,38 @@ func TestStartupMenuStateSuppressesGameplayMovementInput(t *testing.T) {
 	}
 	if g.Client.InputJump.State&1 == 0 {
 		t.Fatalf("+jump should activate after menu closes")
+	}
+}
+
+func TestShowRuntimeMenuStateReleasesMouseGrab(t *testing.T) {
+	originalInput := g.Input
+	originalMenu := g.Menu
+	originalGrabbed := g.MouseGrabbed
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Menu = originalMenu
+		g.MouseGrabbed = originalGrabbed
+	})
+
+	backend := &mouseDeltaBackend{}
+	g.Input = input.NewSystem(backend)
+	g.Menu = menu.NewManager(nil, g.Input)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.MouseGrabbed = true
+
+	showRuntimeMenuState(menu.MenuMain)
+
+	if !g.Menu.IsActive() || g.Menu.GetState() != menu.MenuMain {
+		t.Fatalf("runtime menu open should land on the main menu, got active=%v state=%v", g.Menu.IsActive(), g.Menu.GetState())
+	}
+	if got := g.Input.GetKeyDest(); got != input.KeyMenu {
+		t.Fatalf("key destination after runtime menu open = %v, want menu", got)
+	}
+	if g.MouseGrabbed {
+		t.Fatalf("runtime menu open should release mouse grab")
+	}
+	if backend.grabCalls != 1 || backend.lastGrab {
+		t.Fatalf("SetMouseGrab calls = %d lastGrab=%v, want one release call", backend.grabCalls, backend.lastGrab)
 	}
 }
 
