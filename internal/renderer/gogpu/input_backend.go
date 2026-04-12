@@ -30,6 +30,7 @@ type InputBackend struct {
 	pollPrevMouse   []bool
 	pollCounter     uint64
 	lastPollLog     time.Time
+	eventLogCount   uint32
 }
 
 // NewInputBackend returns a Backend implementation wired to the renderer app.
@@ -39,7 +40,7 @@ func NewInputBackend(app *gg.App, sys *iinput.System) iinput.Backend {
 
 func (b *InputBackend) Init() error {
 	b.initCallbacks()
-	slog.Debug("gogpu input backend: init completed")
+	slog.Info("gogpu input backend initialized")
 	return nil
 }
 
@@ -106,7 +107,7 @@ func (b *InputBackend) PollEvents() bool {
 		pressed := keyboard.Pressed(pair.Src)
 		prev := b.pollPrevPressed[index]
 		if pressed != prev {
-			slog.Debug("gogpu input polling key", "src", pair.Src, "dst", pair.Dst, "down", pressed)
+			b.logInputEvent("poll-key", pair.Dst, pressed)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.Dst, Down: pressed, Device: iinput.DeviceKeyboard})
 			b.pollPrevPressed[index] = pressed
 		}
@@ -115,6 +116,7 @@ func (b *InputBackend) PollEvents() bool {
 		pressed := mouse.Pressed(pair.Src)
 		prev := b.pollPrevMouse[index]
 		if pressed != prev {
+			b.logInputEvent("poll-mouse", pair.Dst, pressed)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: pair.Dst, Down: pressed, Device: iinput.DeviceMouse})
 			b.pollPrevMouse[index] = pressed
 		}
@@ -165,6 +167,7 @@ func (b *InputBackend) initCallbacks() {
 		b.mu.Unlock()
 		if mapped >= 0 {
 			b.markCallbackInput()
+			b.logInputEvent("callback-key", mapped, true)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: true, Device: iinput.DeviceKeyboard})
 		}
 	})
@@ -177,6 +180,7 @@ func (b *InputBackend) initCallbacks() {
 		b.mu.Unlock()
 		if mapped >= 0 {
 			b.markCallbackInput()
+			b.logInputEvent("callback-key", mapped, false)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: mapped, Down: false, Device: iinput.DeviceKeyboard})
 		}
 	})
@@ -226,6 +230,7 @@ func (b *InputBackend) initCallbacks() {
 	es.OnMousePress(func(button gpucontext.MouseButton, x, y float64) {
 		b.markCallbackSeen()
 		if key := MapGPUContextMouseButton(button); key >= 0 {
+			b.logInputEvent("callback-mouse", key, true)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: key, Down: true, Device: iinput.DeviceMouse})
 		}
 		_ = x
@@ -235,6 +240,7 @@ func (b *InputBackend) initCallbacks() {
 	es.OnMouseRelease(func(button gpucontext.MouseButton, x, y float64) {
 		b.markCallbackSeen()
 		if key := MapGPUContextMouseButton(button); key >= 0 {
+			b.logInputEvent("callback-mouse", key, false)
 			b.sys.HandleKeyEvent(iinput.KeyEvent{Key: key, Down: false, Device: iinput.DeviceMouse})
 		}
 		_ = x
@@ -261,7 +267,21 @@ func (b *InputBackend) initCallbacks() {
 	})
 
 	b.callbacksInited = true
-	slog.Debug("gogpu input backend: event source callbacks registered")
+	slog.Info("gogpu input callbacks registered")
+}
+
+func (b *InputBackend) logInputEvent(source string, key int, down bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.eventLogCount >= 32 {
+		return
+	}
+	b.eventLogCount++
+	keyName := iinput.KeyToString(key)
+	if keyName == "" {
+		keyName = "UNKNOWN"
+	}
+	slog.Info("input event observed", "source", source, "key", keyName, "key_code", key, "down", down, "event_index", b.eventLogCount)
 }
 
 func (b *InputBackend) markCallbackInput() {

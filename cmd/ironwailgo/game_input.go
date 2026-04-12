@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
+	"sync/atomic"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
@@ -14,10 +16,30 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
+var runtimeInputDispatchLogCount atomic.Uint32
+
+func logRuntimeKeyDispatch(path string, event input.KeyEvent) {
+	index := runtimeInputDispatchLogCount.Add(1)
+	if index > 32 {
+		return
+	}
+	keyName := input.KeyToString(event.Key)
+	if keyName == "" {
+		keyName = fmt.Sprintf("KEY%d", event.Key)
+	}
+	menuActive := g.Menu != nil && g.Menu.IsActive()
+	keyDest := "none"
+	if g.Input != nil {
+		keyDest = keyDestName(g.Input.GetKeyDest())
+	}
+	slog.Info("input dispatch", "path", path, "key", keyName, "key_code", event.Key, "down", event.Down, "key_dest", keyDest, "menu_active", menuActive, "event_index", index)
+}
+
 func handleGameKeyEvent(event input.KeyEvent) {
 	if g.Input == nil {
 		return
 	}
+	logRuntimeKeyDispatch("game", event)
 	if event.Down && event.Key == input.KStart && g.Menu != nil {
 		g.Menu.ToggleMenu()
 		syncGameplayInputMode()
@@ -165,6 +187,7 @@ func handleMenuKeyEvent(event input.KeyEvent) {
 	if !event.Down || g.Menu == nil {
 		return
 	}
+	logRuntimeKeyDispatch("menu", event)
 	if event.Key == int('`') && !g.Menu.WaitingForKeyBinding() {
 		cmdToggleConsole(nil)
 		return
@@ -358,6 +381,7 @@ func syncGameplayInputMode() {
 	}
 	if g.Input.GetKeyDest() != wantDest {
 		g.Input.SetKeyDest(wantDest)
+		slog.Info("input mode updated", "key_dest", keyDestName(wantDest), "menu_active", menuActive)
 	}
 
 	shouldGrab := !menuActive && wantDest == input.KeyGame

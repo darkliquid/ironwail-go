@@ -6,6 +6,7 @@ package host
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -517,6 +518,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		subs.Console.Print("\nLanguage initialization\n\n")
 		subs.Console.Print("========= Quake Initialized =========\n\n")
 	}
+	logStartupConfigCandidates(h.userDir, subs)
 
 	// Execute quake.rc from the game filesystem (pak0.pak).
 	// This mirrors C Ironwail's Cbuf_InsertText("exec quake.rc\n") in Host_Init.
@@ -558,6 +560,28 @@ func ResolveUserDir(baseDir, userDir string) (string, error) {
 		return baseDir, nil
 	}
 	return filepath.Join(homeDir, ".ironwail"), nil
+}
+
+func logStartupConfigCandidates(userDir string, subs *Subsystems) {
+	if userDir == "" {
+		return
+	}
+	quakeRCExists := subs != nil && subs.Files != nil && subs.Files.FileExists("quake.rc")
+	slog.Info("startup config candidates",
+		"user_dir", absolutePathOrOriginal(userDir),
+		"quake_rc_filesystem", quakeRCExists,
+		"ironwail_cfg", absolutePathOrOriginal(filepath.Join(userDir, configFileName)),
+		"ironwail_cfg_exists", fileExists(filepath.Join(userDir, configFileName)),
+		"config_cfg", absolutePathOrOriginal(filepath.Join(userDir, legacyConfigName)),
+		"config_cfg_exists", fileExists(filepath.Join(userDir, legacyConfigName)),
+		"autoexec_cfg", absolutePathOrOriginal(filepath.Join(userDir, "autoexec.cfg")),
+		"autoexec_cfg_exists", fileExists(filepath.Join(userDir, "autoexec.cfg")),
+	)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func LoadArchivedCvars(userDir string, names []string) error {

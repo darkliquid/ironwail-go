@@ -206,8 +206,10 @@ func (dc *DrawContext) flush2DOverlay() {
 			dc.overlay = nil
 			return
 		}
-		if err := dc.ctx.DrawTextureScaled(tex, 0, 0, float32(ov.width), float32(ov.height)); err != nil {
-			slog.Error("flush2DOverlay: draw failed", "error", err)
+		if !dc.renderOverlayTextureHAL(tex) {
+			slog.Error("flush2DOverlay: HAL overlay composite failed")
+			dc.overlay = nil
+			return
 		}
 	} else {
 		// Dimensions changed or first frame — create new texture.
@@ -232,8 +234,10 @@ func (dc *DrawContext) flush2DOverlay() {
 		r.overlayTextureWidth = ov.width
 		r.overlayTextureHeight = ov.height
 		r.mu.Unlock()
-		if err := dc.ctx.DrawTextureScaled(tex, 0, 0, float32(ov.width), float32(ov.height)); err != nil {
-			slog.Error("flush2DOverlay: draw failed", "error", err)
+		if !dc.renderOverlayTextureHAL(tex) {
+			slog.Error("flush2DOverlay: HAL overlay composite failed")
+			dc.overlay = nil
+			return
 		}
 	}
 	dc.overlay = nil
@@ -610,16 +614,23 @@ func (dc *DrawContext) DrawPicAlpha(x, y int, pic *image.QPic, alpha float32) {
 	if pic == nil || alpha <= 0 {
 		return
 	}
-	ov := dc.ensureOverlay()
-	if ov == nil {
-		return
-	}
-	rgba := dc.renderer.getOrCreatePicRGBA(pic)
-	if rgba == nil {
+	tex := dc.renderer.getOrCreateTexture(dc.ctx, pic)
+	if tex == nil {
 		return
 	}
 	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, int(pic.Width), int(pic.Height))
-	ov.blitRGBA(rgba, int(pic.Width), int(pic.Height), sx, sy, sw, sh, alpha)
+	if sw <= 0 || sh <= 0 {
+		return
+	}
+	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      float32(sx),
+		Y:      float32(sy),
+		Width:  float32(sw),
+		Height: float32(sh),
+		Alpha:  alpha,
+	}); err != nil {
+		slog.Error("DrawPicAlpha: draw failed", "error", err)
+	}
 }
 
 // DrawMenuPic renders a QPic image in 320x200 menu-space coordinates.
@@ -637,16 +648,26 @@ func (dc *DrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) 
 	if w <= 0 || h <= 0 || alpha <= 0 {
 		return
 	}
-	ov := dc.ensureOverlay()
-	if ov == nil {
+	tex := dc.renderer.getOrCreateColorTexture(dc.ctx, color)
+	if tex == nil {
 		return
 	}
-	r, g, b := GetPaletteColor(color, dc.renderer.palette)
 	if alpha > 1 {
 		alpha = 1
 	}
 	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, w, h)
-	ov.fillRect(sx, sy, sw, sh, r, g, b, byte(alpha*255))
+	if sw <= 0 || sh <= 0 {
+		return
+	}
+	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      float32(sx),
+		Y:      float32(sy),
+		Width:  float32(sw),
+		Height: float32(sh),
+		Alpha:  alpha,
+	}); err != nil {
+		slog.Error("DrawFillAlpha: draw failed", "error", err)
+	}
 }
 
 // DrawCharacter renders a single 8×8 character from the conchars font.
@@ -659,20 +680,27 @@ func (dc *DrawContext) DrawCharacterAlpha(x, y int, num int, alpha float32) {
 	if num < 0 || num > 255 || alpha <= 0 {
 		return
 	}
-	ov := dc.ensureOverlay()
-	if ov == nil {
-		return
-	}
 	pic := dc.renderer.getCharPic(num)
 	if pic == nil {
 		return
 	}
-	rgba := dc.renderer.getOrCreateCharRGBA(pic)
-	if rgba == nil {
+	tex := dc.renderer.getOrCreateCharTexture(dc.ctx, num, pic)
+	if tex == nil {
 		return
 	}
 	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, 8, 8)
-	ov.blitRGBA(rgba, 8, 8, sx, sy, sw, sh, alpha)
+	if sw <= 0 || sh <= 0 {
+		return
+	}
+	if err := dc.ctx.DrawTextureEx(tex, gogpu.DrawTextureOptions{
+		X:      float32(sx),
+		Y:      float32(sy),
+		Width:  float32(sw),
+		Height: float32(sh),
+		Alpha:  alpha,
+	}); err != nil {
+		slog.Error("DrawCharacterAlpha: draw failed", "num", num, "error", err)
+	}
 }
 
 // DrawString renders an entire line of text by compositing all characters
@@ -681,26 +709,9 @@ func (dc *DrawContext) DrawString(x, y int, text []byte) {
 	if len(text) == 0 {
 		return
 	}
-	ov := dc.ensureOverlay()
-	if ov == nil {
-		return
+	for i, ch := range text {
+		dc.DrawCharacter(x+i*8, y, int(ch))
 	}
-	dc.renderer.mu.RLock()
-	conchars := dc.renderer.concharsData
-	palette := dc.renderer.palette
-	dc.renderer.mu.RUnlock()
-
-	if len(conchars) < 128*128 || len(palette) < 768 {
-		// Conchars not loaded — fall back to per-character.
-		for i, ch := range text {
-			dc.DrawCharacter(x+i*8, y, int(ch))
-		}
-		return
-	}
-
-	w := len(text) * 8
-	sx, sy, sw, sh := dc.canvasRectToScreen(x, y, w, 8)
-	ov.blitConcharsString(conchars, palette, text, sx, sy, sw, sh)
 }
 
 // DrawMenuCharacter renders a single 8×8 character in menu-space coordinates.
@@ -1036,19 +1047,26 @@ type Renderer struct {
 	worldDepthHeight      int
 
 	// Offscreen render target for world rendering
-	worldRenderTexture            *wgpu.Texture
-	worldRenderTextureView        *wgpu.TextureView
-	worldRenderTextureGogpu       *gogpu.Texture // gogpu-wrapped version for compositing
-	worldRenderWidth              int
-	worldRenderHeight             int
-	sceneCompositePipeline        *wgpu.RenderPipeline
-	sceneCompositePipelineLayout  *wgpu.PipelineLayout
-	sceneCompositeVertexShader    *wgpu.ShaderModule
-	sceneCompositeFragmentShader  *wgpu.ShaderModule
-	sceneCompositeBindGroupLayout *wgpu.BindGroupLayout
-	sceneCompositeSampler         *wgpu.Sampler
-	sceneCompositeUniformBuffer   *wgpu.Buffer
-	sceneCompositeBindGroup       *wgpu.BindGroup
+	worldRenderTexture              *wgpu.Texture
+	worldRenderTextureView          *wgpu.TextureView
+	worldRenderTextureGogpu         *gogpu.Texture // gogpu-wrapped version for compositing
+	worldRenderWidth                int
+	worldRenderHeight               int
+	sceneCompositePipeline          *wgpu.RenderPipeline
+	sceneCompositePipelineLayout    *wgpu.PipelineLayout
+	sceneCompositeVertexShader      *wgpu.ShaderModule
+	sceneCompositeFragmentShader    *wgpu.ShaderModule
+	sceneCompositeBindGroupLayout   *wgpu.BindGroupLayout
+	sceneCompositeSampler           *wgpu.Sampler
+	sceneCompositeUniformBuffer     *wgpu.Buffer
+	sceneCompositeBindGroup         *wgpu.BindGroup
+	overlayCompositePipeline        *wgpu.RenderPipeline
+	overlayCompositePipelineLayout  *wgpu.PipelineLayout
+	overlayCompositeVertexShader    *wgpu.ShaderModule
+	overlayCompositeFragmentShader  *wgpu.ShaderModule
+	overlayCompositeBindGroupLayout *wgpu.BindGroupLayout
+	overlayCompositeBindGroup       *wgpu.BindGroup
+	overlayCompositeTextureView     *wgpu.TextureView
 
 	// Alias-model resources for the gogpu backend.
 	lightPool                      *glLightPool
@@ -1168,11 +1186,10 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	// Apply VSync setting from engine config
 	gpuCfg = gpuCfg.WithVSync(cfg.VSync)
 
-	// Log GPU preference — gogpu doesn't yet support PowerPreference in its
-	// Config, so this only affects our headless Core path. On the runtime
-	// path, adapter selection falls back to the first non-CPU GPU enumerated
-	// by the driver. Use DRI_PRIME=1 (Linux) to force discrete GPU selection
-	// at the Vulkan loader level.
+	// Log GPU preference. gogpu doesn't yet expose PowerPreference on its
+	// windowed runtime path, so our explicit runtime preference currently
+	// works by force-applying loader hints before renderer initialization.
+	// The headless Core path uses RequestAdapter PowerPreference directly.
 	switch cfg.GPUPreference {
 	case GPUPreferHighPerformance:
 		slog.Info("GPU preference: high-performance (discrete)")
@@ -1213,17 +1230,48 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 }
 
 func applyGPUPreferenceRuntimeEnv(pref GPUPreference) {
-	if pref != GPUPreferHighPerformance {
+	var overrides []struct {
+		key   string
+		value string
+	}
+	switch pref {
+	case GPUPreferHighPerformance:
+		overrides = []struct {
+			key   string
+			value string
+		}{
+			{key: "DRI_PRIME", value: "1"},
+			{key: "__NV_PRIME_RENDER_OFFLOAD", value: "1"},
+			{key: "__VK_LAYER_NV_optimus", value: "NVIDIA_only"},
+		}
+	case GPUPreferLowPower:
+		overrides = []struct {
+			key   string
+			value string
+		}{
+			{key: "DRI_PRIME", value: "0"},
+			{key: "__NV_PRIME_RENDER_OFFLOAD", value: "0"},
+			{key: "__VK_LAYER_NV_optimus", value: "non_NVIDIA_only"},
+		}
+	default:
 		return
 	}
-	if _, exists := os.LookupEnv("DRI_PRIME"); exists {
-		return
+	for _, override := range overrides {
+		prev, hadPrev := os.LookupEnv(override.key)
+		if hadPrev && prev == override.value {
+			slog.Info("GPU preference override already applied", "env", override.key, "value", override.value)
+			continue
+		}
+		if err := os.Setenv(override.key, override.value); err != nil {
+			slog.Warn("failed to apply GPU preference override", "env", override.key, "value", override.value, "error", err)
+			continue
+		}
+		if hadPrev {
+			slog.Info("Overrode GPU preference hint", "env", override.key, "previous", prev, "value", override.value)
+			continue
+		}
+		slog.Info("Applied GPU preference override", "env", override.key, "value", override.value)
 	}
-	if err := os.Setenv("DRI_PRIME", "1"); err != nil {
-		slog.Warn("failed to apply GPU preference override", "env", "DRI_PRIME", "value", "1", "error", err)
-		return
-	}
-	slog.Info("Applied GPU preference override", "env", "DRI_PRIME", "value", "1")
 }
 
 // SetPalette sets the Quake palette used for rendering.
@@ -1550,6 +1598,7 @@ func (r *Renderer) Shutdown() {
 	r.destroyParticleResourcesLocked()
 	r.destroyDecalResourcesLocked()
 	r.destroyPolyBlendResourcesLocked()
+	r.destroyOverlayCompositeResourcesLocked()
 	r.destroyWorldRenderTargetLocked()
 	r.destroySceneCompositeResourcesLocked()
 	if r.overlayTexture != nil {

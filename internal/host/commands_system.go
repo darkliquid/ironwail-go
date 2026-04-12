@@ -5,6 +5,7 @@ package host
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,66 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 )
+
+func isConfigExecTarget(filename string) bool {
+	cleaned := strings.TrimSpace(filename)
+	if cleaned == "" {
+		return false
+	}
+	switch strings.ToLower(filepath.Base(filepath.Clean(cleaned))) {
+	case "quake.rc", "default.cfg", configFileName, legacyConfigName, "autoexec.cfg":
+		return true
+	default:
+		return false
+	}
+}
+
+func configProbePath(userDir, filename string) string {
+	if userDir == "" || filename == "" || filepath.IsAbs(filename) {
+		return filename
+	}
+	return filepath.Join(userDir, filename)
+}
+
+func absolutePathOrOriginal(path string) string {
+	if path == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
+}
+
+func logConfigExecProbe(requested, resolved, userDir string, subs *Subsystems) {
+	if !isConfigExecTarget(requested) && !isConfigExecTarget(resolved) {
+		return
+	}
+	probeName := resolved
+	if probeName == "" {
+		probeName = requested
+	}
+	userPath := configProbePath(userDir, probeName)
+	userExists := false
+	if userPath != "" {
+		_, err := os.Stat(userPath)
+		userExists = err == nil
+	}
+	fsExists := false
+	if subs != nil && subs.Files != nil {
+		fsExists = subs.Files.FileExists(probeName)
+	}
+	_, builtinExists := builtinExecConfigText(probeName)
+	slog.Info("config exec probe",
+		"requested", requested,
+		"resolved", probeName,
+		"user_path", absolutePathOrOriginal(userPath),
+		"user_exists", userExists,
+		"builtin", builtinExists,
+		"filesystem_exists", fsExists,
+	)
+}
 
 func (h *Host) CmdQuit() {
 	h.Abort("quit")
@@ -87,10 +148,13 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		}
 		return
 	}
+	requested := filename
 	if len(args) == 1 && strings.EqualFold(filename, legacyConfigName) && h.userConfigFileExists(configFileName) {
 		filename = configFileName
 	}
+	logConfigExecProbe(requested, filename, h.userDir, subs)
 	if builtin, ok := builtinExecConfigText(filename); ok {
+		slog.Info("config exec resolved", "file", filename, "source", "builtin")
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 		}
@@ -111,6 +175,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		err = os.ErrNotExist
 	}
 	if err == nil {
+		slog.Info("config exec resolved", "file", filename, "source", "user", "path", absolutePathOrOriginal(configProbePath(h.userDir, filename)))
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 		}
@@ -118,6 +183,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		return
 	}
 	if err != nil && !os.IsNotExist(err) {
+		slog.Warn("config exec failed", "file", filename, "path", absolutePathOrOriginal(configProbePath(h.userDir, filename)), "error", err)
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("couldn't exec %s: %v\n", filename, err))
 		}
@@ -126,12 +192,16 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 	if subs != nil && subs.Files != nil {
 		data, err = subs.Files.LoadFile(filename)
 		if err == nil {
+			slog.Info("config exec resolved", "file", filename, "source", "filesystem")
 			if subs != nil && subs.Console != nil {
 				subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 			}
 			executeConfigText(subs, string(data))
 			return
 		}
+	}
+	if isConfigExecTarget(filename) {
+		slog.Warn("config exec missing", "file", filename, "user_path", absolutePathOrOriginal(configProbePath(h.userDir, filename)))
 	}
 	if subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("couldn't exec %s\n", filename))

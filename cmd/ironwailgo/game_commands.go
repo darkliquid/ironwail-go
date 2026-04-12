@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -382,11 +383,99 @@ func hasAnyGameplayBindings() bool {
 	return false
 }
 
-func ensureGameplayBindings() {
-	if hasAnyGameplayBindings() {
+func hasBindingForCommand(command string) bool {
+	if g.Input == nil {
+		return false
+	}
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return false
+	}
+	for key := 0; key < input.NumKeycode; key++ {
+		if strings.TrimSpace(g.Input.GetBinding(key)) == command {
+			return true
+		}
+	}
+	return false
+}
+
+func ensureEssentialFallbackBindings() {
+	if g.Input == nil {
 		return
 	}
-	applyDefaultGameplayBindings()
+	for _, binding := range essentialFallbackBindings {
+		if hasBindingForCommand(binding.command) {
+			continue
+		}
+		g.Input.SetBinding(binding.key, binding.command)
+	}
+}
+
+func ensureGameplayBindings() {
+	if !hasAnyGameplayBindings() {
+		applyDefaultGameplayBindings()
+	}
+	ensureEssentialFallbackBindings()
+}
+
+func keyDestName(dest input.KeyDest) string {
+	switch dest {
+	case input.KeyGame:
+		return "game"
+	case input.KeyConsole:
+		return "console"
+	case input.KeyMessage:
+		return "message"
+	case input.KeyMenu:
+		return "menu"
+	default:
+		return fmt.Sprintf("unknown(%d)", dest)
+	}
+}
+
+func logStartupInputDiagnostics() {
+	if g.Input == nil {
+		return
+	}
+	bindings := make([]string, 0, len(essentialFallbackBindings)+4)
+	missingActions := make([]string, 0, len(essentialFallbackBindings))
+	diagnosticBindings := []defaultBinding{
+		{key: input.KEscape, command: "togglemenu"},
+		{key: int('`'), command: "toggleconsole"},
+		{key: input.KUpArrow, command: "+forward"},
+		{key: input.KDownArrow, command: "+back"},
+		{key: input.KLeftArrow, command: "+left"},
+		{key: input.KRightArrow, command: "+right"},
+	}
+	for _, binding := range diagnosticBindings {
+		keyName := input.KeyToString(binding.key)
+		if keyName == "" {
+			keyName = fmt.Sprintf("KEY%d", binding.key)
+		}
+		command := strings.TrimSpace(g.Input.GetBinding(binding.key))
+		bindings = append(bindings, fmt.Sprintf("%s=%q", keyName, command))
+		if !hasBindingForCommand(binding.command) {
+			missingActions = append(missingActions, binding.command)
+		}
+	}
+	backendType := "<nil>"
+	if backend := g.Input.Backend(); backend != nil {
+		backendType = fmt.Sprintf("%T", backend)
+	}
+	menuActive := g.Menu != nil && g.Menu.IsActive()
+	menuState := "none"
+	if g.Menu != nil {
+		menuState = fmt.Sprintf("%v", g.Menu.GetState())
+	}
+	slog.Info("startup input diagnostics",
+		"menu_active", menuActive,
+		"menu_state", menuState,
+		"key_dest", keyDestName(g.Input.GetKeyDest()),
+		"backend", backendType,
+		"bindings", strings.Join(bindings, ", "),
+		"missing_actions", strings.Join(missingActions, ", "),
+		"menu_raw_keys", "confirm=ENTER|SPACE|MOUSE1,start=A|START cancel=ESCAPE|BACKSPACE|MOUSE2|B arrows=UP|DOWN|LEFT|RIGHT",
+	)
 }
 
 func parseBindingKey(name string) (int, bool) {

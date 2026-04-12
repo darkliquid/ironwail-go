@@ -6195,6 +6195,47 @@ func TestEnsureGameplayBindingsReappliesDefaultsAfterStartupConfigClearsAllBinds
 	if got := g.Input.GetBinding(int('`')); got != "toggleconsole" {
 		t.Fatalf("binding for ` after startup fallback = %q, want %q", got, "toggleconsole")
 	}
+	if got := g.Input.GetBinding(input.KEscape); got != "togglemenu" {
+		t.Fatalf("binding for ESCAPE after startup fallback = %q, want %q", got, "togglemenu")
+	}
+}
+
+func TestEnsureGameplayBindingsRestoresEssentialFallbacksWhenOnlyNonGameplayBindsRemain(t *testing.T) {
+	originalInput := g.Input
+	originalHost := g.Host
+	t.Cleanup(func() {
+		g.Input = originalInput
+		g.Host = originalHost
+	})
+
+	g.Input = input.NewSystem(nil)
+	registerGameplayBindCommands()
+	applyDefaultGameplayBindings()
+
+	userDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDir, "ironwail.cfg"), []byte("unbindall\nbind F1 help\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(ironwail.cfg): %v", err)
+	}
+
+	h := host.NewHost()
+	subs := &host.Subsystems{
+		Commands: globalCommandBuffer{},
+		Input:    g.Input,
+	}
+	if err := h.Init(&host.InitParams{BaseDir: ".", UserDir: userDir}, subs); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+	ensureGameplayBindings()
+
+	if got := g.Input.GetBinding(input.KF1); got != "help" {
+		t.Fatalf("binding for F1 after startup fallback = %q, want %q", got, "help")
+	}
+	if got := g.Input.GetBinding(int('`')); got != "toggleconsole" {
+		t.Fatalf("binding for ` after startup fallback with partial binds = %q, want %q", got, "toggleconsole")
+	}
+	if got := g.Input.GetBinding(input.KEscape); got != "togglemenu" {
+		t.Fatalf("binding for ESCAPE after startup fallback with partial binds = %q, want %q", got, "togglemenu")
+	}
 }
 
 func TestBuiltinDefaultCfgExecBindsConsoleAndAutoscaleUI(t *testing.T) {

@@ -832,6 +832,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 
 	// Make sure the menu is visible at startup
 	showRuntimeMenuState(menu.MenuMain)
+	logStartupInputDiagnostics()
 	// slog.Info("menu active") - moved to main for deterministic logs
 
 	slog.Info("All subsystems initialized")

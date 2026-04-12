@@ -289,6 +289,11 @@ var gameplayDefaultBindings = []defaultBinding{
 	{key: input.KMWheelDown, command: "impulse 12"},
 }
 
+var essentialFallbackBindings = []defaultBinding{
+	{key: input.KEscape, command: "togglemenu"},
+	{key: int('`'), command: "toggleconsole"},
+}
+
 type globalCommandBuffer struct{}
 
 func (globalCommandBuffer) Init()    {}
