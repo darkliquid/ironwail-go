@@ -2132,6 +2132,8 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
 		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
 	}
+	// HAL backends require an active pipeline layout before SetBindGroup.
+	renderPass.SetPipeline(pipeline)
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
 	renderPass.SetBindGroup(0, uniformBindGroup, []uint32{0})
 
@@ -2139,10 +2141,14 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 	cameraForward, cameraRight, cameraUp := spriteCameraBasis(cameraAngles)
-	currentPipeline := (*wgpu.RenderPipeline)(nil)
+	currentPipeline := pipeline
 
 	for _, draw := range draws {
 		if draw.sprite == nil || draw.frame < 0 || draw.frame >= len(draw.sprite.frames) {
+			continue
+		}
+		frame := draw.sprite.frames[draw.frame]
+		if frame.bindGroup == nil {
 			continue
 		}
 		targetPipeline := pipeline
@@ -2182,7 +2188,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 			slog.Warn("failed to upload sprite vertices", "error", err)
 			continue
 		}
-		renderPass.SetBindGroup(1, draw.sprite.frames[draw.frame].bindGroup, nil)
+		renderPass.SetBindGroup(1, frame.bindGroup, nil)
 		renderPass.Draw(uint32(len(worldVertices)), 1, 0, 0)
 	}
 
