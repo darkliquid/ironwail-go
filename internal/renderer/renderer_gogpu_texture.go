@@ -35,10 +35,8 @@ func (r *Renderer) getCharPic(num int) *image.QPic {
 	return pic
 }
 
-// charCacheKey is a cache key for character textures (separate from pic-based cache).
-type charCacheKey struct{ num int }
-
 // getOrCreateCharTexture returns a GPU texture for a character, uploading it if needed.
+// Character textures are cached using the character pic via the shared texture cache.
 // Uses ConvertConcharsToRGBA so index-0 pixels are transparent.
 func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *image.QPic) *gogpu.Texture {
 	key := cacheKey{pic: pic}

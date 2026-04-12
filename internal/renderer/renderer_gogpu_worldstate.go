@@ -74,7 +74,7 @@ func (r *Renderer) GetProjectionMatrix() types.Mat4 {
 	return r.viewMatrices.Projection
 }
 
-// GetViewProjectionMatrix returns the combined View × Projection matrix.
+// GetViewProjectionMatrix returns the combined Projection × View matrix.
 // This is the matrix typically used in vertex shaders for world-to-NDC transformation.
 // Thread-safe read.
 func (r *Renderer) GetViewProjectionMatrix() types.Mat4 {

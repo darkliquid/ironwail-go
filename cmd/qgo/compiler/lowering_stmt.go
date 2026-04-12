@@ -62,6 +62,15 @@ func (l *Lowerer) lowerReturn(fn *IRFunc, s *ast.ReturnStmt) {
 }
 
 func (l *Lowerer) lowerAssign(fn *IRFunc, s *ast.AssignStmt) {
+	if len(s.Lhs) != len(s.Rhs) {
+		l.errors.Addf(
+			l.pos(s),
+			"unsupported assignment arity: %d values on left, %d on right (multi-value assignment lowering is not implemented)",
+			len(s.Lhs),
+			len(s.Rhs),
+		)
+		return
+	}
 	for i, lhs := range s.Lhs {
 		rhs := l.lowerExpr(fn, s.Rhs[i])
 
@@ -186,6 +195,10 @@ func (l *Lowerer) lowerSwitchStmt(fn *IRFunc, s *ast.SwitchStmt) {
 		l.lowerStmt(fn, s.Init)
 	}
 
+	if s.Tag == nil {
+		l.errors.Addf(l.pos(s), "unsupported switch form: tagless switch")
+		return
+	}
 	tag := l.lowerExpr(fn, s.Tag)
 	tagType := l.goTypeToQC(l.currentInfo.Types[s.Tag].Type)
 	endLabel := l.newLabel("sw_end")
@@ -265,7 +278,26 @@ func (l *Lowerer) lowerBranch(fn *IRFunc, s *ast.BranchStmt) {
 }
 
 func (l *Lowerer) lowerIncDec(fn *IRFunc, s *ast.IncDecStmt) {
-	operand := l.lowerExpr(fn, s.X)
+	ident, ok := s.X.(*ast.Ident)
+	if !ok {
+		l.errors.Addf(l.pos(s.X), "increment/decrement requires an assignable identifier")
+		return
+	}
+
+	obj := l.currentInfo.Uses[ident]
+	if obj == nil {
+		obj = l.currentInfo.Defs[ident]
+	}
+	if obj == nil {
+		l.errors.Addf(l.pos(s.X), "undefined identifier in increment/decrement: %s", ident.Name)
+		return
+	}
+
+	operand, ok := l.vregMap[obj]
+	if !ok {
+		l.errors.Addf(l.pos(s.X), "increment/decrement requires a writable local identifier: %s", ident.Name)
+		return
+	}
 	one := l.constFloat(fn, 1.0)
 
 	var op qc.Opcode
