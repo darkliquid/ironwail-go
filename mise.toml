@@ -1,10 +1,11 @@
 [env]
 TIMEOUT = "5"
-
+CGO_ENABLED = "0"
 [tools]
 go = "1.26"
 golangci-lint = "latest"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
+"go:golang.org/x/tools/cmd/stringer" = "latest"
 
 # Helper task - not meant to be run directly
 [tasks.go-run]
@@ -15,7 +16,7 @@ if [ -z "${QUAKE_DIR:-}" ]; then
   echo "QUAKE_DIR is required" >&2
   exit 1
 fi
-CGO_ENABLED=0 go run ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
+go run ./cmd/ironwailgo -basedir "${QUAKE_DIR}"
 """
 
 [tasks.clean-logs]
@@ -77,11 +78,7 @@ grep "frame loop started" smoke-map-start.log
 
 [tasks.smoke-all]
 description = "Run all smoke tests"
-depends = [
-  "smoke-menu",
-  "smoke-headless",
-  "smoke-map-start",
-]
+depends = ["smoke-menu", "smoke-headless", "smoke-map-start"]
 
 [tasks.ralph-analyze-log]
 description = "Analyze a telemetry log into Ralph task records"
@@ -133,7 +130,7 @@ depends = ["test", "build"]
 [tasks.build-qgo]
 depends = ["go-generate"]
 description = "Build the QGo compiler"
-run = "CGO_ENABLED=0 go build ./cmd/qgo"
+run = "go build ./cmd/qgo"
 
 [tasks.build-progs]
 depends = ["build-qgo"]
@@ -143,7 +140,7 @@ run = "cd pkg/qgo/quakego && ../../../qgo"
 [tasks.build]
 depends = ["go-generate"]
 description = "Build game binary"
-run = "CGO_ENABLED=0 go build -o ironwailgo ./cmd/ironwailgo"
+run = "go build -o ironwailgo ./cmd/ironwailgo"
 
 [tasks.run]
 depends = ["build"]
