@@ -613,6 +613,8 @@ func (h *Host) startRemoteSession(address string, subs *Subsystems) error {
 		return err
 	}
 	if remoteDatagram, ok := remoteClient.(*remoteDatagramClient); ok {
+		remoteDatagram.signonName = cvar.StringValue(clientNameCVar)
+		remoteDatagram.signonColor = cvar.IntValue(clientColorCVar)
 		remoteDatagram.spawnArgs = h.spawnArgs
 	}
 	subs.Client = remoteClient
