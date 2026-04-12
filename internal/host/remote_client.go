@@ -5,9 +5,9 @@ package host
 
 import (
 	"fmt"
+	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
@@ -25,6 +25,8 @@ type remoteDatagramClient struct {
 	socket *inet.Socket
 
 	lastSignonReply   int
+	signonName        string
+	signonColor       int
 	spawnArgs         string
 	lastServerMessage []byte
 }
@@ -32,9 +34,11 @@ type remoteDatagramClient struct {
 func newRemoteDatagramClient(socket *inet.Socket) *remoteDatagramClient {
 	inner := cl.NewClient()
 	return &remoteDatagramClient{
-		inner:  inner,
-		parser: cl.NewParser(inner),
-		socket: socket,
+		inner:       inner,
+		parser:      cl.NewParser(inner),
+		socket:      socket,
+		signonName:  defaultClientName,
+		signonColor: 0,
 	}
 }
 
@@ -168,11 +172,17 @@ func (c *remoteDatagramClient) SendCommand() error {
 }
 
 func (c *remoteDatagramClient) playerName() string {
-	return cvar.StringValue(clientNameCVar)
+	if c == nil || strings.TrimSpace(c.signonName) == "" {
+		return defaultClientName
+	}
+	return c.signonName
 }
 
 func (c *remoteDatagramClient) playerColor() int {
-	return cvar.IntValue(clientColorCVar)
+	if c == nil {
+		return 0
+	}
+	return c.signonColor
 }
 
 func (c *remoteDatagramClient) SendSignonCommand(command string) error {

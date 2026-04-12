@@ -445,10 +445,7 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 	original := g
 	t.Cleanup(func() { g = original })
 
-	progsData, err := os.ReadFile(filepath.Join("..", "..", "progs.dat"))
-	if err != nil {
-		t.Fatalf("read test progs.dat: %v", err)
-	}
+	progsData := []byte("test progs")
 
 	baseDir := t.TempDir()
 	for _, dir := range []string{"id1", "hipnotic"} {
