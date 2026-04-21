@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"bufio"
@@ -22,46 +22,46 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/input"
 )
 
-var vidRestartFunc = restartVideo
-
 var cpuProfileState struct {
 	mu   sync.Mutex
 	file *os.File
 	path string
 }
 
-var uiScaleCVarNames = []string{
+var UIScaleCVarNames = []string{
 	"scr_conscale",
 	"scr_menuscale",
 	"scr_sbarscale",
 	"scr_crosshairscale",
 }
 
-func registerGameplayBindCommands() {
-	cmdsys.AddCommand("bind", cmdBind, "Bind a key to a command")
-	cmdsys.AddCommand("unbind", cmdUnbind, "Remove a key binding")
-	cmdsys.AddCommand("unbindall", cmdUnbindAll, "Remove all key bindings")
-	cmdsys.AddCommand("bindlist", cmdBindList, "List all key bindings")
-	cmdsys.AddCommand("scr_autoscale", cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
-	cmdsys.AddCommand("sizeup", cmdSizeUp, "Increase screen view size")
-	cmdsys.AddCommand("sizedown", cmdSizeDown, "Decrease screen view size")
-	cmdsys.AddCommand("entities", cmdEntities, "List current client entities")
-	cmdsys.AddCommand("impulse", cmdImpulse, "Trigger an impulse command")
-	cmdsys.AddCommand("toggleconsole", cmdToggleConsole, "Toggle the console")
-	cmdsys.AddCommand("screenshot", cmdScreenshot, "Save a screenshot as PNG")
-	cmdsys.AddCommand("profile_cpu_start", cmdProfileCPUStart, "Start writing a CPU pprof capture to disk")
-	cmdsys.AddCommand("profile_cpu_stop", cmdProfileCPUStop, "Stop the active CPU pprof capture and flush it to disk")
-	cmdsys.AddCommand("profile_dump_heap", cmdProfileDumpHeap, "Write a heap pprof capture to disk")
-	cmdsys.AddCommand("profile_dump_allocs", cmdProfileDumpAllocs, "Write an allocs pprof capture to disk")
+var uiScaleCVarNames = UIScaleCVarNames
+
+func (g *Game) registerGameplayBindCommands() {
+	cmdsys.AddCommand("bind", g.cmdBind, "Bind a key to a command")
+	cmdsys.AddCommand("unbind", g.cmdUnbind, "Remove a key binding")
+	cmdsys.AddCommand("unbindall", g.cmdUnbindAll, "Remove all key bindings")
+	cmdsys.AddCommand("bindlist", g.cmdBindList, "List all key bindings")
+	cmdsys.AddCommand("scr_autoscale", g.cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
+	cmdsys.AddCommand("sizeup", g.cmdSizeUp, "Increase screen view size")
+	cmdsys.AddCommand("sizedown", g.cmdSizeDown, "Decrease screen view size")
+	cmdsys.AddCommand("entities", g.cmdEntities, "List current client entities")
+	cmdsys.AddCommand("impulse", g.cmdImpulse, "Trigger an impulse command")
+	cmdsys.AddCommand("toggleconsole", g.cmdToggleConsole, "Toggle the console")
+	cmdsys.AddCommand("screenshot", g.cmdScreenshot, "Save a screenshot as PNG")
+	cmdsys.AddCommand("profile_cpu_start", g.cmdProfileCPUStart, "Start writing a CPU pprof capture to disk")
+	cmdsys.AddCommand("profile_cpu_stop", g.cmdProfileCPUStop, "Stop the active CPU pprof capture and flush it to disk")
+	cmdsys.AddCommand("profile_dump_heap", g.cmdProfileDumpHeap, "Write a heap pprof capture to disk")
+	cmdsys.AddCommand("profile_dump_allocs", g.cmdProfileDumpAllocs, "Write an allocs pprof capture to disk")
 	cmdsys.AddCommand("vid_restart", func(args []string) {
-		if err := vidRestartFunc(); err != nil {
+		if err := g.restartVideo(); err != nil {
 			console.Printf("vid_restart failed: %v\n", err)
 		}
 	}, "Restart the video system")
-	cmdsys.AddCommand("messagemode", cmdMessagemode, "Input a message to say")
-	cmdsys.AddCommand("messagemode2", cmdMessagemode2, "Input a message to say_team")
-	cmdsys.AddCommand("+showscores", cmdShowScores, "Show multiplayer scoreboard while held")
-	cmdsys.AddCommand("-showscores", cmdHideScores, "Hide multiplayer scoreboard")
+	cmdsys.AddCommand("messagemode", g.cmdMessagemode, "Input a message to say")
+	cmdsys.AddCommand("messagemode2", g.cmdMessagemode2, "Input a message to say_team")
+	cmdsys.AddCommand("+showscores", g.cmdShowScores, "Show multiplayer scoreboard while held")
+	cmdsys.AddCommand("-showscores", g.cmdHideScores, "Hide multiplayer scoreboard")
 
 	// bf: bonus flash – gold item-pickup screen tint stuffed by the server.
 	// Mirrors C Ironwail: view.c V_BonusFlash_f().
@@ -78,7 +78,7 @@ func registerGameplayBindCommands() {
 	}, "Recenter pitch drift")
 
 	// v_cshift: custom screen tint command (used by some QC mods).
-	// Usage: v_cshift <r> <g> <b> <percent>  (all 0–255)
+	// Usage: v_cshift <r> <G> <b> <percent>  (all 0–255)
 	// Mirrors C Ironwail: view.c V_cshift_f().
 	cmdsys.AddCommand("v_cshift", func(args []string) {
 		if g.Client == nil || len(args) < 5 {
@@ -90,28 +90,28 @@ func registerGameplayBindCommands() {
 			return float32(v)
 		}
 		g.Client.SetCustomShift(parseArg(args[1]), parseArg(args[2]), parseArg(args[3]), parseArg(args[4]))
-	}, "Set custom screen color shift (r g b percent, 0–255)")
+	}, "Set custom screen color shift (r G b percent, 0–255)")
 
-	registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
-	registerGameplayButtonCommand("back", func(c *cl.Client) *cl.KButton { return &c.InputBack })
-	registerGameplayButtonCommand("moveleft", func(c *cl.Client) *cl.KButton { return &c.InputMoveLeft })
-	registerGameplayButtonCommand("moveright", func(c *cl.Client) *cl.KButton { return &c.InputMoveRight })
-	registerGameplayButtonCommand("left", func(c *cl.Client) *cl.KButton { return &c.InputLeft })
-	registerGameplayButtonCommand("right", func(c *cl.Client) *cl.KButton { return &c.InputRight })
-	registerGameplayButtonCommand("speed", func(c *cl.Client) *cl.KButton { return &c.InputSpeed })
-	registerGameplayButtonCommand("strafe", func(c *cl.Client) *cl.KButton { return &c.InputStrafe })
-	registerGameplayButtonCommand("attack", func(c *cl.Client) *cl.KButton { return &c.InputAttack })
-	registerGameplayButtonCommand("jump", func(c *cl.Client) *cl.KButton { return &c.InputJump })
-	registerGameplayButtonCommand("use", func(c *cl.Client) *cl.KButton { return &c.InputUse })
-	registerGameplayButtonCommand("mlook", func(c *cl.Client) *cl.KButton { return &c.InputMLook })
-	registerGameplayButtonCommand("klook", func(c *cl.Client) *cl.KButton { return &c.InputKLook })
-	registerGameplayButtonCommand("lookup", func(c *cl.Client) *cl.KButton { return &c.InputLookUp })
-	registerGameplayButtonCommand("lookdown", func(c *cl.Client) *cl.KButton { return &c.InputLookDown })
-	registerGameplayButtonCommand("up", func(c *cl.Client) *cl.KButton { return &c.InputUp })
-	registerGameplayButtonCommand("down", func(c *cl.Client) *cl.KButton { return &c.InputDown })
+	g.registerGameplayButtonCommand("forward", func(c *cl.Client) *cl.KButton { return &c.InputForward })
+	g.registerGameplayButtonCommand("back", func(c *cl.Client) *cl.KButton { return &c.InputBack })
+	g.registerGameplayButtonCommand("moveleft", func(c *cl.Client) *cl.KButton { return &c.InputMoveLeft })
+	g.registerGameplayButtonCommand("moveright", func(c *cl.Client) *cl.KButton { return &c.InputMoveRight })
+	g.registerGameplayButtonCommand("left", func(c *cl.Client) *cl.KButton { return &c.InputLeft })
+	g.registerGameplayButtonCommand("right", func(c *cl.Client) *cl.KButton { return &c.InputRight })
+	g.registerGameplayButtonCommand("speed", func(c *cl.Client) *cl.KButton { return &c.InputSpeed })
+	g.registerGameplayButtonCommand("strafe", func(c *cl.Client) *cl.KButton { return &c.InputStrafe })
+	g.registerGameplayButtonCommand("attack", func(c *cl.Client) *cl.KButton { return &c.InputAttack })
+	g.registerGameplayButtonCommand("jump", func(c *cl.Client) *cl.KButton { return &c.InputJump })
+	g.registerGameplayButtonCommand("use", func(c *cl.Client) *cl.KButton { return &c.InputUse })
+	g.registerGameplayButtonCommand("mlook", func(c *cl.Client) *cl.KButton { return &c.InputMLook })
+	g.registerGameplayButtonCommand("klook", func(c *cl.Client) *cl.KButton { return &c.InputKLook })
+	g.registerGameplayButtonCommand("lookup", func(c *cl.Client) *cl.KButton { return &c.InputLookUp })
+	g.registerGameplayButtonCommand("lookdown", func(c *cl.Client) *cl.KButton { return &c.InputLookDown })
+	g.registerGameplayButtonCommand("up", func(c *cl.Client) *cl.KButton { return &c.InputUp })
+	g.registerGameplayButtonCommand("down", func(c *cl.Client) *cl.KButton { return &c.InputDown })
 }
 
-func registerConsoleCompletionProviders() {
+func (g *Game) registerConsoleCompletionProviders() {
 	console.SetGlobalCommandProvider(cmdsys.Complete)
 	console.SetGlobalCVarProvider(cvar.Complete)
 	console.SetGlobalAliasProvider(cmdsys.CompleteAliases)
@@ -131,16 +131,16 @@ func registerConsoleCompletionProviders() {
 	console.SetGlobalFileProvider(nil)
 }
 
-func registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
+func (g *Game) registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
 	cmdsys.AddCommand("+"+name, func(args []string) {
-		runGameplayButtonCommand(selectButton, true, args)
+		g.runGameplayButtonCommand(selectButton, true, args)
 	}, "Gameplay button press")
 	cmdsys.AddCommand("-"+name, func(args []string) {
-		runGameplayButtonCommand(selectButton, false, args)
+		g.runGameplayButtonCommand(selectButton, false, args)
 	}, "Gameplay button release")
 }
 
-func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bool, args []string) {
+func (g *Game) runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bool, args []string) {
 	if g.Client == nil {
 		return
 	}
@@ -158,7 +158,7 @@ func runGameplayButtonCommand(selectButton func(*cl.Client) *cl.KButton, down bo
 	g.Client.KeyUp(button, key)
 }
 
-func currentAutoScaleFactor() float64 {
+func (g *Game) currentAutoScaleFactor() float64 {
 	width, height := 0, 0
 	if g.Renderer != nil {
 		width, height = g.Renderer.Size()
@@ -181,7 +181,7 @@ func currentAutoScaleFactor() float64 {
 	return scale
 }
 
-func currentVideoCVarAutoScaleFactor() float64 {
+func (g *Game) currentVideoCVarAutoScaleFactor() float64 {
 	width := cvar.IntValue("vid_width")
 	height := cvar.IntValue("vid_height")
 	if width <= 0 || height <= 0 {
@@ -194,8 +194,8 @@ func currentVideoCVarAutoScaleFactor() float64 {
 	return scale
 }
 
-func cmdScreenAutoScale(_ []string) {
-	scale := currentAutoScaleFactor()
+func (g *Game) cmdScreenAutoScale(_ []string) {
+	scale := g.currentAutoScaleFactor()
 	for _, name := range uiScaleCVarNames {
 		cvar.SetFloat(name, scale)
 	}
@@ -206,19 +206,19 @@ const (
 	maxHUDViewSize   = 110.0
 )
 
-func boundedRuntimeViewSize(v float64) float64 {
-	return clampf64(v, minBoundViewSize, maxHUDViewSize)
+func (g *Game) boundedRuntimeViewSize(v float64) float64 {
+	return g.clampf64(v, minBoundViewSize, maxHUDViewSize)
 }
 
-func cmdSizeUp(_ []string) {
-	cvar.SetFloat("scr_viewsize", boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")+10))
+func (g *Game) cmdSizeUp(_ []string) {
+	cvar.SetFloat("scr_viewsize", g.boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")+10))
 }
 
-func cmdSizeDown(_ []string) {
-	cvar.SetFloat("scr_viewsize", boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")-10))
+func (g *Game) cmdSizeDown(_ []string) {
+	cvar.SetFloat("scr_viewsize", g.boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")-10))
 }
 
-func cmdEntities(_ []string) {
+func (g *Game) cmdEntities(_ []string) {
 	if g.Client == nil || g.Client.State == cl.StateDisconnected {
 		return
 	}
@@ -238,7 +238,7 @@ func cmdEntities(_ []string) {
 		state, ok := g.Client.Entities[entityNum]
 		modelName := ""
 		if ok {
-			modelName = clientEntityModelName(state)
+			modelName = g.clientEntityModelName(state)
 		}
 		if !ok || modelName == "" {
 			console.Printf("EMPTY\n")
@@ -253,7 +253,7 @@ func cmdEntities(_ []string) {
 	}
 }
 
-func startupConfigPinsAnyCVar(userDir string, names []string) bool {
+func (g *Game) startupConfigPinsAnyCVar(userDir string, names []string) bool {
 	userDir = strings.TrimSpace(userDir)
 	if userDir == "" || len(names) == 0 {
 		return false
@@ -302,12 +302,12 @@ func startupConfigPinsAnyCVar(userDir string, names []string) bool {
 	return false
 }
 
-func shouldBootstrapStartupUIScale() bool {
+func (g *Game) shouldBootstrapStartupUIScale() bool {
 	if g.Renderer == nil || g.Host == nil {
 		return false
 	}
-	actualScale := currentAutoScaleFactor()
-	legacyScale := currentVideoCVarAutoScaleFactor()
+	actualScale := g.currentAutoScaleFactor()
+	legacyScale := g.currentVideoCVarAutoScaleFactor()
 	allMatchLegacy := legacyScale > 0
 	for _, name := range uiScaleCVarNames {
 		if math.Abs(cvar.FloatValue(name)-legacyScale) > 0.0001 {
@@ -318,7 +318,7 @@ func shouldBootstrapStartupUIScale() bool {
 	if allMatchLegacy && actualScale > legacyScale+0.0001 {
 		return true
 	}
-	if startupConfigPinsAnyCVar(g.Host.UserDir(), uiScaleCVarNames) {
+	if g.startupConfigPinsAnyCVar(g.Host.UserDir(), uiScaleCVarNames) {
 		return false
 	}
 	for _, name := range uiScaleCVarNames {
@@ -329,13 +329,13 @@ func shouldBootstrapStartupUIScale() bool {
 	return true
 }
 
-func ensureStartupUIScale() {
-	if shouldBootstrapStartupUIScale() {
-		cmdScreenAutoScale(nil)
+func (g *Game) ensureStartupUIScale() {
+	if g.shouldBootstrapStartupUIScale() {
+		g.cmdScreenAutoScale(nil)
 	}
 }
 
-func restartVideo() error {
+func (g *Game) restartVideo() error {
 	if g.Renderer == nil {
 		return nil
 	}
@@ -347,7 +347,7 @@ func restartVideo() error {
 	}
 	g.Renderer.Shutdown()
 
-	if err := initGameRenderer(); err != nil {
+	if err := g.initGameRenderer(); err != nil {
 		return err
 	}
 
@@ -362,16 +362,16 @@ func restartVideo() error {
 	return nil
 }
 
-func applyDefaultGameplayBindings() {
+func (g *Game) applyDefaultGameplayBindings() {
 	if g.Input == nil {
 		return
 	}
 	for _, binding := range gameplayDefaultBindings {
-		g.Input.SetBinding(binding.key, binding.command)
+		g.Input.SetBinding(binding.Key, binding.Command)
 	}
 }
 
-func hasAnyGameplayBindings() bool {
+func (g *Game) hasAnyGameplayBindings() bool {
 	if g.Input == nil {
 		return false
 	}
@@ -383,7 +383,7 @@ func hasAnyGameplayBindings() bool {
 	return false
 }
 
-func hasBindingForCommand(command string) bool {
+func (g *Game) hasBindingForCommand(command string) bool {
 	if g.Input == nil {
 		return false
 	}
@@ -399,26 +399,26 @@ func hasBindingForCommand(command string) bool {
 	return false
 }
 
-func ensureEssentialFallbackBindings() {
+func (g *Game) ensureEssentialFallbackBindings() {
 	if g.Input == nil {
 		return
 	}
 	for _, binding := range essentialFallbackBindings {
-		if hasBindingForCommand(binding.command) {
+		if g.hasBindingForCommand(binding.Command) {
 			continue
 		}
-		g.Input.SetBinding(binding.key, binding.command)
+		g.Input.SetBinding(binding.Key, binding.Command)
 	}
 }
 
-func ensureGameplayBindings() {
-	if !hasAnyGameplayBindings() {
-		applyDefaultGameplayBindings()
+func (g *Game) ensureGameplayBindings() {
+	if !g.hasAnyGameplayBindings() {
+		g.applyDefaultGameplayBindings()
 	}
-	ensureEssentialFallbackBindings()
+	g.ensureEssentialFallbackBindings()
 }
 
-func keyDestName(dest input.KeyDest) string {
+func (g *Game) keyDestName(dest input.KeyDest) string {
 	switch dest {
 	case input.KeyGame:
 		return "game"
@@ -433,29 +433,29 @@ func keyDestName(dest input.KeyDest) string {
 	}
 }
 
-func logStartupInputDiagnostics() {
+func (g *Game) logStartupInputDiagnostics() {
 	if g.Input == nil {
 		return
 	}
 	bindings := make([]string, 0, len(essentialFallbackBindings)+4)
 	missingActions := make([]string, 0, len(essentialFallbackBindings))
-	diagnosticBindings := []defaultBinding{
-		{key: input.KEscape, command: "togglemenu"},
-		{key: int('`'), command: "toggleconsole"},
-		{key: input.KUpArrow, command: "+forward"},
-		{key: input.KDownArrow, command: "+back"},
-		{key: input.KLeftArrow, command: "+left"},
-		{key: input.KRightArrow, command: "+right"},
+	diagnosticBindings := []KeyBinding{
+		{Key: input.KEscape, Command: "togglemenu"},
+		{Key: int('`'), Command: "toggleconsole"},
+		{Key: input.KUpArrow, Command: "+forward"},
+		{Key: input.KDownArrow, Command: "+back"},
+		{Key: input.KLeftArrow, Command: "+left"},
+		{Key: input.KRightArrow, Command: "+right"},
 	}
 	for _, binding := range diagnosticBindings {
-		keyName := input.KeyToString(binding.key)
+		keyName := input.KeyToString(binding.Key)
 		if keyName == "" {
-			keyName = fmt.Sprintf("KEY%d", binding.key)
+			keyName = fmt.Sprintf("KEY%d", binding.Key)
 		}
-		command := strings.TrimSpace(g.Input.GetBinding(binding.key))
+		command := strings.TrimSpace(g.Input.GetBinding(binding.Key))
 		bindings = append(bindings, fmt.Sprintf("%s=%q", keyName, command))
-		if !hasBindingForCommand(binding.command) {
-			missingActions = append(missingActions, binding.command)
+		if !g.hasBindingForCommand(binding.Command) {
+			missingActions = append(missingActions, binding.Command)
 		}
 	}
 	backendType := "<nil>"
@@ -470,7 +470,7 @@ func logStartupInputDiagnostics() {
 	slog.Info("startup input diagnostics",
 		"menu_active", menuActive,
 		"menu_state", menuState,
-		"key_dest", keyDestName(g.Input.GetKeyDest()),
+		"key_dest", g.keyDestName(g.Input.GetKeyDest()),
 		"backend", backendType,
 		"bindings", strings.Join(bindings, ", "),
 		"missing_actions", strings.Join(missingActions, ", "),
@@ -478,7 +478,7 @@ func logStartupInputDiagnostics() {
 	)
 }
 
-func parseBindingKey(name string) (int, bool) {
+func (g *Game) parseBindingKey(name string) (int, bool) {
 	key := input.StringToKey(strings.ToUpper(name))
 	if key <= 0 || key >= input.NumKeycode {
 		return 0, false
@@ -486,7 +486,7 @@ func parseBindingKey(name string) (int, bool) {
 	return key, true
 }
 
-func cmdBind(args []string) {
+func (g *Game) cmdBind(args []string) {
 	if g.Input == nil {
 		return
 	}
@@ -494,7 +494,7 @@ func cmdBind(args []string) {
 		console.Printf("usage: bind <key> [command]\n")
 		return
 	}
-	key, ok := parseBindingKey(args[0])
+	key, ok := g.parseBindingKey(args[0])
 	if !ok {
 		console.Printf("bind: \"%s\" is not a valid key\n", args[0])
 		return
@@ -511,7 +511,7 @@ func cmdBind(args []string) {
 	g.Input.SetBinding(key, strings.Join(args[1:], " "))
 }
 
-func cmdUnbind(args []string) {
+func (g *Game) cmdUnbind(args []string) {
 	if g.Input == nil {
 		return
 	}
@@ -519,7 +519,7 @@ func cmdUnbind(args []string) {
 		console.Printf("usage: unbind <key>\n")
 		return
 	}
-	key, ok := parseBindingKey(args[0])
+	key, ok := g.parseBindingKey(args[0])
 	if !ok {
 		console.Printf("unbind: \"%s\" is not a valid key\n", args[0])
 		return
@@ -527,7 +527,7 @@ func cmdUnbind(args []string) {
 	g.Input.SetBinding(key, "")
 }
 
-func cmdUnbindAll(_ []string) {
+func (g *Game) cmdUnbindAll(_ []string) {
 	if g.Input == nil {
 		return
 	}
@@ -536,7 +536,7 @@ func cmdUnbindAll(_ []string) {
 	}
 }
 
-func cmdBindList(_ []string) {
+func (g *Game) cmdBindList(_ []string) {
 	if g.Input == nil {
 		return
 	}
@@ -556,7 +556,7 @@ func cmdBindList(_ []string) {
 	console.Printf("%d bindings\n", count)
 }
 
-func cmdImpulse(args []string) {
+func (g *Game) cmdImpulse(args []string) {
 	if g.Client == nil {
 		return
 	}
@@ -572,7 +572,7 @@ func cmdImpulse(args []string) {
 	g.Client.InImpulse = impulse
 }
 
-func cmdToggleConsole(_ []string) {
+func (g *Game) cmdToggleConsole(_ []string) {
 	if g.Input == nil {
 		return
 	}
@@ -580,7 +580,7 @@ func cmdToggleConsole(_ []string) {
 	if g.Input.GetKeyDest() == input.KeyConsole {
 		console.ResetCompletion()
 		g.Input.SetKeyDest(input.KeyGame)
-		syncGameplayInputMode()
+		g.syncGameplayInputMode()
 		return
 	}
 
@@ -589,10 +589,10 @@ func cmdToggleConsole(_ []string) {
 	}
 	console.ResetCompletion()
 	g.Input.SetKeyDest(input.KeyConsole)
-	syncGameplayInputMode()
+	g.syncGameplayInputMode()
 }
 
-func cmdScreenshot(args []string) {
+func (g *Game) cmdScreenshot(args []string) {
 	if len(args) > 1 {
 		console.Printf("usage: screenshot [filename]\n")
 		return
@@ -625,13 +625,13 @@ func cmdScreenshot(args []string) {
 		return
 	}
 
-	if err := captureScreenshot(outputPath, baseDir, modDir); err != nil {
+	if err := g.CaptureScreenshot(outputPath, baseDir, modDir); err != nil {
 		console.Printf("screenshot failed: %v\n", err)
 		return
 	}
 }
 
-func profileBaseDirAndModDir() (baseDir, modDir string) {
+func (g *Game) profileBaseDirAndModDir() (baseDir, modDir string) {
 	baseDir = "."
 	if g.Host != nil && strings.TrimSpace(g.Host.BaseDir()) != "" {
 		baseDir = g.Host.BaseDir()
@@ -643,7 +643,7 @@ func profileBaseDirAndModDir() (baseDir, modDir string) {
 	return baseDir, modDir
 }
 
-func resolveProfileOutputPath(filename, kind string, now time.Time) string {
+func (g *Game) resolveProfileOutputPath(filename, kind string, now time.Time) string {
 	filename = strings.TrimSpace(filename)
 	if filename == "" {
 		filename = filepath.Join("profiles", fmt.Sprintf("ironwail_%s_%s.pprof", now.Format("20060102_150405"), kind))
@@ -651,20 +651,20 @@ func resolveProfileOutputPath(filename, kind string, now time.Time) string {
 	if filepath.IsAbs(filename) {
 		return filename
 	}
-	baseDir, modDir := profileBaseDirAndModDir()
+	baseDir, modDir := g.profileBaseDirAndModDir()
 	return filepath.Join(baseDir, modDir, filename)
 }
 
-func ensureProfileOutputPath(filename, kind string) (string, error) {
-	outputPath := resolveProfileOutputPath(filename, kind, time.Now())
+func (g *Game) ensureProfileOutputPath(filename, kind string) (string, error) {
+	outputPath := g.resolveProfileOutputPath(filename, kind, time.Now())
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		return "", fmt.Errorf("create output directory: %w", err)
 	}
 	return outputPath, nil
 }
 
-func writeNamedRuntimeProfile(kind, filename string) error {
-	outputPath, err := ensureProfileOutputPath(filename, kind)
+func (g *Game) writeNamedRuntimeProfile(kind, filename string) error {
+	outputPath, err := g.ensureProfileOutputPath(filename, kind)
 	if err != nil {
 		return err
 	}
@@ -697,7 +697,7 @@ func writeNamedRuntimeProfile(kind, filename string) error {
 	return nil
 }
 
-func cmdProfileCPUStart(args []string) {
+func (g *Game) cmdProfileCPUStart(args []string) {
 	if len(args) > 1 {
 		console.Printf("usage: profile_cpu_start [filename]\n")
 		return
@@ -706,7 +706,7 @@ func cmdProfileCPUStart(args []string) {
 	if len(args) == 1 {
 		filename = args[0]
 	}
-	outputPath, err := ensureProfileOutputPath(filename, "cpu")
+	outputPath, err := g.ensureProfileOutputPath(filename, "cpu")
 	if err != nil {
 		console.Printf("profile_cpu_start: %v\n", err)
 		return
@@ -735,8 +735,8 @@ func cmdProfileCPUStart(args []string) {
 	console.Printf("CPU profile started: %s\n", outputPath)
 }
 
-func cmdProfileCPUStop(_ []string) {
-	path, active, err := stopCPUProfile()
+func (g *Game) cmdProfileCPUStop(_ []string) {
+	path, active, err := g.stopCPUProfile()
 	if !active {
 		console.Printf("profile_cpu_stop: CPU profiling is not active\n")
 		return
@@ -748,7 +748,7 @@ func cmdProfileCPUStop(_ []string) {
 	console.Printf("CPU profile saved to %s\n", path)
 }
 
-func cmdProfileDumpHeap(args []string) {
+func (g *Game) cmdProfileDumpHeap(args []string) {
 	if len(args) > 1 {
 		console.Printf("usage: profile_dump_heap [filename]\n")
 		return
@@ -757,12 +757,12 @@ func cmdProfileDumpHeap(args []string) {
 	if len(args) == 1 {
 		filename = args[0]
 	}
-	if err := writeNamedRuntimeProfile("heap", filename); err != nil {
+	if err := g.writeNamedRuntimeProfile("heap", filename); err != nil {
 		console.Printf("profile_dump_heap: %v\n", err)
 	}
 }
 
-func cmdProfileDumpAllocs(args []string) {
+func (g *Game) cmdProfileDumpAllocs(args []string) {
 	if len(args) > 1 {
 		console.Printf("usage: profile_dump_allocs [filename]\n")
 		return
@@ -771,12 +771,19 @@ func cmdProfileDumpAllocs(args []string) {
 	if len(args) == 1 {
 		filename = args[0]
 	}
-	if err := writeNamedRuntimeProfile("allocs", filename); err != nil {
+	if err := g.writeNamedRuntimeProfile("allocs", filename); err != nil {
 		console.Printf("profile_dump_allocs: %v\n", err)
 	}
 }
 
-func stopCPUProfile() (path string, active bool, err error) {
+func (g *Game) stopCPUProfile() (path string, active bool, err error) {
+	return g.StopCPUProfile()
+}
+
+// StopCPUProfile stops an active CPU profile capture if one is in progress.
+// It returns the output path, whether profiling was active, and any error
+// from closing the profile file.
+func (g *Game) StopCPUProfile() (path string, active bool, err error) {
 	cpuProfileState.mu.Lock()
 	defer cpuProfileState.mu.Unlock()
 	if cpuProfileState.file == nil {
@@ -791,14 +798,14 @@ func stopCPUProfile() (path string, active bool, err error) {
 	return path, true, err
 }
 
-func cmdShowScores(_ []string) {
+func (g *Game) cmdShowScores(_ []string) {
 	if g.Client == nil {
 		return
 	}
 	g.ShowScores = true
 }
 
-func cmdHideScores(_ []string) {
+func (g *Game) cmdHideScores(_ []string) {
 	g.ShowScores = false
 }
 
@@ -808,7 +815,7 @@ var (
 	chatTeam   bool
 )
 
-func cmdMessagemode(_ []string) {
+func (g *Game) cmdMessagemode(_ []string) {
 	if g.Input == nil {
 		return
 	}
@@ -817,7 +824,7 @@ func cmdMessagemode(_ []string) {
 	g.Input.SetKeyDest(input.KeyMessage)
 }
 
-func cmdMessagemode2(_ []string) {
+func (g *Game) cmdMessagemode2(_ []string) {
 	if g.Input == nil {
 		return
 	}

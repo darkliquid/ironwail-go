@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"log/slog"
@@ -27,37 +27,37 @@ func (a *csqcDrawActivity) mark() {
 	}
 }
 
-func lookupCSQCPic(name string) *qimage.QPic {
+func (g *Game) lookupCSQCPic(name string) *qimage.QPic {
 	if g.Draw == nil {
 		return nil
 	}
 	return g.Draw.GetPic(name)
 }
 
-func cacheCSQCPic(name string, flags uint32) *qimage.QPic {
+func (g *Game) cacheCSQCPic(name string, flags uint32) *qimage.QPic {
 	if g.CSQC != nil {
 		g.CSQC.PrecachePic(name)
 	}
 	if g.Draw == nil {
 		return nil
 	}
-	if flags&csqcPicFlagNoLoad != 0 {
+	if flags&CSQCPicFlagNoLoad != 0 {
 		if g.Draw.IsPicCached(name) {
 			return g.Draw.GetPic(name)
 		}
 		return nil
 	}
-	return lookupCSQCPic(name)
+	return g.lookupCSQCPic(name)
 }
 
-func nearestPaletteIndex(r, g, b float32, palette []byte) byte {
+func (g *Game) nearestPaletteIndex(r, G, b float32, palette []byte) byte {
 	if len(palette) < 3 {
 		return 0
 	}
 
-	targetR := int(clampUnitFloat32(r)*255 + 0.5)
-	targetG := int(clampUnitFloat32(g)*255 + 0.5)
-	targetB := int(clampUnitFloat32(b)*255 + 0.5)
+	targetR := int(g.clampUnitFloat32(r)*255 + 0.5)
+	targetG := int(g.clampUnitFloat32(G)*255 + 0.5)
+	targetB := int(g.clampUnitFloat32(b)*255 + 0.5)
 
 	bestIdx := 0
 	bestDist := math.MaxInt
@@ -75,7 +75,7 @@ func nearestPaletteIndex(r, g, b float32, palette []byte) byte {
 	return byte(bestIdx)
 }
 
-func clipCSQCDrawRect(clip csqcClipRect, x, y, width, height float32) (drawX, drawY, drawW, drawH, srcX, srcY, srcW, srcH float32, ok bool) {
+func (g *Game) clipCSQCDrawRect(clip csqcClipRect, x, y, width, height float32) (drawX, drawY, drawW, drawH, srcX, srcY, srcW, srcH float32, ok bool) {
 	if width <= 0 || height <= 0 {
 		return 0, 0, 0, 0, 0, 0, 0, 0, false
 	}
@@ -105,15 +105,15 @@ func clipCSQCDrawRect(clip csqcClipRect, x, y, width, height float32) (drawX, dr
 	return drawX, drawY, drawW, drawH, srcX, srcY, srcW, srcH, true
 }
 
-func subPicFromNormalizedRect(pic *qimage.QPic, srcX, srcY, srcW, srcH float32) *qimage.QPic {
+func (g *Game) subPicFromNormalizedRect(pic *qimage.QPic, srcX, srcY, srcW, srcH float32) *qimage.QPic {
 	if pic == nil || pic.Width == 0 || pic.Height == 0 {
 		return nil
 	}
 
-	startX := clampUnitFloat32(srcX)
-	startY := clampUnitFloat32(srcY)
-	endX := clampUnitFloat32(srcX + srcW)
-	endY := clampUnitFloat32(srcY + srcH)
+	startX := g.clampUnitFloat32(srcX)
+	startY := g.clampUnitFloat32(srcY)
+	endX := g.clampUnitFloat32(srcX + srcW)
+	endY := g.clampUnitFloat32(srcY + srcH)
 	if endX <= startX || endY <= startY {
 		return &qimage.QPic{}
 	}
@@ -127,7 +127,7 @@ func subPicFromNormalizedRect(pic *qimage.QPic, srcX, srcY, srcW, srcH float32) 
 	return pic.SubPic(x1, y1, x2-x1, y2-y1)
 }
 
-func scaleQPic(pic *qimage.QPic, width, height int) *qimage.QPic {
+func (g *Game) scaleQPic(pic *qimage.QPic, width, height int) *qimage.QPic {
 	if pic == nil || width <= 0 || height <= 0 || pic.Width == 0 || pic.Height == 0 {
 		return nil
 	}
@@ -152,8 +152,8 @@ func scaleQPic(pic *qimage.QPic, width, height int) *qimage.QPic {
 	return scaled
 }
 
-func prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH float32, clip csqcClipRect) (int, int, *qimage.QPic, bool) {
-	drawX, drawY, drawW, drawH, clipSrcX, clipSrcY, clipSrcW, clipSrcH, ok := clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
+func (g *Game) prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH float32, clip csqcClipRect) (int, int, *qimage.QPic, bool) {
+	drawX, drawY, drawW, drawH, clipSrcX, clipSrcY, clipSrcW, clipSrcH, ok := g.clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
 	if !ok {
 		return 0, 0, nil, false
 	}
@@ -163,12 +163,12 @@ func prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW
 	srcW *= clipSrcW
 	srcH *= clipSrcH
 
-	subPic := subPicFromNormalizedRect(pic, srcX, srcY, srcW, srcH)
+	subPic := g.subPicFromNormalizedRect(pic, srcX, srcY, srcW, srcH)
 	if subPic == nil || subPic.Width == 0 || subPic.Height == 0 {
 		return 0, 0, nil, false
 	}
 
-	drawPic := scaleQPic(subPic, int(drawW), int(drawH))
+	drawPic := g.scaleQPic(subPic, int(drawW), int(drawH))
 	if drawPic == nil || drawPic.Width == 0 || drawPic.Height == 0 {
 		return 0, 0, nil, false
 	}
@@ -176,7 +176,7 @@ func prepareCSQCPic(pic *qimage.QPic, posX, posY, sizeX, sizeY, srcX, srcY, srcW
 	return int(drawX), int(drawY), drawPic, true
 }
 
-func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDrawActivity) qc.CSQCDrawHooks {
+func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDrawActivity) qc.CSQCDrawHooks {
 	var clip csqcClipRect
 
 	return qc.CSQCDrawHooks{
@@ -190,27 +190,27 @@ func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDra
 			if name == "" {
 				return ""
 			}
-			pic := cacheCSQCPic(name, uint32(flags))
-			if pic == nil && uint32(flags)&csqcPicFlagBlock != 0 {
+			pic := g.cacheCSQCPic(name, uint32(flags))
+			if pic == nil && uint32(flags)&CSQCPicFlagBlock != 0 {
 				return ""
 			}
 			return name
 		},
 		GetImageSize: func(name string) (float32, float32) {
-			pic := cacheCSQCPic(name, csqcPicFlagAuto)
+			pic := g.cacheCSQCPic(name, CSQCPicFlagAuto)
 			if pic == nil {
 				return 0, 0
 			}
 			return float32(pic.Width), float32(pic.Height)
 		},
-		DrawCharacter: func(posX, posY float32, char int, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
+		DrawCharacter: func(posX, posY float32, char int, sizeX, sizeY float32, r, G, b, alpha float32, drawflag int) {
 			if alpha <= 0 {
 				return
 			}
 			rc.DrawCharacter(int(posX), int(posY), char)
 			activity.mark()
 		},
-		DrawString: func(posX, posY float32, text string, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int, useColors bool) {
+		DrawString: func(posX, posY float32, text string, sizeX, sizeY float32, r, G, b, alpha float32, drawflag int, useColors bool) {
 			if alpha <= 0 || text == "" {
 				return
 			}
@@ -225,15 +225,15 @@ func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDra
 			}
 			activity.mark()
 		},
-		DrawPic: func(posX, posY float32, name string, sizeX, sizeY float32, r, g, b, alpha float32, drawflag int) {
+		DrawPic: func(posX, posY float32, name string, sizeX, sizeY float32, r, G, b, alpha float32, drawflag int) {
 			if alpha <= 0 {
 				return
 			}
-			pic := cacheCSQCPic(name, csqcPicFlagAuto)
+			pic := g.cacheCSQCPic(name, CSQCPicFlagAuto)
 			if pic == nil {
 				return
 			}
-			x, y, drawPic, ok := prepareCSQCPic(pic, posX, posY, sizeX, sizeY, 0, 0, 1, 1, clip)
+				x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, 0, 0, 1, 1, clip)
 			if !ok {
 				return
 			}
@@ -244,7 +244,7 @@ func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDra
 			if alpha <= 0 {
 				return
 			}
-			x, y, width, height, _, _, _, _, ok := clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
+				x, y, width, height, _, _, _, _, ok := g.clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
 			if !ok {
 				return
 			}
@@ -252,19 +252,19 @@ func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDra
 			if g.Draw != nil {
 				palette = g.Draw.Palette()
 			}
-			color := nearestPaletteIndex(red, green, blue, palette)
+			color := g.nearestPaletteIndex(red, green, blue, palette)
 			rc.DrawFill(int(x), int(y), int(width), int(height), color)
 			activity.mark()
 		},
-		DrawSubPic: func(posX, posY float32, sizeX, sizeY float32, name string, srcX, srcY, srcW, srcH float32, r, g, b, alpha float32, drawflag int) {
+		DrawSubPic: func(posX, posY float32, sizeX, sizeY float32, name string, srcX, srcY, srcW, srcH float32, r, G, b, alpha float32, drawflag int) {
 			if alpha <= 0 {
 				return
 			}
-			pic := cacheCSQCPic(name, csqcPicFlagAuto)
+			pic := g.cacheCSQCPic(name, CSQCPicFlagAuto)
 			if pic == nil {
 				return
 			}
-			x, y, drawPic, ok := prepareCSQCPic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, clip)
+				x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, clip)
 			if !ok {
 				return
 			}
@@ -287,15 +287,15 @@ func buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activity *csqcDra
 	}
 }
 
-func buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
-	return buildCSQCDrawHooksWithActivity(rc, nil)
+func (g *Game) buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
+	return g.buildCSQCDrawHooksWithActivity(rc, nil)
 }
 
-func wireCSQCDrawHooks(rc renderer.RenderContext) {
-	qc.SetCSQCDrawHooks(buildCSQCDrawHooks(rc))
+func (g *Game) wireCSQCDrawHooks(rc renderer.RenderContext) {
+	qc.SetCSQCDrawHooks(g.buildCSQCDrawHooks(rc))
 }
 
-func buildCSQCFrameState() qc.CSQCFrameState {
+func (g *Game) buildCSQCFrameState() qc.CSQCFrameState {
 	var state qc.CSQCFrameState
 	if g.Host != nil {
 		state.RealTime = float32(g.Host.RealTime())
@@ -316,16 +316,16 @@ func buildCSQCFrameState() qc.CSQCFrameState {
 	return state
 }
 
-func drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
+func (g *Game) drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
 	if rc == nil || g.CSQC == nil || !g.CSQC.IsLoaded() {
 		return false
 	}
 
 	activity := &csqcDrawActivity{}
 	rc.SetCanvas(renderer.CanvasCSQC)
-	qc.SetCSQCDrawHooks(buildCSQCDrawHooksWithActivity(rc, activity))
+	qc.SetCSQCDrawHooks(g.buildCSQCDrawHooksWithActivity(rc, activity))
 
-	frameState := buildCSQCFrameState()
+	frameState := g.buildCSQCFrameState()
 	canvas := rc.Canvas()
 	virtW := canvas.Right - canvas.Left
 	virtH := canvas.Bottom - canvas.Top
@@ -345,20 +345,18 @@ func drawRuntimeCSQCHUD(rc renderer.RenderContext, showScores bool) bool {
 	return true
 }
 
-var runtimeDrawCSQCHUD = drawRuntimeCSQCHUD
-
-func drawRuntimeHUDLayer(rc renderer.RenderContext, w, h int, telemetryState *runtimeTelemetryState) {
+func (g *Game) drawRuntimeHUDLayer(rc renderer.RenderContext, w, h int, telemetryState *TelemetryState) {
 	if rc == nil || telemetryState == nil {
 		return
 	}
 
 	showScores := g.ShowScores && g.Client != nil && g.Client.MaxClients > 1
-	csqcDrewHUD := runtimeDrawCSQCHUD(rc, showScores)
-	telemetryState.ViewRect = runtimeOverlayViewRect(w, h, csqcDrewHUD)
+	csqcDrewHUD := g.drawRuntimeCSQCHUD(rc, showScores)
+	telemetryState.ViewRect = g.runtimeOverlayViewRect(w, h, csqcDrewHUD)
 	if !csqcDrewHUD && g.HUD != nil {
 		rc.SetCanvas(renderer.CanvasDefault)
 		g.HUD.SetScreenSize(w, h)
-		updateHUDFromServer()
+		g.updateHUDFromServer()
 		g.HUD.Draw(rc)
 	}
 }

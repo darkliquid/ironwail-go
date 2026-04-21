@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ func (globalConsoleAdapter) Clear()                     { console.Clear() }
 func (globalConsoleAdapter) Dump(filename string) error { return nil }
 func (globalConsoleAdapter) Shutdown()                  { console.Close() }
 
-func registerMirroredArchiveCvars(canonicalName, legacyName, defaultValue, description string) *cvar.CVar {
+func (g *Game) registerMirroredArchiveCvars(canonicalName, legacyName, defaultValue, description string) *cvar.CVar {
 	canonical := cvar.Register(canonicalName, defaultValue, cvar.FlagArchive, description)
 	legacy := cvar.Register(legacyName, canonical.String, cvar.FlagArchive, description+" (legacy alias)")
 
@@ -66,7 +66,7 @@ func registerMirroredArchiveCvars(canonicalName, legacyName, defaultValue, descr
 	return canonical
 }
 
-func registerColorShiftPercentCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
+func (g *Game) registerColorShiftPercentCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
 	register("gl_cshiftpercent", "100", cvar.FlagArchive, "Global color-shift intensity percentage (0–100)")
 	register("gl_cshiftpercent_contents", "100", cvar.FlagArchive, "Contents color-shift intensity percentage (0–100)")
 	register("gl_cshiftpercent_damage", "100", cvar.FlagArchive, "Damage color-shift intensity percentage (0–100)")
@@ -74,7 +74,7 @@ func registerColorShiftPercentCvars(register func(name, defaultValue string, fla
 	register("gl_cshiftpercent_powerup", "100", cvar.FlagArchive, "Powerup color-shift intensity percentage (0–100)")
 }
 
-func registerRendererLightingAndParticleCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
+func (g *Game) registerRendererLightingAndParticleCvars(register func(name, defaultValue string, flags cvar.CVarFlags, desc string) *cvar.CVar) {
 	register(renderer.CvarRDynamic, "1", cvar.FlagArchive, "Enable dynamic lights (0=off, 1=on)")
 	register(renderer.CvarRParticles, "2", cvar.FlagArchive, "Particle blend mode (1=alpha, 2=opaque)")
 	register(renderer.CvarRNoLerpList, "progs/flame.mdl progs/flame2.mdl progs/braztall.mdl progs/brazshrt.mdl progs/longtrch.mdl progs/flame_pyre.mdl progs/v_saw.mdl progs/v_xfist.mdl progs/h2stuff/newfire.mdl", cvar.FlagArchive, "Space-separated list of model names to force no alias frame lerp")
@@ -83,7 +83,7 @@ func registerRendererLightingAndParticleCvars(register func(name, defaultValue s
 	register(renderer.CvarGLAnisotropy, "1", cvar.FlagArchive, "Texture anisotropy amount (>=1)")
 }
 
-func configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {
+func (g *Game) configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {
 	registered := cvar.Register("registered", "0", cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
 
 	if vfs != nil && vfs.FileExists("gfx/pop.lmp") {
@@ -103,7 +103,7 @@ func configureRegistrationMode(vfs interface{ FileExists(filename string) bool }
 	return nil
 }
 
-func initGameHost() error {
+func (g *Game) initGameHost() error {
 	fmt.Printf("Detected %d CPUs.\n", runtime.NumCPU())
 	fmt.Println("Host_Init")
 	fmt.Println()
@@ -128,13 +128,13 @@ func initGameHost() error {
 	cvar.Register("cl_nocsqc", "0", cvar.FlagArchive, "Disable CSQC loading")
 	sVolume := cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
 	sVolume.Callback = func(*cvar.CVar) {
-		applySVolume()
+		g.applySVolume()
 	}
 	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
 	cvar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	cvar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	cvar.Register("r_drawentities", "1", 0, "Draw entities")
-	registerRendererLightingAndParticleCvars(cvar.Register)
+	g.registerRendererLightingAndParticleCvars(cvar.Register)
 	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
 	cvar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")
@@ -153,9 +153,9 @@ func initGameHost() error {
 	cvar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")
 	// gl_cshiftpercent and gl_cshiftpercent_*: global/per-channel scales for color shifts (0–100).
 	// Mirror C Ironwail defaults (all 100 = full intensity).
-	registerColorShiftPercentCvars(cvar.Register)
+	g.registerColorShiftPercentCvars(cvar.Register)
 	cvar.Register("developer", "0", 0, "Developer mode")
-	registerDebugViewTelemetryCVar()
+	g.registerDebugViewTelemetryCVar()
 
 	// View-bob cvars (V_CalcBob).
 	cvar.Register("cl_bob", "0.02", cvar.FlagArchive, "View bobbing scale")
@@ -188,7 +188,7 @@ func initGameHost() error {
 	cvar.Register("chase_right", "0", cvar.FlagArchive, "Chase camera right offset")
 	// viewsize: screen view size percentage (100 = full), used by
 	// r_viewmodel_quake fudge. Keep scr_viewsize as a legacy alias.
-	registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "Screen view size percentage")
+	g.registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "Screen view size percentage")
 	cvar.Register("scr_sbarscale", "1", cvar.FlagArchive, "Status bar scale multiplier")
 	cvar.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "Status bar background alpha")
 	cvar.Register("scr_menuscale", "1", cvar.FlagArchive, "Menu scale multiplier")
@@ -201,7 +201,7 @@ func initGameHost() error {
 	cvar.Register("con_maxcols", "0", cvar.FlagArchive, "Maximum tab-completion columns (0=auto)")
 	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
 	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter in the corner (negative values show frame time in ms)")
-	registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "Show the turtle icon when frame time is very slow")
+	g.registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "Show the turtle icon when frame time is very slow")
 	cvar.Register("scr_showspeed", "0", cvar.FlagArchive, "Show horizontal player speed near the crosshair")
 	cvar.Register("scr_showspeed_ofs", "0", cvar.FlagArchive, "Vertical offset for the speed readout")
 	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "Seconds to show the demo controls overlay after speed changes (0 = always, <0 = never)")
@@ -224,7 +224,7 @@ func initGameHost() error {
 	}
 	cvar.Register("showpause", "1", cvar.FlagArchive, "Show pause overlay")
 	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
-	registerControlCvars()
+	g.registerControlCvars()
 
 	// Create host instance
 	g.Host = host.NewHost()
@@ -241,7 +241,7 @@ func initGameHost() error {
 	return nil
 }
 
-func registerControlCvars() {
+func (g *Game) registerControlCvars() {
 	alwaysRun := cvar.Register("cl_alwaysrun", "1", cvar.FlagArchive, "Always run movement by default")
 	freelook := cvar.Register("freelook", "1", cvar.FlagArchive, "Enable mouse freelook")
 	lookspring := cvar.Register("lookspring", "0", cvar.FlagArchive, "Center view when look key released")
@@ -262,12 +262,12 @@ func registerControlCvars() {
 	cvar.Register("joy_gyro_pitch_scale", "1", cvar.FlagArchive, "Gyro pitch scale applied to gameplay look")
 	for _, cv := range []*cvar.CVar{alwaysRun, freelook, lookspring, noLerp, centerMove, centerSpeed} {
 		cv.Callback = func(*cvar.CVar) {
-			syncControlCvarsToClient()
+			g.syncControlCvarsToClient()
 		}
 	}
 }
 
-func syncControlCvarsToClient() {
+func (g *Game) syncControlCvarsToClient() {
 	if g.Client == nil {
 		return
 	}
@@ -279,7 +279,7 @@ func syncControlCvarsToClient() {
 	g.Client.CenterSpeed = float32(cvar.FloatValue("v_centerspeed"))
 }
 
-func initGameServer() error {
+func (g *Game) initGameServer() error {
 	if err := inet.Init(); err != nil {
 		return fmt.Errorf("failed to initialize networking: %w", err)
 	}
@@ -287,12 +287,12 @@ func initGameServer() error {
 
 	// Create server instance
 	g.Server = server.NewServer()
-	console.Printf("Server using protocol %d (%s)\n", g.Server.Protocol, serverProtocolName(g.Server.Protocol))
+	console.Printf("Server using protocol %d (%s)\n", g.Server.Protocol, g.serverProtocolName(g.Server.Protocol))
 
 	return nil
 }
 
-func serverProtocolName(protocol int) string {
+func (g *Game) serverProtocolName(protocol int) string {
 	switch protocol {
 	case server.ProtocolNetQuake:
 		return "NetQuake"
@@ -305,7 +305,7 @@ func serverProtocolName(protocol int) string {
 	}
 }
 
-func initGameQC() error {
+func (g *Game) initGameQC() error {
 	// The authoritative server VM is owned by server.NewServer(). Keep only
 	// the client-side VM here so app init uses the same QCVM path as host/server
 	// tests instead of swapping in a parallel VM later.
@@ -315,12 +315,12 @@ func initGameQC() error {
 
 	// Register server and CSQC builtins with their respective VMs.
 	qc.RegisterBuiltins(g.CSQC.VM)
-	qc.SetCSQCClientHooks(buildCSQCClientHooks())
+	qc.SetCSQCClientHooks(g.buildCSQCClientHooks())
 
 	return nil
 }
 
-func buildCSQCClientHooks() qc.CSQCClientHooks {
+func (g *Game) buildCSQCClientHooks() qc.CSQCClientHooks {
 	return qc.CSQCClientHooks{
 		PrecacheModel: func(name string) int {
 			if g.CSQC == nil {
@@ -404,13 +404,13 @@ func buildCSQCClientHooks() qc.CSQCClientHooks {
 	}
 }
 
-func initGameRenderer() error {
-	preferWaylandForGoGPU()
+func (g *Game) initGameRenderer() error {
+	g.preferWaylandForGoGPU()
 
 	// Create renderer instance from cvars
 	cfg := renderer.ConfigFromCvars()
 
-	tr, err := newRendererBackend(cfg)
+	tr, err := renderer.NewWithConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create renderer: %w", err)
 	}
@@ -419,8 +419,8 @@ func initGameRenderer() error {
 	return nil
 }
 
-func preferWaylandForGoGPU() {
-	if !shouldWarnAboutGoGPUX11Keyboard(runtime.GOOS, os.Getenv("WAYLAND_DISPLAY"), os.Getenv("DISPLAY")) {
+func (g *Game) preferWaylandForGoGPU() {
+	if !g.shouldWarnAboutGoGPUX11Keyboard(runtime.GOOS, os.Getenv("WAYLAND_DISPLAY"), os.Getenv("DISPLAY")) {
 		return
 	}
 
@@ -429,11 +429,11 @@ func preferWaylandForGoGPU() {
 		"display_server", "x11",
 		"keyboard_input_mode", "polling",
 		"preferred_keyboard_input_mode", "event-driven",
-		"hint", gogpuX11KeyboardHint(),
+		"hint", g.gogpuX11KeyboardHint(),
 	)
 }
 
-func shouldWarnAboutGoGPUX11Keyboard(goos, waylandDisplay, x11Display string) bool {
+func (g *Game) shouldWarnAboutGoGPUX11Keyboard(goos, waylandDisplay, x11Display string) bool {
 	if goos != "linux" {
 		return false
 	}
@@ -443,11 +443,11 @@ func shouldWarnAboutGoGPUX11Keyboard(goos, waylandDisplay, x11Display string) bo
 	return x11Display != ""
 }
 
-func gogpuX11KeyboardHint() string {
+func (g *Game) gogpuX11KeyboardHint() string {
 	return "run under Wayland for event-driven keyboard input"
 }
 
-func runtimeFileSystem(subs *host.Subsystems) *fs.FileSystem {
+func (g *Game) runtimeFileSystem(subs *host.Subsystems) *fs.FileSystem {
 	if subs == nil || subs.Files == nil {
 		return nil
 	}
@@ -458,8 +458,8 @@ func runtimeFileSystem(subs *host.Subsystems) *fs.FileSystem {
 	return fileSys
 }
 
-func runtimeMenuMods(subs *host.Subsystems) []menu.ModInfo {
-	fileSys := runtimeFileSystem(subs)
+func (g *Game) runtimeMenuMods(subs *host.Subsystems) []menu.ModInfo {
+	fileSys := g.runtimeFileSystem(subs)
 	if fileSys == nil {
 		return nil
 	}
@@ -471,14 +471,14 @@ func runtimeMenuMods(subs *host.Subsystems) []menu.ModInfo {
 	return out
 }
 
-func runtimeDrawFileSystem(fallback *fs.FileSystem) *fs.FileSystem {
-	if current := runtimeFileSystem(g.Subs); current != nil {
+func (g *Game) runtimeDrawFileSystem(fallback *fs.FileSystem) *fs.FileSystem {
+	if current := g.runtimeFileSystem(g.Subs); current != nil {
 		return current
 	}
 	return fallback
 }
 
-func loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
+func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
 	if fileSys == nil {
 		return fmt.Errorf("filesystem is not initialized")
 	}
@@ -495,7 +495,7 @@ func loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
 	}
 
 	qc.RegisterBuiltins(g.QC)
-	qc.SetCSQCClientHooks(buildCSQCClientHooks())
+	qc.SetCSQCClientHooks(g.buildCSQCClientHooks())
 
 	if g.CSQC == nil || cvar.IntValue("cl_nocsqc") != 0 {
 		if g.CSQC != nil {
@@ -510,7 +510,7 @@ func loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
 			return nil
 		}
 
-		frameState := buildCSQCFrameState()
+		frameState := g.buildCSQCFrameState()
 		if maxClients > 0 {
 			frameState.MaxClients = float32(maxClients)
 		}
@@ -526,7 +526,7 @@ func loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error {
 	return nil
 }
 
-func reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
+func (g *Game) reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
 	if g.Draw == nil || fileSys == nil {
 		return
 	}
@@ -543,11 +543,11 @@ func reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
 	}
 
 	if g.Renderer != nil {
-		queueRuntimeRendererAssets(g.Draw.Palette(), g.Draw.GetConcharsData())
+		g.QueueRendererAssets(g.Draw.Palette(), g.Draw.GetConcharsData())
 	}
 }
 
-func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSystem) error {
+func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSystem) error {
 	runtimeStateMu.Lock()
 	defer runtimeStateMu.Unlock()
 
@@ -595,11 +595,11 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 	g.LastServerMessageAt = 0
 	g.AliasModelCache = nil
 	g.SpriteModelCache = nil
-	resetRuntimeSoundState()
-	resetRuntimeVisualState()
-	queueRuntimeRendererWorldClear()
+	g.resetRuntimeSoundState()
+	g.resetRuntimeVisualState()
+	g.QueueRendererWorldClear()
 
-	reloadRuntimeDrawAssets(changed)
+	g.reloadRuntimeDrawAssets(changed)
 	if g.Draw != nil {
 		g.HUD = hud.NewHUD(g.Draw)
 		g.HUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
@@ -607,15 +607,15 @@ func reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSyst
 
 	if g.Menu != nil {
 		g.Menu.SetCurrentMod(modDir)
-		showRuntimeMenuState(menu.MenuMain)
+		g.showRuntimeMenuState(menu.MenuMain)
 	}
 	g.Client = host.ActiveClientState(subs)
-	syncControlCvarsToClient()
+	g.syncControlCvarsToClient()
 
 	return nil
 }
 
-func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string) error {
+func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir string, args []string) error {
 	g.ModDir = strings.ToLower(strings.TrimSpace(gamedir))
 	g.Input = nil
 	g.Draw = nil
@@ -634,16 +634,16 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 
 		// Initialize menu system
 		g.Menu = menu.NewManager(g.Draw, g.Input)
-		g.Menu.SetSoundPlayer(playMenuSound)
+		g.Menu.SetSoundPlayer(g.playMenuSound)
 
 		// Set up menu input callbacks
-		g.Input.OnMenuKey = handleMenuKeyEvent
-		g.Input.OnMenuChar = handleMenuCharEvent
-		g.Input.OnKey = handleGameKeyEvent
-		g.Input.OnChar = handleGameCharEvent
+		g.Input.OnMenuKey = g.handleMenuKeyEvent
+		g.Input.OnMenuChar = g.handleMenuCharEvent
+		g.Input.OnKey = g.handleGameKeyEvent
+		g.Input.OnChar = g.handleGameCharEvent
 	}
 
-	if err := initGameHost(); err != nil {
+	if err := g.initGameHost(); err != nil {
 		return err
 	}
 	// Initialize filesystem
@@ -651,17 +651,17 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	if err := fileSys.Init(basedir, gamedir); err != nil {
 		return fmt.Errorf("failed to init filesystem: %w", err)
 	}
-	if err := configureRegistrationMode(fileSys, gamedir); err != nil {
+	if err := g.configureRegistrationMode(fileSys, gamedir); err != nil {
 		return err
 	}
 	// slog.Info("FS mounted") - moved to main for deterministic logs
 
 	// Initialize QuakeC VM
-	if err := initGameQC(); err != nil {
+	if err := g.initGameQC(); err != nil {
 		return err
 	}
 
-	if err := initGameServer(); err != nil {
+	if err := g.initGameServer(); err != nil {
 		return err
 	}
 
@@ -671,7 +671,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		return fmt.Errorf("server QC VM not initialized")
 	}
 
-	if err := loadRuntimePrograms(fileSys, maxClients); err != nil {
+	if err := g.loadRuntimePrograms(fileSys, maxClients); err != nil {
 		return err
 	}
 
@@ -690,7 +690,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		}); err != nil {
 			return fmt.Errorf("failed to load startup video cvars: %w", err)
 		}
-		if err := initGameRenderer(); err != nil {
+		if err := g.initGameRenderer(); err != nil {
 			return err
 		}
 	}
@@ -713,10 +713,10 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	}
 	// Audio init is deferred to host.Init to avoid double-initialization.
 	g.Audio = audioAdapter
-	resetRuntimeSoundState()
+	g.resetRuntimeSoundState()
 	g.Subs = &host.Subsystems{
 		Files:    fileSys,
-		Commands: globalCommandBuffer{},
+		Commands: GlobalCommandBuffer{},
 		Console:  globalConsoleAdapter{},
 		Server:   g.Server,
 		Input:    g.Input,
@@ -729,9 +729,9 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	if !dedicated {
 		host.SetupLoopbackClientServer(g.Subs, g.Server)
 	}
-	registerGameplayBindCommands()
-	registerConsoleCompletionProviders()
-	applyDefaultGameplayBindings()
+	g.registerGameplayBindCommands()
+	g.registerConsoleCompletionProviders()
+	g.applyDefaultGameplayBindings()
 
 	if err := g.Host.Init(&host.InitParams{
 		BaseDir:      basedir,
@@ -747,14 +747,14 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		return fmt.Errorf("failed to initialize host: %w", err)
 	}
 	if !dedicated {
-		ensureStartupUIScale()
-		ensureGameplayBindings()
+		g.ensureStartupUIScale()
+		g.ensureGameplayBindings()
 	}
-	applySVolume()
+	g.applySVolume()
 
 	// Set menu in host
 	g.Host.SetMenu(g.Menu)
-	g.Host.SetGameDirChangedCallback(reloadRuntimeAfterGameDirChange)
+	g.Host.SetGameDirChangedCallback(g.reloadRuntimeAfterGameDirChange)
 	if g.Menu != nil {
 		g.Menu.SetSaveSlotProvider(func(slotCount int) []menu.SaveSlotInfo {
 			hostSlots := g.Host.ListSaveSlots(slotCount)
@@ -769,7 +769,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		})
 		// Wire mod enumeration and current-mod tracking into the menu.
 		g.Menu.SetModsProvider(func() []menu.ModInfo {
-			return runtimeMenuMods(g.Subs)
+			return g.runtimeMenuMods(g.Subs)
 		})
 		g.Menu.SetCurrentMod(g.ModDir)
 		g.Menu.SetNewGameConfirmationProvider(func() bool {
@@ -795,7 +795,7 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 
 	// Initialize draw manager from the game filesystem (loads gfx.wad from pak files)
 	if g.Draw != nil {
-		drawErr := g.Draw.Init(runtimeDrawFileSystem(fileSys))
+		drawErr := g.Draw.Init(g.runtimeDrawFileSystem(fileSys))
 		if drawErr != nil {
 			// Fall back to local "data" directory for development/testing
 			slog.Warn("Failed to initialize draw manager from filesystem, trying data/", "error", drawErr)
@@ -817,13 +817,13 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 		g.HUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
 	}
 	g.Client = host.ActiveClientState(g.Subs)
-	syncControlCvarsToClient()
-	resetRuntimeVisualState()
+	g.syncControlCvarsToClient()
+	g.resetRuntimeVisualState()
 
 	// Wire ModelFlagsFunc callback for EF_ROTATE support
 	if g.Client != nil {
 		g.Client.ModelFlagsFunc = func(modelName string) int {
-			if mdl, ok := loadAliasModel(modelName); ok && mdl != nil {
+			if mdl, ok := g.loadAliasModel(modelName); ok && mdl != nil {
 				return mdl.Flags
 			}
 			return 0
@@ -831,8 +831,8 @@ func initSubsystems(headless, dedicated bool, maxClients int, basedir, gamedir s
 	}
 
 	// Make sure the menu is visible at startup
-	showRuntimeMenuState(menu.MenuMain)
-	logStartupInputDiagnostics()
+	g.showRuntimeMenuState(menu.MenuMain)
+	g.logStartupInputDiagnostics()
 	// slog.Info("menu active") - moved to main for deterministic logs
 
 	slog.Info("All subsystems initialized")

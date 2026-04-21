@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
-func resetRuntimeSoundState() {
+func (g *Game) resetRuntimeSoundState() {
 	g.SoundSFXByIndex = nil
 	g.MenuSFXByName = nil
 	g.AmbientSFX = [audio.NumAmbients]*audio.SFX{}
@@ -23,9 +23,9 @@ func resetRuntimeSoundState() {
 	g.MusicTrackKey = ""
 }
 
-func refreshRuntimeSoundCache() {
+func (g *Game) refreshRuntimeSoundCache() {
 	if g.Client == nil {
-		resetRuntimeSoundState()
+		g.resetRuntimeSoundState()
 		return
 	}
 	key := strings.Join(g.Client.SoundPrecache, "\x00")
@@ -36,11 +36,11 @@ func refreshRuntimeSoundCache() {
 	g.SoundSFXByIndex = make(map[int]*audio.SFX)
 }
 
-func resolveRuntimeSFX(soundIndex int) *audio.SFX {
+func (g *Game) resolveRuntimeSFX(soundIndex int) *audio.SFX {
 	if g.Audio == nil || g.Client == nil || g.Subs == nil || g.Subs.Files == nil || soundIndex <= 0 {
 		return nil
 	}
-	refreshRuntimeSoundCache()
+	g.refreshRuntimeSoundCache()
 	if sfx, ok := g.SoundSFXByIndex[soundIndex]; ok {
 		return sfx
 	}
@@ -61,7 +61,7 @@ func resolveRuntimeSFX(soundIndex int) *audio.SFX {
 	return sfx
 }
 
-func resolveNamedRuntimeSFX(soundName string) *audio.SFX {
+func (g *Game) resolveNamedRuntimeSFX(soundName string) *audio.SFX {
 	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || soundName == "" {
 		return nil
 	}
@@ -70,7 +70,7 @@ func resolveNamedRuntimeSFX(soundName string) *audio.SFX {
 	})
 }
 
-func resolveMenuSFX(name string) *audio.SFX {
+func (g *Game) resolveMenuSFX(name string) *audio.SFX {
 	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || name == "" {
 		return nil
 	}
@@ -87,7 +87,7 @@ func resolveMenuSFX(name string) *audio.SFX {
 	return sfx
 }
 
-func resolveAmbientSFX(name string) *audio.SFX {
+func (g *Game) resolveAmbientSFX(name string) *audio.SFX {
 	if name == "" {
 		return nil
 	}
@@ -99,19 +99,19 @@ func resolveAmbientSFX(name string) *audio.SFX {
 	})
 }
 
-func ensureRuntimeAmbientSFX() {
+func (g *Game) ensureRuntimeAmbientSFX() {
 	if g.Audio == nil {
 		g.AmbientSFX = [audio.NumAmbients]*audio.SFX{}
 		return
 	}
 
 	if g.AmbientSFX[0] == nil {
-		if sfx := resolveAmbientSFX("ambience/water1.wav"); sfx != nil {
+		if sfx := g.resolveAmbientSFX("ambience/water1.wav"); sfx != nil {
 			g.AmbientSFX[0] = sfx
 		}
 	}
 	if g.AmbientSFX[1] == nil {
-		if sfx := resolveAmbientSFX("ambience/wind2.wav"); sfx != nil {
+		if sfx := g.resolveAmbientSFX("ambience/wind2.wav"); sfx != nil {
 			g.AmbientSFX[1] = sfx
 		}
 	}
@@ -123,7 +123,7 @@ func ensureRuntimeAmbientSFX() {
 	}
 }
 
-func runtimeUnderwaterIntensity(contents int32) float32 {
+func (g *Game) runtimeUnderwaterIntensity(contents int32) float32 {
 	switch contents {
 	case bsp.ContentsWater, bsp.ContentsSlime, bsp.ContentsLava:
 		return 1
@@ -141,7 +141,7 @@ func runtimeUnderwaterIntensity(contents int32) float32 {
 //   - warpTime: the time value to use for warp animation.
 //
 // Mirrors C Ironwail R_SetupView() r_waterwarp logic and R_WarpScaleView() time selection.
-func runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
+func (g *Game) runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
 	wwCvar := cvar.Get(renderer.CvarRWaterwarp)
 	if wwCvar == nil || wwCvar.Float32() == 0 {
 		return false, false, 0
@@ -171,7 +171,7 @@ func runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
 	return true, false, t
 }
 
-func pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
+func (g *Game) pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
 	if tree == nil || len(tree.Nodes) == 0 || len(tree.Planes) == 0 || len(tree.Leafs) == 0 {
 		return bsp.TreeLeaf{}, false
 	}
@@ -203,12 +203,12 @@ func pointInTreeLeaf(tree *bsp.Tree, point [3]float32) (bsp.TreeLeaf, bool) {
 	}
 }
 
-func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
+func (g *Game) syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
 	if g.Audio == nil {
 		return
 	}
 
-	ensureRuntimeAmbientSFX()
+	g.ensureRuntimeAmbientSFX()
 
 	var (
 		ambientLevels [audio.NumAmbients]uint8
@@ -216,11 +216,11 @@ func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
 		underwater    float32
 	)
 	if g.Client != nil && g.Client.State == cl.StateActive && g.Server != nil && g.Server.WorldTree != nil {
-		if leaf, ok := pointInTreeLeaf(g.Server.WorldTree, viewOrigin); ok {
+		if leaf, ok := g.pointInTreeLeaf(g.Server.WorldTree, viewOrigin); ok {
 			hasLeaf = true
 			ambientLevels[0] = leaf.AmbientLevel[bsp.AmbientWater]
 			ambientLevels[1] = leaf.AmbientLevel[bsp.AmbientSky]
-			underwater = runtimeUnderwaterIntensity(leaf.Contents)
+			underwater = g.runtimeUnderwaterIntensity(leaf.Contents)
 			// Track liquid-leaf state for visual waterwarp (r_waterwarp) and
 			// contents color shift (v_blend).
 			g.CameraInLiquid = underwater > 0
@@ -237,15 +237,15 @@ func syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32) {
 	g.Audio.UpdateAmbientSounds(frameTime, hasLeaf, ambientLevels, underwater)
 }
 
-func playMenuSound(name string) {
-	sfx := resolveMenuSFX(name)
+func (g *Game) playMenuSound(name string) {
+	sfx := g.resolveMenuSFX(name)
 	if sfx == nil {
 		return
 	}
 	g.Audio.StartSound(0, 0, sfx, [3]float32{}, [3]float32{}, 1, 0)
 }
 
-func applySVolume() {
+func (g *Game) applySVolume() {
 	if g.Audio == nil {
 		return
 	}
@@ -256,7 +256,7 @@ func applySVolume() {
 	g.Audio.SetVolume(vol)
 }
 
-func buildRuntimeStaticSoundKey(c *cl.Client) string {
+func (g *Game) buildRuntimeStaticSoundKey(c *cl.Client) string {
 	if c == nil {
 		return ""
 	}
@@ -282,7 +282,7 @@ func buildRuntimeStaticSoundKey(c *cl.Client) string {
 	return b.String()
 }
 
-func syncRuntimeStaticSounds() {
+func (g *Game) syncRuntimeStaticSounds() {
 	if g.Audio == nil {
 		g.StaticSoundKey = ""
 		return
@@ -295,15 +295,15 @@ func syncRuntimeStaticSounds() {
 		return
 	}
 
-	refreshRuntimeSoundCache()
-	key := buildRuntimeStaticSoundKey(g.Client)
+	g.refreshRuntimeSoundCache()
+	key := g.buildRuntimeStaticSoundKey(g.Client)
 	if key == g.StaticSoundKey {
 		return
 	}
 
 	g.Audio.ClearStaticSounds()
 	for _, staticSound := range g.Client.StaticSounds {
-		sfx := resolveRuntimeSFX(staticSound.SoundIndex)
+		sfx := g.resolveRuntimeSFX(staticSound.SoundIndex)
 		if sfx == nil {
 			continue
 		}
@@ -318,7 +318,7 @@ func syncRuntimeStaticSounds() {
 	g.StaticSoundKey = key
 }
 
-func runtimeMusicSelection() (track, loopTrack int) {
+func (g *Game) runtimeMusicSelection() (track, loopTrack int) {
 	if g.Host != nil {
 		if demo := g.Host.DemoState(); demo != nil && demo.Playback {
 			if g.Client != nil && g.Client.CDTrack != 0 {
@@ -345,8 +345,8 @@ func runtimeMusicSelection() (track, loopTrack int) {
 	return track, loopTrack
 }
 
-func syncRuntimeMusic() {
-	track, loopTrack := runtimeMusicSelection()
+func (g *Game) syncRuntimeMusic() {
+	track, loopTrack := g.runtimeMusicSelection()
 	key := fmt.Sprintf("%d/%d", track, loopTrack)
 
 	if g.Audio == nil {
@@ -379,7 +379,7 @@ func syncRuntimeMusic() {
 	}
 }
 
-func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.TransientEvents) {
+func (g *Game) processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.TransientEvents) {
 	if g.Audio == nil {
 		return
 	}
@@ -389,9 +389,9 @@ func processRuntimeAudioEvents(viewOrigin [3]float32, transientEvents cl.Transie
 		g.Audio.StopSound(stopEvent.Entity, stopEvent.Channel)
 	}
 	for _, soundEvent := range soundEvents {
-		sfx := resolveRuntimeSFX(soundEvent.SoundIndex)
+		sfx := g.resolveRuntimeSFX(soundEvent.SoundIndex)
 		if soundEvent.SoundName != "" {
-			sfx = resolveNamedRuntimeSFX(soundEvent.SoundName)
+			sfx = g.resolveNamedRuntimeSFX(soundEvent.SoundName)
 		}
 		if sfx == nil {
 			continue

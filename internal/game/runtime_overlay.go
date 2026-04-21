@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"fmt"
@@ -13,14 +13,14 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
-func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
-	state := runtimeTelemetryState{
-		ViewSize:        float32(currentRuntimeViewSize()),
+func (g *Game) buildRuntimeTelemetryState(conForcedup bool) TelemetryState {
+	state := TelemetryState{
+		ViewSize:        float32(g.currentRuntimeViewSize()),
 		HUDStyle:        cvar.IntValue("hud_style"),
 		ShowFPS:         float32(cvar.FloatValue("scr_showfps")),
 		ShowClock:       cvar.IntValue("scr_clock"),
 		ShowSpeed:       cvar.BoolValue("scr_showspeed"),
-		ShowTurtle:      currentShowTurtle(),
+		ShowTurtle:      g.currentShowTurtle(),
 		ShowSpeedOfs:    float32(cvar.FloatValue("scr_showspeed_ofs")),
 		DemoBarTimeout:  float32(cvar.FloatValue("scr_demobar_timeout")),
 		ConsoleForced:   conForcedup,
@@ -36,7 +36,7 @@ func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 			state.DemoSpeed = demo.Speed
 			state.DemoBaseSpeed = demo.BaseSpeed
 			state.DemoProgress = demo.Progress()
-			state.DemoName = runtimeDemoName(demo.Filename)
+			state.DemoName = g.runtimeDemoName(demo.Filename)
 		}
 	}
 	if g.Client != nil {
@@ -49,7 +49,7 @@ func buildRuntimeTelemetryState(conForcedup bool) runtimeTelemetryState {
 	return state
 }
 
-func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) renderer.ViewRect {
+func (g *Game) runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) renderer.ViewRect {
 	vidW := framebufferW
 	if vidW <= 0 {
 		vidW = cvar.IntValue("vid_width")
@@ -58,8 +58,8 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 	if vidH <= 0 {
 		vidH = cvar.IntValue("vid_height")
 	}
-	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
-	conW, conH := runtimeConsoleDimensions(guiW, guiH)
+	guiW, guiH := g.runtimeGUIDimensions(framebufferW, framebufferH)
+	conW, conH := g.runtimeConsoleDimensions(guiW, guiH)
 	ref, err := renderer.CalcRefdef(renderer.ScreenMetrics{
 		GLWidth:        framebufferW,
 		GLHeight:       framebufferH,
@@ -69,13 +69,13 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 		GUIHeight:      guiH,
 		ConWidth:       conW,
 		ConHeight:      conH,
-		ViewSize:       float32(currentRuntimeViewSize()),
-		FOV:            currentRuntimeFOV(),
-		FOVAdapt:       currentRuntimeFOVAdapt(),
-		ZoomFOV:        currentRuntimeZoomFOV(),
+		ViewSize:       float32(g.currentRuntimeViewSize()),
+		FOV:            g.currentRuntimeFOV(),
+		FOVAdapt:       g.currentRuntimeFOVAdapt(),
+		ZoomFOV:        g.currentRuntimeZoomFOV(),
 		Zoom:           g.Zoom,
 		SbarScale:      float32(cvar.FloatValue("scr_sbarscale")),
-		SbarAlpha:      currentSbarAlpha(),
+		SbarAlpha:      g.currentSbarAlpha(),
 		MenuScale:      float32(cvar.FloatValue("scr_menuscale")),
 		CrosshairScale: float32(cvar.FloatValue("scr_crosshairscale")),
 		Intermission:   g.Client != nil && g.Client.Intermission != 0,
@@ -88,7 +88,7 @@ func runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) re
 	return ref.VRect
 }
 
-func currentSbarAlpha() float32 {
+func (g *Game) currentSbarAlpha() float32 {
 	alpha := float32(cvar.FloatValue("scr_sbaralpha"))
 	if alpha <= 0 {
 		return 0
@@ -99,14 +99,14 @@ func currentSbarAlpha() float32 {
 	return alpha
 }
 
-func currentRuntimeFOV() float32 {
+func (g *Game) currentRuntimeFOV() float32 {
 	if cv := cvar.Get("fov"); cv != nil && cv.Float32() > 0 {
 		return cv.Float32()
 	}
 	return 90
 }
 
-func currentRuntimePixelAspect() float64 {
+func (g *Game) currentRuntimePixelAspect() float64 {
 	cv := cvar.Get("scr_pixelaspect")
 	if cv == nil {
 		return 1
@@ -115,16 +115,16 @@ func currentRuntimePixelAspect() float64 {
 		num, errNum := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 		den, errDen := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
 		if errNum == nil && errDen == nil && num > 0 && den > 0 {
-			return clampf64(num/den, 0.5, 2)
+			return g.clampf64(num/den, 0.5, 2)
 		}
 	}
 	if cv.Float > 0 {
-		return clampf64(cv.Float, 0.5, 2)
+		return g.clampf64(cv.Float, 0.5, 2)
 	}
 	return 1
 }
 
-func clampf64(v, min, max float64) float64 {
+func (g *Game) clampf64(v, min, max float64) float64 {
 	if v < min {
 		return min
 	}
@@ -134,7 +134,7 @@ func clampf64(v, min, max float64) float64 {
 	return v
 }
 
-func currentRuntimeViewSize() float64 {
+func (g *Game) currentRuntimeViewSize() float64 {
 	if cv := cvar.Get("viewsize"); cv != nil && cv.Float > 0 {
 		return cv.Float
 	}
@@ -144,35 +144,35 @@ func currentRuntimeViewSize() float64 {
 	return 100
 }
 
-func currentRuntimeZoomFOV() float32 {
+func (g *Game) currentRuntimeZoomFOV() float32 {
 	if cv := cvar.Get("zoom_fov"); cv != nil && cv.Float32() > 0 {
 		return cv.Float32()
 	}
 	return 30
 }
 
-func currentRuntimeFOVAdapt() bool {
+func (g *Game) currentRuntimeFOVAdapt() bool {
 	if cv := cvar.Get("fov_adapt"); cv != nil {
 		return cv.Bool()
 	}
 	return true
 }
 
-func currentShowTurtle() bool {
+func (g *Game) currentShowTurtle() bool {
 	if cv := cvar.Get("showturtle"); cv != nil {
 		return cv.Bool()
 	}
 	return cvar.BoolValue("scr_showturtle")
 }
 
-func drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
+func (g *Game) drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
 	for _, ch := range text {
 		rc.DrawCharacter(x, y, int(ch))
 		x += 8
 	}
 }
 
-func drawRuntimeClock(rc renderer.RenderContext, state runtimeTelemetryState) {
+func (g *Game) drawRuntimeClock(rc renderer.RenderContext, state TelemetryState) {
 	if rc == nil || state.ShowClock != 1 || state.ViewSize >= 130 {
 		return
 	}
@@ -181,41 +181,41 @@ func drawRuntimeClock(rc renderer.RenderContext, state runtimeTelemetryState) {
 	text := fmt.Sprintf("%d:%02d", minutes, seconds)
 	if state.HUDStyle == renderer.HUDClassic {
 		rc.SetCanvas(renderer.CanvasBottomRight)
-		drawRuntimeString(rc, 320-len(text)*8, 200-8, text)
+		g.drawRuntimeString(rc, 320-len(text)*8, 200-8, text)
 		return
 	}
 	rc.SetCanvas(renderer.CanvasTopRight)
-	drawRuntimeString(rc, 320-16-len(text)*8, 8, text)
+	g.drawRuntimeString(rc, 320-16-len(text)*8, 8, text)
 }
 
-func drawRuntimeFPS(rc renderer.RenderContext, state runtimeTelemetryState, overlay *runtimeFPSOverlay) {
+func (g *Game) drawRuntimeFPS(rc renderer.RenderContext, state TelemetryState, overlay *FPSOverlay) {
 	if rc == nil || overlay == nil {
 		return
 	}
 	if state.ConsoleForced {
-		overlay.oldTime = state.RealTime
-		overlay.oldFrameCount = state.FrameCount
-		overlay.lastFPS = 0
+		overlay.OldTime = state.RealTime
+		overlay.OldFrameCount = state.FrameCount
+		overlay.LastFPS = 0
 		return
 	}
-	elapsed := state.RealTime - overlay.oldTime
-	frames := state.FrameCount - overlay.oldFrameCount
+	elapsed := state.RealTime - overlay.OldTime
+	frames := state.FrameCount - overlay.OldFrameCount
 	if elapsed < 0 || frames < 0 {
-		overlay.oldTime = state.RealTime
-		overlay.oldFrameCount = state.FrameCount
+		overlay.OldTime = state.RealTime
+		overlay.OldFrameCount = state.FrameCount
 		return
 	}
 	if elapsed > 0.75 {
-		overlay.lastFPS = float64(frames) / elapsed
-		overlay.oldTime = state.RealTime
-		overlay.oldFrameCount = state.FrameCount
+		overlay.LastFPS = float64(frames) / elapsed
+		overlay.OldTime = state.RealTime
+		overlay.OldFrameCount = state.FrameCount
 	}
-	if state.ShowFPS == 0 || state.ViewSize >= 130 || overlay.lastFPS == 0 {
+	if state.ShowFPS == 0 || state.ViewSize >= 130 || overlay.LastFPS == 0 {
 		return
 	}
-	text := fmt.Sprintf("%4.0f fps", overlay.lastFPS)
+	text := fmt.Sprintf("%4.0f fps", overlay.LastFPS)
 	if state.ShowFPS < 0 || state.ShowFPS >= 2 {
-		text = fmt.Sprintf("%.2f ms", 1000.0/overlay.lastFPS)
+		text = fmt.Sprintf("%.2f ms", 1000.0/overlay.LastFPS)
 	}
 	if state.HUDStyle == renderer.HUDClassic {
 		y := 200 - 8
@@ -223,7 +223,7 @@ func drawRuntimeFPS(rc renderer.RenderContext, state runtimeTelemetryState, over
 			y -= 8
 		}
 		rc.SetCanvas(renderer.CanvasBottomRight)
-		drawRuntimeString(rc, 320-len(text)*8, y, text)
+		g.drawRuntimeString(rc, 320-len(text)*8, y, text)
 		return
 	}
 	y := 8
@@ -231,27 +231,27 @@ func drawRuntimeFPS(rc renderer.RenderContext, state runtimeTelemetryState, over
 		y += 8
 	}
 	rc.SetCanvas(renderer.CanvasTopRight)
-	drawRuntimeString(rc, 320-16-len(text)*8, y, text)
+	g.drawRuntimeString(rc, 320-16-len(text)*8, y, text)
 }
 
-func drawRuntimeSpeed(rc renderer.RenderContext, state runtimeTelemetryState, overlay *runtimeSpeedOverlay) {
+func (g *Game) drawRuntimeSpeed(rc renderer.RenderContext, state TelemetryState, overlay *SpeedOverlay) {
 	if rc == nil || overlay == nil {
 		return
 	}
-	if overlay.lastRealTime == 0 && overlay.displaySpeed == 0 && overlay.maxSpeed == 0 {
-		overlay.displaySpeed = -1
+	if overlay.LastRealTime == 0 && overlay.DisplaySpeed == 0 && overlay.MaxSpeed == 0 {
+		overlay.DisplaySpeed = -1
 	}
-	if overlay.lastRealTime > state.RealTime {
-		overlay.lastRealTime = 0
-		overlay.displaySpeed = -1
-		overlay.maxSpeed = 0
+	if overlay.LastRealTime > state.RealTime {
+		overlay.LastRealTime = 0
+		overlay.DisplaySpeed = -1
+		overlay.MaxSpeed = 0
 	}
 	speed := float32(math.Sqrt(float64(state.Velocity[0]*state.Velocity[0] + state.Velocity[1]*state.Velocity[1])))
-	if speed > overlay.maxSpeed {
-		overlay.maxSpeed = speed
+	if speed > overlay.MaxSpeed {
+		overlay.MaxSpeed = speed
 	}
-	if state.ShowSpeed && overlay.displaySpeed >= 0 && state.Intermission == 0 && !state.InCutscene && state.ViewSize < 130 {
-		text := fmt.Sprintf("%d", int(overlay.displaySpeed))
+	if state.ShowSpeed && overlay.DisplaySpeed >= 0 && state.Intermission == 0 && !state.InCutscene && state.ViewSize < 130 {
+		text := fmt.Sprintf("%d", int(overlay.DisplaySpeed))
 		rc.SetCanvas(renderer.CanvasCrosshair)
 		canvas := rc.Canvas()
 		top := canvas.Top
@@ -261,12 +261,12 @@ func drawRuntimeSpeed(rc renderer.RenderContext, state runtimeTelemetryState, ov
 			bottom = 100
 		}
 		y := min(max(top, 4+state.ShowSpeedOfs), bottom-8)
-		drawRuntimeString(rc, -(len(text) * 4), int(y), text)
+		g.drawRuntimeString(rc, -(len(text) * 4), int(y), text)
 	}
-	if state.RealTime-overlay.lastRealTime >= 0.05 {
-		overlay.lastRealTime = state.RealTime
-		overlay.displaySpeed = overlay.maxSpeed
-		overlay.maxSpeed = 0
+	if state.RealTime-overlay.LastRealTime >= 0.05 {
+		overlay.LastRealTime = state.RealTime
+		overlay.DisplaySpeed = overlay.MaxSpeed
+		overlay.MaxSpeed = 0
 	}
 }
 
@@ -274,7 +274,7 @@ type picAlphaRenderContext interface {
 	DrawPicAlpha(x, y int, pic *qimage.QPic, alpha float32)
 }
 
-func drawRuntimePicAlpha(rc renderer.RenderContext, x, y int, pic *qimage.QPic, alpha float32) {
+func (g *Game) drawRuntimePicAlpha(rc renderer.RenderContext, x, y int, pic *qimage.QPic, alpha float32) {
 	if rc == nil || pic == nil || alpha <= 0 {
 		return
 	}
@@ -285,7 +285,7 @@ func drawRuntimePicAlpha(rc renderer.RenderContext, x, y int, pic *qimage.QPic, 
 	rc.DrawPic(x, y, pic)
 }
 
-func drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvider, x, y, width, lines int, alpha float32) {
+func (g *Game) drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvider, x, y, width, lines int, alpha float32) {
 	if rc == nil || pics == nil || alpha <= 0 {
 		return
 	}
@@ -293,23 +293,23 @@ func drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvider, x, y, 
 	cy := y
 
 	if pic := pics.GetPic("gfx/box_tl.lmp"); pic != nil {
-		drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+		g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 	}
 	if pic := pics.GetPic("gfx/box_ml.lmp"); pic != nil {
 		for n := 0; n < lines; n++ {
 			cy += 8
-			drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+			g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 		}
 	}
 	if pic := pics.GetPic("gfx/box_bl.lmp"); pic != nil {
-		drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
+		g.drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
 	}
 
 	cx += 8
 	for remaining := width; remaining > 0; remaining -= 2 {
 		cy = y
 		if pic := pics.GetPic("gfx/box_tm.lmp"); pic != nil {
-			drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+			g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 		}
 		for n := 0; n < lines; n++ {
 			cy += 8
@@ -318,31 +318,31 @@ func drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvider, x, y, 
 				name = "gfx/box_mm2.lmp"
 			}
 			if pic := pics.GetPic(name); pic != nil {
-				drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+				g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 			}
 		}
 		if pic := pics.GetPic("gfx/box_bm.lmp"); pic != nil {
-			drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
+			g.drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
 		}
 		cx += 16
 	}
 
 	cy = y
 	if pic := pics.GetPic("gfx/box_tr.lmp"); pic != nil {
-		drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+		g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 	}
 	if pic := pics.GetPic("gfx/box_mr.lmp"); pic != nil {
 		for n := 0; n < lines; n++ {
 			cy += 8
-			drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
+			g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 		}
 	}
 	if pic := pics.GetPic("gfx/box_br.lmp"); pic != nil {
-		drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
+		g.drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
 	}
 }
 
-func runtimeDemoName(name string) string {
+func (g *Game) runtimeDemoName(name string) string {
 	base := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
 	if len(base) > 30 {
 		base = base[:30]
@@ -350,7 +350,7 @@ func runtimeDemoName(name string) string {
 	return base
 }
 
-func formatRuntimeDemoBaseSpeed(speed float32) string {
+func (g *Game) formatRuntimeDemoBaseSpeed(speed float32) string {
 	if speed == 0 {
 		return ""
 	}
@@ -361,27 +361,27 @@ func formatRuntimeDemoBaseSpeed(speed float32) string {
 	return fmt.Sprintf("1/%gx", 1/absSpeed)
 }
 
-func drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState, overlay *runtimeDemoOverlay) {
+func (g *Game) drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state TelemetryState, overlay *DemoOverlay) {
 	if rc == nil || overlay == nil || !state.DemoPlayback || state.DemoBarTimeout < 0 {
 		if overlay != nil {
-			overlay.showTime = 0
+			overlay.ShowTime = 0
 		}
 		return
 	}
-	if state.DemoSpeed != overlay.prevSpeed ||
-		state.DemoBaseSpeed != overlay.prevBaseSpeed ||
+	if state.DemoSpeed != overlay.PrevSpeed ||
+		state.DemoBaseSpeed != overlay.PrevBaseSpeed ||
 		math.Abs(float64(state.DemoSpeed)) > math.Abs(float64(state.DemoBaseSpeed)) ||
 		state.DemoBarTimeout == 0 {
-		overlay.prevSpeed = state.DemoSpeed
-		overlay.prevBaseSpeed = state.DemoBaseSpeed
-		overlay.showTime = 1
+		overlay.PrevSpeed = state.DemoSpeed
+		overlay.PrevBaseSpeed = state.DemoBaseSpeed
+		overlay.ShowTime = 1
 		if state.DemoBarTimeout > 0 {
-			overlay.showTime = float64(state.DemoBarTimeout)
+			overlay.ShowTime = float64(state.DemoBarTimeout)
 		}
 	} else {
-		overlay.showTime -= state.FrameTime
-		if overlay.showTime < 0 {
-			overlay.showTime = 0
+		overlay.ShowTime -= state.FrameTime
+		if overlay.ShowTime < 0 {
+			overlay.ShowTime = 0
 			return
 		}
 	}
@@ -395,8 +395,8 @@ func drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state 
 		y = 25
 	}
 
-	alpha := currentSbarAlpha()
-	drawRuntimeTextBoxAlpha(rc, pics, x-8, y-8, timebarChars, 1, alpha)
+	alpha := g.currentSbarAlpha()
+	g.drawRuntimeTextBoxAlpha(rc, pics, x-8, y-8, timebarChars, 1, alpha)
 
 	status := ">"
 	if state.DemoSpeed == 0 {
@@ -407,13 +407,13 @@ func drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state 
 	if state.DemoSpeed < 0 {
 		status = strings.Repeat("<", len(status))
 	}
-	drawRuntimeString(rc, x, y, status)
+	g.drawRuntimeString(rc, x, y, status)
 
-	if base := formatRuntimeDemoBaseSpeed(state.DemoBaseSpeed); base != "" {
-		drawRuntimeString(rc, x+(timebarChars-len(base))*8, y, base)
+	if base := g.formatRuntimeDemoBaseSpeed(state.DemoBaseSpeed); base != "" {
+		g.drawRuntimeString(rc, x+(timebarChars-len(base))*8, y, base)
 	}
 	if state.DemoName != "" {
-		drawRuntimeString(rc, 160-len(state.DemoName)*4, y, state.DemoName)
+		g.drawRuntimeString(rc, 160-len(state.DemoName)*4, y, state.DemoName)
 	}
 
 	barY := y - 8
@@ -440,11 +440,11 @@ func drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvider, state 
 		timeX -= colon * 8
 	}
 	timeY := barY - 11
-	drawRuntimeTextBoxAlpha(rc, pics, timeX-8-(len(timeText)&1)*4, timeY-8, len(timeText)+(len(timeText)&1), 1, alpha)
-	drawRuntimeString(rc, timeX, timeY, timeText)
+	g.drawRuntimeTextBoxAlpha(rc, pics, timeX-8-(len(timeText)&1)*4, timeY-8, len(timeText)+(len(timeText)&1), 1, alpha)
+	g.drawRuntimeString(rc, timeX, timeY, timeText)
 }
 
-func drawRuntimeTurtle(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState, count *int) {
+func (g *Game) drawRuntimeTurtle(rc renderer.RenderContext, pics picProvider, state TelemetryState, count *int) {
 	if rc == nil || pics == nil || count == nil || !state.ShowTurtle {
 		return
 	}
@@ -462,7 +462,7 @@ func drawRuntimeTurtle(rc renderer.RenderContext, pics picProvider, state runtim
 	}
 }
 
-func drawRuntimeNet(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState) {
+func (g *Game) drawRuntimeNet(rc renderer.RenderContext, pics picProvider, state TelemetryState) {
 	if rc == nil || pics == nil || !state.ClientActive || state.DemoPlayback {
 		return
 	}
@@ -475,7 +475,7 @@ func drawRuntimeNet(rc renderer.RenderContext, pics picProvider, state runtimeTe
 	}
 }
 
-func drawRuntimeSavingIndicator(rc renderer.RenderContext, pics picProvider, state runtimeTelemetryState) {
+func (g *Game) drawRuntimeSavingIndicator(rc renderer.RenderContext, pics picProvider, state TelemetryState) {
 	if rc == nil || pics == nil || !state.SavingActive {
 		return
 	}
@@ -499,7 +499,7 @@ func drawRuntimeSavingIndicator(rc renderer.RenderContext, pics picProvider, sta
 	rc.DrawPic(320-16-int(disc.Width), y, disc)
 }
 
-func drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
+func (g *Game) drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
 	if dc == nil || pics == nil {
 		return
 	}

@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"bytes"
@@ -15,11 +15,11 @@ import (
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
-func clientEntityStateIsCurrent(state inet.EntityState) bool {
+func (g *Game) clientEntityStateIsCurrent(state inet.EntityState) bool {
 	return g.Client != nil && state.MsgTime == g.Client.MTime[0]
 }
 
-func clientEntityModelName(state inet.EntityState) string {
+func (g *Game) clientEntityModelName(state inet.EntityState) string {
 	if g.Client == nil || state.ModelIndex == 0 {
 		return ""
 	}
@@ -30,7 +30,7 @@ func clientEntityModelName(state inet.EntityState) string {
 	return g.Client.ModelPrecache[precacheIndex]
 }
 
-func collectBrushEntities() []renderer.BrushEntity {
+func (g *Game) collectBrushEntities() []renderer.BrushEntity {
 	if g.Client == nil || g.Server == nil || g.Server.WorldTree == nil || len(g.Server.WorldTree.Models) <= 1 {
 		return nil
 	}
@@ -56,8 +56,8 @@ func collectBrushEntities() []renderer.BrushEntity {
 			Frame:         int(state.Frame),
 			Origin:        state.Origin,
 			Angles:        state.Angles,
-			Alpha:         entityStateAlpha(state),
-			Scale:         entityStateScale(state),
+			Alpha:         g.entityStateAlpha(state),
+			Scale:         g.entityStateScale(state),
 		}, true
 	}
 
@@ -66,22 +66,22 @@ func collectBrushEntities() []renderer.BrushEntity {
 		if entityNum == g.Client.ViewEntity {
 			continue
 		}
-		modelName := clientEntityModelName(state)
+		modelName := g.clientEntityModelName(state)
 		if state.ModelIndex == 0 {
-			runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "zero_model")
+			g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "zero_model")
 			continue
 		}
-		if !clientEntityStateIsCurrent(state) {
+		if !g.clientEntityStateIsCurrent(state) {
 			if modelName != "" && strings.HasPrefix(modelName, "*") {
-				runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "stale_skip")
+				g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "stale_skip")
 			}
 			continue
 		}
 		if brushEntity, ok := resolve(state); ok {
-			runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "draw")
+			g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "draw")
 			brushEntities = append(brushEntities, brushEntity)
 		} else if modelName != "" && strings.HasPrefix(modelName, "*") {
-			runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "resolve_skip")
+			g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "resolve_skip")
 		}
 	}
 	for _, state := range g.Client.StaticEntities {
@@ -93,7 +93,7 @@ func collectBrushEntities() []renderer.BrushEntity {
 	return brushEntities
 }
 
-func loadAliasModel(modelName string) (*model.Model, bool) {
+func (g *Game) loadAliasModel(modelName string) (*model.Model, bool) {
 	if modelName == "" || g.Subs == nil || g.Subs.Files == nil {
 		return nil, false
 	}
@@ -121,12 +121,12 @@ func loadAliasModel(modelName string) (*model.Model, bool) {
 	return loaded, true
 }
 
-func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
+func (g *Game) loadSpriteModel(modelName string) (*SpriteModel, bool) {
 	if g.Subs == nil || g.Subs.Files == nil || modelName == "" {
 		return nil, false
 	}
 	if g.SpriteModelCache == nil {
-		g.SpriteModelCache = make(map[string]*runtimeSpriteModel)
+		g.SpriteModelCache = make(map[string]*SpriteModel)
 	}
 	if entry, ok := g.SpriteModelCache[modelName]; ok {
 		return entry, entry != nil
@@ -147,8 +147,8 @@ func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
 
 	halfWidth := float32(loaded.MaxWidth) * 0.5
 	halfHeight := float32(loaded.MaxHeight) * 0.5
-	entry := &runtimeSpriteModel{
-		model: &model.Model{
+	entry := &SpriteModel{
+		Model: &model.Model{
 			Name:       modelName,
 			Type:       model.ModSprite,
 			NumFrames:  loaded.NumFrames,
@@ -157,13 +157,13 @@ func loadSpriteModel(modelName string) (*runtimeSpriteModel, bool) {
 			Maxs:       [3]float32{halfWidth, halfWidth, halfHeight},
 			SpriteData: loaded,
 		},
-		sprite: loaded,
+		Sprite: loaded,
 	}
 	g.SpriteModelCache[modelName] = entry
 	return entry, true
 }
 
-func collectAliasEntities() []renderer.AliasModelEntity {
+func (g *Game) collectAliasEntities() []renderer.AliasModelEntity {
 	if g.Client == nil || g.Subs == nil || g.Subs.Files == nil {
 		return nil
 	}
@@ -181,7 +181,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			return renderer.AliasModelEntity{}, false
 		}
 
-		mdl, _ := loadAliasModel(modelName)
+		mdl, _ := g.loadAliasModel(modelName)
 		if mdl == nil || mdl.Type != model.ModAlias || mdl.AliasHeader == nil || len(mdl.AliasHeader.Poses) == 0 {
 			return renderer.AliasModelEntity{}, false
 		}
@@ -218,8 +218,8 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 			LerpFinish:  state.LerpFinish,
 			Origin:      state.Origin,
 			Angles:      state.Angles,
-			Alpha:       entityStateAlpha(state),
-			Scale:       entityStateScale(state),
+			Alpha:       g.entityStateAlpha(state),
+			Scale:       g.entityStateScale(state),
 		}, true
 	}
 
@@ -228,22 +228,22 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		if entityNum == g.Client.ViewEntity {
 			continue
 		}
-		modelName := clientEntityModelName(state)
+		modelName := g.clientEntityModelName(state)
 		if state.ModelIndex == 0 {
-			runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "zero_model")
+			g.runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "zero_model")
 			continue
 		}
-		if !clientEntityStateIsCurrent(state) {
+		if !g.clientEntityStateIsCurrent(state) {
 			if modelName != "" && !strings.HasPrefix(modelName, "*") && strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
-				runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "stale_skip")
+				g.runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "stale_skip")
 			}
 			continue
 		}
 		if aliasEntity, ok := resolve(entityNum, state); ok {
-			runtimeDebugViewLogEntityCollection("alias", entityNum, state, aliasEntity.ModelID, "draw")
+			g.runtimeDebugViewLogEntityCollection("alias", entityNum, state, aliasEntity.ModelID, "draw")
 			aliasEntities = append(aliasEntities, aliasEntity)
 		} else if modelName != "" && !strings.HasPrefix(modelName, "*") && strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
-			runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "resolve_skip")
+			g.runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "resolve_skip")
 		}
 	}
 	for i, state := range g.Client.StaticEntities {
@@ -252,7 +252,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 		}
 	}
 	for i, beam := range g.RuntimeBeams {
-		mdl, _ := loadAliasModel(beam.Model)
+		mdl, _ := g.loadAliasModel(beam.Model)
 		if mdl == nil || mdl.Type != model.ModAlias || mdl.AliasHeader == nil || len(mdl.AliasHeader.Poses) == 0 {
 			continue
 		}
@@ -273,7 +273,7 @@ func collectAliasEntities() []renderer.AliasModelEntity {
 	return aliasEntities
 }
 
-func collectEntityEffectSources() []renderer.EntityEffectSource {
+func (g *Game) collectEntityEffectSources() []renderer.EntityEffectSource {
 	if g.Client == nil {
 		return nil
 	}
@@ -307,23 +307,23 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 
 	sources := make([]renderer.EntityEffectSource, 0, len(g.Client.Entities)+len(g.Client.StaticEntities))
 	for entNum, state := range g.Client.Entities {
-		modelName := clientEntityModelName(state)
+		modelName := g.clientEntityModelName(state)
 		if state.ModelIndex == 0 {
-			runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "zero_model")
+			g.runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "zero_model")
 			continue
 		}
-		if !clientEntityStateIsCurrent(state) {
+		if !g.clientEntityStateIsCurrent(state) {
 			if modelName != "" && !strings.HasPrefix(modelName, "*") && strings.HasSuffix(strings.ToLower(modelName), ".mdl") && state.Effects != 0 {
-				runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "stale_skip")
+				g.runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "stale_skip")
 			}
 			continue
 		}
 		if source, ok := resolve(state); ok {
 			source.EntityNum = entNum
-			runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "draw")
+			g.runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "draw")
 			sources = append(sources, source)
 		} else if modelName != "" && state.Effects != 0 {
-			runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "resolve_skip")
+			g.runtimeDebugViewLogEntityCollection("effects", entNum, state, modelName, "resolve_skip")
 		}
 	}
 	for _, state := range g.Client.StaticEntities {
@@ -335,12 +335,12 @@ func collectEntityEffectSources() []renderer.EntityEffectSource {
 	return sources
 }
 
-func collectSpriteEntities() []renderer.SpriteEntity {
+func (g *Game) collectSpriteEntities() []renderer.SpriteEntity {
 	if g.Client == nil || g.Subs == nil || g.Subs.Files == nil {
 		return nil
 	}
 
-	viewForward, viewRight, _ := runtimeAngleVectors(g.Client.ViewAngles)
+	viewForward, viewRight, _ := g.runtimeAngleVectors(g.Client.ViewAngles)
 	resolve := func(entityKey, staticIndex int, state *inet.EntityState) (renderer.SpriteEntity, bool) {
 		if state == nil {
 			return renderer.SpriteEntity{}, false
@@ -357,23 +357,23 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 			return renderer.SpriteEntity{}, false
 		}
 
-		entry, _ := loadSpriteModel(modelName)
-		if entry == nil || entry.model == nil || entry.model.Type != model.ModSprite || entry.sprite == nil || entry.sprite.NumFrames == 0 {
+		entry, _ := g.loadSpriteModel(modelName)
+		if entry == nil || entry.Model == nil || entry.Model.Type != model.ModSprite || entry.Sprite == nil || entry.Sprite.NumFrames == 0 {
 			return renderer.SpriteEntity{}, false
 		}
 
-		updateRuntimeSpriteSyncState(state, entityKey, staticIndex, entry.model.SyncType, g.Client.Time)
-		frame := resolveRuntimeSpriteFrame(entry.sprite, *state, viewForward, viewRight, g.Client.Time)
+		g.updateRuntimeSpriteSyncState(state, entityKey, staticIndex, entry.Model.SyncType, g.Client.Time)
+		frame := g.resolveRuntimeSpriteFrame(entry.Sprite, *state, viewForward, viewRight, g.Client.Time)
 
 		return renderer.SpriteEntity{
 			ModelID:    modelName,
-			Model:      entry.model,
+			Model:      entry.Model,
 			Frame:      frame,
 			Origin:     state.Origin,
 			Angles:     state.Angles,
-			Alpha:      entityStateAlpha(*state),
-			Scale:      entityStateScale(*state),
-			SpriteData: entry.sprite,
+			Alpha:      g.entityStateAlpha(*state),
+			Scale:      g.entityStateScale(*state),
+			SpriteData: entry.Sprite,
 		}, true
 	}
 
@@ -382,23 +382,23 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 		if entityNum == g.Client.ViewEntity {
 			continue
 		}
-		modelName := clientEntityModelName(state)
+		modelName := g.clientEntityModelName(state)
 		if state.ModelIndex == 0 {
-			runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "zero_model")
+			g.runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "zero_model")
 			continue
 		}
-		if !clientEntityStateIsCurrent(state) {
+		if !g.clientEntityStateIsCurrent(state) {
 			if modelName != "" && strings.HasSuffix(strings.ToLower(modelName), ".spr") {
-				runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "stale_skip")
+				g.runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "stale_skip")
 			}
 			continue
 		}
 		if spriteEntity, ok := resolve(entityNum, -1, &state); ok {
 			g.Client.Entities[entityNum] = state
-			runtimeDebugViewLogEntityCollection("sprite", entityNum, state, spriteEntity.ModelID, "draw")
+			g.runtimeDebugViewLogEntityCollection("sprite", entityNum, state, spriteEntity.ModelID, "draw")
 			spriteEntities = append(spriteEntities, spriteEntity)
 		} else if modelName != "" && strings.HasSuffix(strings.ToLower(modelName), ".spr") {
-			runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "resolve_skip")
+			g.runtimeDebugViewLogEntityCollection("sprite", entityNum, state, modelName, "resolve_skip")
 		}
 	}
 	for i := range g.Client.StaticEntities {
@@ -411,7 +411,7 @@ func collectSpriteEntities() []renderer.SpriteEntity {
 	return spriteEntities
 }
 
-func resolveRuntimeSpriteFrame(sprite *model.MSprite, state inet.EntityState, viewForward, viewRight [3]float32, clientTime float64) int {
+func (g *Game) resolveRuntimeSpriteFrame(sprite *model.MSprite, state inet.EntityState, viewForward, viewRight [3]float32, clientTime float64) int {
 	if sprite == nil || sprite.NumFrames == 0 || len(sprite.Frames) == 0 {
 		return 0
 	}
@@ -420,19 +420,19 @@ func resolveRuntimeSpriteFrame(sprite *model.MSprite, state inet.EntityState, vi
 		frame = 0
 	}
 
-	flatOffset := spriteFlatFrameOffset(sprite, frame)
+	flatOffset := g.spriteFlatFrameOffset(sprite, frame)
 	frameDesc := sprite.Frames[frame]
 	switch frameDesc.Type {
 	case model.SpriteFrameGroup:
-		return flatOffset + resolveRuntimeSpriteGroupSubframe(frameDesc.FramePtr, clientTime, state.SpriteSyncBase)
+		return flatOffset + g.resolveRuntimeSpriteGroupSubframe(frameDesc.FramePtr, clientTime, state.SpriteSyncBase)
 	case model.SpriteFrameAngled:
-		return flatOffset + resolveRuntimeSpriteAngledSubframe(frameDesc.FramePtr, state.Angles, viewForward, viewRight)
+		return flatOffset + g.resolveRuntimeSpriteAngledSubframe(frameDesc.FramePtr, state.Angles, viewForward, viewRight)
 	default:
 		return flatOffset
 	}
 }
 
-func resolveRuntimeSpriteGroupSubframe(framePtr interface{}, clientTime float64, syncBase float32) int {
+func (g *Game) resolveRuntimeSpriteGroupSubframe(framePtr interface{}, clientTime float64, syncBase float32) int {
 	group, ok := framePtr.(*model.MSpriteGroup)
 	if !ok || group == nil || group.NumFrames <= 0 || len(group.Intervals) == 0 {
 		return 0
@@ -454,7 +454,7 @@ func resolveRuntimeSpriteGroupSubframe(framePtr interface{}, clientTime float64,
 	return 0
 }
 
-func updateRuntimeSpriteSyncState(state *inet.EntityState, entityKey, staticIndex int, syncType model.SyncType, clientTime float64) {
+func (g *Game) updateRuntimeSpriteSyncState(state *inet.EntityState, entityKey, staticIndex int, syncType model.SyncType, clientTime float64) {
 	if state == nil {
 		return
 	}
@@ -462,7 +462,7 @@ func updateRuntimeSpriteSyncState(state *inet.EntityState, entityKey, staticInde
 	switch syncType {
 	case model.STRand:
 		if state.SpriteSyncModelIndex != state.ModelIndex {
-			state.SpriteSyncBase = runtimeSpriteRandomSyncBase(entityKey, staticIndex, state.ModelIndex)
+			state.SpriteSyncBase = g.runtimeSpriteRandomSyncBase(entityKey, staticIndex, state.ModelIndex)
 		}
 	case model.STFrameTime:
 		if state.SpriteSyncModelIndex != state.ModelIndex || state.SpriteSyncFrame != state.Frame {
@@ -476,7 +476,7 @@ func updateRuntimeSpriteSyncState(state *inet.EntityState, entityKey, staticInde
 	state.SpriteSyncModelIndex = state.ModelIndex
 }
 
-func runtimeSpriteRandomSyncBase(entityKey, staticIndex int, modelIndex uint16) float32 {
+func (g *Game) runtimeSpriteRandomSyncBase(entityKey, staticIndex int, modelIndex uint16) float32 {
 	seed := uint32(modelIndex)<<16 ^ uint32(entityKey+1)*0x9e3779b9 ^ uint32(staticIndex+1)*0x7f4a7c15
 	seed ^= seed >> 16
 	seed *= 0x85ebca6b
@@ -486,7 +486,7 @@ func runtimeSpriteRandomSyncBase(entityKey, staticIndex int, modelIndex uint16) 
 	return float32((seed&0x7fff)+1) / 32768.0
 }
 
-func resolveRuntimeSpriteAngledSubframe(framePtr interface{}, entityAngles [3]float32, viewForward, viewRight [3]float32) int {
+func (g *Game) resolveRuntimeSpriteAngledSubframe(framePtr interface{}, entityAngles [3]float32, viewForward, viewRight [3]float32) int {
 	group, ok := framePtr.(*model.MSpriteGroup)
 	if !ok || group == nil || group.NumFrames <= 0 || len(group.Frames) == 0 {
 		return 0
@@ -500,7 +500,7 @@ func resolveRuntimeSpriteAngledSubframe(framePtr interface{}, entityAngles [3]fl
 		return 0
 	}
 
-	entityForward, _, _ := runtimeAngleVectors(entityAngles)
+	entityForward, _, _ := g.runtimeAngleVectors(entityAngles)
 	forwardDot := qtypes.Vec3Dot(
 		qtypes.Vec3{X: viewForward[0], Y: viewForward[1], Z: viewForward[2]},
 		qtypes.Vec3{X: entityForward[0], Y: entityForward[1], Z: entityForward[2]},
@@ -518,7 +518,7 @@ func resolveRuntimeSpriteAngledSubframe(framePtr interface{}, entityAngles [3]fl
 	return dir
 }
 
-func spriteFlatFrameOffset(sprite *model.MSprite, frame int) int {
+func (g *Game) spriteFlatFrameOffset(sprite *model.MSprite, frame int) int {
 	if sprite == nil || frame <= 0 {
 		return 0
 	}
@@ -528,12 +528,12 @@ func spriteFlatFrameOffset(sprite *model.MSprite, frame int) int {
 	}
 	offset := 0
 	for i := 0; i < maxFrame; i++ {
-		offset += spriteFrameSpan(sprite.Frames[i])
+		offset += g.spriteFrameSpan(sprite.Frames[i])
 	}
 	return offset
 }
 
-func spriteFrameSpan(frameDesc model.MSpriteFrameDesc) int {
+func (g *Game) spriteFrameSpan(frameDesc model.MSpriteFrameDesc) int {
 	switch frameDesc.Type {
 	case model.SpriteFrameGroup, model.SpriteFrameAngled:
 		group, ok := frameDesc.FramePtr.(*model.MSpriteGroup)
@@ -546,9 +546,9 @@ func spriteFrameSpan(frameDesc model.MSpriteFrameDesc) int {
 	}
 }
 
-func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, spriteEntities []renderer.SpriteEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
+func (g *Game) buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEntities []renderer.AliasModelEntity, spriteEntities []renderer.SpriteEntity, viewModel *renderer.AliasModelEntity) *renderer.RenderFrameState {
 	state := renderer.DefaultRenderFrameState()
-	sceneActive := runtimeScenePlaybackActive()
+	sceneActive := g.runtimeScenePlaybackActive()
 	if !sceneActive {
 		brushEntities = nil
 		aliasEntities = nil
@@ -584,7 +584,7 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	// WaterWarp (r_waterwarp == 1): screen-space sinusoidal post-process.
 	// ForceUnderwater: menu is previewing the waterwarp option.
 	// WaterwarpFOV is applied via CameraState.WaterwarpFOV in UpdateCamera.
-	waterWarp, _, warpTime := runtimeWaterwarpState()
+	waterWarp, _, warpTime := g.runtimeWaterwarpState()
 	state.WaterWarp = waterWarp
 	state.WaterWarpTime = warpTime
 	state.ForceUnderwater = g.Menu != nil && g.Menu.ForcedUnderwater()
@@ -622,7 +622,7 @@ func buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity, aliasEnt
 	return state
 }
 
-func runtimeScenePlaybackActive() bool {
+func (g *Game) runtimeScenePlaybackActive() bool {
 	if g.Host != nil {
 		if demo := g.Host.DemoState(); demo != nil && demo.Playback {
 			return true
@@ -634,11 +634,11 @@ func runtimeScenePlaybackActive() bool {
 	return false
 }
 
-func entityStateAlpha(state inet.EntityState) float32 {
+func (g *Game) entityStateAlpha(state inet.EntityState) float32 {
 	return inet.ENTALPHA_DECODE(state.Alpha)
 }
 
-func entityStateScale(state inet.EntityState) float32 {
+func (g *Game) entityStateScale(state inet.EntityState) float32 {
 	scale := inet.ENTSCALE_DECODE(state.Scale)
 	if scale <= 0 {
 		return 1
@@ -646,8 +646,8 @@ func entityStateScale(state inet.EntityState) float32 {
 	return scale
 }
 
-func collectViewModelEntity() *renderer.AliasModelEntity {
-	if !runtimeViewModelVisible() {
+func (g *Game) collectViewModelEntity() *renderer.AliasModelEntity {
+	if !g.runtimeViewModelVisible() {
 		return nil
 	}
 
@@ -664,7 +664,7 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	if modelName == "" || strings.HasPrefix(modelName, "*") || !strings.HasSuffix(strings.ToLower(modelName), ".mdl") {
 		return nil
 	}
-	mdl, ok := loadAliasModel(modelName)
+	mdl, ok := g.loadAliasModel(modelName)
 	if !ok || mdl == nil || mdl.AliasHeader == nil || mdl.AliasHeader.NumFrames == 0 {
 		return nil
 	}
@@ -676,25 +676,25 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 	// Use raw entity origin + viewheight for weapon origin, NOT camera origin.
 	// C Ironwail V_CalcRefdef: VectorCopy(ent->origin, view->origin); view->origin[2] += cl.viewheight;
 	// The camera origin already has bob applied — using it would double-bob.
-	origin := runtimeWeaponBaseOrigin()
-	viewAngles := runtimeInterpolatedViewAngles()
+	origin := g.runtimeWeaponBaseOrigin()
+	viewAngles := g.runtimeInterpolatedViewAngles()
 	// CalcGunAngle runs before camera gunkick/punch is applied in canonical C.
 	frameTime := 0.0
 	if g.Host != nil {
 		frameTime = g.Host.FrameTime()
 	}
-	angles := viewCalcGunAngle(&globalViewCalc, viewAngles, g.Client.Time, frameTime)
+	angles := g.viewCalcGunAngle(&globalViewCalc, viewAngles, g.Client.Time, frameTime)
 
 	// Keep the viewmodel anchored to the same first-person eye origin while bob
 	// is isolated from the live runtime path.
-	bob := runtimeFirstPersonBobOffset()
+	bob := g.runtimeFirstPersonBobOffset()
 	if bob != 0 {
-		forward, _, _ := runtimeAngleVectors(viewAngles)
-		origin = viewApplyBobToOrigin(origin, forward, bob)
+		forward, _, _ := g.runtimeAngleVectors(viewAngles)
+		origin = g.viewApplyBobToOrigin(origin, forward, bob)
 	}
 
 	// r_viewmodel_quake origin fudge.
-	origin = viewApplyViewmodelQuakeFudge(origin, currentRuntimeViewSize())
+	origin = g.viewApplyViewmodelQuakeFudge(origin, g.currentRuntimeViewSize())
 
 	alpha := inet.ENTALPHA_DECODE(g.Client.ViewEntAlpha)
 
@@ -715,6 +715,6 @@ func collectViewModelEntity() *renderer.AliasModelEntity {
 		entity.LerpFlags = renderer.LerpFinish
 		entity.LerpFinish = state.LerpFinish
 	}
-	runtimeDebugViewLogViewModel(entity)
+	g.runtimeDebugViewLogViewModel(entity)
 	return entity
 }

@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"log/slog"
@@ -13,7 +13,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
-func applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) {
+func (g *Game) applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) {
 	if clientState == nil {
 		return
 	}
@@ -22,7 +22,7 @@ func applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) 
 	clientState.ViewAngles = viewAngles
 }
 
-func shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool {
+func (g *Game) shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool {
 	if clientState == nil || demo == nil {
 		return true
 	}
@@ -44,7 +44,7 @@ func shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool 
 	return false
 }
 
-func recordRuntimeDemoFrame() {
+func (g *Game) recordRuntimeDemoFrame() {
 	if g.Host == nil || g.Subs == nil || g.Subs.Client == nil || g.Client == nil {
 		return
 	}
@@ -68,7 +68,7 @@ func recordRuntimeDemoFrame() {
 	}
 }
 
-func resetRuntimeVisualState() {
+func (g *Game) resetRuntimeVisualState() {
 	globalViewCalc = viewCalcState{}
 
 	if g.Renderer == nil {
@@ -89,7 +89,7 @@ func resetRuntimeVisualState() {
 	g.SkyboxNameKey = ""
 }
 
-func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
+func (g *Game) syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	if g.Particles == nil && g.DecalMarks == nil && g.Renderer == nil {
 		return
 	}
@@ -97,7 +97,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	if g.Client == nil || g.Client.State != cl.StateActive {
 		g.RuntimeBeams = nil
 		if (g.Particles != nil && g.Particles.ActiveCount() > 0) || (g.DecalMarks != nil && g.DecalMarks.ActiveCount() > 0) {
-			resetRuntimeVisualState()
+			g.resetRuntimeVisualState()
 		}
 		return
 	}
@@ -111,7 +111,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	// Update damage kick angles if damage was recently taken.
 	// Mirrors C Ironwail V_ParseDamage damage kick calculation (view.c:329-345).
 	if g.Client.DamageTaken > 0 || g.Client.DamageSaved > 0 {
-		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+		if entityOrigin, ok := g.runtimeAuthoritativePlayerOrigin(); ok {
 			var entityAngles [3]float32
 			// Get player entity angles from ViewEntity.
 			if g.Client.ViewEntity != 0 {
@@ -143,7 +143,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 
 	// Update scope zoom transition after relink, matching C CL_RelinkEntities
 	// calling SCR_UpdateZoom() post-velocity interpolation.
-	g.Zoom, g.ZoomDir, _ = renderer.UpdateZoom(g.Zoom, g.ZoomDir, currentZoomSpeed(), float32(g.ParticleTime-float32(dt)), g.ParticleTime)
+	g.Zoom, g.ZoomDir, _ = renderer.UpdateZoom(g.Zoom, g.ZoomDir, g.currentZoomSpeed(), float32(g.ParticleTime-float32(dt)), g.ParticleTime)
 
 	particleEvents := transientEvents.ParticleEvents
 	tempEntities := transientEvents.TempEntities
@@ -158,7 +158,7 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	}
 
 	if g.Particles != nil {
-		effectSources := collectEntityEffectSources()
+		effectSources := g.collectEntityEffectSources()
 		renderer.EmitClientEffects(g.Particles, particleEvents, trailEvents, tempEntities, g.ParticleRNG, g.ParticleTime)
 		renderer.EmitEntityEffectParticles(g.Particles, effectSources, g.ParticleTime)
 		g.Particles.RunParticles(g.ParticleTime, oldTime, 800)
@@ -169,14 +169,14 @@ func syncRuntimeVisualEffects(dt float64, transientEvents cl.TransientEvents) {
 	}
 }
 
-func currentZoomSpeed() float32 {
+func (g *Game) currentZoomSpeed() float32 {
 	if cv := cvar.Get("zoom_speed"); cv != nil {
 		return cv.Float32()
 	}
 	return 8
 }
 
-func syncRuntimeSkybox() {
+func (g *Game) syncRuntimeSkybox() {
 	if g.Renderer == nil {
 		g.SkyboxNameKey = ""
 		return
@@ -188,7 +188,7 @@ func syncRuntimeSkybox() {
 	g.SkyboxNameKey = skyboxName
 }
 
-func applyRuntimeRendererVisualEffects(dt float64, lights gameRendererLights, transientEvents cl.TransientEvents) {
+func (g *Game) applyRuntimeRendererVisualEffects(dt float64, lights RendererLights, transientEvents cl.TransientEvents) {
 	if lights == nil {
 		return
 	}
@@ -200,10 +200,10 @@ func applyRuntimeRendererVisualEffects(dt float64, lights gameRendererLights, tr
 
 	lights.UpdateLights(float32(dt))
 	renderer.EmitDynamicLights(lights.SpawnDynamicLight, transientEvents.TempEntities)
-	renderer.EmitEntityEffectLights(lights.SpawnKeyedDynamicLight, collectEntityEffectSources())
+	renderer.EmitEntityEffectLights(lights.SpawnKeyedDynamicLight, g.collectEntityEffectSources())
 }
 
-func applyRuntimeRendererSkybox(assets gameRendererAssets) {
+func (g *Game) applyRuntimeRendererSkybox(assets RendererAssets) {
 	if assets == nil {
 		return
 	}
@@ -216,7 +216,7 @@ func applyRuntimeRendererSkybox(assets gameRendererAssets) {
 }
 
 // updateHUDFromServer pushes current player/client state into the HUD.
-func updateHUDFromServer() {
+func (g *Game) updateHUDFromServer() {
 	if g.HUD == nil {
 		return
 	}
@@ -239,7 +239,7 @@ func updateHUDFromServer() {
 			GameType:                g.Client.GameType,
 			MaxClients:              g.Client.MaxClients,
 			ShowScores:              g.ShowScores && g.Client.MaxClients > 1,
-			Scoreboard:              buildHUDScoreboard(g.Client),
+			Scoreboard:              g.buildHUDScoreboard(g.Client),
 			Paused:                  g.Client.Paused,
 			InCutscene:              g.Client.InCutscene(),
 			Intermission:            g.Client.Intermission,
@@ -273,7 +273,7 @@ func updateHUDFromServer() {
 	})
 }
 
-func buildHUDScoreboard(client *cl.Client) []hud.ScoreEntry {
+func (g *Game) buildHUDScoreboard(client *cl.Client) []hud.ScoreEntry {
 	if client == nil || client.MaxClients <= 1 {
 		return nil
 	}

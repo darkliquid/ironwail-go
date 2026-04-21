@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
@@ -7,7 +7,7 @@ import (
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
-func runtimeViewDeltaTime() float64 {
+func (g *Game) runtimeViewDeltaTime() float64 {
 	if g.Host != nil {
 		return g.Host.FrameTime()
 	}
@@ -21,8 +21,8 @@ func runtimeViewDeltaTime() float64 {
 	return delta
 }
 
-func runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
-	origin, ok := runtimePlayerOrigin()
+func (g *Game) runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
+	origin, ok := g.runtimePlayerOrigin()
 	if !ok || g.Client == nil {
 		return origin, ok
 	}
@@ -31,7 +31,7 @@ func runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
 	entityZ := origin[2]
 	frameTime := g.Client.Time
 	onGround := g.Client.OnGround
-	hardReset := runtimeLocalViewTeleportActive()
+	hardReset := g.runtimeLocalViewTeleportActive()
 	if state.stairFrameValid &&
 		state.stairFrameTime == frameTime &&
 		state.stairFrameEntityZ == entityZ &&
@@ -41,7 +41,7 @@ func runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
 		return origin, true
 	}
 
-	origin[2] += viewStairSmoothOffset(state, entityZ, onGround, runtimeViewDeltaTime(), hardReset)
+	origin[2] += g.viewStairSmoothOffset(state, entityZ, onGround, g.runtimeViewDeltaTime(), hardReset)
 	state.stairFrameValid = true
 	state.stairFrameTime = frameTime
 	state.stairFrameEntityZ = entityZ
@@ -51,14 +51,14 @@ func runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
 	return origin, true
 }
 
-func runtimeFirstPersonBobOffset() float32 {
+func (g *Game) runtimeFirstPersonBobOffset() float32 {
 	if g.Client == nil {
 		return 0
 	}
-	return viewCalcBob(g.Client.Time, runtimeInterpolatedVelocity())
+	return g.viewCalcBob(g.Client.Time, g.runtimeInterpolatedVelocity())
 }
 
-func runtimeViewState() (origin, angles [3]float32) {
+func (g *Game) runtimeViewState() (origin, angles [3]float32) {
 	origin = [3]float32{0, 0, 128}
 	angles = [3]float32{0, 0, 0}
 	foundPlayerStart := false
@@ -107,7 +107,7 @@ func runtimeViewState() (origin, angles [3]float32) {
 	}
 
 	if g.Client != nil {
-		if clientOrigin, ok := runtimeSmoothedLocalPlayerBaseOrigin(); ok {
+		if clientOrigin, ok := g.runtimeSmoothedLocalPlayerBaseOrigin(); ok {
 			// Keep the first-person camera anchored to the smoothed eye origin.
 			clientOrigin[2] += g.Client.ViewHeight
 
@@ -125,11 +125,11 @@ func runtimeViewState() (origin, angles [3]float32) {
 				if viewEnt, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
 					viewAngles = viewEnt.Angles
 				} else {
-					viewAngles = runtimeInterpolatedViewAngles()
+					viewAngles = g.runtimeInterpolatedViewAngles()
 				}
 			} else {
-				clientOrigin[2] += runtimeFirstPersonBobOffset()
-				viewAngles = runtimeInterpolatedViewAngles()
+				clientOrigin[2] += g.runtimeFirstPersonBobOffset()
+				viewAngles = g.runtimeInterpolatedViewAngles()
 			}
 			return clientOrigin, viewAngles
 		}
@@ -140,57 +140,57 @@ func runtimeViewState() (origin, angles [3]float32) {
 
 // runtimeWeaponBaseOrigin returns the weapon model base origin: entity origin + viewheight.
 // Mirrors C Ironwail V_CalcRefdef: VectorCopy(ent->origin, view->origin); view->origin[2] += cl.viewheight;
-func runtimeWeaponBaseOrigin() [3]float32 {
+func (g *Game) runtimeWeaponBaseOrigin() [3]float32 {
 	if g.Client != nil {
-		if clientOrigin, ok := runtimeSmoothedLocalPlayerBaseOrigin(); ok {
+		if clientOrigin, ok := g.runtimeSmoothedLocalPlayerBaseOrigin(); ok {
 			clientOrigin[2] += g.Client.ViewHeight
 			return clientOrigin
 		}
 	}
 	// Fallback: use the camera origin from runtimeViewState.
-	origin, _ := runtimeViewState()
+	origin, _ := g.runtimeViewState()
 	return origin
 }
 
-func runtimePlayerOrigin() ([3]float32, bool) {
+func (g *Game) runtimePlayerOrigin() ([3]float32, bool) {
 	telemetry := runtimeOriginSelectTelemetry{
-		XYOffsetThreshold:        runtimeMaxPredictedXYOffset,
-		PredictionErrorThreshold: runtimeMaxPredictedXYOffset,
+		XYOffsetThreshold:        RuntimeMaxPredictedXYOffset,
+		PredictionErrorThreshold: RuntimeMaxPredictedXYOffset,
 	}
 	state := &globalViewCalc
 	if g.Client == nil {
-		runtimeResetOriginSelectLatch(state)
+		g.runtimeResetOriginSelectLatch(state)
 		telemetry.RejectReason = runtimeOriginRejectMissingAuth
-		runtimeDebugViewRecordOriginSelect(telemetry)
+		g.runtimeDebugViewRecordOriginSelect(telemetry)
 		return [3]float32{}, false
 	}
 	telemetry.PredictedOrigin = g.Client.PredictedOrigin
 	telemetry.PredictionValid = g.Client.HasFreshPredictionForCurrentEntity()
 
-	if authoritativeOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
+	if authoritativeOrigin, ok := g.runtimeAuthoritativePlayerOrigin(); ok {
 		telemetry.AuthoritativeOrigin = authoritativeOrigin
-		runtimeLatchOriginSelect(state, authoritativeOrigin)
+		g.runtimeLatchOriginSelect(state, authoritativeOrigin)
 		telemetry.Source = state.originSelectLatch.source
 		telemetry.XYDelta = state.originSelectLatch.xyDelta
 		telemetry.PredictionErrorXY = state.originSelectLatch.predictionErrorXY
 		telemetry.RejectReason = state.originSelectLatch.rejectReason
 		telemetry.FinalBaseOrigin = authoritativeOrigin
-		runtimeDebugViewRecordOriginSelect(telemetry)
+		g.runtimeDebugViewRecordOriginSelect(telemetry)
 		return authoritativeOrigin, true
 	}
 
-	runtimeResetOriginSelectLatch(state)
+	g.runtimeResetOriginSelectLatch(state)
 	if !telemetry.PredictionValid {
 		telemetry.RejectReason = runtimeOriginRejectInvalidPrediction
-		runtimeDebugViewRecordOriginSelect(telemetry)
+		g.runtimeDebugViewRecordOriginSelect(telemetry)
 		return [3]float32{}, false
 	}
 	telemetry.RejectReason = runtimeOriginRejectMissingAuth
-	runtimeDebugViewRecordOriginSelect(telemetry)
+	g.runtimeDebugViewRecordOriginSelect(telemetry)
 	return [3]float32{}, false
 }
 
-func runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin [3]float32) {
+func (g *Game) runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin [3]float32) {
 	if state == nil || g.Client == nil {
 		return
 	}
@@ -199,11 +199,11 @@ func runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin [3]float
 		state.originSelectLatch.client == g.Client &&
 		state.originSelectLatch.serverUpdateTime == serverUpdateTime &&
 		(state.originSelectLatch.source != runtimeOriginSourceAuthoritativePredictedXY || g.Client.HasFreshPredictionForCurrentEntity()) &&
-		!runtimeLocalViewTeleportActive() {
+		!g.runtimeLocalViewTeleportActive() {
 		return
 	}
 
-	decision := runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
+	decision := g.runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
 	source := runtimeOriginSourceAuthoritativeOnly
 	if decision.OK {
 		source = runtimeOriginSourceAuthoritativePredictedXY
@@ -219,15 +219,15 @@ func runtimeLatchOriginSelect(state *viewCalcState, authoritativeOrigin [3]float
 	}
 }
 
-func runtimeResetOriginSelectLatch(state *viewCalcState) {
+func (g *Game) runtimeResetOriginSelectLatch(state *viewCalcState) {
 	if state == nil {
 		return
 	}
 	state.originSelectLatch = runtimeOriginSelectLatch{}
 }
 
-func runtimePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) ([3]float32, bool) {
-	decision := runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
+func (g *Game) runtimePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) ([3]float32, bool) {
+	decision := g.runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
 	return decision.Origin, decision.OK
 }
 
@@ -239,7 +239,7 @@ type runtimePredictedXYDecision struct {
 	PredictionErrorXY [2]float32
 }
 
-func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) runtimePredictedXYDecision {
+func (g *Game) runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) runtimePredictedXYDecision {
 	decision := runtimePredictedXYDecision{}
 	if g.Client == nil {
 		decision.RejectReason = runtimeOriginRejectMissingAuth
@@ -261,7 +261,7 @@ func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32)
 		g.Client.PredictionError[1],
 	}
 
-	if runtimeLocalViewTeleportActive() {
+	if g.runtimeLocalViewTeleportActive() {
 		decision.RejectReason = runtimeOriginRejectTeleportGate
 		return decision
 	}
@@ -269,13 +269,13 @@ func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32)
 		decision.RejectReason = runtimeOriginRejectZeroPrediction
 		return decision
 	}
-	if runtimeFloat32Abs(decision.XYDelta[0]) > runtimeMaxPredictedXYOffset ||
-		runtimeFloat32Abs(decision.XYDelta[1]) > runtimeMaxPredictedXYOffset {
+	if g.runtimeFloat32Abs(decision.XYDelta[0]) > RuntimeMaxPredictedXYOffset ||
+		g.runtimeFloat32Abs(decision.XYDelta[1]) > RuntimeMaxPredictedXYOffset {
 		decision.RejectReason = runtimeOriginRejectXYOffsetThreshold
 		return decision
 	}
-	if runtimeFloat32Abs(decision.PredictionErrorXY[0]) > runtimeMaxPredictedXYOffset ||
-		runtimeFloat32Abs(decision.PredictionErrorXY[1]) > runtimeMaxPredictedXYOffset {
+	if g.runtimeFloat32Abs(decision.PredictionErrorXY[0]) > RuntimeMaxPredictedXYOffset ||
+		g.runtimeFloat32Abs(decision.PredictionErrorXY[1]) > RuntimeMaxPredictedXYOffset {
 		decision.RejectReason = runtimeOriginRejectPredictionErrorThreshold
 		return decision
 	}
@@ -284,14 +284,14 @@ func runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32)
 	return decision
 }
 
-func runtimeFloat32Abs(v float32) float32 {
+func (g *Game) runtimeFloat32Abs(v float32) float32 {
 	if v < 0 {
 		return -v
 	}
 	return v
 }
 
-func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
+func (g *Game) runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 	if g.Client == nil {
 		return [3]float32{}, false
 	}
@@ -315,7 +315,7 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 	return [3]float32{}, false
 }
 
-func runtimeInterpolatedVelocity() [3]float32 {
+func (g *Game) runtimeInterpolatedVelocity() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
 	}
@@ -341,20 +341,20 @@ func runtimeInterpolatedVelocity() [3]float32 {
 	}
 }
 
-func runtimeLocalViewTeleportActive() bool {
+func (g *Game) runtimeLocalViewTeleportActive() bool {
 	return g.Client != nil && g.Client.LocalViewTeleportActive()
 }
 
-func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
+func (g *Game) runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 	// Apply node-line bias to camera origin to prevent BSP z-fighting.
 	// Mirrors C Ironwail: r_refdef.vieworg[i] += 1.0/32 (applied just before R_RenderView).
-	cameraOrigin := viewNodeLineOffset(origin)
+	cameraOrigin := g.viewNodeLineOffset(origin)
 
 	// Apply V_BoundOffsets to clamp camera relative to entity origin.
 	// Mirrors C Ironwail view.c:665-686.
 	if g.Client != nil {
-		if entityOrigin, ok := runtimeAuthoritativePlayerOrigin(); ok {
-			cameraOrigin = viewBoundOffsets(cameraOrigin, entityOrigin)
+		if entityOrigin, ok := g.runtimeAuthoritativePlayerOrigin(); ok {
+			cameraOrigin = g.viewBoundOffsets(cameraOrigin, entityOrigin)
 		}
 	}
 
@@ -372,7 +372,7 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 			}
 
 			if !deadPlayer {
-				punch := runtimeGunKickAngles()
+				punch := g.runtimeGunKickAngles()
 				camera.Angles.X += punch[0]
 				camera.Angles.Y += punch[1]
 				camera.Angles.Z += punch[2]
@@ -384,18 +384,18 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 					deltaTime = g.Host.FrameTime()
 				}
 				cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
-				cameraAngles = viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
+				cameraAngles = g.viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
 				camera.Angles.X = cameraAngles[0]
 				camera.Angles.Y = cameraAngles[1]
 				camera.Angles.Z = cameraAngles[2]
 
 				// View roll from lateral movement (V_CalcViewRoll).
-				roll := viewCalcRoll(angles, runtimeInterpolatedVelocity())
+				roll := g.viewCalcRoll(angles, g.runtimeInterpolatedVelocity())
 				camera.Angles.Z += roll
 
 				// Idle sway on the camera (V_AddIdle).
 				cameraAngles = [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
-				cameraAngles = viewAddIdle(cameraAngles, g.Client.Time)
+				cameraAngles = g.viewAddIdle(cameraAngles, g.Client.Time)
 				camera.Angles.X = cameraAngles[0]
 				camera.Angles.Y = cameraAngles[1]
 				camera.Angles.Z = cameraAngles[2]
@@ -404,8 +404,8 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 		camera.Time = float32(g.Client.Time)
 	}
 	if cvar.BoolValue("chase_active") {
-		traceFn := runtimeChaseTraceFn()
-		chaseOrigin, chaseAngles := chaseUpdate(
+		traceFn := g.runtimeChaseTraceFn()
+		chaseOrigin, chaseAngles := g.chaseUpdate(
 			origin,
 			angles,
 			float32(cvar.FloatValue("chase_back")),
@@ -421,12 +421,12 @@ func runtimeCameraState(origin, angles [3]float32) renderer.CameraState {
 		camera.Angles.Z = chaseAngles[2]
 	}
 	// Apply r_waterwarp > 1 FOV oscillation when underwater.
-	_, wwFOV, _ := runtimeWaterwarpState()
+	_, wwFOV, _ := g.runtimeWaterwarpState()
 	camera.WaterwarpFOV = wwFOV
 	return camera
 }
 
-func runtimeChaseTraceFn() chaseTraceFunc {
+func (g *Game) runtimeChaseTraceFn() chaseTraceFunc {
 	if g.Server == nil {
 		return nil
 	}
@@ -442,14 +442,14 @@ func runtimeChaseTraceFn() chaseTraceFunc {
 	}
 }
 
-func runtimeInterpolatedViewAngles() [3]float32 {
+func (g *Game) runtimeInterpolatedViewAngles() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
 	}
 	return g.Client.ViewAngles
 }
 
-func runtimeGunKickAngles() [3]float32 {
+func (g *Game) runtimeGunKickAngles() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
 	}
@@ -463,11 +463,11 @@ func runtimeGunKickAngles() [3]float32 {
 	case 1:
 		return g.Client.PunchAngle
 	default:
-		return runtimeInterpolatedPunchAngles()
+		return g.runtimeInterpolatedPunchAngles()
 	}
 }
 
-func angleLerp(prev, curr, frac float32) float32 {
+func (g *Game) angleLerp(prev, curr, frac float32) float32 {
 	delta := curr - prev
 	for delta > 180 {
 		delta -= 360
@@ -478,7 +478,7 @@ func angleLerp(prev, curr, frac float32) float32 {
 	return prev + delta*frac
 }
 
-func runtimeInterpolatedPunchAngles() [3]float32 {
+func (g *Game) runtimeInterpolatedPunchAngles() [3]float32 {
 	if g.Client == nil {
 		return [3]float32{}
 	}
@@ -502,7 +502,7 @@ func runtimeInterpolatedPunchAngles() [3]float32 {
 	return out
 }
 
-func runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
+func (g *Game) runtimeAngleVectors(angles [3]float32) (forward, right, up [3]float32) {
 	forwardVec, rightVec, upVec := qtypes.AngleVectors(qtypes.Vec3{
 		X: angles[0],
 		Y: angles[1],

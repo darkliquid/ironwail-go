@@ -33,7 +33,7 @@ func shutdownEngine() {
 		return
 	}
 
-	if path, active, err := stopCPUProfile(); active {
+	if path, active, err := g.StopCPUProfile(); active {
 		if err != nil {
 			slog.Error("Failed to close active CPU profile during shutdown", "path", path, "error", err)
 		} else {

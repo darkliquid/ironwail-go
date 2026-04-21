@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"os"
@@ -12,12 +12,7 @@ import (
 )
 
 func TestResolveProfileOutputPathDefaultsToProfilesDir(t *testing.T) {
-	originalHost := g.Host
-	originalModDir := g.ModDir
-	t.Cleanup(func() {
-		g.Host = originalHost
-		g.ModDir = originalModDir
-	})
+	g := New()
 
 	baseDir := t.TempDir()
 	g.ModDir = "qbj2"
@@ -27,7 +22,7 @@ func TestResolveProfileOutputPathDefaultsToProfilesDir(t *testing.T) {
 	}
 	g.Host = h
 
-	got := resolveProfileOutputPath("", "cpu", mustParseProfileTime(t, "2026-04-05T19:00:00Z"))
+	got := g.resolveProfileOutputPath("", "cpu", mustParseProfileTime(t, "2026-04-05T19:00:00Z"))
 	want := filepath.Join(baseDir, "qbj2", "profiles", "ironwail_20260405_190000_cpu.pprof")
 	if got != want {
 		t.Fatalf("resolveProfileOutputPath() = %q, want %q", got, want)
@@ -45,11 +40,12 @@ func TestProfileCPUStartStopWritesFile(t *testing.T) {
 	cpuProfileState.mu.Unlock()
 
 	path := filepath.Join(t.TempDir(), "cpu.pprof")
-	cmdProfileCPUStart([]string{path})
+	g := New()
+	g.cmdProfileCPUStart([]string{path})
 	for i := 0; i < 10000; i++ {
 		_ = strings.Repeat("cpu", 4)
 	}
-	cmdProfileCPUStop(nil)
+	g.cmdProfileCPUStop(nil)
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -63,9 +59,10 @@ func TestProfileCPUStartStopWritesFile(t *testing.T) {
 func TestProfileDumpHeapAndAllocsWriteFiles(t *testing.T) {
 	heapPath := filepath.Join(t.TempDir(), "heap.pprof")
 	allocsPath := filepath.Join(t.TempDir(), "allocs.pprof")
+	g := New()
 
-	cmdProfileDumpHeap([]string{heapPath})
-	cmdProfileDumpAllocs([]string{allocsPath})
+	g.cmdProfileDumpHeap([]string{heapPath})
+	g.cmdProfileDumpAllocs([]string{allocsPath})
 
 	for _, path := range []string{heapPath, allocsPath} {
 		info, err := os.Stat(path)

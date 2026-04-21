@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"time"
@@ -10,7 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
-func runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
+func (g *Game) runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
 	guiW := framebufferW
 	guiH := framebufferH
 	if guiW <= 0 {
@@ -19,7 +19,7 @@ func runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
 	if guiH <= 0 {
 		guiH = cvar.IntValue("vid_height")
 	}
-	pixelAspect := currentRuntimePixelAspect()
+	pixelAspect := g.currentRuntimePixelAspect()
 	if pixelAspect > 1 {
 		guiW = int(float64(guiW)/pixelAspect + 0.5)
 	} else if pixelAspect > 0 && pixelAspect < 1 {
@@ -28,7 +28,7 @@ func runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
 	return guiW, guiH
 }
 
-func runtimeConsoleDimensions(guiW, guiH int) (int, int) {
+func (g *Game) runtimeConsoleDimensions(guiW, guiH int) (int, int) {
 	if guiW <= 0 || guiH <= 0 {
 		return 0, 0
 	}
@@ -55,9 +55,9 @@ func runtimeConsoleDimensions(guiW, guiH int) (int, int) {
 	return conWidth, conHeight
 }
 
-func runtimeCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
-	guiW, guiH := runtimeGUIDimensions(framebufferW, framebufferH)
-	conW, conH := runtimeConsoleDimensions(guiW, guiH)
+func (g *Game) runtimeCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
+	guiW, guiH := g.runtimeGUIDimensions(framebufferW, framebufferH)
+	conW, conH := g.runtimeConsoleDimensions(guiW, guiH)
 	return renderer.CanvasTransformParams{
 		GUIWidth:         float32(guiW),
 		GUIHeight:        float32(guiH),
@@ -72,39 +72,39 @@ func runtimeCanvasParams(framebufferW, framebufferH int, slideFraction float32) 
 	}
 }
 
-func runtimeOverlayCanvasParams(framebufferW, framebufferH int) renderer.CanvasTransformParams {
-	return runtimeCanvasParams(framebufferW, framebufferH, clampUnitFloat32(g.ConsoleSlideFraction))
+func (g *Game) runtimeOverlayCanvasParams(framebufferW, framebufferH int) renderer.CanvasTransformParams {
+	return g.runtimeCanvasParams(framebufferW, framebufferH, g.clampUnitFloat32(g.ConsoleSlideFraction))
 }
 
-func runtimeConsoleCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
-	return runtimeCanvasParams(framebufferW, framebufferH, slideFraction)
+func (g *Game) runtimeConsoleCanvasParams(framebufferW, framebufferH int, slideFraction float32) renderer.CanvasTransformParams {
+	return g.runtimeCanvasParams(framebufferW, framebufferH, slideFraction)
 }
 
-func runtimeConsoleBackgroundPic() *qimage.QPic {
+func (g *Game) runtimeConsoleBackgroundPic() *qimage.QPic {
 	if g.Draw == nil {
 		return nil
 	}
 	return g.Draw.GetPic("gfx/conback.lmp")
 }
 
-func drawRuntimeConsole(overlay renderer.RenderContext, framebufferW, framebufferH int, full, forcedup bool) {
-	slideFraction := clampUnitFloat32(g.ConsoleSlideFraction)
+func (g *Game) drawRuntimeConsole(overlay renderer.RenderContext, framebufferW, framebufferH int, full, forcedup bool) {
+	slideFraction := g.clampUnitFloat32(g.ConsoleSlideFraction)
 	if forcedup {
 		slideFraction = 1
 	}
-	params := runtimeConsoleCanvasParams(framebufferW, framebufferH, slideFraction)
-	if setter, ok := overlay.(canvasParamSetter); ok {
+	params := g.runtimeConsoleCanvasParams(framebufferW, framebufferH, slideFraction)
+	if setter, ok := overlay.(CanvasParamSetter); ok {
 		setter.SetCanvasParams(params)
 	}
 	overlay.SetCanvas(renderer.CanvasConsole)
 	var background *qimage.QPic
 	if full {
-		background = runtimeConsoleBackgroundPic()
+		background = g.runtimeConsoleBackgroundPic()
 	}
 	console.Draw(overlay, int(params.ConWidth), int(params.ConHeight), full, background, forcedup)
 }
 
-func updateRuntimeConsoleSlide(dt float64, consoleVisible, forcedup bool) {
+func (g *Game) updateRuntimeConsoleSlide(dt float64, consoleVisible, forcedup bool) {
 	if forcedup {
 		g.ConsoleSlideFraction = 1
 		return
@@ -124,20 +124,20 @@ func updateRuntimeConsoleSlide(dt float64, consoleVisible, forcedup bool) {
 		speed = 1e6
 	}
 	step := speed * float32(dt) / 300
-	current := clampUnitFloat32(g.ConsoleSlideFraction)
+	current := g.clampUnitFloat32(g.ConsoleSlideFraction)
 	if current < target {
 		current = min(current+step, target)
 	} else if current > target {
 		current = max(current-step, target)
 	}
-	g.ConsoleSlideFraction = clampUnitFloat32(current)
+	g.ConsoleSlideFraction = g.clampUnitFloat32(current)
 }
 
-func runtimeConsoleAnimating() bool {
+func (g *Game) runtimeConsoleAnimating() bool {
 	return g.ConsoleSlideFraction > 0
 }
 
-func clampUnitFloat32(v float32) float32 {
+func (g *Game) clampUnitFloat32(v float32) float32 {
 	if v < 0 {
 		return 0
 	}
@@ -147,7 +147,7 @@ func clampUnitFloat32(v float32) float32 {
 	return v
 }
 
-func runtimeConsoleForcedUp() bool {
+func (g *Game) runtimeConsoleForcedUp() bool {
 	if g.Client == nil {
 		return true
 	}
@@ -157,7 +157,7 @@ func runtimeConsoleForcedUp() bool {
 	return g.Client.Signon < cl.Signons
 }
 
-func runtimeViewModelVisible() bool {
+func (g *Game) runtimeViewModelVisible() bool {
 	if g.Client == nil {
 		return false
 	}
@@ -176,7 +176,7 @@ func runtimeViewModelVisible() bool {
 	if cvar.BoolValue("chase_active") {
 		return false
 	}
-	if currentRuntimeViewSize() >= 130 {
+	if g.currentRuntimeViewSize() >= 130 {
 		return false
 	}
 	if g.Client.Health() <= 0 {
@@ -185,7 +185,7 @@ func runtimeViewModelVisible() bool {
 	return g.Client.Items&cl.ItemInvisibility == 0
 }
 
-func runtimePauseActive() bool {
+func (g *Game) runtimePauseActive() bool {
 	if g.Host != nil {
 		if demo := g.Host.DemoState(); demo != nil && demo.Playback && demo.Paused {
 			return true
@@ -197,7 +197,7 @@ func runtimePauseActive() bool {
 	return g.Client != nil && g.Client.Paused
 }
 
-func drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
+func (g *Game) drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
 	if rc == nil || w <= 0 || h <= 0 {
 		return
 	}
@@ -212,24 +212,24 @@ func drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
 	rc.DrawFillAlpha(0, 0, w, h, 0, alpha)
 }
 
-func drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer.RenderContext)) {
+func (g *Game) drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu func(renderer.RenderContext)) {
 	if rc == nil || drawMenu == nil {
 		return
 	}
-	if setter, ok := rc.(canvasParamSetter); ok {
-		setter.SetCanvasParams(runtimeOverlayCanvasParams(w, h))
+	if setter, ok := rc.(CanvasParamSetter); ok {
+		setter.SetCanvasParams(g.runtimeOverlayCanvasParams(w, h))
 	}
-	drawMenuBackdrop(rc, w, h)
+	g.drawMenuBackdrop(rc, w, h)
 	rc.SetCanvas(renderer.CanvasMenu)
 	drawMenu(rc)
 }
 
-func drawChatInput(rc renderer.RenderContext, w, _ int) {
+func (g *Game) drawChatInput(rc renderer.RenderContext, w, _ int) {
 	prompt := "say: "
 	if chatTeam {
 		prompt = "say_team: "
 	}
-	fullText := clippedChatInput(prompt, chatBuffer, max(1, w/8-2))
+	fullText := g.clippedChatInput(prompt, chatBuffer, max(1, w/8-2))
 
 	y := console.NotifyLineCount() * 8
 	x := 8
@@ -238,10 +238,10 @@ func drawChatInput(rc renderer.RenderContext, w, _ int) {
 		rc.DrawCharacter(currentX, y, int(char))
 		currentX += 8
 	}
-	rc.DrawCharacter(currentX, y, runtimeCursorGlyph(runtimeNow()))
+	rc.DrawCharacter(currentX, y, g.runtimeCursorGlyph(time.Now()))
 }
 
-func clippedChatInput(prompt, message string, maxChars int) string {
+func (g *Game) clippedChatInput(prompt, message string, maxChars int) string {
 	if maxChars <= 1 {
 		return prompt[:min(len(prompt), 1)]
 	}
@@ -259,7 +259,7 @@ func clippedChatInput(prompt, message string, maxChars int) string {
 	return visiblePrompt + message
 }
 
-func runtimeCursorGlyph(now time.Time) int {
+func (g *Game) runtimeCursorGlyph(now time.Time) int {
 	frame := (now.UnixNano() / int64(time.Second/4)) & 1
 	return 10 + int(frame)
 }

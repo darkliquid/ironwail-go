@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"bufio"
@@ -17,14 +17,15 @@ import (
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
-	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 // gameCallbacks implements host.FrameCallbacks to drive server+client each frame.
-type gameCallbacks struct{}
+type gameCallbacks struct {
+	g *Game
+}
 
 var runtimeProcessClientPhase string
 
@@ -55,28 +56,35 @@ func loadWorldModelAndLit(files host.Filesystem, worldModel string) ([]byte, []b
 	if loader, ok := files.(litWorldLoader); ok {
 		return loader.LoadMapBSPAndLit(worldModel)
 	}
-	if fsys, ok := files.(*fs.FileSystem); ok {
-		return fsys.LoadMapBSPAndLit(worldModel)
-	}
+
 	data, err := files.LoadFile(worldModel)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	return data, nil, nil
 }
 
-func (gameCallbacks) SetProcessClientPhase(phase string) {
+func (cb gameCallbacks) SetProcessClientPhase(phase string) {
 	runtimeProcessClientPhase = phase
 }
 
-func (gameCallbacks) GetEvents() {
-	pollRuntimeInputEvents()
+func (cb gameCallbacks) GetEvents() {
+	g := cb.g
+	if g == nil {
+		return
+	}
+	g.pollRuntimeInputEvents()
 	if g.Subs != nil && g.Subs.Client != nil && g.Host != nil {
 		_ = g.Subs.Client.Frame(g.Host.FrameTime())
 	}
 }
 
-func (gameCallbacks) ProcessConsoleCommands() {
+func (cb gameCallbacks) ProcessConsoleCommands() {
+	g := cb.g
+	if g == nil {
+		return
+	}
 	if g.Subs != nil && g.Subs.Commands != nil {
 		g.Subs.Commands.Execute()
 	} else {
@@ -85,7 +93,11 @@ func (gameCallbacks) ProcessConsoleCommands() {
 	host.DispatchLoopbackStuffText(g.Subs)
 }
 
-func (gameCallbacks) ProcessServer() {
+func (cb gameCallbacks) ProcessServer() {
+	g := cb.g
+	if g == nil {
+		return
+	}
 	if g.Subs == nil || g.Subs.Server == nil {
 		return
 	}
@@ -95,17 +107,21 @@ func (gameCallbacks) ProcessServer() {
 	}
 }
 
-func (gameCallbacks) ProcessClient() {
+func (cb gameCallbacks) ProcessClient() {
+	g := cb.g
+	if g == nil {
+		return
+	}
 	if g.Subs == nil || g.Subs.Client == nil {
 		return
 	}
-	syncHostClientState()
-	prevState, prevSignon := currentRuntimeClientActivation()
+	g.syncHostClientState()
+	prevState, prevSignon := g.currentRuntimeClientActivation()
 
 	// Handle demo playback
 	if g.Host != nil && g.Host.DemoState() != nil && g.Host.DemoState().Playback {
 		demo := g.Host.DemoState()
-		refreshDemoPlaybackSpeed()
+		g.refreshDemoPlaybackSpeed()
 		if !demo.ShouldReadFrame(g.Host.FrameCount()) {
 			return
 		}
@@ -116,7 +132,7 @@ func (gameCallbacks) ProcessClient() {
 			prevState = clientState.State
 			prevSignon = clientState.Signon
 			clientState.AdvanceTime(demo, g.Host.FrameTime())
-			if !shouldReadNextDemoMessage(clientState, demo) {
+			if !g.shouldReadNextDemoMessage(clientState, demo) {
 				return
 			}
 		}
@@ -133,14 +149,14 @@ func (gameCallbacks) ProcessClient() {
 						g.Subs.Console.Print(msg)
 					}
 				})
-				clearRuntimeDemoFlags()
+				g.clearRuntimeDemoFlags()
 				g.Host.SetClientState(0) // caDisconnected
 				return
 			}
-			bootstrapDemoPlaybackWorld(clientState)
-			syncHostClientState()
+			g.bootstrapDemoPlaybackWorld(clientState)
+			g.syncHostClientState()
 			if clientState.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
-				applyStartupGameplayInputMode()
+				g.ApplyStartupGameplayInputMode()
 			}
 			return
 		}
@@ -155,7 +171,7 @@ func (gameCallbacks) ProcessClient() {
 						g.Subs.Console.Print(msg)
 					}
 				})
-				clearRuntimeDemoFlags()
+				g.clearRuntimeDemoFlags()
 				g.Host.SetClientState(0) // caDisconnected
 
 				// Queue the next attract-mode demo for the next frame instead of
@@ -177,7 +193,7 @@ func (gameCallbacks) ProcessClient() {
 					g.Subs.Console.Print(msg)
 				}
 			})
-			clearRuntimeDemoFlags()
+			g.clearRuntimeDemoFlags()
 			g.Host.SetClientState(0) // caDisconnected
 			return
 		}
@@ -185,19 +201,19 @@ func (gameCallbacks) ProcessClient() {
 		// Successfully read demo frame - parse the message and apply view angles
 		// Get the actual client state to access parser
 		if clientState != nil {
-			applyDemoPlaybackViewAngles(clientState, viewAngles)
+			g.applyDemoPlaybackViewAngles(clientState, viewAngles)
 
 			// Parse the server message from demo
 			parser := cl.NewParser(clientState)
 			if err := parser.ParseServerMessage(msgData); err != nil {
 				slog.Warn("failed to parse demo message", "error", err)
 			} else {
-				bootstrapDemoPlaybackWorld(clientState)
+				g.bootstrapDemoPlaybackWorld(clientState)
 			}
 			host.DispatchLoopbackStuffText(g.Subs)
-			syncHostClientState()
+			g.syncHostClientState()
 			if clientState.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
-				applyStartupGameplayInputMode()
+				g.ApplyStartupGameplayInputMode()
 			}
 
 		}
@@ -212,39 +228,39 @@ func (gameCallbacks) ProcessClient() {
 		_ = g.Subs.Client.SendCommand()
 	case "read":
 		_ = g.Subs.Client.ReadFromServer()
-		noteRuntimeServerMessage()
-		syncHostClientState()
-		applyRuntimeGameplayActivation(prevState, prevSignon)
-		recordRuntimeDemoFrame()
+		g.noteRuntimeServerMessage()
+		g.syncHostClientState()
+		g.applyRuntimeGameplayActivation(prevState, prevSignon)
+		g.recordRuntimeDemoFrame()
 		host.DispatchLoopbackStuffText(g.Subs)
 	default:
 		_ = g.Subs.Client.ReadFromServer()
-		noteRuntimeServerMessage()
-		syncHostClientState()
-		applyRuntimeGameplayActivation(prevState, prevSignon)
-		recordRuntimeDemoFrame()
+		g.noteRuntimeServerMessage()
+		g.syncHostClientState()
+		g.applyRuntimeGameplayActivation(prevState, prevSignon)
+		g.recordRuntimeDemoFrame()
 		host.DispatchLoopbackStuffText(g.Subs)
 		_ = g.Subs.Client.SendCommand()
 	}
 }
 
-func currentRuntimeClientActivation() (state cl.ClientState, signon int) {
+func (g *Game) currentRuntimeClientActivation() (state cl.ClientState, signon int) {
 	if g.Client == nil {
 		return cl.StateDisconnected, 0
 	}
 	return g.Client.State, g.Client.Signon
 }
 
-func applyRuntimeGameplayActivation(prevState cl.ClientState, prevSignon int) {
+func (g *Game) applyRuntimeGameplayActivation(prevState cl.ClientState, prevSignon int) {
 	if g.Client == nil {
 		return
 	}
 	if g.Client.State == cl.StateActive && (prevState != cl.StateActive || prevSignon < cl.Signons) {
-		applyStartupGameplayInputMode()
+		g.ApplyStartupGameplayInputMode()
 	}
 }
 
-func noteRuntimeServerMessage() {
+func (g *Game) noteRuntimeServerMessage() {
 	if g.Subs == nil || g.Subs.Client == nil || g.Host == nil {
 		return
 	}
@@ -260,14 +276,14 @@ func noteRuntimeServerMessage() {
 
 func (gameCallbacks) UpdateScreen() {}
 
-func syncHostClientState() {
+func (g *Game) syncHostClientState() {
 	if g.Subs == nil || g.Subs.Client == nil {
 		return
 	}
 	prevClient := g.Client
 	g.Client = host.ActiveClientState(g.Subs)
 	if g.Client != prevClient {
-		syncControlCvarsToClient()
+		g.syncControlCvarsToClient()
 	}
 	if g.Host == nil {
 		return
@@ -279,14 +295,14 @@ func syncHostClientState() {
 	}
 }
 
-func clearRuntimeDemoFlags() {
+func (g *Game) clearRuntimeDemoFlags() {
 	if clientState := host.LoopbackClientState(g.Subs); clientState != nil {
 		clientState.DemoPlayback = false
 		clientState.TimeDemoActive = false
 	}
 }
 
-func bootstrapDemoPlaybackWorld(clientState *cl.Client) {
+func (g *Game) bootstrapDemoPlaybackWorld(clientState *cl.Client) {
 	if clientState == nil || g.Host == nil || g.Server == nil || g.Subs == nil || g.Subs.Files == nil {
 		return
 	}
@@ -308,7 +324,7 @@ func bootstrapDemoPlaybackWorld(clientState *cl.Client) {
 	g.WorldUploadKey = ""
 }
 
-func syncAudioViewEntity() {
+func (g *Game) syncAudioViewEntity() {
 	if g.Audio == nil {
 		return
 	}
@@ -320,15 +336,19 @@ func syncAudioViewEntity() {
 	g.Audio.SetViewEntity(viewEntity)
 }
 
-func (gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
+func (cb gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
+	g := cb.g
+	if g == nil {
+		return
+	}
 	if g.Audio == nil {
 		return
 	}
-	syncAudioViewEntity()
+	g.syncAudioViewEntity()
 	g.Audio.SetListener(origin, [3]float32{}, forward, right, up)
 }
 
-func headlessGameLoop() {
+func (g *Game) HeadlessGameLoop() {
 	slog.Info("Starting headless game loop")
 
 	// Simple game loop without rendering
@@ -346,7 +366,7 @@ func headlessGameLoop() {
 		lastTime = now
 
 		// Update game state
-		if err := g.Host.Frame(dt, gameCallbacks{}); err != nil {
+		if err := g.Host.Frame(dt, gameCallbacks{g: g}); err != nil {
 			log.Fatal("host frame error", err)
 		}
 		if g.Host != nil && g.Host.IsAborted() {
@@ -355,7 +375,7 @@ func headlessGameLoop() {
 	}
 }
 
-func dedicatedGameLoop() {
+func (g *Game) DedicatedGameLoop() {
 	slog.Info("Starting dedicated game loop")
 	slog.Info("frame loop started")
 
@@ -412,7 +432,7 @@ func dedicatedGameLoop() {
 		dt := now.Sub(lastTime).Seconds()
 		lastTime = now
 
-		if err := g.Host.Frame(dt, gameCallbacks{}); err != nil {
+		if err := g.Host.Frame(dt, gameCallbacks{g: g}); err != nil {
 			log.Fatal("host frame error", err)
 		}
 		if g.Host != nil && g.Host.IsAborted() {
@@ -425,7 +445,7 @@ type picProvider interface {
 	GetPic(name string) *qimage.QPic
 }
 
-func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
+func (g *Game) drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 	if dc == nil || pics == nil {
 		return
 	}
@@ -439,55 +459,55 @@ func drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 	}
 }
 
-func runRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
+func (g *Game) RunRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	if g.Host != nil {
 		g.Host.Frame(dt, cb)
 	}
-	syncControlCvarsToClient()
+	g.syncControlCvarsToClient()
 	if g.Client != nil {
 		if g.Host != nil && (g.Host.DemoState() == nil || !g.Host.DemoState().Playback) {
 			g.Client.AdvanceTime(nil, dt)
 		}
-		runtimeDebugViewBeginFrame()
-		runtimeDebugViewLogRelinkPhase("pre")
+		g.runtimeDebugViewBeginFrame()
+		g.runtimeDebugViewLogRelinkPhase("pre")
 		g.Client.UpdateBlend(dt)
 		g.Client.UpdateTempEntities()
 		// Relink before view/audio consumers so camera, listener, and viewmodel
 		// calculations all observe the same interpolated entity state this frame.
 		g.Client.RelinkEntities()
-		runtimeDebugViewLogRelinkPhase("post")
+		g.runtimeDebugViewLogRelinkPhase("post")
 		// Predict after relink so prediction freshness is stamped against the
 		// final post-LerpPoint frame state consumed by camera selection.
 		g.Client.PredictPlayers(float32(dt))
-		runtimeDebugViewLogPrediction()
+		g.runtimeDebugViewLogPrediction()
 	}
 	transientEvents := cl.TransientEvents{}
 	if g.Client != nil {
 		transientEvents = g.Client.ConsumeTransientEvents()
 	}
-	viewOrigin, viewAngles := runtimeViewState()
-	runtimeDebugViewLogState(viewOrigin, viewAngles)
-	runtimeDebugViewLogLerp()
-	runtimeDebugViewLogOriginSelect()
-	syncRuntimeSkybox()
+	viewOrigin, viewAngles := g.runtimeViewState()
+	g.runtimeDebugViewLogState(viewOrigin, viewAngles)
+	g.runtimeDebugViewLogLerp()
+	g.runtimeDebugViewLogOriginSelect()
+	g.syncRuntimeSkybox()
 	if g.Audio != nil {
-		forward, right, up := runtimeAngleVectors(viewAngles)
-		syncAudioViewEntity()
+		forward, right, up := g.runtimeAngleVectors(viewAngles)
+		g.syncAudioViewEntity()
 		viewVelocity := [3]float32{}
 		if g.Client != nil {
 			viewVelocity = g.Client.GetPredictedVelocity()
 		}
 		g.Audio.SetListener(viewOrigin, viewVelocity, forward, right, up)
-		syncRuntimeStaticSounds()
-		syncRuntimeAmbientAudio(viewOrigin, float32(dt))
-		syncRuntimeMusic()
-		processRuntimeAudioEvents(viewOrigin, transientEvents)
+		g.syncRuntimeStaticSounds()
+		g.syncRuntimeAmbientAudio(viewOrigin, float32(dt))
+		g.syncRuntimeMusic()
+		g.processRuntimeAudioEvents(viewOrigin, transientEvents)
 		g.Audio.Update(viewOrigin, viewVelocity, forward, right, up)
 	}
 	return transientEvents
 }
 
-func isRendererError(err error) bool {
+func (g *Game) isRendererError(err error) bool {
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "renderer") ||
 		strings.Contains(errStr, "wayland") ||
@@ -498,7 +518,7 @@ func isRendererError(err error) bool {
 		strings.Contains(errStr, "segv")
 }
 
-func captureScreenshot(sspath, _, _ string) error {
+func (g *Game) CaptureScreenshot(sspath, _, _ string) error {
 	if g.Renderer != nil {
 		if capturer, ok := any(g.Renderer).(interface {
 			CaptureScreenshot(string) error

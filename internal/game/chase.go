@@ -1,4 +1,4 @@
-package main
+package game
 
 import "math"
 
@@ -6,8 +6,8 @@ const chaseCrosshairTraceDistance = float32(1 << 20)
 
 type chaseTraceFunc func(start, end [3]float32) [3]float32
 
-func chaseUpdate(origin, angles [3]float32, chaseBack, chaseUp, chaseRight float32, traceFn chaseTraceFunc) ([3]float32, [3]float32) {
-	forward, right, _ := angleVectors(angles)
+func (g *Game) chaseUpdate(origin, angles [3]float32, chaseBack, chaseUp, chaseRight float32, traceFn chaseTraceFunc) ([3]float32, [3]float32) {
+	forward, right, _ := g.runtimeAngleVectors(angles)
 
 	ideal := origin
 	for i := range ideal {
@@ -35,38 +35,15 @@ func chaseUpdate(origin, angles [3]float32, chaseBack, chaseUp, chaseRight float
 		crosshair[2] - ideal[2],
 	}
 
-	cameraAngles := vectorAngles(lookDir)
+	cameraAngles := g.vectorAngles(lookDir)
 	if cameraAngles[0] == 90 || cameraAngles[0] == -90 {
 		cameraAngles[1] = angles[1]
 	}
 	return ideal, cameraAngles
 }
 
-func angleVectors(angles [3]float32) (forward, right, up [3]float32) {
-	pitch := float64(angles[0]) * math.Pi / 180.0
-	yaw := float64(angles[1]) * math.Pi / 180.0
-	roll := float64(angles[2]) * math.Pi / 180.0
-
-	sp, cp := math.Sincos(pitch)
-	sy, cy := math.Sincos(yaw)
-	sr, cr := math.Sincos(roll)
-
-	forward = [3]float32{float32(cp * cy), float32(cp * sy), float32(-sp)}
-	right = [3]float32{
-		float32(-sr*sp*cy + cr*sy),
-		float32(-sr*sp*sy - cr*cy),
-		float32(-sr * cp),
-	}
-	up = [3]float32{
-		float32(cr*sp*cy + sr*sy),
-		float32(cr*sp*sy - sr*cy),
-		float32(cr * cp),
-	}
-	return forward, right, up
-}
-
 // vectorAngles mirrors Quake's VectorAngles behavior from mathlib.c.
-func vectorAngles(forward [3]float32) [3]float32 {
+func (g *Game) vectorAngles(forward [3]float32) [3]float32 {
 	var yaw, pitch float32
 
 	if forward[0] == 0 && forward[1] == 0 {

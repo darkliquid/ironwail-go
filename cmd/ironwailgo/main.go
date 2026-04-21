@@ -1,298 +1,183 @@
 package main
 
 import (
-	"math/rand"
-	"sync"
-	"time"
+	"flag"
+	"fmt"
+	"log"
+	"log/slog"
+	"os"
+	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/audio"
-	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
-	"github.com/darkliquid/ironwail-go/internal/draw"
-	"github.com/darkliquid/ironwail-go/internal/host"
-	"github.com/darkliquid/ironwail-go/internal/hud"
-	"github.com/darkliquid/ironwail-go/internal/input"
-	"github.com/darkliquid/ironwail-go/internal/menu"
-	"github.com/darkliquid/ironwail-go/internal/model"
-	"github.com/darkliquid/ironwail-go/internal/qc"
-	"github.com/darkliquid/ironwail-go/internal/renderer"
-	"github.com/darkliquid/ironwail-go/internal/server"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
+
+	"github.com/darkliquid/ironwail-go/internal/game"
 )
 
 const (
 	VersionMajor = 0
 	VersionMinor = 2
 	VersionPatch = 0
-
-	runtimeMaxPredictedXYOffset = 4.0
-
-	csqcPicFlagAuto   uint32 = 0
-	csqcPicFlagBlock  uint32 = 1 << 9
-	csqcPicFlagNoLoad uint32 = 1 << 31
 )
-
-// Game consolidates all top-level engine state into a single struct.
-// Previously these were scattered package-level variables; grouping them
-// here makes ownership, lifetime, and dependencies explicit.
-type Game struct {
-	Host       *host.Host
-	Server     *server.Server
-	QC         *qc.VM
-	CSQC       *qc.CSQC // Client-side QuakeC VM (nil when not loaded)
-	Renderer   gameRenderer
-	Subs       *host.Subsystems
-	Client     *cl.Client
-	Particles  *renderer.ParticleSystem
-	DecalMarks *renderer.DecalMarkSystem
-
-	ParticleRNG  *rand.Rand
-	ParticleTime float32
-	RuntimeBeams []cl.BeamSegment
-
-	Menu  *menu.Manager
-	Input *input.System
-	Draw  *draw.Manager
-	HUD   *hud.HUD
-	Audio *audio.AudioAdapter
-
-	MouseGrabbed     bool
-	AliasModelCache  map[string]*model.Model
-	SpriteModelCache map[string]*runtimeSpriteModel
-	SoundSFXByIndex  map[int]*audio.SFX
-	MenuSFXByName    map[string]*audio.SFX
-	AmbientSFX       [audio.NumAmbients]*audio.SFX
-	SoundPrecacheKey string
-	StaticSoundKey   string
-	MusicTrackKey    string
-	SkyboxNameKey    string
-	WorldUploadKey   string
-	ShowScores       bool
-	ModDir           string
-
-	CameraInLiquid     bool
-	CameraLeafContents int32
-
-	// Scope zoom state, updated each frame via renderer.UpdateZoom.
-	Zoom    float32
-	ZoomDir float32
-
-	ConsoleSlideFraction float32
-	TextEditRepeat       runtimeTextEditRepeatState
-	FPSOverlay           runtimeFPSOverlay
-	SpeedOverlay         runtimeSpeedOverlay
-	DemoOverlay          runtimeDemoOverlay
-	TurtleOverlayCount   int
-	LastServerMessageAt  float64
-}
-
-type gameRendererFrameLoop interface {
-	OnDraw(func(renderer.RenderContext))
-	OnUpdate(func(dt float64))
-	Size() (width, height int)
-	SetConfig(renderer.Config)
-	Run() error
-	Stop()
-	Shutdown()
-}
-
-type gameRendererAssets interface {
-	SetPalette([]byte)
-	SetConchars([]byte)
-	SetExternalSkybox(string, func(string) ([]byte, error))
-}
-
-type gameRendererWorld interface {
-	UpdateCamera(renderer.CameraState, float32, float32)
-	UploadWorld(*bsp.Tree) error
-	HasWorldData() bool
-	GetWorldBounds() (min [3]float32, max [3]float32, ok bool)
-}
-
-type gameRendererLights interface {
-	SpawnDynamicLight(renderer.DynamicLight) bool
-	SpawnKeyedDynamicLight(renderer.DynamicLight) bool
-	UpdateLights(float32)
-	ClearDynamicLights()
-}
-
-type gameRendererInput interface {
-	InputBackendForSystem(*input.System) input.Backend
-}
-
-type gameRenderer interface {
-	gameRendererFrameLoop
-	gameRendererAssets
-	gameRendererWorld
-	gameRendererLights
-	gameRendererInput
-}
-
-var g Game
-var runtimeNow = time.Now
-var runtimeStateMu sync.Mutex
 
 var (
-	pendingRendererAssetsMu      sync.Mutex
-	pendingRendererPalette       []byte
-	pendingRendererConchars      []byte
-	pendingRendererAssetsPending bool
-	pendingRendererWorldClear    bool
+	startupVidWidth  = 1280
+	startupVidHeight = 720
 )
 
-type canvasParamSetter interface {
-	SetCanvasParams(renderer.CanvasTransformParams)
-}
+// g is the game instance used throughout the application
+var g *game.Game
 
-func queueRuntimeRendererAssets(palette []byte, conchars []byte) {
-	pendingRendererAssetsMu.Lock()
-	defer pendingRendererAssetsMu.Unlock()
+func main() {
+	// Logger initialization is handled in logger_*.go files based on build tags
+	fmt.Printf("Ironwail-Go v%d.%d.%d\n", VersionMajor, VersionMinor, VersionPatch)
+	fmt.Println("A Go port of Ironwail Quake engine")
+	fmt.Println()
 
-	pendingRendererPalette = append(pendingRendererPalette[:0], palette...)
-	pendingRendererConchars = append(pendingRendererConchars[:0], conchars...)
-	pendingRendererAssetsPending = true
-}
+	// Initialize the game instance
+	g = game.New()
 
-func queueRuntimeRendererWorldClear() {
-	pendingRendererAssetsMu.Lock()
-	defer pendingRendererAssetsMu.Unlock()
+	startupOpts, err := parseStartupOptions(os.Args[1:])
+	if err != nil {
+		log.Fatal(err)
+	}
+	inet.SetHostPort(startupOpts.Port)
 
-	pendingRendererWorldClear = true
-}
-
-func applyQueuedRuntimeRendererAssets(target gameRenderer) {
-	if target == nil {
-		return
+	headlessFlag := flag.Bool("headless", false, "Run without rendering")
+	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
+	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
+	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
+	logLevel := flag.String("loglvl", "INFO", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG)")
+	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
+		log.Fatal(err)
+	}
+	if *widthFlag > 0 {
+		startupVidWidth = *widthFlag
+	}
+	if *heightFlag > 0 {
+		startupVidHeight = *heightFlag
 	}
 
-	pendingRendererAssetsMu.Lock()
-	if !pendingRendererAssetsPending && !pendingRendererWorldClear {
-		pendingRendererAssetsMu.Unlock()
-		return
+	if err := installLogging(*logLevel); err != nil {
+		log.Fatal(err)
 	}
-	clearWorld := pendingRendererWorldClear
-	palette := append([]byte(nil), pendingRendererPalette...)
-	conchars := append([]byte(nil), pendingRendererConchars...)
-	pendingRendererPalette = pendingRendererPalette[:0]
-	pendingRendererConchars = pendingRendererConchars[:0]
-	pendingRendererAssetsPending = false
-	pendingRendererWorldClear = false
-	pendingRendererAssetsMu.Unlock()
 
-	if clearWorld {
-		if clearer, ok := any(target).(interface{ ClearWorld() }); ok {
-			clearer.ClearWorld()
+	args := flag.Args()
+	mapArg := startupMapArg(args)
+	if startupOpts.Dedicated && mapArg == "" {
+		mapArg = "start"
+	}
+
+	dedicated := startupOpts.Dedicated
+	headless := *headlessFlag || dedicated
+	initErr := g.InitSubsystems(headless, dedicated, startupOpts.MaxClients, startupOpts.BaseDir, startupOpts.GameDir, args)
+	if initErr != nil && !headless {
+		if isRendererError(initErr) {
+			fmt.Println("WARNING: Renderer initialization failed. Running in headless mode.")
+			fmt.Printf("Error: %v\n", initErr)
+			fmt.Println("Continuing with game loop (no rendering)...")
+			headless = true
+			if err := g.InitSubsystems(true, false, startupOpts.MaxClients, startupOpts.BaseDir, startupOpts.GameDir, args); err != nil {
+				log.Fatal("Initialization failed:", err)
+			}
+		} else {
+			log.Fatal("Initialization failed:", initErr)
 		}
 	}
-	if len(palette) >= 768 {
-		target.SetPalette(palette)
+	defer shutdownEngine()
+
+	slog.Info("FS mounted")
+	slog.Info("QC loaded")
+	if !dedicated {
+		slog.Info("menu active")
 	}
-	if len(conchars) >= 128*128 {
-		target.SetConchars(conchars)
+
+	runStartupMap(mapArg)
+
+	screenshotPath := strings.TrimSpace(*screenshotFlag)
+	screenshotMode := screenshotPath != ""
+	gameStartupOpts := game.StartupOptions{
+		BaseDir:    startupOpts.BaseDir,
+		GameDir:    startupOpts.GameDir,
+		Dedicated:  startupOpts.Dedicated,
+		Listen:     startupOpts.Listen,
+		MaxClients: startupOpts.MaxClients,
+		Port:       startupOpts.Port,
+		Args:       startupOpts.Args,
+	}
+
+	if !headless {
+		result, err := g.RunRuntimeRendererLoop(gameStartupOpts, screenshotPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if result.ScreenshotCaptured {
+			if result.ScreenshotErr != nil {
+				log.Fatal("Screenshot failed:", result.ScreenshotErr)
+			}
+			return
+		}
+		if result.HandledFallback {
+			return
+		}
+	}
+
+	if screenshotMode {
+		if err := g.CaptureScreenshot(screenshotPath, startupOpts.BaseDir, startupOpts.GameDir); err != nil {
+			log.Fatal("Screenshot failed:", err)
+		}
+		return
+	}
+
+	if headless {
+		if dedicated {
+			g.DedicatedGameLoop()
+		} else {
+			g.HeadlessGameLoop()
+		}
 	}
 }
 
-type defaultBinding struct {
-	key     int
-	command string
+func isRendererError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "renderer") ||
+		strings.Contains(errStr, "wayland") ||
+		strings.Contains(errStr, "configure") ||
+		strings.Contains(errStr, "display") ||
+		strings.Contains(errStr, "window") ||
+		strings.Contains(errStr, "surface") ||
+		strings.Contains(errStr, "segv")
 }
 
-type runtimeFPSOverlay struct {
-	oldTime       float64
-	lastFPS       float64
-	oldFrameCount int
+func startupMapArg(args []string) string {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "+map" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	if len(args) > 0 && args[0] != "" && !strings.HasPrefix(args[0], "+") {
+		return args[0]
+	}
+	return ""
 }
 
-type runtimeTextEditRepeatState struct {
-	key       int
-	nextDelay float64
-}
+func runStartupMap(mapArg string) {
+	if mapArg == "" {
+		return
+	}
 
-type runtimeSpeedOverlay struct {
-	maxSpeed     float32
-	displaySpeed float32
-	lastRealTime float64
-}
+	slog.Info("map spawn started", "map", mapArg)
+	if err := g.Host.CmdMap(mapArg, g.Subs); err != nil {
+		log.Printf("Failed to spawn map %s: %v", mapArg, err)
+		return
+	}
 
-type runtimeDemoOverlay struct {
-	prevSpeed     float32
-	prevBaseSpeed float32
-	showTime      float64
+	slog.Info("map spawn finished", "map", mapArg)
+	if g.Client != nil && g.Client.State == cl.StateActive && g.Host.SignOns() == 4 {
+		g.ApplyStartupGameplayInputMode()
+		slog.Info("client active", "map", mapArg)
+	}
 }
-
-type runtimeTelemetryState struct {
-	RealTime        float64
-	FrameCount      int
-	FrameTime       float64
-	ViewSize        float32
-	HUDStyle        int
-	ShowFPS         float32
-	ShowClock       int
-	ShowSpeed       bool
-	ShowTurtle      bool
-	ShowSpeedOfs    float32
-	ClientTime      float64
-	Intermission    int
-	InCutscene      bool
-	DemoPlayback    bool
-	DemoSpeed       float32
-	DemoBaseSpeed   float32
-	DemoProgress    float64
-	DemoName        string
-	DemoBarTimeout  float32
-	ClientActive    bool
-	Velocity        [3]float32
-	ConsoleForced   bool
-	LastServerMsgAt float64
-	SavingActive    bool
-	ViewRect        renderer.ViewRect
-}
-
-type runtimeSpriteModel struct {
-	model  *model.Model
-	sprite *model.MSprite
-}
-
-var gameplayDefaultBindings = []defaultBinding{
-	{key: int('`'), command: "toggleconsole"},
-	{key: int('w'), command: "+forward"},
-	{key: input.KUpArrow, command: "+forward"},
-	{key: int('s'), command: "+back"},
-	{key: input.KDownArrow, command: "+back"},
-	{key: int('a'), command: "+moveleft"},
-	{key: int('d'), command: "+moveright"},
-	{key: input.KLeftArrow, command: "+left"},
-	{key: input.KRightArrow, command: "+right"},
-	{key: input.KShift, command: "+speed"},
-	{key: input.KAlt, command: "+strafe"},
-	{key: input.KTab, command: "+showscores"},
-	{key: input.KCtrl, command: "+attack"},
-	{key: input.KMouse1, command: "+attack"},
-	{key: input.KSpace, command: "+jump"},
-	{key: input.KMouse2, command: "+jump"},
-	{key: int('e'), command: "+use"},
-	{key: input.KMouse3, command: "+mlook"},
-	{key: input.KMWheelUp, command: "impulse 10"},
-	{key: input.KMWheelDown, command: "impulse 12"},
-}
-
-var essentialFallbackBindings = []defaultBinding{
-	{key: input.KEscape, command: "togglemenu"},
-	{key: int('`'), command: "toggleconsole"},
-}
-
-type globalCommandBuffer struct{}
-
-func (globalCommandBuffer) Init()    {}
-func (globalCommandBuffer) Execute() { cmdsys.Execute() }
-func (globalCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
-	cmdsys.ExecuteWithSource(source)
-}
-func (globalCommandBuffer) ExecuteTextWithSource(text string, source cmdsys.CommandSource) {
-	cmdsys.ExecuteTextWithSource(text, source)
-}
-func (globalCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
-func (globalCommandBuffer) InsertText(text string) {
-	cmdsys.InsertText(text)
-}
-func (globalCommandBuffer) Shutdown() {}

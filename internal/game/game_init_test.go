@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"os"
@@ -29,12 +29,13 @@ func (fs registrationModeTestFS) FileExists(filename string) bool {
 }
 
 func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
+	g := New()
 	if cvar.Get("registered") == nil {
 		cvar.Register("registered", "0", cvar.FlagNone, "")
 	}
 	cvar.Set("registered", "0")
 
-	if err := configureRegistrationMode(registrationModeTestFS{hasPop: true}, "id1"); err != nil {
+	if err := g.configureRegistrationMode(registrationModeTestFS{hasPop: true}, "id1"); err != nil {
 		t.Fatalf("configureRegistrationMode returned error: %v", err)
 	}
 	if got := cvar.IntValue("registered"); got != 1 {
@@ -43,12 +44,13 @@ func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
 }
 
 func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
+	g := New()
 	if cvar.Get("registered") == nil {
 		cvar.Register("registered", "1", cvar.FlagNone, "")
 	}
 	cvar.Set("registered", "1")
 
-	if err := configureRegistrationMode(registrationModeTestFS{hasPop: false}, "id1"); err != nil {
+	if err := g.configureRegistrationMode(registrationModeTestFS{hasPop: false}, "id1"); err != nil {
 		t.Fatalf("configureRegistrationMode returned error: %v", err)
 	}
 	if got := cvar.IntValue("registered"); got != 0 {
@@ -57,12 +59,13 @@ func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
 }
 
 func TestConfigureRegistrationModeRejectsModsWithoutRegisteredData(t *testing.T) {
+	g := New()
 	if cvar.Get("registered") == nil {
 		cvar.Register("registered", "1", cvar.FlagNone, "")
 	}
 	cvar.Set("registered", "1")
 
-	err := configureRegistrationMode(registrationModeTestFS{hasPop: false}, "hipnotic")
+	err := g.configureRegistrationMode(registrationModeTestFS{hasPop: false}, "hipnotic")
 	if err == nil {
 		t.Fatal("configureRegistrationMode should fail for mod dir in shareware mode")
 	}
@@ -110,7 +113,8 @@ func TestShouldWarnAboutGoGPUX11Keyboard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := shouldWarnAboutGoGPUX11Keyboard(tt.goos, tt.waylandDisplay, tt.x11Display)
+			g := New()
+			got := g.shouldWarnAboutGoGPUX11Keyboard(tt.goos, tt.waylandDisplay, tt.x11Display)
 			if got != tt.want {
 				t.Fatalf("shouldWarnAboutGoGPUX11Keyboard(%q, %q, %q) = %v, want %v", tt.goos, tt.waylandDisplay, tt.x11Display, got, tt.want)
 			}
@@ -121,12 +125,14 @@ func TestShouldWarnAboutGoGPUX11Keyboard(t *testing.T) {
 func TestGoGPUX11KeyboardHint(t *testing.T) {
 	t.Parallel()
 
-	if got := gogpuX11KeyboardHint(); got != "run under Wayland for event-driven keyboard input" {
+	g := New()
+	if got := g.gogpuX11KeyboardHint(); got != "run under Wayland for event-driven keyboard input" {
 		t.Fatalf("gogpuX11KeyboardHint() = %q", got)
 	}
 }
 
 func TestCurrentZoomSpeedUsesCanonicalZoomSpeedCVar(t *testing.T) {
+	g := New()
 	if cvar.Get("zoom_speed") == nil {
 		cvar.Register("zoom_speed", "8", cvar.FlagArchive, "")
 	}
@@ -136,12 +142,13 @@ func TestCurrentZoomSpeedUsesCanonicalZoomSpeedCVar(t *testing.T) {
 		cvar.Set("zoom_speed", "8")
 	})
 
-	if got := currentZoomSpeed(); got != 12 {
+	if got := g.currentZoomSpeed(); got != 12 {
 		t.Fatalf("currentZoomSpeed() = %v, want 12", got)
 	}
 }
 
 func TestCurrentRuntimeFOVUsesCanonicalFOVCVar(t *testing.T) {
+	g := New()
 	if cvar.Get("fov") == nil {
 		cvar.Register("fov", "90", cvar.FlagArchive, "")
 	}
@@ -151,13 +158,14 @@ func TestCurrentRuntimeFOVUsesCanonicalFOVCVar(t *testing.T) {
 		cvar.Set("fov", "90")
 	})
 
-	if got := currentRuntimeFOV(); got != 110 {
+	if got := g.currentRuntimeFOV(); got != 110 {
 		t.Fatalf("currentRuntimeFOV() = %v, want 110", got)
 	}
 }
 
 func TestCurrentRuntimeViewSizeUsesCanonicalViewsizeCVar(t *testing.T) {
-	registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "")
+	g := New()
+	g.registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "")
 
 	cvar.Set("scr_viewsize", "100")
 	cvar.Set("viewsize", "130")
@@ -166,7 +174,7 @@ func TestCurrentRuntimeViewSizeUsesCanonicalViewsizeCVar(t *testing.T) {
 		cvar.Set("scr_viewsize", "100")
 	})
 
-	if got := currentRuntimeViewSize(); got != 130 {
+	if got := g.currentRuntimeViewSize(); got != 130 {
 		t.Fatalf("currentRuntimeViewSize() = %v, want 130", got)
 	}
 	if got := cvar.FloatValue("scr_viewsize"); got != 130 {
@@ -175,6 +183,7 @@ func TestCurrentRuntimeViewSizeUsesCanonicalViewsizeCVar(t *testing.T) {
 }
 
 func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
+	g := New()
 	if cvar.Get("zoom_fov") == nil {
 		cvar.Register("zoom_fov", "30", cvar.FlagArchive, "")
 	}
@@ -184,12 +193,13 @@ func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
 		cvar.Set("zoom_fov", "30")
 	})
 
-	if got := currentRuntimeZoomFOV(); got != 55 {
+	if got := g.currentRuntimeZoomFOV(); got != 55 {
 		t.Fatalf("currentRuntimeZoomFOV() = %v, want 55", got)
 	}
 }
 
 func TestCurrentRuntimeFOVAdaptUsesCanonicalFOVAdaptCVar(t *testing.T) {
+	g := New()
 	if cvar.Get("fov_adapt") == nil {
 		cvar.Register("fov_adapt", "1", cvar.FlagArchive, "")
 	}
@@ -199,13 +209,14 @@ func TestCurrentRuntimeFOVAdaptUsesCanonicalFOVAdaptCVar(t *testing.T) {
 		cvar.Set("fov_adapt", "1")
 	})
 
-	if got := currentRuntimeFOVAdapt(); got {
+	if got := g.currentRuntimeFOVAdapt(); got {
 		t.Fatal("currentRuntimeFOVAdapt() = true, want false")
 	}
 }
 
 func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
-	registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "")
+	g := New()
+	g.registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "")
 
 	cvar.Set("scr_showturtle", "0")
 	cvar.Set("showturtle", "1")
@@ -214,7 +225,7 @@ func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
 		cvar.Set("scr_showturtle", "0")
 	})
 
-	if got := currentShowTurtle(); !got {
+	if got := g.currentShowTurtle(); !got {
 		t.Fatal("currentShowTurtle() = false, want true")
 	}
 	if got := cvar.BoolValue("scr_showturtle"); !got {
@@ -225,8 +236,9 @@ func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
 func TestRegisterColorShiftPercentCvarsRegistersDefaults(t *testing.T) {
 	t.Parallel()
 
+	g := New()
 	registry := cvar.NewCVarSystem()
-	registerColorShiftPercentCvars(registry.Register)
+	g.registerColorShiftPercentCvars(registry.Register)
 
 	tests := []struct {
 		name string
@@ -266,8 +278,9 @@ func TestRendererRDynamicCVarName(t *testing.T) {
 func TestRegisterRendererLightingAndParticleCvarsRegistersParityDefaults(t *testing.T) {
 	t.Parallel()
 
+	g := New()
 	registry := cvar.NewCVarSystem()
-	registerRendererLightingAndParticleCvars(registry.Register)
+	g.registerRendererLightingAndParticleCvars(registry.Register)
 
 	tests := []struct {
 		name         string
@@ -301,11 +314,7 @@ func TestRegisterRendererLightingAndParticleCvarsRegistersParityDefaults(t *test
 }
 
 func TestBuildCSQCClientHooksExposeStatAndPlayerBuiltins(t *testing.T) {
-	originalClient := g.Client
-	t.Cleanup(func() {
-		g.Client = originalClient
-	})
-
+	g := New()
 	g.Client = cl.NewClient()
 	g.Client.Stats[3] = 77
 	g.Client.Stats[5] = 0xAB
@@ -314,7 +323,7 @@ func TestBuildCSQCClientHooksExposeStatAndPlayerBuiltins(t *testing.T) {
 	g.Client.Frags[1] = 42
 	g.Client.PlayerColors[1] = 0x2d
 
-	hooks := buildCSQCClientHooks()
+	hooks := g.buildCSQCClientHooks()
 
 	if got := hooks.GetStatInt(3); got != 77 {
 		t.Fatalf("GetStatInt(3) = %d, want 77", got)
@@ -346,7 +355,8 @@ func TestBuildCSQCClientHooksExposeStatAndPlayerBuiltins(t *testing.T) {
 }
 
 func TestBuildCSQCClientHooksRegistersCommandOnce(t *testing.T) {
-	hooks := buildCSQCClientHooks()
+	g := New()
+	hooks := g.buildCSQCClientHooks()
 	cmdName := "csqc_unit_registercommand_test"
 	cmdsys.RemoveCommand(cmdName)
 	t.Cleanup(func() {
@@ -388,8 +398,7 @@ func (reloadTestRenderer) ClearDynamicLights()                               {}
 func (reloadTestRenderer) InputBackendForSystem(*input.System) input.Backend { return nil }
 
 func TestRuntimeMenuModsUsesCurrentSubsystemFilesystem(t *testing.T) {
-	original := g
-	t.Cleanup(func() { g = original })
+	g := New()
 
 	baseA := t.TempDir()
 	for _, dir := range []string{"id1", "hipnotic"} {
@@ -429,21 +438,20 @@ func TestRuntimeMenuModsUsesCurrentSubsystemFilesystem(t *testing.T) {
 	defer fsB.Close()
 
 	g.Subs = &host.Subsystems{Files: fsA}
-	modsA := runtimeMenuMods(g.Subs)
+	modsA := g.runtimeMenuMods(g.Subs)
 	if len(modsA) != 1 || modsA[0].Name != "hipnotic" {
 		t.Fatalf("mods from fsA = %#v, want hipnotic", modsA)
 	}
 
 	g.Subs.Files = fsB
-	modsB := runtimeMenuMods(g.Subs)
+	modsB := g.runtimeMenuMods(g.Subs)
 	if len(modsB) != 1 || modsB[0].Name != "rogue" {
 		t.Fatalf("mods from fsB = %#v, want rogue", modsB)
 	}
 }
 
 func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing.T) {
-	original := g
-	t.Cleanup(func() { g = original })
+	g := New()
 
 	progsData := []byte("test progs")
 
@@ -480,11 +488,11 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 	g.Host.SetMenu(g.Menu)
 	g.ModDir = "id1"
 	g.AliasModelCache = map[string]*model.Model{"progs/player.mdl": nil}
-	g.SpriteModelCache = map[string]*runtimeSpriteModel{"progs/flame.spr": nil}
+	g.SpriteModelCache = map[string]*SpriteModel{"progs/flame.spr": nil}
 	g.ShowScores = true
 	g.WorldUploadKey = "old-world"
 
-	if err := reloadRuntimeAfterGameDirChange(g.Subs, fileSys); err != nil {
+	if err := g.reloadRuntimeAfterGameDirChange(g.Subs, fileSys); err != nil {
 		t.Fatalf("reloadRuntimeAfterGameDirChange failed: %v", err)
 	}
 
@@ -524,8 +532,7 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 }
 
 func TestRuntimeDrawFileSystemPrefersCurrentSubsystemFilesystem(t *testing.T) {
-	original := g
-	t.Cleanup(func() { g = original })
+	g := New()
 
 	baseA := t.TempDir()
 	baseB := t.TempDir()
@@ -558,7 +565,7 @@ func TestRuntimeDrawFileSystemPrefersCurrentSubsystemFilesystem(t *testing.T) {
 
 	g.Subs = &host.Subsystems{Files: current}
 
-	if got := runtimeDrawFileSystem(fallback); got != current {
+	if got := g.runtimeDrawFileSystem(fallback); got != current {
 		t.Fatalf("runtimeDrawFileSystem() = %p, want current subsystem fs %p", got, current)
 	}
 }
