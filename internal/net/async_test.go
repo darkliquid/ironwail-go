@@ -67,8 +67,15 @@ func TestAsyncReceiver_StopIdempotent(t *testing.T) {
 
 func TestAsyncReceiver_DataCopied(t *testing.T) {
 	shared := []byte{1, 2, 3}
+	var delivered atomic.Bool
 	poll := func() (int, []byte) {
-		return 1, shared
+		// Deliver the shared buffer once, then stop producing so the
+		// background goroutine no longer touches it concurrently with
+		// the test's mutation below.
+		if delivered.CompareAndSwap(false, true) {
+			return 1, shared
+		}
+		return 0, nil
 	}
 
 	recv := NewAsyncReceiver(poll, 4, time.Millisecond)
