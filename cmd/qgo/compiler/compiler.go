@@ -178,7 +178,7 @@ func loadTargetPackages(dir string) (*loadedPackages, error) {
 		},
 	}
 
-	cfg.Env = os.Environ()
+	cfg.Env = append(os.Environ(), "GOWORK=off")
 
 	pkgs, err := packages.Load(cfg, ".")
 	if err != nil {
