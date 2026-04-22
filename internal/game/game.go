@@ -49,6 +49,7 @@ type Game struct {
 	MouseGrabbed     bool
 	AliasModelCache  map[string]*model.Model
 	SpriteModelCache map[string]*SpriteModel
+	BrushModelCache  map[string]*bsp.Tree
 	SoundSFXByIndex  map[int]*audio.SFX
 	MenuSFXByName    map[string]*audio.SFX
 	AmbientSFX       [audio.NumAmbients]*audio.SFX

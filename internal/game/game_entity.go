@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
@@ -43,20 +44,41 @@ func (g *Game) collectBrushEntities() []renderer.BrushEntity {
 			return renderer.BrushEntity{}, false
 		}
 		modelName := g.Client.ModelPrecache[precacheIndex]
-		if len(modelName) < 2 || modelName[0] != '*' {
+		if len(modelName) < 2 {
 			return renderer.BrushEntity{}, false
 		}
-		submodelIndex, err := strconv.Atoi(modelName[1:])
-		if err != nil || submodelIndex <= 0 || submodelIndex >= len(g.Server.WorldTree.Models) {
+		if modelName[0] == '*' {
+			submodelIndex, err := strconv.Atoi(modelName[1:])
+			if err != nil || submodelIndex <= 0 || submodelIndex >= len(g.Server.WorldTree.Models) {
+				return renderer.BrushEntity{}, false
+			}
+			return renderer.BrushEntity{
+				SubmodelIndex: submodelIndex,
+				Frame:         int(state.Frame),
+				Origin:        state.Origin,
+				Angles:        state.Angles,
+				Alpha:         g.entityStateAlpha(state),
+				Scale:         g.entityStateScale(state),
+			}, true
+		}
+		// Standalone BSP file (e.g. "maps/b_rock0.bsp"). Load once and treat
+		// as a self-contained brush model — distinct from inline submodels.
+		if !strings.HasSuffix(strings.ToLower(modelName), ".bsp") {
+			return renderer.BrushEntity{}, false
+		}
+		tree, ok := g.loadBrushModelTree(modelName)
+		if !ok || tree == nil || len(tree.Models) == 0 {
 			return renderer.BrushEntity{}, false
 		}
 		return renderer.BrushEntity{
-			SubmodelIndex: submodelIndex,
+			SubmodelIndex: 0,
 			Frame:         int(state.Frame),
 			Origin:        state.Origin,
 			Angles:        state.Angles,
 			Alpha:         g.entityStateAlpha(state),
 			Scale:         g.entityStateScale(state),
+			ExternalKey:   modelName,
+			ExternalTree:  tree,
 		}, true
 	}
 
@@ -71,7 +93,7 @@ func (g *Game) collectBrushEntities() []renderer.BrushEntity {
 			continue
 		}
 		if !g.clientEntityStateIsCurrent(state) {
-			if modelName != "" && strings.HasPrefix(modelName, "*") {
+			if modelName != "" && isBrushModelName(modelName) {
 				g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "stale_skip")
 			}
 			continue
@@ -79,7 +101,7 @@ func (g *Game) collectBrushEntities() []renderer.BrushEntity {
 		if brushEntity, ok := resolve(state); ok {
 			g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "draw")
 			brushEntities = append(brushEntities, brushEntity)
-		} else if modelName != "" && strings.HasPrefix(modelName, "*") {
+		} else if modelName != "" && isBrushModelName(modelName) {
 			g.runtimeDebugViewLogEntityCollection("brush", entityNum, state, modelName, "resolve_skip")
 		}
 	}
@@ -90,6 +112,49 @@ func (g *Game) collectBrushEntities() []renderer.BrushEntity {
 	}
 
 	return brushEntities
+}
+
+// isBrushModelName reports whether a precache name refers to a brush model
+// — either an inline world submodel ("*N") or a standalone BSP file on
+// disk (".bsp"). Used by entity collection logging to avoid flagging
+// alias-model collection misses as missing brush work.
+func isBrushModelName(name string) bool {
+	if name == "" {
+		return false
+	}
+	if name[0] == '*' {
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(name), ".bsp")
+}
+
+// loadBrushModelTree loads and caches a standalone BSP file used as a
+// brush-model entity (e.g. "maps/b_rock0.bsp"). Failures are cached as
+// nil so repeated lookups don't re-hit the filesystem.
+func (g *Game) loadBrushModelTree(modelName string) (*bsp.Tree, bool) {
+	if modelName == "" || g.Subs == nil || g.Subs.Files == nil {
+		return nil, false
+	}
+	if g.BrushModelCache == nil {
+		g.BrushModelCache = make(map[string]*bsp.Tree)
+	}
+	if tree, ok := g.BrushModelCache[modelName]; ok {
+		return tree, tree != nil
+	}
+	data, err := g.Subs.Files.LoadFile(modelName)
+	if err != nil {
+		slog.Debug("brush model load skipped", "model", modelName, "error", err)
+		g.BrushModelCache[modelName] = nil
+		return nil, false
+	}
+	tree, err := bsp.LoadTree(bytes.NewReader(data))
+	if err != nil {
+		slog.Debug("brush model parse skipped", "model", modelName, "error", err)
+		g.BrushModelCache[modelName] = nil
+		return nil, false
+	}
+	g.BrushModelCache[modelName] = tree
+	return tree, true
 }
 
 func (g *Game) loadAliasModel(modelName string) (*model.Model, bool) {

@@ -30,7 +30,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	scratch.vertexData = scratch.vertexData[:0]
 	scratch.indexData = scratch.indexData[:0]
 	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
+		geom := dc.renderer.brushEntityGeometry(entity)
 		scratch.classifiedBuild = append(scratch.classifiedBuild, worldgogpu.ClassifiedBrushEntityDraw{})
 		buildDraw := &scratch.classifiedBuild[len(scratch.classifiedBuild)-1]
 		if !worldgogpu.FillClassifiedBrushEntityDraw(buildDraw, gogpuBrushEntityParams(entity), geom, classifyGoGPUBrushEntityFace) {
@@ -47,7 +47,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 			alphaTestIndices: buildDraw.AlphaTestIndices,
 			alphaTestFaces:   buildDraw.AlphaTestFaces,
 			alphaTestCenters: buildDraw.AlphaTestCenters,
-			lightmaps:        dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom),
+			lightmaps:        dc.renderer.brushEntityLightmaps(entity, geom),
 		})
 		drawIndex := len(scratch.classifiedDraws) - 1
 		draw := &scratch.classifiedDraws[drawIndex]
@@ -273,7 +273,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 
 	draws := make([]gogpuOpaqueBrushEntityDraw, 0, len(entities))
 	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
+		geom := dc.renderer.brushEntityGeometry(entity)
 		if draw := buildGoGPUSkyBrushEntityDraw(entity, geom); draw != nil {
 			draws = append(draws, *draw)
 		}
@@ -464,7 +464,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	scratch.vertexData = scratch.vertexData[:0]
 	scratch.indexData = scratch.indexData[:0]
 	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
+		geom := dc.renderer.brushEntityGeometry(entity)
 		scratch.opaqueBuild = append(scratch.opaqueBuild, worldgogpu.OpaqueBrushEntityDraw{})
 		buildDraw := &scratch.opaqueBuild[len(scratch.opaqueBuild)-1]
 		if !worldgogpu.FillBrushEntityDraw(buildDraw, gogpuBrushEntityParams(entity), geom, func(face WorldFace, entityAlpha float32) bool {
@@ -481,7 +481,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 			indices:     buildDraw.Indices,
 			faces:       buildDraw.Faces,
 			centers:     buildDraw.Centers,
-			lightmaps:   dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom),
+			lightmaps:   dc.renderer.brushEntityLightmaps(entity, geom),
 		})
 		drawIndex := len(scratch.opaqueDraws) - 1
 		draw := &scratch.opaqueDraws[drawIndex]

@@ -1,6 +1,9 @@
 package renderer
 
-import "github.com/darkliquid/ironwail-go/internal/model"
+import (
+	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
+)
 
 // DecalVariant identifies the visual style used by a projected decal mark.
 type DecalVariant int
@@ -13,6 +16,11 @@ const (
 )
 
 // BrushEntity describes an inline BSP submodel instance to render.
+//
+// When ExternalKey is non-empty, the entity references a standalone BSP
+// file (e.g. "maps/b_rock0.bsp") rather than an inline world submodel:
+// SubmodelIndex is treated as 0 against ExternalTree's own model table,
+// and the renderer caches geometry keyed by ExternalKey.
 type BrushEntity struct {
 	SubmodelIndex int
 	Frame         int
@@ -20,6 +28,8 @@ type BrushEntity struct {
 	Angles        [3]float32
 	Alpha         float32
 	Scale         float32
+	ExternalKey   string
+	ExternalTree  *bsp.Tree
 }
 
 // EntityEffectSource describes a runtime entity whose effect flags drive transient visuals.

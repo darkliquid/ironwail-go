@@ -238,6 +238,8 @@ type Renderer struct {
 	lightPool                      *glLightPool
 	brushModelGeometry             map[int]*WorldGeometry
 	brushModelLightmaps            map[int][]*gpuWorldTexture
+	externalBrushGeometry          map[string]*WorldGeometry
+	externalBrushLightmaps         map[string][]*gpuWorldTexture
 	aliasModels                    map[string]*gpuAliasModel
 	spriteModels                   map[string]*gpuSpriteModel
 	aliasEntityStates              map[int]*AliasEntity

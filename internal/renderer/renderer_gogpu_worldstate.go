@@ -313,3 +313,110 @@ func (r *Renderer) ensureBrushModelLightmaps(submodelIndex int, geom *WorldGeome
 	r.brushModelLightmaps[submodelIndex] = uploaded
 	return uploaded
 }
+
+// ensureExternalBrushModelGeometry builds and caches geometry for a
+// standalone BSP file (e.g. "maps/b_rock0.bsp") that is referenced as
+// a brush entity but is not an inline submodel of the current world.
+// The cache is keyed by external-model name so the same tree is only
+// uploaded once regardless of how many entities reference it.
+//
+// Face texture indices inside an external BSP live in their own index
+// space and will not match the current world texture table — the render
+// path's whiteTexture fallback handles that (untextured geometry is
+// still visually correct in position, shape and lighting).
+func (r *Renderer) ensureExternalBrushModelGeometry(key string, tree *bsp.Tree) *WorldGeometry {
+	if key == "" || tree == nil {
+		return nil
+	}
+	r.mu.RLock()
+	if geom := r.externalBrushGeometry[key]; geom != nil {
+		r.mu.RUnlock()
+		return geom
+	}
+	r.mu.RUnlock()
+	geom, err := BuildModelGeometry(tree, 0)
+	if err != nil {
+		slog.Debug("GoGPU external brush model build skipped", "key", key, "error", err)
+		return nil
+	}
+	if geom == nil || len(geom.Vertices) == 0 {
+		return nil
+	}
+	r.mu.Lock()
+	if r.externalBrushGeometry == nil {
+		r.externalBrushGeometry = make(map[string]*WorldGeometry)
+	}
+	if existing := r.externalBrushGeometry[key]; existing != nil {
+		r.mu.Unlock()
+		return existing
+	}
+	r.externalBrushGeometry[key] = geom
+	r.mu.Unlock()
+	return geom
+}
+
+// ensureExternalBrushModelLightmaps uploads and caches lightmap pages
+// for an external (standalone) BSP. Unlike world lightmaps these are
+// self-contained inside the external tree's geometry and are not
+// animated by the world's lightstyle values.
+func (r *Renderer) ensureExternalBrushModelLightmaps(key string, geom *WorldGeometry) []*gpuWorldTexture {
+	if key == "" || geom == nil || len(geom.Lightmaps) == 0 {
+		return nil
+	}
+	r.mu.RLock()
+	if cached := r.externalBrushLightmaps[key]; len(cached) > 0 {
+		r.mu.RUnlock()
+		return cached
+	}
+	sampler := r.worldLightmapSampler
+	values := r.worldLightStyleValues
+	r.mu.RUnlock()
+	device := r.getWGPUDevice()
+	queue := r.getWGPUQueue()
+	if device == nil || queue == nil || sampler == nil {
+		return nil
+	}
+	uploaded := r.uploadWorldLightmapPages(device, queue, sampler, geom.Lightmaps, values)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.externalBrushLightmaps == nil {
+		r.externalBrushLightmaps = make(map[string][]*gpuWorldTexture)
+	}
+	if existing := r.externalBrushLightmaps[key]; len(existing) > 0 {
+		for _, page := range uploaded {
+			if page == nil {
+				continue
+			}
+			if page.bindGroup != nil {
+				page.bindGroup.Release()
+			}
+			if page.view != nil {
+				page.view.Release()
+			}
+			if page.texture != nil {
+				page.texture.Release()
+			}
+		}
+		return existing
+	}
+	r.externalBrushLightmaps[key] = uploaded
+	return uploaded
+}
+
+// brushEntityGeometry returns the geometry for a brush entity,
+// dispatching to the external-BSP path when BrushEntity.ExternalKey is set.
+func (r *Renderer) brushEntityGeometry(entity BrushEntity) *WorldGeometry {
+	if entity.ExternalKey != "" && entity.ExternalTree != nil {
+		return r.ensureExternalBrushModelGeometry(entity.ExternalKey, entity.ExternalTree)
+	}
+	return r.ensureBrushModelGeometry(entity.SubmodelIndex)
+}
+
+// brushEntityLightmaps returns lightmap pages for a brush entity,
+// dispatching to the external-BSP path when BrushEntity.ExternalKey is set.
+func (r *Renderer) brushEntityLightmaps(entity BrushEntity, geom *WorldGeometry) []*gpuWorldTexture {
+	if entity.ExternalKey != "" {
+		return r.ensureExternalBrushModelLightmaps(entity.ExternalKey, geom)
+	}
+	return r.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
+}

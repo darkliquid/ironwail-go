@@ -348,9 +348,9 @@ func (dc *DrawContext) collectGoGPUTranslucentLiquidBrushFaceRenders(entities []
 	}
 	draws := make([]gogpuTranslucentLiquidBrushEntityDraw, 0, len(entities))
 	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
+		geom := dc.renderer.brushEntityGeometry(entity)
 		if draw := buildGoGPUTranslucentLiquidBrushEntityDraw(entity, geom, state.liquidAlpha, state.camera); draw != nil {
-			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
+			draw.lightmaps = dc.renderer.brushEntityLightmaps(entity, geom)
 			draws = append(draws, *draw)
 		}
 	}
@@ -411,9 +411,9 @@ func (dc *DrawContext) collectGoGPUTranslucentBrushEntityFaceRenders(entities []
 	}
 	draws := make([]gogpuTranslucentBrushEntityDraw, 0, len(entities))
 	for _, entity := range entities {
-		geom := dc.renderer.ensureBrushModelGeometry(entity.SubmodelIndex)
+		geom := dc.renderer.brushEntityGeometry(entity)
 		if draw := buildGoGPUTranslucentBrushEntityDraw(entity, geom, state.liquidAlpha, state.camera); draw != nil {
-			draw.lightmaps = dc.renderer.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
+			draw.lightmaps = dc.renderer.brushEntityLightmaps(entity, geom)
 			draws = append(draws, *draw)
 		}
 	}
