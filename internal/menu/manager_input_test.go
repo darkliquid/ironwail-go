@@ -599,21 +599,27 @@ func TestHUDStyleLabelClassic(t *testing.T) {
 	}
 }
 
-// TestHUDStyleLabelCompact verifies that hudStyleLabel returns "COMPACT" for 1.
+// TestHUDStyleLabelCompact verifies that hudStyleLabel returns "MODERN 1" for 1.
 func TestHUDStyleLabelCompact(t *testing.T) {
-	if got := hudStyleLabel(1); got != "COMPACT" {
-		t.Fatalf("expected COMPACT, got %q", got)
+	if got := hudStyleLabel(1); got != "MODERN 1" {
+		t.Fatalf("expected MODERN 1, got %q", got)
+	}
+}
+
+func TestHUDStyleLabelModernSideAmmo(t *testing.T) {
+	if got := hudStyleLabel(2); got != "MODERN 2" {
+		t.Fatalf("expected MODERN 2, got %q", got)
 	}
 }
 
 func TestHUDStyleLabelQuakeWorld(t *testing.T) {
-	if got := hudStyleLabel(2); got != "QUAKEWORLD" {
+	if got := hudStyleLabel(3); got != "QUAKEWORLD" {
 		t.Fatalf("expected QUAKEWORLD, got %q", got)
 	}
 }
 
 // TestVideoMenuHUDStyleCyclesCorrectly verifies that adjustVideoSetting cycles
-// hud_style through 0→1→2→0 when pressing right.
+// hud_style through 0→1→2→3→0 when pressing right.
 func TestVideoMenuHUDStyleCyclesCorrectly(t *testing.T) {
 	mgr := NewManager(nil, nil, nil)
 	mgr.state = MenuVideo
@@ -633,10 +639,16 @@ func TestVideoMenuHUDStyleCyclesCorrectly(t *testing.T) {
 		t.Fatalf("after right from 1: hud_style = %d, want 2", got)
 	}
 
-	// Right: 2 → 0 (wraps).
+	// Right: 2 → 3.
+	mgr.adjustVideoSetting(1)
+	if got := mgr.cvars.IntValue("hud_style"); got != 3 {
+		t.Fatalf("after right from 2: hud_style = %d, want 3", got)
+	}
+
+	// Right: 3 → 0 (wraps).
 	mgr.adjustVideoSetting(1)
 	if got := mgr.cvars.IntValue("hud_style"); got != 0 {
-		t.Fatalf("after right from 2 (wrap): hud_style = %d, want 0", got)
+		t.Fatalf("after right from 3 (wrap): hud_style = %d, want 0", got)
 	}
 }
 

@@ -481,7 +481,7 @@ func TestHUDDrawUsesParityCanvases(t *testing.T) {
 	quakeWorld := &mockRenderContext{
 		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 320, Bottom: 48},
 	}
-	testCV.Set("hud_style", "2")
+	testCV.Set("hud_style", "3")
 	h.SetState(State{
 		Health:       100,
 		Armor:        50,

@@ -231,7 +231,7 @@ func (m *Manager) audioKey(key int) {
 // through videoResolutions, fullscreen/vsync/viewmodel/showfps/showspeed/time
 // are toggles,
 // maxFPS cycles through maxFPSValues, gamma is a float slider, waterwarp
-// cycles 0/1/2, and hud_style cycles 0/1/2.
+// cycles 0/1/2, and hud_style cycles 0/1/2/3.
 func (m *Manager) adjustVideoSetting(delta int) {
 	switch m.videoCursor {
 	case videoItemResolution:
@@ -259,7 +259,8 @@ func (m *Manager) adjustVideoSetting(delta int) {
 		next := (m.cvars.IntValue("r_waterwarp") + delta + 3) % 3
 		m.cvars.SetInt("r_waterwarp", next)
 	case videoItemHUDStyle:
-		next := (m.cvars.IntValue("hud_style") + delta + 3) % 3
+		// Four HUD styles: 0=classic, 1=modern 1, 2=modern 2, 3=QuakeWorld.
+		next := (m.cvars.IntValue("hud_style") + delta + 4) % 4
 		m.cvars.SetInt("hud_style", next)
 	case videoItemShowFPS:
 		m.cvars.SetBool("scr_showfps", m.cvars.FloatValue("scr_showfps") == 0)
@@ -419,13 +420,16 @@ func waterwarpLabel(v int) string {
 	}
 }
 
-// hudStyleLabel returns a human-readable label for the hud_style cvar value:
-// 0 → "CLASSIC", 1 → "COMPACT", 2 → "QUAKEWORLD".
+// hudStyleLabel returns a human-readable label for the hud_style cvar value,
+// matching C Ironwail's Video menu: 0 → "CLASSIC", 1 → "MODERN 1", 2 →
+// "MODERN 2", 3 → "QUAKEWORLD".
 func hudStyleLabel(v int) string {
 	switch v {
 	case 1:
-		return "COMPACT"
+		return "MODERN 1"
 	case 2:
+		return "MODERN 2"
+	case 3:
 		return "QUAKEWORLD"
 	default:
 		return "CLASSIC"

@@ -335,6 +335,7 @@ func (sb *StatusBar) DrawQuakeWorld(rc renderer.RenderContext, state State, scre
 	sb.drawQWMainItems(rc, sbarX, sbarY, state)
 }
 
+
 // drawInventory renders the inventory strip that sits above the main status
 // bar. It shows owned weapons (with flash animation on pickup), ammo counts
 // for all four ammo types, powerup/item icons (keys, quad, etc.), and sigils.

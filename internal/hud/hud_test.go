@@ -427,6 +427,7 @@ func TestHUDDraw(t *testing.T) {
 	hud := NewHUD(nil, testCV)
 	mock := &mockRenderContext{}
 
+	testCV.Set("hud_style", "0")
 	hud.SetScreenSize(1280, 720)
 	hud.SetState(State{Health: 100, Armor: 75, Ammo: 50, ActiveWeapon: 1})
 	hud.Draw(mock)

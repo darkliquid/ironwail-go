@@ -176,7 +176,7 @@ const (
 	videoItemGamma
 	videoItemViewModel
 	videoItemWaterwarp // r_waterwarp: mirrors C Ironwail options-menu OPT_WATERWARP preview
-	videoItemHUDStyle  // hud_style: selects classic, compact, or QuakeWorld HUD
+	videoItemHUDStyle  // hud_style: classic, modern 1, modern 2, or QuakeWorld HUD
 	videoItemShowFPS   // scr_showfps: toggles the runtime FPS counter
 	videoItemShowSpeed // scr_showspeed: toggles the runtime speed overlay
 	videoItemShowTime  // scr_clock: toggles the runtime level clock

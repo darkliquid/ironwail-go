@@ -6,10 +6,15 @@ import (
 )
 
 const (
-	HUDClassic    = 0
-	HUDCompact    = 1
-	HUDQuakeWorld = 2
-	HUDCount      = 3
+	HUDClassic           = 0
+	HUDModernCenterAmmo  = 1
+	HUDModernSideAmmo    = 2
+	HUDQuakeWorld        = 3
+	HUDCount             = 4
+
+	// HUDCompact is a backwards-compatible alias for HUDModernCenterAmmo,
+	// retained for call sites that predate the C-parity renumber.
+	HUDCompact = HUDModernCenterAmmo
 
 	// GameDeathmatch is the gametype value for deathmatch mode, used by
 	// SBAR canvas alignment.

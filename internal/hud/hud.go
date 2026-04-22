@@ -13,18 +13,27 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
-// HUDStyle selects the active HUD presentation.
+// HUDStyle selects the active HUD presentation. Values match C Ironwail's
+// hudstyle_t enum: 0=classic, 1=modern center-ammo, 2=modern side-ammo,
+// 3=QuakeWorld.
 type HUDStyle int
 
 const (
 	// HUDStyleClassic is the original Quake status-bar strip (default).
 	HUDStyleClassic HUDStyle = 0
-	// HUDStyleCompact is a minimal corner-overlay inspired by the Q64 layout
-	// and the alternate HUD styles advertised in Ironwail's README.
-	HUDStyleCompact HUDStyle = 1
+	// HUDStyleModernCenterAmmo is the SBAR2-based "Modern 1" layout: big
+	// corner face/health/armor and ammo pair, with a centered 4x1 ammo strip.
+	HUDStyleModernCenterAmmo HUDStyle = 1
+	// HUDStyleModernSideAmmo is the SBAR2-based "Modern 2" layout, identical
+	// to Modern 1 but with a 2x2 ammo block tucked into the right side.
+	HUDStyleModernSideAmmo HUDStyle = 2
 	// HUDStyleQuakeWorld mirrors Ironwail's QuakeWorld status-bar layout, with
 	// the main strip on the left and inventory/frag widgets on the right.
-	HUDStyleQuakeWorld HUDStyle = 2
+	HUDStyleQuakeWorld HUDStyle = 3
+
+	// HUDStyleCompact is a backwards-compatible alias for
+	// HUDStyleModernCenterAmmo.
+	HUDStyleCompact HUDStyle = HUDStyleModernCenterAmmo
 )
 
 // hudStyleCVar is the console variable name that selects between the classic
@@ -100,7 +109,7 @@ func NewHUD(dm *draw.Manager, cv *cvar.CVarSystem) *HUD {
 	if cv == nil {
 		cv = cvar.NewCVarSystem()
 	}
-	cv.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=compact Q64-style overlay, 2=QuakeWorld status bar")
+	cv.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=modern center-ammo, 2=modern side-ammo, 3=QuakeWorld status bar")
 	return &HUD{
 		drawManager: dm,
 		cvars:       cv,
@@ -142,11 +151,11 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 
 	if h.state.Intermission == 0 {
 		switch h.Style() {
-		case HUDStyleCompact:
+		case HUDStyleModernCenterAmmo, HUDStyleModernSideAmmo:
 			if currentViewSize(h.cvars) < 120 {
 				rc.SetCanvas(renderer.CanvasSbar2)
-				width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
-				h.compact.Draw(rc, h.state, width, height)
+				sideAmmo := h.Style() == HUDStyleModernSideAmmo
+				h.status.DrawModern(rc, h.state, sideAmmo)
 			}
 		case HUDStyleQuakeWorld:
 			rc.SetCanvas(renderer.CanvasSbar)
