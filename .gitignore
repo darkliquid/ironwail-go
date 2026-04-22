@@ -21,6 +21,9 @@
 !/docs/*.md
 !/docs/*.txt
 
+# Parity tooling files
+!/tasks/*.sh
+
 # bv (beads viewer) local config and caches
 .bv/
 
