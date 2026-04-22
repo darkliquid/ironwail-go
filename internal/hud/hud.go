@@ -150,12 +150,15 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 			}
 		case HUDStyleQuakeWorld:
 			rc.SetCanvas(renderer.CanvasSbar)
-			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
-			h.status.DrawQuakeWorld(rc, h.state, width, height)
+			// CanvasSbar is a fixed 320x48 logical coordinate system, centered
+			// at the bottom of the screen by the canvas transform. Pass those
+			// intrinsic dimensions directly rather than the full-screen clip
+			// bounds returned by canvasDimensions (which would place the bar
+			// off-screen because StatusBar.Draw treats them as screen coords).
+			h.status.DrawQuakeWorld(rc, h.state, 320, 48)
 		default: // HUDStyleClassic
 			rc.SetCanvas(renderer.CanvasSbar)
-			width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
-			h.status.Draw(rc, h.state, width, height)
+			h.status.Draw(rc, h.state, 320, 48)
 		}
 	}
 	rc.SetCanvas(renderer.CanvasCrosshair)
