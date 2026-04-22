@@ -420,3 +420,61 @@ func (r *Renderer) brushEntityLightmaps(entity BrushEntity, geom *WorldGeometry)
 	}
 	return r.ensureBrushModelLightmaps(entity.SubmodelIndex, geom)
 }
+
+// ensureExternalBrushModelTextures uploads and caches diffuse + fullbright
+// textures and texture-animation chains for a standalone BSP file. Like
+// the geometry/lightmap caches the entries are keyed by external-model
+// name so repeat entities share the same GPU resources.
+func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
+	if key == "" || tree == nil {
+		return nil, nil, nil
+	}
+	r.mu.RLock()
+	if textures, ok := r.externalBrushTextures[key]; ok {
+		fullbright := r.externalBrushFullbright[key]
+		animations := r.externalBrushAnimations[key]
+		r.mu.RUnlock()
+		return textures, fullbright, animations
+	}
+	sampler := r.worldTextureSampler
+	r.mu.RUnlock()
+	device := r.getWGPUDevice()
+	queue := r.getWGPUQueue()
+	if device == nil || queue == nil || sampler == nil {
+		return nil, nil, nil
+	}
+	textures, fullbright, animations := r.uploadWorldMaterialTextures(device, queue, sampler, tree)
+	r.mu.Lock()
+	if r.externalBrushTextures == nil {
+		r.externalBrushTextures = make(map[string]map[int32]*gpuWorldTexture)
+		r.externalBrushFullbright = make(map[string]map[int32]*gpuWorldTexture)
+		r.externalBrushAnimations = make(map[string][]*SurfaceTexture)
+	}
+	if existing, ok := r.externalBrushTextures[key]; ok {
+		r.mu.Unlock()
+		return existing, r.externalBrushFullbright[key], r.externalBrushAnimations[key]
+	}
+	// Cache even empty results so we don't re-upload on failure.
+	if textures == nil {
+		textures = map[int32]*gpuWorldTexture{}
+	}
+	if fullbright == nil {
+		fullbright = map[int32]*gpuWorldTexture{}
+	}
+	r.externalBrushTextures[key] = textures
+	r.externalBrushFullbright[key] = fullbright
+	r.externalBrushAnimations[key] = animations
+	r.mu.Unlock()
+	return textures, fullbright, animations
+}
+
+// brushEntityTextures returns the texture / fullbright / animations
+// triplet appropriate for a brush entity. External-BSP entities get
+// per-key maps uploaded on demand; inline submodels return (nil, nil, nil)
+// and fall back to the world texture tables.
+func (r *Renderer) brushEntityTextures(entity BrushEntity) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
+	if entity.ExternalKey == "" || entity.ExternalTree == nil {
+		return nil, nil, nil
+	}
+	return r.ensureExternalBrushModelTextures(entity.ExternalKey, entity.ExternalTree)
+}

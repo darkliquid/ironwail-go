@@ -240,6 +240,9 @@ type Renderer struct {
 	brushModelLightmaps            map[int][]*gpuWorldTexture
 	externalBrushGeometry          map[string]*WorldGeometry
 	externalBrushLightmaps         map[string][]*gpuWorldTexture
+	externalBrushTextures          map[string]map[int32]*gpuWorldTexture
+	externalBrushFullbright        map[string]map[int32]*gpuWorldTexture
+	externalBrushAnimations        map[string][]*SurfaceTexture
 	aliasModels                    map[string]*gpuAliasModel
 	spriteModels                   map[string]*gpuSpriteModel
 	aliasEntityStates              map[int]*AliasEntity

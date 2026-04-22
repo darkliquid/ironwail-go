@@ -18,6 +18,11 @@ type gogpuOpaqueBrushEntityDraw struct {
 	faces       []WorldFace
 	centers     [][3]float32
 	lightmaps   []*gpuWorldTexture
+	// Optional per-draw texture overrides used for standalone-BSP brush
+	// entities (e.g. b_rock0.bsp). Nil means use the world texture tables.
+	textures           map[int32]*gpuWorldTexture
+	fullbrightTextures map[int32]*gpuWorldTexture
+	textureAnimations  []*SurfaceTexture
 }
 
 type gogpuClassifiedBrushEntityDraw struct {
@@ -31,6 +36,10 @@ type gogpuClassifiedBrushEntityDraw struct {
 	alphaTestFaces   []WorldFace
 	alphaTestCenters [][3]float32
 	lightmaps        []*gpuWorldTexture
+	// Optional per-draw texture overrides — see gogpuOpaqueBrushEntityDraw.
+	textures           map[int32]*gpuWorldTexture
+	fullbrightTextures map[int32]*gpuWorldTexture
+	textureAnimations  []*SurfaceTexture
 }
 
 type gogpuPreparedClassifiedBrushDraw struct {
@@ -205,6 +214,10 @@ type gogpuTranslucentLiquidBrushEntityDraw struct {
 	indices   []uint32
 	faces     []gogpuTranslucentLiquidFaceDraw
 	lightmaps []*gpuWorldTexture
+	// Optional per-entity texture overrides for standalone-BSP brush entities.
+	textures           map[int32]*gpuWorldTexture
+	fullbrightTextures map[int32]*gpuWorldTexture
+	textureAnimations  []*SurfaceTexture
 }
 
 func convertGoGPUTranslucentFaceDraws(src []worldgogpu.TranslucentFaceDraw) []gogpuTranslucentLiquidFaceDraw {
@@ -249,6 +262,10 @@ type gogpuTranslucentBrushEntityDraw struct {
 	translucentFaces []gogpuTranslucentLiquidFaceDraw
 	liquidFaces      []gogpuTranslucentLiquidFaceDraw
 	lightmaps        []*gpuWorldTexture
+	// Optional per-entity texture overrides for standalone-BSP brush entities.
+	textures           map[int32]*gpuWorldTexture
+	fullbrightTextures map[int32]*gpuWorldTexture
+	textureAnimations  []*SurfaceTexture
 }
 
 func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentBrushEntityDraw {
