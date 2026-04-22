@@ -213,14 +213,7 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 		g.drawRuntimeConsole(overlay, w, h, true, true)
 	}
 
-	if g.Menu != nil && g.Menu.IsActive() {
-		g.drawRuntimeMenu(overlay, w, h, g.Menu.M_Draw)
-		telemetryState := g.buildRuntimeTelemetryState(conForcedup)
-		telemetryState.ViewRect = g.runtimeOverlayViewRect(w, h, false)
-		g.drawRuntimeFPS(overlay, telemetryState, &g.FPSOverlay)
-		g.drawRuntimeSavingIndicator(overlay, g.Draw, telemetryState)
-		return
-	}
+	menuActive := g.Menu != nil && g.Menu.IsActive()
 
 	if !conForcedup {
 		telemetryState := g.buildRuntimeTelemetryState(conForcedup)
@@ -237,6 +230,11 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 		if consoleVisible || g.runtimeConsoleAnimating() {
 			g.drawRuntimeConsole(overlay, w, h, true, false)
 			if consoleVisible {
+				// Console fully covers the rest; menu/chat still handled below.
+				telemetryState := g.buildRuntimeTelemetryState(conForcedup)
+				telemetryState.ViewRect = g.runtimeOverlayViewRect(w, h, false)
+				g.drawRuntimeFPS(overlay, telemetryState, &g.FPSOverlay)
+				g.drawRuntimeSavingIndicator(overlay, g.Draw, telemetryState)
 				return
 			}
 		}
@@ -248,6 +246,11 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 		if g.Input != nil && g.Input.GetKeyDest() == input.KeyMessage && !g.runtimeConsoleAnimating() {
 			g.drawChatInput(overlay, w, h)
 		}
+	}
+
+	// Draw menu on top of HUD (mirrors C gl_screen.c: Sbar_Draw() then M_Draw()).
+	if menuActive {
+		g.drawRuntimeMenu(overlay, w, h, g.Menu.M_Draw)
 	}
 
 	telemetryState := g.buildRuntimeTelemetryState(conForcedup)

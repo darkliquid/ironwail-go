@@ -160,9 +160,11 @@ func (g *Game) runtimeViewModelVisible() bool {
 	if g.Client == nil {
 		return false
 	}
-	if g.Menu != nil && g.Menu.IsActive() {
-		return false
-	}
+	// Note: C Ironwail's R_IsViewModelVisible does NOT suppress the
+	// viewmodel when the menu is open — the main menu is drawn on top
+	// of the 3D scene and the viewmodel/HUD remain visible underneath.
+	// Hiding it here caused parity captures running behind the attract-
+	// mode menu overlay to show no weapon while C did.
 	if g.Client.Intermission != 0 {
 		return false
 	}
