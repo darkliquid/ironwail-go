@@ -590,8 +590,17 @@ func (g *Game) showRuntimeMenuState(state menu.MenuState) {
 }
 
 func (g *Game) ApplyStartupGameplayInputMode() {
+	// Mirror C Ironwail: entering active gameplay does NOT force-close the
+	// main menu. In particular, attract-mode demo playback (startdemos) runs
+	// behind an open menu_main overlay; hiding the menu here would diverge
+	// from C's behavior and cause the parity harness to desync. Only hide
+	// the menu when we are NOT playing back an attract-mode demo.
 	if g.Menu != nil {
-		g.Menu.HideMenu()
+		demo := g.Host.DemoState()
+		attract := demo != nil && demo.Playback && g.Host.DemoNum() >= 0
+		if !attract {
+			g.Menu.HideMenu()
+		}
 	}
 	g.syncGameplayInputMode()
 	if g.Input != nil {

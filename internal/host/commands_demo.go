@@ -248,13 +248,32 @@ func (h *Host) CmdStartdemos(args []string, subs *Subsystems) {
 
 	count := len(args)
 	if count > MaxDemos {
+		subs.Console.Print(fmt.Sprintf("Max %d demos in demoloop\n", MaxDemos))
 		count = MaxDemos
 	}
+	subs.Console.Print(fmt.Sprintf("%d demo(s) in loop\n", count))
 	h.SetDemoList(args[:count])
 	h.SetDemoNum(0)
 
-	// If no game is in progress, start playing the first demo now.
+	// Mirror C Ironwail host_cmd.c:3670-3680: when startdemos is invoked
+	// with no active game, open the main menu over the demoloop and (unless
+	// cl_startdemos is 0) kick off playback so the demo plays behind the
+	// menu. The menu_main command is inserted at the front of the command
+	// buffer so it runs as soon as the current command chunk completes.
 	if h.clientState == caDisconnected && !h.serverActive {
+		if h.Cmd != nil {
+			h.Cmd.InsertText("menu_main\n")
+		}
+		startdemos := true
+		if h.CVar != nil {
+			if cv := h.CVar.Get("cl_startdemos"); cv != nil {
+				startdemos = cv.Float != 0
+			}
+		}
+		if !startdemos {
+			h.SetDemoNum(-1)
+			return
+		}
 		h.CmdDemos(subs)
 	}
 }
