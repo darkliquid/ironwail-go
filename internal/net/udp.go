@@ -25,37 +25,17 @@ import (
 	"strings"
 )
 
-// Network configuration variables. These mirror the C Quake globals
-// from net_udp.c / net_wins.c.
-//
-// netHostPort is the UDP port the server listens on (default 26000, the
-// classic Quake port). Clients connect to this port for the initial
-// handshake, though the server may redirect them to a different port.
-//
-// defaultNetHostPort preserves the original default for reset purposes.
-//
-// tcpipAvailable indicates whether UDP networking was successfully
-// initialized. In the original C code, this could be false if Winsock
-// failed to start; in Go, UDP is always available.
-//
-// myTCPIPAddress stores the local machine's IP address string, used
-// in server info responses so LAN browser clients know how to connect.
-var (
-	netHostPort        = 26000
-	defaultNetHostPort = 26000
-	tcpipAvailable     = false
-	myTCPIPAddress     string
-)
+// Network configuration variables formerly lived at package scope; they
+// now live as fields on the Network struct (see network.go). The
+// process-wide defaults are owned by defaultNet.
 
-// UDPInit initializes the UDP transport layer. In the original C engine,
-// this performed Winsock initialization (Windows) or socket setup (Unix).
-// In Go, the standard library handles these details, so this discovers
-// the local IPv4 address and marks UDP as available.
+// UDPInit initializes the UDP transport layer on this Network. It
+// discovers the local IPv4 address and marks UDP as available.
 // Corresponds to UDP_Init() in net_udp.c.
-func UDPInit() error {
+func (n *Network) UDPInit() error {
 	// Discover local IPv4 address, matching C UDP_Init behavior.
 	// Default to loopback (same as C: myAddr = htonl(INADDR_LOOPBACK)).
-	myTCPIPAddress = "127.0.0.1"
+	n.myTCPIPAddress = "127.0.0.1"
 
 	addrs, err := stdnet.InterfaceAddrs()
 	if err == nil {
@@ -68,18 +48,25 @@ func UDPInit() error {
 			if ip4 == nil || ip4.IsLoopback() {
 				continue
 			}
-			myTCPIPAddress = ip4.String()
+			n.myTCPIPAddress = ip4.String()
 			break
 		}
 	}
 
-	tcpipAvailable = true
+	n.tcpipAvailable = true
 	return nil
+}
+
+// UDPInit initializes the process-wide UDP transport layer, discovering
+// the local IPv4 address. Retained as the legacy entry point; per-Host
+// callers should invoke Network.UDPInit on their own instance.
+func UDPInit() error {
+	return defaultNet.UDPInit()
 }
 
 // UDPOpenSocket opens a UDP socket bound to the specified port. Pass 0
 // to let the OS assign a random ephemeral port (used by clients). The
-// server calls this with netHostPort (default 26000) to create its
+// server calls this with defaultNet.hostPort (default 26000) to create its
 // accept socket. The socket is IPv4-only ("udp4") to match original
 // Quake behavior. Corresponds to UDP_OpenSocket() in net_udp.c.
 func UDPOpenSocket(port int) (*stdnet.UDPConn, error) {
@@ -132,20 +119,27 @@ func UDPAddrToString(addr *stdnet.UDPAddr) string {
 	return addr.String()
 }
 
-// UDPStringToAddr resolves a host:port string into a UDP address,
-// performing DNS resolution if necessary. Used by DatagramConnect
+// UDPStringToAddr resolves a host:port string into a UDP address on this
+// Network, performing DNS resolution if necessary. Used by DatagramConnect
 // to turn user-provided server addresses into network endpoints.
 // Corresponds to UDP_StringToAddr() in net_udp.c.
-func UDPStringToAddr(address string) (*stdnet.UDPAddr, error) {
+func (n *Network) UDPStringToAddr(address string) (*stdnet.UDPAddr, error) {
 	if !strings.Contains(address, ":") {
-		address = fmt.Sprintf("%s:%d", address, netHostPort)
+		address = fmt.Sprintf("%s:%d", address, n.hostPort)
 	}
 	if len(address) > 0 && address[0] >= '0' && address[0] <= '9' {
-		expanded, err := PartialIPAddress(address, stdnet.ParseIP(myTCPIPAddress), netHostPort)
+		expanded, err := PartialIPAddress(address, stdnet.ParseIP(n.myTCPIPAddress), n.hostPort)
 		if err != nil {
 			return nil, err
 		}
 		address = expanded
 	}
 	return stdnet.ResolveUDPAddr("udp4", address)
+}
+
+// UDPStringToAddr resolves a host:port string into a UDP address using
+// the process-wide defaultNet. Per-Host callers should use
+// Network.UDPStringToAddr on their own instance for isolation.
+func UDPStringToAddr(address string) (*stdnet.UDPAddr, error) {
+	return defaultNet.UDPStringToAddr(address)
 }

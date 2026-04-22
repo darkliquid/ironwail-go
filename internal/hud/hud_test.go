@@ -14,31 +14,37 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
+var testCV = cvar.NewCVarSystem()
+
+func init() {
+	testCV.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "")
+}
+
 func registerCenterprintTestCvars() {
-	cvar.Register("scr_centertime", "2", 0, "test centerprint hold time")
-	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
-	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "test menu background alpha")
-	cvar.Register("scr_printspeed", "8", 0, "test centerprint reveal speed")
-	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test centerprint fade enable")
-	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
-	cvar.Register("crosshair", "0", cvar.FlagArchive, "test crosshair")
-	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "test viewsize")
+	testCV.Register("scr_centertime", "2", 0, "test centerprint hold time")
+	testCV.Register("scr_centerprintbg", "2", cvar.FlagArchive, "test centerprint background")
+	testCV.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "test menu background alpha")
+	testCV.Register("scr_printspeed", "8", 0, "test centerprint reveal speed")
+	testCV.Register("con_notifyfade", "0", cvar.FlagArchive, "test centerprint fade enable")
+	testCV.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test centerprint fade duration")
+	testCV.Register("crosshair", "0", cvar.FlagArchive, "test crosshair")
+	testCV.Register("scr_viewsize", "100", cvar.FlagArchive, "test viewsize")
 }
 
 func setTestViewSize(t *testing.T, value string) {
 	t.Helper()
-	cvar.Set("scr_viewsize", value)
+	testCV.Set("scr_viewsize", value)
 	t.Cleanup(func() {
-		cvar.Set("scr_viewsize", "100")
+		testCV.Set("scr_viewsize", "100")
 	})
 }
 
 func setTestSbarAlpha(t *testing.T, value string) {
 	t.Helper()
-	cvar.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "")
-	cvar.Set("scr_sbaralpha", value)
+	testCV.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "")
+	testCV.Set("scr_sbaralpha", value)
 	t.Cleanup(func() {
-		cvar.Set("scr_sbaralpha", "0.75")
+		testCV.Set("scr_sbaralpha", "0.75")
 	})
 }
 
@@ -207,7 +213,7 @@ func TestDrawString(t *testing.T) {
 }
 
 func TestStatusBarDraw(t *testing.T) {
-	sb := NewStatusBar(nil)
+	sb := NewStatusBar(nil, testCV)
 	mock := &mockRenderContext{}
 	setTestViewSize(t, "100")
 
@@ -226,7 +232,7 @@ func TestStatusBarDraw(t *testing.T) {
 }
 
 func TestStatusBarDrawHidesInventoryAtLargeViewsize(t *testing.T) {
-	sb := NewStatusBar(nil)
+	sb := NewStatusBar(nil, testCV)
 	mock := &mockRenderContext{}
 	setTestViewSize(t, "110")
 
@@ -241,7 +247,7 @@ func TestStatusBarDrawHidesInventoryAtLargeViewsize(t *testing.T) {
 }
 
 func TestStatusBarDrawHidesMainBarAtHugeViewsize(t *testing.T) {
-	sb := NewStatusBar(nil)
+	sb := NewStatusBar(nil, testCV)
 	mock := &mockRenderContext{}
 	setTestViewSize(t, "120")
 
@@ -253,7 +259,7 @@ func TestStatusBarDrawHidesMainBarAtHugeViewsize(t *testing.T) {
 }
 
 func TestStatusBarScoreboardOverridesHugeViewsize(t *testing.T) {
-	sb := NewStatusBar(nil)
+	sb := NewStatusBar(nil, testCV)
 	mock := &mockRenderContext{}
 	setTestViewSize(t, "120")
 
@@ -278,6 +284,7 @@ func TestStatusBarDrawUsesScreenSpacePicCoordinates(t *testing.T) {
 	face := &image.QPic{Width: 24, Height: 24}
 	ammo := &image.QPic{Width: 24, Height: 24}
 	sb := &StatusBar{
+		cvars:     testCV,
 		sbarPic:   sbar,
 		ibarPic:   ibar,
 		armorPics: [3]*image.QPic{armor},
@@ -322,7 +329,7 @@ func TestStatusBarDrawUsesAlphaPicsForBarBackgrounds(t *testing.T) {
 	setTestSbarAlpha(t, "0.75")
 	sbar := &image.QPic{Width: 320, Height: 24}
 	ibar := &image.QPic{Width: 320, Height: 24}
-	sb := &StatusBar{sbarPic: sbar, ibarPic: ibar}
+	sb := &StatusBar{cvars: testCV, sbarPic: sbar, ibarPic: ibar}
 	mock := &mockRenderContext{}
 
 	sb.Draw(mock, State{Health: 100}, 320, 48)
@@ -341,7 +348,7 @@ func TestStatusBarDrawUsesAlphaPicsForBarBackgrounds(t *testing.T) {
 func TestStatusBarScoreboardUsesAlphaBackground(t *testing.T) {
 	setTestSbarAlpha(t, "0.5")
 	scorebar := &image.QPic{Width: 320, Height: 24}
-	sb := &StatusBar{scorebarPic: scorebar}
+	sb := &StatusBar{cvars: testCV, scorebarPic: scorebar}
 	mock := &mockRenderContext{}
 
 	sb.drawScoreboard(mock, State{Scoreboard: []ScoreEntry{{Name: "p1", Frags: 1}}}, 0, 24)
@@ -360,7 +367,7 @@ func TestStatusBarDrawBigNumUsesClassicPics(t *testing.T) {
 	alt7 := &image.QPic{Width: 24, Height: 24}
 	alt0 := &image.QPic{Width: 24, Height: 24}
 	base9 := &image.QPic{Width: 24, Height: 24}
-	sb := &StatusBar{}
+	sb := &StatusBar{cvars: testCV}
 	sb.numPics[0][9] = base9
 	sb.numPics[1][0] = alt0
 	sb.numPics[1][2] = alt2
@@ -400,7 +407,7 @@ func TestStatusBarDrawBigNumUsesClassicPics(t *testing.T) {
 }
 
 func TestStatusBarDrawBigNumFallsBackWithoutPics(t *testing.T) {
-	sb := &StatusBar{}
+	sb := &StatusBar{cvars: testCV}
 	mock := &mockRenderContext{}
 
 	sb.drawBigNum(mock, 24, 0, 25, 3, true)
@@ -418,7 +425,7 @@ func TestStatusBarDrawBigNumFallsBackWithoutPics(t *testing.T) {
 }
 
 func TestHUDDraw(t *testing.T) {
-	hud := NewHUD(nil)
+	hud := NewHUD(nil, testCV)
 	mock := &mockRenderContext{}
 
 	hud.SetScreenSize(1280, 720)
@@ -431,465 +438,6 @@ func TestHUDDraw(t *testing.T) {
 	}
 }
 
-func TestHUDDrawCenterprintTimeoutFromClientTime(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_centerprintbg", "2")
-	cvar.Set("con_notifyfade", "0")
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.SetState(State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          11,
-	})
-	active := &mockRenderContext{}
-	h.Draw(active)
-	if len(active.fills) <= 2 {
-		t.Fatalf("expected centerprint background fills in addition to status bar, got %d fills", len(active.fills))
-	}
-
-	h.SetState(State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          13.1,
-	})
-	expired := &mockRenderContext{}
-	h.Draw(expired)
-	if len(expired.fills) != 2 {
-		t.Fatalf("expected only status bar fills after centerprint expiry, got %d", len(expired.fills))
-	}
-}
-
-func TestHUDDrawCenterprintTimeoutUsesScrCenterTime(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_centerprintbg", "0")
-	cvar.Set("con_notifyfade", "0")
-	cvar.Set("scr_centertime", "3")
-	t.Cleanup(func() {
-		cvar.Set("scr_centertime", "2")
-	})
-
-	cp := NewCenterprint(nil)
-	active := &mockRenderContext{}
-	cp.Draw(active, State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          12.5,
-	}, 320, 200)
-	if got := charactersToString(active.characters); got != "message" {
-		t.Fatalf("centerprint before scr_centertime expiry = %q, want message", got)
-	}
-
-	expired := &mockRenderContext{}
-	cp.Draw(expired, State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          13.1,
-	}, 320, 200)
-	if got := charactersToString(expired.characters); got != "" {
-		t.Fatalf("centerprint after scr_centertime expiry = %q, want empty", got)
-	}
-}
-
-func TestHUDRegularCenterprintSuppressesWhilePaused(t *testing.T) {
-	registerCenterprintTestCvars()
-	cp := NewCenterprint(nil)
-
-	mock := &mockRenderContext{}
-	cp.Draw(mock, State{
-		Paused:        true,
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          10.5,
-	}, 320, 200)
-	if got := charactersToString(mock.characters); got != "" {
-		t.Fatalf("paused centerprint = %q, want empty", got)
-	}
-
-	finale := &mockRenderContext{}
-	cp.Draw(finale, State{
-		Paused:        true,
-		Intermission:  2,
-		CenterPrint:   "AB",
-		CenterPrintAt: 10,
-		Time:          11,
-	}, 320, 200)
-	if got := charactersToString(finale.characters); got != "AB" {
-		t.Fatalf("paused finale centerprint = %q, want AB", got)
-	}
-}
-
-func TestHUDCenterprintFadeTailExtendsLifetime(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_centerprintbg", "0")
-	cvar.Set("con_notifyfade", "1")
-	cvar.Set("con_notifyfadetime", "0.5")
-
-	cp := NewCenterprint(nil)
-	active := &mockRenderContext{}
-	cp.Draw(active, State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          12.05,
-	}, 320, 200)
-	if got := charactersToString(active.characters); got != "message" {
-		t.Fatalf("centerprint during fade tail = %q, want %q", got, "message")
-	}
-
-	expired := &mockRenderContext{}
-	cp.Draw(expired, State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          12.6,
-	}, 320, 200)
-	if got := charactersToString(expired.characters); got != "" {
-		t.Fatalf("centerprint after fade tail = %q, want empty", got)
-	}
-}
-
-func TestHUDCenterprintFadeTailUsesCharacterAlphaDuringLateFade(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_centerprintbg", "2")
-	cvar.Set("con_notifyfade", "1")
-	cvar.Set("con_notifyfadetime", "0.5")
-
-	cp := NewCenterprint(nil)
-	fading := &mockRenderContext{}
-	cp.Draw(fading, State{
-		CenterPrint:   "message",
-		CenterPrintAt: 10,
-		Time:          12.25,
-	}, 320, 200)
-
-	if got := charactersToString(fading.characters); got != "message" {
-		t.Fatalf("late fade text = %q, want full message", got)
-	}
-	if len(fading.alphaCharacters) != len("message") {
-		t.Fatalf("late fade alpha characters = %d, want %d", len(fading.alphaCharacters), len("message"))
-	}
-	for _, ch := range fading.alphaCharacters {
-		if math.Abs(float64(ch.alpha)-0.5) > 0.0001 {
-			t.Fatalf("late fade alpha character = %+v, want alpha=0.5", ch)
-		}
-	}
-	if len(fading.alphaFills) != 1 {
-		t.Fatalf("late fade alpha background fills = %d, want 1", len(fading.alphaFills))
-	}
-	if got := fading.alphaFills[0]; got.color != centerPrintPanelColor || math.Abs(float64(got.alpha)-0.35) > 0.0001 {
-		t.Fatalf("late fade alpha background fill = %+v, want color=%d alpha=0.35", got, centerPrintPanelColor)
-	}
-}
-
-func TestHUDIntermissionOverlaySuppressesStatusBar(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.SetState(State{
-		Intermission:  1,
-		CompletedTime: 125,
-		LevelName:     "Unit Test Map",
-		Secrets:       2,
-		TotalSecrets:  4,
-		Monsters:      5,
-		TotalMonsters: 8,
-	})
-	mock := &mockRenderContext{}
-	h.Draw(mock)
-	if len(mock.fills) != 0 {
-		t.Fatalf("expected no status-bar fill draws during intermission, got %d", len(mock.fills))
-	}
-	if len(mock.characters) == 0 {
-		t.Fatal("expected intermission overlay text draw")
-	}
-}
-
-func TestHUDIntermissionOverlayUsesGraphicLabelsOnly(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.centerprint.completePic = &image.QPic{Width: 100, Height: 24}
-	h.centerprint.interPic = &image.QPic{Width: 64, Height: 24}
-	h.SetState(State{
-		Intermission:  1,
-		CompletedTime: 125,
-		LevelName:     "Unit Test Map",
-		Secrets:       2,
-		TotalSecrets:  4,
-		Monsters:      5,
-		TotalMonsters: 8,
-	})
-	mock := &mockRenderContext{}
-	h.Draw(mock)
-
-	got := charactersToString(mock.characters)
-	if strings.Contains(got, "time") || strings.Contains(got, "secrets") || strings.Contains(got, "monsters") {
-		t.Fatalf("intermission text drew duplicate labels: %q", got)
-	}
-	if !strings.Contains(got, "2:05") || !strings.Contains(got, "2/ 4") || !strings.Contains(got, "5/ 8") {
-		t.Fatalf("intermission values missing from draw string output: %q", got)
-	}
-}
-
-func TestHUDIntermissionOverlayCanBeHiddenOutsideGameplayFocus(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.centerprint.completePic = &image.QPic{Width: 100, Height: 24}
-	h.centerprint.interPic = &image.QPic{Width: 64, Height: 24}
-	h.SetState(State{
-		Intermission:            1,
-		HideIntermissionOverlay: true,
-		CompletedTime:           125,
-		Secrets:                 2,
-		TotalSecrets:            4,
-		Monsters:                5,
-		TotalMonsters:           8,
-	})
-	mock := &mockRenderContext{}
-	h.Draw(mock)
-
-	if len(mock.pics) != 0 || len(mock.characters) != 0 {
-		t.Fatalf("hidden intermission overlay drew pics=%d chars=%d", len(mock.pics), len(mock.characters))
-	}
-}
-
-func TestCenterprintIntermissionUsesMenuSpaceOverlayCoordinates(t *testing.T) {
-	complete := &image.QPic{Width: 100, Height: 20}
-	inter := &image.QPic{Width: 64, Height: 24}
-	cp := &Centerprint{
-		completePic: complete,
-		interPic:    inter,
-	}
-	mock := &mockRenderContext{}
-	cp.Draw(mock, State{Intermission: 1}, 1280, 720)
-
-	if len(mock.pics) != 2 {
-		t.Fatalf("screen-space pic draw count = %d, want 2 menu-space-aware pic draws", len(mock.pics))
-	}
-
-	want := []struct {
-		x, y int
-		pic  *image.QPic
-	}{
-		{x: 110, y: 8, pic: complete},
-		{x: 0, y: 56, pic: inter},
-	}
-	if len(mock.pics) < len(want) {
-		t.Fatalf("pic draw count = %d, want at least %d", len(mock.pics), len(want))
-	}
-	for i, expected := range want {
-		got := mock.pics[i]
-		if got.x != expected.x || got.y != expected.y || got.pic != expected.pic {
-			t.Fatalf("pic draw %d = %+v, want %+v", i, got, expected)
-		}
-	}
-	if len(mock.canvasSwitch) == 0 || mock.canvasSwitch[0] != renderer.CanvasMenu {
-		t.Fatalf("canvas switches = %v, want first switch to CanvasMenu", mock.canvasSwitch)
-	}
-}
-
-func TestHUDFinaleOverlayShowsCenterTextWithoutTimeout(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.SetState(State{
-		Intermission:  2,
-		CenterPrint:   "Finale line",
-		CenterPrintAt: 1,
-		Time:          100,
-	})
-	mock := &mockRenderContext{}
-	h.Draw(mock)
-	if len(mock.characters) == 0 {
-		t.Fatal("expected finale center text draw")
-	}
-}
-
-func TestHUDFinaleOverlayRevealsCenterTextOverTime(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	base := State{
-		Intermission:  2,
-		CenterPrint:   "ABCD",
-		CenterPrintAt: 1,
-	}
-
-	h.SetState(func() State {
-		s := base
-		s.Time = 1.1
-		return s
-	}())
-	initial := &mockRenderContext{}
-	h.Draw(initial)
-	if got := charactersToString(initial.characters); got != "" {
-		t.Fatalf("initial finale reveal = %q, want empty", got)
-	}
-
-	h.SetState(func() State {
-		s := base
-		s.Time = 1.26
-		return s
-	}())
-	partial := &mockRenderContext{}
-	h.Draw(partial)
-	if got := charactersToString(partial.characters); got != "AB" {
-		t.Fatalf("partial finale reveal = %q, want AB", got)
-	}
-
-	h.SetState(func() State {
-		s := base
-		s.Time = 1.6
-		return s
-	}())
-	full := &mockRenderContext{}
-	h.Draw(full)
-	if got := charactersToString(full.characters); got != "ABCD" {
-		t.Fatalf("full finale reveal = %q, want ABCD", got)
-	}
-}
-
-func TestHUDCutsceneOverlayUsesTimedReveal(t *testing.T) {
-	registerCenterprintTestCvars()
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.SetState(State{
-		Intermission:  3,
-		CenterPrint:   "A\nB",
-		CenterPrintAt: 4,
-		Time:          4.26,
-	})
-	mock := &mockRenderContext{}
-	h.Draw(mock)
-	if got := charactersToString(mock.characters); got != "AB" {
-		t.Fatalf("cutscene reveal = %q, want AB", got)
-	}
-}
-
-func TestHUDFinaleOverlayUsesScrPrintSpeed(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_printspeed", "4")
-	t.Cleanup(func() {
-		cvar.Set("scr_printspeed", "8")
-	})
-
-	h := NewHUD(nil)
-	h.SetScreenSize(320, 200)
-	h.SetState(State{
-		Intermission:  2,
-		CenterPrint:   "ABCD",
-		CenterPrintAt: 1,
-		Time:          1.26,
-	})
-
-	mock := &mockRenderContext{}
-	h.Draw(mock)
-	if got := charactersToString(mock.characters); got != "A" {
-		t.Fatalf("finale reveal with scr_printspeed=4 = %q, want A", got)
-	}
-}
-
-func TestCenterprintBackgroundModeThreeUsesFullWidthStrip(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_centerprintbg", "3")
-
-	cp := NewCenterprint(nil)
-	mock := &mockRenderContext{}
-	cp.Draw(mock, State{
-		CenterPrint:   "HELLO",
-		CenterPrintAt: 1,
-		Time:          1.1,
-	}, 320, 200)
-
-	if len(mock.fills) != 1 {
-		t.Fatalf("fill count = %d, want 1", len(mock.fills))
-	}
-	if got := mock.fills[0]; got.x != 0 || got.w != 320 {
-		t.Fatalf("strip fill = %+v, want full-width strip", got)
-	}
-	if got := mock.fills[0].color; got != centerPrintPanelColor {
-		t.Fatalf("strip fill color = %d, want %d", got, centerPrintPanelColor)
-	}
-}
-
-func TestCenterprintBackgroundAlphaUsesMenuBGAlpha(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_menubgalpha", "0.25")
-	t.Cleanup(func() {
-		cvar.Set("scr_menubgalpha", "0.7")
-	})
-
-	cp := NewCenterprint(nil)
-	mock := &mockRenderContext{}
-	cp.Draw(mock, State{
-		CenterPrint:   "HELLO",
-		CenterPrintAt: 1,
-		Time:          1.5,
-	}, 320, 200)
-
-	if len(mock.alphaFills) != 1 {
-		t.Fatalf("alpha fill count = %d, want 1", len(mock.alphaFills))
-	}
-	if got := mock.alphaFills[0]; math.Abs(float64(got.alpha)-0.25) > 0.0001 {
-		t.Fatalf("alpha fill = %+v, want alpha=0.25", got)
-	}
-	if got := mock.alphaFills[0].color; got != centerPrintPanelColor {
-		t.Fatalf("alpha fill color = %d, want %d", got, centerPrintPanelColor)
-	}
-}
-
-func TestCenterprintBackgroundModeOneUsesTextboxArt(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("scr_centerprintbg", "1")
-	cvar.Set("scr_menubgalpha", "0.25")
-
-	box := &image.QPic{Width: 8, Height: 8}
-	cp := &Centerprint{
-		boxPics: map[string]*image.QPic{
-			"gfx/box_tl.lmp":  box,
-			"gfx/box_ml.lmp":  box,
-			"gfx/box_bl.lmp":  box,
-			"gfx/box_tm.lmp":  box,
-			"gfx/box_mm.lmp":  box,
-			"gfx/box_mm2.lmp": box,
-			"gfx/box_bm.lmp":  box,
-			"gfx/box_tr.lmp":  box,
-			"gfx/box_mr.lmp":  box,
-			"gfx/box_br.lmp":  box,
-		},
-	}
-	mock := &mockRenderContext{}
-	cp.Draw(mock, State{
-		CenterPrint:   "HELLO",
-		CenterPrintAt: 1,
-		Time:          1.5,
-	}, 320, 200)
-
-	if len(mock.fills) != 0 || len(mock.alphaFills) != 0 {
-		t.Fatalf("mode 1 fallback fills = %d alphaFills = %d, want 0", len(mock.fills), len(mock.alphaFills))
-	}
-	if len(mock.alphaPics) != 24 {
-		t.Fatalf("mode 1 alpha pic count = %d, want 24", len(mock.alphaPics))
-	}
-	if got := mock.alphaPics[0]; got.x != 120 || got.y != 58 || got.pic != box || math.Abs(float64(got.alpha)-0.25) > 0.0001 {
-		t.Fatalf("mode 1 first alpha pic = %+v, want x=120 y=58 alpha=0.25", got)
-	}
-}
-
-func TestCenterprintYMatchesCanonicalBranches(t *testing.T) {
-	registerCenterprintTestCvars()
-	cvar.Set("con_notifyfade", "1")
-	cvar.Set("con_notifyfadetime", "0.5")
-
-	if got := centerprintY(200, "one\ntwo"); got != 70 {
-		t.Fatalf("short centerprint y = %d, want 70", got)
-	}
-	if got := centerprintY(200, "1\n2\n3\n4\n5"); got != 48 {
-		t.Fatalf("long centerprint y = %d, want 48", got)
-	}
-	if got := centerprintFadeTail(); math.Abs(got-0.5) > 0.0001 {
-		t.Fatalf("centerprint fade tail = %.2f, want 0.50", got)
-	}
-	if got := centerprintVisualAlpha(State{CenterPrintAt: 10, Time: 12.25}); math.Abs(got-0.5) > 0.0001 {
-		t.Fatalf("centerprint visual alpha = %.2f, want 0.50", got)
-	}
-}
-
 func TestStatusBarDrawQuakeWorldAmmoBackgroundsUseAlpha(t *testing.T) {
 	setTestSbarAlpha(t, "0.5")
 	row0 := &image.QPic{Width: 42, Height: 11}
@@ -897,6 +445,7 @@ func TestStatusBarDrawQuakeWorldAmmoBackgroundsUseAlpha(t *testing.T) {
 	row2 := &image.QPic{Width: 42, Height: 11}
 	row3 := &image.QPic{Width: 42, Height: 11}
 	sb := &StatusBar{
+		cvars:    testCV,
 		qwAmmoBG: [4]*image.QPic{row0, row1, row2, row3},
 	}
 
@@ -925,6 +474,7 @@ func TestStatusBarDrawQuakeWorldAmmoBackgroundsUseAlpha(t *testing.T) {
 func TestStatusBarDrawQuakeWorldSigilBackgroundOnlyWhenNeeded(t *testing.T) {
 	sigilBG := &image.QPic{Width: 32, Height: 16}
 	sb := &StatusBar{
+		cvars:     testCV,
 		qwSigilBG: sigilBG,
 		sigilPics: [4]*image.QPic{
 			&image.QPic{Width: 8, Height: 16},
@@ -971,18 +521,18 @@ func TestStatusBarDrawQuakeWorldSigilBackgroundOnlyWhenNeeded(t *testing.T) {
 
 func TestRegularCenterprintYShiftsUpWhenCrosshairVisible(t *testing.T) {
 	registerCenterprintTestCvars()
-	cvar.Set("crosshair", "1")
+	testCV.Set("crosshair", "1")
 	t.Cleanup(func() {
-		cvar.Set("crosshair", "0")
+		testCV.Set("crosshair", "0")
 	})
 
 	setTestViewSize(t, "100")
-	if got := regularCenterprintY(200, "one\ntwo"); got != 62 {
+	if got := (&Centerprint{cvars: testCV}).regularCenterprintY(200, "one\ntwo"); got != 62 {
 		t.Fatalf("regular centerprint y with crosshair = %d, want 62", got)
 	}
 
 	setTestViewSize(t, "130")
-	if got := regularCenterprintY(200, "one\ntwo"); got != 70 {
+	if got := (&Centerprint{cvars: testCV}).regularCenterprintY(200, "one\ntwo"); got != 70 {
 		t.Fatalf("regular centerprint y at viewsize 130 = %d, want 70", got)
 	}
 }
@@ -993,551 +543,4 @@ func charactersToString(chars []struct{ x, y, num int }) string {
 		out.WriteRune(rune(ch.num))
 	}
 	return out.String()
-}
-
-func TestStatusBarDrawsClassicIconsFromState(t *testing.T) {
-	weaponOwned := &image.QPic{Width: 24, Height: 16}
-	weaponActive := &image.QPic{Width: 24, Height: 16}
-	itemPic := &image.QPic{Width: 16, Height: 16}
-	sigilPic := &image.QPic{Width: 8, Height: 16}
-	facePic := &image.QPic{Width: 24, Height: 24}
-	armorPic := &image.QPic{Width: 24, Height: 24}
-	ammoPic := &image.QPic{Width: 24, Height: 24}
-	sbarPic := &image.QPic{Width: 320, Height: 24}
-	ibarPic := &image.QPic{Width: 320, Height: 24}
-
-	sb := &StatusBar{
-		sbarPic:    sbarPic,
-		ibarPic:    ibarPic,
-		weaponPics: [7][7]*image.QPic{{weaponActive}, {weaponOwned}},
-		itemPics:   [6]*image.QPic{itemPic},
-		sigilPics:  [4]*image.QPic{sigilPic},
-		facePics:   [5][2]*image.QPic{{facePic}, {facePic}, {facePic}, {facePic}, {facePic}},
-		armorPics:  [3]*image.QPic{armorPic},
-		ammoPics:   [4]*image.QPic{ammoPic},
-	}
-	mock := &mockRenderContext{}
-	state := State{
-		Health:       100,
-		Armor:        40,
-		Ammo:         20,
-		ActiveWeapon: int(cl.ItemShotgun),
-		Shells:       20,
-		Nails:        30,
-		Rockets:      40,
-		Cells:        50,
-		Items:        1 | (1 << 8) | (1 << 13) | (1 << 17) | (1 << 28),
-	}
-	sb.Draw(&mockRenderContext{}, state, 320, 200)
-	state.Time = 2.2
-
-	sb.Draw(mock, state, 320, 200)
-
-	if len(mock.pics) < 7 {
-		t.Fatalf("expected several icon pic draws, got %d", len(mock.pics))
-	}
-
-	var sawWeapon, sawActiveWeapon, sawItem, sawSigil, sawFace, sawArmor, sawAmmo bool
-	for _, draw := range mock.pics {
-		switch draw.pic {
-		case weaponOwned:
-			sawWeapon = true
-		case weaponActive:
-			sawWeapon = true
-			sawActiveWeapon = true
-		case itemPic:
-			sawItem = true
-		case sigilPic:
-			sawSigil = true
-		case facePic:
-			sawFace = true
-		case armorPic:
-			sawArmor = true
-		case ammoPic:
-			sawAmmo = true
-		}
-	}
-	if !sawWeapon || !sawActiveWeapon || !sawItem || !sawSigil || !sawFace || !sawArmor || !sawAmmo {
-		t.Fatalf("missing expected draws: weapon=%v activeWeapon=%v item=%v sigil=%v face=%v armor=%v ammo=%v", sawWeapon, sawActiveWeapon, sawItem, sawSigil, sawFace, sawArmor, sawAmmo)
-	}
-}
-
-func TestStatusBarRogueItemsReplaceSigils(t *testing.T) {
-	rogueShieldPic := &image.QPic{Width: 16, Height: 16}
-	rogueAntiPic := &image.QPic{Width: 16, Height: 16}
-	sigilPic := &image.QPic{Width: 8, Height: 16}
-	sb := &StatusBar{
-		sbarPic:    &image.QPic{Width: 320, Height: 24},
-		ibarPic:    &image.QPic{Width: 320, Height: 24},
-		rogueItems: [2]*image.QPic{rogueShieldPic, rogueAntiPic},
-		sigilPics:  [4]*image.QPic{sigilPic, sigilPic, sigilPic, sigilPic},
-	}
-	mock := &mockRenderContext{}
-	sb.Draw(mock, State{
-		Health:     100,
-		Ammo:       20,
-		ModRogue:   true,
-		Items:      rogueShield | rogueAntiGrav,
-		Time:       10,
-		GameType:   0,
-		MaxClients: 1,
-	}, 320, 200)
-	var sawRogue, sawSigil bool
-	for _, draw := range mock.pics {
-		if draw.pic == rogueShieldPic || draw.pic == rogueAntiPic {
-			sawRogue = true
-		}
-		if draw.pic == sigilPic {
-			sawSigil = true
-		}
-	}
-	if !sawRogue {
-		t.Fatal("expected rogue expansion item icons")
-	}
-	if sawSigil {
-		t.Fatal("expected rogue item path to suppress sigils")
-	}
-}
-
-func TestStatusBarRogueArmorUsesRogueArmorBits(t *testing.T) {
-	greenArmor := &image.QPic{Width: 24, Height: 24}
-	yellowArmor := &image.QPic{Width: 24, Height: 24}
-	redArmor := &image.QPic{Width: 24, Height: 24}
-	sb := &StatusBar{
-		sbarPic:   &image.QPic{Width: 320, Height: 24},
-		ibarPic:   &image.QPic{Width: 320, Height: 24},
-		armorPics: [3]*image.QPic{greenArmor, yellowArmor, redArmor},
-	}
-	mock := &mockRenderContext{}
-
-	sb.Draw(mock, State{
-		Health:   100,
-		Armor:    150,
-		Ammo:     20,
-		ModRogue: true,
-		Items:    rogueArmor2 | cl.ItemShells,
-	}, 320, 200)
-
-	var sawYellow bool
-	for _, draw := range mock.pics {
-		if draw.pic == yellowArmor {
-			sawYellow = true
-			break
-		}
-	}
-	if !sawYellow {
-		t.Fatal("expected rogue armor bits to select the matching armor icon")
-	}
-}
-
-func TestStatusBarWeaponPickupFlashTiming(t *testing.T) {
-	active := &image.QPic{Width: 24, Height: 16}
-	owned := &image.QPic{Width: 24, Height: 16}
-	flash := &image.QPic{Width: 24, Height: 16}
-	sb := &StatusBar{
-		sbarPic: &image.QPic{Width: 320, Height: 24},
-		ibarPic: &image.QPic{Width: 320, Height: 24},
-		weaponPics: [7][7]*image.QPic{
-			{active},
-			{owned},
-			{flash},
-			{flash},
-			{flash},
-			{flash},
-			{flash},
-		},
-	}
-	sb.Draw(&mockRenderContext{}, State{Time: 1}, 320, 200)
-	flashFrame := &mockRenderContext{}
-	sb.Draw(flashFrame, State{
-		Time:  1.1,
-		Items: cl.ItemShotgun,
-	}, 320, 200)
-	var sawFlash bool
-	for _, draw := range flashFrame.pics {
-		if draw.pic == flash {
-			sawFlash = true
-		}
-	}
-	if !sawFlash {
-		t.Fatal("expected flashing weapon frame right after pickup")
-	}
-
-	steady := &mockRenderContext{}
-	sb.Draw(steady, State{
-		Time:  2.2,
-		Items: cl.ItemShotgun,
-	}, 320, 200)
-	var sawOwned bool
-	for _, draw := range steady.pics {
-		if draw.pic == owned {
-			sawOwned = true
-		}
-	}
-	if !sawOwned {
-		t.Fatal("expected non-flashing owned weapon frame after flash window")
-	}
-}
-
-func TestStatusBarDrawMiniScoreboardForDeathmatch(t *testing.T) {
-	sb := NewStatusBar(nil)
-	mock := &mockRenderContext{}
-	const screenWidth = 320
-	const screenHeight = 200
-	const sbarY = screenHeight - 24
-	sb.Draw(mock, State{
-		Health:     100,
-		Armor:      50,
-		Ammo:       30,
-		GameType:   1,
-		MaxClients: 4,
-		Scoreboard: []ScoreEntry{
-			{Name: "alpha", Frags: 2, Colors: 0x1f},
-			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
-		},
-	}, screenWidth, screenHeight)
-	if len(mock.fills) < 6 {
-		t.Fatalf("expected status bar and mini scoreboard fills, got %d", len(mock.fills))
-	}
-	var sawMiniTop, sawMiniBottom, sawTopAnchoredMini bool
-	for _, f := range mock.fills {
-		if f.x == 194 && f.w == 28 && f.h == 4 && f.y == sbarY+1 {
-			sawMiniTop = true
-		}
-		if f.x == 194 && f.w == 28 && f.h == 3 && f.y == sbarY+5 {
-			sawMiniBottom = true
-		}
-		if f.x == 194 && (f.y == 1 || f.y == 5) {
-			sawTopAnchoredMini = true
-		}
-	}
-	if !sawMiniTop || !sawMiniBottom {
-		t.Fatalf("expected mini scoreboard fills anchored to status bar y=%d; top=%v bottom=%v", sbarY, sawMiniTop, sawMiniBottom)
-	}
-	if sawTopAnchoredMini {
-		t.Fatalf("mini scoreboard still appears top-anchored")
-	}
-}
-
-func TestStatusBarFaceUsesPainFrameDuringDamageWindow(t *testing.T) {
-	idleFace := &image.QPic{Width: 24, Height: 24}
-	painFace := &image.QPic{Width: 24, Height: 24}
-	sb := &StatusBar{
-		sbarPic: &image.QPic{Width: 320, Height: 24},
-		ibarPic: &image.QPic{Width: 320, Height: 24},
-	}
-	sb.facePics[3][0] = idleFace
-	sb.facePics[3][1] = painFace
-
-	mock := &mockRenderContext{}
-	sb.Draw(mock, State{
-		Health:        70,
-		Time:          5,
-		FaceAnimUntil: 5.2,
-	}, 320, 200)
-
-	var sawPain bool
-	for _, draw := range mock.pics {
-		if draw.pic == painFace {
-			sawPain = true
-		}
-		if draw.pic == idleFace {
-			t.Fatal("expected pain frame during damage animation window")
-		}
-	}
-	if !sawPain {
-		t.Fatal("expected pain face draw during damage animation window")
-	}
-}
-
-func TestStatusBarFacePowerupOverridesPainFrame(t *testing.T) {
-	painFace := &image.QPic{Width: 24, Height: 24}
-	quadFace := &image.QPic{Width: 24, Height: 24}
-	sb := &StatusBar{
-		sbarPic:  &image.QPic{Width: 320, Height: 24},
-		ibarPic:  &image.QPic{Width: 320, Height: 24},
-		faceQuad: quadFace,
-	}
-	sb.facePics[3][1] = painFace
-
-	mock := &mockRenderContext{}
-	sb.Draw(mock, State{
-		Health:        70,
-		Items:         cl.ItemQuad,
-		Time:          5,
-		FaceAnimUntil: 5.2,
-	}, 320, 200)
-
-	var sawQuad bool
-	for _, draw := range mock.pics {
-		if draw.pic == quadFace {
-			sawQuad = true
-		}
-		if draw.pic == painFace {
-			t.Fatal("expected quad face to override pain frame")
-		}
-	}
-	if !sawQuad {
-		t.Fatal("expected quad face draw")
-	}
-}
-
-func TestStatusBarDrawScoreboardOverlayWhenHeld(t *testing.T) {
-	sb := NewStatusBar(nil)
-	mock := &mockRenderContext{}
-	sb.Draw(mock, State{
-		Health:     100,
-		GameType:   1,
-		MaxClients: 2,
-		ShowScores: true,
-		Scoreboard: []ScoreEntry{
-			{Name: "alpha", Frags: 2, Colors: 0x1f},
-			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
-		},
-	}, 320, 200)
-	if got := charactersToString(mock.characters); !strings.Contains(got, "bravo") {
-		t.Fatalf("expected scoreboard name draw, got %q", got)
-	}
-}
-
-// ---- CompactHUD tests ----
-
-// TestCompactHUDDrawsHealthBottomLeft verifies that the compact HUD renders the
-// player health in the bottom-left corner using DrawCharacter calls.
-func TestCompactHUDDrawsHealthBottomLeft(t *testing.T) {
-	c := NewCompactHUD()
-	rc := &mockRenderContext{}
-
-	state := State{Health: 75, ActiveWeapon: 2, Shells: 30}
-	c.Draw(rc, state, 640, 480)
-
-	if len(rc.characters) == 0 {
-		t.Fatal("expected DrawCharacter calls for compact HUD, got none")
-	}
-
-	// Health is drawn at the bottom-left; the first chars should be at low X, near bottom.
-	bottomY := 480 - compactCharSize - compactMargin
-	found := false
-	for _, ch := range rc.characters {
-		if ch.y == bottomY {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected a character drawn at y=%d (bottom-left health), none found; chars: %v", bottomY, rc.characters)
-	}
-}
-
-// TestCompactHUDDrawsAmmoBottomRight verifies that ammo is drawn near the right
-// side of the screen.
-func TestCompactHUDDrawsAmmoBottomRight(t *testing.T) {
-	c := NewCompactHUD()
-	rc := &mockRenderContext{}
-
-	state := State{Health: 100, ActiveWeapon: 4, Nails: 50}
-	c.Draw(rc, state, 640, 480)
-
-	// The ammo string "  50" (right-aligned, 3 chars wide) starts at
-	// x = 640 - 3*8 - 4 = 612. Verify some char is near the right edge.
-	rightX := 640 - 4*compactCharSize - compactMargin
-	found := false
-	for _, ch := range rc.characters {
-		if ch.x >= rightX {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected a character near right edge (x>=%d) for ammo, none found", rightX)
-	}
-}
-
-// TestCompactHUDNilRenderContextNoPanic verifies that Draw with a nil context does
-// not panic.
-func TestCompactHUDNilRenderContextNoPanic(t *testing.T) {
-	c := NewCompactHUD()
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("panicked with nil RenderContext: %v", r)
-		}
-	}()
-	c.Draw(nil, State{Health: 50}, 640, 480)
-}
-
-func TestCompactHUDSupportsBitmaskActiveWeapon(t *testing.T) {
-	state := State{
-		ActiveWeapon: int(cl.ItemRocketLauncher),
-		Rockets:      12,
-	}
-	if got := currentAmmo(state); got != 12 {
-		t.Fatalf("currentAmmo(bitmask RL) = %d, want 12", got)
-	}
-	if got := compactWeaponName(int(cl.ItemRocketLauncher)); got != "RL" {
-		t.Fatalf("compactWeaponName(bitmask RL) = %q, want RL", got)
-	}
-}
-
-// TestHUDStyleSwitchesRenderer verifies that hud.Draw dispatches to the compact
-// renderer when hud_style=1.
-func TestHUDStyleSwitchesRenderer(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(640, 480)
-	h.SetState(State{Health: 42, ActiveWeapon: 2, Shells: 10})
-
-	rc := &mockRenderContext{}
-
-	// Classic style: status bar draws pics (from sbar.go); with nil draw manager
-	// it falls through to DrawFill calls. Reset and count.
-	_ = strings.Contains // keep import
-	_ = cl.Client{}      // keep import
-	cvar.Set("hud_style", "0")
-	h.Draw(rc)
-	classicCalls := len(rc.characters) + len(rc.fills)
-
-	// Compact style: only DrawCharacter calls.
-	rc2 := &mockRenderContext{}
-	cvar.Set("hud_style", "1")
-	h.Draw(rc2)
-	compactCalls := len(rc2.characters)
-
-	// Both should produce output.
-	if classicCalls == 0 && compactCalls == 0 {
-		t.Fatal("both styles produced no output")
-	}
-	// Compact should not use fills (no status bar background).
-	if len(rc2.fills) != 0 {
-		t.Errorf("compact HUD should not use DrawFill, got %d calls", len(rc2.fills))
-	}
-}
-
-func TestHUDDrawUsesParityCanvases(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(640, 480)
-	h.SetState(State{Health: 100})
-	setTestViewSize(t, "100")
-
-	classic := &mockRenderContext{
-		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 320, Bottom: 48},
-	}
-	cvar.Set("hud_style", "0")
-	h.Draw(classic)
-	if len(classic.canvasSwitch) == 0 || classic.canvasSwitch[0] != renderer.CanvasSbar {
-		t.Fatalf("classic HUD first canvas = %v, want %v", classic.canvasSwitch, renderer.CanvasSbar)
-	}
-	if len(classic.canvasSwitch) < 2 || classic.canvasSwitch[len(classic.canvasSwitch)-2] != renderer.CanvasCrosshair {
-		t.Fatalf("classic HUD canvas switches = %v, want penultimate %v", classic.canvasSwitch, renderer.CanvasCrosshair)
-	}
-	if classic.canvas.Type != renderer.CanvasDefault {
-		t.Fatalf("final classic canvas = %v, want %v", classic.canvas.Type, renderer.CanvasDefault)
-	}
-	if len(classic.fills) == 0 {
-		t.Fatal("classic HUD drew nothing")
-	}
-
-	compact := &mockRenderContext{
-		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 400, Bottom: 225},
-	}
-	cvar.Set("hud_style", "1")
-	h.Draw(compact)
-	if len(compact.canvasSwitch) == 0 || compact.canvasSwitch[0] != renderer.CanvasSbar2 {
-		t.Fatalf("compact HUD first canvas = %v, want %v", compact.canvasSwitch, renderer.CanvasSbar2)
-	}
-	if len(compact.canvasSwitch) < 2 || compact.canvasSwitch[len(compact.canvasSwitch)-2] != renderer.CanvasCrosshair {
-		t.Fatalf("compact HUD canvas switches = %v, want penultimate %v", compact.canvasSwitch, renderer.CanvasCrosshair)
-	}
-	if compact.canvas.Type != renderer.CanvasDefault {
-		t.Fatalf("final compact canvas = %v, want %v", compact.canvas.Type, renderer.CanvasDefault)
-	}
-	if len(compact.characters) == 0 {
-		t.Fatal("compact HUD drew nothing")
-	}
-
-	quakeWorld := &mockRenderContext{
-		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 320, Bottom: 48},
-	}
-	cvar.Set("hud_style", "2")
-	h.SetState(State{
-		Health:       100,
-		Armor:        50,
-		Ammo:         30,
-		Shells:       20,
-		Nails:        40,
-		Rockets:      10,
-		Cells:        5,
-		Items:        cl.ItemShotgun | cl.ItemQuad,
-		ActiveWeapon: int(cl.ItemShotgun),
-		GameType:     1,
-		MaxClients:   2,
-		Scoreboard: []ScoreEntry{
-			{Name: "alpha", Frags: 2, Colors: 0x1f},
-			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
-		},
-	})
-	h.Draw(quakeWorld)
-	if len(quakeWorld.canvasSwitch) < 4 {
-		t.Fatalf("quakeworld HUD canvas switches = %v, want QW inventory/frag canvases", quakeWorld.canvasSwitch)
-	}
-	if quakeWorld.canvasSwitch[0] != renderer.CanvasSbar {
-		t.Fatalf("quakeworld HUD first canvas = %v, want %v", quakeWorld.canvasSwitch, renderer.CanvasSbar)
-	}
-	var sawQWInv bool
-	for _, ct := range quakeWorld.canvasSwitch {
-		if ct == renderer.CanvasSbarQWInv {
-			sawQWInv = true
-			break
-		}
-	}
-	if !sawQWInv {
-		t.Fatalf("quakeworld HUD never switched to %v: %v", renderer.CanvasSbarQWInv, quakeWorld.canvasSwitch)
-	}
-	if quakeWorld.canvasParams.HudStyle != int(HUDStyleQuakeWorld) {
-		t.Fatalf("quakeworld HUD canvas params style = %d, want %d", quakeWorld.canvasParams.HudStyle, HUDStyleQuakeWorld)
-	}
-	if quakeWorld.canvasParams.GameType != 1 {
-		t.Fatalf("quakeworld HUD canvas params gametype = %d, want 1", quakeWorld.canvasParams.GameType)
-	}
-}
-
-func TestQuakeWorldHUDHidesFragStripAtLargeViewsize(t *testing.T) {
-	sb := NewStatusBar(nil)
-	mock := &mockRenderContext{}
-	setTestViewSize(t, "115")
-	sb.DrawQuakeWorld(mock, State{
-		Health:       100,
-		Armor:        50,
-		Ammo:         30,
-		Shells:       20,
-		Items:        cl.ItemShotgun,
-		ActiveWeapon: int(cl.ItemShotgun),
-		GameType:     1,
-		MaxClients:   2,
-		Scoreboard: []ScoreEntry{
-			{Name: "alpha", Frags: 2, Colors: 0x1f},
-			{Name: "bravo", Frags: 9, Colors: 0x2e, IsCurrent: true},
-		},
-	}, 320, 200)
-
-	for _, f := range mock.fills {
-		if f.y == 0 || f.y == 4 {
-			t.Fatalf("unexpected QW frag-strip fill at scr_viewsize 115: %+v", f)
-		}
-	}
-}
-
-func TestCompactHUDHidesAtHugeViewsize(t *testing.T) {
-	h := NewHUD(nil)
-	h.SetScreenSize(640, 480)
-	h.SetState(State{Health: 100, ActiveWeapon: 2, Shells: 10})
-
-	rc := &mockRenderContext{
-		canvas: renderer.CanvasState{Left: 0, Top: 0, Right: 400, Bottom: 225},
-	}
-	cvar.Set("hud_style", "1")
-	setTestViewSize(t, "120")
-	h.Draw(rc)
-
-	if len(rc.characters) != 0 || len(rc.fills) != 0 || len(rc.pics) != 0 {
-		t.Fatalf("compact HUD should hide at scr_viewsize 120, got chars=%d fills=%d pics=%d", len(rc.characters), len(rc.fills), len(rc.pics))
-	}
 }

@@ -1,7 +1,5 @@
 package renderer
 
-import "github.com/darkliquid/ironwail-go/internal/cvar"
-
 // AlphaMode selects how translucent surfaces are composited.
 // This mirrors C Ironwail's alphamode_t behavior:
 // OIT has priority over sorted/basic, and sorted/basic are selected by r_alphasort.
@@ -30,10 +28,13 @@ func (m AlphaMode) String() string {
 // GetAlphaMode resolves the active transparency mode from cvars.
 // r_oit takes precedence over r_alphasort, matching C Ironwail.
 func GetAlphaMode() AlphaMode {
-	if cvar.BoolValue(CvarROIT) {
+	if pkgCVars == nil {
+		return AlphaModeBasic
+	}
+	if pkgCVars.BoolValue(CvarROIT) {
 		return AlphaModeOIT
 	}
-	if cvar.BoolValue(CvarRAlphaSort) {
+	if pkgCVars.BoolValue(CvarRAlphaSort) {
 		return AlphaModeSorted
 	}
 	return AlphaModeBasic
@@ -43,8 +44,11 @@ func GetAlphaMode() AlphaMode {
 // For OIT, r_alphasort is intentionally left unchanged so previous fallback
 // preference is preserved if OIT is disabled later.
 func SetAlphaMode(mode AlphaMode) {
-	cvar.SetBool(CvarROIT, mode == AlphaModeOIT)
+	if pkgCVars == nil {
+		return
+	}
+	pkgCVars.SetBool(CvarROIT, mode == AlphaModeOIT)
 	if mode != AlphaModeOIT {
-		cvar.SetBool(CvarRAlphaSort, mode == AlphaModeSorted)
+		pkgCVars.SetBool(CvarRAlphaSort, mode == AlphaModeSorted)
 	}
 }

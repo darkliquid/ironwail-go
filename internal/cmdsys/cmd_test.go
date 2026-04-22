@@ -314,15 +314,16 @@ func TestExecuteTextWithSourceSetsSourceForHandler(t *testing.T) {
 
 func TestExecuteTextPrintsQueriedCVarValue(t *testing.T) {
 	c := NewCmdSystem()
-	cv := cvar.Register("test_cmdsys_query_cvar", "42", cvar.FlagNone, "test")
-	defer cvar.Set(cv.Name, cv.DefaultValue)
+	c.CVar = cvar.NewCVarSystem()
+	cv := c.CVar.Register("test_cmdsys_query_cvar", "42", cvar.FlagNone, "test")
+	_ = cv
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText(cv.Name)
@@ -334,16 +335,16 @@ func TestExecuteTextPrintsQueriedCVarValue(t *testing.T) {
 
 func TestExecuteTextPrintsQueriedCVarDefaultWhenModified(t *testing.T) {
 	c := NewCmdSystem()
-	cv := cvar.Register("test_cmdsys_query_cvar_modified", "42", cvar.FlagNone, "test")
-	cvar.Set(cv.Name, "17")
-	defer cvar.Set(cv.Name, cv.DefaultValue)
+	c.CVar = cvar.NewCVarSystem()
+	cv := c.CVar.Register("test_cmdsys_query_cvar_modified", "42", cvar.FlagNone, "test")
+	c.CVar.Set(cv.Name, "17")
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText(cv.Name)
@@ -626,11 +627,11 @@ func TestCmdListListsVisibleCommandsByPrefix(t *testing.T) {
 	c.AddCommand("__alphareserved", func(args []string) {}, "reserved")
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("cmdlist alpha")
@@ -651,18 +652,16 @@ func TestCmdListListsVisibleCommandsByPrefix(t *testing.T) {
 
 func TestFindSearchesCommandsAndCvars(t *testing.T) {
 	c := NewCmdSystem()
+	c.CVar = cvar.NewCVarSystem()
 	c.AddCommand("zoommode", func(args []string) {}, "camera size controls")
-	cv := cvar.Register("crosshair_size_test", "3", cvar.FlagNone, "crosshair size")
-	t.Cleanup(func() {
-		cvar.Set(cv.Name, cv.DefaultValue)
-	})
+	c.CVar.Register("crosshair_size_test", "3", cvar.FlagNone, "crosshair size")
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("find size")
@@ -683,11 +682,11 @@ func TestExecuteTextUnknownCommandWithoutForwarderShowsContainingMatches(t *test
 	c.AddCommand("definitely_helpful_command", func(args []string) {}, "suggestion")
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("definitely")
@@ -704,11 +703,11 @@ func TestExecuteTextUnknownCommandWithoutForwarderShowsNoMatchesMessage(t *testi
 	c := NewCmdSystem()
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("definitely_unknown_command")
@@ -722,11 +721,11 @@ func TestAproposPrintsUsageWithoutSubstring(t *testing.T) {
 	c := NewCmdSystem()
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("apropos")
@@ -740,11 +739,11 @@ func TestAliasListPrintsZeroCountWhenEmpty(t *testing.T) {
 	c := NewCmdSystem()
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("aliaslist")
@@ -761,11 +760,11 @@ func TestAliasListPrintsAliasesAlphabetically(t *testing.T) {
 	c.AddAlias("rocketjump", "+jump;wait;+attack")
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("aliaslist")
@@ -791,11 +790,11 @@ func TestAliasListCountMatchesDefinedAliases(t *testing.T) {
 	c.AddAlias("bar", "echo bar")
 
 	var printed string
-	SetPrintCallback(func(msg string) {
+	c.SetPrintCallback(func(msg string) {
 		printed += msg
 	})
 	t.Cleanup(func() {
-		SetPrintCallback(nil)
+		c.SetPrintCallback(nil)
 	})
 
 	c.ExecuteText("aliaslist")

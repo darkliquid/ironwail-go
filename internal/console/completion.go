@@ -45,6 +45,8 @@ type TabCompleter struct {
 	cmdArgsProvider   CommandArgsProvider
 	cvarValueProvider CVarValueProvider
 	printFn           PrintFunc
+
+	CVar *cvar.CVarSystem
 }
 
 func NewTabCompleter() *TabCompleter { return &TabCompleter{} }
@@ -248,7 +250,7 @@ func (tc *TabCompleter) printMatchList(matches []*TabMatch) {
 	if cols < 1 {
 		cols = 1
 	}
-	if mx := cvar.IntValue("con_maxcols"); mx > 0 && mx < cols {
+	if mx := tc.CVar.IntValue("con_maxcols"); mx > 0 && mx < cols {
 		cols = mx
 	}
 	for i, m := range matches {

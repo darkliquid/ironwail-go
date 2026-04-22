@@ -4,7 +4,6 @@ import (
 	"math"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -52,7 +51,7 @@ var globalViewCalc viewCalcState
 //   - clientTime: cl.time (seconds)
 //   - velocity:   XY components of the player's velocity
 func viewCalcBob(clientTime float64, velocity [3]float32) float32 {
-	bobcycleCv := cvar.Get("cl_bobcycle")
+	bobcycleCv := g.Host.CVar.Get("cl_bobcycle")
 	if bobcycleCv == nil {
 		return 0
 	}
@@ -61,8 +60,8 @@ func viewCalcBob(clientTime float64, velocity [3]float32) float32 {
 		return 0
 	}
 
-	bobupCv := cvar.Get("cl_bobup")
-	bobCv := cvar.Get("cl_bob")
+	bobupCv := g.Host.CVar.Get("cl_bobup")
+	bobCv := g.Host.CVar.Get("cl_bob")
 	if bobupCv == nil || bobCv == nil {
 		return 0
 	}
@@ -99,8 +98,8 @@ func viewCalcBob(clientTime float64, velocity [3]float32) float32 {
 //   - angles:   player/camera Euler angles (pitch, yaw, roll)
 //   - velocity: player velocity
 func viewCalcRoll(angles, velocity [3]float32) float32 {
-	rollAngleCv := cvar.Get("cl_rollangle")
-	rollSpeedCv := cvar.Get("cl_rollspeed")
+	rollAngleCv := g.Host.CVar.Get("cl_rollangle")
+	rollSpeedCv := g.Host.CVar.Get("cl_rollspeed")
 	if rollAngleCv == nil || rollSpeedCv == nil {
 		return 0
 	}
@@ -182,15 +181,15 @@ func viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, clientTime, f
 	out[rollIdx] = viewAngles[rollIdx]
 
 	// Idle sway on the weapon model.
-	idleScaleCv := cvar.Get("v_idlescale")
+	idleScaleCv := g.Host.CVar.Get("v_idlescale")
 	if idleScaleCv != nil && idleScaleCv.Float != 0 {
 		idleScale := float32(idleScaleCv.Float)
-		irollCycle := cvar.Get("v_iroll_cycle")
-		irollLevel := cvar.Get("v_iroll_level")
-		ipitchCycle := cvar.Get("v_ipitch_cycle")
-		ipitchLevel := cvar.Get("v_ipitch_level")
-		iyawCycle := cvar.Get("v_iyaw_cycle")
-		iyawLevel := cvar.Get("v_iyaw_level")
+		irollCycle := g.Host.CVar.Get("v_iroll_cycle")
+		irollLevel := g.Host.CVar.Get("v_iroll_level")
+		ipitchCycle := g.Host.CVar.Get("v_ipitch_cycle")
+		ipitchLevel := g.Host.CVar.Get("v_ipitch_level")
+		iyawCycle := g.Host.CVar.Get("v_iyaw_cycle")
+		iyawLevel := g.Host.CVar.Get("v_iyaw_level")
 		if irollCycle != nil && irollLevel != nil &&
 			ipitchCycle != nil && ipitchLevel != nil &&
 			iyawCycle != nil && iyawLevel != nil {
@@ -212,7 +211,7 @@ func viewCalcGunAngle(state *viewCalcState, viewAngles [3]float32, clientTime, f
 
 // viewAddIdle adds idle sway to camera angles, matching C Ironwail V_AddIdle.
 func viewAddIdle(angles [3]float32, clientTime float64) [3]float32 {
-	cv := cvar.Get("v_idlescale")
+	cv := g.Host.CVar.Get("v_idlescale")
 	if cv == nil {
 		return angles
 	}
@@ -221,12 +220,12 @@ func viewAddIdle(angles [3]float32, clientTime float64) [3]float32 {
 		return angles
 	}
 
-	irollCycle := cvar.Get("v_iroll_cycle")
-	irollLevel := cvar.Get("v_iroll_level")
-	ipitchCycle := cvar.Get("v_ipitch_cycle")
-	ipitchLevel := cvar.Get("v_ipitch_level")
-	iyawCycle := cvar.Get("v_iyaw_cycle")
-	iyawLevel := cvar.Get("v_iyaw_level")
+	irollCycle := g.Host.CVar.Get("v_iroll_cycle")
+	irollLevel := g.Host.CVar.Get("v_iroll_level")
+	ipitchCycle := g.Host.CVar.Get("v_ipitch_cycle")
+	ipitchLevel := g.Host.CVar.Get("v_ipitch_level")
+	iyawCycle := g.Host.CVar.Get("v_iyaw_cycle")
+	iyawLevel := g.Host.CVar.Get("v_iyaw_level")
 	if irollCycle == nil || irollLevel == nil || ipitchCycle == nil ||
 		ipitchLevel == nil || iyawCycle == nil || iyawLevel == nil {
 		return angles
@@ -280,7 +279,7 @@ func viewNodeLineOffset(origin [3]float32) [3]float32 {
 // viewApplyViewmodelQuakeFudge applies the r_viewmodel_quake origin fudge
 // that nudges the weapon origin based on scr_viewsize, matching C Ironwail.
 func viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float64) [3]float32 {
-	cv := cvar.Get("r_viewmodel_quake")
+	cv := g.Host.CVar.Get("r_viewmodel_quake")
 	if cv == nil || cv.Int == 0 {
 		return origin
 	}
@@ -306,9 +305,9 @@ func viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float64) [3]flo
 //   - from:         normalized direction vector from damage source to player
 //   - entityAngles: player entity angles (for computing right/forward vectors)
 func viewSetDamageKick(state *viewCalcState, count float32, from, entityAngles [3]float32) {
-	kickRollCv := cvar.Get("v_kickroll")
-	kickPitchCv := cvar.Get("v_kickpitch")
-	kickTimeCv := cvar.Get("v_kicktime")
+	kickRollCv := g.Host.CVar.Get("v_kickroll")
+	kickPitchCv := g.Host.CVar.Get("v_kickpitch")
+	kickTimeCv := g.Host.CVar.Get("v_kicktime")
 	if kickRollCv == nil || kickPitchCv == nil || kickTimeCv == nil {
 		return
 	}
@@ -340,7 +339,7 @@ func viewSetDamageKick(state *viewCalcState, count float32, from, entityAngles [
 // Returns the updated camera angles.
 func viewApplyDamageKick(state *viewCalcState, angles [3]float32, deltaTime float64) [3]float32 {
 	if state.dmgTime > 0 {
-		kickTimeCv := cvar.Get("v_kicktime")
+		kickTimeCv := g.Host.CVar.Get("v_kicktime")
 		if kickTimeCv == nil || kickTimeCv.Float == 0 {
 			state.dmgTime = 0
 			return angles

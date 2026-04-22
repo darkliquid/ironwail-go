@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 )
 
@@ -414,7 +413,7 @@ func (h *Host) autoLoadLastSave(subs *Subsystems, force bool, onDecline func()) 
 	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
 		return false
 	}
-	mode := cvar.FloatValue("sv_autoload")
+	mode := h.CVar.FloatValue("sv_autoload")
 	if mode <= 0 {
 		return false
 	}

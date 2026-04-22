@@ -3,14 +3,12 @@ package server
 import (
 	"log/slog"
 	"time"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // Frame runs a single server frame
 func (s *Server) Frame(frameTime float64) error {
 	frameStart := time.Now()
-	hostSpeeds := cvar.BoolValue("host_speeds")
+	hostSpeeds := s.CVar.BoolValue("host_speeds")
 	phaseStart := time.Time{}
 	var checkClientsMS float64
 	var runClientsMS float64

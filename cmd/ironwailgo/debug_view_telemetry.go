@@ -104,7 +104,7 @@ type runtimeOriginSelectTelemetry struct {
 }
 
 func registerDebugViewTelemetryCVar() {
-	debugViewTelemetryCVar = cvar.Register(debugViewTelemetryCVarName, "0", 0, "Client view debug telemetry (0=off, 1=view, 2=relink+view+lerp+prediction+origin_select, 3=include viewmodel)")
+	debugViewTelemetryCVar = g.Host.CVar.Register(debugViewTelemetryCVarName, "0", 0, "Client view debug telemetry (0=off, 1=view, 2=relink+view+lerp+prediction+origin_select, 3=include viewmodel)")
 }
 
 func runtimeDebugViewLevel() int {

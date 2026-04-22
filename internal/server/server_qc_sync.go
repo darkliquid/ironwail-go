@@ -6,15 +6,15 @@ import (
 	"strconv"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
-func syncEdictToQCVM(vm *qc.VM, entNum int, ent *Edict) {
+func (s *Server) syncEdictToQCVM(entNum int, ent *Edict) {
+	vm := s.QCVM
 	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
 		return
 	}
-	cache := qcSyncCacheForVM(vm)
+	cache := s.qcSyncCacheForVM(vm)
 	syncEntVarsToQC(vm, entNum, ent.Vars, cache.entVarBindings)
 	if ent.Free && cache.modelIndexOfs >= 0 {
 		vm.SetEFloat(entNum, cache.modelIndexOfs, 0)
@@ -24,11 +24,12 @@ func syncEdictToQCVM(vm *qc.VM, entNum int, ent *Edict) {
 // syncEdictFromQCVM pulls one VM edict's fields back into the Go Edict struct.
 // It is used after QC mutates fields so server physics/network code can continue
 // from the updated authoritative values produced by QuakeC logic.
-func syncEdictFromQCVM(vm *qc.VM, entNum int, ent *Edict) {
+func (s *Server) syncEdictFromQCVM(entNum int, ent *Edict) {
+	vm := s.QCVM
 	if vm == nil || ent == nil || ent.Vars == nil || entNum < 0 || entNum >= vm.NumEdicts {
 		return
 	}
-	cache := qcSyncCacheForVM(vm)
+	cache := s.qcSyncCacheForVM(vm)
 	syncEntVarsFromQC(vm, entNum, ent.Vars, cache.entVarBindings)
 	if ent.Vars.Model == 0 || vm.GetString(ent.Vars.Model) == "" {
 		ent.Vars.ModelIndex = 0
@@ -65,7 +66,7 @@ func (s *Server) syncSpawnedEdictsFromQCVM(startEntNum int) {
 		if ent.Vars == nil {
 			ent.Vars = &EntVars{}
 		}
-		syncEdictFromQCVM(s.QCVM, entNum, ent)
+		s.syncEdictFromQCVM(entNum, ent)
 		if entNum == 0 || int(ent.Vars.Solid) == int(SolidNot) {
 			continue
 		}
@@ -132,7 +133,7 @@ func (s *Server) syncMutatedNonPushersFromQCVM(snapshots []qcVMEdictSnapshot) {
 		oldMaxs := ent.Vars.Maxs
 		oldModel := ent.Vars.Model
 		oldModelIndex := ent.Vars.ModelIndex
-		syncEdictFromQCVM(s.QCVM, snapshot.entNum, ent)
+		s.syncEdictFromQCVM(snapshot.entNum, ent)
 		if snapshot.entNum != 0 && (ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs || ent.Vars.Model != oldModel || ent.Vars.ModelIndex != oldModelIndex) {
 			s.LinkEdict(ent, false)
 		}
@@ -155,7 +156,7 @@ func (s *Server) syncPushersToQCVM() {
 		if MoveType(ent.Vars.MoveType) != MoveTypePush {
 			continue
 		}
-		syncEdictToQCVM(s.QCVM, entNum, ent)
+		s.syncEdictToQCVM(entNum, ent)
 	}
 }
 
@@ -211,7 +212,7 @@ func (s *Server) syncPushersFromQCVM() {
 		oldMaxs := ent.Vars.Maxs
 		oldModel := ent.Vars.Model
 		oldModelIndex := ent.Vars.ModelIndex
-		syncEdictFromQCVM(s.QCVM, entNum, ent)
+		s.syncEdictFromQCVM(entNum, ent)
 		if ent.Vars.Origin != oldOrigin || ent.Vars.Solid != oldSolid || ent.Vars.Mins != oldMins || ent.Vars.Maxs != oldMaxs || ent.Vars.Model != oldModel || ent.Vars.ModelIndex != oldModelIndex {
 			s.LinkEdict(ent, false)
 		}
@@ -231,7 +232,7 @@ func (s *Server) syncMutatedPushersFromQCVM(snapshots []pusherSnapshot) {
 			continue
 		}
 		scratch := Edict{Vars: &EntVars{}}
-		syncEdictFromQCVM(s.QCVM, snapshot.entNum, &scratch)
+		s.syncEdictFromQCVM(snapshot.entNum, &scratch)
 		if *scratch.Vars == snapshot.vars {
 			continue
 		}
@@ -343,11 +344,11 @@ func buildQCFieldOffsets(vm *qc.VM) map[string]int {
 	return offsets
 }
 
-func qcSyncCacheForVM(vm *qc.VM) *qcSyncCache {
+func (s *Server) qcSyncCacheForVM(vm *qc.VM) *qcSyncCache {
 	if vm == nil {
 		return nil
 	}
-	if cached, ok := qcSyncCaches.Load(vm); ok {
+	if cached, ok := s.qcSyncCaches.Load(vm); ok {
 		return cached.(*qcSyncCache)
 	}
 
@@ -380,7 +381,7 @@ func qcSyncCacheForVM(vm *qc.VM) *qcSyncCache {
 	if ofs, ok := fieldOffsets[normalizeFieldName("ModelIndex")]; ok {
 		cache.modelIndexOfs = ofs
 	}
-	if existing, loaded := qcSyncCaches.LoadOrStore(vm, cache); loaded {
+	if existing, loaded := s.qcSyncCaches.LoadOrStore(vm, cache); loaded {
 		return existing.(*qcSyncCache)
 	}
 	return cache
@@ -549,14 +550,14 @@ func (s *Server) syncQCVMState() {
 		return
 	}
 	skill := 1
-	if skillCV := cvar.Get("skill"); skillCV != nil {
+	if skillCV := s.CVar.Get("skill"); skillCV != nil {
 		skill = int(skillCV.Float + 0.5)
 		if skill < 0 {
 			skill = 0
 		} else if skill > 3 {
 			skill = 3
 		}
-		cvar.Set("skill", strconv.Itoa(skill))
+		s.CVar.Set("skill", strconv.Itoa(skill))
 	}
 	s.ensureQCVMEdictStorage()
 	s.QCVM.SetGlobal("world", 0)
@@ -569,8 +570,8 @@ func (s *Server) syncQCVMState() {
 
 	// C Ironwail sets coop/deathmatch globals before ED_LoadFromFile so
 	// QC spawn functions can branch on game mode.
-	coopVal := cvar.FloatValue("coop")
-	dmVal := cvar.FloatValue("deathmatch")
+	coopVal := s.CVar.FloatValue("coop")
+	dmVal := s.CVar.FloatValue("deathmatch")
 	if coopVal != 0 {
 		s.QCVM.SetGlobal("coop", float32(coopVal))
 	} else {
@@ -578,7 +579,7 @@ func (s *Server) syncQCVMState() {
 	}
 
 	for entNum := 0; entNum < s.NumEdicts; entNum++ {
-		syncEdictToQCVM(s.QCVM, entNum, s.EdictNum(entNum))
+		s.syncEdictToQCVM(entNum, s.EdictNum(entNum))
 	}
 }
 

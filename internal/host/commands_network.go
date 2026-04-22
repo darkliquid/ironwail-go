@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
@@ -20,8 +18,29 @@ type serverBrowser interface {
 	Results() []inet.HostCacheEntry
 }
 
-var newServerBrowser = func() serverBrowser {
+func defaultServerBrowserFactory() serverBrowser {
 	return inet.NewServerBrowser()
+}
+
+func (h *Host) defaultServerBrowserFactory() serverBrowser {
+	if h != nil && h.Net != nil {
+		return h.Net.NewServerBrowser()
+	}
+	return inet.NewServerBrowser()
+}
+
+func (h *Host) queryServerRules(address string) ([]inet.RuleInfoEntry, error) {
+	if h != nil && h.Net != nil {
+		return h.Net.QueryServerRules(address)
+	}
+	return inet.QueryServerRules(address)
+}
+
+func (h *Host) queryServerPlayers(address string) ([]inet.PlayerInfoEntry, error) {
+	if h != nil && h.Net != nil {
+		return h.Net.QueryServerPlayers(address)
+	}
+	return inet.QueryServerPlayers(address)
 }
 
 func (h *Host) CmdStatus(subs *Subsystems) {
@@ -69,7 +88,7 @@ func (h *Host) CmdListen(args []string, subs *Subsystems) {
 	if len(args) != 1 {
 		if subs != nil && subs.Console != nil {
 			listenState := 0
-			if inet.IsListening() {
+			if h.Net.IsListening() {
 				listenState = 1
 			}
 			subs.Console.Print(fmt.Sprintf("\"listen\" is \"%d\"\n", listenState))
@@ -78,7 +97,7 @@ func (h *Host) CmdListen(args []string, subs *Subsystems) {
 	}
 
 	wantListen := qAtoi(args[0]) != 0
-	if err := inet.Listen(wantListen); err != nil && subs != nil && subs.Console != nil {
+	if err := h.Net.Listen(wantListen); err != nil && subs != nil && subs.Console != nil {
 		subs.Console.Print(fmt.Sprintf("listen: %v\n", err))
 	}
 }
@@ -113,19 +132,19 @@ func (h *Host) CmdMaxPlayers(args []string, subs *Subsystems) {
 		}
 	}
 
-	if n == 1 && inet.IsListening() {
+	if n == 1 && h.Net.IsListening() {
 		queueHostCommand("listen 0\n", subs)
 	}
-	if n > 1 && !inet.IsListening() {
+	if n > 1 && !h.Net.IsListening() {
 		queueHostCommand("listen 1\n", subs)
 	}
 
 	h.maxClients = n
-	cvar.SetInt("maxplayers", n)
+	h.CVar.SetInt("maxplayers", n)
 	if n == 1 {
-		cvar.SetInt("deathmatch", 0)
+		h.CVar.SetInt("deathmatch", 0)
 	} else {
-		cvar.SetInt("deathmatch", 1)
+		h.CVar.SetInt("deathmatch", 1)
 	}
 }
 
@@ -136,7 +155,7 @@ func (h *Host) CmdPort(args []string, subs *Subsystems) {
 
 	if len(args) != 1 {
 		if subs != nil && subs.Console != nil {
-			subs.Console.Print(fmt.Sprintf("\"port\" is \"%d\"\n", inet.HostPort()))
+			subs.Console.Print(fmt.Sprintf("\"port\" is \"%d\"\n", h.Net.HostPort()))
 		}
 		return
 	}
@@ -149,9 +168,9 @@ func (h *Host) CmdPort(args []string, subs *Subsystems) {
 		return
 	}
 
-	inet.SetHostPort(n)
+	h.Net.SetHostPort(n)
 
-	if inet.IsListening() {
+	if h.Net.IsListening() {
 		queueHostCommand("listen 0\n", subs)
 		queueHostCommand("listen 1\n", subs)
 	}
@@ -160,9 +179,7 @@ func (h *Host) CmdPort(args []string, subs *Subsystems) {
 func queueHostCommand(text string, subs *Subsystems) {
 	if subs != nil && subs.Commands != nil {
 		subs.Commands.AddText(text)
-		return
 	}
-	cmdsys.AddText(text)
 }
 
 func qAtoi(raw string) int {
@@ -183,13 +200,13 @@ func (h *Host) CmdBan(args []string, subs *Subsystems) {
 
 	switch len(args) {
 	case 0:
-		subs.Console.Print(inet.IPBanStatus() + "\n")
+		subs.Console.Print(h.Net.IPBanStatus() + "\n")
 	case 1:
-		if err := inet.SetIPBan(args[0], ""); err != nil {
+		if err := h.Net.SetIPBan(args[0], ""); err != nil {
 			subs.Console.Print(fmt.Sprintf("%v\n", err))
 		}
 	case 2:
-		if err := inet.SetIPBan(args[0], args[1]); err != nil {
+		if err := h.Net.SetIPBan(args[0], args[1]); err != nil {
 			subs.Console.Print(fmt.Sprintf("%v\n", err))
 		}
 	default:
@@ -273,7 +290,7 @@ func (h *Host) CmdServerInfo(subs *Subsystems) {
 	}
 
 	subs.Console.Print(fmt.Sprintf("Server info:\n"))
-	subs.Console.Print(fmt.Sprintf("  host:      %s\n", currentServerHostname()))
+	subs.Console.Print(fmt.Sprintf("  host:      %s\n", h.currentServerHostname()))
 	subs.Console.Print(fmt.Sprintf("  active:    %v\n", h.serverActive))
 	subs.Console.Print(fmt.Sprintf("  paused:    %v\n", h.serverPaused))
 	subs.Console.Print(fmt.Sprintf("  maxclients: %d\n", h.maxClients))
@@ -287,8 +304,11 @@ func (h *Host) CmdNetStats(subs *Subsystems) {
 	if subs == nil || subs.Console == nil {
 		return
 	}
+	if h.netStats == nil {
+		return
+	}
 
-	subs.Console.Print(inet.GlobalStats.String())
+	subs.Console.Print(h.netStats.String())
 }
 
 // CmdSlist initiates a LAN server search and prints discovered servers
@@ -301,7 +321,7 @@ func (h *Host) CmdSlist(subs *Subsystems) {
 	subs.Console.Print("Server          Map             Users\n")
 	subs.Console.Print("--------------- --------------- -----\n")
 
-	sb := newServerBrowser()
+	sb := h.ServerBrowserFactory()
 	sb.Start()
 	sb.Wait()
 
@@ -329,7 +349,7 @@ func (h *Host) CmdTest2(address string, subs *Subsystems) {
 		return
 	}
 
-	rules, err := inet.QueryServerRules(strings.TrimSpace(address))
+	rules, err := h.queryServerRules(strings.TrimSpace(address))
 	if err != nil {
 		subs.Console.Print(fmt.Sprintf("%v\n", err))
 		return
@@ -347,7 +367,7 @@ func (h *Host) CmdPlayers(address string, subs *Subsystems) {
 		return
 	}
 
-	players, err := inet.QueryServerPlayers(strings.TrimSpace(address))
+	players, err := h.queryServerPlayers(strings.TrimSpace(address))
 	if err != nil {
 		subs.Console.Print(fmt.Sprintf("%v\n", err))
 		return
@@ -535,7 +555,7 @@ func (h *Host) CmdReconnect(subs *Subsystems) {
 }
 
 func (h *Host) CmdName(name string, subs *Subsystems) {
-	cvar.Set(clientNameCVar, name)
+	h.CVar.Set(clientNameCVar, name)
 	if h.forwardClientCommand("name", []string{name}, subs) {
 		return
 	}
@@ -559,7 +579,7 @@ func (h *Host) CmdColor(args []string, subs *Subsystems) {
 	top = clampClientColor(top)
 	bottom = clampClientColor(bottom)
 	color := top*16 + bottom
-	cvar.SetInt(clientColorCVar, color)
+	h.CVar.SetInt(clientColorCVar, color)
 	if h.forwardClientCommand("color", args, subs) {
 		return
 	}
@@ -576,9 +596,11 @@ func clampClientColor(value int) int {
 	return value
 }
 
-func currentServerHostname() string {
-	if value := cvar.StringValue(serverHostnameCVar); value != "" {
-		return value
+func (h *Host) currentServerHostname() string {
+	if h != nil && h.CVar != nil {
+		if value := h.CVar.StringValue(serverHostnameCVar); value != "" {
+			return value
+		}
 	}
 	return defaultServerHostname
 }
@@ -608,13 +630,13 @@ func (h *Host) startRemoteSession(address string, subs *Subsystems) error {
 	if subs == nil {
 		return fmt.Errorf("subsystems not initialized")
 	}
-	remoteClient, err := remoteClientFactory(address)
+	remoteClient, err := h.RemoteClientFactory(address)
 	if err != nil {
 		return err
 	}
 	if remoteDatagram, ok := remoteClient.(*remoteDatagramClient); ok {
-		remoteDatagram.signonName = cvar.StringValue(clientNameCVar)
-		remoteDatagram.signonColor = cvar.IntValue(clientColorCVar)
+		remoteDatagram.signonName = h.CVar.StringValue(clientNameCVar)
+		remoteDatagram.signonColor = h.CVar.IntValue(clientColorCVar)
 		remoteDatagram.spawnArgs = h.spawnArgs
 	}
 	subs.Client = remoteClient

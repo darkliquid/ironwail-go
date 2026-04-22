@@ -154,10 +154,10 @@
 //	func main() {
 //	    // Initialize core systems
 //	    console.InitGlobal(0)
-//	    cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum FPS")
 //
-//	    // Create host
+//	    // Create host (which owns the cvar registry)
 //	    h := host.NewHost()
+//	    h.CVar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum FPS")
 //	    h.SetBaseDir("/path/to/quake")
 //	    h.SetGameDir("id1")
 //

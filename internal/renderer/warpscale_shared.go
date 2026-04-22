@@ -1,13 +1,15 @@
 package renderer
 
 import (
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	warpscaleimpl "github.com/darkliquid/ironwail-go/internal/renderer/warpscale"
 )
 
 // readWaterwarpCvar returns the current r_waterwarp value (0, 1, or >1).
 func readWaterwarpCvar() float32 {
-	cv := cvar.Get(CvarRWaterwarp)
+	if pkgCVars == nil {
+		return 0
+	}
+	cv := pkgCVars.Get(CvarRWaterwarp)
 	if cv == nil {
 		return 0
 	}

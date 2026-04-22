@@ -11,22 +11,13 @@ import (
 	runtimepprof "runtime/pprof"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/console"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
 )
-
-var cpuProfileState struct {
-	mu   sync.Mutex
-	file *os.File
-	path string
-}
 
 var UIScaleCVarNames = []string{
 	"scr_conscale",
@@ -38,40 +29,40 @@ var UIScaleCVarNames = []string{
 var uiScaleCVarNames = UIScaleCVarNames
 
 func (g *Game) registerGameplayBindCommands() {
-	cmdsys.AddCommand("bind", g.cmdBind, "Bind a key to a command")
-	cmdsys.AddCommand("unbind", g.cmdUnbind, "Remove a key binding")
-	cmdsys.AddCommand("unbindall", g.cmdUnbindAll, "Remove all key bindings")
-	cmdsys.AddCommand("bindlist", g.cmdBindList, "List all key bindings")
-	cmdsys.AddCommand("scr_autoscale", g.cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
-	cmdsys.AddCommand("sizeup", g.cmdSizeUp, "Increase screen view size")
-	cmdsys.AddCommand("sizedown", g.cmdSizeDown, "Decrease screen view size")
-	cmdsys.AddCommand("entities", g.cmdEntities, "List current client entities")
-	cmdsys.AddCommand("impulse", g.cmdImpulse, "Trigger an impulse command")
-	cmdsys.AddCommand("toggleconsole", g.cmdToggleConsole, "Toggle the console")
-	cmdsys.AddCommand("screenshot", g.cmdScreenshot, "Save a screenshot as PNG")
-	cmdsys.AddCommand("profile_cpu_start", g.cmdProfileCPUStart, "Start writing a CPU pprof capture to disk")
-	cmdsys.AddCommand("profile_cpu_stop", g.cmdProfileCPUStop, "Stop the active CPU pprof capture and flush it to disk")
-	cmdsys.AddCommand("profile_dump_heap", g.cmdProfileDumpHeap, "Write a heap pprof capture to disk")
-	cmdsys.AddCommand("profile_dump_allocs", g.cmdProfileDumpAllocs, "Write an allocs pprof capture to disk")
-	cmdsys.AddCommand("vid_restart", func(args []string) {
+	g.Host.Cmd.AddCommand("bind", g.cmdBind, "Bind a key to a command")
+	g.Host.Cmd.AddCommand("unbind", g.cmdUnbind, "Remove a key binding")
+	g.Host.Cmd.AddCommand("unbindall", g.cmdUnbindAll, "Remove all key bindings")
+	g.Host.Cmd.AddCommand("bindlist", g.cmdBindList, "List all key bindings")
+	g.Host.Cmd.AddCommand("scr_autoscale", g.cmdScreenAutoScale, "Set UI scale cvars based on the current framebuffer size")
+	g.Host.Cmd.AddCommand("sizeup", g.cmdSizeUp, "Increase screen view size")
+	g.Host.Cmd.AddCommand("sizedown", g.cmdSizeDown, "Decrease screen view size")
+	g.Host.Cmd.AddCommand("entities", g.cmdEntities, "List current client entities")
+	g.Host.Cmd.AddCommand("impulse", g.cmdImpulse, "Trigger an impulse command")
+	g.Host.Cmd.AddCommand("toggleconsole", g.cmdToggleConsole, "Toggle the console")
+	g.Host.Cmd.AddCommand("screenshot", g.cmdScreenshot, "Save a screenshot as PNG")
+	g.Host.Cmd.AddCommand("profile_cpu_start", g.cmdProfileCPUStart, "Start writing a CPU pprof capture to disk")
+	g.Host.Cmd.AddCommand("profile_cpu_stop", g.cmdProfileCPUStop, "Stop the active CPU pprof capture and flush it to disk")
+	g.Host.Cmd.AddCommand("profile_dump_heap", g.cmdProfileDumpHeap, "Write a heap pprof capture to disk")
+	g.Host.Cmd.AddCommand("profile_dump_allocs", g.cmdProfileDumpAllocs, "Write an allocs pprof capture to disk")
+	g.Host.Cmd.AddCommand("vid_restart", func(args []string) {
 		if err := g.restartVideo(); err != nil {
 			console.Printf("vid_restart failed: %v\n", err)
 		}
 	}, "Restart the video system")
-	cmdsys.AddCommand("messagemode", g.cmdMessagemode, "Input a message to say")
-	cmdsys.AddCommand("messagemode2", g.cmdMessagemode2, "Input a message to say_team")
-	cmdsys.AddCommand("+showscores", g.cmdShowScores, "Show multiplayer scoreboard while held")
-	cmdsys.AddCommand("-showscores", g.cmdHideScores, "Hide multiplayer scoreboard")
+	g.Host.Cmd.AddCommand("messagemode", g.cmdMessagemode, "Input a message to say")
+	g.Host.Cmd.AddCommand("messagemode2", g.cmdMessagemode2, "Input a message to say_team")
+	g.Host.Cmd.AddCommand("+showscores", g.cmdShowScores, "Show multiplayer scoreboard while held")
+	g.Host.Cmd.AddCommand("-showscores", g.cmdHideScores, "Hide multiplayer scoreboard")
 
 	// bf: bonus flash – gold item-pickup screen tint stuffed by the server.
 	// Mirrors C Ironwail: view.c V_BonusFlash_f().
-	cmdsys.AddCommand("bf", func(args []string) {
+	g.Host.Cmd.AddCommand("bf", func(args []string) {
 		if g.Client != nil {
 			g.Client.BonusFlash()
 		}
 	}, "Trigger bonus-pickup screen flash")
 
-	cmdsys.AddCommand("centerview", func(args []string) {
+	g.Host.Cmd.AddCommand("centerview", func(args []string) {
 		if g.Client != nil {
 			g.Client.StartPitchDrift()
 		}
@@ -80,7 +71,7 @@ func (g *Game) registerGameplayBindCommands() {
 	// v_cshift: custom screen tint command (used by some QC mods).
 	// Usage: v_cshift <r> <G> <b> <percent>  (all 0–255)
 	// Mirrors C Ironwail: view.c V_cshift_f().
-	cmdsys.AddCommand("v_cshift", func(args []string) {
+	g.Host.Cmd.AddCommand("v_cshift", func(args []string) {
 		if g.Client == nil || len(args) < 5 {
 			return
 		}
@@ -112,14 +103,14 @@ func (g *Game) registerGameplayBindCommands() {
 }
 
 func (g *Game) registerConsoleCompletionProviders() {
-	console.SetGlobalCommandProvider(cmdsys.Complete)
-	console.SetGlobalCVarProvider(cvar.Complete)
-	console.SetGlobalAliasProvider(cmdsys.CompleteAliases)
+	console.SetGlobalCommandProvider(g.Host.Cmd.Complete)
+	console.SetGlobalCVarProvider(g.Host.CVar.Complete)
+	console.SetGlobalAliasProvider(g.Host.Cmd.CompleteAliases)
 	console.SetGlobalCommandArgsProvider(func(command string, args []string, partial string) []string {
-		return cmdsys.CompleteCommandArgs(command, args, partial)
+		return g.Host.Cmd.CompleteCommandArgs(command, args, partial)
 	})
 	console.SetGlobalCVarValueProvider(func(cvarName string, partial string) []string {
-		return cvar.CompleteValue(cvarName, partial)
+		return g.Host.CVar.CompleteValue(cvarName, partial)
 	})
 	console.SetGlobalCompletionPrintFunc(console.Printf)
 	if g.Subs != nil {
@@ -132,10 +123,10 @@ func (g *Game) registerConsoleCompletionProviders() {
 }
 
 func (g *Game) registerGameplayButtonCommand(name string, selectButton func(*cl.Client) *cl.KButton) {
-	cmdsys.AddCommand("+"+name, func(args []string) {
+	g.Host.Cmd.AddCommand("+"+name, func(args []string) {
 		g.runGameplayButtonCommand(selectButton, true, args)
 	}, "Gameplay button press")
-	cmdsys.AddCommand("-"+name, func(args []string) {
+	g.Host.Cmd.AddCommand("-"+name, func(args []string) {
 		g.runGameplayButtonCommand(selectButton, false, args)
 	}, "Gameplay button release")
 }
@@ -164,10 +155,10 @@ func (g *Game) currentAutoScaleFactor() float64 {
 		width, height = g.Renderer.Size()
 	}
 	if width <= 0 {
-		width = cvar.IntValue("vid_width")
+		width = g.Host.CVar.IntValue("vid_width")
 	}
 	if height <= 0 {
-		height = cvar.IntValue("vid_height")
+		height = g.Host.CVar.IntValue("vid_height")
 	}
 	scaleW := float64(width) / 640.0
 	scaleH := float64(height) / 480.0
@@ -182,8 +173,8 @@ func (g *Game) currentAutoScaleFactor() float64 {
 }
 
 func (g *Game) currentVideoCVarAutoScaleFactor() float64 {
-	width := cvar.IntValue("vid_width")
-	height := cvar.IntValue("vid_height")
+	width := g.Host.CVar.IntValue("vid_width")
+	height := g.Host.CVar.IntValue("vid_height")
 	if width <= 0 || height <= 0 {
 		return 1
 	}
@@ -197,7 +188,7 @@ func (g *Game) currentVideoCVarAutoScaleFactor() float64 {
 func (g *Game) cmdScreenAutoScale(_ []string) {
 	scale := g.currentAutoScaleFactor()
 	for _, name := range uiScaleCVarNames {
-		cvar.SetFloat(name, scale)
+		g.Host.CVar.SetFloat(name, scale)
 	}
 }
 
@@ -211,11 +202,11 @@ func (g *Game) boundedRuntimeViewSize(v float64) float64 {
 }
 
 func (g *Game) cmdSizeUp(_ []string) {
-	cvar.SetFloat("scr_viewsize", g.boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")+10))
+	g.Host.CVar.SetFloat("scr_viewsize", g.boundedRuntimeViewSize(g.Host.CVar.FloatValue("scr_viewsize")+10))
 }
 
 func (g *Game) cmdSizeDown(_ []string) {
-	cvar.SetFloat("scr_viewsize", g.boundedRuntimeViewSize(cvar.FloatValue("scr_viewsize")-10))
+	g.Host.CVar.SetFloat("scr_viewsize", g.boundedRuntimeViewSize(g.Host.CVar.FloatValue("scr_viewsize")-10))
 }
 
 func (g *Game) cmdEntities(_ []string) {
@@ -310,7 +301,7 @@ func (g *Game) shouldBootstrapStartupUIScale() bool {
 	legacyScale := g.currentVideoCVarAutoScaleFactor()
 	allMatchLegacy := legacyScale > 0
 	for _, name := range uiScaleCVarNames {
-		if math.Abs(cvar.FloatValue(name)-legacyScale) > 0.0001 {
+		if math.Abs(g.Host.CVar.FloatValue(name)-legacyScale) > 0.0001 {
 			allMatchLegacy = false
 			break
 		}
@@ -322,7 +313,7 @@ func (g *Game) shouldBootstrapStartupUIScale() bool {
 		return false
 	}
 	for _, name := range uiScaleCVarNames {
-		if cvar.FloatValue(name) != 1 {
+		if g.Host.CVar.FloatValue(name) != 1 {
 			return false
 		}
 	}
@@ -712,10 +703,11 @@ func (g *Game) cmdProfileCPUStart(args []string) {
 		return
 	}
 
-	cpuProfileState.mu.Lock()
-	defer cpuProfileState.mu.Unlock()
-	if cpuProfileState.file != nil {
-		console.Printf("profile_cpu_start: CPU profiling already active (%s)\n", cpuProfileState.path)
+	cpu := &g.cpuProfile
+	cpu.mu.Lock()
+	defer cpu.mu.Unlock()
+	if cpu.file != nil {
+		console.Printf("profile_cpu_start: CPU profiling already active (%s)\n", cpu.path)
 		return
 	}
 
@@ -730,8 +722,8 @@ func (g *Game) cmdProfileCPUStart(args []string) {
 		return
 	}
 
-	cpuProfileState.file = f
-	cpuProfileState.path = outputPath
+	cpu.file = f
+	cpu.path = outputPath
 	console.Printf("CPU profile started: %s\n", outputPath)
 }
 
@@ -784,17 +776,18 @@ func (g *Game) stopCPUProfile() (path string, active bool, err error) {
 // It returns the output path, whether profiling was active, and any error
 // from closing the profile file.
 func (g *Game) StopCPUProfile() (path string, active bool, err error) {
-	cpuProfileState.mu.Lock()
-	defer cpuProfileState.mu.Unlock()
-	if cpuProfileState.file == nil {
+	cpu := &g.cpuProfile
+	cpu.mu.Lock()
+	defer cpu.mu.Unlock()
+	if cpu.file == nil {
 		return "", false, nil
 	}
 
 	runtimepprof.StopCPUProfile()
-	path = cpuProfileState.path
-	err = cpuProfileState.file.Close()
-	cpuProfileState.file = nil
-	cpuProfileState.path = ""
+	path = cpu.path
+	err = cpu.file.Close()
+	cpu.file = nil
+	cpu.path = ""
 	return path, true, err
 }
 
@@ -809,18 +802,12 @@ func (g *Game) cmdHideScores(_ []string) {
 	g.ShowScores = false
 }
 
-// Global chat state shared with main.go
-var (
-	chatBuffer string
-	chatTeam   bool
-)
-
 func (g *Game) cmdMessagemode(_ []string) {
 	if g.Input == nil {
 		return
 	}
-	chatBuffer = ""
-	chatTeam = false
+	g.chatBuffer = ""
+	g.chatTeam = false
 	g.Input.SetKeyDest(input.KeyMessage)
 }
 
@@ -828,7 +815,7 @@ func (g *Game) cmdMessagemode2(_ []string) {
 	if g.Input == nil {
 		return
 	}
-	chatBuffer = ""
-	chatTeam = true
+	g.chatBuffer = ""
+	g.chatTeam = true
 	g.Input.SetKeyDest(input.KeyMessage)
 }

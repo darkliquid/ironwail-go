@@ -55,24 +55,53 @@ type ServerInfoProvider struct {
 	PlayerInfo func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool)
 }
 
-// serverInfoProvider is the active callback for live server state. When nil,
-// placeholder values are used in server info responses. The host package
-// sets this once the server is running.
-var serverInfoProvider *ServerInfoProvider
+// The active ServerInfoProvider and cvar system previously lived as
+// package-level variables; they are now fields on the Network struct.
+// The process-wide defaultNet holds the values used by the legacy
+// package-level free-function entry points.
 
-// SetServerInfoProvider installs a callback for live server info.
+// SetCVarSystem installs the cvar system consulted by LAN/WAN server-info
+// responses on this Network instance.
+func (n *Network) SetCVarSystem(cv *cvar.CVarSystem) {
+	n.cvars = cv
+}
+
+// SetServerInfoProvider installs a callback for live server info on this
+// Network instance.
+func (n *Network) SetServerInfoProvider(p *ServerInfoProvider) {
+	n.siProvider = p
+}
+
+// SetCVarSystem installs the cvar system consulted by LAN/WAN server-info
+// responses on the process-wide defaultNet. Must be called before
+// DatagramGetMessage handles incoming CCReqServerInfo packets; otherwise
+// hostname defaults apply and no server-info cvars are advertised.
+func SetCVarSystem(cv *cvar.CVarSystem) {
+	defaultNet.cvars = cv
+}
+
+// SetServerInfoProvider installs a callback for live server info on the
+// process-wide defaultNet.
 func SetServerInfoProvider(p *ServerInfoProvider) {
-	serverInfoProvider = p
+	defaultNet.siProvider = p
 }
 
 // serverInfoHostname returns the server's display name for LAN browser
-// responses. It first checks the "hostname" cvar (settable by server
-// admins) and falls back to defaultServerInfoHostname if unset.
-func serverInfoHostname() string {
-	if value := cvar.StringValue("hostname"); value != "" {
-		return value
+// responses on this Network. It first checks the "hostname" cvar
+// (settable by server admins) and falls back to defaultServerInfoHostname
+// if unset.
+func (n *Network) serverInfoHostname() string {
+	if n.cvars != nil {
+		if value := n.cvars.StringValue("hostname"); value != "" {
+			return value
+		}
 	}
 	return defaultServerInfoHostname
+}
+
+// serverInfoHostname delegates to the process-wide defaultNet.
+func serverInfoHostname() string {
+	return defaultNet.serverInfoHostname()
 }
 
 // DatagramSendMessage initiates sending a reliable message over UDP.
@@ -380,8 +409,8 @@ const (
 // On success, the socket's remoteAddr is updated to the port number
 // provided in the accept response (the server may redirect the client
 // to a different port). Returns nil on failure.
-func DatagramConnect(host string) *Socket {
-	addr, err := UDPStringToAddr(host)
+func (n *Network) DatagramConnect(host string) *Socket {
+	addr, err := n.UDPStringToAddr(host)
 	if err != nil {
 		return nil
 	}
@@ -443,16 +472,14 @@ func DatagramConnect(host string) *Socket {
 	return nil
 }
 
-// acceptSocket is the UDP socket on which the server listens for incoming
-// connection requests and server info queries. It is opened on the
-// configured host port (default 26000) when Listen(true) is called.
-var (
-	acceptSocket *stdnet.UDPConn
-	// acceptedServerSockets tracks currently accepted datagram sockets so
-	// reconnects from the same remote endpoint can close stale sockets before
-	// creating a new one (matching Quake's duplicate-address handling).
-	acceptedServerSockets []*Socket
-)
+// DatagramConnect delegates to the process-wide defaultNet.
+func DatagramConnect(host string) *Socket {
+	return defaultNet.DatagramConnect(host)
+}
+
+// The server's accept socket and list of accepted datagram sockets
+// previously lived here as package-level variables; they are now
+// defaultNet.acceptSocket and defaultNet.accepted (fields on Network).
 
 func sameUDPAddress(a, b *stdnet.UDPAddr) bool {
 	if a == nil || b == nil {
@@ -461,39 +488,51 @@ func sameUDPAddress(a, b *stdnet.UDPAddr) bool {
 	return a.Port == b.Port && a.Zone == b.Zone && a.IP.Equal(b.IP)
 }
 
-func closeDuplicateAcceptedServerSockets(addr *stdnet.UDPAddr) {
+func (n *Network) closeDuplicateAcceptedServerSockets(addr *stdnet.UDPAddr) {
 	var duplicates []*Socket
-	for _, sock := range acceptedServerSockets {
+	for _, sock := range n.accepted {
 		if sameUDPAddress(sock.remoteAddr, addr) {
 			duplicates = append(duplicates, sock)
 		}
 	}
 	for _, sock := range duplicates {
-		Close(sock)
+		n.Close(sock)
 	}
+}
+
+func closeDuplicateAcceptedServerSockets(addr *stdnet.UDPAddr) {
+	defaultNet.closeDuplicateAcceptedServerSockets(addr)
+}
+
+func (n *Network) trackAcceptedServerSocket(sock *Socket) {
+	if sock == nil {
+		return
+	}
+	n.accepted = append(n.accepted, sock)
 }
 
 func trackAcceptedServerSocket(sock *Socket) {
-	if sock == nil {
-		return
-	}
-	acceptedServerSockets = append(acceptedServerSockets, sock)
+	defaultNet.trackAcceptedServerSocket(sock)
 }
 
-func untrackAcceptedServerSocket(sock *Socket) {
+func (n *Network) untrackAcceptedServerSocket(sock *Socket) {
 	if sock == nil {
 		return
 	}
-	for i, tracked := range acceptedServerSockets {
+	for i, tracked := range n.accepted {
 		if tracked != sock {
 			continue
 		}
-		acceptedServerSockets = append(acceptedServerSockets[:i], acceptedServerSockets[i+1:]...)
+		n.accepted = append(n.accepted[:i], n.accepted[i+1:]...)
 		return
 	}
 }
 
-// DatagramCheckNewConnections checks the server's accept socket for
+func untrackAcceptedServerSocket(sock *Socket) {
+	defaultNet.untrackAcceptedServerSocket(sock)
+}
+
+// DatagramCheckNewConnections checks this Network's accept socket for
 // incoming control packets from clients. It handles two cases:
 //   - CCReqServerInfo: responds with server details (hostname, map,
 //     player count) for the LAN browser, then returns nil.
@@ -503,14 +542,14 @@ func untrackAcceptedServerSocket(sock *Socket) {
 //
 // This is called once per server frame when the server is listening.
 // Corresponds to Datagram_CheckNewConnections() in net_dgrm.c.
-func DatagramCheckNewConnections() *Socket {
-	if acceptSocket == nil {
+func (n *Network) DatagramCheckNewConnections() *Socket {
+	if n.acceptSocket == nil {
 		return nil
 	}
 
 	buf := make([]byte, 1024)
-	n, addr, err := UDPRead(acceptSocket, buf)
-	if err != nil || n < HeaderSize+1 {
+	nread, addr, err := UDPRead(n.acceptSocket, buf)
+	if err != nil || nread < HeaderSize+1 {
 		return nil
 	}
 
@@ -522,35 +561,35 @@ func DatagramCheckNewConnections() *Socket {
 
 	cmd := buf[8]
 	if cmd == CCReqServerInfo {
-		sendServerInfoResponse(acceptSocket, addr)
+		n.sendServerInfoResponse(n.acceptSocket, addr)
 		return nil
 	}
 	if cmd == CCReqRuleInfo {
-		sendRuleInfoResponse(acceptSocket, addr, strings.TrimRight(string(buf[9:n]), "\x00"))
+		n.sendRuleInfoResponse(n.acceptSocket, addr, strings.TrimRight(string(buf[9:nread]), "\x00"))
 		return nil
 	}
 	if cmd == CCReqPlayerInfo {
-		if n < HeaderSize+2 {
+		if nread < HeaderSize+2 {
 			return nil
 		}
-		sendPlayerInfoResponse(acceptSocket, addr, int(buf[9]))
+		n.sendPlayerInfoResponse(n.acceptSocket, addr, int(buf[9]))
 		return nil
 	}
 
 	if cmd == CCReqConnect {
-		if isServerIPBanned(addr.String()) {
+		if n.isServerIPBanned(addr.String()) {
 			resp := make([]byte, HeaderSize+1+len("You have been banned.\n")+1)
 			binary.BigEndian.PutUint32(resp[0:], uint32(len(resp))|FlagCtl)
 			binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 			resp[8] = CCRepReject
 			copy(resp[9:], "You have been banned.\n")
-			UDPWrite(acceptSocket, resp, addr)
+			UDPWrite(n.acceptSocket, resp, addr)
 			return nil
 		}
 
 		// Quake closes stale server-side sockets if a client reconnects from
 		// the same address:port. Do that before accepting the replacement.
-		closeDuplicateAcceptedServerSockets(addr)
+		n.closeDuplicateAcceptedServerSockets(addr)
 
 		// Create a new per-client socket on a random port (matching C's dfunc.Open_Socket(0)).
 		// Each client gets its own socket so packets are demultiplexed by the OS.
@@ -569,23 +608,31 @@ func DatagramCheckNewConnections() *Socket {
 		binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 		resp[8] = CCRepAccept
 		binary.LittleEndian.PutUint32(resp[9:], uint32(newPort))
-		UDPWrite(acceptSocket, resp, addr)
+		UDPWrite(n.acceptSocket, resp, addr)
 
 		sock := NewSocket(addr.String())
 		sock.driver = DriverDatagram
 		sock.udpConn = clientConn
 		sock.remoteAddr = addr
-		trackAcceptedServerSocket(sock)
+		n.trackAcceptedServerSocket(sock)
 		return sock
 	}
 
 	return nil
 }
 
-func nextServerInfoCvarAfter(previous string) *cvar.CVar {
+// DatagramCheckNewConnections delegates to the process-wide defaultNet.
+func DatagramCheckNewConnections() *Socket {
+	return defaultNet.DatagramCheckNewConnections()
+}
+
+func (n *Network) nextServerInfoCvarAfter(previous string) *cvar.CVar {
+	if n.cvars == nil {
+		return nil
+	}
 	var names []string
 	serverInfoVars := make(map[string]*cvar.CVar)
-	for _, cv := range cvar.All() {
+	for _, cv := range n.cvars.All() {
 		if cv.Flags&cvar.FlagServerInfo == 0 {
 			continue
 		}
@@ -602,33 +649,32 @@ func nextServerInfoCvarAfter(previous string) *cvar.CVar {
 }
 
 // sendServerInfoResponse writes a CCRepServerInfo control packet back to the
-// querying client. If a ServerInfoProvider is installed, live server state is
-// used; otherwise placeholder values are returned.
-func sendServerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr) {
-	hostname := serverInfoHostname()
+// querying client using this Network's siProvider/cvars/hostPort state.
+func (n *Network) sendServerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr) {
+	hostname := n.serverInfoHostname()
 	mapName := "e1m1"
 	var players, maxPlayers byte
 	maxPlayers = 8
-	address := fmt.Sprintf("%s:%d", myTCPIPAddress, netHostPort)
+	address := fmt.Sprintf("%s:%d", n.myTCPIPAddress, n.hostPort)
 	if address == ":26000" || address == ":" {
-		address = addr.IP.String() + fmt.Sprintf(":%d", netHostPort)
+		address = addr.IP.String() + fmt.Sprintf(":%d", n.hostPort)
 	}
 
-	if serverInfoProvider != nil {
-		if serverInfoProvider.Hostname != nil {
-			hostname = serverInfoProvider.Hostname()
+	if n.siProvider != nil {
+		if n.siProvider.Hostname != nil {
+			hostname = n.siProvider.Hostname()
 		}
-		if serverInfoProvider.MapName != nil {
-			mapName = serverInfoProvider.MapName()
+		if n.siProvider.MapName != nil {
+			mapName = n.siProvider.MapName()
 		}
-		if serverInfoProvider.Players != nil {
-			players = byte(serverInfoProvider.Players())
+		if n.siProvider.Players != nil {
+			players = byte(n.siProvider.Players())
 		}
-		if serverInfoProvider.MaxPlayers != nil {
-			maxPlayers = byte(serverInfoProvider.MaxPlayers())
+		if n.siProvider.MaxPlayers != nil {
+			maxPlayers = byte(n.siProvider.MaxPlayers())
 		}
-		if serverInfoProvider.Address != nil {
-			address = serverInfoProvider.Address()
+		if n.siProvider.Address != nil {
+			address = n.siProvider.Address()
 		}
 	}
 
@@ -650,10 +696,10 @@ func sendServerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr) {
 	UDPWrite(conn, resp, addr)
 }
 
-func sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, previous string) {
+func (n *Network) sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, previous string) {
 	var payload []byte
 	payload = append(payload, CCRepRuleInfo)
-	if cv := nextServerInfoCvarAfter(previous); cv != nil {
+	if cv := n.nextServerInfoCvarAfter(previous); cv != nil {
 		payload = append(payload, []byte(cv.Name)...)
 		payload = append(payload, 0)
 		payload = append(payload, []byte(cv.String)...)
@@ -667,12 +713,12 @@ func sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, previous s
 	UDPWrite(conn, resp, addr)
 }
 
-func sendPlayerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, index int) {
+func (n *Network) sendPlayerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, index int) {
 	var payload []byte
 	payload = append(payload, CCRepPlayerInfo)
 	payload = append(payload, byte(index))
-	if serverInfoProvider != nil && serverInfoProvider.PlayerInfo != nil {
-		name, top, bottom, frags, ping, ok := serverInfoProvider.PlayerInfo(index)
+	if n.siProvider != nil && n.siProvider.PlayerInfo != nil {
+		name, top, bottom, frags, ping, ok := n.siProvider.PlayerInfo(index)
 		if ok && name != "" {
 			payload = append(payload, []byte(name)...)
 			payload = append(payload, 0)

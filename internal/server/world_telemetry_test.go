@@ -32,7 +32,7 @@ func TestTouchLinksTelemetry(t *testing.T) {
 		lines = append(lines, line)
 	})
 	oldEnable := debugTelemetryEnableCVar
-	debugTelemetryEnableCVar = cvar.Register("sv_debug_telemetry_test_touchlinks", "1", cvar.FlagNone, "")
+	debugTelemetryEnableCVar = s.CVar.Register("sv_debug_telemetry_test_touchlinks", "1", cvar.FlagNone, "")
 	t.Cleanup(func() {
 		debugTelemetryEnableCVar = oldEnable
 	})
@@ -106,7 +106,7 @@ func TestTouchLinksSyncsQCChangesBackToGoEdicts(t *testing.T) {
 		lines = append(lines, line)
 	})
 	oldEnable := debugTelemetryEnableCVar
-	debugTelemetryEnableCVar = cvar.Register("sv_debug_telemetry_test_touchlinks_sync", "1", cvar.FlagNone, "")
+	debugTelemetryEnableCVar = s.CVar.Register("sv_debug_telemetry_test_touchlinks_sync", "1", cvar.FlagNone, "")
 	t.Cleanup(func() {
 		debugTelemetryEnableCVar = oldEnable
 	})

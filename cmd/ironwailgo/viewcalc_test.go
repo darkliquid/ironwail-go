@@ -3,8 +3,6 @@ package main
 import (
 	"math"
 	"testing"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // ensureViewCalcCvars registers all cvars required by viewcalc functions if
@@ -28,10 +26,10 @@ func ensureViewCalcCvars() {
 		"scr_viewsize":      "100",
 	}
 	for name, def := range defaults {
-		if cvar.Get(name) == nil {
-			cvar.Register(name, def, 0, "")
+		if g.Host.CVar.Get(name) == nil {
+			g.Host.CVar.Register(name, def, 0, "")
 		} else {
-			cvar.Set(name, def)
+			g.Host.CVar.Set(name, def)
 		}
 	}
 }
@@ -58,7 +56,7 @@ func TestViewCalcBob_MovingReturnsNonZero(t *testing.T) {
 func TestViewCalcBob_ClampedHigh(t *testing.T) {
 	ensureViewCalcCvars()
 	// Artificially large bob scale to ensure the result is clamped to 4.
-	if cv := cvar.Get("cl_bob"); cv != nil {
+	if cv := g.Host.CVar.Get("cl_bob"); cv != nil {
 		cv.String = "100"
 		cv.Float = 100
 	}
@@ -67,7 +65,7 @@ func TestViewCalcBob_ClampedHigh(t *testing.T) {
 		t.Errorf("bob %v exceeds max of 4", bob)
 	}
 	// Restore default.
-	if cv := cvar.Get("cl_bob"); cv != nil {
+	if cv := g.Host.CVar.Get("cl_bob"); cv != nil {
 		cv.String = "0.02"
 		cv.Float = 0.02
 	}
@@ -75,7 +73,7 @@ func TestViewCalcBob_ClampedHigh(t *testing.T) {
 
 func TestViewCalcBob_ClampedLow(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("cl_bob"); cv != nil {
+	if cv := g.Host.CVar.Get("cl_bob"); cv != nil {
 		cv.String = "100"
 		cv.Float = 100
 	}
@@ -89,7 +87,7 @@ func TestViewCalcBob_ClampedLow(t *testing.T) {
 	if bob < -7 {
 		t.Errorf("bob %v below min of -7", bob)
 	}
-	if cv := cvar.Get("cl_bob"); cv != nil {
+	if cv := g.Host.CVar.Get("cl_bob"); cv != nil {
 		cv.String = "0.02"
 		cv.Float = 0.02
 	}
@@ -97,14 +95,14 @@ func TestViewCalcBob_ClampedLow(t *testing.T) {
 
 func TestViewCalcBob_ZeroCycle(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("cl_bobcycle"); cv != nil {
+	if cv := g.Host.CVar.Get("cl_bobcycle"); cv != nil {
 		cv.Float = 0
 	}
 	bob := viewCalcBob(1.0, [3]float32{300, 0, 0})
 	if bob != 0 {
 		t.Errorf("expected 0 when cl_bobcycle=0, got %v", bob)
 	}
-	if cv := cvar.Get("cl_bobcycle"); cv != nil {
+	if cv := g.Host.CVar.Get("cl_bobcycle"); cv != nil {
 		cv.Float = 0.6
 	}
 }
@@ -139,7 +137,7 @@ func TestViewCalcRoll_CappedByRollAngle(t *testing.T) {
 	ensureViewCalcCvars()
 	// Very fast lateral movement should cap at cl_rollangle (2.0).
 	roll := viewCalcRoll([3]float32{0, 90, 0}, [3]float32{0, 10000, 0})
-	rollAngle := float32(cvar.Get("cl_rollangle").Float)
+	rollAngle := float32(g.Host.CVar.Get("cl_rollangle").Float)
 	if roll > rollAngle+0.001 || roll < -(rollAngle+0.001) {
 		t.Errorf("roll %v exceeds cl_rollangle %v", roll, rollAngle)
 	}
@@ -149,7 +147,7 @@ func TestViewCalcRoll_CappedByRollAngle(t *testing.T) {
 
 func TestViewCalcGunAngle_IdleScaleZero(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("v_idlescale"); cv != nil {
+	if cv := g.Host.CVar.Get("v_idlescale"); cv != nil {
 		cv.Float = 0
 	}
 	state := viewCalcState{}
@@ -169,7 +167,7 @@ func TestViewCalcGunAngle_IdleScaleZero(t *testing.T) {
 
 func TestViewCalcGunAngle_RateLimitsState(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("v_idlescale"); cv != nil {
+	if cv := g.Host.CVar.Get("v_idlescale"); cv != nil {
 		cv.Float = 0
 	}
 	state := viewCalcState{oldGunYaw: 5, oldGunPitch: 5}
@@ -188,7 +186,7 @@ func TestViewCalcGunAngle_RateLimitsState(t *testing.T) {
 
 func TestViewAddIdle_ZeroScaleNoChange(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("v_idlescale"); cv != nil {
+	if cv := g.Host.CVar.Get("v_idlescale"); cv != nil {
 		cv.Float = 0
 	}
 	angles := [3]float32{10, 20, 30}
@@ -200,7 +198,7 @@ func TestViewAddIdle_ZeroScaleNoChange(t *testing.T) {
 
 func TestViewAddIdle_NonZeroScaleChanges(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("v_idlescale"); cv != nil {
+	if cv := g.Host.CVar.Get("v_idlescale"); cv != nil {
 		cv.Float = 1
 		cv.String = "1"
 	}
@@ -211,7 +209,7 @@ func TestViewAddIdle_NonZeroScaleChanges(t *testing.T) {
 		t.Error("expected idle sway to modify angles when v_idlescale != 0")
 	}
 	// Restore.
-	if cv := cvar.Get("v_idlescale"); cv != nil {
+	if cv := g.Host.CVar.Get("v_idlescale"); cv != nil {
 		cv.Float = 0
 		cv.String = "0"
 	}
@@ -253,7 +251,7 @@ func TestViewNodeLineOffset(t *testing.T) {
 
 func TestViewApplyViewmodelQuakeFudge_DisabledNoChange(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("r_viewmodel_quake"); cv != nil {
+	if cv := g.Host.CVar.Get("r_viewmodel_quake"); cv != nil {
 		cv.Int = 0
 	}
 	origin := [3]float32{0, 0, 0}
@@ -265,7 +263,7 @@ func TestViewApplyViewmodelQuakeFudge_DisabledNoChange(t *testing.T) {
 
 func TestViewApplyViewmodelQuakeFudge_Size100AddsTwo(t *testing.T) {
 	ensureViewCalcCvars()
-	if cv := cvar.Get("r_viewmodel_quake"); cv != nil {
+	if cv := g.Host.CVar.Get("r_viewmodel_quake"); cv != nil {
 		cv.Int = 1
 	}
 	origin := [3]float32{0, 0, 0}
@@ -273,7 +271,7 @@ func TestViewApplyViewmodelQuakeFudge_Size100AddsTwo(t *testing.T) {
 	if out[2] != 2 {
 		t.Errorf("expected Z+=2 for size=100, got Z=%v", out[2])
 	}
-	if cv := cvar.Get("r_viewmodel_quake"); cv != nil {
+	if cv := g.Host.CVar.Get("r_viewmodel_quake"); cv != nil {
 		cv.Int = 0
 	}
 }
@@ -464,10 +462,10 @@ func ensureDamageKickCvars() {
 		"v_kickpitch": "0.6",
 	}
 	for name, def := range defaults {
-		if cvar.Get(name) == nil {
-			cvar.Register(name, def, 0, "")
+		if g.Host.CVar.Get(name) == nil {
+			g.Host.CVar.Register(name, def, 0, "")
 		} else {
-			cvar.Set(name, def)
+			g.Host.CVar.Set(name, def)
 		}
 	}
 }

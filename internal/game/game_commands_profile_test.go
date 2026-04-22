@@ -30,17 +30,18 @@ func TestResolveProfileOutputPathDefaultsToProfilesDir(t *testing.T) {
 }
 
 func TestProfileCPUStartStopWritesFile(t *testing.T) {
-	cpuProfileState.mu.Lock()
-	if cpuProfileState.file != nil {
+	g := New()
+	cpu := &g.cpuProfile
+	cpu.mu.Lock()
+	if cpu.file != nil {
 		runtimepprof.StopCPUProfile()
-		_ = cpuProfileState.file.Close()
-		cpuProfileState.file = nil
-		cpuProfileState.path = ""
+		_ = cpu.file.Close()
+		cpu.file = nil
+		cpu.path = ""
 	}
-	cpuProfileState.mu.Unlock()
+	cpu.mu.Unlock()
 
 	path := filepath.Join(t.TempDir(), "cpu.pprof")
-	g := New()
 	g.cmdProfileCPUStart([]string{path})
 	for i := 0; i < 10000; i++ {
 		_ = strings.Repeat("cpu", 4)

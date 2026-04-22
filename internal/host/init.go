@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
@@ -21,10 +20,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/server"
-)
-
-var (
-	hostCVarsOnce sync.Once
 )
 
 const (
@@ -38,31 +33,33 @@ const (
 	defaultServerHostname = "UNNAMED"
 )
 
-func registerHostCVars() {
-	cvar.Register("skill", "1", cvar.FlagArchive, "Single-player skill level")
-	cvar.Register("dedicated", "0", cvar.FlagServerInfo, "Run as dedicated server")
-	cvar.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
-	cvar.Register("coop", "0", cvar.FlagServerInfo, "Cooperative game mode")
-	cvar.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
-	cvar.Register("maxplayers", "1", cvar.FlagServerInfo, "Maximum number of server player slots")
-	cvar.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
-	cvar.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
-	cvar.Register("sv_nostep", "0", cvar.FlagServerInfo, "Disable stair-step movement retries when enabled")
-	cvar.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
-	cvar.Register("timelimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match time limit in minutes")
-	cvar.Register("teamplay", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Teamplay rules")
-	cvar.Register(clientNameCVar, defaultClientName, cvar.FlagArchive|cvar.FlagUserInfo, "Player name")
-	cvar.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
-	cvar.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
-	cvar.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
-	cvar.Register("devstats", "0", cvar.FlagNone, "Enable developer statistics overlay and command output")
-	cvar.Register("sv_autosave", "1", cvar.FlagArchive, "Enable autosave in single-player")
-	cvar.Register("sv_autosave_interval", "30", cvar.FlagArchive, "Autosave interval in seconds")
-	cvar.Register("sv_autoload", "2", cvar.FlagArchive, "Autoload the last save on restart")
-	cvar.Register("sv_gameplayfix_random", "1", cvar.FlagArchive, "Use deterministic random() formula that avoids exact 0 and 1")
-	cvar.Register("sv_gameplayfix_elevators", "2", cvar.FlagArchive, "Nudge entities on elevators to prevent crushing (0=off, 1=clients, 2=all)")
-	audio.RegisterCVars()
-	server.RegisterDebugTelemetryCVars()
+func (h *Host) registerHostCVars() {
+	cv := h.CVar
+	cv.Register("skill", "1", cvar.FlagArchive, "Single-player skill level")
+	cv.Register("dedicated", "0", cvar.FlagServerInfo, "Run as dedicated server")
+	cv.Register("nomonsters", "0", cvar.FlagServerInfo, "Disable monster spawning for new games")
+	cv.Register("coop", "0", cvar.FlagServerInfo, "Cooperative game mode")
+	cv.Register("deathmatch", "0", cvar.FlagServerInfo, "Deathmatch game mode")
+	cv.Register("maxplayers", "1", cvar.FlagServerInfo, "Maximum number of server player slots")
+	cv.Register("sv_altnoclip", "1", cvar.FlagServerInfo, "Use fly-style noclip movement when enabled")
+	cv.Register("sv_freezenonclients", "0", cvar.FlagServerInfo, "Freeze non-client entities when enabled")
+	cv.Register("sv_nostep", "0", cvar.FlagServerInfo, "Disable stair-step movement retries when enabled")
+	cv.Register("fraglimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match frag limit")
+	cv.Register("timelimit", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Match time limit in minutes")
+	cv.Register("teamplay", "0", cvar.FlagNotify|cvar.FlagServerInfo, "Teamplay rules")
+	cv.Register(clientNameCVar, defaultClientName, cvar.FlagArchive|cvar.FlagUserInfo, "Player name")
+	cv.Register(clientColorCVar, "0", cvar.FlagArchive|cvar.FlagUserInfo, "Player shirt and pants colors")
+	cv.Register(serverHostnameCVar, defaultServerHostname, cvar.FlagServerInfo, "Server hostname")
+	cv.Register("host_speeds", "0", cvar.FlagNone, "Show frame timing information")
+	cv.Register("devstats", "0", cvar.FlagNone, "Enable developer statistics overlay and command output")
+	cv.Register("sv_autosave", "1", cvar.FlagArchive, "Enable autosave in single-player")
+	cv.Register("sv_autosave_interval", "30", cvar.FlagArchive, "Autosave interval in seconds")
+	cv.Register("sv_autoload", "2", cvar.FlagArchive, "Autoload the last save on restart")
+	cv.Register("sv_gameplayfix_random", "1", cvar.FlagArchive, "Use deterministic random() formula that avoids exact 0 and 1")
+	cv.Register("sv_gameplayfix_elevators", "2", cvar.FlagArchive, "Nudge entities on elevators to prevent crushing (0=off, 1=clients, 2=all)")
+	cv.Register("sv_aim", "0.93", cvar.FlagNone, "Auto-aim cosine threshold")
+	audio.RegisterCVars(cv)
+	server.RegisterDebugTelemetryCVars(cv)
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready
@@ -419,7 +416,7 @@ type Renderer interface {
 }
 
 func (h *Host) Init(params *InitParams, subs *Subsystems) error {
-	hostCVarsOnce.Do(registerHostCVars)
+	h.registerHostCVars()
 
 	h.baseDir = params.BaseDir
 	h.dedicated = params.Dedicated
@@ -437,12 +434,12 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 		h.maxClients = MaxScoreboard
 	}
 
-	cvar.SetBool("dedicated", h.dedicated)
-	cvar.SetInt("maxplayers", h.maxClients)
+	h.CVar.SetBool("dedicated", h.dedicated)
+	h.CVar.SetInt("maxplayers", h.maxClients)
 	if h.maxClients > 1 {
-		cvar.SetInt("deathmatch", 1)
+		h.CVar.SetInt("deathmatch", 1)
 	} else {
-		cvar.SetInt("deathmatch", 0)
+		h.CVar.SetInt("deathmatch", 0)
 	}
 
 	if h.baseDir == "" {
@@ -472,7 +469,7 @@ func (h *Host) Init(params *InitParams, subs *Subsystems) error {
 	if subs.Commands != nil {
 		subs.Commands.Init()
 	}
-	cmdsys.RegisterCvarCommands()
+	h.Cmd.RegisterCvarCommands()
 	h.RegisterCommands(subs)
 
 	if subs.Console != nil {
@@ -584,8 +581,8 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-func LoadArchivedCvars(userDir string, names []string) error {
-	if userDir == "" || len(names) == 0 {
+func LoadArchivedCvars(cv *cvar.CVarSystem, userDir string, names []string) error {
+	if cv == nil || userDir == "" || len(names) == 0 {
 		return nil
 	}
 	allowed := make(map[string]struct{}, len(names))
@@ -616,7 +613,7 @@ func LoadArchivedCvars(userDir string, names []string) error {
 				if err != nil {
 					continue
 				}
-				cvar.Set(cvarName, unquoted)
+				cv.Set(cvarName, unquoted)
 			}
 			return scanner.Err()
 		}
@@ -634,10 +631,7 @@ func executeConfigText(subs *Subsystems, text string) {
 	if subs != nil && subs.Commands != nil {
 		subs.Commands.InsertText(text)
 		subs.Commands.Execute()
-		return
 	}
-	cmdsys.InsertText(text)
-	cmdsys.Execute()
 }
 
 func (h *Host) execUserConfig(subs *Subsystems) error {
@@ -738,7 +732,10 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 		}
 	}
 
-	archivedVars := cvar.ArchiveVars()
+	var archivedVars []string
+	if h.CVar != nil {
+		archivedVars = h.CVar.ArchiveVars()
+	}
 	if wroteBindings && len(archivedVars) > 0 {
 		fmt.Fprintln(f)
 	}

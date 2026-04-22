@@ -19,7 +19,7 @@ import (
 	"log/slog"
 	"math"
 
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
@@ -266,6 +266,9 @@ var controlBindings = []controlBinding{
 
 // Manager handles the Quake menu system including navigation and rendering.
 type Manager struct {
+	// cvars provides access to the engine's cvar system.
+	cvars *cvar.CVarSystem
+
 	// state is the current active menu state.
 	state MenuState
 
@@ -363,6 +366,14 @@ func (m *Manager) SetSoundPlayer(play func(name string)) {
 	m.playSound = play
 }
 
+// SetCommandText installs the sink used to queue engine commands originating
+// from menu actions (map, load, save, quit, ...). Passing nil makes those
+// actions a no-op, which is useful in tests that exercise menu rendering
+// without a host command buffer.
+func (m *Manager) SetCommandText(fn func(text string)) {
+	m.commandText = fn
+}
+
 // SetSaveSlotProvider registers a callback that returns display labels for
 // save-game slots. The provider is called each time the Load or Save menu is
 // opened, allowing the labels to reflect the current save files on disk.
@@ -401,8 +412,12 @@ func (m *Manager) SetSaveEntryAllowedProvider(provider func() bool) {
 }
 
 // NewManager creates a new menu manager.
-func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
+func NewManager(drawMgr DrawManager, inputSys *input.System, cvars *cvar.CVarSystem) *Manager {
+	if cvars == nil {
+		cvars = cvar.NewCVarSystem()
+	}
 	mgr := &Manager{
+		cvars:              cvars,
 		state:              MenuNone,
 		mainCursor:         0,
 		singlePlayerCursor: 0,
@@ -436,7 +451,6 @@ func NewManager(drawMgr DrawManager, inputSys *input.System) *Manager {
 		drawManager:        drawMgr,
 		inputSystem:        inputSys,
 		active:             false,
-		commandText:        cmdsys.AddText,
 	}
 	mgr.resetSaveSlotLabels()
 	return mgr

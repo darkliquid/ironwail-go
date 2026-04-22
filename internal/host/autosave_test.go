@@ -8,7 +8,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
@@ -40,23 +39,16 @@ func (s *autosaveTestServer) EdictNum(n int) *server.Edict {
 	return s.mockServer.EdictNum(n)
 }
 
-func setHostAutosaveForTest(t *testing.T, value string) {
+func setHostAutosaveForTest(t *testing.T, h *Host, value string) {
 	t.Helper()
-	hostCVarsOnce.Do(registerHostCVars)
-	previousEnabled := cvar.StringValue("sv_autosave")
-	previousInterval := cvar.StringValue("sv_autosave_interval")
-	cvar.Set("sv_autosave", "1")
-	cvar.Set("sv_autosave_interval", value)
-	t.Cleanup(func() {
-		cvar.Set("sv_autosave", previousEnabled)
-		cvar.Set("sv_autosave_interval", previousInterval)
-	})
+	h.registerHostCVars()
+	h.CVar.Set("sv_autosave", "1")
+	h.CVar.Set("sv_autosave_interval", value)
 }
 
 func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -92,9 +84,8 @@ func TestCheckAutosaveTriggersAtConfiguredInterval(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedInMultiplayer(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -115,14 +106,9 @@ func TestCheckAutosaveSkippedInMultiplayer(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedWhenDisabled(t *testing.T) {
-	setHostAutosaveForTest(t, "30")
-	previous := cvar.StringValue("sv_autosave")
-	cvar.Set("sv_autosave", "0")
-	t.Cleanup(func() {
-		cvar.Set("sv_autosave", previous)
-	})
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "30")
+	h.CVar.Set("sv_autosave", "0")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -143,9 +129,8 @@ func TestCheckAutosaveSkippedWhenDisabled(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedDuringIntermission(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -168,9 +153,8 @@ func TestCheckAutosaveSkippedDuringIntermission(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedForDeadPlayer(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -191,9 +175,8 @@ func TestCheckAutosaveSkippedForDeadPlayer(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedForMoveTypeNonePlayer(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -217,9 +200,8 @@ func TestCheckAutosaveSkippedForMoveTypeNonePlayer(t *testing.T) {
 }
 
 func TestCheckAutosaveSkippedForFastPlayer(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -244,9 +226,8 @@ func TestCheckAutosaveSkippedForFastPlayer(t *testing.T) {
 }
 
 func TestCheckAutosaveWaitsAfterRecentDamage(t *testing.T) {
-	setHostAutosaveForTest(t, "3")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "3")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -289,9 +270,8 @@ func TestCheckAutosaveWaitsAfterRecentDamage(t *testing.T) {
 }
 
 func TestCheckAutosaveWaitsAfterRecentShot(t *testing.T) {
-	setHostAutosaveForTest(t, "3")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "3")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -332,9 +312,8 @@ func TestCheckAutosaveWaitsAfterRecentShot(t *testing.T) {
 }
 
 func TestCheckAutosaveCheatTimeDoesNotAdvanceScore(t *testing.T) {
-	setHostAutosaveForTest(t, "30")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "30")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -371,9 +350,8 @@ func TestCheckAutosaveCheatTimeDoesNotAdvanceScore(t *testing.T) {
 }
 
 func TestCheckAutosaveTeleportBoostCanTriggerEarlySave(t *testing.T) {
-	setHostAutosaveForTest(t, "6")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "6")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1
@@ -398,9 +376,8 @@ func TestCheckAutosaveTeleportBoostCanTriggerEarlySave(t *testing.T) {
 }
 
 func TestCheckAutosaveWaitsAfterHazardDamageAbove100Health(t *testing.T) {
-	setHostAutosaveForTest(t, "3")
-
 	h := NewHost()
+	setHostAutosaveForTest(t, h, "3")
 	h.serverActive = true
 	h.clientState = caActive
 	h.signOns = 1

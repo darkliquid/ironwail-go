@@ -7,7 +7,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 	"github.com/gogpu/gputypes"
@@ -26,7 +25,7 @@ func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogCol
 	if dc == nil || dc.renderer == nil || len(entities) == 0 {
 		return
 	}
-	if cvar.FloatValue(CvarRShadows) <= 0 {
+	if pkgCVars == nil || pkgCVars.FloatValue(CvarRShadows) <= 0 {
 		return
 	}
 
@@ -36,7 +35,7 @@ func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogCol
 		return
 	}
 
-	excludedModels := parseAliasShadowExclusionsGO(cvar.StringValue(CvarRNoshadowList))
+	excludedModels := parseAliasShadowExclusionsGO(pkgCVars.StringValue(CvarRNoshadowList))
 	r := dc.renderer
 	r.mu.Lock()
 	if err := r.ensureAliasResourcesLocked(device); err != nil {

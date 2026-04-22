@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -69,7 +68,7 @@ func (g *Game) recordRuntimeDemoFrame() {
 }
 
 func (g *Game) resetRuntimeVisualState() {
-	globalViewCalc = viewCalcState{}
+	g.viewCalc = viewCalcState{}
 
 	if g.Renderer == nil {
 		g.Particles = nil
@@ -125,13 +124,13 @@ func (g *Game) syncRuntimeVisualEffects(dt float64, transientEvents cl.Transient
 			kickTime := float32(0.5)
 			kickRoll := float32(0.6)
 			kickPitch := float32(0.6)
-			if cv := cvar.Get("v_kicktime"); cv != nil {
+			if cv := g.Host.CVar.Get("v_kicktime"); cv != nil {
 				kickTime = cv.Float32()
 			}
-			if cv := cvar.Get("v_kickroll"); cv != nil {
+			if cv := g.Host.CVar.Get("v_kickroll"); cv != nil {
 				kickRoll = cv.Float32()
 			}
-			if cv := cvar.Get("v_kickpitch"); cv != nil {
+			if cv := g.Host.CVar.Get("v_kickpitch"); cv != nil {
 				kickPitch = cv.Float32()
 			}
 			g.Client.CalculateDamageKick(entityOrigin, entityAngles, kickTime, kickRoll, kickPitch)
@@ -170,7 +169,7 @@ func (g *Game) syncRuntimeVisualEffects(dt float64, transientEvents cl.Transient
 }
 
 func (g *Game) currentZoomSpeed() float32 {
-	if cv := cvar.Get("zoom_speed"); cv != nil {
+	if cv := g.Host.CVar.Get("zoom_speed"); cv != nil {
 		return cv.Float32()
 	}
 	return 8

@@ -50,6 +50,3 @@ func (s *NetStats) Reset() {
 	s.ShortPacketCount.Store(0)
 	s.DroppedDatagrams.Store(0)
 }
-
-// GlobalStats is the package-level network statistics counter set.
-var GlobalStats NetStats

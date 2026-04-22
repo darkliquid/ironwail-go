@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/menu"
+	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 const (
@@ -98,6 +101,28 @@ type Host struct {
 	compatRNG *compatrand.RNG
 
 	autosave autosaveState
+
+	netStats *inet.NetStats
+
+	// Cmd is the host-owned command system instance. All host/game/server
+	// command registrations and command-buffer execution flow through this
+	// instance instead of the previous package-level singleton.
+	Cmd *cmdsys.CmdSystem
+
+	// CVar is the host-owned console variable registry. All cvar
+	// registrations and lookups flow through this instance instead of
+	// the previous package-level singleton.
+	CVar *cvar.CVarSystem
+
+	// Net is the host-owned networking subsystem. All connect/listen/
+	// send/receive and IP-ban operations flow through this instance.
+	// Currently its methods still delegate to internal/net package-level
+	// state (preserved for backward compatibility during the phased DI
+	// migration); per-instance isolation lands in a later phase.
+	Net *inet.Network
+
+	RemoteClientFactory  func(address string) (Client, error)
+	ServerBrowserFactory func() serverBrowser
 }
 
 type autosaveState struct {
@@ -111,14 +136,31 @@ type autosaveState struct {
 }
 
 func NewHost() *Host {
-	return &Host{
-		maxFPS:       250,
-		netInterval:  1.0 / 72,
-		maxClients:   1,
-		currentSkill: 1,
-		demoNum:      -1, // disabled until startdemos is called
-		compatRNG:    compatrand.New(),
+	network := inet.NewNetwork()
+	h := &Host{
+		maxFPS:               250,
+		netInterval:          1.0 / 72,
+		maxClients:           1,
+		currentSkill:         1,
+		demoNum:              -1, // disabled until startdemos is called
+		compatRNG:            compatrand.New(),
+		netStats:             &inet.NetStats{},
+		Cmd:                  cmdsys.NewCmdSystem(),
+		CVar:                 cvar.NewCVarSystem(),
+		Net:                  network,
+		ServerBrowserFactory: defaultServerBrowserFactory,
 	}
+	h.RemoteClientFactory = func(address string) (Client, error) {
+		return defaultRemoteClientFactory(h.Net, address)
+	}
+	h.ServerBrowserFactory = h.defaultServerBrowserFactory
+	h.Cmd.CVar = h.CVar
+	return h
+}
+
+// NetStats returns the host-owned network statistics counters.
+func (h *Host) NetStats() *inet.NetStats {
+	return h.netStats
 }
 
 func (h *Host) IsInitialized() bool {
@@ -131,6 +173,12 @@ func (h *Host) FrameCount() int {
 
 func (h *Host) FrameTime() float64 {
 	return h.frameTime
+}
+
+// SetFrameTime overrides the current frame delta. Intended for tests that
+// exercise code paths depending on Host.FrameTime.
+func (h *Host) SetFrameTime(dt float64) {
+	h.frameTime = dt
 }
 
 func (h *Host) RealTime() float64 {

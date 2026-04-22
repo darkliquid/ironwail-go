@@ -274,7 +274,7 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 	}
 
 	for _, name := range []string{"fraglimit", "timelimit", "teamplay"} {
-		cv := cvar.Get(name)
+		cv := h.CVar.Get(name)
 		if cv == nil {
 			t.Fatalf("cvar %q not registered", name)
 		}
@@ -285,15 +285,6 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 }
 
 func TestHostInitRegistersCvarHelperCommands(t *testing.T) {
-	for _, name := range []string{"cvarlist", "toggle", "cycle", "cycleback", "inc", "reset", "resetall", "resetcfg"} {
-		cmdsys.RemoveCommand(name)
-	}
-	t.Cleanup(func() {
-		for _, name := range []string{"cvarlist", "toggle", "cycle", "cycleback", "inc", "reset", "resetall", "resetcfg"} {
-			cmdsys.RemoveCommand(name)
-		}
-	})
-
 	h := NewHost()
 	subs := &mockSubsystems{
 		server:  &mockServer{},
@@ -309,7 +300,7 @@ func TestHostInitRegistersCvarHelperCommands(t *testing.T) {
 	}
 
 	for _, name := range []string{"cvarlist", "toggle", "cycle", "cycleback", "inc", "reset", "resetall", "resetcfg"} {
-		if !cmdsys.Exists(name) {
+		if !h.Cmd.Exists(name) {
 			t.Fatalf("command %q not registered", name)
 		}
 	}
@@ -320,7 +311,8 @@ func TestHostInitRegistersCvarHelperCommands(t *testing.T) {
 // Why: Enables engine-side event logging and QuakeC tracing for parity investigations.
 // Where in C: host.c, Host_Init (and Ironwail-specific extensions).
 func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
-	registerHostCVars()
+	h := NewHost()
+	h.registerHostCVars()
 
 	for _, name := range []string{
 		"sv_debug_telemetry",
@@ -331,7 +323,7 @@ func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 		"sv_debug_qc_trace",
 		"sv_debug_qc_trace_verbosity",
 	} {
-		if cv := cvar.Get(name); cv == nil {
+		if cv := h.CVar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)
 		}
 	}
@@ -342,7 +334,8 @@ func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 // Why: Allows the user to control volume, sampling rate, and other audio parameters.
 // Where in C: host.c, Host_Init and snd_dma.c.
 func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
-	registerHostCVars()
+	h := NewHost()
+	h.registerHostCVars()
 
 	for _, name := range []string{
 		"volume",
@@ -361,7 +354,7 @@ func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
 		"_snd_mixahead",
 		"bgm_extmusic",
 	} {
-		if cv := cvar.Get(name); cv == nil {
+		if cv := h.CVar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)
 		}
 	}
@@ -372,10 +365,11 @@ func TestRegisterHostCVarsIncludesAudioCVars(t *testing.T) {
 // Why: Provides user control over periodic game state persistence.
 // Where in C: host.c, Host_Init (Ironwail extension).
 func TestRegisterHostCVarsIncludesAutosaveCVars(t *testing.T) {
-	registerHostCVars()
+	h := NewHost()
+	h.registerHostCVars()
 
 	for _, name := range []string{"sv_autosave", "sv_autosave_interval", "sv_autoload"} {
-		if cv := cvar.Get(name); cv == nil {
+		if cv := h.CVar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)
 		}
 	}
@@ -433,9 +427,11 @@ func TestHostShutdownOrdersSubsystemTearDownAndClearsInitialized(t *testing.T) {
 func TestMakeServerInfoProviderUsesLiveServerState(t *testing.T) {
 	srv := &mockServer{active: true}
 	subs := &Subsystems{Server: srv}
-	cvar.Set("hostname", "LAN Party")
+	h := NewHost()
+	h.CVar.Register("hostname", "", cvar.FlagNone, "")
+	h.CVar.Set("hostname", "LAN Party")
 
-	provider := makeServerInfoProvider(subs)
+	provider := h.makeServerInfoProvider(subs)
 	if provider == nil {
 		t.Fatal("makeServerInfoProvider() = nil")
 	}

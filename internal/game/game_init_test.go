@@ -8,7 +8,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/host"
@@ -30,46 +29,46 @@ func (fs registrationModeTestFS) FileExists(filename string) bool {
 
 func TestConfigureRegistrationModeRegisteredWhenPopPresent(t *testing.T) {
 	g := New()
-	if cvar.Get("registered") == nil {
-		cvar.Register("registered", "0", cvar.FlagNone, "")
+	if g.Host.CVar.Get("registered") == nil {
+		g.Host.CVar.Register("registered", "0", cvar.FlagNone, "")
 	}
-	cvar.Set("registered", "0")
+	g.Host.CVar.Set("registered", "0")
 
 	if err := g.configureRegistrationMode(registrationModeTestFS{hasPop: true}, "id1"); err != nil {
 		t.Fatalf("configureRegistrationMode returned error: %v", err)
 	}
-	if got := cvar.IntValue("registered"); got != 1 {
+	if got := g.Host.CVar.IntValue("registered"); got != 1 {
 		t.Fatalf("registered = %d, want 1", got)
 	}
 }
 
 func TestConfigureRegistrationModeSharewareForID1(t *testing.T) {
 	g := New()
-	if cvar.Get("registered") == nil {
-		cvar.Register("registered", "1", cvar.FlagNone, "")
+	if g.Host.CVar.Get("registered") == nil {
+		g.Host.CVar.Register("registered", "1", cvar.FlagNone, "")
 	}
-	cvar.Set("registered", "1")
+	g.Host.CVar.Set("registered", "1")
 
 	if err := g.configureRegistrationMode(registrationModeTestFS{hasPop: false}, "id1"); err != nil {
 		t.Fatalf("configureRegistrationMode returned error: %v", err)
 	}
-	if got := cvar.IntValue("registered"); got != 0 {
+	if got := g.Host.CVar.IntValue("registered"); got != 0 {
 		t.Fatalf("registered = %d, want 0", got)
 	}
 }
 
 func TestConfigureRegistrationModeRejectsModsWithoutRegisteredData(t *testing.T) {
 	g := New()
-	if cvar.Get("registered") == nil {
-		cvar.Register("registered", "1", cvar.FlagNone, "")
+	if g.Host.CVar.Get("registered") == nil {
+		g.Host.CVar.Register("registered", "1", cvar.FlagNone, "")
 	}
-	cvar.Set("registered", "1")
+	g.Host.CVar.Set("registered", "1")
 
 	err := g.configureRegistrationMode(registrationModeTestFS{hasPop: false}, "hipnotic")
 	if err == nil {
 		t.Fatal("configureRegistrationMode should fail for mod dir in shareware mode")
 	}
-	if got := cvar.IntValue("registered"); got != 0 {
+	if got := g.Host.CVar.IntValue("registered"); got != 0 {
 		t.Fatalf("registered = %d, want 0", got)
 	}
 }
@@ -133,13 +132,13 @@ func TestGoGPUX11KeyboardHint(t *testing.T) {
 
 func TestCurrentZoomSpeedUsesCanonicalZoomSpeedCVar(t *testing.T) {
 	g := New()
-	if cvar.Get("zoom_speed") == nil {
-		cvar.Register("zoom_speed", "8", cvar.FlagArchive, "")
+	if g.Host.CVar.Get("zoom_speed") == nil {
+		g.Host.CVar.Register("zoom_speed", "8", cvar.FlagArchive, "")
 	}
 
-	cvar.Set("zoom_speed", "12")
+	g.Host.CVar.Set("zoom_speed", "12")
 	t.Cleanup(func() {
-		cvar.Set("zoom_speed", "8")
+		g.Host.CVar.Set("zoom_speed", "8")
 	})
 
 	if got := g.currentZoomSpeed(); got != 12 {
@@ -149,13 +148,13 @@ func TestCurrentZoomSpeedUsesCanonicalZoomSpeedCVar(t *testing.T) {
 
 func TestCurrentRuntimeFOVUsesCanonicalFOVCVar(t *testing.T) {
 	g := New()
-	if cvar.Get("fov") == nil {
-		cvar.Register("fov", "90", cvar.FlagArchive, "")
+	if g.Host.CVar.Get("fov") == nil {
+		g.Host.CVar.Register("fov", "90", cvar.FlagArchive, "")
 	}
 
-	cvar.Set("fov", "110")
+	g.Host.CVar.Set("fov", "110")
 	t.Cleanup(func() {
-		cvar.Set("fov", "90")
+		g.Host.CVar.Set("fov", "90")
 	})
 
 	if got := g.currentRuntimeFOV(); got != 110 {
@@ -167,30 +166,30 @@ func TestCurrentRuntimeViewSizeUsesCanonicalViewsizeCVar(t *testing.T) {
 	g := New()
 	g.registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "")
 
-	cvar.Set("scr_viewsize", "100")
-	cvar.Set("viewsize", "130")
+	g.Host.CVar.Set("scr_viewsize", "100")
+	g.Host.CVar.Set("viewsize", "130")
 	t.Cleanup(func() {
-		cvar.Set("viewsize", "100")
-		cvar.Set("scr_viewsize", "100")
+		g.Host.CVar.Set("viewsize", "100")
+		g.Host.CVar.Set("scr_viewsize", "100")
 	})
 
 	if got := g.currentRuntimeViewSize(); got != 130 {
 		t.Fatalf("currentRuntimeViewSize() = %v, want 130", got)
 	}
-	if got := cvar.FloatValue("scr_viewsize"); got != 130 {
+	if got := g.Host.CVar.FloatValue("scr_viewsize"); got != 130 {
 		t.Fatalf("legacy scr_viewsize alias = %v, want 130", got)
 	}
 }
 
 func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
 	g := New()
-	if cvar.Get("zoom_fov") == nil {
-		cvar.Register("zoom_fov", "30", cvar.FlagArchive, "")
+	if g.Host.CVar.Get("zoom_fov") == nil {
+		g.Host.CVar.Register("zoom_fov", "30", cvar.FlagArchive, "")
 	}
 
-	cvar.Set("zoom_fov", "55")
+	g.Host.CVar.Set("zoom_fov", "55")
 	t.Cleanup(func() {
-		cvar.Set("zoom_fov", "30")
+		g.Host.CVar.Set("zoom_fov", "30")
 	})
 
 	if got := g.currentRuntimeZoomFOV(); got != 55 {
@@ -200,13 +199,13 @@ func TestCurrentRuntimeZoomFOVUsesCanonicalZoomFOVCVar(t *testing.T) {
 
 func TestCurrentRuntimeFOVAdaptUsesCanonicalFOVAdaptCVar(t *testing.T) {
 	g := New()
-	if cvar.Get("fov_adapt") == nil {
-		cvar.Register("fov_adapt", "1", cvar.FlagArchive, "")
+	if g.Host.CVar.Get("fov_adapt") == nil {
+		g.Host.CVar.Register("fov_adapt", "1", cvar.FlagArchive, "")
 	}
 
-	cvar.Set("fov_adapt", "0")
+	g.Host.CVar.Set("fov_adapt", "0")
 	t.Cleanup(func() {
-		cvar.Set("fov_adapt", "1")
+		g.Host.CVar.Set("fov_adapt", "1")
 	})
 
 	if got := g.currentRuntimeFOVAdapt(); got {
@@ -218,17 +217,17 @@ func TestCurrentShowTurtlePrefersCanonicalShowturtleCVar(t *testing.T) {
 	g := New()
 	g.registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "")
 
-	cvar.Set("scr_showturtle", "0")
-	cvar.Set("showturtle", "1")
+	g.Host.CVar.Set("scr_showturtle", "0")
+	g.Host.CVar.Set("showturtle", "1")
 	t.Cleanup(func() {
-		cvar.Set("showturtle", "0")
-		cvar.Set("scr_showturtle", "0")
+		g.Host.CVar.Set("showturtle", "0")
+		g.Host.CVar.Set("scr_showturtle", "0")
 	})
 
 	if got := g.currentShowTurtle(); !got {
 		t.Fatal("currentShowTurtle() = false, want true")
 	}
-	if got := cvar.BoolValue("scr_showturtle"); !got {
+	if got := g.Host.CVar.BoolValue("scr_showturtle"); !got {
 		t.Fatal("legacy scr_showturtle alias did not mirror canonical showturtle")
 	}
 }
@@ -358,17 +357,13 @@ func TestBuildCSQCClientHooksRegistersCommandOnce(t *testing.T) {
 	g := New()
 	hooks := g.buildCSQCClientHooks()
 	cmdName := "csqc_unit_registercommand_test"
-	cmdsys.RemoveCommand(cmdName)
-	t.Cleanup(func() {
-		cmdsys.RemoveCommand(cmdName)
-	})
 
 	hooks.RegisterCommand(cmdName)
-	if !cmdsys.Exists(cmdName) {
+	if !g.Host.Cmd.Exists(cmdName) {
 		t.Fatalf("command %q not registered", cmdName)
 	}
 	hooks.RegisterCommand(cmdName)
-	if !cmdsys.Exists(cmdName) {
+	if !g.Host.Cmd.Exists(cmdName) {
 		t.Fatalf("command %q should remain registered", cmdName)
 	}
 }
@@ -473,8 +468,7 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 
 	testRenderer := reloadTestRenderer{}
 	g.Renderer = testRenderer
-	g.Host = host.NewHost()
-	g.Menu = menu.NewManager(nil, nil)
+	g.Menu = menu.NewManager(nil, nil, nil)
 	g.Server = server.NewServer()
 	g.QC = g.Server.QCVM
 	g.CSQC = qc.NewCSQC()

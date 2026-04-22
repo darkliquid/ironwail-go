@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
@@ -17,7 +16,7 @@ func TestRuntimeDebugViewLevelCachesPerFrame(t *testing.T) {
 		runtimeDebugView = originalState
 	})
 
-	debugViewTelemetryCVar = cvar.Register("cl_debug_view_test_cache", "2", 0, "")
+	debugViewTelemetryCVar = g.Host.CVar.Register("cl_debug_view_test_cache", "2", 0, "")
 	runtimeDebugView = debugViewTelemetryState{}
 
 	runtimeDebugViewBeginFrame()
@@ -48,7 +47,7 @@ func TestRuntimeDebugViewLogfCoalescesDuplicatePayloadsAcrossFrames(t *testing.T
 		g.Client = originalClient
 	})
 
-	debugViewTelemetryCVar = cvar.Register("cl_debug_view_test_coalesce", "2", 0, "")
+	debugViewTelemetryCVar = g.Host.CVar.Register("cl_debug_view_test_coalesce", "2", 0, "")
 	runtimeDebugView = debugViewTelemetryState{}
 	g.Client = cl.NewClient()
 	g.Client.Time = 1

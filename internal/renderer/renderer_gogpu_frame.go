@@ -8,7 +8,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/wgpu"
 )
@@ -85,7 +84,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 		return
 	}
 	frameStart := time.Now()
-	hostSpeeds := cvar.BoolValue("host_speeds")
+	hostSpeeds := pkgCVars != nil && pkgCVars.BoolValue("host_speeds")
 	phaseStart := time.Time{}
 	phaseBegin := func() {
 		if hostSpeeds {
@@ -552,7 +551,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		return
 	}
 	hasTranslucentWorld := state.DrawWorld && dc.renderer.hasTranslucentWorldLiquidFacesGoGPU()
-	hostSpeeds := cvar.BoolValue("host_speeds")
+	hostSpeeds := pkgCVars != nil && pkgCVars.BoolValue("host_speeds")
 	particlePhase, hasParticlePhase := classifyGoGPUParticlePhase(readGoGPUParticleModeCvar(), particleCount(state.Particles))
 	plan := planGoGPUEntityDrawOrder(state.DrawEntities, hasTranslucentWorld, state.BrushEntities, state.AliasEntities, state.SpriteEntities, state.DecalMarks, particlePhase, hasParticlePhase)
 	var (
@@ -751,7 +750,10 @@ func projectParticleMarkers(particles []Particle, verts []ParticleVertex, vp typ
 }
 
 func readGoGPUParticleModeCvar() int {
-	cv := cvar.Get(CvarRParticles)
+	if pkgCVars == nil {
+		return 1
+	}
+	cv := pkgCVars.Get(CvarRParticles)
 	if cv == nil {
 		return 1
 	}

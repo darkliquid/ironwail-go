@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/darkliquid/ironwail-go/internal/qc"
@@ -80,10 +79,10 @@ func (s *Server) mapCheckEnabled() bool {
 	// C parity intent: map-check diagnostics become active when either map_checks
 	// or developer is enabled. Keep this deliberately tiny until full sv_main
 	// parity work lands.
-	if cvar.FloatValue("map_checks") != 0 {
+	if s.CVar.FloatValue("map_checks") != 0 {
 		return true
 	}
-	return cvar.FloatValue("developer") != 0
+	return s.CVar.FloatValue("developer") != 0
 }
 
 func (s *Server) mapCheckReportf(format string, args ...any) bool {
@@ -473,7 +472,7 @@ func (s *Server) loadMapEntities(raw string) error {
 
 	// Read skill and deathmatch cvars for entity filtering.
 	skill := 1
-	if skillCV := cvar.Get("skill"); skillCV != nil {
+	if skillCV := s.CVar.Get("skill"); skillCV != nil {
 		skill = int(skillCV.Float + 0.5)
 		if skill < 0 {
 			skill = 0
@@ -481,8 +480,8 @@ func (s *Server) loadMapEntities(raw string) error {
 			skill = 3
 		}
 	}
-	isDeathmatch := cvar.FloatValue("deathmatch") != 0
-	noMonsters := cvar.FloatValue("nomonsters") != 0
+	isDeathmatch := s.CVar.FloatValue("deathmatch") != 0
+	noMonsters := s.CVar.FloatValue("nomonsters") != 0
 
 	inhibited := 0
 	telemetryEnabled := s.DebugTelemetry != nil && s.DebugTelemetry.EventsEnabled()
@@ -586,7 +585,7 @@ func (s *Server) loadMapEntities(raw string) error {
 		// the VM, so do not clear here or those progs-defined fields would be lost
 		// before spawn.
 		s.ensureQCVMEdictStorage()
-		syncEdictToQCVM(s.QCVM, entNum, ent)
+		s.syncEdictToQCVM(entNum, ent)
 
 		// Set QC globals and execute the spawn function.
 		if err := s.ReserveSignonSpace(512); err != nil {
@@ -615,7 +614,7 @@ func (s *Server) loadMapEntities(raw string) error {
 		}
 
 		// Pull QC-modified fields back to Go (solid, touch, think, etc.).
-		syncEdictFromQCVM(s.QCVM, entNum, ent)
+		s.syncEdictFromQCVM(entNum, ent)
 		if telemetryEnabled && strings.HasPrefix(className, "trigger_") {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger qc end classname=%q targetname=%q target=%q touch=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",

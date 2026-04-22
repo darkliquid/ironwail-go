@@ -3,7 +3,6 @@ package renderer
 import (
 	"testing"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
@@ -31,10 +30,10 @@ func TestResolveAliasSkinSlotUsesGroupedSkinTimingAliasSkin(t *testing.T) {
 }
 
 func TestApplyAliasNoLerpListFlags(t *testing.T) {
-	if cvar.Get(CvarRNoLerpList) == nil {
-		cvar.Register(CvarRNoLerpList, "", 0, "")
+	if testCV.Get(CvarRNoLerpList) == nil {
+		testCV.Register(CvarRNoLerpList, "", 0, "")
 	}
-	cvar.Set(CvarRNoLerpList, "progs/flame.mdl")
+	testCV.Set(CvarRNoLerpList, "progs/flame.mdl")
 
 	flags := applyAliasNoLerpListFlags(0, "progs/flame.mdl")
 	if flags&ModNoLerp == 0 {

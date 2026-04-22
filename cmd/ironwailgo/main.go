@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	inet "github.com/darkliquid/ironwail-go/internal/net"
 
 	"github.com/darkliquid/ironwail-go/internal/game"
 )
@@ -41,7 +40,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	inet.SetHostPort(startupOpts.Port)
+	g.Host.Net.SetHostPort(startupOpts.Port)
 
 	headlessFlag := flag.Bool("headless", false, "Run without rendering")
 	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")

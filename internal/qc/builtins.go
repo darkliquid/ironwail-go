@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/console"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 type BuiltinTraceResult struct {
@@ -66,18 +64,10 @@ type ServerBuiltinHooks struct {
 	MoveToGoal       func(vm *VM, dist float32)
 	ChangeYaw        func(vm *VM)
 	IssueChangeLevel func(vm *VM, level string) bool
-}
-
-var serverBuiltinHooks ServerBuiltinHooks
-
-// SetServerBuiltinHooks sets the low-level function hooks consumed by
-// the builtin implementations. Prefer `RegisterServerHooks` which
-// accepts the typed `ServerHooks` interface defined in
-// `internal/qc/serverhooks_iface.go` — this adapter keeps existing
-// callers working while allowing testable, interface-based server
-// implementations.
-func SetServerBuiltinHooks(hooks ServerBuiltinHooks) {
-	serverBuiltinHooks = hooks
+	// LocalCommand handles QC-issued console commands (localcmd/stuffcmd
+	// fallback/changelevel fallback). When nil the builtin silently drops
+	// the command — used by tests that exercise the VM without a host.
+	LocalCommand func(vm *VM, cmd string)
 }
 
 // RegisterBuiltins registers all QuakeC built-in functions with the VM.
@@ -252,8 +242,8 @@ func objerrorBuiltin(vm *VM) {
 
 	// Free the entity, matching C PF_objerror which calls ED_Free(ed).
 	// This prevents broken entities from continuing to think/touch.
-	if serverBuiltinHooks.Remove != nil {
-		_ = serverBuiltinHooks.Remove(vm, entNum)
+	if vm.ServerHooks.Remove != nil {
+		_ = vm.ServerHooks.Remove(vm, entNum)
 	} else if entNum > 0 && entNum < vm.NumEdicts {
 		if data := vm.EdictData(entNum); data != nil {
 			for i := range data {
@@ -285,64 +275,72 @@ func vtosBuiltin(vm *VM) {
 }
 
 func cvarBuiltin(vm *VM) {
-	vm.SetGFloat(OFSReturn, float32(cvar.FloatValue(vm.GString(OFSParm0))))
+	if vm.Cvars == nil {
+		vm.SetGFloat(OFSReturn, 0)
+		return
+	}
+	vm.SetGFloat(OFSReturn, float32(vm.Cvars.FloatValue(vm.GString(OFSParm0))))
 }
 
 func cvarSetBuiltin(vm *VM) {
-	cvar.Set(vm.GString(OFSParm0), vm.GString(OFSParm1))
+	if vm.Cvars != nil {
+		vm.Cvars.Set(vm.GString(OFSParm0), vm.GString(OFSParm1))
+	}
 	vm.SetGFloat(OFSReturn, 0)
 }
 
 func localcmd(vm *VM) {
-	cmdsys.AddText(vm.GString(OFSParm0))
+	if vm.ServerHooks.LocalCommand != nil {
+		vm.ServerHooks.LocalCommand(vm, vm.GString(OFSParm0))
+	}
 	vm.SetGFloat(OFSReturn, 0)
 }
 
 func writeByteBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteByte != nil {
-		serverBuiltinHooks.WriteByte(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
+	if vm.ServerHooks.WriteByte != nil {
+		vm.ServerHooks.WriteByte(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
 	}
 }
 
 func writeCharBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteChar != nil {
-		serverBuiltinHooks.WriteChar(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
+	if vm.ServerHooks.WriteChar != nil {
+		vm.ServerHooks.WriteChar(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
 	}
 }
 
 func writeShortBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteShort != nil {
-		serverBuiltinHooks.WriteShort(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
+	if vm.ServerHooks.WriteShort != nil {
+		vm.ServerHooks.WriteShort(vm, int(vm.GFloat(OFSParm0)), int(vm.GFloat(OFSParm1)))
 	}
 }
 
 func writeLongBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteLong != nil {
-		serverBuiltinHooks.WriteLong(vm, int(vm.GFloat(OFSParm0)), int32(vm.GFloat(OFSParm1)))
+	if vm.ServerHooks.WriteLong != nil {
+		vm.ServerHooks.WriteLong(vm, int(vm.GFloat(OFSParm0)), int32(vm.GFloat(OFSParm1)))
 	}
 }
 
 func writeCoordBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteCoord != nil {
-		serverBuiltinHooks.WriteCoord(vm, int(vm.GFloat(OFSParm0)), vm.GFloat(OFSParm1))
+	if vm.ServerHooks.WriteCoord != nil {
+		vm.ServerHooks.WriteCoord(vm, int(vm.GFloat(OFSParm0)), vm.GFloat(OFSParm1))
 	}
 }
 
 func writeAngleBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteAngle != nil {
-		serverBuiltinHooks.WriteAngle(vm, int(vm.GFloat(OFSParm0)), vm.GFloat(OFSParm1))
+	if vm.ServerHooks.WriteAngle != nil {
+		vm.ServerHooks.WriteAngle(vm, int(vm.GFloat(OFSParm0)), vm.GFloat(OFSParm1))
 	}
 }
 
 func writeStringBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteString != nil {
-		serverBuiltinHooks.WriteString(vm, int(vm.GFloat(OFSParm0)), localizedTextMessage(vm.GString(OFSParm1)))
+	if vm.ServerHooks.WriteString != nil {
+		vm.ServerHooks.WriteString(vm, int(vm.GFloat(OFSParm0)), localizedTextMessage(vm.GString(OFSParm1)))
 	}
 }
 
 func writeEntityBuiltin(vm *VM) {
-	if serverBuiltinHooks.WriteEntity != nil {
-		serverBuiltinHooks.WriteEntity(vm, int(vm.GFloat(OFSParm0)), int(vm.GInt(OFSParm1)))
+	if vm.ServerHooks.WriteEntity != nil {
+		vm.ServerHooks.WriteEntity(vm, int(vm.GFloat(OFSParm0)), int(vm.GInt(OFSParm1)))
 	}
 }
 
@@ -375,8 +373,8 @@ func setTraceGlobals(vm *VM, trace BuiltinTraceResult) {
 }
 func precacheSound(vm *VM) {
 	sample := vm.GString(OFSParm0)
-	if serverBuiltinHooks.PrecacheSound != nil {
-		serverBuiltinHooks.PrecacheSound(vm, sample)
+	if vm.ServerHooks.PrecacheSound != nil {
+		vm.ServerHooks.PrecacheSound(vm, sample)
 	} else if csqcClientHooks.PrecacheSound != nil {
 		csqcClientHooks.PrecacheSound(sample)
 	}
@@ -386,8 +384,8 @@ func precacheSound(vm *VM) {
 // precacheModel records a model resource for later lookup.
 func precacheModel(vm *VM) {
 	modelName := vm.GString(OFSParm0)
-	if serverBuiltinHooks.PrecacheModel != nil {
-		serverBuiltinHooks.PrecacheModel(vm, modelName)
+	if vm.ServerHooks.PrecacheModel != nil {
+		vm.ServerHooks.PrecacheModel(vm, modelName)
 	} else if csqcClientHooks.PrecacheModel != nil {
 		csqcClientHooks.PrecacheModel(modelName)
 	}
@@ -397,18 +395,20 @@ func precacheModel(vm *VM) {
 func stuffcmd(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	cmd := vm.GString(OFSParm1)
-	if serverBuiltinHooks.StuffCmd != nil {
-		serverBuiltinHooks.StuffCmd(vm, entNum, cmd)
+	if vm.ServerHooks.StuffCmd != nil {
+		vm.ServerHooks.StuffCmd(vm, entNum, cmd)
 		return
 	}
-	cmdsys.AddText(cmd)
+	if vm.ServerHooks.LocalCommand != nil {
+		vm.ServerHooks.LocalCommand(vm, cmd)
+	}
 }
 
 // bprint prints a broadcast message.
 func bprint(vm *VM) {
 	msg := localizedTextMessage(vm.GString(OFSParm0))
-	if serverBuiltinHooks.BroadcastPrint != nil {
-		serverBuiltinHooks.BroadcastPrint(vm, msg)
+	if vm.ServerHooks.BroadcastPrint != nil {
+		vm.ServerHooks.BroadcastPrint(vm, msg)
 		return
 	}
 	console.Printf("%s", msg)
@@ -418,8 +418,8 @@ func bprint(vm *VM) {
 func sprint(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	msg := localizedTextMessage(vm.GString(OFSParm1))
-	if serverBuiltinHooks.ClientPrint != nil {
-		serverBuiltinHooks.ClientPrint(vm, entNum, msg)
+	if vm.ServerHooks.ClientPrint != nil {
+		vm.ServerHooks.ClientPrint(vm, entNum, msg)
 		return
 	}
 	console.Printf("%s", msg)
@@ -428,8 +428,8 @@ func sprint(vm *VM) {
 // dprint prints a developer/debug message.
 func dprint(vm *VM) {
 	msg := localizedTextMessage(vm.GString(OFSParm0))
-	if serverBuiltinHooks.DebugPrint != nil {
-		serverBuiltinHooks.DebugPrint(vm, msg)
+	if vm.ServerHooks.DebugPrint != nil {
+		vm.ServerHooks.DebugPrint(vm, msg)
 		return
 	}
 	console.Printf("%s", msg)
@@ -479,12 +479,14 @@ func changelevel(vm *VM) {
 		vm.SetGFloat(OFSReturn, 0)
 		return
 	}
-	if serverBuiltinHooks.IssueChangeLevel != nil {
-		serverBuiltinHooks.IssueChangeLevel(vm, level)
+	if vm.ServerHooks.IssueChangeLevel != nil {
+		vm.ServerHooks.IssueChangeLevel(vm, level)
 		vm.SetGFloat(OFSReturn, 0)
 		return
 	}
-	cmdsys.AddText("changelevel " + level + "\n")
+	if vm.ServerHooks.LocalCommand != nil {
+		vm.ServerHooks.LocalCommand(vm, "changelevel "+level+"\n")
+	}
 	vm.SetGFloat(OFSReturn, 0)
 }
 func finaleFinished(vm *VM) {

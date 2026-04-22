@@ -316,12 +316,12 @@ func TestParticleVertexLayout(t *testing.T) {
 }
 
 func TestEmitDynamicLightsHonorsRDynamicGate(t *testing.T) {
-	if cvar.Get(CvarRDynamic) == nil {
-		cvar.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
+	if testCV.Get(CvarRDynamic) == nil {
+		testCV.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
 	}
-	cvar.Set(CvarRDynamic, "0")
+	testCV.Set(CvarRDynamic, "0")
 	t.Cleanup(func() {
-		cvar.Set(CvarRDynamic, "1")
+		testCV.Set(CvarRDynamic, "1")
 	})
 
 	var spawned int
@@ -336,8 +336,8 @@ func TestEmitDynamicLightsHonorsRDynamicGate(t *testing.T) {
 }
 
 func TestEvaluateDynamicLightsAtPointHonorsRDynamicGate(t *testing.T) {
-	if cvar.Get(CvarRDynamic) == nil {
-		cvar.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
+	if testCV.Get(CvarRDynamic) == nil {
+		testCV.Register(CvarRDynamic, "1", cvar.FlagArchive, "")
 	}
 	lights := []DynamicLight{{
 		Position:   [3]float32{0, 0, 0},
@@ -347,15 +347,15 @@ func TestEvaluateDynamicLightsAtPointHonorsRDynamicGate(t *testing.T) {
 		Lifetime:   1,
 	}}
 
-	cvar.Set(CvarRDynamic, "1")
+	testCV.Set(CvarRDynamic, "1")
 	on := evaluateDynamicLightsAtPoint(lights, [3]float32{0, 0, 0})
 	if on == [3]float32{} {
 		t.Fatalf("expected non-zero contribution when r_dynamic=1")
 	}
 
-	cvar.Set(CvarRDynamic, "0")
+	testCV.Set(CvarRDynamic, "0")
 	t.Cleanup(func() {
-		cvar.Set(CvarRDynamic, "1")
+		testCV.Set(CvarRDynamic, "1")
 	})
 	off := evaluateDynamicLightsAtPoint(lights, [3]float32{0, 0, 0})
 	if off != ([3]float32{}) {

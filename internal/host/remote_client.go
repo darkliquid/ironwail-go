@@ -23,6 +23,7 @@ type remoteDatagramClient struct {
 	inner  *cl.Client
 	parser *cl.Parser
 	socket *inet.Socket
+	net    *inet.Network
 
 	lastSignonReply   int
 	signonName        string
@@ -31,12 +32,16 @@ type remoteDatagramClient struct {
 	lastServerMessage []byte
 }
 
-func newRemoteDatagramClient(socket *inet.Socket) *remoteDatagramClient {
+func newRemoteDatagramClient(network *inet.Network, socket *inet.Socket) *remoteDatagramClient {
+	if network == nil {
+		network = inet.DefaultNetwork()
+	}
 	inner := cl.NewClient()
 	return &remoteDatagramClient{
 		inner:       inner,
 		parser:      cl.NewParser(inner),
 		socket:      socket,
+		net:         network,
 		signonName:  defaultClientName,
 		signonColor: 0,
 	}
@@ -81,7 +86,7 @@ func (c *remoteDatagramClient) Shutdown() {
 		return
 	}
 	if c.socket != nil {
-		inet.Close(c.socket)
+		c.network().Close(c.socket)
 		c.socket = nil
 	}
 	if c.inner != nil {
@@ -111,7 +116,7 @@ func (c *remoteDatagramClient) ReadFromServer() error {
 		return nil
 	}
 	for {
-		msgType, data := inet.GetMessage(c.socket)
+		msgType, data := c.network().GetMessage(c.socket)
 		if msgType <= 0 {
 			break
 		}
@@ -164,7 +169,7 @@ func (c *remoteDatagramClient) SendCommand() error {
 		c.lastSignonReply = 0
 	}
 	return c.inner.SendCmd(func(data []byte) error {
-		if sent := inet.SendUnreliableMessage(c.socket, data); sent != 1 {
+		if sent := c.network().SendUnreliableMessage(c.socket, data); sent != 1 {
 			return fmt.Errorf("failed to send unreliable command")
 		}
 		return nil
@@ -196,7 +201,7 @@ func (c *remoteDatagramClient) SendSignonCommand(command string) error {
 	if len(data) == 0 {
 		return nil
 	}
-	if sent := inet.SendUnreliableMessage(c.socket, data); sent != 1 {
+	if sent := c.network().SendUnreliableMessage(c.socket, data); sent != 1 {
 		return fmt.Errorf("failed to send signon command %q", command)
 	}
 	return nil
@@ -213,7 +218,7 @@ func (c *remoteDatagramClient) SendStringCmd(command string) error {
 	if len(data) == 0 {
 		return nil
 	}
-	if sent := inet.SendUnreliableMessage(c.socket, data); sent != 1 {
+	if sent := c.network().SendUnreliableMessage(c.socket, data); sent != 1 {
 		return fmt.Errorf("failed to send command %q", command)
 	}
 	return nil
@@ -234,4 +239,14 @@ func (c *remoteDatagramClient) ClientState() *cl.Client {
 		return nil
 	}
 	return c.inner
+}
+
+// network returns the *Network this client uses for transport, falling back
+// to the package-wide default if the field was left nil (e.g. by tests that
+// constructed the client before the DI wiring landed).
+func (c *remoteDatagramClient) network() *inet.Network {
+	if c == nil || c.net == nil {
+		return inet.DefaultNetwork()
+	}
+	return c.net
 }

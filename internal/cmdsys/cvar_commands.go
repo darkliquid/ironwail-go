@@ -14,18 +14,21 @@ import (
 // cvarlist, toggle, cycle, cycleback, inc, reset, resetall, resetcfg. These match the C Ironwail
 // console commands that let users modify cvars via the console.
 func (c *CmdSystem) RegisterCvarCommands() {
-	c.AddCommand("cvarlist", cmdCvarList, "List all registered cvars")
-	c.AddCommand("toggle", cmdToggle, "Toggle a boolean cvar between 0 and 1")
-	c.AddCommand("cycle", cmdCycle, "Cycle a cvar through a list of values")
-	c.AddCommand("cycleback", cmdCycleBack, "Cycle a cvar backward through a list of values")
-	c.AddCommand("inc", cmdInc, "Increment a cvar by a value (default 1)")
-	c.AddCommand("reset", cmdReset, "Reset a cvar to its default value")
-	c.AddCommand("resetall", cmdResetAll, "Reset all cvars to their default values")
-	c.AddCommand("resetcfg", cmdResetCfg, "Reset all archived cvars to their default values")
+	c.AddCommand("cvarlist", c.cmdCvarList, "List all registered cvars")
+	c.AddCommand("toggle", c.cmdToggle, "Toggle a boolean cvar between 0 and 1")
+	c.AddCommand("cycle", c.cmdCycle, "Cycle a cvar through a list of values")
+	c.AddCommand("cycleback", c.cmdCycleBack, "Cycle a cvar backward through a list of values")
+	c.AddCommand("inc", c.cmdInc, "Increment a cvar by a value (default 1)")
+	c.AddCommand("reset", c.cmdReset, "Reset a cvar to its default value")
+	c.AddCommand("resetall", c.cmdResetAll, "Reset all cvars to their default values")
+	c.AddCommand("resetcfg", c.cmdResetCfg, "Reset all archived cvars to their default values")
 }
 
-func cmdCvarList(args []string) {
-	vars := cvar.All()
+func (c *CmdSystem) cmdCvarList(args []string) {
+	if c.CVar == nil {
+		return
+	}
+	vars := c.CVar.All()
 	slices.SortFunc(vars, func(a, b *cvar.CVar) int {
 		return strings.Compare(a.Name, b.Name)
 	})
@@ -48,7 +51,7 @@ func cmdCvarList(args []string) {
 		if cv.Flags&cvar.FlagNotify != 0 {
 			notifyMarker = "s"
 		}
-		printCallback(fmt.Sprintf("%s%s %s %q\n", archiveMarker, notifyMarker, cv.Name, cv.String))
+		c.printCallback(fmt.Sprintf("%s%s %s %q\n", archiveMarker, notifyMarker, cv.Name, cv.String))
 		count++
 	}
 
@@ -56,23 +59,26 @@ func cmdCvarList(args []string) {
 	if partial != "" {
 		msg += fmt.Sprintf(" beginning with %q", partial)
 	}
-	printCallback(msg + "\n")
+	c.printCallback(msg + "\n")
 }
 
-func cmdToggle(args []string) {
+func (c *CmdSystem) cmdToggle(args []string) {
 	if len(args) < 1 {
 		slog.Info("usage: toggle <cvar>")
 		return
 	}
-	cv := cvar.Get(args[0])
+	if c.CVar == nil {
+		return
+	}
+	cv := c.CVar.Get(args[0])
 	if cv == nil {
 		slog.Info("unknown cvar", "name", args[0])
 		return
 	}
 	if cv.Float == 0 {
-		cvar.Set(cv.Name, "1")
+		c.CVar.Set(cv.Name, "1")
 	} else {
-		cvar.Set(cv.Name, "0")
+		c.CVar.Set(cv.Name, "0")
 	}
 }
 
@@ -83,12 +89,15 @@ func cvarHasValue(cv *cvar.CVar, value string) bool {
 	return cv.String == value
 }
 
-func cmdCycle(args []string) {
+func (c *CmdSystem) cmdCycle(args []string) {
 	if len(args) < 3 {
 		slog.Info("usage: cycle <cvar> <val1> <val2> [...]")
 		return
 	}
-	cv := cvar.Get(args[0])
+	if c.CVar == nil {
+		return
+	}
+	cv := c.CVar.Get(args[0])
 	if cv == nil {
 		slog.Info("unknown cvar", "name", args[0])
 		return
@@ -101,15 +110,18 @@ func cmdCycle(args []string) {
 			break
 		}
 	}
-	cvar.Set(cv.Name, next)
+	c.CVar.Set(cv.Name, next)
 }
 
-func cmdCycleBack(args []string) {
+func (c *CmdSystem) cmdCycleBack(args []string) {
 	if len(args) < 3 {
 		slog.Info("usage: cycleback <cvar> <val1> <val2> [...]")
 		return
 	}
-	cv := cvar.Get(args[0])
+	if c.CVar == nil {
+		return
+	}
+	cv := c.CVar.Get(args[0])
 	if cv == nil {
 		slog.Info("unknown cvar", "name", args[0])
 		return
@@ -122,15 +134,18 @@ func cmdCycleBack(args []string) {
 			break
 		}
 	}
-	cvar.Set(cv.Name, prev)
+	c.CVar.Set(cv.Name, prev)
 }
 
-func cmdInc(args []string) {
+func (c *CmdSystem) cmdInc(args []string) {
 	if len(args) < 1 {
 		slog.Info("usage: inc <cvar> [amount]")
 		return
 	}
-	cv := cvar.Get(args[0])
+	if c.CVar == nil {
+		return
+	}
+	cv := c.CVar.Get(args[0])
 	if cv == nil {
 		slog.Info("unknown cvar", "name", args[0])
 		return
@@ -141,37 +156,41 @@ func cmdInc(args []string) {
 			amount = v
 		}
 	}
-	cvar.Set(cv.Name, fmt.Sprintf("%g", cv.Float+amount))
+	c.CVar.Set(cv.Name, fmt.Sprintf("%g", cv.Float+amount))
 }
 
-func cmdReset(args []string) {
+func (c *CmdSystem) cmdReset(args []string) {
 	if len(args) < 1 {
 		slog.Info("usage: reset <cvar>")
 		return
 	}
-	cv := cvar.Get(args[0])
+	if c.CVar == nil {
+		return
+	}
+	cv := c.CVar.Get(args[0])
 	if cv == nil {
 		slog.Info("unknown cvar", "name", args[0])
 		return
 	}
-	cvar.Set(cv.Name, cv.DefaultValue)
+	c.CVar.Set(cv.Name, cv.DefaultValue)
 }
 
-func cmdResetAll(_ []string) {
-	for _, cv := range cvar.All() {
-		cvar.Set(cv.Name, cv.DefaultValue)
+func (c *CmdSystem) cmdResetAll(_ []string) {
+	if c.CVar == nil {
+		return
+	}
+	for _, cv := range c.CVar.All() {
+		c.CVar.Set(cv.Name, cv.DefaultValue)
 	}
 }
 
-func cmdResetCfg(_ []string) {
-	for _, cv := range cvar.All() {
+func (c *CmdSystem) cmdResetCfg(_ []string) {
+	if c.CVar == nil {
+		return
+	}
+	for _, cv := range c.CVar.All() {
 		if cv.Flags&cvar.FlagArchive != 0 {
-			cvar.Set(cv.Name, cv.DefaultValue)
+			c.CVar.Set(cv.Name, cv.DefaultValue)
 		}
 	}
-}
-
-// RegisterCvarCommands registers cvar helper commands on the global command system.
-func RegisterCvarCommands() {
-	globalCmd.RegisterCvarCommands()
 }

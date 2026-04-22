@@ -10,7 +10,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/audio"
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
@@ -142,7 +141,7 @@ func (g *Game) runtimeUnderwaterIntensity(contents int32) float32 {
 //
 // Mirrors C Ironwail R_SetupView() r_waterwarp logic and R_WarpScaleView() time selection.
 func (g *Game) runtimeWaterwarpState() (waterWarp, waterwarpFOV bool, warpTime float32) {
-	wwCvar := cvar.Get(renderer.CvarRWaterwarp)
+	wwCvar := g.Host.CVar.Get(renderer.CvarRWaterwarp)
 	if wwCvar == nil || wwCvar.Float32() == 0 {
 		return false, false, 0
 	}
@@ -250,7 +249,7 @@ func (g *Game) applySVolume() {
 		return
 	}
 	vol := 0.7
-	if cv := cvar.Get("s_volume"); cv != nil {
+	if cv := g.Host.CVar.Get("s_volume"); cv != nil {
 		vol = cv.Float
 	}
 	g.Audio.SetVolume(vol)

@@ -9,11 +9,11 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
-func registerConsoleNotifyTestCvars() {
-	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "test console notify lifetime")
-	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "test console notify centering")
-	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "test console notify fade enable")
-	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test console notify fade duration")
+func registerConsoleNotifyTestCvars(c *Console) {
+	c.CVar.Register("con_notifytime", "3", cvar.FlagArchive, "test console notify lifetime")
+	c.CVar.Register("con_notifycenter", "0", cvar.FlagArchive, "test console notify centering")
+	c.CVar.Register("con_notifyfade", "0", cvar.FlagArchive, "test console notify fade enable")
+	c.CVar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "test console notify fade duration")
 }
 
 type mockRenderContext struct {
@@ -60,13 +60,8 @@ func (m *mockRenderContext) DrawMenuCharacter(x, y int, num int) {
 // It ensures the console correctly displays logged text lines, the command prompt (]), and the current input line.
 // Where in C: Con_DrawConsole in console.c
 func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
-	originalNow := consoleNow
-	consoleNow = func() time.Time { return time.Unix(0, 0) }
-	t.Cleanup(func() {
-		consoleNow = originalNow
-	})
-
 	c := NewConsole(DefaultTextSize)
+	c.now = func() time.Time { return time.Unix(0, 0) }
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -95,13 +90,8 @@ func TestConsoleDrawRendersConsoleLinesAndPrompt(t *testing.T) {
 }
 
 func TestConsoleDrawRendersBlinkCursorAndClipsPrompt(t *testing.T) {
-	originalNow := consoleNow
-	consoleNow = func() time.Time { return time.Unix(0, int64(time.Second/4)) }
-	t.Cleanup(func() {
-		consoleNow = originalNow
-	})
-
 	c := NewConsole(DefaultTextSize)
+	c.now = func() time.Time { return time.Unix(0, int64(time.Second/4)) }
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -152,15 +142,15 @@ func TestConsoleDrawRendersBlinkCursorAndClipsPrompt(t *testing.T) {
 // It ensures that messages shown at the top of the screen during gameplay expire and disappear after a set time.
 // Where in C: Con_DrawNotify and con_notifylines in console.c
 func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
-	registerConsoleNotifyTestCvars()
-	cvar.Set("con_notifytime", "3")
 	c := NewConsole(DefaultTextSize)
+	registerConsoleNotifyTestCvars(c)
+	c.CVar.Set("con_notifytime", "3")
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
 	c.Printf("old\nnew")
-	c.notifyTimes[(c.current-1)%NumNotifyTimes] = time.Now().Add(-consoleNotifyTTL() - time.Second)
+	c.notifyTimes[(c.current-1)%NumNotifyTimes] = time.Now().Add(-c.consoleNotifyTTL() - time.Second)
 	c.notifyTimes[c.current%NumNotifyTimes] = time.Now()
 
 	mock := &mockRenderContext{}
@@ -176,10 +166,10 @@ func TestConsoleDrawNotifyHonorsNotifyLifetime(t *testing.T) {
 }
 
 func TestConsoleDrawNotifyUsesCVarLifetime(t *testing.T) {
-	registerConsoleNotifyTestCvars()
-	cvar.Set("con_notifytime", "1")
-
 	c := NewConsole(DefaultTextSize)
+	registerConsoleNotifyTestCvars(c)
+	c.CVar.Set("con_notifytime", "1")
+
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
@@ -197,25 +187,20 @@ func TestConsoleDrawNotifyUsesCVarLifetime(t *testing.T) {
 }
 
 func TestConsoleDrawNotifyCanCenterLines(t *testing.T) {
-	originalNow := consoleNow
-	consoleNow = func() time.Time { return time.Unix(10, 0) }
-	t.Cleanup(func() {
-		consoleNow = originalNow
-	})
-
-	registerConsoleNotifyTestCvars()
-	cvar.Set("con_notifycenter", "1")
-	t.Cleanup(func() {
-		cvar.Set("con_notifycenter", "0")
-	})
-
 	c := NewConsole(DefaultTextSize)
+	c.now = func() time.Time { return time.Unix(10, 0) }
+	registerConsoleNotifyTestCvars(c)
+	c.CVar.Set("con_notifycenter", "1")
+	t.Cleanup(func() {
+		c.CVar.Set("con_notifycenter", "0")
+	})
+
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
 	c.Printf("abc")
-	c.notifyTimes[c.current%NumNotifyTimes] = consoleNow()
+	c.notifyTimes[c.current%NumNotifyTimes] = c.now()
 
 	mock := &mockRenderContext{}
 	c.Draw(mock, 80, 40, false, nil)
@@ -229,27 +214,22 @@ func TestConsoleDrawNotifyCanCenterLines(t *testing.T) {
 }
 
 func TestConsoleDrawNotifyFadeStipplesLateLines(t *testing.T) {
-	originalNow := consoleNow
-	consoleNow = func() time.Time { return time.Unix(10, 0) }
-	t.Cleanup(func() {
-		consoleNow = originalNow
-	})
-
-	registerConsoleNotifyTestCvars()
-	cvar.Set("con_notifyfade", "1")
-	cvar.Set("con_notifyfadetime", "1")
-	t.Cleanup(func() {
-		cvar.Set("con_notifyfade", "0")
-		cvar.Set("con_notifyfadetime", "0.5")
-	})
-
 	c := NewConsole(DefaultTextSize)
+	c.now = func() time.Time { return time.Unix(10, 0) }
+	registerConsoleNotifyTestCvars(c)
+	c.CVar.Set("con_notifyfade", "1")
+	c.CVar.Set("con_notifyfadetime", "1")
+	t.Cleanup(func() {
+		c.CVar.Set("con_notifyfade", "0")
+		c.CVar.Set("con_notifyfadetime", "0.5")
+	})
+
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
 	c.Printf("fading")
-	c.notifyTimes[c.current%NumNotifyTimes] = consoleNow().Add(-consoleNotifyTTL() - 750*time.Millisecond)
+	c.notifyTimes[c.current%NumNotifyTimes] = c.now().Add(-c.consoleNotifyTTL() - 750*time.Millisecond)
 
 	mock := &mockRenderContext{}
 	c.Draw(mock, 80, 40, false, nil)
@@ -311,11 +291,8 @@ func TestConsoleDrawUsesBackgroundPicWhenProvided(t *testing.T) {
 // drawn in the bottom-right corner of the full console overlay, matching C
 // Ironwail's CONSOLE_TITLE_STRING rendering in Con_DrawConsole.
 func TestConsoleDrawRendersTitleString(t *testing.T) {
-	originalTitle := TitleString
-	TitleString = "Test 1.0"
-	t.Cleanup(func() { TitleString = originalTitle })
-
 	c := NewConsole(DefaultTextSize)
+	c.Title = "Test 1.0"
 	if err := c.Init(DefaultLineWidth); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}

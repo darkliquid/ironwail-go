@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
@@ -169,7 +168,7 @@ func (h *Host) CmdParticleTexture(mode string, subs *Subsystems) {
 	if subs.Console == nil {
 		return
 	}
-	cvar.Set("r_particles", mode)
+	h.CVar.Set("r_particles", mode)
 	subs.Console.Print(fmt.Sprintf("particle_texture set to %s\n", mode))
 }
 

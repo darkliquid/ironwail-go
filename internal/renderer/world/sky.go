@@ -2,15 +2,20 @@ package world
 
 import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func ReadBoolCvar(name string) bool {
-	return cvar.BoolValue(name)
+	if pkgCVars == nil {
+		return false
+	}
+	return pkgCVars.BoolValue(name)
 }
 
 func ReadSkyLayerSpeedCvar(name string, fallback float32) float32 {
-	cv := cvar.Get(name)
+	if pkgCVars == nil {
+		return fallback
+	}
+	cv := pkgCVars.Get(name)
 	if cv == nil {
 		return fallback
 	}

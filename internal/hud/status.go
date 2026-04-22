@@ -17,6 +17,7 @@ import (
 // StatusBar renders the Quake-style status bar at the bottom of the screen.
 type StatusBar struct {
 	drawManager *draw.Manager
+	cvars       *cvar.CVarSystem
 	palette     []byte
 	sbarPic     *image.QPic
 	ibarPic     *image.QPic
@@ -83,8 +84,11 @@ const (
 )
 
 // NewStatusBar creates a new status bar renderer.
-func NewStatusBar(dm *draw.Manager) *StatusBar {
-	sb := &StatusBar{drawManager: dm}
+func NewStatusBar(dm *draw.Manager, cv *cvar.CVarSystem) *StatusBar {
+	if cv == nil {
+		cv = cvar.NewCVarSystem()
+	}
+	sb := &StatusBar{drawManager: dm, cvars: cv}
 	if dm != nil {
 		sb.palette = dm.Palette()
 		sb.sbarPic = dm.GetPic("sbar")
@@ -213,10 +217,10 @@ func (sb *StatusBar) Draw(rc renderer.RenderContext, state State, screenWidth, s
 		return
 	}
 
-	viewSize := currentViewSize()
+	viewSize := currentViewSize(sb.cvars)
 	showInventory := viewSize < 110
 	showStatusBar := viewSize < 120
-	sbarAlpha := currentSbarAlpha()
+	sbarAlpha := sb.currentSbarAlpha()
 
 	if !showStatusBar {
 		if state.GameType == 1 && state.MaxClients > 1 {
@@ -289,7 +293,7 @@ func (sb *StatusBar) DrawQuakeWorld(rc renderer.RenderContext, state State, scre
 		return
 	}
 
-	viewSize := currentViewSize()
+	viewSize := currentViewSize(sb.cvars)
 	if viewSize < 120 {
 		rc.SetCanvas(renderer.CanvasSbarQWInv)
 		sb.drawInventoryQW(rc, state)
@@ -439,7 +443,7 @@ func (sb *StatusBar) drawInventoryQW(rc renderer.RenderContext, state State) {
 	}
 
 	ammoBGs := sb.qwAmmoBackgrounds(state)
-	alpha := currentSbarAlpha()
+	alpha := sb.currentSbarAlpha()
 	ammoCounts := []int{state.Shells, state.Nails, state.Rockets, state.Cells}
 	for i, count := range ammoCounts {
 		if i < len(ammoBGs) {
@@ -858,7 +862,7 @@ func armorValue(state State) int {
 // sorted by frags descending.
 func (sb *StatusBar) drawScoreboard(rc renderer.RenderContext, state State, sbarX, sbarY int) {
 	const scorebarHeight = 24
-	sbarAlpha := currentSbarAlpha()
+	sbarAlpha := sb.currentSbarAlpha()
 	if sb.scorebarPic != nil {
 		sb.drawPicAlpha(rc, sbarX, sbarY, sb.scorebarPic, sbarAlpha)
 	} else {
@@ -897,8 +901,8 @@ func (sb *StatusBar) drawPicAlpha(rc renderer.RenderContext, x, y int, pic *imag
 	rc.DrawPic(x, y, pic)
 }
 
-func currentSbarAlpha() float32 {
-	alpha := float32(cvar.FloatValue("scr_sbaralpha"))
+func (sb *StatusBar) currentSbarAlpha() float32 {
+	alpha := float32(sb.cvars.FloatValue("scr_sbaralpha"))
 	if alpha <= 0 {
 		return 0
 	}

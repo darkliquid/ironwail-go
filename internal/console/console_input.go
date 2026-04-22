@@ -259,4 +259,4 @@ func DeleteWordRight()          { globalConsole.DeleteWordRight() }
 func CommitInput() string       { return globalConsole.CommitInput() }
 func PreviousHistory() string   { return globalConsole.PreviousHistory() }
 func NextHistory() string       { return globalConsole.NextHistory() }
-func NotifyLineCount() int      { return globalConsole.NotifyLineCountAt(consoleNow()) }
+func NotifyLineCount() int      { return globalConsole.NotifyLineCountAt(globalConsole.now()) }

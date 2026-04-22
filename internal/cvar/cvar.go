@@ -130,14 +130,8 @@ type CVarSystem struct {
 	AutoCvarChanged func(cv *CVar)   // Called when a FlagAutoCvar cvar's value changes.
 }
 
-// globalCVar is the package-level singleton CVarSystem instance. Like the
-// command system's globalCmd, this mirrors Quake's use of global state for
-// the cvar registry. The package-level convenience functions (Get, Set,
-// Register, etc.) all delegate to this instance.
-var globalCVar = NewCVarSystem()
-
 // NewCVarSystem creates and returns a new, independent cvar registry with an
-// empty variable map. Used by the global singleton and in tests for isolation.
+// empty variable map. Callers own the lifetime of the returned system.
 func NewCVarSystem() *CVarSystem {
 	return &CVarSystem{
 		vars: make(map[string]*CVar),
@@ -149,6 +143,9 @@ func NewCVarSystem() *CVarSystem {
 // Cvar_FindVar() in Quake's cvar.c and is the most frequently called cvar
 // function — used every time the engine needs to read a setting.
 func (c *CVarSystem) Get(name string) *CVar {
+	if c == nil {
+		return nil
+	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.vars[strings.ToLower(name)]
@@ -163,11 +160,14 @@ func (c *CVarSystem) Get(name string) *CVar {
 // This is the Go equivalent of Cvar_RegisterVariable() / Cvar_Get() in
 // Quake's cvar.c. Typical usage at subsystem init time:
 //
-//	var volume = cvar.Register("volume", "0.7", cvar.FlagArchive, "Master audio volume")
+//	var volume = host.CVar.Register("volume", "0.7", cvar.FlagArchive, "Master audio volume")
 //
 // The returned pointer is usually stored in a package-level variable so the
 // subsystem can read cv.Float directly without repeated map lookups.
 func (c *CVarSystem) Register(name, defaultValue string, flags CVarFlags, desc string) *CVar {
+	if c == nil {
+		return nil
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -202,6 +202,9 @@ func (c *CVarSystem) Register(name, defaultValue string, flags CVarFlags, desc s
 //
 // This is the Go equivalent of Cvar_Set() in Quake's cvar.c.
 func (c *CVarSystem) Set(name, value string) {
+	if c == nil {
+		return
+	}
 	name = strings.ToLower(name)
 	c.mu.Lock()
 	cv, exists := c.vars[name]
@@ -334,6 +337,9 @@ func (c *CVarSystem) StringValue(name string) string {
 // All returns a slice of all registered cvars. The slice is a snapshot; the
 // caller may iterate it freely. Used by "cvarlist" to enumerate all cvars.
 func (c *CVarSystem) All() []*CVar {
+	if c == nil {
+		return nil
+	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -372,6 +378,9 @@ func (c *CVarSystem) UnlockVar(name string) {
 // cvars should not be saved to the player's config. The output is sorted
 // alphabetically for deterministic, diffable config files.
 func (c *CVarSystem) ArchiveVars() []string {
+	if c == nil {
+		return nil
+	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -423,105 +432,8 @@ func (c *CVarSystem) CompleteValue(name, partial string) []string {
 }
 
 // ---------------------------------------------------------------------------
-// Package-level convenience functions
+// CVar system API (see CVarSystem methods above).
 // ---------------------------------------------------------------------------
-// The functions below delegate to the global singleton CVarSystem (globalCVar).
-// They provide a flat, procedural API matching the original C codebase where
-// functions like Cvar_Set() and Cvar_VariableValue() operate on implicit
-// global state. This keeps call sites concise throughout the engine.
-// ---------------------------------------------------------------------------
-
-// Get retrieves a cvar from the global registry by name.
-func Get(name string) *CVar {
-	return globalCVar.Get(name)
-}
-
-// Register creates or retrieves a cvar in the global registry.
-func Register(name, defaultValue string, flags CVarFlags, desc string) *CVar {
-	return globalCVar.Register(name, defaultValue, flags, desc)
-}
-
-// Set updates a cvar's value in the global registry.
-func Set(name, value string) {
-	globalCVar.Set(name, value)
-}
-
-// SetFloat sets a cvar's value from a float64 in the global registry.
-func SetFloat(name string, value float64) {
-	globalCVar.SetFloat(name, value)
-}
-
-// SetInt sets a cvar's value from an int in the global registry.
-func SetInt(name string, value int) {
-	globalCVar.SetInt(name, value)
-}
-
-// SetBool sets a cvar's value from a bool in the global registry.
-func SetBool(name string, value bool) {
-	globalCVar.SetBool(name, value)
-}
-
-// FloatValue retrieves a cvar's float64 value from the global registry.
-func FloatValue(name string) float64 {
-	return globalCVar.FloatValue(name)
-}
-
-// IntValue retrieves a cvar's int value from the global registry.
-func IntValue(name string) int {
-	return globalCVar.IntValue(name)
-}
-
-// BoolValue retrieves a cvar's boolean value from the global registry.
-func BoolValue(name string) bool {
-	return globalCVar.BoolValue(name)
-}
-
-// StringValue retrieves a cvar's string value from the global registry.
-func StringValue(name string) string {
-	return globalCVar.StringValue(name)
-}
-
-// All returns all registered cvars from the global registry.
-func All() []*CVar {
-	return globalCVar.All()
-}
-
-// ArchiveVars returns archived cvar settings from the global registry.
-func ArchiveVars() []string {
-	return globalCVar.ArchiveVars()
-}
-
-// Complete returns cvar name completions from the global registry.
-func Complete(partial string) []string {
-	return globalCVar.Complete(partial)
-}
-
-func SetCompletion(name string, completion func(currentValue, partial string) []string) {
-	globalCVar.SetCompletion(name, completion)
-}
-
-func CompleteValue(name, partial string) []string {
-	return globalCVar.CompleteValue(name, partial)
-}
-
-// LockVar locks a cvar in the global registry, preventing changes via Set.
-func LockVar(name string) {
-	globalCVar.LockVar(name)
-}
-
-// UnlockVar unlocks a cvar in the global registry, allowing changes again.
-func UnlockVar(name string) {
-	globalCVar.UnlockVar(name)
-}
-
-// SetAutoCvarCallback registers a function to call when any FlagAutoCvar cvar
-// value changes. Used by the QC VM integration to sync cvar values to QC
-// globals named autocvar_<cvarname>.
-func SetAutoCvarCallback(fn func(cv *CVar)) {
-	globalCVar.mu.Lock()
-	globalCVar.AutoCvarChanged = fn
-	globalCVar.mu.Unlock()
-}
 
 // MarkAutoCvar sets the FlagAutoCvar flag on a cvar within this registry,
 // indicating its value should be synced to a QC global variable.
@@ -532,10 +444,4 @@ func (c *CVarSystem) MarkAutoCvar(name string) {
 	if cv, ok := c.vars[name]; ok {
 		cv.Flags |= FlagAutoCvar
 	}
-}
-
-// MarkAutoCvar sets the FlagAutoCvar flag on a cvar, indicating its value
-// should be synced to a QC global variable.
-func MarkAutoCvar(name string) {
-	globalCVar.MarkAutoCvar(name)
 }

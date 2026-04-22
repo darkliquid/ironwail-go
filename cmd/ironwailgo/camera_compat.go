@@ -38,7 +38,7 @@ func runtimePlayerOrigin() ([3]float32, bool) {
 		return [3]float32{}, false
 	}
 	telemetry.RejectReason = runtimeOriginRejectMissingAuth
-		runtimeDebugViewRecordOriginSelect(telemetry)
+	runtimeDebugViewRecordOriginSelect(telemetry)
 	return [3]float32{}, false
 }
 

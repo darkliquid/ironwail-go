@@ -4,27 +4,27 @@ import inet "github.com/darkliquid/ironwail-go/internal/net"
 
 func (h *Host) updateServerBrowserNetworking(subs *Subsystems) {
 	if !h.serverActive || subs == nil || subs.Server == nil || subs.Server.GetMaxClients() <= 1 {
-		inet.SetServerInfoProvider(nil)
-		_ = inet.Listen(false)
+		h.Net.SetServerInfoProvider(nil)
+		_ = h.Net.Listen(false)
 		return
 	}
 
-	provider := makeServerInfoProvider(subs)
-	if err := inet.Listen(true); err != nil {
-		inet.SetServerInfoProvider(nil)
-		_ = inet.Listen(false)
+	provider := h.makeServerInfoProvider(subs)
+	if err := h.Net.Listen(true); err != nil {
+		h.Net.SetServerInfoProvider(nil)
+		_ = h.Net.Listen(false)
 		return
 	}
-	inet.SetServerInfoProvider(provider)
+	h.Net.SetServerInfoProvider(provider)
 }
 
-func makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider {
+func (h *Host) makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider {
 	if subs == nil || subs.Server == nil {
 		return nil
 	}
 
 	return &inet.ServerInfoProvider{
-		Hostname: currentServerHostname,
+		Hostname: h.currentServerHostname,
 		MapName: func() string {
 			return subs.Server.GetMapName()
 		},

@@ -7,26 +7,21 @@ import (
 )
 
 func TestRegisterCVarsUsesCanonicalFilterQualityDefault(t *testing.T) {
-	RegisterCVars()
+	cv := cvar.NewCVarSystem()
+	RegisterCVars(cv)
 
-	cv := cvar.Get("snd_filterquality")
-	if cv == nil {
+	filterQ := cv.Get("snd_filterquality")
+	if filterQ == nil {
 		t.Fatal("snd_filterquality not registered")
 	}
-	if got := cv.DefaultValue; got != "5" {
+	if got := filterQ.DefaultValue; got != "5" {
 		t.Fatalf("snd_filterquality default = %q, want %q", got, "5")
 	}
 }
 
 func TestUpdateFromCVarsAppliesFilterQuality(t *testing.T) {
-	RegisterCVars()
-
-	oldVolume := cvar.StringValue("volume")
-	oldFilterQuality := cvar.StringValue("snd_filterquality")
-	t.Cleanup(func() {
-		cvar.Set("volume", oldVolume)
-		cvar.Set("snd_filterquality", oldFilterQuality)
-	})
+	cv := cvar.NewCVarSystem()
+	RegisterCVars(cv)
 
 	tests := []struct {
 		name          string
@@ -45,10 +40,10 @@ func TestUpdateFromCVarsAppliesFilterQuality(t *testing.T) {
 				mixer:       mixer,
 			}
 
-			cvar.Set("volume", "0.4")
-			cvar.Set("snd_filterquality", tc.filterQuality)
+			cv.Set("volume", "0.4")
+			cv.Set("snd_filterquality", tc.filterQuality)
 
-			sys.UpdateFromCVars()
+			sys.UpdateFromCVars(cv)
 
 			if got := mixer.Volume(); got != 0.4 {
 				t.Fatalf("volume = %v, want 0.4", got)

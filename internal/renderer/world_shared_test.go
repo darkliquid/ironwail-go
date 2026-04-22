@@ -2,15 +2,13 @@ package renderer
 
 import (
 	"testing"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func TestReadWorldProceduralSkyEnabled(t *testing.T) {
-	cvar.Register(CvarRProceduralSky, "0", 0, "")
-	cvar.Set(CvarRProceduralSky, "1")
+	testCV.Register(CvarRProceduralSky, "0", 0, "")
+	testCV.Set(CvarRProceduralSky, "1")
 	t.Cleanup(func() {
-		cvar.Set(CvarRProceduralSky, "0")
+		testCV.Set(CvarRProceduralSky, "0")
 	})
 
 	if !readWorldProceduralSkyEnabled() {

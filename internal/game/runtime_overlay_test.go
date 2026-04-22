@@ -152,7 +152,7 @@ func TestDrawRuntimeSavingIndicatorUsesTopRightOffset(t *testing.T) {
 
 func TestDrawRuntimeDemoControlsUsesSbarCanvas(t *testing.T) {
 	g := New()
-	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
+	g.Host.CVar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
 	dc := &telemetryOverlayDrawContext{}
 	state := TelemetryState{
 		DemoPlayback:   true,
@@ -188,7 +188,7 @@ func TestDrawRuntimeDemoControlsUsesSbarCanvas(t *testing.T) {
 
 func TestDrawRuntimeDemoControlsTimeoutHidesOverlay(t *testing.T) {
 	g := New()
-	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
+	g.Host.CVar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
 	state := TelemetryState{
 		DemoPlayback:   true,
 		DemoSpeed:      1,
@@ -213,7 +213,7 @@ func TestDrawRuntimeDemoControlsTimeoutHidesOverlay(t *testing.T) {
 
 func TestDrawRuntimeDemoControlsUsesMenuCanvasDuringIntermission(t *testing.T) {
 	g := New()
-	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
+	g.Host.CVar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "")
 	dc := &telemetryOverlayDrawContext{}
 	state := TelemetryState{
 		DemoPlayback:   true,

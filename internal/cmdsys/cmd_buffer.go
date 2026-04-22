@@ -3,8 +3,6 @@ package cmdsys
 import (
 	"fmt"
 	"strings"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // AddText appends command text to the end of the command buffer. This is the
@@ -284,21 +282,23 @@ fallback:
 	}
 	c.mu.RUnlock()
 
-	if cv := cvar.Get(cmdName); cv != nil {
-		if len(args) > 1 {
-			cvar.Set(cmdName, strings.Join(args[1:], " "))
-		} else {
-			if cv.DefaultValue != "" {
-				if cv.String == cv.DefaultValue {
-					printCallback(fmt.Sprintf("\"%s\" is \"%s\" (default)\n", cv.Name, cv.String))
-				} else {
-					printCallback(fmt.Sprintf("\"%s\" is \"%s\" (default: \"%s\")\n", cv.Name, cv.String, cv.DefaultValue))
-				}
+	if c.CVar != nil {
+		if cv := c.CVar.Get(cmdName); cv != nil {
+			if len(args) > 1 {
+				c.CVar.Set(cmdName, strings.Join(args[1:], " "))
 			} else {
-				printCallback(fmt.Sprintf("\"%s\" is \"%s\"\n", cv.Name, cv.String))
+				if cv.DefaultValue != "" {
+					if cv.String == cv.DefaultValue {
+						c.printCallback(fmt.Sprintf("\"%s\" is \"%s\" (default)\n", cv.Name, cv.String))
+					} else {
+						c.printCallback(fmt.Sprintf("\"%s\" is \"%s\" (default: \"%s\")\n", cv.Name, cv.String, cv.DefaultValue))
+					}
+				} else {
+					c.printCallback(fmt.Sprintf("\"%s\" is \"%s\"\n", cv.Name, cv.String))
+				}
 			}
+			return
 		}
-		return
 	}
 
 	if c.ForwardFunc != nil {

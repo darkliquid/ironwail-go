@@ -278,50 +278,29 @@ func TestDispatchLoopbackStuffTextFlushesCompleteLines(t *testing.T) {
 
 type globalExecuteTextCommandBuffer struct{}
 
-func (globalExecuteTextCommandBuffer) Init()    {}
-func (globalExecuteTextCommandBuffer) Execute() { cmdsys.Execute() }
-func (globalExecuteTextCommandBuffer) ExecuteWithSource(source cmdsys.CommandSource) {
-	cmdsys.ExecuteWithSource(source)
-}
-func (globalExecuteTextCommandBuffer) ExecuteTextWithSource(text string, source cmdsys.CommandSource) {
-	cmdsys.ExecuteTextWithSource(text, source)
-}
-func (globalExecuteTextCommandBuffer) AddText(text string) { cmdsys.AddText(text) }
-func (globalExecuteTextCommandBuffer) InsertText(text string) {
-	cmdsys.InsertText(text)
-}
-func (globalExecuteTextCommandBuffer) Shutdown() {}
-
 func TestDispatchLoopbackStuffTextDoesNotDrainLocalCommandBufferAsServer(t *testing.T) {
-	cmdsys.Execute()
-	cmdsys.RemoveCommand("test_loopback_localcapture")
-	cmdsys.RemoveCommand("test_loopback_servercapture")
-	t.Cleanup(func() {
-		cmdsys.RemoveCommand("test_loopback_localcapture")
-		cmdsys.RemoveCommand("test_loopback_servercapture")
-		cmdsys.Execute()
-	})
+	cs := cmdsys.NewCmdSystem()
 
 	var seen []string
-	cmdsys.AddCommand("test_loopback_localcapture", func(args []string) {
-		seen = append(seen, fmt.Sprintf("local:%v", cmdsys.Source()))
+	cs.AddCommand("test_loopback_localcapture", func(args []string) {
+		seen = append(seen, fmt.Sprintf("local:%v", cs.Source()))
 	}, "")
-	cmdsys.AddServerCommand("test_loopback_servercapture", func(args []string) {
-		seen = append(seen, fmt.Sprintf("server:%v", cmdsys.Source()))
+	cs.AddServerCommand("test_loopback_servercapture", func(args []string) {
+		seen = append(seen, fmt.Sprintf("server:%v", cs.Source()))
 	}, "")
 
-	cmdsys.AddText("test_loopback_localcapture\n")
+	cs.AddText("test_loopback_localcapture\n")
 
 	lc := newLocalLoopbackClient()
 	lc.inner.StuffCmdBuf = "test_loopback_servercapture\n"
-	subs := &Subsystems{Client: lc, Commands: globalExecuteTextCommandBuffer{}}
+	subs := &Subsystems{Client: lc, Commands: cs}
 
 	DispatchLoopbackStuffText(subs)
 	if got, want := seen, []string{"server:2"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("seen after stufftext dispatch = %v, want %v", got, want)
 	}
 
-	cmdsys.Execute()
+	cs.Execute()
 	if got, want := seen, []string{"server:2", "local:0"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("seen after draining local buffer = %v, want %v", got, want)
 	}

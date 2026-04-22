@@ -5,18 +5,13 @@ import (
 	"log/slog"
 	"math"
 	"strings"
-	"sync/atomic"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/console"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
-
-var runtimeInputDispatchLogCount atomic.Uint32
 
 func (g *Game) pollRuntimeInputEvents() {
 	if g.Input == nil {
@@ -26,7 +21,7 @@ func (g *Game) pollRuntimeInputEvents() {
 }
 
 func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
-	index := runtimeInputDispatchLogCount.Add(1)
+	index := g.inputDispatchLogCount.Add(1)
 	if index > 32 {
 		return
 	}
@@ -74,7 +69,7 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 	}
 	if event.Key == input.KEnter && event.Down {
 		if mods := g.Input.GetModifierState(); mods.Alt {
-			cvar.SetBool("vid_fullscreen", !cvar.BoolValue("vid_fullscreen"))
+			g.Host.CVar.SetBool("vid_fullscreen", !g.Host.CVar.BoolValue("vid_fullscreen"))
 			return
 		}
 	}
@@ -101,11 +96,11 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		if !event.Down {
 			command = "-" + binding[1:]
 		}
-		cmdsys.ExecuteText(fmt.Sprintf("%s %d", command, event.Key))
+		g.Host.Cmd.ExecuteText(fmt.Sprintf("%s %d", command, event.Key))
 		return
 	}
 	if event.Down {
-		cmdsys.ExecuteText(binding)
+		g.Host.Cmd.ExecuteText(binding)
 	}
 }
 
@@ -164,8 +159,8 @@ func (g *Game) handleDemoPlaybackKeyEvent(event input.KeyEvent) bool {
 }
 
 func (g *Game) backspaceChatInput() {
-	if len(chatBuffer) > 0 {
-		chatBuffer = chatBuffer[:len(chatBuffer)-1]
+	if len(g.chatBuffer) > 0 {
+		g.chatBuffer = g.chatBuffer[:len(g.chatBuffer)-1]
 	}
 }
 
@@ -229,8 +224,8 @@ func (g *Game) handleGameCharEvent(ch rune) {
 	case input.KeyMessage:
 		// Basic ASCII/Latin filtering, matching Quake's limited text support
 		if ch >= 32 && ch < 127 {
-			if len(chatBuffer) < 31 { // MAX_SAY
-				chatBuffer += string(ch)
+			if len(g.chatBuffer) < 31 { // MAX_SAY
+				g.chatBuffer += string(ch)
 			}
 		}
 	}
@@ -253,7 +248,7 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 			return
 		}
 		console.Printf("]%s\n", line)
-		cmdsys.ExecuteText(line)
+		g.Host.Cmd.ExecuteText(line)
 	case input.KTab, input.KBack:
 		line := console.InputLine()
 		forward := !g.Input.GetModifierState().Shift
@@ -316,13 +311,13 @@ func (g *Game) handleMessageKeyEvent(event input.KeyEvent) {
 	case input.KEnter:
 		g.Input.SetKeyDest(input.KeyGame)
 		g.syncGameplayInputMode()
-		if chatBuffer != "" {
+		if g.chatBuffer != "" {
 			cmd := "say"
-			if chatTeam {
+			if g.chatTeam {
 				cmd = "say_team"
 			}
 			// Escape quotes in the message
-			msg := strings.ReplaceAll(chatBuffer, "\"", "'")
+			msg := strings.ReplaceAll(g.chatBuffer, "\"", "'")
 			if g.Client != nil {
 				g.Client.SendStringCmd(fmt.Sprintf("%s \"%s\"", cmd, msg))
 			}
@@ -471,28 +466,28 @@ func (g *Game) applyGameplayMouseLook() {
 	}
 
 	state := g.Input.GetState()
-	sensitivity := float32(cvar.FloatValue("sensitivity"))
+	sensitivity := float32(g.Host.CVar.FloatValue("sensitivity"))
 	if sensitivity <= 0 {
 		sensitivity = 1
 	}
-	yawScale := sensitivity * float32(cvar.FloatValue("m_yaw"))
+	yawScale := sensitivity * float32(g.Host.CVar.FloatValue("m_yaw"))
 	if yawScale == 0 {
 		yawScale = 0.15
 	}
-	pitchScale := sensitivity * float32(cvar.FloatValue("m_pitch"))
+	pitchScale := sensitivity * float32(g.Host.CVar.FloatValue("m_pitch"))
 	if pitchScale == 0 {
 		pitchScale = 0.12
 	}
-	sideScale := sensitivity * float32(cvar.FloatValue("m_side"))
+	sideScale := sensitivity * float32(g.Host.CVar.FloatValue("m_side"))
 	if sideScale == 0 {
 		sideScale = 0.8
 	}
-	forwardScale := sensitivity * float32(cvar.FloatValue("m_forward"))
+	forwardScale := sensitivity * float32(g.Host.CVar.FloatValue("m_forward"))
 	if forwardScale == 0 {
 		forwardScale = 1
 	}
 	mouseLook := g.Client.FreeLook || g.Client.InputMLook.State&1 != 0
-	lookStrafe := cvar.BoolValue("lookstrafe")
+	lookStrafe := g.Host.CVar.BoolValue("lookstrafe")
 	g.Client.MouseSideMove = 0
 	g.Client.MouseForwardMove = 0
 	g.Client.MouseUpMove = 0
@@ -519,21 +514,21 @@ func (g *Game) applyGameplayMouseLook() {
 			g.Client.MouseForwardMove -= float32(state.MouseDY) * forwardScale
 		}
 	}
-	if g.Input.IsGamepadConnected(0) && cvar.BoolValue("joy_look") {
+	if g.Input.IsGamepadConnected(0) && g.Host.CVar.BoolValue("joy_look") {
 		gamepad := g.Input.GetGamepadState(0)
-		gamepadYawScale := float32(cvar.FloatValue("joy_looksensitivity_yaw"))
+		gamepadYawScale := float32(g.Host.CVar.FloatValue("joy_looksensitivity_yaw"))
 		if gamepadYawScale == 0 {
 			gamepadYawScale = 4
 		}
-		gamepadPitchScale := float32(cvar.FloatValue("joy_looksensitivity_pitch"))
+		gamepadPitchScale := float32(g.Host.CVar.FloatValue("joy_looksensitivity_pitch"))
 		if gamepadPitchScale == 0 {
 			gamepadPitchScale = 4
 		}
 		yawDelta := gamepad.RightX * gamepadYawScale
 		pitchDelta := gamepad.RightY * gamepadPitchScale
-		if cvar.BoolValue("joy_gyro_look") {
-			yawDelta += gamepad.GyroYawDelta * float32(cvar.FloatValue("joy_gyro_yaw_scale"))
-			pitchDelta += gamepad.GyroPitchDelta * float32(cvar.FloatValue("joy_gyro_pitch_scale"))
+		if g.Host.CVar.BoolValue("joy_gyro_look") {
+			yawDelta += gamepad.GyroYawDelta * float32(g.Host.CVar.FloatValue("joy_gyro_yaw_scale"))
+			pitchDelta += gamepad.GyroPitchDelta * float32(g.Host.CVar.FloatValue("joy_gyro_pitch_scale"))
 		}
 		if yawDelta != 0 {
 			g.Client.ViewAngles[1] -= yawDelta

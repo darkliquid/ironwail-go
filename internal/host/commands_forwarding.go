@@ -11,7 +11,7 @@ import (
 )
 
 func (h *Host) forwardClientCommand(command string, args []string, subs *Subsystems) bool {
-	if cmdsys.Source() != cmdsys.SrcCommand {
+	if h.Cmd.Source() != cmdsys.SrcCommand {
 		return false
 	}
 	if h.serverActive || (subs != nil && subs.Server != nil && subs.Server.IsActive()) {
@@ -35,7 +35,7 @@ func (h *Host) forwardClientCommand(command string, args []string, subs *Subsyst
 }
 
 func (h *Host) CmdForwardToServer(args []string, subs *Subsystems) {
-	if cmdsys.Source() != cmdsys.SrcCommand {
+	if h.Cmd.Source() != cmdsys.SrcCommand {
 		return
 	}
 	if h.demoState != nil && h.demoState.Playback {

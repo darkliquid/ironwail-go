@@ -1,7 +1,6 @@
 package renderer
 
 import (
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/image"
 )
 
@@ -196,25 +195,28 @@ func DefaultConfig() Config {
 func ConfigFromCvars() Config {
 	cfg := DefaultConfig()
 
-	if cv := cvar.Get(CvarVidWidth); cv != nil {
+	if pkgCVars == nil {
+		return cfg
+	}
+	if cv := pkgCVars.Get(CvarVidWidth); cv != nil {
 		cfg.Width = cv.Int
 	}
-	if cv := cvar.Get(CvarVidHeight); cv != nil {
+	if cv := pkgCVars.Get(CvarVidHeight); cv != nil {
 		cfg.Height = cv.Int
 	}
-	if cv := cvar.Get(CvarVidFullscreen); cv != nil {
+	if cv := pkgCVars.Get(CvarVidFullscreen); cv != nil {
 		cfg.Fullscreen = cv.Bool()
 	}
-	if cv := cvar.Get(CvarVidVsync); cv != nil {
+	if cv := pkgCVars.Get(CvarVidVsync); cv != nil {
 		cfg.VSync = cv.Bool()
 	}
-	if cv := cvar.Get(CvarHostMaxFPS); cv != nil {
+	if cv := pkgCVars.Get(CvarHostMaxFPS); cv != nil {
 		cfg.MaxFPS = cv.Int
 	}
-	if cv := cvar.Get(CvarRGamma); cv != nil {
+	if cv := pkgCVars.Get(CvarRGamma); cv != nil {
 		cfg.Gamma = cv.Float32()
 	}
-	if cv := cvar.Get(CvarVidGPUPrefer); cv != nil {
+	if cv := pkgCVars.Get(CvarVidGPUPrefer); cv != nil {
 		switch cv.Int {
 		case 1:
 			cfg.GPUPreference = GPUPreferLowPower

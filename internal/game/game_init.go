@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/draw"
@@ -20,9 +19,9 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/hud"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
-	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
+	rworld "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
@@ -40,15 +39,15 @@ func (globalConsoleAdapter) Dump(filename string) error { return nil }
 func (globalConsoleAdapter) Shutdown()                  { console.Close() }
 
 func (g *Game) registerMirroredArchiveCvars(canonicalName, legacyName, defaultValue, description string) *cvar.CVar {
-	canonical := cvar.Register(canonicalName, defaultValue, cvar.FlagArchive, description)
-	legacy := cvar.Register(legacyName, canonical.String, cvar.FlagArchive, description+" (legacy alias)")
+	canonical := g.Host.CVar.Register(canonicalName, defaultValue, cvar.FlagArchive, description)
+	legacy := g.Host.CVar.Register(legacyName, canonical.String, cvar.FlagArchive, description+" (legacy alias)")
 
 	canonicalCallback := canonical.Callback
 	legacyCallback := legacy.Callback
 
 	canonical.Callback = func(cv *cvar.CVar) {
 		if legacy.String != cv.String {
-			cvar.Set(legacy.Name, cv.String)
+			g.Host.CVar.Set(legacy.Name, cv.String)
 		}
 		if canonicalCallback != nil {
 			canonicalCallback(cv)
@@ -56,7 +55,7 @@ func (g *Game) registerMirroredArchiveCvars(canonicalName, legacyName, defaultVa
 	}
 	legacy.Callback = func(cv *cvar.CVar) {
 		if canonical.String != cv.String {
-			cvar.Set(canonical.Name, cv.String)
+			g.Host.CVar.Set(canonical.Name, cv.String)
 		}
 		if legacyCallback != nil {
 			legacyCallback(cv)
@@ -84,15 +83,15 @@ func (g *Game) registerRendererLightingAndParticleCvars(register func(name, defa
 }
 
 func (g *Game) configureRegistrationMode(vfs interface{ FileExists(filename string) bool }, gameDir string) error {
-	registered := cvar.Register("registered", "0", cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
+	registered := g.Host.CVar.Register("registered", "0", cvar.FlagNone, "Game data registration state (0=shareware, 1=registered)")
 
 	if vfs != nil && vfs.FileExists("gfx/pop.lmp") {
-		cvar.Set(registered.Name, "1")
+		g.Host.CVar.Set(registered.Name, "1")
 		console.Printf("Playing registered version.\n")
 		return nil
 	}
 
-	cvar.Set(registered.Name, "0")
+	g.Host.CVar.Set(registered.Name, "0")
 	console.Printf("Playing shareware version.\n")
 
 	modDir := strings.ToLower(strings.TrimSpace(gameDir))
@@ -110,125 +109,126 @@ func (g *Game) initGameHost() error {
 
 	// Initialize console and command system
 	console.InitGlobal(0)
+	console.SetGlobalCVar(g.Host.CVar)
 	console.SetPrintCallback(func(msg string) {
 		fmt.Print(msg)
 	})
-	cmdsys.SetPrintCallback(func(msg string) {
-		console.Printf("%s", msg)
-	})
 
 	// Initialize cvars for video, sound, gameplay
-	cvar.Register("vid_width", strconv.Itoa(startupVidWidth), cvar.FlagArchive, "Video width")
-	cvar.Register("vid_height", strconv.Itoa(startupVidHeight), cvar.FlagArchive, "Video height")
-	cvar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode (0=windowed, 1=fullscreen)")
-	cvar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
-	cvar.Register("vid_gpupreference", "0", cvar.FlagArchive, "GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto")
-	cvar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
-	cvar.Register("pr_checkextension", "1", cvar.FlagArchive, "Enable QuakeC extension checks")
-	cvar.Register("cl_nocsqc", "0", cvar.FlagArchive, "Disable CSQC loading")
-	sVolume := cvar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
+	g.Host.CVar.Register("vid_width", strconv.Itoa(startupVidWidth), cvar.FlagArchive, "Video width")
+	g.Host.CVar.Register("vid_height", strconv.Itoa(startupVidHeight), cvar.FlagArchive, "Video height")
+	g.Host.CVar.Register("vid_fullscreen", "0", cvar.FlagArchive, "Fullscreen mode (0=windowed, 1=fullscreen)")
+	g.Host.CVar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
+	g.Host.CVar.Register("vid_gpupreference", "0", cvar.FlagArchive, "GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto")
+	g.Host.CVar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
+	g.Host.CVar.Register("pr_checkextension", "1", cvar.FlagArchive, "Enable QuakeC extension checks")
+	g.Host.CVar.Register("cl_nocsqc", "0", cvar.FlagArchive, "Disable CSQC loading")
+	sVolume := g.Host.CVar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")
 	sVolume.Callback = func(*cvar.CVar) {
 		g.applySVolume()
 	}
-	cvar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
-	cvar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
-	cvar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
-	cvar.Register("r_drawentities", "1", 0, "Draw entities")
-	g.registerRendererLightingAndParticleCvars(cvar.Register)
-	cvar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
-	cvar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
-	cvar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")
-	cvar.Register(renderer.CvarRProceduralSky, "0", cvar.FlagArchive, "Enable deterministic procedural sky baseline for embedded fast sky")
-	cvar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
-	cvar.Register(renderer.CvarRSkySolidSpeed, "1", cvar.FlagArchive, "Embedded sky solid-layer speed multiplier")
-	cvar.Register(renderer.CvarRSkyAlphaSpeed, "1", cvar.FlagArchive, "Embedded sky alpha-layer speed multiplier")
-	cvar.Register(renderer.CvarRShadows, "1", cvar.FlagArchive, "Enable entity shadows (0=off, 1=on)")
-	cvar.Register(renderer.CvarRNoshadowList, "progs/eyes.mdl", cvar.FlagArchive, "Space-separated list of model names to exclude from shadows")
+	g.Host.CVar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
+	g.Host.CVar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
+	g.Host.CVar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
+	g.Host.CVar.Register("r_drawentities", "1", 0, "Draw entities")
+	g.registerRendererLightingAndParticleCvars(g.Host.CVar.Register)
+	g.Host.CVar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
+	g.Host.CVar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
+	g.Host.CVar.Register(renderer.CvarRFastSky, "0", cvar.FlagArchive, "Fast sky mode (flat sky color)")
+	g.Host.CVar.Register(renderer.CvarRProceduralSky, "0", cvar.FlagArchive, "Enable deterministic procedural sky baseline for embedded fast sky")
+	g.Host.CVar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
+	g.Host.CVar.Register(renderer.CvarRSkySolidSpeed, "1", cvar.FlagArchive, "Embedded sky solid-layer speed multiplier")
+	g.Host.CVar.Register(renderer.CvarRSkyAlphaSpeed, "1", cvar.FlagArchive, "Embedded sky alpha-layer speed multiplier")
+	g.Host.CVar.Register(renderer.CvarRShadows, "1", cvar.FlagArchive, "Enable entity shadows (0=off, 1=on)")
+	g.Host.CVar.Register(renderer.CvarRNoshadowList, "progs/eyes.mdl", cvar.FlagArchive, "Space-separated list of model names to exclude from shadows")
 	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
 	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).
-	cvar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
-	cvar.Register(renderer.CvarRLitWater, "1", cvar.FlagArchive, "Enable lightmapped water when map has lit water data (0=off, 1=on)")
+	g.Host.CVar.Register(renderer.CvarRWaterwarp, "1", cvar.FlagArchive, "Underwater warp effect (0=off, 1=screen warp, 2=FOV warp)")
+	g.Host.CVar.Register(renderer.CvarRLitWater, "1", cvar.FlagArchive, "Enable lightmapped water when map has lit water data (0=off, 1=on)")
 	// gl_polyblend: enable/disable the v_blend polyblend screen-tint pass.
 	// Mirrors C Ironwail gl_polyblend. Default 1 (enabled).
-	cvar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")
+	g.Host.CVar.Register("gl_polyblend", "1", cvar.FlagArchive, "Enable polyblend screen-tint overlay (damage flash, powerups, etc.)")
 	// gl_cshiftpercent and gl_cshiftpercent_*: global/per-channel scales for color shifts (0–100).
 	// Mirror C Ironwail defaults (all 100 = full intensity).
-	g.registerColorShiftPercentCvars(cvar.Register)
-	cvar.Register("developer", "0", 0, "Developer mode")
+	g.registerColorShiftPercentCvars(g.Host.CVar.Register)
+	g.Host.CVar.Register("developer", "0", 0, "Developer mode")
 	g.registerDebugViewTelemetryCVar()
 
 	// View-bob cvars (V_CalcBob).
-	cvar.Register("cl_bob", "0.02", cvar.FlagArchive, "View bobbing scale")
-	cvar.Register("cl_bobcycle", "0.6", 0, "View bobbing cycle length in seconds")
-	cvar.Register("cl_bobup", "0.5", 0, "Fraction of bob cycle spent moving upward")
+	g.Host.CVar.Register("cl_bob", "0.02", cvar.FlagArchive, "View bobbing scale")
+	g.Host.CVar.Register("cl_bobcycle", "0.6", 0, "View bobbing cycle length in seconds")
+	g.Host.CVar.Register("cl_bobup", "0.5", 0, "Fraction of bob cycle spent moving upward")
 
 	// View-roll cvars (V_CalcViewRoll).
-	cvar.Register("cl_rollangle", "2.0", cvar.FlagArchive, "Camera roll angle when strafing")
-	cvar.Register("cl_rollspeed", "200", 0, "Lateral speed at which full roll is applied")
+	g.Host.CVar.Register("cl_rollangle", "2.0", cvar.FlagArchive, "Camera roll angle when strafing")
+	g.Host.CVar.Register("cl_rollspeed", "200", 0, "Lateral speed at which full roll is applied")
 
 	// View kick effects (V_ParseDamage damage kick).
-	cvar.Register("v_kicktime", "0.5", 0, "Duration of damage kick effect")
-	cvar.Register("v_kickroll", "0.6", 0, "Damage kick roll intensity")
-	cvar.Register("v_kickpitch", "0.6", 0, "Damage kick pitch intensity")
+	g.Host.CVar.Register("v_kicktime", "0.5", 0, "Duration of damage kick effect")
+	g.Host.CVar.Register("v_kickroll", "0.6", 0, "Damage kick roll intensity")
+	g.Host.CVar.Register("v_kickpitch", "0.6", 0, "Damage kick pitch intensity")
 
 	// Idle-sway cvars (V_AddIdle / CalcGunAngle).
-	cvar.Register("v_idlescale", "0", 0, "Idle sway scale (0 = off)")
-	cvar.Register("v_iyaw_cycle", "2", 0, "Idle sway yaw cycle frequency")
-	cvar.Register("v_iroll_cycle", "0.5", 0, "Idle sway roll cycle frequency")
-	cvar.Register("v_ipitch_cycle", "1", 0, "Idle sway pitch cycle frequency")
-	cvar.Register("v_iyaw_level", "0.3", 0, "Idle sway yaw amplitude")
-	cvar.Register("v_iroll_level", "0.1", 0, "Idle sway roll amplitude")
-	cvar.Register("v_ipitch_level", "0.3", 0, "Idle sway pitch amplitude")
+	g.Host.CVar.Register("v_idlescale", "0", 0, "Idle sway scale (0 = off)")
+	g.Host.CVar.Register("v_iyaw_cycle", "2", 0, "Idle sway yaw cycle frequency")
+	g.Host.CVar.Register("v_iroll_cycle", "0.5", 0, "Idle sway roll cycle frequency")
+	g.Host.CVar.Register("v_ipitch_cycle", "1", 0, "Idle sway pitch cycle frequency")
+	g.Host.CVar.Register("v_iyaw_level", "0.3", 0, "Idle sway yaw amplitude")
+	g.Host.CVar.Register("v_iroll_level", "0.1", 0, "Idle sway roll amplitude")
+	g.Host.CVar.Register("v_ipitch_level", "0.3", 0, "Idle sway pitch amplitude")
 
 	// r_viewmodel_quake: origin fudge for different view sizes.
-	cvar.Register("r_viewmodel_quake", "0", 0, "Apply Quake-style viewmodel origin fudge based on scr_viewsize")
-	cvar.Register("chase_active", "0", 0, "Enable third-person chase camera")
-	cvar.Register("chase_back", "100", cvar.FlagArchive, "Chase camera distance behind player")
-	cvar.Register("chase_up", "16", cvar.FlagArchive, "Chase camera height above player")
-	cvar.Register("chase_right", "0", cvar.FlagArchive, "Chase camera right offset")
+	g.Host.CVar.Register("r_viewmodel_quake", "0", 0, "Apply Quake-style viewmodel origin fudge based on scr_viewsize")
+	g.Host.CVar.Register("chase_active", "0", 0, "Enable third-person chase camera")
+	g.Host.CVar.Register("chase_back", "100", cvar.FlagArchive, "Chase camera distance behind player")
+	g.Host.CVar.Register("chase_up", "16", cvar.FlagArchive, "Chase camera height above player")
+	g.Host.CVar.Register("chase_right", "0", cvar.FlagArchive, "Chase camera right offset")
 	// viewsize: screen view size percentage (100 = full), used by
 	// r_viewmodel_quake fudge. Keep scr_viewsize as a legacy alias.
 	g.registerMirroredArchiveCvars("viewsize", "scr_viewsize", "100", "Screen view size percentage")
-	cvar.Register("scr_sbarscale", "1", cvar.FlagArchive, "Status bar scale multiplier")
-	cvar.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "Status bar background alpha")
-	cvar.Register("scr_menuscale", "1", cvar.FlagArchive, "Menu scale multiplier")
-	cvar.Register("scr_pixelaspect", "1", cvar.FlagArchive, "GUI pixel aspect ratio (float or width:height)")
-	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "Console virtual width (0 = auto)")
-	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "Console scale factor")
-	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "Console slide speed")
-	cvar.Register("con_notifytime", "3", cvar.FlagArchive, "Notify line lifetime in seconds")
-	cvar.Register("con_logcenterprint", "1", cvar.FlagArchive, "Centerprint logging mode (0=off,1=single-player,2=always)")
-	cvar.Register("con_maxcols", "0", cvar.FlagArchive, "Maximum tab-completion columns (0=auto)")
-	cvar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
-	cvar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter in the corner (negative values show frame time in ms)")
+	g.Host.CVar.Register("scr_sbarscale", "1", cvar.FlagArchive, "Status bar scale multiplier")
+	g.Host.CVar.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "Status bar background alpha")
+	g.Host.CVar.Register("scr_menuscale", "1", cvar.FlagArchive, "Menu scale multiplier")
+	g.Host.CVar.Register("scr_pixelaspect", "1", cvar.FlagArchive, "GUI pixel aspect ratio (float or width:height)")
+	g.Host.CVar.Register("scr_conwidth", "0", cvar.FlagArchive, "Console virtual width (0 = auto)")
+	g.Host.CVar.Register("scr_conscale", "1", cvar.FlagArchive, "Console scale factor")
+	g.Host.CVar.Register("scr_conspeed", "300", cvar.FlagArchive, "Console slide speed")
+	g.Host.CVar.Register("con_notifytime", "3", cvar.FlagArchive, "Notify line lifetime in seconds")
+	g.Host.CVar.Register("con_logcenterprint", "1", cvar.FlagArchive, "Centerprint logging mode (0=off,1=single-player,2=always)")
+	g.Host.CVar.Register("con_maxcols", "0", cvar.FlagArchive, "Maximum tab-completion columns (0=auto)")
+	g.Host.CVar.Register("con_notifycenter", "0", cvar.FlagArchive, "Center notify lines over the gameplay view")
+	g.Host.CVar.Register("scr_showfps", "0", cvar.FlagArchive, "Show FPS counter in the corner (negative values show frame time in ms)")
 	g.registerMirroredArchiveCvars("showturtle", "scr_showturtle", "0", "Show the turtle icon when frame time is very slow")
-	cvar.Register("scr_showspeed", "0", cvar.FlagArchive, "Show horizontal player speed near the crosshair")
-	cvar.Register("scr_showspeed_ofs", "0", cvar.FlagArchive, "Vertical offset for the speed readout")
-	cvar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "Seconds to show the demo controls overlay after speed changes (0 = always, <0 = never)")
-	cvar.Register("scr_clock", "0", cvar.FlagArchive, "Show level clock in the corner")
-	cvar.Register("fov", "90", cvar.FlagArchive, "Horizontal field of view")
-	cvar.Register("fov_adapt", "1", cvar.FlagArchive, "Adapt horizontal field of view to the window aspect ratio")
-	cvar.Register("zoom_fov", "30", cvar.FlagArchive, "Target field of view while zoomed")
-	cvar.Register("scr_centertime", "2", 0, "Regular centerprint hold time in seconds")
-	cvar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "Centerprint background style (0=off, 1=text box, 2=panel, 3=strip)")
-	cvar.Register("zoom_speed", "8", cvar.FlagArchive, "Zoom transition speed")
-	cvar.Register("scr_printspeed", "8", 0, "Finale/cutscene centerprint reveal speed in characters per second")
-	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "Menu background fade alpha")
-	cvar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
-	cvar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "Centerprint fade-tail duration in seconds when con_notifyfade is enabled")
-	crosshair := cvar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
+	g.Host.CVar.Register("scr_showspeed", "0", cvar.FlagArchive, "Show horizontal player speed near the crosshair")
+	g.Host.CVar.Register("scr_showspeed_ofs", "0", cvar.FlagArchive, "Vertical offset for the speed readout")
+	g.Host.CVar.Register("scr_demobar_timeout", "1", cvar.FlagArchive, "Seconds to show the demo controls overlay after speed changes (0 = always, <0 = never)")
+	g.Host.CVar.Register("scr_clock", "0", cvar.FlagArchive, "Show level clock in the corner")
+	g.Host.CVar.Register("fov", "90", cvar.FlagArchive, "Horizontal field of view")
+	g.Host.CVar.Register("fov_adapt", "1", cvar.FlagArchive, "Adapt horizontal field of view to the window aspect ratio")
+	g.Host.CVar.Register("zoom_fov", "30", cvar.FlagArchive, "Target field of view while zoomed")
+	g.Host.CVar.Register("scr_centertime", "2", 0, "Regular centerprint hold time in seconds")
+	g.Host.CVar.Register("scr_centerprintbg", "2", cvar.FlagArchive, "Centerprint background style (0=off, 1=text box, 2=panel, 3=strip)")
+	g.Host.CVar.Register("zoom_speed", "8", cvar.FlagArchive, "Zoom transition speed")
+	g.Host.CVar.Register("scr_printspeed", "8", 0, "Finale/cutscene centerprint reveal speed in characters per second")
+	g.Host.CVar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "Menu background fade alpha")
+	g.Host.CVar.Register("con_notifyfade", "0", cvar.FlagArchive, "Enable notify-style fade tail for centerprints")
+	g.Host.CVar.Register("con_notifyfadetime", "0.5", cvar.FlagArchive, "Centerprint fade-tail duration in seconds when con_notifyfade is enabled")
+	crosshair := g.Host.CVar.Register("crosshair", "0", cvar.FlagArchive, "Crosshair style (0=off, 1='+', >1=dot, <0=custom char index)")
 	crosshair.Callback = func(cv *cvar.CVar) {
 		if g.HUD != nil {
 			g.HUD.UpdateCrosshair(cv.Float)
 		}
 	}
-	cvar.Register("showpause", "1", cvar.FlagArchive, "Show pause overlay")
-	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
+	g.Host.CVar.Register("showpause", "1", cvar.FlagArchive, "Show pause overlay")
+	g.Host.CVar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
 	g.registerControlCvars()
 
 	// Create host instance
 	g.Host = host.NewHost()
-	hostMaxFPS := cvar.Get("host_maxfps")
+	g.Host.Cmd.SetPrintCallback(func(msg string) {
+		console.Printf("%s", msg)
+	})
+	hostMaxFPS := g.Host.CVar.Get("host_maxfps")
 	if hostMaxFPS != nil {
 		hostMaxFPS.Callback = func(cv *cvar.CVar) {
 			if g.Host != nil {
@@ -242,24 +242,24 @@ func (g *Game) initGameHost() error {
 }
 
 func (g *Game) registerControlCvars() {
-	alwaysRun := cvar.Register("cl_alwaysrun", "1", cvar.FlagArchive, "Always run movement by default")
-	freelook := cvar.Register("freelook", "1", cvar.FlagArchive, "Enable mouse freelook")
-	lookspring := cvar.Register("lookspring", "0", cvar.FlagArchive, "Center view when look key released")
-	noLerp := cvar.Register("cl_nolerp", "0", cvar.FlagArchive, "Disable view interpolation")
-	centerMove := cvar.Register("v_centermove", "0.15", 0, "Seconds of forward movement before pitch drift recenters the view")
-	centerSpeed := cvar.Register("v_centerspeed", "500", 0, "Pitch drift recenter acceleration speed")
-	cvar.Register("lookstrafe", "0", cvar.FlagArchive, "Use mouse X for strafing when +strafe held")
-	cvar.Register("sensitivity", "6.8", cvar.FlagArchive, "Mouse sensitivity scale")
-	cvar.Register("m_pitch", "0.0176", cvar.FlagArchive, "Mouse pitch scale")
-	cvar.Register("m_yaw", "0.022", cvar.FlagArchive, "Mouse yaw scale")
-	cvar.Register("m_forward", "1", cvar.FlagArchive, "Mouse forward scale")
-	cvar.Register("m_side", "0.8", cvar.FlagArchive, "Mouse side scale")
-	cvar.Register("joy_look", "1", cvar.FlagArchive, "Enable right-stick look in gameplay")
-	cvar.Register("joy_looksensitivity_yaw", "4", cvar.FlagArchive, "Right-stick yaw look scale")
-	cvar.Register("joy_looksensitivity_pitch", "4", cvar.FlagArchive, "Right-stick pitch look scale")
-	cvar.Register("joy_gyro_look", "0", cvar.FlagArchive, "Enable gyro contribution in gameplay look")
-	cvar.Register("joy_gyro_yaw_scale", "1", cvar.FlagArchive, "Gyro yaw scale applied to gameplay look")
-	cvar.Register("joy_gyro_pitch_scale", "1", cvar.FlagArchive, "Gyro pitch scale applied to gameplay look")
+	alwaysRun := g.Host.CVar.Register("cl_alwaysrun", "1", cvar.FlagArchive, "Always run movement by default")
+	freelook := g.Host.CVar.Register("freelook", "1", cvar.FlagArchive, "Enable mouse freelook")
+	lookspring := g.Host.CVar.Register("lookspring", "0", cvar.FlagArchive, "Center view when look key released")
+	noLerp := g.Host.CVar.Register("cl_nolerp", "0", cvar.FlagArchive, "Disable view interpolation")
+	centerMove := g.Host.CVar.Register("v_centermove", "0.15", 0, "Seconds of forward movement before pitch drift recenters the view")
+	centerSpeed := g.Host.CVar.Register("v_centerspeed", "500", 0, "Pitch drift recenter acceleration speed")
+	g.Host.CVar.Register("lookstrafe", "0", cvar.FlagArchive, "Use mouse X for strafing when +strafe held")
+	g.Host.CVar.Register("sensitivity", "6.8", cvar.FlagArchive, "Mouse sensitivity scale")
+	g.Host.CVar.Register("m_pitch", "0.0176", cvar.FlagArchive, "Mouse pitch scale")
+	g.Host.CVar.Register("m_yaw", "0.022", cvar.FlagArchive, "Mouse yaw scale")
+	g.Host.CVar.Register("m_forward", "1", cvar.FlagArchive, "Mouse forward scale")
+	g.Host.CVar.Register("m_side", "0.8", cvar.FlagArchive, "Mouse side scale")
+	g.Host.CVar.Register("joy_look", "1", cvar.FlagArchive, "Enable right-stick look in gameplay")
+	g.Host.CVar.Register("joy_looksensitivity_yaw", "4", cvar.FlagArchive, "Right-stick yaw look scale")
+	g.Host.CVar.Register("joy_looksensitivity_pitch", "4", cvar.FlagArchive, "Right-stick pitch look scale")
+	g.Host.CVar.Register("joy_gyro_look", "0", cvar.FlagArchive, "Enable gyro contribution in gameplay look")
+	g.Host.CVar.Register("joy_gyro_yaw_scale", "1", cvar.FlagArchive, "Gyro yaw scale applied to gameplay look")
+	g.Host.CVar.Register("joy_gyro_pitch_scale", "1", cvar.FlagArchive, "Gyro pitch scale applied to gameplay look")
 	for _, cv := range []*cvar.CVar{alwaysRun, freelook, lookspring, noLerp, centerMove, centerSpeed} {
 		cv.Callback = func(*cvar.CVar) {
 			g.syncControlCvarsToClient()
@@ -271,22 +271,27 @@ func (g *Game) syncControlCvarsToClient() {
 	if g.Client == nil {
 		return
 	}
-	g.Client.AlwaysRun = cvar.BoolValue("cl_alwaysrun")
-	g.Client.FreeLook = cvar.BoolValue("freelook")
-	g.Client.LookSpring = cvar.BoolValue("lookspring")
-	g.Client.NoLerp = cvar.BoolValue("cl_nolerp")
-	g.Client.CenterMove = float32(cvar.FloatValue("v_centermove"))
-	g.Client.CenterSpeed = float32(cvar.FloatValue("v_centerspeed"))
+	g.Client.AlwaysRun = g.Host.CVar.BoolValue("cl_alwaysrun")
+	g.Client.FreeLook = g.Host.CVar.BoolValue("freelook")
+	g.Client.LookSpring = g.Host.CVar.BoolValue("lookspring")
+	g.Client.NoLerp = g.Host.CVar.BoolValue("cl_nolerp")
+	g.Client.CenterMove = float32(g.Host.CVar.FloatValue("v_centermove"))
+	g.Client.CenterSpeed = float32(g.Host.CVar.FloatValue("v_centerspeed"))
 }
 
 func (g *Game) initGameServer() error {
-	if err := inet.Init(); err != nil {
+	if err := g.Host.Net.Init(); err != nil {
 		return fmt.Errorf("failed to initialize networking: %w", err)
 	}
+	g.Host.Net.SetCVarSystem(g.Host.CVar)
 	console.Printf("UDP Initialized\n")
 
 	// Create server instance
 	g.Server = server.NewServer()
+	if g.Host != nil {
+		g.Server.Cmd = g.Host.Cmd
+		g.Server.Net = g.Host.Net
+	}
 	console.Printf("Server using protocol %d (%s)\n", g.Server.Protocol, g.serverProtocolName(g.Server.Protocol))
 
 	return nil
@@ -396,16 +401,21 @@ func (g *Game) buildCSQCClientHooks() qc.CSQCClientHooks {
 			}
 		},
 		RegisterCommand: func(cmdName string) {
-			if cmdName == "" || cmdsys.Exists(cmdName) {
+			if cmdName == "" || g.Host.Cmd.Exists(cmdName) {
 				return
 			}
-			cmdsys.AddCommand(cmdName, func(args []string) {}, "csqc client command")
+			g.Host.Cmd.AddCommand(cmdName, func(args []string) {}, "csqc client command")
 		},
 	}
 }
 
 func (g *Game) initGameRenderer() error {
 	g.preferWaylandForGoGPU()
+
+	// Wire renderer package cvars before ConfigFromCvars is consulted so
+	// video settings are read from the host cvar system.
+	renderer.SetCVarSystem(g.Host.CVar)
+	rworld.SetCVarSystem(g.Host.CVar)
 
 	// Create renderer instance from cvars
 	cfg := renderer.ConfigFromCvars()
@@ -497,7 +507,7 @@ func (g *Game) loadRuntimePrograms(fileSys *fs.FileSystem, maxClients int) error
 	qc.RegisterBuiltins(g.QC)
 	qc.SetCSQCClientHooks(g.buildCSQCClientHooks())
 
-	if g.CSQC == nil || cvar.IntValue("cl_nocsqc") != 0 {
+	if g.CSQC == nil || g.Host.CVar.IntValue("cl_nocsqc") != 0 {
 		if g.CSQC != nil {
 			g.CSQC.Unload()
 		}
@@ -548,8 +558,8 @@ func (g *Game) reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
 }
 
 func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *fs.FileSystem) error {
-	runtimeStateMu.Lock()
-	defer runtimeStateMu.Unlock()
+	g.runtimeMu.Lock()
+	defer g.runtimeMu.Unlock()
 
 	if changed == nil {
 		return fmt.Errorf("game dir reload missing filesystem")
@@ -601,8 +611,8 @@ func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *f
 
 	g.reloadRuntimeDrawAssets(changed)
 	if g.Draw != nil {
-		g.HUD = hud.NewHUD(g.Draw)
-		g.HUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
+		g.HUD = hud.NewHUD(g.Draw, g.Host.CVar)
+		g.HUD.UpdateCrosshair(g.Host.CVar.FloatValue("crosshair"))
 	}
 
 	if g.Menu != nil {
@@ -633,7 +643,8 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 		g.Draw = draw.NewManager()
 
 		// Initialize menu system
-		g.Menu = menu.NewManager(g.Draw, g.Input)
+		g.Menu = menu.NewManager(g.Draw, g.Input, g.Host.CVar)
+		g.Menu.SetCommandText(g.Host.Cmd.AddText)
 		g.Menu.SetSoundPlayer(g.playMenuSound)
 
 		// Set up menu input callbacks
@@ -680,7 +691,7 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 		if err != nil {
 			return err
 		}
-		if err := host.LoadArchivedCvars(startupUserDir, []string{
+		if err := host.LoadArchivedCvars(g.Host.CVar, startupUserDir, []string{
 			"vid_width",
 			"vid_height",
 			"vid_fullscreen",
@@ -716,7 +727,7 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 	g.resetRuntimeSoundState()
 	g.Subs = &host.Subsystems{
 		Files:    fileSys,
-		Commands: GlobalCommandBuffer{},
+		Commands: g.Host.Cmd,
 		Console:  globalConsoleAdapter{},
 		Server:   g.Server,
 		Input:    g.Input,
@@ -813,8 +824,8 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 		}
 
 		// Initialize HUD
-		g.HUD = hud.NewHUD(g.Draw)
-		g.HUD.UpdateCrosshair(cvar.FloatValue("crosshair"))
+		g.HUD = hud.NewHUD(g.Draw, g.Host.CVar)
+		g.HUD.UpdateCrosshair(g.Host.CVar.FloatValue("crosshair"))
 	}
 	g.Client = host.ActiveClientState(g.Subs)
 	g.syncControlCvarsToClient()

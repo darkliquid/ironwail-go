@@ -35,7 +35,7 @@ func TestCrosshairUpdateCvarCharacterSelection(t *testing.T) {
 
 func TestCrosshairDrawCenteredWhenEnabled(t *testing.T) {
 	rc := &mockRenderContext{}
-	c := Crosshair{crosshairChar: int('+')}
+	c := Crosshair{cvars: testCV, crosshairChar: int('+')}
 
 	c.Draw(rc, State{}, 640, 480)
 
@@ -50,8 +50,8 @@ func TestCrosshairDrawCenteredWhenEnabled(t *testing.T) {
 
 func TestCrosshairDrawSkipsIntermissionAndDisabled(t *testing.T) {
 	rc := &mockRenderContext{}
-	enabled := Crosshair{crosshairChar: int('+')}
-	disabled := Crosshair{crosshairChar: 0}
+	enabled := Crosshair{cvars: testCV, crosshairChar: int('+')}
+	disabled := Crosshair{cvars: testCV, crosshairChar: 0}
 
 	enabled.Draw(rc, State{Intermission: 1}, 640, 480)
 	disabled.Draw(rc, State{}, 640, 480)
@@ -62,14 +62,14 @@ func TestCrosshairDrawSkipsIntermissionAndDisabled(t *testing.T) {
 }
 
 func TestCrosshairDrawSkipsCutsceneAndLargeViewsize(t *testing.T) {
-	cvar.Register("scr_viewsize", "100", cvar.FlagArchive, "")
+	testCV.Register("scr_viewsize", "100", cvar.FlagArchive, "")
 	rc := &mockRenderContext{}
-	enabled := Crosshair{crosshairChar: int('+')}
+	enabled := Crosshair{cvars: testCV, crosshairChar: int('+')}
 
 	enabled.Draw(rc, State{InCutscene: true}, 640, 480)
-	cvar.Set("scr_viewsize", "130")
+	testCV.Set("scr_viewsize", "130")
 	t.Cleanup(func() {
-		cvar.Set("scr_viewsize", "100")
+		testCV.Set("scr_viewsize", "100")
 	})
 	enabled.Draw(rc, State{}, 640, 480)
 

@@ -260,7 +260,7 @@ func (s *Server) noclipMove(ctx *clientMoveContext) {
 	viewAngles := ctx.player.Vars.VAngle
 	// Ironwail parity: sv_altnoclip 0 keeps noclip movement horizontal by
 	// ignoring pitch for forward/strafe vectors.
-	if cv := cvar.Get("sv_altnoclip"); cv != nil && !cv.Bool() {
+	if cv := s.CVar.Get("sv_altnoclip"); cv != nil && !cv.Bool() {
 		viewAngles[0] = 0
 	}
 	AngleVectors(viewAngles, &ctx.forward, &ctx.right, &ctx.up)
@@ -318,7 +318,7 @@ func (s *Server) airMove(ctx *clientMoveContext) {
 	s.airAccelerate(wishspeed, wishvel, ctx)
 }
 
-func CalcRoll(angles, velocity [3]float32) float32 {
+func CalcRoll(cv *cvar.CVarSystem, angles, velocity [3]float32) float32 {
 	var forward, right, up [3]float32
 	AngleVectors(angles, &forward, &right, &up)
 
@@ -332,11 +332,13 @@ func CalcRoll(angles, velocity [3]float32) float32 {
 	// Use cl_rollangle and cl_rollspeed cvars, matching C Ironwail V_CalcRoll
 	rollAngle := float32(2.0)
 	rollSpeed := float32(200.0)
-	if cv := cvar.Get("cl_rollangle"); cv != nil {
-		rollAngle = float32(cv.Float)
-	}
-	if cv := cvar.Get("cl_rollspeed"); cv != nil {
-		rollSpeed = float32(cv.Float)
+	if cv != nil {
+		if c := cv.Get("cl_rollangle"); c != nil {
+			rollAngle = float32(c.Float)
+		}
+		if c := cv.Get("cl_rollspeed"); c != nil {
+			rollSpeed = float32(c.Float)
+		}
 	}
 
 	if rollSpeed == 0 {
@@ -376,7 +378,7 @@ func (s *Server) SV_ClientThink(client *Client) {
 	}
 
 	vAngle := VecAdd(ent.Vars.VAngle, ent.Vars.PunchAngle)
-	ent.Vars.Angles[2] = CalcRoll(ent.Vars.Angles, ent.Vars.Velocity) * 4
+	ent.Vars.Angles[2] = CalcRoll(s.CVar, ent.Vars.Angles, ent.Vars.Velocity) * 4
 	if ent.Vars.FixAngle == 0 {
 		ent.Vars.Angles[0] = -vAngle[0] / 3
 		ent.Vars.Angles[1] = vAngle[1]
@@ -438,7 +440,7 @@ func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullS
 	if fullSync {
 		s.syncQCVMState()
 	}
-	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
+	s.syncEdictToQCVM(entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
 	s.QCVM.SetGlobal("frametime", s.FrameTime)
@@ -449,7 +451,7 @@ func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullS
 		slog.Warn("client think QC failed", "function", funcName, "entity", entNum, "error", err)
 		return
 	}
-	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
+	s.syncEdictFromQCVM(entNum, client.Edict)
 }
 
 func (s *Server) ClientThink(client *Client) {
@@ -689,19 +691,19 @@ func (s *Server) handleClientStringCommand(client *Client, cmd string) error {
 		}
 		client.Spawned = true
 	case "ban":
-		if cvar.IntValue("deathmatch") != 0 {
+		if s.CVar.IntValue("deathmatch") != 0 {
 			return nil
 		}
 		args := strings.Fields(clientStringCommandArgs(cmd))
 		switch len(args) {
 		case 0:
-			s.SV_ClientPrintf(client, "%s\n", inet.IPBanStatus())
+			s.SV_ClientPrintf(client, "%s\n", s.Net.IPBanStatus())
 		case 1:
-			if err := inet.SetIPBan(args[0], ""); err != nil {
+			if err := s.Net.SetIPBan(args[0], ""); err != nil {
 				s.SV_ClientPrintf(client, "%s\n", err.Error())
 			}
 		case 2:
-			if err := inet.SetIPBan(args[0], args[1]); err != nil {
+			if err := s.Net.SetIPBan(args[0], args[1]); err != nil {
 				s.SV_ClientPrintf(client, "%s\n", err.Error())
 			}
 		default:
@@ -741,7 +743,7 @@ func (s *Server) RunClients() {
 				continue
 			}
 			for {
-				msgType, payload := inet.GetMessage(client.NetConnection)
+				msgType, payload := s.Net.GetMessage(client.NetConnection)
 				if msgType == 0 {
 					break
 				}
@@ -780,9 +782,9 @@ func (s *Server) DropClient(client *Client, crash bool) {
 		return
 	}
 
-	if !crash && client.NetConnection != nil && inet.CanSendMessage(client.NetConnection) {
+	if !crash && client.NetConnection != nil && s.Net.CanSendMessage(client.NetConnection) {
 		client.Message.WriteByte(byte(inet.SVCDisconnect))
-		_ = inet.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()])
+		_ = s.Net.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()])
 	}
 
 	if !crash && client.Spawned && client.Edict != nil && s.QCVM != nil {
@@ -795,7 +797,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	}
 
 	if client.NetConnection != nil {
-		inet.Close(client.NetConnection)
+		s.Net.Close(client.NetConnection)
 		client.NetConnection = nil
 	}
 

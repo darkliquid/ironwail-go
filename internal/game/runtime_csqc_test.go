@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/host"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
@@ -185,7 +184,6 @@ func TestBuildCSQCDrawHooksWithActivityTracksActualDrawCalls(t *testing.T) {
 
 func TestBuildCSQCFrameStatePopulatesCSQCExtGlobals(t *testing.T) {
 	g := New()
-	g.Host = host.NewHost()
 	g.Client = cl.NewClient()
 	g.Client.Time = 12.5
 	g.Client.MaxClients = 8

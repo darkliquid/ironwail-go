@@ -1,19 +1,10 @@
 package server
 
 import (
-	"bytes"
-	"encoding/binary"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
-	"github.com/darkliquid/ironwail-go/internal/fs"
-	"github.com/darkliquid/ironwail-go/internal/model"
-	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/qc"
-	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
 // newServerTestVM prepares the server's VM for tests with reasonable defaults.
@@ -66,7 +57,6 @@ func TestLoadMapEntitiesAllowsEmptyNumericQCFields(t *testing.T) {
 
 func TestServerHooksSpawnAndRemove(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -99,7 +89,6 @@ func TestServerHooksSpawnAndRemove(t *testing.T) {
 
 func TestServerHooksSpawnClearsQCOnlyFieldsOnReusedEdict(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -128,7 +117,6 @@ func TestServerHooksSpawnClearsQCOnlyFieldsOnReusedEdict(t *testing.T) {
 
 func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -143,7 +131,7 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = 4
 	for entNum, ent := range s.Edicts {
-		syncEdictToQCVM(vm, entNum, ent)
+		s.syncEdictToQCVM(entNum, ent)
 	}
 	vm.SetEInt(1, qc.EntFieldTargetName, vm.AllocString("door"))
 	vm.SetEVector(1, qc.EntFieldOrigin, [3]float32{100, 0, 0})
@@ -220,7 +208,6 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 
 func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -234,7 +221,7 @@ func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
 	s.NumEdicts = len(s.Edicts)
 	vm.NumEdicts = s.NumEdicts
 	for entNum, ent := range s.Edicts {
-		syncEdictToQCVM(vm, entNum, ent)
+		s.syncEdictToQCVM(entNum, ent)
 	}
 
 	vm.SetEInt(2, qc.EntFieldTargetName, vm.AllocString("tele_dest"))
@@ -273,7 +260,6 @@ func TestServerHooksSearchFunctionsSkipFreedEdicts(t *testing.T) {
 
 func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -293,7 +279,7 @@ func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
 
 	entNum := s.NumForEdict(ent)
 	vm.NumEdicts = s.NumEdicts
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{0, 0, 128})
 	vm.SetEVector(entNum, qc.EntFieldAbsMin, [3]float32{-16, -16, 104})
 	vm.SetEVector(entNum, qc.EntFieldAbsMax, [3]float32{16, 16, 160})
@@ -312,7 +298,6 @@ func TestServerHooksCheckBottomSyncsEntityFromQCVM(t *testing.T) {
 
 func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -322,7 +307,7 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 		t.Fatal("failed to alloc edict")
 	}
 	vm.NumEdicts = s.NumEdicts
-	syncEdictToQCVM(vm, s.NumForEdict(ent), ent)
+	s.syncEdictToQCVM(s.NumForEdict(ent), ent)
 	vm.SetEVector(s.NumForEdict(ent), qc.EntFieldOrigin, [3]float32{64, 32, 16})
 	s.ClearWorld()
 
@@ -369,7 +354,6 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 
 func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -386,7 +370,6 @@ func TestServerHooksSetModelRequiresPrecache(t *testing.T) {
 
 func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -402,7 +385,7 @@ func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 	ent.Vars.Origin = [3]float32{0, 0, 0}
 	ent.Vars.Mins = [3]float32{-1, -1, -1}
 	ent.Vars.Maxs = [3]float32{1, 1, 1}
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -8, -4})
 	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 8, 12})
@@ -424,7 +407,6 @@ func TestServerHooksSetOriginImportsPendingQCBoundsForLink(t *testing.T) {
 
 func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -440,7 +422,7 @@ func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 	ent.Vars.Origin = [3]float32{0, 0, 0}
 	ent.Vars.Mins = [3]float32{-1, -1, -1}
 	ent.Vars.Maxs = [3]float32{1, 1, 1}
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{200, 20, 8})
 	vm.SetGInt(qc.OFSParm0, int32(entNum))
@@ -462,7 +444,6 @@ func TestServerHooksSetSizeImportsPendingQCOriginForLink(t *testing.T) {
 
 func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -476,7 +457,7 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 	s.ClearWorld()
 
 	ent.Vars.Origin = [3]float32{0, 0, 0}
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEVector(entNum, qc.EntFieldOrigin, [3]float32{64, 32, 16})
 
 	s.ModelName = "maps/test.bsp"
@@ -507,7 +488,6 @@ func TestServerHooksSetModelImportsPendingQCOriginForLink(t *testing.T) {
 
 func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil && world.Vars != nil {
 		world.Vars.Solid = float32(SolidBSP)
@@ -530,7 +510,7 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	ent.Vars.Solid = float32(SolidSlideBox)
 	ent.Vars.Flags = float32(FlagOnGround)
 	s.LinkEdict(ent, false)
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
 
 	// Walk forward 10 units at yaw=0
@@ -547,7 +527,7 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 	ent.Vars.Flags = 0
 	ent.Vars.GroundEntity = 0
 	s.LinkEdict(ent, false)
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 	if fn := vm.Builtins[34]; fn != nil {
 		fn(vm)
 	}
@@ -564,7 +544,6 @@ func TestServerHooksWalkMoveAndDropToFloor(t *testing.T) {
 
 func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil && world.Vars != nil {
 		world.Vars.Solid = float32(SolidBSP)
@@ -587,7 +566,7 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 	ent.Vars.Solid = float32(SolidSlideBox)
 	ent.Vars.Angles[1] = 45
 	ent.Vars.IdealYaw = 123
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 	vm.SetEFloat(entNum, qc.EntFieldFlags, float32(FlagOnGround))
 	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 33, 0})
 	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 77)
@@ -615,7 +594,6 @@ func TestServerHooksWalkMoveImportsQCStateWithoutStepDirectionYawMutation(t *tes
 
 func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil && world.Vars != nil {
 		world.Vars.Solid = float32(SolidBSP)
@@ -637,7 +615,7 @@ func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 	ent.Vars.Maxs = [3]float32{16, 16, 32}
 	ent.Vars.Solid = float32(SolidSlideBox)
 	s.LinkEdict(ent, false)
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetEVector(entNum, qc.EntFieldMins, [3]float32{-16, -16, -8})
 	vm.SetEVector(entNum, qc.EntFieldMaxs, [3]float32{16, 16, 8})
@@ -656,7 +634,6 @@ func TestServerHooksDropToFloorImportsPendingQCState(t *testing.T) {
 
 func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 
 	vm := newServerTestVM(s, 8)
 	qc.RegisterBuiltins(vm)
@@ -672,7 +649,7 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 	ent.Vars.Mins = [3]float32{-16, -16, -24}
 	ent.Vars.Maxs = [3]float32{16, 16, 32}
 	ent.Vars.Solid = float32(SolidSlideBox)
-	syncEdictToQCVM(vm, entNum, ent)
+	s.syncEdictToQCVM(entNum, ent)
 
 	vm.SetGInt(qc.OFSSelf, int32(entNum))
 	vm.SetGFloat(qc.OFSParm0, 0)
@@ -690,7 +667,6 @@ func TestServerHooksWalkMoveRequiresMovementFlags(t *testing.T) {
 
 func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
 	s.WorldModel = CreateSyntheticWorldModel()
 	if world := s.EdictNum(0); world != nil && world.Vars != nil {
 		world.Vars.Solid = float32(SolidBSP)
@@ -736,8 +712,8 @@ func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 
 	s.LinkEdict(mover, false)
 	s.LinkEdict(trigger, false)
-	syncEdictToQCVM(vm, moverNum, mover)
-	syncEdictToQCVM(vm, s.NumForEdict(trigger), trigger)
+	s.syncEdictToQCVM(moverNum, mover)
+	s.syncEdictToQCVM(s.NumForEdict(trigger), trigger)
 
 	vm.SetGInt(qc.OFSSelf, int32(moverNum))
 	vm.SetGInt(qc.OFSOther, 77)
@@ -756,1038 +732,6 @@ func TestServerHooksWalkMoveRestoresQCContextAfterNestedTouch(t *testing.T) {
 	}
 	if got := vm.GInt(qc.OFSOther); got != 77 {
 		t.Fatalf("other after nested walkmove = %d, want 77", got)
-	}
-	if vm.XFunction != &vm.Functions[2] || vm.XFunctionIndex != 2 {
-		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)
-	}
-}
-
-func TestServerHooksTraceContentsAndPrecacheBuiltins(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-	s.Datagram = NewMessageBuffer(MaxDatagram)
-	s.Static = &ServerStatic{Clients: []*Client{{Active: true, Message: NewMessageBuffer(MaxDatagram)}}}
-	pak0Path := testutil.SkipIfNoPak0(t)
-	baseDir := filepath.Dir(pak0Path)
-	if filepath.Base(baseDir) == "id1" {
-		baseDir = filepath.Dir(baseDir)
-	}
-	fileSys := fs.NewFileSystem()
-	if err := fileSys.Init(baseDir, "id1"); err != nil {
-		t.Fatalf("init filesystem: %v", err)
-	}
-	defer fileSys.Close()
-	s.FileSystem = fileSys
-
-	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
-	}
-
-	e := s.AllocEdict()
-	e.Vars.Origin = [3]float32{0, 0, 24}
-	e.Vars.Mins = [3]float32{-16, -16, -24}
-	e.Vars.Maxs = [3]float32{16, 16, 32}
-	e.Vars.Solid = float32(SolidSlideBox)
-
-	vm := newServerTestVM(s, 8)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-
-	// traceline: from above ground into the floor.
-	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(e)))
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 32})
-	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, -32})
-	vm.SetGFloat(qc.OFSParm2, 0)
-	vm.SetGInt(qc.OFSParm3, 0)
-	if fn := vm.Builtins[16]; fn == nil {
-		t.Fatal("traceline builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := vm.GFloat(qc.OFSTraceFraction); got >= 1 {
-		t.Fatalf("trace_fraction = %v, want < 1", got)
-	}
-	if got := vm.GVector(qc.OFSTraceEndPos); got[2] > DistEpsilon || got[2] < -DistEpsilon {
-		t.Fatalf("trace_endpos.z = %v, want approximately 0", got[2])
-	}
-	if got := vm.GFloat(qc.OFSTracePlaneDist); got != 0 {
-		t.Fatalf("trace_plane_dist = %v, want 0 for synthetic floor plane", got)
-	}
-
-	other := s.AllocEdict()
-	other.Vars.Origin = [3]float32{0, 0, 24}
-	other.Vars.Mins = [3]float32{-16, -16, -24}
-	other.Vars.Maxs = [3]float32{16, 16, 32}
-	other.Vars.Solid = float32(SolidSlideBox)
-	s.LinkEdict(other, false)
-	vm.NumEdicts = s.NumEdicts
-
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 48})
-	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, 0})
-	vm.SetGFloat(qc.OFSParm2, 0)
-	vm.SetGInt(qc.OFSParm3, int32(s.NumForEdict(other)))
-	if fn := vm.Builtins[16]; fn == nil {
-		t.Fatal("traceline builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GInt(qc.OFSTraceEnt)); got != 0 {
-		t.Fatalf("trace_ent with explicit pass entity = %d, want world 0", got)
-	}
-
-	// checkbottom: entity resting on the synthetic plane should be supported.
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
-	if fn := vm.Builtins[40]; fn == nil {
-		t.Fatal("checkbottom builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := vm.GFloat(qc.OFSReturn); got != 1 {
-		t.Fatalf("checkbottom return = %v, want 1", got)
-	}
-
-	// pointcontents below the plane should be solid.
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, -1})
-	if fn := vm.Builtins[41]; fn == nil {
-		t.Fatal("pointcontents builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GFloat(qc.OFSReturn)); got == 0 { // pointcontents returns a float content type
-		t.Fatalf("pointcontents returned empty contents for solid point")
-	}
-
-	// precache_sound/model should populate server lookup tables.
-	vm.SetGString(qc.OFSParm0, "misc/menu1.wav")
-	vm.Builtins[19](vm)
-	if got := s.FindSound("misc/menu1.wav"); got < 0 {
-		t.Fatalf("precache_sound did not register sample")
-	}
-
-	vm.SetGString(qc.OFSParm0, "progs/player.mdl")
-	vm.Builtins[20](vm)
-	if got := s.FindModel("progs/player.mdl"); got == 0 {
-		t.Fatalf("precache_model did not register model")
-	}
-
-	// Attach client to the test entity for client-directed builtins.
-	s.Static.Clients[0].Edict = e
-
-	// sound and particle should write to the datagram.
-	datagramBefore := s.Datagram.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
-	vm.SetGFloat(qc.OFSParm1, 1)
-	vm.SetGString(qc.OFSParm2, "misc/menu1.wav")
-	vm.SetGFloat(qc.OFSParm3, DefaultSoundVolume)
-	vm.SetGFloat(qc.OFSParm4, DefaultSoundAttenuation)
-	vm.Builtins[8](vm)
-	if s.Datagram.Len() <= datagramBefore {
-		t.Fatalf("sound builtin did not write to datagram")
-	}
-
-	datagramBefore = s.Datagram.Len()
-	vm.SetGVector(qc.OFSParm0, [3]float32{0, 0, 10})
-	vm.SetGVector(qc.OFSParm1, [3]float32{0, 0, 1})
-	vm.SetGFloat(qc.OFSParm2, 5)
-	vm.SetGFloat(qc.OFSParm3, 8)
-	vm.Builtins[48](vm)
-	if s.Datagram.Len() <= datagramBefore {
-		t.Fatalf("particle builtin did not write to datagram")
-	}
-
-	// client-targeted messaging should write into the client's reliable buffer.
-	clientBefore := s.Static.Clients[0].Message.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
-	vm.SetGString(qc.OFSParm1, "bf\n")
-	vm.Builtins[21](vm)
-	if s.Static.Clients[0].Message.Len() <= clientBefore {
-		t.Fatalf("stuffcmd builtin did not write to client message")
-	}
-	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCStuffText) {
-		t.Fatalf("stuffcmd opcode = %d, want %d", got, inet.SVCStuffText)
-	}
-
-	clientBefore = s.Static.Clients[0].Message.Len()
-	vm.SetGFloat(qc.OFSParm0, 0)
-	vm.SetGString(qc.OFSParm1, "m")
-	vm.Builtins[35](vm)
-	if s.Static.Clients[0].Message.Len() <= clientBefore {
-		t.Fatalf("lightstyle builtin did not write to client message")
-	}
-	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCLightStyle) {
-		t.Fatalf("lightstyle opcode = %d, want %d", got, inet.SVCLightStyle)
-	}
-	if got := s.LightStyles[0]; got != "m" {
-		t.Fatalf("stored lightstyle = %q, want %q", got, "m")
-	}
-
-	clientBefore = s.Static.Clients[0].Message.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
-	vm.SetGString(qc.OFSParm1, "centered")
-	vm.Builtins[73](vm)
-	if s.Static.Clients[0].Message.Len() <= clientBefore {
-		t.Fatalf("centerprint builtin did not write to client message")
-	}
-	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCCenterPrint) {
-		t.Fatalf("centerprint opcode = %d, want %d", got, inet.SVCCenterPrint)
-	}
-	msg := s.Static.Clients[0].Message.Data[clientBefore+1 : s.Static.Clients[0].Message.Len()-1]
-	if got := string(msg); got != "centered" {
-		t.Fatalf("centerprint message = %q, want %q", got, "centered")
-	}
-
-	clientBefore = s.Static.Clients[0].Message.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
-	vm.SetGString(qc.OFSParm1, `line1\nline2`)
-	vm.Builtins[73](vm)
-	if got := s.Static.Clients[0].Message.Data[clientBefore]; got != byte(inet.SVCCenterPrint) {
-		t.Fatalf("escaped centerprint opcode = %d, want %d", got, inet.SVCCenterPrint)
-	}
-	msg = s.Static.Clients[0].Message.Data[clientBefore+1 : s.Static.Clients[0].Message.Len()-1]
-	if got := string(msg); got != "line1\nline2" {
-		t.Fatalf("escaped centerprint message = %q, want real newline payload", got)
-	}
-
-	clientBefore = s.Static.Clients[0].Message.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(e)))
-	vm.SetGString(qc.OFSParm1, "misc/menu1.wav")
-	vm.Builtins[80](vm)
-	if s.Static.Clients[0].Message.Len() <= clientBefore {
-		t.Fatalf("localsound builtin did not write to client message")
-	}
-
-	// Write* builtins: MSG_ONE should use msg_entity -> client message.
-	vm.SetGInt(qc.OFSMsgEntity, int32(s.NumForEdict(e)))
-	clientBefore = s.Static.Clients[0].Message.Len()
-	vm.SetGFloat(qc.OFSParm0, 1)
-	vm.SetGFloat(qc.OFSParm1, 42)
-	vm.Builtins[52](vm)
-	vm.Builtins[53](vm)
-	vm.Builtins[54](vm)
-	vm.Builtins[55](vm)
-	vm.SetGFloat(qc.OFSParm1, 12.5)
-	vm.Builtins[56](vm)
-	vm.Builtins[57](vm)
-	vm.SetGString(qc.OFSParm1, "hello")
-	vm.Builtins[58](vm)
-	vm.SetGInt(qc.OFSParm1, int32(s.NumForEdict(e)))
-	vm.Builtins[59](vm)
-	if s.Static.Clients[0].Message.Len() <= clientBefore {
-		t.Fatalf("Write* builtins did not write to MSG_ONE buffer")
-	}
-
-	// MSG_BROADCAST should use the datagram.
-	datagramBefore = s.Datagram.Len()
-	vm.SetGFloat(qc.OFSParm0, 0)
-	vm.SetGFloat(qc.OFSParm1, 7)
-	vm.Builtins[52](vm)
-	if s.Datagram.Len() <= datagramBefore {
-		t.Fatalf("WriteByte builtin did not write to MSG_BROADCAST datagram")
-	}
-
-	// MSG_ALL should use reliable client messages for every connected client.
-	client0Before := s.Static.Clients[0].Message.Len()
-	client1 := &Client{Active: true, Message: NewMessageBuffer(MaxDatagram)}
-	s.Static.Clients = append(s.Static.Clients, client1)
-	vm.SetGFloat(qc.OFSParm0, 2)
-	vm.SetGFloat(qc.OFSParm1, 9)
-	vm.Builtins[52](vm)
-	if s.Static.Clients[0].Message.Len() <= client0Before || client1.Message.Len() == 0 {
-		t.Fatalf("WriteByte builtin did not write to MSG_ALL reliable buffers")
-	}
-
-	// MSG_INIT should use the signon buffer, not client reliable messages.
-	s.Signon = NewMessageBuffer(SignonSize)
-	signonBefore := s.Signon.Len()
-	client0Before = s.Static.Clients[0].Message.Len()
-	vm.SetGFloat(qc.OFSParm0, 3)
-	vm.SetGFloat(qc.OFSParm1, 11)
-	vm.Builtins[52](vm)
-	if s.Signon.Len() <= signonBefore {
-		t.Fatalf("WriteByte builtin did not write to MSG_INIT signon")
-	}
-	if s.Static.Clients[0].Message.Len() != client0Before {
-		t.Fatalf("MSG_INIT unexpectedly wrote to client reliable buffer")
-	}
-}
-
-func TestServerHooksCheckClientAimAndSetSpawnParms(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-	s.Datagram = NewMessageBuffer(MaxDatagram)
-	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
-	}
-	s.ClearWorld()
-
-	self := s.AllocEdict()
-	target := s.AllocEdict()
-	self.Vars.Origin = [3]float32{0, 0, 0}
-	self.Vars.ViewOfs = [3]float32{0, 0, 16}
-	target.Vars.Health = 100
-	target.Vars.Origin = [3]float32{0, 100, 64}
-	target.Vars.Mins = [3]float32{-16, -16, -24}
-	target.Vars.Maxs = [3]float32{16, 16, 32}
-	target.Vars.Solid = float32(SolidSlideBox)
-	target.Vars.TakeDamage = float32(DamageAim)
-	s.LinkEdict(self, false)
-	s.LinkEdict(target, false)
-
-	s.Static = &ServerStatic{Clients: []*Client{
-		{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
-		{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
-	}}
-	s.Static.Clients[1].SpawnParms[0] = 10
-	s.Static.Clients[1].SpawnParms[1] = 20
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-	vm.SetGVector(qc.OFSGlobalVForward, [3]float32{0, 1, 0})
-	syncEdictToQCVM(vm, s.NumForEdict(self), self)
-	syncEdictToQCVM(vm, s.NumForEdict(target), target)
-
-	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
-	if fn := vm.Builtins[17]; fn == nil {
-		t.Fatal("checkclient builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
-		t.Fatalf("checkclient = %d, want %d", got, s.NumForEdict(target))
-	}
-
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
-	vm.SetGFloat(qc.OFSParm1, 0)
-	if fn := vm.Builtins[44]; fn == nil {
-		t.Fatal("aim builtin not registered")
-	} else {
-		fn(vm)
-	}
-	aim := vm.GVector(qc.OFSReturn)
-	if aim[1] <= 0.8 {
-		t.Fatalf("aim vector = %v, want mostly +Y", aim)
-	}
-
-	cvar.Set("sv_aim", "0.99")
-	cvar.Set("teamplay", "0")
-	t.Cleanup(func() {
-		cvar.Set("sv_aim", "0.93")
-		cvar.Set("teamplay", "0")
-	})
-	target.Vars.Origin = [3]float32{40, 100, 64}
-	s.LinkEdict(target, false)
-	syncEdictToQCVM(vm, s.NumForEdict(target), target)
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
-	vm.SetGFloat(qc.OFSParm1, 0)
-	vm.Builtins[44](vm)
-	aim = vm.GVector(qc.OFSReturn)
-	if aim != [3]float32{0, 1, 0} {
-		t.Fatalf("high sv_aim should keep forward aim, got %v", aim)
-	}
-
-	cvar.Set("sv_aim", "0.5")
-	cvar.Set("teamplay", "1")
-	teammate := s.AllocEdict()
-	teammate.Vars.Health = 100
-	teammate.Vars.Origin = [3]float32{10, 100, 24}
-	teammate.Vars.Mins = [3]float32{-16, -16, -24}
-	teammate.Vars.Maxs = [3]float32{16, 16, 32}
-	teammate.Vars.Solid = float32(SolidSlideBox)
-	teammate.Vars.TakeDamage = float32(DamageAim)
-	teammate.Vars.Team = 1
-	self.Vars.Team = 1
-	target.Vars.Team = 2
-	s.LinkEdict(teammate, false)
-	s.LinkEdict(target, false)
-	vm.NumEdicts = s.NumEdicts
-	syncEdictToQCVM(vm, s.NumForEdict(teammate), teammate)
-	syncEdictToQCVM(vm, s.NumForEdict(target), target)
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(self)))
-	vm.SetGFloat(qc.OFSParm1, 0)
-	vm.Builtins[44](vm)
-	aim = vm.GVector(qc.OFSReturn)
-	if aim[1] <= 0.8 || aim[2] <= 0 {
-		t.Fatalf("teamplay/sv_aim filtered aim = %v, want elevated enemy aim", aim)
-	}
-
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(target)))
-	if fn := vm.Builtins[78]; fn == nil {
-		t.Fatal("setspawnparms builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := vm.GFloat(qc.OFSParmStart); got != 10 {
-		t.Fatalf("parm1 = %v, want 10", got)
-	}
-	if got := vm.GFloat(qc.OFSParmStart + 1); got != 20 {
-		t.Fatalf("parm2 = %v, want 20", got)
-	}
-}
-
-func TestServerHooksCheckClientRespectsPVS(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-	s.Datagram = NewMessageBuffer(MaxDatagram)
-
-	self := s.AllocEdict()
-	target := s.AllocEdict()
-	self.Vars.Origin = [3]float32{-64, 0, 0}
-	self.Vars.ViewOfs = [3]float32{}
-	target.Vars.Origin = [3]float32{64, 0, 0}
-	target.Vars.ViewOfs = [3]float32{}
-	target.Vars.Health = 100
-
-	s.Static = &ServerStatic{
-		MaxClients: 2,
-		Clients: []*Client{
-			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
-			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
-		},
-	}
-	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
-		Nodes: []bsp.TreeNode{{
-			PlaneNum: 0,
-			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
-		}},
-		Leafs: []bsp.TreeLeaf{
-			{Contents: bsp.ContentsSolid, VisOfs: -1},
-			{Contents: 0, VisOfs: 0},
-			{Contents: 0, VisOfs: 1},
-		},
-		Visibility: []byte{0x01, 0x02},
-		Models:     []bsp.DModel{{VisLeafs: 2}},
-	}
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-	syncEdictToQCVM(vm, s.NumForEdict(self), self)
-	syncEdictToQCVM(vm, s.NumForEdict(target), target)
-
-	s.Time = 0.2
-	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
-	if fn := vm.Builtins[17]; fn == nil {
-		t.Fatal("checkclient builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GInt(qc.OFSReturn)); got != 0 {
-		t.Fatalf("checkclient with self outside target PVS = %d, want 0", got)
-	}
-
-	self.Vars.Origin = [3]float32{64, 0, 0}
-	syncEdictToQCVM(vm, s.NumForEdict(self), self)
-	s.Time = 0.25
-	if fn := vm.Builtins[17]; fn == nil {
-		t.Fatal("checkclient builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
-		t.Fatalf("checkclient with self inside target PVS = %d, want %d", got, s.NumForEdict(target))
-	}
-}
-
-func TestServerHooksCheckClientUsesVisLeafNumbering(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-	s.Datagram = NewMessageBuffer(MaxDatagram)
-
-	self := s.AllocEdict()
-	target := s.AllocEdict()
-	self.Vars.ViewOfs = [3]float32{}
-	target.Vars.ViewOfs = [3]float32{}
-	target.Vars.Health = 100
-
-	s.Static = &ServerStatic{
-		MaxClients: 2,
-		Clients: []*Client{
-			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
-			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
-		},
-	}
-	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
-		Nodes: []bsp.TreeNode{{
-			PlaneNum: 0,
-			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 0}},
-		}},
-		Leafs:      []bsp.TreeLeaf{{Contents: bsp.ContentsSolid, VisOfs: -1}, {Contents: 0, VisOfs: 0}},
-		Visibility: []byte{0x01},
-		Models:     []bsp.DModel{{VisLeafs: 1}},
-	}
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-	syncEdictToQCVM(vm, s.NumForEdict(self), self)
-	syncEdictToQCVM(vm, s.NumForEdict(target), target)
-
-	// Both entities resolve to BSP leaf index 1, which must map to visleaf 0.
-	self.Vars.Origin = [3]float32{1, 0, 0}
-	target.Vars.Origin = [3]float32{1, 0, 0}
-
-	s.Time = 0.2
-	vm.SetGInt(qc.OFSSelf, int32(s.NumForEdict(self)))
-	if fn := vm.Builtins[17]; fn == nil {
-		t.Fatal("checkclient builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GInt(qc.OFSReturn)); got != s.NumForEdict(target) {
-		t.Fatalf("checkclient = %d, want %d (visleaf 0 should be visible)", got, s.NumForEdict(target))
-	}
-}
-
-func TestServerHooksCheckClientImportsPendingQCState(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-	s.Datagram = NewMessageBuffer(MaxDatagram)
-
-	self := s.AllocEdict()
-	target := s.AllocEdict()
-	self.Vars.Origin = [3]float32{-64, 0, 0}
-	self.Vars.ViewOfs = [3]float32{}
-	target.Vars.Origin = [3]float32{64, 0, 0}
-	target.Vars.ViewOfs = [3]float32{}
-	target.Vars.Health = 100
-
-	s.Static = &ServerStatic{
-		MaxClients: 2,
-		Clients: []*Client{
-			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: self},
-			{Active: true, Message: NewMessageBuffer(MaxDatagram), Edict: target},
-		},
-	}
-	s.WorldTree = &bsp.Tree{
-		Planes: []bsp.DPlane{{Normal: [3]float32{1, 0, 0}, Dist: 0, Type: 0}},
-		Nodes: []bsp.TreeNode{{
-			PlaneNum: 0,
-			Children: [2]bsp.TreeChild{{IsLeaf: true, Index: 1}, {IsLeaf: true, Index: 2}},
-		}},
-		Leafs: []bsp.TreeLeaf{
-			{Contents: bsp.ContentsSolid, VisOfs: -1},
-			{Contents: 0, VisOfs: 0},
-			{Contents: 0, VisOfs: 1},
-		},
-		Visibility: []byte{0x01, 0x02},
-		Models:     []bsp.DModel{{VisLeafs: 2}},
-	}
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-
-	selfNum := s.NumForEdict(self)
-	targetNum := s.NumForEdict(target)
-	syncEdictToQCVM(vm, selfNum, self)
-	syncEdictToQCVM(vm, targetNum, target)
-	vm.SetEVector(selfNum, qc.EntFieldOrigin, [3]float32{64, 0, 0})
-
-	s.Time = 0.2
-	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	if fn := vm.Builtins[17]; fn == nil {
-		t.Fatal("checkclient builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := int(vm.GInt(qc.OFSReturn)); got != targetNum {
-		t.Fatalf("checkclient with QC-only self origin = %d, want %d", got, targetNum)
-	}
-	if got := self.Vars.Origin; got != [3]float32{64, 0, 0} {
-		t.Fatalf("server self origin not synchronized from QC state: got %v", got)
-	}
-}
-
-func TestServerHooksMakeStaticAndAmbientSound(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-	s.Datagram = NewMessageBuffer(MaxDatagram)
-	clientMsg := NewMessageBuffer(MaxDatagram)
-	world := s.EdictNum(0)
-	if world == nil {
-		t.Fatal("missing world edict")
-	}
-	s.Static = &ServerStatic{Clients: []*Client{{Active: true, Message: clientMsg, Edict: world}}}
-	s.SoundPrecache = make([]string, MaxSounds)
-	s.SoundPrecache[1] = "ambience/drip.wav"
-
-	ent := s.AllocEdict()
-	ent.Vars.Origin = [3]float32{1, 2, 3}
-	ent.Vars.Angles = [3]float32{0, 90, 0}
-	ent.Vars.ModelIndex = 7
-	ent.Vars.Frame = 2
-	ent.Vars.Colormap = 3
-	ent.Vars.Skin = 4
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-
-	before := clientMsg.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(ent)))
-	if fn := vm.Builtins[69]; fn == nil {
-		t.Fatal("makestatic builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := len(s.StaticEntities); got != 1 {
-		t.Fatalf("static entities len = %d, want 1", got)
-	}
-	if !ent.Free {
-		t.Fatalf("entity not freed after makestatic")
-	}
-	if clientMsg.Len() <= before {
-		t.Fatalf("makestatic did not write to client message")
-	}
-
-	invisible := s.AllocEdict()
-	invisible.Alpha = inet.ENTALPHA_ZERO
-	vm.NumEdicts = s.NumEdicts
-	before = clientMsg.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(invisible)))
-	vm.Builtins[69](vm)
-	if got := len(s.StaticEntities); got != 1 {
-		t.Fatalf("invisible makestatic changed static entity count to %d, want 1", got)
-	}
-	if clientMsg.Len() != before {
-		t.Fatalf("invisible makestatic wrote unexpected client message")
-	}
-
-	s.Protocol = ProtocolNetQuake
-	unsupported := s.AllocEdict()
-	unsupported.Vars.ModelIndex = 300
-	unsupported.Vars.Frame = 2
-	vm.NumEdicts = s.NumEdicts
-	before = clientMsg.Len()
-	vm.SetGInt(qc.OFSParm0, int32(s.NumForEdict(unsupported)))
-	vm.Builtins[69](vm)
-	if got := len(s.StaticEntities); got != 1 {
-		t.Fatalf("unsupported netquake makestatic changed static entity count to %d, want 1", got)
-	}
-	if clientMsg.Len() != before {
-		t.Fatalf("unsupported netquake makestatic wrote unexpected client message")
-	}
-
-	before = clientMsg.Len()
-	vm.SetGVector(qc.OFSParm0, [3]float32{4, 5, 6})
-	vm.SetGString(qc.OFSParm1, "ambience/drip.wav")
-	vm.SetGFloat(qc.OFSParm2, 255)
-	vm.SetGFloat(qc.OFSParm3, 1)
-	if fn := vm.Builtins[74]; fn == nil {
-		t.Fatal("ambientsound builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := len(s.StaticSounds); got != 1 {
-		t.Fatalf("static sounds len = %d, want 1", got)
-	}
-	if clientMsg.Len() <= before {
-		t.Fatalf("ambientsound did not write to client message")
-	}
-
-	newClient := &Client{Edict: world, Message: NewMessageBuffer(MaxDatagram)}
-	s.SendServerInfo(newClient)
-	// Static entities and sounds are now in signon buffers (populated during
-	// SpawnServer). Build them here to simulate the full flow.
-	if err := s.buildSignonBuffers(); err != nil {
-		t.Fatalf("buildSignonBuffers: %v", err)
-	}
-	s.SendSignonBuffers(newClient)
-	if newClient.Message.Len() == 0 {
-		t.Fatalf("SendServerInfo did not produce signon message")
-	}
-	data := newClient.Message.Data[:newClient.Message.Len()]
-	foundStatic := false
-	foundAmbient := false
-	for _, b := range data {
-		if b == byte(inet.SVCSpawnStatic) || b == byte(inet.SVCSpawnStatic2) {
-			foundStatic = true
-		}
-		if b == byte(inet.SVCSpawnStaticSound) || b == byte(inet.SVCSpawnStaticSound2) {
-			foundAmbient = true
-		}
-	}
-	if !foundStatic {
-		t.Fatalf("SendServerInfo missing spawnstatic message")
-	}
-	if !foundAmbient {
-		t.Fatalf("SendServerInfo missing spawnstaticsound message")
-	}
-}
-
-func writeTestSprite(t *testing.T, path string, width, height int32) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir sprite dir: %v", err)
-	}
-	var buf bytes.Buffer
-	write := func(v any) {
-		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
-			t.Fatalf("write sprite data: %v", err)
-		}
-	}
-	write(int32(0x50534449))
-	write(int32(1))
-	write(int32(0))
-	write(float32(0))
-	write(width)
-	write(height)
-	write(int32(1))
-	write(float32(0))
-	write(int32(0))
-	write(int32(0))
-	write(int32(0))
-	write(int32(0))
-	write(width)
-	write(height)
-	pixels := make([]byte, int(width*height))
-	if _, err := buf.Write(pixels); err != nil {
-		t.Fatalf("write sprite pixels: %v", err)
-	}
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
-		t.Fatalf("write sprite file: %v", err)
-	}
-}
-
-func writeTestAliasModel(t *testing.T, path string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir alias dir: %v", err)
-	}
-	var buf bytes.Buffer
-	write := func(v any) {
-		if err := binary.Write(&buf, binary.LittleEndian, v); err != nil {
-			t.Fatalf("write alias data: %v", err)
-		}
-	}
-	write(model.MDLHeader{
-		Ident:       model.MDLIdent,
-		Version:     model.MDLVersion,
-		Scale:       [3]float32{2, 3, 4},
-		ScaleOrigin: [3]float32{-1, -2, -3},
-		NumSkins:    1,
-		SkinWidth:   1,
-		SkinHeight:  1,
-		NumVerts:    3,
-		NumTris:     1,
-		NumFrames:   1,
-	})
-	write(model.DAliasSkinType{Type: int32(model.AliasSkinSingle)})
-	if err := buf.WriteByte(7); err != nil {
-		t.Fatalf("write alias skin: %v", err)
-	}
-	write([3]model.STVert{})
-	write(model.DTriangle{FacesFront: model.MDLFacesFront, VertIndex: [3]int32{0, 1, 2}})
-	write(model.DAliasFrameType{Type: int32(model.AliasSingle)})
-	write(model.DAliasFrame{})
-	write([3]model.TriVertX{{V: [3]byte{0, 0, 0}}, {V: [3]byte{2, 0, 0}}, {V: [3]byte{0, 3, 1}}})
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
-		t.Fatalf("write alias file: %v", err)
-	}
-}
-
-func TestServerHooksPrecacheValidationAndSetModelNonBrushBounds(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-
-	vm := newServerTestVM(s, 8)
-	qc.RegisterBuiltins(vm)
-	ent := s.AllocEdict()
-	vm.NumEdicts = s.NumEdicts
-	entNum := s.NumForEdict(ent)
-
-	vm.SetGString(qc.OFSParm0, "")
-	vm.Builtins[19](vm)
-	if vm.BuiltinError == nil {
-		t.Fatal("precache_sound empty string did not raise runtime error")
-	}
-	vm.BuiltinError = nil
-
-	s.State = ServerStateActive
-	vm.SetGString(qc.OFSParm0, "misc/menu1.wav")
-	vm.Builtins[19](vm)
-	if vm.BuiltinError == nil {
-		t.Fatal("precache_sound outside spawn did not raise runtime error")
-	}
-	vm.BuiltinError = nil
-
-	tmpDir := t.TempDir()
-	writeTestSprite(t, filepath.Join(tmpDir, "id1", "progs", "test.spr"), 8, 6)
-	writeTestAliasModel(t, filepath.Join(tmpDir, "id1", "progs", "test.mdl"))
-	fileSys := fs.NewFileSystem()
-	if err := fileSys.Init(tmpDir, "id1"); err != nil {
-		t.Fatalf("init filesystem: %v", err)
-	}
-	defer fileSys.Close()
-
-	s.FileSystem = fileSys
-	s.State = ServerStateLoading
-	vm.SetGString(qc.OFSParm0, "progs/test.spr")
-	vm.Builtins[20](vm)
-	if vm.BuiltinError != nil {
-		t.Fatalf("precache_model runtime error = %v", vm.BuiltinError)
-	}
-	if got := s.FindModel("progs/test.spr"); got == 0 {
-		t.Fatal("precache_model did not register sprite model")
-	}
-
-	vm.SetGInt(qc.OFSParm0, int32(entNum))
-	vm.SetGString(qc.OFSParm1, "progs/test.spr")
-	vm.Builtins[3](vm)
-	if got := vm.EVector(entNum, qc.EntFieldMins); got != [3]float32{-4, -4, -3} {
-		t.Fatalf("sprite mins = %v", got)
-	}
-	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{4, 4, 3} {
-		t.Fatalf("sprite maxs = %v", got)
-	}
-
-	s.ModelPrecache = make([]string, MaxModels)
-	s.ModelPrecache[1] = "progs/test.mdl"
-	vm.SetGInt(qc.OFSParm0, int32(entNum))
-	vm.SetGString(qc.OFSParm1, "progs/test.mdl")
-	vm.Builtins[3](vm)
-	if vm.BuiltinError != nil {
-		t.Fatalf("setmodel alias runtime error = %v", vm.BuiltinError)
-	}
-	if got := vm.EVector(entNum, qc.EntFieldMins); got != [3]float32{-1, -2, -3} {
-		t.Fatalf("alias mins = %v", got)
-	}
-	if got := vm.EVector(entNum, qc.EntFieldMaxs); got != [3]float32{3, 7, 1} {
-		t.Fatalf("alias maxs = %v", got)
-	}
-
-	s.SoundPrecache = make([]string, MaxSounds)
-	for i := 1; i < len(s.SoundPrecache); i++ {
-		s.SoundPrecache[i] = "filled"
-	}
-	vm.SetGString(qc.OFSParm0, "misc/overflow.wav")
-	vm.Builtins[19](vm)
-	if vm.BuiltinError == nil {
-		t.Fatal("precache_sound overflow did not raise runtime error")
-	}
-}
-
-func TestServerHooksMoveToGoalImportsPendingSelfState(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-
-	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
-	}
-	s.ClearWorld()
-
-	self := s.AllocEdict()
-	goal := s.AllocEdict()
-	self.Vars.Origin = [3]float32{0, 0, 16}
-	self.Vars.Mins = [3]float32{-1, -1, 0}
-	self.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.Solid = float32(SolidBSP)
-	self.Vars.Flags = 0
-	self.Vars.IdealYaw = 0
-	self.Vars.YawSpeed = 360
-	goal.Vars.Origin = [3]float32{64, 0, 16}
-	goal.Vars.Mins = [3]float32{-1, -1, 0}
-	goal.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
-
-	s.LinkEdict(self, false)
-	s.LinkEdict(goal, false)
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-
-	selfNum := s.NumForEdict(self)
-	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	syncEdictToQCVM(vm, selfNum, self)
-	syncEdictToQCVM(vm, s.NumForEdict(goal), goal)
-
-	vm.SetEFloat(selfNum, qc.EntFieldFlags, float32(FlagOnGround))
-	vm.SetGFloat(qc.OFSParm0, 16)
-	if fn := vm.Builtins[67]; fn == nil {
-		t.Fatal("movetogoal builtin not registered")
-	} else {
-		fn(vm)
-	}
-	if got := self.Vars.Origin[0]; got <= 0 {
-		t.Fatalf("movetogoal did not use QC-only movement flags: origin=%v", self.Vars.Origin)
-	}
-	if got := vm.EVector(selfNum, qc.EntFieldOrigin); got != self.Vars.Origin {
-		t.Fatalf("vm origin not synchronized after movetogoal: got=%v want=%v", got, self.Vars.Origin)
-	}
-}
-
-func TestServerHooksMoveToGoalImportsPendingQCGoalEdict(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-
-	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
-	}
-	s.ClearWorld()
-
-	self := s.AllocEdict()
-	goal := s.AllocEdict()
-	self.Vars.Origin = [3]float32{0, 0, 16}
-	self.Vars.Mins = [3]float32{-1, -1, 0}
-	self.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.Solid = float32(SolidBSP)
-	self.Vars.Flags = float32(FlagOnGround)
-	self.Vars.IdealYaw = 0
-	self.Vars.YawSpeed = 360
-	goal.Vars.Origin = [3]float32{-64, 0, 16}
-	goal.Vars.Mins = [3]float32{-1, -1, 0}
-	goal.Vars.Maxs = [3]float32{1, 1, 56}
-	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
-
-	s.LinkEdict(self, false)
-	s.LinkEdict(goal, false)
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-
-	selfNum := s.NumForEdict(self)
-	goalNum := s.NumForEdict(goal)
-	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	syncEdictToQCVM(vm, selfNum, self)
-	syncEdictToQCVM(vm, goalNum, goal)
-	vm.SetEVector(goalNum, qc.EntFieldOrigin, [3]float32{64, 0, 16})
-
-	if fn := vm.Builtins[67]; fn == nil {
-		t.Fatal("movetogoal builtin not registered")
-	} else {
-		fn(vm)
-	}
-
-	if got := goal.Vars.Origin; got != [3]float32{64, 0, 16} {
-		t.Fatalf("movetogoal did not import QC-only goal edict origin: %v", got)
-	}
-}
-
-func TestServerHooksChangeYawImportsPendingQCState(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-
-	vm := newServerTestVM(s, 16)
-	qc.RegisterBuiltins(vm)
-
-	ent := s.AllocEdict()
-	if ent == nil {
-		t.Fatal("AllocEdict returned nil")
-	}
-	entNum := s.NumForEdict(ent)
-	vm.NumEdicts = s.NumEdicts
-
-	ent.Vars.Angles[1] = 10
-	ent.Vars.IdealYaw = 20
-	ent.Vars.YawSpeed = 1
-	syncEdictToQCVM(vm, entNum, ent)
-
-	vm.SetGInt(qc.OFSSelf, int32(entNum))
-	vm.SetEVector(entNum, qc.EntFieldAngles, [3]float32{0, 10, 0})
-	vm.SetEFloat(entNum, qc.EntFieldIdealYaw, 350)
-	vm.SetEFloat(entNum, qc.EntFieldYawSpeed, 15)
-	if fn := vm.Builtins[49]; fn == nil {
-		t.Fatal("changeyaw builtin not registered")
-	} else {
-		fn(vm)
-	}
-	// anglemod uses 16-bit quantization matching C, so 355 becomes ~355.00122
-	if got := ent.Vars.Angles[1]; got < 354.99 || got > 355.01 {
-		t.Fatalf("changeyaw yaw = %v, want ~355", got)
-	}
-	if got := vm.EVector(entNum, qc.EntFieldAngles); got[1] < 354.99 || got[1] > 355.01 {
-		t.Fatalf("vm yaw not synchronized after changeyaw: got=%v", got[1])
-	}
-}
-
-func TestServerHooksMoveToGoalRestoresQCContextAfterNestedTouch(t *testing.T) {
-	s := NewServer()
-	defer qc.RegisterServerHooks(nil)
-
-	s.WorldModel = CreateSyntheticWorldModel()
-	if world := s.EdictNum(0); world != nil && world.Vars != nil {
-		world.Vars.Solid = float32(SolidBSP)
-	}
-	s.ClearWorld()
-
-	vm := newServerTestVM(s, 16)
-	vm.NumEdicts = s.NumEdicts
-	qc.RegisterBuiltins(vm)
-	vm.GlobalDefs = []qc.DDef{
-		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSSelf), Name: vm.AllocString("self")},
-		{Type: uint16(qc.EvEntity), Ofs: uint16(qc.OFSOther), Name: vm.AllocString("other")},
-		{Type: uint16(qc.EvFloat), Ofs: uint16(qc.OFSTime), Name: vm.AllocString("time")},
-	}
-	vm.Functions = []qc.DFunction{
-		{},
-		{Name: vm.AllocString("touch_callback"), FirstStatement: 0},
-		{Name: vm.AllocString("outer_qc_func"), FirstStatement: 1},
-	}
-	vm.Statements = []qc.DStatement{
-		{Op: uint16(qc.OPDone)},
-		{Op: uint16(qc.OPDone)},
-	}
-
-	self := s.AllocEdict()
-	goal := s.AllocEdict()
-	trigger := s.AllocEdict()
-	if self == nil || goal == nil || trigger == nil {
-		t.Fatal("failed to allocate edicts")
-	}
-	vm.NumEdicts = s.NumEdicts
-
-	selfNum := s.NumForEdict(self)
-	self.Vars.Origin = [3]float32{0, 0, 24}
-	self.Vars.Mins = [3]float32{-16, -16, -24}
-	self.Vars.Maxs = [3]float32{16, 16, 32}
-	self.Vars.Solid = float32(SolidSlideBox)
-	self.Vars.Flags = float32(FlagOnGround)
-	self.Vars.IdealYaw = 0
-	self.Vars.YawSpeed = 360
-
-	goal.Vars.Origin = [3]float32{64, 0, 24}
-	goal.Vars.Mins = [3]float32{-16, -16, -24}
-	goal.Vars.Maxs = [3]float32{16, 16, 32}
-	self.Vars.GoalEntity = int32(s.NumForEdict(goal))
-
-	trigger.Vars.Origin = [3]float32{24, 0, 24}
-	trigger.Vars.Mins = [3]float32{-16, -16, -24}
-	trigger.Vars.Maxs = [3]float32{16, 16, 32}
-	trigger.Vars.Solid = float32(SolidTrigger)
-	trigger.Vars.Touch = 1
-
-	s.LinkEdict(self, false)
-	s.LinkEdict(goal, false)
-	s.LinkEdict(trigger, false)
-	syncEdictToQCVM(vm, selfNum, self)
-	syncEdictToQCVM(vm, s.NumForEdict(goal), goal)
-	syncEdictToQCVM(vm, s.NumForEdict(trigger), trigger)
-
-	vm.SetGInt(qc.OFSSelf, int32(selfNum))
-	vm.SetGInt(qc.OFSOther, 77)
-	vm.XFunction = &vm.Functions[2]
-	vm.XFunctionIndex = 2
-	vm.SetGFloat(qc.OFSParm0, 24)
-	if fn := vm.Builtins[67]; fn == nil {
-		t.Fatal("movetogoal builtin not registered")
-	} else {
-		fn(vm)
-	}
-
-	if got := vm.GInt(qc.OFSSelf); got != int32(selfNum) {
-		t.Fatalf("self after nested movetogoal = %d, want %d", got, selfNum)
-	}
-	if got := vm.GInt(qc.OFSOther); got != 77 {
-		t.Fatalf("other after nested movetogoal = %d, want 77", got)
 	}
 	if vm.XFunction != &vm.Functions[2] || vm.XFunctionIndex != 2 {
 		t.Fatalf("qc context not restored: xfunction=%p idx=%d", vm.XFunction, vm.XFunctionIndex)

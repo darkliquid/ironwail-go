@@ -9,7 +9,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/console"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
 
@@ -39,7 +38,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	if subs.Server.GetMaxClients() != 1 {
 		return
 	}
-	if !cvar.BoolValue("sv_autosave") {
+	if !h.CVar.BoolValue("sv_autosave") {
 		return
 	}
 	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
@@ -53,7 +52,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 		return
 	}
 
-	intervalSeconds := cvar.FloatValue("sv_autosave_interval")
+	intervalSeconds := h.CVar.FloatValue("sv_autosave_interval")
 	if intervalSeconds <= 0 {
 		return
 	}

@@ -531,23 +531,25 @@ func (p overlayTestPics) GetPic(name string) *qimage.QPic {
 // registerConsoleCanvasTestCvars registers all cvars needed by canvas tests.
 // ---------------------------------------------------------------------------
 
-func registerConsoleCanvasTestCvars() {
-	cvar.Register("vid_width", "1280", cvar.FlagArchive, "test vid width")
-	cvar.Register("vid_height", "720", cvar.FlagArchive, "test vid height")
-	cvar.Register("scr_conwidth", "0", cvar.FlagArchive, "test console width")
-	cvar.Register("scr_conscale", "1", cvar.FlagArchive, "test console scale")
-	cvar.Register("scr_menuscale", "1", cvar.FlagArchive, "test menu scale")
-	cvar.Register("scr_sbarscale", "1", cvar.FlagArchive, "test sbar scale")
-	cvar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "test crosshair scale")
-	cvar.Register("scr_pixelaspect", "1", cvar.FlagArchive, "test pixel aspect")
-	cvar.Register("scr_conspeed", "300", cvar.FlagArchive, "test console slide speed")
+func registerConsoleCanvasTestCvars(g *Game) {
+	cv := g.Host.CVar
+	cv.Register("vid_width", "1280", cvar.FlagArchive, "test vid width")
+	cv.Register("vid_height", "720", cvar.FlagArchive, "test vid height")
+	cv.Register("scr_conwidth", "0", cvar.FlagArchive, "test console width")
+	cv.Register("scr_conscale", "1", cvar.FlagArchive, "test console scale")
+	cv.Register("scr_menuscale", "1", cvar.FlagArchive, "test menu scale")
+	cv.Register("scr_sbarscale", "1", cvar.FlagArchive, "test sbar scale")
+	cv.Register("scr_crosshairscale", "1", cvar.FlagArchive, "test crosshair scale")
+	cv.Register("scr_pixelaspect", "1", cvar.FlagArchive, "test pixel aspect")
+	cv.Register("scr_conspeed", "300", cvar.FlagArchive, "test console slide speed")
 }
 
 // ---------------------------------------------------------------------------
 // ensureViewCalcCvars registers cvars needed by viewcalc functions.
 // ---------------------------------------------------------------------------
 
-func ensureViewCalcCvars() {
+func ensureViewCalcCvars(g *Game) {
+	cv := g.Host.CVar
 	defaults := map[string]string{
 		"cl_bob":            "0.02",
 		"cl_bobcycle":       "0.6",
@@ -562,13 +564,16 @@ func ensureViewCalcCvars() {
 		"v_iroll_level":     "0.1",
 		"v_ipitch_level":    "0.3",
 		"r_viewmodel_quake": "0",
+		"r_drawentities":    "1",
+		"r_drawviewmodel":   "1",
+		"chase_active":      "0",
 		"scr_viewsize":      "100",
 	}
 	for name, def := range defaults {
-		if cvar.Get(name) == nil {
-			cvar.Register(name, def, 0, "")
+		if cv.Get(name) == nil {
+			cv.Register(name, def, 0, "")
 		} else {
-			cvar.Set(name, def)
+			cv.Set(name, def)
 		}
 	}
 }

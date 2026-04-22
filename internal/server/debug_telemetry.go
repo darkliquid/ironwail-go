@@ -37,14 +37,14 @@ var (
 // RegisterDebugTelemetryCVars registers the server-side debug telemetry control
 // surface. The cvars live with host initialization so later instrumentation can
 // safely assume these names exist before a server starts running.
-func RegisterDebugTelemetryCVars() {
-	debugTelemetryEnableCVar = cvar.Register(debugTelemetryEnableCVarName, "0", cvar.FlagNone, "Enable server debug telemetry")
-	debugTelemetryEventsCVar = cvar.Register(debugTelemetryEventsCVarName, "all", cvar.FlagNone, "Telemetry event mask (all, none, numeric mask, or comma-separated names)")
-	debugTelemetryClassnameCVar = cvar.Register(debugTelemetryClassnameCVarName, "", cvar.FlagNone, "Optional classname filter (supports glob patterns like trigger_*)")
-	debugTelemetryEntNumCVar = cvar.Register(debugTelemetryEntNumCVarName, "-1", cvar.FlagNone, "Optional entity number filter (-1=all, or comma/range list like 1,4-6)")
-	debugTelemetrySummaryCVar = cvar.Register(debugTelemetrySummaryCVarName, "1", cvar.FlagNone, "Per-frame summary mode (0=off, 1=frames with events, 2=all frames)")
-	debugTelemetryQCTraceCVar = cvar.Register(debugTelemetryQCTraceCVarName, "0", cvar.FlagNone, "Enable QuakeC debug trace output")
-	debugTelemetryQCVerbosityCVar = cvar.Register(debugTelemetryQCVerbosityCVarName, "1", cvar.FlagNone, "QuakeC trace verbosity ceiling")
+func RegisterDebugTelemetryCVars(cv *cvar.CVarSystem) {
+	debugTelemetryEnableCVar = cv.Register(debugTelemetryEnableCVarName, "0", cvar.FlagNone, "Enable server debug telemetry")
+	debugTelemetryEventsCVar = cv.Register(debugTelemetryEventsCVarName, "all", cvar.FlagNone, "Telemetry event mask (all, none, numeric mask, or comma-separated names)")
+	debugTelemetryClassnameCVar = cv.Register(debugTelemetryClassnameCVarName, "", cvar.FlagNone, "Optional classname filter (supports glob patterns like trigger_*)")
+	debugTelemetryEntNumCVar = cv.Register(debugTelemetryEntNumCVarName, "-1", cvar.FlagNone, "Optional entity number filter (-1=all, or comma/range list like 1,4-6)")
+	debugTelemetrySummaryCVar = cv.Register(debugTelemetrySummaryCVarName, "1", cvar.FlagNone, "Per-frame summary mode (0=off, 1=frames with events, 2=all frames)")
+	debugTelemetryQCTraceCVar = cv.Register(debugTelemetryQCTraceCVarName, "0", cvar.FlagNone, "Enable QuakeC debug trace output")
+	debugTelemetryQCVerbosityCVar = cv.Register(debugTelemetryQCVerbosityCVarName, "1", cvar.FlagNone, "QuakeC trace verbosity ceiling")
 }
 
 type DebugEventKind string

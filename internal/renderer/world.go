@@ -6,7 +6,6 @@ import (
 	"unsafe"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/gogpu/gputypes"
@@ -333,7 +332,10 @@ func worldFaceHasLitWater(textureFlags int32, lightmapSurface *faceLightmapSurfa
 }
 
 func worldLitWaterCvarEnabled() bool {
-	cv := cvar.Get(CvarRLitWater)
+	if pkgCVars == nil {
+		return true
+	}
+	cv := pkgCVars.Get(CvarRLitWater)
 	if cv == nil {
 		return true
 	}

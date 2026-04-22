@@ -214,7 +214,7 @@ func (s *Server) runClientQCFunction(client *Client, functionName string, includ
 
 	// Sync QCVM state and prepare for function call
 	s.syncQCVMState()
-	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
+	s.syncEdictToQCVM(entNum, client.Edict)
 
 	// Set up global variables for PutClientInServer
 	s.QCVM.Time = float64(s.Time)
@@ -233,7 +233,7 @@ func (s *Server) runClientQCFunction(client *Client, functionName string, includ
 		return fmt.Errorf("%s execution failed: %w", functionName, err)
 	}
 
-	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
+	s.syncEdictFromQCVM(entNum, client.Edict)
 
 	return nil
 }
@@ -273,7 +273,7 @@ func (s *Server) runClientParseClientCommandQC(client *Client, cmd string) error
 	}
 
 	s.syncQCVMState()
-	syncEdictToQCVM(s.QCVM, entNum, client.Edict)
+	s.syncEdictToQCVM(entNum, client.Edict)
 	s.QCVM.Time = float64(s.Time)
 	s.QCVM.SetGlobal("time", s.Time)
 	s.QCVM.SetGlobal("self", entNum)
@@ -283,7 +283,7 @@ func (s *Server) runClientParseClientCommandQC(client *Client, cmd string) error
 	if err := s.executeQCFunction(funcNum); err != nil {
 		return fmt.Errorf("SV_ParseClientCommand execution failed: %w", err)
 	}
-	syncEdictFromQCVM(s.QCVM, entNum, client.Edict)
+	s.syncEdictFromQCVM(entNum, client.Edict)
 	return nil
 }
 

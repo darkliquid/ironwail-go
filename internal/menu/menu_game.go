@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -164,7 +163,7 @@ func (m *Manager) hostGameKey(key int) {
 // so the Host Game menu reflects the engine's active settings.
 func (m *Manager) syncHostGameValues() {
 	maxPlayers := m.hostMaxPlayers
-	if cv := cvar.Get("maxplayers"); cv != nil {
+	if cv := m.cvars.Get("maxplayers"); cv != nil {
 		maxPlayers = cv.Int
 	}
 	if maxPlayers < hostMaxPlayersMin {
@@ -175,7 +174,7 @@ func (m *Manager) syncHostGameValues() {
 	}
 	m.hostMaxPlayers = maxPlayers
 
-	if cv := cvar.Get("skill"); cv != nil {
+	if cv := m.cvars.Get("skill"); cv != nil {
 		m.hostSkill = cv.Int
 	}
 	if m.hostSkill < 0 {
@@ -186,17 +185,17 @@ func (m *Manager) syncHostGameValues() {
 	}
 
 	m.hostGameMode = 1
-	if cv := cvar.Get("coop"); cv != nil && cv.Int != 0 {
+	if cv := m.cvars.Get("coop"); cv != nil && cv.Int != 0 {
 		m.hostGameMode = 0
 	}
-	if cv := cvar.Get("teamplay"); cv != nil {
+	if cv := m.cvars.Get("teamplay"); cv != nil {
 		m.hostTeamplay = cv.Int
 	}
 	if m.hostTeamplay < 0 || m.hostTeamplay > 2 {
 		m.hostTeamplay = 0
 	}
 
-	if cv := cvar.Get("fraglimit"); cv != nil {
+	if cv := m.cvars.Get("fraglimit"); cv != nil {
 		m.hostFragLimit = cv.Int
 	}
 	if m.hostFragLimit < 0 {
@@ -206,7 +205,7 @@ func (m *Manager) syncHostGameValues() {
 		m.hostFragLimit = 100
 	}
 
-	if cv := cvar.Get("timelimit"); cv != nil {
+	if cv := m.cvars.Get("timelimit"); cv != nil {
 		m.hostTimeLimit = cv.Int
 	}
 	if m.hostTimeLimit < 0 {
@@ -322,15 +321,15 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 	case hostGameItemMode:
 		m.hostGameMode = wrapIndex(m.hostGameMode+delta, 2)
 		if m.hostGameMode == 0 {
-			cvar.SetInt("coop", 1)
-			cvar.SetInt("deathmatch", 0)
+			m.cvars.SetInt("coop", 1)
+			m.cvars.SetInt("deathmatch", 0)
 		} else {
-			cvar.SetInt("coop", 0)
-			cvar.SetInt("deathmatch", 1)
+			m.cvars.SetInt("coop", 0)
+			m.cvars.SetInt("deathmatch", 1)
 		}
 	case hostGameItemTeamplay:
 		m.hostTeamplay = wrapIndex(m.hostTeamplay+delta, 3)
-		cvar.SetInt("teamplay", m.hostTeamplay)
+		m.cvars.SetInt("teamplay", m.hostTeamplay)
 	case hostGameItemSkill:
 		m.hostSkill += delta
 		if m.hostSkill < 0 {
@@ -339,7 +338,7 @@ func (m *Manager) adjustHostGameSetting(delta int) {
 		if m.hostSkill > 3 {
 			m.hostSkill = 0
 		}
-		cvar.SetInt("skill", m.hostSkill)
+		m.cvars.SetInt("skill", m.hostSkill)
 	case hostGameItemFragLimit:
 		m.hostFragLimit += delta * 10
 		if m.hostFragLimit < 0 {

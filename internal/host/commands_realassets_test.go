@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/qc"
 	"github.com/darkliquid/ironwail-go/internal/server"
@@ -189,7 +187,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player.Vars.ArmorValue = 95
 	srv.LightStyles[3] = "az"
 	h.SetCurrentSkill(3)
-	cvar.SetInt("skill", 3)
+	h.CVar.SetInt("skill", 3)
 
 	h.CmdSave("roundtrip", subs)
 
@@ -209,7 +207,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	player.Vars.ArmorType = 0
 	player.Vars.ArmorValue = 0
 	h.SetCurrentSkill(0)
-	cvar.SetInt("skill", 0)
+	h.CVar.SetInt("skill", 0)
 
 	h.CmdLoad("roundtrip", subs)
 
@@ -262,7 +260,7 @@ func TestCmdSaveLoadRealAssetsRoundTrip(t *testing.T) {
 	if got := h.CurrentSkill(); got != 3 {
 		t.Fatalf("loaded host skill = %d, want 3", got)
 	}
-	if got := cvar.IntValue("skill"); got != 3 {
+	if got := h.CVar.IntValue("skill"); got != 3 {
 		t.Fatalf("loaded skill cvar = %d, want 3", got)
 	}
 }
@@ -334,7 +332,7 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	srv.Static.Clients[0].SpawnParms[1] = 250
 	srv.LightStyles[3] = "az"
 	h.SetCurrentSkill(3)
-	cvar.SetInt("skill", 3)
+	h.CVar.SetInt("skill", 3)
 
 	savePath := filepath.Join(baseDir, "roundtrip.sav")
 	saveData := buildKEXTextSave(kexTextSaveFixture{
@@ -392,7 +390,7 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	player.Vars.ArmorValue = 0
 	srv.LightStyles[3] = "m"
 	h.SetCurrentSkill(0)
-	cvar.SetInt("skill", 0)
+	h.CVar.SetInt("skill", 0)
 
 	h.CmdLoadArgs([]string{"roundtrip", "kex"}, subs)
 
@@ -433,7 +431,7 @@ func TestCmdLoadArgsKEXRealAssetsRoundTrip(t *testing.T) {
 	if got := h.CurrentSkill(); got != 3 {
 		t.Fatalf("loaded host skill = %d, want 3", got)
 	}
-	if got := cvar.IntValue("skill"); got != 3 {
+	if got := h.CVar.IntValue("skill"); got != 3 {
 		t.Fatalf("loaded skill cvar = %d, want 3", got)
 	}
 }
@@ -621,10 +619,10 @@ func TestCmdRestartAutoloadsLastSaveForDeadPlayer(t *testing.T) {
 		t.Fatalf("CmdMap(start): %v", err)
 	}
 
-	previousAutoload := cvar.StringValue("sv_autoload")
-	cvar.Set("sv_autoload", "2")
+	previousAutoload := h.CVar.StringValue("sv_autoload")
+	h.CVar.Set("sv_autoload", "2")
 	t.Cleanup(func() {
-		cvar.Set("sv_autoload", previousAutoload)
+		h.CVar.Set("sv_autoload", previousAutoload)
 	})
 
 	player := srv.Static.Clients[0].Edict
@@ -682,10 +680,10 @@ func TestCmdChangelevelSameMapAutoloadsLastSaveWhenConfigured(t *testing.T) {
 		t.Fatalf("CmdMap(start): %v", err)
 	}
 
-	previousAutoload := cvar.StringValue("sv_autoload")
-	cvar.Set("sv_autoload", "3")
+	previousAutoload := h.CVar.StringValue("sv_autoload")
+	h.CVar.Set("sv_autoload", "3")
 	t.Cleanup(func() {
-		cvar.Set("sv_autoload", previousAutoload)
+		h.CVar.Set("sv_autoload", previousAutoload)
 	})
 
 	player := srv.Static.Clients[0].Edict
@@ -811,7 +809,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 			_ = subs.Client.Frame(h.FrameTime())
 		},
 		processConsoleCommands: func() {
-			cmdsys.Execute()
+			h.Cmd.Execute()
 			DispatchLoopbackStuffText(subs)
 		},
 		processClient: func() {
@@ -934,8 +932,8 @@ func TestRealAssetsBufferedChangelevelCommandAdvancesMap(t *testing.T) {
 	}
 
 	wantLevel := "e1m2"
-	cmdsys.AddText("changelevel " + wantLevel)
-	cmdsys.Execute()
+	h.Cmd.AddText("changelevel " + wantLevel)
+	h.Cmd.Execute()
 
 	if got := srv.GetMapName(); got != wantLevel {
 		t.Fatalf("buffered changelevel got map=%q want=%q", got, wantLevel)

@@ -4,8 +4,6 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
-
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
@@ -272,7 +270,10 @@ func randomMarkRotation(rng *rand.Rand) float32 {
 }
 
 func dynamicLightsEnabled() bool {
-	cv := cvar.Get(CvarRDynamic)
+	if pkgCVars == nil {
+		return true
+	}
+	cv := pkgCVars.Get(CvarRDynamic)
 	if cv == nil {
 		return true
 	}

@@ -95,17 +95,18 @@ func TestQuakeBarSuppressesNewlineAtFullWidth(t *testing.T) {
 }
 
 func TestDPrintf2RequiresDeveloperLevel2(t *testing.T) {
-	cvar.Register("developer", "0", 0, "developer mode")
 	if err := InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
 	}
+	cv := GlobalCVar()
+	cv.Register("developer", "0", 0, "developer mode")
 	Clear()
-	cvar.Set("developer", "1")
+	cv.Set("developer", "1")
 	DPrintf2("hidden\n")
 	if strings.Contains(GetLine(CurrentLine()), "hidden") {
 		t.Fatalf("DPrintf2 printed with developer=1")
 	}
-	cvar.Set("developer", "2")
+	cv.Set("developer", "2")
 	DPrintf2("visible\n")
 	if !strings.Contains(GetLine(CurrentLine()), "visible") {
 		t.Fatalf("DPrintf2 did not print with developer=2")
@@ -113,17 +114,18 @@ func TestDPrintf2RequiresDeveloperLevel2(t *testing.T) {
 }
 
 func TestLogCenterPrintDedupesAndGatesByGameType(t *testing.T) {
-	cvar.Register("con_logcenterprint", "1", cvar.FlagArchive, "centerprint logging mode")
 	if err := InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
 	}
+	cv := GlobalCVar()
+	cv.Register("con_logcenterprint", "1", cvar.FlagArchive, "centerprint logging mode")
 	Clear()
 	LogCenterPrint(1, "coop message")
 	if strings.Contains(GetLine(CurrentLine()), "coop message") {
 		t.Fatalf("message should be gated in multiplayer for mode 1")
 	}
 
-	cvar.Set("con_logcenterprint", "2")
+	cv.Set("con_logcenterprint", "2")
 	LogCenterPrint(1, "dm message")
 	foundDM := false
 	foundMessage := false

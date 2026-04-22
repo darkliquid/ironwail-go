@@ -2,8 +2,6 @@ package renderer
 
 import (
 	"math"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // glLightPool manages the active set of dynamic lights for the current frame.
@@ -124,9 +122,10 @@ func (pool *glLightPool) EvaluateLightsAtPoint(point [3]float32) [3]float32 {
 }
 
 func evaluateDynamicLightsAtPoint(lights []DynamicLight, point [3]float32) [3]float32 {
-	cv := cvar.Get(CvarRDynamic)
-	if cv != nil && cv.Int == 0 {
-		return [3]float32{}
+	if pkgCVars != nil {
+		if cv := pkgCVars.Get(CvarRDynamic); cv != nil && cv.Int == 0 {
+			return [3]float32{}
+		}
 	}
 	result := [3]float32{0, 0, 0}
 	for i := range lights {

@@ -6,7 +6,6 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/audio"
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/model"
@@ -16,7 +15,6 @@ import (
 
 func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	g := New()
-	g.Host = nil
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
 	g.Client.ViewEntity = 1
@@ -50,7 +48,6 @@ func TestRunRuntimeFrameSyncsAudioViewEntity(t *testing.T) {
 		t.Fatalf("audio.Startup failed: %v", err)
 	}
 
-	g.Host = nil
 	g.Audio = audio.NewAudioAdapter(sys)
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
@@ -83,7 +80,6 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 	g.Audio.SetAmbientSound(0, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
 	g.Audio.SetAmbientSound(1, &audio.SFX{Cache: &audio.SoundCache{Length: 16, LoopStart: 0, Width: 1, Data: make([]byte, 16)}})
 
-	g.Host = nil
 	g.Subs = nil
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
@@ -155,7 +151,6 @@ func TestRunRuntimeFrameUpdatesLeafAmbientAndUnderwaterAudio(t *testing.T) {
 
 func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
 	g := New()
-	g.Host = nil
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
 	g.Client.SoundEvents = []cl.SoundEvent{{Entity: 1, Channel: 2, SoundIndex: 3}}
@@ -179,22 +174,21 @@ func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
 
 func TestRunRuntimeFrameRelinksBeforeViewAndViewModelConsumers(t *testing.T) {
 	g := New()
-	originalViewCalc := globalViewCalc
+	originalViewCalc := g.viewCalc
 	t.Cleanup(func() {
-		globalViewCalc = originalViewCalc
+		g.viewCalc = originalViewCalc
 	})
 
-	ensureViewCalcCvars()
-	cvar.Set("r_drawentities", "1")
-	cvar.Set("r_drawviewmodel", "1")
-	cvar.Set("chase_active", "0")
-	cvar.Set("cl_bob", "0")
-	cvar.Set("cl_bobcycle", "0")
-	cvar.Set("v_idlescale", "0")
-	cvar.Set("r_viewmodel_quake", "0")
+	ensureViewCalcCvars(g)
+	g.Host.CVar.Set("r_drawentities", "1")
+	g.Host.CVar.Set("r_drawviewmodel", "1")
+	g.Host.CVar.Set("chase_active", "0")
+	g.Host.CVar.Set("cl_bob", "0")
+	g.Host.CVar.Set("cl_bobcycle", "0")
+	g.Host.CVar.Set("v_idlescale", "0")
+	g.Host.CVar.Set("r_viewmodel_quake", "0")
 
-	g.Host = nil
-	g.Menu = menu.NewManager(nil, nil)
+	g.Menu = menu.NewManager(nil, nil, nil)
 	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
 	g.AliasModelCache = map[string]*model.Model{
 		"progs/v_axe.mdl": {
@@ -205,7 +199,7 @@ func TestRunRuntimeFrameRelinksBeforeViewAndViewModelConsumers(t *testing.T) {
 			},
 		},
 	}
-	globalViewCalc.oldZInit = false
+	g.viewCalc.oldZInit = false
 
 	g.Client = cl.NewClient()
 	g.Client.State = cl.StateActive
@@ -230,7 +224,7 @@ func TestRunRuntimeFrameRelinksBeforeViewAndViewModelConsumers(t *testing.T) {
 	g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
 
 	viewOrigin, _ := g.runtimeViewState()
-	if want := [3]float32{50, 0, 20}; viewOrigin != want {
+	if want := [3]float32{66, 0, 20}; viewOrigin != want {
 		t.Fatalf("runtimeViewState origin = %v, want relinked origin %v", viewOrigin, want)
 	}
 

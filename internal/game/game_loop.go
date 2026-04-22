@@ -15,8 +15,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -27,13 +25,11 @@ type gameCallbacks struct {
 	g *Game
 }
 
-var runtimeProcessClientPhase string
-
 type runtimeLastServerMessageProvider interface {
 	LastServerMessage() []byte
 }
 
-var loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
+func defaultLoadDemoWorldTree(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
 	data, litData, err := loadWorldModelAndLit(files, worldModel)
 	if err != nil {
 		return nil, err
@@ -66,7 +62,10 @@ func loadWorldModelAndLit(files host.Filesystem, worldModel string) ([]byte, []b
 }
 
 func (cb gameCallbacks) SetProcessClientPhase(phase string) {
-	runtimeProcessClientPhase = phase
+	if cb.g == nil {
+		return
+	}
+	cb.g.processClientPhase = phase
 }
 
 func (cb gameCallbacks) GetEvents() {
@@ -87,8 +86,6 @@ func (cb gameCallbacks) ProcessConsoleCommands() {
 	}
 	if g.Subs != nil && g.Subs.Commands != nil {
 		g.Subs.Commands.Execute()
-	} else {
-		cmdsys.Execute()
 	}
 	host.DispatchLoopbackStuffText(g.Subs)
 }
@@ -180,8 +177,6 @@ func (cb gameCallbacks) ProcessClient() {
 				if g.Host.DemoNum() >= 0 && len(g.Host.DemoList()) > 0 {
 					if g.Subs != nil && g.Subs.Commands != nil {
 						g.Subs.Commands.AddText("demos\n")
-					} else {
-						cmdsys.AddText("demos\n")
 					}
 				}
 				return
@@ -223,7 +218,7 @@ func (cb gameCallbacks) ProcessClient() {
 	}
 
 	// Normal networked gameplay
-	switch runtimeProcessClientPhase {
+	switch g.processClientPhase {
 	case "send":
 		_ = g.Subs.Client.SendCommand()
 	case "read":
@@ -314,7 +309,7 @@ func (g *Game) bootstrapDemoPlaybackWorld(clientState *cl.Client) {
 	if worldModel == "" || (g.Server.WorldTree != nil && g.Server.ModelName == worldModel) {
 		return
 	}
-	tree, err := loadDemoWorldTree(g.Subs.Files, worldModel)
+	tree, err := g.loadDemoWorldTree(g.Subs.Files, worldModel)
 	if err != nil {
 		slog.Debug("demo world load skipped", "model", worldModel, "error", err)
 		return
@@ -400,14 +395,11 @@ func (g *Game) DedicatedGameLoop() {
 		if g.Subs != nil && g.Subs.Commands != nil {
 			g.Subs.Commands.AddText(text)
 			g.Subs.Commands.Execute()
-			return
 		}
-		cmdsys.AddText(text)
-		cmdsys.Execute()
 	}
 
 	for {
-		ticrate := cvar.FloatValue("sys_ticrate")
+		ticrate := g.Host.CVar.FloatValue("sys_ticrate")
 		if ticrate <= 0 {
 			ticrate = 0.05
 		}

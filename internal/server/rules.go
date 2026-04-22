@@ -2,16 +2,14 @@ package server
 
 import (
 	"log/slog"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // syncGameModeFromCVars snapshots coop/deathmatch cvars into server booleans.
 // This keeps per-frame rule evaluation coupled to console-configured game mode
 // without requiring every caller to query cvars directly.
 func (s *Server) syncGameModeFromCVars() {
-	s.Coop = cvar.BoolValue("coop")
-	s.Deathmatch = cvar.BoolValue("deathmatch")
+	s.Coop = s.CVar.BoolValue("coop")
+	s.Deathmatch = s.CVar.BoolValue("deathmatch")
 }
 
 // CheckRules enforces match-end conditions after each simulation frame.
@@ -26,7 +24,7 @@ func (s *Server) CheckRules() {
 		return
 	}
 
-	fragLimit := cvar.FloatValue("fraglimit")
+	fragLimit := s.CVar.FloatValue("fraglimit")
 	if fragLimit > 0 {
 		for _, client := range s.Static.Clients {
 			if client == nil || !client.Active || client.Edict == nil || client.Edict.Free {
@@ -39,7 +37,7 @@ func (s *Server) CheckRules() {
 		}
 	}
 
-	timeLimit := cvar.FloatValue("timelimit")
+	timeLimit := s.CVar.FloatValue("timelimit")
 	if timeLimit > 0 && float64(s.Time) >= timeLimit*60 {
 		s.issueMatchEnd("timelimit")
 	}

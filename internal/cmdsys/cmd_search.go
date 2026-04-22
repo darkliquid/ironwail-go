@@ -37,7 +37,7 @@ func (c *CmdSystem) cmdList(args []string) {
 		if partial != "" && !strings.HasPrefix(cmd.Name, partial) {
 			continue
 		}
-		printCallback(fmt.Sprintf("   %s\n", cmd.Name))
+		c.printCallback(fmt.Sprintf("   %s\n", cmd.Name))
 		count++
 	}
 
@@ -45,12 +45,12 @@ func (c *CmdSystem) cmdList(args []string) {
 	if partial != "" {
 		msg += fmt.Sprintf(" beginning with %q", partial)
 	}
-	printCallback(msg + "\n")
+	c.printCallback(msg + "\n")
 }
 
 func (c *CmdSystem) cmdApropos(commandName string, args []string) {
 	if len(args) == 0 || args[0] == "" {
-		printCallback(fmt.Sprintf("%s <substring> : search through commands and cvars for the given substring\n", commandName))
+		c.printCallback(fmt.Sprintf("%s <substring> : search through commands and cvars for the given substring\n", commandName))
 		return
 	}
 
@@ -62,24 +62,26 @@ func (c *CmdSystem) listAllContaining(substr string) {
 	hits := 0
 	for _, cmd := range c.visibleCommands() {
 		if strings.Contains(strings.ToLower(cmd.Name), lowerSubstr) || strings.Contains(strings.ToLower(cmd.Description), lowerSubstr) {
-			printCallback(fmt.Sprintf("   %s\n", cmd.Name))
+			c.printCallback(fmt.Sprintf("   %s\n", cmd.Name))
 			hits++
 		}
 	}
 
-	vars := cvar.All()
-	slices.SortFunc(vars, func(a, b *cvar.CVar) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-	for _, cv := range vars {
-		if strings.Contains(strings.ToLower(cv.Name), lowerSubstr) || strings.Contains(strings.ToLower(cv.Description), lowerSubstr) {
-			printCallback(fmt.Sprintf("   %s (current value: %q)\n", cv.Name, cv.String))
-			hits++
+	if c.CVar != nil {
+		vars := c.CVar.All()
+		slices.SortFunc(vars, func(a, b *cvar.CVar) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		for _, cv := range vars {
+			if strings.Contains(strings.ToLower(cv.Name), lowerSubstr) || strings.Contains(strings.ToLower(cv.Description), lowerSubstr) {
+				c.printCallback(fmt.Sprintf("   %s (current value: %q)\n", cv.Name, cv.String))
+				hits++
+			}
 		}
 	}
 
 	if hits == 0 {
-		printCallback(fmt.Sprintf("no cvars/commands contain %q\n", substr))
+		c.printCallback(fmt.Sprintf("no cvars/commands contain %q\n", substr))
 		return
 	}
 
@@ -87,7 +89,7 @@ func (c *CmdSystem) listAllContaining(substr string) {
 	if hits == 1 {
 		plural = ""
 	}
-	printCallback(fmt.Sprintf("%d cvar%s/command%s containing %q\n", hits, plural, plural, substr))
+	c.printCallback(fmt.Sprintf("%d cvar%s/command%s containing %q\n", hits, plural, plural, substr))
 }
 
 func (c *CmdSystem) cmdAliasList() {
@@ -99,10 +101,10 @@ func (c *CmdSystem) cmdAliasList() {
 	slices.Sort(names)
 
 	for _, name := range names {
-		printCallback(fmt.Sprintf("   %s : %s\n", name, aliases[name]))
+		c.printCallback(fmt.Sprintf("   %s : %s\n", name, aliases[name]))
 	}
 
-	printCallback(fmt.Sprintf("%d alias%s\n", len(names), pluralSuffix(len(names))))
+	c.printCallback(fmt.Sprintf("%d alias%s\n", len(names), pluralSuffix(len(names))))
 }
 
 func pluralSuffix(count int) string {

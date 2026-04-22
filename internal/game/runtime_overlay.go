@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
@@ -16,13 +15,13 @@ import (
 func (g *Game) buildRuntimeTelemetryState(conForcedup bool) TelemetryState {
 	state := TelemetryState{
 		ViewSize:        float32(g.currentRuntimeViewSize()),
-		HUDStyle:        cvar.IntValue("hud_style"),
-		ShowFPS:         float32(cvar.FloatValue("scr_showfps")),
-		ShowClock:       cvar.IntValue("scr_clock"),
-		ShowSpeed:       cvar.BoolValue("scr_showspeed"),
+		HUDStyle:        g.Host.CVar.IntValue("hud_style"),
+		ShowFPS:         float32(g.Host.CVar.FloatValue("scr_showfps")),
+		ShowClock:       g.Host.CVar.IntValue("scr_clock"),
+		ShowSpeed:       g.Host.CVar.BoolValue("scr_showspeed"),
 		ShowTurtle:      g.currentShowTurtle(),
-		ShowSpeedOfs:    float32(cvar.FloatValue("scr_showspeed_ofs")),
-		DemoBarTimeout:  float32(cvar.FloatValue("scr_demobar_timeout")),
+		ShowSpeedOfs:    float32(g.Host.CVar.FloatValue("scr_showspeed_ofs")),
+		DemoBarTimeout:  float32(g.Host.CVar.FloatValue("scr_demobar_timeout")),
 		ConsoleForced:   conForcedup,
 		LastServerMsgAt: g.LastServerMessageAt,
 	}
@@ -52,11 +51,11 @@ func (g *Game) buildRuntimeTelemetryState(conForcedup bool) TelemetryState {
 func (g *Game) runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHUD bool) renderer.ViewRect {
 	vidW := framebufferW
 	if vidW <= 0 {
-		vidW = cvar.IntValue("vid_width")
+		vidW = g.Host.CVar.IntValue("vid_width")
 	}
 	vidH := framebufferH
 	if vidH <= 0 {
-		vidH = cvar.IntValue("vid_height")
+		vidH = g.Host.CVar.IntValue("vid_height")
 	}
 	guiW, guiH := g.runtimeGUIDimensions(framebufferW, framebufferH)
 	conW, conH := g.runtimeConsoleDimensions(guiW, guiH)
@@ -74,12 +73,12 @@ func (g *Game) runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHU
 		FOVAdapt:       g.currentRuntimeFOVAdapt(),
 		ZoomFOV:        g.currentRuntimeZoomFOV(),
 		Zoom:           g.Zoom,
-		SbarScale:      float32(cvar.FloatValue("scr_sbarscale")),
+		SbarScale:      float32(g.Host.CVar.FloatValue("scr_sbarscale")),
 		SbarAlpha:      g.currentSbarAlpha(),
-		MenuScale:      float32(cvar.FloatValue("scr_menuscale")),
-		CrosshairScale: float32(cvar.FloatValue("scr_crosshairscale")),
+		MenuScale:      float32(g.Host.CVar.FloatValue("scr_menuscale")),
+		CrosshairScale: float32(g.Host.CVar.FloatValue("scr_crosshairscale")),
 		Intermission:   g.Client != nil && g.Client.Intermission != 0,
-		HudStyle:       cvar.IntValue("hud_style"),
+		HudStyle:       g.Host.CVar.IntValue("hud_style"),
 		CSQCDrawHud:    csqcDrawHUD,
 	})
 	if err != nil {
@@ -89,7 +88,7 @@ func (g *Game) runtimeOverlayViewRect(framebufferW, framebufferH int, csqcDrawHU
 }
 
 func (g *Game) currentSbarAlpha() float32 {
-	alpha := float32(cvar.FloatValue("scr_sbaralpha"))
+	alpha := float32(g.Host.CVar.FloatValue("scr_sbaralpha"))
 	if alpha <= 0 {
 		return 0
 	}
@@ -100,14 +99,14 @@ func (g *Game) currentSbarAlpha() float32 {
 }
 
 func (g *Game) currentRuntimeFOV() float32 {
-	if cv := cvar.Get("fov"); cv != nil && cv.Float32() > 0 {
+	if cv := g.Host.CVar.Get("fov"); cv != nil && cv.Float32() > 0 {
 		return cv.Float32()
 	}
 	return 90
 }
 
 func (g *Game) currentRuntimePixelAspect() float64 {
-	cv := cvar.Get("scr_pixelaspect")
+	cv := g.Host.CVar.Get("scr_pixelaspect")
 	if cv == nil {
 		return 1
 	}
@@ -135,34 +134,34 @@ func (g *Game) clampf64(v, min, max float64) float64 {
 }
 
 func (g *Game) currentRuntimeViewSize() float64 {
-	if cv := cvar.Get("viewsize"); cv != nil && cv.Float > 0 {
+	if cv := g.Host.CVar.Get("viewsize"); cv != nil && cv.Float > 0 {
 		return cv.Float
 	}
-	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float > 0 {
+	if cv := g.Host.CVar.Get("scr_viewsize"); cv != nil && cv.Float > 0 {
 		return cv.Float
 	}
 	return 100
 }
 
 func (g *Game) currentRuntimeZoomFOV() float32 {
-	if cv := cvar.Get("zoom_fov"); cv != nil && cv.Float32() > 0 {
+	if cv := g.Host.CVar.Get("zoom_fov"); cv != nil && cv.Float32() > 0 {
 		return cv.Float32()
 	}
 	return 30
 }
 
 func (g *Game) currentRuntimeFOVAdapt() bool {
-	if cv := cvar.Get("fov_adapt"); cv != nil {
+	if cv := g.Host.CVar.Get("fov_adapt"); cv != nil {
 		return cv.Bool()
 	}
 	return true
 }
 
 func (g *Game) currentShowTurtle() bool {
-	if cv := cvar.Get("showturtle"); cv != nil {
+	if cv := g.Host.CVar.Get("showturtle"); cv != nil {
 		return cv.Bool()
 	}
-	return cvar.BoolValue("scr_showturtle")
+	return g.Host.CVar.BoolValue("scr_showturtle")
 }
 
 func (g *Game) drawRuntimeString(rc renderer.RenderContext, x, y int, text string) {
@@ -503,7 +502,7 @@ func (g *Game) drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
 	if dc == nil || pics == nil {
 		return
 	}
-	if cv := cvar.Get("showpause"); cv != nil && !cv.Bool() {
+	if cv := g.Host.CVar.Get("showpause"); cv != nil && !cv.Bool() {
 		return
 	}
 	dc.SetCanvas(renderer.CanvasMenu)

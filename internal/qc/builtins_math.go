@@ -8,7 +8,6 @@ import (
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
@@ -138,8 +137,10 @@ func random(vm *VM) {
 	// Default: gameplayfix_random=1 formula avoids exact 0.0 and 1.0.
 	// Legacy fallback when sv_gameplayfix_random=0 keeps classic [0,1] endpoints.
 	num := (float32(r) + 0.5) * (1.0 / 0x8000)
-	if cv := cvar.Get("sv_gameplayfix_random"); cv != nil && cv.Int == 0 {
-		num = float32(r) * (1.0 / 0x7fff)
+	if vm.Cvars != nil {
+		if cv := vm.Cvars.Get("sv_gameplayfix_random"); cv != nil && cv.Int == 0 {
+			num = float32(r) * (1.0 / 0x7fff)
+		}
 	}
 	vm.SetGFloat(OFSReturn, num)
 }

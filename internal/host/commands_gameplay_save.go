@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -63,9 +62,9 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	if err != nil {
 		return err
 	}
-	if cvar.BoolValue("nomonsters") {
+	if h.CVar.BoolValue("nomonsters") {
 		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
-		cvar.Set("nomonsters", "0")
+		h.CVar.Set("nomonsters", "0")
 	}
 	path, data, err := h.readSaveFile(name, options)
 	if err != nil {
@@ -144,7 +143,7 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 			}
 		}
 		h.currentSkill = save.skill()
-		cvar.SetInt("skill", save.skill())
+		h.CVar.SetInt("skill", save.skill())
 		return nil
 	}); err != nil {
 		return err
@@ -228,7 +227,7 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		subs.Console.Print("save failed: savegames require the built-in server\n")
 		return
 	}
-	if cvar.BoolValue("nomonsters") {
+	if h.CVar.BoolValue("nomonsters") {
 		subs.Console.Print("Can't save when using \"nomonsters\".\n")
 		return
 	}

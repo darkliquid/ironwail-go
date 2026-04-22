@@ -162,29 +162,19 @@ func TestRunClientQCThinkSyncsThirdPartyCombatStateFromQCVM(t *testing.T) {
 	}
 }
 
-func withUserCVars(t *testing.T, values map[string]string) {
+func withUserCVars(t *testing.T, s *Server, values map[string]string) {
 	t.Helper()
-	original := make(map[string]string, len(values))
-	for name := range values {
-		if cvar.Get(name) == nil {
-			cvar.Register(name, "0", cvar.FlagServerInfo, "")
-		}
-		original[name] = cvar.StringValue(name)
-	}
 	for name, value := range values {
-		cvar.Set(name, value)
-	}
-	t.Cleanup(func() {
-		for name, value := range original {
-			cvar.Set(name, value)
+		if s.CVar.Get(name) == nil {
+			s.CVar.Register(name, "0", cvar.FlagServerInfo, "")
 		}
-	})
+		s.CVar.Set(name, value)
+	}
 }
 
 func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
-	withUserCVars(t, map[string]string{"sv_altnoclip": "1"})
-
 	s := NewServer()
+	withUserCVars(t, s, map[string]string{"sv_altnoclip": "1"})
 	s.FrameTime = 0.1
 	ent := &Edict{Vars: &EntVars{}}
 	ent.Vars.MoveType = float32(MoveTypeNoClip)
@@ -206,9 +196,8 @@ func TestSVClientThinkNoclipAltStyleUsesViewPitch(t *testing.T) {
 }
 
 func TestSVClientThinkNoclipClassicIgnoresPitch(t *testing.T) {
-	withUserCVars(t, map[string]string{"sv_altnoclip": "0"})
-
 	s := NewServer()
+	withUserCVars(t, s, map[string]string{"sv_altnoclip": "0"})
 	s.FrameTime = 0.1
 	ent := &Edict{Vars: &EntVars{}}
 	ent.Vars.MoveType = float32(MoveTypeNoClip)
@@ -487,12 +476,11 @@ func TestLoopbackJumpAppliesVerticalVelocity(t *testing.T) {
 }
 
 func TestFrameRealProgsDeathRespawnClearsPressedButtons(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := newStartMapDiagnosticsServer(t)
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 	})
-
-	s := newStartMapDiagnosticsServer(t)
 	s.ConnectClient(0)
 	client := s.Static.Clients[0]
 	for _, cmd := range []string{"prespawn", "spawn", "begin"} {
@@ -688,7 +676,7 @@ func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T)
 	if serverSock == nil {
 		t.Fatal("server socket missing")
 	}
-	defer inet.Close(clientPeer)
+	defer inet.DefaultNetwork().Close(clientPeer)
 
 	dropped := s.Static.Clients[0]
 	observer := s.Static.Clients[1]
@@ -720,7 +708,7 @@ func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T)
 	if got := string(observer.Message.Data[:observer.Message.Len()]); !bytes.Contains([]byte(got), []byte{byte(inet.SVCUpdateName), 0}) {
 		t.Fatalf("observer message missing roster-clear update: %v", observer.Message.Data[:observer.Message.Len()])
 	}
-	msgType, payload := inet.GetMessage(clientPeer)
+	msgType, payload := inet.DefaultNetwork().GetMessage(clientPeer)
 	if msgType != 1 {
 		t.Fatalf("disconnect message type = %d, want 1", msgType)
 	}

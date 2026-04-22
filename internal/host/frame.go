@@ -6,8 +6,6 @@ package host
 import (
 	"log/slog"
 	"time"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func elapsedMilliseconds(start time.Time) float64 {
@@ -73,7 +71,7 @@ func (h *Host) advanceTime(dt float64) {
 
 func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 	frameStart := time.Now()
-	hostSpeeds := cvar.BoolValue("host_speeds")
+	hostSpeeds := h.CVar.BoolValue("host_speeds")
 	var frameStats FrameStats
 	var eventMS float64
 	var consoleMS float64

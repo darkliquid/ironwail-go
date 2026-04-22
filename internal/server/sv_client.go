@@ -415,7 +415,7 @@ func (s *Server) SendClientDatagram(client *Client) bool {
 	if client == nil || client.NetConnection == nil || msg.Len() == 0 {
 		return true
 	}
-	if inet.SendUnreliableMessage(client.NetConnection, msg.Data[:msg.Len()]) == -1 {
+	if s.Net.SendUnreliableMessage(client.NetConnection, msg.Data[:msg.Len()]) == -1 {
 		return false
 	}
 	client.LastMessage = float64(s.Time)
@@ -490,7 +490,7 @@ func (s *Server) SendNop(client *Client) {
 	if client == nil || client.NetConnection == nil {
 		return
 	}
-	if inet.SendUnreliableMessage(client.NetConnection, []byte{byte(inet.SVCNop)}) != -1 {
+	if s.Net.SendUnreliableMessage(client.NetConnection, []byte{byte(inet.SVCNop)}) != -1 {
 		client.LastMessage = float64(s.Time)
 	}
 }
@@ -541,14 +541,14 @@ func (s *Server) SendClientMessages() {
 		if client.Message.Len() == 0 && !client.DropASAP {
 			continue
 		}
-		if client.NetConnection == nil || !inet.CanSendMessage(client.NetConnection) {
+		if client.NetConnection == nil || !s.Net.CanSendMessage(client.NetConnection) {
 			continue
 		}
 		if client.DropASAP {
 			s.DropClient(client, false)
 			continue
 		}
-		if inet.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()]) == -1 {
+		if s.Net.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()]) == -1 {
 			s.DropClient(client, true)
 			continue
 		}
@@ -739,7 +739,7 @@ func (s *Server) SaveSpawnParms() {
 func (s *Server) CheckForNewClients() error {
 	checkNewConnections := s.acceptConnection
 	if checkNewConnections == nil {
-		checkNewConnections = inet.CheckNewConnections
+		checkNewConnections = s.Net.CheckNewConnections
 	}
 	for {
 		sock := checkNewConnections()
@@ -757,7 +757,7 @@ func (s *Server) CheckForNewClients() error {
 		}
 		if freeSlot < 0 {
 			slog.Warn("CheckForNewClients: no free client slots")
-			inet.Close(sock)
+			s.Net.Close(sock)
 			continue
 		}
 

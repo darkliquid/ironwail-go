@@ -1,7 +1,6 @@
 package game
 
 import (
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 	"github.com/darkliquid/ironwail-go/internal/server"
 	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
@@ -27,7 +26,7 @@ func (g *Game) runtimeSmoothedLocalPlayerBaseOrigin() ([3]float32, bool) {
 		return origin, ok
 	}
 
-	state := &globalViewCalc
+	state := &g.viewCalc
 	entityZ := origin[2]
 	frameTime := g.Client.Time
 	onGround := g.Client.OnGround
@@ -157,7 +156,7 @@ func (g *Game) runtimePlayerOrigin() ([3]float32, bool) {
 		XYOffsetThreshold:        RuntimeMaxPredictedXYOffset,
 		PredictionErrorThreshold: RuntimeMaxPredictedXYOffset,
 	}
-	state := &globalViewCalc
+	state := &g.viewCalc
 	if g.Client == nil {
 		g.runtimeResetOriginSelectLatch(state)
 		telemetry.RejectReason = runtimeOriginRejectMissingAuth
@@ -384,7 +383,7 @@ func (g *Game) runtimeCameraState(origin, angles [3]float32) renderer.CameraStat
 					deltaTime = g.Host.FrameTime()
 				}
 				cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
-				cameraAngles = g.viewApplyDamageKick(&globalViewCalc, cameraAngles, deltaTime)
+				cameraAngles = g.viewApplyDamageKick(&g.viewCalc, cameraAngles, deltaTime)
 				camera.Angles.X = cameraAngles[0]
 				camera.Angles.Y = cameraAngles[1]
 				camera.Angles.Z = cameraAngles[2]
@@ -403,14 +402,14 @@ func (g *Game) runtimeCameraState(origin, angles [3]float32) renderer.CameraStat
 		}
 		camera.Time = float32(g.Client.Time)
 	}
-	if cvar.BoolValue("chase_active") {
+	if g.Host.CVar.BoolValue("chase_active") {
 		traceFn := g.runtimeChaseTraceFn()
 		chaseOrigin, chaseAngles := g.chaseUpdate(
 			origin,
 			angles,
-			float32(cvar.FloatValue("chase_back")),
-			float32(cvar.FloatValue("chase_up")),
-			float32(cvar.FloatValue("chase_right")),
+			float32(g.Host.CVar.FloatValue("chase_back")),
+			float32(g.Host.CVar.FloatValue("chase_up")),
+			float32(g.Host.CVar.FloatValue("chase_right")),
 			traceFn,
 		)
 		camera.Origin.X = chaseOrigin[0]
@@ -454,7 +453,7 @@ func (g *Game) runtimeGunKickAngles() [3]float32 {
 		return [3]float32{}
 	}
 	mode := 2
-	if cv := cvar.Get("v_gunkick"); cv != nil {
+	if cv := g.Host.CVar.Get("v_gunkick"); cv != nil {
 		mode = cv.Int
 	}
 	switch mode {

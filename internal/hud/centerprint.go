@@ -29,6 +29,7 @@ const (
 // These are typically used for level completion, key pickups, and important game events.
 type Centerprint struct {
 	drawManager *draw.Manager
+	cvars       *cvar.CVarSystem
 	completePic *image.QPic
 	interPic    *image.QPic
 	finalePic   *image.QPic
@@ -42,8 +43,11 @@ type Centerprint struct {
 }
 
 // NewCenterprint creates a new centerprint manager.
-func NewCenterprint(dm *draw.Manager) *Centerprint {
-	cp := &Centerprint{drawManager: dm}
+func NewCenterprint(dm *draw.Manager, cv *cvar.CVarSystem) *Centerprint {
+	if cv == nil {
+		cv = cvar.NewCVarSystem()
+	}
+	cp := &Centerprint{drawManager: dm, cvars: cv}
 	if dm != nil {
 		cp.completePic = dm.GetPic("gfx/complete.lmp")
 		cp.interPic = dm.GetPic("gfx/inter.lmp")
@@ -115,7 +119,7 @@ func (cp *Centerprint) Draw(rc renderer.RenderContext, state State, screenWidth,
 	if message == "" {
 		return
 	}
-	cp.drawTextBlock(rc, message, screenWidth, regularCenterprintY(screenHeight, message), centerprintBackgroundMode(), alpha)
+	cp.drawTextBlock(rc, message, screenWidth, cp.regularCenterprintY(screenHeight, message), cp.centerprintBackgroundMode(), alpha)
 }
 
 // drawIntermissionOverlay renders the level-completion screen (Intermission 1).
@@ -207,7 +211,7 @@ func (cp *Centerprint) revealedFinaleText(state State, text string) string {
 		return text
 	}
 
-	visibleChars := int((state.Time - state.CenterPrintAt) * finaleRevealCharsPerSecond())
+	visibleChars := int((state.Time - state.CenterPrintAt) * cp.finaleRevealCharsPerSecond())
 	if visibleChars <= 0 {
 		return ""
 	}
@@ -215,8 +219,8 @@ func (cp *Centerprint) revealedFinaleText(state State, text string) string {
 	return limitCenterTextVisibleChars(text, visibleChars)
 }
 
-func finaleRevealCharsPerSecond() float64 {
-	if cv := cvar.Get(printSpeedCVar); cv != nil {
+func (cp *Centerprint) finaleRevealCharsPerSecond() float64 {
+	if cv := cp.cvars.Get(printSpeedCVar); cv != nil {
 		return cv.Float
 	}
 	return 8
@@ -277,7 +281,7 @@ func (cp *Centerprint) activeCenterText(state State) (string, float64) {
 		if state.Paused {
 			return "", 0
 		}
-		if alpha := centerprintVisualAlpha(state); alpha > 0 {
+		if alpha := cp.centerprintVisualAlpha(state); alpha > 0 {
 			return state.CenterPrint, alpha
 		}
 	}
@@ -297,19 +301,19 @@ func formatIntermissionTime(seconds float64) string {
 	return fmt.Sprintf("%d:%02d", total/60, total%60)
 }
 
-func centerprintBackgroundMode() int {
-	return max(0, min(3, cvar.IntValue(centerPrintBackgroundCVar)))
+func (cp *Centerprint) centerprintBackgroundMode() int {
+	return max(0, min(3, cp.cvars.IntValue(centerPrintBackgroundCVar)))
 }
 
-func centerprintFadeTail() float64 {
-	if cvar.FloatValue(notifyFadeCVar) <= 0 {
+func (cp *Centerprint) centerprintFadeTail() float64 {
+	if cp.cvars.FloatValue(notifyFadeCVar) <= 0 {
 		return 0
 	}
-	return max(0, cvar.FloatValue(notifyFadeCVar)*cvar.FloatValue(notifyFadeTimeCVar))
+	return max(0, cp.cvars.FloatValue(notifyFadeCVar)*cp.cvars.FloatValue(notifyFadeTimeCVar))
 }
 
-func centerprintVisualAlpha(state State) float64 {
-	hold := currentCenterprintHold()
+func (cp *Centerprint) centerprintVisualAlpha(state State) float64 {
+	hold := cp.currentCenterprintHold()
 	if hold <= 0 {
 		return 0
 	}
@@ -320,7 +324,7 @@ func centerprintVisualAlpha(state State) float64 {
 	if elapsed <= hold {
 		return 1
 	}
-	fade := centerprintFadeTail()
+	fade := cp.centerprintFadeTail()
 	if fade <= 0 {
 		return 0
 	}
@@ -330,8 +334,8 @@ func centerprintVisualAlpha(state State) float64 {
 	return max(0, min(1, (hold+fade-elapsed)/fade))
 }
 
-func currentCenterprintHold() float64 {
-	if cv := cvar.Get(centerPrintTimeCVar); cv != nil {
+func (cp *Centerprint) currentCenterprintHold() float64 {
+	if cv := cp.cvars.Get(centerPrintTimeCVar); cv != nil {
 		return max(0, cv.Float)
 	}
 	return centerPrintDefaultHold
@@ -350,9 +354,9 @@ func centerprintY(screenHeight int, message string) int {
 	return 48 * screenHeight / 200
 }
 
-func regularCenterprintY(screenHeight int, message string) int {
+func (cp *Centerprint) regularCenterprintY(screenHeight int, message string) int {
 	y := centerprintY(screenHeight, message)
-	if cvar.IntValue("crosshair") != 0 && currentViewSize() < 130 {
+	if cp.cvars.IntValue("crosshair") != 0 && currentViewSize(cp.cvars) < 130 {
 		y -= 8
 	}
 	return y
@@ -367,7 +371,7 @@ func (cp *Centerprint) drawCenterprintBackground(rc renderer.RenderContext, scre
 	boxHeight := lines*8 + 8
 	boxX := (screenWidth - boxWidth) / 2
 	boxY := y - 4
-	fillAlpha := centerprintBackgroundAlpha(alpha)
+	fillAlpha := cp.centerprintBackgroundAlpha(alpha)
 
 	switch mode {
 	case 1:
@@ -446,8 +450,8 @@ func (cp *Centerprint) drawCenterprintPicAlpha(rc renderer.RenderContext, x, y i
 	rc.DrawPic(x, y, pic)
 }
 
-func centerprintBackgroundAlpha(alpha float64) float64 {
-	return alpha * max(0, min(1, cvar.FloatValue(menuBGAlphaCVar)))
+func (cp *Centerprint) centerprintBackgroundAlpha(alpha float64) float64 {
+	return alpha * max(0, min(1, cp.cvars.FloatValue(menuBGAlphaCVar)))
 }
 
 func drawCenterprintFill(rc renderer.RenderContext, x, y, w, h int, color byte, alpha float64) {

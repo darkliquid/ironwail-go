@@ -5,7 +5,6 @@ import (
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/console"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
@@ -14,10 +13,10 @@ func (g *Game) runtimeGUIDimensions(framebufferW, framebufferH int) (int, int) {
 	guiW := framebufferW
 	guiH := framebufferH
 	if guiW <= 0 {
-		guiW = cvar.IntValue("vid_width")
+		guiW = g.Host.CVar.IntValue("vid_width")
 	}
 	if guiH <= 0 {
-		guiH = cvar.IntValue("vid_height")
+		guiH = g.Host.CVar.IntValue("vid_height")
 	}
 	pixelAspect := g.currentRuntimePixelAspect()
 	if pixelAspect > 1 {
@@ -33,9 +32,9 @@ func (g *Game) runtimeConsoleDimensions(guiW, guiH int) (int, int) {
 		return 0, 0
 	}
 	conWidth := guiW
-	if override := cvar.FloatValue("scr_conwidth"); override > 0 {
+	if override := g.Host.CVar.FloatValue("scr_conwidth"); override > 0 {
 		conWidth = int(override)
-	} else if scale := cvar.FloatValue("scr_conscale"); scale > 0 {
+	} else if scale := g.Host.CVar.FloatValue("scr_conscale"); scale > 0 {
 		conWidth = int(float64(guiW) / scale)
 	}
 	if conWidth < 320 {
@@ -65,9 +64,9 @@ func (g *Game) runtimeCanvasParams(framebufferW, framebufferH int, slideFraction
 		GLHeight:         float32(framebufferH),
 		ConWidth:         float32(conW),
 		ConHeight:        float32(conH),
-		MenuScale:        float32(cvar.FloatValue("scr_menuscale")),
-		SbarScale:        float32(cvar.FloatValue("scr_sbarscale")),
-		CrosshairScale:   float32(cvar.FloatValue("scr_crosshairscale")),
+		MenuScale:        float32(g.Host.CVar.FloatValue("scr_menuscale")),
+		SbarScale:        float32(g.Host.CVar.FloatValue("scr_sbarscale")),
+		CrosshairScale:   float32(g.Host.CVar.FloatValue("scr_crosshairscale")),
 		ConSlideFraction: slideFraction,
 	}
 }
@@ -119,7 +118,7 @@ func (g *Game) updateRuntimeConsoleSlide(dt float64, consoleVisible, forcedup bo
 		return
 	}
 
-	speed := float32(cvar.FloatValue("scr_conspeed"))
+	speed := float32(g.Host.CVar.FloatValue("scr_conspeed"))
 	if speed <= 0 {
 		speed = 1e6
 	}
@@ -167,13 +166,13 @@ func (g *Game) runtimeViewModelVisible() bool {
 	if g.Client.Intermission != 0 {
 		return false
 	}
-	if !cvar.BoolValue("r_drawentities") {
+	if !g.Host.CVar.BoolValue("r_drawentities") {
 		return false
 	}
-	if !cvar.BoolValue("r_drawviewmodel") {
+	if !g.Host.CVar.BoolValue("r_drawviewmodel") {
 		return false
 	}
-	if cvar.BoolValue("chase_active") {
+	if g.Host.CVar.BoolValue("chase_active") {
 		return false
 	}
 	if g.currentRuntimeViewSize() >= 130 {
@@ -202,7 +201,7 @@ func (g *Game) drawMenuBackdrop(rc renderer.RenderContext, w, h int) {
 		return
 	}
 	rc.SetCanvas(renderer.CanvasDefault)
-	alpha := float32(cvar.FloatValue("scr_menubgalpha"))
+	alpha := float32(g.Host.CVar.FloatValue("scr_menubgalpha"))
 	if alpha < 0 {
 		alpha = 0
 	}
@@ -226,10 +225,10 @@ func (g *Game) drawRuntimeMenu(rc renderer.RenderContext, w, h int, drawMenu fun
 
 func (g *Game) drawChatInput(rc renderer.RenderContext, w, _ int) {
 	prompt := "say: "
-	if chatTeam {
+	if g.chatTeam {
 		prompt = "say_team: "
 	}
-	fullText := g.clippedChatInput(prompt, chatBuffer, max(1, w/8-2))
+	fullText := g.clippedChatInput(prompt, g.chatBuffer, max(1, w/8-2))
 
 	y := console.NotifyLineCount() * 8
 	x := 8

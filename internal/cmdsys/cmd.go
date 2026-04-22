@@ -29,6 +29,8 @@ package cmdsys
 import (
 	"strings"
 	"sync"
+
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // CommandFunc is the signature for a command handler callback. When a console
@@ -82,29 +84,30 @@ type bufferedText struct {
 // The RWMutex allows concurrent reads (e.g., tab-completion, command lookup)
 // while serializing writes (e.g., registering new commands, modifying aliases).
 type CmdSystem struct {
-	mu          sync.RWMutex        // Protects concurrent access to commands, aliases, and buffer.
-	commands    map[string]*Command // Registry of all named commands, keyed by lowercase name.
-	aliases     map[string]string   // User-defined alias expansions, keyed by lowercase alias name.
-	buffer      []bufferedText      // Accumulated command text chunks waiting to be executed.
-	waitCount   int                 // Tracks pending "wait" frames; see executeTextWithWait.
-	source      CommandSource       // Current command source for handlers executing in this context.
-	ForwardFunc func(line string)   // Called for unrecognized commands (e.g., forward to server).
+	mu            sync.RWMutex        // Protects concurrent access to commands, aliases, and buffer.
+	commands      map[string]*Command // Registry of all named commands, keyed by lowercase name.
+	aliases       map[string]string   // User-defined alias expansions, keyed by lowercase alias name.
+	buffer        []bufferedText      // Accumulated command text chunks waiting to be executed.
+	waitCount     int                 // Tracks pending "wait" frames; see executeTextWithWait.
+	source        CommandSource       // Current command source for handlers executing in this context.
+	ForwardFunc   func(line string)   // Called for unrecognized commands (e.g., forward to server).
+	printCallback func(string)        // Sink for command/cvar listing output; defaults to no-op.
+
+	// CVar is the cvar registry used by cvar-coupled command handlers
+	// (cvarlist, toggle, inc, reset, etc.) and by executeLine's fallback
+	// "treat unknown command as cvar set". Set by the Host after constructing
+	// both systems.
+	CVar *cvar.CVarSystem
 }
 
-// globalCmd is the package-level singleton CmdSystem instance. Quake's original
-// engine uses global state extensively; this singleton preserves that pattern
-// while allowing the package-level convenience functions (AddCommand, Execute,
-// etc.) to delegate to a single shared instance. Test code or embedded usage
-// can create isolated instances via NewCmdSystem().
-var globalCmd = NewCmdSystem()
-var printCallback = func(string) {}
-
-func SetPrintCallback(fn func(string)) {
+// SetPrintCallback installs the sink used for command/cvar listing output
+// (cvarlist, cmdlist, apropos, etc). Passing nil resets the sink to a no-op.
+func (c *CmdSystem) SetPrintCallback(fn func(string)) {
 	if fn == nil {
-		printCallback = func(string) {}
+		c.printCallback = func(string) {}
 		return
 	}
-	printCallback = fn
+	c.printCallback = fn
 }
 
 // NewCmdSystem creates and returns a new, independent command system instance.
@@ -116,9 +119,10 @@ func SetPrintCallback(fn func(string)) {
 // processes each action on separate simulation ticks.
 func NewCmdSystem() *CmdSystem {
 	cs := &CmdSystem{
-		commands: make(map[string]*Command),
-		aliases:  make(map[string]string),
-		source:   SrcCommand,
+		commands:      make(map[string]*Command),
+		aliases:       make(map[string]string),
+		source:        SrcCommand,
+		printCallback: func(string) {},
 	}
 	// Register wait command
 	cs.AddCommand("wait", func(args []string) {
@@ -139,12 +143,14 @@ func NewCmdSystem() *CmdSystem {
 	return cs
 }
 
-// Init is a placeholder for future initialization logic. In the original Quake
-// engine, Cmd_Init() registers built-in commands like "exec", "echo", "alias",
-// "wait", and "cmd". As this Go port matures, subsystem-specific command
-// registration will be added here.
-func (c *CmdSystem) Init() {
-}
+// Init satisfies the host CommandBuffer interface; the constructor already
+// installs the built-in commands so this is a no-op kept for symmetry with
+// other host-managed subsystems.
+func (c *CmdSystem) Init() {}
+
+// Shutdown satisfies the host CommandBuffer interface. Nothing to release
+// today, but the hook lets future implementations flush pending state.
+func (c *CmdSystem) Shutdown() {}
 
 func isReservedName(name string) bool {
 	return strings.HasPrefix(name, "__")

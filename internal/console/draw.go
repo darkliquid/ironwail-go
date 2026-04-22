@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 )
 
@@ -88,8 +87,6 @@ const (
 
 	consoleCursorBlinkHz = 4
 )
-
-var consoleNow = time.Now
 
 // Draw is the package-level entry point that renders the global console.
 // It delegates to the singleton globalConsole. When full is true, the
@@ -191,12 +188,12 @@ func (c *Console) drawFull(rc DrawContext, screenWidth, screenHeight, charsWide 
 	prompt := append([]rune{']'}, inputLine...)
 	visiblePrompt, cursorCol := clipPromptWithCursor(prompt, cursorPos+1, max(1, charsWide-3))
 	drawRuneText(rc, consoleCharWidth, consoleHeight-consoleCharHeight, visiblePrompt)
-	drawBlinkCursor(rc, consoleCharWidth+cursorCol*consoleCharWidth, consoleHeight-consoleCharHeight, consoleNow())
+	drawBlinkCursor(rc, consoleCharWidth+cursorCol*consoleCharWidth, consoleHeight-consoleCharHeight, c.now())
 
 	// Draw version/title string in the bottom-right corner, matching C
 	// Ironwail's Con_DrawConsole which renders CONSOLE_TITLE_STRING via
 	// M_PrintWhite at (vid.conwidth - strlen*8, vid.conheight - 8).
-	title := TitleString
+	title := c.Title
 	if len(title) > 0 {
 		titleX := screenWidth - len(title)*consoleCharWidth
 		titleY := consoleHeight - consoleCharHeight
@@ -262,8 +259,8 @@ func scaleQPicNearest(pic *qimage.QPic, width, height int) *qimage.QPic {
 // can see kill messages, chat, and other transient information. Lines whose
 // timestamps have expired are silently skipped.
 func (c *Console) drawNotify(rc DrawContext, charsWide int) {
-	now := consoleNow()
-	centered := cvar.BoolValue("con_notifycenter")
+	now := c.now()
+	centered := c.CVar.BoolValue("con_notifycenter")
 
 	c.mu.RLock()
 	current := c.current
@@ -278,7 +275,7 @@ func (c *Console) drawNotify(rc DrawContext, charsWide int) {
 			continue
 		}
 		ts := notifyTimes[line%NumNotifyTimes]
-		alpha := notifyAlpha(now, ts)
+		alpha := c.notifyAlpha(now, ts)
 		if alpha <= 0 {
 			continue
 		}
@@ -521,31 +518,31 @@ func consoleCursorGlyph(now time.Time) int {
 	return 10 + int(frame)
 }
 
-func consoleNotifyTTL() time.Duration {
-	secs := cvar.FloatValue("con_notifytime")
+func (c *Console) consoleNotifyTTL() time.Duration {
+	secs := c.CVar.FloatValue("con_notifytime")
 	if secs <= 0 {
 		return consoleNotifyDefaultTTL
 	}
 	return time.Duration(secs * float64(time.Second))
 }
 
-func notifyFadeDuration() time.Duration {
-	if !cvar.BoolValue("con_notifyfade") {
+func (c *Console) notifyFadeDuration() time.Duration {
+	if !c.CVar.BoolValue("con_notifyfade") {
 		return 0
 	}
-	secs := cvar.FloatValue("con_notifyfadetime")
+	secs := c.CVar.FloatValue("con_notifyfadetime")
 	if secs <= 0 {
 		return 0
 	}
 	return time.Duration(secs * float64(time.Second))
 }
 
-func notifyAlpha(now, ts time.Time) float64 {
+func (c *Console) notifyAlpha(now, ts time.Time) float64 {
 	if ts.IsZero() {
 		return 0
 	}
-	fade := notifyFadeDuration()
-	remaining := ts.Add(consoleNotifyTTL() + fade).Sub(now)
+	fade := c.notifyFadeDuration()
+	remaining := ts.Add(c.consoleNotifyTTL() + fade).Sub(now)
 	if remaining <= 0 {
 		return 0
 	}
@@ -580,7 +577,7 @@ func (c *Console) NotifyLineCountAt(now time.Time) int {
 		if line < 0 {
 			continue
 		}
-		if notifyAlpha(now, c.notifyTimes[line%NumNotifyTimes]) > 0 {
+		if c.notifyAlpha(now, c.notifyTimes[line%NumNotifyTimes]) > 0 {
 			count++
 		}
 	}

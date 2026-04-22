@@ -2,37 +2,35 @@ package renderer
 
 import (
 	"testing"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func ensureAlphaModeCvars() {
-	cvar.Register(CvarROIT, "0", 0, "OIT test cvar")
-	cvar.Register(CvarRAlphaSort, "0", 0, "Alpha sort test cvar")
+	testCV.Register(CvarROIT, "0", 0, "OIT test cvar")
+	testCV.Register(CvarRAlphaSort, "0", 0, "Alpha sort test cvar")
 }
 
 func TestGetAlphaMode(t *testing.T) {
 	ensureAlphaModeCvars()
 
 	t.Run("oit takes precedence", func(t *testing.T) {
-		cvar.SetBool(CvarROIT, true)
-		cvar.SetBool(CvarRAlphaSort, false)
+		testCV.SetBool(CvarROIT, true)
+		testCV.SetBool(CvarRAlphaSort, false)
 		if got := GetAlphaMode(); got != AlphaModeOIT {
 			t.Fatalf("GetAlphaMode() = %v, want %v", got, AlphaModeOIT)
 		}
 	})
 
 	t.Run("sorted when oit disabled", func(t *testing.T) {
-		cvar.SetBool(CvarROIT, false)
-		cvar.SetBool(CvarRAlphaSort, true)
+		testCV.SetBool(CvarROIT, false)
+		testCV.SetBool(CvarRAlphaSort, true)
 		if got := GetAlphaMode(); got != AlphaModeSorted {
 			t.Fatalf("GetAlphaMode() = %v, want %v", got, AlphaModeSorted)
 		}
 	})
 
 	t.Run("basic when both disabled", func(t *testing.T) {
-		cvar.SetBool(CvarROIT, false)
-		cvar.SetBool(CvarRAlphaSort, false)
+		testCV.SetBool(CvarROIT, false)
+		testCV.SetBool(CvarRAlphaSort, false)
 		if got := GetAlphaMode(); got != AlphaModeBasic {
 			t.Fatalf("GetAlphaMode() = %v, want %v", got, AlphaModeBasic)
 		}
@@ -43,37 +41,37 @@ func TestSetAlphaMode(t *testing.T) {
 	ensureAlphaModeCvars()
 
 	t.Run("basic mode", func(t *testing.T) {
-		cvar.SetBool(CvarROIT, true)
-		cvar.SetBool(CvarRAlphaSort, true)
+		testCV.SetBool(CvarROIT, true)
+		testCV.SetBool(CvarRAlphaSort, true)
 		SetAlphaMode(AlphaModeBasic)
-		if cvar.BoolValue(CvarROIT) {
+		if testCV.BoolValue(CvarROIT) {
 			t.Fatal("r_oit = 1, want 0")
 		}
-		if cvar.BoolValue(CvarRAlphaSort) {
+		if testCV.BoolValue(CvarRAlphaSort) {
 			t.Fatal("r_alphasort = 1, want 0")
 		}
 	})
 
 	t.Run("sorted mode", func(t *testing.T) {
-		cvar.SetBool(CvarROIT, true)
-		cvar.SetBool(CvarRAlphaSort, false)
+		testCV.SetBool(CvarROIT, true)
+		testCV.SetBool(CvarRAlphaSort, false)
 		SetAlphaMode(AlphaModeSorted)
-		if cvar.BoolValue(CvarROIT) {
+		if testCV.BoolValue(CvarROIT) {
 			t.Fatal("r_oit = 1, want 0")
 		}
-		if !cvar.BoolValue(CvarRAlphaSort) {
+		if !testCV.BoolValue(CvarRAlphaSort) {
 			t.Fatal("r_alphasort = 0, want 1")
 		}
 	})
 
 	t.Run("oit mode preserves alphasort fallback", func(t *testing.T) {
-		cvar.SetBool(CvarRAlphaSort, true)
-		cvar.SetBool(CvarROIT, false)
+		testCV.SetBool(CvarRAlphaSort, true)
+		testCV.SetBool(CvarROIT, false)
 		SetAlphaMode(AlphaModeOIT)
-		if !cvar.BoolValue(CvarROIT) {
+		if !testCV.BoolValue(CvarROIT) {
 			t.Fatal("r_oit = 0, want 1")
 		}
-		if !cvar.BoolValue(CvarRAlphaSort) {
+		if !testCV.BoolValue(CvarRAlphaSort) {
 			t.Fatal("r_alphasort changed unexpectedly while enabling OIT")
 		}
 	})

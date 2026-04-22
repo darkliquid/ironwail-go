@@ -180,7 +180,7 @@ func TestUpdateHUDFromServerUsesClientState(t *testing.T) {
 		g.ShowScores = originalShowScores
 	})
 
-	g.HUD = hud.NewHUD(nil)
+	g.HUD = hud.NewHUD(nil, g.Host.CVar)
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 111
 	g.Client.Stats[inet.StatArmor] = 55
@@ -300,7 +300,7 @@ func TestUpdateHUDFromServerKeepsIntermissionOverlayVisibleOutsideGameplayInput(
 		g.Input = originalInput
 	})
 
-	g.HUD = hud.NewHUD(nil)
+	g.HUD = hud.NewHUD(nil, g.Host.CVar)
 	g.Client = cl.NewClient()
 	g.Client.Intermission = 1
 	g.Input = input.NewSystem(nil)
@@ -324,7 +324,7 @@ func TestDrawRuntimeHUDLayerFallsBackToNativeHUDWhenCSQCDrawFails(t *testing.T) 
 		g.CSQC = originalCSQC
 	})
 
-	g.HUD = hud.NewHUD(nil)
+	g.HUD = hud.NewHUD(nil, g.Host.CVar)
 	g.Client = cl.NewClient()
 	g.Client.Stats[inet.StatHealth] = 123
 	g.CSQC = nil

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/fs"
@@ -19,7 +18,7 @@ import (
 
 func TestDrawMenuBackdropUsesAlphaFill(t *testing.T) {
 	g := New()
-	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "")
+	g.Host.CVar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "")
 	dc := &consoleOverlayDrawContext{}
 
 	g.drawMenuBackdrop(dc, 8, 10)
@@ -37,15 +36,15 @@ func TestDrawMenuBackdropUsesAlphaFill(t *testing.T) {
 
 func TestDrawMenuBackdropClampsAlphaCVar(t *testing.T) {
 	g := New()
-	cvar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "")
+	g.Host.CVar.Register("scr_menubgalpha", "0.7", cvar.FlagArchive, "")
 	dc := &consoleOverlayDrawContext{}
 
-	cvar.Set("scr_menubgalpha", "2")
+	g.Host.CVar.Set("scr_menubgalpha", "2")
 	g.drawMenuBackdrop(dc, 8, 10)
-	cvar.Set("scr_menubgalpha", "-1")
+	g.Host.CVar.Set("scr_menubgalpha", "-1")
 	g.drawMenuBackdrop(dc, 8, 10)
 	t.Cleanup(func() {
-		cvar.Set("scr_menubgalpha", "0.7")
+		g.Host.CVar.Set("scr_menubgalpha", "0.7")
 	})
 
 	if len(dc.fills) != 2 {
@@ -61,11 +60,11 @@ func TestDrawMenuBackdropClampsAlphaCVar(t *testing.T) {
 
 func TestDrawRuntimeMenuDrawsBackdropBeforeMenu(t *testing.T) {
 	g := New()
-	registerConsoleCanvasTestCvars()
-	cvar.Set("vid_width", "1280")
-	cvar.Set("vid_height", "720")
-	cvar.Set("scr_pixelaspect", "1")
-	cvar.Set("scr_menuscale", "2.25")
+	registerConsoleCanvasTestCvars(g)
+	g.Host.CVar.Set("vid_width", "1280")
+	g.Host.CVar.Set("vid_height", "720")
+	g.Host.CVar.Set("scr_pixelaspect", "1")
+	g.Host.CVar.Set("scr_menuscale", "2.25")
 
 	dc := &consoleOverlayDrawContext{}
 	menuDrawCalled := false
@@ -101,17 +100,17 @@ func TestDrawRuntimeMenuDrawsBackdropBeforeMenu(t *testing.T) {
 
 func TestRuntimeConsoleDimensionsMatchCReferenceSizing(t *testing.T) {
 	g := New()
-	registerConsoleCanvasTestCvars()
-	cvar.Set("scr_pixelaspect", "1")
-	cvar.Set("scr_conwidth", "0")
-	cvar.Set("scr_conscale", "2")
+	registerConsoleCanvasTestCvars(g)
+	g.Host.CVar.Set("scr_pixelaspect", "1")
+	g.Host.CVar.Set("scr_conwidth", "0")
+	g.Host.CVar.Set("scr_conscale", "2")
 
 	if gotW, gotH := g.runtimeConsoleDimensions(1280, 720); gotW != 640 || gotH != 360 {
 		t.Fatalf("runtimeConsoleDimensions = %dx%d, want 640x360", gotW, gotH)
 	}
 
-	cvar.Set("scr_conwidth", "200")
-	cvar.Set("scr_conscale", "1")
+	g.Host.CVar.Set("scr_conwidth", "200")
+	g.Host.CVar.Set("scr_conscale", "1")
 	if gotW, gotH := g.runtimeConsoleDimensions(1280, 720); gotW != 320 || gotH != 180 {
 		t.Fatalf("runtimeConsoleDimensions clamp = %dx%d, want 320x180", gotW, gotH)
 	}
@@ -119,16 +118,16 @@ func TestRuntimeConsoleDimensionsMatchCReferenceSizing(t *testing.T) {
 
 func TestRuntimeGUIDimensionsApplyPixelAspect(t *testing.T) {
 	g := New()
-	registerConsoleCanvasTestCvars()
+	registerConsoleCanvasTestCvars(g)
 
-	cvar.Set("vid_width", "1280")
-	cvar.Set("vid_height", "720")
-	cvar.Set("scr_pixelaspect", "5:6")
+	g.Host.CVar.Set("vid_width", "1280")
+	g.Host.CVar.Set("vid_height", "720")
+	g.Host.CVar.Set("scr_pixelaspect", "5:6")
 	if gotW, gotH := g.runtimeGUIDimensions(1280, 720); gotW != 1280 || gotH != 600 {
 		t.Fatalf("runtimeGUIDimensions tall pixels = %dx%d, want 1280x600", gotW, gotH)
 	}
 
-	cvar.Set("scr_pixelaspect", "1.5")
+	g.Host.CVar.Set("scr_pixelaspect", "1.5")
 	if gotW, gotH := g.runtimeGUIDimensions(1280, 720); gotW != 853 || gotH != 720 {
 		t.Fatalf("runtimeGUIDimensions wide pixels = %dx%d, want 853x720", gotW, gotH)
 	}
@@ -141,12 +140,12 @@ func TestDrawRuntimeConsoleUsesConsoleCanvasAndBackgroundPic(t *testing.T) {
 		g.Draw = originalDraw
 	})
 
-	registerConsoleCanvasTestCvars()
-	cvar.Set("vid_width", "1280")
-	cvar.Set("vid_height", "720")
-	cvar.Set("scr_pixelaspect", "1")
-	cvar.Set("scr_conwidth", "0")
-	cvar.Set("scr_conscale", "2")
+	registerConsoleCanvasTestCvars(g)
+	g.Host.CVar.Set("vid_width", "1280")
+	g.Host.CVar.Set("vid_height", "720")
+	g.Host.CVar.Set("scr_pixelaspect", "1")
+	g.Host.CVar.Set("scr_conwidth", "0")
+	g.Host.CVar.Set("scr_conscale", "2")
 
 	if err := console.InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
@@ -213,12 +212,12 @@ func TestDrawRuntimeConsoleUsesPixelAspectAdjustedGUI(t *testing.T) {
 		g.Draw = originalDraw
 	})
 
-	registerConsoleCanvasTestCvars()
-	cvar.Set("vid_width", "1280")
-	cvar.Set("vid_height", "720")
-	cvar.Set("scr_pixelaspect", "5:6")
-	cvar.Set("scr_conwidth", "0")
-	cvar.Set("scr_conscale", "2")
+	registerConsoleCanvasTestCvars(g)
+	g.Host.CVar.Set("vid_width", "1280")
+	g.Host.CVar.Set("vid_height", "720")
+	g.Host.CVar.Set("scr_pixelaspect", "5:6")
+	g.Host.CVar.Set("scr_conwidth", "0")
+	g.Host.CVar.Set("scr_conscale", "2")
 
 	if err := console.InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
@@ -250,11 +249,11 @@ func TestDrawRuntimeConsoleUsesPixelAspectAdjustedGUI(t *testing.T) {
 
 func TestScreenToMenuCoordsUsesCanvasMenuTransform(t *testing.T) {
 	g := New()
-	registerConsoleCanvasTestCvars()
-	cvar.Set("vid_width", "320")
-	cvar.Set("vid_height", "200")
-	cvar.Set("scr_pixelaspect", "1")
-	cvar.Set("scr_menuscale", "1")
+	registerConsoleCanvasTestCvars(g)
+	g.Host.CVar.Set("vid_width", "320")
+	g.Host.CVar.Set("vid_height", "200")
+	g.Host.CVar.Set("scr_pixelaspect", "1")
+	g.Host.CVar.Set("scr_menuscale", "1")
 
 	params := g.runtimeOverlayCanvasParams(320, 200)
 	transform := renderer.GetCanvasTransform(renderer.CanvasMenu, params)
@@ -275,13 +274,13 @@ func TestScreenToMenuCoordsUsesCanvasMenuTransform(t *testing.T) {
 
 func TestUpdateRuntimeConsoleSlide(t *testing.T) {
 	g := New()
-	registerConsoleCanvasTestCvars()
+	registerConsoleCanvasTestCvars(g)
 	originalFraction := g.ConsoleSlideFraction
 	t.Cleanup(func() {
 		g.ConsoleSlideFraction = originalFraction
 	})
 
-	cvar.Set("scr_conspeed", "300")
+	g.Host.CVar.Set("scr_conspeed", "300")
 
 	g.ConsoleSlideFraction = 0
 	g.updateRuntimeConsoleSlide(0.25, true, false)
@@ -301,20 +300,14 @@ func TestUpdateRuntimeConsoleSlide(t *testing.T) {
 }
 
 func TestDrawChatInputClipsAndDrawsBlinkCursor(t *testing.T) {
-	originalChatBuffer := chatBuffer
-	originalChatTeam := chatTeam
-	t.Cleanup(func() {
-		chatBuffer = originalChatBuffer
-		chatTeam = originalChatTeam
-	})
+	g := New()
 	if err := console.InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
 	}
 	console.Clear()
-	chatBuffer = "abcdef"
-	chatTeam = false
+	g.chatBuffer = "abcdef"
+	g.chatTeam = false
 
-	g := New()
 	dc := &consoleOverlayDrawContext{}
 	g.drawChatInput(dc, 80, 200)
 
@@ -335,22 +328,16 @@ func TestDrawChatInputClipsAndDrawsBlinkCursor(t *testing.T) {
 }
 
 func TestDrawChatInputTracksNotifyRows(t *testing.T) {
-	originalChatBuffer := chatBuffer
-	originalChatTeam := chatTeam
-	t.Cleanup(func() {
-		chatBuffer = originalChatBuffer
-		chatTeam = originalChatTeam
-	})
+	g := New()
 	if err := console.InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
 	}
 	console.Clear()
-	cvar.Set("con_notifytime", "3")
+	g.Host.CVar.Set("con_notifytime", "3")
 
-	chatBuffer = "hi"
+	g.chatBuffer = "hi"
 	console.Printf("notify")
 
-	g := New()
 	dc := &consoleOverlayDrawContext{}
 	g.drawChatInput(dc, 80, 200)
 
@@ -409,12 +396,10 @@ func TestShouldUploadRuntimeWorld(t *testing.T) {
 
 func TestRegisterConsoleCompletionProvidersIncludesAliases(t *testing.T) {
 	g := New()
-	cmdsys.UnaliasAll()
-	t.Cleanup(cmdsys.UnaliasAll)
 	console.ResetCompletion()
 	t.Cleanup(console.ResetCompletion)
 
-	cmdsys.AddAlias("zz_alias_test", "echo hi\n")
+	g.Host.Cmd.AddAlias("zz_alias_test", "echo hi\n")
 	g.registerConsoleCompletionProviders()
 
 	got, matches := console.CompleteInput("zz_al", true)
@@ -561,10 +546,10 @@ func TestDrawPauseOverlayNoopWithoutPics(t *testing.T) {
 
 func TestDrawPauseOverlayHonorsShowPause(t *testing.T) {
 	g := New()
-	cvar.Register("showpause", "1", cvar.FlagArchive, "")
-	cvar.Set("showpause", "0")
+	g.Host.CVar.Register("showpause", "1", cvar.FlagArchive, "")
+	g.Host.CVar.Set("showpause", "0")
 	t.Cleanup(func() {
-		cvar.Set("showpause", "1")
+		g.Host.CVar.Set("showpause", "1")
 	})
 
 	pause := &qimage.QPic{Width: 128, Height: 24}
@@ -584,7 +569,6 @@ func TestDrawPauseOverlayHonorsShowPause(t *testing.T) {
 
 func TestRuntimePauseActiveTracksServerClientAndDemoPause(t *testing.T) {
 	g := New()
-	g.Host = host.NewHost()
 	g.Client = cl.NewClient()
 	if g.runtimePauseActive() {
 		t.Fatal("runtimePauseActive() = true, want false")

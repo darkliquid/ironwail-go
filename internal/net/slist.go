@@ -73,14 +73,23 @@ func (e HostCacheEntry) String() string {
 // from net_main.c.
 type ServerBrowser struct {
 	mu        sync.Mutex
+	net       *Network
 	entries   []HostCacheEntry
 	searching bool
 	done      chan struct{}
 }
 
-// NewServerBrowser creates a ServerBrowser ready for use.
+// NewServerBrowser creates a ServerBrowser bound to the process-wide
+// defaultNet. Use (n *Network).NewServerBrowser() for an isolated
+// browser that reads its default host port from a specific Network.
 func NewServerBrowser() *ServerBrowser {
-	return &ServerBrowser{}
+	return defaultNet.NewServerBrowser()
+}
+
+// NewServerBrowser creates a ServerBrowser that reads per-Network state
+// (default host port, address resolution) from this Network instance.
+func (n *Network) NewServerBrowser() *ServerBrowser {
+	return &ServerBrowser{net: n}
 }
 
 // Start initiates an asynchronous LAN server search.
@@ -197,16 +206,20 @@ func (sb *ServerBrowser) run() {
 
 // broadcast sends the query packet to the broadcast address on the Quake port.
 func (sb *ServerBrowser) broadcast(conn stdnet.PacketConn, query []byte) {
+	port := defaultNet.defaultHostPort
+	if sb.net != nil {
+		port = sb.net.defaultHostPort
+	}
 	broadcastAddr := &stdnet.UDPAddr{
 		IP:   stdnet.IPv4bcast,
-		Port: defaultNetHostPort,
+		Port: port,
 	}
 	if _, err := conn.WriteTo(query, broadcastAddr); err != nil {
 		slog.Debug("slist: broadcast failed, trying localhost", "err", err)
 		// Fallback: try localhost (works in loopback-only environments)
 		localhost := &stdnet.UDPAddr{
 			IP:   stdnet.IPv4(127, 0, 0, 1),
-			Port: defaultNetHostPort,
+			Port: port,
 		}
 		conn.WriteTo(query, localhost)
 	}
@@ -378,11 +391,19 @@ func parsePlayerInfoResponse(data []byte) (PlayerInfoEntry, bool) {
 	return entry, true
 }
 
+// QueryServerRules queries a remote server's serverinfo cvars using the
+// process-wide defaultNet for default host-port and address resolution.
 func QueryServerRules(address string) ([]RuleInfoEntry, error) {
+	return defaultNet.QueryServerRules(address)
+}
+
+// QueryServerRules issues CCREQ_RULE_INFO queries against the given
+// address using this Network's default host-port and address resolver.
+func (n *Network) QueryServerRules(address string) ([]RuleInfoEntry, error) {
 	if !strings.Contains(address, ":") {
-		address = fmt.Sprintf("%s:%d", address, defaultNetHostPort)
+		address = fmt.Sprintf("%s:%d", address, n.defaultHostPort)
 	}
-	addr, err := UDPStringToAddr(address)
+	addr, err := n.UDPStringToAddr(address)
 	if err != nil {
 		return nil, err
 	}
@@ -420,11 +441,19 @@ func QueryServerRules(address string) ([]RuleInfoEntry, error) {
 	}
 }
 
+// QueryServerPlayers queries a remote server's player roster using the
+// process-wide defaultNet for default host-port and address resolution.
 func QueryServerPlayers(address string) ([]PlayerInfoEntry, error) {
+	return defaultNet.QueryServerPlayers(address)
+}
+
+// QueryServerPlayers issues CCREQ_PLAYER_INFO queries against the given
+// address using this Network's default host-port and address resolver.
+func (n *Network) QueryServerPlayers(address string) ([]PlayerInfoEntry, error) {
 	if !strings.Contains(address, ":") {
-		address = fmt.Sprintf("%s:%d", address, defaultNetHostPort)
+		address = fmt.Sprintf("%s:%d", address, n.defaultHostPort)
 	}
-	addr, err := UDPStringToAddr(address)
+	addr, err := n.UDPStringToAddr(address)
 	if err != nil {
 		return nil, err
 	}

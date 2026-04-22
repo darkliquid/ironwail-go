@@ -38,15 +38,10 @@ const (
 	MaxInputHistory  = 32
 
 	// DefaultTitleString is the fallback title shown in the bottom-right
-	// corner of the full console. Callers should set TitleString during
-	// engine startup to include the actual version number.
+	// corner of the full console. Callers should override Console.Title
+	// during engine startup to include the actual version number.
 	DefaultTitleString = "Ironwail-Go"
 )
-
-// TitleString is displayed in the bottom-right corner of the full console,
-// matching C Ironwail's CONSOLE_TITLE_STRING. Set this during engine startup
-// to include the version number (e.g. "Ironwail-Go 0.2.0").
-var TitleString = DefaultTitleString
 
 // Console is the core state for the Quake-style drop-down developer console.
 //
@@ -138,13 +133,33 @@ type Console struct {
 	// External systems (e.g. a network broadcast or a GUI widget) can register
 	// here to receive a copy of every console message.
 	printCallback func(msg string)
+
+	// CVar is the cvar system used to look up console-related cvars. When nil,
+	// falls back to zero values (permits tests and bare-struct use).
+	CVar *cvar.CVarSystem
+
+	// now is the wall-clock source used for notify line TTL and cursor blink
+	// animation. Tests override this to make draw behaviour deterministic.
+	// Defaults to time.Now in NewConsole.
+	now func() time.Time
+
+	// Title is rendered in the bottom-right corner of the full console,
+	// matching C Ironwail's CONSOLE_TITLE_STRING. Engine startup sets this
+	// to include the version number (e.g. "Ironwail-Go 0.2.0"). Defaults to
+	// DefaultTitleString in NewConsole.
+	Title string
 }
 
 // globalConsole is the process-wide singleton Console instance. Most callers
 // interact with the console through the package-level convenience functions
 // (Printf, Clear, Scroll, etc.) which delegate to this instance. A singleton
-// makes sense because the engine only ever has one console, and many
-// subsystems need to print to it without passing a *Console around.
+// is the right shape here because the engine only ever has one console and
+// the package-level facade is used like the standard library's log.Printf.
+//
+// Tests that need isolated behaviour construct their own *Console via
+// NewConsole, or register a capture hook with SetPrintCallback. The host
+// layer additionally exposes a narrow Console interface (host.Console) so
+// test fixtures can supply a mockConsole without touching globalConsole.
 var globalConsole = NewConsole(DefaultTextSize)
 
 // NewConsole allocates a Console with the given buffer capacity. The buffer
@@ -160,6 +175,9 @@ func NewConsole(bufSize int) *Console {
 	c := &Console{
 		bufSize:   bufSize,
 		lineWidth: DefaultLineWidth,
+		CVar:      cvar.NewCVarSystem(),
+		now:       time.Now,
+		Title:     DefaultTitleString,
 	}
 
 	return c
@@ -187,7 +205,6 @@ func (c *Console) Init(customBufSize int) error {
 		}
 		c.bufSize = customBufSize
 	}
-
 	c.text = make([]byte, c.bufSize)
 	for i := range c.text {
 		c.text[i] = ' '
@@ -208,6 +225,22 @@ func (c *Console) Init(customBufSize int) error {
 // entry point called during engine startup (e.g. from Host_Init).
 func InitGlobal(bufSize int) error {
 	return globalConsole.Init(bufSize)
+}
+
+// SetGlobalCVar assigns the cvar system used by the process-wide singleton
+// console. Called by the host during startup so console methods observe the
+// engine's shared cvar state.
+func SetGlobalCVar(cv *cvar.CVarSystem) {
+	if cv != nil {
+		globalConsole.CVar = cv
+	}
+}
+
+// GlobalCVar returns the cvar system currently used by the process-wide
+// singleton console. Intended for tests that exercise package-level console
+// helpers (DPrintf2, LogCenterPrint, etc.).
+func GlobalCVar() *cvar.CVarSystem {
+	return globalConsole.CVar
 }
 
 // LineWidth returns the current number of characters per line. The draw code
@@ -597,7 +630,7 @@ func (c *Console) DPrintf(developer bool, format string, args ...interface{}) {
 }
 
 func (c *Console) DPrintf2(format string, args ...interface{}) {
-	if cvar.IntValue("developer") < 2 {
+	if c.CVar.IntValue("developer") < 2 {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -694,7 +727,7 @@ func QuakeBar(length int) string {
 }
 
 func (c *Console) LogCenterPrint(gameType int, str string) {
-	mode := cvar.IntValue("con_logcenterprint")
+	mode := c.CVar.IntValue("con_logcenterprint")
 	if mode <= 0 {
 		return
 	}

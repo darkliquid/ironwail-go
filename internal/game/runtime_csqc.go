@@ -233,7 +233,7 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			if pic == nil {
 				return
 			}
-				x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, 0, 0, 1, 1, clip)
+			x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, 0, 0, 1, 1, clip)
 			if !ok {
 				return
 			}
@@ -244,7 +244,7 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			if alpha <= 0 {
 				return
 			}
-				x, y, width, height, _, _, _, _, ok := g.clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
+			x, y, width, height, _, _, _, _, ok := g.clipCSQCDrawRect(clip, posX, posY, sizeX, sizeY)
 			if !ok {
 				return
 			}
@@ -264,7 +264,7 @@ func (g *Game) buildCSQCDrawHooksWithActivity(rc renderer.RenderContext, activit
 			if pic == nil {
 				return
 			}
-				x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, clip)
+			x, y, drawPic, ok := g.prepareCSQCPic(pic, posX, posY, sizeX, sizeY, srcX, srcY, srcW, srcH, clip)
 			if !ok {
 				return
 			}

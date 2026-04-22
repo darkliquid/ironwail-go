@@ -2,20 +2,13 @@ package game
 
 import (
 	"fmt"
-	"os"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 const debugViewTelemetryCVarName = "cl_debug_view"
-
-var debugViewTelemetryCVar *cvar.CVar
-var debugViewTelemetryEmit = func(line string) {
-	fmt.Fprintln(os.Stderr, line)
-}
 
 type debugViewTelemetryState struct {
 	frame               uint64
@@ -34,8 +27,6 @@ type debugViewTelemetryState struct {
 	coalesceKind        string
 	coalesceCount       int
 }
-
-var runtimeDebugView debugViewTelemetryState
 
 type runtimeOriginSource uint8
 
@@ -104,14 +95,14 @@ type runtimeOriginSelectTelemetry struct {
 }
 
 func (g *Game) registerDebugViewTelemetryCVar() {
-	debugViewTelemetryCVar = cvar.Register(debugViewTelemetryCVarName, "0", 0, "Client view debug telemetry (0=off, 1=view, 2=relink+view+lerp+prediction+origin_select, 3=include viewmodel)")
+	g.debugViewTelemetryCVar = g.Host.CVar.Register(debugViewTelemetryCVarName, "0", 0, "Client view debug telemetry (0=off, 1=view, 2=relink+view+lerp+prediction+origin_select, 3=include viewmodel)")
 }
 
 func (g *Game) runtimeDebugViewLevel() int {
-	if !runtimeDebugView.levelLoaded {
+	if !g.debugView.levelLoaded {
 		g.runtimeDebugViewReloadLevel()
 	}
-	return runtimeDebugView.currentLevel
+	return g.debugView.currentLevel
 }
 
 func (g *Game) runtimeDebugViewEnabled(level int) bool {
@@ -124,16 +115,16 @@ func (g *Game) runtimeDebugViewBeginFrame() {
 	if !g.runtimeDebugViewEnabled(1) {
 		return
 	}
-	runtimeDebugView.frame++
-	runtimeDebugView.viewModelFrame = 0
+	g.debugView.frame++
+	g.debugView.viewModelFrame = 0
 }
 
 func (g *Game) runtimeDebugViewReloadLevel() {
-	runtimeDebugView.currentLevel = 0
-	if debugViewTelemetryCVar != nil {
-		runtimeDebugView.currentLevel = debugViewTelemetryCVar.Int
+	g.debugView.currentLevel = 0
+	if g.debugViewTelemetryCVar != nil {
+		g.debugView.currentLevel = g.debugViewTelemetryCVar.Int
 	}
-	runtimeDebugView.levelLoaded = true
+	g.debugView.levelLoaded = true
 }
 
 func (g *Game) runtimeDebugViewLogf(kind, format string, args ...any) {
@@ -146,45 +137,45 @@ func (g *Game) runtimeDebugViewLogf(kind, format string, args ...any) {
 	}
 	payload := fmt.Sprintf(format, args...)
 	key := kind + "|" + payload
-	if key == runtimeDebugView.coalesceKey {
-		runtimeDebugView.coalesceCount++
+	if key == g.debugView.coalesceKey {
+		g.debugView.coalesceCount++
 		return
 	}
 	g.runtimeDebugViewFlushCoalescedRepeats()
-	runtimeDebugView.coalesceKey = key
-	runtimeDebugView.coalesceKind = kind
-	runtimeDebugView.coalesceCount = 0
-	debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] %s",
-		runtimeDebugView.frame, clientTime, kind, payload))
+	g.debugView.coalesceKey = key
+	g.debugView.coalesceKind = kind
+	g.debugView.coalesceCount = 0
+	g.debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] %s",
+		g.debugView.frame, clientTime, kind, payload))
 }
 
 func (g *Game) runtimeDebugViewFlushCoalescedRepeats() {
-	if runtimeDebugView.coalesceCount > 0 {
+	if g.debugView.coalesceCount > 0 {
 		clientTime := 0.0
 		if g.Client != nil {
 			clientTime = g.Client.Time
 		}
-		debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] repeated x%d",
-			runtimeDebugView.frame, clientTime, runtimeDebugView.coalesceKind, runtimeDebugView.coalesceCount))
+		g.debugViewTelemetryEmit(fmt.Sprintf("[cldbg frame=%d time=%.3f kind=%s] repeated x%d",
+			g.debugView.frame, clientTime, g.debugView.coalesceKind, g.debugView.coalesceCount))
 	}
-	runtimeDebugView.coalesceKey = ""
-	runtimeDebugView.coalesceKind = ""
-	runtimeDebugView.coalesceCount = 0
+	g.debugView.coalesceKey = ""
+	g.debugView.coalesceKind = ""
+	g.debugView.coalesceCount = 0
 }
 
 func (g *Game) runtimeDebugViewLogEntityCollection(collector string, entNum int, state inet.EntityState, modelName, status string) {
 	if !g.runtimeDebugViewEnabled(2) {
 		return
 	}
-	if runtimeDebugView.entityCollection == nil {
-		runtimeDebugView.entityCollection = make(map[string]string)
+	if g.debugView.entityCollection == nil {
+		g.debugView.entityCollection = make(map[string]string)
 	}
 	key := fmt.Sprintf("%s:%d", collector, entNum)
 	summary := fmt.Sprintf("%s|%s|%d", status, modelName, state.ModelIndex)
-	if runtimeDebugView.entityCollection[key] == summary {
+	if g.debugView.entityCollection[key] == summary {
 		return
 	}
-	runtimeDebugView.entityCollection[key] = summary
+	g.debugView.entityCollection[key] = summary
 	g.runtimeDebugViewLogf(
 		"entity",
 		"collector=%s ent=%d status=%s model=%q modelindex=%d msgtime=%.3f curtime=%.3f origin=%s",
@@ -211,13 +202,13 @@ func (g *Game) runtimeDebugViewLogRelinkPhase(phase string) {
 	}
 
 	entityDelta := [3]float32{}
-	if runtimeDebugView.haveEntityOrigin {
-		entityDelta[0] = state.Origin[0] - runtimeDebugView.lastEntityOrigin[0]
-		entityDelta[1] = state.Origin[1] - runtimeDebugView.lastEntityOrigin[1]
-		entityDelta[2] = state.Origin[2] - runtimeDebugView.lastEntityOrigin[2]
+	if g.debugView.haveEntityOrigin {
+		entityDelta[0] = state.Origin[0] - g.debugView.lastEntityOrigin[0]
+		entityDelta[1] = state.Origin[1] - g.debugView.lastEntityOrigin[1]
+		entityDelta[2] = state.Origin[2] - g.debugView.lastEntityOrigin[2]
 	}
-	runtimeDebugView.lastEntityOrigin = state.Origin
-	runtimeDebugView.haveEntityOrigin = true
+	g.debugView.lastEntityOrigin = state.Origin
+	g.debugView.haveEntityOrigin = true
 
 	cmd := g.Client.PendingCmd
 	interpVelocity := g.runtimeInterpolatedVelocity()
@@ -250,13 +241,13 @@ func (g *Game) runtimeDebugViewLogState(viewOrigin, viewAngles [3]float32) {
 	}
 
 	viewDelta := [3]float32{}
-	if runtimeDebugView.haveViewOrigin {
-		viewDelta[0] = viewOrigin[0] - runtimeDebugView.lastViewOrigin[0]
-		viewDelta[1] = viewOrigin[1] - runtimeDebugView.lastViewOrigin[1]
-		viewDelta[2] = viewOrigin[2] - runtimeDebugView.lastViewOrigin[2]
+	if g.debugView.haveViewOrigin {
+		viewDelta[0] = viewOrigin[0] - g.debugView.lastViewOrigin[0]
+		viewDelta[1] = viewOrigin[1] - g.debugView.lastViewOrigin[1]
+		viewDelta[2] = viewOrigin[2] - g.debugView.lastViewOrigin[2]
 	}
-	runtimeDebugView.lastViewOrigin = viewOrigin
-	runtimeDebugView.haveViewOrigin = true
+	g.debugView.lastViewOrigin = viewOrigin
+	g.debugView.haveViewOrigin = true
 
 	authoritativeOrigin, _ := g.runtimeAuthoritativePlayerOrigin()
 	bob := g.viewCalcBob(g.Client.Time, g.runtimeInterpolatedVelocity())
@@ -275,7 +266,7 @@ func (g *Game) runtimeDebugViewLogState(viewOrigin, viewAngles [3]float32) {
 }
 
 func (g *Game) runtimeDebugViewRecordOriginSelect(telemetry runtimeOriginSelectTelemetry) {
-	runtimeDebugView.originSelect = telemetry
+	g.debugView.originSelect = telemetry
 }
 
 func (g *Game) runtimeDebugViewLogLerp() {
@@ -347,7 +338,7 @@ func (g *Game) runtimeDebugViewLogOriginSelect() {
 	if !g.runtimeDebugViewEnabled(2) {
 		return
 	}
-	telemetry := runtimeDebugView.originSelect
+	telemetry := g.debugView.originSelect
 	g.runtimeDebugViewLogf(
 		"origin_select",
 		"source=%s reject=%s pred_valid=%t auth=%s predicted=%s final=%s d_xy=(%.3f %.3f) pred_err=(%.3f %.3f) xy_thresh=%.3f err_thresh=%.3f",
@@ -367,18 +358,18 @@ func (g *Game) runtimeDebugViewLogOriginSelect() {
 }
 
 func (g *Game) runtimeDebugViewLogViewModel(entity *renderer.AliasModelEntity) {
-	if !g.runtimeDebugViewEnabled(3) || entity == nil || runtimeDebugView.viewModelFrame == runtimeDebugView.frame {
+	if !g.runtimeDebugViewEnabled(3) || entity == nil || g.debugView.viewModelFrame == g.debugView.frame {
 		return
 	}
 	viewModelDelta := [3]float32{}
-	if runtimeDebugView.haveViewModelOrigin {
-		viewModelDelta[0] = entity.Origin[0] - runtimeDebugView.lastViewModelOrigin[0]
-		viewModelDelta[1] = entity.Origin[1] - runtimeDebugView.lastViewModelOrigin[1]
-		viewModelDelta[2] = entity.Origin[2] - runtimeDebugView.lastViewModelOrigin[2]
+	if g.debugView.haveViewModelOrigin {
+		viewModelDelta[0] = entity.Origin[0] - g.debugView.lastViewModelOrigin[0]
+		viewModelDelta[1] = entity.Origin[1] - g.debugView.lastViewModelOrigin[1]
+		viewModelDelta[2] = entity.Origin[2] - g.debugView.lastViewModelOrigin[2]
 	}
-	runtimeDebugView.lastViewModelOrigin = entity.Origin
-	runtimeDebugView.haveViewModelOrigin = true
-	runtimeDebugView.viewModelFrame = runtimeDebugView.frame
+	g.debugView.lastViewModelOrigin = entity.Origin
+	g.debugView.haveViewModelOrigin = true
+	g.debugView.viewModelFrame = g.debugView.frame
 
 	g.runtimeDebugViewLogf(
 		"viewmodel",

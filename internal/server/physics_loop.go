@@ -5,13 +5,11 @@ import (
 	"log/slog"
 	"math"
 	"time"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 func (s *Server) Physics() {
 	physicsStart := time.Now()
-	hostSpeeds := cvar.BoolValue("host_speeds")
+	hostSpeeds := s.CVar.BoolValue("host_speeds")
 	phaseStart := time.Time{}
 	measureEnabled := func() bool {
 		return hostSpeeds
@@ -81,7 +79,7 @@ func (s *Server) Physics() {
 	phaseEnd(&startFrameMS)
 
 	freezeNonClients := false
-	if cv := cvar.Get("sv_freezenonclients"); cv != nil && cv.Bool() {
+	if cv := s.CVar.Get("sv_freezenonclients"); cv != nil && cv.Bool() {
 		freezeNonClients = true
 	}
 

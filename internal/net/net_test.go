@@ -14,14 +14,14 @@ import (
 )
 
 func TestUDPConnection(t *testing.T) {
-	Init()
-	netHostPort = 26001 // Use a different port for testing
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26001 // Use a different port for testing
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
@@ -29,14 +29,14 @@ func TestUDPConnection(t *testing.T) {
 	var clientSock *Socket
 	done := make(chan bool)
 	go func() {
-		clientSock = Connect("127.0.0.1:26001")
+		clientSock = defaultNet.Connect("127.0.0.1:26001")
 		done <- true
 	}()
 
 	// Server check connections
 	var serverSock *Socket
 	for i := 0; i < 100; i++ {
-		serverSock = CheckNewConnections()
+		serverSock = defaultNet.CheckNewConnections()
 		if serverSock != nil {
 			break
 		}
@@ -48,22 +48,22 @@ func TestUDPConnection(t *testing.T) {
 	if clientSock == nil {
 		t.Fatal("Failed to connect client")
 	}
-	defer Close(clientSock)
+	defer defaultNet.Close(clientSock)
 
 	if serverSock == nil {
 		t.Fatal("Server failed to accept connection")
 	}
-	defer Close(serverSock)
+	defer defaultNet.Close(serverSock)
 
 	// Client send message
 	msg := []byte("Hello Server")
-	SendMessage(clientSock, msg)
+	defaultNet.SendMessage(clientSock, msg)
 
 	// Server receive message
 	var receivedMsg []byte
 	var msgType int
 	for i := 0; i < 100; i++ {
-		msgType, receivedMsg = GetMessage(serverSock)
+		msgType, receivedMsg = defaultNet.GetMessage(serverSock)
 		if msgType != 0 {
 			break
 		}
@@ -78,11 +78,11 @@ func TestUDPConnection(t *testing.T) {
 	}
 
 	// Server send message
-	SendMessage(serverSock, []byte("Hello Client"))
+	defaultNet.SendMessage(serverSock, []byte("Hello Client"))
 
 	// Client receive message
 	for i := 0; i < 100; i++ {
-		msgType, receivedMsg = GetMessage(clientSock)
+		msgType, receivedMsg = defaultNet.GetMessage(clientSock)
 		if msgType != 0 {
 			break
 		}
@@ -98,22 +98,22 @@ func TestUDPConnection(t *testing.T) {
 }
 
 func TestUDPRejectsBannedConnection(t *testing.T) {
-	Init()
-	netHostPort = 26007
-	if err := SetIPBan("127.0.0.1", ""); err != nil {
+	defaultNet.Init()
+	defaultNet.hostPort = 26007
+	if err := defaultNet.SetIPBan("127.0.0.1", ""); err != nil {
 		t.Fatalf("SetIPBan failed: %v", err)
 	}
 	defer func() {
-		if err := SetIPBan("off", ""); err != nil {
+		if err := defaultNet.SetIPBan("off", ""); err != nil {
 			t.Fatalf("clearing ban failed: %v", err)
 		}
 	}()
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
@@ -139,16 +139,16 @@ func TestUDPRejectsBannedConnection(t *testing.T) {
 		t.Fatalf("failed to send connection request: %v", err)
 	}
 
-	if acceptSocket == nil {
-		t.Fatal("accept socket should be open while listening")
+	if defaultNet.acceptSocket == nil {
+		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	if sock := CheckNewConnections(); sock != nil {
-		acceptSocket.SetReadDeadline(time.Time{})
-		Close(sock)
+	defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	if sock := defaultNet.CheckNewConnections(); sock != nil {
+		defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+		defaultNet.Close(sock)
 		t.Fatal("server should reject banned connection before accept")
 	}
-	acceptSocket.SetReadDeadline(time.Time{})
+	defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 
 	resp := make([]byte, 1024)
 	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -171,27 +171,27 @@ func TestUDPRejectsBannedConnection(t *testing.T) {
 }
 
 func TestUDPUnreliable(t *testing.T) {
-	Init()
-	netHostPort = 26002
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26002
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
 	var clientSock *Socket
 	done := make(chan bool)
 	go func() {
-		clientSock = Connect("127.0.0.1:26002")
+		clientSock = defaultNet.Connect("127.0.0.1:26002")
 		done <- true
 	}()
 
 	var serverSock *Socket
 	for i := 0; i < 100; i++ {
-		serverSock = CheckNewConnections()
+		serverSock = defaultNet.CheckNewConnections()
 		if serverSock != nil {
 			break
 		}
@@ -202,17 +202,17 @@ func TestUDPUnreliable(t *testing.T) {
 	if clientSock == nil || serverSock == nil {
 		t.Fatal("Failed to establish connection")
 	}
-	defer Close(clientSock)
-	defer Close(serverSock)
+	defer defaultNet.Close(clientSock)
+	defer defaultNet.Close(serverSock)
 
 	// Client send unreliable message
-	SendUnreliableMessage(clientSock, []byte("Unreliable Server"))
+	defaultNet.SendUnreliableMessage(clientSock, []byte("Unreliable Server"))
 
 	// Server receive message
 	var receivedMsg []byte
 	var msgType int
 	for i := 0; i < 100; i++ {
-		msgType, receivedMsg = GetMessage(serverSock)
+		msgType, receivedMsg = defaultNet.GetMessage(serverSock)
 		if msgType != 0 {
 			break
 		}
@@ -225,46 +225,49 @@ func TestUDPUnreliable(t *testing.T) {
 	if string(receivedMsg) != "Unreliable Server" {
 		t.Fatalf("Expected 'Unreliable Server', got '%s'", string(receivedMsg))
 	}
-	if !CanSendUnreliableMessage(clientSock) {
-		t.Fatal("CanSendUnreliableMessage(clientSock) = false, want true")
+	if !defaultNet.CanSendUnreliableMessage(clientSock) {
+		t.Fatal("defaultNet.CanSendUnreliableMessage(clientSock) = false, want true")
 	}
-	if !CanSendUnreliableMessage(serverSock) {
-		t.Fatal("CanSendUnreliableMessage(serverSock) = false, want true")
+	if !defaultNet.CanSendUnreliableMessage(serverSock) {
+		t.Fatal("defaultNet.CanSendUnreliableMessage(serverSock) = false, want true")
 	}
 }
 
 func TestServerInfoHostnameFallback(t *testing.T) {
-	hostname := cvar.Register("hostname", defaultServerInfoHostname, cvar.FlagServerInfo, "")
-	oldHostname := hostname.String
-	t.Cleanup(func() {
-		cvar.Set(hostname.Name, oldHostname)
-	})
+	cv := cvar.NewCVarSystem()
+	defaultNet.SetCVarSystem(cv)
+	t.Cleanup(func() { defaultNet.SetCVarSystem(nil) })
 
-	cvar.Set(hostname.Name, "")
+	hostname := cv.Register("hostname", defaultServerInfoHostname, cvar.FlagServerInfo, "")
+
+	cv.Set(hostname.Name, "")
 	if got := serverInfoHostname(); got != defaultServerInfoHostname {
 		t.Fatalf("serverInfoHostname() with empty cvar = %q, want %q", got, defaultServerInfoHostname)
 	}
 
-	cvar.Set(hostname.Name, "LAN Party")
+	cv.Set(hostname.Name, "LAN Party")
 	if got := serverInfoHostname(); got != "LAN Party" {
 		t.Fatalf("serverInfoHostname() = %q, want %q", got, "LAN Party")
 	}
 }
 
 func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
-	Init()
-	netHostPort = 26008
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26008
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
-	cvar.Register("zz_rule_alpha", "1", cvar.FlagServerInfo, "")
-	cvar.Register("zz_rule_beta", "2", cvar.FlagServerInfo, "")
+	cv := cvar.NewCVarSystem()
+	defaultNet.SetCVarSystem(cv)
+	t.Cleanup(func() { defaultNet.SetCVarSystem(nil) })
+	cv.Register("zz_rule_alpha", "1", cvar.FlagServerInfo, "")
+	cv.Register("zz_rule_beta", "2", cvar.FlagServerInfo, "")
 
 	clientConn, err := UDPOpenSocket(0)
 	if err != nil {
@@ -282,16 +285,16 @@ func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
 		t.Fatalf("failed to send rule info request: %v", err)
 	}
 
-	if acceptSocket == nil {
-		t.Fatal("accept socket should be open while listening")
+	if defaultNet.acceptSocket == nil {
+		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	if sock := CheckNewConnections(); sock != nil {
-		acceptSocket.SetReadDeadline(time.Time{})
-		Close(sock)
+	defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	if sock := defaultNet.CheckNewConnections(); sock != nil {
+		defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+		defaultNet.Close(sock)
 		t.Fatal("rule info request should not create an accepted socket")
 	}
-	acceptSocket.SetReadDeadline(time.Time{})
+	defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 
 	resp := make([]byte, 1024)
 	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -310,8 +313,8 @@ func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
 }
 
 func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
-	Init()
-	netHostPort = 26009
+	defaultNet.Init()
+	defaultNet.hostPort = 26009
 	playerProvider := &ServerInfoProvider{
 		PlayerInfo: func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool) {
 			switch index {
@@ -322,16 +325,16 @@ func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
 			}
 		},
 	}
-	SetServerInfoProvider(playerProvider)
+	defaultNet.SetServerInfoProvider(playerProvider)
 	t.Cleanup(func() {
-		SetServerInfoProvider(nil)
+		defaultNet.SetServerInfoProvider(nil)
 	})
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
@@ -351,16 +354,16 @@ func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
 		t.Fatalf("failed to send player info request: %v", err)
 	}
 
-	if acceptSocket == nil {
-		t.Fatal("accept socket should be open while listening")
+	if defaultNet.acceptSocket == nil {
+		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	if sock := CheckNewConnections(); sock != nil {
-		acceptSocket.SetReadDeadline(time.Time{})
-		Close(sock)
+	defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	if sock := defaultNet.CheckNewConnections(); sock != nil {
+		defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+		defaultNet.Close(sock)
 		t.Fatal("player info request should not create an accepted socket")
 	}
-	acceptSocket.SetReadDeadline(time.Time{})
+	defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 
 	resp := make([]byte, 1024)
 	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -379,14 +382,14 @@ func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
 }
 
 func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
-	Init()
-	netHostPort = 26003
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26003
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
@@ -395,13 +398,13 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	}
 
 	results := make(chan connectResult, 2)
-	go func() { results <- connectResult{sock: Connect("127.0.0.1:26003")} }()
-	go func() { results <- connectResult{sock: Connect("127.0.0.1:26003")} }()
+	go func() { results <- connectResult{sock: defaultNet.Connect("127.0.0.1:26003")} }()
+	go func() { results <- connectResult{sock: defaultNet.Connect("127.0.0.1:26003")} }()
 
 	serverSocks := make([]*Socket, 0, 2)
 	deadline := time.Now().Add(2 * time.Second)
 	for len(serverSocks) < 2 && time.Now().Before(deadline) {
-		if sock := CheckNewConnections(); sock != nil {
+		if sock := defaultNet.CheckNewConnections(); sock != nil {
 			serverSocks = append(serverSocks, sock)
 		} else {
 			time.Sleep(10 * time.Millisecond)
@@ -410,21 +413,21 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	if len(serverSocks) != 2 {
 		t.Fatalf("expected 2 server sockets, got %d", len(serverSocks))
 	}
-	defer Close(serverSocks[0])
-	defer Close(serverSocks[1])
+	defer defaultNet.Close(serverSocks[0])
+	defer defaultNet.Close(serverSocks[1])
 
 	clientA := (<-results).sock
 	clientB := (<-results).sock
 	if clientA == nil || clientB == nil {
 		t.Fatal("failed to connect both clients")
 	}
-	defer Close(clientA)
-	defer Close(clientB)
+	defer defaultNet.Close(clientA)
+	defer defaultNet.Close(clientB)
 
-	if acceptSocket == nil {
-		t.Fatal("accept socket should be open while listening")
+	if defaultNet.acceptSocket == nil {
+		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	acceptPort := acceptSocket.LocalAddr().(*stdnet.UDPAddr).Port
+	acceptPort := defaultNet.acceptSocket.LocalAddr().(*stdnet.UDPAddr).Port
 
 	serverPortA := serverSocks[0].udpConn.LocalAddr().(*stdnet.UDPAddr).Port
 	serverPortB := serverSocks[1].udpConn.LocalAddr().(*stdnet.UDPAddr).Port
@@ -452,13 +455,13 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 
 	// Regression guard: if sockets are shared, polling the wrong server socket
 	// can consume-and-drop another client's packet.
-	if SendMessage(clientA, []byte("for-client-a")) != 1 {
+	if defaultNet.SendMessage(clientA, []byte("for-client-a")) != 1 {
 		t.Fatal("failed to send message from client A")
 	}
 
 	for i := 0; i < 20; i++ {
 		serverForB.udpConn.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
-		msgType, _ := GetMessage(serverForB)
+		msgType, _ := defaultNet.GetMessage(serverForB)
 		if msgType != 0 {
 			t.Fatalf("server socket for client B received unexpected message type %d", msgType)
 		}
@@ -469,7 +472,7 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	var gotData []byte
 	for i := 0; i < 100; i++ {
 		serverForA.udpConn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
-		gotType, gotData = GetMessage(serverForA)
+		gotType, gotData = defaultNet.GetMessage(serverForA)
 		if gotType != 0 {
 			break
 		}
@@ -481,21 +484,21 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 }
 
 func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
-	Init()
-	netHostPort = 26006
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26006
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 
 	done := make(chan *Socket, 1)
 	go func() {
-		done <- Connect("127.0.0.1:26006")
+		done <- defaultNet.Connect("127.0.0.1:26006")
 	}()
 
 	var serverSock *Socket
 	deadline := time.Now().Add(2 * time.Second)
 	for serverSock == nil && time.Now().Before(deadline) {
-		serverSock = CheckNewConnections()
+		serverSock = defaultNet.CheckNewConnections()
 		if serverSock == nil {
 			time.Sleep(10 * time.Millisecond)
 		}
@@ -505,18 +508,18 @@ func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
 	if clientSock == nil || serverSock == nil {
 		t.Fatal("failed to establish UDP connection before shutdown")
 	}
-	defer Close(clientSock)
+	defer defaultNet.Close(clientSock)
 
-	Shutdown()
+	defaultNet.Shutdown()
 
-	if acceptSocket != nil {
+	if defaultNet.acceptSocket != nil {
 		t.Fatal("Shutdown left accept socket open")
 	}
-	if listening {
+	if defaultNet.listening {
 		t.Fatal("Shutdown left listener active")
 	}
-	if len(acceptedServerSockets) != 0 {
-		t.Fatalf("Shutdown left %d accepted sockets tracked", len(acceptedServerSockets))
+	if len(defaultNet.accepted) != 0 {
+		t.Fatalf("Shutdown left %d accepted sockets tracked", len(defaultNet.accepted))
 	}
 	if clientSock.udpConn == nil {
 		t.Fatal("Shutdown should not close independent client sockets")
@@ -527,21 +530,21 @@ func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
 }
 
 func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
-	Init()
-	netHostPort = 26004
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26004
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
-	if acceptSocket == nil {
-		t.Fatal("accept socket should be open while listening")
+	if defaultNet.acceptSocket == nil {
+		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	acceptPort := acceptSocket.LocalAddr().(*stdnet.UDPAddr).Port
+	acceptPort := defaultNet.acceptSocket.LocalAddr().(*stdnet.UDPAddr).Port
 
 	clientConn, err := UDPOpenSocket(0)
 	if err != nil {
@@ -567,7 +570,7 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 
 	var serverSock *Socket
 	for i := 0; i < 100; i++ {
-		serverSock = CheckNewConnections()
+		serverSock = defaultNet.CheckNewConnections()
 		if serverSock != nil {
 			break
 		}
@@ -576,7 +579,7 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 	if serverSock == nil {
 		t.Fatal("server failed to accept connection")
 	}
-	defer Close(serverSock)
+	defer defaultNet.Close(serverSock)
 
 	resp := make([]byte, 1024)
 	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
@@ -604,14 +607,14 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 }
 
 func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
-	Init()
-	netHostPort = 26005
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	defaultNet.Init()
+	defaultNet.hostPort = 26005
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
 	defer func() {
-		if err := Listen(false); err != nil {
-			t.Fatalf("Listen(false) failed: %v", err)
+		if err := defaultNet.Listen(false); err != nil {
+			t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 		}
 	}()
 
@@ -639,7 +642,7 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 
 	var firstServerSock *Socket
 	for i := 0; i < 100; i++ {
-		firstServerSock = CheckNewConnections()
+		firstServerSock = defaultNet.CheckNewConnections()
 		if firstServerSock != nil {
 			break
 		}
@@ -648,7 +651,7 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 	if firstServerSock == nil {
 		t.Fatal("server failed to accept first connection")
 	}
-	defer Close(firstServerSock)
+	defer defaultNet.Close(firstServerSock)
 
 	if _, err := UDPWrite(clientConn, req, serverAddr); err != nil {
 		t.Fatalf("failed to send second connection request: %v", err)
@@ -656,7 +659,7 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 
 	var secondServerSock *Socket
 	for i := 0; i < 100; i++ {
-		secondServerSock = CheckNewConnections()
+		secondServerSock = defaultNet.CheckNewConnections()
 		if secondServerSock != nil {
 			break
 		}
@@ -665,19 +668,19 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 	if secondServerSock == nil {
 		t.Fatal("server failed to accept second connection")
 	}
-	defer Close(secondServerSock)
+	defer defaultNet.Close(secondServerSock)
 
-	if rc := SendUnreliableMessage(firstServerSock, []byte("stale-connection-payload")); rc != -1 {
+	if rc := defaultNet.SendUnreliableMessage(firstServerSock, []byte("stale-connection-payload")); rc != -1 {
 		t.Fatalf("old server socket should be closed after duplicate connect, send returned %d", rc)
 	}
 
-	if rc := SendUnreliableMessage(secondServerSock, []byte("fresh-connection-payload")); rc != 1 {
+	if rc := defaultNet.SendUnreliableMessage(secondServerSock, []byte("fresh-connection-payload")); rc != 1 {
 		t.Fatalf("new server socket should be usable, send returned %d", rc)
 	}
 }
 
 func TestListenEnableFailureReturnsErrorAndLeavesClosed(t *testing.T) {
-	Init()
+	defaultNet.Init()
 
 	blocker, err := UDPOpenSocket(0)
 	if err != nil {
@@ -686,31 +689,31 @@ func TestListenEnableFailureReturnsErrorAndLeavesClosed(t *testing.T) {
 	blockerPort := blocker.LocalAddr().(*stdnet.UDPAddr).Port
 	defer UDPCloseSocket(blocker)
 
-	netHostPort = blockerPort
-	if err := Listen(true); err == nil {
-		t.Fatalf("Listen(true) succeeded unexpectedly on occupied port %d", blockerPort)
+	defaultNet.hostPort = blockerPort
+	if err := defaultNet.Listen(true); err == nil {
+		t.Fatalf("defaultNet.Listen(true) succeeded unexpectedly on occupied port %d", blockerPort)
 	}
-	if listening {
-		t.Fatal("listening should remain false after Listen(true) bind failure")
+	if defaultNet.listening {
+		t.Fatal("defaultNet.listening should remain false after defaultNet.Listen(true) bind failure")
 	}
-	if acceptSocket != nil {
-		t.Fatal("accept socket should remain nil after Listen(true) bind failure")
+	if defaultNet.acceptSocket != nil {
+		t.Fatal("accept socket should remain nil after defaultNet.Listen(true) bind failure")
 	}
-	if err := Listen(false); err != nil {
-		t.Fatalf("Listen(false) after failed enable returned error: %v", err)
+	if err := defaultNet.Listen(false); err != nil {
+		t.Fatalf("defaultNet.Listen(false) after failed enable returned error: %v", err)
 	}
 }
 
 func TestUDPStringToAddr_ExpandsNumericLeadingPartialIP(t *testing.T) {
-	oldMyIP := myTCPIPAddress
-	oldHostPort := netHostPort
+	oldMyIP := defaultNet.myTCPIPAddress
+	oldHostPort := defaultNet.hostPort
 	t.Cleanup(func() {
-		myTCPIPAddress = oldMyIP
-		netHostPort = oldHostPort
+		defaultNet.myTCPIPAddress = oldMyIP
+		defaultNet.hostPort = oldHostPort
 	})
 
-	myTCPIPAddress = "192.168.1.42"
-	netHostPort = 26000
+	defaultNet.myTCPIPAddress = "192.168.1.42"
+	defaultNet.hostPort = 26000
 
 	addr, err := UDPStringToAddr("2.100:27000")
 	if err != nil {
@@ -726,12 +729,12 @@ func TestUDPStringToAddr_ExpandsNumericLeadingPartialIP(t *testing.T) {
 }
 
 func TestUDPStringToAddr_HostnameUsesNormalResolution(t *testing.T) {
-	oldMyIP := myTCPIPAddress
+	oldMyIP := defaultNet.myTCPIPAddress
 	t.Cleanup(func() {
-		myTCPIPAddress = oldMyIP
+		defaultNet.myTCPIPAddress = oldMyIP
 	})
 
-	myTCPIPAddress = "192.168.1.42"
+	defaultNet.myTCPIPAddress = "192.168.1.42"
 
 	addr, err := UDPStringToAddr("localhost:26000")
 	if err != nil {
@@ -740,18 +743,18 @@ func TestUDPStringToAddr_HostnameUsesNormalResolution(t *testing.T) {
 	if !addr.IP.IsLoopback() {
 		t.Fatalf("hostname resolution IP = %q, want loopback", addr.IP.String())
 	}
-	if got, want := addr.IP.String(), myTCPIPAddress; got == want {
+	if got, want := addr.IP.String(), defaultNet.myTCPIPAddress; got == want {
 		t.Fatalf("hostname path incorrectly used partial-IP expansion: got %q", got)
 	}
 }
 
 func TestUDPStringToAddr_HostnameWithoutPortUsesDefaultHostPort(t *testing.T) {
-	oldHostPort := netHostPort
+	oldHostPort := defaultNet.hostPort
 	t.Cleanup(func() {
-		netHostPort = oldHostPort
+		defaultNet.hostPort = oldHostPort
 	})
 
-	netHostPort = 27500
+	defaultNet.hostPort = 27500
 
 	addr, err := UDPStringToAddr("localhost")
 	if err != nil {
@@ -766,52 +769,52 @@ func TestUDPStringToAddr_HostnameWithoutPortUsesDefaultHostPort(t *testing.T) {
 }
 
 func TestSetHostPortValidationAndHostPortAccessor(t *testing.T) {
-	oldHostPort := netHostPort
-	oldDefaultHostPort := defaultNetHostPort
+	oldHostPort := defaultNet.hostPort
+	oldDefaultHostPort := defaultNet.defaultHostPort
 	t.Cleanup(func() {
-		netHostPort = oldHostPort
-		defaultNetHostPort = oldDefaultHostPort
+		defaultNet.hostPort = oldHostPort
+		defaultNet.defaultHostPort = oldDefaultHostPort
 	})
 
-	SetHostPort(0)
-	if got := HostPort(); got != oldHostPort {
-		t.Fatalf("HostPort after SetHostPort(0) = %d, want unchanged %d", got, oldHostPort)
+	defaultNet.SetHostPort(0)
+	if got := defaultNet.HostPort(); got != oldHostPort {
+		t.Fatalf("HostPort after defaultNet.SetHostPort(0) = %d, want unchanged %d", got, oldHostPort)
 	}
 
-	SetHostPort(65535)
-	if got := HostPort(); got != oldHostPort {
-		t.Fatalf("HostPort after SetHostPort(65535) = %d, want unchanged %d", got, oldHostPort)
+	defaultNet.SetHostPort(65535)
+	if got := defaultNet.HostPort(); got != oldHostPort {
+		t.Fatalf("HostPort after defaultNet.SetHostPort(65535) = %d, want unchanged %d", got, oldHostPort)
 	}
 
-	SetHostPort(27500)
-	if got := HostPort(); got != 27500 {
+	defaultNet.SetHostPort(27500)
+	if got := defaultNet.HostPort(); got != 27500 {
 		t.Fatalf("HostPort = %d, want 27500", got)
 	}
-	if got := defaultNetHostPort; got != 27500 {
-		t.Fatalf("defaultNetHostPort = %d, want 27500", got)
+	if got := defaultNet.defaultHostPort; got != 27500 {
+		t.Fatalf("defaultNet.defaultHostPort = %d, want 27500", got)
 	}
 }
 
 func TestIsListeningTracksListenState(t *testing.T) {
-	Init()
-	port := netHostPort + 20
-	SetHostPort(port)
-	_ = Listen(false)
+	defaultNet.Init()
+	port := defaultNet.hostPort + 20
+	defaultNet.SetHostPort(port)
+	_ = defaultNet.Listen(false)
 	t.Cleanup(Shutdown)
 
-	if IsListening() {
-		t.Fatal("IsListening() true before enabling listen")
+	if defaultNet.IsListening() {
+		t.Fatal("defaultNet.IsListening() true before enabling listen")
 	}
-	if err := Listen(true); err != nil {
-		t.Fatalf("Listen(true) failed: %v", err)
+	if err := defaultNet.Listen(true); err != nil {
+		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
 	}
-	if !IsListening() {
-		t.Fatal("IsListening() false after enabling listen")
+	if !defaultNet.IsListening() {
+		t.Fatal("defaultNet.IsListening() false after enabling listen")
 	}
-	if err := Listen(false); err != nil {
-		t.Fatalf("Listen(false) failed: %v", err)
+	if err := defaultNet.Listen(false); err != nil {
+		t.Fatalf("defaultNet.Listen(false) failed: %v", err)
 	}
-	if IsListening() {
-		t.Fatal("IsListening() true after disabling listen")
+	if defaultNet.IsListening() {
+		t.Fatal("defaultNet.IsListening() true after disabling listen")
 	}
 }

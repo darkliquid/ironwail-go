@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
@@ -34,15 +33,9 @@ var (
 
 func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) {
 	h := NewHost()
-	registerHostCVars()
-	oldName := cvar.StringValue(clientNameCVar)
-	oldColor := cvar.IntValue(clientColorCVar)
-	cvar.Set(clientNameCVar, "Ranger")
-	cvar.SetInt(clientColorCVar, 0x23)
-	t.Cleanup(func() {
-		cvar.Set(clientNameCVar, oldName)
-		cvar.SetInt(clientColorCVar, oldColor)
-	})
+	h.registerHostCVars()
+	h.CVar.Set(clientNameCVar, "Ranger")
+	h.CVar.SetInt(clientColorCVar, 0x23)
 
 	console := &mockConsole{}
 	subs := &Subsystems{
@@ -60,16 +53,16 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 		t.Fatal("server socket missing after loopback connect")
 	}
 
-	oldFactory := remoteClientFactory
-	remoteClientFactory = func(address string) (Client, error) {
-		rc := newRemoteDatagramClient(clientSocket)
+	oldFactory := h.RemoteClientFactory
+	h.RemoteClientFactory = func(address string) (Client, error) {
+		rc := newRemoteDatagramClient(nil, clientSocket)
 		if err := rc.Init(); err != nil {
 			return nil, err
 		}
 		return rc, nil
 	}
 	t.Cleanup(func() {
-		remoteClientFactory = oldFactory
+		h.RemoteClientFactory = oldFactory
 	})
 
 	h.CmdConnect("remote.test:26000", subs)
@@ -79,7 +72,7 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 
 	var gotSignonCommands []string
 	runFrame := func(msg []byte) {
-		if sent := inet.SendUnreliableMessage(serverSocket, msg); sent != 1 {
+		if sent := inet.DefaultNetwork().SendUnreliableMessage(serverSocket, msg); sent != 1 {
 			t.Fatalf("failed to send server message, code=%d", sent)
 		}
 		if err := subs.Client.ReadFromServer(); err != nil {
@@ -93,7 +86,7 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 			t.Fatalf("SendCommand failed: %v", err)
 		}
 		for {
-			msgType, payload := inet.GetMessage(serverSocket)
+			msgType, payload := inet.DefaultNetwork().GetMessage(serverSocket)
 			if msgType == 0 {
 				break
 			}
@@ -140,7 +133,7 @@ func TestRemoteClientSendCommandIncludesSpawnArgsInStageTwoReply(t *testing.T) {
 		t.Fatal("server socket missing after loopback connect")
 	}
 
-	rc := newRemoteDatagramClient(clientSocket)
+	rc := newRemoteDatagramClient(nil, clientSocket)
 	rc.spawnArgs = "coop 1"
 	if err := rc.Init(); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -153,7 +146,7 @@ func TestRemoteClientSendCommandIncludesSpawnArgsInStageTwoReply(t *testing.T) {
 
 	var got []string
 	for {
-		msgType, payload := inet.GetMessage(serverSocket)
+		msgType, payload := inet.DefaultNetwork().GetMessage(serverSocket)
 		if msgType == 0 {
 			break
 		}
@@ -168,7 +161,7 @@ func TestRemoteClientSendCommandIncludesSpawnArgsInStageTwoReply(t *testing.T) {
 }
 
 func TestRemoteDatagramClientResetConnectionStateClearsClient(t *testing.T) {
-	rc := newRemoteDatagramClient(nil)
+	rc := newRemoteDatagramClient(nil, nil)
 	rc.inner.State = cl.StateActive
 	rc.inner.Signon = cl.Signons
 	rc.inner.LevelName = "stale"
@@ -193,7 +186,7 @@ func TestRemoteDatagramClientResetConnectionStateClearsClient(t *testing.T) {
 }
 
 func TestRemoteClientFrameSkipsAccumulationBeforeSignonComplete(t *testing.T) {
-	rc := newRemoteDatagramClient(nil)
+	rc := newRemoteDatagramClient(nil, nil)
 	rc.inner.Signon = 0
 	rc.inner.ViewAngles = [3]float32{10, 20, 0}
 	rc.inner.InputForward.State = 1

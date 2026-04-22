@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
@@ -40,7 +39,7 @@ func (m *Manager) optionsKey(key int) {
 			m.audioCursor = 0
 			m.state = MenuAudio
 		case 3:
-			cvar.SetBool("vid_vsync", !cvar.BoolValue("vid_vsync"))
+			m.cvars.SetBool("vid_vsync", !m.cvars.BoolValue("vid_vsync"))
 		case 4:
 			m.state = MenuMain
 		}
@@ -140,19 +139,19 @@ func (m *Manager) controlsKey(key int) {
 func (m *Manager) adjustControlSetting(delta int) {
 	switch m.controlsCursor {
 	case controlItemMouseSpeed:
-		speed := cvar.FloatValue("sensitivity") + 0.5*float64(delta)
+		speed := m.cvars.FloatValue("sensitivity") + 0.5*float64(delta)
 		speed = clampFloat(speed, 1, 11)
-		cvar.SetFloat("sensitivity", roundToTenth(speed))
+		m.cvars.SetFloat("sensitivity", roundToTenth(speed))
 	case controlItemInvertMouse:
-		pitch := cvar.FloatValue("m_pitch")
+		pitch := m.cvars.FloatValue("m_pitch")
 		if pitch == 0 {
 			pitch = 0.0176
 		}
-		cvar.SetFloat("m_pitch", -pitch)
+		m.cvars.SetFloat("m_pitch", -pitch)
 	case controlItemAlwaysRun:
-		cvar.SetBool("cl_alwaysrun", !cvar.BoolValue("cl_alwaysrun"))
+		m.cvars.SetBool("cl_alwaysrun", !m.cvars.BoolValue("cl_alwaysrun"))
 	case controlItemFreeLook:
-		cvar.SetBool("freelook", !cvar.BoolValue("freelook"))
+		m.cvars.SetBool("freelook", !m.cvars.BoolValue("freelook"))
 	}
 }
 
@@ -239,35 +238,35 @@ func (m *Manager) adjustVideoSetting(delta int) {
 		index := m.currentResolutionIndex()
 		index = wrapIndex(index+delta, len(videoResolutions))
 		selected := videoResolutions[index]
-		cvar.SetInt("vid_width", selected.width)
-		cvar.SetInt("vid_height", selected.height)
+		m.cvars.SetInt("vid_width", selected.width)
+		m.cvars.SetInt("vid_height", selected.height)
 	case videoItemFullscreen:
-		cvar.SetBool("vid_fullscreen", !cvar.BoolValue("vid_fullscreen"))
+		m.cvars.SetBool("vid_fullscreen", !m.cvars.BoolValue("vid_fullscreen"))
 	case videoItemVSync:
-		cvar.SetBool("vid_vsync", !cvar.BoolValue("vid_vsync"))
+		m.cvars.SetBool("vid_vsync", !m.cvars.BoolValue("vid_vsync"))
 	case videoItemMaxFPS:
-		index := nearestMaxFPSIndex(cvar.IntValue("host_maxfps"))
+		index := nearestMaxFPSIndex(m.cvars.IntValue("host_maxfps"))
 		index = wrapIndex(index+delta, len(maxFPSValues))
-		cvar.SetInt("host_maxfps", maxFPSValues[index])
+		m.cvars.SetInt("host_maxfps", maxFPSValues[index])
 	case videoItemGamma:
-		gamma := cvar.FloatValue("r_gamma") + 0.1*float64(delta)
+		gamma := m.cvars.FloatValue("r_gamma") + 0.1*float64(delta)
 		gamma = clampFloat(gamma, 0.5, 1.5)
-		cvar.SetFloat("r_gamma", roundToTenth(gamma))
+		m.cvars.SetFloat("r_gamma", roundToTenth(gamma))
 	case videoItemViewModel:
-		cvar.SetBool("r_drawviewmodel", !cvar.BoolValue("r_drawviewmodel"))
+		m.cvars.SetBool("r_drawviewmodel", !m.cvars.BoolValue("r_drawviewmodel"))
 	case videoItemWaterwarp:
 		// Cycle through 0=off, 1=screen warp, 2=FOV warp.
-		next := (cvar.IntValue("r_waterwarp") + delta + 3) % 3
-		cvar.SetInt("r_waterwarp", next)
+		next := (m.cvars.IntValue("r_waterwarp") + delta + 3) % 3
+		m.cvars.SetInt("r_waterwarp", next)
 	case videoItemHUDStyle:
-		next := (cvar.IntValue("hud_style") + delta + 3) % 3
-		cvar.SetInt("hud_style", next)
+		next := (m.cvars.IntValue("hud_style") + delta + 3) % 3
+		m.cvars.SetInt("hud_style", next)
 	case videoItemShowFPS:
-		cvar.SetBool("scr_showfps", cvar.FloatValue("scr_showfps") == 0)
+		m.cvars.SetBool("scr_showfps", m.cvars.FloatValue("scr_showfps") == 0)
 	case videoItemShowSpeed:
-		cvar.SetBool("scr_showspeed", !cvar.BoolValue("scr_showspeed"))
+		m.cvars.SetBool("scr_showspeed", !m.cvars.BoolValue("scr_showspeed"))
 	case videoItemShowTime:
-		cvar.SetBool("scr_clock", !cvar.BoolValue("scr_clock"))
+		m.cvars.SetBool("scr_clock", !m.cvars.BoolValue("scr_clock"))
 	}
 }
 
@@ -278,9 +277,9 @@ func (m *Manager) adjustAudioSetting(delta int) {
 		return
 	}
 
-	volume := cvar.FloatValue("s_volume") + 0.1*float64(delta)
+	volume := m.cvars.FloatValue("s_volume") + 0.1*float64(delta)
 	volume = clampFloat(volume, 0, 1)
-	cvar.SetFloat("s_volume", roundToTenth(volume))
+	m.cvars.SetFloat("s_volume", roundToTenth(volume))
 }
 
 // controlBindingLabel returns the display string for the key bound to the
@@ -361,8 +360,8 @@ func (m *Manager) keysForBinding(command string) []string {
 // current vid_width/vid_height cvars, or the nearest higher resolution if
 // no exact match is found.
 func (m *Manager) currentResolutionIndex() int {
-	width := cvar.IntValue("vid_width")
-	height := cvar.IntValue("vid_height")
+	width := m.cvars.IntValue("vid_width")
+	height := m.cvars.IntValue("vid_height")
 	for i, mode := range videoResolutions {
 		if mode.width == width && mode.height == height {
 			return i
@@ -444,25 +443,25 @@ func (m *Manager) drawVideo(dc renderer.RenderContext) {
 	m.drawText(dc, 56, videoRowY(videoItemResolution), "RESOLUTION", true)
 	m.drawText(dc, 184, videoRowY(videoItemResolution), fmt.Sprintf("%dx%d", mode.width, mode.height), true)
 	m.drawText(dc, 56, videoRowY(videoItemFullscreen), "FULLSCREEN", true)
-	m.drawText(dc, 184, videoRowY(videoItemFullscreen), boolLabel(cvar.BoolValue("vid_fullscreen")), true)
+	m.drawText(dc, 184, videoRowY(videoItemFullscreen), boolLabel(m.cvars.BoolValue("vid_fullscreen")), true)
 	m.drawText(dc, 56, videoRowY(videoItemVSync), "VSYNC", true)
-	m.drawText(dc, 184, videoRowY(videoItemVSync), boolLabel(cvar.BoolValue("vid_vsync")), true)
+	m.drawText(dc, 184, videoRowY(videoItemVSync), boolLabel(m.cvars.BoolValue("vid_vsync")), true)
 	m.drawText(dc, 56, videoRowY(videoItemMaxFPS), "MAX FPS", true)
-	m.drawText(dc, 184, videoRowY(videoItemMaxFPS), fmt.Sprintf("%d", cvar.IntValue("host_maxfps")), true)
+	m.drawText(dc, 184, videoRowY(videoItemMaxFPS), fmt.Sprintf("%d", m.cvars.IntValue("host_maxfps")), true)
 	m.drawText(dc, 56, videoRowY(videoItemGamma), "GAMMA", true)
-	m.drawText(dc, 184, videoRowY(videoItemGamma), fmt.Sprintf("%.1f", cvar.FloatValue("r_gamma")), true)
+	m.drawText(dc, 184, videoRowY(videoItemGamma), fmt.Sprintf("%.1f", m.cvars.FloatValue("r_gamma")), true)
 	m.drawText(dc, 56, videoRowY(videoItemViewModel), "VIEWMODEL", true)
-	m.drawText(dc, 184, videoRowY(videoItemViewModel), boolLabel(cvar.BoolValue("r_drawviewmodel")), true)
+	m.drawText(dc, 184, videoRowY(videoItemViewModel), boolLabel(m.cvars.BoolValue("r_drawviewmodel")), true)
 	m.drawText(dc, 56, videoRowY(videoItemWaterwarp), "WATERWARP", true)
-	m.drawText(dc, 184, videoRowY(videoItemWaterwarp), waterwarpLabel(cvar.IntValue("r_waterwarp")), true)
+	m.drawText(dc, 184, videoRowY(videoItemWaterwarp), waterwarpLabel(m.cvars.IntValue("r_waterwarp")), true)
 	m.drawText(dc, 56, videoRowY(videoItemHUDStyle), "HUD STYLE", true)
-	m.drawText(dc, 184, videoRowY(videoItemHUDStyle), hudStyleLabel(cvar.IntValue("hud_style")), true)
+	m.drawText(dc, 184, videoRowY(videoItemHUDStyle), hudStyleLabel(m.cvars.IntValue("hud_style")), true)
 	m.drawText(dc, 56, videoRowY(videoItemShowFPS), "SHOW FPS", true)
-	m.drawText(dc, 184, videoRowY(videoItemShowFPS), boolLabel(cvar.FloatValue("scr_showfps") != 0), true)
+	m.drawText(dc, 184, videoRowY(videoItemShowFPS), boolLabel(m.cvars.FloatValue("scr_showfps") != 0), true)
 	m.drawText(dc, 56, videoRowY(videoItemShowSpeed), "SHOW SPEED", true)
-	m.drawText(dc, 184, videoRowY(videoItemShowSpeed), boolLabel(cvar.BoolValue("scr_showspeed")), true)
+	m.drawText(dc, 184, videoRowY(videoItemShowSpeed), boolLabel(m.cvars.BoolValue("scr_showspeed")), true)
 	m.drawText(dc, 56, videoRowY(videoItemShowTime), "SHOW TIME", true)
-	m.drawText(dc, 184, videoRowY(videoItemShowTime), boolLabel(cvar.BoolValue("scr_clock")), true)
+	m.drawText(dc, 184, videoRowY(videoItemShowTime), boolLabel(m.cvars.BoolValue("scr_clock")), true)
 	m.drawText(dc, 56, videoRowY(videoItemBack), "BACK", true)
 
 	m.drawArrowCursor(dc, 40, videoRowY(m.videoCursor))
@@ -476,13 +475,13 @@ func (m *Manager) drawControls(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
 	m.drawText(dc, 32, controlRowY(controlItemMouseSpeed), "MOUSE SPEED", true)
-	m.drawText(dc, 208, controlRowY(controlItemMouseSpeed), fmt.Sprintf("%.1f", cvar.FloatValue("sensitivity")), true)
+	m.drawText(dc, 208, controlRowY(controlItemMouseSpeed), fmt.Sprintf("%.1f", m.cvars.FloatValue("sensitivity")), true)
 	m.drawText(dc, 32, controlRowY(controlItemInvertMouse), "INVERT MOUSE", true)
-	m.drawText(dc, 208, controlRowY(controlItemInvertMouse), boolLabel(cvar.FloatValue("m_pitch") < 0), true)
+	m.drawText(dc, 208, controlRowY(controlItemInvertMouse), boolLabel(m.cvars.FloatValue("m_pitch") < 0), true)
 	m.drawText(dc, 32, controlRowY(controlItemAlwaysRun), "ALWAYS RUN", true)
-	m.drawText(dc, 208, controlRowY(controlItemAlwaysRun), boolLabel(cvar.BoolValue("cl_alwaysrun")), true)
+	m.drawText(dc, 208, controlRowY(controlItemAlwaysRun), boolLabel(m.cvars.BoolValue("cl_alwaysrun")), true)
 	m.drawText(dc, 32, controlRowY(controlItemFreeLook), "MOUSE LOOK", true)
-	m.drawText(dc, 208, controlRowY(controlItemFreeLook), boolLabel(cvar.BoolValue("freelook")), true)
+	m.drawText(dc, 208, controlRowY(controlItemFreeLook), boolLabel(m.cvars.BoolValue("freelook")), true)
 
 	for i, binding := range controlBindings {
 		y := controlRowY(controlsBindingStart + i)
@@ -508,7 +507,7 @@ func (m *Manager) drawControls(dc renderer.RenderContext) {
 func (m *Manager) drawAudio(dc renderer.RenderContext) {
 	m.drawPlaqueAndTitle(dc, "gfx/p_option.lmp")
 
-	volumePercent := int(clampFloat(cvar.FloatValue("s_volume"), 0, 1)*100 + 0.5)
+	volumePercent := int(clampFloat(m.cvars.FloatValue("s_volume"), 0, 1)*100 + 0.5)
 	m.drawText(dc, 72, 56, "SOUND VOLUME", true)
 	m.drawText(dc, 200, 56, fmt.Sprintf("%d%%", volumePercent), true)
 	m.drawText(dc, 72, 88, "BACK", true)

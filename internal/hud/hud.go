@@ -36,6 +36,7 @@ const hudStyleCVar = "hud_style"
 // HUD manages the heads-up display rendering.
 type HUD struct {
 	drawManager *draw.Manager
+	cvars       *cvar.CVarSystem
 	status      *StatusBar
 	compact     *CompactHUD
 	crosshair   Crosshair
@@ -95,14 +96,18 @@ type ScoreEntry struct {
 }
 
 // NewHUD creates a new HUD instance.
-func NewHUD(dm *draw.Manager) *HUD {
-	cvar.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=compact Q64-style overlay, 2=QuakeWorld status bar")
+func NewHUD(dm *draw.Manager, cv *cvar.CVarSystem) *HUD {
+	if cv == nil {
+		cv = cvar.NewCVarSystem()
+	}
+	cv.Register(hudStyleCVar, "0", cvar.FlagArchive, "HUD presentation style: 0=classic status bar, 1=compact Q64-style overlay, 2=QuakeWorld status bar")
 	return &HUD{
 		drawManager: dm,
-		status:      NewStatusBar(dm),
+		cvars:       cv,
+		status:      NewStatusBar(dm, cv),
 		compact:     NewCompactHUD(),
-		crosshair:   Crosshair{},
-		centerprint: NewCenterprint(dm),
+		crosshair:   Crosshair{cvars: cv},
+		centerprint: NewCenterprint(dm, cv),
 	}
 }
 
@@ -124,7 +129,7 @@ func (h *HUD) State() State {
 
 // Style returns the currently configured HUD style.
 func (h *HUD) Style() HUDStyle {
-	return HUDStyle(cvar.IntValue(hudStyleCVar))
+	return HUDStyle(h.cvars.IntValue(hudStyleCVar))
 }
 
 // Draw renders the complete HUD overlay.
@@ -133,12 +138,12 @@ func (h *HUD) Draw(rc renderer.RenderContext) {
 		return
 	}
 
-	setHUDCanvasParams(rc, h.Style(), h.state, h.screenWidth, h.screenHeight)
+	setHUDCanvasParams(h.cvars, rc, h.Style(), h.state, h.screenWidth, h.screenHeight)
 
 	if h.state.Intermission == 0 {
 		switch h.Style() {
 		case HUDStyleCompact:
-			if currentViewSize() < 120 {
+			if currentViewSize(h.cvars) < 120 {
 				rc.SetCanvas(renderer.CanvasSbar2)
 				width, height := canvasDimensions(rc, h.screenWidth, h.screenHeight)
 				h.compact.Draw(rc, h.state, width, height)
@@ -163,21 +168,21 @@ type canvasParamSetter interface {
 	SetCanvasParams(renderer.CanvasTransformParams)
 }
 
-func setHUDCanvasParams(rc renderer.RenderContext, style HUDStyle, state State, screenWidth, screenHeight int) {
+func setHUDCanvasParams(cv *cvar.CVarSystem, rc renderer.RenderContext, style HUDStyle, state State, screenWidth, screenHeight int) {
 	setter, ok := rc.(canvasParamSetter)
 	if !ok || screenWidth <= 0 || screenHeight <= 0 {
 		return
 	}
 
-	sbarScale := float32(cvar.FloatValue("scr_sbarscale"))
+	sbarScale := float32(cv.FloatValue("scr_sbarscale"))
 	if sbarScale <= 0 {
 		sbarScale = 1
 	}
-	menuScale := float32(cvar.FloatValue("scr_menuscale"))
+	menuScale := float32(cv.FloatValue("scr_menuscale"))
 	if menuScale <= 0 {
 		menuScale = 1
 	}
-	crosshairScale := float32(cvar.FloatValue("scr_crosshairscale"))
+	crosshairScale := float32(cv.FloatValue("scr_crosshairscale"))
 	if crosshairScale <= 0 {
 		crosshairScale = 1
 	}
@@ -216,12 +221,12 @@ func canvasDimensions(rc renderer.RenderContext, fallbackWidth, fallbackHeight i
 	return width, height
 }
 
-func currentViewSize() float64 {
-	if cv := cvar.Get("viewsize"); cv != nil && cv.Float > 0 {
-		return cv.Float
+func currentViewSize(cv *cvar.CVarSystem) float64 {
+	if c := cv.Get("viewsize"); c != nil && c.Float > 0 {
+		return c.Float
 	}
-	if cv := cvar.Get("scr_viewsize"); cv != nil && cv.Float > 0 {
-		return cv.Float
+	if c := cv.Get("scr_viewsize"); c != nil && c.Float > 0 {
+		return c.Float
 	}
 	return 100
 }

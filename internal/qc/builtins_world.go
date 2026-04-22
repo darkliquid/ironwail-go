@@ -17,16 +17,16 @@ func traceline(vm *VM) {
 	passEnt := int(vm.GInt(OFSParm3))
 
 	trace := BuiltinTraceResult{Fraction: 1, EndPos: end, EntNum: 0, InOpen: true}
-	if serverBuiltinHooks.Traceline != nil {
-		trace = serverBuiltinHooks.Traceline(vm, start, end, noMonsters, passEnt)
+	if vm.ServerHooks.Traceline != nil {
+		trace = vm.ServerHooks.Traceline(vm, start, end, noMonsters, passEnt)
 	}
 	setTraceGlobals(vm, trace)
 	vm.SetGFloat(OFSReturn, trace.Fraction)
 }
 
 func checkclient(vm *VM) {
-	if serverBuiltinHooks.CheckClient != nil {
-		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.CheckClient(vm)))
+	if vm.ServerHooks.CheckClient != nil {
+		vm.SetGInt(OFSReturn, int32(vm.ServerHooks.CheckClient(vm)))
 		return
 	}
 	vm.SetGInt(OFSReturn, 0)
@@ -46,8 +46,8 @@ func sound(vm *VM) {
 	if len(vm.Globals) > OFSParm4 {
 		attenuation = vm.GFloat(OFSParm4)
 	}
-	if serverBuiltinHooks.Sound != nil {
-		serverBuiltinHooks.Sound(vm, entNum, channel, sample, volume, attenuation)
+	if vm.ServerHooks.Sound != nil {
+		vm.ServerHooks.Sound(vm, entNum, channel, sample, volume, attenuation)
 	}
 }
 
@@ -67,8 +67,8 @@ func sound(vm *VM) {
 func walkmove(vm *VM) {
 	yaw := vm.GFloat(OFSParm0)
 	dist := vm.GFloat(OFSParm1)
-	if serverBuiltinHooks.WalkMove != nil {
-		if serverBuiltinHooks.WalkMove(vm, yaw, dist) {
+	if vm.ServerHooks.WalkMove != nil {
+		if vm.ServerHooks.WalkMove(vm, yaw, dist) {
 			vm.SetGFloat(OFSReturn, 1)
 		} else {
 			vm.SetGFloat(OFSReturn, 0)
@@ -84,8 +84,8 @@ func walkmove(vm *VM) {
 // checkbottom verifies that the entity is supported by the floor.
 func checkbottom(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	if serverBuiltinHooks.CheckBottom != nil {
-		if serverBuiltinHooks.CheckBottom(vm, entNum) {
+	if vm.ServerHooks.CheckBottom != nil {
+		if vm.ServerHooks.CheckBottom(vm, entNum) {
 			vm.SetGFloat(OFSReturn, 1)
 		} else {
 			vm.SetGFloat(OFSReturn, 0)
@@ -100,8 +100,8 @@ func checkbottom(vm *VM) {
 // pointcontents reports BSP contents at a point.
 func pointcontents(vm *VM) {
 	point := vm.GVector(OFSParm0)
-	if serverBuiltinHooks.PointContents != nil {
-		vm.SetGFloat(OFSReturn, float32(serverBuiltinHooks.PointContents(vm, point)))
+	if vm.ServerHooks.PointContents != nil {
+		vm.SetGFloat(OFSReturn, float32(vm.ServerHooks.PointContents(vm, point)))
 		return
 	}
 	vm.SetGFloat(OFSReturn, 0)
@@ -110,8 +110,8 @@ func pointcontents(vm *VM) {
 func aimBuiltin(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	speed := vm.GFloat(OFSParm1)
-	if serverBuiltinHooks.Aim != nil {
-		vm.SetGVector(OFSReturn, serverBuiltinHooks.Aim(vm, entNum, speed))
+	if vm.ServerHooks.Aim != nil {
+		vm.SetGVector(OFSReturn, vm.ServerHooks.Aim(vm, entNum, speed))
 		return
 	}
 	vm.SetGVector(OFSReturn, vm.GVector(OFSGlobalVForward))
@@ -120,8 +120,8 @@ func aimBuiltin(vm *VM) {
 func lightstyle(vm *VM) {
 	style := int(vm.GFloat(OFSParm0))
 	value := vm.GString(OFSParm1)
-	if serverBuiltinHooks.LightStyle != nil {
-		serverBuiltinHooks.LightStyle(vm, style, value)
+	if vm.ServerHooks.LightStyle != nil {
+		vm.ServerHooks.LightStyle(vm, style, value)
 	}
 }
 
@@ -130,8 +130,8 @@ func particle(vm *VM) {
 	dir := vm.GVector(OFSParm1)
 	color := int(vm.GFloat(OFSParm2))
 	count := int(vm.GFloat(OFSParm3))
-	if serverBuiltinHooks.Particle != nil {
-		serverBuiltinHooks.Particle(vm, org, dir, color, count)
+	if vm.ServerHooks.Particle != nil {
+		vm.ServerHooks.Particle(vm, org, dir, color, count)
 	}
 }
 
@@ -145,8 +145,8 @@ func particle(vm *VM) {
 //
 // QuakeC signature: float() droptofloor
 func droptofloor(vm *VM) {
-	if serverBuiltinHooks.DropToFloor != nil {
-		if serverBuiltinHooks.DropToFloor(vm) {
+	if vm.ServerHooks.DropToFloor != nil {
+		if vm.ServerHooks.DropToFloor(vm) {
 			vm.SetGFloat(OFSReturn, 1)
 		} else {
 			vm.SetGFloat(OFSReturn, 0)
@@ -168,8 +168,8 @@ func droptofloor(vm *VM) {
 // QuakeC signature: void(float dist) movetogoal
 func movetogoal(vm *VM) {
 	dist := vm.GFloat(OFSParm0)
-	if serverBuiltinHooks.MoveToGoal != nil {
-		serverBuiltinHooks.MoveToGoal(vm, dist)
+	if vm.ServerHooks.MoveToGoal != nil {
+		vm.ServerHooks.MoveToGoal(vm, dist)
 	}
 }
 
@@ -178,8 +178,8 @@ func ambientsound(vm *VM) {
 	sample := vm.GString(OFSParm1)
 	volume := int(vm.GFloat(OFSParm2))
 	attenuation := vm.GFloat(OFSParm3)
-	if serverBuiltinHooks.AmbientSound != nil {
-		serverBuiltinHooks.AmbientSound(vm, org, sample, volume, attenuation)
+	if vm.ServerHooks.AmbientSound != nil {
+		vm.ServerHooks.AmbientSound(vm, org, sample, volume, attenuation)
 	}
 	vm.SetGFloat(OFSReturn, 0)
 }
@@ -194,8 +194,8 @@ func ambientsound(vm *VM) {
 //
 // QuakeC signature: void() changeyaw
 func changeyaw(vm *VM) {
-	if serverBuiltinHooks.ChangeYaw != nil {
-		serverBuiltinHooks.ChangeYaw(vm)
+	if vm.ServerHooks.ChangeYaw != nil {
+		vm.ServerHooks.ChangeYaw(vm)
 	}
 }
 
@@ -205,8 +205,8 @@ func changeyaw(vm *VM) {
 func centerprint(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	msg := localizedTextMessage(vm.GString(OFSParm1))
-	if serverBuiltinHooks.CenterPrint != nil {
-		serverBuiltinHooks.CenterPrint(vm, entNum, msg)
+	if vm.ServerHooks.CenterPrint != nil {
+		vm.ServerHooks.CenterPrint(vm, entNum, msg)
 		return
 	}
 	console.CenterPrintf(40, "%s", msg)
@@ -215,7 +215,7 @@ func centerprint(vm *VM) {
 func localsound(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	sample := vm.GString(OFSParm1)
-	if serverBuiltinHooks.LocalSound != nil {
-		serverBuiltinHooks.LocalSound(vm, entNum, sample)
+	if vm.ServerHooks.LocalSound != nil {
+		vm.ServerHooks.LocalSound(vm, entNum, sample)
 	}
 }

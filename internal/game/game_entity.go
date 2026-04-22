@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -594,12 +593,12 @@ func (g *Game) buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity
 	// Only apply when gl_polyblend is enabled.
 	if g.Client != nil && g.Client.State == cl.StateActive {
 		polyblendEnabled := true
-		if cv := cvar.Get("gl_polyblend"); cv != nil {
+		if cv := g.Host.CVar.Get("gl_polyblend"); cv != nil {
 			polyblendEnabled = cv.Float32() != 0
 		}
 		if polyblendEnabled {
 			globalPct := float32(100)
-			if cv := cvar.Get("gl_cshiftpercent"); cv != nil {
+			if cv := g.Host.CVar.Get("gl_cshiftpercent"); cv != nil {
 				globalPct = cv.Float32()
 			}
 			var chPct [cl.NumCShifts]float32
@@ -611,7 +610,7 @@ func (g *Game) buildRuntimeRenderFrameState(brushEntities []renderer.BrushEntity
 			}
 			for i, name := range cshiftCvars {
 				chPct[i] = 100
-				if cv := cvar.Get(name); cv != nil {
+				if cv := g.Host.CVar.Get(name); cv != nil {
 					chPct[i] = cv.Float32()
 				}
 			}
@@ -683,7 +682,7 @@ func (g *Game) collectViewModelEntity() *renderer.AliasModelEntity {
 	if g.Host != nil {
 		frameTime = g.Host.FrameTime()
 	}
-	angles := g.viewCalcGunAngle(&globalViewCalc, viewAngles, g.Client.Time, frameTime)
+	angles := g.viewCalcGunAngle(&g.viewCalc, viewAngles, g.Client.Time, frameTime)
 
 	// Keep the viewmodel anchored to the same first-person eye origin while bob
 	// is isolated from the live runtime path.

@@ -28,221 +28,249 @@ import (
 	"time"
 )
 
-// startTime records the process start instant. All Quake networking timestamps
-// are measured as seconds elapsed since this moment, providing a monotonic
-// clock for timeout detection, packet pacing, and retransmission logic.
-var (
-	startTime = time.Now()
-)
+// startTime is now a field on the Network struct; defaultNet.startTime is
+// used for the process-wide NetTime() entry point.
 
-// NetTime returns the elapsed time in seconds since the networking subsystem
-// was initialized. This is Quake's internal clock for the network layer,
-// used for retransmission timeouts, keep-alive intervals, and connection
-// timeout detection. It corresponds to Sys_FloatTime() in the original C code.
-func NetTime() float64 {
-	return time.Since(startTime).Seconds()
+// NetTime returns the elapsed time in seconds since this Network was
+// constructed (or since Init was called). Mirrors Sys_FloatTime() used by
+// Quake's retransmission timers and timeout detection.
+func (n *Network) NetTime() float64 {
+	return time.Since(n.startTime).Seconds()
 }
 
-func SetHostPort(port int) {
+// NetTime delegates to the process-wide defaultNet's startTime anchor.
+// Prefer Network.NetTime on a Host-owned instance.
+func NetTime() float64 {
+	return time.Since(defaultNet.startTime).Seconds()
+}
+
+// SetHostPort configures the UDP port this Network listens on for incoming
+// connections. Values outside the valid 1..65534 range are ignored.
+func (n *Network) SetHostPort(port int) {
 	if port < 1 || port > 65534 {
 		return
 	}
-	netHostPort = port
-	defaultNetHostPort = port
+	n.hostPort = port
+	n.defaultHostPort = port
 }
 
+// HostPort returns the currently configured listen port.
+func (n *Network) HostPort() int {
+	return n.hostPort
+}
+
+// IsListening reports whether the server is currently accepting new
+// connections.
+func (n *Network) IsListening() bool {
+	return n.listening
+}
+
+// SetHostPort configures the process-wide listen port. Values outside
+// the valid 1..65534 range are ignored. Per-Host callers should use
+// Network.SetHostPort on their own instance.
+func SetHostPort(port int) {
+	defaultNet.SetHostPort(port)
+}
+
+// HostPort returns the process-wide configured listen port.
 func HostPort() int {
-	return netHostPort
+	return defaultNet.HostPort()
 }
 
+// IsListening reports whether the process-wide server is accepting new
+// connections.
 func IsListening() bool {
-	return listening
+	return defaultNet.IsListening()
 }
 
-// Init initializes the networking subsystem by bringing up all available
-// transport drivers. Currently this means UDP only; the loopback driver
-// requires no initialization as it is created on demand. This corresponds
-// to NET_Init() in net_main.c. Returns an error if any required driver
-// fails to start.
-func Init() error {
-	UDPInit()
-	return nil
+// Init brings up the transport drivers for this Network instance.
+func (n *Network) Init() error {
+	return n.UDPInit()
 }
 
-// Shutdown tears down the networking subsystem and releases any resources
-// held by active drivers. Called during engine exit. Corresponds to
-// NET_Shutdown() in net_main.c.
-func Shutdown() {
-	_ = Listen(false)
-	for _, sock := range acceptedServerSockets {
+// Shutdown tears down the transport drivers for this Network instance.
+func (n *Network) Shutdown() {
+	_ = n.Listen(false)
+	for _, sock := range n.accepted {
 		if sock == nil || sock.udpConn == nil {
 			continue
 		}
 		UDPCloseSocket(sock.udpConn)
 		sock.udpConn = nil
 	}
-	acceptedServerSockets = nil
-	_ = SetIPBan("", "")
-	if loopback != nil {
-		loopback.Shutdown()
-		loopback = nil
+	n.accepted = nil
+	_ = n.SetIPBan("", "")
+	if n.loopback != nil {
+		n.loopback.Shutdown()
+		n.loopback = nil
 	}
-	serverInfoProvider = nil
+	n.siProvider = nil
 }
 
-// Connect establishes a network connection to the given host. If the host
-// is "local" or "localhost", a loopback connection is created for
-// single-player — this avoids real network I/O by routing packets through
-// shared memory buffers. Otherwise, the datagram driver initiates a UDP
-// connection handshake with the remote server. Returns nil on failure.
-// This is the engine's NET_Connect() equivalent from net_main.c.
-func Connect(host string) *Socket {
+// Init initializes the process-wide networking subsystem. Delegates to
+// defaultNet.Init().
+func Init() error {
+	return defaultNet.Init()
+}
+
+// Shutdown tears down the process-wide networking subsystem. Delegates to
+// defaultNet.Shutdown().
+func Shutdown() {
+	defaultNet.Shutdown()
+}
+
+// Connect establishes a network connection to the given host on this
+// Network. Loopback hosts produce a loopback driver socket; all other
+// hosts dispatch through this Network's DatagramConnect.
+func (n *Network) Connect(host string) *Socket {
 	if host == "local" || host == "localhost" {
-		// Loopback
 		l := NewLoopback()
 		l.Init()
 		sock := l.Connect()
 		sock.driver = DriverLoopback
 		return sock
 	}
-	return DatagramConnect(host)
+	return n.DatagramConnect(host)
+}
+
+// Connect establishes a network connection on the process-wide defaultNet.
+func Connect(host string) *Socket {
+	return defaultNet.Connect(host)
 }
 
 // GetMessage polls a socket for incoming data. The return value indicates
 // the message type: 0 = no message, 1 = reliable message, 2 = unreliable
-// message, 3 = control message. The byte slice contains the message payload.
-// The driver dispatch here mirrors NET_GetMessage() in net_main.c: loopback
-// sockets read from shared memory, while datagram sockets read from UDP and
-// process the reliability protocol (ACKs, sequencing, fragmentation).
-func GetMessage(sock *Socket) (int, []byte) {
+// message, 3 = control message.
+func (n *Network) GetMessage(sock *Socket) (int, []byte) {
 	if sock.driver == DriverLoopback {
 		return GetMessageLoopback(sock, nil)
 	}
 	return DatagramGetMessage(sock)
 }
 
-// SendMessage sends a reliable message over the given socket. Reliable
-// messages are guaranteed to arrive in order — the datagram layer handles
-// sequencing, acknowledgment, and retransmission. For loopback sockets,
-// data is simply copied into the peer's receive buffer. Returns 1 on
-// success, -1 on failure. Corresponds to NET_SendMessage() in net_main.c.
-func SendMessage(sock *Socket, data []byte) int {
+// GetMessage polls a socket on the process-wide defaultNet.
+func GetMessage(sock *Socket) (int, []byte) {
+	return defaultNet.GetMessage(sock)
+}
+
+// SendMessage sends a reliable message over the given socket.
+func (n *Network) SendMessage(sock *Socket, data []byte) int {
 	if sock.driver == DriverLoopback {
 		return SendMessageLoopback(sock, data)
 	}
 	return DatagramSendMessage(sock, data)
 }
 
-// SendUnreliableMessage sends a fire-and-forget message over the given
-// socket. Unreliable messages may be lost or arrive out of order, but they
-// have lower overhead — ideal for rapidly-changing state like entity
-// positions. For loopback sockets, data is copied directly. Returns 1 on
-// success, -1 on failure. Corresponds to NET_SendUnreliableMessage().
-func SendUnreliableMessage(sock *Socket, data []byte) int {
+// SendMessage dispatches through the process-wide defaultNet.
+func SendMessage(sock *Socket, data []byte) int {
+	return defaultNet.SendMessage(sock, data)
+}
+
+// SendUnreliableMessage sends a fire-and-forget message on this Network.
+func (n *Network) SendUnreliableMessage(sock *Socket, data []byte) int {
 	if sock.driver == DriverLoopback {
 		return SendUnreliableMessageLoopback(sock, data)
 	}
 	return DatagramSendUnreliableMessage(sock, data)
 }
 
-// CanSendMessage reports whether the socket is ready to accept a new
-// reliable message. The datagram driver can only have one reliable message
-// in flight at a time (stop-and-wait ARQ); this returns false while
-// waiting for an ACK from the remote end. Loopback sockets are always
-// ready. Corresponds to NET_CanSendMessage() in net_main.c.
-func CanSendMessage(sock *Socket) bool {
+// SendUnreliableMessage dispatches through the process-wide defaultNet.
+func SendUnreliableMessage(sock *Socket, data []byte) int {
+	return defaultNet.SendUnreliableMessage(sock, data)
+}
+
+// CanSendMessage reports whether sock can accept a new reliable message.
+func (n *Network) CanSendMessage(sock *Socket) bool {
 	if sock.driver == DriverLoopback {
 		return true
 	}
 	return DatagramCanSendMessage(sock)
 }
 
-// CanSendUnreliableMessage reports whether the socket can accept an unreliable
-// message right now. This mirrors NET_CanSendUnreliableMessage(); datagram and
-// loopback transports always return true because unreliable messages bypass the
-// reliable stop-and-wait flow control.
-func CanSendUnreliableMessage(sock *Socket) bool {
+// CanSendMessage dispatches through the process-wide defaultNet.
+func CanSendMessage(sock *Socket) bool {
+	return defaultNet.CanSendMessage(sock)
+}
+
+// CanSendUnreliableMessage reports whether sock can accept an unreliable
+// message right now.
+func (n *Network) CanSendUnreliableMessage(sock *Socket) bool {
 	if sock == nil {
 		return false
 	}
 	return sock.CanSendUnreliable()
 }
 
-// Close shuts down a network connection, releasing the underlying
-// transport resources. For loopback sockets this disconnects the
-// client/server peer link; for datagram sockets it closes the UDP
-// connection. Corresponds to NET_Close() in net_main.c.
-func Close(sock *Socket) {
+// CanSendUnreliableMessage dispatches through the process-wide defaultNet.
+func CanSendUnreliableMessage(sock *Socket) bool {
+	return defaultNet.CanSendUnreliableMessage(sock)
+}
+
+// Close shuts down a network connection on this Network.
+func (n *Network) Close(sock *Socket) {
 	if sock == nil {
 		return
 	}
-
 	if sock.driver == DriverLoopback {
 		CloseLoopback(sock)
 	} else {
-		untrackAcceptedServerSocket(sock)
+		n.untrackAcceptedServerSocket(sock)
 		UDPCloseSocket(sock.udpConn)
 	}
 }
 
-// loopback holds the active loopback driver instance (if any). It is
-// created when a single-player game starts and allows the server side
-// to detect a pending local connection via CheckNewConnections.
-//
-// listening indicates whether the server is accepting new connections.
-// When true, the datagram driver polls its accept socket for incoming
-// connection requests from remote clients.
-var (
-	loopback  *Loopback
-	listening bool
-)
+// Close dispatches through the process-wide defaultNet.
+func Close(sock *Socket) {
+	defaultNet.Close(sock)
+}
 
-// Listen toggles the server's willingness to accept new connections.
-// When enabled, it opens (or keeps open) a UDP socket on the host port
-// (default 26000) to receive connection-request control packets from
-// clients. When disabled, the accept socket is closed. This corresponds
-// to NET_Listen() in net_main.c.
-func Listen(state bool) error {
+// Listen toggles this Network's willingness to accept new connections.
+func (n *Network) Listen(state bool) error {
 	if state {
-		if acceptSocket == nil {
-			var err error
-			acceptSocket, err = UDPOpenSocket(netHostPort)
+		if n.acceptSocket == nil {
+			sock, err := UDPOpenSocket(n.hostPort)
 			if err != nil {
-				listening = false
-				return fmt.Errorf("listen on %d: %w", netHostPort, err)
+				n.listening = false
+				return fmt.Errorf("listen on %d: %w", n.hostPort, err)
 			}
+			n.acceptSocket = sock
 		}
-		listening = true
+		n.listening = true
 		return nil
 	}
 
-	listening = false
-	if acceptSocket != nil {
-		if err := UDPCloseSocket(acceptSocket); err != nil {
-			return fmt.Errorf("close listen socket on %d: %w", netHostPort, err)
+	n.listening = false
+	if n.acceptSocket != nil {
+		if err := UDPCloseSocket(n.acceptSocket); err != nil {
+			return fmt.Errorf("close listen socket on %d: %w", n.hostPort, err)
 		}
-		acceptSocket = nil
+		n.acceptSocket = nil
 	}
 	return nil
 }
 
-// CheckNewConnections polls all drivers for pending incoming connections.
-// The loopback driver is checked first (for single-player), then the
-// datagram driver (for multiplayer UDP clients). Returns a fully
-// initialized Socket if a new connection is ready, or nil otherwise.
-// The server calls this once per frame. Corresponds to
-// NET_CheckNewConnections() in net_main.c.
-func CheckNewConnections() *Socket {
-	if loopback != nil {
-		if sock := loopback.CheckNewConnections(); sock != nil {
+// Listen toggles the process-wide defaultNet's willingness to accept new
+// connections.
+func Listen(state bool) error {
+	return defaultNet.Listen(state)
+}
+
+// CheckNewConnections polls all drivers on this Network for pending
+// incoming connections.
+func (n *Network) CheckNewConnections() *Socket {
+	if n.loopback != nil {
+		if sock := n.loopback.CheckNewConnections(); sock != nil {
 			sock.driver = DriverLoopback
 			return sock
 		}
 	}
-
-	if listening {
-		return DatagramCheckNewConnections()
+	if n.listening {
+		return n.DatagramCheckNewConnections()
 	}
-
 	return nil
+}
+
+// CheckNewConnections dispatches through the process-wide defaultNet.
+func CheckNewConnections() *Socket {
+	return defaultNet.CheckNewConnections()
 }

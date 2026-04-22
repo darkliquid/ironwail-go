@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
@@ -82,7 +81,7 @@ func (g *Game) prepareRuntimeRendererScreenshot(screenshotMode bool) {
 		return
 	}
 
-	cmdsys.Execute()
+	g.Host.Cmd.Execute()
 	if g.Host != nil && g.Server != nil {
 		_ = g.Server.Frame(0.05)
 	}
@@ -114,8 +113,8 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 	})
 
 	g.Renderer.OnDraw(func(dc renderer.RenderContext) {
-		runtimeStateMu.Lock()
-		defer runtimeStateMu.Unlock()
+		g.runtimeMu.Lock()
+		defer g.runtimeMu.Unlock()
 
 		if state.screenshotMode && !state.screenshotCaptured {
 			defer g.captureRuntimeRendererScreenshot(state)

@@ -97,6 +97,10 @@ type ServerHooks interface {
 
 	// IssueChangeLevel requests a map transition command and returns true if accepted.
 	IssueChangeLevel(vm *VM, level string) bool
+
+	// LocalCommand routes QC-issued console commands (localcmd, stuffcmd
+	// fallback, changelevel fallback) to the host command system.
+	LocalCommand(vm *VM, cmd string)
 }
 
 type serverBuiltinHooksAdapter struct {
@@ -370,17 +374,39 @@ func (a serverBuiltinHooksAdapter) IssueChangeLevel(vm *VM, level string) bool {
 	return a.hooks.IssueChangeLevel(vm, level)
 }
 
-// RegisterServerHooks adapts a ServerHooks implementation to the
-// legacy `ServerBuiltinHooks` struct used by existing builtins. This
-// helper enables code that already calls `SetServerBuiltinHooks` to
-// keep working while allowing new code to supply a typed interface.
-func RegisterServerHooks(h ServerHooks) {
-	if h == nil {
-		SetServerBuiltinHooks(ServerBuiltinHooks{})
+func (a serverBuiltinHooksAdapter) LocalCommand(vm *VM, cmd string) {
+	if a.hooks.LocalCommand == nil {
 		return
 	}
+	a.hooks.LocalCommand(vm, cmd)
+}
 
-	SetServerBuiltinHooks(ServerBuiltinHooks{
+// SetServerHooks installs the low-level builtin hooks on this VM
+// instance. The zero value clears all hooks (safe for tests).
+func (vm *VM) SetServerHooks(h ServerBuiltinHooks) {
+	if vm == nil {
+		return
+	}
+	vm.ServerHooks = h
+}
+
+// RegisterServerHooks adapts a ServerHooks implementation onto this
+// VM. Passing nil clears all hooks.
+func (vm *VM) RegisterServerHooks(h ServerHooks) {
+	if vm == nil {
+		return
+	}
+	if h == nil {
+		vm.ServerHooks = ServerBuiltinHooks{}
+		return
+	}
+	vm.ServerHooks = adaptServerHooks(h)
+}
+
+// adaptServerHooks builds a ServerBuiltinHooks value from a typed
+// ServerHooks interface.
+func adaptServerHooks(h ServerHooks) ServerBuiltinHooks {
+	return ServerBuiltinHooks{
 		Traceline: func(vm *VM, start, end [3]float32, noMonsters bool, passEnt int) BuiltinTraceResult {
 			return h.Traceline(vm, start, end, noMonsters, passEnt)
 		},
@@ -436,5 +462,6 @@ func RegisterServerHooks(h ServerHooks) {
 		MoveToGoal:       func(vm *VM, dist float32) { h.MoveToGoal(vm, dist) },
 		ChangeYaw:        func(vm *VM) { h.ChangeYaw(vm) },
 		IssueChangeLevel: func(vm *VM, level string) bool { return h.IssueChangeLevel(vm, level) },
-	})
+		LocalCommand:     func(vm *VM, cmd string) { h.LocalCommand(vm, cmd) },
+	}
 }

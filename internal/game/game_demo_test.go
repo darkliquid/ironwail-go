@@ -72,7 +72,6 @@ func TestDemoPlaybackReadsOneFramePerHostFrame(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
 	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
@@ -144,7 +143,6 @@ func TestDemoPlaybackEOFQueuesNextPlaylistDemo(t *testing.T) {
 	}
 
 	cmdBuf := &demoPlaybackCommandBuffer{}
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{
 		Server:   &demoPlaybackNoopServer{},
 		Console:  &demoPlaybackConsole{},
@@ -206,7 +204,6 @@ func TestPausedDemoPlaybackDoesNotReadFrames(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
 	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
@@ -259,7 +256,6 @@ func TestDemoPlaybackNegativeSpeedRewindsOneFrame(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
 	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
@@ -353,7 +349,6 @@ func TestDemoPlaybackWaitsForRecordedServerTime(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
 	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
@@ -442,7 +437,6 @@ func TestDemoPlaybackTimeDemoIgnoresRecordedServerTime(t *testing.T) {
 		t.Fatalf("StopRecording: %v", err)
 	}
 
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{Server: &demoPlaybackNoopServer{}, Console: &demoPlaybackConsole{}}
 	if err := g.Host.Init(&host.InitParams{BaseDir: tmpDir, UserDir: tmpDir}, g.Subs); err != nil {
 		t.Fatalf("Host.Init: %v", err)
@@ -570,14 +564,11 @@ func TestDemoPlaybackBootstrapsWorldAfterServerInfo(t *testing.T) {
 
 	wantTree := &bsp.Tree{Models: []bsp.DModel{{}}}
 	var loadedModel string
-	previousLoadDemoWorldTree := loadDemoWorldTree
-	loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
+	g.loadDemoWorldTree = func(files host.Filesystem, worldModel string) (*bsp.Tree, error) {
 		loadedModel = worldModel
 		return wantTree, nil
 	}
-	defer func() { loadDemoWorldTree = previousLoadDemoWorldTree }()
 
-	g.Host = host.NewHost()
 	g.Server = &server.Server{}
 	g.Subs = &host.Subsystems{
 		Server:  &demoPlaybackNoopServer{},
@@ -588,7 +579,7 @@ func TestDemoPlaybackBootstrapsWorldAfterServerInfo(t *testing.T) {
 		t.Fatalf("Host.Init: %v", err)
 	}
 	g.Input = input.NewSystem(nil)
-	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu = menu.NewManager(nil, g.Input, nil)
 	g.MouseGrabbed = false
 	g.Input.OnMenuKey = g.handleMenuKeyEvent
 	g.Input.OnMenuChar = g.handleMenuCharEvent
@@ -663,7 +654,6 @@ func TestDemoPlaybackFlushesStuffTextSameFrame(t *testing.T) {
 	}
 
 	cmd := &demoPlaybackCommandBuffer{}
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{
 		Server:   &demoPlaybackNoopServer{},
 		Console:  &demoPlaybackConsole{},
@@ -703,7 +693,6 @@ func TestProcessClientFlushesLiveStuffTextSameFrame(t *testing.T) {
 	})
 
 	cmd := &demoPlaybackCommandBuffer{}
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{
 		Server:   &demoPlaybackNoopServer{},
 		Console:  &demoPlaybackConsole{},
@@ -733,15 +722,15 @@ func TestProcessClientFlushesLiveStuffTextSameFrame(t *testing.T) {
 func TestProcessClientSendPhaseOnlySendsCommand(t *testing.T) {
 	g := New()
 	originalSubs := g.Subs
-	originalPhase := runtimeProcessClientPhase
+	originalPhase := g.processClientPhase
 	t.Cleanup(func() {
 		g.Subs = originalSubs
-		runtimeProcessClientPhase = originalPhase
+		g.processClientPhase = originalPhase
 	})
 
 	client := &processClientPhaseTestClient{state: host.ClientState(3)}
 	g.Subs = &host.Subsystems{Client: client}
-	runtimeProcessClientPhase = "send"
+	g.processClientPhase = "send"
 
 	gameCallbacks{g: g}.ProcessClient()
 
@@ -753,15 +742,15 @@ func TestProcessClientSendPhaseOnlySendsCommand(t *testing.T) {
 func TestProcessClientReadPhaseOnlyReadsServer(t *testing.T) {
 	g := New()
 	originalSubs := g.Subs
-	originalPhase := runtimeProcessClientPhase
+	originalPhase := g.processClientPhase
 	t.Cleanup(func() {
 		g.Subs = originalSubs
-		runtimeProcessClientPhase = originalPhase
+		g.processClientPhase = originalPhase
 	})
 
 	client := &processClientPhaseTestClient{state: host.ClientState(3)}
 	g.Subs = &host.Subsystems{Client: client}
-	runtimeProcessClientPhase = "read"
+	g.processClientPhase = "read"
 
 	gameCallbacks{g: g}.ProcessClient()
 
@@ -778,7 +767,7 @@ func TestProcessClientAppliesGameplayInputWhenClientBecomesActive(t *testing.T) 
 	originalMenu := g.Menu
 	originalClient := g.Client
 	originalGrabbed := g.MouseGrabbed
-	originalPhase := runtimeProcessClientPhase
+	originalPhase := g.processClientPhase
 	t.Cleanup(func() {
 		g.Host = originalHost
 		g.Subs = originalSubs
@@ -786,7 +775,7 @@ func TestProcessClientAppliesGameplayInputWhenClientBecomesActive(t *testing.T) 
 		g.Menu = originalMenu
 		g.Client = originalClient
 		g.MouseGrabbed = originalGrabbed
-		runtimeProcessClientPhase = originalPhase
+		g.processClientPhase = originalPhase
 	})
 
 	clientState := cl.NewClient()
@@ -797,10 +786,9 @@ func TestProcessClientAppliesGameplayInputWhenClientBecomesActive(t *testing.T) 
 		clientState: clientState,
 	}
 
-	g.Host = host.NewHost()
 	g.Subs = &host.Subsystems{Client: client}
 	g.Input = input.NewSystem(nil)
-	g.Menu = menu.NewManager(nil, g.Input)
+	g.Menu = menu.NewManager(nil, g.Input, nil)
 	g.MouseGrabbed = false
 
 	g.Input.OnMenuKey = g.handleMenuKeyEvent
@@ -811,7 +799,7 @@ func TestProcessClientAppliesGameplayInputWhenClientBecomesActive(t *testing.T) 
 	g.applyDefaultGameplayBindings()
 	g.Menu.ShowMenu()
 	g.syncGameplayInputMode()
-	runtimeProcessClientPhase = "read"
+	g.processClientPhase = "read"
 
 	gameCallbacks{g: g}.ProcessClient()
 
@@ -850,7 +838,6 @@ func TestRecordRuntimeDemoFrameWritesLatestServerMessage(t *testing.T) {
 		t.Fatalf("Chdir: %v", err)
 	}
 
-	g.Host = host.NewHost()
 	demo := cl.NewDemoState()
 	if err := demo.StartDemoRecording("runtime_demo", 0); err != nil {
 		t.Fatalf("StartDemoRecording: %v", err)

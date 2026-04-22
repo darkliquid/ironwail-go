@@ -6,6 +6,7 @@ go = "1.26"
 golangci-lint = "latest"
 "go:golang.org/x/vuln/cmd/govulncheck" = "latest"
 "go:golang.org/x/tools/cmd/stringer" = "latest"
+"go:github.com/kolkov/racedetector/cmd/racedetector" = "latest"
 
 # Helper task - not meant to be run directly
 [tasks.go-run]
@@ -122,6 +123,10 @@ run = "go run ./tools/ralph loop continuous"
 [tasks.test]
 description = "Run Go tests"
 run = "go test ./..."
+
+[tasks.race]
+description = "Run Go tests with race detection (using racedetector)"
+run = "racedetector test ./..."
 
 [tasks.verify]
 description = "Run core verification suite"

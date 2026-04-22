@@ -5,7 +5,6 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
@@ -21,7 +20,6 @@ func TestRuntimeMusicSelectionUsesDemoHeaderFallback(t *testing.T) {
 		g.Client = originalClient
 	})
 
-	g.Host = host.NewHost()
 	demo := cl.NewDemoState()
 	demo.Playback = true
 	demo.CDTrack = 5
@@ -52,18 +50,17 @@ func TestRuntimeWaterwarpStateUsesRealtimeForForcedPreview(t *testing.T) {
 		g.Client = originalClient
 	})
 
-	if cvar.Get(renderer.CvarRWaterwarp) == nil {
-		cvar.Register(renderer.CvarRWaterwarp, "0", 0, "Underwater warp test")
+	if g.Host.CVar.Get(renderer.CvarRWaterwarp) == nil {
+		g.Host.CVar.Register(renderer.CvarRWaterwarp, "0", 0, "Underwater warp test")
 	}
-	cvar.Set(renderer.CvarRWaterwarp, "2")
+	g.Host.CVar.Set(renderer.CvarRWaterwarp, "2")
 	t.Cleanup(func() {
-		cvar.Set(renderer.CvarRWaterwarp, "0")
+		g.Host.CVar.Set(renderer.CvarRWaterwarp, "0")
 	})
 
-	g.Host = host.NewHost()
 	g.Client = cl.NewClient()
 	g.Client.Time = 12.5
-	g.Menu = menu.NewManager(nil, input.NewSystem(nil))
+	g.Menu = menu.NewManager(nil, input.NewSystem(nil), nil)
 	g.Menu.ShowMenu()
 	g.Menu.M_Key(input.KDownArrow)
 	g.Menu.M_Key(input.KDownArrow)

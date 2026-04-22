@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 )
 
@@ -298,7 +297,7 @@ func (h *Host) CmdCondump(args []string, subs *Subsystems) {
 func (h *Host) CmdAlias(args []string, subs *Subsystems) {
 	switch len(args) {
 	case 0:
-		aliases := cmdsys.Aliases()
+		aliases := h.Cmd.Aliases()
 		if len(aliases) == 0 {
 			if subs != nil && subs.Console != nil {
 				subs.Console.Print("no alias commands found\n")
@@ -316,7 +315,7 @@ func (h *Host) CmdAlias(args []string, subs *Subsystems) {
 			subs.Console.Print(fmt.Sprintf("%d alias command(s)\n", count))
 		}
 	case 1:
-		if value, ok := cmdsys.Alias(args[0]); ok {
+		if value, ok := h.Cmd.Alias(args[0]); ok {
 			if subs != nil && subs.Console != nil {
 				subs.Console.Print(fmt.Sprintf("   %s: %s\n", strings.ToLower(args[0]), value))
 			}
@@ -330,7 +329,7 @@ func (h *Host) CmdAlias(args []string, subs *Subsystems) {
 			return
 		}
 		command := strings.Join(args[1:], " ") + "\n"
-		cmdsys.AddAlias(name, command)
+		h.Cmd.AddAlias(name, command)
 	}
 }
 
@@ -341,7 +340,7 @@ func (h *Host) CmdUnalias(args []string, subs *Subsystems) {
 		}
 		return
 	}
-	if !cmdsys.RemoveAlias(args[0]) {
+	if !h.Cmd.RemoveAlias(args[0]) {
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("No alias named %s\n", args[0]))
 		}
@@ -349,7 +348,7 @@ func (h *Host) CmdUnalias(args []string, subs *Subsystems) {
 }
 
 func (h *Host) CmdUnaliasAll() {
-	cmdsys.UnaliasAll()
+	h.Cmd.UnaliasAll()
 }
 
 func (h *Host) Error(message string, subs *Subsystems) {

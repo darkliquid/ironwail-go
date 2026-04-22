@@ -11,8 +11,6 @@ import (
 	"sync"
 )
 
-var serverIPBan IPBan
-
 // IPBan implements a simple IP banning mechanism with address and mask,
 // matching C Ironwail's net_dgrm.c banAddr/banMask.
 type IPBan struct {
@@ -112,17 +110,38 @@ func (b *IPBan) String() string {
 	return fmt.Sprintf("Banning %s [%s]", b.addr.String(), net.IP(b.mask).String())
 }
 
-// SetIPBan configures the single active server IP ban used by the datagram
-// accept path and the host-facing ban command.
-func SetIPBan(addr, mask string) error {
-	return serverIPBan.SetBan(addr, mask)
+// SetIPBan configures the IP ban on this Network instance. Pass empty addr
+// (or "off") to disable.
+func (n *Network) SetIPBan(addr, mask string) error {
+	return n.ipBan.SetBan(addr, mask)
 }
 
-// IPBanStatus returns the human-readable status string for the active server ban.
+// IPBanStatus returns the human-readable status string for the active ban
+// on this Network instance.
+func (n *Network) IPBanStatus() string {
+	return n.ipBan.String()
+}
+
+// isServerIPBanned reports whether the given remote address matches the
+// active ban on this Network instance.
+func (n *Network) isServerIPBanned(remoteAddr string) bool {
+	return n.ipBan.IsBanned(remoteAddr)
+}
+
+// SetIPBan configures the single active server IP ban used by the datagram
+// accept path and the host-facing ban command. Delegates to the
+// process-wide defaultNet; prefer calling Network.SetIPBan on a
+// Host-owned instance.
+func SetIPBan(addr, mask string) error {
+	return defaultNet.SetIPBan(addr, mask)
+}
+
+// IPBanStatus returns the human-readable status string for the active
+// server ban on the process-wide defaultNet.
 func IPBanStatus() string {
-	return serverIPBan.String()
+	return defaultNet.IPBanStatus()
 }
 
 func isServerIPBanned(remoteAddr string) bool {
-	return serverIPBan.IsBanned(remoteAddr)
+	return defaultNet.isServerIPBanned(remoteAddr)
 }

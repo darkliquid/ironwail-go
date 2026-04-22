@@ -12,8 +12,8 @@ package qc
 //
 // QuakeC signature: entity() spawn
 func spawn(vm *VM) {
-	if serverBuiltinHooks.Spawn != nil {
-		entNum, err := serverBuiltinHooks.Spawn(vm)
+	if vm.ServerHooks.Spawn != nil {
+		entNum, err := vm.ServerHooks.Spawn(vm)
 		if err != nil {
 			vm.SetGInt(OFSReturn, 0)
 			return
@@ -52,8 +52,8 @@ func spawn(vm *VM) {
 // QuakeC signature: void(entity e) remove
 func remove(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	if serverBuiltinHooks.Remove != nil {
-		_ = serverBuiltinHooks.Remove(vm, entNum)
+	if vm.ServerHooks.Remove != nil {
+		_ = vm.ServerHooks.Remove(vm, entNum)
 		return
 	}
 
@@ -81,8 +81,8 @@ func find(vm *VM) {
 	fieldOfs := int(vm.GInt(OFSParm1))
 	match := vm.GString(OFSParm2)
 
-	if serverBuiltinHooks.Find != nil {
-		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.Find(vm, startEnt, fieldOfs, match)))
+	if vm.ServerHooks.Find != nil {
+		vm.SetGInt(OFSReturn, int32(vm.ServerHooks.Find(vm, startEnt, fieldOfs, match)))
 		return
 	}
 
@@ -110,8 +110,8 @@ func findfloat(vm *VM) {
 	fieldOfs := int(vm.GInt(OFSParm1))
 	match := vm.GFloat(OFSParm2)
 
-	if serverBuiltinHooks.FindFloat != nil {
-		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.FindFloat(vm, startEnt, fieldOfs, match)))
+	if vm.ServerHooks.FindFloat != nil {
+		vm.SetGInt(OFSReturn, int32(vm.ServerHooks.FindFloat(vm, startEnt, fieldOfs, match)))
 		return
 	}
 
@@ -134,8 +134,8 @@ func findfloat(vm *VM) {
 // QuakeC signature: entity(entity e) nextent
 func nextent(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	if serverBuiltinHooks.NextEnt != nil {
-		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.NextEnt(vm, entNum)))
+	if vm.ServerHooks.NextEnt != nil {
+		vm.SetGInt(OFSReturn, int32(vm.ServerHooks.NextEnt(vm, entNum)))
 		return
 	}
 
@@ -160,8 +160,8 @@ func findradius(vm *VM) {
 	org := vm.GVector(OFSParm0)
 	rad := vm.GFloat(OFSParm1)
 
-	if serverBuiltinHooks.FindRadius != nil {
-		vm.SetGInt(OFSReturn, int32(serverBuiltinHooks.FindRadius(vm, org, rad)))
+	if vm.ServerHooks.FindRadius != nil {
+		vm.SetGInt(OFSReturn, int32(vm.ServerHooks.FindRadius(vm, org, rad)))
 		return
 	}
 
@@ -194,8 +194,8 @@ func findradius(vm *VM) {
 func setorigin(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	org := vm.GVector(OFSParm1)
-	if serverBuiltinHooks.SetOrigin != nil {
-		serverBuiltinHooks.SetOrigin(vm, entNum, org)
+	if vm.ServerHooks.SetOrigin != nil {
+		vm.ServerHooks.SetOrigin(vm, entNum, org)
 		return
 	}
 
@@ -218,8 +218,8 @@ func setsize(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	mins := vm.GVector(OFSParm1)
 	maxs := vm.GVector(OFSParm2)
-	if serverBuiltinHooks.SetSize != nil {
-		serverBuiltinHooks.SetSize(vm, entNum, mins, maxs)
+	if vm.ServerHooks.SetSize != nil {
+		vm.ServerHooks.SetSize(vm, entNum, mins, maxs)
 		return
 	}
 
@@ -250,8 +250,8 @@ func setsize(vm *VM) {
 func setmodel(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
 	modelName := vm.GString(OFSParm1)
-	if serverBuiltinHooks.SetModel != nil {
-		serverBuiltinHooks.SetModel(vm, entNum, modelName)
+	if vm.ServerHooks.SetModel != nil {
+		vm.ServerHooks.SetModel(vm, entNum, modelName)
 		return
 	}
 
@@ -270,15 +270,15 @@ func setmodel(vm *VM) {
 
 func makestatic(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	if serverBuiltinHooks.MakeStatic != nil {
-		serverBuiltinHooks.MakeStatic(vm, entNum)
+	if vm.ServerHooks.MakeStatic != nil {
+		vm.ServerHooks.MakeStatic(vm, entNum)
 	}
 	vm.SetGFloat(OFSReturn, 0)
 }
 
 func setspawnparms(vm *VM) {
 	entNum := int(vm.GInt(OFSParm0))
-	if serverBuiltinHooks.SetSpawnParms != nil {
-		serverBuiltinHooks.SetSpawnParms(vm, entNum)
+	if vm.ServerHooks.SetSpawnParms != nil {
+		vm.ServerHooks.SetSpawnParms(vm, entNum)
 	}
 }

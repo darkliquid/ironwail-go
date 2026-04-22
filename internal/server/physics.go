@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // CheckVelocity ensures entity velocity is within valid bounds.
@@ -52,9 +51,9 @@ func (s *Server) RunThink(ent *Edict) bool {
 	s.QCVM.SetGlobal("other", 0)
 	if ent.Vars.Think != 0 {
 		prevNumEdicts := s.NumEdicts
-		syncEdictToQCVM(s.QCVM, entNum, ent)
+		s.syncEdictToQCVM(entNum, ent)
 		if err := s.executeQCFunction(int(ent.Vars.Think)); err == nil {
-			syncEdictFromQCVM(s.QCVM, entNum, ent)
+			s.syncEdictFromQCVM(entNum, ent)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 	}
@@ -85,13 +84,13 @@ func (s *Server) Impact(e1, e2 *Edict) {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e1Num, e1,
 				"impact touch begin other=%d fn=%d", e2Num, e1.Vars.Touch)
 		}
-		syncEdictToQCVM(s.QCVM, e1Num, e1)
-		syncEdictToQCVM(s.QCVM, e2Num, e2)
+		s.syncEdictToQCVM(e1Num, e1)
+		s.syncEdictToQCVM(e2Num, e2)
 		s.QCVM.SetGlobal("self", e1Num)
 		s.QCVM.SetGlobal("other", e2Num)
 		if err := s.executeQCFunction(int(e1.Vars.Touch)); err == nil {
-			syncEdictFromQCVM(s.QCVM, e1Num, e1)
-			syncEdictFromQCVM(s.QCVM, e2Num, e2)
+			s.syncEdictFromQCVM(e1Num, e1)
+			s.syncEdictFromQCVM(e2Num, e2)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
@@ -106,13 +105,13 @@ func (s *Server) Impact(e1, e2 *Edict) {
 			s.DebugTelemetry.LogEventf(DebugEventTouch, s.QCVM, e2Num, e2,
 				"impact touch begin other=%d fn=%d", e1Num, e2.Vars.Touch)
 		}
-		syncEdictToQCVM(s.QCVM, e2Num, e2)
-		syncEdictToQCVM(s.QCVM, e1Num, e1)
+		s.syncEdictToQCVM(e2Num, e2)
+		s.syncEdictToQCVM(e1Num, e1)
 		s.QCVM.SetGlobal("self", e2Num)
 		s.QCVM.SetGlobal("other", e1Num)
 		if err := s.executeQCFunction(int(e2.Vars.Touch)); err == nil {
-			syncEdictFromQCVM(s.QCVM, e2Num, e2)
-			syncEdictFromQCVM(s.QCVM, e1Num, e1)
+			s.syncEdictFromQCVM(e2Num, e2)
+			s.syncEdictFromQCVM(e1Num, e1)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}
 		if telemetryEnabled {
@@ -426,7 +425,7 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 		// Elevator gameplay fix: if entity is riding the pusher and blocked
 		// by it, try nudging upward by DIST_EPSILON to prevent crushing.
 		// Matches C sv_phys.c:552-578 (sv_gameplayfix_elevators).
-		fixLevel := cvar.FloatValue("sv_gameplayfix_elevators")
+		fixLevel := s.CVar.FloatValue("sv_gameplayfix_elevators")
 		if riding && block == pusher &&
 			(fixLevel >= 2 || (fixLevel > 0 && e <= s.GetMaxClients())) {
 			check.Vars.Origin[2] += DistEpsilon
@@ -456,7 +455,7 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 			prevNumEdicts := s.NumEdicts
 			pusherSnapshots := s.capturePusherSnapshots()
 			s.syncPushersToQCVM()
-			syncEdictToQCVM(s.QCVM, checkNum, check)
+			s.syncEdictToQCVM(checkNum, check)
 			s.QCVM.SetGlobal("self", pusherNum)
 			s.QCVM.SetGlobal("other", checkNum)
 			if err := s.executeQCFunction(int(pusher.Vars.Blocked)); err == nil {
@@ -657,7 +656,7 @@ func (s *Server) SV_WalkMove(ent *Edict) {
 		return // gibbed by a trigger
 	}
 
-	if cvar.BoolValue("sv_nostep") {
+	if s.CVar.BoolValue("sv_nostep") {
 		return
 	}
 

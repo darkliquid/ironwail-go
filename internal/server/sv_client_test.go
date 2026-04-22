@@ -363,7 +363,7 @@ func TestDropClientCrashClosesAndClearsRemoteConnection(t *testing.T) {
 	if serverSock == nil {
 		t.Fatal("server socket missing")
 	}
-	defer inet.Close(clientSock)
+	defer inet.DefaultNetwork().Close(clientSock)
 
 	client := s.Static.Clients[0]
 	client.Active = true
@@ -374,7 +374,7 @@ func TestDropClientCrashClosesAndClearsRemoteConnection(t *testing.T) {
 	if client.NetConnection != nil {
 		t.Fatal("crash drop should clear client net connection")
 	}
-	if got := inet.SendMessage(clientSock, []byte{0x01}); got != -1 {
+	if got := inet.DefaultNetwork().SendMessage(clientSock, []byte{0x01}); got != -1 {
 		t.Fatalf("send from peer after server close = %d, want -1", got)
 	}
 }
@@ -394,7 +394,7 @@ func TestSendClientMessagesCrashDropOnReliableSendFailureClosesConnection(t *tes
 	if serverSock == nil {
 		t.Fatal("server socket missing")
 	}
-	defer inet.Close(clientSock)
+	defer inet.DefaultNetwork().Close(clientSock)
 
 	client := s.Static.Clients[0]
 	client.Active = true
@@ -404,7 +404,7 @@ func TestSendClientMessagesCrashDropOnReliableSendFailureClosesConnection(t *tes
 	client.SendSignon = SignonPrespawn
 	client.Message.WriteByte(byte(inet.SVCPrint))
 	client.Message.WriteString("force send path")
-	inet.Close(clientSock)
+	inet.DefaultNetwork().Close(clientSock)
 
 	s.SendClientMessages()
 
@@ -431,7 +431,7 @@ func TestSendClientMessagesCrashDropOnOverflowClosesConnection(t *testing.T) {
 	if serverSock == nil {
 		t.Fatal("server socket missing")
 	}
-	defer inet.Close(clientSock)
+	defer inet.DefaultNetwork().Close(clientSock)
 
 	client := s.Static.Clients[0]
 	client.Active = true

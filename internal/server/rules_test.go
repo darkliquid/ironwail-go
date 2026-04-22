@@ -6,37 +6,28 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
-func withRuleCVars(t *testing.T, values map[string]string) {
+func withRuleCVars(t *testing.T, s *Server, values map[string]string) {
 	t.Helper()
-	original := make(map[string]string, len(values))
-	for name := range values {
-		if cvar.Get(name) == nil {
-			cvar.Register(name, "0", cvar.FlagServerInfo, "")
-		}
-		original[name] = cvar.StringValue(name)
-	}
 	for name, value := range values {
-		cvar.Set(name, value)
-	}
-	t.Cleanup(func() {
-		for name, value := range original {
-			cvar.Set(name, value)
+		if s.CVar.Get(name) == nil {
+			s.CVar.Register(name, "0", cvar.FlagServerInfo, "")
 		}
-	})
+		s.CVar.Set(name, value)
+	}
 }
 
 // TestCheckRulesEndsMatchOnFraglimit tests the deathmatch fraglimit rule.
 // It ensuring the match correctly ends and advances to the next level when a player reaches the frag goal.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "10",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -55,14 +46,14 @@ func TestCheckRulesEndsMatchOnFraglimit(t *testing.T) {
 // It ensuring the match ends when the allotted time has elapsed.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "0",
 		"timelimit":  "2",
 	})
-
-	s := NewServer()
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -78,12 +69,12 @@ func TestCheckRulesEndsMatchOnTimelimit(t *testing.T) {
 // It ensuring players can only respawn after the QuakeC logic marks them as ready and they've pressed a button.
 // Where in C: SV_Physics_Client in sv_phys.c (handling respawn state)
 func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 	})
-
-	s := NewServer()
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -132,14 +123,14 @@ func TestHandleDeathmatchRespawnRequiresReadyStateAndButtonPress(t *testing.T) {
 // It preventing unexpected match ends during cooperative play.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNoTriggerInCoop(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "1",
 		"deathmatch": "0",
 		"fraglimit":  "10",
 		"timelimit":  "2",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -159,14 +150,14 @@ func TestCheckRulesNoTriggerInCoop(t *testing.T) {
 // It ensuring that when limits are set to 0, the match continues indefinitely.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "0",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -186,14 +177,14 @@ func TestCheckRulesNoTriggerWhenDisabled(t *testing.T) {
 // It verifying the boundary condition for match ending.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "20",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -212,14 +203,14 @@ func TestCheckRulesFraglimitExactlyMet(t *testing.T) {
 // It ensuring the match doesn't end early.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "20",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -238,14 +229,14 @@ func TestCheckRulesFraglimitNotMetBelowThreshold(t *testing.T) {
 // It ensuring the match doesn't end early.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "0",
 		"timelimit":  "5",
 	})
-
-	s := NewServer()
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -261,14 +252,14 @@ func TestCheckRulesTimelimitNotMetBelowThreshold(t *testing.T) {
 // It preventing redundant level change commands when a match end has already been triggered.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "10",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -287,14 +278,14 @@ func TestCheckRulesSkipsWhenChangeLevelAlreadyIssued(t *testing.T) {
 // It ensuring that *any* player reaching the limit triggers the match end.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "10",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(4); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -322,14 +313,14 @@ func TestCheckRulesFraglimitChecksAllClients(t *testing.T) {
 // It treating negative limits as disabled, matching canonical engine behavior.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "-5",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -348,14 +339,14 @@ func TestCheckRulesNegativeFraglimitIgnored(t *testing.T) {
 // It treating negative limits as disabled.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "0",
 		"timelimit":  "-10",
 	})
-
-	s := NewServer()
 	if err := s.Init(1); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -371,14 +362,14 @@ func TestCheckRulesNegativeTimelimitIgnored(t *testing.T) {
 // It ensuring cooperative mode takes precedence over deathmatch settings.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "1",
 		"deathmatch": "1",
 		"fraglimit":  "10",
 		"timelimit":  "2",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -398,14 +389,14 @@ func TestCheckRulesCoopOverridesDeathmatch(t *testing.T) {
 // It preventing crashes or incorrect results from disconnected players or removed entities.
 // Where in C: SV_CheckRules in sv_main.c
 func TestCheckRulesSkipsFreedEdicts(t *testing.T) {
-	withRuleCVars(t, map[string]string{
+	s := NewServer()
+
+	withRuleCVars(t, s, map[string]string{
 		"coop":       "0",
 		"deathmatch": "1",
 		"fraglimit":  "10",
 		"timelimit":  "0",
 	})
-
-	s := NewServer()
 	if err := s.Init(2); err != nil {
 		t.Fatalf("init server: %v", err)
 	}

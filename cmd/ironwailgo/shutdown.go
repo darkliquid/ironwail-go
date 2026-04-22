@@ -2,8 +2,6 @@ package main
 
 import (
 	"log/slog"
-
-	inet "github.com/darkliquid/ironwail-go/internal/net"
 )
 
 func pollRuntimeInputEvents() {
@@ -50,7 +48,7 @@ func shutdownEngine() {
 		g.CSQC.Unload()
 	}
 
-	inet.Shutdown()
+	g.Host.Net.Shutdown()
 	g.Host.Shutdown(g.Subs)
 	slog.Info("Engine shutdown complete")
 }

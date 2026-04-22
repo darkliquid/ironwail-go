@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -20,7 +19,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		slog.Debug("renderWorldInternal: no world data")
 		return
 	}
-	hostSpeeds := cvar.BoolValue("host_speeds")
+	hostSpeeds := pkgCVars != nil && pkgCVars.BoolValue("host_speeds")
 	var (
 		visibleSelectMS float64
 		classifyFacesMS float64

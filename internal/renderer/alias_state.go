@@ -3,7 +3,6 @@ package renderer
 import (
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/model"
 )
 
@@ -32,7 +31,10 @@ func applyAliasNoLerpListFlags(flags int, modelID string) int {
 	if modelID == "" {
 		return flags
 	}
-	if _, noLerp := parseAliasModelList(cvar.StringValue(CvarRNoLerpList))[modelID]; noLerp {
+	if pkgCVars == nil {
+		return flags
+	}
+	if _, noLerp := parseAliasModelList(pkgCVars.StringValue(CvarRNoLerpList))[modelID]; noLerp {
 		flags |= ModNoLerp
 	}
 	return flags

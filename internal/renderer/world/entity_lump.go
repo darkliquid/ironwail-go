@@ -3,13 +3,14 @@ package world
 import (
 	"strconv"
 	"strings"
-
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // ReadAlphaCvar reads a clamped alpha cvar value with a fallback default.
 func ReadAlphaCvar(name string, fallback float32) float32 {
-	cv := cvar.Get(name)
+	if pkgCVars == nil {
+		return clamp01(fallback)
+	}
+	cv := pkgCVars.Get(name)
 	if cv == nil {
 		return clamp01(fallback)
 	}

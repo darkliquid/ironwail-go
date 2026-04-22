@@ -742,8 +742,8 @@ func (s *Server) touchLinks(ent *Edict) {
 				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],
 				ent.Vars.AbsMax[0], ent.Vars.AbsMax[1], ent.Vars.AbsMax[2])
 		}
-		syncEdictToQCVM(s.QCVM, touchNum, touch)
-		syncEdictToQCVM(s.QCVM, entNum, ent)
+		s.syncEdictToQCVM(touchNum, touch)
+		s.syncEdictToQCVM(entNum, ent)
 		pusherSnapshots := s.capturePusherSnapshots()
 		s.syncPushersToQCVM()
 		s.QCVM.SetGlobal("self", touchNum)
@@ -753,8 +753,8 @@ func (s *Server) touchLinks(ent *Edict) {
 		if err := s.executeQCFunction(int(touch.Vars.Touch)); err != nil {
 			slog.Warn("touchlinks callback failed", "self", touchNum, "other", entNum, "func", touch.Vars.Touch, "err", err)
 		} else {
-			syncEdictFromQCVM(s.QCVM, touchNum, touch)
-			syncEdictFromQCVM(s.QCVM, entNum, ent)
+			s.syncEdictFromQCVM(touchNum, touch)
+			s.syncEdictFromQCVM(entNum, ent)
 			s.syncMutatedPushersFromQCVM(pusherSnapshots)
 			s.syncSpawnedEdictsFromQCVM(prevNumEdicts)
 		}

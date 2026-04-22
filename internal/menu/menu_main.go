@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/darkliquid/ironwail-go/internal/cvar"
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/renderer"
@@ -118,7 +117,7 @@ func (m *Manager) enterSinglePlayerSkillMenu() {
 		m.skillCursor = 4
 	} else {
 		skill := 1
-		if cv := cvar.Get("skill"); cv != nil {
+		if cv := m.cvars.Get("skill"); cv != nil {
 			skill = cv.Int
 		}
 		if skill < 0 {
@@ -238,15 +237,15 @@ func (m *Manager) enterSetupMenu() {
 // color cvars into the Manager's editing buffers so the Setup menu shows
 // up-to-date values when opened.
 func (m *Manager) syncSetupValues() {
-	m.setupHostname = currentSetupHostname()
-	m.setupName = currentSetupName()
-	m.setupTopColor, m.setupBottomColor = splitSetupColors(currentSetupColor())
+	m.setupHostname = m.currentSetupHostname()
+	m.setupName = m.currentSetupName()
+	m.setupTopColor, m.setupBottomColor = splitSetupColors(m.currentSetupColor())
 }
 
 // currentSetupHostname returns the current hostname cvar value, falling back
 // to the default "UNNAMED" if the cvar is missing or empty.
-func currentSetupHostname() string {
-	if cv := cvar.Get(setupHostnameCVar); cv != nil && cv.String != "" {
+func (m *Manager) currentSetupHostname() string {
+	if cv := m.cvars.Get(setupHostnameCVar); cv != nil && cv.String != "" {
 		return cv.String
 	}
 	return setupDefaultHostname
@@ -254,8 +253,8 @@ func currentSetupHostname() string {
 
 // currentSetupName returns the current player name cvar value, falling back
 // to "player" if the cvar is missing.
-func currentSetupName() string {
-	if cv := cvar.Get(setupClientNameCVar); cv != nil {
+func (m *Manager) currentSetupName() string {
+	if cv := m.cvars.Get(setupClientNameCVar); cv != nil {
 		return cv.String
 	}
 	return setupDefaultName
@@ -263,8 +262,8 @@ func currentSetupName() string {
 
 // currentSetupColor returns the packed color byte from the _cl_color cvar.
 // The upper nibble is shirt color and the lower nibble is pants color.
-func currentSetupColor() int {
-	if cv := cvar.Get(setupClientColorCVar); cv != nil {
+func (m *Manager) currentSetupColor() int {
+	if cv := m.cvars.Get(setupClientColorCVar); cv != nil {
 		return cv.Int
 	}
 	return 0
@@ -448,13 +447,13 @@ func wrapSetupColor(value int) int {
 // hostname cvar directly.
 func (m *Manager) applySetupChanges() {
 	name := strings.TrimSpace(m.setupName)
-	if name != "" && name != currentSetupName() {
+	if name != "" && name != m.currentSetupName() {
 		m.queueCommand(fmt.Sprintf("name %q\n", name))
 	}
-	if m.setupHostname != currentSetupHostname() {
-		cvar.Set(setupHostnameCVar, m.setupHostname)
+	if m.setupHostname != m.currentSetupHostname() {
+		m.cvars.Set(setupHostnameCVar, m.setupHostname)
 	}
-	top, bottom := splitSetupColors(currentSetupColor())
+	top, bottom := splitSetupColors(m.currentSetupColor())
 	if m.setupTopColor != top || m.setupBottomColor != bottom {
 		m.queueCommand(fmt.Sprintf("color %d %d\n", m.setupTopColor, m.setupBottomColor))
 	}
