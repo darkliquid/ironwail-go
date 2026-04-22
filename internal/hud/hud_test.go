@@ -41,7 +41,6 @@ func setTestViewSize(t *testing.T, value string) {
 
 func setTestSbarAlpha(t *testing.T, value string) {
 	t.Helper()
-	testCV.Register("scr_sbaralpha", "0.75", cvar.FlagArchive, "")
 	testCV.Set("scr_sbaralpha", value)
 	t.Cleanup(func() {
 		testCV.Set("scr_sbaralpha", "0.75")
