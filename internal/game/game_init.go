@@ -223,8 +223,11 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register("scr_crosshairscale", "1", cvar.FlagArchive, "Crosshair scale factor (1-10)")
 	g.registerControlCvars()
 
-	// Create host instance
-	g.Host = host.NewHost()
+	// The Host was created in game.New(); do not replace it here or we would
+	// throw away every cvar registered above (and leave the menu's captured
+	// Host.Cmd.AddText pointing at an orphaned command buffer that nobody
+	// ever drains, which silently breaks queueCommand-based menu actions
+	// such as quit confirmation, mod selection, and "new game").
 	g.Host.Cmd.SetPrintCallback(func(msg string) {
 		console.Printf("%s", msg)
 	})
