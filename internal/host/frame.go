@@ -56,17 +56,24 @@ func (h *Host) GetFrameInterval() float64 {
 }
 
 func (h *Host) advanceTime(dt float64) {
-	h.realtime += dt
+	// Note: h.realtime is accumulated by Host.Frame (Host_FilterTime
+	// equivalent) before advanceTime is called; the `dt` passed here is
+	// the already-filtered inter-tick delta, so we must not add it to
+	// realtime again or the filter cadence drifts.
 	h.frameTime = dt
 	h.rawFrameTime = dt
 
 	if h.timeScale > 0 {
 		h.frameTime *= h.timeScale
 	} else if h.framerate > 0 {
-		h.frameTime = 1.0 / h.framerate
+		// Matches C Ironwail: host_framerate cvar is seconds-per-frame,
+		// not FPS. When set, simulation uses a fixed timestep regardless
+		// of wall-clock dt (primary use: deterministic parity captures).
+		h.frameTime = h.framerate
 	} else {
 		h.frameTime = clamp(h.frameTime, 0.0001, 0.1)
 	}
+	h.simFrameTime = h.frameTime
 }
 
 func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
@@ -81,11 +88,28 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		return nil
 	}
 
+	// Host_FilterTime equivalent (C Ironwail host.c:Host_FilterTime).
+	// Rate-limit Host.Frame to host_maxfps so that simulation/demo time
+	// advances at the configured rate rather than the renderer's callback
+	// rate (which on Wayland+vsync can be 144Hz+ and would otherwise drive
+	// cl.time forward at 2x+ real speed during demo playback).
+	h.realtime += dt
+	timedemo := h.demoState != nil && h.demoState.TimeDemo
+	if !timedemo && h.maxFPS > 0 {
+		minInterval := 1.0 / clamp(h.maxFPS, 10, 1000)
+		if h.realtime-h.oldrealtime < minInterval {
+			return nil
+		}
+	}
+	filteredDT := h.realtime - h.oldrealtime
+	h.oldrealtime = h.realtime
+
 	if h.compatRNG != nil {
 		h.compatRNG.Int()
 	}
 
-	h.advanceTime(dt)
+	h.advanceTime(filteredDT)
+	dt = filteredDT
 	frameStats.GameTime = h.frameTime * 1000.0
 
 	if cb != nil {
@@ -118,7 +142,7 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 				if h.timeScale > 0 {
 					h.frameTime *= h.timeScale
 				} else if h.framerate > 0 {
-					h.frameTime = 1.0 / h.framerate
+					h.frameTime = h.framerate
 				}
 			} else {
 				h.accumTime -= h.netInterval

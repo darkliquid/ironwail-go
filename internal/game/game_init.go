@@ -121,6 +121,14 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register("vid_vsync", "1", cvar.FlagArchive, "Vertical sync")
 	g.Host.CVar.Register("vid_gpupreference", "0", cvar.FlagArchive, "GPU preference: 0=high-performance (discrete), 1=low-power (integrated), 2=auto")
 	g.Host.CVar.Register("host_maxfps", "250", cvar.FlagArchive, "Maximum frames per second")
+	g.Host.CVar.Register("cl_startdemos", "1", cvar.FlagArchive, "Play intro demos on startup under the main menu (matches C Ironwail's startdemos behaviour)")
+	hostFramerate := g.Host.CVar.Register("host_framerate", "0", 0, "Fixed simulation timestep in seconds (0=disabled, use wall-clock dt). Mirrors C Ironwail host_framerate for deterministic demo playback.")
+	hostFramerate.Callback = func(cv *cvar.CVar) {
+		if g.Host != nil {
+			g.Host.SetFramerate(cv.Float)
+		}
+	}
+	g.Host.SetFramerate(hostFramerate.Float)
 	g.Host.CVar.Register("pr_checkextension", "1", cvar.FlagArchive, "Enable QuakeC extension checks")
 	g.Host.CVar.Register("cl_nocsqc", "0", cvar.FlagArchive, "Disable CSQC loading")
 	sVolume := g.Host.CVar.Register("s_volume", "0.7", cvar.FlagArchive, "Sound volume")

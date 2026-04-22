@@ -128,7 +128,17 @@ func (cb gameCallbacks) ProcessClient() {
 		if clientState != nil {
 			prevState = clientState.State
 			prevSignon = clientState.Signon
-			clientState.AdvanceTime(demo, g.Host.FrameTime())
+			// Use the simulation frame delta for demo time advancement.
+			// Unlike FrameTime, SimFrameTime is not temporarily overwritten
+			// to accumTime during Host.Frame's send/net-tick block, so
+			// cl.time advances by the same amount C Ironwail's
+			// host_frametime (as seen outside the send block) does. Using
+			// raw wall-clock dt here would bypass the CLAMP(0.0001, 0.1)
+			// and host_framerate/host_timescale overrides, breaking
+			// deterministic demo playback used by the parity harness.
+			// Mirrors C Quake's cl.time += cls.demospeed * host_frametime
+			// in cl_demo.c::CL_GetMessage.
+			clientState.AdvanceTime(demo, g.Host.SimFrameTime())
 			if !g.shouldReadNextDemoMessage(clientState, demo) {
 				return
 			}

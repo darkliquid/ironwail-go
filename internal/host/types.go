@@ -48,6 +48,7 @@ type Host struct {
 	oldrealtime  float64
 	frameTime    float64
 	rawFrameTime float64
+	simFrameTime float64
 	netInterval  float64
 	accumTime    float64
 
@@ -175,6 +176,27 @@ func (h *Host) FrameTime() float64 {
 	return h.frameTime
 }
 
+// RawFrameTime returns the real wall-clock frame delta, unaffected by the
+// net-tick batching that temporarily overwrites h.frameTime in the "send"
+// phase of Host.Frame. Callers driving simulation clocks that must advance
+// at real time (e.g. demo playback's cl.time) should use this instead of
+// FrameTime to avoid running faster than real time when host_maxfps > 72.
+// Mirrors C Quake's use of host_rawframetime for CL_AdjustAngles / demo
+// timing while host_frametime is the (possibly-capped) server tick step.
+func (h *Host) RawFrameTime() float64 {
+	return h.rawFrameTime
+}
+
+// SimFrameTime returns the canonical simulation frame delta established by
+// advanceTime at the start of each Host.Frame. Unlike FrameTime, it is not
+// temporarily mutated by the net-tick "send" block, so callers that advance
+// long-running simulation clocks (e.g. demo playback's cl.time) see the same
+// value during both the send and read phases of a host frame. This mirrors C
+// Quake's host_frametime value as seen outside the send/CL_SendMove block.
+func (h *Host) SimFrameTime() float64 {
+	return h.simFrameTime
+}
+
 // SetFrameTime overrides the current frame delta. Intended for tests that
 // exercise code paths depending on Host.FrameTime.
 func (h *Host) SetFrameTime(dt float64) {
@@ -281,8 +303,11 @@ func (h *Host) LocalServerFast() bool {
 	return h.serverActive && h.netInterval == 0
 }
 
-func (h *Host) SetFramerate(fps float64) {
-	h.framerate = fps
+// SetFramerate pins the simulation timestep to a fixed number of seconds per
+// frame. Zero restores normal wall-clock-driven timing. Matches C Ironwail's
+// host_framerate cvar: the value is seconds-per-frame, not FPS.
+func (h *Host) SetFramerate(secondsPerFrame float64) {
+	h.framerate = secondsPerFrame
 }
 
 func (h *Host) Abort(reason string) {
