@@ -500,19 +500,11 @@ func (n *Network) closeDuplicateAcceptedServerSockets(addr *stdnet.UDPAddr) {
 	}
 }
 
-func closeDuplicateAcceptedServerSockets(addr *stdnet.UDPAddr) {
-	defaultNet.closeDuplicateAcceptedServerSockets(addr)
-}
-
 func (n *Network) trackAcceptedServerSocket(sock *Socket) {
 	if sock == nil {
 		return
 	}
 	n.accepted = append(n.accepted, sock)
-}
-
-func trackAcceptedServerSocket(sock *Socket) {
-	defaultNet.trackAcceptedServerSocket(sock)
 }
 
 func (n *Network) untrackAcceptedServerSocket(sock *Socket) {
@@ -526,10 +518,6 @@ func (n *Network) untrackAcceptedServerSocket(sock *Socket) {
 		n.accepted = append(n.accepted[:i], n.accepted[i+1:]...)
 		return
 	}
-}
-
-func untrackAcceptedServerSocket(sock *Socket) {
-	defaultNet.untrackAcceptedServerSocket(sock)
 }
 
 // DatagramCheckNewConnections checks this Network's accept socket for

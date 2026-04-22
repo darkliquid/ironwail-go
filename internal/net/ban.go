@@ -141,7 +141,3 @@ func SetIPBan(addr, mask string) error {
 func IPBanStatus() string {
 	return defaultNet.IPBanStatus()
 }
-
-func isServerIPBanned(remoteAddr string) bool {
-	return defaultNet.isServerIPBanned(remoteAddr)
-}
