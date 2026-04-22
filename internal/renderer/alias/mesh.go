@@ -188,6 +188,14 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 	return vertices
 }
 
+// RotateAngles rotates v by Quake Euler angles (pitch, yaw, roll) matching
+// C R_DrawAliasModel's sequence of glRotatef calls:
+//
+//	glRotatef ( angles[YAW],   0, 0, 1)   // yaw   about Z
+//	glRotatef (-angles[PITCH], 0, 1, 0)   // pitch about Y with NEGATED sign
+//	glRotatef ( angles[ROLL],  1, 0, 0)   // roll  about X
+//
+// Order of composition is yaw → pitch → roll applied to the vertex.
 func RotateAngles(v [3]float32, angles [3]float32) [3]float32 {
 	v = RotateYaw(v, angles[1])
 	v = RotatePitch(v, angles[0])
@@ -209,30 +217,42 @@ func RotateYaw(v [3]float32, yawDegrees float32) [3]float32 {
 	}
 }
 
+// RotatePitch rotates v about the Y axis by -pitchDegrees, matching Quake's
+// convention (glRotatef(-angles[PITCH], 0, 1, 0)). With Quake's axes
+// (X=forward, Y=left, Z=up), a positive network-angle pitch tilts the nose
+// DOWN, so we rotate world-space forward vectors by -pitch about Y.
 func RotatePitch(v [3]float32, pitchDegrees float32) [3]float32 {
 	if pitchDegrees == 0 {
 		return v
 	}
 	pitch := float32(math.Pi) * pitchDegrees / 180.0
-	sinPitch := float32(math.Sin(float64(pitch)))
-	cosPitch := float32(math.Cos(float64(pitch)))
+	s := float32(math.Sin(float64(pitch)))
+	c := float32(math.Cos(float64(pitch)))
+	// Rotation about Y by angle -pitch: applied to (x,y,z):
+	//   x' = x*cos(-p) + z*sin(-p) =  x*c - z*s
+	//   z' = -x*sin(-p) + z*cos(-p) = x*s + z*c
 	return [3]float32{
-		v[0],
-		v[1]*cosPitch - v[2]*sinPitch,
-		v[1]*sinPitch + v[2]*cosPitch,
+		v[0]*c - v[2]*s,
+		v[1],
+		v[0]*s + v[2]*c,
 	}
 }
 
+// RotateRoll rotates v about the X axis by rollDegrees, matching Quake's
+// convention (glRotatef(angles[ROLL], 1, 0, 0)).
 func RotateRoll(v [3]float32, rollDegrees float32) [3]float32 {
 	if rollDegrees == 0 {
 		return v
 	}
 	roll := float32(math.Pi) * rollDegrees / 180.0
-	sinRoll := float32(math.Sin(float64(roll)))
-	cosRoll := float32(math.Cos(float64(roll)))
+	s := float32(math.Sin(float64(roll)))
+	c := float32(math.Cos(float64(roll)))
+	// Rotation about X by roll: applied to (x,y,z):
+	//   y' = y*c - z*s
+	//   z' = y*s + z*c
 	return [3]float32{
-		v[0]*cosRoll + v[2]*sinRoll,
-		v[1],
-		-v[0]*sinRoll + v[2]*cosRoll,
+		v[0],
+		v[1]*c - v[2]*s,
+		v[1]*s + v[2]*c,
 	}
 }
