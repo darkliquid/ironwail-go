@@ -188,6 +188,7 @@ func (s *Server) runClientSpawnQC(client *Client) error {
 	if err := s.runClientQCFunction(client, "ClientConnect", true); err != nil {
 		return err
 	}
+	SvdbgMultiplayerLogf("connect ent=%d name=%q", s.NumForEdict(client.Edict), client.Name)
 	if s.QCVM.FindFunction("PutClientInServer") < 0 {
 		return nil
 	}

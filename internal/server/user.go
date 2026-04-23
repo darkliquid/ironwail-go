@@ -447,11 +447,29 @@ func (s *Server) runClientQCThinkWithMode(client *Client, funcName string, fullS
 	s.QCVM.SetGlobal("self", entNum)
 	s.QCVM.SetGlobal("other", 0)
 	s.QCVM.SetGlobal("msg_entity", entNum)
+	if svDebugMoveLevel() >= 1 {
+		v := client.Edict.Vars
+		SvdbgMoveLogf("%s/pre ent=%d origin=[%.3f %.3f %.3f] velocity=[%.3f %.3f %.3f] angles=[%.3f %.3f %.3f] flags=%d movetype=%d",
+			funcName, entNum,
+			v.Origin[0], v.Origin[1], v.Origin[2],
+			v.Velocity[0], v.Velocity[1], v.Velocity[2],
+			v.VAngle[0], v.VAngle[1], v.VAngle[2],
+			int(v.Flags), int(v.MoveType))
+	}
 	if err := s.executeQCFunction(funcIdx); err != nil {
 		slog.Warn("client think QC failed", "function", funcName, "entity", entNum, "error", err)
 		return
 	}
 	s.syncEdictFromQCVM(entNum, client.Edict)
+	if svDebugMoveLevel() >= 1 {
+		v := client.Edict.Vars
+		SvdbgMoveLogf("%s/post ent=%d origin=[%.3f %.3f %.3f] velocity=[%.3f %.3f %.3f] angles=[%.3f %.3f %.3f] flags=%d movetype=%d",
+			funcName, entNum,
+			v.Origin[0], v.Origin[1], v.Origin[2],
+			v.Velocity[0], v.Velocity[1], v.Velocity[2],
+			v.VAngle[0], v.VAngle[1], v.VAngle[2],
+			int(v.Flags), int(v.MoveType))
+	}
 }
 
 func (s *Server) ClientThink(client *Client) {
@@ -794,6 +812,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 			s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
 			_ = s.executeQCFunction(funcIdx)
 		}
+		SvdbgMultiplayerLogf("disconnect ent=%d name=%q crash=%v", s.NumForEdict(client.Edict), client.Name, crash)
 	}
 
 	if client.NetConnection != nil {

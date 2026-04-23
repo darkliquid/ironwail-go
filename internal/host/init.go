@@ -60,6 +60,7 @@ func (h *Host) registerHostCVars() {
 	cv.Register("sv_aim", "0.93", cvar.FlagNone, "Auto-aim cosine threshold")
 	audio.RegisterCVars(cv)
 	server.RegisterDebugTelemetryCVars(cv)
+	server.RegisterSvdbgCVars(cv)
 	RegisterHostDebugTelemetryCVars(cv)
 	RegisterExtraModsCVars(cv)
 	cl.RegisterNetDebugCVars(cv)

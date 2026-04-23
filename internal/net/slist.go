@@ -204,6 +204,17 @@ func (sb *ServerBrowser) run() {
 	}
 }
 
+// SlistDebugHook is an optional telemetry sink invoked on slist activity
+// (broadcast sent, entry discovered). Left nil by default; the server
+// package installs a hook when sv_debug_multiplayer is enabled.
+var SlistDebugHook func(event string, format string, args ...any)
+
+func slistDebug(event, format string, args ...any) {
+	if SlistDebugHook != nil {
+		SlistDebugHook(event, format, args...)
+	}
+}
+
 // broadcast sends the query packet to the broadcast address on the Quake port.
 func (sb *ServerBrowser) broadcast(conn stdnet.PacketConn, query []byte) {
 	port := defaultNet.defaultHostPort
@@ -214,6 +225,7 @@ func (sb *ServerBrowser) broadcast(conn stdnet.PacketConn, query []byte) {
 		IP:   stdnet.IPv4bcast,
 		Port: port,
 	}
+	slistDebug("broadcast", "dst=%s bytes=%d", broadcastAddr.String(), len(query))
 	if _, err := conn.WriteTo(query, broadcastAddr); err != nil {
 		slog.Debug("slist: broadcast failed, trying localhost", "err", err)
 		// Fallback: try localhost (works in loopback-only environments)
@@ -221,6 +233,8 @@ func (sb *ServerBrowser) broadcast(conn stdnet.PacketConn, query []byte) {
 			IP:   stdnet.IPv4(127, 0, 0, 1),
 			Port: port,
 		}
+		slistDebug("broadcast", "dst=%s bytes=%d fallback=localhost err=%v",
+			localhost.String(), len(query), err)
 		conn.WriteTo(query, localhost)
 	}
 }
@@ -500,4 +514,6 @@ func (sb *ServerBrowser) addEntry(entry HostCacheEntry) {
 		}
 	}
 	sb.entries = append(sb.entries, entry)
+	slistDebug("discovered", "addr=%s name=%q players=%d/%d map=%q",
+		entry.Address, entry.Name, entry.Players, entry.MaxPlayers, entry.Map)
 }
