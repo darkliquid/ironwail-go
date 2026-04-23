@@ -32,8 +32,12 @@ func TestApplyDemoPlaybackViewAnglesUpdatesCurrentAndPreviousAngles(t *testing.T
 	if clientState.MViewAngles[0] != [3]float32{10, 20, 30} {
 		t.Fatalf("current demo angles = %v, want [10 20 30]", clientState.MViewAngles[0])
 	}
-	if clientState.ViewAngles != [3]float32{10, 20, 30} {
-		t.Fatalf("view angles = %v, want [10 20 30]", clientState.ViewAngles)
+	// ViewAngles must NOT be clobbered with the raw packet angle. C Ironwail's
+	// CL_GetDemoMessage never touches cl.viewangles; they are interpolated
+	// from MViewAngles[0/1] inside CL_RelinkEntities. Overwriting here snaps
+	// the camera to each demo keyframe and causes judder on rotation.
+	if clientState.ViewAngles != [3]float32{4, 5, 6} {
+		t.Fatalf("view angles = %v, want [4 5 6] (untouched)", clientState.ViewAngles)
 	}
 }
 

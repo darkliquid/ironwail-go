@@ -12,13 +12,24 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
+// applyDemoPlaybackViewAngles shifts the double-buffered demo view angles
+// after a new demo packet is read. Mirrors C Ironwail cl_demo.c
+// CL_GetDemoMessage:
+//
+//	VectorCopy (cl.mviewangles[0], cl.mviewangles[1]);
+//	... cl.mviewangles[0][i] = LittleFloat(f);
+//
+// Crucially, C never touches cl.viewangles here: those are interpolated from
+// MViewAngles[1]→MViewAngles[0] by CL_RelinkEntities using CL_LerpPoint each
+// render frame. Overwriting ViewAngles with the raw new packet angle snaps
+// the camera to the keyframe and bypasses the interpolation, producing
+// visible judder during view rotation in demo playback.
 func (g *Game) applyDemoPlaybackViewAngles(clientState *cl.Client, viewAngles [3]float32) {
 	if clientState == nil {
 		return
 	}
 	clientState.MViewAngles[1] = clientState.MViewAngles[0]
 	clientState.MViewAngles[0] = viewAngles
-	clientState.ViewAngles = viewAngles
 }
 
 func (g *Game) shouldReadNextDemoMessage(clientState *cl.Client, demo *cl.DemoState) bool {
