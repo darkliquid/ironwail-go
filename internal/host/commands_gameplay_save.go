@@ -66,6 +66,11 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 		subs.Console.Print("Warning: \"nomonsters\" disabled automatically.\n")
 		h.CVar.Set("nomonsters", "0")
 	}
+	// If a background save is still writing the target slot, wait
+	// for it before reading so we never observe a partial file.
+	if relName, rerr := normalizeSaveName(name); rerr == nil && h.saveWorker.isSavingName(relName) {
+		h.WaitForSaveThread()
+	}
 	path, data, err := h.readSaveFile(name, options)
 	if err != nil {
 		h.invalidateLastSave(name)
@@ -256,6 +261,17 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
 		return
 	}
+	relName, err := normalizeSaveName(name)
+	if err != nil {
+		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
+		return
+	}
+	// Wait for any still-in-flight write to the same slot so the
+	// capture below reflects a consistent filesystem state when a
+	// reader inspects it afterward.
+	if h.saveWorker.isSavingName(relName) {
+		h.WaitForSaveThread()
+	}
 	state, err := srv.CaptureSaveGameState()
 	if err != nil {
 		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
@@ -271,20 +287,9 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		subs.Console.Print(fmt.Sprintf("save failed: %v\n", err))
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		subs.Console.Print("ERROR: couldn't open.\n")
-		return
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		subs.Console.Print("ERROR: couldn't open.\n")
-		return
-	}
 	h.setLastSave(name)
 	h.BeginSavingIndicator(0)
-
-	if !skipNotify {
-		subs.Console.Print(fmt.Sprintf("Saving game to %s...\n", displayName))
-	}
+	h.writeSaveInBackground(relName, path, displayName, data, subs, skipNotify)
 }
 
 func (h *Host) setLastSave(name string) {
@@ -301,6 +306,17 @@ func (h *Host) invalidateLastSave(name string) {
 	if relName == h.lastSave {
 		h.lastSave = ""
 	}
+}
+
+// InvalidateSave mirrors Host_InvalidateSave in C Ironwail: it clears
+// the engine's memory of the named slot as the current save. Intended
+// for autosave/demo logic that needs to prevent autoload from
+// resurrecting a stale slot after it's been consumed.
+func (h *Host) InvalidateSave(name string) {
+	if h == nil {
+		return
+	}
+	h.invalidateLastSave(name)
 }
 
 func (h *Host) saveFilePath(name string) (string, error) {

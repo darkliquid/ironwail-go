@@ -106,6 +106,9 @@ type Host struct {
 
 	netStats *inet.NetStats
 
+	saveWorker saveWorker
+
+	title windowTitleState
 	// Cmd is the host-owned command system instance. All host/game/server
 	// command registrations and command-buffer execution flow through this
 	// instance instead of the previous package-level singleton.

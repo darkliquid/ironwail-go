@@ -687,6 +687,7 @@ func (h *Host) Shutdown(subs *Subsystems) {
 		subs.Files.Close()
 	}
 
+	h.WaitForSaveThread()
 	h.shutdownMainThreadQueue()
 
 	h.initialized = false

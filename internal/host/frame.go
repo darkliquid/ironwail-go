@@ -208,6 +208,8 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 	frameStats.Client = clientSendMS + clientReadMS
 	frameStats.Total = elapsedMilliseconds(frameStart)
 
+	h.updateWindowTitle(h.Subs, filteredDT)
+
 	if hostSpeeds {
 		slog.Info("host_speeds",
 			"frame", h.frameCount,
