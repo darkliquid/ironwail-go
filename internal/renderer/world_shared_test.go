@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	"encoding/binary"
+	"math"
 	"testing"
 )
 
@@ -87,37 +89,38 @@ func TestQuantizeGoGPUWorldDynamicLightScalar(t *testing.T) {
 	}
 }
 
-func TestGoGPUWorldDynamicLightSignatureIgnoresTinyFadeDrift(t *testing.T) {
-	base := DynamicLight{
+func TestEncodeGoGPUWorldDynamicLights(t *testing.T) {
+	lights := []DynamicLight{{
 		Position:   [3]float32{10, 20, 30},
 		Radius:     200,
 		Color:      [3]float32{1, 0.5, 0.25},
-		Brightness: 1,
+		Brightness: 2,
+		MinLight:   32,
 		Lifetime:   10,
-		Age:        1,
-		Type:       2,
-		EntityKey:  99,
+		Age:        2.5,
+	}}
+	got := encodeGoGPUWorldDynamicLights(lights)
+	if len(got) != gogpuWorldDynamicLightHeaderSize+gogpuWorldDynamicLightBufferStride {
+		t.Fatalf("encoded byte length = %d, want %d", len(got), gogpuWorldDynamicLightHeaderSize+gogpuWorldDynamicLightBufferStride)
 	}
-	drifted := base
-	drifted.Age = 1.01
-	if got, want := gogpuWorldDynamicLightSignature([]DynamicLight{base}), gogpuWorldDynamicLightSignature([]DynamicLight{drifted}); got != want {
-		t.Fatalf("signature changed for tiny fade drift: base=%d drifted=%d", got, want)
+	if count := binary.LittleEndian.Uint32(got[:4]); count != 1 {
+		t.Fatalf("encoded count = %d, want 1", count)
 	}
-}
-
-func TestGoGPUWorldDynamicLightSignatureTracksVisualLightChanges(t *testing.T) {
-	base := DynamicLight{
-		Position:   [3]float32{10, 20, 30},
-		Radius:     200,
-		Color:      [3]float32{1, 0.5, 0.25},
-		Brightness: 1,
-		Lifetime:   10,
-		Age:        1,
-		Type:       2,
+	base := gogpuWorldDynamicLightHeaderSize
+	if radius := math.Float32frombits(binary.LittleEndian.Uint32(got[base+12 : base+16])); radius != 200 {
+		t.Fatalf("encoded radius = %v, want 200", radius)
 	}
-	changed := base
-	changed.Age = 2
-	if got, want := gogpuWorldDynamicLightSignature([]DynamicLight{base}), gogpuWorldDynamicLightSignature([]DynamicLight{changed}); got == want {
-		t.Fatalf("signature did not change for visible fade step: base=%d changed=%d", got, want)
+	if minLight := math.Float32frombits(binary.LittleEndian.Uint32(got[base+28 : base+32])); minLight != 32 {
+		t.Fatalf("encoded minlight = %v, want 32", minLight)
+	}
+	wantMul := float32(1.5)
+	if colorR := math.Float32frombits(binary.LittleEndian.Uint32(got[base+16 : base+20])); colorR != 1*wantMul {
+		t.Fatalf("encoded red = %v, want %v", colorR, 1*wantMul)
+	}
+	if colorG := math.Float32frombits(binary.LittleEndian.Uint32(got[base+20 : base+24])); colorG != 0.5*wantMul {
+		t.Fatalf("encoded green = %v, want %v", colorG, 0.5*wantMul)
+	}
+	if colorB := math.Float32frombits(binary.LittleEndian.Uint32(got[base+24 : base+28])); colorB != 0.25*wantMul {
+		t.Fatalf("encoded blue = %v, want %v", colorB, 0.25*wantMul)
 	}
 }

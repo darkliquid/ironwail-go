@@ -6,6 +6,20 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
+const worldUniformsWGSL = `
+struct Uniforms {
+    viewProjection: mat4x4<f32>,
+    cameraOrigin: vec3<f32>,
+    fogDensity: f32,
+    fogColor: vec3<f32>,
+    time: f32,
+    alpha: f32,
+    litWater: f32,
+    _padding0: vec2<f32>,
+    _padding1: vec4<f32>,
+}
+`
+
 // worldVertexShaderWGSL is the WGSL source for world vertex shader
 const worldVertexShaderWGSL = `
 struct VertexInput {
@@ -14,17 +28,7 @@ struct VertexInput {
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
 }
-
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
+` + worldUniformsWGSL + `
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
@@ -59,18 +63,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 // worldFragmentShaderWGSL is the WGSL source for the GoGPU world fragment shader.
 // Keep its lightmap/fullbright/fog math aligned with the canonical world-shader
 // behavior so BSP world surfaces look the same across renderer paths.
-const worldFragmentShaderWGSL = `
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
-
+func buildWorldFragmentShaderWGSL(planeNormalExpr string) string {
+	return fmt.Sprintf(`
+%s
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
@@ -78,6 +73,16 @@ struct VertexOutput {
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) clipPos: vec4<f32>,
+}
+
+struct DynamicLight {
+    originRadius: vec4<f32>,
+    colorMinLight: vec4<f32>,
+}
+
+struct DynamicLights {
+    count: u32,
+    lights: array<DynamicLight, %d>,
 }
 
 @group(0) @binding(0)
@@ -101,26 +106,55 @@ var worldFullbrightSampler: sampler;
 @group(3) @binding(1)
 var worldFullbrightTexture: texture_2d<f32>;
 
+@group(4) @binding(0)
+var<storage, read> dynamicLights: DynamicLights;
+
+fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> vec3<f32> {
+    let normalLenSq = dot(planeNormalRaw, planeNormalRaw);
+    if (normalLenSq <= 0.000001) {
+        return vec3<f32>(0.0);
+    }
+    let planeNormal = planeNormalRaw * inverseSqrt(normalLenSq);
+    let planeW = dot(worldPos, planeNormal);
+    var dynamicLight = vec3<f32>(0.0);
+    for (var i: u32 = 0u; i < dynamicLights.count; i = i + 1u) {
+        let light = dynamicLights.lights[i];
+        var rad = light.originRadius.w;
+        let planeDist = dot(light.originRadius.xyz, planeNormal) - planeW;
+        rad = rad - abs(planeDist);
+        let minLight = light.colorMinLight.w;
+        if (rad < minLight) {
+            continue;
+        }
+        let localPos = light.originRadius.xyz - planeNormal * planeDist;
+        let surfaceDist = length(worldPos - localPos);
+        dynamicLight += clamp((rad - minLight - surfaceDist) / 16.0, 0.0, 1.0) * max(0.0, rad - surfaceDist) / 256.0 * light.colorMinLight.xyz;
+    }
+    return dynamicLight;
+}
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	let sampled = textureSample(worldTexture, worldSampler, input.texCoord);
 	if (sampled.a < 0.1) {
 		discard;
 	}
-	let lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
+	var totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
-	let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
+	let dynamicLight = accumulateDynamicLights(input.worldPos, %s);
+	totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
+	let lit = sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
 	let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
 	let fogged = mix(uniforms.fogColor, lit, fog);
 	return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
-`
+`, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax, planeNormalExpr)
+}
 
-// Alpha-tested world surfaces currently share the same fragment program as the
-// opaque path; the dedicated symbol keeps pipeline wiring stable as the shader
-// set evolves.
-const worldAlphaTestFragmentShaderWGSL = worldFragmentShaderWGSL
+var worldFragmentShaderWGSL = buildWorldFragmentShaderWGSL("cross(dpdx(input.worldPos), dpdy(input.worldPos))")
+
+var worldAlphaTestFragmentShaderWGSL = buildWorldFragmentShaderWGSL("input.normal")
 
 const worldSkyVertexShaderWGSL = `
 struct VertexInput {
@@ -129,17 +163,7 @@ struct VertexInput {
     @location(2) lightmapCoord: vec2<f32>,
     @location(3) normal: vec3<f32>,
 }
-
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
+` + worldUniformsWGSL + `
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
@@ -163,18 +187,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 `
 
-const worldTurbulentFragmentShaderWGSL = `
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
-
+var worldTurbulentFragmentShaderWGSL = fmt.Sprintf(`
+%s
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
     @location(0) texCoord: vec2<f32>,
@@ -182,6 +196,16 @@ struct VertexOutput {
     @location(2) worldPos: vec3<f32>,
     @location(3) normal: vec3<f32>,
     @location(4) clipPos: vec4<f32>,
+}
+
+struct DynamicLight {
+    originRadius: vec4<f32>,
+    colorMinLight: vec4<f32>,
+}
+
+struct DynamicLights {
+    count: u32,
+    lights: array<DynamicLight, %d>,
 }
 
 @group(0) @binding(0)
@@ -205,34 +229,54 @@ var worldFullbrightSampler: sampler;
 @group(3) @binding(1)
 var worldFullbrightTexture: texture_2d<f32>;
 
+@group(4) @binding(0)
+var<storage, read> dynamicLights: DynamicLights;
+
+fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> vec3<f32> {
+    let normalLenSq = dot(planeNormalRaw, planeNormalRaw);
+    if (normalLenSq <= 0.000001) {
+        return vec3<f32>(0.0);
+    }
+    let planeNormal = planeNormalRaw * inverseSqrt(normalLenSq);
+    let planeW = dot(worldPos, planeNormal);
+    var dynamicLight = vec3<f32>(0.0);
+    for (var i: u32 = 0u; i < dynamicLights.count; i = i + 1u) {
+        let light = dynamicLights.lights[i];
+        var rad = light.originRadius.w;
+        let planeDist = dot(light.originRadius.xyz, planeNormal) - planeW;
+        rad = rad - abs(planeDist);
+        let minLight = light.colorMinLight.w;
+        if (rad < minLight) {
+            continue;
+        }
+        let localPos = light.originRadius.xyz - planeNormal * planeDist;
+        let surfaceDist = length(worldPos - localPos);
+        dynamicLight += clamp((rad - minLight - surfaceDist) / 16.0, 0.0, 1.0) * max(0.0, rad - surfaceDist) / 256.0 * light.colorMinLight.xyz;
+    }
+    return dynamicLight;
+}
+
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.texCoord * 2.0 + 0.125 * sin(input.texCoord.yx * (3.14159265 * 2.0) + vec2<f32>(uniforms.time, uniforms.time));
     let sampled = textureSample(worldTexture, worldSampler, uv);
     let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, uv);
-    var lightmap = vec3<f32>(0.5);
+    var totalLight = vec3<f32>(0.5);
     if (uniforms.litWater > 0.5) {
-        lightmap = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
+        totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
-    let lit = sampled.rgb * (lightmap + uniforms.dynamicLight) * 2.0 + fullbright.rgb * fullbright.a;
+    let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
+    totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
+    let lit = sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;
     let fog = clamp(exp2(-uniforms.fogDensity * dot(fogPosition, fogPosition)), 0.0, 1.0);
     let fogged = mix(uniforms.fogColor, lit, fog);
     return vec4<f32>(fogged, sampled.a * uniforms.alpha);
 }
-`
+`, worldUniformsWGSL, gogpuWorldDynamicLightBufferMax)
 
 const worldSkyFragmentShaderWGSL = `
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
+` + worldUniformsWGSL + `
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,
@@ -267,16 +311,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 `
 
 const worldSkyExternalFaceFragmentShaderWGSL = `
-struct Uniforms {
-    viewProjection: mat4x4<f32>,
-    cameraOrigin: vec3<f32>,
-    fogDensity: f32,
-    fogColor: vec3<f32>,
-    time: f32,
-    alpha: f32,
-    dynamicLight: vec3<f32>,
-    litWater: f32,
-}
+` + worldUniformsWGSL + `
 
 struct VertexOutput {
     @builtin(position) clipPosition: vec4<f32>,

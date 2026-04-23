@@ -70,7 +70,6 @@ const gogpuWorldBatchCacheEntryCount = 4
 type gogpuWorldBatchCacheEntry struct {
 	valid             bool
 	leaf              int
-	lightSig          uint64
 	faceCount         int
 	skyFaces          []WorldFace
 	translucentLiquid []WorldFace
@@ -174,6 +173,9 @@ type Renderer struct {
 	worldSkyExternalPipeline          *wgpu.RenderPipeline
 	worldPipelineLayout               *wgpu.PipelineLayout
 	worldSkyExternalPipelineLayout    *wgpu.PipelineLayout
+	worldDynamicLightsBuffer          *wgpu.Buffer
+	worldDynamicLightsBindGroup       *wgpu.BindGroup
+	worldDynamicLightsBindGroupLayout *wgpu.BindGroupLayout
 	worldBindGroup                    *wgpu.BindGroup
 	worldShader                       *wgpu.ShaderModule
 	uniformBuffer                     *wgpu.Buffer

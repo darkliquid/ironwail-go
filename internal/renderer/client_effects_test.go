@@ -46,3 +46,21 @@ func TestEmitEntityEffectLightsAddsRocketLightFromModelFlags(t *testing.T) {
 		t.Fatalf("rocket light key = %d, want 7", got)
 	}
 }
+
+func TestEmitEntityEffectLightsMuzzleFlashSetsMinLight(t *testing.T) {
+	var lights []DynamicLight
+	EmitEntityEffectLights(func(dl DynamicLight) bool {
+		lights = append(lights, dl)
+		return true
+	}, []EntityEffectSource{{
+		Origin:    [3]float32{4, 5, 6},
+		Effects:   inet.EF_MUZZLEFLASH,
+		EntityNum: 7,
+	}})
+	if got := len(lights); got != 1 {
+		t.Fatalf("effect lights = %d, want 1", got)
+	}
+	if got := lights[0].MinLight; got != 32 {
+		t.Fatalf("muzzle flash minlight = %v, want 32", got)
+	}
+}

@@ -20,6 +20,8 @@ type gogpuLateTranslucentFaceResources struct {
 	uniformBuffer           *wgpu.Buffer
 	uniformBindGroup        *wgpu.BindGroup
 	uniformBindGroupLayout  *wgpu.BindGroupLayout
+	dynamicLightsBuffer     *wgpu.Buffer
+	dynamicLightsBindGroup  *wgpu.BindGroup
 	whiteTextureBindGroup   *wgpu.BindGroup
 	whiteLightmapBindGroup  *wgpu.BindGroup
 	transparentBindGroup    *wgpu.BindGroup
@@ -55,6 +57,8 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 		uniformBuffer:           r.uniformBuffer,
 		uniformBindGroup:        r.uniformBindGroup,
 		uniformBindGroupLayout:  r.uniformBindGroupLayout,
+		dynamicLightsBuffer:     r.worldDynamicLightsBuffer,
+		dynamicLightsBindGroup:  r.worldDynamicLightsBindGroup,
 		whiteTextureBindGroup:   r.whiteTextureBindGroup,
 		whiteLightmapBindGroup:  r.whiteLightmapBindGroup,
 		transparentBindGroup:    r.transparentBindGroup,
@@ -75,7 +79,7 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 	if r.lightPool != nil {
 		res.activeDynamicLights = append(res.activeDynamicLights, r.lightPool.ActiveLights()...)
 	}
-	if res.translucentPipeline == nil || res.liquidPipeline == nil || res.uniformBuffer == nil || res.uniformBindGroup == nil || res.uniformBindGroupLayout == nil || res.whiteTextureBindGroup == nil || res.whiteLightmapBindGroup == nil {
+	if res.translucentPipeline == nil || res.liquidPipeline == nil || res.uniformBuffer == nil || res.uniformBindGroup == nil || res.uniformBindGroupLayout == nil || res.dynamicLightsBuffer == nil || res.dynamicLightsBindGroup == nil || res.whiteTextureBindGroup == nil || res.whiteLightmapBindGroup == nil {
 		res.unlock()
 		return gogpuLateTranslucentFaceResources{}, false
 	}
@@ -322,19 +326,14 @@ func (dc *DrawContext) collectGoGPUWorldTranslucentLiquidFaceRenders() []gogpuTr
 	worldVertexBuffer := r.worldVertexBuffer
 	worldIndexBuffer := r.worldIndexBuffer
 	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
-	var activeDynamicLights []DynamicLight
-	if r.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)
-	}
 	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraLeafIndex := -1
 	if worldData != nil && worldData.Geometry != nil && worldData.Geometry.Tree != nil {
 		cameraLeafIndex = worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
 	}
-	dynamicLightSig := gogpuWorldDynamicLightSignature(activeDynamicLights)
 	var cachedFaces []WorldFace
 	if worldData != nil && worldData.Geometry != nil {
-		if cacheEntry := r.gogpuWorldBatchCacheEntry(cameraLeafIndex, dynamicLightSig); cacheEntry != nil {
+		if cacheEntry := r.gogpuWorldBatchCacheEntry(cameraLeafIndex); cacheEntry != nil {
 			cachedFaces = cacheEntry.translucentLiquid
 		}
 	}
@@ -529,6 +528,11 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	// before the first SetBindGroup call in this pass.
 	renderPass.SetPipeline(res.alphaTestPipeline)
 	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
+	if err := res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(res.activeDynamicLights)); err != nil {
+		slog.Warn("failed to upload alpha-test brush dynamic lights", "error", err)
+		return
+	}
+	renderPass.SetBindGroup(4, res.dynamicLightsBindGroup, nil)
 
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
@@ -536,8 +540,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	var uniformData [worldUniformBufferSize]byte
 	var materialBindState gogpuWorldMaterialBindState
 	for _, draw := range renders {
-		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.center))
-		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, dynamicLight, 0)
+		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, 0)
 		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, uniformData[:]); err != nil {
 			slog.Warn("failed to update alpha-test brush uniform buffer", "error", err)
 			continue
@@ -608,6 +611,11 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	// before its first SetBindGroup call.
 	renderPass.SetPipeline(res.translucentPipeline)
 	renderPass.SetBindGroup(0, res.uniformBindGroup, nil)
+	if err := res.queue.WriteBuffer(res.dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(res.activeDynamicLights)); err != nil {
+		slog.Warn("failed to upload late translucent dynamic lights", "error", err)
+		return
+	}
+	renderPass.SetBindGroup(4, res.dynamicLightsBindGroup, nil)
 
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
@@ -616,9 +624,8 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	currentPipeline := res.translucentPipeline
 	var materialBindState gogpuWorldMaterialBindState
 	for _, draw := range renders {
-		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(res.activeDynamicLights, draw.face.center))
 		lightmapBindGroup, litWater := gogpuLateTranslucentLightmapBindGroup(res, draw)
-		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, dynamicLight, litWater)
+		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, fogDensity, timeValue, draw.face.alpha, litWater)
 		if err := res.queue.WriteBuffer(res.uniformBuffer, 0, uniformData[:]); err != nil {
 			slog.Warn("failed to update late translucent uniform buffer", "error", err)
 			continue

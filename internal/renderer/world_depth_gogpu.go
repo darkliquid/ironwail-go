@@ -65,6 +65,8 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	depthView := dc.renderer.worldDepthTextureView
 	uniformBuffer := dc.renderer.uniformBuffer
 	uniformBindGroup := dc.renderer.uniformBindGroup
+	dynamicLightsBuffer := dc.renderer.worldDynamicLightsBuffer
+	dynamicLightsBindGroup := dc.renderer.worldDynamicLightsBindGroup
 	translucentPipeline := dc.renderer.worldTranslucentTurbulentPipeline
 	vertexBuffer := dc.renderer.worldVertexBuffer
 	indexBuffer := dc.renderer.worldIndexBuffer
@@ -81,7 +83,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	}
 	dc.renderer.mu.RUnlock()
 
-	if worldData == nil || textureView == nil || uniformBuffer == nil || uniformBindGroup == nil || translucentPipeline == nil || vertexBuffer == nil || indexBuffer == nil {
+	if worldData == nil || textureView == nil || uniformBuffer == nil || uniformBindGroup == nil || dynamicLightsBuffer == nil || dynamicLightsBindGroup == nil || translucentPipeline == nil || vertexBuffer == nil || indexBuffer == nil {
 		return
 	}
 
@@ -116,13 +118,18 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	renderPass.SetPipeline(translucentPipeline)
 	renderPass.SetVertexBuffer(0, vertexBuffer, 0)
 	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
+	if err := queue.WriteBuffer(dynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
+		slog.Error("renderWorldTranslucentLiquidsHAL: failed to upload dynamic lights", "error", err)
+		return
+	}
+	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 
 	cameraState := dc.renderer.cameraState
 	camera, fogDensity, timeValue := gogpuWorldUniformInputs(state, cameraState)
 	vp := dc.renderer.GetViewProjectionMatrix()
 	var uniformData [worldUniformBufferSize]byte
-	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
-		fillWorldSceneUniformBytes(uniformData[:], vp, camera, state.FogColor, fogDensity, timeValue, alpha, dynamicLight, litWater)
+	writeWorldUniform := func(alpha float32, litWater float32) bool {
+		fillWorldSceneUniformBytes(uniformData[:], vp, camera, state.FogColor, fogDensity, timeValue, alpha, litWater)
 		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
 			slog.Error("renderWorldTranslucentLiquidsHAL: failed to update world uniform", "error", err)
 			return false
@@ -148,8 +155,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	translucentLiquidDrawnIndices := uint32(0)
 	for _, draw := range translucentFaces {
 		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup, worldHasLitWater)
-		dynamicLight := quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, draw.center))
-		if !writeWorldUniform(draw.alpha, dynamicLight, litWater) {
+		if !writeWorldUniform(draw.alpha, litWater) {
 			renderPass.End()
 			return
 		}
@@ -260,6 +266,9 @@ func (r *Renderer) ClearWorld() {
 		if r.uniformBuffer != nil {
 			r.uniformBuffer.Release()
 		}
+		if r.worldDynamicLightsBuffer != nil {
+			r.worldDynamicLightsBuffer.Release()
+		}
 		if r.worldSkyPipeline != nil {
 			r.worldSkyPipeline.Release()
 		}
@@ -290,8 +299,14 @@ func (r *Renderer) ClearWorld() {
 		if r.uniformBindGroup != nil {
 			r.uniformBindGroup.Release()
 		}
+		if r.worldDynamicLightsBindGroup != nil {
+			r.worldDynamicLightsBindGroup.Release()
+		}
 		if r.uniformBindGroupLayout != nil {
 			r.uniformBindGroupLayout.Release()
+		}
+		if r.worldDynamicLightsBindGroupLayout != nil {
+			r.worldDynamicLightsBindGroupLayout.Release()
 		}
 		if r.textureBindGroupLayout != nil {
 			r.textureBindGroupLayout.Release()
@@ -440,8 +455,11 @@ func (r *Renderer) ClearWorld() {
 		r.worldSkyExternalPipelineLayout = nil
 		r.worldShader = nil
 		r.uniformBuffer = nil
+		r.worldDynamicLightsBuffer = nil
 		r.uniformBindGroup = nil
+		r.worldDynamicLightsBindGroup = nil
 		r.uniformBindGroupLayout = nil
+		r.worldDynamicLightsBindGroupLayout = nil
 		r.textureBindGroupLayout = nil
 		r.worldSkyExternalBindGroupLayout = nil
 		r.worldTextureSampler = nil

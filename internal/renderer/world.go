@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"math"
 	"sort"
 	"unsafe"
@@ -12,7 +13,13 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-const worldUniformBufferSize = 128
+const (
+	worldUniformBufferSize             = 128
+	gogpuWorldDynamicLightBufferMax    = 512
+	gogpuWorldDynamicLightBufferStride = 32
+	gogpuWorldDynamicLightHeaderSize   = 16
+	gogpuWorldDynamicLightBufferSize   = gogpuWorldDynamicLightHeaderSize + gogpuWorldDynamicLightBufferMax*gogpuWorldDynamicLightBufferStride
+)
 
 type WorldGeometry = worldimpl.WorldGeometry
 type WorldVertex = worldimpl.WorldVertex
@@ -92,7 +99,6 @@ type gogpuWorldFaceDraw struct {
 	textureBindGroup    *wgpu.BindGroup
 	lightmapBindGroup   *wgpu.BindGroup
 	fullbrightBindGroup *wgpu.BindGroup
-	dynamicLight        [3]float32
 	litWater            float32
 }
 
@@ -159,27 +165,6 @@ func worldLeafIndex(tree *bsp.Tree, cameraOrigin [3]float32) int {
 	return -1
 }
 
-func gogpuWorldDynamicLightSignature(lights []DynamicLight) uint64 {
-	var h uint64 = 1469598103934665603
-	mix := func(v uint32) {
-		h ^= uint64(v)
-		h *= 1099511628211
-	}
-	mix(uint32(len(lights)))
-	for _, light := range lights {
-		mix(math.Float32bits(light.Position[0]))
-		mix(math.Float32bits(light.Position[1]))
-		mix(math.Float32bits(light.Position[2]))
-		mix(math.Float32bits(light.Radius))
-		effectiveMul := light.Brightness * light.FadeMultiplier()
-		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[0] * effectiveMul)))
-		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[1] * effectiveMul)))
-		mix(math.Float32bits(quantizeGoGPUWorldDynamicLightScalar(light.Color[2] * effectiveMul)))
-		mix(uint32(light.Type))
-	}
-	return h
-}
-
 func gogpuWorldFaceBatchKeyLess(a, b gogpuWorldFaceBatchKey) bool {
 	if ak, bk := gogpuBindGroupSortKey(a.textureBindGroup), gogpuBindGroupSortKey(b.textureBindGroup); ak != bk {
 		return ak < bk
@@ -193,13 +178,7 @@ func gogpuWorldFaceBatchKeyLess(a, b gogpuWorldFaceBatchKey) bool {
 	if a.litWater != b.litWater {
 		return a.litWater < b.litWater
 	}
-	if a.dynamicLight[0] != b.dynamicLight[0] {
-		return a.dynamicLight[0] < b.dynamicLight[0]
-	}
-	if a.dynamicLight[1] != b.dynamicLight[1] {
-		return a.dynamicLight[1] < b.dynamicLight[1]
-	}
-	return a.dynamicLight[2] < b.dynamicLight[2]
+	return false
 }
 
 type gogpuWorldFaceDrawBucket struct {
@@ -211,7 +190,6 @@ type gogpuWorldFaceBatchKey struct {
 	textureBindGroup    *wgpu.BindGroup
 	lightmapBindGroup   *wgpu.BindGroup
 	fullbrightBindGroup *wgpu.BindGroup
-	dynamicLight        [3]float32
 	litWater            float32
 }
 
@@ -248,6 +226,36 @@ type gogpuWorldMaterialBindState struct {
 	fullbright  *wgpu.BindGroup
 }
 
+func encodeGoGPUWorldDynamicLights(lights []DynamicLight) []byte {
+	data := make([]byte, gogpuWorldDynamicLightHeaderSize+len(lights)*gogpuWorldDynamicLightBufferStride)
+	if !dynamicLightsEnabled() || len(lights) == 0 {
+		return data[:gogpuWorldDynamicLightHeaderSize]
+	}
+	count := 0
+	for _, light := range lights {
+		if count >= gogpuWorldDynamicLightBufferMax || light.Radius <= 0 {
+			break
+		}
+		effectiveMul := light.Brightness * light.FadeMultiplier()
+		if effectiveMul <= 0 {
+			continue
+		}
+		base := gogpuWorldDynamicLightHeaderSize + count*gogpuWorldDynamicLightBufferStride
+		putFloat32s(data[base:base+12], light.Position[:])
+		binary.LittleEndian.PutUint32(data[base+12:base+16], math.Float32bits(light.Radius))
+		color := [3]float32{
+			light.Color[0] * effectiveMul,
+			light.Color[1] * effectiveMul,
+			light.Color[2] * effectiveMul,
+		}
+		putFloat32s(data[base+16:base+28], color[:])
+		binary.LittleEndian.PutUint32(data[base+28:base+32], math.Float32bits(light.MinLight))
+		count++
+	}
+	binary.LittleEndian.PutUint32(data[:4], uint32(count))
+	return data[:gogpuWorldDynamicLightHeaderSize+count*gogpuWorldDynamicLightBufferStride]
+}
+
 func (s *gogpuWorldMaterialBindState) invalidate() {
 	s.initialized = false
 	s.texture = nil
@@ -277,7 +285,6 @@ func gogpuWorldFaceBatchKeyForDraw(draw gogpuWorldFaceDraw) gogpuWorldFaceBatchK
 		textureBindGroup:    draw.textureBindGroup,
 		lightmapBindGroup:   draw.lightmapBindGroup,
 		fullbrightBindGroup: draw.fullbrightBindGroup,
-		dynamicLight:        draw.dynamicLight,
 		litWater:            draw.litWater,
 	}
 }

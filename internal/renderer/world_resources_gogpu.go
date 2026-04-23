@@ -201,31 +201,54 @@ func (r *Renderer) createWorldPipeline(device *wgpu.Device, vertexShader, fragme
 		return nil, nil, fmt.Errorf("create texture bind group layout: %w", err)
 	}
 
+	lightsLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label: "World Dynamic Lights BGL",
+		Entries: []gputypes.BindGroupLayoutEntry{
+			{
+				Binding:    0,
+				Visibility: gputypes.ShaderStageFragment,
+				Buffer: &gputypes.BufferBindingLayout{
+					Type:             gputypes.BufferBindingTypeReadOnlyStorage,
+					HasDynamicOffset: false,
+					MinBindingSize:   gogpuWorldDynamicLightBufferSize,
+				},
+			},
+		},
+	})
+	if err != nil {
+		textureLayout.Release()
+		uniformLayout.Release()
+		return nil, nil, fmt.Errorf("create dynamic lights bind group layout: %w", err)
+	}
+
 	// Create pipeline layout with the uniform bind group layout.
 	pipelineLayoutDesc := &wgpu.PipelineLayoutDescriptor{
 		Label:            "World Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, textureLayout, textureLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{uniformLayout, textureLayout, textureLayout, textureLayout, lightsLayout},
 	}
 
 	pipelineLayout, err := device.CreatePipelineLayout(pipelineLayoutDesc)
 	if err != nil {
+		lightsLayout.Release()
 		textureLayout.Release()
 		uniformLayout.Release()
 		return nil, nil, fmt.Errorf("create pipeline layout: %w", err)
 	}
 
-	r.mu.Lock()
-	r.uniformBindGroupLayout = uniformLayout
-	r.textureBindGroupLayout = textureLayout
-	r.mu.Unlock()
-
 	pipeline, err := r.createWorldOpaquePipeline(device, vertexShader, fragmentShader, pipelineLayout)
 	if err != nil {
+		lightsLayout.Release()
 		textureLayout.Release()
 		uniformLayout.Release()
 		pipelineLayout.Release()
 		return nil, nil, fmt.Errorf("create render pipeline: %w", err)
 	}
+
+	r.mu.Lock()
+	r.uniformBindGroupLayout = uniformLayout
+	r.textureBindGroupLayout = textureLayout
+	r.worldDynamicLightsBindGroupLayout = lightsLayout
+	r.mu.Unlock()
 
 	slog.Debug("World render pipeline created")
 	return pipeline, pipelineLayout, nil

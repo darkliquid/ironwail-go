@@ -132,10 +132,9 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	vpMatrix := dc.renderer.GetViewProjectionMatrix()
 	camera := dc.renderer.cameraState
 	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
-	var currentDynamicLight [3]float32
 	currentLitWater := float32(0)
 	var uniformBytes [worldUniformBufferSize]byte
-	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentDynamicLight, currentLitWater)
+	fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, fogDensity, timeValue, 1, currentLitWater)
 	slog.Debug("renderWorldInternal: VP matrix",
 		"m00", vpMatrix[0], "m11", vpMatrix[5], "m22", vpMatrix[10], "m33", vpMatrix[15])
 	slog.Debug("renderWorldInternal: writing uniform buffer", "bytes_len", len(uniformBytes))
@@ -154,6 +153,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("renderWorldInternal: setting index buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldIndexBuffer), "count", dc.renderer.worldIndexCount)
 	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
+	var activeDynamicLights []DynamicLight
+	dc.renderer.mu.RLock()
+	if dc.renderer.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, dc.renderer.lightPool.ActiveLights()...)
+	}
+	dc.renderer.mu.RUnlock()
+
 	// Set uniform bind group.
 	if dc.renderer.uniformBindGroup != nil {
 		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.uniformBindGroup))
@@ -161,6 +167,17 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	} else {
 		slog.Warn("renderWorldInternal: NO uniform bind group set")
 	}
+	if dc.renderer.worldDynamicLightsBindGroup == nil || dc.renderer.worldDynamicLightsBuffer == nil {
+		slog.Warn("renderWorldInternal: no dynamic light bind group available")
+		renderPass.End()
+		return
+	}
+	if err := queue.WriteBuffer(dc.renderer.worldDynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
+		slog.Error("renderWorldInternal: Failed to upload dynamic lights", "error", err)
+		renderPass.End()
+		return
+	}
+	renderPass.SetBindGroup(4, dc.renderer.worldDynamicLightsBindGroup, nil)
 
 	if dc.renderer.whiteTextureBindGroup == nil || dc.renderer.whiteLightmapBindGroup == nil {
 		slog.Warn("renderWorldInternal: no world texture/lightmap bind group available")
@@ -171,32 +188,24 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	liquidAlpha := worldLiquidAlphaSettingsForGeometry(worldData.Geometry)
 	worldHasLitWater := worldData.Geometry.HasLitWater
 	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
-	var activeDynamicLights []DynamicLight
-	dc.renderer.mu.RLock()
-	if dc.renderer.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, dc.renderer.lightPool.ActiveLights()...)
-	}
-	dc.renderer.mu.RUnlock()
 	currentAlpha := float32(1)
 	currentFogDensity := fogDensity
-	writeWorldUniformWithFog := func(alpha float32, dynamicLight [3]float32, litWater float32, activeFogDensity float32) bool {
-		if currentAlpha == alpha && currentDynamicLight == dynamicLight && currentLitWater == litWater && currentFogDensity == activeFogDensity {
+	writeWorldUniformWithFog := func(alpha float32, litWater float32, activeFogDensity float32) bool {
+		if currentAlpha == alpha && currentLitWater == litWater && currentFogDensity == activeFogDensity {
 			return true
 		}
 		currentAlpha = alpha
-		currentDynamicLight = dynamicLight
 		currentLitWater = litWater
 		currentFogDensity = activeFogDensity
-		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, dynamicLight, litWater)
+		fillWorldSceneUniformBytes(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, alpha, litWater)
 		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
 	}
-	writeWorldUniform := func(alpha float32, dynamicLight [3]float32, litWater float32) bool {
-		return writeWorldUniformWithFog(alpha, dynamicLight, litWater, fogDensity)
+	writeWorldUniform := func(alpha float32, litWater float32) bool {
+		return writeWorldUniformWithFog(alpha, litWater, fogDensity)
 	}
 	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
-	dynamicLightSig := gogpuWorldDynamicLightSignature(activeDynamicLights)
-	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex, dynamicLightSig)
+	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex)
 	cacheHit := cacheEntry != nil
 	visibleFaceCount := 0
 	var skyFaces []WorldFace
@@ -276,7 +285,6 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 					textureBindGroup:    textureBindGroup,
 					lightmapBindGroup:   lightmapBindGroup,
 					fullbrightBindGroup: fullbrightBindGroup,
-					dynamicLight:        quantizeGoGPUWorldDynamicLight(evaluateDynamicLightsAtPoint(activeDynamicLights, face.Center)),
 					litWater:            litWater,
 				}
 				switch {
@@ -295,7 +303,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		batchedIndices, alphaTestBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, alphaTestBatches, alphaTestDraws, worldData.Geometry.Indices)
 		batchedIndices, opaqueLiquidBatches = appendGoGPUOpaqueWorldFaceBatches(batchedIndices, opaqueLiquidBatches, opaqueLiquidDraws, worldData.Geometry.Indices)
 		batchBuildMS = float64(time.Since(batchBuildStart)) / float64(time.Millisecond)
-		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, dynamicLightSig, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
+		dc.renderer.storeGoGPUWorldBatchCacheEntry(cameraLeafIndex, visibleFaceCount, skyFaces, translucentLiquidFaces, batchedIndices, opaqueBatches, alphaTestBatches, opaqueLiquidBatches)
 	}
 	var opaqueBatchBuffer *wgpu.Buffer
 	if len(batchedIndices) > 0 {
@@ -318,7 +326,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	var materialBindState gogpuWorldMaterialBindState
 	skyDrawStart := time.Now()
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
-		if !writeWorldUniformWithFog(1, [3]float32{}, 0, skyFogDensity) {
+		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
 			renderPass.End()
 			return
@@ -330,7 +338,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 			skyDrawnIndices += face.NumIndices
 		}
 	} else if dc.renderer.worldSkyPipeline != nil {
-		if !writeWorldUniformWithFog(1, [3]float32{}, 0, skyFogDensity) {
+		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
 			renderPass.End()
 			return
@@ -368,7 +376,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	skyDrawMS = float64(time.Since(skyDrawStart)) / float64(time.Millisecond)
 
-	if !writeWorldUniform(1, [3]float32{}, 0) {
+	if !writeWorldUniform(1, 0) {
 		slog.Error("renderWorldInternal: Failed to restore world fog uniform after sky pass")
 		renderPass.End()
 		return
@@ -384,7 +392,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	opaqueDrawStart := time.Now()
 	for _, batch := range opaqueBatches {
-		if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
+		if !writeWorldUniform(1, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
 			renderPass.End()
 			return
@@ -403,7 +411,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		drawnIndices += batch.numIndices
 	}
 	for _, batch := range alphaTestBatches {
-		if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
+		if !writeWorldUniform(1, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
 			renderPass.End()
 			return
@@ -425,7 +433,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)
 		materialBindState.invalidate()
 		for _, batch := range opaqueLiquidBatches {
-			if !writeWorldUniform(1, batch.key.dynamicLight, batch.key.litWater) {
+			if !writeWorldUniform(1, batch.key.litWater) {
 				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
 				renderPass.End()
 				return
@@ -518,7 +526,6 @@ func (r *Renderer) resetGoGPUWorldBatchCache() {
 		entry := &r.worldBatchCacheEntries[i]
 		entry.valid = false
 		entry.leaf = 0
-		entry.lightSig = 0
 		entry.faceCount = 0
 		entry.skyFaces = nil
 		entry.translucentLiquid = nil
@@ -530,28 +537,27 @@ func (r *Renderer) resetGoGPUWorldBatchCache() {
 	r.worldBatchCacheNext = 0
 }
 
-func (r *Renderer) gogpuWorldBatchCacheEntry(leaf int, lightSig uint64) *gogpuWorldBatchCacheEntry {
+func (r *Renderer) gogpuWorldBatchCacheEntry(leaf int) *gogpuWorldBatchCacheEntry {
 	for i := range r.worldBatchCacheEntries {
 		entry := &r.worldBatchCacheEntries[i]
-		if entry.valid && entry.leaf == leaf && entry.lightSig == lightSig {
+		if entry.valid && entry.leaf == leaf {
 			return entry
 		}
 	}
 	return nil
 }
 
-func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, lightSig uint64, faceCount int, skyFaces, translucentLiquid []WorldFace, batchedIndices []uint32, opaqueBatches, alphaTestBatches, opaqueLiquidBatches []gogpuWorldFaceBatch) {
+func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, faceCount int, skyFaces, translucentLiquid []WorldFace, batchedIndices []uint32, opaqueBatches, alphaTestBatches, opaqueLiquidBatches []gogpuWorldFaceBatch) {
 	if leaf < 0 {
 		return
 	}
-	entry := r.gogpuWorldBatchCacheEntry(leaf, lightSig)
+	entry := r.gogpuWorldBatchCacheEntry(leaf)
 	if entry == nil {
 		entry = &r.worldBatchCacheEntries[r.worldBatchCacheNext]
 		r.worldBatchCacheNext = (r.worldBatchCacheNext + 1) % len(r.worldBatchCacheEntries)
 	}
 	entry.valid = true
 	entry.leaf = leaf
-	entry.lightSig = lightSig
 	entry.faceCount = faceCount
 	entry.skyFaces = append(entry.skyFaces[:0], skyFaces...)
 	entry.translucentLiquid = append(entry.translucentLiquid[:0], translucentLiquid...)
@@ -561,7 +567,7 @@ func (r *Renderer) storeGoGPUWorldBatchCacheEntry(leaf int, lightSig uint64, fac
 	entry.liquid = append(entry.liquid[:0], opaqueLiquidBatches...)
 }
 
-func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) {
+func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, litWater float32) {
 	clear(dst[:worldUniformBufferSize])
 	matrixBytes := matrixToBytes(vp)
 	copy(dst[:64], matrixBytes)
@@ -570,13 +576,12 @@ func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float
 	putFloat32s(dst[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
 	binary.LittleEndian.PutUint32(dst[96:100], math.Float32bits(alpha))
-	putFloat32s(dst[112:124], dynamicLight[:])
-	binary.LittleEndian.PutUint32(dst[124:128], math.Float32bits(litWater))
+	binary.LittleEndian.PutUint32(dst[100:104], math.Float32bits(litWater))
 }
 
-func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, dynamicLight [3]float32, litWater float32) []byte {
+func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, litWater float32) []byte {
 	data := make([]byte, worldUniformBufferSize)
-	fillWorldSceneUniformBytes(data, vp, cameraOrigin, fogColor, fogDensity, time, alpha, dynamicLight, litWater)
+	fillWorldSceneUniformBytes(data, vp, cameraOrigin, fogColor, fogDensity, time, alpha, litWater)
 	return data
 }
 

@@ -173,6 +173,7 @@ func EmitEntityEffectLights(spawn func(DynamicLight) bool, entities []EntityEffe
 				Radius:     216,
 				Color:      [3]float32{1.0, 0.82, 0.45},
 				Brightness: 1.1,
+				MinLight:   32,
 				Lifetime:   0.1,
 				EntityKey:  key,
 			})

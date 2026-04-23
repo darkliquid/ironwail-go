@@ -134,21 +134,18 @@ func TestSortGoGPUWorldFaceDrawsByMaterial(t *testing.T) {
 			textureBindGroup:    texB,
 			lightmapBindGroup:   lightB,
 			fullbrightBindGroup: fullA,
-			dynamicLight:        [3]float32{1, 0, 0},
 		},
 		{
 			face:                WorldFace{FirstIndex: 10},
 			textureBindGroup:    texA,
 			lightmapBindGroup:   lightB,
 			fullbrightBindGroup: fullB,
-			dynamicLight:        [3]float32{0, 0, 0},
 		},
 		{
 			face:                WorldFace{FirstIndex: 20},
 			textureBindGroup:    texA,
 			lightmapBindGroup:   lightA,
 			fullbrightBindGroup: fullA,
-			dynamicLight:        [3]float32{0, 0, 0},
 		},
 	}
 
@@ -178,21 +175,18 @@ func TestAppendGoGPUOpaqueWorldFaceBatches(t *testing.T) {
 			textureBindGroup:    texA,
 			lightmapBindGroup:   lightA,
 			fullbrightBindGroup: fullA,
-			dynamicLight:        [3]float32{0, 0, 0},
 		},
 		{
 			face:                WorldFace{FirstIndex: 3, NumIndices: 3},
 			textureBindGroup:    texA,
 			lightmapBindGroup:   lightA,
 			fullbrightBindGroup: fullA,
-			dynamicLight:        [3]float32{0, 0, 0},
 		},
 		{
 			face:                WorldFace{FirstIndex: 6, NumIndices: 3},
 			textureBindGroup:    texB,
 			lightmapBindGroup:   lightA,
 			fullbrightBindGroup: fullA,
-			dynamicLight:        [3]float32{0, 0, 0},
 		},
 	}
 	worldIndices := []uint32{10, 11, 12, 20, 21, 22, 30, 31, 32}

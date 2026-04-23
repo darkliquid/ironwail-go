@@ -227,6 +227,16 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		return fmt.Errorf("create uniform buffer: %w", err)
 	}
 
+	dynamicLightsBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "World Dynamic Lights",
+		Size:             gogpuWorldDynamicLightBufferSize,
+		Usage:            gputypes.BufferUsageStorage | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create world dynamic lights buffer: %w", err)
+	}
+
 	// Create bind group for world uniform buffer.
 	uniformLayout := r.uniformBindGroupLayout
 	if uniformLayout != nil {
@@ -242,6 +252,20 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		} else {
 			r.uniformBindGroup = uniformBindGroup
 			r.worldBindGroup = uniformBindGroup
+		}
+	}
+
+	var dynamicLightsBindGroup *wgpu.BindGroup
+	if lightsLayout := r.worldDynamicLightsBindGroupLayout; lightsLayout != nil {
+		dynamicLightsBindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+			Label:  "World Dynamic Lights BG",
+			Layout: lightsLayout,
+			Entries: []wgpu.BindGroupEntry{
+				{Binding: 0, Buffer: dynamicLightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("create world dynamic lights bind group: %w", err)
 		}
 	}
 
@@ -339,6 +363,8 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldSkyExternalPipeline = externalSkyPipeline
 	r.worldPipelineLayout = pipelineLayout
 	r.worldSkyExternalPipelineLayout = externalSkyPipelineLayout
+	r.worldDynamicLightsBuffer = dynamicLightsBuffer
+	r.worldDynamicLightsBindGroup = dynamicLightsBindGroup
 	r.worldShader = vertexShader
 	r.uniformBuffer = uniformBuffer
 	r.whiteTexture = whiteTexture

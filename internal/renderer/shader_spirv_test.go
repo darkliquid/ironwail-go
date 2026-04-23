@@ -22,6 +22,7 @@ func TestWorldShaderSPIRVValidation(t *testing.T) {
 	shaders := map[string]string{
 		"world_vertex":       worldVertexShaderWGSL,
 		"world_fragment":     worldFragmentShaderWGSL,
+		"world_alpha_frag":   worldAlphaTestFragmentShaderWGSL,
 		"sky_vertex":         worldSkyVertexShaderWGSL,
 		"sky_fragment":       worldSkyFragmentShaderWGSL,
 		"sky_external_frag":  worldSkyExternalFaceFragmentShaderWGSL,

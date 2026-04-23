@@ -15,6 +15,10 @@ type DynamicLight struct {
 	// Brightness is the light intensity multiplier, typically 1.0-2.0
 	Brightness float32
 
+	// MinLight mirrors Quake's dlight minlight threshold. Contributions below
+	// this projected radius are discarded instead of fading all the way to zero.
+	MinLight float32
+
 	// Lifetime is the total lifespan of the light in seconds
 	Lifetime float32
 
