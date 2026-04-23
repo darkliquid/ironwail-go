@@ -113,7 +113,6 @@ const (
 	CvarRSkyFog        = "r_skyfog"        // Sky fog mix factor (0..1, default 0.5)
 	CvarRSkySolidSpeed = "r_skysolidspeed" // Embedded sky solid-layer speed scale (default: 1.0)
 	CvarRSkyAlphaSpeed = "r_skyalphaspeed" // Embedded sky alpha-layer speed scale (default: 1.0)
-	CvarRShadows       = "r_shadows"       // Entity shadows (0=off, 1=on)
 	CvarRNoLerpList    = "r_nolerp_list"
 	CvarRNoshadowList  = "r_noshadow_list"
 	CvarGLTextureMode  = "gl_texturemode"

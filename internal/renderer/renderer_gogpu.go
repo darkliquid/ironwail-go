@@ -249,7 +249,6 @@ type Renderer struct {
 	spriteModels                   map[string]*gpuSpriteModel
 	aliasEntityStates              map[int]*AliasEntity
 	viewModelAliasState            *AliasEntity
-	aliasShadowSkin                *gpuAliasSkin
 	aliasScratchBuffer             *wgpu.Buffer
 	aliasScratchBufferSize         uint64
 	brushEntityScratchVertexBuffer *wgpu.Buffer
@@ -257,7 +256,6 @@ type Renderer struct {
 	brushEntityScratchIndexBuffer  *wgpu.Buffer
 	brushEntityScratchIndexSize    uint64
 	aliasPipeline                  *wgpu.RenderPipeline
-	aliasShadowPipeline            *wgpu.RenderPipeline
 	aliasPipelineLayout            *wgpu.PipelineLayout
 	aliasVertexShader              *wgpu.ShaderModule
 	aliasFragmentShader            *wgpu.ShaderModule

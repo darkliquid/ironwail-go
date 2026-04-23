@@ -258,7 +258,6 @@ func TestGoGPUOpaqueAliasPassSteps(t *testing.T) {
 	steps := gogpuOpaqueAliasPassSteps()
 	want := []gogpuOpaqueAliasStep{
 		gogpuOpaqueAliasStepEntities,
-		gogpuOpaqueAliasStepShadows,
 	}
 	if len(steps) != len(want) {
 		t.Fatalf("step count = %d, want %d", len(steps), len(want))

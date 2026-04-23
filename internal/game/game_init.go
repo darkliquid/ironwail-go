@@ -148,7 +148,6 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register(renderer.CvarRSkyFog, "0.5", cvar.FlagArchive, "Sky fog mix factor (0..1)")
 	g.Host.CVar.Register(renderer.CvarRSkySolidSpeed, "1", cvar.FlagArchive, "Embedded sky solid-layer speed multiplier")
 	g.Host.CVar.Register(renderer.CvarRSkyAlphaSpeed, "1", cvar.FlagArchive, "Embedded sky alpha-layer speed multiplier")
-	g.Host.CVar.Register(renderer.CvarRShadows, "1", cvar.FlagArchive, "Enable entity shadows (0=off, 1=on)")
 	g.Host.CVar.Register(renderer.CvarRNoshadowList, "progs/eyes.mdl", cvar.FlagArchive, "Space-separated list of model names to exclude from shadows")
 	// r_waterwarp: 0=off, 1=screen-space sinusoidal warp, 2=FOV oscillation.
 	// Mirrors C Ironwail r_waterwarp. Default 1 (screen-space warp).

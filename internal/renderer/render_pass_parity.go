@@ -188,7 +188,6 @@ type gogpuOpaqueAliasStep int
 
 const (
 	gogpuOpaqueAliasStepEntities gogpuOpaqueAliasStep = iota
-	gogpuOpaqueAliasStepShadows
 )
 
 type gogpuEntityDrawPlan struct {
@@ -293,7 +292,6 @@ func planGoGPUEntityDrawOrder(drawEntities bool, hasTranslucentWorld bool, brush
 func gogpuOpaqueAliasPassSteps() []gogpuOpaqueAliasStep {
 	return []gogpuOpaqueAliasStep{
 		gogpuOpaqueAliasStepEntities,
-		gogpuOpaqueAliasStepShadows,
 	}
 }
 

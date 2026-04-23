@@ -26,7 +26,7 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 	if device == nil {
 		return fmt.Errorf("nil device")
 	}
-	if r.aliasPipeline != nil && r.aliasShadowPipeline != nil && r.aliasUniformBuffer != nil && r.aliasUniformBindGroup != nil && r.aliasSampler != nil {
+	if r.aliasPipeline != nil && r.aliasUniformBuffer != nil && r.aliasUniformBindGroup != nil && r.aliasSampler != nil {
 		return nil
 	}
 
@@ -178,19 +178,6 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 		fragmentShader.Release()
 		return fmt.Errorf("create alias pipeline: %w", err)
 	}
-	shadowPipeline, err := createAliasRenderPipeline(device, vertexShader, fragmentShader, pipelineLayout, surfaceFormat, "Alias Shadow Render Pipeline", false)
-	if err != nil {
-		pipeline.Release()
-		sampler.Release()
-		uniformBindGroup.Release()
-		uniformBuffer.Release()
-		pipelineLayout.Release()
-		uniformLayout.Release()
-		textureLayout.Release()
-		vertexShader.Release()
-		fragmentShader.Release()
-		return fmt.Errorf("create alias shadow pipeline: %w", err)
-	}
 
 	r.aliasVertexShader = vertexShader
 	r.aliasFragmentShader = fragmentShader
@@ -201,7 +188,6 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 	r.aliasUniformBindGroup = uniformBindGroup
 	r.aliasSampler = sampler
 	r.aliasPipeline = pipeline
-	r.aliasShadowPipeline = shadowPipeline
 	return nil
 }
 
@@ -778,10 +764,6 @@ func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float3
 	putFloat32s(data[80:92], fogColor[:])
 	binary.LittleEndian.PutUint32(data[92:96], math.Float32bits(alpha))
 	return data
-}
-
-func aliasShadowUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
-	return aliasSceneUniformBytes(vp, cameraOrigin, alpha, fogColor, fogDensity)
 }
 
 func aliasVertexBytes(vertices []WorldVertex) []byte {

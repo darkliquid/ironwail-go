@@ -603,8 +603,6 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 				switch step {
 				case gogpuOpaqueAliasStepEntities:
 					dc.renderAliasEntitiesHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
-				case gogpuOpaqueAliasStepShadows:
-					dc.renderAliasShadowsHAL(plan.opaqueAlias, state.FogColor, state.FogDensity)
 				}
 			}
 			opaqueAliasMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
