@@ -62,6 +62,7 @@ func (h *Host) registerHostCVars() {
 	server.RegisterDebugTelemetryCVars(cv)
 	RegisterHostDebugTelemetryCVars(cv)
 	RegisterExtraModsCVars(cv)
+	cl.RegisterNetDebugCVars(cv)
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready

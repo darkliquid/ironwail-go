@@ -15,6 +15,11 @@ func (p *Parser) parseSpawnBaseline(msg *common.SizeBuf, extended bool) error {
 		return err
 	}
 	p.Client.EntityBaselines[entNum] = baseline
+	netDebugLogf("baseline", "ent=%d model=%d frame=%d colormap=%d skin=%d origin=(%.3f %.3f %.3f) angles=(%.3f %.3f %.3f) alpha=%d scale=%d extended=%t",
+		entNum, baseline.ModelIndex, baseline.Frame, baseline.Colormap, baseline.Skin,
+		baseline.Origin[0], baseline.Origin[1], baseline.Origin[2],
+		baseline.Angles[0], baseline.Angles[1], baseline.Angles[2],
+		baseline.Alpha, baseline.Scale, extended)
 	return nil
 }
 
@@ -164,6 +169,9 @@ func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error
 	snd.Volume = int(volume)
 	snd.Attenuation = float32(attenuation) / 64
 	p.Client.StaticSounds = append(p.Client.StaticSounds, snd)
+	netDebugLogf("static_sound", "sound=%d volume=%d atten=%.3f origin=(%.3f %.3f %.3f) extended=%t",
+		snd.SoundIndex, snd.Volume, snd.Attenuation,
+		snd.Origin[0], snd.Origin[1], snd.Origin[2], extended)
 	return nil
 }
 

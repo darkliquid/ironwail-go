@@ -121,6 +121,11 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 	if isBeamType(event.Type) {
 		p.Client.storeBeam(event)
 	}
+	netDebugLogf("tent", "type=%d entity=%d origin=(%.3f %.3f %.3f) start=(%.3f %.3f %.3f) end=(%.3f %.3f %.3f)",
+		event.Type, event.Entity,
+		event.Origin[0], event.Origin[1], event.Origin[2],
+		event.Start[0], event.Start[1], event.Start[2],
+		event.End[0], event.End[1], event.End[2])
 	return nil
 }
 

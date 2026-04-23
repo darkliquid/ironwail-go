@@ -385,7 +385,39 @@ func (p *Parser) parseServerInfo(msg *common.SizeBuf) error {
 	}
 	p.Client.SoundPrecache = sounds
 
+	netDebugLogf("server_info", "protocol=%d flags=0x%08x maxclients=%d gametype=%d level=%q models=%d sounds=%d coord=%s angle=%s",
+		p.Client.Protocol, p.Client.ProtocolFlags, p.Client.MaxClients,
+		p.Client.GameType, p.Client.LevelName, len(models), len(sounds),
+		coordEncodingName(p.Client.ProtocolFlags), angleEncodingName(p.Client.ProtocolFlags))
+
 	return p.Client.HandleServerInfo()
+}
+
+// coordEncodingName returns a human label for the active coord
+// encoding, matching the C enum ordering (PRFL_FLOATCOORD >
+// PRFL_INT32COORD > PRFL_24BITCOORD > default 16-bit fixed).
+func coordEncodingName(flags uint32) string {
+	switch {
+	case flags&inet.PRFL_FLOATCOORD != 0:
+		return "float"
+	case flags&inet.PRFL_INT32COORD != 0:
+		return "int32"
+	case flags&inet.PRFL_24BITCOORD != 0:
+		return "24bit"
+	}
+	return "short16"
+}
+
+// angleEncodingName returns a human label for the active angle
+// encoding (PRFL_FLOATANGLE > PRFL_SHORTANGLE > default byte).
+func angleEncodingName(flags uint32) string {
+	switch {
+	case flags&inet.PRFL_FLOATANGLE != 0:
+		return "float"
+	case flags&inet.PRFL_SHORTANGLE != 0:
+		return "short"
+	}
+	return "byte"
 }
 
 func (p *Parser) parseSignOnNum(msg *common.SizeBuf) error {
@@ -668,6 +700,8 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 			event.SoundIndex = int(v)
 		}
 		p.Client.SoundEvents = append(p.Client.SoundEvents, event)
+		netDebugLogf("local_sound", "sound=%d volume=%d atten=%.3f",
+			event.SoundIndex, event.Volume, event.Attenuation)
 		return nil
 	}
 
@@ -714,6 +748,9 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 	}
 
 	p.Client.SoundEvents = append(p.Client.SoundEvents, event)
+	netDebugLogf("sound", "ent=%d ch=%d sound=%d volume=%d atten=%.3f origin=(%.3f %.3f %.3f) local=%t",
+		event.Entity, event.Channel, event.SoundIndex, event.Volume, event.Attenuation,
+		event.Origin[0], event.Origin[1], event.Origin[2], event.Local)
 	return nil
 }
 
