@@ -327,6 +327,8 @@ func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 		"cl_debug_net",
 		"sv_debug_multiplayer",
 		"sv_debug_move",
+		"in_debug",
+		"snd_debug_mixer",
 	} {
 		if cv := h.CVar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)

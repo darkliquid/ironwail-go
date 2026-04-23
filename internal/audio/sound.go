@@ -536,6 +536,7 @@ func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLev
 	if mixer, ok := s.mixer.(interface{ SetUnderwaterIntensity(float32) }); ok {
 		mixer.SetUnderwaterIntensity(underwaterIntensity)
 	}
+	SnddbgLogf("underwater intensity=%.3f hasLeaf=%v", underwaterIntensity, hasLeaf)
 
 	if !hasLeaf {
 		for i := 0; i < NumAmbients; i++ {

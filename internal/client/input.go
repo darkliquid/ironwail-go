@@ -241,6 +241,8 @@ func (c *Client) AdjustAngles(frametime float32) {
 	if c.ViewAngles[2] < -50 {
 		c.ViewAngles[2] = -50
 	}
+	InpdbgLogfAt(2, "adjust pitch=%.3f yaw=%.3f roll=%.3f wheel=%.3f",
+		c.ViewAngles[0], c.ViewAngles[1], c.ViewAngles[2], c.WheelPitchAccum)
 }
 
 // AccumMWheelPitch accumulates mouse wheel pitch input, matching C
@@ -253,6 +255,7 @@ func (c *Client) AccumMWheelPitch(amt float32) {
 	if c.WheelPitchAccum > 90 {
 		c.WheelPitchAccum = 90
 	}
+	InpdbgLogf("mwheel amt=%.3f accum=%.3f", amt, c.WheelPitchAccum)
 }
 
 func (c *Client) BaseMove(cmd *UserCmd) {

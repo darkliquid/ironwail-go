@@ -42,4 +42,8 @@ func (s *System) spatialize(ch *Channel) {
 	if ch.LeftVol < 0 {
 		ch.LeftVol = 0
 	}
+	if sndDebugMixerCVar != nil && snddbgLevel() >= 2 {
+		SnddbgLogfAt(2, "spatialize ent=%d dist=%.3f dot=%.3f master=%d left=%d right=%d",
+			ch.EntNum, dist, dot, ch.MasterVol, ch.LeftVol, ch.RightVol)
+	}
 }
