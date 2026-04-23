@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,12 +43,25 @@ func TestProjectFilesUnderLineCeiling(t *testing.T) {
 	seenAllowlisted := map[string]bool{}
 	err = filepath.WalkDir(root, func(path string, d os.DirEntry, werr error) error {
 		if werr != nil {
+			// Tolerate races with transient build cache directories
+			// (e.g. under .tmp where `go test` creates and destroys
+			// go-build*** scratch dirs mid-walk). We skip any path
+			// that disappeared between Readdir and our visit.
+			if errors.Is(werr, os.ErrNotExist) {
+				if d != nil && d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			return werr
 		}
 		name := d.Name()
 		if d.IsDir() {
 			switch name {
-			case ".git", "vendor", "node_modules", ".yggdrasil":
+			case ".git", "vendor", "node_modules", ".yggdrasil", ".tmp":
+				return filepath.SkipDir
+			}
+			if strings.HasPrefix(name, "go-build") {
 				return filepath.SkipDir
 			}
 			return nil
