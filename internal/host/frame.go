@@ -88,6 +88,8 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		return nil
 	}
 
+	h.drainMainThreadQueue()
+
 	// Host_FilterTime equivalent (C Ironwail host.c:Host_FilterTime).
 	// Rate-limit Host.Frame to host_maxfps so that simulation/demo time
 	// advances at the configured rate rather than the renderer's callback

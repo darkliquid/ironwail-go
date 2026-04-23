@@ -60,6 +60,7 @@ func (h *Host) registerHostCVars() {
 	cv.Register("sv_aim", "0.93", cvar.FlagNone, "Auto-aim cosine threshold")
 	audio.RegisterCVars(cv)
 	server.RegisterDebugTelemetryCVars(cv)
+	RegisterHostDebugTelemetryCVars(cv)
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready
@@ -685,6 +686,8 @@ func (h *Host) Shutdown(subs *Subsystems) {
 	if subs.Files != nil {
 		subs.Files.Close()
 	}
+
+	h.shutdownMainThreadQueue()
 
 	h.initialized = false
 }

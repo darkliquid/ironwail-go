@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/darkliquid/ironwail-go/internal/async"
 	"github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/compatrand"
@@ -122,6 +123,11 @@ type Host struct {
 	// migration); per-instance isolation lands in a later phase.
 	Net *inet.Network
 
+	// mainThreadQueue marshals work from background goroutines (save
+	// worker, mod downloader, etc) onto the main Host.Frame thread.
+	// Drained once per frame during Host.Frame.
+	mainThreadQueue *async.Queue
+
 	RemoteClientFactory  func(address string) (Client, error)
 	ServerBrowserFactory func() serverBrowser
 }
@@ -149,6 +155,7 @@ func NewHost() *Host {
 		Cmd:                  cmdsys.NewCmdSystem(),
 		CVar:                 cvar.NewCVarSystem(),
 		Net:                  network,
+		mainThreadQueue:      async.NewQueue(1024),
 		ServerBrowserFactory: defaultServerBrowserFactory,
 	}
 	h.RemoteClientFactory = func(address string) (Client, error) {
