@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	aliasimpl "github.com/darkliquid/ironwail-go/internal/renderer/alias"
 	"github.com/gogpu/gputypes"
@@ -14,11 +15,7 @@ import (
 )
 
 const (
-	aliasShadowSegments = 16
-	aliasShadowAlpha    = 0.5
-	aliasShadowLift     = 0.1
-	aliasShadowMinSize  = 8.0
-	aliasShadowMaxSize  = 48.0
+	aliasShadowAlpha = 0.5
 )
 
 func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogColor [3]float32, fogDensity float32) {
@@ -54,6 +51,11 @@ func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogCol
 		return
 	}
 
+	var tree *bsp.Tree
+	if r.worldData != nil && r.worldData.Geometry != nil {
+		tree = r.worldData.Geometry.Tree
+	}
+
 	draws := make([]gpuAliasShadowDraw, 0, len(entities))
 	for _, entity := range entities {
 		modelID := strings.ToLower(entity.ModelID)
@@ -63,7 +65,7 @@ func (dc *DrawContext) renderAliasShadowsHAL(entities []AliasModelEntity, fogCol
 		if _, visible := visibleEntityAlpha(entity.Alpha); !visible {
 			continue
 		}
-		vertices := buildAliasShadowVertices(entity)
+		vertices := buildAliasShadowVertices(entity, tree)
 		if len(vertices) == 0 {
 			continue
 		}
@@ -227,59 +229,87 @@ func (r *Renderer) ensureAliasShadowSkinLocked(device *wgpu.Device, queue *wgpu.
 	return nil
 }
 
-func buildAliasShadowVertices(entity AliasModelEntity) []WorldVertex {
-	if entity.Model == nil || entity.Model.AliasHeader == nil {
+const (
+	aliasShadowLift           = 0.2
+	aliasShadowMaxGroundTrace = 2048.0
+)
+
+// buildAliasShadowVertices projects the alias mesh silhouette straight down onto
+// the BSP ground plane below the entity, mirroring the classic Quake
+// GL_DrawAliasShadow approach (top-down flatten with per-vertex positions,
+// using the current frame's first pose). If the BSP tree is unavailable or no
+// ground is found within aliasShadowMaxGroundTrace, no shadow is emitted.
+func buildAliasShadowVertices(entity AliasModelEntity, tree *bsp.Tree) []WorldVertex {
+	if entity.Model == nil || entity.Model.AliasHeader == nil || tree == nil {
 		return nil
 	}
+	hdr := entity.Model.AliasHeader
+	if len(hdr.Triangles) == 0 || len(hdr.Poses) == 0 {
+		return nil
+	}
+
+	frame := entity.Frame
+	if frame < 0 || frame >= len(hdr.Frames) {
+		frame = 0
+	}
+	frameDesc := hdr.Frames[frame]
+	poseIndex := frameDesc.FirstPose
+	if poseIndex < 0 || poseIndex >= len(hdr.Poses) {
+		poseIndex = 0
+	}
+	pose := hdr.Poses[poseIndex]
+	if len(pose) == 0 {
+		return nil
+	}
+
+	groundZ, ok := tree.TraceGround(entity.Origin, aliasShadowMaxGroundTrace)
+	if !ok {
+		return nil
+	}
+	// Only keep the shadow if the entity is actually above the ground; floating
+	// monsters (e.g. wizards, scrags) should not cast one.
+	if entity.Origin[2] <= groundZ {
+		return nil
+	}
+	shadowZ := groundZ + aliasShadowLift
 
 	modelScale := entity.Scale
 	if modelScale == 0 {
 		modelScale = 1
 	}
-	mins := entity.Model.Mins
-	maxs := entity.Model.Maxs
-	spanX := (maxs[0] - mins[0]) * modelScale
-	spanY := (maxs[1] - mins[1]) * modelScale
-	shadowRadius := 0.5 * float32(math.Max(float64(spanX), float64(spanY)))
-	if shadowRadius < aliasShadowMinSize {
-		shadowRadius = aliasShadowMinSize
-	}
-	if shadowRadius > aliasShadowMaxSize {
-		shadowRadius = aliasShadowMaxSize
+
+	// Rotate around the entity's yaw only (C's r_alias uses RotateForEntity
+	// which applies pitch and roll for display, but the shadow was historically
+	// flattened before matrix rotation so only yaw survives).
+	yaw := float64(entity.Angles[1]) * math.Pi / 180
+	cosYaw := float32(math.Cos(yaw))
+	sinYaw := float32(math.Sin(yaw))
+
+	verts := make([][3]float32, len(pose))
+	for i, tv := range pose {
+		local := model.DecodeVertex(tv, hdr.Scale, hdr.ScaleOrigin)
+		x := local[0]*cosYaw - local[1]*sinYaw
+		y := local[0]*sinYaw + local[1]*cosYaw
+		verts[i] = [3]float32{
+			entity.Origin[0] + x*modelScale,
+			entity.Origin[1] + y*modelScale,
+			shadowZ,
+		}
 	}
 
-	shadowZ := entity.Origin[2] + mins[2]*modelScale + aliasShadowLift
-	center := WorldVertex{
-		Position:      [3]float32{entity.Origin[0], entity.Origin[1], shadowZ},
-		TexCoord:      [2]float32{0.5, 0.5},
-		LightmapCoord: [2]float32{},
-		Normal:        [3]float32{0, 0, 1},
-	}
-	vertices := make([]WorldVertex, 0, aliasShadowSegments*3)
-	for i := 0; i < aliasShadowSegments; i++ {
-		a0 := float32(i) * 2 * float32(math.Pi) / aliasShadowSegments
-		a1 := float32(i+1) * 2 * float32(math.Pi) / aliasShadowSegments
-		p0 := WorldVertex{
-			Position: [3]float32{
-				entity.Origin[0] + float32(math.Cos(float64(a0)))*shadowRadius,
-				entity.Origin[1] + float32(math.Sin(float64(a0)))*shadowRadius,
-				shadowZ,
-			},
-			TexCoord:      [2]float32{0, 0},
-			LightmapCoord: [2]float32{},
-			Normal:        [3]float32{0, 0, 1},
+	vertices := make([]WorldVertex, 0, len(hdr.Triangles)*3)
+	for _, tri := range hdr.Triangles {
+		for _, idx := range tri.VertIndex {
+			if idx < 0 || int(idx) >= len(verts) {
+				return nil
+			}
+			vertices = append(vertices, WorldVertex{
+				Position:      verts[idx],
+				TexCoord:      [2]float32{0.5, 0.5},
+				LightmapCoord: [2]float32{},
+				Normal:        [3]float32{0, 0, 1},
+			})
 		}
-		p1 := WorldVertex{
-			Position: [3]float32{
-				entity.Origin[0] + float32(math.Cos(float64(a1)))*shadowRadius,
-				entity.Origin[1] + float32(math.Sin(float64(a1)))*shadowRadius,
-				shadowZ,
-			},
-			TexCoord:      [2]float32{1, 1},
-			LightmapCoord: [2]float32{},
-			Normal:        [3]float32{0, 0, 1},
-		}
-		vertices = append(vertices, center, p0, p1)
 	}
 	return vertices
 }
