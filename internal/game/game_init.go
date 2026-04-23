@@ -139,6 +139,7 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	g.Host.CVar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
 	g.Host.CVar.Register("r_drawentities", "1", 0, "Draw entities")
+	renderer.RegisterRendbgCVars(g.Host.CVar)
 	g.registerRendererLightingAndParticleCvars(g.Host.CVar.Register)
 	g.Host.CVar.Register("r_drawviewmodel", "1", cvar.FlagArchive, "Draw first-person viewmodel")
 	g.Host.CVar.Register("v_gunkick", "2", 0, "Gun kick style (0=off, 1=instant, 2=interpolated)")
