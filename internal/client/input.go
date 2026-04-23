@@ -291,8 +291,15 @@ func (c *Client) BaseMove(cmd *UserCmd) {
 
 func (c *Client) AccumulateCmd(frametime float32) {
 	c.AdjustAngles(frametime)
-	c.MViewAngles[1] = c.MViewAngles[0]
-	c.MViewAngles[0] = c.ViewAngles
+	// NOTE: Do not shift MViewAngles here. In C Ironwail (cl_main.c
+	// CL_AccumulateCmd), only CL_AdjustAngles and IN_Move run — MViewAngles
+	// is exclusively the demo-packet double-buffer written by
+	// CL_GetDemoMessage / CL_ParseServerInfo, and is only read by
+	// CL_RelinkEntities when cls.demoplayback. Shifting it every host frame
+	// here clobbered the demo packet buffer (running at 144Hz vs demo's
+	// ~10Hz packet rate), collapsing the interpolation delta to ~0 between
+	// packets and causing ViewAngles to snap rather than lerp — visible as
+	// rotation judder during demo playback.
 	c.BaseMove(&c.PendingCmd)
 	if c.Signon != Signons {
 		c.PendingCmd.ViewAngles = c.ViewAngles
