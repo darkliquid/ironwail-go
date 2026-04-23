@@ -323,6 +323,7 @@ func TestRegisterHostCVarsIncludesDebugTelemetryCVars(t *testing.T) {
 		"sv_debug_qc_trace",
 		"sv_debug_qc_trace_verbosity",
 		"host_debug_sys",
+		"extramods_addons_url",
 	} {
 		if cv := h.CVar.Get(name); cv == nil {
 			t.Fatalf("cvar %q not registered", name)

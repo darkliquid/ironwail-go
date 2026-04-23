@@ -61,6 +61,7 @@ func (h *Host) registerHostCVars() {
 	audio.RegisterCVars(cv)
 	server.RegisterDebugTelemetryCVars(cv)
 	RegisterHostDebugTelemetryCVars(cv)
+	RegisterExtraModsCVars(cv)
 }
 
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready
