@@ -107,6 +107,15 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 	diffuse := make([]byte, len(pixels)*4)
 	fullbright := make([]byte, len(pixels)*4)
 	cutout := textureType == model.TexTypeCutout
+	// Liquid (*lava/*slime/*tele/*water) and sky textures do not participate
+	// in the "alpha as lighting mask" trick used by regular lit world
+	// materials. Their pixels are always fully opaque, matching C's
+	// TEXTYPE_ISLIQUID / sky upload paths in gl_model.c.
+	liquidOrSky := textureType == model.TexTypeLava ||
+		textureType == model.TexTypeSlime ||
+		textureType == model.TexTypeTele ||
+		textureType == model.TexTypeWater ||
+		textureType == model.TexTypeSky
 	hasSeparateFullbright := false
 
 	for i, idx := range pixels {
@@ -116,14 +125,20 @@ func BuildMaterialTextureRGBA(pixels, palette []byte, textureType model.TextureT
 		}
 		r, g, b := paletteColor(idx, palette)
 		if idx >= 224 && idx <= 254 {
-			if cutout {
+			switch {
+			case cutout:
 				fullbright[base+0] = r
 				fullbright[base+1] = g
 				fullbright[base+2] = b
 				fullbright[base+3] = 255
 				diffuse[base+3] = 255
 				hasSeparateFullbright = true
-			} else {
+			case liquidOrSky:
+				diffuse[base+0] = r
+				diffuse[base+1] = g
+				diffuse[base+2] = b
+				diffuse[base+3] = 255
+			default:
 				diffuse[base+0] = r
 				diffuse[base+1] = g
 				diffuse[base+2] = b
