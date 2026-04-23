@@ -68,59 +68,19 @@ func DrawParticles2D(dc RenderContext, ps *ParticleSystem) {
 	}
 }
 
-// EmitDecalMarks maps temp-entity impact/explosion events to projected world-space marks.
-func EmitDecalMarks(ms *DecalMarkSystem, tempEntities []cl.TempEntityEvent, rng *rand.Rand, timeNow float32) {
-	if ms == nil || len(tempEntities) == 0 {
-		return
-	}
-
-	for _, event := range tempEntities {
-		switch event.Type {
-		case inet.TE_GUNSHOT:
-			ms.AddMark(DecalMarkEntity{
-				Origin:   event.Origin,
-				Normal:   [3]float32{0, 0, 1},
-				Size:     8,
-				Rotation: randomMarkRotation(rng),
-				Color:    [3]float32{0.08, 0.08, 0.08},
-				Alpha:    0.8,
-				Variant:  DecalVariantBullet,
-			}, 18.0, timeNow)
-
-		case inet.TE_SPIKE, inet.TE_SUPERSPIKE:
-			ms.AddMark(DecalMarkEntity{
-				Origin:   event.Origin,
-				Normal:   [3]float32{0, 0, 1},
-				Size:     8,
-				Rotation: randomMarkRotation(rng),
-				Color:    [3]float32{0.08, 0.08, 0.08},
-				Alpha:    0.8,
-				Variant:  DecalVariantChip,
-			}, 18.0, timeNow)
-
-		case inet.TE_WIZSPIKE, inet.TE_KNIGHTSPIKE:
-			ms.AddMark(DecalMarkEntity{
-				Origin:   event.Origin,
-				Normal:   [3]float32{0, 0, 1},
-				Size:     9,
-				Rotation: randomMarkRotation(rng),
-				Color:    [3]float32{0.16, 0.14, 0.22},
-				Alpha:    0.78,
-				Variant:  DecalVariantMagic,
-			}, 16.0, timeNow)
-
-		case inet.TE_EXPLOSION, inet.TE_TAREXPLOSION, inet.TE_EXPLOSION2:
-			ms.AddMark(DecalMarkEntity{
-				Origin:   event.Origin,
-				Normal:   [3]float32{0, 0, 1},
-				Size:     24,
-				Rotation: randomMarkRotation(rng),
-				Color:    [3]float32{0.15, 0.10, 0.08},
-				Alpha:    0.7,
-				Variant:  DecalVariantScorch,
-			}, 25.0, timeNow)
-		}
-	}
+// EmitDecalMarks is retained as a no-op for call-site compatibility.
+//
+// The Go-side decal mark system (bullet-hole / scorch projected quads) has no
+// counterpart in C Ironwail — C only uses OFFSET_DECAL as a polygon-offset
+// constant for SPR_ORIENTED sprites; there is no bullet-hole, chip, or
+// scorch decal pipeline. The Go implementation spawned dark, upward-facing
+// quads at TE_GUNSHOT / TE_SPIKE / TE_EXPLOSION origins with multi-second
+// lifetimes, producing visible "floating disc" artifacts near impact points
+// (and therefore near the player, who is typically the source of such
+// events). Match C parity by never spawning any marks. Dormant plumbing
+// (types, system, render pipeline) is left in place for now; it simply
+// receives no input and emits no geometry.
+func EmitDecalMarks(_ *DecalMarkSystem, _ []cl.TempEntityEvent, _ *rand.Rand, _ float32) {
 }
 
 // EmitDynamicLights maps temp-entity gameplay events to transient dynamic lights.
@@ -263,6 +223,9 @@ func muzzleFlashLightOrigin(entity EntityEffectSource) [3]float32 {
 }
 
 // randomMarkRotation picks a random decal rotation to reduce repetition in impact marks.
+// Currently unused — kept for future parity work if a decal system is reintroduced.
+//
+//nolint:unused // retained intentionally
 func randomMarkRotation(rng *rand.Rand) float32 {
 	if rng == nil {
 		return 0

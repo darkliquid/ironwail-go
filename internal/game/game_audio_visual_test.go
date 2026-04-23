@@ -112,7 +112,7 @@ func TestSyncRuntimeStaticSoundsTracksClientStateAndSnapshotChanges(t *testing.T
 	}
 }
 
-func TestSyncRuntimeVisualEffectsEmitsParticlesAndDecals(t *testing.T) {
+func TestSyncRuntimeVisualEffectsEmitsParticlesAndNoDecals(t *testing.T) {
 	g := New()
 	originalClient := g.Client
 	originalRenderer := g.Renderer
@@ -150,8 +150,11 @@ func TestSyncRuntimeVisualEffectsEmitsParticlesAndDecals(t *testing.T) {
 	if g.DecalMarks != nil {
 		gotMarks = g.DecalMarks.ActiveCount()
 	}
-	if gotMarks != 1 {
-		t.Fatalf("expected runtime visual sync to emit one decal mark, got %d", gotMarks)
+	// Parity with C Ironwail: there is no bullet-hole/scorch decal system,
+	// so TE_GUNSHOT and friends must not spawn any marks. EmitDecalMarks is
+	// a no-op; decal plumbing is dormant.
+	if gotMarks != 0 {
+		t.Fatalf("expected no decal marks (C parity), got %d", gotMarks)
 	}
 	if got := g.ParticleTime; got <= 0 {
 		t.Fatalf("g.ParticleTime = %v, want > 0", got)
