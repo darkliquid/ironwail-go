@@ -218,7 +218,7 @@ func createAliasRenderPipeline(device *wgpu.Device, vertexShader, fragmentShader
 		Primitive: gputypes.PrimitiveState{
 			Topology:  gputypes.PrimitiveTopologyTriangleList,
 			FrontFace: gputypes.FrontFaceCCW,
-			CullMode:  gputypes.CullModeNone,
+			CullMode:  gputypes.CullModeBack,
 		},
 		DepthStencil: gogpuNonDecalDepthStencilState(depthWrite),
 		Multisample:  gputypes.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
