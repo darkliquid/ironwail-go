@@ -189,17 +189,23 @@ func BuildVerticesInterpolatedInto(dst []worldimpl.WorldVertex, mesh Mesh, hdr *
 }
 
 // RotateAngles rotates v by Quake Euler angles (pitch, yaw, roll) matching
-// C R_DrawAliasModel's sequence of glRotatef calls:
+// C R_EntityMatrix / R_DrawAliasModel's sequence of glRotatef calls:
 //
 //	glRotatef ( angles[YAW],   0, 0, 1)   // yaw   about Z
 //	glRotatef (-angles[PITCH], 0, 1, 0)   // pitch about Y with NEGATED sign
 //	glRotatef ( angles[ROLL],  1, 0, 0)   // roll  about X
 //
-// Order of composition is yaw → pitch → roll applied to the vertex.
+// In OpenGL each glRotatef right-multiplies the current matrix, so the
+// resulting model matrix is M = Rz(yaw) · Ry(−pitch) · Rx(roll), which when
+// applied to a model-space vertex v means Rx(roll) runs FIRST and Rz(yaw)
+// LAST. Implement it in that order to stay bit-for-bit parity with C; the
+// previous ordering (yaw → pitch → roll) composed the inverse matrix and
+// produced visibly wrong viewmodel orientation whenever both yaw and pitch
+// were nonzero (e.g. looking up/down after having turned away from yaw=0).
 func RotateAngles(v [3]float32, angles [3]float32) [3]float32 {
-	v = RotateYaw(v, angles[1])
-	v = RotatePitch(v, angles[0])
 	v = RotateRoll(v, angles[2])
+	v = RotatePitch(v, angles[0])
+	v = RotateYaw(v, angles[1])
 	return v
 }
 
