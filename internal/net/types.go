@@ -95,9 +95,6 @@ type Socket struct {
 	unreliableRecvSeq    uint32
 	ackSequence          uint32
 	lastSendTime         float64
-	lastMessageTime      float64
-	connectTime          float64
-	disconnected         bool
 	sendNext             bool
 	rejectionReason      string
 

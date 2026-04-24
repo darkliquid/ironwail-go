@@ -259,10 +259,9 @@ func TestPrepareDecalDrawsRejectsMissingBuilderOrMarks(t *testing.T) {
 
 func TestPrepareDecalDrawsWithAdapter(t *testing.T) {
 	type rootDecalDraw struct {
-		mark   DecalMarkParams
-		color  [4]float32
-		drop   bool
-		called int
+		mark  DecalMarkParams
+		color [4]float32
+		drop  bool
 	}
 
 	input := []rootDecalDraw{

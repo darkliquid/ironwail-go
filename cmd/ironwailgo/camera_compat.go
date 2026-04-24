@@ -1,7 +1,5 @@
 package main
 
-import cl "github.com/darkliquid/ironwail-go/internal/client"
-
 const runtimeMaxPredictedXYOffset = 4.0
 
 func runtimePlayerOrigin() ([3]float32, bool) {
@@ -76,11 +74,6 @@ func runtimeResetOriginSelectLatch(state *viewCalcState) {
 		return
 	}
 	state.originSelectLatch = runtimeOriginSelectLatch{}
-}
-
-func runtimePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) ([3]float32, bool) {
-	decision := runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
-	return decision.Origin, decision.OK
 }
 
 type runtimePredictedXYDecision struct {
@@ -167,39 +160,6 @@ func runtimeAuthoritativePlayerOrigin() ([3]float32, bool) {
 	return [3]float32{}, false
 }
 
-func runtimeInterpolatedVelocity() [3]float32 {
-	if g == nil || g.Client == nil {
-		return [3]float32{}
-	}
-
-	current := g.Client.MVelocity[0]
-	previous := g.Client.MVelocity[1]
-	if current == [3]float32{} && previous == [3]float32{} {
-		return g.Client.Velocity
-	}
-
-	frac := float32(g.Client.LerpPoint())
-	if frac <= 0 {
-		return previous
-	}
-	if frac >= 1 {
-		return current
-	}
-
-	return [3]float32{
-		previous[0] + frac*(current[0]-previous[0]),
-		previous[1] + frac*(current[1]-previous[1]),
-		previous[2] + frac*(current[2]-previous[2]),
-	}
-}
-
 func runtimeLocalViewTeleportActive() bool {
 	return g != nil && g.Client != nil && g.Client.LocalViewTeleport
-}
-
-func runtimeClient() *cl.Client {
-	if g == nil {
-		return nil
-	}
-	return g.Client
 }

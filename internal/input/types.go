@@ -512,17 +512,10 @@ type System struct {
 	// Current state
 	state     InputState
 	keyDest   KeyDest
-	textMode  TextMode
 	modifiers ModifierState
 
 	// Key bindings (key -> command string)
 	bindings [NumKeycode]string
-
-	// Console-only keys (can't be rebound in console)
-	consoleKeys [NumKeycode]bool
-
-	// Menu-only keys (can't be rebound in menu)
-	menuBound [NumKeycode]bool
 }
 
 // NewSystem creates a new input System wired to the given Backend. The Backend

@@ -220,19 +220,6 @@ func setHUDCanvasParams(cv *cvar.CVarSystem, rc renderer.RenderContext, style HU
 	})
 }
 
-func canvasDimensions(rc renderer.RenderContext, fallbackWidth, fallbackHeight int) (int, int) {
-	canvas := rc.Canvas()
-	width := int(canvas.Right - canvas.Left)
-	height := int(canvas.Bottom - canvas.Top)
-	if width <= 0 {
-		width = fallbackWidth
-	}
-	if height <= 0 {
-		height = fallbackHeight
-	}
-	return width, height
-}
-
 func currentViewSize(cv *cvar.CVarSystem) float64 {
 	if c := cv.Get("viewsize"); c != nil && c.Float > 0 {
 		return c.Float

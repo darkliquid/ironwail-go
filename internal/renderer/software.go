@@ -128,10 +128,6 @@ func (s *SoftwareRenderer) DrawMenuPic(x, y int, pic *qimage.QPic) {
 	s.drawPicRectAlpha(s.screenPicRect(x, y, int(pic.Width), int(pic.Height)), pic, 1)
 }
 
-func (s *SoftwareRenderer) drawPicRect(rect picRect, pic *qimage.QPic) {
-	s.drawPicRectAlpha(rect, pic, 1)
-}
-
 func (s *SoftwareRenderer) drawPicRectAlpha(rect picRect, pic *qimage.QPic, alpha float32) {
 	if pic == nil || len(pic.Pixels) == 0 {
 		return

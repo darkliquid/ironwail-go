@@ -16,16 +16,6 @@ func pollRuntimeInputEvents() {
 	}
 }
 
-func releaseRuntimeRenderer() {
-	if g.Renderer != nil {
-		g.Renderer.Shutdown()
-		g.Renderer = nil
-	}
-	if g.Subs != nil {
-		g.Subs.Renderer = nil
-	}
-}
-
 func shutdownEngine() {
 	if g.Host == nil {
 		return

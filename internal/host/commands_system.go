@@ -207,19 +207,6 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 	}
 }
 
-func (h *Host) configFileExists(filename string, subs *Subsystems) bool {
-	switch {
-	case filepath.IsAbs(filename):
-		_, err := os.Stat(filename)
-		return err == nil
-	case h.userDir != "":
-		if _, err := os.Stat(filepath.Join(h.userDir, filename)); err == nil {
-			return true
-		}
-	}
-	return subs != nil && subs.Files != nil && subs.Files.FileExists(filename)
-}
-
 func (h *Host) userConfigFileExists(filename string) bool {
 	switch {
 	case filepath.IsAbs(filename):

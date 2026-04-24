@@ -180,32 +180,8 @@ func gogpuBrushEntityParams(entity BrushEntity) worldgogpu.BrushEntityParams {
 	}
 }
 
-func buildGoGPUClassifiedBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuClassifiedBrushEntityDraw {
-	draw := worldgogpu.BuildClassifiedBrushEntityDraw(gogpuBrushEntityParams(entity), geom, classifyGoGPUBrushEntityFace)
-	if draw == nil {
-		return nil
-	}
-	return &gogpuClassifiedBrushEntityDraw{
-		alpha:            draw.Alpha,
-		frame:            draw.Frame,
-		vertices:         draw.Vertices,
-		opaqueIndices:    draw.OpaqueIndices,
-		opaqueFaces:      draw.OpaqueFaces,
-		opaqueCenters:    draw.OpaqueCenters,
-		alphaTestIndices: draw.AlphaTestIndices,
-		alphaTestFaces:   draw.AlphaTestFaces,
-		alphaTestCenters: draw.AlphaTestCenters,
-	}
-}
-
 func buildGoGPUSkyBrushEntityDraw(entity BrushEntity, geom *WorldGeometry) *gogpuOpaqueBrushEntityDraw {
 	return buildGoGPUBrushEntityDraw(entity, geom, shouldDrawGoGPUSkyBrushFace)
-}
-
-func buildGoGPUOpaqueLiquidBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings) *gogpuOpaqueBrushEntityDraw {
-	return buildGoGPUBrushEntityDraw(entity, geom, func(face WorldFace, entityAlpha float32) bool {
-		return shouldDrawGoGPUOpaqueLiquidBrushFace(face, entityAlpha, liquidAlpha)
-	})
 }
 
 type gogpuTranslucentLiquidBrushEntityDraw struct {

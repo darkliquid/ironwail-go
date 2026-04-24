@@ -127,9 +127,6 @@ type Renderer struct {
 	// concharsData is the raw 128×128 indexed-pixel data for the console font.
 	concharsData []byte
 
-	// picRGBACache caches RGBA conversions of QPic images for CPU overlay compositing.
-	// Keyed by QPic pointer identity (same as textureCache).
-	picRGBACache map[*image.QPic][]byte
 	// charCache caches per-character 8×8 QPic objects extracted from concharsData.
 	charCache [256]*image.QPic
 
@@ -217,7 +214,6 @@ type Renderer struct {
 	// Offscreen render target for world rendering
 	worldRenderTexture              *wgpu.Texture
 	worldRenderTextureView          *wgpu.TextureView
-	worldRenderTextureGogpu         *gogpu.Texture // gogpu-wrapped version for compositing
 	worldRenderWidth                int
 	worldRenderHeight               int
 	sceneCompositePipeline          *wgpu.RenderPipeline
@@ -303,8 +299,6 @@ type Renderer struct {
 	overlayTextureHeight int
 	// Pooled CPU pixel buffer — avoids ~4.5MB allocation per frame.
 	overlayPixelBuf          []byte
-	overlayBufWidth          int
-	overlayBufHeight         int
 	overlayUploadBuf         []byte
 	overlayTextureDirtyX     int
 	overlayTextureDirtyY     int

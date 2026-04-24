@@ -441,23 +441,6 @@ func drawWhiteText(rc DrawContext, x, y int, text string) {
 	}
 }
 
-// clipPrompt truncates the input prompt to fit within maxChars columns. When
-// the user's input is longer than the visible area, the prompt is clipped
-// from the left (keeping the most recently typed characters visible) and the
-// leading ']' prompt character is re-prepended. This mimics the behaviour of
-// the original Quake console where long commands scroll the input area.
-func clipPrompt(prompt []rune, maxChars int) []rune {
-	if maxChars <= 0 {
-		return nil
-	}
-	if len(prompt) <= maxChars {
-		return prompt
-	}
-	clipped := make([]rune, 0, maxChars)
-	clipped = append(clipped, ']')
-	clipped = append(clipped, prompt[len(prompt)-(maxChars-1):]...)
-	return clipped
-}
 
 func clipPromptWithCursor(prompt []rune, cursor, maxChars int) ([]rune, int) {
 	if maxChars <= 0 {

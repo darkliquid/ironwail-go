@@ -3,7 +3,6 @@ package compiler
 import (
 	"bytes"
 	"encoding/binary"
-	"math"
 
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
@@ -107,9 +106,4 @@ func Emit(in *EmitInput) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// float32ToUint32 converts a float32 to its raw uint32 bits.
-func float32ToUint32(f float32) uint32 {
-	return math.Float32bits(f)
 }

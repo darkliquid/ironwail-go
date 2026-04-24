@@ -124,9 +124,8 @@ type Server struct {
 	checkClientTime float32
 	checkClientPVS  []byte
 
-	impactFrameActive bool
-	impactFrameSeen   map[impactTouchKey]struct{}
-	suppressTouchQC   bool
+	impactFrameSeen map[impactTouchKey]struct{}
+	suppressTouchQC bool
 
 	compatRNG *compatrand.RNG
 
@@ -178,11 +177,7 @@ type modelAssetFileSystem interface {
 	OpenFile(filename string) (io.ReadSeekCloser, int64, error)
 }
 
-type impactTouchKey struct {
-	self  int
-	other int
-	fn    int32
-}
+type impactTouchKey struct{}
 
 // DevStats mirrors C Ironwail's per-frame developer counters.
 // Some fields are populated by server runtime while others are currently

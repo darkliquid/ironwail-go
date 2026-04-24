@@ -9,12 +9,6 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-type gpuDecalVertex struct {
-	Position [3]float32
-	TexCoord [2]float32
-	Color    [4]float32
-}
-
 func (r *Renderer) ensureDecalResourcesLocked(device *wgpu.Device, queue *wgpu.Queue) error {
 	if device == nil || queue == nil {
 		return fmt.Errorf("nil device or queue")

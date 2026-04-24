@@ -161,18 +161,6 @@ func (cp *Centerprint) intermissionPicForRune(r rune) *image.QPic {
 	}
 }
 
-func (cp *Centerprint) intermissionTextWidth(text string) int {
-	width := 0
-	for _, r := range text {
-		pic := cp.intermissionPicForRune(r)
-		if pic != nil {
-			width += int(pic.Width)
-			continue
-		}
-		width += 24
-	}
-	return width
-}
 
 func (cp *Centerprint) drawIntermissionText(rc renderer.RenderContext, x, y int, text string) {
 	for _, r := range text {

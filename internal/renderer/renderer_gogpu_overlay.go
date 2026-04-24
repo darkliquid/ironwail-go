@@ -26,39 +26,6 @@ type overlayDirtyRect struct {
 	h int
 }
 
-// ensureOverlay initializes or resets the CPU overlay compositor at the
-// current screen resolution. Called lazily on the first 2D draw each frame.
-// Reuses a pooled pixel buffer from the Renderer to avoid ~4.5MB allocation
-// per frame.
-func (dc *DrawContext) ensureOverlay() *overlay2D {
-	if dc.overlay != nil {
-		return dc.overlay
-	}
-	w, h := dc.renderer.Size()
-	if w <= 0 || h <= 0 {
-		return nil
-	}
-	needed := w * h * 4
-	r := dc.renderer
-	r.mu.Lock()
-	// Reuse pooled buffer if dimensions match, otherwise allocate.
-	if r.overlayBufWidth == w && r.overlayBufHeight == h && len(r.overlayPixelBuf) == needed {
-		clear(r.overlayPixelBuf)
-	} else {
-		r.overlayPixelBuf = make([]byte, needed)
-		r.overlayBufWidth = w
-		r.overlayBufHeight = h
-	}
-	buf := r.overlayPixelBuf
-	r.mu.Unlock()
-	dc.overlay = &overlay2D{
-		pixels: buf,
-		width:  w,
-		height: h,
-	}
-	return dc.overlay
-}
-
 // flush2DOverlay uploads the CPU overlay buffer as a single GPU texture and
 // draws it onto the current surface in one submit. Reuses a cached GPU
 // texture when dimensions match to avoid per-frame CreateTexture overhead.
@@ -136,61 +103,6 @@ func (dc *DrawContext) flush2DOverlay() {
 		}
 	}
 	dc.overlay = nil
-}
-
-// overlayFillRect fills a rectangle in the overlay buffer with an RGBA color.
-func (ov *overlay2D) fillRect(x, y, w, h int, r, g, b, a byte) {
-	// Clip to overlay bounds.
-	if x < 0 {
-		w += x
-		x = 0
-	}
-	if y < 0 {
-		h += y
-		y = 0
-	}
-	if x+w > ov.width {
-		w = ov.width - x
-	}
-	if y+h > ov.height {
-		h = ov.height - y
-	}
-	if w <= 0 || h <= 0 {
-		return
-	}
-	ov.markDirtyRect(x, y, w, h)
-	stride := ov.width * 4
-	if a == 255 {
-		// Fast path: opaque fill, no blending needed.
-		for dy := 0; dy < h; dy++ {
-			off := (y+dy)*stride + x*4
-			for dx := 0; dx < w; dx++ {
-				ov.pixels[off] = r
-				ov.pixels[off+1] = g
-				ov.pixels[off+2] = b
-				ov.pixels[off+3] = 255
-				off += 4
-			}
-		}
-	} else {
-		// Alpha blend (source over).
-		sa := uint32(a)
-		invSA := 255 - sa
-		for dy := 0; dy < h; dy++ {
-			off := (y+dy)*stride + x*4
-			for dx := 0; dx < w; dx++ {
-				dr := uint32(ov.pixels[off])
-				dg := uint32(ov.pixels[off+1])
-				db := uint32(ov.pixels[off+2])
-				da := uint32(ov.pixels[off+3])
-				ov.pixels[off] = byte((uint32(r)*sa + dr*invSA) / 255)
-				ov.pixels[off+1] = byte((uint32(g)*sa + dg*invSA) / 255)
-				ov.pixels[off+2] = byte((uint32(b)*sa + db*invSA) / 255)
-				ov.pixels[off+3] = byte((sa*255 + da*invSA) / 255)
-				off += 4
-			}
-		}
-	}
 }
 
 // overlayBlitRGBA blits an RGBA source image into the overlay with
@@ -624,23 +536,6 @@ func (r *Renderer) SetConchars(data []byte) {
 	}
 	r.concharsData = data
 	r.charCache = [256]*image.QPic{}
-}
-
-type pixelRect struct {
-	x float32
-	y float32
-	w float32
-	h float32
-}
-
-func (dc *DrawContext) screenPicRect(x, y, w, h int) pixelRect {
-	screenX, screenY, screenW, screenH := dc.canvasRectToScreen(x, y, w, h)
-	return pixelRect{
-		x: float32(screenX),
-		y: float32(screenY),
-		w: float32(screenW),
-		h: float32(screenH),
-	}
 }
 
 func (dc *DrawContext) canvasRectToScreen(x, y, w, h int) (screenX, screenY, screenW, screenH int) {

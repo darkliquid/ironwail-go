@@ -239,18 +239,6 @@ func validateWalkableStandingOrigin(s *Server, origin [3]float32, sample walkabl
 	return [3]float32{}, false, sample
 }
 
-func validateWalkableStandingPoint(s *Server, origin [3]float32, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
-	sample.Start = origin
-	sample.StartContents = s.PointContents(origin)
-	if sample.StartContents == bsp.ContentsSolid {
-		sample.Reason = "start-in-solid"
-		return [3]float32{}, false, sample
-	}
-	if pos, ok, sample := validateWalkableStandingOrigin(s, origin, sample); ok {
-		return pos, true, sample
-	}
-	return validateWalkableSpawnPoint(s, origin, sample)
-}
 
 func validateWalkableSpawnPoint(s *Server, origin [3]float32, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
 	worldMins, _, ok := s.modelBounds(s.ModelName)
@@ -277,58 +265,6 @@ func validateWalkableSpawnPoint(s *Server, origin [3]float32, sample walkableSam
 		return [3]float32{}, false, sample
 	}
 	return [3]float32{}, false, lastFailure
-}
-
-func findGroundedWalkableNearOrigin(s *Server, origin [3]float32, sample walkableSampleFailure) ([3]float32, bool, walkableSampleFailure) {
-	worldMins, _, _ := s.modelBounds(s.ModelName)
-	endZ := worldMins[2] - 256
-	standingZOffsets := []float32{0, 1, -1, 8, -8, 16, -16, 24, -24}
-	for radius := float32(0); radius <= 192; radius += 8 {
-		for dx := -radius; dx <= radius; dx += 8 {
-			for dy := -radius; dy <= radius; dy += 8 {
-				if radius != 0 {
-					onEdgeX := dx == -radius || dx == radius
-					onEdgeY := dy == -radius || dy == radius
-					if !onEdgeX && !onEdgeY {
-						continue
-					}
-				}
-				for _, standingZOffset := range standingZOffsets {
-					candidate := [3]float32{origin[0] + dx, origin[1] + dy, origin[2] + standingZOffset}
-					sample.Start = candidate
-					if pos, ok, sample := validateWalkableStandingOrigin(s, candidate, sample); ok {
-						return pos, true, sample
-					}
-				}
-			}
-		}
-	}
-
-	startZOffsets := []float32{48, 64, 96, 128, 192, 256, 320}
-	for radius := float32(0); radius <= 192; radius += 16 {
-		for dx := -radius; dx <= radius; dx += 16 {
-			for dy := -radius; dy <= radius; dy += 16 {
-				if radius != 0 {
-					onEdgeX := dx == -radius || dx == radius
-					onEdgeY := dy == -radius || dy == radius
-					if !onEdgeX && !onEdgeY {
-						continue
-					}
-				}
-				for _, startZOffset := range startZOffsets {
-					start := [3]float32{origin[0] + dx, origin[1] + dy, origin[2] + startZOffset}
-					sample.Start = start
-					sample.End = [3]float32{start[0], start[1], endZ}
-					if pos, ok, sample := validateWalkableSample(s, sample); ok {
-						return pos, true, sample
-					}
-				}
-			}
-		}
-	}
-
-	sample.Reason = "spawn-no-floor"
-	return [3]float32{}, false, sample
 }
 
 func supportsStationaryMoveStep(s *Server, pos [3]float32) bool {

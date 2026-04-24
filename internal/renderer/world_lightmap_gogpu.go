@@ -335,13 +335,6 @@ func float32ToBytes(f []float32) []byte {
 	return result
 }
 
-// uint32ToBytes expands packed integer data into byte form for uploads to APIs expecting byte-addressable buffers/textures.
-func uint32ToBytes(u uint32) []byte {
-	result := make([]byte, 4)
-	binary.LittleEndian.PutUint32(result, u)
-	return result
-}
-
 func uint32SliceToBytes(values []uint32) []byte {
 	if len(values) == 0 {
 		return nil

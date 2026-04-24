@@ -579,12 +579,6 @@ func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float
 	binary.LittleEndian.PutUint32(dst[100:104], math.Float32bits(litWater))
 }
 
-func worldSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, time float32, alpha float32, litWater float32) []byte {
-	data := make([]byte, worldUniformBufferSize)
-	fillWorldSceneUniformBytes(data, vp, cameraOrigin, fogColor, fogDensity, time, alpha, litWater)
-	return data
-}
-
 func gogpuWorldUniformInputs(state *RenderFrameState, camera CameraState) ([3]float32, float32, float32) {
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	return cameraOrigin, state.FogDensity, camera.Time

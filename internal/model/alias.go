@@ -141,47 +141,6 @@ func (b *aliasBounds) finalize(yawRadiusSquared, radiusSquared float32) {
 	b.ymaxs = [3]float32{yawRadius, yawRadius, b.maxs[2]}
 }
 
-func skipAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) error {
-	skinSize := skinWidth * skinHeight
-	if skinSize < 0 {
-		return fmt.Errorf("invalid skin dimensions: %dx%d", skinWidth, skinHeight)
-	}
-
-	for i := 0; i < numSkins; i++ {
-		var skinType DAliasSkinType
-		if err := binary.Read(r, binary.LittleEndian, &skinType); err != nil {
-			return fmt.Errorf("failed to read skin type %d: %w", i, err)
-		}
-
-		switch AliasSkinType(skinType.Type) {
-		case AliasSkinSingle:
-			if _, err := r.Seek(int64(skinSize), io.SeekCurrent); err != nil {
-				return fmt.Errorf("failed to skip single skin %d: %w", i, err)
-			}
-		case AliasSkinGroup:
-			var group DAliasSkinGroup
-			if err := binary.Read(r, binary.LittleEndian, &group); err != nil {
-				return fmt.Errorf("failed to read skin group %d: %w", i, err)
-			}
-
-			n := int(group.NumSkins)
-			if n < 1 {
-				return fmt.Errorf("invalid number of grouped skins for skin %d: %d", i, n)
-			}
-
-			intervalBytes := int64(n) * int64(binary.Size(DAliasSkinInterval{}))
-			skinBytes := int64(n) * int64(skinSize)
-			if _, err := r.Seek(intervalBytes+skinBytes, io.SeekCurrent); err != nil {
-				return fmt.Errorf("failed to skip skin group payload %d: %w", i, err)
-			}
-		default:
-			return fmt.Errorf("invalid skin type %d for skin %d", skinType.Type, i)
-		}
-	}
-
-	return nil
-}
-
 func readAliasSkins(r io.ReadSeeker, numSkins, skinWidth, skinHeight int) ([][]byte, []AliasSkinDesc, error) {
 	skinSize := skinWidth * skinHeight
 	if skinSize < 0 {
@@ -266,22 +225,6 @@ func readAliasTriangles(r io.Reader, count int) ([]DTriangle, error) {
 		return nil, fmt.Errorf("failed to read triangles: %w", err)
 	}
 	return tris, nil
-}
-
-func skipAliasSTVerts(r io.Reader, count int) error {
-	verts := make([]STVert, count)
-	if err := binary.Read(r, binary.LittleEndian, &verts); err != nil {
-		return fmt.Errorf("failed to read ST verts: %w", err)
-	}
-	return nil
-}
-
-func skipAliasTriangles(r io.Reader, count int) error {
-	tris := make([]DTriangle, count)
-	if err := binary.Read(r, binary.LittleEndian, &tris); err != nil {
-		return fmt.Errorf("failed to read triangles: %w", err)
-	}
-	return nil
 }
 
 func readAliasFrames(r io.Reader, numFrames, numVerts int, scale, origin [3]float32) ([]AliasFrameDesc, [][]TriVertX, int, aliasBounds, error) {

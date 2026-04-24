@@ -121,11 +121,6 @@ func TestSVHullForInlineBrushModelUsesSubmodelHeadnode(t *testing.T) {
 	}
 }
 
-func findWalkablePoint(s *Server) ([3]float32, bool) {
-	pos, ok, _ := findWalkablePointWithDiagnostics(s)
-	return pos, ok
-}
-
 func TestMovementOnSpawnedMap(t *testing.T) {
 	s := newStartMapDiagnosticsServer(t)
 

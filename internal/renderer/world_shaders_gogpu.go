@@ -381,13 +381,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 `
 
-// compileWorldShader compiles a WGSL shader to SPIR-V bytecode
-// For now, we pass WGSL directly to HAL which handles compilation internally
-func compileWorldShader(source string) string {
-	// Return WGSL source directly - HAL will compile it
-	return source
-}
-
 // createWorldShaderModule creates a HAL shader module from WGSL source
 func createWorldShaderModule(device *wgpu.Device, wgslSource string, label string) (*wgpu.ShaderModule, error) {
 	shaderModule, err := device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{

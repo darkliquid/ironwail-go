@@ -778,14 +778,6 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 	}
 }
 
-func aliasUniformBytes(vp types.Mat4, alpha float32) []byte {
-	data := make([]byte, aliasUniformBufferSize)
-	matrixBytes := matrixToBytes(vp)
-	copy(data[:64], matrixBytes)
-	binary.LittleEndian.PutUint32(data[64:68], math.Float32bits(alpha))
-	return data
-}
-
 func aliasSceneUniformBytes(vp types.Mat4, cameraOrigin [3]float32, alpha float32, fogColor [3]float32, fogDensity float32) []byte {
 	data := make([]byte, aliasSceneUniformBufferSize)
 	matrixBytes := matrixToBytes(vp)
@@ -817,10 +809,6 @@ func aliasVertexBytesInto(dst []byte, vertices []WorldVertex) []byte {
 		putFloat32s(data[offset+28:offset+40], v.Normal[:])
 	}
 	return data
-}
-
-func buildAliasVerticesInterpolated(alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {
-	return buildAliasVerticesInterpolatedInto(nil, alias, mdl, pose1Index, pose2Index, blend, origin, angles, entityScale, fullAngles)
 }
 
 func buildAliasVerticesInterpolatedInto(dst []WorldVertex, alias *gpuAliasModel, mdl *model.Model, pose1Index, pose2Index int, blend float32, origin, angles [3]float32, entityScale float32, fullAngles bool) []WorldVertex {

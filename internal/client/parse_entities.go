@@ -476,16 +476,6 @@ func readCoord(msg *common.SizeBuf, errMsg string) (float32, error) {
 	return float32(v) / 8.0, nil
 }
 
-// readAngle reads an angle as a single byte (default FitzQuake encoding).
-// TODO: Support protocol flags for float/short angle formats.
-func readAngle(msg *common.SizeBuf, errMsg string) (float32, error) {
-	v, ok := msg.GetByte()
-	if !ok {
-		return 0, errors.New(errMsg)
-	}
-	return float32(v) * (360.0 / 256.0), nil
-}
-
 func (p *Parser) readPrecacheList(msg *common.SizeBuf) ([]string, error) {
 	list := make([]string, 0, 64)
 	for {

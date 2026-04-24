@@ -258,15 +258,6 @@ func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	return texInfo.Miptex
 }
 
-// worldFaceLightmapIndex returns the lightmap atlas page/index used for static lighting lookup during world shading.
-func worldFaceLightmapIndex(face *bsp.TreeFace) int32 {
-	if face == nil || face.LightOfs < 0 || face.Styles[0] == 255 {
-		return -1
-	}
-	// gogpu path does not allocate lightmap pages yet; keep a stable "present" sentinel.
-	return 0
-}
-
 // worldFaceFlags exposes per-face material/render flags (sky, liquid, turbulent, etc.) that drive pass routing and shader behavior.
 func worldFaceFlags(textureMeta []worldTextureMeta, tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	texInfo := worldFaceTexInfo(tree, face)

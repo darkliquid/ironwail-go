@@ -150,23 +150,6 @@ func (c *CmdSystem) withSource(source CommandSource, fn func()) {
 	fn()
 }
 
-// executeTextWithWait processes command text with support for the "wait"
-// command. When "wait" is encountered, execution stops and any remaining
-// commands are pushed back into the buffer for the next frame's Execute()
-// call. This mechanism allows config scripts and aliases to space actions
-// across multiple engine frames — essential for sequences like:
-//
-//	alias rocket_jump "+jump; wait; +attack; wait; -attack; -jump"
-//
-// Each "wait" causes the engine to process one simulation frame before
-// continuing, so the jump happens before the attack.
-func (c *CmdSystem) executeTextWithWait(text string) {
-	c.executeBufferedEntries([]bufferedText{{
-		text:   text,
-		source: c.Source(),
-	}})
-}
-
 func (c *CmdSystem) executeBufferedEntries(entries []bufferedText) {
 	pending := append([]bufferedText(nil), entries...)
 	for len(pending) > 0 {

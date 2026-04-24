@@ -265,15 +265,6 @@ func TestCalcBlend_IntermissionOnlyContents(t *testing.T) {
 	}
 }
 
-// approxEqual checks two float32 values are within eps of each other.
-func approxEqual(a, b, eps float32) bool {
-	diff := a - b
-	if diff < 0 {
-		diff = -diff
-	}
-	return diff <= eps
-}
-
 // TestCalcBlend_CompositeMultipleShifts verifies that multiple active tints are correctly blended together.
 // Why: Ensures correct visuals when taking damage while submerged or powered up.
 // Where in C: cl_main.c, V_CalcBlend.

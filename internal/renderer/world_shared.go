@@ -44,6 +44,7 @@ func worldFaceAlpha(flags int32, liquidAlpha worldLiquidAlphaSettings) float32 {
 	return worldimpl.FaceAlpha(flags, liquidAlpha.toWorld())
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func worldFaceUsesTurb(flags int32) bool {
 	return worldimpl.FaceUsesTurb(flags)
 }
@@ -179,14 +180,19 @@ func deriveWorldFaceFlags(textureType model.TextureType, texinfoFlags int32) int
 	return worldimpl.DeriveFaceFlags(textureType, texinfoFlags)
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 var identityModelRotationMatrix = worldimpl.IdentityModelRotationMatrix
 
 // buildBrushRotationMatrix builds a 4x4 rotation matrix from Euler angles for brush entity transforms (doors, platforms that rotate).
+//
+//nolint:unused // pending wiring in renderer submodule facade
 func buildBrushRotationMatrix(angles [3]float32) [16]float32 {
 	return worldimpl.BuildBrushRotationMatrix(angles)
 }
 
 // transformModelSpacePoint transforms a point from model space to world space using the entity's offset, rotation matrix, and scale.
+//
+//nolint:unused // pending wiring in renderer submodule facade
 func transformModelSpacePoint(point, modelOffset [3]float32, modelRotation [16]float32, modelScale float32) [3]float32 {
 	return worldimpl.TransformModelSpacePoint(point, modelOffset, modelRotation, modelScale)
 }
@@ -265,10 +271,12 @@ func resolveWorldLiquidAlphaSettings(cvarWater, cvarLava, cvarSlime, cvarTele fl
 	return worldLiquidAlphaSettingsFromWorld(worldimpl.ResolveLiquidAlphaSettings(cvarWater, cvarLava, cvarSlime, cvarTele, overrides.toWorld(), tree))
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func parseWorldspawnLiquidAlphaOverrides(entities []byte) worldLiquidAlphaOverrides {
 	return worldLiquidAlphaOverridesFromWorld(worldimpl.ParseWorldspawnLiquidAlphaOverrides(entities))
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func mapVisTransparentWaterSafe(tree *bsp.Tree) bool {
 	return worldimpl.MapVisTransparentWaterSafe(tree)
 }
@@ -307,6 +315,7 @@ func readWorldSkyFogCvar(fallback float32) float32 {
 	return worldimpl.ReadAlphaCvar(CvarRSkyFog, fallback)
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func readWorldFastSkyEnabled() bool {
 	return worldimpl.ReadBoolCvar(CvarRFastSky)
 }
@@ -315,14 +324,17 @@ func readWorldProceduralSkyEnabled() bool {
 	return worldimpl.ReadBoolCvar(CvarRProceduralSky)
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func readWorldSkyLayerSpeedCvar(name string, fallback float32) float32 {
 	return worldimpl.ReadSkyLayerSpeedCvar(name, fallback)
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func readWorldSkySolidSpeedCvar() float32 {
 	return readWorldSkyLayerSpeedCvar(CvarRSkySolidSpeed, 1)
 }
 
+//nolint:unused // pending wiring in renderer submodule facade
 func readWorldSkyAlphaSpeedCvar() float32 {
 	return readWorldSkyLayerSpeedCvar(CvarRSkyAlphaSpeed, 1)
 }

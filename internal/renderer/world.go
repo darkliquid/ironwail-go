@@ -365,24 +365,6 @@ func gogpuWorldLightmapBindGroupForFace(face WorldFace, lightmaps []*gpuWorldTex
 	return bindGroup, 0
 }
 
-func gogpuFacesHaveLitWater(faces []WorldFace) bool {
-	for _, face := range faces {
-		if face.Flags&model.SurfDrawTurb != 0 && face.Flags&model.SurfDrawSky == 0 && face.LightmapIndex >= 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func sortGoGPUTranslucentLiquidFaces(mode AlphaMode, faces []gogpuTranslucentLiquidFaceDraw) {
-	if !shouldSortTranslucentCalls(mode) {
-		return
-	}
-	sort.SliceStable(faces, func(i, j int) bool {
-		return faces[i].distanceSq > faces[j].distanceSq
-	})
-}
-
 func effectiveGoGPUAlphaMode(mode AlphaMode) AlphaMode {
 	if mode == AlphaModeOIT {
 		return AlphaModeSorted

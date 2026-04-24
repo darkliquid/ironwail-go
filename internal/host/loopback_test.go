@@ -276,8 +276,6 @@ func TestDispatchLoopbackStuffTextFlushesCompleteLines(t *testing.T) {
 	}
 }
 
-type globalExecuteTextCommandBuffer struct{}
-
 func TestDispatchLoopbackStuffTextDoesNotDrainLocalCommandBufferAsServer(t *testing.T) {
 	cs := cmdsys.NewCmdSystem()
 

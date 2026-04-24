@@ -293,37 +293,6 @@ func (g *Game) viewApplyViewmodelQuakeFudge(origin [3]float32, scrViewSize float
 	return origin
 }
 
-// viewSetDamageKick initializes damage kick state from a damage event.
-// Mirrors C Ironwail V_ParseDamage damage kick calculation (view.c:329-345).
-//
-// Parameters:
-//   - state:        persistent view state (modified in-place)
-//   - count:        damage amount (blood*0.5 + armor*0.5, min 10)
-//   - from:         normalized direction vector from damage source to player
-//   - entityAngles: player entity angles (for computing right/forward vectors)
-func (g *Game) viewSetDamageKick(state *viewCalcState, count float32, from, entityAngles [3]float32) {
-	kickRollCv := g.Host.CVar.Get("v_kickroll")
-	kickPitchCv := g.Host.CVar.Get("v_kickpitch")
-	kickTimeCv := g.Host.CVar.Get("v_kicktime")
-	if kickRollCv == nil || kickPitchCv == nil || kickTimeCv == nil {
-		return
-	}
-
-	// Compute right and forward vectors from entity angles.
-	_, right, _ := qtypes.AngleVectors(qtypes.Vec3{X: entityAngles[0], Y: entityAngles[1], Z: entityAngles[2]})
-	forward, _, _ := qtypes.AngleVectors(qtypes.Vec3{X: entityAngles[0], Y: entityAngles[1], Z: entityAngles[2]})
-
-	// Roll kick: lateral component of damage direction.
-	sideRoll := from[0]*right.X + from[1]*right.Y + from[2]*right.Z
-	state.dmgRoll = count * sideRoll * float32(kickRollCv.Float)
-
-	// Pitch kick: forward/back component of damage direction.
-	sidePitch := from[0]*forward.X + from[1]*forward.Y + from[2]*forward.Z
-	state.dmgPitch = count * sidePitch * float32(kickPitchCv.Float)
-
-	state.dmgTime = float32(kickTimeCv.Float)
-}
-
 // viewApplyDamageKick applies damage-induced camera roll/pitch and decays the
 // damage kick timer.  Mirrors C Ironwail V_CalcViewRoll damage kick block
 // (view.c:718-722).

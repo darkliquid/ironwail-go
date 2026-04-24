@@ -17,8 +17,6 @@ import (
 // Texture represents a GPU texture created from a QPic.
 // It provides platform-independent texture management.
 type Texture struct {
-	// Backend-specific texture handle (varies by renderer)
-	backendHandle interface{}
 	// Original QPic dimensions
 	width  uint32
 	height uint32

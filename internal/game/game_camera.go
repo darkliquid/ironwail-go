@@ -225,11 +225,6 @@ func (g *Game) runtimeResetOriginSelectLatch(state *viewCalcState) {
 	state.originSelectLatch = runtimeOriginSelectLatch{}
 }
 
-func (g *Game) runtimePredictedFirstPersonXYOrigin(authoritativeOrigin [3]float32) ([3]float32, bool) {
-	decision := g.runtimeEvaluatePredictedFirstPersonXYOrigin(authoritativeOrigin)
-	return decision.Origin, decision.OK
-}
-
 type runtimePredictedXYDecision struct {
 	Origin            [3]float32
 	OK                bool
@@ -464,17 +459,6 @@ func (g *Game) runtimeGunKickAngles() [3]float32 {
 	default:
 		return g.runtimeInterpolatedPunchAngles()
 	}
-}
-
-func (g *Game) angleLerp(prev, curr, frac float32) float32 {
-	delta := curr - prev
-	for delta > 180 {
-		delta -= 360
-	}
-	for delta < -180 {
-		delta += 360
-	}
-	return prev + delta*frac
 }
 
 func (g *Game) runtimeInterpolatedPunchAngles() [3]float32 {

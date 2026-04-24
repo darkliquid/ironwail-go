@@ -56,52 +56,6 @@ func (c *demoMessageClient) SendCommand() error         { return nil }
 func (c *demoMessageClient) SendStringCmd(string) error { return nil }
 func (c *demoMessageClient) LastServerMessage() []byte  { return append([]byte(nil), c.message...) }
 
-// ---------------------------------------------------------------------------
-// activeStateTestClient – client that exposes ClientState.
-// ---------------------------------------------------------------------------
-
-type activeStateTestClient struct {
-	state       host.ClientState
-	clientState *cl.Client
-}
-
-func (c *activeStateTestClient) Init() error                { return nil }
-func (c *activeStateTestClient) Frame(float64) error        { return nil }
-func (c *activeStateTestClient) Shutdown()                  {}
-func (c *activeStateTestClient) State() host.ClientState    { return c.state }
-func (c *activeStateTestClient) ReadFromServer() error      { return nil }
-func (c *activeStateTestClient) SendCommand() error         { return nil }
-func (c *activeStateTestClient) SendStringCmd(string) error { return nil }
-func (c *activeStateTestClient) ClientState() *cl.Client    { return c.clientState }
-
-// ---------------------------------------------------------------------------
-// staticTestFilesystem – in-memory filesystem for tests.
-// ---------------------------------------------------------------------------
-
-type staticTestFilesystem struct {
-	files map[string]string
-}
-
-func (f *staticTestFilesystem) Init(baseDir, gameDir string) error { return nil }
-func (f *staticTestFilesystem) Close()                             {}
-func (f *staticTestFilesystem) LoadFile(filename string) ([]byte, error) {
-	if data, ok := f.files[filename]; ok {
-		return []byte(data), nil
-	}
-	return nil, os.ErrNotExist
-}
-func (f *staticTestFilesystem) LoadFirstAvailable(filenames []string) (string, []byte, error) {
-	for _, filename := range filenames {
-		if data, ok := f.files[filename]; ok {
-			return filename, []byte(data), nil
-		}
-	}
-	return "", nil, os.ErrNotExist
-}
-func (f *staticTestFilesystem) FileExists(filename string) bool {
-	_, ok := f.files[filename]
-	return ok
-}
 
 // ---------------------------------------------------------------------------
 // processClientPhaseTestClient – counts Read/Send calls.

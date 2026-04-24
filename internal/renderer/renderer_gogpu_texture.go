@@ -60,54 +60,6 @@ func (r *Renderer) getOrCreateCharTexture(ctx *gogpu.Context, num int, pic *imag
 	return tex
 }
 
-// getOrCreatePicRGBA returns cached RGBA pixel data for a QPic, converting
-// from the Quake palette on first access. Used by the CPU overlay compositor.
-func (r *Renderer) getOrCreatePicRGBA(pic *image.QPic) []byte {
-	r.mu.RLock()
-	if rgba, ok := r.picRGBACache[pic]; ok {
-		r.mu.RUnlock()
-		return rgba
-	}
-	r.mu.RUnlock()
-
-	if r.palette == nil || len(pic.Pixels) == 0 {
-		return nil
-	}
-	rgba := ConvertPaletteToRGBA(pic.Pixels, r.palette)
-
-	r.mu.Lock()
-	if r.picRGBACache == nil {
-		r.picRGBACache = make(map[*image.QPic][]byte)
-	}
-	r.picRGBACache[pic] = rgba
-	r.mu.Unlock()
-	return rgba
-}
-
-// getOrCreateCharRGBA returns cached RGBA pixel data for a conchars character,
-// using ConvertConcharsToRGBA (index 0 = transparent). Used by the CPU overlay.
-func (r *Renderer) getOrCreateCharRGBA(pic *image.QPic) []byte {
-	r.mu.RLock()
-	if rgba, ok := r.picRGBACache[pic]; ok {
-		r.mu.RUnlock()
-		return rgba
-	}
-	r.mu.RUnlock()
-
-	if r.palette == nil || len(pic.Pixels) == 0 {
-		return nil
-	}
-	rgba := ConvertConcharsToRGBA(pic.Pixels, r.palette)
-
-	r.mu.Lock()
-	if r.picRGBACache == nil {
-		r.picRGBACache = make(map[*image.QPic][]byte)
-	}
-	r.picRGBACache[pic] = rgba
-	r.mu.Unlock()
-	return rgba
-}
-
 func (r *Renderer) SetPalette(palette []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

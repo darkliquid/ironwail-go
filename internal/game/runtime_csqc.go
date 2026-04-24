@@ -291,10 +291,6 @@ func (g *Game) buildCSQCDrawHooks(rc renderer.RenderContext) qc.CSQCDrawHooks {
 	return g.buildCSQCDrawHooksWithActivity(rc, nil)
 }
 
-func (g *Game) wireCSQCDrawHooks(rc renderer.RenderContext) {
-	qc.SetCSQCDrawHooks(g.buildCSQCDrawHooks(rc))
-}
-
 func (g *Game) buildCSQCFrameState() qc.CSQCFrameState {
 	var state qc.CSQCFrameState
 	if g.Host != nil {

@@ -4,14 +4,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"go/types"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/darkliquid/ironwail-go/internal/qc"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -241,41 +239,3 @@ func (l *loadedPackages) displayPath(rootDir, filename string) (string, error) {
 	return filepath.ToSlash(rel), nil
 }
 
-func goBasicTypeToQC(t types.Type) qc.EType {
-	if ptr, ok := t.(*types.Pointer); ok {
-		return goBasicTypeToQC(ptr.Elem())
-	}
-	if named, ok := t.(*types.Named); ok {
-		switch named.Obj().Name() {
-		case "Vec3":
-			return EvVector
-		case "Entity":
-			return EvEntity
-		case "Func":
-			return EvFunction
-		case "FieldOffset":
-			return EvField
-		}
-		return goBasicTypeToQC(named.Underlying())
-	}
-	switch bt := t.Underlying().(type) {
-	case *types.Basic:
-		switch bt.Kind() {
-		case types.Float32, types.Float64, types.UntypedFloat,
-			types.Int, types.Int32, types.Int64, types.UntypedInt,
-			types.Bool, types.UntypedBool:
-			return EvFloat
-		case types.String, types.UntypedString:
-			return EvString
-		case types.Uintptr:
-			return EvEntity
-		}
-	case *types.Array:
-		if bt.Len() == 3 {
-			return EvVector
-		}
-	case *types.Signature:
-		return EvFunction
-	}
-	return EvFloat
-}

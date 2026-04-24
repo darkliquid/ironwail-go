@@ -523,21 +523,6 @@ func (c *Client) acknowledgeCommand() {
 	c.CommandCount--
 }
 
-func (c *Client) newestBufferedCommand() (UserCmd, bool) {
-	if c == nil || c.CommandCount == 0 {
-		return UserCmd{}, false
-	}
-	idx := wrapBufferIndex(c.CommandSequence-1, len(c.CommandBuffer))
-	return c.CommandBuffer[idx], true
-}
-
-func (c *Client) clearCommandReplayBacklog() {
-	if c == nil || c.CommandCount == 0 {
-		return
-	}
-	c.CommandCount = 0
-}
-
 func wrapBufferIndex(idx, size int) int {
 	if size <= 0 {
 		return 0

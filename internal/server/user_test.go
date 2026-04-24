@@ -273,11 +273,6 @@ func TestSVClientThinkGroundFrictionFeedsAccelerate(t *testing.T) {
 	}
 }
 
-func findWalkablePointForUserTest(s *Server) ([3]float32, bool) {
-	pos, ok, _ := findWalkablePointWithDiagnostics(s)
-	return pos, ok
-}
-
 func TestRunClientsProcessesMoveOnSpawnedMap(t *testing.T) {
 	s := newStartMapDiagnosticsServer(t)
 
