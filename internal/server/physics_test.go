@@ -629,7 +629,7 @@ func TestPhysicsFreezeNonClientsCVar(t *testing.T) {
 	})
 }
 
-func TestPhysicsPanicsOnInvalidMoveType(t *testing.T) {
+func TestPhysicsSkipsInvalidMoveType(t *testing.T) {
 	s := newPhysicsTestServer()
 	bad := &Edict{Vars: &EntVars{}}
 	bad.Vars.MoveType = 999
@@ -637,8 +637,8 @@ func TestPhysicsPanicsOnInvalidMoveType(t *testing.T) {
 	s.NumEdicts = len(s.Edicts)
 
 	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("Physics() did not panic on invalid movetype")
+		if r := recover(); r != nil {
+			t.Fatalf("Physics() unexpectedly panicked on invalid movetype: %v", r)
 		}
 	}()
 

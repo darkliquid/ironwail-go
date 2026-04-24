@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log/slog"
 	"math"
 	"time"
@@ -162,7 +161,8 @@ func (s *Server) Physics() {
 			s.PhysicsWalk(ent)
 			phaseEnd(&physicsWalkMS)
 		default:
-			panic(fmt.Sprintf("SV_Physics: bad movetype %d", int(ent.Vars.MoveType)))
+			slog.Warn("server physics: bad movetype; skipping entity", "movetype", int(ent.Vars.MoveType), "edict", i)
+			continue
 		}
 
 		if clientForPostThink != nil && !ent.Free {
