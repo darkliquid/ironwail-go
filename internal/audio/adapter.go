@@ -44,7 +44,7 @@ func (a *AudioAdapter) Init() error {
 			slog.Error("failed to init audio at 48kHz, using null backend", "error", err2)
 			fallback := Backend(NewNullBackend())
 			if err3 := a.sys.Init(fallback, 44100, false); err3 != nil {
-				return err
+				return fmt.Errorf("init null audio backend: %w", err3)
 			}
 		} else {
 			slog.Info("audio initialized at 48kHz")
@@ -54,7 +54,7 @@ func (a *AudioAdapter) Init() error {
 	}
 
 	if err := a.sys.Startup(); err != nil {
-		return err
+		return fmt.Errorf("audio startup: %w", err)
 	}
 	if a.sys.dma != nil {
 		console.Printf("Audio: %d bit, stereo, %d Hz\n\n", a.sys.dma.SampleBits, a.sys.dma.Speed)
