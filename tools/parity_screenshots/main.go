@@ -383,7 +383,7 @@ func genReferenceCfg(dir string, vp viewpoint, width, height int) string {
 	if err != nil {
 		die("create temp cfg: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	preToggleWaits := waitLines(45)
 	postToggleWaits := waitLines(12)
 	preShotWaits := waitLines(4)
@@ -576,7 +576,7 @@ func imageSize(path string) (int, int, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	cfg, _, err := image.DecodeConfig(f)
 	if err != nil {
@@ -598,7 +598,7 @@ func normalizeImageSize(path string, targetWidth, targetHeight int) (bool, int, 
 	if err != nil {
 		return false, width, height, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	src, _, err := image.Decode(f)
 	if err != nil {
 		return false, width, height, err
@@ -610,7 +610,7 @@ func normalizeImageSize(path string, targetWidth, targetHeight int) (bool, int, 
 	if err != nil {
 		return false, width, height, err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	if err := png.Encode(out, resized); err != nil {
 		return false, width, height, err
 	}
@@ -897,7 +897,7 @@ func writePNG(path string, img image.Image) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return png.Encode(f, img)
 }
 

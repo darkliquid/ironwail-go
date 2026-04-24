@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -62,19 +63,28 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("close %s: %v", outPath, err)
+		}
+	}()
 
 	// Write dummy header first
 	hdr := wadHeader{
 		Magic:    [4]byte{'W', 'A', 'D', '2'},
 		NumLumps: uint32(len(lumps)),
 	}
-	binary.Write(f, binary.LittleEndian, &hdr)
+	if err := binary.Write(f, binary.LittleEndian, &hdr); err != nil {
+		log.Fatalf("write header: %v", err)
+	}
 
 	// Write lump data and collect directory entries
 	entries := make([]wadDirEntry, 0, len(lumps))
 	for name, data := range lumps {
-		offset, _ := f.Seek(0, 1)
+		offset, err := f.Seek(0, 1)
+		if err != nil {
+			log.Fatalf("seek: %v", err)
+		}
 
 		entry := wadDirEntry{
 			Offset: uint32(offset),
@@ -89,19 +99,30 @@ func main() {
 		copy(entry.Name[:], name)
 		entries = append(entries, entry)
 
-		f.Write(data)
+		if _, err := f.Write(data); err != nil {
+			log.Fatalf("write lump %s: %v", name, err)
+		}
 	}
 
 	// Write directory
-	dirOffset, _ := f.Seek(0, 1)
+	dirOffset, err := f.Seek(0, 1)
+	if err != nil {
+		log.Fatalf("seek dir: %v", err)
+	}
 	for _, entry := range entries {
-		binary.Write(f, binary.LittleEndian, &entry)
+		if err := binary.Write(f, binary.LittleEndian, &entry); err != nil {
+			log.Fatalf("write dir entry: %v", err)
+		}
 	}
 
 	// Update header with correct dir offset
-	f.Seek(0, 0)
+	if _, err := f.Seek(0, 0); err != nil {
+		log.Fatalf("seek header: %v", err)
+	}
 	hdr.DirOffset = uint32(dirOffset)
-	binary.Write(f, binary.LittleEndian, &hdr)
+	if err := binary.Write(f, binary.LittleEndian, &hdr); err != nil {
+		log.Fatalf("rewrite header: %v", err)
+	}
 
 	fmt.Printf("Successfully created %s with %d lumps\n", outPath, len(lumps))
 }

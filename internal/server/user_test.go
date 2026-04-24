@@ -616,7 +616,9 @@ func TestRunClientSpawnQCCallsClientConnectBeforePutClientInServer(t *testing.T)
 	vm.SetGInt(11, -2)
 	s.QCVM = vm
 
-	s.runClientSpawnQC(client)
+	if err := s.runClientSpawnQC(client); err != nil {
+		t.Fatalf("runClientSpawnQC failed: %v", err)
+	}
 
 	if len(order) != 2 || order[0] != "ClientConnect" || order[1] != "PutClientInServer" {
 		t.Fatalf("spawn QC order = %v, want [ClientConnect PutClientInServer]", order)

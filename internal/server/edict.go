@@ -51,6 +51,7 @@ package server
 import (
 	"fmt"
 	"hash/fnv"
+	"log/slog"
 	"reflect"
 	"strconv"
 	"strings"
@@ -420,7 +421,9 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 			// Done with this entity
 			if !hasData {
 				// Empty entity - not valid
-				em.ED_Free(entNum)
+				if err := em.ED_Free(entNum); err != nil {
+					slog.Warn("server: failed to free empty edict", "entNum", entNum, "err", err)
+				}
 			}
 			return data[pos+1:], nil
 		}

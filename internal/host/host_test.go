@@ -470,7 +470,7 @@ func TestHostFrame(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	cb := &mockCallbacks{}
@@ -547,7 +547,7 @@ func TestHostCommands(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 
 	h.CmdSkill(2)
 	if h.CurrentSkill() != 2 {

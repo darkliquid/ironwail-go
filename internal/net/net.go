@@ -95,7 +95,7 @@ func (n *Network) Shutdown() {
 		if sock == nil || sock.udpConn == nil {
 			continue
 		}
-		UDPCloseSocket(sock.udpConn)
+		_ = UDPCloseSocket(sock.udpConn)
 		sock.udpConn = nil
 	}
 	n.accepted = nil
@@ -125,7 +125,9 @@ func Shutdown() {
 func (n *Network) Connect(host string) *Socket {
 	if host == "local" || host == "localhost" {
 		l := NewLoopback()
-		l.Init()
+		if err := l.Init(); err != nil {
+			return nil
+		}
 		sock := l.Connect()
 		sock.driver = DriverLoopback
 		return sock
@@ -215,7 +217,7 @@ func (n *Network) Close(sock *Socket) {
 		CloseLoopback(sock)
 	} else {
 		n.untrackAcceptedServerSocket(sock)
-		UDPCloseSocket(sock.udpConn)
+		_ = UDPCloseSocket(sock.udpConn)
 	}
 }
 

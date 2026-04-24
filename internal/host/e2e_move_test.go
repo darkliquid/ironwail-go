@@ -96,7 +96,7 @@ func TestE2ELoopbackMovement(t *testing.T) {
 		srv.Static.Clients[0].LastCmd.ForwardMove, srv.Static.Clients[0].LastCmd.SideMove,
 		srv.Static.Clients[0].LastCmd.ViewAngles)
 
-	srv.Frame(0.1)
+	_ = srv.Frame(0.1)
 	t.Logf("Server entity after Frame: Origin=%v Velocity=%v",
 		serverEnt.Vars.Origin, serverEnt.Vars.Velocity)
 
@@ -149,7 +149,7 @@ func TestE2EHostFrameMovement(t *testing.T) {
 		},
 		processServer: func() {
 			dt := h.FrameTime()
-			srv.Frame(dt)
+			_ = srv.Frame(dt)
 		},
 	}
 

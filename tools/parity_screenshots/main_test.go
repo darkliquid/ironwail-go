@@ -157,7 +157,7 @@ func TestMoveFirstMatchFindsScreenshotInDirectory(t *testing.T) {
 		t.Fatalf("create source image: %v", err)
 	}
 	if err := png.Encode(f, img); err != nil {
-		f.Close()
+		_ = f.Close()
 		t.Fatalf("encode source image: %v", err)
 	}
 	if err := f.Close(); err != nil {
@@ -199,7 +199,7 @@ func TestNormalizeImageSizeResizesMismatchedImage(t *testing.T) {
 		t.Fatalf("create image: %v", err)
 	}
 	if err := png.Encode(f, src); err != nil {
-		f.Close()
+		_ = f.Close()
 		t.Fatalf("encode image: %v", err)
 	}
 	if err := f.Close(); err != nil {
@@ -221,7 +221,7 @@ func TestNormalizeImageSizeResizesMismatchedImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open normalized image: %v", err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	got, _, err := image.Decode(in)
 	if err != nil {
 		t.Fatalf("decode normalized image: %v", err)
@@ -243,7 +243,7 @@ func TestResolveGoCaptureSizeUsesReferenceImageDimensions(t *testing.T) {
 		t.Fatalf("create reference image: %v", err)
 	}
 	if err := png.Encode(f, ref); err != nil {
-		f.Close()
+		_ = f.Close()
 		t.Fatalf("encode reference image: %v", err)
 	}
 	if err := f.Close(); err != nil {

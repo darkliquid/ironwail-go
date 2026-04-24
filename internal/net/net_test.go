@@ -14,7 +14,7 @@ import (
 )
 
 func TestUDPConnection(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26001 // Use a different port for testing
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -98,7 +98,7 @@ func TestUDPConnection(t *testing.T) {
 }
 
 func TestUDPRejectsBannedConnection(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26007
 	if err := defaultNet.SetIPBan("127.0.0.1", ""); err != nil {
 		t.Fatalf("SetIPBan failed: %v", err)
@@ -121,7 +121,7 @@ func TestUDPRejectsBannedConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open client udp socket: %v", err)
 	}
-	defer UDPCloseSocket(clientConn)
+	defer func() { _ = UDPCloseSocket(clientConn) }()
 
 	serverAddr, err := UDPStringToAddr("127.0.0.1:26007")
 	if err != nil {
@@ -142,18 +142,18 @@ func TestUDPRejectsBannedConnection(t *testing.T) {
 	if defaultNet.acceptSocket == nil {
 		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_ = defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	if sock := defaultNet.CheckNewConnections(); sock != nil {
-		defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+		_ = defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 		defaultNet.Close(sock)
 		t.Fatal("server should reject banned connection before accept")
 	}
-	defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+	_ = defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 
 	resp := make([]byte, 1024)
-	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, _, err := UDPRead(clientConn, resp)
-	clientConn.SetReadDeadline(time.Time{})
+	_ = clientConn.SetReadDeadline(time.Time{})
 	if err != nil {
 		t.Fatalf("failed to read reject response: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestUDPRejectsBannedConnection(t *testing.T) {
 }
 
 func TestUDPUnreliable(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26002
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -252,7 +252,7 @@ func TestServerInfoHostnameFallback(t *testing.T) {
 }
 
 func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26008
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -273,7 +273,7 @@ func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open client udp socket: %v", err)
 	}
-	defer UDPCloseSocket(clientConn)
+	defer func() { _ = UDPCloseSocket(clientConn) }()
 
 	serverAddr, err := UDPStringToAddr("127.0.0.1:26008")
 	if err != nil {
@@ -288,18 +288,18 @@ func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
 	if defaultNet.acceptSocket == nil {
 		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_ = defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	if sock := defaultNet.CheckNewConnections(); sock != nil {
-		defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+		_ = defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 		defaultNet.Close(sock)
 		t.Fatal("rule info request should not create an accepted socket")
 	}
-	defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+	_ = defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 
 	resp := make([]byte, 1024)
-	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, _, err := UDPRead(clientConn, resp)
-	clientConn.SetReadDeadline(time.Time{})
+	_ = clientConn.SetReadDeadline(time.Time{})
 	if err != nil {
 		t.Fatalf("failed to read rule info response: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestUDPRespondsToRuleInfoRequests(t *testing.T) {
 }
 
 func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26009
 	playerProvider := &ServerInfoProvider{
 		PlayerInfo: func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool) {
@@ -342,7 +342,7 @@ func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open client udp socket: %v", err)
 	}
-	defer UDPCloseSocket(clientConn)
+	defer func() { _ = UDPCloseSocket(clientConn) }()
 
 	serverAddr, err := UDPStringToAddr("127.0.0.1:26009")
 	if err != nil {
@@ -357,18 +357,18 @@ func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
 	if defaultNet.acceptSocket == nil {
 		t.Fatal("accept socket should be open while defaultNet.listening")
 	}
-	defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	_ = defaultNet.acceptSocket.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	if sock := defaultNet.CheckNewConnections(); sock != nil {
-		defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+		_ = defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 		defaultNet.Close(sock)
 		t.Fatal("player info request should not create an accepted socket")
 	}
-	defaultNet.acceptSocket.SetReadDeadline(time.Time{})
+	_ = defaultNet.acceptSocket.SetReadDeadline(time.Time{})
 
 	resp := make([]byte, 1024)
-	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, _, err := UDPRead(clientConn, resp)
-	clientConn.SetReadDeadline(time.Time{})
+	_ = clientConn.SetReadDeadline(time.Time{})
 	if err != nil {
 		t.Fatalf("failed to read player info response: %v", err)
 	}
@@ -382,7 +382,7 @@ func TestUDPRespondsToPlayerInfoRequests(t *testing.T) {
 }
 
 func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26003
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -460,31 +460,31 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	}
 
 	for i := 0; i < 20; i++ {
-		serverForB.udpConn.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
+		_ = serverForB.udpConn.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
 		msgType, _ := defaultNet.GetMessage(serverForB)
 		if msgType != 0 {
 			t.Fatalf("server socket for client B received unexpected message type %d", msgType)
 		}
 	}
-	serverForB.udpConn.SetReadDeadline(time.Time{})
+	_ = serverForB.udpConn.SetReadDeadline(time.Time{})
 
 	var gotType int
 	var gotData []byte
 	for i := 0; i < 100; i++ {
-		serverForA.udpConn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		_ = serverForA.udpConn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
 		gotType, gotData = defaultNet.GetMessage(serverForA)
 		if gotType != 0 {
 			break
 		}
 	}
-	serverForA.udpConn.SetReadDeadline(time.Time{})
+	_ = serverForA.udpConn.SetReadDeadline(time.Time{})
 	if gotType != 1 || string(gotData) != "for-client-a" {
 		t.Fatalf("server socket for client A got type=%d data=%q, want type=1 data=%q", gotType, string(gotData), "for-client-a")
 	}
 }
 
 func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26006
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -530,7 +530,7 @@ func TestShutdownClosesAcceptAndAcceptedSockets(t *testing.T) {
 }
 
 func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26004
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -550,7 +550,7 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open client udp socket: %v", err)
 	}
-	defer UDPCloseSocket(clientConn)
+	defer func() { _ = UDPCloseSocket(clientConn) }()
 
 	serverAddr, err := UDPStringToAddr("127.0.0.1:26004")
 	if err != nil {
@@ -582,9 +582,9 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 	defer defaultNet.Close(serverSock)
 
 	resp := make([]byte, 1024)
-	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, _, err := UDPRead(clientConn, resp)
-	clientConn.SetReadDeadline(time.Time{})
+	_ = clientConn.SetReadDeadline(time.Time{})
 	if err != nil {
 		t.Fatalf("failed to read accept response: %v", err)
 	}
@@ -607,7 +607,7 @@ func TestCCRepAcceptReportsPerClientSocketPort(t *testing.T) {
 }
 
 func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	defaultNet.hostPort = 26005
 	if err := defaultNet.Listen(true); err != nil {
 		t.Fatalf("defaultNet.Listen(true) failed: %v", err)
@@ -622,7 +622,7 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open client udp socket: %v", err)
 	}
-	defer UDPCloseSocket(clientConn)
+	defer func() { _ = UDPCloseSocket(clientConn) }()
 
 	serverAddr, err := UDPStringToAddr("127.0.0.1:26005")
 	if err != nil {
@@ -680,14 +680,14 @@ func TestDuplicateConnectClosesOldServerSocket(t *testing.T) {
 }
 
 func TestListenEnableFailureReturnsErrorAndLeavesClosed(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 
 	blocker, err := UDPOpenSocket(0)
 	if err != nil {
 		t.Fatalf("failed to open blocker socket: %v", err)
 	}
 	blockerPort := blocker.LocalAddr().(*stdnet.UDPAddr).Port
-	defer UDPCloseSocket(blocker)
+	defer func() { _ = UDPCloseSocket(blocker) }()
 
 	defaultNet.hostPort = blockerPort
 	if err := defaultNet.Listen(true); err == nil {
@@ -796,7 +796,7 @@ func TestSetHostPortValidationAndHostPortAccessor(t *testing.T) {
 }
 
 func TestIsListeningTracksListenState(t *testing.T) {
-	defaultNet.Init()
+	_ = defaultNet.Init()
 	port := defaultNet.hostPort + 20
 	defaultNet.SetHostPort(port)
 	_ = defaultNet.Listen(false)

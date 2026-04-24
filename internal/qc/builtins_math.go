@@ -191,7 +191,7 @@ func sqrtBuiltin(vm *VM) {
 func stofBuiltin(vm *VM) {
 	s := vm.GString(OFSParm0)
 	var f float64
-	fmt.Sscanf(s, "%f", &f)
+	_, _ = fmt.Sscanf(s, "%f", &f)
 	vm.SetGFloat(OFSReturn, float32(f))
 }
 

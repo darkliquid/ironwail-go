@@ -141,7 +141,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	err = queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:])
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to update uniform buffer", "error", err)
-		renderPass.End()
+		_ = renderPass.End()
 		return
 	}
 
@@ -169,19 +169,19 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	if dc.renderer.worldDynamicLightsBindGroup == nil || dc.renderer.worldDynamicLightsBuffer == nil {
 		slog.Warn("renderWorldInternal: no dynamic light bind group available")
-		renderPass.End()
+		_ = renderPass.End()
 		return
 	}
 	if err := queue.WriteBuffer(dc.renderer.worldDynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
 		slog.Error("renderWorldInternal: Failed to upload dynamic lights", "error", err)
-		renderPass.End()
+		_ = renderPass.End()
 		return
 	}
 	renderPass.SetBindGroup(4, dc.renderer.worldDynamicLightsBindGroup, nil)
 
 	if dc.renderer.whiteTextureBindGroup == nil || dc.renderer.whiteLightmapBindGroup == nil {
 		slog.Warn("renderWorldInternal: no world texture/lightmap bind group available")
-		renderPass.End()
+		_ = renderPass.End()
 		return
 	}
 	timeSeconds := float64(camera.Time)
@@ -311,12 +311,12 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		opaqueBatchBuffer, err = dc.renderer.ensureGoGPUWorldDynamicIndexBuffer(device, uint64(len(batchedIndices))*4)
 		if err != nil {
 			slog.Error("renderWorldInternal: Failed to allocate batched world index buffer", "error", err)
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		if err := queue.WriteBuffer(opaqueBatchBuffer, 0, uint32SliceToBytes(batchedIndices)); err != nil {
 			slog.Error("renderWorldInternal: Failed to upload batched world indices", "error", err)
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		batchUploadMS = float64(time.Since(batchUploadStart)) / float64(time.Millisecond)
@@ -328,7 +328,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
 		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
@@ -340,7 +340,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	} else if dc.renderer.worldSkyPipeline != nil {
 		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		renderPass.SetPipeline(dc.renderer.worldSkyPipeline)
@@ -378,7 +378,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	if !writeWorldUniform(1, 0) {
 		slog.Error("renderWorldInternal: Failed to restore world fog uniform after sky pass")
-		renderPass.End()
+		_ = renderPass.End()
 		return
 	}
 
@@ -394,7 +394,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	for _, batch := range opaqueBatches {
 		if !writeWorldUniform(1, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update world dynamic-light uniform")
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
@@ -413,7 +413,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	for _, batch := range alphaTestBatches {
 		if !writeWorldUniform(1, batch.key.litWater) {
 			slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
@@ -435,7 +435,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		for _, batch := range opaqueLiquidBatches {
 			if !writeWorldUniform(1, batch.key.litWater) {
 				slog.Error("renderWorldInternal: Failed to update liquid lighting uniform")
-				renderPass.End()
+				_ = renderPass.End()
 				return
 			}
 			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)

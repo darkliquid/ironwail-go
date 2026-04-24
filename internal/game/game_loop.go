@@ -463,7 +463,9 @@ func (g *Game) drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 
 func (g *Game) RunRuntimeFrame(dt float64, cb gameCallbacks) cl.TransientEvents {
 	if g.Host != nil {
-		g.Host.Frame(dt, cb)
+		if err := g.Host.Frame(dt, cb); err != nil {
+			slog.Warn("game: host frame error", "err", err)
+		}
 	}
 	g.syncControlCvarsToClient()
 	if g.Client != nil {
@@ -565,7 +567,11 @@ func (g *Game) CaptureScreenshot(sspath, _, _ string) error {
 	if err != nil {
 		return fmt.Errorf("create screenshot file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("game: failed to close screenshot file", "path", sspath, "err", err)
+		}
+	}()
 
 	if err := png.Encode(f, soft.Image()); err != nil {
 		return fmt.Errorf("encode PNG: %w", err)

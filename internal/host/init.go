@@ -599,7 +599,7 @@ func LoadArchivedCvars(cv *cvar.CVarSystem, userDir string, names []string) erro
 		configPath := filepath.Join(userDir, name)
 		f, err := os.Open(configPath)
 		if err == nil {
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
 				line := strings.TrimSpace(scanner.Text())
@@ -723,7 +723,11 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("host: failed to close config file", "path", configPath, "err", err)
+		}
+	}()
 
 	wroteBindings := false
 	if subs != nil && subs.Input != nil {
@@ -737,7 +741,9 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 			if keyName == "" {
 				keyName = strconv.Itoa(key)
 			}
-			fmt.Fprintf(f, "bind \"%s\" \"%s\"\n", escapeConfigQuotedString(keyName), escapeConfigQuotedString(binding))
+			if _, err := fmt.Fprintf(f, "bind \"%s\" \"%s\"\n", escapeConfigQuotedString(keyName), escapeConfigQuotedString(binding)); err != nil {
+				return fmt.Errorf("failed to write binding: %w", err)
+			}
 		}
 	}
 
@@ -746,10 +752,14 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 		archivedVars = h.CVar.ArchiveVars()
 	}
 	if wroteBindings && len(archivedVars) > 0 {
-		fmt.Fprintln(f)
+		if _, err := fmt.Fprintln(f); err != nil {
+			return fmt.Errorf("failed to write config separator: %w", err)
+		}
 	}
 	for _, line := range archivedVars {
-		fmt.Fprintf(f, "%s\n", line)
+		if _, err := fmt.Fprintf(f, "%s\n", line); err != nil {
+			return fmt.Errorf("failed to write archived cvar: %w", err)
+		}
 	}
 	if _, err := fmt.Fprintln(f, "vid_restart"); err != nil {
 		return fmt.Errorf("failed to write vid_restart state: %w", err)

@@ -382,7 +382,7 @@ func (h *Host) CmdGive(item, value string, subs *Subsystems) {
 	}
 
 	val := float32(0)
-	fmt.Sscanf(value, "%f", &val)
+	_, _ = fmt.Sscanf(value, "%f", &val)
 	if val <= 0 {
 		val = 100
 	}

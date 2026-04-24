@@ -5,6 +5,7 @@ package host
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
@@ -72,13 +73,18 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 	h.replaceCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
 	h.replaceCommand("map", func(args []string) {
 		if len(args) > 0 {
-			h.CmdMapWithSpawnArgs(args[0], args[1:], subs)
+			if err := h.CmdMapWithSpawnArgs(args[0], args[1:], subs); err != nil {
+				slog.Warn("host: map command failed", "map", args[0], "err", err)
+			}
 		}
 	}, "Start a new map")
 	h.replaceCommand("skill", func(args []string) {
 		if len(args) > 0 {
 			var skill int
-			fmt.Sscanf(args[0], "%d", &skill)
+			if _, err := fmt.Sscanf(args[0], "%d", &skill); err != nil {
+				slog.Warn("host: invalid skill value", "arg", args[0], "err", err)
+				return
+			}
 			h.CmdSkill(skill)
 		}
 	}, "Set game skill level (0-3)")

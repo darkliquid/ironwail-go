@@ -119,7 +119,7 @@ func TestSendMovePacking(t *testing.T) {
 
 	// Read time
 	var timeVal float32
-	binary.Read(buf, binary.LittleEndian, &timeVal)
+	_ = binary.Read(buf, binary.LittleEndian, &timeVal)
 	if math.Abs(float64(timeVal-1.234)) > 0.001 {
 		t.Fatalf("time = %f, want 1.234", timeVal)
 	}
@@ -146,9 +146,9 @@ func TestSendMovePacking(t *testing.T) {
 
 	// Read movement
 	var forward, side, up int16
-	binary.Read(buf, binary.LittleEndian, &forward)
-	binary.Read(buf, binary.LittleEndian, &side)
-	binary.Read(buf, binary.LittleEndian, &up)
+	_ = binary.Read(buf, binary.LittleEndian, &forward)
+	_ = binary.Read(buf, binary.LittleEndian, &side)
+	_ = binary.Read(buf, binary.LittleEndian, &up)
 
 	if forward != 200 {
 		t.Fatalf("forward = %d, want 200", forward)
@@ -227,17 +227,17 @@ func TestSendCmdDuringSignOn(t *testing.T) {
 	// Should send empty move (no movement values)
 	// Parse and verify it's mostly zeros except angles
 	buf := bytes.NewBuffer(sentData)
-	buf.ReadByte() // opcode
+	_, _ = buf.ReadByte() // opcode
 	var timeVal float32
-	binary.Read(buf, binary.LittleEndian, &timeVal)
-	buf.ReadByte() // angle 0
-	buf.ReadByte() // angle 1
-	buf.ReadByte() // angle 2
+	_ = binary.Read(buf, binary.LittleEndian, &timeVal)
+	_, _ = buf.ReadByte() // angle 0
+	_, _ = buf.ReadByte() // angle 1
+	_, _ = buf.ReadByte() // angle 2
 
 	var forward, side, up int16
-	binary.Read(buf, binary.LittleEndian, &forward)
-	binary.Read(buf, binary.LittleEndian, &side)
-	binary.Read(buf, binary.LittleEndian, &up)
+	_ = binary.Read(buf, binary.LittleEndian, &forward)
+	_ = binary.Read(buf, binary.LittleEndian, &side)
+	_ = binary.Read(buf, binary.LittleEndian, &up)
 
 	if forward != 0 || side != 0 || up != 0 {
 		t.Fatalf("movement during signon = (%d,%d,%d), want (0,0,0)", forward, side, up)
@@ -284,17 +284,17 @@ func TestSendCmdAfterSignOn(t *testing.T) {
 
 	// Verify real command was sent
 	buf := bytes.NewBuffer(sentData)
-	buf.ReadByte() // opcode
+	_, _ = buf.ReadByte() // opcode
 	var timeVal float32
-	binary.Read(buf, binary.LittleEndian, &timeVal)
-	buf.ReadByte() // angles
-	buf.ReadByte()
-	buf.ReadByte()
+	_ = binary.Read(buf, binary.LittleEndian, &timeVal)
+	_, _ = buf.ReadByte() // angles
+	_, _ = buf.ReadByte()
+	_, _ = buf.ReadByte()
 
 	var forward, side, up int16
-	binary.Read(buf, binary.LittleEndian, &forward)
-	binary.Read(buf, binary.LittleEndian, &side)
-	binary.Read(buf, binary.LittleEndian, &up)
+	_ = binary.Read(buf, binary.LittleEndian, &forward)
+	_ = binary.Read(buf, binary.LittleEndian, &side)
+	_ = binary.Read(buf, binary.LittleEndian, &up)
 
 	if forward != 300 {
 		t.Fatalf("forward = %d, want 300", forward)

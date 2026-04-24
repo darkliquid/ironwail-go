@@ -342,7 +342,7 @@ func DatagramGetMessage(sock *Socket) (int, []byte) {
 			ackBuf := make([]byte, HeaderSize)
 			binary.BigEndian.PutUint32(ackBuf[0:], uint32(HeaderSize)|FlagAck)
 			binary.BigEndian.PutUint32(ackBuf[4:], sequence)
-			UDPWrite(sock.udpConn, ackBuf, addr)
+			_, _ = UDPWrite(sock.udpConn, ackBuf, addr)
 
 			if sequence != sock.recvSequence {
 				continue
@@ -439,11 +439,11 @@ func (n *Network) DatagramConnect(host string) *Socket {
 
 	for i := 0; i < maxRetries; i++ {
 		if _, err := UDPWrite(conn, buf[:16], addr); err != nil {
-			UDPCloseSocket(conn)
+			_ = UDPCloseSocket(conn)
 			return nil
 		}
 
-		conn.SetReadDeadline(time.Now().Add(timeout))
+		_ = conn.SetReadDeadline(time.Now().Add(timeout))
 		n, recvAddr, err := UDPRead(conn, buf)
 		if err == nil && n >= HeaderSize+1 {
 			// Check if it's from the same server
@@ -452,7 +452,7 @@ func (n *Network) DatagramConnect(host string) *Socket {
 				if cmd == CCRepAccept {
 					newPort := int(binary.LittleEndian.Uint32(buf[9:]))
 					sock.remoteAddr.Port = newPort
-					conn.SetReadDeadline(time.Time{}) // Reset deadline
+					_ = conn.SetReadDeadline(time.Time{}) // Reset deadline
 					return sock
 				}
 				if cmd == CCRepReject {
@@ -468,7 +468,7 @@ func (n *Network) DatagramConnect(host string) *Socket {
 		// On timeout or wrong packet, retry or continue to failure
 	}
 
-	UDPCloseSocket(conn)
+	_ = UDPCloseSocket(conn)
 	return nil
 }
 
@@ -571,7 +571,7 @@ func (n *Network) DatagramCheckNewConnections() *Socket {
 			binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 			resp[8] = CCRepReject
 			copy(resp[9:], "You have been banned.\n")
-			UDPWrite(n.acceptSocket, resp, addr)
+			_, _ = UDPWrite(n.acceptSocket, resp, addr)
 			return nil
 		}
 
@@ -596,7 +596,7 @@ func (n *Network) DatagramCheckNewConnections() *Socket {
 		binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 		resp[8] = CCRepAccept
 		binary.LittleEndian.PutUint32(resp[9:], uint32(newPort))
-		UDPWrite(n.acceptSocket, resp, addr)
+		_, _ = UDPWrite(n.acceptSocket, resp, addr)
 
 		sock := NewSocket(addr.String())
 		sock.driver = DriverDatagram
@@ -681,7 +681,7 @@ func (n *Network) sendServerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPA
 	binary.BigEndian.PutUint32(resp[0:], uint32(HeaderSize+len(payload))|FlagCtl)
 	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 	copy(resp[HeaderSize:], payload)
-	UDPWrite(conn, resp, addr)
+	_, _ = UDPWrite(conn, resp, addr)
 }
 
 func (n *Network) sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, previous string) {
@@ -698,7 +698,7 @@ func (n *Network) sendRuleInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAdd
 	binary.BigEndian.PutUint32(resp[0:], uint32(len(resp))|FlagCtl)
 	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 	copy(resp[HeaderSize:], payload)
-	UDPWrite(conn, resp, addr)
+	_, _ = UDPWrite(conn, resp, addr)
 }
 
 func (n *Network) sendPlayerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPAddr, index int) {
@@ -728,5 +728,5 @@ func (n *Network) sendPlayerInfoResponse(conn *stdnet.UDPConn, addr *stdnet.UDPA
 	binary.BigEndian.PutUint32(resp[0:], uint32(len(resp))|FlagCtl)
 	binary.BigEndian.PutUint32(resp[4:], 0xffffffff)
 	copy(resp[HeaderSize:], payload)
-	UDPWrite(conn, resp, addr)
+	_, _ = UDPWrite(conn, resp, addr)
 }

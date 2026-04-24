@@ -23,7 +23,7 @@ func TestNetworkSendServerInfoResponseIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open client socket: %v", err)
 	}
-	defer UDPCloseSocket(clientConn)
+	defer func() { _ = UDPCloseSocket(clientConn) }()
 	clientAddr := clientConn.LocalAddr().(*stdnet.UDPAddr)
 
 	// Separate "server" sockets for each Network. In production these
@@ -33,12 +33,12 @@ func TestNetworkSendServerInfoResponseIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open server A socket: %v", err)
 	}
-	defer UDPCloseSocket(serverConnA)
+	defer func() { _ = UDPCloseSocket(serverConnA) }()
 	serverConnB, err := UDPOpenSocket(0)
 	if err != nil {
 		t.Fatalf("open server B socket: %v", err)
 	}
-	defer UDPCloseSocket(serverConnB)
+	defer func() { _ = UDPCloseSocket(serverConnB) }()
 
 	netA := NewNetwork()
 	netA.SetServerInfoProvider(&ServerInfoProvider{
@@ -66,8 +66,8 @@ func TestNetworkSendServerInfoResponseIsolation(t *testing.T) {
 	netB.sendServerInfoResponse(serverConnB, clientAddr)
 
 	got := make(map[int][]byte, 2) // key = sender's source port
-	clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	defer clientConn.SetReadDeadline(time.Time{})
+	_ = clientConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	defer func() { _ = clientConn.SetReadDeadline(time.Time{}) }()
 	for i := 0; i < 2; i++ {
 		buf := make([]byte, 1024)
 		n, src, err := UDPRead(clientConn, buf)

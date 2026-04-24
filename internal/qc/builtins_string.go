@@ -73,7 +73,7 @@ func stovBuiltin(vm *VM) {
 	// Strip surrounding quotes/apostrophes that QuakeC vectors use.
 	s = strings.Trim(s, "' \"")
 	var v [3]float32
-	fmt.Sscanf(s, "%f %f %f", &v[0], &v[1], &v[2])
+	_, _ = fmt.Sscanf(s, "%f %f %f", &v[0], &v[1], &v[2])
 	vm.SetGVector(OFSReturn, v)
 }
 

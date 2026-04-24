@@ -169,7 +169,7 @@ func (sb *ServerBrowser) run() {
 		slog.Error("slist: failed to open socket", "err", err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	query := buildServerInfoQuery()
 
@@ -193,7 +193,7 @@ func (sb *ServerBrowser) run() {
 		default:
 		}
 
-		conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+		_ = conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
 		n, addr, err := conn.ReadFrom(buf)
 		if err != nil {
 			continue
@@ -235,7 +235,7 @@ func (sb *ServerBrowser) broadcast(conn stdnet.PacketConn, query []byte) {
 		}
 		slistDebug("broadcast", "dst=%s bytes=%d fallback=localhost err=%v",
 			localhost.String(), len(query), err)
-		conn.WriteTo(query, localhost)
+		_, _ = conn.WriteTo(query, localhost)
 	}
 }
 
@@ -426,7 +426,7 @@ func (n *Network) QueryServerRules(address string) ([]RuleInfoEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var rules []RuleInfoEntry
 	previous := ""
@@ -476,7 +476,7 @@ func (n *Network) QueryServerPlayers(address string) ([]PlayerInfoEntry, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var players []PlayerInfoEntry
 	buf := make([]byte, 1024)

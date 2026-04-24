@@ -156,7 +156,7 @@ func (dc *DrawContext) renderWorldTranslucentLiquidsHAL(state *RenderFrameState)
 	for _, draw := range translucentFaces {
 		lightmapBindGroup, litWater := gogpuWorldLightmapBindGroupForFace(draw.face, worldLightmapPages, whiteLightmapBindGroup, worldHasLitWater)
 		if !writeWorldUniform(draw.alpha, litWater) {
-			renderPass.End()
+			_ = renderPass.End()
 			return
 		}
 		textureBindGroup := whiteTextureBindGroup

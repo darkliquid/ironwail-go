@@ -5,6 +5,7 @@ package host
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -363,7 +364,9 @@ func (h *Host) CmdRestart(subs *Subsystems) {
 	}) {
 		return
 	}
-	h.CmdMap(subs.Server.GetMapName(), subs)
+	if err := h.CmdMap(subs.Server.GetMapName(), subs); err != nil {
+		slog.Warn("host: restart map failed", "err", err)
+	}
 }
 
 func (h *Host) CmdChangelevel(level string, subs *Subsystems) {

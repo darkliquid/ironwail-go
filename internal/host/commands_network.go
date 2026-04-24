@@ -5,6 +5,7 @@ package host
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -267,21 +268,27 @@ func (h *Host) CmdSay(message string, subs *Subsystems) {
 	if subs.Client == nil || message == "" {
 		return
 	}
-	subs.Client.SendStringCmd(fmt.Sprintf("say %s", message))
+	if err := subs.Client.SendStringCmd(fmt.Sprintf("say %s", message)); err != nil {
+		slog.Warn("host: say failed", "err", err)
+	}
 }
 
 func (h *Host) CmdSayTeam(message string, subs *Subsystems) {
 	if subs.Client == nil || message == "" {
 		return
 	}
-	subs.Client.SendStringCmd(fmt.Sprintf("say_team %s", message))
+	if err := subs.Client.SendStringCmd(fmt.Sprintf("say_team %s", message)); err != nil {
+		slog.Warn("host: say_team failed", "err", err)
+	}
 }
 
 func (h *Host) CmdTell(args []string, subs *Subsystems) {
 	if subs.Client == nil || len(args) < 2 {
 		return
 	}
-	subs.Client.SendStringCmd(fmt.Sprintf("tell %s", strings.Join(args, " ")))
+	if err := subs.Client.SendStringCmd(fmt.Sprintf("tell %s", strings.Join(args, " "))); err != nil {
+		slog.Warn("host: tell failed", "err", err)
+	}
 }
 
 func (h *Host) CmdServerInfo(subs *Subsystems) {
@@ -570,11 +577,17 @@ func (h *Host) CmdColor(args []string, subs *Subsystems) {
 	}
 
 	var top, bottom int
-	fmt.Sscanf(args[0], "%d", &top)
+	if _, err := fmt.Sscanf(args[0], "%d", &top); err != nil {
+		slog.Warn("host: invalid color top", "arg", args[0], "err", err)
+		return
+	}
 	if len(args) == 1 {
 		bottom = top
 	} else {
-		fmt.Sscanf(args[1], "%d", &bottom)
+		if _, err := fmt.Sscanf(args[1], "%d", &bottom); err != nil {
+			slog.Warn("host: invalid color bottom", "arg", args[1], "err", err)
+			return
+		}
 	}
 	top = clampClientColor(top)
 	bottom = clampClientColor(bottom)

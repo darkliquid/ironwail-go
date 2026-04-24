@@ -16,7 +16,7 @@ func decodeMusicFLAC(name string, data []byte) (*musicTrack, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode FLAC track %s: %w", name, err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	info := stream.Info
 	if info.SampleRate == 0 {

@@ -21,7 +21,7 @@ func TestDemoRecordingOpenClose(t *testing.T) {
 	demoDir := "demos"
 	testFile := "test_record"
 	defer func() {
-		os.RemoveAll(demoDir)
+		_ = os.RemoveAll(demoDir)
 	}()
 
 	demo := NewDemoState()
@@ -64,14 +64,14 @@ func TestDemoRecordingOpenClose(t *testing.T) {
 // Why: Prevents accidental overwriting of ongoing recordings or internal state corruption.
 // Where in C: cl_demo.c, CL_BeginRecord_f.
 func TestDemoRecordingAlreadyRecording(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 
 	if err := demo.StartDemoRecording("test1", 0); err != nil {
 		t.Fatalf("First StartDemoRecording failed: %v", err)
 	}
-	defer demo.StopRecording()
+	defer func() { _ = demo.StopRecording() }()
 
 	// Try to start recording again
 	if err := demo.StartDemoRecording("test2", 0); err == nil {
@@ -90,7 +90,7 @@ func TestStartDemoRecordingRejectsParentTraversal(t *testing.T) {
 // Why: Demos must preserve the exact state of server messages for accurate playback.
 // Where in C: cl_demo.c, CL_WriteDemoMessage, CL_ReadDemoMessage.
 func TestDemoFrameRoundTrip(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	// Test data: 10 frames with known data
 	testFrames := []struct {
@@ -167,7 +167,7 @@ func TestDemoFrameRoundTrip(t *testing.T) {
 // Why: Prevents the engine from attempting to play incompatible or corrupted demo files.
 // Where in C: cl_demo.c, CL_OpenDemo.
 func TestDemoHeaderValidation(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 
@@ -230,7 +230,7 @@ func TestDemoHeaderValidation(t *testing.T) {
 // Why: Ensures temporal consistency during demo playback.
 // Where in C: cl_demo.c, CL_ReadDemoMessage.
 func TestDemoPlaybackSequence(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	// Create a demo with a sequence of messages that simulate a game session
 	demo := NewDemoState()
@@ -286,7 +286,7 @@ func TestDemoPlaybackSequence(t *testing.T) {
 // Why: Essential for user-friendly demo navigation such as fast-forwarding or rewinding.
 // Where in C: cl_demo.c.
 func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("seek_test", 0); err != nil {
@@ -306,7 +306,7 @@ func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
 	if err := demo.StartDemoPlayback("seek_test"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	for i := 0; i < 4; i++ {
 		if _, _, err := demo.ReadDemoFrame(); err != nil {
@@ -333,7 +333,7 @@ func TestDemoSeekFrameReplaysFromOffset(t *testing.T) {
 // Why: Large demo files require an index for efficient random-access seeking.
 // Where in C: cl_demo.c.
 func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("indexed_seek", 0); err != nil {
@@ -353,7 +353,7 @@ func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
 	if err := demo.StartDemoPlayback("indexed_seek"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	if got := len(demo.Frames); got != 3 {
 		t.Fatalf("indexed frame count = %d, want 3", got)
@@ -377,7 +377,7 @@ func TestDemoPlaybackIndexesFramesAtStart(t *testing.T) {
 // Why: Signals the playback system to stop when the recorded session ends.
 // Where in C: cl_demo.c, CL_Stop_f.
 func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("disconnect_trailer", 0); err != nil {
@@ -395,7 +395,7 @@ func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 	if err := demo.StartDemoPlayback("disconnect_trailer"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	message, angles, err := demo.ReadDemoFrame()
 	if err != nil {
@@ -413,7 +413,7 @@ func TestWriteDisconnectTrailerRoundTrip(t *testing.T) {
 // Why: Allows a demo to be played back from the beginning by reconstructing the initial environment (models, sounds, player state).
 // Where in C: cl_demo.c, CL_BeginRecord_f.
 func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	source := NewClient()
 	source.State = StateActive
@@ -469,7 +469,7 @@ func TestWriteInitialStateSnapshotRoundTrip(t *testing.T) {
 	if err := demo.StartDemoPlayback("initial_snapshot"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	playback := NewClient()
 	parser := NewParser(playback)

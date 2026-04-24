@@ -45,6 +45,7 @@ import (
 	"fmt"
 	"io"
 	iofs "io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -450,7 +451,9 @@ func (fs *FileSystem) openSearchResult(result *SearchResult) (io.ReadSeekCloser,
 	}
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil {
+			slog.Warn("fs: failed to close file after stat error", "path", result.Path, "err", closeErr)
+		}
 		return nil, 0, err
 	}
 	return file, stat.Size(), nil
@@ -485,7 +488,9 @@ type ModInfo struct {
 func (fs *FileSystem) Close() {
 	for _, pack := range fs.packs {
 		if pack.Handle != nil {
-			pack.Handle.Close()
+			if err := pack.Handle.Close(); err != nil {
+				slog.Warn("fs: failed to close pack handle", "pack", pack.Filename, "err", err)
+			}
 		}
 	}
 }

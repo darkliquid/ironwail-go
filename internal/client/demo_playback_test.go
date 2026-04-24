@@ -17,7 +17,7 @@ func TestDemoPlaybackNonExistentFile(t *testing.T) {
 
 	if err := demo.StartDemoPlayback("nonexistent_demo_file"); err == nil {
 		t.Error("Expected error when opening nonexistent demo file")
-		demo.StopPlayback()
+		_ = demo.StopPlayback()
 	}
 }
 
@@ -25,7 +25,7 @@ func TestDemoPlaybackNonExistentFile(t *testing.T) {
 // Why: The demo system uses shared state that cannot handle both operations simultaneously.
 // Where in C: cl_demo.c, CL_BeginRecord_f.
 func TestDemoCannotRecordDuringPlayback(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 
@@ -33,7 +33,7 @@ func TestDemoCannotRecordDuringPlayback(t *testing.T) {
 	if err := demo.StartDemoRecording("test_conflict", 0); err != nil {
 		t.Fatalf("StartDemoRecording failed: %v", err)
 	}
-	demo.WriteDemoFrame([]byte{0x01}, [3]float32{0, 0, 0})
+	_ = demo.WriteDemoFrame([]byte{0x01}, [3]float32{0, 0, 0})
 	if err := demo.StopRecording(); err != nil {
 		t.Fatalf("StopRecording failed: %v", err)
 	}
@@ -42,12 +42,12 @@ func TestDemoCannotRecordDuringPlayback(t *testing.T) {
 	if err := demo.StartDemoPlayback("test_conflict"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	// Try to start recording during playback
 	if err := demo.StartDemoRecording("test_conflict2", 0); err == nil {
 		t.Error("Expected error when starting recording during playback")
-		demo.StopRecording()
+		_ = demo.StopRecording()
 	}
 }
 
@@ -55,7 +55,7 @@ func TestDemoCannotRecordDuringPlayback(t *testing.T) {
 // Why: Robustness against failed recording attempts or truncated files.
 // Where in C: cl_demo.c, CL_OpenDemo.
 func TestDemoEmptyFile(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 
@@ -92,7 +92,7 @@ func TestDemoEmptyFile(t *testing.T) {
 // Why: Used for progress bars, UI feedback, and seek limits.
 // Where in C: cl_demo.c.
 func TestDemoFrameCount(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if got := demo.FrameCount(); got != 0 {
@@ -114,7 +114,7 @@ func TestDemoFrameCount(t *testing.T) {
 	if err := demo.StartDemoPlayback("framecount"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	if got := demo.FrameCount(); got != 5 {
 		t.Fatalf("FrameCount() = %d, want 5", got)
@@ -125,7 +125,7 @@ func TestDemoFrameCount(t *testing.T) {
 // Why: Essential for user interface feedback during playback.
 // Where in C: cl_demo.c.
 func TestDemoProgress(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if got := demo.Progress(); got != 0 {
@@ -147,7 +147,7 @@ func TestDemoProgress(t *testing.T) {
 	if err := demo.StartDemoPlayback("progress"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	if got := demo.Progress(); got != 0 {
 		t.Fatalf("Progress() at start = %f, want 0", got)
@@ -311,7 +311,7 @@ func TestStopPlaybackWithSummaryPrintsTimedemoLine(t *testing.T) {
 // Why: Enables time-based navigation (e.g., \"seek to 2:30\").
 // Where in C: cl_demo.c.
 func TestDemoFrameForTime(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 
@@ -335,7 +335,7 @@ func TestDemoFrameForTime(t *testing.T) {
 	if err := demo.StartDemoPlayback("timeseek"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	tests := []struct {
 		seconds float64
@@ -380,7 +380,7 @@ func TestDemoTimeForFrame(t *testing.T) {
 // Why: Common requirement to restart a demo from the beginning.
 // Where in C: cl_demo.c.
 func TestDemoSeekToFrame0(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("seek_zero", 0); err != nil {
@@ -398,7 +398,7 @@ func TestDemoSeekToFrame0(t *testing.T) {
 	if err := demo.StartDemoPlayback("seek_zero"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	// Read all frames
 	for i := 0; i < 3; i++ {
@@ -435,7 +435,7 @@ func TestDemoSeekToFrame0(t *testing.T) {
 // Why: Prevents the system from entering an undefined state or crashing.
 // Where in C: cl_demo.c.
 func TestDemoSeekPastEnd(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("seek_past_end", 0); err != nil {
@@ -453,7 +453,7 @@ func TestDemoSeekPastEnd(t *testing.T) {
 	if err := demo.StartDemoPlayback("seek_past_end"); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer demo.StopPlayback()
+	defer func() { _ = demo.StopPlayback() }()
 
 	// Seek past end should error
 	if err := demo.SeekFrame(10); err == nil {
@@ -496,7 +496,7 @@ func TestNilDemoStateConvenienceMethods(t *testing.T) {
 // Why: Some game modes or mods might use specific track indices for special music behavior.
 // Where in C: cl_demo.c.
 func TestDemoRecordingNegativeTrack(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("negtrack_test", -1); err != nil {
@@ -516,14 +516,14 @@ func TestDemoRecordingNegativeTrack(t *testing.T) {
 	if demo.CDTrack != -1 {
 		t.Errorf("CDTrack = %d, want -1", demo.CDTrack)
 	}
-	demo.StopPlayback()
+	_ = demo.StopPlayback()
 }
 
 // TestDemoRecordingMidLevelSnapshot verifies that a game state snapshot can be taken and recorded while a recording is already in progress.
 // Why: Supports features like 'demo_capture' where a mid-game state is needed for a new demo.
 // Where in C: cl_demo.c.
 func TestDemoRecordingMidLevelSnapshot(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("midlevel_test", 3); err != nil {
@@ -570,14 +570,14 @@ func TestDemoRecordingMidLevelSnapshot(t *testing.T) {
 	if frameCount != 4 {
 		t.Errorf("frame count = %d, want 4", frameCount)
 	}
-	demo.StopPlayback()
+	_ = demo.StopPlayback()
 }
 
 // TestDemoDisconnectDuringRecording ensures that a recording is closed cleanly when the client disconnects.
 // Why: Prevents data loss and ensures the recorded file is valid even if the session ends abruptly.
 // Where in C: cl_demo.c, CL_Disconnect.
 func TestDemoDisconnectDuringRecording(t *testing.T) {
-	defer os.RemoveAll("demos")
+	defer func() { _ = os.RemoveAll("demos") }()
 
 	demo := NewDemoState()
 	if err := demo.StartDemoRecording("disconnect_test", -1); err != nil {
@@ -618,5 +618,5 @@ func TestDemoDisconnectDuringRecording(t *testing.T) {
 	if len(lastMsg) != 1 || lastMsg[0] != inet.SVCDisconnect {
 		t.Errorf("last message = %v, want [%d] (svc_disconnect)", lastMsg, inet.SVCDisconnect)
 	}
-	demo.StopPlayback()
+	_ = demo.StopPlayback()
 }

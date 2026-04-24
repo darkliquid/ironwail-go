@@ -104,7 +104,9 @@ func (d *DemoState) StartDemoRecording(filename string, cdtrack int) error {
 
 	// Write CD track number header
 	if _, err := fmt.Fprintf(d.Writer, "%d\n", cdtrack); err != nil {
-		d.StopRecording()
+		if stopErr := d.StopRecording(); stopErr != nil {
+			slog.Warn("demo: failed to stop recording on cleanup", "err", stopErr)
+		}
 		return fmt.Errorf("failed to write demo header: %w", err)
 	}
 
@@ -479,20 +481,26 @@ func (d *DemoState) startPlaybackInternal(filename string, source io.ReadSeeker,
 	// by '\n' — no trailing whitespace or other characters allowed.
 	line, err := d.Reader.ReadString('\n')
 	if err != nil {
-		d.StopPlayback()
+		if stopErr := d.StopPlayback(); stopErr != nil {
+			slog.Warn("demo: failed to stop playback on cleanup", "err", stopErr)
+		}
 		return fmt.Errorf("failed to read demo header: %w", err)
 	}
 	raw := strings.TrimSuffix(line, "\n")
 	var cdtrack int
 	n, parseErr := fmt.Sscanf(raw, "%d", &cdtrack)
 	if n != 1 || parseErr != nil {
-		d.StopPlayback()
+		if stopErr := d.StopPlayback(); stopErr != nil {
+			slog.Warn("demo: failed to stop playback on cleanup", "err", stopErr)
+		}
 		return fmt.Errorf("failed to parse demo header track '%s': invalid integer", raw)
 	}
 	// Verify nothing follows the integer (reject trailing whitespace/chars).
 	canonical := strings.TrimLeft(raw, " \t")
 	if canonical != fmt.Sprintf("%d", cdtrack) {
-		d.StopPlayback()
+		if stopErr := d.StopPlayback(); stopErr != nil {
+			slog.Warn("demo: failed to stop playback on cleanup", "err", stopErr)
+		}
 		return fmt.Errorf("demo \"%s\" is invalid", d.Filename)
 	}
 	d.CDTrack = cdtrack
@@ -514,17 +522,23 @@ func (d *DemoState) startPlaybackInternal(filename string, source io.ReadSeeker,
 
 	firstFrameOffset, err := d.currentReadOffset()
 	if err != nil {
-		d.StopPlayback()
+		if stopErr := d.StopPlayback(); stopErr != nil {
+			slog.Warn("demo: failed to stop playback on cleanup", "err", stopErr)
+		}
 		return fmt.Errorf("failed to determine demo frame start: %w", err)
 	}
 	frames, err := d.indexFrames()
 	if err != nil {
-		d.StopPlayback()
+		if stopErr := d.StopPlayback(); stopErr != nil {
+			slog.Warn("demo: failed to stop playback on cleanup", "err", stopErr)
+		}
 		return err
 	}
 	d.Frames = frames
 	if _, err := d.playbackSource.Seek(firstFrameOffset, io.SeekStart); err != nil {
-		d.StopPlayback()
+		if stopErr := d.StopPlayback(); stopErr != nil {
+			slog.Warn("demo: failed to stop playback on cleanup", "err", stopErr)
+		}
 		return fmt.Errorf("failed to rewind demo stream: %w", err)
 	}
 	d.Reader = bufio.NewReader(d.playbackSource)

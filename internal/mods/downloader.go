@@ -252,7 +252,7 @@ func (d *Downloader) FetchManifest(ctx context.Context) (*Manifest, error) {
 		d.emit(Event{Kind: "manifest_fetch_error", URL: manifestURL, Err: err})
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		err := fmt.Errorf("manifest HTTP %d", resp.StatusCode)
 		d.emit(Event{Kind: "manifest_fetch_error", URL: manifestURL, HTTP: resp.StatusCode, Err: err})
@@ -382,7 +382,7 @@ func (d *Downloader) runInstall(ctx context.Context, mod RemoteMod, state *Insta
 		d.emit(Event{Kind: "install_error", Mod: mod.Name, URL: modURL, Err: err})
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		err := fmt.Errorf("install HTTP %d", resp.StatusCode)
 		d.emit(Event{Kind: "install_error", Mod: mod.Name, URL: modURL, HTTP: resp.StatusCode, Err: err})

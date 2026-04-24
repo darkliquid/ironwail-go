@@ -60,7 +60,7 @@ func (r *Renderer) createWorldVertexBuffer(device *wgpu.Device, queue *wgpu.Queu
 		copy(vertexData[offset+28:offset+40], normBytes)
 	}
 
-	queue.WriteBuffer(buffer, 0, vertexData)
+	_ = queue.WriteBuffer(buffer, 0, vertexData)
 
 	slog.Debug("World vertex buffer uploaded", "vertices", len(vertices))
 
@@ -97,7 +97,7 @@ func (r *Renderer) createWorldIndexBuffer(device *wgpu.Device, queue *wgpu.Queue
 		binary.LittleEndian.PutUint32(indexData[offset:offset+4], idx)
 	}
 
-	queue.WriteBuffer(buffer, 0, indexData)
+	_ = queue.WriteBuffer(buffer, 0, indexData)
 
 	slog.Debug("World index buffer uploaded", "indices", len(indices))
 

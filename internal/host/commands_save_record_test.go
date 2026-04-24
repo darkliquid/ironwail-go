@@ -583,7 +583,7 @@ func TestCmdStopWritesDisconnectTrailer(t *testing.T) {
 	if err := replay.StartDemoPlayback(filepath.Join(tmpDir, "demos", "stop_trailer.dem")); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer replay.StopPlayback()
+	defer func() { _ = replay.StopPlayback() }()
 
 	message, angles, err := replay.ReadDemoFrame()
 	if err != nil {
@@ -640,7 +640,7 @@ func TestCmdRecordWritesInitialStateSnapshotWhenConnected(t *testing.T) {
 	if err := replay.StartDemoPlayback(filepath.Join(tmpDir, "demos", "record_snapshot.dem")); err != nil {
 		t.Fatalf("StartDemoPlayback failed: %v", err)
 	}
-	defer replay.StopPlayback()
+	defer func() { _ = replay.StopPlayback() }()
 
 	message, _, err := replay.ReadDemoFrame()
 	if err != nil {
@@ -706,7 +706,7 @@ func TestCmdPlaydemoUsesOpenFileWhenAvailable(t *testing.T) {
 	if h.demoState == nil || !h.demoState.Playback {
 		t.Fatal("expected demo playback to be active")
 	}
-	defer h.demoState.StopPlayback()
+	defer func() { _ = h.demoState.StopPlayback() }()
 
 	if !reflect.DeepEqual(files.openCalls, []string{"bootstrap.dem"}) {
 		t.Fatalf("OpenFile calls = %v, want [bootstrap.dem]", files.openCalls)

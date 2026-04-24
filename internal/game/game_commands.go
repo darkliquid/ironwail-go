@@ -77,7 +77,7 @@ func (g *Game) registerGameplayBindCommands() {
 		}
 		parseArg := func(s string) float32 {
 			var v float64
-			fmt.Sscanf(s, "%f", &v)
+			_, _ = fmt.Sscanf(s, "%f", &v)
 			return float32(v)
 		}
 		g.Client.SetCustomShift(parseArg(args[1]), parseArg(args[2]), parseArg(args[3]), parseArg(args[4]))

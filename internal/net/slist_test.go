@@ -170,7 +170,7 @@ func TestQueryServerRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start test server: %v", err)
 	}
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	serverAddr := serverConn.LocalAddr().(*stdnet.UDPAddr)
 	done := make(chan struct{})
@@ -195,7 +195,7 @@ func TestQueryServerRules(t *testing.T) {
 			default:
 				resp = buildTestRuleInfoResponse("", "")
 			}
-			serverConn.WriteToUDP(resp, addr)
+			_, _ = serverConn.WriteToUDP(resp, addr)
 		}
 	}()
 
@@ -242,7 +242,7 @@ func TestQueryServerPlayers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start test server: %v", err)
 	}
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	go func() {
 		buf := make([]byte, 1024)
@@ -256,11 +256,11 @@ func TestQueryServerPlayers(t *testing.T) {
 			}
 			switch buf[9] {
 			case 0:
-				serverConn.WriteToUDP(buildTestPlayerInfoResponse(0, "Ranger", 4, 9, 15, 32.5), addr)
+				_, _ = serverConn.WriteToUDP(buildTestPlayerInfoResponse(0, "Ranger", 4, 9, 15, 32.5), addr)
 			case 1:
-				serverConn.WriteToUDP(buildTestPlayerInfoResponse(1, "Shambler", 13, 13, 42, 60.0), addr)
+				_, _ = serverConn.WriteToUDP(buildTestPlayerInfoResponse(1, "Shambler", 13, 13, 42, 60.0), addr)
 			default:
-				serverConn.WriteToUDP(buildTestPlayerInfoResponse(buf[9], "", 0, 0, 0, 0), addr)
+				_, _ = serverConn.WriteToUDP(buildTestPlayerInfoResponse(buf[9], "", 0, 0, 0, 0), addr)
 			}
 		}
 	}()
@@ -335,7 +335,7 @@ func TestServerBrowserWithLocalServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start test server: %v", err)
 	}
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	serverAddr := serverConn.LocalAddr().(*stdnet.UDPAddr)
 
@@ -359,7 +359,7 @@ func TestServerBrowserWithLocalServer(t *testing.T) {
 			resp := buildTestServerInfoResponse(
 				serverAddr.String(), "LAN Test", "e1m1", 2, 8, 3,
 			)
-			serverConn.WriteTo(resp, addr)
+			_, _ = serverConn.WriteTo(resp, addr)
 		}
 	}()
 
@@ -369,14 +369,14 @@ func TestServerBrowserWithLocalServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open client socket: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	query := buildServerInfoQuery()
-	conn.WriteTo(query, serverAddr)
+	_, _ = conn.WriteTo(query, serverAddr)
 
 	// Read response
 	buf := make([]byte, 1024)
-	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	n, raddr, err := conn.ReadFrom(buf)
 	if err != nil {
 		t.Fatalf("no response from fake server: %v", err)

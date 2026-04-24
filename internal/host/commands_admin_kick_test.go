@@ -146,7 +146,7 @@ func TestCmdChangelevel(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdChangelevel("start", &subs.Subsystems)
@@ -165,7 +165,7 @@ func TestCmdRestart(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdRestart(&subs.Subsystems)
@@ -296,7 +296,7 @@ func TestCmdKill(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdKill(&subs.Subsystems)
@@ -316,7 +316,7 @@ func TestCmdGod(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdGod(&subs.Subsystems)
@@ -333,7 +333,7 @@ func TestCmdNoClip(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdNoClip(&subs.Subsystems)
@@ -350,7 +350,7 @@ func TestCmdNotarget(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdNotarget(&subs.Subsystems)
@@ -367,7 +367,7 @@ func TestCmdGive(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
 
 	h.CmdGive("all", "", &subs.Subsystems)
@@ -385,7 +385,7 @@ func TestCmdName(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	oldName := h.CVar.StringValue(clientNameCVar)
 	t.Cleanup(func() {
 		h.CVar.Set(clientNameCVar, oldName)
@@ -409,7 +409,7 @@ func TestCmdColor(t *testing.T) {
 		Console: &mockConsole{},
 	}
 
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	oldColor := h.CVar.StringValue(clientColorCVar)
 	t.Cleanup(func() {
 		h.CVar.Set(clientColorCVar, oldColor)
@@ -443,7 +443,7 @@ func TestCmdServerInfoIncludesHostname(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	oldHostname := h.CVar.StringValue(serverHostnameCVar)
 	t.Cleanup(func() {
 		h.CVar.Set(serverHostnameCVar, oldHostname)
@@ -469,7 +469,7 @@ func TestCmdPing(t *testing.T) {
 	subs.Client = subs.client
 	subs.Console = subs.console
 
-	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
+	_ = h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 
 	h.CmdPing(&subs.Subsystems)
 }
@@ -479,7 +479,7 @@ func TestCmdTest2PrintsQueriedRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start test server: %v", err)
 	}
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	done := make(chan struct{})
 	go func() {
@@ -503,7 +503,7 @@ func TestCmdTest2PrintsQueriedRules(t *testing.T) {
 			default:
 				resp = buildHostRuleInfoResponse("", "")
 			}
-			serverConn.WriteToUDP(resp, addr)
+			_, _ = serverConn.WriteToUDP(resp, addr)
 		}
 	}()
 
@@ -526,7 +526,7 @@ func TestCmdPlayersPrintsQueriedPlayers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start test server: %v", err)
 	}
-	defer serverConn.Close()
+	defer func() { _ = serverConn.Close() }()
 
 	go func() {
 		buf := make([]byte, 1024)
@@ -540,11 +540,11 @@ func TestCmdPlayersPrintsQueriedPlayers(t *testing.T) {
 			}
 			switch buf[9] {
 			case 0:
-				serverConn.WriteToUDP(buildHostPlayerInfoResponse(0, "Ranger", 0x49, 15, 32, "10.0.0.2:26000"), addr)
+				_, _ = serverConn.WriteToUDP(buildHostPlayerInfoResponse(0, "Ranger", 0x49, 15, 32, "10.0.0.2:26000"), addr)
 			case 1:
-				serverConn.WriteToUDP(buildHostPlayerInfoResponse(1, "Shambler", 0xdd, 42, 60, "10.0.0.3:26000"), addr)
+				_, _ = serverConn.WriteToUDP(buildHostPlayerInfoResponse(1, "Shambler", 0xdd, 42, 60, "10.0.0.3:26000"), addr)
 			default:
-				serverConn.WriteToUDP(buildHostPlayerInfoResponse(buf[9], "", 0, 0, 0, ""), addr)
+				_, _ = serverConn.WriteToUDP(buildHostPlayerInfoResponse(buf[9], "", 0, 0, 0, ""), addr)
 			}
 		}
 	}()

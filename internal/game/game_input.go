@@ -319,7 +319,9 @@ func (g *Game) handleMessageKeyEvent(event input.KeyEvent) {
 			// Escape quotes in the message
 			msg := strings.ReplaceAll(g.chatBuffer, "\"", "'")
 			if g.Client != nil {
-				g.Client.SendStringCmd(fmt.Sprintf("%s \"%s\"", cmd, msg))
+				if _, err := g.Client.SendStringCmd(fmt.Sprintf("%s \"%s\"", cmd, msg)); err != nil {
+					slog.Warn("game: failed to send chat command", "cmd", cmd, "err", err)
+				}
 			}
 		}
 	case input.KBackspace:

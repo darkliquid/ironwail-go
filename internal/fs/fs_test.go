@@ -433,7 +433,7 @@ func TestOpenFileFromPakReturnsReadSeekHandle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenFile failed: %v", err)
 	}
-	defer handle.Close()
+	defer func() { _ = handle.Close() }()
 
 	if size != int64(len("pak-bytes")) {
 		t.Fatalf("size = %d, want %d", size, len("pak-bytes"))

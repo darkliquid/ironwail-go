@@ -29,7 +29,7 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 	output := fs.String("o", "progs.dat", "output file path")
 	verbose := fs.Bool("v", false, "verbose output")
 	if err := fs.Parse(args); err != nil {
-		fmt.Fprintf(stderr, "qgo: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
 	}
 
@@ -43,17 +43,17 @@ func runCompile(args []string, stdout, stderr io.Writer) int {
 
 	data, err := c.Compile(dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "qgo: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
 	}
 
 	if err := os.WriteFile(*output, data, 0644); err != nil {
-		fmt.Fprintf(stderr, "qgo: write %s: %v\n", *output, err)
+		_, _ = fmt.Fprintf(stderr, "qgo: write %s: %v\n", *output, err)
 		return 1
 	}
 
 	if *verbose {
-		fmt.Fprintf(stdout, "wrote %s (%d bytes)\n", *output, len(data))
+		_, _ = fmt.Fprintf(stdout, "wrote %s (%d bytes)\n", *output, len(data))
 	}
 	return 0
 }
@@ -68,15 +68,15 @@ func runSourceOrder(args []string, stdout, stderr io.Writer) int {
 	_ = fs.Bool("strict", false, "treat ambiguous declarations as errors")
 
 	if err := fs.Parse(args); err != nil {
-		fmt.Fprintf(stderr, "qgo: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
 	}
 	if *format != "text" && *format != "json" {
-		fmt.Fprintf(stderr, "qgo: unsupported -format %q for source-order; supported formats: text, json\n", *format)
+		_, _ = fmt.Fprintf(stderr, "qgo: unsupported -format %q for source-order; supported formats: text, json\n", *format)
 		return 1
 	}
 	if *scope != "functions" && *scope != "files" {
-		fmt.Fprintf(stderr, "qgo: unsupported -scope %q for source-order; supported scopes: functions, files\n", *scope)
+		_, _ = fmt.Fprintf(stderr, "qgo: unsupported -scope %q for source-order; supported scopes: functions, files\n", *scope)
 		return 1
 	}
 
@@ -87,24 +87,24 @@ func runSourceOrder(args []string, stdout, stderr io.Writer) int {
 
 	order, err := compiler.SourceOrder(dir)
 	if err != nil {
-		fmt.Fprintf(stderr, "qgo: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
 	}
 
 	payload, err := formatSourceOrder(order, *format, *scope)
 	if err != nil {
-		fmt.Fprintf(stderr, "qgo: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
 	}
 	if *output == "" {
 		if _, err := stdout.Write(payload); err != nil {
-			fmt.Fprintf(stderr, "qgo: write stdout: %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "qgo: write stdout: %v\n", err)
 			return 1
 		}
 		return 0
 	}
 	if err := os.WriteFile(*output, payload, 0644); err != nil {
-		fmt.Fprintf(stderr, "qgo: write %s: %v\n", *output, err)
+		_, _ = fmt.Fprintf(stderr, "qgo: write %s: %v\n", *output, err)
 		return 1
 	}
 	return 0

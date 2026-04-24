@@ -108,7 +108,9 @@ func (g *Game) initGameHost() error {
 	fmt.Println()
 
 	// Initialize console and command system
-	console.InitGlobal(0)
+	if err := console.InitGlobal(0); err != nil {
+		return fmt.Errorf("initialize console: %w", err)
+	}
 	console.SetGlobalCVar(g.Host.CVar)
 	console.SetPrintCallback(func(msg string) {
 		fmt.Print(msg)

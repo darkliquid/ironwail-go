@@ -259,7 +259,7 @@ func TestListenCommandRegistrationExecutes(t *testing.T) {
 	console := &mockConsole{}
 	subs := &Subsystems{Console: console}
 
-	h.Net.Init()
+	_ = h.Net.Init()
 	t.Cleanup(h.Net.Shutdown)
 	_ = h.Net.Listen(false)
 
@@ -277,7 +277,7 @@ func TestCmdListenQueryAndToggle(t *testing.T) {
 	subs := &Subsystems{Console: console}
 
 	port := testFreeUDPPort(t)
-	h.Net.Init()
+	_ = h.Net.Init()
 	t.Cleanup(h.Net.Shutdown)
 	h.Net.SetHostPort(port)
 	_ = h.Net.Listen(false)
@@ -359,7 +359,7 @@ func TestCmdMaxPlayersQueuesListenTransition(t *testing.T) {
 	subs := &Subsystems{Commands: cmdBuf}
 
 	port := testFreeUDPPort(t)
-	h.Net.Init()
+	_ = h.Net.Init()
 	t.Cleanup(h.Net.Shutdown)
 	h.Net.SetHostPort(port)
 	_ = h.Net.Listen(false)
@@ -389,7 +389,7 @@ func TestCmdPortQuerySetValidationAndListenRestart(t *testing.T) {
 	t.Cleanup(func() { h.Net.SetHostPort(oldPort) })
 
 	port := testFreeUDPPort(t)
-	h.Net.Init()
+	_ = h.Net.Init()
 	t.Cleanup(h.Net.Shutdown)
 	_ = h.Net.Listen(false)
 	h.Net.SetHostPort(port)
@@ -637,7 +637,7 @@ func writeCommandTestPak(t testingT, path string, files map[string][]byte) {
 	if err != nil {
 		t.Fatalf("Create(%s): %v", path, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.Write([]byte("PACK")); err != nil {
 		t.Fatalf("Write magic: %v", err)
@@ -720,7 +720,7 @@ func TestCmdRandmapNoServer(t *testing.T) {
 		Files:    fileSys,
 		Commands: commands,
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.CmdRandmap(subs)
 
 	output := strings.Join(console.messages, "")
@@ -741,7 +741,7 @@ func TestCmdRandmapNoFiles(t *testing.T) {
 		Console: console,
 		Files:   &mapListingFiles{files: nil},
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.SetServerActive(true)
 	// Files is not *fs.FileSystem, so the type assertion fails and returns early silently
 	h.CmdRandmap(subs)
@@ -888,7 +888,7 @@ func TestCmdViewframeNoServer(t *testing.T) {
 		Client:  &mockClient{},
 		Console: console,
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.CmdViewframe(5, subs)
 	output := strings.Join(console.messages, "")
 	if !strings.Contains(output, "no server running") {
@@ -904,7 +904,7 @@ func TestCmdViewframeNoViewthing(t *testing.T) {
 		Client:  &mockClient{},
 		Console: console,
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.SetServerActive(true)
 	h.CmdViewframe(5, subs)
 	output := strings.Join(console.messages, "")
@@ -921,7 +921,7 @@ func TestCmdViewnextNoViewthing(t *testing.T) {
 		Client:  &mockClient{},
 		Console: console,
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.SetServerActive(true)
 	h.CmdViewnext(subs)
 	output := strings.Join(console.messages, "")
@@ -938,7 +938,7 @@ func TestCmdViewprevNoViewthing(t *testing.T) {
 		Client:  &mockClient{},
 		Console: console,
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.SetServerActive(true)
 	h.CmdViewprev(subs)
 	output := strings.Join(console.messages, "")
@@ -955,7 +955,7 @@ func TestCmdViewframeNegativeClampsToZero(t *testing.T) {
 		Client:  &mockClient{},
 		Console: console,
 	}
-	h.Init(&InitParams{BaseDir: "."}, subs)
+	_ = h.Init(&InitParams{BaseDir: "."}, subs)
 	h.SetServerActive(true)
 	// With mockServer, findViewthing returns nil (type assertion fails).
 	// This tests the "no viewthing" path with negative frame.

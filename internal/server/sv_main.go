@@ -873,7 +873,7 @@ func (s *Server) cacheModelInfo(modelName string) (cachedModelInfo, error) {
 	if err != nil {
 		return cachedModelInfo{}, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var info cachedModelInfo
 	switch filepath.Ext(modelName) {

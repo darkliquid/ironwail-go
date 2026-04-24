@@ -428,7 +428,7 @@ func (dc *DrawContext) Clear(r, g, b, a float32) {
 // 3D geometry rendering using shaders.
 func (dc *DrawContext) DrawTriangle(r, g, b, a float32) {
 	// Convert to gmath.Color at the gogpu API boundary.
-	dc.ctx.DrawTriangleColor(gmath.Color{R: r, G: g, B: b, A: a})
+	_ = dc.ctx.DrawTriangleColor(gmath.Color{R: r, G: g, B: b, A: a})
 }
 
 // SurfaceView returns the current frame's GPU texture view.

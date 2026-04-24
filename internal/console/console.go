@@ -18,6 +18,7 @@ package console
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -461,7 +462,11 @@ func (c *Console) Dump(filename string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("console: failed to close dump file", "file", filename, "err", err)
+		}
+	}()
 
 	// Find the oldest line that isn't entirely blank
 	startLine := c.current - c.totalLines + 1
@@ -491,9 +496,13 @@ func (c *Console) Dump(filename string) error {
 		}
 
 		if lastNonSpace >= 0 {
-			f.Write(cleanLine[:lastNonSpace+1])
+			if _, err := f.Write(cleanLine[:lastNonSpace+1]); err != nil {
+				return err
+			}
 		}
-		f.WriteString("\n")
+		if _, err := f.WriteString("\n"); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -759,7 +768,9 @@ func (c *Console) SetPrintCallback(fn func(msg string)) {
 // (Printf, DPrintf) already hold the lock or call from a safe context.
 func (c *Console) debugLogWrite(msg string) {
 	if c.debugLog != nil {
-		c.debugLog.WriteString(msg)
+		if _, err := c.debugLog.WriteString(msg); err != nil {
+			slog.Warn("console: failed to write debug log", "err", err)
+		}
 	}
 }
 
@@ -772,7 +783,9 @@ func (c *Console) EnableDebugLog(filename string) error {
 	defer c.mu.Unlock()
 
 	if c.debugLog != nil {
-		c.debugLog.Close()
+		if err := c.debugLog.Close(); err != nil {
+			slog.Warn("console: failed to close previous debug log", "err", err)
+		}
 	}
 
 	dir := filepath.Dir(filename)
@@ -789,7 +802,9 @@ func (c *Console) EnableDebugLog(filename string) error {
 	c.logFile = filename
 
 	timestamp := time.Now().Format("01/02/2006 15:04:05")
-	fmt.Fprintf(f, "LOG started on: %s\n", timestamp)
+	if _, err := fmt.Fprintf(f, "LOG started on: %s\n", timestamp); err != nil {
+		slog.Warn("console: failed to write debug log header", "err", err)
+	}
 
 	return nil
 }
@@ -801,7 +816,9 @@ func (c *Console) DisableDebugLog() {
 	defer c.mu.Unlock()
 
 	if c.debugLog != nil {
-		c.debugLog.Close()
+		if err := c.debugLog.Close(); err != nil {
+			slog.Warn("console: failed to close debug log", "err", err)
+		}
 		c.debugLog = nil
 	}
 }

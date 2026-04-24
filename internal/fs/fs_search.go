@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	iofs "io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -132,19 +133,19 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 	}
 
 	if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 		return nil, err
 	}
 
 	if string(header.ID[:]) != "PACK" {
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 		return nil, fmt.Errorf("not a pack file")
 	}
 
 	numFiles := int(header.DirLen / 64)
 
 	if _, err := file.Seek(int64(header.DirOfs), io.SeekStart); err != nil {
-		file.Close()
+		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 		return nil, err
 	}
 
@@ -156,7 +157,7 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 			FileLen int32
 		}
 		if err := binary.Read(file, binary.LittleEndian, &entry); err != nil {
-			file.Close()
+			if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
 			return nil, err
 		}
 		idx := 0
