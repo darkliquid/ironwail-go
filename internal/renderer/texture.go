@@ -169,6 +169,32 @@ func ConvertPaletteToFullbrightRGBA(pixels []byte, palette []byte) ([]byte, bool
 	return rgba, hasFullbright
 }
 
+// ConvertPaletteToRGBAOpaque converts a palette-indexed image to RGBA format
+// treating every palette index (including 255) as an opaque color. Matches the
+// C engine's d_8to24table behavior used for alias skins (TEXPREF_PAD without
+// TEXPREF_ALPHA/TEXPREF_FENCE) where index 255 is a regular palette entry
+// rather than a transparency marker.
+func ConvertPaletteToRGBAOpaque(pixels []byte, palette []byte) []byte {
+	rgba := make([]byte, len(pixels)*4)
+	if len(palette) < 768 {
+		for i, p := range pixels {
+			rgba[i*4] = p
+			rgba[i*4+1] = p
+			rgba[i*4+2] = p
+			rgba[i*4+3] = 255
+		}
+		return rgba
+	}
+	for i, p := range pixels {
+		r, g, b := GetPaletteColor(p, palette)
+		rgba[i*4] = r
+		rgba[i*4+1] = g
+		rgba[i*4+2] = b
+		rgba[i*4+3] = 255
+	}
+	return rgba
+}
+
 // ConvertPaletteToRGBA converts a palette-indexed image to RGBA format.
 // This is useful for texture uploaders that require RGBA input.
 func ConvertPaletteToRGBA(pixels []byte, palette []byte) []byte {

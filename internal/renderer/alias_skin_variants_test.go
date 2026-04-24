@@ -24,3 +24,19 @@ func TestAliasSkinVariantRGBATranslatesPlayerColorsBeforeFullbrightMask(t *testi
 		t.Fatalf("non-fullbright pixels should stay transparent, got %v", fullbright)
 	}
 }
+
+func TestAliasSkinVariantRGBATreatsPalette255AsOpaque(t *testing.T) {
+	palette := make([]byte, 256*3)
+	for i := 0; i < 256; i++ {
+		palette[i*3+0] = byte(i)
+		palette[i*3+1] = byte(i)
+		palette[i*3+2] = byte(i)
+	}
+	base, _ := aliasSkinVariantRGBA([]byte{255, 10}, palette, 0, false)
+	if base[3] != 255 {
+		t.Fatalf("alias skin index 255 alpha = %d, want 255 (C engine treats 255 as opaque palette entry for alias skins)", base[3])
+	}
+	if base[0] != 255 || base[1] != 255 || base[2] != 255 {
+		t.Fatalf("alias skin index 255 color = [%d %d %d], want opaque palette color", base[0], base[1], base[2])
+	}
+}

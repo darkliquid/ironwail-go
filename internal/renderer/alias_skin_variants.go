@@ -7,5 +7,5 @@ func aliasSkinVariantRGBA(pixels []byte, palette []byte, colorMap uint32, isPlay
 		source = TranslatePlayerSkinPixels(pixels, topColor, bottomColor)
 	}
 	fullbrightRGBA, _ = ConvertPaletteToFullbrightRGBA(source, palette)
-	return ConvertPaletteToRGBA(source, palette), fullbrightRGBA
+	return ConvertPaletteToRGBAOpaque(source, palette), fullbrightRGBA
 }
