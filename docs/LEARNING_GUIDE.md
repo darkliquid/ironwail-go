@@ -48,7 +48,7 @@ The project is organized into `internal/` packages, each with a specific respons
 
 ---
 
-> **Test Coverage Docs**: Each package guide above includes a **Tests** section that documents every test in that package — what it verifies, why it matters, and how it achieves its goal. This is a good place to start when you want to understand the expected behavior of a subsystem without reading production code first.
+> **Test Coverage Docs**: Many package guides above include a **Tests** section that documents notable tests in that package — what they verify, why they matter, and how they achieve their goal. Coverage is still being expanded, so some guides may not have this section yet. Where present, it is a good place to start when you want to understand the expected behavior of a subsystem without reading production code first.
 
 ---
 
