@@ -351,8 +351,8 @@ func (r *Renderer) ensureAliasModelLocked(device *wgpu.Device, queue *wgpu.Queue
 
 	// Debug: dump first skin bytes and first N emitted UVs to help diagnose
 	// UV mis-mapping on alias models (e.g. nailgun end-segment artifact).
-	// Only active at DEBUG log level; zero cost at INFO and above.
-	if slog.Default().Enabled(nil, slog.LevelDebug) {
+	// Run with -loglvl DEBUG to enable.
+	{
 		dbgSkinBytes := []byte(nil)
 		if len(hdr.Skins) > 0 {
 			n := min(64, len(hdr.Skins[0]))
