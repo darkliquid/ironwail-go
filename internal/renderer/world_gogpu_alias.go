@@ -348,6 +348,30 @@ func (r *Renderer) ensureAliasModelLocked(device *wgpu.Device, queue *wgpu.Queue
 		refs:        refs,
 	}
 	r.aliasModels[modelID] = alias
+
+	// Debug: dump first skin bytes and first N emitted UVs to help diagnose
+	// UV mis-mapping on alias models (e.g. nailgun end-segment artifact).
+	// Only active at DEBUG log level; zero cost at INFO and above.
+	if slog.Default().Enabled(nil, slog.LevelDebug) {
+		dbgSkinBytes := []byte(nil)
+		if len(hdr.Skins) > 0 {
+			n := min(64, len(hdr.Skins[0]))
+			dbgSkinBytes = hdr.Skins[0][:n]
+		}
+		dbgUVs := make([][2]float32, min(10, len(refs)))
+		for i := range dbgUVs {
+			dbgUVs[i] = refs[i].TexCoord
+		}
+		slog.Debug("alias model built",
+			"model", modelID,
+			"skinW", hdr.SkinWidth, "skinH", hdr.SkinHeight,
+			"numSkins", len(hdr.Skins),
+			"numRefs", len(refs),
+			"skin0_head64", fmt.Sprintf("%v", dbgSkinBytes),
+			"first10UVs", fmt.Sprintf("%v", dbgUVs),
+		)
+	}
+
 	return alias
 }
 
