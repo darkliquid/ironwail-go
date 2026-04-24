@@ -30,3 +30,21 @@ The `common` package provides foundational, low-level utilities shared across th
 - **Legacy Tokenizer**: Look at `COM_ParseEx`. It retains a C-style `goto skipwhite` pattern to exactly mirror the original Quake lexer's behavior, which is critical for compatibility with complex configuration files and mods.
 - **Endianness**: Note how `SizeBuf` explicitly uses `binary.LittleEndian`. Quake is strictly little-endian, regardless of the host architecture.
 - **High-Bit Colors**: Some string handling in Quake (and mirrored in the engine) uses the 8th bit of characters to indicate special rendering (like "bronze" text). This is why you'll see masks like `& 0x7F` or `| 128` in various parts of the codebase.
+
+## Tests
+
+**`TestCOM_CheckParm`** — Verifies `COM_CheckParm` returns the correct 0-based index for flags present in `argv` and returns 0 for missing flags. This is critical for the engine discovering command-line flags like `-game rogue`; an off-by-one in the index would cause the engine to misread the argument that follows the flag. Calls `COM_InitArgv` with a known arg list then asserts specific positions.
+
+**`TestCOM_Parse`** — Verifies the token parser handles whitespace, quoted strings, `//` line comments, `/* */` block comments, and single-character punctuation tokens. `COM_Parse` is used for reading `.cfg` files and entity data in BSP lumps; wrong tokenization corrupts config loading. Feeds a single compound string through repeated `COM_Parse` calls.
+
+**`TestPathUtils`** — Exercises `COM_FileBase`, `COM_FileGetExtension`, `COM_StripExtension`, and `COM_AddExtension`. Consistent path handling is essential when loading assets (e.g., stripping `.bsp` to find the `.lit` file, or adding `.wav` to a sound name). Four direct comparisons including the idempotent case for `COM_AddExtension`.
+
+**`TestHash`** — Confirms `COM_HashString` and `COM_HashBlock` produce identical, non-zero results for the same data. Both functions are used for caching (textures, models); a mismatch between the two overloads would cause cache misses. Calls both with `"hello world"`, checks equality and non-zero.
+
+**`TestParseNewline`** — Verifies `COM_ParseIntNewline`, `COM_ParseFloatNewline`, and `COM_ParseStringNewline` each consume exactly one line. Demo and save files use line-delimited numeric and string fields; wrong parsing corrupts the read cursor. Pipes a multi-line string through all three in sequence, checking both the returned value and the remaining string.
+
+**`TestSizeBufWriteReadAngle`** — Round-trips 8-bit angle encoding through `WriteAngle`/`ReadAngle` for 0°, 90°, 180°, 270°, −45°, and the 400° wraparound case. Network messages compress angles to 1 byte; if the decode doesn't exactly invert the encode (including wraparound), player orientation will drift on the network. Checks within 2° tolerance (the 8-bit resolution).
+
+**`TestSizeBufWriteReadAngle16`** — Same round-trip for 16-bit angle encoding (`WriteAngle16`/`ReadAngle16`). Higher-precision angles are needed for precise aiming; validates the 16-bit path doesn't introduce quantization bugs. Same pattern with 0.01° tolerance.
+
+**`TestSizeBufAnglePrecision`** — Asserts that 16-bit encoding always produces less absolute error than 8-bit for the same input angle. This is the core quality guarantee of the 16-bit encoding; if it were no better than 8-bit, the extra byte would be wasted. Computes absolute errors for both encodings and asserts `err16 < err8`, plus hard bounds.

@@ -25,3 +25,9 @@ The `compatrand` package provides a pseudo-random number generator (PRNG) that e
 - **Lagged Fibonacci Generator**: Research "Additive Lagged Fibonacci Generator" to understand the math behind the `state[r.fptr] += state[r.rptr]` logic.
 - **Process Global State**: Note how the package exposes both a `New()` constructor for isolated instances and package-level functions for the shared instance. The engine almost exclusively uses the shared instance to match C behavior.
 - **glibc Parity**: The constants `modulus = 2147483647`, `degree = 31`, and `sep = 3` are specific to the glibc implementation of `rand()`.
+
+## Tests
+
+**`TestSequenceMatchesCLibRand`** — Asserts the first 5 values from `New()` are `{1804289383, 846930886, 1681692777, 1714636915, 1957747793}` — exactly the C `rand()` sequence for seed 1. The Quake RNG is used in QC for item placement, projectile spread, etc.; diverging from the C sequence would break demo parity and save-game compatibility. Uses hardcoded expected values derived from the C `rand` LCG formula.
+
+**`TestSeedZeroMatchesDefaultSeed`** — Asserts `NewSeed(0)` and `New()` produce identical sequences. Quake's `srand(1)` maps to seed 0 in the Go wrapper; a mismatch would break RNG determinism for the default seed. Compares 3 elements between both instances.
