@@ -48,6 +48,10 @@ The project is organized into `internal/` packages, each with a specific respons
 
 ---
 
+> **Test Coverage Docs**: Many package guides above include a **Tests** section that documents notable tests in that package — what they verify, why they matter, and how they achieve their goal. Coverage is still being expanded, so some guides may not have this section yet. Where present, it is a good place to start when you want to understand the expected behavior of a subsystem without reading production code first.
+
+---
+
 ## 🚀 Key Feature Deep-Dives
 
 ### 1. The Command System (`internal/cmdsys`)

@@ -18,3 +18,17 @@ The `async` package is primarily integrated into the **Host** system. The `Host.
 ## Learning Tips
 - **Idiomatic Go vs. C Parity**: While idiomatic Go might use an unbounded channel for this purpose, `async.Queue` mirrors the C implementation's bounded, blocking behavior and atomic drain semantics. This is a great example of balancing Go idioms with the requirements of a ported architecture.
 - **Blocking & Synchronization**: Examine how `sync.Cond` is used in the `Push` method to wait for space in the queue and how `Broadcast` is used in `Drain` and `Shutdown` to wake up blocked goroutines.
+
+## Tests
+
+**`TestQueuePushDrainFIFO`** — Pushes 5 closures capturing indices 0–4, drains them, and asserts the output slice contains `[0,1,2,3,4]` in order. The `Queue` dispatches work from the game thread to the render/audio thread; FIFO ordering ensures commands execute in the order they were issued.
+
+**`TestQueueTryPushRespectsCapacity`** — On a capacity-2 queue, the first two `TryPush` calls succeed and the third returns false. After `Drain`, the fourth succeeds. `TryPush` is a non-blocking variant; callers must handle the false return when the queue is full without deadlocking.
+
+**`TestQueuePushBlocksUntilDrain`** — Fills a capacity-1 queue, starts a goroutine calling `Push`, verifies after 20 ms the goroutine is still blocked, then drains and verifies unblocking. `Push` must block when the queue is full to provide backpressure; otherwise the producer would overflow memory. Uses `time.After` and channels for synchronization.
+
+**`TestQueueShutdownUnblocksProducers`** — Fills a capacity-1 queue, starts a goroutine blocked on `Push`, calls `Shutdown`. Asserts the goroutine unblocks and `Push` returns false, `IsShutdown()` returns true, and `TryPush` fails. On engine shutdown, blocked producers must not hang indefinitely.
+
+**`TestQueueConcurrentProducers`** — 8 goroutines each push 100 closures that atomically increment a counter. The test drains periodically until all 800 closures have run within 5 seconds. The queue must be safe under concurrent producer load without deadlock or lost increments. Uses `sync.WaitGroup` and `atomic.Int32`.
+
+**`TestQueueNilFuncIsNoop`** — Both `Push(nil)` and `TryPush(nil)` return false and do not change `Len()`. Nil function references must be rejected silently rather than panicking when `Drain` tries to call them.
