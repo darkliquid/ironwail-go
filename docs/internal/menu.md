@@ -32,6 +32,7 @@ The `menu` package implements the Quake in-game menu system. It manages the menu
 
 ## Tests
 
+This section is a curated summary of representative menu tests, not an exhaustive inventory of every `*_test.go` file or `Test...` case in `internal/menu`. Use it as a guide to notable behaviors covered by the package tests.
 ### Controls & Options (`manager_controls_test.go`)
 
 **`TestHelpNavigation`** — Right-arrow advances pages; wrapping from last page returns to page 0; Escape returns to main menu. Verifies the help screen's pagination and exit.
