@@ -1,3 +1,6 @@
+// Command parity_screenshots drives the Ironwail-Go and reference Ironwail
+// binaries across a set of viewpoints, captures screenshots, and compares
+// them pixel-by-pixel to report rendering parity metrics.
 package main
 
 import (

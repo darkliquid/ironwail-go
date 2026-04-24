@@ -1,3 +1,6 @@
+// Command wadgen generates a minimal Quake WAD file containing placeholder
+// QPic lumps and a grayscale palette, useful for tests and tooling that need
+// a valid WAD without shipping game assets.
 package main
 
 import (

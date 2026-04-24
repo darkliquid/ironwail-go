@@ -1,3 +1,6 @@
+// Command uvdump inspects an alias model inside a Quake PAK file and prints
+// its skin dimensions, vertex/triangle counts, and unique UV coordinates for
+// debugging texture mapping issues.
 package main
 
 import (
