@@ -143,6 +143,15 @@
 //	  cmdsys/               # Command system
 //	  fs/                   # Virtual filesystem
 //	  common/               # Shared utilities
+//	  async/                # Asynchronous task coordination
+//	  compatrand/           # Compatibility-focused random number generation
+//	  draw/                 # Core drawing and font primitives
+//	  engine/               # Core engine lifecycle and services
+//	  game/                 # High-level gameplay state and logic
+//	  hud/                  # Heads-up display and in-game overlays
+//	  image/                # Image loading and manipulation
+//	  menu/                 # Main menu and UI systems
+//	  mods/                 # Mod loading and management support
 //
 //	cmd/                    # Main applications
 //	  ironwailgo/           # Main game executable

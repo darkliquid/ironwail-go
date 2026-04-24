@@ -42,8 +42,11 @@ https://github.com/user-attachments/assets/b652d2c6-74ce-41bb-90fa-8976262e043a
 
 The goal of this project is 100% behavioral parity with the original C
 [Ironwail][1] engine through the canonical GoGPU path. Regular parity audits are carried out,
-but there is no concrete public tracking of gaps, differences, or known bugs at
-this time.
+and detailed tracking of gaps and differences can be found in the
+[Parity Analysis](docs/gemini-parity-analysis.md) and [Parity Scene Matrix](docs/PARITY_SCENE_MATRIX.md).
+
+If you are new to the codebase and want to learn how the engine works, please see our
+[Architecture & Learning Guide](docs/LEARNING_GUIDE.md).
 
 For the Go-to-QuakeC toolchain and gameplay-language subset used by this
 repository, see the [QGo / QuakeGo Guide](docs/QGO_QUAKEGO_GUIDE.md).

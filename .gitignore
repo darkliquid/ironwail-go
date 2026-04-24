@@ -18,8 +18,8 @@
 
 # Keep this file
 !.gitignore
-!/docs/*.md
-!/docs/*.txt
+!/docs/**/*.md
+!/docs/**/*.txt
 
 # Parity tooling files
 !/tasks/*.sh
