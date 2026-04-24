@@ -3,6 +3,7 @@ package game
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image/png"
@@ -384,15 +385,23 @@ func (g *Game) DedicatedGameLoop() {
 	slog.Info("Starting dedicated game loop")
 	slog.Debug("frame loop started")
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	consoleCommands := make(chan string, 64)
 	go func() {
+		defer close(consoleCommands)
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
 			text := strings.TrimSpace(scanner.Text())
 			if text == "" {
 				continue
 			}
-			consoleCommands <- text
+			select {
+			case consoleCommands <- text:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
@@ -408,6 +417,14 @@ func (g *Game) DedicatedGameLoop() {
 		}
 	}
 
+	aborted := func() bool {
+		if g.Host != nil && g.Host.IsAborted() {
+			cancel()
+			return true
+		}
+		return false
+	}
+
 	for {
 		ticrate := g.Host.CVar.FloatValue("sys_ticrate")
 		if ticrate <= 0 {
@@ -416,9 +433,13 @@ func (g *Game) DedicatedGameLoop() {
 		time.Sleep(time.Duration(ticrate * float64(time.Second)))
 		for {
 			select {
-			case command := <-consoleCommands:
+			case command, ok := <-consoleCommands:
+				if !ok {
+					consoleCommands = nil
+					goto frame
+				}
 				queueConsoleCommand(command)
-				if g.Host != nil && g.Host.IsAborted() {
+				if aborted() {
 					return
 				}
 			default:
@@ -427,7 +448,7 @@ func (g *Game) DedicatedGameLoop() {
 		}
 
 	frame:
-		if g.Host != nil && g.Host.IsAborted() {
+		if aborted() {
 			return
 		}
 		now := time.Now()
@@ -437,7 +458,7 @@ func (g *Game) DedicatedGameLoop() {
 		if err := g.Host.Frame(dt, gameCallbacks{g: g}); err != nil {
 			log.Fatal("host frame error", err)
 		}
-		if g.Host != nil && g.Host.IsAborted() {
+		if aborted() {
 			return
 		}
 	}

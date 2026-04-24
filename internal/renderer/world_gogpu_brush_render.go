@@ -6,6 +6,8 @@ import (
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogColor [3]float32, fogDensity float32) {
@@ -101,7 +103,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	for k, v := range r.worldFullbrightTextures {
 		worldFullbrightTextures[k] = v
 	}
-	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
+	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
 	worldLightmapPages := append([]*gpuWorldTexture(nil), r.worldLightmapPages...)
 	var activeDynamicLights []DynamicLight
 	if r.lightPool != nil {
@@ -314,7 +316,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	for k, v := range r.worldSkyAlphaTextures {
 		worldSkyAlphaTextures[k] = v
 	}
-	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
+	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
 	externalSkyMode := r.worldSkyExternalMode
 	externalSkyBindGroup := r.worldSkyExternalBindGroup
 	depthView := r.worldDepthTextureView
@@ -547,7 +549,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	for k, v := range r.worldFullbrightTextures {
 		worldFullbrightTextures[k] = v
 	}
-	worldTextureAnimations := append([]*SurfaceTexture(nil), r.worldTextureAnimations...)
+	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
 	var activeDynamicLights []DynamicLight
 	if r.lightPool != nil {
 		activeDynamicLights = append(activeDynamicLights, r.lightPool.ActiveLights()...)

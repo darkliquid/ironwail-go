@@ -7,6 +7,8 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 type gogpuOpaqueBrushEntityDraw struct {
@@ -22,7 +24,7 @@ type gogpuOpaqueBrushEntityDraw struct {
 	// entities (e.g. b_rock0.bsp). Nil means use the world texture tables.
 	textures           map[int32]*gpuWorldTexture
 	fullbrightTextures map[int32]*gpuWorldTexture
-	textureAnimations  []*SurfaceTexture
+	textureAnimations  []*surfacepkg.SurfaceTexture
 }
 
 type gogpuClassifiedBrushEntityDraw struct {
@@ -39,7 +41,7 @@ type gogpuClassifiedBrushEntityDraw struct {
 	// Optional per-draw texture overrides — see gogpuOpaqueBrushEntityDraw.
 	textures           map[int32]*gpuWorldTexture
 	fullbrightTextures map[int32]*gpuWorldTexture
-	textureAnimations  []*SurfaceTexture
+	textureAnimations  []*surfacepkg.SurfaceTexture
 }
 
 type gogpuPreparedClassifiedBrushDraw struct {
@@ -193,7 +195,7 @@ type gogpuTranslucentLiquidBrushEntityDraw struct {
 	// Optional per-entity texture overrides for standalone-BSP brush entities.
 	textures           map[int32]*gpuWorldTexture
 	fullbrightTextures map[int32]*gpuWorldTexture
-	textureAnimations  []*SurfaceTexture
+	textureAnimations  []*surfacepkg.SurfaceTexture
 }
 
 func convertGoGPUTranslucentFaceDraws(src []worldgogpu.TranslucentFaceDraw) []gogpuTranslucentLiquidFaceDraw {
@@ -241,7 +243,7 @@ type gogpuTranslucentBrushEntityDraw struct {
 	// Optional per-entity texture overrides for standalone-BSP brush entities.
 	textures           map[int32]*gpuWorldTexture
 	fullbrightTextures map[int32]*gpuWorldTexture
-	textureAnimations  []*SurfaceTexture
+	textureAnimations  []*surfacepkg.SurfaceTexture
 }
 
 func buildGoGPUTranslucentBrushEntityDraw(entity BrushEntity, geom *WorldGeometry, liquidAlpha worldLiquidAlphaSettings, camera CameraState) *gogpuTranslucentBrushEntityDraw {

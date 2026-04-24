@@ -8,6 +8,8 @@ import (
 	worldgogpu "github.com/darkliquid/ironwail-go/internal/renderer/world/gogpu"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 type gogpuLateTranslucentFaceResources struct {
@@ -29,7 +31,7 @@ type gogpuLateTranslucentFaceResources struct {
 	camera                  CameraState
 	worldTextures           map[int32]*gpuWorldTexture
 	worldFullbrightTextures map[int32]*gpuWorldTexture
-	worldTextureAnimations  []*SurfaceTexture
+	worldTextureAnimations  []*surfacepkg.SurfaceTexture
 	worldLightmapPages      []*gpuWorldTexture
 	activeDynamicLights     []DynamicLight
 	unlock                  func()
@@ -66,7 +68,7 @@ func (dc *DrawContext) loadGoGPULateTranslucentFaceResources() (gogpuLateTranslu
 		camera:                  r.cameraState,
 		worldTextures:           make(map[int32]*gpuWorldTexture, len(r.worldTextures)),
 		worldFullbrightTextures: make(map[int32]*gpuWorldTexture, len(r.worldFullbrightTextures)),
-		worldTextureAnimations:  append([]*SurfaceTexture(nil), r.worldTextureAnimations...),
+		worldTextureAnimations:  append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...),
 		worldLightmapPages:      append([]*gpuWorldTexture(nil), r.worldLightmapPages...),
 		unlock:                  r.mu.RUnlock,
 	}
@@ -682,7 +684,7 @@ type gogpuTranslucentBrushFaceRender struct {
 	// Optional per-render texture overrides for standalone-BSP brush entities.
 	textures           map[int32]*gpuWorldTexture
 	fullbrightTextures map[int32]*gpuWorldTexture
-	textureAnimations  []*SurfaceTexture
+	textureAnimations  []*surfacepkg.SurfaceTexture
 }
 
 func sortGoGPUTranslucentBrushFaceRenders(mode AlphaMode, renders []gogpuTranslucentBrushFaceRender) {

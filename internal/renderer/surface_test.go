@@ -5,61 +5,63 @@ import (
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/model"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 func TestTextureAnimation(t *testing.T) {
-	t1 := &SurfaceTexture{AnimTotal: 20, AnimMin: 0, AnimMax: 10}
-	t2 := &SurfaceTexture{AnimTotal: 20, AnimMin: 10, AnimMax: 20}
+	t1 := &surfacepkg.SurfaceTexture{AnimTotal: 20, AnimMin: 0, AnimMax: 10}
+	t2 := &surfacepkg.SurfaceTexture{AnimTotal: 20, AnimMin: 10, AnimMax: 20}
 	t1.AnimNext = t2
 	t2.AnimNext = t1
 
-	tex, err := TextureAnimation(t1, 0, 1.5)
+	tex, err := surfacepkg.TextureAnimation(t1, 0, 1.5)
 	if err != nil {
-		t.Fatalf("TextureAnimation error: %v", err)
+		t.Fatalf("surfacepkg.TextureAnimation error: %v", err)
 	}
 	if tex != t2 {
-		t.Fatalf("TextureAnimation selected wrong frame")
+		t.Fatalf("surfacepkg.TextureAnimation selected wrong frame")
 	}
 
-	alt := &SurfaceTexture{AnimTotal: 0}
+	alt := &surfacepkg.SurfaceTexture{AnimTotal: 0}
 	t1.AlternateAnims = alt
-	tex, err = TextureAnimation(t1, 1, 0.0)
+	tex, err = surfacepkg.TextureAnimation(t1, 1, 0.0)
 	if err != nil {
-		t.Fatalf("TextureAnimation alternate error: %v", err)
+		t.Fatalf("surfacepkg.TextureAnimation alternate error: %v", err)
 	}
 	if tex != alt {
-		t.Fatalf("TextureAnimation alternate frame mismatch")
+		t.Fatalf("surfacepkg.TextureAnimation alternate frame mismatch")
 	}
 }
 
 func TestTextureAnimationBrokenCycle(t *testing.T) {
-	base := &SurfaceTexture{AnimTotal: 10, AnimMin: 9, AnimMax: 10, AnimNext: nil}
-	_, err := TextureAnimation(base, 0, 0.0)
-	if !errors.Is(err, ErrBrokenTextureAnimationCycle) {
-		t.Fatalf("error = %v, want %v", err, ErrBrokenTextureAnimationCycle)
+	base := &surfacepkg.SurfaceTexture{AnimTotal: 10, AnimMin: 9, AnimMax: 10, AnimNext: nil}
+	_, err := surfacepkg.TextureAnimation(base, 0, 0.0)
+	if !errors.Is(err, surfacepkg.ErrBrokenTextureAnimationCycle) {
+		t.Fatalf("error = %v, want %v", err, surfacepkg.ErrBrokenTextureAnimationCycle)
 	}
 }
 
 func TestBuildTextureAnimationsLinksPrimaryAndAlternateChains(t *testing.T) {
-	textures, err := BuildTextureAnimations([]string{"+0lava", "+1lava", "+Alava", "+Blava", "stone"})
+	textures, err := surfacepkg.BuildTextureAnimations([]string{"+0lava", "+1lava", "+Alava", "+Blava", "stone"})
 	if err != nil {
-		t.Fatalf("BuildTextureAnimations error: %v", err)
+		t.Fatalf("surfacepkg.BuildTextureAnimations error: %v", err)
 	}
 
-	primary, err := TextureAnimation(textures[0], 0, 0.3)
+	primary, err := surfacepkg.TextureAnimation(textures[0], 0, 0.3)
 	if err != nil {
-		t.Fatalf("TextureAnimation(primary) error: %v", err)
+		t.Fatalf("surfacepkg.TextureAnimation(primary) error: %v", err)
 	}
 	if primary != textures[1] {
-		t.Fatalf("TextureAnimation(primary) = %#v, want frame 1", primary)
+		t.Fatalf("surfacepkg.TextureAnimation(primary) = %#v, want frame 1", primary)
 	}
 
-	alternate, err := TextureAnimation(textures[0], 1, 0.0)
+	alternate, err := surfacepkg.TextureAnimation(textures[0], 1, 0.0)
 	if err != nil {
-		t.Fatalf("TextureAnimation(alternate) error: %v", err)
+		t.Fatalf("surfacepkg.TextureAnimation(alternate) error: %v", err)
 	}
 	if alternate != textures[2] {
-		t.Fatalf("TextureAnimation(alternate) = %#v, want alternate frame A", alternate)
+		t.Fatalf("surfacepkg.TextureAnimation(alternate) = %#v, want alternate frame A", alternate)
 	}
 	if alternate.TextureIndex != 2 {
 		t.Fatalf("alternate TextureIndex = %d, want 2", alternate.TextureIndex)
@@ -67,16 +69,16 @@ func TestBuildTextureAnimationsLinksPrimaryAndAlternateChains(t *testing.T) {
 }
 
 func TestBuildTextureAnimationsRejectsMissingFrame(t *testing.T) {
-	_, err := BuildTextureAnimations([]string{"+0lava", "+2lava"})
+	_, err := surfacepkg.BuildTextureAnimations([]string{"+0lava", "+2lava"})
 	if err == nil || err.Error() != "missing frame 1 of +0lava" {
-		t.Fatalf("BuildTextureAnimations error = %v, want missing frame error", err)
+		t.Fatalf("surfacepkg.BuildTextureAnimations error = %v, want missing frame error", err)
 	}
 }
 
 func TestBuildTextureAnimationsRejectsInvalidFrameToken(t *testing.T) {
-	_, err := BuildTextureAnimations([]string{"+"})
+	_, err := surfacepkg.BuildTextureAnimations([]string{"+"})
 	if err == nil || err.Error() != "bad animating texture \"+\"" {
-		t.Fatalf("BuildTextureAnimations error = %v, want bad animating texture error", err)
+		t.Fatalf("surfacepkg.BuildTextureAnimations error = %v, want bad animating texture error", err)
 	}
 }
 
@@ -115,9 +117,9 @@ func TestBlendFogStateTowardsImmediateWhenStepDisabled(t *testing.T) {
 }
 
 func TestChartAddSerpentine(t *testing.T) {
-	var c Chart
+	var c surfacepkg.Chart
 	if err := c.Init(8, 4); err != nil {
-		t.Fatalf("Chart.Init error: %v", err)
+		t.Fatalf("surfacepkg.Chart.Init error: %v", err)
 	}
 
 	x, y, ok, err := c.Add(3, 2)
@@ -137,9 +139,9 @@ func TestChartAddSerpentine(t *testing.T) {
 }
 
 func TestLightmapAllocatorReserveFirstTexel(t *testing.T) {
-	a, err := NewLightmapAllocator(8, 8, true)
+	a, err := surfacepkg.NewLightmapAllocator(8, 8, true)
 	if err != nil {
-		t.Fatalf("NewLightmapAllocator error: %v", err)
+		t.Fatalf("surfacepkg.NewLightmapAllocator error: %v", err)
 	}
 
 	tex, x, y, err := a.AllocBlock(1, 1)
@@ -152,7 +154,7 @@ func TestLightmapAllocatorReserveFirstTexel(t *testing.T) {
 }
 
 func TestFillSurfaceLightmapSingleStyle(t *testing.T) {
-	in := SurfaceLightmapInput{
+	in := surfacepkg.SurfaceLightmapInput{
 		Styles:  [4]byte{0, 255, 255, 255},
 		Extents: [2]int16{16, 16},
 		Samples: []byte{
@@ -164,8 +166,8 @@ func TestFillSurfaceLightmapSingleStyle(t *testing.T) {
 	}
 
 	dst := make([]uint32, 16)
-	if err := FillSurfaceLightmap(in, Lightmap{}, 4, dst); err != nil {
-		t.Fatalf("FillSurfaceLightmap error: %v", err)
+	if err := surfacepkg.FillSurfaceLightmap(in, surfacepkg.Lightmap{}, 4, dst); err != nil {
+		t.Fatalf("surfacepkg.FillSurfaceLightmap error: %v", err)
 	}
 
 	want := []uint32{
@@ -181,7 +183,7 @@ func TestFillSurfaceLightmapSingleStyle(t *testing.T) {
 }
 
 func TestFillSurfaceLightmapTwoStyles(t *testing.T) {
-	in := SurfaceLightmapInput{
+	in := surfacepkg.SurfaceLightmapInput{
 		Styles:  [4]byte{0, 1, 255, 255},
 		Extents: [2]int16{16, 16},
 		Samples: []byte{
@@ -198,8 +200,8 @@ func TestFillSurfaceLightmapTwoStyles(t *testing.T) {
 	}
 
 	dst := make([]uint32, 32)
-	if err := FillSurfaceLightmap(in, Lightmap{}, 8, dst); err != nil {
-		t.Fatalf("FillSurfaceLightmap error: %v", err)
+	if err := surfacepkg.FillSurfaceLightmap(in, surfacepkg.Lightmap{}, 8, dst); err != nil {
+		t.Fatalf("surfacepkg.FillSurfaceLightmap error: %v", err)
 	}
 
 	if dst[0] != 0xff030201 || dst[1] != 0xff060504 || dst[2] != 0xff0f0e0d || dst[3] != 0xff121110 {
@@ -208,7 +210,7 @@ func TestFillSurfaceLightmapTwoStyles(t *testing.T) {
 }
 
 func TestFillSurfaceLightmapPackedRGB(t *testing.T) {
-	in := SurfaceLightmapInput{
+	in := surfacepkg.SurfaceLightmapInput{
 		Styles:  [4]byte{0, 1, 2, 255},
 		Extents: [2]int16{0, 0},
 		Samples: []byte{
@@ -219,8 +221,8 @@ func TestFillSurfaceLightmapPackedRGB(t *testing.T) {
 	}
 
 	dst := make([]uint32, 3)
-	if err := FillSurfaceLightmap(in, Lightmap{}, 3, dst); err != nil {
-		t.Fatalf("FillSurfaceLightmap error: %v", err)
+	if err := surfacepkg.FillSurfaceLightmap(in, surfacepkg.Lightmap{}, 3, dst); err != nil {
+		t.Fatalf("surfacepkg.FillSurfaceLightmap error: %v", err)
 	}
 
 	if dst[0] != 0x00070401 {

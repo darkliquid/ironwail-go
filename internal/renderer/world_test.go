@@ -5,6 +5,8 @@ import (
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/gogpu/wgpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 // TestBuildWorldGeometry_NilTree tests handling of nil BSP tree.
@@ -317,9 +319,9 @@ func TestExtractFaceVertices_UsesHighPrecisionLightmapExtents(t *testing.T) {
 		Styles:    [4]uint8{0, 255, 255, 255},
 	}
 
-	allocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
+	allocator, err := surfacepkg.NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
 	if err != nil {
-		t.Fatalf("NewLightmapAllocator failed: %v", err)
+		t.Fatalf("surfacepkg.NewLightmapAllocator failed: %v", err)
 	}
 	var pages []WorldLightmapPage
 	_, surface, err := extractFaceVertices(tree, face, allocator, &pages)

@@ -10,6 +10,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 const worldLightmapPageSize = 1024
@@ -54,7 +56,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 		TransparentWaterSafe: worldimpl.MapVisTransparentWaterSafe(tree),
 		Tree:                 tree,
 	}
-	lightmapAllocator, err := NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
+	lightmapAllocator, err := surfacepkg.NewLightmapAllocator(worldLightmapPageSize, worldLightmapPageSize, false)
 	if err != nil {
 		return nil, fmt.Errorf("create lightmap allocator: %w", err)
 	}
@@ -146,7 +148,7 @@ func BuildModelGeometry(tree *bsp.Tree, modelIndex int) (*WorldGeometry, error) 
 // extractFaceVertices extracts all vertices for a BSP face.
 // It follows the edge/surfedge indirection to get vertex positions,
 // then computes texture/lightmap coords and normals.
-func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *LightmapAllocator, pages *[]WorldLightmapPage) ([]WorldVertex, *faceLightmapSurface, error) {
+func extractFaceVertices(tree *bsp.Tree, face *bsp.TreeFace, allocator *surfacepkg.LightmapAllocator, pages *[]WorldLightmapPage) ([]WorldVertex, *faceLightmapSurface, error) {
 	numEdges := int(face.NumEdges)
 	if numEdges < 3 {
 		return nil, nil, fmt.Errorf("face has < 3 edges")
@@ -347,7 +349,7 @@ func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSe
 	return settings
 }
 
-func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bsp.TreeFace, tree *bsp.Tree, allocator *LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
+func assignFaceLightmap(vertices []WorldVertex, rawCoords [][2]float64, face *bsp.TreeFace, tree *bsp.Tree, allocator *surfacepkg.LightmapAllocator, pages *[]WorldLightmapPage) (*faceLightmapSurface, error) {
 	if face == nil || tree == nil || allocator == nil || len(vertices) == 0 || len(rawCoords) != len(vertices) || face.LightOfs < 0 || len(tree.Lighting) == 0 {
 		return nil, nil
 	}

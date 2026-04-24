@@ -12,6 +12,8 @@ import (
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 // createWorldVertexBuffer uploads vertex data to GPU
@@ -868,7 +870,7 @@ func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Qu
 	return r.createWorldTextureFromRGBA(device, queue, sampler, "World Diffuse Texture", rgba, width, height)
 }
 
-func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
+func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*surfacepkg.SurfaceTexture) {
 	if tree == nil || device == nil || queue == nil || sampler == nil || len(tree.TextureData) < 4 {
 		return nil, nil, nil
 	}
@@ -911,7 +913,7 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 		}
 		fullbright[int32(i)] = fullbrightTexture
 	}
-	animations, err := BuildTextureAnimations(textureNames)
+	animations, err := surfacepkg.BuildTextureAnimations(textureNames)
 	if err != nil {
 		slog.Warn("failed to build world texture animations", "error", err)
 	}
@@ -978,10 +980,10 @@ func (r *Renderer) uploadWorldEmbeddedSkyTextures(device *wgpu.Device, queue *wg
 	return solid, alpha
 }
 
-func gogpuWorldTextureForFace(face WorldFace, textures map[int32]*gpuWorldTexture, textureAnimations []*SurfaceTexture, fallback *gpuWorldTexture, frame int, timeSeconds float64) *gpuWorldTexture {
+func gogpuWorldTextureForFace(face WorldFace, textures map[int32]*gpuWorldTexture, textureAnimations []*surfacepkg.SurfaceTexture, fallback *gpuWorldTexture, frame int, timeSeconds float64) *gpuWorldTexture {
 	textureIndex := face.TextureIndex
 	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
-		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
+		if animated, err := surfacepkg.TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
 			textureIndex = animated.TextureIndex
 		}
 	}

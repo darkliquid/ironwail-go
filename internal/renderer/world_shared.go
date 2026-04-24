@@ -6,6 +6,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	worldimpl "github.com/darkliquid/ironwail-go/internal/renderer/world"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 // WorldRuntime is the renderer-root contract that shared callers and tests use
@@ -356,10 +358,10 @@ func gogpuWorldSkyFogDensity(worldEntities []byte, fogDensity float32) float32 {
 	return resolveWorldSkyFogMix(readWorldSkyFogCvar(0.5), parseWorldspawnSkyFogOverride(worldEntities), fogDensity)
 }
 
-func resolveWorldSkyTextureIndex(face WorldFace, textureAnimations []*SurfaceTexture, frame int, timeSeconds float64) int32 {
+func resolveWorldSkyTextureIndex(face WorldFace, textureAnimations []*surfacepkg.SurfaceTexture, frame int, timeSeconds float64) int32 {
 	textureIndex := face.TextureIndex
 	if textureIndex >= 0 && int(textureIndex) < len(textureAnimations) && textureAnimations[textureIndex] != nil {
-		if animated, err := TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
+		if animated, err := surfacepkg.TextureAnimation(textureAnimations[textureIndex], frame, timeSeconds); err == nil && animated != nil {
 			textureIndex = animated.TextureIndex
 		}
 	}

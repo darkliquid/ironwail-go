@@ -9,6 +9,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/image"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/wgpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 type DrawContext struct {
@@ -185,7 +187,7 @@ type Renderer struct {
 	worldFullbrightTextures           map[int32]*gpuWorldTexture
 	worldSkySolidTextures             map[int32]*gpuWorldTexture
 	worldSkyAlphaTextures             map[int32]*gpuWorldTexture
-	worldTextureAnimations            []*SurfaceTexture
+	worldTextureAnimations            []*surfacepkg.SurfaceTexture
 	worldSkyExternalTextures          [6]*wgpu.Texture
 	worldSkyExternalViews             [6]*wgpu.TextureView
 	worldSkyExternalBindGroup         *wgpu.BindGroup
@@ -240,7 +242,7 @@ type Renderer struct {
 	externalBrushLightmaps         map[string][]*gpuWorldTexture
 	externalBrushTextures          map[string]map[int32]*gpuWorldTexture
 	externalBrushFullbright        map[string]map[int32]*gpuWorldTexture
-	externalBrushAnimations        map[string][]*SurfaceTexture
+	externalBrushAnimations        map[string][]*surfacepkg.SurfaceTexture
 	aliasModels                    map[string]*gpuAliasModel
 	spriteModels                   map[string]*gpuSpriteModel
 	aliasEntityStates              map[int]*AliasEntity

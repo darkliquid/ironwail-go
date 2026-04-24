@@ -6,6 +6,8 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	"github.com/darkliquid/ironwail-go/pkg/types"
 	"github.com/gogpu/wgpu"
+
+	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
 
 // UpdateCamera updates the camera state and recomputes view/projection matrices.
@@ -425,7 +427,7 @@ func (r *Renderer) brushEntityLightmaps(entity BrushEntity, geom *WorldGeometry)
 // textures and texture-animation chains for a standalone BSP file. Like
 // the geometry/lightmap caches the entries are keyed by external-model
 // name so repeat entities share the same GPU resources.
-func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
+func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*surfacepkg.SurfaceTexture) {
 	if key == "" || tree == nil {
 		return nil, nil, nil
 	}
@@ -448,7 +450,7 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 	if r.externalBrushTextures == nil {
 		r.externalBrushTextures = make(map[string]map[int32]*gpuWorldTexture)
 		r.externalBrushFullbright = make(map[string]map[int32]*gpuWorldTexture)
-		r.externalBrushAnimations = make(map[string][]*SurfaceTexture)
+		r.externalBrushAnimations = make(map[string][]*surfacepkg.SurfaceTexture)
 	}
 	if existing, ok := r.externalBrushTextures[key]; ok {
 		r.mu.Unlock()
@@ -472,7 +474,7 @@ func (r *Renderer) ensureExternalBrushModelTextures(key string, tree *bsp.Tree) 
 // triplet appropriate for a brush entity. External-BSP entities get
 // per-key maps uploaded on demand; inline submodels return (nil, nil, nil)
 // and fall back to the world texture tables.
-func (r *Renderer) brushEntityTextures(entity BrushEntity) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*SurfaceTexture) {
+func (r *Renderer) brushEntityTextures(entity BrushEntity) (map[int32]*gpuWorldTexture, map[int32]*gpuWorldTexture, []*surfacepkg.SurfaceTexture) {
 	if entity.ExternalKey == "" || entity.ExternalTree == nil {
 		return nil, nil, nil
 	}
