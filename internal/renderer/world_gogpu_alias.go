@@ -139,9 +139,15 @@ func (r *Renderer) ensureAliasResourcesLocked(device *wgpu.Device) error {
 
 	sampler, err := device.CreateSampler(&wgpu.SamplerDescriptor{
 		Label:        "Alias Sampler",
-		AddressModeU: gputypes.AddressModeClampToEdge,
-		AddressModeV: gputypes.AddressModeClampToEdge,
-		AddressModeW: gputypes.AddressModeClampToEdge,
+		// C alias skins are uploaded without TEXPREF_CLAMP (see gl_model.c
+		// R_LoadSkin), so the GL default GL_REPEAT wrap applies. Match that
+		// here: some v_*.mdl seam/back-facing triangles have UVs that land
+		// exactly on the skin edge (u == 1.0), and ClampToEdge would sample
+		// the wrong column of the skin (e.g. nailgun grate triangles picking
+		// up the dark barrel-cap column).
+		AddressModeU: gputypes.AddressModeRepeat,
+		AddressModeV: gputypes.AddressModeRepeat,
+		AddressModeW: gputypes.AddressModeRepeat,
 		MagFilter:    gputypes.FilterModeNearest,
 		MinFilter:    gputypes.FilterModeNearest,
 		MipmapFilter: gputypes.FilterModeNearest,
