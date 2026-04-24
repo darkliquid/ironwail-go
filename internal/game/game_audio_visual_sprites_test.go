@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/host"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
+	"github.com/darkliquid/ironwail-go/internal/renderer"
 )
 
 func TestCollectSpriteEntitiesLoadsRuntimeSprites(t *testing.T) {
@@ -565,7 +566,7 @@ func TestCollectAliasEntitiesKeepsLiveDynamicInterpolationState(t *testing.T) {
 	if entities[0].TimeSeconds != g.Client.Time {
 		t.Fatalf("collectAliasEntities time = %v, want %v", entities[0].TimeSeconds, g.Client.Time)
 	}
-	if entities[0].LerpFlags != int(inet.LerpMoveStep|inet.LerpResetMove|inet.LerpResetAnim) {
-		t.Fatalf("collectAliasEntities lerp flags = %d, want live flags preserved", entities[0].LerpFlags)
+	if entities[0].LerpFlags != renderer.LerpMoveStep|renderer.LerpResetMove|renderer.LerpResetAnim {
+		t.Fatalf("collectAliasEntities lerp flags = %d, want renderer-translated flags (LerpMoveStep|LerpResetMove|LerpResetAnim = %d)", entities[0].LerpFlags, renderer.LerpMoveStep|renderer.LerpResetMove|renderer.LerpResetAnim)
 	}
 }

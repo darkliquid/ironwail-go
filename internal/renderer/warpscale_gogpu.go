@@ -26,9 +26,12 @@ fn vs_main(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
         vec2<f32>(-1.0,  3.0),
     );
     var uvs = array<vec2<f32>, 3>(
-        vec2<f32>(0.0, 0.0),
-        vec2<f32>(2.0, 0.0),
-        vec2<f32>(0.0, 2.0),
+        // WebGPU textures are Y=0-at-top; clip Y=-1 is screen bottom.
+        // Flipping UV Y maps screen-bottom → texture-bottom (scene bottom),
+        // which produces a right-side-up composite instead of upside-down.
+        vec2<f32>(0.0,  1.0),
+        vec2<f32>(2.0,  1.0),
+        vec2<f32>(0.0, -1.0),
     );
 
     var output: VertexOutput;
@@ -59,8 +62,19 @@ var<uniform> uniforms: SceneCompositeUniforms;
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    var uv = input.uv;
     let uvScale = uniforms.uvScaleWarpTime.xy;
-    return textureSample(sceneTexture, sceneSampler, input.uv * uvScale);
+    let warpAmp = uniforms.uvScaleWarpTime.z;
+    let warpTime = uniforms.uvScaleWarpTime.w;
+
+    // Sinusoidal underwater warp (mirrors C warpscale fragment shader).
+    // When warpAmp == 0 the math degenerates to uv unchanged.
+    let aspect = dpdy(uv.y) / dpdx(uv.x);
+    let warpV = vec2<f32>(warpAmp, warpAmp * aspect);
+    let remapped = warpV + uv * (1.0 - 2.0 * warpV);
+    uv = remapped + warpV * sin(vec2<f32>(remapped.y / aspect, remapped.x) * (3.14159265 * 8.0) + warpTime);
+
+    return textureSample(sceneTexture, sceneSampler, uv * uvScale);
 }
 `
 

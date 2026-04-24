@@ -254,7 +254,18 @@ func (g *Game) collectAliasEntities() []renderer.AliasModelEntity {
 		if frame < 0 || frame >= mdl.AliasHeader.NumFrames {
 			frame = 0
 		}
-		lerpFlags := int(state.LerpFlags &^ inet.LerpFinish)
+		// Translate inet lerpflags to renderer lerpflags. The two sets use
+		// different bit positions, so each flag must be mapped explicitly.
+		var lerpFlags int
+		if state.LerpFlags&inet.LerpResetMove != 0 {
+			lerpFlags |= renderer.LerpResetMove
+		}
+		if state.LerpFlags&inet.LerpResetAnim != 0 {
+			lerpFlags |= renderer.LerpResetAnim
+		}
+		if state.LerpFlags&inet.LerpMoveStep != 0 {
+			lerpFlags |= renderer.LerpMoveStep
+		}
 		if state.LerpFlags&inet.LerpFinish != 0 {
 			lerpFlags |= renderer.LerpFinish
 		}
