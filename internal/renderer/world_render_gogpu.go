@@ -495,7 +495,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	if hostSpeeds {
-		slog.Info("render_world_speeds",
+		slog.Debug("render_world_speeds",
 			"visible_select_ms", visibleSelectMS,
 			"classify_faces_ms", classifyFacesMS,
 			"batch_build_ms", batchBuildMS,

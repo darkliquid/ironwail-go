@@ -34,7 +34,7 @@ func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
 	if g.Input != nil {
 		keyDest = g.keyDestName(g.Input.GetKeyDest())
 	}
-	slog.Info("input dispatch", "path", path, "key", keyName, "key_code", event.Key, "down", event.Down, "key_dest", keyDest, "menu_active", menuActive, "event_index", index)
+	slog.Debug("input dispatch", "path", path, "key", keyName, "key_code", event.Key, "down", event.Down, "key_dest", keyDest, "menu_active", menuActive, "event_index", index)
 }
 
 func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
@@ -383,7 +383,7 @@ func (g *Game) syncGameplayInputMode() {
 	}
 	if g.Input.GetKeyDest() != wantDest {
 		g.Input.SetKeyDest(wantDest)
-		slog.Info("input mode updated", "key_dest", g.keyDestName(wantDest), "menu_active", menuActive)
+		slog.Debug("input mode updated", "key_dest", g.keyDestName(wantDest), "menu_active", menuActive)
 	}
 
 	shouldGrab := !menuActive && wantDest == input.KeyGame

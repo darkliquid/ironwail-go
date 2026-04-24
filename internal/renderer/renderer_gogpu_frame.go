@@ -241,7 +241,7 @@ func (dc *DrawContext) RenderFrame(state *RenderFrameState, draw2DOverlay func(d
 
 	dc.logPrePresentState("normal")
 	if hostSpeeds {
-		slog.Info("render_thread_speeds",
+		slog.Debug("render_thread_speeds",
 			"clear_ms", clearMS,
 			"world_ms", worldMS,
 			"entities_ms", entitiesMS,
@@ -302,7 +302,7 @@ func (dc *DrawContext) maybeLogGoGPUFirstWorldFrameStats(state *RenderFrameState
 		opaqueAliasEntities = 0
 	}
 
-	slog.Info("GoGPU first frame stats",
+	slog.Debug("GoGPU first frame stats",
 		"alpha_mode", effectiveGoGPUAlphaMode(GetAlphaMode()).String(),
 		"visible_faces", visibleStats.TotalFaces,
 		"visible_triangles", visibleStats.TotalTriangles,
@@ -663,7 +663,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 	flushPendingTranslucency()
 	translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
 	if hostSpeeds {
-		slog.Info("render_entities_speeds",
+		slog.Debug("render_entities_speeds",
 			"opaque_brush_ms", opaqueBrushMS,
 			"opaque_alias_ms", opaqueAliasMS,
 			"opaque_particles_ms", opaqueParticlesMS,

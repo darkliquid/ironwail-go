@@ -570,7 +570,7 @@ func logStartupConfigCandidates(userDir string, subs *Subsystems) {
 		return
 	}
 	quakeRCExists := subs != nil && subs.Files != nil && subs.Files.FileExists("quake.rc")
-	slog.Info("startup config candidates",
+	slog.Debug("startup config candidates",
 		"user_dir", absolutePathOrOriginal(userDir),
 		"quake_rc_filesystem", quakeRCExists,
 		"ironwail_cfg", absolutePathOrOriginal(filepath.Join(userDir, configFileName)),

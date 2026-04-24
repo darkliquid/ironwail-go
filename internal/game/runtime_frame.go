@@ -52,7 +52,7 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 	g.installRuntimeRendererCallbacks(gameCallbacks{g: g}, state)
 	g.prepareRuntimeRendererScreenshot(state.screenshotMode)
 
-	slog.Info("frame loop started")
+	slog.Debug("frame loop started")
 	runErr := g.Renderer.Run()
 	if runErr != nil {
 		if g.Renderer != nil {

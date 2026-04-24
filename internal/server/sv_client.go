@@ -768,7 +768,7 @@ func (s *Server) CheckForNewClients() error {
 		}
 		s.Static.Clients[freeSlot].NetConnection = sock
 		s.ConnectClient(freeSlot)
-		slog.Info("CheckForNewClients: client connected", "slot", freeSlot)
+		slog.Debug("CheckForNewClients: client connected", "slot", freeSlot)
 	}
 	return nil
 }

@@ -81,7 +81,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		r.mu.Lock()
 		r.worldData = renderData
 		r.mu.Unlock()
-		slog.Info("GoGPU world upload stats",
+		slog.Debug("GoGPU world upload stats",
 			"gpu_upload", false,
 			"bsp_version", tree.Version,
 			"lighting_rgb", tree.LightingRGB,
@@ -409,7 +409,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		"boundsMax", renderData.BoundsMax,
 		"vertexBufferSize", uint64(len(geom.Vertices))*44,
 		"indexBufferSize", uint64(len(geom.Indices))*4)
-	slog.Info("GoGPU world upload stats",
+	slog.Debug("GoGPU world upload stats",
 		"gpu_upload", true,
 		"bsp_version", tree.Version,
 		"lighting_rgb", tree.LightingRGB,

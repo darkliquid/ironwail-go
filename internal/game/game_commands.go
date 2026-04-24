@@ -458,7 +458,7 @@ func (g *Game) logStartupInputDiagnostics() {
 	if g.Menu != nil {
 		menuState = fmt.Sprintf("%v", g.Menu.GetState())
 	}
-	slog.Info("startup input diagnostics",
+	slog.Debug("startup input diagnostics",
 		"menu_active", menuActive,
 		"menu_state", menuState,
 		"key_dest", g.keyDestName(g.Input.GetKeyDest()),

@@ -445,7 +445,7 @@ func (g *Game) preferWaylandForGoGPU() {
 		return
 	}
 
-	slog.Info(
+	slog.Warn(
 		"Using X11 backend; gogpu falls back to polling-based keyboard input",
 		"display_server", "x11",
 		"keyboard_input_mode", "polling",

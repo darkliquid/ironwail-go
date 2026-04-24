@@ -40,7 +40,7 @@ func NewInputBackend(app *gg.App, sys *iinput.System) iinput.Backend {
 
 func (b *InputBackend) Init() error {
 	b.initCallbacks()
-	slog.Info("gogpu input backend initialized")
+	slog.Debug("gogpu input backend initialized")
 	return nil
 }
 
@@ -267,7 +267,7 @@ func (b *InputBackend) initCallbacks() {
 	})
 
 	b.callbacksInited = true
-	slog.Info("gogpu input callbacks registered")
+	slog.Debug("gogpu input callbacks registered")
 }
 
 func (b *InputBackend) logInputEvent(source string, key int, down bool) {
@@ -281,7 +281,7 @@ func (b *InputBackend) logInputEvent(source string, key int, down bool) {
 	if keyName == "" {
 		keyName = "UNKNOWN"
 	}
-	slog.Info("input event observed", "source", source, "key", keyName, "key_code", key, "down", down, "event_index", b.eventLogCount)
+	slog.Debug("input event observed", "source", source, "key", keyName, "key_code", key, "down", down, "event_index", b.eventLogCount)
 }
 
 func (b *InputBackend) markCallbackInput() {

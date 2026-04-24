@@ -643,7 +643,7 @@ func (s *Server) loadMapEntities(raw string) error {
 	}
 
 	if inhibited > 0 {
-		slog.Info("entities inhibited by skill/deathmatch filtering", "count", inhibited)
+		slog.Debug("entities inhibited by skill/deathmatch filtering", "count", inhibited)
 	}
 	s.NumEdicts = len(s.Edicts)
 	return nil

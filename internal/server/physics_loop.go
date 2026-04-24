@@ -213,7 +213,7 @@ func (s *Server) Physics() {
 	phaseEnd(&devStatsMS)
 
 	if hostSpeeds {
-		slog.Info("physics_speeds",
+		slog.Debug("physics_speeds",
 			"time", s.Time,
 			"startframe_ms", startFrameMS,
 			"force_retouch_ms", forceRetouchMS,

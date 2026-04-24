@@ -51,11 +51,11 @@ func NewWithConfig(cfg Config) (*Renderer, error) {
 	// The headless Core path uses RequestAdapter PowerPreference directly.
 	switch cfg.GPUPreference {
 	case GPUPreferHighPerformance:
-		slog.Info("GPU preference: high-performance (discrete)")
+		slog.Debug("GPU preference: high-performance (discrete)")
 	case GPUPreferLowPower:
-		slog.Info("GPU preference: low-power (integrated)")
+		slog.Debug("GPU preference: low-power (integrated)")
 	default:
-		slog.Info("GPU preference: auto")
+		slog.Debug("GPU preference: auto")
 	}
 	applyGPUPreferenceRuntimeEnv(cfg.GPUPreference)
 
@@ -118,7 +118,7 @@ func applyGPUPreferenceRuntimeEnv(pref GPUPreference) {
 	for _, override := range overrides {
 		prev, hadPrev := os.LookupEnv(override.key)
 		if hadPrev && prev == override.value {
-			slog.Info("GPU preference override already applied", "env", override.key, "value", override.value)
+			slog.Debug("GPU preference override already applied", "env", override.key, "value", override.value)
 			continue
 		}
 		if err := os.Setenv(override.key, override.value); err != nil {
@@ -126,10 +126,10 @@ func applyGPUPreferenceRuntimeEnv(pref GPUPreference) {
 			continue
 		}
 		if hadPrev {
-			slog.Info("Overrode GPU preference hint", "env", override.key, "previous", prev, "value", override.value)
+			slog.Debug("Overrode GPU preference hint", "env", override.key, "previous", prev, "value", override.value)
 			continue
 		}
-		slog.Info("Applied GPU preference override", "env", override.key, "value", override.value)
+		slog.Debug("Applied GPU preference override", "env", override.key, "value", override.value)
 	}
 }
 
@@ -351,7 +351,7 @@ func (r *Renderer) Run() error {
 	r.running = true
 	r.mu.Unlock()
 
-	slog.Info("Starting render loop")
+	slog.Debug("Starting render loop")
 
 	err := r.app.Run()
 

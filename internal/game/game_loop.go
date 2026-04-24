@@ -357,7 +357,7 @@ func (g *Game) HeadlessGameLoop() {
 	slog.Info("Starting headless game loop")
 
 	// Simple game loop without rendering
-	slog.Info("frame loop started")
+	slog.Debug("frame loop started")
 	lastTime := time.Now()
 	ticker := time.NewTicker(time.Second / 250) // 250 FPS target
 	defer ticker.Stop()
@@ -382,7 +382,7 @@ func (g *Game) HeadlessGameLoop() {
 
 func (g *Game) DedicatedGameLoop() {
 	slog.Info("Starting dedicated game loop")
-	slog.Info("frame loop started")
+	slog.Debug("frame loop started")
 
 	consoleCommands := make(chan string, 64)
 	go func() {

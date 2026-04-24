@@ -63,7 +63,7 @@ func logConfigExecProbe(requested, resolved, userDir string, subs *Subsystems) {
 		fsExists = subs.Files.FileExists(probeName)
 	}
 	_, builtinExists := builtinExecConfigText(probeName)
-	slog.Info("config exec probe",
+	slog.Debug("config exec probe",
 		"requested", requested,
 		"resolved", probeName,
 		"user_path", absolutePathOrOriginal(userPath),
@@ -153,7 +153,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 	}
 	logConfigExecProbe(requested, filename, h.userDir, subs)
 	if builtin, ok := builtinExecConfigText(filename); ok {
-		slog.Info("config exec resolved", "file", filename, "source", "builtin")
+		slog.Debug("config exec resolved", "file", filename, "source", "builtin")
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 		}
@@ -174,7 +174,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		err = os.ErrNotExist
 	}
 	if err == nil {
-		slog.Info("config exec resolved", "file", filename, "source", "user", "path", absolutePathOrOriginal(configProbePath(h.userDir, filename)))
+		slog.Debug("config exec resolved", "file", filename, "source", "user", "path", absolutePathOrOriginal(configProbePath(h.userDir, filename)))
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 		}
@@ -191,7 +191,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 	if subs != nil && subs.Files != nil {
 		data, err = subs.Files.LoadFile(filename)
 		if err == nil {
-			slog.Info("config exec resolved", "file", filename, "source", "filesystem")
+			slog.Debug("config exec resolved", "file", filename, "source", "filesystem")
 			if subs != nil && subs.Console != nil {
 				subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 			}

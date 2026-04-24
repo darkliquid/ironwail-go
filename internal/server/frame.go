@@ -59,7 +59,7 @@ func (s *Server) Frame(frameTime float64) error {
 	s.SendClientMessages()
 	if hostSpeeds {
 		sendMessagesMS = float64(time.Since(phaseStart)) / float64(time.Millisecond)
-		slog.Info("server_speeds",
+		slog.Debug("server_speeds",
 			"time", s.Time,
 			"check_clients_ms", checkClientsMS,
 			"run_clients_ms", runClientsMS,

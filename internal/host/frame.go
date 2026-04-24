@@ -211,7 +211,7 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 	h.updateWindowTitle(h.Subs, filteredDT)
 
 	if hostSpeeds {
-		slog.Info("host_speeds",
+		slog.Debug("host_speeds",
 			"frame", h.frameCount,
 			"game_ms", frameStats.GameTime,
 			"events_ms", eventMS,
