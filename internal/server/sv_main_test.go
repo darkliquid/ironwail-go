@@ -551,7 +551,7 @@ func TestLoadMapEntitiesReservesFreshSignonSpaceAndSeedsServerFlags(t *testing.T
 	s.Static.ServerFlags = 7
 	initialSignon := NewMessageBuffer(520)
 	for i := 0; i < 500; i++ {
-		initialSignon.WriteByte(0x42)
+		initialSignon.PutByte(0x42)
 	}
 	s.Signon = initialSignon
 	s.SignonBuffers = []*MessageBuffer{initialSignon}

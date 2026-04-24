@@ -296,7 +296,7 @@ func TestFrameClearsDatagramBeforeSimulation(t *testing.T) {
 		t.Fatalf("init: %v", err)
 	}
 	s.Active = true
-	s.Datagram.WriteByte(0x42)
+	s.Datagram.PutByte(0x42)
 
 	if err := s.Frame(0.05); err != nil {
 		t.Fatalf("Frame: %v", err)
@@ -315,7 +315,7 @@ func TestReadClientMessageProcessesStringCmdWithoutSentinel(t *testing.T) {
 	client := s.Static.Clients[0]
 
 	msg := NewMessageBuffer(32)
-	msg.WriteByte(byte(CLCStringCmd))
+	msg.PutByte(byte(CLCStringCmd))
 	msg.WriteString("prespawn")
 
 	if !s.SV_ReadClientMessage(client, msg) {
@@ -387,7 +387,7 @@ func TestSendClientMessagesHoldsReliableDataForIdleUnspawnedClient(t *testing.T)
 	client.Loopback = false
 	client.NetConnection = serverSock
 	client.SendSignon = SignonNone
-	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.PutByte(byte(inet.SVCPrint))
 	client.Message.WriteString("held")
 
 	s.SendClientMessages()
@@ -403,8 +403,8 @@ func TestSendClientMessagesHoldsReliableDataForIdleUnspawnedClient(t *testing.T)
 
 func TestMessageBufferOverflowSetsFlag(t *testing.T) {
 	msg := NewMessageBuffer(1)
-	msg.WriteByte(0x01)
-	msg.WriteByte(0x02)
+	msg.PutByte(0x01)
+	msg.PutByte(0x02)
 	if !msg.Overflowed {
 		t.Fatal("expected overflow flag after write past capacity")
 	}

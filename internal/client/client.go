@@ -823,7 +823,7 @@ func (c *Client) SendMove(cmd *UserCmd) ([]byte, error) {
 	buf := common.NewSizeBuf(64)
 
 	// Write CLCMove opcode
-	if !buf.WriteByte(byte(inet.CLCMove)) {
+	if !buf.PutByte(byte(inet.CLCMove)) {
 		return nil, fmt.Errorf("failed to write CLCMove opcode")
 	}
 
@@ -861,12 +861,12 @@ func (c *Client) SendMove(cmd *UserCmd) ([]byte, error) {
 	}
 
 	// Write button bits
-	if !buf.WriteByte(byte(cmd.Buttons)) {
+	if !buf.PutByte(byte(cmd.Buttons)) {
 		return nil, fmt.Errorf("failed to write buttons")
 	}
 
 	// Write impulse
-	if !buf.WriteByte(byte(cmd.Impulse)) {
+	if !buf.PutByte(byte(cmd.Impulse)) {
 		return nil, fmt.Errorf("failed to write impulse")
 	}
 
@@ -883,7 +883,7 @@ func (c *Client) SendStringCmd(command string) ([]byte, error) {
 	}
 
 	buf := common.NewSizeBuf(128 + len(command))
-	if !buf.WriteByte(byte(inet.CLCStringCmd)) {
+	if !buf.PutByte(byte(inet.CLCStringCmd)) {
 		return nil, fmt.Errorf("failed to write CLCStringCmd opcode")
 	}
 	if !buf.WriteString(command) {

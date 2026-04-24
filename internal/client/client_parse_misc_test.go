@@ -689,11 +689,11 @@ func TestParseSetAngleUsesProtocolShortAngles(t *testing.T) {
 	p := NewParser(c)
 
 	msg := common.NewSizeBuf(32)
-	msg.WriteByte(byte(inet.SVCSetAngle))
+	msg.PutByte(byte(inet.SVCSetAngle))
 	msg.WriteAngle16(90)
 	msg.WriteAngle16(180)
 	msg.WriteAngle16(270)
-	msg.WriteByte(0xFF)
+	msg.PutByte(0xFF)
 
 	if err := p.ParseServerMessage(msg.Data); err != nil {
 		t.Fatalf("ParseServerMessage() error = %v", err)
@@ -714,11 +714,11 @@ func TestParseSetAngleUsesProtocolFloatAngles(t *testing.T) {
 	p := NewParser(c)
 
 	msg := common.NewSizeBuf(32)
-	msg.WriteByte(byte(inet.SVCSetAngle))
+	msg.PutByte(byte(inet.SVCSetAngle))
 	msg.WriteFloat(12.5)
 	msg.WriteFloat(181.25)
 	msg.WriteFloat(-45.75)
-	msg.WriteByte(0xFF)
+	msg.PutByte(0xFF)
 
 	if err := p.ParseServerMessage(msg.Data); err != nil {
 		t.Fatalf("ParseServerMessage() error = %v", err)
@@ -746,12 +746,12 @@ func TestParseEntityUpdateUsesRMQFloatCoordsAndAngles(t *testing.T) {
 	p := NewParser(c)
 
 	msg := common.NewSizeBuf(32)
-	msg.WriteByte(byte(0x80 | inet.U_MOREBITS | inet.U_ORIGIN1))
-	msg.WriteByte(byte(inet.U_ANGLE1 >> 8))
-	msg.WriteByte(1)
+	msg.PutByte(byte(0x80 | inet.U_MOREBITS | inet.U_ORIGIN1))
+	msg.PutByte(byte(inet.U_ANGLE1 >> 8))
+	msg.PutByte(1)
 	msg.WriteFloat(10.25)
 	msg.WriteFloat(12.5)
-	msg.WriteByte(0xFF)
+	msg.PutByte(0xFF)
 
 	if err := p.ParseServerMessage(msg.Data[:msg.CurSize]); err != nil {
 		t.Fatalf("ParseServerMessage() error = %v", err)

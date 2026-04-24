@@ -126,14 +126,14 @@ func TestSendSignonBuffers(t *testing.T) {
 	if err := s.AddSignonBuffer(); err != nil {
 		t.Fatal(err)
 	}
-	s.Signon.WriteByte(0xAA)
-	s.Signon.WriteByte(0xBB)
+	s.Signon.PutByte(0xAA)
+	s.Signon.PutByte(0xBB)
 
 	// Add a second buffer.
 	if err := s.AddSignonBuffer(); err != nil {
 		t.Fatal(err)
 	}
-	s.Signon.WriteByte(0xCC)
+	s.Signon.PutByte(0xCC)
 
 	client := &Client{
 		Message: NewMessageBuffer(MaxDatagram),
@@ -254,8 +254,8 @@ func TestGetClientLoopbackMessageStagesOversizedSignonBuffers(t *testing.T) {
 	first := NewMessageBuffer(MaxDatagram)
 	first.Write(bytes.Repeat([]byte{byte(inet.SVCNop)}, MaxDatagram-1))
 	second := NewMessageBuffer(MaxDatagram)
-	second.WriteByte(byte(inet.SVCNop))
-	second.WriteByte(byte(inet.SVCNop))
+	second.PutByte(byte(inet.SVCNop))
+	second.PutByte(byte(inet.SVCNop))
 	s.SignonBuffers = []*MessageBuffer{first, second}
 
 	data := s.GetClientLoopbackMessage(0)

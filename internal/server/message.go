@@ -61,8 +61,8 @@ func (m *MessageBuffer) limit() int {
 // WRITE METHODS (Server → Client)
 // ============================================================================
 
-// WriteByte writes a single byte to the buffer.
-func (m *MessageBuffer) WriteByte(b byte) {
+// PutByte writes a single byte to the buffer.
+func (m *MessageBuffer) PutByte(b byte) {
 	if m == nil {
 		return
 	}
@@ -76,7 +76,7 @@ func (m *MessageBuffer) WriteByte(b byte) {
 
 // WriteChar writes a signed 8-bit character.
 func (m *MessageBuffer) WriteChar(c int8) {
-	m.WriteByte(byte(c))
+	m.PutByte(byte(c))
 }
 
 // WriteShort writes a 16-bit signed integer (little-endian).
@@ -153,7 +153,7 @@ func (m *MessageBuffer) WriteCoord(c float32, flags uint32) {
 		m.WriteLong(int32(math.Round(float64(c) * 16)))
 	} else if flags&uint32(ProtocolFlag24BitCoord) != 0 {
 		m.WriteShort(int16(c))
-		m.WriteByte(byte(int(c*255) % 255))
+		m.PutByte(byte(int(c*255) % 255))
 	} else {
 		// Default: 16-bit fixed-point (2 bytes). This is the standard for
 		// FitzQuake protocol 666 where protocolflags == 0.
@@ -172,7 +172,7 @@ func (m *MessageBuffer) WriteAngle(a float32, flags uint32) {
 	} else if flags&uint32(ProtocolFlagShortAngle) != 0 {
 		m.WriteShort(int16(int(math.Round(float64(a)*65536.0/360.0)) & 65535))
 	} else {
-		m.WriteByte(byte(int(math.Round(float64(a)*256.0/360.0)) & 255))
+		m.PutByte(byte(int(math.Round(float64(a)*256.0/360.0)) & 255))
 	}
 }
 
@@ -212,8 +212,8 @@ func (m *MessageBuffer) Write(data []byte) {
 // READ METHODS (Client → Server)
 // ============================================================================
 
-// ReadByte reads a single byte from the buffer.
-func (m *MessageBuffer) ReadByte() byte {
+// GetByte reads a single byte from the buffer.
+func (m *MessageBuffer) GetByte() byte {
 	if m.ReadPos >= len(m.Data) {
 		m.BadRead = true
 		return 0
@@ -277,7 +277,7 @@ func (m *MessageBuffer) ReadLong() int32 {
 
 // ReadChar reads a signed 8-bit character.
 func (m *MessageBuffer) ReadChar() int8 {
-	return int8(m.ReadByte())
+	return int8(m.GetByte())
 }
 
 // ReadCoord reads a coordinate using the precision dictated by protocol flags.
@@ -289,7 +289,7 @@ func (m *MessageBuffer) ReadCoord(flags uint32) float32 {
 		return float32(m.ReadLong()) / 16.0
 	} else if flags&uint32(ProtocolFlag24BitCoord) != 0 {
 		whole := float32(m.ReadShort())
-		frac := float32(m.ReadByte()) / 255.0
+		frac := float32(m.GetByte()) / 255.0
 		return whole + frac
 	}
 	// Default: 16-bit fixed-point
@@ -304,5 +304,5 @@ func (m *MessageBuffer) ReadAngle(flags uint32) float32 {
 	} else if flags&uint32(ProtocolFlagShortAngle) != 0 {
 		return float32(m.ReadShort()) * (360.0 / 65536.0)
 	}
-	return float32(m.ReadByte()) * (360.0 / 256.0)
+	return float32(m.GetByte()) * (360.0 / 256.0)
 }

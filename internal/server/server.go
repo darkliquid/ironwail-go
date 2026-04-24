@@ -751,14 +751,14 @@ func NewServer() *Server {
 				if client == nil || client.Message == nil {
 					continue
 				}
-				client.Message.WriteByte(byte(inet.SVCPrint))
+				client.Message.PutByte(byte(inet.SVCPrint))
 				client.Message.WriteString(msg)
 			}
 		},
 		ClientPrint: func(vm *qc.VM, entNum int, msg string) {
 			console.Printf("%s", msg)
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
-				client.Message.WriteByte(byte(inet.SVCPrint))
+				client.Message.PutByte(byte(inet.SVCPrint))
 				client.Message.WriteString(msg)
 			}
 		},
@@ -768,7 +768,7 @@ func NewServer() *Server {
 		CenterPrint: func(vm *qc.VM, entNum int, msg string) {
 			console.CenterPrintf(40, "%s", msg)
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
-				client.Message.WriteByte(byte(inet.SVCCenterPrint))
+				client.Message.PutByte(byte(inet.SVCCenterPrint))
 				client.Message.WriteString(msg)
 			}
 		},
@@ -779,7 +779,7 @@ func NewServer() *Server {
 		},
 		StuffCmd: func(vm *qc.VM, entNum int, cmd string) {
 			if client := clientForEntNum(entNum); client != nil && client.Message != nil {
-				client.Message.WriteByte(byte(inet.SVCStuffText))
+				client.Message.PutByte(byte(inet.SVCStuffText))
 				client.Message.WriteString(cmd)
 			}
 		},
@@ -792,8 +792,8 @@ func NewServer() *Server {
 				if client == nil || client.Message == nil {
 					continue
 				}
-				client.Message.WriteByte(byte(inet.SVCLightStyle))
-				client.Message.WriteByte(byte(style))
+				client.Message.PutByte(byte(inet.SVCLightStyle))
+				client.Message.PutByte(byte(style))
 				client.Message.WriteString(value)
 			}
 		},
@@ -807,7 +807,7 @@ func NewServer() *Server {
 		},
 		WriteByte: func(vm *qc.VM, dest, value int) {
 			for _, buf := range writeBuffers(vm, dest) {
-				buf.WriteByte(byte(value))
+				buf.PutByte(byte(value))
 			}
 		},
 		WriteChar: func(vm *qc.VM, dest, value int) {

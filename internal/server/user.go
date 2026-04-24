@@ -500,14 +500,14 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	cmd.SideMove = float32(buf.ReadShort())
 	cmd.UpMove = float32(buf.ReadShort())
 
-	bits := buf.ReadByte()
+	bits := buf.GetByte()
 	cmd.Buttons = bits
 	if client.Edict != nil {
 		client.Edict.Vars.Button0 = float32(bits & 1)
 		client.Edict.Vars.Button2 = float32((bits & 2) >> 1)
 	}
 
-	impulse := buf.ReadByte()
+	impulse := buf.GetByte()
 	cmd.Impulse = impulse
 	if impulse != 0 && client.Edict != nil {
 		client.Edict.Vars.Impulse = float32(impulse)
@@ -801,7 +801,7 @@ func (s *Server) DropClient(client *Client, crash bool) {
 	}
 
 	if !crash && client.NetConnection != nil && s.Net.CanSendMessage(client.NetConnection) {
-		client.Message.WriteByte(byte(inet.SVCDisconnect))
+		client.Message.PutByte(byte(inet.SVCDisconnect))
 		_ = s.Net.SendMessage(client.NetConnection, client.Message.Data[:client.Message.Len()])
 	}
 
@@ -844,8 +844,8 @@ func (s *Server) DropClient(client *Client, crash bool) {
 				if receiver == nil || !receiver.Active || receiver.Message == nil {
 					continue
 				}
-				receiver.Message.WriteByte(byte(inet.SVCUpdateFrags))
-				receiver.Message.WriteByte(byte(clientNum))
+				receiver.Message.PutByte(byte(inet.SVCUpdateFrags))
+				receiver.Message.PutByte(byte(clientNum))
 				receiver.Message.WriteShort(0)
 			}
 			s.broadcastClientColorUpdate(clientNum, 0)

@@ -11,11 +11,11 @@ import (
 func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
 	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
 	if extended {
-		msg.WriteByte(byte(inet.SVCSpawnStatic2))
+		msg.PutByte(byte(inet.SVCSpawnStatic2))
 		s.writeEntityState(msg, ent, true, false, 0)
 		return
 	}
-	msg.WriteByte(byte(inet.SVCSpawnStatic))
+	msg.PutByte(byte(inet.SVCSpawnStatic))
 	s.writeEntityState(msg, ent, false, false, 0)
 }
 
@@ -23,40 +23,40 @@ func (s *Server) writeSpawnStaticMessage(msg *MessageBuffer, ent EntityState) {
 func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSound) {
 	flags := uint32(s.ProtocolFlags())
 	if snd.SoundIndex > 255 {
-		msg.WriteByte(byte(inet.SVCSpawnStaticSound2))
+		msg.PutByte(byte(inet.SVCSpawnStaticSound2))
 		for i := 0; i < 3; i++ {
 			msg.WriteCoord(snd.Origin[i], flags)
 		}
 		msg.WriteShort(int16(snd.SoundIndex))
-		msg.WriteByte(byte(snd.Volume))
-		msg.WriteByte(byte(snd.Attenuation * 64))
+		msg.PutByte(byte(snd.Volume))
+		msg.PutByte(byte(snd.Attenuation * 64))
 		return
 	}
-	msg.WriteByte(byte(inet.SVCSpawnStaticSound))
+	msg.PutByte(byte(inet.SVCSpawnStaticSound))
 	for i := 0; i < 3; i++ {
 		msg.WriteCoord(snd.Origin[i], flags)
 	}
-	msg.WriteByte(byte(snd.SoundIndex))
-	msg.WriteByte(byte(snd.Volume))
-	msg.WriteByte(byte(snd.Attenuation * 64))
+	msg.PutByte(byte(snd.SoundIndex))
+	msg.PutByte(byte(snd.Volume))
+	msg.PutByte(byte(snd.Attenuation * 64))
 }
 
 // SendServerInfo writes the initial serverinfo handshake block for a connecting client.
 func (s *Server) SendServerInfo(client *Client) {
-	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.PutByte(byte(inet.SVCPrint))
 	client.Message.WriteString(fmt.Sprintf("\nFITZQUAKE GO SERVER\n"))
 
-	client.Message.WriteByte(byte(inet.SVCServerInfo))
+	client.Message.PutByte(byte(inet.SVCServerInfo))
 	client.Message.WriteLong(int32(s.Protocol))
 	if s.Protocol == ProtocolRMQ {
 		client.Message.WriteLong(int32(s.ProtocolFlags()))
 	}
-	client.Message.WriteByte(byte(s.Static.MaxClients))
+	client.Message.PutByte(byte(s.Static.MaxClients))
 
 	if !s.Coop && s.Deathmatch {
-		client.Message.WriteByte(1)
+		client.Message.PutByte(1)
 	} else {
-		client.Message.WriteByte(0)
+		client.Message.PutByte(0)
 	}
 
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
@@ -74,7 +74,7 @@ func (s *Server) SendServerInfo(client *Client) {
 		}
 		client.Message.WriteString(s.ModelPrecache[i])
 	}
-	client.Message.WriteByte(0)
+	client.Message.PutByte(0)
 
 	for i := 1; i < len(s.SoundPrecache); i++ {
 		if s.SoundPrecache[i] == "" {
@@ -85,19 +85,19 @@ func (s *Server) SendServerInfo(client *Client) {
 		}
 		client.Message.WriteString(s.SoundPrecache[i])
 	}
-	client.Message.WriteByte(0)
+	client.Message.PutByte(0)
 
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
-		client.Message.WriteByte(byte(inet.SVCCDTrack))
-		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
-		client.Message.WriteByte(byte(s.Edicts[0].Vars.Sounds))
+		client.Message.PutByte(byte(inet.SVCCDTrack))
+		client.Message.PutByte(byte(s.Edicts[0].Vars.Sounds))
+		client.Message.PutByte(byte(s.Edicts[0].Vars.Sounds))
 	}
 
-	client.Message.WriteByte(byte(inet.SVCSetView))
+	client.Message.PutByte(byte(inet.SVCSetView))
 	client.Message.WriteShort(int16(s.NumForEdict(client.Edict)))
 
-	client.Message.WriteByte(byte(inet.SVCSignOnNum))
-	client.Message.WriteByte(1)
+	client.Message.PutByte(byte(inet.SVCSignOnNum))
+	client.Message.PutByte(1)
 
 	client.SendSignon = SignonFlush
 	client.SignonIdx = 0
@@ -209,7 +209,7 @@ func (s *Server) WriteSignonByte(b byte) error {
 	if err := s.ReserveSignonSpace(1); err != nil {
 		return err
 	}
-	s.Signon.WriteByte(b)
+	s.Signon.PutByte(b)
 	return nil
 }
 
@@ -356,10 +356,10 @@ func (s *Server) writeSpawnStaticToSignon(ent EntityState) error {
 	extended := ent.ModelIndex > 255 || ent.Frame > 255 || ent.Alpha != 0 || (ent.Scale != 0 && ent.Scale != 16)
 	buf := NewMessageBuffer(32)
 	if extended {
-		buf.WriteByte(byte(inet.SVCSpawnStatic2))
+		buf.PutByte(byte(inet.SVCSpawnStatic2))
 		s.writeEntityState(buf, ent, true, false, 0)
 	} else {
-		buf.WriteByte(byte(inet.SVCSpawnStatic))
+		buf.PutByte(byte(inet.SVCSpawnStatic))
 		s.writeEntityState(buf, ent, false, false, 0)
 	}
 	return s.WriteSignonData(buf.Data[:buf.Len()])
@@ -473,7 +473,7 @@ func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
 		s.buildClientDatagram(client, &frame)
 		msg.Write(frame.Data[:frame.Len()])
 	} else if msg.Len() > 0 {
-		msg.WriteByte(0xff)
+		msg.PutByte(0xff)
 	}
 
 	if msg.Len() == 0 {
@@ -585,8 +585,8 @@ func (s *Server) queuePendingSignon(client *Client) {
 	}
 
 	if client.SignonIdx == len(s.SignonBuffers) && client.Message.Len()+2 <= len(client.Message.Data) {
-		client.Message.WriteByte(byte(inet.SVCSignOnNum))
-		client.Message.WriteByte(2)
+		client.Message.PutByte(byte(inet.SVCSignOnNum))
+		client.Message.PutByte(2)
 		client.SendSignon = SignonSignonBufs
 	}
 }
@@ -625,8 +625,8 @@ func (s *Server) UpdateToReliableMessages() {
 			if receiver == nil || !receiver.Active {
 				continue
 			}
-			receiver.Message.WriteByte(byte(inet.SVCUpdateFrags))
-			receiver.Message.WriteByte(byte(playerNum))
+			receiver.Message.PutByte(byte(inet.SVCUpdateFrags))
+			receiver.Message.PutByte(byte(playerNum))
 			receiver.Message.WriteShort(int16(currentFrags))
 		}
 
@@ -702,7 +702,7 @@ func (s *Server) SendReconnect() {
 		if client == nil || !client.Active || client.Message == nil {
 			continue
 		}
-		client.Message.WriteByte(byte(inet.SVCStuffText))
+		client.Message.PutByte(byte(inet.SVCStuffText))
 		client.Message.WriteString("reconnect\n")
 	}
 }

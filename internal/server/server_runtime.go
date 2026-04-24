@@ -274,7 +274,7 @@ func (s *Server) KickClient(clientNum int, who, reason string) bool {
 		if reason != "" {
 			message += ": " + reason
 		}
-		client.Message.WriteByte(byte(inet.SVCPrint))
+		client.Message.PutByte(byte(inet.SVCPrint))
 		client.Message.WriteString(message + "\n")
 	}
 
@@ -351,7 +351,7 @@ func (s *Server) SV_BroadcastPrintf(format string, args ...any) {
 		if client == nil || !client.Active || client.Message == nil {
 			continue
 		}
-		client.Message.WriteByte(byte(inet.SVCPrint))
+		client.Message.PutByte(byte(inet.SVCPrint))
 		client.Message.WriteString(msg)
 	}
 }
@@ -362,7 +362,7 @@ func (s *Server) SV_ClientPrintf(client *Client, format string, args ...any) {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
-	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.PutByte(byte(inet.SVCPrint))
 	client.Message.WriteString(msg)
 }
 
@@ -374,8 +374,8 @@ func (s *Server) broadcastClientNameUpdate(clientNum int, name string) {
 		if receiver == nil || !receiver.Active || receiver.Message == nil {
 			continue
 		}
-		receiver.Message.WriteByte(byte(inet.SVCUpdateName))
-		receiver.Message.WriteByte(byte(clientNum))
+		receiver.Message.PutByte(byte(inet.SVCUpdateName))
+		receiver.Message.PutByte(byte(clientNum))
 		receiver.Message.WriteString(name)
 	}
 }
@@ -388,8 +388,8 @@ func (s *Server) broadcastClientColorUpdate(clientNum int, color int) {
 		if receiver == nil || !receiver.Active || receiver.Message == nil {
 			continue
 		}
-		receiver.Message.WriteByte(byte(inet.SVCUpdateColors))
-		receiver.Message.WriteByte(byte(clientNum))
-		receiver.Message.WriteByte(byte(color))
+		receiver.Message.PutByte(byte(inet.SVCUpdateColors))
+		receiver.Message.PutByte(byte(clientNum))
+		receiver.Message.PutByte(byte(color))
 	}
 }

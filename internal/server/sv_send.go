@@ -13,7 +13,7 @@ func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
 		return
 	}
 
-	s.Datagram.WriteByte(byte(inet.SVCParticle))
+	s.Datagram.PutByte(byte(inet.SVCParticle))
 	flags := uint32(s.ProtocolFlags())
 	s.Datagram.WriteCoord(org[0], flags)
 	s.Datagram.WriteCoord(org[1], flags)
@@ -29,8 +29,8 @@ func (s *Server) StartParticle(org, dir [3]float32, color, count int) {
 		s.Datagram.WriteChar(int8(v))
 	}
 
-	s.Datagram.WriteByte(byte(count))
-	s.Datagram.WriteByte(byte(color))
+	s.Datagram.PutByte(byte(count))
+	s.Datagram.PutByte(byte(color))
 }
 
 // StartSound serializes a positional sound event from QC builtin sound() into network protocol fields.
@@ -81,26 +81,26 @@ func (s *Server) StartSound(ent *Edict, channel int, sample string, volume int, 
 		return
 	}
 
-	s.Datagram.WriteByte(byte(inet.SVCSound))
-	s.Datagram.WriteByte(byte(fieldMask))
+	s.Datagram.PutByte(byte(inet.SVCSound))
+	s.Datagram.PutByte(byte(fieldMask))
 
 	if fieldMask&1 != 0 {
-		s.Datagram.WriteByte(byte(volume))
+		s.Datagram.PutByte(byte(volume))
 	}
 	if fieldMask&2 != 0 {
-		s.Datagram.WriteByte(byte(attenuation * 64))
+		s.Datagram.PutByte(byte(attenuation * 64))
 	}
 
 	if fieldMask&inet.SND_LARGEENTITY != 0 {
 		s.Datagram.WriteShort(int16(entNum))
-		s.Datagram.WriteByte(byte(channel))
+		s.Datagram.PutByte(byte(channel))
 	} else {
 		s.Datagram.WriteShort(int16(entNum<<3 | channel))
 	}
 	if fieldMask&inet.SND_LARGESOUND != 0 {
 		s.Datagram.WriteShort(int16(soundNum))
 	} else {
-		s.Datagram.WriteByte(byte(soundNum))
+		s.Datagram.PutByte(byte(soundNum))
 	}
 
 	flags := uint32(s.ProtocolFlags())
@@ -138,12 +138,12 @@ func (s *Server) LocalSound(client *Client, sample string) {
 		return
 	}
 
-	client.Message.WriteByte(byte(inet.SVCLocalSound))
-	client.Message.WriteByte(byte(fieldMask))
+	client.Message.PutByte(byte(inet.SVCLocalSound))
+	client.Message.PutByte(byte(fieldMask))
 	if fieldMask&inet.SND_LARGESOUND != 0 {
 		client.Message.WriteShort(int16(soundNum))
 	} else {
-		client.Message.WriteByte(byte(soundNum))
+		client.Message.PutByte(byte(soundNum))
 	}
 }
 
@@ -165,7 +165,7 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 	}
 
 	if extended {
-		msg.WriteByte(bits)
+		msg.PutByte(bits)
 	}
 	if includeEntNum {
 		msg.WriteShort(int16(entNum))
@@ -173,25 +173,25 @@ func (s *Server) writeEntityState(msg *MessageBuffer, ent EntityState, extended 
 	if extended && bits&(1<<0) != 0 {
 		msg.WriteShort(int16(ent.ModelIndex))
 	} else {
-		msg.WriteByte(byte(ent.ModelIndex))
+		msg.PutByte(byte(ent.ModelIndex))
 	}
 	if extended && bits&(1<<1) != 0 {
 		msg.WriteShort(int16(ent.Frame))
 	} else {
-		msg.WriteByte(byte(ent.Frame))
+		msg.PutByte(byte(ent.Frame))
 	}
-	msg.WriteByte(byte(ent.Colormap))
-	msg.WriteByte(byte(ent.Skin))
+	msg.PutByte(byte(ent.Colormap))
+	msg.PutByte(byte(ent.Skin))
 	// Origins and angles must be interleaved: O1, A1, O2, A2, O3, A3
 	for i := 0; i < 3; i++ {
 		msg.WriteCoord(ent.Origin[i], flags)
 		msg.WriteAngle(ent.Angles[i], flags)
 	}
 	if extended && bits&(1<<2) != 0 {
-		msg.WriteByte(ent.Alpha)
+		msg.PutByte(ent.Alpha)
 	}
 	if extended && bits&(1<<3) != 0 {
-		msg.WriteByte(ent.Scale)
+		msg.PutByte(ent.Scale)
 	}
 }
 
@@ -201,9 +201,9 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	fixAngleSent := ent.Vars.FixAngle != 0
 	if ent.Vars.DmgTake != 0 || ent.Vars.DmgSave != 0 {
 		other := s.EdictNum(int(ent.Vars.DmgInflictor))
-		msg.WriteByte(byte(inet.SVCDamage))
-		msg.WriteByte(byte(ent.Vars.DmgSave))
-		msg.WriteByte(byte(ent.Vars.DmgTake))
+		msg.PutByte(byte(inet.SVCDamage))
+		msg.PutByte(byte(ent.Vars.DmgSave))
+		msg.PutByte(byte(ent.Vars.DmgTake))
 		if other != nil {
 			for i := 0; i < 3; i++ {
 				msg.WriteCoord(other.Vars.Origin[i]+0.5*(other.Vars.Mins[i]+other.Vars.Maxs[i]), flags)
@@ -220,7 +220,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	s.SetIdealPitch(ent)
 
 	if ent.Vars.FixAngle != 0 {
-		msg.WriteByte(byte(inet.SVCSetAngle))
+		msg.PutByte(byte(inet.SVCSetAngle))
 		for i := 0; i < 3; i++ {
 			msg.WriteAngle(ent.Vars.VAngle[i], flags)
 		}
@@ -309,14 +309,14 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 			fixAngleSent, int(ent.Vars.GroundEntity), ent.Vars.TeleportTime)
 	}
 
-	msg.WriteByte(byte(inet.SVCClientData))
+	msg.PutByte(byte(inet.SVCClientData))
 	msg.WriteShort(int16(bits))
 
 	if bits&inet.SU_EXTEND1 != 0 {
-		msg.WriteByte(byte(bits >> 16))
+		msg.PutByte(byte(bits >> 16))
 	}
 	if bits&inet.SU_EXTEND2 != 0 {
-		msg.WriteByte(byte(bits >> 24))
+		msg.PutByte(byte(bits >> 24))
 	}
 
 	if bits&inet.SU_VIEWHEIGHT != 0 {
@@ -338,25 +338,25 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	msg.WriteLong(int32(items))
 
 	if bits&inet.SU_WEAPONFRAME != 0 {
-		msg.WriteByte(byte(ent.Vars.WeaponFrame))
+		msg.PutByte(byte(ent.Vars.WeaponFrame))
 	}
 	if bits&inet.SU_ARMOR != 0 {
-		msg.WriteByte(byte(ent.Vars.ArmorValue))
+		msg.PutByte(byte(ent.Vars.ArmorValue))
 	}
 	if bits&inet.SU_WEAPON != 0 {
-		msg.WriteByte(byte(weaponModelIdx))
+		msg.PutByte(byte(weaponModelIdx))
 	}
 
 	msg.WriteShort(int16(ent.Vars.Health))
-	msg.WriteByte(byte(ent.Vars.CurrentAmmo))
-	msg.WriteByte(byte(ent.Vars.AmmoShells))
-	msg.WriteByte(byte(ent.Vars.AmmoNails))
-	msg.WriteByte(byte(ent.Vars.AmmoRockets))
-	msg.WriteByte(byte(ent.Vars.AmmoCells))
+	msg.PutByte(byte(ent.Vars.CurrentAmmo))
+	msg.PutByte(byte(ent.Vars.AmmoShells))
+	msg.PutByte(byte(ent.Vars.AmmoNails))
+	msg.PutByte(byte(ent.Vars.AmmoRockets))
+	msg.PutByte(byte(ent.Vars.AmmoCells))
 
 	weaponValue := int32(ent.Vars.Weapon)
 	if s.standardQuakeWeaponEncoding() {
-		msg.WriteByte(byte(weaponValue))
+		msg.PutByte(byte(weaponValue))
 	} else {
 		activeWeapon := byte(0)
 		for i := 0; i < 32; i++ {
@@ -365,44 +365,44 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 				break
 			}
 		}
-		msg.WriteByte(activeWeapon)
+		msg.PutByte(activeWeapon)
 	}
 
 	// FitzQuake extension data
 	if bits&inet.SU_WEAPON2 != 0 {
-		msg.WriteByte(byte(weaponModelIdx >> 8))
+		msg.PutByte(byte(weaponModelIdx >> 8))
 	}
 	if bits&inet.SU_ARMOR2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.ArmorValue) >> 8))
+		msg.PutByte(byte(int(ent.Vars.ArmorValue) >> 8))
 	}
 	if bits&inet.SU_AMMO2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.CurrentAmmo) >> 8))
+		msg.PutByte(byte(int(ent.Vars.CurrentAmmo) >> 8))
 	}
 	if bits&inet.SU_SHELLS2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.AmmoShells) >> 8))
+		msg.PutByte(byte(int(ent.Vars.AmmoShells) >> 8))
 	}
 	if bits&inet.SU_NAILS2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.AmmoNails) >> 8))
+		msg.PutByte(byte(int(ent.Vars.AmmoNails) >> 8))
 	}
 	if bits&inet.SU_ROCKETS2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.AmmoRockets) >> 8))
+		msg.PutByte(byte(int(ent.Vars.AmmoRockets) >> 8))
 	}
 	if bits&inet.SU_CELLS2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.AmmoCells) >> 8))
+		msg.PutByte(byte(int(ent.Vars.AmmoCells) >> 8))
 	}
 	if bits&inet.SU_WEAPONFRAME2 != 0 {
-		msg.WriteByte(byte(int(ent.Vars.WeaponFrame) >> 8))
+		msg.PutByte(byte(int(ent.Vars.WeaponFrame) >> 8))
 	}
 	if bits&inet.SU_WEAPONALPHA != 0 {
-		msg.WriteByte(ent.Alpha) // weaponalpha = client entity alpha
+		msg.PutByte(ent.Alpha) // weaponalpha = client entity alpha
 	}
 
 	// Compatibility hack from C Ironwail for Alkaline: the clientdata payload only
 	// carries a byte for STAT_ACTIVEWEAPON, so resend the full 32-bit stat when the
 	// QuakeC weapon bitmask does not fit in that byte.
 	if uint32(byte(weaponValue)) != uint32(weaponValue) && msg.Len()+6 <= msg.limit() {
-		msg.WriteByte(byte(inet.SVCUpdateStat))
-		msg.WriteByte(byte(inet.StatActiveWeapon))
+		msg.PutByte(byte(inet.SVCUpdateStat))
+		msg.PutByte(byte(inet.StatActiveWeapon))
 		msg.WriteLong(weaponValue)
 	}
 }
@@ -633,40 +633,40 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, baseli
 	}
 
 	first := byte(bits&0x7f) | 0x80
-	msg.WriteByte(first)
+	msg.PutByte(first)
 	if bits&inet.U_MOREBITS != 0 {
-		msg.WriteByte(byte(bits >> 8))
+		msg.PutByte(byte(bits >> 8))
 	}
 	if bits&inet.U_EXTEND1 != 0 {
-		msg.WriteByte(byte(bits >> 16))
+		msg.PutByte(byte(bits >> 16))
 	}
 	if bits&inet.U_EXTEND2 != 0 {
-		msg.WriteByte(byte(bits >> 24))
+		msg.PutByte(byte(bits >> 24))
 	}
 
 	if bits&inet.U_LONGENTITY != 0 {
 		msg.WriteShort(int16(entNum))
 	} else {
-		msg.WriteByte(byte(entNum))
+		msg.PutByte(byte(entNum))
 	}
 	// Field write order must match C exactly (sv_main.c:920-954):
 	// MODEL, FRAME, COLORMAP, SKIN, EFFECTS,
 	// ORIGIN1, ANGLE1, ORIGIN2, ANGLE2, ORIGIN3, ANGLE3,
 	// ALPHA, SCALE, FRAME2, MODEL2, LERPFINISH
 	if bits&inet.U_MODEL != 0 {
-		msg.WriteByte(byte(state.ModelIndex))
+		msg.PutByte(byte(state.ModelIndex))
 	}
 	if bits&inet.U_FRAME != 0 {
-		msg.WriteByte(byte(state.Frame))
+		msg.PutByte(byte(state.Frame))
 	}
 	if bits&inet.U_COLORMAP != 0 {
-		msg.WriteByte(byte(state.Colormap))
+		msg.PutByte(byte(state.Colormap))
 	}
 	if bits&inet.U_SKIN != 0 {
-		msg.WriteByte(byte(state.Skin))
+		msg.PutByte(byte(state.Skin))
 	}
 	if bits&inet.U_EFFECTS != 0 {
-		msg.WriteByte(byte(state.Effects))
+		msg.PutByte(byte(state.Effects))
 	}
 	// Origins and angles are INTERLEAVED: O1, A1, O2, A2, O3, A3
 	if bits&inet.U_ORIGIN1 != 0 {
@@ -689,19 +689,19 @@ func (s *Server) writeEntityUpdate(msg *MessageBuffer, entNum int, state, baseli
 	}
 	// FitzQuake extensions come AFTER origins/angles
 	if bits&inet.U_ALPHA != 0 {
-		msg.WriteByte(state.Alpha)
+		msg.PutByte(state.Alpha)
 	}
 	if bits&inet.U_SCALE != 0 {
-		msg.WriteByte(state.Scale)
+		msg.PutByte(state.Scale)
 	}
 	if bits&inet.U_FRAME2 != 0 {
-		msg.WriteByte(byte(state.Frame >> 8))
+		msg.PutByte(byte(state.Frame >> 8))
 	}
 	if bits&inet.U_MODEL2 != 0 {
-		msg.WriteByte(byte(state.ModelIndex >> 8))
+		msg.PutByte(byte(state.ModelIndex >> 8))
 	}
 	if bits&inet.U_LERPFINISH != 0 {
-		msg.WriteByte(lerpFinish)
+		msg.PutByte(lerpFinish)
 	}
 
 	return true
@@ -820,8 +820,8 @@ func (s *Server) SV_WriteStats(client *Client) {
 
 	for i := statNonClient; i < len(client.Stats); i++ {
 		if client.Stats[i] != client.OldStats[i] {
-			client.Message.WriteByte(byte(inet.SVCUpdateStat))
-			client.Message.WriteByte(byte(i))
+			client.Message.PutByte(byte(inet.SVCUpdateStat))
+			client.Message.PutByte(byte(i))
 			client.Message.WriteLong(client.Stats[i])
 			client.OldStats[i] = client.Stats[i]
 		}
@@ -833,7 +833,7 @@ func (s *Server) writeUnderwaterOverride(client *Client) {
 		return
 	}
 	client.Edict.SendForceWater = false
-	client.Message.WriteByte(byte(inet.SVCStuffText))
+	client.Message.PutByte(byte(inet.SVCStuffText))
 	if client.Edict.ForceWater {
 		client.Message.WriteString("//v_water 1\n")
 		return
@@ -843,7 +843,7 @@ func (s *Server) writeUnderwaterOverride(client *Client) {
 
 // buildClientDatagram assembles one full per-frame packet: time, clientdata, stats, entities, events.
 func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
-	msg.WriteByte(byte(inet.SVCTime))
+	msg.PutByte(byte(inet.SVCTime))
 	msg.WriteFloat(s.Time)
 
 	// Build PVS for this client
@@ -862,7 +862,7 @@ func (s *Server) buildClientDatagram(client *Client, msg *MessageBuffer) {
 	if s.Datagram != nil && s.Datagram.Len() > 0 && msg.Len()+s.Datagram.Len()+1 < msg.limit() {
 		msg.Write(s.Datagram.Data[:s.Datagram.Len()])
 	}
-	msg.WriteByte(0xff)
+	msg.PutByte(0xff)
 	s.recordDevStatsPacketSize(msg.Len())
 }
 

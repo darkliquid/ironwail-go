@@ -206,22 +206,22 @@ func TestWriteEntityUpdate_FieldOrderMatchesCProtocol(t *testing.T) {
 
 	want := NewMessageBuffer(512)
 	flags := uint32(s.ProtocolFlags())
-	want.WriteByte(byte(state.ModelIndex))
-	want.WriteByte(byte(state.Frame))
-	want.WriteByte(byte(state.Colormap))
-	want.WriteByte(byte(state.Skin))
-	want.WriteByte(byte(state.Effects))
+	want.PutByte(byte(state.ModelIndex))
+	want.PutByte(byte(state.Frame))
+	want.PutByte(byte(state.Colormap))
+	want.PutByte(byte(state.Skin))
+	want.PutByte(byte(state.Effects))
 	want.WriteCoord(state.Origin[0], flags)
 	want.WriteAngle(state.Angles[0], flags)
 	want.WriteCoord(state.Origin[1], flags)
 	want.WriteAngle(state.Angles[1], flags)
 	want.WriteCoord(state.Origin[2], flags)
 	want.WriteAngle(state.Angles[2], flags)
-	want.WriteByte(state.Alpha)
-	want.WriteByte(state.Scale)
-	want.WriteByte(byte(state.Frame >> 8))
-	want.WriteByte(byte(state.ModelIndex >> 8))
-	want.WriteByte(200)
+	want.PutByte(state.Alpha)
+	want.PutByte(state.Scale)
+	want.PutByte(byte(state.Frame >> 8))
+	want.PutByte(byte(state.ModelIndex >> 8))
+	want.PutByte(200)
 
 	if !bytes.Equal(payload, want.Data[:want.Len()]) {
 		t.Fatalf("payload order mismatch:\n got: %v\nwant: %v", payload, want.Data[:want.Len()])
@@ -392,7 +392,7 @@ func TestBuildClientDatagramSkipsDatagramWhenRemoteMTUWouldOverflow(t *testing.T
 
 	s.Datagram = NewMessageBuffer(MaxDatagram)
 	for i := 0; i < DatagramMTU-baseLen; i++ {
-		s.Datagram.WriteByte(0x42)
+		s.Datagram.PutByte(0x42)
 	}
 
 	msg := NewMessageBuffer(MaxDatagram)

@@ -36,3 +36,6 @@ gha-creds-*.json
 
 # Beads / Dolt files (added by bd init)
 .beads-credential-key
+
+# Local scratch TMPDIR for Go toolchain
+.tmp/

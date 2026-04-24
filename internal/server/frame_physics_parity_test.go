@@ -53,8 +53,8 @@ func TestFrameProcessesClientMoveBeforePhysics(t *testing.T) {
 	msg.WriteShort(200)
 	msg.WriteShort(0)
 	msg.WriteShort(0)
-	msg.WriteByte(0)
-	msg.WriteByte(0)
+	msg.PutByte(0)
+	msg.PutByte(0)
 	msg.WriteChar(-1)
 	client.Message = finalizeMessage(msg)
 

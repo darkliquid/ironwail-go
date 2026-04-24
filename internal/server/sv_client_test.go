@@ -313,7 +313,7 @@ func TestUpdateToReliableMessagesFansOutSharedReliableDatagram(t *testing.T) {
 		client.Active = true
 		client.Message.Clear()
 	}
-	s.ReliableDatagram.WriteByte(byte(inet.SVCPrint))
+	s.ReliableDatagram.PutByte(byte(inet.SVCPrint))
 	s.ReliableDatagram.WriteString("shared\n")
 
 	s.UpdateToReliableMessages()
@@ -402,7 +402,7 @@ func TestSendClientMessagesCrashDropOnReliableSendFailureClosesConnection(t *tes
 	client.Loopback = false
 	client.NetConnection = serverSock
 	client.SendSignon = SignonPrespawn
-	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.PutByte(byte(inet.SVCPrint))
 	client.Message.WriteString("force send path")
 	inet.DefaultNetwork().Close(clientSock)
 
@@ -461,9 +461,9 @@ func TestQueuePendingSignonTreatsLOCALSocketAsLocalClient(t *testing.T) {
 	}
 
 	bufA := NewMessageBuffer(MaxDatagram)
-	bufA.WriteByte(0x11)
+	bufA.PutByte(0x11)
 	bufB := NewMessageBuffer(MaxDatagram)
-	bufB.WriteByte(0x22)
+	bufB.PutByte(0x22)
 	s.SignonBuffers = []*MessageBuffer{bufA, bufB}
 
 	client := s.Static.Clients[0]

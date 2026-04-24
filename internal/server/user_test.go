@@ -60,8 +60,8 @@ func TestSVReadClientMessageMoveCommand(t *testing.T) {
 	msg.WriteShort(120)
 	msg.WriteShort(-40)
 	msg.WriteShort(18)
-	msg.WriteByte(3)
-	msg.WriteByte(7)
+	msg.PutByte(3)
+	msg.PutByte(7)
 	msg.WriteChar(-1)
 	msg = finalizeMessage(msg)
 
@@ -309,8 +309,8 @@ func TestRunClientsProcessesMoveOnSpawnedMap(t *testing.T) {
 	msg.WriteShort(100)
 	msg.WriteShort(0)
 	msg.WriteShort(0)
-	msg.WriteByte(0)
-	msg.WriteByte(0)
+	msg.PutByte(0)
+	msg.PutByte(0)
 	msg.WriteChar(-1)
 	client.Message = finalizeMessage(msg)
 

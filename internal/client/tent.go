@@ -44,7 +44,7 @@ type BeamSegment struct {
 }
 
 func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
-	t, ok := msg.ReadByte()
+	t, ok := msg.GetByte()
 	if !ok {
 		return fmt.Errorf("svc_temp_entity: missing type")
 	}
@@ -77,12 +77,12 @@ func (p *Parser) parseTempEntity(msg *common.SizeBuf) error {
 			}
 			event.Origin[i] = coord
 		}
-		colorStart, ok := msg.ReadByte()
+		colorStart, ok := msg.GetByte()
 		if !ok {
 			return fmt.Errorf("svc_temp_entity: missing explosion2 color start")
 		}
 		event.ColorStart = colorStart
-		colorLength, ok := msg.ReadByte()
+		colorLength, ok := msg.GetByte()
 		if !ok {
 			return fmt.Errorf("svc_temp_entity: missing explosion2 color length")
 		}

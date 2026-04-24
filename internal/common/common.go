@@ -115,8 +115,8 @@ func (sb *SizeBuf) Write(data []byte) bool {
 	return true
 }
 
-// WriteByte writes a single byte to the buffer.
-func (sb *SizeBuf) WriteByte(b byte) bool {
+// PutByte writes a single byte to the buffer.
+func (sb *SizeBuf) PutByte(b byte) bool {
 	space := sb.GetSpace(1)
 	if space == nil {
 		return false
@@ -169,7 +169,7 @@ func (sb *SizeBuf) WriteString(s string) bool {
 func (sb *SizeBuf) WriteAngle(angle float32) bool {
 	// Convert angle to 8-bit representation (0-255 for 0-360 degrees)
 	b := byte(int(angle*256.0/360.0) & 255)
-	return sb.WriteByte(b)
+	return sb.PutByte(b)
 }
 
 // WriteAngle16 writes a 16-bit angle value for greater precision.
@@ -186,9 +186,9 @@ func (sb *SizeBuf) BeginReading() {
 	sb.ReadCount = 0
 }
 
-// ReadByte reads a single byte from the buffer.
+// GetByte reads a single byte from the buffer.
 // Returns the byte and true on success, or 0 and false on underflow.
-func (sb *SizeBuf) ReadByte() (byte, bool) {
+func (sb *SizeBuf) GetByte() (byte, bool) {
 	if sb.ReadCount+1 > sb.CurSize {
 		return 0, false
 	}
@@ -229,7 +229,7 @@ func (sb *SizeBuf) ReadFloat() (float32, bool) {
 
 // ReadAngle reads an 8-bit angle value and converts to degrees (0-360).
 func (sb *SizeBuf) ReadAngle() (float32, bool) {
-	b, ok := sb.ReadByte()
+	b, ok := sb.GetByte()
 	if !ok {
 		return 0, false
 	}
@@ -250,7 +250,7 @@ func (sb *SizeBuf) ReadAngle16() (float32, bool) {
 func (sb *SizeBuf) ReadString() string {
 	var result []byte
 	for {
-		b, ok := sb.ReadByte()
+		b, ok := sb.GetByte()
 		if !ok || b == 0 {
 			break
 		}

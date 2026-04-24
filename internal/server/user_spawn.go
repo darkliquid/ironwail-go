@@ -13,15 +13,15 @@ func (s *Server) writeSpawnSnapshot(client *Client) {
 	}
 
 	client.Message.Clear()
-	client.Message.WriteByte(byte(inet.SVCTime))
+	client.Message.PutByte(byte(inet.SVCTime))
 	client.Message.WriteFloat(s.Time)
 	s.writeSpawnClientRoster(client, client.Message)
 	s.writeSpawnLightStyles(client.Message)
 	s.writeSpawnGlobalStats(client, client.Message)
 	s.writeSpawnSetAngle(client, client.Message)
 	s.WriteClientDataToMessage(client.Edict, client.Message)
-	client.Message.WriteByte(byte(inet.SVCSignOnNum))
-	client.Message.WriteByte(3)
+	client.Message.PutByte(byte(inet.SVCSignOnNum))
+	client.Message.PutByte(3)
 }
 
 func (s *Server) writeSpawnClientRoster(_ *Client, msg *MessageBuffer) {
@@ -39,15 +39,15 @@ func (s *Server) writeSpawnClientRoster(_ *Client, msg *MessageBuffer) {
 			}
 			color = rosterClient.Color
 		}
-		msg.WriteByte(byte(inet.SVCUpdateName))
-		msg.WriteByte(byte(playerNum))
+		msg.PutByte(byte(inet.SVCUpdateName))
+		msg.PutByte(byte(playerNum))
 		msg.WriteString(name)
-		msg.WriteByte(byte(inet.SVCUpdateFrags))
-		msg.WriteByte(byte(playerNum))
+		msg.PutByte(byte(inet.SVCUpdateFrags))
+		msg.PutByte(byte(playerNum))
 		msg.WriteShort(int16(frags))
-		msg.WriteByte(byte(inet.SVCUpdateColors))
-		msg.WriteByte(byte(playerNum))
-		msg.WriteByte(byte(color))
+		msg.PutByte(byte(inet.SVCUpdateColors))
+		msg.PutByte(byte(playerNum))
+		msg.PutByte(byte(color))
 	}
 }
 
@@ -56,8 +56,8 @@ func (s *Server) writeSpawnLightStyles(msg *MessageBuffer) {
 		return
 	}
 	for style, value := range s.LightStyles {
-		msg.WriteByte(byte(inet.SVCLightStyle))
-		msg.WriteByte(byte(style))
+		msg.PutByte(byte(inet.SVCLightStyle))
+		msg.PutByte(byte(style))
 		msg.WriteString(value)
 	}
 }
@@ -71,17 +71,17 @@ func (s *Server) writeSpawnGlobalStats(client *Client, msg *MessageBuffer) {
 	for i := range stats {
 		stats[i] = client.Stats[i]
 	}
-	msg.WriteByte(byte(inet.SVCUpdateStat))
-	msg.WriteByte(byte(inet.StatTotalSecrets))
+	msg.PutByte(byte(inet.SVCUpdateStat))
+	msg.PutByte(byte(inet.StatTotalSecrets))
 	msg.WriteLong(stats[inet.StatTotalSecrets])
-	msg.WriteByte(byte(inet.SVCUpdateStat))
-	msg.WriteByte(byte(inet.StatTotalMonsters))
+	msg.PutByte(byte(inet.SVCUpdateStat))
+	msg.PutByte(byte(inet.StatTotalMonsters))
 	msg.WriteLong(stats[inet.StatTotalMonsters])
-	msg.WriteByte(byte(inet.SVCUpdateStat))
-	msg.WriteByte(byte(inet.StatSecrets))
+	msg.PutByte(byte(inet.SVCUpdateStat))
+	msg.PutByte(byte(inet.StatSecrets))
 	msg.WriteLong(stats[inet.StatSecrets])
-	msg.WriteByte(byte(inet.SVCUpdateStat))
-	msg.WriteByte(byte(inet.StatMonsters))
+	msg.PutByte(byte(inet.SVCUpdateStat))
+	msg.PutByte(byte(inet.StatMonsters))
 	msg.WriteLong(stats[inet.StatMonsters])
 }
 
@@ -89,7 +89,7 @@ func (s *Server) writeSpawnSetAngle(client *Client, msg *MessageBuffer) {
 	if client == nil || client.Edict == nil || msg == nil {
 		return
 	}
-	msg.WriteByte(byte(inet.SVCSetAngle))
+	msg.PutByte(byte(inet.SVCSetAngle))
 	flags := uint32(s.ProtocolFlags())
 	angles := client.Edict.Vars.Angles
 	if s.LoadGame {

@@ -259,8 +259,8 @@ func (b *Buffer) Data() []byte {
 	return b.data[:b.cursor]
 }
 
-// WriteByte appends a single byte to the buffer.
-func (b *Buffer) WriteByte(val byte) {
+// PutByte appends a single byte to the buffer.
+func (b *Buffer) PutByte(val byte) {
 	if b.cursor >= b.maxsize {
 		b.overflowed = true
 		return
@@ -304,9 +304,9 @@ func (b *Buffer) WriteFloat(val float32) {
 // Quake's wire protocol uses C-style null-terminated strings.
 func (b *Buffer) WriteString(val string) {
 	for i := 0; i < len(val); i++ {
-		b.WriteByte(val[i])
+		b.PutByte(val[i])
 	}
-	b.WriteByte(0)
+	b.PutByte(0)
 }
 
 // Write appends a raw byte slice to the buffer.
@@ -319,8 +319,8 @@ func (b *Buffer) Write(data []byte) {
 	b.cursor += len(data)
 }
 
-// ReadByte reads and returns a single byte, advancing the cursor.
-func (b *Buffer) ReadByte() byte {
+// GetByte reads and returns a single byte, advancing the cursor.
+func (b *Buffer) GetByte() byte {
 	if b.cursor >= b.maxsize {
 		return 0
 	}
@@ -353,7 +353,7 @@ func (b *Buffer) ReadLong() int32 {
 func (b *Buffer) ReadString() string {
 	var result []byte
 	for b.cursor < b.maxsize {
-		c := b.ReadByte()
+		c := b.GetByte()
 		if c == 0 {
 			break
 		}

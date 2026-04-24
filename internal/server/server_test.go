@@ -308,7 +308,7 @@ func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 	client := s.Static.Clients[0]
 	client.Active = true
 	client.Spawned = false
-	client.Message.WriteByte(byte(inet.SVCStuffText))
+	client.Message.PutByte(byte(inet.SVCStuffText))
 	client.Message.WriteString("bf\n")
 
 	data := s.GetClientLoopbackMessage(0)
@@ -410,7 +410,7 @@ func TestConnectClientClearsStaleReliableBuffer(t *testing.T) {
 	}
 
 	client := s.Static.Clients[0]
-	client.Message.WriteByte(byte(inet.SVCPrint))
+	client.Message.PutByte(byte(inet.SVCPrint))
 	client.Message.WriteString("stale before reconnect\n")
 
 	s.ConnectClient(0)

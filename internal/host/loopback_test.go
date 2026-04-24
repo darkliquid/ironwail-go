@@ -121,7 +121,7 @@ func TestLocalLoopbackClientReadFromServerConsumesReliableMessage(t *testing.T) 
 	}
 	s.Static.Clients[0].Active = true
 	s.Static.Clients[0].Spawned = false
-	s.Static.Clients[0].Message.WriteByte(byte(inet.SVCStuffText))
+	s.Static.Clients[0].Message.PutByte(byte(inet.SVCStuffText))
 	s.Static.Clients[0].Message.WriteString("bf\n")
 
 	lc := newLocalLoopbackClient()
@@ -209,8 +209,8 @@ func TestLocalLoopbackClientPrespawnDrainsChunkedSignonBuffers(t *testing.T) {
 	first := server.NewMessageBuffer(server.MaxDatagram)
 	first.Write(bytes.Repeat([]byte{byte(inet.SVCNop)}, server.MaxDatagram-1))
 	second := server.NewMessageBuffer(server.MaxDatagram)
-	second.WriteByte(byte(inet.SVCNop))
-	second.WriteByte(byte(inet.SVCNop))
+	second.PutByte(byte(inet.SVCNop))
+	second.PutByte(byte(inet.SVCNop))
 	s.SignonBuffers = []*server.MessageBuffer{first, second}
 
 	lc := newLocalLoopbackClient()
