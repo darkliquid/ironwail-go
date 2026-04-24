@@ -269,6 +269,12 @@ func (g *Game) collectAliasEntities() []renderer.AliasModelEntity {
 		if state.LerpFlags&inet.LerpFinish != 0 {
 			lerpFlags |= renderer.LerpFinish
 		}
+		// Muzzle flash suppresses lerp for two frames (mirrors C cl_main.c:
+		// "no lerping for two frames" comment). LERP_RESETANIM2 defers the
+		// reset one extra frame via the renderer's per-entity state machine.
+		if state.Effects&inet.EF_MUZZLEFLASH != 0 {
+			lerpFlags |= renderer.LerpResetAnim | renderer.LerpResetAnim2
+		}
 		isPlayer := state.Colormap > 0
 		var colorMap uint32
 		if isPlayer {
@@ -313,6 +319,17 @@ func (g *Game) collectAliasEntities() []renderer.AliasModelEntity {
 				g.runtimeDebugViewLogEntityCollection("alias", entityNum, state, modelName, "stale_skip")
 			}
 			continue
+		}
+		// Consume the one-shot LerpResetAnim flag from the game entity state.
+		// In C, R_SetupAliasFrame clears ent->lerpflags&LERP_RESETANIM directly on
+		// the shared entity struct. Go uses separate game/renderer state, so we must
+		// clear the flag here (the source) to prevent it from re-triggering every frame.
+		// We clear from the backing store but still pass the original state to resolve
+		// so this frame's renderer entity correctly receives the flag.
+		if state.LerpFlags&inet.LerpResetAnim != 0 {
+			cleared := state
+			cleared.LerpFlags &^= inet.LerpResetAnim
+			g.Client.Entities[entityNum] = cleared
 		}
 		if aliasEntity, ok := resolve(entityNum, state); ok {
 			g.runtimeDebugViewLogEntityCollection("alias", entityNum, state, aliasEntity.ModelID, "draw")
@@ -786,9 +803,16 @@ func (g *Game) collectViewModelEntity() *renderer.AliasModelEntity {
 		Alpha:       alpha,
 		Scale:       1,
 	}
-	if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok && state.LerpFlags&inet.LerpFinish != 0 {
-		entity.LerpFlags = renderer.LerpFinish
-		entity.LerpFinish = state.LerpFinish
+	if state, ok := g.Client.Entities[g.Client.ViewEntity]; ok {
+		if state.LerpFlags&inet.LerpFinish != 0 {
+			entity.LerpFlags = renderer.LerpFinish
+			entity.LerpFinish = state.LerpFinish
+		}
+		// Muzzle flash on the view entity suppresses viewmodel lerp for two
+		// frames, matching C cl_main.c "cl.viewent.lerpflags |= LERP_RESETANIM|LERP_RESETANIM2".
+		if state.Effects&inet.EF_MUZZLEFLASH != 0 {
+			entity.LerpFlags |= renderer.LerpResetAnim | renderer.LerpResetAnim2
+		}
 	}
 	g.runtimeDebugViewLogViewModel(entity)
 	return entity

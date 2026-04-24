@@ -528,6 +528,7 @@ func (r *Renderer) buildAliasDrawLocked(device *wgpu.Device, queue *wgpu.Queue, 
 	state.Frame = frame
 	aliasHdr := aliasHeaderFromModel(hdr)
 	aliasHdr.Flags = applyAliasNoLerpListFlags(aliasHdr.Flags, entity.ModelID)
+
 	interpData, err := SetupAliasFrame(state, aliasHdr, entity.TimeSeconds, true, false, 1)
 	if err != nil {
 		return nil

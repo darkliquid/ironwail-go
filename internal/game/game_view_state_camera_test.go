@@ -651,3 +651,80 @@ func TestCollectViewModelEntityAppliesPunchAndDamageKickAngles(t *testing.T) {
 		t.Fatalf("viewmodel roll = %v, want 0", entity.Angles[2])
 	}
 }
+
+func TestCollectAliasEntitiesMuzzleFlashSetsLerpResetAnim2(t *testing.T) {
+	g := New()
+	t.Cleanup(func() { g.Client = nil; g.AliasModelCache = nil })
+
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{1.1, 1.0}
+	g.Client.Time = 1.1
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, MsgTime: 1.1, Effects: int(inet.EF_MUZZLEFLASH)},
+	}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1, Poses: [][]model.TriVertX{{}}},
+		},
+	}
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+
+	entities := g.collectAliasEntities()
+	if len(entities) != 1 {
+		t.Fatalf("collectAliasEntities len = %d, want 1", len(entities))
+	}
+	want := renderer.LerpResetAnim | renderer.LerpResetAnim2
+	if entities[0].LerpFlags&want != want {
+		t.Fatalf("LerpFlags = %d, want LerpResetAnim|LerpResetAnim2 (%d) set", entities[0].LerpFlags, want)
+	}
+}
+
+func TestCollectViewModelEntityMuzzleFlashSetsLerpResetAnim2(t *testing.T) {
+	g := New()
+	h := host.NewHost()
+	if err := h.Init(&host.InitParams{BaseDir: t.TempDir(), UserDir: t.TempDir()}, &host.Subsystems{}); err != nil {
+		t.Fatalf("Host.Init: %v", err)
+	}
+	// Register CVars that runtimeViewModelVisible checks.
+	h.CVar.Register("r_drawentities", "1", 0, "")
+	h.CVar.Register("r_drawviewmodel", "1", 0, "")
+	h.CVar.Register("chase_active", "0", 0, "")
+	h.CVar.Register("viewsize", "100", 0, "")
+	originalHost := g.Host
+	t.Cleanup(func() { g.Client = nil; g.AliasModelCache = nil; g.Host = originalHost })
+	g.Host = h
+
+	g.Client = cl.NewClient()
+	g.Client.MTime = [2]float64{1.1, 1.0}
+	g.Client.Time = 1.1
+	g.Client.ModelPrecache = []string{"progs/v_axe.mdl"}
+	g.Client.Stats[inet.StatHealth] = 100
+	g.Client.Stats[inet.StatWeapon] = 1
+	g.Client.Entities = map[int]inet.EntityState{
+		1: {ModelIndex: 1, MsgTime: 1.1, Effects: int(inet.EF_MUZZLEFLASH)},
+	}
+	g.AliasModelCache = map[string]*model.Model{
+		"progs/v_axe.mdl": {
+			Type:        model.ModAlias,
+			AliasHeader: &model.AliasHeader{NumFrames: 1, Poses: [][]model.TriVertX{{}}},
+		},
+	}
+	g.Subs = &host.Subsystems{Files: &runtimeMusicTestFS{files: map[string][]byte{}}}
+
+	// Set EF_MUZZLEFLASH on the view entity.
+	g.Client.ViewEntity = 1
+	state := g.Client.Entities[g.Client.ViewEntity]
+	state.Effects = int(inet.EF_MUZZLEFLASH)
+	g.Client.Entities[g.Client.ViewEntity] = state
+
+	entity := g.collectViewModelEntity()
+	if entity == nil {
+		t.Fatal("collectViewModelEntity = nil, want entity")
+	}
+	want := renderer.LerpResetAnim | renderer.LerpResetAnim2
+	if entity.LerpFlags&want != want {
+		t.Fatalf("viewmodel LerpFlags = %d, want LerpResetAnim|LerpResetAnim2 (%d) set", entity.LerpFlags, want)
+	}
+}
