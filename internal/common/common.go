@@ -84,14 +84,14 @@ func (sb *SizeBuf) Clear() {
 	sb.ReadCount = 0
 }
 
-// GetSpace allocates 'length' bytes in the buffer and returns a slice to them.
+// Space allocates 'length' bytes in the buffer and returns a slice to them.
 //
 // If the buffer doesn't have enough space:
 //   - If AllowOverflow is true: buffer is cleared and Overflowed is set
 //   - If AllowOverflow is false: nil is returned (caller should handle error)
 //
 // Returns nil on failure.
-func (sb *SizeBuf) GetSpace(length int) []byte {
+func (sb *SizeBuf) Space(length int) []byte {
 	if sb.CurSize+length > sb.MaxSize {
 		if sb.AllowOverflow {
 			sb.Overflowed = true
@@ -107,7 +107,7 @@ func (sb *SizeBuf) GetSpace(length int) []byte {
 // Write copies data into the buffer.
 // Returns true on success, false if buffer overflowed.
 func (sb *SizeBuf) Write(data []byte) bool {
-	space := sb.GetSpace(len(data))
+	space := sb.Space(len(data))
 	if space == nil {
 		return false
 	}
@@ -117,7 +117,7 @@ func (sb *SizeBuf) Write(data []byte) bool {
 
 // PutByte writes a single byte to the buffer.
 func (sb *SizeBuf) PutByte(b byte) bool {
-	space := sb.GetSpace(1)
+	space := sb.Space(1)
 	if space == nil {
 		return false
 	}
@@ -127,7 +127,7 @@ func (sb *SizeBuf) PutByte(b byte) bool {
 
 // WriteShort writes a 16-bit signed integer in little-endian format.
 func (sb *SizeBuf) WriteShort(s int16) bool {
-	space := sb.GetSpace(2)
+	space := sb.Space(2)
 	if space == nil {
 		return false
 	}
@@ -137,7 +137,7 @@ func (sb *SizeBuf) WriteShort(s int16) bool {
 
 // WriteLong writes a 32-bit signed integer in little-endian format.
 func (sb *SizeBuf) WriteLong(l int32) bool {
-	space := sb.GetSpace(4)
+	space := sb.Space(4)
 	if space == nil {
 		return false
 	}
@@ -147,7 +147,7 @@ func (sb *SizeBuf) WriteLong(l int32) bool {
 
 // WriteFloat writes a 32-bit float in little-endian IEEE 754 format.
 func (sb *SizeBuf) WriteFloat(f float32) bool {
-	space := sb.GetSpace(4)
+	space := sb.Space(4)
 	if space == nil {
 		return false
 	}
@@ -186,9 +186,9 @@ func (sb *SizeBuf) BeginReading() {
 	sb.ReadCount = 0
 }
 
-// GetByte reads a single byte from the buffer.
+// Byte reads a single byte from the buffer.
 // Returns the byte and true on success, or 0 and false on underflow.
-func (sb *SizeBuf) GetByte() (byte, bool) {
+func (sb *SizeBuf) Byte() (byte, bool) {
 	if sb.ReadCount+1 > sb.CurSize {
 		return 0, false
 	}
@@ -229,7 +229,7 @@ func (sb *SizeBuf) ReadFloat() (float32, bool) {
 
 // ReadAngle reads an 8-bit angle value and converts to degrees (0-360).
 func (sb *SizeBuf) ReadAngle() (float32, bool) {
-	b, ok := sb.GetByte()
+	b, ok := sb.Byte()
 	if !ok {
 		return 0, false
 	}
@@ -250,7 +250,7 @@ func (sb *SizeBuf) ReadAngle16() (float32, bool) {
 func (sb *SizeBuf) ReadString() string {
 	var result []byte
 	for {
-		b, ok := sb.GetByte()
+		b, ok := sb.Byte()
 		if !ok || b == 0 {
 			break
 		}

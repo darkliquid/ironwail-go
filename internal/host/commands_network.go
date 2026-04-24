@@ -55,8 +55,8 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 	var sb strings.Builder
 	sb.WriteString("host:    Ironwail Go\n")
 	if h.serverActive && subs.Server != nil {
-		fmt.Fprintf(&sb, "map:     %s\n", subs.Server.GetMapName())
-		maxClients := subs.Server.GetMaxClients()
+		fmt.Fprintf(&sb, "map:     %s\n", subs.Server.MapName())
+		maxClients := subs.Server.MaxClients()
 		activeCount := 0
 		for i := 0; i < maxClients; i++ {
 			if subs.Server.IsClientActive(i) {
@@ -70,8 +70,8 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 			if !subs.Server.IsClientActive(i) {
 				continue
 			}
-			name := subs.Server.GetClientName(i)
-			ping := subs.Server.GetClientPing(i)
+			name := subs.Server.ClientName(i)
+			ping := subs.Server.ClientPing(i)
 			fmt.Fprintf(&sb, "%4d  %-16s %4.0f\n", i, name, ping)
 		}
 	} else {
@@ -237,11 +237,11 @@ func (h *Host) CmdKick(args []string, subs *Subsystems) {
 			return
 		}
 	} else {
-		for i := 0; i < subs.Server.GetMaxClients(); i++ {
+		for i := 0; i < subs.Server.MaxClients(); i++ {
 			if !subs.Server.IsClientActive(i) {
 				continue
 			}
-			if strings.EqualFold(subs.Server.GetClientName(i), args[0]) {
+			if strings.EqualFold(subs.Server.ClientName(i), args[0]) {
 				target = i
 				break
 			}
@@ -252,7 +252,7 @@ func (h *Host) CmdKick(args []string, subs *Subsystems) {
 		return
 	}
 
-	who := subs.Server.GetClientName(0)
+	who := subs.Server.ClientName(0)
 	if who == "" {
 		who = "Console"
 	}

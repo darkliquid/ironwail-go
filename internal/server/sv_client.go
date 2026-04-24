@@ -60,7 +60,7 @@ func (s *Server) SendServerInfo(client *Client) {
 	}
 
 	if len(s.Edicts) > 0 && s.Edicts[0] != nil {
-		client.Message.WriteString(s.GetString(int32(s.Edicts[0].Vars.Message)))
+		client.Message.WriteString(s.String(int32(s.Edicts[0].Vars.Message)))
 	} else {
 		client.Message.WriteString("")
 	}
@@ -104,15 +104,15 @@ func (s *Server) SendServerInfo(client *Client) {
 	client.Spawned = false
 }
 
-// GetString resolves a QC string table index into UTF-8 text for game messages and model names.
-func (s *Server) GetString(idx int32) string {
+// String resolves a QC string table index into UTF-8 text for game messages and model names.
+func (s *Server) String(idx int32) string {
 	if idx == 0 {
 		return ""
 	}
 	if s.QCVM == nil {
 		return ""
 	}
-	return s.QCVM.GetString(idx)
+	return s.QCVM.String(idx)
 }
 
 // ConnectClient initializes one client slot, bind its edict, runs spawn parm QC, and starts signon.
@@ -153,7 +153,7 @@ func (s *Server) ConnectClient(clientNum int) {
 				s.setQCTimeGlobal(s.Time)
 				_ = s.executeQCFunction(setNewParms)
 				for i := 0; i < NumSpawnParms; i++ {
-					client.SpawnParms[i] = float32(s.QCVM.GetGlobalFloat(fmt.Sprintf("parm%d", i+1)))
+					client.SpawnParms[i] = float32(s.QCVM.GlobalFloat(fmt.Sprintf("parm%d", i+1)))
 				}
 			}
 		}
@@ -422,10 +422,10 @@ func (s *Server) SendClientDatagram(client *Client) bool {
 	return true
 }
 
-// GetClientDatagram builds and returns the per-frame datagram bytes for the
+// ClientDatagram builds and returns the per-frame datagram bytes for the
 // given client slot. Returns nil if the client is not active/spawned.
 // Used by the loopback client to feed server messages into the client parser.
-func (s *Server) GetClientDatagram(clientNum int) []byte {
+func (s *Server) ClientDatagram(clientNum int) []byte {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return nil
 	}
@@ -443,8 +443,8 @@ func (s *Server) GetClientDatagram(clientNum int) []byte {
 	return result
 }
 
-// GetClientLoopbackMessage merges reliable + frame data for the in-process loopback client path.
-func (s *Server) GetClientLoopbackMessage(clientNum int) []byte {
+// ClientLoopbackMessage merges reliable + frame data for the in-process loopback client path.
+func (s *Server) ClientLoopbackMessage(clientNum int) []byte {
 	if clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return nil
 	}
@@ -683,7 +683,7 @@ func (s *Server) CreateBaseline() {
 			ent.Baseline.Scale = 16
 		} else {
 			ent.Baseline.Colormap = 0
-			ent.Baseline.ModelIndex = s.FindModel(s.GetString(int32(ent.Vars.Model)))
+			ent.Baseline.ModelIndex = s.FindModel(s.String(int32(ent.Vars.Model)))
 			ent.Baseline.Alpha = ent.Alpha
 			ent.Baseline.Scale = 16
 			if s.Protocol == ProtocolRMQ && s.QCVM != nil && s.QCFieldScale >= 0 {
@@ -713,7 +713,7 @@ func (s *Server) SaveSpawnParms() {
 		return
 	}
 	if s.QCVM != nil {
-		s.Static.ServerFlags = s.QCVM.GetGlobalInt("serverflags")
+		s.Static.ServerFlags = s.QCVM.GlobalInt("serverflags")
 	}
 	for _, client := range s.Static.Clients {
 		if client == nil || !client.Active {
@@ -726,7 +726,7 @@ func (s *Server) SaveSpawnParms() {
 				s.QCVM.SetGlobal("self", s.NumForEdict(client.Edict))
 				_ = s.executeQCFunction(setChangeParms)
 				for i := 0; i < NumSpawnParms; i++ {
-					client.SpawnParms[i] = float32(s.QCVM.GetGlobalFloat(fmt.Sprintf("parm%d", i+1)))
+					client.SpawnParms[i] = float32(s.QCVM.GlobalFloat(fmt.Sprintf("parm%d", i+1)))
 				}
 			}
 		}

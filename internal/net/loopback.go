@@ -319,8 +319,8 @@ func (b *Buffer) Write(data []byte) {
 	b.cursor += len(data)
 }
 
-// GetByte reads and returns a single byte, advancing the cursor.
-func (b *Buffer) GetByte() byte {
+// Byte reads and returns a single byte, advancing the cursor.
+func (b *Buffer) Byte() byte {
 	if b.cursor >= b.maxsize {
 		return 0
 	}
@@ -353,7 +353,7 @@ func (b *Buffer) ReadLong() int32 {
 func (b *Buffer) ReadString() string {
 	var result []byte
 	for b.cursor < b.maxsize {
-		c := b.GetByte()
+		c := b.Byte()
 		if c == 0 {
 			break
 		}

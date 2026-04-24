@@ -18,11 +18,11 @@ func (s *Server) standardQuakeWeaponEncoding() bool {
 	if s == nil || s.FileSystem == nil {
 		return true
 	}
-	fsInfo, ok := s.FileSystem.(interface{ GetGameDir() string })
+	fsInfo, ok := s.FileSystem.(interface{ GameDir() string })
 	if !ok {
 		return true
 	}
-	switch strings.ToLower(fsInfo.GetGameDir()) {
+	switch strings.ToLower(fsInfo.GameDir()) {
 	case "rogue", "hipnotic", "quoth":
 		return false
 	default:

@@ -27,13 +27,13 @@ func TestMouseBindingsForActivationAndBack(t *testing.T) {
 	mgr.state = MenuSinglePlayer
 	mgr.singlePlayerCursor = 1 // Load
 	mgr.M_Key(input.KMouse1)
-	if mgr.GetState() != MenuLoad {
-		t.Fatalf("expected load state after mouse1 activate, got %v", mgr.GetState())
+	if mgr.State() != MenuLoad {
+		t.Fatalf("expected load state after mouse1 activate, got %v", mgr.State())
 	}
 
 	mgr.M_Key(input.KMouse2)
-	if mgr.GetState() != MenuSinglePlayer {
-		t.Fatalf("expected return to single player after mouse2, got %v", mgr.GetState())
+	if mgr.State() != MenuSinglePlayer {
+		t.Fatalf("expected return to single player after mouse2, got %v", mgr.State())
 	}
 
 	mgr.state = MenuQuit
@@ -56,12 +56,12 @@ func TestControllerButtonsMapToMenuAcceptAndBack(t *testing.T) {
 	mgr.singlePlayerCursor = 1 // LOAD
 
 	mgr.M_Key(input.KAButton)
-	if got := mgr.GetState(); got != MenuLoad {
+	if got := mgr.State(); got != MenuLoad {
 		t.Fatalf("A button should activate selection, got %v", got)
 	}
 
 	mgr.M_Key(input.KBButton)
-	if got := mgr.GetState(); got != MenuSinglePlayer {
+	if got := mgr.State(); got != MenuSinglePlayer {
 		t.Fatalf("B button should go back, got %v", got)
 	}
 }
@@ -99,12 +99,12 @@ func TestControllerStartAndBackMapInOptionsMenu(t *testing.T) {
 	mgr.optionsCursor = 0 // CONTROLS
 
 	mgr.M_Key(input.KStart)
-	if got := mgr.GetState(); got != MenuControls {
+	if got := mgr.State(); got != MenuControls {
 		t.Fatalf("START should activate current option, got %v", got)
 	}
 
 	mgr.M_Key(input.KBack)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("BACK should behave like backspace and return, got %v", got)
 	}
 }
@@ -275,7 +275,7 @@ func TestModsMenuEmptyWithNoProvider(t *testing.T) {
 	mgr.state = MenuMain
 	mgr.enterModsMenu()
 
-	if got := mgr.GetState(); got != MenuMods {
+	if got := mgr.State(); got != MenuMods {
 		t.Fatalf("expected MenuMods, got %v", got)
 	}
 	if len(mgr.modsList) != 0 {
@@ -284,7 +284,7 @@ func TestModsMenuEmptyWithNoProvider(t *testing.T) {
 
 	// ESC should return to main menu.
 	mgr.M_Key(input.KEscape)
-	if got := mgr.GetState(); got != MenuMain {
+	if got := mgr.State(); got != MenuMain {
 		t.Fatalf("expected MenuMain after ESC from mods, got %v", got)
 	}
 }
@@ -304,7 +304,7 @@ func TestModsMenuWithMods(t *testing.T) {
 	mgr.state = MenuMain
 	mgr.enterModsMenu()
 
-	if got := mgr.GetState(); got != MenuMods {
+	if got := mgr.State(); got != MenuMods {
 		t.Fatalf("expected MenuMods, got %v", got)
 	}
 	if len(mgr.modsList) != 2 {
@@ -344,7 +344,7 @@ func TestModsMenuBackItem(t *testing.T) {
 	mgr.modsCursor = len(mgr.modsList)
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuMain {
+	if got := mgr.State(); got != MenuMain {
 		t.Fatalf("expected MenuMain after selecting Back, got %v", got)
 	}
 }
@@ -364,7 +364,7 @@ func TestMainMenuIncludesModsWhenAvailable(t *testing.T) {
 	mgr.mainCursor = mainMods
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuMods {
+	if got := mgr.State(); got != MenuMods {
 		t.Fatalf("expected MenuMods from main menu, got %v", got)
 	}
 }

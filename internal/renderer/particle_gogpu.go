@@ -391,8 +391,8 @@ func (dc *DrawContext) renderParticlesHAL(state *RenderFrameState, alpha bool) {
 	}
 	defer scratchBuffer.Release()
 
-	vpMatrix := r.GetViewProjectionMatrix()
-	projectionMatrix := r.GetProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
+	projectionMatrix := r.ProjectionMatrix()
 	uvScale, textureScaleFactor := ParticleTexture(mode)
 	scaleX, scaleY := ParticleProjection(textureScaleFactor, projectionMatrix)
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}

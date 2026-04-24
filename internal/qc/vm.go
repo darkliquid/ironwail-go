@@ -657,7 +657,7 @@ func (vm *VM) GVector(o int) [3]float32 {
 // The offset contains a string table index.
 func (vm *VM) GString(o int) string {
 	idx := vm.GInt(o)
-	return vm.GetString(idx)
+	return vm.String(idx)
 }
 
 // GFunction returns a function reference by offset.
@@ -699,11 +699,11 @@ func (vm *VM) SetGString(o int, s string) {
 	vm.SetGInt(o, idx)
 }
 
-// GetString retrieves a string by its table index.
+// String retrieves a string by its table index.
 // Positive indices look up in the static Strings array.
 // Negative indices look up in the dynamic StringTable.
 // Returns empty string for invalid indices.
-func (vm *VM) GetString(idx int32) string {
+func (vm *VM) String(idx int32) string {
 	if idx < 0 {
 		if s, ok := vm.StringTable[idx]; ok {
 			return s
@@ -721,7 +721,7 @@ func (vm *VM) GetString(idx int32) string {
 }
 
 // AllocString allocates a new string in the dynamic table.
-// Returns a negative index that can be used with GetString.
+// Returns a negative index that can be used with String.
 // The same string can be allocated multiple times; each gets
 // a distinct index.
 func (vm *VM) AllocString(s string) int32 {
@@ -824,9 +824,9 @@ func (vm *VM) SetGlobalInt(name string, value int) {
 	vm.SetGlobal(name, value)
 }
 
-// GetGlobalInt retrieves an integer global by name.
+// GlobalInt retrieves an integer global by name.
 // Returns 0 if the global is not found.
-func (vm *VM) GetGlobalInt(name string) int {
+func (vm *VM) GlobalInt(name string) int {
 	ofs := vm.FindGlobal(name)
 	if ofs < 0 {
 		return 0
@@ -834,9 +834,9 @@ func (vm *VM) GetGlobalInt(name string) int {
 	return int(vm.GInt(ofs))
 }
 
-// GetGlobalFloat retrieves a float global by name.
+// GlobalFloat retrieves a float global by name.
 // Returns 0 if the global is not found.
-func (vm *VM) GetGlobalFloat(name string) float32 {
+func (vm *VM) GlobalFloat(name string) float32 {
 	ofs := vm.FindGlobal(name)
 	if ofs < 0 {
 		return 0

@@ -500,14 +500,14 @@ func (s *Server) ReadClientMove(client *Client, buf *MessageBuffer) UserCmd {
 	cmd.SideMove = float32(buf.ReadShort())
 	cmd.UpMove = float32(buf.ReadShort())
 
-	bits := buf.GetByte()
+	bits := buf.Byte()
 	cmd.Buttons = bits
 	if client.Edict != nil {
 		client.Edict.Vars.Button0 = float32(bits & 1)
 		client.Edict.Vars.Button2 = float32((bits & 2) >> 1)
 	}
 
-	impulse := buf.GetByte()
+	impulse := buf.Byte()
 	cmd.Impulse = impulse
 	if impulse != 0 && client.Edict != nil {
 		client.Edict.Vars.Impulse = float32(impulse)
@@ -761,7 +761,7 @@ func (s *Server) RunClients() {
 				continue
 			}
 			for {
-				msgType, payload := s.Net.GetMessage(client.NetConnection)
+				msgType, payload := s.Net.Message(client.NetConnection)
 				if msgType == 0 {
 					break
 				}

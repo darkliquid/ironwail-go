@@ -422,10 +422,10 @@ func (b *lockOrderBackend) Unlock() {
 	b.locked = false
 }
 
-func (b *lockOrderBackend) GetPosition() int {
+func (b *lockOrderBackend) Position() int {
 	b.events = append(b.events, "getpos")
 	if b.locked {
-		b.t.Fatalf("GetPosition called while backend lock is held")
+		b.t.Fatalf("Position called while backend lock is held")
 	}
 	return 128
 }
@@ -447,7 +447,7 @@ func (b *positionBackend) Lock()     {}
 func (b *positionBackend) Unlock()   {}
 func (b *positionBackend) Block()    {}
 func (b *positionBackend) Unblock()  {}
-func (b *positionBackend) GetPosition() int {
+func (b *positionBackend) Position() int {
 	if b.index >= len(b.positions) {
 		return b.positions[len(b.positions)-1]
 	}
@@ -476,7 +476,7 @@ func (b *shutdownBackend) Unlock() {
 	b.events = append(b.events, "unlock")
 }
 
-func (b *shutdownBackend) GetPosition() int { return 0 }
+func (b *shutdownBackend) Position() int { return 0 }
 
 func (b *shutdownBackend) Block() {
 	b.events = append(b.events, "block")

@@ -63,7 +63,7 @@ func TestUDPConnection(t *testing.T) {
 	var receivedMsg []byte
 	var msgType int
 	for i := 0; i < 100; i++ {
-		msgType, receivedMsg = defaultNet.GetMessage(serverSock)
+		msgType, receivedMsg = defaultNet.Message(serverSock)
 		if msgType != 0 {
 			break
 		}
@@ -82,7 +82,7 @@ func TestUDPConnection(t *testing.T) {
 
 	// Client receive message
 	for i := 0; i < 100; i++ {
-		msgType, receivedMsg = defaultNet.GetMessage(clientSock)
+		msgType, receivedMsg = defaultNet.Message(clientSock)
 		if msgType != 0 {
 			break
 		}
@@ -212,7 +212,7 @@ func TestUDPUnreliable(t *testing.T) {
 	var receivedMsg []byte
 	var msgType int
 	for i := 0; i < 100; i++ {
-		msgType, receivedMsg = defaultNet.GetMessage(serverSock)
+		msgType, receivedMsg = defaultNet.Message(serverSock)
 		if msgType != 0 {
 			break
 		}
@@ -461,7 +461,7 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 
 	for i := 0; i < 20; i++ {
 		_ = serverForB.udpConn.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
-		msgType, _ := defaultNet.GetMessage(serverForB)
+		msgType, _ := defaultNet.Message(serverForB)
 		if msgType != 0 {
 			t.Fatalf("server socket for client B received unexpected message type %d", msgType)
 		}
@@ -472,7 +472,7 @@ func TestUDPConnectionsUsePerClientSockets(t *testing.T) {
 	var gotData []byte
 	for i := 0; i < 100; i++ {
 		_ = serverForA.udpConn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
-		gotType, gotData = defaultNet.GetMessage(serverForA)
+		gotType, gotData = defaultNet.Message(serverForA)
 		if gotType != 0 {
 			break
 		}

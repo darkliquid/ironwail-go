@@ -150,7 +150,7 @@ func (fs testGameDirFS) OpenFile(filename string) (io.ReadSeekCloser, int64, err
 	return nil, 0, nil
 }
 
-func (fs testGameDirFS) GetGameDir() string {
+func (fs testGameDirFS) GameDir() string {
 	return fs.gameDir
 }
 

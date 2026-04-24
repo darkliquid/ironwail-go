@@ -80,7 +80,7 @@ func TestRunThinkPublishesQCTimeGlobal(t *testing.T) {
 	if ok := s.RunThink(ent); !ok {
 		t.Fatal("RunThink unexpectedly returned false")
 	}
-	if got := s.QCVM.GetGlobalFloat("time"); got != 0.05 {
+	if got := s.QCVM.GlobalFloat("time"); got != 0.05 {
 		t.Fatalf("QC global time = %v, want 0.05", got)
 	}
 }

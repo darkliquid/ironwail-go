@@ -91,7 +91,7 @@ func (tc *TabCompleter) Complete(input string, forward bool) (string, []string) 
 	return tc.complete(input, forward, TabCompleteUser)
 }
 
-func (tc *TabCompleter) GetHint(input string) string {
+func (tc *TabCompleter) Hint(input string) string {
 	completed, _ := tc.complete(input, true, TabCompleteAutoHint)
 	if len(completed) <= len(input) || !strings.HasPrefix(completed, input) {
 		return ""
@@ -413,7 +413,7 @@ func (tc *TabCompleter) MatchCount() int {
 	defer tc.mu.RUnlock()
 	return len(tc.matches)
 }
-func (tc *TabCompleter) GetCurrentMatches() []*TabMatch {
+func (tc *TabCompleter) CurrentMatches() []*TabMatch {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
 	out := make([]*TabMatch, len(tc.matches))
@@ -439,5 +439,5 @@ func SetGlobalCompletionPrintFunc(printFn PrintFunc) { GlobalTabCompleter.SetPri
 func CompleteInput(input string, forward bool) (string, []string) {
 	return GlobalTabCompleter.Complete(input, forward)
 }
-func GetCompletionHint(input string) string { return GlobalTabCompleter.GetHint(input) }
+func GetCompletionHint(input string) string { return GlobalTabCompleter.Hint(input) }
 func ResetCompletion()                      { GlobalTabCompleter.Reset() }

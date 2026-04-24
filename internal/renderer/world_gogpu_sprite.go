@@ -407,7 +407,7 @@ func (dc *DrawContext) renderSpriteDrawsHAL(draws []gpuSpriteDraw, fogColor [3]f
 	renderPass.SetVertexBuffer(0, scratchBuffer, 0)
 	renderPass.SetBindGroup(0, uniformBindGroup, []uint32{0})
 
-	vpMatrix := r.GetViewProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraAngles := [3]float32{camera.Angles.X, camera.Angles.Y, camera.Angles.Z}
 	cameraForward, cameraRight, cameraUp := spriteCameraBasis(cameraAngles)

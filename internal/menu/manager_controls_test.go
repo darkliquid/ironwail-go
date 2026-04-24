@@ -32,8 +32,8 @@ func TestHelpNavigation(t *testing.T) {
 	}
 
 	mgr.M_Key(input.KEscape)
-	if mgr.GetState() != MenuMain {
-		t.Fatalf("expected return to main menu, got %v", mgr.GetState())
+	if mgr.State() != MenuMain {
+		t.Fatalf("expected return to main menu, got %v", mgr.State())
 	}
 }
 
@@ -50,35 +50,35 @@ func TestOptionsNavigationAndAction(t *testing.T) {
 	mgr.state = MenuOptions
 	mgr.optionsCursor = 0 // CONTROLS
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuControls {
+	if got := mgr.State(); got != MenuControls {
 		t.Fatalf("expected controls menu, got %v", got)
 	}
 
 	mgr.controlsCursor = controlItemBack
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("expected return to options from controls, got %v", got)
 	}
 
 	mgr.optionsCursor = 1 // VIDEO
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuVideo {
+	if got := mgr.State(); got != MenuVideo {
 		t.Fatalf("expected video menu, got %v", got)
 	}
 
 	mgr.M_Key(input.KEscape)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("expected return to options from video, got %v", got)
 	}
 
 	mgr.optionsCursor = 2 // AUDIO
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuAudio {
+	if got := mgr.State(); got != MenuAudio {
 		t.Fatalf("expected audio menu, got %v", got)
 	}
 
 	mgr.M_Key(input.KBackspace)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("expected return to options from audio, got %v", got)
 	}
 
@@ -90,8 +90,8 @@ func TestOptionsNavigationAndAction(t *testing.T) {
 
 	mgr.optionsCursor = 4 // Back
 	mgr.M_Key(input.KEnter)
-	if mgr.GetState() != MenuMain {
-		t.Fatalf("expected back to main menu, got %v", mgr.GetState())
+	if mgr.State() != MenuMain {
+		t.Fatalf("expected back to main menu, got %v", mgr.State())
 	}
 }
 
@@ -114,18 +114,18 @@ func TestControlsMenuRebindingAndClearing(t *testing.T) {
 	if mgr.controlsRebinding {
 		t.Fatal("expected controls menu to exit rebinding mode after key selection")
 	}
-	if got := inputSys.GetBinding(int('i')); got != "+forward" {
+	if got := inputSys.Binding(int('i')); got != "+forward" {
 		t.Fatalf("binding for i = %q, want +forward", got)
 	}
-	if got := inputSys.GetBinding(int('w')); got != "" {
+	if got := inputSys.Binding(int('w')); got != "" {
 		t.Fatalf("binding for w should be cleared by menu rebind, got %q", got)
 	}
-	if got := inputSys.GetBinding(input.KUpArrow); got != "" {
+	if got := inputSys.Binding(input.KUpArrow); got != "" {
 		t.Fatalf("binding for UPARROW should be cleared by menu rebind, got %q", got)
 	}
 
 	mgr.M_Key(input.KLeftArrow)
-	if got := inputSys.GetBinding(int('i')); got != "" {
+	if got := inputSys.Binding(int('i')); got != "" {
 		t.Fatalf("binding for i should be cleared by menu clear action, got %q", got)
 	}
 }
@@ -145,7 +145,7 @@ func TestControlsMenuCancelRebinding(t *testing.T) {
 	if mgr.controlsRebinding {
 		t.Fatal("expected rebinding mode to cancel on escape")
 	}
-	if got := inputSys.GetBinding(input.KMouse1); got != "+attack" {
+	if got := inputSys.Binding(input.KMouse1); got != "+attack" {
 		t.Fatalf("attack binding should be unchanged after cancel, got %q", got)
 	}
 }
@@ -167,7 +167,7 @@ func TestControlsMenuCanBindBackquote(t *testing.T) {
 	if mgr.WaitingForKeyBinding() {
 		t.Fatal("expected controls menu to exit rebinding mode after backquote selection")
 	}
-	if got := inputSys.GetBinding(int('`')); got != "toggleconsole" {
+	if got := inputSys.Binding(int('`')); got != "toggleconsole" {
 		t.Fatalf("binding for backquote = %q, want toggleconsole", got)
 	}
 }
@@ -227,15 +227,15 @@ func TestControlsMenuRebindAndClearNewCommand(t *testing.T) {
 	if mgr.WaitingForKeyBinding() {
 		t.Fatal("expected controls menu to exit rebinding mode after key selection")
 	}
-	if got := inputSys.GetBinding(int('v')); got != "centerview" {
+	if got := inputSys.Binding(int('v')); got != "centerview" {
 		t.Fatalf("binding for v = %q, want centerview", got)
 	}
-	if got := inputSys.GetBinding(int('z')); got != "" {
+	if got := inputSys.Binding(int('z')); got != "" {
 		t.Fatalf("binding for z should be cleared by menu rebind, got %q", got)
 	}
 
 	mgr.M_Key(input.KLeftArrow)
-	if got := inputSys.GetBinding(int('v')); got != "" {
+	if got := inputSys.Binding(int('v')); got != "" {
 		t.Fatalf("binding for v should be cleared by menu clear action, got %q", got)
 	}
 }
@@ -286,7 +286,7 @@ func TestControlsMenuAdjustsLiveControlCvars(t *testing.T) {
 
 	mgr.controlsCursor = controlItemMouseSpeed
 	mgr.M_Key(input.KBackspace)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("settings-row backspace should return to options, got %v", got)
 	}
 }
@@ -367,7 +367,7 @@ func TestVideoMenuAdjustmentsWriteCvars(t *testing.T) {
 
 	mgr.videoCursor = videoItemBack
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("video back should return to options, got %v", got)
 	}
 }
@@ -395,7 +395,7 @@ func TestAudioMenuVolumeAdjustment(t *testing.T) {
 
 	mgr.audioCursor = audioItemBack
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuOptions {
+	if got := mgr.State(); got != MenuOptions {
 		t.Fatalf("audio back should return to options, got %v", got)
 	}
 }

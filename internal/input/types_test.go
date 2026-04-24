@@ -72,15 +72,15 @@ type textModeBackend struct {
 func (b *textModeBackend) Init() error                   { return nil }
 func (b *textModeBackend) Shutdown()                     {}
 func (b *textModeBackend) PollEvents() bool              { return true }
-func (b *textModeBackend) GetMouseDelta() (dx, dy int32) { return 0, 0 }
-func (b *textModeBackend) GetMousePosition() (x, y int32, valid bool) {
+func (b *textModeBackend) MouseDelta() (dx, dy int32) { return 0, 0 }
+func (b *textModeBackend) MousePosition() (x, y int32, valid bool) {
 	return 0, 0, false
 }
-func (b *textModeBackend) GetModifierState() ModifierState         { return ModifierState{} }
+func (b *textModeBackend) ModifierState() ModifierState         { return ModifierState{} }
 func (b *textModeBackend) SetTextMode(mode TextMode)               { b.lastMode = mode }
 func (b *textModeBackend) SetCursorMode(mode CursorMode)           {}
 func (b *textModeBackend) ShowKeyboard(show bool)                  {}
-func (b *textModeBackend) GetGamepadState(player int) GamepadState { return GamepadState{} }
+func (b *textModeBackend) GamepadState(player int) GamepadState { return GamepadState{} }
 func (b *textModeBackend) IsGamepadConnected(player int) bool      { return false }
 func (b *textModeBackend) SetMouseGrab(grabbed bool)               {}
 func (b *textModeBackend) SetWindow(win any)                       {}
@@ -185,7 +185,7 @@ func TestHandleKeyEventStopsGeneralDispatchWhenMenuChangesDest(t *testing.T) {
 	if len(gameEvents) != 0 {
 		t.Fatalf("general OnKey callback count = %d, want 0", len(gameEvents))
 	}
-	if got := sys.GetKeyDest(); got != KeyGame {
+	if got := sys.KeyDest(); got != KeyGame {
 		t.Fatalf("key destination after menu handler = %v, want %v", got, KeyGame)
 	}
 }

@@ -49,26 +49,26 @@ func NewCenterprint(dm *draw.Manager, cv *cvar.CVarSystem) *Centerprint {
 	}
 	cp := &Centerprint{drawManager: dm, cvars: cv}
 	if dm != nil {
-		cp.completePic = dm.GetPic("gfx/complete.lmp")
-		cp.interPic = dm.GetPic("gfx/inter.lmp")
-		cp.finalePic = dm.GetPic("gfx/finale.lmp")
+		cp.completePic = dm.Pic("gfx/complete.lmp")
+		cp.interPic = dm.Pic("gfx/inter.lmp")
+		cp.finalePic = dm.Pic("gfx/finale.lmp")
 		for i := 0; i < 10; i++ {
-			cp.numPics[i] = dm.GetPic(fmt.Sprintf("num_%d", i))
+			cp.numPics[i] = dm.Pic(fmt.Sprintf("num_%d", i))
 		}
-		cp.numPics[10] = dm.GetPic("num_minus")
-		cp.slashPic = dm.GetPic("num_slash")
-		cp.colonPic = dm.GetPic("num_colon")
+		cp.numPics[10] = dm.Pic("num_minus")
+		cp.slashPic = dm.Pic("num_slash")
+		cp.colonPic = dm.Pic("num_colon")
 		cp.boxPics = map[string]*image.QPic{
-			"gfx/box_tl.lmp":  dm.GetPic("gfx/box_tl.lmp"),
-			"gfx/box_ml.lmp":  dm.GetPic("gfx/box_ml.lmp"),
-			"gfx/box_bl.lmp":  dm.GetPic("gfx/box_bl.lmp"),
-			"gfx/box_tm.lmp":  dm.GetPic("gfx/box_tm.lmp"),
-			"gfx/box_mm.lmp":  dm.GetPic("gfx/box_mm.lmp"),
-			"gfx/box_mm2.lmp": dm.GetPic("gfx/box_mm2.lmp"),
-			"gfx/box_bm.lmp":  dm.GetPic("gfx/box_bm.lmp"),
-			"gfx/box_tr.lmp":  dm.GetPic("gfx/box_tr.lmp"),
-			"gfx/box_mr.lmp":  dm.GetPic("gfx/box_mr.lmp"),
-			"gfx/box_br.lmp":  dm.GetPic("gfx/box_br.lmp"),
+			"gfx/box_tl.lmp":  dm.Pic("gfx/box_tl.lmp"),
+			"gfx/box_ml.lmp":  dm.Pic("gfx/box_ml.lmp"),
+			"gfx/box_bl.lmp":  dm.Pic("gfx/box_bl.lmp"),
+			"gfx/box_tm.lmp":  dm.Pic("gfx/box_tm.lmp"),
+			"gfx/box_mm.lmp":  dm.Pic("gfx/box_mm.lmp"),
+			"gfx/box_mm2.lmp": dm.Pic("gfx/box_mm2.lmp"),
+			"gfx/box_bm.lmp":  dm.Pic("gfx/box_bm.lmp"),
+			"gfx/box_tr.lmp":  dm.Pic("gfx/box_tr.lmp"),
+			"gfx/box_mr.lmp":  dm.Pic("gfx/box_mr.lmp"),
+			"gfx/box_br.lmp":  dm.Pic("gfx/box_br.lmp"),
 		}
 	}
 	return cp

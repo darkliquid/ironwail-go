@@ -327,7 +327,7 @@ func TestNotifyBoxPrintsFramedMessage(t *testing.T) {
 	// Collect all visible lines
 	var lines []string
 	for i := c.current - 10; i <= c.current; i++ {
-		line := c.GetLine(i)
+		line := c.Line(i)
 		if line != "" {
 			lines = append(lines, line)
 		}

@@ -184,7 +184,7 @@ func TestCmdGameSwitchesFilesystemToSelectedMod(t *testing.T) {
 	if !ok {
 		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
 	}
-	if got := activeFS.GetGameDir(); got != "hipnotic" {
+	if got := activeFS.GameDir(); got != "hipnotic" {
 		t.Fatalf("active game dir = %q, want %q", got, "hipnotic")
 	}
 	data, err := subs.Files.LoadFile("progs.dat")
@@ -231,7 +231,7 @@ func TestCmdGameInvokesGameDirChangedCallbackWithNewFilesystem(t *testing.T) {
 		if changedSubs.Files != changed {
 			t.Fatalf("callback saw stale subs filesystem")
 		}
-		seenGameDir = changed.GetGameDir()
+		seenGameDir = changed.GameDir()
 		data, err := changed.LoadFile("progs.dat")
 		if err != nil {
 			return err
@@ -324,7 +324,7 @@ func TestCmdGameReportsCallbackReloadWarningAndContinues(t *testing.T) {
 	if !ok {
 		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
 	}
-	if got := activeFS.GetGameDir(); got != "hipnotic" {
+	if got := activeFS.GameDir(); got != "hipnotic" {
 		t.Fatalf("active game dir = %q, want %q", got, "hipnotic")
 	}
 	out := strings.Join(console.messages, "")
@@ -369,7 +369,7 @@ func TestGameConsoleCommandSwitchesFilesystemToSelectedMod(t *testing.T) {
 	if !ok {
 		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
 	}
-	if got := activeFS.GetGameDir(); got != "hipnotic" {
+	if got := activeFS.GameDir(); got != "hipnotic" {
 		t.Fatalf("active game dir = %q, want %q", got, "hipnotic")
 	}
 }
@@ -397,7 +397,7 @@ func TestCmdGameRejectsUnknownModAndLeavesFilesystemUnchanged(t *testing.T) {
 	if !ok {
 		t.Fatalf("subs.Files type = %T, want *fs.FileSystem", subs.Files)
 	}
-	if got := activeFS.GetGameDir(); got != "id1" {
+	if got := activeFS.GameDir(); got != "id1" {
 		t.Fatalf("active game dir = %q, want %q", got, "id1")
 	}
 	gotOutput := strings.Join(console.messages, "")

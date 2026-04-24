@@ -31,7 +31,7 @@ func (g *Game) lookupCSQCPic(name string) *qimage.QPic {
 	if g.Draw == nil {
 		return nil
 	}
-	return g.Draw.GetPic(name)
+	return g.Draw.Pic(name)
 }
 
 func (g *Game) cacheCSQCPic(name string, flags uint32) *qimage.QPic {
@@ -43,7 +43,7 @@ func (g *Game) cacheCSQCPic(name string, flags uint32) *qimage.QPic {
 	}
 	if flags&CSQCPicFlagNoLoad != 0 {
 		if g.Draw.IsPicCached(name) {
-			return g.Draw.GetPic(name)
+			return g.Draw.Pic(name)
 		}
 		return nil
 	}

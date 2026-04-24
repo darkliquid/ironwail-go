@@ -591,7 +591,7 @@ func TestGetPredictedOriginReturnsCorrectValue(t *testing.T) {
 
 	origin := c.GetPredictedOrigin()
 	if origin != [3]float32{10, 20, 30} {
-		t.Errorf("GetPredictedOrigin returned %v, want [10 20 30]", origin)
+		t.Errorf("PredictedOrigin returned %v, want [10 20 30]", origin)
 	}
 }
 
@@ -604,7 +604,7 @@ func TestGetPredictedVelocityReturnsCorrectValue(t *testing.T) {
 
 	velocity := c.GetPredictedVelocity()
 	if velocity != [3]float32{100, 50, 25} {
-		t.Errorf("GetPredictedVelocity returned %v, want [100 50 25]", velocity)
+		t.Errorf("PredictedVelocity returned %v, want [100 50 25]", velocity)
 	}
 }
 

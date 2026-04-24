@@ -69,7 +69,7 @@ func TestSpawnServerSyncsRoundedClampedSkillToQCVM(t *testing.T) {
 				t.Fatalf("spawn server: %v", err)
 			}
 
-			if got := int(s.QCVM.GetGlobalFloat("skill")); got != tc.want {
+			if got := int(s.QCVM.GlobalFloat("skill")); got != tc.want {
 				t.Fatalf("QC skill global = %d, want %d", got, tc.want)
 			}
 		})
@@ -584,7 +584,7 @@ func TestLoadMapEntitiesReservesFreshSignonSpaceAndSeedsServerFlags(t *testing.T
 	}
 	vm.SetGInt(inspectBuiltinOfs, -1)
 	s.syncQCVMState()
-	if got := vm.GetGlobalInt("serverflags"); got != 7 {
+	if got := vm.GlobalInt("serverflags"); got != 7 {
 		t.Fatalf("syncQCVMState serverflags = %d, want 7", got)
 	}
 

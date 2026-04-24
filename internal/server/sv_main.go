@@ -524,7 +524,7 @@ func (s *Server) loadMapEntities(raw string) error {
 		}
 
 		// Resolve the classname string from the QC string table.
-		className := s.QCVM.GetString(ent.Vars.ClassName)
+		className := s.QCVM.String(ent.Vars.ClassName)
 		if className == "" {
 			if entNum == 0 {
 				return fmt.Errorf("worldspawn has no classname")
@@ -595,8 +595,8 @@ func (s *Server) loadMapEntities(raw string) error {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger qc begin classname=%q targetname=%q target=%q touch=%d solid=%d origin=(%.1f %.1f %.1f)",
 				className,
-				s.QCVM.GetString(ent.Vars.TargetName),
-				s.QCVM.GetString(ent.Vars.Target),
+				s.QCVM.String(ent.Vars.TargetName),
+				s.QCVM.String(ent.Vars.Target),
 				ent.Vars.Touch,
 				int(ent.Vars.Solid),
 				ent.Vars.Origin[0], ent.Vars.Origin[1], ent.Vars.Origin[2],
@@ -619,8 +619,8 @@ func (s *Server) loadMapEntities(raw string) error {
 			s.DebugTelemetry.LogEventf(DebugEventTrigger, s.QCVM, entNum, ent,
 				"spawn trigger qc end classname=%q targetname=%q target=%q touch=%d solid=%d absmin=(%.1f %.1f %.1f) absmax=(%.1f %.1f %.1f)",
 				className,
-				s.QCVM.GetString(ent.Vars.TargetName),
-				s.QCVM.GetString(ent.Vars.Target),
+				s.QCVM.String(ent.Vars.TargetName),
+				s.QCVM.String(ent.Vars.Target),
 				ent.Vars.Touch,
 				int(ent.Vars.Solid),
 				ent.Vars.AbsMin[0], ent.Vars.AbsMin[1], ent.Vars.AbsMin[2],

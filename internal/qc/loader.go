@@ -76,7 +76,7 @@ func (vm *VM) LoadProgs(r io.ReadSeeker) error {
 
 func (vm *VM) FindFunction(name string) int {
 	for i, fn := range vm.Functions {
-		if vm.GetString(fn.Name) == name {
+		if vm.String(fn.Name) == name {
 			return i
 		}
 	}
@@ -85,7 +85,7 @@ func (vm *VM) FindFunction(name string) int {
 
 func (vm *VM) FindGlobal(name string) int {
 	for _, def := range vm.GlobalDefs {
-		if vm.GetString(def.Name) == name {
+		if vm.String(def.Name) == name {
 			return int(def.Ofs)
 		}
 	}
@@ -94,7 +94,7 @@ func (vm *VM) FindGlobal(name string) int {
 
 func (vm *VM) FindField(name string) int {
 	for _, def := range vm.FieldDefs {
-		if vm.GetString(def.Name) == name {
+		if vm.String(def.Name) == name {
 			return int(def.Ofs)
 		}
 	}

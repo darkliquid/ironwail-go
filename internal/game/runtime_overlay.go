@@ -291,23 +291,23 @@ func (g *Game) drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvid
 	cx := x
 	cy := y
 
-	if pic := pics.GetPic("gfx/box_tl.lmp"); pic != nil {
+	if pic := pics.Pic("gfx/box_tl.lmp"); pic != nil {
 		g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 	}
-	if pic := pics.GetPic("gfx/box_ml.lmp"); pic != nil {
+	if pic := pics.Pic("gfx/box_ml.lmp"); pic != nil {
 		for n := 0; n < lines; n++ {
 			cy += 8
 			g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 		}
 	}
-	if pic := pics.GetPic("gfx/box_bl.lmp"); pic != nil {
+	if pic := pics.Pic("gfx/box_bl.lmp"); pic != nil {
 		g.drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
 	}
 
 	cx += 8
 	for remaining := width; remaining > 0; remaining -= 2 {
 		cy = y
-		if pic := pics.GetPic("gfx/box_tm.lmp"); pic != nil {
+		if pic := pics.Pic("gfx/box_tm.lmp"); pic != nil {
 			g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 		}
 		for n := 0; n < lines; n++ {
@@ -316,27 +316,27 @@ func (g *Game) drawRuntimeTextBoxAlpha(rc renderer.RenderContext, pics picProvid
 			if n == 1 {
 				name = "gfx/box_mm2.lmp"
 			}
-			if pic := pics.GetPic(name); pic != nil {
+			if pic := pics.Pic(name); pic != nil {
 				g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 			}
 		}
-		if pic := pics.GetPic("gfx/box_bm.lmp"); pic != nil {
+		if pic := pics.Pic("gfx/box_bm.lmp"); pic != nil {
 			g.drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
 		}
 		cx += 16
 	}
 
 	cy = y
-	if pic := pics.GetPic("gfx/box_tr.lmp"); pic != nil {
+	if pic := pics.Pic("gfx/box_tr.lmp"); pic != nil {
 		g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 	}
-	if pic := pics.GetPic("gfx/box_mr.lmp"); pic != nil {
+	if pic := pics.Pic("gfx/box_mr.lmp"); pic != nil {
 		for n := 0; n < lines; n++ {
 			cy += 8
 			g.drawRuntimePicAlpha(rc, cx, cy, pic, alpha)
 		}
 	}
-	if pic := pics.GetPic("gfx/box_br.lmp"); pic != nil {
+	if pic := pics.Pic("gfx/box_br.lmp"); pic != nil {
 		g.drawRuntimePicAlpha(rc, cx, cy+8, pic, alpha)
 	}
 }
@@ -455,7 +455,7 @@ func (g *Game) drawRuntimeTurtle(rc renderer.RenderContext, pics picProvider, st
 	if *count < 3 {
 		return
 	}
-	if turtle := pics.GetPic("turtle"); turtle != nil {
+	if turtle := pics.Pic("turtle"); turtle != nil {
 		rc.SetCanvas(renderer.CanvasDefault)
 		rc.DrawPic(state.ViewRect.X, state.ViewRect.Y, turtle)
 	}
@@ -468,7 +468,7 @@ func (g *Game) drawRuntimeNet(rc renderer.RenderContext, pics picProvider, state
 	if state.RealTime-state.LastServerMsgAt < 0.3 {
 		return
 	}
-	if netPic := pics.GetPic("net"); netPic != nil {
+	if netPic := pics.Pic("net"); netPic != nil {
 		rc.SetCanvas(renderer.CanvasDefault)
 		rc.DrawPic(state.ViewRect.X+64, state.ViewRect.Y, netPic)
 	}
@@ -478,7 +478,7 @@ func (g *Game) drawRuntimeSavingIndicator(rc renderer.RenderContext, pics picPro
 	if rc == nil || pics == nil || !state.SavingActive {
 		return
 	}
-	disc := pics.GetPic("disc")
+	disc := pics.Pic("disc")
 	if disc == nil {
 		return
 	}
@@ -506,7 +506,7 @@ func (g *Game) drawPauseOverlay(dc renderer.RenderContext, pics picProvider) {
 		return
 	}
 	dc.SetCanvas(renderer.CanvasMenu)
-	if pause := pics.GetPic("gfx/pause.lmp"); pause != nil {
+	if pause := pics.Pic("gfx/pause.lmp"); pause != nil {
 		dc.DrawMenuPic((320-int(pause.Width))/2, (240-48-int(pause.Height))/2, pause)
 	}
 }

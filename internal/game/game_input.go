@@ -32,7 +32,7 @@ func (g *Game) logRuntimeKeyDispatch(path string, event input.KeyEvent) {
 	menuActive := g.Menu != nil && g.Menu.IsActive()
 	keyDest := "none"
 	if g.Input != nil {
-		keyDest = g.keyDestName(g.Input.GetKeyDest())
+		keyDest = g.keyDestName(g.Input.KeyDest())
 	}
 	slog.Debug("input dispatch", "path", path, "key", keyName, "key_code", event.Key, "down", event.Down, "key_dest", keyDest, "menu_active", menuActive, "event_index", index)
 }
@@ -48,7 +48,7 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	switch g.Input.GetKeyDest() {
+	switch g.Input.KeyDest() {
 	case input.KeyConsole:
 		g.handleConsoleKeyEvent(event)
 		return
@@ -68,7 +68,7 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 	if event.Key == input.KEnter && event.Down {
-		if mods := g.Input.GetModifierState(); mods.Alt {
+		if mods := g.Input.ModifierState(); mods.Alt {
 			g.Host.CVar.SetBool("vid_fullscreen", !g.Host.CVar.BoolValue("vid_fullscreen"))
 			return
 		}
@@ -77,7 +77,7 @@ func (g *Game) handleGameKeyEvent(event input.KeyEvent) {
 		return
 	}
 
-	binding := strings.TrimSpace(g.Input.GetBinding(event.Key))
+	binding := strings.TrimSpace(g.Input.Binding(event.Key))
 	if binding == "" {
 		if event.Down && event.Key >= input.KMouseBegin && !g.isDemoPlaybackActive() {
 			keyName := input.KeyToString(event.Key)
@@ -120,7 +120,7 @@ func (g *Game) currentDemoPlaybackState() *cl.DemoState {
 }
 
 func (g *Game) handleDemoPlaybackKeyEvent(event input.KeyEvent) bool {
-	if g.Input == nil || g.Input.GetKeyDest() != input.KeyGame {
+	if g.Input == nil || g.Input.KeyDest() != input.KeyGame {
 		return false
 	}
 	demo := g.currentDemoPlaybackState()
@@ -182,7 +182,7 @@ func (g *Game) refreshDemoPlaybackSpeed() {
 	leftHeld := g.Input.IsKeyDown(input.KLeftArrow) || g.Input.IsKeyDown(input.KDpadLeft)
 	rightHeld := g.Input.IsKeyDown(input.KRightArrow) || g.Input.IsKeyDown(input.KDpadRight)
 	slowHeld := g.Input.IsKeyDown(input.KShift) || g.Input.IsKeyDown(input.KCtrl)
-	demo.UpdatePlaybackSpeed(g.Input.GetKeyDest() == input.KeyGame, leftHeld, rightHeld, slowHeld)
+	demo.UpdatePlaybackSpeed(g.Input.KeyDest() == input.KeyGame, leftHeld, rightHeld, slowHeld)
 }
 
 func (g *Game) handleMenuKeyEvent(event input.KeyEvent) {
@@ -197,14 +197,14 @@ func (g *Game) handleMenuKeyEvent(event input.KeyEvent) {
 	g.Menu.M_Key(event.Key)
 	if g.Input != nil && !g.Menu.IsActive() {
 		g.syncGameplayInputMode()
-		if g.Input.GetKeyDest() == input.KeyGame {
+		if g.Input.KeyDest() == input.KeyGame {
 			g.Input.ClearKeyStates()
 		}
 	}
 }
 
 func (g *Game) handleMenuCharEvent(ch rune) {
-	if g.Input == nil || g.Input.GetKeyDest() != input.KeyMenu || g.Menu == nil {
+	if g.Input == nil || g.Input.KeyDest() != input.KeyMenu || g.Menu == nil {
 		return
 	}
 	g.Menu.M_Char(ch)
@@ -215,7 +215,7 @@ func (g *Game) handleGameCharEvent(ch rune) {
 		return
 	}
 
-	switch g.Input.GetKeyDest() {
+	switch g.Input.KeyDest() {
 	case input.KeyConsole:
 		if ch == '`' {
 			return
@@ -251,7 +251,7 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 		g.Host.Cmd.ExecuteText(line)
 	case input.KTab, input.KBack:
 		line := console.InputLine()
-		forward := !g.Input.GetModifierState().Shift
+		forward := !g.Input.ModifierState().Shift
 		completed, matches := console.CompleteInput(line, forward)
 		if len(matches) == 0 {
 			return
@@ -259,13 +259,13 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 		console.SetInputLine(completed)
 	case input.KBackspace:
 		g.armRuntimeTextEditRepeat(input.KBackspace)
-		if g.Input.GetModifierState().Ctrl {
+		if g.Input.ModifierState().Ctrl {
 			console.DeleteWordLeft()
 		} else {
 			console.BackspaceInput()
 		}
 	case input.KDel:
-		if g.Input.GetModifierState().Ctrl {
+		if g.Input.ModifierState().Ctrl {
 			console.DeleteWordRight()
 		} else {
 			console.DeleteInput()
@@ -275,9 +275,9 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 	case input.KDownArrow:
 		console.NextHistory()
 	case input.KLeftArrow:
-		console.MoveCursorLeft(g.Input.GetModifierState().Ctrl)
+		console.MoveCursorLeft(g.Input.ModifierState().Ctrl)
 	case input.KRightArrow:
-		console.MoveCursorRight(g.Input.GetModifierState().Ctrl)
+		console.MoveCursorRight(g.Input.ModifierState().Ctrl)
 	case input.KIns:
 		console.ToggleInsertMode()
 	case input.KPgUp:
@@ -285,13 +285,13 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 	case input.KPgDn:
 		console.Scroll(-2)
 	case input.KHome:
-		if g.Input.GetModifierState().Ctrl {
+		if g.Input.ModifierState().Ctrl {
 			console.Scroll(console.TotalLines())
 		} else {
 			console.MoveCursorStart()
 		}
 	case input.KEnd:
-		if g.Input.GetModifierState().Ctrl {
+		if g.Input.ModifierState().Ctrl {
 			console.Scroll(-console.TotalLines())
 		} else {
 			console.MoveCursorEnd()
@@ -338,7 +338,7 @@ func (g *Game) updateRuntimeTextEditRepeat(dt float64) {
 
 	activeKey := 0
 	var repeatAction func()
-	switch g.Input.GetKeyDest() {
+	switch g.Input.KeyDest() {
 	case input.KeyConsole:
 		if g.Input.IsKeyDown(input.KBackspace) {
 			activeKey = input.KBackspace
@@ -374,7 +374,7 @@ func (g *Game) syncGameplayInputMode() {
 	}
 
 	menuActive := g.Menu != nil && g.Menu.IsActive()
-	wantDest := g.Input.GetKeyDest()
+	wantDest := g.Input.KeyDest()
 	switch {
 	case menuActive:
 		wantDest = input.KeyMenu
@@ -383,7 +383,7 @@ func (g *Game) syncGameplayInputMode() {
 	case wantDest != input.KeyConsole && wantDest != input.KeyMessage:
 		wantDest = input.KeyGame
 	}
-	if g.Input.GetKeyDest() != wantDest {
+	if g.Input.KeyDest() != wantDest {
 		g.Input.SetKeyDest(wantDest)
 		slog.Debug("input mode updated", "key_dest", g.keyDestName(wantDest), "menu_active", menuActive)
 	}
@@ -408,10 +408,10 @@ func (g *Game) applyMenuMouseMove() {
 	if g.Input == nil || g.Menu == nil || !g.Menu.IsActive() {
 		return
 	}
-	if g.Input.GetKeyDest() != input.KeyMenu {
+	if g.Input.KeyDest() != input.KeyMenu {
 		return
 	}
-	state := g.Input.GetState()
+	state := g.Input.State()
 	if state.MouseValid {
 		if mx, my, ok := g.screenToMenuCoords(int(state.MouseX), int(state.MouseY)); ok {
 			g.Menu.M_MousemoveAbsolute(mx, my)
@@ -452,7 +452,7 @@ func (g *Game) applyGameplayMouseLook() {
 	if g.Input == nil || g.Client == nil {
 		return
 	}
-	if g.Input.GetKeyDest() != input.KeyGame {
+	if g.Input.KeyDest() != input.KeyGame {
 		g.Client.MouseSideMove = 0
 		g.Client.MouseForwardMove = 0
 		g.Client.MouseUpMove = 0
@@ -467,7 +467,7 @@ func (g *Game) applyGameplayMouseLook() {
 		return
 	}
 
-	state := g.Input.GetState()
+	state := g.Input.State()
 	sensitivity := float32(g.Host.CVar.FloatValue("sensitivity"))
 	if sensitivity <= 0 {
 		sensitivity = 1
@@ -517,7 +517,7 @@ func (g *Game) applyGameplayMouseLook() {
 		}
 	}
 	if g.Input.IsGamepadConnected(0) && g.Host.CVar.BoolValue("joy_look") {
-		gamepad := g.Input.GetGamepadState(0)
+		gamepad := g.Input.GamepadState(0)
 		gamepadYawScale := float32(g.Host.CVar.FloatValue("joy_looksensitivity_yaw"))
 		if gamepadYawScale == 0 {
 			gamepadYawScale = 4

@@ -113,7 +113,7 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 		maxEdicts:  s.MaxEdicts,
 		numEdicts:  s.NumEdicts,
 		freeTime:   make([]float32, maxInt(s.MaxEdicts, len(s.Edicts))),
-		maxClients: s.GetMaxClients(),
+		maxClients: s.MaxClients(),
 	}
 	em.SetCurrentTime(s.Time)
 
@@ -175,7 +175,7 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 	s.setQCTimeGlobal(state.Time)
 
 	if s.Static != nil {
-		if serverFlags := s.QCVM.GetGlobalInt("serverflags"); serverFlags != 0 || s.Static.ServerFlags != 0 {
+		if serverFlags := s.QCVM.GlobalInt("serverflags"); serverFlags != 0 || s.Static.ServerFlags != 0 {
 			s.Static.ServerFlags = serverFlags
 		}
 		for i, client := range s.Static.Clients {
@@ -195,14 +195,14 @@ func (s *Server) validateTextSaveGameDir(gameDir string) error {
 	}
 
 	fsInfo, ok := s.FileSystem.(interface {
-		GetGameDir() string
-		GetBaseDir() string
+		GameDir() string
+		BaseDir() string
 	})
 	if !ok {
 		return nil
 	}
 
-	current := strings.TrimSpace(fsInfo.GetGameDir())
+	current := strings.TrimSpace(fsInfo.GameDir())
 	if current == "" {
 		current = "id1"
 	}
@@ -210,7 +210,7 @@ func (s *Server) validateTextSaveGameDir(gameDir string) error {
 		return nil
 	}
 
-	baseDir := strings.TrimSpace(fsInfo.GetBaseDir())
+	baseDir := strings.TrimSpace(fsInfo.BaseDir())
 	if baseDir == "" {
 		return fmt.Errorf("savegame gamedir %q does not match active gamedir %q", gameDir, current)
 	}

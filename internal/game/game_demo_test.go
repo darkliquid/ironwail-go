@@ -616,7 +616,7 @@ func TestDemoPlaybackBootstrapsWorldAfterServerInfo(t *testing.T) {
 	if g.Menu.IsActive() {
 		t.Fatal("expected startup menu to hide once demo playback became active")
 	}
-	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+	if got := g.Input.KeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after demo startup = %v, want game", got)
 	}
 }
@@ -813,7 +813,7 @@ func TestProcessClientAppliesGameplayInputWhenClientBecomesActive(t *testing.T) 
 	if g.Menu.IsActive() {
 		t.Fatal("menu should hide when client becomes active during ProcessClient")
 	}
-	if got := g.Input.GetKeyDest(); got != input.KeyGame {
+	if got := g.Input.KeyDest(); got != input.KeyGame {
 		t.Fatalf("key destination after activation = %v, want game", got)
 	}
 	if !g.MouseGrabbed {

@@ -696,7 +696,7 @@ func (dc *DrawContext) renderAliasDrawsHAL(draws []gpuAliasDraw, useViewModelDep
 		return
 	}
 
-	vpMatrix := r.GetViewProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 
 	// Pre-upload all uniform data at 256-byte aligned offsets

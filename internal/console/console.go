@@ -389,11 +389,11 @@ func (c *Console) Resize(newWidth int) {
 	}
 }
 
-// GetLine retrieves the text of a specific line from the ring buffer. The line
-// index is absolute (not modular); GetLine applies the modular wrap internally.
+// Line retrieves the text of a specific line from the ring buffer. The line
+// index is absolute (not modular); Line applies the modular wrap internally.
 // Trailing spaces are trimmed, matching the Quake convention where unused
 // columns are filled with 0x20.
-func (c *Console) GetLine(lineNum int) string {
+func (c *Console) Line(lineNum int) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -912,8 +912,8 @@ func Resize(newWidth int) {
 	globalConsole.Resize(newWidth)
 }
 
-func GetLine(lineNum int) string {
-	return globalConsole.GetLine(lineNum)
+func Line(lineNum int) string {
+	return globalConsole.Line(lineNum)
 }
 
 func Close() {

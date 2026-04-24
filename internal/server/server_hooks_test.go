@@ -198,7 +198,7 @@ func TestServerHooksSearchAndModelFunctions(t *testing.T) {
 		fn(vm)
 	}
 	modelIdx := vm.EInt(1, qc.EntFieldModel)
-	if got := vm.GetString(modelIdx); got != "progs/test.mdl" {
+	if got := vm.String(modelIdx); got != "progs/test.mdl" {
 		t.Fatalf("model string = %q", got)
 	}
 	if got := vm.EFloat(1, qc.EntFieldModelIndex); got != 1 {
@@ -332,7 +332,7 @@ func TestServerHooksSetModelUsesBrushBounds(t *testing.T) {
 	if got := vm.EFloat(1, qc.EntFieldModelIndex); got != 2 {
 		t.Fatalf("modelindex = %v, want 2", got)
 	}
-	if got := vm.GetString(vm.EInt(1, qc.EntFieldModel)); got != "*1" {
+	if got := vm.String(vm.EInt(1, qc.EntFieldModel)); got != "*1" {
 		t.Fatalf("model string = %q, want *1", got)
 	}
 	if got := vm.EVector(1, qc.EntFieldMins); got != [3]float32{-16, -24, -32} {

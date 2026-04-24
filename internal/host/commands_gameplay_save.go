@@ -103,7 +103,7 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	if subs.Server == nil {
 		return fmt.Errorf("server is not initialized")
 	}
-	if subs.Server.GetMaxClients() != 1 {
+	if subs.Server.MaxClients() != 1 {
 		return fmt.Errorf("savegames require single-player mode")
 	}
 	srv, ok := subs.Server.(*server.Server)
@@ -190,7 +190,7 @@ func (h *Host) SaveEntryAllowed(subs *Subsystems) bool {
 	if subs == nil || subs.Server == nil || !h.serverActive || !subs.Server.IsActive() {
 		return false
 	}
-	if subs.Server.GetMaxClients() != 1 {
+	if subs.Server.MaxClients() != 1 {
 		return false
 	}
 	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {
@@ -223,7 +223,7 @@ func (h *Host) cmdSave(name string, subs *Subsystems, skipNotify bool) {
 		subs.Console.Print("Not playing a local game.\n")
 		return
 	}
-	if subs.Server.GetMaxClients() != 1 {
+	if subs.Server.MaxClients() != 1 {
 		subs.Console.Print("Can't save multiplayer games.\n")
 		return
 	}

@@ -64,10 +64,10 @@ func TestCmdMapStartRealAssetsReachesCaActive(t *testing.T) {
 	if !srv.Static.Clients[0].Spawned {
 		t.Fatal("server client not marked spawned")
 	}
-	if got := srv.GetString(srv.Edicts[0].Vars.ClassName); got != "worldspawn" {
+	if got := srv.String(srv.Edicts[0].Vars.ClassName); got != "worldspawn" {
 		t.Fatalf("world classname = %q, want %q", got, "worldspawn")
 	}
-	if got := srv.GetString(srv.Static.Clients[0].Edict.Vars.ClassName); got != "player" {
+	if got := srv.String(srv.Static.Clients[0].Edict.Vars.ClassName); got != "player" {
 		t.Fatalf("player classname = %q, want %q", got, "player")
 	}
 }
@@ -116,7 +116,7 @@ func TestCmdMapE2M2RealAssetsKeepsMonstersOutOfSolid(t *testing.T) {
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		className := srv.GetString(ent.Vars.ClassName)
+		className := srv.String(ent.Vars.ClassName)
 		if len(className) < len("monster_") || className[:len("monster_")] != "monster_" {
 			continue
 		}
@@ -127,7 +127,7 @@ func TestCmdMapE2M2RealAssetsKeepsMonstersOutOfSolid(t *testing.T) {
 		if blocker := srv.TestEntityPosition(ent); blocker != nil {
 			blockerClass := ""
 			if blocker.Vars != nil {
-				blockerClass = srv.GetString(blocker.Vars.ClassName)
+				blockerClass = srv.String(blocker.Vars.ClassName)
 			}
 			t.Fatalf("monster %d (%s) spawned in solid after CmdMap at %v blocker=%d (%s)", entNum, className, ent.Vars.Origin, srv.NumForEdict(blocker), blockerClass)
 		}
@@ -828,11 +828,11 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		if srv.GetString(ent.Vars.ClassName) != "trigger_changelevel" {
+		if srv.String(ent.Vars.ClassName) != "trigger_changelevel" {
 			continue
 		}
 		trigger = ent
-		wantLevel = srv.GetString(ent.Vars.Map)
+		wantLevel = srv.String(ent.Vars.Map)
 		break
 	}
 	if trigger == nil {
@@ -863,7 +863,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 		}
 	}
 	if !enteredIntermission {
-		t.Fatalf("client never entered intermission; map=%q completed=%f", srv.GetMapName(), clientState.CompletedTime)
+		t.Fatalf("client never entered intermission; map=%q completed=%f", srv.MapName(), clientState.CompletedTime)
 	}
 
 	// Quake waits briefly before an attack press can advance the intermission.
@@ -880,7 +880,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 		if err := h.Frame(1.0/72.0, cb); err != nil {
 			t.Fatalf("advance intermission frame %d: %v", i, err)
 		}
-		if got := srv.GetMapName(); got == wantLevel {
+		if got := srv.MapName(); got == wantLevel {
 			return
 		}
 	}
@@ -891,7 +891,7 @@ func TestRealAssetsIntermissionAttackAdvancesChangelevel(t *testing.T) {
 		intermissionRunning = srv.QCVM.GFloat(idx)
 	}
 	t.Fatalf("map did not advance after intermission attack: got map=%q want=%q intermission=%d completed=%f server_time=%v cmd=%+v player_button0=%v player_button2=%v player_movetype=%v player_nextthink=%v player_think=%v qc_button0=%v qc_button2=%v intermission_running=%v",
-		srv.GetMapName(), wantLevel, clientState.Intermission, clientState.CompletedTime, srv.Time, clientState.Cmd,
+		srv.MapName(), wantLevel, clientState.Intermission, clientState.CompletedTime, srv.Time, clientState.Cmd,
 		player.Vars.Button0, player.Vars.Button2, player.Vars.MoveType, player.Vars.NextThink, player.Vars.Think,
 		srv.QCVM.EFloat(entNum, qc.EntFieldButton0), srv.QCVM.EFloat(entNum, qc.EntFieldButton2), intermissionRunning)
 }
@@ -935,7 +935,7 @@ func TestRealAssetsBufferedChangelevelCommandAdvancesMap(t *testing.T) {
 	h.Cmd.AddText("changelevel " + wantLevel)
 	h.Cmd.Execute()
 
-	if got := srv.GetMapName(); got != wantLevel {
+	if got := srv.MapName(); got != wantLevel {
 		t.Fatalf("buffered changelevel got map=%q want=%q", got, wantLevel)
 	}
 }

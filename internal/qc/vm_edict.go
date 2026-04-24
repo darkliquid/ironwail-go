@@ -2,7 +2,7 @@
 // to keep vm.go under the project's 1000-line hard ceiling. The semantics
 // are unchanged; this file only hosts the Edict value type, the
 // E{Float,Int,Vector,String,Function,Entity} readers, their SetE*
-// counterparts, and the small helpers (GetEdict, EdictFieldOffset,
+// counterparts, and the small helpers (Edict, EdictFieldOffset,
 // EdictData) that back them.
 package qc
 
@@ -140,9 +140,9 @@ func (vm *VM) SetEEntity(edictNum int, fieldOfs int, entityNum int32) {
 	vm.SetEInt(edictNum, fieldOfs, entityNum)
 }
 
-// GetEdict returns the edict for the given entity number.
+// Edict returns the edict for the given entity number.
 // Returns nil if the entity number is invalid.
-func (vm *VM) GetEdict(num int) *Edict {
+func (vm *VM) Edict(num int) *Edict {
 	if num < 0 || num >= vm.NumEdicts {
 		return nil
 	}

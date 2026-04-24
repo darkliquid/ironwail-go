@@ -58,34 +58,34 @@ func (r *Renderer) UpdateCamera(camera CameraState, nearPlane, farPlane float32)
 		"vp_matrix_3_2", r.viewMatrices.VP[14])
 }
 
-// GetViewMatrix returns the currently cached view matrix.
+// ViewMatrix returns the currently cached view matrix.
 // Thread-safe read.
-func (r *Renderer) GetViewMatrix() types.Mat4 {
+func (r *Renderer) ViewMatrix() types.Mat4 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.viewMatrices.View
 }
 
-// GetProjectionMatrix returns the currently cached projection matrix.
+// ProjectionMatrix returns the currently cached projection matrix.
 // Thread-safe read.
-func (r *Renderer) GetProjectionMatrix() types.Mat4 {
+func (r *Renderer) ProjectionMatrix() types.Mat4 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.viewMatrices.Projection
 }
 
-// GetViewProjectionMatrix returns the combined Projection × View matrix.
+// ViewProjectionMatrix returns the combined Projection × View matrix.
 // This is the matrix typically used in vertex shaders for world-to-NDC transformation.
 // Thread-safe read.
-func (r *Renderer) GetViewProjectionMatrix() types.Mat4 {
+func (r *Renderer) ViewProjectionMatrix() types.Mat4 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.viewMatrices.VP
 }
 
-// GetCameraState returns the current camera state (position and orientation).
+// CameraState returns the current camera state (position and orientation).
 // Thread-safe read. A copy is returned to prevent external modification.
-func (r *Renderer) GetCameraState() CameraState {
+func (r *Renderer) CameraState() CameraState {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.cameraState

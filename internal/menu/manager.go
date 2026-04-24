@@ -356,7 +356,7 @@ type Manager struct {
 
 // DrawManager defines the interface for loading menu graphics.
 type DrawManager interface {
-	GetPic(name string) *image.QPic
+	Pic(name string) *image.QPic
 }
 
 // SetSoundPlayer registers the callback used to play menu sound effects.
@@ -624,8 +624,8 @@ func (m *Manager) ForcedUnderwater() bool {
 	return m.active && m.state == MenuVideo && m.videoCursor == videoItemWaterwarp
 }
 
-// GetState returns the current menu state.
-func (m *Manager) GetState() MenuState {
+// State returns the current menu state.
+func (m *Manager) State() MenuState {
 	return m.state
 }
 
@@ -779,13 +779,13 @@ func boolLabel(value bool) string {
 	return "OFF"
 }
 
-// getPic is a nil-safe wrapper around drawManager.GetPic. Returns nil if the
+// getPic is a nil-safe wrapper around drawManager.Pic. Returns nil if the
 // draw manager is not set (headless / test mode).
 func (m *Manager) getPic(name string) *image.QPic {
 	if m.drawManager == nil {
 		return nil
 	}
-	return m.drawManager.GetPic(name)
+	return m.drawManager.Pic(name)
 }
 
 // queueCommand sends a console command string to the engine's command buffer.

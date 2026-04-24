@@ -42,7 +42,7 @@ func (b *NullBackend) Lock() {}
 
 func (b *NullBackend) Unlock() {}
 
-func (b *NullBackend) GetPosition() int {
+func (b *NullBackend) Position() int {
 	b.pos += 256
 	if b.pos >= b.bufferSize {
 		b.pos = 0

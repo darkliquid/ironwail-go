@@ -534,7 +534,7 @@ func (dc *DrawContext) renderGoGPUAlphaTestBrushFaceRendersHAL(renders []gogpuTr
 	}
 	renderPass.SetBindGroup(4, res.dynamicLightsBindGroup, nil)
 
-	vpMatrix := dc.renderer.GetViewProjectionMatrix()
+	vpMatrix := dc.renderer.ViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
 	timeSeconds := float64(timeValue)
 	var uniformData [worldUniformBufferSize]byte
@@ -617,7 +617,7 @@ func (dc *DrawContext) renderGoGPUSortedTranslucentFaceRendersHAL(renders []gogp
 	}
 	renderPass.SetBindGroup(4, res.dynamicLightsBindGroup, nil)
 
-	vpMatrix := dc.renderer.GetViewProjectionMatrix()
+	vpMatrix := dc.renderer.ViewProjectionMatrix()
 	cameraOrigin, _, timeValue := gogpuWorldUniformInputs(&RenderFrameState{FogDensity: fogDensity}, res.camera)
 	timeSeconds := float64(timeValue)
 	var uniformData [worldUniformBufferSize]byte

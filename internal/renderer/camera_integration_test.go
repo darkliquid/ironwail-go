@@ -30,10 +30,10 @@ func TestRendererUpdateCamera(t *testing.T) {
 	r.UpdateCamera(camera, 0.1, 4096.0)
 
 	// Verify matrices are cached
-	viewMat := r.GetViewMatrix()
-	projMat := r.GetProjectionMatrix()
-	vpMat := r.GetViewProjectionMatrix()
-	camState := r.GetCameraState()
+	viewMat := r.ViewMatrix()
+	projMat := r.ProjectionMatrix()
+	vpMat := r.ViewProjectionMatrix()
+	camState := r.CameraState()
 
 	// Check that matrices are not zero
 	viewHasNonZero := false
@@ -96,10 +96,10 @@ func TestRendererCameraThreadSafety(t *testing.T) {
 	r.UpdateCamera(camera, 0.1, 4096.0)
 
 	// Read access should not panic
-	_ = r.GetViewMatrix()
-	_ = r.GetProjectionMatrix()
-	_ = r.GetViewProjectionMatrix()
-	_ = r.GetCameraState()
+	_ = r.ViewMatrix()
+	_ = r.ProjectionMatrix()
+	_ = r.ViewProjectionMatrix()
+	_ = r.CameraState()
 }
 
 // TestConvertClientStateToCameraIntegration verifies the conversion function.

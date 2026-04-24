@@ -249,9 +249,9 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 	c := NewClient()
 	p := NewParser(c)
 
-	data := s.GetClientDatagram(0)
+	data := s.ClientDatagram(0)
 	if len(data) == 0 {
-		t.Fatal("GetClientDatagram returned no data")
+		t.Fatal("ClientDatagram returned no data")
 	}
 	if data[len(data)-1] != 0xff {
 		t.Fatalf("datagram terminator = 0x%02x, want 0xff", data[len(data)-1])
@@ -282,7 +282,7 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 
 	s.Time = 1.6
 	ent.Vars.Origin[0] = 42
-	data = s.GetClientDatagram(0)
+	data = s.ClientDatagram(0)
 	if err := p.ParseServerMessage(data); err != nil {
 		t.Fatalf("ParseServerMessage second datagram: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestParseLiveServerEntityDatagrams(t *testing.T) {
 
 	s.FreeEdict(ent)
 	s.Time = 1.7
-	data = s.GetClientDatagram(0)
+	data = s.ClientDatagram(0)
 	if err := p.ParseServerMessage(data); err != nil {
 		t.Fatalf("ParseServerMessage third datagram: %v", err)
 	}

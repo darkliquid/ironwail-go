@@ -264,7 +264,7 @@ func (dc *DrawContext) maybeLogGoGPUFirstWorldFrameStats(state *RenderFrameState
 	if dc == nil || dc.renderer == nil || state == nil || !state.DrawWorld {
 		return
 	}
-	worldData := dc.renderer.GetWorldData()
+	worldData := dc.renderer.WorldData()
 	if worldData == nil || worldData.Geometry == nil {
 		return
 	}
@@ -458,7 +458,7 @@ func (dc *DrawContext) getGoGPUFrameStateForDebug() (frameCleared bool, hasPendi
 // vertices using the 2D API. It is used as a visibility fallback while the
 // GPU world pass is being stabilized across platforms.
 func (dc *DrawContext) renderWorldFallbackTopDown() {
-	worldData := dc.renderer.GetWorldData()
+	worldData := dc.renderer.WorldData()
 	if worldData == nil || worldData.Geometry == nil || len(worldData.Geometry.Vertices) == 0 {
 		return
 	}

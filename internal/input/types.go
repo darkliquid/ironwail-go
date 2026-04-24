@@ -376,7 +376,7 @@ type GamepadState struct {
 // InputState contains all accumulated input for a single engine frame.
 //
 // The System fills this struct during PollEvents and the game reads it once
-// per frame via GetState. MouseDX/DY are reset after reading; Chars is
+// per frame via State. MouseDX/DY are reset after reading; Chars is
 // cleared by ClearState at the end of the frame. Keys is a snapshot of which
 // engine key codes are currently held down — indexed directly by key code
 // (e.g. Keys[KSpace] == true means space is pressed). Gamepads holds up to
@@ -441,13 +441,13 @@ type Backend interface {
 	PollEvents() bool
 
 	// Get accumulated mouse movement and reset counters
-	GetMouseDelta() (dx, dy int32)
+	MouseDelta() (dx, dy int32)
 
 	// Get the last known absolute mouse position in window coordinates.
-	GetMousePosition() (x, y int32, valid bool)
+	MousePosition() (x, y int32, valid bool)
 
 	// Get current modifier key state
-	GetModifierState() ModifierState
+	ModifierState() ModifierState
 
 	// Set text input mode (enables character events)
 	SetTextMode(mode TextMode)
@@ -459,7 +459,7 @@ type Backend interface {
 	ShowKeyboard(show bool)
 
 	// Get gamepad state for player index
-	GetGamepadState(player int) GamepadState
+	GamepadState(player int) GamepadState
 
 	// Check if a gamepad is connected
 	IsGamepadConnected(player int) bool
@@ -549,7 +549,7 @@ func (s *System) Shutdown() {
 // PollEvents drains the platform event queue and processes every pending
 // event (key presses, mouse moves, gamepad updates, etc.). Returns false
 // when the platform signals that the application should quit (e.g. window
-// close or SDL_QUIT). Must be called once per engine frame, before GetState.
+// close or SDL_QUIT). Must be called once per engine frame, before State.
 func (s *System) PollEvents() bool {
 	if s.backend == nil {
 		// No backend: nothing to poll, continue running
@@ -558,16 +558,16 @@ func (s *System) PollEvents() bool {
 	return s.backend.PollEvents()
 }
 
-// GetState returns the accumulated input state for this frame. The mouse
+// State returns the accumulated input state for this frame. The mouse
 // deltas are fetched from the backend and written into the returned struct.
 // Call this once per frame after PollEvents — calling it multiple times will
 // return zero mouse deltas on the second call because the backend resets its
 // accumulators.
-func (s *System) GetState() *InputState {
+func (s *System) State() *InputState {
 	// Get mouse delta
 	if s.backend != nil {
-		s.state.MouseDX, s.state.MouseDY = s.backend.GetMouseDelta()
-		s.state.MouseX, s.state.MouseY, s.state.MouseValid = s.backend.GetMousePosition()
+		s.state.MouseDX, s.state.MouseDY = s.backend.MouseDelta()
+		s.state.MouseX, s.state.MouseY, s.state.MouseValid = s.backend.MousePosition()
 	} else {
 		s.state.MouseDX, s.state.MouseDY = 0, 0
 		s.state.MouseX, s.state.MouseY, s.state.MouseValid = 0, 0, false
@@ -593,8 +593,8 @@ func (s *System) SetKeyDest(dest KeyDest) {
 	s.UpdateTextMode()
 }
 
-// GetKeyDest returns the current key-event routing destination.
-func (s *System) GetKeyDest() KeyDest {
+// KeyDest returns the current key-event routing destination.
+func (s *System) KeyDest() KeyDest {
 	return s.keyDest
 }
 

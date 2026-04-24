@@ -440,7 +440,7 @@ func newKickTrackingServer(names ...string) *kickTrackingServer {
 	}
 }
 
-func (s *kickTrackingServer) GetMaxClients() int {
+func (s *kickTrackingServer) MaxClients() int {
 	return len(s.names)
 }
 
@@ -448,7 +448,7 @@ func (s *kickTrackingServer) IsClientActive(clientNum int) bool {
 	return clientNum >= 0 && clientNum < len(s.active) && s.active[clientNum]
 }
 
-func (s *kickTrackingServer) GetClientName(clientNum int) string {
+func (s *kickTrackingServer) ClientName(clientNum int) string {
 	if clientNum < 0 || clientNum >= len(s.names) {
 		return ""
 	}

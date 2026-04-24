@@ -31,7 +31,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	if h.signOns <= 0 {
 		return
 	}
-	if subs.Server.GetMaxClients() != 1 {
+	if subs.Server.MaxClients() != 1 {
 		return
 	}
 	if !h.CVar.BoolValue("sv_autosave") {
@@ -113,7 +113,7 @@ func (h *Host) checkAutosave(subs *Subsystems) {
 	h.autosave.lastTime = now
 	h.autosave.cheatTime = 0
 	console.Printf("Autosaving...\n")
-	subs.Commands.AddText(fmt.Sprintf("save \"autosave/%s\" 0\n", subs.Server.GetMapName()))
+	subs.Commands.AddText(fmt.Sprintf("save \"autosave/%s\" 0\n", subs.Server.MapName()))
 }
 
 func (h *Host) autosaveClock(subs *Subsystems) (now, frameDelta float64) {

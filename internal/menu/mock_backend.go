@@ -18,15 +18,15 @@ func (m *mockInputBackend) PollEvents() bool {
 	return true
 }
 
-func (m *mockInputBackend) GetMouseDelta() (dx, dy int32) {
+func (m *mockInputBackend) MouseDelta() (dx, dy int32) {
 	return 0, 0
 }
 
-func (m *mockInputBackend) GetMousePosition() (x, y int32, valid bool) {
+func (m *mockInputBackend) MousePosition() (x, y int32, valid bool) {
 	return 0, 0, false
 }
 
-func (m *mockInputBackend) GetModifierState() input.ModifierState {
+func (m *mockInputBackend) ModifierState() input.ModifierState {
 	return input.ModifierState{}
 }
 
@@ -39,7 +39,7 @@ func (m *mockInputBackend) SetCursorMode(mode input.CursorMode) {
 func (m *mockInputBackend) ShowKeyboard(show bool) {
 }
 
-func (m *mockInputBackend) GetGamepadState(player int) input.GamepadState {
+func (m *mockInputBackend) GamepadState(player int) input.GamepadState {
 	return input.GamepadState{}
 }
 

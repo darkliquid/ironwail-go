@@ -705,7 +705,7 @@ func TestDropClientBroadcastsRosterClearsWithoutFreeingPlayerEdict(t *testing.T)
 	if got := string(observer.Message.Data[:observer.Message.Len()]); !bytes.Contains([]byte(got), []byte{byte(inet.SVCUpdateName), 0}) {
 		t.Fatalf("observer message missing roster-clear update: %v", observer.Message.Data[:observer.Message.Len()])
 	}
-	msgType, payload := inet.DefaultNetwork().GetMessage(clientPeer)
+	msgType, payload := inet.DefaultNetwork().Message(clientPeer)
 	if msgType != 1 {
 		t.Fatalf("disconnect message type = %d, want 1", msgType)
 	}

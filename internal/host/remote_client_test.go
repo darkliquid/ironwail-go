@@ -86,7 +86,7 @@ func TestCmdConnectRemoteAutoSignonCompletesWithoutManualCommands(t *testing.T) 
 			t.Fatalf("SendCommand failed: %v", err)
 		}
 		for {
-			msgType, payload := inet.DefaultNetwork().GetMessage(serverSocket)
+			msgType, payload := inet.DefaultNetwork().Message(serverSocket)
 			if msgType == 0 {
 				break
 			}
@@ -146,7 +146,7 @@ func TestRemoteClientSendCommandIncludesSpawnArgsInStageTwoReply(t *testing.T) {
 
 	var got []string
 	for {
-		msgType, payload := inet.DefaultNetwork().GetMessage(serverSocket)
+		msgType, payload := inet.DefaultNetwork().Message(serverSocket)
 		if msgType == 0 {
 			break
 		}

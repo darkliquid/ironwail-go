@@ -260,7 +260,7 @@ func (s *Server) WriteClientDataToMessage(ent *Edict, msg *MessageBuffer) {
 	bits |= inet.SU_WEAPON
 
 	// FitzQuake/RMQ extension bits — only for non-NetQuake protocols
-	weaponModelIdx := s.FindModel(s.GetString(ent.Vars.WeaponModel))
+	weaponModelIdx := s.FindModel(s.String(ent.Vars.WeaponModel))
 	if s.Protocol != ProtocolNetQuake {
 		if bits&inet.SU_WEAPON != 0 && weaponModelIdx&0xFF00 != 0 {
 			bits |= inet.SU_WEAPON2
@@ -782,7 +782,7 @@ func (s *Server) updateClientStats(client *Client) {
 		client.Stats[inet.StatHealth] = int32(ent.Vars.Health)
 		client.Stats[inet.StatItems] = int32(ent.Vars.Items)
 		client.Stats[inet.StatArmor] = int32(ent.Vars.ArmorValue)
-		client.Stats[inet.StatWeapon] = int32(s.FindModel(s.GetString(ent.Vars.WeaponModel)))
+		client.Stats[inet.StatWeapon] = int32(s.FindModel(s.String(ent.Vars.WeaponModel)))
 		client.Stats[inet.StatAmmo] = int32(ent.Vars.CurrentAmmo)
 		client.Stats[inet.StatShells] = int32(ent.Vars.AmmoShells)
 		client.Stats[inet.StatNails] = int32(ent.Vars.AmmoNails)
@@ -807,7 +807,7 @@ func (s *Server) updateClientGlobalStat(client *Client, stat int, global string)
 	if client == nil || s == nil || s.QCVM == nil || s.QCVM.FindGlobal(global) < 0 {
 		return
 	}
-	client.Stats[stat] = int32(s.QCVM.GetGlobalFloat(global))
+	client.Stats[stat] = int32(s.QCVM.GlobalFloat(global))
 }
 
 // SV_WriteStats compares stat cache and emits reliable SVCUpdateStat messages for changed non-client HUD values.

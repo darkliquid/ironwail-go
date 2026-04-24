@@ -344,7 +344,7 @@ func (h *Host) SetMenu(menu *menu.Manager) {
 	h.menu = menu
 }
 
-func (h *Host) GetMenu() *menu.Manager {
+func (h *Host) Menu() *menu.Manager {
 	return h.menu
 }
 

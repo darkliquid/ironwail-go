@@ -201,7 +201,7 @@ func TestCmdRestartPromptAutoloadShowsConfirmationMenu(t *testing.T) {
 	if !mgr.IsActive() {
 		t.Fatal("menu should be active for prompt autoload")
 	}
-	if got := mgr.GetState(); got != menu.MenuQuit {
+	if got := mgr.State(); got != menu.MenuQuit {
 		t.Fatalf("menu state = %v, want %v", got, menu.MenuQuit)
 	}
 	if got := strings.Join(subs.console.messages, ""); strings.Contains(got, "Autoloading...") {

@@ -147,7 +147,7 @@ func (h *Host) CmdMapname(subs *Subsystems) {
 	}
 
 	if h.serverActive {
-		subs.Console.Print(fmt.Sprintf("\"mapname\" is %q\n", subs.Server.GetMapName()))
+		subs.Console.Print(fmt.Sprintf("\"mapname\" is %q\n", subs.Server.MapName()))
 		return
 	}
 	if h.clientState == caConnected {
@@ -219,7 +219,7 @@ func (h *Host) CmdGame(args []string, subs *Subsystems) {
 		return
 	}
 
-	current := strings.TrimSpace(fileSys.GetGameDir())
+	current := strings.TrimSpace(fileSys.GameDir())
 	if current == "" {
 		current = "id1"
 	}
@@ -263,7 +263,7 @@ func (h *Host) CmdGame(args []string, subs *Subsystems) {
 
 	baseDir := strings.TrimSpace(h.baseDir)
 	if baseDir == "" {
-		baseDir = fileSys.GetBaseDir()
+		baseDir = fileSys.BaseDir()
 	}
 	if baseDir == "" {
 		subs.Console.Print("game: base directory is not set\n")
@@ -364,7 +364,7 @@ func (h *Host) CmdRestart(subs *Subsystems) {
 	}) {
 		return
 	}
-	if err := h.CmdMap(subs.Server.GetMapName(), subs); err != nil {
+	if err := h.CmdMap(subs.Server.MapName(), subs); err != nil {
 		slog.Warn("host: restart map failed", "err", err)
 	}
 }
@@ -373,7 +373,7 @@ func (h *Host) CmdChangelevel(level string, subs *Subsystems) {
 	if !h.serverActive || subs.Server == nil {
 		return
 	}
-	if level == subs.Server.GetMapName() && h.autoLoadLastSave(subs, false, func() {
+	if level == subs.Server.MapName() && h.autoLoadLastSave(subs, false, func() {
 		h.CmdChangelevel(level, subs)
 	}) {
 		return
@@ -410,7 +410,7 @@ func (h *Host) autoLoadLastSave(subs *Subsystems, force bool, onDecline func()) 
 	if subs == nil || subs.Server == nil || subs.Console == nil {
 		return false
 	}
-	if subs.Server.GetMaxClients() != 1 || h.lastSave == "" {
+	if subs.Server.MaxClients() != 1 || h.lastSave == "" {
 		return false
 	}
 	if clientState := LoopbackClientState(subs); clientState != nil && clientState.Intermission != 0 {

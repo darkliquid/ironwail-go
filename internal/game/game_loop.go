@@ -68,7 +68,7 @@ func (cb gameCallbacks) SetProcessClientPhase(phase string) {
 	cb.g.processClientPhase = phase
 }
 
-func (cb gameCallbacks) GetEvents() {
+func (cb gameCallbacks) Events() {
 	g := cb.g
 	if g == nil {
 		return
@@ -444,7 +444,7 @@ func (g *Game) DedicatedGameLoop() {
 }
 
 type picProvider interface {
-	GetPic(name string) *qimage.QPic
+	Pic(name string) *qimage.QPic
 }
 
 func (g *Game) drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
@@ -453,10 +453,10 @@ func (g *Game) drawLoadingPlaque(dc renderer.RenderContext, pics picProvider) {
 	}
 	dc.SetCanvas(renderer.CanvasMenu)
 
-	if plaque := pics.GetPic("gfx/qplaque.lmp"); plaque != nil {
+	if plaque := pics.Pic("gfx/qplaque.lmp"); plaque != nil {
 		dc.DrawMenuPic(16, 4, plaque)
 	}
-	if loading := pics.GetPic("gfx/loading.lmp"); loading != nil {
+	if loading := pics.Pic("gfx/loading.lmp"); loading != nil {
 		dc.DrawMenuPic((320-int(loading.Width))/2, (240-48-int(loading.Height))/2, loading)
 	}
 }

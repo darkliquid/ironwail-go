@@ -565,7 +565,7 @@ func TestRegisterCommands_MenuCommandsTargetExpectedStates(t *testing.T) {
 			if !mgr.IsActive() {
 				t.Fatalf("%s should show menu", tc.command)
 			}
-			if got := mgr.GetState(); got != tc.want {
+			if got := mgr.State(); got != tc.want {
 				t.Fatalf("%s state = %v, want %v", tc.command, got, tc.want)
 			}
 		})

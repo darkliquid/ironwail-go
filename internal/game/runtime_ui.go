@@ -83,7 +83,7 @@ func (g *Game) runtimeConsoleBackgroundPic() *qimage.QPic {
 	if g.Draw == nil {
 		return nil
 	}
-	return g.Draw.GetPic("gfx/conback.lmp")
+	return g.Draw.Pic("gfx/conback.lmp")
 }
 
 func (g *Game) drawRuntimeConsole(overlay renderer.RenderContext, framebufferW, framebufferH int, full, forcedup bool) {

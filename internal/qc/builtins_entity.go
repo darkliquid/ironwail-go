@@ -87,7 +87,7 @@ func find(vm *VM) {
 	}
 
 	for entNum := startEnt + 1; entNum < vm.NumEdicts; entNum++ {
-		if vm.GetString(vm.EString(entNum, fieldOfs)) == match {
+		if vm.String(vm.EString(entNum, fieldOfs)) == match {
 			vm.SetGInt(OFSReturn, int32(entNum))
 			return
 		}

@@ -45,15 +45,15 @@ func (m *mockServer) ConnectClient(clientNum int)                       {}
 func (m *mockServer) KillClient(clientNum int) bool                     { return false }
 func (m *mockServer) KickClient(clientNum int, who, reason string) bool { return false }
 func (m *mockServer) SaveSpawnParms()                                   {}
-func (m *mockServer) GetMaxClients() int                                { return 1 }
+func (m *mockServer) MaxClients() int                                { return 1 }
 func (m *mockServer) IsClientActive(clientNum int) bool                 { return clientNum == 0 }
-func (m *mockServer) GetClientName(clientNum int) string                { return "Player" }
+func (m *mockServer) ClientName(clientNum int) string                { return "Player" }
 func (m *mockServer) SetClientName(clientNum int, name string)          {}
-func (m *mockServer) GetClientColor(clientNum int) int                  { return 0 }
+func (m *mockServer) ClientColor(clientNum int) int                  { return 0 }
 func (m *mockServer) SetClientColor(clientNum int, color int)           {}
-func (m *mockServer) GetClientPing(clientNum int) float32               { return 0 }
+func (m *mockServer) ClientPing(clientNum int) float32               { return 0 }
 func (m *mockServer) EdictNum(n int) *server.Edict                      { return &server.Edict{Vars: &server.EntVars{}} }
-func (m *mockServer) GetMapName() string {
+func (m *mockServer) MapName() string {
 	if m.mapName != "" {
 		return m.mapName
 	}
@@ -132,15 +132,15 @@ func (s *shutdownTrackingServer) KickClient(int, string, string) bool      { ret
 func (s *shutdownTrackingServer) Frame(float64) error                      { return nil }
 func (s *shutdownTrackingServer) Shutdown()                                { s.recorder.record("server") }
 func (s *shutdownTrackingServer) SaveSpawnParms()                          {}
-func (s *shutdownTrackingServer) GetMaxClients() int                       { return 1 }
+func (s *shutdownTrackingServer) MaxClients() int                       { return 1 }
 func (s *shutdownTrackingServer) IsClientActive(int) bool                  { return false }
-func (s *shutdownTrackingServer) GetClientName(int) string                 { return "" }
+func (s *shutdownTrackingServer) ClientName(int) string                 { return "" }
 func (s *shutdownTrackingServer) SetClientName(int, string)                {}
-func (s *shutdownTrackingServer) GetClientColor(int) int                   { return 0 }
+func (s *shutdownTrackingServer) ClientColor(int) int                   { return 0 }
 func (s *shutdownTrackingServer) SetClientColor(int, int)                  {}
-func (s *shutdownTrackingServer) GetClientPing(int) float32                { return 0 }
+func (s *shutdownTrackingServer) ClientPing(int) float32                { return 0 }
 func (s *shutdownTrackingServer) EdictNum(int) *server.Edict               { return nil }
-func (s *shutdownTrackingServer) GetMapName() string                       { return "" }
+func (s *shutdownTrackingServer) MapName() string                       { return "" }
 func (s *shutdownTrackingServer) IsActive() bool                           { return false }
 func (s *shutdownTrackingServer) IsPaused() bool                           { return false }
 func (s *shutdownTrackingServer) RestoreTextSaveGameState(*server.TextSaveGameState) error {
@@ -196,17 +196,17 @@ type shutdownTrackingInputBackend struct{ recorder *shutdownRecorder }
 func (b *shutdownTrackingInputBackend) Init() error                   { return nil }
 func (b *shutdownTrackingInputBackend) Shutdown()                     { b.recorder.record("input") }
 func (b *shutdownTrackingInputBackend) PollEvents() bool              { return true }
-func (b *shutdownTrackingInputBackend) GetMouseDelta() (int32, int32) { return 0, 0 }
-func (b *shutdownTrackingInputBackend) GetMousePosition() (int32, int32, bool) {
+func (b *shutdownTrackingInputBackend) MouseDelta() (int32, int32) { return 0, 0 }
+func (b *shutdownTrackingInputBackend) MousePosition() (int32, int32, bool) {
 	return 0, 0, false
 }
-func (b *shutdownTrackingInputBackend) GetModifierState() input.ModifierState {
+func (b *shutdownTrackingInputBackend) ModifierState() input.ModifierState {
 	return input.ModifierState{}
 }
 func (b *shutdownTrackingInputBackend) SetTextMode(input.TextMode)     {}
 func (b *shutdownTrackingInputBackend) SetCursorMode(input.CursorMode) {}
 func (b *shutdownTrackingInputBackend) ShowKeyboard(bool)              {}
-func (b *shutdownTrackingInputBackend) GetGamepadState(int) input.GamepadState {
+func (b *shutdownTrackingInputBackend) GamepadState(int) input.GamepadState {
 	return input.GamepadState{}
 }
 func (b *shutdownTrackingInputBackend) IsGamepadConnected(int) bool { return false }
@@ -218,7 +218,7 @@ type mockCallbacks struct {
 	clientCalled bool
 }
 
-func (m *mockCallbacks) GetEvents()                                        {}
+func (m *mockCallbacks) Events()                                        {}
 func (m *mockCallbacks) ProcessConsoleCommands()                           {}
 func (m *mockCallbacks) ProcessServer()                                    { m.serverCalled = true }
 func (m *mockCallbacks) ProcessClient()                                    { m.clientCalled = true }

@@ -71,7 +71,7 @@ func (h *Host) registerHostCVars() {
 // serverDatagramSource is satisfied by server.Server to expose loopback-ready
 // client messages.
 type serverDatagramSource interface {
-	GetClientLoopbackMessage(clientNum int) []byte
+	ClientLoopbackMessage(clientNum int) []byte
 }
 
 type serverCommandSink interface {
@@ -155,7 +155,7 @@ func (c *localLoopbackClient) ReadFromServer() error {
 		c.lastServerMessage = nil
 		return nil
 	}
-	data := c.srv.GetClientLoopbackMessage(0)
+	data := c.srv.ClientLoopbackMessage(0)
 	if len(data) == 0 {
 		c.lastServerMessage = nil
 		return nil
@@ -274,7 +274,7 @@ func (c *localLoopbackClient) LocalServerInfo() error {
 	}
 	c.inner.ClearState()
 	c.inner.State = cl.StateDisconnected
-	data := c.srv.GetClientLoopbackMessage(0)
+	data := c.srv.ClientLoopbackMessage(0)
 	if len(data) == 0 {
 		return fmt.Errorf("no loopback serverinfo available")
 	}
@@ -290,7 +290,7 @@ func (c *localLoopbackClient) LocalSignonReply(command string) error {
 		return err
 	}
 	for {
-		data := c.srv.GetClientLoopbackMessage(0)
+		data := c.srv.ClientLoopbackMessage(0)
 		if len(data) == 0 {
 			if c.inner.Signon >= wantSignon {
 				return nil
@@ -370,15 +370,15 @@ type Server interface {
 	Frame(frameTime float64) error
 	Shutdown()
 	SaveSpawnParms()
-	GetMaxClients() int
+	MaxClients() int
 	IsClientActive(clientNum int) bool
-	GetClientName(clientNum int) string
+	ClientName(clientNum int) string
 	SetClientName(clientNum int, name string)
-	GetClientColor(clientNum int) int
+	ClientColor(clientNum int) int
 	SetClientColor(clientNum int, color int)
-	GetClientPing(clientNum int) float32
+	ClientPing(clientNum int) float32
 	EdictNum(n int) *server.Edict
-	GetMapName() string
+	MapName() string
 	IsActive() bool
 	IsPaused() bool
 	RestoreTextSaveGameState(state *server.TextSaveGameState) error
@@ -732,7 +732,7 @@ func (h *Host) WriteConfigNamed(name string, subs *Subsystems) error {
 	wroteBindings := false
 	if subs != nil && subs.Input != nil {
 		for key := 0; key < input.NumKeycode; key++ {
-			binding := subs.Input.GetBinding(key)
+			binding := subs.Input.Binding(key)
 			if binding == "" {
 				continue
 			}

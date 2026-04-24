@@ -15,7 +15,7 @@ import (
 // mockDrawManager is a mock implementation of DrawManager for testing.
 type mockDrawManager struct{}
 
-func (m *mockDrawManager) GetPic(name string) *image.QPic {
+func (m *mockDrawManager) Pic(name string) *image.QPic {
 	return nil
 }
 
@@ -153,7 +153,7 @@ func TestNewManager(t *testing.T) {
 		t.Error("Menu should not be active initially")
 	}
 
-	if mgr.GetState() != MenuNone {
+	if mgr.State() != MenuNone {
 		t.Error("Initial state should be MenuNone")
 	}
 }
@@ -169,7 +169,7 @@ func TestToggleMenu(t *testing.T) {
 	if !mgr.IsActive() {
 		t.Error("Menu should be active after toggle")
 	}
-	if mgr.GetState() != MenuMain {
+	if mgr.State() != MenuMain {
 		t.Error("State should be MenuMain after toggle")
 	}
 
@@ -178,7 +178,7 @@ func TestToggleMenu(t *testing.T) {
 	if mgr.IsActive() {
 		t.Error("Menu should not be active after second toggle")
 	}
-	if mgr.GetState() != MenuNone {
+	if mgr.State() != MenuNone {
 		t.Error("State should be MenuNone after second toggle")
 	}
 }
@@ -247,13 +247,13 @@ func TestQuitMenu(t *testing.T) {
 	mgr.M_Key(input.KDownArrow) // 4→5 (Quit)
 	mgr.M_Key(input.KEnter)     // Enter to select quit
 
-	if mgr.GetState() != MenuQuit {
+	if mgr.State() != MenuQuit {
 		t.Error("State should be MenuQuit after selecting quit")
 	}
 
 	// Backspace should cancel quit and return to previous state.
 	mgr.M_Key(input.KBackspace)
-	if mgr.GetState() != MenuMain {
+	if mgr.State() != MenuMain {
 		t.Error("Backspace should return to main menu")
 	}
 
@@ -300,7 +300,7 @@ func TestShowConfirmationPromptCancelHidesMenuAndRunsCallback(t *testing.T) {
 	if mgr.IsActive() {
 		t.Fatal("menu should hide after cancel when returning to game")
 	}
-	if got := mgr.GetState(); got != MenuNone {
+	if got := mgr.State(); got != MenuNone {
 		t.Fatalf("state = %v, want %v", got, MenuNone)
 	}
 }
@@ -327,7 +327,7 @@ func TestMainMenuSelections(t *testing.T) {
 		mgr.state = MenuMain
 		mgr.mainCursor = tc.cursor
 		mgr.M_Key(input.KEnter)
-		if got := mgr.GetState(); got != tc.want {
+		if got := mgr.State(); got != tc.want {
 			t.Fatalf("cursor %d: expected state %v, got %v", tc.cursor, tc.want, got)
 		}
 	}
@@ -353,8 +353,8 @@ func TestSinglePlayerActions(t *testing.T) {
 	mgr.ShowMenu()
 	mgr.M_Key(input.KEnter) // Main -> Single Player
 
-	if mgr.GetState() != MenuSinglePlayer {
-		t.Fatalf("expected single player state, got %v", mgr.GetState())
+	if mgr.State() != MenuSinglePlayer {
+		t.Fatalf("expected single player state, got %v", mgr.State())
 	}
 
 	// New Game enters the skill menu first.
@@ -362,7 +362,7 @@ func TestSinglePlayerActions(t *testing.T) {
 	if !mgr.IsActive() {
 		t.Fatal("menu should remain active in skill menu before selection")
 	}
-	if got := mgr.GetState(); got != MenuSkill {
+	if got := mgr.State(); got != MenuSkill {
 		t.Fatalf("state = %v, want %v", got, MenuSkill)
 	}
 
@@ -402,7 +402,7 @@ func TestSinglePlayerNewGamePromptsWhenProviderRequiresConfirmation(t *testing.T
 	if !mgr.IsActive() {
 		t.Fatal("menu should stay active for new game confirmation")
 	}
-	if got := mgr.GetState(); got != MenuQuit {
+	if got := mgr.State(); got != MenuQuit {
 		t.Fatalf("state = %v, want %v", got, MenuQuit)
 	}
 	if len(commands) != 0 {
@@ -430,7 +430,7 @@ func TestSinglePlayerNewGamePromptConfirmStartsGame(t *testing.T) {
 	if !mgr.IsActive() {
 		t.Fatal("menu should stay active after confirming prompt to allow skill selection")
 	}
-	if got := mgr.GetState(); got != MenuSkill {
+	if got := mgr.State(); got != MenuSkill {
 		t.Fatalf("state = %v, want %v", got, MenuSkill)
 	}
 	if len(commands) != 0 {
@@ -472,7 +472,7 @@ func TestSinglePlayerNewGamePromptCancelReturnsToSinglePlayer(t *testing.T) {
 	if !mgr.IsActive() {
 		t.Fatal("menu should remain active after declining new game prompt")
 	}
-	if got := mgr.GetState(); got != MenuSinglePlayer {
+	if got := mgr.State(); got != MenuSinglePlayer {
 		t.Fatalf("state = %v, want %v", got, MenuSinglePlayer)
 	}
 	if len(commands) != 0 {
@@ -499,7 +499,7 @@ func TestSinglePlayerSkillMenuShowsResumeWhenAutosaveAvailable(t *testing.T) {
 	if !mgr.IsActive() {
 		t.Fatal("menu should stay active for skill menu")
 	}
-	if got := mgr.GetState(); got != MenuSkill {
+	if got := mgr.State(); got != MenuSkill {
 		t.Fatalf("state = %v, want %v", got, MenuSkill)
 	}
 	if got := mgr.skillCursor; got != 4 {
@@ -591,7 +591,7 @@ func TestSinglePlayerNewGameConfirmationTakesPrecedenceOverResumePrompt(t *testi
 	if !mgr.IsActive() {
 		t.Fatal("menu should remain active after declining active-session prompt")
 	}
-	if got := mgr.GetState(); got != MenuSinglePlayer {
+	if got := mgr.State(); got != MenuSinglePlayer {
 		t.Fatalf("state = %v, want %v", got, MenuSinglePlayer)
 	}
 	if len(commands) != 0 {
@@ -615,8 +615,8 @@ func TestLoadSaveCommands(t *testing.T) {
 	mgr.state = MenuSinglePlayer
 	mgr.singlePlayerCursor = 1
 	mgr.M_Key(input.KEnter)
-	if mgr.GetState() != MenuLoad {
-		t.Fatalf("expected load state, got %v", mgr.GetState())
+	if mgr.State() != MenuLoad {
+		t.Fatalf("expected load state, got %v", mgr.State())
 	}
 	mgr.loadCursor = 3
 	mgr.M_Key(input.KEnter)
@@ -629,8 +629,8 @@ func TestLoadSaveCommands(t *testing.T) {
 	mgr.state = MenuSinglePlayer
 	mgr.singlePlayerCursor = 2
 	mgr.M_Key(input.KEnter)
-	if mgr.GetState() != MenuSave {
-		t.Fatalf("expected save state, got %v", mgr.GetState())
+	if mgr.State() != MenuSave {
+		t.Fatalf("expected save state, got %v", mgr.State())
 	}
 	mgr.saveCursor = 5
 	mgr.M_Key(input.KEnter)
@@ -652,7 +652,7 @@ func TestSinglePlayerSaveEntryAllowedTransitionsToSave(t *testing.T) {
 
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuSave {
+	if got := mgr.State(); got != MenuSave {
 		t.Fatalf("state = %v, want %v", got, MenuSave)
 	}
 }
@@ -675,7 +675,7 @@ func TestSinglePlayerSaveEntryDisallowedStaysOnSinglePlayerAndPlaysCancel(t *tes
 
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuSinglePlayer {
+	if got := mgr.State(); got != MenuSinglePlayer {
 		t.Fatalf("state = %v, want %v", got, MenuSinglePlayer)
 	}
 	if len(played) < 2 {
@@ -713,7 +713,7 @@ func TestLoadSaveMenusRefreshLabelsFromProvider(t *testing.T) {
 	mgr.state = MenuSinglePlayer
 	mgr.singlePlayerCursor = 1
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuLoad {
+	if got := mgr.State(); got != MenuLoad {
 		t.Fatalf("expected load state, got %v", got)
 	}
 	loadRC := &mockMenuRenderContext{}
@@ -729,7 +729,7 @@ func TestLoadSaveMenusRefreshLabelsFromProvider(t *testing.T) {
 	mgr.state = MenuSinglePlayer
 	mgr.singlePlayerCursor = 2
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuSave {
+	if got := mgr.State(); got != MenuSave {
 		t.Fatalf("expected save state, got %v", got)
 	}
 	saveRC := &mockMenuRenderContext{}

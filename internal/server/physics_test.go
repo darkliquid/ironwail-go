@@ -496,7 +496,7 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 	vm.SetGlobal("force_retouch", float32(2))
 
 	s.Physics()
-	if got := vm.GetGlobalFloat("force_retouch"); got != 1 {
+	if got := vm.GlobalFloat("force_retouch"); got != 1 {
 		t.Fatalf("force_retouch after first frame = %v, want 1", got)
 	}
 	firstCalls := triggerCalls
@@ -505,7 +505,7 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 	}
 
 	s.Physics()
-	if got := vm.GetGlobalFloat("force_retouch"); got != 0 {
+	if got := vm.GlobalFloat("force_retouch"); got != 0 {
 		t.Fatalf("force_retouch after second frame = %v, want 0", got)
 	}
 	secondCalls := triggerCalls
@@ -514,7 +514,7 @@ func TestPhysicsForceRetouchUsesFloatCountdown(t *testing.T) {
 	}
 
 	s.Physics()
-	if got := vm.GetGlobalFloat("force_retouch"); got != 0 {
+	if got := vm.GlobalFloat("force_retouch"); got != 0 {
 		t.Fatalf("force_retouch after third frame = %v, want 0", got)
 	}
 	if triggerCalls != secondCalls {

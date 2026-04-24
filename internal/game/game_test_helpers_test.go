@@ -118,15 +118,15 @@ func (s *demoPlaybackNoopServer) KickClient(int, string, string) bool      { ret
 func (s *demoPlaybackNoopServer) Frame(float64) error                      { return nil }
 func (s *demoPlaybackNoopServer) Shutdown()                                {}
 func (s *demoPlaybackNoopServer) SaveSpawnParms()                          {}
-func (s *demoPlaybackNoopServer) GetMaxClients() int                       { return 1 }
+func (s *demoPlaybackNoopServer) MaxClients() int                       { return 1 }
 func (s *demoPlaybackNoopServer) IsClientActive(int) bool                  { return false }
-func (s *demoPlaybackNoopServer) GetClientName(int) string                 { return "" }
+func (s *demoPlaybackNoopServer) ClientName(int) string                 { return "" }
 func (s *demoPlaybackNoopServer) SetClientName(int, string)                {}
-func (s *demoPlaybackNoopServer) GetClientColor(int) int                   { return 0 }
+func (s *demoPlaybackNoopServer) ClientColor(int) int                   { return 0 }
 func (s *demoPlaybackNoopServer) SetClientColor(int, int)                  {}
-func (s *demoPlaybackNoopServer) GetClientPing(int) float32                { return 0 }
+func (s *demoPlaybackNoopServer) ClientPing(int) float32                { return 0 }
 func (s *demoPlaybackNoopServer) EdictNum(int) *server.Edict               { return nil }
-func (s *demoPlaybackNoopServer) GetMapName() string                       { return "" }
+func (s *demoPlaybackNoopServer) MapName() string                       { return "" }
 func (s *demoPlaybackNoopServer) IsActive() bool                           { return false }
 func (s *demoPlaybackNoopServer) IsPaused() bool                           { return false }
 func (s *demoPlaybackNoopServer) RestoreTextSaveGameState(*server.TextSaveGameState) error {
@@ -171,7 +171,7 @@ type loadingPlaqueTestPics struct {
 	pics map[string]*qimage.QPic
 }
 
-func (p *loadingPlaqueTestPics) GetPic(name string) *qimage.QPic {
+func (p *loadingPlaqueTestPics) Pic(name string) *qimage.QPic {
 	return p.pics[name]
 }
 
@@ -476,7 +476,7 @@ type overlayTestPics struct {
 	pics map[string]*qimage.QPic
 }
 
-func (p overlayTestPics) GetPic(name string) *qimage.QPic {
+func (p overlayTestPics) Pic(name string) *qimage.QPic {
 	return p.pics[name]
 }
 

@@ -75,10 +75,10 @@ func TestConsoleWordWrapAtWordBoundary(t *testing.T) {
 	}
 	c.Resize(10)
 	c.Printf("12345 67890")
-	if got := strings.TrimSpace(c.GetLine(c.CurrentLine() - 1)); got != "12345" {
+	if got := strings.TrimSpace(c.Line(c.CurrentLine() - 1)); got != "12345" {
 		t.Fatalf("first wrapped line = %q, want %q", got, "12345")
 	}
-	if got := strings.TrimSpace(c.GetLine(c.CurrentLine())); got != "67890" {
+	if got := strings.TrimSpace(c.Line(c.CurrentLine())); got != "67890" {
 		t.Fatalf("second wrapped line = %q, want %q", got, "67890")
 	}
 }
@@ -103,12 +103,12 @@ func TestDPrintf2RequiresDeveloperLevel2(t *testing.T) {
 	Clear()
 	cv.Set("developer", "1")
 	DPrintf2("hidden\n")
-	if strings.Contains(GetLine(CurrentLine()), "hidden") {
+	if strings.Contains(Line(CurrentLine()), "hidden") {
 		t.Fatalf("DPrintf2 printed with developer=1")
 	}
 	cv.Set("developer", "2")
 	DPrintf2("visible\n")
-	if !strings.Contains(GetLine(CurrentLine()), "visible") {
+	if !strings.Contains(Line(CurrentLine()), "visible") {
 		t.Fatalf("DPrintf2 did not print with developer=2")
 	}
 }
@@ -121,7 +121,7 @@ func TestLogCenterPrintDedupesAndGatesByGameType(t *testing.T) {
 	cv.Register("con_logcenterprint", "1", cvar.FlagArchive, "centerprint logging mode")
 	Clear()
 	LogCenterPrint(1, "coop message")
-	if strings.Contains(GetLine(CurrentLine()), "coop message") {
+	if strings.Contains(Line(CurrentLine()), "coop message") {
 		t.Fatalf("message should be gated in multiplayer for mode 1")
 	}
 
@@ -130,7 +130,7 @@ func TestLogCenterPrintDedupesAndGatesByGameType(t *testing.T) {
 	foundDM := false
 	foundMessage := false
 	for line := CurrentLine() - 10; line <= CurrentLine(); line++ {
-		text := GetLine(line)
+		text := Line(line)
 		foundDM = foundDM || strings.Contains(text, "dm")
 		foundMessage = foundMessage || strings.Contains(text, "message")
 	}

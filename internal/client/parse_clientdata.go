@@ -31,14 +31,14 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 
 	bits := uint32(uint16(bits16))
 	if bits&inet.SU_EXTEND1 != 0 {
-		ext, ok := msg.GetByte()
+		ext, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing extend1 bits")
 		}
 		bits |= uint32(ext) << 16
 	}
 	if bits&inet.SU_EXTEND2 != 0 {
-		ext, ok := msg.GetByte()
+		ext, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing extend2 bits")
 		}
@@ -109,21 +109,21 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 
 	p.Client.Stats[statWeaponFrame] = 0
 	if bits&inet.SU_WEAPONFRAME != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing weapon frame")
 		}
 		p.Client.Stats[statWeaponFrame] = int(v)
 	}
 	if bits&inet.SU_ARMOR != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing armor")
 		}
 		p.Client.Stats[statArmor] = int(v)
 	}
 	if bits&inet.SU_WEAPON != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing weapon")
 		}
@@ -136,37 +136,37 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 	}
 	p.Client.Stats[statHealth] = int(health)
 
-	ammo, ok := msg.GetByte()
+	ammo, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing ammo")
 	}
 	p.Client.Stats[statAmmo] = int(ammo)
 
-	shells, ok := msg.GetByte()
+	shells, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing shells")
 	}
 	p.Client.Stats[statShells] = int(shells)
 
-	nails, ok := msg.GetByte()
+	nails, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing nails")
 	}
 	p.Client.Stats[statNails] = int(nails)
 
-	rockets, ok := msg.GetByte()
+	rockets, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing rockets")
 	}
 	p.Client.Stats[statRockets] = int(rockets)
 
-	cells, ok := msg.GetByte()
+	cells, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing cells")
 	}
 	p.Client.Stats[statCells] = int(cells)
 
-	activeWeapon, ok := msg.GetByte()
+	activeWeapon, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_clientdata: missing active weapon")
 	}
@@ -174,63 +174,63 @@ func (p *Parser) parseClientData(msg *common.SizeBuf, packetOffset int) error {
 
 	// FitzQuake extensions — high bytes for 16-bit stat values
 	if bits&inet.SU_WEAPON2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing weapon2")
 		}
 		p.Client.Stats[statWeapon] |= int(v) << 8
 	}
 	if bits&inet.SU_ARMOR2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing armor2")
 		}
 		p.Client.Stats[statArmor] |= int(v) << 8
 	}
 	if bits&inet.SU_AMMO2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing ammo2")
 		}
 		p.Client.Stats[statAmmo] |= int(v) << 8
 	}
 	if bits&inet.SU_SHELLS2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing shells2")
 		}
 		p.Client.Stats[statShells] |= int(v) << 8
 	}
 	if bits&inet.SU_NAILS2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing nails2")
 		}
 		p.Client.Stats[statNails] |= int(v) << 8
 	}
 	if bits&inet.SU_ROCKETS2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing rockets2")
 		}
 		p.Client.Stats[statRockets] |= int(v) << 8
 	}
 	if bits&inet.SU_CELLS2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing cells2")
 		}
 		p.Client.Stats[statCells] |= int(v) << 8
 	}
 	if bits&inet.SU_WEAPONFRAME2 != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing weaponframe2")
 		}
 		p.Client.Stats[statWeaponFrame] |= int(v) << 8
 	}
 	if bits&inet.SU_WEAPONALPHA != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_clientdata: missing weaponalpha")
 		}

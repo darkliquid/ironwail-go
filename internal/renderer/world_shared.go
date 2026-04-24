@@ -14,7 +14,7 @@ type WorldRuntime interface {
 	UploadWorld(tree *bsp.Tree) error
 	ClearWorld()
 	HasWorldData() bool
-	GetWorldBounds() (min [3]float32, max [3]float32, ok bool)
+	WorldBounds() (min [3]float32, max [3]float32, ok bool)
 	SetExternalSkybox(name string, loadFile func(string) ([]byte, error))
 }
 

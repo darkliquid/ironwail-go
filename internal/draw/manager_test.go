@@ -19,9 +19,9 @@ func TestNewManager(t *testing.T) {
 
 func TestManagerGetPic_NotInitialized(t *testing.T) {
 	m := NewManager()
-	pic := m.GetPic("test.lmp")
+	pic := m.Pic("test.lmp")
 	if pic != nil {
-		t.Error("GetPic should return nil when manager is not initialized")
+		t.Error("Pic should return nil when manager is not initialized")
 	}
 }
 

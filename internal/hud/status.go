@@ -91,71 +91,71 @@ func NewStatusBar(dm *draw.Manager, cv *cvar.CVarSystem) *StatusBar {
 	sb := &StatusBar{drawManager: dm, cvars: cv}
 	if dm != nil {
 		sb.palette = dm.Palette()
-		sb.sbarPic = dm.GetPic("sbar")
-		sb.ibarPic = dm.GetPic("ibar")
-		sb.scorebarPic = dm.GetPic("scorebar")
-		sb.rankingPic = dm.GetPic("gfx/ranking.lmp")
-		sb.discPic = dm.GetPic("disc")
+		sb.sbarPic = dm.Pic("sbar")
+		sb.ibarPic = dm.Pic("ibar")
+		sb.scorebarPic = dm.Pic("scorebar")
+		sb.rankingPic = dm.Pic("gfx/ranking.lmp")
+		sb.discPic = dm.Pic("disc")
 		baseWeaponNames := [...]string{"shotgun", "sshotgun", "nailgun", "snailgun", "rlaunch", "srlaunch", "lightng"}
 		for i, name := range baseWeaponNames {
-			sb.weaponPics[0][i] = dm.GetPic("inv_" + name)
-			sb.weaponPics[1][i] = dm.GetPic("inv2_" + name)
+			sb.weaponPics[0][i] = dm.Pic("inv_" + name)
+			sb.weaponPics[1][i] = dm.Pic("inv2_" + name)
 			for flash := 0; flash < 5; flash++ {
-				sb.weaponPics[2+flash][i] = dm.GetPic("inva" + string('1'+rune(flash)) + "_" + name)
+				sb.weaponPics[2+flash][i] = dm.Pic("inva" + string('1'+rune(flash)) + "_" + name)
 			}
 		}
 		sb.ammoPics = [4]*image.QPic{
-			dm.GetPic("sb_shells"),
-			dm.GetPic("sb_nails"),
-			dm.GetPic("sb_rocket"),
-			dm.GetPic("sb_cells"),
+			dm.Pic("sb_shells"),
+			dm.Pic("sb_nails"),
+			dm.Pic("sb_rocket"),
+			dm.Pic("sb_cells"),
 		}
 		sb.rogueAmmo = [3]*image.QPic{
-			dm.GetPic("r_ammolava"),
-			dm.GetPic("r_ammomulti"),
-			dm.GetPic("r_ammoplasma"),
+			dm.Pic("r_ammolava"),
+			dm.Pic("r_ammomulti"),
+			dm.Pic("r_ammoplasma"),
 		}
 		sb.armorPics = [3]*image.QPic{
-			dm.GetPic("sb_armor1"),
-			dm.GetPic("sb_armor2"),
-			dm.GetPic("sb_armor3"),
+			dm.Pic("sb_armor1"),
+			dm.Pic("sb_armor2"),
+			dm.Pic("sb_armor3"),
 		}
 		sb.itemPics = [6]*image.QPic{
-			dm.GetPic("sb_key1"),
-			dm.GetPic("sb_key2"),
-			dm.GetPic("sb_invis"),
-			dm.GetPic("sb_invuln"),
-			dm.GetPic("sb_suit"),
-			dm.GetPic("sb_quad"),
+			dm.Pic("sb_key1"),
+			dm.Pic("sb_key2"),
+			dm.Pic("sb_invis"),
+			dm.Pic("sb_invuln"),
+			dm.Pic("sb_suit"),
+			dm.Pic("sb_quad"),
 		}
 		sb.hipItemPics = [2]*image.QPic{
-			dm.GetPic("sb_wsuit"),
-			dm.GetPic("sb_eshld"),
+			dm.Pic("sb_wsuit"),
+			dm.Pic("sb_eshld"),
 		}
 		sb.rogueItems = [2]*image.QPic{
-			dm.GetPic("r_shield1"),
-			dm.GetPic("r_agrav1"),
+			dm.Pic("r_shield1"),
+			dm.Pic("r_agrav1"),
 		}
 		sb.sigilPics = [4]*image.QPic{
-			dm.GetPic("sb_sigil1"),
-			dm.GetPic("sb_sigil2"),
-			dm.GetPic("sb_sigil3"),
-			dm.GetPic("sb_sigil4"),
+			dm.Pic("sb_sigil1"),
+			dm.Pic("sb_sigil2"),
+			dm.Pic("sb_sigil3"),
+			dm.Pic("sb_sigil4"),
 		}
 		sb.facePics = [5][2]*image.QPic{
-			{dm.GetPic("face5"), dm.GetPic("face_p5")},
-			{dm.GetPic("face4"), dm.GetPic("face_p4")},
-			{dm.GetPic("face3"), dm.GetPic("face_p3")},
-			{dm.GetPic("face2"), dm.GetPic("face_p2")},
-			{dm.GetPic("face1"), dm.GetPic("face_p1")},
+			{dm.Pic("face5"), dm.Pic("face_p5")},
+			{dm.Pic("face4"), dm.Pic("face_p4")},
+			{dm.Pic("face3"), dm.Pic("face_p3")},
+			{dm.Pic("face2"), dm.Pic("face_p2")},
+			{dm.Pic("face1"), dm.Pic("face_p1")},
 		}
-		sb.faceInvis = dm.GetPic("face_invis")
-		sb.faceInvuln = dm.GetPic("face_invul2")
-		sb.faceBoth = dm.GetPic("face_inv2")
-		sb.faceQuad = dm.GetPic("face_quad")
+		sb.faceInvis = dm.Pic("face_invis")
+		sb.faceInvuln = dm.Pic("face_invul2")
+		sb.faceBoth = dm.Pic("face_inv2")
+		sb.faceQuad = dm.Pic("face_quad")
 		sb.rogueInvBar = [2]*image.QPic{
-			dm.GetPic("r_invbar1"),
-			dm.GetPic("r_invbar2"),
+			dm.Pic("r_invbar1"),
+			dm.Pic("r_invbar2"),
 		}
 		if sb.ibarPic != nil {
 			for i := range sb.qwAmmoBG {
@@ -173,24 +173,24 @@ func NewStatusBar(dm *draw.Manager, cv *cvar.CVarSystem) *StatusBar {
 			break
 		}
 		sb.rogueWeps = [5]*image.QPic{
-			dm.GetPic("r_lava"),
-			dm.GetPic("r_superlava"),
-			dm.GetPic("r_gren"),
-			dm.GetPic("r_multirock"),
-			dm.GetPic("r_plasma"),
+			dm.Pic("r_lava"),
+			dm.Pic("r_superlava"),
+			dm.Pic("r_gren"),
+			dm.Pic("r_multirock"),
+			dm.Pic("r_plasma"),
 		}
 		for i := range 10 {
-			sb.numPics[0][i] = dm.GetPic("num_" + string('0'+rune(i)))
-			sb.numPics[1][i] = dm.GetPic("anum_" + string('0'+rune(i)))
+			sb.numPics[0][i] = dm.Pic("num_" + string('0'+rune(i)))
+			sb.numPics[1][i] = dm.Pic("anum_" + string('0'+rune(i)))
 		}
-		sb.numPics[0][10] = dm.GetPic("num_minus")
-		sb.numPics[1][10] = dm.GetPic("anum_minus")
+		sb.numPics[0][10] = dm.Pic("num_minus")
+		sb.numPics[1][10] = dm.Pic("anum_minus")
 		hipNames := [...]string{"laser", "mjolnir", "gren_prox", "prox_gren", "prox"}
 		for i, name := range hipNames {
-			sb.hipWeapons[0][i] = dm.GetPic("inv_" + name)
-			sb.hipWeapons[1][i] = dm.GetPic("inv2_" + name)
+			sb.hipWeapons[0][i] = dm.Pic("inv_" + name)
+			sb.hipWeapons[1][i] = dm.Pic("inv2_" + name)
 			for flash := 0; flash < 5; flash++ {
-				sb.hipWeapons[2+flash][i] = dm.GetPic("inva" + string('1'+rune(flash)) + "_" + name)
+				sb.hipWeapons[2+flash][i] = dm.Pic("inva" + string('1'+rune(flash)) + "_" + name)
 			}
 		}
 	}

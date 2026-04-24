@@ -31,7 +31,7 @@ func (s *Server) syncEdictFromQCVM(entNum int, ent *Edict) {
 	}
 	cache := s.qcSyncCacheForVM(vm)
 	syncEntVarsFromQC(vm, entNum, ent.Vars, cache.entVarBindings)
-	if ent.Vars.Model == 0 || vm.GetString(ent.Vars.Model) == "" {
+	if ent.Vars.Model == 0 || vm.String(ent.Vars.Model) == "" {
 		ent.Vars.ModelIndex = 0
 	}
 }
@@ -266,7 +266,7 @@ func (s *Server) newCheckClient() int {
 		s.checkClientPVS = nil
 		return 0
 	}
-	maxClients := s.GetMaxClients()
+	maxClients := s.MaxClients()
 	if maxClients <= 0 || maxClients > len(s.Static.Clients) {
 		maxClients = len(s.Static.Clients)
 	}
@@ -335,7 +335,7 @@ func buildQCFieldOffsets(vm *qc.VM) map[string]int {
 		offsets[key] = ofs
 	}
 	for _, def := range vm.FieldDefs {
-		name := vm.GetString(def.Name)
+		name := vm.String(def.Name)
 		if name == "" {
 			continue
 		}

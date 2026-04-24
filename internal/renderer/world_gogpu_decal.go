@@ -306,7 +306,7 @@ func (dc *DrawContext) renderDecalMarksHAL(marks []DecalMarkEntity) {
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 	renderPass.SetBindGroup(1, bindGroup, nil)
 
-	vpMatrix := r.GetViewProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
 	if err := queue.WriteBuffer(uniformBuffer, 0, worldgogpu.DecalUniformBytes(vpMatrix, 1)); err != nil {
 		slog.Warn("failed to upload decal uniform buffer", "error", err)
 		return

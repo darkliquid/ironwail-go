@@ -116,7 +116,7 @@ func (c *remoteDatagramClient) ReadFromServer() error {
 		return nil
 	}
 	for {
-		msgType, data := c.network().GetMessage(c.socket)
+		msgType, data := c.network().Message(c.socket)
 		if msgType <= 0 {
 			break
 		}

@@ -354,7 +354,7 @@ func TestSendClientMessagesQueuesKeepaliveNopForIdleRemoteClient(t *testing.T) {
 
 	s.SendClientMessages()
 
-	msgType, payload := inet.DefaultNetwork().GetMessage(clientSock)
+	msgType, payload := inet.DefaultNetwork().Message(clientSock)
 	if msgType != 2 {
 		t.Fatalf("message type = %d, want 2", msgType)
 	}
@@ -392,7 +392,7 @@ func TestSendClientMessagesHoldsReliableDataForIdleUnspawnedClient(t *testing.T)
 
 	s.SendClientMessages()
 
-	msgType, payload := inet.DefaultNetwork().GetMessage(clientSock)
+	msgType, payload := inet.DefaultNetwork().Message(clientSock)
 	if msgType != 0 || len(payload) != 0 {
 		t.Fatalf("got network payload type=%d payload=%v, want none", msgType, payload)
 	}

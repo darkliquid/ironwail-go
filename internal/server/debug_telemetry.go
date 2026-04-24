@@ -418,7 +418,7 @@ func (t *DebugTelemetry) FormatQCFunction(vm *qc.VM, functionIndex int32) string
 	}
 
 	fn := vm.Functions[functionIndex]
-	name := vm.GetString(fn.Name)
+	name := vm.String(fn.Name)
 	if name == "" {
 		name = fmt.Sprintf("#%d", functionIndex)
 	}
@@ -613,7 +613,7 @@ func qcString(vm *qc.VM, idx int32) string {
 	if vm == nil || idx == 0 {
 		return ""
 	}
-	return vm.GetString(idx)
+	return vm.String(idx)
 }
 
 func formatDebugMessage(format string, args ...any) string {

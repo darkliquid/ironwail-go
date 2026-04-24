@@ -510,8 +510,8 @@ func (em *EntityManager) SetCurrentTime(time float32) {
 	em.currentTime = time
 }
 
-// GetEdict returns the entity at the given index.
-func (em *EntityManager) GetEdict(entNum int) *Edict {
+// Edict returns the entity at the given index.
+func (em *EntityManager) Edict(entNum int) *Edict {
 	if entNum < 0 || entNum >= len(em.edicts) {
 		return nil
 	}
@@ -546,7 +546,7 @@ func (em *EntityManager) fieldDef(keyName string) (int, qc.EType, bool) {
 	}
 	normalized := normalizeFieldName(keyName)
 	for _, def := range em.vm.FieldDefs {
-		if normalizeFieldName(em.vm.GetString(def.Name)) != normalized {
+		if normalizeFieldName(em.vm.String(def.Name)) != normalized {
 			continue
 		}
 		return int(def.Ofs), qc.EType(def.Type &^ qc.DefSaveGlobal), true
@@ -828,7 +828,7 @@ func (em *EntityManager) parseQCVMEdictFieldValue(entNum int, keyName, value str
 // original engine's lenient behaviour.
 func (em *EntityManager) parseGlobalValue(vm *qc.VM, keyName, value string) {
 	for _, def := range vm.GlobalDefs {
-		if vm.GetString(def.Name) != keyName {
+		if vm.String(def.Name) != keyName {
 			continue
 		}
 

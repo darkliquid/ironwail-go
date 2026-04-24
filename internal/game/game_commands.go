@@ -367,7 +367,7 @@ func (g *Game) hasAnyGameplayBindings() bool {
 		return false
 	}
 	for key := 0; key < input.NumKeycode; key++ {
-		if strings.TrimSpace(g.Input.GetBinding(key)) != "" {
+		if strings.TrimSpace(g.Input.Binding(key)) != "" {
 			return true
 		}
 	}
@@ -383,7 +383,7 @@ func (g *Game) hasBindingForCommand(command string) bool {
 		return false
 	}
 	for key := 0; key < input.NumKeycode; key++ {
-		if strings.TrimSpace(g.Input.GetBinding(key)) == command {
+		if strings.TrimSpace(g.Input.Binding(key)) == command {
 			return true
 		}
 	}
@@ -443,7 +443,7 @@ func (g *Game) logStartupInputDiagnostics() {
 		if keyName == "" {
 			keyName = fmt.Sprintf("KEY%d", binding.Key)
 		}
-		command := strings.TrimSpace(g.Input.GetBinding(binding.Key))
+		command := strings.TrimSpace(g.Input.Binding(binding.Key))
 		bindings = append(bindings, fmt.Sprintf("%s=%q", keyName, command))
 		if !g.hasBindingForCommand(binding.Command) {
 			missingActions = append(missingActions, binding.Command)
@@ -456,12 +456,12 @@ func (g *Game) logStartupInputDiagnostics() {
 	menuActive := g.Menu != nil && g.Menu.IsActive()
 	menuState := "none"
 	if g.Menu != nil {
-		menuState = fmt.Sprintf("%v", g.Menu.GetState())
+		menuState = fmt.Sprintf("%v", g.Menu.State())
 	}
 	slog.Debug("startup input diagnostics",
 		"menu_active", menuActive,
 		"menu_state", menuState,
-		"key_dest", g.keyDestName(g.Input.GetKeyDest()),
+		"key_dest", g.keyDestName(g.Input.KeyDest()),
 		"backend", backendType,
 		"bindings", strings.Join(bindings, ", "),
 		"missing_actions", strings.Join(missingActions, ", "),
@@ -491,7 +491,7 @@ func (g *Game) cmdBind(args []string) {
 		return
 	}
 	if len(args) == 1 {
-		binding := g.Input.GetBinding(key)
+		binding := g.Input.Binding(key)
 		if binding == "" {
 			console.Printf("\"%s\" is not bound\n", args[0])
 		} else {
@@ -533,7 +533,7 @@ func (g *Game) cmdBindList(_ []string) {
 	}
 	count := 0
 	for key := 0; key < input.NumKeycode; key++ {
-		binding := g.Input.GetBinding(key)
+		binding := g.Input.Binding(key)
 		if binding == "" {
 			continue
 		}
@@ -568,7 +568,7 @@ func (g *Game) cmdToggleConsole(_ []string) {
 		return
 	}
 
-	if g.Input.GetKeyDest() == input.KeyConsole {
+	if g.Input.KeyDest() == input.KeyConsole {
 		console.ResetCompletion()
 		g.Input.SetKeyDest(input.KeyGame)
 		g.syncGameplayInputMode()

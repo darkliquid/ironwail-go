@@ -37,7 +37,7 @@ type AsyncReceiver struct {
 
 // PollFunc is the function called to poll for a message. Returns message type
 // and data. Type 0 means no message available. This matches the signature
-// of GetMessage().
+// of Message().
 type PollFunc func() (int, []byte)
 
 // NewAsyncReceiver starts a background goroutine that polls for messages

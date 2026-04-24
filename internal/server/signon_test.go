@@ -258,7 +258,7 @@ func TestGetClientLoopbackMessageStagesOversizedSignonBuffers(t *testing.T) {
 	second.PutByte(byte(inet.SVCNop))
 	s.SignonBuffers = []*MessageBuffer{first, second}
 
-	data := s.GetClientLoopbackMessage(0)
+	data := s.ClientLoopbackMessage(0)
 	if len(data) != MaxDatagram {
 		t.Fatalf("first loopback message len = %d, want %d", len(data), MaxDatagram)
 	}
@@ -269,7 +269,7 @@ func TestGetClientLoopbackMessageStagesOversizedSignonBuffers(t *testing.T) {
 		t.Fatalf("SignonIdx after first chunk = %d, want 1", client.SignonIdx)
 	}
 
-	data = s.GetClientLoopbackMessage(0)
+	data = s.ClientLoopbackMessage(0)
 	if len(data) != 5 {
 		t.Fatalf("second loopback message len = %d, want 5", len(data))
 	}

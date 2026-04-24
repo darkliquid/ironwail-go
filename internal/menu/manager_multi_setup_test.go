@@ -21,14 +21,14 @@ func TestMultiPlayerNavigation(t *testing.T) {
 
 	mgr.multiPlayerCursor = 0
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuJoinGame {
+	if got := mgr.State(); got != MenuJoinGame {
 		t.Fatalf("join selection should enter join menu, got %v", got)
 	}
 	mgr.M_Key(input.KEscape)
 
 	mgr.multiPlayerCursor = 1
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuHostGame {
+	if got := mgr.State(); got != MenuHostGame {
 		t.Fatalf("host selection should enter host menu, got %v", got)
 	}
 	mgr.M_Key(input.KEscape)
@@ -36,7 +36,7 @@ func TestMultiPlayerNavigation(t *testing.T) {
 	mgr.multiPlayerCursor = 2
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuSetup {
+	if got := mgr.State(); got != MenuSetup {
 		t.Fatalf("setup selection should enter setup menu, got %v", got)
 	}
 }
@@ -57,7 +57,7 @@ func TestJoinGameMenuEditingAndConnectCommand(t *testing.T) {
 	mgr.multiPlayerCursor = 0
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuJoinGame {
+	if got := mgr.State(); got != MenuJoinGame {
 		t.Fatalf("expected join game menu, got %v", got)
 	}
 
@@ -104,7 +104,7 @@ func TestHostGameMenuEditingAndCommands(t *testing.T) {
 	mgr.multiPlayerCursor = 1
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuHostGame {
+	if got := mgr.State(); got != MenuHostGame {
 		t.Fatalf("expected host game menu, got %v", got)
 	}
 
@@ -171,7 +171,7 @@ func TestHostGameStartQueuesListenZeroForSinglePlayer(t *testing.T) {
 	mgr.state = MenuMultiPlayer
 	mgr.multiPlayerCursor = 1
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuHostGame {
+	if got := mgr.State(); got != MenuHostGame {
 		t.Fatalf("expected host game menu, got %v", got)
 	}
 	mgr.hostMaxPlayers = 1
@@ -244,7 +244,7 @@ func TestHostGameMenuSyncsFromLiveNetgameCVars(t *testing.T) {
 	mgr.multiPlayerCursor = 1
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuHostGame {
+	if got := mgr.State(); got != MenuHostGame {
 		t.Fatalf("expected host game menu, got %v", got)
 	}
 	if got := mgr.hostMaxPlayers; got != hostMaxPlayersMax {
@@ -298,7 +298,7 @@ func TestSetupMenuLoadsCurrentHostnameNameAndColor(t *testing.T) {
 	mgr.multiPlayerCursor = 2
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuSetup {
+	if got := mgr.State(); got != MenuSetup {
 		t.Fatalf("expected setup state, got %v", got)
 	}
 	if got := mgr.setupHostname; got != "LAN Party" {
@@ -331,7 +331,7 @@ func TestSetupMenuHostnameNameColorAndAccept(t *testing.T) {
 	mgr.state = MenuMultiPlayer
 	mgr.multiPlayerCursor = 2
 	mgr.M_Key(input.KEnter)
-	if got := mgr.GetState(); got != MenuSetup {
+	if got := mgr.State(); got != MenuSetup {
 		t.Fatalf("expected setup state, got %v", got)
 	}
 
@@ -359,7 +359,7 @@ func TestSetupMenuHostnameNameColorAndAccept(t *testing.T) {
 	mgr.M_Key(input.KDownArrow)
 	mgr.M_Key(input.KEnter)
 
-	if got := mgr.GetState(); got != MenuMultiPlayer {
+	if got := mgr.State(); got != MenuMultiPlayer {
 		t.Fatalf("accept should return to multiplayer menu, got %v", got)
 	}
 	if len(commands) != 2 {
@@ -388,7 +388,7 @@ func TestSetupMenuBackspaceOnColorRowDoesNotExit(t *testing.T) {
 
 	mgr.M_Key(input.KBackspace)
 
-	if got := mgr.GetState(); got != MenuSetup {
+	if got := mgr.State(); got != MenuSetup {
 		t.Fatalf("backspace on color row should stay in setup, got %v", got)
 	}
 }
@@ -422,7 +422,7 @@ type mapDrawManager struct {
 	pics map[string]*image.QPic
 }
 
-func (m *mapDrawManager) GetPic(name string) *image.QPic {
+func (m *mapDrawManager) Pic(name string) *image.QPic {
 	if m.pics == nil {
 		return nil
 	}
@@ -541,13 +541,13 @@ func TestMultiPlayerAndOptionsEscBack(t *testing.T) {
 
 	mgr.state = MenuMultiPlayer
 	mgr.M_Key(input.KEscape)
-	if mgr.GetState() != MenuMain {
-		t.Fatalf("expected main from multiplayer esc, got %v", mgr.GetState())
+	if mgr.State() != MenuMain {
+		t.Fatalf("expected main from multiplayer esc, got %v", mgr.State())
 	}
 
 	mgr.state = MenuOptions
 	mgr.M_Key(input.KBackspace)
-	if mgr.GetState() != MenuMain {
-		t.Fatalf("expected main from options backspace, got %v", mgr.GetState())
+	if mgr.State() != MenuMain {
+		t.Fatalf("expected main from options backspace, got %v", mgr.State())
 	}
 }

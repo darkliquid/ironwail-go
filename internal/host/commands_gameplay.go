@@ -149,7 +149,7 @@ func (h *Host) CmdTracepos(subs *Subsystems) {
 	subs.Console.Print(fmt.Sprintf("fraction: %.4f\n", trace.Fraction))
 	if trace.Entity != nil {
 		entNum := srv.NumForEdict(trace.Entity)
-		className := srv.GetString(trace.Entity.Vars.ClassName)
+		className := srv.String(trace.Entity.Vars.ClassName)
 		subs.Console.Print(fmt.Sprintf("hit entity %d: %s\n", entNum, className))
 	} else {
 		subs.Console.Print("hit world\n")
@@ -357,14 +357,14 @@ func (h *Host) CmdPing(subs *Subsystems) {
 	if subs.Server == nil || subs.Console == nil {
 		return
 	}
-	maxClients := subs.Server.GetMaxClients()
+	maxClients := subs.Server.MaxClients()
 	subs.Console.Print("Client pings:\n")
 	for i := 0; i < maxClients; i++ {
-		name := subs.Server.GetClientName(i)
+		name := subs.Server.ClientName(i)
 		if name == "" {
 			continue
 		}
-		ping := subs.Server.GetClientPing(i)
+		ping := subs.Server.ClientPing(i)
 		subs.Console.Print(fmt.Sprintf("  %d: %-16s %.0f ms\n", i, name, ping))
 	}
 }

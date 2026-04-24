@@ -702,7 +702,7 @@ func TestUploadWorld(t *testing.T) {
 	}
 
 	// Verify world data is stored
-	worldData := r.GetWorldData()
+	worldData := r.WorldData()
 	if worldData == nil {
 		t.Fatal("World data not stored after upload")
 	}
@@ -721,7 +721,7 @@ func TestUploadWorld(t *testing.T) {
 
 	// Test ClearWorld
 	r.ClearWorld()
-	worldData = r.GetWorldData()
+	worldData = r.WorldData()
 	if worldData != nil {
 		t.Error("World data not cleared")
 	}

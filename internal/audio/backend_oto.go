@@ -129,7 +129,7 @@ func (b *OtoBackend) Unlock() {
 	}
 }
 
-func (b *OtoBackend) GetPosition() int {
+func (b *OtoBackend) Position() int {
 	if b.dma == nil {
 		return 0
 	}

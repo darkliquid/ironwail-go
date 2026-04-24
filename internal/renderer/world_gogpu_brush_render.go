@@ -160,7 +160,7 @@ func (dc *DrawContext) renderOpaqueBrushEntitiesHAL(entities []BrushEntity, fogC
 	}
 	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 
-	vpMatrix := r.GetViewProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
 	var uniformData [worldUniformBufferSize]byte
@@ -367,7 +367,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	}
 	renderPass.SetBindGroup(0, uniformBindGroup, nil)
 
-	vpMatrix := r.GetViewProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	buffers := make([]*wgpu.Buffer, 0, len(draws)*2)
 	for _, draw := range draws {
@@ -604,7 +604,7 @@ func (dc *DrawContext) renderOpaqueLiquidBrushEntitiesHAL(entities []BrushEntity
 	}
 	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
 
-	vpMatrix := r.GetViewProjectionMatrix()
+	vpMatrix := r.ViewProjectionMatrix()
 	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	timeSeconds := float64(camera.Time)
 	var uniformData [worldUniformBufferSize]byte

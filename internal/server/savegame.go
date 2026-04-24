@@ -359,7 +359,7 @@ func captureSaveEdictState(ent *Edict, vm *qc.VM) SaveEdictState {
 // captureSavedEdictStrings uses reflection to iterate over every field in
 // EntVars and identify the ones that hold QC string indices (matched against
 // the stringEntFieldNames set). For each such field, the integer index is
-// resolved to its actual string content via vm.GetString, and the result is
+// resolved to its actual string content via vm.String, and the result is
 // stored in a map keyed by the Go struct field name.
 //
 // Reflection is used here because EntVars is a large auto-generated struct
@@ -384,7 +384,7 @@ func captureSavedEdictStrings(vars *EntVars, vm *qc.VM) map[string]string {
 		if idx == 0 {
 			continue
 		}
-		if value := vm.GetString(idx); value != "" {
+		if value := vm.String(idx); value != "" {
 			strings[field.Name] = value
 		}
 	}
@@ -448,7 +448,7 @@ func captureSaveGlobals(vm *qc.VM) []SaveGlobalState {
 		if def.Type&qc.DefSaveGlobal == 0 {
 			continue
 		}
-		name := vm.GetString(def.Name)
+		name := vm.String(def.Name)
 		if name == "" {
 			continue
 		}

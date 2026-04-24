@@ -10,7 +10,7 @@ func (fakeBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAI
 func (fakeBackend) Shutdown()        {}
 func (fakeBackend) Lock()            {}
 func (fakeBackend) Unlock()          {}
-func (fakeBackend) GetPosition() int { return 0 }
+func (fakeBackend) Position() int { return 0 }
 func (fakeBackend) Block()           {}
 func (fakeBackend) Unblock()         {}
 

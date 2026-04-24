@@ -427,7 +427,7 @@ func (s *Server) PushMove(pusher *Edict, movetime float32) {
 		// Matches C sv_phys.c:552-578 (sv_gameplayfix_elevators).
 		fixLevel := s.CVar.FloatValue("sv_gameplayfix_elevators")
 		if riding && block == pusher &&
-			(fixLevel >= 2 || (fixLevel > 0 && e <= s.GetMaxClients())) {
+			(fixLevel >= 2 || (fixLevel > 0 && e <= s.MaxClients())) {
 			check.Vars.Origin[2] += DistEpsilon
 			if s.TestEntityPosition(check) == nil {
 				slog.Debug("elevator fix nudged entity",

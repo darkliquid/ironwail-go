@@ -107,7 +107,7 @@ func (s *Server) findLocalSpawnPoint() *Edict {
 			if ent == nil || ent.Free || ent.Vars == nil {
 				continue
 			}
-			if s.GetString(ent.Vars.ClassName) == className {
+			if s.String(ent.Vars.ClassName) == className {
 				return ent
 			}
 		}
@@ -249,7 +249,7 @@ func (s *Server) runClientPutInServerQC(client *Client) error {
 	if client == nil || client.Edict == nil || client.Edict.Vars == nil {
 		return nil
 	}
-	if client.Edict.Vars.Health <= 0 || s.GetString(client.Edict.Vars.ClassName) == "" {
+	if client.Edict.Vars.Health <= 0 || s.String(client.Edict.Vars.ClassName) == "" {
 		return s.initClientSpawnFallback(client)
 	}
 	s.LinkEdict(client.Edict, true)

@@ -283,7 +283,7 @@ func TestApplyDefaultGameplayBindings(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		if got := g.Input.GetBinding(tc.key); got != tc.want {
+		if got := g.Input.Binding(tc.key); got != tc.want {
 			t.Fatalf("binding for key %d = %q, want %q", tc.key, got, tc.want)
 		}
 	}

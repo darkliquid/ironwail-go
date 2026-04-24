@@ -162,7 +162,7 @@ func (m *Manager) InitFromDir(baseDir string) error {
 	return nil
 }
 
-// GetPic retrieves a QPic by name, loading and caching it if necessary.
+// Pic retrieves a QPic by name, loading and caching it if necessary.
 // Returns nil if the pic cannot be found.
 //
 // This is the main entry point that higher-level rendering code calls every
@@ -183,7 +183,7 @@ func (m *Manager) InitFromDir(baseDir string) error {
 //  3. gfx.wad lump by bare name (e.g. "qplaque") — real Quake gfx.wad omits paths/extensions
 //  4. Standalone file from the pak filesystem (e.g. gfx/qplaque.lmp lives directly in pak0.pak)
 //  5. Standalone file from the base directory (InitFromDir fallback)
-func (m *Manager) GetPic(name string) *image.QPic {
+func (m *Manager) Pic(name string) *image.QPic {
 	m.mu.RLock()
 	if !m.initialized {
 		m.mu.RUnlock()
@@ -262,7 +262,7 @@ func (m *Manager) loadPic(name string) *image.QPic {
 // "gfx/pause.lmp". This method tries both the full name and a stripped "bare" name
 // to handle either convention. Only lumps of type TypQPic or TypConsolePic are
 // valid 2D picture assets; other lump types (e.g. TypMipTex for conchars) are
-// rejected here and handled by dedicated accessors like GetConcharsData.
+// rejected here and handled by dedicated accessors like ConcharsData.
 func (m *Manager) loadFromWad(name string) *image.QPic {
 	lump, ok := m.wad.Lumps[name]
 	if !ok {
@@ -324,7 +324,7 @@ func (m *Manager) loadFromDir(name string) *image.QPic {
 	return pic
 }
 
-// GetConcharsData returns the raw 128×128 byte pixel data for the conchars font,
+// ConcharsData returns the raw 128×128 byte pixel data for the conchars font,
 // or nil if not loaded. Conchars is stored in gfx.wad as a TypMipTex lump
 // (raw indexed pixels, no header — 16384 bytes for a 128×128 bitmap).
 //
@@ -334,10 +334,10 @@ func (m *Manager) loadFromDir(name string) *image.QPic {
 // rendering code expands these to RGBA using the loaded palette, treating
 // palette index 0 as transparent so the font can overlay arbitrary backgrounds.
 //
-// This is kept separate from the normal GetPic path because conchars is not a
+// This is kept separate from the normal Pic path because conchars is not a
 // QPic — it has no width/height header — and is handled specially by the
 // original engine (W_GetLumpName("conchars") in the C source).
-func (m *Manager) GetConcharsData() []byte {
+func (m *Manager) ConcharsData() []byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.wad == nil {

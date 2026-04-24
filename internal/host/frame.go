@@ -22,7 +22,7 @@ type FrameStats struct {
 }
 
 type FrameCallbacks interface {
-	GetEvents()
+	Events()
 	ProcessConsoleCommands()
 	ProcessServer()
 	ProcessClient()
@@ -40,7 +40,7 @@ func setProcessClientPhase(cb FrameCallbacks, phase string) {
 	}
 }
 
-func (h *Host) GetFrameInterval() float64 {
+func (h *Host) FrameInterval() float64 {
 	if h.maxFPS > 0 || h.clientState == caDisconnected {
 		maxfps := h.maxFPS
 		if h.clientState == caDisconnected {
@@ -119,7 +119,7 @@ func (h *Host) Frame(dt float64, cb FrameCallbacks) error {
 		if hostSpeeds {
 			phaseStart = time.Now()
 		}
-		cb.GetEvents()
+		cb.Events()
 		if hostSpeeds {
 			eventMS = elapsedMilliseconds(phaseStart)
 			phaseStart = time.Now()
@@ -236,7 +236,7 @@ func (h *Host) FrameLoop(targetFPS float64, cb FrameCallbacks, shouldQuit func()
 		now := currentTime()
 		dt := now - lastTime
 
-		frameTarget := h.GetFrameInterval()
+		frameTarget := h.FrameInterval()
 		if frameTarget <= 0 {
 			frameTarget = frameInterval
 		}

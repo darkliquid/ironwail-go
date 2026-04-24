@@ -406,10 +406,10 @@ func (m *Mixer) ClearLevels() {
 	m.hiFreqLevel = 0
 }
 
-func (m *Mixer) GetLoFreqLevel() float32 {
+func (m *Mixer) LoFreqLevel() float32 {
 	return m.loFreqLevel
 }
 
-func (m *Mixer) GetHiFreqLevel() float32 {
+func (m *Mixer) HiFreqLevel() float32 {
 	return m.hiFreqLevel
 }

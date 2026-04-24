@@ -93,7 +93,7 @@ func (s *Server) Physics() {
 
 	forceRetouch := float32(0)
 	if s.QCVM != nil {
-		forceRetouch = s.QCVM.GetGlobalFloat("force_retouch")
+		forceRetouch = s.QCVM.GlobalFloat("force_retouch")
 	}
 
 	for i := 0; i < entityCap; i++ {
@@ -187,7 +187,7 @@ func (s *Server) Physics() {
 	}
 
 	if s.QCVM != nil {
-		if forceRetouch := s.QCVM.GetGlobalFloat("force_retouch"); forceRetouch > 0 {
+		if forceRetouch := s.QCVM.GlobalFloat("force_retouch"); forceRetouch > 0 {
 			next := forceRetouch - 1
 			if next < 0 {
 				next = 0

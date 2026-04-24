@@ -57,7 +57,7 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 
 	for {
 		cmdStart := msg.ReadCount
-		cmd, ok := msg.GetByte()
+		cmd, ok := msg.Byte()
 		if !ok {
 			p.Client.FinishDemoFrame()
 			return nil
@@ -134,11 +134,11 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 			p.Client.ViewEntity = int(v)
 			p.recordPacketTrace(cmdStart, msg.ReadCount, svcCommandName(cmd))
 		case inet.SVCCDTrack:
-			cd, ok := msg.GetByte()
+			cd, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("svc_cdtrack: missing track")
 			}
-			loop, ok := msg.GetByte()
+			loop, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("svc_cdtrack: missing loop track")
 			}
@@ -353,7 +353,7 @@ func (p *Parser) parseServerInfo(msg *common.SizeBuf) error {
 		p.Client.ProtocolFlags = uint32(flags)
 	}
 
-	maxClients, ok := msg.GetByte()
+	maxClients, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_serverinfo: missing maxclients")
 	}
@@ -362,7 +362,7 @@ func (p *Parser) parseServerInfo(msg *common.SizeBuf) error {
 	}
 	p.Client.MaxClients = int(maxClients)
 
-	gametype, ok := msg.GetByte()
+	gametype, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_serverinfo: missing gametype")
 	}
@@ -421,7 +421,7 @@ func angleEncodingName(flags uint32) string {
 }
 
 func (p *Parser) parseSignOnNum(msg *common.SizeBuf) error {
-	v, ok := msg.GetByte()
+	v, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_signonnum: missing signon")
 	}
@@ -440,7 +440,7 @@ func (p *Parser) parseSignOnNum(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseLightStyle(msg *common.SizeBuf) error {
-	i, ok := msg.GetByte()
+	i, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_lightstyle: missing index")
 	}
@@ -505,7 +505,7 @@ func (p *Parser) readCoord(msg *common.SizeBuf, missingErr string) (float32, err
 			if !ok {
 				return 0, fmt.Errorf("%s", missingErr)
 			}
-			frac, ok := msg.GetByte()
+			frac, ok := msg.Byte()
 			if !ok {
 				return 0, fmt.Errorf("%s", missingErr)
 			}
@@ -520,7 +520,7 @@ func (p *Parser) parseStuffText(s string) {
 }
 
 func (p *Parser) parseUpdateStat(msg *common.SizeBuf) error {
-	idx, ok := msg.GetByte()
+	idx, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_updatestat: missing index")
 	}
@@ -535,7 +535,7 @@ func (p *Parser) parseUpdateStat(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseUpdateFrags(msg *common.SizeBuf) error {
-	idx, ok := msg.GetByte()
+	idx, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_updatefrags: missing client index")
 	}
@@ -551,7 +551,7 @@ func (p *Parser) parseUpdateFrags(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseSetPause(msg *common.SizeBuf) error {
-	v, ok := msg.GetByte()
+	v, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_setpause: missing flag")
 	}
@@ -560,7 +560,7 @@ func (p *Parser) parseSetPause(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseUpdateName(msg *common.SizeBuf) error {
-	idx, ok := msg.GetByte()
+	idx, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_updatename: missing player index")
 	}
@@ -586,11 +586,11 @@ func (p *Parser) parseStopSound(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseUpdateColors(msg *common.SizeBuf) error {
-	idx, ok := msg.GetByte()
+	idx, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_updatecolors: missing player index")
 	}
-	colors, ok := msg.GetByte()
+	colors, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_updatecolors: missing colors")
 	}
@@ -602,19 +602,19 @@ func (p *Parser) parseUpdateColors(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseFog(msg *common.SizeBuf) error {
-	density, ok := msg.GetByte()
+	density, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_fog: missing density")
 	}
-	r, ok := msg.GetByte()
+	r, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_fog: missing red")
 	}
-	g, ok := msg.GetByte()
+	g, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_fog: missing green")
 	}
-	b, ok := msg.GetByte()
+	b, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_fog: missing blue")
 	}
@@ -631,11 +631,11 @@ func (p *Parser) parseFog(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseDamage(msg *common.SizeBuf) error {
-	save, ok := msg.GetByte()
+	save, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_damage: missing armor")
 	}
-	take, ok := msg.GetByte()
+	take, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_damage: missing blood")
 	}
@@ -656,7 +656,7 @@ func (p *Parser) parseDamage(msg *common.SizeBuf) error {
 }
 
 func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
-	fieldMask, ok := msg.GetByte()
+	fieldMask, ok := msg.Byte()
 	if !ok {
 		if local {
 			return fmt.Errorf("svc_localsound: missing field mask")
@@ -671,14 +671,14 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 	}
 
 	if fieldMask&inet.SND_VOLUME != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_sound: missing volume")
 		}
 		event.Volume = int(v)
 	}
 	if fieldMask&inet.SND_ATTENUATION != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_sound: missing attenuation")
 		}
@@ -693,7 +693,7 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 			}
 			event.SoundIndex = int(v)
 		} else {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("svc_localsound: missing sound index")
 			}
@@ -710,7 +710,7 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 		if !ok {
 			return fmt.Errorf("svc_sound: missing large entity")
 		}
-		channel, ok := msg.GetByte()
+		channel, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_sound: missing large channel")
 		}
@@ -732,7 +732,7 @@ func (p *Parser) parseSound(msg *common.SizeBuf, local bool) error {
 		}
 		event.SoundIndex = int(v)
 	} else {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_sound: missing sound index")
 		}
@@ -770,11 +770,11 @@ func (p *Parser) parseParticle(msg *common.SizeBuf) error {
 		}
 		event.Dir[i] = float32(v) / 16
 	}
-	count, ok := msg.GetByte()
+	count, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_particle: missing count")
 	}
-	color, ok := msg.GetByte()
+	color, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_particle: missing color")
 	}

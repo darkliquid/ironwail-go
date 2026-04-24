@@ -142,8 +142,8 @@ func (s *Server) NumForEdict(e *Edict) int {
 	return -1
 }
 
-// GetMaxClients returns configured client slot count from persistent server static state.
-func (s *Server) GetMaxClients() int {
+// MaxClients returns configured client slot count from persistent server static state.
+func (s *Server) MaxClients() int {
 	if s.Static == nil {
 		return 0
 	}
@@ -159,8 +159,8 @@ func (s *Server) IsClientActive(clientNum int) bool {
 	return client != nil && client.Active
 }
 
-// GetClientName returns the user-visible name for a connected client slot.
-func (s *Server) GetClientName(clientNum int) string {
+// ClientName returns the user-visible name for a connected client slot.
+func (s *Server) ClientName(clientNum int) string {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return ""
 	}
@@ -189,8 +189,8 @@ func (s *Server) SetClientName(clientNum int, name string) {
 	s.broadcastClientNameUpdate(clientNum, name)
 }
 
-// GetClientColor returns the top/bottom shirt color bits for the given client slot.
-func (s *Server) GetClientColor(clientNum int) int {
+// ClientColor returns the top/bottom shirt color bits for the given client slot.
+func (s *Server) ClientColor(clientNum int) int {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return 0
 	}
@@ -216,8 +216,8 @@ func (s *Server) SetClientColor(clientNum int, color int) {
 	s.broadcastClientColorUpdate(clientNum, color)
 }
 
-// GetClientPing returns average ping (ms) from the client's rolling network sample window.
-func (s *Server) GetClientPing(clientNum int) float32 {
+// ClientPing returns average ping (ms) from the client's rolling network sample window.
+func (s *Server) ClientPing(clientNum int) float32 {
 	if s.Static == nil || clientNum < 0 || clientNum >= len(s.Static.Clients) {
 		return 0
 	}
@@ -282,8 +282,8 @@ func (s *Server) KickClient(clientNum int, who, reason string) bool {
 	return true
 }
 
-// GetMapName returns the currently loaded map short name (without maps/ path or .bsp suffix).
-func (s *Server) GetMapName() string {
+// MapName returns the currently loaded map short name (without maps/ path or .bsp suffix).
+func (s *Server) MapName() string {
 	return s.Name
 }
 

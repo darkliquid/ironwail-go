@@ -309,7 +309,7 @@ func TestSetModelStoresModelAndModelIndex(t *testing.T) {
 	setmodel(vm)
 
 	modelIdx := vm.EInt(1, EntFieldModel)
-	if got := vm.GetString(modelIdx); got != "progs/test.mdl" {
+	if got := vm.String(modelIdx); got != "progs/test.mdl" {
 		t.Fatalf("model string = %q", got)
 	}
 	if got := vm.EFloat(1, EntFieldModelIndex); got != 1 {

@@ -113,7 +113,7 @@ func TestE2ELoopbackMovement(t *testing.T) {
 }
 
 // TestE2EHostFrameMovement uses Host.Frame() with callbacks, simulating the
-// exact runtime flow: GetEvents→AccumulateCmd→SendCommand→ServerFrame.
+// exact runtime flow: Events→AccumulateCmd→SendCommand→ServerFrame.
 // The key press is delivered via KeyDown just as the GLFW callback would.
 func TestE2EHostFrameMovement(t *testing.T) {
 	h, srv, subs, clientState := setupE2ELoopback(t)
@@ -195,7 +195,7 @@ func TestE2EJump(t *testing.T) {
 	// Look up QC field offsets from progs.dat
 	fieldOfs := map[string]int{}
 	for _, def := range srv.QCVM.FieldDefs {
-		name := srv.QCVM.GetString(def.Name)
+		name := srv.QCVM.String(def.Name)
 		if name != "" {
 			fieldOfs[name] = int(def.Ofs)
 		}
@@ -212,7 +212,7 @@ func TestE2EJump(t *testing.T) {
 	// Dump ALL field defs to check for unexpected offsets
 	t.Logf("All QC field defs (offset → name):")
 	for _, def := range srv.QCVM.FieldDefs {
-		name := srv.QCVM.GetString(def.Name)
+		name := srv.QCVM.String(def.Name)
 		if name != "" {
 			t.Logf("  ofs=%d type=%d name=%s", def.Ofs, def.Type, name)
 		}
@@ -324,7 +324,7 @@ func TestE2EJump(t *testing.T) {
 		srv.QCVM.TraceFunc = func(vm *qc.VM, stmtIdx int, st *qc.DStatement, op qc.Opcode) {
 			fn := ""
 			if vm.XFunction != nil {
-				fn = vm.GetString(vm.XFunction.Name)
+				fn = vm.String(vm.XFunction.Name)
 			}
 			switch op {
 			case qc.OPIF:
@@ -341,7 +341,7 @@ func TestE2EJump(t *testing.T) {
 				funcIdx := vm.GInt(int(st.A))
 				callee := ""
 				if int(funcIdx) > 0 && int(funcIdx) < len(vm.Functions) {
-					callee = vm.GetString(vm.Functions[int(funcIdx)].Name)
+					callee = vm.String(vm.Functions[int(funcIdx)].Name)
 				}
 				traceLines = append(traceLines, fmt.Sprintf("  [%s] stmt %d: CALL%d → %s",
 					fn, stmtIdx, op-qc.OPCall0, callee))
@@ -379,7 +379,7 @@ func TestE2EJump(t *testing.T) {
 		preThinkFunc := &srv.QCVM.Functions[preThink]
 		t.Logf("PlayerPreThink func: firstStatement=%d numParms=%d locals=%d name=%s file=%s",
 			preThinkFunc.FirstStatement, preThinkFunc.NumParms, preThinkFunc.Locals,
-			srv.QCVM.GetString(preThinkFunc.Name), srv.QCVM.GetString(preThinkFunc.File))
+			srv.QCVM.String(preThinkFunc.Name), srv.QCVM.String(preThinkFunc.File))
 		// Dump first 20 statements of PlayerPreThink
 		startStmt := int(preThinkFunc.FirstStatement)
 		t.Logf("Statements starting at %d:", startStmt)
@@ -427,7 +427,7 @@ type testFrameCallbacks struct {
 	processServer          func()
 }
 
-func (c *testFrameCallbacks) GetEvents() {
+func (c *testFrameCallbacks) Events() {
 	if c.getEvents != nil {
 		c.getEvents()
 	}

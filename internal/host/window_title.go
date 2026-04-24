@@ -70,7 +70,7 @@ func (h *Host) updateWindowTitle(subs *Subsystems, dt float64) {
 	skill := h.currentSkill
 	if subs != nil {
 		if subs.Server != nil {
-			mapName = subs.Server.GetMapName()
+			mapName = subs.Server.MapName()
 		}
 		if cs, ok := any(subs.Client).(interface{ RuntimeState() *client.Client }); ok {
 			if state := cs.RuntimeState(); state != nil {

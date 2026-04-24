@@ -67,7 +67,7 @@ func (g *Game) runtimeViewState() (origin, angles [3]float32) {
 			if ent == nil || ent.Free || ent.Vars == nil || ent.Vars.ClassName == 0 {
 				continue
 			}
-			className := g.Server.GetString(ent.Vars.ClassName)
+			className := g.Server.String(ent.Vars.ClassName)
 			if className != "info_player_start" && className != "info_player_deathmatch" {
 				continue
 			}
@@ -80,7 +80,7 @@ func (g *Game) runtimeViewState() (origin, angles [3]float32) {
 	}
 
 	if !foundPlayerStart && g.Renderer != nil {
-		if minBounds, maxBounds, ok := g.Renderer.GetWorldBounds(); ok {
+		if minBounds, maxBounds, ok := g.Renderer.WorldBounds(); ok {
 			centerX := (minBounds[0] + maxBounds[0]) * 0.5
 			centerY := (minBounds[1] + maxBounds[1]) * 0.5
 			centerZ := (minBounds[2] + maxBounds[2]) * 0.5

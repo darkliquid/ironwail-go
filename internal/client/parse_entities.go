@@ -41,7 +41,7 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 
 	var bits byte
 	if extended {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return b, 0, fmt.Errorf("%s2: missing bits", prefix)
 		}
@@ -67,7 +67,7 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 		}
 		b.ModelIndex = uint16(v)
 	} else {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return b, 0, fmt.Errorf("%s: missing modelindex", prefix)
 		}
@@ -81,20 +81,20 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 		}
 		b.Frame = uint16(v)
 	} else {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return b, 0, fmt.Errorf("%s: missing frame", prefix)
 		}
 		b.Frame = uint16(v)
 	}
 
-	colormap, ok := msg.GetByte()
+	colormap, ok := msg.Byte()
 	if !ok {
 		return b, 0, fmt.Errorf("%s: missing colormap", prefix)
 	}
 	b.Colormap = colormap
 
-	skin, ok := msg.GetByte()
+	skin, ok := msg.Byte()
 	if !ok {
 		return b, 0, fmt.Errorf("%s: missing skin", prefix)
 	}
@@ -119,14 +119,14 @@ func (p *Parser) readBaseline(msg *common.SizeBuf, extended bool, withEntNum boo
 	b.MsgAngles[1] = b.Angles
 
 	if extended && bits&inet.BALPHA != 0 {
-		alpha, ok := msg.GetByte()
+		alpha, ok := msg.Byte()
 		if !ok {
 			return b, 0, fmt.Errorf("%s2: missing alpha", prefix)
 		}
 		b.Alpha = alpha
 	}
 	if extended && bits&inet.BSCALE != 0 {
-		scale, ok := msg.GetByte()
+		scale, ok := msg.Byte()
 		if !ok {
 			return b, 0, fmt.Errorf("%s2: missing scale", prefix)
 		}
@@ -152,17 +152,17 @@ func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error
 		}
 		snd.SoundIndex = int(v)
 	} else {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("svc_spawnstaticsound: missing sound index")
 		}
 		snd.SoundIndex = int(v)
 	}
-	volume, ok := msg.GetByte()
+	volume, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_spawnstaticsound: missing volume")
 	}
-	attenuation, ok := msg.GetByte()
+	attenuation, ok := msg.Byte()
 	if !ok {
 		return fmt.Errorf("svc_spawnstaticsound: missing attenuation")
 	}
@@ -178,7 +178,7 @@ func (p *Parser) parseSpawnStaticSound(msg *common.SizeBuf, extended bool) error
 func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	bits := uint32(cmd&0x7f) | inet.U_SIGNAL
 	if bits&inet.U_MOREBITS != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing morebits")
 		}
@@ -188,14 +188,14 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	// bytes. NetQuake reuses bit 15 as Nehahra's U_TRANS (transparency hack).
 	if p.Client.Protocol != inet.PROTOCOL_NETQUAKE {
 		if bits&inet.U_EXTEND1 != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing extend1 bits")
 			}
 			bits |= uint32(v) << 16
 		}
 		if bits&inet.U_EXTEND2 != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing extend2 bits")
 			}
@@ -211,7 +211,7 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 		}
 		entNum = int(v)
 	} else {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing entity")
 		}
@@ -252,35 +252,35 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	// ORIGIN1, ANGLE1, ORIGIN2, ANGLE2, ORIGIN3, ANGLE3,
 	// ALPHA, SCALE, FRAME2, MODEL2, LERPFINISH
 	if bits&inet.U_MODEL != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing model")
 		}
 		decode.ModelIndex = uint16(v)
 	}
 	if bits&inet.U_FRAME != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing frame")
 		}
 		decode.Frame = uint16(v)
 	}
 	if bits&inet.U_COLORMAP != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing colormap")
 		}
 		decode.Colormap = v
 	}
 	if bits&inet.U_SKIN != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing skin")
 		}
 		decode.Skin = v
 	}
 	if bits&inet.U_EFFECTS != 0 {
-		v, ok := msg.GetByte()
+		v, ok := msg.Byte()
 		if !ok {
 			return fmt.Errorf("entity update: missing effects")
 		}
@@ -333,35 +333,35 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 	// For NetQuake protocol, handle Nehahra U_TRANS transparency hack instead.
 	if p.Client.Protocol != inet.PROTOCOL_NETQUAKE {
 		if bits&inet.U_ALPHA != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing alpha")
 			}
 			decode.Alpha = v
 		}
 		if bits&inet.U_SCALE != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing scale")
 			}
 			decode.Scale = v
 		}
 		if bits&inet.U_FRAME2 != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing frame2")
 			}
 			decode.Frame = (decode.Frame & 0x00ff) | (uint16(v) << 8)
 		}
 		if bits&inet.U_MODEL2 != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing model2")
 			}
 			decode.ModelIndex = (decode.ModelIndex & 0x00ff) | (uint16(v) << 8)
 		}
 		if bits&inet.U_LERPFINISH != 0 {
-			v, ok := msg.GetByte()
+			v, ok := msg.Byte()
 			if !ok {
 				return fmt.Errorf("entity update: missing lerpfinish")
 			}
@@ -459,7 +459,7 @@ func (p *Parser) parseEntityUpdate(msg *common.SizeBuf, cmd byte) error {
 }
 
 func readChar(msg *common.SizeBuf, errMsg string) (int8, error) {
-	v, ok := msg.GetByte()
+	v, ok := msg.Byte()
 	if !ok {
 		return 0, errors.New(errMsg)
 	}

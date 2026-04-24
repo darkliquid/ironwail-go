@@ -302,6 +302,8 @@ func applyGroundFriction(velocity *[3]float32, friction, stopSpeed, frametime fl
 
 // GetPredictedOrigin returns the predicted player origin for rendering.
 // This should be used instead of the raw server entity origin to reduce lag.
+// Retains its Get prefix because the Client struct already exposes a
+// PredictedOrigin field; see go-guide.md §2.
 func (c *Client) GetPredictedOrigin() [3]float32 {
 	if c == nil {
 		return [3]float32{}
@@ -310,6 +312,7 @@ func (c *Client) GetPredictedOrigin() [3]float32 {
 }
 
 // GetPredictedVelocity returns the predicted player velocity.
+// Retains its Get prefix for the same reason as GetPredictedOrigin.
 func (c *Client) GetPredictedVelocity() [3]float32 {
 	if c == nil {
 		return [3]float32{}

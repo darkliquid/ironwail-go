@@ -383,7 +383,7 @@ func NewServer() *Server {
 				if ent == nil || ent.Free {
 					continue
 				}
-				if vm.GetString(vm.EString(entNum, fieldOfs)) == match {
+				if vm.String(vm.EString(entNum, fieldOfs)) == match {
 					return entNum
 				}
 			}

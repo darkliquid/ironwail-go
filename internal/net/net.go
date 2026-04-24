@@ -5,7 +5,7 @@ package net
 
 // net.go is the top-level networking facade for the Quake engine. It implements
 // the "dispatcher" pattern from original Quake's net_main.c: every public
-// networking operation (Connect, GetMessage, SendMessage, etc.) first checks
+// networking operation (Connect, Message, SendMessage, etc.) first checks
 // which driver owns the socket (loopback vs. datagram/UDP) and delegates to
 // the appropriate implementation.
 //
@@ -140,19 +140,19 @@ func Connect(host string) *Socket {
 	return defaultNet.Connect(host)
 }
 
-// GetMessage polls a socket for incoming data. The return value indicates
+// Message polls a socket for incoming data. The return value indicates
 // the message type: 0 = no message, 1 = reliable message, 2 = unreliable
 // message, 3 = control message.
-func (n *Network) GetMessage(sock *Socket) (int, []byte) {
+func (n *Network) Message(sock *Socket) (int, []byte) {
 	if sock.driver == DriverLoopback {
 		return GetMessageLoopback(sock, nil)
 	}
 	return DatagramGetMessage(sock)
 }
 
-// GetMessage polls a socket on the process-wide defaultNet.
-func GetMessage(sock *Socket) (int, []byte) {
-	return defaultNet.GetMessage(sock)
+// Message polls a socket on the process-wide defaultNet.
+func Message(sock *Socket) (int, []byte) {
+	return defaultNet.Message(sock)
 }
 
 // SendMessage sends a reliable message over the given socket.

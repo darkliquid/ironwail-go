@@ -467,15 +467,15 @@ func (fs *FileSystem) FileExists(filename string) bool {
 	return err == nil
 }
 
-// GetGameDir returns the name of the currently active mod directory (e.g.
+// GameDir returns the name of the currently active mod directory (e.g.
 // "hipnotic"), or "" if no mod is loaded (i.e. running base id1).
-func (fs *FileSystem) GetGameDir() string {
+func (fs *FileSystem) GameDir() string {
 	return fs.gameDir
 }
 
-// GetBaseDir returns the root installation path that contains id1/ and any
+// BaseDir returns the root installation path that contains id1/ and any
 // other game directories. All relative game paths are resolved against this.
-func (fs *FileSystem) GetBaseDir() string {
+func (fs *FileSystem) BaseDir() string {
 	return fs.baseDir
 }
 

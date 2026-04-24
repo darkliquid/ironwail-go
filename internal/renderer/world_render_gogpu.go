@@ -14,7 +14,7 @@ import (
 )
 
 func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
-	worldData := dc.renderer.GetWorldData()
+	worldData := dc.renderer.WorldData()
 	if worldData == nil || worldData.Geometry == nil {
 		slog.Debug("renderWorldInternal: no world data")
 		return
@@ -129,7 +129,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 
 	// Update uniform buffer with VP matrix
-	vpMatrix := dc.renderer.GetViewProjectionMatrix()
+	vpMatrix := dc.renderer.ViewProjectionMatrix()
 	camera := dc.renderer.cameraState
 	cameraOrigin, fogDensity, timeValue := gogpuWorldUniformInputs(state, camera)
 	currentLitWater := float32(0)

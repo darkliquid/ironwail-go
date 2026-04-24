@@ -383,7 +383,7 @@ func (reloadTestRenderer) SetExternalSkybox(string, func(string) ([]byte, error)
 func (reloadTestRenderer) UpdateCamera(renderer.CameraState, float32, float32)    {}
 func (reloadTestRenderer) UploadWorld(*bsp.Tree) error                            { return nil }
 func (reloadTestRenderer) HasWorldData() bool                                     { return false }
-func (reloadTestRenderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
+func (reloadTestRenderer) WorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	return [3]float32{}, [3]float32{}, false
 }
 func (reloadTestRenderer) SpawnDynamicLight(renderer.DynamicLight) bool      { return false }
@@ -508,8 +508,8 @@ func TestReloadRuntimeAfterGameDirChangeResetsSessionAndKeepsRenderer(t *testing
 	if g.ModDir != "hipnotic" {
 		t.Fatalf("mod dir = %q, want hipnotic", g.ModDir)
 	}
-	if g.Menu == nil || !g.Menu.IsActive() || g.Menu.GetState() != menu.MenuMain {
-		t.Fatalf("menu state = active:%v state:%v, want active main menu", g.Menu != nil && g.Menu.IsActive(), g.Menu.GetState())
+	if g.Menu == nil || !g.Menu.IsActive() || g.Menu.State() != menu.MenuMain {
+		t.Fatalf("menu state = active:%v state:%v, want active main menu", g.Menu != nil && g.Menu.IsActive(), g.Menu.State())
 	}
 	if g.AliasModelCache != nil {
 		t.Fatalf("alias model cache should reset, got %#v", g.AliasModelCache)

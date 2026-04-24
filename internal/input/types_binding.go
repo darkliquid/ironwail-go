@@ -132,9 +132,9 @@ func (s *System) SetBinding(key int, binding string) {
 	}
 }
 
-// GetBinding returns the console command string bound to the given key code,
+// Binding returns the console command string bound to the given key code,
 // or "" if the key has no binding.
-func (s *System) GetBinding(key int) string {
+func (s *System) Binding(key int) string {
 	if key >= 0 && key < NumKeycode {
 		return s.bindings[key]
 	}
@@ -245,15 +245,15 @@ func (s *System) HandleCharEvent(char rune) {
 	}
 }
 
-// GetModifierState returns the current modifier-key state by querying the
+// ModifierState returns the current modifier-key state by querying the
 // backend's platform-level modifier bitmask (e.g. SDL_GetModState). This is
 // more reliable than tracking individual KShift/KCtrl/KAlt press events
 // because it handles focus-loss edge cases.
-func (s *System) GetModifierState() ModifierState {
+func (s *System) ModifierState() ModifierState {
 	if s.backend == nil {
 		return ModifierState{}
 	}
-	return s.backend.GetModifierState()
+	return s.backend.ModifierState()
 }
 
 // SetCursorMode delegates cursor visibility/grab mode to the backend. During
@@ -274,15 +274,15 @@ func (s *System) ShowKeyboard(show bool) {
 	}
 }
 
-// GetGamepadState returns the fully processed state of the gamepad at the
+// GamepadState returns the fully processed state of the gamepad at the
 // given player index. Analog values have deadzone and response-curve
 // processing already applied. Returns a zero-value GamepadState if no
 // backend is set or no gamepad is connected at that index.
-func (s *System) GetGamepadState(player int) GamepadState {
+func (s *System) GamepadState(player int) GamepadState {
 	if s.backend == nil {
 		return GamepadState{}
 	}
-	return s.backend.GetGamepadState(player)
+	return s.backend.GamepadState(player)
 }
 
 // IsGamepadConnected returns true if a gamepad is present at the given player

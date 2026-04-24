@@ -22,7 +22,7 @@ func (h *Host) findViewthing(subs *Subsystems) *server.Edict {
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		if srv.GetString(ent.Vars.ClassName) == "viewthing" {
+		if srv.String(ent.Vars.ClassName) == "viewthing" {
 			return ent
 		}
 	}
@@ -187,7 +187,7 @@ func (h *Host) CmdPrEnts(subs *Subsystems) {
 		if ent == nil || ent.Free {
 			continue
 		}
-		className := srv.GetString(ent.Vars.ClassName)
+		className := srv.String(ent.Vars.ClassName)
 		subs.Console.Print(fmt.Sprintf("%d: %s\n", i, className))
 	}
 }

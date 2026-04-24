@@ -552,7 +552,7 @@ func (vm *VM) ProfileResults(top int) []ProfileResult {
 	results := make([]ProfileResult, top)
 	for i := 0; i < top; i++ {
 		results[i] = ProfileResult{
-			Name:    vm.GetString(vm.Functions[entries[i].idx].Name),
+			Name:    vm.String(vm.Functions[entries[i].idx].Name),
 			Profile: entries[i].profile,
 		}
 	}

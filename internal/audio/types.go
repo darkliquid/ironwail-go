@@ -406,9 +406,9 @@ type Backend interface {
 	// Playback callbacks may resume reading the DMA buffer after this returns.
 	Unlock()
 
-	// GetPosition reports the current hardware play cursor in sample units.
+	// Position reports the current hardware play cursor in sample units.
 	// System uses this to keep soundTime monotonic and avoid over/under-mixing.
-	GetPosition() int
+	Position() int
 
 	// Block pauses/suspends output without tearing down backend state.
 	// Used when the app is backgrounded or explicitly mutes runtime audio.

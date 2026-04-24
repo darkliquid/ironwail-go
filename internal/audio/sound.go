@@ -398,7 +398,7 @@ func (s *System) updateSoundTime() {
 	}
 
 	// Get the raw DMA position (wraps at dma.Samples)
-	samplePos := s.backend.GetPosition()
+	samplePos := s.backend.Position()
 	fullSamples := s.dma.Samples
 
 	// Detect buffer wrap-around: if position went backwards, the buffer wrapped

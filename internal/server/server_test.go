@@ -158,10 +158,10 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 		t.Fatalf("spawn server: %v", err)
 	}
 
-	if got := s.GetString(s.Edicts[0].Vars.ClassName); got != "worldspawn" {
+	if got := s.String(s.Edicts[0].Vars.ClassName); got != "worldspawn" {
 		t.Fatalf("world classname = %q, want %q", got, "worldspawn")
 	}
-	if got := s.GetString(s.Edicts[0].Vars.Message); got == "" {
+	if got := s.String(s.Edicts[0].Vars.Message); got == "" {
 		t.Fatal("world message was not loaded into QC strings")
 	}
 	if got := s.QCVM.GString(qc.OFSMapName); got != "start" {
@@ -178,13 +178,13 @@ func TestSpawnServerLoadsMapEntitiesIntoQCVM(t *testing.T) {
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		className := s.GetString(ent.Vars.ClassName)
+		className := s.String(ent.Vars.ClassName)
 		if className == "info_player_start" {
 			foundStart = true
 		}
 		if className == "trigger_changelevel" {
 			foundChangeLevel = true
-			if got := s.GetString(ent.Vars.Map); got == "" {
+			if got := s.String(ent.Vars.Map); got == "" {
 				t.Fatalf("trigger_changelevel %d missing map key after entity parse", entNum)
 			}
 		}
@@ -234,7 +234,7 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		className := s.GetString(ent.Vars.ClassName)
+		className := s.String(ent.Vars.ClassName)
 		if len(className) < len("monster_") || className[:len("monster_")] != "monster_" {
 			continue
 		}
@@ -245,7 +245,7 @@ func TestSpawnServerE2M2MonstersDoNotStartInSolid(t *testing.T) {
 		if blocker := s.TestEntityPosition(ent); blocker != nil {
 			blockerClass := ""
 			if blocker.Vars != nil {
-				blockerClass = s.GetString(blocker.Vars.ClassName)
+				blockerClass = s.String(blocker.Vars.ClassName)
 			}
 			t.Fatalf("monster %d (%s) spawned in solid at %v blocker=%d (%s)", entNum, className, ent.Vars.Origin, s.NumForEdict(blocker), blockerClass)
 		}
@@ -311,9 +311,9 @@ func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 	client.Message.PutByte(byte(inet.SVCStuffText))
 	client.Message.WriteString("bf\n")
 
-	data := s.GetClientLoopbackMessage(0)
+	data := s.ClientLoopbackMessage(0)
 	if len(data) == 0 {
-		t.Fatal("GetClientLoopbackMessage returned no data")
+		t.Fatal("ClientLoopbackMessage returned no data")
 	}
 	if data[len(data)-1] != 0xff {
 		t.Fatalf("terminator = 0x%02x, want 0xff", data[len(data)-1])
@@ -325,9 +325,9 @@ func TestGetClientLoopbackMessageIncludesReliableBuffer(t *testing.T) {
 		t.Fatalf("client reliable buffer len = %d, want 0", client.Message.Len())
 	}
 
-	data = s.GetClientLoopbackMessage(0)
+	data = s.ClientLoopbackMessage(0)
 	if len(data) != 0 {
-		t.Fatalf("second GetClientLoopbackMessage len = %d, want 0", len(data))
+		t.Fatalf("second ClientLoopbackMessage len = %d, want 0", len(data))
 	}
 }
 
@@ -348,7 +348,7 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 	parserClient := cl.NewClient()
 	parser := cl.NewParser(parserClient)
 
-	initial := s.GetClientLoopbackMessage(0)
+	initial := s.ClientLoopbackMessage(0)
 	if err := parser.ParseServerMessage(initial); err != nil {
 		t.Fatalf("parse initial loopback message: %v", err)
 	}
@@ -359,7 +359,7 @@ func TestLoopbackClientDatagramPreservesEntityDeltaAfterServerSendPhase(t *testi
 	serverClient.Edict.Vars.Origin = [3]float32{104, 208, 296}
 	s.SendClientMessages()
 
-	delta := s.GetClientLoopbackMessage(0)
+	delta := s.ClientLoopbackMessage(0)
 	if err := parser.ParseServerMessage(delta); err != nil {
 		t.Fatalf("parse loopback delta message: %v", err)
 	}
@@ -386,9 +386,9 @@ func TestKickClientLeavesFinalLoopbackMessageAvailable(t *testing.T) {
 		t.Fatal("KickClient returned false, want true")
 	}
 
-	data := s.GetClientLoopbackMessage(0)
+	data := s.ClientLoopbackMessage(0)
 	if len(data) == 0 {
-		t.Fatal("GetClientLoopbackMessage returned no data after kick")
+		t.Fatal("ClientLoopbackMessage returned no data after kick")
 	}
 	if data[len(data)-1] != 0xff {
 		t.Fatalf("terminator = 0x%02x, want 0xff", data[len(data)-1])
@@ -397,9 +397,9 @@ func TestKickClientLeavesFinalLoopbackMessageAvailable(t *testing.T) {
 		t.Fatalf("kick datagram = %q, want kick message", string(data))
 	}
 
-	data = s.GetClientLoopbackMessage(0)
+	data = s.ClientLoopbackMessage(0)
 	if len(data) != 0 {
-		t.Fatalf("second GetClientLoopbackMessage len = %d, want 0", len(data))
+		t.Fatalf("second ClientLoopbackMessage len = %d, want 0", len(data))
 	}
 }
 
@@ -415,9 +415,9 @@ func TestConnectClientClearsStaleReliableBuffer(t *testing.T) {
 
 	s.ConnectClient(0)
 
-	data := s.GetClientLoopbackMessage(0)
+	data := s.ClientLoopbackMessage(0)
 	if len(data) == 0 {
-		t.Fatal("GetClientLoopbackMessage returned no serverinfo")
+		t.Fatal("ClientLoopbackMessage returned no serverinfo")
 	}
 	if bytes.Contains(data, []byte("stale before reconnect\n")) {
 		t.Fatalf("serverinfo datagram still contains stale message: %q", string(data))
@@ -500,7 +500,7 @@ func TestSubmitLoopbackStringCommandSpawnRunsQCPlayerSpawn(t *testing.T) {
 	if client.Spawned {
 		t.Fatal("client marked spawned before begin")
 	}
-	if got := s.GetString(client.Edict.Vars.ClassName); got != "player" {
+	if got := s.String(client.Edict.Vars.ClassName); got != "player" {
 		t.Fatalf("player classname = %q, want %q", got, "player")
 	}
 	if client.Edict.Vars.Health <= 0 {

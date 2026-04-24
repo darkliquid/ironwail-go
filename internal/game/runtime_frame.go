@@ -97,7 +97,7 @@ func (g *Game) installRuntimeRendererCallbacks(cb gameCallbacks, state *runtimeR
 			g.updateRuntimeTextEditRepeat(dt)
 		}
 
-		consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
+		consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 		g.updateRuntimeConsoleSlide(dt, consoleVisible, g.runtimeConsoleForcedUp())
 
 		transientEvents := g.RunRuntimeFrame(dt, cb)
@@ -192,7 +192,7 @@ func (g *Game) drawRuntimeRendererFrame(dc renderer.RenderContext) {
 
 func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 	w, h := g.Renderer.Size()
-	consoleVisible := g.Input != nil && g.Input.GetKeyDest() == input.KeyConsole
+	consoleVisible := g.Input != nil && g.Input.KeyDest() == input.KeyConsole
 	if setter, ok := overlay.(CanvasParamSetter); ok {
 		setter.SetCanvasParams(g.runtimeOverlayCanvasParams(w, h))
 	}
@@ -243,7 +243,7 @@ func (g *Game) drawRuntimeOverlayFrame(overlay renderer.RenderContext) {
 			g.drawRuntimeConsole(overlay, w, h, false, false)
 		}
 
-		if g.Input != nil && g.Input.GetKeyDest() == input.KeyMessage && !g.runtimeConsoleAnimating() {
+		if g.Input != nil && g.Input.KeyDest() == input.KeyMessage && !g.runtimeConsoleAnimating() {
 			g.drawChatInput(overlay, w, h)
 		}
 	}

@@ -304,7 +304,7 @@ func (b *InputBackend) hasCallbackSeen() bool {
 	return b.callbackSeen
 }
 
-func (b *InputBackend) GetMouseDelta() (dx, dy int32) {
+func (b *InputBackend) MouseDelta() (dx, dy int32) {
 	b.mu.Lock()
 	dx, dy = b.accumMouseDX, b.accumMouseDY
 	b.accumMouseDX = 0
@@ -313,13 +313,13 @@ func (b *InputBackend) GetMouseDelta() (dx, dy int32) {
 	return dx, dy
 }
 
-func (b *InputBackend) GetMousePosition() (x, y int32, valid bool) {
+func (b *InputBackend) MousePosition() (x, y int32, valid bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return int32(b.lastMouseX), int32(b.lastMouseY), b.hasMousePos
 }
 
-func (b *InputBackend) GetModifierState() iinput.ModifierState {
+func (b *InputBackend) ModifierState() iinput.ModifierState {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.modifiers
@@ -376,7 +376,7 @@ func (b *InputBackend) SetCursorMode(mode iinput.CursorMode) {
 
 func (b *InputBackend) ShowKeyboard(show bool) {}
 
-func (b *InputBackend) GetGamepadState(player int) iinput.GamepadState {
+func (b *InputBackend) GamepadState(player int) iinput.GamepadState {
 	return iinput.GamepadState{}
 }
 

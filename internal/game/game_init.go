@@ -566,7 +566,7 @@ func (g *Game) reloadRuntimeDrawAssets(fileSys *fs.FileSystem) {
 	}
 
 	if g.Renderer != nil {
-		g.QueueRendererAssets(g.Draw.Palette(), g.Draw.GetConcharsData())
+		g.QueueRendererAssets(g.Draw.Palette(), g.Draw.ConcharsData())
 	}
 }
 
@@ -608,7 +608,7 @@ func (g *Game) reloadRuntimeAfterGameDirChange(subs *host.Subsystems, changed *f
 		g.CSQC.Unload()
 	}
 
-	modDir := strings.ToLower(strings.TrimSpace(changed.GetGameDir()))
+	modDir := strings.ToLower(strings.TrimSpace(changed.GameDir()))
 	if modDir == "" {
 		modDir = "id1"
 	}
@@ -831,7 +831,7 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 			if pal := g.Draw.Palette(); len(pal) >= 768 {
 				g.Renderer.SetPalette(pal)
 			}
-			if conchars := g.Draw.GetConcharsData(); len(conchars) >= 128*128 {
+			if conchars := g.Draw.ConcharsData(); len(conchars) >= 128*128 {
 				g.Renderer.SetConchars(conchars)
 			}
 		}

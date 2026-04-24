@@ -17,17 +17,17 @@ import (
 // drainClientMessages consumes all pending loopback messages for the given
 // client slot. Before the client is spawned (during signon handshake) this
 // loops until the message queue is empty. After spawning, each call to
-// GetClientLoopbackMessage would generate a fresh per-frame datagram, so we
+// ClientLoopbackMessage would generate a fresh per-frame datagram, so we
 // call it exactly once to avoid an infinite loop.
 func drainClientMessages(s *Server, clientNum int) {
 	if clientNum < 0 || clientNum >= len(s.Static.Clients) || s.Static.Clients[clientNum] == nil {
 		return
 	}
 	if s.Static.Clients[clientNum].Spawned {
-		s.GetClientLoopbackMessage(clientNum)
+		s.ClientLoopbackMessage(clientNum)
 		return
 	}
-	for s.GetClientLoopbackMessage(clientNum) != nil {
+	for s.ClientLoopbackMessage(clientNum) != nil {
 	}
 }
 

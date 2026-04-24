@@ -331,7 +331,7 @@ func (m *Manager) clearControlBinding(index int) {
 		return
 	}
 	for key := 0; key < input.NumKeycode; key++ {
-		if strings.TrimSpace(m.inputSystem.GetBinding(key)) == command {
+		if strings.TrimSpace(m.inputSystem.Binding(key)) == command {
 			m.inputSystem.SetBinding(key, "")
 		}
 	}
@@ -345,7 +345,7 @@ func (m *Manager) keysForBinding(command string) []string {
 	}
 	keys := make([]string, 0, 2)
 	for key := 0; key < input.NumKeycode; key++ {
-		if strings.TrimSpace(m.inputSystem.GetBinding(key)) != command {
+		if strings.TrimSpace(m.inputSystem.Binding(key)) != command {
 			continue
 		}
 		name := input.KeyToString(key)

@@ -29,7 +29,7 @@ type RendererWorld interface {
 	UpdateCamera(renderer.CameraState, float32, float32)
 	UploadWorld(*bsp.Tree) error
 	HasWorldData() bool
-	GetWorldBounds() (min [3]float32, max [3]float32, ok bool)
+	WorldBounds() (min [3]float32, max [3]float32, ok bool)
 }
 
 // RendererLights defines dynamic light methods.

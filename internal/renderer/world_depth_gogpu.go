@@ -357,15 +357,15 @@ func (r *Renderer) ClearWorld() {
 	}
 }
 
-// GetWorldData returns the current world render data (for debugging).
-func (r *Renderer) GetWorldData() *WorldRenderData {
+// WorldData returns the current world render data (for debugging).
+func (r *Renderer) WorldData() *WorldRenderData {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.worldData
 }
 
-// GetWorldBounds returns uploaded world geometry bounds when available.
-func (r *Renderer) GetWorldBounds() (min [3]float32, max [3]float32, ok bool) {
+// WorldBounds returns uploaded world geometry bounds when available.
+func (r *Renderer) WorldBounds() (min [3]float32, max [3]float32, ok bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

@@ -28,7 +28,7 @@ type autosaveTestServer struct {
 	edict      *server.Edict
 }
 
-func (s *autosaveTestServer) GetMaxClients() int {
+func (s *autosaveTestServer) MaxClients() int {
 	return s.maxClients
 }
 

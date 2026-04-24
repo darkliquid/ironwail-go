@@ -471,7 +471,7 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 	if player == nil || player.Vars == nil {
 		t.Fatal("client missing spawned edict")
 	}
-	if got := s.GetString(player.Vars.ClassName); got != "player" {
+	if got := s.String(player.Vars.ClassName); got != "player" {
 		t.Fatalf("spawned player classname = %q, want %q", got, "player")
 	}
 
@@ -482,11 +482,11 @@ func TestStartTriggerChangelevelQueuesLevelChange(t *testing.T) {
 		if ent == nil || ent.Free || ent.Vars == nil {
 			continue
 		}
-		if s.GetString(ent.Vars.ClassName) != "trigger_changelevel" {
+		if s.String(ent.Vars.ClassName) != "trigger_changelevel" {
 			continue
 		}
 		trigger = ent
-		wantLevel = s.GetString(ent.Vars.Map)
+		wantLevel = s.String(ent.Vars.Map)
 		break
 	}
 	if trigger == nil {

@@ -3,7 +3,7 @@ package host
 import inet "github.com/darkliquid/ironwail-go/internal/net"
 
 func (h *Host) updateServerBrowserNetworking(subs *Subsystems) {
-	if !h.serverActive || subs == nil || subs.Server == nil || subs.Server.GetMaxClients() <= 1 {
+	if !h.serverActive || subs == nil || subs.Server == nil || subs.Server.MaxClients() <= 1 {
 		h.Net.SetServerInfoProvider(nil)
 		_ = h.Net.Listen(false)
 		return
@@ -26,11 +26,11 @@ func (h *Host) makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider
 	return &inet.ServerInfoProvider{
 		Hostname: h.currentServerHostname,
 		MapName: func() string {
-			return subs.Server.GetMapName()
+			return subs.Server.MapName()
 		},
 		Players: func() int {
 			active := 0
-			maxClients := subs.Server.GetMaxClients()
+			maxClients := subs.Server.MaxClients()
 			for i := 0; i < maxClients; i++ {
 				if subs.Server.IsClientActive(i) {
 					active++
@@ -39,17 +39,17 @@ func (h *Host) makeServerInfoProvider(subs *Subsystems) *inet.ServerInfoProvider
 			return active
 		},
 		MaxPlayers: func() int {
-			return subs.Server.GetMaxClients()
+			return subs.Server.MaxClients()
 		},
 		PlayerInfo: func(index int) (name string, topColor, bottomColor byte, frags int32, ping float32, ok bool) {
-			if index < 0 || index >= subs.Server.GetMaxClients() || !subs.Server.IsClientActive(index) {
+			if index < 0 || index >= subs.Server.MaxClients() || !subs.Server.IsClientActive(index) {
 				return "", 0, 0, 0, 0, false
 			}
-			color := subs.Server.GetClientColor(index)
+			color := subs.Server.ClientColor(index)
 			if edict := subs.Server.EdictNum(index + 1); edict != nil && edict.Vars != nil {
 				frags = int32(edict.Vars.Frags)
 			}
-			return subs.Server.GetClientName(index), byte((color >> 4) & 0x0f), byte(color & 0x0f), frags, subs.Server.GetClientPing(index), true
+			return subs.Server.ClientName(index), byte((color >> 4) & 0x0f), byte(color & 0x0f), frags, subs.Server.ClientPing(index), true
 		},
 	}
 }
