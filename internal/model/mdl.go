@@ -235,14 +235,6 @@ func LoadMDL(r io.ReadSeeker) (*AliasHeader, error) {
 				return nil, fmt.Errorf("failed to skip pose verts: %w", err)
 			}
 
-			name := string(frame.Name[:])
-			for i, c := range name {
-				if c == 0 {
-					name = name[:i]
-					break
-				}
-			}
-
 			frames = append(frames, AliasFrameDesc{
 				FirstPose: poseCount,
 				NumPoses:  1,

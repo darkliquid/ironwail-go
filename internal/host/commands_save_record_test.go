@@ -21,9 +21,9 @@ func TestCmdSaveArgsPrintsUsageWithoutName(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -43,9 +43,9 @@ func TestCmdLoadArgsPrintsUsageWithoutName(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)

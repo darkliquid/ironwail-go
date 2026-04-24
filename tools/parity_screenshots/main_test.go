@@ -355,7 +355,7 @@ func TestGenReferenceCfgClosesConsoleBeforeScreenshot(t *testing.T) {
 	if toggleIdx == -1 || setposIdx == -1 || freezeIdx == -1 || shotIdx == -1 {
 		t.Fatalf("cfg missing expected command ordering markers:\n%s", text)
 	}
-	if !(toggleIdx < freezeIdx && freezeIdx < setposIdx && setposIdx < shotIdx) {
+	if toggleIdx >= freezeIdx || freezeIdx >= setposIdx || setposIdx >= shotIdx {
 		t.Fatalf("expected toggleconsole -> host_framerate -> setpos -> screenshot ordering:\n%s", text)
 	}
 	if waits := countWaitLines(text[:toggleIdx]); waits < 40 {

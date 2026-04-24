@@ -127,7 +127,7 @@ func (s *Server) RestoreTextSaveGameState(state *TextSaveGameState) error {
 			break
 		}
 		if common.ComToken != "{" {
-			return fmt.Errorf("First token isn't a brace")
+			return fmt.Errorf("first token isn't a brace")
 		}
 		blockData := "{" + data
 

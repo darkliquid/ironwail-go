@@ -65,7 +65,7 @@ func BackpackTouch() {
 		if acount != 0 {
 			engine.SPrint(Other, ", ")
 		}
-		acount = 1
+		acount = 1 //nolint:ineffassign // faithful to items.qc: preserves symmetry with sibling ammo branches
 		engine.SPrint(Other, quake.Sprintf("$qc_backpack_cells %s", engine.Ftos(Self.AmmoCells)))
 	}
 	engine.SPrint(Other, "\n")

@@ -15,6 +15,7 @@
 !/mise.toml
 !/go.mod
 !/go.sum
+!/.golangci.yml
 
 # Keep this file
 !.gitignore

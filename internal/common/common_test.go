@@ -78,7 +78,7 @@ func TestCOM_Parse(t *testing.T) {
 		t.Errorf("Expected ', got %s", ComToken)
 	}
 
-	data = COM_Parse(data)
+	_ = COM_Parse(data)
 	if ComToken != ":" {
 		t.Errorf("Expected :, got %s", ComToken)
 	}
@@ -141,7 +141,7 @@ func TestParseNewline(t *testing.T) {
 	if valFloat != 45.6 {
 		t.Errorf("Expected 45.6, got %f", valFloat)
 	}
-	data = COM_ParseStringNewline(data)
+	COM_ParseStringNewline(data)
 	if ComToken != "token" {
 		t.Errorf("Expected token, got %s", ComToken)
 	}

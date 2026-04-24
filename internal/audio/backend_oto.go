@@ -101,7 +101,8 @@ func (b *OtoBackend) Shutdown() {
 	b.wg.Wait()
 
 	if b.player != nil {
-		_ = b.player.Close()
+		// oto v3.4+: Close is a no-op and deprecated; the player is cleaned up
+		// when its owning context goes out of scope.
 		b.player = nil
 	}
 	if b.pipeW != nil {

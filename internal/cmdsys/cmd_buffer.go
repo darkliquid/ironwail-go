@@ -420,7 +420,7 @@ func parseCommand(line string) []string {
 			goto done
 		case ch == '/' && !inQuote && i+1 < len(line) && line[i+1] == '*':
 			i += 2
-			for i+1 < len(line) && !(line[i] == '*' && line[i+1] == '/') {
+			for i+1 < len(line) && (line[i] != '*' || line[i+1] != '/') {
 				i++
 			}
 			if i+1 >= len(line) {

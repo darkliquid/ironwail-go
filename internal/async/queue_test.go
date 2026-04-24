@@ -28,8 +28,11 @@ func TestQueuePushDrainFIFO(t *testing.T) {
 
 func TestQueueTryPushRespectsCapacity(t *testing.T) {
 	q := NewQueue(2)
-	if !q.TryPush(func() {}) || !q.TryPush(func() {}) {
-		t.Fatal("first two trypush should succeed")
+	if !q.TryPush(func() {}) {
+		t.Fatal("first trypush should succeed")
+	}
+	if !q.TryPush(func() {}) {
+		t.Fatal("second trypush should succeed")
 	}
 	if q.TryPush(func() {}) {
 		t.Fatal("third trypush should fail on full queue")

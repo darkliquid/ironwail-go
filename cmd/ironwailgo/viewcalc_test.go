@@ -312,7 +312,7 @@ func TestViewDamageKick_DecaysToZero(t *testing.T) {
 	state := viewCalcState{dmgTime: 0.5, dmgRoll: 10, dmgPitch: 5}
 	angles := [3]float32{0, 0, 0}
 	// Apply damage kick with a large time delta to decay completely.
-	angles = viewApplyDamageKick(&state, angles, 1.0)
+	_ = viewApplyDamageKick(&state, angles, 1.0)
 	if state.dmgTime != 0 {
 		t.Errorf("expected dmgTime to decay to 0, got %v", state.dmgTime)
 	}

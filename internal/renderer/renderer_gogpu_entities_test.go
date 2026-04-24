@@ -29,7 +29,7 @@ func TestProjectWorldPointToScreenRejectsOutOfClip(t *testing.T) {
 }
 
 func TestProjectWorldPointToScreenRejectsNonPositiveW(t *testing.T) {
-	var vp types.Mat4 = types.IdentityMatrix()
+	var vp = types.IdentityMatrix()
 	vp[3] = 0
 	vp[7] = 0
 	vp[11] = -1

@@ -275,7 +275,7 @@ func buildKEXTextSave(f kexTextSaveFixture) string {
 func writeTextSaveEntity(b *strings.Builder, fields map[string]string) {
 	b.WriteString("{\n")
 	for key, value := range fields {
-		b.WriteString(fmt.Sprintf("\"%s\" \"%s\"\n", key, value))
+		fmt.Fprintf(b, "\"%s\" \"%s\"\n", key, value)
 	}
 	b.WriteString("}\n")
 }
@@ -435,9 +435,9 @@ func TestAliasCommandsDefineAndRemoveAliases(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -480,9 +480,9 @@ func TestAliasCommandSupportsQuotedSemicolonBodies(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -507,16 +507,16 @@ func TestAliasCommandSupportsQuotedSemicolonBodies(t *testing.T) {
 func TestRegisterCommandsRefreshesExistingBindings(t *testing.T) {
 	h1 := NewHost()
 	subs1 := &mockSubsystems{server: &mockServer{}, client: &mockClient{}, console: &mockConsole{}}
-	subs1.Subsystems.Server = subs1.server
-	subs1.Subsystems.Client = subs1.client
-	subs1.Subsystems.Console = subs1.console
+	subs1.Server = subs1.server
+	subs1.Client = subs1.client
+	subs1.Console = subs1.console
 	h1.RegisterCommands(&subs1.Subsystems)
 
 	h2 := NewHost()
 	subs2 := &mockSubsystems{server: &mockServer{}, client: &mockClient{}, console: &mockConsole{}}
-	subs2.Subsystems.Server = subs2.server
-	subs2.Subsystems.Client = subs2.client
-	subs2.Subsystems.Console = subs2.console
+	subs2.Server = subs2.server
+	subs2.Client = subs2.client
+	subs2.Console = subs2.console
 	h2.RegisterCommands(&subs2.Subsystems)
 
 	h2.Cmd.ExecuteText("quit")

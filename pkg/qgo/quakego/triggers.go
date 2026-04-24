@@ -350,6 +350,7 @@ func teleport_touch() {
 
 	if t == nil {
 		engine.ObjError("couldn't find target")
+		return
 	}
 
 	engine.MakeVectors(t.Mangle)

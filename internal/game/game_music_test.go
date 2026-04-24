@@ -101,8 +101,7 @@ func TestSyncRuntimeMusicLoadsTrackOnceAndStops(t *testing.T) {
 		g.MusicTrackKey = originalKey
 	})
 
-	sys := &audio.System{}
-	sys = audio.NewSystem()
+	sys := audio.NewSystem()
 	if err := sys.Init(audio.NewNullBackend(), 44100, false); err != nil {
 		t.Fatalf("audio.Init failed: %v", err)
 	}

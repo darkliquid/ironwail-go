@@ -142,9 +142,9 @@ func TestCmdChangelevel(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -161,9 +161,9 @@ func TestCmdRestart(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -178,9 +178,9 @@ func TestCmdRestartPromptAutoloadShowsConfirmationMenu(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -216,9 +216,9 @@ func TestCmdRestartPromptAutoloadConfirmLoadsLastSave(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -255,9 +255,9 @@ func TestCmdRestartPromptAutoloadDeclineClearsLastSave(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", UserDir: t.TempDir()}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -292,9 +292,9 @@ func TestCmdKill(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -312,9 +312,9 @@ func TestCmdGod(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -329,9 +329,9 @@ func TestCmdNoClip(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -346,9 +346,9 @@ func TestCmdNotarget(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -363,9 +363,9 @@ func TestCmdGive(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -381,9 +381,9 @@ func TestCmdName(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = srv
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = srv
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	oldName := h.CVar.StringValue(clientNameCVar)
@@ -439,9 +439,9 @@ func TestCmdServerInfoIncludesHostname(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	oldHostname := h.CVar.StringValue(serverHostnameCVar)
@@ -465,9 +465,9 @@ func TestCmdPing(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 
@@ -511,7 +511,7 @@ func TestCmdTest2PrintsQueriedRules(t *testing.T) {
 	subs := &mockSubsystems{
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Console = subs.console
+	subs.Console = subs.console
 
 	h.CmdTest2(serverConn.LocalAddr().String(), &subs.Subsystems)
 
@@ -553,7 +553,7 @@ func TestCmdPlayersPrintsQueriedPlayers(t *testing.T) {
 	subs := &mockSubsystems{
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Console = subs.console
+	subs.Console = subs.console
 
 	h.CmdPlayers(serverConn.LocalAddr().String(), &subs.Subsystems)
 
@@ -578,7 +578,7 @@ func TestCmdNetStatsPrintsGlobalDatagramCounters(t *testing.T) {
 	subs := &mockSubsystems{
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Console = subs.console
+	subs.Console = subs.console
 
 	h.CmdNetStats(&subs.Subsystems)
 

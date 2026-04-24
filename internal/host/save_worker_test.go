@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 // TestWriteSaveInBackgroundPersists verifies the async save worker
@@ -78,9 +77,8 @@ func TestWaitForSaveThreadDrainsConcurrent(t *testing.T) {
 	})
 	dir := t.TempDir()
 	for i := 0; i < 16; i++ {
-		path := filepath.Join(dir, "saves", filepath.FromSlash(time.Now().Format("")+"_slot.sav"))
 		// Unique path per iteration to avoid clobbering.
-		path = filepath.Join(dir, "saves")
+		path := filepath.Join(dir, "saves")
 		_ = os.MkdirAll(path, 0o755)
 		path = filepath.Join(path, "slotX.sav")
 		h.writeSaveInBackground("slotX", path, "slotX", []byte("payload"), nil, true)

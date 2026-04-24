@@ -46,7 +46,7 @@ func generateDecalAtlasData() []byte {
 				pattern = 0.35 + 0.65*swirl
 			}
 
-			alpha := float32(1.0)
+			var alpha float32
 			if d2 > 1.0 {
 				alpha = 0
 			} else {

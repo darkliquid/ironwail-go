@@ -254,7 +254,7 @@ func createSyntheticPlatformWorldModel() *model.Model {
 func TestMoveStepRejectsUnsupportedStepOffPlatform(t *testing.T) {
 	s := NewServer()
 	s.WorldModel = createSyntheticPlatformWorldModel()
-	if s.Edicts != nil && len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
+	if len(s.Edicts) > 0 && s.Edicts[0] != nil && s.Edicts[0].Vars != nil {
 		s.Edicts[0].Vars.Solid = float32(SolidBSP)
 	}
 	s.ClearWorld()

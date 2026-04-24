@@ -570,7 +570,11 @@ func (s *Server) SV_CheckAllEnts() {
 		}
 
 		if s.TestEntityPosition(ent) != nil {
-			// entity in invalid position
+			// Mirrors SV_CheckAllEnts in the C reference: the original
+			// emits a Con_Printf warning; we surface it through slog.
+			slog.Debug("sv_checkallents: entity in invalid position",
+				"index", i,
+				"classname", ent.Vars.ClassName)
 		}
 	}
 }

@@ -117,7 +117,7 @@ func SetupAliasFrame(e *AliasEntity, hdr *AliasHeader, timeSeconds float64, lerp
 		}
 	}
 
-	shouldLerp := lerpModels && !(hdr.Flags&ModNoLerp != 0)
+	shouldLerp := lerpModels && hdr.Flags&ModNoLerp == 0
 	if shouldLerp {
 		s := 1.0
 		if demoPlayback && demoSpeed < 0 {

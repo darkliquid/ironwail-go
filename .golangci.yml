@@ -1,0 +1,40 @@
+version: "2"
+
+# Notes on exclusions:
+#
+# pkg/qgo/quakego is a faithful port of the original QuakeC progs.src source.
+# The individual monster/trigger/item entry points (spawn_*, monster_*, and
+# the hundreds of think-chain functions) are designed to be dispatched by
+# name at runtime through the QC classname and Self.Think function-pointer
+# table. The dispatch table itself is not yet implemented in this repo, so
+# every one of those entry points currently looks "unused" to the static
+# analyzer. Rather than scattering thousands of //nolint:unused directives
+# through what is essentially generated-style port code, we mute the unused
+# linter for that package. Once a runtime dispatch mechanism lands, this
+# exclusion should be reconsidered.
+#
+# SA4017 (pure function return ignored) is also muted for the same package
+# because the Precache* builtins in pkg/qgo/quake/engine/builtins.go are
+# declared as identity-function stubs that are replaced by the engine
+# backend at runtime; their `return s` is a faithful artefact of the QC
+# builtin signatures, not dead code.
+#
+# QF1003 (could use tagged switch) and S1021 (should merge var decl with
+# assignment on next line) are also muted for pkg/qgo/quakego/ because the
+# if/else-if chains and split `local float X; X = ...` patterns mirror the
+# original QuakeC control flow verbatim. Rewriting them as Go-idiomatic
+# tagged switches or combined declarations would drift the port away from
+# progs.src and make future mechanical resync harder.
+
+linters:
+  exclusions:
+    rules:
+      - path: pkg/qgo/quakego/
+        linters:
+          - unused
+      - path: pkg/qgo/quakego/
+        text: "SA4017"
+      - path: pkg/qgo/quakego/
+        text: "QF1003"
+      - path: pkg/qgo/quakego/
+        text: "S1021"

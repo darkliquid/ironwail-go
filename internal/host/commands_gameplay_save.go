@@ -135,7 +135,7 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	srv.LoadGame = true
 	defer func() { srv.LoadGame = false }()
 	if err := subs.Server.SpawnServer(save.mapName(), fsInstance); err != nil {
-		return fmt.Errorf("Couldn't load map")
+		return fmt.Errorf("Couldn't load map") //nolint:staticcheck // preserves original engine console message
 	}
 	if err := h.startLocalServerSession(subs, func() error {
 		if save.native != nil {
@@ -344,7 +344,7 @@ func normalizeSaveName(name string) (string, error) {
 		return "", fmt.Errorf("save name is required")
 	}
 	if strings.Contains(name, "..") {
-		return "", fmt.Errorf("Relative pathnames are not allowed.")
+		return "", fmt.Errorf("Relative pathnames are not allowed.") //nolint:staticcheck // preserves original engine console message
 	}
 	clean := strings.TrimPrefix(path.Clean(name), "./")
 	if clean == "." || clean == "" || strings.HasPrefix(clean, "/") {
@@ -457,11 +457,11 @@ func (h *Host) readSaveFile(name string, options loadSaveOptions) (string, []byt
 			return path, data, nil
 		}
 		if !os.IsNotExist(err) {
-			return "", nil, fmt.Errorf("ERROR: couldn't open.")
+			return "", nil, fmt.Errorf("ERROR: couldn't open.") //nolint:staticcheck // preserves original engine console message
 		}
 	}
 
-	return "", nil, fmt.Errorf("ERROR: %s not found.", displayName)
+	return "", nil, fmt.Errorf("ERROR: %s not found.", displayName) //nolint:staticcheck // preserves original engine console message
 }
 
 func (h *Host) saveFileSearchPaths(name string, options loadSaveOptions) ([]string, error) {

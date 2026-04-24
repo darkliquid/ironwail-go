@@ -44,7 +44,7 @@ func (s *Server) writeSpawnStaticSoundMessage(msg *MessageBuffer, snd StaticSoun
 // SendServerInfo writes the initial serverinfo handshake block for a connecting client.
 func (s *Server) SendServerInfo(client *Client) {
 	client.Message.PutByte(byte(inet.SVCPrint))
-	client.Message.WriteString(fmt.Sprintf("\nFITZQUAKE GO SERVER\n"))
+	client.Message.WriteString("\nFITZQUAKE GO SERVER\n")
 
 	client.Message.PutByte(byte(inet.SVCServerInfo))
 	client.Message.WriteLong(int32(s.Protocol))

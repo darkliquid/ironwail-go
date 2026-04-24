@@ -302,9 +302,6 @@ func LightningDamage(p1, p2 quake.Vec3, from *quake.Entity, damage float32) {
 	f[2] = 0
 	f = f.Mul(16)
 
-	e1 = nil
-	e2 = nil
-
 	engine.Traceline(p1, p2, FALSE, Self)
 	if TraceEnt.TakeDamage != 0 {
 		engine.Particle(TraceEndPos, quake.MakeVec3(0, 0, 100), 225, damage*4)

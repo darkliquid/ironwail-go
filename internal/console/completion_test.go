@@ -105,7 +105,7 @@ func TestTabCompleterFirstTabUsesCommonPrefix(t *testing.T) {
 	})
 	var printed strings.Builder
 	tc.SetPrintFunc(func(format string, args ...interface{}) {
-		printed.WriteString(fmt.Sprintf(format, args...))
+		fmt.Fprintf(&printed, format, args...)
 	})
 
 	got, matches := tc.Complete("tog", true)

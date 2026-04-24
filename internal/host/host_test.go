@@ -236,9 +236,9 @@ func TestHostInit(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	params := &InitParams{
 		BaseDir:    ".",
@@ -265,9 +265,9 @@ func TestHostInitRegistersDeathmatchRuleCVars(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", MaxClients: 1}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -291,9 +291,9 @@ func TestHostInitRegistersCvarHelperCommands(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", MaxClients: 1}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
@@ -388,14 +388,14 @@ func TestHostInitDedicatedSkipsImplicitLocalClient(t *testing.T) {
 		server:  &mockServer{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Console = subs.console
 
 	if err := h.Init(&InitParams{BaseDir: ".", Dedicated: true, MaxClients: 8}, &subs.Subsystems); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
-	if subs.Subsystems.Client != nil {
-		t.Fatalf("dedicated Host.Init created client %T, want nil", subs.Subsystems.Client)
+	if subs.Client != nil {
+		t.Fatalf("dedicated Host.Init created client %T, want nil", subs.Client)
 	}
 	if got := h.MaxClients(); got != 8 {
 		t.Fatalf("MaxClients = %d, want 8", got)
@@ -466,9 +466,9 @@ func TestHostFrame(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 	h.SetServerActive(true)
@@ -543,9 +543,9 @@ func TestHostCommands(t *testing.T) {
 		client:  &mockClient{},
 		console: &mockConsole{},
 	}
-	subs.Subsystems.Server = subs.server
-	subs.Subsystems.Client = subs.client
-	subs.Subsystems.Console = subs.console
+	subs.Server = subs.server
+	subs.Client = subs.client
+	subs.Console = subs.console
 
 	h.Init(&InitParams{BaseDir: "."}, &subs.Subsystems)
 

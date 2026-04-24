@@ -407,7 +407,7 @@ func isTrackableLocalCopy(inst IRInst, isTrackableLocal func(VReg) bool) bool {
 func rewriteCopyPropUses(inst IRInst, rewrite func(VReg) VReg) IRInst {
 	switch inst.Op {
 	case qc.OPStoreF, qc.OPStoreV, qc.OPStoreS, qc.OPStoreEnt, qc.OPStoreFld, qc.OPStoreFNC:
-		if !(inst.Op == qc.OPStoreS && inst.ImmStr != "") && !(inst.Op == qc.OPStoreF && inst.HasImmFloat) {
+		if (inst.Op != qc.OPStoreS || inst.ImmStr == "") && (inst.Op != qc.OPStoreF || !inst.HasImmFloat) {
 			inst.A = rewrite(inst.A)
 		}
 	case qc.OPLoadF, qc.OPLoadV, qc.OPLoadS, qc.OPLoadEnt, qc.OPLoadFld, qc.OPLoadFNC,
@@ -774,7 +774,7 @@ func irLivenessInfo(inst IRInst) irInstInfo {
 	case qc.OPStoreF, qc.OPStoreV, qc.OPStoreS, qc.OPStoreEnt, qc.OPStoreFld, qc.OPStoreFNC:
 		info.def = inst.B
 		info.pure = true
-		if !(inst.Op == qc.OPStoreS && inst.ImmStr != "") && !(inst.Op == qc.OPStoreF && inst.HasImmFloat) {
+		if (inst.Op != qc.OPStoreS || inst.ImmStr == "") && (inst.Op != qc.OPStoreF || !inst.HasImmFloat) {
 			info.uses = []VReg{inst.A}
 		}
 	case qc.OPLoadF, qc.OPLoadV, qc.OPLoadS, qc.OPLoadEnt, qc.OPLoadFld, qc.OPLoadFNC:

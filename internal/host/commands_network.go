@@ -54,7 +54,7 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 	var sb strings.Builder
 	sb.WriteString("host:    Ironwail Go\n")
 	if h.serverActive && subs.Server != nil {
-		sb.WriteString(fmt.Sprintf("map:     %s\n", subs.Server.GetMapName()))
+		fmt.Fprintf(&sb, "map:     %s\n", subs.Server.GetMapName())
 		maxClients := subs.Server.GetMaxClients()
 		activeCount := 0
 		for i := 0; i < maxClients; i++ {
@@ -62,7 +62,7 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 				activeCount++
 			}
 		}
-		sb.WriteString(fmt.Sprintf("players: %d active (%d max)\n", activeCount, maxClients))
+		fmt.Fprintf(&sb, "players: %d active (%d max)\n", activeCount, maxClients)
 		sb.WriteString("\nslot  name             ping\n")
 		sb.WriteString("----  ---------------- ----\n")
 		for i := 0; i < maxClients; i++ {
@@ -71,7 +71,7 @@ func (h *Host) CmdStatus(subs *Subsystems) {
 			}
 			name := subs.Server.GetClientName(i)
 			ping := subs.Server.GetClientPing(i)
-			sb.WriteString(fmt.Sprintf("%4d  %-16s %4.0f\n", i, name, ping))
+			fmt.Fprintf(&sb, "%4d  %-16s %4.0f\n", i, name, ping)
 		}
 	} else {
 		sb.WriteString("map:     (no server active)\n")
@@ -289,7 +289,7 @@ func (h *Host) CmdServerInfo(subs *Subsystems) {
 		return
 	}
 
-	subs.Console.Print(fmt.Sprintf("Server info:\n"))
+	subs.Console.Print("Server info:\n")
 	subs.Console.Print(fmt.Sprintf("  host:      %s\n", h.currentServerHostname()))
 	subs.Console.Print(fmt.Sprintf("  active:    %v\n", h.serverActive))
 	subs.Console.Print(fmt.Sprintf("  paused:    %v\n", h.serverPaused))

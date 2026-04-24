@@ -153,7 +153,7 @@ func run() int {
 
 func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []viewpoint, width, height int) (captureSummary, error) {
 	if _, err := os.Stat(ironwailBin); err != nil {
-		return captureSummary{}, fmt.Errorf("C Ironwail binary not found: %s", ironwailBin)
+		return captureSummary{}, fmt.Errorf("c ironwail binary not found: %s", ironwailBin)
 	}
 	mustMkdir(refDir)
 	screenshotDir := filepath.Join(quakeBaseDir, "id1", "screenshots")
@@ -209,7 +209,7 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 			return captureSummary{}, errors.New("failed to build Go binary")
 		}
 	} else if _, err := os.Stat(goBin); err != nil {
-		return captureSummary{}, fmt.Errorf("Go binary not found: %s", goBin)
+		return captureSummary{}, fmt.Errorf("go binary not found: %s", goBin)
 	}
 	mustMkdir(goDir)
 
@@ -264,7 +264,7 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 	fmt.Println()
 	fmt.Printf("Go screenshots saved to: %s\n", goDir)
 	if summary.Failures > 0 {
-		return summary, fmt.Errorf("Go capture completed with %d failure(s)", summary.Failures)
+		return summary, fmt.Errorf("go capture completed with %d failure(s)", summary.Failures)
 	}
 	return summary, nil
 }

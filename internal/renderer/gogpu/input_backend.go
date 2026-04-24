@@ -154,10 +154,6 @@ func (b *InputBackend) initCallbacks() {
 	}
 
 	es := b.app.EventSource()
-	if es == nil {
-		slog.Warn("gogpu input backend: event source unavailable")
-		return
-	}
 
 	es.OnKeyPress(func(key gpucontext.Key, mods gpucontext.Modifiers) {
 		mapped := MapGPUContextKey(key)

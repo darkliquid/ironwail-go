@@ -522,9 +522,9 @@ func (s *System) SoundList() string {
 		} else {
 			builder.WriteString(" ")
 		}
-		builder.WriteString(fmt.Sprintf("(%2db) %6d : %s\n", sfx.Cache.Width*8, size, sfx.Name))
+		fmt.Fprintf(&builder, "(%2db) %6d : %s\n", sfx.Cache.Width*8, size, sfx.Name)
 	}
-	builder.WriteString(fmt.Sprintf("%d sounds, %d bytes\n", s.cache.numSounds, total))
+	fmt.Fprintf(&builder, "%d sounds, %d bytes\n", s.cache.numSounds, total)
 	return builder.String()
 }
 

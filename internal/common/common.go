@@ -508,7 +508,7 @@ skipwhite:
 	// skip /*..*/ comments
 	if i+1 < len(data) && data[i] == '/' && data[i+1] == '*' {
 		i += 2
-		for i < len(data) && !(data[i] == '*' && i+1 < len(data) && data[i+1] == '/') {
+		for i < len(data) && (data[i] != '*' || i+1 >= len(data) || data[i+1] != '/') {
 			i++
 		}
 		if i < len(data) {

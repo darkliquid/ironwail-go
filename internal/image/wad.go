@@ -174,13 +174,9 @@ func LoadWad(r io.ReaderAt) (*Wad, error) {
 			return nil, err
 		}
 
-		// Handle QPic swapping if necessary
-		if info.Type == TypQPic {
-			// QPic has width and height as int32 at the beginning
-			// wad.c calls SwapPic which does LittleLong on width and height.
-			// Since we are reading from a little-endian file, they should already be correct
-			// if we treat them as little-endian.
-		}
+		// QPic has width and height as int32 at the start. In wad.c the
+		// SwapPic path byte-swaps those fields, but the file is already
+		// little-endian here and so is Go's encoding, so no fixup is needed.
 
 		lumps[name] = Lump{
 			Name: name,

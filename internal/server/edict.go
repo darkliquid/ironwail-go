@@ -478,11 +478,12 @@ func (em *EntityManager) ED_ParseEdict(data string, entNum int) (string, error) 
 		// These rewrites ensure maps authored with different editors load
 		// correctly without requiring map authors to update key names.
 		finalKeyName := keyName
-		if keyName == "angle" {
+		switch keyName {
+		case "angle":
 			finalKeyName = "angles"
 			// Wrap scalar in vector format: "0 angle 0"
 			value = fmt.Sprintf("0 %s 0", value)
-		} else if keyName == "light" {
+		case "light":
 			finalKeyName = "light_lev"
 		}
 

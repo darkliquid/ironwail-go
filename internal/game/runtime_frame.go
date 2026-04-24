@@ -66,7 +66,7 @@ func (g *Game) RunRuntimeRendererLoop(startupOpts StartupOptions, screenshotPath
 			result.HandledFallback = true
 			return result, nil
 		}
-		return result, fmt.Errorf("Render loop failed: %w", runErr)
+		return result, fmt.Errorf("render loop failed: %w", runErr)
 	}
 
 	if state.screenshotMode {
