@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 
@@ -50,6 +51,7 @@ func main() {
 	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
 	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
 	logLevel := flag.String("loglvl", "INFO", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG)")
+	pprofAddr := flag.String("pprof", "", "pprof listener address (e.g., localhost:6060)")
 	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
 		log.Fatal(err)
 	}
@@ -62,6 +64,20 @@ func main() {
 
 	if err := installLogging(*logLevel); err != nil {
 		log.Fatal(err)
+	}
+
+	if addr := strings.TrimSpace(*pprofAddr); addr == "" {
+		addr = strings.TrimSpace(os.Getenv("IRONWAILGO_PPROF"))
+		*pprofAddr = addr
+	}
+	if addr := strings.TrimSpace(*pprofAddr); addr != "" {
+		go func(addr string) {
+			slog.Info("pprof listener starting", "addr", addr, "hint", "curl http://"+addr+"/debug/pprof/goroutine?debug=2 while hung")
+			srv := &http.Server{Addr: addr}
+			if err := srv.ListenAndServe(); err != nil {
+				slog.Warn("pprof listener exited", "err", err)
+			}
+		}(addr)
 	}
 
 	args := flag.Args()
