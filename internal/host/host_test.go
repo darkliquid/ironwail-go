@@ -211,7 +211,7 @@ func (b *shutdownTrackingInputBackend) GetGamepadState(int) input.GamepadState {
 }
 func (b *shutdownTrackingInputBackend) IsGamepadConnected(int) bool { return false }
 func (b *shutdownTrackingInputBackend) SetMouseGrab(bool)           {}
-func (b *shutdownTrackingInputBackend) SetWindow(interface{})       {}
+func (b *shutdownTrackingInputBackend) SetWindow(any)               {}
 
 type mockCallbacks struct {
 	serverCalled bool

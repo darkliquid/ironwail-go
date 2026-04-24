@@ -31,7 +31,7 @@ type RenderContext interface {
 	// SurfaceView returns the current frame's GPU texture view.
 	// This enables zero-copy rendering for advanced use cases like
 	// post-processing effects and compositing.
-	SurfaceView() interface{}
+	SurfaceView() any
 
 	// Gamma returns the current gamma correction value.
 	Gamma() float32
@@ -80,7 +80,7 @@ type Backend interface {
 	OnClose(func())
 
 	// Input returns the input state for keyboard and mouse polling.
-	Input() interface{}
+	Input() any
 
 	// State
 	Size() (width, height int)

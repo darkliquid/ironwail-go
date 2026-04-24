@@ -338,12 +338,12 @@ type File struct {
 	Lighting   []byte
 
 	// Version-dependent structures (one will be populated based on BSP version)
-	Nodes        interface{} // []DSNode, []DL1Node, or []DL2Node
-	Clipnodes    interface{} // []DSClipNode or []DLClipNode
-	Leafs        interface{} // []DSLeaf, []DL1Leaf, or []DL2Leaf
-	Faces        interface{} // []DSFace or []DLFace
-	Edges        interface{} // []DSEdge or []DLEdge
-	MarkSurfaces interface{} // []uint16 or []uint32
+	Nodes        any // []DSNode, []DL1Node, or []DL2Node
+	Clipnodes    any // []DSClipNode or []DLClipNode
+	Leafs        any // []DSLeaf, []DL1Leaf, or []DL2Leaf
+	Faces        any // []DSFace or []DLFace
+	Edges        any // []DSEdge or []DLEdge
+	MarkSurfaces any // []uint16 or []uint32
 	Surfedges    []int32
 	Models       []DModel
 

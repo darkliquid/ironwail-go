@@ -83,7 +83,7 @@ func (b *textModeBackend) ShowKeyboard(show bool)                  {}
 func (b *textModeBackend) GetGamepadState(player int) GamepadState { return GamepadState{} }
 func (b *textModeBackend) IsGamepadConnected(player int) bool      { return false }
 func (b *textModeBackend) SetMouseGrab(grabbed bool)               {}
-func (b *textModeBackend) SetWindow(win interface{})               {}
+func (b *textModeBackend) SetWindow(win any)                       {}
 
 // TestHandleCharEventRoutesToMenuCharCallback tests character input routing.
 // It ensures that text input is correctly sent to the active menu or console when they are open.

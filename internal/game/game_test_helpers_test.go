@@ -56,7 +56,6 @@ func (c *demoMessageClient) SendCommand() error         { return nil }
 func (c *demoMessageClient) SendStringCmd(string) error { return nil }
 func (c *demoMessageClient) LastServerMessage() []byte  { return append([]byte(nil), c.message...) }
 
-
 // ---------------------------------------------------------------------------
 // processClientPhaseTestClient – counts Read/Send calls.
 // ---------------------------------------------------------------------------
@@ -194,7 +193,7 @@ type loadingPlaqueDrawContext struct {
 
 func (dc *loadingPlaqueDrawContext) Clear(r, g, b, a float32)            {}
 func (dc *loadingPlaqueDrawContext) DrawTriangle(r, g, b, a float32)     {}
-func (dc *loadingPlaqueDrawContext) SurfaceView() interface{}            { return nil }
+func (dc *loadingPlaqueDrawContext) SurfaceView() any                    { return nil }
 func (dc *loadingPlaqueDrawContext) Gamma() float32                      { return 1 }
 func (dc *loadingPlaqueDrawContext) DrawFill(x, y, w, h int, color byte) {}
 func (dc *loadingPlaqueDrawContext) DrawFillAlpha(x, y, w, h int, color byte, alpha float32) {
@@ -233,7 +232,7 @@ type csqcDrawTestContext struct {
 
 func (dc *csqcDrawTestContext) Clear(r, g, b, a float32)            {}
 func (dc *csqcDrawTestContext) DrawTriangle(r, g, b, a float32)     {}
-func (dc *csqcDrawTestContext) SurfaceView() interface{}            { return nil }
+func (dc *csqcDrawTestContext) SurfaceView() any                    { return nil }
 func (dc *csqcDrawTestContext) Gamma() float32                      { return 1 }
 func (dc *csqcDrawTestContext) DrawCharacter(x, y int, num int)     {}
 func (dc *csqcDrawTestContext) DrawMenuCharacter(x, y int, num int) {}
@@ -365,7 +364,7 @@ type overlayChar struct {
 
 func (dc *consoleOverlayDrawContext) Clear(r, g, b, a float32)        {}
 func (dc *consoleOverlayDrawContext) DrawTriangle(r, g, b, a float32) {}
-func (dc *consoleOverlayDrawContext) SurfaceView() interface{}        { return nil }
+func (dc *consoleOverlayDrawContext) SurfaceView() any                { return nil }
 func (dc *consoleOverlayDrawContext) Gamma() float32                  { return 1 }
 func (dc *consoleOverlayDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
 	dc.pics = append(dc.pics, struct {
@@ -424,7 +423,7 @@ type telemetryOverlayDrawContext struct {
 
 func (dc *telemetryOverlayDrawContext) Clear(r, g, b, a float32)        {}
 func (dc *telemetryOverlayDrawContext) DrawTriangle(r, g, b, a float32) {}
-func (dc *telemetryOverlayDrawContext) SurfaceView() interface{}        { return nil }
+func (dc *telemetryOverlayDrawContext) SurfaceView() any                { return nil }
 func (dc *telemetryOverlayDrawContext) Gamma() float32                  { return 1 }
 func (dc *telemetryOverlayDrawContext) DrawPic(x, y int, pic *qimage.QPic) {
 	dc.pics = append(dc.pics, struct {
@@ -645,7 +644,7 @@ func testRuntimeSpriteWithSyncType(t *testing.T, width, height int32, syncType m
 	t.Helper()
 
 	var spr bytes.Buffer
-	write := func(value interface{}) {
+	write := func(value any) {
 		if err := binary.Write(&spr, binary.LittleEndian, value); err != nil {
 			t.Fatalf("binary.Write(%T): %v", value, err)
 		}
@@ -685,7 +684,7 @@ func testRuntimeSpriteGroupWithSyncType(t *testing.T, frames int32, intervals []
 	}
 
 	var spr bytes.Buffer
-	write := func(value interface{}) {
+	write := func(value any) {
 		if err := binary.Write(&spr, binary.LittleEndian, value); err != nil {
 			t.Fatalf("binary.Write(%T): %v", value, err)
 		}
@@ -726,7 +725,7 @@ func testRuntimeAngledSpriteWithSyncType(t *testing.T, syncType model.SyncType) 
 	t.Helper()
 
 	var spr bytes.Buffer
-	write := func(value interface{}) {
+	write := func(value any) {
 		if err := binary.Write(&spr, binary.LittleEndian, value); err != nil {
 			t.Fatalf("binary.Write(%T): %v", value, err)
 		}

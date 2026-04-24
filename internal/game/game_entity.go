@@ -524,7 +524,7 @@ func (g *Game) resolveRuntimeSpriteFrame(sprite *model.MSprite, state inet.Entit
 	}
 }
 
-func (g *Game) resolveRuntimeSpriteGroupSubframe(framePtr interface{}, clientTime float64, syncBase float32) int {
+func (g *Game) resolveRuntimeSpriteGroupSubframe(framePtr any, clientTime float64, syncBase float32) int {
 	group, ok := framePtr.(*model.MSpriteGroup)
 	if !ok || group == nil || group.NumFrames <= 0 || len(group.Intervals) == 0 {
 		return 0
@@ -578,7 +578,7 @@ func (g *Game) runtimeSpriteRandomSyncBase(entityKey, staticIndex int, modelInde
 	return float32((seed&0x7fff)+1) / 32768.0
 }
 
-func (g *Game) resolveRuntimeSpriteAngledSubframe(framePtr interface{}, entityAngles [3]float32, viewForward, viewRight [3]float32) int {
+func (g *Game) resolveRuntimeSpriteAngledSubframe(framePtr any, entityAngles [3]float32, viewForward, viewRight [3]float32) int {
 	group, ok := framePtr.(*model.MSpriteGroup)
 	if !ok || group == nil || group.NumFrames <= 0 || len(group.Frames) == 0 {
 		return 0

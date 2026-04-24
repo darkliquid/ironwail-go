@@ -35,7 +35,7 @@ type mockMenuRenderContext struct {
 
 func (m *mockMenuRenderContext) Clear(r, g, b, a float32)          {}
 func (m *mockMenuRenderContext) DrawTriangle(r, g, b, a float32)   {}
-func (m *mockMenuRenderContext) SurfaceView() interface{}          { return nil }
+func (m *mockMenuRenderContext) SurfaceView() any                  { return nil }
 func (m *mockMenuRenderContext) Gamma() float32                    { return 1.0 }
 func (m *mockMenuRenderContext) DrawPic(x, y int, pic *image.QPic) {}
 func (m *mockMenuRenderContext) DrawMenuPic(x, y int, pic *image.QPic) {

@@ -801,7 +801,7 @@ func (vm *VM) NumForEdict(e int) int {
 //
 //	vm.SetGlobal("time", float32(10.5))
 //	vm.SetGlobal("self", edict)
-func (vm *VM) SetGlobal(name string, value interface{}) {
+func (vm *VM) SetGlobal(name string, value any) {
 	ofs := vm.FindGlobal(name)
 	if ofs < 0 {
 		return
@@ -850,4 +850,3 @@ func (vm *VM) GetGlobalFloat(name string) float32 {
 func (vm *VM) ExecuteFunction(fnum int) error {
 	return vm.ExecuteProgram(fnum)
 }
-

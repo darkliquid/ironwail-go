@@ -351,7 +351,7 @@ func (dc *DrawContext) DrawTriangle(r, g, b, a float32) {
 //   - Rendering the 3D world to a texture
 //   - Post-processing effects (bloom, motion blur)
 //   - UI overlay rendering
-func (dc *DrawContext) SurfaceView() interface{} {
+func (dc *DrawContext) SurfaceView() any {
 	return dc.ctx.SurfaceView()
 }
 

@@ -26,7 +26,7 @@ func (b *quitPollingBackend) GetGamepadState(int) input.GamepadState {
 }
 func (b *quitPollingBackend) IsGamepadConnected(int) bool { return false }
 func (b *quitPollingBackend) SetMouseGrab(bool)           {}
-func (b *quitPollingBackend) SetWindow(interface{})       {}
+func (b *quitPollingBackend) SetWindow(any)               {}
 
 func TestPollRuntimeInputEventsRequestsQuitOnWindowClose(t *testing.T) {
 	prev := g

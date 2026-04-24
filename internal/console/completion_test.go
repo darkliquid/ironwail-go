@@ -104,7 +104,7 @@ func TestTabCompleterFirstTabUsesCommonPrefix(t *testing.T) {
 		return nil
 	})
 	var printed strings.Builder
-	tc.SetPrintFunc(func(format string, args ...interface{}) {
+	tc.SetPrintFunc(func(format string, args ...any) {
 		fmt.Fprintf(&printed, format, args...)
 	})
 

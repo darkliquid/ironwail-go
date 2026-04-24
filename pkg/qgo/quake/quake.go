@@ -452,7 +452,7 @@ func MakeVec3(x, y, z float32) Vec3 {
 // Sprintf performs string formatting and interpolation at compile time.
 // The QGo compiler expands this into a sequence of 'ftos' and 'strcat'
 // builtin calls. Only a subset of standard Go Sprintf features are supported.
-func Sprintf(format string, args ...interface{}) string {
+func Sprintf(format string, args ...any) string {
 	return ""
 }
 

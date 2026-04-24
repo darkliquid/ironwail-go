@@ -30,7 +30,7 @@ type mockRenderContext struct {
 
 func (m *mockRenderContext) Clear(r, g, b, a float32)        {}
 func (m *mockRenderContext) DrawTriangle(r, g, b, a float32) {}
-func (m *mockRenderContext) SurfaceView() interface{}        { return nil }
+func (m *mockRenderContext) SurfaceView() any                { return nil }
 func (m *mockRenderContext) Gamma() float32                  { return 1 }
 func (m *mockRenderContext) DrawPic(x, y int, pic *image.QPic) {
 	m.pics = append(m.pics, struct {

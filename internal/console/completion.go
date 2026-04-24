@@ -28,7 +28,7 @@ type AliasProvider func(partial string) []string
 type FileProvider func(pattern string) []string
 type CommandArgsProvider func(command string, args []string, partial string) []string
 type CVarValueProvider func(cvarName string, partial string) []string
-type PrintFunc func(format string, args ...interface{})
+type PrintFunc func(format string, args ...any)
 
 type TabCompleter struct {
 	mu sync.RWMutex

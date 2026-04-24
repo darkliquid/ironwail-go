@@ -65,7 +65,7 @@ func (s *SoftwareRenderer) DrawTriangle(r, g, b, a float32) {
 }
 
 // SurfaceView returns nil (not applicable to software renderer).
-func (s *SoftwareRenderer) SurfaceView() interface{} { return nil }
+func (s *SoftwareRenderer) SurfaceView() any { return nil }
 
 // Gamma returns the current gamma correction value.
 func (s *SoftwareRenderer) Gamma() float32 { return s.gamma }

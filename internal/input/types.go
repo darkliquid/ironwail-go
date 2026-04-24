@@ -468,10 +468,10 @@ type Backend interface {
 	SetMouseGrab(grabbed bool)
 
 	// Attach a platform window to the backend (best-effort). The parameter is
-	// intentionally typed as `interface{}` to avoid importing platform-specific
+	// intentionally typed as `any` to avoid importing platform-specific
 	// window types in this package; backends should type-assert to the concrete
 	// window type they expect (for example, `*sdl.Window`).
-	SetWindow(win interface{})
+	SetWindow(win any)
 }
 
 // KeyEventCallback is invoked by the System when a key is pressed or released.

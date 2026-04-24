@@ -614,7 +614,7 @@ func (c *Console) printRaw(txt string) {
 // invokes any registered print callback and writes to the debug log. This is
 // the workhorse print function used throughout the engine — analogous to
 // Con_Printf in the original C Quake source.
-func (c *Console) Printf(format string, args ...interface{}) {
+func (c *Console) Printf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	c.printRaw(msg)
 
@@ -629,7 +629,7 @@ func (c *Console) Printf(format string, args ...interface{}) {
 // (typically controlled by the "developer" cvar). This keeps verbose debug
 // spew out of the console during normal gameplay while letting developers
 // opt in with "developer 1".
-func (c *Console) DPrintf(developer bool, format string, args ...interface{}) {
+func (c *Console) DPrintf(developer bool, format string, args ...any) {
 	if !developer {
 		return
 	}
@@ -638,7 +638,7 @@ func (c *Console) DPrintf(developer bool, format string, args ...interface{}) {
 	c.debugLogWrite(msg)
 }
 
-func (c *Console) DPrintf2(format string, args ...interface{}) {
+func (c *Console) DPrintf2(format string, args ...any) {
 	if c.CVar.IntValue("developer") < 2 {
 		return
 	}
@@ -650,14 +650,14 @@ func (c *Console) DPrintf2(format string, args ...interface{}) {
 // Warning prints a message prefixed with "Warning: " in Quake's bronze
 // (high-bit) text colour. The 0x02 leader byte triggers the bronze rendering
 // path in printRaw, making warnings visually distinct.
-func (c *Console) Warning(format string, args ...interface{}) {
+func (c *Console) Warning(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	c.Printf("\x02Warning: %s", msg)
 }
 
 // DWarning is the developer-only variant of Warning. It prints a bronze
 // warning message only when the developer flag is true.
-func (c *Console) DWarning(developer bool, format string, args ...interface{}) {
+func (c *Console) DWarning(developer bool, format string, args ...any) {
 	if !developer {
 		return
 	}
@@ -671,7 +671,7 @@ func (c *Console) DWarning(developer bool, format string, args ...interface{}) {
 // to Printf since Go's concurrency model handles re-entrancy differently,
 // but the API is preserved for source compatibility with callers that
 // distinguish between the two.
-func (c *Console) SafePrintf(format string, args ...interface{}) {
+func (c *Console) SafePrintf(format string, args ...any) {
 	c.Printf(format, args...)
 }
 
@@ -679,7 +679,7 @@ func (c *Console) SafePrintf(format string, args ...interface{}) {
 // width. Each line of the message is individually padded with leading spaces.
 // This is used for title screens, MOTD banners, and other decorative output
 // where centred text is desired.
-func (c *Console) CenterPrintf(width int, format string, args ...interface{}) {
+func (c *Console) CenterPrintf(width int, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	lines := strings.Split(msg, "\n")
 
@@ -868,31 +868,31 @@ func NotifyBox(text string) {
 	globalConsole.NotifyBox(text)
 }
 
-func Printf(format string, args ...interface{}) {
+func Printf(format string, args ...any) {
 	globalConsole.Printf(format, args...)
 }
 
-func DPrintf(developer bool, format string, args ...interface{}) {
+func DPrintf(developer bool, format string, args ...any) {
 	globalConsole.DPrintf(developer, format, args...)
 }
 
-func DPrintf2(format string, args ...interface{}) {
+func DPrintf2(format string, args ...any) {
 	globalConsole.DPrintf2(format, args...)
 }
 
-func Warning(format string, args ...interface{}) {
+func Warning(format string, args ...any) {
 	globalConsole.Warning(format, args...)
 }
 
-func DWarning(developer bool, format string, args ...interface{}) {
+func DWarning(developer bool, format string, args ...any) {
 	globalConsole.DWarning(developer, format, args...)
 }
 
-func SafePrintf(format string, args ...interface{}) {
+func SafePrintf(format string, args ...any) {
 	globalConsole.SafePrintf(format, args...)
 }
 
-func CenterPrintf(width int, format string, args ...interface{}) {
+func CenterPrintf(width int, format string, args ...any) {
 	globalConsole.CenterPrintf(width, format, args...)
 }
 

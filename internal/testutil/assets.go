@@ -93,7 +93,7 @@ func SkipIfNoPak0(t *testing.T) string {
 
 // CompareStructs compares two structs and fails the test if they are not equal.
 // It provides a basic hex dump if they differ and are byte slices.
-func CompareStructs(t *testing.T, expected, actual interface{}) {
+func CompareStructs(t *testing.T, expected, actual any) {
 	t.Helper()
 	if !reflect.DeepEqual(expected, actual) {
 		// If they are byte slices, show hex dump

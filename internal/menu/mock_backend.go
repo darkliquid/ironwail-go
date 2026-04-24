@@ -50,4 +50,4 @@ func (m *mockInputBackend) IsGamepadConnected(player int) bool {
 func (m *mockInputBackend) SetMouseGrab(grabbed bool) {
 }
 
-func (m *mockInputBackend) SetWindow(win interface{}) {}
+func (m *mockInputBackend) SetWindow(win any) {}

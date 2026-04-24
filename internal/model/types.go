@@ -215,8 +215,8 @@ type MSpriteGroup struct {
 
 // MSpriteFrameDesc describes a sprite frame with its type.
 type MSpriteFrameDesc struct {
-	Type     int         // spriteframetype_t
-	FramePtr interface{} // *MSpriteFrame or *MSpriteGroup
+	Type     int // spriteframetype_t
+	FramePtr any // *MSpriteFrame or *MSpriteGroup
 }
 
 // MSprite represents an in-memory sprite model.

@@ -290,7 +290,7 @@ func (em *EntityManager) SV_UnlinkEdict(entNum int) {
 // The data format is a series of "key" "value" pairs enclosed in braces.
 //
 // Returns the data pointer after parsing, or an error.
-func (em *EntityManager) ED_ParseGlobals(data string, vm interface{}) (string, error) {
+func (em *EntityManager) ED_ParseGlobals(data string, vm any) (string, error) {
 	// Find opening brace
 	pos := 0
 	for pos < len(data) && data[pos] != '{' {

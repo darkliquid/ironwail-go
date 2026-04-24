@@ -272,6 +272,6 @@ func (e *HostError) Error() string {
 	return e.Message
 }
 
-func HostEndGame(h *Host, format string, args ...interface{}) {
+func HostEndGame(h *Host, format string, args ...any) {
 	h.Abort(format)
 }

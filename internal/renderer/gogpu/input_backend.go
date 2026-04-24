@@ -390,4 +390,4 @@ func (b *InputBackend) SetMouseGrab(grabbed bool) {
 	b.SetCursorMode(iinput.CursorModeNormal)
 }
 
-func (b *InputBackend) SetWindow(win interface{}) {}
+func (b *InputBackend) SetWindow(win any) {}

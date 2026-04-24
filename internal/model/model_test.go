@@ -106,7 +106,7 @@ func TestLoadAliasModelFromPak0(t *testing.T) {
 
 func TestLoadAliasModelPreservesGroupedSkinFrames(t *testing.T) {
 	var data bytes.Buffer
-	write := func(value interface{}) {
+	write := func(value any) {
 		if err := binary.Write(&data, binary.LittleEndian, value); err != nil {
 			t.Fatalf("binary.Write(%T): %v", value, err)
 		}
@@ -265,7 +265,7 @@ func TestLoadSpriteFromPak0(t *testing.T) {
 // Where in C: Mod_LoadSpriteModel in model.c
 func TestLoadSpriteRetainsSyncType(t *testing.T) {
 	var data bytes.Buffer
-	write := func(value interface{}) {
+	write := func(value any) {
 		if err := binary.Write(&data, binary.LittleEndian, value); err != nil {
 			t.Fatalf("binary.Write(%T): %v", value, err)
 		}
