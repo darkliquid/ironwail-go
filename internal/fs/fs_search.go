@@ -85,7 +85,7 @@ func (fs *FileSystem) AddGameDirectory(dir string) error {
 
 	pakFiles, err := discoverPakFiles(cleanDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("discover pak files in %q: %w", cleanDir, err)
 	}
 
 	lookupGroup := make([]searchPath, 0, len(pakFiles)+1)
@@ -123,7 +123,7 @@ func (fs *FileSystem) AddGameDirectory(dir string) error {
 func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open pack %q: %w", filename, err)
 	}
 
 	var header struct {
@@ -134,19 +134,19 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 
 	if err := binary.Read(file, binary.LittleEndian, &header); err != nil {
 		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
-		return nil, err
+		return nil, fmt.Errorf("read pack %q header: %w", filename, err)
 	}
 
 	if string(header.ID[:]) != "PACK" {
 		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
-		return nil, fmt.Errorf("not a pack file")
+		return nil, fmt.Errorf("pack %q is not a valid pack file", filename)
 	}
 
 	numFiles := int(header.DirLen / 64)
 
 	if _, err := file.Seek(int64(header.DirOfs), io.SeekStart); err != nil {
 		if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
-		return nil, err
+		return nil, fmt.Errorf("seek pack %q directory: %w", filename, err)
 	}
 
 	files := make([]PackFile, numFiles)
@@ -158,7 +158,7 @@ func (fs *FileSystem) loadPack(filename string) (*Pack, error) {
 		}
 		if err := binary.Read(file, binary.LittleEndian, &entry); err != nil {
 			if closeErr := file.Close(); closeErr != nil { slog.Warn("fs: failed to close pack file on error", "path", filename, "err", closeErr) }
-			return nil, err
+			return nil, fmt.Errorf("read pack %q directory entry %d: %w", filename, i, err)
 		}
 		idx := 0
 		for idx < len(entry.Name) && entry.Name[idx] != 0 {
@@ -294,7 +294,7 @@ func discoverPakFiles(dir string) ([]string, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("read dir %q: %w", dir, err)
 	}
 
 	type pakInfo struct {

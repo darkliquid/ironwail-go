@@ -394,11 +394,11 @@ func (fs *FileSystem) LoadFirstAvailable(filenames []string) (string, []byte, er
 func (fs *FileSystem) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error) {
 	bspResult, err := fs.FindFile(worldModel)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("find bsp %q: %w", worldModel, err)
 	}
 	bspData, err := fs.loadSearchResult(bspResult)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("load bsp %q: %w", worldModel, err)
 	}
 
 	litName := strings.TrimSuffix(worldModel, filepath.Ext(worldModel)) + ".lit"
@@ -408,7 +408,7 @@ func (fs *FileSystem) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error
 	}
 	litData, err := fs.loadSearchResult(litResult)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("load lit %q: %w", litName, err)
 	}
 	return bspData, litData, nil
 }
@@ -418,12 +418,12 @@ func (fs *FileSystem) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error
 // using io.ReadFull, which guarantees we get the complete file or an error.
 func (fs *FileSystem) loadFromPack(result *SearchResult) ([]byte, error) {
 	if _, err := result.Pack.Handle.Seek(int64(result.FilePos), io.SeekStart); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("seek in pack %q for %q: %w", result.Pack.Filename, result.Name, err)
 	}
 
 	data := make([]byte, result.FileLen)
 	if _, err := io.ReadFull(result.Pack.Handle, data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read %q from pack %q: %w", result.Name, result.Pack.Filename, err)
 	}
 
 	return data, nil
@@ -447,14 +447,14 @@ func (fs *FileSystem) openSearchResult(result *SearchResult) (io.ReadSeekCloser,
 
 	file, err := os.Open(result.Path)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("open %q: %w", result.Path, err)
 	}
 	stat, err := file.Stat()
 	if err != nil {
 		if closeErr := file.Close(); closeErr != nil {
 			slog.Warn("fs: failed to close file after stat error", "path", result.Path, "err", closeErr)
 		}
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("stat %q: %w", result.Path, err)
 	}
 	return file, stat.Size(), nil
 }

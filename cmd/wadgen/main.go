@@ -64,7 +64,7 @@ func main() {
 	// Write WAD file
 	f, err := os.Create(outPath)
 	if err != nil {
-		panic(err)
+		log.Fatalf("create %s: %v", outPath, err)
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
