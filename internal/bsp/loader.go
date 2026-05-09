@@ -164,10 +164,13 @@ func (f *File) loadNodes(r *Reader) error {
 
 	if f.IsBSP2 {
 		if f.Version == BSP2Version_BSP2 {
-			count := int(lump.FileLength) / 36 // DL2Node is 36 bytes
+			if len(data)%dl2NodeSize != 0 {
+				return fmt.Errorf("load nodes: funny lump size %d", len(data))
+			}
+			count := int(lump.FileLength) / dl2NodeSize
 			nodes := make([]DL2Node, count)
 			for i := 0; i < count; i++ {
-				offset := i * 36
+				offset := i * dl2NodeSize
 				nodes[i] = DL2Node{
 					PlaneNum: int32(binary.LittleEndian.Uint32(data[offset:])),
 					Children: [2]int32{
@@ -184,15 +187,19 @@ func (f *File) loadNodes(r *Reader) error {
 						Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
 						Float32frombits(binary.LittleEndian.Uint32(data[offset+32:])),
 					},
+					FirstFace: binary.LittleEndian.Uint32(data[offset+36:]),
+					NumFaces:  binary.LittleEndian.Uint32(data[offset+40:]),
 				}
-				// FirstFace and NumFaces would be at offset+36 and offset+40, but lump size check needed
 			}
 			f.Nodes = nodes
 		} else {
-			count := int(lump.FileLength) / 28 // DL1Node is 28 bytes
+			if len(data)%dl1NodeSize != 0 {
+				return fmt.Errorf("load nodes: funny lump size %d", len(data))
+			}
+			count := int(lump.FileLength) / dl1NodeSize
 			nodes := make([]DL1Node, count)
 			for i := 0; i < count; i++ {
-				offset := i * 28
+				offset := i * dl1NodeSize
 				nodes[i] = DL1Node{
 					PlaneNum: int32(binary.LittleEndian.Uint32(data[offset:])),
 					Children: [2]int32{
@@ -209,18 +216,20 @@ func (f *File) loadNodes(r *Reader) error {
 						int16(binary.LittleEndian.Uint16(data[offset+20:])),
 						int16(binary.LittleEndian.Uint16(data[offset+22:])),
 					},
+					FirstFace: binary.LittleEndian.Uint32(data[offset+24:]),
+					NumFaces:  binary.LittleEndian.Uint32(data[offset+28:]),
 				}
 			}
 			f.Nodes = nodes
 		}
 	} else {
-		if len(data)%24 != 0 {
+		if len(data)%dsNodeSize != 0 {
 			return fmt.Errorf("load nodes: funny lump size %d", len(data))
 		}
-		count := int(lump.FileLength) / 24 // DSNode is 24 bytes
+		count := int(lump.FileLength) / dsNodeSize
 		nodes := make([]DSNode, count)
 		for i := 0; i < count; i++ {
-			offset := i * 24
+			offset := i * dsNodeSize
 			nodes[i] = DSNode{
 				PlaneNum: int32(binary.LittleEndian.Uint32(data[offset:])),
 				Children: [2]int16{
@@ -387,10 +396,13 @@ func (f *File) loadLeafs(r *Reader) error {
 
 	if f.IsBSP2 {
 		if f.Version == BSP2Version_BSP2 {
-			count := int(lump.FileLength) / 32 // DL2Leaf is 32 bytes
+			if len(data)%dl2LeafSize != 0 {
+				return fmt.Errorf("load leafs: funny lump size %d", len(data))
+			}
+			count := int(lump.FileLength) / dl2LeafSize
 			leafs := make([]DL2Leaf, count)
 			for i := 0; i < count; i++ {
-				offset := i * 32
+				offset := i * dl2LeafSize
 				leafs[i] = DL2Leaf{
 					Contents: int32(binary.LittleEndian.Uint32(data[offset:])),
 					VisOfs:   int32(binary.LittleEndian.Uint32(data[offset+4:])),
@@ -404,14 +416,20 @@ func (f *File) loadLeafs(r *Reader) error {
 						Float32frombits(binary.LittleEndian.Uint32(data[offset+24:])),
 						Float32frombits(binary.LittleEndian.Uint32(data[offset+28:])),
 					},
+					FirstMarkSurface: binary.LittleEndian.Uint32(data[offset+32:]),
+					NumMarkSurfaces:  binary.LittleEndian.Uint32(data[offset+36:]),
 				}
+				copy(leafs[i].AmbientLevel[:], data[offset+40:offset+44])
 			}
 			f.Leafs = leafs
 		} else {
-			count := int(lump.FileLength) / 28 // DL1Leaf is 28 bytes
+			if len(data)%dl1LeafSize != 0 {
+				return fmt.Errorf("load leafs: funny lump size %d", len(data))
+			}
+			count := int(lump.FileLength) / dl1LeafSize
 			leafs := make([]DL1Leaf, count)
 			for i := 0; i < count; i++ {
-				offset := i * 28
+				offset := i * dl1LeafSize
 				leafs[i] = DL1Leaf{
 					Contents: int32(binary.LittleEndian.Uint32(data[offset:])),
 					VisOfs:   int32(binary.LittleEndian.Uint32(data[offset+4:])),
@@ -560,11 +578,14 @@ func (f *File) loadModels(r *Reader) error {
 		return err
 	}
 
-	count := int(lump.FileLength) / 72 // DModel is 72 bytes
+	if len(data)%dModelSize != 0 {
+		return fmt.Errorf("load models: funny lump size %d", len(data))
+	}
+	count := int(lump.FileLength) / dModelSize
 	f.Models = make([]DModel, count)
 
 	for i := 0; i < count; i++ {
-		offset := i * 72
+		offset := i * dModelSize
 		model := DModel{
 			BoundsMin: [3]float32{
 				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),

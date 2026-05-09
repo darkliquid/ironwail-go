@@ -2,12 +2,29 @@ package bsp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"path/filepath"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
+
+func putI32(dst []byte, off int, v int32) {
+	binary.LittleEndian.PutUint32(dst[off:], uint32(v))
+}
+
+func putU32(dst []byte, off int, v uint32) {
+	binary.LittleEndian.PutUint32(dst[off:], v)
+}
+
+func putI16(dst []byte, off int, v int16) {
+	binary.LittleEndian.PutUint16(dst[off:], uint16(v))
+}
+
+func putF32(dst []byte, off int, bits uint32) {
+	binary.LittleEndian.PutUint32(dst[off:], bits)
+}
 
 // TestLoadTreeFromPak0 tests the loading of a complete BSP tree from a PAK file.
 // It ensures the engine can correctly parse all BSP lumps (planes, nodes, leafs, faces, textures, etc.) from real game assets.
@@ -156,6 +173,149 @@ func TestLoadFromPak0(t *testing.T) {
 	}
 	if int(nodes[0].PlaneNum) >= len(file.Planes) || nodes[0].PlaneNum < 0 {
 		t.Fatalf("first node plane index = %d, want within [0,%d)", nodes[0].PlaneNum, len(file.Planes))
+	}
+}
+
+// TestLoadBSP2FileLumpStrides protects the low-level File loader against
+// silently misaligning BSP2_BSP2 structures. The original C dmodel_t is 64
+// bytes, dl2node_t is 44 bytes, and dl2leaf_t is 44 bytes; custom maps such
+// as qbj2/start.bsp rely on these exact strides.
+func TestLoadBSP2FileLumpStrides(t *testing.T) {
+	t.Run("nodes", func(t *testing.T) {
+		data := make([]byte, dl2NodeSize*2)
+		putI32(data, 0, 11)
+		putI32(data, 4, 1)
+		putI32(data, 8, -1)
+		putF32(data, 12, 0x3f800000)
+		putF32(data, 24, 0x40000000)
+		putU32(data, 36, 7)
+		putU32(data, 40, 3)
+		second := dl2NodeSize
+		putI32(data, second, 22)
+		putI32(data, second+4, -1)
+		putI32(data, second+8, -2)
+		putU32(data, second+36, 13)
+		putU32(data, second+40, 5)
+
+		f := &File{Version: BSP2Version_BSP2, IsBSP2: true}
+		f.Header.Lumps[LumpNodes] = Lump{FileLength: int32(len(data))}
+		if err := f.loadNodes(NewReader(bytes.NewReader(data))); err != nil {
+			t.Fatalf("loadNodes: %v", err)
+		}
+		nodes, ok := f.Nodes.([]DL2Node)
+		if !ok {
+			t.Fatalf("nodes type = %T, want []DL2Node", f.Nodes)
+		}
+		if len(nodes) != 2 {
+			t.Fatalf("node count = %d, want 2", len(nodes))
+		}
+		if nodes[0].FirstFace != 7 || nodes[0].NumFaces != 3 ||
+			nodes[1].PlaneNum != 22 || nodes[1].FirstFace != 13 || nodes[1].NumFaces != 5 {
+			t.Fatalf("decoded nodes = %+v", nodes)
+		}
+	})
+
+	t.Run("leafs", func(t *testing.T) {
+		data := make([]byte, dl2LeafSize*2)
+		putI32(data, 0, ContentsEmpty)
+		putI32(data, 4, 100)
+		putF32(data, 8, 0x3f800000)
+		putF32(data, 20, 0x40000000)
+		putU32(data, 32, 9)
+		putU32(data, 36, 4)
+		copy(data[40:44], []byte{1, 2, 3, 4})
+		second := dl2LeafSize
+		putI32(data, second, ContentsWater)
+		putI32(data, second+4, 200)
+		putU32(data, second+32, 19)
+		putU32(data, second+36, 6)
+		copy(data[second+40:second+44], []byte{5, 6, 7, 8})
+
+		f := &File{Version: BSP2Version_BSP2, IsBSP2: true}
+		f.Header.Lumps[LumpLeafs] = Lump{FileLength: int32(len(data))}
+		if err := f.loadLeafs(NewReader(bytes.NewReader(data))); err != nil {
+			t.Fatalf("loadLeafs: %v", err)
+		}
+		leafs, ok := f.Leafs.([]DL2Leaf)
+		if !ok {
+			t.Fatalf("leafs type = %T, want []DL2Leaf", f.Leafs)
+		}
+		if len(leafs) != 2 {
+			t.Fatalf("leaf count = %d, want 2", len(leafs))
+		}
+		if leafs[0].FirstMarkSurface != 9 || leafs[0].NumMarkSurfaces != 4 ||
+			leafs[0].AmbientLevel != [NumAmbients]uint8{1, 2, 3, 4} ||
+			leafs[1].Contents != ContentsWater || leafs[1].FirstMarkSurface != 19 ||
+			leafs[1].AmbientLevel != [NumAmbients]uint8{5, 6, 7, 8} {
+			t.Fatalf("decoded leafs = %+v", leafs)
+		}
+	})
+
+	t.Run("models", func(t *testing.T) {
+		data := make([]byte, dModelSize*2)
+		putF32(data, 0, 0x3f800000)
+		putF32(data, 12, 0x40000000)
+		putF32(data, 24, 0x40400000)
+		putI32(data, 36, 1)
+		putI32(data, 40, 2)
+		putI32(data, 44, 3)
+		putI32(data, 48, 4)
+		putI32(data, 52, 5)
+		putI32(data, 56, 6)
+		putI32(data, 60, 7)
+		second := dModelSize
+		putF32(data, second, 0x40800000)
+		putI32(data, second+36, 11)
+		putI32(data, second+52, 15)
+		putI32(data, second+56, 16)
+		putI32(data, second+60, 17)
+
+		f := &File{}
+		f.Header.Lumps[LumpModels] = Lump{FileLength: int32(len(data))}
+		if err := f.loadModels(NewReader(bytes.NewReader(data))); err != nil {
+			t.Fatalf("loadModels: %v", err)
+		}
+		if len(f.Models) != 2 {
+			t.Fatalf("model count = %d, want 2", len(f.Models))
+		}
+		if f.Models[0].HeadNode != [MaxMapHulls]int32{1, 2, 3, 4} ||
+			f.Models[0].VisLeafs != 5 || f.Models[0].FirstFace != 6 || f.Models[0].NumFaces != 7 ||
+			f.Models[1].HeadNode[0] != 11 || f.Models[1].VisLeafs != 15 ||
+			f.Models[1].FirstFace != 16 || f.Models[1].NumFaces != 17 {
+			t.Fatalf("decoded models = %+v", f.Models)
+		}
+	})
+}
+
+// TestLoadTree2PSBNodeStride guards the 2PSB variant, which keeps short
+// bounds but still uses 32-bit child and face fields. Its node stride is 32
+// bytes in the C BSP format.
+func TestLoadTree2PSBNodeStride(t *testing.T) {
+	data := make([]byte, dl1NodeSize)
+	putI32(data, 0, 0)
+	putI32(data, 4, -1)
+	putI32(data, 8, -1)
+	putI16(data, 12, -10)
+	putI16(data, 18, 10)
+	putU32(data, 24, 2)
+	putU32(data, 28, 3)
+
+	tree := &Tree{
+		Version: BSP2Version_2PSB,
+		Planes:  []DPlane{{}},
+		Faces:   make([]TreeFace, 5),
+		Leafs:   []TreeLeaf{{}},
+	}
+	tree.Header.Lumps[LumpNodes] = Lump{FileLength: int32(len(data))}
+	if err := tree.loadNodes(NewReader(bytes.NewReader(data))); err != nil {
+		t.Fatalf("loadNodes: %v", err)
+	}
+	if len(tree.Nodes) != 1 {
+		t.Fatalf("node count = %d, want 1", len(tree.Nodes))
+	}
+	node := tree.Nodes[0]
+	if node.BoundsMin[0] != -10 || node.BoundsMax[0] != 10 || node.FirstFace != 2 || node.NumFaces != 3 {
+		t.Fatalf("decoded node = %+v", node)
 	}
 }
 

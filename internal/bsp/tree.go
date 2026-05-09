@@ -82,7 +82,7 @@ const (
 	dl1LeafSize = 32
 	dl2LeafSize = 44
 	dsNodeSize  = 24
-	dl1NodeSize = 28
+	dl1NodeSize = 32
 	dl2NodeSize = 44
 	dModelSize  = 64
 	int32Size   = 4
@@ -577,8 +577,8 @@ func (t *Tree) loadNodes(r *Reader) error {
 				float32(int16(binary.LittleEndian.Uint16(data[o+20:]))),
 				float32(int16(binary.LittleEndian.Uint16(data[o+22:]))),
 			}
-			n.FirstFace = binary.LittleEndian.Uint32(data[o+20:])
-			n.NumFaces = binary.LittleEndian.Uint32(data[o+24:])
+			n.FirstFace = binary.LittleEndian.Uint32(data[o+24:])
+			n.NumFaces = binary.LittleEndian.Uint32(data[o+28:])
 			n.Parent = -1
 
 			if err := t.validateNode(i, n); err != nil {
@@ -848,4 +848,3 @@ func (t *Tree) PointInLeaf(p [3]float32) *TreeLeaf {
 		nodeIdx = child.Index
 	}
 }
-
