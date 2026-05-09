@@ -258,7 +258,7 @@ func NewServer() *Server {
 		MaxVelocity:     2000,
 		Friction:        4,
 		StopSpeed:       100,
-		MaxEdicts:       1024,
+		MaxEdicts:       MaxEdicts,
 		Protocol:        ProtocolFitzQuake,
 		QCFieldAlpha:    -1,
 		QCFieldScale:    -1,

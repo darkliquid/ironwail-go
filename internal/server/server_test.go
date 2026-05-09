@@ -15,6 +15,13 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/testutil"
 )
 
+func TestNewServerUsesExtendedEdictCapacity(t *testing.T) {
+	s := NewServer()
+	if got := s.MaxEdicts; got != MaxEdicts {
+		t.Fatalf("MaxEdicts = %d, want %d", got, MaxEdicts)
+	}
+}
+
 func TestStartSoundUsesExtendedPacketForLargeEntityChannelAndSound(t *testing.T) {
 	s := NewServer()
 	s.MaxEdicts = 9000
