@@ -21,6 +21,7 @@
 !.gitignore
 !/docs/**/*.md
 !/docs/**/*.txt
+!/.github/copilot-instructions.md
 
 # Parity tooling files
 !/tasks/*.sh
