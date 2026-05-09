@@ -659,6 +659,46 @@ func TestCmdDemosCyclesToNextDemo(t *testing.T) {
 	}
 }
 
+func TestCmdDemosBeginsLoadingPlaqueAndClearsAudio(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	audio := &stopAllTrackingAudio{}
+	subs := &Subsystems{Console: console, Audio: audio}
+
+	h.SetDemoList([]string{"demo1"})
+	h.SetDemoNum(0)
+
+	h.CmdDemos(subs)
+
+	if !h.LoadingPlaqueActive(0) {
+		t.Fatal("loading plaque should be active while starting next demo")
+	}
+	if len(audio.calls) != 2 {
+		t.Fatalf("StopAllSounds calls = %d, want 2", len(audio.calls))
+	}
+	for i, clear := range audio.calls {
+		if !clear {
+			t.Fatalf("StopAllSounds call %d clear flag = false, want true", i)
+		}
+	}
+}
+
+func TestCmdPlaydemoClearsAudioWithoutActiveServer(t *testing.T) {
+	h := NewHost()
+	console := &mockConsole{}
+	audio := &stopAllTrackingAudio{}
+	subs := &Subsystems{Console: console, Audio: audio}
+
+	h.CmdPlaydemo("missing_demo", subs)
+
+	if len(audio.calls) != 1 {
+		t.Fatalf("StopAllSounds calls = %d, want 1", len(audio.calls))
+	}
+	if !audio.calls[0] {
+		t.Fatal("StopAllSounds clear flag = false, want true")
+	}
+}
+
 func TestCmdDemosWrapsAround(t *testing.T) {
 	h := NewHost()
 	console := &mockConsole{}

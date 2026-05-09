@@ -376,6 +376,7 @@ func (r *Renderer) Stop() {
 // but can be called manually for explicit cleanup.
 func (r *Renderer) Shutdown() {
 	slog.Debug("Renderer shutting down")
+	r.ClearWorld()
 	r.mu.Lock()
 	r.brushModelGeometry = nil
 	r.destroyAliasResourcesLocked()

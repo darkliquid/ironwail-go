@@ -113,9 +113,9 @@ type Game struct {
 	// ring buffers, last-seen origins, etc.) guarded by the
 	// cl_debug_view cvar. Moved from a package-level singleton so each
 	// Game instance has an isolated trace.
-	debugView               debugViewTelemetryState
-	debugViewTelemetryCVar  *cvar.CVar
-	debugViewTelemetryEmit  func(line string)
+	debugView              debugViewTelemetryState
+	debugViewTelemetryCVar *cvar.CVar
+	debugViewTelemetryEmit func(line string)
 }
 
 type cpuProfileState struct {

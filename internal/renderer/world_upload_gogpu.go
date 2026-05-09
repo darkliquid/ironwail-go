@@ -18,6 +18,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if tree == nil {
 		return fmt.Errorf("nil BSP tree")
 	}
+	r.ClearWorld()
 	r.worldFirstFrameStatsLogged.Store(false)
 	r.mu.Lock()
 	r.brushModelGeometry = make(map[int]*WorldGeometry)

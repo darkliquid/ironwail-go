@@ -486,6 +486,10 @@ func (b *shutdownBackend) Unblock() {
 	b.events = append(b.events, "unblock")
 }
 
+func (b *shutdownBackend) ResetQueuedAudio() {
+	b.events = append(b.events, "reset-queued")
+}
+
 func TestShutdownMutesAndClearsBeforeBackendTeardown(t *testing.T) {
 	backend := &shutdownBackend{}
 	sys := NewSystem()
@@ -509,8 +513,8 @@ func TestShutdownMutesAndClearsBeforeBackendTeardown(t *testing.T) {
 	if sys.music != nil {
 		t.Fatal("Shutdown did not clear active music state")
 	}
-	if sys.rawSamples.End != sys.paintedTime {
-		t.Fatalf("rawSamples.End = %d, want %d", sys.rawSamples.End, sys.paintedTime)
+	if sys.rawSamples.End != 0 {
+		t.Fatalf("rawSamples.End = %d, want 0", sys.rawSamples.End)
 	}
 	if sys.channels[0].SFX != nil || sys.channels[NumAmbients].SFX != nil {
 		t.Fatal("Shutdown did not clear active sound channels")
@@ -518,11 +522,77 @@ func TestShutdownMutesAndClearsBeforeBackendTeardown(t *testing.T) {
 	if !slices.Equal(sys.dma.Buffer, []byte{0, 0, 0, 0}) {
 		t.Fatalf("DMA buffer after Shutdown = %v, want zeroed buffer", sys.dma.Buffer)
 	}
-	if !slices.Equal(backend.events, []string{"block", "lock", "unlock", "shutdown"}) {
-		t.Fatalf("backend events = %v, want [block lock unlock shutdown]", backend.events)
+	if !slices.Equal(backend.events, []string{"block", "lock", "unlock", "reset-queued", "shutdown"}) {
+		t.Fatalf("backend events = %v, want [block lock unlock reset-queued shutdown]", backend.events)
 	}
 	if sys.started || sys.initialized || sys.blocked != 0 {
 		t.Fatalf("shutdown state = started:%v initialized:%v blocked:%d, want false false 0", sys.started, sys.initialized, sys.blocked)
+	}
+}
+
+type resetQueuedBackend struct {
+	locked       bool
+	resetCalls   int
+	resetLocked  bool
+	lockEvents   []string
+	position     int
+	shutdownCall bool
+}
+
+func (b *resetQueuedBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {
+	return nil, nil
+}
+
+func (b *resetQueuedBackend) Shutdown() {}
+func (b *resetQueuedBackend) Lock() {
+	b.locked = true
+	b.lockEvents = append(b.lockEvents, "lock")
+}
+func (b *resetQueuedBackend) Unlock() {
+	b.lockEvents = append(b.lockEvents, "unlock")
+	b.locked = false
+}
+func (b *resetQueuedBackend) Position() int { return b.position }
+func (b *resetQueuedBackend) Block()        {}
+func (b *resetQueuedBackend) Unblock()      {}
+func (b *resetQueuedBackend) ResetQueuedAudio() {
+	b.resetCalls++
+	b.resetLocked = b.locked
+}
+
+func TestStopAllSoundsClearsRawSamplesAndFlushesQueuedBackendAudio(t *testing.T) {
+	backend := &resetQueuedBackend{}
+	sys := NewSystem()
+	sys.backend = backend
+	sys.dma = &DMAInfo{Buffer: []byte{1, 2, 3, 4}}
+	sys.rawSamples.End = 99
+	sys.paintedTime = 33
+	sys.totalChans = NumAmbients + MaxDynamicChannels + 2
+	sys.channels[0] = Channel{SFX: &SFX{}}
+	sys.channels[NumAmbients+MaxDynamicChannels] = Channel{SFX: &SFX{}}
+
+	sys.StopAllSounds(true)
+
+	if !slices.Equal(sys.dma.Buffer, []byte{0, 0, 0, 0}) {
+		t.Fatalf("DMA buffer after StopAllSounds = %v, want zeroed", sys.dma.Buffer)
+	}
+	if got := sys.rawSamples.End; got != 0 {
+		t.Fatalf("rawSamples.End = %d, want 0", got)
+	}
+	if sys.channels[0].SFX != nil || sys.channels[NumAmbients+MaxDynamicChannels].SFX != nil {
+		t.Fatal("StopAllSounds did not clear sound channels")
+	}
+	if got := sys.totalChans; got != NumAmbients+MaxDynamicChannels {
+		t.Fatalf("totalChans = %d, want %d", got, NumAmbients+MaxDynamicChannels)
+	}
+	if backend.resetCalls != 1 {
+		t.Fatalf("ResetQueuedAudio calls = %d, want 1", backend.resetCalls)
+	}
+	if backend.resetLocked {
+		t.Fatal("ResetQueuedAudio was called while backend lock was held")
+	}
+	if !slices.Equal(backend.lockEvents, []string{"lock", "unlock"}) {
+		t.Fatalf("backend lock events = %v, want [lock unlock]", backend.lockEvents)
 	}
 }
 

@@ -71,7 +71,7 @@ func (b *OtoBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DM
 	pr, pw := io.Pipe()
 	player := ctx.NewPlayer(pr)
 	// Oto default player buffer is 0.5s which adds ~500ms latency.
-	// Reduce to ~50ms for responsive game audio.
+	// Reduce to ~50ms for responsive game audio without underrunning.
 	bytesPerFrame := channels * (sampleBits / 8)
 	player.SetBufferSize(sampleRate / 20 * bytesPerFrame) // ~50ms
 	player.Play()
@@ -93,28 +93,30 @@ func (b *OtoBackend) Shutdown() {
 	b.mu.Lock()
 	quit := b.quit
 	b.quit = nil
+	player := b.player
+	pipeW := b.pipeW
+	pipeR := b.pipeR
+	b.player = nil
+	b.pipeW = nil
+	b.pipeR = nil
+	b.ctx = nil
+	b.dma = nil
+	b.pos = 0
 	b.mu.Unlock()
 
+	if player != nil {
+		player.Pause()
+	}
 	if quit != nil {
 		close(quit)
 	}
+	if pipeW != nil {
+		_ = pipeW.Close()
+	}
+	if pipeR != nil {
+		_ = pipeR.Close()
+	}
 	b.wg.Wait()
-
-	if b.player != nil {
-		// oto v3.4+: Close is a no-op and deprecated; the player is cleaned up
-		// when its owning context goes out of scope.
-		b.player = nil
-	}
-	if b.pipeW != nil {
-		_ = b.pipeW.Close()
-		b.pipeW = nil
-	}
-	if b.pipeR != nil {
-		_ = b.pipeR.Close()
-		b.pipeR = nil
-	}
-	b.ctx = nil
-	b.dma = nil
 }
 
 func (b *OtoBackend) Lock() {
@@ -153,22 +155,40 @@ func (b *OtoBackend) Unblock() {
 	b.mu.Lock()
 	b.blocked = false
 	ctx := b.ctx
+	player := b.player
 	b.mu.Unlock()
 	if ctx != nil {
 		_ = ctx.Resume()
 	}
+	if player != nil {
+		player.Play()
+	}
+}
+
+func (b *OtoBackend) ResetQueuedAudio() {
+	b.mu.Lock()
+	player := b.player
+	blocked := b.blocked
+	b.mu.Unlock()
+	if player == nil || blocked {
+		return
+	}
+	player.Reset()
+	go player.Play()
 }
 
 func (b *OtoBackend) streamLoop() {
 	defer b.wg.Done()
 
-	if b.dma == nil || b.pipeW == nil || b.sampleRate <= 0 {
+	dma := b.dma
+	if dma == nil || b.sampleRate <= 0 {
 		return
 	}
 
 	const chunkFrames = 256
 	bytesPerFrame := b.channels * (b.sampleBits / 8)
 	chunkBytes := chunkFrames * bytesPerFrame
+	out := make([]byte, chunkBytes)
 	period := time.Second * time.Duration(chunkFrames) / time.Duration(b.sampleRate)
 	if period <= 0 {
 		period = time.Millisecond * 5
@@ -184,32 +204,35 @@ func (b *OtoBackend) streamLoop() {
 		case <-ticker.C:
 			b.mu.Lock()
 			blocked := b.blocked
+			pipeW := b.pipeW
 			b.mu.Unlock()
 			if blocked {
 				continue
 			}
+			if pipeW == nil {
+				return
+			}
 
-			out := make([]byte, chunkBytes)
-			b.dma.mu.Lock()
-			if len(b.dma.Buffer) == 0 || b.bufferSize <= 0 {
-				b.dma.mu.Unlock()
+			dma.mu.Lock()
+			if len(dma.Buffer) == 0 || b.bufferSize <= 0 {
+				dma.mu.Unlock()
 				continue
 			}
 
 			bytePos := (b.pos % b.bufferSize) * bytesPerFrame
-			if bytePos+chunkBytes <= len(b.dma.Buffer) {
-				copy(out, b.dma.Buffer[bytePos:bytePos+chunkBytes])
+			if bytePos+chunkBytes <= len(dma.Buffer) {
+				copy(out, dma.Buffer[bytePos:bytePos+chunkBytes])
 			} else {
-				first := len(b.dma.Buffer) - bytePos
-				copy(out[:first], b.dma.Buffer[bytePos:])
-				copy(out[first:], b.dma.Buffer[:chunkBytes-first])
+				first := len(dma.Buffer) - bytePos
+				copy(out[:first], dma.Buffer[bytePos:])
+				copy(out[first:], dma.Buffer[:chunkBytes-first])
 			}
 
 			b.pos = (b.pos + chunkFrames) % b.bufferSize
-			b.dma.SamplePos = b.pos
-			b.dma.mu.Unlock()
+			dma.SamplePos = b.pos
+			dma.mu.Unlock()
 
-			if _, err := b.pipeW.Write(out); err != nil {
+			if _, err := pipeW.Write(out); err != nil {
 				return
 			}
 		}

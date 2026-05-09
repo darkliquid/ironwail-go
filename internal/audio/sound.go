@@ -43,6 +43,10 @@ type System struct {
 	ambientLevels [NumAmbients]float32
 }
 
+type queuedAudioResetter interface {
+	ResetQueuedAudio()
+}
+
 func NewSystem() *System {
 	return &System{
 		mixAhead:  0.1,
@@ -215,12 +219,17 @@ func (s *System) ClearStaticSounds() {
 }
 
 func (s *System) StopAllSounds(clear bool) {
+	var resetQueuedAudio queuedAudioResetter
+	if clear && s.backend != nil {
+		if backend, ok := s.backend.(queuedAudioResetter); ok {
+			resetQueuedAudio = backend
+		}
+	}
+
 	if s.backend != nil {
 		s.backend.Lock()
-		defer s.backend.Unlock()
 	} else if clear && s.dma != nil {
 		s.dma.mu.Lock()
-		defer s.dma.mu.Unlock()
 	}
 
 	s.totalChans = NumAmbients + MaxDynamicChannels
@@ -233,6 +242,17 @@ func (s *System) StopAllSounds(clear bool) {
 		for i := range s.dma.Buffer {
 			s.dma.Buffer[i] = 0
 		}
+		s.rawSamples = RawSamplesBuffer{}
+	}
+
+	if s.backend != nil {
+		s.backend.Unlock()
+	} else if clear && s.dma != nil {
+		s.dma.mu.Unlock()
+	}
+
+	if resetQueuedAudio != nil {
+		resetQueuedAudio.ResetQueuedAudio()
 	}
 }
 

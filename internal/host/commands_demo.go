@@ -151,6 +151,10 @@ func (h *Host) CmdPlaydemo(filename string, subs *Subsystems) {
 		return
 	}
 
+	// Match CL_PlayDemo_f -> CL_Disconnect: always clear current sounds before
+	// opening a demo, even when no local server is active.
+	h.stopSessionSounds(subs)
+
 	// Disconnect from any current server
 	if h.serverActive {
 		h.ShutdownServer(subs)
@@ -305,6 +309,8 @@ func (h *Host) CmdDemos(subs *Subsystems) {
 		}
 	}
 
+	h.BeginLoadingTransitionPlaque(0)
+	h.stopSessionSounds(subs)
 	h.CmdPlaydemo(demos[num], subs)
 	h.SetDemoNum(num + 1)
 }

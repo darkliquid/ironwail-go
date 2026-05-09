@@ -49,7 +49,6 @@ func (r *Renderer) createWorldDepthTexture(device *wgpu.Device, width, height in
 	return texture, view, nil
 }
 
-
 func (r *Renderer) hasTranslucentWorldLiquidFacesGoGPU() bool {
 	if r == nil {
 		return false
@@ -151,6 +150,9 @@ func (r *Renderer) ClearWorld() {
 		}
 		if r.worldSkyExternalPipelineLayout != nil {
 			r.worldSkyExternalPipelineLayout.Release()
+		}
+		if r.worldShader != nil {
+			r.worldShader.Release()
 		}
 		if r.uniformBindGroup != nil {
 			r.uniformBindGroup.Release()
@@ -261,6 +263,9 @@ func (r *Renderer) ClearWorld() {
 			}
 			r.worldLightmapPages[index] = nil
 		}
+		if r.whiteTextureView != nil {
+			r.whiteTextureView.Release()
+		}
 		if r.whiteTexture != nil {
 			r.whiteTexture.Release()
 		}
@@ -272,6 +277,9 @@ func (r *Renderer) ClearWorld() {
 		}
 		if r.transparentTexture != nil {
 			r.transparentTexture.Release()
+		}
+		if r.worldDepthTextureView != nil {
+			r.worldDepthTextureView.Release()
 		}
 		if r.worldDepthTexture != nil {
 			r.worldDepthTexture.Release()

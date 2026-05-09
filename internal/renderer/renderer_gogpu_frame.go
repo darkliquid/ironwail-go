@@ -383,27 +383,8 @@ func shouldDrawWorldFallbackDots() bool {
 // so the first 2D draw pass uses LoadOpLoad (preserve existing surface content)
 // rather than defaulting to LoadOpClear.
 func (dc *DrawContext) markGoGPUFrameContentForOverlay() bool {
-	if dc == nil || dc.ctx == nil {
-		return false
-	}
-
-	ctxValue := reflect.ValueOf(dc.ctx)
-	if ctxValue.Kind() != reflect.Pointer || ctxValue.IsNil() {
-		return false
-	}
-
-	ctxElem := ctxValue.Elem()
-	rendererField := ctxElem.FieldByName("renderer")
-	if !rendererField.IsValid() || rendererField.Kind() != reflect.Pointer || rendererField.IsNil() {
-		return false
-	}
-
-	rendererPtr := reflect.NewAt(rendererField.Type(), unsafe.Pointer(rendererField.UnsafeAddr())).Elem()
-	rendererElem := rendererPtr.Elem()
-
-	frameClearedField := rendererElem.FieldByName("frameCleared")
-	hasPendingClearField := rendererElem.FieldByName("hasPendingClear")
-	if !frameClearedField.IsValid() || !hasPendingClearField.IsValid() {
+	frameClearedField, hasPendingClearField, ok := dc.goGPUFrameStateFields()
+	if !ok {
 		return false
 	}
 
@@ -421,27 +402,8 @@ func (dc *DrawContext) markGoGPUFrameContentForOverlay() bool {
 }
 
 func (dc *DrawContext) getGoGPUFrameStateForDebug() (frameCleared bool, hasPendingClear bool, ok bool) {
-	if dc == nil || dc.ctx == nil {
-		return false, false, false
-	}
-
-	ctxValue := reflect.ValueOf(dc.ctx)
-	if ctxValue.Kind() != reflect.Pointer || ctxValue.IsNil() {
-		return false, false, false
-	}
-
-	ctxElem := ctxValue.Elem()
-	rendererField := ctxElem.FieldByName("renderer")
-	if !rendererField.IsValid() || rendererField.Kind() != reflect.Pointer || rendererField.IsNil() {
-		return false, false, false
-	}
-
-	rendererPtr := reflect.NewAt(rendererField.Type(), unsafe.Pointer(rendererField.UnsafeAddr())).Elem()
-	rendererElem := rendererPtr.Elem()
-
-	frameClearedField := rendererElem.FieldByName("frameCleared")
-	hasPendingClearField := rendererElem.FieldByName("hasPendingClear")
-	if !frameClearedField.IsValid() || !hasPendingClearField.IsValid() {
+	frameClearedField, hasPendingClearField, ok := dc.goGPUFrameStateFields()
+	if !ok {
 		return false, false, false
 	}
 
@@ -452,6 +414,85 @@ func (dc *DrawContext) getGoGPUFrameStateForDebug() (frameCleared bool, hasPendi
 	}
 
 	return frameClearedReadable.Bool(), hasPendingClearReadable.Bool(), true
+}
+
+func (dc *DrawContext) goGPUFrameStateFields() (frameCleared reflect.Value, hasPendingClear reflect.Value, ok bool) {
+	if dc == nil || dc.ctx == nil {
+		return reflect.Value{}, reflect.Value{}, false
+	}
+
+	ctxValue := reflect.ValueOf(dc.ctx)
+	if ctxValue.Kind() != reflect.Pointer || ctxValue.IsNil() {
+		return reflect.Value{}, reflect.Value{}, false
+	}
+
+	ctxElem := ctxValue.Elem()
+	rendererField := ctxElem.FieldByName("renderer")
+	if !rendererField.IsValid() || rendererField.Kind() != reflect.Pointer || rendererField.IsNil() {
+		return reflect.Value{}, reflect.Value{}, false
+	}
+
+	rendererPtr := writableReflectValue(rendererField)
+	if !rendererPtr.IsValid() || rendererPtr.Kind() != reflect.Pointer || rendererPtr.IsNil() {
+		return reflect.Value{}, reflect.Value{}, false
+	}
+	rendererElem := rendererPtr.Elem()
+
+	if surfaceElem, ok := goGPUActiveSurfaceElem(ctxElem, rendererElem); ok {
+		frameClearedField := surfaceElem.FieldByName("frameCleared")
+		hasPendingClearField := surfaceElem.FieldByName("hasPendingClear")
+		if frameClearedField.IsValid() && hasPendingClearField.IsValid() &&
+			frameClearedField.Kind() == reflect.Bool && hasPendingClearField.Kind() == reflect.Bool &&
+			frameClearedField.CanAddr() && hasPendingClearField.CanAddr() {
+			return frameClearedField, hasPendingClearField, true
+		}
+	}
+
+	// Older gogpu versions kept the frame state directly on Renderer.
+	frameClearedField := rendererElem.FieldByName("frameCleared")
+	hasPendingClearField := rendererElem.FieldByName("hasPendingClear")
+	if frameClearedField.IsValid() && hasPendingClearField.IsValid() &&
+		frameClearedField.Kind() == reflect.Bool && hasPendingClearField.Kind() == reflect.Bool &&
+		frameClearedField.CanAddr() && hasPendingClearField.CanAddr() {
+		return frameClearedField, hasPendingClearField, true
+	}
+
+	return reflect.Value{}, reflect.Value{}, false
+}
+
+func goGPUActiveSurfaceElem(ctxElem, rendererElem reflect.Value) (reflect.Value, bool) {
+	surfaceField := ctxElem.FieldByName("surface")
+	if surfaceField.IsValid() && surfaceField.Kind() == reflect.Pointer {
+		surfacePtr := writableReflectValue(surfaceField)
+		if surfacePtr.IsValid() && surfacePtr.Kind() == reflect.Pointer && !surfacePtr.IsNil() {
+			return surfacePtr.Elem(), true
+		}
+	}
+
+	currentSurfaceField := rendererElem.FieldByName("currentSurface")
+	if currentSurfaceField.IsValid() && currentSurfaceField.Kind() == reflect.Pointer {
+		currentSurfacePtr := writableReflectValue(currentSurfaceField)
+		if currentSurfacePtr.IsValid() && currentSurfacePtr.Kind() == reflect.Pointer && !currentSurfacePtr.IsNil() {
+			return currentSurfacePtr.Elem(), true
+		}
+	}
+
+	primaryField := rendererElem.FieldByName("primary")
+	if primaryField.IsValid() && primaryField.Kind() == reflect.Pointer {
+		primaryPtr := writableReflectValue(primaryField)
+		if primaryPtr.IsValid() && primaryPtr.Kind() == reflect.Pointer && !primaryPtr.IsNil() {
+			return primaryPtr.Elem(), true
+		}
+	}
+
+	return reflect.Value{}, false
+}
+
+func writableReflectValue(value reflect.Value) reflect.Value {
+	if !value.IsValid() || !value.CanAddr() {
+		return reflect.Value{}
+	}
+	return reflect.NewAt(value.Type(), unsafe.Pointer(value.UnsafeAddr())).Elem()
 }
 
 // renderWorldFallbackTopDown draws a sparse top-down projection of world
