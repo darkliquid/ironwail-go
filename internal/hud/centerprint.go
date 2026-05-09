@@ -161,7 +161,6 @@ func (cp *Centerprint) intermissionPicForRune(r rune) *image.QPic {
 	}
 }
 
-
 func (cp *Centerprint) drawIntermissionText(rc renderer.RenderContext, x, y int, text string) {
 	for _, r := range text {
 		pic := cp.intermissionPicForRune(r)
@@ -223,8 +222,8 @@ func limitCenterTextVisibleChars(text string, visibleChars int) string {
 	}
 
 	seen := 0
-	for i, r := range text {
-		if r == '\n' || r == '\r' {
+	for i := 0; i < len(text); i++ {
+		if text[i] == '\n' || text[i] == '\r' {
 			continue
 		}
 		seen++
@@ -461,14 +460,14 @@ func drawCenterprintLine(rc renderer.RenderContext, x, y int, text string, lineI
 		DrawCharacterAlpha(x, y int, num int, alpha float32)
 	}
 	if alphaDrawer, ok := rc.(characterAlphaDrawer); ok {
-		for i, ch := range text {
-			alphaDrawer.DrawCharacterAlpha(x+i*8, y, int(ch), float32(alpha))
+		for i := 0; i < len(text); i++ {
+			alphaDrawer.DrawCharacterAlpha(x+i*8, y, int(text[i]), float32(alpha))
 		}
 		return
 	}
-	for i, ch := range text {
+	for i := 0; i < len(text); i++ {
 		if shouldDrawCenterprintChar(lineIndex, i, alpha) {
-			rc.DrawCharacter(x+i*8, y, int(ch))
+			rc.DrawCharacter(x+i*8, y, int(text[i]))
 		}
 	}
 }

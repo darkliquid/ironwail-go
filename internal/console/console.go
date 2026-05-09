@@ -675,6 +675,35 @@ func (c *Console) SafePrintf(format string, args ...any) {
 	c.Printf(format, args...)
 }
 
+// TerminalText converts Quake byte-encoded console text to printable UTF-8.
+// Quake sets bit 7 on many glyph bytes to select the alternate text color; for
+// terminal/stdout logging, clear that color bit so the underlying ASCII text is
+// visible instead of invalid UTF-8 bytes.
+func TerminalText(msg string) string {
+	if msg == "" {
+		return ""
+	}
+	out := make([]byte, 0, len(msg))
+	for i := 0; i < len(msg); i++ {
+		ch := msg[i]
+		if ch >= 128 {
+			ch &^= 128
+		}
+		switch {
+		case ch == '\n' || ch == '\r' || ch == '\t':
+			out = append(out, ch)
+		case ch >= 32 && ch < 127:
+			out = append(out, ch)
+		case ch == 0:
+			// Quake strings are normally NUL-terminated on the wire; do not
+			// leak the terminator into terminal logs if one slips through.
+		default:
+			out = append(out, ' ')
+		}
+	}
+	return string(out)
+}
+
 // CenterPrintf prints text horizontally centered within the given character
 // width. Each line of the message is individually padded with leading spaces.
 // This is used for title screens, MOTD banners, and other decorative output

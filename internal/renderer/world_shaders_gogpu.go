@@ -177,7 +177,8 @@ var<uniform> uniforms: Uniforms;
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     let worldPos = vec4<f32>(input.position, 1.0);
-    output.clipPosition = uniforms.viewProjection * worldPos;
+    let clipPos = uniforms.viewProjection * worldPos;
+    output.clipPosition = vec4<f32>(clipPos.xy, clipPos.w, clipPos.w);
     output.dir = vec3<f32>(
         input.position.x - uniforms.cameraOrigin.x,
         input.position.y - uniforms.cameraOrigin.y,

@@ -39,7 +39,7 @@ func ReadLiquidAlphaSettings(overrides LiquidAlphaOverrides, tree *bsp.Tree) Liq
 		ReadAlphaCvar(CvarWaterAlpha, 1),
 		ReadAlphaCvar(CvarLavaAlpha, 0),
 		ReadAlphaCvar(CvarSlimeAlpha, 0),
-		ReadAlphaCvar(CvarTeleAlpha, 0),
+		ReadAlphaCvar(CvarTeleAlpha, 1),
 		overrides,
 		tree,
 	)

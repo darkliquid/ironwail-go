@@ -336,7 +336,7 @@ func worldLiquidAlphaSettingsForGeometry(geom *WorldGeometry) worldLiquidAlphaSe
 		worldimpl.ReadAlphaCvar(CvarRWaterAlpha, 1),
 		worldimpl.ReadAlphaCvar(CvarRLavaAlpha, 0),
 		worldimpl.ReadAlphaCvar(CvarRSlimeAlpha, 0),
-		worldimpl.ReadAlphaCvar(CvarRTeleAlpha, 0),
+		worldimpl.ReadAlphaCvar(CvarRTeleAlpha, 1),
 		worldLiquidAlphaOverridesFromWorld(geom.LiquidAlphaOverrides),
 		nil,
 	)

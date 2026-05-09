@@ -113,7 +113,7 @@ func (g *Game) initGameHost() error {
 	}
 	console.SetGlobalCVar(g.Host.CVar)
 	console.SetPrintCallback(func(msg string) {
-		fmt.Print(msg)
+		fmt.Print(console.TerminalText(msg))
 	})
 
 	// Initialize cvars for video, sound, gameplay
@@ -140,6 +140,10 @@ func (g *Game) initGameHost() error {
 	g.Host.CVar.Register("r_gamma", "1.0", cvar.FlagArchive, "Gamma correction")
 	g.Host.CVar.Register(renderer.CvarRAlphaSort, "1", cvar.FlagArchive, "Sort translucent surfaces back-to-front")
 	g.Host.CVar.Register(renderer.CvarROIT, "1", cvar.FlagArchive, "Enable order-independent transparency")
+	g.Host.CVar.Register(renderer.CvarRWaterAlpha, "1", cvar.FlagArchive, "Water alpha (0..1)")
+	g.Host.CVar.Register(renderer.CvarRLavaAlpha, "0", cvar.FlagArchive, "Lava alpha (0 uses water alpha)")
+	g.Host.CVar.Register(renderer.CvarRSlimeAlpha, "0", cvar.FlagArchive, "Slime alpha (0 uses water alpha)")
+	g.Host.CVar.Register(renderer.CvarRTeleAlpha, "1", cvar.FlagArchive, "Teleporter alpha (0..1)")
 	g.Host.CVar.Register("r_drawentities", "1", 0, "Draw entities")
 	renderer.RegisterRendbgCVars(g.Host.CVar)
 	g.registerRendererLightingAndParticleCvars(g.Host.CVar.Register)

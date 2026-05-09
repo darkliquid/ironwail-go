@@ -905,3 +905,38 @@ func TestParseClientDataLogsSuspiciousPacketTrace(t *testing.T) {
 		t.Fatalf("console output missing raw clientdata bytes: %q", joined)
 	}
 }
+
+func TestParseClientDataDoesNotLogNormalFastFallingVelocity(t *testing.T) {
+	var printed []string
+	console.SetPrintCallback(func(msg string) {
+		printed = append(printed, msg)
+	})
+	t.Cleanup(func() {
+		console.SetPrintCallback(nil)
+	})
+
+	c := NewClient()
+	p := NewParser(c)
+
+	msg := bytes.NewBuffer(nil)
+	msg.WriteByte(byte(inet.SVCClientData))
+	writeShort(msg, int(inet.SU_VELOCITY3))
+	msg.WriteByte(184)
+	writeLong(msg, 0)
+	writeShort(msg, 100)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+	msg.WriteByte(0)
+
+	if err := p.ParseServerMessage(msg.Bytes()); err != nil {
+		t.Fatalf("ParseServerMessage() error = %v", err)
+	}
+
+	if joined := strings.Join(printed, "\n"); strings.Contains(joined, "client packet anomaly:") {
+		t.Fatalf("normal falling velocity logged as anomaly: %q", joined)
+	}
+}

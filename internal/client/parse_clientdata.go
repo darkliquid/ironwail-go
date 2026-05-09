@@ -293,13 +293,7 @@ func (p *Parser) packetTraceSummary() string {
 }
 
 func isSuspiciousClientData(velocity, punch [3]float32) bool {
-	const suspiciousVelocity = 1000
 	const suspiciousPunch = 90
-	for _, v := range velocity {
-		if abs32(v) > suspiciousVelocity {
-			return true
-		}
-	}
 	for _, v := range punch {
 		if abs32(v) > suspiciousPunch {
 			return true

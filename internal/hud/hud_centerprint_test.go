@@ -6,6 +6,7 @@ package hud
 // Centerprint, finale, and intermission overlay tests split from hud_test.go.
 
 import (
+	"bytes"
 	"math"
 	"strings"
 	"testing"
@@ -71,6 +72,29 @@ func TestHUDDrawCenterprintTimeoutUsesScrCenterTime(t *testing.T) {
 	}, 320, 200)
 	if got := charactersToString(expired.characters); got != "" {
 		t.Fatalf("centerprint after scr_centertime expiry = %q, want empty", got)
+	}
+}
+
+func TestHUDDrawCenterprintPreservesQuakeHighBitGlyphBytes(t *testing.T) {
+	registerCenterprintTestCvars()
+	testCV.Set("scr_centerprintbg", "0")
+	testCV.Set("con_notifyfade", "0")
+
+	cp := NewCenterprint(nil, testCV)
+	rc := &mockRenderContext{}
+	message := string([]byte{0x80, ' ', 'b', 'y', ' ', 0x81})
+	cp.Draw(rc, State{
+		CenterPrint:   message,
+		CenterPrintAt: 1,
+		Time:          1.5,
+	}, 320, 200)
+
+	got := make([]byte, 0, len(rc.characters))
+	for _, ch := range rc.characters {
+		got = append(got, byte(ch.num))
+	}
+	if want := []byte{0x80, ' ', 'b', 'y', ' ', 0x81}; !bytes.Equal(got, want) {
+		t.Fatalf("centerprint glyph bytes = %v, want %v", got, want)
 	}
 }
 

@@ -105,7 +105,7 @@ const (
 	CvarRWaterAlpha    = "r_wateralpha"    // Water alpha (0..1, default 1.0)
 	CvarRLavaAlpha     = "r_lavaalpha"     // Lava alpha (0 uses water alpha)
 	CvarRSlimeAlpha    = "r_slimealpha"    // Slime alpha (0 uses water alpha)
-	CvarRTeleAlpha     = "r_telealpha"     // Teleport alpha (0 uses water alpha)
+	CvarRTeleAlpha     = "r_telealpha"     // Teleport alpha (0..1, default 1.0)
 	CvarRParticles     = "r_particles"     // Particle blend mode (1=alpha, 2=opaque)
 	CvarRDynamic       = "r_dynamic"       // Dynamic lights (0=off, 1=on)
 	CvarRFastSky       = "r_fastsky"       // Fast sky mode (flat sky color, no scrolling layers)

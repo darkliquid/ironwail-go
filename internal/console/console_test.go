@@ -94,6 +94,13 @@ func TestQuakeBarSuppressesNewlineAtFullWidth(t *testing.T) {
 	}
 }
 
+func TestTerminalTextClearsQuakeHighBitColorBytes(t *testing.T) {
+	raw := string([]byte{0x80 | 'M', 0x80 | 'a', 0x80 | 'p', '\n', 0x80 | 'b', 0x80 | 'y'})
+	if got, want := TerminalText(raw), "Map\nby"; got != want {
+		t.Fatalf("TerminalText() = %q, want %q", got, want)
+	}
+}
+
 func TestDPrintf2RequiresDeveloperLevel2(t *testing.T) {
 	if err := InitGlobal(0); err != nil {
 		t.Fatalf("InitGlobal failed: %v", err)
