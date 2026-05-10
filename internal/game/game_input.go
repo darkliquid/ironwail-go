@@ -378,6 +378,8 @@ func (g *Game) syncGameplayInputMode() {
 	switch {
 	case menuActive:
 		wantDest = input.KeyMenu
+	case g.runtimeConsoleForcedUp():
+		wantDest = input.KeyConsole
 	case wantDest == input.KeyMenu:
 		wantDest = input.KeyGame
 	case wantDest != input.KeyConsole && wantDest != input.KeyMessage:

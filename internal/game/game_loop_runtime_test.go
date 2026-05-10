@@ -10,6 +10,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/bsp"
 	cl "github.com/darkliquid/ironwail-go/internal/client"
 	"github.com/darkliquid/ironwail-go/internal/host"
+	"github.com/darkliquid/ironwail-go/internal/input"
 	"github.com/darkliquid/ironwail-go/internal/menu"
 	"github.com/darkliquid/ironwail-go/internal/model"
 	inet "github.com/darkliquid/ironwail-go/internal/net"
@@ -258,6 +259,9 @@ func TestRunRuntimeFrameCleansUpDemoDisconnectMessage(t *testing.T) {
 	clientState.DemoPlayback = true
 	clientState.TimeDemoActive = true
 	g.Client = clientState
+	g.Input = input.NewSystem(nil)
+	g.Input.SetKeyDest(input.KeyGame)
+	g.MouseGrabbed = true
 
 	console := &demoPlaybackConsole{}
 	g.Subs = &host.Subsystems{
@@ -281,6 +285,12 @@ func TestRunRuntimeFrameCleansUpDemoDisconnectMessage(t *testing.T) {
 	}
 	if got := g.runtimeConsoleForcedUp(); !got {
 		t.Fatal("runtimeConsoleForcedUp() = false, want true after svc_disconnect")
+	}
+	if got := g.Input.KeyDest(); got != input.KeyConsole {
+		t.Fatalf("key destination after svc_disconnect = %v, want console", got)
+	}
+	if g.MouseGrabbed {
+		t.Fatal("mouse should be released after svc_disconnect forces the console up")
 	}
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "timedemo:") {
 		t.Fatalf("console output = %q, want timedemo summary", got)

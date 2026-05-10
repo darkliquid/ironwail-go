@@ -564,9 +564,20 @@ func TestStopAllSoundsClearsRawSamplesAndFlushesQueuedBackendAudio(t *testing.T)
 	backend := &resetQueuedBackend{}
 	sys := NewSystem()
 	sys.backend = backend
+	sys.mixer = NewMixer()
+	mixer := sys.mixer.(*Mixer)
+	mixer.underwater = UnderwaterState{Intensity: 1, Alpha: 0.5, Accum: [2]float32{10, -20}}
+	mixer.filterL = filter{memory: []float32{1}, kernel: []float32{1}, kernelSize: 1, parity: 2, fc: 1, m: 1}
+	mixer.filterR = filter{memory: []float32{1}, kernel: []float32{1}, kernelSize: 1, parity: 3, fc: 1, m: 1}
+	mixer.loFreqLevel = 0.5
+	mixer.hiFreqLevel = 0.75
 	sys.dma = &DMAInfo{Buffer: []byte{1, 2, 3, 4}}
 	sys.rawSamples.End = 99
 	sys.paintedTime = 33
+	sys.soundTime = 44
+	sys.oldSamplePos = 55
+	sys.bufferCount = 2
+	sys.ambientLevels[0] = 12
 	sys.totalChans = NumAmbients + MaxDynamicChannels + 2
 	sys.channels[0] = Channel{SFX: &SFX{}}
 	sys.channels[NumAmbients+MaxDynamicChannels] = Channel{SFX: &SFX{}}
@@ -579,8 +590,17 @@ func TestStopAllSoundsClearsRawSamplesAndFlushesQueuedBackendAudio(t *testing.T)
 	if got := sys.rawSamples.End; got != 0 {
 		t.Fatalf("rawSamples.End = %d, want 0", got)
 	}
+	if sys.paintedTime != 0 || sys.soundTime != 0 || sys.oldSamplePos != 0 || sys.bufferCount != 0 {
+		t.Fatalf("sound timing after StopAllSounds = painted:%d sound:%d oldpos:%d wraps:%d, want all zero", sys.paintedTime, sys.soundTime, sys.oldSamplePos, sys.bufferCount)
+	}
+	if sys.ambientLevels[0] != 0 {
+		t.Fatalf("ambient level after StopAllSounds = %v, want 0", sys.ambientLevels[0])
+	}
 	if sys.channels[0].SFX != nil || sys.channels[NumAmbients+MaxDynamicChannels].SFX != nil {
 		t.Fatal("StopAllSounds did not clear sound channels")
+	}
+	if mixer.underwater != (UnderwaterState{}) || mixer.filterL.memory != nil || mixer.filterR.memory != nil || mixer.loFreqLevel != 0 || mixer.hiFreqLevel != 0 {
+		t.Fatalf("mixer effects not reset: underwater=%+v filterL=%+v filterR=%+v levels=%v/%v", mixer.underwater, mixer.filterL, mixer.filterR, mixer.loFreqLevel, mixer.hiFreqLevel)
 	}
 	if got := sys.totalChans; got != NumAmbients+MaxDynamicChannels {
 		t.Fatalf("totalChans = %d, want %d", got, NumAmbients+MaxDynamicChannels)

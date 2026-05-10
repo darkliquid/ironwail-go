@@ -169,7 +169,14 @@ func (b *OtoBackend) ResetQueuedAudio() {
 	b.mu.Lock()
 	player := b.player
 	blocked := b.blocked
+	dma := b.dma
 	b.mu.Unlock()
+	if dma != nil {
+		dma.mu.Lock()
+		b.pos = 0
+		dma.SamplePos = 0
+		dma.mu.Unlock()
+	}
 	if player == nil || blocked {
 		return
 	}

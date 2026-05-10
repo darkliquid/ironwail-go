@@ -401,6 +401,13 @@ func (m *Mixer) UnderwaterIntensity() float32 {
 	return m.underwater.Intensity
 }
 
+func (m *Mixer) ResetEffects() {
+	m.underwater = UnderwaterState{}
+	m.filterL = filter{}
+	m.filterR = filter{}
+	m.ClearLevels()
+}
+
 func (m *Mixer) ClearLevels() {
 	m.loFreqLevel = 0
 	m.hiFreqLevel = 0

@@ -47,6 +47,10 @@ type queuedAudioResetter interface {
 	ResetQueuedAudio()
 }
 
+type mixerEffectsResetter interface {
+	ResetEffects()
+}
+
 func NewSystem() *System {
 	return &System{
 		mixAhead:  0.1,
@@ -243,6 +247,14 @@ func (s *System) StopAllSounds(clear bool) {
 			s.dma.Buffer[i] = 0
 		}
 		s.rawSamples = RawSamplesBuffer{}
+		s.paintedTime = 0
+		s.soundTime = 0
+		s.oldSamplePos = 0
+		s.bufferCount = 0
+		s.ambientLevels = [NumAmbients]float32{}
+		if mixer, ok := s.mixer.(mixerEffectsResetter); ok {
+			mixer.ResetEffects()
+		}
 	}
 
 	if s.backend != nil {

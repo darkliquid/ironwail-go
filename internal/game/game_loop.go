@@ -305,6 +305,10 @@ func (g *Game) stopRuntimeDemoPlayback() {
 	}
 	g.Client = host.ActiveClientState(g.Subs)
 	g.resetRuntimeSoundState()
+	g.syncGameplayInputMode()
+	if g.Input != nil {
+		g.Input.ClearKeyStates()
+	}
 }
 
 func (g *Game) bootstrapDemoPlaybackWorld(clientState *cl.Client) {
