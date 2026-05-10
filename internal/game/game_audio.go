@@ -15,7 +15,6 @@ import (
 
 func (g *Game) resetRuntimeSoundState() {
 	g.SoundSFXByIndex = nil
-	g.MenuSFXByName = nil
 	g.AmbientSFX = [audio.NumAmbients]*audio.SFX{}
 	g.SoundPrecacheKey = ""
 	g.StaticSoundKey = ""
@@ -67,23 +66,6 @@ func (g *Game) resolveNamedRuntimeSFX(soundName string) *audio.SFX {
 	return g.Audio.PrecacheSound(soundName, func() ([]byte, error) {
 		return g.Subs.Files.LoadFile("sound/" + soundName)
 	})
-}
-
-func (g *Game) resolveMenuSFX(name string) *audio.SFX {
-	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || name == "" {
-		return nil
-	}
-	if g.MenuSFXByName == nil {
-		g.MenuSFXByName = make(map[string]*audio.SFX)
-	}
-	if sfx, ok := g.MenuSFXByName[name]; ok {
-		return sfx
-	}
-	sfx := g.Audio.PrecacheSound(name, func() ([]byte, error) {
-		return g.Subs.Files.LoadFile("sound/" + name)
-	})
-	g.MenuSFXByName[name] = sfx
-	return sfx
 }
 
 func (g *Game) resolveAmbientSFX(name string) *audio.SFX {
@@ -237,11 +219,14 @@ func (g *Game) syncRuntimeAmbientAudio(viewOrigin [3]float32, frameTime float32)
 }
 
 func (g *Game) playMenuSound(name string) {
-	sfx := g.resolveMenuSFX(name)
-	if sfx == nil {
+	if g.Audio == nil || g.Subs == nil || g.Subs.Files == nil || name == "" {
 		return
 	}
-	g.Audio.StartSound(0, 0, sfx, [3]float32{}, [3]float32{}, 1, 0)
+	if err := g.Audio.PlayLocalSound(name, func() ([]byte, error) {
+		return g.Subs.Files.LoadFile("sound/" + name)
+	}, 1); err != nil {
+		slog.Debug("menu sound skipped", "sound", name, "error", err)
+	}
 }
 
 func (g *Game) applySVolume() {

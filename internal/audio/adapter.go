@@ -12,12 +12,11 @@ import (
 
 // AudioAdapter wraps audio.System to implement host.Audio interface
 type AudioAdapter struct {
-	sys              *System
-	consoleSoundHash int
+	sys *System
 }
 
 func NewAudioAdapter(sys *System) *AudioAdapter {
-	return &AudioAdapter{sys: sys, consoleSoundHash: 345}
+	return &AudioAdapter{sys: sys}
 }
 
 func selectAudioBackend(oto Backend) Backend {
@@ -215,8 +214,7 @@ func (a *AudioAdapter) PlayLocalSound(name string, loader func() ([]byte, error)
 	if sfx == nil || sfx.Cache == nil {
 		return fmt.Errorf("failed to load sound %q", name)
 	}
-	a.sys.StartSound(a.consoleSoundHash, 0, sfx, a.sys.listener.Origin, a.sys.listener.Velocity, vol, 1.0)
-	a.consoleSoundHash++
+	a.sys.StartSound(a.sys.ViewEntity(), -1, sfx, [3]float32{}, [3]float32{}, vol, 1.0)
 	return nil
 }
 

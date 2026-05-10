@@ -304,6 +304,66 @@ func TestSetViewEntityRespatializesExistingChannels(t *testing.T) {
 	}
 }
 
+func TestSpatializeTreatsEntityZeroAsViewEntityWhenDisconnected(t *testing.T) {
+	sys := NewSystem()
+	sys.dma = &DMAInfo{Channels: 2}
+	sys.listener.Origin = [3]float32{2048, 0, 0}
+	sys.listener.Right = [3]float32{1, 0, 0}
+	sys.viewEntity = 0
+
+	ch := &Channel{
+		EntNum:    0,
+		Origin:    [3]float32{},
+		DistMult:  1.0 / SoundNominalClipDist,
+		MasterVol: 200,
+	}
+	sys.spatialize(ch)
+	if ch.LeftVol != 200 || ch.RightVol != 200 {
+		t.Fatalf("entity 0 local sound volumes = L:%d R:%d, want full 200/200", ch.LeftVol, ch.RightVol)
+	}
+}
+
+func TestPlayLocalSoundReplacesPreviousViewEntitySound(t *testing.T) {
+	sys := NewSystem()
+	sys.initialized = true
+	sys.started = true
+	sys.dma = &DMAInfo{
+		Channels:   2,
+		Samples:    4096,
+		SampleBits: 16,
+		Speed:      44100,
+		Buffer:     make([]byte, 4096*2*2),
+	}
+	sys.cache = NewSFXCache(sys.dma.Speed, false)
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+	adapter := NewAudioAdapter(sys)
+	loader := func() ([]byte, error) {
+		return testMusicWAV(t, 11025, 1, 2, 16), nil
+	}
+
+	if err := adapter.PlayLocalSound("misc/menu1.wav", loader, 1); err != nil {
+		t.Fatalf("first PlayLocalSound failed: %v", err)
+	}
+	if err := adapter.PlayLocalSound("misc/menu2.wav", loader, 1); err != nil {
+		t.Fatalf("second PlayLocalSound failed: %v", err)
+	}
+
+	active := 0
+	var activeSFX *SFX
+	for i := NumAmbients; i < NumAmbients+MaxDynamicChannels; i++ {
+		if sys.channels[i].SFX != nil {
+			active++
+			activeSFX = sys.channels[i].SFX
+		}
+	}
+	if active != 1 {
+		t.Fatalf("active local sound channels = %d, want 1 replacement channel", active)
+	}
+	if activeSFX == nil || activeSFX.Name != "misc/menu2.wav" {
+		t.Fatalf("active local sound = %v, want second menu sound", activeSFX)
+	}
+}
+
 // TestUpdateCombinesIdenticalStaticSounds tests static sound optimization.
 // It reducing mixer overhead by combining multiple instances of the same static sound at a location.
 // Where in C: S_Update in snd_dma.c
@@ -679,5 +739,92 @@ func TestUpdateDoesNotCallGetPositionWhileLocked(t *testing.T) {
 	}
 	if got := sys.soundTime; got != 128 {
 		t.Fatalf("soundTime = %d, want 128", got)
+	}
+}
+
+type paintWindowMixer struct {
+	paintedTime int
+	endTime     int
+}
+
+func (m *paintWindowMixer) PaintChannels(_ []Channel, _ *RawSamplesBuffer, _ *DMAInfo, paintedTime, endTime int) int {
+	m.paintedTime = paintedTime
+	m.endTime = endTime
+	return endTime
+}
+
+func (m *paintWindowMixer) SetSndSpeed(int) {}
+func (m *paintWindowMixer) SndSpeed() int   { return 0 }
+
+func TestUpdateCapsMixAheadToFullFrameRing(t *testing.T) {
+	backend := &positionBackend{positions: []int{0}}
+	mixer := &paintWindowMixer{}
+	sys := NewSystem()
+	sys.started = true
+	sys.backend = backend
+	sys.dma = &DMAInfo{
+		Channels:   2,
+		Samples:    4096,
+		SampleBits: 16,
+		Speed:      44100,
+		Buffer:     make([]byte, 4096*2*2),
+	}
+	sys.mixer = mixer
+	sys.mixAhead = 1
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+
+	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+
+	if mixer.paintedTime != 0 {
+		t.Fatalf("paintedTime = %d, want 0", mixer.paintedTime)
+	}
+	if mixer.endTime != 4096 {
+		t.Fatalf("endTime = %d, want full 4096-frame ring", mixer.endTime)
+	}
+}
+
+func TestUpdateSkipsPaintingBehindPlaybackCursorAfterClear(t *testing.T) {
+	backend := &positionBackend{positions: []int{512}}
+	sys := NewSystem()
+	sys.started = true
+	sys.backend = backend
+	sys.dma = &DMAInfo{
+		Channels:   2,
+		Samples:    4096,
+		SampleBits: 16,
+		Speed:      44100,
+		Buffer:     make([]byte, 4096*2*2),
+	}
+	mixer := NewMixer()
+	mixer.SetVolume(1)
+	mixer.SetSndSpeed(44100)
+	sys.mixer = mixer
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+	sys.viewEntity = 1
+
+	data := make([]byte, 3000*2)
+	for i := 0; i < 3000; i++ {
+		data[i*2] = 0xff
+		data[i*2+1] = 0x7f
+	}
+	sys.StartSound(1, 0, &SFX{Cache: &SoundCache{
+		Length:    3000,
+		LoopStart: -1,
+		Width:     2,
+		Data:      data,
+	}}, [3]float32{}, [3]float32{}, 1, 0)
+
+	sys.Update([3]float32{}, [3]float32{}, [3]float32{}, [3]float32{}, [3]float32{})
+
+	if got := sys.soundTime; got != 512 {
+		t.Fatalf("soundTime = %d, want 512", got)
+	}
+	for i, b := range sys.dma.Buffer[:512*4] {
+		if b != 0 {
+			t.Fatalf("DMA byte %d before playback cursor = %d, want silence", i, b)
+		}
+	}
+	if frame := sys.dma.Buffer[512*4 : 512*4+4]; slices.Equal(frame, []byte{0, 0, 0, 0}) {
+		t.Fatalf("DMA frame at playback cursor = %v, want mixed sound", frame)
 	}
 }

@@ -318,6 +318,11 @@ func (s *System) Update(origin, velocity, forward, right, up [3]float32) {
 	s.combineStaticChannels()
 
 	s.updateSoundTime()
+	if s.paintedTime < s.soundTime {
+		// Match C Quake's S_Update_: after a clear/reset the DMA cursor may
+		// advance before the next mix, so never paint behind playback.
+		s.paintedTime = s.soundTime
+	}
 
 	if s.backend != nil {
 		s.backend.Lock()
@@ -325,7 +330,7 @@ func (s *System) Update(origin, velocity, forward, right, up [3]float32) {
 	}
 
 	endTime := s.soundTime + int(s.mixAhead*float64(s.dma.Speed))
-	maxTime := s.soundTime + s.dma.Samples/s.dma.Channels
+	maxTime := s.soundTime + s.dma.Samples
 	if endTime > maxTime {
 		endTime = maxTime
 	}

@@ -83,8 +83,7 @@ func (b *OtoBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DM
 	b.dma = dma
 	b.quit = make(chan struct{})
 
-	b.wg.Add(1)
-	go b.streamLoop()
+	b.startStreamLoop(b.quit, pw, dma)
 
 	return dma, nil
 }
@@ -167,27 +166,56 @@ func (b *OtoBackend) Unblock() {
 
 func (b *OtoBackend) ResetQueuedAudio() {
 	b.mu.Lock()
-	player := b.player
 	blocked := b.blocked
+	ctx := b.ctx
+	oldPlayer := b.player
+	oldPipeR := b.pipeR
+	oldPipeW := b.pipeW
 	dma := b.dma
-	b.mu.Unlock()
 	if dma != nil {
 		dma.mu.Lock()
 		b.pos = 0
 		dma.SamplePos = 0
 		dma.mu.Unlock()
 	}
-	if player == nil || blocked {
+
+	if ctx == nil || oldPlayer == nil {
+		b.mu.Unlock()
 		return
 	}
-	player.Reset()
-	go player.Play()
+	pr, pw := io.Pipe()
+	player := ctx.NewPlayer(pr)
+	bytesPerFrame := b.channels * (b.sampleBits / 8)
+	if b.sampleRate > 0 && bytesPerFrame > 0 {
+		player.SetBufferSize(b.sampleRate / 20 * bytesPerFrame)
+	}
+	if !blocked {
+		player.Play()
+	}
+	b.player = player
+	b.pipeR = pr
+	b.pipeW = pw
+	b.startStreamLoop(b.quit, pw, dma)
+	b.mu.Unlock()
+
+	oldPlayer.Pause()
+	oldPlayer.Reset()
+	if oldPipeW != nil {
+		_ = oldPipeW.Close()
+	}
+	if oldPipeR != nil {
+		_ = oldPipeR.Close()
+	}
 }
 
-func (b *OtoBackend) streamLoop() {
+func (b *OtoBackend) startStreamLoop(quit <-chan struct{}, pipeW *io.PipeWriter, dma *DMAInfo) {
+	b.wg.Add(1)
+	go b.streamLoop(quit, pipeW, dma)
+}
+
+func (b *OtoBackend) streamLoop(quit <-chan struct{}, pipeW *io.PipeWriter, dma *DMAInfo) {
 	defer b.wg.Done()
 
-	dma := b.dma
 	if dma == nil || b.sampleRate <= 0 {
 		return
 	}
@@ -206,12 +234,11 @@ func (b *OtoBackend) streamLoop() {
 
 	for {
 		select {
-		case <-b.quit:
+		case <-quit:
 			return
 		case <-ticker.C:
 			b.mu.Lock()
 			blocked := b.blocked
-			pipeW := b.pipeW
 			b.mu.Unlock()
 			if blocked {
 				continue

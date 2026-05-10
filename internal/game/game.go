@@ -51,7 +51,6 @@ type Game struct {
 	SpriteModelCache map[string]*SpriteModel
 	BrushModelCache  map[string]*bsp.Tree
 	SoundSFXByIndex  map[int]*audio.SFX
-	MenuSFXByName    map[string]*audio.SFX
 	AmbientSFX       [audio.NumAmbients]*audio.SFX
 	SoundPrecacheKey string
 	StaticSoundKey   string
@@ -141,7 +140,6 @@ func New() *Game {
 		AliasModelCache:       make(map[string]*model.Model),
 		SpriteModelCache:      make(map[string]*SpriteModel),
 		SoundSFXByIndex:       make(map[int]*audio.SFX),
-		MenuSFXByName:         make(map[string]*audio.SFX),
 		pendingRendererAssets: &PendingRendererAssets{},
 		loadDemoWorldTree:     defaultLoadDemoWorldTree,
 		debugViewTelemetryEmit: func(line string) {

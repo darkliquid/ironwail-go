@@ -6,8 +6,10 @@ package audio
 // spatialize calculates the left and right volumes for a channel based on its
 // position relative to the listener.
 func (s *System) spatialize(ch *Channel) {
-	// anything coming from the view entity will always be full volume
-	if ch.EntNum != 0 && ch.EntNum == s.viewEntity {
+	// Anything coming from the view entity is always full volume. C Quake also
+	// treats entity 0 this way when cl.viewentity is 0, which is the disconnected
+	// state used by forced-console/menu UI after demo playback.
+	if ch.EntNum == s.viewEntity {
 		ch.LeftVol = ch.MasterVol
 		ch.RightVol = ch.MasterVol
 		return
