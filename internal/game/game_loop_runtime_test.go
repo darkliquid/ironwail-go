@@ -261,6 +261,7 @@ func TestRunRuntimeFrameCleansUpDemoDisconnectMessage(t *testing.T) {
 	g.Client = clientState
 	g.Input = input.NewSystem(nil)
 	g.Input.SetKeyDest(input.KeyGame)
+	g.Menu = menu.NewManager(nil, g.Input, nil)
 	g.MouseGrabbed = true
 
 	console := &demoPlaybackConsole{}
@@ -294,6 +295,14 @@ func TestRunRuntimeFrameCleansUpDemoDisconnectMessage(t *testing.T) {
 	}
 	if got := strings.Join(console.messages, ""); !strings.Contains(got, "timedemo:") {
 		t.Fatalf("console output = %q, want timedemo summary", got)
+	}
+
+	g.handleGameKeyEvent(input.KeyEvent{Key: input.KEscape, Down: true})
+	if !g.Menu.IsActive() || g.Menu.State() != menu.MenuMain {
+		t.Fatalf("escape after forced console left menu active/state = %v/%v, want main menu", g.Menu.IsActive(), g.Menu.State())
+	}
+	if got := g.Input.KeyDest(); got != input.KeyMenu {
+		t.Fatalf("key destination after escaping forced console = %v, want menu", got)
 	}
 }
 

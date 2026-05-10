@@ -239,6 +239,11 @@ func (g *Game) handleConsoleKeyEvent(event input.KeyEvent) {
 	switch event.Key {
 	case input.KEscape, int('`'):
 		console.ResetCompletion()
+		if g.runtimeConsoleForcedUp() && g.Menu != nil {
+			g.showRuntimeMenuState(menu.MenuMain)
+			g.syncGameplayInputMode()
+			return
+		}
 		g.Input.SetKeyDest(input.KeyGame)
 		g.syncGameplayInputMode()
 	case input.KEnter:

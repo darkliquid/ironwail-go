@@ -17,6 +17,7 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/console"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/input"
+	"github.com/darkliquid/ironwail-go/internal/menu"
 )
 
 var UIScaleCVarNames = []string{
@@ -570,6 +571,11 @@ func (g *Game) cmdToggleConsole(_ []string) {
 
 	if g.Input.KeyDest() == input.KeyConsole {
 		console.ResetCompletion()
+		if g.runtimeConsoleForcedUp() && g.Menu != nil {
+			g.showRuntimeMenuState(menu.MenuMain)
+			g.syncGameplayInputMode()
+			return
+		}
 		g.Input.SetKeyDest(input.KeyGame)
 		g.syncGameplayInputMode()
 		return
