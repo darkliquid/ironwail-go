@@ -3,6 +3,10 @@
 
 package client
 
+import "errors"
+
+var ErrServerDisconnected = errors.New("server disconnected")
+
 // String returns a string representation of the state
 func (s ClientState) String() string {
 	switch s {

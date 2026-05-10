@@ -92,7 +92,7 @@ func (p *Parser) ParseServerMessage(data []byte) error {
 		case inet.SVCDisconnect:
 			p.Client.ClearState()
 			p.Client.setState(StateDisconnected)
-			return fmt.Errorf("server disconnected")
+			return ErrServerDisconnected
 		case inet.SVCTime:
 			v, ok := msg.ReadFloat()
 			if !ok {

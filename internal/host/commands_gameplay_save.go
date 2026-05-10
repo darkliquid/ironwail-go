@@ -119,7 +119,7 @@ func (h *Host) loadSave(name string, options loadSaveOptions, subs *Subsystems) 
 	h.stopSessionSounds(subs)
 
 	if h.demoState != nil && h.demoState.Playback {
-		if err := h.demoState.StopPlayback(); err != nil && subs != nil && subs.Console != nil {
+		if err := h.demoState.StopPlayback(); err != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
 		}
 	}

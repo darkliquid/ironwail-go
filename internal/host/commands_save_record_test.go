@@ -769,6 +769,58 @@ func TestCmdTimedemoEnablesTimeDemoPlayback(t *testing.T) {
 	}
 }
 
+func TestStopDemoPlaybackClearsClientStateAndSounds(t *testing.T) {
+	demo := cl.NewDemoState()
+	if err := demo.StartDemoPlaybackFromData("timedemo_cleanup.dem", []byte("0\n")); err != nil {
+		t.Fatalf("StartDemoPlaybackFromData failed: %v", err)
+	}
+	demo.EnableTimeDemo()
+
+	h := NewHost()
+	h.SetDemoState(demo)
+	h.SetClientState(caActive)
+	h.SetSignOns(cl.Signons)
+
+	audio := &stopAllTrackingAudio{}
+	console := &mockConsole{}
+	client := newLocalLoopbackClient()
+	client.inner.State = cl.StateActive
+	client.inner.Signon = cl.Signons
+	client.inner.DemoPlayback = true
+	client.inner.TimeDemoActive = true
+	subs := &Subsystems{
+		Client:  client,
+		Audio:   audio,
+		Console: console,
+	}
+
+	if err := h.StopDemoPlayback(subs, console.Print); err != nil {
+		t.Fatalf("StopDemoPlayback failed: %v", err)
+	}
+
+	if demo.Playback || demo.TimeDemo {
+		t.Fatalf("demo state after stop = playback %v timedemo %v, want both false", demo.Playback, demo.TimeDemo)
+	}
+	if got := h.ClientState(); got != caDisconnected {
+		t.Fatalf("host client state = %v, want disconnected", got)
+	}
+	if got := h.SignOns(); got != 0 {
+		t.Fatalf("host signons = %d, want 0", got)
+	}
+	if got := client.inner.State; got != cl.StateDisconnected {
+		t.Fatalf("client state = %v, want disconnected", got)
+	}
+	if client.inner.Signon != 0 || client.inner.DemoPlayback || client.inner.TimeDemoActive {
+		t.Fatalf("client demo flags after stop = signon %d playback %v timedemo %v, want cleared", client.inner.Signon, client.inner.DemoPlayback, client.inner.TimeDemoActive)
+	}
+	if len(audio.calls) != 1 || !audio.calls[0] {
+		t.Fatalf("StopAllSounds calls = %v, want [true]", audio.calls)
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "timedemo:") {
+		t.Fatalf("console output = %q, want timedemo summary", got)
+	}
+}
+
 func TestCmdRewindSeeksBackwardFromCurrentFrame(t *testing.T) {
 	oldWD, err := os.Getwd()
 	if err != nil {

@@ -105,6 +105,35 @@ func (c *activatingProcessClientTestClient) SendStringCmd(string) error { return
 func (c *activatingProcessClientTestClient) ClientState() *cl.Client    { return c.clientState }
 
 // ---------------------------------------------------------------------------
+// runtimeStateTestClient – host.Client wrapper whose state follows cl.Client.
+// ---------------------------------------------------------------------------
+
+type runtimeStateTestClient struct {
+	clientState *cl.Client
+}
+
+func (c *runtimeStateTestClient) Init() error         { return nil }
+func (c *runtimeStateTestClient) Frame(float64) error { return nil }
+func (c *runtimeStateTestClient) Shutdown()           {}
+func (c *runtimeStateTestClient) State() host.ClientState {
+	if c == nil || c.clientState == nil {
+		return host.ClientState(0)
+	}
+	switch c.clientState.State {
+	case cl.StateConnected:
+		return host.ClientState(2)
+	case cl.StateActive:
+		return host.ClientState(3)
+	default:
+		return host.ClientState(0)
+	}
+}
+func (c *runtimeStateTestClient) ReadFromServer() error      { return nil }
+func (c *runtimeStateTestClient) SendCommand() error         { return nil }
+func (c *runtimeStateTestClient) SendStringCmd(string) error { return nil }
+func (c *runtimeStateTestClient) ClientState() *cl.Client    { return c.clientState }
+
+// ---------------------------------------------------------------------------
 // demoPlaybackNoopServer – no-op server for demo playback tests.
 // ---------------------------------------------------------------------------
 
@@ -118,15 +147,15 @@ func (s *demoPlaybackNoopServer) KickClient(int, string, string) bool      { ret
 func (s *demoPlaybackNoopServer) Frame(float64) error                      { return nil }
 func (s *demoPlaybackNoopServer) Shutdown()                                {}
 func (s *demoPlaybackNoopServer) SaveSpawnParms()                          {}
-func (s *demoPlaybackNoopServer) MaxClients() int                       { return 1 }
+func (s *demoPlaybackNoopServer) MaxClients() int                          { return 1 }
 func (s *demoPlaybackNoopServer) IsClientActive(int) bool                  { return false }
-func (s *demoPlaybackNoopServer) ClientName(int) string                 { return "" }
+func (s *demoPlaybackNoopServer) ClientName(int) string                    { return "" }
 func (s *demoPlaybackNoopServer) SetClientName(int, string)                {}
-func (s *demoPlaybackNoopServer) ClientColor(int) int                   { return 0 }
+func (s *demoPlaybackNoopServer) ClientColor(int) int                      { return 0 }
 func (s *demoPlaybackNoopServer) SetClientColor(int, int)                  {}
-func (s *demoPlaybackNoopServer) ClientPing(int) float32                { return 0 }
+func (s *demoPlaybackNoopServer) ClientPing(int) float32                   { return 0 }
 func (s *demoPlaybackNoopServer) EdictNum(int) *server.Edict               { return nil }
-func (s *demoPlaybackNoopServer) MapName() string                       { return "" }
+func (s *demoPlaybackNoopServer) MapName() string                          { return "" }
 func (s *demoPlaybackNoopServer) IsActive() bool                           { return false }
 func (s *demoPlaybackNoopServer) IsPaused() bool                           { return false }
 func (s *demoPlaybackNoopServer) RestoreTextSaveGameState(*server.TextSaveGameState) error {

@@ -181,7 +181,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		executeConfigText(subs, string(data))
 		return
 	}
-	if err != nil && !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		slog.Warn("config exec failed", "file", filename, "path", absolutePathOrOriginal(configProbePath(h.userDir, filename)), "error", err)
 		if subs != nil && subs.Console != nil {
 			subs.Console.Print(fmt.Sprintf("couldn't exec %s: %v\n", filename, err))
@@ -192,7 +192,7 @@ func (h *Host) CmdExec(args []string, subs *Subsystems) {
 		data, err = subs.Files.LoadFile(filename)
 		if err == nil {
 			slog.Debug("config exec resolved", "file", filename, "source", "filesystem")
-			if subs != nil && subs.Console != nil {
+			if subs.Console != nil {
 				subs.Console.Print(fmt.Sprintf("execing %s\n", filename))
 			}
 			executeConfigText(subs, string(data))

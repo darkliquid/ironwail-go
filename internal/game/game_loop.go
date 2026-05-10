@@ -152,13 +152,7 @@ func (cb gameCallbacks) ProcessClient() {
 			}
 			if err := g.Host.SeekDemoFrame(demo.FrameIndex-1, g.Subs); err != nil {
 				slog.Warn("demo rewind error", "error", err)
-				_ = demo.StopPlaybackWithSummary(func(msg string) {
-					if g.Subs != nil && g.Subs.Console != nil {
-						g.Subs.Console.Print(msg)
-					}
-				})
-				g.clearRuntimeDemoFlags()
-				g.Host.SetClientState(0) // caDisconnected
+				g.stopRuntimeDemoPlayback()
 				return
 			}
 			g.bootstrapDemoPlaybackWorld(clientState)
@@ -174,13 +168,7 @@ func (cb gameCallbacks) ProcessClient() {
 		if err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 				// Demo ended, check if we should loop to next demo
-				_ = demo.StopPlaybackWithSummary(func(msg string) {
-					if g.Subs != nil && g.Subs.Console != nil {
-						g.Subs.Console.Print(msg)
-					}
-				})
-				g.clearRuntimeDemoFlags()
-				g.Host.SetClientState(0) // caDisconnected
+				g.stopRuntimeDemoPlayback()
 
 				// Queue the next attract-mode demo for the next frame instead of
 				// starting it inline during EOF teardown. This keeps playback
@@ -194,13 +182,7 @@ func (cb gameCallbacks) ProcessClient() {
 			}
 			// Other errors - stop playback
 			slog.Warn("demo playback error", "error", err)
-			_ = demo.StopPlaybackWithSummary(func(msg string) {
-				if g.Subs != nil && g.Subs.Console != nil {
-					g.Subs.Console.Print(msg)
-				}
-			})
-			g.clearRuntimeDemoFlags()
-			g.Host.SetClientState(0) // caDisconnected
+			g.stopRuntimeDemoPlayback()
 			return
 		}
 
@@ -212,6 +194,15 @@ func (cb gameCallbacks) ProcessClient() {
 			// Parse the server message from demo
 			parser := cl.NewParser(clientState)
 			if err := parser.ParseServerMessage(msgData); err != nil {
+				if errors.Is(err, cl.ErrServerDisconnected) {
+					g.stopRuntimeDemoPlayback()
+					if g.Host.DemoNum() >= 0 && len(g.Host.DemoList()) > 0 {
+						if g.Subs != nil && g.Subs.Commands != nil {
+							g.Subs.Commands.AddText("demos\n")
+						}
+					}
+					return
+				}
 				slog.Warn("failed to parse demo message", "error", err)
 			} else {
 				g.bootstrapDemoPlaybackWorld(clientState)
@@ -301,11 +292,19 @@ func (g *Game) syncHostClientState() {
 	}
 }
 
-func (g *Game) clearRuntimeDemoFlags() {
-	if clientState := host.LoopbackClientState(g.Subs); clientState != nil {
-		clientState.DemoPlayback = false
-		clientState.TimeDemoActive = false
+func (g *Game) stopRuntimeDemoPlayback() {
+	if g.Host == nil {
+		return
 	}
+	if err := g.Host.StopDemoPlayback(g.Subs, func(msg string) {
+		if g.Subs != nil && g.Subs.Console != nil {
+			g.Subs.Console.Print(msg)
+		}
+	}); err != nil {
+		slog.Warn("demo playback stop error", "error", err)
+	}
+	g.Client = host.ActiveClientState(g.Subs)
+	g.resetRuntimeSoundState()
 }
 
 func (g *Game) bootstrapDemoPlaybackWorld(clientState *cl.Client) {

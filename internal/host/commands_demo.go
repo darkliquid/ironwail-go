@@ -225,15 +225,46 @@ func (h *Host) CmdStopdemo(subs *Subsystems) {
 		return
 	}
 
-	if err := h.demoState.StopPlaybackWithSummary(func(msg string) { subs.Console.Print(msg) }); err != nil {
+	if err := h.StopDemoPlayback(subs, func(msg string) { subs.Console.Print(msg) }); err != nil {
 		subs.Console.Print(fmt.Sprintf("Error stopping demo playback: %v\n", err))
 		return
 	}
 
 	subs.Console.Print("Demo playback stopped.\n")
-	h.clientState = caDisconnected
 	h.SetDemoNum(-1)
+}
+
+// StopDemoPlayback mirrors the CL_Disconnect cleanup used by C Ironwail's
+// stopdemo path while also serving runtime demo EOF. The Go port keeps host,
+// client, and audio state in separate objects, so all three must be reset
+// together when playback ends.
+func (h *Host) StopDemoPlayback(subs *Subsystems, printFn func(string)) error {
+	if h == nil {
+		return nil
+	}
+	if subs == nil {
+		subs = h.Subs
+	}
+
+	h.stopSessionSounds(subs)
+
+	if h.demoState != nil && h.demoState.Playback {
+		if err := h.demoState.StopPlaybackWithSummary(printFn); err != nil {
+			return err
+		}
+	}
+
+	if clientState := ActiveClientState(subs); clientState != nil {
+		clientState.ClearState()
+		clientState.State = cl.StateDisconnected
+		clientState.DemoPlayback = false
+		clientState.TimeDemoActive = false
+	}
 	setLoopbackDemoFlags(subs, false, false)
+
+	h.signOns = 0
+	h.clientState = caDisconnected
+	return nil
 }
 
 // MaxDemos is the maximum number of demos in a startdemos playlist.

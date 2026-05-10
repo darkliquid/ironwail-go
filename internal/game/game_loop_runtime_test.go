@@ -1,6 +1,9 @@
 package game
 
 import (
+	"bytes"
+	"encoding/binary"
+	"strings"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/audio"
@@ -12,6 +15,25 @@ import (
 	inet "github.com/darkliquid/ironwail-go/internal/net"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
+
+func demoPlaybackData(t *testing.T, messages ...[]byte) []byte {
+	t.Helper()
+	buf := bytes.NewBufferString("0\n")
+	for _, message := range messages {
+		if err := binary.Write(buf, binary.LittleEndian, int32(len(message))); err != nil {
+			t.Fatalf("write demo message size: %v", err)
+		}
+		for i := 0; i < 3; i++ {
+			if err := binary.Write(buf, binary.LittleEndian, float32(0)); err != nil {
+				t.Fatalf("write demo view angle: %v", err)
+			}
+		}
+		if _, err := buf.Write(message); err != nil {
+			t.Fatalf("write demo message: %v", err)
+		}
+	}
+	return buf.Bytes()
+}
 
 func TestRunRuntimeFrameRunsClientPrediction(t *testing.T) {
 	g := New()
@@ -169,6 +191,99 @@ func TestRunRuntimeFrameConsumesTransientEventsOnce(t *testing.T) {
 	events = g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
 	if len(events.SoundEvents) != 0 || len(events.StopSoundEvents) != 0 || len(events.ParticleEvents) != 0 || len(events.TempEntities) != 0 {
 		t.Fatalf("second frame consumed = %d sounds, %d stops, %d particles, %d temps; want 0,0,0,0", len(events.SoundEvents), len(events.StopSoundEvents), len(events.ParticleEvents), len(events.TempEntities))
+	}
+}
+
+func TestRunRuntimeFrameCleansUpDemoEOF(t *testing.T) {
+	demo := cl.NewDemoState()
+	if err := demo.StartDemoPlaybackFromData("empty_timedemo.dem", []byte("0\n")); err != nil {
+		t.Fatalf("StartDemoPlaybackFromData failed: %v", err)
+	}
+	demo.EnableTimeDemo()
+
+	g := New()
+	g.Host.SetDemoState(demo)
+	g.Host.SetClientState(host.ClientState(2))
+	g.Host.SetSignOns(cl.Signons)
+
+	clientState := cl.NewClient()
+	clientState.State = cl.StateActive
+	clientState.Signon = cl.Signons
+	clientState.DemoPlayback = true
+	clientState.TimeDemoActive = true
+	g.Client = clientState
+
+	console := &demoPlaybackConsole{}
+	commands := &demoPlaybackCommandBuffer{}
+	g.Subs = &host.Subsystems{
+		Client:   &runtimeStateTestClient{clientState: clientState},
+		Console:  console,
+		Commands: commands,
+	}
+
+	g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
+
+	if demo.Playback || demo.TimeDemo {
+		t.Fatalf("demo state after EOF = playback %v timedemo %v, want both false", demo.Playback, demo.TimeDemo)
+	}
+	if got := g.Host.ClientState(); got != host.ClientState(0) {
+		t.Fatalf("host client state = %v, want disconnected", got)
+	}
+	if got := clientState.State; got != cl.StateDisconnected {
+		t.Fatalf("client state = %v, want disconnected", got)
+	}
+	if clientState.Signon != 0 || clientState.DemoPlayback || clientState.TimeDemoActive {
+		t.Fatalf("client demo flags after EOF = signon %d playback %v timedemo %v, want cleared", clientState.Signon, clientState.DemoPlayback, clientState.TimeDemoActive)
+	}
+	if got := g.runtimeConsoleForcedUp(); !got {
+		t.Fatal("runtimeConsoleForcedUp() = false, want true after demo EOF disconnect")
+	}
+}
+
+func TestRunRuntimeFrameCleansUpDemoDisconnectMessage(t *testing.T) {
+	demo := cl.NewDemoState()
+	if err := demo.StartDemoPlaybackFromData("disconnect_timedemo.dem", demoPlaybackData(t, []byte{byte(inet.SVCDisconnect)})); err != nil {
+		t.Fatalf("StartDemoPlaybackFromData failed: %v", err)
+	}
+	demo.EnableTimeDemo()
+
+	g := New()
+	g.Host.SetDemoState(demo)
+	g.Host.SetClientState(host.ClientState(2))
+	g.Host.SetSignOns(cl.Signons)
+
+	clientState := cl.NewClient()
+	clientState.State = cl.StateActive
+	clientState.Signon = cl.Signons
+	clientState.DemoPlayback = true
+	clientState.TimeDemoActive = true
+	g.Client = clientState
+
+	console := &demoPlaybackConsole{}
+	g.Subs = &host.Subsystems{
+		Client:  &runtimeStateTestClient{clientState: clientState},
+		Console: console,
+	}
+
+	g.RunRuntimeFrame(0.016, gameCallbacks{g: g})
+
+	if demo.Playback || demo.TimeDemo {
+		t.Fatalf("demo state after svc_disconnect = playback %v timedemo %v, want both false", demo.Playback, demo.TimeDemo)
+	}
+	if got := g.Host.ClientState(); got != host.ClientState(0) {
+		t.Fatalf("host client state = %v, want disconnected", got)
+	}
+	if got := clientState.State; got != cl.StateDisconnected {
+		t.Fatalf("client state = %v, want disconnected", got)
+	}
+	if clientState.Signon != 0 || clientState.DemoPlayback || clientState.TimeDemoActive {
+		t.Fatalf("client demo flags after svc_disconnect = signon %d playback %v timedemo %v, want cleared", clientState.Signon, clientState.DemoPlayback, clientState.TimeDemoActive)
+	}
+	if got := g.runtimeConsoleForcedUp(); !got {
+		t.Fatal("runtimeConsoleForcedUp() = false, want true after svc_disconnect")
+	}
+	if got := strings.Join(console.messages, ""); !strings.Contains(got, "timedemo:") {
+		t.Fatalf("console output = %q, want timedemo summary", got)
 	}
 }
 
