@@ -41,9 +41,9 @@ requiring a separate legacy renderer runtime path.
 https://github.com/user-attachments/assets/b652d2c6-74ce-41bb-90fa-8976262e043a
 
 The goal of this project is 100% behavioral parity with the original C
-[Ironwail][1] engine through the canonical GoGPU path. Regular parity audits are carried out,
-and detailed tracking of gaps and differences can be found in the
-[Parity Analysis](docs/gemini-parity-analysis.md) and [Parity Scene Matrix](docs/PARITY_SCENE_MATRIX.md).
+[Ironwail][1] engine through the canonical GoGPU path. Regular parity audits are
+carried out, and detailed tracking of gaps, workflows, and differences lives in
+the [Parity Guide](docs/PARITY.md).
 
 If you are new to the codebase and want to learn how the engine works, please see our
 [Architecture & Learning Guide](docs/LEARNING_GUIDE.md).

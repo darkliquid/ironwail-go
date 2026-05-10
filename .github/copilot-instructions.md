@@ -42,7 +42,7 @@ Reference docs worth checking before broad changes:
 
 - `docs/LEARNING_GUIDE.md` for package map and subsystem walkthroughs.
 - `docs/WALKTHROUGH_BOOT_TO_MENU.md`, `docs/WALKTHROUGH_SINGLEPLAYER_FORWARD.md`, and `docs/WALKTHROUGH_MULTIPLAYER_SHOOT.md` for cross-subsystem flows.
-- `docs/gemini-parity-analysis.md` and `docs/PARITY_SCENE_MATRIX.md` for parity expectations.
+- `docs/PARITY.md` for parity expectations, current gaps, and focused sweep workflows.
 - `docs/QGO_QUAKEGO_GUIDE.md`, `QGO_SPEC.md`, and `QSPEC.md` for QGo/QuakeGo behavior.
 - `.github/agents/junior.agent.md` for the repository's existing agent workflow expectations around planning, baselines, and empirical verification.
 

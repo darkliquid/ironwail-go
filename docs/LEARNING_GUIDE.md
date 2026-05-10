@@ -100,5 +100,5 @@ We have several guided walkthroughs that follow specific actions through the ent
 
 - **Follow the `+` commands.** If you want to see how jumping works, search the code for `"+jump"`.
 - **Look at the Edicts.** An "Edict" is just an entity. Most gameplay involves changing fields on edicts (like `origin`, `health`, or `velocity`).
-- **Use the parity docs.** `docs/gemini-parity-analysis.md` explains where we deviate from the original C code and why.
+- **Use the parity guide.** `docs/PARITY.md` explains how we compare against the original C code and track current parity gaps.
 - **Trace a network message.** Look at `internal/client/parse.go` to see how the client takes a bunch of bytes from the server and turns them into something you can see on screen.

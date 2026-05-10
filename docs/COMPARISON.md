@@ -30,7 +30,7 @@ Detailed analysis of specific divergences can be found in the following sub-docu
 
 1. [Boot and Start Sequence](BOOT_SEQUENCE.md)
 2. [Input Handling and Event Loop](INPUT_HANDLING.md)
-3. [Parity Scene Matrix](PARITY_SCENE_MATRIX.md)
+3. [Parity Guide](PARITY.md)
 
 ## 4. Parity Goals
 
