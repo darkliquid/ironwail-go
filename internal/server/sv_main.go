@@ -285,6 +285,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 
 	s.Name = mapName
 	s.ModelName = fmt.Sprintf("maps/%s.bsp", s.Name)
+	s.SkyboxName = ""
 
 	bspData, litData, err := vfs.LoadMapBSPAndLit(s.ModelName)
 	if err != nil {
@@ -307,6 +308,7 @@ func (s *Server) SpawnServer(mapName string, vfs *fs.FileSystem) error {
 	populateWorldModelCollision(worldModel, tree, bspFile)
 	s.WorldModel = worldModel
 	s.WorldTree = tree
+	s.SkyboxName = parseWorldspawnSkyboxName(string(tree.Entities))
 
 	if s.Static != nil {
 		keep := s.Static.MaxClients + 1
@@ -443,6 +445,61 @@ func (s *Server) reloadProgs(vfs *fs.FileSystem) error {
 	s.QCVM.XFunctionIndex = -1
 	s.QCVM.XStatement = 0
 	return nil
+}
+
+func parseWorldspawnSkyboxName(entities string) string {
+	worldspawn, ok := firstEntityLumpObject(entities)
+	if !ok {
+		return ""
+	}
+	skyboxName := ""
+	pos := 0
+	for {
+		key, next, ok := nextQuotedEntityToken(worldspawn, pos)
+		if !ok {
+			break
+		}
+		value, nextValue, ok := nextQuotedEntityToken(worldspawn, next)
+		if !ok {
+			break
+		}
+		key = strings.ToLower(strings.TrimSpace(key))
+		key = strings.TrimPrefix(key, "_")
+		// C Ironwail's sky parser accepts Quake's "sky" plus common
+		// Half-Life/Quake Lives aliases, with later keys overriding earlier ones.
+		switch key {
+		case "sky", "skyname", "qlsky":
+			skyboxName = value
+		}
+		pos = nextValue
+	}
+	return strings.TrimSpace(skyboxName)
+}
+
+func firstEntityLumpObject(data string) (string, bool) {
+	start := strings.IndexByte(data, '{')
+	if start < 0 {
+		return "", false
+	}
+	end := strings.IndexByte(data[start+1:], '}')
+	if end < 0 {
+		return "", false
+	}
+	return data[start+1 : start+1+end], true
+}
+
+func nextQuotedEntityToken(data string, pos int) (string, int, bool) {
+	start := strings.IndexByte(data[pos:], '"')
+	if start < 0 {
+		return "", pos, false
+	}
+	start += pos
+	end := strings.IndexByte(data[start+1:], '"')
+	if end < 0 {
+		return "", pos, false
+	}
+	end += start + 1
+	return data[start+1 : end], end + 1, true
 }
 
 // loadMapEntities parses the BSP entity lump and instantiates edicts from textual key/value blocks.

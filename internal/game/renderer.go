@@ -22,6 +22,7 @@ type RendererAssets interface {
 	SetPalette([]byte)
 	SetConchars([]byte)
 	SetExternalSkybox(string, func(string) ([]byte, error))
+	UploadPendingExternalSkybox() error
 }
 
 // RendererWorld defines world rendering methods.

@@ -49,6 +49,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // Quake filesystem path limits and well-known filenames.
@@ -96,6 +97,7 @@ type Pack struct {
 	Filename string
 	Handle   *os.File
 	Files    []PackFile
+	mu       sync.Mutex
 }
 
 // SearchResult describes where a requested file was found within the VFS.
@@ -417,6 +419,9 @@ func (fs *FileSystem) LoadMapBSPAndLit(worldModel string) ([]byte, []byte, error
 // the byte offset recorded in the SearchResult and reads exactly FileLen bytes
 // using io.ReadFull, which guarantees we get the complete file or an error.
 func (fs *FileSystem) loadFromPack(result *SearchResult) ([]byte, error) {
+	result.Pack.mu.Lock()
+	defer result.Pack.mu.Unlock()
+
 	if _, err := result.Pack.Handle.Seek(int64(result.FilePos), io.SeekStart); err != nil {
 		return nil, fmt.Errorf("seek in pack %q for %q: %w", result.Pack.Filename, result.Name, err)
 	}

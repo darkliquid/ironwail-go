@@ -2,15 +2,22 @@ package sky
 
 import (
 	"bytes"
+	"fmt"
 	stdimage "image"
 	"image/draw"
 	_ "image/jpeg"
+	"log/slog"
+	"math"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	qimage "github.com/darkliquid/ironwail-go/internal/image"
 )
+
+const skyboxLogSubsystem = "renderer.skybox"
 
 var (
 	SkyboxFaceSuffixes     = [...]string{"rt", "bk", "lf", "ft", "up", "dn"}
@@ -31,6 +38,13 @@ type ExternalSkyboxFace struct {
 	Width  int
 	Height int
 	RGBA   []byte
+}
+
+type ExternalSkyboxWind struct {
+	Dist   float32
+	Yaw    float32
+	Pitch  float32
+	Period float32
 }
 
 type ExternalSkyboxRenderMode uint8
@@ -84,10 +98,14 @@ func SkyboxFaceSearchPaths(baseName, suffix string) []string {
 
 // DecodeSkyboxImage decodes one skybox face image into GPU-ready pixels while validating dimensions/format.
 func DecodeSkyboxImage(path string, data []byte) (rgba []byte, width, height int, ok bool) {
+	rgba, width, height, err := decodeSkyboxImage(path, data)
+	return rgba, width, height, err == nil
+}
+
+func decodeSkyboxImage(path string, data []byte) (rgba []byte, width, height int, err error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	var (
 		img stdimage.Image
-		err error
 	)
 	switch ext {
 	case ".tga":
@@ -96,15 +114,18 @@ func DecodeSkyboxImage(path string, data []byte) (rgba []byte, width, height int
 		img, _, err = stdimage.Decode(bytes.NewReader(data))
 	}
 	if err != nil || img == nil {
-		return nil, 0, 0, false
+		if err == nil {
+			err = fmt.Errorf("decoder returned nil image")
+		}
+		return nil, 0, 0, fmt.Errorf("decode %s: %w", path, err)
 	}
 	bounds := img.Bounds()
 	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
-		return nil, 0, 0, false
+		return nil, 0, 0, fmt.Errorf("invalid decoded dimensions %dx%d", bounds.Dx(), bounds.Dy())
 	}
 	rgbaImg := stdimage.NewRGBA(stdimage.Rect(0, 0, bounds.Dx(), bounds.Dy()))
 	draw.Draw(rgbaImg, rgbaImg.Bounds(), img, bounds.Min, draw.Src)
-	return append([]byte(nil), rgbaImg.Pix...), bounds.Dx(), bounds.Dy(), true
+	return append([]byte(nil), rgbaImg.Pix...), bounds.Dx(), bounds.Dy(), nil
 }
 
 // LoadExternalSkyboxFaces loads and validates all six sky faces before creating cubemap or layered sky resources.
@@ -112,15 +133,29 @@ func LoadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 	if baseName == "" || loadFile == nil {
 		return faces, 0
 	}
+	start := time.Now()
+	slog.Info("external skybox load begin", "subsystem", skyboxLogSubsystem, "name", baseName)
 	for i, suffix := range SkyboxFaceSuffixes {
 		paths := SkyboxFaceSearchPaths(baseName, suffix)
+		slog.Info("external skybox face search begin", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidates", strings.Join(paths, ","))
 		for _, candidate := range paths {
-			data, err := LoadSkyboxFileCandidate(candidate, loadFile)
-			if err != nil || len(data) == 0 {
+			candidateStart := time.Now()
+			result := loadSkyboxFileCandidateDetailed(candidate, loadFile)
+			if result.err != nil || len(result.data) == 0 {
+				errText := ""
+				if result.err != nil {
+					errText = result.err.Error()
+				}
+				slog.Info("external skybox candidate unavailable", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidate", candidate, "resolved_path", result.path, "bytes", len(result.data), "error", errText, "elapsed_ms", elapsedMilliseconds(candidateStart))
 				continue
 			}
-			rgba, width, height, ok := DecodeSkyboxImage(candidate, data)
-			if !ok {
+			slog.Info("external skybox candidate loaded", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidate", candidate, "resolved_path", result.path, "lowercase_fallback", result.lowercaseFallback, "bytes", len(result.data), "elapsed_ms", elapsedMilliseconds(candidateStart))
+
+			decodeStart := time.Now()
+			slog.Info("external skybox decode begin", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "bytes", len(result.data))
+			rgba, width, height, err := decodeSkyboxImage(result.path, result.data)
+			if err != nil {
+				slog.Warn("external skybox decode failed", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "bytes", len(result.data), "error", err, "elapsed_ms", elapsedMilliseconds(decodeStart))
 				continue
 			}
 			faces[i] = ExternalSkyboxFace{
@@ -131,27 +166,138 @@ func LoadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, err
 				RGBA:   rgba,
 			}
 			loaded++
+			slog.Info("external skybox face decoded", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "path", result.path, "width", width, "height", height, "rgba_bytes", len(rgba), "elapsed_ms", elapsedMilliseconds(decodeStart))
 			break
 		}
+		if faces[i].Path == "" {
+			slog.Warn("external skybox face missing", "subsystem", skyboxLogSubsystem, "name", baseName, "face", suffix, "candidates", strings.Join(paths, ","))
+		}
 	}
+	slog.Info("external skybox load complete", "subsystem", skyboxLogSubsystem, "name", baseName, "loaded_faces", loaded, "elapsed_ms", elapsedMilliseconds(start))
 	return faces, loaded
+}
+
+// LoadExternalSkyboxWind loads C Ironwail-compatible skywind settings from
+// gfx/env/<skyname>wind.cfg. The base sky name commonly ends with an
+// underscore, so qbj3's mak_cloudysky4_ resolves to mak_cloudysky4_wind.cfg.
+func LoadExternalSkyboxWind(baseName string, loadFile func(string) ([]byte, error)) (ExternalSkyboxWind, bool) {
+	if baseName == "" || loadFile == nil {
+		return ExternalSkyboxWind{}, false
+	}
+	candidate := "gfx/env/" + baseName + "wind.cfg"
+	start := time.Now()
+	result := loadSkyboxFileCandidateDetailed(candidate, loadFile)
+	if result.err != nil || len(result.data) == 0 {
+		slog.Info("external skybox wind config unavailable", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "error", errorString(result.err), "elapsed_ms", elapsedMilliseconds(start))
+		return ExternalSkyboxWind{}, false
+	}
+	wind, ok := ParseExternalSkyboxWind(result.data)
+	if !ok {
+		slog.Warn("external skybox wind config invalid", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "elapsed_ms", elapsedMilliseconds(start))
+		return ExternalSkyboxWind{}, false
+	}
+	slog.Info("external skybox wind config loaded", "subsystem", skyboxLogSubsystem, "name", baseName, "candidate", candidate, "resolved_path", result.path, "dist", wind.Dist, "yaw", wind.Yaw, "period", wind.Period, "pitch", wind.Pitch, "elapsed_ms", elapsedMilliseconds(start))
+	return wind, true
+}
+
+// ParseExternalSkyboxWind mirrors C Ironwail's Skywind_Load_f token format:
+// "skywind <dist> <yaw> <period> <pitch>". Missing numeric tokens keep the C
+// defaults established by Skywind_Clear.
+func ParseExternalSkyboxWind(data []byte) (ExternalSkyboxWind, bool) {
+	fields := strings.Fields(stripSkywindLineComments(string(data)))
+	if len(fields) == 0 || fields[0] != "skywind" {
+		return ExternalSkyboxWind{}, false
+	}
+	wind := ExternalSkyboxWind{
+		Dist:   0,
+		Yaw:    45,
+		Pitch:  0,
+		Period: 30,
+	}
+	if len(fields) > 1 {
+		wind.Dist = clampFloat32(parseSkywindFloat(fields[1]), -2, 2)
+	}
+	if len(fields) > 2 {
+		wind.Yaw = float32(math.Mod(float64(parseSkywindFloat(fields[2])), 360))
+	}
+	if len(fields) > 3 {
+		wind.Period = parseSkywindFloat(fields[3])
+	}
+	if len(fields) > 4 {
+		wind.Pitch = float32(math.Mod(float64(parseSkywindFloat(fields[4])+90), 180)) - 90
+	}
+	return wind, true
+}
+
+func stripSkywindLineComments(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if comment := strings.Index(line, "//"); comment >= 0 {
+			lines[i] = line[:comment]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // LoadSkyboxFileCandidate tries one specific sky face file candidate and reports whether decoding succeeded.
 func LoadSkyboxFileCandidate(candidate string, loadFile func(string) ([]byte, error)) ([]byte, error) {
+	result := loadSkyboxFileCandidateDetailed(candidate, loadFile)
+	return result.data, result.err
+}
+
+type skyboxFileCandidateResult struct {
+	data              []byte
+	path              string
+	lowercaseFallback bool
+	err               error
+}
+
+func loadSkyboxFileCandidateDetailed(candidate string, loadFile func(string) ([]byte, error)) skyboxFileCandidateResult {
 	data, err := loadFile(candidate)
 	if err == nil && len(data) > 0 {
-		return data, nil
+		return skyboxFileCandidateResult{data: data, path: candidate}
 	}
 	lowerCandidate := strings.ToLower(candidate)
 	if lowerCandidate == candidate {
-		return data, err
+		return skyboxFileCandidateResult{data: data, path: candidate, err: err}
 	}
 	lowerData, lowerErr := loadFile(lowerCandidate)
 	if lowerErr == nil && len(lowerData) > 0 {
-		return lowerData, nil
+		return skyboxFileCandidateResult{data: lowerData, path: lowerCandidate, lowercaseFallback: true}
 	}
-	return data, err
+	if err != nil {
+		return skyboxFileCandidateResult{data: data, path: candidate, err: err}
+	}
+	return skyboxFileCandidateResult{data: lowerData, path: lowerCandidate, lowercaseFallback: true, err: lowerErr}
+}
+
+func parseSkywindFloat(s string) float32 {
+	value, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return 0
+	}
+	return float32(value)
+}
+
+func clampFloat32(value, minValue, maxValue float32) float32 {
+	if value < minValue {
+		return minValue
+	}
+	if value > maxValue {
+		return maxValue
+	}
+	return value
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func elapsedMilliseconds(start time.Time) float64 {
+	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
 // ExternalSkyboxCubemapEligible checks whether loaded faces satisfy cubemap constraints (format/size/orientation compatibility).

@@ -21,6 +21,22 @@ func withSkillCVar(t *testing.T, s *Server, value string) {
 	s.CVar.Set("skill", value)
 }
 
+func TestParseWorldspawnSkyboxName(t *testing.T) {
+	entities := `{
+"classname" "worldspawn"
+"sky" "lowres"
+"_skyname" "gfx/env/qbj3"
+"qlsky" "env/final"
+}
+{
+"classname" "info_player_start"
+}`
+
+	if got := parseWorldspawnSkyboxName(entities); got != "env/final" {
+		t.Fatalf("parseWorldspawnSkyboxName() = %q, want %q", got, "env/final")
+	}
+}
+
 // TestSpawnServerSyncsRoundedClampedSkillToQCVM tests skill level synchronization with QuakeC.
 // It ensuring that the skill cvar is correctly clamped and rounded before being passed to the QuakeC world spawn.
 // Where in C: SV_SpawnServer in sv_main.c

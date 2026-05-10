@@ -308,6 +308,14 @@ func (r *Renderer) createWorldOpaquePipeline(device *wgpu.Device, vertexShader, 
 }
 
 func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
+	return r.createWorldSkyPipelineWithDepthState(device, vertexShader, fragmentShader, layout, gogpuNonDecalDepthStencilState(false))
+}
+
+func (r *Renderer) createWorldSkyPipelineWithDepthWrite(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, depthWrite bool) (*wgpu.RenderPipeline, error) {
+	return r.createWorldSkyPipelineWithDepthState(device, vertexShader, fragmentShader, layout, gogpuNonDecalDepthStencilState(depthWrite))
+}
+
+func (r *Renderer) createWorldSkyPipelineWithDepthState(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout, depthStencil *wgpu.DepthStencilState) (*wgpu.RenderPipeline, error) {
 	vertexBufferLayout := gputypes.VertexBufferLayout{
 		ArrayStride: 44,
 		StepMode:    gputypes.VertexStepModeVertex,
@@ -337,7 +345,7 @@ func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fra
 			FrontFace: gputypes.FrontFaceCCW,
 			CullMode:  gputypes.CullModeNone,
 		},
-		DepthStencil: gogpuNonDecalDepthStencilState(false),
+		DepthStencil: depthStencil,
 		Multisample: gputypes.MultisampleState{
 			Count:                  1,
 			Mask:                   0xFFFFFFFF,
@@ -358,9 +366,9 @@ func (r *Renderer) createWorldSkyPipeline(device *wgpu.Device, vertexShader, fra
 	})
 }
 
-func (r *Renderer) createWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, error) {
-	if device == nil || vertexShader == nil || fragmentShader == nil || r.uniformBindGroupLayout == nil {
-		return nil, nil, nil, fmt.Errorf("missing external sky pipeline inputs")
+func (r *Renderer) createWorldExternalSkyPipeline(device *wgpu.Device, vertexShader, overlayVertexShader, fragmentShader *wgpu.ShaderModule) (*wgpu.RenderPipeline, *wgpu.RenderPipeline, *wgpu.PipelineLayout, *wgpu.BindGroupLayout, error) {
+	if device == nil || vertexShader == nil || overlayVertexShader == nil || fragmentShader == nil || r.uniformBindGroupLayout == nil || r.textureBindGroupLayout == nil || r.worldDynamicLightsBindGroupLayout == nil {
+		return nil, nil, nil, nil, fmt.Errorf("missing external sky pipeline inputs")
 	}
 	textureLayout, err := device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
 		Label: "World External Sky Texture BGL",
@@ -381,23 +389,30 @@ func (r *Renderer) createWorldExternalSkyPipeline(device *wgpu.Device, vertexSha
 		},
 	})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create external sky bind group layout: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create external sky bind group layout: %w", err)
 	}
 	layout, err := device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
 		Label:            "World External Sky Pipeline Layout",
-		BindGroupLayouts: []*wgpu.BindGroupLayout{r.uniformBindGroupLayout, textureLayout},
+		BindGroupLayouts: []*wgpu.BindGroupLayout{r.uniformBindGroupLayout, textureLayout, r.textureBindGroupLayout, r.textureBindGroupLayout, r.worldDynamicLightsBindGroupLayout},
 	})
 	if err != nil {
 		textureLayout.Release()
-		return nil, nil, nil, fmt.Errorf("create external sky pipeline layout: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create external sky pipeline layout: %w", err)
 	}
-	pipeline, err := r.createWorldSkyPipeline(device, vertexShader, fragmentShader, layout)
+	pipeline, err := r.createWorldSkyPipelineWithDepthWrite(device, vertexShader, fragmentShader, layout, true)
 	if err != nil {
 		layout.Release()
 		textureLayout.Release()
-		return nil, nil, nil, fmt.Errorf("create external sky pipeline: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create external sky pipeline: %w", err)
 	}
-	return pipeline, layout, textureLayout, nil
+	overlayPipeline, err := r.createWorldSkyPipelineWithDepthState(device, overlayVertexShader, fragmentShader, layout, gogpuNonDecalDepthStencilState(false))
+	if err != nil {
+		pipeline.Release()
+		layout.Release()
+		textureLayout.Release()
+		return nil, nil, nil, nil, fmt.Errorf("create external sky overlay pipeline: %w", err)
+	}
+	return pipeline, overlayPipeline, layout, textureLayout, nil
 }
 
 func (r *Renderer) createWorldTurbulentPipeline(device *wgpu.Device, vertexShader, fragmentShader *wgpu.ShaderModule, layout *wgpu.PipelineLayout) (*wgpu.RenderPipeline, error) {
@@ -748,110 +763,6 @@ func (r *Renderer) createWorldTextureBindGroup(device *wgpu.Device, sampler *wgp
 	})
 }
 
-func (r *Renderer) createWorldExternalSkyBindGroup(device *wgpu.Device, sampler *wgpu.Sampler, views [6]*wgpu.TextureView) (*wgpu.BindGroup, error) {
-	if device == nil || sampler == nil || r.worldSkyExternalBindGroupLayout == nil {
-		return nil, fmt.Errorf("missing external sky bind group resources")
-	}
-	for i, view := range views {
-		if view == nil {
-			return nil, fmt.Errorf("missing external sky texture view %d", i)
-		}
-	}
-	return device.CreateBindGroup(&wgpu.BindGroupDescriptor{
-		Label:  "World External Sky BG",
-		Layout: r.worldSkyExternalBindGroupLayout,
-		Entries: []wgpu.BindGroupEntry{
-			{Binding: 0, Sampler: sampler},
-			{Binding: 1, TextureView: views[0]},
-			{Binding: 2, TextureView: views[1]},
-			{Binding: 3, TextureView: views[2]},
-			{Binding: 4, TextureView: views[3]},
-			{Binding: 5, TextureView: views[4]},
-			{Binding: 6, TextureView: views[5]},
-		},
-	})
-}
-
-func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue *wgpu.Queue, label string, rgba []byte, width, height int) (*wgpu.Texture, *wgpu.TextureView, error) {
-	if device == nil || queue == nil {
-		return nil, nil, fmt.Errorf("invalid external sky texture upload inputs")
-	}
-	if width <= 0 || height <= 0 || len(rgba) != width*height*4 {
-		return nil, nil, fmt.Errorf("invalid external sky texture size/data %dx%d (%d bytes)", width, height, len(rgba))
-	}
-	texture, err := device.CreateTexture(&wgpu.TextureDescriptor{
-		Label:         label,
-		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
-		MipLevelCount: 1,
-		SampleCount:   1,
-		Dimension:     gputypes.TextureDimension2D,
-		Format:        gputypes.TextureFormatRGBA8Unorm,
-		Usage:         gputypes.TextureUsageTextureBinding | gputypes.TextureUsageCopyDst,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("create external sky texture: %w", err)
-	}
-	if err := queue.WriteTexture(&wgpu.ImageCopyTexture{
-		Texture:  texture,
-		MipLevel: 0,
-		Aspect:   gputypes.TextureAspectAll,
-	}, rgba, &wgpu.ImageDataLayout{BytesPerRow: uint32(width * 4), RowsPerImage: uint32(height)}, &wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1}); err != nil {
-		texture.Release()
-		return nil, nil, fmt.Errorf("write external sky texture: %w", err)
-	}
-	view, err := device.CreateTextureView(texture, &wgpu.TextureViewDescriptor{
-		Label:           label + " View",
-		Format:          gputypes.TextureFormatRGBA8Unorm,
-		Dimension:       gputypes.TextureViewDimension2D,
-		Aspect:          gputypes.TextureAspectAll,
-		BaseMipLevel:    0,
-		MipLevelCount:   1,
-		BaseArrayLayer:  0,
-		ArrayLayerCount: 1,
-	})
-	if err != nil {
-		texture.Release()
-		return nil, nil, fmt.Errorf("create external sky texture view: %w", err)
-	}
-	return texture, view, nil
-}
-
-func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device *wgpu.Device, queue *wgpu.Queue) error {
-	if r.worldSkyExternalMode != externalSkyboxRenderFaces || r.worldSkyExternalLoaded == 0 {
-		return nil
-	}
-	if device == nil || queue == nil || r.worldLightmapSampler == nil || r.worldSkyExternalBindGroupLayout == nil {
-		return fmt.Errorf("external sky resources not ready")
-	}
-	r.destroyGoGPUExternalSkyboxResourcesLocked()
-	fallbackPixel := [4]byte{0, 0, 0, 255}
-	var views [6]*wgpu.TextureView
-	for i, face := range r.worldSkyExternalFaces {
-		width := face.Width
-		height := face.Height
-		data := face.RGBA
-		if width <= 0 || height <= 0 || len(data) != width*height*4 {
-			width, height = 1, 1
-			data = fallbackPixel[:]
-		}
-		texture, view, err := r.createWorldExternalSkyFaceTexture(device, queue, fmt.Sprintf("World External Sky %s", skyboxFaceSuffixes[i]), data, width, height)
-		if err != nil {
-			r.destroyGoGPUExternalSkyboxResourcesLocked()
-			return err
-		}
-		r.worldSkyExternalTextures[i] = texture
-		r.worldSkyExternalViews[i] = view
-		views[i] = view
-	}
-	bindGroup, err := r.createWorldExternalSkyBindGroup(device, r.worldLightmapSampler, views)
-	if err != nil {
-		r.destroyGoGPUExternalSkyboxResourcesLocked()
-		return fmt.Errorf("create external sky bind group: %w", err)
-	}
-	r.worldSkyExternalBindGroup = bindGroup
-	return nil
-}
-
 func (r *Renderer) createWorldDiffuseTexture(device *wgpu.Device, queue *wgpu.Queue, sampler *wgpu.Sampler, textureType model.TextureType, rgba []byte, width, height int) (*gpuWorldTexture, error) {
 	if device == nil || queue == nil || sampler == nil {
 		return nil, fmt.Errorf("invalid world texture upload inputs")
@@ -878,7 +789,7 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 	if textureCount <= 0 || len(tree.TextureData) < 4+textureCount*4 {
 		return nil, nil, nil
 	}
-	textures := make(map[int32]*gpuWorldTexture, textureCount)
+	textures := make(map[int32]*gpuWorldTexture, textureCount+2)
 	fullbright := make(map[int32]*gpuWorldTexture)
 	textureNames := make([]string, textureCount)
 	for i := 0; i < textureCount; i++ {
@@ -917,6 +828,7 @@ func (r *Renderer) uploadWorldMaterialTextures(device *wgpu.Device, queue *wgpu.
 	if err != nil {
 		slog.Warn("failed to build world texture animations", "error", err)
 	}
+	r.uploadWorldMissingTextureDummies(device, queue, sampler, textures, int32(textureCount))
 	return textures, fullbright, animations
 }
 

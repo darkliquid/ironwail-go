@@ -569,6 +569,11 @@ func W_SetCurrentAmmo() {
 	Self.WeaponFrame = 0
 
 	Self.Items = float32(int(Self.Items) - (int(Self.Items) & (IT_SHELLS | IT_NAILS | IT_ROCKETS | IT_CELLS)))
+	if Self.Weapon == 0 {
+		// DecodeLevelParms can restore parm8 as 0 on hub/start maps; choose a
+		// valid weapon before deriving ammo and viewmodel state from it.
+		Self.Weapon = W_BestWeapon()
+	}
 
 	switch int(Self.Weapon) {
 	case IT_AXE:

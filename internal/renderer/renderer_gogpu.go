@@ -170,6 +170,7 @@ type Renderer struct {
 	worldTranslucentTurbulentPipeline *wgpu.RenderPipeline
 	worldSkyPipeline                  *wgpu.RenderPipeline
 	worldSkyExternalPipeline          *wgpu.RenderPipeline
+	worldSkyExternalOverlayPipeline   *wgpu.RenderPipeline
 	worldPipelineLayout               *wgpu.PipelineLayout
 	worldSkyExternalPipelineLayout    *wgpu.PipelineLayout
 	worldDynamicLightsBuffer          *wgpu.Buffer
@@ -192,10 +193,16 @@ type Renderer struct {
 	worldSkyExternalViews             [6]*wgpu.TextureView
 	worldSkyExternalBindGroup         *wgpu.BindGroup
 	worldSkyExternalFaces             [6]externalSkyboxFace
+	worldSkyExternalWind              externalSkyboxWind
+	worldSkyExternalWindLoaded        bool
 	worldSkyExternalLoaded            int
 	worldSkyExternalMode              externalSkyboxRenderMode
 	worldSkyExternalName              string
 	worldSkyExternalRequestID         uint64
+	worldSkyExternalLoading           bool
+	worldSkyExternalUploadCursor      int
+	worldSkyExternalWorldDrawLogged   bool
+	worldSkyExternalBrushDrawLogged   bool
 	whiteTextureBindGroup             *wgpu.BindGroup
 	transparentTexture                *wgpu.Texture
 	transparentTextureView            *wgpu.TextureView

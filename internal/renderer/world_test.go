@@ -1,13 +1,72 @@
 package renderer
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/darkliquid/ironwail-go/internal/bsp"
+	"github.com/darkliquid/ironwail-go/internal/model"
 	"github.com/gogpu/wgpu"
 
 	surfacepkg "github.com/darkliquid/ironwail-go/internal/renderer/surface"
 )
+
+func TestWorldFaceTextureIndexRemapsMissingTextureToDummySlots(t *testing.T) {
+	textureData := make([]byte, 4+4*4)
+	binary.LittleEndian.PutUint32(textureData[:4], 4)
+	for i := 0; i < 4; i++ {
+		binary.LittleEndian.PutUint32(textureData[4+i*4:], uint32(0xffffffff))
+	}
+
+	tests := []struct {
+		name  string
+		flags int32
+		want  int32
+	}{
+		{name: "lightmapped", flags: bsp.TexMissing, want: 4},
+		{name: "special", flags: bsp.TexMissing | bsp.TexSpecial, want: 5},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tree := &bsp.Tree{
+				TextureData: textureData,
+				Texinfo: []bsp.Texinfo{
+					{Miptex: 3, Flags: tc.flags},
+				},
+			}
+			face := &bsp.TreeFace{Texinfo: 0}
+
+			if got := worldFaceTextureIndex(tree, face); got != tc.want {
+				t.Fatalf("worldFaceTextureIndex() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorldFaceFlagsTreatsMissingTextureAsOpaqueDummy(t *testing.T) {
+	textureData := make([]byte, 8)
+	binary.LittleEndian.PutUint32(textureData[:4], 1)
+	binary.LittleEndian.PutUint32(textureData[4:], uint32(0xffffffff))
+	tree := &bsp.Tree{
+		TextureData: textureData,
+		Texinfo: []bsp.Texinfo{
+			{Miptex: 0, Flags: bsp.TexSpecial},
+		},
+	}
+	face := &bsp.TreeFace{Texinfo: 0}
+	textureMeta := []worldTextureMeta{{Type: model.TexTypeTele}}
+
+	flags := worldFaceFlags(textureMeta, tree, face)
+	if flags&model.SurfNoTexture == 0 {
+		t.Fatalf("flags = %#x, want SurfNoTexture", flags)
+	}
+	if flags&model.SurfDrawTurb != 0 {
+		t.Fatalf("flags = %#x, missing dummy texture must not be routed as turbulent liquid", flags)
+	}
+	if !shouldDrawGoGPUOpaqueWorldFace(WorldFace{NumIndices: 3, Flags: flags}) {
+		t.Fatalf("missing dummy flags = %#x, want opaque world face", flags)
+	}
+}
 
 // TestBuildWorldGeometry_NilTree tests handling of nil BSP tree.
 func TestBuildWorldGeometry_NilTree(t *testing.T) {

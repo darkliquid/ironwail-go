@@ -130,6 +130,9 @@ func (r *Renderer) ClearWorld() {
 		if r.worldSkyExternalPipeline != nil {
 			r.worldSkyExternalPipeline.Release()
 		}
+		if r.worldSkyExternalOverlayPipeline != nil {
+			r.worldSkyExternalOverlayPipeline.Release()
+		}
 		if r.worldTurbulentPipeline != nil {
 			r.worldTurbulentPipeline.Release()
 		}
@@ -315,6 +318,7 @@ func (r *Renderer) ClearWorld() {
 		r.worldTranslucentTurbulentPipeline = nil
 		r.worldSkyPipeline = nil
 		r.worldSkyExternalPipeline = nil
+		r.worldSkyExternalOverlayPipeline = nil
 		r.worldPipelineLayout = nil
 		r.worldSkyExternalPipelineLayout = nil
 		r.worldShader = nil

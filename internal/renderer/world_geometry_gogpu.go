@@ -254,10 +254,65 @@ func worldFaceTexInfo(tree *bsp.Tree, face *bsp.TreeFace) *bsp.Texinfo {
 // worldFaceTextureIndex resolves the diffuse texture atlas slot for a face so world pass shaders can sample the correct base map.
 func worldFaceTextureIndex(tree *bsp.Tree, face *bsp.TreeFace) int32 {
 	texInfo := worldFaceTexInfo(tree, face)
-	if texInfo == nil || texInfo.Miptex < 0 {
+	if texInfo == nil {
+		return -1
+	}
+	if remapped, ok := worldMissingTextureFallbackIndex(tree, texInfo); ok {
+		return remapped
+	}
+	if texInfo.Miptex < 0 {
 		return -1
 	}
 	return texInfo.Miptex
+}
+
+func worldMissingTextureFallbackIndex(tree *bsp.Tree, texInfo *bsp.Texinfo) (int32, bool) {
+	textureCount, ok := worldTextureCount(tree)
+	if !ok {
+		return 0, false
+	}
+	// C Ironwail appends two dummy texture slots and remaps missing texinfos to
+	// them so faces with offset -1 still draw instead of sampling no material.
+	missing := texInfo.Flags&bsp.TexMissing != 0
+	miptexIndex := int(texInfo.Miptex)
+	if miptexIndex < 0 || miptexIndex >= int(textureCount) || !worldTextureEntryLoaded(tree, miptexIndex) {
+		missing = true
+	}
+	if !missing {
+		return 0, false
+	}
+	if texInfo.Flags&bsp.TexSpecial != 0 {
+		return textureCount + 1, true
+	}
+	return textureCount, true
+}
+
+func worldTextureCount(tree *bsp.Tree) (int32, bool) {
+	if tree == nil || len(tree.TextureData) < 4 {
+		return 0, false
+	}
+	count := int32(binary.LittleEndian.Uint32(tree.TextureData[:4]))
+	if count < 0 || len(tree.TextureData) < 4+int(count)*4 {
+		return 0, false
+	}
+	return count, true
+}
+
+func worldTextureEntryLoaded(tree *bsp.Tree, textureIndex int) bool {
+	if tree == nil || textureIndex < 0 || len(tree.TextureData) < 4 {
+		return false
+	}
+	textureCount := int(int32(binary.LittleEndian.Uint32(tree.TextureData[:4])))
+	if textureIndex >= textureCount || len(tree.TextureData) < 4+textureCount*4 {
+		return false
+	}
+	offsetPos := 4 + textureIndex*4
+	offset := int(int32(binary.LittleEndian.Uint32(tree.TextureData[offsetPos : offsetPos+4])))
+	if offset <= 0 || offset >= len(tree.TextureData) {
+		return false
+	}
+	miptex, err := image.ParseMipTex(tree.TextureData[offset:])
+	return err == nil && miptex.Width > 0 && miptex.Height > 0
 }
 
 // worldFaceFlags exposes per-face material/render flags (sky, liquid, turbulent, etc.) that drive pass routing and shader behavior.
@@ -267,10 +322,13 @@ func worldFaceFlags(textureMeta []worldTextureMeta, tree *bsp.Tree, face *bsp.Tr
 		return 0
 	}
 	textureType := classifyWorldTextureName("")
-	if int(texInfo.Miptex) >= 0 && int(texInfo.Miptex) < len(textureMeta) {
+	texinfoFlags := texInfo.Flags
+	if _, missing := worldMissingTextureFallbackIndex(tree, texInfo); missing {
+		texinfoFlags |= bsp.TexMissing
+	} else if int(texInfo.Miptex) >= 0 && int(texInfo.Miptex) < len(textureMeta) {
 		textureType = textureMeta[texInfo.Miptex].Type
 	}
-	return deriveWorldFaceFlags(textureType, texInfo.Flags)
+	return deriveWorldFaceFlags(textureType, texinfoFlags)
 }
 
 // worldTextureDimensions fetches source texture dimensions for texel-density and UV conversion computations.

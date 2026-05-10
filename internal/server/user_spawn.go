@@ -20,6 +20,12 @@ func (s *Server) writeSpawnSnapshot(client *Client) {
 	s.writeSpawnGlobalStats(client, client.Message)
 	s.writeSpawnSetAngle(client, client.Message)
 	s.WriteClientDataToMessage(client.Edict, client.Message)
+	if s.SkyboxName != "" {
+		// External skyboxes are renderer state, but in Go's real client/server
+		// split the client must receive the worldspawn sky name over the protocol.
+		client.Message.PutByte(byte(inet.SVCSkyBox))
+		client.Message.WriteString(s.SkyboxName)
+	}
 	client.Message.PutByte(byte(inet.SVCSignOnNum))
 	client.Message.PutByte(3)
 }

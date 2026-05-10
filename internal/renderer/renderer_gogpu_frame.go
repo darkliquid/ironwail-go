@@ -625,6 +625,7 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 		pendingTranslucentRenders = nil
 		pendingTransientBuffers = nil
 	}
+	renderedExternalWorldSkyOverlay := false
 	for _, phase := range plan.phases {
 		switch phase {
 		case gogpuEntityPhaseTranslucentWorldLiquid, gogpuEntityPhaseTranslucentLiquidBrush, gogpuEntityPhaseTranslucentBrush:
@@ -632,6 +633,10 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 			flushStart := time.Now()
 			flushPendingTranslucency()
 			translucencyFlushMS += float64(time.Since(flushStart)) / float64(time.Millisecond)
+		}
+		if state.DrawWorld && !renderedExternalWorldSkyOverlay && phase >= gogpuEntityPhaseSkyBrush {
+			dc.renderExternalWorldSkyOverlayHAL(state.FogColor, state.FogDensity)
+			renderedExternalWorldSkyOverlay = true
 		}
 		switch phase {
 		case gogpuEntityPhaseOpaqueBrush:
@@ -699,6 +704,9 @@ func (dc *DrawContext) renderEntities(state *RenderFrameState) {
 				translucentParticlesMS += float64(time.Since(phaseStart)) / float64(time.Millisecond)
 			}
 		}
+	}
+	if state.DrawWorld && !renderedExternalWorldSkyOverlay {
+		dc.renderExternalWorldSkyOverlayHAL(state.FogColor, state.FogDensity)
 	}
 	flushStart := time.Now()
 	flushPendingTranslucency()

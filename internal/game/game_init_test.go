@@ -380,6 +380,7 @@ func (reloadTestRenderer) Shutdown()                                            
 func (reloadTestRenderer) SetPalette([]byte)                                      {}
 func (reloadTestRenderer) SetConchars([]byte)                                     {}
 func (reloadTestRenderer) SetExternalSkybox(string, func(string) ([]byte, error)) {}
+func (reloadTestRenderer) UploadPendingExternalSkybox() error                     { return nil }
 func (reloadTestRenderer) UpdateCamera(renderer.CameraState, float32, float32)    {}
 func (reloadTestRenderer) UploadWorld(*bsp.Tree) error                            { return nil }
 func (reloadTestRenderer) HasWorldData() bool                                     { return false }

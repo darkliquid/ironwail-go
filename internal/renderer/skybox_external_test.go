@@ -7,7 +7,9 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestNormalizeSkyboxBaseName(t *testing.T) {
@@ -27,6 +29,43 @@ func TestNormalizeSkyboxBaseName(t *testing.T) {
 		if got := normalizeSkyboxBaseName(tc.in); got != tc.want {
 			t.Fatalf("normalizeSkyboxBaseName(%q) = %q, want %q", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestSetExternalSkyboxLoadsMissingRequestAsynchronously(t *testing.T) {
+	r := &Renderer{}
+	var loadCalls atomic.Int32
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+	var startedOnce atomic.Bool
+	loadMissing := func(string) ([]byte, error) {
+		loadCalls.Add(1)
+		if startedOnce.CompareAndSwap(false, true) {
+			close(started)
+		}
+		<-unblock
+		return nil, errors.New("missing")
+	}
+
+	r.SetExternalSkybox("gfx/env/qbj3", loadMissing)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("skybox load did not start")
+	}
+	r.SetExternalSkybox("env/qbj3", loadMissing)
+	if got := loadCalls.Load(); got != 1 {
+		t.Fatalf("load calls while first candidate is blocked = %d, want 1", got)
+	}
+
+	close(unblock)
+	wantCalls := len(skyboxFaceSuffixes)*len(skyboxFaceSearchPaths("qbj3", skyboxFaceSuffixes[0])) + 1 // plus skywind config probe
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && int(loadCalls.Load()) != wantCalls {
+		time.Sleep(time.Millisecond)
+	}
+	if got := int(loadCalls.Load()); got != wantCalls {
+		t.Fatalf("load calls = %d, want one pass over skybox candidates", got)
 	}
 }
 
@@ -105,6 +144,66 @@ func TestLoadExternalSkyboxFacesFallsBackToLowercasePath(t *testing.T) {
 	}
 	if faces[0].Path != "gfx/env/UPPERrt.png" {
 		t.Fatalf("rt path = %q, want original-cased candidate", faces[0].Path)
+	}
+}
+
+func TestLoadExternalSkyboxWindMatchesCIronwailConfig(t *testing.T) {
+	assets := map[string][]byte{
+		"gfx/env/mak_cloudysky4_wind.cfg": []byte("skywind 1.5 120 40 -15"),
+	}
+	loadFile := func(name string) ([]byte, error) {
+		if data, ok := assets[name]; ok {
+			return data, nil
+		}
+		return nil, errNotFound
+	}
+
+	wind, ok := loadExternalSkyboxWind("mak_cloudysky4_", loadFile)
+	if !ok {
+		t.Fatal("expected skywind config to load")
+	}
+	if wind.Dist != 1.5 || wind.Yaw != 120 || wind.Period != 40 || wind.Pitch != -15 {
+		t.Fatalf("wind = %+v, want dist=1.5 yaw=120 period=40 pitch=-15", wind)
+	}
+}
+
+func TestLoadExternalSkyboxWindClampsAndDefaultsLikeCIronwail(t *testing.T) {
+	assets := map[string][]byte{
+		"gfx/env/stormwind.cfg": []byte("skywind 9"),
+	}
+	loadFile := func(name string) ([]byte, error) {
+		if data, ok := assets[name]; ok {
+			return data, nil
+		}
+		return nil, errNotFound
+	}
+
+	wind, ok := loadExternalSkyboxWind("storm", loadFile)
+	if !ok {
+		t.Fatal("expected skywind config to load")
+	}
+	if wind.Dist != 2 || wind.Yaw != 45 || wind.Period != 30 || wind.Pitch != 0 {
+		t.Fatalf("wind = %+v, want clamped dist and C defaults", wind)
+	}
+}
+
+func TestLoadExternalSkyboxWindSkipsQuakeLineComments(t *testing.T) {
+	assets := map[string][]byte{
+		"gfx/env/stormwind.cfg": []byte("// qbj-style notes before config\nskywind 1 90 20 5 // trailing note"),
+	}
+	loadFile := func(name string) ([]byte, error) {
+		if data, ok := assets[name]; ok {
+			return data, nil
+		}
+		return nil, errNotFound
+	}
+
+	wind, ok := loadExternalSkyboxWind("storm", loadFile)
+	if !ok {
+		t.Fatal("expected skywind config with comments to load")
+	}
+	if wind.Dist != 1 || wind.Yaw != 90 || wind.Period != 20 || wind.Pitch != 5 {
+		t.Fatalf("wind = %+v, want parsed values after comments are stripped", wind)
 	}
 }
 

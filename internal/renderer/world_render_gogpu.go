@@ -203,6 +203,13 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	writeWorldUniform := func(alpha float32, litWater float32) bool {
 		return writeWorldUniformWithFog(alpha, litWater, fogDensity)
 	}
+	writeExternalSkyUniform := func(activeFogDensity float32) bool {
+		currentAlpha = 1
+		currentLitWater = 0
+		currentFogDensity = activeFogDensity
+		fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, state.FogColor, activeFogDensity, timeValue, dc.renderer.worldSkyExternalWind, dc.renderer.worldSkyExternalWindLoaded)
+		return queue.WriteBuffer(dc.renderer.uniformBuffer, 0, uniformBytes[:]) == nil
+	}
 	cameraOriginWorld := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
 	cameraLeafIndex := worldLeafIndex(worldData.Geometry.Tree, cameraOriginWorld)
 	cacheEntry := dc.renderer.gogpuWorldBatchCacheEntry(cameraLeafIndex)
@@ -326,16 +333,35 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	var materialBindState gogpuWorldMaterialBindState
 	skyDrawStart := time.Now()
 	if dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces && dc.renderer.worldSkyExternalPipeline != nil && dc.renderer.worldSkyExternalBindGroup != nil {
-		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
+		logExternalSkyDraw := !dc.renderer.worldSkyExternalWorldDrawLogged
+		if logExternalSkyDraw {
+			slog.Info("external sky world draw begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "sky_faces", len(skyFaces))
+		}
+		if !writeExternalSkyUniform(skyFogDensity) {
 			slog.Error("renderWorldInternal: Failed to update sky fog uniform")
 			_ = renderPass.End()
 			return
 		}
+		if logExternalSkyDraw {
+			slog.Info("external sky world draw uniform written", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "sky_fog_density", skyFogDensity, "wind_loaded", dc.renderer.worldSkyExternalWindLoaded, "wind_dist", dc.renderer.worldSkyExternalWind.Dist, "wind_period", dc.renderer.worldSkyExternalWind.Period)
+		}
 		renderPass.SetPipeline(dc.renderer.worldSkyExternalPipeline)
 		renderPass.SetBindGroup(1, dc.renderer.worldSkyExternalBindGroup, nil)
+		// The external sky shader only samples bind group 1, but the pipeline
+		// layout intentionally matches the shared world layout so group 4
+		// (dynamic lights) can remain bound across sky and brush draws.
+		// WebGPU still requires every lower bind group in that layout to be set.
+		renderPass.SetBindGroup(2, dc.renderer.whiteTextureBindGroup, nil)
+		renderPass.SetBindGroup(3, dc.renderer.whiteTextureBindGroup, nil)
+		if logExternalSkyDraw {
+			slog.Info("external sky world draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+		}
 		for _, face := range skyFaces {
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 			skyDrawnIndices += face.NumIndices
+		}
+		if logExternalSkyDraw {
+			slog.Info("external sky world draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "drawn_indices", skyDrawnIndices, "triangles", skyDrawnIndices/3)
 		}
 	} else if dc.renderer.worldSkyPipeline != nil {
 		if !writeWorldUniformWithFog(1, 0, skyFogDensity) {
@@ -473,25 +499,48 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 
 	// End render pass
 	slog.Debug("renderWorldInternal: ending render pass")
+	logExternalSkySubmit := skyDrawnIndices > 0 &&
+		dc.renderer.worldSkyExternalMode == externalSkyboxRenderFaces &&
+		dc.renderer.worldSkyExternalBindGroup != nil &&
+		!dc.renderer.worldSkyExternalWorldDrawLogged
+	if logExternalSkySubmit {
+		slog.Info("external sky world render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderWorldInternal: render pass end error", "error", err)
 	}
+	if logExternalSkySubmit {
+		slog.Info("external sky world render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+	}
 
 	// Finish encoding and get command buffer
+	if logExternalSkySubmit {
+		slog.Info("external sky world encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to finish command encoding", "error", err)
 		return
 	}
+	if logExternalSkySubmit {
+		slog.Info("external sky world encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+	}
 
 	// Submit to queue
 	slog.Debug("renderWorldInternal: submitting to queue")
+	if logExternalSkySubmit {
+		slog.Info("external sky world queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName)
+	}
 	submitStart := time.Now()
 	_, err = queue.Submit(cmdBuffer)
 	submitMS = float64(time.Since(submitStart)) / float64(time.Millisecond)
 	if err != nil {
 		slog.Error("renderWorldInternal: Failed to submit render commands", "error", err)
 		return
+	}
+	if logExternalSkySubmit {
+		slog.Info("external sky world queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", dc.renderer.worldSkyExternalName, "submit_ms", submitMS)
+		dc.renderer.worldSkyExternalWorldDrawLogged = true
 	}
 
 	if hostSpeeds {
@@ -513,6 +562,129 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		)
 	}
 	slog.Debug("World render commands submitted successfully")
+}
+
+func (dc *DrawContext) renderExternalWorldSkyOverlayHAL(fogColor [3]float32, fogDensity float32) {
+	if dc == nil || dc.renderer == nil {
+		return
+	}
+	worldData := dc.renderer.WorldData()
+	if worldData == nil || worldData.Geometry == nil {
+		return
+	}
+	device := dc.renderer.getWGPUDevice()
+	queue := dc.renderer.getWGPUQueue()
+	textureView := dc.currentWGPURenderTargetView()
+	if device == nil || queue == nil || textureView == nil {
+		return
+	}
+
+	dc.renderer.mu.RLock()
+	if dc.renderer.worldSkyExternalMode != externalSkyboxRenderFaces ||
+		dc.renderer.worldSkyExternalOverlayPipeline == nil ||
+		dc.renderer.worldSkyExternalBindGroup == nil ||
+		dc.renderer.worldVertexBuffer == nil ||
+		dc.renderer.worldIndexBuffer == nil ||
+		dc.renderer.uniformBuffer == nil ||
+		dc.renderer.uniformBindGroup == nil ||
+		dc.renderer.whiteTextureBindGroup == nil ||
+		dc.renderer.worldDynamicLightsBindGroup == nil ||
+		dc.renderer.worldDepthTextureView == nil {
+		dc.renderer.mu.RUnlock()
+		return
+	}
+	pipeline := dc.renderer.worldSkyExternalOverlayPipeline
+	externalSkyBindGroup := dc.renderer.worldSkyExternalBindGroup
+	whiteTextureBindGroup := dc.renderer.whiteTextureBindGroup
+	dynamicLightsBindGroup := dc.renderer.worldDynamicLightsBindGroup
+	uniformBuffer := dc.renderer.uniformBuffer
+	uniformBindGroup := dc.renderer.uniformBindGroup
+	vertexBuffer := dc.renderer.worldVertexBuffer
+	indexBuffer := dc.renderer.worldIndexBuffer
+	depthView := dc.renderer.worldDepthTextureView
+	camera := dc.renderer.cameraState
+	vpMatrix := dc.renderer.viewMatrices.VP
+	externalSkyWind := dc.renderer.worldSkyExternalWind
+	externalSkyWindLoaded := dc.renderer.worldSkyExternalWindLoaded
+	name := dc.renderer.worldSkyExternalName
+	dc.renderer.mu.RUnlock()
+
+	visibleFaces := selectVisibleWorldFaces(
+		worldData.Geometry.Tree,
+		worldData.Geometry.Faces,
+		worldData.Geometry.LeafFaces,
+		[3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z},
+	)
+	skyFaces := make([]WorldFace, 0, len(visibleFaces))
+	for _, face := range visibleFaces {
+		if shouldDrawGoGPUSkyWorldFace(face) {
+			skyFaces = append(skyFaces, face)
+		}
+	}
+	if len(skyFaces) == 0 {
+		return
+	}
+
+	encoder, err := device.CreateCommandEncoder(&wgpu.CommandEncoderDescriptor{Label: "External World Sky Overlay Encoder"})
+	if err != nil {
+		slog.Warn("external world sky overlay: failed to create encoder", "error", err)
+		return
+	}
+	renderPass, err := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+		Label: "External World Sky Overlay Pass",
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
+			View:    textureView,
+			LoadOp:  gputypes.LoadOpLoad,
+			StoreOp: gputypes.StoreOpStore,
+		}},
+		DepthStencilAttachment: aliasDepthAttachmentForView(depthView),
+	})
+	if err != nil {
+		slog.Warn("external world sky overlay: failed to begin render pass", "error", err)
+		return
+	}
+
+	width, height := dc.renderer.Size()
+	if width > 0 && height > 0 {
+		renderPass.SetViewport(0, 0, float32(width), float32(height), 0.0, 1.0)
+		renderPass.SetScissorRect(0, 0, uint32(width), uint32(height))
+	}
+	var uniformBytes [worldUniformBufferSize]byte
+	cameraOrigin := [3]float32{camera.Origin.X, camera.Origin.Y, camera.Origin.Z}
+	skyFogDensity := gogpuWorldSkyFogDensity(worldData.Geometry.Tree.Entities, fogDensity)
+	fillWorldSceneUniformBytesWithExternalSkyWind(uniformBytes[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
+	if err := queue.WriteBuffer(uniformBuffer, 0, uniformBytes[:]); err != nil {
+		slog.Warn("external world sky overlay: failed to upload uniforms", "error", err)
+		_ = renderPass.End()
+		return
+	}
+	renderPass.SetPipeline(pipeline)
+	renderPass.SetBindGroup(0, uniformBindGroup, nil)
+	renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
+	renderPass.SetBindGroup(2, whiteTextureBindGroup, nil)
+	renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
+	renderPass.SetBindGroup(4, dynamicLightsBindGroup, nil)
+	renderPass.SetVertexBuffer(0, vertexBuffer, 0)
+	renderPass.SetIndexBuffer(indexBuffer, gputypes.IndexFormatUint32, 0)
+	var drawnIndices uint32
+	for _, face := range skyFaces {
+		renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
+		drawnIndices += face.NumIndices
+	}
+	if err := renderPass.End(); err != nil {
+		slog.Warn("external world sky overlay: render pass end error", "error", err)
+		return
+	}
+	cmdBuffer, err := encoder.Finish()
+	if err != nil {
+		slog.Warn("external world sky overlay: failed to finish encoding", "error", err)
+		return
+	}
+	if _, err := queue.Submit(cmdBuffer); err != nil {
+		slog.Warn("external world sky overlay: failed to submit", "error", err)
+		return
+	}
+	slog.Debug("external world sky overlay rendered", "subsystem", externalSkyboxLogSubsystem, "name", name, "sky_faces", len(skyFaces), "indices", drawnIndices)
 }
 
 // matrixToBytes converts a types.Mat4 to bytes (column-major, little-endian).
@@ -577,6 +749,42 @@ func fillWorldSceneUniformBytes(dst []byte, vp types.Mat4, cameraOrigin [3]float
 	binary.LittleEndian.PutUint32(dst[92:96], math.Float32bits(time))
 	binary.LittleEndian.PutUint32(dst[96:100], math.Float32bits(alpha))
 	binary.LittleEndian.PutUint32(dst[100:104], math.Float32bits(litWater))
+}
+
+func fillWorldSceneUniformBytesWithExternalSkyWind(dst []byte, vp types.Mat4, cameraOrigin [3]float32, fogColor [3]float32, fogDensity float32, timeValue float32, wind externalSkyboxWind, windLoaded bool) {
+	fillWorldSceneUniformBytes(dst, vp, cameraOrigin, fogColor, fogDensity, timeValue, 1, 0)
+	if !windLoaded || wind.Dist == 0 {
+		return
+	}
+	yaw := float64(wind.Yaw) * math.Pi / 180
+	pitch := float64(wind.Pitch) * math.Pi / 180
+	sy, cy := math.Sin(yaw), math.Cos(yaw)
+	sp, cp := math.Sin(pitch), math.Cos(pitch)
+	dist := float64(clampExternalSkyWindDist(wind.Dist))
+	period := float64(wind.Period)
+	phase := 0.5
+	if period != 0 {
+		phase = float64(timeValue) * 0.5 / period
+	}
+	phase -= math.Floor(phase) + 0.5
+	windDir := [3]float32{
+		float32(dist * cp * sy),
+		float32(dist * sp),
+		float32(-dist * cp * cy),
+	}
+	binary.LittleEndian.PutUint32(dst[104:108], math.Float32bits(float32(phase)))
+	putFloat32s(dst[112:124], windDir[:])
+	binary.LittleEndian.PutUint32(dst[124:128], math.Float32bits(1))
+}
+
+func clampExternalSkyWindDist(dist float32) float32 {
+	if dist < -2 {
+		return -2
+	}
+	if dist > 2 {
+		return 2
+	}
+	return dist
 }
 
 func gogpuWorldUniformInputs(state *RenderFrameState, camera CameraState) ([3]float32, float32, float32) {

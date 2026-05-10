@@ -10,6 +10,41 @@ import (
 	"github.com/darkliquid/ironwail-go/internal/qc"
 )
 
+func TestRepairMissingWeaponSpawnParmsSelectsShotgunForFreshSpawn(t *testing.T) {
+	client := &Client{}
+
+	repairMissingWeaponSpawnParms(client)
+
+	if got := int(client.SpawnParms[0]); got != defaultFreshSpawnItems {
+		t.Fatalf("parm1 items = %#x, want %#x", got, defaultFreshSpawnItems)
+	}
+	if got := client.SpawnParms[1]; got != defaultFreshSpawnHealth {
+		t.Fatalf("parm2 health = %g, want %d", got, defaultFreshSpawnHealth)
+	}
+	if got := client.SpawnParms[3]; got != defaultFreshSpawnShells {
+		t.Fatalf("parm4 shells = %g, want %d", got, defaultFreshSpawnShells)
+	}
+	if got := int(client.SpawnParms[7]); got != spawnParmItemShotgun {
+		t.Fatalf("parm8 weapon = %#x, want shotgun %#x", got, spawnParmItemShotgun)
+	}
+}
+
+func TestRepairMissingWeaponSpawnParmsKeepsExistingInventory(t *testing.T) {
+	client := &Client{}
+	client.SpawnParms[0] = spawnParmItemSuperNailgun | spawnParmItemShotgun | spawnParmItemAxe
+	client.SpawnParms[3] = 25
+	client.SpawnParms[4] = 40
+
+	repairMissingWeaponSpawnParms(client)
+
+	if got := int(client.SpawnParms[0]); got != spawnParmItemSuperNailgun|spawnParmItemShotgun|spawnParmItemAxe {
+		t.Fatalf("parm1 items = %#x", got)
+	}
+	if got := int(client.SpawnParms[7]); got != spawnParmItemSuperNailgun {
+		t.Fatalf("parm8 weapon = %#x, want super nailgun %#x", got, spawnParmItemSuperNailgun)
+	}
+}
+
 func TestSendServerInfoFitzQuakeOmitsProtocolFlags(t *testing.T) {
 	s := NewServer()
 	if err := s.Init(1); err != nil {

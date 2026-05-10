@@ -140,6 +140,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		slog.Warn("Failed to create sky vertex shader", "error", err)
 		skyVertexShader = nil
 	}
+	skyMaskVertexShader, err := createWorldShaderModule(device, worldSkyMaskVertexShaderWGSL, "World Sky Mask Vertex Shader")
+	if err != nil {
+		slog.Warn("Failed to create sky mask vertex shader", "error", err)
+		skyMaskVertexShader = nil
+	}
 	skyFragmentShader, err := createWorldShaderModule(device, worldSkyFragmentShaderWGSL, "World Sky Fragment Shader")
 	if err != nil {
 		slog.Warn("Failed to create sky fragment shader", "error", err)
@@ -161,6 +166,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	var pipelineLayout *wgpu.PipelineLayout
 	var skyPipeline *wgpu.RenderPipeline
 	var externalSkyPipeline *wgpu.RenderPipeline
+	var externalSkyOverlayPipeline *wgpu.RenderPipeline
 	var externalSkyPipelineLayout *wgpu.PipelineLayout
 	var externalSkyBindGroupLayout *wgpu.BindGroupLayout
 	var alphaTestPipeline *wgpu.RenderPipeline
@@ -188,11 +194,12 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 			alphaTestPipeline = nil
 		}
 	}
-	if skyVertexShader != nil && externalSkyFragmentShader != nil {
-		externalSkyPipeline, externalSkyPipelineLayout, externalSkyBindGroupLayout, err = r.createWorldExternalSkyPipeline(device, skyVertexShader, externalSkyFragmentShader)
+	if skyVertexShader != nil && skyMaskVertexShader != nil && externalSkyFragmentShader != nil {
+		externalSkyPipeline, externalSkyOverlayPipeline, externalSkyPipelineLayout, externalSkyBindGroupLayout, err = r.createWorldExternalSkyPipeline(device, skyVertexShader, skyMaskVertexShader, externalSkyFragmentShader)
 		if err != nil {
 			slog.Warn("Failed to create external world sky pipeline", "error", err)
 			externalSkyPipeline = nil
+			externalSkyOverlayPipeline = nil
 			externalSkyPipelineLayout = nil
 			externalSkyBindGroupLayout = nil
 		}
@@ -362,6 +369,7 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldTranslucentTurbulentPipeline = translucentTurbulentPipeline
 	r.worldSkyPipeline = skyPipeline
 	r.worldSkyExternalPipeline = externalSkyPipeline
+	r.worldSkyExternalOverlayPipeline = externalSkyOverlayPipeline
 	r.worldPipelineLayout = pipelineLayout
 	r.worldSkyExternalPipelineLayout = externalSkyPipelineLayout
 	r.worldDynamicLightsBuffer = dynamicLightsBuffer
@@ -390,9 +398,6 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	if depthTexture != nil {
 		r.worldDepthWidth = width
 		r.worldDepthHeight = height
-	}
-	if err := r.ensureGoGPUExternalSkyboxLocked(device, queue); err != nil && r.worldSkyExternalMode == externalSkyboxRenderFaces {
-		slog.Debug("external gogpu skybox remains deferred", "name", r.worldSkyExternalName, "error", err)
 	}
 	renderData.VertexBufferUploaded = vertexBuffer != nil
 	renderData.IndexBufferUploaded = indexBuffer != nil

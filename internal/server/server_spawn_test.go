@@ -74,6 +74,29 @@ func TestSpawnCommandWritesInitialSnapshot(t *testing.T) {
 	}
 }
 
+func TestSpawnCommandWritesSkyboxName(t *testing.T) {
+	s := NewServer()
+	if err := s.Init(1); err != nil {
+		t.Fatalf("init server: %v", err)
+	}
+	s.SkyboxName = "gfx/env/qbj3"
+
+	s.ConnectClient(0)
+	client := s.Static.Clients[0]
+
+	if err := s.SubmitLoopbackStringCommand(0, "prespawn"); err != nil {
+		t.Fatalf("prespawn: %v", err)
+	}
+	if err := s.SubmitLoopbackStringCommand(0, "spawn"); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	data := client.Message.Data[:client.Message.Len()]
+	if !bytes.Contains(data, []byte{byte(inet.SVCSkyBox), 'g', 'f', 'x', '/', 'e', 'n', 'v', '/', 'q', 'b', 'j', '3', 0}) {
+		t.Fatalf("spawn snapshot does not include skybox message: %v", data)
+	}
+}
+
 func TestWriteSpawnSetAngleUsesSpawnAnglesForFreshSpawn(t *testing.T) {
 	s := &Server{Protocol: ProtocolFitzQuake}
 	client := &Client{Edict: &Edict{Vars: &EntVars{}}}

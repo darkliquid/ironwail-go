@@ -9,6 +9,7 @@ var (
 
 type externalSkyboxFace = skyimpl.ExternalSkyboxFace
 type externalSkyboxRenderMode = skyimpl.ExternalSkyboxRenderMode
+type externalSkyboxWind = skyimpl.ExternalSkyboxWind
 
 const (
 	externalSkyboxRenderEmbedded externalSkyboxRenderMode = skyimpl.ExternalSkyboxRenderEmbedded
@@ -30,6 +31,10 @@ func skyboxFaceSearchPaths(baseName, suffix string) []string {
 
 func loadExternalSkyboxFaces(baseName string, loadFile func(string) ([]byte, error)) (faces [6]externalSkyboxFace, loaded int) {
 	return skyimpl.LoadExternalSkyboxFaces(baseName, loadFile)
+}
+
+func loadExternalSkyboxWind(baseName string, loadFile func(string) ([]byte, error)) (externalSkyboxWind, bool) {
+	return skyimpl.LoadExternalSkyboxWind(baseName, loadFile)
 }
 
 func externalSkyboxCubemapEligible(faces [6]externalSkyboxFace, loaded int) bool {

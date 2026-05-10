@@ -15,8 +15,10 @@ struct Uniforms {
     time: f32,
     alpha: f32,
     litWater: f32,
-    _padding0: vec2<f32>,
-    _padding1: vec4<f32>,
+    skyWindPhase: f32,
+    _padding0: f32,
+    skyWindDir: vec3<f32>,
+    skyWindEnabled: f32,
 }
 `
 
@@ -188,6 +190,36 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 }
 `
 
+const worldSkyMaskVertexShaderWGSL = `
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) texCoord: vec2<f32>,
+    @location(2) lightmapCoord: vec2<f32>,
+    @location(3) normal: vec3<f32>,
+}
+` + worldUniformsWGSL + `
+
+struct VertexOutput {
+    @builtin(position) clipPosition: vec4<f32>,
+    @location(0) dir: vec3<f32>,
+}
+
+@group(0) @binding(0)
+var<uniform> uniforms: Uniforms;
+
+@vertex
+fn vs_main(input: VertexInput) -> VertexOutput {
+    var output: VertexOutput;
+    output.clipPosition = uniforms.viewProjection * vec4<f32>(input.position, 1.0);
+    output.dir = vec3<f32>(
+        input.position.x - uniforms.cameraOrigin.x,
+        input.position.y - uniforms.cameraOrigin.y,
+        (input.position.z - uniforms.cameraOrigin.z) * 3.0,
+    );
+    return output;
+}
+`
+
 var worldTurbulentFragmentShaderWGSL = fmt.Sprintf(`
 %s
 struct VertexOutput {
@@ -348,7 +380,7 @@ fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
     var ma: f32;
     var uv: vec2<f32>;
     if (absDir.x >= absDir.y && absDir.x >= absDir.z) {
-        ma = absDir.x;
+        ma = max(absDir.x, 0.000001);
         if (dir.x > 0.0) {
             uv = vec2<f32>((-dir.z / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
             return textureSample(skyFT, skySampler, uv);
@@ -357,7 +389,7 @@ fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
         return textureSample(skyBK, skySampler, uv);
     }
     if (absDir.y >= absDir.x && absDir.y >= absDir.z) {
-        ma = absDir.y;
+        ma = max(absDir.y, 0.000001);
         if (dir.y > 0.0) {
             uv = vec2<f32>((dir.x / ma + 1.0) * 0.5, (dir.z / ma + 1.0) * 0.5);
             return textureSample(skyUP, skySampler, uv);
@@ -365,7 +397,7 @@ fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
         uv = vec2<f32>((dir.x / ma + 1.0) * 0.5, (-dir.z / ma + 1.0) * 0.5);
         return textureSample(skyDN, skySampler, uv);
     }
-    ma = absDir.z;
+    ma = max(absDir.z, 0.000001);
     if (dir.z > 0.0) {
         uv = vec2<f32>((dir.x / ma + 1.0) * 0.5, (-dir.y / ma + 1.0) * 0.5);
         return textureSample(skyRT, skySampler, uv);
@@ -376,7 +408,22 @@ fn sampleExternalSky(dir: vec3<f32>) -> vec4<f32> {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    var result = sampleExternalSky(normalize(input.dir));
+    // C Ironwail's sky-cubemap shader converts Quake world axes to cubemap
+    // axes as (-Y, Z, X). The shared sky vertex shader's Z is stretched for
+    // classic scrolling skies, so undo that stretch for external cubemap faces.
+    let dir = normalize(vec3<f32>(-input.dir.y, input.dir.z / 3.0, input.dir.x) + vec3<f32>(0.0, 0.000001, 0.0));
+    var result = sampleExternalSky(dir);
+    if (uniforms.skyWindEnabled > 0.5) {
+        let t1 = uniforms.skyWindPhase;
+        let t2 = fract(t1) - 0.5;
+        let blend = abs(t1 * 2.0);
+        var layer1 = sampleExternalSky(dir + t1 * uniforms.skyWindDir);
+        var layer2 = sampleExternalSky(dir + t2 * uniforms.skyWindDir);
+        layer1 = vec4<f32>(layer1.rgb * layer1.a * (1.0 - blend), layer1.a * (1.0 - blend));
+        layer2 = vec4<f32>(layer2.rgb * layer2.a * blend, layer2.a * blend);
+        let combined = layer1 + layer2;
+        result = vec4<f32>(result.rgb * (1.0 - combined.a) + combined.rgb, 1.0);
+    }
     result = vec4<f32>(mix(result.rgb, uniforms.fogColor, vec3<f32>(uniforms.fogDensity)), result.a);
     return result;
 }

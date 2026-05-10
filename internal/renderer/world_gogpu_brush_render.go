@@ -303,7 +303,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	r.mu.RLock()
 	var treeEntities []byte
 	skyPipeline := r.worldSkyPipeline
-	externalSkyPipeline := r.worldSkyExternalPipeline
+	externalSkyOverlayPipeline := r.worldSkyExternalOverlayPipeline
 	uniformBuffer := r.uniformBuffer
 	uniformBindGroup := r.uniformBindGroup
 	whiteTextureBindGroup := r.whiteTextureBindGroup
@@ -321,6 +321,8 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	worldTextureAnimations := append([]*surfacepkg.SurfaceTexture(nil), r.worldTextureAnimations...)
 	externalSkyMode := r.worldSkyExternalMode
 	externalSkyBindGroup := r.worldSkyExternalBindGroup
+	externalSkyWind := r.worldSkyExternalWind
+	externalSkyWindLoaded := r.worldSkyExternalWindLoaded
 	depthView := r.worldDepthTextureView
 	camera := r.cameraState
 	var activeDynamicLights []DynamicLight
@@ -337,7 +339,7 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 	if transparentBindGroup == nil {
 		transparentBindGroup = whiteTextureBindGroup
 	}
-	useExternalSky := externalSkyMode == externalSkyboxRenderFaces && externalSkyPipeline != nil && externalSkyBindGroup != nil
+	useExternalSky := externalSkyMode == externalSkyboxRenderFaces && externalSkyOverlayPipeline != nil && externalSkyBindGroup != nil && whiteTextureBindGroup != nil
 	if !useExternalSky && (skyPipeline == nil || whiteTextureBindGroup == nil) {
 		return
 	}
@@ -362,9 +364,28 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		slog.Warn("renderSkyBrushEntitiesHAL: Failed to begin render pass", "error", err)
 		return
 	}
+	logExternalSkyDraw := useExternalSky && !r.worldSkyExternalBrushDrawLogged
+	if logExternalSkyDraw {
+		totalFaces := 0
+		totalIndices := uint32(0)
+		for _, draw := range draws {
+			totalFaces += len(draw.faces)
+			for _, face := range draw.faces {
+				totalIndices += face.NumIndices
+			}
+		}
+		slog.Info("external sky brush draw begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName, "draws", len(draws), "faces", totalFaces, "indices", totalIndices)
+	}
 	if useExternalSky {
-		renderPass.SetPipeline(externalSkyPipeline)
+		renderPass.SetPipeline(externalSkyOverlayPipeline)
 		renderPass.SetBindGroup(1, externalSkyBindGroup, nil)
+		// Keep the external sky pipeline layout compatible with the world
+		// pipeline layout; placeholder groups satisfy WebGPU validation.
+		renderPass.SetBindGroup(2, whiteTextureBindGroup, nil)
+		renderPass.SetBindGroup(3, whiteTextureBindGroup, nil)
+		if logExternalSkyDraw {
+			slog.Info("external sky brush draw pipeline bound", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		}
 	} else {
 		renderPass.SetPipeline(skyPipeline)
 	}
@@ -411,7 +432,11 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}
 		buffers = append(buffers, vertexBuffer, indexBuffer)
 		var uniformData [worldUniformBufferSize]byte
-		fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, 1, 0)
+		if useExternalSky {
+			fillWorldSceneUniformBytesWithExternalSkyWind(uniformData[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, externalSkyWind, externalSkyWindLoaded)
+		} else {
+			fillWorldSceneUniformBytes(uniformData[:], vpMatrix, cameraOrigin, fogColor, skyFogDensity, camera.Time, 1, 0)
+		}
 		if err := queue.WriteBuffer(uniformBuffer, 0, uniformData[:]); err != nil {
 			slog.Warn("failed to update brush sky uniform buffer", "error", err)
 			continue
@@ -440,8 +465,16 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 			renderPass.DrawIndexed(face.NumIndices, 1, face.FirstIndex, 0, 0)
 		}
 	}
+	if logExternalSkyDraw {
+		slog.Info("external sky brush draw commands encoded", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		slog.Info("external sky brush render pass end begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+	}
 	if err := renderPass.End(); err != nil {
 		slog.Warn("renderSkyBrushEntitiesHAL: render pass end error", "error", err)
+	}
+	if logExternalSkyDraw {
+		slog.Info("external sky brush render pass end complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		slog.Info("external sky brush encoder finish begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
 	}
 	cmdBuffer, err := encoder.Finish()
 	if err != nil {
@@ -451,8 +484,16 @@ func (dc *DrawContext) renderSkyBrushEntitiesHAL(entities []BrushEntity, fogColo
 		}
 		return
 	}
+	if logExternalSkyDraw {
+		slog.Info("external sky brush encoder finish complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		slog.Info("external sky brush queue submit begin", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+	}
 	if _, err := queue.Submit(cmdBuffer); err != nil {
 		slog.Warn("failed to submit brush sky commands", "error", err)
+	}
+	if logExternalSkyDraw {
+		slog.Info("external sky brush queue submit complete", "subsystem", externalSkyboxLogSubsystem, "name", r.worldSkyExternalName)
+		r.worldSkyExternalBrushDrawLogged = true
 	}
 	for _, buffer := range buffers {
 		buffer.Release()

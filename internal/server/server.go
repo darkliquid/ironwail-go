@@ -47,8 +47,9 @@ type Server struct {
 
 	State ServerState
 
-	Name      string
-	ModelName string
+	Name       string
+	ModelName  string
+	SkyboxName string
 
 	WorldModel CollisionModel
 	WorldTree  *bsp.Tree // BSP tree retained for rendering

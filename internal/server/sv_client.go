@@ -158,6 +158,9 @@ func (s *Server) ConnectClient(clientNum int) {
 			}
 		}
 	}
+	if !s.LoadGame {
+		repairMissingWeaponSpawnParms(client)
+	}
 
 	s.SendServerInfo(client)
 }

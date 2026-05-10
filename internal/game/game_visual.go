@@ -217,12 +217,14 @@ func (g *Game) applyRuntimeRendererSkybox(assets RendererAssets) {
 	if assets == nil {
 		return
 	}
-	skyboxName := g.SkyboxNameKey
-	if skyboxName == "" || g.Subs == nil || g.Subs.Files == nil {
+	if g.SkyboxNameKey == "" || g.Subs == nil || g.Subs.Files == nil {
 		assets.SetExternalSkybox("", nil)
 		return
 	}
-	assets.SetExternalSkybox(skyboxName, g.Subs.Files.LoadFile)
+	assets.SetExternalSkybox(g.SkyboxNameKey, g.Subs.Files.LoadFile)
+	if err := assets.UploadPendingExternalSkybox(); err != nil {
+		slog.Debug("external skybox upload deferred", "name", g.SkyboxNameKey, "error", err)
+	}
 }
 
 // updateHUDFromServer pushes current player/client state into the HUD.
