@@ -69,6 +69,11 @@ func (h *Host) replaceClientCommand(name string, fn cmdsys.CommandFunc, desc str
 	h.Cmd.AddClientCommand(name, fn, desc)
 }
 
+func (h *Host) replaceAnyCommand(name string, fn cmdsys.CommandFunc, desc string) {
+	h.Cmd.RemoveCommand(name)
+	h.Cmd.AddAnyCommand(name, fn, desc)
+}
+
 func (h *Host) RegisterCommands(subs *Subsystems) {
 	h.replaceCommand("quit", func(args []string) { h.CmdQuit() }, "Exit game")
 	h.replaceCommand("map", func(args []string) {
@@ -198,7 +203,7 @@ func (h *Host) RegisterCommands(subs *Subsystems) {
 			h.CmdParticleTexture(args[0], subs)
 		}
 	}, "Change particle rendering style (1=soft, 2=pixel)")
-	h.replaceCommand("fog", func(args []string) { h.CmdFog(args, subs) }, "Inspect or set client fog parameters")
+	h.replaceAnyCommand("fog", func(args []string) { h.CmdFog(args, subs) }, "Inspect or set client fog parameters")
 	h.replaceClientCommand("ping", func(args []string) { h.CmdPing(subs) }, "Show player pings")
 	h.replaceCommand("load", func(args []string) {
 		h.CmdLoadArgs(args, subs)

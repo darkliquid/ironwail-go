@@ -52,6 +52,8 @@ const (
 	SrcClient
 	// SrcServer indicates command text came from server command injection.
 	SrcServer
+	// SrcAny marks commands that are explicitly safe from any command source.
+	SrcAny
 )
 
 // Command represents a single registered console command. In Quake's original

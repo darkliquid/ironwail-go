@@ -99,22 +99,6 @@ func (r *Renderer) createWorldExternalSkyFaceTexture(device *wgpu.Device, queue 
 	return texture, view, nil
 }
 
-func (r *Renderer) ensureGoGPUExternalSkyboxLocked(device *wgpu.Device, queue *wgpu.Queue) error {
-	if r.worldSkyExternalMode != externalSkyboxRenderFaces || r.worldSkyExternalLoaded == 0 {
-		return nil
-	}
-	if device == nil || queue == nil || r.worldLightmapSampler == nil || r.worldSkyExternalBindGroupLayout == nil {
-		return fmt.Errorf("external sky resources not ready")
-	}
-	r.destroyGoGPUExternalSkyboxResourcesLocked()
-	for range r.worldSkyExternalFaces {
-		if err := r.uploadNextGoGPUExternalSkyboxFaceLocked(device, queue); err != nil {
-			return err
-		}
-	}
-	return r.uploadNextGoGPUExternalSkyboxFaceLocked(device, queue)
-}
-
 func (r *Renderer) uploadNextGoGPUExternalSkyboxFaceLocked(device *wgpu.Device, queue *wgpu.Queue) error {
 	if r.worldSkyExternalMode != externalSkyboxRenderFaces || r.worldSkyExternalLoaded == 0 {
 		return nil

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	cl "github.com/darkliquid/ironwail-go/internal/client"
+	"github.com/darkliquid/ironwail-go/internal/cmdsys"
 	"github.com/darkliquid/ironwail-go/internal/fs"
 	"github.com/darkliquid/ironwail-go/internal/server"
 )
@@ -236,6 +237,25 @@ func TestCmdFogDensityRGBTimeClampsInputs(t *testing.T) {
 	}
 	if currentColor[0] < 0.49 || currentColor[0] > 0.51 || currentColor[1] < 0.24 || currentColor[1] > 0.26 || currentColor[2] != 0 {
 		t.Fatalf("CurrentFog color = %v, want previous in-flight fade color", currentColor)
+	}
+}
+
+func TestRegisteredFogCommandAcceptsServerStuffText(t *testing.T) {
+	h := NewHost()
+	client := newLocalLoopbackClient()
+	subs := &Subsystems{
+		Client:  client,
+		Console: &mockConsole{},
+	}
+	h.RegisterCommands(subs)
+
+	h.Cmd.ExecuteTextWithSource("fog 0.03 0.3 0.15 0.2\n", cmdsys.SrcServer)
+
+	if got := client.inner.FogDensity; got != 8 {
+		t.Fatalf("FogDensity = %d, want rounded 0.03 density byte 8", got)
+	}
+	if got := client.inner.FogColor; got != [3]byte{77, 38, 51} {
+		t.Fatalf("FogColor = %v, want rounded qbj3 fog color [77 38 51]", got)
 	}
 }
 

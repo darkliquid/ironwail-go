@@ -228,7 +228,7 @@ func (c *CmdSystem) executeLine(line string, expanding map[string]struct{}) {
 	if exists && cmd.Func != nil {
 		switch c.Source() {
 		case SrcClient:
-			if cmd.SourceType != SrcClient {
+			if cmd.SourceType != SrcClient && cmd.SourceType != SrcAny {
 				return
 			}
 		case SrcCommand:
@@ -236,7 +236,7 @@ func (c *CmdSystem) executeLine(line string, expanding map[string]struct{}) {
 				goto fallback
 			}
 		case SrcServer:
-			if cmd.SourceType != SrcServer {
+			if cmd.SourceType != SrcServer && cmd.SourceType != SrcAny {
 				return
 			}
 		}

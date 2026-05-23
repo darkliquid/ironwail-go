@@ -592,6 +592,23 @@ func TestServerSourceOnlyExecutesServerCommands(t *testing.T) {
 	}
 }
 
+func TestAnySourceCommandExecutesFromLocalClientAndServer(t *testing.T) {
+	c := NewCmdSystem()
+	var seen []CommandSource
+	c.AddAnyCommand("anywhere", func(args []string) {
+		seen = append(seen, c.Source())
+	}, "")
+
+	c.ExecuteTextWithSource("anywhere", SrcCommand)
+	c.ExecuteTextWithSource("anywhere", SrcClient)
+	c.ExecuteTextWithSource("anywhere", SrcServer)
+
+	want := []CommandSource{SrcCommand, SrcClient, SrcServer}
+	if !reflect.DeepEqual(seen, want) {
+		t.Fatalf("any-source command executions = %v, want %v", seen, want)
+	}
+}
+
 // TestUnknownClientSourceDoesNotExpandAliasOrForward tests that unknown client sources have restricted capabilities.
 // It prevents unauthorized alias expansion or command forwarding from external sources.
 // Where in C: Cmd_ExecuteString in cmd.c

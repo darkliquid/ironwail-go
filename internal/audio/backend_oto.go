@@ -199,7 +199,6 @@ func (b *OtoBackend) ResetQueuedAudio() {
 	b.mu.Unlock()
 
 	oldPlayer.Pause()
-	oldPlayer.Reset()
 	if oldPipeW != nil {
 		_ = oldPipeW.Close()
 	}

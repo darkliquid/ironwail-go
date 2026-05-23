@@ -591,12 +591,11 @@ func TestShutdownMutesAndClearsBeforeBackendTeardown(t *testing.T) {
 }
 
 type resetQueuedBackend struct {
-	locked       bool
-	resetCalls   int
-	resetLocked  bool
-	lockEvents   []string
-	position     int
-	shutdownCall bool
+	locked      bool
+	resetCalls  int
+	resetLocked bool
+	lockEvents  []string
+	position    int
 }
 
 func (b *resetQueuedBackend) Init(sampleRate, sampleBits, channels, bufferSize int) (*DMAInfo, error) {

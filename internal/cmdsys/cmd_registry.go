@@ -46,6 +46,10 @@ func (c *CmdSystem) AddServerCommand(name string, fn CommandFunc, desc string) {
 	c.AddCommandForSource(name, fn, desc, SrcServer)
 }
 
+func (c *CmdSystem) AddAnyCommand(name string, fn CommandFunc, desc string) {
+	c.AddCommandForSource(name, fn, desc, SrcAny)
+}
+
 // RemoveCommand unregisters a console command by name. This is used when a
 // subsystem shuts down and needs to clean up its commands — for example, when
 // disconnecting from a server, game-specific commands might be removed.
