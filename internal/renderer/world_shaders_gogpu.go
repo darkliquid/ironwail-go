@@ -118,9 +118,12 @@ var worldFullbrightSampler: sampler;
 var worldFullbrightTexture: texture_2d<f32>;
 
 @group(4) @binding(0)
+var lightClusters: texture_3d<u32>;
+
+@group(4) @binding(1)
 var<storage, read> dynamicLights: DynamicLights;
 
-fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> vec3<f32> {
+fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>, clipPos: vec4<f32>) -> vec3<f32> {
     let normalLenSq = dot(planeNormalRaw, planeNormalRaw);
     if (normalLenSq <= 0.000001) {
         return vec3<f32>(0.0);
@@ -128,19 +131,52 @@ fn accumulateDynamicLights(worldPos: vec3<f32>, planeNormalRaw: vec3<f32>) -> ve
     let planeNormal = planeNormalRaw * inverseSqrt(normalLenSq);
     let planeW = dot(worldPos, planeNormal);
     var dynamicLight = vec3<f32>(0.0);
-    for (var i: u32 = 0u; i < dynamicLights.count; i = i + 1u) {
+
+    let ndc = clipPos.xy / clipPos.w;
+    let cx = clamp(i32((ndc.x * 0.5 + 0.5) * 32.0), 0, 31);
+    let cy = clamp(i32((ndc.y * 0.5 + 0.5) * 16.0), 0, 15);
+    // zLogScale = 32.0 / 12.0 = 2.6666667
+    // zLogBias = -2.6666667 * 2.0 = -5.3333333
+    let cz = clamp(i32(floor(log2(clipPos.w) * 2.6666667 - 5.3333333)), 0, 31);
+    
+    let mask = textureLoad(lightClusters, vec3<i32>(cx, cy, cz), 0);
+    
+    var m0 = mask.r;
+    while (m0 != 0u) {
+        let bit = firstTrailingBit(m0);
+        m0 = m0 & ~(1u << bit);
+        let i = bit;
         let light = dynamicLights.lights[i];
+        
         var rad = light.originRadius.w;
         let planeDist = dot(light.originRadius.xyz, planeNormal) - planeW;
         rad = rad - abs(planeDist);
         let minLight = light.colorMinLight.w;
-        if (rad < minLight) {
-            continue;
+        if (rad >= minLight) {
+            let localPos = light.originRadius.xyz - planeNormal * planeDist;
+            let surfaceDist = length(worldPos - localPos);
+            dynamicLight += clamp((rad - minLight - surfaceDist) / 16.0, 0.0, 1.0) * max(0.0, rad - surfaceDist) / 256.0 * light.colorMinLight.xyz;
         }
-        let localPos = light.originRadius.xyz - planeNormal * planeDist;
-        let surfaceDist = length(worldPos - localPos);
-        dynamicLight += clamp((rad - minLight - surfaceDist) / 16.0, 0.0, 1.0) * max(0.0, rad - surfaceDist) / 256.0 * light.colorMinLight.xyz;
     }
+    
+    var m1 = mask.g;
+    while (m1 != 0u) {
+        let bit = firstTrailingBit(m1);
+        m1 = m1 & ~(1u << bit);
+        let i = bit + 32u;
+        let light = dynamicLights.lights[i];
+        
+        var rad = light.originRadius.w;
+        let planeDist = dot(light.originRadius.xyz, planeNormal) - planeW;
+        rad = rad - abs(planeDist);
+        let minLight = light.colorMinLight.w;
+        if (rad >= minLight) {
+            let localPos = light.originRadius.xyz - planeNormal * planeDist;
+            let surfaceDist = length(worldPos - localPos);
+            dynamicLight += clamp((rad - minLight - surfaceDist) / 16.0, 0.0, 1.0) * max(0.0, rad - surfaceDist) / 256.0 * light.colorMinLight.xyz;
+        }
+    }
+
     return dynamicLight;
 }
 
@@ -150,7 +186,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 	%s
 	var totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
 	let fullbright = textureSample(worldFullbrightTexture, worldFullbrightSampler, input.texCoord);
-	let dynamicLight = accumulateDynamicLights(input.worldPos, %s);
+	let dynamicLight = accumulateDynamicLights(input.worldPos, %s, input.clipPos);
 	totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
 	let lit = %s;
 	let fogPosition = input.worldPos - uniforms.cameraOrigin;
@@ -306,7 +342,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     if (uniforms.litWater > 0.5) {
         totalLight = textureSample(worldLightmap, worldLightmapSampler, input.lightmapCoord).rgb;
     }
-    let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)));
+    let dynamicLight = accumulateDynamicLights(input.worldPos, cross(dpdx(input.worldPos), dpdy(input.worldPos)), input.clipPos);
     totalLight += max(min(dynamicLight, vec3<f32>(1.0) - totalLight), vec3<f32>(0.0));
     let lit = sampled.rgb * totalLight * 2.0 + fullbright.rgb * fullbright.a;
     let fogPosition = input.worldPos - uniforms.cameraOrigin;

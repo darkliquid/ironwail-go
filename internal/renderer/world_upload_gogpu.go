@@ -160,6 +160,11 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		slog.Warn("Failed to create turbulent fragment shader", "error", err)
 		turbulentFragmentShader = nil
 	}
+	clusterComputeShader, err := createWorldShaderModule(device, worldClusterComputeShaderWGSL, "World Cluster Compute Shader")
+	if err != nil {
+		slog.Warn("Failed to create cluster compute shader", "error", err)
+		clusterComputeShader = nil
+	}
 
 	// Create render pipeline (may fail if gogpu API not fully exposed)
 	var pipeline *wgpu.RenderPipeline
@@ -224,6 +229,43 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		}
 	}
 
+	var computePipeline *wgpu.ComputePipeline
+	var computePipelineLayout *wgpu.PipelineLayout
+	var computeBindGroupLayout *wgpu.BindGroupLayout
+	if clusterComputeShader != nil {
+		computePipeline, computePipelineLayout, computeBindGroupLayout, err = r.createWorldClusterComputePipeline(device, clusterComputeShader)
+		if err != nil {
+			slog.Warn("Failed to create world cluster compute pipeline", "error", err)
+		}
+	}
+
+	computeUniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label:            "World Cluster Compute Uniforms",
+		Size:             144, // 2*64 + 4*4
+		Usage:            gputypes.BufferUsageUniform | gputypes.BufferUsageCopyDst,
+		MappedAtCreation: false,
+	})
+	if err != nil {
+		return fmt.Errorf("create compute uniform buffer: %w", err)
+	}
+
+	computeTexture, err := device.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         "World Light Clusters",
+		Size:          gputypes.Extent3D{Width: 32, Height: 16, DepthOrArrayLayers: 32},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     gputypes.TextureDimension3D,
+		Format:        gputypes.TextureFormatRG32Uint,
+		Usage:         gputypes.TextureUsageStorageBinding | gputypes.TextureUsageTextureBinding,
+	})
+	if err != nil {
+		return fmt.Errorf("create light clusters texture: %w", err)
+	}
+	computeTextureView, err := computeTexture.CreateView(nil)
+	if err != nil {
+		return fmt.Errorf("create light clusters texture view: %w", err)
+	}
+
 	// Create uniform buffer for VP matrix
 	uniformBuffer, err := device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label:            "World Uniforms",
@@ -274,6 +316,22 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 		})
 		if err != nil {
 			return fmt.Errorf("create world dynamic lights bind group: %w", err)
+		}
+	}
+
+	var computeBindGroup *wgpu.BindGroup
+	if computeBindGroupLayout != nil {
+		computeBindGroup, err = device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+			Label:  "World Cluster Compute BG",
+			Layout: computeBindGroupLayout,
+			Entries: []wgpu.BindGroupEntry{
+				{Binding: 0, Buffer: computeUniformBuffer, Offset: 0, Size: 144},
+				{Binding: 1, Buffer: dynamicLightsBuffer, Offset: 0, Size: gogpuWorldDynamicLightBufferSize},
+				{Binding: 2, TextureView: computeTextureView},
+			},
+		})
+		if err != nil {
+			slog.Warn("Failed to create world cluster compute bind group", "error", err)
 		}
 	}
 
@@ -374,6 +432,14 @@ func (r *Renderer) UploadWorld(tree *bsp.Tree) error {
 	r.worldSkyExternalPipelineLayout = externalSkyPipelineLayout
 	r.worldDynamicLightsBuffer = dynamicLightsBuffer
 	r.worldDynamicLightsBindGroup = dynamicLightsBindGroup
+	r.worldDynamicLightsBindGroupLayout = dynamicLightsBindGroupLayout
+	r.worldClusterComputePipeline = computePipeline
+	r.worldClusterComputePipelineLayout = computePipelineLayout
+	r.worldClusterComputeBindGroupLayout = computeBindGroupLayout
+	r.worldClusterComputeBindGroup = computeBindGroup
+	r.worldClusterComputeUniformBuffer = computeUniformBuffer
+	r.worldClusterComputeTexture = computeTexture
+	r.worldClusterComputeTextureView = computeTextureView
 	r.worldShader = vertexShader
 	r.uniformBuffer = uniformBuffer
 	r.whiteTexture = whiteTexture

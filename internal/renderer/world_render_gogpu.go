@@ -88,6 +88,18 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	}
 	slog.Debug("renderWorldInternal: render target view acquired", "view_type", fmt.Sprintf("%T", textureView), "queue_type", fmt.Sprintf("%T", queue))
 
+	var activeDynamicLights []DynamicLight
+	dc.renderer.mu.RLock()
+	if dc.renderer.lightPool != nil {
+		activeDynamicLights = append(activeDynamicLights, dc.renderer.lightPool.ActiveLights()...)
+	}
+	dc.renderer.mu.RUnlock()
+
+	// Dispatch cluster compute shader for dynamic lights
+	if err := dc.renderer.dispatchWorldClusterCompute(device, queue, encoder, activeDynamicLights, dc.renderer.ViewMatrix(), dc.renderer.ProjectionMatrix()); err != nil {
+		slog.Error("renderWorldInternal: Failed to dispatch world cluster compute", "error", err)
+	}
+
 	// Create render pass descriptor with color and depth attachments.
 	// Use LoadOpClear to handle the clear ourselves since we skip gogpu's Clear().
 	clearColor := gogpuWorldClearColor(state.ClearColor)
@@ -153,13 +165,6 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 	slog.Debug("renderWorldInternal: setting index buffer", "buffer", fmt.Sprintf("%T", dc.renderer.worldIndexBuffer), "count", dc.renderer.worldIndexCount)
 	renderPass.SetIndexBuffer(dc.renderer.worldIndexBuffer, gputypes.IndexFormatUint32, 0)
 
-	var activeDynamicLights []DynamicLight
-	dc.renderer.mu.RLock()
-	if dc.renderer.lightPool != nil {
-		activeDynamicLights = append(activeDynamicLights, dc.renderer.lightPool.ActiveLights()...)
-	}
-	dc.renderer.mu.RUnlock()
-
 	// Set uniform bind group.
 	if dc.renderer.uniformBindGroup != nil {
 		slog.Debug("renderWorldInternal: setting bind group", "group", fmt.Sprintf("%T", dc.renderer.uniformBindGroup))
@@ -172,11 +177,7 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		_ = renderPass.End()
 		return
 	}
-	if err := queue.WriteBuffer(dc.renderer.worldDynamicLightsBuffer, 0, encodeGoGPUWorldDynamicLights(activeDynamicLights)); err != nil {
-		slog.Error("renderWorldInternal: Failed to upload dynamic lights", "error", err)
-		_ = renderPass.End()
-		return
-	}
+	// Light buffer was already uploaded in dispatchWorldClusterCompute
 	renderPass.SetBindGroup(4, dc.renderer.worldDynamicLightsBindGroup, nil)
 
 	if dc.renderer.whiteTextureBindGroup == nil || dc.renderer.whiteLightmapBindGroup == nil {

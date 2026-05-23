@@ -176,6 +176,13 @@ type Renderer struct {
 	worldDynamicLightsBuffer          *wgpu.Buffer
 	worldDynamicLightsBindGroup       *wgpu.BindGroup
 	worldDynamicLightsBindGroupLayout *wgpu.BindGroupLayout
+	worldClusterComputePipeline       *wgpu.ComputePipeline
+	worldClusterComputePipelineLayout *wgpu.PipelineLayout
+	worldClusterComputeBindGroup      *wgpu.BindGroup
+	worldClusterComputeBindGroupLayout *wgpu.BindGroupLayout
+	worldClusterComputeUniformBuffer  *wgpu.Buffer
+	worldClusterComputeTexture        *wgpu.Texture
+	worldClusterComputeTextureView    *wgpu.TextureView
 	worldBindGroup                    *wgpu.BindGroup
 	worldShader                       *wgpu.ShaderModule
 	uniformBuffer                     *wgpu.Buffer
