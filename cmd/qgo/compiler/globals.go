@@ -10,8 +10,8 @@ import (
 // GlobalAllocator manages the QCVM global address space.
 // It pre-reserves system slots and allocates space for globals, temps, and locals.
 type GlobalAllocator struct {
-	data    []uint32         // Global data (raw 32-bit slots)
-	nextOfs uint16           // Next free offset
+	data    []uint32          // Global data (raw 32-bit slots)
+	nextOfs uint16            // Next free offset
 	named   map[string]uint16 // Name -> offset mapping
 	temps   map[uint16]bool   // Currently free temp offsets
 }
@@ -94,9 +94,17 @@ func (ga *GlobalAllocator) AllocAnon(slots uint16) uint16 {
 func (ga *GlobalAllocator) AllocTemp(slots uint16) uint16 {
 	// Simple: try to find a freed temp of matching size (single slot only)
 	if slots == 1 {
+		var best uint16
+		found := false
 		for ofs := range ga.temps {
-			delete(ga.temps, ofs)
-			return ofs
+			if !found || ofs < best {
+				best = ofs
+				found = true
+			}
+		}
+		if found {
+			delete(ga.temps, best)
+			return best
 		}
 	}
 	return ga.AllocAnon(slots)

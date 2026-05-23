@@ -201,6 +201,78 @@ func TestSizeBufWriteReadAngle(t *testing.T) {
 	}
 }
 
+func TestSizeBufAngleEncodingMatchesQuakeRoundingAndSignedRead(t *testing.T) {
+	tests := []struct {
+		name      string
+		angle     float32
+		wantByte  byte
+		wantAngle float32
+	}{
+		{name: "rounds to nearest byte", angle: 1.4, wantByte: 1, wantAngle: 360.0 / 256.0},
+		{name: "wraps rounded full turn", angle: 359.9, wantByte: 0, wantAngle: 0},
+		{name: "negative byte reads through signed char", angle: -1.4, wantByte: 255, wantAngle: -360.0 / 256.0},
+		{name: "negative half turn stays negative", angle: -180, wantByte: 128, wantAngle: -180},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := NewSizeBuf(4)
+			if !buf.WriteAngle(tt.angle) {
+				t.Fatal("WriteAngle failed")
+			}
+			if got := buf.Data[0]; got != tt.wantByte {
+				t.Fatalf("encoded byte = %d, want %d", got, tt.wantByte)
+			}
+			buf.BeginReading()
+			gotAngle, ok := buf.ReadAngle()
+			if !ok {
+				t.Fatal("ReadAngle failed")
+			}
+			if gotAngle != tt.wantAngle {
+				t.Fatalf("decoded angle = %f, want %f", gotAngle, tt.wantAngle)
+			}
+		})
+	}
+}
+
+func TestSizeBufAngle16EncodingMatchesQuakeRoundingAndSignedRead(t *testing.T) {
+	tests := []struct {
+		name      string
+		angle     float32
+		wantShort int16
+		wantAngle float32
+	}{
+		{name: "rounds to nearest short", angle: 0.003, wantShort: 1, wantAngle: 360.0 / 65536.0},
+		{name: "negative short reads signed", angle: -0.003, wantShort: -1, wantAngle: -360.0 / 65536.0},
+		{name: "negative half turn stays negative", angle: -180, wantShort: -32768, wantAngle: -180},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := NewSizeBuf(4)
+			if !buf.WriteAngle16(tt.angle) {
+				t.Fatal("WriteAngle16 failed")
+			}
+			buf.BeginReading()
+			gotShort, ok := buf.ReadShort()
+			if !ok {
+				t.Fatal("ReadShort failed")
+			}
+			if gotShort != tt.wantShort {
+				t.Fatalf("encoded short = %d, want %d", gotShort, tt.wantShort)
+			}
+			buf.BeginReading()
+			gotAngle, ok := buf.ReadAngle16()
+			if !ok {
+				t.Fatal("ReadAngle16 failed")
+			}
+			if gotAngle != tt.wantAngle {
+				t.Fatalf("decoded angle = %f, want %f", gotAngle, tt.wantAngle)
+			}
+		})
+	}
+}
+
 // TestSizeBufWriteReadAngle16 tests 16-bit angle compression.
 // It provides higher precision for angles while still saving space compared to full floats.
 // Where in C: MSG_WriteAngle16 and MSG_ReadAngle16 in common.c

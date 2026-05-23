@@ -27,6 +27,26 @@ func TestParseCommandTreatsTabsAsArgumentSeparators(t *testing.T) {
 	}
 }
 
+func TestParseCommandTreatsCOMParseSpecialCharactersAsSingleTokens(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{input: "cmd {arg}", want: []string{"cmd", "{", "arg", "}"}},
+		{input: "cmd (test)", want: []string{"cmd", "(", "test", ")"}},
+		{input: "cmd 'quoted'", want: []string{"cmd", "'", "quoted", "'"}},
+		{input: ": host:port", want: []string{":", "host:port"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := parseCommand(tt.input); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("parseCommand(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestCommandTakesPrecedenceOverAlias tests that built-in commands take precedence over aliases with the same name.
 // It maintains the standard command resolution order where engine commands cannot be overridden by user aliases.
 // Where in C: Cmd_ExecuteString in cmd.c

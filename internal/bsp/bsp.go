@@ -239,10 +239,12 @@ type DL2Node struct {
 	NumFaces  uint32
 }
 
-// DSClipNode is a standard clip node (16-bit children).
+// DSClipNode is a standard clip node. The on-disk children are 16-bit values,
+// but Ironwail interprets them as unsigned node indexes first so maps with more
+// than 32k clipnodes can address high positive node numbers.
 type DSClipNode struct {
 	PlaneNum int32
-	Children [2]int16 // Negative numbers are contents
+	Children [2]int32 // Negative numbers are contents
 }
 
 // DLClipNode is a BSP2 clip node (32-bit children).

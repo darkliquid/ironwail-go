@@ -7,6 +7,13 @@ import (
 	"math"
 )
 
+func validateLumpRecordSize(context string, data []byte, recordSize int) error {
+	if len(data)%recordSize != 0 {
+		return fmt.Errorf("%s: funny lump size %d", context, len(data))
+	}
+	return nil
+}
+
 // Load reads and parses a complete BSP file from the reader.
 // It returns a File struct containing all the parsed data.
 func Load(r io.ReadSeeker) (*File, error) {
@@ -96,12 +103,15 @@ func (f *File) loadPlanes(r *Reader) error {
 	if err != nil {
 		return err
 	}
+	if err := validateLumpRecordSize("load planes", data, dPlaneSize); err != nil {
+		return err
+	}
 
-	count := int(lump.FileLength) / 20 // DPlane is 20 bytes
+	count := len(data) / dPlaneSize
 	f.Planes = make([]DPlane, count)
 
 	for i := 0; i < count; i++ {
-		offset := i * 20
+		offset := i * dPlaneSize
 		f.Planes[i] = DPlane{
 			Normal: [3]float32{
 				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
@@ -125,12 +135,15 @@ func (f *File) loadVertexes(r *Reader) error {
 	if err != nil {
 		return err
 	}
+	if err := validateLumpRecordSize("load vertexes", data, dVertexSize); err != nil {
+		return err
+	}
 
-	count := int(lump.FileLength) / 12 // DVertex is 12 bytes
+	count := len(data) / dVertexSize
 	f.Vertexes = make([]DVertex, count)
 
 	for i := 0; i < count; i++ {
-		offset := i * 12
+		offset := i * dVertexSize
 		f.Vertexes[i] = DVertex{
 			Point: [3]float32{
 				Float32frombits(binary.LittleEndian.Uint32(data[offset:])),
@@ -265,8 +278,11 @@ func (f *File) loadTexinfo(r *Reader) error {
 	if err != nil {
 		return err
 	}
+	if err := validateLumpRecordSize("load texinfo", data, 40); err != nil {
+		return err
+	}
 
-	count := int(lump.FileLength) / 40 // Texinfo is 40 bytes
+	count := len(data) / 40
 	f.Texinfo = make([]Texinfo, count)
 
 	for i := 0; i < count; i++ {
@@ -296,10 +312,13 @@ func (f *File) loadFaces(r *Reader) error {
 	}
 
 	if f.IsBSP2 {
-		count := int(lump.FileLength) / 28 // DLFace is 28 bytes
+		if err := validateLumpRecordSize("load faces", data, dlFaceSize); err != nil {
+			return err
+		}
+		count := len(data) / dlFaceSize
 		faces := make([]DLFace, count)
 		for i := 0; i < count; i++ {
-			offset := i * 28
+			offset := i * dlFaceSize
 			faces[i] = DLFace{
 				PlaneNum:  int32(binary.LittleEndian.Uint32(data[offset:])),
 				Side:      int32(binary.LittleEndian.Uint32(data[offset+4:])),
@@ -312,10 +331,13 @@ func (f *File) loadFaces(r *Reader) error {
 		}
 		f.Faces = faces
 	} else {
-		count := int(lump.FileLength) / 20 // DSFace is 20 bytes
+		if err := validateLumpRecordSize("load faces", data, dsFaceSize); err != nil {
+			return err
+		}
+		count := len(data) / dsFaceSize
 		faces := make([]DSFace, count)
 		for i := 0; i < count; i++ {
-			offset := i * 20
+			offset := i * dsFaceSize
 			faces[i] = DSFace{
 				PlaneNum:  int16(binary.LittleEndian.Uint16(data[offset:])),
 				Side:      int16(binary.LittleEndian.Uint16(data[offset+2:])),
@@ -352,7 +374,10 @@ func (f *File) loadClipnodes(r *Reader) error {
 	}
 
 	if f.IsBSP2 {
-		count := int(lump.FileLength) / 12 // DLClipNode is 12 bytes
+		if err := validateLumpRecordSize("load clipnodes", data, 12); err != nil {
+			return err
+		}
+		count := len(data) / 12
 		clipnodes := make([]DLClipNode, count)
 		for i := 0; i < count; i++ {
 			offset := i * 12
@@ -366,16 +391,18 @@ func (f *File) loadClipnodes(r *Reader) error {
 		}
 		f.Clipnodes = clipnodes
 	} else {
-		count := int(lump.FileLength) / 8 // DSClipNode is 8 bytes
+		if err := validateLumpRecordSize("load clipnodes", data, 8); err != nil {
+			return err
+		}
+		count := len(data) / 8
 		clipnodes := make([]DSClipNode, count)
 		for i := 0; i < count; i++ {
 			offset := i * 8
+			child0 := standardClipnodeChild(binary.LittleEndian.Uint16(data[offset+4:]), count)
+			child1 := standardClipnodeChild(binary.LittleEndian.Uint16(data[offset+6:]), count)
 			clipnodes[i] = DSClipNode{
 				PlaneNum: int32(binary.LittleEndian.Uint32(data[offset:])),
-				Children: [2]int16{
-					int16(binary.LittleEndian.Uint16(data[offset+4:])),
-					int16(binary.LittleEndian.Uint16(data[offset+6:])),
-				},
+				Children: [2]int32{child0, child1},
 			}
 		}
 		f.Clipnodes = clipnodes
@@ -451,10 +478,13 @@ func (f *File) loadLeafs(r *Reader) error {
 			f.Leafs = leafs
 		}
 	} else {
-		count := int(lump.FileLength) / 28 // DSLeaf is 28 bytes
+		if err := validateLumpRecordSize("load leafs", data, dsLeafSize); err != nil {
+			return err
+		}
+		count := len(data) / dsLeafSize
 		leafs := make([]DSLeaf, count)
 		for i := 0; i < count; i++ {
-			offset := i * 28
+			offset := i * dsLeafSize
 			leafs[i] = DSLeaf{
 				Contents: int32(binary.LittleEndian.Uint32(data[offset:])),
 				VisOfs:   int32(binary.LittleEndian.Uint32(data[offset+4:])),
@@ -490,14 +520,20 @@ func (f *File) loadMarkSurfaces(r *Reader) error {
 	}
 
 	if f.IsBSP2 {
-		count := int(lump.FileLength) / 4
+		if err := validateLumpRecordSize("load marksurfaces", data, uint32Size); err != nil {
+			return err
+		}
+		count := len(data) / uint32Size
 		marks := make([]uint32, count)
 		for i := 0; i < count; i++ {
 			marks[i] = binary.LittleEndian.Uint32(data[i*4:])
 		}
 		f.MarkSurfaces = marks
 	} else {
-		count := int(lump.FileLength) / 2
+		if err := validateLumpRecordSize("load marksurfaces", data, uint16Size); err != nil {
+			return err
+		}
+		count := len(data) / uint16Size
 		marks := make([]uint16, count)
 		for i := 0; i < count; i++ {
 			marks[i] = binary.LittleEndian.Uint16(data[i*2:])
@@ -519,7 +555,10 @@ func (f *File) loadEdges(r *Reader) error {
 	}
 
 	if f.IsBSP2 {
-		count := int(lump.FileLength) / 8 // DLEdge is 8 bytes
+		if err := validateLumpRecordSize("load edges", data, dlEdgeSize); err != nil {
+			return err
+		}
+		count := len(data) / dlEdgeSize
 		edges := make([]DLEdge, count)
 		for i := 0; i < count; i++ {
 			offset := i * 8
@@ -532,7 +571,10 @@ func (f *File) loadEdges(r *Reader) error {
 		}
 		f.Edges = edges
 	} else {
-		count := int(lump.FileLength) / 4 // DSEdge is 4 bytes
+		if err := validateLumpRecordSize("load edges", data, dsEdgeSize); err != nil {
+			return err
+		}
+		count := len(data) / dsEdgeSize
 		edges := make([]DSEdge, count)
 		for i := 0; i < count; i++ {
 			offset := i * 4
@@ -558,13 +600,24 @@ func (f *File) loadSurfedges(r *Reader) error {
 	if err != nil {
 		return err
 	}
+	if err := validateLumpRecordSize("load surfedges", data, int32Size); err != nil {
+		return err
+	}
 
-	count := int(lump.FileLength) / 4
+	count := len(data) / int32Size
 	f.Surfedges = make([]int32, count)
 	for i := 0; i < count; i++ {
 		f.Surfedges[i] = int32(binary.LittleEndian.Uint32(data[i*4:]))
 	}
 	return nil
+}
+
+func standardClipnodeChild(raw uint16, clipnodeCount int) int32 {
+	child := int(raw)
+	if child >= clipnodeCount {
+		child -= 65536
+	}
+	return int32(child)
 }
 
 func (f *File) loadModels(r *Reader) error {

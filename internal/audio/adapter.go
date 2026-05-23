@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/darkliquid/ironwail-go/internal/console"
+	"github.com/darkliquid/ironwail-go/internal/cvar"
 )
 
 // AudioAdapter wraps audio.System to implement host.Audio interface
@@ -230,6 +231,13 @@ func (a *AudioAdapter) SetVolume(vol float64) {
 		return
 	}
 	a.sys.SetVolume(vol)
+}
+
+func (a *AudioAdapter) UpdateFromCVars(cv *cvar.CVarSystem) {
+	if a == nil || a.sys == nil {
+		return
+	}
+	a.sys.UpdateFromCVars(cv)
 }
 
 func (a *AudioAdapter) SetAmbientSound(channel int, sfx *SFX) {

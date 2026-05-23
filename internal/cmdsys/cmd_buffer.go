@@ -268,7 +268,7 @@ fallback:
 	if c.CVar != nil {
 		if cv := c.CVar.Get(cmdName); cv != nil {
 			if len(args) > 1 {
-				c.CVar.Set(cmdName, strings.Join(args[1:], " "))
+				c.CVar.Set(cmdName, args[1])
 			} else {
 				if cv.DefaultValue != "" {
 					if cv.String == cv.DefaultValue {
@@ -438,7 +438,15 @@ func parseCommand(line string) []string {
 				args = append(args, current.String())
 				current.Reset()
 			}
+		case !inQuote && current.Len() == 0 && isSingleTokenChar(ch):
+			args = append(args, string(ch))
 		default:
+			if !inQuote && current.Len() > 0 && isWordBreakSingleTokenChar(ch) {
+				args = append(args, current.String())
+				current.Reset()
+				args = append(args, string(ch))
+				continue
+			}
 			current.WriteByte(ch)
 		}
 	}
@@ -449,4 +457,12 @@ done:
 	}
 
 	return args
+}
+
+func isSingleTokenChar(ch byte) bool {
+	return ch == '{' || ch == '}' || ch == '(' || ch == ')' || ch == '\'' || ch == ':'
+}
+
+func isWordBreakSingleTokenChar(ch byte) bool {
+	return ch == '{' || ch == '}' || ch == '(' || ch == ')' || ch == '\''
 }

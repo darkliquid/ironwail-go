@@ -63,6 +63,17 @@ func TestCvarListPrintsCStyleListingAndPrefixSummary(t *testing.T) {
 	}
 }
 
+func TestCvarCommandUsesOnlySecondArgument(t *testing.T) {
+	cs, cv := newTestCmdSys()
+	cv.Register("test_multiarg", "default", cvar.FlagNone, "test")
+
+	cs.ExecuteText("test_multiarg value1 value2 value3")
+
+	if got := cv.StringValue("test_multiarg"); got != "value1" {
+		t.Fatalf("cvar value = %q, want %q", got, "value1")
+	}
+}
+
 func TestToggle(t *testing.T) {
 	cs, cv := newTestCmdSys()
 	cv.Register("test_toggle", "0", cvar.FlagNone, "test")

@@ -62,3 +62,21 @@ func TestGlobalAllocator_SetVector(t *testing.T) {
 		}
 	}
 }
+
+func TestGlobalAllocator_AllocTempReusesLowestOffsetDeterministically(t *testing.T) {
+	ga := NewGlobalAllocator()
+	first := ga.AllocTemp(1)
+	second := ga.AllocTemp(1)
+	third := ga.AllocTemp(1)
+
+	ga.FreeTemp(third, 1)
+	ga.FreeTemp(first, 1)
+	ga.FreeTemp(second, 1)
+
+	if got := ga.AllocTemp(1); got != first {
+		t.Fatalf("first reused temp = %d, want lowest freed offset %d", got, first)
+	}
+	if got := ga.AllocTemp(1); got != second {
+		t.Fatalf("second reused temp = %d, want next lowest freed offset %d", got, second)
+	}
+}

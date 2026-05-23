@@ -668,7 +668,7 @@ func TestParseSetAngleSnapsViewAngleHistory(t *testing.T) {
 		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
 
-	want := [3]float32{90, 180, 270}
+	want := [3]float32{90, -180, -90}
 	if c.ViewAngles != want {
 		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
 	}
@@ -699,7 +699,7 @@ func TestParseSetAngleUsesProtocolShortAngles(t *testing.T) {
 		t.Fatalf("ParseServerMessage() error = %v", err)
 	}
 
-	want := [3]float32{90, 180, 270}
+	want := [3]float32{90, -180, -90}
 	if c.ViewAngles != want {
 		t.Fatalf("ViewAngles = %v, want %v", c.ViewAngles, want)
 	}

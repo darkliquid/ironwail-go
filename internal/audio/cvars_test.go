@@ -54,3 +54,32 @@ func TestUpdateFromCVarsAppliesFilterQuality(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateFromCVarsAppliesNoSoundAndAmbientControls(t *testing.T) {
+	cv := cvar.NewCVarSystem()
+	RegisterCVars(cv)
+	sys := &System{
+		initialized: true,
+		started:     true,
+		cache:       NewSFXCache(44100, false),
+		mixer:       NewMixer(),
+	}
+
+	cv.Set("nosound", "1")
+	cv.Set("ambient_level", "0.1")
+	cv.Set("ambient_fade", "5")
+	sys.UpdateFromCVars(cv)
+
+	if !sys.NoSound() {
+		t.Fatal("nosound cvar did not enable no-sound mode")
+	}
+	if sfx := sys.PrecacheSound("misc/test.wav", func() ([]byte, error) {
+		t.Fatal("loader should not run while nosound is enabled")
+		return nil, nil
+	}); sfx != nil {
+		t.Fatalf("PrecacheSound while nosound = %v, want nil", sfx)
+	}
+	if sys.ambientScale != 0.1 || sys.ambientFade != 5 {
+		t.Fatalf("ambient params = scale %g fade %g, want 0.1/5", sys.ambientScale, sys.ambientFade)
+	}
+}

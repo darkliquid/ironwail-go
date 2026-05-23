@@ -25,6 +25,9 @@
 
 # Parity tooling files
 !/tasks/*.sh
+!/testdata/
+!/testdata/parity/
+!/testdata/parity/*.json
 
 # bv (beads viewer) local config and caches
 .bv/

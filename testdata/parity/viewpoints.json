@@ -1,0 +1,12 @@
+{
+  "basedir": "",
+  "viewpoints": [
+    {
+      "id": "id1-start-spawn",
+      "map": "start",
+      "pos": [0, 0, 0],
+      "angles": [0, 0, 0],
+      "description": "Default id1 start map sanity viewpoint; replace or extend locally with map-specific viewpos captures for focused audits."
+    }
+  ]
+}

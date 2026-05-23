@@ -43,6 +43,8 @@ import (
 	"math"
 	"path/filepath"
 	"strings"
+
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // SizeBuf is a sized buffer used for network message serialization.
@@ -167,16 +169,14 @@ func (sb *SizeBuf) WriteString(s string) bool {
 // WriteAngle writes an 8-bit angle value (0-255 representing 0-360 degrees).
 // Used in standard Quake protocol for entity angles and view angles.
 func (sb *SizeBuf) WriteAngle(angle float32) bool {
-	// Convert angle to 8-bit representation (0-255 for 0-360 degrees)
-	b := byte(int(angle*256.0/360.0) & 255)
+	b := byte(qtypes.QRint(angle*256.0/360.0) & 255)
 	return sb.PutByte(b)
 }
 
 // WriteAngle16 writes a 16-bit angle value for greater precision.
 // Used in FitzQuake protocol extensions and RMQ when PRFL_SHORTANGLE is set.
 func (sb *SizeBuf) WriteAngle16(angle float32) bool {
-	// Convert angle to 16-bit representation
-	s := int16(int(angle*65536.0/360.0) & 65535)
+	s := int16(qtypes.QRint(angle*65536.0/360.0) & 65535)
 	return sb.WriteShort(s)
 }
 
@@ -233,7 +233,7 @@ func (sb *SizeBuf) ReadAngle() (float32, bool) {
 	if !ok {
 		return 0, false
 	}
-	return float32(b) * 360.0 / 256.0, true
+	return float32(int8(b)) * 360.0 / 256.0, true
 }
 
 // ReadAngle16 reads a 16-bit angle value and converts to degrees (0-360).
@@ -242,7 +242,7 @@ func (sb *SizeBuf) ReadAngle16() (float32, bool) {
 	if !ok {
 		return 0, false
 	}
-	return float32(uint16(s)) * 360.0 / 65536.0, true
+	return float32(s) * 360.0 / 65536.0, true
 }
 
 // ReadString reads a null-terminated string from the buffer.

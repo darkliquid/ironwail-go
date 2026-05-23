@@ -171,8 +171,8 @@ func TestDrawRuntimeDemoControlsUsesSbarCanvas(t *testing.T) {
 	if len(dc.chars) == 0 {
 		t.Fatal("expected demo control characters")
 	}
-	if got := dc.chars[0]; got.canvas != renderer.CanvasSbar || got.x != 8 || got.y != -20 || got.num != '>' {
-		t.Fatalf("first demo control char = %+v, want sbar canvas at 8,-20 with '>'", got)
+	if got := dc.chars[0]; got.canvas != renderer.CanvasSbar || got.x != 8 || got.y != -20 || got.num != 13 {
+		t.Fatalf("first demo control char = %+v, want sbar canvas at 8,-20 with glyph 13", got)
 	}
 	foundCursor := false
 	for _, ch := range dc.chars {

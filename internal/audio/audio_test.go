@@ -6,6 +6,8 @@ package audio
 import (
 	"slices"
 	"testing"
+
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
 )
 
 // TestSpatialize tests 3D sound spatialization.
@@ -219,6 +221,9 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 	if got := sys.channels[base].SFX; got != looped {
 		t.Fatalf("static channel SFX = %v, want %v", got, looped)
 	}
+	if got, want := sys.channels[base].DistMult, float32(1.0/64000.0); got != want {
+		t.Fatalf("static channel DistMult = %g, want %g", got, want)
+	}
 
 	sys.StartStaticSound(looped, [3]float32{64, 0, 0}, [3]float32{}, 1, 9999)
 	if got := sys.totalChans; got != base+2 {
@@ -226,6 +231,46 @@ func TestStartStaticSoundUsesStaticChannelsAndRequiresLoopingCache(t *testing.T)
 	}
 	if got := sys.channels[base+1].SFX; got != looped {
 		t.Fatalf("inaudible static channel SFX = %v, want %v", got, looped)
+	}
+}
+
+func TestPickChannelProtectsPlayerSoundFromMonsterReplacement(t *testing.T) {
+	sys := NewSystem()
+	sys.started = true
+	sys.viewEntity = 1
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+	playerSFX := &SFX{Cache: &SoundCache{Length: 400, LoopStart: -1, Width: 1, Data: make([]byte, 400)}}
+	monsterSFX := &SFX{Cache: &SoundCache{Length: 400, LoopStart: -1, Width: 1, Data: make([]byte, 400)}}
+	sys.channels[NumAmbients] = Channel{SFX: playerSFX, EntNum: 1, End: sys.paintedTime + 1}
+	sys.channels[NumAmbients+1] = Channel{SFX: monsterSFX, EntNum: 2, End: sys.paintedTime + 100}
+
+	ch, idx := sys.pickChannel(2, 0)
+	if idx == NumAmbients || ch == &sys.channels[NumAmbients] {
+		t.Fatalf("pickChannel selected player channel %d for non-player sound", idx)
+	}
+}
+
+func TestStartSoundOffsetsIdenticalSoundStartedThisFrame(t *testing.T) {
+	compatrand.ResetShared(1)
+	sys := NewSystem()
+	sys.started = true
+	sys.totalChans = NumAmbients + MaxDynamicChannels
+	sys.dma = &DMAInfo{Channels: 2, Speed: 44100}
+	sys.listener.Right = [3]float32{1, 0, 0}
+	sfx := &SFX{Cache: &SoundCache{Length: 5000, LoopStart: -1, Width: 1, Data: make([]byte, 5000)}}
+
+	sys.StartSound(2, 0, sfx, [3]float32{0, 0, 0}, [3]float32{}, 1, 0)
+	sys.StartSound(3, 0, sfx, [3]float32{0, 0, 0}, [3]float32{}, 1, 0)
+
+	second := sys.channels[NumAmbients+1]
+	if second.SFX != sfx {
+		t.Fatalf("second channel SFX = %v, want %v", second.SFX, sfx)
+	}
+	if second.Pos == 0 {
+		t.Fatal("second identical sound Pos = 0, want C-style randomized offset")
+	}
+	if got, want := second.End, sfx.Cache.Length-second.Pos; got != want {
+		t.Fatalf("second identical sound End = %d, want %d", got, want)
 	}
 }
 
@@ -438,6 +483,20 @@ func TestUpdateAmbientSoundsFadesAndAppliesUnderwater(t *testing.T) {
 	}
 	if got := sys.UnderwaterIntensity(); got <= 0 {
 		t.Fatalf("underwater intensity = %v, want > 0", got)
+	}
+}
+
+func TestUpdateAmbientSoundsUsesConfiguredAmbientLevelAndFade(t *testing.T) {
+	sys := NewSystem()
+	sys.mixer = NewMixer()
+	water := &SFX{Cache: &SoundCache{Length: 8, LoopStart: 0, Width: 1, Data: make([]byte, 8)}}
+	sys.SetAmbientSound(0, water)
+	sys.SetAmbientParams(0.1, 5)
+
+	sys.UpdateAmbientSounds(1, true, [NumAmbients]uint8{100, 0}, 0)
+
+	if got := sys.channels[0].MasterVol; got != 5 {
+		t.Fatalf("ambient master volume = %d, want fade-limited 5", got)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -304,6 +305,91 @@ func TestShouldBuildGoBinaryHonorsSkipEnv(t *testing.T) {
 	if shouldBuildGoBinary(projectDir, goBin) {
 		t.Fatal("shouldBuildGoBinary ignored PARITY_SKIP_GO_BUILD")
 	}
+}
+
+func TestGoCaptureArgsDefaultToWindowCapture(t *testing.T) {
+	t.Setenv("PARITY_GO_CAPTURE", "")
+	vp := viewpoint{Map: "start", Pos: [3]float64{1, 2, 3}, Angles: [3]float64{4, 5, 6}}
+
+	got := goCaptureArgs("/quake", 640, 480, vp, "/tmp/shot.png")
+
+	if slices.Contains(got, "-screenshot") {
+		t.Fatalf("window capture args included -screenshot: %v", got)
+	}
+	assertArgSequence(t, got, []string{"-basedir", "/quake", "-window", "-width", "640", "-height", "480"})
+	assertArgSequence(t, got, []string{"+map", "start", "+noclip", "+setpos", "1", "2", "3", "4", "5", "6"})
+}
+
+func TestGoCaptureArgsEngineCaptureUsesScreenshotFlag(t *testing.T) {
+	t.Setenv("PARITY_GO_CAPTURE", "engine")
+	vp := viewpoint{Map: "start"}
+
+	got := goCaptureArgs("/quake", 320, 200, vp, "/tmp/shot.png")
+
+	assertArgSequence(t, got, []string{"-screenshot", "/tmp/shot.png"})
+}
+
+func TestRunUsageDoesNotRequireViewpointsFile(t *testing.T) {
+	oldArgs := os.Args
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Args = oldArgs
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	os.Args = []string{filepath.Join(oldWd, "parity_screenshots"), "help"}
+
+	if got := run(); got != 2 {
+		t.Fatalf("run(help) = %d, want 2", got)
+	}
+}
+
+func TestRunGoRequiresQuakeBaseDirWhenConfigMissing(t *testing.T) {
+	oldArgs := os.Args
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Args = oldArgs
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+	t.Setenv("QUAKE_BASEDIR", "")
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmp, "testdata", "parity"), 0o755); err != nil {
+		t.Fatalf("mkdir parity data: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "testdata", "parity", "viewpoints.json"), []byte(`{"viewpoints":[]}`), 0o644); err != nil {
+		t.Fatalf("write viewpoints: %v", err)
+	}
+	os.Args = []string{filepath.Join(oldWd, "parity_screenshots"), "go"}
+
+	if got := run(); got != 1 {
+		t.Fatalf("run(go) = %d, want 1", got)
+	}
+}
+
+func assertArgSequence(t *testing.T, got, want []string) {
+	t.Helper()
+	for i := 0; i+len(want) <= len(got); i++ {
+		if slices.Equal(got[i:i+len(want)], want) {
+			return
+		}
+	}
+	t.Fatalf("args %v do not contain sequence %v", got, want)
 }
 
 func TestGenReferenceCfgClosesConsoleBeforeScreenshot(t *testing.T) {

@@ -68,7 +68,7 @@ var fullbrightTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let sampled = textureSample(skinTexture, skinSampler, input.texCoord);
-    if (sampled.a < 0.01) {
+    if (sampled.a < 0.666) {
         discard;
     }
     let fullbright = textureSample(fullbrightTexture, skinSampler, input.texCoord);
@@ -205,7 +205,7 @@ var unusedTexture: texture_2d<f32>;
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
      let sampled = textureSample(decalTexture, decalSampler, input.texCoord);
-     if (sampled.a < 0.01) {
+     if (sampled.a < 0.666) {
          discard;
      }
      let p = input.texCoord * 2.0 - vec2<f32>(1.0, 1.0);

@@ -50,17 +50,28 @@ func main() {
 	screenshotFlag := flag.String("screenshot", "", "Save screenshot to PNG file and exit")
 	widthFlag := flag.Int("width", startupVidWidth, "Initial window width")
 	heightFlag := flag.Int("height", startupVidHeight, "Initial window height")
+	windowFlag := flag.Bool("window", false, "Run in windowed mode")
 	logLevel := flag.String("loglvl", "INFO", "logging level spec (DEBUG or INFO,renderer=WARN,input=DEBUG)")
 	pprofAddr := flag.String("pprof", "", "pprof listener address (e.g., localhost:6060)")
 	if err := flag.CommandLine.Parse(startupOpts.Args); err != nil {
 		log.Fatal(err)
 	}
+	hasWidthFlag, hasHeightFlag := false, false
+	flag.CommandLine.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "width":
+			hasWidthFlag = true
+		case "height":
+			hasHeightFlag = true
+		}
+	})
 	if *widthFlag > 0 {
 		startupVidWidth = *widthFlag
 	}
 	if *heightFlag > 0 {
 		startupVidHeight = *heightFlag
 	}
+	game.SetStartupVideoOverrides(startupVidWidth, startupVidHeight, hasWidthFlag, hasHeightFlag, *windowFlag)
 
 	if err := installLogging(*logLevel); err != nil {
 		log.Fatal(err)

@@ -47,9 +47,15 @@ type Manager struct {
 	// palette is the Quake color palette for color translation.
 	palette []byte
 
+	// customConchars matches Ironwail's custom_conchars flag and is used by
+	// UI code to avoid mod-redefined glyphs whose meaning is not stable.
+	customConchars bool
+
 	// initialized indicates whether the manager has been initialized.
 	initialized bool
 }
+
+const standardConcharsHash = 0x9d6f0ea8
 
 // NewManager creates a new draw manager with an empty picture cache.
 //
@@ -109,6 +115,7 @@ func (m *Manager) Init(filesys *fs.FileSystem) error {
 		palData = paletteLump.Data
 	}
 	m.palette = palData[:768]
+	m.customConchars = detectCustomConchars(wad)
 
 	slog.Debug("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
 
@@ -155,6 +162,7 @@ func (m *Manager) InitFromDir(baseDir string) error {
 	}
 
 	m.palette = paletteLump.Data[:768]
+	m.customConchars = detectCustomConchars(wad)
 
 	slog.Debug("Draw manager initialized", "lumps", len(wad.Lumps), "palette_colors", 256)
 
@@ -332,7 +340,7 @@ func (m *Manager) loadFromDir(name string) *image.QPic {
 // grid of 8×8 pixel character glyphs. It covers ASCII and some extended characters
 // used by Quake's console, menus, and HUD. Each byte is a palette index; the
 // rendering code expands these to RGBA using the loaded palette, treating
-// palette index 0 as transparent so the font can overlay arbitrary backgrounds.
+// transparent conchars pixels as alpha so the font can overlay arbitrary backgrounds.
 //
 // This is kept separate from the normal Pic path because conchars is not a
 // QPic — it has no width/height header — and is handled specially by the
@@ -350,6 +358,14 @@ func (m *Manager) ConcharsData() []byte {
 	return lump.Data[:128*128]
 }
 
+// CustomConchars reports whether the active conchars font differs from the
+// canonical id1 glyph sheet. C Ironwail exposes this as custom_conchars.
+func (m *Manager) CustomConchars() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.customConchars
+}
+
 // Palette returns the Quake color palette.
 // The palette is 768 bytes (256 colors * 3 RGB components).
 //
@@ -362,6 +378,26 @@ func (m *Manager) Palette() []byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.palette
+}
+
+func detectCustomConchars(wad *image.Wad) bool {
+	if wad == nil {
+		return false
+	}
+	lump, ok := wad.Lumps["conchars"]
+	if !ok || len(lump.Data) < 128*128 {
+		return false
+	}
+	return fnv1a32(lump.Data[:128*128]) != standardConcharsHash
+}
+
+func fnv1a32(data []byte) uint32 {
+	hash := uint32(0x811c9dc5)
+	for _, b := range data {
+		hash ^= uint32(b)
+		hash *= 0x01000193
+	}
+	return hash
 }
 
 // Shutdown releases all cached resources and resets the manager to an

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gogpu/naga"
@@ -55,5 +56,14 @@ func TestShaderSPIRVValidation(t *testing.T) {
 				t.Logf("spirv-val PASSED (%d bytes)", len(spirvBytes))
 			}
 		})
+	}
+}
+
+func TestAliasAndDecalAlphaDiscardThresholdsMatchC(t *testing.T) {
+	if !strings.Contains(AliasFragmentShaderWGSL, "sampled.a < 0.666") {
+		t.Fatal("alias fragment shader alpha cutoff does not match C Ironwail")
+	}
+	if !strings.Contains(DecalFragmentShaderWGSL, "sampled.a < 0.666") {
+		t.Fatal("decal fragment shader alpha cutoff does not match C Ironwail")
 	}
 }

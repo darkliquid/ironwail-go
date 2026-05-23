@@ -85,6 +85,10 @@ func run() int {
 	if len(os.Args) > 1 {
 		mode = os.Args[1]
 	}
+	if mode != "reference" && mode != "ref" && mode != "go" && mode != "compare" && mode != "cmp" && mode != "both" && mode != "all" {
+		printUsage()
+		return 2
+	}
 
 	projectDir, err := os.Getwd()
 	if err != nil {
@@ -95,26 +99,29 @@ func run() int {
 	viewpointsPath := filepath.Join(projectDir, "testdata", "parity", "viewpoints.json")
 	cfg := loadViewpoints(viewpointsPath)
 	quakeBaseDir := envOr("QUAKE_BASEDIR", cfg.BaseDir)
-	if quakeBaseDir == "" {
-		quakeBaseDir = "/home/darkliquid/Games/Heroic/Quake"
-	}
 	ironwailBin := envOr("IRONWAIL_BIN", filepath.Join(quakeBaseDir, "ironwail"))
-	goBin := envOr("GO_BIN", filepath.Join(projectDir, "ironwailgo-wgpu"))
+	goBin := envOr("GO_BIN", filepath.Join(projectDir, "ironwailgo"))
 	parityWidth := parseIntEnv("PARITY_WIDTH", 1280)
 	parityHeight := parseIntEnv("PARITY_HEIGHT", 720)
 	refDir := filepath.Join(projectDir, "testdata", "parity", "reference")
 	goDir := filepath.Join(projectDir, "testdata", "parity", "go")
 	diffDir := filepath.Join(projectDir, "testdata", "parity", "diff")
 
-	checkDeps(viewpointsPath, quakeBaseDir)
-
 	switch mode {
 	case "reference", "ref":
+		if quakeBaseDir == "" {
+			return missingQuakeBaseDir()
+		}
+		checkQuakeData(quakeBaseDir)
 		if _, err := captureReference(quakeBaseDir, ironwailBin, refDir, cfg.Viewpoints, parityWidth, parityHeight); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			return 1
 		}
 	case "go":
+		if quakeBaseDir == "" {
+			return missingQuakeBaseDir()
+		}
+		checkQuakeData(quakeBaseDir)
 		if _, err := captureGo(projectDir, quakeBaseDir, goBin, goDir, cfg.Viewpoints, parityWidth, parityHeight); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			return 1
@@ -129,6 +136,10 @@ func run() int {
 			return 1
 		}
 	case "both", "all":
+		if quakeBaseDir == "" {
+			return missingQuakeBaseDir()
+		}
+		checkQuakeData(quakeBaseDir)
 		if _, err := captureReference(quakeBaseDir, ironwailBin, refDir, cfg.Viewpoints, parityWidth, parityHeight); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			return 1
@@ -147,11 +158,14 @@ func run() int {
 		if compareFailed(summary) {
 			return 1
 		}
-	default:
-		printUsage()
-		return 2
 	}
 	return 0
+}
+
+func missingQuakeBaseDir() int {
+	fmt.Fprintln(os.Stderr, "ERROR: QUAKE_BASEDIR is not set and testdata/parity/viewpoints.json has no base_dir")
+	fmt.Fprintln(os.Stderr, "Set QUAKE_BASEDIR=/path/to/quake before running reference, go, or both captures.")
+	return 1
 }
 
 func captureReference(quakeBaseDir, ironwailBin, refDir string, viewpoints []viewpoint, width, height int) (captureSummary, error) {
@@ -219,6 +233,7 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 	fmt.Println("=== Capturing Go port screenshots ===")
 	fmt.Println("Binary:", goBin)
 	fmt.Println("Output:", goDir)
+	fmt.Println("Capture method:", goCaptureMethod())
 	fmt.Println()
 
 	summary := captureSummary{Count: len(viewpoints)}
@@ -233,30 +248,24 @@ func captureGo(projectDir, quakeBaseDir, goBin, goDir string, viewpoints []viewp
 		if usedReferenceSize {
 			fmt.Printf("    matching reference image size %dx%d\n", captureWidth, captureHeight)
 		}
-		args := []string{
-			"-basedir", quakeBaseDir,
-			"-width", fmt.Sprintf("%d", captureWidth),
-			"-height", fmt.Sprintf("%d", captureHeight),
-			"-screenshot", filepath.Join(goDir, vp.ID+".png"),
-			"+scr_viewsize", "130",
-			"+r_drawviewmodel", "0",
-			"+crosshair", "0",
-			"+map", vp.Map,
-			"+noclip",
-			"+setpos",
-			fmtFloat(vp.Pos[0]), fmtFloat(vp.Pos[1]), fmtFloat(vp.Pos[2]),
-			fmtFloat(vp.Angles[0]), fmtFloat(vp.Angles[1]), fmtFloat(vp.Angles[2]),
-		}
+		outputPath := filepath.Join(goDir, vp.ID+".png")
+		args := goCaptureArgs(quakeBaseDir, captureWidth, captureHeight, vp, outputPath)
 		fmt.Printf("    exec: %s %s", goBin, strings.Join(args, " "))
-		if status := runWithTimeout(30*time.Second, captureEnv(false), goBin, args...); status != 0 {
+		status := 0
+		if goCaptureMethod() == "window" {
+			status = runGoWindowCapture(30*time.Second, goBin, args, outputPath)
+		} else {
+			status = runWithTimeout(30*time.Second, captureEnv(false), goBin, args...)
+		}
+		if status != 0 {
 			fmt.Printf("    WARNING: Go binary exited with error for %s\n", vp.ID)
 			summary.Failures++
 		}
-		if _, err := os.Stat(filepath.Join(goDir, vp.ID+".png")); err != nil {
+		if _, err := os.Stat(outputPath); err != nil {
 			summary.Failures++
-			return summary, fmt.Errorf("capture go %s: missing screenshot %s", vp.ID, filepath.Join(goDir, vp.ID+".png"))
+			return summary, fmt.Errorf("capture go %s: missing screenshot %s", vp.ID, outputPath)
 		}
-		if changed, fromWidth, fromHeight, err := normalizeImageSize(filepath.Join(goDir, vp.ID+".png"), captureWidth, captureHeight); err != nil {
+		if changed, fromWidth, fromHeight, err := normalizeImageSize(outputPath, captureWidth, captureHeight); err != nil {
 			summary.Failures++
 			return summary, fmt.Errorf("normalize go %s: %w", vp.ID, err)
 		} else if changed {
@@ -371,10 +380,7 @@ func loadViewpoints(path string) viewpointsFile {
 	return cfg
 }
 
-func checkDeps(viewpointsPath, quakeBaseDir string) {
-	if _, err := os.Stat(viewpointsPath); err != nil {
-		die("viewpoints file not found: %s", viewpointsPath)
-	}
+func checkQuakeData(quakeBaseDir string) {
 	if _, err := os.Stat(filepath.Join(quakeBaseDir, "id1")); err != nil {
 		die("Quake data not found at %s", filepath.Join(quakeBaseDir, "id1"))
 	}
@@ -983,6 +989,8 @@ func printUsage() {
 	fmt.Println("Environment:")
 	fmt.Println("  QUAKE_BASEDIR  Path to Quake data")
 	fmt.Println("  IRONWAIL_BIN   Path to C Ironwail binary")
-	fmt.Println("  GO_BIN         Path to Go binary (default: ./ironwailgo-wgpu)")
+	fmt.Println("  GO_BIN         Path to Go binary (default: ./ironwailgo)")
+	fmt.Println("  PARITY_GO_CAPTURE  Go capture method: window or engine (default: window)")
+	fmt.Println("  PARITY_GO_WINDOW_SETTLE_MS  Delay before window capture (default: 2500)")
 	fmt.Println("  PARITY_ONION_ALPHA  Blend weight for reference image in overlay output (default: 0.5)")
 }

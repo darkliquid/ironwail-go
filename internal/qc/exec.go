@@ -310,8 +310,9 @@ func (vm *VM) ExecuteProgram(fnum int) error {
 			}
 
 		case OPNotS:
-			s := vm.GString(int(st.A))
-			if len(s) == 0 {
+			// C tests the raw string offset before dereferencing:
+			// !OPA->string || !*PR_GetString(OPA->string).
+			if vm.GInt(int(st.A)) == 0 || len(vm.GString(int(st.A))) == 0 {
 				vm.SetGFloat(int(st.C), 1)
 			} else {
 				vm.SetGFloat(int(st.C), 0)

@@ -397,11 +397,14 @@ func (g *Game) drawRuntimeDemoControls(rc renderer.RenderContext, pics picProvid
 	alpha := g.currentSbarAlpha()
 	g.drawRuntimeTextBoxAlpha(rc, pics, x-8, y-8, timebarChars, 1, alpha)
 
-	status := ">"
+	status := string([]byte{13})
+	if g.Draw != nil && g.Draw.CustomConchars() {
+		status = ">"
+	}
 	if state.DemoSpeed == 0 {
 		status = "II"
 	} else if math.Abs(float64(state.DemoSpeed)) > 1 {
-		status = ">>"
+		status += status
 	}
 	if state.DemoSpeed < 0 {
 		status = strings.Repeat("<", len(status))

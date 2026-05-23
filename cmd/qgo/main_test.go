@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -105,13 +106,13 @@ func MainValue() float32 { return Able() + Zed() }
 	}
 
 	want := strings.Join([]string{
-		`[{"index":0,"file":"a_first.qgo","function":"Able"},{"index":1,"file":"a_first.qgo","function":"Alpha"},{"index":2,"file":"main.qgo","function":"MainValue"},{"index":3,"file":"z_last.qgo","function":"Zed"}]`,
+		fmt.Sprintf(`{"version":1,"dir":%q,"scope":"functions","order":[{"index":0,"file":"a_first.qgo","function":"Able"},{"index":1,"file":"a_first.qgo","function":"Alpha"},{"index":2,"file":"main.qgo","function":"MainValue"},{"index":3,"file":"z_last.qgo","function":"Zed"}]}`, dir),
 		"",
 	}, "\n")
 	if got := stdout.String(); got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
-	if strings.Contains(stdout.String(), dir) {
+	if strings.Contains(stdout.String(), `"file":"`+dir) {
 		t.Fatalf("stdout = %q, want normalized relative paths", stdout.String())
 	}
 }
@@ -146,13 +147,13 @@ func MainValue() float32 { return Able() + Zed() }
 	}
 
 	want := strings.Join([]string{
-		`[{"index":0,"file":"a_first.qgo"},{"index":1,"file":"main.qgo"},{"index":2,"file":"z_last.qgo"}]`,
+		fmt.Sprintf(`{"version":1,"dir":%q,"scope":"files","order":[{"index":0,"file":"a_first.qgo"},{"index":1,"file":"main.qgo"},{"index":2,"file":"z_last.qgo"}]}`, dir),
 		"",
 	}, "\n")
 	if got := stdout.String(); got != want {
 		t.Fatalf("stdout = %q, want %q", got, want)
 	}
-	if strings.Contains(stdout.String(), dir) {
+	if strings.Contains(stdout.String(), `"file":"`+dir) {
 		t.Fatalf("stdout = %q, want normalized relative paths", stdout.String())
 	}
 }

@@ -66,3 +66,14 @@ func TestSubPicEmpty(t *testing.T) {
 		t.Fatalf("expected 0x0 for out-of-bounds, got %dx%d", sub.Width, sub.Height)
 	}
 }
+
+func TestParseQPicRejectsTruncatedPixelData(t *testing.T) {
+	data := make([]byte, 8+10)
+	data[0] = 0
+	data[1] = 1 // width 256
+	data[4] = 0
+	data[5] = 1 // height 256
+	if _, err := ParseQPic(data); err == nil {
+		t.Fatal("ParseQPic succeeded for truncated 256x256 data")
+	}
+}

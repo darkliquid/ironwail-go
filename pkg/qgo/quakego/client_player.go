@@ -163,7 +163,7 @@ func CheckWaterJump() {
 	start = Self.Origin
 	start[2] = start[2] + 8
 	VForward[2] = 0
-	engine.Normalize(VForward)
+	VForward = engine.Normalize(VForward)
 	end = start.Add(VForward.Mul(24))
 	engine.Traceline(start, end, TRUE, Self)
 

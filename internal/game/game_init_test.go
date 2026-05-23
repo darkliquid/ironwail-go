@@ -73,6 +73,38 @@ func TestConfigureRegistrationModeRejectsModsWithoutRegisteredData(t *testing.T)
 	}
 }
 
+func TestStartupVideoOverridesWinOverArchivedConfig(t *testing.T) {
+	cv := cvar.NewCVarSystem()
+	cv.Register("vid_width", "1920", cvar.FlagArchive, "")
+	cv.Register("vid_height", "1080", cvar.FlagArchive, "")
+	cv.Register("vid_fullscreen", "1", cvar.FlagArchive, "")
+
+	oldWidth, oldHeight := startupVidWidthOverride, startupVidHeightOverride
+	oldHasWidth, oldHasHeight := startupVidWidthOverridden, startupVidHeightOverridden
+	oldWindowed, oldHasWindowed := startupVidWindowedOverride, startupVidWindowedOverridden
+	t.Cleanup(func() {
+		startupVidWidthOverride = oldWidth
+		startupVidHeightOverride = oldHeight
+		startupVidWidthOverridden = oldHasWidth
+		startupVidHeightOverridden = oldHasHeight
+		startupVidWindowedOverride = oldWindowed
+		startupVidWindowedOverridden = oldHasWindowed
+	})
+
+	SetStartupVideoOverrides(640, 360, true, true, true)
+	applyStartupVideoOverrides(cv)
+
+	if got := cv.IntValue("vid_width"); got != 640 {
+		t.Fatalf("vid_width = %d, want command-line override 640", got)
+	}
+	if got := cv.IntValue("vid_height"); got != 360 {
+		t.Fatalf("vid_height = %d, want command-line override 360", got)
+	}
+	if got := cv.BoolValue("vid_fullscreen"); got {
+		t.Fatal("vid_fullscreen = true, want false from -window override")
+	}
+}
+
 func TestShouldWarnAboutGoGPUX11Keyboard(t *testing.T) {
 	t.Parallel()
 

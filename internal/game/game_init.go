@@ -28,9 +28,26 @@ import (
 type globalConsoleAdapter struct{}
 
 var (
-	startupVidWidth  = 1280
-	startupVidHeight = 720
+	startupVidWidth              = 1280
+	startupVidHeight             = 720
+	startupVidWidthOverride      int
+	startupVidHeightOverride     int
+	startupVidWidthOverridden    bool
+	startupVidHeightOverridden   bool
+	startupVidWindowedOverride   bool
+	startupVidWindowedOverridden bool
 )
+
+// SetStartupVideoOverrides records command-line video mode overrides that must
+// win over archived config values before the renderer is created.
+func SetStartupVideoOverrides(width, height int, hasWidth, hasHeight, windowed bool) {
+	startupVidWidthOverride = width
+	startupVidHeightOverride = height
+	startupVidWidthOverridden = hasWidth
+	startupVidHeightOverridden = hasHeight
+	startupVidWindowedOverride = windowed
+	startupVidWindowedOverridden = windowed
+}
 
 func (globalConsoleAdapter) Init() error                { return nil }
 func (globalConsoleAdapter) Print(msg string)           { console.Printf("%s", msg) }
@@ -725,6 +742,7 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 		}); err != nil {
 			return fmt.Errorf("failed to load startup video cvars: %w", err)
 		}
+		applyStartupVideoOverrides(g.Host.CVar)
 		if err := g.initGameRenderer(); err != nil {
 			return err
 		}
@@ -872,4 +890,23 @@ func (g *Game) InitSubsystems(headless, dedicated bool, maxClients int, basedir,
 
 	slog.Info("All subsystems initialized")
 	return nil
+}
+
+func applyStartupVideoOverrides(cv *cvar.CVarSystem) {
+	if cv == nil {
+		return
+	}
+	if startupVidWidthOverridden && startupVidWidthOverride > 0 {
+		cv.Set("vid_width", strconv.Itoa(startupVidWidthOverride))
+	}
+	if startupVidHeightOverridden && startupVidHeightOverride > 0 {
+		cv.Set("vid_height", strconv.Itoa(startupVidHeightOverride))
+	}
+	if startupVidWindowedOverridden {
+		if startupVidWindowedOverride {
+			cv.Set("vid_fullscreen", "0")
+		} else {
+			cv.Set("vid_fullscreen", "1")
+		}
+	}
 }

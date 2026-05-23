@@ -37,6 +37,20 @@ func (s *System) UpdateFromCVars(cv *cvar.CVarSystem) {
 		vol = 1
 	}
 	s.SetVolume(vol)
+	if cv.Get("nosound") != nil {
+		s.SetNoSound(cv.FloatValue("nosound") != 0)
+	}
+	if cv.Get("ambient_level") != nil || cv.Get("ambient_fade") != nil {
+		level := float32(defaultAmbientVolumeScale)
+		if cv.Get("ambient_level") != nil {
+			level = float32(cv.FloatValue("ambient_level"))
+		}
+		fade := float32(defaultAmbientFadeRate)
+		if cv.Get("ambient_fade") != nil {
+			fade = float32(cv.FloatValue("ambient_fade"))
+		}
+		s.SetAmbientParams(level, fade)
+	}
 
 	quality := cv.IntValue("snd_filterquality")
 	if quality < 1 || quality > 5 {

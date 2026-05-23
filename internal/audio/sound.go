@@ -6,11 +6,13 @@ package audio
 import (
 	"fmt"
 	"strings"
+
+	"github.com/darkliquid/ironwail-go/internal/compatrand"
 )
 
 const (
-	ambientVolumeScale = 0.3
-	ambientFadeRate    = 100.0
+	defaultAmbientVolumeScale = 0.3
+	defaultAmbientFadeRate    = 100.0
 )
 
 type System struct {
@@ -19,6 +21,7 @@ type System struct {
 	initialized bool
 	started     bool
 	blocked     int
+	nosound     bool
 
 	dma        *DMAInfo
 	cache      *SFXCache
@@ -41,6 +44,9 @@ type System struct {
 
 	ambientSFX    [NumAmbients]*SFX
 	ambientLevels [NumAmbients]float32
+	ambientScale  float32
+	ambientFade   float32
+	ambientCustom bool
 }
 
 type queuedAudioResetter interface {
@@ -53,8 +59,10 @@ type mixerEffectsResetter interface {
 
 func NewSystem() *System {
 	return &System{
-		mixAhead:  0.1,
-		musicLoop: true,
+		mixAhead:     0.1,
+		musicLoop:    true,
+		ambientScale: defaultAmbientVolumeScale,
+		ambientFade:  defaultAmbientFadeRate,
 	}
 }
 
@@ -109,7 +117,7 @@ func (s *System) Startup() error {
 }
 
 func (s *System) PrecacheSound(name string, loader func() ([]byte, error)) *SFX {
-	if !s.initialized || s.cache == nil {
+	if !s.initialized || s.nosound || s.cache == nil {
 		return nil
 	}
 
@@ -132,11 +140,11 @@ func (s *System) PrecacheSound(name string, loader func() ([]byte, error)) *SFX 
 }
 
 func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
-	if !s.started || sfx == nil || sfx.Cache == nil {
+	if !s.started || s.nosound || sfx == nil || sfx.Cache == nil {
 		return
 	}
 
-	targetChan := s.pickChannel(entNum, entChannel)
+	targetChan, targetIndex := s.pickChannel(entNum, entChannel)
 	if targetChan == nil {
 		return
 	}
@@ -160,6 +168,7 @@ func (s *System) StartSound(entNum, entChannel int, sfx *SFX, origin, velocity [
 	}
 
 	targetChan.End = s.paintedTime + sfx.Cache.Length
+	s.offsetIdenticalSound(targetChan, targetIndex)
 }
 
 func (s *System) StopSound(entNum, entChannel int) {
@@ -173,7 +182,7 @@ func (s *System) StopSound(entNum, entChannel int) {
 }
 
 func (s *System) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, attenuation float32) {
-	if !s.started || sfx == nil || sfx.Cache == nil || sfx.Cache.LoopStart < 0 {
+	if !s.started || s.nosound || sfx == nil || sfx.Cache == nil || sfx.Cache.LoopStart < 0 {
 		return
 	}
 
@@ -202,7 +211,7 @@ func (s *System) StartStaticSound(sfx *SFX, origin, velocity [3]float32, vol, at
 		SFX:         sfx,
 		Origin:      origin,
 		Velocity:    velocity,
-		DistMult:    attenuation / SoundNominalClipDist,
+		DistMult:    (attenuation / 64) / SoundNominalClipDist,
 		MasterVol:   int(vol * 255),
 		End:         s.paintedTime + sfx.Cache.Length,
 		Pitch:       1.0,
@@ -310,6 +319,29 @@ func (s *System) ViewEntity() int {
 	return s.viewEntity
 }
 
+func (s *System) SetNoSound(nosound bool) {
+	s.nosound = nosound
+	if nosound {
+		s.StopAllSounds(true)
+	}
+}
+
+func (s *System) NoSound() bool {
+	return s != nil && s.nosound
+}
+
+func (s *System) SetAmbientParams(levelScale, fadeRate float32) {
+	if levelScale < 0 {
+		levelScale = 0
+	}
+	if fadeRate < 0 {
+		fadeRate = 0
+	}
+	s.ambientScale = levelScale
+	s.ambientFade = fadeRate
+	s.ambientCustom = true
+}
+
 func (s *System) Update(origin, velocity, forward, right, up [3]float32) {
 	if !s.started || s.blocked > 0 {
 		return
@@ -405,7 +437,7 @@ func (s *System) Volume() float64 {
 	return 0
 }
 
-func (s *System) pickChannel(entNum, entChannel int) *Channel {
+func (s *System) pickChannel(entNum, entChannel int) (*Channel, int) {
 	firstToDie := -1
 	lifeLeft := 0x7fffffff
 
@@ -416,6 +448,10 @@ func (s *System) pickChannel(entNum, entChannel int) *Channel {
 			break
 		}
 
+		if s.channels[i].EntNum == s.viewEntity && entNum != s.viewEntity && s.channels[i].SFX != nil {
+			continue
+		}
+
 		if s.channels[i].End-s.paintedTime < lifeLeft {
 			lifeLeft = s.channels[i].End - s.paintedTime
 			firstToDie = i
@@ -423,10 +459,45 @@ func (s *System) pickChannel(entNum, entChannel int) *Channel {
 	}
 
 	if firstToDie == -1 {
-		return nil
+		return nil, -1
 	}
 
-	return &s.channels[firstToDie]
+	return &s.channels[firstToDie], firstToDie
+}
+
+func (s *System) offsetIdenticalSound(target *Channel, targetIndex int) {
+	if target == nil || target.SFX == nil || target.SFX.Cache == nil {
+		return
+	}
+	for i := NumAmbients; i < NumAmbients+MaxDynamicChannels; i++ {
+		ch := &s.channels[i]
+		if i == targetIndex || ch.SFX != target.SFX || ch.Pos != 0 {
+			continue
+		}
+		skipLimit := s.dmaSpeed() / 10
+		if skipLimit > target.SFX.Cache.Length {
+			skipLimit = target.SFX.Cache.Length
+		}
+		if skipLimit > 0 {
+			skip := int(compatrand.Int() % int32(skipLimit))
+			if skip < 0 {
+				skip = -skip
+			}
+			target.Pos += skip
+			target.End -= skip
+		}
+		return
+	}
+}
+
+func (s *System) dmaSpeed() int {
+	if s.dma != nil && s.dma.Speed > 0 {
+		return s.dma.Speed
+	}
+	if s.cache != nil && s.cache.dmaSpeed > 0 {
+		return s.cache.dmaSpeed
+	}
+	return 0
 }
 
 func (s *System) updateSoundTime() {
@@ -583,7 +654,11 @@ func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLev
 		return
 	}
 
-	fadeStep := frameTime * ambientFadeRate
+	fadeRate := s.ambientFade
+	if fadeRate == 0 && !s.ambientCustom {
+		fadeRate = defaultAmbientFadeRate
+	}
+	fadeStep := frameTime * fadeRate
 	if fadeStep < 0 {
 		fadeStep = 0
 	}
@@ -597,7 +672,11 @@ func (s *System) UpdateAmbientSounds(frameTime float32, hasLeaf bool, ambientLev
 			ch.End = s.paintedTime
 		}
 
-		target := float32(ambientLevels[i]) * ambientVolumeScale
+		scale := s.ambientScale
+		if scale == 0 && !s.ambientCustom {
+			scale = defaultAmbientVolumeScale
+		}
+		target := float32(ambientLevels[i]) * scale
 		if target < 8 {
 			target = 0
 		} else if target > 255 {

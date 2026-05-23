@@ -287,6 +287,67 @@ func TestLoadBSP2FileLumpStrides(t *testing.T) {
 	})
 }
 
+func TestLoadFileRejectsMisalignedLumps(t *testing.T) {
+	tests := []struct {
+		name string
+		lump int
+		bsp2 bool
+		data []byte
+		load func(*File, *Reader) error
+	}{
+		{name: "planes", lump: LumpPlanes, data: make([]byte, dPlaneSize+1), load: (*File).loadPlanes},
+		{name: "vertexes", lump: LumpVertexes, data: make([]byte, dVertexSize+1), load: (*File).loadVertexes},
+		{name: "texinfo", lump: LumpTexinfo, data: make([]byte, 41), load: (*File).loadTexinfo},
+		{name: "faces standard", lump: LumpFaces, data: make([]byte, dsFaceSize+1), load: (*File).loadFaces},
+		{name: "faces bsp2", lump: LumpFaces, bsp2: true, data: make([]byte, dlFaceSize+1), load: (*File).loadFaces},
+		{name: "clipnodes standard", lump: LumpClipnodes, data: make([]byte, 9), load: (*File).loadClipnodes},
+		{name: "clipnodes bsp2", lump: LumpClipnodes, bsp2: true, data: make([]byte, 13), load: (*File).loadClipnodes},
+		{name: "leafs standard", lump: LumpLeafs, data: make([]byte, dsLeafSize+1), load: (*File).loadLeafs},
+		{name: "marksurfaces standard", lump: LumpMarksurfaces, data: make([]byte, uint16Size+1), load: (*File).loadMarkSurfaces},
+		{name: "marksurfaces bsp2", lump: LumpMarksurfaces, bsp2: true, data: make([]byte, uint32Size+1), load: (*File).loadMarkSurfaces},
+		{name: "edges standard", lump: LumpEdges, data: make([]byte, dsEdgeSize+1), load: (*File).loadEdges},
+		{name: "edges bsp2", lump: LumpEdges, bsp2: true, data: make([]byte, dlEdgeSize+1), load: (*File).loadEdges},
+		{name: "surfedges", lump: LumpSurfedges, data: make([]byte, int32Size+1), load: (*File).loadSurfedges},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &File{IsBSP2: tc.bsp2}
+			if tc.bsp2 {
+				f.Version = BSP2Version_BSP2
+			}
+			f.Header.Lumps[tc.lump] = Lump{FileLength: int32(len(tc.data))}
+			if err := tc.load(f, NewReader(bytes.NewReader(tc.data))); err == nil {
+				t.Fatal("load succeeded, want funny lump size error")
+			}
+		})
+	}
+}
+
+func TestLoadStandardClipnodesSupportsUnsignedHighNodeIndexes(t *testing.T) {
+	const clipnodeCount = 40000
+	data := make([]byte, 8*clipnodeCount)
+	putI32(data, 0, 0)
+	binary.LittleEndian.PutUint16(data[4:], 32768)
+	binary.LittleEndian.PutUint16(data[6:], 40000)
+
+	f := &File{}
+	f.Header.Lumps[LumpClipnodes] = Lump{FileLength: int32(len(data))}
+	if err := f.loadClipnodes(NewReader(bytes.NewReader(data))); err != nil {
+		t.Fatalf("loadClipnodes: %v", err)
+	}
+	clipnodes, ok := f.Clipnodes.([]DSClipNode)
+	if !ok {
+		t.Fatalf("clipnodes type = %T, want []DSClipNode", f.Clipnodes)
+	}
+	if got := clipnodes[0].Children[0]; got != 32768 {
+		t.Fatalf("high node child = %d, want 32768", got)
+	}
+	if got := clipnodes[0].Children[1]; got != -25536 {
+		t.Fatalf("content child = %d, want -25536", got)
+	}
+}
+
 // TestLoadTree2PSBNodeStride guards the 2PSB variant, which keeps short
 // bounds but still uses 32-bit child and face fields. Its node stride is 32
 // bytes in the C BSP format.

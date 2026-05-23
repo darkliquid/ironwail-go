@@ -9,6 +9,8 @@ package server
 import (
 	"encoding/binary"
 	"math"
+
+	qtypes "github.com/darkliquid/ironwail-go/pkg/types"
 )
 
 // MessageBuffer provides methods for reading and writing network messages.
@@ -150,14 +152,14 @@ func (m *MessageBuffer) WriteCoord(c float32, flags uint32) {
 	if flags&uint32(ProtocolFlagFloatCoord) != 0 {
 		m.WriteFloat(c)
 	} else if flags&uint32(ProtocolFlagInt32Coord) != 0 {
-		m.WriteLong(int32(math.Round(float64(c) * 16)))
+		m.WriteLong(int32(qtypes.QRint(c * 16)))
 	} else if flags&uint32(ProtocolFlag24BitCoord) != 0 {
 		m.WriteShort(int16(c))
 		m.PutByte(byte(int(c*255) % 255))
 	} else {
 		// Default: 16-bit fixed-point (2 bytes). This is the standard for
 		// FitzQuake protocol 666 where protocolflags == 0.
-		m.WriteShort(int16(math.Round(float64(c) * 8)))
+		m.WriteShort(int16(qtypes.QRint(c * 8)))
 	}
 }
 
@@ -170,9 +172,9 @@ func (m *MessageBuffer) WriteAngle(a float32, flags uint32) {
 	if flags&uint32(ProtocolFlagFloatAngle) != 0 {
 		m.WriteFloat(a)
 	} else if flags&uint32(ProtocolFlagShortAngle) != 0 {
-		m.WriteShort(int16(int(math.Round(float64(a)*65536.0/360.0)) & 65535))
+		m.WriteShort(int16(qtypes.QRint(a*65536.0/360.0) & 65535))
 	} else {
-		m.PutByte(byte(int(math.Round(float64(a)*256.0/360.0)) & 255))
+		m.PutByte(byte(qtypes.QRint(a*256.0/360.0) & 255))
 	}
 }
 
@@ -304,5 +306,5 @@ func (m *MessageBuffer) ReadAngle(flags uint32) float32 {
 	} else if flags&uint32(ProtocolFlagShortAngle) != 0 {
 		return float32(m.ReadShort()) * (360.0 / 65536.0)
 	}
-	return float32(m.Byte()) * (360.0 / 256.0)
+	return float32(int8(m.Byte())) * (360.0 / 256.0)
 }

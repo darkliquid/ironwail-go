@@ -103,6 +103,40 @@ func TestExecuteProgramDivByZeroBehaviorMatrixMatchesC(t *testing.T) {
 	}
 }
 
+func TestExecuteProgramOPNotSMatchesCStringPointerSemantics(t *testing.T) {
+	vm := NewVM()
+	vm.Globals = make([]float32, 64)
+	vm.Strings = []byte("nonempty-at-zero\x00")
+
+	const (
+		mainFuncNum = 0
+		stringOfs   = 10
+		resultOfs   = 11
+	)
+
+	vm.Functions = []DFunction{{FirstStatement: 0}}
+	vm.Statements = []DStatement{
+		{Op: uint16(OPNotS), A: uint16(stringOfs), C: uint16(resultOfs)},
+		{Op: uint16(OPDone), A: uint16(resultOfs)},
+	}
+
+	vm.SetGInt(stringOfs, 0)
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram null string: %v", err)
+	}
+	if got := vm.GFloat(resultOfs); got != 1 {
+		t.Fatalf("OP_NOT_S null string = %g, want 1", got)
+	}
+
+	vm.SetGString(stringOfs, "value")
+	if err := vm.ExecuteProgram(mainFuncNum); err != nil {
+		t.Fatalf("ExecuteProgram non-empty string: %v", err)
+	}
+	if got := vm.GFloat(resultOfs); got != 0 {
+		t.Fatalf("OP_NOT_S non-empty string = %g, want 0", got)
+	}
+}
+
 func TestExecuteProgramOPAddressAllowsWorldEntityFieldStores(t *testing.T) {
 	vm := NewVM()
 	vm.Globals = make([]float32, 128)

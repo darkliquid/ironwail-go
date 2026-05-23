@@ -353,6 +353,9 @@ func (cb gameCallbacks) UpdateAudio(origin, forward, right, up [3]float32) {
 	if g.Audio == nil {
 		return
 	}
+	if g.Host != nil {
+		g.Audio.UpdateFromCVars(g.Host.CVar)
+	}
 	g.syncAudioViewEntity()
 	g.Audio.SetListener(origin, [3]float32{}, forward, right, up)
 }

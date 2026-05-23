@@ -91,7 +91,7 @@ func runSourceOrder(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
-	payload, err := formatSourceOrder(order, *format, *scope)
+	payload, err := formatSourceOrder(order, *format, *scope, dir)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "qgo: %v\n", err)
 		return 1
@@ -110,12 +110,12 @@ func runSourceOrder(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func formatSourceOrder(order []compiler.SourceOrderEntry, format, scope string) ([]byte, error) {
+func formatSourceOrder(order []compiler.SourceOrderEntry, format, scope, dir string) ([]byte, error) {
 	switch format {
 	case "text":
 		return formatTextSourceOrder(order, scope), nil
 	case "json":
-		return formatJSONSourceOrder(order, scope)
+		return formatJSONSourceOrder(order, scope, dir)
 	default:
 		return nil, fmt.Errorf("unsupported source-order format %q", format)
 	}
@@ -163,7 +163,14 @@ type sourceOrderFileJSONRow struct {
 	File  string `json:"file"`
 }
 
-func formatJSONSourceOrder(order []compiler.SourceOrderEntry, scope string) ([]byte, error) {
+type sourceOrderJSON struct {
+	Version int    `json:"version"`
+	Dir     string `json:"dir"`
+	Scope   string `json:"scope"`
+	Order   any    `json:"order"`
+}
+
+func formatJSONSourceOrder(order []compiler.SourceOrderEntry, scope, dir string) ([]byte, error) {
 	switch scope {
 	case "functions":
 		rows := make([]sourceOrderFunctionJSONRow, 0, len(order))
@@ -174,7 +181,7 @@ func formatJSONSourceOrder(order []compiler.SourceOrderEntry, scope string) ([]b
 				Function: entry.Function,
 			})
 		}
-		return marshalJSONWithTrailingNewline(rows)
+		return marshalJSONWithTrailingNewline(sourceOrderJSON{Version: 1, Dir: dir, Scope: scope, Order: rows})
 	case "files":
 		rows := make([]sourceOrderFileJSONRow, 0)
 		seen := make(map[string]struct{}, len(order))
@@ -188,7 +195,7 @@ func formatJSONSourceOrder(order []compiler.SourceOrderEntry, scope string) ([]b
 				File:  entry.File,
 			})
 		}
-		return marshalJSONWithTrailingNewline(rows)
+		return marshalJSONWithTrailingNewline(sourceOrderJSON{Version: 1, Dir: dir, Scope: scope, Order: rows})
 	default:
 		return nil, fmt.Errorf("unsupported source-order scope %q", scope)
 	}

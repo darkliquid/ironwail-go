@@ -16,9 +16,9 @@ through the GoGPU renderer. CSQC runtime integration remains deferred: the repo
 has CSQC wrapper infrastructure, but host/client runtime wiring for a full CSQC
 gameplay path is outside the current parity milestone.
 
-The current parity focus is documentation-only for `qbj3_stickflip`: record the
-evidence workflow and known investigation targets without committing map assets,
-generated screenshots, or harness data.
+The current parity focus is `qbj3_stickflip`: record the evidence workflow and
+known investigation targets without committing map assets, generated screenshots,
+or harness data.
 
 ## Current qbj3_stickflip status
 
@@ -84,15 +84,15 @@ Verified findings from the latest local sweep:
 
 Blocked or incomplete evidence:
 
-- The documented screenshot harness cannot run because
-  `testdata/parity/viewpoints.json` is absent.
-- The GoGPU runtime `-screenshot` path currently writes a deterministic
-  placeholder clear-color PNG, so `mise run parity-go` cannot produce valid
-  rendered evidence until swapchain readback or an equivalent capture path is
-  implemented.
-- The matched qbj3 spawn captures came from external window capture, not from the
-  automated harness, and they do not cover reported decal/z-fighting or trigger
-  failure locations yet.
+- The committed `testdata/parity/viewpoints.json` is intentionally a tiny id1
+  smoke seed. Add local qbj3-specific viewpoints from C `viewpos` output before
+  treating harness results as qbj3 sign-off.
+- The GoGPU runtime `-screenshot` path is still not the canonical visual capture
+  path. The parity harness defaults to `PARITY_GO_CAPTURE=window`, which captures
+  the rendered X11 window via `xdotool` and ImageMagick `import`; use
+  `PARITY_GO_CAPTURE=engine` only when testing the in-engine screenshot fallback.
+- The matched qbj3 spawn captures came from external window capture, and they do
+  not cover reported decal/z-fighting or trigger failure locations yet.
 - The debug GoGPU screenshot attempt timed out before writing an image, although
   it did emit useful renderer upload and first-frame stats.
 
@@ -108,6 +108,7 @@ Use environment variables instead of hard-coded local paths:
 ```bash
 export QUAKE_BASEDIR=/path/to/quake
 export IRONWAIL_BIN=/path/to/c/ironwail
+export PARITY_GO_CAPTURE=window
 ```
 
 Recommended C reference launch:
@@ -121,6 +122,16 @@ Recommended Go launch after building:
 ```bash
 TMPDIR=/home/darkliquid/Projects/ironwail-go/.tmp mise run build
 ./ironwailgo -basedir "${QUAKE_BASEDIR}" +map qbj3_stickflip
+```
+
+For automated visual captures, use the mise parity tasks from the repository
+root. The Go capture path currently uses the visible X11 window, so the local
+machine needs `DISPLAY`, `xdotool`, and ImageMagick `import` available:
+
+```bash
+mise run parity-ref
+mise run parity-go
+mise run parity-compare
 ```
 
 For each issue, capture:
