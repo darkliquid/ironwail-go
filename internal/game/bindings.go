@@ -45,3 +45,10 @@ var essentialFallbackBindings = []KeyBinding{
 	{Key: input.KEscape, Command: "togglemenu"},
 	{Key: int('`'), Command: "toggleconsole"},
 }
+
+var startupRequiredGameplayCommands = []string{
+	"+forward",
+	"+back",
+	"+moveleft",
+	"+moveright",
+}

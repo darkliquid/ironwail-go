@@ -436,24 +436,28 @@ func (dc *DrawContext) renderWorldInternal(state *RenderFrameState) {
 		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
 		drawnIndices += batch.numIndices
 	}
-	for _, batch := range alphaTestBatches {
-		if !writeWorldUniform(1, batch.key.litWater) {
-			slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
-			_ = renderPass.End()
-			return
+	if dc.renderer.worldAlphaTestPipeline != nil {
+		renderPass.SetPipeline(dc.renderer.worldAlphaTestPipeline)
+		materialBindState.invalidate()
+		for _, batch := range alphaTestBatches {
+			if !writeWorldUniform(1, batch.key.litWater) {
+				slog.Error("renderWorldInternal: Failed to update alpha-test world dynamic-light uniform")
+				_ = renderPass.End()
+				return
+			}
+			setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
+			if setTexture {
+				renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
+			}
+			if setLightmap {
+				renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
+			}
+			if setFullbright {
+				renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
+			}
+			renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
+			alphaTestDrawnIndices += batch.numIndices
 		}
-		setTexture, setLightmap, setFullbright := materialBindState.update(batch.key.textureBindGroup, batch.key.lightmapBindGroup, batch.key.fullbrightBindGroup)
-		if setTexture {
-			renderPass.SetBindGroup(1, batch.key.textureBindGroup, nil)
-		}
-		if setLightmap {
-			renderPass.SetBindGroup(2, batch.key.lightmapBindGroup, nil)
-		}
-		if setFullbright {
-			renderPass.SetBindGroup(3, batch.key.fullbrightBindGroup, nil)
-		}
-		renderPass.DrawIndexed(batch.numIndices, 1, batch.firstIndex, 0, 0)
-		alphaTestDrawnIndices += batch.numIndices
 	}
 	if dc.renderer.worldTurbulentPipeline != nil {
 		renderPass.SetPipeline(dc.renderer.worldTurbulentPipeline)

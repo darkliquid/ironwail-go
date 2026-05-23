@@ -403,10 +403,27 @@ func (g *Game) ensureEssentialFallbackBindings() {
 	}
 }
 
+func (g *Game) ensureRequiredGameplayBindings() {
+	if g.Input == nil {
+		return
+	}
+	for _, command := range startupRequiredGameplayCommands {
+		if g.hasBindingForCommand(command) {
+			continue
+		}
+		for _, binding := range gameplayDefaultBindings {
+			if binding.Command == command {
+				g.Input.SetBinding(binding.Key, binding.Command)
+			}
+		}
+	}
+}
+
 func (g *Game) ensureGameplayBindings() {
 	if !g.hasAnyGameplayBindings() {
 		g.applyDefaultGameplayBindings()
 	}
+	g.ensureRequiredGameplayBindings()
 	g.ensureEssentialFallbackBindings()
 }
 

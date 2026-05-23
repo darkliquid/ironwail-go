@@ -130,6 +130,57 @@ func TestGoGPUX11KeyboardHint(t *testing.T) {
 	}
 }
 
+func TestEnsureGameplayBindingsRestoresMissingMovementBindings(t *testing.T) {
+	g := New()
+	g.Input = input.NewSystem(nil)
+	g.Input.SetBinding(input.KEscape, "togglemenu")
+
+	g.ensureGameplayBindings()
+
+	for key, want := range map[int]string{
+		int('w'): "+forward",
+		int('s'): "+back",
+		int('a'): "+moveleft",
+		int('d'): "+moveright",
+	} {
+		if got := g.Input.Binding(key); got != want {
+			t.Fatalf("binding %q = %q, want %q", input.KeyToString(key), got, want)
+		}
+	}
+}
+
+func TestEnsureGameplayBindingsKeepsCustomMovementBindings(t *testing.T) {
+	g := New()
+	g.Input = input.NewSystem(nil)
+	g.Input.SetBinding(int('i'), "+forward")
+	g.Input.SetBinding(int('k'), "+back")
+	g.Input.SetBinding(int('j'), "+moveleft")
+	g.Input.SetBinding(int('l'), "+moveright")
+
+	g.ensureGameplayBindings()
+
+	for key, command := range map[int]string{
+		int('w'): "+forward",
+		int('s'): "+back",
+		int('a'): "+moveleft",
+		int('d'): "+moveright",
+	} {
+		if got := g.Input.Binding(key); got == command {
+			t.Fatalf("default binding %q was restored despite custom %q binding", input.KeyToString(key), command)
+		}
+	}
+	for key, want := range map[int]string{
+		int('i'): "+forward",
+		int('k'): "+back",
+		int('j'): "+moveleft",
+		int('l'): "+moveright",
+	} {
+		if got := g.Input.Binding(key); got != want {
+			t.Fatalf("custom binding %q = %q, want %q", input.KeyToString(key), got, want)
+		}
+	}
+}
+
 func TestCurrentZoomSpeedUsesCanonicalZoomSpeedCVar(t *testing.T) {
 	g := New()
 	if g.Host.CVar.Get("zoom_speed") == nil {

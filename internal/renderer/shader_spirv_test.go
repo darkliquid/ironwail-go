@@ -88,3 +88,17 @@ func TestWorldFragmentShaderAlphaDiscardModesMatchC(t *testing.T) {
 		t.Fatalf("alpha-test world shader discard threshold does not match C Ironwail")
 	}
 }
+
+func TestGoGPUWorldRenderBindsAlphaTestPipelineForAlphaTestBatches(t *testing.T) {
+	// Fence/cutout textures rely on the alpha-test fragment shader. If they are
+	// drawn with the opaque shader, palette index 255 becomes black geometry
+	// instead of discarded transparent pixels.
+	source, err := os.ReadFile("world_render_gogpu.go")
+	if err != nil {
+		t.Fatalf("ReadFile(world_render_gogpu.go): %v", err)
+	}
+	want := "renderPass.SetPipeline(dc.renderer.worldAlphaTestPipeline)\n\t\tmaterialBindState.invalidate()\n\t\tfor _, batch := range alphaTestBatches"
+	if !strings.Contains(string(source), want) {
+		t.Fatalf("alpha-test batches are not rendered immediately after binding the alpha-test pipeline")
+	}
+}
